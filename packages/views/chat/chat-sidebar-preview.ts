@@ -58,6 +58,10 @@ export function formatChatSidebarPreviewText(
     voiceMessageLabel?: string;
     missedCallLabel?: string;
     fileMessageLabel?: string;
+    /** UNI-1966: the room's last message is a document card. */
+    documentMessageLabel?: string;
+    /** UNI-1966: "{{name}} đã tải lên phiên bản {{version}}" for the version line. */
+    formatDocumentVersionLine?: (name: string, version: string) => string;
     nicknamesByUserId?: Readonly<Record<string, string>>;
     mediaLabels?: ChatMediaLabels;
   },
@@ -67,6 +71,25 @@ export function formatChatSidebarPreviewText(
     return isMissedCallPreview(preview, options.currentUserId) && options.missedCallLabel
       ? options.missedCallLabel
       : options.voiceCallLabel;
+  }
+  if (preview.kind === "document") {
+    // The card's title comes over the wire in the body (contract §5).
+    const name = preview.body.trim();
+    return name || options.documentMessageLabel || null;
+  }
+  if (preview.kind === "document_version") {
+    const isSelf =
+      preview.senderId.trim().toUpperCase() === options.currentUserId.trim().toUpperCase();
+    const selfNickname = resolveChatNicknameForUser(options.nicknamesByUserId, options.currentUserId);
+    const peerNickname = resolveChatNicknameForUser(options.nicknamesByUserId, preview.senderId);
+    const peerName = preview.senderName.trim();
+    const name = isSelf
+      ? selfNickname || options.youLabel
+      : peerNickname ||
+        (peerName && !isPlaceholderChatDisplayName(peerName, preview.senderId) ? peerName : "");
+    const version = preview.body.trim();
+    if (name && version) return options.formatDocumentVersionLine?.(name, version) ?? null;
+    return null;
   }
   let body: string | null;
   if (preview.kind === "voice") {

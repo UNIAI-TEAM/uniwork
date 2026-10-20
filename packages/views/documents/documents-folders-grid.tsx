@@ -5,6 +5,7 @@ import { useId } from "react";
 import { useTranslation } from "react-i18next";
 import { isMyFolder, isShelved, type DocumentTreeNode } from "@uniwork/core/types/document";
 import { Button } from "@uniwork/ui/components/ui/button";
+import { cn } from "@uniwork/ui/lib/utils";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -62,11 +63,16 @@ export function DocumentsFoldersGrid({ folders, docById, handlers, onOpenFolder 
         const menuItems = doc ? folderMenuItems(doc, handlers, t) : [];
         const canMenu = menuItems.length > 0 || Boolean(doc && handlers.onToggleStar);
         return (
-          <li key={node.id} className="flex items-stretch gap-1">
+          // The ⋯ trigger sits inside the card's right edge (a sibling over the
+          // card, never nested in its button); the card reserves room for it.
+          <li key={node.id} className="relative flex items-stretch">
             <button
               type="button"
               onClick={() => onOpenFolder(node.id)}
-              className="flex min-w-0 flex-1 items-center gap-3 rounded-lg border border-border bg-card px-4 py-3.5 text-left transition-colors hover:bg-accent/40"
+              className={cn(
+                "flex min-w-0 flex-1 items-center gap-3 rounded-lg border border-border bg-card py-3.5 pl-4 text-left transition-colors hover:bg-accent/40",
+                canMenu ? "pr-12" : "pr-4",
+              )}
             >
               <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-warning-soft text-warning-soft-foreground">
                 <Folder aria-hidden className="size-5" />
@@ -91,7 +97,7 @@ export function DocumentsFoldersGrid({ folders, docById, handlers, onOpenFolder 
                       size="icon-sm"
                       aria-label={t("documents.home.row.menu", { title: cardTitle })}
                       title={t("documents.home.row.menu", { title: cardTitle })}
-                      className="my-auto shrink-0"
+                      className="absolute top-1/2 right-2 -translate-y-1/2"
                     />
                   }
                 >

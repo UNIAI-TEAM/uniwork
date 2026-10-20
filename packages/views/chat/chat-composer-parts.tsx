@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type RefObject } from "react";
-import { Ban, Bell, CircleAlert, Eye, FileText, Lock, MicOff, Pause, Pencil, Play, Send, Square, Upload, X } from "lucide-react";
+import { Ban, Bell, CircleAlert, CircleX, Eye, FileText, Lock, MicOff, Pause, Pencil, Play, Send, Square, Upload, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { ComposerMessagePriority } from "@uniwork/core/chat/composer-priority";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -11,7 +11,12 @@ import { cn } from "@uniwork/ui/lib/utils";
 import { CHAT_FILE_MAX_LABEL, isChatImageFile } from "./chat-file-accept";
 import { formatChatFileSize } from "./chat-file-size";
 import { CHAT_ON_BUBBLE_FILL, CHAT_ON_BUBBLE_LINE } from "./chat-message-row";
-import { COMPOSER_QUOTE_BAR_CLASS } from "./chat-reply-quote";
+import {
+  COMPOSER_QUOTE_BAR_CLASS,
+  COMPOSER_QUOTE_BODY_CLASS,
+  COMPOSER_QUOTE_CLOSE_CLASS,
+  COMPOSER_QUOTE_MARK_CLASS,
+} from "./chat-reply-quote";
 import type { ChatVoiceRecorderError, ChatVoiceRecording, ChatVoiceRecorderState } from "./use-chat-voice-recorder";
 import { formatVoiceCallDuration } from "./voice-call-duration";
 
@@ -215,10 +220,12 @@ export function ComposerEditBar({ preview, onCancel }: { preview: string; onCanc
   return (
     // A container: the hint shows by the field's own width, so the 400px thread panel on a wide screen drops it too.
     <div className={cn("@container", COMPOSER_QUOTE_BAR_CLASS)}>
-      <Pencil className="size-4.5 shrink-0 text-brand" aria-hidden />
-      <span className="flex min-w-0 flex-1 flex-col py-0.5">
+      <span className={COMPOSER_QUOTE_MARK_CLASS}>
+        <Pencil aria-hidden />
+      </span>
+      <span className={cn(COMPOSER_QUOTE_BODY_CLASS, "flex-col items-stretch")}>
         <span className="truncate text-label font-semibold text-brand">{t("chat.editing_message")}</span>
-        <span className="truncate text-label text-muted-foreground">{preview}</span>
+        <span className="truncate text-label text-foreground">{preview}</span>
       </span>
       <span className="hidden shrink-0 items-center gap-1.5 text-caption text-muted-foreground @lg:inline-flex">
         <kbd className="rounded-md border border-border bg-surface px-1.5 text-micro font-semibold text-foreground">
@@ -230,12 +237,12 @@ export function ComposerEditBar({ preview, onCancel }: { preview: string; onCanc
         type="button"
         variant="ghost"
         size="icon"
-        className="size-10 shrink-0 rounded-xl text-muted-foreground hover:text-foreground"
+        className={COMPOSER_QUOTE_CLOSE_CLASS}
         aria-label={t("chat.editing_cancel")}
         title={t("chat.editing_cancel")}
         onClick={onCancel}
       >
-        <X className="size-4.5" aria-hidden />
+        <CircleX aria-hidden />
       </Button>
     </div>
   );

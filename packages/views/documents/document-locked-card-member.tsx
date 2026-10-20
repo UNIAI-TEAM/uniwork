@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { LockKeyhole, RefreshCw } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import {
@@ -32,6 +32,12 @@ export interface MemberLockedCardProps {
   onRetryOpen: () => void;
   /** The refetch is running. */
   retrying?: boolean;
+  /**
+   * When the host's last answer for the document arrived (the detail query's
+   * `errorUpdatedAt`). The card stays mounted through the error-only refetch a
+   * decision triggers, so a new answer is its cue to re-read the sent flag.
+   */
+  answeredAt?: number;
   /** "Back": the host's way out (the library). */
   onBack: () => void;
   className?: string;
@@ -61,6 +67,7 @@ export function MemberLockedCard({
   source,
   onRetryOpen,
   retrying = false,
+  answeredAt,
   onBack,
   className,
 }: MemberLockedCardProps) {
@@ -91,6 +98,21 @@ export function MemberLockedCard({
     }, 1000);
     return () => clearInterval(timer);
   }, [state, cooldownUntil]);
+
+  // F-08: a decision on the request clears the device flag and refreshes the
+  // document. The card is still mounted when that refetch answers 404 again, so
+  // a "sent"/"pending" note whose flag is gone is stale: show the form again
+  // and let the server say whether a new request is allowed (cooldown or not).
+  const seenAnswer = useRef(answeredAt);
+  useEffect(() => {
+    if (answeredAt === seenAnswer.current) return;
+    seenAnswer.current = answeredAt;
+    // The note follows the flag: a decision that cleared it must not leave "sent earlier" behind.
+    setDeviceSentAt(readDocumentAccessRequestSentAt(documentId));
+    if ((state === "sent" || state === "already_pending") && readDocumentAccessRequestSentAt(documentId) === null) {
+      setState("idle");
+    }
+  }, [answeredAt, state, documentId]);
 
   const trimmed = message.trim();
   const tooLong = trimmed.length > MESSAGE_MAX;

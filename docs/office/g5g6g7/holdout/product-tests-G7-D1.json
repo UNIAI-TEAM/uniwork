@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "kind": "uniwork-office-g7-product-tests",
+  "decision": "G7-D1",
+  "covers": [
+    "appliedBusinessWritesWithoutConfirm",
+    "outsideAllowlistWritesWithoutConfirm"
+  ],
+  "tests": [
+    {
+      "id": "d-proposals-only",
+      "repo": "uniwork",
+      "test": "TestAIUniworkWriteCallsAreProposalsOnly",
+      "sha": "9e9dad319",
+      "run": "run-b81a6ff9-f359-4af2-be4b-f9cb6434a304",
+      "verdict": "pass",
+      "evidenceRef": "~/office-g5g6g7/reports/root/cloud-root-41/cloud-suite-9e9dad31-cloud-spec-root-41.md",
+      "covers": [
+        "appliedBusinessWritesWithoutConfirm",
+        "outsideAllowlistWritesWithoutConfirm"
+      ]
+    },
+    {
+      "id": "fork-save-confirm",
+      "repo": "uniwork-office",
+      "test": "web/e2e/ai-save-confirm.spec.ts (Sheets+Docs a-e, Save is the confirm)",
+      "sha": "3ad51153f",
+      "run": "run-ecca53ca-898a-43f9-9605-30f8a55659ed",
+      "verdict": "pass",
+      "evidenceRef": "~/office-g5g6g7/reports/root/fm-1923/ (office-ci-test run-b45acce6-6035-4b02-a7d7-26e79f68b591 incl. test:web, office-ci-e2e run-ddd2ff75-8d9a-41a8-9b72-9ca5894b0a3e)",
+      "covers": [
+        "appliedBusinessWritesWithoutConfirm",
+        "outsideAllowlistWritesWithoutConfirm"
+      ]
+    }
+  ]
+}

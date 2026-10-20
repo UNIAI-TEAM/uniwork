@@ -169,11 +169,11 @@ describe("ChatFileMessageRow", () => {
       },
     );
 
-    fireEvent.click(screen.getByRole("menuitem", { name: "Trả lời" }));
+    fireEvent.click(screen.getByRole("button", { name: "Trả lời" }));
     expect(onReply).toHaveBeenCalledTimes(1);
     expect(screen.getByText("👍")).toBeInTheDocument();
     // A file cannot be edited, so the action is left out rather than shown disabled.
-    expect(screen.queryByRole("button", { name: "Sửa" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Sửa" })).not.toBeInTheDocument();
   });
 
   it("formats byte sizes and shows peer sender chrome", () => {
@@ -327,9 +327,26 @@ describe("ChatFileMessageRow", () => {
       showAvatar: false,
     };
     const { container, rerender } = render(wrap(<ChatFileMessageRow {...props} highlighted />));
-    const shell = container.querySelector("#chat-msg-message-hl .flex.w-fit");
-    expect(shell).toHaveClass("before:bg-brand-subtle", "before:ring-1", "before:ring-brand/25");
+    const article = container.querySelector("#chat-msg-message-hl");
+    expect(article).toHaveClass("before:bg-brand-subtle", "before:ring-1", "before:ring-brand/25");
     rerender(wrap(<ChatFileMessageRow {...props} />));
     expect(container.querySelector("#chat-msg-message-hl")).not.toHaveClass("ring-brand");
+  });
+
+  it("shows the share-as-document action only when the server flags the file", () => {
+    renderRow(
+      fileMessage(
+        "message-doc",
+        { filename: "sprint.pdf", content_type: "application/pdf", size_bytes: 2048 },
+        {},
+        { canShareAsDocument: true },
+      ),
+    );
+    expect(screen.getByRole("button", { name: "Chia sẻ dạng tài liệu" })).toBeInTheDocument();
+  });
+
+  it("hides the share-as-document action when the flag is absent", () => {
+    renderRow(fileMessage("message-plain", { filename: "photo.png", content_type: "image/png", size_bytes: 2048 }));
+    expect(screen.queryByRole("button", { name: "Chia sẻ dạng tài liệu" })).not.toBeInTheDocument();
   });
 });

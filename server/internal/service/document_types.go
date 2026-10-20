@@ -36,6 +36,23 @@ func refuseFolder(doc db.Document) error {
 	return nil
 }
 
+// errFolderNotShareable answers every command that would make a folder shared:
+// a folder is a private container, only the documents inside it are shared
+// (UNI-1974). The folder exists and the caller may administer it, it just has
+// no access to hand out.
+func errFolderNotShareable() error {
+	return coded(http.StatusUnprocessableEntity, "folder_not_shareable", "thư mục không thể chia sẻ; hãy chia sẻ từng tài liệu bên trong")
+}
+
+// refuseFolderShare is the guard every share, access and visibility command
+// calls once the caller is authorized: a folder never takes a grant.
+func refuseFolderShare(doc db.Document) error {
+	if doc.Kind == DocumentKindFolder {
+		return errFolderNotShareable()
+	}
+	return nil
+}
+
 // childKindAllowed is the containment rule: a folder sits at the root or in a
 // folder; a page or a file sits in a page or a folder.
 func childKindAllowed(parentKind, childKind string) bool {
@@ -115,6 +132,10 @@ type DocumentService struct {
 	entitlements *EntitlementService
 	metrics      DocumentMetrics
 
+	// chat is the ChatService that writes and publishes the optional
+	// document_version line when a version commit names a chat room (UNI-1966
+	// §4.4). Wired by ChatService.SetDocuments; nil falls back to the pool/q.
+	chat *ChatService
 	// ownerLevel resolves the caller's level through the owning work
 	// product. nil means no owner service is wired: owned creates and
 	// owner-delegated levels then fail closed (C-01 §13.8). ownerPurger is
@@ -141,9 +162,10 @@ type DocumentService struct {
 	// window, the office_sync_write evaluator, and the lookup/replay/sweep
 	// counters. Zero values keep the defaults; nil flags read the registry
 	// default.
-	intentPolicy  CommitIntentPolicy
-	flags         DocumentFlags
-	intentMetrics OfficeIntentMetrics
+	intentPolicy      CommitIntentPolicy
+	idempotencyPolicy IdempotencyKeyPolicy
+	flags             DocumentFlags
+	intentMetrics     OfficeIntentMetrics
 
 	// store is the G1-03 write side's own state (document_files.go):
 	// validation limits, spool directory, test seam.
@@ -152,6 +174,13 @@ type DocumentService struct {
 	// editLock is the edit lock timing (UNI-1645, document_edit_lock.go);
 	// zero fields read as the addendum §7 defaults.
 	editLock DocumentEditLockConfig
+
+	// accessRequestTasks and accessRequestMeetings are the narrow ports a
+	// document access request reads its optional task/meeting source through
+	// (DOC-07, document_access_requests.go). Nil drops the source kind
+	// silently, which is also the fail-closed default.
+	accessRequestTasks    DocumentAccessRequestTaskReader
+	accessRequestMeetings DocumentAccessRequestMeetingReader
 }
 
 func NewDocumentService(pool *pgxpool.Pool, q *db.Queries, orgs *OrganizationService, ws *WorkspaceService) *DocumentService {

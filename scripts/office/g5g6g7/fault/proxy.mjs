@@ -15,6 +15,43 @@ import { performance } from "node:perf_hooks";
 import { harnessPaths, isMainModule, origin as buildOrigin } from "../harness/lib.mjs";
 import { createRuleEngine, stripQuery } from "./rules.mjs";
 
+const ERROR_SNIFF_BYTES = 4096;
+
+/** `error.code` (or `code`) of a JSON error answer when it is a plain code token, else null. */
+export function errorCodeOf(body) {
+  try {
+    const parsed = JSON.parse(body.toString("utf8"));
+    const code = parsed?.error?.code ?? parsed?.code;
+    return typeof code === "string" && /^[A-Za-z0-9_.:-]{1,64}$/.test(code) ? code : null;
+  } catch {
+    return null;
+  }
+}
+
+
+/** `policy_epoch` of a lease grant answer (top level, `lease` or `data`) when it is a non-negative integer, else null. */
+export function policyEpochOf(body) {
+  try {
+    const parsed = JSON.parse(body.toString("utf8"));
+    const epoch = parsed?.policy_epoch ?? parsed?.lease?.policy_epoch ?? parsed?.data?.policy_epoch;
+    return Number.isInteger(epoch) && epoch >= 0 ? epoch : null;
+  } catch {
+    return null;
+  }
+}
+
+/** `expires_at` of a lease grant answer (top level, `lease` or `data`) when it is a valid ISO timestamp, else null. */
+export function expiresAtOf(body) {
+  try {
+    const parsed = JSON.parse(body.toString("utf8"));
+    const expiresAt = parsed?.expires_at ?? parsed?.lease?.expires_at ?? parsed?.data?.expires_at;
+    return typeof expiresAt === "string" && Number.isFinite(Date.parse(expiresAt)) ? expiresAt : null;
+  } catch {
+    return null;
+  }
+}
+const LEASE_PATH_SUFFIX = "/office/offline-lease";
+
 const CONTROL_PREFIX = "/__fault";
 
 function sleep(ms) {
@@ -89,6 +126,49 @@ function destroySocket(socket, reset = false) {
 }
 
 /**
+ * Applies a `rewrite_json` patch to a buffered upstream response body.
+ *
+ * Returns the re-serialized body, or `null` when the body must pass through
+ * byte-for-byte unchanged (empty body, non-JSON body, or any parse failure).
+ * Only top-level keys are set; `{ now_plus_ms: n }` values resolve to an
+ * ISO-8601 UTC timestamp at response time.
+ */
+function applyJsonPatch(bodyBuffer, headers = {}, patch = {}) {
+  if (!bodyBuffer || bodyBuffer.length === 0) return null;
+  const contentType = String(headers["content-type"] ?? "");
+  const text = bodyBuffer.toString("utf8");
+  const trimmed = text.trim();
+  const looksJson = /json/i.test(contentType) || trimmed.startsWith("{") || trimmed.startsWith("[");
+  if (!looksJson) return null;
+
+  let parsed;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    return null;
+  }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
+
+  for (const [key, value] of Object.entries(patch)) {
+    if (
+      value &&
+      typeof value === "object" &&
+      !Array.isArray(value) &&
+      Object.keys(value).length === 1 &&
+      Object.prototype.hasOwnProperty.call(value, "now_plus_ms") &&
+      Number.isInteger(value.now_plus_ms) &&
+      value.now_plus_ms >= 0
+    ) {
+      parsed[key] = new Date(Date.now() + value.now_plus_ms).toISOString();
+    } else {
+      parsed[key] = value;
+    }
+  }
+
+  return Buffer.from(JSON.stringify(parsed), "utf8");
+}
+
+/**
  * Starts the fault-injection reverse proxy in front of `target`.
  *
  * @param {object} options
@@ -150,7 +230,7 @@ export async function startFaultProxy({
     return { idempotencyKey: true, keyTag };
   }
 
-  function recordLog({ startTime, method, path, status, idempotencyKey, keyTag, ruleId }) {
+  function recordLog({ startTime, method, path, status, idempotencyKey, keyTag, ruleId, errorCode, policyEpoch, expiresAt }) {
     const entry = {
       ts: new Date().toISOString(),
       method: String(method || "GET").toUpperCase(),
@@ -160,6 +240,12 @@ export async function startFaultProxy({
       idempotencyKey: Boolean(idempotencyKey),
       keyTag: keyTag ?? null,
       ruleId: ruleId ?? null,
+      // the error code of a JSON 4xx/5xx answer (`error.code`), never the body: an app row
+      // must tell `offline_lease_revoked` from any other 403 (G7-03b R2-9)
+      ...(errorCode ? { errorCode } : {}),
+      // the policy epoch and expiry a lease grant answered with (G7-03b R2-9 / G703-R6-1)
+      ...(Number.isInteger(policyEpoch) ? { policyEpoch } : {}),
+      ...(expiresAt ? { expiresAt } : {}),
     };
     const serialized = `${JSON.stringify(entry)}\n`;
     logEntries.push(serialized);
@@ -281,10 +367,11 @@ export async function startFaultProxy({
     keyTag,
     ruleId,
     dropResponseAfterForward = false,
+    rewriteJsonPatch = null,
     bufferedBody = null,
   }) {
     let logged = false;
-    const logOnce = (status) => {
+    const logOnce = (status, errorCode = null, policyEpoch = null, expiresAt = null) => {
       if (logged) return;
       logged = true;
       recordLog({
@@ -295,6 +382,9 @@ export async function startFaultProxy({
         idempotencyKey,
         keyTag,
         ruleId,
+        errorCode,
+        policyEpoch,
+        expiresAt,
       });
     };
 
@@ -322,16 +412,69 @@ export async function startFaultProxy({
         }
 
         const statusCode = proxyRes.statusCode ?? 502;
+
+        if (rewriteJsonPatch) {
+          const chunks = [];
+          proxyRes.on("data", (chunk) => {
+            chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+          });
+          proxyRes.on("end", () => {
+            const original = Buffer.concat(chunks);
+            // the rewrite changes only the patched field: the answer's own error code / lease epoch is still read from the original
+            const leaseGrantRewritten = statusCode === 200 && req.method === "PUT" && String(cleanPath).endsWith(LEASE_PATH_SUFFIX);
+            const sniffable = (statusCode >= 400 || leaseGrantRewritten) && !proxyRes.headers["content-encoding"];
+            const rewritten = applyJsonPatch(original, proxyRes.headers, rewriteJsonPatch);
+            logOnce(
+              statusCode,
+              sniffable && !leaseGrantRewritten ? errorCodeOf(original) : null,
+              sniffable && leaseGrantRewritten ? policyEpochOf(original) : null,
+              sniffable && leaseGrantRewritten ? expiresAtOf(rewritten ?? original) : null,
+            );
+            if (res.writableEnded || res.destroyed) return;
+            if (!rewritten) {
+              res.writeHead(statusCode, proxyRes.headers);
+              res.end(original);
+              return;
+            }
+            const headers = { ...proxyRes.headers };
+            delete headers["transfer-encoding"];
+            headers["content-length"] = String(rewritten.length);
+            res.writeHead(statusCode, headers);
+            res.end(rewritten);
+          });
+          proxyRes.on("error", () => {
+            logOnce(statusCode);
+            destroySocket(req.socket, false);
+          });
+          return;
+        }
+
         if (!res.headersSent && !res.writableEnded) {
           res.writeHead(statusCode, proxyRes.headers);
         }
+        // the first 4 KiB of an uncompressed 4xx/5xx answer, read on the side only to name its error code
+        const leaseGrant = statusCode === 200 && req.method === "PUT" && String(cleanPath).endsWith(LEASE_PATH_SUFFIX);
+        const sniffError = (statusCode >= 400 || leaseGrant) && !proxyRes.headers["content-encoding"];
+        const sniffed = [];
+        let sniffedBytes = 0;
         proxyRes.on("data", (chunk) => {
+          if (sniffError && sniffedBytes < ERROR_SNIFF_BYTES) {
+            const piece = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+            sniffed.push(piece);
+            sniffedBytes += piece.length;
+          }
           if (!res.writableEnded && !res.destroyed) {
             res.write(chunk);
           }
         });
         proxyRes.on("end", () => {
-          logOnce(statusCode);
+          const sniffedBody = sniffError ? Buffer.concat(sniffed) : null;
+          logOnce(
+            statusCode,
+            sniffedBody && !leaseGrant ? errorCodeOf(sniffedBody) : null,
+            sniffedBody && leaseGrant ? policyEpochOf(sniffedBody) : null,
+            sniffedBody && leaseGrant ? expiresAtOf(sniffedBody) : null,
+          );
           if (!res.writableEnded && !res.destroyed) {
             res.end();
           }
@@ -488,6 +631,20 @@ export async function startFaultProxy({
         keyTag,
         ruleId,
         dropResponseAfterForward: true,
+      });
+      return;
+    }
+
+    if (action.type === "rewrite_json") {
+      forwardToTarget({
+        req,
+        res,
+        startTime,
+        cleanPath,
+        idempotencyKey,
+        keyTag,
+        ruleId,
+        rewriteJsonPatch: action.patch,
       });
       return;
     }

@@ -133,3 +133,85 @@ describe("page slash trigger provenance", () => {
     expect(slashState(instance).active).toBe(false);
   });
 });
+
+describe("page block triggers beyond the first line (UNI-1954)", () => {
+  it("opens the slash menu and makes `1. ` a list on a line after Enter", () => {
+    const instance = mount();
+    type(instance, "first");
+    instance.commands.enter();
+    type(instance, "/");
+    expect(slashState(instance).active).toBe(true);
+    instance.commands.setContent("<p>first</p><p></p>");
+    instance.commands.setTextSelection(instance.state.doc.content.size - 1);
+    type(instance, "1. ");
+    expect(instance.getJSON().content?.[1]?.type).toBe("orderedList");
+  });
+
+  it("opens the slash menu on an empty line of a saved multi-paragraph page", () => {
+    const instance = mount("<p>one</p><p>two</p><p></p>");
+    type(instance, "/");
+    expect(slashState(instance).active).toBe(true);
+  });
+});
+
+describe("lines separated by a hard break (UNI-1954)", () => {
+  const types = (instance: Editor) => instance.getJSON().content?.map((node) => node.type);
+
+  it("opens the slash menu on a line that follows a hard break", () => {
+    const instance = mount("<p>one<br>two<br></p>");
+    type(instance, "/");
+    expect(slashState(instance)).toMatchObject({ active: true, query: "" });
+    expect(types(instance)).toEqual(["paragraph", "paragraph"]);
+    expect(instance.getJSON().content?.[0]).toMatchObject({ content: [{ text: "one" }, { type: "hardBreak" }, { text: "two" }] });
+  });
+
+  it.each([
+    ["1. ", "orderedList"],
+    ["- ", "bulletList"],
+    ["# ", "heading"],
+    ["> ", "blockquote"],
+  ])("turns %j after a hard break into a %s of its own line", (text, node) => {
+    const instance = mount("<p>one<br></p>");
+    type(instance, text);
+    expect(types(instance)?.slice(0, 2)).toEqual(["paragraph", node]);
+    expect(instance.getJSON().content?.[0]).toMatchObject({ content: [{ text: "one" }] });
+  });
+
+  it("keeps a hard break line literal when the text only looks like a prefix", () => {
+    const instance = mount("<p>one<br>x</p>");
+    type(instance, "1. ");
+    expect(types(instance)).toEqual(["paragraph"]);
+    expect(instance.getText()).toBe("one\nx1. ");
+  });
+
+  it("does not split a heading line when no block rule can fire there", () => {
+    const instance = mount("<h1>one<br></h1>");
+    type(instance, "- ");
+    expect(types(instance)?.[0]).toBe("heading");
+    expect(instance.getText().startsWith("one\n- ")).toBe(true);
+  });
+
+  it("keeps the bold the user toggled for the slash typed on a new line", () => {
+    const instance = mount("<p>one<br></p>");
+    instance.commands.toggleBold();
+    type(instance, "/");
+    expect(slashState(instance).active).toBe(true);
+    expect(instance.getJSON().content?.[1]).toMatchObject({ content: [{ text: "/", marks: [{ type: "bold" }] }] });
+  });
+
+  it("promotes the line over a selected range and undoes in one step", () => {
+    const instance = mount("<p>one<br>abc</p>");
+    instance.commands.setTextSelection({ from: 5, to: 8 });
+    type(instance, "- ");
+    expect(types(instance)?.slice(0, 2)).toEqual(["paragraph", "bulletList"]);
+    instance.commands.undo();
+    expect(types(instance)).toEqual(["paragraph"]);
+  });
+
+  it("leaves a pasted slash after a hard break literal", () => {
+    const instance = mount("<p>one<br></p>");
+    paste(instance, "/");
+    expect(slashState(instance).active).toBe(false);
+    expect(types(instance)).toEqual(["paragraph"]);
+  });
+});

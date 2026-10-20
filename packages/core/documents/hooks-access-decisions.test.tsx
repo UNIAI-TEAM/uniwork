@@ -121,7 +121,7 @@ describe("useDeclineDocumentAccessRequest", () => {
   it("awaits the server, then invalidates the requests and the shares", async () => {
     const { qc, wrapper } = setup();
     const spy = vi.spyOn(qc, "invalidateQueries");
-    vi.mocked(fetch).mockResolvedValueOnce(json({ id: "r1", status: "declined" }));
+    vi.mocked(fetch).mockResolvedValueOnce(json({ id: "r1", status: "declined", share_id: "" }));
     const { result } = renderHook(() => useDeclineDocumentAccessRequest("ws1", "d1"), { wrapper });
     await act(async () => {
       await result.current.mutateAsync({ requestId: "r1" });

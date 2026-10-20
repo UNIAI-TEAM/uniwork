@@ -9,7 +9,7 @@ import { mkdtemp, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import type { AddressInfo } from "node:net";
-import { ENGINE_CONTRACT_VERSION, ENGINE_PROTOCOL_VERSION } from "@uniwork/office-contracts";
+import { ENGINE_CONTRACT_VERSION, ENGINE_PROTOCOL_VERSION, ENVELOPE_MAX_BYTES, OFFICE_JOB_CONTENT_TYPE } from "@uniwork/office-contracts";
 import { createEngineService, PROVISIONAL_LIMITS, signGrant, type EngineService, type EngineServiceConfig, type ServiceGrant } from "../src/index.ts";
 
 export const SERVICE_TOKEN = "service-token-for-tests-0123456789abcdef";
@@ -82,8 +82,13 @@ export async function startHarness(overrides: Partial<EngineServiceConfig> = {})
     // disjoint uid pool: one per vitest worker. Production runs one engine per
     // container, so its own pool is exclusive by deployment.
     sandbox: { mode: "auto", uidBase: WORKER_UID_BASE, gidBase: WORKER_UID_BASE },
+    inputBudgetBytes: 0,
     ...overrides,
   };
+  // Unset, the budget is loadConfig's default: one max-size input per worker (at least one max-size frame).
+  if (!overrides.inputBudgetBytes) {
+    config.inputBudgetBytes = Math.max(config.maxWorkers * config.limits.maxInputBytes, ENVELOPE_MAX_BYTES + config.limits.maxInputBytes);
+  }
   const service = createEngineService(config);
   const port = await service.listen();
   return {
@@ -148,7 +153,15 @@ export function makeGrant(target: TargetServer, overrides: Partial<ServiceGrant>
   };
 }
 
-export function makeJob(target: TargetServer, spec: JobSpec): { grant: ServiceGrant; token: string; envelope: Record<string, unknown> } {
+export interface Job {
+  grant: ServiceGrant;
+  token: string;
+  envelope: Record<string, unknown>;
+  /** Raw input bytes the framed body carries after the envelope. */
+  bytes: Buffer;
+}
+
+export function makeJob(target: TargetServer, spec: JobSpec): Job {
   const bytes = spec.bytes ? Buffer.from(spec.bytes) : Buffer.from(spec.text ?? "", "utf8");
   const format = spec.format ?? "md";
   const operation = spec.operation ?? "serialize";
@@ -171,14 +184,22 @@ export function makeJob(target: TargetServer, spec: JobSpec): { grant: ServiceGr
       document_model_ref: "model-" + grant.document_id,
       base_revision: grant.base_revision,
       base_version_id: grant.base_version_id,
-      input_bytes: bytes.toString("base64"),
       input_checksum: sha256(bytes),
       input_length: bytes.length,
       ...spec.payload,
     },
     ...spec.envelope,
   };
-  return { grant, token: signGrant(grant, GRANT_KEY), envelope };
+  return { grant, token: signGrant(grant, GRANT_KEY), envelope, bytes };
+}
+
+/** The framed job body (framed/1): the JSON envelope, then the raw input bytes. */
+export function frame(envelope: Record<string, unknown>, bytes: Uint8Array): { headers: Record<string, string>; body: Buffer } {
+  const head = Buffer.from(JSON.stringify(envelope), "utf8");
+  return {
+    headers: { "content-type": OFFICE_JOB_CONTENT_TYPE, "x-office-envelope-length": String(head.length) },
+    body: Buffer.concat([head, bytes]),
+  };
 }
 
 export interface Reply {
@@ -190,15 +211,24 @@ export async function call(
   h: Harness,
   method: string,
   path: string,
-  opts: { token?: string | null; grant?: string; body?: unknown; rawBody?: string } = {},
+  opts: { token?: string | null; grant?: string; body?: unknown; rawBody?: string | Buffer; headers?: Record<string, string> } = {},
 ): Promise<Reply> {
-  const headers: Record<string, string> = { "content-type": "application/json" };
+  const headers: Record<string, string> = { "content-type": "application/json", ...opts.headers };
   if (opts.token !== null) headers.authorization = "Bearer " + (opts.token ?? SERVICE_TOKEN);
   if (opts.grant) headers["x-office-grant"] = opts.grant;
   const res = await fetch(h.base + path, {
     method,
     headers,
-    body: method === "GET" ? undefined : (opts.rawBody ?? (opts.body === undefined ? undefined : JSON.stringify(opts.body))),
+    body:
+      method === "GET"
+        ? undefined
+        : typeof opts.rawBody === "string"
+          ? opts.rawBody
+          : opts.rawBody
+            ? Uint8Array.from(opts.rawBody)
+            : opts.body === undefined
+              ? undefined
+              : JSON.stringify(opts.body),
   });
   const text = await res.text();
   let body: Record<string, unknown>;
@@ -210,8 +240,15 @@ export async function call(
   return { status: res.status, body };
 }
 
-export function submit(h: Harness, job: { token: string; envelope: Record<string, unknown> }): Promise<Reply> {
-  return call(h, "POST", "/v1/jobs", { grant: job.token, body: job.envelope });
+/** Submit a job: framed when the envelope declares an input, plain JSON
+    otherwise. `bytes` defaults to none. */
+export function submit(h: Harness, job: { token: string; envelope: Record<string, unknown>; bytes?: Uint8Array }): Promise<Reply> {
+  const payload = job.envelope.payload as Record<string, unknown> | undefined;
+  if (payload?.input_length === undefined && !job.bytes?.length) {
+    return call(h, "POST", "/v1/jobs", { grant: job.token, body: job.envelope });
+  }
+  const framed = frame(job.envelope, job.bytes ?? Buffer.alloc(0));
+  return call(h, "POST", "/v1/jobs", { grant: job.token, rawBody: framed.body, headers: framed.headers });
 }
 
 export async function waitTerminal(h: Harness, job: { grant: ServiceGrant; token: string }, timeoutMs = 25_000): Promise<Reply> {

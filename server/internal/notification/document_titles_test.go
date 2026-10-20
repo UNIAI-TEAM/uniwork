@@ -36,6 +36,7 @@ var documentNameCases = []struct {
 }{
 	{KindDocumentCommented, `An đã bình luận trong “A "b" & <c>”`, `An commented on “A "b" & <c>”`},
 	{KindDocumentMentioned, `An đã nhắc đến bạn trong bình luận tại tài liệu “A "b" & <c>”.`, `An mentioned you in a comment on “A "b" & <c>”.`},
+	{KindDocumentBodyMentioned, `An đã nhắc đến bạn trong tài liệu “A "b" & <c>”.`, `An mentioned you in “A "b" & <c>”.`},
 	{KindDocumentCommentReplied, `An đã phản hồi bình luận của bạn trong tài liệu “A "b" & <c>”.`, `An replied to your comment in “A "b" & <c>”.`},
 	{KindDocumentDiscussionMentioned, `An đã nhắc đến bạn trong thảo luận của tài liệu “A "b" & <c>”.`, `An mentioned you in a discussion on “A "b" & <c>”.`},
 	{KindDocumentDiscussionReplied, `An đã phản hồi nội dung thảo luận của bạn trong tài liệu “A "b" & <c>”.`, `An replied to your discussion post in “A "b" & <c>”.`},
@@ -53,6 +54,7 @@ var shortPushTitleCases = []struct {
 	en   string
 }{
 	{KindDocumentMentioned, "Bạn được nhắc tên trong bình luận", "You were mentioned in a comment"},
+	{KindDocumentBodyMentioned, "Bạn được nhắc đến trong tài liệu", "You were mentioned in a document"},
 	{KindDocumentCommentReplied, "Có phản hồi bình luận mới", "New reply to your comment"},
 	{KindDocumentDiscussionMentioned, "Bạn được nhắc tên trong thảo luận", "You were mentioned in a discussion"},
 	{KindDocumentDiscussionReplied, "Có phản hồi thảo luận mới", "New reply in a discussion"},

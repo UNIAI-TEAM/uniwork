@@ -24,6 +24,19 @@ export async function removeJobDir(dir: string): Promise<void> {
   await rm(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
 }
 
+/** Log a failed job-dir removal without paths or PII; the caller keeps its
+    byte reservation when removal fails so admission stays bounded. */
+export function logCleanupFailure(error: unknown, jobId?: string): void {
+  const code = error !== null && typeof error === "object" && "code" in error && typeof error.code === "string" ? error.code : undefined;
+  process.stderr.write(
+    JSON.stringify({
+      msg: "office engine job dir cleanup failed",
+      ...(jobId ? { job_id: jobId } : {}),
+      ...(code ? { code } : {}),
+    }) + "\n",
+  );
+}
+
 /** Remove job dirs left by an earlier process. Returns how many went. */
 export async function sweepStaleJobDirs(tempRoot: string): Promise<number> {
   let names: string[];

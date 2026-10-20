@@ -15,8 +15,21 @@ import "encoding/json"
 const (
 	ContractVersion      = "uniwork-office-engine-contract/1"
 	ProtocolVersion      = 1
+	JobTransport         = "framed/1"
 	WireFormat           = "snake_case"
 	TrustedEngineVersion = "genoffice@09485f88+uniwork-office.0"
+)
+
+// Framed job body (JobTransport, SIZE-OPS1) and contract byte ceilings, mirrors of
+// packages/office-contracts/src/limits.ts. A job with input is POSTed as
+// JobContentType: EnvelopeLengthHeader bytes of JSON envelope, then exactly
+// input_length raw input bytes, with Content-Length covering both.
+const (
+	JobContentType       = "application/vnd.uniwork.office-job"
+	EnvelopeLengthHeader = "X-Office-Envelope-Length"
+	EnvelopeMaxBytes     = 8 << 20
+	MaxInputBytes        = 2 << 30
+	MaxOutputBytes       = 2 << 30
 )
 
 // Format is a document format the boundary may be asked about.
@@ -193,10 +206,10 @@ type FidelityWarning struct {
 	Detail string `json:"detail,omitempty"`
 }
 
-// InputTuple is the caller-declared input byte description. The boundary
-// decodes and measures the real bytes; these fields are never trusted.
+// InputTuple is the caller-declared input byte description. The bytes travel
+// after the envelope in the framed job body; the boundary counts and hashes
+// them against these fields, which are never trusted on their own.
 type InputTuple struct {
-	InputBytes    string `json:"input_bytes"`
 	InputChecksum string `json:"input_checksum"`
 	InputLength   int64  `json:"input_length"`
 }

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -201,4 +202,76 @@ func CheckTaskRevision(got, want int64) error {
 		Err:    ErrConflict,
 		Fields: map[string]any{"got": got, "want": want},
 	}
+}
+
+// DefaultIdempotencyKeyRetention is the default retention window for
+// idempotency_keys rows (G5-D2 §2.2, UNI-1983); IDEMPOTENCY_KEY_RETENTION
+// overrides it (config.Config). idempotencyKeySweepBatch bounds one sweep
+// statement, and idempotencyKeySweepTick is the default pass cadence
+// (IDEMPOTENCY_KEY_SWEEP_TICK).
+const (
+	DefaultIdempotencyKeyRetention = 7 * 24 * time.Hour
+	idempotencyKeySweepBatch       = 500
+	idempotencyKeySweepTick        = 10 * time.Minute
+)
+
+// IdempotencyKeyPolicy is the retention window and sweep cadence for
+// idempotency_keys (G5-D2 §2.2, UNI-1983). A zero field keeps the default.
+type IdempotencyKeyPolicy struct {
+	Retention time.Duration
+	SweepTick time.Duration
+}
+
+func (p IdempotencyKeyPolicy) retention() time.Duration {
+	if p.Retention <= 0 {
+		return DefaultIdempotencyKeyRetention
+	}
+	return p.Retention
+}
+
+func (p IdempotencyKeyPolicy) sweepTick() time.Duration {
+	if p.SweepTick <= 0 {
+		return idempotencyKeySweepTick
+	}
+	return p.SweepTick
+}
+
+// SetIdempotencyKeyPolicy sets the retention window and sweep cadence for
+// idempotency_keys.
+func (s *DocumentService) SetIdempotencyKeyPolicy(p IdempotencyKeyPolicy) {
+	s.idempotencyPolicy = p
+}
+
+// SweepIdempotencyKeys deletes idempotency_keys rows older than the configured
+// retention window before now, in batches of idempotencyKeySweepBatch (500),
+// until a batch comes back short or ctx ends (G5-D2 §2.2, UNI-1983). Both
+// completed and in-flight rows past the window are deleted (an in-flight row
+// after 7 days is dead). It is retention of a ledger, not a business state
+// change, so it writes no audit row (like SweepCommitIntents).
+func (s *DocumentService) SweepIdempotencyKeys(ctx context.Context, now time.Time) (int, error) {
+	if s == nil || s.q == nil {
+		return 0, nil
+	}
+	if now.IsZero() {
+		now = s.clock()
+	}
+	cutoff := pgtype.Timestamptz{
+		Time:  now.Add(-s.idempotencyPolicy.retention()).UTC().Truncate(time.Microsecond),
+		Valid: true,
+	}
+	total := 0
+	for ctx.Err() == nil {
+		n, err := s.q.SweepIdempotencyKeys(ctx, db.SweepIdempotencyKeysParams{
+			Cutoff:  cutoff,
+			MaxRows: idempotencyKeySweepBatch,
+		})
+		total += int(n)
+		if err != nil {
+			return total, err
+		}
+		if n < idempotencyKeySweepBatch {
+			break
+		}
+	}
+	return total, ctx.Err()
 }
