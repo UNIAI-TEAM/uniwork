@@ -952,3 +952,87 @@ func TestDocumentCommentAnchorsPutItemCap(t *testing.T) {
 		t.Fatal("the over-cap PUT wrote a row")
 	}
 }
+
+// TestDocumentCommentAnchorVersionNo pins UNI-2033 T1 at the service and sqlc
+// layer: ListDocumentComments joins document_versions on the 4-column tenant +
+// document key to populate AnchorVersionNo, DocumentCommentAnchorVersionNo
+// resolves single-comment rows with the same 4-column scoping, a deleted or
+// foreign-document version resolves to null, and the list_token is unchanged
+// when the version row disappears.
+func TestDocumentCommentAnchorVersionNo(t *testing.T) {
+	f := newDocPermFixture(t)
+	tn := f.tenant(t, "anchor-ver-no")
+	d, versions := f.anchorDoc(t, tn, "xlsx", 3)
+	d2, versions2 := f.anchorDoc(t, tn, "xlsx", 2)
+	_ = d2
+	member := Human(tn.member.ID)
+
+	c1 := f.anchoredCreate(t, member, d, versions[0].ID, string(anchorRaw("xlsx", map[string]any{"range": "B7"})), "")
+	c3 := f.anchoredCreate(t, member, d, versions[2].ID, string(anchorRaw("xlsx", map[string]any{"range": "C7"})), "")
+	disc, err := f.svc.AddDocumentComment(f.ctx, member, d.ID, AddCommentInput{Body: "thảo luận", CommentType: "discussion"}, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if no, err := f.svc.DocumentCommentAnchorVersionNo(f.ctx, c1); err != nil || no == nil || *no != 1 {
+		t.Fatalf("c1 version no = %v, %v, want 1", no, err)
+	}
+	if no, err := f.svc.DocumentCommentAnchorVersionNo(f.ctx, c3); err != nil || no == nil || *no != 3 {
+		t.Fatalf("c3 version no = %v, %v, want 3", no, err)
+	}
+	if no, err := f.svc.DocumentCommentAnchorVersionNo(f.ctx, disc); err != nil || no != nil {
+		t.Fatalf("discussion version no = %v, %v, want nil", no, err)
+	}
+
+	listBefore, err := f.svc.DocumentComments(f.ctx, member, d.ID, DocumentCommentListInput{})
+	if err != nil || len(listBefore.Rows) != 3 {
+		t.Fatalf("listBefore = %d %v", len(listBefore.Rows), err)
+	}
+	rowByID := map[string]db.ListDocumentCommentsRow{}
+	for _, r := range listBefore.Rows {
+		rowByID[r.ID] = r
+	}
+	if !rowByID[c1.ID].AnchorVersionNo.Valid || rowByID[c1.ID].AnchorVersionNo.Int32 != 1 {
+		t.Fatalf("list c1 AnchorVersionNo = %+v, want 1", rowByID[c1.ID].AnchorVersionNo)
+	}
+	if !rowByID[c3.ID].AnchorVersionNo.Valid || rowByID[c3.ID].AnchorVersionNo.Int32 != 3 {
+		t.Fatalf("list c3 AnchorVersionNo = %+v, want 3", rowByID[c3.ID].AnchorVersionNo)
+	}
+	if rowByID[disc.ID].AnchorVersionNo.Valid {
+		t.Fatalf("list discussion AnchorVersionNo = %+v, want invalid/null", rowByID[disc.ID].AnchorVersionNo)
+	}
+
+	// 4-column scoping: a version id belonging to another document in the same
+	// workspace resolves to null on both the single-row helper and the list join.
+	foreignCopy := c1
+	foreignCopy.AnchorVersionID.String = versions2[1].ID
+	if no, err := f.svc.DocumentCommentAnchorVersionNo(f.ctx, foreignCopy); err != nil || no != nil {
+		t.Fatalf("foreign document version no = %v, %v, want nil", no, err)
+	}
+
+	// Delete version 1's row by SQL: c1's version number becomes null, and the
+	// document's list_token is unchanged.
+	if _, err := f.pool.Exec(f.ctx, "DELETE FROM document_versions WHERE id = $1", versions[0].ID); err != nil {
+		t.Fatal(err)
+	}
+	if no, err := f.svc.DocumentCommentAnchorVersionNo(f.ctx, c1); err != nil || no != nil {
+		t.Fatalf("c1 version no after delete = %v, %v, want nil", no, err)
+	}
+	listAfter, err := f.svc.DocumentComments(f.ctx, member, d.ID, DocumentCommentListInput{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if listAfter.Token != listBefore.Token {
+		t.Fatalf("list_token changed after version row deleted: %q -> %q", listBefore.Token, listAfter.Token)
+	}
+	afterByID := map[string]db.ListDocumentCommentsRow{}
+	for _, r := range listAfter.Rows {
+		afterByID[r.ID] = r
+	}
+	if afterByID[c1.ID].AnchorVersionNo.Valid {
+		t.Fatalf("list c1 AnchorVersionNo after delete = %+v, want invalid/null", afterByID[c1.ID].AnchorVersionNo)
+	}
+	if !afterByID[c3.ID].AnchorVersionNo.Valid || afterByID[c3.ID].AnchorVersionNo.Int32 != 3 {
+		t.Fatalf("list c3 AnchorVersionNo after delete = %+v, want 3", afterByID[c3.ID].AnchorVersionNo)
+	}
+}
