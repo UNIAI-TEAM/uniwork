@@ -173,18 +173,6 @@ function CommentsPane({ wsId, doc, titleId, onClose }: { wsId: string; doc: Docu
   useEffect(() => {
     if (!deepLinkId || !query.isSuccess || handledLink.current === deepLinkId) return;
     handledLink.current = deepLinkId;
-    // Inbox landing (UNI-2033): the formats without frame comments (pptx, pdf) are revealed here, so this list
-    // decides once per link, like the frame's first `comments.list` that names it. A lost comment on another
-    // version takes the page there; a version view, the open version or a comment that is not lost stays put.
-    const landed = chrome?.landedLink;
-    if (landed && landed.current !== deepLinkId) {
-      landed.current = deepLinkId;
-      const list = { comments };
-      if (nav && format && parseVersionParam(nav.searchParams.get("version")) === null && namesComment(list, deepLinkId)) {
-        const versionNo = lostCommentVersion(list, deepLinkId);
-        if (versionNo !== null && versionNo !== doc.file?.version) nav.replace(versionViewHref(nav.pathname, versionNo, deepLinkId));
-      }
-    }
     const target = findDeepLinkTarget(comments, deepLinkId);
     if (!target) {
       // The link's kind says which tab the post lived in (a format with one tab only has the Discussion).
@@ -198,7 +186,26 @@ function CommentsPane({ wsId, doc, titleId, onClose }: { wsId: string; doc: Docu
     if (target.deleted) setRevealMessage(target.kind);
     setFocus({ rootId: target.rootId, target: foreignFocus(paneRef.current) ? "scroll" : "heading" });
     setHighlightId(target.rootId);
-  }, [chrome?.landedLink, comments, deepLinkId, deepLinkKind, doc.file?.version, format, nav, query.isSuccess, setTab]);
+  }, [comments, deepLinkId, deepLinkKind, format, query.isSuccess, setTab]);
+  // Inbox landing (UNI-2033): the formats without frame comments (pptx, pdf) are revealed here, so the first list
+  // that names the link's comment decides once per link, like the frame's `comments.list` that names it. docx and
+  // xlsx belong to the frame, which may not have claimed the comments yet when the pane opens, so they never land
+  // here. A lost comment on another version takes the page there; a version view, the open version or a comment
+  // that is not lost stays put. A list without the comment decides nothing: a later one may name it.
+  const landed = chrome?.landedLink;
+  useEffect(() => {
+    if (!landed || !deepLinkId || !query.isSuccess || landed.current === deepLinkId) return;
+    if (format !== "pptx" && format !== "pdf") return;
+    if (!nav || parseVersionParam(nav.searchParams.get("version")) !== null) {
+      landed.current = deepLinkId;
+      return;
+    }
+    const list = { comments };
+    if (!namesComment(list, deepLinkId)) return;
+    landed.current = deepLinkId;
+    const versionNo = lostCommentVersion(list, deepLinkId);
+    if (versionNo !== null && versionNo !== doc.file?.version) nav.replace(versionViewHref(nav.pathname, versionNo, deepLinkId));
+  }, [landed, comments, deepLinkId, doc.file?.version, format, nav, query.isSuccess]);
   useEffect(() => {
     if (!highlightId) return undefined;
     const timer = window.setTimeout(() => setHighlightId(null), HIGHLIGHT_MS);
