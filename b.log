@@ -1,0 +1,9 @@
+$ git status --short | grep -v "^??" | head; git diff --quiet HEAD; rc=$?; echo; echo "TREE_CLEAN_EXIT=$rc"; git rev-parse HEAD; git log --oneline -5
+
+TREE_CLEAN_EXIT=0
+8856bbdc2aa4f97385c46b002b0735a87d281cd5
+8856bbdc2 fix(documents): access report visual round r1 findings
+dd32abe20 fix(documents): access report review r4 findings
+3a7692720 fix(documents): integrate the access report with the server slice
+cbf5547c8 fix(documents): access report table keeps its width, grants start left, sort keeps focus
+db50c27e6 fix(documents): keep access report placeholder rows inside one workspace and folder
