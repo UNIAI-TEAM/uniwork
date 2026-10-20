@@ -145,6 +145,17 @@ func managedFileReferenceSources() []FileReferenceSource {
 			},
 		},
 		{
+			Table: "document_download_jobs", Column: "file_id", Provider: documentDownloadReferenceProvider{}.Name(),
+			tenants: func(ctx context.Context, q *db.Queries, ids []string) ([]fileReferenceTenant, error) {
+				rows, err := q.FileGCDocumentDownloadJobRefTenants(ctx, ids)
+				out := make([]fileReferenceTenant, 0, len(rows))
+				for _, r := range rows {
+					out = append(out, fileReferenceTenant{FileID: files.FileID(r.FileID.String), OrganizationID: r.OrganizationID, Known: true})
+				}
+				return out, err
+			},
+		},
+		{
 			Table: "document_versions", Column: "file_id", Provider: DocumentVersionReferenceProvider{}.Name(),
 			tenants: func(ctx context.Context, q *db.Queries, ids []string) ([]fileReferenceTenant, error) {
 				rows, err := q.FileGCDocumentVersionRefTenants(ctx, ids)
