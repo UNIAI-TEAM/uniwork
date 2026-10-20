@@ -8,6 +8,7 @@ import {
   accessRequestOutcome,
   clearDocumentAccessRequestSent,
   readDocumentAccessRequestSentAt,
+  subscribeDocumentAccessRequestSent,
   useRequestDocumentAccess,
 } from "./hooks-access-requests";
 import { documentKeys } from "./keys";
@@ -144,6 +145,25 @@ describe("the sent flag", () => {
     localStorage.setItem("uniwork_document_access_request_sent:d1", String(Date.now() + 1000));
     clearDocumentAccessRequestSent("d1");
     expect(readDocumentAccessRequestSentAt("d1")).toBeNull();
+  });
+
+  it("tells same-tab listeners about a clear, and stops after unsubscribe", () => {
+    const listener = vi.fn();
+    const off = subscribeDocumentAccessRequestSent(listener);
+    clearDocumentAccessRequestSent("d1");
+    expect(listener).toHaveBeenCalledTimes(1);
+    off();
+    clearDocumentAccessRequestSent("d1");
+    expect(listener).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not notify when an expired flag is dropped by a read", () => {
+    const listener = vi.fn();
+    const off = subscribeDocumentAccessRequestSent(listener);
+    localStorage.setItem("uniwork_document_access_request_sent:d1", String(Date.now() - 1000));
+    expect(readDocumentAccessRequestSentAt("d1")).toBeNull();
+    expect(listener).not.toHaveBeenCalled();
+    off();
   });
 
   it("ignores a garbled value", () => {

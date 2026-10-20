@@ -1,6 +1,7 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@uniwork/core/api";
+import { clearDocumentAccessRequestSent } from "@uniwork/core/documents/hooks-access-requests";
 import { initI18n } from "@uniwork/core/i18n";
 import { requestMock, wrap } from "../test/api-mock";
 import { ChatDocumentRequestAccess } from "./chat-document-actions";
@@ -67,13 +68,60 @@ describe("ChatDocumentRequestAccess", () => {
     expect(document.activeElement).toBe(status);
   });
 
-  it("mounts on the sent note when this device already sent a request, without offering the button or taking focus", () => {
-    localStorage.setItem("uniwork_document_access_request_sent:doc1", String(Date.now() + 3600_000));
+  it("mounts with a fresh flag: the earlier-request note is visible AND the button is present, a click still sends", async () => {
+    const at = Date.now() - 3600_000;
+    localStorage.setItem("uniwork_document_access_request_sent:doc1", String(at + 24 * 3600_000));
+    requestMock.mockResolvedValue({ status: "sent" });
     renderButton();
-    expect(screen.getByRole("status")).toHaveTextContent(K("sent"));
-    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    const time = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit" }).format(new Date(at));
+    expect(screen.getByRole("status")).toHaveTextContent(K("sent_earlier", { time }));
+    expect(button()).toBeInTheDocument();
     expect(document.activeElement).toBe(document.body);
     expect(requestMock).not.toHaveBeenCalled();
+    fireEvent.click(button());
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent(K("sent")));
+    expect(sendCalls()).toHaveLength(1);
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+  });
+
+  it("stops claiming a request waits once a decision clears the flag, for a send made in this mount too", async () => {
+    requestMock.mockResolvedValue({ status: "sent" });
+    renderButton();
+    fireEvent.click(button());
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent(K("sent")));
+    act(() => clearDocumentAccessRequestSent("doc1"));
+    expect(screen.getByRole("status")).toBeEmptyDOMElement();
+    expect(button()).toBeInTheDocument();
+  });
+
+  it("drops the earlier-request note when the flag is cleared while mounted", () => {
+    localStorage.setItem("uniwork_document_access_request_sent:doc1", String(Date.now() + 3600_000));
+    renderButton();
+    expect(screen.getByRole("status")).not.toBeEmptyDOMElement();
+    act(() => clearDocumentAccessRequestSent("doc1"));
+    expect(screen.getByRole("status")).toBeEmptyDOMElement();
+    expect(button()).toBeInTheDocument();
+  });
+
+  it("leaves focus where the person moved it while the request was in flight", async () => {
+    let resolve!: (v: unknown) => void;
+    requestMock.mockImplementation(() => new Promise((r) => { resolve = r; }));
+    render(
+      wrap(
+        <>
+          <ChatDocumentRequestAccess workspaceId="ws1" documentId="doc1" />
+          <input aria-label="composer" />
+        </>,
+      ),
+    );
+    button().focus();
+    fireEvent.click(button());
+    await waitFor(() => expect(button()).toHaveAttribute("aria-disabled", "true"));
+    const composer = screen.getByLabelText("composer");
+    composer.focus();
+    resolve({ status: "sent" });
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent(K("sent")));
+    expect(document.activeElement).toBe(composer);
   });
 
   it("ignores an expired device flag and offers the button", () => {

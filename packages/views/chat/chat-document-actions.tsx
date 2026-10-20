@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState, type MouseEvent } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore, type MouseEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { errorCode, errorFields } from "@uniwork/core/api";
 import {
   accessRequestOutcome,
   readDocumentAccessRequestSentAt,
+  subscribeDocumentAccessRequestSent,
   useRequestDocumentAccess,
 } from "@uniwork/core/documents/hooks-access-requests";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -31,6 +32,13 @@ export function chatDocumentVersionError(err: unknown, t: TFunction, fallback: s
   return chatErrorMessage(err, t, fallback);
 }
 
+/** "10:32" in the reader's clock, for the note about this device's earlier request. */
+function sentTime(at: number): string {
+  return new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit" }).format(new Date(at));
+}
+
+const noFlag = () => null;
+
 /**
  * The no-access card's "Yêu cầu quyền truy cập" button (L4 / S7): it asks the
  * document's managers for view access through
@@ -38,14 +46,20 @@ export function chatDocumentVersionError(err: unknown, t: TFunction, fallback: s
  * document page's locked card. The route's 202 is uniform on purpose (it also
  * answers a document the caller already reads or one that does not exist), so
  * `sent` is shown as sent; 409 `access_request_pending` reads as "already
- * waiting". Both replace the button in place, so a second send is not offered;
- * the refusals (cooldown, limiter, anything else) stay a toast and keep the
- * button for another try. The sentence is written into a status region that is
- * mounted from the start (a live region created with its text is not
- * announced) and takes focus when the button it replaces had it, so a keyboard
- * user keeps their place. A remount starts from the 24 h device flag the hook
- * writes (the document page reads the same one), so a card that scrolls out and
- * back does not offer the button again while a request waits.
+ * waiting". Both replace the button in place for a send made in this mount, so
+ * a second send is not offered; the refusals (cooldown, limiter, anything
+ * else) stay a toast and keep the button for another try. The sentence is
+ * written into a status region that is mounted from the start (a live region
+ * created with its text is not announced) and takes focus when the button it
+ * replaces had it and nothing else has taken it since, so a keyboard user
+ * keeps their place.
+ *
+ * The 24 h device flag the hook writes is a display note, never a gate (same
+ * as the document page): a remount with the flag set shows
+ * `sent_earlier` above the button, which stays, so a request that was denied
+ * or expired elsewhere never leaves the person without the action. The local
+ * "sent" claim ends with the flag: a decided frame clears it and the card
+ * stops saying a request waits.
  */
 export function ChatDocumentRequestAccess({
   workspaceId,
@@ -56,13 +70,25 @@ export function ChatDocumentRequestAccess({
 }) {
   const { t } = useTranslation();
   const send = useRequestDocumentAccess(workspaceId, documentId);
-  const [done, setDone] = useState<"sent" | "already_pending" | null>(() =>
-    readDocumentAccessRequestSentAt(documentId) === null ? null : "sent",
+  const sentAt = useSyncExternalStore(
+    subscribeDocumentAccessRequestSent,
+    () => readDocumentAccessRequestSentAt(documentId),
+    noFlag,
   );
+  // `tracked`: the flag was readable when the send resolved, so its later
+  // absence means a decision cleared it. With storage blocked there is no flag
+  // to follow and the claim stays for this mount.
+  const [sent, setSent] = useState<{ kind: "sent" | "already_pending"; tracked: boolean } | null>(null);
+  const done = sent && (!sent.tracked || sentAt !== null) ? sent.kind : null;
   const statusRef = useRef<HTMLParagraphElement>(null);
   const restoreFocus = useRef(false);
   useEffect(() => {
-    if (done && restoreFocus.current) statusRef.current?.focus();
+    if (!done || !restoreFocus.current) return;
+    restoreFocus.current = false;
+    // Only when nothing else holds focus: the removed button leaves the body
+    // active, a field the person moved to meanwhile keeps it.
+    const active = document.activeElement;
+    if (!active || active === document.body) statusRef.current?.focus();
   }, [done]);
   const run = (event: MouseEvent<HTMLButtonElement>) => {
     if (send.isPending) return;
@@ -71,7 +97,10 @@ export function ChatDocumentRequestAccess({
       { requested_level: "view" },
       {
         onSuccess: (outcome) => {
-          setDone(outcome.state === "sent" ? "sent" : "already_pending");
+          setSent({
+            kind: outcome.state === "sent" ? "sent" : "already_pending",
+            tracked: readDocumentAccessRequestSentAt(documentId) !== null,
+          });
         },
         onError: (err) => {
           const outcome = accessRequestOutcome(err);
@@ -86,15 +115,20 @@ export function ChatDocumentRequestAccess({
       },
     );
   };
+  const note = done
+    ? t(`documents.access_request.${done}`)
+    : sentAt !== null
+      ? t("documents.access_request.sent_earlier", { time: sentTime(sentAt) })
+      : null;
   return (
     <>
       <p
         ref={statusRef}
         role="status"
         tabIndex={-1}
-        className={done ? "min-w-0 text-caption text-muted-foreground" : undefined}
+        className={note ? "min-w-0 text-caption text-muted-foreground" : undefined}
       >
-        {done ? t(`documents.access_request.${done}`) : null}
+        {note}
       </p>
       {done ? null : (
         <Button
