@@ -48,6 +48,7 @@ const PUSH_BY_DEFAULT = new Set<Kind>([
   "document_discussion_mentioned",
   "document_break_glass",
   "task_assigned",
+  "tasks_assigned",
   "meeting_starting",
   "chat_mentioned",
   "chat_dm",

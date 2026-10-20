@@ -3,6 +3,7 @@ import { z } from "zod";
 /** Mirrors server/internal/notification/kinds.go, in display order. */
 export const NOTIFICATION_KINDS = [
   "task_assigned",
+  "tasks_assigned",
   "task_status_changed",
   "task_commented",
   "mentioned",

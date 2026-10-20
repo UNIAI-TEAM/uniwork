@@ -26,6 +26,7 @@ import { MODULE_ICONS } from "../layout/module-icons";
 
 const ICONS: Record<NotificationKind, LucideIcon> = {
   task_assigned: UserRoundCheck,
+  tasks_assigned: UserRoundCheck,
   task_status_changed: RefreshCw,
   task_commented: MessageSquare,
   mentioned: AtSign,

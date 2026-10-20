@@ -29,6 +29,7 @@ const KIND_CATEGORY: Record<NotificationKind, InboxCategory> = {
   chat_call_incoming: "mentions",
   document_access_requested: "mentions",
   task_assigned: "assigned",
+  tasks_assigned: "assigned",
   meeting_invited: "meetings",
   meeting_starting: "meetings",
   meeting_summary_reminder: "meetings",

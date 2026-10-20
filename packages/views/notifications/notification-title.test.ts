@@ -85,6 +85,14 @@ describe("notificationTitleKey", () => {
     expect(notificationTitleKey(task)).toBe("notifications.kind.task_assigned");
   });
 
+  it("renders tasks_assigned on a meeting resource as one sentence with the count", () => {
+    const row = notification({
+      kind: "tasks_assigned", resource_type: "meeting", resource_id: "m1",
+      title_key: "notifications.kind.tasks_assigned", params: { actor: "An", count: "3" },
+    });
+    expect(t(notificationTitleKey(row), row.params)).toBe("An đã giao bạn 3 việc");
+  });
+
   it("leaves a document row whose key is not a document kind alone", () => {
     const row = notification({ title_key: "notifications.kind.other", params: {} });
     expect(notificationTitleKey(row)).toBe("notifications.kind.other");

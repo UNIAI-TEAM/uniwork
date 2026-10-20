@@ -11,6 +11,7 @@ import { moduleTone } from "../layout/module-tones";
  */
 const KIND_TONES: Record<NotificationKind, Tint> = {
   task_assigned: moduleTone("tasks"),
+  tasks_assigned: moduleTone("tasks"),
   task_status_changed: moduleTone("tasks"),
   task_commented: moduleTone("tasks"),
   mentioned: moduleTone("chat"),

@@ -13,6 +13,7 @@ describe("kindTone", () => {
 
   it("follows the module table, not its own colours", () => {
     expect(kindTone("task_assigned")).toBe(moduleTone("tasks"));
+    expect(kindTone("tasks_assigned")).toBe(kindTone("task_assigned"));
     expect(kindTone("meeting_starting")).toBe(moduleTone("meetings"));
     expect(kindTone("mentioned")).toBe(moduleTone("chat"));
     expect(kindTone("member_added")).toBe(moduleTone("people"));

@@ -172,6 +172,7 @@ describe("NotificationsTab", () => {
     render(wrap(<NotificationsTab />));
     const push = (kind: string) => screen.findByRole("switch", { name: `${kind} · Đẩy` });
     expect(await push("Truy cập khẩn cấp vào tài liệu")).toHaveAttribute("aria-checked", "true");
+    expect(await push("Được giao nhiều việc một lúc")).toHaveAttribute("aria-checked", "true");
     expect(await push("Được nhắc đến trong thảo luận")).toHaveAttribute("aria-checked", "true");
     expect(await push("Phản hồi bình luận")).toHaveAttribute("aria-checked", "false");
     // The root's edit-lock kinds push by default too, except the answer.
