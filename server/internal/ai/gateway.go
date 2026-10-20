@@ -252,6 +252,9 @@ func (g *Gateway) Complete(ctx context.Context, req Request) (Response, error) {
 	creq := provider.CompletionRequest{
 		Model: model, System: system, MaxTokens: officeMaxTokens(req, policy), Temperature: policy.Temperature,
 		JSONSchema: prompt.OutputSchema, Effort: effort,
+		// Only a loop resends its prefix; a one-shot call would pay the
+		// cache write and never read it back (ruling P17).
+		CacheHistory: req.ToolResultTurn || req.Continuation || req.Capability == CapCopilotAgent || req.Capability == CapOfficeUniworkAI,
 	}
 	creq.Messages = msgs
 	// Structured JSON output and tool-calling fight each other on OpenAI-compatible

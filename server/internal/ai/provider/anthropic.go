@@ -106,7 +106,8 @@ func (a *Anthropic) Complete(ctx context.Context, req CompletionRequest) (Comple
 	}
 	// One breakpoint on the newest block caches the whole prefix before it,
 	// so each tool-loop round re-reads the last one instead of re-billing it.
-	if n := len(params.Messages); n > 0 {
+	// Only a call whose prefix is sent again asks for it (ruling P17).
+	if n := len(params.Messages); req.CacheHistory && n > 0 {
 		if blocks := params.Messages[n-1].Content; len(blocks) > 0 {
 			if cc := blocks[len(blocks)-1].GetCacheControl(); cc != nil {
 				*cc = anthropic.NewCacheControlEphemeralParam()

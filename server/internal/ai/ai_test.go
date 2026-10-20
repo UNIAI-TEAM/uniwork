@@ -1342,3 +1342,35 @@ func TestFakeAgentSearchesThenCites(t *testing.T) {
 		t.Fatalf("want the no-data answer: %+v", r)
 	}
 }
+
+// TestGatewayCachesHistoryOnlyForResentCalls (ruling P17): the newest message
+// is a cache breakpoint only on calls whose prefix is sent again — a loop's
+// capability, a tool-result turn, a continuation. A one-shot call would pay
+// the 125% write and never read it back.
+func TestGatewayCachesHistoryOnlyForResentCalls(t *testing.T) {
+	ctx := context.Background()
+	fp := &provider.Fake{Reply: okReply}
+	g, _ := gatewayFixture(t, fp, nil)
+	agent := askReq()
+	agent.Capability = CapCopilotAgent
+	toolTurn := askReq()
+	toolTurn.ToolResultTurn, toolTurn.History, toolTurn.Vars = true, toolTurnHistory("call_1"), nil
+	cont := askReq()
+	cont.Continuation, cont.History = true, []provider.Message{{Role: "user", Content: "q"}}
+	office := Request{Actor: audit.User("u1"), OrganizationID: "org1", WorkspaceID: "ws1", Capability: CapOfficeUniworkAI,
+		PromptID: PromptOfficeUniworkAI, Module: "xlsx", History: []provider.Message{{Role: "user", Content: "q"}}}
+	for name, c := range map[string]struct {
+		req  Request
+		want bool
+	}{
+		"one-shot": {askReq(), false}, "copilot_agent": {agent, true}, "tool-result turn": {toolTurn, true},
+		"continuation": {cont, true}, "office loop": {office, true},
+	} {
+		if _, err := g.Complete(ctx, c.req); err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		if fp.Last.CacheHistory != c.want {
+			t.Errorf("%s: CacheHistory = %v, want %v", name, fp.Last.CacheHistory, c.want)
+		}
+	}
+}

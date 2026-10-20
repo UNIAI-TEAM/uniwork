@@ -148,6 +148,11 @@ type CompletionRequest struct {
 	// Effort is "", "low", "medium" or "high". An adapter sends it only to a
 	// model that takes it; "" leaves the vendor default.
 	Effort string
+	// CacheHistory asks a caching vendor to cache the messages too, not just
+	// the system text: set only when the same prefix is sent again (a tool
+	// loop's next round, a retry), since a cache write costs more than plain
+	// input and a one-shot call never reads it back. Others ignore it.
+	CacheHistory bool
 }
 
 type CompletionResponse struct {

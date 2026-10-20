@@ -164,37 +164,42 @@ func TestAnthropicStrictToolCarriesAdditionalPropertiesFalse(t *testing.T) {
 	}
 }
 
+// TestAnthropicMarksCacheBreakpoints: the system block is always a
+// breakpoint; the newest message block is one only when CacheHistory asks
+// (ruling P17), since a one-shot call never reads that write back.
 func TestAnthropicMarksCacheBreakpoints(t *testing.T) {
 	a, bodies := anthropicStub(t, endTurnReply)
-	req := CompletionRequest{Model: "claude-sonnet-5-5", System: "sys", MaxTokens: 64, Messages: []Message{
-		{Role: "user", Content: "first"},
-		{Role: "assistant", ToolCalls: []ToolCall{{ID: "tu1", Name: "t", Input: json.RawMessage(`{}`)}}},
-		{Role: "tool", ToolCallID: "tu1", Content: "r1"},
-		{Role: "tool", ToolCallID: "tu2", Content: "r2"},
-	}}
-	if _, err := a.Complete(context.Background(), req); err != nil {
-		t.Fatal(err)
-	}
-	body := (*bodies)[0]
-	sys := body["system"].([]any)[0].(map[string]any)
-	if cc, _ := sys["cache_control"].(map[string]any); cc["type"] != "ephemeral" {
-		t.Fatalf("system block = %v", sys)
-	}
-	msgs := body["messages"].([]any)
-	marked := 0
-	for mi, m := range msgs {
-		blocks := m.(map[string]any)["content"].([]any)
-		for bi, b := range blocks {
-			if _, ok := b.(map[string]any)["cache_control"]; ok {
-				marked++
-				if mi != len(msgs)-1 || bi != len(blocks)-1 {
-					t.Fatalf("cache_control on message %d block %d", mi, bi)
+	for i, cacheHistory := range []bool{true, false} {
+		req := CompletionRequest{Model: "claude-sonnet-5-5", System: "sys", MaxTokens: 64, CacheHistory: cacheHistory, Messages: []Message{
+			{Role: "user", Content: "first"},
+			{Role: "assistant", ToolCalls: []ToolCall{{ID: "tu1", Name: "t", Input: json.RawMessage(`{}`)}}},
+			{Role: "tool", ToolCallID: "tu1", Content: "r1"},
+			{Role: "tool", ToolCallID: "tu2", Content: "r2"},
+		}}
+		if _, err := a.Complete(context.Background(), req); err != nil {
+			t.Fatal(err)
+		}
+		body := (*bodies)[i]
+		sys := body["system"].([]any)[0].(map[string]any)
+		if cc, _ := sys["cache_control"].(map[string]any); cc["type"] != "ephemeral" {
+			t.Fatalf("CacheHistory %v: system block = %v", cacheHistory, sys)
+		}
+		msgs := body["messages"].([]any)
+		marked := 0
+		for mi, m := range msgs {
+			blocks := m.(map[string]any)["content"].([]any)
+			for bi, b := range blocks {
+				if _, ok := b.(map[string]any)["cache_control"]; ok {
+					marked++
+					if mi != len(msgs)-1 || bi != len(blocks)-1 {
+						t.Fatalf("cache_control on message %d block %d", mi, bi)
+					}
 				}
 			}
 		}
-	}
-	if marked != 1 {
-		t.Fatalf("%d message blocks carry cache_control, want 1: %v", marked, msgs)
+		if want := map[bool]int{true: 1, false: 0}[cacheHistory]; marked != want {
+			t.Fatalf("CacheHistory %v: %d message blocks carry cache_control, want %d: %v", cacheHistory, marked, want, msgs)
+		}
 	}
 }
 
