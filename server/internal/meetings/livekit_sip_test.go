@@ -67,18 +67,18 @@ func TestCreateDialInRuleSendsADirectRuleWithThePIN(t *testing.T) {
 	if err != nil || id != "SDR_test" {
 		t.Fatalf("id=%q err=%v", id, err)
 	}
-	direct := created.GetRule().GetDispatchRuleDirect()
+	direct := created.GetDispatchRule().GetRule().GetDispatchRuleDirect()
 	if direct.GetRoomName() != "uw_mtg_m1" || direct.GetPin() != "042137" {
-		t.Fatalf("rule = %+v", created.GetRule())
+		t.Fatalf("rule = %+v", created.GetDispatchRule().GetRule())
 	}
-	if !created.GetHidePhoneNumber() {
+	if !created.GetDispatchRule().GetHidePhoneNumber() {
 		t.Fatal("the rule must hide the caller's number")
 	}
-	if got := created.GetTrunkIds(); len(got) != 1 || got[0] != "ST_uniwork" {
+	if got := created.GetDispatchRule().GetTrunkIds(); len(got) != 1 || got[0] != "ST_uniwork" {
 		t.Fatalf("trunks = %v", got)
 	}
-	if created.GetName() != "uniwork m1" {
-		t.Fatalf("name = %q", created.GetName())
+	if created.GetDispatchRule().GetName() != "uniwork m1" {
+		t.Fatalf("name = %q", created.GetDispatchRule().GetName())
 	}
 }
 
@@ -88,8 +88,8 @@ func TestCreateDialInRuleWithoutTrunkLeavesTrunksOpen(t *testing.T) {
 	if _, err := a.CreateDialInRule(context.Background(), DialInRuleRequest{RoomName: "uw_mtg_m1", Pin: "1"}); err != nil {
 		t.Fatal(err)
 	}
-	if len(created.GetTrunkIds()) != 0 {
-		t.Fatalf("trunks = %v", created.GetTrunkIds())
+	if len(created.GetDispatchRule().GetTrunkIds()) != 0 {
+		t.Fatalf("trunks = %v", created.GetDispatchRule().GetTrunkIds())
 	}
 }
 

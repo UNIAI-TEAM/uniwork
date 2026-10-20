@@ -398,8 +398,9 @@ func (a *LiveKitAdapter) sip() *lksdk.SIPClient {
 // CreateDialInRule creates a direct dispatch rule: a caller who enters the
 // PIN joins the room. The rule hides the caller's number, so the room (and
 // UniWork) only ever sees a hashed identity and the last four digits. The
-// request uses the legacy top-level fields, which every LiveKit SIP release
-// reads.
+// rule travels in dispatch_rule, which the top-level fields were deprecated
+// for; a LiveKit server too old to read it refuses the rule (runbook
+// livekit-sip.md).
 func (a *LiveKitAdapter) CreateDialInRule(ctx context.Context, req DialInRuleRequest) (string, error) {
 	var trunks []string
 	if req.TrunkID != "" {
@@ -408,10 +409,12 @@ func (a *LiveKitAdapter) CreateDialInRule(ctx context.Context, req DialInRuleReq
 	ctx, cancel := a.roomCtx(ctx)
 	defer cancel()
 	info, err := a.sip().CreateSIPDispatchRule(ctx, &livekit.CreateSIPDispatchRuleRequest{
-		Rule: &livekit.SIPDispatchRule{Rule: &livekit.SIPDispatchRule_DispatchRuleDirect{
-			DispatchRuleDirect: &livekit.SIPDispatchRuleDirect{RoomName: req.RoomName, Pin: req.Pin},
-		}},
-		TrunkIds: trunks, HidePhoneNumber: true, Name: req.Name,
+		DispatchRule: &livekit.SIPDispatchRuleInfo{
+			Rule: &livekit.SIPDispatchRule{Rule: &livekit.SIPDispatchRule_DispatchRuleDirect{
+				DispatchRuleDirect: &livekit.SIPDispatchRuleDirect{RoomName: req.RoomName, Pin: req.Pin},
+			}},
+			TrunkIds: trunks, HidePhoneNumber: true, Name: req.Name,
+		},
 	})
 	if err != nil {
 		return "", fmt.Errorf("livekit create dial-in rule: %w", err)
