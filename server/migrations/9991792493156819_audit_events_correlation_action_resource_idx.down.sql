@@ -1,0 +1,1 @@
+DROP INDEX CONCURRENTLY IF EXISTS idx_audit_events_correlation_action_resource;
