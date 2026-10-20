@@ -84,7 +84,7 @@ Số hàng theo basis (486): `MS-WEB` 178, `MS-WEB-ALT` 17, `DESKTOP-FALLBACK` 1
 6. **IME/Telex/VNI**: mọi handler mới phải bỏ qua khi `event.isComposing` hoặc `keyCode === 229`; Enter/Esc/Space trong hộp thoại không được kích hoạt khi đang gõ dấu.
 7. **AltGr**: chord có Ctrl+Alt trên Windows là AltGr ở nhiều bố cục; handler loại `getModifierState('AltGraph')` (mẫu đã có ở `packages/core/shortcuts/definitions.ts:139`). Phím MS dùng Ctrl+Alt (Heading 1–3, bình luận, chú thích cuối trang) phải đi qua guard này.
 8. **Khả năng tiếp cận giữ nguyên**: không chặn phím của trình đọc màn hình (NVDA/VoiceOver; danh sách cụ thể kiểm tay ở giai đoạn 2); không chặn Tab/Shift+Tab trong điều khiển; giữ hợp đồng a11y hiện có (`aria-disabled`, focus-visible…). `F6`/`Shift+F6` chuyển vùng như Office là ứng viên (§6.5).
-9. **Phím theo `event.code` hay `event.key`**: chord chữ cái dùng `event.key` (phím thể hiện đúng ký tự theo bố cục, không bị Caps Lock phá — nhớ so sánh không phân biệt hoa/thường); chord dấu/số theo vị trí phím dùng `event.code`. Quy ước này ghi vào bảng phím, mỗi chord khai báo rõ.
+9. **Phím theo `event.key` hay `event.code`** (sửa ở giai đoạn 2, quyết định lead 2026-10-21, `@genoffice/shortcuts` 97953cbf4): chord chữ cái dùng `event.key`, so sánh không phân biệt hoa/thường để Caps Lock không phá. Chord dấu và ký hiệu khớp **theo ký tự** mà `event.key` gõ ra, nên `Ctrl+Shift+Period` nghĩa là ký tự `>` dù bố cục đặt nó ở phím nào. `event.code` chỉ dùng khi phím không gõ ra ký tự in được. Chord số giữ `event.code` và thắng khi trùng. Bàn phím số không bao giờ thay cho một ký hiệu. Riêng nhóm zoom mang thêm bí danh tường minh: `Mod+Shift+=` (trừ nơi `Ctrl+Shift+=` đã gắn cho hành động khác trong cùng scope, như chỉ số trên của Docs), `Mod+NumpadAdd`, `Mod+NumpadSubtract` và `Mod+Numpad0`. Một lock trong gói giữ quy tắc này. Test bố cục Mỹ/Đức/Pháp AZERTY/Tây Ban Nha/Ý nằm trong gói và trong từng module.
 
 ## 4. Hiện trạng: phím được định nghĩa ở đâu
 
@@ -201,6 +201,8 @@ Danh sách đầy đủ có nguồn Apple (https://support.apple.com/en-us/10265
 
 **Test khoá bảng (cả hai repo)**: (i) mỗi hàng của bảng bằng dữ liệu MS đã chụp (`shortcuts.csv`/`C2-ms-lookup.csv` là snapshot test đầu vào); (ii) không hai hành động cùng chord trong cùng scope; (iii) không phím Chromium giữ (§6.1) ở cột web trừ hàng `basis = MS-WEB-ALT` mà MS web nêu hoặc hàng chỉ "giữ của trình duyệt"; mọi hàng `ALT-PROPOSED` phải có cờ "chưa kiểm thử" cho tới khi giai đoạn 2 thử; (iv) mỗi `evidence`/handler tồn tại.
 
+**Đã làm ở giai đoạn 2 (fork, nhánh `feature/UNI-2011-s-table` 2b72badc7)**: gói `@genoffice/shortcuts` có bảng sinh từ CSV (`gen --check`) cộng mảng `manual` của từng module. Mỗi `tables/<module>.ts` xuất `<module>ManualUnmapped` (hàng không gắn phím, kèm lý do) và `<module>ManualNotes` (ghi chú cho hàng đã gắn). `index.ts` gộp chúng vào `SHORTCUT_UNMAPPED` / `SHORTCUT_NOTES`, và một lock đòi mỗi hàng bỏ trống phải nói lý do. Lock truy vết in-trong-CSV nay đọc cả phím đơn (Space, Enter, Esc, mũi tên, PageUp/PageDown, Home/End, chữ hoa, Period/Comma/Hyphen), nên phím trình chiếu và phím điều hướng PDF nằm trong bảng thay cho danh sách viết tay trong module. `noRepeat` do bộ sinh đặt. Đầu vào `before-input-event` của Electron đi qua `fromElectronInput`. Chord Ctrl+Alt trên Windows không có accelerator menu (`acceleratorSkipReason`); renderer xử lý chúng sau guard AltGr. Phím thu gọn ribbon đọc từ bảng qua `useRibbonCollapse` trong `packages/ui`: Docs dùng `docs-086`/`docs-087`, các module khác dùng `common-10`.
+
 ### 8.2 Lát cắt có thể chạy song song
 
 Mọi lát cắt đọc cùng nguồn sự thật (`shortcuts.csv`), sau lát cắt gốc S-table (bảng + bộ khớp) mỗi lát cắt khác độc lập.
@@ -265,7 +267,7 @@ Người dùng chốt ngày 2026-10-20 (D1, D3, D4 trực tiếp — D3 đổi s
 - Câu hỏi mở (R1 F5): trên web `F1` thuộc về trình duyệt ở mọi module (`common-13`); chỉ khi người dùng muốn mới chặn `F1` trong khung, như mục *Override browser shortcuts* (tuỳ chọn, mặc định tắt) của Excel web.
 - Univer: nhánh chỉnh sửa ô (mũi tên trong cell editor) quyết định ở controller render chưa đọc hết; cạnh tranh `Mod-B` vs `Mod-Shift-b`, `Mod-Enter` của TipTap phụ thuộc thứ tự extension lúc chạy.
 - Sheets: bộ chặn PageUp/PageDown khi đang sửa ô có thể nuốt phím (nghi lỗi, chưa tái hiện).
-- Bố cục bàn phím không phải Mỹ (Pháp/Đức/Việt): chord số/ký hiệu khớp `event.code` có thể khác nghĩa.
+- Bố cục bàn phím không phải Mỹ: từ giai đoạn 2, chord ký hiệu khớp theo ký tự (quy tắc 9) và có test Đức/Pháp/Tây Ban Nha/Ý. Bố cục Việt (Unikey/Telex trên bàn phím Mỹ) và trình duyệt thật chưa thử.
 - Tham chiếu Microsoft Learn chưa tìm.
 - Thư viện: dùng mã nguồn thẻ/tarball, không phải bản cài trong fork; phiên bản TipTap của D (lockfile 3.30.6, catalog 3.27.1) chưa đối soát.
 
