@@ -34,8 +34,9 @@ func (h *handlers) createOfficeLaunch(w http.ResponseWriter, r *http.Request) {
 		commentID = strings.TrimSpace(*in.CommentID)
 		// R1-6: a present comment_id must fit the ULID bound the SDI tags
 		// document; blank or oversized is a 400 here, before any lookup.
-		// Anything else is left to the existence check, which answers the
-		// same 404 for unknown and other-document ids (no existence oracle).
+		// Anything else is a hint the service keeps only when it is a live
+		// comment row of this document, otherwise drops silently (OQ-C6), the
+		// same answer for every dropped id.
 		if commentID == "" || len(commentID) > maxOfficeCommentIDLen {
 			respondError(w, http.StatusBadRequest, "invalid_request", "comment_id không hợp lệ")
 			return
