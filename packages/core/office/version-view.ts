@@ -1,5 +1,4 @@
-import { DocsProtocolError } from "./docs-frame-protocol";
-import { isViewVersionPayload, type ViewVersionResult } from "./frame-version-view";
+import type { CommentsViewVersionPayload, CommentsViewVersionResult } from "./docs-frame-protocol";
 
 // The D half of "open a document version read-only" (UNI-2033): the page's `?version=N` parameter,
 // the hrefs that carry it, the lost-comment reader the Inbox landing uses, and the host's answer to
@@ -41,13 +40,11 @@ export function lostCommentVersion(list: unknown, commentId: string): number | n
 
 /**
  * The host's answer to `comments.viewVersion`: one history entry to the version URL, then
- * `{ opened: true }` (the page remounts the frame as a read-only version view).
+ * `{ opened: true }` (the page remounts the frame as a read-only version view). The vendored
+ * endpoint has already refused a payload without a comment id and a positive `version_no`.
  */
-export function createViewVersionHandler(go: (href: string) => void, pathname: () => string): (payload: unknown) => ViewVersionResult {
+export function createViewVersionHandler(go: (href: string) => void, pathname: () => string): (payload: CommentsViewVersionPayload) => CommentsViewVersionResult {
   return (payload) => {
-    if (!isViewVersionPayload(payload)) {
-      throw new DocsProtocolError({ code: "malformed", message: "comments.viewVersion needs comment_id and a positive version_no" });
-    }
     go(versionViewHref(pathname(), payload.version_no, payload.comment_id));
     return { opened: true };
   };

@@ -28,7 +28,6 @@ import {
   type InitPayload,
 } from "@uniwork/core/office/docs-frame-protocol";
 import { shareDocument } from "@uniwork/core/api/endpoints/documents-sharing";
-import type { ViewVersionResult } from "@uniwork/core/office/frame-version-view";
 import { createViewVersionHandler, lostCommentVersion, versionViewHref } from "@uniwork/core/office/version-view";
 import { useOptionalWS } from "@uniwork/core/realtime";
 import { useOptionalNavigation } from "../../navigation";
@@ -93,14 +92,6 @@ interface FrameComments {
    * the last answer until the next ack, so the page panel does not flash in between.
    */
   framePanel: boolean;
-  /**
-   * The frame's `comments.viewVersion` (UNI-2033): one history entry to `?version=N&comment=<id>`.
-   * Not on `binding.api` yet: the vendored protocol has no such request, so the T6 re-vendor adds
-   * `"comments.viewVersion": viewVersion` there and the capability next to `commentsShareView`.
-   */
-  viewVersion(payload: unknown): ViewVersionResult;
-  /** Whether init may grant `commentsViewVersion`: never inside a version view. */
-  viewVersionGranted: boolean;
 }
 
 interface Attached {
@@ -241,6 +232,8 @@ export function useFrameComments(options: UseFrameCommentsOptions): FrameComment
           void qc.invalidateQueries({ queryKey: documentKeys.shares(current.wsId, doc) });
           return { ok: true as const };
         }),
+      // UNI-2033: one history entry to `?version=N&comment=<id>`; the page remounts the frame as a read-only version view.
+      "comments.viewVersion": createViewVersionHandler((href) => latest.current.navigation?.push(href), () => latest.current.navigation?.pathname ?? ""),
       "mentions.search": (payload, { signal }) =>
         call("mentions.search", async (doc) => {
           const found = await searchFrameMentionCandidates(doc, payload, signal);
@@ -253,6 +246,8 @@ export function useFrameComments(options: UseFrameCommentsOptions): FrameComment
         const capabilities: Capabilities = { ...init.capabilities, comments: true };
         shareViewGranted.current = frameCanShareView(level, readonly);
         if (shareViewGranted.current) capabilities.commentsShareView = true;
+        // Never inside a version view: there the frame has no "View that version" to offer.
+        if (latest.current.options.viewVersion === undefined) capabilities.commentsViewVersion = true;
         // `id` is for "my comments" in the frame, never an authorization; the display name is the session's.
         const id = latest.current.userId;
         return {
@@ -303,9 +298,5 @@ export function useFrameComments(options: UseFrameCommentsOptions): FrameComment
   }, [attached, revealCommentId]);
 
   const framePanel = attached ? attached.enabled : held?.documentId === documentId && held.enabled;
-  const viewVersion = useMemo(
-    () => createViewVersionHandler((href) => latest.current.navigation?.push(href), () => latest.current.navigation?.pathname ?? ""),
-    [],
-  );
-  return { binding, framePanel, viewVersion, viewVersionGranted: options.viewVersion === undefined };
+  return { binding, framePanel };
 }

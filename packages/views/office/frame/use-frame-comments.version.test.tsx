@@ -3,7 +3,7 @@ import { act, renderHook } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { DocsFrameHost } from "@uniwork/core/office/docs-frame-host";
-import type { InitAck } from "@uniwork/core/office/docs-frame-protocol";
+import type { InitAck, InitPayload } from "@uniwork/core/office/docs-frame-protocol";
 import { requestMock } from "../../test/api-mock";
 import { NavigationProvider, type NavigationAdapter } from "../../navigation";
 import { useFrameComments } from "./use-frame-comments";
@@ -109,12 +109,16 @@ describe("useFrameComments: Inbox landing on a lost comment (UNI-2033)", () => {
 describe("useFrameComments: comments.viewVersion (UNI-2033)", () => {
   it("pushes the version URL with the comment and answers opened", () => {
     const frame = setup();
-    expect(frame.hook.result.current.viewVersion({ comment_id: "c2", version_no: 4 })).toEqual({ opened: true });
+    const viewVersion = frame.hook.result.current.binding.api["comments.viewVersion"];
+    expect(viewVersion?.({ comment_id: "c2", version_no: 4 }, SIGNAL)).toEqual({ opened: true });
     expect(frame.navigation.push).toHaveBeenCalledWith(`${PATH}?version=4&comment=c2`);
   });
 
   it("is never granted inside a version view", () => {
-    expect(setup().hook.result.current.viewVersionGranted).toBe(true);
-    expect(setup({ viewVersion: 2 }).hook.result.current.viewVersionGranted).toBe(false);
+    const init = { documentId: "doc-1", token: "t", capabilities: {} } as unknown as InitPayload;
+    const grant = (hook: ReturnType<typeof setup>["hook"]) =>
+      hook.result.current.binding.augmentInit(init, { canEdit: true, readonly: false }).capabilities["commentsViewVersion"];
+    expect(grant(setup().hook)).toBe(true);
+    expect(grant(setup({ viewVersion: 2 }).hook)).toBeUndefined();
   });
 });
