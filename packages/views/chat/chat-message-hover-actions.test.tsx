@@ -1,9 +1,11 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import type { ReactNode } from "react";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import { wrap } from "../test/api-mock";
 import { ChatMessageActionsFrame, ChatMessageHoverActions } from "./chat-message-hover-actions";
+import type { ChatMenuParts } from "./chat-message-menu-items";
 import type { ChatMessage } from "./chat-messages";
 
 vi.mock("@uniwork/ui/components/common/emoji-picker", () => ({
@@ -223,5 +225,52 @@ describe("ChatMessageActionsFrame", () => {
     expect(screen.queryByRole("toolbar")).not.toBeInTheDocument();
     fireEvent.contextMenu(screen.getByText("Báo cáo doanh số tuần đã lên"));
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+  });
+});
+
+describe("the documentItems slot (UNI-2012 S7)", () => {
+  const items = (P: ChatMenuParts) => (
+    <P.Item onClick={vi.fn()}>
+      <span>Lịch sử phiên bản</span>
+    </P.Item>
+  );
+
+  function Frame(props: { documentItems?: (parts: ChatMenuParts) => ReactNode; onReact?: () => void }) {
+    return (
+      <ChatMessageActionsFrame message={message("m1")} isOwn={false} onReply={vi.fn()} onCopy={vi.fn()} {...props}>
+        <p>Báo cáo Q3</p>
+      </ChatMessageActionsFrame>
+    );
+  }
+
+  const labels = (menu: HTMLElement) => within(menu).getAllByRole("menuitem").map((item) => item.textContent?.trim());
+
+  it("puts the attachment's entries first, apart from the message's own, in the right-click menu and in More", async () => {
+    const user = userEvent.setup();
+    render(wrap(<Frame onReact={vi.fn()} documentItems={items} />));
+    fireEvent.contextMenu(screen.getByText("Báo cáo Q3"));
+    const context = await screen.findByRole("menu");
+    expect(labels(context).slice(0, 2)).toEqual(["Lịch sử phiên bản", "Trả lời"]);
+    expect(within(context).getAllByRole("separator").length).toBeGreaterThan(0);
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("menu")).not.toBeInTheDocument());
+
+    await user.click(screen.getByRole("button", { name: "Thêm" }));
+    expect(labels(await screen.findByRole("menu")).slice(0, 2)).toEqual(["Lịch sử phiên bản", "Trả lời"]);
+  });
+
+  it("adds nothing, not even a separator, when the attachment offers nothing", async () => {
+    render(wrap(<Frame onReact={vi.fn()} documentItems={() => null} />));
+    fireEvent.contextMenu(screen.getByText("Báo cáo Q3"));
+    const menu = await screen.findByRole("menu");
+    expect(labels(menu)[0]).toBe("Trả lời");
+    expect(within(menu).queryAllByRole("separator")).toHaveLength(0);
+  });
+
+  it("keeps the frame's rule: no menu at all without reply and react", () => {
+    render(wrap(<Frame documentItems={items} />));
+    fireEvent.contextMenu(screen.getByText("Báo cáo Q3"));
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+    expect(screen.queryByText("Lịch sử phiên bản")).not.toBeInTheDocument();
   });
 });

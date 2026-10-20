@@ -97,10 +97,17 @@ export type ChatMessageActionHandlers = {
   onCreateTask?: (message: ChatMessage) => void;
   onLinkTask?: (message: ChatMessage) => void;
   onFollowUp?: (message: ChatMessage) => void;
+  /**
+   * What the message's attachment offers (a document card's role menu),
+   * written once against the parts so the right-click menu and the "…"
+   * dropdown both carry it; null leaves the group out.
+   */
+  documentItems?: (parts: ChatMenuParts) => ReactNode;
 };
 
 /**
- * A message's menu, Telegram's order: the reaction strip, then what you do
+ * A message's menu, Telegram's order: the reaction strip, then what the
+ * attachment offers (a document's own actions), then what you do
  * with the message (reply, thread, edit, copy, pin, forward), then what it
  * becomes in UniWork (follow up, a task), then delete apart, and who has seen
  * your own message last.
@@ -121,6 +128,7 @@ export function ChatMessageMenuItems({
   onCreateTask,
   onLinkTask,
   onFollowUp,
+  documentItems,
 }: ChatMessageActionHandlers & {
   parts: ChatMenuParts;
   message: ChatMessage;
@@ -133,6 +141,7 @@ export function ChatMessageMenuItems({
   const onForward = useContext(ChatForwardContext);
   const mine = new Set(message.myReactions ?? []);
   const workHub = Boolean(onCreateTask || onLinkTask || onFollowUp);
+  const attachment = documentItems?.(P) ?? null;
   return (
     <>
       {onToggleReaction ? (
@@ -156,6 +165,12 @@ export function ChatMessageMenuItems({
               <FaceSlightlySmilingPlus aria-hidden />
             </P.Item>
           </div>
+          <P.Separator />
+        </>
+      ) : null}
+      {attachment ? (
+        <>
+          {attachment}
           <P.Separator />
         </>
       ) : null}
