@@ -12,6 +12,7 @@ import {
   listSharedByMe,
   listSharedWithMe,
   listShelvedDocuments,
+  listTrashedDocuments,
   moveDocument,
   purgeDocument,
   restoreDocument,
@@ -436,6 +437,40 @@ describe("documents-collections endpoints", () => {
     expect(parsed.searchParams.has("parent_id")).toBe(false);
     expect(out.documents[0]?.shelved_at).toBe("2026-10-17T00:00:00Z");
     expect(out.next_cursor).toBe("s9");
+  });
+
+  it.each(malformedBodies)("listTrashedDocuments throws rather than fake-empty %#", async (body) => {
+    vi.mocked(fetch).mockResolvedValueOnce(json(body));
+    await expect(listTrashedDocuments("w1")).rejects.toThrow("document_list_invalid");
+  });
+
+  it("listTrashedDocuments always asks for archived=1 sorted deleted ascending, with the chips and the cursor (UNI-2045 Q2)", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json(listBody({ documents: [summary({ archived_at: "2026-10-18T00:00:00Z", archived_by: "u2", purge_after: "2026-11-17T00:00:00Z" })], next_cursor: "t9" })),
+    );
+    const out = await listTrashedDocuments("w1", { kind: "page", format: "docx", access: "restricted", cursor: "c5", limit: 25 });
+    const parsed = new URL(String(vi.mocked(fetch).mock.calls[0]![0]));
+    expect(parsed.pathname).toBe("/api/v1/workspaces/w1/documents");
+    expect(parsed.searchParams.get("archived")).toBe("1");
+    expect(parsed.searchParams.get("sort")).toBe("deleted");
+    expect(parsed.searchParams.get("order")).toBe("asc");
+    expect(parsed.searchParams.get("kind")).toBe("page");
+    expect(parsed.searchParams.get("format")).toBe("docx");
+    expect(parsed.searchParams.get("access")).toBe("restricted");
+    expect(parsed.searchParams.get("cursor")).toBe("c5");
+    expect(parsed.searchParams.get("limit")).toBe("25");
+    expect(parsed.searchParams.has("shelved")).toBe(false);
+    expect(parsed.searchParams.has("parent_id")).toBe(false);
+    expect(out.documents[0]?.purge_after).toBe("2026-11-17T00:00:00Z");
+    expect(out.next_cursor).toBe("t9");
+  });
+
+  it("listTrashedDocuments reads a drifted purge_after or archived_by as absent, never as a broken page", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json(listBody({ documents: [summary({ id: "a", archived_at: "2026-10-18T00:00:00Z", archived_by: 7, purge_after: { at: 1 } })] })),
+    );
+    const out = await listTrashedDocuments("w1");
+    expect(out.documents.map((d) => [d.id, d.archived_by ?? null, d.purge_after ?? null])).toEqual([["a", null, null]]);
   });
 
   it.each(malformedBodies)("listRecentDocuments throws rather than fake-empty %#", async (body) => {

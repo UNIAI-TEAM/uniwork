@@ -21,6 +21,7 @@ import {
   useSharedByMe,
   useSharedWithMe,
   useShelvedDocuments,
+  useTrashedDocuments,
   useUnshelveDocument,
 } from "./hooks-collections";
 import { documentKeys } from "./keys";
@@ -725,6 +726,31 @@ describe("documents collection hooks", () => {
       await expectNotVerifiable(() => unshelve.result.current.mutateAsync({ documentId: "d2" }));
     });
     expect(qc.getQueryState(shelvedKey)?.isInvalidated).toBe(false);
+  });
+
+  it("useTrashedDocuments always sends sort=deleted&order=asc on archived=1 and follows next_cursor (UNI-2045 Q2)", async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(json(listBody([summary("d1", { archived_at: "2026-10-17T00:00:00Z" })], "n1")))
+      .mockResolvedValueOnce(json(listBody([summary("d2", { archived_at: "2026-10-17T01:00:00Z" })])));
+    const { qc, wrapper } = setup();
+    const { result } = renderHook(() => useTrashedDocuments("w1", { format: "docx" }), { wrapper });
+    await waitFor(() => expect(result.current.hasNextPage).toBe(true));
+    await act(async () => {
+      await result.current.fetchNextPage();
+    });
+    await waitFor(() => expect(result.current.data?.pages.length).toBe(2));
+    expect(result.current.data?.pages.flatMap((p) => p.documents.map((d) => d.id))).toEqual(["d1", "d2"]);
+    for (const [index, cursor] of [[0, null], [1, "n1"]] as const) {
+      const url = new URL(String(vi.mocked(fetch).mock.calls[index]![0]));
+      expect(url.searchParams.get("archived")).toBe("1");
+      expect(url.searchParams.get("sort")).toBe("deleted");
+      expect(url.searchParams.get("order")).toBe("asc");
+      expect(url.searchParams.get("format")).toBe("docx");
+      expect(url.searchParams.get("cursor")).toBe(cursor);
+    }
+    // Under the list root, so every document.* invalidation and a restore/purge refresh reach it.
+    const entry = qc.getQueryCache().findAll({ queryKey: documentKeys.listRoot("w1") });
+    expect(entry).toHaveLength(1);
   });
 
   it("useShelvedDocuments queries shelved=true under documentKeys.shelved(wsId, filters) and follows next_cursor", async () => {
