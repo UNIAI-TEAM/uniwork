@@ -1,0 +1,6 @@
+$ bash ~/.uniwork-cloud/.cursor/cloud/start.sh >/dev/null 2>&1 || true; git rev-parse HEAD; git log --oneline -4; for p in 18550 3000; do for pid in $(lsof -ti tcp:$p 2>/dev/null); do kill $pid; done; done; sleep 2; fuser -k 18550/tcp 3000/tcp 2>/dev/null; sleep 1; for p in 18550 3000; do lsof -ti tcp:$p >/dev/null 2>&1 && echo "PORT_STILL_BUSY=$p"; done; true
+bfcd0c9fc8a0f734170fe5367bbb8243b4cf270a
+bfcd0c9fc fix(documents): show the no-access state to a revoked reader who opens a notice (UNI-2019)
+e7be35f41 docs(office): close X-01 - fill N′, harness and the current baseline in contract-p0
+c0d4cdf20 docs(deploy): installer comment names beta.5
+fd58b2759 chore: merge UNI-1986 FRAME-AVATARS D half (b0d6b9f91) into the G5-G7 root

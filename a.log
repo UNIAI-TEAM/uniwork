@@ -1,0 +1,13 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -10
+bfcd0c9fc8a0f734170fe5367bbb8243b4cf270a
+e7be35f4180caa783d3030f049c5af962a05a6a3
+bfcd0c9fc fix(documents): show the no-access state to a revoked reader who opens a notice (UNI-2019)
+e7be35f41 docs(office): close X-01 - fill N′, harness and the current baseline in contract-p0
+c0d4cdf20 docs(deploy): installer comment names beta.5
+fd58b2759 chore: merge UNI-1986 FRAME-AVATARS D half (b0d6b9f91) into the G5-G7 root
+9d8cbfa65 chore: merge REPIN-5 UNI-1919 (559907d24): frames re-pinned to web-0.1.0-f01befd into the G5-G7 root
+f066178eb chore: merge UNI-1991 SIZE-OPS2 (7c748aaed) into the G5-G7 root
+a745a2afd chore(deploy): point office installers at v1.0.0-beta.5
+7c748aaed chore: merge the G5-G7 root d32ad06f9 into SIZE-OPS2 (UNI-1991)
+d1689c83e chore: merge UNI-1994 DOC-NITS (ee32019f4) into the G5-G7 root
+b0d6b9f91 test(office): pin the deactivated validator, the HEAD budget and the sniff read error (UNI-1986)
