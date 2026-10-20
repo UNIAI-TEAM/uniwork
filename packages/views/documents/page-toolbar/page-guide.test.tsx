@@ -82,6 +82,12 @@ describe("PageHelpPopover", () => {
     expect(dialog).toHaveTextContent(k("help.note"));
   });
 
+  it("keeps the note to the typed patterns: the chords print per platform, so it never says to swap Ctrl for ⌘", () => {
+    render(wrap(<PageHelpPopover open onOpenChange={vi.fn()} tabIndex={0} onFocus={vi.fn()} />));
+    expect(k("help.note")).not.toMatch(/⌘|Mac/);
+    expect(k("help.note")).toContain("---");
+  });
+
   it.each(["windows", "macos"] as const)("%s: lists every key of the page shortcut table, Word's key first", (platform) => {
     configureShortcutPlatform(platform);
     render(wrap(<PageHelpPopover open onOpenChange={vi.fn()} tabIndex={0} onFocus={vi.fn()} />));

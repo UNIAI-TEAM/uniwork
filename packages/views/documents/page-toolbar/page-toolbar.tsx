@@ -9,6 +9,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@uniwork/ui/components/
 import { Separator } from "@uniwork/ui/components/ui/separator";
 import { TooltipProvider } from "@uniwork/ui/components/ui/tooltip";
 import { cn } from "@uniwork/ui/lib/utils";
+import { createShortcutChord, shortcutMatchesEvent } from "@uniwork/core/shortcuts";
+import { isImeComposing } from "@uniwork/core/utils";
 import { LinkEditBar } from "../../editor/bubble-menu-controls";
 import { PAGE_LINK_REQUEST_EVENT } from "../../editor/extensions/page-events";
 import { focusOnKeyboardOpen, menuArrowKeys } from "./menu-keys";
@@ -18,6 +20,18 @@ import { TOOLBAR_BUTTON_CLASS, ToolbarButton } from "./page-toolbar-button";
 import { TOOL_GROUPS, type ToolbarTool, type ToolContext } from "./page-toolbar-model";
 
 interface ToolState { pressed: boolean; disabled: boolean }
+
+const LINK_CHORD = createShortcutChord("K", { primary: true });
+
+/**
+ * A second Ctrl/Cmd+K in the open link popover (Word users press it again to
+ * dismiss or redo the dialog) must not reach the global search: the popover is
+ * portaled out of the editor, so the editor's own handler never sees it, and
+ * GlobalShortcuts skips events that are already prevented.
+ */
+const holdLinkChord = (event: KeyboardEvent) => {
+  if (!isImeComposing(event.nativeEvent) && shortcutMatchesEvent(LINK_CHORD, event.nativeEvent)) event.preventDefault();
+};
 
 /** Roving tabindex ids: the toolbar is one Tab stop, arrows move inside it. */
 const STYLE_ID = "style";
@@ -186,6 +200,7 @@ export function PageToolbar({ editor, chooseImage, helpOpen, onHelpOpenChange }:
             className="w-auto p-1"
             initialFocus={false}
             finalFocus={false}
+            onKeyDown={holdLinkChord}
           >
             <LinkEditBar editor={editor} onClose={() => changeLinkOpen(false)} />
           </PopoverContent>

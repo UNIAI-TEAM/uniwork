@@ -10,7 +10,7 @@ import {
   getShortcutPlatform,
   type ShortcutChord,
 } from "@uniwork/core/shortcuts";
-import { createPageDocumentExtensions } from "../../editor/extensions";
+import { createPageDocumentExtensions, type PageDocumentExtensionsOptions } from "../../editor/extensions";
 import { PAGE_LINK_REQUEST_EVENT, PAGE_SAVE_REQUEST_EVENT } from "../../editor/extensions/page-events";
 import {
   PAGE_SHORTCUTS,
@@ -25,13 +25,13 @@ afterEach(() => {
   configureShortcutPlatform(null);
 });
 
-function mount(content: string, selectAll = false) {
+function mount(content: string, selectAll = false, mention?: PageDocumentExtensionsOptions["mention"]) {
   editor?.destroy();
   const host = document.createElement("div");
   document.body.appendChild(host);
   editor = new Editor({
     element: host,
-    extensions: createPageDocumentExtensions({ image: Image, assetUpload: Extension.create({ name: "testUpload" }) }),
+    extensions: createPageDocumentExtensions({ image: Image, assetUpload: Extension.create({ name: "testUpload" }), mention }),
     content,
   });
   if (selectAll) editor.commands.setTextSelection({ from: 1, to: editor.state.doc.content.size - 1 });
@@ -95,6 +95,17 @@ describe("UniNote keyboard shortcuts shown in the toolbar and help", () => {
   const ids = Object.keys(PAGE_SHORTCUTS) as PageShortcutId[];
   const rows = ids.flatMap((id) => PAGE_SHORTCUTS[id].map((key) => ({ id, key })));
 
+  /** The tooltip prints `chord`, the handler fires `pm`: they must name the same key. */
+  it("names the same key in the chord and in the ProseMirror binding of every Tiptap row", () => {
+    for (const { id, key } of rows) {
+      if (!key.pm) continue;
+      const name = ["Mod", key.chord.modifiers.shift && "Shift", key.chord.modifiers.alt && "Alt", key.chord.key.toLowerCase()]
+        .filter(Boolean).join("-");
+      expect(key.chord.modifiers.primary, id).toBe(true);
+      expect(name, id).toBe(key.pm);
+    }
+  });
+
   it("fires every Tiptap key in the table", () => {
     for (const { id, key } of rows) {
       if (!key.pm) continue;
@@ -123,12 +134,17 @@ describe("UniNote keyboard shortcuts shown in the toolbar and help", () => {
     }
   });
 
-  it("prints Word's key first: Ctrl+Y redo, Ctrl+Shift+L bullets, Cmd+Shift+X strikethrough on Mac", () => {
+  it("prints Word's key first: Ctrl+Y redo, Ctrl+. bullets, Ctrl+/ numbers, Cmd+Shift+X strikethrough on Mac", () => {
     const shown = (id: PageShortcutId, platform: "windows" | "macos" | "linux") =>
       pageShortcutChords(id, platform).map((chord) => formatShortcut(chord, platform));
     expect(shown("redo", "windows")).toEqual(["Ctrl+Y", "Ctrl+Shift+Z"]);
     expect(shown("redo", "macos")).toEqual(["⌘Y", "⌘⇧Z"]);
-    expect(shown("bulletList", "windows")).toEqual(["Ctrl+Shift+L", "Ctrl+Shift+8"]);
+    // Word for the web has Ctrl+. and Ctrl+/ on Windows only; the Mac keeps Cmd+Shift+8/7. Cmd+Shift+L is Safari's sidebar.
+    expect(shown("bulletList", "windows")).toEqual(["Ctrl+.", "Ctrl+Shift+L", "Ctrl+Shift+8"]);
+    expect(shown("bulletList", "linux")).toEqual(["Ctrl+.", "Ctrl+Shift+L", "Ctrl+Shift+8"]);
+    expect(shown("bulletList", "macos")).toEqual(["⌘⇧8"]);
+    expect(shown("orderedList", "windows")).toEqual(["Ctrl+/", "Ctrl+Shift+7"]);
+    expect(shown("orderedList", "macos")).toEqual(["⌘⇧7"]);
     expect(shown("strike", "windows")).toEqual(["Ctrl+Shift+S"]);
     expect(shown("strike", "macos")).toEqual(["⌘⇧X", "⌘⇧S"]);
     expect(shown("link", "windows")).toEqual(["Ctrl+K"]);
@@ -165,6 +181,59 @@ describe("UniNote keyboard shortcuts shown in the toolbar and help", () => {
   it("marks the editor DOM as a document-editor scope", () => {
     const instance = mount("<p>text</p>");
     expect(instance.view.dom.getAttribute(DOCUMENT_EDITOR_SCOPE_ATTRIBUTE)).toBe(DOCUMENT_EDITOR_SCOPE);
+  });
+});
+
+describe("chords the editor claims so the browser never acts on them", () => {
+  it.each([
+    ["windows", "J"], ["macos", "J"],
+    ["windows", "["], ["macos", "["],
+    ["windows", "]"], ["macos", "]"],
+  ] as const)("%s: primary+%s is a no-op that is prevented, so neither Downloads nor history navigation opens", (platform, key) => {
+    configureShortcutPlatform(platform);
+    const instance = mount("<p>text</p>");
+    const before = instance.getHTML();
+    expect(press(instance, mod(key)).prevented).toBe(true);
+    expect(instance.getHTML()).toBe(before);
+  });
+
+  it("does not claim Ctrl+J while an IME is composing, with AltGr, or in a read-only editor", () => {
+    configureShortcutPlatform("windows");
+    const instance = mount("<p>text</p>");
+    expect(press(instance, mod("J"), { isComposing: true }).prevented).toBe(false);
+    expect(press(instance, mod("J"), { altKey: true, modifierAltGraph: true }).prevented).toBe(false);
+    instance.setEditable(false);
+    expect(press(instance, mod("J")).prevented).toBe(false);
+  });
+
+  it("keeps Ctrl+B as Bold", () => {
+    configureShortcutPlatform("windows");
+    const instance = mount("<p>text</p>", true);
+    expect(press(instance, mod("B")).prevented).toBe(true);
+    expect(instance.isActive("bold")).toBe(true);
+  });
+
+  /** The mention picker takes Ctrl+J/K to move its selection; it runs before this extension. */
+  it("leaves an open mention picker its own Ctrl+K and Ctrl+J", () => {
+    configureShortcutPlatform("windows");
+    const keys: string[] = [];
+    const events: string[] = [];
+    const instance = mount("<p></p>", false, {
+      char: "@",
+      items: () => [{ id: "1", label: "An" }],
+      render: () => ({
+        onStart: () => undefined,
+        onUpdate: () => undefined,
+        onExit: () => undefined,
+        onKeyDown: ({ event }: { event: KeyboardEvent }) => { keys.push(event.key); return true; },
+      }),
+    } as unknown as PageDocumentExtensionsOptions["mention"]);
+    instance.view.dom.parentElement!.addEventListener(PAGE_LINK_REQUEST_EVENT, () => events.push("link"));
+    type(instance, "@");
+    press(instance, mod("K"));
+    press(instance, mod("J"));
+    expect(keys).toEqual(["k", "j"]);
+    expect(events).toEqual([]);
   });
 });
 

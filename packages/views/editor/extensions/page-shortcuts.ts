@@ -56,8 +56,15 @@ export const PAGE_SHORTCUTS: Readonly<Record<PageShortcutId, readonly PageKey[]>
   // Word for Mac prints no key, so there is none.
   clearFormatting: [{ chord: mod("Space"), platform: "other" }],
   save: [{ chord: mod("S") }],
-  bulletList: [{ chord: mod("L", { shift: true }) }, { chord: mod("8", { shift: true }), pm: "Mod-Shift-8" }],
-  orderedList: [{ chord: mod("7", { shift: true }), pm: "Mod-Shift-7" }],
+  // Word for the web: Ctrl+. and Ctrl+/ on Windows and Linux, nothing documented on
+  // Mac, so Cmd+Shift+8/7 stay the Mac keys. Ctrl+Shift+L (Word desktop) stays as a
+  // secondary key off the Mac, where Cmd+Shift+L is Safari's sidebar.
+  bulletList: [
+    { chord: mod("."), platform: "other" },
+    { chord: mod("L", { shift: true }), platform: "other" },
+    { chord: mod("8", { shift: true }), pm: "Mod-Shift-8" },
+  ],
+  orderedList: [{ chord: mod("/"), platform: "other" }, { chord: mod("7", { shift: true }), pm: "Mod-Shift-7" }],
   taskList: [{ chord: mod("9", { shift: true }), pm: "Mod-Shift-9" }],
   blockquote: [{ chord: mod("B", { shift: true }), pm: "Mod-Shift-b" }],
   codeBlock: [{ chord: mod("C", { alt: true }), pm: "Mod-Alt-c" }],
@@ -93,6 +100,7 @@ const OWNED_ACTIONS: Partial<Record<PageShortcutId, (editor: Editor) => boolean>
     return true;
   },
   bulletList: (editor) => editor.chain().focus().toggleBulletList().run(),
+  orderedList: (editor) => editor.chain().focus().toggleOrderedList().run(),
   strike: (editor) => editor.chain().focus().toggleStrike().run(),
   clearFormatting: (editor) => {
     const chain = editor.chain().focus();
@@ -102,12 +110,22 @@ const OWNED_ACTIONS: Partial<Record<PageShortcutId, (editor: Editor) => boolean>
 };
 
 /**
+ * Chords the global shell or the browser would act on while the editor has
+ * focus, claimed as no-ops so neither does: Ctrl/Cmd+J (Word's Justify, which
+ * UniNote does not have yet, uninote-031; a future Justify takes this chord
+ * instead of the no-op, otherwise it would open Downloads), and Ctrl/Cmd+[ and
+ * Ctrl/Cmd+] (Word's font size; Cmd+[ is history back in Chrome and Safari).
+ * Ctrl+B (Bold) and Ctrl+K (link) are real bindings above.
+ */
+const CLAIMED_NO_OPS: readonly ShortcutChord[] = [mod("J"), mod("["), mod("]")];
+
+/**
  * Marks the page editor as a document-editor scope, so global chords that are
  * also Word chords (Ctrl+K, Ctrl+J, Ctrl+[ ]) stand down while it has focus,
  * and binds the keys of `PAGE_SHORTCUTS` that Tiptap does not bring itself:
  * Ctrl/Cmd+S (stops the browser's "Save page" and asks the view to flush the
- * autosave), Ctrl/Cmd+K (link), Ctrl/Cmd+Shift+L (bullets), Ctrl+Space and
- * Cmd+Shift+X (Mac strikethrough).
+ * autosave), Ctrl/Cmd+K (link), Ctrl+. and Ctrl+/ (lists), Ctrl+Shift+L, Ctrl+Space
+ * and Cmd+Shift+X (Mac strikethrough); `CLAIMED_NO_OPS` keep the browser out.
  *
  * The keys are matched from the event, not from Tiptap's `Mod` (which reads
  * the platform once at load): AltGr and IME composition never match. Mention
@@ -136,7 +154,7 @@ export const PageShortcutsExtension = Extension.create({
                 return event.repeat || action(editor);
               }
             }
-            return false;
+            return CLAIMED_NO_OPS.some((chord) => shortcutMatchesEvent(chord, event, platform));
           },
         },
       }),

@@ -9655,7 +9655,7 @@
           "keys_code_block": "Code block",
           "keys_paragraph": "Normal text",
           "keys_headings": "Heading 1 / 2 / 3",
-          "note": "On Mac use ⌘ instead of Ctrl. Type a pattern at the start of a line, then press Space (--- needs no Space)."
+          "note": "Type a pattern at the start of a line, then press Space (--- needs no Space)."
         },
         "more": "More formatting",
         "more_title": "More formatting",

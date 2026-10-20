@@ -4,7 +4,7 @@ import { Plugin } from "@tiptap/pm/state";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
-import { formatShortcut } from "@uniwork/core/shortcuts";
+import { configureShortcutPlatform, formatShortcut } from "@uniwork/core/shortcuts";
 import { createPageDocumentExtensions } from "../../editor/extensions";
 import { pageShortcutChords } from "../../editor/extensions/page-shortcuts";
 import { wrap } from "../../test/api-mock";
@@ -17,6 +17,7 @@ let editor: Editor | undefined;
 let typed: string[] = [];
 
 afterEach(() => {
+  configureShortcutPlatform(null);
   editor?.destroy();
   editor = undefined;
   typed = [];
@@ -136,14 +137,27 @@ describe("PageToolbar", () => {
     expect(instance.isActive("link", { href: "https://example.com" })).toBe(true);
   });
 
-  it("hints Word's key first on each tool: Ctrl+Y redo, Ctrl+K link, Ctrl+Shift+L bullets, Cmd+Shift+X strike on Mac", () => {
+  it("keeps Ctrl+K inside the open link popover from reaching the global search", async () => {
+    configureShortcutPlatform("windows");
+    renderToolbar(mount());
+    fireEvent.click(button("link"));
+    const input = await screen.findByRole("textbox", { name: t("editor.bubble_menu.url_aria_label") });
+    // fireEvent returns false when the event was prevented; GlobalShortcuts skips prevented events.
+    expect(fireEvent.keyDown(input, { key: "k", ctrlKey: true })).toBe(false);
+    expect(fireEvent.keyDown(input, { key: "k", ctrlKey: true, shiftKey: true })).toBe(true);
+    expect(fireEvent.keyDown(input, { key: "k", ctrlKey: true, isComposing: true })).toBe(true);
+    expect(input).toBeInTheDocument();
+  });
+
+  it("hints Word's key first on each tool: Ctrl+Y redo, Ctrl+K link, Ctrl+. bullets, Cmd+Shift+X strike on Mac", () => {
     const first = (id: string, platform: "windows" | "macos") => {
       const tool = TOOL_GROUPS.flat().find((candidate) => candidate.id === id)!;
       return formatShortcut(pageShortcutChords(tool.shortcutId!, platform)[0]!, platform);
     };
     expect(first("redo", "windows")).toBe("Ctrl+Y");
     expect(first("link", "windows")).toBe("Ctrl+K");
-    expect(first("bulletList", "windows")).toBe("Ctrl+Shift+L");
+    expect(first("bulletList", "windows")).toBe("Ctrl+.");
+    expect(first("orderedList", "windows")).toBe("Ctrl+/");
     expect(first("strikethrough", "windows")).toBe("Ctrl+Shift+S");
     expect(first("strikethrough", "macos")).toBe("⌘⇧X");
     for (const tool of TOOL_GROUPS.flat().filter((candidate) => candidate.shortcutId)) {
