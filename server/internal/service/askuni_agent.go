@@ -94,9 +94,11 @@ func (s *AskUNIService) SetAgentMetrics(m AskAgentMetrics) { s.agentMetrics = m 
 var sourceRef = regexp.MustCompile(`\[(S\d+)\]`)
 
 // agentOn reports whether this turn runs as the agent: the flag on for the
-// asker and their organization, and the read tools wired.
+// asker and their organization, the read tools wired, and a copilot_agent
+// model on the provider (Ollama has none: no tool-result turn), so a
+// deployment without one stays on P0.
 func (s *AskUNIService) agentOn(ctx context.Context, tc ai.ToolContext) bool {
-	if s.reads == nil || s.flags == nil {
+	if s.reads == nil || s.flags == nil || s.gw.DefaultModel(ai.CapCopilotAgent) == "" {
 		return false
 	}
 	f, _ := featureflags.Lookup(askAgentFlag)

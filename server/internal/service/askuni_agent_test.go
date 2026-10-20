@@ -972,3 +972,24 @@ func TestAskAgentDeadlineAfterSpendingStoresNotice(t *testing.T) {
 		t.Fatalf("runs %v, want timeout", m.runs)
 	}
 }
+
+// namedFake is the fake provider under another provider's name.
+type namedFake struct {
+	*provider.Fake
+	name string
+}
+
+func (p namedFake) Name() string { return p.name }
+
+// A provider without a copilot_agent model keeps Ask on P0 whatever the
+// flag says: Ollama cannot run a tool-result turn.
+func TestAskAgentOffWithoutAnAgentModel(t *testing.T) {
+	tc := ai.ToolContext{ActorID: "u1", OrganizationID: "org1", WorkspaceID: "ws1"}
+	for name, want := range map[string]bool{"fake": true, "anthropic": true, "ollama": false, "mystery": false} {
+		s := &AskUNIService{reads: &McpToolService{}, flags: agentFlagFake{org: "org1"},
+			gw: ai.NewGateway(nil, namedFake{&provider.Fake{}, name}, nil, nil, ai.Options{})}
+		if got := s.agentOn(context.Background(), tc); got != want {
+			t.Errorf("provider %s: agentOn = %v, want %v", name, got, want)
+		}
+	}
+}

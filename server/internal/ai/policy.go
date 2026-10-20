@@ -46,8 +46,9 @@ var (
 	embedding = map[string]string{"openai": "text-embedding-3-small", "ollama": "nomic-embed-text", "fake": "fake"}
 
 	// copilotAgent is Ask UNI's read-only agent loop; its default is the model
-	// the "Auto" choice resolves to.
-	copilotAgent = map[string]string{"anthropic": "claude-sonnet-5-5", "openai": "gpt-4o", "ollama": "llama3.1", "fake": "fake"}
+	// the "Auto" choice resolves to. No ollama, as for officeUniwork: an
+	// ollama deployment keeps Ask on P0 (AskUNIService.agentOn).
+	copilotAgent = map[string]string{"anthropic": "claude-sonnet-5-5", "openai": "gpt-4o", "fake": "fake"}
 
 	// officeUniwork is flagship without ollama: /api/chat has no tool-result
 	// turn, so an ollama deployment has no UniWork AI rather than a broken one.
