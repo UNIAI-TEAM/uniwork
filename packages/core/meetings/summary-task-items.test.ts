@@ -1,26 +1,26 @@
 import { describe, expect, it } from "vitest";
-import type { MeetingSummaryActionItem } from "../types/meeting";
+import type { MeetingActionItem } from "../api/endpoints/meeting-action-items";
 import {
-  buildMeetingSummaryTasksBody,
+  buildConvertActionItemsBody,
   buildSummaryTaskItems,
-  isConvertedItem,
   previewAssigneeId,
   summaryItemDraft,
 } from "./summary-task-items";
 
-const item = (over: Partial<MeetingSummaryActionItem> & { index: number }): MeetingSummaryActionItem => ({
-  title: `Việc ${over.index}`,
+const item = (over: Partial<MeetingActionItem> & { id: string }): MeetingActionItem => ({
+  title: `Việc ${over.id}`,
+  status: "PENDING",
   ...over,
 });
 
 describe("summaryItemDraft", () => {
   it("starts from the server's suggestion, and from none where it has none", () => {
-    expect(summaryItemDraft(item({ index: 0, suggested_assignee_id: "u1", due_date: "2026-09-05" }))).toEqual({
+    expect(summaryItemDraft(item({ id: "a0", suggested_assignee_id: "u1", suggested_due_date: "2026-09-05" }))).toEqual({
       assigneeId: "u1",
       dueDate: "2026-09-05",
       priority: "none",
     });
-    expect(summaryItemDraft(item({ index: 1, owner: "Minh", due: "thứ Sáu" }))).toEqual({
+    expect(summaryItemDraft(item({ id: "a1", owner_text: "Minh", due_text: "thứ Sáu" }))).toEqual({
       assigneeId: null,
       dueDate: null,
       priority: "none",
@@ -28,45 +28,49 @@ describe("summaryItemDraft", () => {
   });
 });
 
-describe("buildMeetingSummaryTasksBody", () => {
+describe("buildConvertActionItemsBody", () => {
   const items = [
-    item({ index: 0, owner: "Minh", due: "thứ Sáu", suggested_assignee_id: "u-minh", due_date: "2026-09-05" }),
-    item({ index: 1, task_id: "t-old" }),
-    item({ index: 2 }),
+    item({ id: "a0", owner_text: "Minh", due_text: "thứ Sáu", suggested_assignee_id: "u-minh", suggested_due_date: "2026-09-05" }),
+    item({ id: "a1", status: "CONVERTED", task: { id: "t-old" } }),
+    item({ id: "a2" }),
+    item({ id: "a3", status: "DISMISSED" }),
   ];
 
-  it("names the summary and each item, and always says who and when, null for none", () => {
-    const body = buildMeetingSummaryTasksBody("s1", items, [0, 2], {}, "p1");
+  it("names each item and always says who and when, null for none", () => {
+    const body = buildConvertActionItemsBody(items, new Set(["a0", "a2"]), {}, "p1");
     expect(body).toEqual({
-      summary_id: "s1",
       items: [
-        { index: 0, assignee_id: "u-minh", due_date: "2026-09-05", project_id: "p1" },
-        { index: 2, assignee_id: null, due_date: null, project_id: "p1" },
+        { action_item_id: "a0", assignee_id: "u-minh", due_date: "2026-09-05", project_id: "p1" },
+        { action_item_id: "a2", assignee_id: null, due_date: null, project_id: "p1" },
       ],
     });
-    // The AI's words are never sent for the server to re-read.
+    // The spoken words are never sent for the server to re-read.
     for (const sent of body!.items) {
-      expect(sent).not.toHaveProperty("owner");
-      expect(sent).not.toHaveProperty("due_spoken");
+      expect(sent).not.toHaveProperty("owner_text");
+      expect(sent).not.toHaveProperty("due_text");
     }
   });
 
-  it("keeps the host's explicit none over the suggestion", () => {
-    const body = buildMeetingSummaryTasksBody(
-      "s1",
+  it("keeps the clerk's explicit none and an edited title over the suggestion", () => {
+    const body = buildConvertActionItemsBody(
       items,
-      [0],
-      { 0: { assigneeId: null, dueDate: null, priority: "high" } },
+      new Set(["a0"]),
+      { a0: { assigneeId: null, dueDate: null, priority: "high", title: " Gửi báo cáo quý " } },
       undefined,
     );
-    expect(body?.items[0]).toEqual({ index: 0, assignee_id: null, due_date: null, project_id: "", priority: "high" });
+    expect(body?.items[0]).toEqual({
+      action_item_id: "a0",
+      title: "Gửi báo cáo quý",
+      assignee_id: null,
+      due_date: null,
+      project_id: "",
+      priority: "high",
+    });
   });
 
-  it("skips items that already became tasks and returns null when nothing is left", () => {
-    expect(buildMeetingSummaryTasksBody("s1", items, [1], {}, "p1")).toBeNull();
-    expect(buildMeetingSummaryTasksBody("s1", items, [], {}, "p1")).toBeNull();
-    expect(isConvertedItem(items[1]!)).toBe(true);
-    expect(isConvertedItem(items[0]!)).toBe(false);
+  it("skips items that are not pending and returns null when nothing is left", () => {
+    expect(buildConvertActionItemsBody(items, new Set(["a1", "a3"]), {}, "p1")).toBeNull();
+    expect(buildConvertActionItemsBody(items, new Set(), {}, "p1")).toBeNull();
   });
 });
 

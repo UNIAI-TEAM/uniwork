@@ -113,6 +113,8 @@ function keysFor(
       // A linked task's title, status or due date shows in the chat info panel.
       push(chatKeys.roomLinkedTasksRoot(wsId));
     }
+    // A converted action item shows its task's state; only open lists refetch.
+    if (type === "task.updated" || type === "task.deleted") push(meetingKeys.actionItemsRoot);
     pushCalendar();
     return keys;
   }
@@ -328,16 +330,24 @@ function keysFor(
       if (payload.meeting_id) push(meetingKeys.chat(payload.meeting_id));
       break;
     }
-    // A new summary, or items of the current one that just became tasks
-    // (their task_id, so no host converts them twice).
+    // A new summary replaces the pending AI action items; the action_item.*
+    // events change the list itself (so no clerk converts an item twice).
     case "summary.created":
-    case "summary.tasks_linked": {
       if (payload.meeting_id) {
         push(meetingKeys.summary(payload.meeting_id));
         push(meetingKeys.activity(payload.meeting_id));
+        push(meetingKeys.actionItems(payload.meeting_id));
       }
       break;
-    }
+    case "action_item.created":
+    case "action_item.dismissed":
+    case "action_item.restored":
+    case "action_item.converted":
+      if (payload.meeting_id) {
+        push(meetingKeys.actionItems(payload.meeting_id));
+        if (type === "action_item.converted") push(meetingKeys.activity(payload.meeting_id));
+      }
+      break;
     case "profile.updated":
     case "department.created":
     case "department.updated":

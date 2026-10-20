@@ -155,37 +155,6 @@ export const ChatMessageSchema = z.object({
 });
 export type MeetingChatMessage = z.infer<typeof ChatMessageSchema>;
 
-const SummaryActionItemEntrySchema = z.object({
-  index: z.number().int().nonnegative().nullish(),
-  title: z.string(),
-  owner: z.string().nullish(),
-  due: z.string().nullish(),
-  /** The one assignable member the AI owner names; absent when nobody or several match. */
-  suggested_assignee_id: z.string().nullish(),
-  /** The AI due phrase read against the meeting's day (YYYY-MM-DD); absent when it does not parse. */
-  due_date: z.string().nullish(),
-  /** The live task this item of this summary already became. */
-  task_id: z.string().nullish(),
-});
-
-export type MeetingSummaryActionItem = Omit<z.infer<typeof SummaryActionItemEntrySchema>, "index"> & {
-  /** Position in the summary's stored action items; what POST …/summary/tasks names. */
-  index: number;
-};
-
-/**
- * Action items parsed one by one: an entry that does not parse is dropped
- * instead of costing the whole summary, and an entry without an index takes
- * its position (the server numbers them by position).
- */
-const SummaryActionItemsSchema = z.array(z.unknown()).transform((raw): MeetingSummaryActionItem[] =>
-  raw.flatMap((entry, position) => {
-    const parsed = SummaryActionItemEntrySchema.safeParse(entry);
-    if (!parsed.success) return [];
-    return [{ ...parsed.data, index: parsed.data.index ?? position }];
-  }),
-);
-
 /** Decisions kept one by one: a non-string entry is dropped, not the summary. */
 const SummaryDecisionsSchema = z
   .array(z.unknown())
@@ -196,7 +165,6 @@ export const MeetingSummarySchema = z.object({
   meeting_id: z.string(),
   summary: z.string(),
   decisions: SummaryDecisionsSchema.nullish(),
-  action_items: SummaryActionItemsSchema.nullish(),
   model: z.string().nullish(),
   created_by: z.string().nullish(),
   created_at: z.string().nullish(),

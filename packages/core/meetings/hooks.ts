@@ -32,6 +32,7 @@ export {
 } from "./schedule";
 
 const JOIN_REQUESTS_ROOT = ["meeting-join-requests"] as const;
+const ACTION_ITEMS_ROOT = ["meeting-action-items"] as const;
 
 export const meetingKeys = {
   list: (wsId: string) => ["meetings", wsId] as const,
@@ -48,6 +49,8 @@ export const meetingKeys = {
   transcript: (meetingId: string) => ["meeting-transcript", meetingId] as const,
   chat: (meetingId: string) => ["meeting-chat", meetingId] as const,
   summary: (meetingId: string) => ["meeting-summary", meetingId] as const,
+  actionItemsRoot: ACTION_ITEMS_ROOT,
+  actionItems: (meetingId: string) => [...ACTION_ITEMS_ROOT, meetingId] as const,
   recordings: (meetingId: string) => ["meeting-recordings", meetingId] as const,
   attendance: (meetingId: string) => ["meeting-attendance", meetingId] as const,
   motions: (meetingId: string) => ["meeting-motions", meetingId] as const,

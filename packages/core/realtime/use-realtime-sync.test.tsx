@@ -1253,20 +1253,44 @@ describe("useRealtimeSync › meeting summary", () => {
     vi.useRealTimers();
   });
 
-  it.each(["summary.created", "summary.tasks_linked"])(
-    "refreshes the meeting's summary and activity on %s",
+  it("refreshes the meeting's summary, activity and action items on summary.created", () => {
+    vi.useFakeTimers();
+    const { invalidate, client } = setup();
+    client.emit({ type: "summary.created", payload: { meeting_id: "m1", summary_id: "s1", workspace_id: "ws1" } } as WSMessage);
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
+    expect(keysCalled(invalidate)).toEqual(
+      expect.arrayContaining([
+        JSON.stringify(["meeting-summary", "m1"]),
+        JSON.stringify(["meeting-activity", "m1"]),
+        JSON.stringify(["meeting-action-items", "m1"]),
+      ]),
+    );
+  });
+
+  it.each(["action_item.created", "action_item.dismissed", "action_item.restored", "action_item.converted"])(
+    "refreshes the meeting's action items on %s",
     (type) => {
       vi.useFakeTimers();
       const { invalidate, client } = setup();
-      client.emit({ type, payload: { meeting_id: "m1", summary_id: "s1", workspace_id: "ws1" } } as WSMessage);
+      client.emit({ type, payload: { meeting_id: "m1", action_item_id: "a1", workspace_id: "ws1" } } as WSMessage);
       act(() => {
         vi.advanceTimersByTime(250);
       });
-      expect(keysCalled(invalidate)).toEqual(
-        expect.arrayContaining([JSON.stringify(["meeting-summary", "m1"]), JSON.stringify(["meeting-activity", "m1"])]),
-      );
+      expect(keysCalled(invalidate)).toEqual(expect.arrayContaining([JSON.stringify(["meeting-action-items", "m1"])]));
     },
   );
+
+  it.each(["task.updated", "task.deleted"])("refreshes every open action item list on %s", (type) => {
+    vi.useFakeTimers();
+    const { invalidate, client } = setup();
+    client.emit({ type, payload: { task_id: "t1", workspace_id: "ws1" } } as WSMessage);
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
+    expect(keysCalled(invalidate)).toEqual(expect.arrayContaining([JSON.stringify(["meeting-action-items"])]));
+  });
 });
 
 describe("useRealtimeSync › home summary", () => {

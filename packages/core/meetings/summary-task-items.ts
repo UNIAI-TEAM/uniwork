@@ -1,65 +1,61 @@
-import type { MeetingSummaryTasksBody } from "../api/endpoints/meeting-summary";
-import type { MeetingSummaryActionItem } from "../types/meeting";
+import type { ConvertActionItemsBody, MeetingActionItem } from "../api/endpoints/meeting-action-items";
 import type { TaskPriority } from "../types/task";
 
-// ---- Meeting summary → tasks -------------------------------------------------
+// ---- Meeting action items → tasks -------------------------------------------------
 
 /**
- * What the host confirmed for one action item. null is a choice, not a gap:
+ * What the clerk confirmed for one action item. null is a choice, not a gap:
  * "nobody" and "no due date" reach the server as null and stay that way.
+ * A blank title keeps the item's own.
  */
 export interface SummaryItemDraft {
   assigneeId: string | null;
   dueDate: string | null;
   priority: TaskPriority;
-}
-
-/** An item that already became a live task: shown as created, never sent again. */
-export function isConvertedItem(item: Pick<MeetingSummaryActionItem, "task_id">): boolean {
-  return Boolean(item.task_id);
+  title?: string;
 }
 
 /**
- * The draft a host starts from: the server's suggestion for the assignee and
- * the due date (what the panel showed before anything was edited), no priority.
+ * The draft a clerk starts from: the server's suggestion for the assignee and
+ * the due date (what the list showed before anything was edited), no priority.
  */
-export function summaryItemDraft(item: MeetingSummaryActionItem): SummaryItemDraft {
+export function summaryItemDraft(item: MeetingActionItem): SummaryItemDraft {
   return {
     assigneeId: item.suggested_assignee_id || null,
-    dueDate: item.due_date || null,
+    dueDate: item.suggested_due_date || null,
     priority: "none",
   };
 }
 
 /**
- * The POST …/summary/tasks body for the picked items still open. Every item
- * carries its index, assignee_id and due_date (null = none); the project is
- * always explicit, "" when the host chose none, so a project the meeting
- * points at but the host cleared is not applied by the server's default.
- * Null when nothing is left to create.
+ * The POST …/action-items/convert body for the picked items still pending.
+ * Every item carries assignee_id and due_date (null = none); the project is
+ * always explicit, "" when the clerk chose none, so a project the meeting
+ * points at but the clerk cleared is not applied by the server's default.
+ * Null when nothing is left to convert.
  */
-export function buildMeetingSummaryTasksBody(
-  summaryId: string,
-  items: readonly MeetingSummaryActionItem[],
-  picked: Iterable<number>,
-  drafts: Readonly<Record<number, SummaryItemDraft | undefined>>,
+export function buildConvertActionItemsBody(
+  items: readonly MeetingActionItem[],
+  picked: ReadonlySet<string>,
+  drafts: Readonly<Record<string, SummaryItemDraft | undefined>>,
   projectId: string | undefined,
-): MeetingSummaryTasksBody | null {
-  const chosen = new Set(picked);
+): ConvertActionItemsBody | null {
   const project = projectId?.trim() ?? "";
   const out = items
-    .filter((item) => chosen.has(item.index) && !isConvertedItem(item))
+    .filter((item) => picked.has(item.id) && item.status === "PENDING")
     .map((item) => {
-      const draft = drafts[item.index] ?? summaryItemDraft(item);
+      const draft = drafts[item.id] ?? summaryItemDraft(item);
+      const title = draft.title?.trim();
       return {
-        index: item.index,
+        action_item_id: item.id,
+        ...(title && title !== item.title ? { title } : {}),
         assignee_id: draft.assigneeId?.trim() || null,
         due_date: draft.dueDate?.trim() || null,
         project_id: project,
         ...(draft.priority !== "none" ? { priority: draft.priority } : {}),
       };
     });
-  return out.length > 0 ? { summary_id: summaryId, items: out } : null;
+  return out.length > 0 ? { items: out } : null;
 }
 
 // ---- Email Hub summary → tasks ------------------------------------------------
