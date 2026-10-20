@@ -11,8 +11,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/redis/go-redis/v9"
-
 	"github.com/unicomhub/uniwork/server/internal/ai"
 	"github.com/unicomhub/uniwork/server/internal/ai/provider"
 	"github.com/unicomhub/uniwork/server/internal/featureflags"
@@ -249,31 +247,12 @@ func agentMalformed(r ai.Response) bool {
 		strings.TrimSpace(ai.StripUntrustedTags(r.Text)) == ""
 }
 
-// askAgentOrgCallScript counts a call and gives the key its window in one
-// step, so the count cannot outlive the window: a key without a TTL (a split
-// INCR/EXPIRE would leave one) is a permanent 429 for the organization.
-var askAgentOrgCallScript = redis.NewScript(`
-local count = redis.call('INCR', KEYS[1])
-if count == 1 or redis.call('PTTL', KEYS[1]) < 0 then
-  redis.call('PEXPIRE', KEYS[1], ARGV[1])
-end
-return count
-`)
-
 // agentCallOver counts one model call against the organization's minute and
 // reports whether it is past askAgentOrgCallsPerMinute. Without Redis nothing
 // is counted; a Redis error fails open, in the limiters' 100 ms.
 func (s *AskUNIService) agentCallOver(ctx context.Context, orgID string) bool {
-	if s.rdb == nil {
-		return false
-	}
-	ctx, cancel := context.WithTimeout(ctx, uniworkLeaseTimeout)
-	defer cancel()
-	n, err := askAgentOrgCallScript.Run(ctx, s.rdb, []string{askAgentOrgCallKey + orgID}, askRateWindow.Milliseconds()).Int64()
-	if err != nil {
-		return false
-	}
-	return n > askAgentOrgCallsPerMinute
+	n, ok := s.askCount(ctx, askAgentOrgCallKey+orgID)
+	return ok && n > askAgentOrgCallsPerMinute
 }
 
 // askAgent is one turn run as the agent: the model calls read tools, as the

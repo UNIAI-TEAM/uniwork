@@ -121,22 +121,35 @@ const (
 	askHistory    = 6
 )
 
-// rateLimit is per user, fail-closed (OPEN_QUESTIONS G5): a Redis error is a
-// 429, because an unmetered burst here costs real money. No Redis at all
-// (local development) means no limit.
-func (s *AskUNIService) rateLimit(ctx context.Context, userID string) error {
+// askCountScript counts a hit and gives the key its window in one step, so
+// the count cannot outlive the window: a key without a TTL (a split
+// INCR/EXPIRE would leave one) is a permanent 429.
+var askCountScript = redis.NewScript(`
+local count = redis.call('INCR', KEYS[1])
+if count == 1 or redis.call('PTTL', KEYS[1]) < 0 then
+  redis.call('PEXPIRE', KEYS[1], ARGV[1])
+end
+return count
+`)
+
+// askCount counts one hit on key in its askRateWindow; ok is false when
+// Redis did not answer within the limiters' 100 ms, which callers read as
+// "not limited" (fail open, ruling P22). Without Redis nothing is counted.
+func (s *AskUNIService) askCount(ctx context.Context, key string) (n int64, ok bool) {
 	if s.rdb == nil {
-		return nil
+		return 0, false
 	}
-	key := "uw:ai:ask:" + userID
-	n, err := s.rdb.Incr(ctx, key).Result()
-	if err != nil {
-		return &ai.Error{Code: ai.ErrRateLimited.Code, Status: ai.ErrRateLimited.Status, Msg: ai.ErrRateLimited.Msg, Err: err}
-	}
-	if n == 1 {
-		_ = s.rdb.Expire(ctx, key, askRateWindow).Err()
-	}
-	if n > askRateLimit {
+	ctx, cancel := context.WithTimeout(ctx, uniworkLeaseTimeout)
+	defer cancel()
+	n, err := askCountScript.Run(ctx, s.rdb, []string{key}, askRateWindow.Milliseconds()).Int64()
+	return n, err == nil
+}
+
+// rateLimit is per user: askRateLimit asks a minute. A Redis error or stall
+// lets the ask through, as every limiter does (ruling P22); the agent's own
+// per-organization call cap and the token quota still bound the spend.
+func (s *AskUNIService) rateLimit(ctx context.Context, userID string) error {
+	if n, ok := s.askCount(ctx, "uw:ai:ask:"+userID); ok && n > askRateLimit {
 		return ai.ErrRateLimited
 	}
 	return nil

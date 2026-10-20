@@ -50,8 +50,10 @@ ra mạng.
   có nội dung). Tắt tính năng tạm thời bằng cách bỏ key và restart: client tự ẩn.
 - **`ai_quota_exceeded` với tổ chức chưa dùng nhiều**: xem `usage_counters` meter
   `ai.tokens` và `plan_features.quota_limit` (mặc định 500k, migration 099).
-- **`ai_rate_limited` hàng loạt**: Redis lỗi → Ask UNI fail-closed theo G5 (chỉ
-  Ask UNI; tóm tắt họp không có rate limit riêng). Khôi phục Redis.
+- **`ai_rate_limited` hàng loạt**: Redis lỗi hay chậm quá 100ms không còn gây 429
+  — giới hạn 20 lượt/phút/người của Ask UNI fail-open như mọi limiter (ruling
+  P22). 429 hàng loạt là người dùng thật vượt giới hạn, tổ chức vượt trần lời
+  gọi agent, hoặc nhà cung cấp trả 429 (`ai: provider rate limited` trong log).
 - **Chi phí sai**: không sửa dòng đã ghi. Thêm dòng `ai_model_rates` mới với
   `effective_at` mới; dòng cũ giữ `rate_id` cũ.
 - **Model mới**: thêm vào `allowedModels` (`policy.go`) và seed rate; không
