@@ -618,6 +618,8 @@ func New(d Deps) http.Handler {
 		MeetingActivity:                h.meetingActivity,
 		AppendTranscript:               h.appendTranscript,
 		SetMeetingScribe:               h.setMeetingScribe,
+		MeetingDialIn:                  h.meetingDialIn,
+		RotateMeetingDialInPin:         h.rotateMeetingDialInPin,
 		MeetingAgentStarted:            h.meetingAgentStarted,
 		MeetingAgentContext:            h.meetingAgentContext,
 		MeetingAgentSegments:           h.meetingAgentSegments,

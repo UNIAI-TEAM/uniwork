@@ -293,6 +293,13 @@ type MeetingCapabilitiesSDO struct {
 	Scribe    bool `json:"scribe" description:"Thư ký AI (agent ghi lời) có cho workspace này: server chạy agent, cờ meeting_scribe bật, gói có meeting.transcription"`
 }
 
+// MeetingDialInSDO is how to call into one meeting by phone (UNI-2029).
+type MeetingDialInSDO struct {
+	Enabled bool   `json:"enabled" description:"Cuộc họp nhận cuộc gọi điện thoại: server bật SIP, cờ meeting_dial_in bật, cuộc họp chưa kết thúc" example:"true"`
+	Number  string `json:"number" description:"Số tổng đài của triển khai; rỗng khi enabled = false" example:"+84 28 7300 0000"`
+	Pin     string `json:"pin" description:"Mã PIN 6 số của cuộc họp; người gọi nhập sau khi tổng đài trả lời. Rỗng khi enabled = false" example:"042137"`
+}
+
 // MeetingAgentContextSDO is what the scribe agent turns into STT keyterms.
 type MeetingAgentContextSDO struct {
 	MeetingTitle        string   `json:"meeting_title" example:"Giao ban tuần"`

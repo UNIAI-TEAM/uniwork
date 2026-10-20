@@ -75,6 +75,30 @@ func (h *handlers) meetingAgentFinished(w http.ResponseWriter, r *http.Request) 
 	respondJSON(w, 200, sdo.StatusSDO{Status: "ok"})
 }
 
+func dialInSDO(d service.DialInInfo) sdo.MeetingDialInSDO {
+	return sdo.MeetingDialInSDO{Enabled: d.Enabled, Number: d.Number, Pin: d.Pin}
+}
+
+func (h *handlers) meetingDialIn(w http.ResponseWriter, r *http.Request) {
+	d, err := h.Meetings.DialIn(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "meetingID"))
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	respondJSON(w, 200, dialInSDO(d))
+}
+
+func (h *handlers) rotateMeetingDialInPin(w http.ResponseWriter, r *http.Request) {
+	d, err := h.Meetings.RotateDialInPin(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "meetingID"))
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	respondJSON(w, 200, dialInSDO(d))
+}
+
 func (h *handlers) setMeetingScribe(w http.ResponseWriter, r *http.Request) {
 	var in sdi.SetMeetingScribeSDI
 	if !decode(w, r, &in, maxJSONBody) {

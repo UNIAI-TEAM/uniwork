@@ -394,6 +394,8 @@ type Routes struct {
 	MeetingActivity                http.HandlerFunc
 	AppendTranscript               http.HandlerFunc
 	SetMeetingScribe               http.HandlerFunc
+	MeetingDialIn                  http.HandlerFunc
+	RotateMeetingDialInPin         http.HandlerFunc
 	MeetingAgentStarted            http.HandlerFunc
 	MeetingAgentContext            http.HandlerFunc
 	MeetingAgentSegments           http.HandlerFunc

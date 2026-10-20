@@ -176,7 +176,7 @@ func (s *MeetingService) RemoveParticipant(ctx context.Context, actorID, meeting
 		room = sess.ProviderRoomName
 	}
 	_ = s.enqueue(ctx, q, m.WorkspaceID, "provider.remove_participant", map[string]string{
-		"meeting_id": m.ID, "room_name": room, "identity": meetings.IdentityForParticipant(participantID),
+		"meeting_id": m.ID, "room_name": room, "identity": providerIdentity(p),
 	})
 	s.record(ctx, q, m, audit.User(actorID), "participant.removed",
 		meetingRelatedPayload(m, map[string]string{"participant_id": participantID}), nil)

@@ -59,15 +59,21 @@ func (s *MeetingService) scribeConfigured() bool {
 }
 
 func (s *MeetingService) scribeFlagOn(ctx context.Context, orgID string) bool {
+	return s.flagOn(ctx, scribeFlag, orgID)
+}
+
+// flagOn evaluates a meeting flag for one organization; no evaluator wired
+// means off.
+func (s *MeetingService) flagOn(ctx context.Context, key, orgID string) bool {
 	if s.flags == nil {
 		return false
 	}
 	def := false
-	if f, ok := featureflags.Lookup(scribeFlag); ok {
+	if f, ok := featureflags.Lookup(key); ok {
 		def = f.Default
 	}
 	ctx = featureflag.WithEvalContext(ctx, featureflag.EvalContext{OrganizationID: orgID})
-	return s.flags.IsEnabled(ctx, scribeFlag, def)
+	return s.flags.IsEnabled(ctx, key, def)
 }
 
 // ScribeAvailable is the `scribe` meeting capability: this process runs the

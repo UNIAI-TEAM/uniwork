@@ -56,6 +56,11 @@ func (h *handlers) livekitWebhook(w http.ResponseWriter, r *http.Request) {
 	if ev.Participant != nil {
 		mapped.Identity = ev.Participant.Identity
 		mapped.ParticipantSID = ev.Participant.Sid
+		if ev.Participant.Kind == livekit.ParticipantInfo_SIP {
+			mapped.ParticipantKind = service.ParticipantKindSIP
+			mapped.ParticipantName = ev.Participant.Name
+			mapped.SIPRuleID = ev.Participant.Attributes[livekit.AttrSIPDispatchRuleID]
+		}
 	}
 	if at := ev.GetCreatedAt(); at > 0 {
 		mapped.OccurredAt = time.Unix(at, 0).UTC()
@@ -95,6 +100,10 @@ func (h *handlers) livekitWebhook(w http.ResponseWriter, r *http.Request) {
 	if ev.Room != nil && !meetings.IsUniWorkLiveKitRoom(ev.Room.Name) {
 		w.WriteHeader(http.StatusOK)
 		return
+	}
+	if mapped.Type == "conference.participant_joined" {
+		// A phone caller is in the room already; held now, not a worker tick later.
+		h.Meetings.HoldDialInCaller(r.Context(), mapped)
 	}
 	providerKey := h.Cfg.MeetingProvider
 	if providerKey == "" {

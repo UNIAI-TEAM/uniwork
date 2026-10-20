@@ -189,7 +189,7 @@ func (s *MeetingService) AppendAgentSegments(ctx context.Context, c meetings.Age
 	}
 	byIdentity := make(map[string]db.MeetingParticipant, len(ps))
 	for _, p := range ps {
-		byIdentity[meetings.IdentityForParticipant(p.ID)] = p
+		byIdentity[providerIdentity(p)] = p
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {

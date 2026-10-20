@@ -76,7 +76,7 @@ func (s *MeetingService) SetParticipantPublish(ctx context.Context, actorID, mee
 	if room == "" {
 		room = meetings.RoomNameForMeeting(m.ID)
 	}
-	identity := meetings.IdentityForParticipant(participantID)
+	identity := providerIdentity(p)
 	// Locks live only on the provider: read the one this call leaves alone, or
 	// the write below, which replaces the whole set, would lift it. The read
 	// and the write take turns per participant (an advisory lock held until

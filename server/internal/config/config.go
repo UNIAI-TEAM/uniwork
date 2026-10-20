@@ -117,6 +117,13 @@ type Config struct {
 	// organization. MeetingScribeAgentName is the agent_name it registers.
 	MeetingScribeEnabled   bool
 	MeetingScribeAgentName string
+	// MeetingSIPEnabled lets the server create LiveKit SIP dispatch rules for
+	// dial-in (UNI-2030 runs the SIP service); the meeting_dial_in flag still
+	// decides per organization. MeetingDialInNumber is the number people call;
+	// MeetingSIPTrunkID, when set, keeps the rules to the UniWork trunk.
+	MeetingSIPEnabled   bool
+	MeetingDialInNumber string
+	MeetingSIPTrunkID   string
 	// MeetingSummaryMaxRunes caps the transcript a summary reads (parent spec
 	// §7.8). The gateway does not expose its model's context window, so the
 	// default (240k runes, ~80k tokens at ~3 runes per Vietnamese token, about
@@ -405,6 +412,9 @@ func Load() (Config, error) {
 		LiveKitRecordingBucket:        os.Getenv("LIVEKIT_RECORDING_BUCKET"),
 		MeetingScribeEnabled:          strings.EqualFold(os.Getenv("MEETING_SCRIBE_ENABLED"), "true"),
 		MeetingScribeAgentName:        getenv("MEETING_SCRIBE_AGENT_NAME", "uniwork-scribe"),
+		MeetingSIPEnabled:             strings.EqualFold(os.Getenv("MEETING_SIP_ENABLED"), "true"),
+		MeetingDialInNumber:           strings.TrimSpace(os.Getenv("MEETING_DIAL_IN_NUMBER")),
+		MeetingSIPTrunkID:             strings.TrimSpace(os.Getenv("MEETING_SIP_TRUNK_ID")),
 		MeetingSummaryMaxRunes:        int(parseInt32(os.Getenv("MEETING_SUMMARY_MAX_RUNES"), 240000)),
 		AppEnv:                        getenv("APP_ENV", "development"),
 		devVerificationCode:           os.Getenv("DEV_VERIFICATION_CODE"),

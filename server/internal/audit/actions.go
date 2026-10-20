@@ -319,6 +319,10 @@ const (
 	// (MeetingService.SetScribe, UNI-2023).
 	ActionMeetingScribeToggled = "meeting.scribe_toggled"
 
+	// A host or admin, or the server when another meeting holds the PIN,
+	// drew a new dial-in PIN (MeetingService.RotateDialInPin, UNI-2029).
+	ActionMeetingDialInPinRotated = "meeting.dial_in_pin_rotated"
+
 	ActionAuditExportRequested = "audit.export_requested"
 	ActionAuditExported        = "audit.exported"
 	ActionAuditRetentionSet    = "audit.retention_set"

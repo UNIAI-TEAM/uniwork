@@ -223,6 +223,7 @@ func main() {
 		WorkerTick: cfg.MeetingWorkerTick, OutboxBatch: cfg.MeetingOutboxBatch,
 		WebhookBatch: cfg.MeetingWebhookBatch, WebhookConcurrency: int(cfg.MeetingWebhookConcurrency),
 		ScribeEnabled: cfg.MeetingScribeEnabled, ScribeAgentName: cfg.MeetingScribeAgentName,
+		DialInEnabled: cfg.MeetingSIPEnabled, DialInNumber: cfg.MeetingDialInNumber, SIPTrunkID: cfg.MeetingSIPTrunkID,
 		SummaryMaxRunes: cfg.MeetingSummaryMaxRunes,
 	})
 	taskSvc := service.NewTaskService(pool, q, wsSvc, store)
