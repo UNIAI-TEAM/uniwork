@@ -266,3 +266,29 @@ WHERE wm.organization_id = sqlc.arg(organization_id)
   AND wm.workspace_id = ANY(sqlc.arg(workspace_ids)::text[])
   AND om.deactivated_at IS NULL
 GROUP BY wm.workspace_id;
+
+-- UNI-2039 fx1 (F2): the sort position of the cursor's anchor document. The
+-- cursor carries the id only, so the title / change time of a candidate the
+-- caller may not read never reaches the client; the keyset value is read here,
+-- inside the tenant, from the one row the id names. No row = the anchor was
+-- purged, archived or became a container: the service answers 400 and the
+-- client restarts the list.
+-- name: GetDocumentAccessReportAnchor :one
+SELECT d.title,
+  (SELECT GREATEST(
+      d.created_at,
+      (SELECT max(GREATEST(s.created_at, s.revoked_at)) FROM document_shares s
+        WHERE s.organization_id = d.organization_id AND s.workspace_id = d.workspace_id AND s.document_id = d.id),
+      (SELECT max(GREATEST(l.created_at, l.revoked_at)) FROM document_share_links l
+        WHERE l.organization_id = d.organization_id AND l.workspace_id = d.workspace_id AND l.document_id = d.id),
+      (SELECT max(g.granted_at) FROM document_break_glass_grants g
+        WHERE g.organization_id = d.organization_id AND g.workspace_id = d.workspace_id AND g.document_id = d.id)
+    ))::timestamptz AS access_changed_at
+FROM documents d
+WHERE d.organization_id = sqlc.arg(organization_id)
+  AND d.workspace_id = sqlc.arg(workspace_id)
+  AND d.id = sqlc.arg(id)
+  AND d.archived_at IS NULL
+  AND d.owner_id IS NULL
+  AND d.kind <> 'folder'
+  AND d.system_kind IS NULL;

@@ -25,16 +25,17 @@ import (
 
 // accessReportCursor pins the last candidate read and the scope it was read
 // in: f is the folder, h a hash of the filter, s and o the sort and order it
-// walks, so a cursor never continues a different report. k is the sort value
-// of the last candidate (the change time, RFC3339 with nanoseconds, or the
-// title) and id breaks its ties.
+// walks, so a cursor never continues a different report. It carries ids and
+// scope only (UNI-2039 fx1): the last candidate read may be a document the
+// caller cannot read, so its title or change time never travels here; the
+// service looks the sort value up from the id inside the tenant-constrained
+// read.
 type accessReportCursor struct {
 	ID     string `json:"id"`
 	Folder string `json:"f"`
 	Filter string `json:"h"`
 	Sort   string `json:"s"`
 	Order  string `json:"o"`
-	Key    string `json:"k"`
 }
 
 // accessReportFilterHash is 8 hex digits over the person, level and
@@ -177,13 +178,7 @@ func newAccessReportCursor(in service.DocumentAccessReportQuery, key service.Acc
 	if descending {
 		order = service.AccessReportOrderDesc
 	}
-	c := accessReportCursor{ID: key.ID, Folder: in.FolderID, Filter: accessReportFilterHash(in), Sort: mode, Order: order}
-	if mode == service.AccessReportSortTitle {
-		c.Key = key.Title
-	} else {
-		c.Key = key.Changed.UTC().Format(time.RFC3339Nano)
-	}
-	return c
+	return accessReportCursor{ID: key.ID, Folder: in.FolderID, Filter: accessReportFilterHash(in), Sort: mode, Order: order}
 }
 
 // decodeAccessReportCursor reads a cursor and checks it belongs to this very
@@ -198,17 +193,7 @@ func decodeAccessReportCursor(raw string, in service.DocumentAccessReportQuery) 
 	if c.Folder != want.Folder || c.Filter != want.Filter || c.Sort != want.Sort || c.Order != want.Order {
 		return nil, false
 	}
-	key := &service.AccessReportKey{ID: c.ID}
-	if c.Sort == service.AccessReportSortTitle {
-		key.Title = c.Key
-		return key, true
-	}
-	at, err := time.Parse(time.RFC3339Nano, c.Key)
-	if err != nil {
-		return nil, false
-	}
-	key.Changed = at.UTC()
-	return key, true
+	return &service.AccessReportKey{ID: c.ID}, true
 }
 
 func accessReportFilterDTO(in service.DocumentAccessReportQuery) sdo.DocumentAccessReportFilterDTO {

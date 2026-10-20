@@ -111,7 +111,8 @@ type AccessReportKey struct {
 
 // DocumentAccessReportQuery is one request of the report. Levels, Sort and
 // Order are validated values; After is the last candidate of the previous
-// page (nil = first page).
+// page (nil = first page). A client's cursor holds its ID only: the sort
+// value is read from the anchor document by page (UNI-2039 fx1).
 type DocumentAccessReportQuery struct {
 	FolderID, PersonID, Visibility string
 	Levels                         []string
@@ -586,6 +587,28 @@ func (r *accessReportRun) readChunk(ctx context.Context, after *AccessReportKey,
 	return out, nil
 }
 
+// anchorKey completes a cursor's id with the sort value of its document, read
+// inside the tenant (UNI-2039 fx1): the cursor carries the id only, so the
+// title or change time of a candidate the caller may not read never reaches
+// them. An anchor that is gone (purged, archived, owned, a container) is a
+// stale cursor: 400, the client restarts the list.
+func (r *accessReportRun) anchorKey(ctx context.Context, key AccessReportKey) (AccessReportKey, error) {
+	row, err := r.q.GetDocumentAccessReportAnchor(ctx, db.GetDocumentAccessReportAnchorParams{
+		OrganizationID: r.scope.organizationID, WorkspaceID: r.workspaceID, ID: key.ID,
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return key, Invalid("cursor không hợp lệ")
+	}
+	if err != nil {
+		return key, err
+	}
+	key.Title = row.Title
+	if row.AccessChangedAt.Valid {
+		key.Changed = row.AccessChangedAt.Time.UTC()
+	}
+	return key, nil
+}
+
 // page reads one page of the report in the query's order. It keeps reading
 // candidate chunks until it holds limit listable documents (S4) or has
 // scanned accessReportScanFactor x limit candidates; only then does it return
@@ -597,6 +620,13 @@ func (r *accessReportRun) page(ctx context.Context, in DocumentAccessReportQuery
 	var out accessReportPageResult
 	mode, descending := in.SortOrder()
 	after := in.After
+	if after != nil {
+		anchored, err := r.anchorKey(ctx, *after)
+		if err != nil {
+			return out, err
+		}
+		after = &anchored
+	}
 	for {
 		cands, err := r.readChunk(ctx, after, limit, mode, descending)
 		if err != nil {
