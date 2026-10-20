@@ -590,3 +590,103 @@ func TestOfficeFrameExportVersionRefusesNonZipAndOverCap(t *testing.T) {
 		}
 	})
 }
+
+func TestOfficeFrameExportVersionEarlyStartAndReplayCleanUpInput(t *testing.T) {
+	ctx := context.Background()
+	prev := officeExportPoll
+	officeExportPoll = 10 * time.Millisecond
+	t.Cleanup(func() { officeExportPoll = prev })
+
+	t.Run("an older legacy version with a Start validation refusal closes its source and removes its spool", func(t *testing.T) {
+		v1Docx := mustReadFixture(t, "docs/docx-kitchen-sink.docx")
+		f, v1ID := exportOlderVersionFixture(t, "report-v1.docx", v1Docx)
+		if _, err := f.pool.Exec(ctx, `UPDATE document_versions SET checksum_sha256 = NULL WHERE id = $1`, v1ID); err != nil {
+			t.Fatal(err)
+		}
+		spool := t.TempDir()
+		t.Setenv("TMPDIR", spool)
+		cf := &countingFiles{bridgeFiles: f.files}
+		f.docs.SetFiles(cf)
+		eng := exportEngine(t, "")
+		svc := f.streamService(eng, cf)
+
+		_, err := svc.ExportFramePDF(ctx, f.actor, f.doc, OfficeExportPDFInput{
+			Version:        1,
+			IdempotencyKey: strings.Repeat("k", 129),
+		})
+		if !errors.Is(err, ErrOfficeJobInvalid) {
+			t.Fatalf("err = %v, want ErrOfficeJobInvalid", err)
+		}
+		if cf.opens.Load() != 1 || cf.closes.Load() != 1 {
+			t.Fatalf("after Start refusal: opens=%d closes=%d, want 1 and 1", cf.opens.Load(), cf.closes.Load())
+		}
+		if entries, _ := os.ReadDir(spool); len(entries) != 0 {
+			t.Fatalf("spool file left behind after Start refusal: %v", entries)
+		}
+		if n := f.officeJobCount(t, f.doc); n != 0 || len(eng.grants) != 0 {
+			t.Fatalf("office_jobs = %d, grants = %d, want 0", n, len(eng.grants))
+		}
+	})
+
+	t.Run("replaying a completed older-version export under the same key closes the replay source and removes its spool", func(t *testing.T) {
+		for _, tc := range []struct {
+			name   string
+			legacy bool
+		}{
+			{name: "stored_checksum", legacy: false},
+			{name: "legacy", legacy: true},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				v1Docx := mustReadFixture(t, "docs/docx-kitchen-sink.docx")
+				f, v1ID := exportOlderVersionFixture(t, "report-v1.docx", v1Docx)
+				if tc.legacy {
+					if _, err := f.pool.Exec(ctx, `UPDATE document_versions SET checksum_sha256 = NULL WHERE id = $1`, v1ID); err != nil {
+						t.Fatal(err)
+					}
+				}
+				spool := t.TempDir()
+				t.Setenv("TMPDIR", spool)
+				cf := &countingFiles{bridgeFiles: f.files}
+				f.docs.SetFiles(cf)
+				eng := exportEngine(t, "")
+				svc := f.streamService(eng, cf)
+				key := "exp-v1-replay-" + tc.name
+
+				first, err := svc.ExportFramePDF(ctx, f.actor, f.doc, OfficeExportPDFInput{Version: 1, IdempotencyKey: key})
+				if err != nil {
+					t.Fatalf("first export: %v", err)
+				}
+				if got := readExport(t, first); !bytes.Equal(got, exportedPDF(t)) {
+					t.Fatalf("first pdf = %d bytes", len(got))
+				}
+				opensAfterFirst := cf.opens.Load()
+				if cf.closes.Load() != opensAfterFirst {
+					t.Fatalf("after first export: opens=%d closes=%d, want equal", opensAfterFirst, cf.closes.Load())
+				}
+				if entries, _ := os.ReadDir(spool); len(entries) != 0 {
+					t.Fatalf("spool file left behind after first export: %v", entries)
+				}
+
+				replay, err := svc.ExportFramePDF(ctx, f.actor, f.doc, OfficeExportPDFInput{Version: 1, IdempotencyKey: key})
+				if err != nil || replay.Job.ID != first.Job.ID {
+					t.Fatalf("replay = %+v, %v, want job %s", replay.Job, err, first.Job.ID)
+				}
+				if got := readExport(t, replay); !bytes.Equal(got, exportedPDF(t)) {
+					t.Fatalf("replay pdf = %d bytes", len(got))
+				}
+				if gotOpens := cf.opens.Load(); gotOpens != opensAfterFirst+2 {
+					t.Fatalf("after replay: opens=%d, want %d (version peek + output open)", gotOpens, opensAfterFirst+2)
+				}
+				if cf.closes.Load() != cf.opens.Load() {
+					t.Fatalf("after replay: opens=%d closes=%d, want equal (replay source closed)", cf.opens.Load(), cf.closes.Load())
+				}
+				if entries, _ := os.ReadDir(spool); len(entries) != 0 {
+					t.Fatalf("spool file left behind after replay: %v", entries)
+				}
+				if len(eng.grants) != 1 {
+					t.Fatalf("grants = %d, want 1", len(eng.grants))
+				}
+			})
+		}
+	})
+}
