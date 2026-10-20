@@ -1,0 +1,9 @@
+$ git status --short | grep -v "^??" | head; git diff --quiet HEAD; rc=$?; echo; echo "TREE_CLEAN_EXIT=$rc"; git rev-parse HEAD; git log --oneline -5
+
+TREE_CLEAN_EXIT=0
+a0b60e836cea835fdbd5224fdc6f55970acad6ef
+a0b60e836 fix(documents): access report visual r2 findings
+148fff99f chore: merge the G5-G7 root (7f5088d11) into UNI-2039 FE
+df1158e46 fix(documents): access report review r5 findings
+7f5088d11 test(e2e): keep the library row helper off the view-only access button (UNI-2038)
+fdc52c23b test(e2e): keep the library row helper off the access button (UNI-2038)
