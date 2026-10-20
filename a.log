@@ -1,0 +1,6 @@
+$ git rev-parse HEAD origin/feature/UNI-1385-pdf-optional-color; git log --oneline -3
+abe9b7deff7a4dd4769dec7890e9febdfdfb6c45
+abe9b7deff7a4dd4769dec7890e9febdfdfb6c45
+abe9b7de fix(pdf): say why edit_inserted_text with only an unusable colour has nothing to apply
+206c6673 fix(pdf): never reject an AI edit over its optional color
+e0b1894e test(pdf): pin optional AI tool color parsing (red)
