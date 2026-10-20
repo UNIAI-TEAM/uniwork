@@ -48,12 +48,19 @@ export function FolderBreadcrumb({ path, canRename, renaming, onRoot, onFolder, 
   const collapsed = path.length > MAX_UNCOLLAPSED_FOLDER_LEVELS;
   const hiddenAncestors = collapsed ? path.slice(0, -2) : [];
   const visibleAncestors = collapsed ? [path.at(-2)!] : path.slice(0, -1);
-  // Space is given up in order (UNI-1977): the ancestors and the home crumb (shrink-[1000]: flex shrink is weighted by factor x size, so the leaf, at 1, loses under a pixel until they sit at their minimum)
-  // (shrink-[1000], never below min-w-10), and the leaf name (shrink 1) last.
+  // Space is given up in order (UNI-1977): the ancestors and the home crumb first (shrink-[1000]: flex
+  // shrink is weighted by factor x size, so the leaf, at 1, loses under a pixel until they sit at their
+  // minimum), the leaf name (shrink 1) last. The minimum is little more than the chevron (UNI-1994): a
+  // higher one made the row "full" while the leaf still ellipsized the last characters of its name.
   const crumb = "rounded px-1 text-body text-muted-foreground hover:bg-accent hover:text-foreground pointer-coarse:min-h-11 pointer-coarse:min-w-11";
   return (
     <nav aria-label={t("documents.home.breadcrumb_label")} className="flex min-w-0 items-center gap-1">
-      <button type="button" className={cn(crumb, "min-w-9 shrink-[1000] truncate")} onClick={onRoot}>
+      <button
+        type="button"
+        className={cn(crumb, "min-w-6 shrink-[1000] truncate")}
+        title={t("documents.home.sidebar.home")}
+        onClick={onRoot}
+      >
         {t("documents.home.sidebar.home")}
       </button>
       {hiddenAncestors.length > 0 ? (
@@ -82,7 +89,7 @@ export function FolderBreadcrumb({ path, canRename, renaming, onRoot, onFolder, 
         </span>
       ) : null}
       {visibleAncestors.map((node) => (
-        <span key={node.id} className="flex min-w-10 shrink-[1000] items-center gap-1">
+        <span key={node.id} className="flex min-w-7 shrink-[1000] items-center gap-1">
           <ChevronRight aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
           <button
             type="button"

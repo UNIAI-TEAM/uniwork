@@ -327,8 +327,10 @@ describe("folder layout (Folder.dc)", () => {
     // Flex shrink is weighted by factor x size: the home crumb and the ancestors carry a far
     // higher factor than the leaf, and each keeps a minimum width so it never slides under
     // its neighbour (jsdom has no layout: pin the classes, the e2e pins the pixels).
-    expect(home).toHaveClass("min-w-9", "shrink-[1000]", "truncate");
-    expect(ancestor.parentElement).toHaveClass("min-w-10", "shrink-[1000]");
+    // The minimums are small on purpose (UNI-1994): once the ancestors sit at them the leaf starts
+    // to ellipsize, so they give up all but a chevron and an ellipsis before it does.
+    expect(home).toHaveClass("min-w-6", "shrink-[1000]", "truncate");
+    expect(ancestor.parentElement).toHaveClass("min-w-7", "shrink-[1000]");
     expect(ancestor).toHaveClass("min-w-0", "truncate");
     expect(heading.parentElement).not.toHaveClass("shrink-[1000]", "shrink-0");
     expect(heading).toHaveClass("min-w-10", "truncate");
