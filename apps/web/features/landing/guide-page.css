@@ -18,10 +18,13 @@
 .public-guide-table caption { text-align: start; font-weight: 600; margin-bottom: 12px; }
 .public-guide-table th, .public-guide-table td { text-align: start; vertical-align: top; padding: 12px 10px; border-bottom: 1px solid var(--border); overflow-wrap: anywhere; }
 .public-guide-table thead th { background: var(--muted); font-weight: 650; }
-.public-guide-table tbody th { font-weight: 600; white-space: nowrap; }
+.public-guide-table tbody th { font-weight: 600; }
 .public-guide-table thead th:first-child { width: 27%; }
 .public-guide-table thead th:nth-child(2) { width: 19%; }
 .public-guide-table thead th:last-child { width: 54%; }
+.public-guide-table-wide-middle thead th:first-child { width: 24%; }
+.public-guide-table-wide-middle thead th:nth-child(2) { width: 50%; }
+.public-guide-table-wide-middle thead th:last-child { width: 26%; }
 .public-guide-example { margin-top: 24px; padding-block: 20px; border-block: 1px solid var(--border); }
 .public-guide-example h3 { font-size: var(--text-title-sm); font-weight: 600; }
 .public-guide-illustration { margin-top: 28px; }
