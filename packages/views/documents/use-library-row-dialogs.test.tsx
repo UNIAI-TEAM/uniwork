@@ -542,7 +542,7 @@ describe("FD-08 W-B create folder, row menu, and rename", () => {
       newSubfolder: true,
       rename: true,
     });
-    expect(await checkRowMenu("Tài liệu sửa", "documents.home.row.open_web")).toEqual({
+    expect(await checkRowMenu("Tài liệu sửa", "documents.tree.menu.open")).toEqual({
       newSubfolder: false,
       rename: true,
     });
@@ -550,7 +550,7 @@ describe("FD-08 W-B create folder, row menu, and rename", () => {
       newSubfolder: false,
       rename: false,
     });
-    expect(await checkRowMenu("Tài liệu chưa rõ", "documents.home.row.open_web")).toEqual({
+    expect(await checkRowMenu("Tài liệu chưa rõ", "documents.tree.menu.open")).toEqual({
       newSubfolder: false,
       rename: false,
     });

@@ -1,10 +1,9 @@
 "use client";
 
 import { useId, useRef } from "react";
-import type { LucideIcon } from "lucide-react";
-import { Archive, Download, Ellipsis, ExternalLink, FolderInput, FolderOpen, FolderPlus, MonitorUp, Pencil, Share2, Star, StarOff, Trash2 } from "lucide-react";
+import { Ellipsis, Star } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { isMyFolder, isShelved } from "@uniwork/core/types/document";
+import { isMyFolder } from "@uniwork/core/types/document";
 import { Badge } from "@uniwork/ui/components/ui/badge";
 import { Button } from "@uniwork/ui/components/ui/button";
 import {
@@ -13,6 +12,7 @@ import {
   ContextMenuGroup,
   ContextMenuItem,
   ContextMenuLabel,
+  ContextMenuSeparator,
   ContextMenuTrigger,
 } from "@uniwork/ui/components/ui/context-menu";
 import {
@@ -21,6 +21,7 @@ import {
   DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@uniwork/ui/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@uniwork/ui/components/ui/tooltip";
@@ -39,8 +40,10 @@ import { EditLockHolderChip } from "./edit-lock-holder-chip";
 import { EMPTY_CELL, formatBytes, formatListDate } from "./doclist/format";
 import { libraryCell, type LibraryLadder } from "./library-columns";
 import { LibraryRowAccessCell } from "./library-row-access-cell";
-import { canArchiveRow, canMoveRow, canShareRow, rowAppOperation, rowLevel } from "./row-level";
+import { canShareRow, rowAppOperation, rowLevel } from "./row-level";
 import { sourceLinkIcon, sourceLinkLabelKey, sourceLinkNamedLabelKey, sourceOpenAction, sourceParentLinked } from "./source-links";
+import { docRowMenu } from "./doclist/row-menu";
+import { RowMenuItems } from "./doclist/row-menu-items";
 import {
   isFolderRow,
   rowFormat,
@@ -89,16 +92,13 @@ export interface LibraryRowHandlers {
    *  wires it so a folder opens the confirm dialog and a document shelves at
    *  once with an undo toast. */
   onShelve?: (doc: DocumentSummaryRow) => void;
+  /** Sao chép link / Tạo bản sao / Tải xuống on a document row (UNI-2045 W8); absent hides the item. */
+  onCopyLink?: (doc: DocumentSummaryRow) => void;
+  onDuplicate?: (doc: DocumentSummaryRow) => void;
+  onDownload?: (doc: DocumentSummaryRow) => void;
   /** The display name of a person id, or null when unknown. */
   personName: (userId: string, kind: string) => string | null;
   desktopOpen?: LibraryDesktopOpen;
-}
-
-interface RowAction {
-  id: string;
-  label: string;
-  icon: LucideIcon;
-  run: () => void;
 }
 
 /** The first letter of a name, for the editor's initial. */
@@ -187,71 +187,16 @@ export function LibraryRowView({
     }
   };
 
-  const actions: RowAction[] = [];
-  if (doc && trashed) {
-    // No live-list command applies to a trashed row; the badge says why.
-  } else if (doc && folder) {
-    actions.push({ id: "open-folder", label: t("documents.home.row.open_folder"), icon: FolderOpen, run: primary });
-  } else if (doc) {
-    actions.push({ id: "open", label: t("documents.home.row.open_web"), icon: ExternalLink, run: primary });
-    if (desktop) {
-      actions.push({ id: "open-app", label: t("documents.home.row.open_app"), icon: MonitorUp, run: () => void appRequest.current?.() });
-    }
-  }
-  // Star / Unstar reaches folders too (SV-4): every row but a trashed folder,
-  // wherever the host passes onToggleStar (home table, folder view, Starred).
-  if (doc && !trashed && handlers.onToggleStar) {
-    actions.push({
-      id: "star",
-      label: starred ? t("documents.home.row.unstar") : t("documents.home.row.star"),
-      icon: starred ? StarOff : Star,
-      run: () => handlers.onToggleStar?.(doc.id, starred),
-    });
-  }
   // Share is not a level-gated command: every reader opens the dialog (as
-  // DocumentActionsMenu does), so it sits beside Star, ahead of the edit commands.
+  // DocumentActionsMenu does); the Access cell shares its gate with the menu item.
   const shareable = Boolean(doc && handlers.onShare && canShareRow(doc));
-  if (doc && shareable) {
-    actions.push({ id: "share", label: t("documents.actions.share"), icon: Share2, run: () => handlers.onShare?.(doc) });
-  }
-  // Each command follows the level of THIS row (create subfolder / rename /
-  // move: edit, archive: manage); a trashed row offers none of them.
-  if (doc && !trashed) {
-    if (folder && handlers.onNewSubfolder && canMoveRow(level)) {
-      actions.push({ id: "new-subfolder", label: t("documents.home.row.new_subfolder"), icon: FolderPlus, run: () => handlers.onNewSubfolder?.(doc) });
-    }
-    if (!myFolder && handlers.onRename && canMoveRow(level)) {
-      actions.push({ id: "rename", label: t("documents.home.row.rename"), icon: Pencil, run: () => handlers.onRename?.(doc) });
-    }
-    if (!myFolder && handlers.onMove && canMoveRow(level)) {
-      actions.push({ id: "move", label: t("documents.tree.menu.move_to"), icon: FolderInput, run: () => handlers.onMove?.(doc) });
-    }
-    if (handlers.onShelve && canArchiveRow(level) && !myFolder && !isShelved(doc)) {
-      // U-4: shelve sits beside the trash command, manage-only and never on
-      // the My Folder root; the page decides document-now vs folder-dialog.
-      actions.push({ id: "shelve", label: t("documents.shelved_list.shelve"), icon: Archive, run: () => handlers.onShelve?.(doc) });
-    }
-    if (!myFolder && handlers.onArchive && canArchiveRow(level)) {
-      // A folder's dialog says Delete (FD-D6), so its row says it too, with the tree menu's words.
-      // Both are the trash command, so both draw the trash icon; Archive belongs to shelve above.
-      actions.push(
-        folder
-          ? { id: "archive", label: t("documents.tree.menu.delete"), icon: Trash2, run: () => handlers.onArchive?.(doc) }
-          : { id: "archive", label: t("documents.home.row.archive"), icon: Trash2, run: () => handlers.onArchive?.(doc) },
-      );
-    }
-  }
-  if (row.type === "source") {
-    // A parent kind with no route offers neither the menu item nor the button.
-    if (sourceLinked) {
-      actions.push({ id: "go-to-source", label: t(sourceLinkLabelKey(row.source.parent)), icon: sourceLinkIcon(row.source.parent), run: () => handlers.onGoToSource(row) });
-    }
-    actions.push({ id: "download", label: t("documents.home.row.download"), icon: Download, run: () => handlers.onDownloadSource(row.source.id) });
-    // Only a file the server marks as copyable offers the save.
-    if (row.source.can_save) {
-      actions.push({ id: "save", label: t("documents.home.row.save_to_folder"), icon: FolderInput, run: () => handlers.onSaveSource(row) });
-    }
-  }
+  // One ordered menu for the ⋯ dropdown and the right-click menu (doclist/row-menu.ts).
+  const menu = docRowMenu(row, {
+    handlers,
+    starred,
+    open: primary,
+    openApp: desktop ? () => void appRequest.current?.() : undefined,
+  });
   // The app command joins the actions cell only when its column is wide
   // enough (the ladder's quick rung); the source's own link button below
   // is icon-sized and rendered at every width.
@@ -414,7 +359,7 @@ export function LibraryRowView({
                 {sourceLink}
               </div>
             ) : null}
-            {actions.length > 0 ? (
+            {menu.length > 0 ? (
               <DropdownMenu>
                 <DropdownMenuTrigger
                   render={
@@ -431,12 +376,7 @@ export function LibraryRowView({
                       </DropdownMenuLabel>
                     </DropdownMenuGroup>
                   ) : null}
-                  {actions.map((action) => (
-                    <DropdownMenuItem key={action.id} className="gap-2 px-2 py-2 pointer-coarse:min-h-11" onClick={action.run}>
-                      <action.icon aria-hidden className="size-3.5" />
-                      {action.label}
-                    </DropdownMenuItem>
-                  ))}
+                  <RowMenuItems groups={menu} row={row} t={t} Item={DropdownMenuItem} Separator={DropdownMenuSeparator} />
                 </DropdownMenuContent>
               </DropdownMenu>
             ) : null}
@@ -449,12 +389,7 @@ export function LibraryRowView({
             <ContextMenuLabel className="font-normal normal-case tracking-normal">{scopeInfo.tooltipText}</ContextMenuLabel>
           </ContextMenuGroup>
         ) : null}
-        {actions.map((action) => (
-          <ContextMenuItem key={action.id} className="gap-2 px-2 py-2 pointer-coarse:min-h-11" onClick={action.run}>
-            <action.icon aria-hidden className="size-3.5" />
-            {action.label}
-          </ContextMenuItem>
-        ))}
+        <RowMenuItems groups={menu} row={row} t={t} Item={ContextMenuItem} Separator={ContextMenuSeparator} />
       </ContextMenuContent>
     </ContextMenu>
   );

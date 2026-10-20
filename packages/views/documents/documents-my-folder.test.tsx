@@ -430,7 +430,7 @@ describe("guards on the My Folder row", () => {
     fireEvent.click(screen.getByRole("button", { name: t("documents.home.row.menu", { title: label() }) }));
     expect(await screen.findByRole("menuitem", { name: t("documents.home.row.open_folder") })).toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: t("documents.home.row.new_subfolder") })).toBeInTheDocument();
-    for (const key of ["documents.home.row.rename", "documents.tree.menu.move_to", "documents.tree.menu.delete"]) {
+    for (const key of ["documents.home.row.rename", "documents.home.row.move", "documents.tree.menu.delete"]) {
       expect(screen.queryByRole("menuitem", { name: t(key) })).toBeNull();
     }
     unmount();
@@ -447,7 +447,7 @@ describe("guards on the My Folder row", () => {
       </table>,
     );
     fireEvent.click(screen.getByRole("button", { name: t("documents.home.row.menu", { title: "Dự án CCB" }) }));
-    for (const key of ["documents.home.row.rename", "documents.tree.menu.move_to", "documents.tree.menu.delete"]) {
+    for (const key of ["documents.home.row.rename", "documents.home.row.move", "documents.tree.menu.delete"]) {
       expect(await screen.findByRole("menuitem", { name: t(key) })).toBeInTheDocument();
     }
   });

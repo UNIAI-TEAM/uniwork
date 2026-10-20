@@ -586,12 +586,12 @@ describe("DocumentsPageView", () => {
       renderView(vi.fn(), { initialUrl: `/acme/doi/documents?view=shared-by-me` });
       const row = await rowOf("Đề xuất ngân sách Q4.docx");
       fireEvent.click(within(row).getByRole("button", { name: t("documents.home.row.menu", { title: "Đề xuất ngân sách Q4.docx" }) }));
-      await screen.findByRole("menuitem", { name: t("documents.home.row.open_web") });
+      await screen.findByRole("menuitem", { name: t("documents.tree.menu.open") });
       expect(screen.getByRole("menuitem", { name: t("documents.home.row.rename") })).toBeInTheDocument();
-      expect(screen.getByRole("menuitem", { name: t("documents.tree.menu.move_to") })).toBeInTheDocument();
+      expect(screen.getByRole("menuitem", { name: t("documents.home.row.move") })).toBeInTheDocument();
       expect(screen.getByRole("menuitem", { name: t("documents.home.row.archive") })).toBeInTheDocument();
       fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape" });
-      await waitFor(() => expect(screen.queryByRole("menuitem", { name: t("documents.home.row.open_web") })).toBeNull());
+      await waitFor(() => expect(screen.queryByRole("menuitem", { name: t("documents.tree.menu.open") })).toBeNull());
     });
 
     it("degrades a malformed shared_by_me response to the retryable error state without crashing", async () => {
@@ -859,7 +859,7 @@ describe("DocumentsPageView", () => {
     renderView(vi.fn());
     const row = await rowOf("Kế hoạch Q4");
     fireEvent.click(within(row).getByRole("button", { name: t("documents.home.row.menu", { title: "Kế hoạch Q4" }) }));
-    fireEvent.click(await screen.findByRole("menuitem", { name: t("documents.tree.menu.move_to") }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: t("documents.home.row.move") }));
     const dialog = await screen.findByRole("dialog");
     fireEvent.click(within(dialog).getByRole("treeitem", { name: "Hợp đồng" }));
     fireEvent.click(within(dialog).getByRole("button", { name: t("documents.home.move.submit") }));
@@ -934,14 +934,16 @@ describe("DocumentsPageView", () => {
     expect(within(row).getByRole("button", { name: t("documents.trash.restore_item", { title: "Kế hoạch Q4" }) })).toBeInTheDocument();
     expect(within(row).getByRole("button", { name: t("documents.trash.purge_item", { title: "Kế hoạch Q4" }) })).toBeInTheDocument();
     expect(within(row).queryByRole("button", { name: t("documents.home.row.menu", { title: "Kế hoạch Q4" }) })).toBeNull();
-    expect(screen.queryByRole("menuitem", { name: t("documents.tree.menu.move_to") })).toBeNull();
+    expect(screen.queryByRole("menuitem", { name: t("documents.home.row.move") })).toBeNull();
 
     await openView("shared");
     const sharedRow = await rowOf("Kế hoạch Q4");
     fireEvent.click(within(sharedRow).getByRole("button", { name: t("documents.home.row.menu", { title: "Kế hoạch Q4" }) }));
-    await screen.findByRole("menuitem", { name: t("documents.home.row.open_web") });
-    expect(screen.queryByRole("menuitem", { name: t("documents.tree.menu.move_to") })).toBeNull();
-    expect(screen.queryByRole("menuitem", { name: t("documents.home.row.archive") })).toBeNull();
+    await screen.findByRole("menuitem", { name: t("documents.tree.menu.open") });
+    // Shared with me shares the live row menu (UNI-2045 W8): this row is managed, so it carries both commands;
+    // the edit-level case is pinned in documents-row-menu.test.tsx.
+    expect(screen.getByRole("menuitem", { name: t("documents.home.row.move") })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: t("documents.home.row.archive") })).toBeInTheDocument();
   });
 
   it("gates Move and Archive by the level of each row, not by the open folder", async () => {
@@ -957,11 +959,11 @@ describe("DocumentsPageView", () => {
     const menuItems = async (title: string) => {
       const row = await rowOf(title);
       fireEvent.click(within(row).getByRole("button", { name: t("documents.home.row.menu", { title }) }));
-      await screen.findByRole("menuitem", { name: t("documents.home.row.open_web") });
+      await screen.findByRole("menuitem", { name: t("documents.tree.menu.open") });
       const has = (key: string) => screen.queryByRole("menuitem", { name: t(key) }) !== null;
-      const out = { move: has("documents.tree.menu.move_to"), archive: has("documents.home.row.archive") };
+      const out = { move: has("documents.home.row.move"), archive: has("documents.home.row.archive") };
       fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape" });
-      await waitFor(() => expect(screen.queryByRole("menuitem", { name: t("documents.home.row.open_web") })).toBeNull());
+      await waitFor(() => expect(screen.queryByRole("menuitem", { name: t("documents.tree.menu.open") })).toBeNull());
       return out;
     };
     expect(await menuItems("Báo cáo quản lý")).toEqual({ move: true, archive: true });
@@ -1048,7 +1050,7 @@ describe("DocumentsPageView", () => {
     renderView(vi.fn());
     const row = await rowOf("Kế hoạch Q4");
     fireEvent.click(within(row).getByRole("button", { name: t("documents.home.row.menu", { title: "Kế hoạch Q4" }) }));
-    fireEvent.click(await screen.findByRole("menuitem", { name: t("documents.tree.menu.move_to") }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: t("documents.home.row.move") }));
     const dialog = await screen.findByRole("dialog");
     // A page with one child takes two levels: TREE_MAX_LEVEL - 2 is the deepest enabled target.
     expect(within(dialog).getByRole("treeitem", { name: `Cấp ${TREE_MAX_LEVEL - 2}` })).not.toHaveAttribute("aria-disabled");

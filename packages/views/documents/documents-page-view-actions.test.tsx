@@ -910,13 +910,13 @@ describe("FD-09 fix r2: trashed folder restore and one menu vocabulary", () => {
     expect(screen.queryByRole("menuitem", { name: t("documents.home.row.move") })).toBeNull();
   });
 
-  it("uses Move to… on a document row too and keeps Archive for it", async () => {
+  it("says Move (the row-menu contract name) on a document row and keeps Archive for it", async () => {
     route({ list: () => [summary()] });
     renderView();
     await openMenu("Kế hoạch Q4");
-    expect(await screen.findByRole("menuitem", { name: t("documents.tree.menu.move_to") })).toBeInTheDocument();
+    expect(await screen.findByRole("menuitem", { name: t("documents.home.row.move") })).toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: t("documents.home.row.archive") })).toBeInTheDocument();
-    expect(screen.queryByRole("menuitem", { name: t("documents.home.row.move") })).toBeNull();
+    expect(screen.queryByRole("menuitem", { name: t("documents.tree.menu.move_to") })).toBeNull();
   });
 
   it("carries the same words in English: Move to… and Delete", () => {

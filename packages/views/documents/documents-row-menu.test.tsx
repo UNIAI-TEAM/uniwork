@@ -77,7 +77,7 @@ function nav(): NavigationAdapter {
     back: vi.fn(),
     pathname: "/acme/doi/documents",
     searchParams: new URLSearchParams(),
-    getShareableUrl: (p) => p,
+    getShareableUrl: (p) => `https://app.test${p}`,
   };
 }
 
@@ -117,7 +117,7 @@ const labelsOf = (menu: HTMLElement) => within(menu).getAllByRole("menuitem").ma
 const separatorsOf = (menu: HTMLElement) => menu.querySelectorAll('[role="separator"]');
 const calls = (method: string) => requestMock.mock.calls.filter(([, opts]) => (opts as { method?: string } | undefined)?.method === method);
 
-const FILE_MENU = [
+const fileMenu = () => [
   t("documents.tree.menu.open"),
   t("documents.home.row.open_app"),
   t("documents.actions.share"),
@@ -147,7 +147,7 @@ describe("one list, two primitives", () => {
     renderView();
     const dropdown = await openDropdown("Báo cáo.docx");
     // Without a desktop host the app item is absent; every other contract item is there in order.
-    const expected = FILE_MENU.filter((label) => label !== t("documents.home.row.open_app"));
+    const expected = fileMenu().filter((label) => label !== t("documents.home.row.open_app"));
     expect(labelsOf(dropdown)).toEqual(expected);
     fireEvent.keyDown(dropdown, { key: "Escape" });
     await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
@@ -220,7 +220,10 @@ describe("Chuyển vào thùng rác and Lưu trữ", () => {
     fireEvent.click(within(menu).getByRole("menuitem", { name: t("documents.home.row.archive") }));
     const dialog = await screen.findByRole("alertdialog");
     expect(calls("POST").some(([path]) => String(path).endsWith("/archive"))).toBe(false);
-    fireEvent.click(within(dialog).getByRole("button", { name: t("documents.archive.archive_confirm") }));
+    // The confirm button waits for the subtree read the dialog shows.
+    const confirm = within(dialog).getByRole("button", { name: t("documents.archive.archive_confirm") });
+    await waitFor(() => expect(confirm).toBeEnabled());
+    fireEvent.click(confirm);
     await waitFor(() => expect(calls("POST").some(([path]) => path === "/api/v1/documents/d1/archive")).toBe(true));
   });
 
@@ -242,7 +245,7 @@ describe("Sao chép link", () => {
     renderView();
     const menu = await openDropdown("Báo cáo.docx");
     fireEvent.click(within(menu).getByRole("menuitem", { name: t("documents.list.menu.copy_link") }));
-    await waitFor(() => expect(writeText).toHaveBeenCalledWith(`${window.location.origin}/acme/doi/documents/d1`));
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith("https://app.test/acme/doi/documents/d1"));
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith(t("documents.list.menu.link_copied")));
     // Copying a link makes no share link: nothing was posted.
     expect(calls("POST")).toHaveLength(0);

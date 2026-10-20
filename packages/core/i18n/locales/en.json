@@ -9605,7 +9605,12 @@
         "more_than_7_days": "More than 7 days left"
       },
       "days_left_one": "{{count}} day left",
-      "days_left_other": "{{count}} days left"
+      "days_left_other": "{{count}} days left",
+      "menu": {
+        "copy_link": "Copy link",
+        "link_copied": "Link copied",
+        "link_copy_failed": "Could not copy the link. Try again."
+      }
     },
     "tree": {
       "aria_label": "Document tree",
