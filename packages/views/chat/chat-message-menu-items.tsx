@@ -73,8 +73,13 @@ export const CHAT_DROPDOWN_PARTS: ChatMenuParts = {
 /** The menu's rows, the seen-by row among them: 36px, 10px corners, 18px glyphs (canvas). */
 export const CHAT_MESSAGE_MENU_CLASS = cn(
   "min-w-56 rounded-[14px] p-1.5",
+  // The role menu of a document card is tall: never past the viewport less a 0.5rem margin, scrolling inside (UNI-2012 V1-F8).
+  "max-h-[min(var(--available-height),calc(100dvh-1rem))]",
   "[&>[data-slot$=menu-item]]:min-h-9 [&>[data-slot$=menu-item]]:gap-3 [&>[data-slot$=menu-item]]:rounded-control [&>[data-slot$=menu-item]]:px-2.5",
   "[&>[data-slot$=menu-sub-trigger]]:min-h-9 [&>[data-slot$=menu-sub-trigger]]:gap-3 [&>[data-slot$=menu-sub-trigger]]:rounded-control [&>[data-slot$=menu-sub-trigger]]:px-2.5",
+  // A document card's menu (reactions, five document rows, reply group, follow-up group, delete, seen-by) is ~920px:
+  // on a short viewport the rows tighten to 32px so the whole menu fits instead of cutting the last row.
+  "[@media(max-height:960px)]:[&>[data-slot$=menu-item]]:min-h-8 [@media(max-height:960px)]:[&>[data-slot$=menu-sub-trigger]]:min-h-8",
 );
 
 /** The quick reactions, Telegram's strip at the head of the menu. */
