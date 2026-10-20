@@ -61,3 +61,20 @@ mỗi nhãn cho một thành viên hoặc một tên tự do; transcript và tó
   phiên, và phiên đóng sau 30 giây im lặng; job id giữ nhãn khác nhau giữa các lần chạy.
 - Đặt attribute sau khi commit, lỗi chỉ ghi log; token vào phòng mang attribute nên vào
   lại là đúng.
+
+## Vòng sửa 1 (review)
+
+- `meeting_speaker_labels` được xuất trong gói dữ liệu tổ chức (tên đã gán là nội dung);
+  `meeting_scribe_runs` bị loại (sổ kỹ thuật, sửa trên nhánh S1).
+- Người nói chưa gán được đánh số theo cuộc họp, theo lần xuất hiện đầu
+  (`row_number() OVER (ORDER BY created_at, id)`): "Hội trường · Người nói n". Nhãn "A" của
+  hai phiên STT là hai người khác nhau; không gộp nhãn qua phiên theo chữ của nhà cung cấp.
+- Track micro hội trường đóng phiên STT sau **300 giây** im (track thường vẫn 30 giây), để một
+  lần ngắt không sinh bộ nhãn mới. Chi phí: khoảng **+5,6 US cent cho mỗi lần ngắt thêm 5 phút
+  trên mỗi micro hội trường** (thời gian mở phiên có tách người nói).
+- Ngôn ngữ: tóm tắt truyền locale vào việc đặt tên ("Room · Speaker n" khi `en`); transcript
+  trả thêm `speaker_label` + `room_speaker` cho dòng chưa gán để client tự viết tên qua i18n.
+  `speaker_name` vẫn có bản tiếng Việt dựng sẵn cho client cũ.
+- Gán nhãn: đọc dòng trước khi gán trong giao dịch (`FOR UPDATE`), trả một dòng (không đọc lại
+  cả danh sách).
+- Index `(meeting_id, speaker_label, spoken_at) WHERE speaker_label <> ''` cho câu đầu của nhãn.
