@@ -169,7 +169,7 @@ Có thì bật thêm tính năng: `SMTP_PASSWORD`, `ANTHROPIC_API_KEY`, `GOOGLE_
 
 ## 4. Compose lúc chạy
 
-`docker-compose.yml` khai báo network `172.30.19.0/24` (gateway `172.30.19.1`). Không `network_mode: host`. Không service Postgres, Redis, MinIO, LiveKit. Không khóa `build`.
+`docker-compose.yml` có `name: uniwork-app-dev` để không dùng chung project `uniwork` của compose ở gốc repo. Network `172.30.19.0/24` (gateway `172.30.19.1`). Không `network_mode: host`. Không service Postgres, Redis, MinIO, LiveKit. Không khóa `build`. Host cần Docker Compose 2.24 trở lên vì `env_file.required`.
 
 | Service | Ảnh | Cổng trên host |
 |---|---|---|
@@ -181,7 +181,7 @@ Có thì bật thêm tính năng: `SMTP_PASSWORD`, `ANTHROPIC_API_KEY`, `GOOGLE_
 
 Backend đặt `OFFICE_ENGINE_URL=http://uniwork-office-engine:8090` trong `environment` của Compose, nên giá trị này thắng dòng trống trong env file. Frontend không nhận `.env`.
 
-Office-engine giữ sandbox của `docker-compose.yml` ở gốc repo: `init`, `read_only`, tmpfs `/tmp:size=512m,mode=1777`, `mem_limit: 2g`, `cpus: 2`, `pids_limit: 256`, `cap_drop: [ALL]`, `cap_add: [CHOWN, SETUID, SETGID, KILL, DAC_OVERRIDE, FOWNER]`, `security_opt: [no-new-privileges:true]`, `stop_grace_period: 15s`. Healthcheck `GET /healthz`. Backend chờ engine healthy, rồi healthy khi `GET /readyz` thành công. Frontend không healthcheck. Cả ba service `restart: unless-stopped`.
+Office-engine giữ sandbox của `docker-compose.yml` ở gốc repo: `init`, `read_only`, tmpfs `/tmp:size=512m,mode=1777`, `mem_limit: 2g`, `cpus: 2`, `pids_limit: 256`, `cap_drop: [ALL]`, `cap_add: [CHOWN, SETUID, SETGID, KILL, DAC_OVERRIDE, FOWNER]`, `security_opt: [no-new-privileges:true]`, `stop_grace_period: 15s`. Healthcheck của engine là `node -e` gọi `fetch('http://127.0.0.1:8090/healthz')`, cùng lệnh đã có trong `apps/office-engine/Dockerfile`, vì ảnh runtime không có `curl`. Backend dùng `wget -q -O /dev/null http://127.0.0.1:8080/readyz` (ảnh Alpine có busybox wget). `start_period` của backend là 60s vì `CMD` của ảnh là `migrate up && server`. Backend chờ engine healthy. Frontend không healthcheck. Cả ba service `restart: unless-stopped`.
 
 `docker-compose.secrets.yml` chỉ thêm:
 
@@ -215,7 +215,7 @@ Proxy TLS nằm ngoài Compose. Nó đã có trên host: `https://uniwork.unicom
 - `env/uniwork-be.env`, `env/uniwork-fe.env`, `env/uniwork-office-engine.env`
 - `env/image.env`
 
-Trong phiên SSH, `docker login` dùng `HARBOR_CREDENTIALS_ID`. Password không ghi ra đĩa trên host. `pull` lỗi thì không chạy `up`. Container đang chạy giữ nguyên.
+Trong phiên SSH, `docker login` dùng `HARBOR_CREDENTIALS_ID`. Password đi qua stdin, không nằm trên argv. `DOCKER_CONFIG` là thư mục `mktemp` riêng của phiên đó, `trap` xóa thư mục khi SSH kết thúc, kể cả khi `pull` lỗi, nên credential Harbor không nằm lại trong `~/.docker/config.json` của root và không nằm trong `$DEPLOY_DIR`. `pull` lỗi thì không chạy `up`. Container đang chạy giữ nguyên.
 
 ```bash
 cd "$DEPLOY_DIR"
@@ -252,7 +252,7 @@ docker compose \
 - `uniwork-be.env` có `STORAGE_BACKEND=minio`, `MINIO_ENDPOINT=https://minio.ubos.vn`, `MINIO_BUCKET=uniwork-development`, `MINIO_REGION=us-east-1`, `S3_KEY_PREFIX=develop/`, `APP_ENV=development`, `TRUSTED_PROXIES=172.30.19.0/24`, và `OFFICE_ENGINE_URL` trống.
 - `uniwork-office-engine.env` có `OFFICE_ENGINE_OUTPUT_ORIGINS=https://minio.ubos.vn` và không chứa host CMC `s3.hn-2.cloud.cmctelecom.vn`.
 - `uniwork-fe.build.env` có đúng ba URL `https://uniwork.unicomhub.com` và `wss://uniwork.unicomhub.com`.
-- `docker-compose.yml` không có `build:` và không có service `postgres`, `redis`, `minio`.
+- `docker-compose.yml` không có `build:`, không có service `postgres`, `redis`, `minio`, và có `name: uniwork-app-dev`.
 - `docker-compose.secrets.yml` nêu tên hai token office và không chứa giá trị của chúng.
 - `ci/Jenkinsfile.app-dev.groovy` chứa default `113.20.107.188`, `root`, `/home/devops/uniwork`, `ssh-107.188`, và không có lệnh `docker tag` hay `docker push` tới `:latest`.
 
