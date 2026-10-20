@@ -7,11 +7,12 @@ import type { GuideContent } from "./guide-content";
  * Every statement mirrors what the code and the production configuration do;
  * change the product, change this page in the same PR. UniOffice desktop lives
  * in UNIAI-TEAM/uniwork-office, so its lines follow the API contract and ADRs
- * 0028/0034. Section order is the anchor order (#guide-section-N): section 8 is
- * the account deletion link given to Google Play, so add new sections after it.
+ * 0028/0034. The deletion section keeps the fixed anchor #delete-account in
+ * both languages: it is the account deletion URL given to Google Play.
  */
 const vi: GuideContent = {
-  introduction: "Chính sách này giải thích UniWork, UniOffice và ứng dụng UniChat (web, máy tính, Android, iPhone) thu thập dữ liệu cá nhân nào, dùng để làm gì, lưu ở đâu, chia sẻ với ai và bạn yêu cầu xem hoặc xóa dữ liệu bằng cách nào. Hiệu lực từ ngày 20/10/2026.",
+  introduction: "Chính sách này giải thích UniWork, UniOffice và ứng dụng UniChat (web, máy tính, Android, iPhone) thu thập dữ liệu cá nhân nào, dùng để làm gì, lưu ở đâu, chia sẻ với ai và bạn yêu cầu xem hoặc xóa dữ liệu bằng cách nào.",
+  effective: { dateTime: "2026-10-20", text: "20/10/2026" },
   sections: [
     { title: "Ai chịu trách nhiệm về dữ liệu", paragraphs: [
       `UniWork, UniOffice và UniChat do ${legalEntity.nameVi} (mã số doanh nghiệp ${legalEntity.enterpriseCode}, trụ sở: ${legalEntity.addressVi}) vận hành. Liên hệ về dữ liệu cá nhân: ${legalEntity.email}.`,
@@ -63,7 +64,7 @@ const vi: GuideContent = {
       ["Google", "Đăng nhập bằng Google (khi bạn chọn); gửi email hệ thống như mã xác minh", "Theo hạ tầng của Google"],
       ["GitHub", "Lưu bản cài và bản cập nhật UniChat, UniOffice cho máy tính", "Theo hạ tầng của GitHub"],
     ], layout: "wide-middle" } },
-    { title: "Lưu giữ và xóa dữ liệu", paragraphs: [
+    { id: "delete-account", title: "Lưu giữ và xóa dữ liệu", paragraphs: [
       "Nội dung được giữ khi tổ chức còn dùng dịch vụ. Tin nhắn bạn xóa bị ẩn với mọi người ngay; tài liệu bị xóa nằm trong thùng rác 30 ngày rồi bị xóa vĩnh viễn; mỗi tài liệu giữ tối đa 500 phiên bản; tệp không còn được dùng ở đâu bị xóa khỏi kho lưu trữ trong lần dọn dẹp hằng ngày.",
       "Xóa tài khoản: đăng nhập UniWork trên web, vào Cài đặt → Bảo mật → Xóa tài khoản và xác nhận lại danh tính. Email, tên, ảnh đại diện, mật khẩu, liên kết Google, số điện thoại và thông tin hồ sơ bị xóa; mọi phiên đăng nhập và mã nhận thông báo bị thu hồi. Nội dung bạn đã gửi trong tổ chức vẫn thuộc tổ chức đó và hiển thị dưới tên \"Người dùng đã xóa\". Nếu bạn đang là chủ một tổ chức, hãy chuyển quyền sở hữu trước.",
       "Xóa tổ chức: chủ tổ chức vào Cài đặt → Dữ liệu tổ chức để tải bản xuất dữ liệu hoặc yêu cầu xóa. Nội dung của tổ chức bị xóa vĩnh viễn sau 5 ngày và có thể hủy trong thời gian đó. Hóa đơn, chứng từ thanh toán và nhật ký hoạt động được giữ lại theo nghĩa vụ kế toán và bảo mật.",
@@ -80,14 +81,15 @@ const vi: GuideContent = {
       "UniWork, UniOffice và UniChat là công cụ làm việc cho tổ chức, dành cho người từ 18 tuổi. Chúng tôi không cố ý thu thập dữ liệu của trẻ em.",
     ] },
     { title: "Thay đổi chính sách", paragraphs: [
-      "Khi chính sách thay đổi, chúng tôi cập nhật trang này và ngày hiệu lực ở đầu trang; thay đổi quan trọng được thông báo trong ứng dụng hoặc qua email trước khi áp dụng.",
+      "Khi chính sách thay đổi, chúng tôi cập nhật trang này và ngày hiệu lực dưới tiêu đề; thay đổi quan trọng được thông báo trong ứng dụng hoặc qua email trước khi áp dụng.",
     ] },
   ],
   related: ["/security", "/apps/unichat", "/apps/office"],
 };
 
 const en: GuideContent = {
-  introduction: "This policy explains what personal data UniWork, UniOffice and the UniChat apps (web, desktop, Android, iPhone) collect, why, where it is kept, who it is shared with and how to ask to see or delete it. Effective 20 October 2026.",
+  introduction: "This policy explains what personal data UniWork, UniOffice and the UniChat apps (web, desktop, Android, iPhone) collect, why, where it is kept, who it is shared with and how to ask to see or delete it.",
+  effective: { dateTime: "2026-10-20", text: "20 October 2026" },
   sections: [
     { title: "Who is responsible for your data", paragraphs: [
       `UniWork, UniOffice and UniChat are operated by ${legalEntity.nameEn} (enterprise code ${legalEntity.enterpriseCode}, registered office: ${legalEntity.addressEn}). Personal data contact: ${legalEntity.email}.`,
@@ -139,7 +141,7 @@ const en: GuideContent = {
       ["Google", "Sign in with Google (when you choose it); sending system email such as verification codes", "Google's infrastructure"],
       ["GitHub", "Hosting UniChat and UniOffice desktop installers and updates", "GitHub's infrastructure"],
     ], layout: "wide-middle" } },
-    { title: "Retention and deletion", paragraphs: [
+    { id: "delete-account", title: "Retention and deletion", paragraphs: [
       "Content is kept while the organization uses the service. A message you delete is hidden from everyone immediately; a deleted document stays in the trash for 30 days and is then permanently deleted; each document keeps up to 500 versions; files no longer used anywhere are removed from storage by a daily clean-up.",
       "Deleting your account: sign in to UniWork on the web, open Settings → Security → Delete account and confirm your identity. Your email, name, profile photo, password, Google link, phone number and profile details are removed, and every session and notification token is revoked. Content you posted in an organization stays with that organization and is shown as \"Deleted user\". If you own an organization, transfer ownership first.",
       "Deleting an organization: the owner opens Settings → Organization data to download a data export or request deletion. The organization's content is permanently deleted after 5 days and the request can be cancelled until then. Invoices, payment records and the activity log are kept for accounting and security obligations.",
@@ -156,7 +158,7 @@ const en: GuideContent = {
       "UniWork, UniOffice and UniChat are work tools for organizations, intended for people aged 18 and over. We do not knowingly collect children's data.",
     ] },
     { title: "Changes to this policy", paragraphs: [
-      "When this policy changes, we update this page and the effective date at the top; significant changes are announced in the app or by email before they apply.",
+      "When this policy changes, we update this page and the effective date under its title; significant changes are announced in the app or by email before they apply.",
     ] },
   ],
   related: ["/security", "/apps/unichat", "/apps/office"],

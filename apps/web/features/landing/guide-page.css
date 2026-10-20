@@ -32,4 +32,20 @@
 .public-guide-illustration figcaption { font-size: var(--text-caption); line-height: 1.7; color: var(--muted-foreground); margin-top: 12px; }
 .public-guide-image-dark, .dark .public-guide-image-light { display: none; }
 .dark .public-guide-image-dark { display: block; }
-@media (max-width: 767px) { .public-guide { padding: 108px 24px 48px; } .public-guide h1 { font-size: var(--text-hero-sm); } }
+@media (max-width: 767px) { .public-guide { padding: 108px 24px 48px; } }
+.public-guide .public-guide-effective { margin-top: 12px; font-size: var(--text-body); }
+/* A finger needs 44px; the list spacing moves into the link's own box. */
+@media (pointer: coarse) {
+  .public-guide-contents li + li { margin-top: 0; }
+  .public-guide-contents a { display: inline-flex; align-items: center; min-height: 44px; }
+}
+/* Three columns cannot share a phone's width without breaking words: each row becomes a block, cells labelled from data-label. */
+@media (max-width: 639px) {
+  .public-guide-table, .public-guide-table caption, .public-guide-table tbody, .public-guide-table tr, .public-guide-table th, .public-guide-table td { display: block; width: auto; }
+  .public-guide-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .public-guide-table tbody tr { padding-block: 16px; border-bottom: 1px solid var(--border); }
+  .public-guide-table tbody tr:first-child { border-top: 1px solid var(--border); }
+  .public-guide-table th, .public-guide-table td { padding: 0; border-bottom: 0; overflow-wrap: break-word; }
+  .public-guide-table td { margin-top: 8px; }
+  .public-guide-table td::before { content: attr(data-label); display: block; font-size: var(--text-caption); font-weight: 600; color: var(--muted-foreground); }
+}
