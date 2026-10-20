@@ -1,0 +1,5 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git rev-parse HEAD; git log --oneline -3
+b7bbfdfc3adab5a47747f6b4b8ffc1875bbd661b
+b7bbfdfc3 fix(office): drop unknown or deleted comment_id silently on launch ticket
+e7be35f41 docs(office): close X-01 - fill N′, harness and the current baseline in contract-p0
+c0d4cdf20 docs(deploy): installer comment names beta.5
