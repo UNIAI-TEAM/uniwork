@@ -1,6 +1,6 @@
 # Đợt 7 (UNI-2003): biên bản là trang UniNote — kế hoạch triển khai
 
-> **Trạng thái:** in-progress — kế hoạch ngày 2026-10-20, nhánh `feature/UNI-2003-meetings-sau-hop-dot-7-bien-ban-la-trang` (xếp trên UNI-2002 → UNI-1999 → UNI-1998 …).
+> **Trạng thái:** in-progress — kế hoạch ngày 2026-10-20; đã làm xong trên nhánh `feature/UNI-2003-meetings-sau-hop-dot-7-bien-ban-la-trang` (xếp trên UNI-2002 → UNI-1999 → UNI-1998 …): cột biên bản, `renderMinutes`, lập/chốt/bỏ chốt trong một giao dịch, bốn route sau cờ `meeting_minutes`, mục Biên bản trên trang cuộc họp, dòng hệ quả ADR 0016; chờ review và merge.
 
 **Mục tiêu:** Clerk lập biên bản của một cuộc họp đã kết thúc thành một trang UniNote: số liệu dựng từ bảng, diễn giải lấy từ tóm tắt mới nhất; chủ trì và thư ký được sửa; "chốt" là một phiên bản tài liệu mà cuộc họp ghi id; bỏ chốt giữ lịch sử. Spec: `docs/superpowers/specs/2026-10-20-meeting-follow-through-design.md` §1.1 G9, §1.3 D12, §4, §5.2, §6.6, §7.6, §8.1, §8.2, §9.2 mục 4, §10, §12 dòng 7, §13.1 đợt 7, §14 Q1.
 
