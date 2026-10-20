@@ -1,0 +1,12 @@
+$ pnpm --filter @uniwork/views exec vitest run chat 2>&1 | tail -10; rc=${PIPESTATUS[0]}; echo "VIEWS_CHAT_EXIT=$rc"
+    at /workspace/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/browser/Window.js:960:7
+    at FakeNotification.notification.onclick (/workspace/packages/core/platform/system-notification.ts:115:14)
+    at /workspace/packages/views/layout/workspace-chat-attention.test.tsx:158:19
+    at file:///workspace/node_modules/.pnpm/@vitest+runner@4.1.11/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:20 undefined
+
+ Test Files  147 passed (147)
+      Tests  864 passed (864)
+   Start at  10:03:45
+   Duration  67.37s (transform 8.62s, setup 28.71s, import 62.22s, tests 55.70s, environment 40.18s)
+
+VIEWS_CHAT_EXIT=0
