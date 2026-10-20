@@ -1,0 +1,8 @@
+$ pnpm --filter @uniwork/ui exec vitest run 2>&1 | tail -6; rc=${PIPESTATUS[0]}; echo "UI_EXIT=$rc"
+
+ Test Files  39 passed (39)
+      Tests  327 passed (327)
+   Start at  08:53:57
+   Duration  9.11s (transform 1.17s, setup 4.28s, import 3.20s, tests 5.02s, environment 10.47s)
+
+UI_EXIT=0

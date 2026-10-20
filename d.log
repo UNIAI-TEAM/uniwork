@@ -1,0 +1,8 @@
+$ pnpm --filter @uniwork/views exec vitest run layout documents 2>&1 | tail -6; rc=${PIPESTATUS[0]}; echo "VIEWS_OTHER_EXIT=$rc"
+
+ Test Files  123 passed (123)
+      Tests  1509 passed (1509)
+   Start at  08:51:46
+   Duration  115.21s (transform 8.91s, setup 20.55s, import 68.62s, tests 211.74s, environment 31.59s)
+
+VIEWS_OTHER_EXIT=0
