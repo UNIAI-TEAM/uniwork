@@ -1,6 +1,6 @@
 # Thư ký AI S7 (UNI-2029): gọi vào họp bằng điện thoại — kế hoạch triển khai
 
-> **Trạng thái:** in-progress — kế hoạch viết ngày 2026-10-21, đang triển khai trên nhánh `feature/UNI-2029-meetings-thu-ky-ai-s7-goi-vao-hop-bang-d`.
+> **Trạng thái:** in-progress — đủ 5 việc trên nhánh `feature/UNI-2029-meetings-thu-ky-ai-s7-goi-vao-hop-bang-d` (migration, adapter LiveKit SIP, server + phòng chờ cho người gọi, web, runbook `docs/runbooks/livekit-sip.md`); chưa gọi thật được vì hạ tầng SIP (UNI-2030) chưa có, chờ review và merge.
 
 **Spec:** `docs/superpowers/specs/2026-10-20-meeting-scribe-agent-design.md` §5.4 (B10),
 §6.2 (`meetings.dial_in_pin`, `meetings.sip_dispatch_rule_id`), §7.2 (`GET /dial-in`),
