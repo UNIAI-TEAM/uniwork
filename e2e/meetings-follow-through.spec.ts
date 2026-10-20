@@ -33,6 +33,9 @@ async function ok<T>(res: Awaited<ReturnType<APIRequestContext["get"]>>, what: s
 
 test("a meeting's items become tasks, survive a new summary and carry over to the next meeting", async ({ page, browser }) => {
   test.slow();
+  // A real model would not answer with the items the notes list.
+  const provider = process.env.AI_PROVIDER;
+  test.skip(Boolean(provider) && provider !== "fake", `needs AI_PROVIDER=fake, this run has ${provider}`);
   const host = await createRecordingAccount(page, api, "ft-host");
   const peer = await registerApiUser(page, api, "ft-peer");
   await joinWorkspaceAsMember(page, api, host.token, host.wsId, peer);
@@ -62,6 +65,12 @@ test("a meeting's items become tasks, survive a new summary and carry over to th
   const summarized = await summarize();
   test.skip(summarized.status() === 503, "AI provider not configured on this server (AI_PROVIDER=fake)");
   await ok(summarized, "summarize");
+  // Another provider on the server answers without the notes' items.
+  const firstItems = await ok<{ items: unknown[] }>(
+    await page.request.get(`${api}/api/v1/meetings/${first.id}/action-items`, { headers: auth }),
+    "list items after the summary",
+  );
+  test.skip(firstItems.items.length !== notes.length, "the server's AI provider is not the fake one (AI_PROVIDER=fake)");
 
   // Host: assign two items (the owner phrase names the peer, so the review
   // starts with them), dismiss one with a reason, add one the summary missed.
