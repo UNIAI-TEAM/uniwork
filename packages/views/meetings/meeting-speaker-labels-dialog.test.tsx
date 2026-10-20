@@ -12,9 +12,11 @@ const unassigned = {
   id: "l1",
   label_key: "uw_participant_p1:AJ_1-TR_a-1:A",
   speaker: "A",
+  number: 1,
   sample: "Chốt ship thứ Sáu",
 };
-const assigned = { ...unassigned, id: "l2", speaker: "B", user_id: "u1", assigned_name: "An" };
+// The next STT session's "A": another speaker, numbered 2 in the meeting.
+const assigned = { ...unassigned, id: "l2", label_key: "uw_participant_p1:AJ_1-TR_a-2:A", number: 2, user_id: "u1", assigned_name: "An" };
 
 let labels: unknown[] = [];
 
@@ -42,16 +44,16 @@ function openDialog() {
 describe("MeetingSpeakerLabelsDialog", () => {
   it("lists each speaker with a line they said, and the name already given", async () => {
     openDialog();
-    expect(await screen.findByText("Hội trường · Người nói A")).toBeInTheDocument();
+    expect(await screen.findByText("Hội trường · Người nói 1")).toBeInTheDocument();
     expect(screen.getAllByText("“Chốt ship thứ Sáu”")).toHaveLength(2);
     // An assigned speaker leads with the name, the label under it.
     expect(screen.getByText("An", { selector: "p" })).toBeInTheDocument();
-    expect(screen.getByText("Hội trường · Người nói B")).toBeInTheDocument();
+    expect(screen.getByText("Hội trường · Người nói 2")).toBeInTheDocument();
   });
 
   it("saves a free name for a speaker", async () => {
     openDialog();
-    const input = await screen.findByRole("textbox", { name: "Hội trường · Người nói A · Hoặc nhập tên" });
+    const input = await screen.findByRole("textbox", { name: "Hội trường · Người nói 1 · Hoặc nhập tên" });
     fireEvent.change(input, { target: { value: " Chị Lan " } });
     fireEvent.click(screen.getAllByRole("button", { name: "Lưu" })[0]!);
     await waitFor(() =>
@@ -72,7 +74,7 @@ describe("MeetingSpeakerLabelsDialog", () => {
       return Promise.resolve({});
     });
     openDialog();
-    await screen.findByText("Hội trường · Người nói B");
+    await screen.findByText("Hội trường · Người nói 2");
     fireEvent.click(screen.getAllByRole("button", { name: "Lưu" })[1]!);
     await waitFor(() =>
       expect(requestMock).toHaveBeenCalledWith("/api/v1/meetings/m1/speaker-labels/l2", {

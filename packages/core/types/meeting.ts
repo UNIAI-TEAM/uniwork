@@ -78,6 +78,8 @@ export const SpeakerLabelSchema = z.object({
   label_key: z.string(),
   /** The provider's label ("A", "B", …), the last part of label_key. */
   speaker: z.string().optional(),
+  /** "Speaker n" in this meeting, by first appearance. */
+  number: z.number().optional(),
   user_id: z.string().optional(),
   name: z.string().optional(),
   /** What the transcript shows for it; empty while unassigned. */
@@ -162,6 +164,10 @@ export const TranscriptSegmentSchema = z.object({
   speaker_name: z.string().optional(),
   text: z.string(),
   spoken_at: z.string(),
+  /** Set only on a room-microphone line nobody has named: the raw label (":?" = unknown speaker)… */
+  speaker_label: z.string().optional(),
+  /** …and its "Speaker n" number in the meeting (absent when unknown). */
+  room_speaker: z.number().optional(),
 });
 export type MeetingTranscriptSegment = z.infer<typeof TranscriptSegmentSchema>;
 

@@ -139,6 +139,30 @@ describe("MeetingSummaryPanel loading", () => {
   });
 });
 
+describe("MeetingSummaryPanel transcript speakers", () => {
+  it("words an unnamed room-microphone speaker in the reader's language", async () => {
+    requestMock.mockImplementation((path: unknown) => {
+      const p = String(path);
+      if (p.endsWith("/transcript")) {
+        return Promise.resolve({
+          segments: [
+            { id: "t1", meeting_id: "m1", text: "Một", spoken_at: "2026-09-22T02:10:00Z", speaker_name: "x", speaker_label: "k:1:A", room_speaker: 2 },
+            { id: "t2", meeting_id: "m1", text: "Hai", spoken_at: "2026-09-22T02:11:00Z", speaker_name: "x", speaker_label: "k:1:?" },
+            { id: "t3", meeting_id: "m1", text: "Ba", spoken_at: "2026-09-22T02:12:00Z", speaker_name: "Chị Lan" },
+          ],
+        });
+      }
+      return Promise.resolve({});
+    });
+    render(wrapWithNav(<MeetingSummaryPanel workspaceId="w1" meeting={meeting} canHost />));
+    fireEvent.click(await screen.findByRole("button", { name: "Xem lời thoại (3 câu)" }));
+    const list = await screen.findByTestId("meeting-transcript");
+    expect(within(list).getByText("Hội trường · Người nói 2")).toBeInTheDocument();
+    expect(within(list).getByText("Hội trường · Không rõ")).toBeInTheDocument();
+    expect(within(list).getByText("Chị Lan")).toBeInTheDocument();
+  });
+});
+
 describe("MeetingSummaryPanel attribution", () => {
   it("labels the summary as AI output with its source, time and model", async () => {
     const created = new Date(Date.now() - 2 * 3_600_000).toISOString();

@@ -78,7 +78,7 @@ function SpeakerLabelRow({ meetingId, workspaceId, label }: { meetingId: string;
   // A member and a free name exclude each other, as the server requires.
   const [userId, setUserId] = useState<string | undefined>(label.user_id || undefined);
   const [name, setName] = useState(label.name ?? "");
-  const title = t("meetings.scribe.speakerLabel", { speaker: label.speaker || "?" });
+  const title = t("meetings.scribe.speakerLabel", { n: label.number ?? "?" });
   const save = () => {
     const free = name.trim();
     assign.mutateAsync({ labelId: label.id, user_id: userId, name: userId ? undefined : free || undefined }).then(

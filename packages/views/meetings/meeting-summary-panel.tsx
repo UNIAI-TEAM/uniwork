@@ -8,7 +8,7 @@ import { useOlderTranscript, useRecordings } from "@uniwork/core/meetings";
 import { useMeetingClerk } from "@uniwork/core/meetings/attendance";
 import { useProject } from "@uniwork/core/tasks";
 import type { Meeting } from "@uniwork/core/types";
-import type { MeetingSummary } from "@uniwork/core/types/meeting";
+import type { MeetingSummary, MeetingTranscriptSegment } from "@uniwork/core/types/meeting";
 import { Badge } from "@uniwork/ui/components/ui/badge";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@uniwork/ui/components/ui/collapsible";
@@ -29,6 +29,13 @@ import { summarySourceFacts, summarySourceList, type SummarySourceTimes } from "
 import { useSummaryGeneration } from "./meeting-summary/use-summary-generation";
 
 const RECORDING_STATUSES = new Set(["ACTIVE", "PROCESSING", "COMPLETE", "FAILED"]);
+
+/** A room-microphone speaker nobody named is worded here, in the reader's language. */
+function transcriptSpeaker(s: MeetingTranscriptSegment, t: ReturnType<typeof useTranslation>["t"]): string {
+  if (s.room_speaker) return t("meetings.scribe.speakerLabel", { n: s.room_speaker });
+  if (s.speaker_label?.endsWith(":?")) return t("meetings.scribe.speakerUnknown");
+  return s.speaker_name || "—";
+}
 
 /**
  * Transcript, AI summary (host generates; everyone reads), action items →
@@ -159,7 +166,7 @@ export function MeetingSummaryPanel({
               ) : null}
               {(transcript ?? []).map((s) => (
                 <li key={s.id} className="text-body text-foreground">
-                  <span className="mr-1 text-caption font-medium text-muted-foreground">{s.speaker_name || "—"}</span>
+                  <span className="mr-1 text-caption font-medium text-muted-foreground">{transcriptSpeaker(s, t)}</span>
                   {s.text}
                 </li>
               ))}

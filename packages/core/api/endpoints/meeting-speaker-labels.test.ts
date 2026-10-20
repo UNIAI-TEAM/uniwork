@@ -10,6 +10,7 @@ const label = {
   id: "l1",
   label_key: "uw_participant_p1:AJ_1-TR_a-1:A",
   speaker: "A",
+  number: 1,
   assigned_name: "Chị Lan",
   name: "Chị Lan",
   sample: "Chốt ship thứ Sáu",
@@ -45,9 +46,9 @@ describe("meeting speaker label endpoints", () => {
   it("getSpeakerLabels reads the labels and degrades to an empty list on drift", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ labels: [label, { id: "l2", label_key: "k:1:B", speaker: "B" }] }));
     const got = await getSpeakerLabels("m1");
-    expect(got.map((l) => [l.id, l.assigned_name ?? ""])).toEqual([
-      ["l1", "Chị Lan"],
-      ["l2", ""],
+    expect(got.map((l) => [l.id, l.number, l.assigned_name ?? ""])).toEqual([
+      ["l1", 1, "Chị Lan"],
+      ["l2", undefined, ""],
     ]);
     expect(String(vi.mocked(fetch).mock.calls[0]![0])).toBe("http://api.test/api/v1/meetings/m1/speaker-labels");
     vi.mocked(fetch).mockResolvedValueOnce(json({ labels: "nope" }));
