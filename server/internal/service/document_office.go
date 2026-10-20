@@ -74,20 +74,22 @@ type DocumentOfficeOptions struct {
 	Clock             func() time.Time
 	NewID             func() string
 	Log               *slog.Logger
+	spoolCopyBudget   time.Duration
 }
 
 type DocumentOfficeService struct {
-	pool      *pgxpool.Pool
-	q         *db.Queries
-	files     files.Service
-	engine    OfficeEngine
-	documents *DocumentService
-	metrics   OfficeMetrics
-	maxDL     time.Duration
-	interval  time.Duration
-	now       func() time.Time
-	newID     func() string
-	log       *slog.Logger
+	pool            *pgxpool.Pool
+	q               *db.Queries
+	files           files.Service
+	engine          OfficeEngine
+	documents       *DocumentService
+	metrics         OfficeMetrics
+	maxDL           time.Duration
+	interval        time.Duration
+	spoolCopyBudget time.Duration
+	now             func() time.Time
+	newID           func() string
+	log             *slog.Logger
 }
 
 const (
@@ -121,12 +123,16 @@ func NewDocumentOfficeService(o DocumentOfficeOptions) *DocumentOfficeService {
 	s := &DocumentOfficeService{
 		pool: o.Pool, q: o.Queries, files: o.Files, engine: o.Engine, documents: o.Documents, metrics: o.Metrics,
 		maxDL: o.MaxDeadline, interval: o.ReconcileInterval, now: o.Clock, newID: o.NewID, log: o.Log,
+		spoolCopyBudget: o.spoolCopyBudget,
 	}
 	if s.maxDL <= 0 {
 		s.maxDL = 2 * time.Minute
 	}
 	if s.interval <= 0 {
 		s.interval = 5 * time.Second
+	}
+	if s.spoolCopyBudget <= 0 {
+		s.spoolCopyBudget = officeSpoolCopyBudget
 	}
 	if s.now == nil {
 		s.now = time.Now
@@ -501,6 +507,13 @@ func (s *DocumentOfficeService) jobInput(ctx context.Context, actor Actor, in Of
 	return *in.input, format, baseRevision, nil
 }
 
+func (s *DocumentOfficeService) copyBudget() time.Duration {
+	if s != nil && s.spoolCopyBudget > 0 {
+		return s.spoolCopyBudget
+	}
+	return officeSpoolCopyBudget
+}
+
 // readBase answers the base as a stream. With a stored checksum nothing is
 // buffered: the first attempt takes the reader opened here (so a missing file
 // still fails before any row exists), a later attempt reopens, and the
@@ -508,15 +521,15 @@ func (s *DocumentOfficeService) jobInput(ctx context.Context, actor Actor, in Of
 // Without one (a legacy row) the base is spooled to a temp file while it is
 // hashed, and the spool is deleted by release.
 func (s *DocumentOfficeService) readBase(ctx context.Context, scope files.Scope, id files.FileID, want pgtype.Text) (officeInput, error) {
-	openFile := func() (files.Reader, error) {
-		return s.files.Open(ctx, files.OpenInput{Scope: scope, FileID: id})
-	}
-	r, err := openFile()
-	if err != nil {
-		return officeInput{}, documentFileError(err)
-	}
 	limit := s.documentFileMaxBytes()
 	if want.Valid && want.String != "" {
+		openFile := func() (files.Reader, error) {
+			return s.files.Open(ctx, files.OpenInput{Scope: scope, FileID: id})
+		}
+		r, err := openFile()
+		if err != nil {
+			return officeInput{}, documentFileError(err)
+		}
 		if r.File.SizeBytes > limit {
 			_ = r.Close()
 			return officeInput{}, officeErr("upload_bounds", "base_too_large")
@@ -543,6 +556,18 @@ func (s *DocumentOfficeService) readBase(ctx context.Context, scope files.Scope,
 		}
 		return in, nil
 	}
+	copyCtx, cancel := context.WithTimeout(ctx, s.copyBudget())
+	defer cancel()
+	r, err := s.files.Open(copyCtx, files.OpenInput{Scope: scope, FileID: id})
+	if err != nil {
+		if copyCtx.Err() != nil {
+			if !errors.Is(err, copyCtx.Err()) {
+				err = fmt.Errorf("%w: %w", err, copyCtx.Err())
+			}
+			return officeInput{}, documentFileError(files.StorageUnavailable(err))
+		}
+		return officeInput{}, documentFileError(err)
+	}
 	defer r.Close()
 	spool, err := os.CreateTemp("", officeSpoolPrefix+"*")
 	if err != nil {
@@ -559,6 +584,12 @@ func (s *DocumentOfficeService) readBase(ctx context.Context, scope files.Scope,
 	h := sha256.New()
 	n, err := io.Copy(io.MultiWriter(spool, h), io.LimitReader(r.Body, limit+1))
 	if err != nil {
+		if copyCtx.Err() != nil {
+			if !errors.Is(err, copyCtx.Err()) {
+				err = fmt.Errorf("%w: %w", err, copyCtx.Err())
+			}
+			return officeInput{}, documentFileError(files.StorageUnavailable(err))
+		}
 		return officeInput{}, err
 	}
 	if n > limit {
