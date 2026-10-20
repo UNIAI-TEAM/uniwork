@@ -466,6 +466,7 @@ func toDocumentSummaryDTO(item service.DocumentListItem) sdo.DocumentSummaryDTO 
 	dto := documentSummaryDTO(item.Document, item.Facts, item.Snippet, access)
 	dto.EditLock = documentRowEditLockSDO(item.EditLock)
 	dto.ShareScope = documentRowShareScopeSDO(item.ShareScope)
+	dto.IsOwner = &item.IsOwner
 	if item.FavoritedAt != nil {
 		at := item.FavoritedAt.UTC().Format(time.RFC3339)
 		dto.FavoritedAt = &at
@@ -495,6 +496,7 @@ func toSharedDocumentSummaryDTO(row service.SharedDocument) sdo.DocumentSummaryD
 	dto := documentSummaryDTO(row.Document, row.Facts, "", &access)
 	dto.EditLock = documentRowEditLockSDO(row.EditLock)
 	dto.ShareScope = documentRowShareScopeSDO(row.ShareScope)
+	dto.IsOwner = &row.IsOwner
 	if row.Shared.By != "" {
 		dto.Shared = &sdo.DocumentSharedSDO{
 			By: row.Shared.By, ByKind: row.Shared.ByKind, ByName: row.Shared.ByName,

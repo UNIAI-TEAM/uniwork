@@ -117,3 +117,16 @@ func (s *DocumentService) attachShareSummaries(ctx context.Context, orgID, works
 	}
 	return nil
 }
+
+// isACLOwner is the owner notion of the access report (acl_owner): the
+// document's acl_owner_id is the caller.
+func isACLOwner(doc *db.Document, actor Actor) bool {
+	return doc.AclOwnerID.Valid && doc.AclOwnerID.String == actor.ID
+}
+
+// markListOwners sets IsOwner on one page of list rows (UNI-2045 SV-5).
+func markListOwners(actor Actor, items []DocumentListItem) {
+	for i := range items {
+		items[i].IsOwner = isACLOwner(&items[i].Document, actor)
+	}
+}

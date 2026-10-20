@@ -797,6 +797,8 @@ type SharedDocument struct {
 	ShareScope *DocumentShareScope
 	// Shared is the share that grants the caller: who, when (UNI-2045 SV-3).
 	Shared DocumentSharedBy
+	// IsOwner is whether the caller is the document's ACL owner (SV-5).
+	IsOwner bool
 }
 
 // DocumentSharedBy says who shared a document with the caller and when - the
@@ -975,7 +977,7 @@ func (s *DocumentService) listSharedWithMePage(ctx context.Context, userID, orga
 				// does not list it.
 				continue
 			}
-			out = append(out, SharedDocument{Document: r.Document, Access: acc, Shared: DocumentSharedBy{
+			out = append(out, SharedDocument{Document: r.Document, Access: acc, IsOwner: isACLOwner(&r.Document, Human(userID)), Shared: DocumentSharedBy{
 				By: r.GrantedBy, ByKind: r.GrantedByKind, At: r.CreatedAt.Time.UTC(),
 			}})
 			if len(out) == limit {

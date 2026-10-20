@@ -210,6 +210,8 @@ type DocumentListItem struct {
 	FavoritedAt *time.Time
 	// ShareSummary counts the row's live grants (shared_by_me only).
 	ShareSummary *DocumentShareSummary
+	// IsOwner is whether the caller is the document's ACL owner (UNI-2045 SV-5).
+	IsOwner bool
 }
 
 // DocumentShareSummary is how widely a document is shared by its owner: the
@@ -444,6 +446,7 @@ func (s *DocumentService) ListDocuments(ctx context.Context, actor Actor, worksp
 	if err := s.attachListEditLocks(ctx, actor, page.Items); err != nil {
 		return DocumentListPage{}, err
 	}
+	markListOwners(actor, page.Items)
 	return page, s.attachListShareScopes(ctx, actor, page.Items)
 }
 
@@ -865,6 +868,7 @@ func (s *DocumentService) ListRecentDocuments(ctx context.Context, actor Actor, 
 	if err := s.attachListEditLocks(ctx, actor, page.Items); err != nil {
 		return DocumentListPage{}, err
 	}
+	markListOwners(actor, page.Items)
 	return page, s.attachListShareScopes(ctx, actor, page.Items)
 }
 
