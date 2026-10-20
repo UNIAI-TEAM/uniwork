@@ -133,28 +133,31 @@ type AiUniworkTurn struct {
 }
 
 type AiUsageEvent struct {
-	ID             string             `json:"id"`
-	OrganizationID string             `json:"organization_id"`
-	WorkspaceID    pgtype.Text        `json:"workspace_id"`
-	ActorID        string             `json:"actor_id"`
-	ActorKind      string             `json:"actor_kind"`
-	Capability     string             `json:"capability"`
-	PromptID       string             `json:"prompt_id"`
-	Provider       string             `json:"provider"`
-	Model          string             `json:"model"`
-	RateID         pgtype.Text        `json:"rate_id"`
-	InputTokens    int32              `json:"input_tokens"`
-	OutputTokens   int32              `json:"output_tokens"`
-	CostMicros     int64              `json:"cost_micros"`
-	Status         string             `json:"status"`
-	ReasonCode     pgtype.Text        `json:"reason_code"`
-	LatencyMs      pgtype.Int4        `json:"latency_ms"`
-	ToolCalls      string             `json:"tool_calls"`
-	SourceCount    int32              `json:"source_count"`
-	Truncated      bool               `json:"truncated"`
-	CorrelationID  string             `json:"correlation_id"`
-	CreatedAt      pgtype.Timestamptz `json:"created_at"`
-	CompletedAt    pgtype.Timestamptz `json:"completed_at"`
+	ID               string             `json:"id"`
+	OrganizationID   string             `json:"organization_id"`
+	WorkspaceID      pgtype.Text        `json:"workspace_id"`
+	ActorID          string             `json:"actor_id"`
+	ActorKind        string             `json:"actor_kind"`
+	Capability       string             `json:"capability"`
+	PromptID         string             `json:"prompt_id"`
+	Provider         string             `json:"provider"`
+	Model            string             `json:"model"`
+	RateID           pgtype.Text        `json:"rate_id"`
+	InputTokens      int32              `json:"input_tokens"`
+	OutputTokens     int32              `json:"output_tokens"`
+	CostMicros       int64              `json:"cost_micros"`
+	Status           string             `json:"status"`
+	ReasonCode       pgtype.Text        `json:"reason_code"`
+	LatencyMs        pgtype.Int4        `json:"latency_ms"`
+	ToolCalls        string             `json:"tool_calls"`
+	SourceCount      int32              `json:"source_count"`
+	Truncated        bool               `json:"truncated"`
+	CorrelationID    string             `json:"correlation_id"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+	CompletedAt      pgtype.Timestamptz `json:"completed_at"`
+	RunID            pgtype.Text        `json:"run_id"`
+	CacheReadTokens  int32              `json:"cache_read_tokens"`
+	CacheWriteTokens int32              `json:"cache_write_tokens"`
 }
 
 type Attachment struct {
@@ -1915,20 +1918,23 @@ type OfficeOfflinePolicy struct {
 }
 
 type Organization struct {
-	ID                  string             `json:"id"`
-	Slug                string             `json:"slug"`
-	Name                string             `json:"name"`
-	CreatedBy           string             `json:"created_by"`
-	CreatedAt           pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt           pgtype.Timestamptz `json:"updated_at"`
-	Status              string             `json:"status"`
-	SuspendedAt         pgtype.Timestamptz `json:"suspended_at"`
-	SuspendedReason     pgtype.Text        `json:"suspended_reason"`
-	McpEnabledAt        pgtype.Timestamptz `json:"mcp_enabled_at"`
-	McpEnabledBy        pgtype.Text        `json:"mcp_enabled_by"`
-	DeletionScheduledAt pgtype.Timestamptz `json:"deletion_scheduled_at"`
-	McpWriteEnabledAt   pgtype.Timestamptz `json:"mcp_write_enabled_at"`
-	McpWriteEnabledBy   pgtype.Text        `json:"mcp_write_enabled_by"`
+	ID                    string             `json:"id"`
+	Slug                  string             `json:"slug"`
+	Name                  string             `json:"name"`
+	CreatedBy             string             `json:"created_by"`
+	CreatedAt             pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt             pgtype.Timestamptz `json:"updated_at"`
+	Status                string             `json:"status"`
+	SuspendedAt           pgtype.Timestamptz `json:"suspended_at"`
+	SuspendedReason       pgtype.Text        `json:"suspended_reason"`
+	McpEnabledAt          pgtype.Timestamptz `json:"mcp_enabled_at"`
+	McpEnabledBy          pgtype.Text        `json:"mcp_enabled_by"`
+	DeletionScheduledAt   pgtype.Timestamptz `json:"deletion_scheduled_at"`
+	McpWriteEnabledAt     pgtype.Timestamptz `json:"mcp_write_enabled_at"`
+	McpWriteEnabledBy     pgtype.Text        `json:"mcp_write_enabled_by"`
+	AskUniModels          []string           `json:"ask_uni_models"`
+	AskUniModelsUpdatedBy pgtype.Text        `json:"ask_uni_models_updated_by"`
+	AskUniModelsUpdatedAt pgtype.Timestamptz `json:"ask_uni_models_updated_at"`
 }
 
 type OrganizationMember struct {

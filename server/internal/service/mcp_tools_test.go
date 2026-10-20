@@ -77,7 +77,7 @@ func TestMCPToolCatalogue(t *testing.T) {
 		t.Errorf("my_work description does not say what the list holds: %q", d)
 	}
 	for name, words := range map[string][]string{
-		"list_tasks":     {"ordered by status key alphabetically, then position", "pass status to narrow", "truncated"},
+		"list_tasks":     {"ordered by status key alphabetically, then position", "pass status, assignee_id, priority, due_from, due_to or overdue to narrow", "truncated"},
 		"list_members":   {"query", "truncated"},
 		"update_task":    {"revision_conflict", "add_label_ids and remove_label_ids", "too long", strconv.Itoa(mcpMaxItemRunes)},
 		"add_comment":    {"assignee", "creator", "earlier commenters", "@"},
