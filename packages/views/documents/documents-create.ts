@@ -13,6 +13,11 @@ import { documentErrorMessage } from "./document-error-message";
 export const CREATE_TYPES = ["page", "docx", "xlsx", "pptx", "md", "txt", "html", "pdf"] as const;
 export type CreateType = (typeof CREATE_TYPES)[number];
 
+/** The "Tạo nhanh" strip: CREATE_TYPES minus plain text, which lives only in the New menu (user 2026-10-21). */
+export const QUICK_CREATE_TYPES = CREATE_TYPES.filter(
+  (type): type is Exclude<CreateType, "txt"> => type !== "txt",
+);
+
 /** What the "New" menu offers inside an open folder: folder first, then CREATE_TYPES (FD-D9). */
 export const CREATE_MENU_TYPES = ["folder", ...CREATE_TYPES] as const;
 export type CreateMenuType = (typeof CREATE_MENU_TYPES)[number];

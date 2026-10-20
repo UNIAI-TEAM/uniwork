@@ -18,6 +18,7 @@ import { DocumentTypeIcon } from "./document-type-icon";
 import {
   CREATE_MENU_TYPES,
   CREATE_TYPES,
+  QUICK_CREATE_TYPES,
   type CreateMenuType,
   type CreateShareOptions,
   type CreateType,
@@ -78,7 +79,7 @@ export function QuickCreateRow({
   return (
     <section aria-label={t("documents.home.quick_create.label")} className="flex flex-wrap items-center gap-2">
       <span className="mr-1 text-caption text-muted-foreground">{t("documents.home.quick_create.label")}</span>
-      {CREATE_TYPES.map((type) => {
+      {QUICK_CREATE_TYPES.map((type) => {
         const off = unavailable.has(type);
         const hint = off ? t("documents.home.create.unavailable_hint") : t(`documents.home.create.${type}.hint`);
         return (

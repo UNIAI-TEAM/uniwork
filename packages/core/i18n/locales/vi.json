@@ -10590,8 +10590,6 @@
           "ext": ".md"
         },
         "txt": {
-          "chip": "Tệp văn bản",
-          "hint": ".txt",
           "menu": "Văn bản",
           "ext": ".txt"
         },

@@ -10596,8 +10596,6 @@
           "ext": ".md"
         },
         "txt": {
-          "chip": "Plain text file",
-          "hint": ".txt",
           "menu": "Plain text",
           "ext": ".txt"
         },
