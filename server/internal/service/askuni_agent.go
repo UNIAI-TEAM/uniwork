@@ -42,8 +42,9 @@ const (
 	// input_tokens leaves them out.
 	askAgentInputBudget  = 60_000
 	askAgentOutputBudget = 4_000
-	// askAgentToolResultMax caps one tool result, and the focus block (ruling
-	// P11), in bytes: whole sources are dropped from the end.
+	// askAgentToolResultMax caps one tool result, the focus block (ruling
+	// P11) and a round's results together (ruling P18), in bytes: whole
+	// sources are dropped from the end.
 	askAgentToolResultMax = 64 << 10
 	// askAgentDeadline bounds a run; with less than askAgentFinalReserve left
 	// the next call is the answer round.
@@ -168,10 +169,9 @@ func (b *sourceBook) source(it agentItem) {
 }
 
 // render is the numbered sources, then any note or error text (ruling P10),
-// within askAgentToolResultMax bytes: a source that does not fit is neither
-// sent nor numbered, nor is any after it, and the block ends
-// askAgentTruncated.
-func (b *sourceBook) render(items []agentItem) (out string, truncated bool) {
+// within limit bytes: a source that does not fit is neither sent nor
+// numbered, nor is any after it, and the block ends askAgentTruncated.
+func (b *sourceBook) render(items []agentItem, limit int) (out string, truncated bool) {
 	var notes []string
 	for _, it := range items {
 		if it.Key == "" {
@@ -179,10 +179,10 @@ func (b *sourceBook) render(items []agentItem) (out string, truncated bool) {
 		}
 	}
 	tail := strings.Join(notes, "\n")
-	room := askAgentToolResultMax - len(tail) - len("\n"+askAgentTruncated)
-	if room < 0 { // the notes alone are past the cap: cut them, and send no source
-		tail = strings.ToValidUTF8(tail[:len(tail)+room], "")
-		room, truncated = 0, true
+	room := limit - len(tail) - len("\n"+askAgentTruncated)
+	if room < 0 && tail != "" { // the notes alone are past the cap: cut them, and send no source
+		tail = strings.ToValidUTF8(tail[:max(0, len(tail)+room)], "")
+		truncated = true
 	}
 	var srcs strings.Builder
 	for _, it := range items {
@@ -208,10 +208,10 @@ func (b *sourceBook) render(items []agentItem) (out string, truncated bool) {
 	return out, truncated
 }
 
-// toolResult is what the model reads back for one call, and its status for
-// the metric; "no results" for nothing.
-func (b *sourceBook) toolResult(items []agentItem) (string, string) {
-	out, truncated := b.render(items)
+// toolResult is what the model reads back for one call, within limit bytes,
+// and its status for the metric; "no results" for nothing.
+func (b *sourceBook) toolResult(items []agentItem, limit int) (string, string) {
+	out, truncated := b.render(items, limit)
 	switch {
 	case truncated:
 		return out, "truncated"
@@ -405,11 +405,16 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 		}
 		rounds++
 		msgs = append(msgs, provider.Message{Role: "assistant", Content: resp.Text, ToolCalls: resp.ToolCalls, Raw: resp.Raw})
+		// The round's results share what is left of the input budget, at a
+		// conservative 3 bytes a token (ruling P18), so one round cannot carry
+		// the next call far past it.
+		room := min(askAgentToolResultMax, max(0, (askAgentInputBudget-spentInput)*3))
 		for i, c := range resp.ToolCalls {
-			content, err := s.agentToolCall(runCtx, tools, tc, c, book, i)
+			content, err := s.agentToolCall(runCtx, tools, tc, c, book, i, room)
 			if err != nil {
 				return AskResult{}, err
 			}
+			room = max(0, room-len(content))
 			msgs = append(msgs, provider.Message{Role: "tool", ToolCallID: c.ID, Content: content})
 		}
 		req.History, req.Vars, req.ToolResultTurn = msgs, nil, true
@@ -448,9 +453,9 @@ func (s *AskUNIService) finishAgent(ctx context.Context, res AskResult, w db.Get
 
 // agentToolCall answers the i-th tool call of a reply: past
 // askAgentMaxCallsPerRound it is refused unrun, a tool the agent lacks is
-// answered unrun, and any other call runs and is rendered. A Go error is the
-// server's and ends the run.
-func (s *AskUNIService) agentToolCall(ctx context.Context, tools []agentTool, tc ai.ToolContext, c provider.ToolCall, b *sourceBook, i int) (string, error) {
+// answered unrun, and any other call runs and is rendered within limit bytes.
+// A Go error is the server's and ends the run.
+func (s *AskUNIService) agentToolCall(ctx context.Context, tools []agentTool, tc ai.ToolContext, c provider.ToolCall, b *sourceBook, i, limit int) (string, error) {
 	started := s.now()
 	j := slices.IndexFunc(tools, func(t agentTool) bool { return t.Name == c.Name })
 	name := "unknown" // the model's own name would be an unbounded metric label
@@ -466,7 +471,7 @@ func (s *AskUNIService) agentToolCall(ctx context.Context, tools []agentTool, tc
 	default:
 		var items []agentItem
 		if items, err = tools[j].run(ctx, tc, c.Input); err == nil {
-			content, status = b.toolResult(items)
+			content, status = b.toolResult(items, limit)
 		}
 		// The run's deadline reached inside a tool is the same refusal as one
 		// reached inside a model call.
@@ -509,6 +514,6 @@ func (s *AskUNIService) agentFocus(ctx context.Context, tc ai.ToolContext, focus
 	for _, src := range found {
 		items = append(items, agentItem{Kind: src.Kind, Key: src.Href, Title: src.Title, Href: src.Href, Text: src.Excerpt})
 	}
-	out, _ := b.render(items)
+	out, _ := b.render(items, askAgentToolResultMax)
 	return out, nil
 }

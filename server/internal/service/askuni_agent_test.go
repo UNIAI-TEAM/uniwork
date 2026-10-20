@@ -520,7 +520,7 @@ func TestAskAgentCapsToolResult(t *testing.T) {
 		items = append(items, agentItem{Kind: "task", Key: key, Title: fmt.Sprintf("Việc %d", i), Href: key, Text: strings.Repeat("dài ", 250)})
 	}
 	items = append(items, moreNote("More tasks match than are listed."))
-	out, status := b.toolResult(items)
+	out, status := b.toolResult(items, askAgentToolResultMax)
 	if len(out) > 64<<10 || !strings.HasSuffix(out, "[truncated]") || status != "truncated" {
 		t.Fatalf("tool result %d bytes, status %q, ends %q", len(out), status, out[max(0, len(out)-40):])
 	}
@@ -533,9 +533,57 @@ func TestAskAgentCapsToolResult(t *testing.T) {
 		t.Fatalf("book numbered %d sources, %d were sent", b.next-1, sent)
 	}
 	// Notes alone past the cap are cut too: the result never exceeds it.
-	out, status = newSourceBook(nil).toolResult([]agentItem{items[0], moreNote(strings.Repeat("ghi chú ", 10_000))})
+	out, status = newSourceBook(nil).toolResult([]agentItem{items[0], moreNote(strings.Repeat("ghi chú ", 10_000))}, askAgentToolResultMax)
 	if len(out) > 64<<10 || !strings.HasSuffix(out, "[truncated]") || status != "truncated" || !utf8.ValidString(out) {
 		t.Fatalf("notes past the cap: %d bytes, status %q", len(out), status)
+	}
+}
+
+// One round's results share what is left of the input budget, 3 bytes a
+// token (ruling P18): later results keep only [truncated], and every call
+// still gets its tool message.
+func TestAskAgentRoundSharesTheInputBudget(t *testing.T) {
+	s, fake, ua, w := agentAskFixture(t)
+	big, err := s.tasks.Create(context.Background(), Human(ua.ID), w.ID, CreateTaskInput{Title: "Kế hoạch", Description: strings.Repeat("dài ", 5_000)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := &agentMetricsFake{}
+	s.SetAgentMetrics(m)
+	const spent = 40_000
+	var reqs []provider.CompletionRequest
+	fake.Reply = func(req provider.CompletionRequest) provider.CompletionResponse {
+		reqs = append(reqs, req)
+		if len(reqs) == 1 {
+			calls := make([]provider.ToolCall, 0, 6)
+			for i := range 6 {
+				calls = append(calls, provider.ToolCall{ID: fmt.Sprintf("call-%d", i+1), Name: "get_task", Input: json.RawMessage(`{"task":"` + big.ID + `"}`)})
+			}
+			return provider.CompletionResponse{ToolCalls: calls, StopReason: "tool_use", UsagePresent: true, InputTokens: spent}
+		}
+		return provider.CompletionResponse{Text: "Xong [S1]", StopReason: "end_turn", UsagePresent: true, InputTokens: 10}
+	}
+	if _, err := s.Ask(context.Background(), ua.ID, w.ID, AskInput{Question: "Kế hoạch?", Locale: "vi"}); err != nil {
+		t.Fatal(err)
+	}
+	msgs := reqs[1].Messages
+	results := msgs[len(msgs)-6:]
+	total := 0
+	for i, r := range results {
+		if r.Role != "tool" || r.ToolCallID != fmt.Sprintf("call-%d", i+1) {
+			t.Fatalf("result %d: %s %s", i, r.Role, r.ToolCallID)
+		}
+		total += len(r.Content)
+	}
+	roundBytes := (askAgentInputBudget - spent) * 3
+	if overhead := 6*len("\n[truncated]") + len(agentBudgetNote); total > roundBytes+overhead {
+		t.Fatalf("the round sent %d bytes of results, want at most %d", total, roundBytes+overhead)
+	}
+	if !strings.Contains(results[0].Content, "Kế hoạch") || results[5].Content != "[truncated]" {
+		t.Fatalf("first result %d bytes, last %q; want the first whole and the last cut", len(results[0].Content), results[5].Content)
+	}
+	if want := []string{"get_task/ok", "get_task/ok", "get_task/truncated", "get_task/truncated", "get_task/truncated", "get_task/truncated"}; !reflect.DeepEqual(m.tools, want) {
+		t.Fatalf("tools %v, want %v", m.tools, want)
 	}
 }
 
@@ -844,7 +892,7 @@ func TestAskAgentToolDeadlineIsTimeout(t *testing.T) {
 	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
 	defer cancel()
 	tc := ai.ToolContext{ActorID: ua.ID, OrganizationID: w.OrganizationID, WorkspaceID: w.ID}
-	_, err := s.agentToolCall(ctx, s.agentTools(), tc, searchCall("call-1"), newSourceBook(nil), 0)
+	_, err := s.agentToolCall(ctx, s.agentTools(), tc, searchCall("call-1"), newSourceBook(nil), 0, askAgentToolResultMax)
 	if !errors.Is(err, ai.ErrProviderTimeout) || !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("err %v, want ai_provider_timeout wrapping the deadline", err)
 	}
