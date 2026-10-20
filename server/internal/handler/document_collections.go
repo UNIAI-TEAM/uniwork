@@ -610,7 +610,7 @@ func decodeSharedWithMeCursor(s string) (sharedWithMeCursor, bool) {
 		return sharedWithMeCursor{}, false
 	}
 	var c sharedWithMeCursor
-	if err := json.Unmarshal(raw, &c); err != nil || c.At.IsZero() || c.ID == "" {
+	if err := json.Unmarshal(raw, &c); err != nil || c.At.IsZero() || c.ID == "" || strings.ContainsRune(c.ID, 0) {
 		return sharedWithMeCursor{}, false
 	}
 	if c.Sorted() && !c.ValidShape(true) {

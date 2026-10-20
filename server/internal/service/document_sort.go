@@ -1,6 +1,7 @@
 package service
 
 import (
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
@@ -96,9 +97,13 @@ func (c DocumentSortCursor) CheckAgainst(sort DocumentSort) error {
 }
 
 // ValidShape reports whether a sorted cursor carries the key value its sort
-// needs; hasAt is whether the cursor's time field is set.
+// needs; hasAt is whether the cursor's time field is set. A key text with a
+// NUL rune is no text the database takes, so it is no cursor either.
 func (c DocumentSortCursor) ValidShape(hasAt bool) bool {
 	if c.Order != "asc" && c.Order != "desc" {
+		return false
+	}
+	if c.Text != nil && strings.ContainsRune(*c.Text, 0) {
 		return false
 	}
 	switch c.Sort {

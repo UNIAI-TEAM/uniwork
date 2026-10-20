@@ -737,7 +737,7 @@ func decodeSortedDocumentSourceCursor(raw string) (documentSourceSortCursor, boo
 		return documentSourceSortCursor{}, false
 	}
 	var c documentSourceSortCursor
-	if err := json.Unmarshal(b, &c); err != nil || c.ID == "" || c.At.IsZero() || !c.Sorted() || !c.ValidShape(true) {
+	if err := json.Unmarshal(b, &c); err != nil || c.ID == "" || strings.ContainsRune(c.ID, 0) || c.At.IsZero() || !c.Sorted() || !c.ValidShape(true) {
 		return documentSourceSortCursor{}, false
 	}
 	return c, true
