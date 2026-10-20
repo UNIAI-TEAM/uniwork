@@ -1,12 +1,10 @@
 "use client";
 
-import { useId, useState } from "react";
 import { ChevronDown, Plus, Upload } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import {
   DropdownMenu,
-  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
@@ -18,17 +16,14 @@ import {
   CREATE_MENU_TYPES,
   CREATE_TYPES,
   type CreateMenuType,
-  type CreateShareOptions,
   type CreateType,
 } from "./documents-create";
 
 export interface CreateChoicesProps {
   pending: boolean;
   unavailable: ReadonlySet<CreateType>;
-  /** True when the open folder already shares with its home workspace. */
-  parentShared?: boolean;
-  /** Always called with the share options the toggle resolved, so a wrapped or bound handler still gets them. */
-  onCreate: (type: CreateType, options: CreateShareOptions) => void;
+  /** A create is always private; sharing is chosen in the first-save dialog or the Share dialog (UNI-2038). */
+  onCreate: (type: CreateType) => void;
   onUpload: () => void;
   /** Present when a folder is open: adds "Mới → Thư mục" to the New menu (FD-D9). A folder is never shared, so the toggle does not apply to it (UNI-1974). */
   onNewFolder?: () => void;
@@ -60,8 +55,7 @@ export function QuickCreateRow({
             title={hint}
             onClick={() => {
               if (pending || off) return;
-              // A quick create is always private; sharing is chosen in the first-save dialog (UNI-2038).
-              onCreate(type, {});
+              onCreate(type);
             }}
             className={cn(
               "flex h-9 items-center gap-2 rounded-full border border-border bg-card pl-1.5 pr-3 text-caption text-foreground transition-colors hover:bg-accent/40 aria-disabled:cursor-not-allowed aria-disabled:opacity-60 pointer-coarse:h-11",
@@ -81,24 +75,11 @@ export function QuickCreateRow({
 export function CreateMenu({
   pending,
   unavailable,
-  parentShared = false,
   onCreate,
   onUpload,
   onNewFolder,
 }: CreateChoicesProps) {
   const { t } = useTranslation();
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [shareWithWorkspace, setShareWithWorkspace] = useState(false);
-  const hintId = useId();
-  const effectiveShare = parentShared || shareWithWorkspace;
-  const sendShare = effectiveShare && !parentShared;
-  const hintText = parentShared
-    ? t("documents.home.create.share_workspace_inherited")
-    : effectiveShare
-      ? t("documents.home.create.share_workspace_hint", {
-          level: t("documents.home.create.share_workspace_level_view"),
-        })
-      : null;
   const menuTypes: readonly CreateMenuType[] = onNewFolder ? CREATE_MENU_TYPES : CREATE_TYPES;
   return (
     <>
@@ -106,14 +87,7 @@ export function CreateMenu({
         <Upload aria-hidden className="size-3.5" />
         {t("documents.home.create.upload.button")}
       </Button>
-      <DropdownMenu
-        open={menuOpen}
-        onOpenChange={(next) => {
-          setMenuOpen(next);
-          // Default off on every open.
-          if (next) setShareWithWorkspace(false);
-        }}
-      >
+      <DropdownMenu>
         <DropdownMenuTrigger
           render={<Button type="button" size="sm" aria-disabled={pending || undefined} />}
         >
@@ -140,7 +114,7 @@ export function CreateMenu({
                 <DropdownMenuItem
                   className="gap-2 px-2 py-2 pointer-coarse:min-h-11"
                   disabled={pending || unavailable.has(type)}
-                  onClick={() => onCreate(type, { shareWithWorkspace: sendShare })}
+                  onClick={() => onCreate(type)}
                 >
                   <DocumentTypeIcon format={type} className="size-4" decorative />
                   <span className="flex-1">{t(`documents.home.create.${type}.menu`)}</span>
@@ -152,29 +126,6 @@ export function CreateMenu({
               </div>
             ),
           )}
-          {/* The switch closes the document kinds, never the Folder entry above them: a folder is not shared (UNI-1994). */}
-          <DropdownMenuSeparator />
-          <DropdownMenuCheckboxItem
-            closeOnClick={false}
-            checked={effectiveShare}
-            aria-disabled={parentShared || pending || undefined}
-            aria-label={t("documents.home.create.share_workspace_toggle")}
-            aria-describedby={hintId}
-            onCheckedChange={(next) => {
-              if (parentShared || pending) return;
-              setShareWithWorkspace(next);
-            }}
-            className="group/share gap-2 px-2 py-2 pointer-coarse:min-h-11 aria-disabled:cursor-not-allowed aria-disabled:[&_svg]:opacity-60"
-          >
-            {/* TV2-04: pr-6 keeps the hint line clear of the check indicator at the item's right edge. */}
-            <span className="flex flex-1 flex-col pr-6">
-              <span className="group-aria-disabled/share:opacity-60">{t("documents.home.create.share_workspace_toggle")}</span>
-              {/* Inside the item so aria-describedby resolves within it; a live region so the change is announced. */}
-              <span id={hintId} role="status" className="text-caption font-normal text-muted-foreground">
-                {hintText}
-              </span>
-            </span>
-          </DropdownMenuCheckboxItem>
           <DropdownMenuSeparator className="sm:hidden" />
           <DropdownMenuItem className="gap-2 px-2 py-2 pointer-coarse:min-h-11 sm:hidden" onClick={onUpload}>
             <Upload aria-hidden className="size-4" />

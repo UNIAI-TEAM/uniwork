@@ -46,38 +46,22 @@ beforeEach(() => {
 });
 
 describe("create toggle: options always reach onCreate (F-W2-02)", () => {
-  it("QuickCreateRow hands an options object (no share) to a wrapped handler whose arity is not 2", () => {
+  it("QuickCreateRow sends only the type (no share) to a wrapped handler", () => {
     const spy = vi.fn();
     const wrapped = (...args: unknown[]) => spy(...args);
     render(wrap(<QuickCreateRow pending={false} unavailable={new Set()} onCreate={wrapped as never} />));
     fireEvent.click(screen.getByRole("button", { name: t("documents.home.create.xlsx.chip") }));
-    expect(spy).toHaveBeenLastCalledWith("xlsx", {});
+    expect(spy).toHaveBeenLastCalledWith("xlsx");
   });
 
-  it("CreateMenu hands the options to a bound handler", async () => {
+  it("CreateMenu sends only the type to a bound handler", async () => {
     const spy = vi.fn();
     render(
       wrap(<CreateMenu pending={false} unavailable={new Set()} onCreate={spy.bind(null)} onUpload={vi.fn()} />),
     );
     fireEvent.click(screen.getByRole("button", { name: new RegExp(t("documents.home.create.menu")) }));
-    fireEvent.click(await screen.findByRole("menuitemcheckbox", { name: toggleLabel() }));
-    fireEvent.click(screen.getByRole("menuitem", { name: new RegExp(t("documents.home.create.docx.menu")) }));
-    expect(spy).toHaveBeenLastCalledWith("docx", { shareWithWorkspace: true });
-  });
-});
-
-describe("create toggle hint markup (F-W2-09)", () => {
-  it("CreateMenu puts the hint inside the checkbox item, where aria-describedby points, as a status", async () => {
-    render(wrap(<CreateMenu pending={false} unavailable={new Set()} onCreate={vi.fn()} onUpload={vi.fn()} />));
-    fireEvent.click(screen.getByRole("button", { name: new RegExp(t("documents.home.create.menu")) }));
-    const item = await screen.findByRole("menuitemcheckbox", { name: toggleLabel() });
-    fireEvent.click(item);
-
-    const hint = within(item).getByText(hintText());
-    expect(hint).toHaveAttribute("role", "status");
-    expect(item).toHaveAttribute("aria-describedby", hint.id);
-    // The name stays the toggle label; the hint is a description, not part of it.
-    expect(screen.getByRole("menuitemcheckbox", { name: toggleLabel() })).toBe(item);
+    fireEvent.click(await screen.findByRole("menuitem", { name: new RegExp(t("documents.home.create.docx.menu")) }));
+    expect(spy).toHaveBeenLastCalledWith("docx");
   });
 });
 
@@ -130,15 +114,15 @@ describe("create toggle through the library page (F-W2-01, F-W2-03, F-W2-10)", (
     );
   }
 
-  it("creates a folder with no visibility even when the menu's toggle is on, and the dialog has no toggle", async () => {
+  it("creates a folder with no visibility, and neither the menu nor the dialog has a toggle", async () => {
     const posts: Array<{ path: string; body: unknown }> = [];
     serve(posts);
     renderPage();
     await screen.findByRole("navigation", { name: t("documents.home.breadcrumb_label") });
 
     fireEvent.click(screen.getByRole("button", { name: new RegExp(t("documents.home.create.menu")) }));
-    fireEvent.click(await screen.findByRole("menuitemcheckbox", { name: toggleLabel() }));
-    fireEvent.click(screen.getByRole("menuitem", { name: new RegExp(t("documents.home.create.folder.menu")) }));
+    expect(screen.queryByRole("menuitemcheckbox")).toBeNull();
+    fireEvent.click(await screen.findByRole("menuitem", { name: new RegExp(t("documents.home.create.folder.menu")) }));
 
     const dialog = await screen.findByRole("dialog");
     expect(within(dialog).queryByRole("switch")).toBeNull();

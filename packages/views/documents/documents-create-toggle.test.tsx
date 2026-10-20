@@ -62,84 +62,19 @@ describe("Create workspace share toggle (§4, F-01)", () => {
     expect(container.querySelector("p")).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: t("documents.home.create.docx.chip") }));
-    expect(onCreate).toHaveBeenLastCalledWith("docx", {});
-    expect(onCreate.mock.calls[0]![1]).not.toHaveProperty("shareWithWorkspace");
+    expect(onCreate).toHaveBeenLastCalledWith("docx");
   });
 
-  it("CreateMenu: defaults off every open, stays open on toggle (menuitemcheckbox), and locks on under a shared parent", async () => {
+  it("CreateMenu (UNI-2038 Q2): no share toggle, and a create sends no share (private by default)", async () => {
     const onCreate = vi.fn();
-    const { unmount } = render(
-      wrap(
-        <CreateMenu
-          pending={false}
-          unavailable={new Set()}
-          onCreate={onCreate}
-          onUpload={vi.fn()}
-        />,
-      ),
-    );
-
-    const trigger = screen.getByRole("button", { name: new RegExp(t("documents.home.create.menu")) });
-    fireEvent.click(trigger);
-
-    const item = await screen.findByRole("menuitemcheckbox", {
-      name: t("documents.home.create.share_workspace_toggle"),
-    });
-    expect(item).toHaveAttribute("aria-checked", "false");
-    expect(item).not.toHaveAttribute("aria-disabled");
-
-    // Toggling keeps the menu open and links the hint via aria-describedby.
-    fireEvent.click(item);
-    expect(item).toHaveAttribute("aria-checked", "true");
-    const hintText = t("documents.home.create.share_workspace_hint", {
-      level: t("documents.home.create.share_workspace_level_view"),
-    });
-    const hint = screen.getByText(hintText);
-    expect(item).toHaveAttribute("aria-describedby", hint.id);
-
-    // Close and reopen -> resets to unchecked.
-    fireEvent.keyDown(item, { key: "Escape" });
-    await waitFor(() => expect(screen.queryByRole("menuitemcheckbox")).toBeNull());
-    fireEvent.click(trigger);
-    const reopened = await screen.findByRole("menuitemcheckbox", {
-      name: t("documents.home.create.share_workspace_toggle"),
-    });
-    expect(reopened).toHaveAttribute("aria-checked", "false");
-
-    // Turn on and pick a create item -> forwards { shareWithWorkspace: true }.
-    fireEvent.click(reopened);
-    fireEvent.click(screen.getByRole("menuitem", { name: new RegExp(t("documents.home.create.page.menu")) }));
-    expect(onCreate).toHaveBeenLastCalledWith("page", { shareWithWorkspace: true });
-    unmount();
-
-    // Under a shared parent -> locked on with inherited hint, and does not send shareWithWorkspace.
-    const onCreateShared = vi.fn();
-    render(
-      wrap(
-        <CreateMenu
-          pending={false}
-          unavailable={new Set()}
-          parentShared
-          onCreate={onCreateShared}
-          onUpload={vi.fn()}
-        />,
-      ),
-    );
+    render(wrap(<CreateMenu pending={false} unavailable={new Set()} onCreate={onCreate} onUpload={vi.fn()} />));
     fireEvent.click(screen.getByRole("button", { name: new RegExp(t("documents.home.create.menu")) }));
-    const lockedItem = await screen.findByRole("menuitemcheckbox", {
-      name: t("documents.home.create.share_workspace_toggle"),
-    });
-    expect(lockedItem).toHaveAttribute("aria-checked", "true");
-    expect(lockedItem).toHaveAttribute("aria-disabled", "true");
-    const inheritedHint = screen.getByText(t("documents.home.create.share_workspace_inherited"));
-    expect(lockedItem).toHaveAttribute("aria-describedby", inheritedHint.id);
+    await screen.findByRole("menuitem", { name: new RegExp(t("documents.home.create.page.menu")) });
+    expect(screen.queryByRole("menuitemcheckbox")).toBeNull();
+    expect(screen.queryByText(t("documents.home.create.share_workspace_toggle"))).toBeNull();
 
-    // Clicking locked item does not uncheck it.
-    fireEvent.click(lockedItem);
-    expect(lockedItem).toHaveAttribute("aria-checked", "true");
-
-    fireEvent.click(screen.getByRole("menuitem", { name: new RegExp(t("documents.home.create.xlsx.menu")) }));
-    expect(onCreateShared).toHaveBeenLastCalledWith("xlsx", { shareWithWorkspace: false });
+    fireEvent.click(screen.getByRole("menuitem", { name: new RegExp(t("documents.home.create.page.menu")) }));
+    expect(onCreate).toHaveBeenLastCalledWith("page");
   });
 
   it("DocumentUploadDialog: resets toggle on open, forwards shareWithWorkspace when turned on, locks under shared parent, and hides when showShareToggle=false", async () => {
@@ -285,7 +220,7 @@ describe("Create workspace share toggle (§4, F-01)", () => {
     expect(within(renameDialog).queryByRole("switch")).toBeNull();
   });
 
-  it("DocumentsPageView: sends visibility=workspace (and no workspace_level) when creating at root or inside a private folder with the toggle on, and fires no restricted toast", async () => {
+  it("DocumentsPageView: creates inside a private folder from the New menu with no visibility, and fires no restricted toast", async () => {
     const posts: Array<{ path: string; body: unknown }> = [];
     const tree: DocumentTreeNode[] = [
       {
@@ -372,16 +307,10 @@ describe("Create workspace share toggle (§4, F-01)", () => {
 
     await screen.findByRole("navigation", { name: t("documents.home.breadcrumb_label") });
 
-    // Inside private folder fo-priv: CreateMenu toggle starts off, can be turned on -> sends visibility only.
+    // Inside private folder fo-priv: the New menu has no share toggle and a create carries no visibility.
     fireEvent.click(screen.getByRole("button", { name: new RegExp(t("documents.home.create.menu")) }));
-    const menuToggle = await screen.findByRole("menuitemcheckbox", {
-      name: t("documents.home.create.share_workspace_toggle"),
-    });
-    expect(menuToggle).toHaveAttribute("aria-checked", "false");
-    expect(menuToggle).not.toHaveAttribute("aria-disabled");
-
-    fireEvent.click(menuToggle);
-    expect(menuToggle).toHaveAttribute("aria-checked", "true");
+    await screen.findByRole("menuitem", { name: new RegExp(t("documents.home.create.docx.menu")) });
+    expect(screen.queryByRole("menuitemcheckbox")).toBeNull();
     fireEvent.click(screen.getByRole("menuitem", { name: new RegExp(t("documents.home.create.docx.menu")) }));
 
     await waitFor(() => expect(onOpen).toHaveBeenCalledWith("created-1"));
@@ -391,7 +320,6 @@ describe("Create workspace share toggle (§4, F-01)", () => {
         format: "docx",
         title: t("documents.home.default_names.docx"),
         parent_id: "fo-priv",
-        visibility: "workspace",
       },
     });
     expect(toast.success).not.toHaveBeenCalled();

@@ -19,7 +19,7 @@ import { useOptionalWorkspace } from "../layout/workspace-context";
 import { AppLink, useNavigation } from "../navigation";
 import { OfficeHomeLaunch, type OfficeHomeLaunchProps } from "../office/office-home-launch";
 import { DocumentsGateState, useDocumentsGate } from "./documents-gate";
-import { isParentWorkspaceShared, useCreateOfType, type CreateShareOptions } from "./documents-create";
+import { isParentWorkspaceShared, useCreateOfType } from "./documents-create";
 import { CreateMenu } from "./documents-home-create";
 import { DocumentsCollectionHeader, DocumentsHomeHeader, DocumentsHomeNote } from "./documents-home-header";
 import { DocumentsLibraryList } from "./documents-library-list";
@@ -315,8 +315,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
   const createProps = {
     pending: creator.pending,
     unavailable: creator.unavailable,
-    parentShared,
-    onCreate: (type: Parameters<typeof creator.create>[0], options: CreateShareOptions) => void creator.create(type, parentForCreate, options),
+    onCreate: (type: Parameters<typeof creator.create>[0]) => void creator.create(type, parentForCreate),
     onUpload: fileUpload.openUpload,
     onNewFolder: parentForCreate ? rowDialogs.onCreateFolder : undefined,
   };
