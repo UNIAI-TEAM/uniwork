@@ -254,6 +254,49 @@ func TestOfficeLaunchDeletedCommentIDIsDroppedSilently(t *testing.T) {
 	}
 }
 
+// G8-19 A07 (OQ-C6): a comment with a surviving reply keeps its tombstone
+// frame when deleted so the thread stays reachable; launching the document
+// with that tombstoned comment_id keeps and echoes the id.
+func TestOfficeLaunchTombstonedCommentIDIsKept(t *testing.T) {
+	w := newOfficeWorld(t, true)
+	documentID := w.createMarkdownFile(t, "# tombstoned comment launch\n")
+
+	res, out := doJSON(t, w.srv, "POST", "/api/v1/documents/"+documentID+"/comments", w.token, map[string]any{"body": "gốc có phản hồi"})
+	if res.StatusCode != 201 {
+		t.Fatalf("create comment: %d %v", res.StatusCode, out)
+	}
+	commentID := out["comment"].(map[string]any)["id"].(string)
+
+	res, out = doJSON(t, w.srv, "POST", "/api/v1/documents/"+documentID+"/comments", w.token, map[string]any{"body": "phản hồi giữ khung", "parent_id": commentID})
+	if res.StatusCode != 201 {
+		t.Fatalf("create reply: %d %v", res.StatusCode, out)
+	}
+
+	res, out = doJSON(t, w.srv, "DELETE", "/api/v1/documents/"+documentID+"/comments/"+commentID, w.token, nil)
+	if res.StatusCode != 200 || out["outcome"] != "tombstoned" {
+		t.Fatalf("delete parent comment = %d %v, want 200 tombstoned", res.StatusCode, out)
+	}
+
+	res, out = doJSON(t, w.srv, "POST", "/api/v1/documents/"+documentID+"/office/sessions", w.token, map[string]any{
+		"operation": "view", "client_id": "uniwork-office", "deployment_id": "default", "comment_id": commentID,
+	})
+	if res.StatusCode != 201 {
+		t.Fatalf("tombstoned comment id = %d %v, want 201", res.StatusCode, out)
+	}
+	if got, _ := out["comment_id"].(string); got != commentID {
+		t.Fatalf("tombstoned comment_id echo = %q, want %q", got, commentID)
+	}
+	ticket, _ := out["launch_ticket"].(string)
+	sum := sha256.Sum256([]byte(ticket))
+	row, err := w.q.GetOfficeLaunchSessionByHash(context.Background(), base64.RawURLEncoding.EncodeToString(sum[:]))
+	if err != nil {
+		t.Fatalf("look up launch row for tombstoned comment_id: %v", err)
+	}
+	if !row.CommentID.Valid || row.CommentID.String != commentID {
+		t.Fatalf("stored comment_id for tombstoned comment = %v, want %q", row.CommentID, commentID)
+	}
+}
+
 // Document authorization runs before the comment lookup: a caller with no
 // access to the document, naming a live comment of it, is refused with the
 // same status as when comment_id is omitted.
