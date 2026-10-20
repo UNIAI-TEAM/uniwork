@@ -76,7 +76,7 @@ export type SummaryTaskFieldOverrides = Record<
   { priority?: string; due_date?: string; project_id?: string }
 >;
 
-/** The Email Hub create-tasks items for the picked action items (meetings use buildMeetingSummaryTasksBody). */
+/** The Email Hub create-tasks items for the picked action items (meetings use buildConvertActionItemsBody). */
 export function buildSummaryTaskItems(
   actionItems: readonly { title: string; owner?: string; due?: string }[],
   pickedIndices: Iterable<number>,
