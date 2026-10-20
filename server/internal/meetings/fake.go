@@ -45,6 +45,16 @@ type FakeProvider struct {
 	ScribeDispatches  []DispatchScribeRequest
 	ScribeRemovals    []RemoveScribeRequest
 	ScribeDispatchErr error
+	// Dial-in rules, guarded by scribeMu like the dispatches: DialInRules
+	// holds the live ones by id, DialInRuleErr fails the next creates.
+	DialInRules   map[string]DialInRuleRequest
+	DialInCreates int
+	DialInDeletes []string
+	DialInRuleErr error
+	// Updates keeps every UpdateParticipant call in order.
+	Updates []UpdateProviderParticipantRequest
+	// Removed keeps every RemoveParticipant call in order.
+	Removed []RemoveProviderParticipantRequest
 }
 
 func (f *FakeProvider) Key() string { return "fake" }
@@ -84,8 +94,11 @@ func (f *FakeProvider) IssueJoinCredential(_ context.Context, req IssueJoinCrede
 }
 
 func (f *FakeProvider) RemoveParticipant(_ context.Context, req RemoveProviderParticipantRequest) error {
+	f.permMu.Lock()
+	defer f.permMu.Unlock()
 	f.RemoveCalls++
 	f.LastRemove = req
+	f.Removed = append(f.Removed, req)
 	return f.RemoveErr
 }
 
@@ -94,6 +107,7 @@ func (f *FakeProvider) UpdateParticipant(_ context.Context, req UpdateProviderPa
 	defer f.permMu.Unlock()
 	f.UpdateCalls++
 	f.LastUpdate = req
+	f.Updates = append(f.Updates, req)
 	if f.Permissions == nil {
 		f.Permissions = map[string]MediaPermissions{}
 	}
@@ -172,4 +186,45 @@ func (f *FakeProvider) LastScribeDispatch() DispatchScribeRequest {
 		return DispatchScribeRequest{}
 	}
 	return f.ScribeDispatches[len(f.ScribeDispatches)-1]
+}
+
+func (f *FakeProvider) CreateDialInRule(_ context.Context, req DialInRuleRequest) (string, error) {
+	f.scribeMu.Lock()
+	defer f.scribeMu.Unlock()
+	if f.DialInRuleErr != nil {
+		return "", f.DialInRuleErr
+	}
+	f.DialInCreates++
+	if f.DialInRules == nil {
+		f.DialInRules = map[string]DialInRuleRequest{}
+	}
+	id := "SDR_fake_" + strconv.Itoa(f.DialInCreates)
+	f.DialInRules[id] = req
+	return id, nil
+}
+
+func (f *FakeProvider) DeleteDialInRule(_ context.Context, ruleID string) error {
+	f.scribeMu.Lock()
+	defer f.scribeMu.Unlock()
+	f.DialInDeletes = append(f.DialInDeletes, ruleID)
+	delete(f.DialInRules, ruleID)
+	return nil
+}
+
+// LiveDialInRules is a copy of the rules created and not deleted.
+func (f *FakeProvider) LiveDialInRules() map[string]DialInRuleRequest {
+	f.scribeMu.Lock()
+	defer f.scribeMu.Unlock()
+	out := make(map[string]DialInRuleRequest, len(f.DialInRules))
+	for k, v := range f.DialInRules {
+		out[k] = v
+	}
+	return out
+}
+
+// Snapshot copies the participant calls, safe against a concurrent caller.
+func (f *FakeProvider) Snapshot() (updates []UpdateProviderParticipantRequest, removed []RemoveProviderParticipantRequest) {
+	f.permMu.Lock()
+	defer f.permMu.Unlock()
+	return append([]UpdateProviderParticipantRequest(nil), f.Updates...), append([]RemoveProviderParticipantRequest(nil), f.Removed...)
 }

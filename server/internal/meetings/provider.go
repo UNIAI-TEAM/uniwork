@@ -23,6 +23,21 @@ type ConferenceProvider interface {
 	// dispatch id; RemoveScribe cancels that dispatch and removes the agent.
 	DispatchScribe(ctx context.Context, req DispatchScribeRequest) (string, error)
 	RemoveScribe(ctx context.Context, req RemoveScribeRequest) error
+	// CreateDialInRule routes callers who enter req.Pin into the room (spec
+	// 2026-10-20-meeting-scribe-agent-design §5.4) and returns the rule id;
+	// DeleteDialInRule removes it, a rule already gone included.
+	CreateDialInRule(ctx context.Context, req DialInRuleRequest) (string, error)
+	DeleteDialInRule(ctx context.Context, ruleID string) error
+}
+
+// DialInRuleRequest is one PIN-gated route from the phone network into a
+// room. TrunkID, when set, keeps the rule to the UniWork trunk: the LiveKit
+// server is shared with lms-core.
+type DialInRuleRequest struct {
+	RoomName string
+	Pin      string
+	TrunkID  string
+	Name     string
 }
 
 // ScribeIdentity is the LiveKit identity the scribe agent joins with. It is
@@ -87,10 +102,14 @@ type RemoveProviderParticipantRequest struct {
 
 // UpdateProviderParticipantRequest sets a participant's whole permission set:
 // providers replace it rather than merge, so every grant is spelled out.
+// Name, when set, renames the participant; Attributes are merged into theirs
+// (an empty value removes the key).
 type UpdateProviderParticipantRequest struct {
 	RoomName    string
 	Identity    string
 	Permissions MediaPermissions
+	Name        string
+	Attributes  map[string]string
 }
 
 // GetProviderParticipantRequest names a participant whose current

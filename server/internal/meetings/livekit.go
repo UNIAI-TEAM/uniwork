@@ -14,6 +14,7 @@ import (
 	"github.com/livekit/protocol/auth"
 	"github.com/livekit/protocol/livekit"
 	lksdk "github.com/livekit/server-sdk-go/v2"
+	"github.com/twitchtv/twirp"
 )
 
 func MintToken(apiKey, apiSecret, room, identity, name string, ttl time.Duration) (string, error) {
@@ -80,6 +81,8 @@ type LiveKitAdapter struct {
 	egressCl   *lksdk.EgressClient
 	agentOnce  sync.Once
 	agentCl    *lksdk.AgentDispatchClient
+	sipOnce    sync.Once
+	sipCl      *lksdk.SIPClient
 }
 
 // RecordingS3 is where LiveKit Egress uploads room composite recordings.
@@ -182,6 +185,7 @@ func (a *LiveKitAdapter) UpdateParticipant(ctx context.Context, req UpdateProvid
 	defer cancel()
 	_, err := a.client().UpdateParticipant(ctx, &livekit.UpdateParticipantRequest{
 		Room: req.RoomName, Identity: req.Identity, Permission: participantPermission(req.Permissions),
+		Name: req.Name, Attributes: req.Attributes,
 	})
 	return err
 }
@@ -382,6 +386,51 @@ func (a *LiveKitAdapter) RemoveScribe(ctx context.Context, req RemoveScribeReque
 	_, removeErr := a.client().RemoveParticipant(rctx, &livekit.RoomParticipantIdentity{Room: req.RoomName, Identity: ScribeIdentity})
 	if dispatchErr != nil && removeErr != nil {
 		return fmt.Errorf("livekit remove scribe: %w", errors.Join(dispatchErr, removeErr))
+	}
+	return nil
+}
+
+func (a *LiveKitAdapter) sip() *lksdk.SIPClient {
+	a.sipOnce.Do(func() { a.sipCl = lksdk.NewSIPClient(a.URL, a.APIKey, a.APISecret) })
+	return a.sipCl
+}
+
+// CreateDialInRule creates a direct dispatch rule: a caller who enters the
+// PIN joins the room. The rule hides the caller's number, so the room (and
+// UniWork) only ever sees a hashed identity and the last four digits. The
+// request uses the legacy top-level fields, which every LiveKit SIP release
+// reads.
+func (a *LiveKitAdapter) CreateDialInRule(ctx context.Context, req DialInRuleRequest) (string, error) {
+	var trunks []string
+	if req.TrunkID != "" {
+		trunks = []string{req.TrunkID}
+	}
+	ctx, cancel := a.roomCtx(ctx)
+	defer cancel()
+	info, err := a.sip().CreateSIPDispatchRule(ctx, &livekit.CreateSIPDispatchRuleRequest{
+		Rule: &livekit.SIPDispatchRule{Rule: &livekit.SIPDispatchRule_DispatchRuleDirect{
+			DispatchRuleDirect: &livekit.SIPDispatchRuleDirect{RoomName: req.RoomName, Pin: req.Pin},
+		}},
+		TrunkIds: trunks, HidePhoneNumber: true, Name: req.Name,
+	})
+	if err != nil {
+		return "", fmt.Errorf("livekit create dial-in rule: %w", err)
+	}
+	return info.GetSipDispatchRuleId(), nil
+}
+
+// DeleteDialInRule deletes the rule; one LiveKit no longer has is gone
+// already, so the sweep that retries a failed delete does not loop on it.
+func (a *LiveKitAdapter) DeleteDialInRule(ctx context.Context, ruleID string) error {
+	ctx, cancel := a.roomCtx(ctx)
+	defer cancel()
+	_, err := a.sip().DeleteSIPDispatchRule(ctx, &livekit.DeleteSIPDispatchRuleRequest{SipDispatchRuleId: ruleID})
+	var terr twirp.Error
+	if errors.As(err, &terr) && terr.Code() == twirp.NotFound {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("livekit delete dial-in rule: %w", err)
 	}
 	return nil
 }
