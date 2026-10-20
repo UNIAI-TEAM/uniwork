@@ -8,7 +8,6 @@ import {
   indexTree,
   matchesAccess,
   matchesChip,
-  rowAccessLabelKey,
   rowFormat,
   rowOrigin,
   rowSizeBytes,
@@ -158,17 +157,6 @@ describe("library rows", () => {
 describe("access columns and filter (UNI-1642)", () => {
   const lvl = (my_level: string | null | undefined, visibility = "workspace") =>
     documentRow(doc({ my_level: my_level as DocumentSummaryRow["my_level"], visibility: visibility as DocumentSummaryRow["visibility"] }));
-
-  it("maps the viewer's level to the share dialog's words, comment included, and an unknown level to nothing", () => {
-    expect(rowAccessLabelKey(lvl("view"))).toBe("documents.home.access.view");
-    expect(rowAccessLabelKey(lvl("edit"))).toBe("documents.home.access.edit");
-    expect(rowAccessLabelKey(lvl("comment"))).toBe("documents.home.access.comment");
-    expect(rowAccessLabelKey(lvl("manage"))).toBe("documents.home.access.manage");
-    expect(rowAccessLabelKey(lvl("owner"))).toBeNull();
-    expect(rowAccessLabelKey(lvl(null))).toBeNull();
-    expect(rowAccessLabelKey(lvl(undefined))).toBeNull();
-    expect(rowAccessLabelKey(src())).toBeNull();
-  });
 
   it("maps visibility and leaves an unknown value or a source row blank", () => {
     expect(rowVisibilityLabelKey(lvl("view", "workspace"))).toBe("documents.scope.workspace");

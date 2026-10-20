@@ -6,7 +6,7 @@ import { initI18n } from "@uniwork/core/i18n";
 import { requestMock, wrapWithNav } from "../test/api-mock";
 import { DocumentsPageView } from "./documents-page-view";
 import { LibraryRowView, type LibraryRowHandlers } from "./documents-library-row";
-import { libraryLadder } from "./library-columns";
+import { specLadder } from "./library-columns";
 import { documentRow } from "./library-rows";
 import { favoriteRow } from "./starred-rows";
 
@@ -283,7 +283,7 @@ describe("starred rows without a loaded copy (m1)", () => {
     render(
       <table>
         <tbody>
-          <LibraryRowView row={documentRow(favoriteRow(fav, known))} handlers={handlers} ladder={libraryLadder()} />
+          <LibraryRowView row={documentRow(favoriteRow(fav, known))} handlers={handlers} ladder={specLadder("workspace", { selectable: false })} />
         </tbody>
       </table>,
     );
@@ -303,7 +303,7 @@ describe("starred rows without a loaded copy (m1)", () => {
     const { unmount } = render(
       <table>
         <tbody>
-          <LibraryRowView row={documentRow(favoriteRow(fav))} handlers={handlers} ladder={libraryLadder()} />
+          <LibraryRowView row={documentRow(favoriteRow(fav))} handlers={handlers} ladder={specLadder("workspace", { selectable: false })} />
         </tbody>
       </table>,
     );
@@ -316,7 +316,7 @@ describe("starred rows without a loaded copy (m1)", () => {
           <LibraryRowView
             row={documentRow(favoriteRow(fav))}
             handlers={{ ...handlers, isStarred: () => false }}
-            ladder={libraryLadder()}
+            ladder={specLadder("workspace", { selectable: false })}
           />
         </tbody>
       </table>,

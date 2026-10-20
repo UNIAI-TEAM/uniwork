@@ -139,28 +139,6 @@ export function matchesChip(row: LibraryRow, chip: TypeChip): boolean {
   return rowFormat(row) === chip;
 }
 
-/**
- * The translation key for the viewer's level on a row (the "My access"
- * column), or null when the row carries none (a source row, an older server, a
- * level this client does not know). A display mapping, not `rowLevel()`, which
- * reads an unknown level as view to keep commands hidden. The words match
- * `documents.share.level_*`; "comment" is mapped ahead of the server sending it.
- */
-export function rowAccessLabelKey(row: LibraryRow): string | null {
-  if (row.type !== "document") return null;
-  // Widened: the server may send levels this client's type does not list yet.
-  const level: string | null | undefined = row.doc.my_level;
-  switch (level) {
-    case "view":
-    case "comment":
-    case "edit":
-    case "manage":
-      return `documents.home.access.${level}`;
-    default:
-      return null;
-  }
-}
-
 /** The translation key for a row's visibility, or null when it carries none this client knows. */
 export function rowVisibilityLabelKey(row: LibraryRow): string | null {
   if (row.type !== "document") return null;

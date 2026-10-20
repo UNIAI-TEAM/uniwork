@@ -6,6 +6,7 @@ import { DocumentsLibraryList } from "./documents-library-list";
 import { type LibraryRowHandlers } from "./documents-library-row";
 import { documentRow, type DocumentSummaryRow } from "./library-rows";
 import { DEFAULT_LIBRARY_SORT, type LibrarySort } from "./library-sort";
+import type { DocListScreen } from "./doclist/columns";
 
 // UNI-2038 S2: the table headers sort. The list is presentational: it shows
 // the sort it is given and says which column was clicked.
@@ -44,7 +45,7 @@ const handlers: LibraryRowHandlers = {
   personName: () => "An",
 };
 
-function renderList(sort: LibrarySort | null, onSort = vi.fn(), extra: { sharedByMe?: boolean } = {}) {
+function renderList(sort: LibrarySort | null, onSort = vi.fn(), extra: { screen?: DocListScreen } = {}) {
   render(
     <DocumentsLibraryList
       groups={[{ key: "all", title: "", rows: [documentRow(file("a"))] }]}
@@ -138,7 +139,7 @@ describe("DocumentsLibraryList sortable headers", () => {
   });
 
   it("sorts the same way on Shared by me, whose Truy cập joins at the editor's rung", () => {
-    renderList({ column: "editor", order: "asc" }, vi.fn(), { sharedByMe: true });
+    renderList({ column: "editor", order: "asc" }, vi.fn(), { screen: "shared-by-me" });
     expect(head("editor")).toHaveAttribute("aria-sort", "ascending");
     expect(within(head("access")).queryByRole("button")).toBeNull();
   });

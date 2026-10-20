@@ -7,7 +7,7 @@ import { requestMock, wrapWithNav } from "../test/api-mock";
 import { DocumentsPageView } from "./documents-page-view";
 import { DocumentsLibraryList } from "./documents-library-list";
 import { LibraryRowView, type LibraryRowHandlers } from "./documents-library-row";
-import { libraryLadder } from "./library-columns";
+import { specLadder } from "./library-columns";
 import { documentRow, type DocumentSummaryRow, type LibraryRow } from "./library-rows";
 
 // Visual r1 fixes for the Documents home (UNI-1305): the phone row keeps its
@@ -76,7 +76,7 @@ describe("phone row layout (finding 1)", () => {
     render(
       <table>
         <tbody>
-          <LibraryRowView row={documentRow(file("f1", "Báo giá tháng 10.docx"))} handlers={handlers} ladder={libraryLadder()} />
+          <LibraryRowView row={documentRow(file("f1", "Báo giá tháng 10.docx"))} handlers={handlers} ladder={specLadder("workspace", { selectable: false })} />
         </tbody>
       </table>,
     );
@@ -88,7 +88,8 @@ describe("phone row layout (finding 1)", () => {
     expect(button?.querySelector("span.min-w-0")).toHaveClass("flex-1");
     // The icon-only app button does not take width from the name until the actions column widens (container, not viewport).
     const quick = document.querySelector("[data-office-desktop-action]");
-    expect(quick?.parentElement).toHaveClass("hidden", "@min-[29rem]/library:block");
+    // UNI-2045: that is the table rung of the shared ladder (32rem on the workspace screen).
+    expect(quick?.parentElement).toHaveClass("hidden", "@min-[32rem]/library:block");
     // TV-12: the truncating name keeps the full title on hover (native title).
     expect(name).toHaveAttribute("title", "Báo giá tháng 10.docx");
   });
@@ -101,10 +102,11 @@ describe("phone row layout (finding 1)", () => {
     const spanners = Array.from(group!.parentElement!.children).slice(1);
     expect(spanners.map((el) => el.getAttribute("colspan"))).toEqual(["1", "1", "1", "1"]);
     expect(spanners.map((el) => Array.from(el.classList).find((c) => c.startsWith("@min-"))?.split(":")[0])).toEqual([
-      "@min-[59rem]/library",
-      "@min-[42rem]/library",
-      "@min-[29rem]/library",
-      "@min-[47rem]/library",
+      // UNI-2045 rungs of the workspace screen: Access 43, Editor 56, the table (Updated) 32, Size 62.
+      "@min-[43rem]/library",
+      "@min-[56rem]/library",
+      "@min-[32rem]/library",
+      "@min-[62rem]/library",
     ]);
     // One header and the rows share one column template.
     expect(document.querySelectorAll("colgroup col")).toHaveLength(6);

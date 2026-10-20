@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useRef } from "react";
+import { Fragment, useId, useRef, type ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 import { Archive, Download, Ellipsis, ExternalLink, FolderInput, FolderOpen, FolderPlus, MonitorUp, Pencil, Share2, Star, StarOff, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -34,17 +34,20 @@ import {
   isPlainHomeWorkspaceScope,
   shareScopeView,
 } from "./document-share-scope-badge";
-import { DocumentTypeIcon } from "./document-type-icon";
 import { EditLockHolderChip } from "./edit-lock-holder-chip";
+import { docAccessLevel } from "./doclist/access";
+import { DocNameCell, DocPersonCell } from "./doclist/cells";
+import { docListSpec, type DocListScreen } from "./doclist/columns";
 import { EMPTY_CELL, formatBytes, formatListDate } from "./doclist/format";
-import { libraryCell, type LibraryLadder } from "./library-columns";
+import { docListRowFields } from "./doclist/row-fields";
+import { DocScreenCell, DocScreenLine } from "./doclist/screen-cells";
+import { libraryCell, type RowLadder } from "./library-columns";
 import { LibraryRowAccessCell } from "./library-row-access-cell";
 import { canArchiveRow, canMoveRow, canShareRow, rowAppOperation, rowLevel } from "./row-level";
 import { sourceLinkIcon, sourceLinkLabelKey, sourceLinkNamedLabelKey, sourceOpenAction, sourceParentLinked } from "./source-links";
 import {
   isFolderRow,
   rowFormat,
-  rowAccessLabelKey,
   rowSizeBytes,
   rowTitle,
   rowUpdatedAt,
@@ -91,6 +94,8 @@ export interface LibraryRowHandlers {
   onShelve?: (doc: DocumentSummaryRow) => void;
   /** The display name of a person id, or null when unknown. */
   personName: (userId: string, kind: string) => string | null;
+  /** The folder a document sits in, for the Name cell's location line; absent draws none. */
+  locationName?: (doc: DocumentSummaryRow) => string | null;
   desktopOpen?: LibraryDesktopOpen;
 }
 
@@ -101,23 +106,18 @@ interface RowAction {
   run: () => void;
 }
 
-/** The first letter of a name, for the editor's initial. */
-function initial(name: string): string {
-  return name.trim().charAt(0).toUpperCase();
-}
-
 export function LibraryRowView({
   row,
   handlers,
   ladder,
-  sharedByMe = false,
+  screen = "workspace",
 }: {
   row: LibraryRow;
   handlers: LibraryRowHandlers;
   /** The column ladder the list's header and colgroup were built from (library-columns.ts). */
-  ladder: LibraryLadder;
-  /** The list is "Shared by me" (SW-V2): the plain home-workspace scope also shows on the narrow line. */
-  sharedByMe?: boolean;
+  ladder: RowLadder;
+  /** The screen the list shows (doclist/columns.ts); "shared-by-me" also keeps the plain home-workspace scope on the narrow line (SW-V2). */
+  screen?: DocListScreen;
 }) {
   const { t, i18n } = useTranslation();
   const appRequest = useRef<(() => Promise<DesktopOpenOutcome>) | null>(null);
@@ -131,10 +131,10 @@ export function LibraryRowView({
   const source = row.type === "source" ? row.source : null;
   const sourceLinked = source ? sourceParentLinked(source.parent) : false;
 
+  // The agreed optional list fields (SV-1..SV-6); each reads undefined until the schema parses it.
+  const fields = doc ? docListRowFields(doc) : {};
   const editor = doc
-    ? doc.updated_by
-      ? handlers.personName(doc.updated_by, doc.updated_by_kind)
-      : null
+    ? fields.updatedByUser?.name ?? (doc.updated_by ? handlers.personName(doc.updated_by, doc.updated_by_kind) : null)
     : source?.owner?.name || null;
   // The shared list formats answer "—" for nothing to show; the narrow meta line
   // below leaves such a part out instead of printing the dash.
@@ -151,17 +151,18 @@ export function LibraryRowView({
       ? handlers.desktopOpen({ id: doc.id, organization_id: doc.organization_id, current_version: doc.current_version })
       : null;
   const level = rowLevel(doc);
-  // The board's Truy cập cell: scope badge on line 1 (DocumentShareScopeBadge),
-  // the viewer's level on line 2, "Chủ sở hữu" when the row's via is owner.
-  // The narrow secondary line shows the level word and any non-default scope until the column joins.
-  const levelKey = rowAccessLabelKey(row);
+  // The Truy cập cell is the shared pill + level line (DocAccessCell); the
+  // narrow secondary line shows the level word and any non-default scope until the column joins.
+  // SV-5 `is_owner` when the response carries it; until then a row reached via ownership reads as the owner's.
+  const isOwner = fields.isOwner ?? doc?.via === "owner";
+  const accessLevel = doc ? docAccessLevel(doc.my_level, doc.admin_scope) : null;
   // A row without `share_scope` shows no scope; it is never guessed from `visibility`.
   // A folder is never shared (UNI-1974), so it shows none whatever a row carries.
   const scope = doc && doc.kind !== "folder" ? (doc.share_scope ?? null) : null;
   // On Shared by me the plain "home workspace" scope is the answer the reader
   // came for (SW-V2); on every other view the narrow line omits the default.
-  const showNarrowScope = Boolean(scope && (sharedByMe || !isPlainHomeWorkspaceScope(scope)));
-  const levelLabel = doc?.via === "owner" ? t("documents.home.access.owner") : levelKey ? t(levelKey) : null;
+  const showNarrowScope = Boolean(scope && (screen === "shared-by-me" || !isPlainHomeWorkspaceScope(scope)));
+  const levelLabel = doc && isOwner ? t("documents.list.access.owner") : accessLevel ? t(`documents.list.access.level.${accessLevel}`) : null;
   // Same resolution the badge applies: only the viewer's current workspace is named.
   const resolvedWorkspaceName = (!doc?.workspace_id || doc.workspace_id === currentWorkspace?.id ? (currentWorkspace?.name ?? "") : "").trim();
   // SW-V4: the narrow badge is not focusable inside the name button, so the
@@ -288,13 +289,15 @@ export function LibraryRowView({
     </Tooltip>
   ) : null;
 
+  const screenColumn = docListSpec(screen).screenColumn;
   const nameCell = (
-    <>
-      <DocumentTypeIcon format={folder ? "folder" : format} className={cn("size-6 shrink-0", folder && "text-muted-foreground")} />
-      <span className="min-w-0 flex-1">
-        <span className="flex items-center gap-2">
-          {/* TV-12: the truncated name still reads in full on hover. */}
-          <span title={title} className="truncate text-body text-foreground">{title}</span>
+    <DocNameCell
+      kind={folder ? "folder" : (doc?.kind ?? "file")}
+      format={folder ? "folder" : format}
+      title={title}
+      location={doc && screen !== "workspace" ? (handlers.locationName?.(doc) ?? null) : null}
+      badges={
+        <>
           {starred ? (
             <Star role="img" aria-label={t("documents.home.row.starred")} className="size-3.5 shrink-0 fill-current text-brand" />
           ) : null}
@@ -308,52 +311,110 @@ export function LibraryRowView({
               offlineHoldUntil={doc.edit_lock.offline_hold_until}
             />
           ) : null}
+        </>
+      }
+    >
+      {/* Below the table rung the row stacks under Name: the screen column's content first (it never hides), then the stand-ins below. */}
+      {screenColumn ? <DocScreenLine column={screenColumn} fields={fields} className={ladder.screenLineHides} /> : null}
+      {/* Below 34rem the meta group (editor · date · size) and level · share scope stay on separate lines (the editor needs the room until ~33rem); from 34rem they join one line until their columns take over (library-columns.ts). */}
+      {editor || metaTail || levelLabel || showNarrowScope ? (
+        <span
+          data-library-access-line
+          className={cn(
+            "flex flex-wrap min-w-0 items-center gap-x-1.5 gap-y-0.5 overflow-hidden text-caption text-muted-foreground @min-[34rem]/library:flex-nowrap",
+            ladder.accessLineHides,
+          )}
+        >
+          {editor || metaTail ? (
+            <span
+              data-library-meta-line
+              className={cn(
+                "flex basis-full min-w-0 items-center gap-1.5 overflow-hidden @min-[34rem]/library:basis-auto",
+                editor ? ladder.metaHides : ladder.metaTailHides,
+              )}
+            >
+              {editor ? <span className={cn("min-w-0 truncate", ladder.metaHides)}>{editor}</span> : null}
+              {editor && metaTail ? <span aria-hidden className={cn("shrink-0", ladder.metaTailHides)}>·</span> : null}
+              {metaTail ? <span className={cn("shrink-0", ladder.metaTailHides)}>{metaTail}</span> : null}
+            </span>
+          ) : null}
+          {editor && (levelLabel || showNarrowScope) ? (
+            <span aria-hidden className={cn("hidden shrink-0 @min-[34rem]/library:inline", ladder.metaDotHides)}>·</span>
+          ) : null}
+          {levelLabel || showNarrowScope ? (
+            <span data-library-access-group className={cn("flex shrink-0 items-center gap-1.5", ladder.accessGroupHides)}>
+              {levelLabel ? <span className="shrink-0">{levelLabel}</span> : null}
+              {levelLabel && showNarrowScope ? <span aria-hidden className="shrink-0">·</span> : null}
+              {showNarrowScope ? (
+                <DocumentShareScopeBadge
+                  shareScope={doc?.share_scope}
+                  workspaceId={doc?.workspace_id}
+                  compact
+                  focusable={false}
+                  descriptionId={scopeDescId}
+                />
+              ) : null}
+            </span>
+          ) : null}
         </span>
-        {/* Below 34rem the meta group (editor · date · size) and level · share scope stay on separate lines (the editor needs the room until ~33rem); from 34rem they join one line until their columns take over (library-columns.ts). */}
-        {editor || metaTail || levelLabel || showNarrowScope ? (
-          <span
-            data-library-access-line
-            className={cn(
-              "flex flex-wrap min-w-0 items-center gap-x-1.5 gap-y-0.5 overflow-hidden text-caption text-muted-foreground @min-[34rem]/library:flex-nowrap",
-              ladder.accessLineHides,
-            )}
-          >
-            {editor || metaTail ? (
-              <span
-                data-library-meta-line
-                className={cn(
-                  "flex basis-full min-w-0 items-center gap-1.5 overflow-hidden @min-[34rem]/library:basis-auto",
-                  editor ? ladder.metaHides : ladder.metaTailHides,
-                )}
-              >
-                {editor ? <span className={cn("min-w-0 truncate", ladder.metaHides)}>{editor}</span> : null}
-                {editor && metaTail ? <span aria-hidden className={cn("shrink-0", ladder.metaTailHides)}>·</span> : null}
-                {metaTail ? <span className={cn("shrink-0", ladder.metaTailHides)}>{metaTail}</span> : null}
-              </span>
-            ) : null}
-            {editor && (levelLabel || showNarrowScope) ? (
-              <span aria-hidden className={cn("hidden shrink-0 @min-[34rem]/library:inline", ladder.metaDotHides)}>·</span>
-            ) : null}
-            {levelLabel || showNarrowScope ? (
-              <span data-library-access-group className={cn("flex shrink-0 items-center gap-1.5", ladder.accessGroupHides)}>
-                {levelLabel ? <span className="shrink-0">{levelLabel}</span> : null}
-                {levelLabel && showNarrowScope ? <span aria-hidden className="shrink-0">·</span> : null}
-                {showNarrowScope ? (
-                  <DocumentShareScopeBadge
-                    shareScope={doc?.share_scope}
-                    workspaceId={doc?.workspace_id}
-                    compact
-                    focusable={false}
-                    descriptionId={scopeDescId}
-                  />
-                ) : null}
-              </span>
-            ) : null}
-          </span>
-        ) : null}
-      </span>
-    </>
+      ) : null}
+    </DocNameCell>
   );
+
+  // Every column but Actions, in the ladder's order (doclist/columns.ts); the actions cell follows them below.
+  const cells: Record<string, ReactNode> = {
+    select: <td data-column="select" className="px-3 py-2" />,
+    name: (
+      <td data-column="name" className="px-3 py-2">
+        {trashed ? (
+          <div className="flex w-full min-w-0 items-center gap-3 text-left pointer-coarse:min-h-11">{nameCell}</div>
+        ) : (
+          <button
+            type="button"
+            onClick={primary}
+            aria-describedby={scopeInfo && scopeInfo.tooltipText !== scopeInfo.label ? scopeDescId : undefined}
+            className="flex w-full min-w-0 items-center gap-3 text-left pointer-coarse:min-h-11"
+          >
+            {nameCell}
+          </button>
+        )}
+      </td>
+    ),
+    access: (
+      <LibraryRowAccessCell
+        doc={doc}
+        scope={scope}
+        isOwner={isOwner}
+        title={title}
+        workspaceName={resolvedWorkspaceName}
+        ladder={ladder}
+        onShare={shareable ? handlers.onShare : undefined}
+      />
+    ),
+    editor: (
+      <td data-column="editor" className={cn("px-3 py-2", libraryCell(ladder, "editor"))}>
+        <DocPersonCell name={editor} avatarUrl={fields.updatedByUser?.avatarUrl} kind={doc?.updated_by_kind} />
+      </td>
+    ),
+    updated: (
+      <td data-column="updated" className={cn("px-3 py-2 font-mono text-caption tabular-nums text-muted-foreground", libraryCell(ladder, "updated"))}>
+        {updated}
+      </td>
+    ),
+    size: (
+      <td data-column="size" className={cn("px-3 py-2 font-mono text-caption tabular-nums text-muted-foreground", libraryCell(ladder, "size"))}>
+        {size}
+      </td>
+    ),
+  };
+  if (screenColumn) {
+    cells[screenColumn] = (
+      <td data-column={screenColumn} className={cn("px-3 py-2", libraryCell(ladder, screenColumn))}>
+        {/* A source row (home root merge) has no screen field: it keeps its own cells and a dash here. */}
+        <DocScreenCell column={screenColumn} fields={fields} />
+      </td>
+    );
+  }
 
   return (
     <ContextMenu>
@@ -362,44 +423,8 @@ export function LibraryRowView({
         data-library-row={row.id}
         className="group/row border-b border-border transition-colors last:border-b-0 hover:bg-accent/40"
       >
-        <td className="px-3 py-2">
-          {trashed ? (
-            <div className="flex w-full min-w-0 items-center gap-3 text-left pointer-coarse:min-h-11">{nameCell}</div>
-          ) : (
-            <button
-              type="button"
-              onClick={primary}
-              aria-describedby={scopeInfo && scopeInfo.tooltipText !== scopeInfo.label ? scopeDescId : undefined}
-              className="flex w-full min-w-0 items-center gap-3 text-left pointer-coarse:min-h-11"
-            >
-              {nameCell}
-            </button>
-          )}
-        </td>
-        <LibraryRowAccessCell
-          doc={doc}
-          scope={scope}
-          levelLabel={levelLabel}
-          title={title}
-          workspaceName={resolvedWorkspaceName}
-          ladder={ladder}
-          onShare={shareable ? handlers.onShare : undefined}
-        />
-        <td className={cn("px-3 py-2", libraryCell(ladder, "editor"))}>
-          {editor ? (
-            <span className="flex items-center gap-2 text-body text-foreground">
-              <span aria-hidden className="flex size-5 shrink-0 items-center justify-center rounded-full bg-muted text-caption text-muted-foreground">
-                {initial(editor)}
-              </span>
-              <span className="truncate">{editor}</span>
-            </span>
-          ) : (
-            <span className="text-muted-foreground">—</span>
-          )}
-        </td>
-        <td className={cn("px-3 py-2 font-mono text-caption tabular-nums text-muted-foreground", libraryCell(ladder, "updated"))}>{updated}</td>
-        <td className={cn("px-3 py-2 font-mono text-caption tabular-nums text-muted-foreground", libraryCell(ladder, "size"))}>{size}</td>
-        <td className="px-2 py-2">
+        {ladder.columns.map((column) => (column.id === "actions" ? null : <Fragment key={column.id}>{cells[column.id]}</Fragment>))}
+        <td data-column="actions" className="px-2 py-2">
           <div className="flex items-center justify-end gap-1">
             {quick ? (
               // Until the actions column widens (first ladder rung) the app command lives in the ⋯ menu so the name keeps the row.

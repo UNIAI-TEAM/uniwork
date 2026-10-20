@@ -23,6 +23,7 @@ import { isParentWorkspaceShared, useCreateOfType } from "./documents-create";
 import { CreateMenu } from "./documents-home-create";
 import { DocumentsCollectionHeader, DocumentsHomeHeader, DocumentsHomeNote } from "./documents-home-header";
 import { DocumentsLibraryList } from "./documents-library-list";
+import { docListScreenOfView, folderNameLookup } from "./doclist/live-screen";
 import type { LibraryDesktopOpen, LibraryRowHandlers } from "./documents-library-row";
 import { LibraryToolbar } from "./documents-library-toolbar";
 import { DocumentsSections, nonFolderRows, subfoldersOf } from "./documents-folders-grid";
@@ -267,6 +268,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
       : undefined,
     isStarred: (documentId) => library.starredIds.has(documentId),
     personName: (userId, kind) => names.get(userId) ?? (kind === "agent" ? t("documents.home.editor_agent") : null),
+    locationName: folderNameLookup(library.tree, t("documents.home.my_folder.label")),
     desktopOpen,
   };
 
@@ -361,7 +363,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
       }}
       handlers={handlers}
       sort={{ value: library.sort, onSort: (column) => library.setSort(nextSort(library.sort, column)) }}
-      sharedByMe={view.kind === "sharedByMe"}
+      screen={docListScreenOfView(view)}
       empty={emptyCopy}
     />
   );

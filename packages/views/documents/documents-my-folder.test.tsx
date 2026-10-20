@@ -12,7 +12,7 @@ import { DocumentActionsMenu } from "./document-actions-menu";
 import { documentErrorMessage } from "./document-error-message";
 import { DocumentPageHeader } from "./document-page-header";
 import { LibraryRowView, type LibraryRowHandlers } from "./documents-library-row";
-import { libraryLadder } from "./library-columns";
+import { specLadder } from "./library-columns";
 import { documentRow } from "./library-rows";
 
 // MYFOLDER-W1 (UNI-1850, SAVE-01 web part 1): the Documents sub-nav row
@@ -420,7 +420,7 @@ describe("guards on the My Folder row", () => {
           <LibraryRowView
             row={documentRow(myFolderDoc() as unknown as Parameters<typeof documentRow>[0])}
             handlers={rowHandlers}
-            ladder={libraryLadder()}
+            ladder={specLadder("workspace", { selectable: false })}
           />
         </tbody>
       </table>,
@@ -441,7 +441,7 @@ describe("guards on the My Folder row", () => {
           <LibraryRowView
             row={documentRow(summary({ id: "fo1", kind: "folder", title: "Dự án CCB" }) as unknown as Parameters<typeof documentRow>[0])}
             handlers={rowHandlers}
-            ladder={libraryLadder()}
+            ladder={specLadder("workspace", { selectable: false })}
           />
         </tbody>
       </table>,

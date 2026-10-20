@@ -10,30 +10,24 @@ import { CollectionPageState } from "../layout/collection-page";
 import type { Member } from "@uniwork/core/types/workspace";
 import { LibraryRowView, type LibraryRowHandlers } from "./documents-library-row";
 import { ShelvedRowView, type ShelvedRowActions } from "./documents-shelved-row";
-import { libraryGroupSpans, libraryLadder, shelvedLadder, type LibraryColumnId } from "./library-columns";
+import { docListSpec, type DocListScreen } from "./doclist/columns";
+import { libraryGroupSpans, shelvedLadder, specLadder, type LibraryColumnId, type RowLadder } from "./library-columns";
 import type { RowGroup } from "./library-rows";
 import { isSortableColumn, type LibrarySort, type LibrarySortColumn } from "./library-sort";
 import { LibrarySortHeader } from "./library-sort-header";
 
-const COLUMN_LABEL: Record<LibraryColumnId, string> = {
-  name: "documents.home.columns.name",
-  access: "documents.home.columns.access",
-  editor: "documents.home.columns.editor",
-  updated: "documents.home.columns.updated",
-  size: "documents.home.columns.size",
-  actions: "documents.home.columns.actions",
-  // Shelved-only columns: the base map must still satisfy Record<LibraryColumnId, string>.
-  shelved_by: "documents.shelved_list.columns.shelved_by",
-  shelved_at: "documents.shelved_list.columns.shelved_at",
-};
-
-// The Lưu trữ table reads its own header keys (documents.shelved_list.columns.*)
-// for every column; it shares the shell, the group spanners and the states only.
+// The Lưu trữ table reads its own header keys (documents.shelved_list.columns.*);
+// it shares the shell, the group spanners and the states only. Its ladder has
+// no editor, updated or size column: those entries only satisfy the Record.
 const SHELVED_COLUMN_LABEL: Record<LibraryColumnId, string> = {
-  ...COLUMN_LABEL,
   name: "documents.shelved_list.columns.name",
   access: "documents.shelved_list.columns.access",
+  editor: "documents.list.column.editor",
+  updated: "documents.list.column.updated",
+  size: "documents.list.column.size",
   actions: "documents.shelved_list.columns.actions",
+  shelved_by: "documents.shelved_list.columns.shelved_by",
+  shelved_at: "documents.shelved_list.columns.shelved_at",
 };
 
 export interface DocumentsLibraryListProps {
@@ -76,8 +70,10 @@ export interface DocumentsLibraryListProps {
   /** The column sort of the table (UNI-2038): Tên, Người sửa, Cập nhật and Dung lượng headers become buttons;
    *  absent, every header stays plain text (the Lưu trữ table). The rows arrive in this order already. */
   sort?: { value: LibrarySort; onSort: (column: LibrarySortColumn) => void };
-  /** "Shared by me" (SW-V1/V2): Truy cập joins at the editor's rung and the plain home-workspace scope stays on the narrow line. */
-  sharedByMe?: boolean;
+  /** The screen the table shows (doclist/columns.ts): its column order, its screen column and its narrow ladder. */
+  screen?: DocListScreen;
+  /** The Select column of the spec (bulk selection, W9); off on every screen today. */
+  selectable?: boolean;
   /** The empty state's copy and actions, which depend on the open view. */
   empty: { title: string; description: string; actions?: ReactNode };
 }
@@ -106,7 +102,8 @@ export function DocumentsLibraryList({
   onClearFilters,
   handlers,
   sort,
-  sharedByMe = false,
+  screen = "workspace",
+  selectable = false,
   empty,
 }: DocumentsLibraryListProps) {
   const { t } = useTranslation();
@@ -197,9 +194,13 @@ export function DocumentsLibraryList({
     return "";
   };
 
-  const ladder = shelved ? shelvedLadder() : libraryLadder({ sharedByMe });
+  const ladder: RowLadder = shelved ? shelvedLadder() : specLadder(screen, { selectable });
   const groupSpans = libraryGroupSpans(ladder);
-  const columnLabel = shelved ? SHELVED_COLUMN_LABEL : COLUMN_LABEL;
+  const specLabels = new Map(docListSpec(screen).columns.map((column) => [column.id as string, column.labelKey]));
+  const columnLabel = (id: string): string =>
+    shelved ? SHELVED_COLUMN_LABEL[id as LibraryColumnId] : (specLabels.get(id) ?? "");
+  // The group title spans the columns that are on at every width (Select, Name, Actions).
+  const alwaysOn = ladder.columns.filter((column) => !column.cell).length;
 
   return (
     <div className="@container/library flex flex-col">
@@ -222,6 +223,8 @@ export function DocumentsLibraryList({
           <thead className={ladder.head}>
             <tr className="border-b border-border text-caption text-muted-foreground">
               {ladder.columns.map((column) => {
+                // The client sorts Name, Người sửa, Cập nhật and Dung lượng today; the screen
+                // column header stays plain until W12 wires its sort key (doclist/columns.ts).
                 const sortable = sort && !shelved && isSortableColumn(column.id) ? column.id : null;
                 return (
                   <th
@@ -231,11 +234,11 @@ export function DocumentsLibraryList({
                     className={cn("px-3 py-2 font-medium", column.cell)}
                   >
                     {sortable && sort ? (
-                      <LibrarySortHeader column={sortable} label={t(columnLabel[column.id])} sort={sort.value} onSort={sort.onSort} />
-                    ) : column.id === "actions" ? (
-                      <span className="sr-only">{t(columnLabel[column.id])}</span>
+                      <LibrarySortHeader column={sortable} label={t(columnLabel(column.id))} sort={sort.value} onSort={sort.onSort} />
+                    ) : column.id === "actions" || column.id === "select" ? (
+                      <span className="sr-only">{t(columnLabel(column.id))}</span>
                     ) : (
-                      t(columnLabel[column.id])
+                      t(columnLabel(column.id))
                     )}
                   </th>
                 );
@@ -246,7 +249,7 @@ export function DocumentsLibraryList({
             <tbody key={group.key}>
               {showGroups ? (
                 <tr className="border-b border-border bg-muted/40">
-                  <th scope="rowgroup" colSpan={2} data-library-group className="whitespace-nowrap px-3 py-1.5 text-left text-caption font-medium text-foreground">
+                  <th scope="rowgroup" colSpan={alwaysOn} data-library-group className="whitespace-nowrap px-3 py-1.5 text-left text-caption font-medium text-foreground">
                     {groupTitle(group)}
                     <span className="ml-1.5 font-mono tabular-nums text-muted-foreground">{group.rows.length}</span>
                   </th>
@@ -262,12 +265,12 @@ export function DocumentsLibraryList({
                     row={row}
                     members={shelved.members}
                     membersReady={shelved.membersReady}
-                    ladder={ladder}
+                    ladder={shelvedLadder()}
                     shelved={shelved.actions}
                     onOpen={handlers.onOpen}
                   />
                 ) : (
-                  <LibraryRowView key={row.id} row={row} handlers={handlers} ladder={ladder} sharedByMe={sharedByMe} />
+                  <LibraryRowView key={row.id} row={row} handlers={handlers} ladder={ladder} screen={screen} />
                 )
               ))}
             </tbody>

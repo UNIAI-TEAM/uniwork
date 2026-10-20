@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { Lock, Share2, Users } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { DocumentShareScope } from "@uniwork/core/types/document";
@@ -19,6 +20,8 @@ export function DocNameCell({
   title,
   format,
   location,
+  badges,
+  children,
 }: {
   kind: string;
   title: string;
@@ -26,20 +29,31 @@ export function DocNameCell({
   format?: string | null;
   /** The folder the document sits in, or where a file came from; absent draws no line. */
   location?: string | null;
+  /** Marks beside the title (star, lock holder, ...): they never truncate, the title does. */
+  badges?: ReactNode;
+  /** More lines under the location line: the narrow row's stand-ins for the columns that are off. */
+  children?: ReactNode;
 }) {
   return (
-    <span className="flex min-w-0 items-center gap-3">
-      <DocumentTypeIcon format={kind === "folder" ? "folder" : (format ?? documentIconFormat(kind, title))} className="size-6 shrink-0" />
+    <span className="flex min-w-0 flex-1 items-center gap-3">
+      <DocumentTypeIcon
+        format={kind === "folder" ? "folder" : (format ?? documentIconFormat(kind, title))}
+        className={cn("size-6 shrink-0", kind === "folder" && "text-muted-foreground")}
+      />
       <span className="min-w-0 flex-1">
-        {/* The truncated name still reads in full on hover. */}
-        <span title={title} className="block truncate text-body text-foreground">
-          {title}
+        <span className="flex min-w-0 items-center gap-2">
+          {/* The truncated name still reads in full on hover. */}
+          <span title={title} className="block truncate text-body text-foreground">
+            {title}
+          </span>
+          {badges}
         </span>
         {location ? (
           <span data-testid="doclist-location" className="block truncate text-caption text-muted-foreground">
             {location}
           </span>
         ) : null}
+        {children}
       </span>
     </span>
   );
