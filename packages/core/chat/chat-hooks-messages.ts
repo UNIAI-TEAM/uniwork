@@ -8,6 +8,7 @@ import { runWithChatSendRetry } from "./send-retry";
 import { usePendingChatMessagesStore } from "./pending-messages-store";
 import { lookupChatUserCached } from "./user-lookup";
 import { useAuthStore } from "../auth/store";
+import { documentKeys } from "../documents/keys";
 import { chatKeys } from "./chat-keys";
 import {
   applyChatMessageResponse,
@@ -221,6 +222,9 @@ export function useDeleteChatMessage(workspaceId: string) {
       patchChatMessageDeleted(qc, workspaceId, variables.roomId, variables.messageId);
       void qc.invalidateQueries({ queryKey: chatKeys.messages(workspaceId) });
       void qc.invalidateQueries({ queryKey: chatKeys.rooms(workspaceId) });
+      // Deleting a document message may trash its document or revoke its
+      // grants (UNI-2012 D8), so the workspace's document reads are stale too.
+      void qc.invalidateQueries({ queryKey: documentKeys.workspace(workspaceId) });
     },
   });
 }

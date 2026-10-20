@@ -639,6 +639,40 @@ describe("chat endpoints", () => {
     expect(sent?.document).toBeUndefined();
   });
 
+  // UNI-2012 D8: the delete confirmation reads origin and other_editors_count.
+  it.each([
+    ["upload and a count", { origin: "upload", other_editors_count: 2 }, { origin: "upload", other_editors_count: 2 }],
+    ["link", { origin: "link" }, { origin: "link", other_editors_count: undefined }],
+    ["both absent (legacy)", {}, { origin: undefined, other_editors_count: undefined }],
+    ["an origin the client does not know", { origin: "mirror" }, { origin: undefined }],
+    ["a non-string origin", { origin: 7 }, { origin: undefined }],
+    ["a non-number count", { origin: "upload", other_editors_count: "2" }, { origin: "upload" }],
+  ])("sendChatDocumentMessage reads %s on the document block without dropping the card", async (_name, extra, expected) => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        message: {
+          id: "d3",
+          room_id: "room1",
+          workspace_id: "ws1",
+          sender_id: "u1",
+          sender_display_name: "An",
+          kind: "document",
+          body: "a.pdf",
+          created_at: "2026-01-01T10:00:00Z",
+          document: { document_id: "01J8X4DOC", title: "a.pdf", ...extra },
+        },
+      }),
+    );
+    const sent = await sendChatDocumentMessage("ws1", "room1", {
+      file: new Blob(["x"], { type: "application/pdf" }),
+      filename: "a.pdf",
+      share_level: "view",
+      client_msg_id: "client-doc-4",
+    });
+    expect(sent?.document?.title).toBe("a.pdf");
+    expect({ origin: sent?.document?.origin, other_editors_count: sent?.document?.other_editors_count }).toEqual(expected);
+  });
+
   // UNI-2012 S4: the server route is contract-first (slice S2); the transport
   // is mocked, so these pin the wire shape the FE promises.
   it("sendChatDocumentLink posts JSON to the document-link route and returns the message", async () => {

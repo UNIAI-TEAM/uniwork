@@ -48,6 +48,14 @@ export const ChatMessageDocumentSchema = z
     can_open_in_app: z.boolean().optional(),
     /** Sender only: "Đã chia sẻ với N người". */
     recipient_count: z.number().optional(),
+    /**
+     * Where the card came from (UNI-2012 D8): "upload" owns the document,
+     * "link" only points at one. A value the client does not know falls to
+     * absent, which every reader treats as "upload".
+     */
+    origin: z.enum(["upload", "link"]).optional().catch(undefined),
+    /** Sender's own upload card only: people other than the sender who committed a version. */
+    other_editors_count: z.number().optional().catch(undefined),
   })
   .optional()
   .catch(undefined);
