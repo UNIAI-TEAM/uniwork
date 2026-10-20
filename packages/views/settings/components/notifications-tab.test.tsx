@@ -1,7 +1,8 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@uniwork/core/api";
 import { initI18n } from "@uniwork/core/i18n";
+import { useChatDeviceNotificationStore } from "@uniwork/core/chat/device-notification-store";
 import { registerPushAdapter } from "@uniwork/core/platform";
 import { NOTIFICATION_KINDS } from "@uniwork/core/types/notification";
 import { requestMock, wrap } from "../../test/api-mock";
@@ -80,6 +81,25 @@ describe("NotificationsTab", () => {
     expect(toastSuccess).not.toHaveBeenCalled();
     // Without push, one quiet line says why the column is missing.
     expect(screen.getByText(/Máy chủ này chưa bật thông báo đẩy/)).toBeInTheDocument();
+  });
+
+  it("in UniChat keeps only the chat kinds and puts this device's chat cues in the desktop card", async () => {
+    mockApi(false);
+    const win = window as unknown as { desktopAPI?: unknown };
+    win.desktopAPI = { app: "unichat", appInfo: { version: "0.1.0", os: "macos" } };
+    try {
+      render(wrap(<NotificationsTab scope="chat" />));
+      expect(await screen.findByRole("rowheader", { name: t("settings.notifications.kinds.chat_mentioned") })).toBeInTheDocument();
+      expect(screen.queryByRole("rowheader", { name: /Được giao việc/ })).toBeNull();
+      const preview = screen.getByRole("switch", { name: "Hiện nội dung tin trong thông báo" });
+      expect(preview).toHaveAttribute("aria-checked", "true");
+      fireEvent.click(preview);
+      expect(useChatDeviceNotificationStore.getState().preview).toBe(false);
+      expect(screen.getByRole("switch", { name: "Số chưa đọc trên biểu tượng ứng dụng" })).toBeInTheDocument();
+    } finally {
+      delete win.desktopAPI;
+      useChatDeviceNotificationStore.setState({ sound: true, preview: true, badge: true });
+    }
   });
 
   it("keeps the rest of the matrix live while one row saves", async () => {
@@ -284,5 +304,57 @@ describe("NotificationsTab", () => {
     await waitFor(() => expect(browser).toHaveAccessibleDescription(/Trình duyệt đang chặn thông báo/));
     expect(toastError).not.toHaveBeenCalled();
     expect(screen.queryByText("Không lưu được")).toBeNull();
+  });
+});
+
+describe("NotificationsTab inside the UniChat shell", () => {
+  afterEach(() => {
+    delete (window as Window & { desktopAPI?: unknown }).desktopAPI;
+    vi.unstubAllGlobals();
+  });
+
+  it("sends a test notification and opens the OS notification settings", async () => {
+    const shown: string[] = [];
+    vi.stubGlobal(
+      "Notification",
+      class {
+        static permission = "granted";
+        onclick: (() => void) | null = null;
+        constructor(title: string) {
+          shown.push(title);
+        }
+        close() {}
+      },
+    );
+    const openNotificationSettings = vi.fn(() => Promise.resolve());
+    (window as Window & { desktopAPI?: unknown }).desktopAPI = {
+      app: "unichat",
+      appInfo: { version: "1.0.0", os: "macos" },
+      openNotificationSettings,
+    };
+    mockApi(false);
+    render(wrap(<NotificationsTab />));
+    fireEvent.click(await screen.findByRole("button", { name: "Gửi thử" }));
+    expect(shown).toEqual(["Thông báo đã bật"]);
+    fireEvent.click(screen.getByRole("button", { name: "Mở cài đặt thông báo" }));
+    expect(openNotificationSettings).toHaveBeenCalledOnce();
+  });
+
+  it("offers no settings link on Linux, and no section on the web", async () => {
+    (window as Window & { desktopAPI?: unknown }).desktopAPI = {
+      app: "unichat",
+      appInfo: { version: "1.0.0", os: "linux" },
+      openNotificationSettings: vi.fn(),
+    };
+    mockApi(false);
+    const { unmount } = render(wrap(<NotificationsTab />));
+    expect(await screen.findByRole("button", { name: "Gửi thử" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Mở cài đặt thông báo" })).toBeNull();
+    unmount();
+
+    delete (window as Window & { desktopAPI?: unknown }).desktopAPI;
+    render(wrap(<NotificationsTab />));
+    expect(await screen.findByRole("rowheader", { name: "Mọi loại" })).toBeInTheDocument();
+    expect(screen.queryByText("Thông báo trên máy tính")).toBeNull();
   });
 });

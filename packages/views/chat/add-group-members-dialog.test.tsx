@@ -61,12 +61,14 @@ describe("AddGroupMembersDialog", () => {
       ),
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /Binh/ }));
+    fireEvent.click(screen.getByRole("checkbox", { name: /Binh/ }));
+    expect(screen.getByRole("checkbox", { name: /Binh/ })).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByText("Đã chọn 1 người")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Mời vào nhóm" }));
     expect(onInvite).toHaveBeenCalledWith([contact]);
   });
 
-  it("hides people already in the group and says why the invite is disabled", () => {
+  it("keeps people already in the group ticked and locked, and says why the invite is disabled", () => {
     render(
       wrap(
         <AddGroupMembersDialog
@@ -81,7 +83,12 @@ describe("AddGroupMembersDialog", () => {
       ),
     );
 
-    expect(screen.queryByRole("button", { name: /An/ })).not.toBeInTheDocument();
+    const already = screen.getByRole("checkbox", { name: /An/ });
+    expect(already).toHaveAttribute("aria-checked", "true");
+    expect(already).toHaveAttribute("aria-disabled", "true");
+    expect(already).toHaveTextContent("Đã có trong nhóm");
+    fireEvent.click(already);
+    expect(already).toHaveAttribute("aria-checked", "true");
     expect(screen.getByRole("button", { name: "Mời vào nhóm" })).toHaveAttribute("aria-disabled", "true");
     expect(screen.getByText("Chọn ít nhất một người để mời.")).toBeInTheDocument();
   });

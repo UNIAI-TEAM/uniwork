@@ -68,6 +68,7 @@ vi.mock("./workspace-member-picker", () => ({
   ),
   ExternalMemberLookupRow: () => null,
   WorkspaceMemberLookupResult: () => null,
+  MemberRowActionMark: () => null,
 }));
 
 beforeAll(() => {

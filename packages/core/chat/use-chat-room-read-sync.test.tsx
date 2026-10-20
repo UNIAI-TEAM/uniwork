@@ -53,7 +53,9 @@ describe("useChatRoomReadSync", () => {
     // UNI-1665: the read closed the room's inbox row server-side, so the bell refetches.
     expect(invalidate).toHaveBeenCalledWith({ queryKey: notificationKeys.unreadCount() });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: notificationKeys.lists() });
-    expect(invalidate).toHaveBeenCalledTimes(2);
+    // The workspace switcher's chat totals drop the read room too.
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: chatKeys.unreadSummary() });
+    expect(invalidate).toHaveBeenCalledTimes(3);
   });
 
   // C3: every read by someone else refetched the whole sidebar for everyone.

@@ -1,11 +1,13 @@
 "use client";
 
 import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
-import { Mail, MessageSquare, Phone, Video, type LucideIcon } from "lucide-react";
+import { Bell, BellOff, Mail, MessageSquare, Phone, Video, type LucideIcon } from "lucide-react";
+import { useChatRoomPreferences } from "./use-chat-room-preferences";
 import { useTranslation } from "react-i18next";
 import { useAuthStore } from "@uniwork/core/auth";
 import { selectIsUserOnline, usePresenceStore } from "@uniwork/core/chat/presence-store";
 import { ActorAvatar } from "@uniwork/ui/components/common/actor-avatar";
+import { tintSolidClass } from "@uniwork/ui/components/common/icon-tile";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
 import {
@@ -15,7 +17,8 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@uniwork/ui/components/ui/dialog";
-import { initialOf } from "./chat-initials";
+import { identityTint } from "../people/identity-tint";
+import { initialsOf } from "./chat-initials";
 import { PersonSharedSection } from "./chat-person-shared-panel";
 
 type ChatPersonCall = (userId: string, options?: { withCamera?: boolean }) => void;
@@ -23,8 +26,9 @@ type ChatPersonCall = (userId: string, options?: { withCamera?: boolean }) => vo
 type ChatPersonActions = {
   onMessage: ((userId: string) => void) | null;
   onCall: ChatPersonCall | null;
-  /** The conversation the avatar was clicked in. Shared media comes from here. */
+  /** The conversation the avatar was clicked in. Shared media and mute apply here. */
   roomId: string | null;
+  workspaceId: string | null;
 };
 
 /** Message and call for the person whose avatar was clicked. */
@@ -34,14 +38,16 @@ export function ChatPersonMessageProvider({
   onMessage,
   onCall = null,
   roomId = null,
+  workspaceId = null,
   children,
 }: {
   onMessage: ((userId: string) => void) | null;
   onCall?: ChatPersonCall | null;
   roomId?: string | null;
+  workspaceId?: string | null;
   children: ReactNode;
 }) {
-  const value = useMemo(() => ({ onMessage, onCall, roomId }), [onCall, onMessage, roomId]);
+  const value = useMemo(() => ({ onMessage, onCall, roomId, workspaceId }), [onCall, onMessage, roomId, workspaceId]);
   return <ChatPersonMessageContext.Provider value={value}>{children}</ChatPersonMessageContext.Provider>;
 }
 
@@ -61,41 +67,66 @@ export function personDirectMessageContact(
   };
 }
 
+/** Initials on the person's own colour, as across the app; a photo covers it. */
+export function chatPersonFaceClass(userId: string): string {
+  return cn("font-display font-bold", tintSolidClass[identityTint(userId)]);
+}
+
 function PersonCardProfile({
   name,
   email,
   roleLine,
   avatarUrl,
+  faceClass,
   status,
   online,
   message,
   call,
+  onToggleMute,
+  notificationsMuted = false,
 }: {
   name: string;
   email?: string;
   roleLine?: string;
   avatarUrl?: string;
+  faceClass?: string;
   status: string | null;
   online: boolean;
   message?: () => void;
   call?: (withCamera: boolean) => void;
+  onToggleMute?: () => void;
+  notificationsMuted?: boolean;
 }) {
   const { t } = useTranslation();
   return (
     <div className="min-h-0 overflow-y-auto">
-      <div className="flex flex-col items-center bg-muted px-6 pt-8 pb-6 text-center">
-        <ActorAvatar
-          name={name}
-          initials={initialOf(name)}
-          avatarUrl={avatarUrl}
-          size="fluid"
-          className="size-24 text-display-sm ring-4 ring-surface-raised"
-        />
-        <DialogTitle className="mt-4 max-w-full truncate text-title leading-tight font-semibold">{name}</DialogTitle>
+      <div className="flex flex-col items-center bg-muted px-6 pt-8 pb-5.5 text-center">
+        <span className="relative inline-flex">
+          <ActorAvatar
+            name={name}
+            initials={initialsOf(name)}
+            avatarUrl={avatarUrl}
+            size="fluid"
+            className={cn("size-24 text-display-sm ring-4 ring-surface-raised", faceClass)}
+          />
+          {/* The status line under the name says it in words; the dot only repeats it. */}
+          {status && online ? (
+            <span
+              aria-hidden
+              className="absolute right-0.5 bottom-0.5 size-5.5 rounded-full bg-success-solid ring-4 ring-muted"
+            />
+          ) : null}
+        </span>
+        <DialogTitle className="mt-4 max-w-full truncate font-display text-title-lg leading-tight font-bold">
+          {name}
+        </DialogTitle>
         <DialogDescription
           className={
             status
-              ? cn("mt-1 inline-flex items-center gap-1.5 text-caption", online ? "text-success" : "text-muted-foreground")
+              ? cn(
+                  "mt-1 inline-flex items-center gap-1.5 text-label font-medium",
+                  online ? "text-success" : "text-muted-foreground",
+                )
               : "sr-only"
           }
         >
@@ -103,21 +134,31 @@ function PersonCardProfile({
           {status ?? name}
         </DialogDescription>
       </div>
-      {message || call ? (
-        <div className="flex justify-center gap-1 px-3 py-4">
-          {message ? <PersonCardAction icon={MessageSquare} label={t("chat.person_card_message")} onClick={message} /> : null}
+      {message || call || onToggleMute ? (
+        <div className="flex flex-wrap justify-center gap-3 px-3 py-4">
+          {message ? (
+            <PersonCardAction primary icon={MessageSquare} label={t("chat.person_card_message")} onClick={message} />
+          ) : null}
           {call ? <PersonCardAction icon={Phone} label={t("chat.person_card_call")} onClick={() => call(false)} /> : null}
           {call ? <PersonCardAction icon={Video} label={t("chat.person_card_video")} onClick={() => call(true)} /> : null}
+          {onToggleMute ? (
+            <PersonCardAction
+              icon={notificationsMuted ? BellOff : Bell}
+              label={t("chat.settings_mute_notifications")}
+              onClick={onToggleMute}
+              active={notificationsMuted}
+            />
+          ) : null}
         </div>
       ) : null}
       {email || roleLine ? (
         <div className="px-4 pb-4">
-          <div className="flex items-center gap-3 rounded-xl bg-muted px-3 py-2.5 text-left">
+          <div className="flex items-center gap-3 rounded-xl bg-muted p-3 text-left">
             <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-surface-raised text-muted-foreground ring-1 ring-surface-border">
               <Mail className="size-4" aria-hidden />
             </span>
             <div className="min-w-0">
-              {email ? <p className="truncate text-body text-foreground">{email}</p> : null}
+              {email ? <p className="truncate text-body-lg text-foreground">{email}</p> : null}
               {email ? <p className="text-caption text-muted-foreground">{t("chat.person_card_email")}</p> : null}
               {roleLine ? <p className="truncate text-caption text-muted-foreground">{roleLine}</p> : null}
             </div>
@@ -164,6 +205,7 @@ export function ChatPersonCard({
   const isSelf = Boolean(userId && currentUserId && sameId(userId, currentUserId));
   const status = !userId || isSelf ? null : online ? t("chat.presence_online") : t("chat.presence_offline");
   const roleLine = detail && detail !== email ? detail : undefined;
+  const faceClass = userId ? chatPersonFaceClass(userId) : undefined;
   const message = onMessage
     ? () => {
         setOpen(false);
@@ -177,6 +219,11 @@ export function ChatPersonCard({
           personActions.onCall?.(userId, withCamera ? { withCamera: true } : undefined);
         }
       : undefined;
+  const canMute = Boolean(!isSelf && personActions?.workspaceId && personActions?.roomId);
+  const { notificationsMuted, onToggleMute } = useChatRoomPreferences(
+    personActions?.workspaceId ?? "",
+    canMute ? personActions?.roomId : null,
+  );
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -189,7 +236,7 @@ export function ChatPersonCard({
       </DialogTrigger>
       <DialogContent
         closeLabel={t("common.close")}
-        className="flex max-h-[min(40rem,85vh)] flex-col gap-0 overflow-hidden p-0 sm:max-w-sm"
+        className="flex max-h-[min(46rem,90vh)] flex-col gap-0 overflow-y-auto p-0 sm:max-w-sm"
       >
         {open && userId && !isSelf ? (
           <PersonSharedSection
@@ -203,10 +250,13 @@ export function ChatPersonCard({
                 email={email}
                 roleLine={roleLine}
                 avatarUrl={avatarUrl}
+                faceClass={faceClass}
                 status={status}
                 online={online}
                 message={message}
                 call={call}
+                onToggleMute={canMute ? onToggleMute : undefined}
+                notificationsMuted={notificationsMuted}
               />
             }
           />
@@ -216,10 +266,13 @@ export function ChatPersonCard({
             email={email}
             roleLine={roleLine}
             avatarUrl={avatarUrl}
+            faceClass={faceClass}
             status={status}
             online={online}
             message={message}
             call={call}
+            onToggleMute={canMute ? onToggleMute : undefined}
+            notificationsMuted={notificationsMuted}
           />
         )}
       </DialogContent>
@@ -231,23 +284,43 @@ export function useChatPersonMessage(): ((userId: string) => void) | null {
   return useContext(ChatPersonMessageContext)?.onMessage ?? null;
 }
 
+/** A round action under the card's hero; the primary one (message) wears the brand fill. */
 function PersonCardAction({
   icon: Icon,
   label,
   onClick,
+  primary = false,
+  active = false,
 }: {
   icon: LucideIcon;
   label: string;
   onClick: () => void;
+  primary?: boolean;
+  active?: boolean;
 }) {
   return (
     <Button
       type="button"
       variant="ghost"
-      className="h-auto min-w-16 flex-col gap-1.5 rounded-xl px-2 py-1.5 text-caption text-muted-foreground hover:bg-muted hover:text-foreground"
+      aria-pressed={active}
+      className={cn(
+        "h-auto w-19 flex-col gap-1.5 rounded-xl px-1 py-1.5 text-caption hover:bg-muted",
+        primary || active
+          ? "font-semibold text-brand hover:text-brand"
+          : "font-medium text-muted-foreground hover:text-foreground",
+      )}
       onClick={onClick}
     >
-      <span className="flex size-11 items-center justify-center rounded-full bg-muted text-foreground ring-1 ring-surface-border">
+      <span
+        className={cn(
+          "flex size-11 items-center justify-center rounded-full",
+          primary
+            ? "bg-primary text-primary-foreground"
+            : active
+              ? "bg-brand-subtle text-brand-subtle-foreground ring-1 ring-brand/25"
+              : "bg-muted text-foreground ring-1 ring-surface-border",
+        )}
+      >
         <Icon className="size-5" aria-hidden />
       </span>
       {label}

@@ -92,7 +92,7 @@ func (s *TaskService) GetTaskLabel(ctx context.Context, actor Actor, workspaceID
 }
 
 func (s *TaskService) CreateTaskLabel(ctx context.Context, actor Actor, workspaceID string, in CreateTaskLabelInput) (db.TaskLabel, error) {
-	if err := s.ws.requireActorMember(ctx, workspaceID, actor); err != nil {
+	if err := s.ws.requireActorWorkspaceAdmin(ctx, workspaceID, actor); err != nil {
 		return db.TaskLabel{}, err
 	}
 	ws, err := s.q.GetWorkspaceByID(ctx, workspaceID)
@@ -144,7 +144,7 @@ func (s *TaskService) CreateTaskLabel(ctx context.Context, actor Actor, workspac
 }
 
 func (s *TaskService) UpdateTaskLabel(ctx context.Context, actor Actor, workspaceID, labelID string, in UpdateTaskLabelInput) (db.TaskLabel, error) {
-	if err := s.ws.requireActorMember(ctx, workspaceID, actor); err != nil {
+	if err := s.ws.requireActorWorkspaceAdmin(ctx, workspaceID, actor); err != nil {
 		return db.TaskLabel{}, err
 	}
 	ws, err := s.q.GetWorkspaceByID(ctx, workspaceID)
@@ -214,7 +214,7 @@ func (s *TaskService) UpdateTaskLabel(ctx context.Context, actor Actor, workspac
 }
 
 func (s *TaskService) DeleteTaskLabel(ctx context.Context, actor Actor, workspaceID, labelID string) error {
-	if err := s.ws.requireActorMember(ctx, workspaceID, actor); err != nil {
+	if err := s.ws.requireActorWorkspaceAdmin(ctx, workspaceID, actor); err != nil {
 		return err
 	}
 	ws, err := s.q.GetWorkspaceByID(ctx, workspaceID)
@@ -249,6 +249,22 @@ func (s *TaskService) DeleteTaskLabel(ctx context.Context, actor Actor, workspac
 		return err
 	}
 	return tx.Commit(ctx)
+}
+
+// ListTaskLabelLinks returns every (task, active label) pair in the workspace
+// so boards and lists can draw label chips without a query per task. Any
+// member sees every task in a workspace (List), so the links are no wider.
+func (s *TaskService) ListTaskLabelLinks(ctx context.Context, actor Actor, workspaceID string) ([]db.ListWorkspaceTaskLabelLinksRow, error) {
+	if err := s.ws.requireActorMember(ctx, workspaceID, actor); err != nil {
+		return nil, err
+	}
+	ws, err := s.q.GetWorkspaceByID(ctx, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	return s.q.ListWorkspaceTaskLabelLinks(ctx, db.ListWorkspaceTaskLabelLinksParams{
+		OrganizationID: ws.OrganizationID, WorkspaceID: workspaceID,
+	})
 }
 
 func (s *TaskService) ListTaskLabelsOnTask(ctx context.Context, actor Actor, taskID string) ([]db.TaskLabel, error) {

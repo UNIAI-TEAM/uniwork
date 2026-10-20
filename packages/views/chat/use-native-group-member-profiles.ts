@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { fetchChatUserById, useChatRoomMembers } from "@uniwork/core/chat";
+import { useChatRoomMembers } from "@uniwork/core/chat";
+import { fetchChatUserById } from "@uniwork/core/chat/user-lookup";
 import type { GroupChat } from "@uniwork/core/chat/groups-store";
 import type { GroupMemberProfile } from "./chat-page-utils";
 

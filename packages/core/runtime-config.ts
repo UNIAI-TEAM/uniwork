@@ -19,6 +19,8 @@ export interface RuntimeConfig {
   appUrl: string;
   /** Max concurrent chat:{roomId} WS subscriptions per client. */
   chatScopeSubscriptionLimit: number;
+  /** `client_platform` the WebSocket handshake reports: "web", or "desktop" inside the UniChat shell. */
+  clientPlatform: string;
 }
 
 const DEFAULTS: RuntimeConfig = {
@@ -26,6 +28,7 @@ const DEFAULTS: RuntimeConfig = {
   wsUrl: "ws://localhost:8080",
   appUrl: "http://localhost:3000",
   chatScopeSubscriptionLimit: 25,
+  clientPlatform: "web",
 };
 
 let current: RuntimeConfig = { ...DEFAULTS };

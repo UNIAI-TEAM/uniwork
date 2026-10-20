@@ -1,29 +1,33 @@
 "use client";
 
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { useCallback, useRef, useState, type KeyboardEvent } from "react";
+import { Fragment, useCallback, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import type { ChatContact } from "@uniwork/core/chat/contacts-store";
 import type { ChatRoomPreference } from "@uniwork/core/chat/room-preferences-store";
 import type { ChatRoomPreview } from "./chat-sidebar-preview";
 import type { ChatSidebarTarget } from "./chat-sidebar-types";
 import type { UnifiedSidebarEntry } from "./chat-sidebar-unified";
 import type { MemberAvatarUrlMap } from "./chat-member-avatar";
+import { chatComposerDraftKey } from "./chat-composer-draft-key";
 import {
   ChatSidebarUnifiedRow,
   isSidebarEntryActive,
   sidebarEntryRoomId,
+  sidebarEntryTarget,
   type SidebarRowLabels,
 } from "./chat-sidebar-unified-row";
 
 /** Past this many rows only the visible slice is mounted. */
 const SIDEBAR_VIRTUALIZE_AFTER = 100;
-/** A row: 32px mark, a name line and a preview line, 8px padding each side. */
-const ROW_ESTIMATE_PX = 54;
+/** A row: 64px (a 48px face with 8px above and below, rows touching). */
+const ROW_ESTIMATE_PX = 64;
 
 const ROW_SELECTOR = "[data-chat-sidebar-row]";
 const NAV_KEYS = new Set(["ArrowDown", "ArrowUp", "Home", "End"]);
 
 type RowData = {
+  /** The page's workspace: composer drafts are keyed by it. */
+  workspaceId: string;
   entries: UnifiedSidebarEntry[];
   target: ChatSidebarTarget;
   onTargetChange: (target: ChatSidebarTarget) => void;
@@ -40,6 +44,12 @@ type RowData = {
   labels: SidebarRowLabels;
   memberAvatarByUserId: MemberAvatarUrlMap;
   typingNameByUserId: Record<string, string>;
+  /** DM rooms' peer read pointers, for the ✓✓ on my own last message. */
+  peerReadAtByRoomId: Record<string, string>;
+  /** A heading under the first row (a workspace's "Channels" under its own room); a long, virtual list goes without. */
+  sectionAfterFirst?: ReactNode;
+  /** Under the last row, in the same scroll: a search's matching messages. */
+  footer?: ReactNode;
 };
 
 /**
@@ -128,6 +138,8 @@ export function ChatSidebarList(props: RowData) {
         onRowFocus={setFocusIndex}
         memberAvatarByUserId={props.memberAvatarByUserId}
         typingNameByUserId={props.typingNameByUserId}
+        peerReadAt={roomId ? props.peerReadAtByRoomId[roomId] : undefined}
+        draftKey={chatComposerDraftKey(props.workspaceId, sidebarEntryTarget(entry))}
       />
     );
   };
@@ -138,18 +150,22 @@ export function ChatSidebarList(props: RowData) {
       // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions
       <ul
         ref={listRef}
-        className="-mx-1 min-h-0 shrink space-y-px overflow-y-auto px-1 py-1"
+        className="-mx-1 min-h-0 shrink overflow-y-auto px-1 pb-4"
         onKeyDown={onKeyDown}
       >
         {entries.map((entry, index) => (
-          <li key={entry.key}>{renderRow(entry, index)}</li>
+          <Fragment key={entry.key}>
+            <li>{renderRow(entry, index)}</li>
+            {index === 0 && props.sectionAfterFirst ? <li>{props.sectionAfterFirst}</li> : null}
+          </Fragment>
         ))}
+        {props.footer ? <li>{props.footer}</li> : null}
       </ul>
     );
   }
 
   return (
-    <div ref={scrollRef} className="-mx-1 min-h-0 shrink overflow-y-auto px-1 py-1">
+    <div ref={scrollRef} className="-mx-1 min-h-0 shrink overflow-y-auto px-1 pb-4">
       {/* The list only forwards arrow keys to its row buttons; the rows are the interactive elements. */}
       {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions */}
       <ul
@@ -168,7 +184,7 @@ export function ChatSidebarList(props: RowData) {
               ref={virtualizer.measureElement}
               aria-setsize={entries.length}
               aria-posinset={item.index + 1}
-              className="absolute top-0 left-0 w-full pb-px"
+              className="absolute top-0 left-0 w-full"
               style={{ transform: `translateY(${item.start}px)` }}
             >
               {renderRow(entry, item.index)}
@@ -176,6 +192,7 @@ export function ChatSidebarList(props: RowData) {
           );
         })}
       </ul>
+      {props.footer}
     </div>
   );
 }

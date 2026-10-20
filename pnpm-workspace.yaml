@@ -22,6 +22,9 @@ catalog:
   # Electron nativeImage path.
   "@embedpdf/pdfium": "2.15.0"
   pdf-lib: "1.17.1"
+  # Chat PDF card (UNI-1908 F6): page count + first-page preview rendered in the
+  # browser, loaded lazily; the server never renders an untrusted PDF.
+  pdfjs-dist: "6.4.299"
   harfbuzzjs: "1.6.2"
   pngjs: "7.0.0"
   jpeg-js: "0.4.4"
@@ -129,3 +132,12 @@ catalog:
   "@fullcalendar/daygrid": "^6.1.19"
   "@fullcalendar/timegrid": "^6.1.19"
   "@fullcalendar/interaction": "^6.1.19"
+
+  # UniChat desktop shell (apps/chat-desktop)
+  electron: "^43.7.6"
+  electron-vite: "^5.0.0"
+  electron-builder: "^26.0.12"
+
+  # UniChat mobile app (apps/chat-mobile) — Expo SDK and the React Native it pins
+  expo: "~57.0.26"
+  react-native: "0.86.3"

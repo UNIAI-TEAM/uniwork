@@ -10,7 +10,9 @@ type TaskStatusDTO struct {
 	Description    string  `json:"description"`
 	Category       string  `json:"category" example:"todo"`
 	Color          string  `json:"color" example:"#6b7280"`
+	Icon           string  `json:"icon" description:"Glyph: rỗng = theo category" example:""`
 	IsSystem       bool    `json:"is_system"`
+	Customized     bool    `json:"customized" description:"Trạng thái có sẵn đã được admin sửa tên, mô tả, màu hoặc biểu tượng"`
 	Position       float64 `json:"position"`
 	ArchivedAt     *string `json:"archived_at,omitempty"`
 	CreatedAt      string  `json:"created_at"`
@@ -47,6 +49,17 @@ type TaskLabelDTO struct {
 type TaskLabelListSDO struct {
 	Labels []TaskLabelDTO `json:"labels"`
 	Total  int            `json:"total"`
+}
+
+// TaskLabelLinkDTO is one label on one task.
+type TaskLabelLinkDTO struct {
+	TaskID  string `json:"task_id" description:"ULID công việc" example:"01J8X4TASKN1P2Q3R4S5T6U7"`
+	LabelID string `json:"label_id" description:"ULID nhãn" example:"01J8X4LBL0N1P2Q3R4S5T6U7V8"`
+}
+
+// TaskLabelLinkListSDO is GET .../task-label-links.
+type TaskLabelLinkListSDO struct {
+	Links []TaskLabelLinkDTO `json:"links"`
 }
 
 // TaskLabelSDO wraps one label.

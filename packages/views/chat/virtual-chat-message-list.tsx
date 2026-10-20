@@ -25,7 +25,11 @@ interface VirtualChatMessageListProps {
   renderMessage: (index: number) => ReactNode;
 }
 
-/** Keep the scrollport on the newest message while measures settle. */
+/**
+ * Keep the scrollport on the newest message while measures settle. The
+ * follow-up frames only pin while still pinned: a jump to a message
+ * (search, pin bar, quote, deep link) unpins, and must not be undone.
+ */
 export function pinChatScrollToBottom(
   scrollEl: HTMLDivElement,
   stickToBottomRef: RefObject<boolean>,
@@ -36,7 +40,7 @@ export function pinChatScrollToBottom(
   stickToBottomRef.current = true;
   programmaticScrollRef.current = true;
   const apply = () => {
-    scrollEl.scrollTop = scrollEl.scrollHeight;
+    if (stickToBottomRef.current) scrollEl.scrollTop = scrollEl.scrollHeight;
   };
   apply();
   // measureElement grows the spacer after paint; keep pinning for two frames.
@@ -82,6 +86,24 @@ export function updateStickToBottomFromScroll(
   // scrollTop≈0 with a long list: either still waiting to pin, or already reading
   // the oldest page — keep the previous stick flag unchanged.
   return stickToBottomRef.current;
+}
+
+/** When the reader last scrolled by hand in the scroller: wheel, touch, pointer, key or focus. */
+export function useReaderScrollAt(scrollRef: RefObject<HTMLDivElement | null>): RefObject<number> {
+  const at = useRef(0);
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const mark = () => {
+      at.current = Date.now();
+    };
+    const events = ["wheel", "touchmove", "pointerdown", "keydown", "focusin"] as const;
+    for (const name of events) el.addEventListener(name, mark, { passive: true });
+    return () => {
+      for (const name of events) el.removeEventListener(name, mark);
+    };
+  }, [scrollRef]);
+  return at;
 }
 
 /** Renders only visible chat rows to keep long histories smooth. */
@@ -149,15 +171,29 @@ export function VirtualChatMessageList({
     const index = messages.findIndex((message) => message.id === highlightMessageId);
     if (index < 0) return;
     scrolledHighlightRef.current = highlightMessageId;
-    programmaticScrollRef.current = true;
     stickToBottomRef.current = false;
-    virtualizer.scrollToIndex(index, { align: "center" });
-    requestAnimationFrame(() => {
-      programmaticScrollRef.current = false;
-      // The row is mounted once the virtualizer has scrolled to it.
-      requestAnimationFrame(() => onHighlightShownRef.current?.(highlightMessageId));
-    });
-  }, [highlightMessageId, messages, programmaticScrollRef, stickToBottomRef, virtualizer]);
+    const align = () => {
+      programmaticScrollRef.current = true;
+      virtualizer.scrollToIndex(index, { align: "center" });
+      requestAnimationFrame(() => {
+        programmaticScrollRef.current = false;
+      });
+    };
+    align();
+    // The row is mounted once the virtualizer has scrolled to it.
+    requestAnimationFrame(() => requestAnimationFrame(() => onHighlightShownRef.current?.(highlightMessageId)));
+    // Photos above it measure in after the jump and push it down: centre it
+    // again while they load, unless the reader takes the scroll first.
+    const timers = [400, 1200].map((ms) => window.setTimeout(align, ms));
+    const el = scrollRef.current;
+    const stop = () => timers.forEach((timer) => window.clearTimeout(timer));
+    const events = ["wheel", "touchmove", "keydown", "pointerdown"] as const;
+    for (const name of events) el?.addEventListener(name, stop, { passive: true, once: true });
+    return () => {
+      stop();
+      for (const name of events) el?.removeEventListener(name, stop);
+    };
+  }, [highlightMessageId, messages, programmaticScrollRef, scrollRef, stickToBottomRef, virtualizer]);
 
   if (messages.length === 0) {
     return empty ?? null;

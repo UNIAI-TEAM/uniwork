@@ -170,3 +170,81 @@ func TestRoomReadReachesOnlyTheReaderAndTheDMPeer(t *testing.T) {
 		t.Fatalf("DM read went to %v, want the reader and the peer %v", got, want)
 	}
 }
+
+// "N người đã xem": a read that moves a member's pointer in a group or a
+// non-default channel reaches the sockets holding that room open. The default
+// channel's members are the workspace and a DM has its own receipt
+// (chat.room.read to the peer), so neither hears it.
+func TestMemberReadReachesTheRoomScopeOfGroupsAndChannelsOnly(t *testing.T) {
+	s, pub, q, ua, ub, w := chatFixture(t)
+	ctx := context.Background()
+	addOrgMember(t, q, w.OrganizationID, ub.ID)
+	addWorkspaceMember(t, q, w.ID, ub.ID)
+
+	uc := chatTestUser(t, q, w, "member-read-c@example.com")
+	group, err := s.CreateGroup(ctx, ua.ID, w.ID, CreateGroupInput{Name: "Sales", MemberUserIDs: []string{ub.ID, uc.ID}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ch, err := s.CreateChannel(ctx, ua.ID, w.ID, CreateChannelInput{
+		Name: "team", Visibility: chatVisibilityPublic, MemberUserIDs: []string{ub.ID},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, roomID := range []string{group.ID, ch.ID} {
+		if _, err := s.SendRoomMessage(ctx, ua.ID, w.ID, roomID, SendChatMessageInput{Body: "news"}); err != nil {
+			t.Fatal(err)
+		}
+		pub.sent, pub.events = nil, nil
+		if err := s.MarkRoomRead(ctx, ub.ID, w.ID, roomID); err != nil {
+			t.Fatal(err)
+		}
+		if got := pub.sentTo("chat.room.member_read"); !slices.Equal(got, []string{"chat:" + roomID}) {
+			t.Fatalf("member read of %s went to %v, want the room scope", roomID, got)
+		}
+		for _, ev := range pub.events {
+			if ev.Type != "chat.room.member_read" {
+				continue
+			}
+			p := ev.Payload
+			if len(p) != 2 || p["room_id"] != roomID || p["user_id"] != ub.ID {
+				t.Fatalf("member read payload = %v, want ids only", p)
+			}
+		}
+		pub.sent = nil
+		if err := s.MarkRoomRead(ctx, ub.ID, w.ID, roomID); err != nil {
+			t.Fatal(err)
+		}
+		if got := pub.sentTo("chat.room.member_read"); len(got) != 0 {
+			t.Fatalf("a read that did not move the pointer was published to %v", got)
+		}
+	}
+
+	room, err := s.EnsureWorkspaceRoom(ctx, ua.ID, w.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.SendWorkspaceMessage(ctx, ub.ID, w.ID, SendChatMessageInput{Body: "hi all"}); err != nil {
+		t.Fatal(err)
+	}
+	dm, err := s.ResolveDM(ctx, ua.ID, w.ID, ub.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.SendRoomMessage(ctx, ub.ID, w.ID, dm.ID, SendChatMessageInput{Body: "psst"}); err != nil {
+		t.Fatal(err)
+	}
+	for _, roomID := range []string{room.RoomID, dm.ID} {
+		pub.sent = nil
+		if err := s.MarkRoomRead(ctx, ua.ID, w.ID, roomID); err != nil {
+			t.Fatal(err)
+		}
+		if got := pub.sentTo("chat.room.read"); !slices.Contains(got, "user:"+ua.ID) {
+			t.Fatalf("read of %s did not move the pointer (chat.room.read went to %v)", roomID, got)
+		}
+		if got := pub.sentTo("chat.room.member_read"); len(got) != 0 {
+			t.Fatalf("member read of %s went to %v, want nowhere", roomID, got)
+		}
+	}
+}

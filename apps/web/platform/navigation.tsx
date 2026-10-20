@@ -3,8 +3,9 @@
 import { Suspense, useEffect, useMemo } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { sanitizeNextUrl } from "@uniwork/core/paths";
-import { registerSystemNotificationClickHandler } from "@uniwork/core/platform";
+import { getDesktopBridge, registerSystemNotificationClickHandler } from "@uniwork/core/platform";
 import { NavigationProvider } from "@uniwork/views/navigation";
+import { chatOnlyPolicy } from "./chat-only-navigation";
 import { createWebNavigationAdapter } from "./web-navigation-adapter";
 
 /**
@@ -17,11 +18,17 @@ function NavigationProviderInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  const adapter = useMemo(
-    () =>
-      createWebNavigationAdapter(router, pathname, new URLSearchParams(searchParams.toString())),
-    [router, pathname, searchParams],
-  );
+  // Inside the UniChat shell every push/replace goes through the chat-only
+  // policy, so <AppLink> and views' push() need no host awareness of their own.
+  const adapter = useMemo(() => {
+    const bridge = getDesktopBridge();
+    return createWebNavigationAdapter(
+      router,
+      pathname,
+      new URLSearchParams(searchParams.toString()),
+      bridge ? chatOnlyPolicy(bridge) : undefined,
+    );
+  }, [router, pathname, searchParams]);
 
   // A clicked browser banner opens what it was about, through the same
   // guarded push as any in-app move; anything but a same-origin path is ignored.

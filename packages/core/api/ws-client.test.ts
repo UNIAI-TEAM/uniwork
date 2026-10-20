@@ -179,4 +179,14 @@ describe("WSClient scoped subscribe", () => {
     expect(FakeWebSocket.lastUrl).toContain("ws://example.test/ws");
     vi.useRealTimers();
   });
+
+  it("token mode sends the token as the first frame and the identity as query params", () => {
+    const ws = new WSClient("ws://example.test/ws", { identity: { platform: "desktop" } });
+    ws.setAuth("tok", "acme/ws");
+    ws.connect();
+    expect(new URL(FakeWebSocket.lastUrl!).searchParams.get("client_platform")).toBe("desktop");
+    expect(FakeWebSocket.lastUrl).not.toContain("tok");
+    FakeWebSocket.lastInstance!.onopen?.();
+    expect(JSON.parse(FakeWebSocket.sent[0]!)).toEqual({ type: "auth", payload: { token: "tok" } });
+  });
 });

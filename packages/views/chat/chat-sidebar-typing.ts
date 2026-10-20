@@ -6,6 +6,7 @@ import {
   resolveChatNicknameForUser,
 } from "@uniwork/core/chat/contacts-store";
 import { normalizeTypingUserId } from "@uniwork/core/chat/typing-user-id";
+import { givenNameOf } from "./chat-initials";
 import { formatTypingLabel } from "./typing-indicator";
 
 type TranslateFn = (key: string, options?: Record<string, unknown>) => string;
@@ -53,12 +54,13 @@ function resolveSidebarTypingNames(
       (entry) => normalizeTypingUserId(entry.user_id) === normalized,
     );
     const contactName = humanTypingName(contact?.display_name, userId);
+    // A nickname is what I chose to call them; a profile name shortens to the given name.
     if (contactName) {
-      names.push(contactName);
+      names.push(givenNameOf(contactName));
       continue;
     }
     const fallback = humanTypingName(options.fallbackNameByUserId?.[normalized], userId);
-    if (fallback) names.push(fallback);
+    if (fallback) names.push(givenNameOf(fallback));
   }
   return names;
 }

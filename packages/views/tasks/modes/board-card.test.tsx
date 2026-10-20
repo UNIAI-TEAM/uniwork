@@ -102,6 +102,31 @@ describe("BoardCardContent", () => {
     expect(screen.queryByText("Nguyễn An")).toBeNull();
     expect(screen.queryByText(/2026-09-12/)).toBeNull();
   });
+
+  it("shows the task's labels as chips, two and a count, until the setting hides them", () => {
+    const store = getTaskSurfaceViewStore("board-card-labels");
+    const labels = [
+      { id: "l1", name: "Bug", color: "#ef4444" },
+      { id: "l2", name: "Khẩn", color: "#f97316" },
+      { id: "l3", name: "UI", color: "#3b82f6" },
+    ];
+    const card = () =>
+      wrap(
+        <ViewStoreProvider store={store}>
+          <BoardCardContent task={task} meta={{ labels }} />
+        </ViewStoreProvider>,
+      );
+    const { rerender } = render(card());
+    const chips = screen.getByRole("list", { name: "Nhãn" });
+    expect(chips).toHaveTextContent("Bug");
+    expect(chips).toHaveTextContent("Khẩn");
+    expect(chips).toHaveTextContent("+1");
+    expect(chips).not.toHaveTextContent("UI");
+
+    store.getState().toggleCardProperty("labels");
+    rerender(card());
+    expect(screen.queryByRole("list", { name: "Nhãn" })).toBeNull();
+  });
 });
 
 describe("Kanban three-dot button and the priority label", () => {

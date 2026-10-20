@@ -28,12 +28,11 @@ import {
   ChatDocumentRequestAccess,
   chatDocumentVersionError,
 } from "./chat-document-actions";
-import { ChatMessageHoverActions, chatMessageActionsRailClass } from "./chat-message-hover-actions";
+import { ChatMessageActionsFrame, chatMessageActionsRailClass } from "./chat-message-hover-actions";
 import { ChatMessageA11yLabel, ChatMessageMeta, ChatReactionChips, chatMessageLabelId } from "./chat-message-parts";
 import { ChatReplyQuote } from "./chat-reply-quote";
 import { MessageTaskCard } from "./message-task-card";
 import { CHAT_BUBBLE_OTHER, CHAT_BUBBLE_OWN, ChatThreadRepliesLink, chatBubbleShape } from "./chat-message-row";
-import { useMessageActionsReveal } from "./use-message-actions-reveal";
 import type { ChatNameContextEntry } from "./chat-page-utils";
 import { ChatSenderAvatar } from "./chat-sender-avatar";
 import { senderNameClass } from "./sender-colors";
@@ -97,7 +96,6 @@ function ChatDocumentMessageRowImpl({
   /** A deep link jumped here: ring the row like the text row does. */
   highlighted?: boolean;
 }) {
-  const reveal = useMessageActionsReveal();
   return (
     <article
       id={`chat-msg-${message.id}`}
@@ -127,11 +125,22 @@ function ChatDocumentMessageRowImpl({
         ) : (
           <span className="w-8 shrink-0" aria-hidden />
         )}
-        <div
-          ref={reveal.rootRef}
-          {...reveal.bind}
+        <ChatMessageActionsFrame
+          message={message}
+          isOwn={isOwn}
+          canEdit={false}
+          onReply={onReply}
+          onReact={onReact}
+          onToggleReaction={onToggleReaction}
+          onThread={onThread}
+          onPin={onPin}
+          onCopy={onCopy}
+          onDelete={onDelete}
+          onCreateTask={onCreateTask}
+          onLinkTask={onLinkTask}
+          onFollowUp={onFollowUp}
           className={cn(
-            "group/message relative flex min-w-0 flex-col gap-1 pointer-coarse:select-none pointer-coarse:[-webkit-touch-callout:none]",
+            "flex min-w-0 flex-col gap-1 pointer-coarse:select-none pointer-coarse:[-webkit-touch-callout:none]",
             isOwn ? "items-end" : "items-start",
           )}
         >
@@ -166,31 +175,12 @@ function ChatDocumentMessageRowImpl({
               <div className="px-1">
                 <ChatMessageMeta message={message} isOwn={isOwn} showTime />
               </div>
-              <ChatReactionChips message={message} isOwn={isOwn} onToggleReaction={onToggleReaction} />
-              <ChatThreadRepliesLink message={message} isOwn={isOwn} onThread={onThread} />
-              <MessageTaskCard
-                workspaceId={workspaceId}
-                messageId={message.id}
-                className={cn(isOwn && "items-end self-end")}
-              />
+              <ChatReactionChips message={message} isOwn={isOwn} onToggleReaction={onToggleReaction} onReact={onReact} />
+              <ChatThreadRepliesLink message={message} isOwn={isOwn} onThread={onThread} nameContext={nameContext} />
+              <MessageTaskCard workspaceId={workspaceId} messageId={message.id} isOwn={isOwn} />
             </div>
-            <ChatMessageHoverActions
-              message={message}
-              isOwn={isOwn}
-              onReply={onReply}
-              onReact={onReact}
-              onThread={onThread}
-              onPin={onPin}
-              onCopy={onCopy}
-              onDelete={onDelete}
-              onCreateTask={onCreateTask}
-              onLinkTask={onLinkTask}
-              onFollowUp={onFollowUp}
-              canEdit={false}
-              forceOpen={reveal.open}
-            />
           </div>
-        </div>
+        </ChatMessageActionsFrame>
       </div>
     </article>
   );

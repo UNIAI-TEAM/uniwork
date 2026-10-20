@@ -185,7 +185,7 @@ describe("MeetingRoomChatTab auto-scroll", () => {
 });
 
 describe("MeetingRoomChatTab bubbles", () => {
-  it("paints bubbles like the chat module: a brand wash for mine, muted for theirs", () => {
+  it("paints bubbles like the chat module: the brand fill for mine, the white bubble for theirs", () => {
     liveMessages = [
       { id: "a", message: "Chào cả nhà", timestamp: 1_000, from: { identity: "u-other", name: "Lan" } },
       { id: "b", message: "Chào Lan", timestamp: 2_000, from: { identity: "u-me", name: "Tôi", isLocal: true } },
@@ -193,8 +193,8 @@ describe("MeetingRoomChatTab bubbles", () => {
     render(wrapWithNav(<MeetingRoomChatTab />));
     const theirs = screen.getByText("Chào cả nhà");
     const mine = screen.getByText("Chào Lan");
-    expect(mine).toHaveClass("bg-brand-subtle");
-    expect(mine).not.toHaveClass("bg-brand");
-    expect(theirs).toHaveClass("bg-muted");
+    expect(mine).toHaveClass("bg-chat-bubble-own", "text-chat-bubble-own-foreground");
+    expect(mine).not.toHaveClass("text-foreground");
+    expect(theirs).toHaveClass("bg-chat-bubble-other");
   });
 });

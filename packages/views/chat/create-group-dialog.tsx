@@ -12,6 +12,8 @@ import {
   FormDialogFooter,
   FormDialogHeader,
 } from "../common/form-dialog";
+import { CHAT_DIALOG_BODY_CLASS, CHAT_DIALOG_CLASS, CHAT_DIALOG_WIDTH, CHAT_FIELD_CLASS } from "./chat-dialog-look";
+import { ChatGroupAvatarPicker } from "./chat-group-avatar-editor";
 import { SelectedMemberChips } from "./selected-member-chips";
 import {
   WorkspaceMemberLookupResult,
@@ -37,16 +39,18 @@ export function CreateGroupDialog({
   workspaceId: string;
   currentUserId: string;
   creating?: boolean;
-  onCreate: (members: ChatContact[], name: string) => void;
+  /** `avatar` is uploaded by the caller once the group exists. */
+  onCreate: (members: ChatContact[], name: string, avatar: File | null) => void;
 }) {
   const { t } = useTranslation();
   const [groupName, setGroupName] = useState("");
   const [memberQuery, setMemberQuery] = useState("");
   const [searchSubmitted, setSearchSubmitted] = useState(false);
   const [pendingMembers, setPendingMembers] = useState<ChatContact[]>([]);
+  const [avatar, setAvatar] = useState<File | null>(null);
 
   const pickerFocus = useMemberPickerFocus();
-  const excludeUserIds = useMemo(
+  const pickedUserIds = useMemo(
     () => new Set(pendingMembers.map((member) => member.user_id)),
     [pendingMembers],
   );
@@ -58,7 +62,6 @@ export function CreateGroupDialog({
       open,
       query: memberQuery,
       searchSubmitted,
-      excludeUserIds,
     });
 
   const resetForm = () => {
@@ -66,6 +69,7 @@ export function CreateGroupDialog({
     setMemberQuery("");
     setSearchSubmitted(false);
     setPendingMembers([]);
+    setAvatar(null);
   };
 
   const handleOpenChange = (next: boolean) => {
@@ -78,14 +82,23 @@ export function CreateGroupDialog({
     setPendingMembers((prev) =>
       prev.some((member) => member.user_id === contact.user_id) ? prev : [...prev, contact],
     );
-    setMemberQuery("");
-    setSearchSubmitted(false);
-    // The picked row leaves the list; the search field is where the next pick starts.
-    pickerFocus.focusInput();
+    // A search found them: clear it and start the next one from the field.
+    if (memberQuery.trim()) {
+      setMemberQuery("");
+      setSearchSubmitted(false);
+      pickerFocus.focusInput();
+    }
   };
+
 
   const removeMember = (userId: string) => {
     setPendingMembers((prev) => prev.filter((member) => member.user_id !== userId));
+  };
+
+  /* The list's rows are checkboxes: a picked row stays, ticked, and unticks. */
+  const toggleMember = (contact: ChatContact) => {
+    if (pickedUserIds.has(contact.user_id)) removeMember(contact.user_id);
+    else addMember(contact);
   };
 
   const submitMemberSearch = () => {
@@ -101,29 +114,33 @@ export function CreateGroupDialog({
 
   const submit = () => {
     if (!canCreate) return;
-    onCreate(pendingMembers, groupName.trim());
+    onCreate(pendingMembers, groupName.trim(), avatar);
   };
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <FormDialogContent size="md">
+      <FormDialogContent size="md" className={`${CHAT_DIALOG_CLASS} ${CHAT_DIALOG_WIDTH.form}`}>
         <FormDialogHeader
           title={t("chat.create_group_title")}
           description={t("chat.create_group_description")}
         />
-        <FormDialogBody>
-          <div className="space-y-2">
-            <Label htmlFor="group-name" className="text-label font-medium">
-              {t("chat.group_name_optional_label")}
-            </Label>
-            <Input
-              id="group-name"
-              value={groupName}
-              onChange={(e) => setGroupName(e.target.value)}
-              placeholder={t("chat.group_name_placeholder")}
-              maxLength={80}
-              autoFocus
-            />
+        <FormDialogBody className={`${CHAT_DIALOG_BODY_CLASS} space-y-5`}>
+          <div className="flex items-center gap-5">
+            <ChatGroupAvatarPicker file={avatar} onFileChange={setAvatar} name={groupName} />
+            <div className="min-w-0 flex-1 space-y-2">
+              <Label htmlFor="group-name" className="text-label font-semibold">
+                {t("chat.group_name_optional_label")}
+              </Label>
+              <Input
+                id="group-name"
+                value={groupName}
+                onChange={(e) => setGroupName(e.target.value)}
+                placeholder={t("chat.group_name_placeholder")}
+                maxLength={80}
+                autoFocus
+                className={CHAT_FIELD_CLASS}
+              />
+            </div>
           </div>
 
           <SelectedMemberChips
@@ -162,18 +179,24 @@ export function CreateGroupDialog({
             loading={isLoading}
             query={memberQuery}
             hasOtherMembers={hasOtherMembers}
-            onPick={addMember}
+            selectedUserIds={pickedUserIds}
+            onPick={toggleMember}
             listRef={pickerFocus.listRef}
           />
         </FormDialogBody>
         <FormDialogFooter
           onCancel={() => handleOpenChange(false)}
+          cancelVariant="secondary"
           submitLabel={t("chat.start_group")}
           submittingLabel={t("chat.creating_group")}
           submitting={creating}
           submitDisabled={missing > 0}
           onSubmit={submit}
-          leading={missing > 0 ? t("chat.group_member_missing", { count: missing }) : undefined}
+          leading={
+            missing > 0
+              ? t("chat.group_member_missing", { count: missing })
+              : t("chat.group_member_summary", { count: picked })
+          }
         />
       </FormDialogContent>
     </Dialog>

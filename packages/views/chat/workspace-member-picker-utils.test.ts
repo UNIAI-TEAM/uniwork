@@ -54,6 +54,18 @@ describe("workspace-member-picker-utils", () => {
     expect(ids("nguyen", false)).toEqual(["u3"]);
   });
 
+  it("lists members by name, not in join order", () => {
+    const people = ["Võ Minh", "Hoàng Lan", "Lê Minh Châu"].map((display_name, i) => ({
+      workspace_id: "ws1",
+      user_id: `p${i}`,
+      role: "member" as const,
+      email: `p${i}@example.com`,
+      display_name,
+    }));
+    const names = filterWorkspaceMembers(people, { currentUserId: "self", query: "" }).map((m) => m.display_name);
+    expect(names).toEqual(["Hoàng Lan", "Lê Minh Châu", "Võ Minh"]);
+  });
+
   it("finds member by exact email", () => {
     expect(findWorkspaceMemberByEmail(members, "alice@example.com")?.user_id).toBe("u2");
   });

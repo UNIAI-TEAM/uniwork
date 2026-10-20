@@ -28,7 +28,7 @@ describe("useSyncChatRoomsOnAuth", () => {
     resetAuthStoreForTests();
   });
 
-  it("re-runs ensure + invalidates rooms after auth is lost and regained", async () => {
+  it("re-runs ensure after auth is lost and regained and leaves the sidebar refresh to the mutation", async () => {
     const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     const ensureRoom = { mutateAsync: vi.fn().mockResolvedValue({ room_id: "ws-room" }) };
     const invalidateSpy = vi.spyOn(qc, "invalidateQueries");
@@ -41,9 +41,7 @@ describe("useSyncChatRoomsOnAuth", () => {
     useAuthStore.getState().setUser(user);
     rerender();
     await waitFor(() => expect(ensureRoom.mutateAsync).toHaveBeenCalledTimes(1));
-    await waitFor(() =>
-      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: chatKeys.rooms("ws1") }),
-    );
+    expect(invalidateSpy).not.toHaveBeenCalledWith({ queryKey: chatKeys.rooms("ws1") });
 
     useAuthStore.setState({ user: null, status: "anon" });
     rerender();
@@ -51,5 +49,23 @@ describe("useSyncChatRoomsOnAuth", () => {
     rerender();
 
     await waitFor(() => expect(ensureRoom.mutateAsync).toHaveBeenCalledTimes(2));
+    expect(invalidateSpy).not.toHaveBeenCalledWith({ queryKey: chatKeys.rooms("ws1") });
+  });
+
+  it("swallows ensure rejection so the hook does not leave an unhandled rejection", async () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const ensureRoom = {
+      mutateAsync: vi.fn().mockRejectedValue(new Error("ensure failed")),
+    };
+
+    const { rerender } = renderHook(
+      () => useSyncChatRoomsOnAuth("ws1", ensureRoom),
+      { wrapper: wrapper(qc) },
+    );
+
+    useAuthStore.getState().setUser(user);
+    rerender();
+
+    await waitFor(() => expect(ensureRoom.mutateAsync).toHaveBeenCalledTimes(1));
   });
 });

@@ -3,15 +3,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { resetAuthStoreForTests, setSessionUser } from "../auth";
 import type { User } from "../types/user";
 import { usePresenceStore } from "./presence-store";
+import { useHostFocus } from "../platform/host-focus";
 import { useChatPresenceHeartbeat } from "./use-chat-presence-heartbeat";
 
-const beatChatPresence = vi.fn<(workspaceId: string) => Promise<string[] | null>>();
+const beatChatPresence = vi.fn<(workspaceId: string, visible: boolean) => Promise<string[] | null>>();
 const signalChatPresence = vi.fn<
   (workspaceId: string, state: "online" | "offline", opts?: { keepalive?: boolean }) => Promise<boolean>
 >();
 
 vi.mock("../api/endpoints/chat-presence", () => ({
-  beatChatPresence: (workspaceId: string) => beatChatPresence(workspaceId),
+  beatChatPresence: (workspaceId: string, visible: boolean) => beatChatPresence(workspaceId, visible),
 }));
 vi.mock("../api/endpoints/chat", () => ({
   signalChatPresence: (
@@ -54,7 +55,7 @@ describe("useChatPresenceHeartbeat", () => {
       .mockResolvedValueOnce(["USER_A", "USER_C"]);
     renderHook(() => useChatPresenceHeartbeat("ws1"));
     await act(async () => {});
-    expect(beatChatPresence).toHaveBeenCalledWith("ws1");
+    expect(beatChatPresence).toHaveBeenCalledWith("ws1", true);
     expect(online()).toEqual({ USER_B: true });
 
     await act(async () => {
@@ -101,6 +102,34 @@ describe("useChatPresenceHeartbeat", () => {
     renderHook(() => useChatPresenceHeartbeat("ws1"));
     window.dispatchEvent(new Event("pagehide"));
     expect(signalChatPresence).toHaveBeenCalledWith("ws1", "offline", { keepalive: true });
+  });
+
+  it("marks a beat from a hidden tab as not visible", () => {
+    beatChatPresence.mockResolvedValue([]);
+    const state = vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden");
+    renderHook(() => useChatPresenceHeartbeat("ws1"));
+    expect(beatChatPresence).toHaveBeenCalledWith("ws1", false);
+    state.mockRestore();
+  });
+
+  it("marks a beat from an unfocused UniChat window as not visible", async () => {
+    beatChatPresence.mockResolvedValue([]);
+    // Electron keeps visibilityState "visible" behind other windows; the bridge's focus is the truth.
+    (window as Window & { desktopAPI?: unknown }).desktopAPI = {
+      app: "unichat",
+      isFocused: async () => false,
+      onFocusChange: () => () => {},
+    };
+    try {
+      const focus = renderHook(() => useHostFocus());
+      await act(async () => {});
+      expect(focus.result.current).toBe(false);
+      renderHook(() => useChatPresenceHeartbeat("ws1"));
+      expect(document.visibilityState).toBe("visible");
+      expect(beatChatPresence).toHaveBeenCalledWith("ws1", false);
+    } finally {
+      delete (window as Window & { desktopAPI?: unknown }).desktopAPI;
+    }
   });
 
   it("does nothing when disabled or without a workspace", () => {

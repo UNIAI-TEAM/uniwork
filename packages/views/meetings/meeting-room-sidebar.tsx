@@ -121,6 +121,7 @@ export function MeetingRoomSidebar({
           <MeetingRoomCopilotTab
             meetingId={meetingId}
             workspaceId={guestMode ? undefined : workspaceId}
+            projectId={guestMode ? undefined : meeting?.project_id}
             canHost={canHost === true}
           />
         ) : (

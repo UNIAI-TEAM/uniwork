@@ -31,6 +31,7 @@ const EMPTY_USAGE: AiUsageSummary = { from: "", to: "", rows: [] };
 const EMPTY_CATCH_UP: ChatCatchUpResponse = {
   summary: "",
   highlights: [],
+  highlight_items: [],
   action_items: [],
   message_count: 0,
   mode: "unread",

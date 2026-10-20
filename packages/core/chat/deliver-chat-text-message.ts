@@ -1,7 +1,7 @@
 import * as chat from "../api/endpoints/chat";
 import type { ComposerMessagePriority } from "./composer-priority";
 import { usePendingChatMessagesStore } from "./pending-messages-store";
-import { isPermanentChatSendRefusal, runWithChatSendRetry } from "./send-retry";
+import { isChatSendNetworkError, isPermanentChatSendRefusal, runWithChatSendRetry } from "./send-retry";
 import type { ChatSendOutboxEntry } from "./send-outbox-store";
 import { useChatSendOutboxStore } from "./send-outbox-store";
 
@@ -31,11 +31,14 @@ export async function deliverChatTextMessage(workspaceId: string, payload: ChatT
   );
 }
 
+/** `failed`: the send reached the server and failed, so the bubble offers "Thử lại" at once. */
 export function outboxEntryFromPayload(
   workspaceId: string,
   senderId: string,
   payload: ChatTextSendPayload,
+  options?: { failed?: boolean },
 ): ChatSendOutboxEntry {
+  const now = new Date().toISOString();
   return {
     workspaceId,
     senderId,
@@ -45,7 +48,8 @@ export function outboxEntryFromPayload(
     reply_to_message_id: payload.reply_to_message_id,
     priority: payload.priority,
     thread_root_id: payload.thread_root_id,
-    queued_at: new Date().toISOString(),
+    queued_at: now,
+    ...(options?.failed ? { failed_at: now } : {}),
   };
 }
 
@@ -60,6 +64,56 @@ export function payloadFromOutboxEntry(entry: ChatSendOutboxEntry): ChatTextSend
   };
 }
 
+export type ChatOutboxDelivery =
+  | { outcome: "sent" | "queued" }
+  | { outcome: "failed" | "dropped"; error: unknown };
+
+/**
+ * One outbox entry through the send path, shown as sending meanwhile. Per error kind:
+ * - a permanent refusal (403 removed or blocked, 404, 410, 422) is dropped and
+ *   handed back for the caller to say why: "Thử lại" could never succeed;
+ * - the network (TypeError) leaves it queued for the next reconnect, as before;
+ * - anything else (5xx, 408, 429, 401) leaves it failed: "Chưa gửi được" with
+ *   "Thử lại", since with the network up no reconnect would retry it.
+ * Null when this entry is already on its way (a flush and a "Thử lại" racing).
+ */
+export async function deliverChatOutboxEntry(
+  entry: ChatSendOutboxEntry,
+  onDeliver: (payload: ChatTextSendPayload) => Promise<unknown>,
+): Promise<ChatOutboxDelivery | null> {
+  const pending = usePendingChatMessagesStore.getState();
+  if (pending.entries.some((item) => item.client_msg_id === entry.client_msg_id)) return null;
+  pending.upsert({
+    workspaceId: entry.workspaceId,
+    roomId: entry.roomId,
+    client_msg_id: entry.client_msg_id,
+    body: entry.body,
+    senderId: entry.senderId,
+    createdAt: Date.parse(entry.queued_at) || Date.now(),
+    reply_to_message_id: entry.reply_to_message_id,
+    thread_root_id: entry.thread_root_id,
+    priority: entry.priority,
+    status: "sending",
+  });
+  const outbox = useChatSendOutboxStore.getState();
+  try {
+    await onDeliver(payloadFromOutboxEntry(entry));
+    outbox.remove(entry.client_msg_id);
+    return { outcome: "sent" };
+  } catch (error) {
+    if (isPermanentChatSendRefusal(error)) {
+      // Kept, it would show as waiting for a day, then vanish unannounced.
+      outbox.remove(entry.client_msg_id);
+      return { outcome: "dropped", error };
+    }
+    const queued = isChatSendNetworkError(error);
+    outbox.setFailed(entry.client_msg_id, !queued);
+    return queued ? { outcome: "queued" } : { outcome: "failed", error };
+  } finally {
+    usePendingChatMessagesStore.getState().remove(entry.client_msg_id);
+  }
+}
+
 export async function flushChatSendOutbox(
   workspaceId: string,
   senderId: string,
@@ -68,40 +122,17 @@ export async function flushChatSendOutbox(
   // Expired entries are dropped rather than sent; another user's entries are
   // left alone — they are theirs to deliver when they sign back in.
   useChatSendOutboxStore.getState().pruneStale();
-  const { listForWorkspace, remove } = useChatSendOutboxStore.getState();
-  const pending = listForWorkspace(workspaceId, senderId);
+  const pending = useChatSendOutboxStore.getState().listForWorkspace(workspaceId, senderId);
   let sent = 0;
   let failed = 0;
   let dropped = 0;
 
   for (const entry of pending) {
-    usePendingChatMessagesStore.getState().upsert({
-      workspaceId,
-      roomId: entry.roomId,
-      client_msg_id: entry.client_msg_id,
-      body: entry.body,
-      senderId,
-      createdAt: Date.parse(entry.queued_at) || Date.now(),
-      reply_to_message_id: entry.reply_to_message_id,
-      thread_root_id: entry.thread_root_id,
-      priority: entry.priority,
-      status: "sending",
-    });
-    try {
-      await onDeliver(payloadFromOutboxEntry(entry));
-      remove(entry.client_msg_id);
-      usePendingChatMessagesStore.getState().remove(entry.client_msg_id);
-      sent += 1;
-    } catch (err) {
-      usePendingChatMessagesStore.getState().remove(entry.client_msg_id);
-      if (isPermanentChatSendRefusal(err)) {
-        // Kept, it would show as waiting for a day, then vanish unannounced.
-        remove(entry.client_msg_id);
-        dropped += 1;
-      } else {
-        failed += 1;
-      }
-    }
+    const result = await deliverChatOutboxEntry(entry, onDeliver);
+    if (!result) continue;
+    if (result.outcome === "sent") sent += 1;
+    else if (result.outcome === "dropped") dropped += 1;
+    else failed += 1;
   }
 
   return { sent, failed, dropped };

@@ -1,10 +1,12 @@
 "use client";
 
-import { ListChecks, PhoneCall, Sparkles } from "lucide-react";
+import { ListChecks, PhoneCall, Plus, Sparkles } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { cn } from "@uniwork/ui/lib/utils";
 import type { ChatMessage } from "./chat-messages";
 import { ChatCard } from "./chat-card";
+import { CHAT_ON_BUBBLE_FILL, CHAT_ON_BUBBLE_HOVER } from "./chat-message-row";
 import { formatMessageTime } from "./chat-message-time";
 import { CreateTaskFromMessageDialog } from "./create-task-from-message-dialog";
 import { formatVoiceCallDuration } from "./voice-call-duration";
@@ -12,11 +14,15 @@ import { formatVoiceCallDuration } from "./voice-call-duration";
 type VoiceCallSummaryPayload = NonNullable<ChatMessage["voiceCallSummary"]>;
 type ActionItem = VoiceCallSummaryPayload["action_items"][number];
 
+/** "2026-10-22" → "22/10" (canvas); anything else as written. */
+function shortDue(due: string): string {
+  const match = /^\d{4}-(\d{2})-(\d{2})$/.exec(due.trim());
+  return match ? `${match[2]}/${match[1]}` : due;
+}
+
 export function VoiceCallSummaryRow({
   workspaceId,
   message,
-  showSenderName,
-  senderLabel,
   compactTop,
   isOwn,
   callLog,
@@ -24,8 +30,6 @@ export function VoiceCallSummaryRow({
 }: {
   workspaceId: string;
   message: ChatMessage;
-  showSenderName?: boolean;
-  senderLabel: string;
   compactTop?: boolean;
   isOwn?: boolean;
   /** The call's log message, when it is loaded, for the "from the call at …" line. */
@@ -57,16 +61,22 @@ export function VoiceCallSummaryRow({
       {/* AI output: the overline says it was generated, the header carries
           when, and every action item points back to the message it came from
           (Agent Principles — attributed, timestamped, sourced). */}
+      {/* UNI wrote it, whoever's account posted it: its name in the brand and its tile at the card's foot (canvas). */}
       <ChatCard
         icon={Sparkles}
         tone="brand"
         label={t("chat.voice_call_summary_badge")}
-        senderLabel={senderLabel}
-        senderId={message.sender}
+        senderLabel={t("ai.uni")}
+        senderClassName="text-brand"
         isOwn={isOwn}
         ts={message.ts}
-        showSenderName={showSenderName}
+        showSenderName
         compactTop={compactTop}
+        avatar={
+          <span aria-hidden className="flex size-8.5 items-center justify-center rounded-[11px] bg-primary text-primary-foreground">
+            <Sparkles className="size-4.5" />
+          </span>
+        }
         wide
       >
         {/* Sourced: the summary says which call it came from and links back to it. */}
@@ -74,14 +84,14 @@ export function VoiceCallSummaryRow({
           onJumpToMessage ? (
             <button
               type="button"
-              className="mb-2 inline-flex items-center gap-1.5 rounded-md text-caption font-medium text-brand-subtle-foreground hover:underline"
+              className="mb-2 inline-flex items-center gap-1.5 rounded-md text-label font-medium text-brand tabular-nums hover:underline"
               onClick={() => onJumpToMessage(callLogId)}
             >
               <PhoneCall aria-hidden className="size-3.5" />
               {sourceLabel}
             </button>
           ) : (
-            <p className="mb-2 inline-flex items-center gap-1.5 text-caption text-muted-foreground">
+            <p className="mb-2 inline-flex items-center gap-1.5 text-label text-muted-foreground tabular-nums">
               <PhoneCall aria-hidden className="size-3.5" />
               {sourceLabel}
             </p>
@@ -89,17 +99,17 @@ export function VoiceCallSummaryRow({
         ) : null}
 
         {summaryText ? (
-          <p className="whitespace-pre-wrap text-body leading-relaxed text-foreground text-pretty">{summaryText}</p>
+          <p className="whitespace-pre-wrap text-body-lg text-foreground text-pretty">{summaryText}</p>
         ) : null}
 
         {empty ? <p className="text-body text-muted-foreground">{t("chat.voice_call_summary_empty")}</p> : null}
 
         {summary.highlights.length > 0 ? (
           <section className="mt-3 flex flex-col gap-1.5">
-            <h4 className="text-overline text-muted-foreground uppercase">{t("chat.ai.highlights")}</h4>
+            <h4 className="text-micro font-semibold tracking-wider text-muted-foreground uppercase">{t("chat.ai.highlights")}</h4>
             <ul className="space-y-1">
               {summary.highlights.map((highlight, index) => (
-                <li key={`${index}-${highlight}`} className="flex gap-2 text-body text-foreground">
+                <li key={`${index}-${highlight}`} className="flex gap-2 text-body-lg text-foreground">
                   <span className="mt-2 size-1.5 shrink-0 rounded-full bg-muted-foreground" aria-hidden />
                   <span className="min-w-0 text-pretty">{highlight}</span>
                 </li>
@@ -110,39 +120,41 @@ export function VoiceCallSummaryRow({
 
         {summary.action_items.length > 0 ? (
           <section className="mt-3 flex flex-col gap-1.5">
-            <h4 className="flex items-center gap-1.5 text-overline text-muted-foreground uppercase">
+            <h4 className="flex items-center gap-1.5 text-micro font-semibold tracking-wider text-muted-foreground uppercase">
               <ListChecks aria-hidden className="size-3.5" />
               {t("chat.ai.action_items")}
             </h4>
             <ul className="space-y-1.5">
               {summary.action_items.map((item, index) => {
-                const canCreate = Boolean(item.source_message_id.trim());
                 const detail =
                   item.owner || item.due ? (
-                    <span className="mt-0.5 block text-caption text-muted-foreground">
-                      {[item.owner, item.due].filter(Boolean).join(" · ")}
+                    <span className="mt-0.5 block text-caption text-muted-foreground tabular-nums">
+                      {[item.owner, item.due && shortDue(item.due)].filter(Boolean).join(" · ")}
                     </span>
                   ) : null;
                 return (
                   <li key={`${index}-${item.source_message_id}-${item.title}`}>
-                    {canCreate ? (
-                      <button
-                        type="button"
-                        className="w-full rounded-lg bg-muted px-3 py-2 text-left transition-colors duration-(--duration-fast) hover:bg-surface-hover"
-                        onClick={() => setCreateFor(item)}
-                      >
-                        <span className="block text-body font-medium text-foreground">{item.title}</span>
+                    {/* The whole row stays the button (the bigger target); the pill on its right says what
+                        pressing it does. An item UNI could not tie to a message is made from the summary
+                        itself (canvas: every item offers it). */}
+                    <button
+                      type="button"
+                      className={cn(
+                        "flex w-full items-center gap-3 rounded-xl py-2 pr-2 pl-3 text-left transition-colors duration-(--duration-fast)",
+                        CHAT_ON_BUBBLE_FILL,
+                        CHAT_ON_BUBBLE_HOVER,
+                      )}
+                      onClick={() => setCreateFor(item)}
+                    >
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-body font-semibold text-foreground">{item.title}</span>
                         {detail}
-                        <span className="mt-1 block text-caption font-medium text-brand-subtle-foreground">
-                          {t("chat.link.create_task")}
-                        </span>
-                      </button>
-                    ) : (
-                      <div className="rounded-lg bg-muted px-3 py-2">
-                        <span className="block text-body font-medium text-foreground">{item.title}</span>
-                        {detail}
-                      </div>
-                    )}
+                      </span>
+                      <span className="inline-flex h-8 shrink-0 items-center gap-1 rounded-full bg-brand-subtle px-3 text-label font-semibold text-brand-subtle-foreground">
+                        <Plus aria-hidden className="size-3.5" />
+                        {t("chat.link.create_task")}
+                      </span>
+                    </button>
                   </li>
                 );
               })}
@@ -158,7 +170,7 @@ export function VoiceCallSummaryRow({
           if (!next) setCreateFor(null);
         }}
         workspaceId={workspaceId}
-        messageId={createFor?.source_message_id ?? ""}
+        messageId={createFor ? createFor.source_message_id.trim() || message.id : ""}
         messageBody={createFor?.title ?? ""}
       />
     </>

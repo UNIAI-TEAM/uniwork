@@ -14,7 +14,7 @@ export type OptimisticChatMessage = {
   priority?: ComposerMessagePriority;
   reactions: Record<string, number>;
   clientMsgId: string;
-  deliveryStatus: "sending" | "queued";
+  deliveryStatus: "sending" | "queued" | "failed";
 };
 
 type ServerLikeMessage = {
@@ -57,7 +57,7 @@ export function outboxToOptimisticChatMessage(
     threadRootId: entry.thread_root_id,
     priority: entry.priority,
     reactions: {},
-    deliveryStatus: "queued",
+    deliveryStatus: entry.failed_at ? "failed" : "queued",
   };
 }
 

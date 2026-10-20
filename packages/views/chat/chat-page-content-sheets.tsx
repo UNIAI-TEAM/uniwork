@@ -8,6 +8,7 @@ import { ChatVoiceRecordingsSheet } from "./chat-voice-recordings-sheet";
 
 export function ChatPageContentSheets({
   followUpSheet,
+  followedThreadsSheet,
   catchUpOpen,
   onCatchUpOpenChange,
   catchUpLoading,
@@ -23,6 +24,7 @@ export function ChatPageContentSheets({
   nameContext,
 }: {
   followUpSheet: ReactNode;
+  followedThreadsSheet?: ReactNode;
   catchUpOpen: boolean;
   onCatchUpOpenChange: (open: boolean) => void;
   catchUpLoading: boolean;
@@ -41,6 +43,7 @@ export function ChatPageContentSheets({
   return (
     <>
       {followUpSheet}
+      {followedThreadsSheet}
       <ChatCatchUpSheet
         open={catchUpOpen}
         onOpenChange={onCatchUpOpenChange}

@@ -83,7 +83,7 @@ func withFollowUpAnchor(out ChatFollowUpRow, room db.ChatRoom, msg db.ChatMessag
 	out.RoomVisibility = room.Visibility
 	out.MessageKind = msg.Kind
 	out.MessageSenderID = msg.SenderID
-	out.MessageBody = chatSidebarPreviewBody(msg.Body, msg.Kind)
+	out.MessageBody = ChatPreviewBody(msg.Body, msg.Kind)
 	return out
 }
 
@@ -98,7 +98,7 @@ func chatFollowUpListRow(row db.ListChatMessageFollowUpsForUserRow) ChatFollowUp
 		MessageKind:       row.MessageKind,
 		MessageSenderID:   row.MessageSenderID,
 		MessageSenderName: row.MessageSenderName,
-		MessageBody:       chatSidebarPreviewBody(row.MessageBody, row.MessageKind),
+		MessageBody:       ChatPreviewBody(row.MessageBody, row.MessageKind),
 	}
 	if row.DueAt.Valid {
 		t := row.DueAt.Time.UTC()

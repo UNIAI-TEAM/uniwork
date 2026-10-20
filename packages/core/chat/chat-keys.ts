@@ -1,6 +1,8 @@
 export const chatKeys = {
   room: (wsId: string) => ["chat", "room", wsId] as const,
   rooms: (wsId: string) => ["chat", "rooms", wsId] as const,
+  /** The caller's unread across every workspace: account-level, not workspace-scoped. */
+  unreadSummary: () => ["chat", "unread-summary"] as const,
   /** One room's detail read (UNI-1966 L5): viewer-scoped flags the list omits. */
   roomDetail: (wsId: string, roomId: string) => ["chat", "room-detail", wsId, roomId] as const,
   channels: (wsId: string, scope: string, projectId = "") =>
@@ -32,10 +34,27 @@ export const chatKeys = {
     ["chat", "room-message-links", wsId, roomId] as const,
   /** Prefix — any link change refreshes the batched room lookups. */
   roomMessageLinksRoot: (wsId: string) => ["chat", "room-message-links", wsId] as const,
+  /** Tasks linked from one room's messages (the info panel). */
+  roomLinkedTasks: (wsId: string, roomId: string) =>
+    ["chat", "room-linked-tasks", wsId, roomId] as const,
+  /** Prefix — a link or task change refreshes every room's linked tasks. */
+  roomLinkedTasksRoot: (wsId: string) => ["chat", "room-linked-tasks", wsId] as const,
+  /** Link cards (ADR 0035) of one room's timeline, by the message ids it asked for. */
+  roomLinkPreviews: (wsId: string, roomId: string, messageIds: string) =>
+    ["chat", "room-link-previews", wsId, roomId, messageIds] as const,
+  /** Prefix — a card that became ready refreshes the room's lookups. */
+  roomLinkPreviewsRoom: (wsId: string, roomId: string) => ["chat", "room-link-previews", wsId, roomId] as const,
+  /** Shared-media counts and newest photos of one room (the info panel). */
+  roomSharedSummary: (wsId: string, roomId: string) =>
+    ["chat", "room-shared-summary", wsId, roomId] as const,
+  /** The stored transcript of one voice message (UNI-1908 F2). */
+  voiceTranscript: (wsId: string, messageId: string) => ["chat", "voice-transcript", wsId, messageId] as const,
   /** Prefix for all Follow-up list variants; invalidate with this key only. */
   followUps: (wsId: string) => ["chat", "follow-ups", wsId] as const,
   roomMessageSearch: (wsId: string, roomId: string, query: string) =>
     ["chat", "room-message-search", wsId, roomId, query] as const,
+  /** The sidebar's search across my rooms in one scope (Tin nhắn or a workspace). */
+  messageSearch: (wsId: string, scope: string, query: string) => ["chat", "message-search", wsId, scope, query] as const,
   roomMembers: (wsId: string, roomId: string) => ["chat", "room-members", wsId, roomId] as const,
   lookup: (wsId: string, email: string) => ["chat", "lookup", wsId, email] as const,
   block: (wsId: string, userId: string) => ["chat", "block", wsId, userId] as const,

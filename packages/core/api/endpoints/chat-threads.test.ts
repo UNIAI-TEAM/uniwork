@@ -1,10 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { configureRuntime, resetRuntimeConfig } from "../../runtime-config";
 import {
+  followChatThread,
   listChatThreadMessages,
   listFollowedChatThreads,
   markChatThreadRead,
   sendChatThreadMessage,
+  unfollowChatThread,
 } from "./chat-threads";
 
 const json = (body: unknown, status = 200) =>
@@ -77,5 +79,15 @@ describe("chat thread endpoints", () => {
   it("listFollowedChatThreads degrades on malformed response", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ threads: null }));
     await expect(listFollowedChatThreads("w1")).resolves.toEqual([]);
+  });
+
+  it("followChatThread degrades on malformed response", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ status: 1 }));
+    await expect(followChatThread("w1", "root1")).resolves.toBeUndefined();
+  });
+
+  it("unfollowChatThread degrades on malformed response", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ ok: "nope" }));
+    await expect(unfollowChatThread("w1", "root1")).resolves.toBeUndefined();
   });
 });

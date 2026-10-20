@@ -53,6 +53,7 @@ const PUSH_BY_DEFAULT = new Set<Kind>([
   "chat_mentioned",
   "chat_dm",
   "chat_reminder",
+  "chat_call_incoming",
   // UNI-1645: an edit request needs a quick answer and a take-over may leave
   // unsaved work behind; the answer to a request stays in-app.
   "document_edit_requested",
@@ -78,7 +79,16 @@ function serverDefault(kind: Kind): NotificationPreference {
  * kinds — that a switch would pass off as "off". The kinds are grouped the
  * way the inbox filters them, each with its module's colour.
  */
-export function NotificationsMatrix({ channels, footnotes }: { channels: Channel[]; footnotes?: ReactNode }) {
+export function NotificationsMatrix({
+  channels,
+  footnotes,
+  kinds = NOTIFICATION_KINDS,
+}: {
+  channels: Channel[];
+  footnotes?: ReactNode;
+  /** The rows to show; UniChat shows only the chat kinds. "Every kind" then means every one of these. */
+  kinds?: readonly Kind[];
+}) {
   const { t } = useTranslation(undefined, { keyPrefix: "settings.notifications" });
   const { t: tSave } = useTranslation(undefined, { keyPrefix: "settings.save" });
   const { t: tInbox } = useTranslation(undefined, { keyPrefix: "notifications" });
@@ -92,7 +102,7 @@ export function NotificationsMatrix({ channels, footnotes }: { channels: Channel
   // Nothing is shown or written until the reader's real preferences are in:
   // a guessed row saved by a toggle would overwrite what they chose before.
   const loaded = prefs.data !== undefined;
-  const rows: NotificationPreference[] = NOTIFICATION_KINDS.map(
+  const rows: NotificationPreference[] = kinds.map(
     (kind) => inFlight[kind] ?? prefs.data?.find((p) => p.kind === kind) ?? serverDefault(kind),
   );
   // The kinds the bulk Email control speaks for: the trash kind can never

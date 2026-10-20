@@ -1,3 +1,5 @@
+import emojiMartVi from "@emoji-mart/data/i18n/vi.json";
+
 const MEDIA_MESSAGE_PATTERN = /^!\[[^\]]*\]\((https?:\/\/[^)\s]+)\)$/;
 
 // Hosts the picker itself produces (Tenor, the offline GIF set, twemoji
@@ -59,4 +61,21 @@ export function describeChatMediaBody(body: string, labels: ChatMediaLabels): st
     return name ? `${labels.gif} · ${name}` : labels.gif;
   }
   return labels.image;
+}
+
+/**
+ * emoji-mart's strings in Vietnamese, with the canvas's own words for search
+ * and the two sections it names; undefined (its English) in any other language.
+ */
+export function emojiPickerStrings(language: string, t: (key: string) => string): object | undefined {
+  if (!language.startsWith("vi")) return undefined;
+  return {
+    ...emojiMartVi,
+    search: t("chat.emoji_search"),
+    categories: {
+      ...emojiMartVi.categories,
+      frequent: t("chat.emoji_frequent"),
+      people: t("chat.emoji_people"),
+    },
+  };
 }

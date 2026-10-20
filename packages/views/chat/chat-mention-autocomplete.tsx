@@ -8,7 +8,33 @@ import { ActorAvatar } from "@uniwork/ui/components/common/actor-avatar";
 import { cn } from "@uniwork/ui/lib/utils";
 import { lookupMemberAvatarUrl, type MemberAvatarUrlMap } from "./chat-member-avatar";
 import type { ChatMentionCandidate } from "./chat-mention-utils";
-import { initialOf } from "./chat-initials";
+import { initialsOf } from "./chat-initials";
+import { foldVi } from "./chat-search-fold";
+import { chatPersonFaceClass } from "./chat-person-card";
+
+const PANEL_CLASS = "flex flex-col overflow-hidden rounded-xl bg-popover shadow-floating ring-1 ring-border";
+
+/**
+ * The name split around the first place the typed query matches it, accents
+ * ignored ("mi" marks "Minh" in "Võ Minh"), or null when it does not.
+ */
+export function splitMentionMatch(label: string, query: string): [string, string, string] | null {
+  const needle = foldVi(query.trim().split(/\s+/)[0] ?? "");
+  if (!needle) return null;
+  // Fold char by char so a folded index maps back onto the name.
+  const chars = Array.from(label);
+  const ends: number[] = [];
+  let folded = "";
+  for (const char of chars) {
+    folded += foldVi(char);
+    ends.push(folded.length);
+  }
+  const at = folded.indexOf(needle);
+  if (at < 0) return null;
+  const from = ends.findIndex((end) => end > at);
+  const to = ends.findIndex((end) => end >= at + needle.length) + 1;
+  return [chars.slice(0, from).join(""), chars.slice(from, to).join(""), chars.slice(to).join("")];
+}
 
 /** The DOM id of one option, so the composer can point aria-activedescendant at it. */
 export function mentionOptionId(listId: string, index: number): string {
@@ -28,7 +54,7 @@ function useMentionListPosition(anchorRef: RefObject<HTMLElement | null>, open: 
         position: "fixed",
         left: rect.left,
         width: rect.width,
-        maxWidth: "24rem",
+        maxWidth: "21.25rem",
         bottom: window.innerHeight - rect.top + 8,
         zIndex: 50,
       });
@@ -46,6 +72,7 @@ function useMentionListPosition(anchorRef: RefObject<HTMLElement | null>, open: 
 
 export function ChatMentionAutocomplete({
   listId,
+  query = "",
   candidates,
   selectedIndex,
   onSelect,
@@ -54,6 +81,8 @@ export function ChatMentionAutocomplete({
   memberAvatarByUserId = {},
 }: {
   listId: string;
+  /** What follows the @: marked in each name, in the brand (canvas). */
+  query?: string;
   candidates: ChatMentionCandidate[];
   selectedIndex: number;
   onSelect: (candidate: ChatMentionCandidate) => void;
@@ -75,77 +104,107 @@ export function ChatMentionAutocomplete({
   // reads as broken. The list is portaled so the conversation column's
   // overflow does not clip it.
   if (!position || typeof document === "undefined") return null;
+  const labelId = `${listId}-label`;
   const panel =
     candidates.length === 0 ? (
-      <div
-        role="status"
-        style={position}
-        className="rounded-lg bg-surface-raised p-2 shadow-[var(--menu-shadow)] ring-1 ring-surface-border"
-      >
-        <p className="px-2 py-1.5 text-caption text-muted-foreground">{t("chat.mention_no_results")}</p>
+      <div role="status" style={position} className={PANEL_CLASS}>
+        <p className="px-3.5 py-3 text-caption text-muted-foreground">{t("chat.mention_no_results")}</p>
       </div>
     ) : (
-    <div
-      ref={listRef}
-      id={listId}
-      role="listbox"
-      aria-label={t("chat.mention_picker_label")}
-      style={position}
-      className="max-h-56 overflow-y-auto rounded-lg bg-surface-raised p-1 shadow-[var(--menu-shadow)] ring-1 ring-surface-border"
-    >
-      {candidates.map((candidate, index) => {
-        const selected = index === selectedIndex;
-        const isAll = candidate.kind === "all";
-        const initials = isAll ? "@" : initialOf(candidate.label);
+      <div style={position} className={PANEL_CLASS}>
+        <p id={labelId} className="flex h-8 shrink-0 items-center px-3.5 text-caption font-semibold text-muted-foreground">
+          {t("chat.mention_picker_label")}
+        </p>
+        <div
+          ref={listRef}
+          id={listId}
+          role="listbox"
+          aria-labelledby={labelId}
+          className="max-h-60 overflow-y-auto px-1.5 pb-1.5"
+        >
+          {candidates.map((candidate, index) => {
+            const selected = index === selectedIndex;
+            const isAll = candidate.kind === "all";
+            const initials = isAll ? "@" : initialsOf(candidate.label);
+            const match = isAll ? null : splitMentionMatch(candidate.label, query);
 
-        return (
-          <button
-            key={isAll ? "all" : candidate.userId}
-            id={mentionOptionId(listId, index)}
-            type="button"
-            role="option"
-            aria-selected={selected}
-            tabIndex={-1}
-            className={cn(
-              "flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left text-body pointer-coarse:min-h-11",
-              "hover:bg-surface-hover",
-              selected && "bg-surface-selected hover:bg-surface-selected",
-            )}
-            onMouseEnter={() => onHover(index)}
-            onMouseDown={(event) => {
-              event.preventDefault();
-              onSelect(candidate);
-            }}
-          >
-            {isAll ? (
-              <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-brand-subtle text-brand-subtle-foreground">
-                <Users className="size-4" aria-hidden />
-              </span>
-            ) : (
-              <ActorAvatar
-                name={candidate.label}
-                initials={initials}
-                avatarUrl={
-                  candidate.userId ? lookupMemberAvatarUrl(memberAvatarByUserId, candidate.userId) : undefined
-                }
-                size="lg"
-                className="shrink-0"
-              />
-            )}
-            <span className="min-w-0 flex-1">
-              <span className="block truncate font-medium text-foreground">{candidate.label}</span>
-              {!isAll && candidate.email ? (
-                <span className="block truncate text-caption text-muted-foreground">{candidate.email}</span>
-              ) : isAll ? (
-                <span className="block truncate text-caption text-muted-foreground">
-                  {t("chat.mention_all_hint")}
+            return (
+              <button
+                key={isAll ? "all" : candidate.userId}
+                id={mentionOptionId(listId, index)}
+                type="button"
+                role="option"
+                aria-selected={selected}
+                tabIndex={-1}
+                className={cn(
+                  "flex h-13 w-full items-center gap-3 rounded-control px-2 text-left text-body",
+                  "hover:bg-surface-hover",
+                  selected && "bg-brand-subtle hover:bg-brand-subtle",
+                )}
+                onMouseEnter={() => onHover(index)}
+                onMouseDown={(event) => {
+                  event.preventDefault();
+                  onSelect(candidate);
+                }}
+              >
+                {isAll ? (
+                  <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-brand-subtle text-brand-subtle-foreground">
+                    <Users className="size-4.5" aria-hidden />
+                  </span>
+                ) : (
+                  <ActorAvatar
+                    name={candidate.label}
+                    initials={initials}
+                    avatarUrl={
+                      candidate.userId ? lookupMemberAvatarUrl(memberAvatarByUserId, candidate.userId) : undefined
+                    }
+                    size="fluid"
+                    className={cn("size-9 shrink-0 text-caption", candidate.userId && chatPersonFaceClass(candidate.userId))}
+                  />
+                )}
+                <span className="min-w-0 flex-1">
+                  <span className={cn("block truncate text-foreground", isAll ? "font-semibold" : "font-medium")}>
+                    {isAll ? (
+                      `@${candidate.label}`
+                    ) : match ? (
+                      // One text node for assistive tech; the marked copy is for the eye.
+                      <>
+                        <span className="sr-only">{candidate.label}</span>
+                        <span aria-hidden>
+                          {match[0]}
+                          <span className="text-brand">{match[1]}</span>
+                          {match[2]}
+                        </span>
+                      </>
+                    ) : (
+                      candidate.label
+                    )}
+                  </span>
+                  {!isAll && candidate.email ? (
+                    <span className="block truncate text-caption text-muted-foreground">{candidate.email}</span>
+                  ) : isAll ? (
+                    <span className="block truncate text-caption text-muted-foreground">
+                      {t("chat.mention_all_hint")}
+                    </span>
+                  ) : null}
                 </span>
-              ) : null}
+              </button>
+            );
+          })}
+        </div>
+        {/* How to drive it from the field (canvas). */}
+        <p
+          aria-hidden
+          className="flex h-8.5 shrink-0 items-center gap-3 border-t border-border bg-muted/60 px-3.5 text-caption text-muted-foreground dark:bg-foreground/5"
+        >
+          {(["mention_keys_move", "mention_keys_insert", "mention_keys_close"] as const).map((key) => (
+            <span key={key}>
+              <kbd className="font-sans text-micro font-semibold text-chat-chip-foreground">{t(`chat.${key}_key`)}</kbd>{" "}
+              {t(`chat.${key}`)}
             </span>
-          </button>
-        );
-      })}
-    </div>
+          ))}
+        </p>
+      </div>
     );
   return createPortal(panel, document.body);
 }

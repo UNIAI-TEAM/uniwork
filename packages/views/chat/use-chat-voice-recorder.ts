@@ -56,6 +56,17 @@ const MIME_CANDIDATES = [
   "audio/mp4",
 ] as const;
 
+/** Loudness of one buffer of 8-bit samples (128 = silence), boosted so speech fills the bar: 0–1. */
+export function rmsLevel(samples: Uint8Array): number {
+  if (samples.length === 0) return 0;
+  let sum = 0;
+  for (const sample of samples) {
+    const centred = (sample - 128) / 128;
+    sum += centred * centred;
+  }
+  return Math.min(1, Math.sqrt(sum / samples.length) * 4);
+}
+
 function supportedMimeType(): string {
   return MIME_CANDIDATES.find((type) => MediaRecorder.isTypeSupported(type)) ?? "";
 }
@@ -65,6 +76,9 @@ export function useChatVoiceRecorder() {
   const [elapsedMs, setElapsedMs] = useState(0);
   const [recording, setRecording] = useState<ChatVoiceRecording | null>(null);
   const [error, setError] = useState<ChatVoiceRecorderError | null>(null);
+  // The microphone's loudness, one sample per tick, 0–1: the bar's live wave and the clip's shape.
+  const [levels, setLevels] = useState<number[]>([]);
+  const meterRef = useRef<{ context: AudioContext; analyser: AnalyserNode } | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -76,6 +90,8 @@ export function useChatVoiceRecorder() {
   const stopTracks = useCallback(() => {
     streamRef.current?.getTracks().forEach((track) => track.stop());
     streamRef.current = null;
+    void meterRef.current?.context.close().catch(() => {});
+    meterRef.current = null;
   }, []);
 
   const clearRecording = useCallback(() => {
@@ -98,6 +114,7 @@ export function useChatVoiceRecorder() {
     stopTracks();
     clearRecording();
     setElapsedMs(0);
+    setLevels([]);
     setError(null);
     setState("idle");
   }, [clearRecording, stopTracks]);
@@ -128,6 +145,15 @@ export function useChatVoiceRecorder() {
         return;
       }
       streamRef.current = stream;
+      setLevels([]);
+      // Metering is a nicety: a browser without Web Audio still records.
+      if (typeof AudioContext !== "undefined") {
+        const context = new AudioContext();
+        const analyser = context.createAnalyser();
+        analyser.fftSize = 512;
+        context.createMediaStreamSource(stream).connect(analyser);
+        meterRef.current = { context, analyser };
+      }
       const mimeType = supportedMimeType();
       const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
       recorderRef.current = recorder;
@@ -172,6 +198,7 @@ export function useChatVoiceRecorder() {
         await send(value);
         clearRecording();
         setElapsedMs(0);
+        setLevels([]);
         setState("idle");
       } catch {
         setError("upload");
@@ -186,6 +213,12 @@ export function useChatVoiceRecorder() {
     const timer = window.setInterval(() => {
       const next = Date.now() - startedAtRef.current;
       setElapsedMs(Math.min(next, MAX_DURATION_MS));
+      const analyser = meterRef.current?.analyser;
+      if (analyser) {
+        const samples = new Uint8Array(analyser.fftSize);
+        analyser.getByteTimeDomainData(samples);
+        setLevels((prev) => [...prev, rmsLevel(samples)]);
+      }
       if (next >= MAX_DURATION_MS) void stop();
     }, 200);
     return () => window.clearInterval(timer);
@@ -205,5 +238,5 @@ export function useChatVoiceRecorder() {
     [stopTracks],
   );
 
-  return { state, elapsedMs, recording, error, start, stop, cancel, upload };
+  return { state, elapsedMs, recording, error, levels, start, stop, cancel, upload };
 }

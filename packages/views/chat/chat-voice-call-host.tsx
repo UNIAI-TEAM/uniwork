@@ -12,6 +12,8 @@ import {
 import { useChatRooms, useChatVoiceToken } from "@uniwork/core/chat";
 import { useWorkspace } from "../layout/workspace-context";
 import { useNativeVoiceCall } from "./use-native-voice-call";
+import type { VoiceCallPanelMode } from "./voice-call-floating-panel";
+import { voiceCallPrimaryLeaveEndsForAll } from "./voice-call-kind-utils";
 import { prepareVideoCapture, prepareVoiceCapture } from "./voice-call-media";
 import { VoiceCallOverlay, type VoiceCallKind } from "./voice-call-overlay";
 import type { VoiceCallDeviceError, VoiceCallOverlayState } from "./voice-call-overlay-types";
@@ -28,6 +30,12 @@ type ChatVoiceCallContextValue = {
   acceptCall: () => Promise<boolean>;
   declineCall: () => Promise<void>;
   inCall: boolean;
+  /** Panel, pill or fullscreen; the chat's call bar shows while it is the pill. */
+  panelMode: VoiceCallPanelMode;
+  /** Brings the call panel back from the pill. */
+  expandCall: () => void;
+  /** The panel's own hang-up: ends a DM (or a group call you started) for everyone, else leaves. */
+  hangUp: () => void;
 };
 
 const ChatVoiceCallContext = createContext<ChatVoiceCallContextValue | null>(null);
@@ -59,6 +67,19 @@ export function ChatVoiceCallHost({ children }: { children: ReactNode }) {
       ),
     [rooms],
   );
+  const mutedRoomIds = useMemo(
+    () => new Set(rooms.filter((room) => room.notifications_muted).map((room) => room.id)),
+    [rooms],
+  );
+  const roomKindById = useMemo(() => {
+    const map = new Map<string, VoiceCallKind>();
+    for (const room of rooms) {
+      if (room.kind === "dm" || room.kind === "group" || room.kind === "channel") {
+        map.set(room.id, room.kind);
+      }
+    }
+    return map;
+  }, [rooms]);
   // mutateAsync is stable across renders; the mutation object is not.
   const { mutateAsync: mintVoiceTokenAsync } = useChatVoiceToken();
   const mintVoiceToken = useCallback(
@@ -70,6 +91,8 @@ export function ChatVoiceCallHost({ children }: { children: ReactNode }) {
     currentUserId,
     mintToken: mintVoiceToken,
     allowedRoomIds,
+    mutedRoomIds,
+    roomKindById,
   });
   const { startCall: ringCall, acceptCall: answerCall, reportStartFailure } = voice;
   // A device that would not start while answering: the call keeps ringing
@@ -115,6 +138,16 @@ export function ChatVoiceCallHost({ children }: { children: ReactNode }) {
     return answerCall();
   }, [voice.voiceCall, answerCall]);
 
+  const [panelMode, setPanelMode] = useState<VoiceCallPanelMode>("expanded");
+  const expandCall = useCallback(() => setPanelMode("expanded"), []);
+  const { leaveCall, endCallForAll } = voice;
+  const current = voice.voiceCall;
+  const hangUp = useCallback(() => {
+    if (current.status === "idle" || current.status === "ended" || current.status === "incoming") return;
+    if (voiceCallPrimaryLeaveEndsForAll(current.callKind, current.outgoing)) void endCallForAll();
+    else leaveCall();
+  }, [current, endCallForAll, leaveCall]);
+
   const retryEnded = useCallback(() => {
     const current = voice.voiceCall;
     if (current.status !== "ended") return;
@@ -130,8 +163,11 @@ export function ChatVoiceCallHost({ children }: { children: ReactNode }) {
       acceptCall,
       declineCall: voice.declineCall,
       inCall: voice.inCall,
+      panelMode,
+      expandCall,
+      hangUp,
     }),
-    [voice.voiceCall, voice.declineCall, voice.inCall, startCall, acceptCall],
+    [voice.voiceCall, voice.declineCall, voice.inCall, startCall, acceptCall, panelMode, expandCall, hangUp],
   );
 
   const incomingDeviceError =
@@ -154,6 +190,8 @@ export function ChatVoiceCallHost({ children }: { children: ReactNode }) {
         onConnected={voice.markVoiceConnected}
         onRetryEnded={retryEnded}
         onDismissEnded={voice.dismissEnded}
+        panelMode={panelMode}
+        onPanelModeChange={setPanelMode}
       />
     </ChatVoiceCallContext.Provider>
   );

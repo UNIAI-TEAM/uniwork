@@ -30,8 +30,18 @@ func (a *Anthropic) Complete(ctx context.Context, req CompletionRequest) (Comple
 	if req.System != "" {
 		params.System = []anthropic.TextBlockParam{{Text: req.System}}
 	}
-	if req.Temperature > 0 {
+	// Temperature 0 is a value, not "unset": the policy asks for it on every
+	// structured capability, so it is sent whenever the model takes sampling
+	// parameters at all (M10). The newer models answer any temperature with
+	// a 400, so for them it is left out rather than failing every call.
+	if anthropicAcceptsSampling(req.Model) {
 		params.Temperature = param.NewOpt(req.Temperature)
+	}
+	// A pinned output schema is enforced by the API (structured outputs), so
+	// the answer is the JSON object itself rather than prose around one.
+	// Tools and a schema are never sent together (gateway.Complete).
+	if format, ok := anthropicOutputFormat(req.Model, req.JSONSchema); ok {
+		params.OutputConfig = anthropic.OutputConfigParam{Format: format}
 	}
 	for i, m := range req.Messages {
 		block := anthropic.NewTextBlock(m.Content)
@@ -115,7 +125,51 @@ func (a *Anthropic) Complete(ctx context.Context, req CompletionRequest) (Comple
 		}
 	}
 	out.Text = text.String()
+	// An answer cut at max_tokens is half a JSON object that no parse can
+	// save, so it is a failed call; out still carries the usage the gateway
+	// settles. Free-text turns keep the partial answer, as before.
+	if len(req.JSONSchema) > 0 && resp.StopReason == anthropic.StopReasonMaxTokens {
+		return out, ErrTruncated
+	}
 	return out, nil
+}
+
+// anthropicAcceptsSampling reports whether a model takes temperature. Opus
+// 4.7 and later, Sonnet 5 and later, Haiku 5.5 and the Fable/Mythos line
+// answer 400 to any sampling parameter, so the list names the families that
+// still accept one; an unknown (newer) name is treated as not accepting it.
+func anthropicAcceptsSampling(model string) bool {
+	for _, p := range []string{
+		"claude-3",
+		"claude-haiku-4-5",
+		"claude-sonnet-4-", // 4.0 (dated), 4.5 and 4.6
+		"claude-opus-4-0", "claude-opus-4-1", "claude-opus-4-2", "claude-opus-4-5", "claude-opus-4-6",
+	} {
+		if strings.HasPrefix(model, p) {
+			return true
+		}
+	}
+	return false
+}
+
+// anthropicOutputFormat turns a JSON Schema into the structured-output format
+// the Messages API enforces. Claude 3 and the 4.0 models predate structured
+// outputs, and a schema that is not a JSON object is not sent either; the
+// caller's own parse validates the answer whatever happens here.
+func anthropicOutputFormat(model string, schema json.RawMessage) (anthropic.JSONOutputFormatParam, bool) {
+	if len(schema) == 0 {
+		return anthropic.JSONOutputFormatParam{}, false
+	}
+	for _, p := range []string{"claude-3", "claude-opus-4-0", "claude-opus-4-2", "claude-sonnet-4-0", "claude-sonnet-4-2"} {
+		if strings.HasPrefix(model, p) {
+			return anthropic.JSONOutputFormatParam{}, false
+		}
+	}
+	var m map[string]any
+	if err := json.Unmarshal(schema, &m); err != nil || len(m) == 0 {
+		return anthropic.JSONOutputFormatParam{}, false
+	}
+	return anthropic.JSONOutputFormatParam{Schema: m}, true
 }
 
 // toolInput is the call's arguments as the SDK wants them: a decoded value, or

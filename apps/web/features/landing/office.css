@@ -3,7 +3,7 @@
 .marketing-site.office-site main { padding-top: 96px; }
 .office-world { overflow-x: clip; }
 .office-world section[id] { scroll-margin-top: 112px; }
-.office-hero { display: grid; grid-template-columns: minmax(0,1fr); position: relative; isolation: isolate; gap: 16px; padding-block: 12px 32px; }
+.office-hero { display: grid; grid-template-columns: minmax(0,1fr); position: relative; isolation: isolate; gap: 16px; padding-block: 72px 32px; }
 .office-hero::before { content: ""; position: absolute; inset-block: -120px -24px; inset-inline: calc((100% - 100vw)/2); z-index: -1; pointer-events: none; background: radial-gradient(ellipse at 8% 70%, color-mix(in srgb, var(--landing-cyan) 48%, transparent), transparent 60%), radial-gradient(ellipse at 92% 80%, color-mix(in srgb, var(--landing-cyan) 48%, transparent), transparent 60%); }
 .office-hero-copy { min-width: 0; text-align: center; }
 .marketing-site .office-hero h1 { margin: 0; font-size: clamp(var(--text-hero),3.8vw,var(--text-hero-lg)); font-weight: 800; line-height: 1.1; letter-spacing: -.035em; text-wrap: balance; }
@@ -19,15 +19,6 @@
 .office-hero-preview .office-tab { flex: none; padding-inline: 14px; border-radius: 10px; font-size: var(--text-caption); }
 .office-hero-preview .office-shot-frame { aspect-ratio: auto; }
 .office-hero-preview .office-tab-panel { display: block; }
-.office-hero-downloads { display: flex; flex-wrap: wrap; justify-content: center; align-items: flex-start; gap: 20px 24px; margin-top: 32px; }
-.office-os { display: grid; justify-items: center; gap: 10px; min-width: 0; }
-.office-os-button { min-height: 52px; gap: 10px; }
-.office-os-button svg { width: 20px; height: 20px; }
-.office-os-variants { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 14px; font-size: var(--text-caption); }
-.office-os-variants a { display: inline-flex; align-items: center; min-height: 32px; color: var(--muted-foreground); text-decoration: underline; }
-.office-os-variants a:hover { color: var(--brand); }
-@media (pointer: coarse) { .office-os-variants a { min-height: 44px; } }
-.office-unavailable { max-width: 60ch; margin: 32px auto 0; padding: 16px 20px; border: 1px solid var(--border); border-radius: 12px; background: var(--landing-paper); color: var(--muted-foreground); }
 .office-shot { min-width: 0; margin: 0; }
 .office-shot-frame { padding: 8px; border-radius: 14px; background: var(--landing-stage-soft); box-shadow: 0 20px 44px -28px color-mix(in srgb, var(--foreground) 32%, transparent); overflow: hidden; }
 .office-shot img { display: block; width: 100%; height: auto; border-radius: 8px; }
@@ -91,32 +82,9 @@
 /* The Faq section brings its own py-20/28 by default; the AI section above already ends with 72px, so the FAQ keeps a short top and a normal bottom. */
 .office-faq { padding-block: 0; }
 .office-faq-section { padding-block: 8px 56px; }
-.office-download-columns { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 24px; }
-.office-download-column { display: grid; align-content: start; gap: 12px; padding: 24px; border-radius: 12px; background: var(--background); }
-.office-download-columns { margin-top: 28px; }
-.office-download-column h3 { display: flex; align-items: center; gap: 10px; font-size: var(--text-title-sm); font-weight: 650; }
-.office-download-column h3 svg { width: 22px; height: 22px; }
-.office-download-column p { font-size: var(--text-caption); }
-.office-download-column ul { display: grid; gap: 10px; }
-.office-download-column li { display: grid; gap: 6px; }
-.office-download-column li a { justify-content: flex-start; gap: 10px; }
-/* Loading shell, notices and the loaded buttons all fill the same row height (button 52 + gap 10 + variants 32). */
-.office-hero-downloads { min-height: 94px; }
-@media (pointer: coarse) { .office-hero-downloads { min-height: 106px; } }
-.office-hero-downloads > .office-unavailable { margin: 0; }
-.office-os-buttons { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
-.office-os-help { display: flex; align-items: center; min-height: 32px; max-width: 36ch; text-align: center; color: var(--muted-foreground); font-size: var(--text-caption); line-height: 1.4; }
-.office-skeleton { background: var(--muted); border-color: transparent; color: transparent; pointer-events: none; }
-.office-skeleton-variants { display: block; width: 120px; min-height: 32px; border-radius: 8px; background: var(--muted); }
-@media (pointer: coarse) { .office-skeleton-variants { min-height: 44px; } }
-.office-download-column h3.office-skeleton, .office-download-column p.office-skeleton { border-radius: 8px; }
-.office-download-columns > .office-unavailable { grid-column: 1 / -1; margin: 0 auto; }
-.office-installers-error { display: grid; justify-items: center; gap: 12px; text-align: center; }
-.office-installers-error button { color: var(--foreground); }
-.office-download-column small { color: var(--muted-foreground); font-size: var(--text-caption); line-height: 1.6; }
 
 @media (max-width: 1023px) {
-  .office-works, .office-download-columns { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .office-works { grid-template-columns: repeat(2,minmax(0,1fr)); }
   .office-connection-grid { grid-template-columns: minmax(0,1fr); gap: 32px; }
 }
 @media (max-width: 1099px) {
@@ -126,21 +94,19 @@
 @media (max-width: 639px) {
   .marketing-site.office-site main { padding-top: 94px; }
   .office-editor-summary { grid-template-columns: minmax(0,1fr); gap: 24px; padding-block: 16px 24px; }
-  .office-hero { padding-block: 16px 24px; gap: 24px; }
+  .office-hero { padding-block: 40px 24px; gap: 24px; }
   .office-hero::before { inset-block-start: -96px; }
   .marketing-site .office-hero h1 { font-size: var(--text-hero-sm); }
   .office-sub { margin-top: 16px; font-size: var(--text-body); }
   .office-hero-actions { gap: 10px; margin-top: 22px; }
   .office-hero-actions a { padding-inline: 14px; font-size: var(--text-caption); min-height: 44px; }
-  .office-works, .office-download-columns { grid-template-columns: minmax(0,1fr); }
+  .office-works { grid-template-columns: minmax(0,1fr); }
   .office-file-flow { padding: 24px; }
   .office-file-flow-nodes { grid-template-columns: minmax(0,1fr); gap: 16px; }
   .office-file-node { display: grid; grid-template-columns: 32px minmax(0,1fr); gap: 4px 14px; text-align: left; padding: 20px; }
   .office-file-node > svg { grid-row: span 2; margin: 0; }
   .office-file-node p { margin: 0; }
   .office-file-bridge svg { rotate: 90deg; }
-  .office-os { width: 100%; }
-  .office-os-button, .office-os-buttons { width: 100%; }
   .office-section { padding-block: 40px 48px; }
   .office-tab-list { justify-content: flex-start; flex-wrap: nowrap; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; }
   .office-tab { flex: none; }

@@ -78,6 +78,39 @@ func (q *Queries) FileGCAuditExportRefTenants(ctx context.Context, fileIds []str
 	return items, nil
 }
 
+const fileGCChatLinkPreviewRefTenants = `-- name: FileGCChatLinkPreviewRefTenants :many
+SELECT p.image_file_id AS file_id, p.organization_id
+FROM chat_link_previews p
+WHERE p.image_file_id = ANY($1::text[])
+`
+
+type FileGCChatLinkPreviewRefTenantsRow struct {
+	FileID         pgtype.Text `json:"file_id"`
+	OrganizationID string      `json:"organization_id"`
+}
+
+// tenant: system
+// chat_link_previews.image_file_id: a link preview's picture (ADR 0035).
+func (q *Queries) FileGCChatLinkPreviewRefTenants(ctx context.Context, fileIds []string) ([]FileGCChatLinkPreviewRefTenantsRow, error) {
+	rows, err := q.db.Query(ctx, fileGCChatLinkPreviewRefTenants, fileIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []FileGCChatLinkPreviewRefTenantsRow{}
+	for rows.Next() {
+		var i FileGCChatLinkPreviewRefTenantsRow
+		if err := rows.Scan(&i.FileID, &i.OrganizationID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const fileGCChatMessageRefTenants = `-- name: FileGCChatMessageRefTenants :many
 SELECT m.file_id,
        r.organization_id AS room_organization_id,
@@ -116,6 +149,39 @@ func (q *Queries) FileGCChatMessageRefTenants(ctx context.Context, fileIds []str
 			&i.RoomWorkspaceOrganizationID,
 			&i.MessageWorkspaceOrganizationID,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const fileGCChatRoomAvatarRefTenants = `-- name: FileGCChatRoomAvatarRefTenants :many
+SELECT r.avatar_file_id AS file_id, r.organization_id
+FROM chat_rooms r
+WHERE r.avatar_file_id = ANY($1::text[])
+`
+
+type FileGCChatRoomAvatarRefTenantsRow struct {
+	FileID         pgtype.Text `json:"file_id"`
+	OrganizationID string      `json:"organization_id"`
+}
+
+// tenant: system
+// chat_rooms.avatar_file_id: the uploaded group avatar (UNI-1898).
+func (q *Queries) FileGCChatRoomAvatarRefTenants(ctx context.Context, fileIds []string) ([]FileGCChatRoomAvatarRefTenantsRow, error) {
+	rows, err := q.db.Query(ctx, fileGCChatRoomAvatarRefTenants, fileIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []FileGCChatRoomAvatarRefTenantsRow{}
+	for rows.Next() {
+		var i FileGCChatRoomAvatarRefTenantsRow
+		if err := rows.Scan(&i.FileID, &i.OrganizationID); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

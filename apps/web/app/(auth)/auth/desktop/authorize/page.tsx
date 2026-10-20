@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { api } from "@uniwork/core";
 import { useSession } from "@uniwork/core/auth";
 import { ApiError } from "@uniwork/core/api/http";
-import { DesktopConsentView, type DesktopConsentState } from "@uniwork/views/auth/desktop-consent";
+import { DesktopConsentView, isDesktopCallbackUrl, type DesktopConsentState } from "@uniwork/views/auth/desktop-consent";
 import { useNavigation } from "@uniwork/views/navigation";
 import { useTranslation } from "react-i18next";
 
@@ -29,7 +29,7 @@ export default function DesktopAuthorizePage() {
           // The server state controls approval; the same-tab callback is only
           // a convenience for reopening the app after an approved reload.
           const saved = sessionStorage.getItem(`desktop-callback:${attemptId}`);
-          if (next === "approved" && saved && isDesktopCallbackUrl(saved)) setCallbackUrl(saved);
+          if (next === "approved" && saved && isDesktopCallbackUrl(saved, value.redirect_uri)) setCallbackUrl(saved);
         }
         else { setConsent(null); setState("error"); }
       })
@@ -44,23 +44,14 @@ export default function DesktopAuthorizePage() {
     load();
   }, [load, loginUrl, replace, status]);
   if (!consent && state === "pending") return <main className="flex min-h-dvh items-center justify-center bg-app-shell p-6"><p role="status">{t("auth.desktop.loading")}</p></main>;
-  return <DesktopConsentView consent={consent} state={state} callbackUrl={callbackUrl} onRetry={load} onBack={() => replace(loginUrl)} onOpenDesktop={() => { if (callbackUrl && isDesktopCallbackUrl(callbackUrl)) window.location.assign(callbackUrl); }} onDecision={async (decision) => {
+  return <DesktopConsentView consent={consent} state={state} callbackUrl={callbackUrl} onRetry={load} onBack={() => replace(loginUrl)} onOpenDesktop={() => { if (callbackUrl && isDesktopCallbackUrl(callbackUrl, consent?.redirect_uri)) window.location.assign(callbackUrl); }} onDecision={async (decision) => {
     if (!consent) { setState("error"); return; }
     try {
     const result = await api.auth.desktopConsentCommand({ attempt_id: consent.attempt_id, csrf_token: consent.csrf_token, decision });
     if (!result) { setState("error"); return; }
-    if (decision === "approve" && result.status === "approved" && result.callback_url && isDesktopCallbackUrl(result.callback_url)) { sessionStorage.setItem(`desktop-callback:${attemptId}`, result.callback_url); setCallbackUrl(result.callback_url); setState("approved"); return; }
+    if (decision === "approve" && result.status === "approved" && result.callback_url && isDesktopCallbackUrl(result.callback_url, consent.redirect_uri)) { sessionStorage.setItem(`desktop-callback:${attemptId}`, result.callback_url); setCallbackUrl(result.callback_url); setState("approved"); return; }
     if (decision === "cancel" && result.status === "cancelled") { setState("cancelled"); return; }
     setState("error");
     } catch { setState("error"); }
   }} />;
-}
-
-function isDesktopCallbackUrl(value: string): boolean {
-  try {
-    const url = new URL(value);
-    return ["uniwork-office:", "uniwork-office-dev:"].includes(url.protocol) && url.hostname === "auth" && url.pathname === "/callback";
-  } catch {
-    return false;
-  }
 }

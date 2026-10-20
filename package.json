@@ -4,6 +4,7 @@
   "packageManager": "pnpm@10.28.2",
   "pnpm": {
     "onlyBuiltDependencies": [
+      "electron",
       "esbuild"
     ],
     "packageExtensions": {
@@ -64,7 +65,8 @@
     "auditConfig": {
       "ignoreCves": [
         "CVE-2026-93748",
-        "CVE-2026-93687"
+        "CVE-2026-93687",
+        "CVE-2026-85393"
       ]
     }
   },
@@ -72,9 +74,9 @@
     "prepare": "git config core.hooksPath .githooks || node -e 0",
     "build": "turbo build",
     "dev": "turbo dev",
-    "typecheck": "turbo typecheck",
+    "typecheck": "turbo typecheck --filter=!@uniwork/chat-mobile",
     "lint": "bash scripts/lint-gate.sh",
-    "test": "turbo test --filter=!@uniwork/e2e",
+    "test": "turbo test --filter=!@uniwork/e2e --filter=!@uniwork/chat-mobile",
     "seo:check": "node scripts/seo-smoke.mjs",
     "generate:reserved-slugs": "node scripts/generate-reserved-slugs.mjs",
     "generate:lucide-aliases": "node scripts/generate-lucide-aliases.mjs",

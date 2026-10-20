@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/unicomhub/uniwork/server/internal/mentions"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
@@ -267,38 +266,12 @@ func chatMessageFramePayload(roomID, messageID, senderID, threadRootID string) m
 	return p
 }
 
-func (s *ChatService) roomMentionUnread(
-	ctx context.Context,
-	userID, roomID, anchorWorkspaceID string,
-) (int, error) {
-	member, err := s.q.GetActiveChatRoomMember(ctx, db.GetActiveChatRoomMemberParams{
+func (s *ChatService) roomMentionUnread(ctx context.Context, userID, roomID string) (int, error) {
+	n, err := s.q.CountChatMentionUnreadForMember(ctx, db.CountChatMentionUnreadForMemberParams{
 		RoomID: roomID, UserID: userID,
-	})
-	if err != nil {
-		return 0, nil
-	}
-	// Same bound as the sidebar: a member who never read counts from joining.
-	since := member.JoinedAt
-	if member.LastReadAt.Valid {
-		since = member.LastReadAt
-	}
-	rows, err := s.q.ListChatMessagesByRoom(ctx, db.ListChatMessagesByRoomParams{
-		RoomID: roomID, WorkspaceID: anchorWorkspaceID, BeforeAt: pgtype.Timestamptz{}, MsgLimit: 500,
 	})
 	if err != nil {
 		return 0, err
 	}
-	count := 0
-	for _, row := range rows {
-		if row.SenderID == userID {
-			continue
-		}
-		if since.Valid && !row.CreatedAt.Time.After(since.Time) {
-			continue
-		}
-		if messageMentionsCurrentUser(row.Metadata, userID) {
-			count++
-		}
-	}
-	return count, nil
+	return int(n), nil
 }

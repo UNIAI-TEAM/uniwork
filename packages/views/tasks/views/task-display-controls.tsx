@@ -132,7 +132,6 @@ export function TaskDisplayControls({
             showProjectGrouping={showProjectGrouping}
             projectGroupingDisabled={projectGroupingDisabled}
             projectGroupingReasonKey={projectGroupingReasonKey}
-            labelsDisabled
           />
         </PopoverContent>
       </Popover>

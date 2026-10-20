@@ -2,6 +2,7 @@
 
 import { Label } from "@uniwork/ui/components/ui/label";
 import { Switch } from "@uniwork/ui/components/ui/switch";
+import { CHAT_SWITCH_CLASS } from "./chat-dialog-look";
 
 /**
  * "Pin to top" for the note, post and poll dialogs. When the viewer may not
@@ -25,8 +26,8 @@ export function PinToTopRow({
   const reasonId = `${id}-reason`;
   return (
     <div className="space-y-1">
-      <div className="flex items-center justify-between gap-3">
-        <Label id={labelId} htmlFor={id} className="font-normal text-body text-foreground">
+      <div className="flex min-h-11 items-center justify-between gap-3">
+        <Label id={labelId} htmlFor={id} className="font-normal text-body-lg text-foreground">
           {label}
         </Label>
         <Switch
@@ -36,6 +37,7 @@ export function PinToTopRow({
           checked={checked && !disabledReason}
           disabled={Boolean(disabledReason)}
           onCheckedChange={onCheckedChange}
+          className={CHAT_SWITCH_CLASS}
         />
       </div>
       {disabledReason ? (

@@ -14,3 +14,14 @@
    khai báo source để sinh class dùng trong ui/views. */
 @source "../../../packages/ui";
 @source "../../../packages/views";
+
+/* UniChat on macOS hides the native title bar (apps/chat-desktop, titleBarStyle
+   hidden; desktop-host.tsx sets the attribute). Regions marked
+   data-window-drag move the window, and every control inside them still
+   takes its click. */
+[data-window-chrome="inset"] [data-window-drag] {
+  -webkit-app-region: drag;
+}
+[data-window-chrome="inset"] [data-window-drag] :is(a, button, input, select, textarea, label, [role="button"], [role="tab"], [role="menuitem"], [tabindex]:not([tabindex="-1"])) {
+  -webkit-app-region: no-drag;
+}

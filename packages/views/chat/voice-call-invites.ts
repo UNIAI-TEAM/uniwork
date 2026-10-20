@@ -23,9 +23,6 @@ export function voiceEventForUser(
   allowedRoomIds: ReadonlySet<string>,
 ): boolean {
   if (!data.room_id) return false;
-  if (isMultiPartyVoiceCall(data.call_kind)) {
-    return allowedRoomIds.has(data.room_id);
-  }
   if (data.target_user_id) {
     return data.target_user_id === currentUserId;
   }
@@ -46,6 +43,7 @@ export function incomingStateFromInvite(data: VoiceInvitePayload): IncomingState
     peerName,
     callKind,
     callerName: isMultiPartyVoiceCall(callKind) ? callerName : undefined,
+    callerId: isMultiPartyVoiceCall(callKind) ? data.caller_id : undefined,
   };
 }
 

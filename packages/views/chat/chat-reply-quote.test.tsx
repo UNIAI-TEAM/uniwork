@@ -90,6 +90,7 @@ describe("chat-reply-quote", () => {
         />,
       ),
     );
-    expect(screen.getByText("a.pdf")).toBeInTheDocument();
+    // A quoted file names its size too (canvas).
+    expect(screen.getByText("a.pdf · 1 B")).toBeInTheDocument();
   });
 });

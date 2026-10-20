@@ -22,6 +22,14 @@ describe("ChatMessageBody", () => {
     expect(screen.getByText("Không tải được Nhãn dán · ăn mừng")).toBeInTheDocument();
   });
 
+  it("sets **bold** in bold without showing the stars", () => {
+    const { container } = render(
+      <ChatMessageBody body="Chốt lịch: **thứ Năm 24/10, 9:00**. Còn **" isOwn={false} nameContext={[]} />,
+    );
+    expect(container.querySelector("strong")).toHaveTextContent("thứ Năm 24/10, 9:00");
+    expect(container).toHaveTextContent("Chốt lịch: thứ Năm 24/10, 9:00. Còn **");
+  });
+
   it("turns web addresses into links and leaves trailing punctuation outside", () => {
     render(
       <ChatMessageBody body="Xem https://docs.example.com/a?b=1. rồi báo nhé" isOwn nameContext={[]} />,

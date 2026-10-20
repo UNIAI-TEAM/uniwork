@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { EmailHubThread } from "../types/email-hub";
 import * as api from "../api/endpoints/email-hub";
+import { invalidateTaskCollections } from "../tasks/invalidate";
 import {
   emailHubKeys,
   invalidateEmailHubCounts,
@@ -209,8 +210,7 @@ export function useCreateEmailHubSummaryTasks(wsId: string) {
       threadId: string;
       items: api.EmailHubSummaryTaskItem[];
     }) => api.createEmailHubSummaryTasks(wsId, input.accountId, input.threadId, input.items),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ["tasks", wsId] });
-    },
+    // Settled, not success: whatever the answer, the boards re-read the server.
+    onSettled: () => invalidateTaskCollections(qc, wsId),
   });
 }

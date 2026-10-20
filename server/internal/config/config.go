@@ -45,6 +45,10 @@ type Config struct {
 	DocumentCommitIntentClaimTTL  time.Duration
 	DocumentCommitIntentRetention time.Duration
 	DocumentCommitIntentSweepTick time.Duration
+	// IdempotencyKeyRetention and IdempotencyKeySweepTick are the G5-D2 §2.2
+	// retention window and sweep cadence for idempotency_keys.
+	IdempotencyKeyRetention time.Duration
+	IdempotencyKeySweepTick time.Duration
 	// DocumentMaxBytes (DOCUMENT_MAX_BYTES) is the single byte ceiling for
 	// document file creates, version uploads, Office saves and exports.
 	DocumentMaxBytes int64
@@ -146,13 +150,16 @@ type Config struct {
 	MailFrom                      string
 	// TenorAPIKey enables Tenor GIF search in chat; empty uses a small built-in catalog.
 	TenorAPIKey string
-	// VAPID keys enable Web Push (F-07). Both empty turns push off: the push
-	// consumer acknowledges rows without sending and the client hides the
-	// option. VAPID_SUBJECT is a mailto: or https origin the push service can
+	// VAPID keys enable Web Push (F-07). Both empty turns web push off: the
+	// push consumer acknowledges web subscriptions without sending and the
+	// client hides the option (Expo mobile push needs no VAPID). VAPID_SUBJECT is a mailto: or https origin the push service can
 	// contact about abuse; it defaults to the frontend origin.
 	VAPIDPublicKey  string
 	VAPIDPrivateKey string
 	VAPIDSubject    string
+	// ExpoAccessToken authenticates mobile push to Expo Push Service when the
+	// Expo project enables enhanced push security; empty sends unauthenticated.
+	ExpoAccessToken string
 	// RUMSampleRate is the share of web sessions that report web-vitals to
 	// POST /api/v1/rum (F-11 §2.8); 0 turns reporting off client-side.
 	RUMSampleRate             float64
@@ -162,6 +169,15 @@ type Config struct {
 	OfficeInstallerDevURLs    string
 	OfficeInstallerBetaURLs   string
 	OfficeInstallerStableURLs string
+	// UniChat downloads on the public /unichat page (UNI-1837): desktop
+	// installer maps in the Office format, and the mobile store links.
+	UniChatInstallerDevURLs    string
+	UniChatInstallerBetaURLs   string
+	UniChatInstallerStableURLs string
+	UniChatStoreIOSURL         string
+	UniChatStoreAndroidURL     string
+	UniChatTestFlightURL       string
+	UniChatPlayInternalURL     string
 	// AdminRateLimitPerMin bounds /api/v1/admin/* per IP (spec §5.2).
 	AdminRateLimitPerMin int
 	// HTTPMaxInFlight bounds the HTTP requests served at once; past it the
@@ -342,6 +358,8 @@ func Load() (Config, error) {
 		DocumentCommitIntentClaimTTL:  parseDuration(os.Getenv("DOCUMENT_COMMIT_INTENT_CLAIM_TTL"), 2*time.Minute),
 		DocumentCommitIntentRetention: parseDuration(os.Getenv("DOCUMENT_COMMIT_INTENT_RETENTION"), 7*24*time.Hour),
 		DocumentCommitIntentSweepTick: parseDuration(os.Getenv("DOCUMENT_COMMIT_INTENT_SWEEP_TICK"), 10*time.Minute),
+		IdempotencyKeyRetention:       parseDuration(os.Getenv("IDEMPOTENCY_KEY_RETENTION"), 7*24*time.Hour),
+		IdempotencyKeySweepTick:       parseDuration(os.Getenv("IDEMPOTENCY_KEY_SWEEP_TICK"), 10*time.Minute),
 		DocumentMaxBytes:              documentMaxBytes,
 		FrontendOrigin:                getenv("FRONTEND_ORIGIN", "http://localhost:3000"),
 		PreviewOrigin:                 os.Getenv("PREVIEW_ORIGIN"),
@@ -401,6 +419,7 @@ func Load() (Config, error) {
 		VAPIDPublicKey:                os.Getenv("VAPID_PUBLIC_KEY"),
 		VAPIDPrivateKey:               os.Getenv("VAPID_PRIVATE_KEY"),
 		VAPIDSubject:                  os.Getenv("VAPID_SUBJECT"),
+		ExpoAccessToken:               os.Getenv("EXPO_ACCESS_TOKEN"),
 		RUMSampleRate:                 parseRatio(os.Getenv("RUM_SAMPLE_RATE"), 0.2),
 		OfficeInstallerDevURL:         os.Getenv("OFFICE_INSTALLER_DEV_URL"),
 		OfficeInstallerBetaURL:        os.Getenv("OFFICE_INSTALLER_BETA_URL"),
@@ -408,6 +427,13 @@ func Load() (Config, error) {
 		OfficeInstallerDevURLs:        os.Getenv("OFFICE_INSTALLER_DEV_URLS"),
 		OfficeInstallerBetaURLs:       os.Getenv("OFFICE_INSTALLER_BETA_URLS"),
 		OfficeInstallerStableURLs:     os.Getenv("OFFICE_INSTALLER_STABLE_URLS"),
+		UniChatInstallerDevURLs:       os.Getenv("UNICHAT_INSTALLER_DEV_URLS"),
+		UniChatInstallerBetaURLs:      os.Getenv("UNICHAT_INSTALLER_BETA_URLS"),
+		UniChatInstallerStableURLs:    os.Getenv("UNICHAT_INSTALLER_STABLE_URLS"),
+		UniChatStoreIOSURL:            os.Getenv("UNICHAT_STORE_IOS_URL"),
+		UniChatStoreAndroidURL:        os.Getenv("UNICHAT_STORE_ANDROID_URL"),
+		UniChatTestFlightURL:          os.Getenv("UNICHAT_TESTFLIGHT_URL"),
+		UniChatPlayInternalURL:        os.Getenv("UNICHAT_PLAY_INTERNAL_URL"),
 		AdminRateLimitPerMin:          int(parseInt32(os.Getenv("ADMIN_RATE_LIMIT_PER_MIN"), 60)),
 		HTTPMaxInFlight:               int(parseInt32(os.Getenv("HTTP_MAX_IN_FLIGHT"), 128)),
 		RealtimeRelay:                 !strings.EqualFold(strings.TrimSpace(os.Getenv("REALTIME_RELAY")), "false"),

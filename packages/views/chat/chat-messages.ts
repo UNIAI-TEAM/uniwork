@@ -10,9 +10,12 @@ export interface ChatMessage {
   threadRootId?: string;
   replyCount?: number;
   lastReplyAt?: number;
+  /** A root's latest distinct repliers, newest first: the faces on its thread pill. */
+  threadParticipantIds?: string[];
   threadUnread?: boolean;
   editedAt?: number;
   pinned?: boolean;
+  pinnedAt?: number;
   mentionedUserIds?: string[];
   reactions: Record<string, number>;
   /** Emojis I reacted with (server `my_reactions`). */
@@ -105,7 +108,9 @@ export interface ChatMessage {
     pinToTop: boolean;
   };
   priority?: "important" | "urgent";
+  /** A forwarded copy: who wrote the original (never which room it came from). */
+  forwardedFrom?: { senderId: string; senderName: string };
   clientMsgId?: string;
-  deliveryStatus?: "sending" | "queued";
+  deliveryStatus?: "sending" | "queued" | "failed";
 }
 export const CHAT_MESSAGE_INITIAL = 80;

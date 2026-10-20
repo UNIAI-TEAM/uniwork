@@ -173,7 +173,7 @@ func TestEventRetentionDeletesOnlyExpiredTerminalRows(t *testing.T) {
 	if err != nil {
 		t.Fatalf("sweep: %v", err)
 	}
-	want := EventRetentionReport{OutboxDone: 3, OutboxDead: 1, WebhookInbox: 2, ProviderEvents: 1}
+	want := EventRetentionReport{OutboxDone: 3, OutboxDead: 1, WebhookInbox: 2, ProviderEvents: 1, NotificationDeliveries: 0}
 	if rep != want {
 		t.Fatalf("report = %+v, want %+v", rep, want)
 	}

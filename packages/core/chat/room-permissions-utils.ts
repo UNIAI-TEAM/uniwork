@@ -6,6 +6,7 @@ export const DEFAULT_CHAT_ROOM_MEMBER_PERMISSIONS: ChatRoomMemberPermissions = {
   allow_create_notes: true,
   allow_create_polls: true,
   allow_send_messages: true,
+  allow_forward: true,
 };
 
 export type ChatRoomPermissionKey = keyof ChatRoomMemberPermissions;

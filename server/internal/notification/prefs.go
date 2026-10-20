@@ -18,8 +18,9 @@ type Prefs struct {
 // Replies and resolves stay in-app only (G8-D4: push on for mentions). An
 // edit request needs a quick answer and a take-over may leave unsaved work
 // behind, so both push; the answer to a request stays in-app (UNI-1645 Q6).
-// An emergency access to a restricted document also pushes (DOC-05). A trash
-// notice stays out of the digest too (TRASH-NOTIFY-01, Q-R2: in-app only).
+// An emergency access to a restricted document also pushes (DOC-05), and so
+// does a ringing call. A trash notice stays out of the digest too
+// (TRASH-NOTIFY-01, Q-R2: in-app only).
 // An access request pushes to the manager, who is the one who can answer it,
 // and an approval pushes to the requester, who is waiting to get in; a
 // decline does not (§4.4).
@@ -28,7 +29,7 @@ func DefaultPrefs(kind string) Prefs {
 		kind == KindDocumentShared ||
 		kind == KindDocumentAccessRequested || kind == KindDocumentAccessApproved ||
 		kind == KindTaskAssigned || kind == KindMeetingStarting ||
-		kind == KindChatReminder || kind == KindChatMentioned || kind == KindChatDM ||
+		kind == KindChatReminder || kind == KindChatMentioned || kind == KindChatDM || kind == KindChatCallIncoming ||
 		kind == KindDocumentEditRequested || kind == KindDocumentEditTakenOver
 	return Prefs{InApp: true, Push: push, Email: kind != KindDocumentTrashedByOther}
 }

@@ -19,3 +19,12 @@ describe("paths.workspace().chatConversation", () => {
     expect(url.pathname).toBe(ws.chat());
   });
 });
+
+describe("paths.workspace() chat scopes", () => {
+  const ws = paths.workspace("acme", "team");
+
+  it("names the organization's messages and the workspace's channels", () => {
+    expect(ws.chatMessages()).toBe("/acme/team/chat?view=messages");
+    expect(ws.chatChannels()).toBe("/acme/team/chat?view=channels");
+  });
+});

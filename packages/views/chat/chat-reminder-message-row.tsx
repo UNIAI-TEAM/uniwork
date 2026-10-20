@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { Clock, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { Bell, Clock, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import {
@@ -11,7 +11,6 @@ import {
 } from "@uniwork/core/chat/reminder-utils";
 import type { ChatMessage } from "./chat-messages";
 import { ChatCard, ChatCardStatus } from "./chat-card";
-import { formatMessageTime } from "./chat-message-time";
 
 /** setTimeout cannot wait longer than about 24.8 days. */
 const MAX_TIMER_MS = 2_147_000_000;
@@ -30,6 +29,7 @@ export function ChatReminderMessageRow({
   ts,
   showSenderName,
   compactTop,
+  avatar,
   onDelete,
 }: {
   reminder: ReminderPayload;
@@ -39,6 +39,8 @@ export function ChatReminderMessageRow({
   ts?: number;
   showSenderName?: boolean;
   compactTop?: boolean;
+  /** Theirs only: the sender's avatar at the card's foot, as a run's last bubble has. */
+  avatar?: ReactNode;
   /** Set for the author and the room's moderators: the only way to stop a repeating reminder. */
   onDelete?: () => void;
 }) {
@@ -63,7 +65,8 @@ export function ChatReminderMessageRow({
     if (!Number.isFinite(remindAtMs)) return "";
     const date = new Date(remindAtMs);
     const now = new Date(nowMs);
-    const time = formatMessageTime(remindAtMs, i18n.language);
+    // "lúc 9:00": a schedule reads the hour as said, not padded like a message's stamp (canvas).
+    const time = date.toLocaleTimeString(i18n.language, { hour: "numeric", minute: "2-digit" });
     if (isSameCalendarDay(now, date)) {
       return t("chat.reminder_schedule_today", { time });
     }
@@ -90,24 +93,26 @@ export function ChatReminderMessageRow({
       ts={ts}
       showSenderName={showSenderName}
       compactTop={compactTop}
-      status={isDue ? <ChatCardStatus>{t("chat.reminder_due_status")}</ChatCardStatus> : null}
+      avatar={avatar}
+      status={
+        isDue ? (
+          <ChatCardStatus tone="warning">
+            <Bell aria-hidden />
+            {t("chat.reminder_due_status")}
+          </ChatCardStatus>
+        ) : null
+      }
     >
       <p className="whitespace-pre-wrap text-body font-medium text-foreground text-pretty [overflow-wrap:anywhere]">
         {reminder.body}
       </p>
-      <p className="mt-1.5 flex flex-wrap items-center gap-x-1.5 text-caption text-muted-foreground tabular-nums">
+      <p className="mt-1 flex flex-wrap items-center gap-x-1.5 text-label text-muted-foreground tabular-nums">
         <Clock className="size-3.5" aria-hidden />
         {scheduleLabel}
         {reminder.repeat !== "none" ? <span>· {t(repeatLabelKey(reminder.repeat))}</span> : null}
       </p>
       {onDelete ? (
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="mt-2 h-8 gap-1 px-2 text-destructive hover:text-destructive"
-          onClick={onDelete}
-        >
+        <Button type="button" variant="destructive" size="sm" className="mt-2.5 h-8 rounded-full px-3" onClick={onDelete}>
           <Trash2 className="size-3.5" aria-hidden />
           {t("chat.reminder_delete")}
         </Button>

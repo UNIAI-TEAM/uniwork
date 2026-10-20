@@ -1,0 +1,1 @@
+DROP INDEX CONCURRENTLY IF EXISTS idx_meeting_summary_task_links_summary;

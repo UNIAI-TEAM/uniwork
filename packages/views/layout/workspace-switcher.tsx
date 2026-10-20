@@ -2,6 +2,7 @@
 
 import { ChevronDown, Plus } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { useChatUnreadSummary } from "@uniwork/core/chat";
 import { paths } from "@uniwork/core/paths";
 import type { Workspace } from "@uniwork/core/types";
 import { useUnreadCount } from "@uniwork/core/notifications";
@@ -43,6 +44,7 @@ export function WorkspaceSwitcher({
   const unread = useUnreadCount();
   const unreadIn = (id: string) => unread.data?.by_workspace[id] ?? 0;
   const elsewhere = workspaces.some((w) => w.id !== current.id && unreadIn(w.id) > 0);
+  const chat = useChatUnreadSummary().data?.workspaces;
 
   const go = (href: string) => {
     onNavigate?.();
@@ -120,11 +122,10 @@ export function WorkspaceSwitcher({
                     <span className="block truncate text-caption text-muted-foreground">{w.description}</span>
                   ) : null}
                 </span>
-                {w.id !== current.id && unreadIn(w.id) > 0 ? (
-                  <span
-                    role="img"
-                    aria-label={t("notifications.bell_unread", { count: unreadIn(w.id) })}
-                    className="size-2 shrink-0 rounded-full bg-primary"
+                {w.id !== current.id ? (
+                  <WorkspaceUnread
+                    notifications={unreadIn(w.id)}
+                    chat={chat?.find((c) => c.workspace_id === w.id)}
                   />
                 ) : null}
               </DropdownMenuItem>
@@ -138,5 +139,46 @@ export function WorkspaceSwitcher({
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
+  );
+}
+
+/**
+ * Another workspace's news on its menu row: its channels' unread count as a
+ * pill (red when someone mentioned the reader), else a dot for unread
+ * notifications. Dms and groups show in every workspace, so they are not
+ * counted here. The current workspace has its own Chat and Inbox badges.
+ */
+function WorkspaceUnread({
+  notifications,
+  chat,
+}: {
+  notifications: number;
+  chat?: { unread: number; mentions: number };
+}) {
+  const { t } = useTranslation();
+  const unread = chat?.unread ?? 0;
+  const mentions = chat?.mentions ?? 0;
+  if (unread <= 0 && notifications <= 0) return null;
+  const label = [
+    unread > 0 ? t("chat.unread_badge_aria", { count: unread }) : null,
+    mentions > 0 ? t("chat.mention_unread_badge_aria", { count: mentions }) : null,
+    notifications > 0 ? t("notifications.bell_unread", { count: notifications }) : null,
+  ]
+    .filter(Boolean)
+    .join(". ");
+  if (unread <= 0) {
+    return <span role="img" aria-label={label} className="size-2 shrink-0 rounded-full bg-primary" />;
+  }
+  return (
+    <span
+      role="img"
+      aria-label={label}
+      className={cn(
+        "shrink-0 rounded-full px-1.5 text-caption font-semibold tabular-nums",
+        mentions > 0 ? "bg-destructive-solid text-on-solid" : "bg-primary text-primary-foreground",
+      )}
+    >
+      {unread > 99 ? "99+" : unread}
+    </span>
   );
 }

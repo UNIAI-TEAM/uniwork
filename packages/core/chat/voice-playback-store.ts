@@ -4,6 +4,9 @@ import { create } from "zustand";
 
 export type ChatVoicePlaybackStatus = "idle" | "loading" | "playing" | "paused" | "error";
 
+/** The speeds the pill steps through (WebMessageKinds). */
+const RATES = [1, 1.5, 2] as const;
+
 type ChatVoicePlaybackState = {
   /** The voice message that owns the player, if any. */
   activeId: string | null;
@@ -11,9 +14,12 @@ type ChatVoicePlaybackState = {
   positionMs: number;
   /** From the media element once it knows; 0 until then (webm often never says). */
   durationMs: number;
+  /** Speed for every voice message, kept in memory only: it lasts until the page reloads. */
+  rate: number;
 };
 
-const IDLE: ChatVoicePlaybackState = {
+// Resets merge over the state, so they leave the chosen speed alone.
+const IDLE: Omit<ChatVoicePlaybackState, "rate"> = {
   activeId: null,
   status: "idle",
   positionMs: 0,
@@ -25,7 +31,7 @@ const IDLE: ChatVoicePlaybackState = {
  * a message row, so playback keeps going when the virtual list unmounts the
  * row that started it, and starting another message pauses the first.
  */
-export const useChatVoicePlaybackStore = create<ChatVoicePlaybackState>()(() => IDLE);
+export const useChatVoicePlaybackStore = create<ChatVoicePlaybackState>()(() => ({ ...IDLE, rate: 1 }));
 
 let audio: HTMLAudioElement | null = null;
 let source: string | null = null;
@@ -93,6 +99,8 @@ export async function toggleChatVoicePlayback(id: string, resolveUrl: () => Prom
     const el = ensureAudio();
     source = url;
     el.src = url;
+    // Loading a source resets the speed to the default one.
+    el.defaultPlaybackRate = el.playbackRate = useChatVoicePlaybackStore.getState().rate;
     await el.play();
   } catch {
     if (token === loadToken) set({ status: "error" });
@@ -106,6 +114,14 @@ export function seekChatVoicePlayback(id: string, positionMs: number): void {
   const clamped = Math.max(0, positionMs);
   audio.currentTime = clamped / 1000;
   set({ positionMs: Math.round(clamped) });
+}
+
+/** Step the speed 1× → 1,5× → 2× → 1×, for the message playing and every one after it. */
+export function cycleChatVoicePlaybackRate(): void {
+  const { rate } = useChatVoicePlaybackStore.getState();
+  const next = RATES[(RATES.indexOf(rate as (typeof RATES)[number]) + 1) % RATES.length] ?? 1;
+  if (audio) audio.defaultPlaybackRate = audio.playbackRate = next;
+  set({ rate: next });
 }
 
 /** Stop and forget whatever is playing (leaving the room, signing out). */

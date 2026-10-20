@@ -185,6 +185,8 @@ func (s *ChatService) publishChatMessageDeleted(ctx context.Context, room db.Cha
 	s.publishChatMessageChange(ctx, room, ev)
 }
 
+const maxChatPinnedMessagesPerRoom = 10
+
 // ToggleChatMessagePin toggles whether a message is pinned in the room.
 func (s *ChatService) ToggleChatMessagePin(
 	ctx context.Context, userID, workspaceID, roomID, messageID string,
@@ -201,8 +203,29 @@ func (s *ChatService) ToggleChatMessagePin(
 	}); err != nil {
 		return ChatMessageRow{}, err
 	}
+	anchorWS := roomAnchorWorkspaceID(room)
+	msg, err := s.q.GetChatMessageInRoom(ctx, db.GetChatMessageInRoomParams{
+		ID: messageID, RoomID: roomID, WorkspaceID: anchorWS,
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ChatMessageRow{}, ErrNotFound
+	}
+	if err != nil {
+		return ChatMessageRow{}, err
+	}
+	if !decodeChatMessageMetadata(msg.Metadata).Pinned {
+		count, err := s.q.CountPinnedChatMessagesInRoom(ctx, db.CountPinnedChatMessagesInRoomParams{
+			RoomID: roomID, WorkspaceID: anchorWS,
+		})
+		if err != nil {
+			return ChatMessageRow{}, err
+		}
+		if count >= maxChatPinnedMessagesPerRoom {
+			return ChatMessageRow{}, Invalid("phòng đã ghim đủ số tin cho phép")
+		}
+	}
 	var pinned bool
-	updated, err := s.mutateChatMessageMetadata(ctx, messageID, roomID, roomAnchorWorkspaceID(room),
+	updated, err := s.mutateChatMessageMetadata(ctx, messageID, roomID, anchorWS,
 		func(msg db.ChatMessage) ([]byte, error) {
 			meta, p, err := togglePinInMetadata(msg.Metadata)
 			pinned = p

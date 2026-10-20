@@ -6,10 +6,7 @@ import { api } from "./attachment-api";
 import { useEditorWorkspaceSlug } from "./workspace-slug";
 import { resolvePublicFileUrl } from "./resolve-file-url";
 import { useTranslation } from "react-i18next";
-
-interface DesktopBridge {
-  downloadURL?: (u: string) => Promise<void> | void;
-}
+import type { DesktopBridge } from "@uniwork/core/platform";
 
 function attachmentDownloadEndpoint(
   attachmentId: string,
@@ -84,7 +81,7 @@ function triggerBrowserDownload(url: string): void {
 // same hook work in both renderers without a build-time fork.
 function hasDesktopDownloadBridge(): boolean {
   if (typeof window === "undefined") return false;
-  const bridge = (window as unknown as { desktopAPI?: DesktopBridge }).desktopAPI;
+  const bridge = (window as unknown as { desktopAPI?: Partial<DesktopBridge> }).desktopAPI;
   return Boolean(bridge?.downloadURL);
 }
 
@@ -137,7 +134,7 @@ export function useDownloadAttachment(): (attachmentId: string) => Promise<void>
             return;
           }
           const bridge = (
-            window as unknown as { desktopAPI?: DesktopBridge }
+            window as unknown as { desktopAPI?: Partial<DesktopBridge> }
           ).desktopAPI;
           await bridge!.downloadURL!(downloadUrl);
         } catch {

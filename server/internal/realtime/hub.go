@@ -388,6 +388,10 @@ type Hub struct {
 	// Subscription lifecycle hooks. Both can be nil.
 	onFirstSubscriber SubscriptionCallback
 	onLastSubscriber  SubscriptionCallback
+
+	// revokes bumps on every RevokeScope so a subscribe in flight can detect
+	// a kick that landed while authorize was still asking the gate.
+	revokes atomic.Uint64
 }
 
 // NewHub creates a new Hub instance.
@@ -962,6 +966,7 @@ func (h *Hub) closeWhere(code int, text string, match func(*Client) bool) []*Cli
 // it, one who left a public channel they can still read does not. An empty
 // userID rechecks every socket holding the scope.
 func (h *Hub) RevokeScope(userID, scopeType, scopeID string) {
+	h.revokes.Add(1)
 	auth := h.scopeAuthorizer()
 	if r, ok := auth.(ScopeRevoker); ok {
 		r.RevokeScope(userID, scopeType, scopeID)
@@ -975,14 +980,19 @@ func (h *Hub) RevokeScope(userID, scopeType, scopeID string) {
 	}
 	h.mu.RUnlock()
 	for _, c := range holders {
-		reason := "forbidden"
-		if auth != nil {
-			reason = c.authorizeScope(auth, scopeType, scopeID)
-		}
-		if reason != "" && h.unsubscribe(c, scopeType, scopeID) {
-			h.releaseScopes(c, []scopeKey{sk(scopeType, scopeID)})
-			c.refuseSubscribe(scopeType, scopeID, reason)
-		}
+		h.recheck(c, scopeType, scopeID)
+	}
+}
+
+func (h *Hub) recheck(c *Client, scopeType, scopeID string) {
+	auth := h.scopeAuthorizer()
+	reason := "forbidden"
+	if auth != nil {
+		reason = c.authorizeScope(auth, scopeType, scopeID)
+	}
+	if reason != "" && h.unsubscribe(c, scopeType, scopeID) {
+		h.releaseScopes(c, []scopeKey{sk(scopeType, scopeID)})
+		c.refuseSubscribe(scopeType, scopeID, reason)
 	}
 }
 
@@ -1319,6 +1329,7 @@ func (c *Client) handleSubscribe(scope, id string) {
 		// Already auto-subscribed at connect time; reply ack idempotently.
 		c.hub.subscribe(c, scope, id)
 	case ScopeTask, ScopeChat:
+		startRevokes := c.hub.revokes.Load()
 		if auth := c.hub.scopeAuthorizer(); auth != nil {
 			if reason := c.authorizeScope(auth, scope, id); reason != "" {
 				c.refuseSubscribe(scope, id, reason)
@@ -1326,10 +1337,17 @@ func (c *Client) handleSubscribe(scope, id string) {
 			}
 		}
 		c.hub.subscribe(c, scope, id)
+		if c.hub.revokes.Load() != startRevokes {
+			c.hub.recheck(c, scope, id)
+		}
+		if !c.holdsScope(scope, id) {
+			return
+		}
 	case ScopeMeeting:
 		// Unlike task and chat, a meeting with no gate wired is refused: the
 		// scope carries in-room traffic, so it fails closed. A lobby socket
 		// has no workspace and already hears its meeting on the lobby scope.
+		startRevokes := c.hub.revokes.Load()
 		auth := c.hub.scopeAuthorizer()
 		if auth == nil || c.workspaceID == "" {
 			c.refuseSubscribe(scope, id, "forbidden")
@@ -1340,11 +1358,23 @@ func (c *Client) handleSubscribe(scope, id string) {
 			return
 		}
 		c.hub.subscribe(c, scope, id)
+		if c.hub.revokes.Load() != startRevokes {
+			c.hub.recheck(c, scope, id)
+		}
+		if !c.holdsScope(scope, id) {
+			return
+		}
 	default:
 		c.refuseSubscribe(scope, id, "unknown_scope")
 		return
 	}
 	c.ackSubscribe(scope, id)
+}
+
+func (c *Client) holdsScope(scope, id string) bool {
+	c.hub.mu.RLock()
+	defer c.hub.mu.RUnlock()
+	return c.subscriptions[sk(scope, id)]
 }
 
 func (c *Client) ackSubscribe(scope, id string) {

@@ -17,6 +17,8 @@ type ChatRoomMemberPermissions struct {
 	AllowCreateNotes   bool `json:"allow_create_notes"`
 	AllowCreatePolls   bool `json:"allow_create_polls"`
 	AllowSendMessages  bool `json:"allow_send_messages"`
+	// AllowForward lets members forward this room's messages elsewhere.
+	AllowForward bool `json:"allow_forward"`
 }
 
 // chatRoomNameMaxRunes caps a renamed group or workspace room, the same as a channel name.
@@ -29,6 +31,7 @@ func defaultChatRoomMemberPermissions() ChatRoomMemberPermissions {
 		AllowCreateNotes:   true,
 		AllowCreatePolls:   true,
 		AllowSendMessages:  true,
+		AllowForward:       true,
 	}
 }
 
@@ -36,7 +39,8 @@ func memberPermissionsFromRaw(raw []byte) ChatRoomMemberPermissions {
 	if len(raw) == 0 {
 		return defaultChatRoomMemberPermissions()
 	}
-	var out ChatRoomMemberPermissions
+	// A key the stored row predates (allow_forward) keeps its default.
+	out := defaultChatRoomMemberPermissions()
 	if err := json.Unmarshal(raw, &out); err != nil {
 		return defaultChatRoomMemberPermissions()
 	}
@@ -48,7 +52,9 @@ func encodeMemberPermissions(perms ChatRoomMemberPermissions) ([]byte, error) {
 }
 
 type UpdateChatRoomSettingsInput struct {
-	Name              *string
+	Name *string
+	// Topic is the room's description; "" clears it.
+	Topic             *string
 	MemberPermissions *ChatRoomMemberPermissions
 }
 
@@ -116,6 +122,20 @@ func (s *ChatService) UpdateChatRoomSettings(
 			changes["name"] = audit.Change{From: room.Name, To: name}
 		}
 	}
+	var topic string
+	if in.Topic != nil {
+		topic = strings.TrimSpace(*in.Topic)
+		if utf8.RuneCountInString(topic) > chatChannelTopicMaxRunes {
+			return ChatRoomMemberPermissions{}, Invalid("mô tả tối đa 280 ký tự")
+		}
+		// The description follows the rename rule.
+		if !isModerator && (room.Kind != chatRoomKindGroup || !current.AllowChangeProfile) {
+			return ChatRoomMemberPermissions{}, ErrForbidden
+		}
+		if topic != room.Topic {
+			changes["topic"] = audit.Change{From: room.Topic, To: topic}
+		}
+	}
 	if len(changes) == 0 {
 		return current, nil
 	}
@@ -142,6 +162,13 @@ func (s *ChatService) UpdateChatRoomSettings(
 	if _, ok := changes["name"]; ok {
 		if err := q.UpdateChatRoomName(ctx, db.UpdateChatRoomNameParams{
 			ID: roomID, Name: name,
+		}); err != nil {
+			return ChatRoomMemberPermissions{}, err
+		}
+	}
+	if _, ok := changes["topic"]; ok {
+		if err := q.UpdateChatRoomTopic(ctx, db.UpdateChatRoomTopicParams{
+			ID: roomID, Topic: topic,
 		}); err != nil {
 			return ChatRoomMemberPermissions{}, err
 		}

@@ -11,7 +11,9 @@ import (
 // it from the global rate limiter by this exact path.
 const liveKitWebhookPath = "/integrations/livekit/webhook"
 
-func registerMeetings(r api, h Routes) {
+// summaryLimit wraps POST /meetings/{id}/summary only: the ai-meeting-summary
+// bucket router.go builds (UNI-1853 M9).
+func registerMeetings(r api, h Routes, summaryLimit func(http.Handler) http.Handler) {
 	r.Get("/workspaces/{workspaceID}/meetings", h.ListMeetings, apiOp{
 		summary: "List meetings", tags: []string{"meetings"}, sdi: sdi.ListMeetingsSDI{}, sdo: sdo.MeetingListSDO{}, auth: true,
 	})
@@ -168,15 +170,26 @@ func registerMeetings(r api, h Routes) {
 		sdi: sdi.AppendTranscriptSDI{}, sdo: sdo.TranscriptSegmentSDO{}, auth: true,
 	})
 	r.Get("/meetings/{meetingID}/summary", h.GetMeetingSummary, apiOp{
-		summary: "Latest AI summary", tags: []string{"meetings"}, sdo: sdo.MeetingSummarySDO{}, auth: true,
+		summary: "Latest AI summary",
+		description: "Bản tóm tắt mới nhất (null khi chưa có). Mỗi action item có index, người phụ trách gợi ý " +
+			"(suggested_assignee_id), hạn đã đọc (due_date) và task_id khi việc đó đã thành task còn tồn tại.",
+		tags: []string{"meetings"}, sdo: sdo.MeetingSummarySDO{}, auth: true,
 	})
-	r.Post("/meetings/{meetingID}/summary", h.CreateSummary, apiOp{
+	r.With(summaryLimit).Post("/meetings/{meetingID}/summary", h.CreateSummary, apiOp{
 		summary: "Generate AI summary from transcript and notes", tags: []string{"meetings"},
+		description: "Chỉ host hoặc admin workspace. Mỗi cuộc họp chỉ chạy một lần tóm tắt tại một thời điểm. " +
+			"Lỗi: 403 entitlement_required (gói không có meeting.ai_summary), 402 ai_quota_exceeded, " +
+			"409 summary_no_source / summary_in_progress, 429 rate_limited (bucket ai-meeting-summary: 6 lượt/phút/người, Retry-After) " +
+			"hoặc ai_rate_limited (fields.retry_after), 502 ai_failed, 503 ai_not_configured, 504 ai_timeout.",
 		sdi: sdi.CreateSummarySDI{}, sdo: sdo.MeetingSummarySDO{}, auth: true,
 	})
 	r.Post("/meetings/{meetingID}/summary/tasks", h.CreateSummaryTasks, apiOp{
-		summary: "Create tasks from summary action items", tags: []string{"meetings"},
-		sdi: sdi.SummaryTasksSDI{}, sdo: sdo.TaskIDListSDO{}, auth: true,
+		summary: "Create tasks from summary action items",
+		description: "Chỉ host/admin. Tạo task cho các action item đã chọn của bản tóm tắt mới nhất trong một giao dịch: " +
+			"lỗi ở bất kỳ việc nào thì không task nào được tạo. assignee_id/due_date gửi lên là giá trị cuối (null = không gán / không hạn). " +
+			"409 summary_superseded khi summary_id không còn là bản mới nhất; 409 summary_item_already_converted (fields.indexes) " +
+			"khi việc đã thành task còn tồn tại.",
+		tags: []string{"meetings"}, sdi: sdi.SummaryTasksSDI{}, sdo: sdo.MeetingSummaryTasksSDO{}, auth: true,
 	})
 	r.Post("/meetings/{meetingID}/recording/start", h.StartRecording, apiOp{
 		summary: "Start recording", tags: []string{"meetings"}, sdo: sdo.RecordingSDO{}, auth: true,

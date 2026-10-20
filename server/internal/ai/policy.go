@@ -136,10 +136,7 @@ func ResolveModel(c Capability, providerName string, env func(string) string, ex
 	if env == nil {
 		return p, def, nil
 	}
-	override := strings.TrimSpace(env("AI_MODEL_" + strings.ToUpper(string(c))))
-	if override == "" && providerName == "anthropic" {
-		override = strings.TrimSpace(env("ANTHROPIC_MODEL"))
-	}
+	override := modelOverride(c, providerName, env)
 	if override == "" || override == def {
 		return p, def, nil
 	}
@@ -150,4 +147,14 @@ func ResolveModel(c Capability, providerName string, env func(string) string, ex
 	}
 	slog.Warn("ai: model override outside allowlist, using default", "capability", c, "override", override, "default", def)
 	return p, def, nil
+}
+
+// modelOverride is the env override ResolveModel looks for: AI_MODEL_<CAP>,
+// or ANTHROPIC_MODEL for the anthropic provider. Empty when none is set.
+func modelOverride(c Capability, providerName string, env func(string) string) string {
+	override := strings.TrimSpace(env("AI_MODEL_" + strings.ToUpper(string(c))))
+	if override == "" && providerName == "anthropic" {
+		override = strings.TrimSpace(env("ANTHROPIC_MODEL"))
+	}
+	return override
 }

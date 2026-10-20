@@ -97,15 +97,11 @@ func (r *MeetingReminder) remind(ctx context.Context, m db.ListMeetingsDueRemind
 	if err != nil {
 		return false, err
 	}
-	members := make([]string, 0, len(userIDs))
-	for _, uid := range userIDs {
-		if _, err := c.env.members.RequireMember(ctx, m.WorkspaceID, uid); err != nil {
-			if refused(err) {
-				continue
-			}
-			return false, err
-		}
-		members = append(members, uid)
+	members, err := c.q.FilterActiveWorkspaceMemberUserIDs(ctx, db.FilterActiveWorkspaceMemberUserIDsParams{
+		WorkspaceID: m.WorkspaceID, UserIds: userIDs,
+	})
+	if err != nil {
+		return false, err
 	}
 	matrices, err := loadMatrices(ctx, c.q, members)
 	if err != nil {

@@ -2,23 +2,29 @@ package notification
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"testing"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/unicomhub/uniwork/server/internal/mail"
+	"github.com/unicomhub/uniwork/server/internal/outbox"
+	"github.com/unicomhub/uniwork/server/internal/service"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
 type spySender struct {
-	sent []PushMessage
-	err  error
+	sent      []PushMessage
+	endpoints []string
+	err       error
 }
 
-func (s *spySender) Send(_ context.Context, _ db.PushSubscription, m PushMessage) error {
+func (s *spySender) Send(_ context.Context, sub db.PushSubscription, m PushMessage) error {
 	s.sent = append(s.sent, m)
+	s.endpoints = append(s.endpoints, sub.Endpoint)
 	return s.err
 }
 
@@ -100,7 +106,8 @@ func TestDigestOncePerDay(t *testing.T) {
 	f.handleLast(t, "task.updated")
 
 	out := &fakeOutbox{}
-	s := NewDigestScheduler(f.q, mail.Renderer{AppURL: "http://app.test"}, out)
+	s := NewDigestScheduler(f.q, f.ws, mail.Renderer{AppURL: "http://app.test"}, out)
+	s.SetOrgMembers(service.NewOrganizationService(f.pool, f.q))
 	// 01:05 UTC is 08:05 in Asia/Ho_Chi_Minh, the default zone.
 	at := time.Date(2026, 9, 7, 1, 5, 0, 0, time.UTC)
 	for i := 0; i < 3; i++ {
@@ -201,8 +208,9 @@ func TestDigestAppliesTheDocumentReadGate(t *testing.T) {
 	f.handleComment(t)
 
 	out := &fakeOutbox{}
-	s := NewDigestScheduler(f.q, mail.Renderer{AppURL: "http://app.test"}, out)
+	s := NewDigestScheduler(f.q, f.ws, mail.Renderer{AppURL: "http://app.test"}, out)
 	s.SetDocumentReaders(f.docs)
+	s.SetOrgMembers(service.NewOrganizationService(f.pool, f.q))
 	at := time.Date(2026, 9, 7, 1, 5, 0, 0, time.UTC) // 08:05 in Asia/Ho_Chi_Minh.
 	if n, err := s.RunOnce(f.ctx, at); err != nil || n != 1 {
 		t.Fatalf("readable digest = %d, %v", n, err)
@@ -238,5 +246,312 @@ func TestDigestAppliesTheDocumentReadGate(t *testing.T) {
 	}
 	if len(out.sent) != 0 {
 		t.Fatalf("digest mailed an archived document:\n%s", out.sent[0].Text)
+	}
+}
+
+func TestDigestSkipsRowsTheReaderLostAccessTo(t *testing.T) {
+	f := newFixture(t)
+	chat := service.NewChatService(f.pool, f.q, f.ws, service.NopPublisher{})
+	ch, err := chat.CreateChannel(f.ctx, f.owner.ID, f.wsID, service.CreateChannelInput{
+		Name: "tai-chinh", Visibility: "private", MemberUserIDs: []string{f.member.ID},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	remindAt := time.Now().Add(time.Minute).Truncate(time.Second)
+	msg, err := chat.SendReminderMessage(f.ctx, f.owner.ID, f.wsID, ch.ID, service.SendReminderMessageInput{
+		Body: "Chuyển 2 từ cho đối tác X", RemindAt: remindAt.Format(time.RFC3339),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n, err := chat.NewChatReminderWorker().RunOnce(f.ctx, remindAt.Add(time.Second)); err != nil || n != 1 {
+		t.Fatalf("reminder worker: n=%d err=%v", n, err)
+	}
+	f.handleLast(t, "chat.reminder.due")
+	task := f.newTask(t, "Việc digest")
+	f.assign(t, task.ID, f.member.ID)
+	f.handleLast(t, "task.updated")
+
+	out := &fakeOutbox{}
+	s := NewDigestScheduler(f.q, f.ws, mail.Renderer{AppURL: "http://app.test"}, out)
+	orgs := service.NewOrganizationService(f.pool, f.q)
+	s.SetOrgMembers(orgs)
+	at := time.Date(2026, 9, 7, 1, 5, 0, 0, time.UTC)
+	orgMembers := service.NewOrganizationMemberService(f.pool, f.q, orgs)
+	if _, err := orgMembers.Deactivate(f.ctx, f.owner.ID, f.orgID, f.member.ID); err != nil {
+		t.Fatal(err)
+	}
+	f.markDigestedForUser(t, f.owner.ID)
+	if n, err := s.RunOnce(f.ctx, at); err != nil || n != 0 {
+		t.Fatalf("deactivated digest = %d, %v", n, err)
+	}
+	if len(out.sent) != 0 {
+		t.Fatalf("digest mailed a deactivated member:\n%s", out.sent[0].Text)
+	}
+
+	if _, err := orgMembers.Reactivate(f.ctx, f.owner.ID, f.orgID, f.member.ID); err != nil {
+		t.Fatal(err)
+	}
+	task2 := f.newTask(t, "Việc còn lại")
+	f.assign(t, task2.ID, f.member.ID)
+	f.handleLast(t, "task.updated")
+	remindAt2 := time.Now().Add(2 * time.Minute).Truncate(time.Second)
+	if _, err := chat.SendReminderMessage(f.ctx, f.owner.ID, f.wsID, ch.ID, service.SendReminderMessageInput{
+		Body: "Chuyển 2 từ cho đối tác X", RemindAt: remindAt2.Format(time.RFC3339),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if n, err := chat.NewChatReminderWorker().RunOnce(f.ctx, remindAt2.Add(time.Second)); err != nil || n != 1 {
+		t.Fatalf("reminder worker 2: n=%d err=%v", n, err)
+	}
+	f.handleLast(t, "chat.reminder.due")
+	_ = msg
+
+	if err := chat.RemoveChatRoomMember(f.ctx, f.owner.ID, f.wsID, ch.ID, f.member.ID); err != nil {
+		t.Fatal(err)
+	}
+	f.markDigestedForUser(t, f.owner.ID)
+	out.sent = nil
+	if n, err := s.RunOnce(f.ctx, at.Add(4*time.Minute)); err != nil || n != 1 {
+		t.Fatalf("after kick digest = %d, %v", n, err)
+	}
+	if len(out.sent) != 1 || out.sent[0].To != f.member.Email {
+		t.Fatalf("digests = %+v", out.sent)
+	}
+	text := out.sent[0].Text
+	if !contains(text, "Việc còn lại") {
+		t.Fatalf("digest missing task line:\n%s", text)
+	}
+	if contains(text, "Nhắc hạn") || contains(text, "Chuyển 2 từ") {
+		t.Fatalf("digest leaked channel reminder:\n%s", text)
+	}
+
+	task3 := f.newTask(t, "Sau suspend")
+	f.assign(t, task3.ID, f.member.ID)
+	f.handleLast(t, "task.updated")
+	if _, err := f.pool.Exec(f.ctx, `UPDATE organizations SET status = 'suspended', suspended_at = now() WHERE id = $1`, f.orgID); err != nil {
+		t.Fatal(err)
+	}
+	f.markDigestedForUser(t, f.owner.ID)
+	out.sent = nil
+	if n, err := s.RunOnce(f.ctx, at.Add(6*time.Minute)); err != nil || n != 0 {
+		t.Fatalf("suspended org digest = %d, %v", n, err)
+	}
+	if len(out.sent) != 0 {
+		t.Fatalf("digest mailed while organization suspended:\n%s", out.sent[0].Text)
+	}
+}
+
+func TestChatPushCarriesBodyAndSkipsDeleted(t *testing.T) {
+	f := newFixture(t)
+	chat := service.NewChatService(f.pool, f.q, f.ws, service.NopPublisher{})
+	dm, err := chat.ResolveDM(f.ctx, f.owner.ID, f.wsID, f.member.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.subscribe(t, f.member.ID, "ExponentPushToken[member]")
+	spy := &spySender{}
+	pc := NewPushConsumer(f.q, spy, "http://app.test")
+
+	first, err := chat.SendRoomMessage(f.ctx, f.owner.ID, f.wsID, dm.ID, service.SendChatMessageInput{Body: "[@Thành Viên](mention://member/" + f.member.ID + ") họp **9h** nhé"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.handleLast(t, "chat.dm.received")
+	if err := pc.Handle(f.ctx, f.lastEvent(t, TopicPush)); err != nil {
+		t.Fatal(err)
+	}
+	if len(spy.sent) != 1 || spy.sent[0].Body != "@Thành Viên họp 9h nhé" || spy.sent[0].Title != "Chủ Nhóm đã nhắn tin cho bạn" {
+		t.Fatalf("sent = %+v", spy.sent)
+	}
+	// The deep link is built from the row the body was read from and matches
+	// ResourceURL's shape exactly.
+	if want := "http://app.test/notif-org/notif-ws/chat?room=" + dm.ID + "&message=" + first.ID; spy.sent[0].URL != want {
+		t.Fatalf("URL = %q, want %q", spy.sent[0].URL, want)
+	}
+
+	// Read it so the next DM opens a fresh row, then delete that message before the push runs.
+	f.readAll(t, f.member.ID)
+	gone, err := chat.SendRoomMessage(f.ctx, f.owner.ID, f.wsID, dm.ID, service.SendChatMessageInput{Body: "nhầm"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.handleLast(t, "chat.dm.received")
+	if err := chat.DeleteChatMessage(f.ctx, f.owner.ID, f.wsID, dm.ID, gone.ID); err != nil {
+		t.Fatal(err)
+	}
+	ev := f.lastEvent(t, TopicPush)
+	for i := 0; i < 2; i++ {
+		if err := pc.Handle(f.ctx, ev); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if len(spy.sent) != 1 {
+		t.Fatalf("deleted message was pushed: %+v", spy.sent)
+	}
+	var p map[string]string
+	if err := json.Unmarshal([]byte(ev.Payload), &p); err != nil {
+		t.Fatal(err)
+	}
+	if n, _ := f.q.GetNotification(f.ctx, p["notification_id"]); n.ResourceID != gone.ID || !n.PushedAt.Valid {
+		t.Fatalf("deleted-message notification not marked pushed: %+v", n)
+	}
+}
+
+type fakePresence struct {
+	at  time.Time
+	ok  bool
+	err error
+}
+
+func (p fakePresence) LastPresenceBeat(context.Context, string) (time.Time, bool, error) {
+	return p.at, p.ok, p.err
+}
+
+type countingMetrics struct{ suppressed, sent map[string]int }
+
+func (m *countingMetrics) IncNotificationCreated(string) {}
+func (m *countingMetrics) IncNotificationMerged()        {}
+func (m *countingMetrics) IncPushSent(r string)          { m.sent[r]++ }
+func (m *countingMetrics) IncDigestSent()                {}
+func (m *countingMetrics) IncPushSuppressed(k string)    { m.suppressed[k]++ }
+
+// Spec N2 §3.5: a recipient with a presence beat inside two minutes is at a
+// keyboard already; the push is dropped and counted, the row marked pushed.
+func TestChatPushIsSuppressedWhileTheRecipientIsActive(t *testing.T) {
+	f := newFixture(t)
+	chat := service.NewChatService(f.pool, f.q, f.ws, service.NopPublisher{})
+	dm, err := chat.ResolveDM(f.ctx, f.owner.ID, f.wsID, f.member.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.subscribe(t, f.member.ID, "ExponentPushToken[member]")
+	now := time.Now()
+	send := func() outbox.Row {
+		f.readAll(t, f.member.ID) // the next DM opens a fresh row
+		if _, err := chat.SendRoomMessage(f.ctx, f.owner.ID, f.wsID, dm.ID, service.SendChatMessageInput{Body: "x"}); err != nil {
+			t.Fatal(err)
+		}
+		f.handleLast(t, "chat.dm.received")
+		return f.lastEvent(t, TopicPush)
+	}
+	run := func(p PresenceChecker) (*spySender, *countingMetrics, outbox.Row) {
+		spy, m := &spySender{}, &countingMetrics{suppressed: map[string]int{}, sent: map[string]int{}}
+		pc := NewPushConsumer(f.q, spy, "http://app.test")
+		pc.SetMetrics(m)
+		pc.now = func() time.Time { return now }
+		if p != nil {
+			pc.SetPresence(p)
+		}
+		ev := send()
+		if err := pc.Handle(f.ctx, ev); err != nil {
+			t.Fatal(err)
+		}
+		return spy, m, ev
+	}
+
+	spy, m, ev := run(fakePresence{at: now.Add(-30 * time.Second), ok: true})
+	if len(spy.sent) != 0 || m.suppressed[KindChatDM] != 1 {
+		t.Fatalf("active 30s ago: sent=%d suppressed=%v", len(spy.sent), m.suppressed)
+	}
+	var p map[string]string
+	if err := json.Unmarshal([]byte(ev.Payload), &p); err != nil {
+		t.Fatal(err)
+	}
+	if n, err := f.q.GetNotification(f.ctx, p["notification_id"]); err != nil || !n.PushedAt.Valid {
+		t.Fatalf("suppressed row not marked pushed: %+v err=%v", n, err)
+	}
+	if spy, m, _ := run(fakePresence{at: now.Add(-5 * time.Minute), ok: true}); len(spy.sent) != 1 || len(m.suppressed) != 0 {
+		t.Fatal("active 5 minutes ago must still be pushed")
+	}
+	if spy, _, _ := run(fakePresence{ok: false}); len(spy.sent) != 1 {
+		t.Fatal("never online must be pushed")
+	}
+	if spy, _, _ := run(fakePresence{err: errors.New("redis down")}); len(spy.sent) != 1 {
+		t.Fatal("presence error must fail open")
+	}
+	if spy, _, _ := run(nil); len(spy.sent) != 1 {
+		t.Fatal("no presence wired must push")
+	}
+
+	// A subscription no sender can reach (web while VAPID is off) is counted
+	// as skipped, never as sent, and does not hold the row back.
+	m2 := &countingMetrics{suppressed: map[string]int{}, sent: map[string]int{}}
+	pc := NewPushConsumer(f.q, &spySender{err: ErrPushSkipped}, "http://app.test")
+	pc.SetMetrics(m2)
+	ev = send()
+	if err := pc.Handle(f.ctx, ev); err != nil {
+		t.Fatal(err)
+	}
+	if m2.sent["skipped"] != 1 || m2.sent["sent"] != 0 {
+		t.Fatalf("skipped send counted as %v", m2.sent)
+	}
+	if err := json.Unmarshal([]byte(ev.Payload), &p); err != nil {
+		t.Fatal(err)
+	}
+	if n, err := f.q.GetNotification(f.ctx, p["notification_id"]); err != nil || !n.PushedAt.Valid {
+		t.Fatalf("skipped row not marked pushed: %+v err=%v", n, err)
+	}
+
+	// Presence suppresses chat pushes only: a task assignment reaches an
+	// active recipient as before.
+	spy3, m3 := &spySender{}, &countingMetrics{suppressed: map[string]int{}, sent: map[string]int{}}
+	pc = NewPushConsumer(f.q, spy3, "http://app.test")
+	pc.SetMetrics(m3)
+	pc.now = func() time.Time { return now }
+	pc.SetPresence(fakePresence{at: now.Add(-30 * time.Second), ok: true})
+	task := f.newTask(t, "Việc khi đang online")
+	f.assign(t, task.ID, f.member.ID)
+	f.handleLast(t, "task.updated")
+	if err := pc.Handle(f.ctx, f.lastEvent(t, TopicPush)); err != nil {
+		t.Fatal(err)
+	}
+	if len(spy3.sent) != 1 || len(m3.suppressed) != 0 || spy3.sent[0].URL != "http://app.test/notif-org/notif-ws/tasks/"+task.ID {
+		t.Fatalf("active recipient, task push: sent=%+v suppressed=%v", spy3.sent, m3.suppressed)
+	}
+}
+
+// blockingPresence stands in for a stalled Redis: it answers only when its
+// context is done.
+type blockingPresence struct{}
+
+func (blockingPresence) LastPresenceBeat(ctx context.Context, _ string) (time.Time, bool, error) {
+	<-ctx.Done()
+	return time.Time{}, false, ctx.Err()
+}
+
+// A stalled presence lookup must not hold the two-worker push lane: the
+// call is bounded and the push fails open within that bound.
+func TestChatPushFailsOpenFastWhenPresenceStalls(t *testing.T) {
+	f := newFixture(t)
+	chat := service.NewChatService(f.pool, f.q, f.ws, service.NopPublisher{})
+	dm, err := chat.ResolveDM(f.ctx, f.owner.ID, f.wsID, f.member.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.subscribe(t, f.member.ID, "ExponentPushToken[member]")
+	if _, err := chat.SendRoomMessage(f.ctx, f.owner.ID, f.wsID, dm.ID, service.SendChatMessageInput{Body: "x"}); err != nil {
+		t.Fatal(err)
+	}
+	f.handleLast(t, "chat.dm.received")
+	ev := f.lastEvent(t, TopicPush)
+
+	spy := &spySender{}
+	pc := NewPushConsumer(f.q, spy, "http://app.test")
+	pc.SetPresence(blockingPresence{})
+	ctx, cancel := context.WithTimeout(f.ctx, 3*time.Second)
+	defer cancel()
+	start := time.Now()
+	err = pc.Handle(ctx, ev)
+	elapsed := time.Since(start)
+	if err != nil {
+		t.Fatalf("stalled presence must fail open: %v", err)
+	}
+	if len(spy.sent) != 1 {
+		t.Fatalf("stalled presence must still push, sent=%d", len(spy.sent))
+	}
+	if elapsed >= time.Second {
+		t.Fatalf("Handle took %s with a stalled presence lookup", elapsed)
 	}
 }

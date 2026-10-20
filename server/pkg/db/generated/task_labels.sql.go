@@ -407,6 +407,46 @@ func (q *Queries) ListTaskLabels(ctx context.Context, arg ListTaskLabelsParams) 
 	return items, nil
 }
 
+const listWorkspaceTaskLabelLinks = `-- name: ListWorkspaceTaskLabelLinks :many
+SELECT l.task_id, l.label_id
+FROM task_label_links l
+JOIN task_labels lb ON lb.organization_id = l.organization_id AND lb.workspace_id = l.workspace_id AND lb.id = l.label_id
+WHERE l.organization_id = $1 AND l.workspace_id = $2
+  AND lb.archived_at IS NULL
+ORDER BY l.task_id, LOWER(lb.name), lb.id
+`
+
+type ListWorkspaceTaskLabelLinksParams struct {
+	OrganizationID string `json:"organization_id"`
+	WorkspaceID    string `json:"workspace_id"`
+}
+
+type ListWorkspaceTaskLabelLinksRow struct {
+	TaskID  string `json:"task_id"`
+	LabelID string `json:"label_id"`
+}
+
+// Every (task, active label) pair in the workspace, for label chips on cards.
+func (q *Queries) ListWorkspaceTaskLabelLinks(ctx context.Context, arg ListWorkspaceTaskLabelLinksParams) ([]ListWorkspaceTaskLabelLinksRow, error) {
+	rows, err := q.db.Query(ctx, listWorkspaceTaskLabelLinks, arg.OrganizationID, arg.WorkspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListWorkspaceTaskLabelLinksRow{}
+	for rows.Next() {
+		var i ListWorkspaceTaskLabelLinksRow
+		if err := rows.Scan(&i.TaskID, &i.LabelID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const taskLabelLinkExists = `-- name: TaskLabelLinkExists :one
 SELECT EXISTS(
   SELECT 1 FROM task_label_links
