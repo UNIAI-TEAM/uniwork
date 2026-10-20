@@ -101,6 +101,7 @@ var tenantExportIncludedTables = []string{
 	"invitations",
 	"mcp_grants",
 	"meeting_access_grants",
+	"meeting_action_items",
 	"meeting_attendance_marks",
 	"meeting_attendance_sessions",
 	"meeting_attendees",
