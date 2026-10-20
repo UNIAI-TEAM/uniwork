@@ -661,7 +661,7 @@ describe("DocumentsPageView", () => {
     expect((call?.[1] as { body?: { title?: string } }).body?.title).toBe(t("documents.page.new_page"));
   });
 
-  it("creates a blank .txt from the Văn bản pill as format txt, then opens it", async () => {
+  it("creates a blank .txt from the plain text pill as format txt, then opens it", async () => {
     const onOpen = vi.fn();
     route({ list: () => [], post: () => ({ document: file("n3", t("documents.home.default_names.txt")) }) });
     renderView(onOpen);

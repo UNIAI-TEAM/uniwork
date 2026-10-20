@@ -10,7 +10,7 @@ import { createSafeId } from "@uniwork/core/utils";
 import { documentErrorMessage } from "./document-error-message";
 
 /** What the create cards and the "New" menu offer, in the design's order. */
-export const CREATE_TYPES = ["page", "docx", "xlsx", "pptx", "md", "html", "pdf"] as const;
+export const CREATE_TYPES = ["page", "docx", "xlsx", "pptx", "md", "txt", "html", "pdf"] as const;
 export type CreateType = (typeof CREATE_TYPES)[number];
 
 /** What the "New" menu offers inside an open folder: folder first, then CREATE_TYPES (FD-D9). */
@@ -46,7 +46,7 @@ export function isParentWorkspaceShared(parent?: ParentShareSource | null, fallb
 /**
  * Create one document of a type in the open folder with its default name and
  * open it — no name prompt (user decision 2026-10-12); renaming happens on the
- * document's breadcrumb. A page keeps the "New UniNote" flow; the six file
+ * document's breadcrumb. A page keeps the "New UniNote" flow; the seven file
  * types go through the blank-file route. Create awaits the server, never an
  * optimistic row (CLAUDE.md § State Rules: create navigates).
  */

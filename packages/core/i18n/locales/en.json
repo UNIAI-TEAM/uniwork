@@ -9531,6 +9531,7 @@
       "pptx": "PowerPoint presentation",
       "pdf": "PDF document",
       "md": "Markdown document",
+      "txt": "Plain text file",
       "html": "HTML document",
       "file": "File",
       "page": "UniNote",
@@ -10519,6 +10520,7 @@
         "xlsx": "Untitled spreadsheet.xlsx",
         "pptx": "Untitled presentation.pptx",
         "md": "Untitled markdown.md",
+        "txt": "Untitled plain text.txt",
         "html": "Untitled HTML page.html",
         "pdf": "Untitled PDF.pdf"
       },
@@ -10592,6 +10594,12 @@
           "hint": ".md",
           "menu": "Markdown file",
           "ext": ".md"
+        },
+        "txt": {
+          "chip": "Plain text file",
+          "hint": ".txt",
+          "menu": "Plain text",
+          "ext": ".txt"
         },
         "html": {
           "chip": "HTML",
