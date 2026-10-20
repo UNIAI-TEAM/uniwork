@@ -1,0 +1,5 @@
+$ grep -E "^--- (PASS|FAIL|SKIP): (TestIsolationMatrix|TestIsolationRealtime|TestEveryAuditedCommandWritesItsRow|TestReusedAuditActionCommandsWriteTheirOwnRows)( |$)" /tmp/uni2012r1-go.log
+--- PASS: TestEveryAuditedCommandWritesItsRow (52.37s)
+--- PASS: TestReusedAuditActionCommandsWriteTheirOwnRows (1.22s)
+--- FAIL: TestIsolationMatrix (672.14s)
+--- PASS: TestIsolationRealtime (4.36s)

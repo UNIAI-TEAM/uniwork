@@ -1,0 +1,18 @@
+$ grep -cE "^\s*--- PASS" /tmp/uni2012r1-go.log | sed 's/^/GO_PASS_COUNT=/'; grep -cE "^\s*--- FAIL" /tmp/uni2012r1-go.log | sed 's/^/GO_FAIL_COUNT=/'; grep -cE "^\s*--- SKIP" /tmp/uni2012r1-go.log | sed 's/^/GO_SKIP_COUNT=/'; grep -E "^(FAIL|ok|---\s*FAIL|panic)" /tmp/uni2012r1-go.log | head -60
+GO_PASS_COUNT=5276
+GO_FAIL_COUNT=3
+GO_SKIP_COUNT=48
+--- FAIL: TestReactionAndPinAnswersResolveTheDocumentCard (0.25s)
+FAIL
+FAIL	github.com/unicomhub/uniwork/server/internal/service	1450.209s
+ok  	github.com/unicomhub/uniwork/server/internal/service/backfill	29.669s
+--- FAIL: TestIsolationMatrix (672.14s)
+FAIL
+FAIL	github.com/unicomhub/uniwork/server/internal/handler	1045.509s
+ok  	github.com/unicomhub/uniwork/server/internal/handler/dto/sdo	0.024s
+ok  	github.com/unicomhub/uniwork/server/internal/handler/router	5.046s
+ok  	github.com/unicomhub/uniwork/server/internal/notification	86.934s
+ok  	github.com/unicomhub/uniwork/server/internal/outbox	14.196s
+ok  	github.com/unicomhub/uniwork/server/migrations	33.761s
+ok  	github.com/unicomhub/uniwork/server/internal	1.358s
+FAIL

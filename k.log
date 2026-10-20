@@ -1,0 +1,10 @@
+$ grep -E "^--- (PASS|FAIL|SKIP): (TestSendDocumentLink|TestAccessBatch)" /tmp/uni2012r1-go.log | head -60
+--- PASS: TestSendDocumentLinkGrantsOnlyRaisesAndMarksOrigin (0.21s)
+--- PASS: TestSendDocumentLinkReplayIsIdempotent (0.23s)
+--- PASS: TestSendDocumentLinkRefusals (0.27s)
+--- PASS: TestSendDocumentLinkCrossWorkspaceRecipient (0.23s)
+--- PASS: TestSendDocumentLinkReplyMustBeInTheRoom (0.24s)
+--- PASS: TestAccessBatchSameLevelManualItemTakesOverChatShare (0.23s)
+--- PASS: TestAccessBatchTakeoverIsIdempotentAndAudited (0.24s)
+--- PASS: TestAccessBatchPreviewAndKeepDoNotTakeOver (0.24s)
+--- PASS: TestAccessBatchTakeoverLeavesOrdinaryManualRowsAlone (0.27s)
