@@ -31,6 +31,7 @@ import {
   sendChatVoiceMessage,
   sendChatFileMessage,
   sendChatDocumentMessage,
+  sendChatDocumentLink,
   shareChatMessageAsDocument,
   getChatRoom,
   sendWorkspaceChatMessage,
@@ -636,6 +637,64 @@ describe("chat endpoints", () => {
     // A block that fails shape (a non-string document_id) falls away whole;
     // the card renders neutral instead of throwing.
     expect(sent?.document).toBeUndefined();
+  });
+
+  // UNI-2012 S4: the server route is contract-first (slice S2); the transport
+  // is mocked, so these pin the wire shape the FE promises.
+  it("sendChatDocumentLink posts JSON to the document-link route and returns the message", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        message: {
+          id: "l1",
+          room_id: "room1",
+          workspace_id: "ws1",
+          sender_id: "u1",
+          sender_display_name: "An",
+          kind: "document",
+          body: "bao-cao.docx",
+          created_at: "2026-01-01T10:00:00Z",
+          document: { document_id: "01J8X4DOC", viewer_level: "manage", viewer_can_manage: true },
+        },
+      }),
+    );
+    const sent = await sendChatDocumentLink("ws1", "room1", {
+      document_id: "01J8X4DOC",
+      share_level: "edit",
+      client_msg_id: "link-msg-1",
+      reply_to_message_id: "reply-1",
+    });
+    const [url, init] = vi.mocked(fetch).mock.calls[0] ?? [];
+    expect(String(url)).toContain("/api/v1/workspaces/ws1/chat/rooms/room1/messages/document-link");
+    expect(init?.method).toBe("POST");
+    expect(JSON.parse(String(init?.body))).toEqual({
+      document_id: "01J8X4DOC",
+      share_level: "edit",
+      client_msg_id: "link-msg-1",
+      reply_to_message_id: "reply-1",
+    });
+    expect(sent?.kind).toBe("document");
+    expect(sent?.document?.document_id).toBe("01J8X4DOC");
+  });
+
+  it("sendChatDocumentLink defaults share_level to comment and omits an absent reply", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ nope: true }));
+    await sendChatDocumentLink("ws1", "room1", { document_id: "D1", client_msg_id: "link-msg-2" });
+    expect(JSON.parse(String(vi.mocked(fetch).mock.calls[0]?.[1]?.body))).toEqual({
+      document_id: "D1",
+      share_level: "comment",
+      client_msg_id: "link-msg-2",
+    });
+  });
+
+  it("sendChatDocumentLink degrades on malformed response", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ nope: true }));
+    expect(
+      await sendChatDocumentLink("ws1", "room1", { document_id: "D1", share_level: "view", client_msg_id: "l3" }),
+    ).toBeNull();
+    vi.mocked(fetch).mockResolvedValueOnce(json({ message: { id: 7, kind: ["document"] } }));
+    expect(
+      await sendChatDocumentLink("ws1", "room1", { document_id: "D1", share_level: "view", client_msg_id: "l4" }),
+    ).toBeNull();
   });
 
   it("shareChatMessageAsDocument posts the level and returns the converted message", async () => {

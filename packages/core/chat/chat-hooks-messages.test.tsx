@@ -11,6 +11,7 @@ import {
   useEditChatMessage,
   useRefreshChatMessageMedia,
   useSendChatFileMessage,
+  useSendChatDocumentLink,
   useSendChatDocumentMessage,
   useShareChatMessageAsDocument,
   useToggleChatMessagePin,
@@ -92,6 +93,34 @@ describe("chat message mutations patch the room timeline instead of refetching i
     expect(timeline().map((m) => [m.id, m.kind])).toEqual([
       ["m1", "text"],
       ["d1", "document"],
+    ]);
+    expect(refetchedTimeline()).toBe(false);
+  });
+
+  it("inserts a document-link message with its level and reply, without refetching the timeline", async () => {
+    const send = vi.spyOn(chatApi, "sendChatDocumentLink").mockResolvedValue(row("l1", 2, { kind: "document" }));
+    const { wrapper, timeline, refetchedTimeline } = setup([row("m1", 1)]);
+    const { result } = renderHook(() => useSendChatDocumentLink("ws1"), { wrapper });
+
+    await act(() =>
+      result.current.mutateAsync({
+        roomId: "room1",
+        document_id: "D1",
+        share_level: "view",
+        client_msg_id: "c1",
+        reply_to_message_id: "m1",
+      }),
+    );
+
+    expect(send).toHaveBeenCalledWith("ws1", "room1", {
+      document_id: "D1",
+      share_level: "view",
+      client_msg_id: "c1",
+      reply_to_message_id: "m1",
+    });
+    expect(timeline().map((m) => [m.id, m.kind])).toEqual([
+      ["m1", "text"],
+      ["l1", "document"],
     ]);
     expect(refetchedTimeline()).toBe(false);
   });
