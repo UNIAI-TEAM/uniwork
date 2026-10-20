@@ -138,7 +138,8 @@ func (s *AskUNIService) SetAskModels(ctx context.Context, actorID, orgID string,
 
 // resolveAskModel maps a person's choice to what the run sends. An empty or
 // unusable model is Auto ("", the capability's default); an unusable one is
-// logged. An effort outside low/medium/high is the Auto effort (R4).
+// logged with a fixed reason, never the client's string. An effort outside
+// low/medium/high is the Auto effort (R4).
 func (s *AskUNIService) resolveAskModel(ctx context.Context, orgID, key, effort string) (modelID, eff string) {
 	eff = askAgentEffort
 	if effort == "low" || effort == "medium" || effort == "high" {
@@ -147,14 +148,17 @@ func (s *AskUNIService) resolveAskModel(ctx context.Context, orgID, key, effort 
 	if key == "" {
 		return "", eff
 	}
+	reason := "unknown"
 	if i := slices.IndexFunc(askModels, func(m askModel) bool { return m.Key == key }); i >= 0 {
+		reason = "unpriced" // no id on this provider, off the allowlist or without a rate
 		if id := s.askModelID(askModels[i]); id != "" && s.gw.ModelSelectable(ctx, id) {
+			reason = "disabled"
 			if keys, err := s.orgAskKeys(ctx, orgID); err == nil && slices.Contains(keys, key) {
 				return id, eff
 			}
 		}
 	}
-	slog.Warn("ask uni: model choice not usable, using Auto", "organization_id", orgID, "model", key)
+	slog.Warn("ask uni: model choice not usable, using Auto", "organization_id", orgID, "reason", reason)
 	return "", eff
 }
 

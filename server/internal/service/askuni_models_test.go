@@ -1,9 +1,12 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"log/slog"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -52,6 +55,25 @@ func TestAskModelChoiceFallsBackToAuto(t *testing.T) {
 	for key, want := range map[string]string{"": "", "opus": "", "unknown": "", "haiku": "fake-b", "sonnet": "fake"} {
 		if got, _ := s.resolveAskModel(ctx, w.OrganizationID, key, ""); got != want {
 			t.Errorf("model %q resolved to %q, want %q", key, got, want)
+		}
+	}
+}
+
+// A choice that falls back to Auto logs a fixed reason, never the client's
+// own string (ruling F5).
+func TestAskModelFallbackLogsAReasonOnly(t *testing.T) {
+	s, _, _, _, w := modelsFixture(t)
+	askModels = append(askModels, askModel{Key: "unpriced", IDs: map[string]string{"fake": "fake-nowhere"}})
+	var logs bytes.Buffer
+	prev := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&logs, nil)))
+	t.Cleanup(func() { slog.SetDefault(prev) })
+	for key, reason := range map[string]string{"<client-secret>": "unknown", "opus": "disabled", "unpriced": "unpriced"} {
+		logs.Reset()
+		s.resolveAskModel(context.Background(), w.OrganizationID, key, "")
+		line := logs.String()
+		if !strings.Contains(line, "reason="+reason) || !strings.Contains(line, "organization_id="+w.OrganizationID) || strings.Contains(line, "client-secret") || strings.Contains(line, "model=") {
+			t.Errorf("model %q logged %q, want reason=%s and the ids only", key, line, reason)
 		}
 	}
 }
