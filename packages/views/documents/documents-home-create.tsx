@@ -202,11 +202,7 @@ export function CreateMenu({
               </div>
             ),
           )}
-          <DropdownMenuSeparator className="sm:hidden" />
-          <DropdownMenuItem className="gap-2 px-2 py-2 pointer-coarse:min-h-11 sm:hidden" onClick={onUpload}>
-            <Upload aria-hidden className="size-4" />
-            {t("documents.home.create.upload.button")}
-          </DropdownMenuItem>
+          {/* The switch closes the document kinds, never the Folder entry above them: a folder is not shared (UNI-1994). */}
           <DropdownMenuSeparator />
           <DropdownMenuCheckboxItem
             closeOnClick={false}
@@ -229,6 +225,11 @@ export function CreateMenu({
               </span>
             </span>
           </DropdownMenuCheckboxItem>
+          <DropdownMenuSeparator className="sm:hidden" />
+          <DropdownMenuItem className="gap-2 px-2 py-2 pointer-coarse:min-h-11 sm:hidden" onClick={onUpload}>
+            <Upload aria-hidden className="size-4" />
+            {t("documents.home.create.upload.button")}
+          </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
     </>

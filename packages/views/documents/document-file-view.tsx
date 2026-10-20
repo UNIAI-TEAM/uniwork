@@ -13,6 +13,7 @@ import { useOfficeFormatName } from "../office/format-name";
 import { HeaderActionsFill } from "../layout/header-actions-slot";
 import { leaveGuardAllows } from "../navigation";
 import { DocumentFileMenuItems, useDocumentFileActions } from "./document-file-actions";
+import { readonlyKeys, readonlyReaderCanComment } from "./document-readonly-copy";
 import { DocumentSaveIndicator } from "./document-save-indicator";
 
 export interface DocumentFileViewProps {
@@ -174,6 +175,8 @@ function SelfGatedDocumentFileView(props: DocumentFileViewProps) {
 function DocumentFileBody({ wsId, doc, readonly, officeEditorHost: OfficeEditorHost, permissionNoticeShown, gate }: DocumentFileViewProps & { gate: DocumentOfficeGate }) {
   const { t, i18n } = useTranslation();
   const file = doc.file;
+  // A comment-level reader is read-only but not "view only" (UNI-1994).
+  const canComment = readonlyReaderCanComment(doc);
   const versions = useDocumentVersions(wsId, doc.id);
   const actions = useDocumentFileActions(wsId, doc);
   const { download, downloading } = actions;
@@ -257,7 +260,7 @@ function DocumentFileBody({ wsId, doc, readonly, officeEditorHost: OfficeEditorH
         {/* The permission reason, kept apart from the format/editor reason below. */}
         {readonly && !permissionNoticeShown ? (
           <p className="border-t border-border px-4 py-2 text-caption text-muted-foreground" data-testid="document-file-readonly">
-            {t("documents.file.readonly_hint")}
+            {t(readonlyKeys(canComment).fileHint)}
           </p>
         ) : null}
       </div>
@@ -342,7 +345,7 @@ function DocumentFileBody({ wsId, doc, readonly, officeEditorHost: OfficeEditorH
       </section>
 
       <div className="flex items-center gap-2">
-        <DocumentSaveIndicator readonly={readonly} />
+        <DocumentSaveIndicator readonly={readonly} canComment={canComment} />
       </div>
 
       {actions.uploadDialog}
