@@ -11,13 +11,13 @@ const DOCUMENT_URL = /\/documents\/[0-9A-HJKMNP-TV-Z]{26}$/;
  * mark's label plus the title ("Tài liệu Word Báo giá.docx"), so an exact or
  * start-anchored match misses it; the row menu trigger ("Thao tác cho <title>")
  * also contains the title, as do the source-row icon buttons (go to source, open
- * Email) and the access-cell button ("Quản lý quyền truy cập của <title>"),
+ * Email) and the access-cell button ("Quản lý / Xem quyền truy cập của <title>"),
  * hence the lookahead. A string is matched as a
  * literal substring, a RegExp as given.
  */
 export function libraryRowButton(table: Locator, title: string | RegExp): Locator {
   const source = typeof title === "string" ? title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") : title.source;
-  return table.getByRole("button", { name: new RegExp(`^(?!Thao tác cho |Xem nơi đính kèm: |Mở Email: |View where attached: |Open Email: |Quản lý quyền truy cập của |Manage access for ).*${source}`) });
+  return table.getByRole("button", { name: new RegExp(`^(?!Thao tác cho |Xem nơi đính kèm: |Mở Email: |View where attached: |Open Email: |Quản lý quyền truy cập của |Xem quyền truy cập của |Manage access for |View access for ).*${source}`) });
 }
 
 /** Screenshot helper bound to one evidence directory (created on first use). */
