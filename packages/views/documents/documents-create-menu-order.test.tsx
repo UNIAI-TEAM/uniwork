@@ -2,7 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { initI18n, setLocale } from "@uniwork/core/i18n";
 import { wrap } from "../test/api-mock";
-import { CreateMenu } from "./documents-home-create";
+import { CreateMenu, QuickCreateRow } from "./documents-home-create";
 
 const { t } = initI18n();
 
@@ -71,5 +71,17 @@ describe("New menu: plain text entry (UNI-2046)", () => {
     fireEvent.click(screen.getByRole("button", { name: new RegExp(t("documents.home.create.menu")) }));
     fireEvent.click(await screen.findByRole("menuitem", { name: new RegExp(t("documents.home.create.txt.menu")) }));
     expect(onCreate).toHaveBeenCalledWith("txt", { shareWithWorkspace: false });
+  });
+});
+
+describe("Quick create strip: no plain text (UNI-2046, user 2026-10-21 \"không cần quick create txt\")", () => {
+  it("offers no txt chip while the New menu keeps its entry right under Markdown", async () => {
+    render(wrap(<QuickCreateRow pending={false} unavailable={new Set()} onCreate={vi.fn()} />));
+    const chips = screen.getAllByRole("button").map((b) => (b.textContent ?? "").trim());
+    expect(chips).toEqual(
+      ["page", "docx", "xlsx", "pptx", "md", "html", "pdf"].map((type) => t(`documents.home.create.${type}.chip`)),
+    );
+    expect(screen.queryByTitle(".txt")).toBeNull();
+    expect(t("documents.home.create.txt.chip")).toBe("documents.home.create.txt.chip");
   });
 });
