@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { createOfficeFrameApi, createOfficeFrameSourceApi, type DocsFrameApi } from "@uniwork/core/office/docs-frame-api";
 import type { FileMeta, OfficeModule, ProtocolErrorShape, SavedPayload, Theme } from "@uniwork/core/office/docs-frame-protocol";
 import { officeFrameSrc, officeModuleSpec } from "@uniwork/core/office/office-modules";
+import { createShortcutChord, shortcutMatchesEvent, shouldIgnoreGlobalShortcutEvent } from "@uniwork/core/shortcuts";
 import type { Document } from "@uniwork/core/types/document";
 import { useTheme } from "@uniwork/ui/components/common/theme-provider";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -35,6 +36,9 @@ import { useFrameEditLock } from "./frame-edit-lock";
 import { useFrameComments } from "./use-frame-comments";
 import { hasHostDialogAbove, requestDocumentFrameLeave } from "./frame-close-requested";
 import { useFirstSaveNaming } from "./first-save-naming";
+
+/** Print is the one host chord of an Office frame; every other chord typed in a frame stays in the frame. */
+const PRINT_CHORD = createShortcutChord("P", { primary: true });
 
 export interface OfficeModuleFrameControls {
   save: () => Promise<boolean>;
@@ -269,12 +273,11 @@ export function OfficeModuleFrame({
   useEffect(() => {
     // The frame's own dialog is modal for the page: the page's shortcuts wait until it closes.
     if (session.status !== "ready" || session.modal || !session.canPrint) return undefined;
+    // Exactly Ctrl/Cmd+P (no Shift, no Alt or AltGr), never mid-composition, never a chord a control already took.
     const onKey = (event: KeyboardEvent) => {
-      if (event.repeat) return;
-      if ((event.ctrlKey || event.metaKey) && !event.altKey && event.key.toLowerCase() === "p") {
-        event.preventDefault();
-        void print();
-      }
+      if (shouldIgnoreGlobalShortcutEvent(event) || !shortcutMatchesEvent(PRINT_CHORD, event)) return;
+      event.preventDefault();
+      void print();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
