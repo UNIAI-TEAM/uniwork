@@ -32,12 +32,20 @@ const DocumentPurgeResponseSchema = z.undefined();
 
 const enc = encodeURIComponent;
 
+/** The columns the document tables sort by on the server. */
+export type DocumentSortColumn = "updated" | "name" | "size" | "editor";
+export type DocumentSortOrder = "asc" | "desc";
+
 /** Filters of GET /workspaces/{ws}/documents. `parentId: ""` lists the
  *  workspace roots; leaving it undefined is the flat list. `sharedByMe: true`
  *  lists documents the caller owns and has shared (`parent_id` + `shared_by_me`
  *  is rejected with 400 `invalid_filter`, so the union forbids passing both). */
 export interface ListDocumentsBaseOpts {
   q?: string;
+  /** The column the tables sort by (UNI-2038); left out keeps the list's own
+   *  fixed order. `archived` and `shelved` lists refuse it with 400. */
+  sort?: DocumentSortColumn;
+  order?: DocumentSortOrder;
   /** "document" is every kind but folder (folders contract v1.0). */
   kind?: DocumentKind | "document";
   /** The library's type chip: the file format of the row's current version
@@ -76,6 +84,8 @@ function listQuery(opts?: ListDocumentsOpts & { shelved?: boolean }): string {
   if (opts.kind) p.set("kind", opts.kind);
   if (opts.format) p.set("format", opts.format);
   if (opts.access) p.set("access", opts.access);
+  if (opts.sort) p.set("sort", opts.sort);
+  if (opts.order) p.set("order", opts.order);
   if (opts.match) p.set("match", opts.match);
   if (opts.archived !== undefined) p.set("archived", opts.archived ? "1" : "0");
   if (opts.shelved === true) p.set("shelved", "true");
@@ -111,7 +121,7 @@ export async function listDocuments(
  *  same `format`/`access` filters as the flat list. */
 export async function listRecentDocuments(
   wsId: string,
-  opts?: Pick<ListDocumentsBaseOpts, "cursor" | "limit" | "format" | "access">,
+  opts?: Pick<ListDocumentsBaseOpts, "cursor" | "limit" | "format" | "access" | "sort" | "order">,
   signal?: AbortSignal,
 ): Promise<DocumentList> {
   const raw = await request(`/api/v1/workspaces/${enc(wsId)}/documents/recent${listQuery(opts)}`, { signal });
@@ -128,7 +138,7 @@ export async function listRecentDocuments(
  *  the page (default 50, max 100), and a denied candidate never takes a slot. */
 export async function listSharedWithMe(
   wsId: string,
-  opts?: Pick<ListDocumentsBaseOpts, "cursor" | "limit" | "format" | "access">,
+  opts?: Pick<ListDocumentsBaseOpts, "cursor" | "limit" | "format" | "access" | "sort" | "order">,
   signal?: AbortSignal,
 ): Promise<DocumentList> {
   const raw = await request(
@@ -151,7 +161,7 @@ export async function listSharedWithMe(
  */
 export async function listSharedByMe(
   wsId: string,
-  cursorOrOpts?: string | Pick<ListDocumentsBaseOpts, "cursor" | "limit" | "format" | "access">,
+  cursorOrOpts?: string | Pick<ListDocumentsBaseOpts, "cursor" | "limit" | "format" | "access" | "sort" | "order">,
   signal?: AbortSignal,
 ): Promise<DocumentList> {
   const opts = typeof cursorOrOpts === "string" ? { cursor: cursorOrOpts } : cursorOrOpts;
@@ -162,6 +172,8 @@ export async function listSharedByMe(
       limit: opts?.limit,
       format: opts?.format,
       access: opts?.access,
+      sort: opts?.sort,
+      order: opts?.order,
     })}`,
     { signal },
   );

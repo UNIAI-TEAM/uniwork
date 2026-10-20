@@ -19,6 +19,7 @@ import type {
 } from "../types/document";
 import { useEnsureMyFolder, type CreateDocumentPlacementInput } from "./hooks";
 import { documentKeys } from "./keys";
+import { keepWhileSorting } from "./keep-while-sorting";
 import { requireVerifiableDocument } from "./verify";
 
 export { useEnsureMyFolder };
@@ -48,7 +49,7 @@ export function isEndpointMissing(error: unknown): boolean {
   return error instanceof ApiError && (error.status === 404 || error.status === 501);
 }
 
-function sourcesFilterKey(filter?: Pick<ListDocumentSourcesOpts, "source" | "type" | "q">): string {
+function sourcesFilterKey(filter?: Pick<ListDocumentSourcesOpts, "source" | "type" | "q" | "sort" | "order">): string {
   if (!filter) return "";
   const entries = Object.entries(filter)
     .filter(([, value]) => value !== undefined && value !== "")
@@ -60,11 +61,12 @@ function sourcesFilterKey(filter?: Pick<ListDocumentSourcesOpts, "source" | "typ
  *  endpoint is not retried so the caller can hide the section at once. */
 export function useDocumentSources(
   wsId: string,
-  filter?: Pick<ListDocumentSourcesOpts, "source" | "type" | "q">,
+  filter?: Pick<ListDocumentSourcesOpts, "source" | "type" | "q" | "sort" | "order">,
   opts?: { enabled?: boolean },
 ) {
   return useInfiniteQuery({
     queryKey: documentKeys.sources(wsId, sourcesFilterKey(filter)),
+    placeholderData: keepWhileSorting(documentKeys.sources(wsId, sourcesFilterKey(filter))),
     queryFn: ({ pageParam, signal }) =>
       listDocumentSources(
         wsId,

@@ -9774,7 +9774,10 @@
         "change": "Change",
         "picker_title": "Choose where to save",
         "picker_description": "Pick the folder this document is saved in.",
-        "picker_submit": "Choose"
+        "picker_submit": "Choose",
+        "share_toggle": "Share with workspace",
+        "share_hint": "Everyone in this workspace can view this document",
+        "share_already": "Already shared with the workspace"
       }
     },
     "save": {
@@ -10854,9 +10857,9 @@
       },
       "open_office": "Open UniWork Office",
       "sort": {
-        "label": "Sort by",
-        "name": "Name (A→Z)",
-        "updated": "Updated (newest)"
+        "column": "Sort by {{column}}",
+        "ascending": "ascending",
+        "descending": "descending"
       },
       "folder_invalid": {
         "title": "Can't open this folder",

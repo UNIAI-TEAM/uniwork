@@ -205,6 +205,8 @@ type ListDocumentsSDI struct {
 	SharedByMe  *bool   `query:"shared_by_me" description:"true = chỉ tài liệu sống do người gọi làm ACL owner và đang chia sẻ (share người dùng/nhóm còn hiệu lực hoặc visibility=workspace); dùng cùng parent_id -> 400 invalid_filter" example:"true"`
 	Cursor      *string `query:"cursor" description:"next_cursor của trang trước; bỏ trống = trang đầu" example:"eyJ0IjoiMjAyNi0wOS0yN1QwOTowMDowMFoiLCJpZCI6IjAxSjhYNERPQzBOMVAyUTNSNFM1VDZVNyJ9"`
 	Limit       *int32  `query:"limit" description:"Kích thước trang, mặc định 50, tối đa 100" example:"50"`
+	Sort        *string `query:"sort" enum:"updated,name,size,editor" description:"Sắp xếp theo cột: updated (updated_at), name (tiêu đề, bảng mã tiếng Việt), size (dung lượng phiên bản tệp hiện tại, trang/thư mục = 0) hoặc editor (tên hiển thị người sửa gần nhất; người sửa là agent/đã xóa luôn xếp cuối). Bỏ trống = thứ tự riêng của danh sách và con trỏ cũ. Giá trị khác -> 400 invalid_request; kết hợp archived hoặc shelved -> 400; next_cursor của một sort không dùng được cho sort/order khác (400)" example:"name"`
+	Order       *string `query:"order" enum:"asc,desc" description:"Chiều sắp xếp; chỉ dùng cùng sort (order không có sort -> 400). Bỏ trống: updated và size giảm dần, name và editor tăng dần" example:"asc"`
 }
 
 // ListRecentDocumentsSDI documents GET
@@ -219,6 +221,8 @@ type ListRecentDocumentsSDI struct {
 	Match  *string `query:"match" description:"Chỉ nhận title (hoặc bỏ trống); recent không lọc theo q nên giá trị hợp lệ được chấp nhận và bỏ qua, giá trị khác -> 400" example:"title"`
 	Format *string `query:"format" description:"Lọc theo định dạng tệp của phiên bản hiện tại: docx, xlsx, pptx, pdf, md hoặc html; thư mục luôn nằm trong kết quả, trang không bao giờ khớp; giá trị khác -> 400 invalid_filter" example:"pdf"`
 	Access *string `query:"access" description:"Lọc theo quyền của người gọi trên dòng: manage (chỉ manage), edit (edit hoặc manage), restricted (visibility=restricted); giá trị khác -> 400 invalid_filter" example:"manage"`
+	Sort   *string `query:"sort" enum:"updated,name,size,editor" description:"Sắp xếp theo cột: updated (updated_at), name (tiêu đề, bảng mã tiếng Việt), size (dung lượng phiên bản tệp hiện tại, trang/thư mục = 0) hoặc editor (tên hiển thị người sửa gần nhất; người sửa là agent/đã xóa luôn xếp cuối). Bỏ trống = thứ tự riêng của danh sách và con trỏ cũ. Giá trị khác -> 400 invalid_request; kết hợp archived hoặc shelved -> 400; next_cursor của một sort không dùng được cho sort/order khác (400)" example:"name"`
+	Order  *string `query:"order" enum:"asc,desc" description:"Chiều sắp xếp; chỉ dùng cùng sort (order không có sort -> 400). Bỏ trống: updated và size giảm dần, name và editor tăng dần" example:"asc"`
 }
 
 // ListSharedWithMeSDI documents GET
@@ -231,6 +235,8 @@ type ListSharedWithMeSDI struct {
 	Limit  *int32  `query:"limit" description:"Số tài liệu mỗi trang, mặc định 50, tối đa 100" example:"50"`
 	Format *string `query:"format" description:"Lọc theo định dạng tệp của phiên bản hiện tại: docx, xlsx, pptx, pdf, md hoặc html; giá trị khác -> 400 invalid_filter" example:"pdf"`
 	Access *string `query:"access" description:"Lọc theo quyền người gọi nhận được qua chia sẻ: manage (chỉ manage), edit (edit hoặc manage), restricted (visibility=restricted); giá trị khác -> 400 invalid_filter" example:"edit"`
+	Sort   *string `query:"sort" enum:"updated,name,size,editor" description:"Sắp xếp theo cột: updated (updated_at), name (tiêu đề, bảng mã tiếng Việt), size (dung lượng phiên bản tệp hiện tại, trang/thư mục = 0) hoặc editor (tên hiển thị người sửa gần nhất; người sửa là agent/đã xóa luôn xếp cuối). Bỏ trống = thứ tự riêng của danh sách và con trỏ cũ. Giá trị khác -> 400 invalid_request; kết hợp archived hoặc shelved -> 400; next_cursor của một sort không dùng được cho sort/order khác (400)" example:"name"`
+	Order  *string `query:"order" enum:"asc,desc" description:"Chiều sắp xếp; chỉ dùng cùng sort (order không có sort -> 400). Bỏ trống: updated và size giảm dần, name và editor tăng dần" example:"asc"`
 }
 
 // DocumentTreeSDI documents GET /api/v1/workspaces/{workspaceID}/documents/tree:

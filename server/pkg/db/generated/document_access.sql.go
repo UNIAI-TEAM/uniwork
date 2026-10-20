@@ -605,7 +605,9 @@ func (q *Queries) ListDocumentAccessLogs(ctx context.Context, arg ListDocumentAc
 }
 
 const listDocumentShareCandidates = `-- name: ListDocumentShareCandidates :many
-SELECT d.id, d.organization_id, d.workspace_id, d.parent_id, d.kind, d.title, d.icon, d.visibility, d.content, d.content_text, d.search_text, d.content_bytes, d.current_version, d.file_version_id, d.revision, d.position, d.owner_kind, d.owner_id, d.acl_owner_id, d.source_document_id, d.source_version_id, d.source_revision, d.source_format, d.source_engine, d.target_format, d.source_checksum_sha256, d.conversion_reason, d.created_by, d.created_by_kind, d.updated_by, d.updated_by_kind, d.content_saved_at, d.last_version_at, d.archived_at, d.archived_by, d.purge_after, d.created_at, d.updated_at, d.archive_batch_id, d.content_revision, d.workspace_level, d.system_kind, d.shelved_at, d.shelved_by, d.shelved_by_kind, d.shelve_batch_id, c.created_at
+SELECT d.id, d.organization_id, d.workspace_id, d.parent_id, d.kind, d.title, d.icon, d.visibility, d.content, d.content_text, d.search_text, d.content_bytes, d.current_version, d.file_version_id, d.revision, d.position, d.owner_kind, d.owner_id, d.acl_owner_id, d.source_document_id, d.source_version_id, d.source_revision, d.source_format, d.source_engine, d.target_format, d.source_checksum_sha256, d.conversion_reason, d.created_by, d.created_by_kind, d.updated_by, d.updated_by_kind, d.content_saved_at, d.last_version_at, d.archived_at, d.archived_by, d.purge_after, d.created_at, d.updated_at, d.archive_batch_id, d.content_revision, d.workspace_level, d.system_kind, d.shelved_at, d.shelved_by, d.shelved_by_kind, d.shelve_batch_id, c.created_at,
+       sk.name_key AS sort_name, sk.size_key AS sort_size,
+       sk.editor_key AS sort_editor, sk.editor_null AS sort_editor_null
 FROM (
   SELECT DISTINCT ON (s.document_id) s.document_id, s.workspace_id, s.created_at
   FROM document_shares s
@@ -627,46 +629,88 @@ LEFT JOIN document_versions cv
  AND cv.workspace_id = d.workspace_id
  AND cv.document_id = d.id
  AND cv.id = d.file_version_id
+LEFT JOIN users eu
+  ON eu.id = d.updated_by
+ AND d.updated_by_kind = 'human'
+ AND $4::text = 'editor'
+CROSS JOIN LATERAL (SELECT
+    (CASE WHEN $4::text = 'name' THEN d.title ELSE '' END COLLATE "vi-x-icu")::text AS name_key,
+    (CASE WHEN $4::text = 'size' THEN COALESCE(cv.size_bytes, 0) ELSE 0 END)::bigint AS size_key,
+    (CASE WHEN $4::text = 'editor' THEN COALESCE(eu.display_name COLLATE "vi-x-icu", '') ELSE '' END)::text AS editor_key,
+    (CASE WHEN $4::text = 'editor' THEN NULLIF(btrim(eu.display_name), '') IS NULL ELSE false END)::boolean AS editor_null
+) sk
 WHERE d.archived_at IS NULL
   -- ARCHIVE-01 (Q-AR3 = a): a shelved share leaves the shared-with-me list.
   AND d.shelved_at IS NULL
   AND d.owner_id IS NULL
-  AND ($4::text IS NULL
+  AND ($5::text IS NULL
        OR d.kind = 'folder'
        OR (d.kind = 'file'
-           AND (cv.mime_type = $5::text
-                OR ((cv.mime_type IS NULL OR NOT (cv.mime_type = ANY($6::text[])))
-                    AND length(d.title) > length($4::text) + 1
-                    AND right(lower(d.title), length($4::text) + 1) = '.' || $4::text))))
+           AND (cv.mime_type = $6::text
+                OR ((cv.mime_type IS NULL OR NOT (cv.mime_type = ANY($7::text[])))
+                    AND length(d.title) > length($5::text) + 1
+                    AND right(lower(d.title), length($5::text) + 1) = '.' || $5::text))))
   -- UNI-1868 access filter. Every row this walk keeps reaches the caller
   -- through a share, so the level the filter compares is the share level; a
   -- member leg that outranks it makes the row's via member (the service drops
   -- those), and never a false negative here. 'restricted' is the visibility.
-  AND ($7::text IS NULL
-       OR ($7::text = 'restricted' AND d.visibility = 'restricted')
-       OR ($7::text <> 'restricted' AND EXISTS (
+  AND ($8::text IS NULL
+       OR ($8::text = 'restricted' AND d.visibility = 'restricted')
+       OR ($8::text <> 'restricted' AND EXISTS (
             SELECT 1 FROM document_shares a
             WHERE a.organization_id = d.organization_id
               AND a.workspace_id = d.workspace_id
               AND a.document_id = d.id
               AND a.revoked_at IS NULL
-              AND a.level = ANY($8::text[])
+              AND a.level = ANY($9::text[])
               AND ((a.principal_type = 'user' AND a.principal_id = $2)
                    OR (a.principal_type = 'organization' AND a.principal_id = d.organization_id)
                    OR (a.principal_type = 'workspace' AND a.principal_id = ANY($3::text[]))))))
   AND (
-    $9::timestamptz IS NULL
-    OR c.created_at < $9::timestamptz
-    OR (c.created_at = $9::timestamptz AND d.id > $10::text)
+    $10::timestamptz IS NULL
+    OR c.created_at < $10::timestamptz
+    OR (c.created_at = $10::timestamptz AND d.id > $11::text)
   )
-ORDER BY c.created_at DESC, d.id
-LIMIT $11
+  -- UNI-2038 S3 keyset of a sorted page: (key, id) past the cursor row in the
+  -- requested direction; an editor-less row (editor_null) is always last.
+  AND ($12::text IS NULL OR CASE $4::text
+       WHEN 'updated' THEN CASE WHEN $13::boolean
+            THEN (d.updated_at, d.id COLLATE "C") < ($14::timestamptz, $12::text COLLATE "C")
+            ELSE (d.updated_at, d.id COLLATE "C") > ($14::timestamptz, $12::text COLLATE "C") END
+       WHEN 'size' THEN CASE WHEN $13::boolean
+            THEN (sk.size_key, d.id COLLATE "C") < ($15::bigint, $12::text COLLATE "C")
+            ELSE (sk.size_key, d.id COLLATE "C") > ($15::bigint, $12::text COLLATE "C") END
+       WHEN 'name' THEN CASE WHEN $13::boolean
+            THEN (sk.name_key COLLATE "vi-x-icu", d.id COLLATE "C") < ($16::text COLLATE "vi-x-icu", $12::text COLLATE "C")
+            ELSE (sk.name_key COLLATE "vi-x-icu", d.id COLLATE "C") > ($16::text COLLATE "vi-x-icu", $12::text COLLATE "C") END
+       WHEN 'editor' THEN (sk.editor_null::int > $17::boolean::int
+            OR (sk.editor_null = $17::boolean
+                AND CASE WHEN $13::boolean
+            THEN (sk.editor_key COLLATE "vi-x-icu", d.id COLLATE "C") < ($16::text COLLATE "vi-x-icu", $12::text COLLATE "C")
+            ELSE (sk.editor_key COLLATE "vi-x-icu", d.id COLLATE "C") > ($16::text COLLATE "vi-x-icu", $12::text COLLATE "C") END))
+       ELSE true END)
+ORDER BY
+  (CASE WHEN $4::text IS NULL THEN c.created_at END) DESC,
+  (CASE WHEN $4::text IS NULL THEN d.id END),
+  (CASE WHEN $4::text = 'editor' THEN sk.editor_null END) ASC,
+  (CASE WHEN $4::text = 'name' AND NOT $13::boolean THEN sk.name_key
+        WHEN $4::text = 'editor' AND NOT $13::boolean THEN sk.editor_key END) COLLATE "vi-x-icu" ASC,
+  (CASE WHEN $4::text = 'name' AND $13::boolean THEN sk.name_key
+        WHEN $4::text = 'editor' AND $13::boolean THEN sk.editor_key END) COLLATE "vi-x-icu" DESC,
+  (CASE WHEN $4::text = 'size' AND NOT $13::boolean THEN sk.size_key END) ASC,
+  (CASE WHEN $4::text = 'size' AND $13::boolean THEN sk.size_key END) DESC,
+  (CASE WHEN $4::text = 'updated' AND NOT $13::boolean THEN d.updated_at END) ASC,
+  (CASE WHEN $4::text = 'updated' AND $13::boolean THEN d.updated_at END) DESC,
+  (CASE WHEN $4::text IS NOT NULL AND NOT $13::boolean THEN d.id COLLATE "C" END) ASC,
+  (CASE WHEN $4::text IS NOT NULL AND $13::boolean THEN d.id COLLATE "C" END) DESC
+LIMIT $18
 `
 
 type ListDocumentShareCandidatesParams struct {
 	OrganizationID string             `json:"organization_id"`
 	UserID         string             `json:"user_id"`
 	WorkspaceIds   []string           `json:"workspace_ids"`
+	SortKey        pgtype.Text        `json:"sort_key"`
 	Format         pgtype.Text        `json:"format"`
 	FormatMime     pgtype.Text        `json:"format_mime"`
 	FormatMimes    []string           `json:"format_mimes"`
@@ -674,12 +718,22 @@ type ListDocumentShareCandidatesParams struct {
 	AccessLevels   []string           `json:"access_levels"`
 	AfterCreatedAt pgtype.Timestamptz `json:"after_created_at"`
 	AfterID        pgtype.Text        `json:"after_id"`
+	SortCursorID   pgtype.Text        `json:"sort_cursor_id"`
+	SortDesc       bool               `json:"sort_desc"`
+	SortCursorAt   pgtype.Timestamptz `json:"sort_cursor_at"`
+	SortCursorNum  pgtype.Int8        `json:"sort_cursor_num"`
+	SortCursorText pgtype.Text        `json:"sort_cursor_text"`
+	SortCursorNull pgtype.Bool        `json:"sort_cursor_null"`
 	MaxRows        int32              `json:"max_rows"`
 }
 
 type ListDocumentShareCandidatesRow struct {
-	Document  Document           `json:"document"`
-	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	Document       Document           `json:"document"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	SortName       string             `json:"sort_name"`
+	SortSize       int64              `json:"sort_size"`
+	SortEditor     string             `json:"sort_editor"`
+	SortEditorNull bool               `json:"sort_editor_null"`
 }
 
 // "Shared with me" candidates: live shares naming the person, the whole
@@ -689,11 +743,24 @@ type ListDocumentShareCandidatesRow struct {
 // person is not in cannot crowd theirs out; newest share first, id ascending
 // as the tiebreak, and (after_created_at, after_id) is the keyset that
 // continues the walk. The service still runs effectiveLevel on every row.
+// UNI-2038 S3: the sort keys of a row, computed once. The name key is the
+// title itself under the Vietnamese ICU collation (Đ sorts after D, tones and
+// case variants stay together, whatever the database locale is); the size key is the current
+// file version's size (0 for a page or a folder); the editor key is the last
+// editor's display name (same collation), and only a human editor with a name has one - an
+// agent, a removed account or a blank name sets editor_null and sorts last. Each
+// key is computed only under its own sort (the others are constants), so an
+// unsorted list pays nothing for them and the users join runs for sort=editor.
+// UNI-2038 S3: no sort_key keeps the list's own order (the first two terms);
+// a sort_key orders by (key, id) in one direction. Every term is a CASE on a
+// bound parameter, so the planner folds the unused ones away and a plain
+// (key, id) order remains.
 func (q *Queries) ListDocumentShareCandidates(ctx context.Context, arg ListDocumentShareCandidatesParams) ([]ListDocumentShareCandidatesRow, error) {
 	rows, err := q.db.Query(ctx, listDocumentShareCandidates,
 		arg.OrganizationID,
 		arg.UserID,
 		arg.WorkspaceIds,
+		arg.SortKey,
 		arg.Format,
 		arg.FormatMime,
 		arg.FormatMimes,
@@ -701,6 +768,12 @@ func (q *Queries) ListDocumentShareCandidates(ctx context.Context, arg ListDocum
 		arg.AccessLevels,
 		arg.AfterCreatedAt,
 		arg.AfterID,
+		arg.SortCursorID,
+		arg.SortDesc,
+		arg.SortCursorAt,
+		arg.SortCursorNum,
+		arg.SortCursorText,
+		arg.SortCursorNull,
 		arg.MaxRows,
 	)
 	if err != nil {
@@ -758,6 +831,10 @@ func (q *Queries) ListDocumentShareCandidates(ctx context.Context, arg ListDocum
 			&i.Document.ShelvedByKind,
 			&i.Document.ShelveBatchID,
 			&i.CreatedAt,
+			&i.SortName,
+			&i.SortSize,
+			&i.SortEditor,
+			&i.SortEditorNull,
 		); err != nil {
 			return nil, err
 		}
