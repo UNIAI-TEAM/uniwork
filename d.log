@@ -1,0 +1,8 @@
+$ pnpm --filter @uniwork/views exec vitest run layout inbox notifications 2>&1 | tail -6; rc=${PIPESTATUS[0]}; echo "VIEWS_OTHER_EXIT=$rc"
+
+ Test Files  42 passed (42)
+      Tests  405 passed (405)
+   Start at  22:59:11
+   Duration  22.41s (transform 6.57s, setup 8.38s, import 20.93s, tests 19.61s, environment 11.22s)
+
+VIEWS_OTHER_EXIT=0
