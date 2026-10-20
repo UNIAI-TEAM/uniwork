@@ -4,7 +4,8 @@ docs/superpowers/specs/2026-10-20-meeting-scribe-agent-design.md §4.1, ADR 0037
 Explicit dispatch only (agent_name set), so the worker never joins a room on
 its own; the server dispatches it with a per-meeting uwma_ token. Per microphone
 track: Silero VAD -> STT session -> captions on the uw.caption text stream and
-finals in 2 s batches to /agent/segments. Never logs spoken text.
+finals in 2 s batches to /agent/segments; live action items through
+/agent/extract on the §4.4 cadence. Never logs spoken text.
 """
 
 from __future__ import annotations
@@ -22,6 +23,7 @@ from livekit.plugins import silero
 from scribe import config, metrics
 from scribe.api import ApiError, UniworkClient
 from scribe.batcher import SegmentBatcher
+from scribe.extract import ExtractCadence
 from scribe.job import (
     AGENT_IDENTITY,
     AGENT_NAME,
@@ -77,6 +79,14 @@ async def entrypoint(ctx: JobContext) -> None:
     http = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=15))
     client = UniworkClient(http, SETTINGS.api_url, meta["meeting_id"], meta["token"])
     batcher = SegmentBatcher(client.segments)
+
+    async def extract() -> None:
+        # The server reads what it stored: send the queued finals first.
+        await batcher.flush()
+        out = await client.extract()
+        log.info("extract created=%s skipped=%s", out.get("created"), out.get("skipped", ""))
+
+    cadence = ExtractCadence(extract)
     transcribers: dict[str, TrackTranscriber] = {}
     tasks: set[asyncio.Task] = set()
     vad_model = ctx.proc.userdata["vad"]
@@ -104,7 +114,7 @@ async def entrypoint(ctx: JobContext) -> None:
             identity=p.identity,
             stt_impl=make_stt(SETTINGS.stt_provider, keyterms, diarize=diarize),
             publish=publish,
-            on_final=lambda f: batcher.add(f.as_json()),
+            on_final=lambda f: (batcher.add(f.as_json()), cadence.on_final()),
             idle_close_s=SETTINGS.idle_close_s,
             language=meta["locale"],
             diarize=diarize,
@@ -199,6 +209,7 @@ async def entrypoint(ctx: JobContext) -> None:
         for t in list(transcribers.values()):
             await t.close()
         await batcher.drain()
+        await cadence.final()
         session_ms = sum(t.session_ms for t in transcribers.values())
         if not reports_finished(disconnect["reason"]):
             log.info("replaced by another connection; the run is not ours to finish")
@@ -222,6 +233,14 @@ async def entrypoint(ctx: JobContext) -> None:
         return
     flusher = asyncio.create_task(batcher.run())
     tasks.add(flusher)
+
+    async def extract_ticks() -> None:
+        while True:
+            await asyncio.sleep(1)
+            await cadence.tick()
+
+    extractor = asyncio.create_task(extract_ticks())
+    tasks.add(extractor)
     ctx.add_participant_entrypoint(on_participant)
     await ctx.connect(auto_subscribe=AutoSubscribe.AUDIO_ONLY)
     try:

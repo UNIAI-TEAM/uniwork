@@ -37,11 +37,22 @@ class UniworkClient:
         self._retries = retries
         self._backoff = backoff_s
 
-    async def _call(self, method: str, path: str, body: Any = None) -> dict:
+    async def _call(
+        self,
+        method: str,
+        path: str,
+        body: Any = None,
+        *,
+        retries: int | None = None,
+        request_timeout: aiohttp.ClientTimeout | None = None,
+    ) -> dict:
+        retries = self._retries if retries is None else retries
         delay = self._backoff
-        for attempt in range(self._retries + 1):
+        for attempt in range(retries + 1):
             try:
-                async with self._s.request(method, self._base + path, json=body, headers=self._headers) as r:
+                async with self._s.request(
+                    method, self._base + path, json=body, headers=self._headers, timeout=request_timeout
+                ) as r:
                     if r.status < 400:
                         return await r.json()
                     if r.status < 500:
@@ -49,7 +60,7 @@ class UniworkClient:
                     err: Exception = ApiError(r.status, path)
             except (aiohttp.ClientError, TimeoutError) as e:
                 err = e
-            if attempt == self._retries:
+            if attempt == retries:
                 raise err
             log.warning("api retry path=%s attempt=%d err=%s", path, attempt + 1, type(err).__name__)
             await asyncio.sleep(delay)
@@ -64,6 +75,12 @@ class UniworkClient:
 
     async def segments(self, segments: list[dict]) -> dict:
         return await self._call("POST", "/segments", {"segments": segments})
+
+    async def extract(self) -> dict:
+        """Live action items (spec §4.4). Never retried: each try is a model
+        call the organization pays for, and the next due call covers the same
+        lines. The server waits on the model, hence the longer timeout."""
+        return await self._call("POST", "/extract", retries=0, request_timeout=aiohttp.ClientTimeout(total=60))
 
     async def finished(self, stt_session_ms: int) -> None:
         await self._call("POST", "/finished", {"stt_session_ms": stt_session_ms})

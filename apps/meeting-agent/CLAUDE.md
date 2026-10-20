@@ -31,7 +31,9 @@ plan: `docs/superpowers/plans/2026-10-20-meeting-scribe-s1-base.md`; ADR 0037.
   `TrackTranscriber`, phát `uw.caption`, xả và `/agent/finished` khi tắt). Smoke tay.
 - `scribe/` — module thuần, test được không cần phòng: `job.py` (nhận job nào, chép lời ai),
   `transcriber.py` (VAD → phiên STT → phụ đề + đoạn final), `batcher.py` (lô 2 s / 20 đoạn,
-  giữ lô lỗi để gửi lại), `api.py` (client token `uwma_`, thử lại 5xx), `keyterms.py` (A2),
+  giữ lô lỗi để gửi lại), `extract.py` (S3, UNI-2025: nhịp `/agent/extract` — ≥ 3 phút và ≥ 15
+  đoạn mới, hoặc lặng ≥ 20 s sau ≥ 5 đoạn; ≤ 20 lần mỗi giờ; một lần nữa khi phòng đóng; không
+  thử lại vì mỗi lần là một lời gọi model), `api.py` (client token `uwma_`, thử lại 5xx), `keyterms.py` (A2),
   `stt.py` (`FakeSTT`, `make_stt`), `config.py`.
 
 ## Chạy

@@ -55,3 +55,14 @@ async def test_4xx_is_final(server):
             await c.started("PA_x")
         assert e.value.status == 409
         assert len(calls) == 1
+
+
+async def test_extract_is_never_retried(server):
+    url, calls, state = server
+    state["fail"] = 1
+    async with aiohttp.ClientSession() as s:
+        c = UniworkClient(s, url, "01M", "uwma_tok", backoff_s=0.01)
+        with pytest.raises(ApiError) as e:
+            await c.extract()
+        assert e.value.status == 503
+        assert [(m, p) for m, p, _ in calls] == [("POST", "/api/v1/meetings/01M/agent/extract")]

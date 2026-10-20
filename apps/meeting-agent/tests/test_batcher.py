@@ -65,3 +65,17 @@ async def test_final_refusals_drop_the_batch_and_retryable_errors_keep_it():
         await b.flush()
         assert (len(b._queue) == 3) is kept, status
         assert (len(b._queue) == 0) is (not kept), status
+
+
+async def test_concurrent_flushes_send_each_segment_once():
+    sent: list[str] = []
+
+    async def send(batch: list[dict]) -> None:
+        await asyncio.sleep(0.01)
+        sent.extend(s["segment_id"] for s in batch)
+
+    b = SegmentBatcher(send, max_segments=2, max_wait_s=60)
+    for i in range(5):
+        b.add(seg(i))
+    await asyncio.gather(b.flush(), b.flush())
+    assert sent == ["s0", "s1", "s2", "s3", "s4"]

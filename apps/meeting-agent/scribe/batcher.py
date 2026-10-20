@@ -29,6 +29,9 @@ class SegmentBatcher:
         self._queue: list[dict] = []
         self._full = asyncio.Event()
         self._closed = False
+        # The extract cadence flushes too (finals reach the server before it
+        # reads them); two flushes at once would send and drop the same batch.
+        self._lock = asyncio.Lock()
         self.sent = 0
 
     def add(self, segment: dict) -> None:
@@ -42,6 +45,10 @@ class SegmentBatcher:
 
     async def flush(self) -> bool:
         """Sends what is queued, a batch at a time; False when the server refused or failed."""
+        async with self._lock:
+            return await self._flush()
+
+    async def _flush(self) -> bool:
         while self._queue:
             batch = self._queue[: self._max]
             try:
