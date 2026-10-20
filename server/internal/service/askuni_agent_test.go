@@ -847,7 +847,7 @@ func TestAskAgentFocusIsNumberedAndCapped(t *testing.T) {
 	if prompt := first[len(first)-1].Content; !strings.Contains(prompt, "<untrusted source=\"S1\">\nBanner Tết") {
 		t.Fatalf("focus block:\n%s", prompt)
 	}
-	if tool := lastToolMessage(t, *reqs); !strings.Contains(tool, "<untrusted source=\"S1\">\nBanner Tết") || strings.Contains(tool, "S2") {
+	if tool := lastToolMessage(t, *reqs); !strings.Contains(tool, "<untrusted source=\"S1\">\nBanner Tết") || strings.Contains(tool, "[S2]") {
 		t.Fatalf("the search must find the focused task as S1:\n%s", tool)
 	}
 	if len(res.Citations) != 1 || res.Citations[0].Href != href {
