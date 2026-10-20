@@ -53,7 +53,11 @@ type scriptedEngine struct {
 	// engineVersion and capabilityErr drive the negotiation tests.
 	bound         map[office.Operation]bool
 	engineVersion string
+	jobTransport  *string
 	capabilityErr error
+	// submitHook, when set, sees every submit's envelope and input source
+	// after the grant checks; its error is the engine's answer.
+	submitHook func(office.Envelope, office.InputSource) error
 }
 
 func newScriptedEngine() *scriptedEngine {
@@ -74,7 +78,7 @@ func (e *scriptedEngine) status(id string) office.JobStatus {
 	return js
 }
 
-func (e *scriptedEngine) Submit(_ context.Context, token string, env office.Envelope) (office.JobStatus, error) {
+func (e *scriptedEngine) Submit(_ context.Context, token string, env office.Envelope, input office.InputSource) (office.JobStatus, error) {
 	g, err := office.VerifyGrant(token, e.key)
 	if err != nil {
 		return office.JobStatus{}, office.NewEngineError("grant_scope", "signature")
@@ -83,6 +87,11 @@ func (e *scriptedEngine) Submit(_ context.Context, token string, env office.Enve
 	defer e.mu.Unlock()
 	if e.submitErr != nil {
 		return office.JobStatus{}, e.submitErr
+	}
+	if e.submitHook != nil {
+		if err := e.submitHook(env, input); err != nil {
+			return office.JobStatus{}, err
+		}
 	}
 	e.grants = append(e.grants, g)
 	if _, ok := e.jobs[g.JobID]; !ok {
@@ -186,7 +195,11 @@ func (e *scriptedEngine) Capability(_ context.Context, format office.Format) (of
 	if e.engineVersion != "" {
 		version = e.engineVersion
 	}
-	return office.CapabilityResult{EngineVersion: version, Format: format, Capabilities: rows}, nil
+	transport := office.JobTransport
+	if e.jobTransport != nil {
+		transport = *e.jobTransport
+	}
+	return office.CapabilityResult{EngineVersion: version, JobTransport: transport, Format: format, Capabilities: rows}, nil
 }
 
 type countingMetrics struct {

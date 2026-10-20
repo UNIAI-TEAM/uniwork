@@ -121,7 +121,7 @@ function TopBarMenuTrigger({ label, className, children }: { label: string; clas
  * Theme and language as menu radio groups, saved with the preference toast:
  * the top bar's menus and the UniChat rail's settings menu share them.
  */
-export function usePreferenceMenuItems() {
+function usePreferenceMenuItems() {
   const { t, i18n } = useTranslation();
   const notifySaved = usePreferenceSavedToast();
   const { theme, setTheme } = useTheme();

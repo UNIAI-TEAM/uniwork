@@ -45,6 +45,10 @@ type Config struct {
 	DocumentCommitIntentClaimTTL  time.Duration
 	DocumentCommitIntentRetention time.Duration
 	DocumentCommitIntentSweepTick time.Duration
+	// IdempotencyKeyRetention and IdempotencyKeySweepTick are the G5-D2 §2.2
+	// retention window and sweep cadence for idempotency_keys.
+	IdempotencyKeyRetention time.Duration
+	IdempotencyKeySweepTick time.Duration
 	// DocumentMaxBytes (DOCUMENT_MAX_BYTES) is the single byte ceiling for
 	// document file creates, version uploads, Office saves and exports.
 	DocumentMaxBytes int64
@@ -363,6 +367,8 @@ func Load() (Config, error) {
 		DocumentCommitIntentClaimTTL:  parseDuration(os.Getenv("DOCUMENT_COMMIT_INTENT_CLAIM_TTL"), 2*time.Minute),
 		DocumentCommitIntentRetention: parseDuration(os.Getenv("DOCUMENT_COMMIT_INTENT_RETENTION"), 7*24*time.Hour),
 		DocumentCommitIntentSweepTick: parseDuration(os.Getenv("DOCUMENT_COMMIT_INTENT_SWEEP_TICK"), 10*time.Minute),
+		IdempotencyKeyRetention:       parseDuration(os.Getenv("IDEMPOTENCY_KEY_RETENTION"), 7*24*time.Hour),
+		IdempotencyKeySweepTick:       parseDuration(os.Getenv("IDEMPOTENCY_KEY_SWEEP_TICK"), 10*time.Minute),
 		DocumentMaxBytes:              documentMaxBytes,
 		FrontendOrigin:                getenv("FRONTEND_ORIGIN", "http://localhost:3000"),
 		PreviewOrigin:                 os.Getenv("PREVIEW_ORIGIN"),

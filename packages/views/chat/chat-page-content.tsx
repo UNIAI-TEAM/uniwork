@@ -266,10 +266,12 @@ export function ChatPageContent(props: ChatPageContentProps) {
         <h1 className="sr-only">{t("chat.title")}</h1>
         <div
           className={cn(
-            "flex min-h-0 w-full flex-1 overflow-hidden bg-surface",
+            // From md the list stays beside the conversation; under lg (UniChat's
+            // narrowest windows) it folds to a column of faces, as Telegram's does.
+            "flex min-h-0 w-full flex-1 overflow-hidden bg-surface md:grid md:grid-cols-[4.75rem_minmax(0,1fr)]",
             sidebarCollapsed
-              ? "lg:grid lg:grid-cols-[minmax(0,1fr)]"
-              : "lg:grid lg:grid-cols-[18rem_minmax(0,1fr)] xl:grid-cols-[23.75rem_minmax(0,1fr)]",
+              ? "lg:grid-cols-[minmax(0,1fr)]"
+              : "lg:grid-cols-[18rem_minmax(0,1fr)] xl:grid-cols-[23.75rem_minmax(0,1fr)]",
           )}
         >
           <div
@@ -277,7 +279,8 @@ export function ChatPageContent(props: ChatPageContentProps) {
             className={cn(
               "min-h-0 min-w-0 flex-col overflow-hidden",
               showMobileList ? "flex w-full flex-1" : "hidden",
-              sidebarCollapsed ? "lg:hidden" : "lg:flex lg:w-auto lg:flex-none",
+              "md:flex md:w-auto md:flex-none",
+              sidebarCollapsed && "lg:hidden",
             )}
           >
             <ChatSidebar
@@ -318,7 +321,7 @@ export function ChatPageContent(props: ChatPageContentProps) {
             className={cn(
               "relative min-h-0 min-w-0 overflow-hidden bg-background",
               showMobileChat ? "flex flex-1" : "hidden",
-              "lg:flex lg:flex-1",
+              "md:flex md:flex-1",
             )}
           >
             <div className="flex min-h-0 min-w-0 flex-1 flex-col">

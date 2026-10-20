@@ -1,0 +1,918 @@
+{
+  "schemaVersion": 1,
+  "version": "1.7.0",
+  "date": "2026-10-20",
+  "ready": true,
+  "sourceRef": "6e4f970568a4a02d3a9e647558048b9d4fac9874",
+  "previousSourceRef": "65c909bed73758a152f42b9a47db1808fc92ac07",
+  "title": {
+    "vi": "Khung trò chuyện mới, tìm tin trên mọi phòng và ghim tin trong Chat; thanh định dạng cho UniNote",
+    "en": "A new conversation view, message search across rooms and pins in Chat; a formatting toolbar in UniNote"
+  },
+  "summary": {
+    "vi": "Chat có khung trò chuyện mới dạng bong bóng, tìm tin nhắn trên mọi phòng bạn tham gia, ghim tối đa 10 tin mỗi phòng, menu thao tác khi chuột phải, dải cuộc gọi khi thu nhỏ và nút tắt thông báo ngay trên thẻ thông tin của một người; phòng đã tắt thông báo không còn đổ chuông khi có cuộc gọi. UniNote có thanh định dạng và bảng phím tắt, tệp .txt mở được trong trình soạn, còn thư viện Tài liệu và hộp thoại chia sẻ được chỉnh gọn và rõ hơn.",
+    "en": "Chat has a new bubble-style conversation view, message search across every room you belong to, up to 10 pinned messages per room, a right-click actions menu, a call strip while a call is minimised and a mute button on a person's profile card; rooms you have muted no longer ring for calls. UniNote gets a formatting toolbar and a shortcuts panel, .txt files open in the editor, and the Documents library and share dialog are tidier and clearer."
+  },
+  "note": {
+    "vi": "Tìm tin chỉ gồm các phòng bạn đang là thành viên. Khi phòng đã có đủ 10 tin ghim, cần bỏ ghim một tin cũ để ghim tin mới.",
+    "en": "Message search only covers rooms you are a member of. When a room already has 10 pinned messages, an older pin must be removed to pin a new one."
+  },
+  "changes": [
+    {
+      "commit": "fbafc4359aeb143b767570e9c52526bcb565472f",
+      "subject": "feat(chat-mobile): declare exempt encryption for TestFlight",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #355 chuẩn bị bản build iPhone đầu tiên của UniChat cho TestFlight (khai báo mã hóa, dự án EAS, sửa lỗi build) — build/hạ tầng cho app mobile chưa phát hành.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/355"
+      }
+    },
+    {
+      "commit": "ff84056a76904f3ef37db4250714f6e05675fc1a",
+      "subject": "feat(chat-mobile): connect the EAS project uniai-team/uniwork-chat",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #355 chuẩn bị bản build iPhone đầu tiên của UniChat cho TestFlight (khai báo mã hóa, dự án EAS, sửa lỗi build) — build/hạ tầng cho app mobile chưa phát hành.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/355"
+      }
+    },
+    {
+      "commit": "8c66fa97d09ceeb9cba08d45f16ef8c6c886a041",
+      "subject": "fix(chat-mobile): let eas-cli read the release config before its env",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #355 chuẩn bị bản build iPhone đầu tiên của UniChat cho TestFlight (khai báo mã hóa, dự án EAS, sửa lỗi build) — build/hạ tầng cho app mobile chưa phát hành.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/355"
+      }
+    },
+    {
+      "commit": "d57d97c03c0b3e0b03d598d69392631b8237d348",
+      "subject": "feat(chat): audit fixes for rate limits, retention, voice, and threads",
+      "kind": "improvements",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Cuộc gọi: phòng bạn đã tắt thông báo không còn đổ chuông khi có cuộc gọi đến, và cuộc gọi trong kênh không phát nhạc chuông.",
+        "en": "Calls: rooms you have muted no longer ring for incoming calls, and calls in channels play no ringtone."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/360"
+      }
+    },
+    {
+      "commit": "eed745db86e627e6822826551594cf887ecd0ef7",
+      "subject": "docs(ai): plan Ask UNI P1, the read-only agent",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Test, eval hoặc tài liệu của PR #364 (Hỏi UNI P1); không có thay đổi công khai.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/364"
+      }
+    },
+    {
+      "commit": "3f08e309233ef0e007e3404258d03a137110a8cf",
+      "subject": "test(chat): complete UNI-1717 gates and UNI-1722 followed-threads UI",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Test của PR #360 (cổng UNI-1717 và giao diện thread đang theo dõi); không có thay đổi công khai riêng.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/360"
+      }
+    },
+    {
+      "commit": "834a00bdedd4a32669589f98fc44aea6c120e5df",
+      "subject": "feat(ai): send effort, strict tools and cache breakpoints to Anthropic",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Hỏi UNI dạng agent đọc (PR #364) nằm sau cờ ask_uni_agent mặc định tắt, không công khai và chưa bật trong cấu hình deploy; người dùng vẫn dùng luồng P0. Chưa đưa vào bản công khai cho tới khi cờ được bật.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/364"
+      }
+    },
+    {
+      "commit": "f739ced23177d8a4a1d69a11aac127bbded5cfb0",
+      "subject": "feat(ai): add the copilot_agent capability and Claude 5.5 rates",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Hỏi UNI dạng agent đọc (PR #364) nằm sau cờ ask_uni_agent mặc định tắt, không công khai và chưa bật trong cấu hình deploy; người dùng vẫn dùng luồng P0. Chưa đưa vào bản công khai cho tới khi cờ được bật.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/364"
+      }
+    },
+    {
+      "commit": "3092520604fe5ded29910541ce722727b014d796",
+      "subject": "feat(ai): let a caller pick model and effort, record runs and cache tokens",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Hỏi UNI dạng agent đọc (PR #364) nằm sau cờ ask_uni_agent mặc định tắt, không công khai và chưa bật trong cấu hình deploy; người dùng vẫn dùng luồng P0. Chưa đưa vào bản công khai cho tới khi cờ được bật.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/364"
+      }
+    },
+    {
+      "commit": "63c8c407faeb93c50c906620343f44486db548aa",
+      "subject": "feat(tasks): filter tasks by assignee, priority and due date",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Bộ lọc task theo người nhận, ưu tiên và hạn dùng cho agent Hỏi UNI và tool MCP list_tasks (PR #364); cả hai nằm sau cờ mặc định tắt (ask_uni_agent, mcp_connector), không có thay đổi giao diện.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/364"
+      }
+    },
+    {
+      "commit": "fcb3e69adfeb8d965036d778239bd6a214dbb5ad",
+      "subject": "fix(web): declare chat scope cap before configureRuntime",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Sửa thứ tự khai báo giới hạn đăng ký scope chat trong cấu hình runtime web của PR #360 (giới hạn nội bộ); không có thay đổi công khai riêng.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/360"
+      }
+    },
+    {
+      "commit": "fe30cc2ad18223e9a3412f63982b9b5d84a26a8c",
+      "subject": "feat(ai): give Ask UNI a read-only tool set shared with MCP",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Hỏi UNI dạng agent đọc (PR #364) nằm sau cờ ask_uni_agent mặc định tắt, không công khai và chưa bật trong cấu hình deploy; người dùng vẫn dùng luồng P0. Chưa đưa vào bản công khai cho tới khi cờ được bật.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/364"
+      }
+    },
+    {
+      "commit": "b9e16fc7e897e3cb36dd9599d5a510a0ad15c1fe",
+      "subject": "chore(chat-mobile): sync locales after chat followed_threads keys",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Đồng bộ bản dịch cho app UniChat mobile chưa phát hành trong PR #360; không có thay đổi công khai.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/360"
+      }
+    },
+    {
+      "commit": "248609686142dc9fefa63645938e2a3ca45a89c2",
+      "subject": "fix(ai): tell Ask UNI's agent when a list was cut",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Hỏi UNI dạng agent đọc (PR #364) nằm sau cờ ask_uni_agent mặc định tắt, không công khai và chưa bật trong cấu hình deploy; người dùng vẫn dùng luồng P0. Chưa đưa vào bản công khai cho tới khi cờ được bật.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/364"
+      }
+    },
+    {
+      "commit": "32b0f4b8b5ab9bf0e7981373ac8cadb3c272a791",
+      "subject": "feat(ai): add the copilot_answer@2 prompt for the Ask UNI agent",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Hỏi UNI dạng agent đọc (PR #364) nằm sau cờ ask_uni_agent mặc định tắt, không công khai và chưa bật trong cấu hình deploy; người dùng vẫn dùng luồng P0. Chưa đưa vào bản công khai cho tới khi cờ được bật.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/364"
+      }
+    },
+    {
+      "commit": "e09fde7a00a27831db4eaf7c2720bdd979a562fe",
+      "subject": "test(notification): reactivate member before other_org chat rule case",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Test của PR #360 (luật thông báo chat); không có thay đổi công khai.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/360"
+      }
+    },
+    {
+      "commit": "eb67d463edaff43615f8bd19af3c548b06f2eaea",
+      "subject": "feat(ai): run Ask UNI as a read-only agent behind ask_uni_agent",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Hỏi UNI dạng agent đọc (PR #364) nằm sau cờ ask_uni_agent mặc định tắt, không công khai và chưa bật trong cấu hình deploy; người dùng vẫn dùng luồng P0. Chưa đưa vào bản công khai cho tới khi cờ được bật.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/364"
+      }
+    },
+    {
+      "commit": "dab073eb44117e513a271744e982dd4a5aedfaa3",
+      "subject": "chore(deploy): point the UniChat beta download page at 0.1.0-beta.2 (#362)",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #362 trỏ trang tải UniChat sang bản desktop 0.1.0-beta.2 cho pilot (cấu hình deploy), cùng cách xử lý với #354 ở v1.6.0; chờ người duyệt quyết định có công bố UniChat desktop không.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/362"
+      }
+    },
+    {
+      "commit": "b3d19c0c62619468dff28cdc69f4e1e5c031322d",
+      "subject": "feat(ai): bound Ask UNI agent runs by rounds, tokens, time and organization",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Hỏi UNI dạng agent đọc (PR #364) nằm sau cờ ask_uni_agent mặc định tắt, không công khai và chưa bật trong cấu hình deploy; người dùng vẫn dùng luồng P0. Chưa đưa vào bản công khai cho tới khi cờ được bật.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/364"
+      }
+    },
+    {
+      "commit": "dbf0e2f94597c0c3aee4c9010c576fb030ecbc15",
+      "subject": "fix(ai): keep Ask UNI's organization counter expiring and its budgets honest",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Hỏi UNI dạng agent đọc (PR #364) nằm sau cờ ask_uni_agent mặc định tắt, không công khai và chưa bật trong cấu hình deploy; người dùng vẫn dùng luồng P0. Chưa đưa vào bản công khai cho tới khi cờ được bật.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/364"
+      }
+    },
+    {
+      "commit": "b86ed00c5da82195258c638fe5e4b46a47528ce9",
+      "subject": "feat(ai): let Ask UNI choose a Claude model and effort per organization",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Hỏi UNI dạng agent đọc (PR #364) nằm sau cờ ask_uni_agent mặc định tắt, không công khai và chưa bật trong cấu hình deploy; người dùng vẫn dùng luồng P0. Chưa đưa vào bản công khai cho tới khi cờ được bật.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/364"
+      }
+    },
+    {
+      "commit": "0d423f718e34d366d472b415961e15e256b033ab",
+      "subject": "UNI-1873: Changelog v1.6.0 — duyệt nội dung Việt/Anh (#338)",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR công bố Changelog v1.6.0 (#338), chỉ đổi các file Changelog, không phải thay đổi ứng dụng.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/338"
+      }
+    },
+    {
+      "commit": "dd0a583f74e20745388dd74aefeba55db328c1f5",
+      "subject": "feat(chat): multi-pin fixes and Telegram-style message menu",
+      "kind": "improvements",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Ghim tin trong Chat: mỗi phòng ghim được tối đa 10 tin, tin ghim mới nhất hiện trước; khi đã đủ, bạn được hỏi có thay tin ghim cũ nhất không. Chuột phải vào một tin mở menu thao tác kèm dải cảm xúc, và menu này cho biết ai đã xem tin của bạn.",
+        "en": "Pinning in Chat: each room can pin up to 10 messages, with the newest pin shown first; when the limit is reached, you are asked whether to replace the oldest pin. Right-clicking a message opens an actions menu with a row of reactions, and this menu shows who has seen your message."
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "server/internal/service/chat_actions.go",
+          "packages/core/chat/pin-utils.ts",
+          "packages/views/chat/chat-message-hover-actions.tsx",
+          "packages/views/chat/chat-seen-by.tsx",
+          "server/internal/service/chat_test.go"
+        ]
+      }
+    },
+    {
+      "commit": "6f06897e39c98295e0c4d3f08e66b42b920d2a2a",
+      "subject": "feat(server): search chat messages across the rooms a member is in",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Gộp vào mục tìm tin trên mọi phòng của PR #363 (ba68789f9).",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/363"
+      }
+    },
+    {
+      "commit": "551f3d3c7da81746aba01613f6967c8e61103243",
+      "subject": "feat(core): client for cross-room chat message search",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Gộp vào mục tìm tin trên mọi phòng của PR #363 (ba68789f9).",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/363"
+      }
+    },
+    {
+      "commit": "66d47a5fde2063c38c251c31e487ab28261d31eb",
+      "subject": "feat(settings): UniChat's own settings page, chat-only notifications and shortcuts",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Trang cài đặt riêng /chat/settings của UniChat (layout chỉ Chat dùng cho app desktop) trong PR #363; UniChat desktop chưa được công bố (xem #354, #362), nên chưa đưa vào bản công khai; chờ người duyệt xác nhận.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/363"
+      }
+    },
+    {
+      "commit": "ba68789f9922643c1e51b57f8f6810d23507e22f",
+      "subject": "feat(chat): Telegram-style rail, conversation list and message results",
+      "kind": "features",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Tìm tin nhắn trên mọi phòng chat bạn đang tham gia ngay từ danh sách cuộc trò chuyện; kết quả có đoạn trích tô sáng từ khớp, bấm vào để tới đúng tin đó. Danh sách cuộc trò chuyện cũng gọn hơn và ghi \"Nháp:\" với tin bạn đang soạn dở.",
+        "en": "Search messages across every chat room you belong to, right from the conversation list; results show a snippet with the matching words highlighted, and clicking one takes you to that message. The conversation list is also more compact and marks unsent messages with \"Draft:\"."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/363"
+      }
+    },
+    {
+      "commit": "aac706f2ad896b32b0fcbae89dd466d42909629f",
+      "subject": "feat(chat): Telegram-style conversation: bubbles, hover, menus, composer",
+      "kind": "improvements",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Khung trò chuyện trong Chat được làm lại: tin hiện dạng bong bóng và trò chuyện riêng không còn hiện ảnh đại diện; di chuột lên tin chỉ hiện một nút thả tim nhanh, còn dùng bàn phím thì mở đủ thanh thao tác; thanh trả lời hoặc sửa tin nằm ngay trên ô soạn và nhấn Esc để hủy trả lời. Hiệu ứng chuyển động tắt khi bạn bật chế độ giảm chuyển động.",
+        "en": "The Chat conversation view is redesigned: messages appear as bubbles and direct chats no longer show avatars; hovering a message shows a single quick heart button, while keyboard focus opens the full action bar; the reply or edit bar sits right above the composer, and Esc cancels a reply. Animations turn off when reduce motion is on."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/363"
+      }
+    },
+    {
+      "commit": "5db3ec268ccf43bf9b336db1fa571d76fd9d69e4",
+      "subject": "feat(chat): active call strip on top of the chat while a call is minimised",
+      "kind": "features",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Khi thu nhỏ một cuộc gọi, đầu khung chat hiện một dải cho biết cuộc gọi vẫn đang diễn ra.",
+        "en": "When you minimise a call, a strip at the top of the chat shows that the call is still in progress."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/363"
+      }
+    },
+    {
+      "commit": "144a934e986291117a0c5da79cc51c8ba1b535e1",
+      "subject": "feat(web): UniChat desktop sign-in shows what the app does and each step",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Màn đăng nhập của app UniChat desktop trong PR #363; app desktop chưa được công bố, nên chưa đưa vào bản công khai.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/363"
+      }
+    },
+    {
+      "commit": "488a5639d83bf94d667c9292277c99e8f7173682",
+      "subject": "docs: plan for UniChat R6, the Telegram-style desktop",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Tài liệu kế hoạch UniChat R6 trong PR #363; không có thay đổi công khai.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/363"
+      }
+    },
+    {
+      "commit": "b3a34968ee450c8f8a5769341c5bfe2e0818ab11",
+      "subject": "feat(ai): measure Ask UNI agent runs and document the switch",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Hỏi UNI dạng agent đọc (PR #364) nằm sau cờ ask_uni_agent mặc định tắt, không công khai và chưa bật trong cấu hình deploy; người dùng vẫn dùng luồng P0. Chưa đưa vào bản công khai cho tới khi cờ được bật.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/364"
+      }
+    },
+    {
+      "commit": "dae8367a7b728484829d85e28bc6b8ab9c70a0cd",
+      "subject": "test(ai): run the Ask UNI eval against the agent",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Test, eval hoặc tài liệu của PR #364 (Hỏi UNI P1); không có thay đổi công khai.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/364"
+      }
+    },
+    {
+      "commit": "67ea59fe13e8104ed979841b88cdf06e33d2415d",
+      "subject": "test(ai): record live provider requests in the Ask UNI eval and seed Lan Anh properly",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Test, eval hoặc tài liệu của PR #364 (Hỏi UNI P1); không có thay đổi công khai.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/364"
+      }
+    },
+    {
+      "commit": "589fc4289e2dfaf5926fb27439eaa4f8d7e3a88b",
+      "subject": "test(ai): align the Website eval rubrics with the seeded overdue task",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Test, eval hoặc tài liệu của PR #364 (Hỏi UNI P1); không có thay đổi công khai.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/364"
+      }
+    },
+    {
+      "commit": "3cdadbffd8c6e5fc1e32a46a02790a15d31c75fc",
+      "subject": "fix(ci): restore a non-member chatFixture, drop a redundant tenant line, bucket /chat/settings",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Sửa fixture test, dòng tenant thừa và nhóm route /chat/settings để CI của PR #363 xanh; không có thay đổi công khai riêng.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/363"
+      }
+    },
+    {
+      "commit": "ffbeb7dbce110f421f1f2178e8323dadb0c93b9f",
+      "subject": "fix(ai): cache the history only for calls that resend it",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Hỏi UNI dạng agent đọc (PR #364) nằm sau cờ ask_uni_agent mặc định tắt, không công khai và chưa bật trong cấu hình deploy; người dùng vẫn dùng luồng P0. Chưa đưa vào bản công khai cho tới khi cờ được bật.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/364"
+      }
+    },
+    {
+      "commit": "36c6bf332c38d3d49322baf0e61ed65c176ac5b7",
+      "subject": "fix(ai): share one byte budget across an agent round",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Hỏi UNI dạng agent đọc (PR #364) nằm sau cờ ask_uni_agent mặc định tắt, không công khai và chưa bật trong cấu hình deploy; người dùng vẫn dùng luồng P0. Chưa đưa vào bản công khai cho tới khi cờ được bật.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/364"
+      }
+    },
+    {
+      "commit": "a46ce643a1dce5f8753e9c468e9ecf5e8c33864f",
+      "subject": "fix(ai): store a failed agent run the user already paid for",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Hỏi UNI dạng agent đọc (PR #364) nằm sau cờ ask_uni_agent mặc định tắt, không công khai và chưa bật trong cấu hình deploy; người dùng vẫn dùng luồng P0. Chưa đưa vào bản công khai cho tới khi cờ được bật.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/364"
+      }
+    },
+    {
+      "commit": "423d0c363593309430b430097edd64fb1d52f211",
+      "subject": "fix(ai): keep Ask on P0 where the provider has no agent model",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Hỏi UNI dạng agent đọc (PR #364) nằm sau cờ ask_uni_agent mặc định tắt, không công khai và chưa bật trong cấu hình deploy; người dùng vẫn dùng luồng P0. Chưa đưa vào bản công khai cho tới khi cờ được bật.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/364"
+      }
+    },
+    {
+      "commit": "b9f15cc3519c0a720406482d0f3f2473bd2ae666",
+      "subject": "fix(ai): log why a model choice fell back, not the client's string",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Hỏi UNI dạng agent đọc (PR #364) nằm sau cờ ask_uni_agent mặc định tắt, không công khai và chưa bật trong cấu hình deploy; người dùng vẫn dùng luồng P0. Chưa đưa vào bản công khai cho tới khi cờ được bật.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/364"
+      }
+    },
+    {
+      "commit": "5444b681da437e1adf9ed8893851a17fa86891ba",
+      "subject": "feat(chat): portal message menu and Telegram-style UX",
+      "kind": "improvements",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Menu thao tác của tin luôn bấm được trong cuộc trò chuyện dài, tự mở xuống dưới khi phía trên không đủ chỗ và đóng lại khi bạn cuộn. Thẻ thông tin của một người có nút tắt hoặc bật thông báo cho cuộc trò chuyện đang mở.",
+        "en": "The message actions menu stays clickable in long conversations, opens downward when there is no room above and closes when you scroll. A person's profile card has a button to mute or unmute notifications for the current conversation."
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "packages/views/chat/chat-message-actions-layer.tsx",
+          "packages/views/chat/use-message-actions-reveal.ts",
+          "packages/views/chat/chat-person-card.tsx",
+          "packages/views/chat/use-message-actions-reveal.test.tsx"
+        ]
+      }
+    },
+    {
+      "commit": "0b7fbb7c76e992a3b7eb9583398857844680fbf6",
+      "subject": "fix(ai): refuse an Ask models PUT without a models field",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Hỏi UNI dạng agent đọc (PR #364) nằm sau cờ ask_uni_agent mặc định tắt, không công khai và chưa bật trong cấu hình deploy; người dùng vẫn dùng luồng P0. Chưa đưa vào bản công khai cho tới khi cờ được bật.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/364"
+      }
+    },
+    {
+      "commit": "189723ae383f3688b9cd8fcfc94b3e6b768903c6",
+      "subject": "fix(ai): bound the per-user Ask limiter and fail it open",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Hỏi UNI dạng agent đọc (PR #364) nằm sau cờ ask_uni_agent mặc định tắt, không công khai và chưa bật trong cấu hình deploy; người dùng vẫn dùng luồng P0. Chưa đưa vào bản công khai cho tới khi cờ được bật.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/364"
+      }
+    },
+    {
+      "commit": "c32429f3326b42791c487a5de6b7ccced95c7753",
+      "subject": "fix(ai): report quota stops as rate_limited and fix the run metrics",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Hỏi UNI dạng agent đọc (PR #364) nằm sau cờ ask_uni_agent mặc định tắt, không công khai và chưa bật trong cấu hình deploy; người dùng vẫn dùng luồng P0. Chưa đưa vào bản công khai cho tới khi cờ được bật.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/364"
+      }
+    },
+    {
+      "commit": "9139f59de01b9f1b50888700a9e6f26c215bb7e3",
+      "subject": "test(ai): say the eval's leak check covers recorded requests",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Test, eval hoặc tài liệu của PR #364 (Hỏi UNI P1); không có thay đổi công khai.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/364"
+      }
+    },
+    {
+      "commit": "398b75f82ff527d679c6941f7cf0302f5489c46b",
+      "subject": "fix(ai): log a failed model lookup as lookup_failed, not disabled",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Hỏi UNI dạng agent đọc (PR #364) nằm sau cờ ask_uni_agent mặc định tắt, không công khai và chưa bật trong cấu hình deploy; người dùng vẫn dùng luồng P0. Chưa đưa vào bản công khai cho tới khi cờ được bật.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/364"
+      }
+    },
+    {
+      "commit": "7ba235b309bb8530da9ccc89766d023023a5a259",
+      "subject": "docs: say what still bounds Ask spend when Redis fails",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Test, eval hoặc tài liệu của PR #364 (Hỏi UNI P1); không có thay đổi công khai.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/364"
+      }
+    },
+    {
+      "commit": "ef613a3e60d8f0a47817ec0b738587322a2a5bfd",
+      "subject": "test(ai): count a stored agent_failed run as a failed eval case",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Test, eval hoặc tài liệu của PR #364 (Hỏi UNI P1); không có thay đổi công khai.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/364"
+      }
+    },
+    {
+      "commit": "2c5fc0f4662be9fd938217fac96a74f15244e5fb",
+      "subject": "test(tasks): expect list_tasks to name every filter it takes",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Test, eval hoặc tài liệu của PR #364 (Hỏi UNI P1); không có thay đổi công khai.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/364"
+      }
+    },
+    {
+      "commit": "0424076a5c7443babfeeb091d77e84d18446fc28",
+      "subject": "UNI-923: Office G5-G7 accepted cards (PR 4) + develop sync (#361)",
+      "kind": "improvements",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Tài liệu và UniNote: trình soạn UniNote có thanh định dạng, mẹo cho lần dùng đầu và bảng phím tắt; menu \"/\" và phím tắt Markdown dùng được cả ở dòng sau khi ngắt dòng. Tệp .txt mở được trong trình soạn ở chế độ văn bản thuần. Hộp thoại lưu lần đầu cho chọn thư mục, tài liệu Office có mục In, và hộp thoại chia sẻ rõ ràng hơn, dùng thống nhất chữ \"Riêng tư\". \"Thư mục của tôi\" là một mục duy nhất trong cây thư mục, \"Tôi đã chia sẻ\" chỉ liệt kê mục cao nhất được chia sẻ, ô bình luận hiện @Tên khi nhắc ai đó, và luồng thảo luận có giao diện mới.",
+        "en": "Documents and UniNote: the UniNote editor has a formatting toolbar, a first-use tip and a shortcuts help panel; the \"/\" menu and Markdown shortcuts also work on lines after a line break. .txt files open in the editor in plain text mode. The first-save dialog lets you pick a folder, Office documents have a Print entry, and the share dialog is clearer and consistently says \"Private\". \"My Folder\" appears once in the folder tree, \"Shared by me\" lists only the topmost shared item, the comment box shows @Name when you mention someone, and discussion threads have a new design."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/361"
+      }
+    },
+    {
+      "commit": "069fb68bdf022ff978b6b07717c4d6e648d6cf80",
+      "subject": "fix(ai): give Ask UNI's agent the id of every search and focus source",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Hỏi UNI dạng agent đọc (PR #364) nằm sau cờ ask_uni_agent mặc định tắt, không công khai và chưa bật trong cấu hình deploy; người dùng vẫn dùng luồng P0. Chưa đưa vào bản công khai cho tới khi cờ được bật.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/364"
+      }
+    },
+    {
+      "commit": "75be1240b0a57f9b0348e2a8ede3f8ea9c4e7dfe",
+      "subject": "test(ai): let the live eval reach documents, enough quota and last week's meeting",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Test, eval hoặc tài liệu của PR #364 (Hỏi UNI P1); không có thay đổi công khai.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/364"
+      }
+    },
+    {
+      "commit": "33dca476692edda3ba552c8bbec6382c05d9947a",
+      "subject": "feat(ai): count cache reads at a tenth against the ai.tokens quota",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Cách tính cache đọc vào hạn mức ai.tokens cho lời gọi agent Hỏi UNI (PR #364); gắn với agent đang tắt sau cờ ask_uni_agent, và không đưa số liệu hạn mức vào bản công khai.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/364"
+      }
+    },
+    {
+      "commit": "f456062f82f25b5cc42f5b97941960fb9101262f",
+      "subject": "docs: record the first P1 live eval result",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Test, eval hoặc tài liệu của PR #364 (Hỏi UNI P1); không có thay đổi công khai.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/364"
+      }
+    },
+    {
+      "commit": "c83d16227a6682b6a7e83654a327dff7922a588a",
+      "subject": "docs: record the Ask UNI P1 evaluation",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Test, eval hoặc tài liệu của PR #364 (Hỏi UNI P1); không có thay đổi công khai.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/364"
+      }
+    },
+    {
+      "commit": "5f3b1fb9b72701e4053bd93ccc2f4e2cc053d750",
+      "subject": "UNI-923: Office G5-G7 accepted cards (PR 5) + develop sync (#365)",
+      "kind": "improvements",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Thư viện Tài liệu được chỉnh nhiều chi tiết: nhãn chia sẻ cho người có quyền bình luận, tên thư mục dài được rút gọn, mở đường dẫn của một tài liệu sẽ mở đúng thư mục chứa nó, \"Chia sẻ với workspace\" tách riêng khỏi mục Thư mục, và trạng thái trống phù hợp hơn khi tệp nằm trong các thư mục.",
+        "en": "The Documents library gets several refinements: a share badge for people with comment access, long folder names are shortened, opening a document's link opens the folder that contains it, \"Share with workspace\" is separate from Folder, and the empty state fits better when files are inside folders."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/365"
+      }
+    },
+    {
+      "commit": "70a5f43d56c7d2ca2a7bbcaf222916eea72d737c",
+      "subject": "UNI-2007: Eval Hỏi UNI P1: nội dung trang nghỉ phép, sửa rubric, đo Haiku low (#367)",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #367 chỉ đổi dữ liệu eval, rubric và tài liệu của Hỏi UNI P1; mô tả PR ghi không đổi hành vi production.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/367"
+      }
+    },
+    {
+      "commit": "6e4f970568a4a02d3a9e647558048b9d4fac9874",
+      "subject": "UNI-2008: Hỏi UNI P1: agent tra tài liệu workspace trước khi viết tự do (copilot_answer@3) (#368)",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #368 đổi prompt copilot_answer@3 của agent Hỏi UNI; agent nằm sau cờ ask_uni_agent mặc định tắt và chưa bật trong cấu hình deploy, nên chưa đưa vào bản công khai.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/368"
+      }
+    }
+  ]
+}

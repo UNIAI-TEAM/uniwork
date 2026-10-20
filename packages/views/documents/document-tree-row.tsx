@@ -12,6 +12,7 @@ import {
   DocumentTreeRowMenu, isRowMenuShortcut, TREE_ROW_KEYSHORTCUTS, type TreeRowMenuActions,
 } from "./document-tree-row-menu";
 import { documentIconFormat, DocumentTypeIcon } from "./document-type-icon";
+import { DOCUMENTS_NAV_ICONS } from "./documents-nav-icons";
 import type { TreeRow } from "./document-tree-model";
 
 /**
@@ -134,7 +135,10 @@ export function TreeRowItem({
         <span aria-hidden className="size-6 shrink-0" />
       )}
       <span aria-hidden className="flex size-5 shrink-0 items-center justify-center text-muted-foreground">
-        {row.node.icon ? (
+        {myFolder ? (
+          // The personal root keeps its own glyph now that it lives only in the tree.
+          <DOCUMENTS_NAV_ICONS.myFolders className="size-4" />
+        ) : row.node.icon ? (
           <span className="text-body leading-none">{row.node.icon}</span>
         ) : (
           <DocumentTypeIcon format={documentIconFormat(row.node.kind, row.node.title)} className="size-4" />

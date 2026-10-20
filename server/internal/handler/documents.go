@@ -58,6 +58,31 @@ func (h *handlers) documentFlagOrganization(r *http.Request) string {
 		chi.URLParam(r, "orgID"), chi.URLParam(r, "workspaceID"), chi.URLParam(r, "documentID"))
 }
 
+// callerFlagOrganization feeds mw.FlagOrganization on
+// POST /documents/{documentID}/access-requests (BE-SD7-3): the route's outward
+// answer is uniform across existing and unknown document ids, so the
+// `documents` flag evaluates at the caller's own active organization (ADR
+// 0032) through OrganizationService.ListForUser, never the named document's.
+func (h *handlers) callerFlagOrganization(r *http.Request) string {
+	if h.Organizations == nil {
+		return ""
+	}
+	userID := middleware.UserID(r.Context())
+	if userID == "" {
+		return ""
+	}
+	rows, err := h.Organizations.ListForUser(r.Context(), userID)
+	if err != nil {
+		return ""
+	}
+	for _, o := range rows {
+		if !o.DeactivatedAt.Valid && o.Status == service.OrganizationActive && (!o.DeletionScheduledAt.Valid || o.Role == service.OrgRoleOwner) {
+			return o.ID
+		}
+	}
+	return ""
+}
+
 func documentTooLarge(w http.ResponseWriter, maxBytes int64) {
 	respondErrorFields(w, http.StatusRequestEntityTooLarge, "file_too_large", "tệp vượt quá dung lượng cho phép", map[string]any{"max_bytes": maxBytes})
 }
@@ -352,6 +377,7 @@ func (h *handlers) commitDocumentVersion(w http.ResponseWriter, r *http.Request)
 		// gates; a browser session keeps saving while the flag is off (G5-07).
 		Sync:       middleware.DeviceSession(r.Context()),
 		EditLockID: strings.TrimSpace(in.EditLockID),
+		ChatRoomID: strings.TrimSpace(in.ChatRoomID),
 	})
 	if err != nil {
 		h.mapServiceError(w, err)
@@ -874,7 +900,7 @@ func documentDTO(view service.DocumentView) sdo.DocumentDTO {
 		UpdatedBy:      doc.UpdatedBy,
 		UpdatedByKind:  doc.UpdatedByKind,
 	}
-	if doc.ParentID.Valid {
+	if doc.ParentID.Valid && view.ParentVisible() {
 		out.ParentID = &doc.ParentID.String
 	}
 	if doc.SystemKind.Valid && doc.SystemKind.String != "" {

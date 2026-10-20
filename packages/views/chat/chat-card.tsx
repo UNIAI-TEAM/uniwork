@@ -73,7 +73,8 @@ export function ChatCard({
             })
           : t("chat.message_list.card_label_no_time", { kind: label, sender: senderLabel })}
       </span>
-      {isOwn ? null : avatar ? (
+      {/* A DM draws no avatar gutter (Telegram); a group lines cards up with bubbles. */}
+      {isOwn || !showSenderName ? null : avatar ? (
         <span className="w-8.5 shrink-0 self-end">{avatar}</span>
       ) : (
         <span className="w-8.5 shrink-0" aria-hidden />

@@ -189,14 +189,14 @@ describe("ShareAddSection (SH-W1 Area 1)", () => {
     expect(screen.getByRole("status")).toHaveTextContent("3 Chỉ xem");
 
     // Set Nguyễn An to Chỉnh sửa.
-    await user.click(screen.getByRole("combobox", { name: "Mức quyền Nguyễn An" }));
+    await user.click(screen.getByRole("combobox", { name: "Mức quyền của Nguyễn An" }));
     await user.click(await screen.findByRole("option", { name: "Chỉnh sửa" }));
     expect(screen.getByRole("status")).toHaveTextContent("2 Chỉ xem · 1 Chỉnh sửa");
 
     // Clicking "Áp dụng cho tất cả" asks for confirmation before overwriting custom levels.
     await user.click(screen.getByRole("button", { name: "Áp dụng cho tất cả" }));
     expect(screen.getByText("Đặt tất cả 3 đối tượng thành Chỉ xem?")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Huỷ" }));
+    await user.click(screen.getByRole("button", { name: "Hủy" }));
     expect(screen.getByRole("status")).toHaveTextContent("2 Chỉ xem · 1 Chỉnh sửa");
 
     await user.click(screen.getByRole("button", { name: "Chia sẻ" }));
@@ -258,6 +258,42 @@ describe("ShareAddSection (SH-W1 Area 1)", () => {
     await waitFor(() => expect(accessCalls).toHaveLength(2));
     expect(accessCalls[1]?.dry_run).toBe(false);
     expect(toast.success).toHaveBeenCalledWith("Đã chia sẻ cho 1 đối tượng");
+  });
+
+  it("TV2-05: cancelling the share confirm hands focus back to the Chia sẻ button", async () => {
+    requestMock.mockImplementation((path: string, opts?: { method?: string; body?: { dry_run?: boolean } }) => {
+      if (path.startsWith("/api/v1/documents/d1/share-candidates")) {
+        return Promise.resolve(candidatesResponse);
+      }
+      if (path === "/api/v1/documents/d1/access" && opts?.method === "PUT") {
+        return Promise.resolve({
+          batch_id: "",
+          dry_run: Boolean(opts.body?.dry_run),
+          results: [{ index: 0, status: "granted" }],
+          preview: {
+            users: [],
+            groups: [{ principal_type: "organization", principal_id: "o1", member_count: 42, losing_count: 0 }],
+            warnings: [{ code: "wide_scope", index: 0 }],
+          },
+        });
+      }
+      return Promise.resolve({});
+    });
+
+    const user = userEvent.setup();
+    renderAddSection();
+
+    await user.click(screen.getByRole("combobox", { name: "Chọn đối tượng" }));
+    const listbox = await screen.findByRole("listbox");
+    await user.click(await within(listbox).findByRole("option", { name: /Acme/ }));
+
+    const submit = screen.getByRole("button", { name: "Chia sẻ" });
+    await user.click(submit);
+
+    const confirmBox = await screen.findByTestId("share-add-confirm");
+    await user.click(within(confirmBox).getByRole("button", { name: "Hủy" }));
+
+    await waitFor(() => expect(submit).toHaveFocus());
   });
 
   it("AC04/U-SH3: keeps chips, marks each rejected chip with its text reason, and fires no success toast on 422 document_access_rejected", async () => {

@@ -36,6 +36,10 @@
  * | 42rem     | + Người sửa gần nhất                 |
  * | 47rem     | + Dung lượng                         |
  * | 59rem     | + Truy cập                           |
+ *
+ * Shared by me swaps the 42rem and 59rem rungs (SW-V1): Truy cập joins where
+ * the editor would, because the reader of this view is the sharer checking
+ * who can reach their documents — the scope matters more than who edited.
  */
 
 export type LibraryColumnId =
@@ -70,6 +74,10 @@ export interface LibraryLadder {
   metaTailHides: string;
   /** The whole secondary line (level + Restricted mark): hidden once Truy cập exists. */
   accessLineHides: string;
+  /** The level · scope part of the secondary line: hidden once the access column exists. */
+  accessGroupHides: string;
+  /** The separator between the meta group and the access group: hidden when either neighbour leaves. */
+  metaDotHides: string;
 }
 
 const NAME: LibraryColumn = { id: "name", col: "", cell: "" };
@@ -84,6 +92,11 @@ const ACCESS: LibraryColumn = { id: "access", col: "hidden w-[190px] @min-[59rem
 const EDITOR: LibraryColumn = { id: "editor", col: "hidden w-[200px] @min-[42rem]/library:table-column", cell: "hidden @min-[42rem]/library:table-cell" };
 const UPDATED: LibraryColumn = { id: "updated", col: "hidden w-[140px] @min-[29rem]/library:table-column", cell: "hidden @min-[29rem]/library:table-cell" };
 const SIZE: LibraryColumn = { id: "size", col: "hidden w-[90px] @min-[47rem]/library:table-column", cell: "hidden text-right @min-[47rem]/library:table-cell" };
+// Shared by me (SW-V1): Truy cập takes the editor's rung so the scope column
+// joins at 42rem instead of 59rem; the editor column moves to 59rem. The DOM
+// order (… Truy cập · Người sửa gần nhất …) is unchanged.
+const ACCESS_SHARED: LibraryColumn = { id: "access", col: "hidden w-[190px] @min-[42rem]/library:table-column", cell: "hidden @min-[42rem]/library:table-cell" };
+const EDITOR_SHARED: LibraryColumn = { id: "editor", col: "hidden w-[200px] @min-[59rem]/library:table-column", cell: "hidden @min-[59rem]/library:table-cell" };
 
 const HEAD = "hidden bg-muted/50 @min-[29rem]/library:table-header-group";
 const QUICK = "hidden @min-[29rem]/library:block";
@@ -95,10 +108,25 @@ const LADDER: LibraryLadder = {
   metaHides: "@min-[42rem]/library:hidden",
   metaTailHides: "@min-[29rem]/library:hidden",
   accessLineHides: "@min-[59rem]/library:hidden",
+  accessGroupHides: "@min-[59rem]/library:hidden",
+  metaDotHides: "@min-[42rem]/library:hidden",
 };
 
-export function libraryLadder(): LibraryLadder {
-  return LADDER;
+const LADDER_SHARED_BY_ME: LibraryLadder = {
+  columns: [NAME, ACCESS_SHARED, EDITOR_SHARED, UPDATED, SIZE, ACTIONS],
+  head: HEAD,
+  quick: QUICK,
+  metaHides: "@min-[59rem]/library:hidden",
+  metaTailHides: "@min-[29rem]/library:hidden",
+  // The scope group leaves the narrow line when its column joins (42rem); the
+  // line itself stays until the editor column takes the meta group (59rem).
+  accessLineHides: "@min-[59rem]/library:hidden",
+  accessGroupHides: "@min-[42rem]/library:hidden",
+  metaDotHides: "@min-[42rem]/library:hidden",
+};
+
+export function libraryLadder(opts: { sharedByMe?: boolean } = {}): LibraryLadder {
+  return opts.sharedByMe ? LADDER_SHARED_BY_ME : LADDER;
 }
 
 // Shelved ladder (Archive.dc, ARCHIVE-01 U-2): Name (with the folder path as
@@ -125,6 +153,10 @@ const SHELVED: LibraryLadder = {
   metaHides: "@min-[46rem]/library:hidden",
   metaTailHides: "@min-[46rem]/library:hidden",
   accessLineHides: "@min-[56rem]/library:hidden",
+  // The shelved row draws its own secondary line (documents-shelved-row.tsx);
+  // these two only serve the library row, so they mirror the rungs above.
+  accessGroupHides: "@min-[56rem]/library:hidden",
+  metaDotHides: "@min-[46rem]/library:hidden",
 };
 
 /** The Lưu trữ table's ladder: the access column plus the shelved pair. */

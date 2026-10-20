@@ -190,3 +190,14 @@ WHERE om.organization_id = sqlc.arg(organization_id)::text
   );
 
 
+-- The live grant count of one document: the §5 "Đã chia sẻ với N người"
+-- aggregate on a chat document message, read only for the sender. Shares are
+-- keyed by document, never by version, so a version message counts the same
+-- audience as the document it names.
+-- name: CountLiveDocumentShares :one
+SELECT count(*)::bigint
+FROM document_shares
+WHERE organization_id = sqlc.arg(organization_id)
+  AND workspace_id = sqlc.arg(workspace_id)
+  AND document_id = sqlc.arg(document_id)
+  AND revoked_at IS NULL;

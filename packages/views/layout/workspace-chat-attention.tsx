@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import type { ChatRoomRecord } from "@uniwork/core/api/endpoints/chat";
 import { useChatRooms, useChatUnreadBadge } from "@uniwork/core/chat";
 import { useActiveChatRoomStore } from "@uniwork/core/chat/active-chat-room-store";
+import { useChatDeviceNotificationStore } from "@uniwork/core/chat/device-notification-store";
 import { useNotifications } from "@uniwork/core/notifications";
 import { usePush } from "@uniwork/core/notifications/push";
 import { paths } from "@uniwork/core/paths";
@@ -78,6 +79,8 @@ export function WorkspaceChatAttention() {
     // The first load is the backlog, not news.
     if (before === null || !banners) return;
     const me = user.id.toUpperCase();
+    // Read at banner time: this device's choices (Cài đặt › Thông báo), no re-run on a change.
+    const { sound, preview } = useChatDeviceNotificationStore.getState();
     for (const room of rooms) {
       if (lastMessageAt(room) <= before || room.notifications_muted) continue;
       if ((room.last_message_sender_id ?? "").toUpperCase() === me) continue;
@@ -112,7 +115,9 @@ export function WorkspaceChatAttention() {
         issueKey: room.id,
         href: paths.workspace(workspace.organization_slug, workspace.slug).chatConversation(room.id),
         title: isGroup ? room.name : sender || room.name,
-        body: body ?? "",
+        // Preview off: the banner names who wrote, not what.
+        body: preview ? (body ?? "") : "",
+        silent: !sound,
       });
     }
   }, [activeRoomId, banners, focused, rooms, t, user.id, workspace]);
@@ -145,6 +150,7 @@ export function WorkspaceChatAttention() {
         href: resourceHref(n, workspace, workspaces ?? []),
         title: t(notificationTitleKey(n), n.params),
         body: "",
+        silent: !useChatDeviceNotificationStore.getState().sound,
       });
     }
   }, [focused, recent.data, rooms, t, workspace, workspaces, workspacesLoading]);

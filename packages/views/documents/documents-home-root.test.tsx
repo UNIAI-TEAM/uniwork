@@ -57,6 +57,8 @@ function folderDetail(over: Record<string, unknown> = {}) {
 
 interface Routes {
   tree?: () => unknown[];
+  /** Holds the tree answer back until it resolves, so the list can answer first. */
+  treeGate?: Promise<void>;
   list?: (path: string) => unknown[];
   sources?: (path: string) => unknown[];
   detail?: (id: string) => unknown;
@@ -75,7 +77,10 @@ function route(routes: Routes) {
       }
     };
     if (path === MEMBERS_URL) return run(() => ({ members: routes.members?.() ?? [] }));
-    if (path.startsWith(TREE_URL)) return run(() => ({ documents: routes.tree?.() ?? [] }));
+    if (path.startsWith(TREE_URL)) {
+      const answer = run(() => ({ documents: routes.tree?.() ?? [] }));
+      return routes.treeGate ? routes.treeGate.then(() => answer) : answer;
+    }
     if (path.startsWith(`${LIST_BASE}/sources`) && method === "GET") {
       return Promise.resolve({ items: routes.sources?.(path) ?? [], next_cursor: null });
     }
@@ -217,5 +222,122 @@ describe("folder with only subfolders (TV-4)", () => {
 
     expect(await screen.findByRole("heading", { name: /^Tài liệu 0$/ })).toBeInTheDocument();
     expect(screen.getByText(t("documents.home.empty.folder_title"))).toBeInTheDocument();
+  });
+});
+
+// UNI-1994 nit 6: a root with folders but no loose documents is not an empty
+// workspace; "Workspace chưa có tài liệu" is only for no documents AND no folders.
+describe("home root empty states", () => {
+  const withFolder = {
+    tree: () => [treeNode({ id: "fo1", title: "Hợp đồng khách hàng" })],
+    detail: (id: string) => (id === "fo1" ? folderDetail({ title: "Hợp đồng khách hàng" }) : null),
+    list: () => [],
+  };
+
+  it("says there are no documents outside folders when folders exist but no root document does", async () => {
+    route(withFolder);
+    renderView();
+    await screen.findByRole("button", { name: /^Hợp đồng khách hàng/ });
+
+    expect(await screen.findByText("Không có tài liệu nào ngoài thư mục")).toBeInTheDocument();
+    expect(screen.getByText(t("documents.home.empty.outside_folders_title"))).toBeInTheDocument();
+    expect(screen.getByText(t("documents.home.empty.outside_folders_description"))).toBeInTheDocument();
+    expect(screen.queryByText(t("documents.home.empty.title"))).toBeNull();
+    expect(screen.queryByText(t("documents.home.empty.description"))).toBeNull();
+  });
+
+  it("keeps the workspace-empty copy when there are no documents and no folders", async () => {
+    route({ tree: () => [], list: () => [] });
+    renderView();
+
+    expect(await screen.findByText(t("documents.home.empty.title"))).toBeInTheDocument();
+    expect(screen.getByText(t("documents.home.empty.description"))).toBeInTheDocument();
+    expect(screen.queryByText(t("documents.home.empty.outside_folders_title"))).toBeNull();
+  });
+
+  it("never flashes the workspace-empty copy while the tree is still answering", async () => {
+    let release: () => void = () => {};
+    const treeGate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    route({ ...withFolder, treeGate });
+    const flashed: string[] = [];
+    const watch = new MutationObserver(() => {
+      for (const key of ["documents.home.empty.title", "documents.home.empty.description"]) {
+        if (screen.queryByText(t(key))) flashed.push(key);
+      }
+    });
+    watch.observe(document.body, { childList: true, subtree: true, characterData: true });
+    try {
+      renderView();
+      // The root list answers [] while the tree is still held back.
+      await waitFor(() => expect(listPaths().length).toBeGreaterThan(0));
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(screen.queryByText(t("documents.home.empty.title"))).toBeNull();
+      expect(screen.queryByText(t("documents.home.empty.outside_folders_title"))).toBeNull();
+
+      release();
+      expect(await screen.findByText(t("documents.home.empty.outside_folders_title"))).toBeInTheDocument();
+      expect(flashed).toEqual([]);
+    } finally {
+      watch.disconnect();
+    }
+  });
+
+  it("shows the workspace-empty copy once the tree answers with no folders", async () => {
+    let release: () => void = () => {};
+    const treeGate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    route({ tree: () => [], list: () => [], treeGate });
+    renderView();
+    await waitFor(() => expect(listPaths().length).toBeGreaterThan(0));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(screen.queryByText(t("documents.home.empty.title"))).toBeNull();
+
+    release();
+    expect(await screen.findByText(t("documents.home.empty.title"))).toBeInTheDocument();
+    expect(screen.queryByText(t("documents.home.empty.outside_folders_title"))).toBeNull();
+  });
+
+  it("keeps the no-results state, distinct from both empty copies, when a type filter matches nothing", async () => {
+    route({ ...withFolder, list: (path) => (queryOf(path).get("format") === "pdf" ? [] : [file("d1", "Kế hoạch Q4")]) });
+    renderView();
+    await screen.findByText("Kế hoạch Q4");
+
+    fireEvent.click(await screen.findByRole("combobox", { name: new RegExp(`^${t("documents.home.filters.type")}`) }));
+    const option = within(await screen.findByRole("listbox")).getByText(t("documents.home.chips.pdf"));
+    fireEvent.pointerDown(option);
+    fireEvent.click(option);
+
+    expect(await screen.findByText(t("documents.library.no_matches_title"))).toBeInTheDocument();
+    expect(screen.queryByText(t("documents.home.empty.outside_folders_title"))).toBeNull();
+    expect(screen.queryByText(t("documents.home.empty.title"))).toBeNull();
+  });
+
+  // UNI-1994 nit 6 (round 3, C): Edited by / Updated are filters too, so a root
+  // with a folder card and 0 results says "no results", never "no documents".
+  it.each([
+    ["Edited by", "documents.home.filters.editor", "Dũng", "updated_by"],
+    ["Updated", "documents.home.filters.updated", "documents.home.filters.updated_today", "updated_from"],
+  ])("shows the no-results state, not an empty copy, when the %s filter matches nothing", async (_name, comboKey, optionKey, param) => {
+    route({
+      ...withFolder,
+      members: () => [{ workspace_id: WS, user_id: "u2", role: "member", email: "dung@example.com", display_name: "Dũng" }],
+      list: (path) => (queryOf(path).get(param) ? [] : [file("d1", "Kế hoạch Q4")]),
+    });
+    renderView();
+    await screen.findByText("Kế hoạch Q4");
+
+    fireEvent.click(await screen.findByRole("combobox", { name: new RegExp(`^${t(comboKey)}`) }));
+    const option = within(await screen.findByRole("listbox")).getByText(optionKey.startsWith("documents.") ? t(optionKey) : optionKey);
+    fireEvent.pointerDown(option);
+    fireEvent.click(option);
+
+    expect(await screen.findByText(t("documents.library.no_matches_title"))).toBeInTheDocument();
+    expect(screen.getByText(t("documents.home.no_matches_filters_description"))).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: t("documents.library.clear_filters") })).toBeInTheDocument();
+    expect(screen.queryByText(t("documents.home.empty.outside_folders_title"))).toBeNull();
+    expect(screen.queryByText(t("documents.home.empty.title"))).toBeNull();
   });
 });

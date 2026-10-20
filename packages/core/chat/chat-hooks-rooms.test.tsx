@@ -7,6 +7,7 @@ import { resetAuthStoreForTests, setSessionUser } from "../auth";
 import type { User } from "../types/user";
 import { chatKeys } from "./chat-keys";
 import {
+  useChatRoom,
   useChatRoomMessages,
   useChatUnreadBadge,
   useSetChatRoomAvatar,
@@ -161,5 +162,37 @@ describe("group avatar", () => {
     await act(() => result.current.mutateAsync({ roomId: "g1", file: null }));
     expect(remove).toHaveBeenCalledWith("ws1", "g1");
     expect(invalidate).toHaveBeenCalledWith({ queryKey: chatKeys.rooms("ws1") });
+  });
+});
+
+// UNI-1966 (L5): the composer asks the room DETAIL read whether a document
+// send is allowed (the caller may send AND the grantable roster fits the
+// batch cap); the list read never carries the flag.
+describe("useChatRoom", () => {
+  beforeEach(() => setSessionUser(user));
+  afterEach(() => {
+    vi.restoreAllMocks();
+    resetAuthStoreForTests();
+  });
+
+  it("fetches the room detail with can_send_document", async () => {
+    const get = vi.spyOn(chatApi, "getChatRoom").mockResolvedValue({
+      ...serverRoom("room1", 0, 0),
+      can_send_document: true,
+    });
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const { result } = renderHook(() => useChatRoom("ws1", "room1"), { wrapper: wrapper(qc) });
+    await waitFor(() => expect(result.current.data?.can_send_document).toBe(true));
+    expect(get).toHaveBeenCalledWith("ws1", "room1");
+  });
+
+  it("never fetches without a room or a session", async () => {
+    const get = vi.spyOn(chatApi, "getChatRoom").mockResolvedValue(null);
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    renderHook(() => useChatRoom("ws1", ""), { wrapper: wrapper(qc) });
+    resetAuthStoreForTests();
+    renderHook(() => useChatRoom("ws1", "room1"), { wrapper: wrapper(qc) });
+    await Promise.resolve();
+    expect(get).not.toHaveBeenCalled();
   });
 });
