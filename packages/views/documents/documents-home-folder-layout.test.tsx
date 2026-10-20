@@ -329,15 +329,21 @@ describe("folder layout (Folder.dc)", () => {
     // its neighbour (jsdom has no layout: pin the classes, the e2e pins the pixels).
     // The minimums are small on purpose (UNI-1994): once the ancestors sit at them the leaf starts
     // to ellipsize, so they give up all but a chevron and an ellipsis before it does.
-    expect(home).toHaveClass("min-w-6", "shrink-[1000]", "truncate");
-    expect(ancestor.parentElement).toHaveClass("min-w-7", "shrink-[1000]");
+    expect(home).toHaveClass("min-w-6", "shrink-[1000000]", "truncate");
+    expect(ancestor.parentElement).toHaveClass("min-w-7", "shrink-[1000000]");
     // On a coarse pointer the button is 44px wide: its span holds the chevron (14px) and the gap
     // (4px) beside it (62px), or the button overflows and overlaps the next crumb. The home crumb
     // is the button itself, so its own minimum already carries the touch target.
     expect(ancestor.parentElement).toHaveClass("pointer-coarse:min-w-15.5");
     expect(home).toHaveClass("pointer-coarse:min-w-11");
     expect(ancestor).toHaveClass("min-w-0", "truncate");
-    expect(heading.parentElement).not.toHaveClass("shrink-[1000]", "shrink-0");
+    // The leaf keeps the default factor (1) and the crumbs carry a million (UNI-1994): at 1000 the
+    // leaf still lost a sub-pixel next to them, so a 156px name ellipsized by 0.1px. A factor near zero
+    // on the leaf fixes that but overflows the row for a long name (the factors of what is left sum
+    // below 1, so flex hands out only that fraction of the deficit). min-w-0 and truncate keep a
+    // really long name cut.
+    expect(heading.parentElement).toHaveClass("min-w-0");
+    expect(heading.parentElement).not.toHaveClass("shrink-[1000000]", "shrink-[0.001]", "shrink-0");
     expect(heading).toHaveClass("min-w-10", "truncate");
 
     // The row is a size container (the sidebars decide the width, not the viewport): the

@@ -48,16 +48,18 @@ export function FolderBreadcrumb({ path, canRename, renaming, onRoot, onFolder, 
   const collapsed = path.length > MAX_UNCOLLAPSED_FOLDER_LEVELS;
   const hiddenAncestors = collapsed ? path.slice(0, -2) : [];
   const visibleAncestors = collapsed ? [path.at(-2)!] : path.slice(0, -1);
-  // Space is given up in order (UNI-1977): the ancestors and the home crumb first (shrink-[1000]: flex
-  // shrink is weighted by factor x size, so the leaf, at 1, loses under a pixel until they sit at their
-  // minimum), the leaf name (shrink 1) last. The minimum is little more than the chevron (UNI-1994): a
-  // higher one made the row "full" while the leaf still ellipsized the last characters of its name.
+  // Space is given up in order (UNI-1977): the ancestors and the home crumb first, the leaf name last.
+  // Flex shrink is weighted by factor x size, so the leaf (factor 1) still lost a sub-pixel while they
+  // had room, and Chromium ellipsized a name that fits by 0.1px (UNI-1994). At shrink-[1000000] they
+  // absorb the deficit down to their minimum; the leaf keeps 1, not near zero, because once they are
+  // frozen a leaf below 1 gets only that fraction of the deficit and overflows the row. The minimum is
+  // little more than the chevron: a higher one made the row "full" while the leaf still ellipsized.
   const crumb = "rounded px-1 text-body text-muted-foreground hover:bg-accent hover:text-foreground pointer-coarse:min-h-11 pointer-coarse:min-w-11";
   return (
     <nav aria-label={t("documents.home.breadcrumb_label")} className="flex min-w-0 items-center gap-1">
       <button
         type="button"
-        className={cn(crumb, "min-w-6 shrink-[1000] truncate")}
+        className={cn(crumb, "min-w-6 shrink-[1000000] truncate")}
         title={t("documents.home.sidebar.home")}
         onClick={onRoot}
       >
@@ -89,7 +91,7 @@ export function FolderBreadcrumb({ path, canRename, renaming, onRoot, onFolder, 
         </span>
       ) : null}
       {visibleAncestors.map((node) => (
-        <span key={node.id} className="flex min-w-7 shrink-[1000] items-center gap-1 pointer-coarse:min-w-15.5">
+        <span key={node.id} className="flex min-w-7 shrink-[1000000] items-center gap-1 pointer-coarse:min-w-15.5">
           <ChevronRight aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
           <button
             type="button"
