@@ -10235,8 +10235,7 @@
       "filter_reset": "Clear filters",
       "footnote": "Not included: documents in the trash, documents owned by a work product, and individual members of groups. Workspace owners and admins manage every document.",
       "empty_export_note": "A file with no rows records the filter and time only in its name.",
-      "menu_folder": "Access report",
-      "menu_workspace": "Workspace access report"
+      "menu_folder": "Folder access report"
     },
     "archive": {
       "archive_title": "Move document to trash?",
@@ -10703,7 +10702,9 @@
         "edit": "Edit",
         "manage": "Manage",
         "owner": "Owner",
-        "you_prefix": "You: {{level}}"
+        "you_prefix": "You: {{level}}",
+        "manage_for": "Manage access for {{title}}",
+        "view_for": "View access for {{title}}"
       },
       "group_by": {
         "label": "Group by",
