@@ -30,3 +30,21 @@ func TestTaskDTOIncludesCardMetadata(t *testing.T) {
 		t.Fatalf("ParentTaskID = %v, want parent-1", dto.ParentTaskID)
 	}
 }
+
+func TestTaskDTOCarriesOrigin(t *testing.T) {
+	dto := toTaskDTO(db.Task{
+		OriginType: pgtype.Text{String: "meeting", Valid: true},
+		OriginID:   pgtype.Text{String: "meeting-1", Valid: true},
+	}, "SAT")
+	if dto.OriginType == nil || *dto.OriginType != "meeting" {
+		t.Fatalf("OriginType = %v, want meeting", dto.OriginType)
+	}
+	if dto.OriginID == nil || *dto.OriginID != "meeting-1" {
+		t.Fatalf("OriginID = %v, want meeting-1", dto.OriginID)
+	}
+
+	plain := toTaskDTO(db.Task{}, "SAT")
+	if plain.OriginType != nil || plain.OriginID != nil {
+		t.Fatalf("origin = %v/%v, want both nil for a task with no origin", plain.OriginType, plain.OriginID)
+	}
+}

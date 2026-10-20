@@ -33,6 +33,8 @@ type TaskDTO struct {
 	ProjectID     *string           `json:"project_id,omitempty" description:"Project ULID khi task thuộc một project" example:"01J8X4PROJ0N1P2Q3R4S5T6U7"`
 	ParentTaskID  *string           `json:"parent_task_id,omitempty" example:"01J8X4TASKN1P2Q3R4S5T6U7"`
 	Stage         *int32            `json:"stage,omitempty" description:"Thứ tự giai đoạn của task" example:"1"`
+	OriginType    *string           `json:"origin_type,omitempty" description:"Nguồn tạo task: meeting, chat_message hoặc email_thread" example:"meeting"`
+	OriginID      *string           `json:"origin_id,omitempty" description:"ULID của bản ghi nguồn (cuộc họp, tin nhắn, luồng email)" example:"01J8X4MTGN1P2Q3R4S5T6U7V8"`
 	Properties    map[string]any    `json:"properties,omitempty" description:"Giá trị thuộc tính tùy chỉnh của task"`
 	Position      float64           `json:"position" example:"0"`
 	Kind          string            `json:"kind" description:"user hoặc welcome" example:"user"`

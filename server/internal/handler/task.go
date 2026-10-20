@@ -77,6 +77,14 @@ func fillLegacyTaskDTOFields(out sdo.TaskDTO, t db.Task) sdo.TaskDTO {
 		stage := t.Stage.Int32
 		out.Stage = &stage
 	}
+	if t.OriginType.Valid {
+		s := t.OriginType.String
+		out.OriginType = &s
+	}
+	if t.OriginID.Valid {
+		s := t.OriginID.String
+		out.OriginID = &s
+	}
 	return out
 }
 
