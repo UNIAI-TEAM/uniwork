@@ -1,0 +1,350 @@
+$ export DATABASE_URL="postgres://uniwork:uniwork@localhost:5432/uniwork?sslmode=disable" REDIS_URL=redis://localhost:6379/0 JWT_SECRET=ci-e2e-secret PORT=19282 FRONTEND_ORIGIN=http://localhost:14202 API_PUBLIC_URL=http://localhost:19282 PREVIEW_ORIGIN=http://localhost:14203 PREVIEW_CAPABILITY_SECRET=ci-e2e-preview-capability-secret-00000000 PREVIEW_ASSET_TTL=10m PREVIEW_ASSET_MAX_BYTES=10485760 APP_ENV=development DEV_VERIFICATION_CODE=123456 STORAGE_BACKEND=minio MINIO_ENDPOINT=http://localhost:9000 MINIO_BUCKET=uniwork-test MINIO_ACCESS_KEY_ID=minioadmin MINIO_SECRET_ACCESS_KEY=minioadmin MINIO_REGION=us-east-1 LOCAL_UPLOAD_DIR=/tmp/uniwork-uploads NEXT_PUBLIC_API_URL=http://localhost:19282 NEXT_PUBLIC_WS_URL=ws://localhost:19282 NEXT_PUBLIC_APP_URL=http://localhost:14202 E2E_BASE_URL=http://localhost:14202 E2E_API_URL=http://localhost:19282 OFFICE_DOCS_WEB_E2E=1 OFFICE_MODULES_WEB_E2E=1 FF_DOCUMENTS=true DOCUMENT_EDIT_LOCK_TTL=20s DOCUMENT_EDIT_LOCK_HEARTBEAT=5s DOCUMENT_EDIT_LOCK_SWEEP_INTERVAL=5s; pnpm --filter @uniwork/e2e exec playwright test --reporter=list --trace=on files-chat; rc1=$?; echo "E2E_FILES_CHAT_EXIT=$rc1"; for f in e2e/test-results/*/error-context.md; do echo "=== $f"; head -c 6000 "$f"; done; pnpm --filter @uniwork/e2e exec playwright test --reporter=list --trace=on chat-document-share -g "UNI-2012 D7"; rc2=$?; echo "E2E_D7_EXIT=$rc2"; for f in e2e/test-results/*/error-context.md; do echo "=== $f"; head -c 6000 "$f"; done; rc=$((rc1+rc2)); echo "E2E_EXIT=$rc"; exit $rc
+
+Running 7 tests using 1 worker
+
+(node:18244) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[api] 401 POST http://localhost:19282/api/v1/auth/refresh
+[api] 401 POST http://localhost:19282/api/v1/auth/refresh
+  ✓  1 files-chat.spec.ts:182:3 › chat file and voice messages › an image sent in the room reaches the second member and downloads @files-smoke (3.2s)
+  ✓  2 files-chat.spec.ts:208:3 › chat file and voice messages › a text file sent from the composer becomes a document card for both members (2.5s)
+  ✓  3 files-chat.spec.ts:224:3 › chat file and voice messages › a voice message plays for the second member with its duration (4.2s)
+  ✓  4 files-chat.spec.ts:250:3 › chat file and voice messages › a resend with the same client_msg_id does not duplicate the message (987ms)
+  ✓  5 files-chat.spec.ts:286:3 › chat file and voice messages › a member of another organization cannot reach the workspace or its files (2.6s)
+  ✓  6 files-chat.spec.ts:314:3 › chat file and voice messages › an unsupported file type is refused before it is sent (909ms)
+  ✘  7 files-chat.spec.ts:334:3 › chat file and voice messages › blocking a peer closes the direct messages in both directions (4.0m)
+
+
+  1) files-chat.spec.ts:334:3 › chat file and voice messages › blocking a peer closes the direct messages in both directions 
+
+    Test timeout of 240000ms exceeded.
+
+    Error: locator.click: Target page, context or browser has been closed
+    Call log:
+      - waiting for getByRole('button', { name: 'Tạo cuộc trò chuyện' })
+
+
+      335 |     await openChat(member);
+      336 |     // Member opens a direct conversation with the owner.
+    > 337 |     await member.getByRole("button", { name: "Tạo cuộc trò chuyện" }).click();
+          |                                                                       ^
+      338 |     await member.getByRole("menuitem", { name: "Nhắn tin với người mới" }).click();
+      339 |     // The owner's display name comes from registerVerified("chat-owner").
+      340 |     await member.getByLabel("Tên hoặc email").fill("chat-owner");
+        at /workspace/e2e/files-chat.spec.ts:337:71
+
+    Error Context: test-results/files-chat-chat-file-and-v-d0633-messages-in-both-directions/error-context.md
+
+    Error Context: test-results/files-chat-chat-file-and-v-d0633-messages-in-both-directions/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/files-chat-chat-file-and-v-d0633-messages-in-both-directions/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/files-chat-chat-file-and-v-d0633-messages-in-both-directions/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    files-chat.spec.ts:334:3 › chat file and voice messages › blocking a peer closes the direct messages in both directions 
+  6 passed (4.9m)
+undefined
+/workspace/e2e:
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command failed with exit code 1: playwright test --reporter=list --trace=on files-chat
+E2E_FILES_CHAT_EXIT=1
+=== e2e/test-results/files-chat-chat-file-and-v-d0633-messages-in-both-directions/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: files-chat.spec.ts >> chat file and voice messages >> blocking a peer closes the direct messages in both directions
+- Location: files-chat.spec.ts:334:3
+
+# Error details
+
+```
+Test timeout of 240000ms exceeded.
+```
+
+```
+Error: locator.click: Target page, context or browser has been closed
+Call log:
+  - waiting for getByRole('button', { name: 'Tạo cuộc trò chuyện' })
+
+```
+
+# Page snapshot
+
+```yaml
+- generic [ref=f5e1]:
+  - generic [ref=f5e2]:
+    - link "Tới nội dung chính" [ref=f5e3] [cursor=pointer]:
+      - /url: "#main-content"
+    - generic [ref=f5e6]:
+      - list [ref=f5e8]:
+        - listitem [ref=f5e9]:
+          - 'button "Tep Chat 1792526140080, Team Files 1792526140080: chuyển workspace" [ref=f5e10] [cursor=pointer]':
+            - generic [ref=f5e11]: T
+            - generic [ref=f5e13]:
+              - generic "Tep Chat 1792526140080" [ref=f5e14]
+              - generic "Team Files 1792526140080" [ref=f5e15]
+      - navigation "Điều hướng workspace" [ref=f5e19]:
+        - list [ref=f5e22]:
+          - listitem [ref=f5e23]:
+            - link "Trang chủ" [ref=f5e24] [cursor=pointer]:
+              - /url: /tep-chat-1792526140080/team-files-1792526140080
+          - listitem [ref=f5e30]:
+            - link "Hộp việc" [ref=f5e31] [cursor=pointer]:
+              - /url: /tep-chat-1792526140080/team-files-1792526140080/inbox
+        - generic [ref=f5e37]:
+          - generic [ref=f5e38]: Làm việc
+          - list "Làm việc" [ref=f5e40]:
+            - listitem [ref=f5e41]:
+              - link "Công việc" [ref=f5e42] [cursor=pointer]:
+                - /url: /tep-chat-1792526140080/team-files-1792526140080/tasks
+            - listitem [ref=f5e48]:
+              - link "Việc của tôi" [ref=f5e49] [cursor=pointer]:
+                - /url: /tep-chat-1792526140080/team-files-1792526140080/my-tasks
+            - listitem [ref=f5e55]:
+              - link "Dự án" [ref=f5e56] [cursor=pointer]:
+                - /url: /tep-chat-1792526140080/team-files-1792526140080/projects
+            - listitem [ref=f5e61]:
+              - link "Lịch" [ref=f5e62] [cursor=pointer]:
+                - /url: /tep-chat-1792526140080/team-files-1792526140080/calendar
+        - generic [ref=f5e67]:
+          - generic [ref=f5e68]: Trao đổi
+          - list "Trao đổi" [ref=f5e70]:
+            - listitem [ref=f5e71]:
+              - link "Email Hub" [ref=f5e72] [cursor=pointer]:
+                - /url: /tep-chat-1792526140080/team-files-1792526140080/email
+            - listitem [ref=f5e78]:
+              - link "Cuộc họp" [ref=f5e79] [cursor=pointer]:
+                - /url: /tep-chat-1792526140080/team-files-1792526140080/meetings
+            - listitem [ref=f5e85]:
+              - link "Tài liệu" [ref=f5e86] [cursor=pointer]:
+                - /url: /tep-chat-1792526140080/team-files-1792526140080/documents
+            - listitem [ref=f5e92]:
+              - link "Trò chuyện" [ref=f5e93] [cursor=pointer]:
+                - /url: /tep-chat-1792526140080/team-files-1792526140080/chat
+            - listitem [ref=f5e98]:
+              - link "Danh bạ" [ref=f5e99] [cursor=pointer]:
+                - /url: /tep-chat-1792526140080/team-files-1792526140080/people
+      - list [ref=f5e108]:
+        - listitem [ref=f5e109]:
+          - 'button "chat-owner, chat-owner-1792526140080@example.com: tài khoản" [ref=f5e110] [cursor=pointer]':
+            - generic [ref=f5e111]: C
+            - generic [ref=f5e112]:
+              - generic "chat-owner" [ref=f5e113]
+              - generic "chat-owner-1792526140080@example.com" [ref=f5e114]
+      - button "Ẩn/hiện thanh bên" [ref=f5e117]
+    - main [ref=f5e118]:
+      - generic [ref=f5e119]:
+        - button "Ẩn/hiện thanh bên" [ref=f5e120] [cursor=pointer]
+        - button "Tìm kiếm…" [ref=f5e121] [cursor=pointer]:
+          - generic: Ctrl+K
+        - generic [ref=f5e123]:
+          - button "Thông báo" [ref=f5e124] [cursor=pointer]
+          - button "Tạo việc" [ref=f5e125] [cursor=pointer]
+          - button "Giao diện" [ref=f5e126] [cursor=pointer]
+          - button "Ngôn ngữ" [ref=f5e127] [cursor=pointer]
+      - generic [ref=f5e130]:
+        - heading "Trò chuyện" [level=1] [ref=f5e131]
+        - generic [ref=f5e132]:
+          - complementary [ref=f5e134]:
+            - navigation "Tin nhắn hay kênh" [ref=f5e135]:
+              - generic [ref=f5e136]:
+                - link "Tin nhắn" [ref=f5e137] [cursor=pointer]:
+                  - /url: /tep-chat-1792526140080/team-files-1792526140080/chat?view=messages
+                - link "Kênh" [ref=f5e142] [cursor=pointer]:
+                  - /url: /tep-chat-1792526140080/team-files-1792526140080/chat?view=channels
+                  - generic [ref=f5e143]: TF
+            - generic [ref=f5e145]:
+              - heading "Team Files 1792526140080" [level=2] [ref=f5e146]
+              - button "Tùy chọn trò chuyện trong Team Files 1792526140080" [ref=f5e148] [cursor=pointer]:
+                - generic [ref=f5e149]: Team Files 1792526140080
+              - button "Tạo kênh trong Team Files 1792526140080" [ref=f5e152] [cursor=pointer]
+            - searchbox "Tìm cuộc trò chuyện" [ref=f5e155]
+            - group "Lọc cuộc trò chuyện" [ref=f5e156]:
+              - button "Tất cả" [pressed] [ref=f5e157] [cursor=pointer]
+              - button "Chưa đọc" [ref=f5e158] [cursor=pointer]
+              - button "Nhắc tên" [ref=f5e159] [cursor=pointer]
+            - navigation "Danh sách trò chuyện" [ref=f5e160]:
+              - status [ref=f5e161]
+              - list [ref=f5e162]:
+                - listitem [ref=f5e163]:
+                  - 'button "Chung 19:55 Bạn: Ảnh" [ref=f5e164] [cursor=pointer]':
+         
+Running 1 test using 1 worker
+
+(node:18584) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  1 chat-document-share.spec.ts:254:1 › inside the UniChat shell the card offers no Office entry and opens its pages in the browser (UNI-2012 D7) (8.3s)
+
+
+  1) chat-document-share.spec.ts:254:1 › inside the UniChat shell the card offers no Office entry and opens its pages in the browser (UNI-2012 D7) 
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 1
+    + Received  + 1
+
+      Array [
+    -   StringMatching /\/rec-org-1792526404936\/rec-ws-1792526404936\/documents\/[^/?]+?panel=versions$/,
+    +   "http://localhost:14202/rec-org-1792526404936/rec-ws-1792526404936/documents/01M5DECKJD51JWMW8CWCJ9X91N?panel=versions",
+      ]
+
+    Call Log:
+    - Timeout 5000ms exceeded while waiting on the predicate
+
+      285 |   await expect
+      286 |     .poll(() => page.evaluate(() => window.__uniChat.external))
+    > 287 |     .toEqual([expect.stringMatching(new RegExp(`/${ws.orgSlug}/${ws.wsSlug}/documents/[^/?]+\?panel=versions$`))]);
+          |      ^
+      288 |   await expect(page).toHaveURL(new RegExp(`${chatPath}\?room=${roomId}`));
+      289 | });
+      290 |
+        at /workspace/e2e/chat-document-share.spec.ts:287:6
+
+    Error Context: test-results/chat-document-share-inside-07b01-in-the-browser-UNI-2012-D7-/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/chat-document-share-inside-07b01-in-the-browser-UNI-2012-D7-/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/chat-document-share-inside-07b01-in-the-browser-UNI-2012-D7-/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    chat-document-share.spec.ts:254:1 › inside the UniChat shell the card offers no Office entry and opens its pages in the browser (UNI-2012 D7) 
+undefined
+/workspace/e2e:
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command failed with exit code 1: playwright test --reporter=list --trace=on chat-document-share -g UNI-2012 D7
+E2E_D7_EXIT=1
+=== e2e/test-results/chat-document-share-inside-07b01-in-the-browser-UNI-2012-D7-/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: chat-document-share.spec.ts >> inside the UniChat shell the card offers no Office entry and opens its pages in the browser (UNI-2012 D7)
+- Location: chat-document-share.spec.ts:254:1
+
+# Error details
+
+```
+Error: expect(received).toEqual(expected) // deep equality
+
+- Expected  - 1
++ Received  + 1
+
+  Array [
+-   StringMatching /\/rec-org-1792526404936\/rec-ws-1792526404936\/documents\/[^/?]+?panel=versions$/,
++   "http://localhost:14202/rec-org-1792526404936/rec-ws-1792526404936/documents/01M5DECKJD51JWMW8CWCJ9X91N?panel=versions",
+  ]
+
+Call Log:
+- Timeout 5000ms exceeded while waiting on the predicate
+```
+
+# Page snapshot
+
+```yaml
+- generic [ref=f1e1]:
+  - generic [ref=f1e2]:
+    - link "Tới nội dung chính" [ref=f1e3] [cursor=pointer]:
+      - /url: "#main-content"
+    - navigation "Workspace" [ref=f1e4]:
+      - generic [ref=f1e5]:
+        - button "Tin nhắn, riêng và nhóm" [ref=f1e7] [cursor=pointer]:
+          - generic [ref=f1e12]: Tin nhắn
+        - dialog [ref=f1e13]:
+          - heading "Tin nhắn riêng và nhóm giờ ở đây" [level=2] [ref=f1e15]
+          - paragraph [ref=f1e16]: Dùng chung cho mọi workspace của Org docshell1792526404819-a. Mỗi workspace giờ chỉ còn kênh của nó.
+          - button "Đã hiểu" [ref=f1e18] [cursor=pointer]
+      - list [ref=f1e20]:
+        - listitem [ref=f1e21]:
+          - button "WS docshell1792526404819-a" [ref=f1e22] [cursor=pointer]:
+            - generic [ref=f1e23]: WD
+      - link "Cài đặt" [ref=f1e27] [cursor=pointer]:
+        - /url: /rec-org-1792526404936/rec-ws-1792526404936/chat/settings
+        - generic [ref=f1e28]: D
+    - main [ref=f1e30]:
+      - generic [ref=f1e33]:
+        - heading "Trò chuyện" [level=1] [ref=f1e34]
+        - generic [ref=f1e35]:
+          - complementary [ref=f1e37]:
+            - generic [ref=f1e38]:
+              - heading "Tin nhắn" [level=2] [ref=f1e39]
+              - button "Tùy chọn trò chuyện trong Tin nhắn" [ref=f1e41] [cursor=pointer]:
+                - generic [ref=f1e42]: Tin nhắn
+              - button "Tạo cuộc trò chuyện" [ref=f1e45] [cursor=pointer]
+            - generic [ref=f1e47]:
+              - searchbox "Tìm cuộc trò chuyện" [ref=f1e48]
+              - generic: Ctrl+K
+            - group "Lọc cuộc trò chuyện" [ref=f1e49]:
+              - button "Tất cả" [pressed] [ref=f1e50] [cursor=pointer]
+              - button "Chưa đọc" [ref=f1e51] [cursor=pointer]
+              - button "Nhắc tên" [ref=f1e52] [cursor=pointer]
+              - button "Riêng" [ref=f1e53] [cursor=pointer]
+              - button "Nhóm" [ref=f1e54] [cursor=pointer]
+            - navigation "Danh sách trò chuyện" [ref=f1e55]:
+              - status [ref=f1e56]
+              - list [ref=f1e57]:
+                - listitem [ref=f1e58]:
+                  - button "D docshell1792526404819-b 20:00 bien-ban-shell-1792526404819.docx" [ref=f1e59] [cursor=pointer]:
+                    - generic [ref=f1e60]: D
+                    - generic [ref=f1e63]:
+                      - generic [ref=f1e64]:
+                        - generic [ref=f1e65]: docshell1792526404819-b
+                        - generic [ref=f1e66]: 20:00
+                      - generic [ref=f1e67]: bien-ban-shell-1792526404819.docx
+          - generic [ref=f1e70]:
+            - generic [ref=f1e71]:
+              - generic [ref=f1e72]:
+                - generic [ref=f1e73]: D
+                - generic [ref=f1e76]:
+                  - heading "docshell1792526404819-b" [level=2] [ref=f1e78]
+                  - paragraph [ref=f1e79]: Tin nhắn riêng
+                - generic [ref=f1e80]:
+                  - button "Gọi thoại" [ref=f1e81] [cursor=pointer]
+                  - button "Gọi video" [ref=f1e82] [cursor=pointer]
+                  - button "Thông tin cuộc trò chuyện" [pressed] [ref=f1e83] [cursor=pointer]
+              - status [ref=f1e84]
+              - status [ref=f1e85]
+              - generic [ref=f1e88]:
+                - log "Lịch sử tin nhắn" [ref=f1e89]:
+                  - generic [ref=f1e91]:
+                    - region "Đây là khởi đầu cuộc trò chuyện với docshell1792526404819-b" [ref=f1e92]:
+                      - heading "Đây là khởi đầu cuộc trò chuyện với docshell1792526404819-b" [level=2] [ref=f1e93]
+                    - generic [ref=f1e96]:
+                      - separator "Hôm nay" [ref=f1e97]
+                      - article "Bạn, lúc 20:00 Thứ Ba, 20 tháng 10, 2026" [ref=f1e99]:
+                        - generic [ref=f1e102]:
+                          - generic [ref=f1e104]:
+                            - generic [ref=f1e107]:
+                              - img "Tài liệu Word" [ref=f1e108]
+                              - generic [ref=f1e112]:
+                                - 'button "Mở trong Tài liệu: bien-ban-shell-1792526404819.docx" [active] [ref=f1e113] [cursor=pointer]': bien-ban-shell-1792526404819.docx
+                                - paragraph [ref=f1e114]: Phiên bản 1 · Đã chia sẻ với 1 người
+                              - generic [ref=f1e115]: Quản lý
+                            - paragraph [ref=f1e116]:
+                              - time [ref=f1e117]: 20:00
+                              - img "Đã gửi" [ref=f1e118]
+                          - toolbar "Thao tác với tin nhắn":
+                            - button "Thả ❤️":
+                              - generic: ❤️
+                            - button "Thêm cảm xúc"
+                            - button "Trả lời"
+                            - button "Thêm"
+                - status [ref=f1e120]
+              - generic [ref=f1e121]:
+                - button [ref=f1e122]
+                - paragraE2E_EXIT=2
