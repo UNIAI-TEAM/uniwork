@@ -146,8 +146,9 @@ func (s *AskUNIService) askCount(ctx context.Context, key string) (n int64, ok b
 }
 
 // rateLimit is per user: askRateLimit asks a minute. A Redis error or stall
-// lets the ask through, as every limiter does (ruling P22); the agent's own
-// per-organization call cap and the token quota still bound the spend.
+// lets the ask through, as every limiter does (ruling P22). The per-organization
+// call cap shares this Redis and opens with it; the database token quota and the
+// per-pod run cap still bound the spend.
 func (s *AskUNIService) rateLimit(ctx context.Context, userID string) error {
 	if n, ok := s.askCount(ctx, "uw:ai:ask:"+userID); ok && n > askRateLimit {
 		return ai.ErrRateLimited

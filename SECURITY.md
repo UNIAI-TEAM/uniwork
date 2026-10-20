@@ -27,9 +27,10 @@ Các quyết định sau là cố ý và có test giữ chúng; nếu bạn cho 
   (`server/internal/handler/router_test.go`).
 - Rate limit chỉ tồn tại khi có Redis, và fail-open khi Redis lỗi hoặc chậm quá
   100ms — đây là đánh đổi có chủ ý giữa khả dụng và chống lạm dụng. Ask UNI
-  (20 lượt/phút/người) cũng vậy kể từ P1 (ruling P22, thay G5 fail-closed): chi
-  phí vẫn bị chặn bởi trần lời gọi model mỗi tổ chức và hạn mức token; không có
-  Redis (dev) thì không giới hạn.
+  (20 lượt/phút/người) cũng vậy kể từ P1 (ruling P22, thay G5 fail-closed). Trần
+  lời gọi model mỗi tổ chức dùng cùng Redis nên cũng mở khi Redis lỗi; lúc đó chi
+  phí chỉ còn bị chặn bởi hạn mức token trong DB và trần 32 lượt agent chạy đồng
+  thời mỗi pod. Không có Redis (dev) thì không giới hạn.
 - Mọi lượt gọi LLM đi qua `ai.Gateway`: chỉ `internal/ai/provider` nói chuyện với
   nhà cung cấp; ngữ cảnh đọc bằng quyền người hỏi qua service; nội dung
   workspace bọc `<untrusted>`; không log prompt/nguồn/câu trả lời
