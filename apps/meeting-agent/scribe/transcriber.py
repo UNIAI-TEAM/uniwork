@@ -15,9 +15,15 @@ from datetime import UTC, datetime
 from livekit import rtc
 from livekit.agents import stt
 
+from scribe import metrics
+
 log = logging.getLogger("scribe.track")
 
 MAX_SPEECH_MS = 600_000
+# A failed STT session is retried on the next speech, waiting at least this
+# long, doubling up to RETRY_MAX_S (spec §4.1: retry with backoff, keep the job).
+RETRY_MIN_S = 1.0
+RETRY_MAX_S = 30.0
 
 
 @dataclass(frozen=True)
@@ -52,13 +58,17 @@ class Final:
 
 
 class TrackTranscriber:
-    """The audio loop (push) is the only place a session opens or closes, so a
-    new session never starts while the old one drains (S0 §1 item 5a)."""
+    """Sessions open and close under one lock (push, tick, close), so a new
+    session never starts while the old one drains (S0 §1 item 5a).
+
+    segment_prefix names the job and the track ("<job id>-<track sid>"): a
+    later job on the same track must not reuse an earlier job's segment ids,
+    which the server deduplicates per meeting."""
 
     def __init__(
         self,
         *,
-        track_sid: str,
+        segment_prefix: str,
         identity: str,
         stt_impl: stt.STT,
         publish: Callable[[Caption], Awaitable[None]],
@@ -68,7 +78,7 @@ class TrackTranscriber:
         clock: Callable[[], float] = time.monotonic,
         wall: Callable[[], datetime] = lambda: datetime.now(UTC),
     ) -> None:
-        self._sid = track_sid
+        self._sid = segment_prefix
         self._identity = identity
         self._stt = stt_impl
         self._publish = publish
@@ -86,8 +96,14 @@ class TrackTranscriber:
         self._speech_ms = 0  # VAD speech since the last final
         self._seg_started: datetime | None = None
         self._opened_at = 0.0
+        self._lock = asyncio.Lock()
+        self._failed = False  # the open session's reader died
+        self._retry_at = 0.0
+        self._retry_s = RETRY_MIN_S
+        self._end_at: float | None = None  # end of speech awaiting its final
         self.sessions = 0
         self.session_ms = 0
+        self.failures = 0
 
     # VAD side: only marks state.
     def on_vad_start(self, preroll: list[rtc.AudioFrame]) -> None:
@@ -97,33 +113,68 @@ class TrackTranscriber:
 
     def on_vad_end(self, speech_s: float) -> None:
         self._speaking, self._last_end = False, self._clock()
+        self._end_at = self._last_end
         self._speech_ms = min(MAX_SPEECH_MS, self._speech_ms + int(speech_s * 1000))
         if self._session is not None and getattr(self._stt, "flush_on_vad_end", False):
             self._session.flush()
+
+    def update_keyterms(self, terms: list[str]) -> None:
+        """Spec §4.2: a newcomer's name reaches this track's STT too; the
+        provider applies it to the open session (AssemblyAI UpdateConfiguration)."""
+        update = getattr(self._stt, "update_options", None)
+        if update is None:
+            return
+        try:
+            update(keyterms_prompt=terms[:100])
+        except TypeError:
+            pass  # a provider without keyterms
 
     @property
     def open(self) -> bool:
         return self._session is not None
 
     async def push(self, frame: rtc.AudioFrame) -> None:
-        if self._session is None and self._preroll is not None:
-            self._open(self._preroll)
-            self._preroll = None
-        if self._session is None:
-            return
-        if not self._speaking and self._clock() - self._last_end >= self._idle:
-            await self._close("idle")
-        else:
-            self._session.push_frame(frame)
+        async with self._lock:
+            if self._session is not None and self._failed:
+                await self._drop()
+            if self._session is None and self._preroll is not None:
+                if self._clock() < self._retry_at:
+                    return  # backing off after a failure; speech resumes the session later
+                self._open(self._preroll)
+                self._preroll = None
+            if self._session is None:
+                return
+            if self._idle_due():
+                await self._close("idle")
+                return
+            try:
+                self._session.push_frame(frame)
+            except Exception as e:  # noqa: BLE001 - a dead session must not end the track
+                log.warning("stt push failed track=%s err=%s", self._sid, type(e).__name__)
+                self._failed = True
+
+    async def tick(self) -> None:
+        """Called once a second: a muted track sends no frames, and its session
+        must still close after the idle window (the vendor bills open time)."""
+        async with self._lock:
+            if self._session is not None and self._failed:
+                await self._drop()
+            elif self._session is not None and self._idle_due():
+                await self._close("idle")
 
     async def close(self) -> None:
-        await self._close("track ended")
+        async with self._lock:
+            await self._close("track ended")
+
+    def _idle_due(self) -> bool:
+        return not self._speaking and self._clock() - self._last_end >= self._idle
 
     def _open(self, preroll: list[rtc.AudioFrame]) -> None:
         self.sessions += 1
         s = self._stt.stream()
         for f in preroll:
             s.push_frame(f)
+        self._failed = False
         self._session, self._drain = s, asyncio.create_task(self._read(s))
         self._opened_at = self._clock()
         log.info("stt open track=%s session=%d", self._sid, self.sessions)
@@ -140,24 +191,55 @@ class TrackTranscriber:
         self.session_ms += int((self._clock() - self._opened_at) * 1000)
         log.info("stt close track=%s reason=%s", self._sid, reason)
 
+    async def _drop(self) -> None:
+        """Discards a failed session and schedules the retry: the next speech
+        after retry_at opens a new one."""
+        s, self._session = self._session, None
+        if s is not None:
+            try:
+                await s.aclose()
+            except Exception:  # noqa: BLE001, S110 - it already failed
+                pass
+            self.session_ms += int((self._clock() - self._opened_at) * 1000)
+        self._failed = False
+        self._preroll = None
+        self._retry_at = self._clock() + self._retry_s
+        log.warning("stt dropped track=%s retry_in_s=%.0f", self._sid, self._retry_s)
+        self._retry_s = min(RETRY_MAX_S, self._retry_s * 2)
+
     async def _read(self, s: stt.RecognizeStream) -> None:
-        async for ev in s:
-            if ev.type not in (stt.SpeechEventType.INTERIM_TRANSCRIPT, stt.SpeechEventType.FINAL_TRANSCRIPT):
-                continue
-            alt = ev.alternatives[0]
-            if not alt.text.strip():
-                continue
-            final = ev.type == stt.SpeechEventType.FINAL_TRANSCRIPT
-            seg_id = f"{self._sid}-{self._seg + 1}"
-            language = alt.language or self._language
-            if self._seg_started is None:
-                self._seg_started = self._wall()
-            await self._publish(Caption(self._identity, seg_id, alt.text, final, language))
-            if final:
-                self._seg += 1
-                ended = self._wall()
-                self._on_final(
-                    Final(seg_id, self._identity, alt.text, language, self._seg_started, ended, self._speech_ms)
-                )
-                self._seg_started, self._speech_ms = None, 0
-                log.info("final seg=%s chars=%d", seg_id, len(alt.text))
+        try:
+            async for ev in s:
+                await self._event(ev)
+        except Exception as e:  # noqa: BLE001 - the track lives on; push/tick drop the session
+            self.failures += 1
+            metrics.STT_ERRORS.inc()
+            log.warning("stt failed track=%s err=%s", self._sid, type(e).__name__)
+            self._failed = True
+
+    async def _event(self, ev: stt.SpeechEvent) -> None:
+        if ev.type not in (stt.SpeechEventType.INTERIM_TRANSCRIPT, stt.SpeechEventType.FINAL_TRANSCRIPT):
+            return
+        alt = ev.alternatives[0]
+        if not alt.text.strip():
+            return
+        final = ev.type == stt.SpeechEventType.FINAL_TRANSCRIPT
+        seg_id = f"{self._sid}-{self._seg + 1}"
+        language = alt.language or self._language
+        if self._seg_started is None:
+            self._seg_started = self._wall()
+        await self._publish(Caption(self._identity, seg_id, alt.text, final, language))
+        if not final:
+            return
+        self._seg += 1
+        self._retry_s = RETRY_MIN_S  # a session that delivers is healthy again
+        if self._end_at is not None:
+            metrics.STT_LATENCY.observe(max(0.0, self._clock() - self._end_at))
+            self._end_at = None
+        metrics.SEGMENTS.inc()
+        metrics.SPEECH_SECONDS.inc(self._speech_ms / 1000)
+        self._on_final(
+            Final(seg_id, self._identity, alt.text, language, self._seg_started, self._wall(), self._speech_ms)
+        )
+        self._seg_started, self._speech_ms = None, 0
+        log.info("final seg=%s chars=%d", seg_id, len(alt.text))

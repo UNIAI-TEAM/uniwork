@@ -1,7 +1,7 @@
 import json
 
-from scribe.job import parse_metadata, should_transcribe
-from scribe.keyterms import build_keyterms
+from scribe.job import parse_metadata, reports_finished, should_transcribe
+from scribe.keyterms import build_keyterms, refresh_keyterms
 
 META = json.dumps({"meeting_id": "01M", "token": "uwma_abc.def", "locale": "vi"})
 
@@ -43,3 +43,27 @@ def test_keyterms_dedupe_cap_and_skip_long():
     assert terms[:3] == ["Giao ban tuần", "Phòng Kế hoạch", "Nguyễn Văn An"]
     assert len(terms) == 100
     assert all(len(t) <= 50 for t in terms)
+
+
+def test_a_replaced_connection_does_not_finish_the_run():
+    """Review item 10."""
+    assert reports_finished(None)
+    assert reports_finished("ROOM_DELETED")
+    assert not reports_finished("DUPLICATE_IDENTITY")
+
+
+async def test_keyterms_refresh_in_place_and_survive_a_failed_read():
+    """Review item 8: a newcomer's name joins the list every new stream reads."""
+    terms = build_keyterms({"meeting_title": "Giao ban", "participant_names": ["An"]})
+
+    async def fresh() -> dict:
+        return {"meeting_title": "Giao ban", "participant_names": ["An", "Bình"]}
+
+    async def broken() -> dict:
+        raise RuntimeError("server down")
+
+    same = terms
+    await refresh_keyterms(fresh, terms)
+    assert same is terms and terms == ["Giao ban", "An", "Bình"]
+    await refresh_keyterms(broken, terms)
+    assert terms == ["Giao ban", "An", "Bình"]

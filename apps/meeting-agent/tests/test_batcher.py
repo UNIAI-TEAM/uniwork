@@ -1,5 +1,6 @@
 import asyncio
 
+from scribe.api import ApiError
 from scribe.batcher import SegmentBatcher
 
 
@@ -48,3 +49,19 @@ async def test_queue_cap_drops_the_oldest():
     for i in range(5):
         b.add(seg(i))
     assert [s["segment_id"] for s in b._queue] == ["s2", "s3", "s4"]
+
+
+async def test_final_refusals_drop_the_batch_and_retryable_errors_keep_it():
+    """Review item 6: 400/404/409/413 cannot succeed again; 429 and 5xx can."""
+    for status, kept in [(400, False), (404, False), (409, False), (413, False), (429, True), (503, True)]:
+
+        async def send(batch: list[dict], status: int = status) -> None:
+            raise ApiError(status, "/segments")
+
+        b = SegmentBatcher(send, max_segments=2)
+        b.add(seg(1))
+        b.add(seg(2))
+        b.add(seg(3))
+        await b.flush()
+        assert (len(b._queue) == 3) is kept, status
+        assert (len(b._queue) == 0) is (not kept), status

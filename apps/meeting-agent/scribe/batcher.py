@@ -8,7 +8,14 @@ import asyncio
 import logging
 from collections.abc import Awaitable, Callable
 
+from scribe.api import ApiError
+
 log = logging.getLogger("scribe.batcher")
+
+# The server refused the batch itself (malformed, run or meeting gone, too
+# big): sending it again cannot succeed, so it is dropped. Everything else
+# (429, 5xx, network) is kept for the next round.
+FINAL_REFUSALS = frozenset({400, 404, 409, 413})
 
 Send = Callable[[list[dict]], Awaitable[object]]
 
@@ -39,7 +46,15 @@ class SegmentBatcher:
             batch = self._queue[: self._max]
             try:
                 await self._send(batch)
-            except Exception as e:  # noqa: BLE001 - any failure keeps the batch for the next round
+            except ApiError as e:
+                if e.status not in FINAL_REFUSALS:
+                    log.warning("send failed segments=%d status=%d", len(batch), e.status)
+                    return False
+                ids = ",".join(str(s.get("segment_id")) for s in batch)
+                log.warning("server refused batch status=%d dropped segments=%s", e.status, ids)
+                del self._queue[: len(batch)]
+                continue
+            except Exception as e:  # noqa: BLE001 - network and the like keep the batch for the next round
                 log.warning("send failed segments=%d err=%s", len(batch), type(e).__name__)
                 return False
             del self._queue[: len(batch)]

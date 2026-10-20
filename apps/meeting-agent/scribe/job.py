@@ -32,3 +32,10 @@ def should_transcribe(identity: str, is_agent: bool, is_egress: bool) -> bool:
     """People only: other agents (this one included) and egress recorders are not
     speakers (spec §4.1)."""
     return not (is_agent or is_egress or identity.startswith("uw_agent_"))
+
+
+def reports_finished(disconnect_reason: str | None) -> bool:
+    """False when another connection with our identity replaced this one
+    (DUPLICATE_IDENTITY): the run is the other agent's now, and closing it
+    would make the sweep dispatch a third agent."""
+    return disconnect_reason != "DUPLICATE_IDENTITY"

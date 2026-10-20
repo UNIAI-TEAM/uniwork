@@ -56,8 +56,8 @@ class UniworkClient:
             delay *= 2
         raise AssertionError("unreachable")
 
-    async def started(self) -> None:
-        await self._call("POST", "/started", {})
+    async def started(self, participant_sid: str) -> None:
+        await self._call("POST", "/started", {"participant_sid": participant_sid})
 
     async def context(self) -> dict:
         return await self._call("GET", "/context")

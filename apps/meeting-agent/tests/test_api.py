@@ -52,6 +52,6 @@ async def test_4xx_is_final(server):
     async with aiohttp.ClientSession() as s:
         c = UniworkClient(s, url, "01M", "uwma_tok", backoff_s=0.01)
         with pytest.raises(ApiError) as e:
-            await c.started()
+            await c.started("PA_x")
         assert e.value.status == 409
         assert len(calls) == 1

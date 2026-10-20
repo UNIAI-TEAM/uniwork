@@ -27,7 +27,7 @@ class Clock:
         return self.t
 
 
-def make(clock: Clock, idle: float = 30.0):
+def make(clock: Clock, idle: float = 30.0, job: str = "AJ_1", stt_impl=None):
     captions: list[Caption] = []
     finals: list[Final] = []
 
@@ -35,9 +35,9 @@ def make(clock: Clock, idle: float = 30.0):
         captions.append(c)
 
     t = TrackTranscriber(
-        track_sid="TR_a",
+        segment_prefix=f"{job}-TR_a",
         identity="uw_participant_p1",
-        stt_impl=FakeSTT(),
+        stt_impl=stt_impl or FakeSTT(),
         publish=publish,
         on_final=finals.append,
         idle_close_s=idle,
@@ -62,11 +62,11 @@ async def test_captions_and_finals_for_one_speaker():
     await speak(t, clock, 1.6)
     assert t.open and t.sessions == 1
     assert [c.final for c in captions] == [False, False, False, True]
-    assert {c.segment_id for c in captions} == {"TR_a-1"}
+    assert {c.segment_id for c in captions} == {"AJ_1-TR_a-1"}
     assert all(c.identity == "uw_participant_p1" and c.language == "vi" for c in captions)
     assert len(finals) == 1
     f = finals[0]
-    assert f.segment_id == "TR_a-1" and f.text == "từ1 từ2 từ3" and f.speech_ms == 1600
+    assert f.segment_id == "AJ_1-TR_a-1" and f.text == "từ1 từ2 từ3" and f.speech_ms == 1600
     assert f.as_json()["spoken_at"] == "2026-10-20T02:00:00.000+00:00"
     await t.close()
 
@@ -85,7 +85,7 @@ async def test_closes_after_idle_and_reopens_on_speech():
     assert t.sessions == 1  # silence alone never opens a session
     await speak(t, clock, 0.6)
     assert t.sessions == 2
-    assert [f.segment_id for f in finals] == ["TR_a-1", "TR_a-2"]
+    assert [f.segment_id for f in finals] == ["AJ_1-TR_a-1", "AJ_1-TR_a-2"]
     await t.close()
 
 
@@ -99,4 +99,72 @@ async def test_close_mid_turn_still_delivers_the_final():
     await t.close()  # the participant left mid-sentence
     # end_input flushes the session, so the cut turn still comes out as a final (S0 boundary_check).
     assert [f.text for f in finals] == ["từ1 từ2"]
-    assert captions[-1].final and captions[-1].segment_id == "TR_a-1"
+    assert captions[-1].final and captions[-1].segment_id == "AJ_1-TR_a-1"
+
+
+async def test_segment_ids_are_unique_across_jobs_on_the_same_track():
+    """Review item 2: a later run's job on the same track must not reuse ids."""
+    ids = []
+    for job in ("AJ_first", "AJ_second"):
+        clock = Clock()
+        t, _, finals = make(clock, job=job)
+        await speak(t, clock, 0.6)
+        await t.close()
+        ids += [f.segment_id for f in finals]
+    assert ids == ["AJ_first-TR_a-1", "AJ_second-TR_a-1"]
+    assert all(len(i) < 128 for i in ids)
+
+
+async def test_idle_session_closes_without_frames():
+    """Review item 9: a muted track sends no frames; tick closes the session."""
+    clock = Clock()
+    t, _, _ = make(clock)
+    await speak(t, clock, 0.6)
+    assert t.open
+    clock.t += 29
+    await t.tick()
+    assert t.open
+    clock.t += 2
+    await t.tick()
+    assert not t.open
+    await t.close()
+
+
+class FlakySTT(FakeSTT):
+    """Its first session fails when read (a vendor socket that drops), the next works."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.streams = 0
+
+    def stream(self, **kw):  # noqa: ANN003
+        self.streams += 1
+        s = super().stream(**kw)
+        if self.streams == 1:
+
+            async def fail(_self):  # noqa: ANN001
+                raise RuntimeError("vendor socket closed")
+
+            s.__class__ = type("FailingStream", (s.__class__,), {"__anext__": fail})
+        return s
+
+
+async def test_stt_failure_drops_the_session_and_reopens_after_backoff():
+    """Review item 3: one STT failure does not end the track."""
+    clock = Clock()
+    stt_impl = FlakySTT()
+    t, _, finals = make(clock, stt_impl=stt_impl)
+    t.on_vad_start([frame(True)])
+    await t.push(frame(True))
+    await asyncio.sleep(0.05)  # the reader hits the failure
+    assert t.failures == 1
+    await t.push(frame(True))  # drops the dead session, schedules the retry
+    assert not t.open
+    t.on_vad_start([frame(True)])
+    await t.push(frame(True))
+    assert not t.open  # still inside the backoff
+    clock.t += 1.5
+    await speak(t, clock, 0.6)
+    assert stt_impl.streams == 2
+    assert [f.text for f in finals] == ["từ1"]
+    await t.close()

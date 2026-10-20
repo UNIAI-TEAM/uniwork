@@ -3,6 +3,8 @@ should spell right. AssemblyAI takes at most 100 terms of up to 50 characters.""
 
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
+
 MAX_TERMS = 100
 MAX_TERM_CHARS = 50
 
@@ -25,3 +27,15 @@ def build_keyterms(context: dict, limit: int = MAX_TERMS) -> list[str]:
         if len(out) == limit:
             break
     return out
+
+
+async def refresh_keyterms(fetch_context: Callable[[], Awaitable[dict]], terms: list[str]) -> list[str]:
+    """Re-reads the meeting context (spec §4.2: a new person joined) and
+    replaces `terms` in place, so every stream opened afterwards uses the new
+    list. A failed read keeps the old list."""
+    try:
+        fresh = build_keyterms(await fetch_context())
+    except Exception:  # noqa: BLE001 - keyterms are a hint; transcription goes on
+        return terms
+    terms[:] = fresh
+    return terms
