@@ -38,6 +38,7 @@ import { DocumentShelvedBadge, DocumentShelvedBanner } from "./document-shelved-
 import { useShelvedWriteGuard } from "./use-shelved-write-guard";
 import { newerPageRevision, type DocumentPageMetadataHandle, type DocumentPageMetadataStatus } from "./use-document-page-metadata";
 import { BodyMentionGate, useBodyMentionDeepLink } from "./document-body-mention-gate";
+import { usePageSaveRequest } from "./page-toolbar/use-page-save-request";
 
 /**
  * The editor chunk. The document route must stay inside the bundle budget, so
@@ -134,6 +135,8 @@ export function DocumentWorkspace({
   const editLock = useDocumentEditLockUi({ wsId, doc, canEdit, active: doc.kind === "page" || officeEditorMounted,
     hasUnsavedWork: checkUnsaved, refetch, editorRef, title: doc.kind === "page" ? pageTitle : doc.title });
   const { save, editable } = editLock;
+  // Ctrl/Cmd+S in the page editor flushes the autosave; the header indicator reports the outcome.
+  const pageEditorHostRef = usePageSaveRequest(() => save.flush());
   const uploadAsset = useUploadDocumentAsset(wsId, doc.id);
   const state = save.state as DocumentSaveState;
   // One live-again retry per refusal run, so a server that keeps refusing never loops.
@@ -598,16 +601,12 @@ export function DocumentWorkspace({
               </div>
             }
           >
-            <div className="mx-auto w-full max-w-3xl">
+            <div ref={pageEditorHostRef} className="mx-auto w-full max-w-3xl">
               <DocumentEditor
                 ref={editorRef}
-                wsId={wsId}
-                documentId={doc.id}
-                initialContent={doc.content}
-                content={doc.content}
-                contentRevision={doc.revision}
-                dirty={dirty}
-                editable={editable}
+                wsId={wsId} documentId={doc.id}
+                initialContent={doc.content} content={doc.content} contentRevision={doc.revision}
+                dirty={dirty} editable={editable}
                 onChange={handleChange}
                 onUploadAsset={uploader}
                 onAssetError={handleAssetError}
