@@ -104,6 +104,57 @@ describe("useDocumentAccessReport (UNI-1643)", () => {
     expect(result.current.data).toBeUndefined();
   });
 
+  it("a cursor the server no longer takes (400) drops it and reads page 1 again", async () => {
+    // A cursor minted before the sort/filter-hash change answers 400: the
+    // report starts over instead of stopping on an error it cannot get past.
+    const pageCalls: string[] = [];
+    vi.mocked(fetch).mockImplementation(async (input) => {
+      const cursor = new URL(String(input)).searchParams.get("cursor");
+      pageCalls.push(cursor ?? "");
+      if (cursor === "old") return json({ error: { code: "invalid_request", message: "cursor không hợp lệ" } }, 400);
+      return pageCalls.length === 1 ? json(page("d1", "old")) : json(page("d1", "fresh"));
+    });
+    const { wrapper } = setup();
+    const { result } = renderHook(() => useDocumentAccessReport("w1", undefined, {}), { wrapper });
+    await waitFor(() => expect(result.current.hasNextPage).toBe(true));
+    await act(async () => {
+      await result.current.fetchNextPage();
+    });
+    await waitFor(() => expect(result.current.data?.pages[0]?.next_cursor).toBe("fresh"));
+    expect(pageCalls).toEqual(["", "old", ""]);
+    expect(result.current.isError).toBe(false);
+    expect(result.current.data?.pages).toHaveLength(1);
+  });
+
+  it("starts over once per cursor: the same cursor refused again stays an error", async () => {
+    vi.mocked(fetch).mockImplementation(async (input) =>
+      new URL(String(input)).searchParams.get("cursor") === "bad"
+        ? json({ error: { code: "invalid_request", message: "cursor không hợp lệ" } }, 400)
+        : json(page("d1", "bad")),
+    );
+    const { wrapper } = setup();
+    const { result } = renderHook(() => useDocumentAccessReport("w1", undefined, {}), { wrapper });
+    await waitFor(() => expect(result.current.hasNextPage).toBe(true));
+    await act(async () => {
+      await result.current.fetchNextPage();
+    });
+    await waitFor(() => expect(result.current.hasNextPage).toBe(true));
+    await act(async () => {
+      await result.current.fetchNextPage();
+    });
+    await waitFor(() => expect(result.current.isFetchNextPageError).toBe(true));
+    const cursors = vi.mocked(fetch).mock.calls.map(([u]) => new URL(String(u)).searchParams.get("cursor") ?? "");
+    expect(cursors).toEqual(["", "bad", "", "bad"]);
+  });
+
+  it("a 400 on the first page is an error, not a restart", async () => {
+    vi.mocked(fetch).mockResolvedValue(json({ error: { code: "invalid_request", message: "x" } }, 400));
+    const { wrapper } = setup();
+    const { result } = renderHook(() => useDocumentAccessReport("w1", undefined, {}), { wrapper });
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
   it("does not fetch without a workspace or when disabled", () => {
     const { wrapper } = setup();
     renderHook(() => useDocumentAccessReport("", undefined, {}), { wrapper });

@@ -48,10 +48,39 @@ const AccessReportScopeSchema = z.object({
   folder_title: NullableString,
 });
 
+// The echo of the filter the page ran. Nothing on screen reads it, so each
+// field that does not parse falls back on its own and never fails the page.
+const EchoText = NullableString.catch(null);
+const EchoList = nilAsEmpty(z.string()).catch([]);
+
+const EMPTY_FILTER_ECHO = {
+  person_id: null,
+  level: [],
+  visibility: null,
+  sort: null,
+  order: null,
+  q: null,
+  principal: null,
+  scope: null,
+  source: [],
+  flag: null,
+  non_default: false,
+};
+
 const AccessReportFilterSchema = z.object({
-  person_id: NullableString,
-  level: nilAsEmpty(z.string()),
-  visibility: NullableString,
+  person_id: EchoText,
+  level: EchoList,
+  visibility: EchoText,
+  /** UNI-2039 S4: the order the page walked (`changed|title`, `asc|desc`). */
+  sort: EchoText,
+  order: EchoText,
+  /** UNI-2039 S5; `principal` is `user:<id>` for a person_id filter too. */
+  q: EchoText,
+  principal: EchoText,
+  scope: EchoText,
+  source: EchoList,
+  flag: EchoText,
+  non_default: z.boolean().optional().default(false).catch(false),
 });
 
 const AccessReportOwnerSchema = z.object({
@@ -86,9 +115,10 @@ export type AccessReportFlag = "public_link" | "other_workspace" | "organization
 const FLAGS: readonly string[] = ["public_link", "other_workspace", "organization", "direct_manage"];
 
 /**
- * Absent, null or an empty list = null (the server's zero value: not answered),
- * so the screen derives them (`deriveReportFacts`); present but not an array =
- * no flags; an unknown flag is dropped, and a list of only unknown ones is [].
+ * Absent or null = null (an older server: not answered), so the screen derives
+ * them (`deriveReportFacts`). A list, even empty, is the server's answer: it
+ * always sends one (S1 amendment), computed before any row filter. Present but
+ * not an array = no flags; an unknown flag is dropped.
  */
 const FlagsSchema = z
   .unknown()
@@ -96,7 +126,6 @@ const FlagsSchema = z
   .transform((v): AccessReportFlag[] | null => {
     if (v === undefined || v === null) return null;
     if (!Array.isArray(v)) return [];
-    if (v.length === 0) return null;
     return v.filter((f): f is AccessReportFlag => typeof f === "string" && FLAGS.includes(f));
   });
 
@@ -172,7 +201,7 @@ const AccessReportSummarySchema = z.object({
 
 export const DocumentAccessReportSchema = z.object({
   scope: AccessReportScopeSchema,
-  filter: AccessReportFilterSchema.optional().default({ person_id: null, level: [], visibility: null }),
+  filter: AccessReportFilterSchema.optional().default(EMPTY_FILTER_ECHO).catch(EMPTY_FILTER_ECHO),
   generated_at: z.string().optional().default(""),
   documents: lenientArray(AccessReportDocumentSchema),
   summary: AccessReportSummarySchema.optional().default({ candidates: 0, documents: 0, rows: 0, skipped: 0 }),

@@ -474,7 +474,7 @@ describe("AccessReportView - placeholder rows (r3)", () => {
     serve({
       report: (url) => {
         if (url.searchParams.get("non_default")) return new Promise(() => undefined);
-        if (url.searchParams.get("cursor") === "c1") throw new ApiError("boom", 500);
+        if (url.searchParams.get("cursor") === "c1") throw new ApiError("boom", "internal", 500);
         return page({ ...EMPTY_PAGE, next_cursor: "c1" });
       },
     });

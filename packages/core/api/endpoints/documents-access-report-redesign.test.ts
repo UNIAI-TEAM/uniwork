@@ -334,6 +334,70 @@ describe("getDocumentAccessReportPrincipals (UNI-2039 S7)", () => {
   });
 });
 
+// The page echoes the filter it ran (S4/S5): sort and order always, the new
+// filters when set. The screen does not read the echo, so a malformed one is
+// dropped field by field and never fails the page.
+describe("access report page: the filter echo (UNI-2039 S4, S5)", () => {
+  it("parses the full echo", async () => {
+    const body = {
+      ...page(),
+      filter: {
+        person_id: "u2",
+        level: ["edit"],
+        visibility: null,
+        sort: "changed",
+        order: "desc",
+        q: "hợp đồng",
+        principal: "user:u2",
+        scope: "organization",
+        source: ["direct", "chat"],
+        flag: "public_link",
+        non_default: true,
+      },
+    };
+    vi.mocked(fetch).mockResolvedValueOnce(json(body));
+    expect((await getDocumentAccessReport("ws1"))!.filter).toEqual(body.filter);
+  });
+
+  it("reads an older server's echo (no new keys) with empty new filters", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json(page()));
+    expect((await getDocumentAccessReport("ws1"))!.filter).toEqual({
+      person_id: null,
+      level: [],
+      visibility: null,
+      sort: null,
+      order: null,
+      q: null,
+      principal: null,
+      scope: null,
+      source: [],
+      flag: null,
+      non_default: false,
+    });
+  });
+
+  it.each([
+    [{ sort: 3, order: {}, q: 7, principal: [], scope: true, source: "direct", flag: 1, non_default: "yes" }],
+    [{ level: "edit", person_id: 5, visibility: [] }],
+    [{ source: ["direct", 4] }],
+  ])("a malformed echo %j still parses the page", async (filter) => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ ...page(), filter: { ...page().filter, ...filter } }));
+    const out = await getDocumentAccessReport("ws1");
+    expect(out).not.toBeNull();
+    expect(out!.documents).toHaveLength(1);
+    expect(Array.isArray(out!.filter.source)).toBe(true);
+    expect(Array.isArray(out!.filter.level)).toBe(true);
+    expect(typeof out!.filter.non_default).toBe("boolean");
+  });
+
+  it("a filter echo that is not an object still parses the page", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ ...page(), filter: "nope" }));
+    const out = await getDocumentAccessReport("ws1");
+    expect(out!.documents).toHaveLength(1);
+    expect(out!.filter.level).toEqual([]);
+  });
+});
+
 // The server answers every new field with its Go zero value until it fills
 // them (SDO f1a936827): "" strings, general_scope {kind:"",level:null}, nil
 // flags (null), a zero time, a revoke_target that is null. All of that is
@@ -377,9 +441,13 @@ describe("access report page: zero values from the SDO read as missing (UNI-2039
     expect(facts.changedAt).toBe("2026-10-14T09:00:00Z");
   });
 
-  it("reads an empty flags array as not answered, so the flags are derived", async () => {
-    vi.mocked(fetch).mockResolvedValueOnce(json(page({ flags: [] })));
-    expect(firstDoc(await getDocumentAccessReport("ws1")).document.flags).toBeNull();
+  it("reads an empty flags array as the server's answer: no flags, nothing derived", async () => {
+    // The server sends a non-nil slice (S1 amendment): [] means none, and the
+    // rows (maybe narrowed by a row filter) must not raise one it did not.
+    vi.mocked(fetch).mockResolvedValueOnce(json(page({ flags: [], live_link_count: 1 }, { level: "manage" })));
+    const doc = firstDoc(await getDocumentAccessReport("ws1"));
+    expect(doc.document.flags).toEqual([]);
+    expect(deriveReportFacts(doc.document, doc.rows, "ws1").flags).toEqual([]);
   });
 
   it("keeps [] when the server named flags and all of them are unknown", async () => {

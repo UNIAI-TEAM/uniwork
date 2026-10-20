@@ -82,9 +82,10 @@ describe("deriveReportFacts: flags follow the tile definitions (UNI-2039)", () =
     expect(f.flags).toEqual(["public_link", "other_workspace", "organization", "direct_manage"]);
   });
 
-  it("trusts the server flags, but reads an empty list as the zero value and derives", () => {
+  it("trusts the server flags, an empty list included; only null or absent derives", () => {
     expect(build({ flags: ["organization"] }, [ownerRow(), linkRow()]).flags).toEqual(["organization"]);
-    expect(build({ flags: [] }, [ownerRow(), linkRow()]).flags).toEqual(["public_link"]);
+    expect(build({ flags: [] }, [ownerRow(), linkRow()]).flags).toEqual([]);
+    expect(build({ flags: null }, [ownerRow(), linkRow()]).flags).toEqual(["public_link"]);
     expect(build({ flags: "oops" }, [ownerRow(), linkRow()]).flags).toEqual([]);
     expect(build({ flags: ["from_the_future"] }, [ownerRow(), linkRow()]).flags).toEqual([]);
   });
