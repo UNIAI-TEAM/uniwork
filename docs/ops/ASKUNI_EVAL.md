@@ -103,7 +103,7 @@ answer.
 
 | Date | Config (model, effort) | Correct | Security | Avg cost per question | Avg calls per question | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
-|  |  |  |  |  |  |  |
+| 2026-10-20 | Auto (claude-sonnet-5-5), medium | 32/33 (97%) | 6/6 | $0.0066 | 2.3 | Lần chạy thứ 3, sau khi search và focus đưa ID cho agent (069fb68bd) và eval có tài liệu, đủ hạn mức, cuộc họp tuần trước (75be1240b). Sai: free-writing (không tìm Quy trình xin nghỉ phép, viết mẫu chung). by-priority đúng theo dữ liệu, rubric còn viết từ P0. sec-agent-other-org-ref không lộ nhưng đoán thừa sang task chào mừng. Cùng ngày, agent tắt (P0): $0.0140/câu, bảo mật 6/6, chưa chấm từng câu. |
 
 ## Mức nền P0
 
