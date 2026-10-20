@@ -42,6 +42,14 @@ Tài liệu dành cho người dùng workspace UniWork. Kỹ thuật triển kha
 4. Đã có tóm tắt thì **Tạo lại tóm tắt** luôn hỏi xác nhận trước, ở cả trang chi tiết và Copilot. Bản mới thay bản cũ. Trong **Việc sau họp**, chỉ việc AI còn chờ xử lý bị thay; việc đã giao, đã bỏ qua và việc thêm tay giữ nguyên, và AI được báo các việc đó để không đề xuất lại.
 5. Dòng nhãn AI dưới tóm tắt ghi nguồn thật sự có lúc tạo (ví dụ “Từ bản ghi lời thoại và tin nhắn”), thời điểm và model. Có dữ liệu mới sau đó thì hiện “Có dữ liệu mới sau khi tạo tóm tắt”.
 
+### Căn cứ của kết luận và việc
+
+Mỗi kết luận AI rút ra và mỗi việc AI đề xuất có thể kèm chip **Căn cứ · n**: những câu trong transcript, ghi chú hay tin nhắn chat mà AI dựa vào. Bấm chip để xem chính các câu đó (ai nói hoặc viết, lúc nào, nội dung). Với một câu nói, nếu cuộc họp có bản ghi hình đã xong bao trùm thời điểm đó thì có thêm nút **Mở bản ghi tại m:ss** mở bản ghi đúng giây ấy.
+
+- AI chỉ được dẫn những câu thật sự có trong đầu vào của lần tóm tắt; server bỏ mọi tham chiếu khác. Việc không còn căn cứ hợp lệ vẫn được giữ, chỉ không có chip.
+- Việc thêm tay không có căn cứ. Tóm tắt tạo trước khi có tính năng này không có chip.
+- Câu đã bị xóa sau đó thì chip báo “Các nguồn này không còn.”
+
 ### Việc sau họp
 
 Mục **Việc sau họp** trên trang chi tiết (và mục **Việc cần làm** trong Copilot) liệt kê mọi việc của cuộc họp, chia ba nhóm: **Chờ xử lý**, **Đã giao**, **Đã bỏ qua** (thu gọn). Đầu mục đếm từng nhóm và tiến độ “Đã xong x/y · z quá hạn”. Mọi thành viên workspace xem được; chỉ chủ trì, thư ký và quản trị workspace thao tác.

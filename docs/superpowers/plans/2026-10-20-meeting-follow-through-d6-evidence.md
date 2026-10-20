@@ -1,6 +1,6 @@
 # Đợt 6 (UNI-2002): căn cứ cho kết luận và việc — kế hoạch triển khai
 
-> **Trạng thái:** in-progress — kế hoạch ngày 2026-10-20, nhánh `feature/UNI-2002-meetings-sau-hop-dot-6-can-cu-cho-ket-lu` (xếp trên UNI-1999 → UNI-1998 …).
+> **Trạng thái:** in-progress — kế hoạch ngày 2026-10-20; đã làm xong trên nhánh `feature/UNI-2002-meetings-sau-hop-dot-6-can-cu-cho-ket-lu` (xếp trên UNI-1999 → UNI-1998 …): prompt `@5` + nhãn căn cứ, cột `evidence`, route đọc căn cứ, schema core, chip căn cứ trên kết luận và "Việc sau họp", mở bản ghi tại giây; chờ review và merge.
 
 **Mục tiêu:** Mỗi kết luận và việc AI đưa ra mang căn cứ: đoạn transcript, ghi chú hay tin nhắn chat có trong đầu vào của lần tóm tắt đó (D11). Người đọc bấm chip căn cứ để xem chính nguồn đó, và mở bản ghi tại đúng giây khi có. Spec: `docs/superpowers/specs/2026-10-20-meeting-follow-through-design.md` §1.3 D11, §5.1, §7.2, §7.8 (gạch cuối), §9.2, §13.1 đợt 6.
 
@@ -27,3 +27,6 @@
 - Trang chi tiết chưa có mục transcript trên nhánh này, nên chip mở popover hiện chính nguồn; route đọc nguồn mới vì không route nào đọc một đoạn/tin nhắn theo id (feed transcript và chat phân trang theo thời gian).
 - Một chip cho mỗi kết luận/việc ("Căn cứ · n"), popover liệt kê các nguồn của nó trong một lần gọi.
 - Việc `MANUAL` (và `LIVE` sau này) có căn cứ rỗng.
+- Thẻ ghi chú của Copilot trong phòng chỉ hiện chữ của kết luận, không có chip.
+- Excerpt của Hỏi UNI và MCP vẫn trích kết luận dạng mảng chuỗi như trước, cho cả bản cũ lẫn bản `@5`.
+- Audit `meeting.summary_created` thêm `evidence_dropped` (số nhãn bị loại) để theo dõi model bịa nhãn.
