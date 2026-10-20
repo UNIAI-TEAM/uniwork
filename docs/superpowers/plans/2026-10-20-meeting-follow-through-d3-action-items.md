@@ -1,6 +1,6 @@
 # Đợt 3 (UNI-1998): bảng việc sau họp — kế hoạch triển khai
 
-> **Trạng thái:** in-progress — kế hoạch ngày 2026-10-20, triển khai trên nhánh `feature/UNI-1998-meetings-sau-hop-dot-3-bang-viec-sau-hop` (xếp trên UNI-1997 → UNI-1996).
+> **Trạng thái:** in-progress — kế hoạch ngày 2026-10-20; đã làm xong trên nhánh `feature/UNI-1998-meetings-sau-hop-dot-3-bang-viec-sau-hop` (xếp trên UNI-1997 → UNI-1996): bảng + chuyển dữ liệu + query, service + prompt `@4`, API (xoá `POST /summary/tasks`), core, mục "Việc sau họp" và Copilot; chờ review và merge.
 
 **Mục tiêu:** Việc đề xuất thành bảng `meeting_action_items` có id ổn định, sống theo cuộc họp. Clerk (chủ trì, thư ký, admin) tóm tắt, thêm tay, bỏ qua, khôi phục và giao việc. Tạo lại tóm tắt chỉ thay việc AI đang chờ; việc đã giao, đã bỏ qua, việc tay, việc `LIVE` giữ nguyên. Spec: `docs/superpowers/specs/2026-10-20-meeting-follow-through-design.md` §5.1, §6.1–6.3, §7.1, §8.1–8.2, §9.1–9.3, §13.1 đợt 3.
 
