@@ -302,9 +302,10 @@ export const ChatRoomSchema = z.object({
   /** A group's uploaded avatar, signed; absent when the group shows its members. */
   avatar_url: z.string().optional().catch(undefined),
   /**
-   * UNI-1966 (L5), room detail read only: the caller may send in the room and
-   * its grantable human recipients fit the share batch. Absent reads as not
-   * allowed, so the composer picker hides rather than offers a refused send.
+   * UNI-1966 (L5), room detail read only: the caller may send a document in
+   * the room — a permission, not the room's size (no recipient cap, UNI-2012).
+   * Absent reads as not allowed, so the composer picker hides rather than
+   * offers a refused send.
    */
   can_send_document: z.boolean().optional().catch(undefined),
 });

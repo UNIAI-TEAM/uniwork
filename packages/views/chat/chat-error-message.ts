@@ -31,7 +31,7 @@ export function chatErrorMessage(err: unknown, t: TFunction, fallback: string): 
 
 /**
  * The document send's own refusals (UNI-1966, contract §2.3) before the
- * shared table: a 422 batch cap, the 403 storage quota, a 415 on the verified
+ * shared table: the 403 storage quota, a 415 on the verified
  * format, a 422 source_not_saveable from share-as-document, and a 413
  * against the document ceiling (200 MB, not the chat 25).
  * Anything else falls through to chatErrorMessage's codes or the fallback.
@@ -39,8 +39,6 @@ export function chatErrorMessage(err: unknown, t: TFunction, fallback: string): 
 export function chatDocumentSendError(err: unknown, t: TFunction, fallback: string): string {
   const code = errorCode(err);
   switch (code) {
-    case "share_batch_too_large":
-      return t("chat.errors.share_batch_too_large");
     case "quota_exceeded":
       return t("chat.errors.document_quota_exceeded");
     case "unsupported_media_type":

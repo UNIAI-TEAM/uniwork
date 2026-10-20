@@ -26,8 +26,9 @@ export function useComposerDocumentShare({
   hasDocumentSender: boolean;
 }) {
   const [shareChoice, setShareChoice] = useState<ChatDocumentShareLevel>("comment");
-  // A room that cannot take document sends (can_send_document: false — no
-  // permission, or a roster over the batch cap) keeps today's plain route.
+  // A room where the caller may not send documents (can_send_document:
+  // false) keeps today's plain route. The room's size never matters: there
+  // is no recipient cap (UNI-2012).
   const showSharePicker =
     canSendDocument && hasDocumentSender && stagedFiles.some((file) => isChatDocumentShareableFile(file));
   useEffect(() => {

@@ -45,9 +45,6 @@ import { ShareAddCustomLevels } from "./share-add-custom-levels";
 import { shareErrorMessage } from "./share-dialog-break-glass";
 import { warningSentence } from "./share-preview-sentences";
 
-/** The server caps one batch at 100 items; the picker stops well short of it. */
-const SHARE_PEOPLE_MAX = 50;
-
 export type { ShareMembersDirectory };
 
 export interface SelectedShareCandidate {
@@ -203,7 +200,6 @@ export function ShareAddSection({
   );
 
   const selectedKeys = useMemo(() => new Set(selected.map((s) => s.key)), [selected]);
-  const atLimit = selected.length >= SHARE_PEOPLE_MAX;
 
   const effectiveItemLevel = (item: SelectedShareCandidate): DocumentAccessLevel => {
     const desired = item.customLevel ?? commonLevel;
@@ -231,7 +227,7 @@ export function ShareAddSection({
   const selectCandidate = (candidate: DocumentShareCandidate) => {
     if (shelved) return;
     const key = `${candidate.principal_type}:${candidate.principal_id}`;
-    if (selectedKeys.has(key) || atLimit) return;
+    if (selectedKeys.has(key)) return;
     setSelected((prev) => [...prev, { key, candidate, onExisting: "keep" }]);
     setQuery("");
     setPendingPreview(null);
@@ -402,17 +398,11 @@ export function ShareAddSection({
         onLoadMore={() => void candidatesQuery.fetchNextPage()}
         alreadySharedUserIds={alreadySharedUserIds}
         isLoading={candidatesQuery.isLoading || Boolean(members.loading || members.isLoading)}
-        disabled={updateAccess.isPending || shelved} atLimit={atLimit} rejectedByKey={rejectedByKey}
+        disabled={updateAccess.isPending || shelved} rejectedByKey={rejectedByKey}
         onSelectCandidate={selectCandidate} onRemoveCandidate={removeCandidate}
         onChangeOnExisting={(key, onExisting) => updateSelected(key, { onExisting })}
         effectiveItemLevel={effectiveItemLevel} levelLabel={levelLabel} rejectedReasonLabel={rejectedReasonLabel}
       />
-
-      {atLimit ? (
-        <p className="text-caption text-muted-foreground">
-          {t("documents.share.people_limit", { max: SHARE_PEOPLE_MAX })}
-        </p>
-      ) : null}
 
       <div className="flex flex-wrap items-end justify-between gap-2">
         <div className="flex flex-wrap items-end gap-2">

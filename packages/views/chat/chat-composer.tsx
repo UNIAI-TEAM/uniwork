@@ -78,9 +78,9 @@ type ChatComposerProps = {
   onSendFile?: (file: File) => void | Promise<void>;
   /** UNI-1966: set when the staged files may go out as shared documents. */
   onSendDocument?: (file: File, shareLevel: ChatDocumentShareLevel) => void | Promise<void>;
-  /** The room detail's can_send_document: the server already folded in the
-      send permission and the share batch cap, so false/absent hides the
-      picker rather than offering a refused send. */
+  /** The room detail's can_send_document: whether the caller may send a
+      document in this room (a permission, never the room's size), so
+      false/absent hides the picker rather than offering a refused send. */
   canSendDocument?: boolean;
   showCreatePoll?: boolean;
   /** A host may provide its own voice capture flow. */

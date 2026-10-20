@@ -26,9 +26,11 @@ describe("chatDocumentSendError", () => {
     expect(
       chatDocumentSendError(new ApiError("quota", "quota_exceeded", 403), tt, "fallback"),
     ).toBe("t:chat.errors.document_quota_exceeded");
+    // No recipient cap any more (UNI-2012): an old server's 422 batch refusal
+    // has no sentence of its own and reads as the caller's fallback.
     expect(
       chatDocumentSendError(new ApiError("too many", "share_batch_too_large", 422), tt, "fallback"),
-    ).toBe("t:chat.errors.share_batch_too_large");
+    ).toBe("fallback");
     expect(
       chatDocumentSendError(
         new ApiError("format", "unsupported_media_type", 415, undefined, { reason: "format" }),

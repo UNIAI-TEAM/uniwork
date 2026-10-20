@@ -264,7 +264,7 @@ describe("ChatDocumentPicker send", () => {
     serve({
       link: () => {
         attempt += 1;
-        if (attempt === 1) throw new ApiError("too many", "share_batch_too_large", 422);
+        if (attempt === 1) throw new ApiError("quota", "quota_exceeded", 403);
         return { message: undefined };
       },
     });
@@ -281,7 +281,7 @@ describe("ChatDocumentPicker send", () => {
     await choose("Kế hoạch Q4.docx");
     fireEvent.click(screen.getByRole("button", { name: "Gửi" }));
     await waitFor(() =>
-      expect(toast.error).toHaveBeenCalledWith(expect.stringContaining("quá nhiều người để chia sẻ tài liệu")),
+      expect(toast.error).toHaveBeenCalledWith(expect.stringContaining("hết dung lượng lưu trữ")),
     );
     expect(props.onOpenChange).not.toHaveBeenCalledWith(false);
     fireEvent.click(screen.getByRole("button", { name: "Gửi" }));
