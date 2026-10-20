@@ -112,7 +112,7 @@ type Config struct {
 	// AWS_* storage settings supply credentials and endpoint.
 	LiveKitRecordingBucket string
 	// MeetingScribeEnabled lets the server dispatch the scribe agent
-	// (apps/meeting-agent, ADR 0036) into meeting rooms; the meeting_scribe
+	// (apps/meeting-agent, ADR 0037) into meeting rooms; the meeting_scribe
 	// flag and the meeting.transcription entitlement still decide per
 	// organization. MeetingScribeAgentName is the agent_name it registers.
 	MeetingScribeEnabled   bool
