@@ -1,7 +1,8 @@
 "use client";
 
 import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
-import { Mail, MessageSquare, Phone, Video, type LucideIcon } from "lucide-react";
+import { Bell, BellOff, Mail, MessageSquare, Phone, Video, type LucideIcon } from "lucide-react";
+import { useChatRoomPreferences } from "./use-chat-room-preferences";
 import { useTranslation } from "react-i18next";
 import { useAuthStore } from "@uniwork/core/auth";
 import { selectIsUserOnline, usePresenceStore } from "@uniwork/core/chat/presence-store";
@@ -25,8 +26,9 @@ type ChatPersonCall = (userId: string, options?: { withCamera?: boolean }) => vo
 type ChatPersonActions = {
   onMessage: ((userId: string) => void) | null;
   onCall: ChatPersonCall | null;
-  /** The conversation the avatar was clicked in. Shared media comes from here. */
+  /** The conversation the avatar was clicked in. Shared media and mute apply here. */
   roomId: string | null;
+  workspaceId: string | null;
 };
 
 /** Message and call for the person whose avatar was clicked. */
@@ -36,14 +38,16 @@ export function ChatPersonMessageProvider({
   onMessage,
   onCall = null,
   roomId = null,
+  workspaceId = null,
   children,
 }: {
   onMessage: ((userId: string) => void) | null;
   onCall?: ChatPersonCall | null;
   roomId?: string | null;
+  workspaceId?: string | null;
   children: ReactNode;
 }) {
-  const value = useMemo(() => ({ onMessage, onCall, roomId }), [onCall, onMessage, roomId]);
+  const value = useMemo(() => ({ onMessage, onCall, roomId, workspaceId }), [onCall, onMessage, roomId, workspaceId]);
   return <ChatPersonMessageContext.Provider value={value}>{children}</ChatPersonMessageContext.Provider>;
 }
 
@@ -78,6 +82,8 @@ function PersonCardProfile({
   online,
   message,
   call,
+  onToggleMute,
+  notificationsMuted = false,
 }: {
   name: string;
   email?: string;
@@ -88,6 +94,8 @@ function PersonCardProfile({
   online: boolean;
   message?: () => void;
   call?: (withCamera: boolean) => void;
+  onToggleMute?: () => void;
+  notificationsMuted?: boolean;
 }) {
   const { t } = useTranslation();
   return (
@@ -126,13 +134,21 @@ function PersonCardProfile({
           {status ?? name}
         </DialogDescription>
       </div>
-      {message || call ? (
-        <div className="flex justify-center gap-3 px-3 py-4">
+      {message || call || onToggleMute ? (
+        <div className="flex flex-wrap justify-center gap-3 px-3 py-4">
           {message ? (
             <PersonCardAction primary icon={MessageSquare} label={t("chat.person_card_message")} onClick={message} />
           ) : null}
           {call ? <PersonCardAction icon={Phone} label={t("chat.person_card_call")} onClick={() => call(false)} /> : null}
           {call ? <PersonCardAction icon={Video} label={t("chat.person_card_video")} onClick={() => call(true)} /> : null}
+          {onToggleMute ? (
+            <PersonCardAction
+              icon={notificationsMuted ? BellOff : Bell}
+              label={t("chat.settings_mute_notifications")}
+              onClick={onToggleMute}
+              active={notificationsMuted}
+            />
+          ) : null}
         </div>
       ) : null}
       {email || roleLine ? (
@@ -203,6 +219,11 @@ export function ChatPersonCard({
           personActions.onCall?.(userId, withCamera ? { withCamera: true } : undefined);
         }
       : undefined;
+  const canMute = Boolean(!isSelf && personActions?.workspaceId && personActions?.roomId);
+  const { notificationsMuted, onToggleMute } = useChatRoomPreferences(
+    personActions?.workspaceId ?? "",
+    canMute ? personActions?.roomId : null,
+  );
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -234,6 +255,8 @@ export function ChatPersonCard({
                 online={online}
                 message={message}
                 call={call}
+                onToggleMute={canMute ? onToggleMute : undefined}
+                notificationsMuted={notificationsMuted}
               />
             }
           />
@@ -248,6 +271,8 @@ export function ChatPersonCard({
             online={online}
             message={message}
             call={call}
+            onToggleMute={canMute ? onToggleMute : undefined}
+            notificationsMuted={notificationsMuted}
           />
         )}
       </DialogContent>
@@ -265,26 +290,35 @@ function PersonCardAction({
   label,
   onClick,
   primary = false,
+  active = false,
 }: {
   icon: LucideIcon;
   label: string;
   onClick: () => void;
   primary?: boolean;
+  active?: boolean;
 }) {
   return (
     <Button
       type="button"
       variant="ghost"
+      aria-pressed={active}
       className={cn(
         "h-auto w-19 flex-col gap-1.5 rounded-xl px-1 py-1.5 text-caption hover:bg-muted",
-        primary ? "font-semibold text-brand hover:text-brand" : "font-medium text-muted-foreground hover:text-foreground",
+        primary || active
+          ? "font-semibold text-brand hover:text-brand"
+          : "font-medium text-muted-foreground hover:text-foreground",
       )}
       onClick={onClick}
     >
       <span
         className={cn(
           "flex size-11 items-center justify-center rounded-full",
-          primary ? "bg-primary text-primary-foreground" : "bg-muted text-foreground ring-1 ring-surface-border",
+          primary
+            ? "bg-primary text-primary-foreground"
+            : active
+              ? "bg-brand-subtle text-brand-subtle-foreground ring-1 ring-brand/25"
+              : "bg-muted text-foreground ring-1 ring-surface-border",
         )}
       >
         <Icon className="size-5" aria-hidden />
