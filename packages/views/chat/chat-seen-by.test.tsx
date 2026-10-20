@@ -53,7 +53,8 @@ describe("seen-by in the context menu", () => {
   it("counts the others who read my message, and lists them by name", async () => {
     renderMenu(message(), true);
     const user = userEvent.setup();
-    const row = screen.getByRole("menuitem", { name: "2 người đã xem" });
+    await user.click(screen.getByRole("button", { name: "Thêm" }));
+    const row = await screen.findByRole("menuitem", { name: "2 người đã xem" });
     await user.click(row);
     expect(await screen.findByText("Thu Hà")).toBeInTheDocument();
     // A nickname from the room's name context wins over the roster's name.
