@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { FilePlus, Paperclip } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { ChunkedUploadProgress } from "@uniwork/core/documents/chunked-upload";
@@ -31,6 +31,8 @@ export interface DocumentUploadDialogProps {
   pending?: boolean;
   /** A failed attempt, shown in place so the picked file is not lost. */
   error?: string | null;
+  /** A way out shown under the error (a chat card's "open the document page"). */
+  errorAction?: ReactNode;
   /** True when the open folder already shares with the home workspace. */
   parentShared?: boolean;
   /** False when staging a new version of an existing document. */
@@ -59,6 +61,7 @@ export function DocumentUploadDialog({
   hint,
   pending = false,
   error,
+  errorAction,
   parentShared = false,
   showShareToggle = true,
   onSubmit,
@@ -255,6 +258,7 @@ export function DocumentUploadDialog({
               {error}
             </p>
           ) : null}
+          {error && errorAction ? <div className="flex">{errorAction}</div> : null}
           <DialogFooter className="px-0 pb-0">
             <Button
               type="button"
