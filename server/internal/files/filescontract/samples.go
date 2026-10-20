@@ -55,6 +55,9 @@ func Samples() []Sample {
 		{"m4a", "voice.m4a", ftypSample("M4A ", "M4A ", "mp42", "isom"), "audio/mp4"},
 		{"mp4", "call.mp4", ftypSample("isom", "isom", "iso2", "avc1", "mp41"), "video/mp4"},
 		{"mp4_unknown_brand", "voice.mp4", ftypSample("iso9", "iso9", "zz01"), "video/mp4"},
+		{"wav", "meeting.wav", riff("WAVE", "fmt ", make([]byte, 16)), "audio/wave"},
+		{"mp3_id3", "meeting.mp3", append([]byte("ID3\x04\x00\x00\x00\x00\x00\x00"), 0xff, 0xfb, 0x90, 0x64), "audio/mpeg"},
+		{"mp3_frames", "meeting.mp3", append([]byte{0xff, 0xfb, 0x90, 0x64}, make([]byte, 32)...), "audio/mpeg"},
 	}
 }
 

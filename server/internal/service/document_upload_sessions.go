@@ -147,13 +147,14 @@ type preparedMultipartUpload struct {
 func (s *FileService) prepareMultipartUpload(
 	ctx context.Context,
 	actor Actor,
+	purpose files.UploadPurpose,
 	scope files.Scope,
 	filename string,
 	contentType string,
 	sizeBytes int64,
 	quotaOverride FileQuotaHook,
 ) (preparedMultipartUpload, error) {
-	spec, err := s.registry.Lookup(files.DocumentFile)
+	spec, err := s.registry.Lookup(purpose)
 	if err != nil {
 		return preparedMultipartUpload{}, err
 	}
@@ -489,8 +490,26 @@ func (s *DocumentService) OpenFrameUploadSession(ctx context.Context, claims Off
 	}, in)
 }
 
+// OpenMeetingAudioUploadSession opens a large upload session for a meeting
+// recording (UNI-2001, parent spec §5.5). MeetingService has authorized the
+// caller for the meeting; the session is scoped to its workspace, bound to
+// nothing else, and completes into a staged meeting_audio upload that the
+// transcription request claims.
+func (s *DocumentService) OpenMeetingAudioUploadSession(ctx context.Context, actor Actor, orgID, workspaceID, meetingID string, in OpenUploadSessionInput) (UploadSessionView, error) {
+	if actor.Kind != audit.KindHuman || !validActor(actor) {
+		return UploadSessionView{}, ErrForbidden
+	}
+	return s.openUploadSession(ctx, actor, openSessionTarget{
+		openedVia: openedViaMeetingAudio, purpose: files.MeetingAudio,
+		orgID: orgID, workspaceID: workspaceID, targetID: meetingID,
+	}, in)
+}
+
 type openSessionTarget struct {
-	openedVia       string
+	openedVia string
+	// purpose is the file purpose the session uploads; "" is DocumentFile.
+	// Only the document purposes and meeting_audio ride these sessions.
+	purpose         files.UploadPurpose
 	orgID           string
 	workspaceID     string
 	documentID      string
@@ -510,68 +529,23 @@ func (s *DocumentService) openUploadSession(ctx context.Context, actor Actor, tg
 		return UploadSessionView{}, Invalid("Idempotency-Key bắt buộc")
 	}
 
-	// Step 2: size bounds (<= 20 MiB -> 422 upload_session_too_small; > cap -> 413 file_too_large).
-	if in.SizeBytes <= UploadSessionThresholdBytes {
-		return UploadSessionView{}, CodedError{
-			Code:   "upload_session_too_small",
-			Status: http.StatusUnprocessableEntity,
-			Msg:    "tệp từ 20 MiB trở xuống phải dùng đường tải lên một lượt",
-		}
+	if tgt.purpose == "" {
+		tgt.purpose = files.DocumentFile
 	}
-	maxBytes := s.documentFileMaxBytes()
-	if in.SizeBytes > maxBytes {
-		return UploadSessionView{}, CodedError{
-			Code:   "file_too_large",
-			Status: http.StatusRequestEntityTooLarge,
-			Msg:    "tệp vượt quá dung lượng cho phép",
-			Fields: map[string]any{"max_bytes": maxBytes},
-		}
-	}
-
-	// Step 3: extension allowlist check.
 	sanitizedFilename := files.SanitizeFilename(in.Filename)
-	expectedMIME, ok := document.ExpectedMIMEForExtension(sanitizedFilename)
-	if !ok {
-		return UploadSessionView{}, CodedError{
-			Code:   document.ErrCodeUnsupportedMedia,
-			Status: http.StatusUnsupportedMediaType,
-			Msg:    "định dạng tệp không được hỗ trợ",
-			Fields: map[string]any{"reason": files.CodeTypeRejected},
-		}
-	}
-
-	// Step 4: decode and validate probe (head_b64 + central_dir_b64). The head
-	// must be exactly min(size_bytes, 64 KiB): Complete re-reads and hashes
-	// exactly that span, so a shorter head can never match (415, reason
-	// probe_head_too_short).
-	head, err := decodeBase64Probe(in.Probe.HeadB64)
-	if err != nil {
-		return UploadSessionView{}, Invalid("probe.head_b64 không hợp lệ hoặc vượt quá 64 KiB")
-	}
-	wantHead := min(in.SizeBytes, int64(UploadSessionMaxProbeHeadBytes))
-	if int64(len(head)) != wantHead {
-		return UploadSessionView{}, documentValidationError(&document.FileError{
-			Reason: document.ReasonProbeHeadShort,
-			Msg:    fmt.Sprintf("the probe head must be exactly %d bytes", wantHead),
-		})
-	}
+	var expectedMIME, probeHeadSHA, probeTailSHA string
 	var centralDir []byte
-	if strings.TrimSpace(in.Probe.CentralDirB64) != "" {
-		centralDir, err = decodeBase64Probe(in.Probe.CentralDirB64)
-		if err != nil || len(centralDir) > UploadSessionMaxProbeCentralSize || in.Probe.CDSize > UploadSessionMaxProbeCentralSize {
-			return UploadSessionView{}, Invalid("probe.central_dir_b64 không hợp lệ hoặc vượt quá 1 MiB")
+	var fs *FileService
+	var err error
+	if tgt.purpose == files.DocumentFile {
+		// The document refusals keep their order: size and type first,
+		// then the store's capability.
+		if expectedMIME, probeHeadSHA, probeTailSHA, centralDir, err = s.checkDocumentOpen(sanitizedFilename, in); err == nil {
+			fs, err = s.multipartFileService()
 		}
+	} else if fs, err = s.multipartFileService(); err == nil {
+		expectedMIME, probeHeadSHA, err = checkPurposeOpen(fs, tgt.purpose, sanitizedFilename, in)
 	}
-	if err := document.ValidateUploadProbe(expectedMIME, in.SizeBytes, head, centralDir, in.Probe.CDOffset, in.Probe.CDSize, s.fileLimits()); err != nil {
-		return UploadSessionView{}, documentValidationError(err)
-	}
-	probeHeadSHA := sha256Hex(head)
-	var probeTailSHA string
-	if len(centralDir) > 0 {
-		probeTailSHA = sha256Hex(centralDir)
-	}
-
-	fs, err := s.multipartFileService()
 	if err != nil {
 		return UploadSessionView{}, err
 	}
@@ -603,11 +577,120 @@ func (s *DocumentService) openUploadSession(ctx context.Context, actor Actor, tg
 
 	// Step 7 & 8: FileService session receiving + ReserveFileBytes + CreateMultipart.
 	scope := documentScope(tgt.orgID, tgt.workspaceID)
-	prep, err := fs.prepareMultipartUpload(ctx, actor, scope, sanitizedFilename, expectedMIME, in.SizeBytes, s.entitlements)
+	prep, err := fs.prepareMultipartUpload(ctx, actor, tgt.purpose, scope, sanitizedFilename, expectedMIME, in.SizeBytes, s.entitlements)
 	if err != nil {
 		return UploadSessionView{}, documentFileError(err)
 	}
+	return s.recordOpenedUploadSession(ctx, fs, actor, tgt, in, prep, fp, sanitizedFilename, probeHeadSHA, probeTailSHA, centralDir)
+}
 
+// checkDocumentOpen is the document half of open (steps 2-4): the size
+// bounds, the extension allowlist and the probe validation. It answers the
+// expected type and the probe digests.
+func (s *DocumentService) checkDocumentOpen(sanitizedFilename string, in OpenUploadSessionInput) (expectedMIME, probeHeadSHA, probeTailSHA string, centralDir []byte, err error) {
+	// Step 2: size bounds (<= 20 MiB -> 422 upload_session_too_small; > cap -> 413 file_too_large).
+	if in.SizeBytes <= UploadSessionThresholdBytes {
+		return "", "", "", nil, CodedError{
+			Code:   "upload_session_too_small",
+			Status: http.StatusUnprocessableEntity,
+			Msg:    "tệp từ 20 MiB trở xuống phải dùng đường tải lên một lượt",
+		}
+	}
+	maxBytes := s.documentFileMaxBytes()
+	if in.SizeBytes > maxBytes {
+		return "", "", "", nil, CodedError{
+			Code:   "file_too_large",
+			Status: http.StatusRequestEntityTooLarge,
+			Msg:    "tệp vượt quá dung lượng cho phép",
+			Fields: map[string]any{"max_bytes": maxBytes},
+		}
+	}
+
+	// Step 3: extension allowlist check.
+	expectedMIME, ok := document.ExpectedMIMEForExtension(sanitizedFilename)
+	if !ok {
+		return "", "", "", nil, CodedError{
+			Code:   document.ErrCodeUnsupportedMedia,
+			Status: http.StatusUnsupportedMediaType,
+			Msg:    "định dạng tệp không được hỗ trợ",
+			Fields: map[string]any{"reason": files.CodeTypeRejected},
+		}
+	}
+
+	// Step 4: decode and validate probe (head_b64 + central_dir_b64). The head
+	// must be exactly min(size_bytes, 64 KiB): Complete re-reads and hashes
+	// exactly that span, so a shorter head can never match (415, reason
+	// probe_head_too_short).
+	head, err := decodeBase64Probe(in.Probe.HeadB64)
+	if err != nil {
+		return "", "", "", nil, Invalid("probe.head_b64 không hợp lệ hoặc vượt quá 64 KiB")
+	}
+	wantHead := min(in.SizeBytes, int64(UploadSessionMaxProbeHeadBytes))
+	if int64(len(head)) != wantHead {
+		return "", "", "", nil, documentValidationError(&document.FileError{
+			Reason: document.ReasonProbeHeadShort,
+			Msg:    fmt.Sprintf("the probe head must be exactly %d bytes", wantHead),
+		})
+	}
+	if strings.TrimSpace(in.Probe.CentralDirB64) != "" {
+		centralDir, err = decodeBase64Probe(in.Probe.CentralDirB64)
+		if err != nil || len(centralDir) > UploadSessionMaxProbeCentralSize || in.Probe.CDSize > UploadSessionMaxProbeCentralSize {
+			return "", "", "", nil, Invalid("probe.central_dir_b64 không hợp lệ hoặc vượt quá 1 MiB")
+		}
+	}
+	if err := document.ValidateUploadProbe(expectedMIME, in.SizeBytes, head, centralDir, in.Probe.CDOffset, in.Probe.CDSize, s.fileLimits()); err != nil {
+		return "", "", "", nil, documentValidationError(err)
+	}
+	probeHeadSHA = sha256Hex(head)
+	if len(centralDir) > 0 {
+		probeTailSHA = sha256Hex(centralDir)
+	}
+	return expectedMIME, probeHeadSHA, probeTailSHA, centralDir, nil
+}
+
+// checkPurposeOpen is open's check for a purpose other than the document
+// file (meeting_audio): no lower size bound, the purpose's byte cap, and the
+// type the probe head proves must be one the purpose allows. Only the head
+// is fingerprinted: such a purpose has no zip central directory.
+func checkPurposeOpen(fs *FileService, purpose files.UploadPurpose, filename string, in OpenUploadSessionInput) (string, string, error) {
+	spec, err := fs.registry.Lookup(purpose)
+	if err != nil {
+		return "", "", documentFileError(err)
+	}
+	if in.SizeBytes <= 0 {
+		return "", "", Invalid("size_bytes phải lớn hơn 0")
+	}
+	if in.SizeBytes > spec.Policy.MaxBytes {
+		return "", "", CodedError{
+			Code: "file_too_large", Status: http.StatusRequestEntityTooLarge,
+			Msg: "tệp vượt quá dung lượng cho phép", Fields: map[string]any{"max_bytes": spec.Policy.MaxBytes},
+		}
+	}
+	head, err := decodeBase64Probe(in.Probe.HeadB64)
+	if err != nil || int64(len(head)) != min(in.SizeBytes, int64(UploadSessionMaxProbeHeadBytes)) {
+		return "", "", Invalid("probe.head_b64 phải là đúng min(size_bytes, 64 KiB) byte đầu tệp")
+	}
+	detected := spec.Policy.Canonical(files.DetectContentType(head, filename))
+	if !spec.Policy.Allows(detected) {
+		return "", "", errUnsupportedUploadType()
+	}
+	return detected, sha256Hex(head), nil
+}
+
+func errUnsupportedUploadType() error {
+	return CodedError{
+		Code: document.ErrCodeUnsupportedMedia, Status: http.StatusUnsupportedMediaType,
+		Msg: "định dạng tệp không được hỗ trợ", Fields: map[string]any{"reason": files.CodeTypeRejected},
+	}
+}
+
+// recordOpenedUploadSession is the end of open shared by every purpose: the
+// session row, its audit and the signed part URLs, undoing the prepared
+// storage upload on any failure.
+func (s *DocumentService) recordOpenedUploadSession(
+	ctx context.Context, fs *FileService, actor Actor, tgt openSessionTarget, in OpenUploadSessionInput,
+	prep preparedMultipartUpload, fp, sanitizedFilename, probeHeadSHA, probeTailSHA string, centralDir []byte,
+) (UploadSessionView, error) {
 	abortPrepared := func() error {
 		loc := locator(prep.file)
 		abortErr := fs.store.AbortMultipart(context.Background(), loc, prep.storageUploadID)
@@ -973,7 +1056,7 @@ func (s *DocumentService) completeUploadSession(ctx context.Context, actor Actor
 	}
 
 	// Step 8: Single streamed read for full checksum_sha256 + document.ValidateFile.
-	contentType, checksumSHA256, valErr := s.streamValidateAssembledObject(ctx, fs, loc, leased.Filename, leased.SizeBytes)
+	contentType, checksumSHA256, valErr := s.streamValidateAssembledObject(ctx, fs, loc, sessionPurpose(leased), leased.Filename, leased.SizeBytes)
 	if valErr != nil {
 		var fe *document.FileError
 		var ce CodedError
@@ -1363,22 +1446,12 @@ func (s *DocumentService) completeVersionOrFrameUploadSessionInTx(
 	// while the parts were assembled must get the gate's refusal (not_found),
 	// never 409 document_shelved, which would leak the fresh state of a row
 	// they may no longer see (BE-AR-3).
-	doc, err := q.LockDocumentByID(ctx, sess.DocumentID.String)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return UploadSessionCompleteResult{}, ErrNotFound
-	}
-	if err != nil {
-		return UploadSessionCompleteResult{}, err
-	}
-	access, err := s.effectiveLevel(ctx, q, actor, doc)
-	if err != nil {
-		return UploadSessionCompleteResult{}, err
-	}
-	if err := decideFileSave(doc, access); err != nil {
-		return UploadSessionCompleteResult{}, err
-	}
-	if err := requireNotShelved(doc); err != nil {
-		return UploadSessionCompleteResult{}, err
+	// A meeting_audio session names no document: the meeting command that
+	// claims the staged upload authorizes it.
+	if sess.DocumentID.Valid {
+		if err := s.lockDocumentForStagedSave(ctx, q, actor, sess.DocumentID.String); err != nil {
+			return UploadSessionCompleteResult{}, err
+		}
 	}
 
 	stagedUp, err := fs.stageMultipartUploadInTx(ctx, q, sess.FileID, sess.FileUploadSessionID, stage)
@@ -1437,6 +1510,24 @@ func (s *DocumentService) completeVersionOrFrameUploadSessionInTx(
 		OpenedVia: sess.OpenedVia,
 		Upload:    &up,
 	}, nil
+}
+
+func (s *DocumentService) lockDocumentForStagedSave(ctx context.Context, q *db.Queries, actor Actor, documentID string) error {
+	doc, err := q.LockDocumentByID(ctx, documentID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ErrNotFound
+	}
+	if err != nil {
+		return err
+	}
+	access, err := s.effectiveLevel(ctx, q, actor, doc)
+	if err != nil {
+		return err
+	}
+	if err := decideFileSave(doc, access); err != nil {
+		return err
+	}
+	return requireNotShelved(doc)
 }
 
 func (s *DocumentService) handleTerminalCompleteState(
@@ -1612,10 +1703,23 @@ func (s *DocumentService) failMultipartSession(
 	return failErr
 }
 
+// sessionPurpose is the file purpose a session uploads.
+func sessionPurpose(row db.FileMultipartUpload) files.UploadPurpose {
+	if row.OpenedVia == openedViaMeetingAudio {
+		return files.MeetingAudio
+	}
+	return files.DocumentFile
+}
+
+// openedViaMeetingAudio marks a session MeetingService opened for an
+// uploaded meeting recording (UNI-2001); it names no document.
+const openedViaMeetingAudio = "meeting_audio"
+
 func (s *DocumentService) streamValidateAssembledObject(
 	ctx context.Context,
 	fs *FileService,
 	loc storage.ObjectLocator,
+	purpose files.UploadPurpose,
 	filename string,
 	expectedSize int64,
 ) (string, string, error) {
@@ -1624,6 +1728,9 @@ func (s *DocumentService) streamValidateAssembledObject(
 		return "", "", documentFileError(files.StorageUnavailable(err))
 	}
 	defer func() { _ = obj.Body.Close() }()
+	if purpose != files.DocumentFile {
+		return validatePurposeObject(fs, obj.Body, purpose, filename, expectedSize)
+	}
 
 	spool, err := os.CreateTemp(s.store.spoolDir, "uniwork-mp-validate-*")
 	if err != nil {
@@ -1657,6 +1764,30 @@ func (s *DocumentService) streamValidateAssembledObject(
 	}
 	if _, err := document.ValidateFile(spool, n, detected, s.fileLimits()); err != nil {
 		return "", "", err
+	}
+	return detected, hex.EncodeToString(hasher.Sum(nil)), nil
+}
+
+// validatePurposeObject is step 8 for a purpose with no content validator
+// (meeting_audio): one streamed read for the checksum, the size and the type
+// its head proves. Nothing is spooled: a 2 GiB recording never touches disk.
+func validatePurposeObject(fs *FileService, body io.Reader, purpose files.UploadPurpose, filename string, expectedSize int64) (string, string, error) {
+	spec, err := fs.registry.Lookup(purpose)
+	if err != nil {
+		return "", "", err
+	}
+	hasher := sha256.New()
+	headBuf := &headBuffer{limit: files.DetectHeadBytes}
+	n, err := io.Copy(io.MultiWriter(hasher, headBuf), io.LimitReader(body, expectedSize+1))
+	if err != nil {
+		return "", "", documentFileError(files.StorageUnavailable(err))
+	}
+	if n != expectedSize {
+		return "", "", errUploadSizeMismatch()
+	}
+	detected := spec.Policy.Canonical(files.DetectContentType(headBuf.buf.Bytes(), filename))
+	if !spec.Policy.Allows(detected) {
+		return "", "", errUnsupportedUploadType()
 	}
 	return detected, hex.EncodeToString(hasher.Sum(nil)), nil
 }
@@ -1859,7 +1990,7 @@ func (s *DocumentService) authorizeNonFrameUploadSession(ctx context.Context, ac
 		return db.FileMultipartUpload{}, ErrNotFound
 	}
 	switch row.OpenedVia {
-	case "workspace":
+	case "workspace", openedViaMeetingAudio:
 		if _, err := s.ws.RequireMember(ctx, row.WorkspaceID, actor.ID); err != nil {
 			return db.FileMultipartUpload{}, err
 		}

@@ -2812,3 +2812,61 @@ func TestVersionUploadSessionOpenRefusedWhileLocked(t *testing.T) {
 	_, err = v.svc.OpenVersionUploadSession(ctx, member, v.doc.ID, v.versionInput(t))
 	v.wantVersionLockedBy(t, "an agent holds", err, false, v.tn.agent)
 }
+
+// UNI-2001 (parent spec §5.5): a meeting recording rides the same session
+// with purpose meeting_audio: no 20 MiB floor, its type read from the probe
+// head, and complete stages an upload the meeting's transcription claims.
+func TestUploadSessionMeetingAudio(t *testing.T) {
+	env := newMultipartDocEnv(t)
+	ctx := context.Background()
+	member := human(env.tn.member)
+	open := func(name string, body []byte) (UploadSessionView, error) {
+		head := body[:min(len(body), UploadSessionMaxProbeHeadBytes)]
+		return env.svc.OpenMeetingAudioUploadSession(ctx, member, env.tn.orgID, env.tn.wsA, "meeting-1", OpenUploadSessionInput{
+			IdempotencyKey: nextIDK(), Filename: name, SizeBytes: int64(len(body)),
+			Probe: UploadSessionProbeInput{HeadB64: base64.StdEncoding.EncodeToString(head)},
+		})
+	}
+	_, err := open("notes.mp3", sizedPDF("not audio", 4096))
+	if ce := wantCode(t, err, document.ErrCodeUnsupportedMedia); ce.Status != http.StatusUnsupportedMediaType {
+		t.Fatalf("non-audio = %v", err)
+	}
+	if _, err := open("call.mp4", append([]byte("\x00\x00\x00\x18ftypisom\x00\x00\x00\x00isomavc1"), make([]byte, 4096)...)); err == nil {
+		t.Fatal("a video/mp4 opened a meeting audio session")
+	}
+	// Two parts of a 10 MiB recording, far under the documents' floor.
+	body := append([]byte("ID3\x04\x00\x00\x00\x00\x00\x00"), bytes.Repeat([]byte{0xff, 0xfb, 0x90, 0x64}, (10<<20)/4)...)
+	sess, err := open("hop-chi-bo.mp3", body)
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	if sess.TotalParts != 2 {
+		t.Fatalf("parts = %d", sess.TotalParts)
+	}
+	res, err := env.svc.CompleteUploadSession(ctx, member, sess.SessionID, CompleteUploadSessionInput{Parts: uploadAllParts(t, env, sess.SessionID, body)})
+	if err != nil {
+		t.Fatalf("complete: %v", err)
+	}
+	if res.Upload == nil || res.Upload.MimeType != "audio/mpeg" || res.Upload.SizeBytes != int64(len(body)) || res.Document != nil {
+		t.Fatalf("complete = %+v", res)
+	}
+	// Only the meeting_audio purpose in the session's workspace claims it.
+	scope := files.Scope{OrganizationID: env.tn.orgID, WorkspaceID: env.tn.wsA}
+	claim := func(p files.UploadPurpose) error {
+		tx, err := env.f.pool.Begin(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() { _ = tx.Rollback(ctx) }()
+		_, err = env.real.ClaimInTx(ctx, env.f.q.WithTx(tx), files.ClaimInput{
+			Actor: member, Purpose: p, Scope: scope, FileIDs: []files.FileID{files.FileID(res.Upload.UploadID)},
+		})
+		return err
+	}
+	if err := claim(files.DocumentFile); err == nil {
+		t.Fatal("a document claimed a meeting recording")
+	}
+	if err := claim(files.MeetingAudio); err != nil {
+		t.Fatalf("meeting_audio claim: %v", err)
+	}
+}
