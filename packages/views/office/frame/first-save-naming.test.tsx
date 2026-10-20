@@ -445,6 +445,27 @@ describe("useFirstSaveNaming: share with the workspace (UNI-2038 G4)", () => {
     expect(bodies[1]).toMatchObject({ visibility: "workspace" });
   });
 
+  it("does not write again on a retry after a refused move once the share was written (doc now workspace)", async () => {
+    let refuse = true;
+    routeDocuments({
+      move: () => refuse ? Promise.reject(new ApiError("refused", "forbidden", 403)) : moved("f-fin")(),
+    });
+    const { hook, switchTo } = setup({ doc: MANAGED });
+    const { answer } = await openDialog(hook);
+    await screen.findByText("Thư mục của tôi");
+    fireEvent.click(await screen.findByRole("switch", { name: "Chia sẻ với workspace" }));
+    await pickFolder("Tài chính");
+    fireEvent.click(screen.getByRole("button", { name: "Lưu" }));
+    await screen.findByRole("alert");
+    expect(patchBodies()).toEqual([{ revision: "4", title: "Tài liệu chưa đặt tên", visibility: "workspace" }]);
+    // The write put the share on the document: the page now hands the hook a workspace-shared doc.
+    act(() => switchTo({ ...MANAGED, visibility: "workspace" } as Document));
+    refuse = false;
+    fireEvent.click(screen.getByRole("button", { name: "Lưu" }));
+    await expect(answer).resolves.toBe(true);
+    expect(patchBodies()).toHaveLength(1);
+  });
+
   it("Cancel and Esc send no PATCH even with the toggle on", async () => {
     routeDocuments({ move: moved("f-fin") });
     const { hook } = setup({ doc: MANAGED });
@@ -474,6 +495,22 @@ describe("useFirstSaveNaming: share with the workspace (UNI-2038 G4)", () => {
     fireEvent.click(screen.getByRole("button", { name: "Lưu" }));
     await expect(answer).resolves.toBe(true);
     expect(patchBodies()[0]).not.toHaveProperty("visibility");
+  });
+
+  it("flips the switch from a click on the label text, and not once the document is already shared", async () => {
+    routeDocuments({ move: moved("f-fin") });
+    const { hook, switchTo } = setup({ doc: MANAGED });
+    await openDialog(hook);
+    const toggle = await screen.findByRole("switch", { name: "Chia sẻ với workspace" });
+    fireEvent.click(screen.getByText("Chia sẻ với workspace"));
+    expect(toggle).toHaveAttribute("aria-checked", "true");
+    fireEvent.click(screen.getByText("Chia sẻ với workspace"));
+    expect(toggle).toHaveAttribute("aria-checked", "false");
+    act(() => switchTo({ ...MANAGED, visibility: "workspace" } as Document));
+    fireEvent.click(screen.getByText("Chia sẻ với workspace"));
+    expect(screen.getByRole("switch", { name: "Chia sẻ với workspace" })).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByRole("switch", { name: "Chia sẻ với workspace" })).toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(screen.getByRole("button", { name: "Hủy" }));
   });
 
   it("has no toggle when the person cannot manage the document", async () => {

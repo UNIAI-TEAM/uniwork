@@ -252,6 +252,33 @@ describe("the table headers sort (UNI-2038 S2)", () => {
     await waitFor(() => expect(rowOrder()).toEqual(["d-a", "d-b", "source:chat:m1", "d-c"]));
   });
 
+  it("keeps the merged order of the old sort while the re-sorted pages are still loading (placeholder window)", async () => {
+    route({
+      list: sortedBy(ROWS),
+      sources: () => [source({ id: "chat:m1", name: "Đề xuất.pdf", updated_at: "2026-10-02T12:00:00Z" })],
+    });
+    renderView();
+    await screen.findByText("An");
+    await waitFor(() => expect(rowOrder()).toEqual(["d-a", "source:chat:m1", "d-c", "d-b"]));
+
+    // Hold every answer to the Tên request: both lists keep their previous pages as placeholder data.
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    const answer = requestMock.getMockImplementation()!;
+    requestMock.mockImplementation((path: string, opts?: { method?: string }) =>
+      queryOf(path).get("sort") === "name" ? gate.then(() => answer(path, opts)) : answer(path, opts),
+    );
+    fireEvent.click(await sortButton("name"));
+    await waitFor(() => expect(lastQuery(listCalls()).get("sort")).toBe("name"));
+    await waitFor(() => expect(lastQuery(sourceCalls()).get("sort")).toBe("name"));
+    // The arrow moved at once; the rows are still the old pages, merged the way they were fetched.
+    expect(headerOf("name")).toHaveAttribute("aria-sort", "ascending");
+    expect(rowOrder()).toEqual(["d-a", "source:chat:m1", "d-c", "d-b"]);
+
+    release();
+    await waitFor(() => expect(rowOrder()).toEqual(["d-a", "d-b", "d-c", "source:chat:m1"]));
+  });
+
   it.each([
     ["recent", "recent", `${LIST_BASE}/recent`],
     ["shared", "shared", `${LIST_BASE}/shared-with-me`],

@@ -506,7 +506,7 @@ test("FD-A03 folder content sorts by the Vietnamese collator (Đ after D, Ă aft
     expect(renamed.title).toBe(to);
   }
 
-  // The sort picker orders the "Tài liệu" table's document rows only; folder
+  // The column-header sort orders the "Tài liệu" table's document rows only; folder
   // cards render in tree order (subfoldersOf, documents-folders-grid.tsx:205-208)
   // — the creation order below, since a rename does not change tree position.
   const cardOrder = ["Eo 2", "Ba", "Ăn", "Đông", "An"];
@@ -529,10 +529,19 @@ test("FD-A03 folder content sorts by the Vietnamese collator (Đ after D, Ă aft
   await loginFolderUser(page, ws.owner.email);
   await page.goto(`/${ws.orgSlug}/${ws.wsSlug}/documents?folder=${parent.id}`);
 
-  // The viewer's default is the last update. "Folders first" is now the cards'
-  // section rendering above the table; each card's top sits above every row's.
-  const sortTrigger = page.getByRole("combobox", { name: "Sắp xếp", exact: true });
-  await expect(sortTrigger).toContainText("Cập nhật (mới nhất)");
+  // The viewer's default is the last update, newest first (UNI-2038 spec G5: the
+  // sort lives on the column headers, no folder Select). "Folders first" is the
+  // cards' section rendering above the table; each card's top sits above every
+  // row's.
+  // The header's accessible name is its sort button's ("Sắp xếp theo Tên"), so
+  // the <th> is found through that button.
+  const header = (column: string) =>
+    page.locator("th[aria-sort]").filter({
+      has: page.getByRole("button", { name: new RegExp(`^Sắp xếp theo ${column}`) }),
+    });
+  await expect(header("Cập nhật")).toHaveAttribute("aria-sort", "descending");
+  await expect(header("Cập nhật").getByRole("button", { name: "Sắp xếp theo Cập nhật, giảm dần" })).toBeVisible();
+  await expect(header("Tên")).toHaveAttribute("aria-sort", "none");
   await expectCardOrder(page, cardOrder);
   await expectRowOrder(page, byUpdated);
   const cardTops: number[] = [];
@@ -542,19 +551,21 @@ test("FD-A03 folder content sorts by the Vietnamese collator (Đ after D, Ă aft
   const rowTop = (await contentRow(page, byUpdated[0]!).boundingBox())!.y;
   expect(Math.max(...cardTops)).toBeLessThan(rowTop);
 
-  await sortTrigger.click();
-  await page.getByRole("option", { name: "Tên (A→Z)" }).click();
-  await expect(sortTrigger).toContainText("Tên (A→Z)");
+  // A click on Tên sorts ascending by the Vietnamese collator.
+  await header("Tên").getByRole("button", { name: "Sắp xếp theo Tên" }).click();
+  await expect(header("Tên")).toHaveAttribute("aria-sort", "ascending");
+  await expect(header("Cập nhật")).toHaveAttribute("aria-sort", "none");
   await expectCardOrder(page, cardOrder);
   await expectRowOrder(page, byName);
 
   // Remembered per viewer across a reload.
   await page.reload();
-  await expect(page.getByRole("combobox", { name: "Sắp xếp", exact: true })).toContainText("Tên (A→Z)");
+  await expect(header("Tên")).toHaveAttribute("aria-sort", "ascending");
   await expectRowOrder(page, byName);
 
-  await page.getByRole("combobox", { name: "Sắp xếp", exact: true }).click();
-  await page.getByRole("option", { name: "Cập nhật (mới nhất)" }).click();
+  // Cập nhật starts newest first again.
+  await header("Cập nhật").getByRole("button", { name: "Sắp xếp theo Cập nhật" }).click();
+  await expect(header("Cập nhật")).toHaveAttribute("aria-sort", "descending");
   await expectRowOrder(page, byUpdated);
 });
 

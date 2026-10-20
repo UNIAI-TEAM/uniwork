@@ -122,7 +122,9 @@ export function useFirstSaveNaming({
     setBusy(true);
     try {
       const shareNow = canShare && share;
-      if (written.current?.id !== current.id || written.current.title !== title || written.current.share !== shareNow) {
+      // A share already written stays written (the document now reads as shared, so shareNow is false).
+      const prior = written.current;
+      if (prior?.id !== current.id || prior.title !== title || !(prior.share || !shareNow)) {
         await writeTitle(current.id, ws, title, shareNow);
       }
       if (picked !== undefined && picked !== (current.parent_id ?? null)) {
