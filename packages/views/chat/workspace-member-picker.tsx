@@ -176,7 +176,7 @@ export function useMemberPickerFocus() {
 }
 
 /** Up/Down/Home/End move focus between rows, like a menu; returns the new row. */
-function moveRowFocus(event: KeyboardEvent<HTMLUListElement>): number | null {
+export function moveRowFocus(event: KeyboardEvent<HTMLUListElement>): number | null {
   const keys = ["ArrowDown", "ArrowUp", "Home", "End"];
   if (!keys.includes(event.key)) return null;
   const rows = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>(ROW_SELECTOR));

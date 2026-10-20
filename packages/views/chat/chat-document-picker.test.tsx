@@ -86,6 +86,17 @@ function serve(over: { recent?: unknown[]; list?: unknown[]; link?: (c: Call) =>
   });
 }
 
+/** Pages of `recent`: page n answers cursor `p<n>`, and every page but the last names the next one. */
+function servePaged(pages: unknown[][]) {
+  requestMock.mockImplementation((path: string) => {
+    if (!path.includes("/documents/recent")) return Promise.resolve({});
+    const cursor = new URLSearchParams(path.split("?")[1] ?? "").get("cursor");
+    const index = cursor ? Number(cursor.slice(1)) : 0;
+    return Promise.resolve({ documents: pages[index] ?? [], next_cursor: index + 1 < pages.length ? `p${index + 1}` : null });
+  });
+}
+const recentCalls = () => calls().filter((c) => c.path.includes("/documents/recent"));
+
 function renderPicker(over: Partial<React.ComponentProps<typeof ChatDocumentPicker>> = {}) {
   const props = { open: true, onOpenChange: vi.fn(), workspaceId: WS, roomId: "room1", ...over };
   render(wrap(<ChatDocumentPicker {...props} />));
@@ -289,5 +300,97 @@ describe("ChatDocumentPicker send", () => {
     await choose("Kế hoạch Q4.docx");
     fireEvent.click(screen.getByRole("button", { name: "Gửi" }));
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Không gửi được tài liệu. Thử lại."));
+  });
+});
+
+describe("ChatDocumentPicker keyboard focus", () => {
+  it("moves into the list with the down arrow from the search field", async () => {
+    serve();
+    renderPicker();
+    const search = await screen.findByRole("searchbox", { name: "Tìm tài liệu" });
+    await screen.findByText("Kế hoạch Q4.docx");
+    fireEvent.keyDown(search, { key: "ArrowDown" });
+    const first = within(screen.getByRole("list", { name: "Tài liệu bạn có thể chia sẻ" })).getAllByRole("button")[0];
+    expect(first).toHaveFocus();
+    fireEvent.keyDown(first as HTMLElement, { key: "ArrowDown" });
+    expect(within(screen.getByRole("list", { name: "Tài liệu bạn có thể chia sẻ" })).getAllByRole("button")[1]).toHaveFocus();
+  });
+
+  it("puts focus on the level control after a pick, and back on the search after Back", async () => {
+    serve();
+    renderPicker();
+    fireEvent.click(await screen.findByRole("button", { name: /Kế hoạch Q4\.docx/ }));
+    await waitFor(() =>
+      expect(screen.getByLabelText("Quyền cho mọi người trong cuộc trò chuyện")).toHaveFocus(),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Quay lại" }));
+    await waitFor(() => expect(screen.getByRole("searchbox", { name: "Tìm tài liệu" })).toHaveFocus());
+  });
+});
+
+describe("ChatDocumentPicker paging", () => {
+  const nothing = (n: number) => [doc(`x${n}`, `Chỉ xem ${n}.pdf`, { my_level: "view" })];
+
+  it("reads on past pages with nothing to share until a row shows", async () => {
+    servePaged([nothing(1), nothing(2), [doc("hit", "Ở trang ba.docx")]]);
+    renderPicker();
+    expect(await screen.findByText("Ở trang ba.docx")).toBeInTheDocument();
+    expect(recentCalls()).toHaveLength(3);
+  });
+
+  it("stops reading ahead after five pages and says nothing matches", async () => {
+    servePaged([1, 2, 3, 4, 5, 6, 7, 8].map(nothing));
+    renderPicker();
+    expect(await screen.findByText("Chưa có tài liệu nào để gửi")).toBeInTheDocument();
+    expect(recentCalls()).toHaveLength(5);
+  });
+
+  it("offers 'Xem thêm' while the last page added a row, and drops it once a page adds none", async () => {
+    servePaged([[doc("a", "Trang một.docx")], [doc("b", "Trang hai.docx")], nothing(3), [doc("c", "Trang bốn.docx")]]);
+    renderPicker();
+    await screen.findByText("Trang một.docx");
+    fireEvent.click(screen.getByRole("button", { name: "Xem thêm" }));
+    await screen.findByText("Trang hai.docx");
+    fireEvent.click(screen.getByRole("button", { name: "Xem thêm" }));
+    await waitFor(() => expect(recentCalls()).toHaveLength(3));
+    // The third page held nothing shareable: the button would look dead.
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Xem thêm" })).not.toBeInTheDocument());
+    expect(screen.getByText("Trang hai.docx")).toBeInTheDocument();
+  });
+});
+
+describe("ChatDocumentPicker search debounce", () => {
+  it("issues one title query for a burst of keystrokes", async () => {
+    serve({ list: [doc("d-hit", "Hợp đồng thuê.docx")] });
+    renderPicker();
+    const search = await screen.findByRole("searchbox", { name: "Tìm tài liệu" });
+    await screen.findByText("Kế hoạch Q4.docx");
+    for (const value of ["h", "hợ", "hợp"]) fireEvent.change(search, { target: { value } });
+    expect(await screen.findByText("Hợp đồng thuê.docx")).toBeInTheDocument();
+    const searches = calls().filter((c) => c.path.includes("/documents?"));
+    expect(searches).toHaveLength(1);
+    expect(new URLSearchParams(searches[0]?.path.split("?")[1] ?? "").get("q")).toBe("hợp");
+  });
+});
+
+describe("ChatDocumentPicker row detail", () => {
+  it("dates a row that has no folder path, so same-titled root documents differ", async () => {
+    serve({
+      recent: [
+        doc("a", "Báo cáo.docx", { updated_at: "2026-10-20T03:00:00Z" }),
+        doc("b", "Báo cáo.docx", { updated_at: "2026-09-01T03:00:00Z", path: [{ id: "f", title: "Dự án" }] }),
+      ],
+    });
+    renderPicker();
+    await screen.findAllByText("Báo cáo.docx");
+    expect(screen.getByText("Dự án")).toBeInTheDocument();
+    expect(screen.getAllByText(/^Cập nhật /)).toHaveLength(1);
+  });
+
+  it("says on the level step that a level only raises access", async () => {
+    serve();
+    renderPicker();
+    fireEvent.click(await screen.findByRole("button", { name: /Kế hoạch Q4\.docx/ }));
+    expect(screen.getByText(/Quyền chỉ được nâng lên/)).toBeInTheDocument();
   });
 });

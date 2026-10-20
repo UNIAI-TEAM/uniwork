@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 import { CircleAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -20,30 +20,48 @@ import { CHAT_DIALOG_BODY_CLASS, CHAT_DIALOG_CLASS, CHAT_DIALOG_WIDTH } from "./
 import { chatDocumentSendError } from "./chat-error-message";
 import { ChatComposerShareLevelPicker } from "./chat-composer-share-level";
 import { useChatDocumentPicker, type ChatPickerDocument } from "./use-chat-document-picker";
-import { WorkspaceMemberSearchField } from "./workspace-member-picker";
+import { moveRowFocus, useMemberPickerFocus, WorkspaceMemberSearchField } from "./workspace-member-picker";
 
 const SEARCH_ID = "chat-document-picker-search";
 
 function DocumentRowButton({ row, onPick }: { row: ChatPickerDocument; onPick: (row: ChatPickerDocument) => void }) {
+  const { t, i18n } = useTranslation();
   const place = formatSearchPath(row.path).display;
+  // A root document has no path: the date tells same-titled ones apart.
+  const caption =
+    place ||
+    (row.updated_at
+      ? t("chat.document_picker.updated_at", {
+          date: new Intl.DateTimeFormat(i18n.language || undefined, { dateStyle: "short" }).format(new Date(row.updated_at)),
+        })
+      : "");
   return (
     <li>
       <button
         type="button"
+        data-member-picker-row=""
         className="pointer-coarse:min-h-11 flex min-h-12 w-full items-center gap-3 px-3 py-2 text-left transition-colors hover:bg-muted focus-visible:bg-muted"
         onClick={() => onPick(row)}
       >
         <DocumentTypeIcon format={documentIconFormat(row.kind, row.title)} className="size-7" decorative />
         <span className="min-w-0 flex-1">
           <span className="block truncate text-body font-medium text-foreground">{row.title}</span>
-          {place ? <span className="block truncate text-caption text-muted-foreground">{place}</span> : null}
+          {caption ? <span className="block truncate text-caption text-muted-foreground">{caption}</span> : null}
         </span>
       </button>
     </li>
   );
 }
 
-function PickerList({ picker, onPick }: { picker: ReturnType<typeof useChatDocumentPicker>; onPick: (row: ChatPickerDocument) => void }) {
+function PickerList({
+  picker,
+  onPick,
+  listRef,
+}: {
+  picker: ReturnType<typeof useChatDocumentPicker>;
+  onPick: (row: ChatPickerDocument) => void;
+  listRef: RefObject<HTMLDivElement | null>;
+}) {
   const { t } = useTranslation();
   if (picker.isLoading) {
     return (
@@ -85,10 +103,13 @@ function PickerList({ picker, onPick }: { picker: ReturnType<typeof useChatDocum
     );
   }
   return (
-    <div className="space-y-2">
+    <div ref={listRef} className="space-y-2">
+      {/* The list only forwards arrow keys to its row buttons; the rows are the interactive elements. */}
+      {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions */}
       <ul
         aria-label={t("chat.document_picker.list_label")}
         className="max-h-80 divide-y divide-border overflow-y-auto rounded-xl border border-border"
+        onKeyDown={moveRowFocus}
       >
         {picker.rows.map((row) => (
           <DocumentRowButton key={row.id} row={row} onPick={onPick} />
@@ -130,7 +151,9 @@ export function ChatDocumentPicker({
   const { t } = useTranslation();
   const picker = useChatDocumentPicker(workspaceId, open);
   const sendLink = useSendChatDocumentLink(workspaceId);
-  const searchRef = useRef<HTMLInputElement>(null);
+  const { inputRef: searchRef, listRef, focusInput, focusFirstRow } = useMemberPickerFocus();
+  const levelRef = useRef<HTMLDivElement>(null);
+  const wasSelected = useRef(false);
   const [selected, setSelected] = useState<ChatPickerDocument | null>(null);
   const [level, setLevel] = useState<ChatDocumentShareLevel>("comment");
   // One key per intent (document + level): a retry after a failure replays
@@ -139,10 +162,19 @@ export function ChatDocumentPicker({
 
   useEffect(() => {
     if (open) return;
+    wasSelected.current = false;
     setSelected(null);
     setLevel("comment");
     clientMsgId.current = null;
   }, [open]);
+
+  // The step swap unmounts the button that held focus: carry it to the level
+  // control after a pick and back to the search field after Back.
+  useEffect(() => {
+    if (selected && !wasSelected.current) levelRef.current?.querySelector("button")?.focus();
+    else if (!selected && wasSelected.current) focusInput();
+    wasSelected.current = Boolean(selected);
+  }, [selected, focusInput]);
 
   const pick = (row: ChatPickerDocument) => {
     setSelected(row);
@@ -191,7 +223,10 @@ export function ChatDocumentPicker({
                   <span className="min-w-0 flex-1 truncate text-body font-medium text-foreground">{selected.title}</span>
                 </div>
               </div>
-              <ChatComposerShareLevelPicker value={level} onChange={changeLevel} disabled={sendLink.isPending} />
+              <div ref={levelRef} className="space-y-1">
+                <ChatComposerShareLevelPicker value={level} onChange={changeLevel} disabled={sendLink.isPending} />
+                <p className="text-caption text-muted-foreground">{t("chat.document_picker.level_hint")}</p>
+              </div>
             </>
           ) : (
             <>
@@ -203,8 +238,9 @@ export function ChatDocumentPicker({
                 onSubmit={() => undefined}
                 placeholder={t("chat.document_picker.search_placeholder")}
                 inputRef={searchRef}
+                onArrowDown={focusFirstRow}
               />
-              <PickerList picker={picker} onPick={pick} />
+              <PickerList picker={picker} onPick={pick} listRef={listRef} />
             </>
           )}
         </FormDialogBody>
