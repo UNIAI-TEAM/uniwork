@@ -74,17 +74,63 @@ async function createWorkspaceInviting(page: Page, email: string) {
   await page.getByRole("button", { name: "Để sau" }).click();
 }
 
-/** Sends one staged file through the composer (attach → send). */
+// GET .../chat/rooms/{roomID}: the room detail, the one read that carries the
+// viewer's can_send_document (the room list and .../messages do not match).
+const ROOM_DETAIL_PATH = /\/api\/v1\/workspaces\/[^/]+\/chat\/rooms\/[^/]+$/;
+// Per page: whether the room it opened offers documents, as that read answered
+// (undefined when the read was never seen).
+const roomOffersDocuments = new WeakMap<Page, Promise<boolean | undefined>>();
+
+/** Start listening for the room detail read before the page navigates. */
+function watchRoomDetail(page: Page) {
+  roomOffersDocuments.set(
+    page,
+    page
+      .waitForResponse((res) => res.request().method() === "GET" && ROOM_DETAIL_PATH.test(new URL(res.url()).pathname), {
+        timeout: 60_000,
+      })
+      .then(
+        async (res) => ((await res.json()) as { room?: { can_send_document?: boolean } }).room?.can_send_document === true,
+        () => undefined,
+      ),
+  );
+}
+
+/**
+ * Sends one staged file through the composer (attach → send) as a plain file.
+ * A text/plain file is in the document subset, so in a room that may send
+ * documents the share-level picker shows and its default would send a shared
+ * document (no download button); "Chỉ gửi tệp" keeps it a plain file.
+ */
 async function sendFile(page: Page, name: string, mimeType: string, body: string) {
   await page.locator('input[type="file"]').setInputFiles({
     name,
     mimeType,
     buffer: Buffer.from(body, "utf8"),
   });
+  // The picker follows the room detail's can_send_document, which can land
+  // after the chip; wait on that read (watched since openChat) instead of a
+  // fixed timeout, so a slow VM never sends the default shared document.
+  const picker = page.getByRole("button", { name: "Quyền cho mọi người trong cuộc trò chuyện" });
+  let offersDocuments = await roomOffersDocuments.get(page);
+  if (offersDocuments === undefined) {
+    // The read was not seen (not opened through openChat): keep a short probe.
+    offersDocuments = await picker.waitFor({ state: "visible", timeout: 5_000 }).then(
+      () => true,
+      () => false,
+    );
+  }
+  if (offersDocuments) {
+    await expect(picker).toBeVisible({ timeout: 15_000 });
+    await picker.click();
+    await page.getByRole("menuitemradio", { name: "Chỉ gửi tệp" }).click();
+    await expect(picker).toHaveText(/Chỉ gửi tệp/);
+  }
   await page.getByRole("button", { name: "Gửi", exact: true }).click();
 }
 
 async function openChat(page: Page) {
+  watchRoomDetail(page);
   await page.goto(`/${orgSlug}/${wsSlug}/chat`);
   await expect(page.getByPlaceholder("Nhập tin nhắn…")).toBeVisible({ timeout: 30_000 });
 }

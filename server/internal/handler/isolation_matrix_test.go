@@ -634,6 +634,8 @@ func isoParam(t *testing.T, pattern string, segs []string, i int, tn *isoTenant)
 			return tn.get(t, "channelMessage")
 		case strings.HasSuffix(pattern, "/transcript"):
 			return tn.get(t, "voiceMessage")
+		case strings.HasSuffix(pattern, "/share-as-document"):
+			return tn.get(t, "fileMessage")
 		}
 		return tn.get(t, "message")
 	case "{followUpID}":

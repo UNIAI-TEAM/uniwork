@@ -195,6 +195,10 @@ func newIsolationServer(t *testing.T) *isoWorld {
 	docs.SetEditLockConfig(service.DocumentEditLockConfig{TTL: time.Hour})
 	docs.SetAccessRequestSources(d.Tasks, d.Meetings)
 	d.Documents = docs
+	// The chat document send files its bytes into the same Documents service
+	// (UNI-1966): without it the route answers 501 and the isolation row
+	// proves nothing.
+	d.Chat.SetDocuments(docs)
 	d.DesktopAuth = service.NewDesktopAuthService(pool, q, d.Minter, d.Cfg)
 	d.McpAuth = service.NewMcpAuthService(pool, q, d.Organizations, d.Cfg)
 	d.McpAuth.SetFlags(mcpTestFlags(true))
@@ -793,6 +797,10 @@ func (w *isoWorld) buildDocuments(t *testing.T, tn *isoTenant) {
 		filename: strings.ToLower(m) + "-v2.md", contentType: "text/markdown", content: []byte("# " + m + " staged body\n"),
 	})
 	tn.ids["docUpload"] = isoString(t, out, "upload_id")
+	out = w.upload(t, "/api/v1/documents/"+tn.ids["fileDocument"]+"/uploads", tn.token, isoMultipart{
+		filename: strings.ToLower(m) + "-v3.md", contentType: "text/markdown", content: []byte("# " + m + " chat commit body\n"),
+	})
+	tn.ids["chatCommitUpload"] = isoString(t, out, "upload_id")
 	out = w.upload(t, "/api/v1/documents/"+tn.ids["fileDocument"]+"/uploads", tn.token, isoMultipart{
 		filename: strings.ToLower(m) + "-copy.md", contentType: "text/markdown", content: []byte("# " + m + " copy body\n"),
 	})

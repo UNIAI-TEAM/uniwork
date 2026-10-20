@@ -479,6 +479,9 @@ type Routes struct {
 	SendChatRoomMessage              http.HandlerFunc
 	SendChatVoiceMessage             http.HandlerFunc
 	SendChatFileMessage              http.HandlerFunc
+	SendChatDocumentMessage          http.HandlerFunc
+	ShareChatMessageAsDocument       http.HandlerFunc
+	GetChatRoomDetail                http.HandlerFunc
 	VoteChatPollMessage              http.HandlerFunc
 	ToggleChatMessageReaction        http.HandlerFunc
 	EditChatMessage                  http.HandlerFunc

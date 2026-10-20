@@ -304,7 +304,10 @@ export function ChatMessageHoverActions({
         "after:absolute after:inset-x-0 after:top-full after:h-1.5 after:content-['']",
         "data-[place=inside]:bottom-auto data-[place=inside]:mb-0 data-[place=inside]:after:hidden",
         (forceOpen || pickerOpen) && "pointer-events-auto opacity-100",
-        "transition-opacity duration-(--duration-fast) group-focus-within/message:pointer-events-auto group-focus-within/message:opacity-100",
+        // Keyboard focus (focus-visible) reveals the stack; a tap's focus-within
+        // does not: it would flash the menu over the card the finger just hit
+        // (UNI-1966 F-01). Right-click and long press open it (forceOpen).
+        "transition-opacity duration-(--duration-fast) group-has-[:focus-visible]/message:pointer-events-auto group-has-[:focus-visible]/message:opacity-100",
         isOwn ? "right-0 items-end" : "left-0 items-start",
       )}
     >

@@ -82,6 +82,7 @@ func (s *ChatService) SearchRoomMessages(
 		out = append(out, chatMessageRowFromSearchRow(row, userID))
 	}
 	s.signChatMedia(ctx, room, out)
+	s.resolveChatDocuments(ctx, room, out, userID)
 	return out, nil
 }
 
@@ -155,6 +156,7 @@ func (s *ChatService) ListRoomMessagesAround(
 	}
 	s.signChatMedia(ctx, room, out)
 	s.attachThreadParticipants(ctx, room, out)
+	s.resolveChatDocuments(ctx, room, out, userID)
 	return out, nil
 }
 

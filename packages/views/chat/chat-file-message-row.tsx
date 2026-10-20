@@ -5,6 +5,7 @@ import { cn } from "@uniwork/ui/lib/utils";
 import type { ChatMessage } from "./chat-messages";
 import { ChatFileAttachment, chatFileIsEdgeToEdge } from "./chat-file-attachment";
 import { isChatPdfContentType, resolveChatFileContentType } from "./chat-file-accept";
+import { ChatShareAsDocumentAction } from "./chat-share-as-document-action";
 import { ChatMessageHoverActions, chatMessageActionsRailClass } from "./chat-message-hover-actions";
 import { ChatForwardedLabel } from "./chat-forwarded-label";
 import { ChatMessageA11yLabel, ChatMessageMeta, ChatReactionChips, chatMessageLabelId } from "./chat-message-parts";
@@ -171,6 +172,9 @@ function ChatFileMessageRowImpl({
                   {photo ? <ChatMessageMeta message={message} isOwn={isOwn} showTime inline="media" /> : null}
                 </div>
                 {gif ? <ChatMessageMeta message={message} isOwn={isOwn} showTime onWall /> : null}
+                {message.canShareAsDocument ? (
+                  <ChatShareAsDocumentAction workspaceId={workspaceId} roomId={roomId} message={message} />
+                ) : null}
               </div>
               <ChatReactionChips message={message} isOwn={isOwn} onToggleReaction={onToggleReaction} onReact={onReact} />
               <ChatThreadRepliesLink message={message} isOwn={isOwn} onThread={onThread} nameContext={nameContext} />

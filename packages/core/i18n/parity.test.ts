@@ -124,5 +124,14 @@ describe("vi/en parity", () => {
       "{{count}} private documents can't be transferred to yourself.",
     );
   });
+
+  it("số người được chia sẻ tài liệu trong chat: en có dạng số ít/số nhiều, vi cùng một câu cho cả hai", () => {
+    expect(EN["chat.document_shared_with_count_one"]).toBe("Shared with {{count}} person");
+    expect(EN["chat.document_shared_with_count_other"]).toBe("Shared with {{count}} people");
+    expect(EN["chat.document_shared_with_count"]).toBeUndefined();
+    expect(VI["chat.document_shared_with_count_one"]).toBe("Đã chia sẻ với {{count}} người");
+    expect(VI["chat.document_shared_with_count_other"]).toBe("Đã chia sẻ với {{count}} người");
+    expect(VI["chat.document_shared_with_count"]).toBeUndefined();
+  });
 });
 

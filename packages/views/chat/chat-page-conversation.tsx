@@ -182,6 +182,7 @@ export function ChatPageConversation({
             onFocusComposer={focusComposer}
             onEditMessage={edit.start}
             peerLastReadAt={props.peerLastReadAt}
+            desktopOpen={props.desktopOpen}
           />
         </ChatUnreadProvider>
       </div>
@@ -196,6 +197,8 @@ export function ChatPageConversation({
         onSendMedia={props.onSendMedia}
         onSendVoice={props.onSendVoice}
         onSendFile={props.onSendFile}
+        onSendDocument={props.onSendDocument}
+        canSendDocument={props.canSendDocument}
         disabled={props.showLoading || dmBlocked || chatSendRestricted}
         mentionCandidates={many ? props.mentionCandidates : undefined}
         memberAvatarByUserId={memberAvatarByUserId}
