@@ -317,10 +317,12 @@ func (s *MeetingService) Summarize(ctx context.Context, userID, meetingID, local
 	}
 	// Notes and transcript share one rune budget: notes take what they need
 	// up to summaryNotesRunes and the transcript gets the rest (UNI-1853 L3).
+	// Every line carries its row id as Label until the window is cut; only
+	// the lines that reach the prompt are then labelled (spec §7.8).
 	noteLines, notesUsed := summaryNoteLines(notes)
 	transcript := make([]ai.TranscriptLine, 0, len(segs))
 	for _, sg := range segs {
-		transcript = append(transcript, ai.TranscriptLine{Speaker: sg.SpeakerName, Text: sg.Text})
+		transcript = append(transcript, ai.TranscriptLine{Label: sg.ID, Speaker: sg.SpeakerName, Text: sg.Text})
 	}
 	transcript = windowSummaryLines(transcript, summaryTranscriptRunes-notesUsed,
 		func(l ai.TranscriptLine) int {
@@ -329,11 +331,21 @@ func (s *MeetingService) Summarize(ctx context.Context, userID, meetingID, local
 		func(n int) ai.TranscriptLine { return ai.TranscriptLine{Speaker: "…", Text: summaryOmitted(n)} })
 	chatLines := make([]ai.ChatLine, 0, len(chat))
 	for _, c := range chat {
-		chatLines = append(chatLines, ai.ChatLine{Sender: c.SenderName, Text: c.Message})
+		chatLines = append(chatLines, ai.ChatLine{Label: c.ID, Sender: c.SenderName, Text: c.Message})
 	}
 	chatLines = windowSummaryLines(chatLines, summaryChatRunes,
 		func(l ai.ChatLine) int { return utf8.RuneCountInString(l.Sender) + utf8.RuneCountInString(l.Text) + 3 },
 		func(n int) ai.ChatLine { return ai.ChatLine{Sender: "…", Text: summaryOmitted(n)} })
+	labels := newSummaryLabels()
+	for i := range transcript {
+		transcript[i].Label = labels.label(EvidenceSegment, transcript[i].Label)
+	}
+	for i := range noteLines {
+		noteLines[i].Label = labels.label(EvidenceNote, noteLines[i].Label)
+	}
+	for i := range chatLines {
+		chatLines[i].Label = labels.label(EvidenceChat, chatLines[i].Label)
+	}
 	resp, err := s.AI.Complete(runCtx, ai.Request{
 		Actor: Human(userID), OrganizationID: orgID, WorkspaceID: m.WorkspaceID,
 		Capability: ai.CapMeetingSummarization, PromptID: ai.PromptMeetingSummary,
@@ -360,7 +372,7 @@ func (s *MeetingService) Summarize(ctx context.Context, userID, meetingID, local
 	// way the gateway still settles its usage row.
 	storeCtx, cancelStore := context.WithTimeout(context.WithoutCancel(ctx), summaryStoreTimeout)
 	defer cancelStore()
-	row, err := s.storeSummary(storeCtx, m, userID, res, resp)
+	row, err := s.storeSummary(storeCtx, m, userID, res, resp, labels)
 	if err != nil {
 		return db.MeetingSummary{}, s.summaryFailure(m.ID, resp.UsageEventID, summaryStepError{reason: summaryReasonStore, err: err})
 	}

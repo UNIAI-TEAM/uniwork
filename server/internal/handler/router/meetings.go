@@ -183,6 +183,13 @@ func registerMeetings(r api, h Routes, summaryLimit func(http.Handler) http.Hand
 			"hoặc ai_rate_limited (fields.retry_after), 502 ai_failed, 503 ai_not_configured, 504 ai_timeout.",
 		sdi: sdi.CreateSummarySDI{}, sdo: sdo.MeetingSummarySDO{}, auth: true,
 	})
+	r.Get("/meetings/{meetingID}/evidence", h.MeetingEvidence, apiOp{
+		summary: "The cited lines behind a summary's decisions and action items", tags: []string{"meetings"},
+		description: "Mọi thành viên workspace. Đọc các đoạn transcript, ghi chú, tin nhắn mà kết luận hoặc việc dẫn làm căn cứ " +
+			"(evidence của GET .../summary và GET .../action-items). Căn cứ không thuộc cuộc họp hoặc đã xoá thì vắng. " +
+			"Lỗi: 400 khi refs sai dạng hoặc quá 20.",
+		sdi: sdi.MeetingEvidenceSDI{}, sdo: sdo.MeetingEvidenceSDO{}, auth: true,
+	})
 	r.Get("/meetings/{meetingID}/action-items", h.ListActionItems, apiOp{
 		summary: "Action items of the meeting (pending, converted, dismissed)", tags: []string{"meetings"},
 		description: "Mọi thành viên workspace. Trạng thái suy ra: DISMISSED khi đã bỏ qua, CONVERTED khi task còn tồn tại, " +

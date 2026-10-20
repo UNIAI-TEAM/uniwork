@@ -363,7 +363,7 @@ func TestMcpToolsShapeEveryItem(t *testing.T) {
 		t.Fatalf("get task = %+v, %v", task, err)
 	}
 	if _, err := x.tools.ask.q.InsertMeetingSummary(ctx, db.InsertMeetingSummaryParams{
-		ID: util.NewID(), MeetingID: meeting.ID, Summary: "Đã chốt OKR quý", Decisions: "Giữ ngân sách", ActionItems: "Gửi biên bản",
+		ID: util.NewID(), MeetingID: meeting.ID, Summary: "Đã chốt OKR quý", Decisions: `["Giữ ngân sách"]`, ActionItems: "Gửi biên bản",
 		Model: "fake", CreatedBy: x.ua.ID, OrganizationID: x.w.OrganizationID,
 	}); err != nil {
 		t.Fatal(err)

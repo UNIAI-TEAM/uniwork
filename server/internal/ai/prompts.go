@@ -8,7 +8,7 @@ import (
 
 // Prompt keys used by callers.
 const (
-	PromptMeetingSummary     = "meeting_summary@4"
+	PromptMeetingSummary     = "meeting_summary@5"
 	PromptCopilotAnswer      = "copilot_answer@1"
 	PromptChatCatchUp        = "chat_catchup@2"
 	PromptChatCallSummary    = "chat_call_summary@1"
@@ -16,14 +16,25 @@ const (
 	PromptMediaAnalysis      = "media_analysis@1"
 )
 
+// Label is the short per-call reference meeting_summary@5 prints before a
+// line ("S12", "N3", "C5"); the caller keeps the label → row table. Empty on
+// a line that is not a source (the "lines omitted" marker) and before @5.
 type TranscriptLine struct {
+	Label   string
 	Speaker string
 	Text    string
 }
 
 type ChatLine struct {
+	Label  string
 	Sender string
 	Text   string
+}
+
+// NoteLine is one meeting note as the prompt shows it ("Author: body").
+type NoteLine struct {
+	Label string
+	Text  string
 }
 
 // AttendanceFacts is the recorded attendance of one meeting, members only.
@@ -89,7 +100,23 @@ const meetingSummaryInputRules = `- The transcript comes from automatic speech r
 const meetingSummaryExistingRules = `- "Existing action items" lists tasks this meeting already has: assigned, set aside or added by hand. Never put one of them in "action_items" again, even in different words.
 `
 
+// meetingSummaryRulesV5 replaces the @3 opening for @5 (UNI-2002, spec
+// §7.2): decisions become objects, and decisions and action items cite the
+// labelled input lines they rest on.
+const meetingSummaryRulesV5 = `You turn meeting transcripts and notes into a written record for a Vietnamese work team.
+Respond with a single JSON object and nothing else, shaped exactly as:
+{"summary": string, "decisions": [{"text": string, "evidence": string[]}], "action_items": [{"title": string, "owner": string, "due": string, "evidence": string[]}]}
+- "summary": at most 6 sentences covering what was discussed and the outcome; one or two sentences when little was said. Never pad it.
+- "decisions": concrete decisions that were made; empty array if none. "text" states the decision.
+- "action_items": tasks someone must do next that the input states or clearly agrees on; empty array if none. "title" is an imperative sentence. "owner" is a person the input names as responsible, written as it appears there, or "" when nobody is named. "due" is a date or relative time as stated in the input, or "" when none is stated. Never guess an owner or a due date.
+- Each transcript line, note and chat message starts with a label in square brackets: [S1] for a transcript line, [N1] for a note, [C1] for a chat message.
+- "evidence" lists the labels of the lines a decision or action item rests on, written without brackets, for example ["S12", "N3"]. Use only labels that appear in the input. Use an empty array when no line supports it, for example a vote taken from "Recorded votes".
+- Write every string in the language named by the caller.
+`
+
 const meetingSummarySchema = `{"type":"object","properties":{"summary":{"type":"string"},"decisions":{"type":"array","items":{"type":"string"}},"action_items":{"type":"array","items":{"type":"object","properties":{"title":{"type":"string"},"owner":{"type":"string"},"due":{"type":"string"}},"required":["title","owner","due"],"additionalProperties":false}}},"required":["summary","decisions","action_items"],"additionalProperties":false}`
+
+const meetingSummarySchemaV5 = `{"type":"object","properties":{"summary":{"type":"string"},"decisions":{"type":"array","items":{"type":"object","properties":{"text":{"type":"string"},"evidence":{"type":"array","items":{"type":"string"}}},"required":["text","evidence"],"additionalProperties":false}},"action_items":{"type":"array","items":{"type":"object","properties":{"title":{"type":"string"},"owner":{"type":"string"},"due":{"type":"string"},"evidence":{"type":"array","items":{"type":"string"}}},"required":["title","owner","due","evidence"],"additionalProperties":false}}},"required":["summary","decisions","action_items"],"additionalProperties":false}`
 
 // attendanceOrder fixes the order statuses are listed in, so the rendered
 // prompt does not depend on map iteration.
@@ -97,10 +124,11 @@ var attendanceOrder = []struct{ status, label string }{
 	{"PRESENT", "Present"}, {"LATE", "Late"}, {"EXCUSED", "Excused"}, {"ABSENT", "Absent"},
 }
 
-// renderMeetingSummary is shared by @1 to @4. From @2 on it adds the
+// renderMeetingSummary is shared by @1 to @5. From @2 on it adds the
 // recorded attendance and vote blocks (without facts @2 renders exactly like
 // @1); @3 also moves the title inside an untrusted tag; @4 adds the block of
-// action items the meeting already handled. Every value a person
+// action items the meeting already handled; @5 prints each source line's
+// label (sourceLabel). Every value a person
 // typed goes through EscapeUntrusted, which leaves ordinary text unchanged, so
 // the @1 and @2 snapshots still hold byte for byte.
 func renderMeetingSummary(vars map[string]any, version int) string {
@@ -122,17 +150,17 @@ func renderMeetingSummary(vars map[string]any, version int) string {
 			renderMotionFacts(&b, motions)
 		}
 	}
-	if notes, _ := vars["notes"].([]string); len(notes) > 0 {
+	if notes, _ := vars["notes"].([]NoteLine); len(notes) > 0 {
 		b.WriteString("\nNotes taken during the meeting:\n<untrusted source=\"notes\">\n")
 		for _, n := range notes {
-			fmt.Fprintf(&b, "- %s\n", EscapeUntrusted(n))
+			fmt.Fprintf(&b, "- %s%s\n", sourceLabel(n.Label, version), EscapeUntrusted(n.Text))
 		}
 		b.WriteString("</untrusted>\n")
 	}
 	if chat, _ := vars["chat"].([]ChatLine); len(chat) > 0 {
 		b.WriteString("\nIn-meeting chat:\n<untrusted source=\"chat\">\n")
 		for _, c := range chat {
-			fmt.Fprintf(&b, "%s: %s\n", EscapeUntrustedLine(c.Sender), EscapeUntrusted(c.Text))
+			fmt.Fprintf(&b, "%s%s: %s\n", sourceLabel(c.Label, version), EscapeUntrustedLine(c.Sender), EscapeUntrusted(c.Text))
 		}
 		b.WriteString("</untrusted>\n")
 	}
@@ -149,10 +177,18 @@ func renderMeetingSummary(vars map[string]any, version int) string {
 		b.WriteString("(no transcript captured)\n")
 	}
 	for _, l := range lines {
-		fmt.Fprintf(&b, "%s: %s\n", EscapeUntrustedLine(l.Speaker), EscapeUntrusted(l.Text))
+		fmt.Fprintf(&b, "%s%s: %s\n", sourceLabel(l.Label, version), EscapeUntrustedLine(l.Speaker), EscapeUntrusted(l.Text))
 	}
 	b.WriteString("</untrusted>\n")
 	return b.String()
+}
+
+// sourceLabel is "[S12] " for a labelled line from @5 on, "" otherwise.
+func sourceLabel(label string, version int) string {
+	if version < 5 || label == "" {
+		return ""
+	}
+	return "[" + label + "] "
 }
 
 // renderAttendanceFacts writes the counts as system facts; only the names,
@@ -228,6 +264,12 @@ func init() {
 		System:       meetingSummaryRulesV3 + meetingSummaryFactRules + meetingSummaryInputRules + meetingSummaryExistingRules + UntrustedFooter,
 		OutputSchema: json.RawMessage(meetingSummarySchema),
 		Render:       func(vars map[string]any) string { return renderMeetingSummary(vars, 4) },
+	})
+	register(Prompt{
+		ID: "meeting_summary", Version: 5,
+		System:       meetingSummaryRulesV5 + meetingSummaryFactRules + meetingSummaryInputRules + meetingSummaryExistingRules + UntrustedFooter,
+		OutputSchema: json.RawMessage(meetingSummarySchemaV5),
+		Render:       func(vars map[string]any) string { return renderMeetingSummary(vars, 5) },
 	})
 
 	register(Prompt{

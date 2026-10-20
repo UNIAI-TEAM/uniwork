@@ -219,8 +219,14 @@ func (s *MeetingService) claimSummaryRun(ctx context.Context, m db.Meeting) (fun
 // live items stay; a new item whose title matches one that stays (or an
 // earlier one of the same answer) is skipped, so a dismissed item does not
 // come back.
-func (s *MeetingService) storeSummary(ctx context.Context, m db.Meeting, userID string, res ai.MeetingSummary, resp ai.Response) (db.MeetingSummary, error) {
-	decisions, err := json.Marshal(res.Decisions)
+func (s *MeetingService) storeSummary(ctx context.Context, m db.Meeting, userID string, res ai.MeetingSummary, resp ai.Response, labels *summaryLabels) (db.MeetingSummary, error) {
+	stored := make([]SummaryDecision, len(res.Decisions))
+	dropped := 0
+	for i, d := range res.Decisions {
+		refs, n := labels.resolve(d.Evidence)
+		stored[i], dropped = SummaryDecision{Text: d.Text, Evidence: refs}, dropped+n
+	}
+	decisions, err := json.Marshal(stored)
 	if err != nil {
 		return db.MeetingSummary{}, err
 	}
@@ -247,7 +253,7 @@ func (s *MeetingService) storeSummary(ctx context.Context, m db.Meeting, userID 
 	if err != nil {
 		return db.MeetingSummary{}, err
 	}
-	items, err := replaceSummaryActionItems(ctx, q, m, row, res.ActionItems)
+	items, err := replaceSummaryActionItems(ctx, q, m, row, res.ActionItems, labels)
 	if err != nil {
 		return db.MeetingSummary{}, err
 	}
@@ -264,6 +270,7 @@ func (s *MeetingService) storeSummary(ctx context.Context, m db.Meeting, userID 
 			"summary_id": row.ID, "usage_event_id": resp.UsageEventID, "model": resp.Model,
 			"decisions": len(res.Decisions), "action_items": len(res.ActionItems),
 			"replaced_pending": items.replaced, "kept": items.kept, "skipped_duplicates": items.skipped,
+			"evidence_dropped": dropped + items.evidenceDropped,
 		},
 	}, audit.Event{Topic: "summary.created", Payload: map[string]string{
 		"meeting_id": m.ID, "summary_id": row.ID, "workspace_id": m.WorkspaceID,
@@ -279,10 +286,10 @@ func (s *MeetingService) storeSummary(ctx context.Context, m db.Meeting, userID 
 // summaryNoteLines renders the meeting's notes for the prompt as
 // "Author: text", each clipped to summaryNoteRunes, and keeps what fits
 // summaryNotesRunes with the same head-and-tail window as the transcript.
-// It returns the lines and the runes they use, which the transcript's budget
-// gives up.
-func summaryNoteLines(notes []db.ListMeetingNotesRow) ([]string, int) {
-	lines := make([]string, 0, len(notes))
+// Each line's Label holds its note id until Summarize labels it. It returns
+// the lines and the runes they use, which the transcript's budget gives up.
+func summaryNoteLines(notes []db.ListMeetingNotesRow) ([]ai.NoteLine, int) {
+	lines := make([]ai.NoteLine, 0, len(notes))
 	for _, n := range notes {
 		body := capRunes(strings.TrimSpace(n.Body), summaryNoteRunes, "…")
 		if body == "" {
@@ -291,24 +298,24 @@ func summaryNoteLines(notes []db.ListMeetingNotesRow) ([]string, int) {
 		if author := strings.TrimSpace(n.DisplayName); author != "" {
 			body = author + ": " + body
 		}
-		lines = append(lines, body)
+		lines = append(lines, ai.NoteLine{Label: n.ID, Text: body})
 	}
 	lines = windowSummaryLines(lines, summaryNotesRunes,
-		func(l string) int { return utf8.RuneCountInString(l) + 1 },
-		summaryOmitted)
+		func(l ai.NoteLine) int { return utf8.RuneCountInString(l.Text) + 1 },
+		func(n int) ai.NoteLine { return ai.NoteLine{Text: summaryOmitted(n)} })
 	used := 0
 	for _, l := range lines {
-		used += utf8.RuneCountInString(l) + 1
+		used += utf8.RuneCountInString(l.Text) + 1
 	}
 	return lines, used
 }
 
 // summaryItemsOutcome is what storing a summary did to the meeting's items.
-type summaryItemsOutcome struct{ replaced, kept, skipped int }
+type summaryItemsOutcome struct{ replaced, kept, skipped, evidenceDropped int }
 
 // replaceSummaryActionItems applies spec §7.1 inside storeSummary's
 // transaction, under the meeting's summary lock.
-func replaceSummaryActionItems(ctx context.Context, q *db.Queries, m db.Meeting, sum db.MeetingSummary, proposed []ai.ActionItem) (summaryItemsOutcome, error) {
+func replaceSummaryActionItems(ctx context.Context, q *db.Queries, m db.Meeting, sum db.MeetingSummary, proposed []ai.ActionItem, labels *summaryLabels) (summaryItemsOutcome, error) {
 	var out summaryItemsOutcome
 	replaced, err := q.DeletePendingAIMeetingActionItems(ctx, db.DeletePendingAIMeetingActionItemsParams{OrganizationID: m.OrganizationID, MeetingID: m.ID})
 	if err != nil {
@@ -337,10 +344,16 @@ func replaceSummaryActionItems(ctx context.Context, q *db.Queries, m db.Meeting,
 			continue
 		}
 		titles[key] = struct{}{}
+		refs, dropped := labels.resolve(it.Evidence)
+		out.evidenceDropped += dropped
+		evidence, err := json.Marshal(refs)
+		if err != nil {
+			return out, err
+		}
 		if _, err := q.InsertMeetingActionItem(ctx, db.InsertMeetingActionItemParams{
 			ID: util.NewID(), OrganizationID: m.OrganizationID, WorkspaceID: m.WorkspaceID, MeetingID: m.ID,
 			Source: ActionItemSourceAI, SummaryID: strText(sum.ID), Position: position, Title: title,
-			OwnerText: strings.TrimSpace(it.Owner), DueText: strings.TrimSpace(it.Due),
+			OwnerText: strings.TrimSpace(it.Owner), DueText: strings.TrimSpace(it.Due), Evidence: string(evidence),
 			CreatedBy: creator.ID, CreatedByKind: string(creator.Kind),
 		}); err != nil {
 			return out, err

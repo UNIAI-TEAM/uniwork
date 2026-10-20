@@ -397,6 +397,7 @@ type Routes struct {
 	ListChatMessages               http.HandlerFunc
 	GetMeetingSummary              http.HandlerFunc
 	CreateSummary                  http.HandlerFunc
+	MeetingEvidence                http.HandlerFunc
 	ListActionItems                http.HandlerFunc
 	ListCarriedOverItems           http.HandlerFunc
 	AddActionItem                  http.HandlerFunc

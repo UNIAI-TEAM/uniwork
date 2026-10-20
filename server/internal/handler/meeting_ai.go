@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"encoding/json"
 	"io"
 	"net/http"
 	"strings"
@@ -27,13 +26,38 @@ func toTranscriptDTO(s db.MeetingTranscriptSegment) sdo.TranscriptSegmentDTO {
 func toSummaryDTO(s db.MeetingSummary) sdo.MeetingSummaryDTO {
 	d := sdo.MeetingSummaryDTO{
 		ID: s.ID, MeetingID: s.MeetingID, Summary: s.Summary, Model: s.Model,
-		CreatedBy: s.CreatedBy, CreatedAt: rfc3339(s.CreatedAt), Decisions: []string{},
+		CreatedBy: s.CreatedBy, CreatedAt: rfc3339(s.CreatedAt), Decisions: []sdo.MeetingSummaryDecisionDTO{},
 	}
-	_ = json.Unmarshal([]byte(s.Decisions), &d.Decisions)
-	if d.Decisions == nil {
-		d.Decisions = []string{}
+	for _, dec := range service.DecodeSummaryDecisions(s.Decisions) {
+		d.Decisions = append(d.Decisions, sdo.MeetingSummaryDecisionDTO{Text: dec.Text, Evidence: toEvidenceRefsDTO(dec.Evidence)})
 	}
 	return d
+}
+
+func toEvidenceRefsDTO(refs []service.EvidenceRef) []sdo.MeetingEvidenceRefDTO {
+	out := make([]sdo.MeetingEvidenceRefDTO, 0, len(refs))
+	for _, r := range refs {
+		out = append(out, sdo.MeetingEvidenceRefDTO{Kind: r.Kind, ID: r.ID})
+	}
+	return out
+}
+
+func (h *handlers) meetingEvidence(w http.ResponseWriter, r *http.Request) {
+	refs, err := service.ParseEvidenceRefs(r.URL.Query().Get("refs"))
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	sources, err := h.Meetings.EvidenceSources(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "meetingID"), refs)
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	out := sdo.MeetingEvidenceSDO{Items: make([]sdo.MeetingEvidenceSourceDTO, 0, len(sources))}
+	for _, src := range sources {
+		out.Items = append(out.Items, sdo.MeetingEvidenceSourceDTO{Kind: src.Kind, ID: src.ID, Author: src.Author, Text: src.Text, At: rfc3339(src.At)})
+	}
+	respondJSON(w, 200, out)
 }
 
 func toRecordingDTO(r db.MeetingRecording, redactHostFields bool) sdo.RecordingDTO {

@@ -507,6 +507,49 @@ func (q *Queries) ListTranscriptSegmentsBefore(ctx context.Context, arg ListTran
 	return items, nil
 }
 
+const listTranscriptSegmentsByIDs = `-- name: ListTranscriptSegmentsByIDs :many
+SELECT id, meeting_id, participant_id, speaker_name, text, spoken_at, created_at, organization_id FROM meeting_transcript_segments
+WHERE organization_id = $1 AND meeting_id = $2
+  AND id = ANY($3::text[])
+`
+
+type ListTranscriptSegmentsByIDsParams struct {
+	OrganizationID string   `json:"organization_id"`
+	MeetingID      string   `json:"meeting_id"`
+	Ids            []string `json:"ids"`
+}
+
+// The cited segments of one meeting (UNI-2002 evidence); an id of another
+// meeting or tenant is simply absent.
+func (q *Queries) ListTranscriptSegmentsByIDs(ctx context.Context, arg ListTranscriptSegmentsByIDsParams) ([]MeetingTranscriptSegment, error) {
+	rows, err := q.db.Query(ctx, listTranscriptSegmentsByIDs, arg.OrganizationID, arg.MeetingID, arg.Ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []MeetingTranscriptSegment{}
+	for rows.Next() {
+		var i MeetingTranscriptSegment
+		if err := rows.Scan(
+			&i.ID,
+			&i.MeetingID,
+			&i.ParticipantID,
+			&i.SpeakerName,
+			&i.Text,
+			&i.SpokenAt,
+			&i.CreatedAt,
+			&i.OrganizationID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listTranscriptSegmentsCreatedSince = `-- name: ListTranscriptSegmentsCreatedSince :many
 SELECT id, meeting_id, participant_id, speaker_name, text, spoken_at, created_at, organization_id FROM meeting_transcript_segments
 WHERE meeting_id = $1 AND created_at >= $2::timestamptz

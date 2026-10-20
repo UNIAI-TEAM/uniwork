@@ -541,7 +541,7 @@ func (s *AskUNIService) meetingContext(ctx context.Context, tc ai.ToolContext, m
 	}
 	excerpt := fmt.Sprintf("Trạng thái: %s · Bắt đầu: %s\n%s", m.Status, m.StartsAt.Time.Format(time.RFC3339), m.Description)
 	if sum, err := s.meetings.Summary(ctx, tc.ActorID, meetingID); err == nil && sum != nil {
-		excerpt += "\nTóm tắt: " + sum.Summary + "\nQuyết định: " + sum.Decisions + "\nViệc cần làm: " + sum.ActionItems
+		excerpt += "\nTóm tắt: " + sum.Summary + "\nQuyết định: " + summaryDecisionTexts(sum.Decisions) + "\nViệc cần làm: " + sum.ActionItems
 	}
 	return []ai.Source{{Kind: "meeting", Title: m.Title, Href: base + "/meetings/" + m.ID, Excerpt: excerpt}}, nil
 }

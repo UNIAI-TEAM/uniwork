@@ -619,6 +619,7 @@ func New(d Deps) http.Handler {
 		ListChatMessages:               h.listChatMessages,
 		GetMeetingSummary:              h.getMeetingSummary,
 		CreateSummary:                  h.createSummary,
+		MeetingEvidence:                h.meetingEvidence,
 		ListActionItems:                h.listActionItems,
 		ListCarriedOverItems:           h.listCarriedOverItems,
 		AddActionItem:                  h.addActionItem,

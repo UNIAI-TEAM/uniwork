@@ -216,14 +216,40 @@ type SummaryActionItemDTO struct {
 	Due   string `json:"due"`
 }
 
+// MeetingEvidenceRefDTO names one input line a decision or an action item rests on.
+type MeetingEvidenceRefDTO struct {
+	Kind string `json:"kind" enum:"segment,note,chat" description:"segment = đoạn transcript, note = ghi chú, chat = tin nhắn trong phòng" example:"segment"`
+	ID   string `json:"id" example:"01J8X4SEG0000000000000000"`
+}
+
+// MeetingSummaryDecisionDTO is one decision of a summary with its evidence.
+type MeetingSummaryDecisionDTO struct {
+	Text     string                  `json:"text" example:"Phát hành vào thứ Sáu"`
+	Evidence []MeetingEvidenceRefDTO `json:"evidence" description:"Căn cứ; rỗng với bản tóm tắt trước meeting_summary@5"`
+}
+
+// MeetingEvidenceSourceDTO is one cited line as the reader sees it.
+type MeetingEvidenceSourceDTO struct {
+	Kind   string `json:"kind" enum:"segment,note,chat" example:"segment"`
+	ID     string `json:"id" example:"01J8X4SEG0000000000000000"`
+	Author string `json:"author" description:"Người nói, người ghi hoặc người gửi" example:"Lan"`
+	Text   string `json:"text" example:"Chốt phát hành thứ Sáu"`
+	At     string `json:"at" description:"Lúc nói, ghi hoặc gửi (RFC 3339)" example:"2026-10-20T02:15:00Z"`
+}
+
+// MeetingEvidenceSDO answers GET /api/v1/meetings/{meetingID}/evidence.
+type MeetingEvidenceSDO struct {
+	Items []MeetingEvidenceSourceDTO `json:"items" description:"Theo thứ tự hỏi; căn cứ không còn hoặc không thuộc cuộc họp thì vắng"`
+}
+
 type MeetingSummaryDTO struct {
-	ID        string   `json:"id"`
-	MeetingID string   `json:"meeting_id"`
-	Summary   string   `json:"summary"`
-	Decisions []string `json:"decisions"`
-	Model     string   `json:"model"`
-	CreatedBy string   `json:"created_by"`
-	CreatedAt string   `json:"created_at"`
+	ID        string                      `json:"id"`
+	MeetingID string                      `json:"meeting_id"`
+	Summary   string                      `json:"summary"`
+	Decisions []MeetingSummaryDecisionDTO `json:"decisions"`
+	Model     string                      `json:"model"`
+	CreatedBy string                      `json:"created_by"`
+	CreatedAt string                      `json:"created_at"`
 }
 
 type MeetingSummarySDO struct {
@@ -256,7 +282,7 @@ type MeetingActionItemDTO struct {
 	DismissedBy         *string                   `json:"dismissed_by" example:"01JABC1234567890ABCDEFGH"`
 	DismissedAt         *string                   `json:"dismissed_at" example:"2026-10-20T08:00:00Z"`
 	Task                *MeetingActionItemTaskDTO `json:"task" description:"Task đã tạo; chỉ với việc đã giao"`
-	Evidence            []string                  `json:"evidence" description:"Căn cứ; luôn rỗng tới đợt 6"`
+	Evidence            []MeetingEvidenceRefDTO   `json:"evidence" description:"Căn cứ của việc AI; rỗng với việc thêm tay"`
 	SummaryID           *string                   `json:"summary_id" description:"Bản tóm tắt đề xuất việc; null với việc tay" example:"01JABC1234567890ABCDEFGH"`
 	CreatedAt           string                    `json:"created_at" example:"2026-10-20T08:00:00Z"`
 }

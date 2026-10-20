@@ -106,3 +106,10 @@ SELECT (
   OR EXISTS (SELECT 1 FROM meeting_chat_messages WHERE meeting_id = sqlc.arg(meeting_id)::text)
   OR EXISTS (SELECT 1 FROM meeting_motions WHERE meeting_id = sqlc.arg(meeting_id)::text AND status = 'CLOSED')
 )::boolean AS has_source;
+
+-- name: ListTranscriptSegmentsByIDs :many
+-- The cited segments of one meeting (UNI-2002 evidence); an id of another
+-- meeting or tenant is simply absent.
+SELECT * FROM meeting_transcript_segments
+WHERE organization_id = sqlc.arg(organization_id) AND meeting_id = sqlc.arg(meeting_id)
+  AND id = ANY(sqlc.arg(ids)::text[]);

@@ -64,11 +64,31 @@ type ActionItem struct {
 	Title string `json:"title"`
 	Owner string `json:"owner,omitempty"`
 	Due   string `json:"due,omitempty"`
+	// Evidence is the meeting_summary@5 labels ("S12", "N3", "C5") of the
+	// input lines the item rests on; the caller maps them to rows.
+	Evidence []string `json:"evidence,omitempty"`
+}
+
+// Decision is one decision of a meeting summary. Before @5 a decision was a
+// bare string; UnmarshalJSON still reads that shape.
+type Decision struct {
+	Text     string   `json:"text"`
+	Evidence []string `json:"evidence,omitempty"`
+}
+
+func (d *Decision) UnmarshalJSON(b []byte) error {
+	var text string
+	if json.Unmarshal(b, &text) == nil {
+		*d = Decision{Text: text}
+		return nil
+	}
+	type plain Decision
+	return json.Unmarshal(b, (*plain)(d))
 }
 
 type MeetingSummary struct {
 	Summary     string       `json:"summary"`
-	Decisions   []string     `json:"decisions"`
+	Decisions   []Decision   `json:"decisions"`
 	ActionItems []ActionItem `json:"action_items"`
 }
 
@@ -208,6 +228,8 @@ const (
 	maxItemTitleRunes   = 300
 	maxItemOwnerRunes   = 120
 	maxItemDueRunes     = 120
+	maxEvidenceLabels   = 10
+	maxEvidenceRunes    = 16
 )
 
 // ParseSummaryJSON accepts the model text and tolerates a ```json fence or
@@ -226,10 +248,10 @@ func ParseSummaryJSON(s string) (MeetingSummary, error) {
 		return MeetingSummary{}, ErrOutputInvalid.wrap(fmt.Errorf("parse summary: %w", err))
 	}
 	out.Summary = capRunes(strings.TrimSpace(out.Summary), maxSummaryRunes)
-	decisions := make([]string, 0, len(out.Decisions))
+	decisions := make([]Decision, 0, len(out.Decisions))
 	for _, d := range out.Decisions {
-		if d = strings.TrimSpace(d); d != "" && len(decisions) < maxSummaryDecisions {
-			decisions = append(decisions, capRunes(d, maxDecisionRunes))
+		if d.Text = strings.TrimSpace(d.Text); d.Text != "" && len(decisions) < maxSummaryDecisions {
+			decisions = append(decisions, Decision{Text: capRunes(d.Text, maxDecisionRunes), Evidence: capEvidence(d.Evidence)})
 		}
 	}
 	out.Decisions = decisions
@@ -241,6 +263,7 @@ func ParseSummaryJSON(s string) (MeetingSummary, error) {
 		}
 		it.Owner = capRunes(strings.TrimSpace(it.Owner), maxItemOwnerRunes)
 		it.Due = capRunes(strings.TrimSpace(it.Due), maxItemDueRunes)
+		it.Evidence = capEvidence(it.Evidence)
 		items = append(items, it)
 	}
 	out.ActionItems = items
@@ -248,6 +271,18 @@ func ParseSummaryJSON(s string) (MeetingSummary, error) {
 		return MeetingSummary{}, ErrOutputInvalid.wrap(errors.New("empty summary"))
 	}
 	return out, nil
+}
+
+// capEvidence keeps at most maxEvidenceLabels labels of a plausible length;
+// whether a label names a line of the input is the caller's check.
+func capEvidence(labels []string) []string {
+	var out []string
+	for _, l := range labels {
+		if l = strings.TrimSpace(l); l != "" && utf8.RuneCountInString(l) <= maxEvidenceRunes && len(out) < maxEvidenceLabels {
+			out = append(out, l)
+		}
+	}
+	return out
 }
 
 // capRunes cuts s to at most n runes, marking the cut with an ellipsis.

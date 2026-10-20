@@ -84,6 +84,8 @@ type ActionItemView struct {
 	SuggestedAssigneeID *string
 	SuggestedDueDate    *string
 	Task                *ActionItemTask
+	// Evidence is what an AI item rests on (UNI-2002); empty for the others.
+	Evidence []EvidenceRef
 }
 
 // ActionItemCounts heads the meeting's "after the meeting" section.
@@ -116,7 +118,7 @@ func (s *MeetingService) describeActionItems(ctx context.Context, m db.Meeting, 
 	anchor := meetingDueAnchor(m)
 	today := now.In(meetingLocation(m.Timezone)).Format("2006-01-02")
 	for _, r := range rows {
-		v := ActionItemView{Item: r.MeetingActionItem, Status: actionItemStatus(r.MeetingActionItem, r.TaskLive)}
+		v := ActionItemView{Item: r.MeetingActionItem, Status: actionItemStatus(r.MeetingActionItem, r.TaskLive), Evidence: decodeEvidence(r.MeetingActionItem.Evidence)}
 		switch v.Status {
 		case ActionItemPending:
 			out.Counts.Pending++
@@ -241,7 +243,7 @@ func (s *MeetingService) AddActionItem(ctx context.Context, userID, meetingID st
 		row, err = q.InsertMeetingActionItem(ctx, db.InsertMeetingActionItemParams{
 			ID: util.NewID(), OrganizationID: m.OrganizationID, WorkspaceID: m.WorkspaceID, MeetingID: m.ID,
 			Source: ActionItemSourceManual, Position: position, Title: title, OwnerText: owner, DueText: due,
-			CreatedBy: actor.ID, CreatedByKind: string(actor.Kind),
+			Evidence: "[]", CreatedBy: actor.ID, CreatedByKind: string(actor.Kind),
 		})
 		if err != nil {
 			return err

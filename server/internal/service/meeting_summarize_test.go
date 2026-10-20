@@ -484,15 +484,15 @@ func TestSummaryNoteLinesShareTheBudget(t *testing.T) {
 		{DisplayName: "Huy", Body: strings.Repeat("ư", summaryNoteRunes*2)},
 	}
 	lines, used := summaryNoteLines(notes)
-	if len(lines) != 3 || lines[0] != "Lan: Gửi báo cáo" || lines[1] != "Không tên" {
+	if len(lines) != 3 || lines[0].Text != "Lan: Gửi báo cáo" || lines[1].Text != "Không tên" {
 		t.Fatalf("lines = %q", lines)
 	}
-	if !strings.HasPrefix(lines[2], "Huy: ") || utf8.RuneCountInString(lines[2]) != len("Huy: ")+summaryNoteRunes {
-		t.Fatalf("the long note is not clipped to %d runes: %d", summaryNoteRunes, utf8.RuneCountInString(lines[2]))
+	if !strings.HasPrefix(lines[2].Text, "Huy: ") || utf8.RuneCountInString(lines[2].Text) != len("Huy: ")+summaryNoteRunes {
+		t.Fatalf("the long note is not clipped to %d runes: %d", summaryNoteRunes, utf8.RuneCountInString(lines[2].Text))
 	}
 	want := 0
 	for _, l := range lines {
-		want += utf8.RuneCountInString(l) + 1
+		want += utf8.RuneCountInString(l.Text) + 1
 	}
 	if used != want {
 		t.Fatalf("used = %d, want %d", used, want)
@@ -503,7 +503,11 @@ func TestSummaryNoteLinesShareTheBudget(t *testing.T) {
 		many = append(many, db.ListMeetingNotesRow{DisplayName: "Lan", Body: strings.Repeat("x", 1000)})
 	}
 	lines, used = summaryNoteLines(many)
-	if used > summaryNotesRunes+64 || len(lines) >= 40 || !strings.Contains(strings.Join(lines, "\n"), "lines omitted") {
+	omitted := false
+	for _, l := range lines {
+		omitted = omitted || (l.Label == "" && strings.Contains(l.Text, "lines omitted"))
+	}
+	if used > summaryNotesRunes+64 || len(lines) >= 40 || !omitted {
 		t.Fatalf("notes past the budget: %d lines, %d runes (budget %d)", len(lines), used, summaryNotesRunes)
 	}
 }

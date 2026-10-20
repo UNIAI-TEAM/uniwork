@@ -1518,6 +1518,7 @@ type MeetingActionItem struct {
 	CreatedByKind  string             `json:"created_by_kind"`
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+	Evidence       string             `json:"evidence"`
 }
 
 type MeetingAttendanceMark struct {

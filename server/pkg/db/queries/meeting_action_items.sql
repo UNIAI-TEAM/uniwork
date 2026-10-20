@@ -6,11 +6,11 @@
 -- name: InsertMeetingActionItem :one
 INSERT INTO meeting_action_items (
   id, organization_id, workspace_id, meeting_id, source, summary_id, position,
-  title, owner_text, due_text, created_by, created_by_kind
+  title, owner_text, due_text, evidence, created_by, created_by_kind
 ) VALUES (
   sqlc.arg(id), sqlc.arg(organization_id), sqlc.arg(workspace_id), sqlc.arg(meeting_id), sqlc.arg(source),
   sqlc.narg(summary_id), sqlc.arg(position), sqlc.arg(title), sqlc.arg(owner_text), sqlc.arg(due_text),
-  sqlc.arg(created_by), sqlc.arg(created_by_kind)
+  sqlc.arg(evidence), sqlc.arg(created_by), sqlc.arg(created_by_kind)
 )
 RETURNING *;
 

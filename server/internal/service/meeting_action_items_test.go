@@ -25,7 +25,7 @@ func seedSummary(t *testing.T, s *MeetingService, m db.Meeting, createdBy string
 		items = []ai.ActionItem{}
 	}
 	sum, err := s.storeSummary(context.Background(), m, createdBy,
-		ai.MeetingSummary{Summary: "Đã chốt.", Decisions: []string{}, ActionItems: items}, ai.Response{Model: "fake"})
+		ai.MeetingSummary{Summary: "Đã chốt.", Decisions: []ai.Decision{}, ActionItems: items}, ai.Response{Model: "fake"}, newSummaryLabels())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -576,7 +576,7 @@ func TestConvertActionItemsWaitsForARegeneration(t *testing.T) {
 	if err := q.LockMeetingSummaryChanges(ctx, m.ID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := replaceSummaryActionItems(ctx, q, m, db.MeetingSummary{ID: "01JNEWSUMMARY000000000000"}, []ai.ActionItem{{Title: "Khác"}}); err != nil {
+	if _, err := replaceSummaryActionItems(ctx, q, m, db.MeetingSummary{ID: "01JNEWSUMMARY000000000000"}, []ai.ActionItem{{Title: "Khác"}}, newSummaryLabels()); err != nil {
 		t.Fatal(err)
 	}
 	done := make(chan error, 1)

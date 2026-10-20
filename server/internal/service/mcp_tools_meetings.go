@@ -176,7 +176,7 @@ func (s *McpToolService) GetMeeting(ctx context.Context, p McpPrincipal, workspa
 		return McpMeeting{}, hidden(err)
 	}
 	if sum != nil {
-		out.Excerpt = capRunes("Tóm tắt: "+sum.Summary+"\nQuyết định: "+sum.Decisions+"\nViệc cần làm: "+sum.ActionItems, mcpMaxItemRunes, mcpItemCut)
+		out.Excerpt = capRunes("Tóm tắt: "+sum.Summary+"\nQuyết định: "+summaryDecisionTexts(sum.Decisions)+"\nViệc cần làm: "+sum.ActionItems, mcpMaxItemRunes, mcpItemCut)
 	}
 	desc := capRunes(m.Description, mcpMaxItemRunes, "")
 	out.Description, out.DescriptionTruncated = &desc, desc != m.Description

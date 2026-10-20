@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -132,7 +133,7 @@ func TestPromptSnapshots(t *testing.T) {
 	quorumMet := true
 	meetingWithFacts := map[string]any{
 		"title": "Standup", "agenda": "Ship F-09", "locale": "vi",
-		"notes":      []string{"Ghi chú 1"},
+		"notes":      []NoteLine{{Text: "Ghi chú 1"}},
 		"transcript": []TranscriptLine{{Speaker: "An", Text: "Chốt thứ Sáu"}},
 		"attendance": &AttendanceFacts{
 			Members: 4, Present: 2, Late: 1, Excused: 1, Absent: 0,
@@ -148,6 +149,22 @@ func TestPromptSnapshots(t *testing.T) {
 	for k, v := range meetingWithFacts {
 		meetingWithExisting[k] = v
 	}
+	// @5 (UNI-2002): every source line carries its label; the omitted-lines
+	// marker carries none.
+	meetingWithLabels := map[string]any{
+		"notes": []NoteLine{{Label: "N1", Text: "An: Ghi chú 1"}},
+		"chat":  []ChatLine{{Label: "C1", Sender: "Bình", Text: "Đồng ý thứ Sáu"}},
+		"transcript": []TranscriptLine{
+			{Label: "S1", Speaker: "An", Text: "Mở đầu"},
+			{Speaker: "…", Text: "(3 lines omitted)"},
+			{Label: "S2", Speaker: "An", Text: "Chốt thứ Sáu"},
+		},
+	}
+	for k, v := range meetingWithExisting {
+		if _, set := meetingWithLabels[k]; !set {
+			meetingWithLabels[k] = v
+		}
+	}
 	email := map[string]any{
 		"locale": "vi", "subject": "Demo F-09", "from": "an@example.com",
 		"to": "team@example.com", "sent_at": "2026-09-06T10:00:00Z",
@@ -162,7 +179,8 @@ func TestPromptSnapshots(t *testing.T) {
 		// are literal so moving a Prompt* constant cannot re-point a fixture.
 		"meeting_summary@2":      meetingWithFacts,
 		"meeting_summary@3":      meetingWithFacts,
-		PromptMeetingSummary:     meetingWithExisting,
+		"meeting_summary@4":      meetingWithExisting,
+		PromptMeetingSummary:     meetingWithLabels,
 		"email_thread_summary@1": email,
 		PromptEmailThreadSummary: email,
 		PromptMediaAnalysis: {
@@ -173,7 +191,7 @@ func TestPromptSnapshots(t *testing.T) {
 		// PromptMeetingSummary to @2 cannot silently re-point this fixture.
 		"meeting_summary@1": {
 			"title": "Standup", "agenda": "Ship F-09", "locale": "vi",
-			"notes":      []string{"Ghi chú 1"},
+			"notes":      []NoteLine{{Text: "Ghi chú 1"}},
 			"transcript": []TranscriptLine{{Speaker: "An", Text: "Chốt thứ Sáu"}},
 		},
 		PromptCopilotAnswer: {
@@ -310,8 +328,7 @@ func TestParseEmailThreadSummaryJSON(t *testing.T) {
 	if len(out.ActionItems) != 2 {
 		t.Fatalf("action items = %+v, want two nonblank items", out.ActionItems)
 	}
-	if out.ActionItems[0] != (ActionItem{Title: "Làm X", Owner: "An", Due: "mai"}) ||
-		out.ActionItems[1] != (ActionItem{Title: "Làm Y", Owner: "Chi", Due: "tuần sau"}) {
+	if !reflect.DeepEqual(out.ActionItems, []ActionItem{{Title: "Làm X", Owner: "An", Due: "mai"}, {Title: "Làm Y", Owner: "Chi", Due: "tuần sau"}}) {
 		t.Fatalf("action item order or metadata changed: %+v", out.ActionItems)
 	}
 }
@@ -1092,23 +1109,26 @@ func TestStripUntrustedTagsNestedAndUnclosed(t *testing.T) {
 }
 
 // TestFakeReplyTurnsTaskNotesIntoActionItems: under AI_PROVIDER=fake a
-// meeting note line "Việc: <title> | <owner>" becomes an action item, so the
-// E2E of the meeting follow-through (UNI-1999) has items to work on; other
-// notes, and the transcript, make none.
+// meeting note line "Việc: <title> | <owner>" becomes an action item citing
+// its note, so the E2E of the meeting follow-through (UNI-1999, UNI-2002) has
+// items to work on; other notes, and the transcript, make none.
 func TestFakeReplyTurnsTaskNotesIntoActionItems(t *testing.T) {
 	p, _ := LookupPrompt(PromptMeetingSummary)
 	prompt := p.Render(map[string]any{
 		"title": "Giao ban", "locale": "vi",
-		"notes":      []string{"Host: Việc: Gửi báo giá | ft-peer\nViệc: In tài liệu", "Host: Chốt ngày ra mắt"},
-		"transcript": []TranscriptLine{{Speaker: "An", Text: "Việc: không phải ghi chú"}},
+		"notes": []NoteLine{
+			{Label: "N1", Text: "Host: Chốt ngày ra mắt"},
+			{Label: "N2", Text: "Host: Việc: Gửi báo giá | ft-peer\nViệc: In tài liệu"},
+		},
+		"transcript": []TranscriptLine{{Label: "S1", Speaker: "An", Text: "Việc: không phải ghi chú"}},
 	})
 	resp := FakeReply(provider.CompletionRequest{System: p.System, Messages: []provider.Message{{Role: "user", Content: prompt}}})
 	out, err := ParseSummaryJSON(resp.Text)
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []ActionItem{{Title: "Gửi báo giá", Owner: "ft-peer"}, {Title: "In tài liệu"}}
-	if len(out.ActionItems) != len(want) || out.ActionItems[0] != want[0] || out.ActionItems[1] != want[1] {
+	want := []ActionItem{{Title: "Gửi báo giá", Owner: "ft-peer", Evidence: []string{"N2"}}, {Title: "In tài liệu", Evidence: []string{"N2"}}}
+	if !reflect.DeepEqual(out.ActionItems, want) {
 		t.Fatalf("action items = %+v, want %+v", out.ActionItems, want)
 	}
 }

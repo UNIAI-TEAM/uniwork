@@ -396,7 +396,7 @@ func TestMcpGetMeetingExcerptIsTheSummaryAlone(t *testing.T) {
 		t.Fatalf("no summary: excerpt %q, description %q (%v)", got.Excerpt, deref(got.Description), err)
 	}
 	summary := db.InsertMeetingSummaryParams{
-		ID: util.NewID(), MeetingID: m.ID, Summary: "Đã chốt OKR quý", Decisions: "Giữ ngân sách", ActionItems: "Gửi biên bản",
+		ID: util.NewID(), MeetingID: m.ID, Summary: "Đã chốt OKR quý", Decisions: `[{"text":"Giữ ngân sách","evidence":[{"kind":"note","id":"01N"}]}]`, ActionItems: "Gửi biên bản",
 		Model: "fake", CreatedBy: x.ua.ID, OrganizationID: x.w.OrganizationID,
 	}
 	if _, err := x.tools.ask.q.InsertMeetingSummary(ctx, summary); err != nil {
@@ -406,7 +406,8 @@ func TestMcpGetMeetingExcerptIsTheSummaryAlone(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, w := range []string{"Tóm tắt: Đã chốt OKR quý", "Quyết định: Giữ ngân sách", "Việc cần làm: Gửi biên bản"} {
+	// A @5 decision is quoted as its text, the shape excerpts always had (UNI-2002).
+	for _, w := range []string{"Tóm tắt: Đã chốt OKR quý", `Quyết định: ["Giữ ngân sách"]`, "Việc cần làm: Gửi biên bản"} {
 		if !strings.Contains(got.Excerpt, w) {
 			t.Errorf("excerpt does not hold %q: %.200s", w, got.Excerpt)
 		}
@@ -440,7 +441,7 @@ func TestMcpGetMeetingExcludesTranscripts(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := x.tools.ask.q.InsertMeetingSummary(ctx, db.InsertMeetingSummaryParams{
-		ID: util.NewID(), MeetingID: m.ID, Summary: "Đã chốt OKR quý", Decisions: "Giữ ngân sách", ActionItems: "Gửi biên bản",
+		ID: util.NewID(), MeetingID: m.ID, Summary: "Đã chốt OKR quý", Decisions: `[{"text":"Giữ ngân sách","evidence":[{"kind":"note","id":"01N"}]}]`, ActionItems: "Gửi biên bản",
 		Model: "fake", CreatedBy: x.ua.ID, OrganizationID: x.w.OrganizationID,
 	}); err != nil {
 		t.Fatal(err)

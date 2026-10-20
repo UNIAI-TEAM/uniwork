@@ -75,6 +75,22 @@ func TestMeetingActionItemsHTTP(t *testing.T) {
 	if counts := out["counts"].(map[string]any); counts["pending"] != float64(2) {
 		t.Fatalf("counts: %v", counts)
 	}
+	// A manual item has no evidence: an empty list, not null (UNI-2002).
+	if ev, ok := first["evidence"].([]any); !ok || len(ev) != 0 {
+		t.Fatalf("manual item evidence: %v", first["evidence"])
+	}
+	// Any member reads a cited line through the evidence route; a malformed
+	// reference list is 400.
+	_, out = doJSON(t, srv, "POST", "/api/v1/meetings/"+meetingID+"/notes", host, map[string]any{"body": "Nhớ gửi bản nháp"})
+	noteID := out["note"].(map[string]any)["id"].(string)
+	res, out = doJSON(t, srv, "GET", "/api/v1/meetings/"+meetingID+"/evidence?refs=note:"+noteID, member, nil)
+	if got, _ := out["items"].([]any); res.StatusCode != http.StatusOK || len(got) != 1 ||
+		got[0].(map[string]any)["text"] != "Nhớ gửi bản nháp" || got[0].(map[string]any)["author"] != "Host" || got[0].(map[string]any)["at"] == "" {
+		t.Fatalf("evidence: %d %v", res.StatusCode, out)
+	}
+	if res, out = doJSON(t, srv, "GET", "/api/v1/meetings/"+meetingID+"/evidence?refs=page:"+noteID, member, nil); res.StatusCode != http.StatusBadRequest {
+		t.Fatalf("malformed refs: %d %v", res.StatusCode, out)
+	}
 	res, out = doJSON(t, srv, "GET", "/api/v1/meetings/"+meetingID+"/summary", member, nil)
 	if res.StatusCode != http.StatusOK || out["summary"] != nil {
 		t.Fatalf("no summary yet: %d %v", res.StatusCode, out)

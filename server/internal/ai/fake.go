@@ -74,7 +74,7 @@ func FakeReply(req provider.CompletionRequest) provider.CompletionResponse {
 		b, _ := json.Marshal(MediaAnalysis{Text: "Phân tích thử nghiệm của " + itoa(parts) + " tệp."})
 		text = string(b)
 	default:
-		b, _ := json.Marshal(MeetingSummary{Summary: "Bản tóm tắt thử nghiệm.", Decisions: []string{}, ActionItems: fakeNoteActionItems(last)})
+		b, _ := json.Marshal(MeetingSummary{Summary: "Bản tóm tắt thử nghiệm.", Decisions: []Decision{}, ActionItems: fakeNoteActionItems(last)})
 		text = string(b)
 	}
 	// UsagePresent mirrors the scripted path in provider/fake.go: the fake knows
@@ -83,9 +83,12 @@ func FakeReply(req provider.CompletionRequest) provider.CompletionResponse {
 	return provider.CompletionResponse{Text: text, Model: req.Model, UsagePresent: true, InputTokens: estimateTokens(req.System + last), OutputTokens: estimateTokens(text), StopReason: "end_turn"}
 }
 
+var fakeNoteLabel = regexp.MustCompile(`^- \[(N\d+)\] `)
+
 // fakeNoteActionItems reads the meeting's notes block: a line holding
 // "Việc: <title>" or "Việc: <title> | <owner>" is an action item, so a
 // development or E2E run can drive the follow-through with items it chose.
+// From @5 each item cites the note it came from.
 func fakeNoteActionItems(prompt string) []ActionItem {
 	items := []ActionItem{}
 	_, block, ok := strings.Cut(prompt, `<untrusted source="notes">`)
@@ -93,14 +96,22 @@ func fakeNoteActionItems(prompt string) []ActionItem {
 		return items
 	}
 	block, _, _ = strings.Cut(block, "</untrusted>")
+	label := ""
 	for _, line := range strings.Split(block, "\n") {
-		// The first line of a note carries its author ("An: Việc: …").
+		// A note's first line carries its label and author ("- [N1] An: …").
+		if m := fakeNoteLabel.FindStringSubmatch(line); m != nil {
+			label = m[1]
+		}
 		_, rest, ok := strings.Cut(line, "Việc:")
 		if !ok {
 			continue
 		}
 		title, owner, _ := strings.Cut(rest, "|")
-		items = append(items, ActionItem{Title: strings.TrimSpace(title), Owner: strings.TrimSpace(owner)})
+		it := ActionItem{Title: strings.TrimSpace(title), Owner: strings.TrimSpace(owner)}
+		if label != "" {
+			it.Evidence = []string{label}
+		}
+		items = append(items, it)
 	}
 	return items
 }
