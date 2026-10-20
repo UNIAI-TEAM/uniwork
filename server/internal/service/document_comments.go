@@ -405,7 +405,8 @@ func (s *DocumentService) AddDocumentComment(ctx context.Context, actor Actor, d
 			return NormalizeIdempotencyError(err)
 		}
 		if replay != nil {
-			// The ledger keeps the create answer forever; the comment may
+			// The ledger replays the create answer while its row is retained
+			// (IDEMPOTENCY_KEY_RETENTION, 7 days by default); the comment may
 			// have been edited, tombstoned or removed since. Answer the row as
 			// it is now (a removed one is the 404 of any missing id), so a
 			// replay never contradicts the next list read.

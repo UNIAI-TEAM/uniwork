@@ -162,9 +162,10 @@ type DocumentService struct {
 	// window, the office_sync_write evaluator, and the lookup/replay/sweep
 	// counters. Zero values keep the defaults; nil flags read the registry
 	// default.
-	intentPolicy  CommitIntentPolicy
-	flags         DocumentFlags
-	intentMetrics OfficeIntentMetrics
+	intentPolicy      CommitIntentPolicy
+	idempotencyPolicy IdempotencyKeyPolicy
+	flags             DocumentFlags
+	intentMetrics     OfficeIntentMetrics
 
 	// store is the G1-03 write side's own state (document_files.go):
 	// validation limits, spool directory, test seam.
