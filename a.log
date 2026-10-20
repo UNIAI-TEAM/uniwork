@@ -1,0 +1,13 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -10
+654294ed12ecb99daf76892fe191d87689ddf3b8
+4be3db4b13afa264f87e754019136a1eff9eb8cc
+654294ed1 chore: merge UNI-2019 follow-up B (d8661b23f) into the G5-G7 root
+71057d05e chore: merge UNI-2033 T5 D web version view (b125175a8) into the G5-G7 root
+5dac99395 docs(office): name anchor_version_id as the version a lost comment opens
+8c388c963 chore: merge UNI-2033 T1 anchor_version_no (1ee496eb0) into the G5-G7 root
+1ee496eb0 chore: merge the G5-G7 root (4be3db4b1) into UNI-2033
+4be3db4b1 test(office): send the upload text fields before the file part in the G8-19 harness
+31a57d174 test(office): wait for the prepare Save version in the G8-A02 closed-panel scenario
+709866e6f chore: merge the G5-G7 root (fcbcb637f) into UNI-2033
+2cabb06c4 test(documents): rename anchor_version_no tests and pin r1 review cases
+baec27782 fix(documents): degrade post-commit anchor_version_no lookup errors to null
