@@ -598,7 +598,7 @@ func (h *handlers) getOfficeFrameAvatar(w http.ResponseWriter, r *http.Request) 
 	header.Set("Content-Security-Policy", "sandbox; default-src 'none'")
 	header.Set("Cache-Control", "private, max-age=300")
 	header.Set("ETag", etag)
-	header.Set("Vary", "Authorization")
+	header.Add("Vary", "Authorization")
 	if ifNoneMatch(r.Header.Get("If-None-Match"), etag) {
 		w.WriteHeader(http.StatusNotModified)
 		return

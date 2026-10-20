@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/unicomhub/uniwork/server/internal/files"
+	"github.com/unicomhub/uniwork/server/internal/storage"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
@@ -564,10 +565,12 @@ type officeFrameReadCloser struct {
 // OpenAvatar streams a same-organization member's file-backed avatar to an
 // Office web frame (UNI-1986). Every "nothing to serve" case — another
 // organization, a deactivated member, no avatar, a legacy or external
-// avatar_url, a missing/locked/deleted/out-of-scope file, a non-ULID userID,
-// bytes over 2 MiB, or bytes whose first 512 bytes do not sniff as PNG, JPEG,
-// GIF or WebP (never SVG) — returns ErrNotFound so the handler answers one
-// uniform 404.
+// avatar_url, a missing/locked/deleted/out-of-scope file, a genuine missing
+// storage object (storage.ErrNotFound), a non-ULID userID, bytes over 2 MiB,
+// or bytes whose first 512 bytes do not sniff as PNG, JPEG, GIF or WebP (never
+// SVG) — returns ErrNotFound so the handler answers one uniform 404. Transient
+// storage/read or DB failures after authorization travel through filesError so
+// mapServiceError answers 5xx instead of a negatively cached 404.
 func (s *OfficeFrameService) OpenAvatar(ctx context.Context, claims OfficeFrameClaims, userID string) (files.Reader, error) {
 	if s == nil {
 		return files.Reader{}, ErrNotFound
@@ -596,7 +599,7 @@ func (s *OfficeFrameService) OpenAvatar(ctx context.Context, claims OfficeFrameC
 		Variant: files.VariantThumb,
 	})
 	if err != nil {
-		return files.Reader{}, ErrNotFound
+		return files.Reader{}, officeFrameAvatarOpenError(err)
 	}
 	if rd.File.SizeBytes <= 0 || rd.File.SizeBytes > officeFrameAvatarMaxBytes {
 		_ = rd.Close()
@@ -606,7 +609,7 @@ func (s *OfficeFrameService) OpenAvatar(ctx context.Context, claims OfficeFrameC
 	n, rerr := io.ReadFull(rd.Body, head[:])
 	if rerr != nil && !errors.Is(rerr, io.EOF) && !errors.Is(rerr, io.ErrUnexpectedEOF) {
 		_ = rd.Close()
-		return files.Reader{}, ErrNotFound
+		return files.Reader{}, officeFrameAvatarOpenError(files.StorageUnavailable(rerr))
 	}
 	ct, ok := officeFrameAvatarContentType(head[:n])
 	if !ok {
@@ -619,6 +622,24 @@ func (s *OfficeFrameService) OpenAvatar(ctx context.Context, claims OfficeFrameC
 		Closer: rd.Body,
 	}
 	return rd, nil
+}
+
+// officeFrameAvatarOpenError keeps every genuine "nothing to serve" refusal
+// (including a missing storage object wrapped in files.StorageUnavailable) as
+// ErrNotFound, while preserving transient storage outages and non-files.Error
+// DB/context errors for mapServiceError's 5xx handling (RBF-01, RBF-06).
+func officeFrameAvatarOpenError(err error) error {
+	if errors.Is(err, storage.ErrNotFound) {
+		return ErrNotFound
+	}
+	var fe *files.Error
+	if errors.As(err, &fe) {
+		if fe.Code == files.CodeStorageUnavailable {
+			return filesError(fe)
+		}
+		return ErrNotFound
+	}
+	return filesError(err)
 }
 
 func (s *OfficeFrameService) avatarFiles() files.Service {
