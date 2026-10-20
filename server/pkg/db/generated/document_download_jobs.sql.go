@@ -24,7 +24,7 @@ func (q *Queries) ClearDocumentDownloadJobFiles(ctx context.Context, organizatio
 const completeDocumentDownloadJob = `-- name: CompleteDocumentDownloadJob :one
 UPDATE document_download_jobs
 SET status = 'ready', file_id = $4, file_count = $5, skipped = $6,
-    finished_at = now(), expires_at = $7
+    finished_at = now(), expires_at = $7, document_ids = '{}'
 WHERE id = $1 AND organization_id = $2 AND workspace_id = $3 AND status = 'running'
 RETURNING id
 `
@@ -80,6 +80,22 @@ func (q *Queries) CountActiveDocumentDownloadJobs(ctx context.Context, arg Count
 	return count, err
 }
 
+const deleteSettledDocumentDownloadJobs = `-- name: DeleteSettledDocumentDownloadJobs :execrows
+DELETE FROM document_download_jobs
+WHERE file_id IS NULL AND finished_at IS NOT NULL AND finished_at < now() - interval '7 days'
+`
+
+// tenant: system
+// A settled row has no use after a week; one that still holds its zip is kept
+// until the expiry release clears file_id.
+func (q *Queries) DeleteSettledDocumentDownloadJobs(ctx context.Context) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteSettledDocumentDownloadJobs)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const documentDownloadHeldFileIDs = `-- name: DocumentDownloadHeldFileIDs :many
 SELECT file_id FROM document_download_jobs WHERE file_id = ANY($1::text[])
 `
@@ -107,7 +123,7 @@ func (q *Queries) DocumentDownloadHeldFileIDs(ctx context.Context, fileIds []str
 
 const failDocumentDownloadJob = `-- name: FailDocumentDownloadJob :execrows
 UPDATE document_download_jobs
-SET status = 'failed', error = $4, skipped = $5, finished_at = now()
+SET status = 'failed', error = $4, skipped = $5, finished_at = now(), document_ids = '{}'
 WHERE id = $1 AND organization_id = $2 AND workspace_id = $3 AND status IN ('queued', 'running')
 `
 
@@ -127,6 +143,25 @@ func (q *Queries) FailDocumentDownloadJob(ctx context.Context, arg FailDocumentD
 		arg.Error,
 		arg.Skipped,
 	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const failStaleDocumentDownloadJobs = `-- name: FailStaleDocumentDownloadJobs :execrows
+UPDATE document_download_jobs
+SET status = 'failed', error = 'build_failed', finished_at = now(), document_ids = '{}'
+WHERE status IN ('queued', 'running')
+  AND COALESCE(started_at, created_at) < now() - interval '1 hour'
+`
+
+// tenant: system
+// A job still queued or running an hour after it started (a crash on the last
+// attempt leaves the row running with a parked event) is closed, so it stops
+// counting toward the creator's cap.
+func (q *Queries) FailStaleDocumentDownloadJobs(ctx context.Context) (int64, error) {
+	result, err := q.db.Exec(ctx, failStaleDocumentDownloadJobs)
 	if err != nil {
 		return 0, err
 	}

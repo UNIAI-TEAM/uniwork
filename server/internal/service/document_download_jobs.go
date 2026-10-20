@@ -333,15 +333,22 @@ func (s *DocumentService) OpenDocumentDownloadJob(ctx context.Context, actor Act
 }
 
 // SweepDocumentDownloads is the document worker's short-tick pass over the
-// zip jobs: it releases the zips whose window has closed. The download route is
-// what enforces the window; this lets the collector see the unlink within
-// minutes instead of at the daily audit retention tick.
+// zip jobs. It releases the zips whose window has closed (the download route
+// enforces the window; this lets the collector see the unlink within minutes
+// instead of at the daily audit retention tick), fails jobs stuck queued or
+// running for an hour, and deletes settled rows after a week. It returns the
+// rows it closed or deleted.
 func (s *DocumentService) SweepDocumentDownloads(ctx context.Context) (int64, error) {
 	if s == nil || s.q == nil || s.pool == nil {
 		return 0, nil
 	}
 	releaseExpiredDocumentDownloads(ctx, s.pool, s.q, s.files)
-	return 0, nil
+	failed, err := s.q.FailStaleDocumentDownloadJobs(ctx)
+	if err != nil {
+		return 0, err
+	}
+	deleted, err := s.q.DeleteSettledDocumentDownloadJobs(ctx)
+	return failed + deleted, err
 }
 
 // releaseExpiredDocumentDownloads drops the file reference of every zip whose
