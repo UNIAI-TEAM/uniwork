@@ -202,8 +202,12 @@ JOIN documents d ON d.id = sub.id
   -- UNI-2039 S1: the last time the document's access changed - the greatest of
   -- the document's creation and every share, public link and break-glass
   -- stamp (created, revoked or granted). Revoked rows count: a revoke is a change.
+  -- Only the changed order and the page read it (UNI-2039 fx1, F1): the id
+  -- order of the export, summary and principals skips the subplans, and the
+  -- two index-only reads are served by the (organization_id, workspace_id,
+  -- document_id) INCLUDE (created_at, revoked_at) indexes.
   LEFT JOIN LATERAL (
-    SELECT GREATEST(
+    SELECT CASE WHEN $2::text = 'id' THEN NULL ELSE GREATEST(
       d.created_at,
       (SELECT max(GREATEST(s.created_at, s.revoked_at)) FROM document_shares s
         WHERE s.organization_id = d.organization_id AND s.workspace_id = d.workspace_id AND s.document_id = d.id),
@@ -211,7 +215,7 @@ JOIN documents d ON d.id = sub.id
         WHERE l.organization_id = d.organization_id AND l.workspace_id = d.workspace_id AND l.document_id = d.id),
       (SELECT max(g.granted_at) FROM document_break_glass_grants g
         WHERE g.organization_id = d.organization_id AND g.workspace_id = d.workspace_id AND g.document_id = d.id)
-    )::timestamptz AS changed_at
+    ) END::timestamptz AS changed_at
   ) chg ON true
 WHERE d.organization_id = $8
   AND d.workspace_id = $9
@@ -374,8 +378,12 @@ FROM documents d
   -- UNI-2039 S1: the last time the document's access changed - the greatest of
   -- the document's creation and every share, public link and break-glass
   -- stamp (created, revoked or granted). Revoked rows count: a revoke is a change.
+  -- Only the changed order and the page read it (UNI-2039 fx1, F1): the id
+  -- order of the export, summary and principals skips the subplans, and the
+  -- two index-only reads are served by the (organization_id, workspace_id,
+  -- document_id) INCLUDE (created_at, revoked_at) indexes.
   LEFT JOIN LATERAL (
-    SELECT GREATEST(
+    SELECT CASE WHEN $2::text = 'id' THEN NULL ELSE GREATEST(
       d.created_at,
       (SELECT max(GREATEST(s.created_at, s.revoked_at)) FROM document_shares s
         WHERE s.organization_id = d.organization_id AND s.workspace_id = d.workspace_id AND s.document_id = d.id),
@@ -383,7 +391,7 @@ FROM documents d
         WHERE l.organization_id = d.organization_id AND l.workspace_id = d.workspace_id AND l.document_id = d.id),
       (SELECT max(g.granted_at) FROM document_break_glass_grants g
         WHERE g.organization_id = d.organization_id AND g.workspace_id = d.workspace_id AND g.document_id = d.id)
-    )::timestamptz AS changed_at
+    ) END::timestamptz AS changed_at
   ) chg ON true
 WHERE d.organization_id = $8
   AND d.workspace_id = $9
