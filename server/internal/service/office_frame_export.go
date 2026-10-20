@@ -1,6 +1,7 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -92,6 +93,7 @@ func (s *DocumentOfficeService) ExportFramePDF(ctx context.Context, actor Actor,
 		if err != nil {
 			return OfficeExportPDF{}, err
 		}
+		defer input.release()
 		job.input = &input
 		version = &in.Version
 	case in.Version < 0:
@@ -119,6 +121,13 @@ func (s *DocumentOfficeService) ExportFramePDF(ctx context.Context, actor Actor,
 	return OfficeExportPDF{Reader: r, Job: row}, nil
 }
 
+const officeExportZipMagic = "PK\x03\x04"
+
+type peekedReadCloser struct {
+	io.Reader
+	io.Closer
+}
+
 // versionExportInput reads a stored version's bytes for an export. It is the
 // version read of the download route without its "download" access row: the
 // caller records the export.
@@ -127,20 +136,73 @@ func (s *DocumentOfficeService) versionExportInput(ctx context.Context, actor Ac
 	if err != nil {
 		return officeInput{}, err
 	}
-	f, err := s.documents.openVersionFile(ctx, doc, v, DocumentByteRange{})
+	if v.Kind != DocumentKindFile || !v.FileID.Valid {
+		return officeInput{}, ErrNotFound
+	}
+	scope := files.Scope{OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID}
+	in, err := s.readBase(ctx, scope, files.FileID(v.FileID.String), v.ChecksumSha256)
 	if err != nil {
+		var ee *office.EngineError
+		if errors.As(err, &ee) && ee.Code == "upload_bounds" && ee.Reason == "base_too_large" {
+			return officeInput{}, officeErr("upload_bounds", "input_too_large")
+		}
 		return officeInput{}, err
 	}
-	defer f.Reader.Close()
-	limit := s.documentFileMaxBytes()
-	raw, err := io.ReadAll(io.LimitReader(f.Reader.Body, limit+1))
+	return peekExportZipMagic(in)
+}
+
+// peekExportZipMagic checks the 4-byte ZIP magic on the first stream without
+// buffering the rest, then hands the full stream (those 4 bytes followed by
+// the unread tail) to the first caller of open.
+func peekExportZipMagic(in officeInput) (officeInput, error) {
+	rc, err := in.open()
 	if err != nil {
+		in.release()
 		return officeInput{}, err
 	}
-	if int64(len(raw)) > limit {
-		return officeInput{}, officeErr("upload_bounds", "input_too_large")
+	keep := false
+	defer func() {
+		if !keep {
+			_ = rc.Close()
+			in.release()
+		}
+	}()
+	var magic [len(officeExportZipMagic)]byte
+	if _, err := io.ReadFull(rc, magic[:]); err != nil {
+		if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
+			return officeInput{}, ErrOfficeExportInput
+		}
+		return officeInput{}, err
 	}
-	return officeExportInputWithCap(raw, limit)
+	if string(magic[:]) != officeExportZipMagic {
+		return officeInput{}, ErrOfficeExportInput
+	}
+	keep = true
+	var peeked io.ReadCloser = peekedReadCloser{
+		Reader: io.MultiReader(bytes.NewReader(magic[:]), rc),
+		Closer: rc,
+	}
+	open, release := in.open, in.release
+	released := false
+	in.open = func() (io.ReadCloser, error) {
+		if peeked != nil {
+			body := peeked
+			peeked = nil
+			return body, nil
+		}
+		return open()
+	}
+	in.release = func() {
+		if peeked != nil {
+			_ = peeked.Close()
+			peeked = nil
+		}
+		if !released {
+			released = true
+			release()
+		}
+	}
+	return in, nil
 }
 
 // officeExportInputWithCap measures supplied bytes. They must fit the
@@ -154,7 +216,7 @@ func officeExportInputWithCap(raw []byte, maxBytes int64) (officeInput, error) {
 	if int64(len(raw)) > maxBytes {
 		return officeInput{}, officeErr("upload_bounds", "input_too_large")
 	}
-	if len(raw) < 4 || string(raw[:4]) != "PK\x03\x04" {
+	if len(raw) < len(officeExportZipMagic) || string(raw[:len(officeExportZipMagic)]) != officeExportZipMagic {
 		return officeInput{}, ErrOfficeExportInput
 	}
 	sum := sha256.Sum256(raw)
