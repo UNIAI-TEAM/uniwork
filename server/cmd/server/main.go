@@ -722,6 +722,10 @@ func main() {
 	mcpTools := service.NewMcpToolService(q, askUNI, homeSvc, wsSvc, cfg.FrontendOrigin)
 	mcpTools.SetDocuments(documentSvc)
 	mcpTools.SetFlags(flags)
+	askUNI.SetReadTools(mcpTools)
+	if reg != nil {
+		askUNI.SetAgentMetrics(reg.AIAsk)
+	}
 	// The sweep of expired attempts, tokens and abandoned clients stops with
 	// runCancel and is awaited below.
 	mcpCleanupDone := make(chan struct{})
