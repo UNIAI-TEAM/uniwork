@@ -342,6 +342,13 @@ type newPage struct {
 // when ParentID is empty), meters its bytes and records document.created, in
 // the caller's transaction. CreatePage and CreateSharedPageInTx share it.
 func (s *DocumentService) insertPage(ctx context.Context, q *db.Queries, actor Actor, in newPage) (db.Document, error) {
+	// Callers normalize already; normalizing again is a no-op that keeps every
+	// InsertDocument behind the naming helper (TestDocumentTitleWritePathsUseTheNormalizer).
+	title, err := normalizeDocumentTitle(in.Kind, in.Title)
+	if err != nil {
+		return db.Document{}, err
+	}
+	in.Title = title
 	position, err := q.NextDocumentPosition(ctx, db.NextDocumentPositionParams{
 		OrganizationID: in.OrganizationID, WorkspaceID: in.WorkspaceID, ParentID: nullText(in.ParentID),
 	})
