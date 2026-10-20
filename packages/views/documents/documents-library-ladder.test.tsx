@@ -15,7 +15,7 @@ import { documentRow, type DocumentSummaryRow } from "./library-rows";
 
 initI18n();
 
-const NAME_MIN = 188;
+const NAME_MIN = 184;
 /** Below this container width nothing optional is left to drop: Name = width - border - actions. */
 const FLOOR = 320;
 /** The actions column of the shared spec on a fine pointer. */
@@ -194,7 +194,7 @@ describe("column ladder", () => {
     renderList();
     for (let c = FLOOR; c <= LIST_MAX; c += 1) {
       const { name } = layoutAt(c);
-      // The rungs hold Name above the 188px floor except in the narrowest
+      // The rungs hold Name above the 184px floor except in the narrowest
       // containers, where only Name and the 76px actions column exist.
       const min = c - BORDER - ACTIONS < NAME_MIN ? c - BORDER - ACTIONS : NAME_MIN;
       expect(name, `Name at ${c}`).toBeGreaterThanOrEqual(min);

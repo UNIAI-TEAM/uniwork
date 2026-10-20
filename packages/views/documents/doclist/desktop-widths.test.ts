@@ -29,13 +29,13 @@ describe("desktop widths of the shared columns", () => {
       expect(width(screen, "access"), screen).toBe(120);
       expect(width(screen, "editor"), screen).toBe(130);
       expect(width(screen, "updated"), screen).toBe(118);
-      expect(width(screen, "size"), screen).toBe(80);
+      expect(width(screen, "size"), screen).toBe(84);
       expect(width(screen, "actions"), screen).toBe(76);
       expect(width(screen, "name"), screen).toBe(0);
       const own = docListSpec(screen).screenColumn;
       if (own) expect(width(screen, own), screen).toBe(118);
     }
-    expect(NAME_FLOOR).toBe(188);
+    expect(NAME_FLOOR).toBe(184);
   });
 
   it("shows every column of every screen at a 870px container (1440 viewport)", () => {
@@ -109,5 +109,14 @@ describe("Tailwind literals", () => {
         }
       }
     }
+  });
+});
+
+describe("sortable header labels", () => {
+  it("lets the header button use the cell's whole content box (its -mx-1 px-1 sit in the padding)", () => {
+    const header = readFileSync(resolve(process.cwd(), "documents/library-sort-header.tsx"), "utf8");
+    expect(header).toContain("-mx-1");
+    expect(header).toContain("max-w-[calc(100%+0.5rem)]");
+    expect(header).not.toContain("max-w-full");
   });
 });

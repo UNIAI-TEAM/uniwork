@@ -149,7 +149,7 @@ type RungClasses = { col: string; cell: string; head: string; hide: string; hide
 const WIDTH_CLASSES: Record<number, string> = {
   32: "w-[32px]",
   76: "w-[76px]",
-  80: "w-[80px]",
+  84: "w-[84px]",
   118: "w-[118px]",
   120: "w-[120px]",
   130: "w-[130px]",

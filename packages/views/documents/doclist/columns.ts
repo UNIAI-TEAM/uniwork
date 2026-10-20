@@ -31,7 +31,7 @@ export interface DocListColumn {
    * has none: it takes what is left, down to NAME_FLOOR. Each width is what its
    * widest content needs plus the 8px side padding the optional columns carry:
    * "Hôm qua, 16:30" at the 12px mono caption size is ~101px, "Người sửa gần
-   * nhất" and "Dung lượng" are the longest headers (~113px and ~64px), the
+   * nhất" and "Dung lượng" are the longest headers (~113px and ~70px), the
    * "Được chia sẻ" pill fits Access, and Editor keeps a 24px avatar plus a
    * truncating name.
    */
@@ -67,7 +67,7 @@ const SCREEN_COLUMN_SORT: Record<DocListScreenColumnId, DocListSortKey> = {
 };
 
 /** The room Name keeps before a column joins: it never drops under this. */
-export const NAME_FLOOR = 188;
+export const NAME_FLOOR = 184;
 /** The table's 1px borders, both sides. */
 const BORDER = 2;
 
@@ -109,7 +109,7 @@ export function docListSpec(screen: DocListScreen): DocListSpec {
       column("access", null, 120),
       column("editor", "editor", 130),
       column("updated", "updated", 118),
-      column("size", "size", 80, "right"),
+      column("size", "size", 84, "right"),
       column("actions", null, 76),
     ],
     screenColumn: own,
