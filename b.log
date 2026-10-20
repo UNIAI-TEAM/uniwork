@@ -1,0 +1,9 @@
+$ git status --short | grep -v "^??" | head; git diff --quiet HEAD; rc=$?; echo; echo "TREE_CLEAN_EXIT=$rc"; git rev-parse HEAD; git log --oneline -5
+
+TREE_CLEAN_EXIT=0
+86b548551a414a3c6fed96a256da73086d63950d
+86b548551 fix(documents): access report review findings on the table, header and people rows
+f2b049616 feat(documents): access report shell with tiles, filters, tabs and paging
+e91080d50 fix(core): align access report schemas with the server SDO
+bf5920496 feat(documents): access report table with one row per document and its grants
+cd3d76c7f feat(documents): access report By person table with open rows and revoke
