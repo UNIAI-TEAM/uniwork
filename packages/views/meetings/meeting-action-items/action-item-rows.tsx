@@ -35,13 +35,28 @@ export function formatDueDate(date: string, locale: string): string {
   );
 }
 
-/** Where a typed or live item came from; AI items need no badge, the section says so. */
-function SourceBadge({ source }: { source?: string | null }) {
-  const { t } = useTranslation();
+/** HH:mm of an ISO time as the reader writes it; null when it does not parse. */
+function formatClock(iso: string | null | undefined, locale: string): string | null {
+  const ms = iso ? Date.parse(iso) : NaN;
+  if (!Number.isFinite(ms)) return null;
+  return new Intl.DateTimeFormat(locale, { hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(ms);
+}
+
+/**
+ * Where a typed or live item came from; AI items need no badge, the section
+ * says so. A live item also says when the AI scribe heard it.
+ */
+function SourceBadge({ source, createdAt }: { source?: string | null; createdAt?: string | null }) {
+  const { t, i18n } = useTranslation();
   if (source !== "MANUAL" && source !== "LIVE") return null;
+  const time = source === "LIVE" ? formatClock(createdAt, meetingLocale(i18n.language)) : null;
   return (
     <Badge variant="outline" className="ml-1.5 align-middle">
-      {t(source === "MANUAL" ? "meetings.actionItemsSection.sourceManual" : "meetings.actionItemsSection.sourceLive")}
+      {source === "MANUAL"
+        ? t("meetings.actionItemsSection.sourceManual")
+        : time
+          ? t("meetings.actionItemsSection.sourceLiveAt", { time })
+          : t("meetings.actionItemsSection.sourceLive")}
     </Badge>
   );
 }
@@ -96,7 +111,7 @@ export function PendingRow({
         <div className="min-w-0 flex-1 space-y-1">
           <p className="text-pretty">
             {item.title}
-            <SourceBadge source={item.source} />
+            <SourceBadge source={item.source} createdAt={item.created_at} />
           </p>
           {said ? <p className="text-caption text-muted-foreground">{said}</p> : null}
           {selectable && (suggestedName || dueLabel) ? (

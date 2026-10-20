@@ -1302,6 +1302,7 @@
       "capability": {
         "copilot_answer": "Hỏi UNI",
         "meeting_summarization": "Tóm tắt họp",
+        "meeting_live_items": "Việc trong lúc họp",
         "chat_catchup": "Bắt kịp chat",
         "context_extraction": "Trích xuất ngữ cảnh",
         "agent_planning": "Agent lập kế hoạch",
@@ -3833,6 +3834,7 @@
       "loadFailed": "Chưa tải được việc sau họp.",
       "sourceManual": "Thêm tay",
       "sourceLive": "Trong lúc họp",
+      "sourceLiveAt": "Trong lúc họp · {{time}}",
       "assign_one": "Giao {{count}} việc",
       "assign_other": "Giao {{count}} việc",
       "pickReason": "Chọn ít nhất một việc đang chờ xử lý",

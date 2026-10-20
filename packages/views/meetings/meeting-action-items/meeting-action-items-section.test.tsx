@@ -123,6 +123,16 @@ describe("MeetingActionItemsSection", () => {
     expect(screen.getByText("Lý do: Đã có bản in")).toBeInTheDocument();
   });
 
+  it("labels an item the AI scribe heard during the meeting with its time", async () => {
+    const live = { id: "a5", source: "LIVE", title: "Gửi báo giá", status: "PENDING", created_at: "2026-10-21T03:42:00Z" };
+    const noTime = { id: "a6", source: "LIVE", title: "Chốt lịch", status: "PENDING", created_at: "not a time" };
+    respond({ items: () => ({ items: [live, noTime], counts: { pending: 2, converted: 0, dismissed: 0, tasks_done: 0, tasks_overdue: 0 } }) });
+    renderSection();
+    expect(await screen.findByText("Gửi báo giá")).toBeInTheDocument();
+    expect(screen.getByText(/^Trong lúc họp · \d{2}:\d{2}$/)).toBeInTheDocument();
+    expect(screen.getByText("Trong lúc họp")).toBeInTheDocument();
+  });
+
   it("is read-only for a member who is not a clerk", async () => {
     renderSection({ canClerk: false });
     expect(await screen.findByText("Gửi biên bản")).toBeInTheDocument();

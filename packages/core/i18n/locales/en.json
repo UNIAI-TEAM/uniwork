@@ -1303,6 +1303,7 @@
       "capability": {
         "copilot_answer": "Ask UNI",
         "meeting_summarization": "Meeting summary",
+        "meeting_live_items": "Live meeting follow-ups",
         "chat_catchup": "Chat catch-up",
         "context_extraction": "Context extraction",
         "agent_planning": "Agent planning",
@@ -3834,6 +3835,7 @@
       "loadFailed": "Could not load the follow-ups.",
       "sourceManual": "Added by hand",
       "sourceLive": "During the meeting",
+      "sourceLiveAt": "During the meeting · {{time}}",
       "assign_one": "Assign {{count}} task",
       "assign_other": "Assign {{count}} tasks",
       "pickReason": "Pick at least one pending item",
