@@ -164,7 +164,7 @@ export function ChatComposer({
   const mentionEnabled = mentionCandidates !== undefined;
   const voiceRecorder = useChatVoiceRecorder();
   const voiceActive = voiceRecorder.state !== "idle" || Boolean(voiceRecorder.error);
-  const { shareChoice, setShareChoice, showSharePicker, sharePickerAllowsFile } =
+  const { shareChoice, setShareChoice, showSharePicker } =
     useComposerDocumentShare({ stagedFiles, canSendDocument, hasDocumentSender: Boolean(onSendDocument) });
 
   useImperativeHandle(ref, () => ({
@@ -367,6 +367,8 @@ export function ChatComposer({
                 onAction={handleAttachAction}
                 align="start"
                 showCreatePoll={showCreatePoll}
+                // A document picked from the library is sent with the same grant a staged one is.
+                showAttachDocument={canSendDocument}
               />
             )}
             {/* The bar is the field: no pill, a ring only to say over the limit or editing. */}
@@ -400,10 +402,7 @@ export function ChatComposer({
                           ))}
                         </div>
                         {showSharePicker ? (
-                          <ChatComposerShareLevelPicker
-                            value={shareChoice} onChange={setShareChoice} disabled={disabled}
-                            allowFileChoice={sharePickerAllowsFile}
-                          />
+                          <ChatComposerShareLevelPicker value={shareChoice} onChange={setShareChoice} disabled={disabled} />
                         ) : null}
                       </div>
                     ) : null}

@@ -1,10 +1,8 @@
 import { useEffect, useState } from "react";
 import type { ChatDocumentShareLevel } from "@uniwork/core/api/endpoints/chat";
-import type { ChatComposerShareChoice } from "./chat-composer-share-level";
 import {
   CHAT_DOCUMENT_MAX_LABEL,
   CHAT_FILE_MAX_LABEL,
-  isChatAcceptedFile,
   isChatDocumentShareableFile,
   isChatDocumentTooLarge,
   isChatFileTooLarge,
@@ -12,8 +10,11 @@ import {
 } from "./chat-file-accept";
 
 /**
- * The document share choice of the composer (UNI-1966): it lives next to the
- * staged files; "file" sends the plain attachment route exactly as before.
+ * The document share level of the composer (UNI-1966): it lives next to the
+ * staged files. UNI-2012 D1c: there is no "send as a plain file" choice any
+ * more — an editor-format file always goes as a document with the level the
+ * sender saw, and the level picker shows whenever one is staged, even beside
+ * an image.
  */
 export function useComposerDocumentShare({
   stagedFiles,
@@ -24,27 +25,16 @@ export function useComposerDocumentShare({
   canSendDocument: boolean;
   hasDocumentSender: boolean;
 }) {
-  const [shareChoice, setShareChoice] = useState<ChatComposerShareChoice>("comment");
+  const [shareChoice, setShareChoice] = useState<ChatDocumentShareLevel>("comment");
+  // A room that cannot take document sends (can_send_document: false — no
+  // permission, or a roster over the batch cap) keeps today's plain route.
   const showSharePicker =
-    canSendDocument &&
-    hasDocumentSender &&
-    stagedFiles.length > 0 &&
-    stagedFiles.every((file) => isChatDocumentShareableFile(file));
-  // "Chỉ gửi tệp" is offered only while every staged file could also go by
-  // the plain route — a document-only kind or a file over the 25 MB chat
-  // ceiling would only earn a 415/413 there (RFC-02).
-  const sharePickerAllowsFile =
-    showSharePicker &&
-    stagedFiles.every((file) => isChatAcceptedFile(file) && !isChatFileTooLarge(file));
+    canSendDocument && hasDocumentSender && stagedFiles.some((file) => isChatDocumentShareableFile(file));
   useEffect(() => {
-    // Back to the level default when the picker hides, and off "file" when
-    // the plain route stops being a real choice (a stale "file" choice
-    // would otherwise route a document-only kind to the refusing route).
-    if (!showSharePicker || (!sharePickerAllowsFile && shareChoice === "file")) {
-      setShareChoice("comment");
-    }
-  }, [showSharePicker, sharePickerAllowsFile, shareChoice]);
-  return { shareChoice, setShareChoice, showSharePicker, sharePickerAllowsFile };
+    // Back to the level default when the picker hides.
+    if (!showSharePicker) setShareChoice("comment");
+  }, [showSharePicker]);
+  return { shareChoice, setShareChoice, showSharePicker };
 }
 
 /**
@@ -72,13 +62,15 @@ export function classifyComposerFiles(files: File[], canSendDocument: boolean) {
  * One upload at a time: the server holds each file in memory while it checks
  * it, and a handful of large ones at once can exhaust the pod. The document
  * route runs only from the level the user saw and chose on a visible picker
- * (RFC-01): a mixed batch or a hidden picker sends every file by the plain
- * route, so no grant is ever minted from a choice the user never made.
+ * (RFC-01), and only for editor-format files (UNI-2012 D1c): a mixed batch
+ * splits — those by the document route, images and other files by the plain
+ * route — and a hidden picker sends every file by the plain route, so no grant
+ * is ever minted from a choice the user never made.
  */
 export async function sendStagedFiles(
   files: File[],
   route: {
-    shareChoice: ChatComposerShareChoice;
+    shareChoice: ChatDocumentShareLevel;
     showSharePicker: boolean;
     onSendFile: (file: File) => void | Promise<void>;
     onSendDocument?: (file: File, shareLevel: ChatDocumentShareLevel) => void | Promise<void>;
@@ -86,7 +78,7 @@ export async function sendStagedFiles(
 ): Promise<void> {
   for (const file of files) {
     try {
-      if (route.showSharePicker && route.shareChoice !== "file" && route.onSendDocument) {
+      if (route.showSharePicker && route.onSendDocument && isChatDocumentShareableFile(file)) {
         await route.onSendDocument(file, route.shareChoice);
       } else {
         await route.onSendFile(file);
