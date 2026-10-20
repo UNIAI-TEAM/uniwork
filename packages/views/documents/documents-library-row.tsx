@@ -2,7 +2,7 @@
 
 import { useId, useRef } from "react";
 import type { LucideIcon } from "lucide-react";
-import { Archive, Download, Ellipsis, ExternalLink, FolderInput, FolderOpen, FolderPlus, MonitorUp, Pencil, Star, StarOff, Trash2 } from "lucide-react";
+import { Archive, Download, Ellipsis, ExternalLink, FolderInput, FolderOpen, FolderPlus, MonitorUp, Pencil, Share2, Star, StarOff, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { isMyFolder, isShelved } from "@uniwork/core/types/document";
 import { Badge } from "@uniwork/ui/components/ui/badge";
@@ -37,7 +37,8 @@ import {
 import { DocumentTypeIcon } from "./document-type-icon";
 import { EditLockHolderChip } from "./edit-lock-holder-chip";
 import { libraryCell, type LibraryLadder } from "./library-columns";
-import { canArchiveRow, canMoveRow, rowAppOperation, rowLevel } from "./row-level";
+import { LibraryRowAccessCell } from "./library-row-access-cell";
+import { canArchiveRow, canMoveRow, canShareRow, rowAppOperation, rowLevel } from "./row-level";
 import { sourceLinkIcon, sourceLinkLabelKey, sourceLinkNamedLabelKey, sourceOpenAction, sourceParentLinked } from "./source-links";
 import {
   formatBytes,
@@ -77,6 +78,13 @@ export interface LibraryRowHandlers {
   onRename?: (doc: DocumentSummaryRow) => void;
   onMove?: (doc: DocumentSummaryRow) => void;
   onArchive?: (doc: DocumentSummaryRow) => void;
+  /**
+   * Opens the Share dialog without opening the document (UNI-2009): the row's
+   * Share action and its Access cell. Every reader gets it where canShareRow
+   * allows; the dialog shows a manager the controls and anyone else their own
+   * level. Absent where the host mounts no dialog.
+   */
+  onShare?: (doc: DocumentSummaryRow) => void;
   /** Lưu trữ (ARCHIVE-01 U-4): manage-only, hidden on My Folder; the page
    *  wires it so a folder opens the confirm dialog and a document shelves at
    *  once with an undo toast. */
@@ -203,6 +211,12 @@ export function LibraryRowView({
       icon: starred ? StarOff : Star,
       run: () => handlers.onToggleStar?.(doc.id, starred),
     });
+  }
+  // Share is not a level-gated command: every reader opens the dialog (as
+  // DocumentActionsMenu does), so it sits beside Star, ahead of the edit commands.
+  const shareable = Boolean(doc && handlers.onShare && canShareRow(doc));
+  if (doc && shareable) {
+    actions.push({ id: "share", label: t("documents.actions.share"), icon: Share2, run: () => handlers.onShare?.(doc) });
   }
   // Each command follows the level of THIS row (create subfolder / rename /
   // move: edit, archive: manage); a trashed row offers none of them.
@@ -366,20 +380,15 @@ export function LibraryRowView({
             </button>
           )}
         </td>
-        <td className={cn("px-3 py-2 text-caption", libraryCell(ladder, "access"))}>
-          {scope ? (
-            <DocumentShareScopeBadge
-              shareScope={doc?.share_scope}
-              workspaceId={doc?.workspace_id}
-              className="flex gap-1.5"
-            />
-          ) : (
-            <span className="text-muted-foreground">—</span>
-          )}
-          {levelLabel ? (
-            <span className="block truncate text-muted-foreground">{t("documents.home.access.you_prefix", { level: levelLabel })}</span>
-          ) : null}
-        </td>
+        <LibraryRowAccessCell
+          doc={doc}
+          scope={scope}
+          levelLabel={levelLabel}
+          title={title}
+          workspaceName={resolvedWorkspaceName}
+          ladder={ladder}
+          onShare={shareable ? handlers.onShare : undefined}
+        />
         <td className={cn("px-3 py-2", libraryCell(ladder, "editor"))}>
           {editor ? (
             <span className="flex items-center gap-2 text-body text-foreground">

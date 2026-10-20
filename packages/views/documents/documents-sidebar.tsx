@@ -16,6 +16,7 @@ import { IconTile } from "@uniwork/ui/components/common/icon-tile";
 import { cn } from "@uniwork/ui/lib/utils";
 import { MODULE_ICONS } from "../layout/module-icons";
 import { moduleTone, type ModuleKey } from "../layout/module-tones";
+import { AppLink } from "../navigation";
 import { DOCUMENTS_NAV_ICONS } from "./documents-nav-icons";
 import { DocumentTree } from "./document-tree";
 import { FolderNameDialog } from "./folder-name-dialog";
@@ -58,6 +59,8 @@ export interface DocumentsSidebarProps {
   newFolderPending?: boolean;
   /** False while a host sheet is closed. */
   open?: boolean;
+  /** The workspace access report page; the entry under Thùng rác is a link to it, and absent hides it. */
+  accessReportHref?: string;
   onView: (view: LibraryView) => void;
   onFolder: (folderId: string) => void;
   onMyFolder?: () => void;
@@ -74,6 +77,7 @@ function NavItem({
   count,
   current,
   disabled,
+  href,
   onClick,
 }: {
   /** A plain row: one muted line glyph, no tile. */
@@ -84,19 +88,16 @@ function NavItem({
   count?: number | null;
   current: boolean;
   disabled?: boolean;
-  onClick: () => void;
+  /** A row that opens its own page: a real link, not a view switch. */
+  href?: string;
+  onClick?: () => void;
 }) {
-  return (
-    <button
-      type="button"
-      aria-current={current ? "page" : undefined}
-      aria-disabled={disabled || undefined}
-      onClick={disabled ? undefined : onClick}
-      className={cn(
-        "flex min-h-9 w-full shrink-0 items-center gap-2 rounded-md px-2 text-left text-body text-foreground transition-colors hover:bg-accent/60 pointer-coarse:min-h-11",
-        current && "bg-accent font-medium",
-      )}
-    >
+  const className = cn(
+    "flex min-h-9 w-full shrink-0 items-center gap-2 rounded-md px-2 text-left text-body text-foreground transition-colors hover:bg-accent/60 pointer-coarse:min-h-11",
+    current && "bg-accent font-medium",
+  );
+  const content = (
+    <>
       {module ? (
         <IconTile icon={MODULE_ICONS[module]} size="xs" variant="solid" tone={moduleTone(module)} />
       ) : Icon ? (
@@ -108,6 +109,24 @@ function NavItem({
       {typeof count === "number" && count > 0 ? (
         <span className="font-mono text-caption tabular-nums text-muted-foreground">{count}</span>
       ) : null}
+    </>
+  );
+  if (href) {
+    return (
+      <AppLink href={href} aria-current={current ? "page" : undefined} className={className}>
+        {content}
+      </AppLink>
+    );
+  }
+  return (
+    <button
+      type="button"
+      aria-current={current ? "page" : undefined}
+      aria-disabled={disabled || undefined}
+      onClick={disabled ? undefined : onClick}
+      className={className}
+    >
+      {content}
     </button>
   );
 }
@@ -136,6 +155,7 @@ export function DocumentsSidebar({
   canCreate,
   newFolderPending = false,
   open = true,
+  accessReportHref,
   onView,
   onFolder,
   onMyFolder,
@@ -162,6 +182,9 @@ export function DocumentsSidebar({
       <NavItem icon={DOCUMENTS_NAV_ICONS.sharedByMe} label={t("documents.home.sidebar.shared_by_me")} current={isView("sharedByMe")} onClick={() => onView({ kind: "sharedByMe" })} />
       <NavItem icon={DOCUMENTS_NAV_ICONS.shelved} label={t("documents.home.sidebar.shelved")} current={isView("shelved")} onClick={() => onView({ kind: "shelved" })} />
       <NavItem icon={DOCUMENTS_NAV_ICONS.trash} label={t("documents.home.sidebar.trash")} current={isView("archived")} onClick={() => onView({ kind: "archived" })} />
+      {accessReportHref ? (
+        <NavItem icon={DOCUMENTS_NAV_ICONS.accessReport} label={t("documents.accessReport.title")} current={false} href={accessReportHref} />
+      ) : null}
 
       <SectionLabel
         action={
