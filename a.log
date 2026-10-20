@@ -1,0 +1,11 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git rev-parse HEAD; git log --oneline -8; echo "HEAD_PROBE_DONE"
+75412e19ca12eae03ad35964b0596591d037218d
+75412e19c fix(g7-08): resolve page content streams fail-closed and require X-E1 stub sheetId
+972a6a3bd test(g7-08): add red regressions for w3e review r1 PDF and stub findings
+aeb13f501 fix(g7-08): supply active sheetId in X-E1 stub and inflate FlateDecode/ObjStm in PDF oracle
+44deba721 test(g7-08): add red tests for X-E1 stub sheetId and compressed PDF oracle
+8ccb5eb13 chore(merge): G5-G7 root d1ac5f5f2 (REPIN-4) into G7-08 (UNI-1385)
+d1ac5f5f2 chore: merge UNI-1919 REPIN-4 (pin web-0.1.0-b1cbd5d; 8e80776d2) into the G5-G7 root
+b26e23f93 chore: merge UNI-1988 SIZE-OPS1 (framed engine job transport; abb82ea3a) into the G5-G7 root
+8e80776d2 docs(office): put the REPIN-4 clauses after the older pin chain list
+HEAD_PROBE_DONE
