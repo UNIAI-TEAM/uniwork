@@ -10,7 +10,14 @@ import { ChatForwardedLabel } from "./chat-forwarded-label";
 import { ChatMessageA11yLabel, ChatMessageMeta, ChatReactionChips, chatMessageLabelId } from "./chat-message-parts";
 import { ChatReplyQuote } from "./chat-reply-quote";
 import { MessageTaskCard } from "./message-task-card";
-import { CHAT_BUBBLE_OTHER, CHAT_BUBBLE_OWN, CHAT_ROW_HOVER, chatBubbleShape, ChatThreadRepliesLink } from "./chat-message-row";
+import {
+  CHAT_BUBBLE_OTHER,
+  CHAT_BUBBLE_OWN,
+  chatBubbleShape,
+  chatRowContentShellClass,
+  chatRowHighlightClass,
+  ChatThreadRepliesLink,
+} from "./chat-message-row";
 import { useMessageActionsReveal } from "./use-message-actions-reveal";
 import type { ChatNameContextEntry } from "./chat-page-utils";
 import { ChatSenderAvatar } from "./chat-sender-avatar";
@@ -87,15 +94,18 @@ function ChatFileMessageRowImpl({
       tabIndex={-1}
       className={cn(
         "flex w-full max-w-full rounded-lg transition-colors duration-(--duration-standard) focus-visible:outline-offset-2",
-        CHAT_ROW_HOVER,
         isOwn ? "justify-end" : "justify-start",
         compactTop ? "mt-0.5" : "mt-3",
-        // A deep link jumped here: the row's brand wash, as the text row's (canvas).
-        highlighted && "before:bg-brand-subtle before:ring-1 before:ring-brand/25 hover:before:bg-brand-subtle",
       )}
     >
       <ChatMessageA11yLabel messageId={message.id} senderLabel={senderLabel} ts={message.ts} />
-      <div className={cn("flex max-w-[min(85%,27rem)] gap-2", isOwn && "flex-row-reverse")}>
+      <div
+        className={cn(
+          chatRowContentShellClass(isOwn),
+          "max-w-[min(100%,27rem)]",
+          chatRowHighlightClass(highlighted),
+        )}
+      >
         {isOwn ? null : showAvatar ? (
           // A file is a run of its own: its avatar sits at the foot, as a run's last bubble's does.
           <span className="shrink-0 self-end">
@@ -111,22 +121,44 @@ function ChatFileMessageRowImpl({
         )}
         <div
           ref={reveal.rootRef}
+          data-chat-message-id={message.id}
           {...reveal.bind}
           className={cn(
             "group/message relative flex min-w-0 flex-col gap-1 pointer-coarse:select-none pointer-coarse:[-webkit-touch-callout:none]",
             isOwn ? "items-end" : "items-start",
           )}
         >
-          <div className={chatMessageActionsRailClass(isOwn)}>
+          <ChatMessageHoverActions
+            message={message}
+            isOwn={isOwn}
+            onReply={onReply}
+            onReact={onReact}
+            onToggleReaction={onToggleReaction}
+            onThread={onThread}
+            onPin={onPin}
+            onCopy={onCopy}
+            onDelete={onDelete}
+            onCreateTask={onCreateTask}
+            onLinkTask={onLinkTask}
+            onFollowUp={onFollowUp}
+            canEdit={false}
+            forceOpen={reveal.open}
+            anchorRef={reveal.rootRef}
+          />
+          <div
+            data-message-actions-anchor
+            className={cn(chatMessageActionsRailClass(isOwn), reveal.open && "pointer-events-none")}
+          >
             <div className="flex min-w-0 flex-col gap-1">
-              {/* The file sits in the sender's bubble like text: name on top,
-                  time under it, both inside. A photo or PDF keeps a thin rim. */}
+              {/* Text and cards sit in a bubble; photos and GIFs are edge-to-edge like Telegram. */}
               <div
                 className={cn(
                   "max-w-full overflow-hidden",
-                  !gif && chatBubbleShape(isOwn, !compactTop),
-                  !gif && (isOwn ? CHAT_BUBBLE_OWN : CHAT_BUBBLE_OTHER),
-                  gif ? "flex flex-col gap-1" : photo ? "p-0.75" : "p-2",
+                  gif && "flex w-fit flex-col gap-1",
+                  photo && "relative w-fit max-w-full flex flex-col gap-1",
+                  !gif &&
+                    !photo &&
+                    cn("p-2", chatBubbleShape(isOwn, !compactTop), isOwn ? CHAT_BUBBLE_OWN : CHAT_BUBBLE_OTHER),
                 )}
               >
                 {showSenderName && !isOwn && showAvatar ? (
@@ -154,10 +186,11 @@ function ChatFileMessageRowImpl({
                 ) : null}
                 <div
                   className={cn(
-                    // The photo follows the bubble 3px in: 15 round, 4 under the name and at the tail (canvas).
-                    photo && "relative overflow-hidden rounded-[15px] [&>button]:rounded-none",
-                    photo && showSenderName && !isOwn && showAvatar && "rounded-t-[4px]",
-                    photo && (isOwn ? "rounded-br-[4px]" : "rounded-bl-[4px]"),
+                    photo &&
+                      cn(
+                        "relative overflow-hidden [&>button]:size-full [&>button]:rounded-[inherit]",
+                        chatBubbleShape(isOwn, !compactTop, true),
+                      ),
                   )}
                 >
                   <ChatFileAttachment
@@ -176,22 +209,6 @@ function ChatFileMessageRowImpl({
               <ChatThreadRepliesLink message={message} isOwn={isOwn} onThread={onThread} nameContext={nameContext} />
               <MessageTaskCard workspaceId={workspaceId} messageId={message.id} isOwn={isOwn} />
             </div>
-            <ChatMessageHoverActions
-              message={message}
-              isOwn={isOwn}
-              onReply={onReply}
-              onReact={onReact}
-              onToggleReaction={onToggleReaction}
-              onThread={onThread}
-              onPin={onPin}
-              onCopy={onCopy}
-              onDelete={onDelete}
-              onCreateTask={onCreateTask}
-              onLinkTask={onLinkTask}
-              onFollowUp={onFollowUp}
-              canEdit={false}
-              forceOpen={reveal.open}
-            />
           </div>
         </div>
       </div>

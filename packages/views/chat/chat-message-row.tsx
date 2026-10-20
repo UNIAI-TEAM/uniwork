@@ -64,6 +64,21 @@ export function chatBubbleShape(isOwn: boolean, firstOfRun: boolean, lastOfRun =
 export const CHAT_ROW_HOVER =
   "relative isolate before:pointer-events-none before:absolute before:-inset-x-2 before:-inset-y-1.5 before:-z-10 before:rounded-2xl before:transition-colors before:duration-(--duration-fast) before:content-[''] hover:before:bg-chat-bubble-other/40";
 
+/** Hover / jump highlight wraps the message column only — not the full timeline width. */
+export function chatRowContentShellClass(isOwn: boolean): string {
+  return cn(
+    "flex w-fit max-w-[min(100%,85%)] gap-2 sm:max-w-[min(100%,72%)]",
+    isOwn && "flex-row-reverse",
+  );
+}
+
+export function chatRowHighlightClass(highlighted: boolean): string {
+  return cn(
+    CHAT_ROW_HOVER,
+    highlighted && "before:bg-brand-subtle before:ring-1 before:ring-brand/25 hover:before:bg-brand-subtle",
+  );
+}
+
 /** Important is a warning, urgent is a danger — never the same red. A pill at the bubble's top. */
 export function ChatPriorityFlag({ priority }: { priority: ChatMessage["priority"] }) {
   const { t } = useTranslation();
@@ -243,43 +258,65 @@ function ChatMessageRowImpl({
       data-highlighted={highlighted || undefined}
       className={cn(
         "flex w-full max-w-full rounded-lg transition-colors duration-(--duration-standard) focus-visible:outline-offset-2",
-        CHAT_ROW_HOVER,
         compactTop ? "mt-0.5" : "mt-3",
-        isOwn ? "justify-end" : "justify-start gap-2",
-        // The thread open beside the timeline, or a jump's target: the row's wash in the brand (canvas).
-        highlighted && "before:bg-brand-subtle before:ring-1 before:ring-brand/25 hover:before:bg-brand-subtle",
+        isOwn ? "justify-end" : "justify-start",
       )}
     >
       <ChatMessageA11yLabel messageId={message.id} senderLabel={senderLabel} ts={message.ts} />
-      {!isOwn ? (
-        <div className={INCOMING_AVATAR_SLOT_CLASS}>
-          {lastOfRun ? (
-            <ChatSenderAvatar
-              userId={message.sender}
-              name={senderLabel}
-              avatarUrl={senderAvatarUrl}
-              nameContext={nameContext}
-            />
-          ) : null}
-        </div>
-      ) : null}
+      <div className={cn(chatRowContentShellClass(isOwn), chatRowHighlightClass(highlighted))}>
+        {!isOwn ? (
+          <div className={INCOMING_AVATAR_SLOT_CLASS}>
+            {lastOfRun ? (
+              <ChatSenderAvatar
+                userId={message.sender}
+                name={senderLabel}
+                avatarUrl={senderAvatarUrl}
+                nameContext={nameContext}
+              />
+            ) : null}
+          </div>
+        ) : null}
 
-      {/* Right-click (desktop) or long press (touch) opens the actions bar. */}
-      <div
-        ref={reveal.rootRef}
-        {...reveal.bind}
-        className={cn(
-          "group/message relative flex min-w-0 max-w-[85%] flex-col gap-0.5 sm:max-w-[72%] pointer-coarse:select-none pointer-coarse:[-webkit-touch-callout:none]",
-          isOwn ? "items-end" : "items-start",
-        )}
-      >
+        {/* Right-click (desktop) or long press (touch) opens the actions bar. */}
+        <div
+          ref={reveal.rootRef}
+          data-chat-message-id={message.id}
+          {...reveal.bind}
+          className={cn(
+            "group/message relative flex min-w-0 flex-col gap-0.5 pointer-coarse:select-none pointer-coarse:[-webkit-touch-callout:none]",
+            isOwn ? "items-end" : "items-start",
+          )}
+        >
+        {!isPending ? (
+          <ChatMessageHoverActions
+            message={message}
+            isOwn={isOwn}
+            onReply={onReply}
+            onReact={onReact}
+            onToggleReaction={onToggleReaction}
+            onThread={onThread}
+            onEdit={onEdit}
+            onPin={onPin}
+            onCopy={onCopy}
+            onDelete={onDelete}
+            onCreateTask={onCreateTask}
+            onLinkTask={onLinkTask}
+            onFollowUp={onFollowUp}
+            canEdit={canEdit}
+            forceOpen={reveal.open}
+            anchorRef={reveal.rootRef}
+          />
+        ) : null}
         {bare && showName ? (
           <p className={cn("px-1 text-label font-semibold", nameClass)} aria-hidden>
             {senderLabel}
           </p>
         ) : null}
 
-        <div className={chatMessageActionsRailClass(isOwn)}>
+        <div
+          data-message-actions-anchor
+          className={cn(chatMessageActionsRailClass(isOwn), reveal.open && "pointer-events-none")}
+        >
           <div className={cn("flex min-w-0 flex-col gap-0.5", isOwn ? "items-end" : "items-start")}>
             {bare ? <ChatPriorityFlag priority={message.priority} /> : null}
 
@@ -358,26 +395,7 @@ function ChatMessageRowImpl({
 
           </div>
         </div>
-
-        {!isPending ? (
-          <ChatMessageHoverActions
-            message={message}
-            isOwn={isOwn}
-            onReply={onReply}
-            onReact={onReact}
-            onToggleReaction={onToggleReaction}
-            onThread={onThread}
-            onEdit={onEdit}
-            onPin={onPin}
-            onCopy={onCopy}
-            onDelete={onDelete}
-            onCreateTask={onCreateTask}
-            onLinkTask={onLinkTask}
-            onFollowUp={onFollowUp}
-            canEdit={canEdit}
-            forceOpen={reveal.open}
-          />
-        ) : null}
+        </div>
       </div>
     </article>
   );

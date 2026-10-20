@@ -8,6 +8,8 @@ import {
   type ReactNode,
   type RefObject,
 } from "react";
+import { cn } from "@uniwork/ui/lib/utils";
+import { useChatMessageActionsLayer } from "./chat-message-actions-layer";
 
 const DEFAULT_ESTIMATE_PX = 88;
 
@@ -118,6 +120,7 @@ export function VirtualChatMessageList({
   empty,
   renderMessage,
 }: VirtualChatMessageListProps) {
+  const actionsLayer = useChatMessageActionsLayer();
   const contentRef = useRef<HTMLDivElement>(null);
   const virtualizer = useVirtualizer({
     count: messages.length,
@@ -199,24 +202,33 @@ export function VirtualChatMessageList({
     return empty ?? null;
   }
 
+  const menuBlocksTimeline = actionsLayer?.openMessageId != null;
+
   return (
-    <div ref={contentRef} className="w-full max-w-full">
+    <div
+      ref={contentRef}
+      className={cn("w-full max-w-full", menuBlocksTimeline && "pointer-events-none")}
+    >
       {header}
       <div
         className="relative w-full max-w-full pb-2"
         style={{ height: `${virtualizer.getTotalSize()}px` }}
       >
-        {virtualizer.getVirtualItems().map((virtualRow) => (
+        {virtualizer.getVirtualItems().map((virtualRow) => {
+          const messageId = messages[virtualRow.index]?.id;
+          const menuOpen = messageId != null && actionsLayer?.openMessageId === messageId;
+          return (
           <div
-            key={messages[virtualRow.index]?.id ?? virtualRow.key}
+            key={messageId ?? virtualRow.key}
             data-index={virtualRow.index}
             ref={virtualizer.measureElement}
             className="absolute left-0 top-0 w-full max-w-full"
-            style={{ transform: `translateY(${virtualRow.start}px)` }}
+            style={{ transform: `translateY(${virtualRow.start}px)`, zIndex: menuOpen ? 50 : undefined }}
           >
             {renderMessage(virtualRow.index)}
           </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

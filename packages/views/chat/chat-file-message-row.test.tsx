@@ -169,7 +169,7 @@ describe("ChatFileMessageRow", () => {
       },
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Trả lời" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Trả lời" }));
     expect(onReply).toHaveBeenCalledTimes(1);
     expect(screen.getByText("👍")).toBeInTheDocument();
     // A file cannot be edited, so the action is left out rather than shown disabled.
@@ -327,8 +327,8 @@ describe("ChatFileMessageRow", () => {
       showAvatar: false,
     };
     const { container, rerender } = render(wrap(<ChatFileMessageRow {...props} highlighted />));
-    const article = container.querySelector("#chat-msg-message-hl");
-    expect(article).toHaveClass("before:bg-brand-subtle", "before:ring-1", "before:ring-brand/25");
+    const shell = container.querySelector("#chat-msg-message-hl .flex.w-fit");
+    expect(shell).toHaveClass("before:bg-brand-subtle", "before:ring-1", "before:ring-brand/25");
     rerender(wrap(<ChatFileMessageRow {...props} />));
     expect(container.querySelector("#chat-msg-message-hl")).not.toHaveClass("ring-brand");
   });

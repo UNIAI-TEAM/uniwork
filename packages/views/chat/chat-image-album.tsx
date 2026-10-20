@@ -10,7 +10,7 @@ import { toastChatError } from "./chat-error-message";
 import { ChatImagePreviewDialog } from "./chat-image-preview-dialog";
 import { ChatMessageHoverActions } from "./chat-message-hover-actions";
 import { ChatMessageA11yLabel, ChatMessageMeta, chatMessageLabelId } from "./chat-message-parts";
-import { CHAT_BUBBLE_OTHER, CHAT_BUBBLE_OWN, CHAT_ROW_HOVER, chatBubbleShape } from "./chat-message-row";
+import { chatBubbleShape, chatRowContentShellClass, chatRowHighlightClass } from "./chat-message-row";
 import type { ChatNameContextEntry } from "./chat-page-utils";
 import { ChatSenderAvatar } from "./chat-sender-avatar";
 import { MessageTaskCard } from "./message-task-card";
@@ -39,6 +39,7 @@ const ALBUM_VISIBLE = 4;
 
 /** The grid by how many tiles show (canvas: 3 = a tall photo beside two). */
 const GRID_CLASS: Record<number, string> = {
+  1: "grid-cols-1 grid-rows-[12rem] w-[min(100%,16rem)]",
   2: "grid-cols-2 grid-rows-[12rem]",
   3: "grid-cols-[1.55fr_1fr] grid-rows-[repeat(2,6.5rem)]",
   4: "grid-cols-2 grid-rows-[repeat(2,8rem)]",
@@ -130,17 +131,30 @@ function AlbumTile({
     // Each photo is its own message: hover or long-press shows that photo's actions above it.
     <div
       ref={reveal.rootRef}
+      data-chat-message-id={message.id}
       {...reveal.bind}
+      data-message-actions-anchor
       className={cn(
         "group/message relative min-h-0 min-w-0 pointer-coarse:select-none pointer-coarse:[-webkit-touch-callout:none]",
         className,
       )}
     >
+      <ChatMessageHoverActions
+        message={message}
+        isOwn={isOwn}
+        {...actions}
+        canEdit={false}
+        forceOpen={reveal.open}
+        anchorRef={reveal.rootRef}
+      />
       <button
         type="button"
         id={anchor ? `chat-msg-${message.id}` : undefined}
         aria-label={t("chat.message_list.file_open_named", { name })}
-        className="relative block size-full cursor-zoom-in overflow-hidden rounded-[inherit] bg-muted focus-visible:outline-offset-2"
+        className={cn(
+          "relative block size-full cursor-zoom-in overflow-hidden rounded-[inherit] bg-muted focus-visible:outline-offset-2",
+          reveal.open && "pointer-events-none",
+        )}
         onClick={onOpen}
       >
         {status === "ready" && src ? (
@@ -161,7 +175,6 @@ function AlbumTile({
           </span>
         ) : null}
       </button>
-      <ChatMessageHoverActions message={message} isOwn={isOwn} {...actions} canEdit={false} forceOpen={reveal.open} />
     </div>
   );
 }
@@ -243,13 +256,12 @@ function ChatImageAlbumRowImpl({
       tabIndex={-1}
       className={cn(
         "flex w-full max-w-full rounded-lg focus-visible:outline-offset-2",
-        CHAT_ROW_HOVER,
         isOwn ? "justify-end" : "justify-start",
         compactTop ? "mt-0.5" : "mt-3",
       )}
     >
       <ChatMessageA11yLabel messageId={head.id} senderLabel={senderLabel} ts={head.ts} />
-      <div className={cn("flex max-w-[min(85%,26rem)] gap-2", isOwn && "flex-row-reverse")}>
+      <div className={cn(chatRowContentShellClass(isOwn), "max-w-[min(100%,26rem)]", chatRowHighlightClass(false))}>
         {isOwn ? null : showAvatar ? (
           <span className="shrink-0 self-end">
             <ChatSenderAvatar userId={head.sender} name={senderLabel} avatarUrl={senderAvatarUrl} nameContext={nameContext} />
@@ -261,7 +273,11 @@ function ChatImageAlbumRowImpl({
           <div
             role="group"
             aria-label={t("chat.album_aria", { count: album.length })}
-            className={cn("w-100 max-w-full p-0.75", chatBubbleShape(isOwn, !compactTop), isOwn ? CHAT_BUBBLE_OWN : CHAT_BUBBLE_OTHER)}
+            className={cn(
+              "overflow-hidden",
+              visible === 1 ? "w-fit max-w-full" : "w-100 max-w-full",
+              chatBubbleShape(isOwn, !compactTop),
+            )}
           >
             {showSenderName && !isOwn && showAvatar ? (
               <p className={cn("px-2 pt-1 pb-1 text-label font-semibold", senderNameClass(head.sender, isOwn))} aria-hidden>
