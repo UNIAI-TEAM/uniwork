@@ -1,0 +1,7 @@
+$ for p in packages/ui packages/electron-utils apps/docs apps/sheets apps/slides apps/pdf; do (cd $p && npx tsc --noEmit) 2>&1 | tail -5; echo "TSC_$(basename $p | tr a-z- A-Z_)_EXIT=${PIPESTATUS[0]}"; done
+TSC_UI_EXIT=0
+TSC_ELECTRON_UTILS_EXIT=0
+TSC_DOCS_EXIT=0
+TSC_SHEETS_EXIT=0
+TSC_SLIDES_EXIT=0
+TSC_PDF_EXIT=0

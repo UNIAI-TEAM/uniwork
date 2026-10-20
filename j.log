@@ -1,0 +1,12 @@
+$ (cd web/modules && npx vitest run shared/comments shared/discussion) 2>&1 | tail -15; rc=${PIPESTATUS[0]}; echo; echo "MODULES_COMMENTS_VITEST_EXIT=$rc"
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/web/modules
+
+
+ Test Files  3 passed (3)
+      Tests  77 passed (77)
+   Start at  14:43:23
+   Duration  1.56s (transform 1.22s, setup 0ms, import 1.65s, tests 366ms, environment 1.10s)
+
+
+MODULES_COMMENTS_VITEST_EXIT=0

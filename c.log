@@ -1,0 +1,12 @@
+$ (cd apps/shell && npx vitest run tests/detached-windows.test.ts tests/tab-manager.test.ts tests/uniwork-comments-preload.test.ts tests/uniwork-comments.test.ts tests/uniwork-docs-client.test.ts tests/uniwork-docs-save.test.ts tests/uniwork-docs-view-title.test.ts) 2>&1 | tail -15; rc=${PIPESTATUS[0]}; echo; echo "SHELL_VITEST_EXIT=$rc"
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/shell
+
+
+ Test Files  7 passed (7)
+      Tests  392 passed (392)
+   Start at  14:42:59
+   Duration  3.24s (transform 1.67s, setup 0ms, import 1.81s, tests 3.29s, environment 0ms)
+
+
+SHELL_VITEST_EXIT=0

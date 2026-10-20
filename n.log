@@ -1,0 +1,3 @@
+$ (cd apps/shell && npm run --silent typecheck) 2>&1 | tail -10; rc=${PIPESTATUS[0]}; echo; echo "TSC_SHELL_EXIT=$rc"
+
+TSC_SHELL_EXIT=0

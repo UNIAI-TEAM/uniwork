@@ -1,0 +1,4 @@
+$ node tools/check-english-comments.mjs 2>&1 | tail -5; rc=${PIPESTATUS[0]}; echo; echo "ENGLISH_COMMENTS_EXIT=$rc"
+check-english-comments: OK
+
+ENGLISH_COMMENTS_EXIT=0

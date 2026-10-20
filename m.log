@@ -1,0 +1,3 @@
+$ (cd apps/sheets && npx tsc --noEmit -p tsconfig.collab-shim.json) 2>&1 | tail -5; rc=${PIPESTATUS[0]}; echo; echo "TSC_SHEETS_SHIM_EXIT=$rc"
+
+TSC_SHEETS_SHIM_EXIT=0

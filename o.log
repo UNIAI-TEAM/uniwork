@@ -1,0 +1,5 @@
+$ for t in web/docs/protocol web/docs/bridge web/docs/build web/modules; do npx tsc -p $t/tsconfig.json 2>&1 | tail -5; echo "TSC_$(echo $t | tr a-z/ A-Z_)_EXIT=${PIPESTATUS[0]}"; done
+TSC_WEB_DOCS_PROTOCOL_EXIT=0
+TSC_WEB_DOCS_BRIDGE_EXIT=0
+TSC_WEB_DOCS_BUILD_EXIT=0
+TSC_WEB_MODULES_EXIT=0

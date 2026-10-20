@@ -1,0 +1,12 @@
+$ npx vitest run --root web/docs/bridge --environment jsdom frame-capabilities.test.ts module-bridge.test.ts mock-port.test.ts 2>&1 | tail -10; rc=${PIPESTATUS[0]}; echo; echo "BRIDGE_VITEST_EXIT=$rc"
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/web/docs/bridge
+
+
+ Test Files  3 passed (3)
+      Tests  46 passed (46)
+   Start at  14:43:25
+   Duration  1.45s (transform 1.49s, setup 0ms, import 2.00s, tests 40ms, environment 1.13s)
+
+
+BRIDGE_VITEST_EXIT=0

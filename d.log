@@ -1,0 +1,12 @@
+$ (cd packages/electron-utils && npx vitest run tests/comments-ipc.test.ts) 2>&1 | tail -10; rc=${PIPESTATUS[0]}; echo; echo "EU_COMMENTS_VITEST_EXIT=$rc"
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/packages/electron-utils
+
+
+ Test Files  1 passed (1)
+      Tests  29 passed (29)
+   Start at  14:43:02
+   Duration  182ms (transform 72ms, setup 0ms, import 83ms, tests 12ms, environment 0ms)
+
+
+EU_COMMENTS_VITEST_EXIT=0

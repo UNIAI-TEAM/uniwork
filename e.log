@@ -1,0 +1,12 @@
+$ (cd apps/docs && npx vitest run tests/server-comments-host.test.ts tests/server-comments-anchor-tracker.test.ts tests/server-comments-anchor-codec.test.ts) 2>&1 | tail -15; rc=${PIPESTATUS[0]}; echo; echo "DOCS_COMMENTS_VITEST_EXIT=$rc"
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/apps/docs
+
+
+ Test Files  3 passed (3)
+      Tests  48 passed (48)
+   Start at  14:43:03
+   Duration  4.20s (transform 6.19s, setup 0ms, import 8.86s, tests 1.12s, environment 1.18s)
+
+
+DOCS_COMMENTS_VITEST_EXIT=0
