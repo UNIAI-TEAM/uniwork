@@ -407,21 +407,24 @@ func (s *ChatService) grantDocumentToRoomMembers(
 	if err != nil {
 		return err
 	}
-	raised := make([]string, 0, len(candidates))
+	gated := make([]string, 0, len(candidates))
 	for _, id := range candidates {
-		if !admitted[id] {
-			continue
+		if admitted[id] {
+			gated = append(gated, id)
 		}
-		// grantRaisesLevel after the organization gate above, against the
-		// command-start shares.
-		acc, err := s.docs.resolveLevelInTenantWithShares(ctx, q, Human(id), doc, sharesBefore)
-		if err != nil && !isGateRefusal(err) {
-			return err
+	}
+	// Only-raise after the organization gate above, against the command-start
+	// shares: every recipient's level in one set resolve (SF1), not a gate read
+	// per recipient while the document row and the member rows are locked.
+	levels, err := s.docs.resolveLevelsInTenantWithShares(ctx, q, doc, sharesBefore, gated)
+	if err != nil {
+		return err
+	}
+	raised := make([]string, 0, len(gated))
+	for _, id := range gated {
+		if level.rank() > levels[id].Level.rank() {
+			raised = append(raised, id)
 		}
-		if err == nil && level.rank() <= acc.Level.rank() {
-			continue
-		}
-		raised = append(raised, id)
 	}
 	_, written, err := writeUserSharesBulk(ctx, q, actor, doc, sharesBefore, raised, level, userShareSource{
 		kind: DocumentShareSourceKindChat, roomID: roomID, messageID: messageID,
@@ -429,11 +432,19 @@ func (s *ChatService) grantDocumentToRoomMembers(
 	if err != nil || len(written) == 0 {
 		return err
 	}
+	// Changes names the level the grants reached; the level each grantee held
+	// as a direct share before is a count by level in the metadata ("none" for
+	// a grantee with no live direct share), so a reader of the one batch row
+	// does not take "null -> level" for everyone.
 	replaced := 0
+	levelsBefore := map[string]int{}
 	for _, w := range written {
-		if w.prevLevel != "" {
-			replaced++
+		if w.prevLevel == "" {
+			levelsBefore["none"]++
+			continue
 		}
+		replaced++
+		levelsBefore[w.prevLevel]++
 	}
 	return auditRecorder.Record(ctx, q, audit.Entry{
 		OrganizationID: doc.OrganizationID,
@@ -450,6 +461,7 @@ func (s *ChatService) grantDocumentToRoomMembers(
 			"source_message_id": messageID,
 			"share_count":       len(written),
 			"replaced_count":    replaced,
+			"levels_before":     levelsBefore,
 		},
 	}, audit.Event{Topic: "document.shared", Payload: map[string]string{
 		"document_id":  doc.ID,

@@ -31,8 +31,8 @@ import (
 // person the caller named, the change feed and the access history read one
 // principal per row, and the event is how the notify lane reaches that one
 // grantee. notify_user_id is stamped only for a grantee whose effective level
-// the batch strictly raises (notifyOnUserShare, decided before the first
-// write), so the notify lane creates exactly one document_shared notice per
+// the batch strictly raises (notifyOnUsersShare, decided in one set resolve
+// before the first write), so the notify lane creates exactly one document_shared notice per
 // raised grantee and nobody else hears. The rows go out through
 // audit.Recorder.RecordMany, one statement per table per chunk.
 func (s *DocumentService) ShareDocumentBatch(ctx context.Context, actor Actor, documentID string, principalIDs []string, level DocumentLevel) ([]db.DocumentShare, error) {
@@ -91,16 +91,15 @@ func (s *DocumentService) ShareDocumentBatch(ctx context.Context, actor Actor, d
 				unchanged[sh.PrincipalID] = true
 			}
 		}
-		notify := make(map[string]string, len(ids))
+		toWrite := make([]string, 0, len(ids))
 		for _, id := range ids {
-			if unchanged[id] {
-				continue
+			if !unchanged[id] {
+				toWrite = append(toWrite, id)
 			}
-			uid, err := s.notifyOnUserShare(ctx, q, actor, doc, sharesBefore, id, level)
-			if err != nil {
-				return err
-			}
-			notify[id] = uid
+		}
+		notify, err := s.notifyOnUsersShare(ctx, q, actor, doc, sharesBefore, toWrite, level)
+		if err != nil {
+			return err
 		}
 		live, written, err := writeUserSharesBulk(ctx, q, actor, doc, sharesBefore, ids, level, userShareSource{})
 		if err != nil {

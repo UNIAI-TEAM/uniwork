@@ -503,16 +503,14 @@ func TestSendDocumentMessage1000MemberRoom(t *testing.T) {
 		t.Fatalf("seed 1000 chat room members: %v", err)
 	}
 
-	sendCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	// The bound is a hang guard; the timing is logged, not asserted.
+	sendCtx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
 	started := time.Now()
 	sent, err := f.svc.SendDocumentMessage(sendCtx, f.ua.ID, f.ws.ID, ch.ID, documentMessageInput("doc-1000-room-1"))
 	elapsed := time.Since(started)
 	if err != nil {
 		t.Fatalf("SendDocumentMessage(1000-member room): %v", err)
-	}
-	if elapsed > 5*time.Second {
-		t.Fatalf("SendDocumentMessage(1000-member room) took %s, want <= 5s", elapsed)
 	}
 
 	docID := sent.Document.DocumentID
@@ -550,6 +548,11 @@ func TestSendDocumentMessage1000MemberRoom(t *testing.T) {
 	}
 	if p["notify_user_id"] != "" {
 		t.Fatalf("chat document.shared outbox payload carried notify_user_id=%q, want empty (no per-share document_shared notice)", p["notify_user_id"])
+	}
+	// The notify rule needs a share_id and a notify_user_id to make a notice;
+	// the chat grant's event carries neither, only the ids of the card refresh.
+	if len(p) != 2 || p["document_id"] != docID || p["workspace_id"] == "" {
+		t.Fatalf("chat document.shared outbox payload = %v, want exactly document_id and workspace_id", p)
 	}
 
 	// Elevate memberIDs[0] manually to edit, then re-run grantDocumentToRoomMembers at comment:

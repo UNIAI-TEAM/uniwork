@@ -155,7 +155,7 @@ func (s *DocumentService) shareDocumentInTx(ctx context.Context, q *db.Queries, 
 	}
 	notifyUserID := ""
 	if in.PrincipalType == DocumentPrincipalUser {
-		uid, err := s.notifyOnUserShare(ctx, q, actor, doc, nil, in.PrincipalID, in.Level)
+		uid, err := s.notifyOnUserShare(ctx, q, actor, doc, in.PrincipalID, in.Level)
 		if err != nil {
 			return db.DocumentShare{}, err
 		}
@@ -169,24 +169,17 @@ func (s *DocumentService) shareDocumentInTx(ctx context.Context, q *db.Queries, 
 // effective level on the document compared to before it, and never for the
 // actor's own grant (SH-S3; addendum §8, §10 Q-S2).
 //
-// It runs against the COMMAND-START document and shares, once per recipient
-// and before any write, so the decision can never depend on the order items
-// are applied nor be taken against partially applied ones (R1-01/R1-02/
-// R1-13). sharesBefore is the live share set read before the first write; a
-// nil slice means "not loaded yet" and the level is resolved with a fresh
-// read instead (the single ShareDocument path). A recipient who is refused
-// by the tenant gate is not notified: the same answer the grant would get.
-func (s *DocumentService) notifyOnUserShare(ctx context.Context, q *db.Queries, actor Actor, doc db.Document, sharesBefore []db.DocumentShare, userID string, level DocumentLevel) (string, error) {
+// It runs against the COMMAND-START document and shares, before any write, so
+// the decision can never depend on the order items are applied nor be taken
+// against partially applied ones (R1-01/R1-02/R1-13). The level is resolved
+// with a fresh read; a batch decides for all its recipients at once with
+// notifyOnUsersShare. A recipient who is refused by the tenant gate is not
+// notified: the same answer the grant would get.
+func (s *DocumentService) notifyOnUserShare(ctx context.Context, q *db.Queries, actor Actor, doc db.Document, userID string, level DocumentLevel) (string, error) {
 	if actor.Kind == audit.KindHuman && userID == actor.ID {
 		return "", nil
 	}
-	var acc DocumentAccess
-	var err error
-	if sharesBefore != nil {
-		acc, err = s.resolveLevelInTenantWithShares(ctx, q, Human(userID), doc, sharesBefore)
-	} else {
-		acc, err = s.effectiveLevel(ctx, q, Human(userID), doc)
-	}
+	acc, err := s.effectiveLevel(ctx, q, Human(userID), doc)
 	if err != nil {
 		if isGateRefusal(err) {
 			return "", nil
