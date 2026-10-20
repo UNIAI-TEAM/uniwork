@@ -101,7 +101,8 @@ export function DocumentDetailView({
   const loaded = !!query.data;
   // A folder has no file or body of its own: its page is the library opened on it,
   // so the detail URL hands over instead of showing the no-file banner (UNI-1994).
-  const folderId = enabled && query.data?.kind === "folder" ? query.data.id : null;
+  // A refetch that errored keeps the cached folder: the revoked or error card wins over the hand-over.
+  const folderId = enabled && !error && query.data?.kind === "folder" ? query.data.id : null;
   const workspaceCtx = useOptionalWorkspace();
   const folderHref = folderId
     ? workspaceCtx

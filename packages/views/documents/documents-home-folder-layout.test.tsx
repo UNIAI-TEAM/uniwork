@@ -331,6 +331,11 @@ describe("folder layout (Folder.dc)", () => {
     // to ellipsize, so they give up all but a chevron and an ellipsis before it does.
     expect(home).toHaveClass("min-w-6", "shrink-[1000]", "truncate");
     expect(ancestor.parentElement).toHaveClass("min-w-7", "shrink-[1000]");
+    // On a coarse pointer the button is 44px wide: its span holds the chevron (14px) and the gap
+    // (4px) beside it (62px), or the button overflows and overlaps the next crumb. The home crumb
+    // is the button itself, so its own minimum already carries the touch target.
+    expect(ancestor.parentElement).toHaveClass("pointer-coarse:min-w-15.5");
+    expect(home).toHaveClass("pointer-coarse:min-w-11");
     expect(ancestor).toHaveClass("min-w-0", "truncate");
     expect(heading.parentElement).not.toHaveClass("shrink-[1000]", "shrink-0");
     expect(heading).toHaveClass("min-w-10", "truncate");

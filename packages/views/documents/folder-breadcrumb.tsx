@@ -89,7 +89,7 @@ export function FolderBreadcrumb({ path, canRename, renaming, onRoot, onFolder, 
         </span>
       ) : null}
       {visibleAncestors.map((node) => (
-        <span key={node.id} className="flex min-w-7 shrink-[1000] items-center gap-1">
+        <span key={node.id} className="flex min-w-7 shrink-[1000] items-center gap-1 pointer-coarse:min-w-15.5">
           <ChevronRight aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
           <button
             type="button"
