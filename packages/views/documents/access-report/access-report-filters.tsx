@@ -192,10 +192,14 @@ export function AccessReportFiltersBar({
 function SearchField({ label, value, onCommit }: { label: string; value: string; onCommit: (q: string) => void }) {
   const [text, setText] = useState(value);
   const [seen, setSeen] = useState(value);
+  // The last query this box committed: the URL echoes it a beat later, and that
+  // echo must not overwrite characters typed in between.
+  const committed = useRef(value);
   // A change from outside (Clear filters, the back button) replaces what is typed.
   if (value !== seen) {
     setSeen(value);
-    if (text.trim() !== value) setText(value);
+    if (value !== committed.current && text.trim() !== value) setText(value);
+    committed.current = value;
   }
   // The latest callback, so a parent re-render does not restart the pause.
   const commit = useRef(onCommit);
@@ -205,7 +209,10 @@ function SearchField({ label, value, onCommit }: { label: string; value: string;
   useEffect(() => {
     const q = text.trim();
     if (q === value) return;
-    const timer = setTimeout(() => commit.current(q), SEARCH_DELAY_MS);
+    const timer = setTimeout(() => {
+      committed.current = q;
+      commit.current(q);
+    }, SEARCH_DELAY_MS);
     return () => clearTimeout(timer);
   }, [text, value]);
 

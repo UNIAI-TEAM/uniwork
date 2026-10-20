@@ -170,7 +170,7 @@ export function AccessReportGrants({ wsId, entry, title, documentHref }: AccessR
                       variant="outline"
                       size="sm"
                       className="text-destructive"
-                      aria-label={t("documents.accessReport.revoke_title", { name })}
+                      aria-label={t("documents.accessReport.revoke_label", { name })}
                       onClick={() => setConfirming(row)}
                     >
                       {t("documents.accessReport.revoke")}

@@ -232,11 +232,16 @@ describe("AccessReportView - tabs", () => {
 
   it("By person: the principals line, the people filters, and no tiles", async () => {
     serve();
-    renderView(`${BASE_URL}?view=person&kind=member&level=manage`);
+    renderView(`${BASE_URL}?view=person`);
     expect(await screen.findByText(at("principals_line", { principals: 2, count: 11 }))).toBeInTheDocument();
     expect(screen.getByRole("searchbox", { name: at("search_people") })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: new RegExp(at("filter_kind")) })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: new RegExp(at("tile_public_link")) })).toBeNull();
+  });
+
+  it("By person: the type and level in the URL are sent with the principals", async () => {
+    serve();
+    renderView(`${BASE_URL}?view=person&kind=member&level=manage`);
     await waitFor(() => expect(calls(PRINCIPALS_PATH).some((u) => u.searchParams.get("kind") === "member" && u.searchParams.get("level") === "manage")).toBe(true));
   });
 });
@@ -401,6 +406,52 @@ describe("AccessReportView - pages", () => {
     fail = false;
     fireEvent.click(within(alert).getByRole("button", { name: at("retry") }));
     expect(await screen.findByText("Phụ lục B")).toBeInTheDocument();
+  });
+});
+
+describe("AccessReportView - review fixes (r2)", () => {
+  it("a filter change keeps the rows and the header title while the new first page loads", async () => {
+    serve({
+      report: (url) =>
+        url.searchParams.get("non_default") ? new Promise(() => undefined) : page({ next_cursor: null }),
+    });
+    const nav = renderView();
+    await screen.findByText("Hợp đồng ABC");
+    fireEvent.click(screen.getByRole("checkbox", { name: at("only_non_default") }));
+    await waitFor(() => expect(lastUrl(nav).get("non_default")).toBe("1"));
+    await waitFor(() => expect(calls(REPORT_PATH).some((u) => u.searchParams.get("non_default") === "1")).toBe(true));
+    expect(screen.getByText("Hợp đồng ABC")).toBeInTheDocument();
+    expect(screen.queryByRole("status", { name: at("loading") })).toBeNull();
+    expect(screen.getByText(at("scope_folder", { path: "Hợp đồng" }))).toBeInTheDocument();
+  });
+
+  it("Next is not left busy after the next page failed", async () => {
+    serve({
+      report: (url) => {
+        if (url.searchParams.get("cursor") === "cur1") throw new ApiError("boom", "internal", 500);
+        return page({ next_cursor: "cur1" });
+      },
+    });
+    renderView();
+    await screen.findByText("Hợp đồng ABC");
+    fireEvent.click(screen.getByRole("button", { name: at("next") }));
+    await screen.findByText(at("load_more_error"));
+    const next = screen.getByRole("button", { name: at("next") });
+    expect(next).not.toHaveAttribute("aria-busy");
+    expect(next).not.toHaveAttribute("aria-disabled");
+  });
+
+  it("the count says N+ when the summary is truncated", async () => {
+    serve({ summary: () => totals({ truncated: true }) });
+    renderView();
+    expect(await screen.findByText(at("count_range", { from: 1, to: 1, total: "5+" }))).toBeInTheDocument();
+  });
+
+  it("By person: no principals line once a filter narrows the people (it would mix two scopes)", async () => {
+    serve();
+    renderView(`${BASE_URL}?view=person&q=tr`);
+    await screen.findByText("Trần Bình");
+    expect(screen.queryByText(at("principals_line", { principals: 2, count: 11 }))).toBeNull();
   });
 });
 

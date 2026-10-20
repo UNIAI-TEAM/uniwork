@@ -214,14 +214,18 @@ export interface AccessReportQuery extends AccessReportFilters, AccessReportSort
 
 const Count = z.number().optional().default(0);
 
+// A tile count that is missing is unknown, not zero: the summary then fails to
+// parse and the tiles show their error. The server writes every count, zeros included.
+const TileCount = z.number();
+
 const AccessReportTilesSchema = z.object({
-  public_link: Count,
-  outside_workspace: Count,
-  direct_manage: Count,
-  documents: Count,
-  restricted: Count,
-  workspace: Count,
-  organization: Count,
+  public_link: TileCount,
+  outside_workspace: TileCount,
+  direct_manage: TileCount,
+  documents: TileCount,
+  restricted: TileCount,
+  workspace: TileCount,
+  organization: TileCount,
 });
 
 /** Whole-scope totals (S6). Null when the answer is not a summary: the tiles show an error, never 0. */

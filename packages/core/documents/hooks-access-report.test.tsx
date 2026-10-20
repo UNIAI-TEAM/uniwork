@@ -174,7 +174,7 @@ describe("access report keys and hooks (UNI-2039)", () => {
   });
 
   it("useDocumentAccessReportSummary returns the totals", async () => {
-    vi.mocked(fetch).mockResolvedValueOnce(json({ tiles: { public_link: 3 }, matching_documents: 4, skipped: 1 }));
+    vi.mocked(fetch).mockResolvedValueOnce(json({ tiles: { public_link: 3, outside_workspace: 0, direct_manage: 0, documents: 4, restricted: 0, workspace: 0, organization: 0 }, matching_documents: 4, skipped: 1 }));
     const { wrapper } = setup();
     const { result } = renderHook(() => useDocumentAccessReportSummary("w1", "f1", { q: "x" }), { wrapper });
     await waitFor(() => expect(result.current.data?.tiles.public_link).toBe(3));

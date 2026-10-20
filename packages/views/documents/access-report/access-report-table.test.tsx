@@ -263,8 +263,8 @@ describe("AccessReportTable", () => {
     renderTable();
     fireEvent.click(screen.getByRole("button", { name: at("expand_document", { name: "Đề xuất ngân sách Q4.docx" }) }));
     const grants = screen.getByRole("table", { name: "Đề xuất ngân sách Q4.docx" });
-    expect(within(grants).getByRole("button", { name: at("revoke_title", { name: "Trần Bình" }) })).toBeInTheDocument();
-    expect(within(grants).getByRole("button", { name: at("revoke_title", { name: at("anyone_with_link") }) })).toBeInTheDocument();
+    expect(within(grants).getByRole("button", { name: at("revoke_label", { name: "Trần Bình" }) })).toBeInTheDocument();
+    expect(within(grants).getByRole("button", { name: at("revoke_label", { name: at("anyone_with_link") }) })).toBeInTheDocument();
   });
 
   it("revokes after a confirmation, through the share route, and says so", async () => {
@@ -272,7 +272,7 @@ describe("AccessReportTable", () => {
     renderTable();
     fireEvent.click(screen.getByRole("button", { name: at("expand_document", { name: "Đề xuất ngân sách Q4.docx" }) }));
     const shareLine = screen.getByText("Trần Bình").closest("tr")!;
-    fireEvent.click(within(shareLine).getByRole("button", { name: at("revoke_title", { name: "Trần Bình" }) }));
+    fireEvent.click(within(shareLine).getByRole("button", { name: at("revoke_label", { name: "Trần Bình" }) }));
 
     const dialog = await screen.findByRole("alertdialog");
     expect(within(dialog).getByText(at("revoke_title", { name: "Trần Bình" }))).toBeInTheDocument();
@@ -292,7 +292,7 @@ describe("AccessReportTable", () => {
     renderTable();
     fireEvent.click(screen.getByRole("button", { name: at("expand_document", { name: "Đề xuất ngân sách Q4.docx" }) }));
     const linkLine = screen.getByText(at("anyone_with_link")).closest("tr")!;
-    fireEvent.click(within(linkLine).getByRole("button", { name: at("revoke_title", { name: at("anyone_with_link") }) }));
+    fireEvent.click(within(linkLine).getByRole("button", { name: at("revoke_label", { name: at("anyone_with_link") }) }));
     const dialog = await screen.findByRole("alertdialog");
     fireEvent.click(within(dialog).getByRole("button", { name: at("revoke") }));
 
@@ -327,7 +327,7 @@ describe("AccessReportTable", () => {
       }).documents,
     });
     fireEvent.click(screen.getByRole("button", { name: at("expand_document", { name: "Tài liệu khẩn" }) }));
-    fireEvent.click(screen.getByRole("button", { name: at("revoke_title", { name: "Phạm Khẩn" }) }));
+    fireEvent.click(screen.getByRole("button", { name: at("revoke_label", { name: "Phạm Khẩn" }) }));
     const dialog = await screen.findByRole("alertdialog");
     fireEvent.click(within(dialog).getByRole("button", { name: at("revoke") }));
 

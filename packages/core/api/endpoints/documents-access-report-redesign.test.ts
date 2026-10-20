@@ -227,14 +227,7 @@ describe("getDocumentAccessReportSummary (UNI-2039 S6)", () => {
     expect(lastUrl().search).toBe("");
   });
 
-  it("defaults a missing count to 0 but still returns the summary", async () => {
-    vi.mocked(fetch).mockResolvedValueOnce(json({ tiles: { documents: 2 } }));
-    const out = await getDocumentAccessReportSummary("ws1");
-    expect(out?.tiles).toMatchObject({ documents: 2, public_link: 0, organization: 0 });
-    expect(out?.matching_documents).toBe(0);
-  });
-
-  it.each([[{ nope: true }], [{ tiles: "x" }], [{ tiles: null }], [null], [[]], ["str"], [7]])(
+  it.each([[{ nope: true }], [{ tiles: "x" }], [{ tiles: null }], [{ tiles: {} }], [{ tiles: { documents: 2 } }], [null], [[]], ["str"], [7]])(
     "degrades to null on a malformed body %j so the tiles show an error, not 0",
     async (body) => {
       vi.mocked(fetch).mockResolvedValueOnce(json(body));

@@ -157,7 +157,8 @@ export function AccessReportView({ wsId, workspaceName, workspaceSlug, libraryHr
     body = loading;
   } else {
     const total = matching.data?.matching_documents;
-    const busy = advancing || isFetchingNextPage;
+    // After a failed next page nothing is loading: the banner's Retry is the way on.
+    const busy = isFetchingNextPage || (advancing && !isFetchNextPageError);
     body = (
       <div className="flex flex-col gap-3">
         <AccessReportTable
@@ -190,7 +191,11 @@ export function AccessReportView({ wsId, workspaceName, workspaceSlug, libraryHr
         <div className="flex flex-wrap items-center justify-between gap-2 text-caption text-muted-foreground">
           <span>
             {total !== undefined
-              ? t("documents.accessReport.count_range", { from, to: from + documents.length - 1, total })
+              ? t("documents.accessReport.count_range", {
+                  from,
+                  to: from + documents.length - 1,
+                  total: matching.data?.truncated ? `${total}+` : total,
+                })
               : null}
           </span>
           <div className="flex gap-2">
@@ -218,8 +223,11 @@ export function AccessReportView({ wsId, workspaceName, workspaceSlug, libraryHr
 
   const principalCount = principals.data?.principals.length;
   const docCount = tiles.data?.tiles.documents;
+  // The principals count follows the people filters and the document count is
+  // the whole scope, so the pair is only said when no filter narrows the people.
+  const peopleNarrowed = Boolean(filters.q || kind || filters.levels?.length);
   const line = people
-    ? principalCount !== undefined && docCount !== undefined
+    ? principalCount !== undefined && docCount !== undefined && !peopleNarrowed
       ? t("documents.accessReport.principals_line", { principals: principalCount, count: docCount })
       : null
     : skipped > 0
