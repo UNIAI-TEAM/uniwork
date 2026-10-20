@@ -190,6 +190,13 @@ describe('G7-08 W2 web-driver pure observation builders and preflight guards', (
     assert.ok(xe1State.every((op) => op.sheetId === 'sheet-state-1'));
   });
 
+  it('w3f R1-4: the X-E1 stub with no sheetId in the turn input throws the named error', () => {
+    assert.throws(
+      () => buildDryRunStubModel(getRowById('X-E1'), xlsxBytes)({ state: { step: 0 }, body: { messages: [] } }),
+      /dry-run stub: X-E1 needs the active sheetId from the turn input/,
+    );
+  });
+
   it('builds scripted dry-run replies and tool calls from fixture truth for all row families', async () => {
     for (const [rowId, bytes] of [
       ['X-R1', xlsxBytes],

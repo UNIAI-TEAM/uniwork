@@ -464,4 +464,46 @@ test('oraclePptxRead (P-R1) and oraclePptxEdit (P-E1) PASS faithful cases and FA
   assert.equal(compExtracted.pageCount, pdfExtracted.pageCount);
   assert.equal(compExtracted.hasToUnicode, true);
   assert.deepEqual(compExtracted.lines, pdfExtracted.lines);
+  assert.equal(pdfExtracted.lines.length, 35);
+});
+
+test('w3f R1-2: extractPdfTextFromBytes ignores non-content streams not referenced by /Page /Contents', () => {
+  const pdfExtracted = extractPdfTextFromBytes(pdfFixture.bytes);
+  const metaBody = Buffer.from('BT /F1 11 Tf 1 0 0 1 50 40 Tm (META) Tj ET', 'latin1');
+  const withMetaPdf = Buffer.concat([
+    pdfFixture.bytes.subarray(0, pdfFixture.bytes.lastIndexOf('xref\n')),
+    Buffer.from(`30 0 obj\n<< /Type /Metadata /Length ${metaBody.length} >>\nstream\n`, 'latin1'),
+    metaBody,
+    Buffer.from('\nendstream\nendobj\n%%EOF\n', 'latin1'),
+  ]);
+  assert.deepEqual(extractPdfTextFromBytes(withMetaPdf)?.lines, pdfExtracted.lines);
+});
+
+test('w3f R1-2: extractPdfTextFromBytes preserves page order and does not merge runs across pages', () => {
+  const p1Data = deflateSync(Buffer.from('BT /F1 10 Tf 1 0 0 1 50 700 Tm (P1) Tj ET', 'latin1'));
+  const p2Data = deflateSync(Buffer.from('BT /F1 10 Tf 1 0 0 1 61 700 Tm (P2) Tj ET', 'latin1'));
+  const twoPagePdf = Buffer.concat([
+    Buffer.from('%PDF-1.7\n2 0 obj\n<< /Type /Pages /Kids [3 0 R 5 0 R] /Count 2 >>\nendobj\n', 'latin1'),
+    Buffer.from('3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n', 'latin1'),
+    Buffer.from('5 0 obj\n<< /Type /Page /Parent 2 0 R /Contents [6 0 R] >>\nendobj\n', 'latin1'),
+    Buffer.from(`6 0 obj\n<< /Filter /FlateDecode /Length ${p2Data.length} >>\nstream\n`, 'latin1'),
+    p2Data,
+    Buffer.from('\nendstream\nendobj\n', 'latin1'),
+    Buffer.from(`4 0 obj\n<< /Filter /FlateDecode /Length ${p1Data.length} >>\nstream\n`, 'latin1'),
+    p1Data,
+    Buffer.from('\nendstream\nendobj\n%%EOF\n', 'latin1'),
+  ]);
+  assert.deepEqual(extractPdfTextFromBytes(twoPagePdf), { pageCount: 2, lines: ['P1', 'P2'], hasToUnicode: false });
+});
+
+test('w3f R1-3: extractPdfTextFromBytes skips out-of-range and surrogate CMap code points without throwing', () => {
+  const badCmapPdf = Buffer.from(
+    '%PDF-1.7\n2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n' +
+    '3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>\nendobj\n' +
+    '4 0 obj\n<< /Length 44 >>\nstream\nBT /F1 11 Tf 1 0 0 1 50 700 Tm <000100020003> Tj ET\nendstream\nendobj\n' +
+    '5 0 obj\n<< /Type /Font /Subtype /Type0 /ToUnicode 6 0 R >>\nendobj\n' +
+    '6 0 obj\n<< /Length 96 >>\nstream\nbegincmap\n3 beginbfchar\n<0001> <FFFFFFFF>\n<0002> <0041>\n<0003> <D800>\nendbfchar\nendcmap\nendstream\nendobj\n%%EOF\n',
+    'latin1',
+  );
+  assert.deepEqual(extractPdfTextFromBytes(badCmapPdf), { pageCount: 1, lines: ['A'], hasToUnicode: true });
 });

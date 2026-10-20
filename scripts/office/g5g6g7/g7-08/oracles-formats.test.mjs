@@ -620,6 +620,44 @@ test('oraclePdfRead (F-R1) and oraclePdfEdit (F-E1) PASS faithful cases and FAIL
   assert.equal(oraclePdfEdit({ ...baseCompEdit, afterBytes: buildCompressedPdf({ patchInvoice: true, mutateFirstLine: true }) }).reason, 'pdf_extraction_outside_patch_modified');
 });
 
+test('w3f R1-1: corrupt Flate page-content stream returns null from extractor and non-PASS in oraclePdfEdit', () => {
+  const corruptFlatePdf = Buffer.from(
+    Buffer.from(pdfFixture.bytes).toString('latin1').replace(
+      /4 0 obj\n<<\s*\/Length \d+\s*>>\nstream\n[\s\S]*?\nendstream/,
+      '4 0 obj\n<< /Filter /FlateDecode /Length 12 >>\nstream\nnot-deflated\nendstream',
+    ),
+    'latin1',
+  );
+  assert.equal(extractPdfTextFromBytes(corruptFlatePdf), null);
+  const corruptEditVerdict = oraclePdfEdit({
+    hostSupportsPdfTextEdit: true,
+    beforeBytes: pdfFixture.bytes,
+    afterBytes: corruptFlatePdf,
+    targetText: 'Số hóa đơn: HD-2026-0001',
+    expectedPatchText: 'Số hóa đơn: HD-2026-0001-AI',
+  });
+  assert.notEqual(corruptEditVerdict.status, VERDICT.PASS);
+  assert.equal(corruptEditVerdict.status, VERDICT.BLOCKED);
+  assert.equal(corruptEditVerdict.reason, 'missing_pdf_edit_bytes_or_extraction');
+});
+
+test('w3f R1-1: oraclePdfRead with 0 extracted lines returns BLOCKED pdf_text_unreadable', () => {
+  const emptyLinesPdf = Buffer.from(
+    Buffer.from(pdfFixture.bytes).toString('latin1').replace(
+      /4 0 obj\n<<\s*\/Length \d+\s*>>\nstream\n[\s\S]*?\nendstream/,
+      '4 0 obj\n<< /Length 0 >>\nstream\n\nendstream',
+    ),
+    'latin1',
+  );
+  assert.deepEqual(extractPdfTextFromBytes(emptyLinesPdf)?.lines, []);
+  const emptyReadVerdict = oraclePdfRead({
+    fixtureBytes: emptyLinesPdf,
+    replyText: 'Trang 1: Hóa đơn HD-2026-0001 ngày 01/10/2026 của Công ty TNHH Mẫu An Bình, tổng thanh toán 1.650.000 đồng.',
+  });
+  assert.equal(emptyReadVerdict.status, VERDICT.BLOCKED);
+  assert.equal(emptyReadVerdict.reason, 'pdf_text_unreadable');
+});
+
 test('oracleMarkdownRead/Edit (M-R1, M-E1), oracleHtmlRead/Edit (H-R1, H-E1), and oracleHitlWord (D-W1)', () => {
   // Markdown read & edit
   const validMdRead = {
