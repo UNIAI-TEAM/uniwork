@@ -158,6 +158,9 @@ func (s *DocumentService) CreateDocumentDownloadJob(ctx context.Context, actor A
 		return DocumentDownloadJob{}, err
 	}
 	var total int64
+	// accepted are the ids the caller may download now: the audit row names
+	// only those, so a foreign id a caller typed never lands in an audit row.
+	accepted := make([]string, 0, len(ids))
 	for _, id := range ids {
 		t, reason, err := s.classifyDownload(ctx, s.q, actor, workspaceID, id)
 		if err != nil {
@@ -166,6 +169,7 @@ func (s *DocumentService) CreateDocumentDownloadJob(ctx context.Context, actor A
 		if reason != "" {
 			continue
 		}
+		accepted = append(accepted, id)
 		total += t.ver.SizeBytes
 		if total > documentDownloadMaxBytes {
 			return DocumentDownloadJob{}, errDownloadTooLarge()
@@ -188,7 +192,7 @@ func (s *DocumentService) CreateDocumentDownloadJob(ctx context.Context, actor A
 		OrganizationID: scope.organizationID, WorkspaceID: workspaceID,
 		Actor: actor, Action: audit.ActionDocumentsDownloadJobCreated,
 		ResourceType: "document_download_job", ResourceID: row.ID,
-		Metadata: map[string]any{"workspace_id": workspaceID, "document_ids": ids, "document_count": len(ids)},
+		Metadata: map[string]any{"workspace_id": workspaceID, "document_ids": accepted, "requested_count": len(ids)},
 	}, audit.Event{
 		Topic: DocumentDownloadTopic,
 		Payload: map[string]string{

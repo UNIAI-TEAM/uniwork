@@ -238,6 +238,21 @@ func TestDocumentDownloadJobSkipsNeverLeak(t *testing.T) {
 			t.Fatalf("skipped list leaks %q: %s", leak, raw)
 		}
 	}
+	// The audit row names only the ids the caller may download: a foreign or
+	// unreadable id the caller typed never lands in an audit row.
+	var meta string
+	if err := z.env.f.pool.QueryRow(ctx, `SELECT metadata::text FROM audit_events WHERE action = $1 AND resource_id = $2`,
+		audit.ActionDocumentsDownloadJobCreated, job.ID).Scan(&meta); err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range []string{hidden, foreign.Document.ID, missing} {
+		if strings.Contains(meta, id) {
+			t.Fatalf("audit metadata names the unavailable id %s: %s", id, meta)
+		}
+	}
+	if !strings.Contains(meta, good) || !strings.Contains(meta, `"requested_count": 4`) && !strings.Contains(meta, `"requested_count":4`) {
+		t.Fatalf("audit metadata = %s, want the accepted id and requested_count 4", meta)
+	}
 	entries := z.entries(t, member, job.ID)
 	if len(entries) != 1 || string(entries["Visible.txt"]) != "visible" {
 		t.Fatalf("zip entries = %v", zipNames(entries))
