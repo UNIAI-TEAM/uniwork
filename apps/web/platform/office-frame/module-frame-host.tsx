@@ -39,6 +39,8 @@ function ModuleFrameHost(props: ModuleHostProps & { frameVersion: string; deskto
   const ws = paths.workspace(workspace.organization_slug, workspace.slug);
   return (
     <OfficeModuleFrame
+      // A booted iframe cannot be initialised twice: entering or leaving a version view mounts a fresh frame.
+      key={viewVersion ?? "current"}
       module={module}
       wsId={wsId}
       fileRef={{ kind: "document", id: document.id, ...(viewVersion !== null ? { version: viewVersion } : {}) }}

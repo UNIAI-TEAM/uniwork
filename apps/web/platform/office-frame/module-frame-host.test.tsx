@@ -361,6 +361,19 @@ describe("OfficeModuleHost: a version view (UNI-2033)", () => {
     expect(mocks.push).not.toHaveBeenCalled();
   });
 
+  it("remounts the frame when the version appears or goes away, so a booted iframe is never re-initialised", async () => {
+    vi.stubEnv("NEXT_PUBLIC_OFFICE_DOCS_FRAME_VERSION", "1.0.0-abc1234");
+    answerConfig({ office_docs_web: true });
+    nav.searchParams.set("version", "2");
+    await render(host("docs", false));
+    await until(() => frame() !== null);
+    const versionFrame = frame();
+    nav.searchParams.delete("version");
+    await render(host("docs", false));
+    await until(() => frame() !== null);
+    expect(frame()).not.toBe(versionFrame);
+  });
+
   it("ignores a version that is not a positive integer: no version view, no way back", async () => {
     vi.stubEnv("NEXT_PUBLIC_OFFICE_DOCS_FRAME_VERSION", "1.0.0-abc1234");
     answerConfig({ office_docs_web: true });
