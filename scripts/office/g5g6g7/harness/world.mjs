@@ -221,10 +221,11 @@ function bindWorld(record, { runDir, must, sessionOf, repoRoot }) {
       const fixture = loadVerifiedFixture(fixtureId, repoRoot);
       const filename = basename(fixture.entry.path);
       const form = new FormData();
-      form.append("file", new Blob([fixture.bytes]), filename);
+      // The server reads text fields only before the file part and drops the rest, so the file goes last.
       form.append("title", title ?? filename);
       // Uploads are private by default since 1cd4497d9; the G8-19 rows seed readers who need workspace access.
       form.append("visibility", visibility);
+      form.append("file", new Blob([fixture.bytes]), filename);
       const out = (await must(owner, "createFileDocument", { workspaceID: workspace(orgKey, wsKey).id }, undefined, { form })).body;
       const doc = {
         documentId: out.document?.id ?? "",
