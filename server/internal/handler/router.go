@@ -788,6 +788,7 @@ func New(d Deps) http.Handler {
 		GetOfficeFrameLinked:     h.getOfficeFrameLinked,
 		GetOfficeFrameAvatar:     h.getOfficeFrameAvatar,
 		ExportOfficeFramePDF:     h.exportOfficeFramePDF,
+		ExportDocumentPage:       h.exportDocumentPage,
 
 		OfficeFrameAiCredentialsList:     frameAI.CredentialsList,
 		OfficeFrameAiCredentialSave:      frameAI.CredentialSave,

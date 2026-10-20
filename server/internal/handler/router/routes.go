@@ -575,6 +575,8 @@ type Routes struct {
 	GetOfficeFrameAvatar     http.HandlerFunc
 	// PDF export of the frame's document (UNI-1013, W8).
 	ExportOfficeFramePDF http.HandlerFunc
+	// DOCX/PDF export of a UniNote page (UNI-2004).
+	ExportDocumentPage http.HandlerFunc
 	// GO-A7's AI handlers on the frame-token mount (UNI-1014, ADR 0029 D9).
 	OfficeFrameAiCredentialsList     http.HandlerFunc
 	OfficeFrameAiCredentialSave      http.HandlerFunc

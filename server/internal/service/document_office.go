@@ -11,6 +11,7 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
@@ -499,6 +500,14 @@ func (i officeInput) source() office.InputSource {
 // works on - the base version's, or the supplied edit of that base - beside
 // the revision loadBase accepted the base against.
 func (s *DocumentOfficeService) jobInput(ctx context.Context, actor Actor, in OfficeJobInput) (officeInput, office.Format, int64, error) {
+	if in.Format == office.FormatPage {
+		// A page has no stored file version: its export carries its own
+		// input, built from the page row ExportPage authorized.
+		if in.input == nil {
+			return officeInput{}, "", 0, ErrOfficeJobInvalid
+		}
+		return *in.input, office.FormatPage, in.BaseRevision, nil
+	}
 	input, format, baseRevision, err := s.loadBase(ctx, actor, in)
 	if err != nil || in.input == nil {
 		return input, format, baseRevision, err
@@ -643,7 +652,7 @@ func officeFingerprint(in OfficeJobInput, checksum string, length int64) string 
 // any mutation.
 func checkConvertPair(in OfficeJobInput) error {
 	if in.Operation == office.OperationExport {
-		if want, ok := office.ExportTargets[in.Format]; !ok || in.TargetFormat != want {
+		if !slices.Contains(office.ExportTargets[in.Format], in.TargetFormat) {
 			return officeErr("unsupported_operation", "export_pair_not_bound")
 		}
 		return nil
