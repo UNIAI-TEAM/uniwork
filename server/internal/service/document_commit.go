@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"path"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -79,6 +80,13 @@ type CommitFileVersionInput struct {
 	// a 423 is counted under route frame_commit rather than commit.
 	EditLockID string
 	Frame      bool
+	// ChatRoomID is the optional chat room id when the commit is made from a
+	// chat document card (UNI-1966 §4.4): when set, the commit writes a
+	// document_version message in that room inside the commit transaction if
+	// the caller may send there and the room holds a live document message for
+	// this document; any other outcome is ignored so a card affordance never
+	// fails a save.
+	ChatRoomID string
 }
 
 func errDocumentDeleted() error {
@@ -402,6 +410,8 @@ func (s *DocumentService) commitClaimedFileVersion(
 	var res DocumentFileResult
 	replayed := false
 	unchanged := false
+	var chatLineRoom db.ChatRoom
+	var chatLineMsg *db.ChatMessage
 	if s.store.beforeSaveLock != nil {
 		s.store.beforeSaveLock()
 	}
@@ -599,6 +609,10 @@ func (s *DocumentService) commitClaimedFileVersion(
 				return err
 			}
 		}
+		chatLineRoom, chatLineMsg, err = s.insertChatDocumentVersionLineInTx(ctx, q, actor, locked, res.Version, in.ChatRoomID)
+		if err != nil {
+			return err
+		}
 		if claim != nil {
 			if err := s.markCommitIntentCommitted(ctx, q, locked, *claim, res); err != nil {
 				return err
@@ -608,6 +622,16 @@ func (s *DocumentService) commitClaimedFileVersion(
 	})
 	if err != nil {
 		return DocumentFileResult{}, false, false, err
+	}
+	if chatLineMsg != nil {
+		chat := s.chatForVersionLine()
+		_ = chat.q.UpdateChatRoomMemberLastRead(ctx, db.UpdateChatRoomMemberLastReadParams{
+			RoomID:     chatLineRoom.ID,
+			UserID:     actor.ID,
+			LastReadAt: pgtype.Timestamptz{Time: chatLineMsg.CreatedAt.Time, Valid: true},
+		})
+		_ = chat.q.TouchChatRoomUpdatedAt(ctx, chatLineRoom.ID)
+		chat.publishCreatedChatMessage(ctx, chatLineRoom, chatLineMsg.ID, chatLineMsg.SenderID, "")
 	}
 	return res, replayed, unchanged, nil
 }
@@ -828,4 +852,69 @@ func decodeDocumentFileResult(body []byte) (DocumentFileResult, error) {
 		return DocumentFileResult{}, err
 	}
 	return res, nil
+}
+
+func (s *DocumentService) chatForVersionLine() *ChatService {
+	if s.chat != nil {
+		return s.chat
+	}
+	return NewChatService(s.pool, s.q, s.ws, NopPublisher{})
+}
+
+// insertChatDocumentVersionLineInTx writes one document_version message in
+// chatRoomID inside the commit transaction when the caller may send in that
+// room and the room holds a live document card for doc (UNI-1966 §4.4, L7). The
+// guard outcomes (unknown or foreign room, caller cannot send, no card) are
+// ignored so a card affordance never fails a save: they are pool reads and
+// cannot touch the transaction. A SQL error on the transaction is returned and
+// fails the save with its real cause, because Postgres has already aborted the
+// transaction by then and swallowing it would only move the failure to COMMIT.
+func (s *DocumentService) insertChatDocumentVersionLineInTx(
+	ctx context.Context, q *db.Queries, actor Actor, doc db.Document, version db.DocumentVersion, chatRoomID string,
+) (db.ChatRoom, *db.ChatMessage, error) {
+	roomID := strings.TrimSpace(chatRoomID)
+	if roomID == "" || actor.Kind != audit.KindHuman {
+		return db.ChatRoom{}, nil, nil
+	}
+	chat := s.chatForVersionLine()
+	room, err := chat.authorizeRoom(ctx, actor.ID, doc.WorkspaceID, roomID)
+	if err != nil {
+		return db.ChatRoom{}, nil, nil
+	}
+	if err := chat.requireCanSendInRoom(ctx, actor.ID, room.ID, room); err != nil {
+		return db.ChatRoom{}, nil, nil
+	}
+	hasCard, err := q.ChatRoomHasDocumentMessage(ctx, db.ChatRoomHasDocumentMessageParams{
+		RoomID:      room.ID,
+		WorkspaceID: roomAnchorWorkspaceID(room),
+		DocumentID:  doc.ID,
+	})
+	if err != nil {
+		return db.ChatRoom{}, nil, err
+	}
+	if !hasCard {
+		return db.ChatRoom{}, nil, nil
+	}
+	meta, err := json.Marshal(map[string]string{
+		"document_id": doc.ID,
+		"version_id":  version.ID,
+	})
+	if err != nil {
+		return db.ChatRoom{}, nil, err
+	}
+	msg, err := q.CreateChatKindMessage(ctx, db.CreateChatKindMessageParams{
+		ID:             util.NewID(),
+		RoomID:         room.ID,
+		WorkspaceID:    roomAnchorWorkspaceID(room),
+		SenderID:       actor.ID,
+		SenderKind:     string(actor.Kind),
+		Kind:           chatMessageKindDocumentVersion,
+		Body:           strconv.Itoa(int(version.Version)),
+		Metadata:       meta,
+		OrganizationID: room.OrganizationID,
+	})
+	if err != nil {
+		return db.ChatRoom{}, nil, err
+	}
+	return room, &msg, nil
 }

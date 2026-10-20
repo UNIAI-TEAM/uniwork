@@ -2,12 +2,14 @@ import type { ChatContact } from "@uniwork/core/chat/contacts-store";
 import type { GroupChat } from "@uniwork/core/chat/groups-store";
 import type { ChatRoomRecord } from "@uniwork/core/api/endpoints/chat";
 import type { ComposerMessagePriority } from "@uniwork/core/chat/composer-priority";
+import type { ChatDocumentShareLevel } from "@uniwork/core/api/endpoints/chat";
 import type { Member } from "@uniwork/core/types/workspace";
 import type { MemberAvatarUrlMap } from "./chat-member-avatar";
 import type { ChatSidebarTarget } from "./chat-sidebar";
 import type { ChatRoomPreview } from "./chat-sidebar-preview";
 import type { ChatNameContextEntry, GroupMemberProfile } from "./chat-page-utils";
 import type { ChatMessage } from "./chat-messages";
+import type { ChatDocumentDesktopOpen } from "./chat-document-message-row";
 import type { ChatMentionCandidate } from "./chat-mention-utils";
 
 export type ChatPageContentProps = {
@@ -50,6 +52,12 @@ export type ChatPageContentProps = {
   onSendMedia: (body: string) => void | Promise<void>;
   onSendVoice: (recording: { blob: Blob; durationMs: number }) => Promise<void>;
   onSendFile: (file: File) => Promise<void>;
+  /** UNI-1966: present while document sends are wired; the picker also needs canSendDocument. */
+  onSendDocument?: (file: File, shareLevel: ChatDocumentShareLevel) => Promise<void>;
+  /** The room detail's can_send_document flag; absent/false hides the picker. */
+  canSendDocument?: boolean;
+  /** Host wiring for a document card's "Mở bằng UniWork Office"; absent → hidden (UNI-1966). */
+  desktopOpen?: ChatDocumentDesktopOpen;
   groupSettingsOpen: boolean;
   onGroupSettingsOpenChange: React.Dispatch<React.SetStateAction<boolean>>;
   dmSettingsOpen: boolean;

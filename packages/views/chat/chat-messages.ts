@@ -56,6 +56,26 @@ export interface ChatMessage {
     thumb_url?: string;
     url_expires_at?: string;
   };
+  /** UNI-1966 (contract §5): the viewer-resolved card data on kind "document"
+   *  and "document_version". Everything but document_id may be absent — the
+   *  no-access block carries nothing — so readers degrade, never throw. */
+  document?: {
+    document_id: string;
+    viewer_has_access?: boolean;
+    viewer_level?: "view" | "comment" | "edit" | "manage" | "";
+    viewer_can_manage?: boolean;
+    viewer_can_upload_version?: boolean;
+    title?: string;
+    format?: string;
+    version_number?: number;
+    revision?: string;
+    can_open_in_app?: boolean;
+    /** Sender only: the card prints "Đã chia sẻ với N người". */
+    recipient_count?: number;
+  };
+  /** UNI-1966 (L6): the sender of a document-kind file message may convert
+   *  it — the server decided (allowlisted type, live, unlinked). */
+  canShareAsDocument?: boolean;
   poll?: {
     question: string;
     options: { id: string; label: string; votes: number }[];

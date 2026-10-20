@@ -93,3 +93,37 @@ func tsSetEntries(t *testing.T, src, name string) map[string]bool {
 	}
 	return out
 }
+
+// The composer's document picker and the server's L8 subset must agree, or a
+// picked format answers 415 (or a server type can never be picked).
+func TestChatDocumentShareableTypesMirrorTheServer(t *testing.T) {
+	src, err := os.ReadFile("../../../packages/views/chat/chat-file-accept.ts")
+	if err != nil {
+		t.Fatal(err)
+	}
+	block := regexp.MustCompile(`(?s)export const CHAT_DOCUMENT_SHAREABLE_TYPES.*?\n\];`).Find(src)
+	if block == nil {
+		t.Fatal("CHAT_DOCUMENT_SHAREABLE_TYPES block not found in chat-file-accept.ts")
+	}
+	client := map[string]bool{}
+	for _, m := range regexp.MustCompile(`mime: "([^"]+)"`).FindAllSubmatch(block, -1) {
+		client[strings.ToLower(string(m[1]))] = true
+	}
+	if len(client) == 0 {
+		t.Fatal("CHAT_DOCUMENT_SHAREABLE_TYPES has no mime entries")
+	}
+	server := map[string]bool{}
+	for _, m := range files.ChatDocumentMIMETypes {
+		server[strings.ToLower(m)] = true
+	}
+	for m := range client {
+		if !server[m] {
+			t.Errorf("composer lists %s but files.ChatDocumentMIMETypes refuses it", m)
+		}
+	}
+	for m := range server {
+		if !client[m] {
+			t.Errorf("files.ChatDocumentMIMETypes accepts %s but the composer table is missing it", m)
+		}
+	}
+}

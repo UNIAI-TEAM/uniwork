@@ -41,6 +41,7 @@ import {
 import { buildMainTimelineMessages, buildThreadViewMessages } from "./native-chat-message-timeline";
 import { useMessageTaskLinkDialogs } from "./use-message-task-link-dialogs";
 import { focusChatMessage, useNativeChatMessageActions } from "./use-native-chat-message-actions";
+import type { ChatDocumentDesktopOpen } from "./chat-document-message-row";
 
 const EMPTY_LINKS: ReadonlyMap<string, ChatMessageLinkRecord[]> = new Map();
 
@@ -68,6 +69,7 @@ export function NativeChatMessagePanel({
   onActiveThreadRootIdChange,
   onFocusComposer,
   intro,
+  desktopOpen,
 }: {
   workspaceId: string;
   roomId: string;
@@ -97,6 +99,8 @@ export function NativeChatMessagePanel({
   onFocusComposer?: () => void;
   /** Where the room begins: shown when empty, and above the first message once all history is loaded. */
   intro?: ReactNode;
+  /** Host wiring for a document card's "Mở bằng UniWork Office"; absent → hidden. */
+  desktopOpen?: ChatDocumentDesktopOpen;
 }) {
   const { t } = useTranslation();
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -420,8 +424,9 @@ export function NativeChatMessagePanel({
       canPinMessages,
       canModerate,
       actions,
+      desktopOpen,
     }),
-    [actions, canModerate, canPinMessages, currentUserId, nameContext, roomId, showSenderName, workspaceId, youLabel],
+    [actions, canModerate, canPinMessages, currentUserId, desktopOpen, nameContext, roomId, showSenderName, workspaceId, youLabel],
   );
 
   const renderMessage = useCallback(

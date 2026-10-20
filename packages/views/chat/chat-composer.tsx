@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useId, useImperativeHandle, useRef, useState, type Ref } from "react";
+import { useCallback, useEffect, useId, useImperativeHandle, useRef, useState, type Ref } from "react";
 import { Mic, Send } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -11,13 +11,25 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import { Textarea } from "@uniwork/ui/components/ui/textarea";
 import { cn } from "@uniwork/ui/lib/utils";
 import { ComposerAttachMenu, ComposerToolbarButton, type ComposerAttachAction } from "./chat-composer-attach-menu";
+import { ChatComposerShareLevelPicker, type ChatComposerShareChoice } from "./chat-composer-share-level";
 import { ComposerPriorityChip, ComposerVoiceBar, StagedFileChip } from "./chat-composer-parts";
+import type { ChatDocumentShareLevel } from "@uniwork/core/api/endpoints/chat";
 import { ChatExpressionPicker } from "./chat-expression-picker";
 import { ChatMentionAutocomplete, mentionOptionId } from "./chat-mention-autocomplete";
 import type { MemberAvatarUrlMap } from "./chat-member-avatar";
 import type { ChatMentionCandidate } from "./chat-mention-utils";
 import { deserializeMessageBodyToComposerDraft, serializeComposerDraftToMessageBody } from "./chat-mention-utils";
-import { CHAT_FILE_ACCEPT, CHAT_FILE_MAX_LABEL, isChatFileTooLarge, pickChatAcceptedFiles } from "./chat-file-accept";
+import {
+  CHAT_DOCUMENT_ACCEPT,
+  CHAT_DOCUMENT_MAX_LABEL,
+  CHAT_FILE_ACCEPT,
+  CHAT_FILE_MAX_LABEL,
+  isChatAcceptedFile,
+  isChatDocumentShareableFile,
+  isChatDocumentTooLarge,
+  isChatFileTooLarge,
+  pickChatAcceptedFiles,
+} from "./chat-file-accept";
 import { useChatVoiceRecorder } from "./use-chat-voice-recorder";
 import { useComposerMentions } from "./use-composer-mentions";
 import { useFileDropZone } from "../editor/use-file-drop-zone";
@@ -47,6 +59,12 @@ type ChatComposerProps = {
   onSendMedia?: (body: string) => void | Promise<void>;
   onSendVoice?: (recording: { blob: Blob; durationMs: number }) => Promise<void>;
   onSendFile?: (file: File) => void | Promise<void>;
+  /** UNI-1966: set when the staged files may go out as shared documents. */
+  onSendDocument?: (file: File, shareLevel: ChatDocumentShareLevel) => void | Promise<void>;
+  /** The room detail's can_send_document: the server already folded in the
+      send permission and the share batch cap, so false/absent hides the
+      picker rather than offering a refused send. */
+  canSendDocument?: boolean;
   showCreatePoll?: boolean;
   /** A host may provide its own voice capture flow. */
   onRecordVoice?: () => void;
@@ -72,6 +90,8 @@ export function ChatComposer({
   onSendFile,
   showCreatePoll = true,
   onRecordVoice,
+  onSendDocument,
+  canSendDocument = false,
   ref,
 }: ChatComposerProps) {
   const { t } = useTranslation();
@@ -87,6 +107,28 @@ export function ChatComposer({
   const mentionEnabled = mentionCandidates !== undefined;
   const voiceRecorder = useChatVoiceRecorder();
   const voiceActive = voiceRecorder.state !== "idle" || Boolean(voiceRecorder.error);
+  // The document share choice lives next to the staged files; "file" sends
+  // the plain attachment route exactly as before.
+  const [shareChoice, setShareChoice] = useState<ChatComposerShareChoice>("comment");
+  const showSharePicker =
+    canSendDocument &&
+    Boolean(onSendDocument) &&
+    stagedFiles.length > 0 &&
+    stagedFiles.every((file) => isChatDocumentShareableFile(file));
+  // "Chỉ gửi tệp" is offered only while every staged file could also go by
+  // the plain route — a document-only kind or a file over the 25 MB chat
+  // ceiling would only earn a 415/413 there (RFC-02).
+  const sharePickerAllowsFile =
+    showSharePicker &&
+    stagedFiles.every((file) => isChatAcceptedFile(file) && !isChatFileTooLarge(file));
+  useEffect(() => {
+    // Back to the level default when the picker hides, and off "file" when
+    // the plain route stops being a real choice (a stale "file" choice
+    // would otherwise route a document-only kind to the refusing route).
+    if (!showSharePicker || (!sharePickerAllowsFile && shareChoice === "file")) {
+      setShareChoice("comment");
+    }
+  }, [showSharePicker, sharePickerAllowsFile, shareChoice]);
 
   useImperativeHandle(ref, () => ({
     focus: () => window.requestAnimationFrame(() => textareaRef.current?.focus()),
@@ -107,15 +149,29 @@ export function ChatComposer({
   const stageAcceptedFiles = useCallback(
     (files: File[]) => {
       if (disabled || !onSendFile) return;
-      const accepted = pickChatAcceptedFiles(files);
-      const ready = accepted.filter((file) => !isChatFileTooLarge(file));
+      const accepted = pickChatAcceptedFiles(files, canSendDocument);
+      const ready = accepted.filter(
+        (file) =>
+          !(isChatDocumentShareableFile(file) && canSendDocument
+            ? isChatDocumentTooLarge(file)
+            : isChatFileTooLarge(file)),
+      );
       if (accepted.length < files.length) toast.error(t("chat.file_type_unsupported"));
-      if (ready.length < accepted.length) toast.error(t("chat.file_too_large", { max: CHAT_FILE_MAX_LABEL }));
-      if (ready.length === 0) return;
-      setStagedFiles((current) => [...current, ...ready]);
+      if (ready.length < accepted.length)
+        toast.error(
+          t("chat.file_too_large", {
+            // A dropped shareable file still names its own ceiling.
+            max: accepted.some(
+              (file) => isChatDocumentShareableFile(file) && canSendDocument && isChatDocumentTooLarge(file),
+            )
+              ? CHAT_DOCUMENT_MAX_LABEL
+              : CHAT_FILE_MAX_LABEL,
+          }),
+        );
+      setStagedFiles((cur) => [...cur, ...ready]);
       textareaRef.current?.focus();
     },
-    [disabled, onSendFile, t],
+    [disabled, onSendFile, canSendDocument, t],
   );
 
   const { isDragOver, dropZoneProps } = useFileDropZone({
@@ -176,7 +232,15 @@ export function ChatComposer({
       void (async () => {
         for (const file of files) {
           try {
-            await onSendFile(file);
+            // The document route runs only from the level the user saw and
+            // chose on a visible picker (RFC-01): a mixed batch or a hidden
+            // picker sends every file by the plain route, so no grant is
+            // ever minted from a choice the user never made.
+            if (showSharePicker && shareChoice !== "file" && onSendDocument) {
+              await onSendDocument(file, shareChoice);
+            } else {
+              await onSendFile(file);
+            }
           } catch {
             // The sender reports its own failure; the next file still goes.
           }
@@ -211,7 +275,7 @@ export function ChatComposer({
         type="file"
         multiple
         className="sr-only"
-        accept={CHAT_FILE_ACCEPT}
+        accept={canSendDocument ? CHAT_DOCUMENT_ACCEPT : CHAT_FILE_ACCEPT}
         aria-hidden
         tabIndex={-1}
         onChange={(event) => {
@@ -239,6 +303,14 @@ export function ChatComposer({
             />
           ))}
         </div>
+      ) : null}
+      {showSharePicker ? (
+        <ChatComposerShareLevelPicker
+          value={shareChoice}
+          onChange={setShareChoice}
+          disabled={disabled}
+          allowFileChoice={sharePickerAllowsFile}
+        />
       ) : null}
       {composerPriority ? (
         <div>
