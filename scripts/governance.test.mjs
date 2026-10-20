@@ -452,6 +452,27 @@ describe("ADR 0036 — apps/meeting-agent", () => {
     assert.doesNotMatch(reqs, LLM_SDKS, `${app}/requirements.txt names an LLM SDK (ADR 0036)`);
   });
 
+  test("no agent module imports an LLM SDK", () => {
+    // Transitive dependencies may ship one; the rule is no import, no key.
+    const IMPORT = new RegExp(
+      [
+        String.raw`^\s*(?:from|import)\s+(?:openai|anthropic|google\.generativeai|google\.genai|mistralai|cohere|langchain\w*|livekit\.plugins\.(?:openai|anthropic|google|groq|mistralai|aws))\b`,
+        String.raw`^\s*from\s+livekit\.plugins\s+import\s+[\w ,()]*\b(?:openai|anthropic|google|groq|mistralai|aws)\b`,
+      ].join("|"),
+      "m",
+    );
+    const walk = (dir) =>
+      fs.readdirSync(path.join(root, dir), { withFileTypes: true }).flatMap((e) => {
+        const rel = `${dir}/${e.name}`;
+        if (e.isDirectory()) return e.name.startsWith(".") || e.name === "__pycache__" ? [] : walk(rel);
+        return e.name.endsWith(".py") ? [rel] : [];
+      });
+    const files = walk(app);
+    assert.ok(files.length > 0, `${app} has no Python modules`);
+    const offenders = files.filter((f) => IMPORT.test(read(f)));
+    assert.deepEqual(offenders, [], `LLM SDK imported in ${offenders.join(", ")} (ADR 0036)`);
+  });
+
   test("the agent carries its CLAUDE.md and verifies in its own workflow", () => {
     assert.ok(fs.existsSync(path.join(root, `${app}/CLAUDE.md`)), `${app}/CLAUDE.md is missing`);
     assert.match(read(".github/workflows/meeting-agent-verify.yml"), /pytest/, "meeting-agent-verify must run pytest");

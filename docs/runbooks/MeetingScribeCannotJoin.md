@@ -32,6 +32,8 @@
 - Pod agent không chạy hoặc crash: `kubectl -n uniwork rollout restart deploy/uniwork-meeting-agent`. Pod cũ drain tới 4 giờ, nên chỉ restart khi pod hiện tại không nhận job.
 - `CreateDispatch` bị từ chối: kiểm `LIVEKIT_API_KEY`/`LIVEKIT_API_SECRET` của BE và secret `uniwork-meeting-agent` cùng một cặp với LiveKit.
 - Agent không gọi được BE: kiểm NetworkPolicy `uniwork-meeting-agent` (egress tới `uniwork-be`) và rule ingress của `uniwork` cho pod agent.
+- Agent không vào được phòng LiveKit (log worker không đăng ký được, hoặc vào phòng nhưng không nhận được âm thanh): NetworkPolicy chỉ khớp IP. `meetingAgent.egress.livekit.cidrs` phải chứa mọi IP mà URL agent dùng (`meetingAgent.livekitUrl`, mặc định `public.livekitUrl`) phân giải ra, và TURN nếu media đi qua TURN; `meetingAgent.egress.livekit.ports` phải gồm cổng tín hiệu (443/7880 WSS, 7881 TCP) và dải UDP media của cấu hình LiveKit (`rtc.port_range_start`–`rtc.port_range_end`, mặc định 50000–60000). Kiểm: `kubectl -n uniwork exec deploy/uniwork-meeting-agent -- python -c "import socket; print(socket.gethostbyname('<host của LIVEKIT_URL>'))"`, so với values, rồi `helm upgrade`.
+- Bật `otlpEndpoint`: thêm địa chỉ collector vào `meetingAgent.egress.extra`, nếu không span bị chặn (agent vẫn chạy).
 - Lỗi STT (key hết hạn, vượt giới hạn phiên mới mỗi phút của AssemblyAI): thay secret `ASSEMBLYAI_API_KEY` rồi restart agent.
 - Cần tắt ngay cho mọi tổ chức: `MEETING_SCRIBE_ENABLED=false` trên BE, hoặc tắt cờ `meeting_scribe` trong console `/admin`. Lần chạy đang mở được vòng quét đóng; phòng quay về Web Speech.
 

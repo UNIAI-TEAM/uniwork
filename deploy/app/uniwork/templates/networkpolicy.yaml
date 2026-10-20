@@ -113,7 +113,17 @@ spec:
     matchLabels:
       app.kubernetes.io/name: uniwork-meeting-agent
   policyTypes: [Ingress, Egress]
-  ingress: []
+  # Only Prometheus, on the metrics port; the health port is the kubelet's.
+  ingress:
+    {{- with .Values.networkPolicy.metricsScrapeNamespace }}
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ . | quote }}
+      ports:
+        - protocol: TCP
+          port: {{ $.Values.meetingAgent.metricsPort }}
+    {{- end }}
   egress:
     - to:
         - namespaceSelector:
@@ -128,7 +138,20 @@ spec:
               app.kubernetes.io/name: uniwork-be
       ports:
         - { protocol: TCP, port: {{ .Values.be.port }} }
-    {{- range concat .Values.meetingAgent.egress.livekit .Values.meetingAgent.egress.stt }}
+    {{- range $cidr := .Values.meetingAgent.egress.livekit.cidrs }}
+    - to:
+        - ipBlock:
+            cidr: {{ $cidr | quote }}
+      ports:
+        {{- range $.Values.meetingAgent.egress.livekit.ports }}
+        - protocol: {{ .protocol }}
+          port: {{ .port }}
+          {{- with .endPort }}
+          endPort: {{ . }}
+          {{- end }}
+        {{- end }}
+    {{- end }}
+    {{- range concat .Values.meetingAgent.egress.stt .Values.meetingAgent.egress.extra }}
     - to:
         - ipBlock:
             cidr: {{ .cidr | quote }}

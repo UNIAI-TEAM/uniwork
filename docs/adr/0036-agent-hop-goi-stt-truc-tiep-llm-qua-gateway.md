@@ -21,7 +21,9 @@ của LiveKit Agents (Python) đã làm đúng việc này, kể cả chốt lư
 1. **STT là ngoại lệ duy nhất.** `apps/meeting-agent` mở kết nối trực tiếp tới nhà cung cấp
    STT do `SCRIBE_STT_PROVIDER` chọn (`assemblyai` hoặc `fake` cho test), bằng key của chính
    agent. Server Go không nhận âm thanh.
-2. **Mọi lời gọi LLM vẫn qua `ai.Gateway`.** Agent không giữ key LLM, không cài SDK LLM; việc
+2. **Mọi lời gọi LLM vẫn qua `ai.Gateway`.** Agent không giữ key LLM và không import SDK LLM
+   nào (thư viện LiveKit có thể kéo theo một gói như vậy làm phụ thuộc gián tiếp; luật là
+   "không import, không key", không phải "không có trong môi trường"); việc
    cần model (rút việc trong lúc họp, dịch phụ đề, tóm tắt) là một request tới API của
    server, server gọi `ai.Gateway` và trừ tín dụng AI như mọi tính năng khác.
 3. **Agent không ghi bảng nghiệp vụ.** Agent chỉ gọi các route
@@ -39,7 +41,10 @@ của LiveKit Agents (Python) đã làm đúng việc này, kể cả chốt lư
   `meeting-agent`. NetworkPolicy chỉ cho agent ra LiveKit, nhà cung cấp STT và `uniwork-be`.
 - Đổi nhà cung cấp STT chỉ là đổi `SCRIBE_STT_PROVIDER` và secret, không sửa server.
 - `scripts/governance.test.mjs` giữ phần kiểm được bằng máy: `requirements.txt` của agent
-  không có SDK LLM (`openai`, `anthropic`, `google-genai`, plugin LLM của LiveKit). Phần "agent
-  chỉ gọi route `/agent/*`" do token giữ: token `uwma_` không được route nào khác nhận.
+  không khai SDK LLM, và không file `apps/meeting-agent/**/*.py` nào import SDK LLM (`openai`,
+  `anthropic`, `google.generativeai`, `google.genai`, `mistralai`, `cohere`, `langchain*`,
+  `livekit.plugins.openai|anthropic|google|groq|…`). Phụ thuộc gián tiếp không bị cấm; chúng
+  không có key để dùng. Phần "agent chỉ gọi route `/agent/*`" do token giữ: token `uwma_`
+  không được route nào khác nhận.
 - Hồ sơ pháp lý (thỏa thuận xử lý dữ liệu, vùng xử lý, chuyển dữ liệu ra nước ngoài) cho nhà
   cung cấp STT theo spec cha §7.5 phải xong trước khi bật cờ `meeting_scribe` cho khách.

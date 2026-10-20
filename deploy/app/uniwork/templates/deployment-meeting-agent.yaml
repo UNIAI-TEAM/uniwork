@@ -17,6 +17,10 @@ spec:
       labels:
         app.kubernetes.io/name: uniwork-meeting-agent
         reap.io/pool: pool-app
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: {{ $ma.metricsPort | quote }}
+        prometheus.io/path: /metrics
     spec:
       serviceAccountName: uniwork
       automountServiceAccountToken: false
@@ -42,12 +46,16 @@ spec:
           ports:
             - name: health
               containerPort: {{ $ma.healthPort }}
+            - name: metrics
+              containerPort: {{ $ma.metricsPort }}
           env:
             - { name: MEETING_SCRIBE_AGENT_NAME, value: {{ $ma.agentName | quote }} }
             - { name: SCRIBE_STT_PROVIDER, value: {{ $ma.sttProvider | quote }} }
             - { name: SCRIBE_HEALTH_PORT, value: {{ $ma.healthPort | quote }} }
+            - { name: SCRIBE_METRICS_PORT, value: {{ $ma.metricsPort | quote }} }
+            - { name: SCRIBE_DRAIN_TIMEOUT_S, value: {{ $ma.terminationGracePeriodSeconds | quote }} }
             - { name: UNIWORK_API_URL, value: "http://uniwork-be:{{ .Values.be.port }}" }
-            - { name: LIVEKIT_URL, value: {{ .Values.public.livekitUrl | quote }} }
+            - { name: LIVEKIT_URL, value: {{ default .Values.public.livekitUrl $ma.livekitUrl | quote }} }
             {{- with $ma.otlpEndpoint }}
             - { name: OTEL_EXPORTER_OTLP_ENDPOINT, value: {{ . | quote }} }
             {{- end }}
