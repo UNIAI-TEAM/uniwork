@@ -32,7 +32,7 @@ import { ChatMessageActionsFrame, chatMessageActionsRailClass } from "./chat-mes
 import { ChatMessageA11yLabel, ChatMessageMeta, ChatReactionChips, chatMessageLabelId } from "./chat-message-parts";
 import { ChatReplyQuote } from "./chat-reply-quote";
 import { MessageTaskCard } from "./message-task-card";
-import { CHAT_BUBBLE_OTHER, CHAT_BUBBLE_OWN, ChatThreadRepliesLink, chatBubbleShape } from "./chat-message-row";
+import { CHAT_BUBBLE_OTHER, CHAT_BUBBLE_OWN, CHAT_ROW_WASH, ChatThreadRepliesLink, chatBubbleShape } from "./chat-message-row";
 import type { ChatNameContextEntry } from "./chat-page-utils";
 import { ChatSenderAvatar } from "./chat-sender-avatar";
 import { senderNameClass } from "./sender-colors";
@@ -103,9 +103,11 @@ function ChatDocumentMessageRowImpl({
       tabIndex={-1}
       className={cn(
         "flex w-full max-w-full rounded-lg transition-colors duration-(--duration-standard) focus-visible:outline-offset-2",
+        CHAT_ROW_WASH,
         isOwn ? "justify-end" : "justify-start",
         compactTop ? "mt-2" : "mt-4",
-        highlighted && "bg-brand-subtle ring-2 ring-brand",
+        // A deep link jumped here: the row's brand wash, as the other rows'.
+        highlighted && "before:bg-brand-subtle before:ring-1 before:ring-brand/25",
       )}
     >
       <ChatMessageA11yLabel messageId={message.id} senderLabel={senderLabel} ts={message.ts} />

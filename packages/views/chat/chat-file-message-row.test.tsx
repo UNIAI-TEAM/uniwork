@@ -345,6 +345,22 @@ describe("ChatFileMessageRow", () => {
     expect(screen.getByRole("button", { name: "Chia sẻ dạng tài liệu" })).toBeInTheDocument();
   });
 
+  it("hands the share action the bubble side so it reads on my brand bubble (UNI-2010)", () => {
+    renderRow(
+      fileMessage(
+        "message-own-doc",
+        { filename: "untitled.docx", content_type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", size_bytes: 14336 },
+        {},
+        { canShareAsDocument: true },
+      ),
+      { isOwn: true },
+    );
+    expect(screen.getByRole("button", { name: "Chia sẻ dạng tài liệu" })).toHaveClass(
+      "bg-chat-bubble-own-foreground/15",
+      "text-chat-bubble-own-foreground",
+    );
+  });
+
   it("hides the share-as-document action when the flag is absent", () => {
     renderRow(fileMessage("message-plain", { filename: "photo.png", content_type: "image/png", size_bytes: 2048 }));
     expect(screen.queryByRole("button", { name: "Chia sẻ dạng tài liệu" })).not.toBeInTheDocument();

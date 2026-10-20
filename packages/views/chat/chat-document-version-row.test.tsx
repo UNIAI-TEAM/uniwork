@@ -53,6 +53,26 @@ function renderRow(message: ChatMessage, senderLabel = "Bình") {
 }
 
 describe("ChatDocumentVersionRow", () => {
+  it("washes the line on a deep-link jump like the other rows, without the heavy ring (UNI-2010)", () => {
+    render(
+      wrapWithNav(
+        <WorkspaceProvider workspace={workspace} user={user}>
+          <ChatDocumentVersionRow
+            message={versionMessage({ document_id: "doc1", viewer_has_access: true })}
+            senderLabel="Bình"
+            compactTop={false}
+            highlighted
+          />
+        </WorkspaceProvider>,
+        fakeNav(),
+      ),
+    );
+    const article = document.querySelector("#chat-msg-m-ver");
+    expect(article).toHaveClass("before:bg-brand-subtle", "before:ring-1", "before:ring-brand/25");
+    expect(article).not.toHaveClass("ring-2");
+    expect(article).not.toHaveClass("ring-brand");
+  });
+
   it("prints \"{{name}} đã tải lên phiên bản {{version}}\" and clicks through for a viewer", () => {
     const nav = renderRow(versionMessage({ document_id: "doc1", viewer_has_access: true }));
     const button = screen.getByRole("button", { name: "Bình đã tải lên phiên bản 3" });

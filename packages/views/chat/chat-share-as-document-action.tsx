@@ -17,7 +17,9 @@ import {
   DropdownMenuTrigger,
 } from "@uniwork/ui/components/ui/dropdown-menu";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
+import { cn } from "@uniwork/ui/lib/utils";
 import { chatDocumentSendError } from "./chat-error-message";
+import { bubbleControlClass } from "./chat-file-card";
 import type { ChatMessage } from "./chat-messages";
 
 const SHARE_LEVELS: readonly ChatDocumentShareLevel[] = ["view", "comment", "edit"];
@@ -32,10 +34,13 @@ export function ChatShareAsDocumentAction({
   workspaceId,
   roomId,
   message,
+  isOwn,
 }: {
   workspaceId: string;
   roomId: string;
   message: ChatMessage;
+  /** The bubble it sits on: a white wash on my brand bubble, the muted fill on theirs. */
+  isOwn: boolean;
 }) {
   const { t } = useTranslation();
   const share = useShareChatMessageAsDocument(workspaceId, roomId);
@@ -83,9 +88,9 @@ export function ChatShareAsDocumentAction({
         render={
           <Button
             type="button"
-            variant="outline"
+            variant="toolbar"
             size="sm"
-            className="pointer-coarse:min-h-11 gap-1.5"
+            className={cn("pointer-coarse:min-h-11 gap-1.5 rounded-full px-3 font-semibold", bubbleControlClass(isOwn))}
             disabled={share.isPending}
           >
             {share.isPending ? <Spinner /> : <FileText aria-hidden className="size-4" />}

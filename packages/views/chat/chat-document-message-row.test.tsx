@@ -111,6 +111,15 @@ describe("ChatDocumentMessageRow", () => {
     useCommitDocumentVersionMock.mockReset().mockReturnValue({ mutateAsync: vi.fn(), isPending: false });
   });
 
+  it("washes the row on a deep-link jump like the other rows, without the heavy ring (UNI-2010)", () => {
+    renderCard(documentMessage(DOC), { highlighted: true });
+    const article = document.querySelector("#chat-msg-m-doc");
+    expect(article).toHaveClass("before:bg-brand-subtle", "before:ring-1", "before:ring-brand/25");
+    expect(article).not.toHaveClass("ring-2");
+    expect(article).not.toHaveClass("ring-brand");
+    expect(article).not.toHaveClass("bg-brand-subtle");
+  });
+
   it("renders a neutral filename card when the document block is absent", () => {
     renderCard(documentMessage(undefined));
     expect(screen.getByText("Báo cáo Q3.docx")).toBeInTheDocument();
