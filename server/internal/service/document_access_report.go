@@ -609,13 +609,15 @@ func (r *accessReportRun) anchorKey(ctx context.Context, key AccessReportKey) (A
 	return key, nil
 }
 
-// page reads one page of the report in the query's order. It keeps reading
-// candidate chunks until it holds limit listable documents (S4) or has
-// scanned accessReportScanFactor x limit candidates; only then does it return
-// short, with a cursor, as the keyset walk always could. The query count does
-// not grow with a chunk: one candidate read, one share read for the caller's
-// levels, one for the rows, one link read, the path reads, one name batch,
-// and per distinct principal the memoized gates.
+// page reads one page of the report in the query's order. It reads the whole
+// scan window - accessReportScanFactor x limit candidates - in ONE candidate
+// query (UNI-2039 r1 F3) and works through it in chunks of limit in memory,
+// keeping on until it holds limit listable documents (S4) or the window is
+// used up; only then does it return short, with a cursor, as the keyset walk
+// always could. The query count does not grow with a chunk: one candidate
+// read, one share read for the caller's levels, one for the rows, one link
+// read, the path reads, one name batch, and per distinct principal the
+// memoized gates.
 func (r *accessReportRun) page(ctx context.Context, in DocumentAccessReportQuery, limit int) (accessReportPageResult, error) {
 	var out accessReportPageResult
 	mode, descending := in.SortOrder()
@@ -627,11 +629,13 @@ func (r *accessReportRun) page(ctx context.Context, in DocumentAccessReportQuery
 		}
 		after = &anchored
 	}
-	for {
-		cands, err := r.readChunk(ctx, after, limit, mode, descending)
-		if err != nil {
-			return out, err
-		}
+	window := accessReportScanFactor * limit
+	all, err := r.readChunk(ctx, after, window, mode, descending)
+	if err != nil {
+		return out, err
+	}
+	for off := 0; off < len(all); off += limit {
+		cands := all[off:min(off+limit, len(all))]
 		results, err := r.process(ctx, cands)
 		if err != nil {
 			return out, err
@@ -658,11 +662,13 @@ func (r *accessReportRun) page(ctx context.Context, in DocumentAccessReportQuery
 		if len(cands) < limit {
 			return out, nil
 		}
-		if out.candidates >= accessReportScanFactor*limit {
-			out.next = after
-			return out, nil
-		}
 	}
+	if len(all) < window {
+		return out, nil
+	}
+	// The scan bound: a short page that keeps its cursor.
+	out.next = after
+	return out, nil
 }
 
 // scan walks the whole scope in id order, chunk candidates at a time, and

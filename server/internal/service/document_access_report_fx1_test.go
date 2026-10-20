@@ -2,8 +2,16 @@ package service
 
 import (
 	"bytes"
+	"context"
 	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+
+	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
 // UNI-2039 fx1 (Advisor folder rule): the report lists documents. A folder -
@@ -77,5 +85,68 @@ func TestAccessReportExcludesFoldersAndMyFolder(t *testing.T) {
 	}
 	if !sawMember {
 		t.Fatal("principals lost the member who holds a row on a document")
+	}
+}
+
+// arCandidateReads counts the candidate reads a traced pool sends.
+type arCandidateReads struct{ n atomic.Int64 }
+
+func (c *arCandidateReads) TraceQueryStart(ctx context.Context, _ *pgx.Conn, d pgx.TraceQueryStartData) context.Context {
+	if strings.Contains(d.SQL, "name: ListDocumentAccessReportWorkspaceCandidates") {
+		c.n.Add(1)
+	}
+	return ctx
+}
+
+func (c *arCandidateReads) TraceQueryEnd(context.Context, *pgx.Conn, pgx.TraceQueryEndData) {}
+
+// UNI-2039 r1 F3: a page reads its whole scan window (10 x limit candidates)
+// in ONE candidate query and works through it in chunks in memory; before, a
+// caller who manages few documents re-ran the candidate query up to 10 times.
+func TestAccessReportPageReadsOneCandidateWindow(t *testing.T) {
+	f := newDocPermFixture(t)
+	cfg := f.pool.Config()
+	reads := &arCandidateReads{}
+	cfg.ConnConfig.Tracer = reads
+	cPool, err := pgxpool.NewWithConfig(f.ctx, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(cPool.Close)
+	traced := newDocumentServiceForTest(cPool, db.New(cPool))
+
+	tn := f.tenant(t, "fx1c")
+	member := Human(tn.member.ID)
+	base := time.Now().UTC().Truncate(time.Second).Add(-500 * time.Hour)
+	n := 0
+	mk := func(managed bool) {
+		spec := arDocSpec{visibility: "workspace"} // edit for the member: listed only when managed
+		if managed {
+			spec.aclOwner = tn.member.ID
+		}
+		d := f.arDoc(t, tn, spec)
+		n++
+		f.arSetCreated(t, d.ID, base.Add(time.Duration(n)*time.Minute))
+	}
+	for i := 0; i < 3; i++ {
+		mk(true)
+	}
+	for i := 0; i < 25; i++ {
+		mk(false)
+	}
+	for i := 0; i < 3; i++ {
+		mk(true)
+	}
+
+	reads.n.Store(0)
+	p, err := traced.DocumentAccessReport(f.ctx, member, tn.wsA, DocumentAccessReportQuery{Limit: 4})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(p.Items) != 4 || p.Candidates != 29 || p.Skipped != 25 {
+		t.Fatalf("page: %d items, %d candidates, %d skipped, want 4, 29, 25", len(p.Items), p.Candidates, p.Skipped)
+	}
+	if got := reads.n.Load(); got != 1 {
+		t.Fatalf("candidate reads for one page = %d, want 1", got)
 	}
 }
