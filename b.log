@@ -1,0 +1,9 @@
+$ git status --short | grep -v "^??" | head; git diff --quiet HEAD; rc=$?; echo; echo "TREE_CLEAN_EXIT=$rc"; git rev-parse HEAD; git log --oneline -5
+
+TREE_CLEAN_EXIT=0
+ee32019f445b92653fd5f1a92b22efb8fc2a6ea7
+ee32019f4 docs(reports): packet and visual reports for UNI-1994 DOC-NITS
+fb57d329c fix(docs): count Edited by and Updated as filters so a zero-result root shows no-results
+ca6a7c1e4 fix(docs): hold the root empty state until the folder tree answers
+6331b8944 fix(docs): say "no documents outside folders" at a root that has folders but no loose documents
+1ae93449a fix(docs): stop the folder leaf name ellipsizing by a sub-pixel next to its crumbs
