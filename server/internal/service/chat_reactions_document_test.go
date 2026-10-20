@@ -25,8 +25,8 @@ func TestReactionAndPinAnswersResolveTheDocumentCard(t *testing.T) {
 	if err != nil {
 		t.Fatalf("react: %v", err)
 	}
-	if reacted.Document == nil || !reacted.Document.HasAccess || reacted.Document.Title != "Kế hoạch" {
-		t.Fatalf("reaction answer document = %+v, want has_access with the title", reacted.Document)
+	if reacted.Document == nil || !reacted.Document.HasAccess || reacted.Document.Title != "ke-hoach.md" {
+		t.Fatalf("reaction answer document = %+v, want has_access with the file name as title", reacted.Document)
 	}
 	if reacted.Reactions["👍"] != 1 {
 		t.Fatalf("reaction answer reactions = %v, want the new reaction", reacted.Reactions)
@@ -39,7 +39,7 @@ func TestReactionAndPinAnswersResolveTheDocumentCard(t *testing.T) {
 	if !pinned.Pinned {
 		t.Fatal("pin answer pinned = false, want true")
 	}
-	if pinned.Document == nil || !pinned.Document.HasAccess || pinned.Document.Title != "Kế hoạch" {
-		t.Fatalf("pin answer document = %+v, want has_access with the title", pinned.Document)
+	if pinned.Document == nil || !pinned.Document.HasAccess || pinned.Document.Title != "ke-hoach.md" {
+		t.Fatalf("pin answer document = %+v, want has_access with the file name as title", pinned.Document)
 	}
 }
