@@ -276,13 +276,17 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
   // home filter bar, chip/access everywhere the list toolbar shows): it gates
   // the folder's subfolders-only suppression (TV-4).
   const filtered = homeFilters || chip !== "all" || accessFiltered;
-  const listLoading = state.loading || (Boolean(folderId) && folder.isPending);
+  // The root's folders come from the tree query: until it answers, an empty root
+  // list cannot tell "no folders" from "folders not here yet".
+  const rootTreePending = homeView && !folderId && !filtered && library.treeLoading && tableRows.length === 0;
+  const listLoading = state.loading || (Boolean(folderId) && folder.isPending) || rootTreePending;
   // UNI-1994: folders on screen but no loose root document is not an empty workspace.
   const outsideFolders = !folderId && !filtered && subfolders.length > 0;
+  const rootEmpty = outsideFolders ? "outside_folders_" : "";
   const emptyCopy = homeView
     ? {
-        title: folderId ? t("documents.home.empty.folder_title") : t(outsideFolders ? "documents.home.empty.outside_folders_title" : "documents.home.empty.title"),
-        description: canCreate ? t(outsideFolders ? "documents.home.empty.outside_folders_description" : "documents.home.empty.description") : t("documents.home.empty.view_only"),
+        title: folderId ? t("documents.home.empty.folder_title") : t(`documents.home.empty.${rootEmpty}title`),
+        description: canCreate ? t(`documents.home.empty.${rootEmpty}description`) : t("documents.home.empty.view_only"),
         actions:
           folderId && canCreate ? (
             <Button type="button" variant="outline" size="sm" onClick={() => rowDialogs.onCreateFolder()}>

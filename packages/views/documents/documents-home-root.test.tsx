@@ -57,6 +57,8 @@ function folderDetail(over: Record<string, unknown> = {}) {
 
 interface Routes {
   tree?: () => unknown[];
+  /** Holds the tree answer back until it resolves, so the list can answer first. */
+  treeGate?: Promise<void>;
   list?: (path: string) => unknown[];
   sources?: (path: string) => unknown[];
   detail?: (id: string) => unknown;
@@ -75,7 +77,10 @@ function route(routes: Routes) {
       }
     };
     if (path === MEMBERS_URL) return run(() => ({ members: routes.members?.() ?? [] }));
-    if (path.startsWith(TREE_URL)) return run(() => ({ documents: routes.tree?.() ?? [] }));
+    if (path.startsWith(TREE_URL)) {
+      const answer = run(() => ({ documents: routes.tree?.() ?? [] }));
+      return routes.treeGate ? routes.treeGate.then(() => answer) : answer;
+    }
     if (path.startsWith(`${LIST_BASE}/sources`) && method === "GET") {
       return Promise.resolve({ items: routes.sources?.(path) ?? [], next_cursor: null });
     }
@@ -247,6 +252,51 @@ describe("home root empty states", () => {
 
     expect(await screen.findByText(t("documents.home.empty.title"))).toBeInTheDocument();
     expect(screen.getByText(t("documents.home.empty.description"))).toBeInTheDocument();
+    expect(screen.queryByText(t("documents.home.empty.outside_folders_title"))).toBeNull();
+  });
+
+  it("never flashes the workspace-empty copy while the tree is still answering", async () => {
+    let release: () => void = () => {};
+    const treeGate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    route({ ...withFolder, treeGate });
+    const flashed: string[] = [];
+    const watch = new MutationObserver(() => {
+      for (const key of ["documents.home.empty.title", "documents.home.empty.description"]) {
+        if (screen.queryByText(t(key))) flashed.push(key);
+      }
+    });
+    watch.observe(document.body, { childList: true, subtree: true, characterData: true });
+    try {
+      renderView();
+      // The root list answers [] while the tree is still held back.
+      await waitFor(() => expect(listPaths().length).toBeGreaterThan(0));
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(screen.queryByText(t("documents.home.empty.title"))).toBeNull();
+      expect(screen.queryByText(t("documents.home.empty.outside_folders_title"))).toBeNull();
+
+      release();
+      expect(await screen.findByText(t("documents.home.empty.outside_folders_title"))).toBeInTheDocument();
+      expect(flashed).toEqual([]);
+    } finally {
+      watch.disconnect();
+    }
+  });
+
+  it("shows the workspace-empty copy once the tree answers with no folders", async () => {
+    let release: () => void = () => {};
+    const treeGate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    route({ tree: () => [], list: () => [], treeGate });
+    renderView();
+    await waitFor(() => expect(listPaths().length).toBeGreaterThan(0));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(screen.queryByText(t("documents.home.empty.title"))).toBeNull();
+
+    release();
+    expect(await screen.findByText(t("documents.home.empty.title"))).toBeInTheDocument();
     expect(screen.queryByText(t("documents.home.empty.outside_folders_title"))).toBeNull();
   });
 
