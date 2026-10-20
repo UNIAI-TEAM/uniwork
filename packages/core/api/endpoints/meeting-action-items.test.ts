@@ -6,6 +6,7 @@ import {
   convertMeetingActionItems,
   dismissMeetingActionItem,
   getMeetingActionItems,
+  getMeetingCarriedOverItems,
   restoreMeetingActionItem,
 } from "./meeting-action-items";
 
@@ -90,6 +91,26 @@ describe("meeting action item endpoints", () => {
     expect(sent(0)).toEqual({ url: "http://api.test/api/v1/meetings/m1/action-items/a1/dismiss", method: "POST", body: { reason: "Trùng" } });
     expect(sent(1).body).toEqual({});
     expect(sent(2).url).toBe("http://api.test/api/v1/meetings/m1/action-items/a1/restore");
+  });
+
+  it("getMeetingCarriedOverItems reads each task with its source meeting", async () => {
+    const carried = {
+      action_item_id: "a2",
+      meeting: { id: "m0", title: "Giao ban tuần trước", started_at: "2026-10-13T02:00:00Z" },
+      task: converted.task,
+    };
+    vi.mocked(fetch).mockResolvedValueOnce(json({ items: [carried] }));
+    const got = await getMeetingCarriedOverItems("m1");
+    expect(sent().url).toBe("http://api.test/api/v1/meetings/m1/carried-over-items");
+    expect(got).toEqual([carried]);
+  });
+
+  it("getMeetingCarriedOverItems drops an entry it cannot read and degrades to empty", async () => {
+    const ok = { action_item_id: "a2", meeting: { id: "m0", title: "Họp" }, task: { id: "t1" } };
+    vi.mocked(fetch).mockResolvedValueOnce(json({ items: [{ action_item_id: "a3", meeting: null, task: { id: "t2" } }, ok] }));
+    expect((await getMeetingCarriedOverItems("m1")).map((i) => i.action_item_id)).toEqual(["a2"]);
+    vi.mocked(fetch).mockResolvedValueOnce(json({ items: "nope" }));
+    expect(await getMeetingCarriedOverItems("m1")).toEqual([]);
   });
 
   it("convertMeetingActionItems sends the body as given and answers null, never zero tasks, on drift", async () => {

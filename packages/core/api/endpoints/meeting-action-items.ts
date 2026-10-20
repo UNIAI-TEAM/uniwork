@@ -75,6 +75,32 @@ export async function getMeetingActionItems(meetingId: string): Promise<MeetingA
   return parseWithFallback(raw, ListResponse, { items: [], counts: NO_COUNTS }, { endpoint: "getMeetingActionItems" });
 }
 
+const CarriedOverItemSchema = z.object({
+  action_item_id: z.string(),
+  /** The earlier meeting that handed the task out; started_at is its actual start, else its schedule. */
+  meeting: z.object({ id: z.string(), title: z.string().nullish(), started_at: z.string().nullish() }),
+  /** Always open: done tasks are not carried over. */
+  task: ActionItemTaskSchema,
+});
+
+export type MeetingCarriedOverItem = z.infer<typeof CarriedOverItemSchema>;
+
+const CarriedOverResponse = z.object({
+  items: z.array(z.unknown()).transform((raw): MeetingCarriedOverItem[] =>
+    raw.flatMap((entry) => {
+      const parsed = CarriedOverItemSchema.safeParse(entry);
+      return parsed.success ? [parsed.data] : [];
+    }),
+  ),
+});
+
+/** Open tasks from the earlier ended meetings of the same project (spec meeting follow-through §6.5). */
+export async function getMeetingCarriedOverItems(meetingId: string): Promise<MeetingCarriedOverItem[]> {
+  const raw = await request(`/api/v1/meetings/${enc(meetingId)}/carried-over-items`);
+  const parsed = parseWithFallback(raw, CarriedOverResponse, { items: [] }, { endpoint: "getMeetingCarriedOverItems" });
+  return parsed.items;
+}
+
 const AddResponse = z.object({ item: ActionItemSchema });
 
 export interface AddMeetingActionItemBody {

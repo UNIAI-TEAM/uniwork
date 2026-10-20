@@ -115,6 +115,11 @@ function keysFor(
     }
     // A converted action item shows its task's state; only open lists refetch.
     if (type === "task.updated" || type === "task.deleted") push(meetingKeys.actionItemsRoot);
+    // Carried-over lists read other meetings' tasks: a conversion creates one,
+    // finishing or deleting one takes it off.
+    if (type === "task.created" || type === "task.updated" || type === "task.deleted") {
+      push(meetingKeys.carriedOverRoot);
+    }
     pushCalendar();
     return keys;
   }

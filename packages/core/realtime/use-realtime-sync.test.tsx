@@ -1291,6 +1291,18 @@ describe("useRealtimeSync › meeting summary", () => {
     });
     expect(keysCalled(invalidate)).toEqual(expect.arrayContaining([JSON.stringify(["meeting-action-items"])]));
   });
+
+  // A conversion in another meeting creates the task; finishing or deleting
+  // it takes it off the list.
+  it.each(["task.created", "task.updated", "task.deleted"])("refreshes every open carried-over list on %s", (type) => {
+    vi.useFakeTimers();
+    const { invalidate, client } = setup();
+    client.emit({ type, payload: { task_id: "t1", workspace_id: "ws1" } } as WSMessage);
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
+    expect(keysCalled(invalidate)).toEqual(expect.arrayContaining([JSON.stringify(["meeting-carried-over"])]));
+  });
 });
 
 describe("useRealtimeSync › home summary", () => {
