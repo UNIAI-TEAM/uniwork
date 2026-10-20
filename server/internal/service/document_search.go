@@ -148,7 +148,7 @@ func resolveListFilters(format, access, kind string, archived bool) (documentLis
 			return out, coded(http.StatusBadRequest, "invalid_filter", "format không dùng được cùng kind=page")
 		}
 		if mime, ok := files.DocumentFormatMime(format); !ok {
-			return out, coded(http.StatusBadRequest, "invalid_filter", "format phải là docx, xlsx, pptx, pdf, md hoặc html")
+			return out, coded(http.StatusBadRequest, "invalid_filter", "format phải là docx, xlsx, pptx, pdf, md, html hoặc txt")
 		} else {
 			out.format = format
 			out.formatMime = mime

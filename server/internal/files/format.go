@@ -6,13 +6,14 @@ import (
 )
 
 // The documents library's file-format lanes (UNI-1868, LISTFILTER-01). The
-// library filters a list by one of these six formats, and each list row
+// library filters a list by one of these seven formats (txt joined with
+// UNI-2045 SV-7), and each list row
 // reports the format its current version carries; both read this one table,
 // so the filter and the value it answers with can never disagree.
 //
 // A file's format is the MIME an upload verified (document_versions.mime_type)
 // mapped here; the title's trailing extension answers only when the MIME names
-// none of the six. That fallback is deliberate: a document saved from a mail
+// none of the seven. That fallback is deliberate: a document saved from a mail
 // client can carry a generic type (internal/service/document_source_save.go
 // names the same case), and the library has always shown those by extension.
 //
@@ -26,6 +27,7 @@ const (
 	DocumentFormatPDF  = "pdf"
 	DocumentFormatMD   = "md"
 	DocumentFormatHTML = "html"
+	DocumentFormatTXT  = "txt"
 )
 
 // documentFormatMime maps one library format to the single MIME a verified
@@ -38,9 +40,10 @@ var documentFormatMime = map[string]string{
 	DocumentFormatPDF:  "application/pdf",
 	DocumentFormatMD:   "text/markdown",
 	DocumentFormatHTML: "text/html",
+	DocumentFormatTXT:  "text/plain",
 }
 
-// DocumentFormats lists the six formats a list filter may name, sorted.
+// DocumentFormats lists the seven formats a list filter may name, sorted.
 func DocumentFormats() []string {
 	out := make([]string, 0, len(documentFormatMime))
 	for format := range documentFormatMime {

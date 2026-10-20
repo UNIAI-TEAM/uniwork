@@ -6,6 +6,8 @@ package handler
 // root are list branches too, so each field has a test on that branch.
 
 import (
+	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 )
@@ -115,4 +117,78 @@ func TestDoclistIsOwner(t *testing.T) {
 	dlShelve(t, w, []string{mine, theirs}, false)
 	dlArchive(t, w, []string{mine, theirs})
 	dlWantOwner(t, w, "trash", w.token, base+"?archived=1", both)
+}
+
+// dlCreateFile uploads one small file document, optionally into a folder, and
+// returns its id.
+func dlCreateFile(t *testing.T, w *docsWorld, filename, parent string, body []byte) string {
+	t.Helper()
+	fields := map[string]string{"title": filename}
+	if parent != "" {
+		fields["parent_id"] = parent
+	}
+	res, raw := doMultipart(t, w.srv, "POST", "/api/v1/workspaces/"+w.wsID+"/documents/files", w.token, fields, filename, body, nil)
+	if res.StatusCode != 201 {
+		t.Fatalf("create file %s: %d %s", filename, res.StatusCode, raw)
+	}
+	var out struct {
+		Document struct {
+			ID string `json:"id"`
+		} `json:"document"`
+	}
+	if err := json.Unmarshal(raw, &out); err != nil {
+		t.Fatal(err)
+	}
+	return out.Document.ID
+}
+
+// SV-7: format=txt filters every list route that takes format (text/plain, or a
+// title ending in .txt), rows report format "txt", and any other unknown value
+// is still 400.
+func TestDoclistFormatTxt(t *testing.T) {
+	w := newDocsWorld(t)
+	memberTok, memberID := docsJoinWorkspace(t, w, "dl-txt-member@example.com")
+	base := dlBase(w)
+	_, folder := docsCreatePageBody(t, w, w.token, map[string]any{"title": "F", "kind": "folder"})
+	txt := dlCreateFile(t, w, "notes.txt", folder, []byte("plain notes\n"))
+	other := dlCreateFile(t, w, "readme.md", folder, []byte("# readme\n"))
+	now := time.Now().UTC().Add(-time.Hour)
+	dlLog(t, w, txt, w.userID, "view", now)
+	dlLog(t, w, other, w.userID, "view", now)
+	dlFavorite(t, w, w.token, txt)
+	dlFavorite(t, w, w.token, other)
+	// both shared with the member, who then reads shared-with-me.
+	dlExec(t, `UPDATE documents SET visibility = 'restricted' WHERE id = ANY($1)`, []string{txt, other})
+	dlShare(t, w, txt, "user", memberID, w.userID, "human", now)
+	dlShare(t, w, other, "user", memberID, w.userID, "human", now)
+
+	only := func(what, token, path string) {
+		t.Helper()
+		rows := dlRows(t, w, token, path)
+		row := rows["notes.txt"]
+		if row == nil {
+			t.Errorf("%s: format=txt lost notes.txt (rows %d)", what, len(rows))
+			return
+		}
+		if rows["readme.md"] != nil {
+			t.Errorf("%s: format=txt kept readme.md", what)
+		}
+		if row["format"] != "txt" {
+			t.Errorf("%s: notes.txt format = %v, want txt", what, row["format"])
+		}
+		for _, bad := range []string{"rtf", "TXT", "text"} {
+			res, out := dlGet(t, w, token, strings.Replace(path, "format=txt", "format="+bad, 1))
+			wantErr(t, res, out, 400, "invalid_filter", "")
+		}
+	}
+	only("parent_id branch", w.token, base+"?parent_id="+folder+"&format=txt")
+	only("flat branch", w.token, base+"?format=txt")
+	only("recent", w.token, base+"/recent?format=txt")
+	only("favorites", w.token, base+"/favorites?format=txt")
+	only("shared-with-me", memberTok, base+"/shared-with-me?format=txt")
+	dlShelve(t, w, []string{txt, other}, true)
+	only("shelf", w.token, base+"?shelved=1&format=txt")
+	dlShelve(t, w, []string{txt, other}, false)
+	dlArchive(t, w, []string{txt, other})
+	only("trash", w.token, base+"?archived=1&format=txt")
 }
