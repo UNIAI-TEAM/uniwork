@@ -227,7 +227,7 @@ describe("deactivating a member with documents (DOC6-W02)", () => {
     expect(posts()[1]![1]).toEqual({ to_user_id: "u4" });
     expect(posts()[2]![1]).toEqual({ to_user_id: "u4", bulk_id: "b1", cursor: "c1" });
     expect(within(dialog).getByText("1 tài liệu ở workspace mà Lê Chi chưa tham gia chưa được chuyển.")).toBeInTheDocument();
-    expect(within(dialog).getByText("2 tài liệu hạn chế không thể chuyển cho chính bạn.")).toBeInTheDocument();
+    expect(within(dialog).getByText("2 tài liệu riêng tư không thể chuyển cho chính bạn.")).toBeInTheDocument();
     // The result stays until the admin closes it.
     expect(within(dialog).getByRole("button", { name: "Đóng" })).toBeEnabled();
   });

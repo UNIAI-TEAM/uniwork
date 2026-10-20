@@ -207,8 +207,13 @@ describe("NativeChatMessagePanel", () => {
     const onEditMessage = vi.fn();
     render(wrap(panel({ onEditMessage })));
 
-    expect(within(messageArticle("Hi team")).queryByRole("button", { name: "Sửa" })).not.toBeInTheDocument();
-    await user.click(within(messageArticle("Reply")).getByRole("button", { name: "Sửa" }));
+    // Sửa lives in the message's "Thêm" menu, and only mine has it.
+    await user.click(within(messageArticle("Hi team")).getByRole("button", { name: "Thêm" }));
+    expect(await screen.findByRole("menuitem", { name: "Sao chép" })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Sửa" })).not.toBeInTheDocument();
+    await user.keyboard("{Escape}");
+    await user.click(within(messageArticle("Reply")).getByRole("button", { name: "Thêm" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Sửa" }));
     expect(onEditMessage).toHaveBeenCalledWith(expect.objectContaining({ id: "m2", body: "Reply" }));
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(editMessage).not.toHaveBeenCalled();

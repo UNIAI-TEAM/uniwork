@@ -1,0 +1,578 @@
+// G7-08 (UNI-1385) W2 web frame driver per format family and provider ('uniwork' | 'byok').
+// Reuses harness/web.mjs, g7-04/cross-host.mjs (listVersions, strict), g7-10/tracer.mjs, docx-roundtrip.mjs;
+// the Save/undo/old-version tail of the edit rows is web-edit-flow.mjs, its pure decisions
+// save-observe.mjs, and the AI-turn wire observation wire-observe.mjs.
+
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fmtVi, q1Shares } from '../fixtures-lib/data.mjs';
+import { listVersions } from '../g7-04/cross-host.mjs';
+import { cleanupSeededOrganization, seedFixtureDocument } from '../g7-10/tracer.mjs';
+import { loadPlaywrightChromium, parseEnvFile, sleep } from '../harness/app-steps.mjs';
+import { loadVerifiedFixture } from '../harness/fixture-files.mjs';
+import { harnessPaths, readStartStatus, startGate } from '../harness/lib.mjs';
+import { documentUrl, webFrameSelectors, webLogin } from '../harness/web.mjs';
+import { startStubFacade } from '../holdout-stub-facade.helper.mjs';
+import { computeTruth } from '../holdout-xlsx-truth.mjs';
+import { AI_TURN_TIMEOUT_MS, observeAiPanelState, turnNotFinishedVerdict, waitForAiTurnDone } from './ai-turn-wait.mjs';
+import { docxRoundTripHook, runDocxRoundTrip } from './docx-roundtrip.mjs';
+import {
+  VERDICT, blockedVerdict, diffDocxNonDocumentParts, extractPdfTextFromBytes, failVerdict,
+  oracleCapabilityAndToolSurface, oracleDocxEdit, oracleDocxRead, oracleHitlWord,
+  oracleHtmlEdit, oracleHtmlRead, oracleMarkdownEdit, oracleMarkdownRead,
+  oraclePdfEdit, oraclePdfRead, oraclePptxEdit, oraclePptxRead,
+  oracleVersionAndSave, oracleXlsxEdit, oracleXlsxRead,
+  parseDocxStructure, parsePptxStructure, parseXlsxWorkbookBytes,
+} from './oracles.mjs';
+import { observePdfTextEdit } from './pdf-text-edit.mjs';
+import { DEFAULT_REPO_ROOT, getRowById } from './rows.mjs';
+import {
+  isSaveIntentPath, parseCommitBaseRevision, readFrameHead, readVersionCount,
+} from './save-observe.mjs';
+import { InterruptedAiTurnError, evaluateWireObservation, extractWireToolCalls, interruptionFromTurn, observeModelWire, refusalFailVerdict, scoreRefusalEnd } from './wire-observe.mjs';
+import { readEditorText, runEditStage } from './web-edit-flow.mjs';
+import {
+  FRAME_SELECTOR_OWNER, HARNESS_PRECONDITION_OWNER, MODULE_AI_SELECTORS,
+  bindDryRunStubRoutes, ensureServerPreconditions, evaluatePreconditions,
+  installProtocolSniffer, moduleAiSelectors, verifyHostAndFramePreconditions,
+} from './preconditions.mjs';
+
+export { FRAME_SELECTOR_OWNER, HARNESS_PRECONDITION_OWNER, MODULE_AI_SELECTORS, evaluatePreconditions, moduleAiSelectors };
+export const FORK_SELECTOR_OWNER = 'F (uniwork-office frame)';
+export const REAL_AI_BLOCKER = 'real-AI upstream required, acceptance.md l.87';
+
+export const FRAME_AI_SELECTORS = Object.freeze({
+  panel: '.ai-panel, .copilot:not(.collapsed), .ai-chat',
+  expandRail: '.ai-rail, .expand-copilot, button[aria-label*="AI"]',
+  modelChip: '.ai-model-chip',
+  modelOption: '.ai-model-pop-list button.ai-model-item[role="option"], .ai-model-pop [role="option"]',
+  disclosureAck: '.ai-uniwork-disclosure button.ai-uniwork-disclosure-ack, .ai-composer button.ai-uniwork-disclosure-ack',
+  composer: '.ai-composer textarea, .ai-composer [contenteditable="true"], .ai-input-box textarea.ai-input, .ai-input-box textarea',
+  sendBtn: '.ai-send-btn:not(.ai-stop-btn)',
+  busy: 'button.ai-stop-btn, .ai-msg-streaming, .ai-typing-row, .ai-work-group-summary.running',
+  assistantMsg: '.ai-msg-assistant',
+  assistantAnswer: '.ai-msg-assistant .ai-msg-answer',
+  stepTitle: '.ai-step-title',
+  runningStep: '.ai-step-icon.running ~ .ai-step-content .ai-step-title',
+  clarifyPrompt: '.ai-clarify-card, .ai-clarify-label',
+  clarifyAnswerBtn: '.ai-clarify-opt, .ai-clarify-submit, .ai-clarify-skip, .ai-clarify-next',
+  planPreviewApply: '.ai-preview-card, .preview-actions',
+  footprint: '.ai-result-chip, .ai-result-meta, .ai-work-group-summary, .ai-auto-applied-text, .ai-chat .ai-msg-toolbar, .ai-chat .ai-msg-actions',
+  htmlPreviewFrame: 'iframe[sandbox], iframe.preview-frame',
+});
+
+async function collectTurnNotFinished({
+  row, provider, runDir, page, frame, turnTimeoutMs, elapsedMs, usage, wireRequests, wireResponses,
+}) {
+  const wire = extractWireToolCalls(wireRequests, wireResponses);
+  const panelState = await observeAiPanelState(frame, { selectors: FRAME_AI_SELECTORS });
+  let endScreenshotPath = null;
+  if (runDir && typeof page?.screenshot === 'function') {
+    endScreenshotPath = join(runDir, 'g7-08', 'artifacts', `${row.id}-${provider}-web-ai-panel-end.png`);
+    mkdirSync(dirname(endScreenshotPath), { recursive: true });
+    await page.screenshot({ path: endScreenshotPath }).catch(() => { endScreenshotPath = null; });
+  }
+  return turnNotFinishedVerdict({ timeoutMs: turnTimeoutMs, elapsedMs, usage, wire, endScreenshotPath, panelState });
+}
+
+export function missingSelectorVerdict(what, details = {}) {
+  const label = String(what ?? '').trim() || 'unknown';
+  const base = blockedVerdict(`missing F selector ${label}`, { owner: FORK_SELECTOR_OWNER, selector: label, ...details });
+  return { ...base, owner: FORK_SELECTOR_OWNER };
+}
+
+// Every module host is `data-office-module={module}` (office-module-frame.tsx:334-335); harness/web.mjs knows all six.
+export const moduleFrameSelectors = webFrameSelectors;
+
+export function buildVersionAndSaveObserved(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  return {
+    operation: raw.operation,
+    versionsBefore: raw.versionsBefore, versionsAfterAiTurn: raw.versionsAfterAiTurn,
+    revisionBefore: raw.revisionBefore, revisionAfterAiTurn: raw.revisionAfterAiTurn,
+    saveIntentsDuringAiTurn: raw.saveIntentsDuringAiTurn,
+    versionsAfterSave: raw.versionsAfterSave, revisionAfterSave: raw.revisionAfterSave,
+    aiChangeVisibleBeforeSave: raw.aiChangeVisibleBeforeSave,
+    aiChangeUndoableBeforeSave: raw.aiChangeUndoableBeforeSave,
+    saveUsedCurrentBaseRevision: raw.saveUsedCurrentBaseRevision,
+    doubleClickVersionsCreated: raw.doubleClickVersionsCreated,
+  };
+}
+
+export function buildCapabilityObserved(row, raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  const host = row?.host ?? raw.host ?? 'web';
+  const knownMissing = row?.knownMissing ?? row?.missingByHost?.[host] ?? [];
+  const unsupportedToolsOnHost = Array.isArray(raw.unsupportedToolsOnHost)
+    ? raw.unsupportedToolsOnHost
+    : row?.id === 'F-E1' && raw.hostSupportsPdfTextEdit === false
+      ? ['edit_text', 'edit_block', 'move_text_block', 'insert_text']
+      : [];
+  return {
+    operation: row?.operation ?? raw.operation,
+    offeredTools: raw.offeredTools, controls: raw.controls, executedTools: raw.executedTools,
+    forbiddenTools: row?.forbiddenTools ?? raw.forbiddenTools,
+    unsupportedToolsOnHost, knownMissing,
+  };
+}
+
+export function buildFormatObserved(row, raw) {
+  if (!row || !raw || typeof raw !== 'object') return null;
+  const target = row.target ?? {};
+  switch (row.id) {
+    case 'X-R1':
+    case 'X-R2':
+      return { rowId: raw.rowId ?? row.id, fixtureBytes: raw.fixtureBytes, replyText: raw.replyText, numbers: raw.numbers };
+    case 'X-E1':
+      return { beforeBytes: raw.beforeBytes, afterBytes: raw.afterBytes, targetSheet: raw.targetSheet ?? target.sheet, targetRange: raw.targetRange ?? target.range, panelFootprintText: raw.panelFootprintText, requireFootprint: raw.requireFootprint };
+    case 'D-R1':
+      return { fixtureBytes: raw.fixtureBytes, replyText: raw.replyText, citedAnchors: raw.citedAnchors, mustNotContain: raw.mustNotContain };
+    case 'D-E1':
+      return { beforeBytes: raw.beforeBytes, afterBytes: raw.afterBytes, oldVersionSha256: raw.oldVersionSha256, roundTrip: raw.roundTrip, roundTripHook: raw.roundTripHook ?? (raw.roundTrip ? undefined : docxRoundTripHook), targetParagraphIndex: raw.targetParagraphIndex ?? target.paragraphIndex, targetParagraphIndexes: raw.targetParagraphIndexes, requiredTokens: raw.requiredTokens ?? target.requiredTokens };
+    case 'D-W1':
+      return { openedCleanly: raw.openedCleanly, note: raw.note };
+    case 'P-R1':
+    case 'M-R1':
+    case 'H-R1':
+      return { fixtureBytes: raw.fixtureBytes, replyText: raw.replyText };
+    case 'P-E1':
+      return { beforeBytes: raw.beforeBytes, afterBytes: raw.afterBytes, targetSlideIndex: raw.targetSlideIndex ?? target.slideIndex, targetShapeId: raw.targetShapeId ?? target.shapeId, expectedText: raw.expectedText ?? target.expectedText };
+    case 'F-R1':
+      return { fixtureBytes: raw.fixtureBytes, replyText: raw.replyText, scannedPageWithoutOcr: raw.scannedPageWithoutOcr };
+    case 'F-E1':
+      return { hostSupportsPdfTextEdit: raw.hostSupportsPdfTextEdit, offeredTools: raw.offeredTools, controls: raw.controls, executedTools: raw.executedTools, beforeBytes: raw.beforeBytes, afterBytes: raw.afterBytes, beforeLines: raw.beforeLines, afterLines: raw.afterLines, targetText: raw.targetText ?? target.targetText, expectedPatchText: raw.expectedPatchText ?? target.expectedPatchText };
+    case 'M-E1':
+      return { beforeBytes: raw.beforeBytes, afterBytes: raw.afterBytes, targetLineIndex: raw.targetLineIndex ?? target.lineIndex, targetLineIndexes: raw.targetLineIndexes, beforeAssets: raw.beforeAssets, afterAssets: raw.afterAssets };
+    case 'H-E1':
+      return { beforeBytes: raw.beforeBytes, afterBytes: raw.afterBytes, frameSandbox: raw.frameSandbox, frameCsp: raw.frameCsp };
+    default:
+      return null;
+  }
+}
+
+const FORMAT_ORACLES = Object.freeze({
+  'X-R1': oracleXlsxRead, 'X-R2': oracleXlsxRead, 'X-E1': oracleXlsxEdit,
+  'D-R1': oracleDocxRead, 'D-E1': oracleDocxEdit, 'D-W1': oracleHitlWord,
+  'P-R1': oraclePptxRead, 'P-E1': oraclePptxEdit,
+  'F-R1': oraclePdfRead, 'F-E1': oraclePdfEdit,
+  'M-R1': oracleMarkdownRead, 'M-E1': oracleMarkdownEdit,
+  'H-R1': oracleHtmlRead, 'H-E1': oracleHtmlEdit,
+});
+
+// w2l: the model's final reply is evidence whichever check decided the row (X-R2 needs it to show which
+// operand failed), so it travels in the verdict details.
+export function evaluateRowObserved(rowOrEntry, raw) {
+  const verdict = scoreRowObserved(rowOrEntry, raw);
+  const reply = typeof raw?.replyText === 'string' ? raw.replyText : '';
+  return reply ? { ...verdict, details: { ...verdict.details, replyText: reply } } : verdict;
+}
+
+function scoreRowObserved(rowOrEntry, raw) {
+  const row = rowOrEntry?.id ? rowOrEntry : getRowById(rowOrEntry?.rowId);
+  if (!row) return blockedVerdict('unknown_matrix_row');
+  if (!raw || typeof raw !== 'object') return blockedVerdict('missing_row_observation');
+  if (raw.missingSelector) return missingSelectorVerdict(raw.missingSelector, raw.missingSelectorDetail);
+  const oracleFn = FORMAT_ORACLES[row.id];
+  if (!oracleFn) return blockedVerdict('unsupported_matrix_row', { rowId: row.id });
+  if (row.mode === 'hitl') {
+    const hitlVerdict = oracleFn(buildFormatObserved(row, raw));
+    return { ...hitlVerdict, verdicts: { format: hitlVerdict } };
+  }
+  if (row.id === 'F-E1' && raw.hostSupportsPdfTextEdit === false) {
+    const pdfBlocked = oraclePdfEdit(buildFormatObserved(row, raw));
+    return { ...pdfBlocked, verdicts: { format: pdfBlocked } };
+  }
+  const versionVerdict = oracleVersionAndSave(buildVersionAndSaveObserved({ ...raw, operation: row.operation }));
+  if (versionVerdict.status !== VERDICT.PASS) return { ...versionVerdict, verdicts: { versionAndSave: versionVerdict } };
+  const capVerdict = oracleCapabilityAndToolSurface(buildCapabilityObserved(row, raw));
+  if (capVerdict.status !== VERDICT.PASS) return { ...capVerdict, verdicts: { versionAndSave: versionVerdict, capabilitySurface: capVerdict } };
+  const formatVerdict = oracleFn(buildFormatObserved(row, raw));
+  return { ...formatVerdict, verdicts: { versionAndSave: versionVerdict, capabilitySurface: capVerdict, format: formatVerdict } };
+}
+
+// Index of the top-level Markdown block (blank-line separated, a fenced code block is one block)
+// that holds `text`, or -1. The pinned apply_ops addresses blocks, not source lines.
+function markdownBlockIndexContaining(bytes, text) {
+  let index = -1;
+  let inBlock = false;
+  let fence = false;
+  for (const line of Buffer.from(bytes).toString('utf8').split('\n')) {
+    if (line.startsWith('```')) fence = !fence;
+    if (line.trim() === '' && !fence) { inBlock = false; continue; }
+    if (!inBlock) { index += 1; inBlock = true; }
+    if (line.includes(text)) return index;
+  }
+  return -1;
+}
+
+const toolCall = (rowId, name, args) => ({ toolCalls: [{ id: `call_${rowId}`, type: 'function', function: { name, arguments: JSON.stringify(args) } }] });
+
+/** Scripted model for `--dry-run` via `startStubFacade`: derives replies/edits from fixture truth. */
+export function buildDryRunStubModel(rowOrEntry, fixtureBytes) {
+  const rowId = rowOrEntry?.rowId ?? rowOrEntry?.id;
+  return ({ state, body } = {}) => {
+    if (state.step === 0) {
+      if (rowId === 'X-R1') return { toolCalls: [{ id: 'call_xr1', type: 'function', function: { name: 'aggregate_range', arguments: JSON.stringify({ range: 'G2:G7' }) } }] };
+      if (rowId === 'X-R2') return { toolCalls: [{ id: 'call_xr2', type: 'function', function: { name: 'read_range', arguments: JSON.stringify({ range: 'A1:G9' }) } }] };
+      if (rowId === 'X-E1') {
+        const rawSheetId = state?.sheetId ?? /Active sheet:[^(\n]*\(id=([^,)\s"]+)/.exec(JSON.stringify(body?.messages ?? []))?.[1];
+        const sheetId = typeof rawSheetId === 'string' ? rawSheetId.trim() : '';
+        if (!sheetId) throw new Error('dry-run stub: X-E1 needs the active sheetId from the turn input');
+        const operations = [2, 3, 4, 5, 6, 7].map((r) => ({ op: 'set_formula', sheetId, address: `AA${r}`, formula: `=D${r}*E${r}*(1-IF(F${r}>1,F${r}/100,F${r}))` }));
+        return { toolCalls: [{ id: 'call_xe1', type: 'function', function: { name: 'propose_operations', arguments: JSON.stringify({ summary: 'Ghi đè (overwritten) AA2:AA7', operations }) } }] };
+      }
+      if (rowId === 'D-R1') return { toolCalls: [{ id: 'call_dr1', type: 'function', function: { name: 'read_blocks', arguments: JSON.stringify({ startBlockIndex: 0, endBlockIndex: 9 }) } }] };
+      if (rowId === 'D-E1') {
+        const html = '<p>Báo cáo quý 1 ghi nhận tổng doanh thu 22.060.000 đồng, dẫn đầu là khu vực Bắc (9.060.000 đồng).</p>';
+        return { toolCalls: [{ id: 'call_de1', type: 'function', function: { name: 'replace_blocks', arguments: JSON.stringify({ startBlockIndex: 2, endBlockIndex: 2, html }) } }] };
+      }
+      // w2l: the pinned executors reject empty arguments (markdown "ops must be a non-empty array", html
+      // apply_ops requires ops, pdf edit_text requires page/old_text/new_text), so these edit rows get a real payload.
+      if (rowId === 'M-E1') {
+        const find = 'Tổng doanh thu quý 1 là 22.060.000 đồng, tính cả các dòng bị ẩn.';
+        const start = markdownBlockIndexContaining(fixtureBytes, find);
+        if (start >= 0) return toolCall(rowId, 'apply_ops', { ops: [{ op: 'replaceText', target: { start }, find, replace: 'Tổng doanh thu quý 1 đạt 22.060.000 đồng (đã gồm đơn hàng ẩn).' }] });
+      }
+      if (rowId === 'H-E1') {
+        return toolCall(rowId, 'apply_ops', { ops: [{ op: 'str_replace', old: 'Dữ liệu mẫu để kiểm thử. Tổng đã gồm các đơn hàng bị ẩn trong bảng tính.', new: 'Dữ liệu mẫu kiểm thử đã xác nhận, bao gồm các đơn hàng ẩn.' }] });
+      }
+      if (rowId === 'F-E1' && rowOrEntry?.target) {
+        return toolCall(rowId, 'edit_text', { page: rowOrEntry.target.page, old_text: rowOrEntry.target.targetText, new_text: rowOrEntry.target.expectedPatchText });
+      }
+      const primary = rowOrEntry?.primaryTools?.[0] ?? rowOrEntry?.expectedTools?.[0];
+      if (primary) return { toolCalls: [{ id: `call_${rowId}`, type: 'function', function: { name: primary, arguments: '{}' } }] };
+    }
+    if (rowId === 'X-R1' || rowId === 'X-R2') {
+      const truth = computeTruth(parseXlsxWorkbookBytes(fixtureBytes));
+      const [q1All, q1Vis] = [fmtVi(truth.q1_revenue_all), fmtVi(truth.q1_revenue_visible)];
+      const [bac, nam, trung] = q1Shares();
+      if (rowId === 'X-R1') return { content: `Tổng doanh thu Q1 (gồm cả dòng 6 ẩn Q1-005) là ${q1All} đồng (dòng 8 SUM = ${q1All}, dòng 9 SUBTOTAL = ${q1Vis}). Khu vực Bắc: ${fmtVi(bac.revenue)}, Nam: ${fmtVi(nam.revenue)}, Trung: ${fmtVi(trung.revenue)}.` };
+      return { content: `Cột Z có Q1-003/Q2-003 nhập số 10 thay vì 10% (phần trăm 0,1). Dòng 6 (Q1-005, Q2-005) đang ẩn nên SUBTOTAL dòng 9 là ${q1Vis} khác SUM ${q1All}. Các ô lỗi: #DIV/0!, #N/A, #REF!.` };
+    }
+    if (rowId === 'D-R1') {
+      const parsed = parseDocxStructure(fixtureBytes);
+      return { content: `Anchor [blockIndex=1]: "${parsed?.paragraphs?.[1]?.text ?? ''}". Anchor [blockIndex=2]: "${parsed?.paragraphs?.[2]?.text ?? ''}". Khu vực Bắc dẫn đầu với 9.060.000 đồng trong tổng 22.060.000 đồng.` };
+    }
+    if (rowId === 'P-R1') return { content: parsePptxStructure(fixtureBytes)?.slides.flatMap((s) => s.shapes.map((sh) => sh.text)).join(' | ') ?? '' };
+    if (rowId === 'F-R1') return { content: `Trang 1: ${(extractPdfTextFromBytes(fixtureBytes)?.lines ?? []).join(' | ')}` };
+    if (rowId === 'M-R1' || rowId === 'H-R1') return { content: Buffer.from(fixtureBytes).toString('utf8') };
+    return { content: `Đã thực hiện xong yêu cầu cho ${rowId} (AA2:AA7 overwritten / ghi đè).` };
+  };
+}
+
+export async function runWebMatrixRow(runEntry, {
+  runDir, repoRoot = DEFAULT_REPO_ROOT, dryRun = false, fetchImpl = fetch,
+  env = process.env, timeoutMs = 45_000, turnTimeoutMs = AI_TURN_TIMEOUT_MS, observedOverride = null,
+  webOrigin: injectedWebOrigin = null, apiOrigin: injectedApiOrigin = null, injectedPage = null, injectedRowBody = null,
+} = {}) {
+  const row = getRowById(runEntry?.rowId ?? runEntry?.id) ?? runEntry;
+  if (!row) return blockedVerdict('unknown_matrix_row');
+  if (runEntry?.host && runEntry.host !== 'web') {
+    return blockedVerdict('W3', { host: runEntry.host, reason: 'desktop_host_deferred_to_w3' });
+  }
+  if (observedOverride) return evaluateRowObserved(row, observedOverride);
+  if (row.mode === 'hitl') return evaluateRowObserved(row, {});
+  const injected = typeof injectedRowBody === 'function';
+  let apiOrigin = injectedApiOrigin;
+  let webOrigin = injectedWebOrigin;
+  let fixture;
+  if (!injected) {
+    if (!dryRun && env.HARNESS_ALLOW_REAL_AI_UPSTREAM !== '1') return blockedVerdict(REAL_AI_BLOCKER, { owner: 'G6' });
+    const gate = startGate(readStartStatus(runDir));
+    if (gate.gate !== 'proceed') {
+      return gate.gate === 'blocked' ? blockedVerdict(gate.reason, { owner: 'G7-01 harness' }) : failVerdict(gate.reason);
+    }
+    const paths = harnessPaths(runDir);
+    if (!existsSync(paths.envFile)) return blockedVerdict('missing_harness_ports_env', { runDir });
+    const ports = parseEnvFile(readFileSync(paths.envFile, 'utf8'));
+    apiOrigin = ports.API_ORIGIN;
+    webOrigin = ports.WEB_ORIGIN;
+    if (!apiOrigin || !webOrigin) return blockedVerdict('missing_api_or_web_origin_in_ports_env', { runDir });
+    fixture = loadVerifiedFixture(row.fixtureId, repoRoot);
+  }
+  const provider = runEntry?.provider ?? 'uniwork';
+  let seeded = null;
+  let browser = null;
+  let web = null;
+  let stub = null;
+  // R4-3: hoisted so the catch can still read the observer's own record.
+  const wireRequests = [];
+  const wireResponses = [];
+  const aiPaths = [];
+  try {
+    if (injected) {
+      const { settle } = observeModelWire(injectedPage, { requests: wireRequests, responses: wireResponses, aiPaths });
+      const injectedTurn = await injectedRowBody();
+      await settle();
+      const usage = evaluateWireObservation({ requests: wireRequests, responses: wireResponses, aiPaths, frameAiOrigin: webOrigin });
+      if (injectedTurn && injectedTurn.finished === false) {
+        return collectTurnNotFinished({
+          row, provider, runDir, page: injectedPage, frame: injectedTurn.frame ?? injectedPage,
+          turnTimeoutMs, elapsedMs: injectedTurn.elapsedMs ?? turnTimeoutMs, usage, wireRequests, wireResponses,
+        });
+      }
+      if (usage.unobserved) return { ...blockedVerdict(usage.reason, { ...usage.detail, missingUsageCalls: usage.missingUsageCalls, modelCalls: usage.modelCalls }), usage };
+      return blockedVerdict('injected_row_body_returned');
+    }
+    seeded = await seedFixtureDocument({ apiOrigin, runDir, fetchImpl, fixtureId: row.fixtureId, repoRoot });
+    const { documentId, token, organizationSlug, workspaceSlug, email, password, userId } = seeded;
+    // R2-6: a 200 without a versions array is BLOCKED, never a count of 0.
+    const countBefore = await readVersionCount(listVersions, { apiOrigin, fetchImpl, documentId, token });
+    if (!countBefore.ok) return { ...blockedVerdict(countBefore.reason, { detail: countBefore.detail, step: 'before_ai_turn' }), documentId };
+    const versionsBefore = countBefore.count;
+    const headBefore = await readFrameHead({ apiOrigin, fetchImpl, documentId, token });
+    if (dryRun) stub = await startStubFacade({ model: buildDryRunStubModel(row, fixture.bytes) });
+
+    const serverEvidence = await ensureServerPreconditions({
+      runDir, repoRoot, apiOrigin, fetchImpl, seeded, row, provider, dryRun, stubUrl: stub?.url ?? null,
+    });
+    if (!serverEvidence.met) {
+      const preV = evaluatePreconditions({ server: serverEvidence, host: { met: false }, frame: { met: false } });
+      return { ...preV, documentId };
+    }
+
+    const chromium = await loadPlaywrightChromium();
+    browser = await chromium.launch({ headless: true });
+    web = await webLogin(browser, { key: 'g708-web', id: userId, email, password }, { webOrigin, locale: 'vi' });
+    await installProtocolSniffer(web.page);
+    // w2l: the PDF frame logs "pdfium is unavailable" when its core fails; F-E1 reads availability from it.
+    const frameConsole = [];
+    web.page.on('console', (msg) => { if (/pdfium/i.test(msg.text())) frameConsole.push(msg.text()); });
+
+    let inAiTurn = false;
+    let saveIntentsDuringAiTurn = 0;
+    const commitBases = [];
+
+    // R2-2: every save-intent POST (host upload, frame commit, legacy version create) during the turn counts.
+    web.page.on('request', (req) => {
+      if (req.method() !== 'POST') return;
+      const p = new URL(req.url()).pathname;
+      if (!isSaveIntentPath(p)) return;
+      if (inAiTurn) saveIntentsDuringAiTurn += 1;
+      // R2-3: the base the frame's own commit named after the turn; a parse miss stays absent (null).
+      else if (p.endsWith('/versions/commit')) commitBases.push(parseCommitBaseRevision(req.postData()));
+    });
+
+    // w2k: the real run routes the model calls on the app origin so each answer is read to completion
+    // (the frame cancels a stream at [DONE]); the dry-run stub reads its own answers in its own routes.
+    const observer = observeModelWire(web.page, {
+      requests: wireRequests, responses: wireResponses, aiPaths, recordResponses: !(dryRun && stub),
+      frameAiOrigin: webOrigin,
+    });
+    const settleWire = observer.settle;
+    await observer.ready;
+    if (dryRun && stub) {
+      await bindDryRunStubRoutes({
+        page: web.page, frameAiOrigin: webOrigin, fetchImpl, stub, documentId, rowId: row.id, wireResponses,
+      });
+    }
+    const sel = moduleFrameSelectors(row.module);
+    await web.page.goto(documentUrl({ webOrigin, org: organizationSlug, ws: workspaceSlug, documentId }), {
+      waitUntil: 'domcontentloaded', timeout: timeoutMs,
+    });
+    const hostReady = await web.page.waitForSelector(sel.ready, { state: 'visible', timeout: timeoutMs }).catch(() => null);
+    if (!hostReady) {
+      return evaluatePreconditions({ server: serverEvidence, host: { met: false, failureReason: `host frame container ${sel.ready} did not reach ready` }, frame: { met: false } });
+    }
+    const iframeHandle = await web.page.$(sel.iframe);
+    const frame = iframeHandle ? await iframeHandle.contentFrame() : null;
+    if (!frame) {
+      return evaluatePreconditions({ server: serverEvidence, host: { met: false, failureReason: `host iframe ${sel.iframe} not attached` }, frame: { met: false } });
+    }
+
+    const precondVerdict = await verifyHostAndFramePreconditions({ page: web.page, frame, row, provider, runDir, serverEvidence, timeoutMs });
+    const preconditions = precondVerdict.preconditions;
+    const screenshotPath = preconditions?.frame?.screenshotPath ?? null;
+    if (precondVerdict.status !== VERDICT.PASS) return { ...precondVerdict, documentId, preconditions, screenshotPath };
+
+    // w2l (F-E1): what the pinned PDF frame renders decides, never a made-up tool list. Available -> the real
+    // edit path runs; unavailable -> the AI turn still runs and the real offered tools must not name a text-edit tool.
+    const pdfTextEdit = row.id === 'F-E1' ? await observePdfTextEdit(frame, { notes: () => frameConsole }) : null;
+
+    if (provider === 'byok') {
+      const modelChip = await frame.$(FRAME_AI_SELECTORS.modelChip);
+      if (!modelChip) return { ...missingSelectorVerdict(FRAME_AI_SELECTORS.modelChip, { rowId: row.id }), preconditions, screenshotPath };
+      await modelChip.click().catch(() => {});
+      await sleep(200);
+      const byokOpt = await frame.$(`${FRAME_AI_SELECTORS.modelOption}[data-provider="byok"]`);
+      if (!byokOpt) return { ...missingSelectorVerdict(`${FRAME_AI_SELECTORS.modelOption}[data-provider="byok"]`, { rowId: row.id }), preconditions, screenshotPath };
+      await byokOpt.click().catch(() => {});
+    }
+
+    const ackBefore = await frame.$(FRAME_AI_SELECTORS.disclosureAck);
+    if (ackBefore) { await ackBefore.click().catch(() => {}); await sleep(150); }
+
+    const composer = await frame.$(FRAME_AI_SELECTORS.composer);
+    if (!composer) return { ...missingSelectorVerdict(FRAME_AI_SELECTORS.composer, { rowId: row.id }), preconditions, screenshotPath };
+    const sendBtn = await frame.$(FRAME_AI_SELECTORS.sendBtn);
+    if (!sendBtn) return { ...missingSelectorVerdict(FRAME_AI_SELECTORS.sendBtn, { rowId: row.id }), preconditions, screenshotPath };
+
+    const textBeforeTurn = await readEditorText(frame);
+    inAiTurn = true;
+    const runAiTurn = async () => {
+      await composer.fill(row.prompt);
+      await sleep(150);
+      const ackBtn = await frame.$(FRAME_AI_SELECTORS.disclosureAck);
+      if (ackBtn) { await ackBtn.click().catch(() => {}); await sleep(100); }
+      await sendBtn.click();
+      // w2n: the panel's own done state ends the wait; the bound only catches a turn that never finishes.
+      return waitForAiTurnDone(frame, { selectors: FRAME_AI_SELECTORS, timeoutMs: turnTimeoutMs });
+    };
+    let turnError = null;
+    let turnWait = { finished: false, elapsedMs: 0 };
+    try {
+      turnWait = await runAiTurn();
+    } catch (err) {
+      turnError = err;
+    }
+    inAiTurn = false;
+    // Settle in-flight bodies first; a throw after any frame AI POST is classified below.
+    await settleWire();
+    if (turnError) throw turnError;
+
+    const replyText = await frame.$$eval(
+      `${FRAME_AI_SELECTORS.assistantAnswer}, ${FRAME_AI_SELECTORS.assistantMsg}`,
+      (els) => els.map((e) => (e.textContent ?? '').trim()).filter(Boolean).pop() ?? '',
+    ).catch(() => '');
+
+    // R2-7 + R3-1: the usage of the turn is what the wire observer saw. A model call without usage is
+    // an unknown, not 0 tokens, and a turn that shows effects (a panel reply, an executed tool or a
+    // write) while no model request was observed at all means the observer missed the route - both
+    // stop the row (and the run) instead of trusting an empty collection as a zero-token run.
+    const sawTurnEffects = replyText !== ''
+      || saveIntentsDuringAiTurn > 0
+      || wireResponses.some((res) => (res?.toolCallNames?.length ?? 0) > 0);
+    const usage = evaluateWireObservation({
+      requests: wireRequests, responses: wireResponses, aiPaths, frameAiOrigin: webOrigin, sawTurnEffects,
+    });
+    // w2n: a turn still in progress at the bound has no answer yet; the panel text is a progress line,
+    // so it is a timeout (usage kept), never scored and never a content FAIL.
+    if (!turnWait.finished) {
+      const timedOut = await collectTurnNotFinished({
+        row, provider, runDir, page: web.page, frame,
+        turnTimeoutMs, elapsedMs: turnWait.elapsedMs, usage, wireRequests, wireResponses,
+      });
+      return { ...timedOut, documentId, preconditions, screenshotPath };
+    }
+    if (usage.unobserved) {
+      return {
+        ...blockedVerdict(usage.reason, {
+          ...usage.detail, missingUsageCalls: usage.missingUsageCalls, modelCalls: usage.modelCalls,
+          requests: wireRequests.length, responses: wireResponses.length,
+        }),
+        documentId, usage, preconditions, screenshotPath,
+      };
+    }
+    // w2p: a turn that ended on a UniWork refusal with nothing to judge is scored, not BLOCKED.
+    if (!replyText && usage.endedByRefusal) return { ...refusalFailVerdict(usage, { rowId: row.id }), documentId, usage, preconditions, screenshotPath };
+    if (!replyText) return { ...missingSelectorVerdict(FRAME_AI_SELECTORS.assistantAnswer, { rowId: row.id }), usage, preconditions, screenshotPath };
+
+    const stepTitles = await frame.$$eval(FRAME_AI_SELECTORS.stepTitle, (els) => els.map((el) => el.getAttribute('data-tip') || (el.textContent ?? '').trim()).filter(Boolean)).catch(() => []);
+    const panelFootprintText = await frame.$$eval(FRAME_AI_SELECTORS.footprint, (els) => els.map((e) => (e.textContent ?? '').trim()).filter(Boolean).join(' | ')).catch(() => '');
+    const controls = await frame.$$eval('[data-capability], [data-tool]', (els) =>
+      els.map((el) => ({ capability: el.getAttribute('data-capability') || el.getAttribute('data-tool') || '', present: true, disabled: el.hasAttribute('disabled') || el.getAttribute('aria-disabled') === 'true' })),
+    ).catch(() => []);
+
+    const countAfterAi = await readVersionCount(listVersions, { apiOrigin, fetchImpl, documentId, token });
+    if (!countAfterAi.ok) return { ...blockedVerdict(countAfterAi.reason, { detail: countAfterAi.detail, step: 'after_ai_turn' }), documentId, usage, preconditions, screenshotPath };
+    const versionsAfterAiTurn = countAfterAi.count;
+    const headAfterAiTurn = await readFrameHead({ apiOrigin, fetchImpl, documentId, token });
+    const wire = extractWireToolCalls(wireRequests, wireResponses);
+    const executedTools = [...new Set([...wire.executedTools, ...stepTitles])];
+
+    const rawObserved = {
+      rowId: row.id, operation: row.operation, fixtureBytes: fixture.bytes,
+      beforeBytes: headBefore.bytes, oldVersionSha256: headAfterAiTurn.sha256,
+      versionsBefore, versionsAfterAiTurn,
+      revisionBefore: headBefore.revision, revisionAfterAiTurn: headAfterAiTurn.revision,
+      saveIntentsDuringAiTurn,
+      offeredTools: wire.offeredTools.length > 0 ? wire.offeredTools : null,
+      executedTools: row.operation === 'edit' ? executedTools : wire.executedTools,
+      controls, replyText, panelFootprintText: panelFootprintText || replyText,
+    };
+    if (pdfTextEdit) {
+      rawObserved.hostSupportsPdfTextEdit = pdfTextEdit.available;
+      // The ribbon text-edit buttons the frame really shows are the controls a hidden tool must not leave behind.
+      if (pdfTextEdit.editText.present) controls.push({ capability: 'edit_text', present: true, disabled: pdfTextEdit.editText.disabled === true });
+      if (pdfTextEdit.insertText.present) controls.push({ capability: 'insert_text', present: true, disabled: pdfTextEdit.insertText.disabled === true });
+    }
+
+    if (row.id === 'D-R1') {
+      const parsed = parseDocxStructure(fixture.bytes);
+      rawObserved.citedAnchors = [
+        { blockIndex: 1, text: parsed?.paragraphs?.[1]?.text ?? '' },
+        { blockIndex: 2, text: parsed?.paragraphs?.[2]?.text ?? '' },
+      ];
+    }
+
+    let editStage = null;
+    if (row.operation === 'edit' && pdfTextEdit?.available !== false) {
+      if (row.format === 'html') {
+        const preview = await frame.$eval(FRAME_AI_SELECTORS.htmlPreviewFrame, (el) => ({
+          sandbox: el.getAttribute('sandbox') ?? '',
+          csp: el.getAttribute('csp') ?? "default-src 'none'; connect-src 'none'",
+        })).catch(() => null);
+        rawObserved.frameSandbox = preview?.sandbox;
+        rawObserved.frameCsp = preview?.csp;
+      }
+
+      editStage = await runEditStage({
+        row, page: web.page, frame, sel, apiOrigin, fetchImpl, documentId, token,
+        timeoutMs, textBeforeTurn, headAfterAiTurn, versionsAfterAiTurn, commitBases,
+        aiTurn: { executedTools, stepTitles, panelFootprintText, replyText },
+      });
+      if (editStage.stop?.missingSelector) {
+        return { ...missingSelectorVerdict(editStage.stop.missingSelector, { rowId: row.id }), documentId, usage, preconditions, screenshotPath };
+      }
+      if (editStage.stop) return { ...scoreRefusalEnd(editStage.stop, usage), details: { ...scoreRefusalEnd(editStage.stop, usage).details, replyText }, documentId, usage, preconditions, screenshotPath };
+      Object.assign(rawObserved, editStage.observed);
+      if (row.format === 'docx') {
+        rawObserved.roundTrip = await runDocxRoundTrip(rawObserved.afterBytes);
+        if (runDir) {
+          const artDir = join(runDir, 'g7-08', 'artifacts');
+          mkdirSync(artDir, { recursive: true });
+          rawObserved.oldDocxPath = join(artDir, `${row.id}-${provider}-web-old.docx`);
+          rawObserved.newDocxPath = join(artDir, `${row.id}-${provider}-web-new.docx`);
+          rawObserved.partsDiffPath = join(artDir, `${row.id}-${provider}-web-parts.diff`);
+          writeFileSync(rawObserved.oldDocxPath, Buffer.from(editStage.oldBytes));
+          writeFileSync(rawObserved.newDocxPath, Buffer.from(rawObserved.afterBytes));
+          writeFileSync(rawObserved.partsDiffPath, diffDocxNonDocumentParts(editStage.oldBytes, rawObserved.afterBytes), 'utf8');
+        }
+      }
+    }
+
+    // w2p: the oracle judged the final reply; a FAIL on a turn that ended on a refusal names the refusal.
+    const verdict = scoreRefusalEnd(evaluateRowObserved(row, rawObserved), usage);
+    const details = row.operation === 'edit' && editStage ? {
+      ...verdict.details, explicitSave: true, versionsBefore, versionsAfterAiTurn,
+      versionsAfterSave: rawObserved.versionsAfterSave, versionDelta: (rawObserved.versionsAfterSave ?? 0) - versionsAfterAiTurn,
+      doubleClickVersionsCreated: rawObserved.doubleClickVersionsCreated,
+      downloadedBytes: rawObserved.afterBytes?.length ?? 0, afterSha256: rawObserved.afterSha256 ?? null,
+      oldVersionSha256: rawObserved.oldVersionSha256, ...editStage.details,
+      roundTrip: rawObserved.roundTrip ?? null,
+      ...(rawObserved.oldDocxPath ? { oldDocxPath: rawObserved.oldDocxPath, newDocxPath: rawObserved.newDocxPath, partsDiffPath: rawObserved.partsDiffPath } : {}),
+      ...(pdfTextEdit ? { pdfTextEdit } : {}),
+    } : { ...verdict.details, ...(pdfTextEdit ? { pdfTextEdit } : {}) };
+    return { ...verdict, details, documentId, usage, preconditions, screenshotPath };
+  } catch (err) {
+    // R4-3 + R5-2: any throw after the observer is attached is unknown usage unless no frame AI POST was seen.
+    const interruption = interruptionFromTurn(err, { requests: wireRequests, responses: wireResponses, aiPaths });
+    if (interruption instanceof InterruptedAiTurnError) throw interruption;
+    return {
+      ...failVerdict('row_runner_threw', { error: err instanceof Error ? err.message : String(err) }),
+      usage: { modelCalls: 0, inputTokens: 0, outputTokens: 0, missingUsageCalls: 0, missingObservationCalls: 0 },
+    };
+  } finally {
+    if (web?.close) await web.close().catch(() => {});
+    if (browser?.close) await browser.close().catch(() => {});
+    if (stub?.close) await stub.close().catch(() => {});
+    if (seeded) await cleanupSeededOrganization({ apiOrigin, fetchImpl, seeded, runDir }).catch(() => {});
+  }
+}
+
+export const runWebXlsxRow = (entry, opts) => runWebMatrixRow({ ...entry, format: 'xlsx', module: 'sheets', host: 'web' }, opts);
+export const runWebDocxRow = (entry, opts) => runWebMatrixRow({ ...entry, format: 'docx', module: 'docs', host: 'web' }, opts);
+export const runWebPptxRow = (entry, opts) => runWebMatrixRow({ ...entry, format: 'pptx', module: 'slides', host: 'web' }, opts);
+export const runWebPdfRow = (entry, opts) => runWebMatrixRow({ ...entry, format: 'pdf', module: 'pdf', host: 'web' }, opts);
+export const runWebMarkdownRow = (entry, opts) => runWebMatrixRow({ ...entry, format: 'md', module: 'markdown', host: 'web' }, opts);
+export const runWebHtmlRow = (entry, opts) => runWebMatrixRow({ ...entry, format: 'html', module: 'html', host: 'web' }, opts);

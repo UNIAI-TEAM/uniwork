@@ -30,6 +30,7 @@ import {
 import { shareDocument } from "@uniwork/core/api/endpoints/documents-sharing";
 import { useOptionalWS } from "@uniwork/core/realtime";
 import { commentsChangedDocument, frameCanShareView, frameCommentsLevel } from "./frame-comments-events";
+import { frameAvatarContext, frameCandidates, frameCommentList, frameCommentResult } from "./frame-avatar-url";
 
 // Frame comments (G8-08, contract-collab §7, §9, §10): the host half of the editor's
 // `comments.*` protocol, kept out of use-docs-frame-session.ts so that seam stays small. The
@@ -57,6 +58,11 @@ export interface FrameCommentsBinding {
 
 interface UseFrameCommentsOptions {
   wsId: string;
+  /**
+   * The pinned frame build (`pinnedFrameVersion(module)`): decides whether avatars reach the frame
+   * as the same-origin route or as `""` (frame-avatar-url.ts).
+   */
+  frameVersion: string;
   /** The document the page opened; a claim held across a detach is only good for this one. */
   documentId: string;
   /** The document's effective level for the user (`my_level`); absent = decided from the token. */
@@ -137,6 +143,8 @@ export function useFrameComments(options: UseFrameCommentsOptions): FrameComment
       if (!current) throw new DocsProtocolError({ code: "cancelled", message: "the editor frame is gone" });
       return current.scope();
     };
+    // The avatar rule for the document the frame edits right now (frame-avatar-url.ts).
+    const avatars = (doc: string) => frameAvatarContext(doc, latest.current.options.frameVersion);
     /** Runs one request against the document the frame edits and maps what goes wrong. */
     const call = async <T,>(endpoint: string, run: (documentId: string) => Promise<T | null>): Promise<T> => {
       try {
@@ -153,7 +161,7 @@ export function useFrameComments(options: UseFrameCommentsOptions): FrameComment
           const list = await listFrameComments(doc, payload, signal);
           if (!list) return null;
           // An unchanged answer is the token alone: the frame keeps the list it holds.
-          const full = list.unchanged ? { comments: [], mentions: [], list_token: list.list_token, unchanged: true } : list;
+          const full = list.unchanged ? { comments: [], mentions: [], list_token: list.list_token, unchanged: true } : frameCommentList(avatars(doc), list);
           return full as FrameRequests["comments.list"]["result"];
         }),
       "comments.create": (payload, { signal }) =>
@@ -164,16 +172,25 @@ export function useFrameComments(options: UseFrameCommentsOptions): FrameComment
           pending.set(fingerprint, key);
           const created = await createFrameComment(doc, payload, { idempotencyKey: key, signal });
           if (created) pending.delete(fingerprint);
-          return created as FrameRequests["comments.create"]["result"] | null;
+          return (created && frameCommentResult(avatars(doc), created)) as FrameRequests["comments.create"]["result"] | null;
         }),
       "comments.update": ({ comment_id: id, body }, { signal }) =>
-        call("comments.update", async (doc) => (await updateFrameComment(doc, id, { body }, signal)) as FrameRequests["comments.update"]["result"] | null),
+        call("comments.update", async (doc) => {
+          const updated = await updateFrameComment(doc, id, { body }, signal);
+          return (updated && frameCommentResult(avatars(doc), updated)) as FrameRequests["comments.update"]["result"] | null;
+        }),
       "comments.delete": ({ comment_id: id }, { signal }) =>
         call("comments.delete", (doc) => deleteFrameComment(doc, id, signal)),
       "comments.resolve": ({ comment_id: id }, { signal }) =>
-        call("comments.resolve", async (doc) => (await resolveFrameComment(doc, id, signal)) as FrameRequests["comments.resolve"]["result"] | null),
+        call("comments.resolve", async (doc) => {
+          const resolved = await resolveFrameComment(doc, id, signal);
+          return (resolved && frameCommentResult(avatars(doc), resolved)) as FrameRequests["comments.resolve"]["result"] | null;
+        }),
       "comments.reopen": ({ comment_id: id }, { signal }) =>
-        call("comments.reopen", async (doc) => (await reopenFrameComment(doc, id, signal)) as FrameRequests["comments.reopen"]["result"] | null),
+        call("comments.reopen", async (doc) => {
+          const reopened = await reopenFrameComment(doc, id, signal);
+          return (reopened && frameCommentResult(avatars(doc), reopened)) as FrameRequests["comments.reopen"]["result"] | null;
+        }),
       "comments.revisions": ({ comment_id: id }, { signal }) =>
         call("comments.revisions", async (doc) => (await listFrameCommentRevisions(doc, id, signal)) as FrameRequests["comments.revisions"]["result"] | null),
       "comments.anchors": (payload, { signal }) =>
@@ -191,7 +208,10 @@ export function useFrameComments(options: UseFrameCommentsOptions): FrameComment
           return { ok: true as const };
         }),
       "mentions.search": (payload, { signal }) =>
-        call("mentions.search", async (doc) => (await searchFrameMentionCandidates(doc, payload, signal)) as FrameRequests["mentions.search"]["result"] | null),
+        call("mentions.search", async (doc) => {
+          const found = await searchFrameMentionCandidates(doc, payload, signal);
+          return (found && frameCandidates(avatars(doc), found)) as FrameRequests["mentions.search"]["result"] | null;
+        }),
     };
     return {
       augmentInit(init, { canEdit, readonly }) {

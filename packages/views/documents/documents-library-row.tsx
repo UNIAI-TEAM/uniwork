@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useId, useRef } from "react";
 import type { LucideIcon } from "lucide-react";
 import { Archive, Download, Ellipsis, ExternalLink, FolderInput, FolderOpen, FolderPlus, MonitorUp, Pencil, Star, StarOff, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -10,23 +10,29 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import {
   ContextMenu,
   ContextMenuContent,
+  ContextMenuGroup,
   ContextMenuItem,
+  ContextMenuLabel,
   ContextMenuTrigger,
 } from "@uniwork/ui/components/ui/context-menu";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "@uniwork/ui/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@uniwork/ui/components/ui/tooltip";
 import { cn } from "@uniwork/ui/lib/utils";
 import type { DocumentSourceFile } from "@uniwork/core/documents/sources-schema";
+import { useOptionalWorkspace } from "../layout/workspace-context";
 import type { FrameDesktopOpenProps } from "../office";
 import { DesktopOpenAction, type DesktopOpenOutcome } from "../office/desktop-open-action";
 import {
   DocumentShareScopeBadge,
   isPlainHomeWorkspaceScope,
+  shareScopeView,
 } from "./document-share-scope-badge";
 import { DocumentTypeIcon } from "./document-type-icon";
 import { EditLockHolderChip } from "./edit-lock-holder-chip";
@@ -56,7 +62,6 @@ export interface LibraryRowHandlers {
   onFolder: (folderId: string) => void;
   onGoToSource: (row: Extract<LibraryRow, { type: "source" }>) => void;
   /** Image sources only: fetches the bytes and opens them view-only. */
-  onPreviewSource?: (sourceId: string, name: string) => void;
   /** Office formats the server marks openable (UNI-1869): opens the view-only module frame; absent falls back to download. */
   onViewSource?: (source: DocumentSourceFile) => void;
   onDownloadSource: (sourceId: string) => void;
@@ -103,14 +108,19 @@ export function LibraryRowView({
   row,
   handlers,
   ladder,
+  sharedByMe = false,
 }: {
   row: LibraryRow;
   handlers: LibraryRowHandlers;
   /** The column ladder the list's header and colgroup were built from (library-columns.ts). */
   ladder: LibraryLadder;
+  /** The list is "Shared by me" (SW-V2): the plain home-workspace scope also shows on the narrow line. */
+  sharedByMe?: boolean;
 }) {
   const { t, i18n } = useTranslation();
   const appRequest = useRef<(() => Promise<DesktopOpenOutcome>) | null>(null);
+  const scopeDescId = useId();
+  const currentWorkspace = useOptionalWorkspace()?.workspace;
   const doc = row.type === "document" ? row.doc : null;
   const myFolder = isMyFolder(doc);
   const title = (myFolder ? t("documents.home.my_folder.label") : rowTitle(row)) || t("documents.detail.untitled");
@@ -142,9 +152,18 @@ export function LibraryRowView({
   // The narrow secondary line shows the level word and any non-default scope until the column joins.
   const levelKey = rowAccessLabelKey(row);
   // A row without `share_scope` shows no scope; it is never guessed from `visibility`.
-  const scope = doc?.share_scope ?? null;
-  const showNarrowScope = Boolean(scope && !isPlainHomeWorkspaceScope(scope));
+  // A folder is never shared (UNI-1974), so it shows none whatever a row carries.
+  const scope = doc && doc.kind !== "folder" ? (doc.share_scope ?? null) : null;
+  // On Shared by me the plain "home workspace" scope is the answer the reader
+  // came for (SW-V2); on every other view the narrow line omits the default.
+  const showNarrowScope = Boolean(scope && (sharedByMe || !isPlainHomeWorkspaceScope(scope)));
   const levelLabel = doc?.via === "owner" ? t("documents.home.access.owner") : levelKey ? t(levelKey) : null;
+  // Same resolution the badge applies: only the viewer's current workspace is named.
+  const resolvedWorkspaceName = (!doc?.workspace_id || doc.workspace_id === currentWorkspace?.id ? (currentWorkspace?.name ?? "") : "").trim();
+  // SW-V4: the narrow badge is not focusable inside the name button, so the
+  // scope composition reaches the keyboard through the button's description
+  // (the badge's hidden span via scopeDescId) and the ⋯ menu label.
+  const scopeInfo = showNarrowScope && scope ? shareScopeView(scope, t, resolvedWorkspaceName) : null;
   const starred = Boolean(doc && handlers.isStarred(doc.id));
   const metaTail = [updated, size].filter(Boolean).join(" · ");
 
@@ -157,11 +176,9 @@ export function LibraryRowView({
     else if (doc) handlers.onOpen(doc.id);
     else if (row.type === "source") {
       // U-SRC1 + UNI-1869: the primary click opens the file view-only where the
-      // row can (image preview, or the module frame for an Office format),
-      // else downloads it; "Xem nơi đính kèm" is a secondary.
+      // row can (the module frame for an Office format), else downloads it; "Xem nơi đính kèm" is a secondary.
       const open = sourceOpenAction(row.source);
-      if (open === "image" && handlers.onPreviewSource) handlers.onPreviewSource(row.source.id, row.source.name);
-      else if (open === "office" && handlers.onViewSource) handlers.onViewSource(row.source);
+      if (open === "office" && handlers.onViewSource) handlers.onViewSource(row.source);
       else handlers.onDownloadSource(row.source.id);
     }
   };
@@ -205,11 +222,12 @@ export function LibraryRowView({
       actions.push({ id: "shelve", label: t("documents.shelved_list.shelve"), icon: Archive, run: () => handlers.onShelve?.(doc) });
     }
     if (!myFolder && handlers.onArchive && canArchiveRow(level)) {
-      // A folder's dialog says Delete (FD-D6), so its row says it too, with the tree menu's words and icon.
+      // A folder's dialog says Delete (FD-D6), so its row says it too, with the tree menu's words.
+      // Both are the trash command, so both draw the trash icon; Archive belongs to shelve above.
       actions.push(
         folder
           ? { id: "archive", label: t("documents.tree.menu.delete"), icon: Trash2, run: () => handlers.onArchive?.(doc) }
-          : { id: "archive", label: t("documents.home.row.archive"), icon: Archive, run: () => handlers.onArchive?.(doc) },
+          : { id: "archive", label: t("documents.home.row.archive"), icon: Trash2, run: () => handlers.onArchive?.(doc) },
       );
     }
   }
@@ -304,14 +322,20 @@ export function LibraryRowView({
               </span>
             ) : null}
             {editor && (levelLabel || showNarrowScope) ? (
-              <span aria-hidden className={cn("hidden shrink-0 @min-[34rem]/library:inline", ladder.metaHides)}>·</span>
+              <span aria-hidden className={cn("hidden shrink-0 @min-[34rem]/library:inline", ladder.metaDotHides)}>·</span>
             ) : null}
             {levelLabel || showNarrowScope ? (
-              <span data-library-access-group className="flex shrink-0 items-center gap-1.5">
+              <span data-library-access-group className={cn("flex shrink-0 items-center gap-1.5", ladder.accessGroupHides)}>
                 {levelLabel ? <span className="shrink-0">{levelLabel}</span> : null}
                 {levelLabel && showNarrowScope ? <span aria-hidden className="shrink-0">·</span> : null}
                 {showNarrowScope ? (
-                  <DocumentShareScopeBadge shareScope={doc?.share_scope} workspaceId={doc?.workspace_id} compact focusable={false} />
+                  <DocumentShareScopeBadge
+                    shareScope={doc?.share_scope}
+                    workspaceId={doc?.workspace_id}
+                    compact
+                    focusable={false}
+                    descriptionId={scopeDescId}
+                  />
                 ) : null}
               </span>
             ) : null}
@@ -332,7 +356,12 @@ export function LibraryRowView({
           {trashed ? (
             <div className="flex w-full min-w-0 items-center gap-3 text-left pointer-coarse:min-h-11">{nameCell}</div>
           ) : (
-            <button type="button" onClick={primary} className="flex w-full min-w-0 items-center gap-3 text-left pointer-coarse:min-h-11">
+            <button
+              type="button"
+              onClick={primary}
+              aria-describedby={scopeInfo && scopeInfo.tooltipText !== scopeInfo.label ? scopeDescId : undefined}
+              className="flex w-full min-w-0 items-center gap-3 text-left pointer-coarse:min-h-11"
+            >
               {nameCell}
             </button>
           )}
@@ -390,6 +419,13 @@ export function LibraryRowView({
                   <Ellipsis aria-hidden />
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="min-w-52">
+                  {scopeInfo && scopeInfo.tooltipText !== scopeInfo.label ? (
+                    <DropdownMenuGroup>
+                      <DropdownMenuLabel className="font-normal normal-case tracking-normal">
+                        {scopeInfo.tooltipText}
+                      </DropdownMenuLabel>
+                    </DropdownMenuGroup>
+                  ) : null}
                   {actions.map((action) => (
                     <DropdownMenuItem key={action.id} className="gap-2 px-2 py-2 pointer-coarse:min-h-11" onClick={action.run}>
                       <action.icon aria-hidden className="size-3.5" />
@@ -403,6 +439,11 @@ export function LibraryRowView({
         </td>
       </ContextMenuTrigger>
       <ContextMenuContent className="min-w-52">
+        {scopeInfo && scopeInfo.tooltipText !== scopeInfo.label ? (
+          <ContextMenuGroup>
+            <ContextMenuLabel className="font-normal normal-case tracking-normal">{scopeInfo.tooltipText}</ContextMenuLabel>
+          </ContextMenuGroup>
+        ) : null}
         {actions.map((action) => (
           <ContextMenuItem key={action.id} className="gap-2 px-2 py-2 pointer-coarse:min-h-11" onClick={action.run}>
             <action.icon aria-hidden className="size-3.5" />

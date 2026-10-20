@@ -6,6 +6,7 @@
 // editor that drove it was removed (UNI-1240).
 
 import {
+  ENGINE_JOB_TRANSPORT,
   ENGINE_VERSION_TRUSTED,
   grantableOperations,
   type CapabilityEntry,
@@ -119,6 +120,7 @@ export function capabilityResult(format: OfficeFormat, maxInputBytes: number): R
     state: "completed",
     operation: "capability",
     engine_version: ENGINE_VERSION_TRUSTED,
+    job_transport: ENGINE_JOB_TRANSPORT,
     format,
     capabilities: capabilityRows(format),
     limits: { max_input_bytes: maxInputBytes },

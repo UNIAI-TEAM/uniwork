@@ -9,7 +9,7 @@ import type { ChatMessage } from "./chat-messages";
 import { ChatMessageBody } from "./chat-message-body";
 import { ChatFailedSendBar } from "./chat-failed-send-bar";
 import { isChatMediaMessageBody } from "./chat-expression-utils";
-import { ChatMessageHoverActions, chatMessageActionsRailClass } from "./chat-message-hover-actions";
+import { ChatMessageActionsFrame, chatMessageActionsRailClass } from "./chat-message-hover-actions";
 import { ChatForwardedLabel } from "./chat-forwarded-label";
 import { ChatMessageA11yLabel, ChatMessageMeta, ChatReactionChips, chatMessageLabelId } from "./chat-message-parts";
 import { formatMessageDateTime, formatMessageTime } from "./chat-message-time";
@@ -21,11 +21,11 @@ import { useChatMessageLinksFor } from "./chat-message-links-context";
 import { ChatLinkPreviewCard, useChatLinkPreviewFor } from "./chat-link-preview-card";
 import type { ChatNameContextEntry } from "./chat-page-utils";
 import { senderNameClass } from "./sender-colors";
-import { useMessageActionsReveal } from "./use-message-actions-reveal";
 
 /**
  * Fixed gutter matching the 34px avatar — keeps grouped bubbles aligned. The
- * avatar closes a run, at the foot of its last bubble; the name opens it.
+ * avatar closes a run, at the foot of its last bubble; the name opens it. A DM
+ * has neither (Telegram): the other side is already the header.
  */
 const INCOMING_AVATAR_SLOT_CLASS = "w-8.5 shrink-0 self-end";
 
@@ -58,26 +58,24 @@ export function chatBubbleShape(isOwn: boolean, firstOfRun: boolean, lastOfRun =
 }
 
 /**
- * The hovered message's row lifts in a soft wash a little wider than the row
- * (canvas), drawn behind it so nothing moves.
+ * Telegram's tail: the run's last bubble curls out at its foot on the sender's
+ * side. A mask cuts the curl from the bubble's own fill, so it follows the
+ * bubble's colour in either theme. Not on a clipped bubble (a photo): it would
+ * be cut off, and Telegram leaves photos tailless too.
  */
-export const CHAT_ROW_HOVER =
-  "relative isolate before:pointer-events-none before:absolute before:-inset-x-2 before:-inset-y-1.5 before:-z-10 before:rounded-2xl before:transition-colors before:duration-(--duration-fast) before:content-[''] hover:before:bg-chat-bubble-other/40";
-
-/** Hover / jump highlight wraps the message column only — not the full timeline width. */
-export function chatRowContentShellClass(isOwn: boolean): string {
-  return cn(
-    "flex w-fit max-w-[min(100%,85%)] gap-2 sm:max-w-[min(100%,72%)]",
-    isOwn && "flex-row-reverse",
-  );
+export function chatBubbleTail(isOwn: boolean): string {
+  return isOwn
+    ? "relative rounded-br-none after:absolute after:bottom-0 after:left-full after:h-3.5 after:w-1.75 after:bg-inherit after:content-[''] after:[mask-image:url(data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%220%200%207%2014%22%3E%3Cpath%20d=%22M0,0C0,6,2,10.5,7,14H0Z%22/%3E%3C/svg%3E)]"
+    : "relative rounded-bl-none after:absolute after:bottom-0 after:right-full after:h-3.5 after:w-1.75 after:bg-inherit after:content-[''] after:[mask-image:url(data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%220%200%207%2014%22%3E%3Cpath%20d=%22M7,0C7,6,5,10.5,0,14H7Z%22/%3E%3C/svg%3E)]";
 }
 
-export function chatRowHighlightClass(highlighted: boolean): string {
-  return cn(
-    CHAT_ROW_HOVER,
-    highlighted && "before:bg-brand-subtle before:ring-1 before:ring-brand/25 hover:before:bg-brand-subtle",
-  );
-}
+/**
+ * The wash a little wider than the row, drawn behind it so nothing moves. It
+ * stays clear on hover (Telegram leaves the row still); only a jump's target
+ * or the open thread fills it.
+ */
+export const CHAT_ROW_WASH =
+  "relative isolate before:pointer-events-none before:absolute before:-inset-x-2 before:-inset-y-1.5 before:-z-10 before:rounded-2xl before:transition-colors before:duration-(--duration-fast) before:content-['']";
 
 /** Important is a warning, urgent is a danger — never the same red. A pill at the bubble's top. */
 export function ChatPriorityFlag({ priority }: { priority: ChatMessage["priority"] }) {
@@ -216,7 +214,6 @@ function ChatMessageRowImpl({
   nameContext = EMPTY_NAME_CONTEXT,
 }: ChatMessageRowProps) {
   const { i18n } = useTranslation();
-  const reveal = useMessageActionsReveal();
   const nameClass = senderNameClass(message.sender, isOwn);
   // Sending, queued or failed: not on the server yet, so nothing to act on.
   const isPending = Boolean(message.deliveryStatus);
@@ -258,65 +255,57 @@ function ChatMessageRowImpl({
       data-highlighted={highlighted || undefined}
       className={cn(
         "flex w-full max-w-full rounded-lg transition-colors duration-(--duration-standard) focus-visible:outline-offset-2",
+        CHAT_ROW_WASH,
         compactTop ? "mt-0.5" : "mt-3",
-        isOwn ? "justify-end" : "justify-start",
+        isOwn ? "justify-end" : "justify-start gap-2",
+        // The thread open beside the timeline, or a jump's target: the row's wash in the brand (canvas).
+        highlighted && "before:bg-brand-subtle before:ring-1 before:ring-brand/25",
       )}
     >
       <ChatMessageA11yLabel messageId={message.id} senderLabel={senderLabel} ts={message.ts} />
-      <div className={cn(chatRowContentShellClass(isOwn), chatRowHighlightClass(highlighted))}>
-        {!isOwn ? (
-          <div className={INCOMING_AVATAR_SLOT_CLASS}>
-            {lastOfRun ? (
-              <ChatSenderAvatar
-                userId={message.sender}
-                name={senderLabel}
-                avatarUrl={senderAvatarUrl}
-                nameContext={nameContext}
-              />
-            ) : null}
-          </div>
-        ) : null}
+      {!isOwn && showSenderName ? (
+        <div className={INCOMING_AVATAR_SLOT_CLASS}>
+          {lastOfRun ? (
+            <ChatSenderAvatar
+              userId={message.sender}
+              name={senderLabel}
+              avatarUrl={senderAvatarUrl}
+              nameContext={nameContext}
+            />
+          ) : null}
+        </div>
+      ) : null}
 
-        {/* Right-click (desktop) or long press (touch) opens the actions bar. */}
-        <div
-          ref={reveal.rootRef}
-          data-chat-message-id={message.id}
-          {...reveal.bind}
-          className={cn(
-            "group/message relative flex min-w-0 flex-col gap-0.5 pointer-coarse:select-none pointer-coarse:[-webkit-touch-callout:none]",
-            isOwn ? "items-end" : "items-start",
-          )}
-        >
-        {!isPending ? (
-          <ChatMessageHoverActions
-            message={message}
-            isOwn={isOwn}
-            onReply={onReply}
-            onReact={onReact}
-            onToggleReaction={onToggleReaction}
-            onThread={onThread}
-            onEdit={onEdit}
-            onPin={onPin}
-            onCopy={onCopy}
-            onDelete={onDelete}
-            onCreateTask={onCreateTask}
-            onLinkTask={onLinkTask}
-            onFollowUp={onFollowUp}
-            canEdit={canEdit}
-            forceOpen={reveal.open}
-            anchorRef={reveal.rootRef}
-          />
-        ) : null}
+      {/* A long press opens the menu on touch; the copy callout is off there
+          because "Sao chép" lives in that same menu. */}
+      <ChatMessageActionsFrame
+        message={message}
+        isOwn={isOwn}
+        pending={isPending}
+        canEdit={canEdit}
+        onReply={onReply}
+        onReact={onReact}
+        onToggleReaction={onToggleReaction}
+        onThread={onThread}
+        onEdit={onEdit}
+        onPin={onPin}
+        onCopy={onCopy}
+        onDelete={onDelete}
+        onCreateTask={onCreateTask}
+        onLinkTask={onLinkTask}
+        onFollowUp={onFollowUp}
+        className={cn(
+          "flex min-w-0 max-w-[85%] flex-col gap-0.5 sm:max-w-[72%] pointer-coarse:select-none pointer-coarse:[-webkit-touch-callout:none]",
+          isOwn ? "items-end" : "items-start",
+        )}
+      >
         {bare && showName ? (
           <p className={cn("px-1 text-label font-semibold", nameClass)} aria-hidden>
             {senderLabel}
           </p>
         ) : null}
 
-        <div
-          data-message-actions-anchor
-          className={cn(chatMessageActionsRailClass(isOwn), reveal.open && "pointer-events-none")}
-        >
+        <div className={chatMessageActionsRailClass(isOwn)}>
           <div className={cn("flex min-w-0 flex-col gap-0.5", isOwn ? "items-end" : "items-start")}>
             {bare ? <ChatPriorityFlag priority={message.priority} /> : null}
 
@@ -329,6 +318,7 @@ function ChatMessageRowImpl({
                     "px-3 pt-[7px] pb-2",
                     chatBubbleShape(isOwn, !compactTop, lastOfRun && !taskCard),
                     isOwn ? CHAT_BUBBLE_OWN : CHAT_BUBBLE_OTHER,
+                    lastOfRun && !taskCard && chatBubbleTail(isOwn),
                     urgent && "ring-1 ring-destructive/30",
                   ),
               )}
@@ -395,8 +385,7 @@ function ChatMessageRowImpl({
 
           </div>
         </div>
-        </div>
-      </div>
+      </ChatMessageActionsFrame>
     </article>
   );
 }

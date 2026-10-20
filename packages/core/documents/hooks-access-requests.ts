@@ -45,12 +45,29 @@ export function accessRequestOutcome(err: unknown): AccessRequestOutcome {
 const SENT_FLAG_PREFIX = "uniwork_document_access_request_sent:";
 const SENT_FLAG_TTL_MS = 24 * 60 * 60 * 1000;
 
+// Same-tab listeners of the flag (a chat card mounted beside the document
+// page): localStorage fires no `storage` event in the tab that wrote it.
+const sentFlagListeners = new Set<() => void>();
+
+/** Subscribe to this tab's writes and clears of the sent flag; returns the unsubscribe. */
+export function subscribeDocumentAccessRequestSent(listener: () => void): () => void {
+  sentFlagListeners.add(listener);
+  return () => {
+    sentFlagListeners.delete(listener);
+  };
+}
+
+function notifySentFlag(): void {
+  for (const listener of [...sentFlagListeners]) listener();
+}
+
 function writeSentFlag(documentId: string): void {
   try {
     defaultStorage.setItem(SENT_FLAG_PREFIX + documentId, String(Date.now() + SENT_FLAG_TTL_MS));
   } catch {
     // Storage full or blocked: the 409 still restores the state next time.
   }
+  notifySentFlag();
 }
 
 /** When this device sent a request for the document in the last 24 hours (epoch ms), else null. */
@@ -64,19 +81,25 @@ export function readDocumentAccessRequestSentAt(documentId: string): number | nu
   const until = raw === null ? NaN : Number(raw);
   if (!Number.isFinite(until)) return null;
   if (until <= Date.now()) {
-    clearDocumentAccessRequestSent(documentId);
+    // No notify: this runs from render snapshots, and the answer is null anyway.
+    removeSentFlag(documentId);
     return null;
   }
   return until - SENT_FLAG_TTL_MS;
 }
 
-/** Drop the flag: the document loaded, or a decision on the request arrived (F-08). */
-export function clearDocumentAccessRequestSent(documentId: string): void {
+function removeSentFlag(documentId: string): void {
   try {
     defaultStorage.removeItem(SENT_FLAG_PREFIX + documentId);
   } catch {
     // Nothing to clear when storage is unavailable.
   }
+}
+
+/** Drop the flag: the document loaded, or a decision on the request arrived (F-08). */
+export function clearDocumentAccessRequestSent(documentId: string): void {
+  removeSentFlag(documentId);
+  notifySentFlag();
 }
 
 /**

@@ -9,11 +9,12 @@ import {
   useRef,
   useState,
 } from "react";
+import { createPortal } from "react-dom";
 import { createDocument, type JSONContent } from "@tiptap/core";
 import { EditorContent, useEditor } from "@tiptap/react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { useMembers } from "@uniwork/core/workspaces";
+import { useCurrentMember } from "@uniwork/core/permissions";
 import { sanitizePageContent } from "@uniwork/core/documents/schema";
 import { EditorBubbleMenu } from "../editor/bubble-menu";
 import { createPageDocumentExtensions } from "../editor/extensions";
@@ -22,8 +23,11 @@ import {
   createDocumentAssetUploadExtension,
   type DocumentAssetUploader,
 } from "./document-asset-upload";
+import { fetchBodyMentionItems } from "./document-body-mention-items";
 import { DocumentImageExtension } from "./document-image-extension";
 import { DocumentAssetScopeProvider } from "./document-asset-context";
+import { PageFirstUseHint } from "./page-toolbar/page-first-use-hint";
+import { PageToolbar } from "./page-toolbar/page-toolbar";
 
 /**
  * The page editor: TipTap over the G1-01 page schema, persisted as JSON.
@@ -47,6 +51,13 @@ export interface DocumentEditorHandle {
   focus: (position?: "start" | "end") => void;
   /** The live editor HTML, unsaved edits included ("Download my copy", UNI-1645 §9); "" before mount. */
   getHTML: () => string;
+  /**
+   * Scrolls to the first mention node naming `userId` — a notification's
+   * `?mention=1` deep link (UNI-1968) — and flashes it. A reader with no
+   * mention keeps the top of the page: this is a no-op then. Returns whether
+   * a mention was found.
+   */
+  revealMention: (userId: string) => boolean;
 }
 
 export interface DocumentEditorProps {
@@ -74,6 +85,12 @@ export interface DocumentEditorProps {
   onContentError?: (error: unknown) => void;
   onReady?: () => void;
   onFocusTitle?: () => void;
+  /**
+   * Where the formatting toolbar is mounted: a sticky slot above the scrolling
+   * page. Without one (version preview, public view) the editor shows no toolbar
+   * and no first-use hint.
+   */
+  toolbarHost?: HTMLElement | null;
 }
 
 export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorProps>(
@@ -93,17 +110,19 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
       onContentError,
       onReady,
       onFocusTitle,
+      toolbarHost,
     },
     ref,
   ) {
     const { t } = useTranslation();
     const queryClient = useQueryClient();
-    const members = useMembers(wsId);
-    const membersRef = useRef(members.data);
-    membersRef.current = members.data;
+    // `include=no_access` is only offered to callers who may list members (G8-18), like the comment picker.
+    const includeNoAccessRef = useRef(false);
+    includeNoAccessRef.current = useCurrentMember(wsId).role !== null;
     const translateRef = useRef(t);
     translateRef.current = t;
     const imageInputRef = useRef<HTMLInputElement>(null);
+    const [helpOpen, setHelpOpen] = useState(false);
     const focusTitleRef = useRef(onFocusTitle);
     focusTitleRef.current = onFocusTitle;
     const onChangeRef = useRef(onChange);
@@ -116,6 +135,9 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
     const pendingUploadsRef = useRef(0);
     const adoptedRevisionRef = useRef(contentRevision);
     const [pendingUploads, setPendingUploads] = useState(0);
+    // Fires `is-mention-reveal` removal once; a second reveal retriggers it.
+    const revealTimerRef = useRef<number | null>(null);
+    const revealedRef = useRef<HTMLElement | null>(null);
 
     onChangeRef.current = onChange;
     onAssetErrorRef.current = onAssetError;
@@ -144,8 +166,11 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
             ? "documents.page_ui.empty_placeholder" : "documents.page_ui.line_placeholder"),
           slash: { translate: (key, options) => translateRef.current(key, options), chooseImage: () => imageInputRef.current?.click() },
           mention: {
-            ...createMentionSuggestion(queryClient, { mode: "context", getContextItems: () =>
-              (membersRef.current ?? []).map((member) => ({ id: member.user_id, label: member.display_name, type: "member" as const })) }),
+            ...createMentionSuggestion(queryClient, { mode: "context" }),
+            // Same people and rows as the comment picker (mention candidates).
+            items: ({ query }) => fetchBodyMentionItems(queryClient, {
+              wsId, documentId, query, includeNoAccess: includeNoAccessRef.current,
+            }),
             // Keep the shared typed-trigger guard. Replacing a typed slash
             // with @ preserves its armed anchor; paste and undo stay literal.
             command: ({ editor: instance, range, props }) => {
@@ -217,6 +242,12 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
           .setMeta("addToHistory", false));
       }
     }, [editor, editable]);
+    useEffect(
+      () => () => {
+        if (revealTimerRef.current !== null) window.clearTimeout(revealTimerRef.current);
+      },
+      [],
+    );
 
     // Adopt server content only while clean. `contentRevision` is the signal:
     // a refetch that carries the revision the editor already shows is a no-op.
@@ -241,6 +272,37 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
         },
         focus: (position) => editor?.commands.focus(position),
         getHTML: () => (editor && !editor.isDestroyed ? editor.getHTML() : ""),
+        revealMention: (userId: string) => {
+          if (!editor || editor.isDestroyed) return false;
+          let pos = -1;
+          // NodeViews can match on any type; only member mentions name a person.
+          editor.state.doc.descendants((node, nodePos) => {
+            if (pos >= 0) return false;
+            if (node.type.name === "mention" && node.attrs.id === userId && node.attrs.type !== "agent") {
+              pos = nodePos;
+              return false;
+            }
+            return true;
+          });
+          if (pos < 0) return false;
+          const target = editor.view.nodeDOM(pos);
+          // The node selection marks the mention. ProseMirror's own
+          // scrollIntoView starts from the DOM selection, which sits outside an
+          // unfocused read-only editor and so never reaches the page scroller;
+          // scroll the node itself, which finds whichever ancestor scrolls.
+          editor.chain().setNodeSelection(pos).run();
+          if (!(target instanceof HTMLElement)) return true;
+          target.scrollIntoView({ block: "center" });
+          // The flash goes on the node view's outer element, the one the editor
+          // selects: its inner `.mention` span paints after the first commit, so
+          // a class put there at reveal time would find nothing to land on.
+          if (revealTimerRef.current !== null) window.clearTimeout(revealTimerRef.current);
+          revealedRef.current?.classList.remove("is-mention-reveal");
+          target.classList.add("is-mention-reveal");
+          revealedRef.current = target;
+          revealTimerRef.current = window.setTimeout(() => target.classList.remove("is-mention-reveal"), 2000);
+          return true;
+        },
       }),
       [editor],
     );
@@ -253,6 +315,10 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
 
     return (
       <div className="relative flex flex-1 flex-col" data-document-id={documentId} data-ws-id={wsId}>
+        {editable && toolbarHost ? <PageFirstUseHint onShowShortcuts={() => setHelpOpen(true)} onDismissed={() => editor.commands.focus()} /> : null}
+        {editable && toolbarHost ? createPortal(
+          <PageToolbar editor={editor} chooseImage={() => imageInputRef.current?.click()}
+            helpOpen={helpOpen} onHelpOpenChange={setHelpOpen} />, toolbarHost) : null}
         <DocumentAssetScopeProvider scope={{ wsId, documentId }}>
           <EditorContent editor={editor} className="flex flex-1 flex-col" />
         </DocumentAssetScopeProvider>

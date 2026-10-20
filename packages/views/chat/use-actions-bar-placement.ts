@@ -12,11 +12,13 @@ function scrollParent(el: HTMLElement): HTMLElement | null {
 }
 
 /**
- * The actions bar floats above its bubble, but the first message under the
- * conversation header has no room there: the header and pin bar sit outside
- * the scroller and would cover the bar. Each time the message is hovered or
- * focused, the bar drops inside the bubble's top edge (`data-place="inside"`)
- * when the space above it is shorter than the bar.
+ * On a narrow timeline the actions bar floats above its bubble, but the first
+ * message under the conversation header has no room there: the header and pin
+ * bar sit outside the scroller and would cover the bar. Each time the message
+ * is hovered or focused, the bar drops inside the bubble's top edge
+ * (`data-place="inside"`) when the space above it is shorter than the bar. On
+ * a wide one (`--bar-mode: side`) the bar sits beside the bubble and needs
+ * none of this.
  */
 export function useActionsBarPlacement(barRef: RefObject<HTMLDivElement | null>, mounted: boolean): void {
   useEffect(() => {
@@ -24,6 +26,11 @@ export function useActionsBarPlacement(barRef: RefObject<HTMLDivElement | null>,
     const group = bar?.closest<HTMLElement>(".group\\/message");
     if (!bar || !group) return;
     const place = () => {
+      if (getComputedStyle(bar).getPropertyValue("--bar-mode").trim() === "side") {
+        bar.dataset.place = "side";
+        bar.style.top = "";
+        return;
+      }
       const anchor = bar.offsetParent instanceof HTMLElement ? bar.offsetParent : bar.parentElement;
       const scroller = scrollParent(bar);
       if (!anchor || !scroller) return;

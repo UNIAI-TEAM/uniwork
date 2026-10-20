@@ -108,28 +108,50 @@ func (s *DocumentService) ShareDocument(ctx context.Context, actor Actor, docume
 	}
 	var out db.DocumentShare
 	err := s.withDocumentViewOrAdministerMutationLocked(ctx, actor, documentID, "", shelveWriteRefused, func(q *db.Queries, doc db.Document, access DocumentAccess) error {
-		if err := requireDocumentACLChange(doc, access); err != nil {
-			return err
-		}
-		if err := s.validateSharePrincipal(ctx, q, doc, in); err != nil {
-			return err
-		}
-		if err := s.refuseAdminSelfShare(ctx, q, doc, access, actor, in); err != nil {
-			return err
-		}
-		notifyUserID := ""
-		if in.PrincipalType == DocumentPrincipalUser {
-			uid, err := s.notifyOnUserShare(ctx, q, actor, doc, nil, in.PrincipalID, in.Level)
-			if err != nil {
-				return err
-			}
-			notifyUserID = uid
-		}
-		sh, err := s.applyDocumentShareWithBatch(ctx, q, actor, doc, access, in, "", notifyUserID)
+		sh, err := s.shareDocumentInTx(ctx, q, actor, doc, access, in)
 		out = sh
 		return err
 	})
 	return out, err
+}
+
+// shareDocumentInTx is the body of every grant, run inside the caller's
+// transaction and after the caller has gated the actor: the level is checked,
+// an owned document and the My Folder row are refused, the principal is proved
+// to be inside the document's organization, an AdminScope caller below manage
+// may not reach themselves, the recipient's notify decision is taken before
+// the first write, and the grant is applied (revoke-then-insert, audit
+// document.shared and its ids-only event).
+//
+// It exists so a second command can grant from its own transaction: DOC-07's
+// approve (§3.1) holds the document row lock and the request row lock and
+// still has to write the share as part of the same unit. ShareDocument wraps
+// it in the gate it always used, so the two paths write a grant identically.
+func (s *DocumentService) shareDocumentInTx(ctx context.Context, q *db.Queries, actor Actor, doc db.Document, access DocumentAccess, in DocumentShareInput) (db.DocumentShare, error) {
+	if err := validShareLevel(in.Level); err != nil {
+		return db.DocumentShare{}, err
+	}
+	if err := requireDocumentACLChange(doc, access); err != nil {
+		return db.DocumentShare{}, err
+	}
+	if err := refuseFolderShare(doc); err != nil {
+		return db.DocumentShare{}, err
+	}
+	if err := s.validateSharePrincipal(ctx, q, doc, in); err != nil {
+		return db.DocumentShare{}, err
+	}
+	if err := s.refuseAdminSelfShare(ctx, q, doc, access, actor, in); err != nil {
+		return db.DocumentShare{}, err
+	}
+	notifyUserID := ""
+	if in.PrincipalType == DocumentPrincipalUser {
+		uid, err := s.notifyOnUserShare(ctx, q, actor, doc, nil, in.PrincipalID, in.Level)
+		if err != nil {
+			return db.DocumentShare{}, err
+		}
+		notifyUserID = uid
+	}
+	return s.applyDocumentShareWithBatch(ctx, q, actor, doc, access, in, "", notifyUserID)
 }
 
 // notifyOnUserShare decides whether a direct user grant at `level` notifies
@@ -279,6 +301,9 @@ func (s *DocumentService) applyDocumentShareWithBatch(ctx context.Context, q *db
 // refuses manage, and DOC-05 refuses an AdminScope-only caller the widening
 // of a restricted document, exactly as the PATCH and the self-share rule do.
 func mergeDocumentShareIntoHomeRow(ctx context.Context, q *db.Queries, actor Actor, doc db.Document, access DocumentAccess, level DocumentLevel, batchID string) (db.DocumentShare, error) {
+	if err := refuseFolderShare(doc); err != nil {
+		return db.DocumentShare{}, err
+	}
 	if level == DocumentLevelManage {
 		return db.DocumentShare{}, errHomeRowLevelNotAllowed()
 	}
@@ -467,6 +492,9 @@ type DocumentAccessOverview struct {
 	Links         []db.DocumentShareLink
 	// BreakGlass is the live emergency grants, newest first (DOC-05).
 	BreakGlass []DocumentBreakGlassGrantView
+	// PendingAccessRequests is the number of pending, unexpired access
+	// requests (DOC-07), 0 unless the caller may administer the document.
+	PendingAccessRequests int
 }
 
 // DocumentPersonAccess is one person's effective level.
@@ -499,6 +527,11 @@ func (s *DocumentService) DocumentAccessList(ctx context.Context, actor Actor, d
 	out := DocumentAccessOverview{My: my, MySources: mySources}
 	if !my.canAdminister() {
 		return out, nil
+	}
+	// The share dialog shows the pending count without a second call (DOC-07
+	// §4.3); the count takes the document and level this gate just resolved.
+	if out.PendingAccessRequests, err = s.CountPendingDocumentAccessRequests(ctx, actor, doc, my); err != nil {
+		return DocumentAccessOverview{}, err
 	}
 	if out.ACLOwner, err = s.aclOwnerAccess(ctx, doc); err != nil {
 		return DocumentAccessOverview{}, err
@@ -815,6 +848,13 @@ func (s *DocumentService) ListSharedWithMe(ctx context.Context, userID, organiza
 	if err != nil {
 		return SharedWithMePage{}, err
 	}
+	docs := make([]*db.Document, len(page.Items))
+	for i := range page.Items {
+		docs[i] = &page.Items[i].Document
+	}
+	if err := s.maskUnreadableFolderParents(ctx, Human(userID), docs); err != nil {
+		return SharedWithMePage{}, err
+	}
 	facts, err := s.listFacts(ctx, organizationID, sharedDocuments(page.Items))
 	if err != nil {
 		return SharedWithMePage{}, err
@@ -883,6 +923,11 @@ func (s *DocumentService) listSharedWithMePage(ctx context.Context, userID, orga
 				return SharedWithMePage{}, err
 			}
 			if acc.Via != DocumentViaShare || acc.Level == DocumentLevelNone {
+				continue
+			}
+			if r.Document.Kind == DocumentKindFolder {
+				// A folder is never shared (UNI-1974); a legacy share row
+				// does not list it.
 				continue
 			}
 			out = append(out, SharedDocument{Document: r.Document, Access: acc})

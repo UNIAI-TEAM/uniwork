@@ -2,7 +2,7 @@
 import { useCallback } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as chat from "../api/endpoints/chat";
-import type { ChatRoomRecord, ChatUserLookup } from "../api/endpoints/chat";
+import type { ChatDocumentShareLevel, ChatRoomRecord, ChatUserLookup } from "../api/endpoints/chat";
 import { ApiError } from "../api/http";
 import { runWithChatSendRetry } from "./send-retry";
 import { usePendingChatMessagesStore } from "./pending-messages-store";
@@ -102,6 +102,51 @@ export function useSendChatFileMessage(workspaceId: string) {
     }) => chat.sendChatFileMessage(workspaceId, input.roomId, input),
     onSuccess: (data, variables) => {
       applyChatMessageResponse(qc, workspaceId, variables.roomId, data, true);
+      void qc.invalidateQueries({ queryKey: chatKeys.messages(workspaceId) });
+      void qc.invalidateQueries({ queryKey: chatKeys.rooms(workspaceId) });
+    },
+  });
+}
+
+/**
+ * UNI-1966: send a staged file as a shared document. Mirrors the file send —
+ * the returned message lands in the room caches under its client_msg_id and
+ * the room list refreshes.
+ */
+export function useSendChatDocumentMessage(workspaceId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: {
+      roomId: string;
+      file: Blob;
+      filename: string;
+      share_level: ChatDocumentShareLevel;
+      client_msg_id: string;
+      reply_to_message_id?: string;
+    }) => chat.sendChatDocumentMessage(workspaceId, input.roomId, input),
+    onSuccess: (data, variables) => {
+      applyChatMessageResponse(qc, workspaceId, variables.roomId, data, true);
+      void qc.invalidateQueries({ queryKey: chatKeys.messages(workspaceId) });
+      void qc.invalidateQueries({ queryKey: chatKeys.rooms(workspaceId) });
+    },
+  });
+}
+
+/**
+ * UNI-1966: convert the caller's file attachment into a document in place.
+ * The server answers the same message id as kind "document", so the room
+ * cache replaces the row, never duplicates it.
+ */
+export function useShareChatMessageAsDocument(workspaceId: string, roomId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { messageId: string; share_level: ChatDocumentShareLevel; client_msg_id: string }) =>
+      chat.shareChatMessageAsDocument(workspaceId, roomId, input.messageId, {
+        share_level: input.share_level,
+        client_msg_id: input.client_msg_id,
+      }),
+    onSuccess: (data) => {
+      applyChatMessageResponse(qc, workspaceId, roomId, data, false);
       void qc.invalidateQueries({ queryKey: chatKeys.messages(workspaceId) });
       void qc.invalidateQueries({ queryKey: chatKeys.rooms(workspaceId) });
     },

@@ -147,6 +147,29 @@ describe("DocumentLockedCard variant=member", () => {
     expect(screen.queryByRole("button", { name: K("send") })).toBeNull();
   });
 
+  it("drops the sent-earlier note when a decision clears the flag and a new answer arrives", () => {
+    localStorage.setItem(FLAG, String(Date.now() + 3_600_000));
+    const card = (answeredAt: number) =>
+      wrapWithNav(
+        <DocumentLockedCard
+          variant="member"
+          wsId={WS}
+          documentId="d1"
+          source={null}
+          answeredAt={answeredAt}
+          onRetryOpen={vi.fn()}
+          onBack={vi.fn()}
+        />,
+      );
+    const { rerender } = render(card(1));
+    expect(screen.getByRole("status")).toHaveTextContent(K("sent_earlier", { time: sentTime(Date.now() + 3_600_000 - 86_400_000) }));
+    // The decided frame clears the flag, then the detail refetch answers again.
+    localStorage.removeItem(FLAG);
+    rerender(card(2));
+    expect(screen.queryByRole("status")).toBeNull();
+    expect(sendButton()).not.toHaveAttribute("aria-disabled", "true");
+  });
+
   it("a device flag followed by a 409 lands on the pending state", async () => {
     localStorage.setItem(FLAG, String(Date.now() + 3_600_000));
     requestMock.mockRejectedValue(new ApiError("pending", "access_request_pending", 409));
@@ -268,10 +291,10 @@ describe("DocumentLockedCard variant=admin", () => {
       />,
     );
 
-    expect(screen.getByText("Tài liệu này ở chế độ hạn chế")).toBeInTheDocument();
+    expect(screen.getByText("Tài liệu này là riêng tư")).toBeInTheDocument();
     expect(
       screen.getByText(
-        "Quản trị viên quản lý được tài liệu nhưng chỉ đọc được nội dung khi mở truy cập khẩn cấp.",
+        "Quản trị viên quản lý được tài liệu riêng tư này nhưng chỉ đọc được nội dung khi mở truy cập khẩn cấp.",
       ),
     ).toBeInTheDocument();
     expect(screen.getByText("Báo cáo lương Q4")).toBeInTheDocument();
@@ -336,7 +359,7 @@ describe("DocumentLockedCard variant=admin", () => {
       />,
     );
 
-    expect(screen.getByText("Tài liệu này ở chế độ hạn chế")).toBeInTheDocument();
+    expect(screen.getByText("Tài liệu này là riêng tư")).toBeInTheDocument();
     expect(screen.getByText("Biên bản họp HĐQT")).toBeInTheDocument();
     expect(screen.queryByLabelText("Lý do truy cập khẩn cấp")).not.toBeInTheDocument();
     expect(

@@ -32,10 +32,15 @@ type AskUNIService struct {
 	emailHub *EmailHubService
 	docs     *DocumentService
 	flags    McpFlags
+	reads    *McpToolService // nil until SetReadTools; the agent's tools read through it
 	gw       *ai.Gateway
 	ent      *EntitlementService
 	rdb      *redis.Client
 	now      func() time.Time
+	// agentRuns bounds the agent runs in flight (R10); agentMetrics is the
+	// agent's run and tool surface, nil reporting nothing.
+	agentRuns    *uniworkConcurrency
+	agentMetrics AskAgentMetrics
 }
 
 // SetEmailHub wires Email Hub for focus reads (optional; set from main after construction).
@@ -50,6 +55,10 @@ func (s *AskUNIService) SetDocuments(d *DocumentService) { s.docs = d }
 // reads as off (fail closed, as in McpToolService).
 func (s *AskUNIService) SetFlags(f McpFlags) { s.flags = f }
 
+// SetReadTools wires the MCP connector's read methods, which the agent's tools
+// call as the asker (set from main after construction).
+func (s *AskUNIService) SetReadTools(m *McpToolService) { s.reads = m }
+
 // taskRow is what the source reader renders; it is the sqlc row.
 type taskRow = db.Task
 
@@ -57,6 +66,7 @@ func NewAskUNIService(pool *pgxpool.Pool, q *db.Queries, ws *WorkspaceService, o
 	return &AskUNIService{
 		pool: pool, q: q, ws: ws, orgs: orgs, tasks: tasks, meetings: meetings, chat: chat, gw: gw,
 		ent: NewEntitlementService(pool, q), rdb: rdb, now: time.Now,
+		agentRuns: newUniworkConcurrency(rdb, "ai:ask:", askAgentPodMax, askAgentOrgMax, askAgentGlobalMax, askAgentDeadline+10*time.Second),
 	}
 }
 
@@ -68,6 +78,10 @@ type AICapabilities struct {
 	MeetingSummary bool
 	UsedTokens     int64
 	LimitTokens    *int64
+	// Models lists the Claude models Ask UNI can run, enabled or not for the
+	// organization; AutoModel is the key Auto resolves to ("" when none).
+	Models    []AskModelOption
+	AutoModel string
 }
 
 type AskInput struct {
@@ -75,6 +89,9 @@ type AskInput struct {
 	Question       string
 	Focus          *ai.Focus
 	Locale         string
+	// Model is "" (Auto) or a key of askModels; Effort is "low", "medium" or
+	// "high". Both only count behind ask_uni_agent; an unusable value falls back.
+	Model, Effort string
 }
 
 // AskCitation is a validated citation enriched with what the client needs to
@@ -93,6 +110,9 @@ type AskResult struct {
 	Citations      []AskCitation
 	InputTokens    int
 	OutputTokens   int
+	// RunID is the agent run's id, the run_id on its usage rows; empty on
+	// the P0 path.
+	RunID string
 }
 
 const (
@@ -101,22 +121,36 @@ const (
 	askHistory    = 6
 )
 
-// rateLimit is per user, fail-closed (OPEN_QUESTIONS G5): a Redis error is a
-// 429, because an unmetered burst here costs real money. No Redis at all
-// (local development) means no limit.
-func (s *AskUNIService) rateLimit(ctx context.Context, userID string) error {
+// askCountScript counts a hit and gives the key its window in one step, so
+// the count cannot outlive the window: a key without a TTL (a split
+// INCR/EXPIRE would leave one) is a permanent 429.
+var askCountScript = redis.NewScript(`
+local count = redis.call('INCR', KEYS[1])
+if count == 1 or redis.call('PTTL', KEYS[1]) < 0 then
+  redis.call('PEXPIRE', KEYS[1], ARGV[1])
+end
+return count
+`)
+
+// askCount counts one hit on key in its askRateWindow; ok is false when
+// Redis did not answer within the limiters' 100 ms, which callers read as
+// "not limited" (fail open, ruling P22). Without Redis nothing is counted.
+func (s *AskUNIService) askCount(ctx context.Context, key string) (n int64, ok bool) {
 	if s.rdb == nil {
-		return nil
+		return 0, false
 	}
-	key := "uw:ai:ask:" + userID
-	n, err := s.rdb.Incr(ctx, key).Result()
-	if err != nil {
-		return &ai.Error{Code: ai.ErrRateLimited.Code, Status: ai.ErrRateLimited.Status, Msg: ai.ErrRateLimited.Msg, Err: err}
-	}
-	if n == 1 {
-		_ = s.rdb.Expire(ctx, key, askRateWindow).Err()
-	}
-	if n > askRateLimit {
+	ctx, cancel := context.WithTimeout(ctx, uniworkLeaseTimeout)
+	defer cancel()
+	n, err := askCountScript.Run(ctx, s.rdb, []string{key}, askRateWindow.Milliseconds()).Int64()
+	return n, err == nil
+}
+
+// rateLimit is per user: askRateLimit asks a minute. A Redis error or stall
+// lets the ask through, as every limiter does (ruling P22). The per-organization
+// call cap shares this Redis and opens with it; the database token quota and the
+// per-pod run cap still bound the spend.
+func (s *AskUNIService) rateLimit(ctx context.Context, userID string) error {
+	if n, ok := s.askCount(ctx, "uw:ai:ask:"+userID); ok && n > askRateLimit {
 		return ai.ErrRateLimited
 	}
 	return nil
@@ -142,6 +176,7 @@ func (s *AskUNIService) Capabilities(ctx context.Context, userID, workspaceID st
 		return out, nil
 	}
 	out.AskUni = true
+	out.Models, out.AutoModel = s.askModelOptions(ctx, w.OrganizationID)
 	out.MeetingSummary = s.ent.Can(ctx, w.OrganizationID, FeatureMeetingAISummary) == nil
 	snap, err := s.ent.Snapshot(ctx, w.OrganizationID)
 	if err != nil {
@@ -178,6 +213,11 @@ func (s *AskUNIService) Ask(ctx context.Context, userID, workspaceID string, in 
 	conv, err := s.conversation(ctx, userID, w, in.ConversationID)
 	if err != nil {
 		return AskResult{}, err
+	}
+	// Behind ask_uni_agent the model looks its sources up itself; P0's
+	// lookup below does not run.
+	if s.agentOn(ctx, ai.ToolContext{ActorID: userID, OrganizationID: w.OrganizationID, WorkspaceID: workspaceID}) {
+		return s.askAgent(ctx, userID, w, conv, question, in)
 	}
 	sources, err := s.Sources(ctx, ai.SourceQuery{UserID: userID, OrganizationID: w.OrganizationID, WorkspaceID: workspaceID, Question: question, Focus: in.Focus})
 	if err != nil {

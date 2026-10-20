@@ -208,7 +208,6 @@ WHERE id = $1 AND room_id = $2 AND workspace_id = $3 AND deleted_at IS NULL
 FOR UPDATE;
 
 -- name: CountPinnedChatMessagesInRoom :one
--- tenant: workspace_id from RequireMember on the room
 SELECT COUNT(*)::int FROM chat_messages
 WHERE room_id = $1
   AND workspace_id = $2
@@ -699,6 +698,47 @@ WHERE m.room_id = $1
 ORDER BY m.created_at DESC
 LIMIT sqlc.arg(result_limit);
 
+-- name: SearchChatMessagesForMember :many
+-- The sidebar's search: text messages in every room the reader is an active
+-- member of, within one scope — 'messages' (the organization's DMs and groups)
+-- or 'workspace' (that workspace's room and channels). Membership is the read
+-- gate, as in authorizeRoomRead for every room but a public channel not
+-- joined, which this search leaves out. Same columns as
+-- SearchChatMessagesByRoom, so the service maps both rows alike.
+SELECT
+  m.id,
+  m.room_id,
+  m.workspace_id,
+  m.sender_id,
+  m.kind,
+  m.body,
+  m.metadata,
+  m.reply_to_message_id,
+  m.edited_at,
+  m.created_at,
+  m.client_msg_id,
+  u.display_name AS sender_display_name
+FROM chat_messages m
+INNER JOIN chat_rooms r ON r.id = m.room_id
+INNER JOIN chat_room_members rm ON rm.room_id = m.room_id
+  AND rm.user_id = sqlc.arg(user_id)::text
+  AND rm.status = 'active'
+INNER JOIN users u ON u.id = m.sender_id
+WHERE m.organization_id = sqlc.arg(organization_id)::text
+  AND r.organization_id = sqlc.arg(organization_id)::text
+  AND r.archived_at IS NULL
+  AND m.deleted_at IS NULL
+  AND m.kind = 'text'
+  AND (
+    (sqlc.arg(scope)::text = 'messages' AND r.kind IN ('dm', 'group'))
+    OR (sqlc.arg(scope)::text = 'workspace' AND r.kind IN ('workspace', 'channel') AND r.workspace_id = sqlc.arg(workspace_id)::text)
+  )
+  -- Folded on both sides, as SearchChatMessagesByRoom (idx_chat_messages_body_fold).
+  AND uw_fold_search(m.body) ILIKE sqlc.arg(search_pattern)::text ESCAPE '\'
+  AND (sqlc.narg(before_at)::timestamptz IS NULL OR m.created_at < sqlc.narg(before_at))
+ORDER BY m.created_at DESC
+LIMIT sqlc.arg(result_limit);
+
 -- name: ListChatMessagesInRoomBetween :many
 SELECT
   m.id,
@@ -1016,3 +1056,38 @@ SELECT
 FROM counts n
 LEFT JOIN recent r ON true
 ORDER BY r.created_at DESC, r.id DESC;
+
+-- name: CreateChatDocumentMessage :one
+-- A message that names a shared Document (UNI-1966). The metadata carries the
+-- document id, and reply_to_message_id is settable (the file/voice shape);
+-- client_msg_id makes a retried send idempotent.
+INSERT INTO chat_messages (
+  id, room_id, workspace_id, sender_id, sender_kind, kind, body, metadata, reply_to_message_id, client_msg_id,
+  organization_id
+) VALUES (
+  $1, $2, $3, $4, $5, 'document', $6, $7, $8, sqlc.narg(client_msg_id),
+  sqlc.arg(organization_id)
+) RETURNING *;
+
+-- name: ConvertChatFileMessageToDocument :one
+-- Flips an existing file attachment message in place to kind='document' after
+-- its bytes are copied into a Document (UNI-1966 §2.2, §3.3); body and
+-- client_msg_id stay untouched and file_id is cleared before the caller
+-- releases the old chat_attachment reference.
+UPDATE chat_messages
+SET kind = 'document', metadata = $4, file_id = NULL
+WHERE id = $1 AND room_id = $2 AND workspace_id = $3 AND deleted_at IS NULL
+RETURNING *;
+
+-- name: ChatRoomHasDocumentMessage :one
+-- Reports whether a room holds a live document card for document_id, gating
+-- the optional document_version line on a version commit (UNI-1966 §4.4).
+SELECT EXISTS (
+  SELECT 1
+  FROM chat_messages
+  WHERE room_id = $1
+    AND workspace_id = $2
+    AND kind = 'document'
+    AND deleted_at IS NULL
+    AND metadata->>'document_id' = sqlc.arg(document_id)::text
+) AS found;

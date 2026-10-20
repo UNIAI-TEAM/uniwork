@@ -98,7 +98,12 @@ func (s *DocumentService) acceptConversion(ctx context.Context, fs files.Service
 	filename := convertedFilename(sourceFile.Filename, job.TargetFormat.String)
 
 	var res DocumentFileResult
-	err = s.withDocumentMutationOnShelved(ctx, actor, src.ID, DocumentLevelEdit, func(q *db.Queries, locked db.Document, lockedAccess DocumentAccess) error {
+	// The accept is a create in the source's workspace too (document_copy.go):
+	// the workspace tree lock precedes the source row lock, so lockPageParent
+	// below never queues behind a move or archive that already holds the tree
+	// lock (appendix §3.3; G5-13 A98). The source stays writable while
+	// shelved (addendum §3), so the stance is unchanged.
+	err = s.withDocumentMutationLocked(ctx, actor, src.ID, src.WorkspaceID, DocumentLevelEdit, shelveWriteAllowed, func(q *db.Queries, locked db.Document, lockedAccess DocumentAccess) error {
 		if locked.ArchivedAt.Valid {
 			return errDocumentDeleted()
 		}

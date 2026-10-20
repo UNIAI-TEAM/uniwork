@@ -113,7 +113,13 @@ describe("showWebNotification", () => {
     showWebNotification(payload());
     expect(created).toHaveLength(1);
     expect(created[0]?.title).toBe("Mentioned you");
-    expect(created[0]?.options).toMatchObject({ body: "in a comment", tag: "item-1" });
+    expect(created[0]?.options).toMatchObject({ body: "in a comment", tag: "item-1", silent: false });
+  });
+
+  it("goes quiet when the payload asks for no sound", () => {
+    installWindow(FakeNotification);
+    showWebNotification(payload({ silent: true }));
+    expect(created[0]?.options).toMatchObject({ silent: true });
   });
 
   it("routes a click to the registered handler and closes the banner", () => {

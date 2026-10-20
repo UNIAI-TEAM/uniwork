@@ -217,7 +217,6 @@ describe("page view (findings 4, 5, 8)", () => {
     fireEvent.click(await screen.findByRole("treeitem", { name: /Thư mục chỉ xem/ }));
     await screen.findByText(t("documents.home.empty.view_only"));
     await screen.findByRole("heading", { level: 1, name: /Thư mục chỉ xem/ });
-    expect(screen.queryByText(t("documents.home.folder.info_banner", { folder: "Thư mục chỉ xem" }))).toBeNull();
     expect(screen.queryByRole("region", { name: t("documents.home.quick_create.label") })).toBeNull();
     expect(screen.queryByRole("button", { name: new RegExp(t("documents.home.create.menu")) })).toBeNull();
   });

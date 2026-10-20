@@ -18,6 +18,7 @@ chạy trong request.
 | `OPENAI_BASE_URL`, `OPENAI_API_KEY` | OpenAI-compatible (OpenAI, **OpenRouter** `https://openrouter.ai/api/v1`, Gemini OpenAI-compat, vLLM…) |
 | `OLLAMA_BASE_URL` | Ollama local/on-prem, không cần key |
 | `AI_MODEL_<CAPABILITY>` | Override model cho một capability (`AI_MODEL_COPILOT_ANSWER=claude-sonnet-5`); ngoài allowlist → dùng mặc định + log warn |
+| `AI_MODEL_COPILOT_AGENT` | Model "Tự động" của Hỏi UNI agent (production: `claude-sonnet-5-5`). `ANTHROPIC_MODEL` đè mọi capability nên phải đặt biến này riêng; người dùng chọn model khác trong danh sách đóng, Gateway kiểm allowlist và bảng giá |
 | `AI_MODEL_ALLOW` | Mở rộng allowlist (csv) cho model self-host |
 | `AI_TIMEOUT_SECONDS` | Mặc định 60 |
 
@@ -48,9 +49,14 @@ ra mạng.
   (chỉ có `usage_event_id`, capability, latency và message của provider — không
   có nội dung). Tắt tính năng tạm thời bằng cách bỏ key và restart: client tự ẩn.
 - **`ai_quota_exceeded` với tổ chức chưa dùng nhiều**: xem `usage_counters` meter
-  `ai.tokens` và `plan_features.quota_limit` (mặc định 500k, migration 099).
-- **`ai_rate_limited` hàng loạt**: Redis lỗi → Ask UNI fail-closed theo G5 (chỉ
-  Ask UNI; tóm tắt họp không có rate limit riêng). Khôi phục Redis.
+  `ai.tokens` và `plan_features.quota_limit` (mặc định 500k, migration 099; gói
+  Starter 100k). Mỗi lời gọi trừ đủ token input, output và cache ghi; token cache
+  đọc chỉ trừ 10%, làm tròn lên, theo giá nhà cung cấp. Một câu hỏi agent ở
+  Ask UNI tốn ước tính 2–3k token hạn mức (từ eval live P1, 2026-10-20).
+- **`ai_rate_limited` hàng loạt**: Redis lỗi hay chậm quá 100ms không còn gây 429
+  — giới hạn 20 lượt/phút/người của Ask UNI fail-open như mọi limiter (ruling
+  P22). 429 hàng loạt là người dùng thật vượt giới hạn, tổ chức vượt trần lời
+  gọi agent, hoặc nhà cung cấp trả 429 (`ai: provider rate limited` trong log).
 - **Chi phí sai**: không sửa dòng đã ghi. Thêm dòng `ai_model_rates` mới với
   `effective_at` mới; dòng cũ giữ `rate_id` cũ.
 - **Model mới**: thêm vào `allowedModels` (`policy.go`) và seed rate; không
@@ -170,6 +176,30 @@ Khi có sự cố:
 Alert của `office_uniwork_ai` (lỗi, latency, usage unknown, run, tool call bị bỏ): `deploy/alerts.yml` nhóm `uniwork-ai`,
 runbook theo tên alert trong [`docs/runbooks/README.md`](../runbooks/README.md) (ngưỡng pending G7-D1). Upstream sập/đổi,
 đối soát usage và trần đồng thời: [`RUNBOOK_OFFICE_SYNC.md`](RUNBOOK_OFFICE_SYNC.md).
+
+## Hỏi UNI agent (P1)
+
+Hỏi UNI chạy như agent đọc (vòng model → tool → model) khi flag `ask_uni_agent` bật cho người hỏi và tổ chức của họ.
+
+- **Bật/tắt**: ở `/admin/flags`, đặt override `ask_uni_agent` theo tổ chức hoặc theo người dùng (override thắng file tĩnh và `FF_ASK_UNI_AGENT`). Tắt = quay về luồng retrieval cũ, không mất dữ liệu.
+- **Provider**: agent cần vòng tool-result, nên chỉ chạy trên `anthropic`, `openai` (và `fake`). `AI_PROVIDER=ollama` không có model `copilot_agent`: Hỏi UNI ở luồng retrieval cũ dù flag bật.
+- **Model Tự động**: đổi bằng `AI_MODEL_COPILOT_AGENT` (phải nằm trong allowlist, xem bảng cấu hình ở trên). Tự động (model mặc định của nền tảng) **luôn dùng được** và không theo công tắc của tổ chức.
+- **Model tổ chức cho chọn**: `GET/PUT /api/v1/orgs/{org}/ai/ask-models` (body `{"models": ["haiku","sonnet"]}`, PUT chỉ owner/admin). Công tắc này chỉ giới hạn các lựa chọn rõ: `[]` = chỉ Tự động; body thiếu `models` (hoặc `null`) → 400, không bao giờ hiểu là "tắt hết". Lựa chọn không dùng được (lạ, tắt, chưa có giá) thì chạy Tự động và log `reason` (`unknown`, `disabled`, `unpriced`, `lookup_failed` khi đọc DB lỗi), không log chuỗi client gửi.
+- **Lượt hỏng sau khi đã tính tiền**: lỗi provider, timeout, hết hạn mức hay lỗi DB trong tool sau ít nhất một lời gọi model đã trả lời thì lượt vẫn được lưu với notice `agent_failed` (nội dung rỗng, gắn usage row cuối) để người hỏi thấy trong hội thoại; trước lời gọi đầu tiên thì vẫn trả lỗi như cũ.
+
+| Metric | Loại | Ý nghĩa |
+| --- | --- | --- |
+| `uniwork_ai_ask_runs_total{outcome}` | counter | Lượt agent theo `answered`, `agent_failed`, `refused`, `rate_limited`, `busy`, `timeout`. `rate_limited` gồm giới hạn của nhà cung cấp, trần lời gọi của tổ chức và hết hạn mức token. `timeout` là hết hạn 120 giây của lượt, hoặc một lời gọi model quá hạn của gateway (mặc định 60 giây). `agent_failed` còn gồm: lỗi hạ tầng (provider 5xx, lỗi DB, lưu lượt thất bại, panic), focus người hỏi không được đọc (`ai_context_forbidden`), và lần thử lại định dạng vẫn hỏng |
+| `uniwork_ai_ask_run_rounds` | histogram (0–4) | Số vòng tool mỗi lượt, trần 4; dồn về 4 = agent chạm trần vòng tool (lời gọi sau vòng cuối là vòng trả lời) |
+| `uniwork_ai_ask_run_seconds` | histogram (tới 150s) | Thời gian một lượt; hạn chót 120s nên bucket 120–150 là lượt chạm hạn |
+| `uniwork_ai_ask_tool_calls_total{tool,status}` | counter | Call tool theo 12 tên trong registry (tên khác gom về `other`) và `ok`, `error`, `truncated` |
+| `uniwork_ai_ask_tool_seconds{tool}` | histogram | Độ trễ từng tool |
+
+Khi chi phí tăng đột biến:
+
+1. Xem `uniwork_ai_cost_usd_total{model}` để biết model nào đẩy chi phí, và `AiSumRunUsage` (sqlc, theo tổ chức + run id) để biết run nào.
+2. Hạ model Tự động (`AI_MODEL_COPILOT_AGENT`), hoặc tắt Opus của tổ chức bằng `PUT /api/v1/orgs/{org}/ai/ask-models`.
+3. Chưa đủ: tắt `ask_uni_agent` cho tổ chức đó bằng override.
 
 ## Không bao giờ
 
