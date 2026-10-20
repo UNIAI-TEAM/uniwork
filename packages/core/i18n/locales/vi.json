@@ -3896,6 +3896,7 @@
       "draft": "Nháp",
       "finalized": "Đã chốt",
       "finalizedBy": "Chốt ngày {{date}} · {{name}}",
+      "finalizedOn": "Chốt ngày {{date}}",
       "viewFinalized": "Xem bản đã chốt (phiên bản {{no}})",
       "editedSince": "Đã sửa sau khi chốt. Chốt lại để ghi nhận bản mới.",
       "finalize": "Chốt biên bản",
@@ -3903,13 +3904,17 @@
       "reopen": "Bỏ chốt",
       "editRequired": "Cần quyền chỉnh sửa UniNote biên bản để chốt hoặc bỏ chốt",
       "loadFailed": "Không tải được biên bản.",
+      "noAccess": "Bạn không có quyền xem UniNote biên bản.",
+      "previewFailedTitle": "Không mở được bản đã chốt",
+      "previewFailed": "UniNote biên bản có thể đã bị xóa, hoặc bạn không còn quyền xem. Mở lại trang cuộc họp để cập nhật.",
       "createdToast": "Đã lập biên bản",
       "finalizedToast": "Đã chốt biên bản",
       "reopenedToast": "Đã bỏ chốt biên bản",
       "errors": {
         "minutes_exist": "Cuộc họp đã có biên bản. Mở biên bản để sửa.",
         "minutes_missing": "Cuộc họp không còn biên bản: UniNote đã bị xóa. Lập lại biên bản.",
-        "minutes_edit_required": "Cần quyền chỉnh sửa UniNote biên bản để chốt hoặc bỏ chốt."
+        "minutes_edit_required": "Cần quyền chỉnh sửa UniNote biên bản để chốt hoặc bỏ chốt.",
+        "minutes_unavailable": "Máy chủ chưa bật tài liệu nên chưa lập được biên bản. Báo quản trị viên."
       }
     },
     "carriedOver": {

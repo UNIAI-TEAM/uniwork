@@ -58,6 +58,9 @@ describe("meeting minutes endpoints", () => {
   it("degrades a malformed answer instead of throwing", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ minutes: { document_id: 7 } }));
     expect(await getMeetingMinutes("m1")).toBeNull();
+    // A reader the page is closed to gets no page id.
+    vi.mocked(fetch).mockResolvedValueOnce(json({ minutes: { document_id: null, finalized: true } }));
+    expect((await getMeetingMinutes("m1"))?.document_id).toBeNull();
     vi.mocked(fetch).mockResolvedValueOnce(json({ minutes: { document_id: "d1", finalized: "yes", can_edit: null } }));
     expect(await getMeetingMinutes("m1")).toEqual({
       document_id: "d1",

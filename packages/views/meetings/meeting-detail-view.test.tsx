@@ -860,3 +860,34 @@ describe("MeetingRoomView", () => {
     expect(lastLiveKitMedia).toEqual({ video: false, audio: true });
   });
 });
+
+describe("MeetingDetailView › minutes", () => {
+  function respondEnded(minutesOn: boolean) {
+    requestMock.mockImplementation((path: unknown) => {
+      const p = String(path);
+      if (p === "/api/v1/config?organization_id=o1") return Promise.resolve({ flags: { meeting_minutes: minutesOn } });
+      if (p === "/api/v1/meetings/m1") {
+        return Promise.resolve({ meeting: { ...meeting, status: "ENDED", actual_end_at: "2026-09-09T08:27:00Z" } });
+      }
+      if (p.endsWith("/minutes")) return Promise.resolve({ minutes: null });
+      if (p.endsWith("/notes")) return Promise.resolve({ notes: [] });
+      return Promise.resolve({});
+    });
+  }
+
+  it("shows the minutes where the meeting's organization turned them on", async () => {
+    respondEnded(true);
+    render(shell(<MeetingDetailView workspaceId="w1" meetingId="m1" onJoin={() => {}} onDeleted={() => {}} />));
+    expect(await screen.findByRole("heading", { name: "Biên bản" })).toBeInTheDocument();
+  });
+
+  it("hides them where the organization's answer is off", async () => {
+    respondEnded(false);
+    render(shell(<MeetingDetailView workspaceId="w1" meetingId="m1" onJoin={() => {}} onDeleted={() => {}} />));
+    expect(await screen.findByRole("heading", { name: "Standup" })).toBeInTheDocument();
+    await waitFor(() =>
+      expect(requestMock.mock.calls.some(([path]) => String(path) === "/api/v1/config?organization_id=o1")).toBe(true),
+    );
+    expect(screen.queryByRole("heading", { name: "Biên bản" })).not.toBeInTheDocument();
+  });
+});

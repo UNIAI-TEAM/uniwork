@@ -13,6 +13,13 @@ import {
 import { paths } from "@uniwork/core/paths";
 import { Badge } from "@uniwork/ui/components/ui/badge";
 import { Button, buttonVariants } from "@uniwork/ui/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@uniwork/ui/components/ui/dialog";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { toast } from "sonner";
@@ -20,7 +27,7 @@ import { Notice } from "../common/notice";
 import { PanelCard } from "../common/panel-card";
 import { MODULE_ICONS } from "../layout/module-icons";
 import { useOptionalWorkspace } from "../layout/workspace-context";
-import { AppLink } from "../navigation";
+import { AppLink, useNavigation } from "../navigation";
 import { toastApiError } from "../toast-api-error";
 import { meetingLocale } from "./meeting-datetime";
 import { MeetingSectionLoading } from "./meeting-section-state";
@@ -41,7 +48,20 @@ function FinalizedVersionPreview({
   minutes: MeetingMinutes;
   onClose: () => void;
 }) {
-  const doc = useDocument(workspaceId, minutes.document_id);
+  const { t } = useTranslation();
+  const doc = useDocument(workspaceId, minutes.document_id ?? "", { retry: false });
+  if (doc.isError) {
+    return (
+      <Dialog open onOpenChange={(open) => !open && onClose()}>
+        <DialogContent closeLabel={t("common.close")}>
+          <DialogHeader>
+            <DialogTitle>{t("meetings.minutes.previewFailedTitle")}</DialogTitle>
+            <DialogDescription>{t("meetings.minutes.previewFailed")}</DialogDescription>
+          </DialogHeader>
+        </DialogContent>
+      </Dialog>
+    );
+  }
   if (!doc.data) return null;
   return (
     <Suspense fallback={null}>
@@ -83,8 +103,10 @@ export function MeetingMinutesSection({
   const create = useCreateMeetingMinutes(meetingId);
   const finalize = useFinalizeMeetingMinutes(meetingId);
   const reopen = useReopenMeetingMinutes(meetingId);
-  const { memberOf } = useMemberIndex(workspaceId);
+  const { memberOf, loaded: membersLoaded } = useMemberIndex(workspaceId);
   const workspace = useOptionalWorkspace()?.workspace;
+  const wsPaths = workspace ? paths.workspace(workspace.organization_slug, workspace.slug) : null;
+  const navigation = useNavigation();
   const [previewOpen, setPreviewOpen] = useState(false);
   const busy = create.isPending || finalize.isPending || reopen.isPending;
   const onError = (err: unknown) => toastApiError(err, t("common.error"));
@@ -120,7 +142,11 @@ export function MeetingMinutesSection({
             onClick={() => {
               if (busy) return;
               create.mutate(i18n.language?.startsWith("en") ? "en" : "vi", {
-                onSuccess: () => toast.success(t("meetings.minutes.createdToast")),
+                onSuccess: (made) => {
+                  toast.success(t("meetings.minutes.createdToast"));
+                  // The page is where the minutes are read and corrected (spec §9.2 item 4).
+                  if (made?.document_id && wsPaths) navigation.push(wsPaths.document(made.document_id));
+                },
                 onError,
               });
             }}
@@ -132,9 +158,13 @@ export function MeetingMinutesSection({
       </div>
     );
   } else {
-    const wsPaths = workspace ? paths.workspace(workspace.organization_slug, workspace.slug) : null;
-    const finalizerName = memberOf(minutes.finalized_by)?.display_name ?? t("meetings.formerMember");
-    const canChange = canClerk && minutes.can_edit;
+    const documentId = minutes.document_id;
+    // No name until the members arrive: never a "former member" flash.
+    const finalizerName = membersLoaded
+      ? (memberOf(minutes.finalized_by)?.display_name ?? t("meetings.formerMember"))
+      : null;
+    const finalizedDate = formatDay(minutes.finalized_at, meetingLocale(i18n.language));
+    const canChange = canClerk && minutes.can_edit && Boolean(documentId);
     body = (
       <div className="flex flex-col gap-3">
         <div className="flex flex-wrap items-center gap-2">
@@ -143,10 +173,9 @@ export function MeetingMinutesSection({
           </Badge>
           {minutes.finalized ? (
             <span className="text-caption text-muted-foreground">
-              {t("meetings.minutes.finalizedBy", {
-                date: formatDay(minutes.finalized_at, meetingLocale(i18n.language)),
-                name: finalizerName,
-              })}
+              {finalizerName
+                ? t("meetings.minutes.finalizedBy", { date: finalizedDate, name: finalizerName })
+                : t("meetings.minutes.finalizedOn", { date: finalizedDate })}
             </span>
           ) : null}
         </div>
@@ -156,9 +185,12 @@ export function MeetingMinutesSection({
           </Notice>
         ) : null}
         <div className="flex flex-wrap items-center gap-2">
-          {wsPaths ? (
+          {!documentId ? (
+            <p className="text-caption text-muted-foreground">{t("meetings.minutes.noAccess")}</p>
+          ) : null}
+          {wsPaths && documentId ? (
             <AppLink
-              href={wsPaths.document(minutes.document_id)}
+              href={wsPaths.document(documentId)}
               className={buttonVariants({ variant: "outline", size: "sm" })}
             >
               <ExternalLink aria-hidden />
@@ -205,7 +237,7 @@ export function MeetingMinutesSection({
             </Button>
           ) : null}
         </div>
-        {canClerk && !minutes.can_edit ? (
+        {canClerk && documentId && !minutes.can_edit ? (
           <p className="text-caption text-muted-foreground">{t("meetings.minutes.editRequired")}</p>
         ) : null}
         {previewOpen ? (

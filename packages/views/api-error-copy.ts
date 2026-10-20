@@ -21,6 +21,7 @@ const API_ERROR_KEYS: Readonly<Record<string, string>> = {
   minutes_exist: "meetings.minutes.errors.minutes_exist",
   minutes_missing: "meetings.minutes.errors.minutes_missing",
   minutes_edit_required: "meetings.minutes.errors.minutes_edit_required",
+  minutes_unavailable: "meetings.minutes.errors.minutes_unavailable",
   email_hub_reauth_required: "email_hub.reconnect.error",
   email_hub_smtp_disabled: "email_hub.connect.error_smtp_disabled",
 };

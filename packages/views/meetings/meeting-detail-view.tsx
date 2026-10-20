@@ -17,7 +17,7 @@ import {
 } from "@uniwork/core/meetings";
 import { paths } from "@uniwork/core/paths";
 import { useMeetingClerk } from "@uniwork/core/meetings/attendance";
-import { useFlag } from "@uniwork/core/feature-flags";
+import { useMeetingMinutesEnabled } from "@uniwork/core/meetings/minutes";
 import { useMeetingPermissions } from "@uniwork/core/permissions";
 import { useMeetingScope } from "@uniwork/core/realtime";
 import { ApiError } from "@uniwork/core/api";
@@ -77,7 +77,8 @@ export function MeetingDetailView({
   const { canHost, canCancel } = useMeetingPermissions(meeting ?? null, workspaceId);
   // Host, secretary or workspace admin: the summary and the action items (spec D3).
   const { isClerk } = useMeetingClerk(meeting ?? null, workspaceId);
-  const minutesOn = useFlag("meeting_minutes", false);
+  // The organization's own answer: an override for it turns the minutes on.
+  const minutesOn = useMeetingMinutesEnabled(workspace.organization_id);
   const start = useStartMeeting(workspaceId);
   const end = useEndMeeting(workspaceId);
   const cancel = useCancelMeeting(workspaceId);

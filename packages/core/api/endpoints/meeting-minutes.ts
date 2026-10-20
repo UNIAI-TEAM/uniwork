@@ -5,8 +5,8 @@ import { parseWithFallback } from "../schema";
 const enc = encodeURIComponent;
 
 const MinutesSchema = z.object({
-  /** The UniNote page of the minutes. */
-  document_id: z.string(),
+  /** The UniNote page of the minutes; null for a reader the page is closed to. */
+  document_id: z.string().nullish(),
   finalized: z.boolean().catch(false),
   finalized_at: z.string().nullish(),
   finalized_by: z.string().nullish(),

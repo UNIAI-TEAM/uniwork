@@ -1,10 +1,30 @@
 "use client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { getPublicConfig } from "../api/endpoints/config";
 import * as api from "../api/endpoints/meeting-minutes";
 import { meetingKeys } from "./hooks";
 import { summaryQueryRetry } from "./summary-hooks";
 
 export type { MeetingMinutes } from "../api/endpoints/meeting-minutes";
+
+const MINUTES_FLAG = "meeting_minutes";
+
+/**
+ * Whether the minutes are on for an organization (`meeting_minutes`, default
+ * off). Organization overrides only evaluate when /config is asked for that
+ * organization, so this reads its own answer, as the server's minutes routes
+ * evaluate at the meeting's organization. Only a settled `true` shows them.
+ */
+export function useMeetingMinutesEnabled(organizationId: string | undefined): boolean {
+  const query = useQuery({
+    queryKey: ["meeting-minutes-config", organizationId ?? ""],
+    queryFn: () => getPublicConfig(organizationId),
+    enabled: Boolean(organizationId),
+    staleTime: 5 * 60_000,
+    retry: 1,
+  });
+  return query.data?.flags[MINUTES_FLAG] === true;
+}
 
 /** The meeting's minutes page and whether it is finalized (spec meeting follow-through §6.6). */
 export function useMeetingMinutes(meetingId: string, enabled = true) {

@@ -3897,6 +3897,7 @@
       "draft": "Draft",
       "finalized": "Finalized",
       "finalizedBy": "Finalized {{date}} · {{name}}",
+      "finalizedOn": "Finalized {{date}}",
       "viewFinalized": "View finalized (version {{no}})",
       "editedSince": "Edited after finalizing. Finalize again to record the new version.",
       "finalize": "Finalize minutes",
@@ -3904,13 +3905,17 @@
       "reopen": "Reopen",
       "editRequired": "You need edit access to the minutes UniNote to finalize or reopen it",
       "loadFailed": "Couldn't load the minutes.",
+      "noAccess": "You don't have access to the minutes UniNote.",
+      "previewFailedTitle": "Couldn't open the finalized version",
+      "previewFailed": "The minutes UniNote may have been deleted, or you no longer have access. Reload the meeting page.",
       "createdToast": "Minutes made",
       "finalizedToast": "Minutes finalized",
       "reopenedToast": "Minutes reopened",
       "errors": {
         "minutes_exist": "This meeting already has minutes. Open them to edit.",
         "minutes_missing": "This meeting's minutes are gone: the UniNote was deleted. Make them again.",
-        "minutes_edit_required": "You need edit access to the minutes UniNote to finalize or reopen it."
+        "minutes_edit_required": "You need edit access to the minutes UniNote to finalize or reopen it.",
+        "minutes_unavailable": "Documents aren't enabled on this server, so minutes can't be made. Tell your administrator."
       }
     },
     "carriedOver": {

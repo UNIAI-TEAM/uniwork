@@ -4,7 +4,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import type { User, Workspace } from "@uniwork/core/types";
 import { WorkspaceProvider } from "../layout/workspace-context";
-import { requestMock, wrapWithNav } from "../test/api-mock";
+import { fakeNav, requestMock, wrapWithNav } from "../test/api-mock";
 import { MeetingMinutesSection } from "./meeting-minutes-section";
 
 beforeAll(() => {
@@ -52,12 +52,13 @@ function respond(minutes: unknown, after: Record<string, unknown> = {}) {
   });
 }
 
-function renderSection(canClerk = true) {
+function renderSection(canClerk = true, nav = fakeNav()) {
   return render(
     wrapWithNav(
       <WorkspaceProvider workspace={workspace} user={user}>
         <MeetingMinutesSection workspaceId="w1" meetingId="m1" canClerk={canClerk} />
       </WorkspaceProvider>,
+      nav,
     ),
   );
 }
@@ -69,14 +70,47 @@ function posted(): string[] {
 }
 
 describe("MeetingMinutesSection", () => {
-  it("lets a clerk make the minutes in the reader's language", async () => {
+  it("lets a clerk make the minutes in the reader's language, then opens the page", async () => {
     respond(null, { create: draft });
-    renderSection();
+    const nav = fakeNav();
+    renderSection(true, nav);
     await userEvent.click(await screen.findByRole("button", { name: "Lập biên bản" }));
     await waitFor(() => expect(posted()).toEqual(["/api/v1/meetings/m1/minutes"]));
     const create = requestMock.mock.calls.find(([, init]) => (init as { method?: string } | undefined)?.method === "POST");
     expect((create?.[1] as { body?: unknown }).body).toEqual({ locale: "vi" });
-    expect(await screen.findByText("Nháp")).toBeInTheDocument();
+    await waitFor(() => expect(nav.push).toHaveBeenCalledWith("/org/team/documents/d1"));
+  });
+
+  it("names no page to a member it is closed to", async () => {
+    respond({ ...finalized, document_id: null, finalized_version_id: null, finalized_version: null, can_edit: false });
+    renderSection(true);
+    expect(await screen.findByText("Đã chốt")).toBeInTheDocument();
+    expect(screen.getByText("Bạn không có quyền xem UniNote biên bản.")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Mở biên bản" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Xem bản đã chốt/ })).not.toBeInTheDocument();
+    expect(screen.queryByText("Cần quyền chỉnh sửa UniNote biên bản để chốt hoặc bỏ chốt")).not.toBeInTheDocument();
+  });
+
+  it("says why the finalized version cannot open when its page cannot be read", async () => {
+    respond(finalized);
+    const base = requestMock.getMockImplementation()!;
+    requestMock.mockImplementation((path: unknown, init?: { method?: string }) =>
+      String(path) === "/api/v1/documents/d1" ? Promise.reject(new Error("gone")) : base(path, init),
+    );
+    renderSection();
+    await userEvent.click(await screen.findByRole("button", { name: "Xem bản đã chốt (phiên bản 2)" }));
+    expect(await screen.findByRole("dialog", { name: "Không mở được bản đã chốt" })).toBeInTheDocument();
+  });
+
+  it("shows the date alone, not a former member, while members load", async () => {
+    respond(finalized);
+    const base = requestMock.getMockImplementation()!;
+    requestMock.mockImplementation((path: unknown, init?: { method?: string }) =>
+      String(path).endsWith("/members") ? new Promise(() => {}) : base(path, init),
+    );
+    renderSection();
+    expect(await screen.findByText("Chốt ngày 20/10/2026")).toBeInTheDocument();
+    expect(screen.queryByText(/Thành viên đã rời/)).not.toBeInTheDocument();
   });
 
   it("shows a draft with its page and the finalize action", async () => {
