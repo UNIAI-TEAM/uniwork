@@ -219,3 +219,49 @@ describe("folder with only subfolders (TV-4)", () => {
     expect(screen.getByText(t("documents.home.empty.folder_title"))).toBeInTheDocument();
   });
 });
+
+// UNI-1994 nit 6: a root with folders but no loose documents is not an empty
+// workspace; "Workspace chưa có tài liệu" is only for no documents AND no folders.
+describe("home root empty states", () => {
+  const withFolder = {
+    tree: () => [treeNode({ id: "fo1", title: "Hợp đồng khách hàng" })],
+    detail: (id: string) => (id === "fo1" ? folderDetail({ title: "Hợp đồng khách hàng" }) : null),
+    list: () => [],
+  };
+
+  it("says there are no documents outside folders when folders exist but no root document does", async () => {
+    route(withFolder);
+    renderView();
+    await screen.findByRole("button", { name: /^Hợp đồng khách hàng/ });
+
+    expect(await screen.findByText("Không có tài liệu nào ngoài thư mục")).toBeInTheDocument();
+    expect(screen.getByText(t("documents.home.empty.outside_folders_title"))).toBeInTheDocument();
+    expect(screen.getByText(t("documents.home.empty.outside_folders_description"))).toBeInTheDocument();
+    expect(screen.queryByText(t("documents.home.empty.title"))).toBeNull();
+    expect(screen.queryByText(t("documents.home.empty.description"))).toBeNull();
+  });
+
+  it("keeps the workspace-empty copy when there are no documents and no folders", async () => {
+    route({ tree: () => [], list: () => [] });
+    renderView();
+
+    expect(await screen.findByText(t("documents.home.empty.title"))).toBeInTheDocument();
+    expect(screen.getByText(t("documents.home.empty.description"))).toBeInTheDocument();
+    expect(screen.queryByText(t("documents.home.empty.outside_folders_title"))).toBeNull();
+  });
+
+  it("keeps the no-results state, distinct from both empty copies, when a type filter matches nothing", async () => {
+    route({ ...withFolder, list: (path) => (queryOf(path).get("format") === "pdf" ? [] : [file("d1", "Kế hoạch Q4")]) });
+    renderView();
+    await screen.findByText("Kế hoạch Q4");
+
+    fireEvent.click(await screen.findByRole("combobox", { name: new RegExp(`^${t("documents.home.filters.type")}`) }));
+    const option = within(await screen.findByRole("listbox")).getByText(t("documents.home.chips.pdf"));
+    fireEvent.pointerDown(option);
+    fireEvent.click(option);
+
+    expect(await screen.findByText(t("documents.library.no_matches_title"))).toBeInTheDocument();
+    expect(screen.queryByText(t("documents.home.empty.outside_folders_title"))).toBeNull();
+    expect(screen.queryByText(t("documents.home.empty.title"))).toBeNull();
+  });
+});

@@ -9941,6 +9941,8 @@
         "title": "No documents in this workspace yet",
         "folder_title": "This folder is empty",
         "description": "Pick a type in the Create row above, or drop files here to upload them.",
+        "outside_folders_title": "No documents outside folders",
+        "outside_folders_description": "Your documents are in the folders above. Pick a type in the Create row above, or drop files here to upload one outside them.",
         "view_only": "You can only view this folder.",
         "recent_title": "Nothing recent yet",
         "recent_description": "Documents you open or edit show up here.",

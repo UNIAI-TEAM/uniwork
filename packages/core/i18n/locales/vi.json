@@ -9934,6 +9934,8 @@
         "title": "Workspace chưa có tài liệu",
         "folder_title": "Thư mục này chưa có gì",
         "description": "Chọn một loại ở hàng Tạo mới phía trên, hoặc kéo thả file vào đây để tải lên.",
+        "outside_folders_title": "Không có tài liệu nào ngoài thư mục",
+        "outside_folders_description": "Tài liệu của bạn nằm trong các thư mục phía trên. Chọn một loại ở hàng Tạo mới phía trên, hoặc kéo thả file vào đây để tải lên ngoài thư mục.",
         "view_only": "Bạn chỉ có quyền xem thư mục này.",
         "recent_title": "Chưa có tài liệu nào gần đây",
         "recent_description": "Tài liệu bạn mở hoặc sửa sẽ hiện ở đây.",
