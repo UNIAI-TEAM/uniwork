@@ -335,7 +335,8 @@ describe("folder layout (Folder.dc)", () => {
     expect(screen.queryByRole("tablist")).toBeNull();
     expect(screen.queryByRole("group", { name: t("documents.home.chips_label") })).toBeNull();
     expect(screen.queryByRole("combobox", { name: new RegExp(t("documents.home.filters.editor")) })).toBeNull();
-    expect(screen.getByRole("combobox", { name: t("documents.home.sort.label") })).toBeInTheDocument();
+    // Sorting lives in the table headers now (UNI-2038): no sort Select in a folder.
+    expect(screen.queryByRole("combobox", { name: /^Sắp xếp|^Sort/ })).toBeNull();
   });
 
   it("gives up space in order on the header row: ancestors and home crumb first, the folder name last (UNI-1977 fix)", async () => {

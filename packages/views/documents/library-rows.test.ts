@@ -2,28 +2,20 @@ import { describe, expect, it } from "vitest";
 import type { DocumentSourceFile } from "@uniwork/core/documents/sources-schema";
 import type { DocumentTreeNode } from "@uniwork/core/types/document";
 import {
-  byUpdatedDesc,
-  DEFAULT_FOLDER_SORT,
   documentRow,
-  FOLDER_SORT_STORAGE_KEY,
   folderPath,
-  folderSortStorageKey,
   formatBytes,
   groupRows,
   indexTree,
   matchesAccess,
   matchesChip,
-  mergeNewestFirst,
-  readFolderSort,
   rowAccessLabelKey,
   rowFormat,
   rowOrigin,
   rowSizeBytes,
   rowTypeKey,
   rowVisibilityLabelKey,
-  sortFolderRows,
   sourceRow,
-  writeFolderSort,
   type DocumentSummaryRow,
 } from "./library-rows";
 
@@ -140,81 +132,10 @@ describe("library rows", () => {
     expect(groupRows([upload, page], "source", index).map((g) => g.key)).toEqual(["origin:upload", "origin:created"]);
   });
 
-  it("sorts newest first and sinks rows without a date", () => {
-    const rows = [
-      documentRow(doc({ id: "old", updated_at: "2026-01-01T00:00:00Z" })),
-      documentRow(doc({ id: "none" })),
-      documentRow(doc({ id: "new", updated_at: "2026-10-01T00:00:00Z" })),
-    ];
-    expect([...rows].sort(byUpdatedDesc).map((r) => r.id)).toEqual(["new", "old", "none"]);
-  });
-
-  it("merges the two paged lists so the next page only adds rows below the ones shown", () => {
-    const d = (id: string, at: string) => documentRow(doc({ id, updated_at: at }));
-    const docs = [d("d1", "2026-10-09T00:00:00Z"), d("d2", "2026-10-05T00:00:00Z")];
-    const sources = [src({ id: "chat:a", updated_at: "2026-10-08T00:00:00Z" }), src({ id: "chat:b", updated_at: "2026-10-01T00:00:00Z" })];
-    const ids = (rows: ReturnType<typeof mergeNewestFirst>) => rows.map((r) => r.id);
-
-    // Both lists have more: nothing older than the newer of the two oldest rows is shown yet.
-    expect(ids(mergeNewestFirst(docs, sources, { docs: true, sources: true }))).toEqual(["d1", "source:chat:a", "d2"]);
-    // Only the sources have more: documents below the sources' oldest row wait for them.
-    expect(ids(mergeNewestFirst(docs, sources, { docs: false, sources: true }))).toEqual(["d1", "source:chat:a", "d2", "source:chat:b"]);
-    // Exhausted lists set no bound.
-    expect(ids(mergeNewestFirst(docs, sources, { docs: false, sources: false }))).toEqual(["d1", "source:chat:a", "d2", "source:chat:b"]);
-
-    // The next documents page lands below what was shown, never above it.
-    const next = [...docs, d("d3", "2026-10-03T00:00:00Z"), d("d4", "2026-09-30T00:00:00Z")];
-    const shown = ids(mergeNewestFirst(docs, sources, { docs: true, sources: true }));
-    const after = ids(mergeNewestFirst(next, sources, { docs: false, sources: true }));
-    expect(after.slice(0, shown.length)).toEqual(shown);
-    // d4 is older than the sources' oldest loaded row, so it waits for their next page.
-    expect(after).toEqual(["d1", "source:chat:a", "d2", "d3", "source:chat:b"]);
-  });
-
   it("formats sizes and says nothing for an unusable one", () => {
     expect(formatBytes(318 * 1024, "en")).toBe("318 KB");
     expect(formatBytes(1.2 * 1024 * 1024, "en")).toBe("1.2 MB");
     expect(formatBytes(-1, "en")).toBe("");
-  });
-
-  it("places folders before documents in both sorts", () => {
-    const rows = [
-      documentRow(doc({ id: "doc-new", kind: "page", title: "An", updated_at: "2026-10-10T00:00:00Z" })),
-      documentRow(doc({ id: "fol-old", kind: "folder", title: "Zebra", updated_at: "2026-01-01T00:00:00Z" })),
-      documentRow(doc({ id: "doc-old", kind: "file", title: "Báo cáo.docx", updated_at: "2026-02-01T00:00:00Z" })),
-      documentRow(doc({ id: "fol-new", kind: "folder", title: "Alpha", updated_at: "2026-09-01T00:00:00Z" })),
-    ];
-    expect(sortFolderRows(rows, "updated").map((r) => r.id)).toEqual([
-      "fol-new",
-      "fol-old",
-      "doc-new",
-      "doc-old",
-    ]);
-    expect(sortFolderRows(rows, "name").map((r) => r.id)).toEqual([
-      "fol-new",
-      "fol-old",
-      "doc-new",
-      "doc-old",
-    ]);
-  });
-
-  it("sorts by Name using Vietnamese collation ('Ă' after 'A')", () => {
-    const rows = [
-      documentRow(doc({ id: "binh", kind: "page", title: "Bình" })),
-      documentRow(doc({ id: "an-circumflex", kind: "page", title: "Ân" })),
-      documentRow(doc({ id: "an-breve", kind: "page", title: "Ăn" })),
-      documentRow(doc({ id: "an-plain", kind: "page", title: "An" })),
-      documentRow(doc({ id: "fol-breve", kind: "folder", title: "Ăn uống" })),
-      documentRow(doc({ id: "fol-plain", kind: "folder", title: "An toàn" })),
-    ];
-    expect(sortFolderRows(rows, "name").map((r) => r.id)).toEqual([
-      "fol-plain",
-      "fol-breve",
-      "an-plain",
-      "an-breve",
-      "an-circumflex",
-      "binh",
-    ]);
   });
 
   it("maps each row kind and extension to its Type column translation key", () => {
@@ -239,58 +160,7 @@ describe("library rows", () => {
     // ...and it groups under the generic file, not under a group of its own.
     expect(groupRows([odd("Ghi chú")], "type", new Map()).map((g) => g.key)).toEqual(["type:file"]);
   });
-
-  it("persists folder sort per viewer under uniwork_documents_folder_sort:<userId> and neither reads nor writes without a user", () => {
-    const map = new Map<string, string>();
-    const adapter = {
-      getItem: (k: string) => map.get(k) ?? null,
-      setItem: (k: string, v: string) => {
-        map.set(k, v);
-      },
-      removeItem: (k: string) => {
-        map.delete(k);
-      },
-    };
-    expect(folderSortStorageKey("u1")).toBe(`${FOLDER_SORT_STORAGE_KEY}:u1`);
-    expect(readFolderSort("u1", adapter)).toBe(DEFAULT_FOLDER_SORT);
-    writeFolderSort("u1", "name", adapter);
-    expect(map.get(`${FOLDER_SORT_STORAGE_KEY}:u1`)).toBe("name");
-    expect(readFolderSort("u1", adapter)).toBe("name");
-
-    // A second viewer on the same browser does not share u1's choice.
-    expect(readFolderSort("u2", adapter)).toBe(DEFAULT_FOLDER_SORT);
-    writeFolderSort("u2", "updated", adapter);
-    expect(map.get(`${FOLDER_SORT_STORAGE_KEY}:u2`)).toBe("updated");
-    expect(readFolderSort("u1", adapter)).toBe("name");
-
-    // Without a session user, default is returned and nothing is written.
-    expect(readFolderSort(null, adapter)).toBe(DEFAULT_FOLDER_SORT);
-    expect(readFolderSort(undefined, adapter)).toBe(DEFAULT_FOLDER_SORT);
-    expect(readFolderSort("", adapter)).toBe(DEFAULT_FOLDER_SORT);
-    const sizeBefore = map.size;
-    writeFolderSort(null, "name", adapter);
-    writeFolderSort(undefined, "name", adapter);
-    writeFolderSort("", "name", adapter);
-    expect(map.size).toBe(sizeBefore);
-
-    const throwing = {
-      getItem: (): string | null => {
-        throw new Error("SecurityError");
-      },
-      setItem: () => {
-        throw new Error("QuotaExceededError");
-      },
-      removeItem: () => {
-        throw new Error("SecurityError");
-      },
-    };
-    expect(readFolderSort("u1", throwing)).toBe(DEFAULT_FOLDER_SORT);
-    expect(readFolderSort("u1", null)).toBe(DEFAULT_FOLDER_SORT);
-    expect(() => writeFolderSort("u1", "name", throwing)).not.toThrow();
-    expect(() => writeFolderSort("u1", "name", null)).not.toThrow();
-  });
 });
-
 
 describe("access columns and filter (UNI-1642)", () => {
   const lvl = (my_level: string | null | undefined, visibility = "workspace") =>

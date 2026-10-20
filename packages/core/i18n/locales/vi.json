@@ -9733,7 +9733,10 @@
         "change": "Đổi",
         "picker_title": "Chọn nơi lưu",
         "picker_description": "Chọn thư mục chứa tài liệu này.",
-        "picker_submit": "Chọn"
+        "picker_submit": "Chọn",
+        "share_toggle": "Chia sẻ với workspace",
+        "share_hint": "Mọi người trong workspace có thể xem tài liệu này",
+        "share_already": "Đã chia sẻ với workspace"
       }
     },
     "save": {
@@ -10812,9 +10815,9 @@
       },
       "open_office": "Mở UniWork Office",
       "sort": {
-        "label": "Sắp xếp",
-        "name": "Tên (A→Z)",
-        "updated": "Cập nhật (mới nhất)"
+        "column": "Sắp xếp theo {{column}}",
+        "ascending": "tăng dần",
+        "descending": "giảm dần"
       },
       "folder_invalid": {
         "title": "Không mở được thư mục này",

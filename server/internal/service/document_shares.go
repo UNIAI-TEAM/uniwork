@@ -820,6 +820,12 @@ type SharedWithMeQuery struct {
 	// (UNI-1868); an unknown value is 400 invalid_filter.
 	Format string
 	Access string
+	// Sort is the optional column sort (UNI-2038 S3). With it the keyset is the
+	// sort key of the last candidate: AfterSort carries the key and
+	// AfterCreatedAt the updated key; without it the share-time keyset above
+	// applies.
+	Sort      DocumentSort
+	AfterSort DocumentSortCursor
 }
 
 // SharedWithMePage is one page of shared documents plus the keyset of the
@@ -828,6 +834,9 @@ type SharedWithMePage struct {
 	Items         []SharedDocument
 	NextCreatedAt time.Time
 	NextID        string
+	// NextSort is the sort half of the next cursor of a sorted page; NextCreatedAt
+	// then holds the updated key of the last row read.
+	NextSort DocumentSortCursor
 }
 
 // sharedWithMeCandidatePage is how many share candidates one SQL page reads
@@ -906,6 +915,15 @@ func (s *DocumentService) listSharedWithMePage(ctx context.Context, userID, orga
 	if afterAt.IsZero() || afterID == "" {
 		afterAt, afterID = time.Time{}, ""
 	}
+	afterSort := in.AfterSort
+	// nextAfter is where the candidate walk resumes after row r: the share time
+	// of an unsorted list, the sort key of a sorted one.
+	nextAfter := func(r db.ListDocumentShareCandidatesRow) (time.Time, string, DocumentSortCursor) {
+		if !in.Sort.Active() {
+			return r.CreatedAt.Time, r.Document.ID, DocumentSortCursor{}
+		}
+		return r.Document.UpdatedAt.Time, r.Document.ID, NewDocumentSortCursor(in.Sort, r.SortSize, r.SortName, r.SortEditor, r.SortEditorNull)
+	}
 	out := make([]SharedDocument, 0, limit)
 	for {
 		params := db.ListDocumentShareCandidatesParams{
@@ -918,7 +936,16 @@ func (s *DocumentService) listSharedWithMePage(ctx context.Context, userID, orga
 			FormatMimes: files.DocumentFormatMimes(),
 			Access:      nullText(filters.access), AccessLevels: filters.accessLevels,
 		}
-		if !afterAt.IsZero() {
+		switch {
+		case in.Sort.Active():
+			var at *time.Time
+			if !afterAt.IsZero() {
+				at = &afterAt
+			}
+			arg := sortArgs(in.Sort, afterSort, at, afterID)
+			params.SortKey, params.SortDesc, params.SortCursorID, params.SortCursorAt = arg.key, arg.desc, arg.id, arg.at
+			params.SortCursorNum, params.SortCursorText, params.SortCursorNull = arg.num, arg.text, arg.null
+		case !afterAt.IsZero():
 			params.AfterCreatedAt = pgtype.Timestamptz{Time: afterAt, Valid: true}
 			params.AfterID = nullText(afterID)
 		}
@@ -948,14 +975,14 @@ func (s *DocumentService) listSharedWithMePage(ctx context.Context, userID, orga
 				// candidates after it (denied or not) are re-read by the next
 				// request, never dropped. A full page may still have no
 				// successor, and the next call then answers an empty page.
-				return SharedWithMePage{Items: out, NextCreatedAt: r.CreatedAt.Time, NextID: r.Document.ID}, nil
+				at, id, cur := nextAfter(r)
+				return SharedWithMePage{Items: out, NextCreatedAt: at, NextID: id, NextSort: cur}, nil
 			}
 		}
 		if len(rows) < sharedWithMeCandidatePage {
 			break
 		}
-		last := rows[len(rows)-1]
-		afterAt, afterID = last.CreatedAt.Time, last.Document.ID
+		afterAt, afterID, afterSort = nextAfter(rows[len(rows)-1])
 	}
 	return SharedWithMePage{Items: out}, nil
 }
