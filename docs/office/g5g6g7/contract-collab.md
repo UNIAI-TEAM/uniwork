@@ -1,6 +1,6 @@
 # UniWork Office G8 — Hợp đồng cộng tác (G8-01)
 
-> **Trạng thái:** in-progress — G8-01 đã ký 2026-10-13 (Advisor theo ủy quyền của người dùng; người dùng xác nhận điểm hitl): OQ-C1..C12 theo khuyến nghị mục 13; OQ-C7 (Product), OQ-C10 (UX) và chữ OQ-C11 (UX) là giá trị tạm tới khi chủ sở hữu xác nhận
+> **Trạng thái:** in-progress — G8-01 đã ký 2026-10-13 (Advisor theo ủy quyền của người dùng; người dùng xác nhận điểm hitl): OQ-C1..C12 theo khuyến nghị mục 13; OQ-C7 đã chốt 2026-10-20 (UNI-2032); OQ-C10 (UX) và chữ OQ-C11 (UX) là giá trị tạm tới khi chủ sở hữu xác nhận
 
 **Issue:** UNI-1396 (G8-01), cha UNI-1331 (Comment, Mention, Inbox) và UNI-1328 (liên kết sau đăng nhập); phase UNI-923.
 **Nguồn ràng buộc:** [phụ lục G8 v0.3](../../superpowers/specs/2026-10-13-office-g8-collab-addendum.md) (§2 quyết định, §3
@@ -504,7 +504,7 @@ hiệu. Mention không cấp quyền (bất biến 6).
 | Mention trong `kind=discussion` | như trên | `document_discussion_mentioned` (mới) |
 | Trả lời trong `kind=comment` | Tác giả comment cha (≠ actor) | `document_comment_replied` (mới) |
 | Trả lời trong `kind=discussion` | Tác giả comment cha (≠ actor) | `document_discussion_replied` (mới) |
-| Resolve `kind=comment` | Tác giả comment được resolve (≠ actor) **(đề xuất, OQ-C7)** | `document_comment_resolved` (mới) |
+| Resolve `kind=comment` | Tác giả comment được resolve (khi còn quyền đọc) cùng các chủ tài liệu tại thời điểm đó (`acl_owner_id` của người tạo khi còn là thành viên hiệu lực và mọi user share ở mức `manage` còn sống, lọc qua `FilterDocumentAdministrators`, không fallback sang quản trị viên workspace), trừ actor, mỗi người một thông báo (OQ-C7 đã chốt 2026-10-20, UNI-2032) | `document_comment_resolved` (mới) |
 
 **Test hiện có phải lật (finding R1-6):** rule hiện vẫn phát `KindDocumentCommented` (`server/internal/notification/rules.go:429`)
 và `TestDocumentCommentCommentedNotification` (`server/internal/notification/document_comments_test.go:109-117`) khẳng định
@@ -535,9 +535,9 @@ mẫu `document:<doc>:<loại>:<comment>` như `document:…:mention:…` hiện
 | 2 | `document_discussion_mentioned` | Bạn được nhắc tên trong thảo luận | {{actor}} đã nhắc đến bạn trong thảo luận của tài liệu “{{document}}”. | You were mentioned in a discussion | {{actor}} mentioned you in a discussion on “{{document}}”. |
 | 3 | `document_comment_replied` | Có phản hồi bình luận mới | {{actor}} đã phản hồi bình luận của bạn trong tài liệu “{{document}}”. | New reply to your comment | {{actor}} replied to your comment in “{{document}}”. |
 | 4 | `document_discussion_replied` | Có phản hồi thảo luận mới | {{actor}} đã phản hồi nội dung thảo luận của bạn trong tài liệu “{{document}}”. | New reply in a discussion | {{actor}} replied to your discussion post in “{{document}}”. |
-| 5 | `document_comment_resolved` | Bình luận đã được giải quyết | {{actor}} đã đánh dấu bình luận của bạn trong tài liệu “{{document}}” là đã giải quyết. | Comment resolved | {{actor}} marked your comment in “{{document}}” as resolved. |
+| 5 | `document_comment_resolved` | Bình luận đã được giải quyết | {{actor}} đã đánh dấu một bình luận trong tài liệu “{{document}}” là đã giải quyết. | Comment resolved | {{actor}} marked a comment in “{{document}}” as resolved. |
 
-Cột vi là nguyên văn UNI-1337 (thay `[Tên người thực hiện]`/`[Tên tài liệu]` bằng placeholder); cột en do hợp đồng này dịch
+Cột vi là nguyên văn UNI-1337 (thay `[Tên người thực hiện]`/`[Tên tài liệu]` bằng placeholder; mẫu 5 đổi "bình luận của bạn" → "một bình luận" theo UNI-2032 để đúng cho cả tác giả comment lẫn chủ tài liệu); cột en do hợp đồng này dịch
 (mẫu 2 sửa theo finding FE-8: "in a discussion on"). Chỗ đặt hai dòng trong `titles.go` (hiện một chuỗi mỗi kind,
 `notification/titles.go:10-46`) là OQ-C8.
 
@@ -716,7 +716,7 @@ reports/<lane>/cloud-test-<seq>.md`, contract-p0 §10); `go test` chạy trong `
 | OQ-C4 | Bỏ cứng cuối cùng làm cha tombstone không còn con | Bỏ cứng dây chuyền lên gốc trong cùng tx (khung rỗng không con vô nghĩa, Q8) | Lead D + UX |
 | OQ-C5 | Quyền và trần của `PUT anchors` | `edit`; ≤ 500 phần tử mỗi request (body vẫn ≤ 1 MiB); vượt → 400 `invalid_request` | Lead D |
 | OQ-C6 | `comment_id` lạ trong vé launch | Bỏ im lặng, không lỗi (chỉ là gợi ý reveal; app tự hiện S15) | Lead D |
-| OQ-C7 | "Người liên quan đến comment" khi resolve | v1 chỉ tác giả comment được resolve (mẫu 5 nói "bình luận của bạn"); người tham gia khác chờ Product | Product (UNI-1337) |
+| OQ-C7 | "Người liên quan đến comment" khi resolve | **Đã chốt** (USER 2026-10-20, UNI-2032): tác giả comment được resolve (khi còn quyền đọc) cùng các chủ tài liệu tại thời điểm đó (`acl_owner_id` của người tạo khi còn là thành viên hiệu lực và mọi user share ở mức `manage` còn sống, lọc qua `FilterDocumentAdministrators`, không fallback sang quản trị viên workspace), trừ actor, khử trùng lặp một thông báo mỗi người (`server/internal/notification/rules.go:ruleDocumentCommentResolved`) | Đóng (USER 2026-10-20, UNI-2032) |
 | OQ-C8 | Hai dòng (tiêu đề + nội dung) trong `titles.go` đang một chuỗi mỗi kind | `titles.go` + `notifications.kind.*` giữ câu **nội dung** (có actor + tài liệu, kênh push/email cần); tiêu đề ngắn thành khóa mới `notifications.kindTitle.*` cho Inbox/push title | Lead D (G8-05) |
 | OQ-C9 | Plan G8-08 ánh xạ mất mạng → `internal`, trong khi protocol có `network` ("fetch failed / offline") | **Đã chốt r2** (hai reviewer đồng ý, lead giao): mất mạng → `network`, 5xx → `internal` (mục 9); plan G8-08 đã khớp trên root `50fc0f174` | Đóng |
 | OQ-C10 | Đổi tên hiển thị không đổi `list_token` → client dùng `since_token` giữ tên chip cũ tới lần list đầy đủ kế | Chấp nhận v1: tên chip đến từ bảng `mentions` (mục 2.1), làm mới ở mỗi list đầy đủ (web mỗi lần invalidate; desktop khi token đổi) | UX |
