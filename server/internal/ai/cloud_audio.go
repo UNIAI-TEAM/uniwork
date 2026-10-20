@@ -35,15 +35,25 @@ func EstimateAudioSeconds(audio provider.Part) float64 {
 	if len(audio.Data) == 0 {
 		return 0
 	}
-	rate := audioByteRate(audio)
+	rate := audioByteRate(audio.MIME, audio.Data)
 	return float64(len(audio.Data)) / float64(rate)
 }
 
-func audioByteRate(audio provider.Part) int {
-	mime := strings.ToLower(audio.MIME)
+// EstimateAudioSecondsFromSize is EstimateAudioSeconds for a stored upload
+// known by its size and verified type only (a WAV counts at the fallback
+// rate, its header unread).
+func EstimateAudioSecondsFromSize(size int64, mime string) float64 {
+	if size <= 0 {
+		return 0
+	}
+	return float64(size) / float64(audioByteRate(mime, nil))
+}
+
+func audioByteRate(mime string, data []byte) int {
+	mime = strings.ToLower(mime)
 	switch {
 	case mime == "audio/wav" || mime == "audio/x-wav" || mime == "audio/wave":
-		if r := wavByteRate(audio.Data); r > 0 {
+		if r := wavByteRate(data); r > 0 {
 			return r
 		}
 		return audioBytesPerSecWAVFallback

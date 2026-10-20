@@ -701,8 +701,29 @@ func TestCloudFromEnv(t *testing.T) {
 	if _, err := g.CloudImage(context.Background(), CloudCall{}, provider.ImageRequest{}); !errors.Is(err, ErrCloudUnavailable) {
 		t.Fatalf("image unavailable: %v", err)
 	}
-	if empty := CloudFromEnv(func(string) string { return "" }); empty.Search != nil || empty.Images != nil || empty.Transcriber != nil {
+	if empty := CloudFromEnv(func(string) string { return "" }); empty.Search != nil || empty.Images != nil || empty.Transcriber != nil || empty.MeetingTranscriber != nil {
 		t.Fatalf("empty env: %+v", empty)
+	}
+	// Uploaded meeting recordings: byteplus needs its base URL, key and
+	// resource id; any one missing leaves the capability unavailable.
+	bp := map[string]string{
+		"AI_MEETING_TRANSCRIBE_PROVIDER": "byteplus", "AI_MEETING_TRANSCRIBE_BASE_URL": "https://asr.example/api",
+		"AI_MEETING_TRANSCRIBE_API_KEY": "k", "AI_MEETING_TRANSCRIBE_RESOURCE_ID": "r",
+	}
+	if c := CloudFromEnv(func(k string) string { return bp[k] }); c.MeetingTranscriber == nil || c.MeetingTranscriber.Name() != "byteplus" {
+		t.Fatalf("byteplus: %+v", c.MeetingTranscriber)
+	}
+	delete(bp, "AI_MEETING_TRANSCRIBE_RESOURCE_ID")
+	if c := CloudFromEnv(func(k string) string { return bp[k] }); c.MeetingTranscriber != nil {
+		t.Fatal("byteplus without a resource id is configured")
+	}
+	if NewGateway(nil, nil, nil, nil, Options{Cloud: CloudFromEnv(func(k string) string {
+		return map[string]string{"AI_MEETING_TRANSCRIBE_PROVIDER": "fake"}[k]
+	})}).MeetingTranscribeAvailable() != true {
+		t.Fatal("fake meeting transcriber unavailable")
+	}
+	if _, _, err := g.MeetingTranscribeSubmit(context.Background(), CloudCall{}, provider.FileTranscribeRequest{}); !errors.Is(err, ErrCloudUnavailable) {
+		t.Fatalf("meeting transcribe unavailable: %v", err)
 	}
 }
 

@@ -25,6 +25,10 @@ const (
 	CapCloudImage           Capability = "cloud_image_generate"
 	CapCloudTranscribe      Capability = "cloud_transcribe"
 	CapMediaAnalysis        Capability = "media_analysis"
+	// CapMeetingTranscribe is a long uploaded meeting recording (parent spec
+	// 2026-10-20-meeting-follow-through §7.4): paid in meeting.transcription
+	// minutes, not AI credits, so it has no model policy either.
+	CapMeetingTranscribe Capability = "meeting_transcribe"
 	// CapOfficeUniworkAI is the Office editors' UniWork AI agent loop (G6-D1
 	// A1): a tool-calling chat, one Complete per tool-result round.
 	CapOfficeUniworkAI Capability = "office_uniwork_ai"

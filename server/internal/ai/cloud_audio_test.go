@@ -48,3 +48,17 @@ func TestBilledAudioSeconds(t *testing.T) {
 		t.Fatal("floor")
 	}
 }
+
+// An upload is estimated from its stored size and verified type alone: one
+// hour of 128 kbit/s MP3 is 3600 s, a WAV counts at the 16 kHz mono rate.
+func TestEstimateAudioSecondsFromSize(t *testing.T) {
+	if got := EstimateAudioSecondsFromSize(3600*16000, "audio/mpeg"); got != 3600 {
+		t.Fatalf("mp3 = %v", got)
+	}
+	if got := EstimateAudioSecondsFromSize(32000*10, "audio/wav"); got != 10 {
+		t.Fatalf("wav = %v", got)
+	}
+	if got := EstimateAudioSecondsFromSize(0, "audio/mpeg"); got != 0 {
+		t.Fatalf("empty = %v", got)
+	}
+}
