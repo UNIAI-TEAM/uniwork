@@ -249,7 +249,7 @@ describe("the table headers sort (UNI-2038 S2)", () => {
     fireEvent.click(await sortButton("name"));
     await waitFor(() => expect(lastQuery(sourceCalls()).get("sort")).toBe("name"));
     expect(lastQuery(sourceCalls()).get("order")).toBe("asc");
-    await waitFor(() => expect(rowOrder()).toEqual(["d-a", "source:chat:m1", "d-b", "d-c"]));
+    await waitFor(() => expect(rowOrder()).toEqual(["d-a", "d-b", "source:chat:m1", "d-c"]));
   });
 
   it.each([

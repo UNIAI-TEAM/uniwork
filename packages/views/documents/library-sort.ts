@@ -50,11 +50,14 @@ function idOf(row: LibraryRow): string {
   return row.type === "source" ? row.source.id : row.doc.id;
 }
 
-/**
- * Code-point order, which is the order of UTF-8 bytes (what the server's
- * `COLLATE "C"` gives). Plain `<` compares UTF-16 units and differs for
- * astral characters, so this walks code points.
- */
+// The server orders Tên and Người sửa by an ICU Vietnamese collation; the web
+// reproduces it with Intl.Collator("vi") at "variant" sensitivity (case,
+// accents and the five tones all count). The shared fixture
+// packages/core/documents/vi-sort-fixture.json holds both sides to the same
+// order (library-sort-vi-order.test.ts).
+const viCollator = new Intl.Collator("vi", { sensitivity: "variant" });
+
+/** Code-point order of ids (they are ASCII ULIDs, so this is the server's byte order). */
 function compareCodePoints(a: string, b: string): number {
   const ia = a[Symbol.iterator]();
   const ib = b[Symbol.iterator]();
@@ -67,14 +70,12 @@ function compareCodePoints(a: string, b: string): number {
   }
 }
 
-const lowerCodePoints = (a: string, b: string): number => compareCodePoints(a.toLowerCase(), b.toLowerCase());
-
 /**
  * The one comparator behind every sort. It reproduces the server's order
- * (UNI-2038 S3): Tên and Người sửa by lowercase title / editor name in
- * code-point order (an accented or "Đ" first letter sorts after "z", a known
- * cost of a collation the web can reproduce), Dung lượng by file size (no
- * file = 0), Cập nhật by update time; ties by id in the same direction. A row
+ * (UNI-2038 S3): Tên and Người sửa by title / editor name in Vietnamese
+ * collation (Đ after D, tones in the Vietnamese order), Dung lượng by file
+ * size (no file = 0), Cập nhật by update time; ties by id in code-point order
+ * in the same direction. A row
  * with no editor name goes last in both orders, like the server's NULLS LAST.
  * The server-sorted pages are never re-sorted with it; it interleaves the two
  * root streams (`mergeSorted`) and orders the lists loaded in full.
@@ -84,7 +85,7 @@ export function compareRows(a: LibraryRow, b: LibraryRow, sort: LibrarySort, nam
   let primary = 0;
   switch (sort.column) {
     case "name":
-      primary = lowerCodePoints(rowTitle(a), rowTitle(b));
+      primary = viCollator.compare(rowTitle(a), rowTitle(b));
       break;
     case "size":
       primary = (rowSizeBytes(a) ?? 0) - (rowSizeBytes(b) ?? 0);
@@ -95,7 +96,7 @@ export function compareRows(a: LibraryRow, b: LibraryRow, sort: LibrarySort, nam
       if (ea === null || eb === null) {
         if (ea !== eb) return ea === null ? 1 : -1;
       } else {
-        primary = lowerCodePoints(ea, eb);
+        primary = viCollator.compare(ea, eb);
       }
       break;
     }

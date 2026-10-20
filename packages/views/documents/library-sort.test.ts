@@ -67,16 +67,10 @@ describe("nextSort", () => {
 });
 
 describe("sortRows", () => {
-  it("sorts by Name by lowercase code point, like the server's lower(title) COLLATE \"C\" (an accented letter sorts after z)", () => {
-    const rows = ["Bình", "Ân", "Ăn", "An", "zeta", "ZED", "Đào"].map((title) => documentRow(doc({ id: title, title })));
-    expect(ids(sortRows(rows, by("name", "asc"), NO_NAMES))).toEqual(["An", "Bình", "ZED", "zeta", "Ân", "Ăn", "Đào"]);
-    expect(ids(sortRows(rows, by("name", "desc"), NO_NAMES))).toEqual(["Đào", "Ăn", "Ân", "zeta", "ZED", "Bình", "An"]);
-  });
-
-  it("compares astral characters by code point, not by UTF-16 unit", () => {
-    // U+FF5E (BMP, high) vs U+1F600 (astral, surrogate pair 0xD83D...): code point order puts the BMP one first.
-    const rows = ["\u{1F600}", "\uFF5E"].map((title) => documentRow(doc({ id: title, title })));
-    expect(ids(sortRows(rows, by("name", "asc"), NO_NAMES))).toEqual(["\uFF5E", "\u{1F600}"]);
+  it("sorts by Name in Vietnamese collation ('Ă' after 'A', 'Đ' after 'D', not after z), both ways", () => {
+    const rows = ["Bình", "Ân", "Ăn", "An", "Zeta", "Đào", "Dũng"].map((title) => documentRow(doc({ id: title, title })));
+    expect(ids(sortRows(rows, by("name", "asc"), NO_NAMES))).toEqual(["An", "Ăn", "Ân", "Bình", "Dũng", "Đào", "Zeta"]);
+    expect(ids(sortRows(rows, by("name", "desc"), NO_NAMES))).toEqual(["Zeta", "Đào", "Dũng", "Bình", "Ân", "Ăn", "An"]);
   });
 
   it("sorts by update time and sinks a row with no date in both orders", () => {

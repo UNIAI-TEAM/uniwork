@@ -1219,7 +1219,7 @@ describe("DocumentsPageView", () => {
       expect(within(subfolders).getByRole("button", { name: /^Zebra/ })).toBeInTheDocument();
     });
 
-    it("sorts by Name by lowercase code point, like the server ('Ă' and 'Ân' after 'Bình')", async () => {
+    it("sorts by Name using Vietnamese collation ('Ă' after 'A')", async () => {
       route({
         tree: () => [treeNode({ id: "fo1", title: "Dự án CCB", kind: "folder" })],
         detail: (id) => (id === "fo1" ? folderDetail({ id: "fo1", title: "Dự án CCB" }) : null),
@@ -1237,7 +1237,7 @@ describe("DocumentsPageView", () => {
       await screen.findByText("Bình");
 
       await clickSort("name");
-      await waitFor(() => expect(rowOrder()).toEqual(["an-plain", "binh", "an-circumflex", "an-breve"]));
+      await waitFor(() => expect(rowOrder()).toEqual(["an-plain", "an-breve", "an-circumflex", "binh"]));
     });
 
     it("keeps the chosen sort on the control and in storage after going to root (control unmounts) and opening another folder (V-F1)", async () => {
