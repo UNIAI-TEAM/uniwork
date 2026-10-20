@@ -498,6 +498,7 @@ func main() {
 	// several tables, so it rides the notify lane, not realtime - and the
 	// expiry sweep is awaited in the shutdown sequence below.
 	dispatcher.RegisterLane(outbox.LaneNotify, service.NewDocumentEditLockReleaser(documentSvc))
+	dispatcher.RegisterLane(outbox.LaneNotify, service.NewChatDocumentShareRevoker(documentSvc))
 	editLockSweep := service.NewDocumentEditLockSweeper(documentSvc, log)
 	if reg != nil {
 		service.SetOfficeLeaseMetrics(reg.OfficeLeases)

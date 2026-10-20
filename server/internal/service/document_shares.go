@@ -15,12 +15,22 @@ import (
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
+// DocumentShareSourceKindChat marks a document_shares row granted by a chat
+// document message (UNI-2012 D2a). Manual grants and pre-existing chat grants
+// have an empty/NULL source_kind and are never auto-revoked when a member
+// leaves a chat room.
+const DocumentShareSourceKindChat = "chat"
+
 // DocumentShareInput is one grant (C-01 §5.3): a principal of the
-// document's organization and the level it receives.
+// document's organization and the level it receives. SourceKind, SourceRoomID
+// and SourceMessageID are set only on the chat document send/share paths.
 type DocumentShareInput struct {
-	PrincipalType string
-	PrincipalID   string
-	Level         DocumentLevel
+	PrincipalType   string
+	PrincipalID     string
+	Level           DocumentLevel
+	SourceKind      string
+	SourceRoomID    string
+	SourceMessageID string
 }
 
 // errDocumentOwned is the §13.4 refusal: sharing, links, visibility, moving
@@ -229,7 +239,8 @@ func (s *DocumentService) applyDocumentShareWithBatch(ctx context.Context, q *db
 		PrincipalType:  in.PrincipalType,
 		PrincipalID:    in.PrincipalID,
 	})
-	if err == nil && prev.Level == string(in.Level) {
+	hasPrev := err == nil
+	if hasPrev && prev.Level == string(in.Level) {
 		return prev, nil
 	}
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
@@ -240,7 +251,7 @@ func (s *DocumentService) applyDocumentShareWithBatch(ctx context.Context, q *db
 		notifyUserID = ""
 	}
 	var before map[string]any
-	if err == nil {
+	if hasPrev {
 		if err := q.RevokeDocumentShare(ctx, db.RevokeDocumentShareParams{
 			ID: prev.ID, OrganizationID: prev.OrganizationID, WorkspaceID: prev.WorkspaceID,
 			DocumentID: prev.DocumentID, RevokedBy: nullText(actor.ID),
@@ -249,16 +260,27 @@ func (s *DocumentService) applyDocumentShareWithBatch(ctx context.Context, q *db
 		}
 		before = map[string]any{"level": prev.Level}
 	}
+	var sourceKind, sourceRoomID, sourceMessageID pgtype.Text
+	if in.SourceKind == DocumentShareSourceKindChat {
+		sourceKind = nullText(in.SourceKind)
+		sourceRoomID = nullText(in.SourceRoomID)
+		sourceMessageID = nullText(in.SourceMessageID)
+	}
+	priorManualLevel := priorManualLevelForChatGrant(hasPrev, prev, in.SourceKind)
 	sh, err := q.InsertDocumentShare(ctx, db.InsertDocumentShareParams{
-		ID:             util.NewID(),
-		OrganizationID: doc.OrganizationID,
-		WorkspaceID:    doc.WorkspaceID,
-		DocumentID:     doc.ID,
-		PrincipalType:  in.PrincipalType,
-		PrincipalID:    in.PrincipalID,
-		Level:          string(in.Level),
-		GrantedBy:      actor.ID,
-		GrantedByKind:  string(actor.Kind),
+		ID:               util.NewID(),
+		OrganizationID:   doc.OrganizationID,
+		WorkspaceID:      doc.WorkspaceID,
+		DocumentID:       doc.ID,
+		PrincipalType:    in.PrincipalType,
+		PrincipalID:      in.PrincipalID,
+		Level:            string(in.Level),
+		GrantedBy:        actor.ID,
+		GrantedByKind:    string(actor.Kind),
+		SourceKind:       sourceKind,
+		SourceRoomID:     sourceRoomID,
+		SourceMessageID:  sourceMessageID,
+		PriorManualLevel: priorManualLevel,
 	})
 	if err != nil {
 		return db.DocumentShare{}, err
@@ -292,6 +314,22 @@ func (s *DocumentService) applyDocumentShareWithBatch(ctx context.Context, q *db
 		return db.DocumentShare{}, err
 	}
 	return sh, nil
+}
+
+// priorManualLevelForChatGrant decides the prior_manual_level column of a new
+// document_shares row (UNI-2012 D2a): a manual grant (sourceKind == "") is a
+// manual share itself so it carries NULL; a chat grant that raises a live
+// manual share records that manual share's level so leaving the room restores
+// it instead of deleting access; and a chat grant that raises an earlier chat
+// grant preserves whatever prior_manual_level the earlier row remembered.
+func priorManualLevelForChatGrant(hasPrev bool, prev db.DocumentShare, sourceKind string) pgtype.Text {
+	if sourceKind != DocumentShareSourceKindChat || !hasPrev {
+		return pgtype.Text{}
+	}
+	if !prev.SourceKind.Valid {
+		return nullText(prev.Level)
+	}
+	return prev.PriorManualLevel
 }
 
 // mergeDocumentShareIntoHomeRow is a share whose principal is the document's

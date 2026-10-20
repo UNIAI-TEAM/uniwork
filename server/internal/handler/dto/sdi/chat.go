@@ -53,10 +53,10 @@ type SendChatFileMessageSDI struct {
 }
 
 // SendChatDocumentMessageSDI is multipart POST .../messages/document
-// (UNI-1966 §2.1). The bytes become a Document in the sender's My Folder and
-// every current human room member gets a share at ShareLevel; the message
-// carries the reference. share_level defaults to comment; manage is refused
-// with 400.
+// (UNI-1966 §2.1; UNI-2012 D1a/D1b). The bytes become a Document at the root
+// of the workspace the sender stands in and every current human room member
+// gets a share at ShareLevel; the message carries the reference. share_level
+// defaults to comment; manage is refused with 400.
 type SendChatDocumentMessageSDI struct {
 	File             []byte  `formData:"file" description:"Document (PDF, TXT, Markdown, HTML, DOC, DOCX, XLS, XLSX, PPT, PPTX, or ODT; max DOCUMENT_MAX_BYTES)"`
 	ShareLevel       string  `formData:"share_level" description:"view, comment, or edit granted to room members (default comment; manage is refused)" example:"comment"`

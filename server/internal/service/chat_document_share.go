@@ -41,8 +41,9 @@ var chatAttachmentShareBeforeLock func()
 //  5. open the attachment bytes via OpenChatFileMessage and upload a copy as a
 //     new document_file object
 //  6. one transaction: lock the message row (replay if another call converted
-//     it meanwhile), create the Document in the sender's My Folder, grant the
-//     room's current human members, flip the message in place to
+//     it meanwhile), create the Document at the root of the workspace the
+//     sender stands in, grant the room's current human members, flip the
+//     message in place to
 //     kind='document' and metadata={"document_id"} keeping body and
 //     client_msg_id untouched, and release the old chat_attachment reference
 //     only after the document holds its own object
@@ -117,7 +118,7 @@ func (s *ChatService) ShareAttachmentAsDocument(
 		return ChatMessageRow{}, errSourceNotSaveable()
 	}
 
-	scope := documentScope(room.OrganizationID, anchorWS)
+	scope := documentScope(room.OrganizationID, workspaceID)
 	actor := Human(userID)
 	up, err := s.files.Upload(ctx, files.UploadInput{
 		Actor:          actor,
@@ -149,7 +150,7 @@ func (s *ChatService) ShareAttachmentAsDocument(
 	}
 
 	updated, converted, err := s.commitAttachmentAsDocument(
-		ctx, userID, room, messageID, fileInfo.Filename, level, recipients, up.File, actor,
+		ctx, userID, workspaceID, room, messageID, fileInfo.Filename, level, recipients, up.File, actor,
 	)
 	if err != nil {
 		s.cancelStagedUpload(ctx, actor, scope, up.File.ID)
@@ -166,6 +167,7 @@ func (s *ChatService) ShareAttachmentAsDocument(
 func (s *ChatService) commitAttachmentAsDocument(
 	ctx context.Context,
 	userID string,
+	workspaceID string,
 	room db.ChatRoom,
 	messageID string,
 	filename string,
@@ -209,7 +211,7 @@ func (s *ChatService) commitAttachmentAsDocument(
 	if locked.Kind != "file" {
 		return db.ChatMessage{}, false, ErrNotFound
 	}
-	if _, err := s.ws.RequireMemberQ(ctx, q, anchorWS, userID); err != nil {
+	if _, err := s.ws.RequireMemberQ(ctx, q, workspaceID, userID); err != nil {
 		return db.ChatMessage{}, false, err
 	}
 	if err := s.requireCanSendInRoom(ctx, userID, room.ID, room); err != nil {
@@ -217,8 +219,8 @@ func (s *ChatService) commitAttachmentAsDocument(
 	}
 
 	docRes, _, err := s.docs.createFileDocumentFromStagedUploadInTx(
-		ctx, tx, q, s.files, actor, room.OrganizationID, anchorWS,
-		file.ID, filename, "", "", DocumentSystemKindMyFolder, "",
+		ctx, tx, q, s.files, actor, room.OrganizationID, workspaceID,
+		file.ID, filename, "", "", "", "",
 	)
 	if err != nil {
 		return db.ChatMessage{}, false, err
@@ -228,7 +230,7 @@ func (s *ChatService) commitAttachmentAsDocument(
 			return db.ChatMessage{}, false, err
 		}
 	}
-	if err := s.grantDocumentToRoomMembers(ctx, q, actor, docRes, recipients, level); err != nil {
+	if err := s.grantDocumentToRoomMembers(ctx, q, actor, docRes, recipients, level, room.ID, locked.ID); err != nil {
 		return db.ChatMessage{}, false, err
 	}
 

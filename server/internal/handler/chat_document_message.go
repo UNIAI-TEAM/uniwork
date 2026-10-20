@@ -12,11 +12,11 @@ import (
 )
 
 // sendChatDocumentMessage is POST .../chat/rooms/{roomID}/messages/document
-// (UNI-1966 §2.1): the bytes become a Document in the sender's My Folder and
-// every current human room member gets a share at share_level. The room gate
-// runs before the body is read, and the caller is always a human
-// (service.Human), the documents route's precedent: an agent has no room
-// membership and no path here.
+// (UNI-1966 §2.1; UNI-2012 D1a/D1b): the bytes become a Document at the root
+// of the workspace the sender stands in and every current human room member
+// gets a share at share_level. The room gate runs before the body is read, and
+// the caller is always a human (service.Human), the documents route's
+// precedent: an agent has no room membership and no path here.
 func (h *handlers) sendChatDocumentMessage(w http.ResponseWriter, r *http.Request) {
 	if h.Chat == nil || h.Chat.FilesService() == nil || h.Chat.DocumentsService() == nil {
 		respondError(w, http.StatusNotImplemented, "storage_unavailable", "documents are not configured")

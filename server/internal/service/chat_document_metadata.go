@@ -151,7 +151,7 @@ func (s *ChatService) resolveChatDocument(ctx context.Context, actor Actor, room
 	info.HasAccess = true
 	info.Level = string(access.Level)
 	info.CanManage = access.canAdminister()
-	info.CanUploadVersion = access.Level.AtLeast(DocumentLevelEdit)
+	info.CanUploadVersion = chatDocumentCanUploadVersion(doc, access)
 	info.Title = doc.Title
 	info.VersionNumber = doc.CurrentVersion
 	info.Revision = doc.Revision
@@ -166,6 +166,13 @@ func (s *ChatService) resolveChatDocument(ctx context.Context, actor Actor, room
 		info.RecipientCount, info.HasRecipientCount = count, true
 	}
 	return info, nil
+}
+
+// chatDocumentCanUploadVersion reports whether the viewer may upload a new
+// file version from the card (UNI-2012 D5/R6): only file documents have file
+// versions, and uploading one requires at least edit.
+func chatDocumentCanUploadVersion(doc db.Document, access DocumentAccess) bool {
+	return doc.Kind == DocumentKindFile && access.Level.AtLeast(DocumentLevelEdit)
 }
 
 // chatDocumentFormat is the type icon's format and the §5 open-in-app rule.
@@ -246,7 +253,7 @@ func (s *ChatService) documentGrantRecipients(ctx context.Context, senderID stri
 		if memberID == senderID {
 			continue
 		}
-		if _, err := s.ws.RequireMember(ctx, roomAnchorWorkspaceID(room), memberID); err != nil {
+		if err := s.requireDocumentGrantRecipient(ctx, room, memberID); err != nil {
 			if isGateRefusal(err) {
 				continue
 			}
@@ -258,6 +265,24 @@ func (s *ChatService) documentGrantRecipients(ctx context.Context, senderID stri
 		}
 	}
 	return out, nil
+}
+
+// requireDocumentGrantRecipient gates one room member for a chat document
+// grant (UNI-2012 R3): every recipient must be an active member of the room's
+// organization because applyDocumentShareWithBatch does not validate
+// principals itself, and workspace/channel rooms additionally require
+// membership in the room's workspace.
+func (s *ChatService) requireDocumentGrantRecipient(ctx context.Context, room db.ChatRoom, memberID string) error {
+	if _, err := s.ws.orgs.RequireMember(ctx, room.OrganizationID, memberID); err != nil {
+		return err
+	}
+	switch room.Kind {
+	case chatRoomKindWorkspace, chatRoomKindChannel:
+		_, err := s.ws.RequireMember(ctx, roomAnchorWorkspaceID(room), memberID)
+		return err
+	default:
+		return nil
+	}
 }
 
 // chatDocumentMIMEType reports whether a verified content type may be shared

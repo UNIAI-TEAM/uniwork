@@ -315,7 +315,7 @@ func registerChat(r api, h Routes, chatWriteLimit, chatReactLimit, chatRoomLimit
 	})
 	r.With(chatWriteLimit).Post("/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/document", h.SendChatDocumentMessage, apiOp{
 		summary:     "Send chat document message",
-		description: "Gửi tệp dạng tài liệu: tệp thành một tài liệu trong My Folder của người gửi và mọi thành viên trong phòng nhận được quyền chia sẻ (share_level, mặc định comment; tối đa 50 người). Định dạng: PDF, TXT, Markdown, HTML, DOC/DOCX, XLS/XLSX, PPT/PPTX, ODT.",
+		description: "Gửi tệp dạng tài liệu: tệp thành một tài liệu ở gốc workspace của người gửi và mọi thành viên trong phòng nhận được quyền chia sẻ (share_level, mặc định comment; tối đa 50 người). Định dạng: PDF, TXT, Markdown, HTML, DOC/DOCX, XLS/XLSX, PPT/PPTX, ODT.",
 		tags:        []string{"chat"},
 		sdi:         sdi.SendChatDocumentMessageSDI{},
 		sdo:         sdo.ChatMessageDTO{},
@@ -323,7 +323,7 @@ func registerChat(r api, h Routes, chatWriteLimit, chatReactLimit, chatRoomLimit
 	})
 	r.With(chatWriteLimit).Post("/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/{messageID}/share-as-document", h.ShareChatMessageAsDocument, apiOp{
 		summary:     "Share chat attachment as document",
-		description: "Chuyển tệp đính kèm của chính người gửi thành tài liệu chia sẻ trong My Folder và cấp quyền cho các thành viên hiện tại trong phòng; cập nhật tin nhắn tại chỗ sang kind=document (UNI-1966 §2.2).",
+		description: "Chuyển tệp đính kèm của chính người gửi thành tài liệu chia sẻ ở gốc workspace của người gửi và cấp quyền cho các thành viên hiện tại trong phòng; cập nhật tin nhắn tại chỗ sang kind=document (UNI-1966 §2.2, UNI-2012 D1a/D1b).",
 		tags:        []string{"chat"},
 		sdi:         sdi.ShareChatMessageAsDocumentSDI{},
 		sdo:         sdo.ChatMessageDTO{},

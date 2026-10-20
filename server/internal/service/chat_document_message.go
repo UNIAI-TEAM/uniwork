@@ -20,12 +20,12 @@ import (
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
-// Chat document share (UNI-1966 §2.1, §3.1). A document message is a message
-// kind whose bytes live in the Documents tree: the send stages one
-// document_file upload, files it into the sender's My Folder, grants the
-// room's current human members, and writes the message that names the
-// document - all but the upload in one transaction, because a message must
-// never exist without the document it names (ADR 0009).
+// Chat document share (UNI-1966 §2.1, §3.1; UNI-2012 D1a/D1b). A document
+// message is a message kind whose bytes live in the Documents tree: the send
+// stages one document_file upload, files it at the root of the workspace the
+// sender stands in, grants the room's current human members, and writes the
+// message that names the document - all but the upload in one transaction,
+// because a message must never exist without the document it names (ADR 0009).
 
 // SendDocumentMessageInput is one document send. ShareLevel is the level every
 // room member gets; empty means comment (§2.1).
@@ -146,7 +146,7 @@ func (s *ChatService) SendDocumentMessage(
 		return ChatMessageRow{}, shareBatchTooLargeError()
 	}
 
-	scope := documentScope(room.OrganizationID, roomAnchorWorkspaceID(room))
+	scope := documentScope(room.OrganizationID, workspaceID)
 	actor := Human(userID)
 	up, err := s.files.Upload(ctx, files.UploadInput{
 		Actor:          actor,
@@ -185,7 +185,7 @@ func (s *ChatService) SendDocumentMessage(
 		return ChatMessageRow{}, chatDocumentTypeRefused()
 	}
 
-	msg, created, err := s.commitDocumentMessage(ctx, userID, room, in, level, recipients, up.File, actor, replyTo)
+	msg, created, err := s.commitDocumentMessage(ctx, userID, workspaceID, room, in, level, recipients, up.File, actor, replyTo)
 	if err != nil {
 		// Any terminal error after the upload leaves a staged object; cancel
 		// reclaims it instead of waiting for the 24h claim window. A file that
@@ -222,6 +222,7 @@ func (s *ChatService) SendDocumentMessage(
 func (s *ChatService) commitDocumentMessage(
 	ctx context.Context,
 	userID string,
+	workspaceID string,
 	room db.ChatRoom,
 	in SendDocumentMessageInput,
 	level DocumentLevel,
@@ -253,20 +254,19 @@ func (s *ChatService) commitDocumentMessage(
 		}
 	}
 	// 3.1.e.ii: a revoke during the upload must win.
-	if _, err := s.ws.RequireMemberQ(ctx, q, roomAnchorWorkspaceID(room), userID); err != nil {
+	if _, err := s.ws.RequireMemberQ(ctx, q, workspaceID, userID); err != nil {
 		return db.ChatMessage{}, false, err
 	}
 	if err := s.requireCanSendInRoom(ctx, userID, room.ID, room); err != nil {
 		return db.ChatMessage{}, false, err
 	}
 
-	// 3.1.e.iii: the bytes become a file document in the sender's My Folder.
-	// The document create carries a derived idempotency key, so the document
-	// ledger and the message ledger agree on a replay without the client
-	// sending two keys.
+	// 3.1.e.iii (UNI-2012 D1a/D1b): the bytes become a file document at the
+	// root of the workspace the sender stands in (parent_id NULL,
+	// visibility restricted, acl_owner = sender, owner_kind NULL).
 	docRes, _, err := s.docs.createFileDocumentFromStagedUploadInTx(
-		ctx, tx, q, s.files, actor, room.OrganizationID, roomAnchorWorkspaceID(room),
-		file.ID, in.Filename, in.Title, "", DocumentSystemKindMyFolder, "",
+		ctx, tx, q, s.files, actor, room.OrganizationID, workspaceID,
+		file.ID, in.Filename, in.Title, "", "", "",
 	)
 	if err != nil {
 		return db.ChatMessage{}, false, err
@@ -281,7 +281,8 @@ func (s *ChatService) commitDocumentMessage(
 	// passed in: a member who joined meanwhile gets nothing (§3.4), and the
 	// notify decision is taken here, before the first grant, against the
 	// command-start shares (SH-S3 R1-01).
-	if err := s.grantDocumentToRoomMembers(ctx, q, actor, docRes, recipients, level); err != nil {
+	msgID := util.NewID()
+	if err := s.grantDocumentToRoomMembers(ctx, q, actor, docRes, recipients, level, room.ID, msgID); err != nil {
 		return db.ChatMessage{}, false, err
 	}
 
@@ -299,7 +300,7 @@ func (s *ChatService) commitDocumentMessage(
 		body = files.SanitizeFilename(file.Filename)
 	}
 	msg, err = q.CreateChatDocumentMessage(ctx, db.CreateChatDocumentMessageParams{
-		ID:               util.NewID(),
+		ID:               msgID,
 		RoomID:           room.ID,
 		OrganizationID:   room.OrganizationID,
 		WorkspaceID:      roomAnchorWorkspaceID(room),
@@ -337,10 +338,13 @@ func (s *ChatService) commitDocumentMessage(
 }
 
 // grantDocumentToRoomMembers applies one share per recipient inside the
-// caller's transaction. The document is shared, never its parent: the My
-// Folder stays private to the sender (UNI-1974).
+// caller's transaction. Only-raise (UNI-2012 D2a): a recipient who already
+// holds at least the requested effective level keeps it unchanged, and the
+// sender is never granted below manage. Every recipient is checked against the
+// organization membership gate inside the transaction because
+// applyDocumentShareWithBatch does not validate principals itself (R3).
 func (s *ChatService) grantDocumentToRoomMembers(
-	ctx context.Context, q *db.Queries, actor Actor, docRes DocumentFileResult, recipients []string, level DocumentLevel,
+	ctx context.Context, q *db.Queries, actor Actor, docRes DocumentFileResult, recipients []string, level DocumentLevel, roomID, messageID string,
 ) error {
 	if len(recipients) == 0 {
 		return nil
@@ -356,12 +360,35 @@ func (s *ChatService) grantDocumentToRoomMembers(
 		return err
 	}
 	for _, recipientID := range recipients {
+		if actor.Kind == audit.KindHuman && recipientID == actor.ID {
+			continue
+		}
+		if _, err := s.docs.orgs.RequireMemberQ(ctx, q, doc.OrganizationID, recipientID); err != nil {
+			if isGateRefusal(err) {
+				continue
+			}
+			return err
+		}
+		raise, err := s.docs.grantRaisesLevel(ctx, q, doc, recipientID, level)
+		if err != nil {
+			return err
+		}
+		if !raise {
+			continue
+		}
 		notifyUserID, err := s.docs.notifyOnUserShare(ctx, q, actor, doc, sharesBefore, recipientID, level)
 		if err != nil {
 			return err
 		}
 		if _, err := s.docs.applyDocumentShareWithBatch(ctx, q, actor, doc, access,
-			DocumentShareInput{PrincipalType: DocumentPrincipalUser, PrincipalID: recipientID, Level: level},
+			DocumentShareInput{
+				PrincipalType:   DocumentPrincipalUser,
+				PrincipalID:     recipientID,
+				Level:           level,
+				SourceKind:      DocumentShareSourceKindChat,
+				SourceRoomID:    roomID,
+				SourceMessageID: messageID,
+			},
 			"", notifyUserID); err != nil {
 			return err
 		}
