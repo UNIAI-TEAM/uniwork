@@ -18,12 +18,12 @@ type documentServiceOptions struct {
 	// only internal/service may import internal/files
 	// (arch_test.go TestFilesContractIsALeafCalledOnlyFromTheServiceTier).
 	// Nil means no file store is wired, as the assembly test needs.
-	Files         *service.FileService
-	Flags         service.DocumentFlags
-	Metrics       service.DocumentMetrics
-	IntentMetrics service.OfficeIntentMetrics
-	Policy        service.CommitIntentPolicy
-	// EditLock is the DOCUMENT_EDIT_* timing (UNI-1645 §7); a zero field keeps
+	Files                *service.FileService
+	Flags                service.DocumentFlags
+	Metrics              service.DocumentMetrics
+	IntentMetrics        service.OfficeIntentMetrics
+	Policy               service.CommitIntentPolicy
+	IdempotencyKeyPolicy service.IdempotencyKeyPolicy
 	// the addendum default.
 	EditLock service.DocumentEditLockConfig
 }
@@ -46,6 +46,7 @@ func newDocumentService(o documentServiceOptions) *service.DocumentService {
 	svc.SetMetrics(o.Metrics)
 	svc.SetIntentMetrics(o.IntentMetrics)
 	svc.SetCommitIntentPolicy(o.Policy)
+	svc.SetIdempotencyKeyPolicy(o.IdempotencyKeyPolicy)
 	svc.SetFlags(o.Flags)
 	svc.SetEditLockConfig(o.EditLock)
 	return svc

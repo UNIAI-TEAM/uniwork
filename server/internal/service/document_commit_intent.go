@@ -49,8 +49,9 @@ import (
 // production numbers). DOCUMENT_COMMIT_INTENT_CLAIM_TTL and
 // DOCUMENT_COMMIT_INTENT_RETENTION override them (config.Config).
 const (
-	DefaultCommitIntentClaimTTL  = 2 * time.Minute
-	DefaultCommitIntentRetention = 7 * 24 * time.Hour
+	DefaultCommitIntentClaimTTL    = 2 * time.Minute
+	DefaultCommitIntentRetention   = 7 * 24 * time.Hour
+	DefaultIdempotencyKeyRetention = 7 * 24 * time.Hour
 )
 
 // A retry that finds the same payload's claim live waits up to
@@ -66,8 +67,10 @@ const (
 // a batch comes back short. commitIntentSweepTick is the default pass cadence;
 // DOCUMENT_COMMIT_INTENT_SWEEP_TICK overrides it (config.Config).
 const (
-	commitIntentSweepBatch = 500
-	commitIntentSweepTick  = 10 * time.Minute
+	commitIntentSweepBatch   = 500
+	commitIntentSweepTick    = 10 * time.Minute
+	idempotencyKeySweepBatch = 500
+	idempotencyKeySweepTick  = 10 * time.Minute
 )
 
 // Lookup outcomes, the wire vocabulary of CommitIntentSDO.outcome and the

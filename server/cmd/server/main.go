@@ -393,6 +393,10 @@ func main() {
 			Retention: cfg.DocumentCommitIntentRetention,
 			SweepTick: cfg.DocumentCommitIntentSweepTick,
 		},
+		IdempotencyKeyPolicy: service.IdempotencyKeyPolicy{
+			Retention: cfg.IdempotencyKeyRetention,
+			SweepTick: cfg.IdempotencyKeySweepTick,
+		},
 		// The edit lock timing (UNI-1645 §7), validated by config.Load.
 		EditLock: service.DocumentEditLockConfig{
 			TTL:               cfg.DocumentEditLockTTL,
