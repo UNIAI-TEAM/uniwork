@@ -131,6 +131,27 @@ describe("MeetingRoomPeopleTab", () => {
       );
     }
 
+    it("offers the room microphone only while the AI scribe is in the room", async () => {
+      renderAsAdmin();
+      fireEvent.click(await screen.findByRole("button", { name: "Thao tác với Chủ trì" }));
+      expect(await screen.findByRole("menuitem", { name: "Chuyển sang dự thính" })).toBeInTheDocument();
+      expect(screen.queryByRole("menuitem", { name: "Đặt làm micro hội trường" })).not.toBeInTheDocument();
+    });
+
+    it("offers the room microphone to a clerk when the AI scribe listens", async () => {
+      setSessionUser({ ...me, id: "u-admin", display_name: "Admin" });
+      live.participants = [hostInRoom, { ...hostInRoom, identity: "uw_agent_scribe", name: "UniWork AI", isAgent: true }];
+      render(
+        wrapWithNav(
+          <MeetingModerationProvider meetingId="m1" canHost>
+            <MeetingRoomPeopleTab meetingId="m1" meeting={meeting} workspaceId="w1" canHost />
+          </MeetingModerationProvider>,
+        ),
+      );
+      fireEvent.click(await screen.findByRole("button", { name: "Thao tác với Chủ trì" }));
+      expect(await screen.findByRole("menuitem", { name: "Đặt làm micro hội trường" })).toBeInTheDocument();
+    });
+
     it("offers its standing but never removing the host", async () => {
       renderAsAdmin();
       fireEvent.click(await screen.findByRole("button", { name: "Thao tác với Chủ trì" }));

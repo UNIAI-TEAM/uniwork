@@ -3775,7 +3775,22 @@
       "turnOff": "Tắt AI ghi lời cho cuộc họp này",
       "turnOn": "Bật AI ghi lời",
       "captionsLabel": "Phụ đề · UniWork AI",
-      "unknownSpeaker": "Người nói"
+      "unknownSpeaker": "Người nói",
+      "sharedMicOn": "Đặt làm micro hội trường",
+      "sharedMicOff": "Bỏ micro hội trường",
+      "sharedMicSet": "Mic của {{name}} là micro hội trường: AI tách từng người nói",
+      "sharedMicCleared": "{{name}} không còn là micro hội trường",
+      "speakersButton": "Gán người nói",
+      "speakersTitle": "Gán người nói",
+      "speakersDescription": "Micro hội trường thu tiếng nhiều người. Gán mỗi người nói cho một thành viên hoặc nhập tên; transcript và tóm tắt sẽ dùng tên này.",
+      "speakerLabel": "Hội trường · Người nói {{speaker}}",
+      "speakerMember": "Thành viên",
+      "speakerNotAssigned": "Chưa gán",
+      "speakerFreeName": "Hoặc nhập tên",
+      "speakerSave": "Lưu",
+      "speakerSaved": "Đã lưu tên người nói",
+      "speakersEmpty": "Chưa có người nói nào từ micro hội trường.",
+      "speakersLoadFailed": "Không tải được danh sách người nói."
     },
     "summaryPartial": "Tóm tắt dựa trên một phần cuộc họp: transcript dài hơn mức AI đọc được một lần."
   },

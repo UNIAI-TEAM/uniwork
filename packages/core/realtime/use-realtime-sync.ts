@@ -329,6 +329,15 @@ function keysFor(
       if (payload.meeting_id) push(meetingKeys.transcript(payload.meeting_id));
       break;
     }
+    // A shared-mic speaker label appeared or was assigned: the labels, and the
+    // names the transcript shows for them.
+    case "speaker_label.updated": {
+      if (payload.meeting_id) {
+        push(meetingKeys.speakerLabels(payload.meeting_id));
+        push(meetingKeys.transcript(payload.meeting_id));
+      }
+      break;
+    }
     case "chat.message": {
       if (payload.meeting_id) push(meetingKeys.chat(payload.meeting_id));
       break;

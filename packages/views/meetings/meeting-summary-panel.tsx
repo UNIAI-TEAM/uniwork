@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { formatMeetingStart, meetingLocale } from "./meeting-datetime";
 import { formatRelativeTime } from "./meeting-relative-time";
 import { useOlderTranscript, useRecordings } from "@uniwork/core/meetings";
+import { useMeetingClerk } from "@uniwork/core/meetings/attendance";
 import { useProject } from "@uniwork/core/tasks";
 import type { Meeting } from "@uniwork/core/types";
 import type { MeetingSummary } from "@uniwork/core/types/meeting";
@@ -17,6 +18,7 @@ import { MeetingFeedLoadOlder } from "./meeting-feed-load-older";
 import { MeetingRecordingDialog } from "./meeting-recording-dialog";
 import { PanelCard } from "../common/panel-card";
 import { MeetingSectionError, MeetingTextSkeleton } from "./meeting-section-state";
+import { MeetingSpeakerLabelsButton } from "./meeting-speaker-labels-dialog";
 import { SummaryActionItems } from "./meeting-summary/summary-action-items";
 import {
   SummaryGenerateButton,
@@ -56,6 +58,8 @@ export function MeetingSummaryPanel({
     if (transcriptQuery.isError) void transcriptQuery.refetch();
   };
   const { data: recordings } = useRecordings(meetingId);
+  // Clerks name the room microphone's speakers (scribe spec §4.3).
+  const { isClerk } = useMeetingClerk(meeting, workspaceId);
   const [showTranscript, setShowTranscript] = useState(false);
   // A project deleted after the meeting was linked stays on the meeting row
   // (no FK); only a project that still resolves is offered for new tasks.
@@ -124,21 +128,24 @@ export function MeetingSummaryPanel({
         {summary ? null : <MeetingDecisionsBlock voted={gen.voted} aiDecisions={[]} />}
 
         <Collapsible open={showTranscript} onOpenChange={setShowTranscript}>
-          <CollapsibleTrigger
-            render={
-              <Button type="button" size="sm" variant="ghost" className="-ml-2 text-muted-foreground">
-                {showTranscript
-                  ? t("meetings.hideTranscript")
-                  : t(olderTranscript.hasOlder ? "meetings.showTranscriptMore" : "meetings.showTranscript", {
-                      count: transcriptLines,
-                    })}
-                <ChevronDown
-                  aria-hidden
-                  className={cn("size-3.5 transition-transform duration-standard", showTranscript && "rotate-180")}
-                />
-              </Button>
-            }
-          />
+          <div className="flex flex-wrap items-center gap-1">
+            <CollapsibleTrigger
+              render={
+                <Button type="button" size="sm" variant="ghost" className="-ml-2 text-muted-foreground">
+                  {showTranscript
+                    ? t("meetings.hideTranscript")
+                    : t(olderTranscript.hasOlder ? "meetings.showTranscriptMore" : "meetings.showTranscript", {
+                        count: transcriptLines,
+                      })}
+                  <ChevronDown
+                    aria-hidden
+                    className={cn("size-3.5 transition-transform duration-standard", showTranscript && "rotate-180")}
+                  />
+                </Button>
+              }
+            />
+            {isClerk ? <MeetingSpeakerLabelsButton meetingId={meetingId} workspaceId={workspaceId} /> : null}
+          </div>
           <CollapsibleContent>
             <ol className="mt-2 max-h-80 space-y-1.5 overflow-y-auto rounded-lg border border-border bg-surface-hover p-3" data-testid="meeting-transcript">
               {olderTranscript.hasOlder ? (

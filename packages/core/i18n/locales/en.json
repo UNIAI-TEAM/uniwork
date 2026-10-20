@@ -3776,7 +3776,22 @@
       "turnOff": "Turn off AI transcription for this meeting",
       "turnOn": "Turn on AI transcription",
       "captionsLabel": "Captions · UniWork AI",
-      "unknownSpeaker": "Speaker"
+      "unknownSpeaker": "Speaker",
+      "sharedMicOn": "Make room microphone",
+      "sharedMicOff": "Stop using as room microphone",
+      "sharedMicSet": "{{name}}'s mic is the room microphone: the AI tells speakers apart",
+      "sharedMicCleared": "{{name}} is no longer the room microphone",
+      "speakersButton": "Name speakers",
+      "speakersTitle": "Name speakers",
+      "speakersDescription": "The room microphone picks up several people. Assign each speaker to a member or type a name; the transcript and the summary use it.",
+      "speakerLabel": "Room · Speaker {{speaker}}",
+      "speakerMember": "Member",
+      "speakerNotAssigned": "Not assigned",
+      "speakerFreeName": "Or type a name",
+      "speakerSave": "Save",
+      "speakerSaved": "Speaker name saved",
+      "speakersEmpty": "No speakers from the room microphone yet.",
+      "speakersLoadFailed": "Couldn't load the speakers."
     },
     "summaryPartial": "This summary covers part of the meeting: the transcript was longer than the AI reads at once."
   },

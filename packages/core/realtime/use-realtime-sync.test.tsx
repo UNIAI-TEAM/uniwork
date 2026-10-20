@@ -1283,6 +1283,22 @@ describe("useRealtimeSync › meeting scribe", () => {
     });
     expect(keysCalled(invalidate)).toEqual(expect.arrayContaining([JSON.stringify(["meeting", "m1"])]));
   });
+
+  it("refreshes the speaker labels and the transcript's names on speaker_label.updated", () => {
+    vi.useFakeTimers();
+    const { invalidate, client } = setup();
+    client.emit({ type: "speaker_label.updated", payload: { meeting_id: "m1", workspace_id: "ws1" } } as WSMessage);
+    act(() => {
+      // The transcript rides the longer transcript debounce.
+      vi.advanceTimersByTime(1750);
+    });
+    expect(keysCalled(invalidate)).toEqual(
+      expect.arrayContaining([
+        JSON.stringify(["meeting-speaker-labels", "m1"]),
+        JSON.stringify(["meeting-transcript", "m1"]),
+      ]),
+    );
+  });
 });
 
 describe("useRealtimeSync › home summary", () => {

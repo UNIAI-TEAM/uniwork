@@ -67,8 +67,25 @@ export const ParticipantSchema = z.object({
   /** MEMBER votes and counts toward attendance; OBSERVER does neither. */
   standing: z.string().optional(),
   is_secretary: z.boolean().optional(),
+  /** This participant's mic is the room's shared one: the AI scribe tells its speakers apart. */
+  shared_mic: z.boolean().optional(),
 });
 export type MeetingParticipant = z.infer<typeof ParticipantSchema>;
+
+/** A speaker label of a meeting's transcript and whom a clerk assigned it to. */
+export const SpeakerLabelSchema = z.object({
+  id: z.string(),
+  label_key: z.string(),
+  /** The provider's label ("A", "B", …), the last part of label_key. */
+  speaker: z.string().optional(),
+  user_id: z.string().optional(),
+  name: z.string().optional(),
+  /** What the transcript shows for it; empty while unassigned. */
+  assigned_name: z.string().optional(),
+  sample: z.string().optional(),
+  first_spoken_at: z.string().optional(),
+});
+export type SpeakerLabel = z.infer<typeof SpeakerLabelSchema>;
 
 export const JoinRequestSchema = z.object({
   id: z.string(),

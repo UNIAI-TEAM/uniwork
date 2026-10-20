@@ -51,6 +51,7 @@ export const meetingKeys = {
   recordings: (meetingId: string) => ["meeting-recordings", meetingId] as const,
   attendance: (meetingId: string) => ["meeting-attendance", meetingId] as const,
   motions: (meetingId: string) => ["meeting-motions", meetingId] as const,
+  speakerLabels: (meetingId: string) => ["meeting-speaker-labels", meetingId] as const,
 };
 
 export function splitMeetings(
