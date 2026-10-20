@@ -3,6 +3,7 @@ import {
   createViewVersionHandler,
   currentVersionHref,
   lostCommentVersion,
+  namesComment,
   parseVersionParam,
   versionViewHref,
 } from "./version-view";
@@ -20,6 +21,15 @@ describe("version view params", () => {
     expect(versionViewHref("/o/w/documents/d1", 2)).toBe("/o/w/documents/d1?version=2");
     expect(currentVersionHref("/o/w/documents/d1", "c1")).toBe("/o/w/documents/d1?comment=c1");
     expect(currentVersionHref("/o/w/documents/d1", null)).toBe("/o/w/documents/d1");
+  });
+});
+
+describe("namesComment", () => {
+  it("is true only for a list that carries the comment", () => {
+    expect(namesComment({ comments: [{ id: "c0" }, { id: "c1" }] }, "c1")).toBe(true);
+    expect(namesComment({ comments: [{ id: "c0" }] }, "c1")).toBe(false);
+    expect(namesComment({ comments: [], unchanged: true, list_token: "t" }, "c1")).toBe(false);
+    for (const bad of [null, undefined, "x", [], { comments: "no" }, { comments: [null, 1] }]) expect(namesComment(bad, "c1")).toBe(false);
   });
 });
 

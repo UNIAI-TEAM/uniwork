@@ -21,6 +21,12 @@ export function currentVersionHref(pathname: string, commentId?: string | null):
   return commentId ? `${pathname}?comment=${encodeURIComponent(commentId)}` : pathname;
 }
 
+/** Whether a `comments.list` answer carries comment `commentId` (an unchanged answer, or another kind's list, does not). */
+export function namesComment(list: unknown, commentId: string): boolean {
+  const comments = typeof list === "object" && list !== null ? (list as { comments?: unknown }).comments : undefined;
+  return Array.isArray(comments) && (comments as unknown[]).some((c) => typeof c === "object" && c !== null && (c as { id?: unknown }).id === commentId);
+}
+
 /**
  * The version a `comments.list` answer says comment `commentId` was last anchored on, when that
  * comment is `lost` and the server named the number; anything else (another state, a missing or
