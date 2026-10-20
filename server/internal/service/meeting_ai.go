@@ -102,13 +102,15 @@ var transcriptFeedKeys = feedKeys[db.MeetingTranscriptSegment]{
 }
 
 // Transcript reads one page of the meeting's transcript (see FeedQuery),
-// each speaker named as the summary names them (nameSpeakers).
-func (s *MeetingService) Transcript(ctx context.Context, userID, meetingID string, q FeedQuery) (FeedPage[db.MeetingTranscriptSegment], error) {
+// each speaker named as the summary names them (nameSpeakers, Vietnamese for
+// a client that does not word room speakers itself).
+func (s *MeetingService) Transcript(ctx context.Context, userID, meetingID string, q FeedQuery) (TranscriptPage, error) {
 	page, err := s.transcriptPage(ctx, userID, meetingID, q)
 	if err != nil {
-		return page, err
+		return TranscriptPage{}, err
 	}
-	return page, s.nameSpeakers(ctx, meetingID, page.Items)
+	speakers, err := s.nameSpeakers(ctx, meetingID, page.Items, "vi")
+	return TranscriptPage{FeedPage: page, Speakers: speakers}, err
 }
 
 func (s *MeetingService) transcriptPage(ctx context.Context, userID, meetingID string, q FeedQuery) (FeedPage[db.MeetingTranscriptSegment], error) {
@@ -261,7 +263,7 @@ func (s *MeetingService) Summarize(ctx context.Context, userID, meetingID, local
 	if err := g.Wait(); err != nil {
 		return db.MeetingSummary{}, err
 	}
-	if err := s.nameSpeakers(runCtx, meetingID, segs); err != nil {
+	if _, err := s.nameSpeakers(runCtx, meetingID, segs, locale); err != nil {
 		return db.MeetingSummary{}, err
 	}
 	// Attendance alone is not material (every meeting has a roll); a closed

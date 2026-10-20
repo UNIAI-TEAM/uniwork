@@ -91,9 +91,14 @@ func (h *handlers) listTranscript(w http.ResponseWriter, r *http.Request) {
 	}
 	out := make([]sdo.TranscriptSegmentDTO, 0, len(page.Items))
 	for _, s := range page.Items {
-		out = append(out, toTranscriptDTO(s))
+		d := toTranscriptDTO(s)
+		// A room speaker nobody named yet: the client words "Speaker n" itself.
+		if sp := page.Speakers[s.SpeakerLabel]; s.SpeakerLabel != "" && sp.Name == "" {
+			d.SpeakerLabel, d.RoomSpeaker = s.SpeakerLabel, sp.Number
+		}
+		out = append(out, d)
 	}
-	respondJSON(w, 200, sdo.TranscriptListSDO{Segments: out, MeetingFeedCursorsDTO: feedCursorsDTO(page)})
+	respondJSON(w, 200, sdo.TranscriptListSDO{Segments: out, MeetingFeedCursorsDTO: feedCursorsDTO(page.FeedPage)})
 }
 
 func (h *handlers) getMeetingSummary(w http.ResponseWriter, r *http.Request) {

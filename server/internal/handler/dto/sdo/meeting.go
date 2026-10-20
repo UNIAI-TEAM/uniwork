@@ -190,9 +190,11 @@ type TranscriptSegmentDTO struct {
 	ID            string `json:"id"`
 	MeetingID     string `json:"meeting_id"`
 	ParticipantID string `json:"participant_id"`
-	SpeakerName   string `json:"speaker_name"`
+	SpeakerName   string `json:"speaker_name" description:"Tên người nói; dòng micro hội trường chưa gán có tên tiếng Việt dựng sẵn, client nên dùng room_speaker"`
 	Text          string `json:"text"`
 	SpokenAt      string `json:"spoken_at" example:"2026-08-29T02:00:00Z"`
+	SpeakerLabel  string `json:"speaker_label,omitempty" description:"Chỉ dòng micro hội trường chưa gán người nói: nhãn thô; kết thúc bằng :? khi không rõ người nói" example:"uw_participant_01J8X4MTGN1P2Q3R4S5T6U7V:AJ_66Gefpv7rYTq-TR_AM6EcLRdqMdvN6-1:A"`
+	RoomSpeaker   int32  `json:"room_speaker,omitempty" description:"Số thứ tự người nói của micro hội trường trong cuộc họp (Người nói n); 0 khi không rõ" example:"2"`
 }
 
 type TranscriptSegmentSDO struct {
@@ -301,7 +303,7 @@ type MeetingAgentContextSDO struct {
 	ProjectName         string   `json:"project_name" example:"Dự án Cầu Rồng"`
 	Locale              string   `json:"locale" example:"vi"`
 	ParticipantNames    []string `json:"participant_names" description:"Tên hiển thị của người được mời và người tham gia; không có email" example:"[\"Nguyễn Văn An\"]"`
-	SharedMicIdentities []string `json:"shared_mic_identities" description:"Identity đang là micro hội trường (S2; hiện luôn rỗng)"`
+	SharedMicIdentities []string `json:"shared_mic_identities" description:"Identity LiveKit của người tham gia đang là micro hội trường: agent tách người nói trên track của họ" example:"[\"uw_participant_01J8X4MTGN1P2Q3R4S5T6U7V\"]"`
 }
 
 // MeetingAgentSegmentsSDO counts a batch: new rows and ones already stored.
@@ -355,7 +357,8 @@ type AttendanceSDO struct {
 type SpeakerLabelDTO struct {
 	ID            string `json:"id" example:"01J8X4SPKL0N1P2Q3R4S5T6U7"`
 	LabelKey      string `json:"label_key" description:"<participant_identity>:<phiên STT>:<nhãn> hoặc upload:<transcription_id>:<nhãn>" example:"uw_participant_01J8X4MTGN1P2Q3R4S5T6U7V:AJ_66Gefpv7rYTq-TR_AM6EcLRdqMdvN6-1:A"`
-	Speaker       string `json:"speaker" description:"Nhãn của nhà cung cấp (phần cuối label_key)" example:"A"`
+	Speaker       string `json:"speaker" description:"Nhãn của nhà cung cấp (phần cuối label_key); chỉ đúng trong một phiên STT" example:"A"`
+	Number        int32  `json:"number" description:"Số thứ tự trong cuộc họp theo lần xuất hiện đầu: Hội trường · Người nói n" example:"2"`
 	UserID        string `json:"user_id,omitempty" description:"Thành viên được gán" example:"01J8X4USER0N1P2Q3R4S5T6U7"`
 	Name          string `json:"name,omitempty" description:"Tên tự do được gán" example:"Chị Lan"`
 	AssignedName  string `json:"assigned_name,omitempty" description:"Tên transcript hiện cho nhãn: tên hiển thị của thành viên hoặc tên tự do; trống khi chưa gán" example:"Chị Lan"`

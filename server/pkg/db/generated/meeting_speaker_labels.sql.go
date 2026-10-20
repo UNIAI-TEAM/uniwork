@@ -46,14 +46,53 @@ func (q *Queries) AssignMeetingSpeakerLabel(ctx context.Context, arg AssignMeeti
 	return i, err
 }
 
-const getMeetingSpeakerLabel = `-- name: GetMeetingSpeakerLabel :one
-SELECT id, organization_id, workspace_id, meeting_id, label_key, user_id, name, created_by, created_by_kind, created_at, updated_at FROM meeting_speaker_labels WHERE id = $1
+const getMeetingSpeakerLabelView = `-- name: GetMeetingSpeakerLabelView :one
+WITH numbered AS (
+  SELECT ml.id, row_number() OVER (ORDER BY ml.created_at, ml.id)::int AS number
+  FROM meeting_speaker_labels ml WHERE ml.meeting_id = $2
+)
+SELECT l.id, l.organization_id, l.workspace_id, l.meeting_id, l.label_key, l.user_id, l.name, l.created_by, l.created_by_kind, l.created_at, l.updated_at, n.number,
+  COALESCE(u.display_name, '')::text AS user_name,
+  COALESCE((SELECT t.text FROM meeting_transcript_segments t
+    WHERE t.meeting_id = l.meeting_id AND t.speaker_label = l.label_key
+    ORDER BY t.spoken_at, t.id LIMIT 1), '')::text AS sample,
+  (SELECT t.spoken_at FROM meeting_transcript_segments t
+    WHERE t.meeting_id = l.meeting_id AND t.speaker_label = l.label_key
+    ORDER BY t.spoken_at, t.id LIMIT 1)::timestamptz AS first_spoken_at
+FROM meeting_speaker_labels l
+JOIN numbered n ON n.id = l.id
+LEFT JOIN users u ON u.id = l.user_id
+WHERE l.id = $1 AND l.meeting_id = $2
 `
 
-// tenant: by-id
-func (q *Queries) GetMeetingSpeakerLabel(ctx context.Context, id string) (MeetingSpeakerLabel, error) {
-	row := q.db.QueryRow(ctx, getMeetingSpeakerLabel, id)
-	var i MeetingSpeakerLabel
+type GetMeetingSpeakerLabelViewParams struct {
+	ID        string `json:"id"`
+	MeetingID string `json:"meeting_id"`
+}
+
+type GetMeetingSpeakerLabelViewRow struct {
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	WorkspaceID    string             `json:"workspace_id"`
+	MeetingID      string             `json:"meeting_id"`
+	LabelKey       string             `json:"label_key"`
+	UserID         pgtype.Text        `json:"user_id"`
+	Name           string             `json:"name"`
+	CreatedBy      string             `json:"created_by"`
+	CreatedByKind  string             `json:"created_by_kind"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+	Number         int32              `json:"number"`
+	UserName       string             `json:"user_name"`
+	Sample         string             `json:"sample"`
+	FirstSpokenAt  pgtype.Timestamptz `json:"first_spoken_at"`
+}
+
+// tenant: parent meeting_id
+// One row of ListMeetingSpeakerLabels, for the answer to an assignment.
+func (q *Queries) GetMeetingSpeakerLabelView(ctx context.Context, arg GetMeetingSpeakerLabelViewParams) (GetMeetingSpeakerLabelViewRow, error) {
+	row := q.db.QueryRow(ctx, getMeetingSpeakerLabelView, arg.ID, arg.MeetingID)
+	var i GetMeetingSpeakerLabelViewRow
 	err := row.Scan(
 		&i.ID,
 		&i.OrganizationID,
@@ -66,6 +105,10 @@ func (q *Queries) GetMeetingSpeakerLabel(ctx context.Context, id string) (Meetin
 		&i.CreatedByKind,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Number,
+		&i.UserName,
+		&i.Sample,
+		&i.FirstSpokenAt,
 	)
 	return i, err
 }
@@ -105,11 +148,14 @@ func (q *Queries) InsertMeetingSpeakerLabel(ctx context.Context, arg InsertMeeti
 }
 
 const listMeetingSpeakerLabels = `-- name: ListMeetingSpeakerLabels :many
-SELECT l.id, l.organization_id, l.workspace_id, l.meeting_id, l.label_key, l.user_id, l.name, l.created_by, l.created_by_kind, l.created_at, l.updated_at,
+SELECT l.id, l.organization_id, l.workspace_id, l.meeting_id, l.label_key, l.user_id, l.name, l.created_by, l.created_by_kind, l.created_at, l.updated_at, l.number,
   COALESCE(u.display_name, '')::text AS user_name,
   COALESCE(s.text, '')::text AS sample,
   s.spoken_at AS first_spoken_at
-FROM meeting_speaker_labels l
+FROM (
+  SELECT ml.id, ml.organization_id, ml.workspace_id, ml.meeting_id, ml.label_key, ml.user_id, ml.name, ml.created_by, ml.created_by_kind, ml.created_at, ml.updated_at, row_number() OVER (ORDER BY ml.created_at, ml.id)::int AS number
+  FROM meeting_speaker_labels ml WHERE ml.meeting_id = $1
+) l
 LEFT JOIN users u ON u.id = l.user_id
 LEFT JOIN LATERAL (
   SELECT t.text, t.spoken_at FROM meeting_transcript_segments t
@@ -117,8 +163,7 @@ LEFT JOIN LATERAL (
   ORDER BY t.spoken_at, t.id
   LIMIT 1
 ) s ON true
-WHERE l.meeting_id = $1
-ORDER BY s.spoken_at NULLS LAST, l.created_at, l.id
+ORDER BY l.number
 LIMIT 500
 `
 
@@ -134,14 +179,16 @@ type ListMeetingSpeakerLabelsRow struct {
 	CreatedByKind  string             `json:"created_by_kind"`
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+	Number         int32              `json:"number"`
 	UserName       string             `json:"user_name"`
 	Sample         string             `json:"sample"`
 	FirstSpokenAt  pgtype.Timestamptz `json:"first_spoken_at"`
 }
 
 // tenant: parent meeting_id
-// Every label with the name it was given (a member's current display name,
-// or the free name) and its first line, so a clerk can tell who spoke it.
+// Every label with its number in the meeting (order of first appearance,
+// "Người nói n"), the name it was given (a member's current display name, or
+// the free name) and its first line, so a clerk can tell who spoke it.
 func (q *Queries) ListMeetingSpeakerLabels(ctx context.Context, meetingID string) ([]ListMeetingSpeakerLabelsRow, error) {
 	rows, err := q.db.Query(ctx, listMeetingSpeakerLabels, meetingID)
 	if err != nil {
@@ -163,6 +210,7 @@ func (q *Queries) ListMeetingSpeakerLabels(ctx context.Context, meetingID string
 			&i.CreatedByKind,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Number,
 			&i.UserName,
 			&i.Sample,
 			&i.FirstSpokenAt,
@@ -178,19 +226,22 @@ func (q *Queries) ListMeetingSpeakerLabels(ctx context.Context, meetingID string
 }
 
 const listMeetingSpeakerNames = `-- name: ListMeetingSpeakerNames :many
-SELECT l.label_key, COALESCE(NULLIF(l.name, ''), u.display_name, '')::text AS name
+SELECT l.label_key,
+  row_number() OVER (ORDER BY l.created_at, l.id)::int AS number,
+  COALESCE(NULLIF(l.name, ''), u.display_name, '')::text AS name
 FROM meeting_speaker_labels l
 LEFT JOIN users u ON u.id = l.user_id
-WHERE l.meeting_id = $1 AND (l.user_id IS NOT NULL OR l.name <> '')
+WHERE l.meeting_id = $1
 `
 
 type ListMeetingSpeakerNamesRow struct {
 	LabelKey string `json:"label_key"`
+	Number   int32  `json:"number"`
 	Name     string `json:"name"`
 }
 
 // tenant: parent meeting_id
-// The assigned labels only, with the name a transcript line shows for them.
+// Every label's number and, when assigned, the name a transcript line shows.
 func (q *Queries) ListMeetingSpeakerNames(ctx context.Context, meetingID string) ([]ListMeetingSpeakerNamesRow, error) {
 	rows, err := q.db.Query(ctx, listMeetingSpeakerNames, meetingID)
 	if err != nil {
@@ -200,7 +251,7 @@ func (q *Queries) ListMeetingSpeakerNames(ctx context.Context, meetingID string)
 	items := []ListMeetingSpeakerNamesRow{}
 	for rows.Next() {
 		var i ListMeetingSpeakerNamesRow
-		if err := rows.Scan(&i.LabelKey, &i.Name); err != nil {
+		if err := rows.Scan(&i.LabelKey, &i.Number, &i.Name); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -209,6 +260,36 @@ func (q *Queries) ListMeetingSpeakerNames(ctx context.Context, meetingID string)
 		return nil, err
 	}
 	return items, nil
+}
+
+const lockMeetingSpeakerLabel = `-- name: LockMeetingSpeakerLabel :one
+SELECT id, organization_id, workspace_id, meeting_id, label_key, user_id, name, created_by, created_by_kind, created_at, updated_at FROM meeting_speaker_labels WHERE id = $1 AND meeting_id = $2 FOR UPDATE
+`
+
+type LockMeetingSpeakerLabelParams struct {
+	ID        string `json:"id"`
+	MeetingID string `json:"meeting_id"`
+}
+
+// tenant: parent meeting_id
+// The row as it stands inside the assigning transaction.
+func (q *Queries) LockMeetingSpeakerLabel(ctx context.Context, arg LockMeetingSpeakerLabelParams) (MeetingSpeakerLabel, error) {
+	row := q.db.QueryRow(ctx, lockMeetingSpeakerLabel, arg.ID, arg.MeetingID)
+	var i MeetingSpeakerLabel
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.WorkspaceID,
+		&i.MeetingID,
+		&i.LabelKey,
+		&i.UserID,
+		&i.Name,
+		&i.CreatedBy,
+		&i.CreatedByKind,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }
 
 const setParticipantSharedMic = `-- name: SetParticipantSharedMic :one

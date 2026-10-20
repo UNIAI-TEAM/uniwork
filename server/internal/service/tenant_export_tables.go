@@ -116,6 +116,7 @@ var tenantExportIncludedTables = []string{
 	"meeting_participants",
 	"meeting_recordings",
 	"meeting_reminders",
+	"meeting_speaker_labels",
 	"meeting_summaries",
 	"meeting_summary_task_links",
 	"meeting_transcript_segments",

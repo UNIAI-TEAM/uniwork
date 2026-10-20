@@ -112,7 +112,7 @@ func toSpeakerLabelDTO(l db.ListMeetingSpeakerLabelsRow) sdo.SpeakerLabelDTO {
 		assigned = l.UserName
 	}
 	return sdo.SpeakerLabelDTO{
-		ID: l.ID, LabelKey: l.LabelKey, Speaker: l.LabelKey[strings.LastIndex(l.LabelKey, ":")+1:],
+		ID: l.ID, LabelKey: l.LabelKey, Speaker: l.LabelKey[strings.LastIndex(l.LabelKey, ":")+1:], Number: l.Number,
 		UserID: l.UserID.String, Name: l.Name, AssignedName: assigned, Sample: l.Sample,
 		FirstSpokenAt: rfc3339(l.FirstSpokenAt),
 	}

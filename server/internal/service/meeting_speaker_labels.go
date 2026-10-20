@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -139,29 +140,48 @@ func (s *MeetingService) emitSpeakerLabelsUpdated(ctx context.Context, q *db.Que
 	})
 }
 
+// SpeakerName is how one label of a meeting reads: its number in order of
+// first appearance ("Người nói n", spec §4.3) and, once a clerk assigned it,
+// the name. Numbers are per meeting, so the vendor's "A" of two STT sessions
+// are two speakers.
+type SpeakerName struct {
+	Number int32
+	Name   string
+}
+
+// TranscriptPage is a transcript page with the meeting's labels, so a client
+// can word an unassigned room speaker in its own language.
+type TranscriptPage struct {
+	FeedPage[db.MeetingTranscriptSegment]
+	Speakers map[string]SpeakerName
+}
+
 // speakerName is the name a transcript line shows (parent spec §7.3, this
 // spec §4.3): the assigned name, else the shared microphone's numbered
 // speaker, else "unknown" for an unattributed line; a line without a label
-// keeps its participant's name.
-// shortcut: the shared-mic names are Vietnamese whatever the reader's locale;
-// move them to the client when the transcript DTO grows a label field.
-func speakerName(seg db.MeetingTranscriptSegment, assigned map[string]string) string {
+// keeps its participant's name. English for an "en" locale, else Vietnamese.
+func speakerName(seg db.MeetingTranscriptSegment, speakers map[string]SpeakerName, locale string) string {
 	if seg.SpeakerLabel == "" {
 		return seg.SpeakerName
 	}
-	if n := assigned[seg.SpeakerLabel]; n != "" {
-		return n
+	sp := speakers[seg.SpeakerLabel]
+	en := strings.HasPrefix(locale, "en")
+	switch {
+	case sp.Name != "":
+		return sp.Name
+	case sp.Number > 0 && en:
+		return fmt.Sprintf("Room · Speaker %d", sp.Number)
+	case sp.Number > 0:
+		return fmt.Sprintf("Hội trường · Người nói %d", sp.Number)
+	case en:
+		return "Room · Unknown"
 	}
-	provider := seg.SpeakerLabel[strings.LastIndex(seg.SpeakerLabel, ":")+1:]
-	if provider == "" || provider == speakerLabelUnknown {
-		return "Hội trường · Không rõ"
-	}
-	return "Hội trường · Người nói " + provider
+	return "Hội trường · Không rõ"
 }
 
-// nameSpeakers rewrites SpeakerName of labelled segments in place; a page
-// without labels costs no query.
-func (s *MeetingService) nameSpeakers(ctx context.Context, meetingID string, segs []db.MeetingTranscriptSegment) error {
+// nameSpeakers rewrites SpeakerName of labelled segments in place and returns
+// the labels it used; a page without labels costs no query.
+func (s *MeetingService) nameSpeakers(ctx context.Context, meetingID string, segs []db.MeetingTranscriptSegment, locale string) (map[string]SpeakerName, error) {
 	labelled := false
 	for _, g := range segs {
 		if g.SpeakerLabel != "" {
@@ -170,20 +190,20 @@ func (s *MeetingService) nameSpeakers(ctx context.Context, meetingID string, seg
 		}
 	}
 	if !labelled {
-		return nil
+		return nil, nil
 	}
 	rows, err := s.q.ListMeetingSpeakerNames(ctx, meetingID)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	assigned := make(map[string]string, len(rows))
+	speakers := make(map[string]SpeakerName, len(rows))
 	for _, r := range rows {
-		assigned[r.LabelKey] = r.Name
+		speakers[r.LabelKey] = SpeakerName{Number: r.Number, Name: r.Name}
 	}
 	for i := range segs {
-		segs[i].SpeakerName = speakerName(segs[i], assigned)
+		segs[i].SpeakerName = speakerName(segs[i], speakers, locale)
 	}
-	return nil
+	return speakers, nil
 }
 
 // SpeakerLabels lists the meeting's labels, assigned or not, for anyone who
@@ -216,13 +236,6 @@ func (s *MeetingService) AssignSpeakerLabel(ctx context.Context, actorID, meetin
 	if err != nil {
 		return db.ListMeetingSpeakerLabelsRow{}, err
 	}
-	l, err := s.q.GetMeetingSpeakerLabel(ctx, labelID)
-	if errors.Is(err, pgx.ErrNoRows) || (err == nil && l.MeetingID != m.ID) {
-		return db.ListMeetingSpeakerLabelsRow{}, ErrNotFound
-	}
-	if err != nil {
-		return db.ListMeetingSpeakerLabelsRow{}, err
-	}
 	if uid != "" {
 		if _, err := s.ws.RequireMember(ctx, m.WorkspaceID, uid); err != nil {
 			if errors.Is(err, ErrOrganizationSuspended) || errors.Is(err, ErrOrganizationDeletionScheduled) {
@@ -237,6 +250,15 @@ func (s *MeetingService) AssignSpeakerLabel(ctx context.Context, actorID, meetin
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	q := s.q.WithTx(tx)
+	// The row as it stands under the lock: the audit diff never compares
+	// against a copy a concurrent assignment already replaced.
+	l, err := q.LockMeetingSpeakerLabel(ctx, db.LockMeetingSpeakerLabelParams{ID: labelID, MeetingID: m.ID})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return db.ListMeetingSpeakerLabelsRow{}, ErrNotFound
+	}
+	if err != nil {
+		return db.ListMeetingSpeakerLabelsRow{}, err
+	}
 	up, err := q.AssignMeetingSpeakerLabel(ctx, db.AssignMeetingSpeakerLabelParams{
 		ID: l.ID, UserID: pgtype.Text{String: uid, Valid: uid != ""}, Name: nm,
 	})
@@ -252,14 +274,6 @@ func (s *MeetingService) AssignSpeakerLabel(ctx context.Context, actorID, meetin
 	if err := tx.Commit(ctx); err != nil {
 		return db.ListMeetingSpeakerLabelsRow{}, err
 	}
-	rows, err := s.q.ListMeetingSpeakerLabels(ctx, m.ID)
-	if err != nil {
-		return db.ListMeetingSpeakerLabelsRow{}, err
-	}
-	for _, r := range rows {
-		if r.ID == up.ID {
-			return r, nil
-		}
-	}
-	return db.ListMeetingSpeakerLabelsRow{}, ErrNotFound
+	v, err := s.q.GetMeetingSpeakerLabelView(ctx, db.GetMeetingSpeakerLabelViewParams{ID: up.ID, MeetingID: m.ID})
+	return db.ListMeetingSpeakerLabelsRow(v), err
 }

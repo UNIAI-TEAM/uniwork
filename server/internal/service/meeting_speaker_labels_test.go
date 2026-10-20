@@ -106,8 +106,9 @@ func TestAgentContextListsTheSharedMic(t *testing.T) {
 
 // Labels arrive with the agent's segments; a clerk assigns them; the
 // transcript and the summary input name the speaker by the assignment, then
-// "Hội trường · Người nói X", and "Hội trường · Không rõ" for a line the
-// vendor could not attribute.
+// "Hội trường · Người nói n" numbered per meeting by first appearance (two
+// STT sessions that both say "A" are two speakers), and "Hội trường · Không
+// rõ" for a line the vendor could not attribute.
 func TestSpeakerLabelsAssignAndNameTheTranscript(t *testing.T) {
 	s, fake, ua, m := scribeFixture(t)
 	ctx := context.Background()
@@ -121,30 +122,35 @@ func TestSpeakerLabelsAssignAndNameTheTranscript(t *testing.T) {
 	p, _ := s.q.GetActiveUserParticipant(ctx, db.GetActiveUserParticipantParams{MeetingID: m.ID, UserID: strText(ua.ID)})
 	identity := meetings.IdentityForParticipant(p.ID)
 	at := m.ActualStartAt.Time.Add(5 * time.Second)
-	labelA := identity + ":AJ1-TR1-1:A"
-	a := agentSeg("TR1-1", identity, at, 2000)
-	a.SpeakerLabel = labelA
+	labelA1 := identity + ":AJ1-TR1-1:A"
+	a1 := agentSeg("TR1-1", identity, at, 2000)
+	a1.SpeakerLabel = labelA1
 	unknown := agentSeg("TR1-2", identity, at.Add(time.Second), 500)
 	unknown.SpeakerLabel = identity + ":AJ1-TR1-1:?"
 	plain := agentSeg("TR2-1", identity, at.Add(2*time.Second), 1000)
-	bad := agentSeg("TR1-3", identity, at, 1000)
+	a2 := agentSeg("TR1-3", identity, at.Add(time.Minute), 2000)
+	a2.SpeakerLabel = identity + ":AJ1-TR1-2:A" // the next STT session's "A"
+	bad := agentSeg("TR1-9", identity, at, 1000)
 	bad.SpeakerLabel = "uw_participant_other:AJ1-TR1-1:B"
 	if _, _, err := s.AppendAgentSegments(ctx, c, []AgentSegmentInput{bad}); codeOf(err) != "invalid_input" {
 		t.Fatalf("a label of another participant: %v", err)
 	}
-	if n, _, err := s.AppendAgentSegments(ctx, c, []AgentSegmentInput{a, unknown, plain}); err != nil || n != 3 {
+	if n, _, err := s.AppendAgentSegments(ctx, c, []AgentSegmentInput{a1, unknown, plain}); err != nil || n != 3 {
 		t.Fatalf("append: %d %v", n, err)
+	}
+	if n, _, err := s.AppendAgentSegments(ctx, c, []AgentSegmentInput{a2}); err != nil || n != 1 {
+		t.Fatalf("append second session: %d %v", n, err)
 	}
 
 	labels, err := s.SpeakerLabels(ctx, ua.ID, m.ID)
-	if err != nil || len(labels) != 1 {
+	if err != nil || len(labels) != 2 {
 		t.Fatalf("labels = %+v %v", labels, err)
 	}
 	l := labels[0]
-	if l.LabelKey != labelA || l.UserID.Valid || l.Name != "" || !strings.HasPrefix(l.Sample, "Chốt ship") {
-		t.Fatalf("label = %+v", l)
+	if l.LabelKey != labelA1 || l.Number != 1 || labels[1].Number != 2 || l.UserID.Valid || l.Name != "" || !strings.HasPrefix(l.Sample, "Chốt ship") {
+		t.Fatalf("labels = %+v", labels)
 	}
-	names := func() map[string]string {
+	names := func() (map[string]string, TranscriptPage) {
 		t.Helper()
 		page, err := s.Transcript(ctx, ua.ID, m.ID, FeedQuery{})
 		if err != nil {
@@ -154,10 +160,15 @@ func TestSpeakerLabelsAssignAndNameTheTranscript(t *testing.T) {
 		for _, g := range page.Items {
 			out[g.ClientSegmentID.String] = g.SpeakerName
 		}
-		return out
+		return out, page
 	}
-	if got := names(); got["TR1-1"] != "Hội trường · Người nói A" || got["TR1-2"] != "Hội trường · Không rõ" || got["TR2-1"] != "A" {
+	got, page := names()
+	if got["TR1-1"] != "Hội trường · Người nói 1" || got["TR1-3"] != "Hội trường · Người nói 2" ||
+		got["TR1-2"] != "Hội trường · Không rõ" || got["TR2-1"] != "A" {
 		t.Fatalf("names before assignment = %v", got)
+	}
+	if page.Speakers[labelA1].Number != 1 {
+		t.Fatalf("page speakers = %v", page.Speakers)
 	}
 
 	outsider := mustUserID(t, s, "b@example.com")
@@ -167,30 +178,52 @@ func TestSpeakerLabelsAssignAndNameTheTranscript(t *testing.T) {
 	if _, err := s.AssignSpeakerLabel(ctx, ua.ID, m.ID, l.ID, &ua.ID, ptr("Chị Lan")); codeOf(err) != "invalid_input" {
 		t.Fatalf("both user and name: %v", err)
 	}
-	if _, err := s.AssignSpeakerLabel(ctx, ua.ID, "other", l.ID, nil, ptr("Chị Lan")); err == nil {
-		t.Fatal("label assigned through another meeting")
+	// A plain member of the workspace may read labels but not assign them.
+	addMember(t, s, m.WorkspaceID, outsider)
+	if _, err := s.SpeakerLabels(ctx, outsider, m.ID); err != nil {
+		t.Fatalf("member reads labels: %v", err)
+	}
+	if _, err := s.AssignSpeakerLabel(ctx, outsider, m.ID, l.ID, nil, ptr("Chị Lan")); codeOf(err) != "not_meeting_clerk" {
+		t.Fatalf("a non-clerk assigned: %v", err)
+	}
+	// A label of the meeting is not reachable through another real meeting.
+	other, err := s.CreateInstant(ctx, ua.ID, m.WorkspaceID, "Họp khác")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.AssignSpeakerLabel(ctx, ua.ID, other.ID, l.ID, nil, ptr("Chị Lan")); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("label assigned through another meeting: %v", err)
+	}
+	// A member: the display name, current, as the answer and in the transcript.
+	v, err := s.AssignSpeakerLabel(ctx, ua.ID, m.ID, labels[1].ID, &ua.ID, nil)
+	if err != nil || v.UserName != "A" || v.Number != 2 || v.UserID.String != ua.ID {
+		t.Fatalf("member assignment = %+v %v", v, err)
 	}
 	if _, err := s.AssignSpeakerLabel(ctx, ua.ID, m.ID, l.ID, nil, ptr(" Chị Lan ")); err != nil {
 		t.Fatal(err)
 	}
-	if got := names(); got["TR1-1"] != "Chị Lan" || got["TR1-2"] != "Hội trường · Không rõ" {
+	if got, _ := names(); got["TR1-1"] != "Chị Lan" || got["TR1-3"] != "A" || got["TR1-2"] != "Hội trường · Không rõ" {
 		t.Fatalf("names after assignment = %v", got)
 	}
 	var audited int
-	if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM audit_events WHERE action = $1`, audit.ActionMeetingSpeakerLabelAssigned).Scan(&audited); err != nil || audited != 1 {
+	if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM audit_events WHERE action = $1`, audit.ActionMeetingSpeakerLabelAssigned).Scan(&audited); err != nil || audited != 2 {
 		t.Fatalf("audit rows %d %v", audited, err)
 	}
 
-	// The summary input names the speaker the same way.
+	// The summary input names the speakers the same way, in its own language.
+	if _, err := s.AssignSpeakerLabel(ctx, ua.ID, m.ID, labels[1].ID, nil, nil); err != nil {
+		t.Fatal(err)
+	}
 	llm := &provider.Fake{Reply: func(provider.CompletionRequest) provider.CompletionResponse {
-		return provider.CompletionResponse{Text: `{"summary":"Đã chốt.","decisions":[],"action_items":[]}`, Model: "fake"}
+		return provider.CompletionResponse{Text: `{"summary":"Done.","decisions":[],"action_items":[]}`, Model: "fake"}
 	}}
 	s.AI = ai.NewGateway(s.q, llm, NewAIQuota(s.ent), nil, ai.Options{})
-	if _, err := s.Summarize(ctx, ua.ID, m.ID, "vi"); err != nil {
+	if _, err := s.Summarize(ctx, ua.ID, m.ID, "en"); err != nil {
 		t.Fatal(err)
 	}
 	prompt := llm.Last.Messages[len(llm.Last.Messages)-1].Content
-	if !strings.Contains(prompt, "Chị Lan: Chốt ship") || strings.Contains(prompt, "Người nói A") {
-		t.Fatalf("summary input does not use the assigned name: %s", prompt)
+	if !strings.Contains(prompt, "Chị Lan: Chốt ship") || !strings.Contains(prompt, "Room · Speaker 2: ") ||
+		!strings.Contains(prompt, "Room · Unknown: ") || strings.Contains(prompt, "Người nói") {
+		t.Fatalf("summary input does not name the speakers: %s", prompt)
 	}
 }
