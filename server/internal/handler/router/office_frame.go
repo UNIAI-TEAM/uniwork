@@ -37,6 +37,7 @@ import (
 //	POST   /api/v1/office-frame/documents/{documentID}/assets/resolve    (md/html: relative paths -> signed URLs)
 //	GET    /api/v1/office-frame/documents/{documentID}/assets/{assetID} (bytes; HEAD)
 //	GET    /api/v1/office-frame/documents/{documentID}/linked/{linkedDocumentID} (bytes; HEAD)
+//	GET    /api/v1/office-frame/documents/{documentID}/avatars/{userID} (bytes; HEAD)
 //	GET    /api/v1/office-frame/sources/{sourceFileID}                  (source frame; UNI-1869)
 //	GET    /api/v1/office-frame/sources/{sourceFileID}/content          (bytes; HEAD)
 func registerOfficeFrameToken(r api, h Routes, flags *featureflag.Service) {
@@ -54,7 +55,7 @@ func registerOfficeFrameToken(r api, h Routes, flags *featureflag.Service) {
 	})
 }
 
-func registerOfficeFrame(r api, h Routes, flags *featureflag.Service, frameAuth func(http.Handler) http.Handler) {
+func registerOfficeFrame(r api, h Routes, flags *featureflag.Service, frameAuth, avatarLimit func(http.Handler) http.Handler) {
 	if frameAuth == nil {
 		frameAuth = frameAuthNotFound
 	}
@@ -151,6 +152,23 @@ func registerOfficeFrame(r api, h Routes, flags *featureflag.Service, frameAuth 
 	f.r.Head("/office-frame/documents/{documentID}/linked/{linkedDocumentID}", h.GetOfficeFrameLinked)
 	f.cat.add(http.MethodHead, joinRoute(f.prefix, "/office-frame/documents/{documentID}/linked/{linkedDocumentID}"), apiOp{
 		summary:     "Headers of a file next to the frame's document",
+		description: "Như GET nhưng không có body.",
+		tags:        []string{"documents"},
+	})
+	av := f
+	if avatarLimit != nil {
+		av = f.With(avatarLimit)
+	}
+	av.Get("/office-frame/documents/{documentID}/avatars/{userID}", h.GetOfficeFrameAvatar, apiOp{
+		summary: "Stream a member's avatar to the frame",
+		description: "Chỉ frame token (Bearer): trả byte ảnh đại diện (VariantThumb, hoặc bản gốc nếu chưa có bản thu nhỏ) của một thành viên đang hoạt động trong tổ chức của tài liệu sau khi kiểm lại quyền xem tài liệu. " +
+			"Content-Type theo sniff byte (chỉ image/png, image/jpeg, image/gif, image/webp; ≤ 2 MiB; không bao giờ SVG), Content-Length, X-Content-Type-Options: nosniff, Content-Security-Policy: sandbox; default-src 'none', Cache-Control: private, max-age=300, ETag: \"<fileId>\" (304 khi khớp If-None-Match), Vary: Authorization, Content-Disposition: inline; filename=\"avatar\". " +
+			"Mọi trường hợp không có ảnh để phục vụ (khác tổ chức, đã vô hiệu hoá, không có avatar, avatar legacy/URL ngoài, tệp bị khoá/xoá, id không tồn tại hoặc không phải ULID, byte không hợp lệ) đều trả cùng một 404 not_found.",
+		tags: []string{"documents"}, produces: "application/octet-stream", auth: true,
+	})
+	av.r.Head("/office-frame/documents/{documentID}/avatars/{userID}", h.GetOfficeFrameAvatar)
+	av.cat.add(http.MethodHead, joinRoute(av.prefix, "/office-frame/documents/{documentID}/avatars/{userID}"), apiOp{
+		summary:     "Headers of a member's avatar for the frame",
 		description: "Như GET nhưng không có body.",
 		tags:        []string{"documents"},
 	})

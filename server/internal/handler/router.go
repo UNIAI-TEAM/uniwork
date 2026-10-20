@@ -212,6 +212,7 @@ func New(d Deps) http.Handler {
 	// The source frame (UNI-1869) re-runs the source's own gate on every mint
 	// and read: wire the composed service in, whoever built the frame service.
 	d.OfficeFrame.SetSources(d.DocumentSources)
+	d.OfficeFrame.SetPeople(d.People)
 	h := &handlers{Deps: d, proxies: mw.ParseTrustedProxies(d.Cfg.TrustedProxies)}
 	if d.McpAuth != nil && d.McpTools != nil {
 		h.mcpHandler = newMcpHandler(service.McpTools(d.McpTools), d.McpAuth.Metrics(), mw.NewCounter(d.Redis, "mcp-write", 30, time.Minute), d.Log)
@@ -783,6 +784,7 @@ func New(d Deps) http.Handler {
 		ResolveOfficeFrameAssets: h.resolveOfficeFrameAssets,
 		GetOfficeFrameAsset:      h.getOfficeFrameAsset,
 		GetOfficeFrameLinked:     h.getOfficeFrameLinked,
+		GetOfficeFrameAvatar:     h.getOfficeFrameAvatar,
 		ExportOfficeFramePDF:     h.exportOfficeFramePDF,
 
 		OfficeFrameAiCredentialsList:     frameAI.CredentialsList,

@@ -152,7 +152,7 @@ export function OfficeModuleFrame({
     iframeRef, frameOrigin, module, documentId: fileRef.id,
     fileSizeBytes, hasLagObserver, lagStorage,
   });
-  const frameComments = useFrameComments({ wsId, documentId: fileRef.id, myLevel, revealCommentId });
+  const frameComments = useFrameComments({ wsId, frameVersion, documentId: fileRef.id, myLevel, revealCommentId });
   const { framePanel } = frameComments;
   const onFrameCommentsChangeRef = useRef(onFrameCommentsChange);
   onFrameCommentsChangeRef.current = onFrameCommentsChange;

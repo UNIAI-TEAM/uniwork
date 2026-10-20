@@ -721,10 +721,26 @@ inlines what the preview needs before handing the copy over (pictures as
 `data:` URIs as today, mapped stylesheets as `<style>`, mapped scripts as
 inline `<script>`, fetched same-origin from the map), so no policy is widened.
 
-**Frame avatar CSP limit.** Since `0.1.0-3d4ccd1` the frame comment thread renders the author photo (`avatar_url`)
-when present, but the frame CSP `img-src 'self' data: blob:` blocks remote avatar URLs on purpose, so web frames show
-the initials fallback and the browser logs one CSP violation per such comment. Widening `img-src` or stripping
-`avatar_url` in the host is a separate decision.
+**Frame avatars (UNI-1986).** The frame comment thread renders the author photo (`avatar_url`) and the mention
+picker the candidate's, but the frame CSP `img-src 'self' data: blob:` blocks a remote URL on purpose, and the CSP
+stays as it is. A person's picture reaches the frame instead as the document's same-origin route, fetched by the
+frame with its frame token and shown as a `blob:` image:
+`GET|HEAD /api/v1/office-frame/documents/{documentId}/avatars/{userId}` (frame token only, a stored picture of an
+active member of the document's organization, `image/png|jpeg|gif|webp` ≤ 2 MiB; every other case, whether the
+person has no picture, a provider URL, another organization or a malformed id, is one uniform `404 not_found`).
+Next proxies the tail to the API like `assets/` and `linked/` (`frame-asset-rewrites.mjs`; both ids are
+ULIDs). The host rewrites `avatar_url` in `packages/views/office/frame/frame-avatar-url.ts`, on the answers of
+`comments.list` (comments and mentions), `comments.create/update/resolve/reopen` and `mentions.search`, and no other
+field:
+
+- a human author, mention or candidate that has a picture gets exactly
+  `/api/v1/office-frame/documents/{documentId}/avatars/{userId}` (upper-case ULIDs, no query, no host);
+- everything else gets `""`: an agent or system author, no picture, an id that is not a ULID. The server's own URL
+  (presigned or provider) is only the signal "has a picture" and is never forwarded into the frame;
+- the rewrite applies only to a frame build that knows the route: the pinned version (`pinnedFrameVersion(module)`)
+  must be listed in `AVATAR_ROUTE_FRAME_VERSIONS` (`frame-avatar-url.ts`). Any other build gets `""`, which draws the
+  initials and ends the CSP violation per comment. The re-pin to a bundle with the avatar loader adds its version
+  there.
 
 **Frame side (fork) to do.** Accept `image/webp` and `image/svg+xml` in the
 asset store's display/read paths (upload stays PNG/JPEG/GIF/WebP), inline
