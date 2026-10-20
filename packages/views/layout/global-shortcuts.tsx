@@ -7,6 +7,7 @@ import { useSearchStore } from "@uniwork/core/search";
 import {
   SHORTCUT_ACTION_BY_ID,
   getShortcut,
+  isDocumentEditorShortcutTarget,
   isEditableShortcutTarget,
   isPortalLayerShortcutTarget,
   shortcutMatchesEvent,
@@ -19,7 +20,8 @@ import { useWorkspace } from "./workspace-context";
 
 // Primary+B is deliberately absent: the sidebar primitive listens for it on
 // window and does not respect defaultPrevented, so claiming it here would
-// fire twice.
+// fire twice. It stands down inside any contenteditable, so the document
+// editor's Bold wins there like the `editorWins` actions below.
 const GLOBAL_ACTIONS: readonly ShortcutActionId[] = [
   "openSearch",
   "ai.askUni",
@@ -72,6 +74,10 @@ export function GlobalShortcuts({ onCreateTask }: { onCreateTask: () => void }) 
         const action = SHORTCUT_ACTION_BY_ID[id];
         if (!action) return false;
         if (id === "ai.askUni" && !aiEnabled) return false;
+        // Word/Office chords win while the UniNote page editor has focus; the
+        // action stays reachable by its button and outside the editor. An Office
+        // frame is a separate document, so its keys never arrive here at all.
+        if (action.editorWins && isDocumentEditorShortcutTarget(event.target)) return false;
         if (!action.allowInEditable) {
           if (isEditableShortcutTarget(event.target)) return false;
           if (isPortalLayerShortcutTarget(event.target)) return false;

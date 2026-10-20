@@ -3,6 +3,9 @@ import {
   SHORTCUT_ACTIONS,
   SHORTCUT_ACTION_BY_ID,
   createShortcutChord,
+  DOCUMENT_EDITOR_SCOPE,
+  DOCUMENT_EDITOR_SCOPE_ATTRIBUTE,
+  isDocumentEditorShortcutTarget,
   isPortalLayerShortcutTarget,
   isReservedShortcut,
   isShortcutAllowedForAction,
@@ -178,5 +181,61 @@ describe("shouldIgnoreGlobalShortcutEvent", () => {
     expect(shouldIgnoreGlobalShortcutEvent(new KeyboardEvent("keydown", { key: "c", isComposing: true }))).toBe(true);
     // Safari clears isComposing on the keydown that ends composition; keyCode 229 still marks it.
     expect(shouldIgnoreGlobalShortcutEvent(new KeyboardEvent("keydown", { key: "Enter", keyCode: 229 }))).toBe(true);
+  });
+});
+
+describe("editor wins", () => {
+  it("lets the document editor take Ask UNI, search and back/forward, nothing else", () => {
+    const yielding = SHORTCUT_ACTIONS.filter((action) => action.editorWins).map((action) => action.id);
+    expect(yielding.sort()).toEqual(["ai.askUni", "goBack", "goForward", "openSearch"]);
+  });
+
+  it("recognises only an element inside the document-editor scope", () => {
+    const scope = document.createElement("div");
+    scope.setAttribute(DOCUMENT_EDITOR_SCOPE_ATTRIBUTE, DOCUMENT_EDITOR_SCOPE);
+    scope.contentEditable = "true";
+    const paragraph = document.createElement("p");
+    scope.append(paragraph);
+    const composer = document.createElement("div");
+    composer.contentEditable = "true";
+    document.body.append(scope, composer);
+    expect(isDocumentEditorShortcutTarget(scope)).toBe(true);
+    expect(isDocumentEditorShortcutTarget(paragraph)).toBe(true);
+    expect(isDocumentEditorShortcutTarget(composer)).toBe(false);
+    expect(isDocumentEditorShortcutTarget(document.body)).toBe(false);
+    expect(isDocumentEditorShortcutTarget(null)).toBe(false);
+  });
+});
+
+describe("browser tab navigation chords", () => {
+  it("reserves Ctrl+Tab, Ctrl+Shift+Tab, Ctrl+PageUp/PageDown and Ctrl+F4 on Windows and Linux", () => {
+    const chords = [
+      createShortcutChord("Tab", { primary: true }),
+      createShortcutChord("Tab", { primary: true, shift: true }),
+      createShortcutChord("PageUp", { primary: true }),
+      createShortcutChord("PageDown", { primary: true }),
+      createShortcutChord("PageUp", { primary: true, shift: true }),
+      createShortcutChord("F4", { primary: true }),
+    ];
+    for (const platform of ["windows", "linux"] as const) {
+      for (const runtime of ["web", "desktop"] as const) {
+        for (const chord of chords) {
+          expect(isReservedShortcut(chord, platform, runtime), `${chord.key} ${platform}/${runtime}`).toBe(true);
+        }
+      }
+    }
+  });
+
+  it("reserves literal Control+Tab and Control+PageUp/PageDown on macOS, where Command is not the tab key", () => {
+    for (const key of ["Tab", "PageUp", "PageDown"]) {
+      expect(isReservedShortcut(createShortcutChord(key, { control: true }), "macos", "web"), key).toBe(true);
+      expect(isReservedShortcut(createShortcutChord(key, { control: true, shift: true }), "macos", "desktop"), key).toBe(true);
+    }
+  });
+
+  it("leaves unmodified Tab, PageUp and F4 alone", () => {
+    for (const key of ["Tab", "PageUp", "PageDown", "F4"]) {
+      expect(isReservedShortcut(createShortcutChord(key), "windows", "web"), key).toBe(false);
+    }
   });
 });
