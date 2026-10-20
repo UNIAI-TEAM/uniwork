@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/unicomhub/uniwork/server/internal/util"
@@ -65,18 +66,19 @@ func TestDocumentShareBatch(t *testing.T) {
 		}
 	}
 
-	// 400 empty list; 422 above the cap carries fields.max.
+	// 400 empty list; >50 distinct principals succeed now that the batch cap is gone (UNI-2012 S1c).
 	res, out = doJSON(t, w.srv, "POST", path, w.token, map[string]any{"principal_ids": []string{}, "level": "view"})
 	wantErr(t, res, out, 400, "invalid_request", "")
-	many := make([]string, 51)
+	many := make([]string, 55)
 	for i := range many {
-		many[i] = util.NewID()
+		_, many[i] = docsJoinWorkspace(t, w, fmt.Sprintf("docs-batch-many-%02d@example.com", i))
 	}
 	res, out = doJSON(t, w.srv, "POST", path, w.token, map[string]any{"principal_ids": many, "level": "view"})
-	wantErr(t, res, out, 422, "share_batch_too_large", "")
-	errObj, _ = out["error"].(map[string]any)
-	if fields, _ := errObj["fields"].(map[string]any); fields["max"] != float64(50) {
-		t.Fatalf("error.fields = %v, want max=50", errObj["fields"])
+	if res.StatusCode != 201 {
+		t.Fatalf("55-user batch share: %d %v", res.StatusCode, out)
+	}
+	if got, _ := out["shares"].([]any); len(got) != 55 {
+		t.Fatalf("55-user batch shares = %d, want 55", len(got))
 	}
 
 	// The single route keeps its body and its `share` envelope.

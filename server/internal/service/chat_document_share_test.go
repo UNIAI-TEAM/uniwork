@@ -653,17 +653,18 @@ func (f *chatDocumentFixture) fileDocumentsCount(t *testing.T) int {
 	return n
 }
 
-// TestShareAttachmentAsDocumentRefusesOverCapRoom is BE-CDS-11 (share half): a
-// room whose grantable audience is over the batch cap refuses the conversion
-// with 422 share_batch_too_large, creates no document and leaves the message a
-// file.
-func TestShareAttachmentAsDocumentRefusesOverCapRoom(t *testing.T) {
+// TestShareAttachmentAsDocumentOver50Recipients proves UNI-2012 S1c on the
+// attachment conversion path: a room with >50 active recipients converts the
+// attachment into a root document and grants every active recipient without a
+// batch cap refusal.
+func TestShareAttachmentAsDocumentOver50Recipients(t *testing.T) {
 	f := newChatDocumentFixture(t)
 	ctx := context.Background()
 
+	const extraMembers = 55
 	as := NewAuthService(f.pool, f.q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
 	ids := []string{f.ub.ID}
-	for i := range maxDocumentShareBatch {
+	for i := range extraMembers {
 		u := registerVerified(t, f.q, as, fmt.Sprintf("chatdoc-sharecap-%d@example.com", i), fmt.Sprintf("Cap %d", i))
 		addOrgMember(t, f.q, f.orgID, u.ID)
 		addWorkspaceMember(t, f.q, f.ws.ID, u.ID)
@@ -682,22 +683,21 @@ func TestShareAttachmentAsDocumentRefusesOverCapRoom(t *testing.T) {
 		t.Fatalf("send file: %v", err)
 	}
 
-	if _, err := f.svc.ShareAttachmentAsDocument(ctx, f.ua.ID, f.ws.ID, group.ID, orig.ID, ShareAttachmentAsDocumentInput{
+	converted, err := f.svc.ShareAttachmentAsDocument(ctx, f.ua.ID, f.ws.ID, group.ID, orig.ID, ShareAttachmentAsDocumentInput{
 		ShareLevel:  "comment",
 		ClientMsgID: "big-room-share-1",
-	}); err == nil {
-		t.Fatal("an over-cap room converted an attachment to a document")
-	} else if ce := wantCode(t, err, "share_batch_too_large"); ce.Status != http.StatusUnprocessableEntity {
-		t.Fatalf("status = %d, want 422", ce.Status)
+	})
+	if err != nil {
+		t.Fatalf("56-recipient room refused ShareAttachmentAsDocument: %v", err)
 	}
-	if got := f.fileDocumentsCount(t); got != 0 {
-		t.Fatalf("documents after the refusal = %d, want 0", got)
+	if got := f.fileDocumentsCount(t); got != 1 {
+		t.Fatalf("documents after conversion = %d, want 1", got)
 	}
-	if got := f.chatMessagesOfKind(t, group.ID, "file"); got != 1 {
-		t.Fatalf("file messages after the refusal = %d, want 1 (still kind=file)", got)
+	if got := f.chatMessagesOfKind(t, group.ID, "document"); got != 1 {
+		t.Fatalf("document messages after conversion = %d, want 1", got)
 	}
-	if got := f.chatMessagesOfKind(t, group.ID, "document"); got != 0 {
-		t.Fatalf("document messages after the refusal = %d, want 0", got)
+	if shares := f.liveSharesOfDocument(t, converted.Document.DocumentID); len(shares) != len(ids) {
+		t.Fatalf("live shares after conversion = %d, want %d", len(shares), len(ids))
 	}
 }
 

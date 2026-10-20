@@ -1,15 +1,17 @@
 package service
 
 import (
+	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/unicomhub/uniwork/server/internal/audit"
+	"github.com/unicomhub/uniwork/server/internal/util"
 	"net/http"
 	"reflect"
 	"strings"
 	"testing"
-
-	"github.com/unicomhub/uniwork/server/internal/audit"
-	"github.com/unicomhub/uniwork/server/internal/util"
+	"time"
 )
 
 func TestShareDocumentBatch(t *testing.T) {
@@ -161,39 +163,28 @@ func TestShareDocumentBatch(t *testing.T) {
 		}
 	})
 
-	t.Run("51 distinct principals rejected with 422 share_batch_too_large while 50 distinct succeed", func(t *testing.T) {
+	t.Run("over 50 distinct principals succeed without a batch cap", func(t *testing.T) {
 		doc := f.doc(t, tn, docSpec{ws: tn.wsA, visibility: "restricted", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID})
-		ids51 := make([]string, 51)
-		for i := range ids51 {
-			u := f.user(t, "batch51", fmt.Sprintf("u%02d", i))
+		ids55 := make([]string, 55)
+		for i := range ids55 {
+			u := f.user(t, "batch55", fmt.Sprintf("u%02d", i))
 			f.orgMember(t, tn.orgID, u.ID, "member")
-			ids51[i] = u.ID
+			ids55[i] = u.ID
 		}
-		_, err := f.svc.ShareDocumentBatch(f.ctx, mgr, doc.ID, ids51, DocumentLevelView)
-		var ce CodedError
-		if !errors.As(err, &ce) || ce.Code != "share_batch_too_large" || ce.Status != http.StatusUnprocessableEntity {
-			t.Fatalf("51 distinct: err = %v, want 422 share_batch_too_large", err)
-		}
-		if ce.Fields["max"] != maxDocumentShareBatch {
-			t.Fatalf("fields.max = %v, want %d", ce.Fields["max"], maxDocumentShareBatch)
-		}
-		if n := countAudit(t, f, audit.ActionDocumentShared, doc.ID); n != 0 {
-			t.Fatalf("audit rows after 51 reject = %d, want 0", n)
-		}
-		var rows int
-		if err := f.pool.QueryRow(f.ctx, `SELECT count(*) FROM document_shares WHERE document_id = $1`, doc.ID).Scan(&rows); err != nil {
-			t.Fatal(err)
-		}
-		if rows != 0 {
-			t.Fatalf("document_shares rows after 51 reject = %d, want 0", rows)
-		}
-
-		shares, err := f.svc.ShareDocumentBatch(f.ctx, mgr, doc.ID, ids51[:50], DocumentLevelView)
+		shares, err := f.svc.ShareDocumentBatch(f.ctx, mgr, doc.ID, ids55, DocumentLevelView)
 		if err != nil {
-			t.Fatalf("50 distinct: %v", err)
+			t.Fatalf("55 distinct: %v", err)
 		}
-		if len(shares) != 50 {
-			t.Fatalf("len(shares) = %d, want 50", len(shares))
+		if len(shares) != 55 {
+			t.Fatalf("len(shares) = %d, want 55", len(shares))
+		}
+		for i, wantID := range ids55 {
+			if shares[i].PrincipalID != wantID || shares[i].Level != string(DocumentLevelView) {
+				t.Fatalf("shares[%d] = %+v, want %s at view", i, shares[i], wantID)
+			}
+		}
+		if n := countAudit(t, f, audit.ActionDocumentShared, doc.ID); n != 55 {
+			t.Fatalf("audit rows after 55 grant = %d, want 55", n)
 		}
 	})
 
@@ -266,4 +257,156 @@ func TestShareDocumentBatch(t *testing.T) {
 			}
 		}
 	})
+}
+
+// TestShareDocumentBatch1000Recipients proves UNI-2012 S1c for a 1,000-person
+// batch share:
+//   - 1,000 distinct recipients succeed in one transaction across 200-row chunks.
+//   - Existing live shares at another level are replaced while existing shares
+//     at the same level are treated as a no-op.
+//   - Notice policy: only grantees whose effective level strictly rose receive
+//     notify_user_id on their document.shared outbox event (a recipient who
+//     already held a higher level is not notified).
+//   - Replaying the same 1,000-person batch is idempotent (0 new shares, 0 new
+//     audit rows, 0 new outbox rows).
+func TestShareDocumentBatch1000Recipients(t *testing.T) {
+	f := newDocPermFixture(t)
+	tn := f.tenant(t, "shbatch1000")
+	mgr := Human(tn.aclOwner.ID)
+	doc := f.doc(t, tn, docSpec{ws: tn.wsA, visibility: "restricted", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID})
+
+	const total = 1000
+	ids := make([]string, total)
+	emails := make([]string, total)
+	names := make([]string, total)
+	for i := range total {
+		ids[i] = util.NewID()
+		emails[i] = fmt.Sprintf("batch1000-%04d-%s@example.com", i, ids[i])
+		names[i] = fmt.Sprintf("Batch1000 %04d", i)
+	}
+	if _, err := f.pool.Exec(f.ctx, `
+		INSERT INTO users (id, email, display_name, password_hash, email_verified_at)
+		SELECT unnest($1::text[]), unnest($2::text[]), unnest($3::text[]), 'x', now()
+	`, ids, emails, names); err != nil {
+		t.Fatalf("seed 1000 users: %v", err)
+	}
+	if _, err := f.pool.Exec(f.ctx, `
+		INSERT INTO organization_members (organization_id, user_id, role)
+		SELECT $1, unnest($2::text[]), 'member'
+	`, tn.orgID, ids); err != nil {
+		t.Fatalf("seed 1000 org members: %v", err)
+	}
+
+	// Pre-seed:
+	//   - ids[0] already holds comment (same as the batch level -> no-op, not notified).
+	//   - ids[1] already holds edit (higher than comment -> replaced by comment on
+	//     explicit ShareDocumentBatch, so effective level drops edit->comment -> not notified).
+	//   - ids[2] already holds view (lower than comment -> replaced by comment, effective level rises -> notified).
+	if _, err := f.svc.ShareDocument(f.ctx, mgr, doc.ID, DocumentShareInput{
+		PrincipalType: DocumentPrincipalUser, PrincipalID: ids[0], Level: DocumentLevelComment,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.svc.ShareDocument(f.ctx, mgr, doc.ID, DocumentShareInput{
+		PrincipalType: DocumentPrincipalUser, PrincipalID: ids[1], Level: DocumentLevelEdit,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.svc.ShareDocument(f.ctx, mgr, doc.ID, DocumentShareInput{
+		PrincipalType: DocumentPrincipalUser, PrincipalID: ids[2], Level: DocumentLevelView,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	auditsBefore := countAudit(t, f, audit.ActionDocumentShared, doc.ID)
+	outboxBefore := countOutbox(t, f, "document.shared", doc.ID)
+
+	ctx, cancel := context.WithTimeout(f.ctx, 10*time.Second)
+	defer cancel()
+	started := time.Now()
+	shares, err := f.svc.ShareDocumentBatch(ctx, mgr, doc.ID, ids, DocumentLevelComment)
+	elapsed := time.Since(started)
+	if err != nil {
+		t.Fatalf("ShareDocumentBatch(1000): %v", err)
+	}
+	if len(shares) != total {
+		t.Fatalf("len(shares) = %d, want %d", len(shares), total)
+	}
+	if elapsed > 5*time.Second {
+		t.Fatalf("ShareDocumentBatch(1000) took %s, want <= 5s", elapsed)
+	}
+
+	var liveShares int
+	if err := f.pool.QueryRow(f.ctx,
+		`SELECT count(*) FROM document_shares WHERE document_id = $1 AND revoked_at IS NULL`, doc.ID,
+	).Scan(&liveShares); err != nil {
+		t.Fatal(err)
+	}
+	if liveShares != total {
+		t.Fatalf("live document_shares = %d, want %d", liveShares, total)
+	}
+
+	// 999 shares changed (ids[0] was already at comment); 998 recipients rose in effective level
+	// (ids[0] stayed at comment; ids[1] dropped from edit to comment).
+	auditsDelta := countAudit(t, f, audit.ActionDocumentShared, doc.ID) - auditsBefore
+	outboxDelta := countOutbox(t, f, "document.shared", doc.ID) - outboxBefore
+	if auditsDelta != total-1 {
+		t.Fatalf("audit delta = %d, want %d (ids[0] unchanged)", auditsDelta, total-1)
+	}
+	if outboxDelta != total-1 {
+		t.Fatalf("outbox delta = %d, want %d", outboxDelta, total-1)
+	}
+
+	rows, err := f.pool.Query(f.ctx,
+		`SELECT payload FROM outbox_events WHERE topic = 'document.shared' AND payload LIKE '%' || $1 || '%' ORDER BY created_at ASC, id ASC OFFSET $2`,
+		doc.ID, outboxBefore,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	notifiedUsers := map[string]bool{}
+	for rows.Next() {
+		var raw string
+		if err := rows.Scan(&raw); err != nil {
+			t.Fatal(err)
+		}
+		var p map[string]string
+		if err := json.Unmarshal([]byte(raw), &p); err != nil {
+			t.Fatal(err)
+		}
+		if uid := p["notify_user_id"]; uid != "" {
+			notifiedUsers[uid] = true
+		}
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	if len(notifiedUsers) != total-2 {
+		t.Fatalf("notified users = %d, want %d (ids[0] unchanged, ids[1] downgraded)", len(notifiedUsers), total-2)
+	}
+	if notifiedUsers[ids[0]] || notifiedUsers[ids[1]] {
+		t.Fatalf("ids[0]=%v ids[1]=%v should not carry notify_user_id", notifiedUsers[ids[0]], notifiedUsers[ids[1]])
+	}
+	if !notifiedUsers[ids[2]] {
+		t.Fatal("ids[2] (raised view->comment) must carry notify_user_id")
+	}
+
+	// Idempotent replay: calling ShareDocumentBatch again with the same 1,000 ids and level writes nothing.
+	replayStart := time.Now()
+	replayed, err := f.svc.ShareDocumentBatch(ctx, mgr, doc.ID, ids, DocumentLevelComment)
+	replayElapsed := time.Since(replayStart)
+	if err != nil {
+		t.Fatalf("ShareDocumentBatch(1000) replay: %v", err)
+	}
+	if len(replayed) != total {
+		t.Fatalf("replay len(shares) = %d, want %d", len(replayed), total)
+	}
+	if countAudit(t, f, audit.ActionDocumentShared, doc.ID) != auditsBefore+auditsDelta {
+		t.Fatal("idempotent replay wrote additional audit rows")
+	}
+	if countOutbox(t, f, "document.shared", doc.ID) != outboxBefore+outboxDelta {
+		t.Fatal("idempotent replay wrote additional outbox rows")
+	}
+	t.Logf("ShareDocumentBatch(1000): grant=%s replay=%s live_shares=%d audit_delta=%d outbox_delta=%d notified=%d",
+		elapsed, replayElapsed, liveShares, auditsDelta, outboxDelta, len(notifiedUsers))
 }

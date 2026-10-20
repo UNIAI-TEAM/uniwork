@@ -3,6 +3,7 @@ package service
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -12,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/auth"
 	"github.com/unicomhub/uniwork/server/internal/files"
 	"github.com/unicomhub/uniwork/server/internal/files/filesfake"
@@ -318,17 +320,20 @@ func TestSendDocumentMessageLevelValidation(t *testing.T) {
 	}
 }
 
-// TestSendDocumentMessageRefusesOverCapRoom is §7.1 test 6.
-func TestSendDocumentMessageRefusesOverCapRoom(t *testing.T) {
+// TestSendDocumentMessageOver50RecipientsAndCanSendDocumentPermission replaces
+// the old 50-recipient cap test (UNI-2012 S1c): a room with >50 active members
+// reports can_send_document=true and grants every active recipient; a
+// deactivated member is still skipped; and can_send_document reflects send
+// permission (false when send_restricted or not joined to a public channel).
+func TestSendDocumentMessageOver50RecipientsAndCanSendDocumentPermission(t *testing.T) {
 	f := newChatDocumentFixture(t)
 	ctx := context.Background()
 	room := f.dm(t)
 
-	// 51 grantable recipients: the sender plus 51 others, so the batch cap is
-	// exceeded by one.
+	const extraMembers = 55
 	as := NewAuthService(f.pool, f.q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
 	ids := []string{f.ub.ID}
-	for i := range maxDocumentShareBatch {
+	for i := range extraMembers {
 		u := registerVerified(t, f.q, as, fmt.Sprintf("chatdoc-cap-%d@example.com", i), fmt.Sprintf("Cap %d", i))
 		addOrgMember(t, f.q, f.orgID, u.ID)
 		addWorkspaceMember(t, f.q, f.ws.ID, u.ID)
@@ -338,50 +343,57 @@ func TestSendDocumentMessageRefusesOverCapRoom(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create group: %v", err)
 	}
-	if _, err := f.svc.SendDocumentMessage(ctx, f.ua.ID, f.ws.ID, group.ID, documentMessageInput("doc-capacity-1")); err == nil {
-		t.Fatal("an over-cap room accepted a document send")
-	} else if ce := wantCode(t, err, "share_batch_too_large"); ce.Status != http.StatusUnprocessableEntity {
-		t.Fatalf("status = %d, want 422", ce.Status)
-	}
-	if got := f.chatMessagesOfKind(t, group.ID, "document"); got != 0 {
-		t.Fatalf("document messages after the refusal = %d, want 0", got)
-	}
-	// The room detail read advertises the same refusal (L5).
 	summary, err := f.svc.GetRoomSummary(ctx, f.ua.ID, f.ws.ID, group.ID)
 	if err != nil {
 		t.Fatalf("room summary: %v", err)
 	}
-	if summary.CanSendDocument {
-		t.Fatal("can_send_document = true on an over-cap room")
+	if !summary.CanSendDocument {
+		t.Fatal("can_send_document = false on a 56-recipient room; the recipient cap is removed")
 	}
-	// A deactivated member is not a grantable recipient, so deactivating one
-	// of the 51 brings the room back under the cap and the flag flips: the
-	// count is the audience the send would actually reach (L5).
+
+	// Deactivating one member skips them without failing the send: 55 active recipients receive grants.
 	if _, err := f.pool.Exec(ctx, `UPDATE organization_members SET deactivated_at = now()
 		WHERE organization_id = $1 AND user_id = $2`, f.orgID, ids[len(ids)-1]); err != nil {
 		t.Fatal(err)
 	}
-	summary, err = f.svc.GetRoomSummary(ctx, f.ua.ID, f.ws.ID, group.ID)
+	groupRoom, err := f.q.GetChatRoomByID(ctx, group.ID)
 	if err != nil {
-		t.Fatalf("room summary after deactivation: %v", err)
+		t.Fatal(err)
 	}
-	if !summary.CanSendDocument {
-		t.Fatal("can_send_document = false after a member was deactivated; the skipped member is not a recipient")
-	}
-	// Exactly the cap is a legal audience: the send answers and grants all 50.
-	atCap, err := f.svc.SendDocumentMessage(ctx, f.ua.ID, f.ws.ID, group.ID, documentMessageInput("doc-capacity-50"))
+	recipients, err := f.svc.documentGrantRecipients(ctx, f.ua.ID, groupRoom)
 	if err != nil {
-		t.Fatalf("a room at exactly %d recipients refused the send: %v", maxDocumentShareBatch, err)
+		t.Fatalf("recipients: %v", err)
+	}
+	if len(recipients) != extraMembers {
+		t.Fatalf("recipients = %d, want all %d active recipients", len(recipients), extraMembers)
+	}
+
+	sent, err := f.svc.SendDocumentMessage(ctx, f.ua.ID, f.ws.ID, group.ID, documentMessageInput("doc-uncapped-55"))
+	if err != nil {
+		t.Fatalf("55-recipient room refused the send: %v", err)
 	}
 	granted := 0
-	for _, share := range f.liveSharesOfDocument(t, atCap.Document.DocumentID) {
+	for _, share := range f.liveSharesOfDocument(t, sent.Document.DocumentID) {
 		if share.PrincipalID != f.ua.ID {
 			granted++
 		}
 	}
-	if granted != maxDocumentShareBatch {
-		t.Fatalf("grants at the cap = %d, want %d", granted, maxDocumentShareBatch)
+	if granted != extraMembers {
+		t.Fatalf("grants = %d, want %d", granted, extraMembers)
 	}
+
+	// can_send_document still means send permission: a send-restricted member sees false.
+	if _, err := f.pool.Exec(ctx, `UPDATE chat_room_members SET send_restricted = true WHERE room_id = $1 AND user_id = $2`, group.ID, f.ub.ID); err != nil {
+		t.Fatal(err)
+	}
+	ubSummary, err := f.svc.GetRoomSummary(ctx, f.ub.ID, f.ws.ID, group.ID)
+	if err != nil {
+		t.Fatalf("ub room summary: %v", err)
+	}
+	if ubSummary.CanSendDocument {
+		t.Fatal("can_send_document = true for a send-restricted member, want false")
+	}
+
 	// The DM stays sendable.
 	dmSummary, err := f.svc.GetRoomSummary(ctx, f.ua.ID, f.ws.ID, room.ID)
 	if err != nil {
@@ -392,36 +404,154 @@ func TestSendDocumentMessageRefusesOverCapRoom(t *testing.T) {
 	}
 }
 
-// TestDocumentGrantRecipientsStopAtTheCap: the recipient walk stops one past
-// the cap instead of gating every member of a large room (BE-CDS-3). The
-// callers only compare the length to the cap, so cap+1 is all they need.
-func TestDocumentGrantRecipientsStopAtTheCap(t *testing.T) {
+// TestSendDocumentMessage1000MemberRoom proves UNI-2012 S1c for a 1,000-member
+// room:
+//   - Grants are written in 200-row chunks inside ONE transaction.
+//   - Only-raise holds: a member who already holds edit keeps edit when a
+//     comment chat send grants access; the sender stays at manage.
+//   - Audit + outbox policy: writes 1 batch document.shared audit row and 1
+//     document.shared outbox row (not 1,000), with no notify_user_id so no
+//     per-share document_shared notice is emitted while chat message
+//     notifications still flow.
+//   - Idempotent replay by client_msg_id and re-running grantDocumentToRoomMembers
+//     write 0 extra rows.
+func TestSendDocumentMessage1000MemberRoom(t *testing.T) {
 	f := newChatDocumentFixture(t)
 	ctx := context.Background()
 
-	as := NewAuthService(f.pool, f.q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
-	ids := make([]string, 0, maxDocumentShareBatch+3)
-	for i := 0; i < maxDocumentShareBatch+3; i++ {
-		u := registerVerified(t, f.q, as, fmt.Sprintf("chatdoc-walk-%d@example.com", i), fmt.Sprintf("Walk %d", i))
-		addOrgMember(t, f.q, f.orgID, u.ID)
-		addWorkspaceMember(t, f.q, f.ws.ID, u.ID)
-		ids = append(ids, u.ID)
-	}
-	group, err := f.svc.CreateGroup(ctx, f.ua.ID, f.ws.ID, CreateGroupInput{Name: "walk", MemberUserIDs: ids})
+	ch, err := f.svc.CreateChannel(ctx, f.ua.ID, f.ws.ID, CreateChannelInput{
+		Name: "thousand-room", Visibility: "public",
+	})
 	if err != nil {
-		t.Fatalf("create group: %v", err)
+		t.Fatalf("create channel: %v", err)
 	}
-	room, err := f.q.GetChatRoomByID(ctx, group.ID)
+
+	const recipientsCount = 1000
+	memberIDs := make([]string, recipientsCount)
+	emails := make([]string, recipientsCount)
+	names := make([]string, recipientsCount)
+	roomMemberIDs := make([]string, recipientsCount)
+	for i := range recipientsCount {
+		memberIDs[i] = util.NewID()
+		emails[i] = fmt.Sprintf("chatdoc1000-%04d-%s@example.com", i, memberIDs[i])
+		names[i] = fmt.Sprintf("Room1000 %04d", i)
+		roomMemberIDs[i] = util.NewID()
+	}
+	if _, err := f.pool.Exec(ctx, `
+		INSERT INTO users (id, email, display_name, password_hash, email_verified_at)
+		SELECT unnest($1::text[]), unnest($2::text[]), unnest($3::text[]), 'x', now()
+	`, memberIDs, emails, names); err != nil {
+		t.Fatalf("seed 1000 users: %v", err)
+	}
+	if _, err := f.pool.Exec(ctx, `
+		INSERT INTO organization_members (organization_id, user_id, role)
+		SELECT $1, unnest($2::text[]), 'member'
+	`, f.orgID, memberIDs); err != nil {
+		t.Fatalf("seed 1000 org members: %v", err)
+	}
+	if _, err := f.pool.Exec(ctx, `
+		INSERT INTO workspace_members (workspace_id, user_id, role, organization_id)
+		SELECT $1, unnest($2::text[]), 'member', $3
+	`, f.ws.ID, memberIDs, f.orgID); err != nil {
+		t.Fatalf("seed 1000 workspace members: %v", err)
+	}
+	if _, err := f.pool.Exec(ctx, `
+		INSERT INTO chat_room_members (id, room_id, workspace_id, user_id, role, status, organization_id, joined_at, created_at, updated_at)
+		SELECT unnest($1::text[]), $2, $3, unnest($4::text[]), 'member', 'active', $5, now(), now(), now()
+	`, roomMemberIDs, ch.ID, f.ws.ID, memberIDs, f.orgID); err != nil {
+		t.Fatalf("seed 1000 chat room members: %v", err)
+	}
+
+	sendCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	started := time.Now()
+	sent, err := f.svc.SendDocumentMessage(sendCtx, f.ua.ID, f.ws.ID, ch.ID, documentMessageInput("doc-1000-room-1"))
+	elapsed := time.Since(started)
+	if err != nil {
+		t.Fatalf("SendDocumentMessage(1000-member room): %v", err)
+	}
+	if elapsed > 5*time.Second {
+		t.Fatalf("SendDocumentMessage(1000-member room) took %s, want <= 5s", elapsed)
+	}
+
+	docID := sent.Document.DocumentID
+	shares := f.liveSharesOfDocument(t, docID)
+	if len(shares) != recipientsCount {
+		t.Fatalf("live shares = %d, want %d", len(shares), recipientsCount)
+	}
+
+	var docAuditCount, sharedAuditCount int
+	if err := f.pool.QueryRow(ctx,
+		`SELECT count(*), count(*) FILTER (WHERE action = $1) FROM audit_events WHERE resource_id = $2`,
+		audit.ActionDocumentShared, docID,
+	).Scan(&docAuditCount, &sharedAuditCount); err != nil {
+		t.Fatal(err)
+	}
+	if sharedAuditCount != 1 || docAuditCount != 2 {
+		t.Fatalf("audit rows for doc = %d total (%d document.shared), want 2 total (1 document.created + 1 batch document.shared)",
+			docAuditCount, sharedAuditCount)
+	}
+
+	var sharedOutboxCount int
+	var sharedPayload string
+	if err := f.pool.QueryRow(ctx,
+		`SELECT count(*), COALESCE(max(payload), '') FROM outbox_events WHERE topic = 'document.shared' AND payload LIKE '%' || $1 || '%'`,
+		docID,
+	).Scan(&sharedOutboxCount, &sharedPayload); err != nil {
+		t.Fatal(err)
+	}
+	if sharedOutboxCount != 1 {
+		t.Fatalf("document.shared outbox rows = %d, want 1", sharedOutboxCount)
+	}
+	var p map[string]string
+	if err := json.Unmarshal([]byte(sharedPayload), &p); err != nil {
+		t.Fatal(err)
+	}
+	if p["notify_user_id"] != "" {
+		t.Fatalf("chat document.shared outbox payload carried notify_user_id=%q, want empty (no per-share document_shared notice)", p["notify_user_id"])
+	}
+
+	// Elevate memberIDs[0] manually to edit, then re-run grantDocumentToRoomMembers at comment:
+	// only-raise must keep memberIDs[0] at edit and all other 999 at comment (0 new rows written).
+	if _, err := f.docs.ShareDocument(ctx, Human(f.ua.ID), docID, DocumentShareInput{
+		PrincipalType: DocumentPrincipalUser, PrincipalID: memberIDs[0], Level: DocumentLevelEdit,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	doc, err := f.q.GetDocumentByID(ctx, docID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	recipients, err := f.svc.documentGrantRecipients(ctx, f.ua.ID, room)
+	acc, err := f.docs.effectiveLevel(ctx, f.q, Human(f.ua.ID), doc)
 	if err != nil {
-		t.Fatalf("recipients: %v", err)
+		t.Fatal(err)
 	}
-	if len(recipients) != maxDocumentShareBatch+1 {
-		t.Fatalf("recipients = %d, want the walk to stop at %d", len(recipients), maxDocumentShareBatch+1)
+	if err := f.svc.grantDocumentToRoomMembers(
+		ctx, f.q, Human(f.ua.ID), DocumentFileResult{Document: doc, Access: acc},
+		memberIDs, DocumentLevelComment, ch.ID, sent.ID,
+	); err != nil {
+		t.Fatalf("re-grant: %v", err)
 	}
+	m0Acc, err := f.docs.effectiveLevel(ctx, f.q, Human(memberIDs[0]), doc)
+	if err != nil || m0Acc.Level != DocumentLevelEdit {
+		t.Fatalf("memberIDs[0] effective level after comment re-grant = %+v (%v), want edit", m0Acc, err)
+	}
+
+	// Idempotent replay by client_msg_id returns the same message & document without new writes.
+	replayStart := time.Now()
+	replayed, err := f.svc.SendDocumentMessage(sendCtx, f.ua.ID, f.ws.ID, ch.ID, documentMessageInput("doc-1000-room-1"))
+	replayElapsed := time.Since(replayStart)
+	if err != nil {
+		t.Fatalf("replay SendDocumentMessage(1000): %v", err)
+	}
+	if replayed.ID != sent.ID || replayed.Document.DocumentID != docID {
+		t.Fatalf("replay = %s/%s, want %s/%s", replayed.ID, replayed.Document.DocumentID, sent.ID, docID)
+	}
+	if got := len(f.liveSharesOfDocument(t, docID)); got != recipientsCount {
+		t.Fatalf("live shares after replay = %d, want %d", got, recipientsCount)
+	}
+	t.Logf("SendDocumentMessage(1000-member room): send=%s replay=%s live_shares=%d doc_audits=%d shared_outbox=%d",
+		elapsed, replayElapsed, len(shares), docAuditCount, sharedOutboxCount)
 }
 
 // TestSendDocumentMessageQuota is §7.1 test 7.
