@@ -12,8 +12,10 @@ const { t } = initI18n();
 const memberId = "01JAAAAAAAAAAAAAAAAAAAAAAA";
 beforeEach(() => {
   requestMock.mockReset();
-  requestMock.mockResolvedValue({ members: [{ workspace_id: "ws1", user_id: memberId,
-    role: "member", email: "alice@example.test", display_name: "Alice" }] });
+  requestMock.mockImplementation((path: string) => Promise.resolve(path.includes("mention-candidates")
+    ? { candidates: [{ user_id: memberId, display_name: "Alice", email: "alice@example.test" }] }
+    : { members: [{ workspace_id: "ws1", user_id: memberId,
+      role: "member", email: "alice@example.test", display_name: "Alice" }] }));
 });
 
 async function mount(text = "") {
@@ -79,8 +81,8 @@ it("opens typed mentions, keeps a pasted query active and inserts schema-safe me
   expect(mentionState(editor).active).toBe(true);
   await act(async () => { paste(editor, "Alice"); });
   expect(mentionState(editor).active).toBe(true);
-  await waitFor(() => expect(mentionSuggestion(editor).items({ query: "Alice" }))
-    .toEqual([{ id: memberId, label: "Alice", type: "member" }]));
+  await expect(mentionSuggestion(editor).items({ query: "Alice" }))
+    .resolves.toMatchObject([{ id: memberId, label: "Alice", type: "member" }]);
   await act(async () => { mentionSuggestion(editor).command({ editor,
     range: mentionState(editor).range, props: { id: memberId, label: "Alice", type: "member" } }); });
   const json = editor.getJSON();
@@ -96,6 +98,6 @@ it("hands a deliberately typed slash over to the existing member picker", async 
   await act(async () => { insertPageBlock(editor, { from: 1, to: 2 }, "mention"); });
   expect(editor.getText()).toBe("@");
   expect(mentionState(editor).active).toBe(true);
-  await waitFor(() => expect(mentionSuggestion(editor).items({ query: "Alice" }))
-    .toEqual([{ id: memberId, label: "Alice", type: "member" }]));
+  await expect(mentionSuggestion(editor).items({ query: "Alice" }))
+    .resolves.toMatchObject([{ id: memberId, label: "Alice", type: "member" }]);
 });

@@ -1,7 +1,9 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -43,6 +45,19 @@ type isoReference struct {
 	// mustNotContain lists strings the attack's answer may not hold even
 	// when it is 2xx (a URL, a ticket).
 	mustNotContain []string
+	// multipart, when set, makes the case a multipart request instead of a
+	// JSON one: its fields resolve like body (so a field may name the other
+	// tenant's row), and the file part is fixed. A route whose SDI carries
+	// formData tags only (the chat media sends) has no JSON body to attack.
+	multipart *isoMultipart
+	// multipartFields are the form fields of a multipart case, resolved with
+	// isoResolve before they are sent.
+	multipartFields map[string]any
+	// afterControl runs after the own-rows control in referenceControls.
+	afterControl func(t *testing.T, w *isoWorld)
+	// afterAttack runs after each cross-tenant / member-of-both reference
+	// attack to assert the stored state (e.g. an empty source on a stored row).
+	afterAttack func(t *testing.T, w *isoWorld, label string)
 }
 
 type isoRef string       // the referenced tenant's row
@@ -79,10 +94,20 @@ func isoResolve(v any, own, ref *isoTenant, salt string) any {
 }
 
 func (c isoReference) build(w *isoWorld, own, ref *isoTenant) isoBody {
+	salt := c.method + c.pattern + c.what
+	if c.multipart != nil {
+		mp := *c.multipart
+		fields := make(map[string]string, len(c.multipartFields))
+		for k, v := range c.multipartFields {
+			fields[k] = fmt.Sprint(isoResolve(v, own, ref, salt))
+		}
+		mp.fields = fields
+		return isoBody{multipart: &mp, headers: map[string]string{"Idempotency-Key": "iso-ref-" + ref.tag + "-" + isoHash(salt)}}
+	}
 	if c.body == nil {
 		return isoBody{}
 	}
-	b := isoBody{json: isoResolve(c.body, own, ref, c.method+c.pattern+c.what)}
+	b := isoBody{json: isoResolve(c.body, own, ref, salt)}
 	if c.idempotent {
 		key, _ := json.Marshal(b.json)
 		b.headers = map[string]string{"Idempotency-Key": "iso-ref-" + ref.tag + "-" + isoHash(c.method+c.pattern+string(key))}
@@ -99,7 +124,11 @@ func (c isoReference) refPath(t *testing.T, tn *isoTenant) (string, bool) {
 	if !ok || c.docKey == "" {
 		return path, ok
 	}
-	return strings.Replace(path, tn.ids["document"], tn.get(t, c.docKey), 1), true
+	replaced := strings.Replace(path, tn.ids["document"], tn.get(t, c.docKey), 1)
+	if replaced == path {
+		replaced = strings.Replace(path, tn.ids["accessRequestDocument"], tn.get(t, c.docKey), 1)
+	}
+	return replaced, true
 }
 
 func isoHash(s string) string {
@@ -161,6 +190,16 @@ var isoReferences = []isoReference{
 		"title": isoUnique("ref"), "assignee_id": isoRef("peer")}, covers: []string{"CreateTaskFromMessageSDI.assignee_id"}},
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/messages", what: "reply to", body: map[string]any{
 		"body": "ref", "reply_to_message_id": isoRef("message")}, covers: []string{"SendChatMessageSDI.reply_to_message_id"}},
+	// The document send is multipart (formData tags), so its reply target is
+	// attacked through the form: A's message id as reply_to_message_id, with
+	// the other fields valid so the refusal can only be the reply target.
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/document", what: "reply to",
+		multipart: &isoMultipart{filename: "ref.md", contentType: "text/markdown", content: []byte("# ref\n")},
+		multipartFields: map[string]any{
+			"client_msg_id":       "iso-ref-document-send",
+			"share_level":         "comment",
+			"reply_to_message_id": isoRef("message"),
+		}},
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/ai/chat/catch-up", what: "room", body: map[string]any{"room_id": isoRef("room")}, covers: []string{"ChatCatchUpSDI.room_id"}},
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/chat/delivered", what: "room", allow2xx: true,
 		body: map[string]any{"rooms": []any{map[string]any{"room_id": isoRef("room"), "up_to": isoAt(0)}}}, covers: []string{"ChatDeliveredRoomSDI.room_id"}},
@@ -216,6 +255,18 @@ var isoReferences = []isoReference{
 		}, covers: []string{"CreateUploadSessionSDI.parent_id"}},
 	{method: "POST", pattern: "/api/v1/documents/{documentID}/shares", what: "user principal", body: map[string]any{
 		"principal_type": "user", "principal_id": isoRef("peer"), "level": "view"}, noControl: "the fixture already shares with B's peer", covers: []string{"ShareDocumentSDI.principal_id"}},
+	// DOC-07 (UNI-1631 §4.3, BE-SD7-10): the source pair is kept only when the
+	// requester reads that task in the document's OWN organization, so a
+	// foreign task is dropped silently and the stored row's source_id stays
+	// empty. The case targets restrictedDocument at edit (B's owner holds only
+	// a view break-glass grant on it), so the create reaches source validation
+	// and stores a pending row instead of exiting early as already sufficient.
+	{method: "POST", pattern: "/api/v1/documents/{documentID}/access-requests", what: "task source of another tenant",
+		docKey: "restrictedDocument", allow2xx: true,
+		body:         map[string]any{"requested_level": "edit", "source_kind": "task", "source_id": isoRef("task")},
+		afterControl: isoAccessRequestSourceAfterControl,
+		afterAttack:  isoAccessRequestSourceAfterAttack,
+		covers:       []string{"CreateDocumentAccessRequestSDI.source_id"}},
 	{method: "POST", pattern: "/api/v1/documents/{documentID}/shares/batch", what: "user principals", body: map[string]any{
 		"principal_ids": []any{isoRef("peer")}, "level": "view"}, noControl: "the fixture already shares with B's peer", covers: []string{"ShareDocumentBatchSDI.principal_ids"}},
 	{method: "POST", pattern: "/api/v1/documents/{documentID}/shares", what: "workspace principal", body: map[string]any{
@@ -252,6 +303,10 @@ var isoReferences = []isoReference{
 		"title": isoUnique("ref"), "parent_id": isoRef("document")}, covers: []string{"SaveSourceFileSDI.parent_id"}},
 	{method: "POST", pattern: "/api/v1/documents/{documentID}/versions/commit", what: "uploaded file", idempotent: true, body: map[string]any{
 		"upload_id": isoRef("docUpload"), "base_revision": "1"}, covers: []string{"CommitDocumentVersionSDI.upload_id"}},
+	{method: "POST", pattern: "/api/v1/documents/{documentID}/versions/commit", what: "chat room for version line", idempotent: true, allow2xx: true,
+		noControl: "committing consumes chatCommitUpload and advances fileDocument's revision; the attack itself commits B's upload (200 OK) while naming A's room",
+		body:      map[string]any{"upload_id": isoOwn("chatCommitUpload"), "base_revision": "2", "chat_room_id": isoRef("room")},
+		covers:    []string{"CommitDocumentVersionSDI.chat_room_id"}},
 	{method: "POST", pattern: "/api/v1/office-frame/documents/{documentID}/versions/commit", what: "staged frame upload", idempotent: true, body: map[string]any{
 		"upload_id": isoRef("frameUpload"), "base_revision": isoOwn("frameRevision")}, covers: []string{"CommitOfficeFrameVersionSDI.upload_id"}},
 	{method: "POST", pattern: "/api/v1/office-frame/documents/{documentID}/assets/sign", what: "image of another document", body: map[string]any{
@@ -393,7 +448,63 @@ func (w *isoWorld) referenceControls(t *testing.T) {
 		status, raw := w.do(t, c.method, path+isoQuery(c.query, w.bravo), w.bravo.token, c.build(w, w.bravo, w.bravo))
 		if status < 200 || status >= 300 {
 			t.Errorf("reference control %s %s %s with B's own rows = %d: %s", c.method, c.pattern, c.what, status, isoClip(raw))
+		} else if c.afterControl != nil {
+			c.afterControl(t, w)
 		}
+	}
+}
+
+// isoAccessRequestSourceAfterControl verifies the own-rows control stored B's
+// task on the pending request row and removes that row so the attack passes do
+// not hit 409 access_request_pending before reaching source validation.
+func isoAccessRequestSourceAfterControl(t *testing.T, w *isoWorld) {
+	t.Helper()
+	ctx := context.Background()
+	docID := w.bravo.ids["restrictedDocument"]
+	var sourceKind, sourceID string
+	if err := w.pool.QueryRow(ctx, `
+		SELECT coalesce(source_kind, ''), coalesce(source_id, '')
+		FROM document_access_requests
+		WHERE organization_id = $1 AND document_id = $2 AND created_by = $3 AND status = 'pending'`,
+		w.bravo.orgID, docID, w.bravo.userID).Scan(&sourceKind, &sourceID); err != nil {
+		t.Fatalf("reference control access request stored row: %v", err)
+	}
+	if sourceKind != "task" || sourceID != w.bravo.ids["task"] {
+		t.Errorf("reference control access request source = (%q, %q), want (\"task\", %q)",
+			sourceKind, sourceID, w.bravo.ids["task"])
+	}
+	if _, err := w.pool.Exec(ctx, `
+		DELETE FROM document_access_requests
+		WHERE organization_id = $1 AND document_id = $2 AND created_by = $3`,
+		w.bravo.orgID, docID, w.bravo.userID); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// isoAccessRequestSourceAfterAttack requires the foreign-source attack to have
+// stored a pending request row on B's restrictedDocument with an empty source,
+// and removes the row so the member-of-both pass reaches the same code path.
+func isoAccessRequestSourceAfterAttack(t *testing.T, w *isoWorld, label string) {
+	t.Helper()
+	ctx := context.Background()
+	docID := w.bravo.ids["restrictedDocument"]
+	var sourceKind, sourceID string
+	if err := w.pool.QueryRow(ctx, `
+		SELECT coalesce(source_kind, ''), coalesce(source_id, '')
+		FROM document_access_requests
+		WHERE organization_id = $1 AND document_id = $2 AND created_by = $3 AND status = 'pending'`,
+		w.bravo.orgID, docID, w.bravo.userID).Scan(&sourceKind, &sourceID); err != nil {
+		t.Errorf("%s: expected a stored pending document_access_requests row on B's restrictedDocument: %v", label, err)
+		return
+	}
+	if sourceKind != "" || sourceID != "" {
+		t.Errorf("%s: stored pending request has source (%q, %q), want empty source", label, sourceKind, sourceID)
+	}
+	if _, err := w.pool.Exec(ctx, `
+		DELETE FROM document_access_requests
+		WHERE organization_id = $1 AND document_id = $2 AND created_by = $3`,
+		w.bravo.orgID, docID, w.bravo.userID); err != nil {
+		t.Fatal(err)
 	}
 }
 
@@ -404,19 +515,20 @@ func (w *isoWorld) referenceControls(t *testing.T) {
 const editLockIDExempt = "compared, never stored: the same checkDocumentEditLock gate the PatchDocumentSDI.edit_lock_id case attacks; a control would need its own upload/version and base revision, which the existing commit cases consume; TestEditLockIDFromAnotherTenantIsRefused sends another organization's live tenure id to all four writes"
 
 var isoRefFieldExempt = map[string]string{
-	"FlagOverrideSDI.scope_id":              "platform console: an override names any organization or user by design (RequirePlatformRole)",
-	"FlagOverrideDeleteSDI.scope_id":        "platform console: an override names any organization or user by design (RequirePlatformRole)",
-	"CalendarSelectionSDI.calendar_ids":     "ids of the provider's calendars (Google, Microsoft), not UniWork rows",
-	"SendChatMessageSDI.client_msg_id":      "the client's idempotency key, not a row",
-	"AgentSegmentSDI.segment_id":            "the scribe agent's idempotency key for one segment, not a row; the route is reachable only with the meeting's own uwma_ token",
-	"MintChatVoiceTokenSDI.call_id":         "a client-generated call id, not a row",
-	"VoiceSignalSDI.call_id":                "a client-generated call id, not a row",
-	"AiUniworkMessageSDI.tool_call_id":      "the model's tool call id, matched against the server's own transcript, not a row",
-	"MintChatVoiceTokenSDI.room_id":         "the route names no other row: the cross-tenant pass sends A's room in the body",
-	"ResolveInviteLinkSDI.link_id":          "public route: the link id comes with its secret, and holding both is the grant",
-	"SummarizeEmailHubThreadSDI.account_id": "the mixed pass sends B's workspace with A's thread and A's account in the body",
-	"PatchEmailHubThreadSDI.account_id":     "the mixed pass sends B's workspace with A's thread and A's account in the body",
-	"EmailHubSummaryTasksSDI.account_id":    "the mixed pass sends B's workspace with A's thread and A's account in the body",
+	"FlagOverrideSDI.scope_id":                    "platform console: an override names any organization or user by design (RequirePlatformRole)",
+	"FlagOverrideDeleteSDI.scope_id":              "platform console: an override names any organization or user by design (RequirePlatformRole)",
+	"CalendarSelectionSDI.calendar_ids":           "ids of the provider's calendars (Google, Microsoft), not UniWork rows",
+	"SendChatMessageSDI.client_msg_id":            "the client's idempotency key, not a row",
+	"ShareChatMessageAsDocumentSDI.client_msg_id": "the client's idempotency key, not a row",
+	"AgentSegmentSDI.segment_id":                  "the scribe agent's idempotency key for one segment, not a row; the route is reachable only with the meeting's own uwma_ token",
+	"MintChatVoiceTokenSDI.call_id":               "a client-generated call id, not a row",
+	"VoiceSignalSDI.call_id":                      "a client-generated call id, not a row",
+	"AiUniworkMessageSDI.tool_call_id":            "the model's tool call id, matched against the server's own transcript, not a row",
+	"MintChatVoiceTokenSDI.room_id":               "the route names no other row: the cross-tenant pass sends A's room in the body",
+	"ResolveInviteLinkSDI.link_id":                "public route: the link id comes with its secret, and holding both is the grant",
+	"SummarizeEmailHubThreadSDI.account_id":       "the mixed pass sends B's workspace with A's thread and A's account in the body",
+	"PatchEmailHubThreadSDI.account_id":           "the mixed pass sends B's workspace with A's thread and A's account in the body",
+	"EmailHubSummaryTasksSDI.account_id":          "the mixed pass sends B's workspace with A's thread and A's account in the body",
 
 	// Office desktop bridge. client_id and deployment_id are the public
 	// desktop client and the deployment profile: values from the server's

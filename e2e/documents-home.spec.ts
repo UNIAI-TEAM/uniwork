@@ -37,6 +37,11 @@ function sidebar(page: Page) {
   return page.getByRole("navigation", { name: "Điều hướng tài liệu" });
 }
 
+/** My Folder once it exists: its tree row under Thư mục (the collection row is gone). */
+function myFolderRow(page: Page) {
+  return sidebar(page).getByRole("treeitem", { name: /^Thư mục của tôi/ }).getByText("Thư mục của tôi", { exact: true });
+}
+
 function library(page: Page) {
   return page.getByRole("table", { name: "Tài liệu" });
 }
@@ -75,7 +80,7 @@ test("quick create, folder, move and the other-modules section on the owner's ho
   // 2. A folder: named in the FD-07/08 name dialog (as documents-folders.spec.ts does), opened,
   // listed in the sidebar tree and named in the breadcrumb.
   await openLibrary(page, owner.orgSlug, owner.wsSlug);
-  await sidebar(page).getByRole("button", { name: "Thư mục của tôi", exact: true }).click();
+  await myFolderRow(page).click();
   await expect(page.getByRole("heading", { level: 1, name: "Thư mục của tôi", exact: true })).toBeVisible({ timeout: 30_000 });
   await expect(libraryRowButton(library(page), DOCX_TITLE)).toBeVisible({ timeout: 30_000 });
   await sidebar(page).getByRole("button", { name: "Tạo thư mục" }).click();
@@ -90,7 +95,7 @@ test("quick create, folder, move and the other-modules section on the owner's ho
   await crumbs.getByRole("button", { name: "Tài liệu của workspace" }).click();
 
   // 3. Move the docx into the folder from its row menu, then find it inside.
-  await sidebar(page).getByRole("button", { name: "Thư mục của tôi", exact: true }).click();
+  await myFolderRow(page).click();
   await expect(libraryRowButton(library(page), DOCX_TITLE)).toBeVisible({ timeout: 30_000 });
   await page.getByRole("button", { name: `Thao tác cho ${DOCX_TITLE}` }).click();
   await page.getByRole("menuitem", { name: "Di chuyển tới…" }).click();
@@ -133,13 +138,15 @@ test("My Folder sub-nav row, personal folder view, localized tree label, Home cr
   const myFolderNav = nav.getByRole("button", { name: "Thư mục của tôi", exact: true });
   await expect(myFolderNav).toBeVisible({ timeout: 30_000 });
 
-  // 1. Clicking "Thư mục của tôi" ensures the personal folder, opens it as a folder view, and lists it in the tree with its i18n label.
+  // 1. A new account has no My Folder yet, so a stand-in row sits under Thư mục: clicking it ensures the
+  // personal folder, opens it as a folder view, and the tree row (i18n label, current) takes its place.
   await myFolderNav.click();
   await expect(page).toHaveURL(/\/documents\?folder=[0-9A-HJKMNP-TV-Z]{26}$/, { timeout: 30_000 });
   await expect(page.getByRole("heading", { level: 1, name: "Thư mục của tôi", exact: true })).toBeVisible({ timeout: 30_000 });
-  await expect(myFolderNav).toHaveAttribute("aria-current", "page");
   const myFolderTreeItem = nav.getByRole("treeitem", { name: /Thư mục của tôi/ });
   await expect(myFolderTreeItem).toBeVisible({ timeout: 30_000 });
+  await expect(myFolderTreeItem).toHaveAttribute("aria-current", "true");
+  await expect(myFolderNav).toHaveCount(0);
   await expect(nav.getByText("My Folder", { exact: true })).toHaveCount(0);
 
   // 2. Guards on the open My Folder header and tree row: no inline rename, no Rename / Move / Delete in menus, while New subfolder stays available.
@@ -166,7 +173,7 @@ test("My Folder sub-nav row, personal folder view, localized tree label, Home cr
   await expect(page).toHaveURL(DOCUMENT_URL, { timeout: 60_000 });
 
   await openLibrary(page, seed.orgSlug, seed.wsSlug);
-  await myFolderNav.click();
+  await myFolderRow(page).click();
   await expect(libraryRowButton(library(page), "UniNote mới")).toBeVisible({ timeout: 30_000 });
 });
 
@@ -270,7 +277,12 @@ test.describe("a view-only member", () => {
       sharedFolderTitle = `Thư mục chỉ xem ${stamp}`;
       sharedPageTitle = `Trang chỉ xem ${stamp}`;
       privatePageTitle = `Trang riêng tư ${stamp}`;
-      await shareRestricted(page.request, "folder", sharedFolderTitle, viewerId);
+      // A folder is never shared (UNI-1974): the owner keeps one, private, and the viewer never sees it.
+      const folderCreated = await page.request.post(`${api}/api/v1/workspaces/${m.aOwner.wsId}/documents`, {
+        headers: authHeaders(m.aOwner.token),
+        data: { kind: "folder", title: sharedFolderTitle },
+      });
+      expect(folderCreated.status(), await folderCreated.text()).toBe(201);
       await shareRestricted(page.request, "page", sharedPageTitle, viewerId);
       const privateCreated = await page.request.post(`${api}/api/v1/workspaces/${m.aOwner.wsId}/documents`, {
         headers: authHeaders(m.aOwner.token),
@@ -282,7 +294,7 @@ test.describe("a view-only member", () => {
     }
   });
 
-  test("sees create controls at the root, none inside a folder shared at view level", async ({ page }) => {
+  test("sees create controls at the root, and a shared page without its owner's folder", async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await loginViaUi(page, m.aOther.email);
     await openLibrary(page, m.aOwner.orgSlug, m.aOwner.wsSlug);
@@ -291,16 +303,10 @@ test.describe("a view-only member", () => {
     await expect(page.getByRole("region", { name: "Tạo nhanh" })).toBeVisible({ timeout: 30_000 });
     await expect(page.getByRole("button", { name: "Tạo mới", exact: true })).toBeVisible();
 
-    // The shared folder opens from the shared sidebar view; inside it the viewer creates nothing.
+    // Shared with me lists the page only: a folder is never shared (UNI-1974).
     await sidebar(page).getByRole("button", { name: "Được chia sẻ với tôi" }).click();
-    await libraryRowButton(library(page), sharedFolderTitle).click();
-    await expect(page.getByRole("navigation", { name: "Đường dẫn thư mục" }).getByText(sharedFolderTitle)).toBeVisible({
-      timeout: 30_000,
-    });
-    await expect(page.getByRole("region", { name: "Tạo nhanh" })).toHaveCount(0);
-    await expect(page.getByRole("button", { name: "Tạo mới", exact: true })).toHaveCount(0);
-    await expect(sidebar(page).getByRole("button", { name: "Tạo thư mục" })).toHaveCount(0);
-    await expect(page.getByRole("button", { name: "Đổi tên thư mục" })).toHaveCount(0);
+    await expect(libraryRowButton(library(page), sharedPageTitle)).toBeVisible({ timeout: 30_000 });
+    await expect(libraryRowButton(library(page), sharedFolderTitle)).toHaveCount(0);
   });
 
   test("gets no Move, Archive or Move to trash on a row shared at view level", async ({ page }) => {

@@ -19,6 +19,7 @@ const DEFAULT_RESULTS: Record<string, Record<string, unknown>> = {
     job_id: "JOB0000000000000000000CAP",
     state: "completed",
     operation: "capability",
+    job_transport: "framed/1",
     format: "docx",
     capabilities: [
       { operation: "open", supported: true, runtime: "worker", evidence_level: "proven" },

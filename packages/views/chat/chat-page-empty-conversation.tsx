@@ -39,7 +39,7 @@ export function ChatPageEmptyConversation({
       </Button>
     ) : null;
   const back = onBackToList ? (
-    <Button type="button" variant="secondary" className="h-10 rounded-full px-4 lg:hidden" onClick={onBackToList}>
+    <Button type="button" variant="secondary" className="h-10 rounded-full px-4 md:hidden" onClick={onBackToList}>
       <ChevronLeft aria-hidden />
       {t("chat.back_to_conversations")}
     </Button>

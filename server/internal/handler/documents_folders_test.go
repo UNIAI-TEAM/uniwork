@@ -4,8 +4,13 @@ package handler
 // containment and cycle answers, and the folder refusal on a version route.
 
 import (
+	"encoding/json"
 	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
+
+	"github.com/unicomhub/uniwork/server/internal/config"
 )
 
 func TestDocumentFolderRoutes(t *testing.T) {
@@ -138,5 +143,99 @@ func TestDocumentFolderRefusesPublicLinks(t *testing.T) {
 	res, out = doJSON(t, w.srv, "POST", "/api/v1/documents/"+folderID+"/links", w.token, map[string]any{"expires_in_days": 7})
 	if code, _ := errCodeClass(out); res.StatusCode != http.StatusUnprocessableEntity || code != "folder_not_supported" {
 		t.Fatalf("link on a folder: %d code=%q %v", res.StatusCode, code, out)
+	}
+}
+
+// UNI-1974: a folder is never shared. Every route that would open one answers
+// 422 folder_not_shareable, and the folder stays private.
+func TestDocumentFolderIsNeverShared(t *testing.T) {
+	w := newDocsWorld(t)
+	base := "/api/v1/workspaces/" + w.wsID + "/documents"
+	want := func(t *testing.T, label string, res *http.Response, out map[string]any) {
+		t.Helper()
+		if code, _ := errCodeClass(out); res.StatusCode != http.StatusUnprocessableEntity || code != "folder_not_shareable" {
+			t.Fatalf("%s: %d code=%q %v", label, res.StatusCode, code, out)
+		}
+	}
+
+	res, out := doJSON(t, w.srv, "POST", base, w.token, map[string]any{"title": "Mở sẵn", "kind": "folder", "visibility": "workspace"})
+	want(t, "create a workspace folder", res, out)
+
+	res, out = doJSON(t, w.srv, "POST", base, w.token, map[string]any{"title": "Riêng", "kind": "folder"})
+	if res.StatusCode != http.StatusCreated {
+		t.Fatalf("create folder: %d %v", res.StatusCode, out)
+	}
+	folder := out["document"].(map[string]any)
+	folderID := folder["id"].(string)
+	if folder["visibility"] != "restricted" {
+		t.Fatalf("a folder is private at create, got %v", folder["visibility"])
+	}
+
+	res, out = doJSON(t, w.srv, "POST", "/api/v1/documents/"+folderID+"/shares", w.token, map[string]any{
+		"principal_type": "workspace", "principal_id": w.wsID, "level": "view",
+	})
+	want(t, "share to the workspace", res, out)
+
+	res, out = doJSON(t, w.srv, "POST", "/api/v1/documents/"+folderID+"/shares/batch", w.token, map[string]any{
+		"principal_ids": []string{w.userID}, "level": "view",
+	})
+	want(t, "share batch", res, out)
+
+	res, out = doJSON(t, w.srv, "PATCH", "/api/v1/documents/"+folderID, w.token, map[string]any{
+		"revision": folder["revision"], "visibility": "workspace",
+	})
+	want(t, "patch visibility", res, out)
+
+	// A page inside the folder is private: the folder passes nothing on.
+	res, out = doJSON(t, w.srv, "POST", base, w.token, map[string]any{"title": "Trang", "kind": "page", "parent_id": folderID})
+	if res.StatusCode != http.StatusCreated {
+		t.Fatalf("page in folder: %d %v", res.StatusCode, out)
+	}
+	if v := out["document"].(map[string]any)["visibility"]; v != "restricted" {
+		t.Fatalf("a page in a folder is private, got %v", v)
+	}
+}
+
+// UNI-1974: the refusal and the masked parent are part of the contract the
+// spec publishes.
+func TestFolderNotShareableIsInTheSpec(t *testing.T) {
+	h := New(Deps{Cfg: config.Config{FrontendOrigin: "http://localhost:3000", EnableSwagger: true}})
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/swagger/doc.json", nil))
+	var spec struct {
+		Paths map[string]map[string]struct {
+			Description string `json:"description"`
+		} `json:"paths"`
+		Components struct {
+			Schemas map[string]struct {
+				Properties map[string]struct {
+					Description string `json:"description"`
+				} `json:"properties"`
+			} `json:"schemas"`
+		} `json:"components"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &spec); err != nil {
+		t.Fatal(err)
+	}
+	for path, method := range map[string]string{
+		"/api/v1/workspaces/{workspaceID}/documents":  "post",
+		"/api/v1/documents/{documentID}":              "patch",
+		"/api/v1/documents/{documentID}/shares":       "post",
+		"/api/v1/documents/{documentID}/shares/batch": "post",
+		"/api/v1/documents/{documentID}/access":       "put",
+	} {
+		if d := spec.Paths[path][method].Description; !strings.Contains(d, "folder_not_shareable") {
+			t.Errorf("%s %s does not document 422 folder_not_shareable", method, path)
+		}
+	}
+	for _, name := range []string{"SdoDocumentDTO", "SdoDocumentSummaryDTO", "SdoDocumentFavoriteDTO"} {
+		schema, ok := spec.Components.Schemas[name]
+		if !ok {
+			t.Errorf("schema %s missing from the spec", name)
+			continue
+		}
+		if d := schema.Properties["parent_id"].Description; !strings.Contains(d, "không còn xem được") {
+			t.Errorf("%s.parent_id does not say the parent is absent when the caller cannot read it: %q", name, d)
+		}
 	}
 }

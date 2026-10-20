@@ -31,6 +31,10 @@ const (
 	// the document, not a task.
 	KindDocumentCommented = "document_commented"
 	KindDocumentMentioned = "document_mentioned"
+	// A mention typed into a page body, not a comment (UNI-1968,
+	// BODY-MENTION-NOTIFY): a different place to be named, so a kind of its
+	// own, beside document_mentioned.
+	KindDocumentBodyMentioned = "document_body_mentioned"
 	// The G8-05 kinds (contract-collab section 8.3): a mention in a
 	// Discussion, a reply in either flow, and resolving a Comment. The
 	// old document_commented stays registered for rows written before the
@@ -74,7 +78,7 @@ var Kinds = []string{
 	KindTaskAssigned, KindTasksAssigned, KindTaskStatusChanged, KindTaskCommented, KindMentioned,
 	KindMeetingInvited, KindMeetingStarting, KindMeetingSummaryReminder,
 	KindMemberAdded, KindRoleChanged, KindAuditExportReady, KindChatFollowUp, KindChatReminder, KindEmailHubNewMail,
-	KindDocumentCommented, KindDocumentMentioned,
+	KindDocumentCommented, KindDocumentMentioned, KindDocumentBodyMentioned,
 	KindDocumentCommentReplied, KindDocumentDiscussionMentioned, KindDocumentDiscussionReplied, KindDocumentCommentResolved,
 	KindDocumentEditRequested, KindDocumentEditRequestAnswered, KindDocumentEditTakenOver,
 	KindDocumentBreakGlass,

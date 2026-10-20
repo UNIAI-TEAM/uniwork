@@ -117,16 +117,19 @@ describe("WorkspaceRail", () => {
     expect(screen.queryByRole("dialog", { name: "Tin nhắn riêng và nhóm giờ ở đây" })).not.toBeInTheDocument();
   });
 
-  it("keeps the account actions: settings, theme, language, new workspace, sign out", async () => {
+  it("ends in your avatar, which opens UniChat's settings: no account menu, no new workspace", () => {
     renderRail();
-    fireEvent.click(screen.getByRole("button", { name: "Cài đặt" }));
-    expect(await screen.findByRole("menuitem", { name: "Cài đặt" })).toHaveAttribute("href", "/unicom/truyen-thong/settings");
-    expect(screen.getByRole("menuitemradio", { name: /Tối/ })).toBeInTheDocument();
-    expect(screen.getByRole("menuitemradio", { name: "English" })).toBeInTheDocument();
-    fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape" });
-    fireEvent.click(screen.getByRole("button", { name: /tài khoản$/ }));
-    expect(await screen.findByRole("menuitem", { name: "Workspace mới" })).toBeInTheDocument();
-    expect(screen.getByRole("menuitem", { name: "Đăng xuất" })).toBeInTheDocument();
+    const settings = screen.getByRole("link", { name: "Cài đặt" });
+    expect(settings).toHaveAttribute("href", "/unicom/truyen-thong/chat/settings");
+    expect(settings).toHaveTextContent("Cài đặt");
+    expect(screen.queryByRole("button", { name: /tài khoản$/ })).not.toBeInTheDocument();
+    expect(screen.queryByText("Workspace mới")).not.toBeInTheDocument();
+  });
+
+  it("lights your avatar, not the workspace, while settings is open", async () => {
+    renderRail("/unicom/truyen-thong/chat/settings");
+    expect(await screen.findByRole("link", { name: "Cài đặt" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("button", { name: "Truyền thông" })).not.toHaveAttribute("aria-current");
   });
 });
 

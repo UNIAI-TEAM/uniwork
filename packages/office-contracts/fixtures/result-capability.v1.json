@@ -5,6 +5,7 @@
     "job_id": "JOB00000000000000000000001",
     "state": "completed",
     "operation": "capability",
+    "job_transport": "framed/1",
     "format": "docx",
     "capabilities": [
       { "operation": "open", "supported": true, "runtime": "worker", "evidence_level": "proven" },

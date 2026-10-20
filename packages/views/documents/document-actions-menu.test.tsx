@@ -176,6 +176,15 @@ describe("DocumentActionsMenu", () => {
     expect(screen.queryByRole("menuitem", { name: t("documents.actions.archive") })).toBeNull();
   });
 
+  it("offers no Share on a folder (UNI-1974: only documents are shared)", async () => {
+    const { file: _file, ...rest } = documentFixture() as Document & { file?: unknown };
+    void _file;
+    renderMenu({ ...rest, kind: "folder" } as Document);
+    await openMenu();
+
+    expect(screen.queryByRole("menuitem", { name: t("documents.actions.share") })).toBeNull();
+  });
+
   it("keeps a viewer to the read surfaces plus the read-only Share dialog", async () => {
     renderMenu(documentFixture({ my_level: "view" }));
     await openMenu();

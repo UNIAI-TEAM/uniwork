@@ -67,20 +67,30 @@ function refusalKind(actionId: ShortcutActionId, shortcut: ShortcutChord): "find
 
 const GROUPS: readonly ShortcutCategory[] = ["general", "navigation"];
 
-function useActionText() {
+/** What UniChat lets you rebind: ⌘K, which there puts the caret in the chat list's search. */
+const CHAT_ACTION_IDS: ReadonlySet<ShortcutActionId> = new Set(["openSearch"]);
+
+function useActionText(scope?: "chat") {
   const { t } = useTranslation(undefined, { keyPrefix: "settings.shortcuts" });
-  return useMemo(
-    () => ({
-      label: (id: ShortcutActionId) => t(`actions.${SHORTCUT_ACTION_I18N_KEYS[id] ?? id}.label`),
-      description: (id: ShortcutActionId) => t(`actions.${SHORTCUT_ACTION_I18N_KEYS[id] ?? id}.description`),
-    }),
-    [t],
-  );
+  return useMemo(() => {
+    // In UniChat ⌘K finds a conversation; it opens no command palette there.
+    const key = (id: ShortcutActionId) =>
+      scope === "chat" && id === "openSearch" ? "chat_search" : (SHORTCUT_ACTION_I18N_KEYS[id] ?? id);
+    return {
+      label: (id: ShortcutActionId) => t(`actions.${key(id)}.label`),
+      description: (id: ShortcutActionId) => t(`actions.${key(id)}.description`),
+    };
+  }, [scope, t]);
 }
 
-export function KeyboardShortcutsTab() {
+/**
+ * Every shortcut, rebindable or fixed. UniChat (`scope="chat"`) shows only
+ * what works in the chat app: ⌘K and the composer's fixed keys.
+ */
+export function KeyboardShortcutsTab({ scope }: { scope?: "chat" } = {}) {
+  const chat = scope === "chat";
   const { t } = useTranslation(undefined, { keyPrefix: "settings.shortcuts" });
-  const text = useActionText();
+  const text = useActionText(scope);
   const [query, setQuery] = useState("");
   const [recording, setRecording] = useState<ShortcutActionId | null>(null);
   const [captureError, setCaptureError] = useState<CaptureError>(null);
@@ -93,11 +103,12 @@ export function KeyboardShortcutsTab() {
 
   const visibleActions = useMemo(() => {
     const needle = query.trim().toLocaleLowerCase();
-    if (!needle) return SHORTCUT_ACTIONS;
-    return SHORTCUT_ACTIONS.filter((action) =>
+    const actions = chat ? SHORTCUT_ACTIONS.filter((action) => CHAT_ACTION_IDS.has(action.id)) : SHORTCUT_ACTIONS;
+    if (!needle) return actions;
+    return actions.filter((action) =>
       `${text.label(action.id)} ${text.description(action.id)}`.toLocaleLowerCase().includes(needle),
     );
-  }, [query, text]);
+  }, [chat, query, text]);
 
   const stopRecording = () => {
     setRecording(null);
@@ -151,7 +162,8 @@ export function KeyboardShortcutsTab() {
   return (
     <SettingsTab title={t("title")} description={t("description")}>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="relative min-w-0 flex-1 sm:max-w-sm">
+        {/* One rebindable key in UniChat: nothing to search through. */}
+        <div className={cn("relative min-w-0 flex-1 sm:max-w-sm", chat && "hidden")}>
           <Search
             aria-hidden
             className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground"
@@ -184,6 +196,7 @@ export function KeyboardShortcutsTab() {
               {actions.map((action) => (
                 <ShortcutRow
                   key={action.id}
+                  scope={scope}
                   action={action}
                   shortcut={resolveShortcut(overrides, action.id)}
                   customized={Object.prototype.hasOwnProperty.call(overrides, action.id)}
@@ -218,8 +231,18 @@ export function KeyboardShortcutsTab() {
 
       <SettingsSection title={t("fixed.title")} description={t("fixed.description")}>
         <SettingsCard>
-          <FixedShortcutRow label={t("fixed.toggle_sidebar")} shortcut={createShortcutChord("B", { primary: true })} />
-          <FixedShortcutRow label={t("fixed.close_dialog")} shortcut={createShortcutChord("Escape")} />
+          {chat ? (
+            <>
+              <FixedShortcutRow label={t("fixed.chat_send")} shortcut={createShortcutChord("Enter")} />
+              <FixedShortcutRow label={t("fixed.chat_new_line")} shortcut={createShortcutChord("Enter", { shift: true })} />
+              <FixedShortcutRow label={t("fixed.chat_escape")} shortcut={createShortcutChord("Escape")} />
+            </>
+          ) : (
+            <>
+              <FixedShortcutRow label={t("fixed.toggle_sidebar")} shortcut={createShortcutChord("B", { primary: true })} />
+              <FixedShortcutRow label={t("fixed.close_dialog")} shortcut={createShortcutChord("Escape")} />
+            </>
+          )}
         </SettingsCard>
       </SettingsSection>
 
@@ -240,6 +263,7 @@ export function KeyboardShortcutsTab() {
 }
 
 function ShortcutRow({
+  scope,
   action,
   shortcut,
   customized,
@@ -251,6 +275,7 @@ function ShortcutRow({
   onDisable,
   onReset,
 }: {
+  scope?: "chat";
   action: ShortcutActionDefinition;
   shortcut: ShortcutChord | null;
   customized: boolean;
@@ -263,7 +288,7 @@ function ShortcutRow({
   onReset: () => void;
 }) {
   const { t } = useTranslation(undefined, { keyPrefix: "settings.shortcuts" });
-  const text = useActionText();
+  const text = useActionText(scope);
   const label = text.label(action.id);
   const recorderRef = useRef<HTMLButtonElement>(null);
   const hintId = useId();

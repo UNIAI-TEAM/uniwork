@@ -23,6 +23,7 @@ const OPERATOR_RUNBOOKS = new Set([
   "unichat-desktop-release.md", // UniChat D2 (UNI-1835): cutting, checking and rolling back a desktop release
   "unichat-mobile-release.md", // UniChat M4 (UNI-1836): store builds, OTA and rollback of the mobile app
   "unichat-pilot.md", // UniChat Q1 (UNI-1838): daily triage and stop rules of the internal pilot
+  "folders-unshare.md", // UNI-1974: one-off clean-up command run once after the folder-share-off deploy
 ]);
 
 /** `{alert, runbook_url}` pairs from deploy/alerts.yml. */

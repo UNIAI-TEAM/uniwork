@@ -159,3 +159,31 @@ func (q *Queries) InsertIdempotencyKey(ctx context.Context, arg InsertIdempotenc
 	)
 	return i, err
 }
+
+const sweepIdempotencyKeys = `-- name: SweepIdempotencyKeys :execrows
+DELETE FROM idempotency_keys
+WHERE id IN (
+  SELECT k.id FROM idempotency_keys k
+  WHERE k.created_at < $1::timestamptz
+  ORDER BY k.created_at
+  LIMIT $2::int
+  FOR UPDATE SKIP LOCKED
+)
+`
+
+type SweepIdempotencyKeysParams struct {
+	Cutoff  pgtype.Timestamptz `json:"cutoff"`
+	MaxRows int32              `json:"max_rows"`
+}
+
+// SweepIdempotencyKeys deletes up to max_rows idempotency ledger rows older
+// than cutoff, regardless of response_status (a row still in flight after the
+// 7-day retention window is dead). SKIP LOCKED lets replicas split the work.
+// tenant: system — retention sweep across all tenants; reads and returns no tenant data
+func (q *Queries) SweepIdempotencyKeys(ctx context.Context, arg SweepIdempotencyKeysParams) (int64, error) {
+	result, err := q.db.Exec(ctx, sweepIdempotencyKeys, arg.Cutoff, arg.MaxRows)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}

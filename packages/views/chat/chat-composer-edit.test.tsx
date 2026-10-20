@@ -142,4 +142,27 @@ describe("ChatComposer reply", () => {
     expect(onCancelReply).toHaveBeenCalledTimes(1);
     expect(screen.getByRole("textbox", { name: "Nhập tin nhắn…" })).toHaveFocus();
   });
+
+  it("drops the reply on Escape, as Telegram, and leaves the draft alone", () => {
+    const onCancelReply = vi.fn();
+    const onDraftChange = vi.fn();
+    render(
+      wrap(
+        <ChatComposer
+          workspaceId="ws1"
+          draft="đang gõ dở"
+          onDraftChange={onDraftChange}
+          onSend={vi.fn()}
+          placeholder="Nhập tin nhắn…"
+          sendLabel="Gửi"
+          replyTo={{ id: "m1", sender: "u2", body: "Bản banner cuối", ts: 0, reactions: {} }}
+          replyToSenderLabel="Hoàng Lan"
+          onCancelReply={onCancelReply}
+        />,
+      ),
+    );
+    fireEvent.keyDown(screen.getByRole("textbox", { name: "Nhập tin nhắn…" }), { key: "Escape" });
+    expect(onCancelReply).toHaveBeenCalledTimes(1);
+    expect(onDraftChange).not.toHaveBeenCalled();
+  });
 });

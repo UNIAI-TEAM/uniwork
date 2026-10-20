@@ -47,6 +47,8 @@ const handlers = {
   onConnected: vi.fn(),
   onRetryEnded: vi.fn(),
   onDismissEnded: vi.fn(),
+  panelMode: "expanded" as const,
+  onPanelModeChange: vi.fn(),
 };
 
 const overlayProps = { workspaceId: "ws1", ...handlers };

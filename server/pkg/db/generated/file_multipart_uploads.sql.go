@@ -572,3 +572,35 @@ func (q *Queries) ReleaseFileMultipartUploadLease(ctx context.Context, arg Relea
 	}
 	return result.RowsAffected(), nil
 }
+
+const sweepFileMultipartUploads = `-- name: SweepFileMultipartUploads :execrows
+DELETE FROM file_multipart_uploads
+WHERE id IN (
+  SELECT u.id FROM file_multipart_uploads u
+  WHERE u.status IN ('completed', 'aborted', 'expired', 'failed')
+    AND u.closed_at < $1::timestamptz
+  ORDER BY u.closed_at
+  LIMIT $2
+  FOR UPDATE SKIP LOCKED
+)
+`
+
+type SweepFileMultipartUploadsParams struct {
+	Cutoff     pgtype.Timestamptz `json:"cutoff"`
+	BatchLimit int32              `json:"batch_limit"`
+}
+
+// Retention of closed sessions (RETENTION-02, UNI-1921): a completed replay
+// and a stored failure are answered from the row, so it is kept past the
+// window before the delete; the CHECK file_multipart_uploads_closed_at_check
+// guarantees closed_at is set for exactly these four states. SKIP LOCKED lets
+// replicas split the work; the window floor (UploadSessionTTL +
+// UploadSessionValidationLeaseTTL) is guarded in service code.
+// tenant: system
+func (q *Queries) SweepFileMultipartUploads(ctx context.Context, arg SweepFileMultipartUploadsParams) (int64, error) {
+	result, err := q.db.Exec(ctx, sweepFileMultipartUploads, arg.Cutoff, arg.BatchLimit)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}

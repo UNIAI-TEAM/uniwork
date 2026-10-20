@@ -76,12 +76,18 @@ func documentCommentDTO(c db.DocumentComment, displayName, avatarURL string, rea
 }
 
 // documentCommentDTOFromListRow renders a list row, whose query already
-// carries the author display name and avatar; the row is the same record the
-// single-comment path reads, so it goes through the one mapper.
-func documentCommentDTOFromListRow(c db.ListDocumentCommentsRow, reactions []sdo.CommentReactionDTO) sdo.DocumentCommentDTO {
+// carries the author display name and the legacy avatar column; the row is the
+// same record the single-comment path reads, so it goes through the one
+// mapper. resolved is the page's batched Actors.Resolve answer: its avatar
+// (which covers FileService uploads) wins, the row's legacy value is only the
+// fallback when the resolver gave none.
+func documentCommentDTOFromListRow(c db.ListDocumentCommentsRow, reactions []sdo.CommentReactionDTO, resolved map[service.ActorRef]service.ActorInfo) sdo.DocumentCommentDTO {
 	avatar := ""
 	if c.AvatarUrl.Valid {
 		avatar = c.AvatarUrl.String
+	}
+	if a, ok := resolved[service.ActorRef{Kind: audit.Kind(c.AuthorKind), ID: c.AuthorID}]; ok && a.AvatarURL != "" {
+		avatar = a.AvatarURL
 	}
 	return documentCommentDTO(db.DocumentComment{
 		ID: c.ID, DocumentID: c.DocumentID, AuthorID: c.AuthorID, AuthorKind: c.AuthorKind,
@@ -195,8 +201,24 @@ func (h *handlers) listDocumentComments(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	grouped := groupCommentReactions(reactions)
+	// One batched resolve for the page's distinct authors, so FileService
+	// avatars appear like they do on the single-comment answers.
+	seen := map[service.ActorRef]bool{}
+	var refs []service.ActorRef
 	for _, c := range list.Rows {
-		out.Comments = append(out.Comments, documentCommentDTOFromListRow(c, grouped[c.ID]))
+		ref := service.ActorRef{Kind: audit.Kind(c.AuthorKind), ID: c.AuthorID}
+		if !seen[ref] {
+			seen[ref] = true
+			refs = append(refs, ref)
+		}
+	}
+	resolved, err := h.Actors.Resolve(r.Context(), refs)
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	for _, c := range list.Rows {
+		out.Comments = append(out.Comments, documentCommentDTOFromListRow(c, grouped[c.ID], resolved))
 	}
 	respondJSON(w, http.StatusOK, out)
 }

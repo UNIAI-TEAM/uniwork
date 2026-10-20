@@ -121,7 +121,7 @@ func (q *Queries) CountActiveOtherMembers(ctx context.Context, arg CountActiveOt
 const createOrganization = `-- name: CreateOrganization :one
 INSERT INTO organizations (id, slug, name, created_by)
 VALUES ($1, $2, $3, $4)
-RETURNING id, slug, name, created_by, created_at, updated_at, status, suspended_at, suspended_reason, mcp_enabled_at, mcp_enabled_by, deletion_scheduled_at, mcp_write_enabled_at, mcp_write_enabled_by
+RETURNING id, slug, name, created_by, created_at, updated_at, status, suspended_at, suspended_reason, mcp_enabled_at, mcp_enabled_by, deletion_scheduled_at, mcp_write_enabled_at, mcp_write_enabled_by, ask_uni_models, ask_uni_models_updated_by, ask_uni_models_updated_at
 `
 
 type CreateOrganizationParams struct {
@@ -154,6 +154,9 @@ func (q *Queries) CreateOrganization(ctx context.Context, arg CreateOrganization
 		&i.DeletionScheduledAt,
 		&i.McpWriteEnabledAt,
 		&i.McpWriteEnabledBy,
+		&i.AskUniModels,
+		&i.AskUniModelsUpdatedBy,
+		&i.AskUniModelsUpdatedAt,
 	)
 	return i, err
 }
@@ -226,7 +229,7 @@ func (q *Queries) FilterActiveOrganizationMemberUserIDs(ctx context.Context, arg
 }
 
 const getOrganizationByID = `-- name: GetOrganizationByID :one
-SELECT id, slug, name, created_by, created_at, updated_at, status, suspended_at, suspended_reason, mcp_enabled_at, mcp_enabled_by, deletion_scheduled_at, mcp_write_enabled_at, mcp_write_enabled_by FROM organizations WHERE id = $1
+SELECT id, slug, name, created_by, created_at, updated_at, status, suspended_at, suspended_reason, mcp_enabled_at, mcp_enabled_by, deletion_scheduled_at, mcp_write_enabled_at, mcp_write_enabled_by, ask_uni_models, ask_uni_models_updated_by, ask_uni_models_updated_at FROM organizations WHERE id = $1
 `
 
 func (q *Queries) GetOrganizationByID(ctx context.Context, id string) (Organization, error) {
@@ -247,12 +250,15 @@ func (q *Queries) GetOrganizationByID(ctx context.Context, id string) (Organizat
 		&i.DeletionScheduledAt,
 		&i.McpWriteEnabledAt,
 		&i.McpWriteEnabledBy,
+		&i.AskUniModels,
+		&i.AskUniModelsUpdatedBy,
+		&i.AskUniModelsUpdatedAt,
 	)
 	return i, err
 }
 
 const getOrganizationBySlug = `-- name: GetOrganizationBySlug :one
-SELECT id, slug, name, created_by, created_at, updated_at, status, suspended_at, suspended_reason, mcp_enabled_at, mcp_enabled_by, deletion_scheduled_at, mcp_write_enabled_at, mcp_write_enabled_by FROM organizations WHERE slug = $1
+SELECT id, slug, name, created_by, created_at, updated_at, status, suspended_at, suspended_reason, mcp_enabled_at, mcp_enabled_by, deletion_scheduled_at, mcp_write_enabled_at, mcp_write_enabled_by, ask_uni_models, ask_uni_models_updated_by, ask_uni_models_updated_at FROM organizations WHERE slug = $1
 `
 
 func (q *Queries) GetOrganizationBySlug(ctx context.Context, slug string) (Organization, error) {
@@ -273,6 +279,9 @@ func (q *Queries) GetOrganizationBySlug(ctx context.Context, slug string) (Organ
 		&i.DeletionScheduledAt,
 		&i.McpWriteEnabledAt,
 		&i.McpWriteEnabledBy,
+		&i.AskUniModels,
+		&i.AskUniModelsUpdatedBy,
+		&i.AskUniModelsUpdatedAt,
 	)
 	return i, err
 }
@@ -579,7 +588,7 @@ func (q *Queries) ListOrganizationMembershipsForUser(ctx context.Context, userID
 }
 
 const listOrganizationsForUser = `-- name: ListOrganizationsForUser :many
-SELECT o.id, o.slug, o.name, o.created_by, o.created_at, o.updated_at, o.status, o.suspended_at, o.suspended_reason, o.mcp_enabled_at, o.mcp_enabled_by, o.deletion_scheduled_at, o.mcp_write_enabled_at, o.mcp_write_enabled_by, m.role, m.deactivated_at
+SELECT o.id, o.slug, o.name, o.created_by, o.created_at, o.updated_at, o.status, o.suspended_at, o.suspended_reason, o.mcp_enabled_at, o.mcp_enabled_by, o.deletion_scheduled_at, o.mcp_write_enabled_at, o.mcp_write_enabled_by, o.ask_uni_models, o.ask_uni_models_updated_by, o.ask_uni_models_updated_at, m.role, m.deactivated_at
 FROM organizations o
 JOIN organization_members m ON m.organization_id = o.id
 WHERE m.user_id = $1 AND o.status <> 'archived'
@@ -587,22 +596,25 @@ ORDER BY o.created_at
 `
 
 type ListOrganizationsForUserRow struct {
-	ID                  string             `json:"id"`
-	Slug                string             `json:"slug"`
-	Name                string             `json:"name"`
-	CreatedBy           string             `json:"created_by"`
-	CreatedAt           pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt           pgtype.Timestamptz `json:"updated_at"`
-	Status              string             `json:"status"`
-	SuspendedAt         pgtype.Timestamptz `json:"suspended_at"`
-	SuspendedReason     pgtype.Text        `json:"suspended_reason"`
-	McpEnabledAt        pgtype.Timestamptz `json:"mcp_enabled_at"`
-	McpEnabledBy        pgtype.Text        `json:"mcp_enabled_by"`
-	DeletionScheduledAt pgtype.Timestamptz `json:"deletion_scheduled_at"`
-	McpWriteEnabledAt   pgtype.Timestamptz `json:"mcp_write_enabled_at"`
-	McpWriteEnabledBy   pgtype.Text        `json:"mcp_write_enabled_by"`
-	Role                string             `json:"role"`
-	DeactivatedAt       pgtype.Timestamptz `json:"deactivated_at"`
+	ID                    string             `json:"id"`
+	Slug                  string             `json:"slug"`
+	Name                  string             `json:"name"`
+	CreatedBy             string             `json:"created_by"`
+	CreatedAt             pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt             pgtype.Timestamptz `json:"updated_at"`
+	Status                string             `json:"status"`
+	SuspendedAt           pgtype.Timestamptz `json:"suspended_at"`
+	SuspendedReason       pgtype.Text        `json:"suspended_reason"`
+	McpEnabledAt          pgtype.Timestamptz `json:"mcp_enabled_at"`
+	McpEnabledBy          pgtype.Text        `json:"mcp_enabled_by"`
+	DeletionScheduledAt   pgtype.Timestamptz `json:"deletion_scheduled_at"`
+	McpWriteEnabledAt     pgtype.Timestamptz `json:"mcp_write_enabled_at"`
+	McpWriteEnabledBy     pgtype.Text        `json:"mcp_write_enabled_by"`
+	AskUniModels          []string           `json:"ask_uni_models"`
+	AskUniModelsUpdatedBy pgtype.Text        `json:"ask_uni_models_updated_by"`
+	AskUniModelsUpdatedAt pgtype.Timestamptz `json:"ask_uni_models_updated_at"`
+	Role                  string             `json:"role"`
+	DeactivatedAt         pgtype.Timestamptz `json:"deactivated_at"`
 }
 
 // tenant: self
@@ -634,6 +646,9 @@ func (q *Queries) ListOrganizationsForUser(ctx context.Context, userID string) (
 			&i.DeletionScheduledAt,
 			&i.McpWriteEnabledAt,
 			&i.McpWriteEnabledBy,
+			&i.AskUniModels,
+			&i.AskUniModelsUpdatedBy,
+			&i.AskUniModelsUpdatedAt,
 			&i.Role,
 			&i.DeactivatedAt,
 		); err != nil {
@@ -709,7 +724,7 @@ func (q *Queries) ListWorkspacesInOrg(ctx context.Context, organizationID string
 }
 
 const lockOrganizationForShare = `-- name: LockOrganizationForShare :one
-SELECT id, slug, name, created_by, created_at, updated_at, status, suspended_at, suspended_reason, mcp_enabled_at, mcp_enabled_by, deletion_scheduled_at, mcp_write_enabled_at, mcp_write_enabled_by FROM organizations WHERE id = $1 FOR SHARE
+SELECT id, slug, name, created_by, created_at, updated_at, status, suspended_at, suspended_reason, mcp_enabled_at, mcp_enabled_by, deletion_scheduled_at, mcp_write_enabled_at, mcp_write_enabled_by, ask_uni_models, ask_uni_models_updated_by, ask_uni_models_updated_at FROM organizations WHERE id = $1 FOR SHARE
 `
 
 // An acceptance holds the organization row shared before it locks the
@@ -732,12 +747,15 @@ func (q *Queries) LockOrganizationForShare(ctx context.Context, id string) (Orga
 		&i.DeletionScheduledAt,
 		&i.McpWriteEnabledAt,
 		&i.McpWriteEnabledBy,
+		&i.AskUniModels,
+		&i.AskUniModelsUpdatedBy,
+		&i.AskUniModelsUpdatedAt,
 	)
 	return i, err
 }
 
 const lockOrganizationForUpdate = `-- name: LockOrganizationForUpdate :one
-SELECT id, slug, name, created_by, created_at, updated_at, status, suspended_at, suspended_reason, mcp_enabled_at, mcp_enabled_by, deletion_scheduled_at, mcp_write_enabled_at, mcp_write_enabled_by FROM organizations WHERE id = $1 FOR UPDATE
+SELECT id, slug, name, created_by, created_at, updated_at, status, suspended_at, suspended_reason, mcp_enabled_at, mcp_enabled_by, deletion_scheduled_at, mcp_write_enabled_at, mcp_write_enabled_by, ask_uni_models, ask_uni_models_updated_by, ask_uni_models_updated_at FROM organizations WHERE id = $1 FOR UPDATE
 `
 
 // Close holds the organization row while it counts the other members, so an
@@ -761,6 +779,9 @@ func (q *Queries) LockOrganizationForUpdate(ctx context.Context, id string) (Org
 		&i.DeletionScheduledAt,
 		&i.McpWriteEnabledAt,
 		&i.McpWriteEnabledBy,
+		&i.AskUniModels,
+		&i.AskUniModelsUpdatedBy,
+		&i.AskUniModelsUpdatedAt,
 	)
 	return i, err
 }
