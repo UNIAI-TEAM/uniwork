@@ -1,0 +1,6 @@
+$ git rev-parse HEAD origin/feature/UNI-1385-pdf-optional-color; git log --oneline -3
+206c66731b6149d5ca4bbaeebe7c68f6316e5d3c
+206c66731b6149d5ca4bbaeebe7c68f6316e5d3c
+206c6673 fix(pdf): never reject an AI edit over its optional color
+e0b1894e test(pdf): pin optional AI tool color parsing (red)
+b1cbd5db merge: fork main b5da4d4dc into feature/UNI-1989-sheets-save-errcache
