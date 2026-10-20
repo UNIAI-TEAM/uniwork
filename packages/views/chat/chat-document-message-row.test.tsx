@@ -176,6 +176,17 @@ describe("ChatDocumentMessageRow", () => {
       const badge = screen.getByText("Quản lý");
       expect(badge).toHaveClass(...ownControl);
       expect(badge).not.toHaveClass("bg-secondary");
+      // The badge is a plain span: only the resting look, never the control's hover / open / focus states.
+      expect(badge.className).not.toMatch(/(^|\s)(hover|aria-expanded|focus-visible):\S*chat-bubble-own/);
+    });
+
+    it("other bubble: the time stays plain meta in its px-1 wrapper, no wall chip", () => {
+      renderCard(documentMessage(FULL), { isOwn: false });
+      const meta = document.querySelector("time")?.parentElement;
+      expect(meta).not.toHaveClass("bg-chat-chip");
+      expect(meta).not.toHaveClass("text-chat-chip-foreground");
+      expect(meta).not.toHaveClass("self-end");
+      expect(meta?.parentElement).toHaveClass("px-1");
     });
 
     it("own bubble: the time and ticks sit on the wall chip, not in the near-white own-meta tone", () => {

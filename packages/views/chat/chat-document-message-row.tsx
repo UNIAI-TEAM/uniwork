@@ -30,7 +30,7 @@ import {
   documentControlProps,
   documentMutedClass,
 } from "./chat-document-actions";
-import { bubbleControlClass } from "./chat-file-card";
+import { bubbleControlClass, OWN_BUBBLE_CONTROL_REST } from "./chat-file-card";
 import { ChatMessageActionsFrame, chatMessageActionsRailClass } from "./chat-message-hover-actions";
 import { ChatMessageA11yLabel, ChatMessageMeta, ChatReactionChips, chatMessageLabelId } from "./chat-message-parts";
 import { ChatReplyQuote } from "./chat-reply-quote";
@@ -185,7 +185,14 @@ function ChatDocumentMessageRowImpl({
                   desktopOpen={desktopOpen}
                 />
               </div>
-              <ChatMessageMeta message={message} isOwn={isOwn} showTime onWall />
+              {isOwn ? (
+                // My time and ticks sit outside the brand bubble, where the own-meta tone is invisible: the wall chip.
+                <ChatMessageMeta message={message} isOwn showTime onWall />
+              ) : (
+                <div className="px-1">
+                  <ChatMessageMeta message={message} isOwn={false} showTime />
+                </div>
+              )}
               <ChatReactionChips message={message} isOwn={isOwn} onToggleReaction={onToggleReaction} onReact={onReact} />
               <ChatThreadRepliesLink message={message} isOwn={isOwn} onThread={onThread} nameContext={nameContext} />
               <MessageTaskCard workspaceId={workspaceId} messageId={message.id} isOwn={isOwn} />
@@ -302,7 +309,7 @@ export function ChatDocumentCard({
           </p>
         </div>
         {level ? (
-          <Badge variant="secondary" className={cn("shrink-0", isOwn && bubbleControlClass(true))}>{t(`documents.share.level_${level}`)}
+          <Badge variant="secondary" className={cn("shrink-0", isOwn && OWN_BUBBLE_CONTROL_REST)}>{t(`documents.share.level_${level}`)}
           </Badge>
         ) : null}
       </div>
