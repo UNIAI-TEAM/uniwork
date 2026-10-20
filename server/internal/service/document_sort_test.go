@@ -2,13 +2,17 @@ package service
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"os"
 	"reflect"
 	"sort"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
@@ -215,7 +219,7 @@ func expectedOrder(rows []sortRow, sortKey string, desc bool) []string {
 
 type sortPager func(sort DocumentSort, cursor string) (ids []string, next string, err error)
 
-// walkSorted pages with limit 3 until the list ends, asserting no row repeats
+// walkSorted pages with the pager's limit until the list ends, asserting no row repeats
 // and the pages hold three rows each but the last. Rows outside want (a My
 // Folder, a folder) are dropped from the order check.
 func walkSorted(t *testing.T, name string, page sortPager, sortBy DocumentSort, want map[string]bool) []string {
@@ -284,43 +288,50 @@ func TestDocumentListSortPagesEveryKeyBothWaysOnEveryRoute(t *testing.T) {
 		f.share(t, d, DocumentPrincipalUser, tn.outsider.ID, DocumentLevelView, tn.owner.ID)
 	}
 
+	// limit 2 puts a cursor on an editor-less row (rows 7-9 under sort=editor),
+	// limit 3 only right before them (UNI-2038 r1 F4).
+	var limit int
 	routes := []struct {
 		name string
 		rows []sortRow
 		page sortPager
 	}{
 		{"flat", flatRows, func(so DocumentSort, c string) ([]string, string, error) {
-			p, err := f.svc.ListDocuments(f.ctx, owner, tn.wsA, ListDocumentsInput{Sort: so, Cursor: c, Limit: 3})
+			p, err := f.svc.ListDocuments(f.ctx, owner, tn.wsA, ListDocumentsInput{Sort: so, Cursor: c, Limit: limit})
 			return listIDs(p), p.NextCursor, err
 		}},
 		{"parent", childRows, func(so DocumentSort, c string) ([]string, string, error) {
 			parent := folder.ID
-			p, err := f.svc.ListDocuments(f.ctx, owner, tn.wsB, ListDocumentsInput{ParentID: &parent, Sort: so, Cursor: c, Limit: 3})
+			p, err := f.svc.ListDocuments(f.ctx, owner, tn.wsB, ListDocumentsInput{ParentID: &parent, Sort: so, Cursor: c, Limit: limit})
 			return listIDs(p), p.NextCursor, err
 		}},
 		{"recent", flatRows, func(so DocumentSort, c string) ([]string, string, error) {
-			p, err := f.svc.ListRecentDocuments(f.ctx, owner, tn.wsA, ListDocumentsInput{Sort: so, Cursor: c, Limit: 3})
+			p, err := f.svc.ListRecentDocuments(f.ctx, owner, tn.wsA, ListDocumentsInput{Sort: so, Cursor: c, Limit: limit})
 			return listIDs(p), p.NextCursor, err
 		}},
-		{"shared-with-me", flatRows, sharedWithMePager(t, f, tn)},
+		{"shared-with-me", flatRows, sharedWithMePager(t, f, tn, &limit)},
 	}
-	for _, rt := range routes {
-		for _, key := range []string{"updated", "name", "size", "editor"} {
-			for _, desc := range []bool{false, true} {
-				so := DocumentSort{Key: key, Desc: desc}
-				got := walkSorted(t, rt.name, rt.page, so, idSet(rt.rows))
-				want := expectedOrder(rt.rows, key, desc)
-				if !reflect.DeepEqual(got, want) {
-					t.Errorf("%s sort=%s desc=%v\n got  %v\n want %v\n rows %+v", rt.name, key, desc, got, want, rt.rows)
+	for _, limit = range []int{3, 2} {
+		t.Run("limit="+strconv.Itoa(limit), func(t *testing.T) {
+			for _, rt := range routes {
+				for _, key := range []string{"updated", "name", "size", "editor"} {
+					for _, desc := range []bool{false, true} {
+						so := DocumentSort{Key: key, Desc: desc}
+						got := walkSorted(t, rt.name, rt.page, so, idSet(rt.rows))
+						want := expectedOrder(rt.rows, key, desc)
+						if !reflect.DeepEqual(got, want) {
+							t.Errorf("%s sort=%s desc=%v\n got  %v\n want %v\n rows %+v", rt.name, key, desc, got, want, rt.rows)
+						}
+					}
 				}
 			}
-		}
+		})
 	}
 }
 
 // sharedWithMePager adapts the shared-with-me keyset (share time, or the sort
 // key of the last candidate) to the opaque-cursor shape the other lists use.
-func sharedWithMePager(t *testing.T, f *docPermFixture, tn docTenant) sortPager {
+func sharedWithMePager(t *testing.T, f *docPermFixture, tn docTenant, limit *int) sortPager {
 	type pos struct {
 		at   time.Time
 		id   string
@@ -328,7 +339,7 @@ func sharedWithMePager(t *testing.T, f *docPermFixture, tn docTenant) sortPager 
 	}
 	var cursors []pos
 	return func(so DocumentSort, cursor string) ([]string, string, error) {
-		q := SharedWithMeQuery{Limit: 3, Sort: so}
+		q := SharedWithMeQuery{Limit: *limit, Sort: so}
 		if cursor != "" {
 			var i int
 			for i = range cursors {
@@ -458,6 +469,26 @@ func TestDocumentListSortRefusals(t *testing.T) {
 		_, err := f.svc.ListDocuments(f.ctx, owner, tn.wsA, ListDocumentsInput{Sort: c.sort, Cursor: c.cursor})
 		invalid(c.what, err)
 		_, err = f.svc.ListRecentDocuments(f.ctx, owner, tn.wsA, ListDocumentsInput{Sort: c.sort, Cursor: c.cursor})
+		invalid("recent "+c.what, err)
+	}
+	// a NUL rune in a cursor id or sorted key text is no valid text for the
+	// database: it must be a 400, never a driver error (UNI-2038 r1 F1).
+	nul := "a\x00b"
+	at := time.Now().UTC()
+	for _, c := range []struct {
+		what   string
+		cursor documentCursor
+		sort   DocumentSort
+	}{
+		{"NUL in the cursor id", documentCursor{At: &at, ID: nul}, DocumentSort{}},
+		{"NUL in the cursor id under a sort", documentCursor{At: &at, ID: nul, DocumentSortCursor: DocumentSortCursor{Sort: "name", Order: "asc", Text: &nul}}, DocumentSort{Key: "name"}},
+		{"NUL in a name key", documentCursor{At: &at, ID: "x", DocumentSortCursor: DocumentSortCursor{Sort: "name", Order: "asc", Text: &nul}}, DocumentSort{Key: "name"}},
+		{"NUL in an editor key", documentCursor{At: &at, ID: "x", DocumentSortCursor: DocumentSortCursor{Sort: "editor", Order: "asc", Text: &nul}}, DocumentSort{Key: "editor"}},
+	} {
+		cursor := encodeDocumentCursor(c.cursor)
+		_, err := f.svc.ListDocuments(f.ctx, owner, tn.wsA, ListDocumentsInput{Sort: c.sort, Cursor: cursor})
+		invalid(c.what, err)
+		_, err = f.svc.ListRecentDocuments(f.ctx, owner, tn.wsA, ListDocumentsInput{Sort: c.sort, Cursor: cursor})
 		invalid("recent "+c.what, err)
 	}
 	// the same pair keeps working, and so does the old cursor without sort.
@@ -627,30 +658,34 @@ func TestDocumentSourceSortPagesEveryKeyBothWays(t *testing.T) {
 		}
 		return out
 	}
-	for _, key := range []string{"updated", "name", "size", "editor"} {
-		for _, desc := range []bool{false, true} {
-			so := DocumentSort{Key: key, Desc: desc}
-			var got []string
-			cursor, pages := "", 0
-			for range 10 {
-				page, err := svc.List(s.ctx, human(tn.member), tn.wsA, DocumentSourceFilter{Sort: so, Cursor: cursor, Limit: 4})
-				if err != nil {
-					t.Fatalf("sources %+v: %v", so, err)
+	// limit 2 puts a cursor on an editor-less row (the two agent files, last
+	// under sort=editor); limit 4 does not (UNI-2038 r1 F4).
+	for _, limit := range []int{4, 2} {
+		for _, key := range []string{"updated", "name", "size", "editor"} {
+			for _, desc := range []bool{false, true} {
+				so := DocumentSort{Key: key, Desc: desc}
+				var got []string
+				cursor, pages := "", 0
+				for range 10 {
+					page, err := svc.List(s.ctx, human(tn.member), tn.wsA, DocumentSourceFilter{Sort: so, Cursor: cursor, Limit: limit})
+					if err != nil {
+						t.Fatalf("sources %+v: %v", so, err)
+					}
+					pages++
+					for _, it := range page.Items {
+						got = append(got, it.ID)
+					}
+					if page.NextCursor == "" {
+						break
+					}
+					cursor = page.NextCursor
 				}
-				pages++
-				for _, it := range page.Items {
-					got = append(got, it.ID)
+				if pages != (len(rows)+limit-1)/limit {
+					t.Errorf("sources %+v limit=%d: %d pages, want %d", so, limit, pages, (len(rows)+limit-1)/limit)
 				}
-				if page.NextCursor == "" {
-					break
+				if w := want(key, desc); !reflect.DeepEqual(got, w) {
+					t.Errorf("sources limit=%d sort=%s desc=%v\n got  %v\n want %v", limit, key, desc, got, w)
 				}
-				cursor = page.NextCursor
-			}
-			if pages != 3 {
-				t.Errorf("sources %+v: %d pages, want 3", so, pages)
-			}
-			if w := want(key, desc); !reflect.DeepEqual(got, w) {
-				t.Errorf("sources sort=%s desc=%v\n got  %v\n want %v", key, desc, got, w)
 			}
 		}
 	}
@@ -691,7 +726,230 @@ func TestDocumentSourceSortPagesEveryKeyBothWays(t *testing.T) {
 			t.Errorf("%s: err = %v, want a validation error", c.what, err)
 		}
 	}
+	// a NUL rune in the cursor id or the key text is a 400, not a driver error.
+	nul := "a\x00b"
+	for _, c := range []struct {
+		what   string
+		cursor documentSourceSortCursor
+	}{
+		{"NUL in the source id", documentSourceSortCursor{At: t0, ID: nul, DocumentSortCursor: DocumentSortCursor{Sort: "name", Order: "asc", Text: &nul}}},
+		{"NUL in the name key", documentSourceSortCursor{At: t0, ID: "chat:x", DocumentSortCursor: DocumentSortCursor{Sort: "name", Order: "asc", Text: &nul}}},
+		{"NUL in the editor key", documentSourceSortCursor{At: t0, ID: "chat:x", DocumentSortCursor: DocumentSortCursor{Sort: "editor", Order: "asc", Text: &nul}}},
+	} {
+		raw, _ := json.Marshal(c.cursor)
+		so := DocumentSort{Key: c.cursor.Sort}
+		var ve ValidationError
+		_, err := svc.List(s.ctx, human(tn.member), tn.wsA, DocumentSourceFilter{Sort: so, Cursor: base64.RawURLEncoding.EncodeToString(raw)})
+		if err == nil || !asValidation(err, &ve) {
+			t.Errorf("%s: err = %v, want a validation error", c.what, err)
+		}
+	}
 	if _, err := svc.List(s.ctx, human(tn.member), tn.wsA, DocumentSourceFilter{Cursor: old.NextCursor}); err != nil {
 		t.Errorf("old cursor without sort: %v", err)
+	}
+}
+
+// An email attachment has no editor (editor_null for the whole stream): under
+// sort=editor every email row, and an agent's chat file, sits after the
+// human-edited rows whichever the direction, ordered by id among themselves,
+// and a cursor minted on one of them pages on without a gap (UNI-2038 r1 F5).
+func TestDocumentSourceSortEditorPutsEmailRowsLast(t *testing.T) {
+	env := newFakeDocStorageEnv(t)
+	s := &sourceScene{t: t, ctx: context.Background(), f: env.f, tn: env.tn}
+	tn, f := env.tn, env.f
+	svc := NewDocumentSourceService(DocumentSourceDeps{
+		Documents: env.svc, Chat: func() *ChatService {
+			chat := NewChatService(f.pool, f.q, env.svc.ws, NopPublisher{})
+			chat.SetFiles(env.fs)
+			return chat
+		}(),
+		EmailHub: NewEmailHubService(f.q, env.svc.ws, testEmailHubBox(t)),
+	})
+	f.exec(t, `UPDATE users SET display_name = 'Bình' WHERE id = $1`, tn.owner.ID)
+	f.exec(t, `UPDATE users SET display_name = 'Cường' WHERE id = $1`, tn.member.ID)
+	public := s.room(tn.orgID, tn.wsA, "channel", "public", "", false)
+
+	type srow struct {
+		id     string
+		editor string // u1, u2, "" for an editor-less row
+	}
+	var rows []srow
+	chat := func(sender, kind, editor string) {
+		id := s.fileMessage(tn.orgID, tn.wsA, public, sender, "chat.pdf", false)
+		f.exec(t, `UPDATE chat_messages SET sender_kind = $2 WHERE id = $1`, id, kind)
+		rows = append(rows, srow{"chat:" + id, editor})
+	}
+	chat(tn.owner.ID, "human", "u1")
+	chat(tn.member.ID, "human", "u2")
+	chat(tn.owner.ID, "human", "u1")
+	chat("agent-chat", "agent", "")
+
+	acc, err := f.q.CreateEmailHubAccount(s.ctx, db.CreateEmailHubAccountParams{
+		ID: util.NewID(), UserID: tn.member.ID, OrganizationID: tn.orgID, EmailAddress: strings.ToLower(util.NewID()) + "@example.com",
+		Provider: "gmail", ImapHost: "imap.example.com", ImapPort: 993, ImapSecurity: "tls",
+		SmtpHost: "smtp.example.com", SmtpPort: 465, SmtpSecurity: "starttls", AuthKind: "password", PasswordEnc: "x",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := int32(1); i <= 3; i++ {
+		th, err := f.q.UpsertEmailHubThread(s.ctx, db.UpsertEmailHubThreadParams{
+			ID: util.NewID(), AccountID: acc.ID, OrganizationID: tn.orgID, Folder: "INBOX", ImapUid: i,
+			Subject: "Mail", FromAddr: "sender@example.com", ToAddrs: []string{acc.EmailAddress},
+			SentAt: pgtype.Timestamptz{Time: time.Now().Add(-time.Duration(i) * time.Hour), Valid: true}, HasAttachments: true,
+			ImapLabels: []string{}, ConversationKey: "conv-" + acc.ID + "-" + util.NewID(),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		att, err := f.q.CreateEmailHubAttachment(s.ctx, db.CreateEmailHubAttachmentParams{
+			ID: util.NewID(), ThreadID: th.ID, AccountID: acc.ID, OrganizationID: tn.orgID,
+			Filename: "mail.pdf", MimeType: "application/pdf", SizeBytes: 4, PartID: "2",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		rows = append(rows, srow{"email:" + att.ID, ""})
+	}
+
+	humanRank := map[string]int{"u1": 1, "u2": 2}
+	for _, desc := range []bool{false, true} {
+		r := append([]srow(nil), rows...)
+		sort.SliceStable(r, func(i, j int) bool {
+			a, b := r[i], r[j]
+			ra, oka := humanRank[a.editor]
+			rb, okb := humanRank[b.editor]
+			if oka != okb {
+				return oka
+			}
+			c := ra - rb
+			if c == 0 {
+				c = strings.Compare(a.id, b.id)
+			}
+			if desc {
+				return c > 0
+			}
+			return c < 0
+		})
+		want := make([]string, len(r))
+		for i := range r {
+			want[i] = r[i].id
+		}
+		var got []string
+		cursor, pages := "", 0
+		for range 10 {
+			page, err := svc.List(s.ctx, human(tn.member), tn.wsA, DocumentSourceFilter{Sort: DocumentSort{Key: "editor", Desc: desc}, Cursor: cursor, Limit: 2})
+			if err != nil {
+				t.Fatalf("sources editor desc=%v: %v", desc, err)
+			}
+			pages++
+			for _, it := range page.Items {
+				got = append(got, it.ID)
+			}
+			if page.NextCursor == "" {
+				break
+			}
+			cursor = page.NextCursor
+		}
+		if pages != 4 {
+			t.Errorf("sources editor desc=%v: %d pages, want 4", desc, pages)
+		}
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("sources editor desc=%v\n got  %v\n want %v", desc, got, want)
+		}
+	}
+}
+
+// The editor key is ordered by the Vietnamese collation on every route, not
+// only the flat one the fixture test walks: with these names C order is
+// Dũng, Zed, Đào, the Vietnamese one Dũng, Đào, Zed, so a keyset predicate
+// on another collation skips or repeats rows (UNI-2038 r1 F5).
+func TestDocumentSortEditorUsesTheVietnameseCollationOnEveryRoute(t *testing.T) {
+	f := newDocPermFixture(t)
+	tn := f.tenant(t, "edv"+strings.ToLower(util.NewID()[20:]))
+	owner := Human(tn.owner.ID)
+	editors := map[string]string{} // display name -> user id
+	for _, name := range []string{"Đào", "Dũng", "Zed"} {
+		uid := util.NewID()
+		insertRow(t, f.ctx, f.pool, "users", map[string]any{"id": uid, "email": "ed" + uid + "@example.com", "display_name": name})
+		editors[name] = uid
+	}
+	rank := map[string]int{"Dũng": 1, "Đào": 2, "Zed": 3}
+	type edoc struct{ id, editor string }
+	seed := func(ws, parent string) []edoc {
+		var docs []edoc
+		for i, name := range []string{"Zed", "Đào", "Dũng", "Đào", "Zed", "Dũng"} {
+			id := util.NewID()
+			row := baseDoc(map[string]any{
+				"id": id, "organization_id": tn.orgID, "workspace_id": ws, "title": "doc " + string(rune('a'+i)),
+				"created_by": tn.owner.ID, "updated_by": editors[name],
+			})
+			if parent != "" {
+				row["parent_id"] = parent
+			}
+			insertRow(t, f.ctx, f.pool, "documents", row)
+			docs = append(docs, edoc{id, name})
+		}
+		return docs
+	}
+	flat := seed(tn.wsA, "")
+	folder := f.treeDoc(t, tn, treeDocSpec{ws: tn.wsB, visibility: "workspace", createdBy: tn.owner.ID, title: "Thư mục", kind: DocumentKindFolder})
+	children := seed(tn.wsB, folder.ID)
+	for _, d := range flat {
+		insertRow(t, f.ctx, f.pool, "document_access_logs", map[string]any{
+			"id": util.NewID(), "organization_id": tn.orgID, "workspace_id": tn.wsA,
+			"document_id": d.id, "actor_id": tn.owner.ID, "actor_kind": "human",
+			"action": "view", "via": "member", "correlation_id": "corr-" + util.NewID(),
+		})
+		doc, err := f.q.GetDocumentByID(f.ctx, d.id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		f.share(t, doc, DocumentPrincipalUser, tn.outsider.ID, DocumentLevelView, tn.owner.ID)
+	}
+	limit := 2
+	routes := []struct {
+		name string
+		docs []edoc
+		page sortPager
+	}{
+		{"parent", children, func(so DocumentSort, c string) ([]string, string, error) {
+			parent := folder.ID
+			p, err := f.svc.ListDocuments(f.ctx, owner, tn.wsB, ListDocumentsInput{ParentID: &parent, Sort: so, Cursor: c, Limit: limit})
+			return listIDs(p), p.NextCursor, err
+		}},
+		{"recent", flat, func(so DocumentSort, c string) ([]string, string, error) {
+			p, err := f.svc.ListRecentDocuments(f.ctx, owner, tn.wsA, ListDocumentsInput{Sort: so, Cursor: c, Limit: limit})
+			return listIDs(p), p.NextCursor, err
+		}},
+		{"shared-with-me", flat, sharedWithMePager(t, f, tn, &limit)},
+	}
+	for _, rt := range routes {
+		want := map[string]bool{}
+		for _, d := range rt.docs {
+			want[d.id] = true
+		}
+		for _, desc := range []bool{false, true} {
+			so := DocumentSort{Key: "editor", Desc: desc}
+			got := walkSorted(t, rt.name, rt.page, so, want)
+			docs := append([]edoc(nil), rt.docs...)
+			sort.Slice(docs, func(i, j int) bool {
+				c := rank[docs[i].editor] - rank[docs[j].editor]
+				if c == 0 {
+					c = strings.Compare(docs[i].id, docs[j].id)
+				}
+				if desc {
+					return c > 0
+				}
+				return c < 0
+			})
+			wantIDs := make([]string, len(docs))
+			for i, d := range docs {
+				wantIDs[i] = d.id
+			}
+			if !reflect.DeepEqual(got, wantIDs) {
+				t.Errorf("%s editor desc=%v\n got  %v\n want %v", rt.name, desc, got, wantIDs)
+			}
+		}
 	}
 }
