@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import { paths } from "@uniwork/core/paths";
 import type { Document } from "@uniwork/core/types/document";
 import type { OfficeModule } from "@uniwork/core/office/docs-frame-protocol";
@@ -35,6 +36,10 @@ function ModuleFrameHost(props: ModuleHostProps & { frameVersion: string; deskto
   // `?version=N` opens that stored version read-only (UNI-2033); anything but a positive integer is ignored.
   const viewVersion = parseVersionParam(searchParams.get("version"));
   const commentParam = searchParams.get("comment");
+  // The comment the Inbox landing has already been spent on. It lives here, not in the frame: the frame
+  // remounts (`key`) when a version view starts or ends, and a fresh hook would land on the same comment again.
+  const landedOn = useRef<string | null>(null);
+  useEffect(() => { if (viewVersion !== null) landedOn.current = commentParam; }, [viewVersion, commentParam]);
   const reportFrameComments = useReportFrameComments();
   const ws = paths.workspace(workspace.organization_slug, workspace.slug);
   return (
@@ -55,6 +60,8 @@ function ModuleFrameHost(props: ModuleHostProps & { frameVersion: string; deskto
       documentDetail={document}
       // A comment deep link (?comment=<id>): the editor's panel reveals it when it has comments.
       revealCommentId={commentParam}
+      // Once per page open and comment: after a version view the same `?comment=` on head stays on head.
+      landOnLost={commentParam !== landedOn.current}
       // The way back from a version view: the same page without `version`, the comment kept.
       onBackToCurrent={viewVersion !== null ? () => replace(currentVersionHref(pathname, commentParam)) : undefined}
       // A frame that serves comments is the page's one comments panel: the page hides its own.

@@ -74,6 +74,14 @@ interface UseFrameCommentsOptions {
   revealCommentId?: string | null;
   /** The version the page shows read-only (`?version=N`, UNI-2033): no Inbox switch and no `commentsViewVersion` then. */
   viewVersion?: number;
+  /**
+   * False once the host has already landed this page open on `revealCommentId`'s version (UNI-2033):
+   * the frame remounts when "Về bản hiện tại" or Back returns to head, and a fresh hook must not bounce again.
+   * The host keeps this outside the remounted frame; absent means true.
+   */
+  landOnLost?: boolean;
+  /** The version the page opened (head); a lost comment whose version is that one does not land. */
+  openVersion?: number;
 }
 
 interface FrameComments {
@@ -173,12 +181,12 @@ export function useFrameComments(options: UseFrameCommentsOptions): FrameComment
     };
     // Inbox landing (UNI-2033): the link says `?comment=` only, the notification predates the anchor
     // being lost. When the first list shows that comment lost with its version number, the page
-    // follows to that version once; anything missing leaves the thread and its button as they are.
+    // follows to that version once per page open (the host's `landOnLost`); anything missing leaves the thread and its button as they are.
     const landOnLostVersion = (list: unknown) => {
       const { options: current, navigation: nav } = latest.current;
-      if (!current.revealCommentId || current.viewVersion !== undefined || !nav) return;
+      if (!current.revealCommentId || current.viewVersion !== undefined || current.landOnLost === false || !nav) return;
       const versionNo = lostCommentVersion(list, current.revealCommentId);
-      if (versionNo !== null) nav.replace(versionViewHref(nav.pathname, versionNo, current.revealCommentId));
+      if (versionNo !== null && versionNo !== current.openVersion) nav.replace(versionViewHref(nav.pathname, versionNo, current.revealCommentId));
     };
     const api: FrameCommentsBinding["api"] = {
       "comments.list": (payload, { signal }) =>

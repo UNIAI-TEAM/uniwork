@@ -10,7 +10,7 @@ import { NavigationProvider, type NavigationAdapter } from "@uniwork/views/navig
 // Only the transport and the heavy frame component are replaced: the real
 // open switch, flag hook, failure surface and config schema answer from the mocked request.
 const mocks = vi.hoisted(() => ({
-  request: vi.fn(), frameProps: vi.fn(), push: vi.fn(), downloadProfile: vi.fn(),
+  request: vi.fn(), frameProps: vi.fn(), landing: vi.fn(), push: vi.fn(), downloadProfile: vi.fn(),
   // What the mocked frame does as it mounts: report the size cap, fail to load, or open.
   frameOutcome: { kind: undefined as "size" | "load" | undefined },
   createSession: vi.fn(), launch: vi.fn(), downloadFile: vi.fn(), retry: vi.fn(), replace: vi.fn(),
@@ -45,6 +45,11 @@ vi.mock("@uniwork/views/office", async (orig) => {
       mocks.frameProps(props);
       const refuse = useDocsFrameRefusal();
       useEffect(() => { if (mocks.frameOutcome.kind === "size") refuse?.(); }, [refuse]);
+      // What the real frame's comments hook does on its first list: land on a lost comment's version unless the host says it is spent.
+      useEffect(() => {
+        const ref = props.fileRef as { version?: number };
+        if (props.landOnLost !== false && props.revealCommentId && ref.version === undefined) mocks.landing(props.revealCommentId);
+      }, []); // eslint-disable-line react-hooks/exhaustive-deps
       // The real frame's failed state for a bundle that never loaded.
       if (mocks.frameOutcome.kind === "load") {
         return createElement(DocsFrameFailure, {
@@ -82,6 +87,7 @@ const configCalls = () => mocks.request.mock.calls.filter(([path]) => String(pat
 beforeEach(() => {
   mocks.request.mockReset();
   mocks.frameProps.mockReset();
+  mocks.landing.mockReset();
   mocks.push.mockReset();
   mocks.replace.mockReset();
   mocks.frameOutcome.kind = undefined;
@@ -372,6 +378,30 @@ describe("OfficeModuleHost: a version view (UNI-2033)", () => {
     await render(host("docs", false));
     await until(() => frame() !== null);
     expect(frame()).not.toBe(versionFrame);
+  });
+
+  it("lands on a lost comment's version once per page open: not again after the version view and back", async () => {
+    vi.stubEnv("NEXT_PUBLIC_OFFICE_DOCS_FRAME_VERSION", "1.0.0-abc1234");
+    answerConfig({ office_docs_web: true });
+    nav.searchParams.set("comment", "c1");
+    await render(host("docs", false));
+    await until(() => frame() !== null);
+    expect(mocks.landing).toHaveBeenCalledTimes(1);
+    // The landing replaced the URL with the version view...
+    nav.searchParams.set("version", "2");
+    await render(host("docs", false));
+    await until(() => frame() !== null);
+    expect(mocks.landing).toHaveBeenCalledTimes(1);
+    // ...and "Về bản hiện tại" (or Back) returns to head ?comment=c1: the frame remounts, the landing stays spent.
+    nav.searchParams.delete("version");
+    await render(host("docs", false));
+    await until(() => frame() !== null);
+    expect(frameProp("landOnLost")).toBe(false);
+    expect(mocks.landing).toHaveBeenCalledTimes(1);
+    // Another notice's comment may land again.
+    nav.searchParams.set("comment", "c2");
+    await render(host("docs", false));
+    expect(frameProp("landOnLost")).toBe(true);
   });
 
   it("ignores a version that is not a positive integer: no version view, no way back", async () => {

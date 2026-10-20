@@ -17,7 +17,7 @@ const PATH = "/o/w/documents/doc-1";
 const ACK = { capabilities: { comments: true } } as unknown as InitAck;
 const SIGNAL = { signal: new AbortController().signal };
 
-function setup(props: { revealCommentId?: string | null; viewVersion?: number } = {}) {
+function setup(props: { revealCommentId?: string | null; viewVersion?: number; landOnLost?: boolean; openVersion?: number } = {}) {
   const navigation = {
     push: vi.fn(), replace: vi.fn(), back: vi.fn(), pathname: PATH, searchParams: new URLSearchParams(),
     getShareableUrl: (path: string) => path,
@@ -53,15 +53,27 @@ describe("useFrameComments: Inbox landing on a lost comment (UNI-2033)", () => {
     expect(frame.navigation.push).not.toHaveBeenCalled();
   });
 
-  it("switches again after a new open of the document (a re-attach)", async () => {
+  it("does not switch again once the page has left the version view and is back on ?comment= (landOnLost off)", async () => {
     const frame = setup({ revealCommentId: "c1" });
     frame.attach();
     await frame.list([lost()]);
-    act(() => { frame.hook.result.current.binding.detach(); });
+    expect(frame.navigation.replace).toHaveBeenCalledTimes(1);
+    // "Về bản hiện tại" remounts the frame: a fresh hook on head, the host now says the landing is spent.
+    const back = setup({ revealCommentId: "c1", landOnLost: false });
+    back.attach();
+    await back.list([lost()]);
+    expect(back.navigation.replace).not.toHaveBeenCalled();
+  });
+
+  it("does not land when the lost comment's version is the open one", async () => {
+    const frame = setup({ revealCommentId: "c1", openVersion: 2 });
     frame.attach();
-    await frame.list([lost({ anchor_version_no: 3 })]);
-    expect(frame.navigation.replace).toHaveBeenCalledTimes(2);
-    expect(frame.navigation.replace).toHaveBeenLastCalledWith(`${PATH}?version=3&comment=c1`);
+    await frame.list([lost({ anchor_version_no: 2 })]);
+    expect(frame.navigation.replace).not.toHaveBeenCalled();
+    const older = setup({ revealCommentId: "c1", openVersion: 3 });
+    older.attach();
+    await older.list([lost({ anchor_version_no: 2 })]);
+    expect(older.navigation.replace).toHaveBeenCalledWith(`${PATH}?version=2&comment=c1`);
   });
 
   it("does nothing when a version is already open, there is no link, or the data is missing", async () => {
