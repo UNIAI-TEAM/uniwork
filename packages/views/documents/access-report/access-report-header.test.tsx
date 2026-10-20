@@ -112,6 +112,14 @@ describe("AccessReportHeader - scope", () => {
     ).toBeInTheDocument();
   });
 
+  it("does not show an empty folder path while the folder's title is still on its way", () => {
+    renderHeader({ folderId: "f1", folderTitle: null });
+    expect(
+      screen.queryByRole("button", { name: new RegExp(t("documents.accessReport.scope_folder", { path: "" }).replace(/[()]/g, "\\$&")) }),
+    ).toBeNull();
+    expect(screen.getByRole("button", { name: new RegExp(t("documents.accessReport.scope_label")) })).toBeInTheDocument();
+  });
+
   it("picks a folder from the folder tree and hands its id to the screen", async () => {
     const props = renderHeader();
     fireEvent.click(screen.getByRole("button", { name: new RegExp(t("documents.accessReport.scope_workspace", { name: "Đội" })) }));

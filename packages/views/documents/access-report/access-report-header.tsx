@@ -75,8 +75,11 @@ export function AccessReportHeader({
   // The folder tree is read when the picker opens, not on every visit to the report.
   const tree = useDocumentTree(wsId, undefined, { enabled: picking, foldersOnly: true });
 
+  // Until the folder's title arrives the scope reads neutrally, never as an empty path.
   const scopeLabel = folderId
-    ? t("documents.accessReport.scope_folder", { path: folderTitle ?? "" })
+    ? folderTitle
+      ? t("documents.accessReport.scope_folder", { path: folderTitle })
+      : t("documents.accessReport.scope_label")
     : t("documents.accessReport.scope_workspace", { name: workspaceName });
   const updated = formatWhen(generatedAt, i18n.language);
   const exporting = exporter.busy !== null;

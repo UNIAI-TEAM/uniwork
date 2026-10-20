@@ -39,27 +39,6 @@ export function accessSourceLabel(t: TFunction, row: { source: string; origin?: 
   }
 }
 
-export function accessVisibilityLabel(t: TFunction, visibility: string): string {
-  switch (visibility) {
-    case "workspace":
-      return t("documents.share.visibility_workspace");
-    case "restricted":
-      return t("documents.share.visibility_restricted");
-    default:
-      return t("documents.accessReport.visibility_other");
-  }
-}
-
-/**
- * The visibility filter's options. They name who can see the document, not the
- * report's scope, so the "workspace" option is not the "Whole workspace" line.
- */
-export function filterVisibilityLabel(t: TFunction, visibility: string): string {
-  return visibility === "workspace"
-    ? t("documents.accessReport.visibility_workspace")
-    : accessVisibilityLabel(t, visibility);
-}
-
 /** What a principal is when the report has no name for it (an account that is gone). */
 export function principalTypeLabel(t: TFunction, principalType: string): string {
   switch (principalType) {

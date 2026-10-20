@@ -119,9 +119,10 @@ function DocumentRow({
   const title = doc.title || t("documents.detail.untitled");
   const path = doc.path.map((item) => item.title).join(" / ");
   const owner = doc.acl_owner?.name ?? "";
-  const where = path && owner
-    ? t("documents.accessReport.path_owner", { path, owner })
-    : path || (owner ? `${t("documents.accessReport.col_owner")} ${owner}` : "");
+  // A document at the root has no path; the root's own label stands in beside the owner.
+  const where = owner
+    ? t("documents.accessReport.path_owner", { path: path || t("documents.home.search.path_root"), owner })
+    : path;
   const who = whoSummary(t, facts);
   const changed = formatWhen(facts.changedAt, i18n.language);
   const toggleLabel = expanded

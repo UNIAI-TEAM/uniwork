@@ -150,10 +150,10 @@ export function AccessReportPeople({ wsId, folderId, search, kind, levels, docum
         </thead>
         <tbody>
           {people.map((p) => {
-            const key = principalParam(p);
+            const key = `${principalParam(p)}:${p.kind}`;
             return (
               <PersonRow
-                key={`${key}:${p.kind}`}
+                key={key}
                 wsId={wsId}
                 principal={p}
                 open={openKey === key}

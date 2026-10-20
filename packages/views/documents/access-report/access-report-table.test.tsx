@@ -3,7 +3,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { resetAuthStoreForTests, setSessionUser } from "@uniwork/core/auth";
 import { initI18n } from "@uniwork/core/i18n";
 import { DocumentAccessReportSchema } from "@uniwork/core/types/document-access-report";
-import type { User } from "@uniwork/core/types";
+import type { User, Workspace } from "@uniwork/core/types";
+import { WorkspaceProvider } from "../../layout/workspace-context";
 import { fakeNav, requestMock, wrapWithNav } from "../../test/api-mock";
 import { formatWhen } from "../document-format";
 import { AccessReportTable } from "./access-report-table";
@@ -15,11 +16,30 @@ import { AccessReportTable } from "./access-report-table";
 const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
 vi.mock("sonner", () => ({ toast }));
 
+// The real dialog still renders; the spy only records the target the report built for it.
+const shared = vi.hoisted(() => ({ targets: [] as unknown[] }));
+vi.mock("../share-dialog", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../share-dialog")>();
+  const { createElement } = await import("react");
+  return {
+    ...actual,
+    ShareDialog: (props: Parameters<typeof actual.ShareDialog>[0]) => {
+      shared.targets.push(props.doc);
+      return createElement(actual.ShareDialog, props);
+    },
+  };
+});
+
 const i18n = initI18n();
 const { t } = i18n;
 const at = (key: string, opts?: Record<string, unknown>) => t(`documents.accessReport.${key}`, opts ?? {});
 
 const WS = "ws1";
+const ORG = "o1";
+
+const workspace: Workspace = {
+  id: WS, slug: "doi", name: "Đội", organization_id: ORG, organization_slug: "acme", organization_name: "Acme",
+};
 
 const viewer: User = {
   id: "me", email: "an@example.com", display_name: "Nguyễn An",
@@ -131,15 +151,17 @@ function renderTable(over: Partial<React.ComponentProps<typeof AccessReportTable
   const onSortChange = vi.fn();
   render(
     wrapWithNav(
-      <AccessReportTable
-        wsId={WS}
-        documents={report()}
-        sort="changed"
-        order="desc"
-        onSortChange={onSortChange}
-        documentHref={(id) => `/acme/doi/documents/${id}`}
-        {...over}
-      />,
+      <WorkspaceProvider workspace={workspace} user={viewer}>
+        <AccessReportTable
+          wsId={WS}
+          documents={report()}
+          sort="changed"
+          order="desc"
+          onSortChange={onSortChange}
+          documentHref={(id) => `/acme/doi/documents/${id}`}
+          {...over}
+        />
+      </WorkspaceProvider>,
       fakeNav("/acme/doi/documents/access-report"),
     ),
   );
@@ -152,6 +174,7 @@ beforeEach(() => {
   requestMock.mockReset();
   toast.success.mockReset();
   toast.error.mockReset();
+  shared.targets.length = 0;
   resetAuthStoreForTests();
   setSessionUser(viewer);
 });
@@ -165,7 +188,9 @@ describe("AccessReportTable", () => {
     for (const col of ["col_general_scope", "col_people", "col_warnings"]) {
       expect(within(table).getByRole("columnheader", { name: at(col) })).toBeInTheDocument();
     }
-    expect(within(table).queryByRole("columnheader", { name: at("col_status") })).toBeNull();
+    // The redesign dropped the Status column: no header by that visible text, in either language.
+    expect(within(table).queryByRole("columnheader", { name: /^(status|trạng thái)$/i })).toBeNull();
+    expect(within(table).getAllByRole("columnheader")).toHaveLength(6);
   });
 
   it("shows the path and owner, the general scope, who has access, the warnings and the last access change", () => {
@@ -228,7 +253,18 @@ describe("AccessReportTable", () => {
   it("offers Revoke only on grants the server named a target for", () => {
     renderTable();
     fireEvent.click(screen.getByRole("button", { name: at("expand_document", { name: "Đề xuất ngân sách Q4.docx" }) }));
-    expect(screen.getAllByRole("button", { name: at("revoke") })).toHaveLength(2);
+    const grants = screen.getByRole("table", { name: "Đề xuất ngân sách Q4.docx" });
+    const [, ...lines] = within(grants).getAllByRole("row");
+    // Owner and inactive grant carry no target; the share and the link do.
+    expect(lines.map((line) => within(line).queryAllByRole("button").length)).toEqual([0, 1, 1, 0]);
+  });
+
+  it("names every Revoke button after its grantee, so a screen reader can tell them apart", () => {
+    renderTable();
+    fireEvent.click(screen.getByRole("button", { name: at("expand_document", { name: "Đề xuất ngân sách Q4.docx" }) }));
+    const grants = screen.getByRole("table", { name: "Đề xuất ngân sách Q4.docx" });
+    expect(within(grants).getByRole("button", { name: at("revoke_title", { name: "Trần Bình" }) })).toBeInTheDocument();
+    expect(within(grants).getByRole("button", { name: at("revoke_title", { name: at("anyone_with_link") }) })).toBeInTheDocument();
   });
 
   it("revokes after a confirmation, through the share route, and says so", async () => {
@@ -236,7 +272,7 @@ describe("AccessReportTable", () => {
     renderTable();
     fireEvent.click(screen.getByRole("button", { name: at("expand_document", { name: "Đề xuất ngân sách Q4.docx" }) }));
     const shareLine = screen.getByText("Trần Bình").closest("tr")!;
-    fireEvent.click(within(shareLine).getByRole("button", { name: at("revoke") }));
+    fireEvent.click(within(shareLine).getByRole("button", { name: at("revoke_title", { name: "Trần Bình" }) }));
 
     const dialog = await screen.findByRole("alertdialog");
     expect(within(dialog).getByText(at("revoke_title", { name: "Trần Bình" }))).toBeInTheDocument();
@@ -256,7 +292,7 @@ describe("AccessReportTable", () => {
     renderTable();
     fireEvent.click(screen.getByRole("button", { name: at("expand_document", { name: "Đề xuất ngân sách Q4.docx" }) }));
     const linkLine = screen.getByText(at("anyone_with_link")).closest("tr")!;
-    fireEvent.click(within(linkLine).getByRole("button", { name: at("revoke") }));
+    fireEvent.click(within(linkLine).getByRole("button", { name: at("revoke_title", { name: at("anyone_with_link") }) }));
     const dialog = await screen.findByRole("alertdialog");
     fireEvent.click(within(dialog).getByRole("button", { name: at("revoke") }));
 
@@ -271,5 +307,64 @@ describe("AccessReportTable", () => {
     expect(screen.getByRole("link", { name: at("open_document") })).toHaveAttribute("href", "/acme/doi/documents/d1");
     fireEvent.click(screen.getByRole("button", { name: at("manage_sharing") }));
     expect(await screen.findByRole("dialog")).toBeInTheDocument();
+  });
+
+  it("revokes an emergency grant through the break-glass route", async () => {
+    requestMock.mockResolvedValue({ status: "ok" });
+    const breakGlass = {
+      ...share,
+      source: "break_glass",
+      principal_id: "u9",
+      principal_name: "Phạm Khẩn",
+      share_id: undefined,
+      origin: null,
+      revoke_target: { kind: "break_glass", id: "g1" },
+    };
+    renderTable({
+      documents: DocumentAccessReportSchema.parse({
+        scope: { kind: "workspace", workspace_id: WS },
+        documents: [{ document: { id: "d1", title: "Tài liệu khẩn", kind: "file", my_level: "manage" }, rows: [breakGlass] }],
+      }).documents,
+    });
+    fireEvent.click(screen.getByRole("button", { name: at("expand_document", { name: "Tài liệu khẩn" }) }));
+    fireEvent.click(screen.getByRole("button", { name: at("revoke_title", { name: "Phạm Khẩn" }) }));
+    const dialog = await screen.findByRole("alertdialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: at("revoke") }));
+
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith(at("revoke_done", { name: "Phạm Khẩn" })));
+    const [path, init] = requestMock.mock.calls[0] as [string, RequestInit];
+    expect(path).toBe("/api/v1/documents/d1/break-glass/g1");
+    expect(init.method).toBe("DELETE");
+  });
+
+  it("opens the share dialog on the report's own target: its workspace and organization, no work-product owner, the viewer's level", async () => {
+    renderTable();
+    fireEvent.click(screen.getByRole("button", { name: at("expand_document", { name: "Đề xuất ngân sách Q4.docx" }) }));
+    fireEvent.click(screen.getByRole("button", { name: at("manage_sharing") }));
+    await screen.findByRole("dialog");
+    expect(shared.targets.at(-1)).toMatchObject({
+      id: "d1",
+      workspace_id: WS,
+      organization_id: ORG,
+      owner_kind: null,
+      visibility: "restricted",
+      my_level: "manage",
+      admin_scope: false,
+    });
+  });
+
+  it("keeps a pure admin an admin in the share dialog: no level of their own, admin scope on", async () => {
+    renderTable({
+      documents: DocumentAccessReportSchema.parse({
+        scope: { kind: "workspace", workspace_id: WS },
+        documents: [
+          { document: { id: "d7", title: "Hồ sơ nội bộ", kind: "file", my_level: "", admin_scope: true }, rows: [owner] },
+        ],
+      }).documents,
+    });
+    fireEvent.click(screen.getByRole("button", { name: at("expand_document", { name: "Hồ sơ nội bộ" }) }));
+    fireEvent.click(screen.getByRole("button", { name: at("manage_sharing") }));
+    await screen.findByRole("dialog");
+    expect(shared.targets.at(-1)).toMatchObject({ my_level: "", admin_scope: true });
   });
 });

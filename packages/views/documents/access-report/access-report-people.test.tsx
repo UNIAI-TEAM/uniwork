@@ -393,6 +393,24 @@ describe("AccessReportPeople - open row", () => {
   });
 });
 
+describe("AccessReportPeople - row identity", () => {
+  it("opens only the row that was clicked when two principals share a param but not a kind", async () => {
+    const twin = { principal_type: "user", principal_id: "u2", principal_name: "Hưng Nguyễn Duy", member_count: null, document_count: 2, levels: levels(0, 0, 1, 1), main_source: "direct" };
+    serve(undefined, {
+      generated_at: "x",
+      principals: [
+        { ...twin, kind: "member" },
+        { ...twin, principal_name: "Hưng (cũ)", kind: "other_workspace" },
+      ],
+      truncated: false,
+    });
+    renderPeople();
+    fireEvent.click(await screen.findByRole("button", { name: expandLabel("Hưng Nguyễn Duy") }));
+    expect(screen.getByRole("button", { name: at("collapse", { name: "Hưng Nguyễn Duy" }) })).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("button", { name: expandLabel("Hưng (cũ)") })).toHaveAttribute("aria-expanded", "false");
+  });
+});
+
 describe("AccessReportPeople - revoke", () => {
   async function openHung() {
     renderPeople();

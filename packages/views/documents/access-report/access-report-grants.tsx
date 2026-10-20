@@ -49,12 +49,19 @@ export function grantName(t: ReturnType<typeof useTranslation>["t"], row: Access
   return row.principal_type === "link" ? t("documents.accessReport.anyone_with_link") : principalTypeLabel(t, row.principal_type);
 }
 
+function shareLevel(doc: AccessReportDocument["document"]): ShareDialogTarget["my_level"] {
+  const level = DOCUMENT_ACCESS_LEVELS.find((l) => l === doc.my_level);
+  if (level) return level;
+  return doc.my_level || doc.admin_scope ? "" : "manage";
+}
+
 /**
  * The share dialog's target, built from the report (the contract's §4 recipe):
  * the report's workspace and organization, no work-product owner, live. Before
  * the server sends `my_level` every listed document is one the reader
- * manages, so that is the level it opens with; the dialog's own calls are
- * still gated on the server.
+ * manages, so that is the level it opens with; a pure admin (admin scope, no
+ * level of their own) keeps the dialog's admin-only mode. The dialog's own
+ * calls are still gated on the server.
  */
 function reportShareTarget(
   doc: AccessReportDocument["document"],
@@ -70,7 +77,7 @@ function reportShareTarget(
     owner_kind: null,
     archived_at: null,
     shelved_at: null,
-    my_level: doc.my_level ? (DOCUMENT_ACCESS_LEVELS.find((level) => level === doc.my_level) ?? "") : "manage",
+    my_level: shareLevel(doc),
     admin_scope: doc.admin_scope,
     title,
   };
@@ -158,7 +165,14 @@ export function AccessReportGrants({ wsId, entry, title, documentHref }: AccessR
                 </td>
                 <td className={cn(TD, "text-right")}>
                   {row.revoke_target ? (
-                    <Button type="button" variant="outline" size="sm" className="text-destructive" onClick={() => setConfirming(row)}>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="text-destructive"
+                      aria-label={t("documents.accessReport.revoke_title", { name })}
+                      onClick={() => setConfirming(row)}
+                    >
                       {t("documents.accessReport.revoke")}
                     </Button>
                   ) : null}
