@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { Lock, Share2, Users } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { DocumentShareScope } from "@uniwork/core/types/document";
+import { Badge } from "@uniwork/ui/components/ui/badge";
 import { cn } from "@uniwork/ui/lib/utils";
 import { CommentActorAvatar } from "../../comments/comment-actor-avatar";
 import { DocumentTypeIcon, documentIconFormat } from "../document-type-icon";
@@ -61,6 +62,13 @@ export function DocNameCell({
 
 const ACCESS_ICON = { restricted: Lock, workspace: Users, shared: Share2 } as const;
 
+/** Rules.dc.html section 1: Riêng tư grey, Workspace blue, Được chia sẻ amber. Semantic tokens, so light and dark follow. */
+const ACCESS_PILL = {
+  restricted: "bg-muted text-muted-foreground",
+  workspace: "bg-primary/10 text-primary",
+  shared: "bg-warning-soft text-warning-soft-foreground",
+} as const;
+
 /** The scope pill (Riêng tư / Workspace / Được chia sẻ) and, under it, "Chủ sở hữu" or "Bạn: Xem|Bình luận|Sửa|Quản lý". */
 export function DocAccessCell({
   visibility,
@@ -82,12 +90,12 @@ export function DocAccessCell({
   const level = docAccessLevel(myLevel, adminScope);
   const sub = isOwner === true ? t("documents.list.access.owner") : level ? t("documents.list.access.you", { level: t(`documents.list.access.level.${level}`) }) : null;
   return (
-    <span className="flex min-w-0 flex-col gap-0.5 text-caption">
-      <span data-access-kind={kind} className="inline-flex min-w-0 items-center gap-1 text-foreground">
-        <Icon aria-hidden className={cn("size-3.5 shrink-0", kind === "restricted" ? "text-warning" : "text-muted-foreground")} />
+    <span className="flex min-w-0 flex-col items-start gap-0.5 text-caption">
+      <Badge data-access-kind={kind} variant="secondary" className={cn("max-w-full justify-start", ACCESS_PILL[kind])}>
+        <Icon aria-hidden data-icon="inline-start" />
         <span className="truncate">{t(`documents.list.access.${kind}`)}</span>
-      </span>
-      {sub ? <span className="truncate text-muted-foreground">{sub}</span> : null}
+      </Badge>
+      {sub ? <span className="max-w-full truncate text-muted-foreground">{sub}</span> : null}
     </span>
   );
 }

@@ -231,7 +231,7 @@ export function DocumentsLibraryList({
                     key={column.id}
                     scope="col"
                     aria-sort={sortable && sort ? (sort.value.column !== sortable ? "none" : sort.value.order === "asc" ? "ascending" : "descending") : undefined}
-                    className={cn("px-3 py-2 font-medium", column.cell)}
+                    className={cn("py-2 font-medium", column.pad ?? "px-3", column.cell)}
                   >
                     {sortable && sort ? (
                       <LibrarySortHeader column={sortable} label={t(columnLabel(column.id))} sort={sort.value} onSort={sort.onSort} />

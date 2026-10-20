@@ -6,7 +6,7 @@ import type { DocumentShareScope } from "@uniwork/core/types/document";
 import { cn } from "@uniwork/ui/lib/utils";
 import { DocAccessCell } from "./doclist/cells";
 import { shareScopeView } from "./document-share-scope-badge";
-import { libraryCell, type RowLadder } from "./library-columns";
+import { libraryCell, libraryPad, type RowLadder } from "./library-columns";
 import type { DocumentSummaryRow } from "./library-rows";
 
 /**
@@ -51,7 +51,7 @@ export function LibraryRowAccessCell({
   );
   const manage = doc?.my_level === "manage" || doc?.admin_scope === true;
   return (
-    <td data-column="access" className={cn("px-3 py-2 text-caption", libraryCell(ladder, "access"))}>
+    <td data-column="access" className={cn("py-2 text-caption", libraryPad(ladder, "access"), libraryCell(ladder, "access"))}>
       {onShare && doc ? (
         // The badge is not focusable here (it would nest a control inside the
         // button); its composition reaches the button as the description. The

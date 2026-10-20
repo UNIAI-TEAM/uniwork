@@ -41,7 +41,7 @@ import { docListSpec, type DocListScreen } from "./doclist/columns";
 import { EMPTY_CELL, formatBytes, formatListDate } from "./doclist/format";
 import { docListRowFields } from "./doclist/row-fields";
 import { DocScreenCell, DocScreenLine } from "./doclist/screen-cells";
-import { libraryCell, type RowLadder } from "./library-columns";
+import { libraryCell, libraryPad, type RowLadder } from "./library-columns";
 import { LibraryRowAccessCell } from "./library-row-access-cell";
 import { canArchiveRow, canMoveRow, canShareRow, rowAppOperation, rowLevel } from "./row-level";
 import { sourceLinkIcon, sourceLinkLabelKey, sourceLinkNamedLabelKey, sourceOpenAction, sourceParentLinked } from "./source-links";
@@ -363,7 +363,7 @@ export function LibraryRowView({
 
   // Every column but Actions, in the ladder's order (doclist/columns.ts); the actions cell follows them below.
   const cells: Record<string, ReactNode> = {
-    select: <td data-column="select" className="px-3 py-2" />,
+    select: <td data-column="select" className={cn("py-2", libraryPad(ladder, "select"))} />,
     name: (
       <td data-column="name" className="px-3 py-2">
         {trashed ? (
@@ -392,24 +392,24 @@ export function LibraryRowView({
       />
     ),
     editor: (
-      <td data-column="editor" className={cn("px-3 py-2", libraryCell(ladder, "editor"))}>
+      <td data-column="editor" className={cn("py-2", libraryPad(ladder, "editor"), libraryCell(ladder, "editor"))}>
         <DocPersonCell name={editor} avatarUrl={fields.updatedByUser?.avatarUrl} kind={doc?.updated_by_kind} />
       </td>
     ),
     updated: (
-      <td data-column="updated" className={cn("px-3 py-2 font-mono text-caption tabular-nums text-muted-foreground", libraryCell(ladder, "updated"))}>
+      <td data-column="updated" className={cn("whitespace-nowrap py-2 font-mono text-caption tabular-nums text-muted-foreground", libraryPad(ladder, "updated"), libraryCell(ladder, "updated"))}>
         {updated}
       </td>
     ),
     size: (
-      <td data-column="size" className={cn("px-3 py-2 font-mono text-caption tabular-nums text-muted-foreground", libraryCell(ladder, "size"))}>
+      <td data-column="size" className={cn("whitespace-nowrap py-2 font-mono text-caption tabular-nums text-muted-foreground", libraryPad(ladder, "size"), libraryCell(ladder, "size"))}>
         {size}
       </td>
     ),
   };
   if (screenColumn) {
     cells[screenColumn] = (
-      <td data-column={screenColumn} className={cn("px-3 py-2", libraryCell(ladder, screenColumn))}>
+      <td data-column={screenColumn} className={cn("py-2", libraryPad(ladder, screenColumn), libraryCell(ladder, screenColumn))}>
         {/* A source row (home root merge) has no screen field: it keeps its own cells and a dash here. */}
         <DocScreenCell column={screenColumn} fields={fields} />
       </td>

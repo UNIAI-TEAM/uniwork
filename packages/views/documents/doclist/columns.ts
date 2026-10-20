@@ -26,7 +26,13 @@ export interface DocListColumn {
   labelKey: string;
   /** Null for the columns that never sort: Select, Access, Actions. */
   sortKey: DocListSortKey | null;
-  /** Fixed width in px. Name has none: it takes what is left, down to NAME_FLOOR. */
+  /**
+   * Fixed width in px, cell padding included (the table is `table-fixed`). Name
+   * has none: it takes what is left, down to NAME_FLOOR. Each width is what its
+   * widest content needs plus the 8px side padding the optional columns carry:
+   * "Hôm qua, 16:30" at the 12px mono caption size is ~101px, a 24px avatar and
+   * a truncating name fit Editor, the "Được chia sẻ" pill fits Access.
+   */
   width: number;
   align: "left" | "right";
 }
@@ -59,7 +65,7 @@ const SCREEN_COLUMN_SORT: Record<DocListScreenColumnId, DocListSortKey> = {
 };
 
 /** The room Name keeps before a column joins: it never drops under this. */
-export const NAME_FLOOR = 220;
+export const NAME_FLOOR = 194;
 /** The table's 1px borders, both sides. */
 const BORDER = 2;
 
@@ -75,7 +81,7 @@ const screenColumn = (id: DocListScreenColumnId): DocListColumn => ({
   id,
   labelKey: `documents.list.screen_column.${id}`,
   sortKey: SCREEN_COLUMN_SORT[id],
-  width: 176,
+  width: 120,
   align: "left",
 });
 
@@ -95,14 +101,14 @@ export function docListSpec(screen: DocListScreen): DocListSpec {
   const spec: DocListSpec = {
     screen,
     columns: [
-      column("select", null, 40),
+      column("select", null, 36),
       column("name", "name", 0),
       ...(own ? [screenColumn(own)] : []),
-      column("access", null, 190),
-      column("editor", "editor", 200),
-      column("updated", "updated", 140),
-      column("size", "size", 90, "right"),
-      column("actions", null, 96),
+      column("access", null, 120),
+      column("editor", "editor", 124),
+      column("updated", "updated", 118),
+      column("size", "size", 72, "right"),
+      column("actions", null, 76),
     ],
     screenColumn: own,
     defaultSort: defaultSortOf(screen),
@@ -140,7 +146,10 @@ const rem = (px: number) => Math.ceil(px / 16);
  * rounded up to the next rem, so Name never drops under NAME_FLOOR: the
  * columns that hide first open last. The table is measured by its own
  * container, never the viewport, because the docs aside and the app sidebar
- * sit beside it (the Size rung is ~992px, the ~1024px the design names).
+ * sit beside it. The design board shows all eight columns at 1440 (a ~870px
+ * container: the Size rung is 47rem on the workspace screen, 54rem with a
+ * screen column) and, at 1280 (~710px), loses at most Size (Size and Last
+ * edited by with a screen column); `doclist/desktop-widths.test.ts` pins it.
  */
 export function docListRungs(spec: DocListSpec): DocListRungs {
   const width = (id: DocListColumnId) => spec.columns.find((c) => c.id === id)?.width ?? 0;

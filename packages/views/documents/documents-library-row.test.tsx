@@ -133,8 +133,10 @@ describe("access column", () => {
     const accessA = cellsOf("a")[1]!;
     expect(within(accessA).getByText("Riêng tư")).toBeTruthy();
     expect(within(accessA).getByText("Bạn: Quản lý")).toBeTruthy();
-    // A restricted row keeps the amber lock (warning token) ahead of the label.
-    expect(accessA.querySelector("svg.text-warning")).toBeTruthy();
+    // UNI-2045 W1b: a restricted row is a filled grey pill (muted tokens) with the lock ahead of the label.
+    const pillA = accessA.querySelector("[data-access-kind='restricted']")!;
+    expect(pillA).toHaveClass("bg-muted", "text-muted-foreground");
+    expect(pillA.querySelector("svg")).toBeTruthy();
     const accessB = cellsOf("b")[1]!;
     expect(within(accessB).getByText("Workspace")).toBeTruthy();
     // UNI-2045: the shared level words (Xem / Bình luận / Sửa / Quản lý).

@@ -39,6 +39,8 @@ interface LibraryColumn<Id extends AnyColumnId = LibraryColumnId> {
   col: string;
   /** Visibility (and alignment) classes shared by the `<th>` and every `<td>` of the column. */
   cell: string;
+  /** Horizontal padding of the `<th>` and every `<td>`; absent reads `px-3`. */
+  pad?: string;
 }
 
 /** What a library row reads from either ladder: its columns and the classes of its narrow secondary line. */
@@ -104,6 +106,11 @@ export function shelvedLadder(): LibraryLadder {
   return SHELVED;
 }
 
+/** The horizontal padding of one column's header and cells: the spec ladder tightens the optional ones to `px-2`. */
+export function libraryPad(ladder: { columns: readonly LibraryColumn<AnyColumnId>[] }, id: AnyColumnId): string {
+  return ladder.columns.find((column) => column.id === id)?.pad ?? "px-3";
+}
+
 /** The visibility class of one column's cells, or null when this ladder has no such column. */
 export function libraryCell(ladder: { columns: readonly LibraryColumn<AnyColumnId>[] }, id: AnyColumnId): string | null {
   return ladder.columns.find((column) => column.id === id)?.cell ?? null;
@@ -137,13 +144,12 @@ export function libraryGroupSpans(ladder: { columns: readonly LibraryColumn<AnyC
 type RungClasses = { col: string; cell: string; head: string; hide: string; show: string };
 
 const RUNG_CLASSES: Record<number, RungClasses> = {
-  32: { col: "hidden @min-[32rem]/library:table-column", cell: "hidden @min-[32rem]/library:table-cell", head: "hidden bg-muted/50 @min-[32rem]/library:table-header-group", hide: "@min-[32rem]/library:hidden", show: "hidden @min-[32rem]/library:block" },
-  43: { col: "hidden @min-[43rem]/library:table-column", cell: "hidden @min-[43rem]/library:table-cell", head: "hidden bg-muted/50 @min-[43rem]/library:table-header-group", hide: "@min-[43rem]/library:hidden", show: "hidden @min-[43rem]/library:block" },
+  27: { col: "hidden @min-[27rem]/library:table-column", cell: "hidden @min-[27rem]/library:table-cell", head: "hidden bg-muted/50 @min-[27rem]/library:table-header-group", hide: "@min-[27rem]/library:hidden", show: "hidden @min-[27rem]/library:block" },
+  35: { col: "hidden @min-[35rem]/library:table-column", cell: "hidden @min-[35rem]/library:table-cell", head: "hidden bg-muted/50 @min-[35rem]/library:table-header-group", hide: "@min-[35rem]/library:hidden", show: "hidden @min-[35rem]/library:block" },
+  42: { col: "hidden @min-[42rem]/library:table-column", cell: "hidden @min-[42rem]/library:table-cell", head: "hidden bg-muted/50 @min-[42rem]/library:table-header-group", hide: "@min-[42rem]/library:hidden", show: "hidden @min-[42rem]/library:block" },
+  47: { col: "hidden @min-[47rem]/library:table-column", cell: "hidden @min-[47rem]/library:table-cell", head: "hidden bg-muted/50 @min-[47rem]/library:table-header-group", hide: "@min-[47rem]/library:hidden", show: "hidden @min-[47rem]/library:block" },
+  50: { col: "hidden @min-[50rem]/library:table-column", cell: "hidden @min-[50rem]/library:table-cell", head: "hidden bg-muted/50 @min-[50rem]/library:table-header-group", hide: "@min-[50rem]/library:hidden", show: "hidden @min-[50rem]/library:block" },
   54: { col: "hidden @min-[54rem]/library:table-column", cell: "hidden @min-[54rem]/library:table-cell", head: "hidden bg-muted/50 @min-[54rem]/library:table-header-group", hide: "@min-[54rem]/library:hidden", show: "hidden @min-[54rem]/library:block" },
-  56: { col: "hidden @min-[56rem]/library:table-column", cell: "hidden @min-[56rem]/library:table-cell", head: "hidden bg-muted/50 @min-[56rem]/library:table-header-group", hide: "@min-[56rem]/library:hidden", show: "hidden @min-[56rem]/library:block" },
-  62: { col: "hidden @min-[62rem]/library:table-column", cell: "hidden @min-[62rem]/library:table-cell", head: "hidden bg-muted/50 @min-[62rem]/library:table-header-group", hide: "@min-[62rem]/library:hidden", show: "hidden @min-[62rem]/library:block" },
-  67: { col: "hidden @min-[67rem]/library:table-column", cell: "hidden @min-[67rem]/library:table-cell", head: "hidden bg-muted/50 @min-[67rem]/library:table-header-group", hide: "@min-[67rem]/library:hidden", show: "hidden @min-[67rem]/library:block" },
-  73: { col: "hidden @min-[73rem]/library:table-column", cell: "hidden @min-[73rem]/library:table-cell", head: "hidden bg-muted/50 @min-[73rem]/library:table-header-group", hide: "@min-[73rem]/library:hidden", show: "hidden @min-[73rem]/library:block" },
 };
 
 /** The rung's literal classes; a spec that derives a rung without an entry throws (the ladder test names it). */
@@ -174,25 +180,28 @@ export function specLadder(screen: DocListScreen, opts: { selectable?: boolean }
   const spec = docListSpec(screen);
   const rungs = docListRungs(spec);
   const at = (column: keyof typeof rungs) => atRung(rungs[column]);
+  // Every `<col>` takes the spec's width; Name has none. The optional columns carry px-2, Name keeps px-3.
+  const PAD = "px-2";
   const columns: LibraryColumn<DocListColumnId>[] = spec.columns.flatMap((column): LibraryColumn<DocListColumnId>[] => {
+    const w = `w-[${column.width}px]`;
     switch (column.id) {
       case "select":
-        return opts.selectable === false ? [] : [{ id: column.id, col: "w-10", cell: "" }];
+        return opts.selectable === false ? [] : [{ id: column.id, col: w, cell: "", pad: PAD }];
       case "name":
         return [{ id: column.id, col: "", cell: "" }];
       case "access":
-        return [{ id: column.id, col: `w-[190px] ${at("access").col}`, cell: at("access").cell }];
+        return [{ id: column.id, col: `${w} ${at("access").col}`, cell: at("access").cell, pad: PAD }];
       case "editor":
-        return [{ id: column.id, col: `w-[200px] ${at("editor").col}`, cell: at("editor").cell }];
+        return [{ id: column.id, col: `${w} ${at("editor").col}`, cell: at("editor").cell, pad: PAD }];
       case "updated":
-        return [{ id: column.id, col: `w-[140px] ${at("table").col}`, cell: at("table").cell }];
+        return [{ id: column.id, col: `${w} ${at("table").col}`, cell: at("table").cell, pad: PAD }];
       case "size":
-        return [{ id: column.id, col: `w-[90px] ${at("size").col}`, cell: `${at("size").cell} text-right` }];
+        return [{ id: column.id, col: `${w} ${at("size").col}`, cell: `${at("size").cell} text-right`, pad: PAD }];
       case "actions":
-        return [{ id: column.id, col: "w-24 pointer-coarse:w-27", cell: "" }];
+        return [{ id: column.id, col: `${w} pointer-coarse:w-27`, cell: "" }];
       default:
         // The screen column: it holds the table layout's second slot, so it joins with Updated at the table rung.
-        return [{ id: column.id, col: `w-44 ${at("table").col}`, cell: at("table").cell }];
+        return [{ id: column.id, col: `${w} ${at("table").col}`, cell: at("table").cell, pad: PAD }];
     }
   });
   return {
