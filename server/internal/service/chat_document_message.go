@@ -30,8 +30,10 @@ import (
 // SendDocumentMessageInput is one document send. ShareLevel is the level every
 // room member gets; empty means comment (§2.1).
 type SendDocumentMessageInput struct {
-	ShareLevel       string
-	Filename         string
+	ShareLevel string
+	Filename   string
+	// Title is deprecated and ignored: the document's title is the file name
+	// (UNI-2012 D1a). The request field stays accepted for deployed clients.
 	Title            string
 	Body             io.ReadSeeker
 	ReplyToMessageID *string
@@ -123,6 +125,26 @@ func (s *ChatService) SendDocumentMessage(
 	user, err := s.q.GetUserByID(ctx, userID)
 	if err != nil {
 		return ChatMessageRow{}, err
+	}
+	// A retry of a send that already committed replays before anything is
+	// staged (S1-fix S1): a DM or group belongs to the organization, so the
+	// retry may come through another workspace of it, and staging in that
+	// workspace under the same upload key would be an idempotency conflict.
+	// The same guards as the in-transaction lookup: a deleted message answers
+	// 410 and a key that names another kind is a conflict.
+	if clientMsgID != "" {
+		existing, found, err := s.existingMessageByClientMsgID(ctx, room.ID, userID, clientMsgID)
+		if err != nil {
+			return ChatMessageRow{}, err
+		}
+		if found {
+			if existing.Kind != chatMessageKindDocument {
+				return ChatMessageRow{}, errClientMsgIDConflict()
+			}
+			out := []ChatMessageRow{chatMessageRowFromDBForViewer(existing, user.DisplayName, userID)}
+			s.resolveChatDocuments(ctx, room, out, userID)
+			return out[0], nil
+		}
 	}
 	// The payload digest joins the upload key, so a different file under the
 	// same client_msg_id stages its own upload; the transaction then replays
@@ -260,9 +282,10 @@ func (s *ChatService) commitDocumentMessage(
 	// 3.1.e.iii (UNI-2012 D1a/D1b): the bytes become a file document at the
 	// root of the workspace the sender stands in (parent_id NULL,
 	// visibility restricted, acl_owner = sender, owner_kind NULL).
+	// The title is the file name (D1a); in.Title is not read.
 	docRes, _, err := s.docs.createFileDocumentFromStagedUploadInTx(
 		ctx, tx, q, s.files, actor, room.OrganizationID, workspaceID,
-		file.ID, in.Filename, in.Title, "", "", "",
+		file.ID, in.Filename, "", "", "", "",
 	)
 	if err != nil {
 		return db.ChatMessage{}, false, err

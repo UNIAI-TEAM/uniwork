@@ -176,6 +176,10 @@ func TestSendDocumentMessageCreatesDocumentGrantsAndOneMessage(t *testing.T) {
 	if !msg.Document.CanUploadVersion {
 		t.Fatalf("sender cannot upload a version: %+v", msg.Document)
 	}
+	// D1a: the title is the file name, whatever title the request carries.
+	if doc.Title != "ke-hoach.md" {
+		t.Fatalf("document title = %q, want the file name ke-hoach.md", doc.Title)
+	}
 }
 
 // TestSendDocumentMessageReplay is §7.1 test 2.
@@ -223,6 +227,49 @@ func TestSendDocumentMessageReplay(t *testing.T) {
 	conflict := documentMessageInput("doc-conflict-1")
 	if _, err := f.svc.SendDocumentMessage(ctx, f.ua.ID, f.ws.ID, room.ID, conflict); !codedIs(err, files.CodeIdempotencyConflict) {
 		t.Fatalf("a document under a text key = %v, want idempotency_conflict", err)
+	}
+}
+
+// TestSendDocumentMessageReplayAcrossRouteWorkspaces is S1 of the S1 review:
+// a DM belongs to the organization, so the same send may be retried from
+// another workspace of it. The upload is staged in the route workspace, so
+// the replay must find the stored message before staging anything.
+func TestSendDocumentMessageReplayAcrossRouteWorkspaces(t *testing.T) {
+	f := newChatDocumentFixture(t)
+	ctx := context.Background()
+	room := f.dm(t)
+	other, err := f.svc.ws.CreateInOrg(ctx, f.ua.ID, f.orgID, "ChatDoc WS 2", "chatdoc-ws-2")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	first, err := f.svc.SendDocumentMessage(ctx, f.ua.ID, f.ws.ID, room.ID, documentMessageInput("doc-xws-1"))
+	if err != nil {
+		t.Fatalf("first send: %v", err)
+	}
+	docsBefore := f.fileDocumentsCount(t)
+	second, err := f.svc.SendDocumentMessage(ctx, f.ua.ID, other.Workspace.ID, room.ID, documentMessageInput("doc-xws-1"))
+	if err != nil {
+		t.Fatalf("replay from another workspace: %v", err)
+	}
+	if second.ID != first.ID || second.Document == nil || second.Document.DocumentID != first.Document.DocumentID {
+		t.Fatalf("replay = %+v, want message %s", second, first.ID)
+	}
+	if got := f.fileDocumentsCount(t); got != docsBefore {
+		t.Fatalf("file documents after the replay = %d, want %d", got, docsBefore)
+	}
+	// The early lookup keeps the kind and deleted guards.
+	if _, err := f.svc.SendRoomMessage(ctx, f.ua.ID, f.ws.ID, room.ID, SendChatMessageInput{Body: "hello", ClientMsgID: "doc-xws-text"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.svc.SendDocumentMessage(ctx, f.ua.ID, other.Workspace.ID, room.ID, documentMessageInput("doc-xws-text")); !codedIs(err, files.CodeIdempotencyConflict) {
+		t.Fatalf("a document under a text key = %v, want idempotency_conflict", err)
+	}
+	if err := f.svc.DeleteChatMessage(ctx, f.ua.ID, f.ws.ID, room.ID, first.ID); err != nil {
+		t.Fatalf("delete: %v", err)
+	}
+	if _, err := f.svc.SendDocumentMessage(ctx, f.ua.ID, other.Workspace.ID, room.ID, documentMessageInput("doc-xws-1")); !codedIs(err, "chat_message_deleted") {
+		t.Fatalf("replay of a deleted message = %v, want chat_message_deleted", err)
 	}
 }
 
