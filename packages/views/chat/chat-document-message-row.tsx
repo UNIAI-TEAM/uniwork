@@ -236,7 +236,8 @@ export function ChatDocumentCard({
     // secondary line fit instead of shrinking to the content's min width.
     <div className="flex w-[22rem] max-w-full flex-col">
       <div className="flex items-center gap-3">
-        <DocumentTypeIcon format={doc.format} className="size-9 shrink-0" />
+        {/* The server omits `format` for a page document (no file), so no format reads as the page mark, as the picker's kind does. */}
+        <DocumentTypeIcon format={doc.format || "page"} className="size-9 shrink-0" />
         <div className="min-w-0 flex-1">
           <button
             type="button"
