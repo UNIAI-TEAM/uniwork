@@ -375,9 +375,16 @@ test.describe.serial("chat file and voice messages", () => {
 
     // The owner opens the same conversation and finds the composer closed.
     await openMessages(owner);
-    await owner.getByText("Thành Viên", { exact: true }).first().click();
-    await expect(owner.getByPlaceholder("Không thể nhắn tin")).toBeVisible({ timeout: 20_000 });
-    await expect(owner.getByPlaceholder("Không thể nhắn tin")).toBeDisabled();
+    // The Messages view already opens the most recent DM; click its row (scoped to
+    // the conversation list, not the header or the author name in the timeline).
+    await owner
+      .getByRole("navigation", { name: "Danh sách trò chuyện" })
+      .getByRole("button", { name: /Thành Viên/ })
+      .click();
+    // A closed composer exposes the reason as the textbox's accessible name, not as a placeholder.
+    const blockedComposer = owner.getByRole("textbox", { name: "Không thể nhắn tin" });
+    await expect(blockedComposer).toBeVisible({ timeout: 20_000 });
+    await expect(blockedComposer).toBeDisabled();
     await expect(owner.getByRole("button", { name: "Gửi", exact: true })).toHaveCount(0);
   });
 });
