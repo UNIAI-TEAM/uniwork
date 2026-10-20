@@ -18,8 +18,10 @@ export function resourceHref(n: Notification, workspace: Workspace, workspaces: 
     case "task":
       return ws.task(n.resource_id);
     case "meeting":
-      // The summary reminder lands on the summary panel (use-meeting-section-deep-link).
-      return n.kind === "meeting_summary_reminder"
+      // The summary reminder lands on the summary panel (use-meeting-section-deep-link),
+      // and so does a meeting's batch of assigned tasks: its action items live
+      // there until UNI-1998 gives them a section.
+      return n.kind === "meeting_summary_reminder" || n.kind === "tasks_assigned"
         ? `${ws.meeting(n.resource_id)}?section=summary`
         : ws.meeting(n.resource_id);
     case "audit_export":
