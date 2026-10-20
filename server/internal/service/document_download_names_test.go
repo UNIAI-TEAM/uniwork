@@ -47,7 +47,7 @@ func TestZipEntryNameCapsBytesOnARuneBoundary(t *testing.T) {
 }
 
 func TestZipEntryNameStripsInvisibleAndBidiControls(t *testing.T) {
-	title := "a‮txt.exe​‏⁦x⁩b‪"
+	title := "a\u202etxt.exe\u200b\u200f\u2066x\u2069b\u202a"
 	if got, want := zipEntryName(title, "a.txt"), "atxt.exexb.txt"; got != want {
 		t.Fatalf("zipEntryName = %q, want %q", got, want)
 	}
