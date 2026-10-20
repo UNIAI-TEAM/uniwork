@@ -144,3 +144,14 @@ LEFT JOIN document_versions first
 WHERE d.organization_id = sqlc.arg(organization_id)
   AND d.id = ANY(sqlc.arg(document_ids)::text[])
   AND d.kind = 'file';
+
+-- How many people other than one user committed a version of a document
+-- (UNI-2012 S1d): the chat delete dialog warns the sender that deleting an
+-- upload-origin message trashes work others did. A count only, no names.
+-- name: CountDocumentOtherCommitters :one
+SELECT count(DISTINCT created_by)::bigint
+FROM document_versions
+WHERE organization_id = sqlc.arg(organization_id)
+  AND workspace_id = sqlc.arg(workspace_id)
+  AND document_id = sqlc.arg(document_id)
+  AND created_by <> sqlc.arg(user_id)::text;

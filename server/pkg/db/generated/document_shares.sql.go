@@ -701,6 +701,72 @@ func (q *Queries) ListLiveBreakGlassGrantsForDocuments(ctx context.Context, arg 
 	return items, nil
 }
 
+const listLiveChatDocumentSharesOfDocument = `-- name: ListLiveChatDocumentSharesOfDocument :many
+SELECT id, organization_id, workspace_id, document_id, principal_type, principal_id, level, granted_by, granted_by_kind, revoked_at, revoked_by, created_at, source_kind, source_room_id, source_message_id, prior_manual_level
+FROM document_shares
+WHERE organization_id = $1
+  AND workspace_id = $2
+  AND document_id = $3
+  AND source_kind = 'chat'
+  AND revoked_at IS NULL
+  AND ($4::text IS NULL OR source_message_id = $4::text)
+ORDER BY created_at, id
+`
+
+type ListLiveChatDocumentSharesOfDocumentParams struct {
+	OrganizationID  string      `json:"organization_id"`
+	WorkspaceID     string      `json:"workspace_id"`
+	DocumentID      string      `json:"document_id"`
+	SourceMessageID pgtype.Text `json:"source_message_id"`
+}
+
+// The live chat-origin shares of one document (UNI-2012 S1d, D8): every one
+// when an upload-origin document message is deleted, or only those whose
+// source is one message when a link-origin message is. Read under the
+// document lock inside the delete transaction. Manual shares and pre-D2a
+// chat grants have source_kind IS NULL and are never returned.
+func (q *Queries) ListLiveChatDocumentSharesOfDocument(ctx context.Context, arg ListLiveChatDocumentSharesOfDocumentParams) ([]DocumentShare, error) {
+	rows, err := q.db.Query(ctx, listLiveChatDocumentSharesOfDocument,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.DocumentID,
+		arg.SourceMessageID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []DocumentShare{}
+	for rows.Next() {
+		var i DocumentShare
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.WorkspaceID,
+			&i.DocumentID,
+			&i.PrincipalType,
+			&i.PrincipalID,
+			&i.Level,
+			&i.GrantedBy,
+			&i.GrantedByKind,
+			&i.RevokedAt,
+			&i.RevokedBy,
+			&i.CreatedAt,
+			&i.SourceKind,
+			&i.SourceRoomID,
+			&i.SourceMessageID,
+			&i.PriorManualLevel,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listLiveSharesForDocuments = `-- name: ListLiveSharesForDocuments :many
 SELECT document_id, principal_type, principal_id, level
 FROM document_shares

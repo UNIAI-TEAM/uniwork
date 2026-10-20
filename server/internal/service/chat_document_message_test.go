@@ -797,27 +797,6 @@ func TestDocumentCardArchivedDocumentLeaksNothing(t *testing.T) {
 	}
 }
 
-// TestDeleteDocumentMessageKeepsAccess is §7.1 test 8.
-func TestDeleteDocumentMessageKeepsAccess(t *testing.T) {
-	f := newChatDocumentFixture(t)
-	ctx := context.Background()
-	room := f.dm(t)
-
-	sent, err := f.svc.SendDocumentMessage(ctx, f.ua.ID, f.ws.ID, room.ID, documentMessageInput("doc-delete-1"))
-	if err != nil {
-		t.Fatalf("send: %v", err)
-	}
-	if err := f.svc.DeleteChatMessage(ctx, f.ua.ID, f.ws.ID, room.ID, sent.ID); err != nil {
-		t.Fatalf("delete: %v", err)
-	}
-	if _, err := f.q.GetDocumentByID(ctx, sent.Document.DocumentID); err != nil {
-		t.Fatalf("the document went with the message: %v", err)
-	}
-	if shares := f.liveSharesOfDocument(t, sent.Document.DocumentID); len(shares) != 1 {
-		t.Fatalf("live shares after the delete = %+v, want 1", shares)
-	}
-}
-
 // TestSendDocumentMessageCrossWorkspacePlacementAndRecipients proves D1a, D1b
 // and R3: in a DM/group anchored in workspace A, a sender standing in
 // workspace B (who is not a member of workspace A) sends a document without a

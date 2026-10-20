@@ -11,6 +11,37 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countDocumentOtherCommitters = `-- name: CountDocumentOtherCommitters :one
+SELECT count(DISTINCT created_by)::bigint
+FROM document_versions
+WHERE organization_id = $1
+  AND workspace_id = $2
+  AND document_id = $3
+  AND created_by <> $4::text
+`
+
+type CountDocumentOtherCommittersParams struct {
+	OrganizationID string `json:"organization_id"`
+	WorkspaceID    string `json:"workspace_id"`
+	DocumentID     string `json:"document_id"`
+	UserID         string `json:"user_id"`
+}
+
+// How many people other than one user committed a version of a document
+// (UNI-2012 S1d): the chat delete dialog warns the sender that deleting an
+// upload-origin message trashes work others did. A count only, no names.
+func (q *Queries) CountDocumentOtherCommitters(ctx context.Context, arg CountDocumentOtherCommittersParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countDocumentOtherCommitters,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.DocumentID,
+		arg.UserID,
+	)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const getDocumentVersion = `-- name: GetDocumentVersion :one
 SELECT id, organization_id, workspace_id, document_id, version, kind, reason, label, content, file_id, mime_type, size_bytes, checksum_sha256, restored_from, engine_name, engine_version, contract_version, protocol_version, created_by, created_by_kind, created_at
 FROM document_versions

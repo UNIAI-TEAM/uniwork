@@ -43,6 +43,35 @@ type DocumentMessageInfo struct {
 	CanOpenInApp      bool
 	RecipientCount    int
 	HasRecipientCount bool
+	// Origin is the message's, not the document's: upload or link
+	// (chatDocumentOriginOf). Empty on a document_version line.
+	Origin string
+	// OtherEditorsCount is how many people other than the sender committed a
+	// version; filled only for the sender, on their own upload-origin
+	// messages, for the delete confirmation (S1d).
+	OtherEditorsCount    int
+	HasOtherEditorsCount bool
+}
+
+// chatDocumentOriginUpload marks a document message whose document was created
+// from chat (a composer upload or a file shared as a document). Deleting it
+// trashes the document (S1d, D8).
+const chatDocumentOriginUpload = "upload"
+
+// chatDocumentOriginOf reads a document message's origin from its metadata.
+// Only "link" is ever written (chatDocumentLinkMetadata); an absent or unknown
+// value is an upload, because every document message before the link route
+// was one. A metadata field rather than a column: the marker belongs to the
+// one message kind that has it, needs no index, and the legacy rows read
+// right without a backfill.
+func chatDocumentOriginOf(raw []byte) string {
+	var meta struct {
+		Origin string `json:"origin"`
+	}
+	if len(raw) > 0 && json.Unmarshal(raw, &meta) == nil && strings.TrimSpace(meta.Origin) == chatDocumentOriginLink {
+		return chatDocumentOriginLink
+	}
+	return chatDocumentOriginUpload
 }
 
 // documentMessageFromMetadata is the per-kind decode, the
@@ -68,7 +97,11 @@ func documentMessageFromMetadata(kind string, raw []byte) *DocumentMessageInfo {
 	if documentID == "" {
 		return nil
 	}
-	return &DocumentMessageInfo{DocumentID: documentID, VersionID: strings.TrimSpace(meta.VersionID)}
+	info := &DocumentMessageInfo{DocumentID: documentID, VersionID: strings.TrimSpace(meta.VersionID)}
+	if kind == chatMessageKindDocument {
+		info.Origin = chatDocumentOriginOf(raw)
+	}
+	return info
 }
 
 // resolveChatDocuments fills the viewer fields of every document block in
@@ -102,6 +135,7 @@ func (s *ChatService) resolveChatDocuments(ctx context.Context, room db.ChatRoom
 		return
 	}
 	actor := Human(viewerID)
+	others := map[string]int{}
 	byID := make(map[string]*DocumentMessageInfo, len(ids))
 	for _, id := range ids {
 		info, err := s.resolveChatDocument(ctx, actor, room, id)
@@ -120,8 +154,40 @@ func (s *ChatService) resolveChatDocuments(ctx context.Context, room db.ChatRoom
 		}
 		merged := *info
 		merged.VersionID = rows[i].Document.VersionID
+		merged.Origin = rows[i].Document.Origin
+		merged.OtherEditorsCount, merged.HasOtherEditorsCount = 0, false
+		// The delete dialog's warning is the sender's own (ADDENDUM): only on
+		// their upload-origin message, whose delete trashes the document.
+		if rows[i].SenderID == viewerID && merged.Origin == chatDocumentOriginUpload && info.HasAccess {
+			count, err := s.chatDocumentOtherEditors(ctx, info.DocumentID, viewerID, others)
+			if err == nil {
+				merged.OtherEditorsCount, merged.HasOtherEditorsCount = count, true
+			}
+		}
 		rows[i].Document = &merged
 	}
+}
+
+// chatDocumentOtherEditors counts the distinct people other than userID who
+// committed a version of the document, once per document per page (memo).
+// A document of another organization is never counted (resolveChatDocument
+// refused it, so the caller only asks for ones it resolved).
+func (s *ChatService) chatDocumentOtherEditors(ctx context.Context, documentID, userID string, memo map[string]int) (int, error) {
+	if n, ok := memo[documentID]; ok {
+		return n, nil
+	}
+	doc, err := s.docs.q.GetDocumentByID(ctx, documentID)
+	if err != nil {
+		return 0, err
+	}
+	n, err := s.docs.q.CountDocumentOtherCommitters(ctx, db.CountDocumentOtherCommittersParams{
+		OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID, DocumentID: doc.ID, UserID: userID,
+	})
+	if err != nil {
+		return 0, err
+	}
+	memo[documentID] = int(n)
+	return int(n), nil
 }
 
 // resolveChatDocument is the block for one document as one viewer. It reads

@@ -328,3 +328,19 @@ WHERE id = sqlc.arg(id)
   AND source_kind = 'chat'
   AND revoked_at IS NULL
 RETURNING *;
+
+-- The live chat-origin shares of one document (UNI-2012 S1d, D8): every one
+-- when an upload-origin document message is deleted, or only those whose
+-- source is one message when a link-origin message is. Read under the
+-- document lock inside the delete transaction. Manual shares and pre-D2a
+-- chat grants have source_kind IS NULL and are never returned.
+-- name: ListLiveChatDocumentSharesOfDocument :many
+SELECT *
+FROM document_shares
+WHERE organization_id = sqlc.arg(organization_id)
+  AND workspace_id = sqlc.arg(workspace_id)
+  AND document_id = sqlc.arg(document_id)
+  AND source_kind = 'chat'
+  AND revoked_at IS NULL
+  AND (sqlc.narg(source_message_id)::text IS NULL OR source_message_id = sqlc.narg(source_message_id)::text)
+ORDER BY created_at, id;

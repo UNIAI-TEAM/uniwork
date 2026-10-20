@@ -182,6 +182,8 @@ type DocumentMessageDTO struct {
 	Revision               string `json:"revision,omitempty" description:"Current revision, the base for a version commit; omitted without access" example:"41"`
 	CanOpenInApp           bool   `json:"can_open_in_app,omitempty" description:"The document opens in UniWork Office for the caller; omitted without access" example:"true"`
 	RecipientCount         *int   `json:"recipient_count,omitempty" description:"Live share count, present only for the sender" example:"4"`
+	Origin                 string `json:"origin,omitempty" description:"How the document message was made: upload (created from chat; deleting the message moves the document to the trash for 30 days and revokes every chat grant) or link (an existing document attached; deleting the message revokes only the grants this message gave). Present on kind document only" example:"upload"`
+	OtherEditorsCount      *int   `json:"other_editors_count,omitempty" description:"People other than the sender who committed a version; present only for the sender on their own upload-origin message, for the delete confirmation" example:"2"`
 }
 
 // ChatMessageDTO is a stored chat message.
