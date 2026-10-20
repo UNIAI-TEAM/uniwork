@@ -1,0 +1,275 @@
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { resetAuthStoreForTests, setSessionUser } from "@uniwork/core/auth";
+import { initI18n } from "@uniwork/core/i18n";
+import { DocumentAccessReportSchema } from "@uniwork/core/types/document-access-report";
+import type { User } from "@uniwork/core/types";
+import { fakeNav, requestMock, wrapWithNav } from "../../test/api-mock";
+import { formatWhen } from "../document-format";
+import { AccessReportTable } from "./access-report-table";
+
+// The By document table (UNI-2039 F3): one row per document, one header, the
+// server sort, the row that opens onto its grants, and Revoke only where the
+// server named a target — confirmed, awaited, never optimistic.
+
+const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
+vi.mock("sonner", () => ({ toast }));
+
+const i18n = initI18n();
+const { t } = i18n;
+const at = (key: string, opts?: Record<string, unknown>) => t(`documents.accessReport.${key}`, opts ?? {});
+
+const WS = "ws1";
+
+const viewer: User = {
+  id: "me", email: "an@example.com", display_name: "Nguyễn An",
+  onboarded_at: "2026-08-25T00:00:00Z", email_verified_at: "2026-08-25T00:00:00Z", onboarding_questionnaire: {}, locale: "vi",
+};
+
+const owner = {
+  source: "acl_owner",
+  principal_type: "user",
+  principal_id: "me",
+  principal_name: "Nguyễn An",
+  level: "manage",
+  effective_level: "manage",
+  active: true,
+  granted_at: "2026-10-18T03:00:00Z",
+};
+
+const workspaceDefault = {
+  source: "workspace",
+  principal_type: "workspace",
+  principal_id: WS,
+  principal_name: "Đội",
+  level: "view",
+  effective_level: "view",
+  active: true,
+};
+
+const share = {
+  source: "share",
+  principal_type: "user",
+  principal_id: "u2",
+  principal_name: "Trần Bình",
+  level: "comment",
+  effective_level: "edit",
+  active: true,
+  granted_by: "me",
+  granted_by_name: "Nguyễn An",
+  granted_at: "2026-10-20T14:41:00Z",
+  share_id: "s2",
+  origin: "chat",
+  revoke_target: { kind: "share", id: "s2" },
+};
+
+const link = {
+  source: "link",
+  principal_type: "link",
+  principal_id: "l1",
+  principal_name: null,
+  level: "view",
+  effective_level: "view",
+  active: true,
+  granted_by_name: "Nguyễn An",
+  granted_at: "2026-10-20T14:40:00Z",
+  revoke_target: { kind: "link", id: "l1" },
+};
+
+const gone = {
+  ...share,
+  principal_id: "u3",
+  principal_name: "Lê Cũ",
+  level: "edit",
+  effective_level: "edit",
+  active: false,
+  origin: null,
+  revoke_target: null,
+};
+
+function report() {
+  return DocumentAccessReportSchema.parse({
+    scope: { kind: "workspace", workspace_id: WS, folder_id: null, folder_title: null },
+    documents: [
+      {
+        document: {
+          id: "d1",
+          title: "Đề xuất ngân sách Q4.docx",
+          kind: "file",
+          visibility: "restricted",
+          path: [{ id: "f1", title: "Kế hoạch" }],
+          acl_owner: { id: "me", name: "Nguyễn An" },
+          live_link_count: 1,
+          updated_at: "2026-10-01T03:00:00Z",
+          access_changed_at: "2026-10-20T14:41:00Z",
+          general_scope: { kind: "restricted", level: null },
+          flags: ["public_link", "direct_manage"],
+          my_level: "manage",
+        },
+        rows: [owner, share, link, gone],
+      },
+      {
+        document: {
+          id: "d2",
+          title: "Theo dõi chi phí.xlsx",
+          kind: "file",
+          visibility: "workspace",
+          path: [],
+          acl_owner: { id: "u2", name: "Trần Bình" },
+          live_link_count: 0,
+          updated_at: "2026-09-05T03:00:00Z",
+          general_scope: { kind: "workspace", level: "view" },
+          flags: [],
+        },
+        rows: [{ ...owner, principal_id: "u2", principal_name: "Trần Bình" }, workspaceDefault],
+      },
+    ],
+  }).documents;
+}
+
+function renderTable(over: Partial<React.ComponentProps<typeof AccessReportTable>> = {}) {
+  const onSortChange = vi.fn();
+  render(
+    wrapWithNav(
+      <AccessReportTable
+        wsId={WS}
+        documents={report()}
+        sort="changed"
+        order="desc"
+        onSortChange={onSortChange}
+        documentHref={(id) => `/acme/doi/documents/${id}`}
+        {...over}
+      />,
+      fakeNav("/acme/doi/documents/access-report"),
+    ),
+  );
+  return { onSortChange };
+}
+
+const docRow = (title: string) => screen.getByText(title).closest("tr")!;
+
+beforeEach(() => {
+  requestMock.mockReset();
+  toast.success.mockReset();
+  toast.error.mockReset();
+  resetAuthStoreForTests();
+  setSessionUser(viewer);
+});
+
+describe("AccessReportTable", () => {
+  it("draws one header row and exactly one row per document, without a Status column", () => {
+    renderTable();
+    const table = screen.getByRole("table", { name: at("title") });
+    expect(within(table).getAllByRole("rowgroup")[0]!.querySelectorAll("tr")).toHaveLength(1);
+    expect(table.querySelectorAll("tbody > tr")).toHaveLength(2);
+    for (const col of ["col_general_scope", "col_people", "col_warnings"]) {
+      expect(within(table).getByRole("columnheader", { name: at(col) })).toBeInTheDocument();
+    }
+    expect(within(table).queryByRole("columnheader", { name: at("col_status") })).toBeNull();
+  });
+
+  it("shows the path and owner, the general scope, who has access, the warnings and the last access change", () => {
+    renderTable();
+    const row = docRow("Đề xuất ngân sách Q4.docx");
+    expect(within(row).getByText(at("path_owner", { path: "Kế hoạch", owner: "Nguyễn An" }))).toBeInTheDocument();
+    expect(within(row).getByText(at("scope_private"))).toBeInTheDocument();
+    // The inactive grant is not counted.
+    expect(within(row).getByText(`${at("who_people", { count: 2 })} · ${at("who_links", { count: 1 })}`)).toBeInTheDocument();
+    expect(within(row).getByText(at("flag_public_link"))).toBeInTheDocument();
+    expect(within(row).getByText(at("flag_direct_manage"))).toBeInTheDocument();
+    expect(within(row).getAllByRole("cell").at(-2)!.textContent).toBe(formatWhen("2026-10-20T14:41:00Z", i18n.language));
+
+    const other = docRow("Theo dõi chi phí.xlsx");
+    expect(within(other).getByText(at("scope_workspace_level", { level: at("level_view") }))).toBeInTheDocument();
+    expect(within(other).getByText(`${at("who_workspace")} · ${at("who_people", { count: 1 })}`)).toBeInTheDocument();
+    // No access_changed_at: the content's updated_at stands in.
+    expect(within(other).getAllByRole("cell").at(-2)!.textContent).toBe(formatWhen("2026-09-05T03:00:00Z", i18n.language));
+  });
+
+  it("sorts on the server: the arrow on the sorted column, a click asks for the new order", () => {
+    const { onSortChange } = renderTable();
+    expect(screen.getByRole("columnheader", { name: new RegExp(at("col_changed")) })).toHaveAttribute("aria-sort", "descending");
+    fireEvent.click(screen.getByRole("button", { name: at("sort_by", { column: at("col_document") }) }));
+    expect(onSortChange).toHaveBeenCalledWith({ sort: "title", order: "asc" });
+  });
+
+  it("opens a row onto its grants: who, level, the effective note only when it differs, source, by, on", () => {
+    renderTable();
+    const toggle = screen.getByRole("button", { name: at("expand_document", { name: "Đề xuất ngân sách Q4.docx" }) });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(toggle);
+    expect(screen.getByRole("button", { name: at("collapse", { name: "Đề xuất ngân sách Q4.docx" }) })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
+
+    const grants = screen.getByRole("table", { name: "Đề xuất ngân sách Q4.docx" });
+    const lines = within(grants).getAllByRole("row").slice(1);
+    expect(lines).toHaveLength(4);
+
+    const [ownerLine, shareLine, linkLine, goneLine] = lines as [HTMLElement, HTMLElement, HTMLElement, HTMLElement];
+    expect(within(ownerLine).getByText(at("you"))).toBeInTheDocument();
+    expect(within(ownerLine).getByText(at("source_acl_owner"))).toBeInTheDocument();
+    expect(within(ownerLine).queryByText(at("effective_note", { level: at("level_manage") }))).toBeNull();
+
+    expect(within(shareLine).getByText("Trần Bình")).toBeInTheDocument();
+    expect(within(shareLine).getByText(at("level_comment"))).toBeInTheDocument();
+    expect(within(shareLine).getByText(at("effective_note", { level: at("level_edit") }))).toBeInTheDocument();
+    expect(within(shareLine).getByText(at("source_chat"))).toBeInTheDocument();
+    expect(within(shareLine).getByText("Nguyễn An")).toBeInTheDocument();
+
+    expect(within(linkLine).getByText(at("anyone_with_link"))).toBeInTheDocument();
+    expect(within(linkLine).getByText(at("source_link"))).toBeInTheDocument();
+
+    expect(within(goneLine).getByText(at("inactive"))).toBeInTheDocument();
+    expect(within(goneLine).getByText(at("source_direct"))).toBeInTheDocument();
+  });
+
+  it("offers Revoke only on grants the server named a target for", () => {
+    renderTable();
+    fireEvent.click(screen.getByRole("button", { name: at("expand_document", { name: "Đề xuất ngân sách Q4.docx" }) }));
+    expect(screen.getAllByRole("button", { name: at("revoke") })).toHaveLength(2);
+  });
+
+  it("revokes after a confirmation, through the share route, and says so", async () => {
+    requestMock.mockResolvedValue(undefined);
+    renderTable();
+    fireEvent.click(screen.getByRole("button", { name: at("expand_document", { name: "Đề xuất ngân sách Q4.docx" }) }));
+    const shareLine = screen.getByText("Trần Bình").closest("tr")!;
+    fireEvent.click(within(shareLine).getByRole("button", { name: at("revoke") }));
+
+    const dialog = await screen.findByRole("alertdialog");
+    expect(within(dialog).getByText(at("revoke_title", { name: "Trần Bình" }))).toBeInTheDocument();
+    expect(requestMock).not.toHaveBeenCalled();
+    fireEvent.click(within(dialog).getByRole("button", { name: at("revoke") }));
+
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith(at("revoke_done", { name: "Trần Bình" })));
+    const [path, init] = requestMock.mock.calls[0] as [string, RequestInit];
+    expect(path).toBe("/api/v1/documents/d1/shares/s2");
+    expect(init.method).toBe("DELETE");
+    // Not optimistic: the grant stays until the report refetches.
+    expect(screen.getByText("Trần Bình")).toBeInTheDocument();
+  });
+
+  it("revokes a link through the link route and reports a failure", async () => {
+    requestMock.mockRejectedValue(new Error("boom"));
+    renderTable();
+    fireEvent.click(screen.getByRole("button", { name: at("expand_document", { name: "Đề xuất ngân sách Q4.docx" }) }));
+    const linkLine = screen.getByText(at("anyone_with_link")).closest("tr")!;
+    fireEvent.click(within(linkLine).getByRole("button", { name: at("revoke") }));
+    const dialog = await screen.findByRole("alertdialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: at("revoke") }));
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith(at("revoke_failed")));
+    expect(requestMock.mock.calls[0]![0]).toBe("/api/v1/documents/d1/links/l1");
+    expect(toast.success).not.toHaveBeenCalled();
+  });
+
+  it("opens the document and the share dialog from the open row", async () => {
+    renderTable();
+    fireEvent.click(screen.getByRole("button", { name: at("expand_document", { name: "Đề xuất ngân sách Q4.docx" }) }));
+    expect(screen.getByRole("link", { name: at("open_document") })).toHaveAttribute("href", "/acme/doi/documents/d1");
+    fireEvent.click(screen.getByRole("button", { name: at("manage_sharing") }));
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+  });
+});

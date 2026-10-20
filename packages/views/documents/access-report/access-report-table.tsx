@@ -1,223 +1,252 @@
 "use client";
 
-import { Building2, CircleOff, Users } from "lucide-react";
+import { Fragment, useId, useState } from "react";
+import { Building2, ChevronDown, Link2, Users } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import type { AccessReportDocument, AccessReportRow } from "@uniwork/core/types/document-access-report";
+import { deriveReportFacts, type ReportFacts } from "@uniwork/core/documents/access-report-facts";
+import type { AccessReportDocument, AccessReportFlag, AccessReportRow } from "@uniwork/core/types/document-access-report";
 import { ActorAvatar } from "@uniwork/ui/components/common/actor-avatar";
 import { Badge } from "@uniwork/ui/components/ui/badge";
 import { cn } from "@uniwork/ui/lib/utils";
 import { initialOf } from "../../chat/chat-initials";
-import { AppLink } from "../../navigation";
+import { DocumentTypeIcon, documentIconFormat } from "../document-type-icon";
 import { formatWhen } from "../document-format";
-import {
-  accessLevelLabel,
-  accessSourceLabel,
-  accessVisibilityLabel,
-  principalTypeLabel,
-} from "./access-report-labels";
+import { AccessReportGrants, grantName } from "./access-report-grants";
+import { flagLabel, generalScopeLabel, whoSummary } from "./access-report-labels";
+import { AccessReportSortHeader, type ReportSortKey, type ReportSortOrder } from "./access-report-sort-header";
 
 const NONE = "—";
+/** Avatars drawn before the rest fold into the "who" line. */
+const MAX_AVATARS = 4;
 
-/**
- * One column template for every document card, so Level, Source, Granted on and
- * Status sit at the same x in each. Fixed tracks for the short columns, shares
- * of the rest for the names (`minmax(0, …)` lets a long name truncate instead of
- * widening the grid). Below md there is no grid: each entry is a stacked row.
- */
-const ROW_GRID =
-  "md:grid md:grid-cols-[minmax(0,2.2fr)_5.5rem_6rem_minmax(0,1fr)_minmax(0,1.3fr)_11rem_10rem] md:items-center md:gap-x-3";
+const TH = "px-3 py-1 text-left text-caption font-medium whitespace-nowrap text-muted-foreground";
+const TD = "px-3 py-3 align-middle";
 
-/** A 24px target on a desktop pointer, 44px on a coarse one — by min-height and min-width (a short name stays 44px wide), not font size. */
-const HIT_AREA = "flex min-h-6 min-w-0 items-center pointer-coarse:min-h-11 pointer-coarse:min-w-11";
+/** The general access pill: private reads neutral, the workspace informative, the organization a caution. */
+const SCOPE_TONE: Record<string, string> = {
+  restricted: "bg-muted text-foreground",
+  workspace: "bg-info-soft text-info-soft-foreground",
+  organization: "bg-warning-soft text-warning-soft-foreground",
+};
+
+/** A public link is the loudest warning; reach outside the workspace next; direct manage is a note. */
+const FLAG_TONE: Record<AccessReportFlag, string> = {
+  public_link: "bg-destructive-soft text-destructive-soft-foreground",
+  other_workspace: "bg-warning-soft text-warning-soft-foreground",
+  organization: "bg-warning-soft text-warning-soft-foreground",
+  direct_manage: "bg-info-soft text-info-soft-foreground",
+};
 
 export interface AccessReportTableProps {
+  wsId: string;
+  /** The loaded pages' documents, in the server's order. */
   documents: AccessReportDocument[];
-  /** Opens a document; without it the title is plain text. */
+  sort: ReportSortKey;
+  order: ReportSortOrder;
+  /** The server sorts: this asks for a new order, the caller refetches. */
+  onSortChange: (next: { sort: ReportSortKey; order: ReportSortOrder }) => void;
+  /** Opens a document from an open row; without it there is no "Open document". */
   documentHref?: (documentId: string) => string;
-  /** Filter the whole report to one person (a click on their name). */
-  onPickPerson: (userId: string) => void;
 }
 
 /**
- * One block per document the reader manages: the document's facts on top (path,
- * visibility, owner, live public links), then one row per grant. Names only —
- * the server sends no email and this screen never asks for one.
- *
- * The grants are a grid of ARIA table parts rather than a `<table>`: the same
- * markup is a column grid from md up and a stack of rows on a phone, and the
- * explicit roles keep it a table for assistive tech in both.
+ * The By document table (UNI-2039 F3): one row per document the reader
+ * manages — type, name, folder path and owner, general access, who has access,
+ * warnings and the last access change — under a single header. A row opens
+ * onto its grants. Names only: the server sends no email and this screen never
+ * asks for one. On a narrow screen the table keeps its columns and scrolls
+ * inside its box.
  */
-export function AccessReportTable({ documents, documentHref, onPickPerson }: AccessReportTableProps) {
+export function AccessReportTable({ wsId, documents, sort, order, onSortChange, documentHref }: AccessReportTableProps) {
   const { t } = useTranslation();
+  const [open, setOpen] = useState<ReadonlySet<string>>(() => new Set());
+  const toggle = (id: string) =>
+    setOpen((current) => {
+      const next = new Set(current);
+      if (!next.delete(id)) next.add(id);
+      return next;
+    });
+  const sortProps = { sort, order, onSortChange };
   return (
-    <div className="flex flex-col gap-4">
-      {documents.map(({ document: doc, rows }) => {
-        const title = doc.title || t("documents.detail.untitled");
-        const path = doc.path.map((item) => item.title).join(" / ");
-        return (
-          <div
-            key={doc.id}
-            role="group"
-            aria-label={title}
-            className="overflow-hidden rounded-lg border border-border bg-card"
-          >
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-border bg-muted/40 px-3 py-2">
-              <h3 className="flex min-w-0 max-w-full text-body font-medium text-foreground">
-                {documentHref ? (
-                  <AppLink href={documentHref(doc.id)} title={title} className={cn(HIT_AREA, "hover:underline")}>
-                    <span className="truncate">{title}</span>
-                  </AppLink>
-                ) : (
-                  <span title={title} className="truncate">
-                    {title}
-                  </span>
-                )}
-              </h3>
-              <Badge variant="outline">{accessVisibilityLabel(t, doc.visibility)}</Badge>
-              {path ? (
-                <span title={path} className="min-w-0 truncate text-caption text-muted-foreground">
-                  {path}
-                </span>
-              ) : null}
-              <span className="ml-auto flex flex-wrap items-center gap-x-3 text-caption text-muted-foreground">
-                {doc.acl_owner?.name ? <span>{`${t("documents.accessReport.col_owner")}: ${doc.acl_owner.name}`}</span> : null}
-                <span>{`${t("documents.accessReport.col_links")}: ${doc.live_link_count}`}</span>
-                {doc.person_level ? (
-                  <span>{t("documents.accessReport.person_level", { level: accessLevelLabel(t, doc.person_level) })}</span>
-                ) : null}
-              </span>
-            </div>
-            <div role="table" aria-label={title}>
-              <div role="rowgroup">
-                <div
-                  role="row"
-                  className={cn(ROW_GRID, "border-b border-border px-3 text-caption font-medium text-muted-foreground max-md:sr-only md:h-9")}
-                >
-                  <div role="columnheader">{t("documents.accessReport.col_principal")}</div>
-                  <div role="columnheader">{t("documents.accessReport.col_level")}</div>
-                  <div role="columnheader">{t("documents.accessReport.col_effective")}</div>
-                  <div role="columnheader">{t("documents.accessReport.col_source")}</div>
-                  <div role="columnheader">{t("documents.accessReport.col_granted_by")}</div>
-                  <div role="columnheader">{t("documents.accessReport.col_granted_at")}</div>
-                  <div role="columnheader">{t("documents.accessReport.col_status")}</div>
-                </div>
-              </div>
-              <div role="rowgroup">
-                {rows.map((row, index) => (
-                  <AccessReportRowLine
-                    key={`${row.source}:${row.principal_type}:${row.principal_id}:${row.share_id ?? index}`}
-                    row={row}
-                    onPickPerson={onPickPerson}
-                  />
-                ))}
-              </div>
-            </div>
-          </div>
-        );
-      })}
+    <div className="overflow-x-auto rounded-lg border border-border bg-card">
+      <table aria-label={t("documents.accessReport.title")} className="w-full min-w-[60rem] border-collapse text-body">
+        <thead className="bg-muted/40">
+          <tr className="border-b border-border">
+            <AccessReportSortHeader column="title" label={t("documents.accessReport.col_document")} className="w-[34%]" {...sortProps} />
+            <th scope="col" className={TH}>{t("documents.accessReport.col_general_scope")}</th>
+            <th scope="col" className={TH}>{t("documents.accessReport.col_people")}</th>
+            <th scope="col" className={TH}>{t("documents.accessReport.col_warnings")}</th>
+            <AccessReportSortHeader column="changed" label={t("documents.accessReport.col_changed")} {...sortProps} />
+            <th scope="col" className={cn(TH, "w-12")}>
+              <span className="sr-only">{t("documents.accessReport.col_expand")}</span>
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {documents.map((entry) => (
+            <DocumentRow
+              key={entry.document.id}
+              wsId={wsId}
+              entry={entry}
+              expanded={open.has(entry.document.id)}
+              onToggle={() => toggle(entry.document.id)}
+              documentHref={documentHref}
+            />
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
 
-/** A cell: its own `data-label` prints as a small caption on the stacked phone layout. */
-const CELL = "min-w-0 max-md:text-caption max-md:before:mr-1 max-md:before:text-muted-foreground max-md:before:content-[attr(data-label)]";
-
-function AccessReportRowLine({
-  row,
-  onPickPerson,
+function DocumentRow({
+  wsId,
+  entry,
+  expanded,
+  onToggle,
+  documentHref,
 }: {
-  row: AccessReportRow;
-  onPickPerson: (userId: string) => void;
+  wsId: string;
+  entry: AccessReportDocument;
+  expanded: boolean;
+  onToggle: () => void;
+  documentHref?: (documentId: string) => string;
 }) {
   const { t, i18n } = useTranslation();
-  const name = row.principal_name?.trim() || principalTypeLabel(t, row.principal_type);
-  const grantedBy = row.granted_by_name || NONE;
-  const grantedAt = row.granted_at ? formatWhen(row.granted_at, i18n.language) : NONE;
-  // The cell shows date + HH:MM; the tooltip keeps seconds and zone.
-  const grantedAtFull = row.granted_at ? formatFull(row.granted_at, i18n.language) : undefined;
-  const label = (key: string) => t(`documents.accessReport.${key}`);
+  const grantsId = useId();
+  const { document: doc, rows } = entry;
+  const facts = deriveReportFacts(doc, rows, wsId);
+  const title = doc.title || t("documents.detail.untitled");
+  const path = doc.path.map((item) => item.title).join(" / ");
+  const owner = doc.acl_owner?.name ?? "";
+  const where = path && owner
+    ? t("documents.accessReport.path_owner", { path, owner })
+    : path || (owner ? `${t("documents.accessReport.col_owner")} ${owner}` : "");
+  const who = whoSummary(t, facts);
+  const changed = formatWhen(facts.changedAt, i18n.language);
+  const toggleLabel = expanded
+    ? t("documents.accessReport.collapse", { name: title })
+    : t("documents.accessReport.expand_document", { name: title });
+  const controls = expanded ? grantsId : undefined;
+
   return (
-    <div
-      role="row"
-      className={cn(
-        ROW_GRID,
-        "border-b border-border px-3 py-2 text-body last:border-b-0 hover:bg-muted/50",
-        "max-md:flex max-md:flex-wrap max-md:items-center max-md:gap-x-3 max-md:gap-y-1",
-      )}
-    >
-      <div role="cell" data-label={label("col_principal")} className="min-w-0 max-md:order-1 max-md:basis-full max-md:before:content-none">
-        <div className="flex min-w-0 items-center gap-2">
-          <PrincipalGlyph type={row.principal_type} name={name} />
-          {row.principal_type === "user" && row.principal_id ? (
-            <button
-              type="button"
-              title={name}
-              onClick={() => onPickPerson(row.principal_id)}
-              className={cn(HIT_AREA, "rounded-sm text-left font-medium text-foreground hover:underline")}
-            >
-              <span className="truncate">{name}</span>
-            </button>
-          ) : (
-            <span title={name} className="min-w-0 truncate font-medium text-foreground">
-              {name}
+    <Fragment>
+      <tr className={cn("border-b border-border hover:bg-muted/40", expanded && "bg-muted/30")}>
+        <td className={TD}>
+          <button
+            type="button"
+            aria-expanded={expanded}
+            aria-controls={controls}
+            onClick={onToggle}
+            className="flex w-full min-w-0 items-center gap-2.5 rounded-sm text-left pointer-coarse:min-h-11"
+          >
+            <DocumentTypeIcon format={documentIconFormat(doc.kind, doc.title)} decorative className="size-8 shrink-0" />
+            <span className="flex min-w-0 flex-col gap-0.5">
+              <span title={title} className="truncate font-medium text-foreground">
+                {title}
+              </span>
+              {where ? (
+                <span title={where} className="truncate text-caption text-muted-foreground">
+                  {where}
+                </span>
+              ) : null}
             </span>
+          </button>
+        </td>
+        <td className={TD}>
+          <span
+            className={cn(
+              "inline-flex h-6 items-center rounded-full px-2.5 text-caption font-medium whitespace-nowrap",
+              SCOPE_TONE[facts.generalScope.kind] ?? "bg-muted text-foreground",
+            )}
+          >
+            {generalScopeLabel(t, facts.generalScope)}
+          </span>
+        </td>
+        <td className={TD}>
+          <WhoCell rows={rows} facts={facts} who={who} />
+        </td>
+        <td className={TD}>
+          {facts.flags.length > 0 ? (
+            <span className="flex flex-wrap gap-1.5">
+              {facts.flags.map((flag) => (
+                <Badge key={flag} className={FLAG_TONE[flag]}>
+                  {flagLabel(t, flag)}
+                </Badge>
+              ))}
+            </span>
+          ) : (
+            <span className="text-muted-foreground">{NONE}</span>
           )}
-          {row.principal_type !== "user" ? (
-            <span className="shrink-0 text-caption text-muted-foreground">{principalTypeLabel(t, row.principal_type)}</span>
-          ) : null}
-        </div>
-      </div>
-      <div role="cell" data-label={label("col_level")} className={cn(CELL, "max-md:order-2")}>
-        <Badge variant="secondary">{accessLevelLabel(t, row.level)}</Badge>
-      </div>
-      <div role="cell" data-label={label("col_effective")} className={cn(CELL, "max-md:order-3")}>
-        <Badge variant="outline">{accessLevelLabel(t, row.effective_level)}</Badge>
-      </div>
-      <div role="cell" data-label={label("col_source")} className={cn(CELL, "truncate text-muted-foreground max-md:order-4")}>
-        {accessSourceLabel(t, row.source)}
-      </div>
-      <div
-        role="cell"
-        data-label={label("col_granted_by")}
-        title={row.granted_by_name || undefined}
-        className={cn(CELL, "truncate text-muted-foreground max-md:order-6")}
-      >
-        {grantedBy}
-      </div>
-      <div
-        role="cell"
-        data-label={label("col_granted_at")}
-        title={grantedAtFull}
-        className={cn(CELL, "truncate text-muted-foreground max-md:order-7")}
-      >
-        {grantedAt}
-      </div>
-      {/* Last in the grid; on a phone it sits before the "granted" line, so the chip is seen first. */}
-      <div role="cell" data-label={label("col_status")} className={cn(CELL, "max-md:order-5 max-md:empty:hidden max-md:before:content-none")}>
-        {row.active ? null : (
-          <Badge variant="outline" title={t("documents.accessReport.inactive")} className="max-w-full text-muted-foreground">
-            <CircleOff aria-hidden data-icon="inline-start" />
-            <span className="truncate">{t("documents.accessReport.inactive")}</span>
-          </Badge>
-        )}
-      </div>
-    </div>
+        </td>
+        <td className={cn(TD, "whitespace-nowrap text-muted-foreground")}>{changed || NONE}</td>
+        <td className={cn(TD, "text-right")}>
+          <button
+            type="button"
+            aria-expanded={expanded}
+            aria-controls={controls}
+            aria-label={toggleLabel}
+            title={toggleLabel}
+            onClick={onToggle}
+            className="inline-flex size-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted pointer-coarse:size-11"
+          >
+            <ChevronDown aria-hidden className={cn("size-4 transition-transform motion-reduce:transition-none", expanded && "rotate-180")} />
+          </button>
+        </td>
+      </tr>
+      {expanded ? (
+        <tr id={grantsId} className="border-b border-border bg-muted/20">
+          <td colSpan={6} className="px-3 pt-1 pb-4 md:pl-14">
+            <AccessReportGrants wsId={wsId} entry={entry} title={title} documentHref={documentHref} />
+          </td>
+        </tr>
+      ) : null}
+    </Fragment>
   );
 }
 
-function formatFull(at: string, locale: string): string | undefined {
-  const date = new Date(at);
-  if (Number.isNaN(date.getTime())) return undefined;
-  return new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "long" }).format(date);
+/** Up to four faces of who has access, then the short line that counts them all. */
+function WhoCell({ rows, facts, who }: { rows: readonly AccessReportRow[]; facts: ReportFacts; who: string }) {
+  const { t } = useTranslation();
+  const seen = new Set<string>();
+  const faces = rows.filter((row) => {
+    const id = `${row.principal_type}:${row.principal_id}`;
+    if (!row.active || seen.has(id)) return false;
+    seen.add(id);
+    return true;
+  });
+  // Before link rows arrive (S2) a live link is only a count: it gets a face too.
+  const linkFace = facts.links > 0 && !faces.some((row) => row.principal_type === "link");
+  return (
+    <span className="flex min-w-0 items-center gap-2.5">
+      {/* The line beside says who; the faces are a picture of it. */}
+      <span aria-hidden className="flex shrink-0 pl-1.5">
+        {faces.slice(0, MAX_AVATARS).map((row) => {
+          const name = grantName(t, row);
+          return (
+            <span key={`${row.principal_type}:${row.principal_id}`} title={name} className="-ml-1.5 rounded-full ring-2 ring-card">
+              <Face type={row.principal_type} name={name} />
+            </span>
+          );
+        })}
+        {linkFace && faces.length < MAX_AVATARS ? (
+          <span title={t("documents.accessReport.anyone_with_link")} className="-ml-1.5 rounded-full ring-2 ring-card">
+            <Face type="link" name="" />
+          </span>
+        ) : null}
+      </span>
+      <span className="min-w-0 truncate text-muted-foreground" title={who || undefined}>
+        {who || NONE}
+      </span>
+    </span>
+  );
 }
 
-function PrincipalGlyph({ type, name }: { type: string; name: string }) {
-  if (type === "user") {
-    return <ActorAvatar name={name} initials={initialOf(name)} size="md" />;
-  }
-  const Icon = type === "organization" ? Building2 : Users;
+function Face({ type, name }: { type: string; name: string }) {
+  if (type === "user") return <ActorAvatar name={name} initials={initialOf(name)} size="sm" />;
+  const Icon = type === "organization" ? Building2 : type === "link" ? Link2 : Users;
   return (
-    <span aria-hidden className="flex size-6 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground">
+    <span className="flex size-6 items-center justify-center rounded-full bg-muted text-muted-foreground">
       <Icon className="size-3.5" />
     </span>
   );
