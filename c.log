@@ -1,0 +1,10 @@
+$ pnpm --filter @uniwork/views exec vitest run documents 2>&1 | tail -8; rc=${PIPESTATUS[0]}; echo "VIEWS_DOCS_EXIT=$rc"
+    at commitHookPassiveMountEffects (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:13336:11)
+    at commitPassiveMountOnFiber (/workspace/node_modules/.pnpm/react-dom@19.2.3_react@19.2.3/node_modules/react-dom/cjs/react-dom-client.development.js:15484:13) undefined
+
+ Test Files  107 passed (107)
+      Tests  1465 passed (1465)
+   Start at  19:04:32
+   Duration  134.72s (transform 9.80s, setup 23.28s, import 86.27s, tests 244.45s, environment 35.99s)
+
+VIEWS_DOCS_EXIT=0

@@ -1,0 +1,2 @@
+$ pnpm --filter @uniwork/core exec eslint --max-warnings 0 documents i18n api types > /tmp/lint2039c.log 2>&1; rc=$?; tail -8 /tmp/lint2039c.log; echo "CORE_LINT_EXIT=$rc"
+CORE_LINT_EXIT=0
