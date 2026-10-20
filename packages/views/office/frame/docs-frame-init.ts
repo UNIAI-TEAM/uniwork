@@ -22,13 +22,15 @@ export async function composeFrameInit(args: {
   minted: OfficeFrameToken | OfficeFrameSourceToken | null | undefined;
   /** A file from another module (UNI-1869): view-only by construction, no edit lock, no author identity. */
   source: boolean;
+  /** A stored version of the document (UNI-2033): the document token, read-only by construction like a source. */
+  versionView?: boolean;
   /** The page's edit lock, already null for a source. */
   editLock: DocsFrameSessionOptions["editLock"] | null;
   limits: Pick<DocumentLimits, "upload_max_bytes" | "save_warn_ratio">;
   /** The page learnt the document is shelved (ARCHIVE-01 §3): another reason for the readOnly profile. */
   shelved?: boolean;
 }): Promise<{ init: Omit<InitPayload, "protocolVersion">; lockedOut: boolean; downloadMaxBytes: number }> {
-  const { module, frameToken, current, doc, name, uid, minted, source, editLock } = args;
+  const { module, frameToken, current, doc, name, uid, minted, source, editLock, versionView = false } = args;
   // The server derives the module from the stored file; a frame mounted for another
   // module would edit bytes of a format it does not own (older servers send none).
   if (minted?.module && minted.module !== module) {
@@ -47,16 +49,16 @@ export async function composeFrameInit(args: {
   // keeps the flag so a re-attach composes the same read-only profile.
   const lockedOut = editLock != null && !editLock.held;
   const levelViewer = (current.readonly || minted?.can_edit === false) && current.myLevel !== "comment";
-  const readOnlyProfile = source || args.shelved || levelViewer;
+  const readOnlyProfile = source || versionView || args.shelved || levelViewer;
   const viewOnly = readOnlyProfile || current.readonly || minted?.can_edit === false || args.shelved || lockedOut;
   // copyRefused does not include shelved: the server's CopyDocument accepts a shelved source.
-  const copyRefused = source || levelViewer || minted?.can_edit !== true;
+  const copyRefused = source || versionView || levelViewer || minted?.can_edit !== true;
   // Draft recovery (CONTRACT C18): the session's key, again on every init so a reloaded
   // frame reads the drafts it wrote. A viewer has nothing unsaved to recover.
   const recovery = officeModuleSpec(module).recovery === true && uid && !viewOnly
     ? { key: await getOfficeDraftKey(uid), scope: officeDraftScope(uid, doc) }
     : null;
-  const capabilities = source
+  const capabilities = source || versionView
     ? officeSourceCapabilities(module, current.api)
     : officeModuleCapabilities(module, viewOnly, current.api, minted && "ai" in minted ? minted.ai : undefined, Boolean(current.onAppOpen), minted?.can_edit === true, copyRefused);
   const limits = toFrameLimits(args.limits);

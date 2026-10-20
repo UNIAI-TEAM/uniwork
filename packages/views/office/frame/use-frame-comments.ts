@@ -28,7 +28,10 @@ import {
   type InitPayload,
 } from "@uniwork/core/office/docs-frame-protocol";
 import { shareDocument } from "@uniwork/core/api/endpoints/documents-sharing";
+import type { ViewVersionResult } from "@uniwork/core/office/frame-version-view";
+import { createViewVersionHandler, lostCommentVersion, versionViewHref } from "@uniwork/core/office/version-view";
 import { useOptionalWS } from "@uniwork/core/realtime";
+import { useOptionalNavigation } from "../../navigation";
 import { commentsChangedDocument, frameCanShareView, frameCommentsLevel } from "./frame-comments-events";
 import { frameAvatarContext, frameCandidates, frameCommentList, frameCommentResult } from "./frame-avatar-url";
 
@@ -69,6 +72,8 @@ interface UseFrameCommentsOptions {
   myLevel?: string | null;
   /** The comment a deep link names (`?comment=`); revealed once per open and per change of it. */
   revealCommentId?: string | null;
+  /** The version the page shows read-only (`?version=N`, UNI-2033): no Inbox switch and no `commentsViewVersion` then. */
+  viewVersion?: number;
 }
 
 interface FrameComments {
@@ -80,6 +85,14 @@ interface FrameComments {
    * the last answer until the next ack, so the page panel does not flash in between.
    */
   framePanel: boolean;
+  /**
+   * The frame's `comments.viewVersion` (UNI-2033): one history entry to `?version=N&comment=<id>`.
+   * Not on `binding.api` yet: the vendored protocol has no such request, so the T6 re-vendor adds
+   * `"comments.viewVersion": viewVersion` there and the capability next to `commentsShareView`.
+   */
+  viewVersion(payload: unknown): ViewVersionResult;
+  /** Whether init may grant `commentsViewVersion`: never inside a version view. */
+  viewVersionGranted: boolean;
 }
 
 interface Attached {
@@ -122,13 +135,16 @@ const malformed = (endpoint: string) =>
 export function useFrameComments(options: UseFrameCommentsOptions): FrameComments {
   const { wsId, documentId, revealCommentId = null } = options;
   const ws = useOptionalWS();
+  const navigation = useOptionalNavigation();
   const client = ws?.client ?? null;
   const [attached, setAttached] = useState<Attached | null>(null);
   const [held, setHeld] = useState<Held | null>(null);
   const userId = useAuthStore((s) => s.user?.id ?? "");
   const queryClient = useQueryClient();
-  const latest = useRef({ options, attached, userId, queryClient });
-  latest.current = { options, attached, userId, queryClient };
+  const latest = useRef({ options, attached, userId, queryClient, navigation });
+  latest.current = { options, attached, userId, queryClient, navigation };
+  // Whether the next `comments.list` is the first of this open of the document (the Inbox landing reads only that one).
+  const firstList = useRef(true);
   // One Idempotency-Key per Send, kept across the retries of that Send: the same payload that
   // has not succeeded yet reuses its key, so a create the server already stored is not stored twice.
   // Keyed by payload so two Sends in flight (two threads sent quickly) each keep their own.
@@ -155,11 +171,21 @@ export function useFrameComments(options: UseFrameCommentsOptions): FrameComment
         throw toFrameError(error);
       }
     };
+    // Inbox landing (UNI-2033): the link says `?comment=` only, the notification predates the anchor
+    // being lost. When the first list shows that comment lost with its version number, the page
+    // follows to that version once; anything missing leaves the thread and its button as they are.
+    const landOnLostVersion = (list: unknown) => {
+      const { options: current, navigation: nav } = latest.current;
+      if (!current.revealCommentId || current.viewVersion !== undefined || !nav) return;
+      const versionNo = lostCommentVersion(list, current.revealCommentId);
+      if (versionNo !== null) nav.replace(versionViewHref(nav.pathname, versionNo, current.revealCommentId));
+    };
     const api: FrameCommentsBinding["api"] = {
       "comments.list": (payload, { signal }) =>
         call("comments.list", async (doc) => {
           const list = await listFrameComments(doc, payload, signal);
           if (!list) return null;
+          if (firstList.current) { firstList.current = false; landOnLostVersion(list); }
           // An unchanged answer is the token alone: the frame keeps the list it holds.
           const full = list.unchanged ? { comments: [], mentions: [], list_token: list.list_token, unchanged: true } : frameCommentList(avatars(doc), list);
           return full as FrameRequests["comments.list"]["result"];
@@ -230,10 +256,12 @@ export function useFrameComments(options: UseFrameCommentsOptions): FrameComment
       },
       api,
       attach(host, ack, scope) {
+        firstList.current = true;
         setHeld(null);
         setAttached({ documentId: latest.current.options.documentId, host, scope, enabled: ack.capabilities.comments === true });
       },
       detach() {
+        firstList.current = true;
         pendingCreates.current.clear();
         // Keep the answer for the document the frame shook hands for; the next ack replaces it,
         // and a page that moved to another document (or an unmount) does not inherit it.
@@ -267,5 +295,9 @@ export function useFrameComments(options: UseFrameCommentsOptions): FrameComment
   }, [attached, revealCommentId]);
 
   const framePanel = attached ? attached.enabled : held?.documentId === documentId && held.enabled;
-  return { binding, framePanel };
+  const viewVersion = useMemo(
+    () => createViewVersionHandler((href) => latest.current.navigation?.push(href), () => latest.current.navigation?.pathname ?? ""),
+    [],
+  );
+  return { binding, framePanel, viewVersion, viewVersionGranted: options.viewVersion === undefined };
 }

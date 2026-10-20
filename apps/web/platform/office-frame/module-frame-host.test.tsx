@@ -13,7 +13,7 @@ const mocks = vi.hoisted(() => ({
   request: vi.fn(), frameProps: vi.fn(), push: vi.fn(), downloadProfile: vi.fn(),
   // What the mocked frame does as it mounts: report the size cap, fail to load, or open.
   frameOutcome: { kind: undefined as "size" | "load" | undefined },
-  createSession: vi.fn(), launch: vi.fn(), downloadFile: vi.fn(), retry: vi.fn(),
+  createSession: vi.fn(), launch: vi.fn(), downloadFile: vi.fn(), retry: vi.fn(), replace: vi.fn(),
 }));
 vi.mock("@uniwork/core/api/endpoints/office-launch", async (orig) => ({
   ...(await orig<typeof import("@uniwork/core/api/endpoints/office-launch")>()),
@@ -65,7 +65,7 @@ import { OfficeModuleHost } from "./module-frame-host";
 const doc = { id: "doc-1", title: "Deck", organization_id: "org-1", workspace_id: "ws-1" } as Document;
 const workspace = { id: "ws-1", organization_slug: "acme", slug: "ops" } as Workspace;
 const nav: NavigationAdapter = {
-  push: mocks.push, replace: vi.fn(), back: vi.fn(), pathname: "/", searchParams: new URLSearchParams(), getShareableUrl: (p) => p,
+  push: mocks.push, replace: mocks.replace, back: vi.fn(), pathname: "/", searchParams: new URLSearchParams(), getShareableUrl: (p) => p,
 };
 let root: Root;
 let container: HTMLDivElement;
@@ -83,12 +83,14 @@ beforeEach(() => {
   mocks.request.mockReset();
   mocks.frameProps.mockReset();
   mocks.push.mockReset();
+  mocks.replace.mockReset();
   mocks.frameOutcome.kind = undefined;
   mocks.createSession.mockReset();
   mocks.launch.mockReset();
   mocks.downloadFile.mockReset();
   mocks.retry.mockReset();
   nav.searchParams.delete("comment");
+  nav.searchParams.delete("version");
   container = document.createElement("div");
   document.body.append(container);
   root = createRoot(container);
@@ -339,6 +341,53 @@ describe("OfficeModuleHost", () => {
       expect(buttonByText("Open in UniWork Office")).toBeUndefined();
       expect(buttonByText("Download")).toBeDefined();
     });
+  });
+});
+
+describe("OfficeModuleHost: a version view (UNI-2033)", () => {
+  const frameProp = <T,>(name: string) => (mocks.frameProps.mock.calls.at(-1)?.[0] as Record<string, T>)[name];
+
+  it("passes ?version=N and the comment to the frame, and the way back drops only the version", async () => {
+    vi.stubEnv("NEXT_PUBLIC_OFFICE_DOCS_FRAME_VERSION", "1.0.0-abc1234");
+    answerConfig({ office_docs_web: true });
+    nav.searchParams.set("version", "2");
+    nav.searchParams.set("comment", "c1");
+    await render(host("docs", false));
+    await until(() => frame() !== null);
+    expect(frameProp("fileRef")).toEqual({ kind: "document", id: "doc-1", version: 2 });
+    expect(frameProp("revealCommentId")).toBe("c1");
+    frameProp<() => void>("onBackToCurrent")?.();
+    expect(mocks.replace).toHaveBeenCalledWith("/?comment=c1");
+    expect(mocks.push).not.toHaveBeenCalled();
+  });
+
+  it("ignores a version that is not a positive integer: no version view, no way back", async () => {
+    vi.stubEnv("NEXT_PUBLIC_OFFICE_DOCS_FRAME_VERSION", "1.0.0-abc1234");
+    answerConfig({ office_docs_web: true });
+    for (const bad of ["0", "-3", "1.5", "abc", ""]) {
+      mocks.frameProps.mockReset();
+      nav.searchParams.set("version", bad);
+      await render(host("docs", false));
+      await until(() => frame() !== null);
+      expect(frameProp("fileRef")).toEqual({ kind: "document", id: "doc-1" });
+      expect(frameProp("onBackToCurrent")).toBeUndefined();
+    }
+  });
+
+  it("hands the version to Open in UniWork Office on the failure surface", async () => {
+    vi.stubEnv("NEXT_PUBLIC_OFFICE_DOCS_FRAME_VERSION", "1.0.0-abc1234");
+    answerConfig({ office_docs_web: true });
+    mocks.frameOutcome.kind = "load";
+    nav.searchParams.set("version", "3");
+    nav.searchParams.set("comment", "c9");
+    mocks.createSession.mockResolvedValue(null);
+    await render(host("docs", false, { ...doc, current_version: 4 } as Document));
+    await until(() => buttonByText("Open in UniWork Office") !== undefined);
+    await until(() => configCalls().length > 0);
+    await settle();
+    await click(buttonByText("Open in UniWork Office"));
+    await until(() => mocks.createSession.mock.calls.length > 0);
+    expect(mocks.createSession).toHaveBeenCalledWith("doc-1", expect.objectContaining({ operation: "view", version: 3, comment_id: "c9" }));
   });
 });
 
