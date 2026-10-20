@@ -435,14 +435,9 @@ func (s *DocumentSourceService) query(ctx context.Context, src string, dq docume
 		return nil, nil
 	}
 	policy := s.docs.documentFilePolicy()
-	txtOpen := s.docs.txtOpenEnabled(ctx, dq.viewerID, dq.workspaceID, dq.orgID)
 	out := make([]DocumentSourceItem, 0, len(rows))
 	for _, r := range rows {
-		it := documentSourceItem(src, r, policy)
-		if it.Extension == "txt" && !txtOpen {
-			it.CanOpenInApp = false
-		}
-		out = append(out, it)
+		out = append(out, documentSourceItem(src, r, policy))
 	}
 	return out, nil
 }

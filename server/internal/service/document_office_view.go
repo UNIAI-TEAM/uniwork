@@ -73,11 +73,27 @@ func ValidOfficeOperation(raw string) bool {
 	return ok
 }
 
-// ValidOfficeFormat reports whether raw names one of the six document formats
-// or a Q7 conversion source (xls, odt).
+// officeFormatTXT is the blank-create spelling of a plain-text file ("Văn
+// bản"). It is not an engine format: a .txt opens as office.FormatMD in the
+// markdown module, and a blank .txt never goes through an engine job, so the
+// constant only travels through parseBlankFormat and blankSeedFor.
+const officeFormatTXT office.Format = "txt"
+
+// ValidOfficeFormat reports whether raw names a format the blank-create route
+// accepts: one of the six document formats, plain text (txt) or a Q7
+// conversion source (xls, odt, which the route then refuses as not bound).
 func ValidOfficeFormat(raw string) bool {
-	_, ok := parseOfficeFormat(raw)
+	_, ok := parseBlankFormat(raw)
 	return ok
+}
+
+// parseBlankFormat is parseOfficeFormat plus plain text. Convert targets and
+// every other boundary caller keep the stricter parseOfficeFormat.
+func parseBlankFormat(raw string) (office.Format, bool) {
+	if office.Format(strings.TrimSpace(raw)) == officeFormatTXT {
+		return officeFormatTXT, true
+	}
+	return parseOfficeFormat(raw)
 }
 
 // parseOfficeOperation maps the wire string onto the boundary operation.
@@ -105,6 +121,3 @@ func parseOfficeFormat(raw string) (office.Format, bool) {
 func NewOfficeEngineClient(baseURL, serviceToken, grantKey string) (OfficeEngine, error) {
 	return office.NewClient(office.Config{BaseURL: baseURL, ServiceToken: serviceToken, GrantKey: grantKey}, nil)
 }
-
-// officeFormatTXT is a placeholder so the red tests compile.
-const officeFormatTXT office.Format = "txt"

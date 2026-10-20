@@ -107,14 +107,15 @@ func TestOfficeFrameOpenSaveConflictReopen(t *testing.T) {
 	}
 
 	// A markdown file is another module's document: its own flag (switched
-	// off here for the organization) decides. A format with no web module gets
-	// no frame; a non-member gets the same 404.
+	// off here for the organization) decides; a non-member gets a 404.
 	setOfficeFrameFlagFor(t, w.q, "office_markdown_web", w.orgID, false)
 	if res, out := doJSON(t, w.srv, "POST", "/api/v1/documents/"+markdownID+"/office/frame-token", w.token, nil); res.StatusCode != 403 {
 		t.Fatalf("markdown mint = %d %v", res.StatusCode, out)
 	}
+	// A .txt is the markdown module's document too (UNI-2046): the same flag
+	// refuses it, with no flag of its own.
 	textID := w.createDocx(t, "notes.txt", []byte("plain text\n"))
-	if res, out := doJSON(t, w.srv, "POST", "/api/v1/documents/"+textID+"/office/frame-token", w.token, nil); res.StatusCode != 404 {
+	if res, out := doJSON(t, w.srv, "POST", "/api/v1/documents/"+textID+"/office/frame-token", w.token, nil); res.StatusCode != 403 {
 		t.Fatalf("text mint = %d %v", res.StatusCode, out)
 	}
 	if res, out := doJSON(t, w.srv, "POST", "/api/v1/documents/"+documentID+"/office/frame-token", w.outsiderToken(t), nil); res.StatusCode != 404 {
