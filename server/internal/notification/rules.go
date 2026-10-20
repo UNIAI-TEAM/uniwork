@@ -649,12 +649,13 @@ func documentCommentMentionRule(ctx context.Context, e env, ev outbox.Row, p map
 	return out, nil
 }
 
-// ruleDocumentCommentResolved tells the comment's author and the document's
-// owners at that moment (ACL owner while still an effective member, plus every
-// live user share at manage; USER OQ-C7 decided 2026-10-20, UNI-2032) when a
-// Comment is resolved: only kind=comment resolves notify, a Discussion stays
-// silent, the actor never hears their own resolve, and an author who is also an
-// owner receives one notice. There is no workspace-admin fallback here.
+// ruleDocumentCommentResolved tells the comment's author (while still able to
+// read) and the document's owners at that moment (human ACL owner while still
+// an effective member, plus every live user share at manage; USER OQ-C7
+// decided 2026-10-20, UNI-2032) when a Comment is resolved: only kind=comment
+// resolves notify, a Discussion stays silent, the actor never hears their own
+// resolve, and an author who is also an owner receives one notice. There is no
+// workspace-admin fallback here.
 func ruleDocumentCommentResolved(ctx context.Context, e env, ev outbox.Row, p map[string]string) ([]Draft, error) {
 	if e.docs == nil {
 		return nil, nil
