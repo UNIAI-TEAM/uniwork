@@ -215,8 +215,10 @@ export function buildDryRunStubModel(rowOrEntry, fixtureBytes) {
       if (rowId === 'X-R1') return { toolCalls: [{ id: 'call_xr1', type: 'function', function: { name: 'aggregate_range', arguments: JSON.stringify({ range: 'G2:G7' }) } }] };
       if (rowId === 'X-R2') return { toolCalls: [{ id: 'call_xr2', type: 'function', function: { name: 'read_range', arguments: JSON.stringify({ range: 'A1:G9' }) } }] };
       if (rowId === 'X-E1') {
-        const sheetId = state?.sheetId ?? /Active sheet:[^(\n]*\(id=([^,)\s"]+)/.exec(JSON.stringify(body?.messages ?? []))?.[1];
-        const operations = [2, 3, 4, 5, 6, 7].map((r) => ({ op: 'set_formula', ...(sheetId ? { sheetId } : {}), address: `AA${r}`, formula: `=D${r}*E${r}*(1-IF(F${r}>1,F${r}/100,F${r}))` }));
+        const rawSheetId = state?.sheetId ?? /Active sheet:[^(\n]*\(id=([^,)\s"]+)/.exec(JSON.stringify(body?.messages ?? []))?.[1];
+        const sheetId = typeof rawSheetId === 'string' ? rawSheetId.trim() : '';
+        if (!sheetId) throw new Error('dry-run stub: X-E1 needs the active sheetId from the turn input');
+        const operations = [2, 3, 4, 5, 6, 7].map((r) => ({ op: 'set_formula', sheetId, address: `AA${r}`, formula: `=D${r}*E${r}*(1-IF(F${r}>1,F${r}/100,F${r}))` }));
         return { toolCalls: [{ id: 'call_xe1', type: 'function', function: { name: 'propose_operations', arguments: JSON.stringify({ summary: 'Ghi đè (overwritten) AA2:AA7', operations }) } }] };
       }
       if (rowId === 'D-R1') return { toolCalls: [{ id: 'call_dr1', type: 'function', function: { name: 'read_blocks', arguments: JSON.stringify({ startBlockIndex: 0, endBlockIndex: 9 }) } }] };

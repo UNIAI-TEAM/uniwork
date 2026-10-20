@@ -342,6 +342,7 @@ export function oraclePdfRead(observed) {
   }
   const extracted = extractPdfTextFromBytes(observed.fixtureBytes);
   if (!extracted || !extracted.hasToUnicode) return failVerdict('pdf_read_invalid_fixture_bytes');
+  if (!extracted.lines.length) return blockedVerdict('pdf_text_unreadable');
   if (observed.scannedPageWithoutOcr && !/OCR|scan/i.test(observed.replyText)) return failVerdict('pdf_scanned_page_faked');
   const reply = observed.replyText;
   if (!/trang\s*1|page\s*1/i.test(reply)) return failVerdict('pdf_read_missing_page_anchor');

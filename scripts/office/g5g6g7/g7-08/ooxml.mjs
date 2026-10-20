@@ -475,9 +475,12 @@ function inflateFlate(buf) {
 
 function parseCmap(body) {
   const map = new Map();
+  const setCp = (gid, cp) => {
+    if (cp >= 0 && cp <= 0x10ffff && (cp < 0xd800 || cp > 0xdfff)) map.set(gid, String.fromCodePoint(cp));
+  };
   for (const b of body.matchAll(/beginbfchar([\s\S]*?)endbfchar/g)) {
     for (const p of b[1].matchAll(/<([0-9A-Fa-f]{1,4})>\s*<([0-9A-Fa-f]{1,8})>/g)) {
-      map.set(p[1].toUpperCase().padStart(4, '0'), String.fromCodePoint(Number.parseInt(p[2], 16)));
+      setCp(p[1].toUpperCase().padStart(4, '0'), Number.parseInt(p[2], 16));
     }
   }
   for (const b of body.matchAll(/beginbfrange([\s\S]*?)endbfrange/g)) {
@@ -486,13 +489,13 @@ function parseCmap(body) {
       const list = m[3] !== undefined ? [...m[3].matchAll(/<([0-9A-Fa-f]{1,8})>/g)].map((t) => Number.parseInt(t[1], 16)) : null;
       const base = m[4] !== undefined ? Number.parseInt(m[4], 16) : 0;
       for (let i = 0; i <= hi - lo && (!list || i < list.length); i += 1) {
-        map.set((lo + i).toString(16).toUpperCase().padStart(4, '0'), String.fromCodePoint(list ? list[i] : base + i));
+        setCp((lo + i).toString(16).toUpperCase().padStart(4, '0'), list ? list[i] : base + i);
       }
     }
   }
   if (map.size === 0) {
     for (const p of body.matchAll(/<([0-9A-Fa-f]{4})>\s*<([0-9A-Fa-f]{4})>/g)) {
-      map.set(p[1].toUpperCase(), String.fromCodePoint(Number.parseInt(p[2], 16)));
+      setCp(p[1].toUpperCase(), Number.parseInt(p[2], 16));
     }
   }
   return map;
@@ -512,8 +515,7 @@ export function extractPdfTextFromBytes(pdfBytes) {
   const raw = buf.toString('latin1');
   if (!raw.startsWith('%PDF-')) return null;
 
-  const objTexts = new Map();
-  const streams = [];
+  const [objTexts, streamByObj, corruptStreams, streams] = [new Map(), new Map(), new Set(), []];
   for (const m of raw.matchAll(/(\d+)\s+\d+\s+obj\b([\s\S]*?)endobj/g)) {
     const [objId, body] = [Number(m[1]), m[2]];
     const sMatch = />>\s*stream(?:\r\n|\n|\r)/.exec(body);
@@ -526,11 +528,12 @@ export function extractPdfTextFromBytes(pdfBytes) {
     if (buf[end - 2] === 13 && buf[end - 1] === 10) end -= 2;
     else if (buf[end - 1] === 10 || buf[end - 1] === 13) end -= 1;
     const slice = buf.subarray(base + sMatch.index + sMatch[0].length, end);
-    const text = /\/Filter\s*(?:\/FlateDecode|\[\s*\/FlateDecode\s*\])/.test(dict)
-      ? inflateFlate(slice)?.toString('latin1')
-      : slice.toString('latin1');
-    if (!text) continue;
+    const isFlate = /\/Filter\s*(?:\/FlateDecode|\[\s*\/FlateDecode\s*\])/.test(dict);
+    const text = isFlate ? inflateFlate(slice)?.toString('latin1') : slice.toString('latin1');
+    if (text === undefined) { corruptStreams.add(objId); streamByObj.delete(objId); continue; }
+    corruptStreams.delete(objId);
     streams.push({ objId, text });
+    streamByObj.set(objId, text);
     if (/\/Type\s*\/ObjStm\b/.test(dict)) {
       const [n, first] = [Number(/\/N\s+(\d+)/.exec(dict)?.[1] ?? 0), Number(/\/First\s+(\d+)/.exec(dict)?.[1] ?? 0)];
       if (n > 0 && first > 0 && first <= text.length) {
@@ -542,15 +545,43 @@ export function extractPdfTextFromBytes(pdfBytes) {
       }
     }
   }
-  if (streams.length === 0) streams.push({ objId: 0, text: raw });
 
   let pageCount = 0;
+  const kidsOrder = [];
   for (const t of [...objTexts.values(), raw]) {
     for (const d of t.matchAll(/<<((?:(?!>>)[\s\S])*?)>>/g)) {
-      if (/\/Type\s*\/Pages\b/.test(d[1])) pageCount = Math.max(pageCount, Number(/\/Count\s+(\d+)/.exec(d[1])?.[1] ?? 0));
+      if (/\/Type\s*\/Pages\b/.test(d[1])) {
+        pageCount = Math.max(pageCount, Number(/\/Count\s+(\d+)/.exec(d[1])?.[1] ?? 0));
+        const km = /\/Kids\s*\[([\s\S]*?)\]/.exec(d[1]);
+        if (km) for (const r of km[1].matchAll(/(\d+)\s+\d+\s+R\b/g)) kidsOrder.push(Number(r[1]));
+      }
     }
   }
 
+  const pageMap = new Map();
+  for (const [id, t] of objTexts) {
+    if (!/\/Type\s*\/Page\b/.test(t)) continue;
+    const cm = /\/Contents\s*(?:\[([\s\S]*?)\]|(\d+)\s+\d+\s+R\b)/.exec(t);
+    const refs = cm ? (cm[2] ? [Number(cm[2])] : [...cm[1].matchAll(/(\d+)\s+\d+\s+R\b/g)].map((r) => Number(r[1]))) : [];
+    if (refs.length > 0) pageMap.set(id, refs);
+  }
+  const pageIds = [...new Set([...kidsOrder.filter((id) => pageMap.has(id)), ...pageMap.keys()])];
+  const pageStreams = [];
+  if (pageIds.length > 0) {
+    pageCount = Math.max(pageCount, pageIds.length);
+    for (const pid of pageIds) {
+      const texts = [];
+      for (const ref of pageMap.get(pid)) {
+        if (corruptStreams.has(ref) || !streamByObj.has(ref)) return null;
+        texts.push(streamByObj.get(ref));
+      }
+      pageStreams.push(texts);
+    }
+  } else {
+    if (corruptStreams.size > 0) return null;
+    if (streams.length === 0) streams.push({ objId: 0, text: raw });
+    pageStreams.push([raw]);
+  }
   const [cmapByObj, cmaps, fontToCmap, fontToDesc, objWidths, fontRes] = [new Map(), [], new Map(), new Map(), new Map(), new Map()];
   for (const s of streams) {
     for (const cm of s.text.matchAll(/begincmap([\s\S]*?)endcmap/g)) {
@@ -587,59 +618,61 @@ export function extractPdfTextFromBytes(pdfBytes) {
   };
 
   const runs = [];
-  const pushRun = (text, x, y, width) => {
+  const pushRun = (page, text, x, y, width) => {
     if (!text) return;
     const prev = runs[runs.length - 1];
-    if (prev && Math.abs(prev.y - y) < 0.5 && Math.abs(x - prev.endX) < 3) {
+    if (prev && prev.page === page && Math.abs(prev.y - y) < 0.5 && Math.abs(x - prev.endX) < 3) {
       prev.text += text;
       prev.endX = x + width;
     } else {
-      runs.push({ text, y, endX: x + width });
+      runs.push({ page, text, y, endX: x + width });
     }
   };
 
   const opRe = /\/([A-Za-z0-9_]+)\s+([\d.]+)\s+Tf\b|([\d.-]+)\s+([\d.-]+)\s+([\d.-]+)\s+([\d.-]+)\s+([\d.-]+)\s+([\d.-]+)\s+Tm\b|([\d.-]+)\s+([\d.-]+)\s+T[dD]\b|\[\s*((?:<[0-9A-Fa-f\s]*>|\((?:\\.|[^\\)])*\)|[\d.\s-])+)\s*\]\s*TJ\b|<([0-9A-Fa-f\s]+)>\s*Tj\b|\(((?:\\.|[^\\)])*)\)\s*Tj\b/g;
-  for (const s of streams) {
-    if (s.text.includes('begincmap') || !s.text.includes('BT')) continue;
-    let [lastEnd, cm] = [0, [1, 0, 0, 1, 0, 0]];
-    for (const bt of s.text.matchAll(/BT\b([\s\S]*?)ET\b/g)) {
-      const pre = s.text.slice(lastEnd, bt.index);
-      if (/\bQ\b/.test(pre)) cm = [1, 0, 0, 1, 0, 0];
-      for (const m of pre.matchAll(/([\d.-]+)\s+([\d.-]+)\s+([\d.-]+)\s+([\d.-]+)\s+([\d.-]+)\s+([\d.-]+)\s+cm\b/g)) {
-        cm = m.slice(1, 7).map(Number);
-      }
-      lastEnd = bt.index + bt[0].length;
-      let [fontName, fontSize, tx, ty] = ['F1', 11, cm[4], cm[5]];
-      for (const op of bt[1].matchAll(opRe)) {
-        if (op[1] !== undefined) { fontName = op[1]; fontSize = Number(op[2]); continue; }
-        if (op[3] !== undefined) { tx = cm[4] + Number(op[7]); ty = cm[5] + Number(op[8]); continue; }
-        if (op[9] !== undefined) { tx += Number(op[9]); ty += Number(op[10]); continue; }
-        const fObj = fontRes.get(fontName);
-        const cmap = (fObj && cmapByObj.get(fontToCmap.get(fObj)))
-          ?? cmaps[Number(/\d+$/.exec(fontName)?.[0] ?? 1) - 1] ?? cmaps[0] ?? new Map();
-        const wMap = (fObj && objWidths.get(fontToDesc.get(fObj) ?? fObj)) ?? null;
-        if (op[11] !== undefined) {
-          let [line, width] = ['', 0];
-          for (const part of op[11].matchAll(/<([0-9A-Fa-f\s]*)>|\(((?:\\.|[^\\)])*)\)|(-?[\d.]+)/g)) {
-            if (part[1] !== undefined) {
-              const d = decodeHex(part[1], cmap, wMap, fontSize);
-              line += d.text; width += d.width;
-            } else if (part[2] !== undefined) {
-              line += part[2]; width += part[2].length * fontSize * 0.5;
-            } else if (part[3] !== undefined) {
-              width -= (Number(part[3]) / 1000) * fontSize;
+  for (let pageIdx = 0; pageIdx < pageStreams.length; pageIdx += 1) {
+    for (const sText of pageStreams[pageIdx]) {
+      if (sText.includes('begincmap') || !sText.includes('BT')) continue;
+      let [lastEnd, cm] = [0, [1, 0, 0, 1, 0, 0]];
+      for (const bt of sText.matchAll(/BT\b([\s\S]*?)ET\b/g)) {
+        const pre = sText.slice(lastEnd, bt.index);
+        if (/\bQ\b/.test(pre)) cm = [1, 0, 0, 1, 0, 0];
+        for (const m of pre.matchAll(/([\d.-]+)\s+([\d.-]+)\s+([\d.-]+)\s+([\d.-]+)\s+([\d.-]+)\s+([\d.-]+)\s+cm\b/g)) {
+          cm = m.slice(1, 7).map(Number);
+        }
+        lastEnd = bt.index + bt[0].length;
+        let [fontName, fontSize, tx, ty] = ['F1', 11, cm[4], cm[5]];
+        for (const op of bt[1].matchAll(opRe)) {
+          if (op[1] !== undefined) { fontName = op[1]; fontSize = Number(op[2]); continue; }
+          if (op[3] !== undefined) { tx = cm[4] + Number(op[7]); ty = cm[5] + Number(op[8]); continue; }
+          if (op[9] !== undefined) { tx += Number(op[9]); ty += Number(op[10]); continue; }
+          const fObj = fontRes.get(fontName);
+          const cmap = (fObj && cmapByObj.get(fontToCmap.get(fObj)))
+            ?? cmaps[Number(/\d+$/.exec(fontName)?.[0] ?? 1) - 1] ?? cmaps[0] ?? new Map();
+          const wMap = (fObj && objWidths.get(fontToDesc.get(fObj) ?? fObj)) ?? null;
+          if (op[11] !== undefined) {
+            let [line, width] = ['', 0];
+            for (const part of op[11].matchAll(/<([0-9A-Fa-f\s]*)>|\(((?:\\.|[^\\)])*)\)|(-?[\d.]+)/g)) {
+              if (part[1] !== undefined) {
+                const d = decodeHex(part[1], cmap, wMap, fontSize);
+                line += d.text; width += d.width;
+              } else if (part[2] !== undefined) {
+                line += part[2]; width += part[2].length * fontSize * 0.5;
+              } else if (part[3] !== undefined) {
+                width -= (Number(part[3]) / 1000) * fontSize;
+              }
             }
+            pushRun(pageIdx, line, tx, ty, width);
+            tx += width;
+          } else if (op[12] !== undefined) {
+            const d = decodeHex(op[12], cmap, wMap, fontSize);
+            pushRun(pageIdx, d.text, tx, ty, d.width);
+            tx += d.width;
+          } else if (op[13] !== undefined) {
+            const w = op[13].length * fontSize * 0.5;
+            pushRun(pageIdx, op[13], tx, ty, w);
+            tx += w;
           }
-          pushRun(line, tx, ty, width);
-          tx += width;
-        } else if (op[12] !== undefined) {
-          const d = decodeHex(op[12], cmap, wMap, fontSize);
-          pushRun(d.text, tx, ty, d.width);
-          tx += d.width;
-        } else if (op[13] !== undefined) {
-          const w = op[13].length * fontSize * 0.5;
-          pushRun(op[13], tx, ty, w);
-          tx += w;
         }
       }
     }
