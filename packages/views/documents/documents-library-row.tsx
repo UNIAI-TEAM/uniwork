@@ -3,7 +3,7 @@
 import { Fragment, useId, useRef, type ReactNode } from "react";
 import { Ellipsis, Star } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { isMyFolder } from "@uniwork/core/types/document";
+import { isMyFolder, isShelved } from "@uniwork/core/types/document";
 import { Badge } from "@uniwork/ui/components/ui/badge";
 import { Button } from "@uniwork/ui/components/ui/button";
 import {
@@ -41,7 +41,9 @@ import { DocNameCell, DocPersonCell } from "./doclist/cells";
 import { docListSpec, type DocListScreen } from "./doclist/columns";
 import { EMPTY_CELL, formatBytes, formatListDate } from "./doclist/format";
 import { docListRowFields } from "./doclist/row-fields";
-import { DocScreenCell, DocScreenLine } from "./doclist/screen-cells";
+import { DocLifecycleAction, type DocLifecycleHandlers } from "./doclist/lifecycle-action";
+import type { RowMenuHandlers } from "./doclist/row-menu";
+import { DocScreenCell, DocScreenLine, type DocListMemberLookup } from "./doclist/screen-cells";
 import { libraryCell, libraryPad, type RowLadder } from "./library-columns";
 import { LibraryRowAccessCell } from "./library-row-access-cell";
 import { canShareRow, rowAppOperation, rowLevel } from "./row-level";
@@ -64,7 +66,9 @@ const APP_FORMATS = new Set(["docx", "xlsx", "pptx", "pdf", "md", "html"]);
 /** How a library row reaches "Open in UniWork Office" (host wiring, per row). */
 export type LibraryDesktopOpen = (doc: { id: string; organization_id: string; current_version: number }) => FrameDesktopOpenProps;
 
-export interface LibraryRowHandlers {
+export interface LibraryRowHandlers
+  extends Pick<RowMenuHandlers, "onUnshelve" | "onRestore" | "onViewDetails" | "onPurge">,
+    DocLifecycleHandlers {
   onOpen: (documentId: string) => void;
   onFolder: (folderId: string) => void;
   onGoToSource: (row: Extract<LibraryRow, { type: "source" }>) => void;
@@ -99,6 +103,8 @@ export interface LibraryRowHandlers {
   onCopyLink?: (doc: DocumentSummaryRow) => void;
   onDuplicate?: (doc: DocumentSummaryRow) => void;
   onDownload?: (doc: DocumentSummaryRow) => void;
+  /** Names who deleted / shelved a row in the Thùng rác and Lưu trữ columns. */
+  member?: DocListMemberLookup;
   /** The display name of a person id, or null when unknown. */
   personName: (userId: string, kind: string) => string | null;
   /** The folder a document sits in, for the Name cell's location line; absent draws none. */
@@ -111,6 +117,7 @@ export function LibraryRowView({
   handlers,
   ladder,
   screen = "workspace",
+  highlighted = false,
 }: {
   row: LibraryRow;
   handlers: LibraryRowHandlers;
@@ -118,6 +125,8 @@ export function LibraryRowView({
   ladder: RowLadder;
   /** The screen the list shows (doclist/columns.ts); "shared-by-me" also keeps the plain home-workspace scope on the narrow line (SW-V2). */
   screen?: DocListScreen;
+  /** The row a notification pointed at (`?focus=` on Thùng rác): ringed apart from hover. */
+  highlighted?: boolean;
 }) {
   const { t, i18n } = useTranslation();
   const appRequest = useRef<(() => Promise<DesktopOpenOutcome>) | null>(null);
@@ -147,7 +156,7 @@ export function LibraryRowView({
   // A starred row whose document is not in any loaded list has no version or
   // organisation yet: no app action until the document is known.
   const desktop =
-    doc && doc.kind === "file" && doc.current_version > 0 && APP_FORMATS.has(format) && handlers.desktopOpen && !doc.archived_at
+    doc && doc.kind === "file" && doc.current_version > 0 && APP_FORMATS.has(format) && handlers.desktopOpen && !doc.archived_at && screen !== "shelved"
       ? handlers.desktopOpen({ id: doc.id, organization_id: doc.organization_id, current_version: doc.current_version })
       : null;
   const level = rowLevel(doc);
@@ -172,12 +181,15 @@ export function LibraryRowView({
   const starred = Boolean(doc && handlers.isStarred(doc.id));
   const metaTail = [updated, size].filter((part) => part !== EMPTY_CELL).join(" · ");
 
-  // A row whose archive stamp survived into a live list is inert: the trash
-  // view (its own rows) owns restore/purge, so here nothing runs on it.
+  // A trashed row runs only what the Thùng rác screen wires (its menu, below);
+  // on a live list such a row is inert.
   const trashed = Boolean(doc?.archived_at);
 
   const primary = () => {
-    if (doc && folder) handlers.onFolder(doc.id);
+    if (doc && trashed) handlers.onViewDetails?.(doc);
+    // A shelved item opens read-only; a shelved folder never browses.
+    else if (doc && screen === "shelved") handlers.onOpen(doc.id);
+    else if (doc && folder) handlers.onFolder(doc.id);
     else if (doc) handlers.onOpen(doc.id);
     else if (row.type === "source") {
       // U-SRC1 + UNI-1869: the primary click opens the file view-only where the
@@ -190,14 +202,17 @@ export function LibraryRowView({
 
   // Share is not a level-gated command: every reader opens the dialog (as
   // DocumentActionsMenu does); the Access cell shares its gate with the menu item.
-  const shareable = Boolean(doc && handlers.onShare && canShareRow(doc));
+  const shareable = Boolean(doc && !trashed && handlers.onShare && canShareRow(doc));
   // One ordered menu for the ⋯ dropdown and the right-click menu (doclist/row-menu.ts).
   const menu = docRowMenu(row, {
     handlers,
     starred,
     open: primary,
     openApp: desktop ? () => void appRequest.current?.() : undefined,
+    screen,
   });
+  // The title opens a trashed row only where its menu offers Xem chi tiết (manage, never a folder).
+  const inert = trashed && !menu.some((group) => group.some((item) => item.id === "view-details"));
   // The app command joins the actions cell only when its column is wide
   // enough (the ladder's quick rung); the source's own link button below
   // is icon-sized and rendered at every width.
@@ -246,8 +261,12 @@ export function LibraryRowView({
           {starred ? (
             <Star role="img" aria-label={t("documents.home.row.starred")} className="size-3.5 shrink-0 fill-current text-brand" />
           ) : null}
-          {trashed ? (
+          {trashed && screen !== "trash" ? (
             <Badge variant="secondary" className="shrink-0">{t("documents.library.archived_badge")}</Badge>
+          ) : null}
+          {/* U-11: a shelved row that also sits in the trash keeps its "Đã lưu trữ" label. */}
+          {screen === "trash" && isShelved(doc) ? (
+            <Badge variant="secondary" className="shrink-0">{t("documents.shelved_list.badge")}</Badge>
           ) : null}
           {doc?.edit_lock && !doc.edit_lock.held_by_me ? (
             <EditLockHolderChip
@@ -260,7 +279,7 @@ export function LibraryRowView({
       }
     >
       {/* Below the table rung the row stacks under Name: the screen column's content first (it never hides), then the stand-ins below. */}
-      {screenColumn ? <DocScreenLine column={screenColumn} fields={fields} className={ladder.screenLineHides} /> : null}
+      {screenColumn ? <DocScreenLine column={screenColumn} fields={fields} member={handlers.member} className={ladder.screenLineHides} /> : null}
       {/* Below 34rem the meta group (editor · date · size) and level · share scope stay on separate lines (the editor needs the room until ~33rem); from 34rem they join one line until their columns take over (library-columns.ts). */}
       {editor || metaTail || levelLabel || showNarrowScope ? (
         <span
@@ -311,7 +330,7 @@ export function LibraryRowView({
     select: <td data-column="select" className={cn("py-2", libraryPad(ladder, "select"))} />,
     name: (
       <td data-column="name" className="px-3 py-2">
-        {trashed ? (
+        {inert ? (
           <div className="flex w-full min-w-0 items-center gap-3 text-left pointer-coarse:min-h-11">{nameCell}</div>
         ) : (
           <button
@@ -356,7 +375,7 @@ export function LibraryRowView({
     cells[screenColumn] = (
       <td data-column={screenColumn} className={cn("py-2", libraryPad(ladder, screenColumn), libraryCell(ladder, screenColumn))}>
         {/* A source row (home root merge) has no screen field: it keeps its own cells and a dash here. */}
-        <DocScreenCell column={screenColumn} fields={fields} />
+        <DocScreenCell column={screenColumn} fields={fields} member={handlers.member} />
       </td>
     );
   }
@@ -366,7 +385,11 @@ export function LibraryRowView({
       <ContextMenuTrigger
         render={<tr />}
         data-library-row={row.id}
-        className="group/row border-b border-border transition-colors last:border-b-0 hover:bg-accent/40"
+        data-focused={highlighted || undefined}
+        className={cn(
+          "group/row border-b border-border transition-colors last:border-b-0 hover:bg-accent/40",
+          highlighted && "bg-accent/60 ring-2 ring-inset ring-ring",
+        )}
       >
         {ladder.columns.map((column) => (column.id === "actions" ? null : <Fragment key={column.id}>{cells[column.id]}</Fragment>))}
         <td data-column="actions" className="px-2 py-2">
@@ -384,6 +407,7 @@ export function LibraryRowView({
                 {sourceLink}
               </div>
             ) : null}
+            {doc ? <DocLifecycleAction screen={screen} doc={doc} title={title} handlers={handlers} /> : null}
             {menu.length > 0 ? (
               <DropdownMenu>
                 <DropdownMenuTrigger

@@ -9,6 +9,7 @@ import {
   listSharedByMe,
   listSharedWithMe,
   listShelvedDocuments,
+  listTrashedDocuments,
   moveDocument,
   purgeDocument,
   restoreDocument,
@@ -187,6 +188,25 @@ export function useSharedByMe(wsId: string, opts?: DocumentListFilters & Documen
         },
         signal,
       ),
+    initialPageParam: "",
+    getNextPageParam: (last) => last.next_cursor || undefined,
+    enabled: (opts?.enabled ?? true) && !!wsId,
+  });
+}
+
+/** The Thùng rác list: archived rows in the one order the trash shows,
+ *  `deleted` ascending (UNI-2045 Q2; the endpoint fixes it). Under the list
+ *  root, so every `document.*` frame and a restore/purge refresh reach it;
+ *  the chips key the entry. */
+export function useTrashedDocuments(
+  wsId: string,
+  opts?: DocumentListFilters & Pick<ListDocumentsBaseOpts, "kind"> & { enabled?: boolean },
+) {
+  const filter = { kind: opts?.kind, format: opts?.format, access: opts?.access };
+  return useInfiniteQuery({
+    queryKey: documentKeys.list(wsId, `trash:${documentFilterKey(filter)}`),
+    queryFn: ({ pageParam, signal }) =>
+      listTrashedDocuments(wsId, { ...filter, cursor: pageParam || undefined, limit: DOCUMENT_PAGE_SIZE }, signal),
     initialPageParam: "",
     getNextPageParam: (last) => last.next_cursor || undefined,
     enabled: (opts?.enabled ?? true) && !!wsId,

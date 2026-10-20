@@ -428,8 +428,8 @@ describe("trash view (Trash.dc)", () => {
 
     expect(await screen.findByRole("heading", { level: 1, name: t("documents.trash.title") })).toBeInTheDocument();
     await screen.findByText("Cũ");
-    expect(screen.getByRole("columnheader", { name: t("documents.trash.columns.deleted_by") })).toBeInTheDocument();
-    expect(screen.getByRole("columnheader", { name: t("documents.trash.columns.purge_in") })).toBeInTheDocument();
+    // UNI-2045 W2: the shared columns, the Đã xóa screen column right after Tên.
+    expect(screen.getByRole("columnheader", { name: t("documents.list.screen_column.deleted") })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: t("documents.trash.restore_item", { title: "Cũ" }) })).toBeInTheDocument();
     // The old scope tabs / chips / group-by never appear here.
     expect(screen.queryByRole("tablist")).toBeNull();

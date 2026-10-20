@@ -10336,6 +10336,7 @@
       "purge": "Xóa vĩnh viễn",
       "restore_item": "Khôi phục {{title}}",
       "purge_item": "Xóa vĩnh viễn {{title}}",
+      "view_details": "Xem chi tiết",
       "purge_title": "Xóa vĩnh viễn {{title}}?",
       "purge_description": "Mục này sẽ bị xóa vĩnh viễn và không thể hoàn tác.",
       "purge_folder_description": "Thư mục này sẽ bị xóa vĩnh viễn và không thể hoàn tác. Mục con bạn không quản lý vẫn ở lại thùng rác.",

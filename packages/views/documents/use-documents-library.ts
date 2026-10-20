@@ -13,6 +13,7 @@ import {
   useSharedByMe,
   useSharedWithMe,
   useShelvedDocuments,
+  useTrashedDocuments,
 } from "@uniwork/core/documents/hooks-collections";
 import { isEndpointMissing, useDocumentSources } from "@uniwork/core/documents/hooks-library";
 import type { DocumentSourceType } from "@uniwork/core/documents/sources-schema";
@@ -234,16 +235,13 @@ export function useDocumentsLibrary({ wsId, orgId, enabled, view, folderId, chip
   }, [folderAutoPaging, homeQuery]);
 
   const rootQuery = useDocumentList(wsId, {}, { enabled: enabled && view.kind === "starred" });
-  const archivedFilter = useMemo(
-    () => ({
-      archived: true,
-      ...(chip === "page" ? { kind: "page" as const } : {}),
-      ...(serverFormat ? { format: serverFormat } : {}),
-      ...(serverAccess ? { access: serverAccess } : {}),
-    }),
-    [chip, serverFormat, serverAccess],
-  );
-  const archivedQuery = useDocumentList(wsId, archivedFilter, { enabled: enabled && archived });
+  // Thùng rác: always `deleted` ascending (UNI-2045 Q2), fixed by the endpoint.
+  const archivedQuery = useTrashedDocuments(wsId, {
+    enabled: enabled && archived,
+    kind: chip === "page" ? "page" : undefined,
+    format: serverFormat,
+    access: serverAccess,
+  });
   // ARCHIVE-01 U-2: the shelved list takes `format` server-side like the
   // trash; the "Trang" chip and the member filter stay on the client (the
   // endpoint has no `kind` or `shelved_by` parameter), and the access filter

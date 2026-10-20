@@ -43,7 +43,7 @@ export type DocumentSortOrder = "asc" | "desc";
 export interface ListDocumentsBaseOpts {
   q?: string;
   /** The column the tables sort by (UNI-2038); left out keeps the list's own
-   *  fixed order. `archived` and `shelved` lists refuse it with 400. */
+   *  fixed order. The trash takes only its own order (listTrashedDocuments). */
   sort?: DocumentSortColumn;
   order?: DocumentSortOrder;
   /** "document" is every kind but folder (folders contract v1.0). */
@@ -75,9 +75,15 @@ export type ListDocumentsOpts = ListDocumentsBaseOpts &
     | { sharedByMe: true; parentId?: never }
   );
 
-function listQuery(opts?: ListDocumentsOpts & { shelved?: boolean }): string {
+/** `trash` is the Thùng rác list: archived=1 in its one fixed order (see listTrashedDocuments). */
+function listQuery(opts?: ListDocumentsOpts & { shelved?: boolean; trash?: boolean }): string {
   if (!opts) return "";
   const p = new URLSearchParams();
+  if (opts.trash) {
+    p.set("archived", "1");
+    p.set("sort", "deleted");
+    p.set("order", "asc");
+  }
   if (opts.parentId !== undefined) p.set("parent_id", opts.parentId);
   if (opts.sharedByMe) p.set("shared_by_me", "true");
   if (opts.q) p.set("q", opts.q);
@@ -209,6 +215,36 @@ export async function listShelvedDocuments(
   );
   const parsed = parseWithFallback<DocumentList | null>(raw, DocumentListSchema, null, {
     endpoint: "GET /api/v1/workspaces/{ws}/documents?shelved=true",
+  });
+  if (!parsed) throw new Error("document_list_invalid");
+  return parsed;
+}
+
+/**
+ * GET /api/v1/workspaces/{workspaceID}/documents?archived=1 — the Thùng rác
+ * list, always `sort=deleted&order=asc` (UNI-2045 Q2): the items purged first
+ * lead, so the "Sắp xóa vĩnh viễn" group holds under paging. The order is not a
+ * parameter, the screen has no header sort. Same schema and cursor contract as
+ * the flat list; an untrusted answer throws rather than render an empty trash.
+ */
+export async function listTrashedDocuments(
+  wsId: string,
+  opts?: Pick<ListDocumentsBaseOpts, "cursor" | "limit" | "kind" | "format" | "access">,
+  signal?: AbortSignal,
+): Promise<DocumentList> {
+  const raw = await request(
+    `/api/v1/workspaces/${enc(wsId)}/documents${listQuery({
+      trash: true,
+      kind: opts?.kind,
+      format: opts?.format,
+      access: opts?.access,
+      cursor: opts?.cursor,
+      limit: opts?.limit,
+    })}`,
+    { signal },
+  );
+  const parsed = parseWithFallback<DocumentList | null>(raw, DocumentListSchema, null, {
+    endpoint: "GET /api/v1/workspaces/{ws}/documents?archived=1",
   });
   if (!parsed) throw new Error("document_list_invalid");
   return parsed;

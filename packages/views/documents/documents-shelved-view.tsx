@@ -5,18 +5,27 @@ import { useTranslation } from "react-i18next";
 import type { Member } from "@uniwork/core/types/workspace";
 import { DocumentsLibraryList } from "./documents-library-list";
 import type { LibraryRowHandlers } from "./documents-library-row";
-import type { ShelvedRowActions } from "./documents-shelved-row";
 import { ShelvedToolbar, SHELVED_BY_SYSTEM, type ShelvedByOption } from "./documents-shelved-toolbar";
-import { groupRows, type TypeChip } from "./library-rows";
+import { groupRows, type DocumentSummaryRow, type TypeChip } from "./library-rows";
 import type { useDocumentsLibrary } from "./use-documents-library";
+
+/** The commands a shelved row offers (ARCHIVE-01 U-3/U-4). The page owns the
+ *  mutations and their toasts; the row only names the item asked for. */
+interface ShelvedRowActions {
+  /** Bỏ lưu trữ: brings the item (and its same-batch shelved descendants the caller manages) back live. */
+  onUnshelve: (doc: DocumentSummaryRow) => void;
+  /** Chuyển vào thùng rác: the trash archive command (its own dialog), manage only. */
+  onTrash: (doc: DocumentSummaryRow) => void;
+  /** True while that item's unshelve request runs: its button is disabled, a second click sends nothing. */
+  isUnshelving: (documentId: string) => boolean;
+}
 
 export interface DocumentsShelvedViewProps {
   library: ReturnType<typeof useDocumentsLibrary>;
   chip: TypeChip;
   onChip: (chip: TypeChip) => void;
-  /** The workspace members (the "Lưu trữ bởi" options and column). */
+  /** The workspace members (the "Lưu trữ bởi" options; the column reads `handlers.member`). */
   members: Member[] | undefined;
-  memberIndex: ReadonlyMap<string, Member>;
   handlers: LibraryRowHandlers;
   actions: ShelvedRowActions;
   /** The "open the navigation" button below `xl`. */
@@ -25,10 +34,13 @@ export interface DocumentsShelvedViewProps {
 
 /**
  * The Lưu trữ view (Archive.dc, ARCHIVE-01 U-2): its heading and intro, the
- * shelved toolbar (Loại chips + "Lưu trữ bởi") and one flat table in the
- * server's shelved_at-newest order, as its sort label says (F1).
+ * shelved toolbar (Loại chips + "Lưu trữ bởi") and the shared document list
+ * with `screen="shelved"` (UNI-2045 W3): the Lưu trữ column (avatar + who
+ * shelved · date), `Bỏ lưu trữ` · ⋯ on the row and the menu `Mở` · `Bỏ lưu
+ * trữ` · `Tải xuống` │ `Chuyển vào thùng rác`, flat in the server's
+ * shelved_at-newest order (F1).
  */
-export function DocumentsShelvedView({ library, chip, onChip, members, memberIndex, handlers, actions, navButton }: DocumentsShelvedViewProps) {
+export function DocumentsShelvedView({ library, chip, onChip, members, handlers, actions, navButton }: DocumentsShelvedViewProps) {
   const { t } = useTranslation();
   const state = library.state;
   // The "Lưu trữ bởi" options (U-2/Q-UI2): the workspace members plus the
@@ -69,7 +81,7 @@ export function DocumentsShelvedView({ library, chip, onChip, members, memberInd
           title: t("documents.shelved_list.no_matches_title"),
           description: t("documents.shelved_list.no_matches_description"),
         }}
-        shelved={{ actions, members: memberIndex, membersReady: Boolean(members) }}
+        screen="shelved"
         hasMore={state.hasMore}
         loadingMore={state.loadingMore}
         onLoadMore={state.loadMore}
@@ -78,7 +90,7 @@ export function DocumentsShelvedView({ library, chip, onChip, members, memberInd
           onChip("all");
           library.setShelvedBy(null);
         }}
-        handlers={handlers}
+        handlers={{ ...handlers, onUnshelve: actions.onUnshelve, onArchive: actions.onTrash, isBusy: actions.isUnshelving }}
         empty={{ title: t("documents.shelved_list.empty_title"), description: t("documents.shelved_list.empty_description") }}
       />
     </div>

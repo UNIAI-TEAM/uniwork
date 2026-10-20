@@ -10342,6 +10342,7 @@
       "purge": "Delete forever",
       "restore_item": "Restore {{title}}",
       "purge_item": "Delete {{title}} forever",
+      "view_details": "View details",
       "purge_title": "Delete {{title}} forever?",
       "purge_description": "This item will be permanently deleted and cannot be undone.",
       "purge_folder_description": "This folder will be permanently deleted and cannot be undone. Items inside it that you do not manage stay in the trash.",

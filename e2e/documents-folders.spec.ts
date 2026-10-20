@@ -2449,10 +2449,10 @@ test("FD-A12 (FD-09 UI) delete folder dialog shows the server subfolder and docu
 
   // Restore from the Trash view: the trashed folder's row carries its own
   // Khôi phục button (named after the item) and restores at once — no dialog
-  // (RESTORE-01), and the dedicated table has no row menu (TRASH-A3).
+  // (RESTORE-01). The trash is the shared list (UNI-2045 W2), its rows the library rows.
   await page.getByRole("button", { name: "Thùng rác", exact: true }).first().click();
   await expect(page.getByRole("heading", { level: 1, name: "Thùng rác" })).toBeVisible();
-  const trashRow = page.locator("tr[data-trash-row]").filter({ has: page.getByText("Xóa Thử", { exact: true }) });
+  const trashRow = page.locator("tr[data-library-row]").filter({ has: page.getByText("Xóa Thử", { exact: true }) });
   await expect(trashRow).toBeVisible();
   await trashRow.getByRole("button", { name: "Khôi phục Xóa Thử", exact: true })
     .click();

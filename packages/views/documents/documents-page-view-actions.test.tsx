@@ -742,14 +742,19 @@ describe("library views", () => {
     expect(screen.queryByText(t("documents.library.error_title"))).toBeNull();
   });
 
-  it("lists archived documents with the trash actions and no live row menu", async () => {
+  it("lists archived documents with the trash actions and only the trash menu (UNI-2045 W2)", async () => {
     route({ list: (path) => (new URLSearchParams(path.split("?")[1] ?? "").get("archived") === "1" ? [summary({ id: "a1", title: "Cũ", archived_at: "2026-09-01T00:00:00Z", archived_by: "u2", purge_after: "2026-10-01T00:00:00Z" })] : []) });
     renderView();
     fireEvent.click(await screen.findByRole("button", { name: new RegExp(t("documents.home.sidebar.trash")) }));
     const row = await rowOf("Cũ");
     expect(within(row).getByRole("button", { name: t("documents.trash.restore_item", { title: "Cũ" }) })).toBeInTheDocument();
-    expect(within(row).getByRole("button", { name: t("documents.trash.purge_item", { title: "Cũ" }) })).toBeInTheDocument();
-    expect(within(row).queryByRole("button", { name: t("documents.home.row.menu", { title: "Cũ" }) })).toBeNull();
+    fireEvent.click(within(row).getByRole("button", { name: t("documents.home.row.menu", { title: "Cũ" }) }));
+    const menu = await screen.findByRole("menu");
+    expect(within(menu).getAllByRole("menuitem").map((item) => item.textContent?.trim())).toEqual([
+      t("documents.trash.restore"),
+      t("documents.trash.view_details"),
+      t("documents.trash.purge"),
+    ]);
   });
 
   it("lists one module's files from the sidebar and names the view after it", async () => {
@@ -833,14 +838,15 @@ describe("FD-09 fix r2: trashed folder restore and one menu vocabulary", () => {
   const primaryOf = (row: HTMLElement) => row.querySelector<HTMLElement>("td:first-child button");
   const restoreOf = (row: HTMLElement) => within(row).queryByRole("button", { name: t("documents.trash.restore_item", { title: "Dự án CCB" }) });
 
-  it("offers Restore and Xóa vĩnh viễn, not Open folder or a row menu, on a trashed folder in the Trash view", async () => {
+  it("offers Restore and Xóa vĩnh viễn, never Open folder, on a trashed folder in the Trash view (UNI-2045 W2 menu)", async () => {
     route({ list: archivedList([archivedFolder()]) });
     renderView();
     await openArchiveScope();
     const row = await rowOf("Dự án CCB");
     expect(restoreOf(row)).not.toBeNull();
-    expect(within(row).queryByRole("button", { name: t("documents.trash.purge_item", { title: "Dự án CCB" }) })).not.toBeNull();
-    expect(within(row).queryByRole("button", { name: t("documents.home.row.menu", { title: "Dự án CCB" }) })).toBeNull();
+    fireEvent.click(within(row).getByRole("button", { name: t("documents.home.row.menu", { title: "Dự án CCB" }) }));
+    const menu = await screen.findByRole("menu");
+    expect(within(menu).getAllByRole("menuitem").map((item) => item.textContent?.trim())).toEqual([t("documents.trash.restore"), t("documents.trash.purge")]);
     expect(screen.queryByRole("menuitem", { name: t("documents.home.row.open_folder") })).toBeNull();
   });
 
@@ -850,7 +856,7 @@ describe("FD-09 fix r2: trashed folder restore and one menu vocabulary", () => {
     await openArchiveScope();
     const row = await rowOf("Dự án CCB");
     expect(restoreOf(row)).toBeNull();
-    expect(within(row).queryByRole("button", { name: t("documents.trash.purge_item", { title: "Dự án CCB" }) })).toBeNull();
+    expect(within(row).queryByRole("button", { name: t("documents.home.row.menu", { title: "Dự án CCB" }) })).toBeNull();
     expect(within(row).getByText(t("documents.trash.read_only"))).toBeInTheDocument();
   });
 

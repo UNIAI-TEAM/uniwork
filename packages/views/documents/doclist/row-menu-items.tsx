@@ -2,7 +2,9 @@ import { Fragment, type ComponentType, type ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
   Archive,
+  ArchiveRestore,
   Copy,
+  Eye,
   CopyPlus,
   Download,
   ExternalLink,
@@ -38,6 +40,10 @@ const ICONS: Record<Exclude<RowMenuItemId, "go-to-source">, LucideIcon> = {
   shelve: Archive,
   trash: Trash2,
   save: FolderInput,
+  unshelve: ArchiveRestore,
+  restore: ArchiveRestore,
+  "view-details": Eye,
+  purge: Trash2,
 };
 
 function iconOf(item: RowMenuItem, row: LibraryRow): LucideIcon {

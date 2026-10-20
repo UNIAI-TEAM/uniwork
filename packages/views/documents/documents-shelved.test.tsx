@@ -874,7 +874,7 @@ describe("shelved list copy and audience (F3, F4)", () => {
     ).toBeInTheDocument();
   });
 
-  it("shows each row's audience in Truy cập, with the lock on a restricted one, not the viewer's level", async () => {
+  it("shows each row's audience in Truy cập with the shared pill and the viewer's level line (UNI-2045 W3)", async () => {
     route({
       list: (path) =>
         query(path).get("shelved") === "true"
@@ -883,15 +883,15 @@ describe("shelved list copy and audience (F3, F4)", () => {
     });
     renderView();
     await openShelved();
-    // rowVisibilityLabelKey now maps to documents.scope.* (UNI-1785 rename):
-    // workspace → "Workspace", restricted → "Riêng tư" with the lock icon.
-    const open = await rowOf("Cả nhóm xem");
-    expect(within(open).getByText(t("documents.scope.workspace"))).toBeInTheDocument();
-    expect(within(open).queryByText(t("documents.home.access.manage"))).toBeNull();
-    const closed = await rowOf("Hồ sơ riêng");
-    const cell = within(closed).getByText(t("documents.scope.private"));
-    expect(cell.parentElement?.querySelector("svg")).not.toBeNull();
+    // The same Access cell as every list screen (contract UNI-2045 → Truy cập): the pill, then "Bạn: Quản lý".
+    const open = (await rowOf("Cả nhóm xem")).querySelector<HTMLElement>("[data-column='access']")!;
+    expect(within(open).getByText(t("documents.list.access.workspace"))).toBeInTheDocument();
+    expect(within(open).getByText(t("documents.list.access.you", { level: t("documents.list.access.level.manage") }))).toBeInTheDocument();
+    const closed = (await rowOf("Hồ sơ riêng")).querySelector<HTMLElement>("[data-column='access']")!;
+    const pill = within(closed).getByText(t("documents.list.access.restricted"));
+    expect(pill.parentElement?.querySelector("svg")).not.toBeNull();
   });
+
 });
 
 // UNI-2045 W3: Lưu trữ is the shared list with screen="shelved": the shared

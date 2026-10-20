@@ -1,34 +1,18 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { FolderOpen, Search, ShieldAlert } from "lucide-react";
+import { FolderOpen, Search, ShieldAlert, type LucideIcon } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { cn } from "@uniwork/ui/lib/utils";
 import { CollectionPageState } from "../layout/collection-page";
-import type { Member } from "@uniwork/core/types/workspace";
 import { LibraryRowView, type LibraryRowHandlers } from "./documents-library-row";
-import { ShelvedRowView, type ShelvedRowActions } from "./documents-shelved-row";
 import { docListSpec, type DocListScreen } from "./doclist/columns";
-import { libraryGroupSpans, shelvedLadder, specLadder, type LibraryColumnId, type RowLadder } from "./library-columns";
+import { libraryGroupSpans, specLadder } from "./library-columns";
 import type { RowGroup } from "./library-rows";
 import { isSortableColumn, type LibrarySort, type LibrarySortColumn } from "./library-sort";
 import { LibrarySortHeader } from "./library-sort-header";
-
-// The Lưu trữ table reads its own header keys (documents.shelved_list.columns.*);
-// it shares the shell, the group spanners and the states only. Its ladder has
-// no editor, updated or size column: those entries only satisfy the Record.
-const SHELVED_COLUMN_LABEL: Record<LibraryColumnId, string> = {
-  name: "documents.shelved_list.columns.name",
-  access: "documents.shelved_list.columns.access",
-  editor: "documents.list.column.editor",
-  updated: "documents.list.column.updated",
-  size: "documents.list.column.size",
-  actions: "documents.shelved_list.columns.actions",
-  shelved_by: "documents.shelved_list.columns.shelved_by",
-  shelved_at: "documents.shelved_list.columns.shelved_at",
-};
 
 export interface DocumentsLibraryListProps {
   groups: RowGroup[];
@@ -50,14 +34,6 @@ export interface DocumentsLibraryListProps {
   homeFiltered?: boolean;
   /** The create cards sit above the list, so the no-match hint may point at them. */
   cardsShown?: boolean;
-  /** The Lưu trữ layout (ARCHIVE-01 U-2): the shelved ladder and
-   *  ShelvedRowView with its own columns and per-row commands. */
-  shelved?: {
-    actions: ShelvedRowActions;
-    /** The workspace member list by user id, feeding the Lưu trữ bởi column. */
-    members: ReadonlyMap<string, Member>;
-    membersReady: boolean;
-  };
   /** The no-matches copy of the open view when it is not the generic library
    *  wording (the shelved list names its own empty-filtered line). */
   emptyFiltered?: { title: string; description: string };
@@ -68,14 +44,18 @@ export interface DocumentsLibraryListProps {
   onClearFilters: () => void;
   handlers: LibraryRowHandlers;
   /** The column sort of the table (UNI-2038): Tên, Người sửa, Cập nhật and Dung lượng headers become buttons;
-   *  absent, every header stays plain text (the Lưu trữ table). The rows arrive in this order already. */
+   *  absent, every header stays plain text (Lưu trữ, and Thùng rác, whose order is fixed: Q2). The rows arrive in this order already. */
   sort?: { value: LibrarySort; onSort: (column: LibrarySortColumn) => void };
   /** The screen the table shows (doclist/columns.ts): its column order, its screen column and its narrow ladder. */
   screen?: DocListScreen;
   /** The Select column of the spec (bulk selection, W9); off on every screen today. */
   selectable?: boolean;
+  /** The table's accessible name when it is not the Documents page's (Thùng rác names its own). */
+  label?: string;
+  /** The row a notification pointed at: ringed apart from hover (LibraryRowView `highlighted`). */
+  highlightId?: string | null;
   /** The empty state's copy and actions, which depend on the open view. */
-  empty: { title: string; description: string; actions?: ReactNode };
+  empty: { title: string; description: string; actions?: ReactNode; icon?: LucideIcon };
 }
 
 /**
@@ -93,7 +73,6 @@ export function DocumentsLibraryList({
   typeFiltered = false,
   homeFiltered = false,
   cardsShown = false,
-  shelved,
   emptyFiltered,
   hasMore,
   loadingMore,
@@ -104,6 +83,8 @@ export function DocumentsLibraryList({
   sort,
   screen = "workspace",
   selectable = false,
+  label,
+  highlightId = null,
   empty,
 }: DocumentsLibraryListProps) {
   const { t } = useTranslation();
@@ -181,7 +162,7 @@ export function DocumentsLibraryList({
         />
       );
     }
-    return <CollectionPageState icon={FolderOpen} title={empty.title} description={empty.description} role="status" actions={empty.actions} />;
+    return <CollectionPageState icon={empty.icon ?? FolderOpen} title={empty.title} description={empty.description} role="status" actions={empty.actions} />;
   }
 
   const showGroups = !(groups.length === 1 && groups[0]?.key === "all");
@@ -194,18 +175,18 @@ export function DocumentsLibraryList({
     return "";
   };
 
-  const ladder: RowLadder = shelved ? shelvedLadder() : specLadder(screen, { selectable });
+  const ladder = specLadder(screen, { selectable });
   const groupSpans = libraryGroupSpans(ladder);
   const specLabels = new Map(docListSpec(screen).columns.map((column) => [column.id as string, column.labelKey]));
-  const columnLabel = (id: string): string =>
-    shelved ? SHELVED_COLUMN_LABEL[id as LibraryColumnId] : (specLabels.get(id) ?? "");
+  const columnLabel = (id: string): string => specLabels.get(id) ?? "";
   // The group title spans the columns that are on at every width (Select, Name, Actions).
   const alwaysOn = ladder.columns.filter((column) => !column.cell).length;
 
   return (
     <div className="@container/library flex flex-col">
       <div className="overflow-hidden rounded-lg border border-border">
-        <table className="w-full table-fixed border-collapse text-left" aria-label={t("documents.page.title")}>
+        {/* tabIndex -1: a host may move focus onto the table itself (Thùng rác after Load more). */}
+        <table tabIndex={-1} className="w-full table-fixed border-collapse text-left" aria-label={label ?? t("documents.page.title")}>
           {/*
             Every column but Name and Actions joins by the width of this list
             (`@container/library`, see library-columns.ts), never the
@@ -225,7 +206,7 @@ export function DocumentsLibraryList({
               {ladder.columns.map((column) => {
                 // The client sorts Name, Người sửa, Cập nhật and Dung lượng today; the screen
                 // column header stays plain until W12 wires its sort key (doclist/columns.ts).
-                const sortable = sort && !shelved && isSortableColumn(column.id) ? column.id : null;
+                const sortable = sort && isSortableColumn(column.id) ? column.id : null;
                 return (
                   <th
                     key={column.id}
@@ -259,19 +240,7 @@ export function DocumentsLibraryList({
                 </tr>
               ) : null}
               {group.rows.map((row) => (
-                shelved ? (
-                  <ShelvedRowView
-                    key={row.id}
-                    row={row}
-                    members={shelved.members}
-                    membersReady={shelved.membersReady}
-                    ladder={shelvedLadder()}
-                    shelved={shelved.actions}
-                    onOpen={handlers.onOpen}
-                  />
-                ) : (
-                  <LibraryRowView key={row.id} row={row} handlers={handlers} ladder={ladder} screen={screen} />
-                )
+                <LibraryRowView key={row.id} row={row} handlers={handlers} ladder={ladder} screen={screen} highlighted={row.id === highlightId} />
               ))}
             </tbody>
           ))}

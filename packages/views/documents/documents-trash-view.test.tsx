@@ -117,10 +117,10 @@ describe("DocumentsTrashView", () => {
       ],
       handlers: handlers({ onOpen }),
     });
-    fireEvent.click(screen.getByRole("button", { name: /^doc\.docx/ }));
+    fireEvent.click(screen.getByText("doc.docx").closest("button")!);
     expect(onOpen).toHaveBeenCalledWith("doc");
-    expect(screen.queryByRole("button", { name: /^Thư mục cũ/ })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /^Chỉ xem\.docx/ })).not.toBeInTheDocument();
+    expect(screen.getByText("Thư mục cũ").closest("button")).toBeNull();
+    expect(screen.getByText("Chỉ xem.docx").closest("button")).toBeNull();
   });
 
   it("ends with the footer note on how restore works", () => {

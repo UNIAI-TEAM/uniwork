@@ -25,7 +25,25 @@ export interface DocListShareSummary {
   latestAt: string | null;
 }
 
+/** Who moved a row to the trash and when; `by` is null for the system. */
+export interface DocListTrashed {
+  by: string | null;
+  at: string;
+  /** When the server purges it (30 days on); null when the answer did not say. */
+  purgeAfter: string | null;
+}
+
+/** Who shelved a row (Lưu trữ) and when; `by` is null for the system. */
+export interface DocListShelved {
+  by: string | null;
+  at: string;
+}
+
 export interface DocListRowFields {
+  /** Thùng rác: the archive stamp every list row already carries. */
+  trashed?: DocListTrashed;
+  /** Lưu trữ: the shelve stamp every list row already carries. */
+  shelved?: DocListShelved;
   /** SV-1, Recent. */
   lastActivity?: DocListLastActivity;
   /** SV-2, Starred. */
@@ -50,6 +68,12 @@ const count = (value: unknown): number => (typeof value === "number" && Number.i
 export function docListRowFields(doc: DocumentSummaryRow): DocListRowFields {
   const raw = doc as unknown as Loose;
   const fields: DocListRowFields = {};
+
+  if (doc.archived_at) {
+    fields.trashed = { by: doc.archived_by || null, at: doc.archived_at, purgeAfter: doc.purge_after || null };
+  }
+  const shelvedAt = text(raw.shelved_at);
+  if (shelvedAt) fields.shelved = { by: text(raw.shelved_by) ?? null, at: shelvedAt };
 
   const activity = record(raw.last_activity);
   const activityKind = text(activity?.kind);

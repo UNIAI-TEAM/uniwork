@@ -24,6 +24,7 @@ import { CreateMenu } from "./documents-home-create";
 import { DocumentsCollectionHeader, DocumentsHomeHeader, DocumentsHomeNote } from "./documents-home-header";
 import { DocumentsLibraryList } from "./documents-library-list";
 import { docListScreenOfView, folderNameLookup } from "./doclist/live-screen";
+import { docMemberLookup } from "./doclist/screen-cells";
 import type { LibraryDesktopOpen, LibraryRowHandlers } from "./documents-library-row";
 import { LibraryToolbar } from "./documents-library-toolbar";
 import { DocumentsSections, nonFolderRows, subfoldersOf } from "./documents-folders-grid";
@@ -63,8 +64,8 @@ export interface DocumentsPageViewProps {
 
 /**
  * `/documents` — the Documents home (TRASH-A3 boards, 2026-10-16): at home and
- * in a folder a header row, folder cards and the documents table; the Trash
- * view has its own table; Recent / Starred / Shared / Elsewhere keep the
+ * in a folder a header row, folder cards and the documents table; Trash and
+ * Lưu trữ wrap the same table with their own heading; Recent / Starred / Shared / Elsewhere keep the
  * collection header and the library table. Every row is a server answer;
  * create, upload and save await the server.
  */
@@ -198,7 +199,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
   // Lưu trữ joins the same set (U-4: manage-only at the menu item itself).
   const rowCommands = canCreate && (view.kind === "home" || view.kind === "recent" || view.kind === "starred" || view.kind === "shared" || view.kind === "sharedByMe");
 
-  const memberIndex = useMemo(() => new Map((members.data ?? []).map((m) => [m.user_id, m])), [members.data]);
+  const member = useMemo(() => docMemberLookup(members.data), [members.data]);
   const drop = useDropUpload({
     enabled: enabled && canCreate && !folderInvalid,
     maxBytes: limits.upload_max_bytes,
@@ -273,6 +274,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
         }
       : undefined,
     isStarred: (documentId) => library.starredIds.has(documentId),
+    member,
     personName: (userId, kind) => names.get(userId) ?? (kind === "agent" ? t("documents.home.editor_agent") : null),
     locationName: folderNameLookup(library.tree, t("documents.home.my_folder.label")),
     desktopOpen,
@@ -464,15 +466,12 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
               <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 py-5 sm:px-6">
                 <div className="flex justify-end xl:hidden">{navButton}</div>
                 <DocumentsTrashView
-                  rows={state.rows.flatMap((row) => (row.type === "document" ? [row.doc] : []))}
+                  rows={state.rows}
                   loading={state.loading}
                   failure={state.failure}
                   onRetry={state.refetch}
                   actions={trashActions}
-                  members={memberIndex}
-                  membersReady={Boolean(members.data)}
-                  onOpen={(doc) => onOpen(doc.id)}
-                  tree={library.tree}
+                  handlers={handlers}
                   focusId={focusId}
                   claimFocus={claimFocus}
                   hasMore={state.hasMore}
@@ -489,14 +488,11 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
                 chip={chip}
                 onChip={setChip}
                 members={members.data}
-                memberIndex={memberIndex}
                 handlers={handlers}
                 actions={{
                   onUnshelve: shelvedActions.onUnshelve,
                   onTrash: (doc) => rowDialogs.onArchive(doc),
                   isUnshelving: shelvedActions.isUnshelving,
-                  onToggleStar: handlers.onToggleStar,
-                  isStarred: handlers.isStarred,
                 }}
                 navButton={navButton}
               />

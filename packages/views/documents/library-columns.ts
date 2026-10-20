@@ -14,27 +14,12 @@ import { docListRungs, docListSpec, type DocListColumnId, type DocListScreen } f
  * none can drift out of step. Tailwind finds the classes as literals, so each
  * rung is written out in full.
  *
- * Two ladders live here: `specLadder` (the unified list, contract UNI-2045,
- * driven from doclist/columns.ts) for the live screens, and the Lưu trữ ladder
- * below until that screen moves onto the spec too.
+ * The ladder is `specLadder` (the unified list, contract UNI-2045, driven
+ * from doclist/columns.ts), one for every screen.
  */
 
-export type LibraryColumnId =
-  | "name"
-  | "access"
-  | "editor"
-  | "updated"
-  | "size"
-  | "actions"
-  // Shelved-only columns (ARCHIVE-01 U-2): who archived it and when.
-  | "shelved_by"
-  | "shelved_at";
-
-/** A column of either ladder: the legacy ones above, or one of the unified list's (doclist/columns.ts). */
-type AnyColumnId = LibraryColumnId | DocListColumnId;
-
-interface LibraryColumn<Id extends AnyColumnId = LibraryColumnId> {
-  id: Id;
+interface LibraryColumn {
+  id: DocListColumnId;
   /** Classes of the `<col>`. */
   col: string;
   /** Visibility (and alignment) classes shared by the `<th>` and every `<td>` of the column. */
@@ -43,10 +28,10 @@ interface LibraryColumn<Id extends AnyColumnId = LibraryColumnId> {
   pad?: string;
 }
 
-/** What a library row reads from either ladder: its columns and the classes of its narrow secondary line. */
+/** What a library row reads from the ladder: its columns and the classes of its narrow secondary line. */
 export interface RowLadder {
   /** DOM order, Name first (after Select) and actions last. */
-  columns: readonly LibraryColumn<AnyColumnId>[];
+  columns: readonly LibraryColumn[];
   /** The header row: hidden while only Name and actions exist. */
   head: string;
   /** The app command in the actions cell: shown once the actions column has room for it. */
@@ -65,54 +50,13 @@ export interface RowLadder {
   screenLineHides?: string;
 }
 
-export interface LibraryLadder extends RowLadder {
-  columns: LibraryColumn[];
-}
-
-const NAME: LibraryColumn = { id: "name", col: "", cell: "" };
-
-// Shelved ladder (Archive.dc, ARCHIVE-01 U-2): Name (with the folder path as
-// its secondary line) / Truy cập / Lưu trữ bởi / Lưu trữ lúc / Actions. Below
-// 46rem only Name and the actions exist; the member name lands last because
-// its 160px are the widest single addition.
-//
-// | container | shelved                          |
-// | --------- | -------------------------------- |
-// | < 46rem   | Name, actions                    |
-// | 46rem     | + Truy cập, Lưu trữ lúc          |
-// | 56rem     | + Lưu trữ bởi                    |
-const SHELVED: LibraryLadder = {
-  columns: [
-    NAME,
-    { id: "access", col: "hidden w-24 @min-[46rem]/library:table-column", cell: "hidden @min-[46rem]/library:table-cell" },
-    { id: "shelved_by", col: "hidden w-40 @min-[56rem]/library:table-column", cell: "hidden @min-[56rem]/library:table-cell" },
-    { id: "shelved_at", col: "hidden w-28 @min-[46rem]/library:table-column", cell: "hidden @min-[46rem]/library:table-cell" },
-    // Two labelled commands (restore from Lưu trữ, move to trash) plus the ⋯ menu.
-    { id: "actions", col: "w-24 pointer-coarse:w-28 @min-[46rem]/library:w-48", cell: "" },
-  ],
-  head: "hidden bg-muted/50 @min-[46rem]/library:table-header-group",
-  quick: "",
-  metaHides: "@min-[46rem]/library:hidden",
-  metaTailHides: "@min-[46rem]/library:hidden",
-  accessLineHides: "@min-[56rem]/library:hidden",
-  // The shelved row draws its own secondary line (documents-shelved-row.tsx);
-  // these two only serve the library row, so they mirror the rungs above.
-  accessGroupHides: "@min-[56rem]/library:hidden",
-  metaDotHides: "@min-[46rem]/library:hidden",
-};
-
-/** The Lưu trữ table's ladder: the access column plus the shelved pair. */
-export function shelvedLadder(): LibraryLadder {
-  return SHELVED;
-}
-
 /** The horizontal padding of one column's header and cells: the spec ladder tightens the optional ones to `px-2`. */
-export function libraryPad(ladder: { columns: readonly LibraryColumn<AnyColumnId>[] }, id: AnyColumnId): string {
+export function libraryPad(ladder: { columns: readonly LibraryColumn[] }, id: DocListColumnId): string {
   return ladder.columns.find((column) => column.id === id)?.pad ?? "px-3";
 }
 
 /** The visibility class of one column's cells, or null when this ladder has no such column. */
-export function libraryCell(ladder: { columns: readonly LibraryColumn<AnyColumnId>[] }, id: AnyColumnId): string | null {
+export function libraryCell(ladder: { columns: readonly LibraryColumn[] }, id: DocListColumnId): string | null {
   return ladder.columns.find((column) => column.id === id)?.cell ?? null;
 }
 
@@ -122,7 +66,7 @@ export function libraryCell(ladder: { columns: readonly LibraryColumn<AnyColumnI
  * so the spanner covers exactly the visible columns at every width (a wider
  * colSpan would add implicit columns that squeeze Name).
  */
-export function libraryGroupSpans(ladder: { columns: readonly LibraryColumn<AnyColumnId>[] }): { cell: string; span: number }[] {
+export function libraryGroupSpans(ladder: { columns: readonly LibraryColumn[] }): { cell: string; span: number }[] {
   const spans: { cell: string; span: number }[] = [];
   for (const column of ladder.columns) {
     if (!column.cell) continue;
@@ -181,7 +125,7 @@ function atRung(rung: number): RungClasses {
 
 /** The unified list's ladder: the spec's columns, the header class and the classes of the row's narrow line. */
 export interface SpecLadder extends RowLadder {
-  columns: LibraryColumn<DocListColumnId>[];
+  columns: LibraryColumn[];
   screenLineHides: string;
 }
 
@@ -202,7 +146,7 @@ export function specLadder(screen: DocListScreen, opts: { selectable?: boolean }
   const at = (column: keyof typeof rungs) => atRung(rungs[column]);
   // Every `<col>` takes the spec's width; Name has none. The optional columns carry px-2, Name keeps px-3.
   const PAD = "px-2";
-  const columns: LibraryColumn<DocListColumnId>[] = spec.columns.flatMap((column): LibraryColumn<DocListColumnId>[] => {
+  const columns: LibraryColumn[] = spec.columns.flatMap((column): LibraryColumn[] => {
     const w = column.id === "name" ? "" : widthClass(column.width);
     switch (column.id) {
       case "select":

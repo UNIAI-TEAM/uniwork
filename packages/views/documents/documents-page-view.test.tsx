@@ -920,7 +920,7 @@ describe("DocumentsPageView", () => {
     ).toBeInTheDocument();
   });
 
-  it("offers the trash actions, never the live row menu, on the trash view", async () => {
+  it("offers the trash actions, never a live row command, on the trash view (UNI-2045 W2 menu)", async () => {
     route({
       list: (path) =>
         queryOf(path).get("archived") === "1"
@@ -932,9 +932,12 @@ describe("DocumentsPageView", () => {
     expect(await screen.findByRole("heading", { level: 1, name: t("documents.trash.title") })).toBeInTheDocument();
     const row = await rowOf("Kế hoạch Q4");
     expect(within(row).getByRole("button", { name: t("documents.trash.restore_item", { title: "Kế hoạch Q4" }) })).toBeInTheDocument();
-    expect(within(row).getByRole("button", { name: t("documents.trash.purge_item", { title: "Kế hoạch Q4" }) })).toBeInTheDocument();
-    expect(within(row).queryByRole("button", { name: t("documents.home.row.menu", { title: "Kế hoạch Q4" }) })).toBeNull();
+    fireEvent.click(within(row).getByRole("button", { name: t("documents.home.row.menu", { title: "Kế hoạch Q4" }) }));
+    const menu = await screen.findByRole("menu");
+    expect(within(menu).getByRole("menuitem", { name: t("documents.trash.purge") })).toBeInTheDocument();
     expect(screen.queryByRole("menuitem", { name: t("documents.home.row.move") })).toBeNull();
+    fireEvent.keyDown(menu, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
 
     await openView("shared");
     const sharedRow = await rowOf("Kế hoạch Q4");

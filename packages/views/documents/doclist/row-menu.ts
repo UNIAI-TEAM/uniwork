@@ -1,14 +1,15 @@
-import { isMyFolder, isShelved } from "@uniwork/core/types/document";
+import { canManageTrashed, isMyFolder, isShelved } from "@uniwork/core/types/document";
 import { isFolderRow, type DocumentSummaryRow, type LibraryRow } from "../library-rows";
 import { canArchiveRow, canMoveRow, canShareRow, rowLevel } from "../row-level";
 import { sourceLinkLabelKey, sourceParentLinked } from "../source-links";
+import type { DocListScreen } from "./columns";
 
-// The one row menu of the live document lists (workspace + folders, Recent,
-// Starred, Shared with me, Shared by me), as a pure function of the row, the
-// viewer's level on it and the commands the host wired. The ⋯ dropdown and the
-// right-click menu both draw the groups it returns, so the two cannot drift.
+// The one row menu of every document list (workspace + folders, Recent,
+// Starred, Shared with me, Shared by me, Lưu trữ, Thùng rác), as a pure
+// function of the row, the screen, the viewer's level on it and the commands
+// the host wired. The ⋯ dropdown and the right-click menu both draw the groups
+// it returns, so the two cannot drift.
 // Source: contract UNI-2045, "Quy tắc định dạng dùng chung" → Thao tác.
-// Lưu trữ and Thùng rác rows have their own menus (W3 / W2) and do not use it.
 
 export type RowMenuItemId =
   | "open"
@@ -25,7 +26,11 @@ export type RowMenuItemId =
   | "shelve"
   | "trash"
   | "go-to-source"
-  | "save";
+  | "save"
+  | "unshelve"
+  | "restore"
+  | "view-details"
+  | "purge";
 
 export interface RowMenuItem {
   id: RowMenuItemId;
@@ -58,6 +63,12 @@ export interface RowMenuHandlers {
   onGoToSource?: (row: SourceRow) => void;
   onSaveSource?: (row: SourceRow) => void;
   onDownloadSource?: (sourceId: string) => void;
+  /** Lưu trữ: Bỏ lưu trữ. */
+  onUnshelve?: (doc: DocumentSummaryRow) => void;
+  /** Thùng rác: Khôi phục, Xem chi tiết (the document read-only) and Xóa vĩnh viễn (the host asks first). */
+  onRestore?: (doc: DocumentSummaryRow) => void;
+  onViewDetails?: (doc: DocumentSummaryRow) => void;
+  onPurge?: (doc: DocumentSummaryRow) => void;
 }
 
 export interface RowMenuContext {
@@ -68,6 +79,8 @@ export interface RowMenuContext {
   open: () => void;
   /** Present when the host can open this row in UniWork Office. */
   openApp?: () => void;
+  /** The list the row sits in; Lưu trữ and Thùng rác have their own menus. */
+  screen?: DocListScreen;
 }
 
 /**
@@ -81,8 +94,64 @@ export interface RowMenuContext {
  * lives in another module) keeps the items it had.
  */
 export function docRowMenu(row: LibraryRow, ctx: RowMenuContext): RowMenuGroup[] {
-  const groups = row.type === "source" ? sourceGroups(row, ctx) : documentGroups(row.doc, ctx);
+  const groups =
+    row.type === "source"
+      ? sourceGroups(row, ctx)
+      : ctx.screen === "trash" || row.doc.archived_at
+        ? trashGroups(row.doc, ctx)
+        : ctx.screen === "shelved"
+          ? shelvedGroups(row.doc, ctx)
+          : documentGroups(row.doc, ctx);
   return groups.filter((group) => group.length > 0);
+}
+
+/** The trash item of a row: a folder's dialog says Delete (FD-D6), so its row says it too, with the tree menu's words. */
+function trashItem(doc: DocumentSummaryRow, onArchive: (doc: DocumentSummaryRow) => void): RowMenuItem {
+  const folder = isFolderRow({ type: "document", id: doc.id, doc });
+  return {
+    id: "trash",
+    labelKey: folder ? "documents.tree.menu.delete" : "documents.home.row.archive",
+    destructive: true,
+    run: () => onArchive(doc),
+  };
+}
+
+/**
+ * Thùng rác: `Khôi phục` · `Xem chi tiết` │ `Xóa vĩnh viễn`. Everything needs
+ * manage (`canManageTrashed`: my_level manage or admin_scope, RESTORE-01), so a
+ * row the viewer only edits has no menu at all; a folder is never opened. A
+ * trashed row on any other list gets these only where its host wired them,
+ * which no live list does, so there it stays inert.
+ */
+function trashGroups(doc: DocumentSummaryRow, { handlers }: RowMenuContext): RowMenuGroup[] {
+  if (!canManageTrashed(doc)) return [];
+  const { onRestore, onViewDetails, onPurge } = handlers;
+  const back: RowMenuItem[] = [];
+  if (onRestore) back.push({ id: "restore", labelKey: "documents.trash.restore", run: () => onRestore(doc) });
+  if (onViewDetails && doc.kind !== "folder") {
+    back.push({ id: "view-details", labelKey: "documents.trash.view_details", run: () => onViewDetails(doc) });
+  }
+  const purge: RowMenuItem[] = onPurge
+    ? [{ id: "purge", labelKey: "documents.trash.purge", destructive: true, run: () => onPurge(doc) }]
+    : [];
+  return [back, purge];
+}
+
+/**
+ * Lưu trữ: `Mở` (read-only) · `Bỏ lưu trữ` · `Tải xuống` │ `Chuyển vào thùng
+ * rác`. Any reader opens and downloads a file (reading a shelved item is
+ * allowed, U-4); Bỏ lưu trữ and the trash need manage (`canManageTrashed`).
+ * Nothing that writes (rename, move, share, star, copy) is offered.
+ */
+function shelvedGroups(doc: DocumentSummaryRow, { handlers, open }: RowMenuContext): RowMenuGroup[] {
+  const manage = canManageTrashed(doc);
+  const { onUnshelve, onDownload, onArchive } = handlers;
+  const reading: RowMenuItem[] = [{ id: "open", labelKey: "documents.tree.menu.open", run: open }];
+  if (manage && onUnshelve) reading.push({ id: "unshelve", labelKey: "documents.shelved_list.unshelve", run: () => onUnshelve(doc) });
+  if (doc.kind === "file" && doc.current_version > 0 && onDownload) {
+    reading.push({ id: "download", labelKey: "documents.home.row.download", run: () => onDownload(doc) });
+  }
+  return [reading, manage && onArchive ? [trashItem(doc, onArchive)] : []];
 }
 
 function sourceGroups(row: SourceRow, { handlers }: RowMenuContext): RowMenuGroup[] {
@@ -103,9 +172,6 @@ function sourceGroups(row: SourceRow, { handlers }: RowMenuContext): RowMenuGrou
 }
 
 function documentGroups(doc: DocumentSummaryRow, { handlers, starred, open, openApp }: RowMenuContext): RowMenuGroup[] {
-  // A row whose archive stamp survived into a live list is inert: the trash
-  // view owns restore and purge, so here nothing runs on it.
-  if (doc.archived_at) return [];
   const level = rowLevel(doc);
   const folder = isFolderRow({ type: "document", id: doc.id, doc });
   const myFolder = isMyFolder(doc);
@@ -165,16 +231,7 @@ function documentGroups(doc: DocumentSummaryRow, { handlers, starred, open, open
     const { onShelve } = handlers;
     removing.push({ id: "shelve", labelKey: "documents.shelved_list.shelve", run: () => onShelve(doc) });
   }
-  if (handlers.onArchive && canArchiveRow(level) && !myFolder) {
-    const { onArchive } = handlers;
-    // A folder's dialog says Delete (FD-D6), so its row says it too, with the tree menu's words.
-    removing.push({
-      id: "trash",
-      labelKey: folder ? "documents.tree.menu.delete" : "documents.home.row.archive",
-      destructive: true,
-      run: () => onArchive(doc),
-    });
-  }
+  if (handlers.onArchive && canArchiveRow(level) && !myFolder) removing.push(trashItem(doc, handlers.onArchive));
 
   return [opening, sharing, managing, removing];
 }
