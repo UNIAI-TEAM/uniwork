@@ -1,6 +1,6 @@
 # Thư ký AI S3 (UNI-2025): việc đề xuất ngay trong lúc họp — kế hoạch triển khai
 
-> **Trạng thái:** in-progress — mới có kế hoạch; nhánh `feature/UNI-2025-…` đã gộp hai chồng (A: việc sau họp, căn cứ, biên bản; B: thư ký S1 + S2).
+> **Trạng thái:** in-progress — đã gộp hai chồng (A: việc sau họp, căn cứ, biên bản; B: thư ký S1 + S2) và làm đủ S3: prompt `meeting_live_items@1`, route `POST /agent/extract` (việc `LIVE`, lọc trùng, audit + sự kiện, con trỏ), nhịp rút việc của agent, nhãn "Trong lúc họp · giờ"; chưa chạy thật với model và phòng LiveKit, chờ review và merge.
 
 **Spec:** `docs/superpowers/specs/2026-10-20-meeting-scribe-agent-design.md` §1.3 D15, §4.4,
 §6.1 (con trỏ rút việc — S1 đã thêm cột), §6.2 (`meeting_action_items.source` `LIVE` — CHECK
