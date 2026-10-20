@@ -163,12 +163,12 @@ pipeline {
                 set -euo pipefail
                 dest="${DEPLOY_USER}@${DEPLOY_HOST}"
                 # Unquoted EOF expands REGISTRY_* and DEPLOY_DIR locally.
-                # Backslash keeps $(mktemp) and $cfg for the remote shell.
+                # Groovy consumes one backslash; the remaining backslash keeps $(mktemp) and $cfg for the remote shell.
                 ssh -o BatchMode=yes "$dest" "bash -s" <<EOF
 set -euo pipefail
-cfg=\$(mktemp -d)
-trap 'rm -rf "\$cfg"' EXIT
-export DOCKER_CONFIG="\$cfg"
+cfg=\\$(mktemp -d)
+trap 'rm -rf "\\$cfg"' EXIT
+export DOCKER_CONFIG="\\$cfg"
 docker login registry-harbor.ubos.vn -u '${REGISTRY_USER}' --password-stdin <<'PW'
 ${REGISTRY_PASS}
 PW

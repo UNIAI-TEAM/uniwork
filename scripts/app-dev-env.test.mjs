@@ -95,4 +95,5 @@ test("Jenkinsfile deploys by SSH without a latest tag", () => {
     assert.equal(text.includes(value), true, value);
   }
   assert.equal(/docker\s+(tag|push)\b[^\n]*:latest/.test(text), false);
+  assert.equal(text.includes("cfg=\\\\$(mktemp -d)"), true, "cfg=\\\\$(mktemp -d)");
 });
