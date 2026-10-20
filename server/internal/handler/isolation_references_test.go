@@ -181,18 +181,18 @@ var isoReferences = []isoReference{
 		noControl: "handing B's meeting to B's peer would take the owner's host role for later cases", covers: []string{"HostTransferSDI.new_host_user_id"}},
 	{method: "POST", pattern: "/api/v1/meetings/{meetingID}/join", what: "invite link", body: map[string]any{"invite_link_id": isoRef("inviteLink"), "secret": isoRef("inviteSecret")},
 		covers: []string{"JoinMeetingSDI.invite_link_id"}},
-	// Each case converts its own item of the meeting's summary (the world
-	// seeds four), so its control leaves the others free. The people and
-	// projects named are checked before whether an item was converted.
-	{method: "POST", pattern: "/api/v1/meetings/{meetingID}/summary/tasks", what: "assignee", body: map[string]any{
-		"summary_id": isoOwn("meetingSummary"), "items": []any{map[string]any{"index": 0, "assignee_id": isoRef("peer")}}},
-		covers: []string{"MeetingSummaryTaskItemSDI.assignee_id"}},
-	{method: "POST", pattern: "/api/v1/meetings/{meetingID}/summary/tasks", what: "project", body: map[string]any{
-		"summary_id": isoOwn("meetingSummary"), "items": []any{map[string]any{"index": 1, "project_id": isoRef("project")}}},
-		covers: []string{"MeetingSummaryTaskItemSDI.project_id"}},
-	{method: "POST", pattern: "/api/v1/meetings/{meetingID}/summary/tasks", what: "summary", body: map[string]any{
-		"summary_id": isoRef("meetingSummary"), "items": []any{map[string]any{"index": 2}}},
-		covers: []string{"SummaryTasksSDI.summary_id"}},
+	// Each case converts its own action item of the meeting (the world seeds
+	// them), so its control leaves the others free. The people and projects
+	// named are checked before whether an item was converted.
+	{method: "POST", pattern: "/api/v1/meetings/{meetingID}/action-items/convert", what: "assignee", body: map[string]any{
+		"items": []any{map[string]any{"action_item_id": isoOwn("actionItem0"), "assignee_id": isoRef("peer")}}},
+		covers: []string{"ConvertActionItemSDI.assignee_id"}},
+	{method: "POST", pattern: "/api/v1/meetings/{meetingID}/action-items/convert", what: "project", body: map[string]any{
+		"items": []any{map[string]any{"action_item_id": isoOwn("actionItem1"), "project_id": isoRef("project")}}},
+		covers: []string{"ConvertActionItemSDI.project_id"}},
+	{method: "POST", pattern: "/api/v1/meetings/{meetingID}/action-items/convert", what: "action item", body: map[string]any{
+		"items": []any{map[string]any{"action_item_id": isoRef("actionItem2")}}},
+		covers: []string{"ConvertActionItemSDI.action_item_id"}},
 
 	// Documents.
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/documents", what: "parent page", body: map[string]any{

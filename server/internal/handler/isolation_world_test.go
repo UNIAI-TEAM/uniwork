@@ -1092,23 +1092,26 @@ func (w *isoWorld) buildActivity(t *testing.T, tn *isoTenant) {
 		t.Fatalf("meeting attendee: %v", err)
 	}
 
-	// A summary of the scheduled meeting with action items to convert - the
-	// fake model answers with none. The reference cases convert items 0-2;
-	// item 3 becomes a task here, so meeting_summary_task_links holds a row.
-	items := make([]map[string]string, 0, 4)
-	for i := range 4 {
-		items = append(items, map[string]string{"title": fmt.Sprintf("%s summary item %d", m, i), "owner": m + " Peer"})
-	}
-	rawItems, err := json.Marshal(items)
-	if err != nil {
-		t.Fatal(err)
-	}
+	// A summary of the scheduled meeting - the fake model answers with none -
+	// and its action items: the reference cases convert items 0-2, item 3
+	// becomes a task here, and "actionItem" is the pending one the routes
+	// with {actionItemID} name.
 	tn.ids["meetingSummary"] = util.NewID()
 	if _, err := w.pool.Exec(ctx, `INSERT INTO meeting_summaries
 		(id, organization_id, meeting_id, summary, decisions, action_items, model, created_by)
-		VALUES ($1, $2, $3, $4, '[]', $5, 'fake', $6)`,
-		tn.ids["meetingSummary"], tn.orgID, tn.ids["meeting"], m+" summary", string(rawItems), tn.userID); err != nil {
+		VALUES ($1, $2, $3, $4, '[]', '[]', 'fake', $5)`,
+		tn.ids["meetingSummary"], tn.orgID, tn.ids["meeting"], m+" summary", tn.userID); err != nil {
 		t.Fatalf("meeting summary: %v", err)
+	}
+	for i, key := range []string{"actionItem0", "actionItem1", "actionItem2", "actionItem3", "actionItem"} {
+		tn.ids[key] = util.NewID()
+		if _, err := w.pool.Exec(ctx, `INSERT INTO meeting_action_items
+			(id, organization_id, workspace_id, meeting_id, source, summary_id, position, title, owner_text, created_by, created_by_kind)
+			VALUES ($1, $2, $3, $4, 'AI', $5, $6, $7, $8, 'meeting_summary', 'system')`,
+			tn.ids[key], tn.orgID, tn.wsID, tn.ids["meeting"], tn.ids["meetingSummary"], i,
+			fmt.Sprintf("%s summary item %d", m, i), m+" Peer"); err != nil {
+			t.Fatalf("meeting action item: %v", err)
+		}
 	}
 	// A summary run's lease lives only while the run does; an expired one is
 	// what a node that died mid-run leaves, so meeting_summary_runs holds a
@@ -1119,8 +1122,8 @@ func (w *isoWorld) buildActivity(t *testing.T, tn *isoTenant) {
 		tn.orgID, tn.ids["meeting"], util.NewID()); err != nil {
 		t.Fatalf("meeting summary run: %v", err)
 	}
-	w.call(t, "POST", "/api/v1/meetings/"+tn.ids["meeting"]+"/summary/tasks", tn.token, map[string]any{
-		"summary_id": tn.ids["meetingSummary"], "items": []any{map[string]any{"index": 3, "assignee_id": tn.peerID}},
+	w.call(t, "POST", "/api/v1/meetings/"+tn.ids["meeting"]+"/action-items/convert", tn.token, map[string]any{
+		"items": []any{map[string]any{"action_item_id": tn.ids["actionItem3"], "assignee_id": tn.peerID}},
 	})
 }
 

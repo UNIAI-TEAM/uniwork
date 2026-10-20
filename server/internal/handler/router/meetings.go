@@ -170,26 +170,46 @@ func registerMeetings(r api, h Routes, summaryLimit func(http.Handler) http.Hand
 		sdi: sdi.AppendTranscriptSDI{}, sdo: sdo.TranscriptSegmentSDO{}, auth: true,
 	})
 	r.Get("/meetings/{meetingID}/summary", h.GetMeetingSummary, apiOp{
-		summary: "Latest AI summary",
-		description: "Bản tóm tắt mới nhất (null khi chưa có). Mỗi action item có index, người phụ trách gợi ý " +
-			"(suggested_assignee_id), hạn đã đọc (due_date) và task_id khi việc đó đã thành task còn tồn tại.",
-		tags: []string{"meetings"}, sdo: sdo.MeetingSummarySDO{}, auth: true,
+		summary:     "Latest AI summary",
+		description: "Bản tóm tắt mới nhất (null khi chưa có): tóm tắt và kết luận. Việc đề xuất đọc ở GET .../action-items.",
+		tags:        []string{"meetings"}, sdo: sdo.MeetingSummarySDO{}, auth: true,
 	})
 	r.With(summaryLimit).Post("/meetings/{meetingID}/summary", h.CreateSummary, apiOp{
 		summary: "Generate AI summary from transcript and notes", tags: []string{"meetings"},
-		description: "Chỉ host hoặc admin workspace. Mỗi cuộc họp chỉ chạy một lần tóm tắt tại một thời điểm. " +
-			"Lỗi: 403 entitlement_required (gói không có meeting.ai_summary), 402 ai_quota_exceeded, " +
+		description: "Chủ trì, thư ký hoặc admin workspace (clerk). Mỗi cuộc họp chỉ chạy một lần tóm tắt tại một thời điểm. " +
+			"Việc AI đề xuất thay các việc AI còn chờ xử lý; việc đã giao, đã bỏ qua, việc thêm tay giữ nguyên. " +
+			"Lỗi: 403 not_meeting_clerk, 403 entitlement_required (gói không có meeting.ai_summary), 402 ai_quota_exceeded, " +
 			"409 summary_no_source / summary_in_progress, 429 rate_limited (bucket ai-meeting-summary: 6 lượt/phút/người, Retry-After) " +
 			"hoặc ai_rate_limited (fields.retry_after), 502 ai_failed, 503 ai_not_configured, 504 ai_timeout.",
 		sdi: sdi.CreateSummarySDI{}, sdo: sdo.MeetingSummarySDO{}, auth: true,
 	})
-	r.Post("/meetings/{meetingID}/summary/tasks", h.CreateSummaryTasks, apiOp{
-		summary: "Create tasks from summary action items",
-		description: "Chỉ host/admin. Tạo task cho các action item đã chọn của bản tóm tắt mới nhất trong một giao dịch: " +
-			"lỗi ở bất kỳ việc nào thì không task nào được tạo. assignee_id/due_date gửi lên là giá trị cuối (null = không gán / không hạn). " +
-			"409 summary_superseded khi summary_id không còn là bản mới nhất; 409 summary_item_already_converted (fields.indexes) " +
-			"khi việc đã thành task còn tồn tại.",
-		tags: []string{"meetings"}, sdi: sdi.SummaryTasksSDI{}, sdo: sdo.MeetingSummaryTasksSDO{}, auth: true,
+	r.Get("/meetings/{meetingID}/action-items", h.ListActionItems, apiOp{
+		summary: "Action items of the meeting (pending, converted, dismissed)", tags: []string{"meetings"},
+		description: "Mọi thành viên workspace. Trạng thái suy ra: DISMISSED khi đã bỏ qua, CONVERTED khi task còn tồn tại, " +
+			"còn lại PENDING (task bị xoá thì việc về chờ xử lý). Gợi ý người và hạn chỉ có với việc chờ xử lý.",
+		sdo: sdo.MeetingActionItemsSDO{}, auth: true,
+	})
+	r.Post("/meetings/{meetingID}/action-items", h.AddActionItem, apiOp{
+		summary: "Add an action item by hand (clerk)", tags: []string{"meetings"},
+		description: "Cuộc họp IN_PROGRESS hoặc ENDED, không thì 409 invalid_meeting_state. Việc tay không bị thay khi tạo lại tóm tắt.",
+		sdi:         sdi.AddActionItemSDI{}, sdo: sdo.MeetingActionItemSDO{}, auth: true,
+	})
+	r.Post("/meetings/{meetingID}/action-items/convert", h.ConvertActionItems, apiOp{
+		summary: "Turn pending action items into tasks (clerk)", tags: []string{"meetings"},
+		description: "Tạo task cho 1–50 việc đang chờ xử lý trong một giao dịch: lỗi ở bất kỳ việc nào thì không task nào được tạo. " +
+			"assignee_id/due_date gửi lên là giá trị cuối (null = không gán / không hạn). 404 action_item_not_found và " +
+			"409 action_item_not_pending liệt kê fields.action_item_ids; 409 active_duplicate_task cũng vậy.",
+		sdi: sdi.ConvertActionItemsSDI{}, sdo: sdo.ConvertActionItemsSDO{}, auth: true,
+	})
+	r.Post("/meetings/{meetingID}/action-items/{actionItemID}/dismiss", h.DismissActionItem, apiOp{
+		summary: "Dismiss a pending action item (clerk)", tags: []string{"meetings"},
+		description: "Chỉ từ chờ xử lý, không thì 409 action_item_not_pending. Lý do không bắt buộc, tối đa 500 ký tự.",
+		sdi:         sdi.DismissActionItemSDI{}, sdo: sdo.StatusSDO{}, auth: true,
+	})
+	r.Post("/meetings/{meetingID}/action-items/{actionItemID}/restore", h.RestoreActionItem, apiOp{
+		summary: "Restore a dismissed action item (clerk)", tags: []string{"meetings"},
+		description: "Chỉ từ đã bỏ qua, không thì 409 action_item_not_dismissed.",
+		sdo:         sdo.StatusSDO{}, auth: true,
 	})
 	r.Post("/meetings/{meetingID}/recording/start", h.StartRecording, apiOp{
 		summary: "Start recording", tags: []string{"meetings"}, sdo: sdo.RecordingSDO{}, auth: true,

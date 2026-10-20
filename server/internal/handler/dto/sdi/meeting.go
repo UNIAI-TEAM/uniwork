@@ -139,23 +139,34 @@ type SummaryTaskItemSDI struct {
 	DueSpoken   string  `json:"due_spoken" description:"Hạn AI trích ra; chỉ ghi vào mô tả"`
 }
 
-// MeetingSummaryTaskItemSDI is one action item of a meeting summary the host
-// turns into a task, with the values the host confirmed. The server never
-// re-reads the AI owner or due phrase into assignee_id or due_date.
-type MeetingSummaryTaskItemSDI struct {
-	Index       *int    `json:"index" required:"true" minimum:"0" description:"Vị trí của việc trong action_items của bản tóm tắt (từ 0); bắt buộc, không trùng trong một lần gửi" example:"0"`
-	Title       string  `json:"title,omitempty" description:"Tiêu đề task; để trống = tiêu đề AI đã lưu" example:"Gửi báo cáo sprint"`
-	Description string  `json:"description,omitempty" description:"Mô tả thêm; người phụ trách và hạn AI ghi kèm khi task không có người gán hay hạn"`
-	AssigneeID  *string `json:"assignee_id" description:"Người được gán; null hoặc rỗng = không gán ai (server không tự đoán từ tên AI)" example:"01JABC1234567890ABCDEFGH"`
-	DueDate     *string `json:"due_date" description:"YYYY-MM-DD; null hoặc rỗng = không có hạn (server không tự đọc hạn AI)" example:"2026-09-05"`
-	ProjectID   *string `json:"project_id,omitempty" description:"Dự án workspace; bỏ qua = dự án của cuộc họp, rỗng = không thuộc dự án" example:"01JABC1234567890ABCDEFGH"`
-	Priority    string  `json:"priority,omitempty" description:"none | low | medium | high | urgent" example:"medium"`
+// AddActionItemSDI is POST /api/v1/meetings/{meetingID}/action-items.
+type AddActionItemSDI struct {
+	Title     string `json:"title" minLength:"1" maxLength:"500" description:"Tiêu đề việc" example:"Gửi báo cáo sprint"`
+	OwnerText string `json:"owner_text,omitempty" maxLength:"200" description:"Người phụ trách như được nhắc tới; chỉ để gợi ý, không tự gán" example:"anh Hùng"`
+	DueText   string `json:"due_text,omitempty" maxLength:"200" description:"Hạn như được nhắc tới; chỉ để gợi ý, không tự đặt hạn" example:"thứ sáu tuần sau"`
 }
 
-// SummaryTasksSDI is POST /api/v1/meetings/{meetingID}/summary/tasks.
-type SummaryTasksSDI struct {
-	SummaryID string                      `json:"summary_id" minLength:"1" description:"Id bản tóm tắt mới nhất của cuộc họp; bản cũ hơn bị từ chối 409 summary_superseded" example:"01JABC1234567890ABCDEFGH"`
-	Items     []MeetingSummaryTaskItemSDI `json:"items" description:"1–50 việc"`
+// DismissActionItemSDI is POST .../action-items/{actionItemID}/dismiss.
+type DismissActionItemSDI struct {
+	Reason string `json:"reason,omitempty" maxLength:"500" description:"Lý do bỏ qua, không bắt buộc" example:"Đã có người làm"`
+}
+
+// ConvertActionItemSDI is one pending action item the clerk turns into a
+// task, with the values the clerk confirmed. The server never re-reads the
+// owner or due phrase into assignee_id or due_date.
+type ConvertActionItemSDI struct {
+	ActionItemID string  `json:"action_item_id" minLength:"1" description:"ULID việc sau họp của cuộc họp này; không trùng trong một lần gửi" example:"01J8X4ACTN1P2Q3R4S5T6U7V"`
+	Title        string  `json:"title,omitempty" description:"Tiêu đề task; để trống = tiêu đề của việc" example:"Gửi báo cáo sprint"`
+	Description  string  `json:"description,omitempty" description:"Mô tả thêm; người phụ trách và hạn được nhắc ghi kèm khi task không có người gán hay hạn"`
+	AssigneeID   *string `json:"assignee_id" description:"Người được gán; null hoặc rỗng = không gán ai (server không tự đoán từ tên được nhắc)" example:"01JABC1234567890ABCDEFGH"`
+	DueDate      *string `json:"due_date" description:"YYYY-MM-DD; null hoặc rỗng = không có hạn (server không tự đọc hạn được nhắc)" example:"2026-09-05"`
+	ProjectID    *string `json:"project_id,omitempty" description:"Dự án workspace; bỏ qua = dự án của cuộc họp, rỗng = không thuộc dự án" example:"01JABC1234567890ABCDEFGH"`
+	Priority     string  `json:"priority,omitempty" description:"none | low | medium | high | urgent" example:"medium"`
+}
+
+// ConvertActionItemsSDI is POST /api/v1/meetings/{meetingID}/action-items/convert.
+type ConvertActionItemsSDI struct {
+	Items []ConvertActionItemSDI `json:"items" description:"1–50 việc đang chờ xử lý"`
 }
 
 // AppendChatSDI is POST /api/v1/meetings/{meetingID}/chat.

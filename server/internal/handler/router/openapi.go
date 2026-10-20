@@ -268,6 +268,11 @@ func pathParamSDI(path string) any {
 			MeetingID string `path:"meetingID" description:"ULID cuộc họp" example:"01J8X4MTGN1P2Q3R4S5T6U7V"`
 			MotionID  string `path:"motionID" description:"ULID nội dung biểu quyết" example:"01J8X4MOTN1P2Q3R4S5T6U7V"`
 		}{}
+	case "meetingID,actionItemID":
+		return struct {
+			MeetingID    string `path:"meetingID" description:"ULID cuộc họp" example:"01J8X4MTGN1P2Q3R4S5T6U7V"`
+			ActionItemID string `path:"actionItemID" description:"ULID việc sau họp" example:"01J8X4ACTN1P2Q3R4S5T6U7V"`
+		}{}
 	case "meetingID,linkId":
 		return struct {
 			MeetingID string `path:"meetingID" description:"ULID cuộc họp" example:"01J8X4MTGN1P2Q3R4S5T6U7V"`

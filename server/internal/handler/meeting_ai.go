@@ -24,22 +24,14 @@ func toTranscriptDTO(s db.MeetingTranscriptSegment) sdo.TranscriptSegmentDTO {
 	}
 }
 
-func toSummaryDTO(v service.MeetingSummaryView) sdo.MeetingSummaryDTO {
-	s := v.Summary
+func toSummaryDTO(s db.MeetingSummary) sdo.MeetingSummaryDTO {
 	d := sdo.MeetingSummaryDTO{
 		ID: s.ID, MeetingID: s.MeetingID, Summary: s.Summary, Model: s.Model,
-		CreatedBy: s.CreatedBy, CreatedAt: rfc3339(s.CreatedAt),
-		Decisions: []string{}, ActionItems: make([]sdo.MeetingSummaryActionItemDTO, 0, len(v.Items)),
+		CreatedBy: s.CreatedBy, CreatedAt: rfc3339(s.CreatedAt), Decisions: []string{},
 	}
 	_ = json.Unmarshal([]byte(s.Decisions), &d.Decisions)
 	if d.Decisions == nil {
 		d.Decisions = []string{}
-	}
-	for _, it := range v.Items {
-		d.ActionItems = append(d.ActionItems, sdo.MeetingSummaryActionItemDTO{
-			Index: it.Index, Title: it.Title, Owner: it.Owner, Due: it.Due,
-			SuggestedAssigneeID: it.SuggestedAssigneeID, DueDate: it.DueDate, TaskID: it.TaskID,
-		})
 	}
 	return d
 }
@@ -118,14 +110,14 @@ func (h *handlers) listTranscript(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handlers) getMeetingSummary(w http.ResponseWriter, r *http.Request) {
-	v, err := h.Meetings.SummaryView(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "meetingID"))
+	sum, err := h.Meetings.Summary(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "meetingID"))
 	if err != nil {
 		h.mapServiceError(w, err)
 		return
 	}
 	out := sdo.MeetingSummarySDO{}
-	if v != nil {
-		dto := toSummaryDTO(*v)
+	if sum != nil {
+		dto := toSummaryDTO(*sum)
 		out.Summary = &dto
 	}
 	respondJSON(w, 200, out)
@@ -145,22 +137,12 @@ func (h *handlers) createSummary(w http.ResponseWriter, r *http.Request) {
 	if r.ContentLength > 0 && !decode(w, r, &in, maxJSONBody) {
 		return
 	}
-	userID := middleware.UserID(r.Context())
-	s, err := h.Meetings.Summarize(r.Context(), userID, chi.URLParam(r, "meetingID"), summaryLocale(in.Locale))
+	s, err := h.Meetings.Summarize(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "meetingID"), summaryLocale(in.Locale))
 	if err != nil {
 		h.mapServiceError(w, err)
 		return
 	}
-	v, err := h.Meetings.SummaryViewOf(r.Context(), userID, s)
-	if err != nil {
-		// The summary is stored and billed: answer it without the server's
-		// suggestions rather than a failure that invites a second paid run.
-		if h.Log != nil {
-			h.Log.Warn("meetings: describe new summary", "meeting_id", s.MeetingID, "summary_id", s.ID, "err", err)
-		}
-		v = service.StoredSummaryView(s)
-	}
-	dto := toSummaryDTO(v)
+	dto := toSummaryDTO(s)
 	respondJSON(w, 200, sdo.MeetingSummarySDO{Summary: &dto})
 }
 
@@ -171,41 +153,6 @@ func blankAsNil(s *string) *string {
 	}
 	v := strings.TrimSpace(*s)
 	return &v
-}
-
-func (h *handlers) createSummaryTasks(w http.ResponseWriter, r *http.Request) {
-	var in sdi.SummaryTasksSDI
-	if !decode(w, r, &in, maxJSONBody) {
-		return
-	}
-	items := make([]service.MeetingSummaryTaskItem, 0, len(in.Items))
-	for _, it := range in.Items {
-		// A missing index reaches the service as -1, which it refuses once it
-		// has authorized the caller.
-		index := -1
-		if it.Index != nil {
-			index = *it.Index
-		}
-		items = append(items, service.MeetingSummaryTaskItem{
-			Index: index, Title: it.Title, Description: it.Description,
-			AssigneeID: blankAsNil(it.AssigneeID), DueDate: blankAsNil(it.DueDate),
-			ProjectID: it.ProjectID, Priority: it.Priority,
-		})
-	}
-	res, err := h.Meetings.CreateTasksFromSummary(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "meetingID"),
-		service.SummaryTasksInput{SummaryID: in.SummaryID, Items: items})
-	if err != nil {
-		h.mapServiceError(w, err)
-		return
-	}
-	out := sdo.MeetingSummaryTasksSDO{
-		TaskIDs: make([]string, 0, len(res.Links)), Items: make([]sdo.SummaryTaskLinkDTO, 0, len(res.Links)),
-	}
-	for _, l := range res.Links {
-		out.TaskIDs = append(out.TaskIDs, l.TaskID)
-		out.Items = append(out.Items, sdo.SummaryTaskLinkDTO{Index: l.Index, TaskID: l.TaskID})
-	}
-	respondJSON(w, 200, out)
 }
 
 func (h *handlers) startRecording(w http.ResponseWriter, r *http.Request) {
