@@ -218,6 +218,23 @@
           "cdefc46087dd47e7b2e383fa681b092a855e46e0f": "Tạo việc từ bản tóm tắt AI của cuộc họp: các việc được tạo đúng như chủ trì xác nhận, đúng một lần và trọn cả lô; mục đã thành việc hoặc bản tóm tắt đã cũ không tạo việc lần nữa. Hộp thoại xem lại cho chỉnh người phụ trách, hạn, ưu tiên và dự án; gợi ý người phụ trách khớp theo nguyên từ và bỏ trống khi tên trùng nhau, còn hạn chót hiểu đúng kiểu \"thứ Ba tuần sau\" và không nhận ngày đã qua. Việc đã tạo có liên kết tới task, mỗi lỗi có hướng dẫn riêng, và mỗi cuộc họp chỉ chạy một lần tóm tắt tại một thời điểm.",
           "c9138dd10cf4ec713e49bc35b9b7bfdd181d24aba": "Chat và thông báo: số lần nhắc tên trong một phòng nay khớp với số hiện ở danh sách phòng, và email tóm tắt thông báo chỉ gồm mục từ workspace và phòng chat bạn vẫn còn quyền truy cập."
         }
+      },
+      "v1_7_0": {
+        "title": "Khung trò chuyện mới, tìm tin trên mọi phòng và ghim tin trong Chat; thanh định dạng cho UniNote",
+        "summary": "Chat có khung trò chuyện mới dạng bong bóng, tìm tin nhắn trên mọi phòng bạn tham gia, ghim tối đa 10 tin mỗi phòng, menu thao tác khi chuột phải, dải cuộc gọi khi thu nhỏ và nút tắt thông báo ngay trên thẻ thông tin của một người; phòng đã tắt thông báo không còn đổ chuông khi có cuộc gọi. UniNote có thanh định dạng và bảng phím tắt, tệp .txt mở được trong trình soạn, còn thư viện Tài liệu và hộp thoại chia sẻ được chỉnh gọn và rõ hơn.",
+        "note": "Tìm tin chỉ gồm các phòng bạn đang là thành viên. Khi phòng đã có đủ 10 tin ghim, cần bỏ ghim một tin cũ để ghim tin mới.",
+        "features": {
+          "cba68789f9922643c1e51b57f8f6810d23507e22f": "Tìm tin nhắn trên mọi phòng chat bạn đang tham gia ngay từ danh sách cuộc trò chuyện; kết quả có đoạn trích tô sáng từ khớp, bấm vào để tới đúng tin đó. Danh sách cuộc trò chuyện cũng gọn hơn và ghi \"Nháp:\" với tin bạn đang soạn dở.",
+          "c5db3ec268ccf43bf9b336db1fa571d76fd9d69e4": "Khi thu nhỏ một cuộc gọi, đầu khung chat hiện một dải cho biết cuộc gọi vẫn đang diễn ra."
+        },
+        "improvements": {
+          "cd57d97c03c0b3e0b03d598d69392631b8237d348": "Cuộc gọi: phòng bạn đã tắt thông báo không còn đổ chuông khi có cuộc gọi đến, và cuộc gọi trong kênh không phát nhạc chuông.",
+          "cdd0a583f74e20745388dd74aefeba55db328c1f5": "Ghim tin trong Chat: mỗi phòng ghim được tối đa 10 tin, tin ghim mới nhất hiện trước; khi đã đủ, bạn được hỏi có thay tin ghim cũ nhất không. Chuột phải vào một tin mở menu thao tác kèm dải cảm xúc, và menu này cho biết ai đã xem tin của bạn.",
+          "caac706f2ad896b32b0fcbae89dd466d42909629f": "Khung trò chuyện trong Chat được làm lại: tin hiện dạng bong bóng và trò chuyện riêng không còn hiện ảnh đại diện; di chuột lên tin chỉ hiện một nút thả tim nhanh, còn dùng bàn phím thì mở đủ thanh thao tác; thanh trả lời hoặc sửa tin nằm ngay trên ô soạn và nhấn Esc để hủy trả lời. Hiệu ứng chuyển động tắt khi bạn bật chế độ giảm chuyển động.",
+          "c5444b681da437e1adf9ed8893851a17fa86891ba": "Menu thao tác của tin luôn bấm được trong cuộc trò chuyện dài, tự mở xuống dưới khi phía trên không đủ chỗ và đóng lại khi bạn cuộn. Thẻ thông tin của một người có nút tắt hoặc bật thông báo cho cuộc trò chuyện đang mở.",
+          "c0424076a5c7443babfeeb091d77e84d18446fc28": "Tài liệu và UniNote: trình soạn UniNote có thanh định dạng, mẹo cho lần dùng đầu và bảng phím tắt; menu \"/\" và phím tắt Markdown dùng được cả ở dòng sau khi ngắt dòng. Tệp .txt mở được trong trình soạn ở chế độ văn bản thuần. Hộp thoại lưu lần đầu cho chọn thư mục, tài liệu Office có mục In, và hộp thoại chia sẻ rõ ràng hơn, dùng thống nhất chữ \"Riêng tư\". \"Thư mục của tôi\" là một mục duy nhất trong cây thư mục, \"Tôi đã chia sẻ\" chỉ liệt kê mục cao nhất được chia sẻ, ô bình luận hiện @Tên khi nhắc ai đó, và luồng thảo luận có giao diện mới.",
+          "c5f3b1fb9b72701e4053bd93ccc2f4e2cc053d750": "Thư viện Tài liệu được chỉnh nhiều chi tiết: nhãn chia sẻ cho người có quyền bình luận, tên thư mục dài được rút gọn, mở đường dẫn của một tài liệu sẽ mở đúng thư mục chứa nó, \"Chia sẻ với workspace\" tách riêng khỏi mục Thư mục, và trạng thái trống phù hợp hơn khi tệp nằm trong các thư mục."
+        }
       }
     }
   },
