@@ -993,3 +993,39 @@ func TestAskAgentOffWithoutAnAgentModel(t *testing.T) {
 		}
 	}
 }
+
+// quotaAfter lets the first n checks through, then refuses with the
+// organization's token quota.
+type quotaAfter struct{ n *int }
+
+func (q quotaAfter) Check(context.Context, string) error {
+	if *q.n--; *q.n < 0 {
+		return ai.ErrQuotaExceeded
+	}
+	return nil
+}
+func (quotaAfter) Record(context.Context, ai.UsageRecord) error { return nil }
+
+// A quota stop is reported rate_limited, not agent_failed (ruling P20):
+// before the first call it is the error; after a billed call the turn is
+// stored with agent_failed.
+func TestAskAgentQuotaStopIsRateLimited(t *testing.T) {
+	s, fake, ua, w := agentAskFixture(t)
+	agentTask(t, s, ua, w, "Banner Tết")
+	m := &agentMetricsFake{}
+	s.SetAgentMetrics(m)
+	scriptAgent(fake, "banner", "never sent")
+	left := 0
+	s.gw = ai.NewGateway(s.q, fake, quotaAfter{&left}, nil, ai.Options{})
+	if _, err := s.Ask(context.Background(), ua.ID, w.ID, AskInput{Question: "Banner?", Locale: "vi"}); !errors.Is(err, ai.ErrQuotaExceeded) {
+		t.Fatalf("err %v, want ai_quota_exceeded", err)
+	}
+	left = 1
+	res, err := s.Ask(context.Background(), ua.ID, w.ID, AskInput{Question: "Banner?", Locale: "vi"})
+	if err != nil || res.Message.Notice.String != ai.NoticeAgentFailed {
+		t.Fatalf("stored %+v, err %v; want agent_failed stored", res.Message, err)
+	}
+	if !reflect.DeepEqual(m.runs, []string{"rate_limited/0", "rate_limited/1"}) {
+		t.Fatalf("runs %v", m.runs)
+	}
+}

@@ -24,6 +24,11 @@ func TestAskMetricsBoundToolLabel(t *testing.T) {
 		`uniwork_ai_ask_runs_total{outcome="agent_failed"} 1`,
 		`uniwork_ai_ask_run_rounds_bucket{le="2"} 1`,
 		`uniwork_ai_ask_run_seconds_count 2`,
+		// Past the 120 s run deadline, so a run that hit it is not lost in +Inf.
+		`uniwork_ai_ask_run_seconds_bucket{le="150"} 2`,
+		// Tool rounds, capped at 4.
+		`# HELP uniwork_ai_ask_run_rounds Tool rounds`,
+		`uniwork_ai_ask_run_rounds_bucket{le="4"}`,
 	} {
 		if !strings.Contains(string(body), want) {
 			t.Errorf("missing %s", want)

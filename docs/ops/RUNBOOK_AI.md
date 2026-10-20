@@ -179,13 +179,16 @@ runbook theo tên alert trong [`docs/runbooks/README.md`](../runbooks/README.md)
 Hỏi UNI chạy như agent đọc (vòng model → tool → model) khi flag `ask_uni_agent` bật cho người hỏi và tổ chức của họ.
 
 - **Bật/tắt**: ở `/admin/flags`, đặt override `ask_uni_agent` theo tổ chức hoặc theo người dùng (override thắng file tĩnh và `FF_ASK_UNI_AGENT`). Tắt = quay về luồng retrieval cũ, không mất dữ liệu.
-- **Model Tự động**: đổi bằng `AI_MODEL_COPILOT_AGENT` (phải nằm trong allowlist, xem bảng cấu hình ở trên). Tổ chức chọn model được dùng qua `GET/PUT /api/v1/orgs/{org}/ai/ask-models` (body `{"models": ["haiku","sonnet"]}`, PUT chỉ owner/admin).
+- **Provider**: agent cần vòng tool-result, nên chỉ chạy trên `anthropic`, `openai` (và `fake`). `AI_PROVIDER=ollama` không có model `copilot_agent`: Hỏi UNI ở luồng retrieval cũ dù flag bật.
+- **Model Tự động**: đổi bằng `AI_MODEL_COPILOT_AGENT` (phải nằm trong allowlist, xem bảng cấu hình ở trên). Tự động (model mặc định của nền tảng) **luôn dùng được** và không theo công tắc của tổ chức.
+- **Model tổ chức cho chọn**: `GET/PUT /api/v1/orgs/{org}/ai/ask-models` (body `{"models": ["haiku","sonnet"]}`, PUT chỉ owner/admin). Công tắc này chỉ giới hạn các lựa chọn rõ: `[]` = chỉ Tự động; body thiếu `models` (hoặc `null`) → 400, không bao giờ hiểu là "tắt hết". Lựa chọn không dùng được (lạ, tắt, chưa có giá) thì chạy Tự động và log `reason` (`unknown`, `disabled`, `unpriced`), không log chuỗi client gửi.
+- **Lượt hỏng sau khi đã tính tiền**: lỗi provider, timeout, hết hạn mức hay lỗi DB trong tool sau ít nhất một lời gọi model đã trả lời thì lượt vẫn được lưu với notice `agent_failed` (nội dung rỗng, gắn usage row cuối) để người hỏi thấy trong hội thoại; trước lời gọi đầu tiên thì vẫn trả lỗi như cũ.
 
 | Metric | Loại | Ý nghĩa |
 | --- | --- | --- |
-| `uniwork_ai_ask_runs_total{outcome}` | counter | Lượt agent theo `answered`, `agent_failed`, `refused`, `rate_limited`, `busy`, `timeout`. Lỗi hạ tầng tính là `agent_failed` |
-| `uniwork_ai_ask_run_rounds` | histogram (0–5) | Số vòng model mỗi lượt; dồn về 5 = agent chạm trần vòng |
-| `uniwork_ai_ask_run_seconds` | histogram | Thời gian một lượt |
+| `uniwork_ai_ask_runs_total{outcome}` | counter | Lượt agent theo `answered`, `agent_failed`, `refused`, `rate_limited`, `busy`, `timeout`. `rate_limited` gồm giới hạn của nhà cung cấp, trần lời gọi của tổ chức và hết hạn mức token. `timeout` là hết hạn 120 giây của lượt. `agent_failed` còn gồm: lỗi hạ tầng (provider 5xx, lỗi DB, lưu lượt thất bại, panic), focus người hỏi không được đọc (`ai_context_forbidden`), và lần thử lại định dạng vẫn hỏng |
+| `uniwork_ai_ask_run_rounds` | histogram (0–4) | Số vòng tool mỗi lượt, trần 4; dồn về 4 = agent chạm trần vòng tool (lời gọi sau vòng cuối là vòng trả lời) |
+| `uniwork_ai_ask_run_seconds` | histogram (tới 150s) | Thời gian một lượt; hạn chót 120s nên bucket 120–150 là lượt chạm hạn |
 | `uniwork_ai_ask_tool_calls_total{tool,status}` | counter | Call tool theo 12 tên trong registry (tên khác gom về `other`) và `ok`, `error`, `truncated` |
 | `uniwork_ai_ask_tool_seconds{tool}` | histogram | Độ trễ từng tool |
 

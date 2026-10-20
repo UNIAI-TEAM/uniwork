@@ -27,17 +27,17 @@ func NewAIAsk() *AIAsk {
 	return &AIAsk{
 		Runs: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name: "uniwork_ai_ask_runs_total",
-			Help: "Ask UNI agent runs by outcome (answered, agent_failed, refused, rate_limited, busy, timeout); infrastructure errors count as agent_failed.",
+			Help: "Ask UNI agent runs by outcome (answered, agent_failed, refused, rate_limited, busy, timeout); a vendor or quota limit is rate_limited, infrastructure errors count as agent_failed.",
 		}, []string{"outcome"}),
 		Rounds: prometheus.NewHistogram(prometheus.HistogramOpts{
 			Name:    "uniwork_ai_ask_run_rounds",
-			Help:    "Model rounds used by one Ask UNI agent run.",
-			Buckets: []float64{0, 1, 2, 3, 4, 5},
+			Help:    "Tool rounds used by one Ask UNI agent run; capped at 4.",
+			Buckets: []float64{0, 1, 2, 3, 4},
 		}),
 		RunSeconds: prometheus.NewHistogram(prometheus.HistogramOpts{
 			Name:    "uniwork_ai_ask_run_seconds",
-			Help:    "Wall time of one Ask UNI agent run.",
-			Buckets: []float64{0.5, 1, 2.5, 5, 10, 20, 30, 60},
+			Help:    "Wall time of one Ask UNI agent run; the run deadline is 120s.",
+			Buckets: []float64{0.5, 1, 2.5, 5, 10, 20, 30, 60, 90, 120, 150},
 		}),
 		ToolCalls: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name: "uniwork_ai_ask_tool_calls_total",

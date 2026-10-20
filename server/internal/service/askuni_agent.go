@@ -79,7 +79,8 @@ const (
 // AskAgentMetrics is the agent's run and tool surface; nil reports nothing.
 type AskAgentMetrics interface {
 	// ObserveAskRun reports a run: outcome is answered, agent_failed,
-	// refused, rate_limited, busy or timeout; rounds counts its tool rounds.
+	// refused, rate_limited (a vendor or quota limit too), busy or timeout;
+	// rounds counts its tool rounds, at most askAgentMaxToolRounds.
 	ObserveAskRun(outcome string, rounds int, seconds float64)
 	// ObserveAskTool reports one tool call: status is ok, error or truncated.
 	ObserveAskTool(tool, status string, seconds float64)
@@ -278,7 +279,7 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 			outcome = "answered"
 		case errors.Is(err, ai.ErrProviderTimeout) || errors.Is(err, context.DeadlineExceeded):
 			outcome = "timeout"
-		case errors.Is(err, ai.ErrRateLimited):
+		case errors.Is(err, ai.ErrRateLimited) || errors.Is(err, ai.ErrQuotaExceeded): // ruling P20
 			outcome = "rate_limited"
 		default:
 			outcome = ai.NoticeAgentFailed
@@ -376,7 +377,7 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 		outcome = ai.NoticeAgentFailed
 		if errors.Is(err, ai.ErrProviderTimeout) || errors.Is(err, context.DeadlineExceeded) {
 			outcome = "timeout"
-		} else if errors.Is(err, ai.ErrRateLimited) {
+		} else if errors.Is(err, ai.ErrRateLimited) || errors.Is(err, ai.ErrQuotaExceeded) {
 			outcome = "rate_limited"
 		}
 		usage := billed
