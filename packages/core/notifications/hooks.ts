@@ -20,6 +20,9 @@ export const notificationKeys = {
   /** The inbox's cursor-paged list; under `lists()`, so every mutation patches it too. */
   pages: (workspaceId: string | undefined, unreadOnly: boolean, pageSize = 50) =>
     ["notifications", "list", workspaceId ?? "", unreadOnly, pageSize, "pages"] as const,
+  /** The first page read for one document's notice; under `lists()`, so a mutation patches it too. */
+  documentNotice: (workspaceId: string | undefined, documentId: string, pageSize = 50) =>
+    ["notifications", "list", workspaceId ?? "", false, pageSize, "document-notice", documentId] as const,
   unreadCount: () => ["notifications", "unread-count"] as const,
   prefs: () => ["notifications", "prefs"] as const,
   pushConfig: () => ["notifications", "push-config"] as const,
@@ -52,6 +55,31 @@ export function useNotificationPages({
       api.listNotifications({ workspaceId, unreadOnly, limit: pageSize, before: pageParam || undefined }),
     initialPageParam: "",
     getNextPageParam: (last) => last.next_before || undefined,
+  });
+}
+
+/**
+ * The Inbox's first page as the server answers it now, for a document page that
+ * reached a 404 from a notice and must tell "deleted" from "access lost" by the
+ * notice row (`resource_deleted` / `resource_access_lost`). Its own entry, so a
+ * cached Inbox page is never trusted and the page is dropped when the screen
+ * leaves; a failure is not retried, the caller reads it as "unknown".
+ */
+export function useDocumentNoticePage({
+  workspaceId,
+  documentId,
+  enabled,
+}: {
+  workspaceId: string;
+  documentId: string;
+  enabled: boolean;
+}) {
+  return useQuery({
+    queryKey: notificationKeys.documentNotice(workspaceId, documentId),
+    queryFn: () => api.listNotifications({ workspaceId, limit: 50 }),
+    enabled,
+    gcTime: 0,
+    retry: false,
   });
 }
 

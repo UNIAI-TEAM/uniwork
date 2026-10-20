@@ -7,6 +7,7 @@ import { LocaleAdapterProvider } from "@uniwork/core/i18n/react";
 import { DocumentSchema, type Document } from "@uniwork/core/types/document";
 import { NavigationProvider, registerLeaveGuard, type NavigationAdapter } from "../navigation";
 import { localeAdapter, requestMock } from "../test/api-mock";
+import { defaultEditLockRoute, editLockRoute } from "../test/edit-lock-fake";
 import { DocumentWorkspace } from "./document-workspace";
 
 const { t } = initI18n();
@@ -30,7 +31,7 @@ const adapter: NavigationAdapter = {
   push: vi.fn(), replace: vi.fn(), back: vi.fn(), pathname: "/acme/doi/documents/d1", searchParams: new URLSearchParams(), getShareableUrl: (path) => path,
 };
 
-function renderWorkspace(qc: QueryClient, doc: Document, withHost = true, flags: Record<string, boolean> = {}) {
+function renderWorkspace(qc: QueryClient, doc: Document, withHost = true, flags: Record<string, boolean> = {}, nav: NavigationAdapter = adapter) {
   const officeHost = () => <div data-testid="office-host">Office host</div>;
   const service = new FeatureFlagService(new StaticProvider(
     Object.fromEntries(Object.entries(flags).map(([key, on]) => [key, { default: on }])),
@@ -39,7 +40,7 @@ function renderWorkspace(qc: QueryClient, doc: Document, withHost = true, flags:
     <QueryClientProvider client={qc}>
       <FeatureFlagsProvider service={service}>
         <LocaleAdapterProvider adapter={localeAdapter}>
-          <NavigationProvider value={adapter}>
+          <NavigationProvider value={nav}>
             <DocumentWorkspace wsId={WS} doc={doc} libraryHref="/acme/doi/documents" refetch={vi.fn(() => Promise.resolve({}))}
               officeEditorHost={withHost ? officeHost : undefined} />
           </NavigationProvider>
@@ -97,6 +98,25 @@ describe("DocumentWorkspace on a file document", () => {
     const title = screen.getByText("Báo cáo");
     expect(title).toHaveAttribute("title", "Báo cáo");
     expect(screen.getByRole("link", { name: t("documents.detail.breadcrumb_library") })).toHaveClass("hidden", "sm:inline");
+  });
+
+  // UNI-2033: reading an old version must not make the document unwritable for everyone else.
+  it("holds no page edit lock while a stored version is open read-only, and does for the current one", async () => {
+    orgConfig({ office_engine: true });
+    const acquires: string[] = [];
+    editLockRoute.mockImplementation((path: string, opts?: { method?: string }) => {
+      if ((opts?.method ?? "GET") === "POST" && path.endsWith("/edit-lock")) acquires.push(path);
+      return defaultEditLockRoute(path, opts);
+    });
+    const current = renderWorkspace(testClient(), fileDocument({ file: { file_id: "f1", version_id: "v2", version: 2, filename: "a.docx", mime_type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", size_bytes: 10, checksum_sha256: "a".repeat(64) } }));
+    await screen.findByTestId("office-host");
+    await waitFor(() => expect(acquires).toHaveLength(1));
+    current.unmount();
+    acquires.length = 0;
+    renderWorkspace(testClient(), fileDocument({ file: { file_id: "f1", version_id: "v2", version: 2, filename: "a.docx", mime_type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", size_bytes: 10, checksum_sha256: "a".repeat(64) } }), true, {}, { ...adapter, searchParams: new URLSearchParams("version=1&comment=c1") });
+    await screen.findByTestId("office-host");
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 50)); });
+    expect(acquires).toEqual([]);
   });
 
   it("mounts the editor layout for a .txt file when the organization's answer turns office_txt_open on, global off (UNI-1813)", async () => {

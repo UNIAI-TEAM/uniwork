@@ -8,11 +8,6 @@ import (
 	"net/url"
 	"strings"
 	"testing"
-
-	"github.com/jackc/pgx/v5/pgxpool"
-
-	"github.com/unicomhub/uniwork/server/internal/files/filesfake"
-	"github.com/unicomhub/uniwork/server/internal/service"
 )
 
 func TestOfficeLaunchCreateRouteBindsTicketToDocumentAndHidesItFromNonMembers(t *testing.T) {
@@ -108,9 +103,9 @@ func TestOfficeLaunchRevokeRouteHidesAnotherAccountsReceipt(t *testing.T) {
 	}
 }
 
-// G8-07 §3: the launch ticket carries an optional comment_id. Present, it is
-// validated against the document's own tenant pair, stored and echoed back;
-// absent, the behaviour is unchanged.
+// G8-07 §3, OQ-C6: the launch ticket carries an optional comment_id. Present
+// and belonging to a live row of this document, it is stored and echoed back;
+// absent or unknown, it is omitted so the document still opens.
 func TestOfficeLaunchCreateRouteCarriesOptionalCommentID(t *testing.T) {
 	w := newOfficeWorld(t, true)
 	documentID := w.createMarkdownFile(t, "# comment launch\n")
@@ -153,24 +148,34 @@ func TestOfficeLaunchCreateRouteCarriesOptionalCommentID(t *testing.T) {
 		t.Fatalf("stored comment_id = %v, want %q", row.CommentID, commentID)
 	}
 
-	// A comment id that names no comment of this document is refused and
-	// stores nothing (same 404 as a random id: no existence oracle).
+	// OQ-C6: a comment id that names no comment of this document is dropped
+	// silently (201, no comment_id echo, launch row comment_id NULL).
 	res, out = doJSON(t, w.srv, "POST", "/api/v1/documents/"+documentID+"/office/sessions", w.token, map[string]any{
 		"operation": "view", "client_id": "uniwork-office", "deployment_id": "default", "comment_id": "01J8X4NOTHINGATALL000000",
 	})
-	if res.StatusCode != 404 {
-		t.Fatalf("unknown comment id = %d %v", res.StatusCode, out)
+	if res.StatusCode != 201 {
+		t.Fatalf("unknown comment id = %d %v, want 201", res.StatusCode, out)
+	}
+	if _, ok := out["comment_id"]; ok {
+		t.Fatalf("unknown comment_id echoed: %v", out)
+	}
+	ticket, _ = out["launch_ticket"].(string)
+	sum = sha256.Sum256([]byte(ticket))
+	row, err = w.q.GetOfficeLaunchSessionByHash(context.Background(), base64.RawURLEncoding.EncodeToString(sum[:]))
+	if err != nil {
+		t.Fatalf("look up launch row for unknown comment_id: %v", err)
+	}
+	if row.CommentID.Valid {
+		t.Fatalf("stored comment_id for unknown id = %v, want NULL", row.CommentID)
 	}
 }
 
-// R1-1: the ticket may only name a comment of ITS OWN document. A live
-// comment of another document in the same workspace must be refused with the
-// same 404 as an unknown id, and no launch row may be stored; the same id
-// still works on its own document.
-func TestOfficeLaunchCommentIDMustBelongToTheDocument(t *testing.T) {
-	var pool *pgxpool.Pool
-	w := newOfficeWorldTweaked(t, true, func(*filesfake.Fake) service.OfficeEngine { return newHandlerStubEngine(t) },
-		func(_ *Deps, p *pgxpool.Pool) { pool = p })
+// R1-1, OQ-C6: the ticket may only name a comment of ITS OWN document. A live
+// comment of another document in the same workspace is dropped silently with
+// the same 201/no-echo/NULL-stored shape as an unknown id; the same id still
+// rides the ticket on its own document.
+func TestOfficeLaunchCommentIDIsDroppedUnlessItBelongsToTheDocument(t *testing.T) {
+	w := newOfficeWorld(t, true)
 	documentID := w.createMarkdownFile(t, "# comment owner\n")
 	otherDocumentID := w.createMarkdownFile(t, "# foreign comment\n")
 
@@ -183,18 +188,20 @@ func TestOfficeLaunchCommentIDMustBelongToTheDocument(t *testing.T) {
 	res, out = doJSON(t, w.srv, "POST", "/api/v1/documents/"+documentID+"/office/sessions", w.token, map[string]any{
 		"operation": "view", "client_id": "uniwork-office", "deployment_id": "default", "comment_id": foreignCommentID,
 	})
-	if res.StatusCode != 404 {
-		t.Fatalf("foreign-document comment id = %d %v", res.StatusCode, out)
+	if res.StatusCode != 201 {
+		t.Fatalf("foreign-document comment id = %d %v, want 201", res.StatusCode, out)
 	}
-	if _, ok := out["launch_ticket"]; ok {
-		t.Fatalf("refused launch answered a ticket: %v", out)
+	if _, ok := out["comment_id"]; ok {
+		t.Fatalf("foreign-document comment_id echoed: %v", out)
 	}
-	var stored int
-	if err := pool.QueryRow(context.Background(), "SELECT count(*) FROM office_launch_sessions WHERE document_id = $1", documentID).Scan(&stored); err != nil {
-		t.Fatal(err)
+	ticket, _ := out["launch_ticket"].(string)
+	sum := sha256.Sum256([]byte(ticket))
+	row, err := w.q.GetOfficeLaunchSessionByHash(context.Background(), base64.RawURLEncoding.EncodeToString(sum[:]))
+	if err != nil {
+		t.Fatalf("look up launch row for foreign comment_id: %v", err)
 	}
-	if stored != 0 {
-		t.Fatalf("foreign-document comment stored %d launch rows", stored)
+	if row.CommentID.Valid {
+		t.Fatalf("stored comment_id for foreign comment = %v, want NULL", row.CommentID)
 	}
 
 	// Control: the same comment id on its own document is accepted.
@@ -206,6 +213,115 @@ func TestOfficeLaunchCommentIDMustBelongToTheDocument(t *testing.T) {
 	}
 	if got, _ := out["comment_id"].(string); got != foreignCommentID {
 		t.Fatalf("own-document comment echo = %q, want %q", got, foreignCommentID)
+	}
+}
+
+// G8-19 A07 (OQ-C6): a comment with no replies is removed for real when
+// deleted; launching the document with that deleted comment_id drops the hint
+// silently and mints a document-only ticket.
+func TestOfficeLaunchDeletedCommentIDIsDroppedSilently(t *testing.T) {
+	w := newOfficeWorld(t, true)
+	documentID := w.createMarkdownFile(t, "# deleted comment launch\n")
+
+	res, out := doJSON(t, w.srv, "POST", "/api/v1/documents/"+documentID+"/comments", w.token, map[string]any{"body": "xóa thật"})
+	if res.StatusCode != 201 {
+		t.Fatalf("create comment: %d %v", res.StatusCode, out)
+	}
+	commentID := out["comment"].(map[string]any)["id"].(string)
+
+	res, out = doJSON(t, w.srv, "DELETE", "/api/v1/documents/"+documentID+"/comments/"+commentID, w.token, nil)
+	if res.StatusCode != 200 || out["outcome"] != "removed" {
+		t.Fatalf("delete comment = %d %v, want 200 removed", res.StatusCode, out)
+	}
+
+	res, out = doJSON(t, w.srv, "POST", "/api/v1/documents/"+documentID+"/office/sessions", w.token, map[string]any{
+		"operation": "view", "client_id": "uniwork-office", "deployment_id": "default", "comment_id": commentID,
+	})
+	if res.StatusCode != 201 {
+		t.Fatalf("deleted comment id = %d %v, want 201", res.StatusCode, out)
+	}
+	if _, ok := out["comment_id"]; ok {
+		t.Fatalf("deleted comment_id echoed: %v", out)
+	}
+	ticket, _ := out["launch_ticket"].(string)
+	sum := sha256.Sum256([]byte(ticket))
+	row, err := w.q.GetOfficeLaunchSessionByHash(context.Background(), base64.RawURLEncoding.EncodeToString(sum[:]))
+	if err != nil {
+		t.Fatalf("look up launch row for deleted comment_id: %v", err)
+	}
+	if row.CommentID.Valid {
+		t.Fatalf("stored comment_id for deleted comment = %v, want NULL", row.CommentID)
+	}
+}
+
+// G8-19 A07 (OQ-C6): a comment with a surviving reply keeps its tombstone
+// frame when deleted so the thread stays reachable; launching the document
+// with that tombstoned comment_id keeps and echoes the id.
+func TestOfficeLaunchTombstonedCommentIDIsKept(t *testing.T) {
+	w := newOfficeWorld(t, true)
+	documentID := w.createMarkdownFile(t, "# tombstoned comment launch\n")
+
+	res, out := doJSON(t, w.srv, "POST", "/api/v1/documents/"+documentID+"/comments", w.token, map[string]any{"body": "gốc có phản hồi"})
+	if res.StatusCode != 201 {
+		t.Fatalf("create comment: %d %v", res.StatusCode, out)
+	}
+	commentID := out["comment"].(map[string]any)["id"].(string)
+
+	res, out = doJSON(t, w.srv, "POST", "/api/v1/documents/"+documentID+"/comments", w.token, map[string]any{"body": "phản hồi giữ khung", "parent_id": commentID})
+	if res.StatusCode != 201 {
+		t.Fatalf("create reply: %d %v", res.StatusCode, out)
+	}
+
+	res, out = doJSON(t, w.srv, "DELETE", "/api/v1/documents/"+documentID+"/comments/"+commentID, w.token, nil)
+	if res.StatusCode != 200 || out["outcome"] != "tombstoned" {
+		t.Fatalf("delete parent comment = %d %v, want 200 tombstoned", res.StatusCode, out)
+	}
+
+	res, out = doJSON(t, w.srv, "POST", "/api/v1/documents/"+documentID+"/office/sessions", w.token, map[string]any{
+		"operation": "view", "client_id": "uniwork-office", "deployment_id": "default", "comment_id": commentID,
+	})
+	if res.StatusCode != 201 {
+		t.Fatalf("tombstoned comment id = %d %v, want 201", res.StatusCode, out)
+	}
+	if got, _ := out["comment_id"].(string); got != commentID {
+		t.Fatalf("tombstoned comment_id echo = %q, want %q", got, commentID)
+	}
+	ticket, _ := out["launch_ticket"].(string)
+	sum := sha256.Sum256([]byte(ticket))
+	row, err := w.q.GetOfficeLaunchSessionByHash(context.Background(), base64.RawURLEncoding.EncodeToString(sum[:]))
+	if err != nil {
+		t.Fatalf("look up launch row for tombstoned comment_id: %v", err)
+	}
+	if !row.CommentID.Valid || row.CommentID.String != commentID {
+		t.Fatalf("stored comment_id for tombstoned comment = %v, want %q", row.CommentID, commentID)
+	}
+}
+
+// Document authorization runs before the comment lookup: a caller with no
+// access to the document, naming a live comment of it, is refused with the
+// same status as when comment_id is omitted.
+func TestOfficeLaunchNoAccessCallerWithLiveCommentIDIsStillRefused(t *testing.T) {
+	w := newOfficeWorld(t, true)
+	documentID := w.createMarkdownFile(t, "# private launch\n")
+
+	res, out := doJSON(t, w.srv, "POST", "/api/v1/documents/"+documentID+"/comments", w.token, map[string]any{"body": "bình luận đang sống"})
+	if res.StatusCode != 201 {
+		t.Fatalf("create comment: %d %v", res.StatusCode, out)
+	}
+	commentID := out["comment"].(map[string]any)["id"].(string)
+
+	outsider := w.outsiderToken(t)
+	resWithout, _ := doJSON(t, w.srv, "POST", "/api/v1/documents/"+documentID+"/office/sessions", outsider, map[string]any{
+		"operation": "view", "client_id": "uniwork-office", "deployment_id": "default",
+	})
+	resWith, outWith := doJSON(t, w.srv, "POST", "/api/v1/documents/"+documentID+"/office/sessions", outsider, map[string]any{
+		"operation": "view", "client_id": "uniwork-office", "deployment_id": "default", "comment_id": commentID,
+	})
+	if resWithout.StatusCode != 404 || resWith.StatusCode != resWithout.StatusCode {
+		t.Fatalf("no-access launch statuses: without comment_id = %d, with comment_id = %d (%v)", resWithout.StatusCode, resWith.StatusCode, outWith)
+	}
+	if _, ok := outWith["launch_ticket"]; ok {
+		t.Fatalf("refused no-access launch returned launch_ticket: %v", outWith)
 	}
 }
 

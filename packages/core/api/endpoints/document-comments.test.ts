@@ -251,6 +251,24 @@ describe("document comment endpoints", () => {
     expect(out.comments[0]?.anchor_state).toBe("stale");
   });
 
+  it("reads anchor_version_no and degrades a malformed one to absent, never the comment (UNI-2033)", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        comments: [
+          commentBody({ id: "c1", anchor_state: "lost", anchor_version_id: "v2", anchor_version_no: 2 }),
+          commentBody({ id: "c2", anchor_state: "lost", anchor_version_no: null }),
+          commentBody({ id: "c3", anchor_state: "lost", anchor_version_no: "two" }),
+          commentBody({ id: "c4" }),
+        ],
+        unchanged: false,
+      }),
+    );
+    const out = await listDocumentComments("d1");
+    if (!out || out.unchanged) throw new Error("expected a full list");
+    expect(out.comments.map((c) => c.anchor_version_no ?? null)).toEqual([2, null, null, null]);
+    expect(out.comments).toHaveLength(4);
+  });
+
   // ---- lenience + malformed responses -----------------------------------
 
   it("keeps the comment when one reaction row is malformed", async () => {
@@ -551,5 +569,81 @@ describe("document comment endpoints", () => {
         listDocumentMentionCandidates("d1", { include: "no_access" }),
       ).resolves.toEqual([]);
     }
+  });
+
+  // ---- UNI-2033: anchor_version_no --------------------------------------
+
+  it("parses anchor_version_no when valid or null and reads a malformed one as absent", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        comments: [
+          commentBody({
+            id: "c1",
+            anchor: { format: "xlsx", v: 1, sheet: "S1", range: "B7" },
+            anchor_version_id: "v2",
+            anchor_version_no: 2,
+            anchor_state: "lost",
+          }),
+          commentBody({
+            id: "c2",
+            kind: "discussion",
+            type: "discussion",
+            anchor: null,
+            anchor_version_id: null,
+            anchor_version_no: null,
+            anchor_state: null,
+          }),
+        ],
+        list_token: "lt1:abc",
+        unchanged: false,
+      }),
+    );
+    const listed = await listDocumentComments("d1");
+    if (!listed || listed.unchanged) throw new Error("expected a full list");
+    expect(listed.comments[0]?.anchor_version_no).toBe(2);
+    expect(listed.comments[1]?.anchor_version_no).toBeNull();
+
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        comment: commentBody({
+          anchor: { format: "xlsx", v: 1, sheet: "S1", range: "B7" },
+          anchor_version_id: "v3",
+          anchor_version_no: 3,
+          anchor_state: "exact",
+        }),
+      }),
+    );
+    const single = await createDocumentComment("d1", {
+      body: "Chỗ này",
+      kind: "comment",
+      anchor: { format: "xlsx", v: 1, sheet: "S1", range: "B7" },
+      base_version_id: "v3",
+    });
+    expect(single?.anchor_version_no).toBe(3);
+
+    // A malformed anchor_version_no (e.g. a string) reads as absent; the comment itself is kept.
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        comment: commentBody({
+          anchor_version_id: "v3",
+          anchor_version_no: "not-a-number",
+        }),
+      }),
+    );
+    const malformedSingle = await createDocumentComment("d1", { body: "x" });
+    expect(malformedSingle).not.toBeNull();
+    expect(malformedSingle?.anchor_version_no).toBeUndefined();
+
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        comments: [commentBody({ anchor_version_no: "not-a-number" })],
+        list_token: "lt1:abc",
+        unchanged: false,
+      }),
+    );
+    const malformedList = await listDocumentComments("d1");
+    if (!malformedList || malformedList.unchanged) throw new Error("expected a full list");
+    expect(malformedList.comments).toHaveLength(1);
+    expect(malformedList.comments[0]?.anchor_version_no).toBeUndefined();
   });
 });

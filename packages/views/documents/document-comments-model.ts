@@ -34,6 +34,22 @@ export function anchorableFormat(doc: Pick<Document, "kind" | "file">): AnchorFo
   return null;
 }
 
+/**
+ * The version a lost comment can be viewed in (UNI-2033): the version the server kept the anchor on,
+ * for a file a module frame opens, and only when it is not the version already open. Anything
+ * unknown (no number, a drifted one, another state, a document no frame opens) hides the action.
+ */
+export function versionViewTarget(
+  root: Pick<DocumentComment, "anchor_state" | "anchor_version_no">,
+  doc: Pick<Document, "kind" | "file">,
+): number | null {
+  if (root.anchor_state !== "lost") return null;
+  const versionNo = root.anchor_version_no;
+  if (typeof versionNo !== "number" || !Number.isSafeInteger(versionNo) || versionNo < 1) return null;
+  if (anchorableFormat(doc) === null || doc.file?.version === versionNo) return null;
+  return versionNo;
+}
+
 const QUOTE_MAX = 60;
 
 /** One anchor label: the catalogue key, its placeholder values, and the full quote for the tooltip. */

@@ -40,7 +40,7 @@ var documentNameCases = []struct {
 	{KindDocumentCommentReplied, `An đã phản hồi bình luận của bạn trong tài liệu “A "b" & <c>”.`, `An replied to your comment in “A "b" & <c>”.`},
 	{KindDocumentDiscussionMentioned, `An đã nhắc đến bạn trong thảo luận của tài liệu “A "b" & <c>”.`, `An mentioned you in a discussion on “A "b" & <c>”.`},
 	{KindDocumentDiscussionReplied, `An đã phản hồi nội dung thảo luận của bạn trong tài liệu “A "b" & <c>”.`, `An replied to your discussion post in “A "b" & <c>”.`},
-	{KindDocumentCommentResolved, `An đã đánh dấu bình luận của bạn trong tài liệu “A "b" & <c>” là đã giải quyết.`, `An marked your comment in “A "b" & <c>” as resolved.`},
+	{KindDocumentCommentResolved, `An đã đánh dấu một bình luận trong tài liệu “A "b" & <c>” là đã giải quyết.`, `An marked a comment in “A "b" & <c>” as resolved.`},
 	{KindDocumentBreakGlass, `An đã mở truy cập khẩn cấp (chỉ xem, 24 giờ) vào tài liệu “A "b" & <c>”.`, `An opened emergency view access (24h) to “A "b" & <c>”.`},
 	{KindDocumentShared, `An đã chia sẻ tài liệu “A "b" & <c>” với bạn. Quyền: Chỉ xem.`, `An shared “A "b" & <c>” with you (View).`},
 }

@@ -355,6 +355,30 @@ func (s *DocumentService) GetDocumentComment(ctx context.Context, actor Actor, c
 	return c, nil
 }
 
+// DocumentCommentAnchorVersionNo resolves one comment's anchor_version_id to
+// its document_versions.version ordinal with the same 4-column scoping as
+// ListDocumentComments. Returns nil when the comment carries no anchor or the
+// version row is gone.
+func (s *DocumentService) DocumentCommentAnchorVersionNo(ctx context.Context, c db.DocumentComment) (*int32, error) {
+	if !c.AnchorVersionID.Valid || c.AnchorVersionID.String == "" {
+		return nil, nil
+	}
+	v, err := s.q.GetDocumentVersionByID(ctx, db.GetDocumentVersionByIDParams{
+		ID:             c.AnchorVersionID.String,
+		OrganizationID: c.OrganizationID,
+		WorkspaceID:    c.WorkspaceID,
+		DocumentID:     c.DocumentID,
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	ver := v.Version
+	return &ver, nil
+}
+
 // validateDocumentCommentLegacyType keeps the pre-G8 wire field honest: the
 // old allowlist was "comment" (or empty) and it never picks the thread kind -
 // that is `kind`/comment_type now. Anything else answers the old 400.

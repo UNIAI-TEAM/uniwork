@@ -12,9 +12,28 @@ import {
 } from "@uniwork/core/documents/hooks-access-requests";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
+import { cn } from "@uniwork/ui/lib/utils";
 import { chatErrorMessage } from "./chat-error-message";
+import { bubbleControlClass } from "./chat-file-card";
 
 type TFunction = ReturnType<typeof useTranslation>["t"];
+
+/**
+ * The look of a card control on its bubble. A bare `outline` button paints
+ * `bg-background` / `dark:bg-input/30`, a white pill on my brand bubble, so on
+ * mine the control is the soft `toolbar` variant with the own-bubble wash;
+ * on theirs it stays the outline button.
+ */
+export function documentControlProps(isOwn: boolean): { variant: "outline" | "toolbar"; className: string } {
+  return isOwn
+    ? { variant: "toolbar", className: bubbleControlClass(true) }
+    : { variant: "outline", className: "" };
+}
+
+/** The card's secondary text: the own-bubble meta tone on my bubble, grey on theirs. */
+export function documentMutedClass(isOwn: boolean): string {
+  return isOwn ? "text-chat-bubble-own-meta" : "text-muted-foreground";
+}
 
 /**
  * One sentence for a failed version upload from the document card. The two
@@ -64,11 +83,15 @@ const noFlag = () => null;
 export function ChatDocumentRequestAccess({
   workspaceId,
   documentId,
+  isOwn = false,
 }: {
   workspaceId: string;
   documentId: string;
+  /** The bubble it sits on: the controls and the note follow its palette. */
+  isOwn?: boolean;
 }) {
   const { t } = useTranslation();
+  const control = documentControlProps(isOwn);
   const send = useRequestDocumentAccess(workspaceId, documentId);
   const sentAt = useSyncExternalStore(
     subscribeDocumentAccessRequestSent,
@@ -128,16 +151,16 @@ export function ChatDocumentRequestAccess({
         ref={statusRef}
         role="status"
         tabIndex={-1}
-        className={note ? "min-w-0 text-caption text-muted-foreground" : undefined}
+        className={note ? cn("min-w-0 text-caption", documentMutedClass(isOwn)) : undefined}
       >
         {note}
       </p>
       {done ? null : (
         <Button
           type="button"
-          variant="outline"
+          variant={control.variant}
           size="sm"
-          className="pointer-coarse:min-h-11 gap-1.5"
+          className={cn("pointer-coarse:min-h-11 gap-1.5", control.className)}
           aria-disabled={send.isPending || undefined}
           onClick={run}
         >
