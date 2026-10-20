@@ -61,7 +61,7 @@ func documentListInput(w http.ResponseWriter, r *http.Request) (service.ListDocu
 		}
 		in.Shelved = v
 	}
-	sort, ok := documentSortInput(w, q, in.Archived, in.Shelved)
+	sort, ok := documentSortInput(w, q, listSortRoute(in.Archived, in.Shelved, in.SharedByMe))
 	if !ok {
 		return in, false
 	}
@@ -92,15 +92,28 @@ func documentListInput(w http.ResponseWriter, r *http.Request) (service.ListDocu
 	return in, true
 }
 
+// listSortRoute is the screen sort key the flat list takes under its query: the
+// trash sorts by deletion time, the shelf by shelving time, shared_by_me by the
+// time of the newest grant (UNI-2045); every other shape takes the four column
+// keys only. The same word on another shape is 400.
+func listSortRoute(archived, shelved, sharedByMe bool) string {
+	switch {
+	case archived:
+		return service.DocumentSortDeleted
+	case shelved:
+		return service.DocumentSortShelved
+	case sharedByMe:
+		return service.DocumentSortShared
+	}
+	return ""
+}
+
 // documentSortInput parses ?sort= and ?order= once for every documents list
 // that takes them (UNI-2038 S3): a missing sort keeps the list's own order, an
-// unknown value, order without sort and a sort on the trash or the archive
-// shelf (which keep their own order) are 400.
-func documentSortInput(w http.ResponseWriter, q url.Values, archived, shelved bool) (service.DocumentSort, bool) {
-	sort, err := service.ParseDocumentSort(strings.TrimSpace(q.Get("sort")), strings.TrimSpace(q.Get("order")))
-	if err == nil && sort.Active() && (archived || shelved) {
-		err = service.Invalid("sort không dùng được cùng archived hoặc shelved")
-	}
+// unknown value, order without sort and a screen key that is not this route's
+// own (extra, "" for none) are 400.
+func documentSortInput(w http.ResponseWriter, q url.Values, extra string) (service.DocumentSort, bool) {
+	sort, err := service.ParseDocumentSortFor(strings.TrimSpace(q.Get("sort")), strings.TrimSpace(q.Get("order")), extra)
 	if err != nil {
 		var ve service.ValidationError
 		msg := "invalid sort"
@@ -145,6 +158,11 @@ func (h *handlers) listRecentDocuments(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	// Recent is no trash or shelf view: a sort next to archived/shelved stays 400.
+	if in.Sort.Active() && (in.Archived || in.Shelved) {
+		respondError(w, http.StatusBadRequest, "invalid_request", "sort không dùng được cùng archived hoặc shelved")
+		return
+	}
 	page, err := h.Documents.ListRecentDocuments(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "workspaceID"), in)
 	if err != nil {
 		h.mapServiceError(w, err)
@@ -174,7 +192,7 @@ func (h *handlers) listSharedWithMe(w http.ResponseWriter, r *http.Request) {
 		Format: strings.TrimSpace(r.URL.Query().Get("format")),
 		Access: strings.TrimSpace(r.URL.Query().Get("access")),
 	}
-	sort, ok := documentSortInput(w, r.URL.Query(), false, false)
+	sort, ok := documentSortInput(w, r.URL.Query(), "")
 	if !ok {
 		return
 	}

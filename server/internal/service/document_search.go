@@ -75,6 +75,21 @@ type ListDocumentsInput struct {
 	Sort DocumentSort
 }
 
+// listScreenSortKey is the screen key the flat list route takes under this
+// input: the trash and the shelf each have their own timestamp, shared_by_me
+// has the grant time; every other shape takes the four column keys only.
+func listScreenSortKey(in ListDocumentsInput) string {
+	switch {
+	case in.Archived:
+		return DocumentSortDeleted
+	case in.Shelved:
+		return DocumentSortShelved
+	case in.SharedByMe:
+		return DocumentSortShared
+	}
+	return ""
+}
+
 // The access filter of a document list (UNI-1868). manage and edit compare
 // the level the caller holds on the row; restricted is the row's visibility,
 // exactly as the library's own access filter reads it.
@@ -193,12 +208,13 @@ func encodeDocumentCursor(c documentCursor) string {
 
 // sortedDocumentCursor is the cursor of a sorted page's last row, from the key
 // values the list query returned for it.
-func sortedDocumentCursor(sort DocumentSort, id string, updatedAt time.Time, size int64, name, editor string, editorNull bool) documentCursor {
-	at := updatedAt
-	return documentCursor{
-		At: &at, ID: id,
-		DocumentSortCursor: NewDocumentSortCursor(sort, size, name, editor, editorNull),
+func sortedDocumentCursor(sort DocumentSort, id string, keyAt pgtype.Timestamptz, size int64, name, editor string, editorNull bool) documentCursor {
+	c := documentCursor{ID: id, DocumentSortCursor: NewDocumentSortCursor(sort, size, name, editor, editorNull)}
+	if keyAt.Valid {
+		at := keyAt.Time
+		c.At = &at
 	}
+	return c
 }
 
 // legacy is the cursor a list's own (unsorted) keyset reads: a sorted cursor
@@ -388,8 +404,8 @@ func (s *DocumentService) listDocumentsPage(ctx context.Context, actor Actor, wo
 		// trashed-and-shelved row lives in the trash only.
 		return DocumentListPage{}, coded(http.StatusBadRequest, "invalid_filter", "shelved không thể dùng cùng archived")
 	}
-	if in.Sort.Active() && (in.Archived || in.Shelved) {
-		return DocumentListPage{}, Invalid("sort không dùng được cùng archived hoặc shelved")
+	if err := in.Sort.CheckRoute(listScreenSortKey(in)); err != nil {
+		return DocumentListPage{}, err
 	}
 	cursor, err := decodeDocumentCursor(in.Cursor)
 	if err != nil {
@@ -479,16 +495,23 @@ func (s *DocumentService) listDocumentsPage(ctx context.Context, actor Actor, wo
 			FormatMimes: files.DocumentFormatMimes(), Access: nullText(filters.access),
 			Query: query, MatchTitle: matchTitle,
 			CursorAt: cursorAt, CursorID: cursorID, PageLimit: int32(limit + 1),
+			SortKey: sortArg.key, SortDesc: sortArg.desc, SortCursorID: sortArg.id, SortCursorAt: sortArg.at,
+			SortCursorNum: sortArg.num, SortCursorText: sortArg.text, SortCursorNull: sortArg.null,
 		})
 		if err != nil {
 			return DocumentListPage{}, err
 		}
-		for i, d := range rows {
+		for i, r := range rows {
 			if i == limit {
-				out.NextCursor = encodeDocumentCursor(documentCursor{At: &rows[limit-1].ArchivedAt.Time, ID: rows[limit-1].ID})
+				last := rows[limit-1]
+				if in.Sort.Active() {
+					out.NextCursor = encodeDocumentCursor(sortedDocumentCursor(in.Sort, last.Document.ID, last.SortAt, last.SortSize, last.SortName, last.SortEditor, last.SortEditorNull))
+				} else {
+					out.NextCursor = encodeDocumentCursor(documentCursor{At: &last.Document.ArchivedAt.Time, ID: last.Document.ID})
+				}
 				break
 			}
-			out.Items = append(out.Items, DocumentListItem{Document: d})
+			out.Items = append(out.Items, DocumentListItem{Document: r.Document})
 		}
 
 	case in.Shelved:
@@ -514,16 +537,23 @@ func (s *DocumentService) listDocumentsPage(ctx context.Context, actor Actor, wo
 			SharedByMe: in.SharedByMe,
 			Query:      query, MatchTitle: matchTitle,
 			CursorAt: cursorAt, CursorID: cursorID, PageLimit: int32(limit + 1),
+			SortKey: sortArg.key, SortDesc: sortArg.desc, SortCursorID: sortArg.id, SortCursorAt: sortArg.at,
+			SortCursorNum: sortArg.num, SortCursorText: sortArg.text, SortCursorNull: sortArg.null,
 		})
 		if err != nil {
 			return DocumentListPage{}, err
 		}
-		for i, d := range rows {
+		for i, r := range rows {
 			if i == limit {
-				out.NextCursor = encodeDocumentCursor(documentCursor{At: &rows[limit-1].ShelvedAt.Time, ID: rows[limit-1].ID})
+				last := rows[limit-1]
+				if in.Sort.Active() {
+					out.NextCursor = encodeDocumentCursor(sortedDocumentCursor(in.Sort, last.Document.ID, last.SortAt, last.SortSize, last.SortName, last.SortEditor, last.SortEditorNull))
+				} else {
+					out.NextCursor = encodeDocumentCursor(documentCursor{At: &last.Document.ShelvedAt.Time, ID: last.Document.ID})
+				}
 				break
 			}
-			out.Items = append(out.Items, DocumentListItem{Document: d})
+			out.Items = append(out.Items, DocumentListItem{Document: r.Document})
 		}
 
 	case in.ParentID != nil && !query.Valid:
@@ -555,7 +585,7 @@ func (s *DocumentService) listDocumentsPage(ctx context.Context, actor Actor, wo
 			if i == limit {
 				last := rows[limit-1]
 				if in.Sort.Active() {
-					out.NextCursor = encodeDocumentCursor(sortedDocumentCursor(in.Sort, last.Document.ID, last.Document.UpdatedAt.Time, last.SortSize, last.SortName, last.SortEditor, last.SortEditorNull))
+					out.NextCursor = encodeDocumentCursor(sortedDocumentCursor(in.Sort, last.Document.ID, last.Document.UpdatedAt, last.SortSize, last.SortName, last.SortEditor, last.SortEditorNull))
 				} else {
 					out.NextCursor = encodeDocumentCursor(documentCursor{Pos: &last.Document.Position, ID: last.Document.ID})
 				}
@@ -592,7 +622,7 @@ func (s *DocumentService) listDocumentsPage(ctx context.Context, actor Actor, wo
 			if i == limit {
 				last := rows[limit-1]
 				if in.Sort.Active() {
-					out.NextCursor = encodeDocumentCursor(sortedDocumentCursor(in.Sort, last.ID, last.UpdatedAt.Time, last.SortSize, last.SortName, last.SortEditor, last.SortEditorNull))
+					out.NextCursor = encodeDocumentCursor(sortedDocumentCursor(in.Sort, last.ID, last.UpdatedAt, last.SortSize, last.SortName, last.SortEditor, last.SortEditorNull))
 				} else {
 					out.NextCursor = encodeDocumentCursor(documentCursor{At: &last.UpdatedAt.Time, ID: last.ID})
 				}
@@ -829,7 +859,7 @@ func (s *DocumentService) listRecentDocumentsPage(ctx context.Context, actor Act
 		if i == limit {
 			last := rows[limit-1]
 			if in.Sort.Active() {
-				out.NextCursor = encodeDocumentCursor(sortedDocumentCursor(in.Sort, last.Document.ID, last.Document.UpdatedAt.Time, last.SortSize, last.SortName, last.SortEditor, last.SortEditorNull))
+				out.NextCursor = encodeDocumentCursor(sortedDocumentCursor(in.Sort, last.Document.ID, last.Document.UpdatedAt, last.SortSize, last.SortName, last.SortEditor, last.SortEditorNull))
 			} else {
 				out.NextCursor = encodeDocumentCursor(documentCursor{At: &last.Document.UpdatedAt.Time, ID: last.Document.ID})
 			}

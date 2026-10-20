@@ -432,10 +432,18 @@ func TestDocumentListSortRefusals(t *testing.T) {
 			t.Errorf("%s: err = %v, want a validation error (400 invalid_request)", what, err)
 		}
 	}
+	// UNI-2045 SV-0: the trash and the shelf sort now, each by its own screen
+	// key; a screen key on another list is refused.
 	_, err := f.svc.ListDocuments(f.ctx, owner, tn.wsA, ListDocumentsInput{Sort: DocumentSort{Key: "name"}, Archived: true})
-	invalid("sort with archived", err)
-	_, err = f.svc.ListDocuments(f.ctx, owner, tn.wsA, ListDocumentsInput{Sort: DocumentSort{Key: "name"}, Shelved: true})
-	invalid("sort with shelved", err)
+	if err != nil {
+		t.Errorf("sort=name on the trash: %v", err)
+	}
+	_, err = f.svc.ListDocuments(f.ctx, owner, tn.wsA, ListDocumentsInput{Sort: DocumentSort{Key: DocumentSortDeleted}, Shelved: true})
+	invalid("sort=deleted on the shelf", err)
+	_, err = f.svc.ListDocuments(f.ctx, owner, tn.wsA, ListDocumentsInput{Sort: DocumentSort{Key: DocumentSortShelved}, Archived: true})
+	invalid("sort=shelved on the trash", err)
+	_, err = f.svc.ListDocuments(f.ctx, owner, tn.wsA, ListDocumentsInput{Sort: DocumentSort{Key: DocumentSortDeleted}})
+	invalid("sort=deleted on the flat list", err)
 
 	first := func(so DocumentSort) string {
 		p, err := f.svc.ListDocuments(f.ctx, owner, tn.wsA, ListDocumentsInput{Sort: so, Limit: 2})

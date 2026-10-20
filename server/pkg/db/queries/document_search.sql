@@ -533,13 +533,31 @@ LIMIT sqlc.arg(page_limit);
 -- workspace member, or a manage/edit share), ordered by archive time
 -- descending.
 -- name: ListArchivedDocumentsPage :many
-SELECT d.*
+SELECT sqlc.embed(d),
+       sk.name_key AS sort_name, sk.size_key AS sort_size,
+       sk.editor_key AS sort_editor, sk.editor_null AS sort_editor_null,
+       sk.ts_key AS sort_at
 FROM documents d
 LEFT JOIN document_versions cv
   ON cv.organization_id = d.organization_id
  AND cv.workspace_id = d.workspace_id
  AND cv.document_id = d.id
  AND cv.id = d.file_version_id
+-- UNI-2038 S3 + UNI-2045: the sort keys of a row, computed once (see
+-- ListDocumentsPage). ts_key is the timestamp of the timestamp sorts: updated_at
+-- for sort=updated, the list's own column for its screen key (and for no sort),
+-- so it is also the time half of the next cursor.
+LEFT JOIN users eu
+  ON eu.id = d.updated_by
+ AND d.updated_by_kind = 'human'
+ AND sqlc.narg(sort_key)::text = 'editor'
+CROSS JOIN LATERAL (SELECT
+    (CASE WHEN sqlc.narg(sort_key)::text = 'name' THEN d.title ELSE '' END COLLATE "vi-x-icu")::text AS name_key,
+    (CASE WHEN sqlc.narg(sort_key)::text = 'size' THEN COALESCE(cv.size_bytes, 0) ELSE 0 END)::bigint AS size_key,
+    (CASE WHEN sqlc.narg(sort_key)::text = 'editor' THEN COALESCE(eu.display_name COLLATE "vi-x-icu", '') ELSE '' END)::text AS editor_key,
+    (CASE WHEN sqlc.narg(sort_key)::text = 'editor' THEN NULLIF(btrim(eu.display_name), '') IS NULL ELSE false END)::boolean AS editor_null,
+    (CASE WHEN sqlc.narg(sort_key)::text = 'updated' THEN d.updated_at ELSE d.archived_at END)::timestamptz AS ts_key
+) sk
 WHERE d.organization_id = sqlc.arg(organization_id)
   AND d.workspace_id = sqlc.arg(workspace_id)
   AND d.owner_id IS NULL
@@ -635,7 +653,44 @@ WHERE d.organization_id = sqlc.arg(organization_id)
            AND uw_fold_search(d.title) ILIKE '%' || sqlc.narg(query)::text || '%' ESCAPE '\'))
   AND (sqlc.narg(cursor_at)::timestamptz IS NULL
        OR (d.archived_at, d.id) < (sqlc.narg(cursor_at), sqlc.narg(cursor_id)::text))
-ORDER BY d.archived_at DESC, d.id DESC
+  -- UNI-2038 S3 keyset of a sorted page: (key, id) past the cursor row in the
+  -- requested direction; an editor-less row (editor_null) is always last.
+  AND (sqlc.narg(sort_cursor_id)::text IS NULL OR CASE sqlc.narg(sort_key)::text
+       WHEN 'updated' THEN CASE WHEN sqlc.arg(sort_desc)::boolean
+            THEN (sk.ts_key, d.id COLLATE "C") < (sqlc.narg(sort_cursor_at)::timestamptz, sqlc.narg(sort_cursor_id)::text COLLATE "C")
+            ELSE (sk.ts_key, d.id COLLATE "C") > (sqlc.narg(sort_cursor_at)::timestamptz, sqlc.narg(sort_cursor_id)::text COLLATE "C") END
+       WHEN 'deleted' THEN CASE WHEN sqlc.arg(sort_desc)::boolean
+            THEN (sk.ts_key, d.id COLLATE "C") < (sqlc.narg(sort_cursor_at)::timestamptz, sqlc.narg(sort_cursor_id)::text COLLATE "C")
+            ELSE (sk.ts_key, d.id COLLATE "C") > (sqlc.narg(sort_cursor_at)::timestamptz, sqlc.narg(sort_cursor_id)::text COLLATE "C") END
+       WHEN 'size' THEN CASE WHEN sqlc.arg(sort_desc)::boolean
+            THEN (sk.size_key, d.id COLLATE "C") < (sqlc.narg(sort_cursor_num)::bigint, sqlc.narg(sort_cursor_id)::text COLLATE "C")
+            ELSE (sk.size_key, d.id COLLATE "C") > (sqlc.narg(sort_cursor_num)::bigint, sqlc.narg(sort_cursor_id)::text COLLATE "C") END
+       WHEN 'name' THEN CASE WHEN sqlc.arg(sort_desc)::boolean
+            THEN (sk.name_key COLLATE "vi-x-icu", d.id COLLATE "C") < (sqlc.narg(sort_cursor_text)::text COLLATE "vi-x-icu", sqlc.narg(sort_cursor_id)::text COLLATE "C")
+            ELSE (sk.name_key COLLATE "vi-x-icu", d.id COLLATE "C") > (sqlc.narg(sort_cursor_text)::text COLLATE "vi-x-icu", sqlc.narg(sort_cursor_id)::text COLLATE "C") END
+       WHEN 'editor' THEN (sk.editor_null::int > sqlc.narg(sort_cursor_null)::boolean::int
+            OR (sk.editor_null = sqlc.narg(sort_cursor_null)::boolean
+                AND CASE WHEN sqlc.arg(sort_desc)::boolean
+            THEN (sk.editor_key COLLATE "vi-x-icu", d.id COLLATE "C") < (sqlc.narg(sort_cursor_text)::text COLLATE "vi-x-icu", sqlc.narg(sort_cursor_id)::text COLLATE "C")
+            ELSE (sk.editor_key COLLATE "vi-x-icu", d.id COLLATE "C") > (sqlc.narg(sort_cursor_text)::text COLLATE "vi-x-icu", sqlc.narg(sort_cursor_id)::text COLLATE "C") END))
+       ELSE true END)
+-- UNI-2038 S3 + UNI-2045: no sort_key keeps the list's own order (the first two
+-- terms); a sort_key orders by (key, id) in one direction. Every term is a CASE
+-- on a bound parameter, so the planner folds the unused ones away.
+ORDER BY
+  (CASE WHEN sqlc.narg(sort_key)::text IS NULL THEN d.archived_at END) DESC,
+  (CASE WHEN sqlc.narg(sort_key)::text IS NULL THEN d.id END) DESC,
+  (CASE WHEN sqlc.narg(sort_key)::text = 'editor' THEN sk.editor_null END) ASC,
+  (CASE WHEN sqlc.narg(sort_key)::text = 'name' AND NOT sqlc.arg(sort_desc)::boolean THEN sk.name_key
+        WHEN sqlc.narg(sort_key)::text = 'editor' AND NOT sqlc.arg(sort_desc)::boolean THEN sk.editor_key END) COLLATE "vi-x-icu" ASC,
+  (CASE WHEN sqlc.narg(sort_key)::text = 'name' AND sqlc.arg(sort_desc)::boolean THEN sk.name_key
+        WHEN sqlc.narg(sort_key)::text = 'editor' AND sqlc.arg(sort_desc)::boolean THEN sk.editor_key END) COLLATE "vi-x-icu" DESC,
+  (CASE WHEN sqlc.narg(sort_key)::text = 'size' AND NOT sqlc.arg(sort_desc)::boolean THEN sk.size_key END) ASC,
+  (CASE WHEN sqlc.narg(sort_key)::text = 'size' AND sqlc.arg(sort_desc)::boolean THEN sk.size_key END) DESC,
+  (CASE WHEN sqlc.narg(sort_key)::text IN ('updated', 'deleted') AND NOT sqlc.arg(sort_desc)::boolean THEN sk.ts_key END) ASC,
+  (CASE WHEN sqlc.narg(sort_key)::text IN ('updated', 'deleted') AND sqlc.arg(sort_desc)::boolean THEN sk.ts_key END) DESC,
+  (CASE WHEN sqlc.narg(sort_key)::text IS NOT NULL AND NOT sqlc.arg(sort_desc)::boolean THEN d.id COLLATE "C" END) ASC,
+  (CASE WHEN sqlc.narg(sort_key)::text IS NOT NULL AND sqlc.arg(sort_desc)::boolean THEN d.id COLLATE "C" END) DESC
 LIMIT sqlc.arg(page_limit);
 
 -- The archive shelf (ARCHIVE-01, UNI-1845; addendum §4): GET .../documents?
@@ -646,13 +701,31 @@ LIMIT sqlc.arg(page_limit);
 -- trash windows archived_at. q= runs the same content-vs-title rule as the
 -- flat list (a see_all caller on a restricted row reads title only).
 -- name: ListShelvedDocumentsPage :many
-SELECT d.*
+SELECT sqlc.embed(d),
+       sk.name_key AS sort_name, sk.size_key AS sort_size,
+       sk.editor_key AS sort_editor, sk.editor_null AS sort_editor_null,
+       sk.ts_key AS sort_at
 FROM documents d
 LEFT JOIN document_versions cv
   ON cv.organization_id = d.organization_id
  AND cv.workspace_id = d.workspace_id
  AND cv.document_id = d.id
  AND cv.id = d.file_version_id
+-- UNI-2038 S3 + UNI-2045: the sort keys of a row, computed once (see
+-- ListDocumentsPage). ts_key is the timestamp of the timestamp sorts: updated_at
+-- for sort=updated, the list's own column for its screen key (and for no sort),
+-- so it is also the time half of the next cursor.
+LEFT JOIN users eu
+  ON eu.id = d.updated_by
+ AND d.updated_by_kind = 'human'
+ AND sqlc.narg(sort_key)::text = 'editor'
+CROSS JOIN LATERAL (SELECT
+    (CASE WHEN sqlc.narg(sort_key)::text = 'name' THEN d.title ELSE '' END COLLATE "vi-x-icu")::text AS name_key,
+    (CASE WHEN sqlc.narg(sort_key)::text = 'size' THEN COALESCE(cv.size_bytes, 0) ELSE 0 END)::bigint AS size_key,
+    (CASE WHEN sqlc.narg(sort_key)::text = 'editor' THEN COALESCE(eu.display_name COLLATE "vi-x-icu", '') ELSE '' END)::text AS editor_key,
+    (CASE WHEN sqlc.narg(sort_key)::text = 'editor' THEN NULLIF(btrim(eu.display_name), '') IS NULL ELSE false END)::boolean AS editor_null,
+    (CASE WHEN sqlc.narg(sort_key)::text = 'updated' THEN d.updated_at ELSE d.shelved_at END)::timestamptz AS ts_key
+) sk
 WHERE d.organization_id = sqlc.arg(organization_id)
   AND d.workspace_id = sqlc.arg(workspace_id)
   AND d.owner_id IS NULL
@@ -795,7 +868,44 @@ WHERE d.organization_id = sqlc.arg(organization_id)
            AND uw_fold_search(d.title) ILIKE '%' || sqlc.narg(query)::text || '%' ESCAPE '\'))
   AND (sqlc.narg(cursor_at)::timestamptz IS NULL
        OR (d.shelved_at, d.id) < (sqlc.narg(cursor_at), sqlc.narg(cursor_id)::text))
-ORDER BY d.shelved_at DESC, d.id DESC
+  -- UNI-2038 S3 keyset of a sorted page: (key, id) past the cursor row in the
+  -- requested direction; an editor-less row (editor_null) is always last.
+  AND (sqlc.narg(sort_cursor_id)::text IS NULL OR CASE sqlc.narg(sort_key)::text
+       WHEN 'updated' THEN CASE WHEN sqlc.arg(sort_desc)::boolean
+            THEN (sk.ts_key, d.id COLLATE "C") < (sqlc.narg(sort_cursor_at)::timestamptz, sqlc.narg(sort_cursor_id)::text COLLATE "C")
+            ELSE (sk.ts_key, d.id COLLATE "C") > (sqlc.narg(sort_cursor_at)::timestamptz, sqlc.narg(sort_cursor_id)::text COLLATE "C") END
+       WHEN 'shelved' THEN CASE WHEN sqlc.arg(sort_desc)::boolean
+            THEN (sk.ts_key, d.id COLLATE "C") < (sqlc.narg(sort_cursor_at)::timestamptz, sqlc.narg(sort_cursor_id)::text COLLATE "C")
+            ELSE (sk.ts_key, d.id COLLATE "C") > (sqlc.narg(sort_cursor_at)::timestamptz, sqlc.narg(sort_cursor_id)::text COLLATE "C") END
+       WHEN 'size' THEN CASE WHEN sqlc.arg(sort_desc)::boolean
+            THEN (sk.size_key, d.id COLLATE "C") < (sqlc.narg(sort_cursor_num)::bigint, sqlc.narg(sort_cursor_id)::text COLLATE "C")
+            ELSE (sk.size_key, d.id COLLATE "C") > (sqlc.narg(sort_cursor_num)::bigint, sqlc.narg(sort_cursor_id)::text COLLATE "C") END
+       WHEN 'name' THEN CASE WHEN sqlc.arg(sort_desc)::boolean
+            THEN (sk.name_key COLLATE "vi-x-icu", d.id COLLATE "C") < (sqlc.narg(sort_cursor_text)::text COLLATE "vi-x-icu", sqlc.narg(sort_cursor_id)::text COLLATE "C")
+            ELSE (sk.name_key COLLATE "vi-x-icu", d.id COLLATE "C") > (sqlc.narg(sort_cursor_text)::text COLLATE "vi-x-icu", sqlc.narg(sort_cursor_id)::text COLLATE "C") END
+       WHEN 'editor' THEN (sk.editor_null::int > sqlc.narg(sort_cursor_null)::boolean::int
+            OR (sk.editor_null = sqlc.narg(sort_cursor_null)::boolean
+                AND CASE WHEN sqlc.arg(sort_desc)::boolean
+            THEN (sk.editor_key COLLATE "vi-x-icu", d.id COLLATE "C") < (sqlc.narg(sort_cursor_text)::text COLLATE "vi-x-icu", sqlc.narg(sort_cursor_id)::text COLLATE "C")
+            ELSE (sk.editor_key COLLATE "vi-x-icu", d.id COLLATE "C") > (sqlc.narg(sort_cursor_text)::text COLLATE "vi-x-icu", sqlc.narg(sort_cursor_id)::text COLLATE "C") END))
+       ELSE true END)
+-- UNI-2038 S3 + UNI-2045: no sort_key keeps the list's own order (the first two
+-- terms); a sort_key orders by (key, id) in one direction. Every term is a CASE
+-- on a bound parameter, so the planner folds the unused ones away.
+ORDER BY
+  (CASE WHEN sqlc.narg(sort_key)::text IS NULL THEN d.shelved_at END) DESC,
+  (CASE WHEN sqlc.narg(sort_key)::text IS NULL THEN d.id END) DESC,
+  (CASE WHEN sqlc.narg(sort_key)::text = 'editor' THEN sk.editor_null END) ASC,
+  (CASE WHEN sqlc.narg(sort_key)::text = 'name' AND NOT sqlc.arg(sort_desc)::boolean THEN sk.name_key
+        WHEN sqlc.narg(sort_key)::text = 'editor' AND NOT sqlc.arg(sort_desc)::boolean THEN sk.editor_key END) COLLATE "vi-x-icu" ASC,
+  (CASE WHEN sqlc.narg(sort_key)::text = 'name' AND sqlc.arg(sort_desc)::boolean THEN sk.name_key
+        WHEN sqlc.narg(sort_key)::text = 'editor' AND sqlc.arg(sort_desc)::boolean THEN sk.editor_key END) COLLATE "vi-x-icu" DESC,
+  (CASE WHEN sqlc.narg(sort_key)::text = 'size' AND NOT sqlc.arg(sort_desc)::boolean THEN sk.size_key END) ASC,
+  (CASE WHEN sqlc.narg(sort_key)::text = 'size' AND sqlc.arg(sort_desc)::boolean THEN sk.size_key END) DESC,
+  (CASE WHEN sqlc.narg(sort_key)::text IN ('updated', 'shelved') AND NOT sqlc.arg(sort_desc)::boolean THEN sk.ts_key END) ASC,
+  (CASE WHEN sqlc.narg(sort_key)::text IN ('updated', 'shelved') AND sqlc.arg(sort_desc)::boolean THEN sk.ts_key END) DESC,
+  (CASE WHEN sqlc.narg(sort_key)::text IS NOT NULL AND NOT sqlc.arg(sort_desc)::boolean THEN d.id COLLATE "C" END) ASC,
+  (CASE WHEN sqlc.narg(sort_key)::text IS NOT NULL AND sqlc.arg(sort_desc)::boolean THEN d.id COLLATE "C" END) DESC
 LIMIT sqlc.arg(page_limit);
 
 -- Ancestor chain for a page of list results (E6/FD-05, UNI-1465). Both the

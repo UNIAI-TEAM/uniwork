@@ -81,10 +81,13 @@ func TestDocumentListSortOverHTTP(t *testing.T) {
 			wantErr(t, res, out, 400, "invalid_request", "")
 		}
 	}
+	// UNI-2045 SV-0: the trash and the shelf take the sort now; recent is no
+	// such view, so a sort next to archived/shelved stays 400 there.
 	for _, q := range []string{"?sort=name&archived=1", "?sort=name&archived=true", "?sort=updated&shelved=1"} {
-		for _, root := range []string{base, base + "/recent"} {
-			res, out := get(root + q)
-			wantErr(t, res, out, 400, "invalid_request", "")
+		res, out := get(base + "/recent" + q)
+		wantErr(t, res, out, 400, "invalid_request", "")
+		if res, out := get(base + q); res.StatusCode != 200 {
+			t.Errorf("GET %s%s = %d %v, want 200", base, q, res.StatusCode, out)
 		}
 	}
 
