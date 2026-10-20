@@ -328,7 +328,7 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 	}
 
 	vars := map[string]any{"locale": in.Locale, "today": s.now().Format("2006-01-02"), "focus": focus, "question": question}
-	prompt, _ := ai.LookupPrompt(ai.PromptCopilotAnswerV2)
+	prompt, _ := ai.LookupPrompt(ai.PromptCopilotAnswerV3)
 	hist := history(rows)
 	// The rendered question as the gateway sends it on the first call; later
 	// calls replay it byte for byte, so the cached prefix holds.
@@ -337,7 +337,7 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 	model, effort := s.resolveAskModel(runCtx, w.OrganizationID, in.Model, in.Effort)
 	req := ai.Request{
 		Actor: Human(userID), OrganizationID: w.OrganizationID, WorkspaceID: w.ID,
-		Capability: ai.CapCopilotAgent, PromptID: ai.PromptCopilotAnswerV2, Vars: vars, History: hist,
+		Capability: ai.CapCopilotAgent, PromptID: ai.PromptCopilotAnswerV3, Vars: vars, History: hist,
 		Tools: agentRegistry(tools), FilterToolCalls: true, RunID: res.RunID, Model: model, Effort: effort,
 	}
 	spentInput := 0 // the input budget's count, cached tokens included (P12)

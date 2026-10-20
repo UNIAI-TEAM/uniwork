@@ -90,7 +90,7 @@ func itoa(n int) string {
 	return string(b)
 }
 
-// fakeAgentReply is the copilot_answer@2 fake: search once with the question,
+// fakeAgentReply is the copilot_answer@2 and @3 fake: search once with the question,
 // then cite whatever sources the tool results carried.
 func fakeAgentReply(req provider.CompletionRequest) provider.CompletionResponse {
 	var tool, first string
