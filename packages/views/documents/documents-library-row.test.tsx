@@ -319,14 +319,14 @@ describe("narrow secondary line at 390 (< 34rem, UNI-1902)", () => {
 
     const interDot = Array.from(line.children).find((el) => el.textContent === "·") as HTMLElement;
     expect(interDot).toBeTruthy();
-    // UNI-2045: the dot leaves with the access group, at the access rung (35rem on the workspace screen).
-    expect(interDot).toHaveClass("hidden", "@min-[34rem]/library:inline", "@min-[35rem]/library:hidden");
+    // UNI-2045: the dot leaves with the access group, at the access rung (34rem on the workspace screen, where it equals the dot's own 34rem: `!` settles the tie).
+    expect(interDot).toHaveClass("hidden", "@min-[34rem]/library:inline", "@min-[34rem]/library:hidden!");
 
     const lineB = document.querySelector('[data-library-row="b"] [data-library-access-line]') as HTMLElement;
     const metaB = lineB.querySelector("[data-library-meta-line]") as HTMLElement;
     const accessB = lineB.querySelector("[data-library-access-group]") as HTMLElement;
-    // UNI-2045: without an editor the meta group is updated · size, gone at the table rung (27rem).
-    expect(metaB).toHaveClass("@min-[27rem]/library:hidden");
+    // UNI-2045: without an editor the meta group is updated · size, gone at the table rung (26rem).
+    expect(metaB).toHaveClass("@min-[26rem]/library:hidden");
     expect(metaB.firstElementChild?.textContent).not.toBe("·");
     expect(metaB.lastElementChild?.textContent).not.toBe("·");
     expect(accessB.firstElementChild?.textContent).not.toBe("·");

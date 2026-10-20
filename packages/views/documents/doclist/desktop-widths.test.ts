@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { libraryCell, specLadder } from "../library-columns";
 import { DOC_LIST_SCREENS, NAME_FLOOR, docListRungs, docListSpec, type DocListColumnId } from "./columns";
@@ -23,17 +25,17 @@ const rungOf = (cell: string | null): number | null => {
 describe("desktop widths of the shared columns", () => {
   it("pins the widths the cells need (padding included) and the Name floor", () => {
     for (const screen of DOC_LIST_SCREENS) {
-      expect(width(screen, "select"), screen).toBe(36);
+      expect(width(screen, "select"), screen).toBe(32);
       expect(width(screen, "access"), screen).toBe(120);
-      expect(width(screen, "editor"), screen).toBe(124);
+      expect(width(screen, "editor"), screen).toBe(130);
       expect(width(screen, "updated"), screen).toBe(118);
-      expect(width(screen, "size"), screen).toBe(72);
+      expect(width(screen, "size"), screen).toBe(80);
       expect(width(screen, "actions"), screen).toBe(76);
       expect(width(screen, "name"), screen).toBe(0);
       const own = docListSpec(screen).screenColumn;
-      if (own) expect(width(screen, own), screen).toBe(120);
+      if (own) expect(width(screen, own), screen).toBe(118);
     }
-    expect(NAME_FLOOR).toBe(194);
+    expect(NAME_FLOOR).toBe(188);
   });
 
   it("shows every column of every screen at a 870px container (1440 viewport)", () => {
@@ -62,8 +64,8 @@ describe("desktop widths of the shared columns", () => {
       const { table, access, editor, size } = docListRungs(docListSpec(screen));
       return [table, access, editor, size];
     };
-    expect(rungs("workspace")).toEqual([27, 35, 42, 47]);
-    for (const screen of DOC_LIST_SCREENS.filter((s) => s !== "workspace")) expect(rungs(screen), screen).toEqual([35, 42, 50, 54]);
+    expect(rungs("workspace")).toEqual([26, 34, 42, 47]);
+    for (const screen of DOC_LIST_SCREENS.filter((s) => s !== "workspace")) expect(rungs(screen), screen).toEqual([34, 41, 49, 54]);
   });
 
   it("keeps the stacked layout below the table rung and the Name floor at every rung", () => {
@@ -87,6 +89,25 @@ describe("desktop widths of the shared columns", () => {
       }
       const own = docListSpec(screen).screenColumn;
       if (own) expect(ladder.columns.find((column) => column.id === own)?.col).toContain(`w-[${width(screen, own)}px]`);
+    }
+  });
+});
+
+describe("Tailwind literals", () => {
+  // Tailwind only generates a class it can read in the source: a `w-[${px}px]`
+  // built from a number is silently missing in the browser (jsdom cannot tell).
+  const source = readFileSync(resolve(process.cwd(), "documents/library-columns.ts"), "utf8");
+
+  it("writes every width class and every rung class of the spec out as a literal", () => {
+    for (const screen of DOC_LIST_SCREENS) {
+      const spec = docListSpec(screen);
+      for (const column of spec.columns.filter((c) => c.id !== "name")) expect(source, `${screen}/${column.id}`).toContain(`"w-[${column.width}px]"`);
+      const rungs = docListRungs(spec);
+      for (const rung of Object.values(rungs)) {
+        for (const utility of ["table-column", "table-cell", "table-header-group", "hidden", "hidden!", "block"]) {
+          expect(source, `${screen} ${rung}rem ${utility}`).toContain(`@min-[${rung}rem]/library:${utility}`);
+        }
+      }
     }
   });
 });

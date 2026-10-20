@@ -30,8 +30,10 @@ export interface DocListColumn {
    * Fixed width in px, cell padding included (the table is `table-fixed`). Name
    * has none: it takes what is left, down to NAME_FLOOR. Each width is what its
    * widest content needs plus the 8px side padding the optional columns carry:
-   * "Hôm qua, 16:30" at the 12px mono caption size is ~101px, a 24px avatar and
-   * a truncating name fit Editor, the "Được chia sẻ" pill fits Access.
+   * "Hôm qua, 16:30" at the 12px mono caption size is ~101px, "Người sửa gần
+   * nhất" and "Dung lượng" are the longest headers (~113px and ~64px), the
+   * "Được chia sẻ" pill fits Access, and Editor keeps a 24px avatar plus a
+   * truncating name.
    */
   width: number;
   align: "left" | "right";
@@ -65,7 +67,7 @@ const SCREEN_COLUMN_SORT: Record<DocListScreenColumnId, DocListSortKey> = {
 };
 
 /** The room Name keeps before a column joins: it never drops under this. */
-export const NAME_FLOOR = 194;
+export const NAME_FLOOR = 188;
 /** The table's 1px borders, both sides. */
 const BORDER = 2;
 
@@ -81,7 +83,7 @@ const screenColumn = (id: DocListScreenColumnId): DocListColumn => ({
   id,
   labelKey: `documents.list.screen_column.${id}`,
   sortKey: SCREEN_COLUMN_SORT[id],
-  width: 120,
+  width: 118,
   align: "left",
 });
 
@@ -101,13 +103,13 @@ export function docListSpec(screen: DocListScreen): DocListSpec {
   const spec: DocListSpec = {
     screen,
     columns: [
-      column("select", null, 36),
+      column("select", null, 32),
       column("name", "name", 0),
       ...(own ? [screenColumn(own)] : []),
       column("access", null, 120),
-      column("editor", "editor", 124),
+      column("editor", "editor", 130),
       column("updated", "updated", 118),
-      column("size", "size", 72, "right"),
+      column("size", "size", 80, "right"),
       column("actions", null, 76),
     ],
     screenColumn: own,

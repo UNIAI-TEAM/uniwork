@@ -88,8 +88,8 @@ describe("phone row layout (finding 1)", () => {
     expect(button?.querySelector("span.min-w-0")).toHaveClass("flex-1");
     // The icon-only app button does not take width from the name until the actions column widens (container, not viewport).
     const quick = document.querySelector("[data-office-desktop-action]");
-    // UNI-2045: that is the table rung of the shared ladder (27rem on the workspace screen).
-    expect(quick?.parentElement).toHaveClass("hidden", "@min-[27rem]/library:block");
+    // UNI-2045: that is the table rung of the shared ladder (26rem on the workspace screen).
+    expect(quick?.parentElement).toHaveClass("hidden", "@min-[26rem]/library:block");
     // TV-12: the truncating name keeps the full title on hover (native title).
     expect(name).toHaveAttribute("title", "Báo giá tháng 10.docx");
   });
@@ -102,10 +102,10 @@ describe("phone row layout (finding 1)", () => {
     const spanners = Array.from(group!.parentElement!.children).slice(1);
     expect(spanners.map((el) => el.getAttribute("colspan"))).toEqual(["1", "1", "1", "1"]);
     expect(spanners.map((el) => Array.from(el.classList).find((c) => c.startsWith("@min-"))?.split(":")[0])).toEqual([
-      // UNI-2045 rungs of the workspace screen: Access 35, Editor 42, the table (Updated) 27, Size 47.
-      "@min-[35rem]/library",
+      // UNI-2045 rungs of the workspace screen: Access 34, Editor 42, the table (Updated) 27, Size 47.
+      "@min-[34rem]/library",
       "@min-[42rem]/library",
-      "@min-[27rem]/library",
+      "@min-[26rem]/library",
       "@min-[47rem]/library",
     ]);
     // One header and the rows share one column template.

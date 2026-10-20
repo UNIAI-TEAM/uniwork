@@ -116,9 +116,9 @@ describe("narrow hiding", () => {
       expect(rungs.editor, screen).toBeGreaterThan(rungs.access);
       expect(rungs.size, screen).toBeGreaterThan(rungs.editor);
 
-      // Each rung = every column on screen up to and including it + 2px border + a 194px Name floor, rounded up to the rem.
+      // Each rung = every column on screen up to and including it + 2px border + a 188px Name floor, rounded up to the rem.
       const width = (id: DocListColumnId) => spec.columns.find((c) => c.id === id)?.width ?? 0;
-      const base = width("select") + width("updated") + width("actions") + (spec.screenColumn ? width(spec.screenColumn) : 0) + 2 + 194;
+      const base = width("select") + width("updated") + width("actions") + (spec.screenColumn ? width(spec.screenColumn) : 0) + 2 + 188;
       expect(rungs.table, screen).toBe(Math.ceil(base / 16));
       expect(rungs.access, screen).toBe(Math.ceil((base + width("access")) / 16));
       expect(rungs.editor, screen).toBe(Math.ceil((base + width("access") + width("editor")) / 16));
