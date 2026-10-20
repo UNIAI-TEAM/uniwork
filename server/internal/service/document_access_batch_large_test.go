@@ -163,10 +163,13 @@ func TestDocumentAccessBatchHasNoItemCap(t *testing.T) {
 		if notified != total {
 			t.Fatalf("notify_user_id events = %d, want %d (one per raised grantee)", notified, total)
 		}
-		// The per-item loop costs about 11 ms per user (see the S1e report), so this
-		// is a hang guard, not a latency target; a bulk rewrite would tighten it.
-		if dryElapsed > 60*time.Second || applyElapsed > 60*time.Second {
-			t.Fatalf("1000-item batch too slow: dry run %s, apply %s, want each <= 60s", dryElapsed, applyElapsed)
+		// S1e-bulk resolves the levels set-based and writes the grants in chunks:
+		// on local Docker the dry run went from 7.6 s to about 0.23 s and the
+		// apply from 10.9 s to about 0.5 s. The target is under 2 s / 3 s; the
+		// guard leaves room for a loaded CI host while still catching a fall
+		// back to a round trip per person.
+		if dryElapsed > 5*time.Second || applyElapsed > 5*time.Second {
+			t.Fatalf("1000-item batch too slow: dry run %s, apply %s, want each <= 5s", dryElapsed, applyElapsed)
 		}
 	})
 
