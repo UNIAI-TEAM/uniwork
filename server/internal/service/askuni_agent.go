@@ -327,6 +327,13 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 		return AskResult{}, err
 	}
 
+	// The first call's organization budget is counted here, before run, so a
+	// refusal comes before any event (R5); the loop reuses the count.
+	firstOver := s.agentCallOver(runCtx, w.OrganizationID)
+	if firstOver {
+		outcome = "rate_limited"
+		return AskResult{}, ai.RateLimited(askRateWindow)
+	}
 	emit.emit(AskEvent{Name: "run", Run: &AskRunEvent{RunID: res.RunID, ConversationID: conv.ID}})
 
 	vars := map[string]any{"locale": in.Locale, "today": s.now().Format("2006-01-02"), "focus": focus, "question": question}
@@ -397,10 +404,9 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 
 	var resp ai.Response
 	for final := false; ; {
-		over := s.agentCallOver(runCtx, w.OrganizationID)
-		if over && calls == 0 {
-			outcome = "rate_limited"
-			return AskResult{}, ai.RateLimited(askRateWindow)
+		over := firstOver
+		if calls > 0 {
+			over = s.agentCallOver(runCtx, w.OrganizationID)
 		}
 		if calls > 0 {
 			final = over || rounds == askAgentMaxToolRounds || spentInput >= askAgentInputBudget ||

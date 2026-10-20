@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/unicomhub/uniwork/server/internal/ai"
 	"github.com/unicomhub/uniwork/server/internal/util"
@@ -174,5 +175,29 @@ func TestAskHistoryUsesTheLatestTurns(t *testing.T) {
 	}
 	if len(rows) != 200 || rows[len(rows)-1].Role != "assistant" || rows[len(rows)-1].Content == "m209" {
 		t.Fatalf("%d rows, last %q", len(rows), rows[len(rows)-1].Content)
+	}
+}
+
+func TestAskStreamAgentOrgCallBudgetRefusesBeforeRun(t *testing.T) {
+	s, fake, ua, w := agentAskFixture(t)
+	rdb := uniworkRedis(t)
+	s.rdb = rdb
+	ctx := context.Background()
+	key := "uw:ai:ask:org:" + w.OrganizationID
+	t.Cleanup(func() { _ = rdb.Del(context.Background(), key, "uw:ai:ask:"+ua.ID).Err() })
+	if err := rdb.Set(ctx, key, askAgentOrgCallsPerMinute, time.Minute).Err(); err != nil {
+		t.Fatal(err)
+	}
+	conv, err := s.q.AiCreateConversation(ctx, db.AiCreateConversationParams{ID: util.NewID(), OrganizationID: w.OrganizationID, WorkspaceID: w.ID, UserID: ua.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var events []AskEvent
+	_, err = s.AskStream(ctx, ua.ID, w.ID, AskInput{ConversationID: conv.ID, Question: "Banner?", Locale: "vi"}, collectEvents(&events))
+	if !errors.Is(err, ai.ErrRateLimited) || fake.Calls != 0 {
+		t.Fatalf("err %v, provider calls %d", err, fake.Calls)
+	}
+	if len(events) != 0 || messageCount(t, s, conv.ID) != 0 {
+		t.Fatalf("events %v, messages %d; want none", eventNames(events), messageCount(t, s, conv.ID))
 	}
 }
