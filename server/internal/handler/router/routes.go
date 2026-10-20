@@ -480,6 +480,9 @@ type Routes struct {
 	SendChatRoomMessage              http.HandlerFunc
 	SendChatVoiceMessage             http.HandlerFunc
 	SendChatFileMessage              http.HandlerFunc
+	SendChatDocumentMessage          http.HandlerFunc
+	ShareChatMessageAsDocument       http.HandlerFunc
+	GetChatRoomDetail                http.HandlerFunc
 	VoteChatPollMessage              http.HandlerFunc
 	ToggleChatMessageReaction        http.HandlerFunc
 	EditChatMessage                  http.HandlerFunc
@@ -651,6 +654,13 @@ type Routes struct {
 	CreateDocumentShareBatch    http.HandlerFunc
 	UpdateDocumentAccess        http.HandlerFunc
 	RevokeDocumentShare         http.HandlerFunc
+	// DOC-07 (UNI-1631): a person asks a document's managers for access; the
+	// managers list, approve and decline. The create answer is uniform (202)
+	// so the route never proves the document exists.
+	CreateDocumentAccessRequest  http.HandlerFunc
+	ListDocumentAccessRequests   http.HandlerFunc
+	ApproveDocumentAccessRequest http.HandlerFunc
+	DeclineDocumentAccessRequest http.HandlerFunc
 	// Emergency view access for a workspace admin on a restricted document
 	// (DOC-05; UNI-1628).
 	CreateDocumentBreakGlass http.HandlerFunc

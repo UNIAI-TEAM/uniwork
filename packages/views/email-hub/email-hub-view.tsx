@@ -45,10 +45,8 @@ import { useEmailHubScheduledActions } from "./use-email-hub-scheduled-actions";
 import { useEmailHubShortcuts } from "./use-email-hub-shortcuts";
 import { useEmailHubShortcutsPref } from "./use-email-hub-shortcuts-pref";
 import { useEmailHubThreadActions } from "./use-email-hub-thread-actions";
+import { useEmailHubThreadPrefetch } from "./use-email-hub-thread-prefetch";
 import { EmailHubSenderAvatarProvider } from "./email-hub-sender-avatar-context";
-
-const EMAIL_HUB_LIST_PREFETCH_TOP = 5;
-const EMAIL_HUB_HOVER_PREFETCH_MS = 50;
 
 export function EmailHubView() {
   const { t, i18n } = useTranslation();
@@ -100,30 +98,6 @@ export function EmailHubView() {
   const mailFolder: EmailHubMailFolderKey = isScheduledFolder ? "INBOX" : folder;
   const scheduled = useEmailHubScheduledSends(wsId, accountId);
   const readingEmail = !!selectedId;
-  const hoverPrefetchTimers = useRef(new Map<string, number>());
-
-  useEffect(() => {
-    const timers = hoverPrefetchTimers.current;
-    return () => {
-      for (const timer of timers.values()) window.clearTimeout(timer);
-      timers.clear();
-    };
-  }, []);
-
-  const prefetchThreadHover = useCallback(
-    (id: string) => {
-      if (!accountId || id === selectedId) return;
-      const timers = hoverPrefetchTimers.current;
-      const pending = timers.get(id);
-      if (pending !== undefined) window.clearTimeout(pending);
-      const timer = window.setTimeout(() => {
-        timers.delete(id);
-        prefetchEmailHubThread(qc, wsId, accountId, id);
-      }, EMAIL_HUB_HOVER_PREFETCH_MS);
-      timers.set(id, timer);
-    },
-    [accountId, qc, selectedId, wsId],
-  );
   const sidebarCounts = useEmailHubSidebarCounts(wsId, accountId);
 
   const [accountList, rememberDisconnectedAccount] = useEmailHubAvailableAccounts(accounts.data?.accounts);
@@ -168,6 +142,7 @@ export function EmailHubView() {
   );
   const rows = useMemo(() => threads.data?.pages.flatMap((page) => page.threads) ?? [], [threads.data]);
   const selectedRow = useMemo(() => rows.find((row) => row.id === selectedId) ?? null, [rows, selectedId]);
+  const prefetchThreadHover = useEmailHubThreadPrefetch(wsId, accountId, selectedId, rows);
   const scheduledActions = useEmailHubScheduledActions(wsId, accountId, selectedScheduled, setSelectedId);
   const detail = useEmailHubThread(wsId, accountId, isScheduledFolder ? null : selectedId, selectedRow);
 
@@ -180,23 +155,6 @@ export function EmailHubView() {
     setSelectedId(null);
     void qc.removeQueries({ queryKey: emailHubKeys.thread(wsId, accountId, goneId) });
   }, [accountId, debouncedSearch, hasAttachmentsOnly, isScheduledFolder, qc, rows, selectedId, threads.isFetched, threads.isFetching, unreadOnly, wsId]);
-
-  useEffect(() => {
-    if (!accountId || rows.length === 0) return;
-    const selectedIdx = selectedId ? rows.findIndex((row) => row.id === selectedId) : -1;
-    const prefetchIds = new Set<string>();
-    for (const row of rows.slice(0, EMAIL_HUB_LIST_PREFETCH_TOP)) {
-      prefetchIds.add(row.id);
-    }
-    if (selectedIdx >= 0) {
-      for (const row of rows.slice(Math.max(0, selectedIdx - 1), selectedIdx + 2)) {
-        prefetchIds.add(row.id);
-      }
-    }
-    for (const id of prefetchIds) {
-      if (id !== selectedId) prefetchEmailHubThread(qc, wsId, accountId, id);
-    }
-  }, [accountId, rows, qc, wsId, selectedId]);
 
   const openCompose = useCallback((mode: ComposeMode, source?: EmailHubThread | null) => {
     setComposeMode(mode);

@@ -14,6 +14,7 @@ import {
   selectLazyChatScopeRoomIds,
   useChatBlockStatus,
   useChatRooms,
+  useChatRoom,
   useCreateChatGroup,
   useEnsureWorkspaceChatRoom,
   useInviteChatGroupMembers,
@@ -26,6 +27,7 @@ import {
   useSendChatVoiceMessage,
   useSendChatFileMessage,
   useSetChatRoomAvatar,
+  useSendChatDocumentMessage,
   useChatSendOutboxCount,
   useSyncChatRoomsOnAuth,
 } from "@uniwork/core/chat";
@@ -69,6 +71,7 @@ import { useMembers } from "@uniwork/core/workspaces";
 import { useResolvedRoomPermissions } from "./use-resolved-room-permissions";
 import type { ChatRoomRecord } from "@uniwork/core/api/endpoints/chat";
 import type { Member } from "@uniwork/core/types/workspace";
+import type { ChatDocumentDesktopOpen } from "./chat-document-message-row";
 
 /* Stable fallbacks while queries load: a fresh `[]` / `{}` per render would
    change every memo downstream (and re-render the memoised sidebar). */
@@ -76,13 +79,7 @@ const NO_ROOMS: ChatRoomRecord[] = [];
 const NO_NICKNAMES: Record<string, string> = {};
 const NO_MEMBERS: Member[] = [];
 
-export function ChatPageView({
-  workspaceId,
-  currentUserId,
-}: {
-  workspaceId: string;
-  currentUserId: string;
-}) {
+export function ChatPageView({ workspaceId, currentUserId, desktopOpen }: { workspaceId: string; currentUserId: string; desktopOpen?: ChatDocumentDesktopOpen }) {
   const { t } = useTranslation();
   const workspaceName = useOptionalWorkspace()?.workspace.name;
   useChatReminderNotifications(workspaceId);
@@ -102,6 +99,7 @@ export function ChatPageView({
   const sendRoomMessage = useSendChatRoomMessage(workspaceId);
   const sendVoiceMessage = useSendChatVoiceMessage(workspaceId);
   const sendFileMessage = useSendChatFileMessage(workspaceId);
+  const sendDocumentMessage = useSendChatDocumentMessage(workspaceId);
   const pendingOutboxCount = useChatSendOutboxCount(workspaceId, currentUserId);
 
   const { workspaceRoom, contacts: roomContacts, groups, channels } = useMemo(
@@ -228,6 +226,11 @@ export function ChatPageView({
   useChatMentionNotify({ workspaceId, currentUserId, activeRoomId });
 
   const { data: activeRoomMembers = [] } = useChatRoomMembers(workspaceId, activeRoomId ?? "", Boolean(activeRoomId));
+  // L5: the detail is the only read that answers whether this room accepts
+  // document sends (send permission AND a grantable roster under the cap).
+  const canSendDocument =
+    useChatRoom(workspaceId, activeRoomId ?? "", Boolean(activeRoomId) && !dmBlocked).data
+      ?.can_send_document === true;
   const activeRoomRecord = useMemo(
     () => (activeRoomId ? rooms.find((room) => room.id === activeRoomId) : undefined),
     [activeRoomId, rooms],
@@ -390,13 +393,14 @@ export function ChatPageView({
       onBlocked: leaveBlockedConversation,
     });
 
-  const { handleSendVoice, handleSendFile } = useChatMediaSend({
+  const { handleSendVoice, handleSendFile, handleSendDocument } = useChatMediaSend({
     activeRoomId,
     targetKind: target.kind,
     replyToId: replyTo?.id,
     ensureRoom,
     sendVoiceMessage,
     sendFileMessage,
+    sendDocumentMessage,
     clearReply: () => setReplyTo(null),
   });
 
@@ -456,6 +460,9 @@ export function ChatPageView({
           onSendMedia={(body) => void sendMessageBody(body)}
           onSendVoice={handleSendVoice}
           onSendFile={handleSendFile}
+          onSendDocument={handleSendDocument}
+          canSendDocument={canSendDocument}
+          desktopOpen={desktopOpen}
           onSendThreadReply={(draftKey, rootId) =>
             void provisionAndSend(() => readChatComposerDraft(draftKey), (value) => setDraft(draftKey, value), rootId)
           }

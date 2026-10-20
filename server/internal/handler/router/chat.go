@@ -313,6 +313,29 @@ func registerChat(r api, h Routes, chatWriteLimit, chatReactLimit, chatRoomLimit
 		sdo:         sdo.ChatMessageDTO{},
 		auth:        true,
 	})
+	r.With(chatWriteLimit).Post("/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/document", h.SendChatDocumentMessage, apiOp{
+		summary:     "Send chat document message",
+		description: "Gửi tệp dạng tài liệu: tệp thành một tài liệu trong My Folder của người gửi và mọi thành viên trong phòng nhận được quyền chia sẻ (share_level, mặc định comment; tối đa 50 người). Định dạng: PDF, TXT, Markdown, HTML, DOC/DOCX, XLS/XLSX, PPT/PPTX, ODT.",
+		tags:        []string{"chat"},
+		sdi:         sdi.SendChatDocumentMessageSDI{},
+		sdo:         sdo.ChatMessageDTO{},
+		auth:        true,
+	})
+	r.With(chatWriteLimit).Post("/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/{messageID}/share-as-document", h.ShareChatMessageAsDocument, apiOp{
+		summary:     "Share chat attachment as document",
+		description: "Chuyển tệp đính kèm của chính người gửi thành tài liệu chia sẻ trong My Folder và cấp quyền cho các thành viên hiện tại trong phòng; cập nhật tin nhắn tại chỗ sang kind=document (UNI-1966 §2.2).",
+		tags:        []string{"chat"},
+		sdi:         sdi.ShareChatMessageAsDocumentSDI{},
+		sdo:         sdo.ChatMessageDTO{},
+		auth:        true,
+	})
+	r.Get("/workspaces/{workspaceID}/chat/rooms/{roomID}", h.GetChatRoomDetail, apiOp{
+		summary:     "Get chat room",
+		description: "Lấy một phòng chat kèm can_send_document: người gọi được gửi tài liệu và số người nhận được quyền chia sẻ không vượt 50 (L5).",
+		tags:        []string{"chat"},
+		sdo:         sdo.ChatRoomDTO{},
+		auth:        true,
+	})
 	r.Get("/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/{messageID}", h.GetChatRoomMessage, apiOp{
 		summary:     "Get chat room message",
 		description: "Lấy một tin nhắn trong phòng (realtime patch, không refetch cả trang).",

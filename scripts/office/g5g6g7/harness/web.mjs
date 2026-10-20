@@ -236,7 +236,9 @@ export async function openDocument(page, { webOrigin, org, ws, documentId, comme
 
 // ---- web frame Save (contract §13, additive) ----------------------------------------------
 
-const WEB_FRAME_KINDS = Object.freeze(["docs", "sheets", "slides", "pdf"]);
+// One host element per module: `data-office-module={module}` (packages/views/office/frame/office-module-frame.tsx:334-335),
+// markdown and html included.
+const WEB_FRAME_KINDS = Object.freeze(["docs", "sheets", "slides", "pdf", "markdown", "html"]);
 const DEFAULT_SAVE_TIMEOUT_MS = 30_000;
 // The frame's own Save (its button, Ctrl+S, the leave dialog) ends in this request
 // (server/internal/handler/router/office_frame.go:29,79; packages/views/office/frame/use-docs-frame-session.ts:153-154).

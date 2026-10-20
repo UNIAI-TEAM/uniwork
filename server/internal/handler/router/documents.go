@@ -56,6 +56,10 @@ import (
 //	POST   /api/v1/documents/{documentID}/edit-requests                     (R8)
 //	POST   /api/v1/documents/{documentID}/edit-requests/{requestID}/answer  (R9)
 //	DELETE /api/v1/documents/{documentID}/edit-requests/{requestID}         (R10)
+//	POST   /api/v1/documents/{documentID}/access-requests                   (DOC-07)
+//	GET    /api/v1/documents/{documentID}/access-requests                   (DOC-07)
+//	POST   /api/v1/documents/{documentID}/access-requests/{requestID}/approve (DOC-07)
+//	POST   /api/v1/documents/{documentID}/access-requests/{requestID}/decline (DOC-07)
 //	GET    /api/v1/documents/{documentID}/download          (?meta=1 | bytes; HEAD)
 //	POST   /api/v1/documents/{documentID}/uploads
 //	POST   /api/v1/workspaces/{workspaceID}/documents/upload-sessions   (BIGUP-S1)
@@ -88,14 +92,14 @@ import (
 //	GET    /api/v1/orgs/{orgID}/documents/favorites
 //	PUT    /api/v1/orgs/{orgID}/documents/settings                (G1-05b)
 //	GET    /api/v1/orgs/{orgID}/documents/settings                (G1-08)
-func registerDocuments(r api, h Routes, flags *featureflag.Service, editRequestLimit func(http.Handler) http.Handler) {
+func registerDocuments(r, callerDocs api, h Routes, flags *featureflag.Service, editRequestLimit, accessRequestLimit func(http.Handler) http.Handler) {
 	d := r.With(mw.RequireFeatureFlag(flags, "documents"))
 	registerDocumentEditLock(d, h, editRequestLimit)
 
 	d.Post("/workspaces/{workspaceID}/documents", h.CreateDocument, apiOp{
 		summary: "Create a page or folder document",
 		description: "Tạo trang hoặc thư mục trong workspace. Body JSON (≤ 2 MiB content + envelope): title, kind=page|folder, parent_id (trang/thư mục; thư mục chỉ nằm ở gốc hoặc trong thư mục, sai -> 422 document_parent_kind), thư mục không nhận content (-> 422 folder_not_supported), icon, content ProseMirror {type:\"doc\"} (server sanitize), visibility workspace|restricted. " +
-			"Tài liệu mới ở gốc mặc định riêng tư (restricted); gửi workspace để mở dòng Workspace gốc ở mức Chỉ xem (nâng mức trong hộp Chia sẻ); bỏ trống dưới cha thì kế thừa cha (cả mức), ở gốc = restricted; giá trị khác -> 400 invalid_request. " +
+			"Tài liệu mới ở gốc mặc định riêng tư (restricted); gửi workspace để mở dòng Workspace gốc ở mức Chỉ xem (nâng mức trong hộp Chia sẻ); bỏ trống dưới cha trang thì kế thừa cha (cả mức), ở gốc hoặc dưới thư mục = restricted; giá trị khác -> 400 invalid_request; thư mục với visibility=workspace -> 422 folder_not_shareable (thư mục không bao giờ được chia sẻ). " +
 			"Idempotency-Key ràng create với fingerprint payload: replay trả lại trang đã tạo, payload khác cùng key -> 409 idempotency_payload_mismatch.",
 		tags:   []string{"documents"},
 		sdi:    sdi.CreateDocumentSDI{},
@@ -153,7 +157,7 @@ func registerDocuments(r api, h Routes, flags *featureflag.Service, editRequestL
 	d.Patch("/documents/{documentID}", h.PatchDocument, apiOp{
 		summary: "Update a document",
 		description: "Autosave/metadata của working copy. revision bắt buộc (chuỗi thập phân của base client thấy); base cũ -> 422 revision_conflict kèm fields.current_revision. " +
-			"Field nil giữ nguyên; icon rỗng xóa icon; content thay thế working copy sau khi sanitize.",
+			"Field nil giữ nguyên; icon rỗng xóa icon; content thay thế working copy sau khi sanitize. Thư mục đặt visibility=workspace -> 422 folder_not_shareable (đóng một thư mục cũ về restricted vẫn được phép).",
 		tags: []string{"documents"},
 		sdi:  sdi.PatchDocumentSDI{},
 		sdo:  sdo.DocumentSDO{},
@@ -634,7 +638,7 @@ func registerDocuments(r api, h Routes, flags *featureflag.Service, editRequestL
 	d.Post("/documents/{documentID}/shares", h.CreateDocumentShare, apiOp{
 		summary: "Share a document",
 		description: "Cấp view/comment/edit/manage cho user, workspace hoặc organization cùng tổ chức; principal ngoài tổ chức -> 422 principal_not_in_organization. Trùng principal sống thì grant cũ bị thu hồi và thay trong cùng transaction. Chỉ manage; tài liệu thuộc Work Product -> 409. " +
-			"Share cho chính workspace chứa tài liệu không tạo dòng document_shares: nó ghi vào dòng Workspace gốc (visibility=workspace, workspace_level=level) và câu trả lời mô tả dòng đó (id và created_at rỗng); manage -> 422 level_not_allowed (dòng gốc tối đa edit), và mở một tài liệu riêng tư khi người gọi chỉ có admin_scope -> 403 break_glass_required.",
+			"Share cho chính workspace chứa tài liệu không tạo dòng document_shares: nó ghi vào dòng Workspace gốc (visibility=workspace, workspace_level=level) và câu trả lời mô tả dòng đó (id và created_at rỗng); manage -> 422 level_not_allowed (dòng gốc tối đa edit), và mở một tài liệu riêng tư khi người gọi chỉ có admin_scope -> 403 break_glass_required. Thư mục không bao giờ được chia sẻ -> 422 folder_not_shareable.",
 		tags:   []string{"documents"},
 		sdi:    sdi.ShareDocumentSDI{},
 		sdo:    sdo.DocumentShareSDO{},
@@ -645,7 +649,7 @@ func registerDocuments(r api, h Routes, flags *featureflag.Service, editRequestL
 		summary: "Share a document with a batch of users",
 		description: "Cấp view/edit/manage cho 1–50 người dùng cùng tổ chức trong một transaction (all-or-nothing); trùng lặp được gộp và giữ thứ tự xuất hiện đầu. " +
 			"Danh sách rỗng, có phần tử rỗng hoặc level sai -> 400 invalid_request; không đọc được -> 404; dưới manage -> 403; tài liệu thuộc Work Product -> 409 document_owned_by_work_product; " +
-			"vượt 50 người dùng phân biệt -> 422 share_batch_too_large (fields.max=50); có người ngoài tổ chức -> 422 principal_not_in_organization (fields.principal_ids).",
+			"vượt 50 người dùng phân biệt -> 422 share_batch_too_large (fields.max=50); có người ngoài tổ chức -> 422 principal_not_in_organization (fields.principal_ids); thư mục -> 422 folder_not_shareable.",
 		tags:   []string{"documents"},
 		sdi:    sdi.ShareDocumentBatchSDI{},
 		sdo:    sdo.DocumentShareBatchSDO{},
@@ -665,7 +669,7 @@ func registerDocuments(r api, h Routes, flags *featureflag.Service, editRequestL
 		summary: "Batch update document access with dry-run preview",
 		description: "Cấp, cập nhật, giữ nguyên (on_existing=keep) hoặc thu hồi (level=null) quyền cho 1–100 mục hỗn hợp (user, workspace, organization) trong một transaction (SH-S2, UNI-1781). " +
 			"Mục nhắm vào workspace gốc của tài liệu được ghi vào dòng Workspace gốc (visibility/workspace_level), không tạo dòng document_shares. " +
-			"Tổ chức hoặc workspace gốc nhận manage -> 422 document_access_rejected (level_not_allowed); có mục lỗi ngữ nghĩa -> 422 document_access_rejected (fields.rejected[]) và không ghi dòng nào; dry_run=true chỉ tính preview và kết quả dự kiến, không ghi DB.",
+			"Tổ chức hoặc workspace gốc nhận manage -> 422 document_access_rejected (level_not_allowed); có mục lỗi ngữ nghĩa -> 422 document_access_rejected (fields.rejected[]) và không ghi dòng nào; dry_run=true chỉ tính preview và kết quả dự kiến, không ghi DB. Thư mục không bao giờ được chia sẻ: mục cấp quyền trên thư mục -> 422 folder_not_shareable (kể cả dry_run); mục thu hồi vẫn được phép.",
 		tags: []string{"documents"},
 		sdi:  sdi.UpdateDocumentAccessSDI{},
 		sdo:  sdo.DocumentAccessBatchSDO{},
@@ -723,6 +727,51 @@ func registerDocuments(r api, h Routes, flags *featureflag.Service, editRequestL
 		tags:        []string{"documents"},
 		sdi:         sdi.ListDocumentAccessLogsSDI{},
 		sdo:         sdo.DocumentAccessLogListSDO{},
+		auth:        true,
+	})
+	// DOC-07 (UNI-1631, §4.3): ask the document's managers for access, and the
+	// managers' list/approve/decline. The create answer is deliberately uniform
+	// (202 {"status":"sent"} for every well-formed id) so the route never proves
+	// the document exists; only 409 access_request_pending and 429
+	// access_request_cooldown are specific, and both concern the caller's own
+	// requests on that document. The limiter is one budget per person across
+	// every document (Q4), so a fresh document id mints no fresh budget. Its
+	// `documents` flag evaluates at the caller's active organization (callerDocs,
+	// BE-SD7-3), never at {documentID}'s, so existing and unknown ids pass the
+	// same gate.
+	callerDocs.With(mw.RequireFeatureFlag(flags, "documents"), accessRequestLimit).Post("/documents/{documentID}/access-requests", h.CreateDocumentAccessRequest, apiOp{
+		summary: "Request access to a document",
+		description: "Người đã đăng nhập xin quyền truy cập tài liệu; không bao giờ tự cấp quyền. Trả 202 {\"status\":\"sent\"} cho mọi id hợp lệ cú pháp (tài liệu không tồn tại, khác tổ chức, Work Product, đã archive, người gửi đã đọc được, hoặc người gửi đã bị vô hiệu hóa — tất cả giống hệt nhau, không lộ tồn tại). " +
+			"requested_level view (mặc định), comment hoặc edit; message ≤ 500 ký tự sau khi cắt khoảng trắng; source_kind (task|meeting) + source_id (ULID) phải đi cùng nhau — sai cú pháp -> 400 invalid_request (chỉ phụ thuộc body). " +
+			"Người gửi đã có yêu cầu pending chưa hết hạn trên tài liệu này -> 409 access_request_pending (không đổi dòng nào). Yêu cầu trước bị từ chối chưa đủ 1 giờ -> 429 access_request_cooldown kèm fields.retry_after_seconds và header Retry-After. " +
+			"Agent -> 403 forbidden. Limiter riêng 20/giờ/người trên mọi tài liệu (429 rate_limited).",
+		tags:   []string{"documents"},
+		sdi:    sdi.CreateDocumentAccessRequestSDI{},
+		sdo:    sdo.DocumentAccessRequestSentSDO{},
+		status: http.StatusAccepted,
+		auth:   true,
+	})
+	d.Get("/documents/{documentID}/access-requests", h.ListDocumentAccessRequests, apiOp{
+		summary:     "List a document's pending access requests",
+		description: "Yêu cầu đang chờ và chưa hết hạn của tài liệu, mới nhất trước: người xin, mức xin, lời nhắn, nguồn (chỉ có title khi người gọi đọc được task/meeting đó, ngược lại source=null) và thời điểm. Người đọc thường (không quản trị tài liệu) nhận danh sách rỗng, không phải 403; tài liệu đã archive cũng rỗng.",
+		tags:        []string{"documents"},
+		sdo:         sdo.DocumentAccessRequestListSDO{},
+		auth:        true,
+	})
+	d.Post("/documents/{documentID}/access-requests/{requestID}/approve", h.ApproveDocumentAccessRequest, apiOp{
+		summary: "Approve an access request",
+		description: "Người quản trị tài liệu duyệt yêu cầu: cấp mức cho người xin (mặc định = mức đã xin; có thể thấp hơn hoặc cao hơn, tối đa edit — manage -> 400) qua đường share có audit, rồi đóng yêu cầu thành approved. Người xin đã đủ mức -> approved với share_id rỗng, không tạo share mới. " +
+			"Yêu cầu không còn pending, đã hết hạn, hoặc tài liệu đã archive -> 409 access_request_closed (archive ghi cancelled). Admin chỉ có AdminScope tự duyệt yêu cầu của chính mình -> 403 break_glass_required. Người xin không còn là thành viên đang hoạt động -> 422 principal_not_in_organization và yêu cầu thành cancelled. requestID không thuộc tài liệu -> 404.",
+		tags: []string{"documents"},
+		sdi:  sdi.ApproveDocumentAccessRequestSDI{},
+		sdo:  sdo.DocumentAccessRequestDecisionSDO{},
+		auth: true,
+	})
+	d.Post("/documents/{documentID}/access-requests/{requestID}/decline", h.DeclineDocumentAccessRequest, apiOp{
+		summary:     "Decline an access request",
+		description: "Người quản trị tài liệu từ chối yêu cầu: đóng thành declined, không cấp gì; lời nhắn của người từ chối không gửi cho người xin (route không có body). Người xin nhận thông báo đã từ chối và phải chờ 1 giờ mới xin lại được. Yêu cầu không còn pending/đã hết hạn/tài liệu archive -> 409 access_request_closed (archive ghi cancelled); requestID không thuộc tài liệu -> 404.",
+		tags:        []string{"documents"},
+		sdo:         sdo.DocumentAccessRequestDecisionSDO{},
 		auth:        true,
 	})
 	d.Get("/orgs/{orgID}/documents/settings", h.GetDocumentSettings, apiOp{

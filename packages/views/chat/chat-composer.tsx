@@ -22,6 +22,9 @@ import {
   StagedFileChip,
   type ComposerReadOnlyReason,
 } from "./chat-composer-parts";
+import { ChatComposerShareLevelPicker } from "./chat-composer-share-level";
+import { classifyComposerFiles, sendStagedFiles, useComposerDocumentShare } from "./chat-composer-document-share";
+import type { ChatDocumentShareLevel } from "@uniwork/core/api/endpoints/chat";
 import { ChatExpressionPicker } from "./chat-expression-picker";
 import type { ChatMessage } from "./chat-messages";
 import { ChatReplyComposerBar, COMPOSER_QUOTE_CLIP_CLASS, COMPOSER_QUOTE_REVEAL_CLASS } from "./chat-reply-quote";
@@ -29,7 +32,7 @@ import { ChatMentionAutocomplete, mentionOptionId } from "./chat-mention-autocom
 import type { MemberAvatarUrlMap } from "./chat-member-avatar";
 import type { ChatMentionCandidate } from "./chat-mention-utils";
 import { deserializeMessageBodyToComposerDraft, serializeComposerDraftToMessageBody } from "./chat-mention-utils";
-import { CHAT_FILE_ACCEPT, CHAT_FILE_MAX_LABEL, isChatFileTooLarge, pickChatAcceptedFiles } from "./chat-file-accept";
+import { CHAT_DOCUMENT_ACCEPT, CHAT_FILE_ACCEPT } from "./chat-file-accept";
 import { useChatVoiceRecorder } from "./use-chat-voice-recorder";
 import { useComposerMentions } from "./use-composer-mentions";
 import { useFileDropZone } from "../editor/use-file-drop-zone";
@@ -73,6 +76,12 @@ type ChatComposerProps = {
   onSendMedia?: (body: string) => void | Promise<void>;
   onSendVoice?: (recording: { blob: Blob; durationMs: number }) => Promise<void>;
   onSendFile?: (file: File) => void | Promise<void>;
+  /** UNI-1966: set when the staged files may go out as shared documents. */
+  onSendDocument?: (file: File, shareLevel: ChatDocumentShareLevel) => void | Promise<void>;
+  /** The room detail's can_send_document: the server already folded in the
+      send permission and the share batch cap, so false/absent hides the
+      picker rather than offering a refused send. */
+  canSendDocument?: boolean;
   showCreatePoll?: boolean;
   /** A host may provide its own voice capture flow. */
   onRecordVoice?: () => void;
@@ -123,6 +132,8 @@ export function ChatComposer({
   replyTo = null,
   replyToSenderLabel,
   onCancelReply,
+  onSendDocument,
+  canSendDocument = false,
   ref,
 }: ChatComposerProps) {
   const { t } = useTranslation();
@@ -153,6 +164,8 @@ export function ChatComposer({
   const mentionEnabled = mentionCandidates !== undefined;
   const voiceRecorder = useChatVoiceRecorder();
   const voiceActive = voiceRecorder.state !== "idle" || Boolean(voiceRecorder.error);
+  const { shareChoice, setShareChoice, showSharePicker, sharePickerAllowsFile } =
+    useComposerDocumentShare({ stagedFiles, canSendDocument, hasDocumentSender: Boolean(onSendDocument) });
 
   useImperativeHandle(ref, () => ({
     focus: () => window.requestAnimationFrame(() => textareaRef.current?.focus()),
@@ -185,15 +198,13 @@ export function ChatComposer({
   const stageAcceptedFiles = useCallback(
     (files: File[]) => {
       if (disabled || editing || !onSendFile) return;
-      const accepted = pickChatAcceptedFiles(files);
-      const ready = accepted.filter((file) => !isChatFileTooLarge(file));
-      if (accepted.length < files.length) toast.error(t("chat.file_type_unsupported"));
-      if (ready.length < accepted.length) toast.error(t("chat.file_too_large", { max: CHAT_FILE_MAX_LABEL }));
-      if (ready.length === 0) return;
-      setStagedFiles((current) => [...current, ...ready]);
+      const { ready, unsupported, tooLarge, maxLabel } = classifyComposerFiles(files, canSendDocument);
+      if (unsupported) toast.error(t("chat.file_type_unsupported"));
+      if (tooLarge) toast.error(t("chat.file_too_large", { max: maxLabel }));
+      setStagedFiles((cur) => [...cur, ...ready]);
       textareaRef.current?.focus();
     },
-    [disabled, editing, onSendFile, t],
+    [disabled, editing, onSendFile, canSendDocument, t],
   );
 
   const { isDragOver, dropZoneProps } = useFileDropZone({
@@ -253,18 +264,7 @@ export function ChatComposer({
       return;
     }
     if (stagedFiles.length > 0 && onSendFile) {
-      // One upload at a time: the server holds each file in memory while it
-      // checks it, and a handful of large ones at once can exhaust the pod.
-      const files = stagedFiles;
-      void (async () => {
-        for (const file of files) {
-          try {
-            await onSendFile(file);
-          } catch {
-            // The sender reports its own failure; the next file still goes.
-          }
-        }
-      })();
+      void sendStagedFiles(stagedFiles, { shareChoice, showSharePicker, onSendFile, onSendDocument });
       setStagedFiles([]);
     }
     // Over the limit the counter is already red; sending would only bounce.
@@ -287,7 +287,7 @@ export function ChatComposer({
         type="file"
         multiple
         className="sr-only"
-        accept={CHAT_FILE_ACCEPT}
+        accept={canSendDocument ? CHAT_DOCUMENT_ACCEPT : CHAT_FILE_ACCEPT}
         aria-hidden
         tabIndex={-1}
         onChange={(event) => {
@@ -399,6 +399,12 @@ export function ChatComposer({
                             />
                           ))}
                         </div>
+                        {showSharePicker ? (
+                          <ChatComposerShareLevelPicker
+                            value={shareChoice} onChange={setShareChoice} disabled={disabled}
+                            allowFileChoice={sharePickerAllowsFile}
+                          />
+                        ) : null}
                       </div>
                     ) : null}
                   </div>

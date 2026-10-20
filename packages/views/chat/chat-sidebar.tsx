@@ -181,6 +181,9 @@ export const ChatSidebar = memo(function ChatSidebar({
       voiceMessageLabel: t("chat.sidebar_voice_message_preview"),
       missedCallLabel: t("chat.voice_call_log_missed"),
       fileMessageLabel: t("chat.sidebar_file_message_preview"),
+      documentMessageLabel: t("chat.sidebar_document_message_preview"),
+      formatDocumentVersionLine: (name: string, version: string) =>
+        t("chat.document_version_line", { name, version }),
       yesterdayLabel: t("chat.sidebar_yesterday"),
     }),
     [t],

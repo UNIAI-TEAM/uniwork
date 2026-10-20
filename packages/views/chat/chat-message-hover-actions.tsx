@@ -238,7 +238,9 @@ export function ChatMessageHoverActions({ message, isOwn, canEdit = true, overla
       onFocusCapture={onFocusCapture}
       className={cn(
         "pointer-events-none absolute z-10 flex w-max items-center rounded-full border border-border bg-popover p-0.5 opacity-0 shadow-floating",
-        "transition-opacity duration-(--duration-fast) group-focus-within/message:pointer-events-auto group-focus-within/message:opacity-100 group-hover/message:pointer-events-auto group-hover/message:opacity-100",
+        // Keyboard focus (focus-visible) reveals the bar; a tap's focus-within does
+        // not: it would flash the bar over the card the finger just hit (UNI-1966 F-01).
+        "transition-opacity duration-(--duration-fast) group-has-[:focus-visible]/message:pointer-events-auto group-has-[:focus-visible]/message:opacity-100 group-hover/message:pointer-events-auto group-hover/message:opacity-100",
         (pickerOpen || menuOpen) && "pointer-events-auto opacity-100",
         overlay
           ? cn("[--bar-mode:side] top-1.5", isOwn ? "right-1.5" : "left-1.5")

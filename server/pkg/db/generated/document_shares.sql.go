@@ -161,6 +161,32 @@ func (q *Queries) CountDocumentAccessPreviewGroup(ctx context.Context, arg Count
 	return i, err
 }
 
+const countLiveDocumentShares = `-- name: CountLiveDocumentShares :one
+SELECT count(*)::bigint
+FROM document_shares
+WHERE organization_id = $1
+  AND workspace_id = $2
+  AND document_id = $3
+  AND revoked_at IS NULL
+`
+
+type CountLiveDocumentSharesParams struct {
+	OrganizationID string `json:"organization_id"`
+	WorkspaceID    string `json:"workspace_id"`
+	DocumentID     string `json:"document_id"`
+}
+
+// The live grant count of one document: the §5 "Đã chia sẻ với N người"
+// aggregate on a chat document message, read only for the sender. Shares are
+// keyed by document, never by version, so a version message counts the same
+// audience as the document it names.
+func (q *Queries) CountLiveDocumentShares(ctx context.Context, arg CountLiveDocumentSharesParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countLiveDocumentShares, arg.OrganizationID, arg.WorkspaceID, arg.DocumentID)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const getDocumentShare = `-- name: GetDocumentShare :one
 SELECT id, organization_id, workspace_id, document_id, principal_type, principal_id, level, granted_by, granted_by_kind, revoked_at, revoked_by, created_at
 FROM document_shares

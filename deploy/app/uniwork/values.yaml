@@ -116,10 +116,15 @@ officeEngine:
   # tmpfs pages count against the memory limit: 1Gi /tmp (2 workers x 512 MiB
   # temp — a 200 MiB job holds input + output + headroom on disk) + 2 x 512 MiB
   # job RSS + the service itself stays under 2560Mi.
+  # Measured (SIZE-OPS1, framed input, arm64): two concurrent 200 MiB jobs
+  # (odt->docx convert + xlsx open) peaked at 769 MiB cgroup memory, 386 MiB of
+  # it /tmp, no OOM. The request is that peak x 1.25. The limit keeps the full
+  # tmpfs budget plus job RSS: those jobs wrote small outputs, and a job whose
+  # output is as large as its input fills /tmp further.
   tmpSizeLimit: 1Gi
   terminationGracePeriodSeconds: 15
   resources:
-    requests: { cpu: 250m, memory: 512Mi }
+    requests: { cpu: 250m, memory: 1Gi }
     limits: { cpu: "2", memory: 2560Mi }
   securityContext:
     # The supervisor runs as uid 0 to drop each worker to its slot uid; every

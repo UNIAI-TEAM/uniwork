@@ -37,7 +37,6 @@ import { sourceParentPath } from "./source-links";
 import { useDocumentsLibrary } from "./use-documents-library";
 import { useDocumentFileUpload } from "./use-document-file-upload";
 import { useDropUpload } from "./use-drop-upload";
-import { useSourcePreview } from "./source-preview-dialog";
 import type { OfficeModule } from "@uniwork/core/office/docs-frame-protocol";
 import { useSourceOfficeViewer } from "./source-office-viewer";
 import { useLibraryRowDialogs } from "./use-library-row-dialogs";
@@ -120,7 +119,6 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
   const ensureMyFolder = useEnsureMyFolder(wsId);
   const creator = useCreateOfType(wsId, onOpen);
   const downloadSource = useDownloadDocumentSource(wsId);
-  const sourcePreview = useSourcePreview(downloadSource);
   // The row-menu download (and the viewer's fallback when no module frame can
   // host the file): one code path for both, named for the file.
   const downloadFile = (sourceId: string) =>
@@ -183,7 +181,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
     parentShared,
   });
 
-  const rowDialogs = useLibraryRowDialogs({ wsId, tree: library.tree, folderId, folderTitle: openFolderTitle, parentShared });
+  const rowDialogs = useLibraryRowDialogs({ wsId, tree: library.tree, folderId, folderTitle: openFolderTitle });
   const trashActions = useTrashActions({ wsId, rows: library.state.rows });
   const shelvedActions = useShelvedActions({ wsId, rows: library.state.rows });
   // Move and archive sit on the rows of this workspace's own lists for
@@ -221,8 +219,8 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
 
 
 
-  const newRootFolder = async (title?: string, options?: CreateShareOptions): Promise<boolean> => {
-    const id = await creator.newFolder(null, title, options);
+  const newRootFolder = async (title?: string): Promise<boolean> => {
+    const id = await creator.newFolder(null, title);
     if (id) {
       goHome({ kind: "home" }, id);
       return true;
@@ -244,7 +242,6 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
       const target = context ? sourceParentPath(paths.workspace(context.workspace.organization_slug, context.workspace.slug), row.source.parent) : null;
       if (target) push(target);
     },
-    onPreviewSource: sourcePreview.open,
     // UNI-1869: an Office source opens view-only in its module frame; no module
     // or no installed build takes the download the click always offered.
     onViewSource: (source) => { if (!officeViewer.open(source)) downloadFile(source.id); },
@@ -307,7 +304,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
     onView: (next: LibraryView) => goHome(next),
     onFolder: (id: string) => goHome({ kind: "home" }, id),
     onMyFolder: openMyFolder,
-    onNewFolder: (title?: string, options?: CreateShareOptions) => newRootFolder(title, options),
+    onNewFolder: (title?: string) => newRootFolder(title),
   };
   const createProps = {
     pending: creator.pending,
@@ -354,6 +351,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
         library.setUpdated("any");
       }}
       handlers={handlers}
+      sharedByMe={view.kind === "sharedByMe"}
       empty={emptyCopy}
     />
   );
@@ -487,7 +485,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
               />
             ) : homeView ? (
               <div className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-5 sm:px-6">
-                {canCreate ? <DocumentsHomeNote folderTitle={openFolderTitle ?? null} create={folderId ? null : createProps} /> : null}
+                {canCreate ? <DocumentsHomeNote create={folderId ? null : createProps} /> : null}
                 <LibraryToolbar variant={folderId ? "folder" : "home"} {...toolbar} />
                 <DocumentsSections
                   folderTitle={folderId ? "documents.home.sections.subfolders" : "documents.home.sections.folders"}
@@ -530,7 +528,6 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
 
       <DocumentUploadDialog {...fileUpload.dialogProps} />
 
-      {sourcePreview.dialog}
       {officeViewer.dialog}
 
       {trashActions.dialog}

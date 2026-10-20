@@ -44,8 +44,8 @@ export interface CreateChoicesProps {
   /** Always called with the share options the toggle resolved, so a wrapped or bound handler still gets them. */
   onCreate: (type: CreateType, options: CreateShareOptions) => void;
   onUpload: () => void;
-  /** Present when a folder is open: adds "Mới → Thư mục" to the New menu (FD-D9). The menu's toggle state rides along. */
-  onNewFolder?: (options: CreateShareOptions) => void;
+  /** Present when a folder is open: adds "Mới → Thư mục" to the New menu (FD-D9). A folder is never shared, so the toggle does not apply to it (UNI-1974). */
+  onNewFolder?: () => void;
 }
 
 /**
@@ -178,7 +178,7 @@ export function CreateMenu({
                 <DropdownMenuItem
                   className="gap-2 px-2 py-2 pointer-coarse:min-h-11"
                   disabled={pending}
-                  onClick={() => onNewFolder?.({ shareWithWorkspace: sendShare })}
+                  onClick={() => onNewFolder?.()}
                 >
                   <DocumentTypeIcon format="folder" className="size-4" decorative />
                   <span className="flex-1">{t("documents.home.create.folder.menu")}</span>
@@ -218,10 +218,11 @@ export function CreateMenu({
               if (parentShared || pending) return;
               setShareWithWorkspace(next);
             }}
-            className="gap-2 px-2 py-2 pointer-coarse:min-h-11 aria-disabled:cursor-not-allowed aria-disabled:opacity-60"
+            className="group/share gap-2 px-2 py-2 pointer-coarse:min-h-11 aria-disabled:cursor-not-allowed aria-disabled:[&_svg]:opacity-60"
           >
-            <span className="flex flex-1 flex-col">
-              <span>{t("documents.home.create.share_workspace_toggle")}</span>
+            {/* TV2-04: pr-6 keeps the hint line clear of the check indicator at the item's right edge. */}
+            <span className="flex flex-1 flex-col pr-6">
+              <span className="group-aria-disabled/share:opacity-60">{t("documents.home.create.share_workspace_toggle")}</span>
               {/* Inside the item so aria-describedby resolves within it; a live region so the change is announced. */}
               <span id={hintId} role="status" className="text-caption font-normal text-muted-foreground">
                 {hintText}

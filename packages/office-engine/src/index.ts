@@ -111,8 +111,7 @@ export function createOfficeEngine(options: OfficeEngineOptions): OfficeEngine {
   return {
     async submit(input) {
       const envelope = buildEnvelope(input);
-      const validated = await validateEnvelope(envelope, { hash });
-      void validated; // validation is the side effect: measured inputs are hashed inside
+      await validateEnvelope(envelope);
       checkSupported(input.operation);
       const raw = await options.transport.submit(envelope);
       return projectResult(raw, input.operation);

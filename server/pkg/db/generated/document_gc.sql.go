@@ -710,6 +710,60 @@ func (q *Queries) ListOrphanedDocumentAssets(ctx context.Context, arg ListOrphan
 	return items, nil
 }
 
+const listSharedFoldersForUnshare = `-- name: ListSharedFoldersForUnshare :many
+SELECT d.id, d.organization_id, d.workspace_id
+FROM documents d
+WHERE d.kind = 'folder'
+  AND d.system_kind IS NULL
+  AND d.owner_id IS NULL
+  AND (d.visibility = 'workspace'
+       OR EXISTS (
+            SELECT 1 FROM document_shares s
+            WHERE s.organization_id = d.organization_id
+              AND s.workspace_id = d.workspace_id
+              AND s.document_id = d.id
+              AND s.revoked_at IS NULL))
+  AND d.id > $1::text
+ORDER BY d.id
+LIMIT $2
+`
+
+type ListSharedFoldersForUnshareParams struct {
+	AfterID string `json:"after_id"`
+	MaxRows int32  `json:"max_rows"`
+}
+
+type ListSharedFoldersForUnshareRow struct {
+	ID             string `json:"id"`
+	OrganizationID string `json:"organization_id"`
+	WorkspaceID    string `json:"workspace_id"`
+}
+
+// UNI-1974: folders that still hold an access a folder may not have (a
+// workspace home row or a live share row), by id keyset. The folders-unshare
+// command walks it, archived folders included so a restore never brings a
+// shared folder back. My Folder is private by construction.
+// tenant: system
+func (q *Queries) ListSharedFoldersForUnshare(ctx context.Context, arg ListSharedFoldersForUnshareParams) ([]ListSharedFoldersForUnshareRow, error) {
+	rows, err := q.db.Query(ctx, listSharedFoldersForUnshare, arg.AfterID, arg.MaxRows)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListSharedFoldersForUnshareRow{}
+	for rows.Next() {
+		var i ListSharedFoldersForUnshareRow
+		if err := rows.Scan(&i.ID, &i.OrganizationID, &i.WorkspaceID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const markDocumentAutoVersioned = `-- name: MarkDocumentAutoVersioned :one
 UPDATE documents
 SET current_version = $1,

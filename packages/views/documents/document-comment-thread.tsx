@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
-import { CircleCheck, MessageSquareReply, RotateCcw } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { DEFAULT_LOCALE } from "@uniwork/core/i18n";
 import type {
@@ -153,13 +152,13 @@ export function DocumentCommentThread({
       onTombstone={ctx.actions.reload}
       headingRef={isRoot ? headingRef : undefined}
       meta={isRoot ? meta : undefined}
+      reply={!isRoot}
       mentionsWithoutAccess={ctx.postSendNotices?.get(comment.id) ?? comment.mentions_without_access}
     >
       {isRoot && ctx.canWrite && !deleted ? (
-        <div className="mt-2 flex flex-wrap gap-1">
+        <div className="mt-1 -ml-2 flex flex-wrap gap-0.5">
           {target && !replying ? (
-            <Button type="button" variant="ghost" size="sm" onClick={() => setReplying(true)}>
-              <MessageSquareReply aria-hidden />
+            <Button type="button" variant="ghost" size="xs" className="text-muted-foreground" onClick={() => setReplying(true)}>
               {t(K.collabReply)}
             </Button>
           ) : null}
@@ -168,10 +167,10 @@ export function DocumentCommentThread({
               ref={resolveRef}
               type="button"
               variant="ghost"
-              size="sm"
+              size="xs"
+              className="text-muted-foreground"
               onClick={() => void guard(() => ctx.actions.setResolved(root.id, !resolved))}
             >
-              {resolved ? <RotateCcw aria-hidden /> : <CircleCheck aria-hidden />}
               {resolved ? t(K.collabReopen) : t(K.collabResolve)}
             </Button>
           ) : null}
@@ -194,9 +193,9 @@ export function DocumentCommentThread({
       {deleted && meta ? <div className="px-3 pt-2">{meta}</div> : null}
       {entryFor(root, true)}
       {replies.length > 0 ? (
-        <ul className="ml-6 border-l border-border/60">
+        <ul className="mb-2 ml-7 mr-3 space-y-1 border-l border-border pl-3">
           {replies.map((reply) => (
-            <li key={reply.id} className="border-t border-border/40">{entryFor(reply, false)}</li>
+            <li key={reply.id}>{entryFor(reply, false)}</li>
           ))}
         </ul>
       ) : null}

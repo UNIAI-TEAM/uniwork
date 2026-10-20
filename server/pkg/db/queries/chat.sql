@@ -1056,3 +1056,38 @@ SELECT
 FROM counts n
 LEFT JOIN recent r ON true
 ORDER BY r.created_at DESC, r.id DESC;
+
+-- name: CreateChatDocumentMessage :one
+-- A message that names a shared Document (UNI-1966). The metadata carries the
+-- document id, and reply_to_message_id is settable (the file/voice shape);
+-- client_msg_id makes a retried send idempotent.
+INSERT INTO chat_messages (
+  id, room_id, workspace_id, sender_id, sender_kind, kind, body, metadata, reply_to_message_id, client_msg_id,
+  organization_id
+) VALUES (
+  $1, $2, $3, $4, $5, 'document', $6, $7, $8, sqlc.narg(client_msg_id),
+  sqlc.arg(organization_id)
+) RETURNING *;
+
+-- name: ConvertChatFileMessageToDocument :one
+-- Flips an existing file attachment message in place to kind='document' after
+-- its bytes are copied into a Document (UNI-1966 §2.2, §3.3); body and
+-- client_msg_id stay untouched and file_id is cleared before the caller
+-- releases the old chat_attachment reference.
+UPDATE chat_messages
+SET kind = 'document', metadata = $4, file_id = NULL
+WHERE id = $1 AND room_id = $2 AND workspace_id = $3 AND deleted_at IS NULL
+RETURNING *;
+
+-- name: ChatRoomHasDocumentMessage :one
+-- Reports whether a room holds a live document card for document_id, gating
+-- the optional document_version line on a version commit (UNI-1966 §4.4).
+SELECT EXISTS (
+  SELECT 1
+  FROM chat_messages
+  WHERE room_id = $1
+    AND workspace_id = $2
+    AND kind = 'document'
+    AND deleted_at IS NULL
+    AND metadata->>'document_id' = sqlc.arg(document_id)::text
+) AS found;

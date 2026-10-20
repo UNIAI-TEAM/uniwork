@@ -613,6 +613,7 @@
         "email_hub_new_mail": "New mail (Email Hub)",
         "document_commented": "Document comment",
         "document_mentioned": "Mentioned in a document",
+        "document_body_mentioned": "Mentioned in a document body",
         "document_comment_replied": "Reply to your comment",
         "document_discussion_mentioned": "Mentioned in a discussion",
         "document_discussion_replied": "Reply in a discussion",
@@ -4075,7 +4076,13 @@
       "rate_limited": "You're going too fast. Wait a moment and try again.",
       "idempotency_in_flight": "The previous request is still being processed. Try again shortly.",
       "network": "Couldn't reach the server. Check your connection and try again.",
-      "internal": "The server ran into a problem. Try again later."
+      "internal": "The server ran into a problem. Try again later.",
+      "share_batch_too_large": "The conversation is too large to grant access to everyone. Share it from Documents instead.",
+      "document_quota_exceeded": "Your organization is out of storage space. Free up space or upgrade your plan.",
+      "document_format": "This file format is not supported.",
+      "document_format_changed": "The new version must keep the same format as the document.",
+      "document_version_conflict": "The document just got a new version. Reload and try again.",
+      "source_not_saveable": "This file cannot be shared as a document: its format is not supported or it is too large."
     },
     "media_unavailable": "Couldn't load {{name}}",
     "media_image": "Image",
@@ -4210,6 +4217,9 @@
     "composer_more": "More",
     "composer_more_menu": "More options",
     "composer_stickers": "Stickers",
+    "composer_send_as_document": "Send as document",
+    "composer_send_as_file": "Send as file",
+    "composer_share_level": "Access for everyone in the conversation",
     "expression_picker_open": "Stickers, emoji, and GIFs",
     "emoji_search": "Search emoji",
     "emoji_frequent": "Recently used",
@@ -4316,6 +4326,17 @@
     "sidebar_voice_call_preview": "Voice call",
     "sidebar_voice_message_preview": "Voice message",
     "sidebar_file_message_preview": "Attached file",
+    "sidebar_document_message_preview": "Document",
+    "document_card_title": "Document",
+    "document_open_in_documents": "Open in Documents",
+    "document_no_access": "No access",
+    "document_request_access": "Request access",
+    "document_share_as_document": "Share as document",
+    "document_shared_with_count_one": "Shared with {{count}} person",
+    "document_shared_with_count_other": "Shared with {{count}} people",
+    "document_open_in_office": "Open in UniWork Office",
+    "document_manage_access": "Manage access",
+    "document_version_line": "{{name}} uploaded version {{version}}",
     "sidebar_typing": "Typing…",
     "loading": "Connecting to the chat room…",
     "members_title": "Members",
@@ -5069,8 +5090,8 @@
         "done_other": "Transferred {{count}} documents to {{name}}.",
         "skipped_not_member_one": "{{count}} document in a workspace {{name}} hasn't joined wasn't transferred.",
         "skipped_not_member_other": "{{count}} documents in workspaces {{name}} hasn't joined weren't transferred.",
-        "skipped_self_one": "{{count}} restricted document can't be transferred to yourself.",
-        "skipped_self_other": "{{count}} restricted documents can't be transferred to yourself.",
+        "skipped_self_one": "{{count}} private document can't be transferred to yourself.",
+        "skipped_self_other": "{{count}} private documents can't be transferred to yourself.",
         "failed": "Couldn't transfer the documents. The account is deactivated; you can try again.",
         "failed_active": "Couldn't transfer the documents. You can try again.",
         "retry": "Try again",
@@ -5586,6 +5607,8 @@
       "document_commented_untitled": "{{actor}} commented on a document",
       "document_mentioned": "{{actor}} mentioned you in a comment on “{{document}}”.",
       "document_mentioned_untitled": "{{actor}} mentioned you in a comment on a document.",
+      "document_body_mentioned": "{{actor}} mentioned you in “{{document}}”.",
+      "document_body_mentioned_untitled": "{{actor}} mentioned you in a document.",
       "document_comment_replied": "{{actor}} replied to your comment in “{{document}}”.",
       "document_comment_replied_untitled": "{{actor}} replied to your comment in a document.",
       "document_discussion_mentioned": "{{actor}} mentioned you in a discussion on “{{document}}”.",
@@ -5620,6 +5643,7 @@
     },
     "kindTitle": {
       "document_mentioned": "You were mentioned in a comment",
+      "document_body_mentioned": "You were mentioned in a document",
       "document_comment_replied": "New reply to your comment",
       "document_discussion_mentioned": "You were mentioned in a discussion",
       "document_discussion_replied": "New reply in a discussion",
@@ -9579,6 +9603,59 @@
       "choose_image": "Choose an image to insert",
       "image_loading": "Loading image…",
       "focus_end": "Continue writing at the end of the document",
+      "toolbar": {
+        "label": "UniNote formatting",
+        "undo": "Undo",
+        "redo": "Redo",
+        "style_aria": "Text style: {{style}}",
+        "style_menu": "Text style",
+        "bold": "Bold",
+        "italic": "Italic",
+        "strikethrough": "Strikethrough",
+        "code": "Inline code",
+        "link": "Insert link",
+        "bulletList": "Bulleted list",
+        "orderedList": "Numbered list",
+        "taskList": "Checklist",
+        "blockquote": "Quote",
+        "codeBlock": "Code block",
+        "horizontalRule": "Divider",
+        "table": "Table",
+        "image": "Image",
+        "mention": "Mention",
+        "help_button": "Help and shortcuts",
+        "help": {
+          "title": "UniNote shortcuts",
+          "close": "Close",
+          "quick": "Quick insert",
+          "quick_slash": "Open the block menu",
+          "quick_mention": "Mention a member",
+          "line": "Type at the start of a line",
+          "line_headings": "Heading 1 / 2 / 3",
+          "line_bullet": "Bulleted list",
+          "line_ordered": "Numbered list",
+          "line_task": "Checklist",
+          "line_quote": "Quote",
+          "line_code": "Code block",
+          "line_divider": "Divider",
+          "keys": "Keyboard shortcuts",
+          "keys_format": "Bold / Italic",
+          "keys_strike": "Strikethrough",
+          "keys_code": "Inline code",
+          "keys_undo": "Undo / Redo",
+          "note": "On Mac use ⌘ instead of Ctrl. Type a pattern at the start of a line, then press Space (--- needs no Space)."
+        },
+        "more": "More formatting",
+        "more_title": "More formatting",
+        "hint": {
+          "title": "UniNote tips",
+          "aria": "Tip for new users",
+          "body": "Pick a format on the toolbar, or type <kbd>/</kbd> at the start of a line to insert a block, <kbd>@</kbd> to mention someone, and select text to format it quickly.",
+          "got_it": "Got it",
+          "show_shortcuts": "See shortcuts",
+          "close": "Dismiss tip"
+        }
+      },
       "toggle_task": "Toggle task: {{task}}",
       "blocks": {
         "paragraph": {
@@ -9653,8 +9730,13 @@
       "archived_banner": "This document is in the trash — read-only.",
       "first_save": {
         "title": "Name the document",
-        "hint": "You can rename it later from the folder.",
-        "submit": "Save"
+        "hint": "You can rename or move it later.",
+        "submit": "Save",
+        "location": "Location",
+        "change": "Change",
+        "picker_title": "Choose where to save",
+        "picker_description": "Pick the folder this document is saved in.",
+        "picker_submit": "Choose"
       }
     },
     "save": {
@@ -9843,6 +9925,7 @@
       "versions": "Version history",
       "download_original": "Download original file",
       "upload_version": "Upload new version",
+      "print": "Print",
       "share": "Share",
       "access_log": "Access log",
       "copy": "Create a copy",
@@ -9905,7 +9988,7 @@
         "transfer_confirm": "Transfer",
         "transferred": "Ownership transferred to {{name}}",
         "target_not_member": "{{name}} isn't a member of this workspace, so they can't own this document.",
-        "self_transfer_error": "Admins can't take ownership of a restricted document themselves. Ask another admin to transfer it, or open emergency access to inspect it.",
+        "self_transfer_error": "Admins can't take ownership of a private document themselves. Ask another admin to transfer it, or open emergency access to inspect it.",
         "title_untitled": "Transfer document ownership",
         "search_placeholder": "Search workspace members",
         "no_candidates": "No other member can take this document.",
@@ -10003,12 +10086,13 @@
       "people_not_in_org_one": "Not shared: {{names}} is not in this organization. Remove them and try again.",
       "people_not_in_org_other": "Not shared: {{names}} are not in this organization. Remove them and try again.",
       "level_label": "Level",
+      "level_for": "Access level for {{name}}",
       "submit": "Share",
       "submitting": "Sharing…",
       "submit_failed": "Could not share. Check the principal and the level.",
       "grant_added": "Access updated.",
       "visibility_workspace": "Whole workspace",
-      "visibility_restricted": "Restricted",
+      "visibility_restricted": "Private",
       "links_title": "Public links",
       "links_description": "Anyone with the URL can read it, no sign-in needed.",
       "links_policy_enabled": "Your organization allows public links",
@@ -10339,6 +10423,7 @@
       "collabSave": "Save",
       "collabCancel": "Cancel",
       "collabDelete": "Delete",
+      "collabEditedMark": "(edited)",
       "collabHistory": "View edit history",
       "collabHistoryTitle": "Edit history",
       "collabHistoryCurrent": "Current version",
@@ -10380,6 +10465,7 @@
       "collabPostSendNoAccess": "{{names}} can't view this document, so they weren't notified.",
       "collabPostSendShareAction": "Share view access",
       "collabPostSendNoRetroNote": "Sharing now won't notify them about this comment; mention them in a new comment to notify.",
+      "collabBodyMentionNoAccess": "{{names}} can't view this document, so they weren't notified.",
       "inboxDocGone": "This document no longer exists or was deleted.",
       "inboxDocNoAccess": "You don’t have access to this document.",
       "inboxSessionExpired": "Your session has ended. Log in again to open this comment.",
@@ -10389,8 +10475,8 @@
       "comment": "Comment"
     },
     "breakGlass": {
-      "lockedTitle": "This document is restricted",
-      "lockedBody": "Admins can manage this document, but can read its content only with emergency access.",
+      "lockedTitle": "This document is private",
+      "lockedBody": "Admins can manage this private document, but can read its content only with emergency access.",
       "openButton": "Open emergency access (24h)",
       "reasonLabel": "Reason for emergency access",
       "reasonHint": "The owner will be notified and this action is recorded in the audit log. View access expires after 24 hours.",
@@ -10407,7 +10493,7 @@
       "viaBreakGlass": "Emergency access",
       "selfShareError": "Admins can't grant themselves access through Share. Use Emergency access (24 hours, audited).",
       "memberTitle": "You need access to this document",
-      "memberBody": "This document is restricted. Contact the owner or a document manager to request access.",
+      "memberBody": "This document is private. Contact the owner or a document manager to request access.",
       "ownerLabel": "Owner: {{owner}}",
       "updatedLabel": "Updated {{time}}",
       "submitFailed": "Could not open emergency access. Try again.",
@@ -10465,7 +10551,6 @@
         "failed": "Could not rename the document. Try again."
       },
       "quick_create": {
-        "hint_root": "New and uploaded files here go to My Folder (only you can see it) and open straight in the editor.",
         "label": "Quick create"
       },
       "create": {
@@ -10498,7 +10583,7 @@
         "md": {
           "chip": "Markdown file",
           "hint": ".md",
-          "menu": "Markdown",
+          "menu": "Markdown file",
           "ext": ".md"
         },
         "html": {
@@ -10521,7 +10606,7 @@
         },
         "share_workspace_toggle": "Share with workspace",
         "share_workspace_hint": "Everyone in this workspace can {{level}} new documents",
-        "share_workspace_inherited": "This folder is shared with the workspace, so new documents are too",
+        "share_workspace_inherited": "This UniNote is shared with the workspace, so new documents are too",
         "share_workspace_level_view": "view"
       },
       "sections": {
@@ -10530,7 +10615,6 @@
         "documents": "Documents"
       },
       "folder": {
-        "info_banner": "New and uploaded files here will be placed in “{{folder}}”. Drag and drop files into the list to upload.",
         "menu": "Folder actions"
       },
       "folder_card": {
@@ -10600,12 +10684,12 @@
         "all": "All",
         "manage": "I manage",
         "edit": "I can edit",
-        "restricted": "Restricted"
+        "restricted": "Private"
       },
       "access": {
         "view": "View only",
         "comment": "Comment",
-        "edit": "Can edit",
+        "edit": "Edit",
         "manage": "Manage",
         "owner": "Owner",
         "you_prefix": "You: {{level}}"
@@ -10652,7 +10736,6 @@
         "unstar": "Remove star",
         "go_to_source": "View where attached",
         "go_to_source_named": "View where attached: {{title}}",
-        "preview_loading": "Loading image…",
         "preview_failed": "Could not open the file. Try again.",
         "preview_close": "Close",
         "view_only_notice": "View only · changes will not be saved",
@@ -10772,6 +10855,7 @@
       "document_cycle": "An item can't move into itself or into something inside it.",
       "document_too_deep": "The document tree is at most {{max}} levels deep.",
       "folder_not_supported": "A folder has no content to open or edit.",
+      "folder_not_shareable": "A folder cannot be shared. Share the documents inside it instead.",
       "folder_too_large": "The folder holds more than 1,000 items, so it can't move to the trash in one go. Move what is inside in parts first.",
       "source_not_saveable": "This file can't be copied into Documents.",
       "folder_name_taken": "A folder with this name already exists here. Choose another name.",
@@ -10890,7 +10974,7 @@
       "copy_failed": "Failed to copy"
     },
     "mention": {
-      "group_users": "Users",
+      "group_users": "Members",
       "all_members": "All members",
       "searching": "Searching...",
       "no_results": "No results",

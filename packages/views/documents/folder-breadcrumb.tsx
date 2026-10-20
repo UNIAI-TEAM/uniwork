@@ -21,13 +21,15 @@ export interface FolderBreadcrumbProps {
   onRoot: () => void;
   onFolder: (folderId: string) => void;
   onRename: (title: string) => void;
+  /** Rendered right after the leaf name and its rename pencil (the folder's menu). */
+  leafActions?: React.ReactNode;
 }
 
 const MAX_UNCOLLAPSED_FOLDER_LEVELS = 3;
 const ELLIPSIS = "…";
 
 /** Tài liệu của workspace › folder › subfolder; paths over 3 folder levels collapse intermediate ancestors into a "…" menu, and the open folder renames in place. */
-export function FolderBreadcrumb({ path, canRename, renaming, onRoot, onFolder, onRename }: FolderBreadcrumbProps) {
+export function FolderBreadcrumb({ path, canRename, renaming, onRoot, onFolder, onRename, leafActions }: FolderBreadcrumbProps) {
   const { t } = useTranslation();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
@@ -46,10 +48,12 @@ export function FolderBreadcrumb({ path, canRename, renaming, onRoot, onFolder, 
   const collapsed = path.length > MAX_UNCOLLAPSED_FOLDER_LEVELS;
   const hiddenAncestors = collapsed ? path.slice(0, -2) : [];
   const visibleAncestors = collapsed ? [path.at(-2)!] : path.slice(0, -1);
+  // Space is given up in order (UNI-1977): the ancestors and the home crumb (shrink-[1000]: flex shrink is weighted by factor x size, so the leaf, at 1, loses under a pixel until they sit at their minimum)
+  // (shrink-[1000], never below min-w-10), and the leaf name (shrink 1) last.
   const crumb = "rounded px-1 text-body text-muted-foreground hover:bg-accent hover:text-foreground pointer-coarse:min-h-11 pointer-coarse:min-w-11";
   return (
     <nav aria-label={t("documents.home.breadcrumb_label")} className="flex min-w-0 items-center gap-1">
-      <button type="button" className={cn(crumb, "shrink-0")} onClick={onRoot}>
+      <button type="button" className={cn(crumb, "min-w-9 shrink-[1000] truncate")} onClick={onRoot}>
         {t("documents.home.sidebar.home")}
       </button>
       {hiddenAncestors.length > 0 ? (
@@ -78,11 +82,12 @@ export function FolderBreadcrumb({ path, canRename, renaming, onRoot, onFolder, 
         </span>
       ) : null}
       {visibleAncestors.map((node) => (
-        <span key={node.id} className="flex min-w-0 items-center gap-1">
+        <span key={node.id} className="flex min-w-10 shrink-[1000] items-center gap-1">
           <ChevronRight aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
           <button
             type="button"
             className={cn(crumb, "min-w-0 truncate")}
+            title={node.title}
             onClick={() => onFolder(node.id)}
           >
             {node.title}
@@ -116,9 +121,9 @@ export function FolderBreadcrumb({ path, canRename, renaming, onRoot, onFolder, 
         </form>
       ) : (
         <span className="flex min-w-0 items-center gap-1">
-          <span aria-current="page" className="truncate px-1 text-body font-medium text-foreground">
+          <h1 aria-current="page" title={leaf.title} className="min-w-10 truncate px-1 text-body font-semibold text-foreground">
             {leaf.title}
-          </span>
+          </h1>
           {canRename ? (
             <Button
               type="button"
@@ -137,6 +142,7 @@ export function FolderBreadcrumb({ path, canRename, renaming, onRoot, onFolder, 
               <Pencil aria-hidden />
             </Button>
           ) : null}
+          {leafActions}
         </span>
       )}
     </nav>
