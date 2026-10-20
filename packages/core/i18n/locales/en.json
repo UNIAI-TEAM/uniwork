@@ -10898,6 +10898,7 @@
       "source_not_saveable": "This file can't be copied into Documents.",
       "folder_name_taken": "A folder with this name already exists here. Choose another name.",
       "level_not_allowed": "The document's own workspace takes at most {{max}}. Choose a lower level.",
+      "access_batch_invalid": "This access change could not be applied. Close the share dialog, open it again and retry.",
       "file_too_large": "The file is over the {{max}} limit. Reduce image sizes or split the file, then upload again.",
       "my_folder_locked": "My Folder is a personal system folder — it can't be renamed, shared, moved or moved to the trash.",
       "unsupported_media_type": "This file format is not supported.",

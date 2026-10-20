@@ -10891,6 +10891,7 @@
       "source_not_saveable": "File này không thể lưu bản sao vào Tài liệu.",
       "folder_name_taken": "Đã có thư mục tên này ở đây. Hãy đặt tên khác.",
       "level_not_allowed": "Workspace của tài liệu chỉ nhận tối đa {{max}}. Hãy chọn mức thấp hơn.",
+      "access_batch_invalid": "Không áp dụng được thay đổi quyền truy cập này. Đóng hộp thoại chia sẻ, mở lại rồi thử lại.",
       "file_too_large": "Tệp vượt giới hạn {{max}}. Giảm dung lượng ảnh hoặc chia nhỏ tệp rồi tải lên lại.",
       "my_folder_locked": "Thư mục của tôi là thư mục hệ thống cá nhân — không thể đổi tên, chia sẻ, di chuyển hoặc chuyển vào thùng rác.",
       "unsupported_media_type": "Định dạng tệp này chưa được hỗ trợ.",

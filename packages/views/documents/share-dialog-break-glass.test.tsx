@@ -71,4 +71,13 @@ describe("shareErrorMessage", () => {
       t("documents.errors.level_not_allowed", { max: t("documents.share.level_edit") }),
     );
   });
+
+  it("never shows the access-batch route's raw 400 sentence", () => {
+    const err = new ApiError("items phải có từ 1 đến 100 mục", "invalid_request", 400);
+    expect(shareErrorMessage(err, t)).toBe(t("documents.errors.access_batch_invalid"));
+    // The same code on another status keeps the generic path.
+    expect(shareErrorMessage(new ApiError("raw", "invalid_request", 422), t)).not.toBe(
+      t("documents.errors.access_batch_invalid"),
+    );
+  });
 });

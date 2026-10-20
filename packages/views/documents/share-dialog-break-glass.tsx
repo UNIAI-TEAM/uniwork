@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { ShieldAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { apiErrorMessage, errorCode } from "@uniwork/core/api";
+import { ApiError, apiErrorMessage, errorCode } from "@uniwork/core/api";
 import { isBreakGlassRequiredError } from "@uniwork/core/api/endpoints/documents";
 import { useRevokeDocumentBreakGlass } from "@uniwork/core/documents/break-glass-queries";
 import { isDocumentShelvedError, shareLevelNotAllowedMax } from "@uniwork/core/documents/errors";
@@ -53,6 +53,12 @@ export function shareErrorMessage(err: unknown, t: ReturnType<typeof useTranslat
   const max = shareLevelNotAllowedMax(err);
   if (max) {
     return t("documents.errors.level_not_allowed", { max: t(`documents.share.level_${max}`) });
+  }
+  // The access-batch route answers a malformed batch (item count, principal,
+  // level) with the generic 400 invalid_request and a sentence meant for
+  // logs: give the reader one in their own language instead.
+  if (err instanceof ApiError && err.status === 400 && err.code === "invalid_request") {
+    return t("documents.errors.access_batch_invalid");
   }
   if (isDocumentNotVerifiable(err)) {
     return undefined;
