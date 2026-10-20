@@ -1,6 +1,6 @@
 # Đợt 2 (UNI-1997): task hiện "Từ cuộc họp" — kế hoạch triển khai
 
-> **Trạng thái:** in-progress — kế hoạch ngày 2026-10-20, triển khai trên nhánh `feature/UNI-1997-meetings-sau-hop-dot-2-task-hien-tu-cuoc`.
+> **Trạng thái:** in-progress — đã làm xong 3 việc trên nhánh `feature/UNI-1997-meetings-sau-hop-dot-2-task-hien-tu-cuoc` (TaskDTO có `origin_type`/`origin_id`, schema core, dòng "Từ cuộc họp" trên chi tiết task); chờ review và merge.
 
 **Mục tiêu:** đóng G2 của spec `2026-10-20-meeting-follow-through-design.md` (§9.1, §9.4,
 §12 dòng 2). Cột `tasks.origin_type`/`origin_id` (migration 107) đã có và đã được ghi
