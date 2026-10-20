@@ -128,9 +128,9 @@ const CLAIMED_NO_OPS: readonly ShortcutChord[] = [mod("J"), mod("["), mod("]")];
  * and Cmd+Shift+X (Mac strikethrough); `CLAIMED_NO_OPS` keep the browser out.
  *
  * The keys are matched from the event, not from Tiptap's `Mod` (which reads
- * the platform once at load): AltGr and IME composition never match. Mention
- * and slash pickers run at a higher priority, so an open picker keeps its
- * own Ctrl+K.
+ * the platform once at load): AltGr and IME composition never match. The
+ * mention picker runs first, so an open one keeps its own Ctrl+K and Ctrl+J
+ * (pinned in page-shortcuts.test.ts); the slash menu takes no Ctrl chords.
  */
 export const PageShortcutsExtension = Extension.create({
   name: "pageShortcuts",
