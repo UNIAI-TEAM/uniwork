@@ -17,8 +17,12 @@ type Fake struct {
 	Reply func(CompletionRequest) CompletionResponse
 	Err   error
 	Delay time.Duration
-	Calls int
-	Last  CompletionRequest
+	// StreamChunk is the runes per Stream delta (default 8); StreamDelay
+	// waits between deltas and ends early with the context.
+	StreamChunk int
+	StreamDelay time.Duration
+	Calls       int
+	Last        CompletionRequest
 }
 
 func (f *Fake) Name() string { return "fake" }
@@ -72,6 +76,41 @@ func (f *Fake) Complete(ctx context.Context, req CompletionRequest) (CompletionR
 		text = req.Messages[n-1].Content
 	}
 	return CompletionResponse{Text: text, Model: req.Model, UsagePresent: true, InputTokens: len(req.System) / 4, OutputTokens: len(text) / 4, StopReason: "end_turn"}, nil
+}
+
+// Stream answers like Complete, handing the text out in StreamChunk-rune
+// deltas. A tool-call answer has no text, so it sends no delta. When ctx ends
+// between deltas it returns the text sent so far with ctx.Err().
+func (f *Fake) Stream(ctx context.Context, req CompletionRequest, onDelta func(string)) (CompletionResponse, error) {
+	resp, err := f.Complete(ctx, req)
+	if err != nil && resp.Text == "" {
+		return resp, err
+	}
+	n := f.StreamChunk
+	if n <= 0 {
+		n = 8
+	}
+	runes := []rune(resp.Text)
+	sent := 0
+	for sent < len(runes) {
+		if ctx.Err() != nil {
+			break
+		}
+		end := min(sent+n, len(runes))
+		onDelta(string(runes[sent:end]))
+		sent = end
+		if f.StreamDelay > 0 && sent < len(runes) {
+			select {
+			case <-time.After(f.StreamDelay):
+			case <-ctx.Done():
+			}
+		}
+	}
+	if sent < len(runes) {
+		resp.Text, resp.UsagePresent = string(runes[:sent]), false
+		return resp, ctx.Err()
+	}
+	return resp, err
 }
 
 // FakeToolCallID is the id the scripted call carries, so a test can assert it
