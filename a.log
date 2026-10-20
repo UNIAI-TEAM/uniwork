@@ -1,0 +1,3975 @@
+$ RID=g819-a02-$(date +%s%N); echo $RID > /tmp/g819-a02-rid; M=/tmp/$RID-markers.txt; echo "run id $RID"; node --test scripts/office/g5g6g7/harness/*.test.mjs scripts/office/g5g6g7/g8-19/*.test.mjs scripts/office/g5g6g7/g7-10/tracer.test.mjs scripts/office/g5g6g7/evidence.test.mjs scripts/office/acceptance-matrix-g5g6g7.test.mjs; echo "G819_UNIT_EXIT $?" | tee $M; true
+run id g819-a02-1792508998603322401
+TAP version 13
+# Subtest: acceptance matrix reconciles its requirement ids, fixtures, markdown mirror and evidence
+ok 1 - acceptance matrix reconciles its requirement ids, fixtures, markdown mirror and evidence
+  ---
+  duration_ms: 4.093672
+  type: 'test'
+  ...
+# Subtest: acceptance.md says the requirements are an interpretation, not the verbatim spec
+ok 2 - acceptance.md says the requirements are an interpretation, not the verbatim spec
+  ---
+  duration_ms: 0.154821
+  type: 'test'
+  ...
+# Subtest: a PASS row that runs on several fixtures needs one PASS record per fixture
+ok 3 - a PASS row that runs on several fixtures needs one PASS record per fixture
+  ---
+  duration_ms: 18.638447
+  type: 'test'
+  ...
+# Subtest: the summary numbers are checked against the candidate, not the committed matrix (N6)
+ok 4 - the summary numbers are checked against the candidate, not the committed matrix (N6)
+  ---
+  duration_ms: 21.456983
+  type: 'test'
+  ...
+# Subtest: the ledger is read only when the caller names it, and only its own records
+ok 5 - the ledger is read only when the caller names it, and only its own records
+  ---
+  duration_ms: 2.316093
+  type: 'test'
+  ...
+# Subtest: a ledger that is named and does not exist is an error, not a green gate (N5)
+ok 6 - a ledger that is named and does not exist is an error, not a green gate (N5)
+  ---
+  duration_ms: 2.305365
+  type: 'test'
+  ...
+# Subtest: acceptance matrix rejects candidate regressions
+ok 7 - acceptance matrix rejects candidate regressions
+  ---
+  duration_ms: 62.147435
+  type: 'test'
+  ...
+# Subtest: exit 0 records PASS with every contract field, the D SHA, the fork SHA and the web pin
+ok 8 - exit 0 records PASS with every contract field, the D SHA, the fork SHA and the web pin
+  ---
+  duration_ms: 30.586076
+  type: 'test'
+  ...
+# Subtest: a non-zero exit records FAIL, and exit 77 or a skip line records BLOCKED
+ok 9 - a non-zero exit records FAIL, and exit 77 or a skip line records BLOCKED
+  ---
+  duration_ms: 66.978088
+  type: 'test'
+  ...
+# Subtest: a command killed by a signal is a FAIL with 128 + the signal number, never a PASS
+ok 10 - a command killed by a signal is a FAIL with 128 + the signal number, never a PASS
+  ---
+  duration_ms: 10.637755
+  type: 'test'
+  ...
+# Subtest: a skip line only turns a clean exit into BLOCKED, and never masks a failure
+ok 11 - a skip line only turns a clean exit into BLOCKED, and never masks a failure
+  ---
+  duration_ms: 4.690147
+  type: 'test'
+  ...
+# Subtest: Playwright "<n> skipped" lines with leading whitespace are classified as BLOCKED, while "0 skipped" stays PASS (C6)
+ok 12 - Playwright "<n> skipped" lines with leading whitespace are classified as BLOCKED, while "0 skipped" stays PASS (C6)
+  ---
+  duration_ms: 1.518088
+  type: 'test'
+  ...
+# Subtest: node:test "\# skipped <n>" and "ℹ skipped <n>" summary lines are classified as BLOCKED when <n> >= 1, while "\# skipped 0" stays PASS (G710-BE-6)
+ok 13 - node:test "\# skipped <n>" and "ℹ skipped <n>" summary lines are classified as BLOCKED when <n> >= 1, while "\# skipped 0" stays PASS (G710-BE-6)
+  ---
+  duration_ms: 1.52718
+  type: 'test'
+  ...
+# Subtest: vitest and prose skip summaries are classified as BLOCKED, and every zero-count form stays PASS (G710-BE-12)
+ok 14 - vitest and prose skip summaries are classified as BLOCKED, and every zero-count form stays PASS (G710-BE-12)
+  ---
+  duration_ms: 0.37732
+  type: 'test'
+  ...
+# Subtest: a missing or drifted fixture is BLOCKED and never PASS, and the command does not run
+ok 15 - a missing or drifted fixture is BLOCKED and never PASS, and the command does not run
+  ---
+  duration_ms: 8.044247
+  type: 'test'
+  ...
+# Subtest: a run on a fixture the row does not declare is BLOCKED and the command does not run
+ok 16 - a run on a fixture the row does not declare is BLOCKED and the command does not run
+  ---
+  duration_ms: 3.364937
+  type: 'test'
+  ...
+# Subtest: two runs for one requirement cannot share an evidence id or overwrite an artifact
+ok 17 - two runs for one requirement cannot share an evidence id or overwrite an artifact
+  ---
+  duration_ms: 38.420328
+  type: 'test'
+  ...
+# Subtest: the ledger records the argv array beside the readable command
+ok 18 - the ledger records the argv array beside the readable command
+  ---
+  duration_ms: 18.458408
+  type: 'test'
+  ...
+# Subtest: a check that prints more than the default buffer still records its exit code
+ok 19 - a check that prints more than the default buffer still records its exit code
+  ---
+  duration_ms: 32.835301
+  type: 'test'
+  ...
+# Subtest: an explicit blocker reason blocks a run that would otherwise pass
+ok 20 - an explicit blocker reason blocks a run that would otherwise pass
+  ---
+  duration_ms: 3.359511
+  type: 'test'
+  ...
+# Subtest: an unknown requirement id is refused instead of written
+ok 21 - an unknown requirement id is refused instead of written
+  ---
+  duration_ms: 0.936508
+  type: 'test'
+  ...
+# Subtest: reset only touches a lane test database and is a dry run without psql
+ok 22 - reset only touches a lane test database and is a dry run without psql
+  ---
+  duration_ms: 54.559772
+  type: 'test'
+  ...
+# Subtest: verify accepts a clean ledger and rejects a pass without an artifact, a stale hash and a missing blocker
+ok 23 - verify accepts a clean ledger and rejects a pass without an artifact, a stale hash and a missing blocker
+  ---
+  duration_ms: 30.47273
+  type: 'test'
+  ...
+# Subtest: verify fails a row that claims PASS without a PASS record, and a matrix BLOCKED row without a blocker
+ok 24 - verify fails a row that claims PASS without a PASS record, and a matrix BLOCKED row without a blocker
+  ---
+  duration_ms: 25.099634
+  type: 'test'
+  ...
+# Subtest: verify accepts a NOT_RUN row carrying partialEvidence and still rejects a PASS row with no fixture record
+ok 25 - verify accepts a NOT_RUN row carrying partialEvidence and still rejects a PASS row with no fixture record
+  ---
+  duration_ms: 2.895865
+  type: 'test'
+  ...
+# Subtest: the CLI maps PASS to 0, FAIL to 1 and BLOCKED to the skip code
+ok 26 - the CLI maps PASS to 0, FAIL to 1 and BLOCKED to the skip code
+  ---
+  duration_ms: 227.170192
+  type: 'test'
+  ...
+# Subtest: a FAIL or BLOCKED run echoes the tail of its output to stderr, a PASS stays quiet
+ok 27 - a FAIL or BLOCKED run echoes the tail of its output to stderr, a PASS stays quiet
+  ---
+  duration_ms: 155.383389
+  type: 'test'
+  ...
+# Subtest: an absolute --out is honoured as given, never nested under the repo
+ok 28 - an absolute --out is honoured as given, never nested under the repo
+  ---
+  duration_ms: 19.133355
+  type: 'test'
+  ...
+# Subtest: the fork SHA comes from the environment and is null when the environment does not name it
+ok 29 - the fork SHA comes from the environment and is null when the environment does not name it
+  ---
+  duration_ms: 4.576266
+  type: 'test'
+  ...
+# Subtest: the matrix the runner reads declares every fixture it needs
+ok 30 - the matrix the runner reads declares every fixture it needs
+  ---
+  duration_ms: 0.841179
+  type: 'test'
+  ...
+# Subtest: G7-10 tracer API call contract against server/internal/handler
+    # Subtest: register (POST /auth/register) is registered in the Go router with matching params and SDI fields
+    ok 1 - register (POST /auth/register) is registered in the Go router with matching params and SDI fields
+      ---
+      duration_ms: 1.773537
+      type: 'test'
+      ...
+    # Subtest: verifyEmail (POST /me/email/verify) is registered in the Go router with matching params and SDI fields
+    ok 2 - verifyEmail (POST /me/email/verify) is registered in the Go router with matching params and SDI fields
+      ---
+      duration_ms: 2.221998
+      type: 'test'
+      ...
+    # Subtest: login (POST /auth/login) is registered in the Go router with matching params and SDI fields
+    ok 3 - login (POST /auth/login) is registered in the Go router with matching params and SDI fields
+      ---
+      duration_ms: 0.930244
+      type: 'test'
+      ...
+    # Subtest: createOrganization (POST /orgs) is registered in the Go router with matching params and SDI fields
+    ok 4 - createOrganization (POST /orgs) is registered in the Go router with matching params and SDI fields
+      ---
+      duration_ms: 0.886191
+      type: 'test'
+      ...
+    # Subtest: createWorkspace (POST /orgs/{org}/workspaces) is registered in the Go router with matching params and SDI fields
+    ok 5 - createWorkspace (POST /orgs/{org}/workspaces) is registered in the Go router with matching params and SDI fields
+      ---
+      duration_ms: 22.53785
+      type: 'test'
+      ...
+    # Subtest: createFileDocument (POST /workspaces/{workspaceID}/documents/files) is registered in the Go router with matching params and SDI fields
+    ok 6 - createFileDocument (POST /workspaces/{workspaceID}/documents/files) is registered in the Go router with matching params and SDI fields
+      ---
+      duration_ms: 0.093349
+      type: 'test'
+      ...
+    # Subtest: mintLaunch (POST /documents/{documentID}/office/sessions) is registered in the Go router with matching params and SDI fields
+    ok 7 - mintLaunch (POST /documents/{documentID}/office/sessions) is registered in the Go router with matching params and SDI fields
+      ---
+      duration_ms: 0.967307
+      type: 'test'
+      ...
+    # Subtest: desktopDevices (GET /auth/desktop/devices) is registered in the Go router with matching params and SDI fields
+    ok 8 - desktopDevices (GET /auth/desktop/devices) is registered in the Go router with matching params and SDI fields
+      ---
+      duration_ms: 0.139077
+      type: 'test'
+      ...
+    # Subtest: requestOrganizationDeletion (POST /orgs/{orgID}/privacy/deletion) is registered in the Go router with matching params and SDI fields
+    ok 9 - requestOrganizationDeletion (POST /orgs/{orgID}/privacy/deletion) is registered in the Go router with matching params and SDI fields
+      ---
+      duration_ms: 1.070232
+      type: 'test'
+      ...
+    # Subtest: deleteAccount (POST /me/delete) is registered in the Go router with matching params and SDI fields
+    ok 10 - deleteAccount (POST /me/delete) is registered in the Go router with matching params and SDI fields
+      ---
+      duration_ms: 0.972428
+      type: 'test'
+      ...
+    # Subtest: completeOnboarding (POST /me/onboarding/complete) is registered in the Go router with matching params and SDI fields
+    ok 11 - completeOnboarding (POST /me/onboarding/complete) is registered in the Go router with matching params and SDI fields
+      ---
+      duration_ms: 1.067177
+      type: 'test'
+      ...
+    # Subtest: downloadDocument (GET /documents/{documentID}/download) is registered in the Go router with matching params and SDI fields
+    ok 12 - downloadDocument (GET /documents/{documentID}/download) is registered in the Go router with matching params and SDI fields
+      ---
+      duration_ms: 0.118531
+      type: 'test'
+      ...
+    # Subtest: getDesktopConsent (GET /auth/desktop/authorize) is registered in the Go router with matching params and SDI fields
+    ok 13 - getDesktopConsent (GET /auth/desktop/authorize) is registered in the Go router with matching params and SDI fields
+      ---
+      duration_ms: 0.045225
+      type: 'test'
+      ...
+    # Subtest: submitDesktopConsent (POST /auth/desktop/authorize) is registered in the Go router with matching params and SDI fields
+    ok 14 - submitDesktopConsent (POST /auth/desktop/authorize) is registered in the Go router with matching params and SDI fields
+      ---
+      duration_ms: 0.921387
+      type: 'test'
+      ...
+    # Subtest: getDocument (GET /documents/{documentID}) is registered in the Go router with matching params and SDI fields
+    ok 15 - getDocument (GET /documents/{documentID}) is registered in the Go router with matching params and SDI fields
+      ---
+      duration_ms: 0.059987
+      type: 'test'
+      ...
+    # Subtest: listDocumentVersions (GET /documents/{documentID}/versions) is registered in the Go router with matching params and SDI fields
+    ok 16 - listDocumentVersions (GET /documents/{documentID}/versions) is registered in the Go router with matching params and SDI fields
+      ---
+      duration_ms: 0.045527
+      type: 'test'
+      ...
+    # Subtest: uploadDocumentFile (POST /documents/{documentID}/uploads) is registered in the Go router with matching params and SDI fields
+    ok 17 - uploadDocumentFile (POST /documents/{documentID}/uploads) is registered in the Go router with matching params and SDI fields
+      ---
+      duration_ms: 0.04088
+      type: 'test'
+      ...
+    # Subtest: commitDocumentVersion (POST /documents/{documentID}/versions/commit) is registered in the Go router with matching params and SDI fields
+    ok 18 - commitDocumentVersion (POST /documents/{documentID}/versions/commit) is registered in the Go router with matching params and SDI fields
+      ---
+      duration_ms: 0.906853
+      type: 'test'
+      ...
+    # Subtest: lookupCommitIntent (GET /documents/{documentID}/versions/commit) is registered in the Go router with matching params and SDI fields
+    ok 19 - lookupCommitIntent (GET /documents/{documentID}/versions/commit) is registered in the Go router with matching params and SDI fields
+      ---
+      duration_ms: 0.053608
+      type: 'test'
+      ...
+    # Subtest: listDocumentChanges (GET /workspaces/{workspaceID}/documents/changes) is registered in the Go router with matching params and SDI fields
+    ok 20 - listDocumentChanges (GET /workspaces/{workspaceID}/documents/changes) is registered in the Go router with matching params and SDI fields
+      ---
+      duration_ms: 0.043083
+      type: 'test'
+      ...
+    # Subtest: mintOfficeFrameToken (POST /documents/{documentID}/office/frame-token) is registered in the Go router with matching params and SDI fields
+    ok 21 - mintOfficeFrameToken (POST /documents/{documentID}/office/frame-token) is registered in the Go router with matching params and SDI fields
+      ---
+      duration_ms: 0.047264
+      type: 'test'
+      ...
+    # Subtest: openOfficeFrameDocument (GET /office-frame/documents/{documentID}) is registered in the Go router with matching params and SDI fields
+    ok 22 - openOfficeFrameDocument (GET /office-frame/documents/{documentID}) is registered in the Go router with matching params and SDI fields
+      ---
+      duration_ms: 0.044661
+      type: 'test'
+      ...
+    # Subtest: getOfficeFrameDocumentContent (GET /office-frame/documents/{documentID}/content) is registered in the Go router with matching params and SDI fields
+    ok 23 - getOfficeFrameDocumentContent (GET /office-frame/documents/{documentID}/content) is registered in the Go router with matching params and SDI fields
+      ---
+      duration_ms: 0.080232
+      type: 'test'
+      ...
+    # Subtest: uploadOfficeFrameFile (POST /office-frame/documents/{documentID}/uploads) is registered in the Go router with matching params and SDI fields
+    ok 24 - uploadOfficeFrameFile (POST /office-frame/documents/{documentID}/uploads) is registered in the Go router with matching params and SDI fields
+      ---
+      duration_ms: 0.046655
+      type: 'test'
+      ...
+    # Subtest: commitOfficeFrameVersion (POST /office-frame/documents/{documentID}/versions/commit) is registered in the Go router with matching params and SDI fields
+    ok 25 - commitOfficeFrameVersion (POST /office-frame/documents/{documentID}/versions/commit) is registered in the Go router with matching params and SDI fields
+      ---
+      duration_ms: 0.980701
+      type: 'test'
+      ...
+    # Subtest: aiUniworkFrameChatCompletions (POST /office-frame/documents/{documentID}/ai/uniwork/chat/completions) is registered in the Go router with matching params and SDI fields
+    ok 26 - aiUniworkFrameChatCompletions (POST /office-frame/documents/{documentID}/ai/uniwork/chat/completions) is registered in the Go router with matching params and SDI fields
+      ---
+      duration_ms: 0.863143
+      type: 'test'
+      ...
+    # Subtest: aiUniworkDocumentChatCompletions (POST /documents/{documentID}/ai/uniwork/chat/completions) is registered in the Go router with matching params and SDI fields
+    ok 27 - aiUniworkDocumentChatCompletions (POST /documents/{documentID}/ai/uniwork/chat/completions) is registered in the Go router with matching params and SDI fields
+      ---
+      duration_ms: 0.780233
+      type: 'test'
+      ...
+    1..27
+ok 31 - G7-10 tracer API call contract against server/internal/handler
+  ---
+  duration_ms: 38.770897
+  type: 'suite'
+  ...
+# Subtest: G7-10 deterministic fixture builders
+    # Subtest: buildXlsxRevenueWithXyzBytes embeds the manifest's expected X/Y/Z values into a valid ZIP/XLSX
+    ok 1 - buildXlsxRevenueWithXyzBytes embeds the manifest's expected X/Y/Z values into a valid ZIP/XLSX
+      ---
+      duration_ms: 1.10889
+      type: 'test'
+      ...
+    # Subtest: buildEditedDocxFixtureBytes produces a valid deterministic v2 DOCX distinct from v1
+    ok 2 - buildEditedDocxFixtureBytes produces a valid deterministic v2 DOCX distinct from v1
+      ---
+      duration_ms: 0.905947
+      type: 'test'
+      ...
+    1..2
+ok 32 - G7-10 deterministic fixture builders
+  ---
+  duration_ms: 2.127224
+  type: 'suite'
+  ...
+# Subtest: G7-10 tracer CLI args and start-gate propagation
+    # Subtest: parseArgs resolves --loop aliases 1/2/3 and named slugs
+    ok 1 - parseArgs resolves --loop aliases 1/2/3 and named slugs
+      ---
+      duration_ms: 0.236225
+      type: 'test'
+      ...
+    # Subtest: fails (exit 1) when start-status.json reports failed
+    ok 2 - fails (exit 1) when start-status.json reports failed
+      ---
+      duration_ms: 1.371323
+      type: 'test'
+      ...
+    # Subtest: blocks (exit 77) when start-status.json reports blocked
+    ok 3 - blocks (exit 77) when start-status.json reports blocked
+      ---
+      duration_ms: 0.763877
+      type: 'test'
+      ...
+    1..3
+ok 33 - G7-10 tracer CLI args and start-gate propagation
+  ---
+  duration_ms: 2.502678
+  type: 'suite'
+  ...
+# Subtest: G7-10 pure outcome decision functions (G710-L1..L3)
+    # Subtest: decideLoop1Outcome refuses PASS when web save or app feed observation is protocol-only, and PASSes only when web UI + app + real AI all hold
+    ok 1 - decideLoop1Outcome refuses PASS when web save or app feed observation is protocol-only, and PASSes only when web UI + app + real AI all hold
+      ---
+      duration_ms: 0.252014
+      type: 'test'
+      ...
+    # Subtest: decideLoop2Outcome refuses PASS when save is protocol-only, FAILs on auto-save or queued intent during AI turn, and PASSes only when app saves + real AI
+    ok 2 - decideLoop2Outcome refuses PASS when save is protocol-only, FAILs on auto-save or queued intent during AI turn, and PASSes only when app saves + real AI
+      ---
+      duration_ms: 0.147955
+      type: 'test'
+      ...
+    # Subtest: decideLoop3Outcome FAILs the r1 false-PASS path (test-made HTTP commit + app opens v2) and PASSes only when app opens v1, holds offline intent while cut, and commits v2 on reconnect (G710-L2)
+    ok 3 - decideLoop3Outcome FAILs the r1 false-PASS path (test-made HTTP commit + app opens v2) and PASSes only when app opens v1, holds offline intent while cut, and commits v2 on reconnect (G710-L2)
+      ---
+      duration_ms: 0.296892
+      type: 'test'
+      ...
+    # Subtest: decideAppSignInOutcome: BLOCKED (77) when keyring is absent/locked, FAIL (1) when keyring is up and sign-in fails or leaves no session.bin, PASS (0) when signed-in + session.bin
+    ok 4 - decideAppSignInOutcome: BLOCKED (77) when keyring is absent/locked, FAIL (1) when keyring is up and sign-in fails or leaves no session.bin, PASS (0) when signed-in + session.bin
+      ---
+      duration_ms: 0.133029
+      type: 'test'
+      ...
+    # Subtest: decideLoop1Outcome, decideLoop2Outcome, and decideLoop3Outcome return FAIL (1) when appSignInFailureReason is set (keyring up, sign-in failed), never BLOCKED
+    ok 5 - decideLoop1Outcome, decideLoop2Outcome, and decideLoop3Outcome return FAIL (1) when appSignInFailureReason is set (keyring up, sign-in failed), never BLOCKED
+      ---
+      duration_ms: 0.093454
+      type: 'test'
+      ...
+    1..5
+ok 34 - G7-10 pure outcome decision functions (G710-L1..L3)
+  ---
+  duration_ms: 1.060151
+  type: 'suite'
+  ...
+# Subtest: G7-10 desktop app self sign-in when keyring is available (r3)
+    # Subtest: signs the app in before Loop 1 when keyring is available and no session.bin exists yet (accountLogin -> authorize -> callback -> session.bin + signed-in)
+    ok 1 - signs the app in before Loop 1 when keyring is available and no session.bin exists yet (accountLogin -> authorize -> callback -> session.bin + signed-in)
+      ---
+      duration_ms: 5.424004
+      type: 'test'
+      ...
+    # Subtest: returns FAIL (exit 1) when the keyring is available and self sign-in fails (e.g. consent fails or session.bin is not written)
+    ok 2 - returns FAIL (exit 1) when the keyring is available and self sign-in fails (e.g. consent fails or session.bin is not written)
+      ---
+      duration_ms: 15053.66158
+      type: 'test'
+      ...
+    # Subtest: returns BLOCKED (exit 77) when the keyring is unavailable (accountStatus.state === keyring-unavailable)
+    ok 3 - returns BLOCKED (exit 77) when the keyring is unavailable (accountStatus.state === keyring-unavailable)
+      ---
+      duration_ms: 4.882467
+      type: 'test'
+      ...
+    1..3
+ok 35 - G7-10 desktop app self sign-in when keyring is available (r3)
+  ---
+  duration_ms: 15064.215526
+  type: 'suite'
+  ...
+# Subtest: G7-10 Loop 1 (fx-xlsx-revenue-xyz: web open -> AI turn -> editor X/Y/Z save -> change feed -> app)
+    # Subtest: proves 0-version AI turn + protocol diagnostic under AI_PROVIDER=fake and reports BLOCKED (77), never PASS
+    ok 1 - proves 0-version AI turn + protocol diagnostic under AI_PROVIDER=fake and reports BLOCKED (77), never PASS
+      ---
+      duration_ms: 3.634538
+      type: 'test'
+      ...
+    # Subtest: PASSes (exit 0) when app opens v1, web UI saves v2 with X/Y/Z, and app's SyncRuntime reloads binding.json to v2 (G710-L3)
+    ok 2 - PASSes (exit 0) when app opens v1, web UI saves v2 with X/Y/Z, and app's SyncRuntime reloads binding.json to v2 (G710-L3)
+      ---
+      duration_ms: 5.152297
+      type: 'test'
+      ...
+    # Subtest: returns FAIL (1) if the AI turn auto-creates a server version (G6-A03 violation)
+    ok 3 - returns FAIL (1) if the AI turn auto-creates a server version (G6-A03 violation)
+      ---
+      duration_ms: 3.6607
+      type: 'test'
+      ...
+    # Subtest: returns FAIL (1) if the workspace change feed does not report v2 after web Save
+    ok 4 - returns FAIL (1) if the workspace change feed does not report v2 after web Save
+      ---
+      duration_ms: 2.739826
+      type: 'test'
+      ...
+    1..4
+ok 36 - G7-10 Loop 1 (fx-xlsx-revenue-xyz: web open -> AI turn -> editor X/Y/Z save -> change feed -> app)
+  ---
+  duration_ms: 15.352746
+  type: 'suite'
+  ...
+# Subtest: G7-10 Loop 2 (fx-docx-report-vi: AI edit turn creates 0 versions -> explicit Save creates v2)
+    # Subtest: counts versions before/after AI turn (1 -> 1) and after Save (2), returning BLOCKED (77) for the fake AI upstream segment
+    ok 1 - counts versions before/after AI turn (1 -> 1) and after Save (2), returning BLOCKED (77) for the fake AI upstream segment
+      ---
+      duration_ms: 3.16088
+      type: 'test'
+      ...
+    # Subtest: returns FAIL (1) if the document AI turn creates a version before explicit Save
+    ok 2 - returns FAIL (1) if the document AI turn creates a version before explicit Save
+      ---
+      duration_ms: 1.883573
+      type: 'test'
+      ...
+    1..2
+ok 37 - G7-10 Loop 2 (fx-docx-report-vi: AI edit turn creates 0 versions -> explicit Save creates v2)
+  ---
+  duration_ms: 5.13763
+  type: 'suite'
+  ...
+# Subtest: G7-10 Loop 3 (fx-docx-report-vi: offline Save in app -> reconnect -> receipt)
+    # Subtest: blocks (77) when the VM has no desktop sign-in and records server receipt check as protocol-only
+    ok 1 - blocks (77) when the VM has no desktop sign-in and records server receipt check as protocol-only
+      ---
+      duration_ms: 2.591626
+      type: 'test'
+      ...
+    # Subtest: FAILs (exit 1, never PASS) on the r1 false-PASS path where a hook only writes binding.json at v2 without v1 open and offline intent while cut (G710-L2)
+    ok 2 - FAILs (exit 1, never PASS) on the r1 false-PASS path where a hook only writes binding.json at v2 without v1 open and offline intent while cut (G710-L2)
+      ---
+      duration_ms: 3.26428
+      type: 'test'
+      ...
+    # Subtest: PASSes (exit 0) when the app opens v1, saves while the harness proxy cuts the app link (holding offline state + .rec intent while server stays at v1), and commits v2 on reconnect (G710-L2)
+    ok 3 - PASSes (exit 0) when the app opens v1, saves while the harness proxy cuts the app link (holding offline state + .rec intent while server stays at v1), and commits v2 on reconnect (G710-L2)
+      ---
+      duration_ms: 3.177947
+      type: 'test'
+      ...
+    # Subtest: fails (exit 1) when desktop app is signed in and binding.json settles to conflict/error after reconnect
+    ok 4 - fails (exit 1) when desktop app is signed in and binding.json settles to conflict/error after reconnect
+      ---
+      duration_ms: 2.73713
+      type: 'test'
+      ...
+    1..4
+ok 38 - G7-10 Loop 3 (fx-docx-report-vi: offline Save in app -> reconnect -> receipt)
+  ---
+  duration_ms: 11.904388
+  type: 'suite'
+  ...
+# Subtest: G7-10 evidence.mjs run + verify integration across all 3 loops
+    # Subtest: produces one valid evidence line per loop/AC and passes evidence.mjs verify
+    ok 1 - produces one valid evidence line per loop/AC and passes evidence.mjs verify
+      ---
+      duration_ms: 483.342166
+      type: 'test'
+      ...
+    1..1
+ok 39 - G7-10 evidence.mjs run + verify integration across all 3 loops
+  ---
+  duration_ms: 483.493048
+  type: 'suite'
+  ...
+# Subtest: G7-10 ADDENDUM r3 fixes (C1-C5)
+    # Subtest: C2: seeds completeOnboarding so web navigation never redirects to /onboarding, and uses real OfficeModuleFrame selectors from e2e/office-modules-web.spec.ts
+    ok 1 - C2: seeds completeOnboarding so web navigation never redirects to /onboarding, and uses real OfficeModuleFrame selectors from e2e/office-modules-web.spec.ts
+      ---
+      duration_ms: 3.19942
+      type: 'test'
+      ...
+    # Subtest: C3: interpretCommitIntentLookup handles 410 commit_intent_unknown (outcome=unknown), 200 not_committed, 200 in_flight, and 200 committed per G5-07 contract
+    ok 2 - C3: interpretCommitIntentLookup handles 410 commit_intent_unknown (outcome=unknown), 200 not_committed, 200 in_flight, and 200 committed per G5-07 contract
+      ---
+      duration_ms: 0.207167
+      type: 'test'
+      ...
+    # Subtest: C4: POST /api/v1/documents/{id}/ai/uniwork/chat/completions answering 503 ai_disabled on fake deployment is BLOCKED (reason + owner), not FAIL, and G6-A03 version/intent counts still run
+    ok 3 - C4: POST /api/v1/documents/{id}/ai/uniwork/chat/completions answering 503 ai_disabled on fake deployment is BLOCKED (reason + owner), not FAIL, and G6-A03 version/intent counts still run
+      ---
+      duration_ms: 2.068918
+      type: 'test'
+      ...
+    # Subtest: C5: on every exit path (FAIL included) the loop JSON carries owner, reason, per-step source (web/app/protocol), and version counts collected so far
+    ok 4 - C5: on every exit path (FAIL included) the loop JSON carries owner, reason, per-step source (web/app/protocol), and version counts collected so far
+      ---
+      duration_ms: 12.797617
+      type: 'test'
+      ...
+    1..4
+ok 40 - G7-10 ADDENDUM r3 fixes (C1-C5)
+  ---
+  duration_ms: 18.441203
+  type: 'suite'
+  ...
+# Subtest: G7-10 r4 cloud r2 findings (F1-F4)
+    # Subtest: F1a: Loop 1 recognizes v2 in GET /api/v1/workspaces/{id}/documents/changes when the server returns the real DocumentChangeFeedSDO shape (current_version=2, change_kind='upsert', version_id, revision, no version or checksum_sha256 field)
+    ok 1 - F1a: Loop 1 recognizes v2 in GET /api/v1/workspaces/{id}/documents/changes when the server returns the real DocumentChangeFeedSDO shape (current_version=2, change_kind='upsert', version_id, revision, no version or checksum_sha256 field)
+      ---
+      duration_ms: 3.102891
+      type: 'test'
+      ...
+    # Subtest: F1b: waitForFeedReloadV2 keeps the document tab open (does not call aiOfficeTabs.close) so UniworkDocsService.noteRemoteChange (which checks isPathOpen(doc.path)) reloads binding.json to v2
+    ok 2 - F1b: waitForFeedReloadV2 keeps the document tab open (does not call aiOfficeTabs.close) so UniworkDocsService.noteRemoteChange (which checks isPathOpen(doc.path)) reloads binding.json to v2
+      ---
+      duration_ms: 1.914573
+      type: 'test'
+      ...
+    # Subtest: F2 / G710-BE-3 / G710-BE-4: Loop 1 verifies committed v2 bytes + sha256 contain X/Y/Z, passes real v2ContainsExpectedXyz to decideLoop1Outcome (FAIL if missing), and words steps.webSave.detail as page-level Control+s
+    ok 3 - F2 / G710-BE-3 / G710-BE-4: Loop 1 verifies committed v2 bytes + sha256 contain X/Y/Z, passes real v2ContainsExpectedXyz to decideLoop1Outcome (FAIL if missing), and words steps.webSave.detail as page-level Control+s
+      ---
+      duration_ms: 5.642457
+      type: 'test'
+      ...
+    # Subtest: F3: every loop JSON records the sanitized appSignIn decision object (decideAppSignInOutcome input and result, accountStatusState, sessionBinExists) and never any token or credential
+    ok 4 - F3: every loop JSON records the sanitized appSignIn decision object (decideAppSignInOutcome input and result, accountStatusState, sessionBinExists) and never any token or credential
+      ---
+      duration_ms: 4.056282
+      type: 'test'
+      ...
+    # Subtest: F4: running tracer.mjs CLI on a warm runDir truncates/replaces tracer-loop-N.json instead of appending behind a stale round's JSON object
+    ok 5 - F4: running tracer.mjs CLI on a warm runDir truncates/replaces tracer-loop-N.json instead of appending behind a stale round's JSON object
+      ---
+      duration_ms: 106.808806
+      type: 'test'
+      ...
+    # Subtest: G710-BE-5: classifyAiResponse refuses provider==='upstream' unless allowRealUpstream / HARNESS_ALLOW_REAL_AI_UPSTREAM=1 is explicitly enabled
+    ok 6 - G710-BE-5: classifyAiResponse refuses provider==='upstream' unless allowRealUpstream / HARNESS_ALLOW_REAL_AI_UPSTREAM=1 is explicitly enabled
+      ---
+      duration_ms: 0.155405
+      type: 'test'
+      ...
+    # Subtest: G710-BE-7: Loop 2 performs a real G5-07 lookupCommitIntent (GET /documents/{id}/versions/commit) on the app path when an idempotencyKey is available
+    ok 7 - G710-BE-7: Loop 2 performs a real G5-07 lookupCommitIntent (GET /documents/{id}/versions/commit) on the app path when an idempotencyKey is available
+      ---
+      duration_ms: 2.217203
+      type: 'test'
+      ...
+    # Subtest: G710-BE-9: Loop 3 appHeldOfflineIntentWhileCut requires bindingWhileCut at baseVersion === 1 (cannot be satisfied by intentFilesWhileCut alone when binding is missing or already at v2)
+    ok 8 - G710-BE-9: Loop 3 appHeldOfflineIntentWhileCut requires bindingWhileCut at baseVersion === 1 (cannot be satisfied by intentFilesWhileCut alone when binding is missing or already at v2)
+      ---
+      duration_ms: 1.960918
+      type: 'test'
+      ...
+    1..8
+ok 41 - G7-10 r4 cloud r2 findings (F1-F4)
+  ---
+  duration_ms: 126.105898
+  type: 'suite'
+  ...
+# Subtest: G7-10 ADDENDUM r5 (G710-BE-10..13, G1-G3)
+    # Subtest: G710-BE-10: the file pins AI_PROVIDER itself, so a runner that exports AI_PROVIDER=fake cannot change an outcome here
+    ok 1 - G710-BE-10: the file pins AI_PROVIDER itself, so a runner that exports AI_PROVIDER=fake cannot change an outcome here
+      ---
+      duration_ms: 0.160245
+      type: 'test'
+      ...
+    # Subtest: G710-BE-11: verifyXlsxContainsExpectedXyz checks X, Y and Z by cell reference and value, row by row — never by substring
+    ok 2 - G710-BE-11: verifyXlsxContainsExpectedXyz checks X, Y and Z by cell reference and value, row by row — never by substring
+      ---
+      duration_ms: 1.574634
+      type: 'test'
+      ...
+    # Subtest: G710-BE-13: buildSanitizedAppSignInRecord redacts signInError — the error class survives, no URL query, token or credential does
+    ok 3 - G710-BE-13: buildSanitizedAppSignInRecord redacts signInError — the error class survives, no URL query, token or credential does
+      ---
+      duration_ms: 0.740145
+      type: 'test'
+      ...
+    # Subtest: G1: an app start.sh reported but whose recorded process is gone at loop start FAILs (exit 1) with the pid, never BLOCKED
+    ok 4 - G1: an app start.sh reported but whose recorded process is gone at loop start FAILs (exit 1) with the pid, never BLOCKED
+      ---
+      duration_ms: 8.901738
+      type: 'test'
+      ...
+    # Subtest: G1: CDP refused while the app process is alive FAILs (exit 1) with the reason; the app-not-started run keeps BLOCKED
+    ok 5 - G1: CDP refused while the app process is alive FAILs (exit 1) with the reason; the app-not-started run keeps BLOCKED
+      ---
+      duration_ms: 5.352872
+      type: 'test'
+      ...
+    # Subtest: G1: a CDP connection whose pages expose no window.aiOffice FAILs with the no-shell-window reason and the pid it saw
+    ok 6 - G1: a CDP connection whose pages expose no window.aiOffice FAILs with the no-shell-window reason and the pid it saw
+      ---
+      duration_ms: 5013.681251
+      type: 'test'
+      ...
+    # Subtest: G3: keyringAvailable is recorded only when the app reported it (null when unknown), so it never contradicts a session.bin left on disk
+    ok 7 - G3: keyringAvailable is recorded only when the app reported it (null when unknown), so it never contradicts a session.bin left on disk
+      ---
+      duration_ms: 1.138246
+      type: 'test'
+      ...
+    # Subtest: G1: readAppProcessRecord reads the app pid start.sh recorded, and reports an unknown pid as null rather than dead
+    ok 8 - G1: readAppProcessRecord reads the app pid start.sh recorded, and reports an unknown pid as null rather than dead
+      ---
+      duration_ms: 1.012193
+      type: 'test'
+      ...
+    1..8
+ok 42 - G7-10 ADDENDUM r5 (G710-BE-10..13, G1-G3)
+  ---
+  duration_ms: 5032.882464
+  type: 'suite'
+  ...
+# Subtest: G7-10 H1 bounded app CDP calls and loop watchdog (r6)
+    # Subtest: H1(3): exports default timeout constants (90000 / 600000) and formats timeout reason as '<call> did not settle within <n> s'
+    ok 1 - H1(3): exports default timeout constants (90000 / 600000) and formats timeout reason as '<call> did not settle within <n> s'
+      ---
+      duration_ms: 40.484401
+      type: 'test'
+      ...
+    # Subtest: H1(1): a fake page whose evaluate never resolves FAILs the step within HARNESS_APP_STEP_TIMEOUT_MS, exits 1 (not 77, not hang), and records call name, elapsed ms, binding.json state, and redacted last 40 lines of logs/app.log
+    ok 2 - H1(1): a fake page whose evaluate never resolves FAILs the step within HARNESS_APP_STEP_TIMEOUT_MS, exits 1 (not 77, not hang), and records call name, elapsed ms, binding.json state, and redacted last 40 lines of logs/app.log
+      ---
+      duration_ms: 64.998247
+      type: 'test'
+      ...
+    # Subtest: H1(1b): a hung evaluate during connectAppController shell probe or accountStatus also FAILs within HARNESS_APP_STEP_TIMEOUT_MS (never swallowed as 'no shell renderer window' or BLOCKED)
+    ok 3 - H1(1b): a hung evaluate during connectAppController shell probe or accountStatus also FAILs within HARNESS_APP_STEP_TIMEOUT_MS (never swallowed as 'no shell renderer window' or BLOCKED)
+      ---
+      duration_ms: 52.701556
+      type: 'test'
+      ...
+    # Subtest: H1(2): per-loop watchdog (HARNESS_LOOP_TIMEOUT_MS) writes loop JSON with status FAIL and reason 'loop watchdog', exits 1, and never exits 77
+    ok 4 - H1(2): per-loop watchdog (HARNESS_LOOP_TIMEOUT_MS) writes loop JSON with status FAIL and reason 'loop watchdog', exits 1, and never exits 77
+      ---
+      duration_ms: 71.359857
+      type: 'test'
+      ...
+    # Subtest: H1(4): a normal fast evaluate on fakePage still PASSes
+    ok 5 - H1(4): a normal fast evaluate on fakePage still PASSes
+      ---
+      duration_ms: 11.899914
+      type: 'test'
+      ...
+    1..5
+ok 43 - G7-10 H1 bounded app CDP calls and loop watchdog (r6)
+  ---
+  duration_ms: 241.70987
+  type: 'suite'
+  ...
+# Subtest: G7-10 H2 docs tab readiness wait before aiOfficeTabs.close (r7)
+    # Subtest: H2(1): exports formatDocsTabReadyTimeoutReason ('docs tab not ready to close within <n> s'), DEFAULT_DOCS_CLOSE_SETTLE_MS (2500), and waitForDocsTabReadyToClose
+    ok 1 - H2(1): exports formatDocsTabReadyTimeoutReason ('docs tab not ready to close within <n> s'), DEFAULT_DOCS_CLOSE_SETTLE_MS (2500), and waitForDocsTabReadyToClose
+      ---
+      duration_ms: 0.175941
+      type: 'test'
+      ...
+    # Subtest: H2(2): a fake docs target that becomes ready late -> closeOpenTabForPath waits for readiness + HARNESS_DOCS_CLOSE_SETTLE_MS settle without calling reportCloseCheck before aiOfficeTabs.close, and the step PASSes (r7b H2-1)
+    ok 2 - H2(2): a fake docs target that becomes ready late -> closeOpenTabForPath waits for readiness + HARNESS_DOCS_CLOSE_SETTLE_MS settle without calling reportCloseCheck before aiOfficeTabs.close, and the step PASSes (r7b H2-1)
+      ---
+      duration_ms: 305.593392
+      type: 'test'
+      ...
+    # Subtest: H2(3): a docs target that is never ready FAILs within HARNESS_APP_STEP_TIMEOUT_MS with 'docs tab not ready to close within <n> s' (records targetUrl, elapsedMs, bindingState, redacted appLogTail, owner g5-client) and never calls aiOfficeTabs.close
+    ok 3 - H2(3): a docs target that is never ready FAILs within HARNESS_APP_STEP_TIMEOUT_MS with 'docs tab not ready to close within <n> s' (records targetUrl, elapsedMs, bindingState, redacted appLogTail, owner g5-client) and never calls aiOfficeTabs.close
+      ---
+      duration_ms: 129.77602
+      type: 'test'
+      ...
+    1..3
+ok 44 - G7-10 H2 docs tab readiness wait before aiOfficeTabs.close (r7)
+  ---
+  duration_ms: 435.807336
+  type: 'suite'
+  ...
+# Subtest: decideG8A09Org: the choice is shown with zero org API calls before it, the pick sticks, a deactivated member is refused -> PASS
+ok 45 - decideG8A09Org: the choice is shown with zero org API calls before it, the pick sticks, a deactivated member is refused -> PASS
+  ---
+  duration_ms: 2.230681
+  type: 'test'
+  ...
+# Subtest: decideG8A09Org: no org choice for an account with two organizations -> FAIL
+ok 46 - decideG8A09Org: no org choice for an account with two organizations -> FAIL
+  ---
+  duration_ms: 0.758708
+  type: 'test'
+  ...
+# Subtest: decideG8A09Org: any org API call before the choice, or one that cannot be measured, is FAIL
+ok 47 - decideG8A09Org: any org API call before the choice, or one that cannot be measured, is FAIL
+  ---
+  duration_ms: 0.843052
+  type: 'test'
+  ...
+# Subtest: decideG8A09Org: the picker must list both organizations
+ok 48 - decideG8A09Org: the picker must list both organizations
+  ---
+  duration_ms: 0.665112
+  type: 'test'
+  ...
+# Subtest: decideG8A09Org: re-sign-in must show no step and use the remembered org
+ok 49 - decideG8A09Org: re-sign-in must show no step and use the remembered org
+  ---
+  duration_ms: 0.62742
+  type: 'test'
+  ...
+# Subtest: decideG8A09Org: deactivate -> the library and create calls answer member_deactivated, nothing else counts
+ok 50 - decideG8A09Org: deactivate -> the library and create calls answer member_deactivated, nothing else counts
+  ---
+  duration_ms: 0.56955
+  type: 'test'
+  ...
+# Subtest: decideG8A09Org: M without the second org is BLOCKED by the named SQL blocker, never PASS; no blocker text is FAIL
+ok 51 - decideG8A09Org: M without the second org is BLOCKED by the named SQL blocker, never PASS; no blocker text is FAIL
+  ---
+  duration_ms: 0.473689
+  type: 'test'
+  ...
+# Subtest: decideG8A09: FAIL beats BLOCKED beats PASS
+ok 52 - decideG8A09: FAIL beats BLOCKED beats PASS
+  ---
+  duration_ms: 0.664355
+  type: 'test'
+  ...
+# Subtest: decideG8A09Org: the app rejected selectOrg:Y -> FAIL naming the call; what cannot be judged after it stays out of the reason
+ok 53 - decideG8A09Org: the app rejected selectOrg:Y -> FAIL naming the call; what cannot be judged after it stays out of the reason
+  ---
+  duration_ms: 0.786036
+  type: 'test'
+  ...
+# Subtest: decideG8A09Org: a deactivated member's list that answers ok IS judged when the pick worked
+ok 54 - decideG8A09Org: a deactivated member's list that answers ok IS judged when the pick worked
+  ---
+  duration_ms: 0.558308
+  type: 'test'
+  ...
+# Subtest: diagnoseSelectOrgError: a flat D membership body against a fork that reads {membership:{role}} -> product finding with surfaces and an owner candidate
+ok 55 - diagnoseSelectOrgError: a flat D membership body against a fork that reads {membership:{role}} -> product finding with surfaces and an owner candidate
+  ---
+  duration_ms: 0.542502
+  type: 'test'
+  ...
+# Subtest: diagnoseSelectOrgError: the probe says the wrapper is there, or it could not be made, or the failure is another one -> undecided with the raw facts
+ok 56 - diagnoseSelectOrgError: the probe says the wrapper is there, or it could not be made, or the failure is another one -> undecided with the raw facts
+  ---
+  duration_ms: 0.517037
+  type: 'test'
+  ...
+# Subtest: decideG8A09: many failures never leave a reason cut in the middle of a check (the artifact clips at 240 characters)
+ok 57 - decideG8A09: many failures never leave a reason cut in the middle of a check (the artifact clips at 240 characters)
+  ---
+  duration_ms: 0.687083
+  type: 'test'
+  ...
+# Subtest: runAccount: org choice, remembered org, library and a deactivated member -> PASS (0), deactivation last
+ok 58 - runAccount: org choice, remembered org, library and a deactivated member -> PASS (0), deactivation last
+  ---
+  duration_ms: 11.458933
+  type: 'test'
+  ...
+# Subtest: runAccount: the picker asked twice (forgets the pick) -> FAIL (1) naming rememberedNoStep
+ok 59 - runAccount: the picker asked twice (forgets the pick) -> FAIL (1) naming rememberedNoStep
+  ---
+  duration_ms: 3.770083
+  type: 'test'
+  ...
+# Subtest: runAccount: an org API call before the choice -> FAIL naming noOrgCallBeforeChoice
+ok 60 - runAccount: an org API call before the choice -> FAIL naming noOrgCallBeforeChoice
+  ---
+  duration_ms: 3.442545
+  type: 'test'
+  ...
+# Subtest: runAccount: a deactivated member who still lists workspaces -> FAIL
+ok 61 - runAccount: a deactivated member who still lists workspaces -> FAIL
+  ---
+  duration_ms: 3.369034
+  type: 'test'
+  ...
+# Subtest: runAccount: no raw-SQL second org (G819_ALLOW_SQL_MEMBERSHIP unset) -> BLOCKED 77 with the named blocker; the library half still ran as A
+ok 62 - runAccount: no raw-SQL second org (G819_ALLOW_SQL_MEMBERSHIP unset) -> BLOCKED 77 with the named blocker; the library half still ran as A
+  ---
+  duration_ms: 3.729648
+  type: 'test'
+  ...
+# Subtest: runAccount: the app cannot be driven -> the reason of appUnavailable, FAIL stays FAIL and BLOCKED keeps its reason
+ok 63 - runAccount: the app cannot be driven -> the reason of appUnavailable, FAIL stays FAIL and BLOCKED keeps its reason
+  ---
+  duration_ms: 1.481714
+  type: 'test'
+  ...
+# Subtest: runAccount writes the artifact under reports/g7-qa/g8-a09/<fixture>.json
+ok 64 - runAccount writes the artifact under reports/g7-qa/g8-a09/<fixture>.json
+  ---
+  duration_ms: 4.094647
+  type: 'test'
+  ...
+# Subtest: runAccount: selectOrg:Y rejected by the app -> FAIL with the cause and the probe in the artifact; the library is not judged; deactivation still runs
+ok 65 - runAccount: selectOrg:Y rejected by the app -> FAIL with the cause and the probe in the artifact; the library is not judged; deactivation still runs
+  ---
+  duration_ms: 1.745073
+  type: 'test'
+  ...
+# Subtest: decideG8A02: insert row above B7 -> B8, exact, on the new version; delete -> lost; three equal 400s -> PASS
+ok 66 - decideG8A02: insert row above B7 -> B8, exact, on the new version; delete -> lost; three equal 400s -> PASS
+  ---
+  duration_ms: 1.885266
+  type: 'test'
+  ...
+# Subtest: decideG8A02: the web -> desktop direction is BLOCKED(R1) while the web frame pin is old, never PASS
+ok 67 - decideG8A02: the web -> desktop direction is BLOCKED(R1) while the web frame pin is old, never PASS
+  ---
+  duration_ms: 0.390937
+  type: 'test'
+  ...
+# Subtest: decideG8A02: a desktop failure wins over the R1 block (FAIL, not BLOCKED)
+ok 68 - decideG8A02: a desktop failure wins over the R1 block (FAIL, not BLOCKED)
+  ---
+  duration_ms: 0.229625
+  type: 'test'
+  ...
+# Subtest: decideG8A02 shift: the anchor did not move (still B7) -> FAIL
+ok 69 - decideG8A02 shift: the anchor did not move (still B7) -> FAIL
+  ---
+  duration_ms: 0.268259
+  type: 'test'
+  ...
+# Subtest: decideG8A02 shift: the anchor stayed on the old version -> FAIL
+ok 70 - decideG8A02 shift: the anchor stayed on the old version -> FAIL
+  ---
+  duration_ms: 0.187548
+  type: 'test'
+  ...
+# Subtest: decideG8A02 shift: the head did not move (Save made no version) -> FAIL
+ok 71 - decideG8A02 shift: the head did not move (Save made no version) -> FAIL
+  ---
+  duration_ms: 0.246226
+  type: 'test'
+  ...
+# Subtest: decideG8A02 shift: the state is stale, not exact -> FAIL
+ok 72 - decideG8A02 shift: the state is stale, not exact -> FAIL
+  ---
+  duration_ms: 0.197015
+  type: 'test'
+  ...
+# Subtest: decideG8A02 shift: the edit driver failed -> FAIL
+ok 73 - decideG8A02 shift: the edit driver failed -> FAIL
+  ---
+  duration_ms: 0.139855
+  type: 'test'
+  ...
+# Subtest: decideG8A02 shift: the Save failed -> FAIL
+ok 74 - decideG8A02 shift: the Save failed -> FAIL
+  ---
+  duration_ms: 0.388167
+  type: 'test'
+  ...
+# Subtest: decideG8A02 remove: exact instead of lost, a deleted thread, lost replies, or a moved stored anchor -> FAIL
+ok 75 - decideG8A02 remove: exact instead of lost, a deleted thread, lost replies, or a moved stored anchor -> FAIL
+  ---
+  duration_ms: 0.462153
+  type: 'test'
+  ...
+# Subtest: decideG8A02 invalid versions: the three 400 bodies must be byte-equal anchor_version_invalid and write nothing
+ok 76 - decideG8A02 invalid versions: the three 400 bodies must be byte-equal anchor_version_invalid and write nothing
+  ---
+  duration_ms: 0.432476
+  type: 'test'
+  ...
+# Subtest: decideG8A02: a structural edit the product does not offer is BLOCKED with its named blocker (MISSING), never PASS
+ok 77 - decideG8A02: a structural edit the product does not offer is BLOCKED with its named blocker (MISSING), never PASS
+  ---
+  duration_ms: 0.137184
+  type: 'test'
+  ...
+# Subtest: framePinBlock: 05fd209 is BLOCKED(R1); a pin that contains G8-12..15 or an unknown newer one is not
+ok 78 - framePinBlock: 05fd209 is BLOCKED(R1); a pin that contains G8-12..15 or an unknown newer one is not
+  ---
+  duration_ms: 0.606281
+  type: 'test'
+  ...
+# Subtest: readFramePin reads apps/web/platform/office-frame/<editor>.pin.json at run time, so a re-pin flips R1
+ok 79 - readFramePin reads apps/web/platform/office-frame/<editor>.pin.json at run time, so a re-pin flips R1
+  ---
+  duration_ms: 0.566829
+  type: 'test'
+  ...
+# Subtest: anchors per fixture follow the fork codecs; expectedAfterShift and anchorMatches
+ok 80 - anchors per fixture follow the fork codecs; expectedAfterShift and anchorMatches
+  ---
+  duration_ms: 1.911764
+  type: 'test'
+  ...
+# Subtest: EDIT_DRIVERS: every format has a shift and a remove plan driven through product commands, each citing the fork
+ok 81 - EDIT_DRIVERS: every format has a shift and a remove plan driven through product commands, each citing the fork
+  ---
+  duration_ms: 0.354157
+  type: 'test'
+  ...
+# Subtest: PANEL_OPENERS: per editor the ribbon tab + the control that opens the server comments panel, en and vi labels, citing the fork
+ok 82 - PANEL_OPENERS: per editor the ribbon tab + the control that opens the server comments panel, en and vi labels, citing the fork
+  ---
+  duration_ms: 0.331763
+  type: 'test'
+  ...
+# Subtest: pageAction click unlessActive: an active ribbon tab is not pressed again (that collapses the ribbon)
+ok 83 - pageAction click unlessActive: an active ribbon tab is not pressed again (that collapses the ribbon)
+  ---
+  duration_ms: 8.563542
+  type: 'test'
+  ...
+# Subtest: runG8A02 after a re-pin: the web frame's Save moves A's B7 comment to B8 and the desktop reads it there -> PASS
+ok 84 - runG8A02 after a re-pin: the web frame's Save moves A's B7 comment to B8 and the desktop reads it there -> PASS
+  ---
+  duration_ms: 7.325142
+  type: 'test'
+  ...
+# Subtest: runG8A02 after a re-pin: a web Save that makes no version is FAIL on check:web-to-desktop
+ok 85 - runG8A02 after a re-pin: a web Save that makes no version is FAIL on check:web-to-desktop
+  ---
+  duration_ms: 3.59912
+  type: 'test'
+  ...
+# Subtest: runG8A02 on the old pin: the web direction is BLOCKED(R1) without opening a browser
+ok 86 - runG8A02 on the old pin: the web direction is BLOCKED(R1) without opening a browser
+  ---
+  duration_ms: 1.500143
+  type: 'test'
+  ...
+# Subtest: runG8A02 artifact says why the purged-version case is the empty id
+ok 87 - runG8A02 artifact says why the purged-version case is the empty id
+  ---
+  duration_ms: 1.232289
+  type: 'test'
+  ...
+# Subtest: decideWebToDesktop: saved version, exact moved row on it, desktop reads the same; a preset BLOCKED/FAIL passes through
+ok 88 - decideWebToDesktop: saved version, exact moved row on it, desktop reads the same; a preset BLOCKED/FAIL passes through
+  ---
+  duration_ms: 0.277846
+  type: 'test'
+  ...
+# Subtest: runG8A02 (xlsx, fake): upload, desktop comment on B7, insert row + Save -> B8, delete + Save -> lost, three 400s, R1 BLOCKED
+ok 89 - runG8A02 (xlsx, fake): upload, desktop comment on B7, insert row + Save -> B8, delete + Save -> lost, three 400s, R1 BLOCKED
+  ---
+  duration_ms: 1.4877
+  type: 'test'
+  ...
+# Subtest: runG8A02: an app that cannot be driven is FAIL (never BLOCKED)
+ok 90 - runG8A02: an app that cannot be driven is FAIL (never BLOCKED)
+  ---
+  duration_ms: 0.45064
+  type: 'test'
+  ...
+# Subtest: runG8A02 opens the editor's comments panel and waits until the editor lists the comment before the shift edit
+ok 91 - runG8A02 opens the editor's comments panel and waits until the editor lists the comment before the shift edit
+  ---
+  duration_ms: 1.112694
+  type: 'test'
+  ...
+# Subtest: runG8A02: an editor that never lists the comment is FAIL at editor-lists and drives no edit
+ok 92 - runG8A02: an editor that never lists the comment is FAIL at editor-lists and drives no edit
+  ---
+  duration_ms: 0.843864
+  type: 'test'
+  ...
+# Subtest: decideG8A02 remove: the kept-version rule speaks only about a lost row (an exact row already fails on its state)
+ok 93 - decideG8A02 remove: the kept-version rule speaks only about a lost row (an exact row already fails on its state)
+  ---
+  duration_ms: 0.212193
+  type: 'test'
+  ...
+# Subtest: decideG8A02 closed-panel Save: an anchor that moved to the new head with the panel closed -> that check PASS
+ok 94 - decideG8A02 closed-panel Save: an anchor that moved to the new head with the panel closed -> that check PASS
+  ---
+  duration_ms: 0.123771
+  type: 'test'
+  ...
+# Subtest: decideG8A02 closed-panel Save: an anchor the round never covered (exact on the old version) is FAIL naming the one-list-at-mount controller and the format's round
+ok 95 - decideG8A02 closed-panel Save: an anchor the round never covered (exact on the old version) is FAIL naming the one-list-at-mount controller and the format's round
+  ---
+  duration_ms: 0.557254
+  type: 'test'
+  ...
+# Subtest: decideG8A02 closed-panel Save: a comment that does not postdate the editor's first list proves nothing -> FAIL scenario not established (harness, no owner)
+ok 96 - decideG8A02 closed-panel Save: a comment that does not postdate the editor's first list proves nothing -> FAIL scenario not established (harness, no owner)
+  ---
+  duration_ms: 0.250929
+  type: 'test'
+  ...
+# Subtest: decideG8A02 closed-panel Save PASS says why the round covered a comment made after the first list
+ok 97 - decideG8A02 closed-panel Save PASS says why the round covered a comment made after the first list
+  ---
+  duration_ms: 0.254951
+  type: 'test'
+  ...
+# Subtest: decideG8A02 closed-panel Save: a row the desktop reported lost is the round's own answer, never the panel gate; docx names the post-Save reload
+ok 98 - decideG8A02 closed-panel Save: a row the desktop reported lost is the round's own answer, never the panel gate; docx names the post-Save reload
+  ---
+  duration_ms: 0.474524
+  type: 'test'
+  ...
+# Subtest: decideG8A02 docx: a saved head whose quote is not at the expected block is the edit driver's fault (harness), not a product FAIL
+ok 99 - decideG8A02 docx: a saved head whose quote is not at the expected block is the edit driver's fault (harness), not a product FAIL
+  ---
+  duration_ms: 0.246268
+  type: 'test'
+  ...
+# Subtest: decideG8A02 shift: a lost row says the desktop reported lost (the server keeps the version), with the docx reason; remove after an already-lost row is not observed
+ok 100 - decideG8A02 shift: a lost row says the desktop reported lost (the server keeps the version), with the docx reason; remove after an already-lost row is not observed
+  ---
+  duration_ms: 0.247678
+  type: 'test'
+  ...
+# Subtest: docxQuoteBlock: the top-level block that holds the quote, empty <w:p/> paragraphs counted
+ok 101 - docxQuoteBlock: the top-level block that holds the quote, empty <w:p/> paragraphs counted
+  ---
+  duration_ms: 0.511057
+  type: 'test'
+  ...
+# Subtest: serverCommentMark counts the docx highlights of one comment (fork anchor-tracker.ts:49,58-61)
+ok 102 - serverCommentMark counts the docx highlights of one comment (fork anchor-tracker.ts:49,58-61)
+  ---
+  duration_ms: 0.155875
+  type: 'test'
+  ...
+# Subtest: decideG8A02 closed-panel Save: moved but wrong place, a failed edit or Save, or a part that did not run -> FAIL with that reason
+ok 103 - decideG8A02 closed-panel Save: moved but wrong place, a failed edit or Save, or a part that did not run -> FAIL with that reason
+  ---
+  duration_ms: 0.250758
+  type: 'test'
+  ...
+# Subtest: runG8A02 runs the closed-panel Save first on its own document: no opener before its edit, row FAIL with the product reason when the anchor stays
+ok 104 - runG8A02 runs the closed-panel Save first on its own document: no opener before its edit, row FAIL with the product reason when the anchor stays
+  ---
+  duration_ms: 1.901092
+  type: 'test'
+  ...
+# Subtest: runG8A02 closed-panel Save that moves the anchor: that check PASS, the rest unchanged
+ok 105 - runG8A02 closed-panel Save that moves the anchor: that check PASS, the rest unchanged
+  ---
+  duration_ms: 1.109047
+  type: 'test'
+  ...
+# Subtest: runG8A02 asks for the editor page that shows each document by path (two documents of one kind are open)
+ok 106 - runG8A02 asks for the editor page that shows each document by path (two documents of one kind are open)
+  ---
+  duration_ms: 1.067419
+  type: 'test'
+  ...
+# Subtest: runG8A02 (docx, fake): records the highlight around each Save and the saved head's quote block, and a lost row ends the wait at once
+ok 107 - runG8A02 (docx, fake): records the highlight around each Save and the saved head's quote block, and a lost row ends the wait at once
+  ---
+  duration_ms: 3.169718
+  type: 'test'
+  ...
+# Subtest: runG8A02 closed panel: the comment is made over REST only after the server log shows the editor's first list, and the order is recorded
+ok 108 - runG8A02 closed panel: the comment is made over REST only after the server log shows the editor's first list, and the order is recorded
+  ---
+  duration_ms: 1.425688
+  type: 'test'
+  ...
+# Subtest: runG8A02 closed panel: no editor list in the server log -> the comment is not made and the check FAILs scenario not established
+ok 109 - runG8A02 closed panel: no editor list in the server log -> the comment is not made and the check FAILs scenario not established
+  ---
+  duration_ms: 1.119447
+  type: 'test'
+  ...
+# Subtest: G819-BE-8b: the first-list signal is recorded as path-only (the server log carries no query), with the reason the flow cannot hit a Discussion list
+ok 110 - G819-BE-8b: the first-list signal is recorded as path-only (the server log carries no query), with the reason the flow cannot hit a Discussion list
+  ---
+  duration_ms: 2.355523
+  type: 'test'
+  ...
+# Subtest: G819-BE-8c: the ordering wait has its own bound - a clock that never advances fails the check instead of spinning
+ok 111 - G819-BE-8c: the ordering wait has its own bound - a clock that never advances fails the check instead of spinning
+  ---
+  duration_ms: 1.465937
+  type: 'test'
+  ...
+# Subtest: G8-A02 closed panel (pdf): waits for the prepare Save's version, then judges the shift Save (not the prepare version)
+ok 112 - G8-A02 closed panel (pdf): waits for the prepare Save's version, then judges the shift Save (not the prepare version)
+  ---
+  duration_ms: 0.918369
+  type: 'test'
+  ...
+# Subtest: G8-A02 closed panel (pdf): a prepare version that never lands fails scenario not established, no comment is made
+ok 113 - G8-A02 closed panel (pdf): a prepare version that never lands fails scenario not established, no comment is made
+  ---
+  duration_ms: 0.710263
+  type: 'test'
+  ...
+# Subtest: check:lost-view-version: server row lost on the shift head's version, web view read-only with no write, landing once, desktop @vN copy -> PASS
+ok 114 - check:lost-view-version: server row lost on the shift head's version, web view read-only with no write, landing once, desktop @vN copy -> PASS
+  ---
+  duration_ms: 0.141242
+  type: 'test'
+  ...
+# Subtest: check:lost-view-version: the server row names another version id or ordinal, or no ordinal -> FAIL with the values
+ok 115 - check:lost-view-version: the server row names another version id or ordinal, or no ordinal -> FAIL with the values
+  ---
+  duration_ms: 0.207694
+  type: 'test'
+  ...
+# Subtest: check:lost-view-version: an expected version the harness itself cannot agree on is a harness FAIL, not a product one
+ok 116 - check:lost-view-version: an expected version the harness itself cannot agree on is a harness FAIL, not a product one
+  ---
+  duration_ms: 0.072919
+  type: 'test'
+  ...
+# Subtest: check:lost-view-version: NOT_JUDGED with cascadeFrom check:remove-lost when the remove step failed; the row cascades only that way
+ok 117 - check:lost-view-version: NOT_JUDGED with cascadeFrom check:remove-lost when the remove step failed; the row cascades only that way
+  ---
+  duration_ms: 0.102021
+  type: 'test'
+  ...
+# Subtest: check:lost-view-version: a BLOCKED remove step (missing edit driver) leaves this step BLOCKED with the same blocker, never PASS
+ok 118 - check:lost-view-version: a BLOCKED remove step (missing edit driver) leaves this step BLOCKED with the same blocker, never PASS
+  ---
+  duration_ms: 0.0728
+  type: 'test'
+  ...
+# Subtest: check:lost-view-version: the frame pin predating the fork UNI-2033 kit/protocol BLOCKS the web part, the rest is judged
+ok 119 - check:lost-view-version: the frame pin predating the fork UNI-2033 kit/protocol BLOCKS the web part, the rest is judged
+  ---
+  duration_ms: 0.107968
+  type: 'test'
+  ...
+# Subtest: G8-A02 row: desktop PASS with the web part BLOCKED by the old pin -> row BLOCKED (77), never PASS
+ok 120 - G8-A02 row: desktop PASS with the web part BLOCKED by the old pin -> row BLOCKED (77), never PASS
+  ---
+  duration_ms: 0.069801
+  type: 'test'
+  ...
+# Subtest: check:lost-view-version web: a Save request during the view -> FAIL
+ok 121 - check:lost-view-version web: a Save request during the view -> FAIL
+  ---
+  duration_ms: 0.1293
+  type: 'test'
+  ...
+# Subtest: check:lost-view-version web: a comments.anchors request during the view -> FAIL
+ok 122 - check:lost-view-version web: a comments.anchors request during the view -> FAIL
+  ---
+  duration_ms: 0.092307
+  type: 'test'
+  ...
+# Subtest: check:lost-view-version web: a Save the server log saw during the view -> FAIL
+ok 123 - check:lost-view-version web: a Save the server log saw during the view -> FAIL
+  ---
+  duration_ms: 0.086346
+  type: 'test'
+  ...
+# Subtest: check:lost-view-version web: no read-only banner -> FAIL
+ok 124 - check:lost-view-version web: no read-only banner -> FAIL
+  ---
+  duration_ms: 0.138343
+  type: 'test'
+  ...
+# Subtest: check:lost-view-version web: a banner for another version -> FAIL
+ok 125 - check:lost-view-version web: a banner for another version -> FAIL
+  ---
+  duration_ms: 0.064526
+  type: 'test'
+  ...
+# Subtest: check:lost-view-version web: the version is unavailable -> FAIL
+ok 126 - check:lost-view-version web: the version is unavailable -> FAIL
+  ---
+  duration_ms: 0.0555
+  type: 'test'
+  ...
+# Subtest: check:lost-view-version web: the frame never fetched version 2's bytes -> FAIL
+ok 127 - check:lost-view-version web: the frame never fetched version 2's bytes -> FAIL
+  ---
+  duration_ms: 0.057532
+  type: 'test'
+  ...
+# Subtest: check:lost-view-version web: the frame fetched another version -> FAIL
+ok 128 - check:lost-view-version web: the frame fetched another version -> FAIL
+  ---
+  duration_ms: 0.052028
+  type: 'test'
+  ...
+# Subtest: check:lost-view-version web: the thread is not revealed -> FAIL
+ok 129 - check:lost-view-version web: the thread is not revealed -> FAIL
+  ---
+  duration_ms: 0.10066
+  type: 'test'
+  ...
+# Subtest: check:lost-view-version web: no switch from ?comment= alone -> FAIL
+ok 130 - check:lost-view-version web: no switch from ?comment= alone -> FAIL
+  ---
+  duration_ms: 0.06611
+  type: 'test'
+  ...
+# Subtest: check:lost-view-version web: a switch to the wrong version -> FAIL
+ok 131 - check:lost-view-version web: a switch to the wrong version -> FAIL
+  ---
+  duration_ms: 0.061105
+  type: 'test'
+  ...
+# Subtest: check:lost-view-version web: a switch that happens twice -> FAIL
+ok 132 - check:lost-view-version web: a switch that happens twice -> FAIL
+  ---
+  duration_ms: 0.057932
+  type: 'test'
+  ...
+# Subtest: check:lost-view-version web: a banner in Vietnamese names the version too; the server log may be missing (browser requests alone judge)
+ok 133 - check:lost-view-version web: a banner in Vietnamese names the version too; the server log may be missing (browser requests alone judge)
+  ---
+  duration_ms: 0.124814
+  type: 'test'
+  ...
+# Subtest: check:lost-view-version desktop: the copy is not a @vN copy -> FAIL
+ok 134 - check:lost-view-version desktop: the copy is not a @vN copy -> FAIL
+  ---
+  duration_ms: 0.079949
+  type: 'test'
+  ...
+# Subtest: check:lost-view-version desktop: the copy is editable -> FAIL
+ok 135 - check:lost-view-version desktop: the copy is editable -> FAIL
+  ---
+  duration_ms: 0.056825
+  type: 'test'
+  ...
+# Subtest: check:lost-view-version desktop: the copy reports access edit -> FAIL
+ok 136 - check:lost-view-version desktop: the copy reports access edit -> FAIL
+  ---
+  duration_ms: 0.055114
+  type: 'test'
+  ...
+# Subtest: check:lost-view-version desktop: the copy's open version id is not the viewed version -> FAIL
+ok 137 - check:lost-view-version desktop: the copy's open version id is not the viewed version -> FAIL
+  ---
+  duration_ms: 0.053159
+  type: 'test'
+  ...
+# Subtest: check:lost-view-version desktop: the editor's panel lists but never shows the comment -> FAIL
+ok 138 - check:lost-view-version desktop: the editor's panel lists but never shows the comment -> FAIL
+  ---
+  duration_ms: 0.055252
+  type: 'test'
+  ...
+# Subtest: check:lost-view-version desktop: the open failed -> FAIL
+ok 139 - check:lost-view-version desktop: the open failed -> FAIL
+  ---
+  duration_ms: 0.056197
+  type: 'test'
+  ...
+# Subtest: check:lost-view-version desktop: what the app cannot report (no read-only flag, no open panel) is recorded, not judged
+ok 140 - check:lost-view-version desktop: what the app cannot report (no read-only flag, no open panel) is recorded, not judged
+  ---
+  duration_ms: 0.101054
+  type: 'test'
+  ...
+# Subtest: check:lost-view-version: no record at all -> FAIL (the step did not run)
+ok 141 - check:lost-view-version: no record at all -> FAIL (the step did not run)
+  ---
+  duration_ms: 0.040955
+  type: 'test'
+  ...
+# Subtest: viewVersionPinBlock: the pin at fork 1abc493 and the old protocol sha are BLOCKED by a constant, a pin that holds the T4 commit is not, an unknown newer pin runs
+ok 142 - viewVersionPinBlock: the pin at fork 1abc493 and the old protocol sha are BLOCKED by a constant, a pin that holds the T4 commit is not, an unknown newer pin runs
+  ---
+  duration_ms: 0.113464
+  type: 'test'
+  ...
+# Subtest: documentWriteRequests: only a Save commit or a comments.anchors write of that document counts, GETs and other posts do not
+ok 143 - documentWriteRequests: only a Save commit or a comments.anchors write of that document counts, GETs and other posts do not
+  ---
+  duration_ms: 0.47823
+  type: 'test'
+  ...
+# Subtest: observeVersionView: opens ?version=N&comment=<id>, reads the banner, the frame's bytes request and the panel, then ?comment= alone switches once
+ok 144 - observeVersionView: opens ?version=N&comment=<id>, reads the banner, the frame's bytes request and the panel, then ?comment= alone switches once
+  ---
+  duration_ms: 1.725272
+  type: 'test'
+  ...
+# Subtest: observeVersionView: a Save request the browser makes during the view is recorded as a write
+ok 145 - observeVersionView: a Save request the browser makes during the view is recorded as a write
+  ---
+  duration_ms: 0.744258
+  type: 'test'
+  ...
+# Subtest: runG8A02 (xlsx, fake) after a re-pin: check:lost-view-version reads the lost row, drives the web view and a view ticket on the desktop -> PASS
+ok 146 - runG8A02 (xlsx, fake) after a re-pin: check:lost-view-version reads the lost row, drives the web view and a view ticket on the desktop -> PASS
+  ---
+  duration_ms: 1.42117
+  type: 'test'
+  ...
+# Subtest: runG8A02 (xlsx, fake): the old frame pin BLOCKS the web part of the step without observing a page, the server and desktop parts are still judged
+ok 147 - runG8A02 (xlsx, fake): the old frame pin BLOCKS the web part of the step without observing a page, the server and desktop parts are still judged
+  ---
+  duration_ms: 1.101885
+  type: 'test'
+  ...
+# Subtest: runG8A02 (xlsx, fake): a server that answers no ordinal for the lost row is FAIL on the step, whatever the web and desktop say
+ok 148 - runG8A02 (xlsx, fake): a server that answers no ordinal for the lost row is FAIL on the step, whatever the web and desktop say
+  ---
+  duration_ms: 2.724743
+  type: 'test'
+  ...
+# Subtest: runG8A02 (xlsx, fake): when remove-lost fails the lost-view step is not run (no view ticket is minted) and is NOT_JUDGED
+ok 149 - runG8A02 (xlsx, fake): when remove-lost fails the lost-view step is not run (no view ticket is minted) and is NOT_JUDGED
+  ---
+  duration_ms: 1.418591
+  type: 'test'
+  ...
+# Subtest: decideG8A01: one row, author A (human), the fixture's anchor format, no machine name -> PASS; the AI clause is cited, not tested
+ok 150 - decideG8A01: one row, author A (human), the fixture's anchor format, no machine name -> PASS; the AI clause is cited, not tested
+  ---
+  duration_ms: 1.131897
+  type: 'test'
+  ...
+# Subtest: decideG8A01: two rows for one create -> FAIL
+ok 151 - decideG8A01: two rows for one create -> FAIL
+  ---
+  duration_ms: 0.26133
+  type: 'test'
+  ...
+# Subtest: decideG8A01: the row is not the created id -> FAIL
+ok 152 - decideG8A01: the row is not the created id -> FAIL
+  ---
+  duration_ms: 0.085437
+  type: 'test'
+  ...
+# Subtest: decideG8A01: another author -> FAIL
+ok 153 - decideG8A01: another author -> FAIL
+  ---
+  duration_ms: 0.069207
+  type: 'test'
+  ...
+# Subtest: decideG8A01: an agent author -> FAIL
+ok 154 - decideG8A01: an agent author -> FAIL
+  ---
+  duration_ms: 0.117619
+  type: 'test'
+  ...
+# Subtest: decideG8A01: a docx anchor on an xlsx -> FAIL
+ok 155 - decideG8A01: a docx anchor on an xlsx -> FAIL
+  ---
+  duration_ms: 0.071315
+  type: 'test'
+  ...
+# Subtest: decideG8A01: the web reader does not see the row -> FAIL
+ok 156 - decideG8A01: the web reader does not see the row -> FAIL
+  ---
+  duration_ms: 0.105767
+  type: 'test'
+  ...
+# Subtest: decideG8A01: the machine name in a saved part -> FAIL
+ok 157 - decideG8A01: the machine name in a saved part -> FAIL
+  ---
+  duration_ms: 0.155253
+  type: 'test'
+  ...
+# Subtest: decideG8A01: no name left to scan for -> FAIL
+ok 158 - decideG8A01: no name left to scan for -> FAIL
+  ---
+  duration_ms: 0.228814
+  type: 'test'
+  ...
+# Subtest: decideG8A01: the machine name in a payload -> FAIL
+ok 159 - decideG8A01: the machine name in a payload -> FAIL
+  ---
+  duration_ms: 0.332582
+  type: 'test'
+  ...
+# Subtest: decideG8A01: the desktop create failed -> FAIL
+ok 160 - decideG8A01: the desktop create failed -> FAIL
+  ---
+  duration_ms: 0.118804
+  type: 'test'
+  ...
+# Subtest: decideG8A01: the Save failed -> FAIL
+ok 161 - decideG8A01: the Save failed -> FAIL
+  ---
+  duration_ms: 0.064241
+  type: 'test'
+  ...
+# Subtest: decideG8A01: the dirtying edit failed -> FAIL
+ok 162 - decideG8A01: the dirtying edit failed -> FAIL
+  ---
+  duration_ms: 0.048285
+  type: 'test'
+  ...
+# Subtest: decideG8A01: a Save that made no new version -> FAIL
+ok 163 - decideG8A01: a Save that made no new version -> FAIL
+  ---
+  duration_ms: 0.045129
+  type: 'test'
+  ...
+# Subtest: decideG8A01: a Save with no head read -> FAIL
+ok 164 - decideG8A01: a Save with no head read -> FAIL
+  ---
+  duration_ms: 0.046642
+  type: 'test'
+  ...
+# Subtest: decideG8A01: the new version was not scanned -> FAIL
+ok 165 - decideG8A01: the new version was not scanned -> FAIL
+  ---
+  duration_ms: 0.076306
+  type: 'test'
+  ...
+# Subtest: decideG8A01: the machine name in the working copy only -> FAIL
+ok 166 - decideG8A01: the machine name in the working copy only -> FAIL
+  ---
+  duration_ms: 0.079233
+  type: 'test'
+  ...
+# Subtest: decideG8A01: the working copy was not scanned -> FAIL
+ok 167 - decideG8A01: the working copy was not scanned -> FAIL
+  ---
+  duration_ms: 0.040724
+  type: 'test'
+  ...
+# Subtest: decideG8A04: every host sees the other, two rows, offline read-only with the draft -> PASS
+ok 168 - decideG8A04: every host sees the other, two rows, offline read-only with the draft -> PASS
+  ---
+  duration_ms: 0.330019
+  type: 'test'
+  ...
+# Subtest: decideG8A04: the web panel in an old frame is BLOCKED(R1) (exit 77), never PASS
+ok 169 - decideG8A04: the web panel in an old frame is BLOCKED(R1) (exit 77), never PASS
+  ---
+  duration_ms: 0.147328
+  type: 'test'
+  ...
+# Subtest: decideG8A04: the desktop must see a web change on focus within 30 s poll + 5 s (35 s)
+ok 170 - decideG8A04: the desktop must see a web change on focus within 30 s poll + 5 s (35 s)
+  ---
+  duration_ms: 0.168818
+  type: 'test'
+  ...
+# Subtest: decideG8A04: offline must be read-only (status line + Send blocked), keep the draft, and recover
+ok 171 - decideG8A04: offline must be read-only (status line + Send blocked), keep the draft, and recover
+  ---
+  duration_ms: 0.326251
+  type: 'test'
+  ...
+# Subtest: decideG8A04: concurrent sends must be two rows with two ids; a hard delete must change list_token and leave the desktop
+ok 172 - decideG8A04: concurrent sends must be two rows with two ids; a hard delete must change list_token and leave the desktop
+  ---
+  duration_ms: 0.144022
+  type: 'test'
+  ...
+# Subtest: decideA03AddOn: the discussion survives a rename (same id, one thread) and a copy carries no comments
+ok 173 - decideA03AddOn: the discussion survives a rename (same id, one thread) and a copy carries no comments
+  ---
+  duration_ms: 0.120993
+  type: 'test'
+  ...
+# Subtest: waitDesktopSees forces a focus before every probe and gives up at the bound
+ok 174 - waitDesktopSees forces a focus before every probe and gives up at the bound
+  ---
+  duration_ms: 0.647137
+  type: 'test'
+  ...
+# Subtest: runG8A01 (docx, fake): the desktop comment is one server row by A, and the saved file + payloads are clean -> PASS
+ok 175 - runG8A01 (docx, fake): the desktop comment is one server row by A, and the saved file + payloads are clean -> PASS
+  ---
+  duration_ms: 5.358534
+  type: 'test'
+  ...
+# Subtest: runG8A01 (docx, fake): the machine name in the saved comments.xml or the author payload -> FAIL
+ok 176 - runG8A01 (docx, fake): the machine name in the saved comments.xml or the author payload -> FAIL
+  ---
+  duration_ms: 1.137635
+  type: 'test'
+  ...
+# Subtest: runG8A01 (docx, fake): a Save that leaves the server head where it was is FAIL and nothing is downloaded
+ok 177 - runG8A01 (docx, fake): a Save that leaves the server head where it was is FAIL and nothing is downloaded
+  ---
+  duration_ms: 1.411489
+  type: 'test'
+  ...
+# Subtest: DIRTY_EDITS: every format has a product-command plan with fork citations; pdf says why it is not a note
+ok 178 - DIRTY_EDITS: every format has a product-command plan with fork citations; pdf says why it is not a note
+  ---
+  duration_ms: 0.192092
+  type: 'test'
+  ...
+# Subtest: downloadVersion GETs /api/v1/documents/{id}/download?version=N with the user's token and returns the bytes
+ok 179 - downloadVersion GETs /api/v1/documents/{id}/download?version=N with the user's token and returns the bytes
+  ---
+  duration_ms: 0.617282
+  type: 'test'
+  ...
+# Subtest: runG8A04 (xlsx, fake): web create seen on desktop after focus, desktop create read by B, R1 BLOCKED, A03 add-on in details
+ok 180 - runG8A04 (xlsx, fake): web create seen on desktop after focus, desktop create read by B, R1 BLOCKED, A03 add-on in details
+  ---
+  duration_ms: 2.993739
+  type: 'test'
+  ...
+# Subtest: runG8A04 opens the panel through the editor's own Review > Show Comments (r1: no bare Comments button) and waits for it
+ok 181 - runG8A04 opens the panel through the editor's own Review > Show Comments (r1: no bare Comments button) and waits for it
+  ---
+  duration_ms: 1.240714
+  type: 'test'
+  ...
+# Subtest: runG8A04: a panel that does not appear after the opener is FAIL at panel with the opener named
+ok 182 - runG8A04: a panel that does not appear after the opener is FAIL at panel with the opener named
+  ---
+  duration_ms: 0.526624
+  type: 'test'
+  ...
+# Subtest: runG8A04 offline: a composer that cannot be opened makes the offline step FAIL itself (never PASS on empty observations)
+ok 183 - runG8A04 offline: a composer that cannot be opened makes the offline step FAIL itself (never PASS on empty observations)
+  ---
+  duration_ms: 0.933846
+  type: 'test'
+  ...
+# Subtest: decideG8A04 offline: Send must be enabled online with the draft, else its offline block proves nothing
+ok 184 - decideG8A04 offline: Send must be enabled online with the draft, else its offline block proves nothing
+  ---
+  duration_ms: 0.168732
+  type: 'test'
+  ...
+# Subtest: openReplyComposer presses Reply in the thread and waits for its composer (fork CollabThread.tsx:761-770,851-852)
+ok 185 - openReplyComposer presses Reply in the thread and waits for its composer (fork CollabThread.tsx:761-770,851-852)
+  ---
+  duration_ms: 101.873147
+  type: 'test'
+  ...
+# Subtest: expectedDocumentHref: the notification's own workspace when the recipient is a member
+ok 186 - expectedDocumentHref: the notification's own workspace when the recipient is a member
+  ---
+  duration_ms: 2.116244
+  type: 'test'
+  ...
+# Subtest: expectedDocumentHref: a document shared from a workspace the recipient is not in opens in the open workspace
+ok 187 - expectedDocumentHref: a document shared from a workspace the recipient is not in opens in the open workspace
+  ---
+  duration_ms: 1.157231
+  type: 'test'
+  ...
+# Subtest: expectedDocumentHref: a discussion adds kind=discussion; no comment id means the bare document
+ok 188 - expectedDocumentHref: a discussion adds kind=discussion; no comment id means the bare document
+  ---
+  duration_ms: 0.982174
+  type: 'test'
+  ...
+# Subtest: hrefCommentId + launchCommentId: the page's ?comment= rides the ticket only when id-shaped (desktop-handoff.ts:27-36)
+ok 189 - hrefCommentId + launchCommentId: the page's ?comment= rides the ticket only when id-shaped (desktop-handoff.ts:27-36)
+  ---
+  duration_ms: 0.907482
+  type: 'test'
+  ...
+# Subtest: formatOfFixture reads the format out of the fixture id
+ok 190 - formatOfFixture reads the format out of the fixture id
+  ---
+  duration_ms: 0.80554
+  type: 'test'
+  ...
+# Subtest: readFramePin: docx -> docs.pin.json, xlsx -> sheets.pin.json; a format with no pin file is unframed
+ok 191 - readFramePin: docx -> docs.pin.json, xlsx -> sheets.pin.json; a format with no pin file is unframed
+  ---
+  duration_ms: 1.272817
+  type: 'test'
+  ...
+# Subtest: framePinVerdict: 05fd209 is old (BLOCKED R1, owner lead-f); a re-pin flips it without a code change
+ok 192 - framePinVerdict: 05fd209 is old (BLOCKED R1, owner lead-f); a re-pin flips it without a code change
+  ---
+  duration_ms: 0.833989
+  type: 'test'
+  ...
+# Subtest: normalizeSelection: 'Doanh thu Q2!B7' from the sheets control reply (fork apps/sheets/src/renderer/control.ts:34-50)
+ok 193 - normalizeSelection: 'Doanh thu Q2!B7' from the sheets control reply (fork apps/sheets/src/renderer/control.ts:34-50)
+  ---
+  duration_ms: 0.756175
+  type: 'test'
+  ...
+# Subtest: decideDesktopReveal: xlsx PASS needs the ticket comment, the opened document, the focused thread and Doanh thu Q2!B7
+ok 194 - decideDesktopReveal: xlsx PASS needs the ticket comment, the opened document, the focused thread and Doanh thu Q2!B7
+  ---
+  duration_ms: 0.976989
+  type: 'test'
+  ...
+# Subtest: decideDesktopReveal: no focus on the first open of a comment made before the launch is a plain FAIL with the evidence, not the unlisted-id drop (cloud r3 xlsx)
+ok 195 - decideDesktopReveal: no focus on the first open of a comment made before the launch is a plain FAIL with the evidence, not the unlisted-id drop (cloud r3 xlsx)
+  ---
+  duration_ms: 1.544867
+  type: 'test'
+  ...
+# Subtest: decideDesktopReveal: a reveal of a comment the open panel had not listed is the product drop (SheetsServerComments.tsx:287-289, Lead F)
+ok 196 - decideDesktopReveal: a reveal of a comment the open panel had not listed is the product drop (SheetsServerComments.tsx:287-289, Lead F)
+  ---
+  duration_ms: 0.826828
+  type: 'test'
+  ...
+# Subtest: DEEP_LINK_EXCEPTIONS lists the five UNI-1389 cases
+ok 197 - DEEP_LINK_EXCEPTIONS lists the five UNI-1389 cases
+  ---
+  duration_ms: 0.607851
+  type: 'test'
+  ...
+# Subtest: decideException maps each observed state
+ok 198 - decideException maps each observed state
+  ---
+  duration_ms: 0.891488
+  type: 'test'
+  ...
+# Subtest: decideException no_access: C (never shared) gets the gone page, B (revoked, row reads resource_access_lost) gets S15 no-access
+ok 199 - decideException no_access: C (never shared) gets the gone page, B (revoked, row reads resource_access_lost) gets S15 no-access
+  ---
+  duration_ms: 0.70646
+  type: 'test'
+  ...
+# Subtest: decideException comment_deleted: a refused launch ticket is a product FAIL citing the contract's silent drop; the row flag is judged first
+ok 200 - decideException comment_deleted: a refused launch ticket is a product FAIL citing the contract's silent drop; the row flag is judged first
+  ---
+  duration_ms: 0.652395
+  type: 'test'
+  ...
+# Subtest: decideException anchor_lost: a thread the open panel never listed before the re-launch is not judged as a reveal miss
+ok 201 - decideException anchor_lost: a thread the open panel never listed before the re-launch is not judged as a reveal miss
+  ---
+  duration_ms: 0.666119
+  type: 'test'
+  ...
+# Subtest: decideException: the web half of comment_deleted inside an old frame is BLOCKED(R1), never PASS
+ok 202 - decideException: the web half of comment_deleted inside an old frame is BLOCKED(R1), never PASS
+  ---
+  duration_ms: 0.699982
+  type: 'test'
+  ...
+# Subtest: decideG8A07: everything observed on a re-pinned frame -> PASS
+ok 203 - decideG8A07: everything observed on a re-pinned frame -> PASS
+  ---
+  duration_ms: 1.076646
+  type: 'test'
+  ...
+# Subtest: decideG8A07: the web panel inside the old frame is BLOCKED(R1) and the row is BLOCKED, never PASS, even if the page looked fine
+ok 204 - decideG8A07: the web panel inside the old frame is BLOCKED(R1) and the row is BLOCKED, never PASS, even if the page looked fine
+  ---
+  duration_ms: 0.894702
+  type: 'test'
+  ...
+# Subtest: decideG8A07: a wrong href, a desktop miss or a failed exception is FAIL even under the old pin
+ok 205 - decideG8A07: a wrong href, a desktop miss or a failed exception is FAIL even under the old pin
+  ---
+  duration_ms: 1.036288
+  type: 'test'
+  ...
+# Subtest: decideG8A07: the cross-workspace notification must be listed in the recipient's Inbox and open in the recipient's workspace
+ok 206 - decideG8A07: the cross-workspace notification must be listed in the recipient's Inbox and open in the recipient's workspace
+  ---
+  duration_ms: 0.935429
+  type: 'test'
+  ...
+# Subtest: decideG8A07: an empty record is FAIL
+ok 207 - decideG8A07: an empty record is FAIL
+  ---
+  duration_ms: 0.697563
+  type: 'test'
+  ...
+# Subtest: runDeeplink on a re-pinned frame: PASS with every check and the revoke steps in the artifact
+ok 208 - runDeeplink on a re-pinned frame: PASS with every check and the revoke steps in the artifact
+  ---
+  duration_ms: 59.127838
+  type: 'test'
+  ...
+# Subtest: runDeeplink under the 05fd209 pin: exit 77 with the R1 blocker; the desktop B7 reveal still PASSes
+ok 209 - runDeeplink under the 05fd209 pin: exit 77 with the R1 blocker; the desktop B7 reveal still PASSes
+  ---
+  duration_ms: 56.991189
+  type: 'test'
+  ...
+# Subtest: runDeeplink: the Inbox href in the document's workspace while the recipient is not a member there is FAIL
+ok 210 - runDeeplink: the Inbox href in the document's workspace while the recipient is not a member there is FAIL
+  ---
+  duration_ms: 59.396045
+  type: 'test'
+  ...
+# Subtest: runDeeplink: an app that cannot be driven is FAIL, never BLOCKED
+ok 211 - runDeeplink: an app that cannot be driven is FAIL, never BLOCKED
+  ---
+  duration_ms: 1.616378
+  type: 'test'
+  ...
+# Subtest: decideG8A07: a cross-workspace row filed under the document's workspace is a product FAIL naming the Inbox workspace filter and an owner
+ok 212 - decideG8A07: a cross-workspace row filed under the document's workspace is a product FAIL naming the Inbox workspace filter and an owner
+  ---
+  duration_ms: 0.723427
+  type: 'test'
+  ...
+# Subtest: runDeeplink: the B7 selection is read in the page that shows the document, not the app's first sheets window
+ok 213 - runDeeplink: the B7 selection is read in the page that shows the document, not the app's first sheets window
+  ---
+  duration_ms: 52.075914
+  type: 'test'
+  ...
+# Subtest: runDeeplink: the lost-anchor comment is listed by the open panel (focus refresh) before the re-launch reveals it
+ok 214 - runDeeplink: the lost-anchor comment is listed by the open panel (focus refresh) before the re-launch reveals it
+  ---
+  duration_ms: 51.435113
+  type: 'test'
+  ...
+# Subtest: runDeeplink: a launch refused for the deleted comment is a product FAIL, and the row's comment_deleted is still recorded
+ok 215 - runDeeplink: a launch refused for the deleted comment is a product FAIL, and the row's comment_deleted is still recorded
+  ---
+  duration_ms: 1.913977
+  type: 'test'
+  ...
+# Subtest: runDeeplink: C's link shows the gone page (PASS); B's revoked link on the gone page is the product FAIL in revoke and no_access
+ok 216 - runDeeplink: C's link shows the gone page (PASS); B's revoked link on the gone page is the product FAIL in revoke and no_access
+  ---
+  duration_ms: 54.738593
+  type: 'test'
+  ...
+# Subtest: the world has the §2 keys: users A B C M, org X (W1 W2) owned by A, org Y (WY) owned by M
+ok 217 - the world has the §2 keys: users A B C M, org X (W1 W2) owned by A, org Y (WY) owned by M
+  ---
+  duration_ms: 1.491968
+  type: 'test'
+  ...
+# Subtest: M's second org is SEEDED via sql, or a BLOCKED marker naming the blocker when SQL is not allowed
+ok 218 - M's second org is SEEDED via sql, or a BLOCKED marker naming the blocker when SQL is not allowed
+  ---
+  duration_ms: 0.329719
+  type: 'test'
+  ...
+# Subtest: world methods: upload/share/revokeShare/deactivate/cleanup return the §3 shapes and are recorded
+ok 219 - world methods: upload/share/revokeShare/deactivate/cleanup return the §3 shapes and are recorded
+  ---
+  duration_ms: 1.327133
+  type: 'test'
+  ...
+# Subtest: refreshTokens gives every user a new token and the sessions read it per call
+ok 220 - refreshTokens gives every user a new token and the sessions read it per call
+  ---
+  duration_ms: 0.472384
+  type: 'test'
+  ...
+# Subtest: connectApp can be scripted to reject with the appUnavailable classification
+ok 221 - connectApp can be scripted to reject with the appUnavailable classification
+  ---
+  duration_ms: 0.293848
+  type: 'test'
+  ...
+# Subtest: a world method can be scripted to fail
+ok 222 - a world method can be scripted to fail
+  ---
+  duration_ms: 0.121657
+  type: 'test'
+  ...
+# Subtest: api: unscripted -> 501 fake_unscripted; scripted answers; never throws on 4xx; FAKE_TIMEOUT and network errors resolve status 0
+ok 223 - api: unscripted -> 501 fake_unscripted; scripted answers; never throws on 4xx; FAKE_TIMEOUT and network errors resolve status 0
+  ---
+  duration_ms: 0.366121
+  type: 'test'
+  ...
+# Subtest: api: programming errors throw like the real session (unknown name, bad params, unknown body key)
+ok 224 - api: programming errors throw like the real session (unknown name, bad params, unknown body key)
+  ---
+  duration_ms: 0.208671
+  type: 'test'
+  ...
+# Subtest: api: every G8 row is callable through the fake with the contract's params
+ok 225 - api: every G8 row is callable through the fake with the contract's params
+  ---
+  duration_ms: 0.643701
+  type: 'test'
+  ...
+# Subtest: web: webLogin -> {context, page, user, locale, setLocale, close}; openDocument follows the resource-href URL rule
+ok 226 - web: webLogin -> {context, page, user, locale, setLocale, close}; openDocument follows the resource-href URL rule
+  ---
+  duration_ms: 0.641926
+  type: 'test'
+  ...
+# Subtest: web: webSave (§13) defaults to a saved new version per call and is scriptable; webFrameEval is recorded
+ok 227 - web: webSave (§13) defaults to a saved new version per call and is scriptable; webFrameEval is recorded
+  ---
+  duration_ms: 0.385654
+  type: 'test'
+  ...
+# Subtest: app: ctrl has every §7 member; comments/discussion expose exactly the fork bridge names and return the envelope unchanged
+ok 228 - app: ctrl has every §7 member; comments/discussion expose exactly the fork bridge names and return the envelope unchanged
+  ---
+  duration_ms: 0.582806
+  type: 'test'
+  ...
+# Subtest: app: FAKE_TIMEOUT rejects with the §7 isAppStepTimeout error carrying {call, elapsedMs}
+ok 229 - app: FAKE_TIMEOUT rejects with the §7 isAppStepTimeout error carrying {call, elapsedMs}
+  ---
+  duration_ms: 0.163841
+  type: 'test'
+  ...
+# Subtest: script: queue answers are FIFO and win over respond; respond stands
+ok 230 - script: queue answers are FIFO and win over respond; respond stands
+  ---
+  duration_ms: 0.166787
+  type: 'test'
+  ...
+# Subtest: run-row pure helpers: artifact path, exit mapping, step decision, args
+ok 231 - run-row pure helpers: artifact path, exit mapping, step decision, args
+  ---
+  duration_ms: 0.621672
+  type: 'test'
+  ...
+# Subtest: serverCommentCreateRefusal mirrors D's anchor rules (document_comment_anchors.go:254-276)
+ok 232 - serverCommentCreateRefusal mirrors D's anchor rules (document_comment_anchors.go:254-276)
+  ---
+  duration_ms: 0.156647
+  type: 'test'
+  ...
+# Subtest: bridgeCommentCreateRefusal mirrors the fork's parseCommentsCreateInput (comments-ipc.ts:260-276) -> malformed
+ok 233 - bridgeCommentCreateRefusal mirrors the fork's parseCommentsCreateInput (comments-ipc.ts:260-276) -> malformed
+  ---
+  duration_ms: 0.120464
+  type: 'test'
+  ...
+# Subtest: readZipParts inflates DEFLATE entries (a raw byte search would miss the name)
+ok 234 - readZipParts inflates DEFLATE entries (a raw byte search would miss the name)
+  ---
+  duration_ms: 1.91862
+  type: 'test'
+  ...
+# Subtest: scanForNames finds the name inside the inflated xlsx threaded comments part and reports part + offset
+ok 235 - scanForNames finds the name inside the inflated xlsx threaded comments part and reports part + offset
+  ---
+  duration_ms: 1.335098
+  type: 'test'
+  ...
+# Subtest: scanForNames finds the name inside the inflated xlsx persons part and reports part + offset
+ok 236 - scanForNames finds the name inside the inflated xlsx persons part and reports part + offset
+  ---
+  duration_ms: 0.477804
+  type: 'test'
+  ...
+# Subtest: scanForNames finds the name inside the inflated docx comments part and reports part + offset
+ok 237 - scanForNames finds the name inside the inflated docx comments part and reports part + offset
+  ---
+  duration_ms: 1.164273
+  type: 'test'
+  ...
+# Subtest: scanForNames finds the name inside the inflated pptx comment authors part and reports part + offset
+ok 238 - scanForNames finds the name inside the inflated pptx comment authors part and reports part + offset
+  ---
+  duration_ms: 0.279031
+  type: 'test'
+  ...
+# Subtest: a clean package has no hits but still lists every part it read
+ok 239 - a clean package has no hits but still lists every part it read
+  ---
+  duration_ms: 0.272399
+  type: 'test'
+  ...
+# Subtest: the match is case-insensitive and needs a word boundary (no hit inside a longer word)
+ok 240 - the match is case-insensitive and needs a word boundary (no hit inside a longer word)
+  ---
+  duration_ms: 0.124475
+  type: 'test'
+  ...
+# Subtest: a PDF /T (name) literal is found with the /T offset
+ok 241 - a PDF /T (name) literal is found with the /T offset
+  ---
+  duration_ms: 0.518367
+  type: 'test'
+  ...
+# Subtest: a PDF /T in UTF-16BE hex and one inside a FlateDecode object stream are decoded and found
+ok 242 - a PDF /T in UTF-16BE hex and one inside a FlateDecode object stream are decoded and found
+  ---
+  duration_ms: 0.748741
+  type: 'test'
+  ...
+# Subtest: a '/T (' inside an unfiltered stream (font bytes) is not read as an annotation author
+ok 243 - a '/T (' inside an unfiltered stream (font bytes) is not read as an annotation author
+  ---
+  duration_ms: 0.340001
+  type: 'test'
+  ...
+# Subtest: names shorter than 3 characters and the neutral 'User' are skipped and noted
+ok 244 - names shorter than 3 characters and the neutral 'User' are skipped and noted
+  ---
+  duration_ms: 0.271418
+  type: 'test'
+  ...
+# Subtest: machineNames() reads os.userInfo().username, os.hostname(), USER and LOGNAME, dedupes and notes the skipped ones
+ok 245 - machineNames() reads os.userInfo().username, os.hostname(), USER and LOGNAME, dedupes and notes the skipped ones
+  ---
+  duration_ms: 0.258359
+  type: 'test'
+  ...
+# Subtest: machineNames() defaults to the real os.userInfo() and os.hostname()
+ok 246 - machineNames() defaults to the real os.userInfo() and os.hostname()
+  ---
+  duration_ms: 0.237569
+  type: 'test'
+  ...
+# Subtest: mentionToken is the editor's token (server/internal/mentions/mentions.go:21-24)
+ok 247 - mentionToken is the editor's token (server/internal/mentions/mentions.go:21-24)
+  ---
+  duration_ms: 1.524754
+  type: 'test'
+  ...
+# Subtest: mentionBody names B twice and A (the author) once, with Vietnamese text, and no outer whitespace
+ok 248 - mentionBody names B twice and A (the author) once, with Vietnamese text, and no outer whitespace
+  ---
+  duration_ms: 0.688771
+  type: 'test'
+  ...
+# Subtest: rowsForComment picks the document rows of one comment
+ok 249 - rowsForComment picks the document rows of one comment
+  ---
+  duration_ms: 1.069536
+  type: 'test'
+  ...
+# Subtest: decideG8A05: B gets exactly one document_mentioned row, A and C none, C never a candidate, bodies byte-equal -> PASS
+ok 250 - decideG8A05: B gets exactly one document_mentioned row, A and C none, C never a candidate, bodies byte-equal -> PASS
+  ---
+  duration_ms: 0.851739
+  type: 'test'
+  ...
+# Subtest: decideG8A05: two rows for B (the duplicate token notified twice) -> FAIL; a merged count > 1 -> FAIL
+ok 251 - decideG8A05: two rows for B (the duplicate token notified twice) -> FAIL; a merged count > 1 -> FAIL
+  ---
+  duration_ms: 0.598218
+  type: 'test'
+  ...
+# Subtest: decideG8A05: a self-mention row for A, or any row for the non-reader C -> FAIL
+ok 252 - decideG8A05: a self-mention row for A, or any row for the non-reader C -> FAIL
+  ---
+  duration_ms: 0.423681
+  type: 'test'
+  ...
+# Subtest: decideG8A05: C offered by the desktop picker or the REST picker, or B missing from it -> FAIL
+ok 253 - decideG8A05: C offered by the desktop picker or the REST picker, or B missing from it -> FAIL
+  ---
+  duration_ms: 0.669796
+  type: 'test'
+  ...
+# Subtest: decideG8A05: a body that differs between hosts (even by whitespace) -> FAIL; a failed desktop create -> FAIL
+ok 254 - decideG8A05: a body that differs between hosts (even by whitespace) -> FAIL; a failed desktop create -> FAIL
+  ---
+  duration_ms: 0.47473
+  type: 'test'
+  ...
+# Subtest: titleKeyFor mirrors notification-title.tsx notificationTitleKey: no document name -> _untitled
+ok 255 - titleKeyFor mirrors notification-title.tsx notificationTitleKey: no document name -> _untitled
+  ---
+  duration_ms: 0.485048
+  type: 'test'
+  ...
+# Subtest: expectedTitle renders the real en and vi templates with the row params
+ok 256 - expectedTitle renders the real en and vi templates with the row params
+  ---
+  duration_ms: 18.459655
+  type: 'test'
+  ...
+# Subtest: normalizeRowText drops the param markers and collapses whitespace
+ok 257 - normalizeRowText drops the param markers and collapses whitespace
+  ---
+  duration_ms: 0.487733
+  type: 'test'
+  ...
+# Subtest: decideG8A06: en + vi title on the row, mark read only for B, A untouched -> PASS
+ok 258 - decideG8A06: en + vi title on the row, mark read only for B, A untouched -> PASS
+  ---
+  duration_ms: 0.551127
+  type: 'test'
+  ...
+# Subtest: decideG8A06: a missing en or vi title, or the same text in both locales -> FAIL
+ok 259 - decideG8A06: a missing en or vi title, or the same text in both locales -> FAIL
+  ---
+  duration_ms: 0.494068
+  type: 'test'
+  ...
+# Subtest: decideG8A06: read state is per person: A's count moved, B's did not, or A could mark B's row -> FAIL
+ok 260 - decideG8A06: read state is per person: A's count moved, B's did not, or A could mark B's row -> FAIL
+  ---
+  duration_ms: 0.507187
+  type: 'test'
+  ...
+# Subtest: decideG8A06: a plain comment notified B, or the author notified themself -> FAIL
+ok 261 - decideG8A06: a plain comment notified B, or the author notified themself -> FAIL
+  ---
+  duration_ms: 0.353926
+  type: 'test'
+  ...
+# Subtest: runInbox G8-A05: desktop picker, desktop create as A, one row for B -> PASS; the document is in W1 shared to B only
+ok 262 - runInbox G8-A05: desktop picker, desktop create as A, one row for B -> PASS; the document is in W1 shared to B only
+  ---
+  duration_ms: 16.305562
+  type: 'test'
+  ...
+# Subtest: runInbox G8-A05: a duplicate notification or C in the picker -> FAIL
+ok 263 - runInbox G8-A05: a duplicate notification or C in the picker -> FAIL
+  ---
+  duration_ms: 25.033058
+  type: 'test'
+  ...
+# Subtest: runInbox G8-A06: en + vi titles on B's W2 Inbox row, B marks it read, A cannot -> PASS
+ok 264 - runInbox G8-A06: en + vi titles on B's W2 Inbox row, B marks it read, A cannot -> PASS
+  ---
+  duration_ms: 21.994808
+  type: 'test'
+  ...
+# Subtest: runInbox: a row other than A05/A06 is refused (FAIL)
+ok 265 - runInbox: a row other than A05/A06 is refused (FAIL)
+  ---
+  duration_ms: 12.920658
+  type: 'test'
+  ...
+# Subtest: runInbox G8-A05: the desktop create is a root kind=comment with the fixture's anchor and the uploaded version (comments-ipc.ts:260-276)
+ok 266 - runInbox G8-A05: the desktop create is a root kind=comment with the fixture's anchor and the uploaded version (comments-ipc.ts:260-276)
+  ---
+  duration_ms: 10.901875
+  type: 'test'
+  ...
+# Subtest: runInbox G8-A06: the REST comments carry anchor + base_version_id; a server refusal names its code and message, never [object Object]
+ok 267 - runInbox G8-A06: the REST comments carry anchor + base_version_id; a server refusal names its code and message, never [object Object]
+  ---
+  duration_ms: 32.03384
+  type: 'test'
+  ...
+# Subtest: openOnDesktop asks the app for the editor page that shows the opened path (harness contract §15), never the first page of the kind
+ok 268 - openOnDesktop asks the app for the editor page that shows the opened path (harness contract §15), never the first page of the kind
+  ---
+  duration_ms: 0.542502
+  type: 'test'
+  ...
+# Subtest: decideG8A09Docs: the whole library claim true -> PASS with every check ok
+ok 269 - decideG8A09Docs: the whole library claim true -> PASS with every check ok
+  ---
+  duration_ms: 2.412858
+  type: 'test'
+  ...
+# Subtest: decideG8A09Docs: create must be +1 document, opened by its id, with no second working copy
+ok 270 - decideG8A09Docs: create must be +1 document, opened by its id, with no second working copy
+  ---
+  duration_ms: 1.310449
+  type: 'test'
+  ...
+# Subtest: decideG8A09Docs: rename and archive are reflected on GET /documents/{id}
+ok 271 - decideG8A09Docs: rename and archive are reflected on GET /documents/{id}
+  ---
+  duration_ms: 0.776077
+  type: 'test'
+  ...
+# Subtest: decideG8A09Docs: a web rename must reach the desktop title after a focus
+ok 272 - decideG8A09Docs: a web rename must reach the desktop title after a focus
+  ---
+  duration_ms: 0.520624
+  type: 'test'
+  ...
+# Subtest: decideG8A09Docs: the shared-with-me list must contain the shared document, the workspaces the role
+ok 273 - decideG8A09Docs: the shared-with-me list must contain the shared document, the workspaces the role
+  ---
+  duration_ms: 0.598573
+  type: 'test'
+  ...
+# Subtest: decideG8A09Docs: properties equal the server (title, workspace, level, version, author ids); an absent server level reads as view
+ok 274 - decideG8A09Docs: properties equal the server (title, workspace, level, version, author ids); an absent server level reads as view
+  ---
+  duration_ms: 0.594439
+  type: 'test'
+  ...
+# Subtest: decideG8A09Docs: an empty record is FAIL, never PASS or BLOCKED
+ok 275 - decideG8A09Docs: an empty record is FAIL, never PASS or BLOCKED
+  ---
+  duration_ms: 0.51696
+  type: 'test'
+  ...
+# Subtest: countWorkingCopies: counts the directories of one document across accounts, by key or by binding
+ok 276 - countWorkingCopies: counts the directories of one document across accounts, by key or by binding
+  ---
+  duration_ms: 1.639426
+  type: 'test'
+  ...
+# Subtest: readWorkingCopyTitle: the title in the document's binding.json, null when there is none or no title
+ok 277 - readWorkingCopyTitle: the title in the document's binding.json, null when there is none or no title
+  ---
+  duration_ms: 1.617365
+  type: 'test'
+  ...
+# Subtest: runLibrary as M in org X: workspaces, a W2 document shared by A, properties, create, rename, web rename, archive -> PASS
+ok 278 - runLibrary as M in org X: workspaces, a W2 document shared by A, properties, create, rename, web rename, archive -> PASS
+  ---
+  duration_ms: 9.638874
+  type: 'test'
+  ...
+# Subtest: runLibrary as A (no second org): B shares a W2 document with A and the same claims hold
+ok 279 - runLibrary as A (no second org): B shares a W2 document with A and the same claims hold
+  ---
+  duration_ms: 2.698953
+  type: 'test'
+  ...
+# Subtest: runLibrary: the web rename uses PATCH /documents/{id} with the revision read first, and the desktop is focused until the title changes
+ok 280 - runLibrary: the web rename uses PATCH /documents/{id} with the revision read first, and the desktop is focused until the title changes
+  ---
+  duration_ms: 3.465871
+  type: 'test'
+  ...
+# Subtest: runLibrary: a web rename is read from binding.json when the app moved the working copy and uniworkDocStatus(old path) is null -> PASS
+ok 281 - runLibrary: a web rename is read from binding.json when the app moved the working copy and uniworkDocStatus(old path) is null -> PASS
+  ---
+  duration_ms: 3.111118
+  type: 'test'
+  ...
+# Subtest: runLibrary: create that adds no document -> FAIL naming createdPlusOne
+ok 282 - runLibrary: create that adds no document -> FAIL naming createdPlusOne
+  ---
+  duration_ms: 2.548724
+  type: 'test'
+  ...
+# Subtest: runLibrary: create that leaves a copy, or a second working copy on disk -> FAIL
+ok 283 - runLibrary: create that leaves a copy, or a second working copy on disk -> FAIL
+  ---
+  duration_ms: 4.76585
+  type: 'test'
+  ...
+# Subtest: runLibrary: a rename the server never sees, an archive that is not archived, a restore that sticks -> FAIL
+ok 284 - runLibrary: a rename the server never sees, an archive that is not archived, a restore that sticks -> FAIL
+  ---
+  duration_ms: 7.484051
+  type: 'test'
+  ...
+# Subtest: runLibrary: the desktop never gets the web title -> FAIL after the bounded focus loop, not a hang
+ok 285 - runLibrary: the desktop never gets the web title -> FAIL after the bounded focus loop, not a hang
+  ---
+  duration_ms: 6.326476
+  type: 'test'
+  ...
+# Subtest: runLibrary: a missing shared document or properties that differ from the server -> FAIL
+ok 286 - runLibrary: a missing shared document or properties that differ from the server -> FAIL
+  ---
+  duration_ms: 5.285593
+  type: 'test'
+  ...
+# Subtest: runLibrary: an app call that times out is a FAIL of that step, and the later steps still report
+ok 287 - runLibrary: an app call that times out is a FAIL of that step, and the later steps still report
+  ---
+  duration_ms: 2.089329
+  type: 'test'
+  ...
+# Subtest: LOCKED_DESKTOP_CODES are the fork's verdicts for a refused list (fork apps/shell/src/main/uniwork-docs/errors.ts:130,142-143)
+ok 288 - LOCKED_DESKTOP_CODES are the fork's verdicts for a refused list (fork apps/shell/src/main/uniwork-docs/errors.ts:130,142-143)
+  ---
+  duration_ms: 1.728913
+  type: 'test'
+  ...
+# Subtest: decideRevoke: desktop forbidden, REST 403, deep link no-access, snippet gone + resource_access_lost, archive resource_deleted -> PASS
+ok 289 - decideRevoke: desktop forbidden, REST 403, deep link no-access, snippet gone + resource_access_lost, archive resource_deleted -> PASS
+  ---
+  duration_ms: 0.929275
+  type: 'test'
+  ...
+# Subtest: decideRevoke: the desktop panel still lists, or fails for another reason (offline) -> FAIL
+ok 290 - decideRevoke: the desktop panel still lists, or fails for another reason (offline) -> FAIL
+  ---
+  duration_ms: 0.746134
+  type: 'test'
+  ...
+# Subtest: decideRevoke: REST still 200, or the deep link still opens -> FAIL
+ok 291 - decideRevoke: REST still 200, or the deep link still opens -> FAIL
+  ---
+  duration_ms: 0.622
+  type: 'test'
+  ...
+# Subtest: decideRevoke: the S15 gone page for a row that reads resource_access_lost is a product FAIL naming the D page, the server 404 and an owner
+ok 292 - decideRevoke: the S15 gone page for a row that reads resource_access_lost is a product FAIL naming the D page, the server 404 and an owner
+  ---
+  duration_ms: 0.588473
+  type: 'test'
+  ...
+# Subtest: decideRevoke: a snippet or document name left on the row, or no resource_access_lost -> FAIL
+ok 293 - decideRevoke: a snippet or document name left on the row, or no resource_access_lost -> FAIL
+  ---
+  duration_ms: 0.460728
+  type: 'test'
+  ...
+# Subtest: decideRevoke: the precondition (open and listing, snippet shown) must hold before the revoke
+ok 294 - decideRevoke: the precondition (open and listing, snippet shown) must hold before the revoke
+  ---
+  duration_ms: 0.435508
+  type: 'test'
+  ...
+# Subtest: decideRevoke: archive must answer resource_deleted without the snippet and the S15 gone state; a missing archive step -> FAIL
+ok 295 - decideRevoke: archive must answer resource_deleted without the snippet and the S15 gone state; a missing archive step -> FAIL
+  ---
+  duration_ms: 0.446239
+  type: 'test'
+  ...
+# Subtest: runRevoke: B open on both hosts, A revokes mid-session, then archives -> PASS
+ok 296 - runRevoke: B open on both hosts, A revokes mid-session, then archives -> PASS
+  ---
+  duration_ms: 6.08509
+  type: 'test'
+  ...
+# Subtest: runRevoke: a snippet that survives the revoke, or a desktop panel that keeps listing -> FAIL
+ok 297 - runRevoke: a snippet that survives the revoke, or a desktop panel that keeps listing -> FAIL
+  ---
+  duration_ms: 35006.761814
+  type: 'test'
+  ...
+# Subtest: PASS -> 0, with the artifact at reports/g7-qa/g8-a01/<fixture>.json
+ok 298 - PASS -> 0, with the artifact at reports/g7-qa/g8-a01/<fixture>.json
+  ---
+  duration_ms: 4.863912
+  type: 'test'
+  ...
+# Subtest: a step that returns nothing is PASS; a throwing step is FAIL with a redacted reason; FAIL -> 1
+ok 299 - a step that returns nothing is PASS; a throwing step is FAIL with a redacted reason; FAIL -> 1
+  ---
+  duration_ms: 2.047325
+  type: 'test'
+  ...
+# Subtest: BLOCKED with a named blocker -> 77; BLOCKED without one is rewritten to FAIL -> 1
+ok 300 - BLOCKED with a named blocker -> 77; BLOCKED without one is rewritten to FAIL -> 1
+  ---
+  duration_ms: 1.621109
+  type: 'test'
+  ...
+# Subtest: an explicit record status wins over the steps; a throw from the module is FAIL -> 1
+ok 301 - an explicit record status wins over the steps; a throw from the module is FAIL -> 1
+  ---
+  duration_ms: 1.367607
+  type: 'test'
+  ...
+# Subtest: no steps and no status is FAIL
+ok 302 - no steps and no status is FAIL
+  ---
+  duration_ms: 0.834259
+  type: 'test'
+  ...
+# Subtest: watchdog: the running step and the row FAIL with 'row watchdog', and the artifact is written
+ok 303 - watchdog: the running step and the row FAIL with 'row watchdog', and the artifact is written
+  ---
+  duration_ms: 51.210268
+  type: 'test'
+  ...
+# Subtest: start gate: blocked -> 77 with the start blocker, failed -> 1, and the module never runs
+ok 304 - start gate: blocked -> 77 with the start blocker, failed -> 1, and the module never runs
+  ---
+  duration_ms: 1.780514
+  type: 'test'
+  ...
+# Subtest: ports.env missing or without API_ORIGIN -> FAIL 1
+ok 305 - ports.env missing or without API_ORIGIN -> FAIL 1
+  ---
+  duration_ms: 0.877559
+  type: 'test'
+  ...
+# Subtest: the artifact is truncated at the start of a run: a stale one never survives
+ok 306 - the artifact is truncated at the start of a run: a stale one never survives
+  ---
+  duration_ms: 20.774787
+  type: 'test'
+  ...
+# Subtest: ctx: ports, origins, a memoised world from the injected factory, api sessions and a redacted log
+ok 307 - ctx: ports, origins, a memoised world from the injected factory, api sessions and a redacted log
+  ---
+  duration_ms: 1.536213
+  type: 'test'
+  ...
+# Subtest: rowMain: parses the CLI args, prints one status line and returns the exit code; G819_WRITE_EVIDENCE=1 appends the ledger line
+ok 308 - rowMain: parses the CLI args, prints one status line and returns the exit code; G819_WRITE_EVIDENCE=1 appends the ledger line
+  ---
+  duration_ms: 5.620149
+  type: 'test'
+  ...
+# Subtest: decideFromSteps: a NOT_JUDGED check that cascades from a failing check adds no FAIL reason, and never makes a PASS
+ok 309 - decideFromSteps: a NOT_JUDGED check that cascades from a failing check adds no FAIL reason, and never makes a PASS
+  ---
+  duration_ms: 0.442009
+  type: 'test'
+  ...
+# Subtest: G819-BE-8a: a FAIL row keeps the whole product reason (redacted, not clipped at 240) and carries the failing step's owner
+ok 310 - G819-BE-8a: a FAIL row keeps the whole product reason (redacted, not clipped at 240) and carries the failing step's owner
+  ---
+  duration_ms: 0.985449
+  type: 'test'
+  ...
+# Subtest: G819-BE-8a: decideFromSteps names the owners of the failing steps and leaves the key out when none names one
+ok 311 - G819-BE-8a: decideFromSteps names the owners of the failing steps and leaves the key out when none names one
+  ---
+  duration_ms: 0.430343
+  type: 'test'
+  ...
+# Subtest: G819-BE-8a: redactSignInError keeps its 240 default and takes a larger cap, redacting either way
+ok 312 - G819-BE-8a: redactSignInError keeps its 240 default and takes a larger cap, redacting either way
+  ---
+  duration_ms: 0.397926
+  type: 'test'
+  ...
+# Subtest: the planned commands are the ones contract-collab.md section 12 lists for each row (go and node only)
+ok 313 - the planned commands are the ones contract-collab.md section 12 lists for each row (go and node only)
+  ---
+  duration_ms: 19.900485
+  type: 'test'
+  ...
+# Subtest: expandRunPattern turns grouped and top-level alternatives into bare alternatives
+ok 314 - expandRunPattern turns grouped and top-level alternatives into bare alternatives
+  ---
+  duration_ms: 1.429837
+  type: 'test'
+  ...
+# Subtest: every -run alternative of every row, grouped ones expanded, matches at least one existing Test func in the packages it names (a dead alternative proves nothing)
+ok 315 - every -run alternative of every row, grouped ones expanded, matches at least one existing Test func in the packages it names (a dead alternative proves nothing)
+  ---
+  duration_ms: 94.856674
+  type: 'test'
+  ...
+# Subtest: G8-A08 audit coverage runs the Test funcs of audit_coverage_test.go by their real names (the contract's AuditCoverage matches none)
+ok 316 - G8-A08 audit coverage runs the Test funcs of audit_coverage_test.go by their real names (the contract's AuditCoverage matches none)
+  ---
+  duration_ms: 5.14278
+  type: 'test'
+  ...
+# Subtest: --dry-run runs nothing and --then is only echoed; an unknown row or argument exits 2
+ok 317 - --dry-run runs nothing and --then is only echoed; an unknown row or argument exits 2
+  ---
+  duration_ms: 15.280063
+  type: 'test'
+  ...
+# Subtest: a passing go run passes the row; the filtered output is kept
+ok 318 - a passing go run passes the row; the filtered output is kept
+  ---
+  duration_ms: 11.359128
+  type: 'test'
+  ...
+# Subtest: a go run that matched no test is FAIL even though go exited 0
+ok 319 - a go run that matched no test is FAIL even though go exited 0
+  ---
+  duration_ms: 8.934426
+  type: 'test'
+  ...
+# Subtest: a test named by -run that was SKIPped is FAIL; the same skip without -run (./migrations) is only listed
+ok 320 - a test named by -run that was SKIPped is FAIL; the same skip without -run (./migrations) is only listed
+  ---
+  duration_ms: 22.466699
+  type: 'test'
+  ...
+# Subtest: a failing go run is FAIL (1) and the --then command is not run
+ok 321 - a failing go run is FAIL (1) and the --then command is not run
+  ---
+  duration_ms: 7.362143
+  type: 'test'
+  ...
+# Subtest: --then runs after success and its exit code is the row's (77 stays 77, 0 stays 0, 1 stays 1)
+ok 322 - --then runs after success and its exit code is the row's (77 stays 77, 0 stays 0, 1 stays 1)
+  ---
+  duration_ms: 27.560592
+  type: 'test'
+  ...
+# Subtest: the spec is one command per line: a header, `; true` on every line but the last, the verdict last
+ok 323 - the spec is one command per line: a header, `; true` on every line but the last, the verdict last # SKIP no cloud spec at /home/ubuntu/office-g5g6g7/reports/g7-qa/specs/cloud-g819-1.txt (it lives outside the repo; set G819_SPEC to check one)
+  ---
+  duration_ms: 0.669211
+  type: 'test'
+  ...
+# Subtest: each attempt has its own run id: line 2 writes /tmp/g819-rN-rid, every later line reads it
+ok 324 - each attempt has its own run id: line 2 writes /tmp/g819-rN-rid, every later line reads it # SKIP no cloud spec at /home/ubuntu/office-g5g6g7/reports/g7-qa/specs/cloud-g819-1.txt (it lives outside the repo; set G819_SPEC to check one)
+  ---
+  duration_ms: 0.085717
+  type: 'test'
+  ...
+# Subtest: exports the fork SHA and the SQL-membership opt-in before the keyring session
+ok 325 - exports the fork SHA and the SQL-membership opt-in before the keyring session # SKIP no cloud spec at /home/ubuntu/office-g5g6g7/reports/g7-qa/specs/cloud-g819-1.txt (it lives outside the repo; set G819_SPEC to check one)
+  ---
+  duration_ms: 0.152281
+  type: 'test'
+  ...
+# Subtest: exactly one evidence.mjs run per (row, fixture) the matrix declares for G8-A01..A10, none else
+ok 326 - exactly one evidence.mjs run per (row, fixture) the matrix declares for G8-A01..A10, none else # SKIP no cloud spec at /home/ubuntu/office-g5g6g7/reports/g7-qa/specs/cloud-g819-1.txt (it lives outside the repo; set G819_SPEC to check one)
+  ---
+  duration_ms: 0.06357
+  type: 'test'
+  ...
+# Subtest: every run is followed by its own G819_*_EXIT marker, appended to the markers file
+ok 327 - every run is followed by its own G819_*_EXIT marker, appended to the markers file # SKIP no cloud spec at /home/ubuntu/office-g5g6g7/reports/g7-qa/specs/cloud-g819-1.txt (it lives outside the repo; set G819_SPEC to check one)
+  ---
+  duration_ms: 0.059222
+  type: 'test'
+  ...
+# Subtest: harness rows run their module with the same --row/--fixture and the run dir; the module is the breakdown's
+ok 328 - harness rows run their module with the same --row/--fixture and the run dir; the module is the breakdown's # SKIP no cloud spec at /home/ubuntu/office-g5g6g7/reports/g7-qa/specs/cloud-g819-1.txt (it lives outside the repo; set G819_SPEC to check one)
+  ---
+  duration_ms: 0.057198
+  type: 'test'
+  ...
+# Subtest: every script the spec names exists in the repo (modules, server-row.sh, harness, evidence)
+ok 329 - every script the spec names exists in the repo (modules, server-row.sh, harness, evidence) # SKIP no cloud spec at /home/ubuntu/office-g5g6g7/reports/g7-qa/specs/cloud-g819-1.txt (it lives outside the repo; set G819_SPEC to check one)
+  ---
+  duration_ms: 0.050793
+  type: 'test'
+  ...
+# Subtest: A07 runs only through deeplink.mjs: revoke runs inside it, so no revoke line and no other module on an A07 line
+ok 330 - A07 runs only through deeplink.mjs: revoke runs inside it, so no revoke line and no other module on an A07 line # SKIP no cloud spec at /home/ubuntu/office-g5g6g7/reports/g7-qa/specs/cloud-g819-1.txt (it lives outside the repo; set G819_SPEC to check one)
+  ---
+  duration_ms: 0.048107
+  type: 'test'
+  ...
+# Subtest: server rows go through server-row.sh with their own row; A05 and A06 chain the inbox module after it, A03 and A08 do not
+ok 331 - server rows go through server-row.sh with their own row; A05 and A06 chain the inbox module after it, A03 and A08 do not # SKIP no cloud spec at /home/ubuntu/office-g5g6g7/reports/g7-qa/specs/cloud-g819-1.txt (it lives outside the repo; set G819_SPEC to check one)
+  ---
+  duration_ms: 0.164525
+  type: 'test'
+  ...
+# Subtest: G8-A10 is an evidence BLOCKED line naming G8-18 part F, never a command that could pass
+ok 332 - G8-A10 is an evidence BLOCKED line naming G8-18 part F, never a command that could pass # SKIP no cloud spec at /home/ubuntu/office-g5g6g7/reports/g7-qa/specs/cloud-g819-1.txt (it lives outside the repo; set G819_SPEC to check one)
+  ---
+  duration_ms: 0.883903
+  type: 'test'
+  ...
+# Subtest: the verdict awk: UNIT, START, VERIFY, APT, FRAMES, STOP, KEYRING_EXEC and every SRV marker must be 0; rows may be 0 or 77
+ok 333 - the verdict awk: UNIT, START, VERIFY, APT, FRAMES, STOP, KEYRING_EXEC and every SRV marker must be 0; rows may be 0 or 77 # SKIP no cloud spec at /home/ubuntu/office-g5g6g7/reports/g7-qa/specs/cloud-g819-1.txt (it lives outside the repo; set G819_SPEC to check one)
+  ---
+  duration_ms: 0.13044
+  type: 'test'
+  ...
+# Subtest: the verdict awk fails when a marker the round has to leave never appeared (a command died before its echo): the gates and every row
+ok 334 - the verdict awk fails when a marker the round has to leave never appeared (a command died before its echo): the gates and every row # SKIP no cloud spec at /home/ubuntu/office-g5g6g7/reports/g7-qa/specs/cloud-g819-1.txt (it lives outside the repo; set G819_SPEC to check one)
+  ---
+  duration_ms: 0.039114
+  type: 'test'
+  ...
+# Subtest: no collect line reads server.env, server-cwd or an .env file other than the redacted ports.env
+ok 335 - no collect line reads server.env, server-cwd or an .env file other than the redacted ports.env # SKIP no cloud spec at /home/ubuntu/office-g5g6g7/reports/g7-qa/specs/cloud-g819-1.txt (it lives outside the repo; set G819_SPEC to check one)
+  ---
+  duration_ms: 0.025872
+  type: 'test'
+  ...
+# Subtest: every glob loop of the spec guards its file with [ -f "$f" ] (a missing log is silent, not a grep error in the round log)
+ok 336 - every glob loop of the spec guards its file with [ -f "$f" ] (a missing log is silent, not a grep error in the round log) # SKIP no cloud spec at /home/ubuntu/office-g5g6g7/reports/g7-qa/specs/cloud-g819-1.txt (it lives outside the repo; set G819_SPEC to check one)
+  ---
+  duration_ms: 0.022964
+  type: 'test'
+  ...
+# Subtest: no secret-looking literal, credential URL or model host in the spec
+ok 337 - no secret-looking literal, credential URL or model host in the spec # SKIP no cloud spec at /home/ubuntu/office-g5g6g7/reports/g7-qa/specs/cloud-g819-1.txt (it lives outside the repo; set G819_SPEC to check one)
+  ---
+  duration_ms: 0.02278
+  type: 'test'
+  ...
+# Subtest: the route catalogue is read (guard against a parser that finds nothing)
+ok 338 - the route catalogue is read (guard against a parser that finds nothing)
+  ---
+  duration_ms: 0.786018
+  type: 'test'
+  ...
+# Subtest: register: POST /auth/register is a route the router registers
+ok 339 - register: POST /auth/register is a route the router registers
+  ---
+  duration_ms: 0.161488
+  type: 'test'
+  ...
+# Subtest: register: every path param is an id or slug the handler really passes on
+ok 340 - register: every path param is an id or slug the handler really passes on
+  ---
+  duration_ms: 0.491134
+  type: 'test'
+  ...
+# Subtest: register: the body keys are RegisterSDI json fields and every required field is sent
+ok 341 - register: the body keys are RegisterSDI json fields and every required field is sent
+  ---
+  duration_ms: 1.143571
+  type: 'test'
+  ...
+# Subtest: verifyEmail: POST /me/email/verify is a route the router registers
+ok 342 - verifyEmail: POST /me/email/verify is a route the router registers
+  ---
+  duration_ms: 0.096252
+  type: 'test'
+  ...
+# Subtest: verifyEmail: every path param is an id or slug the handler really passes on
+ok 343 - verifyEmail: every path param is an id or slug the handler really passes on
+  ---
+  duration_ms: 0.095018
+  type: 'test'
+  ...
+# Subtest: verifyEmail: the body keys are VerifyEmailSDI json fields and every required field is sent
+ok 344 - verifyEmail: the body keys are VerifyEmailSDI json fields and every required field is sent
+  ---
+  duration_ms: 1.10259
+  type: 'test'
+  ...
+# Subtest: login: POST /auth/login is a route the router registers
+ok 345 - login: POST /auth/login is a route the router registers
+  ---
+  duration_ms: 0.092471
+  type: 'test'
+  ...
+# Subtest: login: every path param is an id or slug the handler really passes on
+ok 346 - login: every path param is an id or slug the handler really passes on
+  ---
+  duration_ms: 0.211487
+  type: 'test'
+  ...
+# Subtest: login: the body keys are LoginSDI json fields and every required field is sent
+ok 347 - login: the body keys are LoginSDI json fields and every required field is sent
+  ---
+  duration_ms: 1.572622
+  type: 'test'
+  ...
+# Subtest: createOrganization: POST /orgs is a route the router registers
+ok 348 - createOrganization: POST /orgs is a route the router registers
+  ---
+  duration_ms: 0.109404
+  type: 'test'
+  ...
+# Subtest: createOrganization: every path param is an id or slug the handler really passes on
+ok 349 - createOrganization: every path param is an id or slug the handler really passes on
+  ---
+  duration_ms: 0.061188
+  type: 'test'
+  ...
+# Subtest: createOrganization: the body keys are CreateOrganizationSDI json fields and every required field is sent
+ok 350 - createOrganization: the body keys are CreateOrganizationSDI json fields and every required field is sent
+  ---
+  duration_ms: 0.89445
+  type: 'test'
+  ...
+# Subtest: createWorkspace: POST /orgs/{org}/workspaces is a route the router registers
+ok 351 - createWorkspace: POST /orgs/{org}/workspaces is a route the router registers
+  ---
+  duration_ms: 0.057648
+  type: 'test'
+  ...
+# Subtest: createWorkspace: every path param is an id or slug the handler really passes on
+ok 352 - createWorkspace: every path param is an id or slug the handler really passes on
+  ---
+  duration_ms: 19.855409
+  type: 'test'
+  ...
+# Subtest: createWorkspace: the body keys are CreateWorkspaceSDI json fields and every required field is sent
+ok 353 - createWorkspace: the body keys are CreateWorkspaceSDI json fields and every required field is sent
+  ---
+  duration_ms: 0.877097
+  type: 'test'
+  ...
+# Subtest: createFileDocument: POST /workspaces/{workspaceID}/documents/files is a route the router registers
+ok 354 - createFileDocument: POST /workspaces/{workspaceID}/documents/files is a route the router registers
+  ---
+  duration_ms: 0.055852
+  type: 'test'
+  ...
+# Subtest: createFileDocument: every path param is an id or slug the handler really passes on
+ok 355 - createFileDocument: every path param is an id or slug the handler really passes on
+  ---
+  duration_ms: 2.180921
+  type: 'test'
+  ...
+# Subtest: mintLaunch: POST /documents/{documentID}/office/sessions is a route the router registers
+ok 356 - mintLaunch: POST /documents/{documentID}/office/sessions is a route the router registers
+  ---
+  duration_ms: 0.074989
+  type: 'test'
+  ...
+# Subtest: mintLaunch: every path param is an id or slug the handler really passes on
+ok 357 - mintLaunch: every path param is an id or slug the handler really passes on
+  ---
+  duration_ms: 2.155916
+  type: 'test'
+  ...
+# Subtest: mintLaunch: the body keys are CreateOfficeLaunchSessionSDI json fields and every required field is sent
+ok 358 - mintLaunch: the body keys are CreateOfficeLaunchSessionSDI json fields and every required field is sent
+  ---
+  duration_ms: 0.969939
+  type: 'test'
+  ...
+# Subtest: desktopDevices: GET /auth/desktop/devices is a route the router registers
+ok 359 - desktopDevices: GET /auth/desktop/devices is a route the router registers
+  ---
+  duration_ms: 0.08448
+  type: 'test'
+  ...
+# Subtest: desktopDevices: every path param is an id or slug the handler really passes on
+ok 360 - desktopDevices: every path param is an id or slug the handler really passes on
+  ---
+  duration_ms: 0.065155
+  type: 'test'
+  ...
+# Subtest: requestOrganizationDeletion: POST /orgs/{orgID}/privacy/deletion is a route the router registers
+ok 361 - requestOrganizationDeletion: POST /orgs/{orgID}/privacy/deletion is a route the router registers
+  ---
+  duration_ms: 0.056321
+  type: 'test'
+  ...
+# Subtest: requestOrganizationDeletion: every path param is an id or slug the handler really passes on
+ok 362 - requestOrganizationDeletion: every path param is an id or slug the handler really passes on
+  ---
+  duration_ms: 15.364109
+  type: 'test'
+  ...
+# Subtest: requestOrganizationDeletion: the body keys are CreatePrivacyDeletionSDI json fields and every required field is sent
+ok 363 - requestOrganizationDeletion: the body keys are CreatePrivacyDeletionSDI json fields and every required field is sent
+  ---
+  duration_ms: 1.053306
+  type: 'test'
+  ...
+# Subtest: deleteAccount: POST /me/delete is a route the router registers
+ok 364 - deleteAccount: POST /me/delete is a route the router registers
+  ---
+  duration_ms: 0.065928
+  type: 'test'
+  ...
+# Subtest: deleteAccount: every path param is an id or slug the handler really passes on
+ok 365 - deleteAccount: every path param is an id or slug the handler really passes on
+  ---
+  duration_ms: 0.05862
+  type: 'test'
+  ...
+# Subtest: deleteAccount: the body keys are DeleteAccountSDI json fields and every required field is sent
+ok 366 - deleteAccount: the body keys are DeleteAccountSDI json fields and every required field is sent
+  ---
+  duration_ms: 0.89799
+  type: 'test'
+  ...
+# Subtest: sdiFields treats pointer / omitempty fields as optional even when they carry minLength bounds for present values (C1)
+ok 367 - sdiFields treats pointer / omitempty fields as optional even when they carry minLength bounds for present values (C1)
+  ---
+  duration_ms: 0.980163
+  type: 'test'
+  ...
+# Subtest: mintLaunch may carry the version of a view ticket (UNI-2033 lost-view step)
+ok 368 - mintLaunch may carry the version of a view ticket (UNI-2033 lost-view step)
+  ---
+  duration_ms: 0.874859
+  type: 'test'
+  ...
+# Subtest: the slug-for-id mistake of cloud round 5 is caught: createWorkspace's {org} reaches the service as an id
+ok 369 - the slug-for-id mistake of cloud round 5 is caught: createWorkspace's {org} reaches the service as an id
+  ---
+  duration_ms: 25.226556
+  type: 'test'
+  ...
+# Subtest: the multipart upload sends the fields the handler reads
+ok 370 - the multipart upload sends the fields the handler reads
+  ---
+  duration_ms: 3.820531
+  type: 'test'
+  ...
+# Subtest: document-step.mjs reaches the server only through the table
+ok 371 - document-step.mjs reaches the server only through the table
+  ---
+  duration_ms: 0.465784
+  type: 'test'
+  ...
+# Subtest: apiPath builds the path from the template and refuses a missing or extra param
+ok 372 - apiPath builds the path from the template and refuses a missing or extra param
+  ---
+  duration_ms: 5.3102
+  type: 'test'
+  ...
+# Subtest: assertBodyKeys refuses a key the table does not list
+ok 373 - assertBodyKeys refuses a key the table does not list
+  ---
+  duration_ms: 0.184928
+  type: 'test'
+  ...
+# Subtest: an ApiError names the method, path and status, and never a token
+ok 374 - an ApiError names the method, path and status, and never a token
+  ---
+  duration_ms: 0.319824
+  type: 'test'
+  ...
+# Subtest: G8 row patchDocument: PATCH /documents/{documentID} is registered and its params/body match the server
+ok 375 - G8 row patchDocument: PATCH /documents/{documentID} is registered and its params/body match the server
+  ---
+  duration_ms: 9.320587
+  type: 'test'
+  ...
+# Subtest: G8 row archiveDocument: POST /documents/{documentID}/archive is registered and its params/body match the server
+ok 376 - G8 row archiveDocument: POST /documents/{documentID}/archive is registered and its params/body match the server
+  ---
+  duration_ms: 2.723788
+  type: 'test'
+  ...
+# Subtest: G8 row restoreDocument: POST /documents/{documentID}/restore is registered and its params/body match the server
+ok 377 - G8 row restoreDocument: POST /documents/{documentID}/restore is registered and its params/body match the server
+  ---
+  duration_ms: 2.198778
+  type: 'test'
+  ...
+# Subtest: G8 row copyDocument: POST /documents/{documentID}/copies is registered and its params/body match the server
+ok 378 - G8 row copyDocument: POST /documents/{documentID}/copies is registered and its params/body match the server
+  ---
+  duration_ms: 3.9411
+  type: 'test'
+  ...
+# Subtest: G8 row listSharedWithMe: GET /workspaces/{workspaceID}/documents/shared-with-me is registered and its params/body match the server
+ok 379 - G8 row listSharedWithMe: GET /workspaces/{workspaceID}/documents/shared-with-me is registered and its params/body match the server
+  ---
+  duration_ms: 22.228536
+  type: 'test'
+  ...
+# Subtest: G8 row listDocumentComments: GET /documents/{documentID}/comments is registered and its params/body match the server
+ok 380 - G8 row listDocumentComments: GET /documents/{documentID}/comments is registered and its params/body match the server
+  ---
+  duration_ms: 1.928947
+  type: 'test'
+  ...
+# Subtest: G8 row createDocumentComment: POST /documents/{documentID}/comments is registered and its params/body match the server
+ok 381 - G8 row createDocumentComment: POST /documents/{documentID}/comments is registered and its params/body match the server
+  ---
+  duration_ms: 3.201505
+  type: 'test'
+  ...
+# Subtest: G8 row putDocumentCommentAnchors: PUT /documents/{documentID}/comments/anchors is registered and its params/body match the server
+ok 382 - G8 row putDocumentCommentAnchors: PUT /documents/{documentID}/comments/anchors is registered and its params/body match the server
+  ---
+  duration_ms: 3.359166
+  type: 'test'
+  ...
+# Subtest: G8 row updateDocumentComment: PATCH /documents/{documentID}/comments/{commentID} is registered and its params/body match the server
+ok 383 - G8 row updateDocumentComment: PATCH /documents/{documentID}/comments/{commentID} is registered and its params/body match the server
+  ---
+  duration_ms: 18.599991
+  type: 'test'
+  ...
+# Subtest: G8 row deleteDocumentComment: DELETE /documents/{documentID}/comments/{commentID} is registered and its params/body match the server
+ok 384 - G8 row deleteDocumentComment: DELETE /documents/{documentID}/comments/{commentID} is registered and its params/body match the server
+  ---
+  duration_ms: 15.124621
+  type: 'test'
+  ...
+# Subtest: G8 row resolveDocumentComment: POST /documents/{documentID}/comments/{commentID}/resolve is registered and its params/body match the server
+ok 385 - G8 row resolveDocumentComment: POST /documents/{documentID}/comments/{commentID}/resolve is registered and its params/body match the server
+  ---
+  duration_ms: 19.197048
+  type: 'test'
+  ...
+# Subtest: G8 row reopenDocumentComment: DELETE /documents/{documentID}/comments/{commentID}/resolve is registered and its params/body match the server
+ok 386 - G8 row reopenDocumentComment: DELETE /documents/{documentID}/comments/{commentID}/resolve is registered and its params/body match the server
+  ---
+  duration_ms: 16.204771
+  type: 'test'
+  ...
+# Subtest: G8 row listDocumentCommentRevisions: GET /documents/{documentID}/comments/{commentID}/revisions is registered and its params/body match the server
+ok 387 - G8 row listDocumentCommentRevisions: GET /documents/{documentID}/comments/{commentID}/revisions is registered and its params/body match the server
+  ---
+  duration_ms: 4.784154
+  type: 'test'
+  ...
+# Subtest: G8 row listMentionCandidates: GET /documents/{documentID}/mention-candidates is registered and its params/body match the server
+ok 388 - G8 row listMentionCandidates: GET /documents/{documentID}/mention-candidates is registered and its params/body match the server
+  ---
+  duration_ms: 1.894559
+  type: 'test'
+  ...
+# Subtest: G8 row listNotifications: GET /me/notifications is registered and its params/body match the server
+ok 389 - G8 row listNotifications: GET /me/notifications is registered and its params/body match the server
+  ---
+  duration_ms: 0.106065
+  type: 'test'
+  ...
+# Subtest: G8 row unreadNotificationCount: GET /me/notifications/unread-count is registered and its params/body match the server
+ok 390 - G8 row unreadNotificationCount: GET /me/notifications/unread-count is registered and its params/body match the server
+  ---
+  duration_ms: 0.052424
+  type: 'test'
+  ...
+# Subtest: G8 row markNotificationsRead: POST /me/notifications/read is registered and its params/body match the server
+ok 391 - G8 row markNotificationsRead: POST /me/notifications/read is registered and its params/body match the server
+  ---
+  duration_ms: 0.833806
+  type: 'test'
+  ...
+# Subtest: G8 row listDocumentShares: GET /documents/{documentID}/shares is registered and its params/body match the server
+ok 392 - G8 row listDocumentShares: GET /documents/{documentID}/shares is registered and its params/body match the server
+  ---
+  duration_ms: 11.755288
+  type: 'test'
+  ...
+# Subtest: G8 row createDocumentShare: POST /documents/{documentID}/shares is registered and its params/body match the server
+ok 393 - G8 row createDocumentShare: POST /documents/{documentID}/shares is registered and its params/body match the server
+  ---
+  duration_ms: 2.624941
+  type: 'test'
+  ...
+# Subtest: G8 row revokeDocumentShare: DELETE /documents/{documentID}/shares/{shareID} is registered and its params/body match the server
+ok 394 - G8 row revokeDocumentShare: DELETE /documents/{documentID}/shares/{shareID} is registered and its params/body match the server
+  ---
+  duration_ms: 3.586617
+  type: 'test'
+  ...
+# Subtest: G8 row createInvitation: POST /workspaces/{workspaceID}/invitations is registered and its params/body match the server
+ok 395 - G8 row createInvitation: POST /workspaces/{workspaceID}/invitations is registered and its params/body match the server
+  ---
+  duration_ms: 3.503231
+  type: 'test'
+  ...
+# Subtest: G8 row myInvitations: GET /me/invitations is registered and its params/body match the server
+ok 396 - G8 row myInvitations: GET /me/invitations is registered and its params/body match the server
+  ---
+  duration_ms: 0.100195
+  type: 'test'
+  ...
+# Subtest: G8 row acceptInvitation: POST /invitations/{token}/accept is registered and its params/body match the server
+ok 397 - G8 row acceptInvitation: POST /invitations/{token}/accept is registered and its params/body match the server
+  ---
+  duration_ms: 11.917359
+  type: 'test'
+  ...
+# Subtest: G8 row removeWorkspaceMember: DELETE /workspaces/{workspaceID}/members/{userID} is registered and its params/body match the server
+ok 398 - G8 row removeWorkspaceMember: DELETE /workspaces/{workspaceID}/members/{userID} is registered and its params/body match the server
+  ---
+  duration_ms: 3.627652
+  type: 'test'
+  ...
+# Subtest: G8 row deactivateOrgMember: POST /orgs/{org}/members/{userID}/deactivate is registered and its params/body match the server
+ok 399 - G8 row deactivateOrgMember: POST /orgs/{org}/members/{userID}/deactivate is registered and its params/body match the server
+  ---
+  duration_ms: 14.657757
+  type: 'test'
+  ...
+# Subtest: deactivateOrgMember takes the org slug (the handler resolves it with orgIDFromSlug)
+ok 400 - deactivateOrgMember takes the org slug (the handler resolves it with orgIDFromSlug)
+  ---
+  duration_ms: 1.916129
+  type: 'test'
+  ...
+# Subtest: mintLaunch may send comment_id, an optional CreateOfficeLaunchSessionSDI field
+ok 401 - mintLaunch may send comment_id, an optional CreateOfficeLaunchSessionSDI field
+  ---
+  duration_ms: 0.84334
+  type: 'test'
+  ...
+# Subtest: G8_API_CALLS holds the document-step, tracer and G8 rows, each once
+ok 402 - G8_API_CALLS holds the document-step, tracer and G8 rows, each once
+  ---
+  duration_ms: 0.096916
+  type: 'test'
+  ...
+# Subtest: a 4xx is returned as {status, body}, never thrown, and carries no token in error
+ok 403 - a 4xx is returned as {status, body}, never thrown, and carries no token in error
+  ---
+  duration_ms: 21.430773
+  type: 'test'
+  ...
+# Subtest: 2xx JSON is parsed, an empty body is null, a non-JSON body is {rawText}
+ok 404 - 2xx JSON is parsed, an empty body is null, a non-JSON body is {rawText}
+  ---
+  duration_ms: 10.399672
+  type: 'test'
+  ...
+# Subtest: comment_id passes through on office/sessions, and query params are sent
+ok 405 - comment_id passes through on office/sessions, and query params are sent
+  ---
+  duration_ms: 12.194985
+  type: 'test'
+  ...
+# Subtest: a network failure or a timeout resolves {status: 0, ok: false, body: null, error}
+ok 406 - a network failure or a timeout resolves {status: 0, ok: false, body: null, error}
+  ---
+  duration_ms: 21.347372
+  type: 'test'
+  ...
+# Subtest: an error string never carries a token, ticket or password
+ok 407 - an error string never carries a token, ticket or password
+  ---
+  duration_ms: 0.395858
+  type: 'test'
+  ...
+# Subtest: programming errors throw: unknown row, missing path param, unknown body key
+ok 408 - programming errors throw: unknown row, missing path param, unknown body key
+  ---
+  duration_ms: 0.413275
+  type: 'test'
+  ...
+# Subtest: a session without a token sends no authorization header
+ok 409 - a session without a token sends no authorization header
+  ---
+  duration_ms: 1.639446
+  type: 'test'
+  ...
+# Subtest: apiErrorText: the server's {error:{code,message}} reads as 'status code: message', never [object Object]
+ok 410 - apiErrorText: the server's {error:{code,message}} reads as 'status code: message', never [object Object]
+  ---
+  duration_ms: 0.480002
+  type: 'test'
+  ...
+# Subtest: apiErrorText: a token in the server's message is redacted and the text is capped
+ok 411 - apiErrorText: a token in the server's message is redacted and the text is capped
+  ---
+  duration_ms: 0.127408
+  type: 'test'
+  ...
+# Subtest: editorKindOfUrl / editorKindOfFormat follow the fork renderer scheme and UniworkDocFormat
+ok 412 - editorKindOfUrl / editorKindOfFormat follow the fork renderer scheme and UniworkDocFormat
+  ---
+  duration_ms: 6.115155
+  type: 'test'
+  ...
+# Subtest: connectApp classifies an app that cannot be driven: not started / no CDP -> BLOCKED, CDP refused -> FAIL, no shell window -> FAIL
+ok 413 - connectApp classifies an app that cannot be driven: not started / no CDP -> BLOCKED, CDP refused -> FAIL, no shell window -> FAIL
+  ---
+  duration_ms: 5015.534511
+  type: 'test'
+  ...
+# Subtest: evalBounded: a hung evaluate throws the bounded-step error carrying {call, elapsedMs}
+ok 414 - evalBounded: a hung evaluate throws the bounded-step error carrying {call, elapsedMs}
+  ---
+  duration_ms: 42.875498
+  type: 'test'
+  ...
+# Subtest: editorPage picks the page by URL kind and waits for it; an unknown kind is refused
+ok 415 - editorPage picks the page by URL kind and waits for it; an unknown kind is refused
+  ---
+  duration_ms: 252.578969
+  type: 'test'
+  ...
+# Subtest: comments(page) calls window.uniworkComments.<name> with the input and returns the envelope unchanged; discussion() uses the shell page
+ok 416 - comments(page) calls window.uniworkComments.<name> with the input and returns the envelope unchanged; discussion() uses the shell page
+  ---
+  duration_ms: 1.403497
+  type: 'test'
+  ...
+# Subtest: COMMENTS_API_NAMES / DISCUSSION_API_NAMES are the call channels of fork 7d665a54 comments-ipc.ts (push channels excluded)
+ok 417 - COMMENTS_API_NAMES / DISCUSSION_API_NAMES are the call channels of fork 7d665a54 comments-ipc.ts (push channels excluded) # SKIP fork 7d665a54 is not readable at /home/ubuntu/projects/uniwork-office (set OFFICE_FORK_DIR); the pinned lists below still hold
+  ---
+  duration_ms: 3.386439
+  type: 'test'
+  ...
+# Subtest: aiOffice(name) only calls SHELL_API_NAMES; save(path) is aiOffice.uniworkSave
+ok 418 - aiOffice(name) only calls SHELL_API_NAMES; save(path) is aiOffice.uniworkSave
+  ---
+  duration_ms: 1.006566
+  type: 'test'
+  ...
+# Subtest: signIn: signs out first, approves the consent as the user, reports the org choice and the org-scoped calls logged before it, without the email
+ok 419 - signIn: signs out first, approves the consent as the user, reports the org choice and the org-scoped calls logged before it, without the email
+  ---
+  duration_ms: 26.195926
+  type: 'test'
+  ...
+# Subtest: signIn settles the fork's sign-out gate: the previous session is closed with the product's own confirmation (D3-03)
+ok 420 - signIn settles the fork's sign-out gate: the previous session is closed with the product's own confirmation (D3-03)
+  ---
+  duration_ms: 9.401825
+  type: 'test'
+  ...
+# Subtest: signOut settles the same gate: the product's own confirmation, then the account status
+ok 421 - signOut settles the same gate: the product's own confirmation, then the account status
+  ---
+  duration_ms: 0.886424
+  type: 'test'
+  ...
+# Subtest: openByTicket delivers the deep link and waits for the active document; focus activates the tab and fires focus on editor pages; selection reads __genofficeControl
+ok 422 - openByTicket delivers the deep link and waits for the active document; focus activates the tab and fires focus on editor pages; selection reads __genofficeControl
+  ---
+  duration_ms: 302.137503
+  type: 'test'
+  ...
+# Subtest: sanitizeAccountStatus drops emails; countOrgScopedRequests counts org/workspace paths after an offset, null without a log
+ok 423 - sanitizeAccountStatus drops emails; countOrgScopedRequests counts org/workspace paths after an offset, null without a log
+  ---
+  duration_ms: 0.873043
+  type: 'test'
+  ...
+# Subtest: editorPage(kind, {path}) picks the page that shows that document among two of one kind; without the option the first page as before
+ok 424 - editorPage(kind, {path}) picks the page that shows that document among two of one kind; without the option the first page as before
+  ---
+  duration_ms: 1002.859507
+  type: 'test'
+  ...
+# Subtest: editorPage(kind, {path}): two pages that claim the document or none within the bound -> a clear error, never a page
+ok 425 - editorPage(kind, {path}): two pages that claim the document or none within the bound -> a clear error, never a page
+  ---
+  duration_ms: 1003.939917
+  type: 'test'
+  ...
+# Subtest: editorPage(kind, {url}) picks the one page with exactly that URL; two -> error
+ok 426 - editorPage(kind, {url}) picks the one page with exactly that URL; two -> error
+  ---
+  duration_ms: 0.796032
+  type: 'test'
+  ...
+# Subtest: parseArgs: defaults, every flag, and the refusals
+ok 427 - parseArgs: defaults, every flag, and the refusals
+  ---
+  duration_ms: 2.13954
+  type: 'test'
+  ...
+# Subtest: resolveForkDir: the flag wins, else the harness cache entry for the pinned SHA
+ok 428 - resolveForkDir: the flag wins, else the harness cache entry for the pinned SHA
+  ---
+  duration_ms: 0.285734
+  type: 'test'
+  ...
+# Subtest: electronArgs adds --password-store only when asked, and always the entry last
+ok 429 - electronArgs adds --password-store only when asked, and always the entry last
+  ---
+  duration_ms: 0.117752
+  type: 'test'
+  ...
+# Subtest: probeEnv is the app's allow-listed environment: the session bus passes, server secrets do not
+ok 430 - probeEnv is the app's allow-listed environment: the session bus passes, server secrets do not
+  ---
+  duration_ms: 0.440138
+  type: 'test'
+  ...
+# Subtest: parseResultLine takes the probe's last JSON line out of Chromium's noise
+ok 431 - parseResultLine takes the probe's last JSON line out of Chromium's noise
+  ---
+  duration_ms: 0.208729
+  type: 'test'
+  ...
+# Subtest: verdictFor: the expected status passes, anything else (or no result) fails
+ok 432 - verdictFor: the expected status passes, anything else (or no result) fails
+  ---
+  duration_ms: 0.096599
+  type: 'test'
+  ...
+# Subtest: runProbe: a working store is ready with a round trip, and the token never appears in the result
+ok 433 - runProbe: a working store is ready with a round trip, and the token never appears in the result
+  ---
+  duration_ms: 1.238935
+  type: 'test'
+  ...
+# Subtest: runProbe: the store's keyring_unavailable is the status; an unknown error is a coarse 'error' with no message
+ok 434 - runProbe: the store's keyring_unavailable is the status; an unknown error is a coarse 'error' with no message
+  ---
+  duration_ms: 0.381952
+  type: 'test'
+  ...
+# Subtest: runProbe fails a round trip that loses the token, and a file that holds the token in the clear
+ok 435 - runProbe fails a round trip that loses the token, and a file that holds the token in the clear
+  ---
+  duration_ms: 0.969897
+  type: 'test'
+  ...
+# Subtest: runProbe survives a safeStorage that throws on every probe call
+ok 436 - runProbe survives a safeStorage that throws on every probe call
+  ---
+  duration_ms: 0.490016
+  type: 'test'
+  ...
+# Subtest: probeCredential has every field credentials.ts isStoredCredential requires
+ok 437 - probeCredential has every field credentials.ts isStoredCredential requires
+  ---
+  duration_ms: 0.140517
+  type: 'test'
+  ...
+# Subtest: the fork's real createCredentialStore: ready on a fake safeStorage, keyring_unavailable on basic_text
+ok 438 - the fork's real createCredentialStore: ready on a fake safeStorage, keyring_unavailable on basic_text # SKIP OFFICE_FORK_DIR has no fork checkout with esbuild
+  ---
+  duration_ms: 0.041519
+  type: 'test'
+  ...
+# Subtest: the shell scripts and every spec line parse (bash -n)
+ok 439 - the shell scripts and every spec line parse (bash -n)
+  ---
+  duration_ms: 10.838042
+  type: 'test'
+  ...
+# Subtest: the spec: one marker per line, '; true' on all but the last, the last one carries the exit
+ok 440 - the spec: one marker per line, '; true' on all but the last, the last one carries the exit
+  ---
+  duration_ms: 0.187823
+  type: 'test'
+  ...
+# Subtest: the throwaway password is never in a spec line or echoed by the session script
+ok 441 - the throwaway password is never in a spec line or echoed by the session script
+  ---
+  duration_ms: 0.273954
+  type: 'test'
+  ...
+# Subtest: keyring-session.sh --exec: refuses unknown flags and empty --exec (exit 2), and exits 77 BLOCKED when a tool is missing
+ok 442 - keyring-session.sh --exec: refuses unknown flags and empty --exec (exit 2), and exits 77 BLOCKED when a tool is missing
+  ---
+  duration_ms: 14.635141
+  type: 'test'
+  ...
+# Subtest: keyring-session.sh --exec: runs command inside dbus-run-session with unlocked keyring, passes exit code through, stops daemon by PID and removes scratch dir
+ok 443 - keyring-session.sh --exec: runs command inside dbus-run-session with unlocked keyring, passes exit code through, stops daemon by PID and removes scratch dir
+  ---
+  duration_ms: 645.18509
+  type: 'test'
+  ...
+# Subtest: freePorts hands out distinct ports the kernel just released
+ok 444 - freePorts hands out distinct ports the kernel just released
+  ---
+  duration_ms: 9.047652
+  type: 'test'
+  ...
+# Subtest: freePorts refuses a non-positive count
+ok 445 - freePorts refuses a non-positive count
+  ---
+  duration_ms: 0.388831
+  type: 'test'
+  ...
+# Subtest: BLOCKED is 77 so a missing precondition is never mistaken for a pass
+ok 446 - BLOCKED is 77 so a missing precondition is never mistaken for a pass
+  ---
+  duration_ms: 0.120588
+  type: 'test'
+  ...
+# Subtest: the default fork revision is the pinned base
+ok 447 - the default fork revision is the pinned base
+  ---
+  duration_ms: 0.159485
+  type: 'test'
+  ...
+# Subtest: buildServerEnv puts every port-derived origin on the command line
+ok 448 - buildServerEnv puts every port-derived origin on the command line
+  ---
+  duration_ms: 0.435466
+  type: 'test'
+  ...
+# Subtest: buildServerEnv gives the server a test-only AI_CREDENTIAL_KEY, so the web frame token can grant AI (RFE5-201)
+ok 449 - buildServerEnv gives the server a test-only AI_CREDENTIAL_KEY, so the web frame token can grant AI (RFE5-201)
+  ---
+  duration_ms: 0.340329
+  type: 'test'
+  ...
+# Subtest: the web and the API are served as localhost, never 127.0.0.1 (G7-06 round 1: no web page ever hydrated)
+ok 450 - the web and the API are served as localhost, never 127.0.0.1 (G7-06 round 1: no web page ever hydrated)
+  ---
+  duration_ms: 0.991375
+  type: 'test'
+  ...
+# Subtest: ports.env and the returned origins use the same localhost origins the server was started with
+ok 451 - ports.env and the returned origins use the same localhost origins the server was started with
+  ---
+  duration_ms: 3.188957
+  type: 'test'
+  ...
+# Subtest: buildServerEnv keeps the API origin identical everywhere it is inlined
+ok 452 - buildServerEnv keeps the API origin identical everywhere it is inlined
+  ---
+  duration_ms: 0.216938
+  type: 'test'
+  ...
+# Subtest: the launch deep link is the dev scheme both ends agree on
+ok 453 - the launch deep link is the dev scheme both ends agree on
+  ---
+  duration_ms: 0.372958
+  type: 'test'
+  ...
+# Subtest: the working-copy dir is the fork's own layout
+ok 454 - the working-copy dir is the fork's own layout
+  ---
+  duration_ms: 0.15797
+  type: 'test'
+  ...
+# Subtest: ticketFromLaunchUrl reads the ticket out of the server's link, or null
+ok 455 - ticketFromLaunchUrl reads the ticket out of the server's link, or null
+  ---
+  duration_ms: 0.141126
+  type: 'test'
+  ...
+# Subtest: the BLOCKED reason without a session says the app is not signed in, and where to run it
+ok 456 - the BLOCKED reason without a session says the app is not signed in, and where to run it
+  ---
+  duration_ms: 0.175432
+  type: 'test'
+  ...
+# Subtest: documentStepOutcome decides from the app's own working copy
+ok 457 - documentStepOutcome decides from the app's own working copy
+  ---
+  duration_ms: 0.175199
+  type: 'test'
+  ...
+# Subtest: origin builds a loopback origin for a port
+ok 458 - origin builds a loopback origin for a port
+  ---
+  duration_ms: 0.086381
+  type: 'test'
+  ...
+# Subtest: harnessPaths keeps every run artifact inside the run dir
+ok 459 - harnessPaths keeps every run artifact inside the run dir
+  ---
+  duration_ms: 0.158338
+  type: 'test'
+  ...
+# Subtest: forkCacheDir is keyed by the revision so two SHAs never share a checkout
+ok 460 - forkCacheDir is keyed by the revision so two SHAs never share a checkout
+  ---
+  duration_ms: 0.111282
+  type: 'test'
+  ...
+# Subtest: evidenceLine carries every field the runner contract checks, empty when unknown
+ok 461 - evidenceLine carries every field the runner contract checks, empty when unknown
+  ---
+  duration_ms: 0.173805
+  type: 'test'
+  ...
+# Subtest: evidenceLine records the argv it is given and refuses to guess one (H1-6)
+ok 462 - evidenceLine records the argv it is given and refuses to guess one (H1-6)
+  ---
+  duration_ms: 0.550249
+  type: 'test'
+  ...
+# Subtest: evidenceLine defaults to BLOCKED, never to PASS
+ok 463 - evidenceLine defaults to BLOCKED, never to PASS
+  ---
+  duration_ms: 0.101679
+  type: 'test'
+  ...
+# Subtest: evidenceLine keeps a fixture hash and a blocker out of a PASS
+ok 464 - evidenceLine keeps a fixture hash and a blocker out of a PASS
+  ---
+  duration_ms: 0.085127
+  type: 'test'
+  ...
+# Subtest: writeRunEnv writes a ports file and a server env bash can source
+ok 465 - writeRunEnv writes a ports file and a server env bash can source
+  ---
+  duration_ms: 5.297257
+  type: 'test'
+  ...
+# Subtest: isMainModule is false when node was started with an eval flag
+ok 466 - isMainModule is false when node was started with an eval flag
+  ---
+  duration_ms: 0.230085
+  type: 'test'
+  ...
+# Subtest: importing lib.mjs from node -e does not run the CLI
+ok 467 - importing lib.mjs from node -e does not run the CLI
+  ---
+  duration_ms: 30.892583
+  type: 'test'
+  ...
+# Subtest: the lib.mjs CLI modes answer and name the mode on a bad call
+ok 468 - the lib.mjs CLI modes answer and name the mode on a bad call
+  ---
+  duration_ms: 80.67847
+  type: 'test'
+  ...
+# Subtest: start.sh reaches up through the real lib.mjs fork-dir call (fake stack)
+ok 469 - start.sh reaches up through the real lib.mjs fork-dir call (fake stack)
+  ---
+  duration_ms: 2267.805907
+  type: 'test'
+  ...
+# Subtest: the chunk fallback of the sample AC reads loopback origins as the build spells them, so it follows API_ORIGIN (R2-4)
+ok 470 - the chunk fallback of the sample AC reads loopback origins as the build spells them, so it follows API_ORIGIN (R2-4)
+  ---
+  duration_ms: 0.41989
+  type: 'test'
+  ...
+# Subtest: sample-ac accepts a localhost origin inlined in the served chunks and reports 127.0.0.1 as another origin (R3-3)
+ok 471 - sample-ac accepts a localhost origin inlined in the served chunks and reports 127.0.0.1 as another origin (R3-3)
+  ---
+  duration_ms: 61334.805368
+  type: 'test'
+  ...
+# Subtest: start.sh puts the localhost WebSocket URL on the web's command line, the same host as the API origin (d8115227b)
+ok 472 - start.sh puts the localhost WebSocket URL on the web's command line, the same host as the API origin (d8115227b)
+  ---
+  duration_ms: 2248.675169
+  type: 'test'
+  ...
+# Subtest: the D server boots with exactly DESKTOP_AUTH_CLIENTS although the checkout's .env carries the single-client pair
+ok 473 - the D server boots with exactly DESKTOP_AUTH_CLIENTS although the checkout's .env carries the single-client pair
+  ---
+  duration_ms: 3250.344845
+  type: 'test'
+  ...
+# Subtest: the same server, started from the checkout the old way, dies of the round-4 config error
+ok 474 - the same server, started from the checkout the old way, dies of the round-4 config error
+  ---
+  duration_ms: 27.490879
+  type: 'test'
+  ...
+# Subtest: the server's cwd is three directories deep, so none of its .env lookups leaves the run dir
+ok 475 - the server's cwd is three directories deep, so none of its .env lookups leaves the run dir
+  ---
+  duration_ms: 0.257851
+  type: 'test'
+  ...
+# Subtest: serverDotEnv drops the lines of the keys the run owns and keeps the rest
+ok 476 - serverDotEnv drops the lines of the keys the run owns and keeps the rest
+  ---
+  duration_ms: 0.137345
+  type: 'test'
+  ...
+# Subtest: writeRunEnv leaves the server a .env without any key it owns, in a cwd of its own
+ok 477 - writeRunEnv leaves the server a .env without any key it owns, in a cwd of its own
+  ---
+  duration_ms: 2.51371
+  type: 'test'
+  ...
+# Subtest: the server's cwd is 0700 and its .env copy and server.env are 0600, even over a looser pre-existing file (R2-2)
+ok 478 - the server's cwd is 0700 and its .env copy and server.env are 0600, even over a looser pre-existing file (R2-2)
+  ---
+  duration_ms: 3.523046
+  type: 'test'
+  ...
+# Subtest: the app start.sh launches gets an allow-listed env, never the VM .env's server secrets (H1-8)
+ok 479 - the app start.sh launches gets an allow-listed env, never the VM .env's server secrets (H1-8)
+  ---
+  duration_ms: 2225.19857
+  type: 'test'
+  ...
+# Subtest: start.sh launches the desktop app with the libsecret password store and leaves XDG_CURRENT_DESKTOP unset
+ok 480 - start.sh launches the desktop app with the libsecret password store and leaves XDG_CURRENT_DESKTOP unset
+  ---
+  duration_ms: 2249.109505
+  type: 'test'
+  ...
+# Subtest: appEnv does not pass XDG_CURRENT_DESKTOP through
+ok 481 - appEnv does not pass XDG_CURRENT_DESKTOP through
+  ---
+  duration_ms: 0.579957
+  type: 'test'
+  ...
+# Subtest: the second instance gets the run's DISPLAY and XAUTHORITY, not the caller's, and nothing else widens
+ok 482 - the second instance gets the run's DISPLAY and XAUTHORITY, not the caller's, and nothing else widens
+  ---
+  duration_ms: 0.327431
+  type: 'test'
+  ...
+# Subtest: describeExit names the signal instead of printing 'exited null'
+ok 483 - describeExit names the signal instead of printing 'exited null'
+  ---
+  duration_ms: 0.090378
+  type: 'test'
+  ...
+# Subtest: appEnv passes only the allow-list and refuses a secret by name
+ok 484 - appEnv passes only the allow-list and refuses a secret by name
+  ---
+  duration_ms: 0.327854
+  type: 'test'
+  ...
+# Subtest: --dry-run leaves a live run's pids, ports and logs untouched (reviewer_be H1-2)
+ok 485 - --dry-run leaves a live run's pids, ports and logs untouched (reviewer_be H1-2)
+  ---
+  duration_ms: 127.225292
+  type: 'test'
+  ...
+# Subtest: under xvfb the run's X auth file lives in the run dir and ports.env records it next to DISPLAY
+ok 486 - under xvfb the run's X auth file lives in the run dir and ports.env records it next to DISPLAY
+  ---
+  duration_ms: 2230.142689
+  type: 'test'
+  ...
+# Subtest: --desktop opens the app on the invoking session's display, without xvfb
+ok 487 - --desktop opens the app on the invoking session's display, without xvfb
+  ---
+  duration_ms: 2233.097827
+  type: 'test'
+  ...
+# Subtest: --desktop without a graphical session is BLOCKED with the reason
+ok 488 - --desktop without a graphical session is BLOCKED with the reason
+  ---
+  duration_ms: 76.496193
+  type: 'test'
+  ...
+# Subtest: a failed start is recorded as failed, a missing precondition as blocked
+ok 489 - a failed start is recorded as failed, a missing precondition as blocked
+  ---
+  duration_ms: 350.983274
+  type: 'test'
+  ...
+# Subtest: start.sh stops the process groups a previous start of the same run dir recorded, then starts the app on a userData of its own (ADDENDUM r5 G2)
+ok 490 - start.sh stops the process groups a previous start of the same run dir recorded, then starts the app on a userData of its own (ADDENDUM r5 G2)
+  ---
+  duration_ms: 12314.322129
+  type: 'test'
+  ...
+# Subtest: start.sh FAILs instead of reporting 'up' when the app it started is already gone (ADDENDUM r5 G2)
+ok 491 - start.sh FAILs instead of reporting 'up' when the app it started is already gone (ADDENDUM r5 G2)
+  ---
+  duration_ms: 1246.727831
+  type: 'test'
+  ...
+# Subtest: a server that dies at boot leaves a failed start with its log tail, not an up one
+ok 492 - a server that dies at boot leaves a failed start with its log tail, not an up one
+  ---
+  duration_ms: 1163.030704
+  type: 'test'
+  ...
+# Subtest: startGate: only a start that reported BLOCKED may block a later step
+ok 493 - startGate: only a start that reported BLOCKED may block a later step
+  ---
+  duration_ms: 0.30322
+  type: 'test'
+  ...
+# Subtest: readStartStatus reads the file, and a torn one reads as failed
+ok 494 - readStartStatus reads the file, and a torn one reads as failed
+  ---
+  duration_ms: 0.852493
+  type: 'test'
+  ...
+# Subtest: a present library is not reported missing when ldconfig writes past a pipe buffer
+ok 495 - a present library is not reported missing when ldconfig writes past a pipe buffer
+  ---
+  duration_ms: 2295.321472
+  type: 'test'
+  ...
+# Subtest: start.sh installs the fork with npm ci --ignore-scripts, never a bare npm ci
+ok 496 - start.sh installs the fork with npm ci --ignore-scripts, never a bare npm ci
+  ---
+  duration_ms: 2249.426524
+  type: 'test'
+  ...
+# Subtest: start.sh does not install a fork whose tree is already complete
+ok 497 - start.sh does not install a fork whose tree is already complete
+  ---
+  duration_ms: 2264.875699
+  type: 'test'
+  ...
+# Subtest: a failing fork install is a FAIL with the log tail, not BLOCKED
+ok 498 - a failing fork install is a FAIL with the log tail, not BLOCKED
+  ---
+  duration_ms: 201.604987
+  type: 'test'
+  ...
+# Subtest: a missing network for the fork is BLOCKED, not FAILED
+ok 499 - a missing network for the fork is BLOCKED, not FAILED
+  ---
+  duration_ms: 216.986009
+  type: 'test'
+  ...
+# Subtest: start.sh names the failing step and its args when lib.mjs errors
+ok 500 - start.sh names the failing step and its args when lib.mjs errors
+  ---
+  duration_ms: 172.614123
+  type: 'test'
+  ...
+# Subtest: document-step PASSes when the app leaves a working copy for the fixture document
+ok 501 - document-step PASSes when the app leaves a working copy for the fixture document
+  ---
+  duration_ms: 118.432572
+  type: 'test'
+  ...
+# Subtest: document-step is BLOCKED when the app has no desktop session and left no working copy
+ok 502 - document-step is BLOCKED when the app has no desktop session and left no working copy
+  ---
+  duration_ms: 109.126157
+  type: 'test'
+  ...
+# Subtest: document-step FAILs, naming the signal, when the handoff itself dies even without a session
+ok 503 - document-step FAILs, naming the signal, when the handoff itself dies even without a session
+  ---
+  duration_ms: 123.753482
+  type: 'test'
+  ...
+# Subtest: document-step FAILs when a signed-in app is handed the link and does not open it
+ok 504 - document-step FAILs when a signed-in app is handed the link and does not open it
+  ---
+  duration_ms: 2114.597449
+  type: 'test'
+  ...
+# Subtest: sample-ac FAILs (exit 1), not BLOCKED, after a start that failed
+ok 505 - sample-ac FAILs (exit 1), not BLOCKED, after a start that failed
+  ---
+  duration_ms: 44.322479
+  type: 'test'
+  ...
+# Subtest: sample-ac FAILs when start.sh never finished
+ok 506 - sample-ac FAILs when start.sh never finished
+  ---
+  duration_ms: 37.234024
+  type: 'test'
+  ...
+# Subtest: sample-ac is BLOCKED only with the reason start.sh recorded
+ok 507 - sample-ac is BLOCKED only with the reason start.sh recorded
+  ---
+  duration_ms: 40.561946
+  type: 'test'
+  ...
+# Subtest: document-step FAILs (exit 1), not BLOCKED, after a start that failed
+ok 508 - document-step FAILs (exit 1), not BLOCKED, after a start that failed
+  ---
+  duration_ms: 37.984543
+  type: 'test'
+  ...
+# Subtest: document-step FAILs when start.sh never finished
+ok 509 - document-step FAILs when start.sh never finished
+  ---
+  duration_ms: 58.863911
+  type: 'test'
+  ...
+# Subtest: document-step is BLOCKED only with the reason start.sh recorded
+ok 510 - document-step is BLOCKED only with the reason start.sh recorded
+  ---
+  duration_ms: 49.911718
+  type: 'test'
+  ...
+# Subtest: parseWaitSignin reads the flag, with or without a number
+ok 511 - parseWaitSignin reads the flag, with or without a number
+  ---
+  duration_ms: 0.222028
+  type: 'test'
+  ...
+# Subtest: activeDesktopDevice wants the dev client, this deployment, not revoked, not expired
+ok 512 - activeDesktopDevice wants the dev client, this deployment, not revoked, not expired
+  ---
+  duration_ms: 0.167252
+  type: 'test'
+  ...
+# Subtest: document-step reuses an account from the environment and writes no secret anywhere
+ok 513 - document-step reuses an account from the environment and writes no secret anywhere
+  ---
+  duration_ms: 115.938066
+  type: 'test'
+  ...
+# Subtest: document-step is BLOCKED, and delivers nothing, when the reused account has no desktop session
+ok 514 - document-step is BLOCKED, and delivers nothing, when the reused account has no desktop session
+  ---
+  duration_ms: 99.360549
+  type: 'test'
+  ...
+# Subtest: --wait-signin prints the steps, waits for the sign-in, then opens the document
+ok 515 - --wait-signin prints the steps, waits for the sign-in, then opens the document
+  ---
+  duration_ms: 4108.84152
+  type: 'test'
+  ...
+# Subtest: --wait-signin that never sees a sign-in is BLOCKED with the wait in the reason
+ok 516 - --wait-signin that never sees a sign-in is BLOCKED with the wait in the reason
+  ---
+  duration_ms: 2088.321038
+  type: 'test'
+  ...
+# Subtest: --wait-signin with a seeded account keeps its random password in a 0600 file while it waits, never in the output
+ok 517 - --wait-signin with a seeded account keeps its random password in a 0600 file while it waits, never in the output
+  ---
+  duration_ms: 6105.180026
+  type: 'test'
+  ...
+# Subtest: the unattended cloud run seeds with no sign-in check and no credentials file
+ok 518 - the unattended cloud run seeds with no sign-in check and no credentials file
+  ---
+  duration_ms: 108.111095
+  type: 'test'
+  ...
+# Subtest: an email without a password (or the reverse) is a usage error, not a guess
+ok 519 - an email without a password (or the reverse) is a usage error, not a guess
+  ---
+  duration_ms: 29.796471
+  type: 'test'
+  ...
+# Subtest: a wrong password for a reused account is a FAIL
+ok 520 - a wrong password for a reused account is a FAIL
+  ---
+  duration_ms: 62.385983
+  type: 'test'
+  ...
+# Subtest: document-step's own evidence line is complete: verify finds nothing wrong with it
+ok 521 - document-step's own evidence line is complete: verify finds nothing wrong with it
+  ---
+  duration_ms: 106.712669
+  type: 'test'
+  ...
+# Subtest: a BLOCKED document-step line and a start-gate line also pass verify
+ok 522 - a BLOCKED document-step line and a start-gate line also pass verify
+  ---
+  duration_ms: 105.922588
+  type: 'test'
+  ...
+# Subtest: sample-ac's start-gate blocked line carries its fixture and an artifact, so verify accepts it (R2-1)
+ok 523 - sample-ac's start-gate blocked line carries its fixture and an artifact, so verify accepts it (R2-1)
+  ---
+  duration_ms: 36.588289
+  type: 'test'
+  ...
+# Subtest: sample-ac's start-gate failed line carries its fixture and an artifact, so verify accepts it (R2-1)
+ok 524 - sample-ac's start-gate failed line carries its fixture and an artifact, so verify accepts it (R2-1)
+  ---
+  duration_ms: 34.5149
+  type: 'test'
+  ...
+# Subtest: document-step's start-gate blocked line carries its fixture and an artifact, so verify accepts it (R2-1)
+ok 525 - document-step's start-gate blocked line carries its fixture and an artifact, so verify accepts it (R2-1)
+  ---
+  duration_ms: 38.12932
+  type: 'test'
+  ...
+# Subtest: document-step's start-gate failed line carries its fixture and an artifact, so verify accepts it (R2-1)
+ok 526 - document-step's start-gate failed line carries its fixture and an artifact, so verify accepts it (R2-1)
+  ---
+  duration_ms: 39.113031
+  type: 'test'
+  ...
+# Subtest: the second instance gets the allow-listed env, not the harness's
+ok 527 - the second instance gets the allow-listed env, not the harness's
+  ---
+  duration_ms: 1091.779564
+  type: 'test'
+  ...
+# Subtest: the second instance is in the pids file while it lives and gone when it exits
+ok 528 - the second instance is in the pids file while it lives and gone when it exits
+  ---
+  duration_ms: 1098.34286
+  type: 'test'
+  ...
+# Subtest: a second instance that does not exit is killed as a group, not left behind
+ok 529 - a second instance that does not exit is killed as a group, not left behind
+  ---
+  duration_ms: 1888.684569
+  type: 'test'
+  ...
+# Subtest: the seeded organization is removed by id; the owner account is a logged leftover, not a /me/delete 409
+ok 530 - the seeded organization is removed by id; the owner account is a logged leftover, not a /me/delete 409
+  ---
+  duration_ms: 114.443752
+  type: 'test'
+  ...
+# Subtest: without a seeded organization the seeded account is deleted by the step
+ok 531 - without a seeded organization the seeded account is deleted by the step
+  ---
+  duration_ms: 107.321686
+  type: 'test'
+  ...
+# Subtest: a seeding FAIL prints the failing request and reason, never a token, and cleanup still runs
+ok 532 - a seeding FAIL prints the failing request and reason, never a token, and cleanup still runs
+  ---
+  duration_ms: 101.723014
+  type: 'test'
+  ...
+# Subtest: under the evidence runner a FAIL's reason is in the artifact and echoed to the round log
+ok 533 - under the evidence runner a FAIL's reason is in the artifact and echoed to the round log
+  ---
+  duration_ms: 155.871006
+  type: 'test'
+  ...
+# Subtest: a failed cleanup does not turn a BLOCKED step into a FAIL
+ok 534 - a failed cleanup does not turn a BLOCKED step into a FAIL
+  ---
+  duration_ms: 121.974087
+  type: 'test'
+  ...
+# Subtest: a reused account is never cleaned up
+ok 535 - a reused account is never cleaned up
+  ---
+  duration_ms: 132.924783
+  type: 'test'
+  ...
+# Subtest: a cleanup that fails is reported and does not change the result
+ok 536 - a cleanup that fails is reported and does not change the result
+  ---
+  duration_ms: 111.271587
+  type: 'test'
+  ...
+# Subtest: stop.sh removes the run's uploads and server cwd by path and keeps logs and evidence
+ok 537 - stop.sh removes the run's uploads and server cwd by path and keeps logs and evidence
+  ---
+  duration_ms: 8.910354
+  type: 'test'
+  ...
+# Subtest: stop.sh removes the Xauthority file also when there is no pid file (R2-3)
+ok 538 - stop.sh removes the Xauthority file also when there is no pid file (R2-3)
+  ---
+  duration_ms: 5.967707
+  type: 'test'
+  ...
+# Subtest: document-step's precondition BLOCKED line (no D server up) carries its fixture and an artifact log (R2-1)
+ok 539 - document-step's precondition BLOCKED line (no D server up) carries its fixture and an artifact log (R2-1)
+  ---
+  duration_ms: 53.462378
+  type: 'test'
+  ...
+# Subtest: writeRunEnv allocates distinct APP_PROXY_PORT and APP_CDP_PORT and writes deployment-profile.json for the app proxy (G710-L2)
+ok 540 - writeRunEnv allocates distinct APP_PROXY_PORT and APP_CDP_PORT and writes deployment-profile.json for the app proxy (G710-L2)
+  ---
+  duration_ms: 1.609889
+  type: 'test'
+  ...
+# Subtest: startAppApiProxy cuts only the app's proxy link while the D server stays reachable to the web and test (G710-L2)
+ok 541 - startAppApiProxy cuts only the app's proxy link while the D server stays reachable to the web and test (G710-L2)
+  ---
+  duration_ms: 15.796167
+  type: 'test'
+  ...
+# Subtest: start.sh passes --remote-debugging-port before the shell app dir so the running Electron app can be driven headlessly (G710-L1)
+ok 542 - start.sh passes --remote-debugging-port before the shell app dir so the running Electron app can be driven headlessly (G710-L1)
+  ---
+  duration_ms: 2224.709127
+  type: 'test'
+  ...
+# Subtest: no harness-* temp dir of this file is left in os.tmpdir()
+ok 543 - no harness-* temp dir of this file is left in os.tmpdir()
+  ---
+  duration_ms: 0.34675
+  type: 'test'
+  ...
+# Subtest: every ```sh block of the harness README passes bash -n
+ok 544 - every ```sh block of the harness README passes bash -n
+  ---
+  duration_ms: 14.277659
+  type: 'test'
+  ...
+# Subtest: shBlocks takes the sh fences only, in file order
+ok 545 - shBlocks takes the sh fences only, in file order
+  ---
+  duration_ms: 1.210109
+  type: 'test'
+  ...
+# Subtest: every ```sh block of the harness README passes bash -n
+ok 546 - every ```sh block of the harness README passes bash -n
+  ---
+  duration_ms: 14.376141
+  type: 'test'
+  ...
+# Subtest: the desktop block uses $UNIWORK_CHECKOUT and no angle-bracket placeholder
+ok 547 - the desktop block uses $UNIWORK_CHECKOUT and no angle-bracket placeholder
+  ---
+  duration_ms: 0.324959
+  type: 'test'
+  ...
+# Subtest: the old placeholder would have failed bash -n (red case)
+ok 548 - the old placeholder would have failed bash -n (red case)
+  ---
+  duration_ms: 3.226624
+  type: 'test'
+  ...
+# Subtest: the headless keyring section documents keyring-session.sh --exec wrapping start.sh and stop.sh in one session
+ok 549 - the headless keyring section documents keyring-session.sh --exec wrapping start.sh and stop.sh in one session
+  ---
+  duration_ms: 1.960818
+  type: 'test'
+  ...
+# Subtest: the README documents the warm-run-dir rule: a previous start's recorded groups are stopped first, the userData is per start, and an app that is gone is a FAIL (ADDENDUM r5 G2)
+ok 550 - the README documents the warm-run-dir rule: a previous start's recorded groups are stopped first, the userData is per start, and an app that is gone is a FAIL (ADDENDUM r5 G2)
+  ---
+  duration_ms: 0.158167
+  type: 'test'
+  ...
+# Subtest: the README documents HARNESS_APP_STEP_TIMEOUT_MS (90000) and HARNESS_LOOP_TIMEOUT_MS (600000) for bounded app CDP steps and the per-loop watchdog (r6 H1)
+ok 551 - the README documents HARNESS_APP_STEP_TIMEOUT_MS (90000) and HARNESS_LOOP_TIMEOUT_MS (600000) for bounded app CDP steps and the per-loop watchdog (r6 H1)
+  ---
+  duration_ms: 0.132581
+  type: 'test'
+  ...
+# Subtest: the README documents the docs tab close-readiness wait and HARNESS_DOCS_CLOSE_SETTLE_MS (2500) before aiOfficeTabs.close (r7 H2, r7b H2-1)
+ok 552 - the README documents the docs tab close-readiness wait and HARNESS_DOCS_CLOSE_SETTLE_MS (2500) before aiOfficeTabs.close (r7 H2, r7b H2-1)
+  ---
+  duration_ms: 0.108009
+  type: 'test'
+  ...
+# Subtest: the README says the capture server gets a test-only AI_CREDENTIAL_KEY and why (RFE5-201)
+ok 553 - the README says the capture server gets a test-only AI_CREDENTIAL_KEY and why (RFE5-201)
+  ---
+  duration_ms: 0.230636
+  type: 'test'
+  ...
+# Subtest: documentUrl mirrors resource-href.ts: comment rides as ?comment=, kind=discussion only with a comment
+ok 554 - documentUrl mirrors resource-href.ts: comment rides as ?comment=, kind=discussion only with a comment
+  ---
+  duration_ms: 1.929898
+  type: 'test'
+  ...
+# Subtest: classifyDocumentPage: S15 states, the panel with the named thread highlighted, and not-yet-settled
+ok 555 - classifyDocumentPage: S15 states, the panel with the named thread highlighted, and not-yet-settled
+  ---
+  duration_ms: 0.574736
+  type: 'test'
+  ...
+# Subtest: openDocument goes to the Inbox URL and waits for a settled reading; a page that never settles is an error with the reason
+ok 556 - openDocument goes to the Inbox URL and waits for a settled reading; a page that never settles is an error with the reason
+  ---
+  duration_ms: 23.575606
+  type: 'test'
+  ...
+# Subtest: webLogin fills the /login form with the user's credentials and sets the locale cookie per context
+ok 557 - webLogin fills the /login form with the user's credentials and sets the locale cookie per context
+  ---
+  duration_ms: 1.132059
+  type: 'test'
+  ...
+# Subtest: webLogin never ends in a bare waitForURL timeout: a 429 from the harness's own login volume is named as a harness failure
+ok 558 - webLogin never ends in a bare waitForURL timeout: a 429 from the harness's own login volume is named as a harness failure
+  ---
+  duration_ms: 0.561269
+  type: 'test'
+  ...
+# Subtest: webLogin: a 401 names its code and the visible error text is redacted (no email, no password)
+ok 559 - webLogin: a 401 names its code and the visible error text is redacted (no email, no password)
+  ---
+  duration_ms: 0.391845
+  type: 'test'
+  ...
+# Subtest: webLogin: a click that sent no request (form not hydrated yet) is retried on a fresh /login and then succeeds
+ok 560 - webLogin: a click that sent no request (form not hydrated yet) is retried on a fresh /login and then succeeds
+  ---
+  duration_ms: 52.240862
+  type: 'test'
+  ...
+# Subtest: webLogin: no login request in every attempt fails with the attempts, the hydration state and the path only
+ok 561 - webLogin: no login request in every attempt fails with the attempts, the hydration state and the path only
+  ---
+  duration_ms: 126.995139
+  type: 'test'
+  ...
+# Subtest: webLogin: a 200 answer that leaves the page on /login is named, not left to a URL timeout
+ok 562 - webLogin: a 200 answer that leaves the page on /login is named, not left to a URL timeout
+  ---
+  duration_ms: 201.933991
+  type: 'test'
+  ...
+# Subtest: webLogin: a login request that is never answered is named as such
+ok 563 - webLogin: a login request that is never answered is named as such
+  ---
+  duration_ms: 202.785614
+  type: 'test'
+  ...
+# Subtest: webFrameSelectors names the module frame host, its ready state and its iframe (office-module-frame.tsx:309-333)
+ok 564 - webFrameSelectors names the module frame host, its ready state and its iframe (office-module-frame.tsx:309-333)
+  ---
+  duration_ms: 0.392815
+  type: 'test'
+  ...
+# Subtest: classifyWebSave: a 2xx commit is saved with the new version id; anything else names why
+ok 565 - classifyWebSave: a 2xx commit is saved with the new version id; anything else names why
+  ---
+  duration_ms: 0.204638
+  type: 'test'
+  ...
+# Subtest: webSave waits for the ready frame, focuses its iframe, presses Control+s and reads the commit answer
+ok 566 - webSave waits for the ready frame, focuses its iframe, presses Control+s and reads the commit answer
+  ---
+  duration_ms: 0.605792
+  type: 'test'
+  ...
+# Subtest: webSave drives the markdown and html module frames on their own host, never the docs one
+ok 567 - webSave drives the markdown and html module frames on their own host, never the docs one
+  ---
+  duration_ms: 0.242712
+  type: 'test'
+  ...
+# Subtest: webSave: a frame that never gets ready, a commit that never comes and a refused commit are not saved
+ok 568 - webSave: a frame that never gets ready, a commit that never comes and a refused commit are not saved
+  ---
+  duration_ms: 0.308376
+  type: 'test'
+  ...
+# Subtest: webFrameEval runs a function inside the module frame's document, bounded
+ok 569 - webFrameEval runs a function inside the module frame's document, bounded
+  ---
+  duration_ms: 21.23124
+  type: 'test'
+  ...
+# Subtest: seeding order: A builds X/W1/W2, invites B and C to W2 who accept, M builds Y/WY, then M joins X/W1 by SQL
+ok 570 - seeding order: A builds X/W1/W2, invites B and C to W2 who accept, M builds Y/WY, then M joins X/W1 by SQL
+  ---
+  duration_ms: 76.366107
+  type: 'test'
+  ...
+# Subtest: the second org for M is the TestIsolationMatrix insert shape, only with G819_ALLOW_SQL_MEMBERSHIP=1
+ok 571 - the second org for M is the TestIsolationMatrix insert shape, only with G819_ALLOW_SQL_MEMBERSHIP=1
+  ---
+  duration_ms: 28.578949
+  type: 'test'
+  ...
+# Subtest: without G819_ALLOW_SQL_MEMBERSHIP=1 no SQL runs and M carries the BLOCKED marker; the rest of the world is seeded
+ok 572 - without G819_ALLOW_SQL_MEMBERSHIP=1 no SQL runs and M carries the BLOCKED marker; the rest of the world is seeded
+  ---
+  duration_ms: 22.421023
+  type: 'test'
+  ...
+# Subtest: a failing SQL insert is a BLOCKED marker with a redacted reason, never the database URL
+ok 573 - a failing SQL insert is a BLOCKED marker with a redacted reason, never the database URL
+  ---
+  duration_ms: 19.402705
+  type: 'test'
+  ...
+# Subtest: the world is cached 0600 in $runDir/g8-19-world.json, reused with fresh tokens, and loadWorld reads it
+ok 574 - the world is cached 0600 in $runDir/g8-19-world.json, reused with fresh tokens, and loadWorld reads it
+  ---
+  duration_ms: 44.123448
+  type: 'test'
+  ...
+# Subtest: refreshTokens logs every user in again and the sessions pick the new token up
+ok 575 - refreshTokens logs every user in again and the sessions pick the new token up
+  ---
+  duration_ms: 18.382246
+  type: 'test'
+  ...
+# Subtest: upload, share, revokeShare, deactivate go to the server as the named user and land in the record
+ok 576 - upload, share, revokeShare, deactivate go to the server as the named user and land in the record
+  ---
+  duration_ms: 24.459637
+  type: 'test'
+  ...
+# Subtest: a seeding step the server refuses throws an ApiError naming the call, with no token in it
+ok 577 - a seeding step the server refuses throws an ApiError naming the call, with no token in it
+  ---
+  duration_ms: 3.107905
+  type: 'test'
+  ...
+# Subtest: cleanup asks each owner to delete its org, deletes every account, removes the cache and lists leftovers
+ok 578 - cleanup asks each owner to delete its org, deletes every account, removes the cache and lists leftovers
+  ---
+  duration_ms: 24.642244
+  type: 'test'
+  ...
+# Subtest: nothing secret is printed: no password, token, email or database URL
+ok 579 - nothing secret is printed: no password, token, email or database URL
+  ---
+  duration_ms: 26.769374
+  type: 'test'
+  ...
+1..579
+# tests 644
+# suites 14
+# pass 627
+# fail 0
+# cancelled 0
+# skipped 17
+# todo 0
+# duration_ms 135772.498077
+G819_UNIT_EXIT 0

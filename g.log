@@ -1,0 +1,16 @@
+$ RID=$(cat /tmp/g819-a02-rid); M=/tmp/$RID-markers.txt; echo "=== markers"; cat $M; n=$(grep -cE "G819_G8-A02_[a-z0-9-]+_EXIT 0" $M); echo "A02_ROWS_PASS=$n/4"; [ "$n" = 4 ]; rc=$?; echo; echo "G819_A02_ROWS_EXIT=$rc"
+=== markers
+G819_UNIT_EXIT 0
+G819_APT_EXIT 0
+G819_FRAMES_EXIT 0
+G819_START_EXIT 0
+G819_G8-A02_fx-docx-report-vi_EXIT 1
+G819_G8-A02_fx-xlsx-revenue-xyz_EXIT 1
+G819_G8-A02_fx-pptx-deck-vi_EXIT 1
+G819_G8-A02_fx-pdf-invoice-vi_EXIT 1
+G819_VERIFY_EXIT 0
+G819_STOP_EXIT 0
+G819_KEYRING_EXEC_EXIT 0
+A02_ROWS_PASS=0/4
+
+G819_A02_ROWS_EXIT=1

@@ -1,0 +1,1725 @@
+$ RID=$(cat /tmp/g819-a02-rid); M=/tmp/$RID-markers.txt; R=/tmp/$RID-run; export M OFFICE_FORK_SHA=8b57af0c8 G819_ALLOW_SQL_MEMBERSHIP=1 HARNESS_RUN_DIR=$R; bash scripts/office/g5g6g7/harness/keyring-session.sh --exec bash -c 'trap "HARNESS_RUN_DIR=$HARNESS_RUN_DIR bash scripts/office/g5g6g7/harness/stop.sh; echo G819_STOP_EXIT \$? | tee -a $M" EXIT; bash scripts/office/g5g6g7/harness/start.sh; echo "G819_START_EXIT $?" | tee -a $M; grep -v -i -E "key|secret|password|token" "$HARNESS_RUN_DIR/ports.env"; export GOFLAGS=-p=1 G819_DATABASE_URL=$( . "${ENV_FILE:-./.env}"; printf %s "$DATABASE_URL" ); node scripts/office/g5g6g7/evidence.mjs run --req G8-A02 --fixture fx-docx-report-vi --out "$HARNESS_RUN_DIR" --checker harness:g8-19/anchors.mjs -- node scripts/office/g5g6g7/g8-19/anchors.mjs --row G8-A02 --fixture fx-docx-report-vi --run-dir "$HARNESS_RUN_DIR"; echo "G819_G8-A02_fx-docx-report-vi_EXIT $?" | tee -a $M; node scripts/office/g5g6g7/evidence.mjs run --req G8-A02 --fixture fx-xlsx-revenue-xyz --out "$HARNESS_RUN_DIR" --checker harness:g8-19/anchors.mjs -- node scripts/office/g5g6g7/g8-19/anchors.mjs --row G8-A02 --fixture fx-xlsx-revenue-xyz --run-dir "$HARNESS_RUN_DIR"; echo "G819_G8-A02_fx-xlsx-revenue-xyz_EXIT $?" | tee -a $M; node scripts/office/g5g6g7/evidence.mjs run --req G8-A02 --fixture fx-pptx-deck-vi --out "$HARNESS_RUN_DIR" --checker harness:g8-19/anchors.mjs -- node scripts/office/g5g6g7/g8-19/anchors.mjs --row G8-A02 --fixture fx-pptx-deck-vi --run-dir "$HARNESS_RUN_DIR"; echo "G819_G8-A02_fx-pptx-deck-vi_EXIT $?" | tee -a $M; node scripts/office/g5g6g7/evidence.mjs run --req G8-A02 --fixture fx-pdf-invoice-vi --out "$HARNESS_RUN_DIR" --checker harness:g8-19/anchors.mjs -- node scripts/office/g5g6g7/g8-19/anchors.mjs --row G8-A02 --fixture fx-pdf-invoice-vi --run-dir "$HARNESS_RUN_DIR"; echo "G819_G8-A02_fx-pdf-invoice-vi_EXIT $?" | tee -a $M; rm -f "$HARNESS_RUN_DIR/g8-19-world.json"; node scripts/office/g5g6g7/evidence.mjs verify --out "$HARNESS_RUN_DIR"; echo "G819_VERIFY_EXIT $?" | tee -a $M; for f in "$HARNESS_RUN_DIR"/reports/g7-qa/g8-a*/*.json; do [ -f "$f" ] && { echo "=== $f"; cat "$f"; echo; }; done'; echo "G819_KEYRING_EXEC_EXIT $?" | tee -a $M; true
+KEYRING_DAEMON secrets=yes unlocked=yes
+harness: node 22.23.3 from nvm (/home/ubuntu/.nvm/versions/node/v22.23.3/bin/node)
+harness: run dir /tmp/g819-a02-1792508998603322401-run
+harness: D server  http://localhost:33753 (metrics 127.0.0.1:36193)
+harness: D web     http://localhost:43047
+harness: fork      8b57af0c8
+harness: building the D server...
+harness: applying migrations...
+harness: starting the D server...
+harness: starting the D web with NEXT_PUBLIC_API_URL=http://localhost:33753 ...
+harness: cloning the fork at 8b57af0c8...
+harness: npm ci in the fork (--ignore-scripts; no Electron binary yet)...
+harness: fetching the Electron binary (node /home/ubuntu/.cache/uniwork-office-harness/uniwork-office-8b57af0c8/node_modules/electron/install.js)...
+harness: building the fork apps (this is the slow step)...
+harness: starting the fork Electron app under xvfb...
+dbus-daemon[20781]: [session uid=1000 pid=20781] Activating service name='org.a11y.Bus' requested by ':1.5' (uid=1000 pid=24086 comm="/home/ubuntu/.cache/uniwork-office-harness/uniwork" label="kernel")
+dbus-daemon[20781]: [session uid=1000 pid=20781] Successfully activated service 'org.a11y.Bus'
+harness: app on :99 (pid 24073)
+harness: up
+  D server  http://localhost:33753
+  D web     http://localhost:43047
+  fork      /home/ubuntu/.cache/uniwork-office-harness/uniwork-office-8b57af0c8 @ 8b57af0c8
+  pids      /tmp/g819-a02-1792508998603322401-run/pids
+  next      OFFICE_FORK_SHA=8b57af0c8 HARNESS_RUN_DIR=/tmp/g819-a02-1792508998603322401-run node scripts/office/g5g6g7/evidence.mjs run \
+              --req G7-A05 --fixture fx-md-notes-vi --checker tester-cloud -- \
+              node scripts/office/g5g6g7/harness/sample-ac.mjs --run-dir /tmp/g819-a02-1792508998603322401-run
+  next      (document step, its own evidence line) OFFICE_FORK_SHA=8b57af0c8 HARNESS_RUN_DIR=/tmp/g819-a02-1792508998603322401-run \
+              node scripts/office/g5g6g7/evidence.mjs run --req G7-A01 --fixture fx-docx-report-vi --checker tester-cloud -- \
+              node scripts/office/g5g6g7/harness/document-step.mjs --run-dir /tmp/g819-a02-1792508998603322401-run
+G819_START_EXIT 0
+# Written by scripts/office/g5g6g7/harness/lib.mjs (start.sh) - one run's ports and origins.
+HARNESS_RUN_DIR=/tmp/g819-a02-1792508998603322401-run
+API_PORT=33753
+WEB_PORT=43047
+METRICS_PORT=36193
+PREVIEW_PORT=41605
+APP_PROXY_PORT=39999
+APP_CDP_PORT=36283
+API_ORIGIN=http://localhost:33753
+APP_API_ORIGIN=http://127.0.0.1:39999
+WEB_ORIGIN=http://localhost:43047
+OFFICE_FORK_SHA=8b57af0c8
+D_SHA=26f4e26ba1b45cbf9bb681581a9e9a8013a4370c
+DISPLAY=:99
+XAUTHORITY=/tmp/g819-a02-1792508998603322401-run/xauthority
+UNIWORK_USER_DATA=/tmp/g819-a02-1792508998603322401-run/userdata
+ELECTRON_BIN=/home/ubuntu/.cache/uniwork-office-harness/uniwork-office-8b57af0c8/node_modules/electron/dist/electron
+SHELL_APP_DIR=/home/ubuntu/.cache/uniwork-office-harness/uniwork-office-8b57af0c8/apps/shell
+OFFICE_FORK_DIR=/home/ubuntu/.cache/uniwork-office-harness/uniwork-office-8b57af0c8
+HARNESS_DEPLOYMENT_ID=default
+{"evidenceId":"ev-g8-a02-0001","requirementId":"G8-A02","dSha":"26f4e26ba1b45cbf9bb681581a9e9a8013a4370c","fSha":"8b57af0c8","pin":"0.1.0-1abc493","platform":"linux-x64","build":"dev","fixtureId":"fx-docx-report-vi","fixtureSha256":"5e93b1dd7aefa0f8d816ccb7d5648b8bba4aa23eb5e95dbeddb3f045657c828c","command":"node scripts/office/g5g6g7/g8-19/anchors.mjs --row G8-A02 --fixture fx-docx-report-vi --run-dir /tmp/g819-a02-1792508998603322401-run","argv":["node","scripts/office/g5g6g7/g8-19/anchors.mjs","--row","G8-A02","--fixture","fx-docx-report-vi","--run-dir","/tmp/g819-a02-1792508998603322401-run"],"exitCode":1,"result":"FAIL","artifact":"../tmp/g819-a02-1792508998603322401-run/artifacts/ev-g8-a02-0001.log","checker":"harness:g8-19/anchors.mjs","blocker":null,"startedAt":"2026-10-20T15:15:41.219Z","finishedAt":"2026-10-20T15:17:27.115Z"}
+evidence: ev-g8-a02-0001 FAIL; last 1 line(s) of ../tmp/g819-a02-1792508998603322401-run/artifacts/ev-g8-a02-0001.log:
+  | G8-A02 fx-docx-report-vi FAIL: check:web-to-desktop: web open answered error (the Office frame is shown without a D comment panel) (/tmp/g819-a02-1792508998603322401-run/reports/g7-qa/g8-a02/fx-docx-report-vi.json)
+G819_G8-A02_fx-docx-report-vi_EXIT 1
+{"evidenceId":"ev-g8-a02-0002","requirementId":"G8-A02","dSha":"26f4e26ba1b45cbf9bb681581a9e9a8013a4370c","fSha":"8b57af0c8","pin":"0.1.0-1abc493","platform":"linux-x64","build":"dev","fixtureId":"fx-xlsx-revenue-xyz","fixtureSha256":"a93cd768ca51347a1225e15fa002a2969a46f8dc465d189b7478cdd5a948b446","command":"node scripts/office/g5g6g7/g8-19/anchors.mjs --row G8-A02 --fixture fx-xlsx-revenue-xyz --run-dir /tmp/g819-a02-1792508998603322401-run","argv":["node","scripts/office/g5g6g7/g8-19/anchors.mjs","--row","G8-A02","--fixture","fx-xlsx-revenue-xyz","--run-dir","/tmp/g819-a02-1792508998603322401-run"],"exitCode":1,"result":"FAIL","artifact":"../tmp/g819-a02-1792508998603322401-run/artifacts/ev-g8-a02-0002.log","checker":"harness:g8-19/anchors.mjs","blocker":null,"startedAt":"2026-10-20T15:17:27.158Z","finishedAt":"2026-10-20T15:19:00.163Z"}
+evidence: ev-g8-a02-0002 FAIL; last 1 line(s) of ../tmp/g819-a02-1792508998603322401-run/artifacts/ev-g8-a02-0002.log:
+  | G8-A02 fx-xlsx-revenue-xyz FAIL: check:web-to-desktop: web open answered error (the Office frame is shown without a D comment panel) (/tmp/g819-a02-1792508998603322401-run/reports/g7-qa/g8-a02/fx-xlsx-revenue-xyz.json)
+G819_G8-A02_fx-xlsx-revenue-xyz_EXIT 1
+{"evidenceId":"ev-g8-a02-0003","requirementId":"G8-A02","dSha":"26f4e26ba1b45cbf9bb681581a9e9a8013a4370c","fSha":"8b57af0c8","pin":"0.1.0-1abc493","platform":"linux-x64","build":"dev","fixtureId":"fx-pptx-deck-vi","fixtureSha256":"958a8086fb3b1927319f88c12259e2f3c67b78a3f956ee0323f1c7631b2e2b20","command":"node scripts/office/g5g6g7/g8-19/anchors.mjs --row G8-A02 --fixture fx-pptx-deck-vi --run-dir /tmp/g819-a02-1792508998603322401-run","argv":["node","scripts/office/g5g6g7/g8-19/anchors.mjs","--row","G8-A02","--fixture","fx-pptx-deck-vi","--run-dir","/tmp/g819-a02-1792508998603322401-run"],"exitCode":1,"result":"FAIL","artifact":"../tmp/g819-a02-1792508998603322401-run/artifacts/ev-g8-a02-0003.log","checker":"harness:g8-19/anchors.mjs","blocker":null,"startedAt":"2026-10-20T15:19:00.205Z","finishedAt":"2026-10-20T15:20:51.014Z"}
+evidence: ev-g8-a02-0003 FAIL; last 1 line(s) of ../tmp/g819-a02-1792508998603322401-run/artifacts/ev-g8-a02-0003.log:
+  | G8-A02 fx-pptx-deck-vi FAIL: check:web-to-desktop: web open answered error (the Office frame is shown without a D comment panel) (/tmp/g819-a02-1792508998603322401-run/reports/g7-qa/g8-a02/fx-pptx-deck-vi.json)
+G819_G8-A02_fx-pptx-deck-vi_EXIT 1
+{"evidenceId":"ev-g8-a02-0004","requirementId":"G8-A02","dSha":"26f4e26ba1b45cbf9bb681581a9e9a8013a4370c","fSha":"8b57af0c8","pin":"0.1.0-1abc493","platform":"linux-x64","build":"dev","fixtureId":"fx-pdf-invoice-vi","fixtureSha256":"17603fe876d45bfbd936cb03b9930a988e7842ab2c4d143763d76ae8ab253cdd","command":"node scripts/office/g5g6g7/g8-19/anchors.mjs --row G8-A02 --fixture fx-pdf-invoice-vi --run-dir /tmp/g819-a02-1792508998603322401-run","argv":["node","scripts/office/g5g6g7/g8-19/anchors.mjs","--row","G8-A02","--fixture","fx-pdf-invoice-vi","--run-dir","/tmp/g819-a02-1792508998603322401-run"],"exitCode":1,"result":"FAIL","artifact":"../tmp/g819-a02-1792508998603322401-run/artifacts/ev-g8-a02-0004.log","checker":"harness:g8-19/anchors.mjs","blocker":null,"startedAt":"2026-10-20T15:20:51.056Z","finishedAt":"2026-10-20T15:22:28.644Z"}
+evidence: ev-g8-a02-0004 FAIL; last 1 line(s) of ../tmp/g819-a02-1792508998603322401-run/artifacts/ev-g8-a02-0004.log:
+  | G8-A02 fx-pdf-invoice-vi FAIL: check:web-to-desktop: web open answered error (the Office frame is shown without a D comment panel) (/tmp/g819-a02-1792508998603322401-run/reports/g7-qa/g8-a02/fx-pdf-invoice-vi.json)
+G819_G8-A02_fx-pdf-invoice-vi_EXIT 1
+evidence verify: OK (4 records)
+G819_VERIFY_EXIT 0
+=== /tmp/g819-a02-1792508998603322401-run/reports/g7-qa/g8-a02/fx-docx-report-vi.json
+{
+  "row": "G8-A02",
+  "fixture": "fx-docx-report-vi",
+  "module": "anchors",
+  "status": "FAIL",
+  "exitCode": 1,
+  "reason": "check:web-to-desktop: web open answered error (the Office frame is shown without a D comment panel)",
+  "blocker": "",
+  "owner": "",
+  "steps": {
+    "upload": {
+      "status": "PASS",
+      "elapsedMs": 61
+    },
+    "closed-panel-save": {
+      "status": "PASS",
+      "elapsedMs": 11877
+    },
+    "open-desktop": {
+      "status": "PASS",
+      "elapsedMs": 5020
+    },
+    "create": {
+      "status": "PASS",
+      "elapsedMs": 99
+    },
+    "editor-lists": {
+      "status": "PASS",
+      "elapsedMs": 1111
+    },
+    "shift": {
+      "status": "PASS",
+      "elapsedMs": 1345
+    },
+    "rest-sees-moved": {
+      "status": "PASS",
+      "elapsedMs": 5
+    },
+    "remove": {
+      "status": "PASS",
+      "elapsedMs": 1326
+    },
+    "lost-view-server": {
+      "status": "PASS",
+      "elapsedMs": 4
+    },
+    "lost-view-web": {
+      "status": "PASS",
+      "elapsedMs": 55
+    },
+    "lost-view-desktop": {
+      "status": "PASS",
+      "elapsedMs": 5952
+    },
+    "invalid-versions": {
+      "status": "PASS",
+      "elapsedMs": 12
+    },
+    "web-to-desktop": {
+      "status": "FAIL",
+      "reason": "web open answered error (the Office frame is shown without a D comment panel)",
+      "elapsedMs": 78337
+    },
+    "check:closed-panel-save": {
+      "status": "PASS",
+      "note": "no list request reached the server between the comment and the Save, yet the round (apps/docs/src/renderer/server-comments/ServerCommentsHost.tsx:194-203), built from the listed roots, re-anchored it; the order is in details.closedPanel.scenario"
+    },
+    "check:create": {
+      "status": "PASS"
+    },
+    "check:shift": {
+      "status": "PASS"
+    },
+    "check:rest-sees-moved": {
+      "status": "PASS"
+    },
+    "check:remove-lost": {
+      "status": "PASS"
+    },
+    "check:lost-view-version": {
+      "status": "BLOCKED",
+      "blocker": "frame pin predates the fork UNI-2033 kit/protocol (T6 re-pin)",
+      "owner": "g6-fork_ui T6",
+      "reason": "web: frame pin predates the fork UNI-2033 kit/protocol (T6 re-pin)"
+    },
+    "check:invalid-versions": {
+      "status": "PASS"
+    },
+    "check:web-to-desktop": {
+      "status": "FAIL",
+      "reason": "web open answered error (the Office frame is shown without a D comment panel)"
+    }
+  },
+  "details": {
+    "multiOrg": {
+      "status": "SEEDED",
+      "via": "sql",
+      "reason": "test seed only: ADR 0032 refuses a second active organization through every API, so M's org X membership is a raw SQL insert (the TestIsolationMatrix shape)"
+    },
+    "format": "docx",
+    "fixture": "fx-docx-report-vi",
+    "cites": [
+      "apps/docs/src/renderer/control.ts:6,50 (goto -> navigateToBlock)",
+      "apps/docs/src/renderer/ai/doc-nav.ts:19-31 (navigateToBlock selects the textblock and focuses the view)",
+      "apps/docs/src/renderer/server-comments/anchor-codec.ts:12-14 (locate by path + quote, else lost)"
+    ],
+    "reveal": {
+      "covered_by": "G8-A07 deeplink module (T3, desktop reveal B7) + fork vitest G8-12..15 (reveal per format)"
+    },
+    "documentId": "01M5CY3W55Y3M076PRNPV24WTW",
+    "closedPanel": {
+      "ran": true,
+      "documentId": "01M5CY3W5ZTATYHBMDFJRJJ2Y5",
+      "scenario": {
+        "openedAt": 1792509341890,
+        "listedAt": 1792509352388,
+        "listedVia": "server.log",
+        "createdAt": 1792509352394,
+        "createdVia": "REST as A (another host, the desktop panel closed)",
+        "listsBeforeSave": 0,
+        "listSignal": "path only: the server log has no query, so a kind=discussion list of the same document would also match; none occurs in this flow (the Discussion panel opens only on a Discussion reveal, and the harness lists nothing of this document before its Save)",
+        "listLine": "GET /api/v1/documents/01M5CY3W5ZTATYHBMDFJRJJ2Y5/comments 200 at 15:15:52.188",
+        "serverCreatedAt": "2026-10-20T15:15:52Z"
+      },
+      "commentId": "01M5CY46EEX74G7V48984Q1W3S",
+      "anchor": {
+        "format": "docx",
+        "v": 1,
+        "path": [
+          2
+        ],
+        "start": 0,
+        "end": 20,
+        "quote": "Tổng doanh thu quý 1",
+        "prefix": "",
+        "suffix": " đạt 22.060.000 đồng. Khu vực Bắc đóng góp nhiều nhất với 9.060."
+      },
+      "versionBefore": "01M5CY3W5ZTATYHBMDFJWP9P1G",
+      "expected": {
+        "format": "docx",
+        "v": 1,
+        "path": [
+          3
+        ],
+        "start": 0,
+        "end": 20,
+        "quote": "Tổng doanh thu quý 1",
+        "prefix": "",
+        "suffix": " đạt 22.060.000 đồng. Khu vực Bắc đóng góp nhiều nhất với 9.060."
+      },
+      "marks": {
+        "beforeEdit": 0,
+        "afterEdit": 0,
+        "afterSave": 1
+      },
+      "edited": {
+        "status": "ok"
+      },
+      "saved": true,
+      "headVersionId": "01M5CY46V600TSQY558AYBZNWG",
+      "row": {
+        "id": "01M5CY46EEX74G7V48984Q1W3S",
+        "anchor": {
+          "v": 1,
+          "end": 20,
+          "path": [
+            3
+          ],
+          "quote": "Tổng doanh thu quý 1",
+          "start": 0,
+          "format": "docx",
+          "prefix": "",
+          "suffix": " đạt 22.060.000 đồng. Khu vực Bắc đóng góp nhiều nhất với 9.060."
+        },
+        "anchor_state": "exact",
+        "anchor_version_id": "01M5CY46V600TSQY558AYBZNWG",
+        "anchor_version_no": 2,
+        "deleted_at": null
+      },
+      "elapsedMs": 1022,
+      "headQuote": {
+        "block": 3,
+        "version": 2
+      }
+    },
+    "editorPagesOfKind": 2,
+    "created": {
+      "ok": true,
+      "commentId": "01M5CY4CRWMWZJ56KTBDMK93M4",
+      "anchor": {
+        "format": "docx",
+        "v": 1,
+        "path": [
+          2
+        ],
+        "start": 0,
+        "end": 20,
+        "quote": "Tổng doanh thu quý 1",
+        "prefix": "",
+        "suffix": " đạt 22.060.000 đồng. Khu vực Bắc đóng góp nhiều nhất với 9.060."
+      },
+      "versionId": "01M5CY3W55Y3M076PRNST5GSA1",
+      "replyId": "01M5CY4CS3WJ8J5D1GGEHQYGFK"
+    },
+    "editorLists": {
+      "panel": {
+        "status": "ok",
+        "panels": 1,
+        "opened": true
+      },
+      "listed": true,
+      "elapsedMs": 2,
+      "listedIds": [
+        "01M5CY4CRWMWZJ56KTBDMK93M4",
+        "01M5CY4CS3WJ8J5D1GGEHQYGFK"
+      ]
+    },
+    "shift": {
+      "saved": true,
+      "versionBefore": "01M5CY3W55Y3M076PRNST5GSA1",
+      "expected": {
+        "format": "docx",
+        "v": 1,
+        "path": [
+          3
+        ],
+        "start": 0,
+        "end": 20,
+        "quote": "Tổng doanh thu quý 1",
+        "prefix": "",
+        "suffix": " đạt 22.060.000 đồng. Khu vực Bắc đóng góp nhiều nhất với 9.060."
+      },
+      "marks": {
+        "beforeEdit": 1,
+        "afterEdit": 1,
+        "afterSave": 1
+      },
+      "edited": {
+        "status": "ok"
+      },
+      "headVersionId": "01M5CY4E8297X9BP2N3YW5FV79",
+      "headVersion": 2,
+      "row": {
+        "id": "01M5CY4CRWMWZJ56KTBDMK93M4",
+        "anchor": {
+          "v": 1,
+          "end": 20,
+          "path": [
+            3
+          ],
+          "quote": "Tổng doanh thu quý 1",
+          "start": 0,
+          "format": "docx",
+          "prefix": "",
+          "suffix": " đạt 22.060.000 đồng. Khu vực Bắc đóng góp nhiều nhất với 9.060."
+        },
+        "anchor_state": "exact",
+        "anchor_version_id": "01M5CY4E8297X9BP2N3YW5FV79",
+        "anchor_version_no": 2,
+        "deleted_at": null
+      },
+      "elapsedMs": 1012,
+      "headQuote": {
+        "block": 3,
+        "version": 2
+      }
+    },
+    "restSeesMoved": {
+      "anchor": {
+        "v": 1,
+        "end": 20,
+        "path": [
+          3
+        ],
+        "quote": "Tổng doanh thu quý 1",
+        "start": 0,
+        "format": "docx",
+        "prefix": "",
+        "suffix": " đạt 22.060.000 đồng. Khu vực Bắc đóng góp nhiều nhất với 9.060."
+      },
+      "anchor_version_id": "01M5CY4E8297X9BP2N3YW5FV79"
+    },
+    "remove": {
+      "edited": {
+        "status": "ok"
+      },
+      "saved": true,
+      "headVersionId": "01M5CY4FHCR6DSAPG76PD7G5A3",
+      "row": {
+        "id": "01M5CY4CRWMWZJ56KTBDMK93M4",
+        "anchor": {
+          "v": 1,
+          "end": 20,
+          "path": [
+            3
+          ],
+          "quote": "Tổng doanh thu quý 1",
+          "start": 0,
+          "format": "docx",
+          "prefix": "",
+          "suffix": " đạt 22.060.000 đồng. Khu vực Bắc đóng góp nhiều nhất với 9.060."
+        },
+        "anchor_state": "lost",
+        "anchor_version_id": "01M5CY4E8297X9BP2N3YW5FV79",
+        "anchor_version_no": 2,
+        "deleted_at": null
+      },
+      "replies": 1,
+      "elapsedMs": 1012
+    },
+    "lostView": {
+      "ran": true,
+      "commentId": "01M5CY4CRWMWZJ56KTBDMK93M4",
+      "expected": {
+        "versionId": "01M5CY4E8297X9BP2N3YW5FV79",
+        "versionNo": 2
+      },
+      "server": {
+        "ran": true,
+        "row": {
+          "id": "01M5CY4CRWMWZJ56KTBDMK93M4",
+          "anchor": {
+            "v": 1,
+            "end": 20,
+            "path": [
+              3
+            ],
+            "quote": "Tổng doanh thu quý 1",
+            "start": 0,
+            "format": "docx",
+            "prefix": "",
+            "suffix": " đạt 22.060.000 đồng. Khu vực Bắc đóng góp nhiều nhất với 9.060."
+          },
+          "anchor_state": "lost",
+          "anchor_version_id": "01M5CY4E8297X9BP2N3YW5FV79",
+          "anchor_version_no": 2,
+          "deleted_at": null
+        }
+      },
+      "web": {
+        "status": "BLOCKED",
+        "blocker": "frame pin predates the fork UNI-2033 kit/protocol (T6 re-pin)",
+        "owner": "g6-fork_ui T6",
+        "pin": "1abc493"
+      },
+      "desktop": {
+        "ran": true,
+        "copyPath": "/tmp/g819-a02-1792508998603322401-run/userdata/uniwork-documents/default/01M5CY3VN3TSRGJ8N7F7N62ACK/01M5CY3W55Y3M076PRNPV24WTW@v2/G8-A02 fx-docx-report-vi.docx",
+        "contextVersionId": "01M5CY4E8297X9BP2N3YW5FV79",
+        "status": {
+          "access": "view"
+        },
+        "panel": {
+          "panels": 1,
+          "commentIds": [
+            "01M5CY4CRWMWZJ56KTBDMK93M4",
+            "01M5CY4CS3WJ8J5D1GGEHQYGFK"
+          ]
+        }
+      }
+    },
+    "invalidVersionsNote": "purged-version case replaced by empty id: no REST purge route (router/documents.go), same single lookup document_comment_anchors.go:362-369",
+    "invalidVersions": [
+      {
+        "case": "foreign",
+        "status": 400,
+        "body": {
+          "error": {
+            "code": "anchor_version_invalid",
+            "message": "phiên bản neo không hợp lệ"
+          }
+        }
+      },
+      {
+        "case": "unknown",
+        "status": 400,
+        "body": {
+          "error": {
+            "code": "anchor_version_invalid",
+            "message": "phiên bản neo không hợp lệ"
+          }
+        }
+      },
+      {
+        "case": "empty",
+        "status": 400,
+        "body": {
+          "error": {
+            "code": "anchor_version_invalid",
+            "message": "phiên bản neo không hợp lệ"
+          }
+        }
+      }
+    ],
+    "afterInvalid": {
+      "id": "01M5CY4CRWMWZJ56KTBDMK93M4",
+      "anchor": {
+        "v": 1,
+        "end": 20,
+        "path": [
+          3
+        ],
+        "quote": "Tổng doanh thu quý 1",
+        "start": 0,
+        "format": "docx",
+        "prefix": "",
+        "suffix": " đạt 22.060.000 đồng. Khu vực Bắc đóng góp nhiều nhất với 9.060."
+      },
+      "anchor_state": "lost",
+      "anchor_version_id": "01M5CY4E8297X9BP2N3YW5FV79",
+      "anchor_version_no": 2,
+      "deleted_at": null
+    },
+    "webToDesktop": {
+      "ran": false,
+      "documentId": "01M5CY4PDT2J1V90HCME0B7Z1T",
+      "status": "FAIL",
+      "reason": "web open answered error (the Office frame is shown without a D comment panel)"
+    }
+  },
+  "log": [],
+  "forkSha": "8b57af0c8",
+  "startedAt": "2026-10-20T15:15:41.264Z",
+  "finishedAt": "2026-10-20T15:17:27.096Z",
+  "appLogTail": [
+    "[24086:1020/151538.296595:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[24086:1020/151538.880597:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[24086:1020/151538.880658:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[24086:1020/151538.880679:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[24086:1020/151538.880707:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[24086:1020/151538.880719:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "",
+    "DevTools listening on <url>",
+    "[24292:24322:1020/151542.703549:ERROR:dbus/bus.cc:405] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[24292:24322:1020/151543.411391:ERROR:dbus/bus.cc:405] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[24292:24322:1020/151543.411435:ERROR:dbus/bus.cc:405] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[24292:24322:1020/151544.008826:ERROR:dbus/bus.cc:405] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[24292:24322:1020/151544.009831:ERROR:dbus/bus.cc:405] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[24292:24292:1020/151544.028785:ERROR:dbus/object_proxy.cc:572] Failed to call method: org.freedesktop.DBus.Properties.GetAll: object_path= /org/freedesktop/UPower/devices/DisplayDevice: unknown error type:",
+    "[24425:7:1020/151544.034074:ERROR:gpu/ipc/client/command_buffer_proxy_impl.cc:285] ContextResult::kTransientFailure: Failed to send GpuControl.CreateCommandBuffer.",
+    "[24292:24323:1020/151547.304121:ERROR:google_apis/gcm/engine/registration_request.cc:291] Registration response error message: DEPRECATED_ENDPOINT",
+    "Created TensorFlow Lite XNNPACK delegate for CPU.",
+    "Created TensorFlow Lite XNNPACK delegate for CPU.",
+    "[24292:24323:1020/151610.924557:ERROR:google_apis/gcm/engine/registration_request.cc:291] Registration response error message: DEPRECATED_ENDPOINT",
+    "[24292:24323:1020/151707.789769:ERROR:google_apis/gcm/engine/registration_request.cc:291] Registration response error message: DEPRECATED_ENDPOINT"
+  ]
+}
+
+=== /tmp/g819-a02-1792508998603322401-run/reports/g7-qa/g8-a02/fx-pdf-invoice-vi.json
+{
+  "row": "G8-A02",
+  "fixture": "fx-pdf-invoice-vi",
+  "module": "anchors",
+  "status": "FAIL",
+  "exitCode": 1,
+  "reason": "check:web-to-desktop: web open answered error (the Office frame is shown without a D comment panel)",
+  "blocker": "",
+  "owner": "",
+  "steps": {
+    "upload": {
+      "status": "PASS",
+      "elapsedMs": 36
+    },
+    "closed-panel-save": {
+      "status": "PASS",
+      "elapsedMs": 16557
+    },
+    "open-desktop": {
+      "status": "PASS",
+      "elapsedMs": 5070
+    },
+    "prepare": {
+      "status": "PASS",
+      "elapsedMs": 3351
+    },
+    "create": {
+      "status": "PASS",
+      "elapsedMs": 21
+    },
+    "editor-lists": {
+      "status": "PASS",
+      "elapsedMs": 1114
+    },
+    "shift": {
+      "status": "PASS",
+      "elapsedMs": 2141
+    },
+    "rest-sees-moved": {
+      "status": "PASS",
+      "elapsedMs": 5
+    },
+    "remove": {
+      "status": "PASS",
+      "elapsedMs": 1827
+    },
+    "lost-view-server": {
+      "status": "PASS",
+      "elapsedMs": 6
+    },
+    "lost-view-web": {
+      "status": "PASS",
+      "elapsedMs": 57
+    },
+    "lost-view-desktop": {
+      "status": "PASS",
+      "elapsedMs": 4982
+    },
+    "invalid-versions": {
+      "status": "PASS",
+      "elapsedMs": 11
+    },
+    "web-to-desktop": {
+      "status": "FAIL",
+      "reason": "web open answered error (the Office frame is shown without a D comment panel)",
+      "elapsedMs": 62020
+    },
+    "check:closed-panel-save": {
+      "status": "PASS",
+      "note": "no list request reached the server between the comment and the Save, yet the round (apps/pdf/src/renderer/server-comments/PdfServerComments.tsx:178-202), built from the listed roots, re-anchored it; the order is in details.closedPanel.scenario"
+    },
+    "check:create": {
+      "status": "PASS"
+    },
+    "check:shift": {
+      "status": "PASS"
+    },
+    "check:rest-sees-moved": {
+      "status": "PASS"
+    },
+    "check:remove-lost": {
+      "status": "PASS"
+    },
+    "check:lost-view-version": {
+      "status": "BLOCKED",
+      "blocker": "frame pin predates the fork UNI-2033 kit/protocol (T6 re-pin)",
+      "owner": "g6-fork_ui T6",
+      "reason": "web: frame pin predates the fork UNI-2033 kit/protocol (T6 re-pin)"
+    },
+    "check:invalid-versions": {
+      "status": "PASS"
+    },
+    "check:web-to-desktop": {
+      "status": "FAIL",
+      "reason": "web open answered error (the Office frame is shown without a D comment panel)"
+    }
+  },
+  "details": {
+    "multiOrg": {
+      "status": "SEEDED",
+      "via": "sql",
+      "reason": "test seed only: ADR 0032 refuses a second active organization through every API, so M's org X membership is a raw SQL insert (the TestIsolationMatrix shape)"
+    },
+    "format": "pdf",
+    "fixture": "fx-pdf-invoice-vi",
+    "cites": [
+      "apps/pdf/src/renderer/control.ts:3,27-38 (goto page, 1-based)",
+      "apps/pdf/src/renderer/App.tsx:327-333 (ribbon tab page), :7395-7404 (Delete page), :7429-7437 (Insert blank page), :4136-4143 (deletePage needs > 1 page)",
+      "apps/pdf/src/renderer/App.tsx:3837-3857 (Save hands pageMap to the server comments), server-comments/pdf-anchor.ts:85-105 (remap, missing page -> lost)",
+      "apps/pdf/src/renderer/i18n/strings.ts:567,577,580 (en), :925,935,938 (vi)"
+    ],
+    "reveal": {
+      "covered_by": "G8-A07 deeplink module (T3, desktop reveal B7) + fork vitest G8-12..15 (reveal per format)"
+    },
+    "documentId": "01M5CYDADGRVFD4QH5X390QBM9",
+    "closedPanel": {
+      "ran": true,
+      "documentId": "01M5CYDAE3HYJRSX6KFEQBMM8E",
+      "scenario": {
+        "openedAt": 1792509651401,
+        "listedAt": 1792509666115,
+        "listedVia": "server.log",
+        "createdAt": 1792509666119,
+        "createdVia": "REST as A (another host, the desktop panel closed)",
+        "listsBeforeSave": 0,
+        "listSignal": "path only: the server log has no query, so a kind=discussion list of the same document would also match; none occurs in this flow (the Discussion panel opens only on a Discussion reveal, and the harness lists nothing of this document before its Save)",
+        "listLine": "GET /api/v1/documents/01M5CYDAE3HYJRSX6KFEQBMM8E/comments 200 at 15:21:01.610",
+        "serverCreatedAt": "2026-10-20T15:21:06Z"
+      },
+      "pageCount": {
+        "before": null,
+        "after": null,
+        "reason": "no page count is exposed by the desktop driver or the app control (control.ts offers goto only; focus() counts windows, not pages); recorded null, no product code added"
+      },
+      "prepareVersionId": "01M5CYDQWZNAP8AGBH3J165BPA",
+      "commentId": "01M5CYDRTA1KVVV0KF7AGS05V8",
+      "anchor": {
+        "format": "pdf",
+        "v": 1,
+        "page": 2,
+        "rect": [
+          72,
+          700,
+          96,
+          724
+        ]
+      },
+      "versionBefore": "01M5CYDQWZNAP8AGBH3J165BPA",
+      "expected": {
+        "format": "pdf",
+        "v": 1,
+        "page": 1,
+        "rect": [
+          72,
+          700,
+          96,
+          724
+        ]
+      },
+      "edited": {
+        "status": "ok"
+      },
+      "saved": true,
+      "headVersionId": "01M5CYDSN9XN3AZ9DDQ51WGX98",
+      "row": {
+        "id": "01M5CYDRTA1KVVV0KF7AGS05V8",
+        "anchor": {
+          "v": 1,
+          "page": 1,
+          "rect": [
+            72,
+            700,
+            96,
+            724
+          ],
+          "format": "pdf"
+        },
+        "anchor_state": "exact",
+        "anchor_version_id": "01M5CYDSN9XN3AZ9DDQ51WGX98",
+        "anchor_version_no": 3,
+        "deleted_at": null
+      },
+      "elapsedMs": 1015
+    },
+    "editorPagesOfKind": 2,
+    "created": {
+      "ok": true,
+      "commentId": "01M5CYE2V6CNMSYB95V8SFE7N9",
+      "anchor": {
+        "format": "pdf",
+        "v": 1,
+        "page": 2,
+        "rect": [
+          72,
+          700,
+          96,
+          724
+        ]
+      },
+      "versionId": "01M5CYDADGRVFD4QH5X622E9WS",
+      "replyId": "01M5CYE2VCVDMREGZTXM0F7VZ6"
+    },
+    "editorLists": {
+      "panel": {
+        "status": "ok",
+        "panels": 1,
+        "opened": true
+      },
+      "listed": true,
+      "elapsedMs": 3,
+      "listedIds": [
+        "01M5CYE2V6CNMSYB95V8SFE7N9",
+        "01M5CYE2VCVDMREGZTXM0F7VZ6"
+      ]
+    },
+    "shift": {
+      "saved": true,
+      "versionBefore": "01M5CYE2VX582ZQQ4GKGG9QS5Q",
+      "expected": {
+        "format": "pdf",
+        "v": 1,
+        "page": 1,
+        "rect": [
+          72,
+          700,
+          96,
+          724
+        ]
+      },
+      "edited": {
+        "status": "ok"
+      },
+      "headVersionId": "01M5CYE52NSGWG4EGS713YQ01G",
+      "headVersion": 3,
+      "row": {
+        "id": "01M5CYE2V6CNMSYB95V8SFE7N9",
+        "anchor": {
+          "v": 1,
+          "page": 1,
+          "rect": [
+            72,
+            700,
+            96,
+            724
+          ],
+          "format": "pdf"
+        },
+        "anchor_state": "exact",
+        "anchor_version_id": "01M5CYE52NSGWG4EGS713YQ01G",
+        "anchor_version_no": 3,
+        "deleted_at": null
+      },
+      "elapsedMs": 1019
+    },
+    "restSeesMoved": {
+      "anchor": {
+        "v": 1,
+        "page": 1,
+        "rect": [
+          72,
+          700,
+          96,
+          724
+        ],
+        "format": "pdf"
+      },
+      "anchor_version_id": "01M5CYE52NSGWG4EGS713YQ01G"
+    },
+    "remove": {
+      "edited": {
+        "status": "ok"
+      },
+      "saved": true,
+      "headVersionId": "01M5CYE6W139ME38Z624SG14DA",
+      "row": {
+        "id": "01M5CYE2V6CNMSYB95V8SFE7N9",
+        "anchor": {
+          "v": 1,
+          "page": 1,
+          "rect": [
+            72,
+            700,
+            96,
+            724
+          ],
+          "format": "pdf"
+        },
+        "anchor_state": "lost",
+        "anchor_version_id": "01M5CYE52NSGWG4EGS713YQ01G",
+        "anchor_version_no": 3,
+        "deleted_at": null
+      },
+      "replies": 1,
+      "elapsedMs": 1015
+    },
+    "lostView": {
+      "ran": true,
+      "commentId": "01M5CYE2V6CNMSYB95V8SFE7N9",
+      "expected": {
+        "versionId": "01M5CYE52NSGWG4EGS713YQ01G",
+        "versionNo": 3
+      },
+      "server": {
+        "ran": true,
+        "row": {
+          "id": "01M5CYE2V6CNMSYB95V8SFE7N9",
+          "anchor": {
+            "v": 1,
+            "page": 1,
+            "rect": [
+              72,
+              700,
+              96,
+              724
+            ],
+            "format": "pdf"
+          },
+          "anchor_state": "lost",
+          "anchor_version_id": "01M5CYE52NSGWG4EGS713YQ01G",
+          "anchor_version_no": 3,
+          "deleted_at": null
+        }
+      },
+      "web": {
+        "status": "BLOCKED",
+        "blocker": "frame pin predates the fork UNI-2033 kit/protocol (T6 re-pin)",
+        "owner": "g6-fork_ui T6",
+        "pin": "1abc493"
+      },
+      "desktop": {
+        "ran": true,
+        "copyPath": "/tmp/g819-a02-1792508998603322401-run/userdata/uniwork-documents/default/01M5CY3VN3TSRGJ8N7F7N62ACK/01M5CYDADGRVFD4QH5X390QBM9@v3/G8-A02 fx-pdf-invoice-vi.pdf",
+        "contextVersionId": "01M5CYE52NSGWG4EGS713YQ01G",
+        "status": {
+          "access": "view"
+        },
+        "panel": {
+          "panels": 1,
+          "commentIds": [
+            "01M5CYE2V6CNMSYB95V8SFE7N9",
+            "01M5CYE2VCVDMREGZTXM0F7VZ6"
+          ]
+        }
+      }
+    },
+    "invalidVersionsNote": "purged-version case replaced by empty id: no REST purge route (router/documents.go), same single lookup document_comment_anchors.go:362-369",
+    "invalidVersions": [
+      {
+        "case": "foreign",
+        "status": 400,
+        "body": {
+          "error": {
+            "code": "anchor_version_invalid",
+            "message": "phiên bản neo không hợp lệ"
+          }
+        }
+      },
+      {
+        "case": "unknown",
+        "status": 400,
+        "body": {
+          "error": {
+            "code": "anchor_version_invalid",
+            "message": "phiên bản neo không hợp lệ"
+          }
+        }
+      },
+      {
+        "case": "empty",
+        "status": 400,
+        "body": {
+          "error": {
+            "code": "anchor_version_invalid",
+            "message": "phiên bản neo không hợp lệ"
+          }
+        }
+      }
+    ],
+    "afterInvalid": {
+      "id": "01M5CYE2V6CNMSYB95V8SFE7N9",
+      "anchor": {
+        "v": 1,
+        "page": 1,
+        "rect": [
+          72,
+          700,
+          96,
+          724
+        ],
+        "format": "pdf"
+      },
+      "anchor_state": "lost",
+      "anchor_version_id": "01M5CYE52NSGWG4EGS713YQ01G",
+      "anchor_version_no": 3,
+      "deleted_at": null
+    },
+    "webToDesktop": {
+      "ran": false,
+      "documentId": "01M5CYECTQQ0KXVJV48PZKX5WY",
+      "status": "FAIL",
+      "reason": "web open answered error (the Office frame is shown without a D comment panel)"
+    }
+  },
+  "log": [],
+  "forkSha": "8b57af0c8",
+  "startedAt": "2026-10-20T15:20:51.099Z",
+  "finishedAt": "2026-10-20T15:22:28.630Z",
+  "appLogTail": [
+    "[24086:1020/151538.296595:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[24086:1020/151538.880597:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[24086:1020/151538.880658:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[24086:1020/151538.880679:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[24086:1020/151538.880707:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[24086:1020/151538.880719:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "",
+    "DevTools listening on <url>",
+    "[24292:24322:1020/151542.703549:ERROR:dbus/bus.cc:405] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[24292:24322:1020/151543.411391:ERROR:dbus/bus.cc:405] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[24292:24322:1020/151543.411435:ERROR:dbus/bus.cc:405] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[24292:24322:1020/151544.008826:ERROR:dbus/bus.cc:405] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[24292:24322:1020/151544.009831:ERROR:dbus/bus.cc:405] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[24292:24292:1020/151544.028785:ERROR:dbus/object_proxy.cc:572] Failed to call method: org.freedesktop.DBus.Properties.GetAll: object_path= /org/freedesktop/UPower/devices/DisplayDevice: unknown error type:",
+    "[24425:7:1020/151544.034074:ERROR:gpu/ipc/client/command_buffer_proxy_impl.cc:285] ContextResult::kTransientFailure: Failed to send GpuControl.CreateCommandBuffer.",
+    "[24292:24323:1020/151547.304121:ERROR:google_apis/gcm/engine/registration_request.cc:291] Registration response error message: DEPRECATED_ENDPOINT",
+    "Created TensorFlow Lite XNNPACK delegate for CPU.",
+    "Created TensorFlow Lite XNNPACK delegate for CPU.",
+    "[24292:24323:1020/151610.924557:ERROR:google_apis/gcm/engine/registration_request.cc:291] Registration response error message: DEPRECATED_ENDPOINT",
+    "[24292:24323:1020/151707.789769:ERROR:google_apis/gcm/engine/registration_request.cc:291] Registration response error message: DEPRECATED_ENDPOINT",
+    "[24086:1020/151727.922667:ERROR:mojo/public/cpp/bindings/lib/interface_endpoint_client.cc:748] Message 2 rejected by interface blink.mojom.Widget",
+    "[24086:1020/151727.923026:ERROR:mojo/public/cpp/bindings/lib/interface_endpoint_client.cc:748] Message 2 rejected by interface blink.mojom.Widget",
+    "[24086:1020/151727.932934:ERROR:mojo/public/cpp/bindings/lib/interface_endpoint_client.cc:748] Message 2 rejected by interface blink.mojom.Widget",
+    "Opening in existing browser session.",
+    "[renderer:warning] use 'save' instead of 'getSnapshot'",
+    "[renderer:warning] use 'save' instead of 'getSnapshot'",
+    "[renderer:warning] use 'save' instead of 'getSnapshot'",
+    "[renderer:error] Uncaught (in promise) Error: [redi]: Expect 1 dependency item(s) for id \"SheetsScrollRenderController2\" but get 0. Did you forget to register it?",
+    "Opening in existing browser session.",
+    "[24292:24323:1020/151902.900284:ERROR:google_apis/gcm/engine/registration_request.cc:291] Registration response error message: DEPRECATED_ENDPOINT",
+    "Opening in existing browser session.",
+    "[24292:24323:1020/152212.086503:ERROR:google_apis/gcm/engine/registration_request.cc:291] Registration response error message: DEPRECATED_ENDPOINT"
+  ]
+}
+
+=== /tmp/g819-a02-1792508998603322401-run/reports/g7-qa/g8-a02/fx-pptx-deck-vi.json
+{
+  "row": "G8-A02",
+  "fixture": "fx-pptx-deck-vi",
+  "module": "anchors",
+  "status": "FAIL",
+  "exitCode": 1,
+  "reason": "check:web-to-desktop: web open answered error (the Office frame is shown without a D comment panel)",
+  "blocker": "",
+  "owner": "",
+  "steps": {
+    "upload": {
+      "status": "PASS",
+      "elapsedMs": 42
+    },
+    "closed-panel-save": {
+      "status": "PASS",
+      "elapsedMs": 12696
+    },
+    "open-desktop": {
+      "status": "PASS",
+      "elapsedMs": 5024
+    },
+    "create": {
+      "status": "PASS",
+      "elapsedMs": 26
+    },
+    "editor-lists": {
+      "status": "PASS",
+      "elapsedMs": 1114
+    },
+    "shift": {
+      "status": "PASS",
+      "elapsedMs": 1836
+    },
+    "rest-sees-moved": {
+      "status": "PASS",
+      "elapsedMs": 5
+    },
+    "remove": {
+      "status": "PASS",
+      "elapsedMs": 2434
+    },
+    "lost-view-server": {
+      "status": "PASS",
+      "elapsedMs": 7
+    },
+    "lost-view-web": {
+      "status": "PASS",
+      "elapsedMs": 53
+    },
+    "lost-view-desktop": {
+      "status": "PASS",
+      "elapsedMs": 25078
+    },
+    "invalid-versions": {
+      "status": "PASS",
+      "elapsedMs": 17
+    },
+    "web-to-desktop": {
+      "status": "FAIL",
+      "reason": "web open answered error (the Office frame is shown without a D comment panel)",
+      "elapsedMs": 62063
+    },
+    "check:closed-panel-save": {
+      "status": "PASS",
+      "note": "no list request reached the server between the comment and the Save, yet the round (apps/slides/src/renderer/use-server-comments.ts:158-166), built from the listed roots, re-anchored it; the order is in details.closedPanel.scenario"
+    },
+    "check:create": {
+      "status": "PASS"
+    },
+    "check:shift": {
+      "status": "PASS"
+    },
+    "check:rest-sees-moved": {
+      "status": "PASS"
+    },
+    "check:remove-lost": {
+      "status": "PASS"
+    },
+    "check:lost-view-version": {
+      "status": "BLOCKED",
+      "blocker": "frame pin predates the fork UNI-2033 kit/protocol (T6 re-pin)",
+      "owner": "g6-fork_ui T6",
+      "reason": "web: frame pin predates the fork UNI-2033 kit/protocol (T6 re-pin)",
+      "note": "not reported by the app: the revealed thread (no comments panel is open)"
+    },
+    "check:invalid-versions": {
+      "status": "PASS"
+    },
+    "check:web-to-desktop": {
+      "status": "FAIL",
+      "reason": "web open answered error (the Office frame is shown without a D comment panel)"
+    }
+  },
+  "details": {
+    "multiOrg": {
+      "status": "SEEDED",
+      "via": "sql",
+      "reason": "test seed only: ADR 0032 refuses a second active organization through every API, so M's org X membership is a raw SQL insert (the TestIsolationMatrix shape)"
+    },
+    "format": "pptx",
+    "fixture": "fx-pptx-deck-vi",
+    "cites": [
+      "apps/slides/src/renderer/control.ts:63-95 (goto slide, 0-based)",
+      "apps/slides/src/renderer/keyboard-actions.ts:121-133 (Ctrl+M adds a slide), :373-391 (Delete on the focused rail deletes the selected slides)",
+      "apps/slides/src/renderer/App.tsx:3973-3995 (.slide-list thumbnails with data-index), :2645 (window keydown listener)",
+      "apps/slides/src/renderer/server-comments.ts:5-7 (slide_id survives a reorder, a deleted slide is lost)"
+    ],
+    "reveal": {
+      "covered_by": "G8-A07 deeplink module (T3, desktop reveal B7) + fork vitest G8-12..15 (reveal per format)"
+    },
+    "documentId": "01M5CY9Y69J0ZYMMG4XD8ACADW",
+    "closedPanel": {
+      "ran": true,
+      "documentId": "01M5CY9Y70SQY7EH0EFGZY21HR",
+      "scenario": {
+        "openedAt": 1792509540578,
+        "listedAt": 1792509551436,
+        "listedVia": "server.log",
+        "createdAt": 1792509551440,
+        "createdVia": "REST as A (another host, the desktop panel closed)",
+        "listsBeforeSave": 0,
+        "listSignal": "path only: the server log has no query, so a kind=discussion list of the same document would also match; none occurs in this flow (the Discussion panel opens only on a Discussion reveal, and the harness lists nothing of this document before its Save)",
+        "listLine": "GET /api/v1/documents/01M5CY9Y70SQY7EH0EFGZY21HR/comments 200 at 15:19:10.938",
+        "serverCreatedAt": "2026-10-20T15:19:11Z"
+      },
+      "commentId": "01M5CYA8TJ53W22VN42453BRTW",
+      "anchor": {
+        "format": "pptx",
+        "v": 1,
+        "slide_id": "257",
+        "slide_index": 1
+      },
+      "versionBefore": "01M5CY9Y70SQY7EH0EFMPG64MY",
+      "expected": {
+        "format": "pptx",
+        "v": 1,
+        "slide_id": "257",
+        "slide_index": 2
+      },
+      "edited": {
+        "status": "ok"
+      },
+      "saved": true,
+      "headVersionId": "01M5CYA9PS06SFZX0EJ61BWPZK",
+      "row": {
+        "id": "01M5CYA8TJ53W22VN42453BRTW",
+        "anchor": {
+          "v": 1,
+          "format": "pptx",
+          "slide_id": "257",
+          "slide_index": 2
+        },
+        "anchor_state": "exact",
+        "anchor_version_id": "01M5CYA9PS06SFZX0EJ61BWPZK",
+        "anchor_version_no": 2,
+        "deleted_at": null
+      },
+      "elapsedMs": 1015
+    },
+    "editorPagesOfKind": 2,
+    "created": {
+      "ok": true,
+      "commentId": "01M5CYAFHBVBVGKAQX9SFHMWT0",
+      "anchor": {
+        "format": "pptx",
+        "v": 1,
+        "slide_id": "257",
+        "slide_index": 1
+      },
+      "versionId": "01M5CY9Y69J0ZYMMG4XGE1CBB3",
+      "replyId": "01M5CYAFHJ3QE4YVA1XKFCEJ6N"
+    },
+    "editorLists": {
+      "panel": {
+        "status": "ok",
+        "panels": 1,
+        "opened": true
+      },
+      "listed": true,
+      "elapsedMs": 3,
+      "listedIds": [
+        "01M5CYAFHBVBVGKAQX9SFHMWT0",
+        "01M5CYAFHJ3QE4YVA1XKFCEJ6N"
+      ]
+    },
+    "shift": {
+      "saved": true,
+      "versionBefore": "01M5CY9Y69J0ZYMMG4XGE1CBB3",
+      "expected": {
+        "format": "pptx",
+        "v": 1,
+        "slide_id": "257",
+        "slide_index": 2
+      },
+      "edited": {
+        "status": "ok"
+      },
+      "headVersionId": "01M5CYAHF82Y2J6CHR0YF403RC",
+      "headVersion": 2,
+      "row": {
+        "id": "01M5CYAFHBVBVGKAQX9SFHMWT0",
+        "anchor": {
+          "v": 1,
+          "format": "pptx",
+          "slide_id": "257",
+          "slide_index": 2
+        },
+        "anchor_state": "exact",
+        "anchor_version_id": "01M5CYAHF82Y2J6CHR0YF403RC",
+        "anchor_version_no": 2,
+        "deleted_at": null
+      },
+      "elapsedMs": 1014
+    },
+    "restSeesMoved": {
+      "anchor": {
+        "v": 1,
+        "format": "pptx",
+        "slide_id": "257",
+        "slide_index": 2
+      },
+      "anchor_version_id": "01M5CYAHF82Y2J6CHR0YF403RC"
+    },
+    "remove": {
+      "edited": {
+        "status": "ok"
+      },
+      "saved": true,
+      "headVersionId": "01M5CYAKV39DF45HW7SYVW3K75",
+      "row": {
+        "id": "01M5CYAFHBVBVGKAQX9SFHMWT0",
+        "anchor": {
+          "v": 1,
+          "format": "pptx",
+          "slide_id": "257",
+          "slide_index": 2
+        },
+        "anchor_state": "lost",
+        "anchor_version_id": "01M5CYAHF82Y2J6CHR0YF403RC",
+        "anchor_version_no": 2,
+        "deleted_at": null
+      },
+      "replies": 1,
+      "elapsedMs": 1015
+    },
+    "lostView": {
+      "ran": true,
+      "commentId": "01M5CYAFHBVBVGKAQX9SFHMWT0",
+      "expected": {
+        "versionId": "01M5CYAHF82Y2J6CHR0YF403RC",
+        "versionNo": 2
+      },
+      "server": {
+        "ran": true,
+        "row": {
+          "id": "01M5CYAFHBVBVGKAQX9SFHMWT0",
+          "anchor": {
+            "v": 1,
+            "format": "pptx",
+            "slide_id": "257",
+            "slide_index": 2
+          },
+          "anchor_state": "lost",
+          "anchor_version_id": "01M5CYAHF82Y2J6CHR0YF403RC",
+          "anchor_version_no": 2,
+          "deleted_at": null
+        }
+      },
+      "web": {
+        "status": "BLOCKED",
+        "blocker": "frame pin predates the fork UNI-2033 kit/protocol (T6 re-pin)",
+        "owner": "g6-fork_ui T6",
+        "pin": "1abc493"
+      },
+      "desktop": {
+        "ran": true,
+        "copyPath": "/tmp/g819-a02-1792508998603322401-run/userdata/uniwork-documents/default/01M5CY3VN3TSRGJ8N7F7N62ACK/01M5CY9Y69J0ZYMMG4XD8ACADW@v2/G8-A02 fx-pptx-deck-vi.pptx",
+        "contextVersionId": "01M5CYAHF82Y2J6CHR0YF403RC",
+        "status": {
+          "access": "view"
+        },
+        "panel": {
+          "panels": 0,
+          "commentIds": []
+        }
+      }
+    },
+    "invalidVersionsNote": "purged-version case replaced by empty id: no REST purge route (router/documents.go), same single lookup document_comment_anchors.go:362-369",
+    "invalidVersions": [
+      {
+        "case": "foreign",
+        "status": 400,
+        "body": {
+          "error": {
+            "code": "anchor_version_invalid",
+            "message": "phiên bản neo không hợp lệ"
+          }
+        }
+      },
+      {
+        "case": "unknown",
+        "status": 400,
+        "body": {
+          "error": {
+            "code": "anchor_version_invalid",
+            "message": "phiên bản neo không hợp lệ"
+          }
+        }
+      },
+      {
+        "case": "empty",
+        "status": 400,
+        "body": {
+          "error": {
+            "code": "anchor_version_invalid",
+            "message": "phiên bản neo không hợp lệ"
+          }
+        }
+      }
+    ],
+    "afterInvalid": {
+      "id": "01M5CYAFHBVBVGKAQX9SFHMWT0",
+      "anchor": {
+        "v": 1,
+        "format": "pptx",
+        "slide_id": "257",
+        "slide_index": 2
+      },
+      "anchor_state": "lost",
+      "anchor_version_id": "01M5CYAHF82Y2J6CHR0YF403RC",
+      "anchor_version_no": 2,
+      "deleted_at": null
+    },
+    "webToDesktop": {
+      "ran": false,
+      "documentId": "01M5CYBDEAGK9QEN97YP7J2FY2",
+      "status": "FAIL",
+      "reason": "web open answered error (the Office frame is shown without a D comment panel)"
+    }
+  },
+  "log": [],
+  "forkSha": "8b57af0c8",
+  "startedAt": "2026-10-20T15:19:00.259Z",
+  "finishedAt": "2026-10-20T15:20:50.997Z",
+  "appLogTail": [
+    "[24086:1020/151538.296595:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[24086:1020/151538.880597:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[24086:1020/151538.880658:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[24086:1020/151538.880679:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[24086:1020/151538.880707:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[24086:1020/151538.880719:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "",
+    "DevTools listening on <url>",
+    "[24292:24322:1020/151542.703549:ERROR:dbus/bus.cc:405] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[24292:24322:1020/151543.411391:ERROR:dbus/bus.cc:405] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[24292:24322:1020/151543.411435:ERROR:dbus/bus.cc:405] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[24292:24322:1020/151544.008826:ERROR:dbus/bus.cc:405] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[24292:24322:1020/151544.009831:ERROR:dbus/bus.cc:405] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[24292:24292:1020/151544.028785:ERROR:dbus/object_proxy.cc:572] Failed to call method: org.freedesktop.DBus.Properties.GetAll: object_path= /org/freedesktop/UPower/devices/DisplayDevice: unknown error type:",
+    "[24425:7:1020/151544.034074:ERROR:gpu/ipc/client/command_buffer_proxy_impl.cc:285] ContextResult::kTransientFailure: Failed to send GpuControl.CreateCommandBuffer.",
+    "[24292:24323:1020/151547.304121:ERROR:google_apis/gcm/engine/registration_request.cc:291] Registration response error message: DEPRECATED_ENDPOINT",
+    "Created TensorFlow Lite XNNPACK delegate for CPU.",
+    "Created TensorFlow Lite XNNPACK delegate for CPU.",
+    "[24292:24323:1020/151610.924557:ERROR:google_apis/gcm/engine/registration_request.cc:291] Registration response error message: DEPRECATED_ENDPOINT",
+    "[24292:24323:1020/151707.789769:ERROR:google_apis/gcm/engine/registration_request.cc:291] Registration response error message: DEPRECATED_ENDPOINT",
+    "[24086:1020/151727.922667:ERROR:mojo/public/cpp/bindings/lib/interface_endpoint_client.cc:748] Message 2 rejected by interface blink.mojom.Widget",
+    "[24086:1020/151727.923026:ERROR:mojo/public/cpp/bindings/lib/interface_endpoint_client.cc:748] Message 2 rejected by interface blink.mojom.Widget",
+    "[24086:1020/151727.932934:ERROR:mojo/public/cpp/bindings/lib/interface_endpoint_client.cc:748] Message 2 rejected by interface blink.mojom.Widget",
+    "Opening in existing browser session.",
+    "[renderer:warning] use 'save' instead of 'getSnapshot'",
+    "[renderer:warning] use 'save' instead of 'getSnapshot'",
+    "[renderer:warning] use 'save' instead of 'getSnapshot'",
+    "[renderer:error] Uncaught (in promise) Error: [redi]: Expect 1 dependency item(s) for id \"SheetsScrollRenderController2\" but get 0. Did you forget to register it?",
+    "Opening in existing browser session.",
+    "[24292:24323:1020/151902.900284:ERROR:google_apis/gcm/engine/registration_request.cc:291] Registration response error message: DEPRECATED_ENDPOINT"
+  ]
+}
+
+=== /tmp/g819-a02-1792508998603322401-run/reports/g7-qa/g8-a02/fx-xlsx-revenue-xyz.json
+{
+  "row": "G8-A02",
+  "fixture": "fx-xlsx-revenue-xyz",
+  "module": "anchors",
+  "status": "FAIL",
+  "exitCode": 1,
+  "reason": "check:web-to-desktop: web open answered error (the Office frame is shown without a D comment panel)",
+  "blocker": "",
+  "owner": "",
+  "steps": {
+    "upload": {
+      "status": "PASS",
+      "elapsedMs": 30
+    },
+    "closed-panel-save": {
+      "status": "PASS",
+      "elapsedMs": 12723
+    },
+    "open-desktop": {
+      "status": "PASS",
+      "elapsedMs": 4935
+    },
+    "create": {
+      "status": "PASS",
+      "elapsedMs": 18
+    },
+    "editor-lists": {
+      "status": "PASS",
+      "elapsedMs": 2085
+    },
+    "shift": {
+      "status": "PASS",
+      "elapsedMs": 1686
+    },
+    "rest-sees-moved": {
+      "status": "PASS",
+      "elapsedMs": 6
+    },
+    "remove": {
+      "status": "PASS",
+      "elapsedMs": 1348
+    },
+    "lost-view-server": {
+      "status": "PASS",
+      "elapsedMs": 6
+    },
+    "lost-view-web": {
+      "status": "PASS",
+      "elapsedMs": 56
+    },
+    "lost-view-desktop": {
+      "status": "PASS",
+      "elapsedMs": 6347
+    },
+    "invalid-versions": {
+      "status": "PASS",
+      "elapsedMs": 15
+    },
+    "web-to-desktop": {
+      "status": "FAIL",
+      "reason": "web open answered error (the Office frame is shown without a D comment panel)",
+      "elapsedMs": 62369
+    },
+    "check:closed-panel-save": {
+      "status": "PASS",
+      "note": "no list request reached the server between the comment and the Save, yet the round (apps/sheets/src/renderer/server-comments/SheetsServerComments.tsx:207-213), built from the listed roots, re-anchored it; the order is in details.closedPanel.scenario"
+    },
+    "check:create": {
+      "status": "PASS"
+    },
+    "check:shift": {
+      "status": "PASS"
+    },
+    "check:rest-sees-moved": {
+      "status": "PASS"
+    },
+    "check:remove-lost": {
+      "status": "PASS"
+    },
+    "check:lost-view-version": {
+      "status": "BLOCKED",
+      "blocker": "frame pin predates the fork UNI-2033 kit/protocol (T6 re-pin)",
+      "owner": "g6-fork_ui T6",
+      "reason": "web: frame pin predates the fork UNI-2033 kit/protocol (T6 re-pin)"
+    },
+    "check:invalid-versions": {
+      "status": "PASS"
+    },
+    "check:web-to-desktop": {
+      "status": "FAIL",
+      "reason": "web open answered error (the Office frame is shown without a D comment panel)"
+    }
+  },
+  "details": {
+    "multiOrg": {
+      "status": "SEEDED",
+      "via": "sql",
+      "reason": "test seed only: ADR 0032 refuses a second active organization through every API, so M's org X membership is a raw SQL insert (the TestIsolationMatrix shape)"
+    },
+    "format": "xlsx",
+    "fixture": "fx-xlsx-revenue-xyz",
+    "cites": [
+      "apps/sheets/src/renderer/control.ts:4-5,63-90 (goto activates the range)",
+      "apps/sheets/src/renderer/ExcelShell.tsx:3985-3995 (Insert row / Delete row buttons, insert-row-here / delete-row-here)",
+      "apps/sheets/src/renderer/i18n/app/en.ts:1336,1344 (en labels; vi Chèn hàng / Xóa hàng)",
+      "apps/sheets/src/renderer/server-comments/anchor-store.ts:102-120 (an insert above shifts the range, a delete loses it)"
+    ],
+    "reveal": {
+      "covered_by": "G8-A07 deeplink module (T3, desktop reveal B7) + fork vitest G8-12..15 (reveal per format)"
+    },
+    "documentId": "01M5CY739EKHHGSVBMT990WRRX",
+    "closedPanel": {
+      "ran": true,
+      "documentId": "01M5CY73A07DYGDF3M5PDHNBR3",
+      "scenario": {
+        "openedAt": 1792509447491,
+        "listedAt": 1792509458847,
+        "listedVia": "server.log",
+        "createdAt": 1792509458851,
+        "createdVia": "REST as A (another host, the desktop panel closed)",
+        "listsBeforeSave": 0,
+        "listSignal": "path only: the server log has no query, so a kind=discussion list of the same document would also match; none occurs in this flow (the Discussion panel opens only on a Discussion reveal, and the harness lists nothing of this document before its Save)",
+        "listLine": "GET /api/v1/documents/01M5CY73A07DYGDF3M5PDHNBR3/comments 200 at 15:17:38.742",
+        "serverCreatedAt": "2026-10-20T15:17:38Z"
+      },
+      "commentId": "01M5CY7ED6Y1PYNNSQJ0AR38CN",
+      "anchor": {
+        "format": "xlsx",
+        "v": 1,
+        "sheet": "sheet-2",
+        "range": "B7"
+      },
+      "versionBefore": "01M5CY73A07DYGDF3M5RZNDTPW",
+      "expected": {
+        "format": "xlsx",
+        "v": 1,
+        "sheet": "sheet-2",
+        "range": "B8"
+      },
+      "edited": {
+        "status": "ok"
+      },
+      "saved": true,
+      "headVersionId": "01M5CY7ET2VECGHTGABRZMJDF5",
+      "row": {
+        "id": "01M5CY7ED6Y1PYNNSQJ0AR38CN",
+        "anchor": {
+          "v": 1,
+          "range": "B8",
+          "sheet": "sheet-2",
+          "format": "xlsx"
+        },
+        "anchor_state": "exact",
+        "anchor_version_id": "01M5CY7ET2VECGHTGABRZMJDF5",
+        "anchor_version_no": 2,
+        "deleted_at": null
+      },
+      "elapsedMs": 1022
+    },
+    "editorPagesOfKind": 2,
+    "created": {
+      "ok": true,
+      "commentId": "01M5CY7MJ563K7S3ZGF4ZKK73R",
+      "anchor": {
+        "format": "xlsx",
+        "v": 1,
+        "sheet": "sheet-2",
+        "range": "B7"
+      },
+      "versionId": "01M5CY739EKHHGSVBMTA93S77P",
+      "replyId": "01M5CY7MJCF1TPCWW326JB6H45"
+    },
+    "editorLists": {
+      "panel": {
+        "status": "ok",
+        "panels": 1,
+        "opened": true
+      },
+      "listed": true,
+      "elapsedMs": 1,
+      "listedIds": [
+        "01M5CY7MJ563K7S3ZGF4ZKK73R",
+        "01M5CY7MJCF1TPCWW326JB6H45"
+      ]
+    },
+    "shift": {
+      "saved": true,
+      "versionBefore": "01M5CY739EKHHGSVBMTA93S77P",
+      "expected": {
+        "format": "xlsx",
+        "v": 1,
+        "sheet": "sheet-2",
+        "range": "B8"
+      },
+      "edited": {
+        "status": "ok"
+      },
+      "headVersionId": "01M5CY7QC84W680X1SHXHVQP1S",
+      "headVersion": 2,
+      "row": {
+        "id": "01M5CY7MJ563K7S3ZGF4ZKK73R",
+        "anchor": {
+          "v": 1,
+          "range": "B8",
+          "sheet": "sheet-2",
+          "format": "xlsx"
+        },
+        "anchor_state": "exact",
+        "anchor_version_id": "01M5CY7QC84W680X1SHXHVQP1S",
+        "anchor_version_no": 2,
+        "deleted_at": null
+      },
+      "elapsedMs": 1011
+    },
+    "restSeesMoved": {
+      "anchor": {
+        "v": 1,
+        "range": "B8",
+        "sheet": "sheet-2",
+        "format": "xlsx"
+      },
+      "anchor_version_id": "01M5CY7QC84W680X1SHXHVQP1S"
+    },
+    "remove": {
+      "edited": {
+        "status": "ok"
+      },
+      "saved": true,
+      "headVersionId": "01M5CY7RNHNAS5EEYFPZZX2ZXH",
+      "row": {
+        "id": "01M5CY7MJ563K7S3ZGF4ZKK73R",
+        "anchor": {
+          "v": 1,
+          "range": "B8",
+          "sheet": "sheet-2",
+          "format": "xlsx"
+        },
+        "anchor_state": "lost",
+        "anchor_version_id": "01M5CY7QC84W680X1SHXHVQP1S",
+        "anchor_version_no": 2,
+        "deleted_at": null
+      },
+      "replies": 1,
+      "elapsedMs": 1011
+    },
+    "lostView": {
+      "ran": true,
+      "commentId": "01M5CY7MJ563K7S3ZGF4ZKK73R",
+      "expected": {
+        "versionId": "01M5CY7QC84W680X1SHXHVQP1S",
+        "versionNo": 2
+      },
+      "server": {
+        "ran": true,
+        "row": {
+          "id": "01M5CY7MJ563K7S3ZGF4ZKK73R",
+          "anchor": {
+            "v": 1,
+            "range": "B8",
+            "sheet": "sheet-2",
+            "format": "xlsx"
+          },
+          "anchor_state": "lost",
+          "anchor_version_id": "01M5CY7QC84W680X1SHXHVQP1S",
+          "anchor_version_no": 2,
+          "deleted_at": null
+        }
+      },
+      "web": {
+        "status": "BLOCKED",
+        "blocker": "frame pin predates the fork UNI-2033 kit/protocol (T6 re-pin)",
+        "owner": "g6-fork_ui T6",
+        "pin": "1abc493"
+      },
+      "desktop": {
+        "ran": true,
+        "copyPath": "/tmp/g819-a02-1792508998603322401-run/userdata/uniwork-documents/default/01M5CY3VN3TSRGJ8N7F7N62ACK/01M5CY739EKHHGSVBMT990WRRX@v2/G8-A02 fx-xlsx-revenue-xyz.xlsx",
+        "contextVersionId": "01M5CY7QC84W680X1SHXHVQP1S",
+        "status": {
+          "access": "view"
+        },
+        "panel": {
+          "panels": 1,
+          "commentIds": [
+            "01M5CY7MJ563K7S3ZGF4ZKK73R",
+            "01M5CY7MJCF1TPCWW326JB6H45"
+          ]
+        }
+      }
+    },
+    "invalidVersionsNote": "purged-version case replaced by empty id: no REST purge route (router/documents.go), same single lookup document_comment_anchors.go:362-369",
+    "invalidVersions": [
+      {
+        "case": "foreign",
+        "status": 400,
+        "body": {
+          "error": {
+            "code": "anchor_version_invalid",
+            "message": "phiên bản neo không hợp lệ"
+          }
+        }
+      },
+      {
+        "case": "unknown",
+        "status": 400,
+        "body": {
+          "error": {
+            "code": "anchor_version_invalid",
+            "message": "phiên bản neo không hợp lệ"
+          }
+        }
+      },
+      {
+        "case": "empty",
+        "status": 400,
+        "body": {
+          "error": {
+            "code": "anchor_version_invalid",
+            "message": "phiên bản neo không hợp lệ"
+          }
+        }
+      }
+    ],
+    "afterInvalid": {
+      "id": "01M5CY7MJ563K7S3ZGF4ZKK73R",
+      "anchor": {
+        "v": 1,
+        "range": "B8",
+        "sheet": "sheet-2",
+        "format": "xlsx"
+      },
+      "anchor_state": "lost",
+      "anchor_version_id": "01M5CY7QC84W680X1SHXHVQP1S",
+      "anchor_version_no": 2,
+      "deleted_at": null
+    },
+    "webToDesktop": {
+      "ran": false,
+      "documentId": "01M5CY7ZXGSK5Y5MR98N854N90",
+      "status": "FAIL",
+      "reason": "web open answered error (the Office frame is shown without a D comment panel)"
+    }
+  },
+  "log": [],
+  "forkSha": "8b57af0c8",
+  "startedAt": "2026-10-20T15:17:27.201Z",
+  "finishedAt": "2026-10-20T15:19:00.143Z",
+  "appLogTail": [
+    "[24086:1020/151538.296595:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[24086:1020/151538.880597:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[24086:1020/151538.880658:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[24086:1020/151538.880679:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[24086:1020/151538.880707:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[24086:1020/151538.880719:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "",
+    "DevTools listening on <url>",
+    "[24292:24322:1020/151542.703549:ERROR:dbus/bus.cc:405] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[24292:24322:1020/151543.411391:ERROR:dbus/bus.cc:405] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[24292:24322:1020/151543.411435:ERROR:dbus/bus.cc:405] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[24292:24322:1020/151544.008826:ERROR:dbus/bus.cc:405] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[24292:24322:1020/151544.009831:ERROR:dbus/bus.cc:405] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: Connection refused",
+    "[24292:24292:1020/151544.028785:ERROR:dbus/object_proxy.cc:572] Failed to call method: org.freedesktop.DBus.Properties.GetAll: object_path= /org/freedesktop/UPower/devices/DisplayDevice: unknown error type:",
+    "[24425:7:1020/151544.034074:ERROR:gpu/ipc/client/command_buffer_proxy_impl.cc:285] ContextResult::kTransientFailure: Failed to send GpuControl.CreateCommandBuffer.",
+    "[24292:24323:1020/151547.304121:ERROR:google_apis/gcm/engine/registration_request.cc:291] Registration response error message: DEPRECATED_ENDPOINT",
+    "Created TensorFlow Lite XNNPACK delegate for CPU.",
+    "Created TensorFlow Lite XNNPACK delegate for CPU.",
+    "[24292:24323:1020/151610.924557:ERROR:google_apis/gcm/engine/registration_request.cc:291] Registration response error message: DEPRECATED_ENDPOINT",
+    "[24292:24323:1020/151707.789769:ERROR:google_apis/gcm/engine/registration_request.cc:291] Registration response error message: DEPRECATED_ENDPOINT",
+    "[24086:1020/151727.922667:ERROR:mojo/public/cpp/bindings/lib/interface_endpoint_client.cc:748] Message 2 rejected by interface blink.mojom.Widget",
+    "[24086:1020/151727.923026:ERROR:mojo/public/cpp/bindings/lib/interface_endpoint_client.cc:748] Message 2 rejected by interface blink.mojom.Widget",
+    "[24086:1020/151727.932934:ERROR:mojo/public/cpp/bindings/lib/interface_endpoint_client.cc:748] Message 2 rejected by interface blink.mojom.Widget",
+    "Opening in existing browser session.",
+    "[renderer:warning] use 'save' instead of 'getSnapshot'",
+    "[renderer:warning] use 'save' instead of 'getSnapshot'",
+    "[renderer:warning] use 'save' instead of 'getSnapshot'",
+    "[renderer:error] Uncaught (in promise) Error: [redi]: Expect 1 dependency item(s) for id \"SheetsScrollRenderController2\" but get 0. Did you forget to register it?"
+  ]
+}
+
+harness: stopped 4 process group(s) from /tmp/g819-a02-1792508998603322401-run
+G819_STOP_EXIT 0
+G819_KEYRING_EXEC_EXIT 0
