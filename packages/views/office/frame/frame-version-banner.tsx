@@ -20,18 +20,15 @@ export function FrameVersionBanner({ documentId, versionNo, desktopOpen, onBackT
   const { t } = useTranslation(undefined, { keyPrefix: "documents.collab" });
   return (
     <div data-testid="office-version-view-banner">
-      <Notice
-        tone="info"
-        icon={RotateCcwClock}
-        layout="strip"
-        action={(
-          <div className="flex flex-wrap items-center justify-end gap-2">
+      <Notice tone="info" icon={RotateCcwClock} layout="strip">
+        {/* The actions live inside the message column so a phone width wraps them under the text instead of squeezing it. */}
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+          <span>{t("collabVersionViewBanner", { n: versionNo })}</span>
+          <div className="flex flex-wrap items-center gap-2">
             {desktopOpen ? <DesktopOpenAction {...desktopOpen} documentId={documentId} placement="inline" operation="view" version={versionNo} /> : null}
             {onBackToCurrent ? <Button type="button" size="sm" variant="outline" onClick={onBackToCurrent}>{t("collabVersionViewBack")}</Button> : null}
           </div>
-        )}
-      >
-        {t("collabVersionViewBanner", { n: versionNo })}
+        </div>
       </Notice>
     </div>
   );
