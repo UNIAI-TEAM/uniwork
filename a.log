@@ -1,0 +1,24 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git rev-parse HEAD; git log --oneline -5; git diff --stat 8cb13a296..HEAD
+d592b5816bedf45cec431cc536c521a93e231236
+d592b5816 chore(merge): G5-G7 root 8cb13a296 into WRAP (UNI-1985)
+8cb13a296 chore: merge UNI-1966 CHAT-DOC-SHARE (server + web; 9aca0dc81) into the G5-G7 root
+9aca0dc81 fix(chat): keep the access request button when a request was sent earlier (UNI-1966)
+bb42b1723 fix(chat): let a mouse reach the actions bar at every width without covering the card title (UNI-1966)
+d1ac5f5f2 chore: merge UNI-1919 REPIN-4 (pin web-0.1.0-b1cbd5d; 8e80776d2) into the G5-G7 root
+ scripts/office/devset.test.mjs                     |   4 +-
+ server/internal/ai/context.go                      |   2 +-
+ server/internal/ai/context_test.go                 |  50 ++++
+ server/internal/ai/openai_facade.go                |  85 ++++--
+ server/internal/ai/openai_facade_test.go           | 317 +++++++++++++++++++++
+ server/internal/ai/prompt.go                       |  36 +++
+ server/internal/ai/prompts_office.go               |  18 +-
+ server/internal/ai/prompts_office_test.go          |  85 +++++-
+ .../ai/testdata/office_uniwork_ai_v5_common.golden |  16 ++
+ .../ai/testdata/office_uniwork_ai_v5_docs.golden   |  15 +
+ .../ai/testdata/office_uniwork_ai_v5_html.golden   |   6 +
+ .../testdata/office_uniwork_ai_v5_markdown.golden  |   6 +
+ .../ai/testdata/office_uniwork_ai_v5_pdf.golden    |   7 +
+ .../ai/testdata/office_uniwork_ai_v5_sheets.golden |  28 ++
+ .../ai/testdata/office_uniwork_ai_v5_slides.golden |   8 +
+ server/internal/service/ai_uniwork_test.go         |  45 +++
+ 16 files changed, 698 insertions(+), 30 deletions(-)

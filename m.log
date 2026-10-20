@@ -1,0 +1,3 @@
+$ cd server && go test ./internal/service/ -run 'Uniwork' -count=1 2>&1 | grep -E '^\s*--- (FAIL|SKIP)|^(ok|FAIL)' | head -40; echo "SVC_UNIWORK_EXIT=${PIPESTATUS[0]}"
+ok  	github.com/unicomhub/uniwork/server/internal/service	1.868s
+SVC_UNIWORK_EXIT=0
