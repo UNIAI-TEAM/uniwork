@@ -4082,7 +4082,11 @@
       "document_version_conflict": "Tài liệu vừa có phiên bản mới. Tải lại rồi thử lại.",
       "document_locked": "{{name}} đang sửa tài liệu này. Thử lại khi họ lưu xong.",
       "document_locked_unnamed": "Tài liệu này đang có người sửa. Thử lại khi họ lưu xong.",
-      "source_not_saveable": "Không thể chia sẻ tệp này dạng tài liệu: định dạng không được hỗ trợ hoặc dung lượng quá lớn."
+      "source_not_saveable": "Không thể chia sẻ tệp này dạng tài liệu: định dạng không được hỗ trợ hoặc dung lượng quá lớn.",
+      "document_link_not_found": "Không tìm thấy tài liệu này hoặc bạn không còn quyền xem.",
+      "document_link_forbidden": "Bạn không thể chia sẻ tài liệu này vào cuộc trò chuyện.",
+      "document_link_archived": "Tài liệu này đang ở thùng rác nên không gửi được.",
+      "document_link_unsendable": "Không thể gửi tài liệu này vào cuộc trò chuyện."
     },
     "media_unavailable": "Không tải được {{name}}",
     "media_image": "Hình ảnh",

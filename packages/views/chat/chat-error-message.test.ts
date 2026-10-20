@@ -1,6 +1,12 @@
 import { ApiError } from "@uniwork/core/api";
 import { describe, expect, it } from "vitest";
-import { chatDocumentSendError, chatErrorMessage } from "./chat-error-message";
+import {
+  chatDocumentLinkError,
+  chatDocumentSendError,
+  chatErrorMessage,
+  isChatClientMsgIdSpent,
+  isChatDocumentLinkStale,
+} from "./chat-error-message";
 
 const t = ((key: string) => `t:${key}`) as unknown as Parameters<typeof chatErrorMessage>[1];
 
@@ -59,5 +65,67 @@ describe("chatDocumentSendError", () => {
       chatDocumentSendError(new ApiError("nope", "forbidden", 403), tt, "fallback"),
     ).toBe("t:chat.errors.forbidden");
     expect(chatDocumentSendError(new Error("boom"), tt, "fallback")).toBe("fallback");
+  });
+});
+
+describe("chatDocumentLinkError", () => {
+  const status: Record<string, number> = {
+    not_found: 404,
+    forbidden: 403,
+    document_archived: 403,
+    document_shelved: 409,
+    document_owned_by_work_product: 409,
+    my_folder_locked: 409,
+    folder_not_shareable: 422,
+    chat_message_deleted: 410,
+    idempotency_conflict: 409,
+    invalid_request: 400,
+    weird: 500,
+  };
+  const err = (code: string) => new ApiError("raw server sentence", code, status[code] ?? 500);
+
+  it.each([
+    ["not_found", "t:chat.errors.document_link_not_found"],
+    ["forbidden", "t:chat.errors.document_link_forbidden"],
+    ["document_archived", "t:chat.errors.document_link_archived"],
+    ["document_shelved", "t:chat.errors.document_link_unsendable"],
+    ["document_owned_by_work_product", "t:chat.errors.document_link_unsendable"],
+    ["my_folder_locked", "t:chat.errors.document_link_unsendable"],
+    ["folder_not_shareable", "t:chat.errors.document_link_unsendable"],
+    ["chat_message_deleted", "fallback"],
+    ["idempotency_conflict", "fallback"],
+    ["invalid_request", "fallback"],
+    ["weird", "fallback"],
+  ])("maps %s", (code, expected) => {
+    expect(chatDocumentLinkError(err(code), t, "fallback")).toBe(expected);
+  });
+
+  it("keeps the document send table and the network sentence for everything else", () => {
+    expect(chatDocumentLinkError(err("quota_exceeded"), t, "fallback")).toBe("t:chat.errors.document_quota_exceeded");
+    expect(chatDocumentLinkError(new TypeError("Failed to fetch"), t, "fallback")).toBe("t:chat.errors.network");
+  });
+
+  it("flags only the refusals that make the picker's rows stale", () => {
+    for (const code of [
+      "not_found",
+      "forbidden",
+      "document_archived",
+      "document_shelved",
+      "document_owned_by_work_product",
+      "my_folder_locked",
+      "folder_not_shareable",
+    ]) {
+      expect(isChatDocumentLinkStale(err(code)), code).toBe(true);
+    }
+    for (const code of ["chat_message_deleted", "idempotency_conflict", "invalid_request", "weird"]) {
+      expect(isChatDocumentLinkStale(err(code)), code).toBe(false);
+    }
+    expect(isChatDocumentLinkStale(new Error("boom"))).toBe(false);
+  });
+
+  it("flags the two codes whose client_msg_id can never succeed again", () => {
+    expect(isChatClientMsgIdSpent(err("chat_message_deleted"))).toBe(true);
+    expect(isChatClientMsgIdSpent(err("idempotency_conflict"))).toBe(true);
+    expect(isChatClientMsgIdSpent(err("forbidden"))).toBe(false);
   });
 });

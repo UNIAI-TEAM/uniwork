@@ -4083,7 +4083,11 @@
       "document_version_conflict": "The document just got a new version. Reload and try again.",
       "document_locked": "{{name}} is editing this document. Try again once they save.",
       "document_locked_unnamed": "Someone is editing this document. Try again once they save.",
-      "source_not_saveable": "This file cannot be shared as a document: its format is not supported or it is too large."
+      "source_not_saveable": "This file cannot be shared as a document: its format is not supported or it is too large.",
+      "document_link_not_found": "We couldn't find this document, or you no longer have access to it.",
+      "document_link_forbidden": "You can't share this document into the conversation.",
+      "document_link_archived": "This document is in the trash, so it can't be sent.",
+      "document_link_unsendable": "This document can't be sent into the conversation."
     },
     "media_unavailable": "Couldn't load {{name}}",
     "media_image": "Image",

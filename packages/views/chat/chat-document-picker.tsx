@@ -1,12 +1,14 @@
 "use client";
 
 import { useEffect, useRef, useState, type RefObject } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { CircleAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import type { ChatDocumentShareLevel } from "@uniwork/core/api/endpoints/chat";
 import { useSendChatDocumentLink } from "@uniwork/core/chat";
 import { newChatClientMsgId } from "@uniwork/core/chat/client-msg-id";
+import { documentKeys } from "@uniwork/core/documents/keys";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Dialog } from "@uniwork/ui/components/ui/dialog";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
@@ -17,7 +19,7 @@ import { CollectionPageState } from "../layout/collection-page";
 import { MODULE_ICONS } from "../layout/module-icons";
 import { MODULE_TONES } from "../layout/module-tones";
 import { CHAT_DIALOG_BODY_CLASS, CHAT_DIALOG_CLASS, CHAT_DIALOG_WIDTH } from "./chat-dialog-look";
-import { chatDocumentSendError } from "./chat-error-message";
+import { chatDocumentLinkError, isChatClientMsgIdSpent, isChatDocumentLinkStale } from "./chat-error-message";
 import { ChatComposerShareLevelPicker } from "./chat-composer-share-level";
 import { useChatDocumentPicker, type ChatPickerDocument } from "./use-chat-document-picker";
 import { moveRowFocus, useMemberPickerFocus, WorkspaceMemberSearchField } from "./workspace-member-picker";
@@ -151,6 +153,7 @@ export function ChatDocumentPicker({
   const { t } = useTranslation();
   const picker = useChatDocumentPicker(workspaceId, open);
   const sendLink = useSendChatDocumentLink(workspaceId);
+  const qc = useQueryClient();
   const { inputRef: searchRef, listRef, focusInput, focusFirstRow } = useMemberPickerFocus();
   const levelRef = useRef<HTMLDivElement>(null);
   const wasSelected = useRef(false);
@@ -202,7 +205,17 @@ export function ChatDocumentPicker({
         onOpenChange(false);
       })
       .catch((err: unknown) => {
-        toast.error(chatDocumentSendError(err, t, t("chat.document_picker.send_failed")));
+        toast.error(chatDocumentLinkError(err, t, t("chat.document_picker.send_failed")));
+        // The key of a spent intent would only replay the same refusal.
+        if (isChatClientMsgIdSpent(err)) clientMsgId.current = newChatClientMsgId();
+        if (isChatDocumentLinkStale(err)) {
+          // The document changed under the list (trashed, shelved, unshared):
+          // refetch what the picker shows and send the person back to it, so
+          // the row they chose is gone rather than failing again.
+          void qc.invalidateQueries({ queryKey: documentKeys.recent(workspaceId) });
+          void qc.invalidateQueries({ queryKey: documentKeys.listRoot(workspaceId) });
+          setSelected(null);
+        }
       });
   };
 

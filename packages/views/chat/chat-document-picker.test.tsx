@@ -290,6 +290,61 @@ describe("ChatDocumentPicker send", () => {
     expect(ids[0]).toBe(ids[1]);
   });
 
+  async function sendRefused(code: string, status: number, recent = RECENT) {
+    serve({ recent });
+    const base = requestMock.getMockImplementation()!;
+    requestMock.mockImplementation((path: string, init?: Call["init"]) =>
+      init?.method === "POST" ? Promise.reject(new ApiError("raw", code, status)) : base(path, init),
+    );
+    renderPicker();
+    await choose("Kế hoạch Q4.docx");
+    fireEvent.click(screen.getByRole("button", { name: "Gửi" }));
+  }
+
+  it("after a 404 race, says so, refetches the list and returns to it without the row", async () => {
+    serve();
+    const base = requestMock.getMockImplementation()!;
+    let gone = false;
+    requestMock.mockImplementation((path: string, init?: Call["init"]) => {
+      if (init?.method === "POST") {
+        // The document is deleted between the list and the click.
+        gone = true;
+        return Promise.reject(new ApiError("raw", "not_found", 404));
+      }
+      return gone && path.includes("/documents/recent")
+        ? Promise.resolve({ documents: RECENT.filter((d) => d.id !== "d-manage"), next_cursor: null })
+        : base(path, init);
+    });
+    renderPicker();
+    fireEvent.click(await screen.findByRole("button", { name: /Kế hoạch Q4\.docx/ }));
+    const before = recentCalls().length;
+    fireEvent.click(screen.getByRole("button", { name: "Gửi" }));
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith("Không tìm thấy tài liệu này hoặc bạn không còn quyền xem."),
+    );
+    expect(await screen.findByText("Trang ghi chú")).toBeInTheDocument();
+    expect(recentCalls().length).toBeGreaterThan(before);
+    expect(screen.queryByText("Kế hoạch Q4.docx")).not.toBeInTheDocument();
+  });
+
+  it("after a 403 race, names the refusal and goes back to the list", async () => {
+    await sendRefused("forbidden", 403);
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith("Bạn không thể chia sẻ tài liệu này vào cuộc trò chuyện."),
+    );
+    expect(await screen.findByRole("searchbox", { name: "Tìm tài liệu" })).toBeInTheDocument();
+  });
+
+  it("mints a fresh client_msg_id after a spent one, and stays on the level step", async () => {
+    await sendRefused("idempotency_conflict", 409);
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Không gửi được tài liệu. Thử lại."));
+    expect(screen.queryByRole("searchbox", { name: "Tìm tài liệu" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Gửi" }));
+    await waitFor(() => expect(linkPosts()).toHaveLength(2));
+    const ids = linkPosts().map((c) => (c.init?.body as { client_msg_id: string }).client_msg_id);
+    expect(ids[0]).not.toBe(ids[1]);
+  });
+
   it("falls back to its own copy for an error the chat table does not know", async () => {
     serve();
     const base = requestMock.getMockImplementation()!;
