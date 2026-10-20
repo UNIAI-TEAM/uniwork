@@ -1,0 +1,77 @@
+id,check,verdict,detail
+docs-055,1a,WARN,combined status with equal halves: web:different;desktop:different
+docs-072,1a,WARN,combined status with equal halves: web:conflict;desktop:conflict
+html-003,1a,WARN,combined status with equal halves: web:conflict;desktop:conflict
+markdown-003,1a,WARN,combined status with equal halves: web:conflict;desktop:conflict
+common-09,1b,CHECK,"no evidence line within +-3 lines shows the key (heuristic): D:packages/core/shortcuts/definitions.ts:299 => if (key === ""F5"") return true;"
+common-13,1b,CHECK,"no evidence line within +-3 lines shows the key (heuristic): D:packages/core/shortcuts/definitions.ts:299 => if (key === ""F5"") return true;"
+common-14,1b,CHECK,"no evidence line within +-3 lines shows the key (heuristic): fork:apps/docs/src/main/docs-main.ts:6380 => accelerator: 'CmdOrCtrl+/',"
+common-20,1b,CHECK,"no evidence line within +-3 lines shows the key (heuristic): fork:apps/docs/src/main/docs-main.ts:6223 => { role: 'togglefullscreen', label: tm('menuFullscreen') }, | fork:web/modules/slides/fullscreen-hint.ts:34 => if (e instanceof KeyboardEvent && e.key === 'Escape') return | D:packages/views/office/frame/office-module-frame.tsx:451 => allow=""clipboard-read; clipboard-write"""
+docs-013,1b,CHECK,"no evidence line within +-3 lines shows the key (heuristic): fork:apps/docs/src/main/docs-main.ts:6159 => { role: 'cut', label: tm('menuCut') },"
+docs-014,1b,CHECK,"no evidence line within +-3 lines shows the key (heuristic): fork:apps/docs/src/main/docs-main.ts:6160 => { role: 'copy', label: tm('menuCopy') },"
+docs-015,1b,CHECK,"no evidence line within +-3 lines shows the key (heuristic): fork:apps/docs/src/main/docs-main.ts:6161 => { role: 'paste', label: tm('menuPaste') },"
+docs-016,1b,CHECK,"no evidence line within +-3 lines shows the key (heuristic): fork:apps/docs/src/main/docs-main.ts:6162 => { role: 'pasteAndMatchStyle', label: tm('menuPasteMatch') }, | lib:prosemirror-view@1.42.6:dist/index.js:3762 => let plain = view.input.shiftKey && view.input.lastKeyCode != 45;"
+docs-029,1b,CHECK,no evidence line within +-3 lines shows the key (heuristic): fork:apps/docs/src/renderer/App.tsx:5632 => if (
+docs-030,1b,CHECK,no evidence line within +-3 lines shows the key (heuristic): fork:apps/docs/src/renderer/App.tsx:5632 => if (
+docs-031,1b,CHECK,no evidence line within +-3 lines shows the key (heuristic): fork:apps/docs/src/renderer/App.tsx:5644 => if (
+docs-032,1b,CHECK,no evidence line within +-3 lines shows the key (heuristic): fork:apps/docs/src/renderer/App.tsx:5644 => if (
+docs-040,1b,CHECK,no evidence line within +-3 lines shows the key (heuristic): fork:apps/docs/src/renderer/components/Ribbon.tsx:1850 => // Word's copy / paste formatting chords (⇧⌘C / ⇧⌘V; off the Mac the paste
+docs-043,1b,CHECK,"no evidence line within +-3 lines shows the key (heuristic): fork:apps/docs/src/renderer/App.tsx:5577 => const ALIGN_KEYS: Record<string, 'left' | 'center' | 'right' | 'justify'> = {"
+docs-044,1b,CHECK,"no evidence line within +-3 lines shows the key (heuristic): fork:apps/docs/src/renderer/App.tsx:5577 => const ALIGN_KEYS: Record<string, 'left' | 'center' | 'right' | 'justify'> = {"
+docs-045,1b,CHECK,"no evidence line within +-3 lines shows the key (heuristic): fork:apps/docs/src/renderer/App.tsx:5577 => const ALIGN_KEYS: Record<string, 'left' | 'center' | 'right' | 'justify'> = {"
+docs-046,1b,CHECK,"no evidence line within +-3 lines shows the key (heuristic): fork:apps/docs/src/renderer/App.tsx:5577 => const ALIGN_KEYS: Record<string, 'left' | 'center' | 'right' | 'justify'> = {"
+docs-058,1b,CHECK,"no evidence line within +-3 lines shows the key (heuristic): fork:apps/docs/src/renderer/App.tsx:5612 => const STYLE_KEYS: Record<string, 'p' | 'h1' | 'h2' | 'h3'> = {"
+docs-069,1b,CHECK,"no evidence line within +-3 lines shows the key (heuristic): fork:apps/docs/src/renderer/editor/extensions.ts:1672 => 'Mod-Shift--': () => this.editor.commands.insertContent('\u2011'),"
+docs-082,1b,CHECK,"no evidence line within +-3 lines shows the key (heuristic): fork:apps/docs/src/main/docs-main.ts:6183 => accelerator: 'CmdOrCtrl+=', | fork:apps/docs/src/renderer/App.tsx:5810 => case 'zoom-in':"
+docs-083,1b,CHECK,"no evidence line within +-3 lines shows the key (heuristic): fork:apps/docs/src/main/docs-main.ts:6188 => accelerator: 'CmdOrCtrl+-', | fork:apps/docs/src/renderer/App.tsx:5813 => case 'zoom-out':"
+docs-088,1b,CHECK,"no evidence line within +-3 lines shows the key (heuristic): fork:apps/docs/src/main/docs-main.ts:6223 => { role: 'togglefullscreen', label: tm('menuFullscreen') },"
+docs-094,1b,CHECK,"no evidence line within +-3 lines shows the key (heuristic): fork:apps/docs/src/main/docs-main.ts:6380 => accelerator: 'CmdOrCtrl+/',"
+docs-096,1b,CHECK,"no evidence line within +-3 lines shows the key (heuristic): fork:apps/docs/src/main/docs-main.ts:6224 => ...(isDev ? [toggleDevToolsItem(appMenuLabels(getUiLang()))] : []),"
+docs-103,1b,CHECK,"no evidence line within +-3 lines shows the key (heuristic): fork:apps/docs/src/main/docs-main.ts:6162 => { role: 'pasteAndMatchStyle', label: tm('menuPasteMatch') },"
+sheets-01,1b,CHECK,no evidence line within +-3 lines shows the key (heuristic): fork:apps/sheets/src/main/sheets-main.ts:4682 => const labels = appMenuLabels(getUiLang())
+sheets-10,1b,CHECK,"no evidence line within +-3 lines shows the key (heuristic): univer@v0.25.1:packages/ui/src/controllers/shared-shortcut.controller.ts:45 => binding: KeyCode.C | MetaKeys.CTRL_COMMAND, | univer@v0.25.1:packages/ui/src/controllers/shared-shortcut.controller.ts:54 => binding: KeyCode.X | MetaKeys.CTRL_COMMAND, | fork:apps/sheets/src/main/sheets-main.ts:4752 => { role: 'cut', label: labels.cut },"
+sheets-17,1b,CHECK,"no evidence line within +-3 lines shows the key (heuristic): univer@v0.25.1:packages/sheets-ui/src/controllers/shortcuts/copy-fill.shortcut.ts:25 => binding: KeyCode.D | MetaKeys.CTRL_COMMAND,"
+sheets-18,1b,CHECK,"no evidence line within +-3 lines shows the key (heuristic): univer@v0.25.1:packages/sheets-ui/src/controllers/shortcuts/copy-fill.shortcut.ts:31 => binding: KeyCode.R | MetaKeys.CTRL_COMMAND, | fork:packages/electron-utils/src/app-menu.ts:572 => { role: 'reload', label: labels.reload },"
+sheets-26,1b,CHECK,"no evidence line within +-3 lines shows the key (heuristic): univer@v0.25.1:packages/sheets-ui/src/controllers/shortcuts/selection.shortcut.ts:316 => binding: KeyCode.A | MetaKeys.CTRL_COMMAND, | fork:apps/sheets/src/main/sheets-main.ts:4756 => { role: 'selectAll', label: labels.selectAll },"
+sheets-63,1b,CHECK,"no evidence line within +-3 lines shows the key (heuristic): univer@v0.25.1:packages/sheets-ui/src/controllers/shortcuts/style.shortcut.ts:34 => binding: KeyCode.B | MetaKeys.CTRL_COMMAND,"
+sheets-64,1b,CHECK,"no evidence line within +-3 lines shows the key (heuristic): univer@v0.25.1:packages/sheets-ui/src/controllers/shortcuts/style.shortcut.ts:43 => binding: KeyCode.I | MetaKeys.CTRL_COMMAND,"
+sheets-65,1b,CHECK,"no evidence line within +-3 lines shows the key (heuristic): univer@v0.25.1:packages/sheets-ui/src/controllers/shortcuts/style.shortcut.ts:52 => binding: KeyCode.U | MetaKeys.CTRL_COMMAND,"
+sheets-92,1b,CHECK,"no evidence line within +-3 lines shows the key (heuristic): univer@v0.25.1:packages/docs-ui/src/shortcuts/toolbar.shortcut.ts:26 => binding: KeyCode.B | MetaKeys.CTRL_COMMAND,"
+sheets-94,1b,CHECK,no evidence line within +-3 lines shows the key (heuristic): univer@v0.25.1:packages/sheets-ui/src/views/sheet-bar/sheet-bar-tabs/SheetBarTabs.tsx:390 => const onTabListKeyDown = useCallback((event: ReactKeyboardEvent<HTMLDivElement>) => {
+sheets-97,1b,CHECK,"no evidence line within +-3 lines shows the key (heuristic): fork:apps/shell/src/main/tab-manager.ts:316 => wc.on('before-input-event', (event, input) => {"
+slides-01,1b,CHECK,"no evidence line within +-3 lines shows the key (heuristic): fork:apps/slides/src/main/slides-main.ts:2049 => { label: tm('menuOpen'), accelerator: 'CmdOrCtrl+O', click: () => send('open') },"
+slides-28,1b,CHECK,no evidence line within +-3 lines shows the key (heuristic): fork:apps/slides/src/renderer/show-keys.ts:62 => if (/^[0-9]$/.test(key)) {
+slides-48,1b,CHECK,no evidence line within +-3 lines shows the key (heuristic): fork:apps/slides/src/renderer/keyboard-actions.ts:197 => const toggle = e.shiftKey ? undefined : TOGGLE_KEYS[lower]
+slides-49,1b,CHECK,no evidence line within +-3 lines shows the key (heuristic): fork:apps/slides/src/renderer/keyboard-actions.ts:197 => const toggle = e.shiftKey ? undefined : TOGGLE_KEYS[lower]
+slides-50,1b,CHECK,no evidence line within +-3 lines shows the key (heuristic): fork:apps/slides/src/renderer/keyboard-actions.ts:197 => const toggle = e.shiftKey ? undefined : TOGGLE_KEYS[lower]
+slides-54,1b,CHECK,"no evidence line within +-3 lines shows the key (heuristic): fork:apps/slides/src/renderer/keyboard-actions.ts:55 => if (e.key === '>' || e.key === '.') return { dir: 1, mode: 'ladder' }"
+slides-56,1b,CHECK,no evidence line within +-3 lines shows the key (heuristic): fork:apps/slides/src/renderer/keyboard-actions.ts:174 => if (
+slides-61,1b,CHECK,no evidence line within +-3 lines shows the key (heuristic): fork:apps/slides/src/renderer/keyboard-actions.ts:150 => if (mod && !e.altKey && (e.key === 'f' || e.key === 'F')) {
+pdf-19,1b,CHECK,no evidence line within +-3 lines shows the key (heuristic): fork:apps/shell/src/main/ui-scale-menu.ts:27 => return kind === 'home' || kind === 'sheets'
+html-008,1b,CHECK,"no evidence line within +-3 lines shows the key (heuristic): fork:packages/electron-utils/src/app-menu.ts:509 => label: labels.edit,"
+html-009,1b,CHECK,"no evidence line within +-3 lines shows the key (heuristic): fork:packages/electron-utils/src/app-menu.ts:509 => label: labels.edit,"
+html-010,1b,CHECK,"no evidence line within +-3 lines shows the key (heuristic): fork:packages/electron-utils/src/app-menu.ts:509 => label: labels.edit,"
+html-018,1b,CHECK,"no evidence line within +-3 lines shows the key (heuristic): fork:apps/html/src/renderer/preview/inspector.js:1051 => const modKey = mod ? { k: 'askAi', b: 'bold', i: 'italic' }[e.key.toLowerCase()] : undefined"
+html-025,1b,CHECK,no evidence line within +-3 lines shows the key (heuristic): fork:apps/html/src/renderer/App.tsx:1501 => } else if (key === '\\') {
+markdown-008,1b,CHECK,"no evidence line within +-3 lines shows the key (heuristic): fork:packages/electron-utils/src/app-menu.ts:509 => label: labels.edit,"
+markdown-009,1b,CHECK,"no evidence line within +-3 lines shows the key (heuristic): fork:packages/electron-utils/src/app-menu.ts:509 => label: labels.edit,"
+markdown-010,1b,CHECK,"no evidence line within +-3 lines shows the key (heuristic): fork:packages/electron-utils/src/app-menu.ts:509 => label: labels.edit,"
+markdown-011,1b,CHECK,no evidence line within +-3 lines shows the key (heuristic): lib:prosemirror-view@1.42.6:dist/index.js:3762 => let plain = view.input.shiftKey && view.input.lastKeyCode != 45;
+markdown-022,1b,CHECK,"no evidence line within +-3 lines shows the key (heuristic): lib:tiptap@v3.31.0:packages/extension-heading/src/heading.ts:135 => [`Mod-Alt-${level}`]: () => this.editor.commands.toggleHeading({ level }),"
+markdown-023,1b,CHECK,"no evidence line within +-3 lines shows the key (heuristic): lib:tiptap@v3.31.0:packages/extension-heading/src/heading.ts:135 => [`Mod-Alt-${level}`]: () => this.editor.commands.toggleHeading({ level }),"
+markdown-024,1b,CHECK,"no evidence line within +-3 lines shows the key (heuristic): lib:tiptap@v3.31.0:packages/extension-heading/src/heading.ts:135 => [`Mod-Alt-${level}`]: () => this.editor.commands.toggleHeading({ level }),"
+uninote-018,1b,CHECK,"no evidence line within +-3 lines shows the key (heuristic): lib:prosemirror-view@1.42.6:dist/index.js:2813 => return selectHorizontally(view, dir, mods) || skipIgnoredNodes(view, dir);"
+uninote-020,1b,CHECK,"no evidence line within +-3 lines shows the key (heuristic): lib:prosemirror-view@1.42.6:dist/index.js:2813 => return selectHorizontally(view, dir, mods) || skipIgnoredNodes(view, dir);"
+uninote-021,1b,CHECK,no evidence line within +-3 lines shows the key (heuristic): lib:prosemirror-view@1.42.6:dist/index.js:3762 => let plain = view.input.shiftKey && view.input.lastKeyCode != 45;
+uninote-024,1b,CHECK,no evidence line within +-3 lines shows the key (heuristic): D:packages/core/shortcuts/definitions.ts:265 => const PRIMARY_RESERVED_KEYS = new Set([
+uninote-025,1b,CHECK,no evidence line within +-3 lines shows the key (heuristic): D:packages/core/shortcuts/definitions.ts:265 => const PRIMARY_RESERVED_KEYS = new Set([
+uninote-026,1b,CHECK,"no evidence line within +-3 lines shows the key (heuristic): D:packages/views/documents/page-toolbar/page-shortcuts.test.ts:31 => /** Every chord the help popover and the toolbar tooltips print, proven against the real page editor. */"
+uninote-028,1b,CHECK,no evidence line within +-3 lines shows the key (heuristic): D:packages/views/editor/extensions/index.ts:382 => StarterKit.configure({
+uninote-036,1b,CHECK,no evidence line within +-3 lines shows the key (heuristic): D:packages/core/shortcuts/definitions.ts:265 => const PRIMARY_RESERVED_KEYS = new Set([
+uninote-040,1b,CHECK,no evidence line within +-3 lines shows the key (heuristic): D:packages/views/editor/title-editor.tsx:98 => addKeyboardShortcuts() {
+global-07,1b,CHECK,"no evidence line within +-3 lines shows the key (heuristic): D:packages/core/shortcuts/definitions.ts:85 => { id: ""goBack"", category: ""navigation"", defaultShortcut: primary(""[""), allowInEditable: false }, | D:packages/core/shortcuts/definitions.ts:86 => { id: ""goForward"", category: ""navigation"", defaultShortcut: primary(""]""), allowInEditable: false },"
+global-11,1b,CHECK,no evidence line within +-3 lines shows the key (heuristic): D:packages/ui/components/ui/sidebar.tsx:207 => if (!event.key || event.key.toLowerCase() !== SIDEBAR_KEYBOARD_SHORTCUT) return
+global-18,1b,CHECK,no evidence line within +-3 lines shows the key (heuristic): D:packages/views/office/frame/office-module-frame.tsx:360 => <Save aria-hidden /> | D:packages/views/office/frame/frame-focus.ts:28 => const focusFrame = useCallback(() => {
+global-19,1b,CHECK,no evidence line within +-3 lines shows the key (heuristic): D:packages/views/editor/extensions/index.ts:378 => export function createPageDocumentExtensions(
+global-21,1b,CHECK,no evidence line within +-3 lines shows the key (heuristic): D:packages/views/documents/document-comment-composer.tsx:226 => const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+global-22,1b,CHECK,no evidence line within +-3 lines shows the key (heuristic): D:packages/views/editor/hooks/use-zoom-canvas.ts:342 => const handleKeyDown = useCallback(
