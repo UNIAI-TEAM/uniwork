@@ -4,7 +4,7 @@ import { useState } from "react";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import { ApiError } from "@uniwork/core/api/http";
-import { requestMock, wrap } from "../test/api-mock";
+import { requestMock, wrap, wrapWithNav } from "../test/api-mock";
 import { NativeChatMessagePanel } from "./native-chat-message-panel";
 import { ChatUnreadProvider } from "./chat-day-separator";
 
@@ -31,6 +31,7 @@ type Row = {
   reactions: Record<string, number>;
   my_reactions?: string[];
   thread_following?: boolean;
+  document?: Record<string, unknown>;
 };
 
 const BASE_ROWS: Row[] = [
@@ -199,6 +200,79 @@ describe("NativeChatMessagePanel", () => {
 
     expect(deleteMessage).toHaveBeenCalledWith({ roomId: "room1", messageId: "m2" });
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Bạn không có quyền làm việc này."));
+  });
+
+  // UNI-2012 D8: deleting a document message also moves or revokes its document, so the dialog says which.
+  describe("deleting a document message", () => {
+    const documentRow = (block: Record<string, unknown>): Row => ({
+      id: "d1",
+      sender_id: "self",
+      body: "plan.docx",
+      kind: "document",
+      created_at: "2026-01-01T10:02:00.000Z",
+      reactions: {},
+      document: { document_id: "doc1", viewer_has_access: true, title: "plan.docx", ...block },
+    });
+
+    async function openDelete(block: Record<string, unknown>) {
+      const user = userEvent.setup();
+      rows = [...BASE_ROWS, documentRow(block)];
+      // The document card navigates, so it needs the adapter the text rows do not.
+      render(wrapWithNav(panel()));
+      const article = documentArticle();
+      await user.click(within(article).getByRole("button", { name: "Thêm" }));
+      await user.click(await screen.findByRole("menuitem", { name: "Xóa" }));
+      return { user, dialog: await screen.findByRole("alertdialog") };
+    }
+    const documentArticle = () => {
+      const article = document.getElementById("chat-msg-d1");
+      if (!article) throw new Error("no article for the document message");
+      return article;
+    };
+
+    const UPLOAD = "Xóa tin này sẽ chuyển tài liệu vào Thùng rác (khôi phục được trong 30 ngày) và thu hồi mọi quyền đã cấp qua chat.";
+    const LINK = "Xóa tin này chỉ thu hồi quyền do tin này cấp; tài liệu vẫn giữ nguyên trong Tài liệu.";
+
+    it("warns the upload goes to the Trash, naming the other editors", async () => {
+      const { dialog } = await openDelete({ origin: "upload", other_editors_count: 2 });
+      expect(dialog).toHaveTextContent(UPLOAD);
+      expect(dialog).toHaveTextContent("2 người khác đã chỉnh sửa tài liệu này.");
+      expect(dialog).not.toHaveTextContent("Mọi người trong cuộc trò chuyện sẽ không còn thấy");
+    });
+
+    it.each([
+      ["a count of zero", { origin: "upload", other_editors_count: 0 }],
+      ["no count", { origin: "upload" }],
+      ["no origin, as every legacy card", {}],
+    ])("keeps the Trash line and drops the editors line for %s", async (_name, block) => {
+      const { dialog } = await openDelete(block);
+      expect(dialog).toHaveTextContent(UPLOAD);
+      expect(dialog).not.toHaveTextContent("người khác đã chỉnh sửa");
+    });
+
+    it("says only the grants go for a link, and never mentions the Trash or editors", async () => {
+      const { dialog } = await openDelete({ origin: "link", other_editors_count: 3 });
+      expect(dialog).toHaveTextContent(LINK);
+      expect(dialog).not.toHaveTextContent("Thùng rác");
+      expect(dialog).not.toHaveTextContent("người khác đã chỉnh sửa");
+    });
+
+    it("still deletes through the same call once confirmed", async () => {
+      deleteMessage.mockResolvedValueOnce(undefined);
+      const { user, dialog } = await openDelete({ origin: "upload" });
+      await user.click(within(dialog).getByRole("button", { name: "Xóa" }));
+      expect(deleteMessage).toHaveBeenCalledWith({ roomId: "room1", messageId: "d1" });
+    });
+
+    it("leaves a text message's confirmation as it was", async () => {
+      const user = userEvent.setup();
+      render(wrap(panel()));
+      await user.click(within(messageArticle("Reply")).getByRole("button", { name: "Thêm" }));
+      await user.click(await screen.findByRole("menuitem", { name: "Xóa" }));
+      const dialog = await screen.findByRole("alertdialog");
+      expect(dialog).toHaveTextContent("Mọi người trong cuộc trò chuyện sẽ không còn thấy tin nhắn này. Không thể hoàn tác.");
+      expect(dialog).not.toHaveTextContent("Thùng rác");
+    });
   });
 
   // Saving, the unchanged case and a failed save live in useChatInlineEdit and the composer.
