@@ -36,6 +36,8 @@ type MeetingDTO struct {
 	ActualEndAt      string `json:"actual_end_at,omitempty"`
 	Version          int32  `json:"version"`
 	QuorumPercent    *int16 `json:"quorum_percent" description:"Tỉ lệ có mặt tối thiểu (%), null = không yêu cầu" example:"60"`
+	ScribeEnabled    bool   `json:"scribe_enabled" description:"Thư ký AI bật cho cuộc họp này (mặc định bật; chủ trì/admin tắt được)"`
+	ScribeStatus     string `json:"scribe_status,omitempty" description:"Trạng thái lần chạy mới nhất của thư ký AI (chỉ có ở GET chi tiết): DISPATCHED | ACTIVE | FINISHED | FAILED" example:"ACTIVE"`
 }
 
 type NoteDTO struct {
@@ -237,6 +239,7 @@ type MeetingSummaryDTO struct {
 	Model       string                        `json:"model"`
 	CreatedBy   string                        `json:"created_by"`
 	CreatedAt   string                        `json:"created_at"`
+	Partial     bool                          `json:"partial" description:"Tóm tắt dựa trên một phần cuộc họp: transcript dài hơn ngân sách đầu vào"`
 }
 
 type MeetingSummarySDO struct {
@@ -287,7 +290,23 @@ type MeetingRecordingPlaybackSDO struct {
 type MeetingCapabilitiesSDO struct {
 	AISummary bool `json:"ai_summary"`
 	Recording bool `json:"recording"`
-	ServerSTT bool `json:"server_stt"`
+	Scribe    bool `json:"scribe" description:"Thư ký AI (agent ghi lời) có cho workspace này: server chạy agent, cờ meeting_scribe bật, gói có meeting.transcription"`
+}
+
+// MeetingAgentContextSDO is what the scribe agent turns into STT keyterms.
+type MeetingAgentContextSDO struct {
+	MeetingTitle        string   `json:"meeting_title" example:"Giao ban tuần"`
+	WorkspaceName       string   `json:"workspace_name" example:"Phòng Kế hoạch"`
+	ProjectName         string   `json:"project_name" example:"Dự án Cầu Rồng"`
+	Locale              string   `json:"locale" example:"vi"`
+	ParticipantNames    []string `json:"participant_names" description:"Tên hiển thị của người được mời và người tham gia; không có email" example:"[\"Nguyễn Văn An\"]"`
+	SharedMicIdentities []string `json:"shared_mic_identities" description:"Identity đang là micro hội trường (S2; hiện luôn rỗng)"`
+}
+
+// MeetingAgentSegmentsSDO counts a batch: new rows and ones already stored.
+type MeetingAgentSegmentsSDO struct {
+	Accepted   int `json:"accepted" example:"18"`
+	Duplicates int `json:"duplicates" example:"2"`
 }
 
 type ParticipantSDO struct {

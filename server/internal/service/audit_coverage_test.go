@@ -1650,6 +1650,18 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				t.Fatal(err)
 			}
 		},
+		// UNI-2023: the host switches the AI scribe off for one meeting.
+		audit.ActionMeetingScribeToggled: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			s := NewMeetingService(f.pool, f.q, f.ws, NopPublisher{}, &meetings.FakeProvider{}, MeetingRuntime{TokenTTL: time.Minute, HMACKey: []byte("t")})
+			m, err := s.CreateInstant(f.ctx, f.owner.ID, w.ID, "Audit")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := s.SetScribe(f.ctx, f.owner.ID, m.ID, false); err != nil {
+				t.Fatal(err)
+			}
+		},
 		// UNI-1237: the provider refused the mailbox's credential; it needs reconnect.
 		audit.ActionEmailHubAccountAuthFailed: func(t *testing.T, f *auditFixture) {
 			f.build(t)

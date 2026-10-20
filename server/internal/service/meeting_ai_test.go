@@ -49,17 +49,6 @@ func TestTranscriptAndSummaryToTasks(t *testing.T) {
 		t.Fatalf("%d %v", len(segs.Items), err)
 	}
 
-	s.rt.STTAgentSecret = "agent-secret"
-	identity := meetings.IdentityForParticipant(seg.ParticipantID.String)
-	agentSeg, err := s.AppendTranscriptFromAgent(ctx, m.ID, identity, "", "Agent line", time.Time{})
-	if err != nil || agentSeg.Text != "Agent line" {
-		t.Fatalf("agent transcript: %+v %v", agentSeg, err)
-	}
-	segs, err = s.Transcript(ctx, ua.ID, m.ID, FeedQuery{})
-	if err != nil || len(segs.Items) != 2 {
-		t.Fatalf("want 2 segments, got %d %v", len(segs.Items), err)
-	}
-
 	// AI off → 503-coded error; on → row stored with JSON columns.
 	var ce CodedError
 	if _, err := s.Summarize(ctx, ua.ID, m.ID, "vi"); !errors.As(err, &ce) || ce.Code != "ai_not_configured" {
@@ -747,8 +736,13 @@ func TestSummarizeKeepsTheEndOfALongMeeting(t *testing.T) {
 	for i := 0; i < 100; i++ {
 		seedTranscript(t, s, m, fmt.Sprintf("seg%03d", i), fmt.Sprintf("L%03d", i)+filler, base.Add(time.Duration(i)*time.Second))
 	}
-	if _, err := s.Summarize(ctx, ua.ID, m.ID, "vi"); err != nil {
+	sum, err := s.Summarize(ctx, ua.ID, m.ID, "vi")
+	if err != nil {
 		t.Fatal(err)
+	}
+	// Parent spec §7.8: a summary that lost lines says so.
+	if !sum.Partial {
+		t.Fatal("summary of a windowed transcript is not marked partial")
 	}
 	prompt := fake.Last.Messages[len(fake.Last.Messages)-1].Content
 	for _, want := range []string{"L000", "L006", "L048", "L099", "(41 lines omitted)"} {
@@ -764,5 +758,38 @@ func TestSummarizeKeepsTheEndOfALongMeeting(t *testing.T) {
 	if !(strings.Index(prompt, "L006") < strings.Index(prompt, "(41 lines omitted)") &&
 		strings.Index(prompt, "(41 lines omitted)") < strings.Index(prompt, "L048")) {
 		t.Fatal("omission marker is not between the opening and the end")
+	}
+}
+
+// Parent spec §7.8: MEETING_SUMMARY_MAX_RUNES lifts the transcript budget, so
+// the same long meeting is summarized whole and not marked partial; the
+// lease grows with the budget.
+func TestSummarizeLongBudgetReadsTheWholeMeeting(t *testing.T) {
+	s, ua, _, w := meetingFixture(t)
+	s.rt.SummaryMaxRunes = 400000
+	if b := s.summaryBudget(); b.rows != 20000 || b.lease != summaryRunLease+4*time.Minute {
+		t.Fatalf("budget %+v", b)
+	}
+	ctx := context.Background()
+	fake := &provider.Fake{Reply: func(provider.CompletionRequest) provider.CompletionResponse {
+		return provider.CompletionResponse{Text: `{"summary":"ok","decisions":[],"action_items":[]}`, Model: "fake"}
+	}}
+	s.AI = ai.NewGateway(s.q, fake, NewAIQuota(s.ent), nil, ai.Options{})
+	m, err := s.CreateInstant(ctx, ua.ID, w.ID, "Long")
+	if err != nil {
+		t.Fatal(err)
+	}
+	base := time.Now().UTC().Add(-2 * time.Hour)
+	filler := strings.Repeat("x", 996)
+	for i := 0; i < 100; i++ {
+		seedTranscript(t, s, m, fmt.Sprintf("seg%03d", i), fmt.Sprintf("L%03d", i)+filler, base.Add(time.Duration(i)*time.Second))
+	}
+	sum, err := s.Summarize(ctx, ua.ID, m.ID, "vi")
+	if err != nil {
+		t.Fatal(err)
+	}
+	prompt := fake.Last.Messages[len(fake.Last.Messages)-1].Content
+	if sum.Partial || !strings.Contains(prompt, "L030") || strings.Contains(prompt, "lines omitted") {
+		t.Fatalf("partial=%v, middle kept=%v", sum.Partial, strings.Contains(prompt, "L030"))
 	}
 }

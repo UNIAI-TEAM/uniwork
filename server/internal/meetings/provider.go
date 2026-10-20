@@ -18,6 +18,28 @@ type ConferenceProvider interface {
 	EndSession(ctx context.Context, req EndProviderSessionRequest) error
 	StartRecording(ctx context.Context, req StartRecordingRequest) (RecordingRef, error)
 	StopRecording(ctx context.Context, req StopRecordingRequest) error
+	// DispatchScribe asks the provider to send the named agent into the room
+	// (spec 2026-10-20-meeting-scribe-agent-design §4.1) and returns the
+	// dispatch id; RemoveScribe cancels that dispatch and removes the agent.
+	DispatchScribe(ctx context.Context, req DispatchScribeRequest) (string, error)
+	RemoveScribe(ctx context.Context, req RemoveScribeRequest) error
+}
+
+// ScribeIdentity is the LiveKit identity the scribe agent joins with. It is
+// not uw_participant_, so attendance never counts it.
+const ScribeIdentity = "uw_agent_scribe"
+
+// DispatchScribeRequest carries the job metadata the agent validates
+// (meeting id, token, locale); LiveKit caps it at 512 KiB.
+type DispatchScribeRequest struct {
+	RoomName  string
+	AgentName string
+	Metadata  string
+}
+
+type RemoveScribeRequest struct {
+	RoomName   string
+	DispatchID string
 }
 
 type ConferenceCapabilities struct {

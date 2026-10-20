@@ -406,6 +406,7 @@ var isoRefFieldExempt = map[string]string{
 	"FlagOverrideDeleteSDI.scope_id":        "platform console: an override names any organization or user by design (RequirePlatformRole)",
 	"CalendarSelectionSDI.calendar_ids":     "ids of the provider's calendars (Google, Microsoft), not UniWork rows",
 	"SendChatMessageSDI.client_msg_id":      "the client's idempotency key, not a row",
+	"AgentSegmentSDI.segment_id":            "the scribe agent's idempotency key for one segment, not a row; the route is reachable only with the meeting's own uwma_ token",
 	"MintChatVoiceTokenSDI.call_id":         "a client-generated call id, not a row",
 	"VoiceSignalSDI.call_id":                "a client-generated call id, not a row",
 	"AiUniworkMessageSDI.tool_call_id":      "the model's tool call id, matched against the server's own transcript, not a row",

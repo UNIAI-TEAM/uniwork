@@ -28,7 +28,7 @@ func toSummaryDTO(v service.MeetingSummaryView) sdo.MeetingSummaryDTO {
 	s := v.Summary
 	d := sdo.MeetingSummaryDTO{
 		ID: s.ID, MeetingID: s.MeetingID, Summary: s.Summary, Model: s.Model,
-		CreatedBy: s.CreatedBy, CreatedAt: rfc3339(s.CreatedAt),
+		CreatedBy: s.CreatedBy, CreatedAt: rfc3339(s.CreatedAt), Partial: s.Partial,
 		Decisions: []string{}, ActionItems: make([]sdo.MeetingSummaryActionItemDTO, 0, len(v.Items)),
 	}
 	_ = json.Unmarshal([]byte(s.Decisions), &d.Decisions)
@@ -62,7 +62,7 @@ func (h *handlers) meetingCapabilities(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	respondJSON(w, 200, sdo.MeetingCapabilitiesSDO{
-		AISummary: caps.AISummary, Recording: caps.Recording, ServerSTT: caps.ServerSTT,
+		AISummary: caps.AISummary, Recording: caps.Recording, Scribe: caps.Scribe,
 	})
 }
 
@@ -72,27 +72,6 @@ func (h *handlers) appendTranscript(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	seg, err := h.Meetings.AppendTranscript(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "meetingID"), in.Text, in.SpokenAt)
-	if err != nil {
-		h.mapServiceError(w, err)
-		return
-	}
-	respondJSON(w, 200, sdo.TranscriptSegmentSDO{Segment: toTranscriptDTO(seg)})
-}
-
-const meetingSTTAgentSecretHeader = "X-Meeting-Agent-Secret"
-
-func (h *handlers) appendAgentTranscript(w http.ResponseWriter, r *http.Request) {
-	secret := strings.TrimSpace(r.Header.Get(meetingSTTAgentSecretHeader))
-	if secret == "" || !h.Meetings.STTAgentEnabled() || secret != h.Cfg.MeetingSTTAgentSecret {
-		respondError(w, http.StatusUnauthorized, "unauthorized", "agent secret không hợp lệ")
-		return
-	}
-	var in sdi.AppendAgentTranscriptSDI
-	if !decode(w, r, &in, maxJSONBody) {
-		return
-	}
-	seg, err := h.Meetings.AppendTranscriptFromAgent(r.Context(), chi.URLParam(r, "meetingID"),
-		strings.TrimSpace(in.ParticipantIdentity), strings.TrimSpace(in.SpeakerName), in.Text, in.SpokenAt)
 	if err != nil {
 		h.mapServiceError(w, err)
 		return

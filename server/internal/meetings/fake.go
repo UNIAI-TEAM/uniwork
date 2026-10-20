@@ -2,6 +2,7 @@ package meetings
 
 import (
 	"context"
+	"strconv"
 	"sync"
 	"time"
 )
@@ -39,6 +40,11 @@ type FakeProvider struct {
 	GetPermissionsDelay time.Duration
 	// permMu guards the participant fields above for concurrent moderators.
 	permMu sync.Mutex
+	// Scribe dispatches, guarded by scribeMu: the sweep and Start may race.
+	scribeMu          sync.Mutex
+	ScribeDispatches  []DispatchScribeRequest
+	ScribeRemovals    []RemoveScribeRequest
+	ScribeDispatchErr error
 }
 
 func (f *FakeProvider) Key() string { return "fake" }
@@ -132,4 +138,38 @@ func (f *FakeProvider) StartRecording(_ context.Context, req StartRecordingReque
 func (f *FakeProvider) StopRecording(context.Context, StopRecordingRequest) error {
 	f.StopRecordCalls++
 	return nil
+}
+
+func (f *FakeProvider) DispatchScribe(_ context.Context, req DispatchScribeRequest) (string, error) {
+	f.scribeMu.Lock()
+	defer f.scribeMu.Unlock()
+	if f.ScribeDispatchErr != nil {
+		return "", f.ScribeDispatchErr
+	}
+	f.ScribeDispatches = append(f.ScribeDispatches, req)
+	return "fake-dispatch-" + strconv.Itoa(len(f.ScribeDispatches)), nil
+}
+
+func (f *FakeProvider) RemoveScribe(_ context.Context, req RemoveScribeRequest) error {
+	f.scribeMu.Lock()
+	defer f.scribeMu.Unlock()
+	f.ScribeRemovals = append(f.ScribeRemovals, req)
+	return nil
+}
+
+// ScribeCalls reports how many dispatches and removals the fake saw.
+func (f *FakeProvider) ScribeCalls() (dispatches, removals int) {
+	f.scribeMu.Lock()
+	defer f.scribeMu.Unlock()
+	return len(f.ScribeDispatches), len(f.ScribeRemovals)
+}
+
+// LastScribeDispatch is the latest dispatch request, zero when none.
+func (f *FakeProvider) LastScribeDispatch() DispatchScribeRequest {
+	f.scribeMu.Lock()
+	defer f.scribeMu.Unlock()
+	if len(f.ScribeDispatches) == 0 {
+		return DispatchScribeRequest{}
+	}
+	return f.ScribeDispatches[len(f.ScribeDispatches)-1]
 }

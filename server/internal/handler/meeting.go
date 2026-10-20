@@ -30,7 +30,7 @@ func toMeetingDTO(m db.Meeting) sdo.MeetingDTO {
 		RoomName: m.RoomName, CreatedBy: m.CreatedBy, CreatedAt: rfc3339(m.CreatedAt), Status: m.Status, MeetingType: m.MeetingType,
 		HostUserID: m.HostUserID, Timezone: m.Timezone, AllowJoinRequest: m.AllowJoinRequest,
 		ProjectID: m.ProjectID.String, ActualStartAt: rfc3339(m.ActualStartAt), ActualEndAt: rfc3339(m.ActualEndAt),
-		Version: m.Version,
+		Version: m.Version, ScribeEnabled: !m.ScribeOffAt.Valid,
 	}
 	if m.QuorumPercent.Valid {
 		v := m.QuorumPercent.Int16
@@ -121,7 +121,9 @@ func (h *handlers) getMeeting(w http.ResponseWriter, r *http.Request) {
 		h.mapServiceError(w, err)
 		return
 	}
-	respondJSON(w, 200, map[string]any{"meeting": toMeetingDTO(m)})
+	d := toMeetingDTO(m)
+	d.ScribeStatus = h.Meetings.ScribeStatus(r.Context(), m.ID)
+	respondJSON(w, 200, map[string]any{"meeting": d})
 }
 
 func (h *handlers) updateMeeting(w http.ResponseWriter, r *http.Request) {

@@ -33,7 +33,9 @@ const (
 
 	// The summary reads the newest rows and keeps what fits its rune budget
 	// (summaryWindow); ai.estimateTokens counts ~4 runes per token, so the
-	// budgets are ~15k tokens of transcript and ~4k of chat (G18).
+	// budgets are ~15k tokens of transcript and ~4k of chat (G18). The
+	// transcript budget is MEETING_SUMMARY_MAX_RUNES when set (parent spec
+	// §7.8: ~400k runes, four hours of speech); these are the floor.
 	summaryTranscriptRows  = 2000
 	summaryChatRows        = 500
 	summaryTranscriptRunes = 60000
@@ -78,57 +80,6 @@ func (s *MeetingService) AppendTranscript(ctx context.Context, userID, meetingID
 		if u, err := s.q.GetUserByID(ctx, userID); err == nil {
 			speaker = u.DisplayName
 		}
-	}
-	seg, err := s.q.InsertTranscriptSegment(ctx, db.InsertTranscriptSegmentParams{
-		ID: util.NewID(), MeetingID: meetingID, OrganizationID: m.OrganizationID, ParticipantID: pid, SpeakerName: speaker, Text: text,
-		SpokenAt: pgtype.Timestamptz{Time: spokenAt, Valid: true},
-	})
-	if err != nil {
-		return db.MeetingTranscriptSegment{}, err
-	}
-	s.pub.Publish(ctx, m.WorkspaceID, Event{Type: "transcript.appended", Payload: map[string]string{"meeting_id": meetingID}})
-	return seg, nil
-}
-
-func (s *MeetingService) STTAgentEnabled() bool {
-	return s.rt.STTAgentSecret != ""
-}
-
-// AppendTranscriptFromAgent ingests a diarized segment from a LiveKit Agents
-// worker. The worker authenticates with X-Meeting-Agent-Secret, not a user JWT.
-func (s *MeetingService) AppendTranscriptFromAgent(ctx context.Context, meetingID, participantIdentity, speakerName, text string, spokenAt time.Time) (db.MeetingTranscriptSegment, error) {
-	m, err := s.q.GetMeeting(ctx, meetingID)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return db.MeetingTranscriptSegment{}, ErrNotFound
-		}
-		return db.MeetingTranscriptSegment{}, err
-	}
-	if m.Status != MeetingInProgress {
-		return db.MeetingTranscriptSegment{}, errInvalidState()
-	}
-	text = strings.TrimSpace(text)
-	if text == "" {
-		return db.MeetingTranscriptSegment{}, Invalid("nội dung không được để trống")
-	}
-	text = capRunes(text, transcriptSegmentRunes, "")
-	if spokenAt.IsZero() {
-		spokenAt = time.Now().UTC()
-	}
-	pid := pgtype.Text{}
-	speaker := strings.TrimSpace(speakerName)
-	const idPrefix = "uw_participant_"
-	if strings.HasPrefix(participantIdentity, idPrefix) {
-		participantID := strings.TrimPrefix(participantIdentity, idPrefix)
-		if p, err := s.q.GetMeetingParticipant(ctx, participantID); err == nil && p.MeetingID == meetingID {
-			pid = strText(p.ID)
-			if speaker == "" {
-				speaker = p.DisplayNameSnapshot
-			}
-		}
-	}
-	if speaker == "" {
-		speaker = participantIdentity
 	}
 	seg, err := s.q.InsertTranscriptSegment(ctx, db.InsertTranscriptSegmentParams{
 		ID: util.NewID(), MeetingID: meetingID, OrganizationID: m.OrganizationID, ParticipantID: pid, SpeakerName: speaker, Text: text,
@@ -214,22 +165,23 @@ func (s *MeetingService) SummaryAvailable(ctx context.Context, orgID string) boo
 
 // MeetingCapabilities is what the meeting screens of one workspace may offer.
 type MeetingCapabilities struct {
-	AISummary, Recording, ServerSTT bool
+	AISummary, Recording, Scribe bool
 }
 
 // Capabilities answers GET /workspaces/{id}/meeting-capabilities. The route
 // names a workspace, so only its members get an answer - like every other
 // workspace route (ADR 0008). AISummary is SummaryAvailable for the
 // workspace's organization: a plan without meeting.ai_summary hides the
-// button instead of offering one that only answers 403 (UNI-1853 M8). The
-// other flags are process-wide.
+// button instead of offering one that only answers 403 (UNI-1853 M8). Scribe
+// is ScribeAvailable for the same organization; Recording is process-wide.
 func (s *MeetingService) Capabilities(ctx context.Context, userID, workspaceID string) (MeetingCapabilities, error) {
 	mem, err := s.ws.RequireMember(ctx, workspaceID, userID)
 	if err != nil {
 		return MeetingCapabilities{}, err
 	}
 	return MeetingCapabilities{
-		AISummary: s.SummaryAvailable(ctx, mem.OrganizationID), Recording: s.RecordingEnabled(ctx), ServerSTT: s.STTAgentEnabled(),
+		AISummary: s.SummaryAvailable(ctx, mem.OrganizationID), Recording: s.RecordingEnabled(ctx),
+		Scribe: s.ScribeAvailable(ctx, mem.OrganizationID),
 	}, nil
 }
 
@@ -255,13 +207,14 @@ func (s *MeetingService) Summarize(ctx context.Context, userID, meetingID, local
 	if m.Status != MeetingInProgress && m.Status != MeetingEnded {
 		return db.MeetingSummary{}, errInvalidState()
 	}
-	release, err := s.claimSummaryRun(ctx, m)
+	budget := s.summaryBudget()
+	release, err := s.claimSummaryRun(ctx, m, budget.lease)
 	if err != nil {
 		return db.MeetingSummary{}, err
 	}
 	defer release()
 	// Reading the sources and asking the model end inside the lease.
-	runCtx, cancelRun := context.WithTimeout(ctx, summaryRunBudget)
+	runCtx, cancelRun := context.WithTimeout(ctx, budget.lease-time.Minute)
 	defer cancelRun()
 	var segs []db.MeetingTranscriptSegment
 	var notes []db.ListMeetingNotesRow
@@ -271,7 +224,7 @@ func (s *MeetingService) Summarize(ctx context.Context, userID, meetingID, local
 	g, gctx := errgroup.WithContext(runCtx)
 	g.Go(func() error {
 		var err error
-		segs, err = s.q.ListTranscriptSegmentsLatest(gctx, db.ListTranscriptSegmentsLatestParams{MeetingID: meetingID, Limit: summaryTranscriptRows})
+		segs, err = s.q.ListTranscriptSegmentsLatest(gctx, db.ListTranscriptSegmentsLatestParams{MeetingID: meetingID, Limit: int32(budget.rows)})
 		slices.Reverse(segs)
 		return err
 	})
@@ -315,7 +268,11 @@ func (s *MeetingService) Summarize(ctx context.Context, userID, meetingID, local
 	for _, sg := range segs {
 		transcript = append(transcript, ai.TranscriptLine{Speaker: sg.SpeakerName, Text: sg.Text})
 	}
-	transcript = windowSummaryLines(transcript, summaryTranscriptRunes-notesUsed,
+	// partial (parent spec §7.8): the newest rows did not reach the start of
+	// the meeting, or the window dropped lines.
+	partial := len(segs) >= budget.rows || len(chat) >= summaryChatRows
+	var cut bool
+	transcript, cut = windowSummaryLines(transcript, budget.runes-notesUsed,
 		func(l ai.TranscriptLine) int {
 			return utf8.RuneCountInString(l.Speaker) + utf8.RuneCountInString(l.Text) + 3
 		},
@@ -324,9 +281,11 @@ func (s *MeetingService) Summarize(ctx context.Context, userID, meetingID, local
 	for _, c := range chat {
 		chatLines = append(chatLines, ai.ChatLine{Sender: c.SenderName, Text: c.Message})
 	}
-	chatLines = windowSummaryLines(chatLines, summaryChatRunes,
+	partial = partial || cut
+	chatLines, cut = windowSummaryLines(chatLines, summaryChatRunes,
 		func(l ai.ChatLine) int { return utf8.RuneCountInString(l.Sender) + utf8.RuneCountInString(l.Text) + 3 },
 		func(n int) ai.ChatLine { return ai.ChatLine{Sender: "…", Text: summaryOmitted(n)} })
+	partial = partial || cut
 	resp, err := s.AI.Complete(runCtx, ai.Request{
 		Actor: Human(userID), OrganizationID: orgID, WorkspaceID: m.WorkspaceID,
 		Capability: ai.CapMeetingSummarization, PromptID: ai.PromptMeetingSummary,
@@ -352,7 +311,7 @@ func (s *MeetingService) Summarize(ctx context.Context, userID, meetingID, local
 	// way the gateway still settles its usage row.
 	storeCtx, cancelStore := context.WithTimeout(context.WithoutCancel(ctx), summaryStoreTimeout)
 	defer cancelStore()
-	row, err := s.storeSummary(storeCtx, m, userID, res, resp)
+	row, err := s.storeSummary(storeCtx, m, userID, res, resp, partial)
 	if err != nil {
 		return db.MeetingSummary{}, s.summaryFailure(m.ID, resp.UsageEventID, summaryStepError{reason: summaryReasonStore, err: err})
 	}
@@ -386,20 +345,41 @@ func summaryWindow(sizes []int, budget int) (head, tailStart int) {
 	return head, tailStart
 }
 
-// windowSummaryLines applies summaryWindow and marks the cut with a line.
-func windowSummaryLines[T any](lines []T, budget int, size func(T) int, marker func(omitted int) T) []T {
+// windowSummaryLines applies summaryWindow and marks the cut with a line; cut
+// reports whether any line was dropped.
+func windowSummaryLines[T any](lines []T, budget int, size func(T) int, marker func(omitted int) T) (out []T, cut bool) {
 	sizes := make([]int, len(lines))
 	for i, l := range lines {
 		sizes[i] = size(l)
 	}
 	head, tailStart := summaryWindow(sizes, budget)
 	if tailStart == head {
-		return lines[:head]
+		return lines[:head], head < len(lines)
 	}
-	out := make([]T, 0, head+1+len(lines)-tailStart)
+	out = make([]T, 0, head+1+len(lines)-tailStart)
 	out = append(out, lines[:head]...)
 	out = append(out, marker(tailStart-head))
-	return append(out, lines[tailStart:]...)
+	return append(out, lines[tailStart:]...), true
+}
+
+// summaryBudgetPlan is one run's transcript budget and the lease it needs.
+type summaryBudgetPlan struct {
+	runes, rows int
+	lease       time.Duration
+}
+
+// summaryBudget sizes a run from MEETING_SUMMARY_MAX_RUNES (parent spec
+// §7.8): rows at ~20 runes a line, and a minute more of lease per 100k runes
+// on top of summaryRunLease, since a longer prompt takes the model longer.
+// shortcut: the lease follows the configured cap, not this meeting's actual
+// length; size it from the rows read if long leases ever block re-runs.
+func (s *MeetingService) summaryBudget() summaryBudgetPlan {
+	runes := max(s.rt.SummaryMaxRunes, summaryTranscriptRunes)
+	return summaryBudgetPlan{
+		runes: runes,
+		rows:  max(summaryTranscriptRows, runes/20),
+		lease: summaryRunLease + time.Duration(runes/100000)*time.Minute,
+	}
 }
 
 func summaryOmitted(n int) string { return "(" + strconv.Itoa(n) + " lines omitted)" }

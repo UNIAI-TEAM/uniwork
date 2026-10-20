@@ -107,9 +107,15 @@ type Config struct {
 	// LiveKitRecordingBucket enables room recording via LiveKit Egress; the
 	// AWS_* storage settings supply credentials and endpoint.
 	LiveKitRecordingBucket string
-	// MeetingSTTAgentSecret authenticates POST .../transcript/agent from a
-	// LiveKit Agents worker; empty turns server-side STT ingestion off.
-	MeetingSTTAgentSecret string
+	// MeetingScribeEnabled lets the server dispatch the scribe agent
+	// (apps/meeting-agent, ADR 0036) into meeting rooms; the meeting_scribe
+	// flag and the meeting.transcription entitlement still decide per
+	// organization. MeetingScribeAgentName is the agent_name it registers.
+	MeetingScribeEnabled   bool
+	MeetingScribeAgentName string
+	// MeetingSummaryMaxRunes caps the transcript a summary reads (parent spec
+	// §7.8); keep it under the gateway model's context window.
+	MeetingSummaryMaxRunes int
 	// EnableSwagger serves /swagger/* (UI + OpenAPI JSON). Off unless
 	// ENABLE_SWAGGER is 1/true/yes — the spec describes the whole API
 	// surface and must not ship on a public listener by default.
@@ -388,7 +394,9 @@ func Load() (Config, error) {
 		AnthropicAPIKey:               os.Getenv("ANTHROPIC_API_KEY"),
 		AnthropicModel:                os.Getenv("ANTHROPIC_MODEL"),
 		LiveKitRecordingBucket:        os.Getenv("LIVEKIT_RECORDING_BUCKET"),
-		MeetingSTTAgentSecret:         os.Getenv("MEETING_STT_AGENT_SECRET"),
+		MeetingScribeEnabled:          strings.EqualFold(os.Getenv("MEETING_SCRIBE_ENABLED"), "true"),
+		MeetingScribeAgentName:        getenv("MEETING_SCRIBE_AGENT_NAME", "uniwork-scribe"),
+		MeetingSummaryMaxRunes:        int(parseInt32(os.Getenv("MEETING_SUMMARY_MAX_RUNES"), 400000)),
 		AppEnv:                        getenv("APP_ENV", "development"),
 		devVerificationCode:           os.Getenv("DEV_VERIFICATION_CODE"),
 		APIPublicURL:                  getenv("API_PUBLIC_URL", "http://localhost:8080"),

@@ -78,6 +78,7 @@ func (s *MeetingService) CreateInstant(ctx context.Context, userID, workspaceID 
 		return db.Meeting{}, err
 	}
 	s.ensureProviderSession(ctx, sess)
+	s.ensureScribeNow(ctx, started.ID)
 	return started, nil
 }
 
@@ -130,6 +131,7 @@ func (s *MeetingService) Start(ctx context.Context, userID, meetingID string) (d
 	}
 	s.count("started")
 	s.ensureProviderSession(ctx, sess)
+	s.ensureScribeNow(ctx, started.ID)
 	return started, nil
 }
 

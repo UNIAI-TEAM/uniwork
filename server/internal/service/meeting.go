@@ -78,7 +78,11 @@ type MeetingRuntime struct {
 	OutboxBatch        int32
 	WebhookBatch       int32
 	WebhookConcurrency int
-	STTAgentSecret     string
+	// The scribe agent (ADR 0036): dispatch it at all, under which
+	// agent_name. SummaryMaxRunes is the summary's transcript budget.
+	ScribeEnabled   bool
+	ScribeAgentName string
+	SummaryMaxRunes int
 }
 
 type MeetingService struct {
@@ -102,6 +106,8 @@ type MeetingService struct {
 	// avatars stored as file ids resolve to presigned URLs (UNI-744) and new
 	// recordings go through it (UNI-746); nil keeps both legacy paths.
 	files files.Service
+	// flags evaluates meeting_scribe per organization; nil = off.
+	flags McpFlags
 }
 
 // organizationOf resolves the tenant a meeting belongs to, for the gate.
@@ -408,6 +414,7 @@ var meetingActionFor = map[string]string{
 	"join_request.rejected": "meeting.join_request_rejected",
 	"join_request.canceled": "meeting.join_request_canceled",
 	"invite_link.revoked":   "meeting.invite_link_revoked",
+	"scribe.updated":        audit.ActionMeetingScribeToggled,
 }
 
 // record writes the meeting command's audit row and puts its realtime event on

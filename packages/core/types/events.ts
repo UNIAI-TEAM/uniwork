@@ -178,6 +178,7 @@ export const WS_EVENT_TYPES = [
   "project_resource.created",
   "project_resource.deleted",
   "project_resource.updated",
+  "scribe.updated",
   "transcript.appended",
   "user.offline",
   "user.presence",

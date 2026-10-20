@@ -1119,6 +1119,14 @@ func (w *isoWorld) buildActivity(t *testing.T, tn *isoTenant) {
 		tn.orgID, tn.ids["meeting"], util.NewID()); err != nil {
 		t.Fatalf("meeting summary run: %v", err)
 	}
+	// A finished scribe run: the agent API has no session caller, so the row
+	// is seeded the way MeetingService.ensureScribe writes it.
+	if _, err := w.pool.Exec(ctx, `INSERT INTO meeting_scribe_runs
+		(id, organization_id, workspace_id, meeting_id, status, finished_at, created_by, created_by_kind)
+		VALUES ($1, $2, $3, $4, 'FINISHED', now(), 'meeting_scribe', 'system')`,
+		util.NewID(), tn.orgID, tn.wsID, tn.ids["meeting"]); err != nil {
+		t.Fatalf("meeting scribe run: %v", err)
+	}
 	w.call(t, "POST", "/api/v1/meetings/"+tn.ids["meeting"]+"/summary/tasks", tn.token, map[string]any{
 		"summary_id": tn.ids["meetingSummary"], "items": []any{map[string]any{"index": 3, "assignee_id": tn.peerID}},
 	})

@@ -295,6 +295,10 @@ const (
 	// row that paid for it.
 	ActionMeetingSummaryCreated = "meeting.summary_created"
 
+	// A host or admin switched the AI scribe off or back on for one meeting
+	// (MeetingService.SetScribe, UNI-2023).
+	ActionMeetingScribeToggled = "meeting.scribe_toggled"
+
 	ActionAuditExportRequested = "audit.export_requested"
 	ActionAuditExported        = "audit.exported"
 	ActionAuditRetentionSet    = "audit.retention_set"

@@ -255,6 +255,9 @@ var catalogue = []EventDef{
 	{Topic: "invite_link.revoked", Version: 1, Payload: []string{"meeting_id", "version"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "conference.session_ready", Version: 1, Payload: []string{"meeting_id", "version"}, Scope: ScopeMeeting, Delivery: DeliveryEphemeral},
 	{Topic: "transcript.appended", Version: 1, Payload: []string{"meeting_id"}, Scope: ScopeMeeting, Delivery: DeliveryEphemeral},
+	// The AI scribe was switched on/off for a meeting or one of its runs changed
+	// state (UNI-2023); the meeting detail refetches scribe_enabled/scribe_status.
+	{Topic: "scribe.updated", Version: 1, Payload: []string{"meeting_id", "workspace_id"}, Scope: ScopeMeeting, Delivery: DeliveryOutbox},
 	{Topic: "chat.message", Version: 1, Payload: []string{"meeting_id"}, Scope: ScopeMeeting, Delivery: DeliveryEphemeral},
 	// The AI summary is written with its audit row in one transaction and
 	// announced from the outbox (UNI-1853): a host who missed the frame would
