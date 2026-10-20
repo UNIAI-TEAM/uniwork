@@ -119,6 +119,17 @@ describe("library rows", () => {
     ]);
   });
 
+  it("drops the lone 'Not in a folder' header: when every row is unfiled the list is one flat group (UNI-1994)", () => {
+    const rows = [documentRow(doc({ id: "a" })), documentRow(doc({ id: "b", kind: "page" }))];
+    const groups = groupRows(rows, "folder", index);
+    expect(groups.map((g) => [g.key, g.title, g.rows.map((r) => r.id)])).toEqual([["all", "", ["a", "b"]]]);
+  });
+
+  it("keeps the 'Not in a folder' header next to another group", () => {
+    const rows = [documentRow(doc({ id: "a" })), documentRow(doc({ id: "b", parent_id: "f2" }))];
+    expect(groupRows(rows, "folder", index).map((g) => g.key)).toEqual(["unfiled", "folder:f2"]);
+  });
+
   it("tells uploads from created documents and sizes only files", () => {
     const upload = documentRow(doc({ kind: "file", origin: "upload", size_bytes: 2048 }));
     const blank = documentRow(doc({ kind: "file", origin: "created", size_bytes: 0 }));
