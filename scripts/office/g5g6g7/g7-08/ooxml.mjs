@@ -2,7 +2,7 @@
 // Pure functions: no filesystem or network I/O; operates on Buffer/Uint8Array bytes passed in.
 
 import { posix as pathPosix } from 'node:path';
-import { constants as zlibConstants, inflateSync } from 'node:zlib';
+import { inflateSync } from 'node:zlib';
 import { readZipEntries, sha256Hex } from '../harness/fixture-files.mjs';
 
 export const VERDICT = Object.freeze({ PASS: 'PASS', FAIL: 'FAIL', BLOCKED: 'BLOCKED' });
@@ -464,11 +464,11 @@ export function oraclePptxEdit(observed) {
 }
 
 function inflateFlate(buf) {
-  for (let trim = 0; trim <= 4; trim += 1) {
-    const s = trim ? buf.subarray(0, Math.max(0, buf.length - trim)) : buf;
-    for (const opts of [undefined, { finishFlush: zlibConstants.Z_SYNC_FLUSH }]) {
-      try { return inflateSync(s, opts); } catch {}
-    }
+  let end = buf.length;
+  while (end >= 0) {
+    try { return inflateSync(buf.subarray(0, end)); } catch {}
+    if (end === 0 || ![9, 10, 12, 13, 32].includes(buf[end - 1])) break;
+    end -= 1;
   }
   return null;
 }
@@ -516,6 +516,7 @@ export function extractPdfTextFromBytes(pdfBytes) {
   if (!raw.startsWith('%PDF-')) return null;
 
   const [objTexts, streamByObj, corruptStreams, streams] = [new Map(), new Map(), new Set(), []];
+  let [rootId, rootPos] = [0, -1];
   for (const m of raw.matchAll(/(\d+)\s+\d+\s+obj\b([\s\S]*?)endobj/g)) {
     const [objId, body] = [Number(m[1]), m[2]];
     const sMatch = />>\s*stream(?:\r\n|\n|\r)/.exec(body);
@@ -523,6 +524,10 @@ export function extractPdfTextFromBytes(pdfBytes) {
     if (!sMatch || eIdx < 0) { objTexts.set(objId, body); continue; }
     const dict = body.slice(0, sMatch.index + 2);
     objTexts.set(objId, dict);
+    if (/\/Type\s*\/XRef\b/.test(dict)) {
+      const xr = /\/Root\s+(\d+)\s+\d+\s+R\b/.exec(dict);
+      if (xr) [rootId, rootPos] = [Number(xr[1]), m.index];
+    }
     const base = m.index + m[0].indexOf(body);
     let end = base + eIdx;
     if (buf[end - 2] === 13 && buf[end - 1] === 10) end -= 2;
@@ -545,43 +550,41 @@ export function extractPdfTextFromBytes(pdfBytes) {
       }
     }
   }
-
-  let pageCount = 0;
-  const kidsOrder = [];
-  for (const t of [...objTexts.values(), raw]) {
-    for (const d of t.matchAll(/<<((?:(?!>>)[\s\S])*?)>>/g)) {
-      if (/\/Type\s*\/Pages\b/.test(d[1])) {
-        pageCount = Math.max(pageCount, Number(/\/Count\s+(\d+)/.exec(d[1])?.[1] ?? 0));
-        const km = /\/Kids\s*\[([\s\S]*?)\]/.exec(d[1]);
-        if (km) for (const r of km[1].matchAll(/(\d+)\s+\d+\s+R\b/g)) kidsOrder.push(Number(r[1]));
-      }
-    }
+  for (const tm of raw.matchAll(/trailer\s*<<(?:(?!startxref|%%EOF)[\s\S])*?\/Root\s+(\d+)\s+\d+\s+R\b/g)) {
+    if (tm.index > rootPos) [rootId, rootPos] = [Number(tm[1]), tm.index];
   }
 
-  const pageMap = new Map();
-  for (const [id, t] of objTexts) {
-    if (!/\/Type\s*\/Page\b/.test(t)) continue;
+  const catText = objTexts.get(rootId) ?? '';
+  const pagesRoot = /\/Type\s*\/Catalog\b/.test(catText) ? Number(/\/Pages\s+(\d+)\s+\d+\s+R\b/.exec(catText)?.[1] ?? 0) : 0;
+  if (!pagesRoot || !/\/Type\s*\/Pages\b/.test(objTexts.get(pagesRoot) ?? '')) return null;
+
+  const [pageStreams, seenNodes] = [[], new Set()];
+  const walkPages = (id) => {
+    if (seenNodes.has(id) || !objTexts.has(id)) return false;
+    seenNodes.add(id);
+    const t = objTexts.get(id);
+    if (/\/Type\s*\/Pages\b/.test(t)) {
+      const km = /\/Kids\s*\[([\s\S]*?)\]/.exec(t);
+      if (!km) return false;
+      const kids = [...km[1].matchAll(/(\d+)\s+\d+\s+R\b/g)].map((r) => Number(r[1]));
+      if (kids.length === 0 && km[1].trim().length > 0) return false;
+      return kids.every(walkPages);
+    }
+    if (!/\/Type\s*\/Page\b/.test(t)) return false;
     const cm = /\/Contents\s*(?:\[([\s\S]*?)\]|(\d+)\s+\d+\s+R\b)/.exec(t);
+    if (/\/Contents\b/.test(t) && !cm) return false;
     const refs = cm ? (cm[2] ? [Number(cm[2])] : [...cm[1].matchAll(/(\d+)\s+\d+\s+R\b/g)].map((r) => Number(r[1]))) : [];
-    if (refs.length > 0) pageMap.set(id, refs);
-  }
-  const pageIds = [...new Set([...kidsOrder.filter((id) => pageMap.has(id)), ...pageMap.keys()])];
-  const pageStreams = [];
-  if (pageIds.length > 0) {
-    pageCount = Math.max(pageCount, pageIds.length);
-    for (const pid of pageIds) {
-      const texts = [];
-      for (const ref of pageMap.get(pid)) {
-        if (corruptStreams.has(ref) || !streamByObj.has(ref)) return null;
-        texts.push(streamByObj.get(ref));
-      }
-      pageStreams.push(texts);
+    if (cm && !cm[2] && refs.length === 0 && cm[1].trim().length > 0) return false;
+    const texts = [];
+    for (const ref of refs) {
+      if (corruptStreams.has(ref) || !streamByObj.has(ref)) return false;
+      texts.push(streamByObj.get(ref));
     }
-  } else {
-    if (corruptStreams.size > 0) return null;
-    if (streams.length === 0) streams.push({ objId: 0, text: raw });
-    pageStreams.push([raw]);
-  }
+    pageStreams.push(texts);
+    return true;
+  };
+  if (!walkPages(pagesRoot) || pageStreams.length === 0) return null;
+  const pageCount = pageStreams.length;
   const [cmapByObj, cmaps, fontToCmap, fontToDesc, objWidths, fontRes] = [new Map(), [], new Map(), new Map(), new Map(), new Map()];
   for (const s of streams) {
     for (const cm of s.text.matchAll(/begincmap([\s\S]*?)endcmap/g)) {
