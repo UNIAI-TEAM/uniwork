@@ -28,7 +28,7 @@ function aiRule() {
 }
 
 describe("officeFrameAssetRewrites", () => {
-  it("proxies the signed asset, linked and frame AI routes to the API origin", () => {
+  it("proxies the signed asset, linked, avatar and frame AI routes to the API origin", () => {
     const rules = officeFrameAssetRewrites("https://api.example.test/some/path");
     expect(rules).toEqual([
       {
@@ -38,6 +38,10 @@ describe("officeFrameAssetRewrites", () => {
       {
         source: "/api/v1/office-frame/documents/:documentId([0-9A-HJKMNP-TV-Z]{26})/linked/:linkedId([0-9A-HJKMNP-TV-Z]{26})",
         destination: "https://api.example.test/api/v1/office-frame/documents/:documentId/linked/:linkedId",
+      },
+      {
+        source: "/api/v1/office-frame/documents/:documentId([0-9A-HJKMNP-TV-Z]{26})/avatars/:userId([0-9A-HJKMNP-TV-Z]{26})",
+        destination: "https://api.example.test/api/v1/office-frame/documents/:documentId/avatars/:userId",
       },
       {
         source: "/api/v1/office-frame/documents/:documentId([0-9A-HJKMNP-TV-Z]{26})/ai/:aiPath*",
@@ -103,6 +107,32 @@ describe("officeFrameAssetRewrites", () => {
       linkedId: "01M4KH881EA6RCD6K40C56YBTF",
     });
     expect(routeMatcher(linked!.source)(`/api/v1/office-frame/documents/${DOC}/linked/not-a-ulid`)).toBe(false);
+  });
+
+  it("proxies the avatar route for upper-case ULID ids only and no other tail", () => {
+    const rules = officeFrameAssetRewrites("https://api.example.test");
+    // Total sources: assets, linked, avatars, ai. A new route must be added here on purpose.
+    expect(rules).toHaveLength(4);
+    const avatars = rules.find((r) => r.source.includes("/avatars/"));
+    expect(avatars, "no rewrite maps the frame avatar path to the API origin").toBeDefined();
+    const matcher = routeMatcher(avatars!.source);
+    const USER = "01J8X4K2M0N1P2Q3R4S5T6V7W8";
+    expect(matcher(`/api/v1/office-frame/documents/${DOC}/avatars/${USER}`)).toEqual({ documentId: DOC, userId: USER });
+    // Not ULIDs: a word, a short id, the ULID-excluded letters I, L, O, U.
+    expect(matcher(`/api/v1/office-frame/documents/${DOC}/avatars/me`)).toBe(false);
+    expect(matcher(`/api/v1/office-frame/documents/${DOC}/avatars/${USER.slice(1)}`)).toBe(false);
+    expect(matcher(`/api/v1/office-frame/documents/${DOC}/avatars/01J8X4K2M0N1P2Q3R4S5T6V7WI`)).toBe(false);
+    expect(matcher("/api/v1/office-frame/documents/not-a-ulid/avatars/" + USER)).toBe(false);
+    // Next matches case-insensitively (like the AI rule above): a lowercase id is proxied and the API refuses it.
+    expect(matcher(`/api/v1/office-frame/documents/${DOC}/avatars/${USER.toLowerCase()}`)).toEqual({ documentId: DOC, userId: USER.toLowerCase() });
+    // No extra segments, no empty user id, no trailing slash, no other frame route.
+    expect(matcher(`/api/v1/office-frame/documents/${DOC}/avatars/${USER}/extra`)).toBe(false);
+    expect(matcher(`/api/v1/office-frame/documents/${DOC}/avatars/`)).toBe(false);
+    expect(matcher(`/api/v1/office-frame/documents/${DOC}/avatars`)).toBe(false);
+    expect(matcher(`/api/v1/office-frame/documents/${DOC}/avatars/${USER}/`)).toBe(false);
+    expect(matcher(`/api/v1/documents/${DOC}/avatars/${USER}`)).toBe(false);
+    // The destination keeps both params and adds no query.
+    expect(avatars!.destination).toBe("https://api.example.test/api/v1/office-frame/documents/:documentId/avatars/:userId");
   });
 
   it("adds nothing for an unusable API URL", () => {

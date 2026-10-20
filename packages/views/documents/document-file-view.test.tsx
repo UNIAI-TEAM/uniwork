@@ -153,6 +153,15 @@ describe("DocumentFileView", () => {
     expect(screen.getByTestId("document-file-readonly")).toHaveTextContent(t("documents.file.readonly_hint"));
   });
 
+  it("names the comment level on a read-only file opened through a comment share (UNI-1994)", async () => {
+    mockApi();
+    renderView(fileDocument({ my_level: "comment" }), true);
+
+    expect(screen.getByTestId("document-file-readonly")).toHaveTextContent(t("documents.file.readonly_comment_hint"));
+    expect(screen.getByText(t("documents.save.readonly_comment"))).toBeInTheDocument();
+    expect(screen.queryByText(t("documents.save.readonly"))).toBeNull();
+  });
+
   it("states no permission reason for a reader who can edit", () => {
     mockApi();
     renderView();

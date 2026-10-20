@@ -32,6 +32,8 @@ import type { DocumentEditorHandle } from "./document-editor";
 import { DocumentFileView, useDocumentOfficeGate, usesOfficeEditor } from "./document-file-view";
 import { DocumentSaveIndicator } from "./document-save-indicator";
 import { DocumentPageHeader } from "./document-page-header";
+import { readonlyKeys, readonlyReaderCanComment } from "./document-readonly-copy";
+import { DocumentReadonlyChip } from "./document-readonly-chip";
 import { DocumentShelvedBadge, DocumentShelvedBanner } from "./document-shelved-banner";
 import { useShelvedWriteGuard } from "./use-shelved-write-guard";
 import { newerPageRevision, type DocumentPageMetadataHandle, type DocumentPageMetadataStatus } from "./use-document-page-metadata";
@@ -116,6 +118,9 @@ export function DocumentWorkspace({
   const [liveAgain, setLiveAgain] = useState(false);
   const shelved = isShelved(doc) || (writeRefusedShelved && !liveAgain);
   const canEdit = !shelved && (doc.my_level === "edit" || doc.my_level === "manage");
+  // A comment-level recipient is read-only but not "view only" (UNI-1994).
+  const canComment = readonlyReaderCanComment(doc);
+  const readonlyCopy = readonlyKeys(canComment);
   const shelvedRef = useRef(shelved);
   shelvedRef.current = shelved;
   const wasShelvedRef = useRef(false);
@@ -541,11 +546,7 @@ export function DocumentWorkspace({
             {/* A file's view-only state is announced once, by the banner below with its explanation;
                 a page keeps the chip where that banner is hidden (a phone). */}
             {!canEdit && !shelved && doc.kind === "page" ? (
-              <span className="flex shrink-0 items-center gap-1.5 whitespace-nowrap text-caption text-muted-foreground sm:hidden"
-                title={t("documents.detail.readonly_description")}>
-                <Eye aria-hidden className="size-3.5" />
-                {t("documents.save.readonly")}
-              </span>
+              <DocumentReadonlyChip canComment={canComment} />
             ) : null}
             <DocumentCommentsHeaderActions />
             {headerActions}
@@ -557,8 +558,8 @@ export function DocumentWorkspace({
         <DocumentShelvedBanner wsId={wsId} doc={doc} />
       ) : !canEdit ? (
         <Notice tone="info" icon={Eye} className={doc.kind === "page" ? "hidden sm:flex" : undefined}>
-          {doc.kind === "page" ? null : <strong className="font-semibold">{t("documents.detail.readonly_title")}. </strong>}
-          {t("documents.detail.readonly_description")}
+          {doc.kind === "page" ? null : <strong className="font-semibold">{t(readonlyCopy.title)}. </strong>}
+          {t(readonlyCopy.description)}
         </Notice>
       ) : null}
       {recoveryNotice ? (

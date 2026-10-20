@@ -301,13 +301,13 @@ func PlanUniworkTurn(transcript []provider.Message, raw json.RawMessage, allow U
 
 	switch newest := req.Messages[len(req.Messages)-1]; newest.Role {
 	case "tool":
-		results, err := uniworkToolResults(transcript, req.Messages)
+		rawResults, vendorResults, err := uniworkToolResults(transcript, req.Messages)
 		if err != nil {
 			return UniworkTurn{}, err
 		}
-		turn.ToolResults = results
+		turn.ToolResults = rawResults
 		turn.ToolResultTurn = true
-		history, err := uniworkHistory(transcript, results, true, allow.Module)
+		history, err := uniworkHistory(transcript, vendorResults, true, allow.Module)
 		if err != nil {
 			return UniworkTurn{}, err
 		}
@@ -449,62 +449,110 @@ func uniworkValidateQuestion(question string) error {
 // server's last assistant turn (rule 2: every result answers a call the
 // server issued, exactly once, every call answered) and returns them in call
 // order, so the vendor sees each result paired with its call. The caps of A6
-// are checked first: a body over them is 413 whatever its ids look like.
-func uniworkToolResults(transcript []provider.Message, msgs []UniworkMessage) ([]provider.Message, error) {
+// are checked first on the decoded client content: a body over them is 413
+// whatever its ids look like. Under office_uniwork_ai@5+ (UNI-1985), the
+// vendor slice wraps each result in <untrusted source="tool:<name>"> while the
+// raw slice stays unwrapped for the stored transcript.
+func uniworkToolResults(transcript []provider.Message, msgs []UniworkMessage) ([]provider.Message, []provider.Message, error) {
 	start := len(msgs)
 	for start > 0 && msgs[start-1].Role == "tool" {
 		start--
 	}
 	for _, m := range msgs[:start] {
 		if m.Role == "tool" {
-			return nil, ErrUniworkInvalidTurn.wrap(errors.New("kết quả công cụ không nằm liền nhau ở cuối lượt"))
+			return nil, nil, ErrUniworkInvalidTurn.wrap(errors.New("kết quả công cụ không nằm liền nhau ở cuối lượt"))
 		}
 	}
 	total := 0
 	for _, m := range msgs[start:] {
 		if len(m.Content) > UniworkToolResultMaxBytes {
-			return nil, ErrUniworkToolResultTooLarge
+			return nil, nil, ErrUniworkToolResultTooLarge
 		}
 		if total += len(m.Content); total > UniworkToolResultsMaxBytes {
-			return nil, ErrUniworkToolResultTooLarge
+			return nil, nil, ErrUniworkToolResultTooLarge
 		}
 	}
 	if len(transcript) == 0 {
-		return nil, ErrUniworkInvalidTurn.wrap(errors.New("server chưa gọi công cụ nào"))
+		return nil, nil, ErrUniworkInvalidTurn.wrap(errors.New("server chưa gọi công cụ nào"))
 	}
 	last := transcript[len(transcript)-1]
 	if last.Role != "assistant" || len(last.ToolCalls) == 0 {
-		return nil, ErrUniworkInvalidTurn.wrap(errors.New("lượt cuối của server không phải lượt gọi công cụ"))
+		return nil, nil, ErrUniworkInvalidTurn.wrap(errors.New("lượt cuối của server không phải lượt gọi công cụ"))
 	}
 	position := make(map[string]int, len(last.ToolCalls))
 	for i, c := range last.ToolCalls {
 		if c.ID == "" {
-			return nil, ErrUniworkInvalidTurn.wrap(errors.New("lượt gọi công cụ của server thiếu id"))
+			return nil, nil, ErrUniworkInvalidTurn.wrap(errors.New("lượt gọi công cụ của server thiếu id"))
 		}
 		if _, dup := position[c.ID]; dup {
-			return nil, ErrUniworkInvalidTurn.wrap(errors.New("lượt gọi công cụ của server lặp id"))
+			return nil, nil, ErrUniworkInvalidTurn.wrap(errors.New("lượt gọi công cụ của server lặp id"))
 		}
 		position[c.ID] = i
 	}
-	out := make([]provider.Message, len(last.ToolCalls))
+	raw := make([]provider.Message, len(last.ToolCalls))
+	vendor := make([]provider.Message, len(last.ToolCalls))
 	answered := make([]bool, len(last.ToolCalls))
+	wrap := uniworkWrapToolResults()
 	for _, m := range msgs[start:] {
 		i, ok := position[m.ToolCallID]
 		if !ok {
-			return nil, ErrUniworkInvalidTurn.wrap(fmt.Errorf("kết quả công cụ %q không trả lời lượt gọi nào của server", m.ToolCallID))
+			return nil, nil, ErrUniworkInvalidTurn.wrap(fmt.Errorf("kết quả công cụ %q không trả lời lượt gọi nào của server", m.ToolCallID))
 		}
 		if answered[i] {
-			return nil, ErrUniworkInvalidTurn.wrap(fmt.Errorf("kết quả công cụ %q gửi hai lần", m.ToolCallID))
+			return nil, nil, ErrUniworkInvalidTurn.wrap(fmt.Errorf("kết quả công cụ %q gửi hai lần", m.ToolCallID))
 		}
 		answered[i] = true
-		out[i] = provider.Message{Role: "tool", ToolCallID: m.ToolCallID, Content: m.Content}
+		raw[i] = provider.Message{Role: "tool", ToolCallID: m.ToolCallID, Content: m.Content}
+		content := m.Content
+		if wrap {
+			content = wrapUntrusted("tool:"+last.ToolCalls[i].Name, m.Content)
+		}
+		vendor[i] = provider.Message{Role: "tool", ToolCallID: m.ToolCallID, Content: content}
 	}
 	for _, ok := range answered {
 		if !ok {
-			return nil, ErrUniworkInvalidTurn.wrap(errors.New("thiếu kết quả cho một công cụ đã gọi"))
+			return nil, nil, ErrUniworkInvalidTurn.wrap(errors.New("thiếu kết quả cho một công cụ đã gọi"))
 		}
 	}
-	return out, nil
+	return raw, vendor, nil
+}
+
+// uniworkWrapToolResults reports whether the active office pack version wraps
+// tool results in <untrusted> tags on the way to the vendor (office_uniwork_ai@5+,
+// UNI-1985). Under @1..@4 the provider tool messages stay byte-identical to
+// the raw client content.
+func uniworkWrapToolResults() bool {
+	p, ok := LookupPrompt(PromptOfficeUniworkAI)
+	return ok && p.Version >= 5
+}
+
+// uniworkWrapTranscript returns a copy of transcript with any raw tool messages
+// wrapped in <untrusted source="tool:<name>"> when the active pack version is
+// >= 5, without mutating the caller's slice.
+func uniworkWrapTranscript(transcript []provider.Message) []provider.Message {
+	if !uniworkWrapToolResults() || len(transcript) == 0 {
+		return transcript
+	}
+	callNames := make(map[string]string)
+	var out []provider.Message
+	for i, m := range transcript {
+		for _, c := range m.ToolCalls {
+			if c.ID != "" {
+				callNames[c.ID] = c.Name
+			}
+		}
+		if m.Role == "tool" {
+			if out == nil {
+				out = make([]provider.Message, len(transcript))
+				copy(out, transcript)
+			}
+			out[i].Content = wrapUntrusted("tool:"+callNames[m.ToolCallID], m.Content)
+		}
+	}
+	if out != nil {
+		return out
+	}
+	return transcript
 }
 
 // ---- the A7 history budget --------------------------------------------------
@@ -521,6 +569,7 @@ func uniworkToolResults(transcript []provider.Message, msgs []UniworkMessage) ([
 func uniworkHistory(transcript, next []provider.Message, toolTurn bool, module string) ([]provider.Message, error) {
 	system := uniworkSystemPrompt(module)
 	budget := UniworkHistoryMaxTokens
+	transcript = uniworkWrapTranscript(transcript)
 	blocks := uniworkBlocks(transcript)
 	tokens := uniworkHistoryTokens(system, transcript) + uniworkHistoryTokens("", next)
 	dropped := 0

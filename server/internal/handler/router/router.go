@@ -217,7 +217,8 @@ func New(d Deps, h Routes) http.Handler {
 		// group: the frame is credentialless and presents only its opaque scope.
 		registerPreview(v1, h)
 		// The Docs frame presents only its document-bound frame token.
-		registerOfficeFrame(v1, h, d.FeatureFlags, d.OfficeFrameAuth)
+		registerOfficeFrame(v1, h, d.FeatureFlags, d.OfficeFrameAuth,
+			mw.RateLimitByIdentityBucket(d.Redis, "office-frame-avatar", 120, time.Minute, proxies, frameUser))
 		registerOfficeFrameExport(v1, h, d.FeatureFlags, d.OfficeFrameAuth,
 			mw.RateLimitByIdentityBucket(d.Redis, "office-frame-export", 20, time.Minute, proxies, frameUser))
 		// GO-A7's AI on the frame token: the same per-person buckets as the

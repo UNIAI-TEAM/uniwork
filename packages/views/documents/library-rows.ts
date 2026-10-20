@@ -362,6 +362,10 @@ export function groupRows(rows: LibraryRow[], groupBy: GroupBy, index: Map<strin
       else add("unfiled", "", row);
     }
   }
+  // A lone "Not in a folder" header says nothing (a recipient whose shares sit in
+  // no folder of theirs): the list reads as one flat group instead.
+  const only = groups.size === 1 ? groups.get("unfiled") : undefined;
+  if (only) return [{ ...only, key: "all" }];
   const folders = groups.get("folders");
   if (!folders) return [...groups.values()];
   groups.delete("folders");

@@ -54,12 +54,13 @@ type DocumentWorkers struct {
 	// enabled the desktop bridge. When wired, its retention sweep runs on the
 	// same hourly maintenance cadence as document purge.
 	officeLaunch *OfficeLaunchService
-	// AutoVersionTick, PurgeTick, CompactTick, IntentTick override the sweep cadences;
-	// zero keeps the defaults above.
-	AutoVersionTick time.Duration
-	PurgeTick       time.Duration
-	CompactTick     time.Duration
-	IntentTick      time.Duration
+	// AutoVersionTick, PurgeTick, CompactTick, IntentTick, IdempotencyKeyTick
+	// override the sweep cadences; zero keeps the defaults above.
+	AutoVersionTick    time.Duration
+	PurgeTick          time.Duration
+	CompactTick        time.Duration
+	IntentTick         time.Duration
+	IdempotencyKeyTick time.Duration
 
 	// after replaces the timer (tests); nil uses a real timer.
 	after func(time.Duration) <-chan time.Time
@@ -72,11 +73,16 @@ type DocumentWorkers struct {
 
 // NewDocumentWorkers builds the maintenance worker for this service.
 func (s *DocumentService) NewDocumentWorkers() *DocumentWorkers {
-	var intentTick time.Duration
+	var intentTick, idempotencyKeyTick time.Duration
 	if s != nil {
 		intentTick = s.intentPolicy.SweepTick
+		idempotencyKeyTick = s.idempotencyPolicy.SweepTick
 	}
-	return &DocumentWorkers{svc: s, IntentTick: intentTick}
+	return &DocumentWorkers{
+		svc:                s,
+		IntentTick:         intentTick,
+		IdempotencyKeyTick: idempotencyKeyTick,
+	}
 }
 
 // SetOfficeLaunchService wires the tenant-scoped launch-session retention
@@ -108,11 +114,18 @@ func (w *DocumentWorkers) Run(ctx context.Context) {
 	if intentTick <= 0 {
 		intentTick = commitIntentSweepTick
 	}
-	var wg sync.WaitGroup
-	for _, loop := range []struct {
+	idempotencyKeyTick := w.IdempotencyKeyTick
+	if idempotencyKeyTick <= 0 && w.svc != nil {
+		idempotencyKeyTick = w.svc.idempotencyPolicy.sweepTick()
+	}
+	if idempotencyKeyTick <= 0 {
+		idempotencyKeyTick = idempotencyKeySweepTick
+	}
+	type workerLoop struct {
 		tick time.Duration
 		run  func(context.Context)
-	}{
+	}
+	loops := []workerLoop{
 		{autoTick, func(ctx context.Context) {
 			started := time.Now()
 			failed, err := w.autoVersionPass(ctx)
@@ -158,7 +171,15 @@ func (w *DocumentWorkers) Run(ctx context.Context) {
 				w.swept("commit_intent", err)
 			}
 		}},
-	} {
+		{idempotencyKeyTick, func(ctx context.Context) {
+			err := w.sweepIdempotencyKeys(ctx)
+			if w.swept != nil {
+				w.swept("idempotency_key", err)
+			}
+		}},
+	}
+	var wg sync.WaitGroup
+	for _, loop := range loops {
 		wg.Add(1)
 		go func(tick time.Duration, run func(context.Context)) {
 			defer wg.Done()
@@ -223,6 +244,16 @@ func (w *DocumentWorkers) sweepBreakGlassGrants(ctx context.Context) {
 	w.recordRetentionSweep(ctx, "break_glass", func(ctx context.Context) (int64, error) {
 		return w.svc.SweepDocumentBreakGlassGrants(ctx, w.clock()())
 	})
+}
+
+func (w *DocumentWorkers) sweepIdempotencyKeys(ctx context.Context) error {
+	var sweepErr error
+	w.recordRetentionSweep(ctx, "idempotency_key", func(ctx context.Context) (int64, error) {
+		n, err := w.svc.SweepIdempotencyKeys(ctx, w.clock()())
+		sweepErr = err
+		return int64(n), err
+	})
+	return sweepErr
 }
 
 // recordRetentionSweep times one retention pass, records its outcome under the
