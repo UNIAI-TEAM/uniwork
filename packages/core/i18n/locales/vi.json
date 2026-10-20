@@ -2569,6 +2569,8 @@
       "unpin": "Bỏ ghim công việc",
       "actions": "Thao tác công việc",
       "child_of": "Công việc con của",
+      "from_meeting": "Từ cuộc họp: {{title}} · {{date}}",
+      "meeting_gone": "Cuộc họp không còn",
       "identifier_missing": "—",
       "activity_group": "{{count}} hoạt động",
       "activity_more": "Xem thêm {{count}} hoạt động",

@@ -2570,6 +2570,8 @@
       "unpin": "Unpin task",
       "actions": "Task actions",
       "child_of": "Sub-task of",
+      "from_meeting": "From meeting: {{title}} · {{date}}",
+      "meeting_gone": "Meeting no longer available",
       "identifier_missing": "—",
       "activity_group": "{{count}} activities",
       "activity_more": "Show {{count}} more activities",
