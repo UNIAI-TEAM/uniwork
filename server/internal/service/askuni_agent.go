@@ -524,7 +524,7 @@ func (s *AskUNIService) agentFocus(ctx context.Context, tc ai.ToolContext, focus
 	}
 	items := make([]agentItem, 0, len(found))
 	for _, src := range found {
-		items = append(items, agentItem{Kind: src.Kind, Key: src.Href, Title: src.Title, Href: src.Href, Text: src.Excerpt})
+		items = append(items, sourceItem(src))
 	}
 	out, _ := b.render(items, askAgentToolResultMax)
 	return out, nil

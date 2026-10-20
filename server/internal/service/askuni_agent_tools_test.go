@@ -459,3 +459,34 @@ func TestAskAgentToolsNeedTheReadPath(t *testing.T) {
 		}
 	}
 }
+
+// A search hit names its object's id, so the model can open it with the get_*
+// tool: rendered sources show the title and excerpt, never the href.
+func TestAskAgentSearchHitsCarryTheirID(t *testing.T) {
+	x, s, tc := newAgentWorld(t)
+	task := x.task(t, x.ua.ID, x.w.ID, "Kế hoạch ra mắt sản phẩm")
+	meeting := x.meeting(t, x.ua.ID, x.w.ID, "Họp ra mắt sản phẩm", "")
+	found := runAgentTool(t, s, tc, "search", `{"query":"ra mắt sản phẩm"}`)
+	for kind, id := range map[string]string{"task": task.ID, "meeting": meeting.ID} {
+		if !slices.ContainsFunc(found, func(it agentItem) bool {
+			return it.Kind == kind && (it.Text == "ID: "+id || strings.HasPrefix(it.Text, "ID: "+id+"\n"))
+		}) {
+			t.Errorf("search hit for %s %s carries no id line: %+v", kind, id, found)
+		}
+	}
+}
+
+func TestSourceItemNamesTheObjectID(t *testing.T) {
+	for _, c := range []struct{ kind, href, text string }{
+		{"task", "/o/w/tasks/T1", "ID: T1\nexcerpt"},
+		{"meeting", "/o/w/meetings/M1", "ID: M1\nexcerpt"},
+		{"document", "/o/w/documents/D1", "ID: D1\nexcerpt"},
+		{"chat", "/o/w/chat?room=R1", "ID: R1\nexcerpt"},
+		{"members", "/o/w/members", "excerpt"},
+	} {
+		it := sourceItem(ai.Source{Kind: c.kind, Title: "t", Href: c.href, Excerpt: "excerpt"})
+		if it.Text != c.text || it.Key != c.href || it.Href != c.href || it.Kind != c.kind {
+			t.Errorf("sourceItem(%s %s) = %+v, want text %q", c.kind, c.href, it, c.text)
+		}
+	}
+}

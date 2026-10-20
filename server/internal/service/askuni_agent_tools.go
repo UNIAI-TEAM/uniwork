@@ -213,6 +213,31 @@ func withText(fields, text string) string {
 	return fields + "\n" + text
 }
 
+// sourceItem is a search or focus source as a tool item. Its text starts with
+// the object's id, taken from the href, so the model can open it with the get_*
+// tool: rendered sources show the title and excerpt, never the href.
+func sourceItem(src ai.Source) agentItem {
+	text := src.Excerpt
+	if id := sourceObjectID(src.Kind, src.Href); id != "" {
+		text = withText("ID: "+id, src.Excerpt)
+	}
+	return agentItem{Kind: src.Kind, Key: src.Href, Title: src.Title, Href: src.Href, Text: text}
+}
+
+// sourceObjectID is the id at the end of a source's href ("…/tasks/<id>",
+// "…/meetings/<id>", "…/documents/<id>", "…/chat?room=<id>"); the members page
+// names no single object.
+func sourceObjectID(kind, href string) string {
+	switch kind {
+	case "chat":
+		_, id, _ := strings.Cut(href, "?room=")
+		return id
+	case "task", "meeting", "document":
+		return href[strings.LastIndexByte(href, '/')+1:]
+	}
+	return ""
+}
+
 func (s *AskUNIService) agentSearch(ctx context.Context, tc ai.ToolContext, raw json.RawMessage) ([]agentItem, error) {
 	var a struct{ Query string }
 	if err := agentArgs(raw, &a); err != nil {
@@ -224,7 +249,7 @@ func (s *AskUNIService) agentSearch(ctx context.Context, tc ai.ToolContext, raw 
 	}
 	out := make([]agentItem, 0, len(found))
 	for _, src := range found {
-		out = append(out, agentItem{Kind: src.Kind, Key: src.Href, Title: src.Title, Href: src.Href, Text: src.Excerpt})
+		out = append(out, sourceItem(src))
 	}
 	return out, nil
 }
