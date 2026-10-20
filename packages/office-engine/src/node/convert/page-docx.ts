@@ -57,6 +57,8 @@ const TEXT_WIDTH_TWIPS = 9026;
 const MAX_IMAGE_PX = 600;
 const INDENT_TWIPS = 720;
 const BULLET_NUM = 1;
+/** Numbering defines levels 0-8; deeper lists reuse the last one. */
+const MAX_ILVL = 8;
 const REL_HYPERLINK = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink";
 const REL_IMAGE = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image";
 
@@ -66,7 +68,7 @@ const posNum = (v: unknown): number | undefined => (typeof v === "number" && Num
 
 /** Drop the characters XML 1.0 cannot carry (control bytes, lone surrogates). */
 function clean(s: string): string {
-  return s.replace(/[^\t\n\r -퟿-�\u{10000}-\u{10FFFF}]/gu, "");
+  return s.replace(/[^\t\n\r\u0020-\uD7FF\uE000-\uFFFD\u{10000}-\u{10FFFF}]/gu, "");
 }
 const escText = (s: string) => clean(s).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
 const escAttr = (s: string) => escText(s).replaceAll('"', "&quot;");
@@ -122,7 +124,17 @@ function run(text: string, marks: readonly PmMark[] = []): string {
     origin inside a file, so they stay plain text. */
 function linkHref(marks: readonly PmMark[]): string | null {
   const href = str(marks.find((m) => m.type === "link")?.attrs?.href);
-  return href.startsWith("https://") || href.startsWith("mailto:") ? href : null;
+  if (!href.startsWith("https://") && !href.startsWith("mailto:")) return null;
+  // Word refuses a package whose relationship target is not a valid URI:
+  // normalize it, and keep only the text of one that does not parse.
+  try {
+    // WHATWG keeps a few characters RFC 3986 forbids ("|", "^", a stray "%").
+    return new URL(href).href
+      .replace(/%(?![0-9A-Fa-f]{2})/g, "%25")
+      .replace(/[^\w\-.~:/?#[\]@!$&'()*+,;=%]/g, encodeURIComponent);
+  } catch {
+    return null;
+  }
 }
 
 class PageWriter {
@@ -170,7 +182,7 @@ class PageWriter {
         return this.items(children, ctx, () => ({ numId: BULLET_NUM }));
       case "orderedList": {
         const id = BULLET_NUM + 1 + this.ordered.length;
-        this.ordered.push({ id, level: ctx.level + 1, start: Math.trunc(posNum(n.attrs?.start) ?? 1) });
+        this.ordered.push({ id, level: Math.min(ctx.level + 1, MAX_ILVL), start: Math.trunc(posNum(n.attrs?.start) ?? 1) });
         return this.items(children, ctx, () => ({ numId: id }));
       }
       case "taskList":
@@ -205,7 +217,7 @@ class PageWriter {
     let props = style ? `<w:pStyle w:val="${style}"/>` : "";
     const marker = ctx.marker;
     if (marker && "numId" in marker) {
-      props += `<w:numPr><w:ilvl w:val="${ctx.level}"/><w:numId w:val="${marker.numId}"/></w:numPr>`;
+      props += `<w:numPr><w:ilvl w:val="${Math.min(ctx.level, MAX_ILVL)}"/><w:numId w:val="${marker.numId}"/></w:numPr>`;
     } else if (ctx.level >= 0) {
       props += `<w:ind w:left="${(ctx.level + 1) * INDENT_TWIPS}"/>`;
     }
@@ -273,6 +285,8 @@ class PageWriter {
   }
 
   private table(rows: readonly PmNode[]): string {
+    // Word rejects a table without rows; an empty table carries nothing.
+    if (rows.length === 0) return "";
     // Lay the cells on a grid first: a rowspan covers the same columns of the
     // rows below, which Word writes as vMerge continuation cells.
     const covering = new Map<number, { span: number; left: number }>();
@@ -316,7 +330,8 @@ class PageWriter {
             return `<w:tc><w:tcPr>${props}</w:tcPr>${inner}</w:tc>`;
           })
           .join("");
-        return `<w:tr>${header ? "<w:trPr><w:tblHeader/></w:trPr>" : ""}${tcs}</w:tr>`;
+        // A row must hold a cell, or Word rejects the package.
+        return `<w:tr>${header ? "<w:trPr><w:tblHeader/></w:trPr>" : ""}${tcs || "<w:tc><w:p/></w:tc>"}</w:tr>`;
       })
       .join("");
     return `<w:tbl><w:tblPr><w:tblStyle w:val="TableGrid"/><w:tblW w:w="5000" w:type="pct"/></w:tblPr><w:tblGrid>${grid}</w:tblGrid>${body}</w:tbl>`;

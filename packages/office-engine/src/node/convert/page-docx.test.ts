@@ -136,7 +136,7 @@ describe("pageToDocx", () => {
     const rels = part(pkg, "word/_rels/document.xml.rels");
     const id = /<w:hyperlink r:id="(rId\d+)">/.exec(body)?.[1];
     expect(id).toBeDefined();
-    expect(rels).toContain(`Id="${id}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.com/biên-bản?a=1&amp;b=2" TargetMode="External"`);
+    expect(rels).toContain(`Id="${id}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.com/bi%C3%AAn-b%E1%BA%A3n?a=1&amp;b=2" TargetMode="External"`);
     expect(body.match(/<w:hyperlink /g)).toHaveLength(1);
     expect(body).toContain(" nội bộ");
   });
@@ -191,6 +191,37 @@ describe("pageToDocx", () => {
 
   it("declares a typeface with Vietnamese coverage", () => {
     expect(part(docx(), "word/styles.xml")).toContain('w:ascii="Noto Sans" w:hAnsi="Noto Sans" w:cs="Noto Sans" w:eastAsia="Noto Sans"');
+  });
+
+  it("drops a table with no rows and gives a row with no cells one empty cell", () => {
+    const body = (content: unknown[]) => part(readZip(pageToDocx({ title: "", content: { type: "doc", content } })), "word/document.xml");
+    expect(body([{ type: "table", content: [] }, para(text("sau bảng"))])).not.toContain("<w:tbl>");
+    const xml = body([{ type: "table", content: [{ type: "tableRow", content: [] }] }]);
+    wellFormed(xml);
+    expect(xml).toContain("<w:tr><w:tc><w:p/></w:tc></w:tr>");
+  });
+
+  it("keeps lists deeper than nine levels on the last numbering level", () => {
+    let list: unknown = para(text("đáy"));
+    for (let i = 0; i < 11; i++) list = { type: i % 2 ? "bulletList" : "orderedList", content: [{ type: "listItem", content: [para(text(`cấp ${i}`)), list] }] };
+    const pkg = readZip(pageToDocx({ title: "", content: { type: "doc", content: [list] } }));
+    const levels = [...part(pkg, "word/document.xml").matchAll(/<w:ilvl w:val="(\d+)"\/>/g)].map((m) => Number(m[1]));
+    expect(Math.max(...levels)).toBe(8);
+    const overrides = [...part(pkg, "word/numbering.xml").matchAll(/<w:lvlOverride w:ilvl="(\d+)">/g)].map((m) => Number(m[1]));
+    expect(Math.max(...overrides)).toBeLessThanOrEqual(8);
+  });
+
+  it("normalizes link targets and keeps only the text of one that does not parse", () => {
+    const link = (href: string) => text(`t-${href}`, [{ type: "link", attrs: { href } }]);
+    const pkg = readZip(pageToDocx({ title: "", content: { type: "doc", content: [para(link("https://a.vn/x|y"), link("https://a.vn/đường dẫn"), link("https://%zz"), link("https://a.vn/50%zz"))] } }));
+    const rels = part(pkg, "word/_rels/document.xml.rels");
+    expect(rels).toContain('Target="https://a.vn/x%7Cy"');
+    expect(rels).toContain('Target="https://a.vn/%C4%91%C6%B0%E1%BB%9Dng%20d%E1%BA%ABn"');
+    expect(rels).toContain('Target="https://a.vn/50%25zz"');
+    expect(rels).not.toContain("https://%zz");
+    const body = part(pkg, "word/document.xml");
+    expect(body.match(/<w:hyperlink /g)).toHaveLength(3);
+    expect(body).toContain("t-https://%zz");
   });
 
   it("writes an empty page and refuses input that is not a page", () => {
