@@ -149,6 +149,21 @@ func TestChatDocumentCardRefresherRefreshesEveryLiveCard(t *testing.T) {
 	}
 	foreign := f.cardMessage(t, org2.ID, ws2View.Workspace.ID, group2.ID, uc.ID, docID)
 
+	// The existence check S3 uses is scoped to the organization the same way:
+	// a card in org 2 does not answer for org 1 or for an unrelated org, and
+	// org 1's own cards answer for org 1.
+	for _, tc := range []struct {
+		org  string
+		want bool
+	}{{f.orgID, true}, {org2.ID, true}, {util.NewID(), false}} {
+		got, err := f.q.OrganizationHasLiveChatDocumentCard(ctx, db.OrganizationHasLiveChatDocumentCardParams{
+			OrganizationID: tc.org, DocumentID: docID,
+		})
+		if err != nil || got != tc.want {
+			t.Fatalf("OrganizationHasLiveChatDocumentCard(%s) = %v, %v, want %v", tc.org, got, err, tc.want)
+		}
+	}
+
 	// A real version commit writes the document.version_created row.
 	up2, err := f.docs.UploadDocumentFile(ctx, Human(f.ua.ID), docID, DocumentUploadInput{
 		Filename: "ke-hoach.md", Body: bytes.NewReader([]byte("# Kế hoạch v2\n")), IdempotencyKey: "refresh-up-v2",
@@ -192,6 +207,16 @@ func TestChatDocumentCardRefresherRefreshesEveryLiveCard(t *testing.T) {
 	}
 	if again := updatedMessageIDs(f.pub.events); len(again) != 2 {
 		t.Fatalf("replay published %v, want the same two cards", again)
+	}
+
+	// Deleting the foreign card empties org 2 for the existence check.
+	if _, err := f.pool.Exec(ctx, `UPDATE chat_messages SET deleted_at = now() WHERE id = $1`, foreign.ID); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := f.q.OrganizationHasLiveChatDocumentCard(ctx, db.OrganizationHasLiveChatDocumentCardParams{
+		OrganizationID: org2.ID, DocumentID: docID,
+	}); err != nil || got {
+		t.Fatalf("org 2 after its card is deleted = %v, %v, want false", got, err)
 	}
 }
 
