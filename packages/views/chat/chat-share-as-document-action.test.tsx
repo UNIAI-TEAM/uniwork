@@ -41,16 +41,48 @@ describe("ChatShareAsDocumentAction", () => {
   it("renders the share action button", () => {
     render(
       wrapWithNav(
-        <ChatShareAsDocumentAction workspaceId="ws1" roomId="room1" message={shareableMessage()} />,
+        <ChatShareAsDocumentAction workspaceId="ws1" roomId="room1" message={shareableMessage()} isOwn={false} />,
       ),
     );
     expect(screen.getByRole("button", { name: "Chia sẻ dạng tài liệu" })).toBeInTheDocument();
   });
 
+  it("reads on the own bubble: a white wash on the brand fill, not the outline button (UNI-2010)", () => {
+    render(
+      wrapWithNav(
+        <ChatShareAsDocumentAction workspaceId="ws1" roomId="room1" message={shareableMessage()} isOwn />,
+      ),
+    );
+    const trigger = screen.getByRole("button", { name: "Chia sẻ dạng tài liệu" });
+    expect(trigger).toHaveClass("bg-chat-bubble-own-foreground/15", "text-chat-bubble-own-foreground");
+    expect(trigger).not.toHaveClass("bg-background");
+    expect(trigger).toHaveClass(
+      "hover:bg-chat-bubble-own-foreground",
+      "hover:text-chat-bubble-own",
+      "aria-expanded:bg-chat-bubble-own-foreground",
+      "aria-expanded:text-chat-bubble-own",
+      "focus-visible:outline-chat-bubble-own-foreground",
+    );
+    expect(trigger).not.toHaveClass("hover:bg-chat-bubble-own-foreground/25", "aria-expanded:bg-chat-bubble-own-foreground/25");
+    expect(trigger).toHaveClass("pointer-coarse:min-h-11");
+  });
+
+  it("wears the muted on-bubble fill on a bubble that is not mine (UNI-2010)", () => {
+    render(
+      wrapWithNav(
+        <ChatShareAsDocumentAction workspaceId="ws1" roomId="room1" message={shareableMessage()} isOwn={false} />,
+      ),
+    );
+    const trigger = screen.getByRole("button", { name: "Chia sẻ dạng tài liệu" });
+    expect(trigger).toHaveClass("bg-muted", "text-foreground");
+    expect(trigger).not.toHaveClass("text-chat-bubble-own-foreground");
+    expect(trigger).not.toHaveClass("focus-visible:outline-chat-bubble-own-foreground", "hover:bg-chat-bubble-own-foreground");
+  });
+
   it("lists the levels in the composer's order: view, comment, edit (F-05)", async () => {
     render(
       wrapWithNav(
-        <ChatShareAsDocumentAction workspaceId="ws1" roomId="room1" message={shareableMessage()} />,
+        <ChatShareAsDocumentAction workspaceId="ws1" roomId="room1" message={shareableMessage()} isOwn={false} />,
       ),
     );
     fireEvent.click(screen.getByRole("button", { name: "Chia sẻ dạng tài liệu" }));
@@ -67,7 +99,7 @@ describe("ChatShareAsDocumentAction", () => {
     useShareChatMessageAsDocumentMock.mockReturnValue({ mutate, isPending: false });
     render(
       wrapWithNav(
-        <ChatShareAsDocumentAction workspaceId="ws1" roomId="room1" message={shareableMessage()} />,
+        <ChatShareAsDocumentAction workspaceId="ws1" roomId="room1" message={shareableMessage()} isOwn={false} />,
       ),
     );
     fireEvent.click(screen.getByRole("button", { name: "Chia sẻ dạng tài liệu" }));
@@ -89,7 +121,7 @@ describe("ChatShareAsDocumentAction", () => {
     useShareChatMessageAsDocumentMock.mockReturnValue({ mutate, isPending: false });
     render(
       wrapWithNav(
-        <ChatShareAsDocumentAction workspaceId="ws1" roomId="room1" message={shareableMessage()} />,
+        <ChatShareAsDocumentAction workspaceId="ws1" roomId="room1" message={shareableMessage()} isOwn={false} />,
       ),
     );
 
@@ -112,7 +144,7 @@ describe("ChatShareAsDocumentAction", () => {
     useShareChatMessageAsDocumentMock.mockReturnValue({ mutate, isPending: false });
     render(
       wrapWithNav(
-        <ChatShareAsDocumentAction workspaceId="ws1" roomId="room1" message={shareableMessage()} />,
+        <ChatShareAsDocumentAction workspaceId="ws1" roomId="room1" message={shareableMessage()} isOwn={false} />,
       ),
     );
 
@@ -139,7 +171,7 @@ describe("ChatShareAsDocumentAction", () => {
     useShareChatMessageAsDocumentMock.mockReturnValue({ mutate, isPending: false });
     render(
       wrapWithNav(
-        <ChatShareAsDocumentAction workspaceId="ws1" roomId="room1" message={shareableMessage()} />,
+        <ChatShareAsDocumentAction workspaceId="ws1" roomId="room1" message={shareableMessage()} isOwn={false} />,
       ),
     );
 

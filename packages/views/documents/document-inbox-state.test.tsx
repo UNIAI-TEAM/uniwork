@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@uniwork/core/api";
 import { FeatureFlagsProvider, FeatureFlagService, StaticProvider } from "@uniwork/core/feature-flags";
@@ -41,7 +41,6 @@ beforeEach(() => {
 describe("DocumentDetailView opened from the Inbox", () => {
   it.each([
     ["no access (403)", new ApiError("forbidden", "forbidden", 403), "Bạn không có quyền truy cập tài liệu này."],
-    ["gone (404)", new ApiError("not_found", "not found", 404), "Tài liệu không còn tồn tại hoặc đã bị xóa."],
     ["gone (410)", new ApiError("document_deleted", "gone", 410), "Tài liệu không còn tồn tại hoặc đã bị xóa."],
   ])("says %s as the page heading with the way back to the Inbox", async (_, error, sentence) => {
     requestMock.mockRejectedValue(error);
@@ -51,6 +50,41 @@ describe("DocumentDetailView opened from the Inbox", () => {
     expect(screen.getByRole("link", { name: "Về Hộp việc" })).toHaveAttribute("href", "/acme/doi/inbox");
     expect(screen.queryByText(t("documents.detail.revoked_title"))).toBeNull();
     expect(screen.queryByRole("button", { name: t("documents.detail.back_to_library") })).toBeNull();
+  });
+
+  // F-G819-A07b: the server answers a revoked reader 404 on purpose (no level = not found), but a
+  // person who followed a notice already knows the document exists: the page says no access and
+  // keeps the request-access form (the route's 202 is uniform, so nothing is revealed).
+  it("reads a 404 from a notice as no access, with the request form and the way back to the Inbox", async () => {
+    requestMock.mockRejectedValue(new ApiError("not_found", "not found", 404));
+    renderPage("comment=c1");
+    const heading = await screen.findByRole("heading", { level: 2, name: "Bạn không có quyền truy cập tài liệu này." });
+    expect(heading).toHaveFocus();
+    expect(screen.queryByText("Tài liệu không còn tồn tại hoặc đã bị xóa.")).toBeNull();
+    expect(screen.getByRole("link", { name: "Về Hộp việc" })).toHaveAttribute("href", "/acme/doi/inbox");
+    expect(screen.queryByRole("button", { name: t("documents.detail.back_to_library") })).toBeNull();
+    expect(screen.getByRole("button", { name: t("documents.access_request.send") })).toBeInTheDocument();
+  });
+
+  it("sends the access request from a 404 notice page and says it was sent", async () => {
+    requestMock.mockImplementation((path: string) =>
+      path === "/api/v1/documents/d1/access-requests"
+        ? Promise.resolve({ status: "sent" })
+        : Promise.reject(new ApiError("not_found", "not found", 404)),
+    );
+    renderPage("comment=c1");
+    fireEvent.click(await screen.findByRole("button", { name: t("documents.access_request.send") }));
+    expect(await screen.findByRole("status")).toHaveTextContent(t("documents.access_request.sent"));
+    expect(requestMock.mock.calls.some(([path]) => path === "/api/v1/documents/d1/access-requests")).toBe(true);
+  });
+
+  it("keeps the neutral locked card for a 404 without a notice (nothing new is revealed)", async () => {
+    requestMock.mockRejectedValue(new ApiError("not_found", "not found", 404));
+    renderPage("");
+    expect(await screen.findByText(t("documents.access_request.locked_title"))).toBeInTheDocument();
+    expect(screen.queryByText("Bạn không có quyền truy cập tài liệu này.")).toBeNull();
+    expect(screen.queryByText("Tài liệu không còn tồn tại hoặc đã bị xóa.")).toBeNull();
+    expect(screen.queryByRole("link", { name: "Về Hộp việc" })).toBeNull();
   });
 
   // V7 F2: without cn() the base border-transparent beat the outline variant's border in light mode.
