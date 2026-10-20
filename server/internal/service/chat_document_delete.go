@@ -21,8 +21,10 @@ import (
 //     touched; only the chat shares whose source is this message are decided
 //     again by the member-left reconcile rule, so a grant another live
 //     message of the person's current membership backs is re-pointed, and
-//     the rest are revoked. Manual shares are never touched, and a manual
-//     level a chat grant had raised is restored.
+//     the rest are revoked; a grant the remaining messages back at a lower
+//     level is lowered to it (S1-fix-2 SF3). Manual shares are never
+//     touched, a manual level a chat grant had raised is restored, and a
+//     deactivated member's grant is left for their reactivation (SF5).
 // It all runs in the transaction that soft-deletes the message, so the
 // message, the trash, the revokes, their audit rows and their outbox rows
 // commit together. A second delete never reaches here: the soft delete
@@ -35,8 +37,14 @@ type chatDocumentDeleteOutcome struct {
 	Origin     string
 	Archived   bool
 	Revoked    int
+	Lowered    int
 	lockOps    *editLockOps
 }
+
+// chatDocumentDeleteAfterLock is a test seam: when set, it runs once the
+// delete holds the document lock, before it reads the chat shares, so a test
+// can race a reconcile or a link send against it. nil in production.
+var chatDocumentDeleteAfterLock func()
 
 // metadata is the chat.message_deleted audit row's document part.
 func (o chatDocumentDeleteOutcome) metadata(into map[string]any) {
@@ -47,6 +55,7 @@ func (o chatDocumentDeleteOutcome) metadata(into map[string]any) {
 	into["document_origin"] = o.Origin
 	into["document_archived"] = o.Archived
 	into["document_shares_revoked"] = o.Revoked
+	into["document_shares_lowered"] = o.Lowered
 }
 
 // applyDocumentMessageDelete runs D8 for a message the caller has just
@@ -98,8 +107,14 @@ func (s *ChatService) applyDocumentMessageDelete(ctx context.Context, q *db.Quer
 		}
 		out.Archived, out.lockOps = archived, ops
 	}
+	if chatDocumentDeleteAfterLock != nil {
+		chatDocumentDeleteAfterLock()
+	}
+	// The link path leaves a deactivated member's grant alone, as the
+	// member-left reconcile does (SF5); the trash of an upload takes them all.
 	params := db.ListLiveChatDocumentSharesOfDocumentParams{
 		OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID, DocumentID: doc.ID,
+		SkipDeactivated: !upload,
 	}
 	if !upload {
 		params.SourceMessageID = nullText(msg.ID)
@@ -108,25 +123,25 @@ func (s *ChatService) applyDocumentMessageDelete(ctx context.Context, q *db.Quer
 	if err != nil {
 		return out, err
 	}
-	for _, sh := range shares {
-		revoked := true
-		if upload {
-			// USER rule: every chat grant of a trashed upload goes, whatever
-			// other message still shows the card.
-			err = revokeChatDocumentShare(ctx, q, actor, doc, sh)
-		} else {
-			// The message is already deleted in this transaction, so the
-			// anchor search no longer sees it.
-			revoked, err = decideChatDocumentShare(ctx, q, actor, doc, sh)
+	var decisions []chatShareDecision
+	if upload {
+		// USER rule: every chat grant of a trashed upload goes, whatever
+		// other message still shows the card.
+		decisions = make([]chatShareDecision, len(shares))
+		for i, sh := range shares {
+			decisions[i] = chatShareDecision{share: sh, action: chatShareRevoke}
 		}
-		if err != nil {
+	} else {
+		// The message is already deleted in this transaction, so the
+		// backing search no longer sees it.
+		if decisions, err = decideChatShares(ctx, q, doc, shares); err != nil {
 			return out, err
 		}
-		if revoked {
-			out.Revoked++
-		}
 	}
-	return out, nil
+	// Set-based (SF1): a 1,000-recipient card is a handful of statements
+	// while the tree lock is held, not three round trips per recipient.
+	out.Revoked, out.Lowered, err = applyChatShareDecisions(ctx, q, actor, doc, decisions)
+	return out, err
 }
 
 // archiveChatUploadInTx trashes a chat-uploaded document inside the caller's

@@ -570,7 +570,7 @@ func TestSendDocumentMessage1000MemberRoom(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := f.svc.grantDocumentToRoomMembers(
+	if _, err := f.svc.grantDocumentToRoomMembers(
 		ctx, f.q, Human(f.ua.ID), DocumentFileResult{Document: doc, Access: acc},
 		memberIDs, DocumentLevelComment, ch.ID, sent.ID,
 	); err != nil {
@@ -954,7 +954,7 @@ func TestGrantDocumentToRoomMembersOnlyRaises(t *testing.T) {
 	// Attempting to grant comment (and including the sender in the recipient
 	// slice) must neither downgrade f.ub from edit to comment nor grant the
 	// sender below manage.
-	if err := f.svc.grantDocumentToRoomMembers(
+	if _, err := f.svc.grantDocumentToRoomMembers(
 		ctx, f.q, Human(f.ua.ID), DocumentFileResult{Document: doc, Access: access},
 		[]string{f.ua.ID, f.ub.ID}, DocumentLevelComment, room.ID, sent.ID,
 	); err != nil {
@@ -1156,7 +1156,7 @@ func TestChatDocumentShareSourceMarkerAndRevokeOnLeave(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := f.svc.grantDocumentToRoomMembers(
+	if _, err := f.svc.grantDocumentToRoomMembers(
 		ctx, f.q, Human(f.ua.ID), DocumentFileResult{Document: doc1, Access: acc1},
 		[]string{f.ub.ID, uc.ID, ud.ID}, DocumentLevelComment, group1.ID, sent1.ID,
 	); err != nil {
@@ -1216,7 +1216,7 @@ func TestChatDocumentShareSourceMarkerAndRevokeOnLeave(t *testing.T) {
 		t.Fatal(err)
 	}
 	msg2ID := util.NewID()
-	if err := f.svc.grantDocumentToRoomMembers(
+	if _, err := f.svc.grantDocumentToRoomMembers(
 		ctx, f.q, Human(f.ua.ID), DocumentFileResult{Document: doc2, Access: acc2},
 		[]string{uc.ID, ud.ID}, DocumentLevelComment, group1.ID, msg2ID,
 	); err != nil {

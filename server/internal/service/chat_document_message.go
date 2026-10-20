@@ -7,7 +7,9 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log/slog"
 	"net/http"
+	"slices"
 	"strings"
 
 	"github.com/jackc/pgx/v5"
@@ -298,16 +300,19 @@ func (s *ChatService) commitDocumentMessage(
 	}
 	// 3.1.e.iv: the grants. The audience was decided before the upload and is
 	// passed in: a member who joined meanwhile gets nothing (§3.4), one who
-	// left meanwhile is dropped under the member-row lock (S1-fix B1), and the
-	// notify decision is taken here, before the first grant, against the
-	// command-start shares (SH-S3 R1-01).
+	// left meanwhile is dropped here or caught by the re-check after the
+	// commit (S1-fix B1, S1-fix-2 SF2), and the notify decision is taken
+	// here, before the first grant, against the command-start shares
+	// (SH-S3 R1-01).
 	msgID := util.NewID()
-	if err := s.grantDocumentToRoomMembers(ctx, q, actor, docRes, recipients, level, room.ID, msgID); err != nil {
+	audience, err := s.grantDocumentToRoomMembers(ctx, q, actor, docRes, recipients, level, room.ID, msgID)
+	if err != nil {
 		return db.ChatMessage{}, false, err
 	}
 
-	// 3.1.e.v: the message names the document, ids only (§4.2).
-	meta, err := json.Marshal(map[string]string{"document_id": doc.ID})
+	// 3.1.e.v: the message names the document and the level it granted, ids
+	// and enums only (§4.2, S1-fix-2 SF3).
+	meta, err := json.Marshal(map[string]string{"document_id": doc.ID, "share_level": string(level)})
 	if err != nil {
 		return db.ChatMessage{}, false, err
 	}
@@ -354,6 +359,7 @@ func (s *ChatService) commitDocumentMessage(
 	if err := tx.Commit(ctx); err != nil {
 		return db.ChatMessage{}, false, err
 	}
+	s.recheckChatGrantAudience(ctx, audience)
 	return msg, true, nil
 }
 
@@ -361,8 +367,9 @@ func (s *ChatService) commitDocumentMessage(
 // inside the caller's transaction (UNI-2012 D2a, S1c). Only-raise: a recipient
 // who already holds at least the requested effective level keeps it unchanged,
 // and the sender is never granted below manage. A recipient who is no longer
-// a member of the room is dropped under the member-row lock
-// (lockCurrentRoomRecipients, S1-fix B1). Every recipient is checked
+// a member of the room is dropped (currentRoomRecipients, S1-fix B1); the
+// answer is who got a share through which member row, for the caller's
+// post-commit recheckChatGrantAudience (S1-fix-2 SF2). Every recipient is checked
 // against the organization membership gate inside the transaction, in one
 // query for the whole room, because the share writer does not validate
 // principals itself (R3). Effective levels are resolved against the share set
@@ -379,8 +386,9 @@ func (s *ChatService) commitDocumentMessage(
 // is created for a chat grant. A send that raises nobody writes neither.
 func (s *ChatService) grantDocumentToRoomMembers(
 	ctx context.Context, q *db.Queries, actor Actor, docRes DocumentFileResult, recipients []string, level DocumentLevel, roomID, messageID string,
-) error {
+) (chatGrantAudience, error) {
 	doc := docRes.Document
+	audience := chatGrantAudience{orgID: doc.OrganizationID, roomID: roomID}
 	candidates := make([]string, 0, len(recipients))
 	for _, id := range recipients {
 		if actor.Kind == audit.KindHuman && id == actor.ID {
@@ -389,15 +397,18 @@ func (s *ChatService) grantDocumentToRoomMembers(
 		candidates = append(candidates, id)
 	}
 	if len(candidates) == 0 {
-		return nil
+		return audience, nil
 	}
-	candidates, err := s.lockCurrentRoomRecipients(ctx, q, roomID, candidates)
+	candidates, memberRows, err := s.currentRoomRecipients(ctx, q, roomID, candidates)
 	if err != nil || len(candidates) == 0 {
-		return err
+		return audience, err
+	}
+	if chatGrantAfterAudienceRead != nil {
+		chatGrantAfterAudienceRead()
 	}
 	admitted, err := s.docs.orgs.AdmittedMemberIDsQ(ctx, q, doc.OrganizationID, candidates)
 	if err != nil {
-		return err
+		return audience, err
 	}
 	sharesBefore, err := q.ListDocumentShares(ctx, db.ListDocumentSharesParams{
 		OrganizationID: doc.OrganizationID,
@@ -405,7 +416,7 @@ func (s *ChatService) grantDocumentToRoomMembers(
 		DocumentID:     doc.ID,
 	})
 	if err != nil {
-		return err
+		return audience, err
 	}
 	gated := make([]string, 0, len(candidates))
 	for _, id := range candidates {
@@ -418,7 +429,7 @@ func (s *ChatService) grantDocumentToRoomMembers(
 	// per recipient while the document row and the member rows are locked.
 	levels, err := s.docs.resolveLevelsInTenantWithShares(ctx, q, doc, sharesBefore, gated)
 	if err != nil {
-		return err
+		return audience, err
 	}
 	raised := make([]string, 0, len(gated))
 	for _, id := range gated {
@@ -430,7 +441,11 @@ func (s *ChatService) grantDocumentToRoomMembers(
 		kind: DocumentShareSourceKindChat, roomID: roomID, messageID: messageID,
 	})
 	if err != nil || len(written) == 0 {
-		return err
+		return audience, err
+	}
+	audience.members = make(map[string]string, len(written))
+	for _, w := range written {
+		audience.members[w.share.PrincipalID] = memberRows[w.share.PrincipalID]
 	}
 	// Changes names the level the grants reached; the level each grantee held
 	// as a direct share before is a count by level in the metadata ("none" for
@@ -446,7 +461,7 @@ func (s *ChatService) grantDocumentToRoomMembers(
 		replaced++
 		levelsBefore[w.prevLevel]++
 	}
-	return auditRecorder.Record(ctx, q, audit.Entry{
+	return audience, auditRecorder.Record(ctx, q, audit.Entry{
 		OrganizationID: doc.OrganizationID,
 		WorkspaceID:    doc.WorkspaceID,
 		Actor:          actor,
@@ -469,45 +484,111 @@ func (s *ChatService) grantDocumentToRoomMembers(
 	}})
 }
 
-// lockCurrentRoomRecipients keeps the recipients who are still members of the
-// room inside the grant's transaction (UNI-2012 S1-fix B1): the audience was
-// read before the upload, and a member who left meanwhile must not get a
-// grant their removal's reconcile could no longer see. The member rows are
-// read FOR SHARE, so a leave that has not committed yet waits for the grant
-// (its reconcile then sees the grant and revokes it), and a leave that
-// committed first no longer matches. A workspace or channel room also
-// requires the workspace membership now, as documentGrantRecipients did.
-func (s *ChatService) lockCurrentRoomRecipients(ctx context.Context, q *db.Queries, roomID string, recipients []string) ([]string, error) {
-	locked, err := q.LockActiveChatRoomMembersForGrant(ctx, db.LockActiveChatRoomMembersForGrantParams{
+// currentRoomRecipients keeps the recipients who are still members of the
+// room inside the grant's transaction (UNI-2012 S1-fix B1) and answers each
+// one's member row: the audience was read before the upload, and a member who
+// left meanwhile must get nothing. The rows are read without a lock (S1-fix-2
+// SF2): a FOR SHARE here held every recipient's read and delivered cursor
+// update for the whole send. A leave that commits after this read is caught
+// instead by recheckChatGrantAudience after the commit, or, when it commits
+// after the grant, by its own member-left reconcile. A workspace or channel
+// room also requires the workspace membership now, as documentGrantRecipients
+// did.
+func (s *ChatService) currentRoomRecipients(ctx context.Context, q *db.Queries, roomID string, recipients []string) ([]string, map[string]string, error) {
+	rows, err := q.ListActiveChatRoomMembersForGrant(ctx, db.ListActiveChatRoomMembersForGrantParams{
 		RoomID: roomID, UserIds: recipients,
 	})
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	inRoom := make(map[string]bool, len(locked))
-	for _, id := range locked {
-		inRoom[id] = true
+	memberRows := make(map[string]string, len(rows))
+	inRoom := make([]string, 0, len(rows))
+	for _, r := range rows {
+		memberRows[r.UserID] = r.ID
+		inRoom = append(inRoom, r.UserID)
 	}
 	room, err := q.GetChatRoomByID(ctx, roomID)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	var inWorkspace map[string]bool
 	switch room.Kind {
 	case chatRoomKindWorkspace, chatRoomKindChannel:
-		inWorkspace, err = s.ws.AdmittedMemberIDsQ(ctx, q, roomAnchorWorkspaceID(room), locked)
+		inWorkspace, err = s.ws.AdmittedMemberIDsQ(ctx, q, roomAnchorWorkspaceID(room), inRoom)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 	}
 	out := make([]string, 0, len(recipients))
 	for _, id := range recipients {
-		if !inRoom[id] || (inWorkspace != nil && !inWorkspace[id]) {
+		if _, ok := memberRows[id]; !ok || (inWorkspace != nil && !inWorkspace[id]) {
 			continue
 		}
 		out = append(out, id)
 	}
-	return out, nil
+	return out, memberRows, nil
+}
+
+// chatGrantAudience is who a chat grant wrote a share for, each with the
+// member row that was their membership when the grant read it.
+type chatGrantAudience struct {
+	orgID   string
+	roomID  string
+	members map[string]string
+}
+
+// chatGrantAfterAudienceRead is a test seam: when set, it runs inside the
+// grant's transaction right after the recipients' membership is read, so a
+// test can commit a leave between that read and the grant's commit. nil in
+// production.
+var chatGrantAfterAudienceRead func()
+
+// chatGrantBeforeRecheck is a test seam: when set, it runs after the grant's
+// commit, right before recheckChatGrantAudience reads the membership again.
+// nil in production.
+var chatGrantBeforeRecheck func()
+
+// recheckChatGrantAudience is the post-commit half of B1 (S1-fix-2 SF2), run by
+// every chat grant once its transaction commits. The grant read its audience
+// without a lock, so a leave can commit between that read and the commit, and
+// its member-left reconcile may have run before the grant was visible. Every
+// grantee whose member row is no longer their current membership (they left,
+// or left and came back through a new row) is reconciled now. A leave that
+// commits after this read also commits after the grant, so its own reconcile
+// sees the grant: the two cover every order. The send has committed, so a
+// failure here is logged, not answered; the member-left consumer stays the
+// durable second line.
+func (s *ChatService) recheckChatGrantAudience(ctx context.Context, aud chatGrantAudience) {
+	if len(aud.members) == 0 || s.docs == nil {
+		return
+	}
+	if chatGrantBeforeRecheck != nil {
+		chatGrantBeforeRecheck()
+	}
+	ids := make([]string, 0, len(aud.members))
+	for id := range aud.members {
+		ids = append(ids, id)
+	}
+	slices.Sort(ids)
+	rows, err := s.q.ListActiveChatRoomMembersForGrant(ctx, db.ListActiveChatRoomMembersForGrantParams{
+		RoomID: aud.roomID, UserIds: ids,
+	})
+	if err != nil {
+		slog.WarnContext(ctx, "chat: document grant audience not re-checked", "error", err, "room_id", aud.roomID)
+		return
+	}
+	current := make(map[string]string, len(rows))
+	for _, r := range rows {
+		current[r.UserID] = r.ID
+	}
+	for _, id := range ids {
+		if current[id] == aud.members[id] {
+			continue
+		}
+		if err := s.docs.ReconcileChatDocumentSharesForMember(ctx, aud.orgID, id); err != nil {
+			slog.WarnContext(ctx, "chat: document grant of a member who left not reconciled", "error", err, "room_id", aud.roomID, "user_id", id)
+		}
+	}
 }
 
 // existingChatMessageInTx is existingMessageByClientMsgID read through the

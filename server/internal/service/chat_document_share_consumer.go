@@ -44,7 +44,9 @@ var chatShareReconcileBeforeCommit func()
 //   - Old chat grants written before D2a (source_kind IS NULL, no marker) are
 //     NEVER auto-revoked here.
 //   - A kept grant whose own source no longer backs it is re-pointed to the
-//     room and message that do (audited, no event: access does not change).
+//     room and message that do (audited, no event: access does not change),
+//     and lowered when those messages granted less than it holds
+//     (chat_document_share_decide.go).
 //   - A stale grant is revoked (document.share_revoked audit + outbox in the
 //     same transaction); when it had raised a lower manual share
 //     (prior_manual_level), that manual share is restored with NULL
@@ -98,7 +100,10 @@ func (c *ChatDocumentShareRevoker) Handle(ctx context.Context, ev outbox.Row) er
 // ReconcileChatDocumentSharesForMember brings every live chat-origin share of
 // userID in orgID in line with userID's current chat memberships: each share
 // its own source no longer backs is decided again under its document's lock.
-// Running it again changes nothing.
+// Each share's transaction stands alone, so one that fails does not keep the
+// others from being revoked (S1-fix-2 SF4): every share is tried and the
+// failures come back joined, so the event still retries. Running it again
+// changes nothing.
 func (s *DocumentService) ReconcileChatDocumentSharesForMember(ctx context.Context, orgID, userID string) error {
 	shares, err := s.q.ListChatDocumentSharesToReconcile(ctx, db.ListChatDocumentSharesToReconcileParams{
 		OrganizationID: orgID,
@@ -107,15 +112,26 @@ func (s *DocumentService) ReconcileChatDocumentSharesForMember(ctx context.Conte
 	if err != nil {
 		return err
 	}
+	var errs []error
 	for _, sh := range shares {
 		if err := s.reconcileChatDocumentShare(ctx, orgID, sh); err != nil {
+			errs = append(errs, fmt.Errorf("reconcile share %s: %w", sh.ID, err))
+		}
+	}
+	return errors.Join(errs...)
+}
+
+// chatShareReconcileFault is a test seam: when set, it runs at the start of one
+// share's reconcile and an error it returns fails that share (S1-fix-2 SF4).
+// nil in production.
+var chatShareReconcileFault func(db.DocumentShare) error
+
+func (s *DocumentService) reconcileChatDocumentShare(ctx context.Context, orgID string, candidate db.DocumentShare) error {
+	if chatShareReconcileFault != nil {
+		if err := chatShareReconcileFault(candidate); err != nil {
 			return err
 		}
 	}
-	return nil
-}
-
-func (s *DocumentService) reconcileChatDocumentShare(ctx context.Context, orgID string, candidate db.DocumentShare) error {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return err
@@ -153,7 +169,11 @@ func (s *DocumentService) reconcileChatDocumentShare(ctx context.Context, orgID 
 		return nil
 	}
 
-	if _, err := decideChatDocumentShare(ctx, q, chatDocumentShareRevokeActor, doc, live); err != nil {
+	decisions, err := decideChatShares(ctx, q, doc, []db.DocumentShare{live})
+	if err != nil {
+		return err
+	}
+	if _, _, err := applyChatShareDecisions(ctx, q, chatDocumentShareRevokeActor, doc, decisions); err != nil {
 		return err
 	}
 	if chatShareReconcileBeforeCommit != nil {
@@ -162,74 +182,11 @@ func (s *DocumentService) reconcileChatDocumentShare(ctx context.Context, orgID 
 	return tx.Commit(ctx)
 }
 
-// decideChatDocumentShare is the reconcile decision for one live chat-origin
-// share, run under its document's lock in the caller's transaction: kept (and
-// re-pointed) while a live document message of the person's current
-// membership backs it, revoked otherwise. Both the member-left consumer and
-// the document-message delete (S1d) decide through it; actor is who the audit
-// rows name. It reports whether the share was revoked.
-func decideChatDocumentShare(ctx context.Context, q *db.Queries, actor Actor, doc db.Document, live db.DocumentShare) (bool, error) {
-	anchor, err := q.FindChatDocumentShareAnchor(ctx, db.FindChatDocumentShareAnchorParams{
-		OrganizationID:  doc.OrganizationID,
-		UserID:          live.PrincipalID,
-		DocumentID:      doc.ID,
-		SourceMessageID: live.SourceMessageID.String,
-		GrantedAt:       live.CreatedAt,
-	})
-	switch {
-	case err == nil:
-		return false, repointChatDocumentShare(ctx, q, actor, doc, live, anchor)
-	case errors.Is(err, pgx.ErrNoRows):
-		return true, revokeChatDocumentShare(ctx, q, actor, doc, live)
-	default:
-		return false, err
-	}
-}
-
-// repointChatDocumentShare moves a kept grant's source to the room and message
-// that back it now, with an audit row of the transition. A source that already
-// backs the grant is a no-op, so a replay writes nothing.
-func repointChatDocumentShare(ctx context.Context, q *db.Queries, actor Actor, doc db.Document, live db.DocumentShare, anchor db.FindChatDocumentShareAnchorRow) error {
-	if live.SourceRoomID.String == anchor.RoomID && live.SourceMessageID.String == anchor.MessageID {
-		return nil
-	}
-	if _, err := q.RepointDocumentShareChatSource(ctx, db.RepointDocumentShareChatSourceParams{
-		ID:              live.ID,
-		OrganizationID:  doc.OrganizationID,
-		WorkspaceID:     doc.WorkspaceID,
-		DocumentID:      doc.ID,
-		SourceRoomID:    nullText(anchor.RoomID),
-		SourceMessageID: nullText(anchor.MessageID),
-	}); err != nil {
-		return err
-	}
-	// The grant and its level are unchanged, so the row records the source
-	// transition only and emits no event: nobody's access moved.
-	return auditRecorder.Record(ctx, q, audit.Entry{
-		OrganizationID: doc.OrganizationID,
-		WorkspaceID:    doc.WorkspaceID,
-		Actor:          actor,
-		Action:         audit.ActionDocumentShared,
-		ResourceType:   "document",
-		ResourceID:     doc.ID,
-		Changes: audit.Diff(
-			map[string]any{"source_room_id": live.SourceRoomID.String, "source_message_id": live.SourceMessageID.String},
-			map[string]any{"source_room_id": anchor.RoomID, "source_message_id": anchor.MessageID},
-		),
-		Metadata: map[string]any{
-			"share_id":       live.ID,
-			"principal_type": live.PrincipalType,
-			"principal_id":   live.PrincipalID,
-			"level":          live.Level,
-			"source_kind":    DocumentShareSourceKindChat,
-			"transition":     "chat_source_repointed",
-		},
-	})
-}
-
 // revokeChatDocumentShare revokes a stale chat grant through the revoke path
 // (document.share_revoked audit + outbox) and restores the manual share it
 // had raised, recording that grant as its own document.shared row and event.
+// The restored row names the audit's actor as its grantor (the system for a
+// reconcile, the person deleting for S1d), so the row and its audit agree.
 func revokeChatDocumentShare(ctx context.Context, q *db.Queries, actor Actor, doc db.Document, live db.DocumentShare) error {
 	if err := revokeDocumentShareRow(ctx, q, actor, doc, live); err != nil {
 		return err
@@ -245,8 +202,8 @@ func revokeChatDocumentShare(ctx context.Context, q *db.Queries, actor Actor, do
 		PrincipalType:  live.PrincipalType,
 		PrincipalID:    live.PrincipalID,
 		Level:          live.PriorManualLevel.String,
-		GrantedBy:      chatDocumentShareRevokeActor.ID,
-		GrantedByKind:  string(chatDocumentShareRevokeActor.Kind),
+		GrantedBy:      actor.ID,
+		GrantedByKind:  string(actor.Kind),
 	})
 	if err != nil {
 		return err

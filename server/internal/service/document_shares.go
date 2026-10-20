@@ -452,33 +452,8 @@ func revokeDocumentShareRowWithBatch(ctx context.Context, q *db.Queries, actor A
 	}); err != nil {
 		return err
 	}
-	meta := map[string]any{
-		"share_id":       sh.ID,
-		"principal_type": sh.PrincipalType,
-		"principal_id":   sh.PrincipalID,
-		// The prior level is replicated into the metadata the change
-		// feed reads (BE-G1-2): a removal is decided from the audit
-		// row alone, so the revoked principal and the level it held
-		// must sit together in one durable row.
-		"level": sh.Level,
-	}
-	if batchID != "" {
-		meta["batch_id"] = batchID
-	}
-	return auditRecorder.Record(ctx, q, audit.Entry{
-		OrganizationID: doc.OrganizationID,
-		WorkspaceID:    doc.WorkspaceID,
-		Actor:          actor,
-		Action:         audit.ActionDocumentShareRevoked,
-		ResourceType:   "document",
-		ResourceID:     doc.ID,
-		Changes:        audit.Diff(map[string]any{"level": sh.Level}, nil),
-		Metadata:       meta,
-	}, audit.Event{Topic: "document.share_revoked", Payload: map[string]string{
-		"document_id":  doc.ID,
-		"workspace_id": doc.WorkspaceID,
-		"share_id":     sh.ID,
-	}})
+	rec := documentShareRevokeRecord(actor, doc, sh, batchID)
+	return auditRecorder.Record(ctx, q, rec.Entry, rec.Events...)
 }
 
 // DocumentAccessSource via values on GET /api/v1/documents/{documentID}/shares (SH-S2, UNI-1781).

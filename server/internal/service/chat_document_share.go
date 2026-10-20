@@ -44,7 +44,7 @@ var chatAttachmentShareBeforeLock func()
 //     it meanwhile), create the Document at the root of the workspace the
 //     sender stands in, grant the room's current human members, flip the
 //     message in place to
-//     kind='document' and metadata={"document_id"} keeping body and
+//     kind='document' and metadata={"document_id","share_level"} keeping body and
 //     client_msg_id untouched, and release the old chat_attachment reference
 //     only after the document holds its own object
 //  7. publish chat.message.updated after commit.
@@ -227,11 +227,12 @@ func (s *ChatService) commitAttachmentAsDocument(
 			return db.ChatMessage{}, false, err
 		}
 	}
-	if err := s.grantDocumentToRoomMembers(ctx, q, actor, docRes, recipients, level, room.ID, locked.ID); err != nil {
+	audience, err := s.grantDocumentToRoomMembers(ctx, q, actor, docRes, recipients, level, room.ID, locked.ID)
+	if err != nil {
 		return db.ChatMessage{}, false, err
 	}
 
-	meta, err := attachmentToDocumentMetadata(locked.Metadata, docRes.Document.ID)
+	meta, err := attachmentToDocumentMetadata(locked.Metadata, docRes.Document.ID, level)
 	if err != nil {
 		return db.ChatMessage{}, false, err
 	}
@@ -250,14 +251,15 @@ func (s *ChatService) commitAttachmentAsDocument(
 	if err := tx.Commit(ctx); err != nil {
 		return db.ChatMessage{}, false, err
 	}
+	s.recheckChatGrantAudience(ctx, audience)
 	return updated, true, nil
 }
 
 // attachmentToDocumentMetadata keeps everything on the message but the file
 // block: reactions and the pin live in the same metadata and belong to other
 // people's input, so a conversion drops only the five file keys and adds the
-// document id.
-func attachmentToDocumentMetadata(raw []byte, documentID string) ([]byte, error) {
+// document id and the level the conversion granted (S1-fix-2 SF3).
+func attachmentToDocumentMetadata(raw []byte, documentID string, level DocumentLevel) ([]byte, error) {
 	meta := raw
 	for _, key := range []string{"filename", "file_id", "object_key", "content_type", "size_bytes"} {
 		var err error
@@ -265,7 +267,11 @@ func attachmentToDocumentMetadata(raw []byte, documentID string) ([]byte, error)
 			return nil, err
 		}
 	}
-	return patchMetadataKey(meta, "document_id", documentID)
+	meta, err := patchMetadataKey(meta, "document_id", documentID)
+	if err != nil {
+		return nil, err
+	}
+	return patchMetadataKey(meta, "share_level", string(level))
 }
 
 func (s *ChatService) resolvedChatDocumentMessageRow(

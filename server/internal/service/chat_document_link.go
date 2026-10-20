@@ -29,9 +29,9 @@ import (
 const chatDocumentOriginLink = "link"
 
 // chatDocumentLinkMetadata is the metadata of a link-origin document message:
-// ids and the origin only (§4.2).
-func chatDocumentLinkMetadata(documentID string) ([]byte, error) {
-	return json.Marshal(map[string]string{"document_id": documentID, "origin": chatDocumentOriginLink})
+// ids, the origin and the level it granted only (§4.2, S1-fix-2 SF3).
+func chatDocumentLinkMetadata(documentID string, level DocumentLevel) ([]byte, error) {
+	return json.Marshal(map[string]string{"document_id": documentID, "origin": chatDocumentOriginLink, "share_level": string(level)})
 }
 
 // SendDocumentLinkInput is one link send. ShareLevel is what every recipient
@@ -174,10 +174,11 @@ func (s *ChatService) commitDocumentLinkMessage(
 	}
 
 	msgID := util.NewID()
-	if err := s.grantDocumentToRoomMembers(ctx, q, actor, DocumentFileResult{Document: doc}, recipients, level, room.ID, msgID); err != nil {
+	audience, err := s.grantDocumentToRoomMembers(ctx, q, actor, DocumentFileResult{Document: doc}, recipients, level, room.ID, msgID)
+	if err != nil {
 		return db.ChatMessage{}, false, err
 	}
-	meta, err := chatDocumentLinkMetadata(doc.ID)
+	meta, err := chatDocumentLinkMetadata(doc.ID, level)
 	if err != nil {
 		return db.ChatMessage{}, false, err
 	}
@@ -220,6 +221,7 @@ func (s *ChatService) commitDocumentLinkMessage(
 	if err := tx.Commit(ctx); err != nil {
 		return db.ChatMessage{}, false, err
 	}
+	s.recheckChatGrantAudience(ctx, audience)
 	return msg, true, nil
 }
 

@@ -41,7 +41,7 @@ func newAccessBatchTakeoverFixture(t *testing.T, tag string) *accessBatchTakeove
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := f.svc.grantDocumentToRoomMembers(ctx, f.q, Human(f.ua.ID),
+		if _, err := f.svc.grantDocumentToRoomMembers(ctx, f.q, Human(f.ua.ID),
 			DocumentFileResult{Document: doc}, recipients, level, room.ID, msg.ID); err != nil {
 			t.Fatalf("chat grant at %s: %v", level, err)
 		}

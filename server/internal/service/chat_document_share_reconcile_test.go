@@ -21,7 +21,7 @@ import (
 // The UNI-2012 S1-fix regressions: the chat-origin share reconcile is
 // state-based (current membership, current messages), so ordering, retries,
 // replays and re-pointing stop mattering; and a grant re-checks the room's
-// members under a lock that a leave has to wait for.
+// members inside its transaction and again after its commit (S1-fix-2 SF2).
 
 // reconcileMember registers one more organization and workspace member.
 func (f *chatDocumentFixture) reconcileMember(t *testing.T, email, name string) db.User {
@@ -282,16 +282,26 @@ func TestChatDocumentShareReconcileRacingRemovals(t *testing.T) {
 	}
 }
 
-// waitForChatShareLockWaiter blocks until some backend of the test database
-// waits on a lock: room B's reconcile queued behind the document lock room A's
+// waitForChatShareLockWaiter blocks until a backend of the test database waits
+// on the document lock: room B's reconcile queued behind the one room A's
 // reconcile holds.
 func waitForChatShareLockWaiter(t *testing.T, f *chatDocumentFixture) {
+	t.Helper()
+	waitForLockWaiterOn(t, f, "LockDocumentByID")
+}
+
+// waitForLockWaiterOn blocks until a backend of the test database waits on a
+// lock inside the sqlc query named queryName, so another test's waiter on
+// some other statement cannot let it pass (S1-fix-2 N5).
+func waitForLockWaiterOn(t *testing.T, f *chatDocumentFixture, queryName string) {
 	t.Helper()
 	deadline := time.Now().Add(10 * time.Second)
 	for time.Now().Before(deadline) {
 		var n int
 		if err := f.pool.QueryRow(context.Background(),
-			`SELECT count(*) FROM pg_stat_activity WHERE datname = current_database() AND wait_event_type = 'Lock'`,
+			`SELECT count(*) FROM pg_stat_activity
+			 WHERE datname = current_database() AND wait_event_type = 'Lock'
+			   AND query LIKE '-- name: ' || $1 || ' %'`, queryName,
 		).Scan(&n); err != nil {
 			t.Fatal(err)
 		}
@@ -300,7 +310,7 @@ func waitForChatShareLockWaiter(t *testing.T, f *chatDocumentFixture) {
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
-	t.Fatal("room B's reconcile never waited on the document lock")
+	t.Fatalf("no backend ever waited on a lock in %s", queryName)
 }
 
 // TestManualShareOverChatGrantSurvivesLeave is B4: a manual grant at the level
@@ -334,7 +344,7 @@ func TestManualShareOverChatGrantSurvivesLeave(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := f.svc.grantDocumentToRoomMembers(ctx, f.q, Human(f.ua.ID),
+		if _, err := f.svc.grantDocumentToRoomMembers(ctx, f.q, Human(f.ua.ID),
 			DocumentFileResult{Document: doc}, recipients, lv, room.ID, msg.ID); err != nil {
 			t.Fatalf("chat grant at %s: %v", lv, err)
 		}
@@ -476,7 +486,7 @@ func TestChatDocumentShareRestoreAndRepointAreAudited(t *testing.T) {
 		t.Fatal(err)
 	}
 	msgA := f.documentMessageIn(t, roomA, restoreDoc.ID)
-	if err := f.svc.grantDocumentToRoomMembers(ctx, f.q, Human(f.ua.ID),
+	if _, err := f.svc.grantDocumentToRoomMembers(ctx, f.q, Human(f.ua.ID),
 		DocumentFileResult{Document: restoreDoc}, []string{uc.ID}, DocumentLevelComment, roomA.ID, msgA.ID); err != nil {
 		t.Fatal(err)
 	}
@@ -581,7 +591,7 @@ func TestChatDocumentGrantSkipsEffectiveHomeRowEdit(t *testing.T) {
 	}
 	eventsBefore := countEvents()
 	msg := f.documentMessageIn(t, room, doc.ID)
-	if err := f.svc.grantDocumentToRoomMembers(ctx, f.q, Human(f.ua.ID),
+	if _, err := f.svc.grantDocumentToRoomMembers(ctx, f.q, Human(f.ua.ID),
 		DocumentFileResult{Document: doc}, []string{f.ub.ID}, DocumentLevelComment, room.ID, msg.ID); err != nil {
 		t.Fatal(err)
 	}

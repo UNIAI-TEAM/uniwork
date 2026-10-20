@@ -1384,6 +1384,50 @@ func (q *Queries) LeaveChatRoomsInWorkspaceForUser(ctx context.Context, arg Leav
 	return err
 }
 
+const listActiveChatRoomMembersForGrant = `-- name: ListActiveChatRoomMembersForGrant :many
+SELECT id, user_id FROM chat_room_members
+WHERE room_id = $1
+  AND user_id = ANY($2::text[])
+  AND status IN ('invited', 'active')
+`
+
+type ListActiveChatRoomMembersForGrantParams struct {
+	RoomID  string   `json:"room_id"`
+	UserIds []string `json:"user_ids"`
+}
+
+type ListActiveChatRoomMembersForGrantRow struct {
+	ID     string `json:"id"`
+	UserID string `json:"user_id"`
+}
+
+// tenant: parent room_id
+// Which of a chat document grant's recipients are still invited or active
+// members of the room, with the member row that is their current membership
+// (UNI-2012 S1-fix B1, S1-fix-2 SF2). Read without a row lock, inside the
+// grant's transaction to drop who already left and again after its commit to
+// find who left (or left and rejoined: another row id) meanwhile. A lock here
+// would stall every read/delivered cursor update of the room for the send.
+func (q *Queries) ListActiveChatRoomMembersForGrant(ctx context.Context, arg ListActiveChatRoomMembersForGrantParams) ([]ListActiveChatRoomMembersForGrantRow, error) {
+	rows, err := q.db.Query(ctx, listActiveChatRoomMembersForGrant, arg.RoomID, arg.UserIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListActiveChatRoomMembersForGrantRow{}
+	for rows.Next() {
+		var i ListActiveChatRoomMembersForGrantRow
+		if err := rows.Scan(&i.ID, &i.UserID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listChatChannelsByProject = `-- name: ListChatChannelsByProject :many
 SELECT
   r.id,
@@ -2656,46 +2700,6 @@ func (q *Queries) ListDefaultChatRoomMissingMembers(ctx context.Context, workspa
 			return nil, err
 		}
 		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const lockActiveChatRoomMembersForGrant = `-- name: LockActiveChatRoomMembersForGrant :many
-SELECT user_id FROM chat_room_members
-WHERE room_id = $1
-  AND user_id = ANY($2::text[])
-  AND status IN ('invited', 'active')
-ORDER BY id
-FOR SHARE
-`
-
-type LockActiveChatRoomMembersForGrantParams struct {
-	RoomID  string   `json:"room_id"`
-	UserIds []string `json:"user_ids"`
-}
-
-// tenant: parent room_id
-// The chat document grant's recipients who are still invited or active
-// members of the room, read FOR SHARE inside the grant's transaction
-// (UNI-2012 S1-fix B1). A leave or removal updates the member row, so it
-// waits for the grant to commit (and its reconcile then sees the grant), or
-// it committed first and the row no longer matches here.
-func (q *Queries) LockActiveChatRoomMembersForGrant(ctx context.Context, arg LockActiveChatRoomMembersForGrantParams) ([]string, error) {
-	rows, err := q.db.Query(ctx, lockActiveChatRoomMembersForGrant, arg.RoomID, arg.UserIds)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []string{}
-	for rows.Next() {
-		var user_id string
-		if err := rows.Scan(&user_id); err != nil {
-			return nil, err
-		}
-		items = append(items, user_id)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err

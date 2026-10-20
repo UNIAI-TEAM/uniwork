@@ -221,10 +221,11 @@ func TestDeleteUploadDocumentMessageInAReply(t *testing.T) {
 
 // TestDeleteLinkDocumentMessageRevokesOnlyItsGrants is S1d for a link-origin
 // message: the document is never touched; only the shares whose source is
-// the deleted message are decided again. ub's grant is backed by a second
-// live card in a group, so it is re-pointed, not revoked; deleting that card
-// too revokes it and restores the manual view it had raised; a manual share
-// of someone else is never touched.
+// the deleted message are decided again. ub's edit grant is backed by a
+// second live card in a group that granted comment, so it is lowered to
+// comment there (S1-fix-2 SF3), not revoked and not kept at edit; deleting that
+// card too revokes it and restores the manual view it had raised; a manual
+// share of someone else is never touched.
 func TestDeleteLinkDocumentMessageRevokesOnlyItsGrants(t *testing.T) {
 	f := newChatDocumentFixture(t)
 	ctx := context.Background()
@@ -262,7 +263,8 @@ func TestDeleteLinkDocumentMessageRevokesOnlyItsGrants(t *testing.T) {
 		t.Fatalf("link block = %+v, want origin link and no editors count", b)
 	}
 
-	// Delete the DM card: the document stays live, ub's grant moves to the group card.
+	// Delete the DM card: the document stays live, ub's grant moves to the
+	// group card at the level that card granted.
 	if err := f.svc.DeleteChatMessage(ctx, f.ua.ID, f.ws.ID, room.ID, dmMsg.ID); err != nil {
 		t.Fatalf("delete dm card: %v", err)
 	}
@@ -273,11 +275,12 @@ func TestDeleteLinkDocumentMessageRevokesOnlyItsGrants(t *testing.T) {
 		t.Fatalf("document.archived rows = %d, want 0", n)
 	}
 	moved, ok := f.liveShareOf(t, f.ub.ID, docID)
-	if !ok || moved.ID != ubShare.ID || moved.SourceMessageID.String != grpMsg.ID || moved.Level != string(DocumentLevelEdit) {
-		t.Fatalf("ub share after the DM delete = %+v, want the same grant re-pointed to the group card", moved)
+	if !ok || moved.ID == ubShare.ID || moved.SourceMessageID.String != grpMsg.ID || moved.Level != string(DocumentLevelComment) ||
+		moved.PriorManualLevel.String != string(DocumentLevelView) {
+		t.Fatalf("ub share after the DM delete = %+v, want a comment grant from the group card remembering view", moved)
 	}
 	if meta := f.chatDeleteAuditMeta(t, dmMsg.ID); meta["document_origin"] != chatDocumentOriginLink ||
-		meta["document_archived"] != false || meta["document_shares_revoked"] != float64(0) {
+		meta["document_archived"] != false || meta["document_shares_revoked"] != float64(0) || meta["document_shares_lowered"] != float64(1) {
 		t.Fatalf("dm delete audit = %+v", meta)
 	}
 

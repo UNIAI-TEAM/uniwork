@@ -41,19 +41,18 @@ SELECT id FROM chat_rooms WHERE id = $1 FOR UPDATE;
 SELECT user_id FROM chat_room_members
 WHERE room_id = $1 AND status IN ('invited', 'active');
 
--- name: LockActiveChatRoomMembersForGrant :many
+-- name: ListActiveChatRoomMembersForGrant :many
 -- tenant: parent room_id
--- The chat document grant's recipients who are still invited or active
--- members of the room, read FOR SHARE inside the grant's transaction
--- (UNI-2012 S1-fix B1). A leave or removal updates the member row, so it
--- waits for the grant to commit (and its reconcile then sees the grant), or
--- it committed first and the row no longer matches here.
-SELECT user_id FROM chat_room_members
+-- Which of a chat document grant's recipients are still invited or active
+-- members of the room, with the member row that is their current membership
+-- (UNI-2012 S1-fix B1, S1-fix-2 SF2). Read without a row lock, inside the
+-- grant's transaction to drop who already left and again after its commit to
+-- find who left (or left and rejoined: another row id) meanwhile. A lock here
+-- would stall every read/delivered cursor update of the room for the send.
+SELECT id, user_id FROM chat_room_members
 WHERE room_id = sqlc.arg(room_id)
   AND user_id = ANY(sqlc.arg(user_ids)::text[])
-  AND status IN ('invited', 'active')
-ORDER BY id
-FOR SHARE;
+  AND status IN ('invited', 'active');
 
 -- name: UpdateChatRoomMemberLastRead :exec
 -- tenant: parent room_id

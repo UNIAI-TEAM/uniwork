@@ -127,7 +127,7 @@ func (s *DocumentService) applyAccessBatchItems(
 		}
 		switch writes[i] {
 		case accessBatchWriteRevoke:
-			pending = append(pending, accessBatchRevokeRecord(actor, doc, liveByUser[it.PrincipalID], batchID))
+			pending = append(pending, documentShareRevokeRecord(actor, doc, liveByUser[it.PrincipalID], batchID))
 		case accessBatchWriteGrant:
 			sh := granted[it.PrincipalID]
 			results[i].ShareID = sh.ID
@@ -176,10 +176,21 @@ func accessBatchGrantRecord(actor Actor, doc db.Document, sh, prev db.DocumentSh
 	}
 }
 
-// accessBatchRevokeRecord is the audit row and event
-// revokeDocumentShareRowWithBatch writes for one revoked user share of a
-// batch, the prior level in the metadata the change feed reads (BE-G1-2).
-func accessBatchRevokeRecord(actor Actor, doc db.Document, sh db.DocumentShare, batchID string) audit.Recorded {
+// documentShareRevokeRecord is the audit row and event of one revoked share:
+// the prior level sits in the metadata the change feed reads (BE-G1-2), so a
+// removal is decided from the audit row alone, and batchID (when not empty)
+// ties it to its batch. revokeDocumentShareRowWithBatch writes it for one row;
+// a batch and the chat share decisions record many through RecordMany.
+func documentShareRevokeRecord(actor Actor, doc db.Document, sh db.DocumentShare, batchID string) audit.Recorded {
+	meta := map[string]any{
+		"share_id":       sh.ID,
+		"principal_type": sh.PrincipalType,
+		"principal_id":   sh.PrincipalID,
+		"level":          sh.Level,
+	}
+	if batchID != "" {
+		meta["batch_id"] = batchID
+	}
 	return audit.Recorded{
 		Entry: audit.Entry{
 			OrganizationID: doc.OrganizationID,
@@ -189,13 +200,7 @@ func accessBatchRevokeRecord(actor Actor, doc db.Document, sh db.DocumentShare, 
 			ResourceType:   "document",
 			ResourceID:     doc.ID,
 			Changes:        audit.Diff(map[string]any{"level": sh.Level}, nil),
-			Metadata: map[string]any{
-				"share_id":       sh.ID,
-				"principal_type": sh.PrincipalType,
-				"principal_id":   sh.PrincipalID,
-				"level":          sh.Level,
-				"batch_id":       batchID,
-			},
+			Metadata:       meta,
 		},
 		Events: []audit.Event{{Topic: "document.share_revoked", Payload: map[string]string{
 			"document_id":  doc.ID,
