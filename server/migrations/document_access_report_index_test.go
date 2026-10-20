@@ -50,3 +50,29 @@ func TestAccessChangedReadsUseTheirIndexes(t *testing.T) {
 		}
 	}
 }
+
+// UNI-2039 fx1 (r1 F4): document_shares keeps full history, so the origin
+// CHECK is added NOT VALID (no scan under ACCESS EXCLUSIVE) and a later file
+// validates it holding only SHARE UPDATE EXCLUSIVE.
+func TestShareOriginCheckIsAddedNotValidAndValidatedLater(t *testing.T) {
+	up, err := fsys.ReadFile("9991792521101187_document_shares_origin.up.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(up), "NOT VALID") {
+		t.Fatalf("the origin CHECK is not added NOT VALID:\n%s", up)
+	}
+	pool := testPool(t)
+	ctx := context.Background()
+	lockTestDB(t, pool)
+	if err := Up(ctx, pool); err != nil {
+		t.Fatal(err)
+	}
+	var validated bool
+	if err := pool.QueryRow(ctx, `SELECT convalidated FROM pg_constraint WHERE conname = 'document_shares_origin_check'`).Scan(&validated); err != nil {
+		t.Fatal(err)
+	}
+	if !validated {
+		t.Fatal("document_shares_origin_check is still NOT VALID after every migration ran")
+	}
+}
