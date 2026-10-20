@@ -39,6 +39,7 @@ Product intent and design principles live in `PRODUCT.md`.
   conversion and DOCX→PDF export jobs.
 - `apps/chat-desktop/` — shell Electron của UniChat tải web app ở layout chỉ Chat; cấu trúc và luật ở `apps/chat-desktop/CLAUDE.md`.
 - `apps/chat-mobile/` — app Expo (iOS + Android) của UniChat; chỉ import type và hàm thuần từ `packages/core` (ADR 0011, allowlist ở `scripts/mobile-core-allowlist.test.mjs`); kiểm ở `.github/workflows/mobile-verify.yml`, không trong `turbo` gốc; luật ở `apps/chat-mobile/CLAUDE.md`.
+- `apps/meeting-agent/` — Python LiveKit worker of the meeting AI scribe (ADR 0036): one job per meeting, STT direct, everything else through `/api/v1/meetings/{id}/agent/*`; rules in `apps/meeting-agent/CLAUDE.md`, verified by `.github/workflows/meeting-agent-verify.yml`, not in `turbo`.
 - `packages/core/` — headless logic: API endpoints, React Query hooks,
   Zustand stores, realtime sync, permissions, paths, i18n. Four modules no
   host reaches yet: `packages/core/analytics/`,

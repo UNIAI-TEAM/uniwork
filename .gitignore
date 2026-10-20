@@ -66,6 +66,7 @@ server/internal/handler/data/
 !.github/workflows/chat-desktop-release.yml
 !.github/workflows/chat-mobile-release.yml
 !.github/workflows/chat-mobile-verify.yml
+!.github/workflows/meeting-agent-verify.yml
 .codex/
 .pnpm-store/
 .uniwork-dev/

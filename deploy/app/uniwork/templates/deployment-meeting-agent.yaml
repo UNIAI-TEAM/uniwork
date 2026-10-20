@@ -1,0 +1,88 @@
+{{- if .Values.meetingAgent.enabled }}
+{{- $ma := .Values.meetingAgent }}
+# The AI scribe (apps/meeting-agent, ADR 0036): LiveKit Agents worker, one job
+# per meeting, explicit dispatch only. Spec 2026-10-20-meeting-scribe-agent-design §4.6.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: uniwork-meeting-agent
+  namespace: {{ .Values.namespace }}
+spec:
+  replicas: {{ $ma.minReplicas }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: uniwork-meeting-agent
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: uniwork-meeting-agent
+        reap.io/pool: pool-app
+    spec:
+      serviceAccountName: uniwork
+      automountServiceAccountToken: false
+      imagePullSecrets:
+        {{- toYaml .Values.imagePullSecrets | nindent 8 }}
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      nodeSelector:
+        {{- toYaml .Values.nodeSelector | nindent 8 }}
+      # A worker drains on SIGTERM: it takes no new job and lets every meeting
+      # it serves run to its end, which can be hours (spec §4.6: 4 h).
+      terminationGracePeriodSeconds: {{ $ma.terminationGracePeriodSeconds }}
+      containers:
+        - name: uniwork-meeting-agent
+          image: {{ include "uniwork.image" $ma.image | quote }}
+          imagePullPolicy: {{ $ma.image.pullPolicy }}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
+          ports:
+            - name: health
+              containerPort: {{ $ma.healthPort }}
+          env:
+            - { name: MEETING_SCRIBE_AGENT_NAME, value: {{ $ma.agentName | quote }} }
+            - { name: SCRIBE_STT_PROVIDER, value: {{ $ma.sttProvider | quote }} }
+            - { name: SCRIBE_HEALTH_PORT, value: {{ $ma.healthPort | quote }} }
+            - { name: UNIWORK_API_URL, value: "http://uniwork-be:{{ .Values.be.port }}" }
+            - { name: LIVEKIT_URL, value: {{ .Values.public.livekitUrl | quote }} }
+            {{- with $ma.otlpEndpoint }}
+            - { name: OTEL_EXPORTER_OTLP_ENDPOINT, value: {{ . | quote }} }
+            {{- end }}
+            - name: LIVEKIT_API_KEY
+              valueFrom: { secretKeyRef: { name: {{ $ma.secrets.livekitApiKey.name }}, key: {{ $ma.secrets.livekitApiKey.key }} } }
+            - name: LIVEKIT_API_SECRET
+              valueFrom: { secretKeyRef: { name: {{ $ma.secrets.livekitApiSecret.name }}, key: {{ $ma.secrets.livekitApiSecret.key }} } }
+            - name: ASSEMBLYAI_API_KEY
+              valueFrom: { secretKeyRef: { name: {{ $ma.secrets.sttApiKey.name }}, key: {{ $ma.secrets.sttApiKey.key }}, optional: true } }
+          resources:
+            {{- toYaml $ma.resources | nindent 12 }}
+          livenessProbe:
+            httpGet: { path: /, port: health }
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          readinessProbe:
+            httpGet: { path: /worker, port: health }
+            initialDelaySeconds: 10
+            periodSeconds: 5
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: uniwork-meeting-agent
+  namespace: {{ .Values.namespace }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: uniwork-meeting-agent
+  minReplicas: {{ $ma.minReplicas }}
+  maxReplicas: {{ $ma.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target: { type: Utilization, averageUtilization: 50 }
+{{- end }}

@@ -437,3 +437,23 @@ describe("ADR 0011 — apps/chat-mobile", () => {
     }
   });
 });
+
+describe("ADR 0036 — apps/meeting-agent", () => {
+  // The scribe agent is the one place outside server/internal/ai/provider that
+  // holds a model vendor's key, and only for STT. Every LLM call is a request
+  // to the server, which goes through ai.Gateway; an LLM SDK in the agent's
+  // requirements is that rule broken.
+  const app = "apps/meeting-agent";
+  const LLM_SDKS = /^\s*(openai|anthropic|google-genai|google-generativeai|mistralai|cohere|langchain[\w-]*|livekit-plugins-(openai|anthropic|google|groq|mistralai|aws))\b/im;
+
+  test("the agent's requirements name no LLM SDK", () => {
+    const reqs = read(`${app}/requirements.txt`);
+    assert.match(reqs, /^livekit-agents==/m, "livekit-agents must be pinned");
+    assert.doesNotMatch(reqs, LLM_SDKS, `${app}/requirements.txt names an LLM SDK (ADR 0036)`);
+  });
+
+  test("the agent carries its CLAUDE.md and verifies in its own workflow", () => {
+    assert.ok(fs.existsSync(path.join(root, `${app}/CLAUDE.md`)), `${app}/CLAUDE.md is missing`);
+    assert.match(read(".github/workflows/meeting-agent-verify.yml"), /pytest/, "meeting-agent-verify must run pytest");
+  });
+});

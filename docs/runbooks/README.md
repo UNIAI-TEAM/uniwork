@@ -19,6 +19,7 @@ Kiểm tra → Khắc phục → Leo thang**.
 | `BILLING_VNPAY_WEBHOOK` | 2 | billing webhook dead letter trong 15 phút | [BILLING_VNPAY_WEBHOOK.md](BILLING_VNPAY_WEBHOOK.md) |
 | `AiCostSpike` | 2 | chi phí AI 1 giờ > 3× trung bình 7 ngày | [AiCostSpike.md](AiCostSpike.md) |
 | `WebhookInboxLagHigh` | 2 | webhook LiveKit chờ xử lý > 30 s | [WebhookInboxLagHigh.md](WebhookInboxLagHigh.md) |
+| `MeetingScribeCannotJoin` | 3 | thư ký AI không vào được phòng (> 2 lần trong 15 phút) | [MeetingScribeCannotJoin.md](MeetingScribeCannotJoin.md) |
 | `QueueLagUnreadable` | 2 | không đọc được lag outbox hoặc webhook inbox suốt 5 phút | [QueueLagUnreadable.md](QueueLagUnreadable.md) |
 | `RealtimePublishSlow` | 3 | p95 commit → frame > 1 s | [RealtimePublishSlow.md](RealtimePublishSlow.md) |
 | `RealtimeSlowEvictions` | 3 | > 25 client WebSocket bị đuổi trong 10 phút | [RealtimeSlowEvictions.md](RealtimeSlowEvictions.md) |

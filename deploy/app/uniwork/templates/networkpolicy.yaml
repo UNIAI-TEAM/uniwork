@@ -13,9 +13,13 @@ spec:
     matchExpressions:
       - key: app.kubernetes.io/name
         operator: NotIn
-        values: [uniwork-office-engine]
+        values: [uniwork-office-engine, uniwork-meeting-agent]
   {{- else }}
-  podSelector: {}
+  podSelector:
+    matchExpressions:
+      - key: app.kubernetes.io/name
+        operator: NotIn
+        values: [uniwork-meeting-agent]
   {{- end }}
   policyTypes: [Ingress, Egress]
   ingress:
@@ -34,6 +38,16 @@ spec:
       ports:
         - protocol: TCP
           port: 8080
+    {{- if .Values.meetingAgent.enabled }}
+    # The AI scribe calls the agent API (/api/v1/meetings/{id}/agent/*).
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: uniwork-meeting-agent
+      ports:
+        - protocol: TCP
+          port: {{ .Values.be.port }}
+    {{- end }}
     {{- with .Values.networkPolicy.metricsScrapeNamespace }}
     - from:
         - namespaceSelector:
@@ -83,5 +97,42 @@ spec:
       ports:
         - protocol: TCP
           port: {{ .port | default 443 }}
+    {{- end }}
+{{- end }}
+{{- if .Values.meetingAgent.enabled }}
+---
+# AI scribe: nothing calls it but its own health probe; it reaches only
+# uniwork-be, LiveKit and the STT vendor (spec §4.6).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: uniwork-meeting-agent
+  namespace: {{ .Values.namespace }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: uniwork-meeting-agent
+  policyTypes: [Ingress, Egress]
+  ingress: []
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - { protocol: UDP, port: 53 }
+        - { protocol: TCP, port: 53 }
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: uniwork-be
+      ports:
+        - { protocol: TCP, port: {{ .Values.be.port }} }
+    {{- range concat .Values.meetingAgent.egress.livekit .Values.meetingAgent.egress.stt }}
+    - to:
+        - ipBlock:
+            cidr: {{ .cidr | quote }}
+      ports:
+        - { protocol: {{ .protocol }}, port: {{ .port }} }
     {{- end }}
 {{- end }}
