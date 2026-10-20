@@ -12,9 +12,10 @@ import (
 const liveKitWebhookPath = "/integrations/livekit/webhook"
 
 // summaryLimit wraps POST /meetings/{id}/summary only: the ai-meeting-summary
-// bucket router.go builds (UNI-1853 M9). minutesFlag hides the minutes routes
-// behind meeting_minutes (UNI-2003).
-func registerMeetings(r api, h Routes, summaryLimit, minutesFlag func(http.Handler) http.Handler) {
+// bucket router.go builds (UNI-1853 M9). minutesOrg names the meeting's
+// organization so minutesFlag (meeting_minutes, UNI-2003) honours its
+// overrides.
+func registerMeetings(r api, h Routes, summaryLimit, minutesOrg, minutesFlag func(http.Handler) http.Handler) {
 	r.Get("/workspaces/{workspaceID}/meetings", h.ListMeetings, apiOp{
 		summary: "List meetings", tags: []string{"meetings"}, sdi: sdi.ListMeetingsSDI{}, sdo: sdo.MeetingListSDO{}, auth: true,
 	})
@@ -226,7 +227,7 @@ func registerMeetings(r api, h Routes, summaryLimit, minutesFlag func(http.Handl
 		description: "Chỉ từ đã bỏ qua, không thì 409 action_item_not_dismissed.",
 		sdo:         sdo.StatusSDO{}, auth: true,
 	})
-	minutes := r.With(minutesFlag)
+	minutes := r.With(minutesOrg, minutesFlag)
 	minutes.Get("/meetings/{meetingID}/minutes", h.GetMeetingMinutes, apiOp{
 		summary: "The meeting's minutes (a UniNote page) and whether they are finalized", tags: []string{"meetings"},
 		description: "Mọi thành viên workspace. minutes null khi chưa lập, hoặc trang đã bị xoá hay vào thùng rác. " +

@@ -44,7 +44,11 @@ type Deps struct {
 	// 0032), independent of any id in the path, for routes whose uniform answer
 	// must not depend on whether the path's row exists (DOC-07 create, BE-SD7-3).
 	CallerOrganization func(*http.Request) string
-	DeviceStatus       func(context.Context, string, string) error
+	// MeetingOrganization names the organization of the path's meeting when
+	// the caller is a member of its workspace, so `meeting_minutes` honours
+	// organization overrides (UNI-2003); nil evaluates it per user.
+	MeetingOrganization func(*http.Request) string
+	DeviceStatus        func(context.Context, string, string) error
 	// OfficeFrameAuth checks the Office Docs frame token on
 	// /api/v1/office-frame/*; nil refuses every frame route with 404.
 	OfficeFrameAuth func(http.Handler) http.Handler
@@ -273,7 +277,7 @@ func New(d Deps, h Routes) http.Handler {
 			// organization's AI quota through the 300/min global budget. The
 			// service adds one run per meeting at a time (summary_in_progress).
 			registerMeetings(authed, h, mw.RateLimitByIdentityBucket(d.Redis, "ai-meeting-summary", 6, time.Minute, proxies, bearerUser(d.Minter)),
-				mw.RequireFeatureFlag(d.FeatureFlags, "meeting_minutes"))
+				mw.FlagOrganization(d.MeetingOrganization), mw.RequireFeatureFlag(d.FeatureFlags, "meeting_minutes"))
 			// Chat writes budget per signed-in person and per route: an office
 			// NAT must not pool everyone's sends, and walking message or room
 			// ids must not mint a fresh budget per id.

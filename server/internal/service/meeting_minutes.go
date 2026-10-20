@@ -52,6 +52,10 @@ type MeetingMinutes struct {
 	EditedSinceFinalized bool
 	// CanEdit is the caller's level on the page, edit or more.
 	CanEdit bool
+	// Readable is false for a member who may not read the page (it was made
+	// private since): the meeting still says it has minutes and whether they
+	// are finalized, but names neither the page, its version nor its edits.
+	Readable bool
 }
 
 // Minutes reads the minutes of a meeting for any member; nil when it has
@@ -65,6 +69,20 @@ func (s *MeetingService) Minutes(ctx context.Context, userID, meetingID string) 
 		return nil, nil
 	}
 	return s.describeMinutes(ctx, userID, m)
+}
+
+// FlagOrganization is the organization a meeting route's flags evaluate at:
+// the meeting's, for a member of its workspace; "" for anyone else, who then
+// learns nothing about that organization's flags.
+func (s *MeetingService) FlagOrganization(ctx context.Context, userID, meetingID string) string {
+	if userID == "" || meetingID == "" {
+		return ""
+	}
+	m, _, err := s.authorize(ctx, userID, meetingID)
+	if err != nil {
+		return ""
+	}
+	return m.OrganizationID
 }
 
 // liveMinutesPage is the meeting's minutes page while it is alive.
@@ -108,6 +126,10 @@ func (s *MeetingService) describeMinutes(ctx context.Context, userID string, m d
 		return nil, err
 	}
 	out.CanEdit = level.AtLeast(DocumentLevelEdit)
+	out.Readable = level.AtLeast(DocumentLevelView)
+	if !out.Readable {
+		out.DocumentID, out.FinalizedVersionID, out.FinalizedVersion, out.EditedSinceFinalized = "", "", 0, false
+	}
 	return out, nil
 }
 

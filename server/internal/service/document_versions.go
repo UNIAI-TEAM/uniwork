@@ -79,7 +79,7 @@ func (s *DocumentService) CreateDocumentVersion(ctx context.Context, actor Actor
 			out, err = replayedVersion(ctx, q, doc, replay.Body)
 			return err
 		}
-		v, err := s.insertManualPageVersion(ctx, q, actor, doc, label)
+		v, err := s.insertManualPageVersion(ctx, q, actor, doc, label, false)
 		if err != nil {
 			return err
 		}
@@ -93,9 +93,10 @@ func (s *DocumentService) CreateDocumentVersion(ctx context.Context, actor Actor
 }
 
 // insertManualPageVersion snapshots a locked page's working copy as a manual
-// version, in the caller's transaction. Nothing changed since the latest
-// version -> document_version_unchanged.
-func (s *DocumentService) insertManualPageVersion(ctx context.Context, q *db.Queries, actor Actor, doc db.Document, label string) (db.DocumentVersion, error) {
+// version, in the caller's transaction. Content equal to the latest version
+// -> document_version_unchanged, unless force: a caller that knows the page
+// was saved since (an edit, then its revert) still records a new version.
+func (s *DocumentService) insertManualPageVersion(ctx context.Context, q *db.Queries, actor Actor, doc db.Document, label string, force bool) (db.DocumentVersion, error) {
 	// The row holds jsonb's own spelling of the content; the version
 	// stores (and size_bytes measures) the sanitizer's, like
 	// content_bytes does.
@@ -112,7 +113,7 @@ func (s *DocumentService) insertManualPageVersion(ctx context.Context, q *db.Que
 	})
 	switch {
 	case err == nil:
-		if latest.Kind == DocumentKindPage && sameJSON(latest.Content, content) {
+		if !force && latest.Kind == DocumentKindPage && sameJSON(latest.Content, content) {
 			return db.DocumentVersion{}, errDocumentVersionUnchanged()
 		}
 	case errors.Is(err, pgx.ErrNoRows):

@@ -3,6 +3,7 @@ package service
 import (
 	"fmt"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/unicomhub/uniwork/server/internal/ai"
 )
@@ -104,9 +105,16 @@ func minutesLayoutFor(locale string) minutesLayout {
 	return minutesLayouts["vi"]
 }
 
-// minutesTitle is the page title: "Biên bản: {title} ({dd/MM/yyyy})".
+// minutesTitle is the page title: "Biên bản: {title} ({dd/MM/yyyy})". A
+// meeting title too long for a document title is cut with an ellipsis, so
+// the date stays.
 func minutesTitle(l minutesLayout, f minutesFacts) string {
-	return l.TitlePrefix + ": " + f.Title + " (" + f.Date + ")"
+	head, tail := l.TitlePrefix+": ", " ("+f.Date+")"
+	title := []rune(f.Title)
+	if room := maxDocumentTitle - utf8.RuneCountInString(head+tail); len(title) > room {
+		title = append(title[:room-1], '…')
+	}
+	return head + string(title) + tail
 }
 
 var attendanceOrder = []string{AttendancePresent, AttendanceLate, AttendanceExcused, AttendanceAbsent}
@@ -161,7 +169,7 @@ func renderMinutes(f minutesFacts, n minutesNarrative, l minutesLayout) string {
 
 	section(l.Content)
 	if s := strings.TrimSpace(n.Summary); s != "" {
-		line(s)
+		line(mdNarrative(s))
 	} else {
 		line(l.NoSummary)
 	}
@@ -169,7 +177,7 @@ func renderMinutes(f minutesFacts, n minutesNarrative, l minutesLayout) string {
 	if len(n.Decisions) > 0 {
 		section(l.Decisions)
 		for i, d := range n.Decisions {
-			text := oneLine(d.Text)
+			text := mdNarrative(oneLine(d.Text))
 			if len(d.At) > 0 {
 				text += " (" + l.EvidenceAt + " " + strings.Join(d.At, ", ") + ")"
 			}
@@ -221,6 +229,24 @@ func mdEscape(s string) string {
 		b.WriteRune(r)
 	}
 	return b.String()
+}
+
+// mdNarrative keeps the summary's own Markdown (emphasis, lists) but stops
+// any line from posing as structure the facts own: a heading, a table row or
+// a setext underline / rule is escaped into text.
+func mdNarrative(s string) string {
+	lines := strings.Split(s, "\n")
+	for i, ln := range lines {
+		t := strings.TrimLeft(ln, " \t")
+		if t == "" {
+			continue
+		}
+		setext := strings.Trim(t, "-= \t") == ""
+		if t[0] == '#' || t[0] == '|' || setext {
+			lines[i] = "\\" + t
+		}
+	}
+	return strings.Join(lines, "\n")
 }
 
 // mdCell is mdEscape for a table cell; an empty one shows a dash.

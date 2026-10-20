@@ -12,10 +12,10 @@ import (
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
-func setMeetingMinutesFlag(t *testing.T, on bool) {
+func setMeetingMinutesFlag(t *testing.T, scopeType, scopeID string, on bool) {
 	t.Helper()
 	if _, err := db.New(testPool).UpsertFlagOverride(context.Background(), db.UpsertFlagOverrideParams{
-		ID: util.NewID(), FlagKey: "meeting_minutes", ScopeType: featureflags.ScopeGlobal,
+		ID: util.NewID(), FlagKey: "meeting_minutes", ScopeType: scopeType, ScopeID: scopeID,
 		Enabled: on, Note: "meeting minutes test", CreatedBy: "test",
 	}); err != nil {
 		t.Fatal(err)
@@ -42,13 +42,25 @@ func TestMeetingMinutesHTTP(t *testing.T) {
 	meetingID := out["meeting"].(map[string]any)["id"].(string)
 	base := "/api/v1/meetings/" + meetingID + "/minutes"
 
-	setMeetingMinutesFlag(t, false)
+	// Another organization with a meeting of its own.
+	other, _ := registerChatUser(t, srv, "min-other@example.com", "Other")
+	_, out = doJSON(t, srv, "POST", "/api/v1/orgs", other, map[string]string{"name": "Other", "slug": "min-other"})
+	otherOrg := out["organization"].(map[string]any)["id"].(string)
+	_, out = doJSON(t, srv, "POST", "/api/v1/orgs/"+otherOrg+"/workspaces", other, map[string]string{"name": "WS", "slug": "min-other-ws"})
+	otherWS := out["workspace"].(map[string]any)["id"].(string)
+	_, out = doJSON(t, srv, "POST", "/api/v1/workspaces/"+otherWS+"/meetings/instant", other, map[string]string{"title": "Khác"})
+	otherBase := "/api/v1/meetings/" + out["meeting"].(map[string]any)["id"].(string) + "/minutes"
+
+	setMeetingMinutesFlag(t, featureflags.ScopeGlobal, "", false)
 	res, out := doJSON(t, srv, "GET", base, member, nil)
 	if res.StatusCode != http.StatusNotFound || errorCode(out) != "feature_disabled" {
 		t.Fatalf("flag off: %d %v", res.StatusCode, out)
 	}
-	setMeetingMinutesFlag(t, true)
-	t.Cleanup(func() { setMeetingMinutesFlag(t, false) })
+	// An organization override opens the routes for that organization only.
+	setMeetingMinutesFlag(t, featureflags.ScopeOrganization, orgID, true)
+	if res, out = doJSON(t, srv, "GET", otherBase, other, nil); res.StatusCode != http.StatusNotFound || errorCode(out) != "feature_disabled" {
+		t.Fatalf("another organization with the override on elsewhere: %d %v", res.StatusCode, out)
+	}
 
 	res, out = doJSON(t, srv, "GET", base, member, nil)
 	if res.StatusCode != http.StatusOK || out["minutes"] != nil {

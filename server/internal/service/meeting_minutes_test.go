@@ -71,7 +71,7 @@ func TestCreateMinutes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got == nil || got.DocumentID == "" || !got.FinalizedAt.IsZero() || !got.CanEdit {
+	if got == nil || got.DocumentID == "" || !got.FinalizedAt.IsZero() || !got.CanEdit || !got.Readable {
 		t.Fatalf("minutes = %+v", got)
 	}
 	doc, err := s.q.GetDocumentByID(ctx, got.DocumentID)
@@ -109,6 +109,18 @@ func TestCreateMinutes(t *testing.T) {
 
 	_, err = s.CreateMinutes(ctx, ua.ID, m.ID, "vi")
 	wantCode(t, err, "minutes_exist")
+
+	// A member the page was made private to learns the meeting has minutes,
+	// never which page they are.
+	if _, err := s.pool.Exec(ctx, `UPDATE documents SET visibility = 'restricted' WHERE id = $1`, doc.ID); err != nil {
+		t.Fatal(err)
+	}
+	if v, err := s.Minutes(ctx, uc.ID, m.ID); err != nil || v == nil || v.Readable || v.DocumentID != "" || v.CanEdit {
+		t.Fatalf("unreadable minutes = %+v %v", v, err)
+	}
+	if v, err := s.Minutes(ctx, ua.ID, m.ID); err != nil || !v.Readable || v.DocumentID != doc.ID {
+		t.Fatalf("host's minutes = %+v %v", v, err)
+	}
 
 	// A page in the trash is no minutes: they can be made again.
 	if _, err := s.Docs.ArchiveDocument(ctx, Human(ub.ID), doc.ID, ArchiveDocumentInput{}); err != nil {
@@ -179,8 +191,9 @@ func TestFinalizeMinutes(t *testing.T) {
 	}
 
 	// A correction after finalizing shows, and finalizing again replaces the id.
+	time.Sleep(5 * time.Millisecond)
 	if _, err := s.pool.Exec(ctx, `UPDATE documents SET content = '{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"Đính chính"}]}]}',
-		content_saved_at = now() + interval '1 second' WHERE id = $1`, docID); err != nil {
+		content_saved_at = now() WHERE id = $1`, docID); err != nil {
 		t.Fatal(err)
 	}
 	edited, err := s.Minutes(ctx, uc.ID, m.ID)
@@ -191,14 +204,31 @@ func TestFinalizeMinutes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if second.FinalizedVersionID == first.FinalizedVersionID || second.FinalizedVersion != first.FinalizedVersion+1 || versions() != 2 {
+	if second.FinalizedVersionID == first.FinalizedVersionID || second.FinalizedVersion != first.FinalizedVersion+1 || second.EditedSinceFinalized || versions() != 2 {
 		t.Fatalf("re-finalized = %+v (first %+v), versions %d", second, first, versions())
 	}
+	// An edit and its revert leave the content as finalized but saved since:
+	// the warning shows, and finalizing records a fresh version that clears it.
+	time.Sleep(5 * time.Millisecond)
+	if _, err := s.pool.Exec(ctx, `UPDATE documents SET content_saved_at = now() WHERE id = $1`, docID); err != nil {
+		t.Fatal(err)
+	}
+	if v, err := s.Minutes(ctx, ua.ID, m.ID); err != nil || !v.EditedSinceFinalized {
+		t.Fatalf("after edit and revert = %+v %v", v, err)
+	}
+	reverted, err := s.FinalizeMinutes(ctx, ua.ID, m.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reverted.FinalizedVersionID == second.FinalizedVersionID || reverted.EditedSinceFinalized || versions() != 3 {
+		t.Fatalf("re-finalized after a revert = %+v, versions %d", reverted, versions())
+	}
+	second = reverted
 	if n := countRows(t, s, `SELECT count(*) FROM audit_events WHERE action = $1 AND resource_id = $2 AND metadata::jsonb->>'version_id' = $3`,
 		audit.ActionMeetingMinutesFinalized, m.ID, second.FinalizedVersionID); n != 1 {
 		t.Fatalf("finalized audit for the new version = %d", n)
 	}
-	if n := countRows(t, s, `SELECT count(*) FROM meeting_audit_logs WHERE meeting_id = $1 AND event_type = 'MINUTES_FINALIZED'`, m.ID); n != 3 {
+	if n := countRows(t, s, `SELECT count(*) FROM meeting_audit_logs WHERE meeting_id = $1 AND event_type = 'MINUTES_FINALIZED'`, m.ID); n != 4 {
 		t.Fatalf("timeline rows = %d", n)
 	}
 
@@ -209,7 +239,7 @@ func TestFinalizeMinutes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !open.FinalizedAt.IsZero() || open.FinalizedVersionID != "" || versions() != 2 {
+	if !open.FinalizedAt.IsZero() || open.FinalizedVersionID != "" || versions() != 3 {
 		t.Fatalf("reopened = %+v, versions %d", open, versions())
 	}
 	if n := countRows(t, s, `SELECT count(*) FROM outbox_events WHERE topic = 'minutes.reopened' AND payload::jsonb->>'meeting_id' = $1`, m.ID); n != 1 {

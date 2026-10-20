@@ -16,11 +16,17 @@ func toMinutesSDO(v *service.MeetingMinutes) sdo.MeetingMinutesSDO {
 	if v == nil {
 		return sdo.MeetingMinutesSDO{}
 	}
-	d := &sdo.MeetingMinutesDTO{DocumentID: v.DocumentID, EditedSinceFinalized: v.EditedSinceFinalized, CanEdit: v.CanEdit}
+	d := &sdo.MeetingMinutesDTO{EditedSinceFinalized: v.EditedSinceFinalized, CanEdit: v.CanEdit}
+	if v.Readable {
+		d.DocumentID = &v.DocumentID
+	}
 	if !v.FinalizedAt.IsZero() {
 		at := v.FinalizedAt.UTC().Format(time.RFC3339)
 		d.Finalized = true
-		d.FinalizedAt, d.FinalizedBy, d.FinalizedVersionID = &at, &v.FinalizedBy, &v.FinalizedVersionID
+		d.FinalizedAt, d.FinalizedBy = &at, &v.FinalizedBy
+		if v.Readable {
+			d.FinalizedVersionID = &v.FinalizedVersionID
+		}
 		if v.FinalizedVersion > 0 {
 			d.FinalizedVersion = &v.FinalizedVersion
 		}
@@ -59,4 +65,10 @@ func (h *handlers) finalizeMeetingMinutes(w http.ResponseWriter, r *http.Request
 func (h *handlers) reopenMeetingMinutes(w http.ResponseWriter, r *http.Request) {
 	v, err := h.Meetings.ReopenMinutes(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "meetingID"))
 	h.respondMinutes(w, v, err)
+}
+
+// meetingFlagOrganization feeds mw.FlagOrganization on the minutes routes:
+// the organization of the path's meeting, only for a member of its workspace.
+func (h *handlers) meetingFlagOrganization(r *http.Request) string {
+	return h.Meetings.FlagOrganization(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "meetingID"))
 }

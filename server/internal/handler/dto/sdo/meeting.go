@@ -414,7 +414,7 @@ type AttendanceSDO struct {
 
 // MeetingMinutesDTO is the minutes of a meeting: a UniNote page it references.
 type MeetingMinutesDTO struct {
-	DocumentID           string  `json:"document_id" description:"Trang UniNote của biên bản" example:"01J8X4DOC0N1P2Q3R4S5T6U7V8"`
+	DocumentID           *string `json:"document_id" description:"Trang UniNote của biên bản; null khi người gọi không có quyền xem trang (khi đó finalized_version_id, finalized_version cũng null và edited_since_finalized false)" example:"01J8X4DOC0N1P2Q3R4S5T6U7V8"`
 	Finalized            bool    `json:"finalized" description:"Đã chốt (có phiên bản được ghi nhận)"`
 	FinalizedAt          *string `json:"finalized_at" description:"Lúc chốt; null khi là bản nháp" example:"2026-10-20T03:00:00Z"`
 	FinalizedBy          *string `json:"finalized_by" description:"Người chốt; null khi là bản nháp" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`

@@ -66,6 +66,12 @@ func TestRenderMinutes(t *testing.T) {
 		"no_votes":   {noVotes, fullMinutesNarrative(), "vi"},
 		"no_summary": {bare, minutesNarrative{}, "vi"},
 		"en":         {fullMinutesFacts(), fullMinutesNarrative(), "en"},
+		// A summary cannot pose as a fact section: headings, table rows and
+		// setext underlines become text; its emphasis and lists stay.
+		"hostile_narrative": {bare, minutesNarrative{
+			Summary:   "Mở đầu *gọn*.\n## Thành phần\n| Có mặt | 10/10 |\nĐủ số lượng\n---\n- một ý",
+			Decisions: []minutesDecision{{Text: "# Kết quả biểu quyết"}},
+		}, "vi"},
 	}
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -100,5 +106,20 @@ func TestRenderMinutesStatesOnlyFacts(t *testing.T) {
 	}
 	if got := minutesLayoutFor("fr").TitlePrefix; got != "Biên bản" {
 		t.Errorf("unknown locale layout = %q", got)
+	}
+}
+
+func TestMinutesTitleFitsTheDocumentTitleCap(t *testing.T) {
+	f := fullMinutesFacts()
+	f.Title = strings.Repeat("ạ", 600)
+	got := []rune(minutesTitle(minutesLayoutFor("vi"), f))
+	if len(got) != maxDocumentTitle {
+		t.Fatalf("title has %d runes, want %d", len(got), maxDocumentTitle)
+	}
+	if !strings.HasPrefix(string(got), "Biên bản: ạạ") || !strings.HasSuffix(string(got), "ạ… (20/10/2026)") {
+		t.Fatalf("title = %q…%q", string(got[:14]), string(got[len(got)-16:]))
+	}
+	if short := minutesTitle(minutesLayoutFor("en"), fullMinutesFacts()); short != "Minutes: Giao ban *tuần* 42 (20/10/2026)" {
+		t.Fatalf("short title = %q", short)
 	}
 }

@@ -44,10 +44,21 @@ func (s *DocumentService) CreateSharedPageInTx(ctx context.Context, q *db.Querie
 	if _, err := s.ws.RequireMemberQ(ctx, q, in.WorkspaceID, actor.ID); err != nil {
 		return db.Document{}, err
 	}
+	// The tree lock before any document row, as CreatePage takes it: two
+	// root creates never share a position.
+	if err := q.LockDocumentTree(ctx, in.WorkspaceID); err != nil {
+		return db.Document{}, err
+	}
 	doc, err := s.insertPage(ctx, q, actor, newPage{
 		OrganizationID: in.OrganizationID, WorkspaceID: in.WorkspaceID, Kind: DocumentKindPage, Title: title,
 		Visibility: documentVisibilityWorkspace, WorkspaceLevel: string(DocumentLevelView), Page: page,
 	})
+	if err != nil {
+		return db.Document{}, err
+	}
+	// The creator holds the page as its ACL owner; the grants go through the
+	// one share door with that access, exactly as a share from the dialog.
+	access, err := s.effectiveLevel(ctx, q, actor, doc)
 	if err != nil {
 		return db.Document{}, err
 	}
@@ -56,20 +67,14 @@ func (s *DocumentService) CreateSharedPageInTx(ctx context.Context, q *db.Querie
 			continue
 		}
 		share := DocumentShareInput{PrincipalType: DocumentPrincipalUser, PrincipalID: id, Level: DocumentLevelEdit}
-		if err := s.validateSharePrincipal(ctx, q, doc, share); err != nil {
+		_, err := s.shareDocumentInTx(ctx, q, actor, doc, access, share)
+		var ce CodedError
+		if errors.As(err, &ce) && ce.Code == "principal_not_in_organization" {
 			// An editor who has left the organization gets no grant; the
 			// page is made for the others.
-			var ce CodedError
-			if errors.As(err, &ce) && ce.Code == "principal_not_in_organization" {
-				continue
-			}
-			return db.Document{}, err
+			continue
 		}
-		notify, err := s.notifyOnUserShare(ctx, q, actor, doc, nil, id, DocumentLevelEdit)
 		if err != nil {
-			return db.Document{}, err
-		}
-		if _, err := s.applyDocumentShareWithBatch(ctx, q, actor, doc, DocumentAccess{Level: DocumentLevelManage}, share, "", notify); err != nil {
 			return db.Document{}, err
 		}
 	}
@@ -111,18 +116,24 @@ func (s *DocumentService) LockPageForEditInTx(ctx context.Context, q *db.Queries
 }
 
 // CreateDocumentVersionInTx takes a manual version of a page locked by
-// LockPageForEditInTx. A working copy unchanged since the latest version
-// answers that version and writes nothing: the caller wants "the version
-// that holds this content", not a duplicate.
+// LockPageForEditInTx. A page whose content was not saved after its latest
+// version answers that version and writes nothing: the caller wants "the
+// version that holds this content", not a duplicate. Saved since - even back
+// to the same content - is a new version.
 func (s *DocumentService) CreateDocumentVersionInTx(ctx context.Context, q *db.Queries, actor Actor, doc db.Document) (db.DocumentVersion, error) {
-	v, err := s.insertManualPageVersion(ctx, q, actor, doc, "")
-	var ce CodedError
-	if errors.As(err, &ce) && ce.Code == "document_version_unchanged" {
-		return q.GetLatestDocumentVersion(ctx, db.GetLatestDocumentVersionParams{
-			OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID, DocumentID: doc.ID,
-		})
+	latest, err := q.GetLatestDocumentVersion(ctx, db.GetLatestDocumentVersionParams{
+		OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID, DocumentID: doc.ID,
+	})
+	switch {
+	case err == nil:
+		savedSince := doc.ContentSavedAt.Valid && doc.ContentSavedAt.Time.After(latest.CreatedAt.Time)
+		if latest.Kind == DocumentKindPage && !savedSince {
+			return latest, nil
+		}
+	case !errors.Is(err, pgx.ErrNoRows):
+		return db.DocumentVersion{}, err
 	}
-	return v, err
+	return s.insertManualPageVersion(ctx, q, actor, doc, "", true)
 }
 
 // LevelFor is the actor's level on a document; a gate refusal is none.
