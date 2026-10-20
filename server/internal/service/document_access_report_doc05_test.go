@@ -136,7 +136,7 @@ func TestAccessReportDOC05RestrictedFolderScope(t *testing.T) {
 	if page.FolderID != folder.ID || page.FolderTitle != "Nhân sự" {
 		t.Fatalf("scope = %q %q", page.FolderID, page.FolderTitle)
 	}
-	arSame(t, "listed", arIDs(page), arSorted(folder.ID, child.ID))
+	arSame(t, "listed", arSorted(arIDs(page)...), arSorted(folder.ID, child.ID))
 
 	_, err := f.svc.DocumentAccessReport(f.ctx, Human(tn.member.ID), tn.wsA, DocumentAccessReportQuery{FolderID: folder.ID})
 	if !errors.Is(err, ErrNotFound) {

@@ -5,10 +5,31 @@
 -- The candidate reads name the columns a report uses: never d.*, which
 -- would drag content, content_text and search_text through every page.
 
+-- Candidates are read in one of three orders, named by sort_mode: changed
+-- (access_changed_at), title (the vi-x-icu collation, as UNI-2038's lists) and
+-- id (the export's historic order). Every order ends on id COLLATE "C", and
+-- the keyset predicate is (key, id) in that order, so duplicate keys neither
+-- skip nor repeat a row across pages.
 -- name: ListDocumentAccessReportWorkspaceCandidates :many
-SELECT d.id, d.organization_id, d.workspace_id, d.parent_id, d.kind, d.title, d.visibility,
-  d.workspace_level, d.owner_kind, d.owner_id, d.acl_owner_id, d.archived_at, d.updated_at
+WITH cand AS (
+SELECT d.id, d.organization_id, d.workspace_id, d.parent_id, d.kind, d.system_kind, d.title, d.visibility,
+  d.workspace_level, d.owner_kind, d.owner_id, d.acl_owner_id, d.archived_at, d.updated_at,
+  chg.changed_at AS access_changed_at
 FROM documents d
+  -- UNI-2039 S1: the last time the document's access changed - the greatest of
+  -- the document's creation and every share, public link and break-glass
+  -- stamp (created, revoked or granted). Revoked rows count: a revoke is a change.
+  LEFT JOIN LATERAL (
+    SELECT GREATEST(
+      d.created_at,
+      (SELECT max(GREATEST(s.created_at, s.revoked_at)) FROM document_shares s
+        WHERE s.organization_id = d.organization_id AND s.workspace_id = d.workspace_id AND s.document_id = d.id),
+      (SELECT max(GREATEST(l.created_at, l.revoked_at)) FROM document_share_links l
+        WHERE l.organization_id = d.organization_id AND l.workspace_id = d.workspace_id AND l.document_id = d.id),
+      (SELECT max(g.granted_at) FROM document_break_glass_grants g
+        WHERE g.organization_id = d.organization_id AND g.workspace_id = d.workspace_id AND g.document_id = d.id)
+    )::timestamptz AS changed_at
+  ) chg ON true
 WHERE d.organization_id = sqlc.arg(organization_id)
   AND d.workspace_id = sqlc.arg(workspace_id)
   AND d.archived_at IS NULL
@@ -37,8 +58,28 @@ WHERE d.organization_id = sqlc.arg(organization_id)
             SELECT 1 FROM uw_my_folder_foreign_ids(
               sqlc.arg(actor_id), sqlc.arg(organization_id), sqlc.arg(workspace_id), sqlc.arg(max_level)::int
             ) mfs WHERE mfs.document_id = d.id))
-  AND d.id > sqlc.arg(after_id)::text
-ORDER BY d.id
+)
+SELECT c.id, c.organization_id, c.workspace_id, c.parent_id, c.kind, c.system_kind, c.title, c.visibility,
+  c.workspace_level, c.owner_kind, c.owner_id, c.acl_owner_id, c.archived_at, c.updated_at, c.access_changed_at
+FROM cand c
+WHERE (NOT sqlc.arg(has_after)::boolean OR CASE sqlc.arg(sort_mode)::text
+    WHEN 'changed' THEN CASE WHEN sqlc.arg(descending)::boolean
+      THEN (c.access_changed_at < sqlc.arg(after_changed)::timestamptz
+            OR (c.access_changed_at = sqlc.arg(after_changed)::timestamptz AND c.id COLLATE "C" > sqlc.arg(after_id)::text COLLATE "C"))
+      ELSE (c.access_changed_at > sqlc.arg(after_changed)::timestamptz
+            OR (c.access_changed_at = sqlc.arg(after_changed)::timestamptz AND c.id COLLATE "C" > sqlc.arg(after_id)::text COLLATE "C")) END
+    WHEN 'title' THEN CASE WHEN sqlc.arg(descending)::boolean
+      THEN (c.title COLLATE "vi-x-icu" < sqlc.arg(after_title)::text COLLATE "vi-x-icu"
+            OR (c.title COLLATE "vi-x-icu" = sqlc.arg(after_title)::text COLLATE "vi-x-icu" AND c.id COLLATE "C" > sqlc.arg(after_id)::text COLLATE "C"))
+      ELSE (c.title COLLATE "vi-x-icu" > sqlc.arg(after_title)::text COLLATE "vi-x-icu"
+            OR (c.title COLLATE "vi-x-icu" = sqlc.arg(after_title)::text COLLATE "vi-x-icu" AND c.id COLLATE "C" > sqlc.arg(after_id)::text COLLATE "C")) END
+    ELSE c.id COLLATE "C" > sqlc.arg(after_id)::text COLLATE "C" END)
+ORDER BY
+  (CASE WHEN sqlc.arg(sort_mode)::text = 'changed' AND NOT sqlc.arg(descending)::boolean THEN c.access_changed_at END) ASC,
+  (CASE WHEN sqlc.arg(sort_mode)::text = 'changed' AND sqlc.arg(descending)::boolean THEN c.access_changed_at END) DESC,
+  (CASE WHEN sqlc.arg(sort_mode)::text = 'title' AND NOT sqlc.arg(descending)::boolean THEN c.title END) COLLATE "vi-x-icu" ASC,
+  (CASE WHEN sqlc.arg(sort_mode)::text = 'title' AND sqlc.arg(descending)::boolean THEN c.title END) COLLATE "vi-x-icu" DESC,
+  c.id COLLATE "C"
 LIMIT sqlc.arg(max_rows);
 
 -- The folder subtree, root included, walked as ListLiveDocumentSubtreeIDs
@@ -59,11 +100,26 @@ WITH RECURSIVE sub AS (
   WHERE c.organization_id = sqlc.arg(organization_id)
     AND c.workspace_id = sqlc.arg(workspace_id)
     AND sub.lvl < sqlc.arg(max_level)::int
-)
-SELECT d.id, d.organization_id, d.workspace_id, d.parent_id, d.kind, d.title, d.visibility,
-  d.workspace_level, d.owner_kind, d.owner_id, d.acl_owner_id, d.archived_at, d.updated_at
+), cand AS (
+SELECT d.id, d.organization_id, d.workspace_id, d.parent_id, d.kind, d.system_kind, d.title, d.visibility,
+  d.workspace_level, d.owner_kind, d.owner_id, d.acl_owner_id, d.archived_at, d.updated_at,
+  chg.changed_at AS access_changed_at
 FROM sub
 JOIN documents d ON d.id = sub.id
+  -- UNI-2039 S1: the last time the document's access changed - the greatest of
+  -- the document's creation and every share, public link and break-glass
+  -- stamp (created, revoked or granted). Revoked rows count: a revoke is a change.
+  LEFT JOIN LATERAL (
+    SELECT GREATEST(
+      d.created_at,
+      (SELECT max(GREATEST(s.created_at, s.revoked_at)) FROM document_shares s
+        WHERE s.organization_id = d.organization_id AND s.workspace_id = d.workspace_id AND s.document_id = d.id),
+      (SELECT max(GREATEST(l.created_at, l.revoked_at)) FROM document_share_links l
+        WHERE l.organization_id = d.organization_id AND l.workspace_id = d.workspace_id AND l.document_id = d.id),
+      (SELECT max(g.granted_at) FROM document_break_glass_grants g
+        WHERE g.organization_id = d.organization_id AND g.workspace_id = d.workspace_id AND g.document_id = d.id)
+    )::timestamptz AS changed_at
+  ) chg ON true
 WHERE d.organization_id = sqlc.arg(organization_id)
   AND d.workspace_id = sqlc.arg(workspace_id)
   AND d.archived_at IS NULL
@@ -92,8 +148,28 @@ WHERE d.organization_id = sqlc.arg(organization_id)
             SELECT 1 FROM uw_my_folder_foreign_ids(
               sqlc.arg(actor_id), sqlc.arg(organization_id), sqlc.arg(workspace_id), sqlc.arg(max_level)::int
             ) mfs WHERE mfs.document_id = d.id))
-  AND d.id > sqlc.arg(after_id)::text
-ORDER BY d.id
+)
+SELECT c.id, c.organization_id, c.workspace_id, c.parent_id, c.kind, c.system_kind, c.title, c.visibility,
+  c.workspace_level, c.owner_kind, c.owner_id, c.acl_owner_id, c.archived_at, c.updated_at, c.access_changed_at
+FROM cand c
+WHERE (NOT sqlc.arg(has_after)::boolean OR CASE sqlc.arg(sort_mode)::text
+    WHEN 'changed' THEN CASE WHEN sqlc.arg(descending)::boolean
+      THEN (c.access_changed_at < sqlc.arg(after_changed)::timestamptz
+            OR (c.access_changed_at = sqlc.arg(after_changed)::timestamptz AND c.id COLLATE "C" > sqlc.arg(after_id)::text COLLATE "C"))
+      ELSE (c.access_changed_at > sqlc.arg(after_changed)::timestamptz
+            OR (c.access_changed_at = sqlc.arg(after_changed)::timestamptz AND c.id COLLATE "C" > sqlc.arg(after_id)::text COLLATE "C")) END
+    WHEN 'title' THEN CASE WHEN sqlc.arg(descending)::boolean
+      THEN (c.title COLLATE "vi-x-icu" < sqlc.arg(after_title)::text COLLATE "vi-x-icu"
+            OR (c.title COLLATE "vi-x-icu" = sqlc.arg(after_title)::text COLLATE "vi-x-icu" AND c.id COLLATE "C" > sqlc.arg(after_id)::text COLLATE "C"))
+      ELSE (c.title COLLATE "vi-x-icu" > sqlc.arg(after_title)::text COLLATE "vi-x-icu"
+            OR (c.title COLLATE "vi-x-icu" = sqlc.arg(after_title)::text COLLATE "vi-x-icu" AND c.id COLLATE "C" > sqlc.arg(after_id)::text COLLATE "C")) END
+    ELSE c.id COLLATE "C" > sqlc.arg(after_id)::text COLLATE "C" END)
+ORDER BY
+  (CASE WHEN sqlc.arg(sort_mode)::text = 'changed' AND NOT sqlc.arg(descending)::boolean THEN c.access_changed_at END) ASC,
+  (CASE WHEN sqlc.arg(sort_mode)::text = 'changed' AND sqlc.arg(descending)::boolean THEN c.access_changed_at END) DESC,
+  (CASE WHEN sqlc.arg(sort_mode)::text = 'title' AND NOT sqlc.arg(descending)::boolean THEN c.title END) COLLATE "vi-x-icu" ASC,
+  (CASE WHEN sqlc.arg(sort_mode)::text = 'title' AND sqlc.arg(descending)::boolean THEN c.title END) COLLATE "vi-x-icu" DESC,
+  c.id COLLATE "C"
 LIMIT sqlc.arg(max_rows);
 
 -- The number of nodes of the same walk, stopped at max_nodes + 1: the export
@@ -120,7 +196,7 @@ FROM (SELECT id FROM sub LIMIT sqlc.arg(max_nodes)::int + 1) capped;
 -- shows. A separate query from ListLiveSharesForDocuments, which the hot
 -- list path keeps narrow.
 -- name: ListLiveDocumentSharesForReport :many
-SELECT id, document_id, principal_type, principal_id, level, granted_by, granted_by_kind, created_at
+SELECT id, document_id, principal_type, principal_id, level, granted_by, granted_by_kind, origin, created_at
 FROM document_shares
 WHERE organization_id = sqlc.arg(organization_id)
   AND workspace_id = sqlc.arg(workspace_id)
@@ -128,17 +204,18 @@ WHERE organization_id = sqlc.arg(organization_id)
   AND revoked_at IS NULL
 ORDER BY document_id, created_at, id;
 
--- Live public links per document of a page: not revoked and not expired, as
--- ListLiveDocumentShareLinks counts them. Never the token hash.
--- name: CountLiveDocumentShareLinksForDocuments :many
-SELECT document_id, count(*)::int AS n
+-- Live public links of a page of documents: not revoked and not expired, as
+-- ListLiveDocumentShareLinks counts them (UNI-2039 S2: one report row each;
+-- live_link_count is their number). Never the token hash.
+-- name: ListLiveDocumentShareLinksForReport :many
+SELECT id, document_id, created_by, created_by_kind, created_at, expires_at
 FROM document_share_links
 WHERE organization_id = sqlc.arg(organization_id)
   AND workspace_id = sqlc.arg(workspace_id)
   AND document_id = ANY(sqlc.arg(document_ids)::text[])
   AND revoked_at IS NULL
   AND expires_at > now()
-GROUP BY document_id;
+ORDER BY document_id, created_at, id;
 
 -- The live break-glass grants of a page of documents (UNI-1413 DOC-05):
 -- every admin's, not only the caller's, as the report shows who holds
@@ -169,3 +246,15 @@ SELECT EXISTS (
         sqlc.arg(actor_id), sqlc.arg(organization_id), sqlc.arg(workspace_id), sqlc.arg(max_level)::int
       ) mfs WHERE mfs.document_id = d.id)
 )::boolean AS in_set;
+
+-- UNI-2039 S7: how many people a workspace principal stands for - the
+-- workspace's rows whose person is still an active member of the
+-- organization (a deactivated member keeps the row, not the access).
+-- name: CountDocumentAccessReportWorkspaceMembers :many
+SELECT wm.workspace_id, count(*)::int AS n
+FROM workspace_members wm
+JOIN organization_members om ON om.organization_id = wm.organization_id AND om.user_id = wm.user_id
+WHERE wm.organization_id = sqlc.arg(organization_id)
+  AND wm.workspace_id = ANY(sqlc.arg(workspace_ids)::text[])
+  AND om.deactivated_at IS NULL
+GROUP BY wm.workspace_id;

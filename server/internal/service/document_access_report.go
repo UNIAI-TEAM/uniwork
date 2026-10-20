@@ -3,9 +3,13 @@ package service
 import (
 	"context"
 	"errors"
+	"slices"
+	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
@@ -27,14 +31,107 @@ const (
 	AccessReportSourceWorkspace  = "workspace"
 	AccessReportSourceShare      = "share"
 	AccessReportSourceBreakGlass = "break_glass"
+	AccessReportSourceLink       = "link"
+	AccessReportViaLink          = "link"
 )
 
-// DocumentAccessReportQuery is one request of the report. Levels are
-// validated values; AfterID is the last candidate of the previous page.
+// Revoke kinds of a row (the DELETE route to call) and share origins.
+const (
+	AccessReportRevokeShare      = "share"
+	AccessReportRevokeLink       = "link"
+	AccessReportRevokeBreakGlass = "break_glass"
+	AccessReportOriginDirect     = DocumentShareOriginDirect
+	AccessReportOriginChat       = DocumentShareOriginChat
+)
+
+// Source keys of the S5 source filter and of the principals' main_source.
+const (
+	AccessReportSourceKeyOwner      = "owner"
+	AccessReportSourceKeyWorkspace  = "workspace"
+	AccessReportSourceKeyDirect     = "direct"
+	AccessReportSourceKeyChat       = "chat"
+	AccessReportSourceKeyLink       = "link"
+	AccessReportSourceKeyBreakGlass = "break_glass"
+)
+
+// accessReportSourceKey is the S5 source of a row: the origin of a share, the
+// kind of every other row.
+func accessReportSourceKey(row DocumentAccessReportRow) string {
+	switch row.Source {
+	case AccessReportSourceACLOwner:
+		return AccessReportSourceKeyOwner
+	case AccessReportSourceWorkspace:
+		return AccessReportSourceKeyWorkspace
+	case AccessReportSourceShare:
+		if row.Origin == AccessReportOriginChat {
+			return AccessReportSourceKeyChat
+		}
+		return AccessReportSourceKeyDirect
+	case AccessReportSourceLink:
+		return AccessReportSourceKeyLink
+	case AccessReportSourceBreakGlass:
+		return AccessReportSourceKeyBreakGlass
+	}
+	return row.Source
+}
+
+// General scope kinds and document flags (UNI-2039 S1).
+const (
+	AccessReportScopeRestricted   = "restricted"
+	AccessReportScopeWorkspace    = "workspace"
+	AccessReportScopeOrganization = "organization"
+	AccessReportFlagOutside       = "outside_workspace" // other_workspace or organization
+	AccessReportFlagPublicLink    = "public_link"
+	AccessReportFlagOtherWS       = "other_workspace"
+	AccessReportFlagOrganization  = "organization"
+	AccessReportFlagDirectManage  = "direct_manage"
+)
+
+// Sort keys and directions of the page (UNI-2039 S4). accessReportSortID is
+// the export's historic order and is never accepted from a client.
+const (
+	AccessReportSortChanged = "changed"
+	AccessReportSortTitle   = "title"
+	accessReportSortID      = "id"
+	AccessReportOrderAsc    = "asc"
+	AccessReportOrderDesc   = "desc"
+)
+
+// accessReportScanFactor bounds how many candidates one page reads while it
+// looks for limit listable documents (S4): 10 x limit, then a short page.
+const accessReportScanFactor = 10
+
+// AccessReportKey is the keyset position of one candidate: the sort value of
+// its order plus the id that breaks ties.
+type AccessReportKey struct {
+	Changed time.Time
+	Title   string
+	ID      string
+}
+
+// DocumentAccessReportQuery is one request of the report. Levels, Sort and
+// Order are validated values; After is the last candidate of the previous
+// page (nil = first page).
 type DocumentAccessReportQuery struct {
-	FolderID, PersonID, Visibility, AfterID string
-	Levels                                  []string
-	Limit                                   int
+	FolderID, PersonID, Visibility string
+	Levels                         []string
+	Limit                          int
+	// Sort is changed (default) or title; Order is asc or desc (default desc
+	// for changed, asc for title).
+	Sort, Order string
+	After       *AccessReportKey
+
+	// UNI-2039 S5. Q is a case- and accent-insensitive match on the document
+	// title or a principal name (<= 100 runes). PrincipalType/PrincipalID keep
+	// only the rows of one principal (link without an id = anyone with the
+	// link; a person is PersonID, whose rows reach them). Scope is the general
+	// scope; Sources are source keys; Flag a document flag; NonDefault drops
+	// the owner and default-workspace rows.
+	Q                          string
+	PrincipalType, PrincipalID string
+	Scope, Flag                string
+	Sources                    []string
+	NonDefault                 bool
 }
 
 // DocumentAccessReportRow is one grant: a path that gives a principal a level
@@ -46,6 +143,14 @@ type DocumentAccessReportRow struct {
 	Active                                                         bool
 	GrantedBy, GrantedByKind, GrantedByName, ShareID               string
 	GrantedAt                                                      *time.Time
+	// RevokeKind/RevokeID name the existing DELETE route that ends this row
+	// (share, link, break_glass); empty when the caller cannot revoke it. A
+	// hint for the button only: the revoke service's own gate decides.
+	RevokeKind, RevokeID string
+	// Origin is direct or chat on a share row; empty on every other row.
+	Origin string
+	// ExpiresAt is set on a link row.
+	ExpiresAt *time.Time
 }
 
 // DocumentAccessReportItem is one listed document with its rows.
@@ -56,6 +161,13 @@ type DocumentAccessReportItem struct {
 	// PersonLevel is set only when the query names a person.
 	PersonLevel DocumentLevel
 	Rows        []DocumentAccessReportRow
+	// UNI-2039 S1: facts of the whole document, computed from every row
+	// before any row filter. GeneralScope is restricted, workspace or
+	// organization; GeneralLevel is the level of the workspace or
+	// organization row ("" when restricted).
+	GeneralScope, GeneralLevel string
+	Flags                      []string
+	AccessChangedAt            time.Time
 }
 
 // DocumentAccessReportPage is one page of the report.
@@ -64,8 +176,9 @@ type DocumentAccessReportPage struct {
 	GeneratedAt           time.Time
 	Items                 []DocumentAccessReportItem
 	Candidates, Skipped   int
-	// NextAfterID is the last candidate read when the page was full; "" = done.
-	NextAfterID string
+	// Next is the last candidate consumed when the page stopped early (full,
+	// or the scan bound was reached); nil = done.
+	Next *AccessReportKey
 }
 
 // DocumentAccessReportExport is what an export wrote.
@@ -100,7 +213,95 @@ func validateAccessReportQuery(in DocumentAccessReportQuery) error {
 			return Invalid("level không hợp lệ")
 		}
 	}
+	if utf8.RuneCountInString(in.Q) > 100 {
+		return Invalid("q tối đa 100 ký tự")
+	}
+	switch in.PrincipalType {
+	case "", DocumentPrincipalUser, DocumentPrincipalWorkspace, DocumentPrincipalOrganization:
+		if in.PrincipalType != "" && in.PrincipalID == "" {
+			return Invalid("principal cần id")
+		}
+	case AccessReportSourceLink:
+	default:
+		return Invalid("principal không hợp lệ")
+	}
+	switch in.Scope {
+	case "", AccessReportScopeRestricted, AccessReportScopeWorkspace, AccessReportScopeOrganization:
+	default:
+		return Invalid("scope không hợp lệ")
+	}
+	switch in.Flag {
+	case "", AccessReportFlagPublicLink, AccessReportFlagOutside, AccessReportFlagDirectManage:
+	default:
+		return Invalid("flag không hợp lệ")
+	}
+	for _, src := range in.Sources {
+		switch src {
+		case AccessReportSourceKeyOwner, AccessReportSourceKeyWorkspace, AccessReportSourceKeyDirect,
+			AccessReportSourceKeyChat, AccessReportSourceKeyLink, AccessReportSourceKeyBreakGlass:
+		default:
+			return Invalid("source không hợp lệ")
+		}
+	}
+	switch in.Sort {
+	case "", AccessReportSortChanged, AccessReportSortTitle:
+	default:
+		return Invalid("sort không hợp lệ")
+	}
+	switch in.Order {
+	case "", AccessReportOrderAsc, AccessReportOrderDesc:
+	default:
+		return Invalid("order không hợp lệ")
+	}
 	return nil
+}
+
+// PrincipalRef is the <type>:<id> form of the principal filter ("" when none;
+// "link" for anyone with the link).
+func (in DocumentAccessReportQuery) PrincipalRef() string {
+	switch {
+	case in.PrincipalType == "":
+		return ""
+	case in.PrincipalID == "":
+		return in.PrincipalType
+	}
+	return in.PrincipalType + ":" + in.PrincipalID
+}
+
+// s5Pairs are the S5 filters that are set, as key/value pairs for the file's
+// filter record.
+func (in DocumentAccessReportQuery) s5Pairs() [][]string {
+	var out [][]string
+	add := func(k, v string) {
+		if v != "" {
+			out = append(out, []string{k, v})
+		}
+	}
+	add("q", in.Q)
+	add("principal", in.PrincipalRef())
+	add("scope", in.Scope)
+	add("source", strings.Join(in.Sources, ","))
+	add("flag", in.Flag)
+	if in.NonDefault {
+		add("non_default", "1")
+	}
+	return out
+}
+
+// SortOrder is the page's resolved order: the sort key and whether it runs
+// descending (changed defaults to newest first, title to A-Z).
+func (in DocumentAccessReportQuery) SortOrder() (mode string, descending bool) {
+	mode = in.Sort
+	if mode == "" {
+		mode = AccessReportSortChanged
+	}
+	switch in.Order {
+	case AccessReportOrderAsc:
+		return mode, false
+	case AccessReportOrderDesc:
+		return mode, true
+	}
+	return mode, mode == AccessReportSortChanged
 }
 
 // accessReportRun is one report request: the caller's gates, the folder and
@@ -114,6 +315,10 @@ type accessReportRun struct {
 	scope       documentListScope
 	folder      *db.Document
 	levels      map[string]bool
+	// visibility is the visibility the candidate read filters on in SQL.
+	visibility string
+	sources    map[string]bool
+	qFold      string
 
 	// person is the filtered person's list scope; nil with a person filter
 	// means their gates refuse them, so nothing reaches them.
@@ -151,6 +356,7 @@ func (s *DocumentService) openAccessReport(ctx context.Context, q *db.Queries, a
 	run := &accessReportRun{
 		s: s, q: q, workspaceID: workspaceID, in: in, scope: scope,
 		userScopes: map[string]*documentListScope{}, groupActive: map[string]bool{}, groupNames: map[string]string{},
+		visibility: in.Visibility,
 	}
 	if len(in.Levels) > 0 {
 		run.levels = make(map[string]bool, len(in.Levels))
@@ -158,6 +364,13 @@ func (s *DocumentService) openAccessReport(ctx context.Context, q *db.Queries, a
 			run.levels[l] = true
 		}
 	}
+	if len(in.Sources) > 0 {
+		run.sources = make(map[string]bool, len(in.Sources))
+		for _, src := range in.Sources {
+			run.sources[src] = true
+		}
+	}
+	run.qFold = foldForSearch(in.Q)
 	if in.FolderID != "" {
 		doc, _, err := s.authorizeDocumentGate(ctx, q, actor, in.FolderID, decideDocumentViewOrAdminister)
 		if err != nil {
@@ -303,70 +516,207 @@ func (r *accessReportRun) groupName(ctx context.Context, principalType, principa
 type accessReportPageResult struct {
 	items               []DocumentAccessReportItem
 	candidates, skipped int
-	nextAfterID         string
+	next                *AccessReportKey
 }
 
-// page reads limit candidates after afterID and builds the listed items. The
-// query count does not grow with the page: one candidate read, one share
-// read for the caller's levels, one for the rows, one link count, the path
-// reads, one name batch, and per distinct principal the memoized gates.
-func (r *accessReportRun) page(ctx context.Context, afterID string, limit int) (accessReportPageResult, error) {
-	var out accessReportPageResult
-	var docs []db.Document
+// arCandidate is one candidate read: the document and its sort position.
+type arCandidate struct {
+	doc     db.Document
+	changed time.Time
+}
+
+func (c arCandidate) key() AccessReportKey {
+	return AccessReportKey{Changed: c.changed, Title: c.doc.Title, ID: c.doc.ID}
+}
+
+// arResult is what one candidate came to: counted as skipped (readable, not
+// manageable), listed as an item, or neither.
+type arResult struct {
+	key     AccessReportKey
+	skipped bool
+	item    *DocumentAccessReportItem
+	// listed is set for every document the caller manages, whatever the
+	// filters did to it, with its general scope and flags (the summary tiles).
+	listed bool
+	scope  string
+	flags  []string
+}
+
+// readChunk reads up to n candidates after the keyset position, in the
+// requested order (changed, title, or the export's id order).
+func (r *accessReportRun) readChunk(ctx context.Context, after *AccessReportKey, n int, mode string, descending bool) ([]arCandidate, error) {
+	var afterChanged pgtype.Timestamptz
+	var afterTitle, afterID string
+	if after != nil {
+		afterChanged = pgtype.Timestamptz{Time: after.Changed, Valid: true}
+		afterTitle, afterID = after.Title, after.ID
+	}
+	var out []arCandidate
 	if r.folder != nil {
 		rows, err := r.q.ListDocumentAccessReportSubtreeCandidates(ctx, db.ListDocumentAccessReportSubtreeCandidatesParams{
 			OrganizationID: r.scope.organizationID, WorkspaceID: r.workspaceID, RootID: r.folder.ID,
 			SeeAll: r.scope.seeAll, ActorID: r.scope.actorID, MaxLevel: subtreeMaxLevel(),
 			ShareLevels: shareLevelsFor(DocumentLevelView), ShareWorkspaces: r.scope.shareWorkspaces,
-			Visibility: r.in.Visibility, AfterID: afterID, MaxRows: int32(limit),
+			Visibility: r.visibility, SortMode: mode, Descending: descending, HasAfter: after != nil,
+			AfterChanged: afterChanged, AfterTitle: afterTitle, AfterID: afterID, MaxRows: int32(n),
 		})
 		if err != nil {
-			return out, err
+			return nil, err
 		}
-		docs = make([]db.Document, len(rows))
+		out = make([]arCandidate, len(rows))
 		for i, row := range rows {
-			docs[i] = accessReportCandidate(row)
+			out[i] = accessReportCandidate(row)
 		}
-	} else {
-		rows, err := r.q.ListDocumentAccessReportWorkspaceCandidates(ctx, db.ListDocumentAccessReportWorkspaceCandidatesParams{
-			OrganizationID: r.scope.organizationID, WorkspaceID: r.workspaceID,
-			SeeAll: r.scope.seeAll, ActorID: r.scope.actorID, MaxLevel: subtreeMaxLevel(),
-			ShareLevels: shareLevelsFor(DocumentLevelView), ShareWorkspaces: r.scope.shareWorkspaces,
-			Visibility: r.in.Visibility, AfterID: afterID, MaxRows: int32(limit),
-		})
-		if err != nil {
-			return out, err
-		}
-		docs = make([]db.Document, len(rows))
-		for i, row := range rows {
-			docs[i] = accessReportCandidate(db.ListDocumentAccessReportSubtreeCandidatesRow(row))
-		}
-	}
-	out.candidates = len(docs)
-	if len(docs) == limit {
-		out.nextAfterID = docs[len(docs)-1].ID
-	}
-	if len(docs) == 0 {
 		return out, nil
 	}
-	cands := make([]DocumentListItem, len(docs))
-	for i, d := range docs {
-		cands[i] = DocumentListItem{Document: d}
+	rows, err := r.q.ListDocumentAccessReportWorkspaceCandidates(ctx, db.ListDocumentAccessReportWorkspaceCandidatesParams{
+		OrganizationID: r.scope.organizationID, WorkspaceID: r.workspaceID,
+		SeeAll: r.scope.seeAll, ActorID: r.scope.actorID, MaxLevel: subtreeMaxLevel(),
+		ShareLevels: shareLevelsFor(DocumentLevelView), ShareWorkspaces: r.scope.shareWorkspaces,
+		Visibility: r.visibility, SortMode: mode, Descending: descending, HasAfter: after != nil,
+		AfterChanged: afterChanged, AfterTitle: afterTitle, AfterID: afterID, MaxRows: int32(n),
+	})
+	if err != nil {
+		return nil, err
 	}
-	if err := r.s.attachListAccessQ(ctx, r.q, r.scope, r.workspaceID, false, cands); err != nil {
-		return out, err
+	out = make([]arCandidate, len(rows))
+	for i, row := range rows {
+		out[i] = accessReportCandidate(db.ListDocumentAccessReportSubtreeCandidatesRow(row))
+	}
+	return out, nil
+}
+
+// page reads one page of the report in the query's order. It keeps reading
+// candidate chunks until it holds limit listable documents (S4) or has
+// scanned accessReportScanFactor x limit candidates; only then does it return
+// short, with a cursor, as the keyset walk always could. The query count does
+// not grow with a chunk: one candidate read, one share read for the caller's
+// levels, one for the rows, one link read, the path reads, one name batch,
+// and per distinct principal the memoized gates.
+func (r *accessReportRun) page(ctx context.Context, in DocumentAccessReportQuery, limit int) (accessReportPageResult, error) {
+	var out accessReportPageResult
+	mode, descending := in.SortOrder()
+	after := in.After
+	for {
+		cands, err := r.readChunk(ctx, after, limit, mode, descending)
+		if err != nil {
+			return out, err
+		}
+		results, err := r.process(ctx, cands)
+		if err != nil {
+			return out, err
+		}
+		for i, res := range results {
+			out.candidates++
+			if res.skipped {
+				out.skipped++
+			}
+			if res.item != nil {
+				out.items = append(out.items, *res.item)
+			}
+			key := res.key
+			if len(out.items) == limit {
+				// A full page. The walk is over when this was the last
+				// candidate of a chunk that came back short.
+				if i < len(results)-1 || len(cands) == limit {
+					out.next = &key
+				}
+				return out, nil
+			}
+			after = &key
+		}
+		if len(cands) < limit {
+			return out, nil
+		}
+		if out.candidates >= accessReportScanFactor*limit {
+			out.next = after
+			return out, nil
+		}
+	}
+}
+
+// scan walks the whole scope in id order, chunk candidates at a time, and
+// hands every chunk's results to fn (export, summary, principals). maxCand > 0
+// stops after that many candidates and reports truncated when more remain.
+func (r *accessReportRun) scan(ctx context.Context, chunk, maxCand int, fn func([]arResult) error) (truncated bool, err error) {
+	var after *AccessReportKey
+	read := 0
+	for {
+		n := chunk
+		if maxCand > 0 && maxCand-read < n {
+			n = maxCand - read
+		}
+		cands, err := r.readChunk(ctx, after, n, accessReportSortID, false)
+		if err != nil {
+			return false, err
+		}
+		results, err := r.process(ctx, cands)
+		if err != nil {
+			return false, err
+		}
+		if err := fn(results); err != nil {
+			return false, err
+		}
+		read += len(cands)
+		if len(cands) < n {
+			return false, nil
+		}
+		last := cands[len(cands)-1].key()
+		after = &last
+		if maxCand > 0 && read >= maxCand {
+			// Truncated only when one more candidate exists.
+			more, err := r.readChunk(ctx, after, 1, accessReportSortID, false)
+			return len(more) > 0, err
+		}
+	}
+}
+
+// accessReportCandidate is a narrow candidate row as the document the list
+// mirror reads; the columns it leaves out (content, search text, versions)
+// no report path reads.
+func accessReportCandidate(r db.ListDocumentAccessReportSubtreeCandidatesRow) arCandidate {
+	c := arCandidate{doc: db.Document{
+		ID: r.ID, OrganizationID: r.OrganizationID, WorkspaceID: r.WorkspaceID, ParentID: r.ParentID,
+		Kind: r.Kind, SystemKind: r.SystemKind, Title: r.Title, Visibility: r.Visibility, WorkspaceLevel: r.WorkspaceLevel,
+		OwnerKind: r.OwnerKind, OwnerID: r.OwnerID,
+		AclOwnerID: r.AclOwnerID, ArchivedAt: r.ArchivedAt, UpdatedAt: r.UpdatedAt,
+	}}
+	if r.AccessChangedAt.Valid {
+		c.changed = r.AccessChangedAt.Time.UTC()
+	}
+	return c
+}
+
+// process turns one chunk of candidates into results, in order: the caller's
+// level on each (the list mirror), the rows of the documents they manage, the
+// names, then the filters. Nothing here depends on how many results the
+// caller keeps.
+func (r *accessReportRun) process(ctx context.Context, cands []arCandidate) ([]arResult, error) {
+	results := make([]arResult, len(cands))
+	if len(cands) == 0 {
+		return results, nil
+	}
+	items := make([]DocumentListItem, len(cands))
+	for i, c := range cands {
+		items[i] = DocumentListItem{Document: c.doc}
+		results[i].key = c.key()
+	}
+	if err := r.s.attachListAccessQ(ctx, r.q, r.scope, r.workspaceID, false, items); err != nil {
+		return nil, err
 	}
 	var listed []DocumentListItem
-	for _, c := range cands {
+	var listedAt []int
+	for i, c := range items {
 		switch {
 		case c.Access.canAdminister():
 			listed = append(listed, c)
+			listedAt = append(listedAt, i)
 		case c.Access.Level.AtLeast(DocumentLevelView):
-			out.skipped++
+			results[i].skipped = true
 		}
 	}
-	if len(listed) == 0 || (r.in.PersonID != "" && r.person == nil) {
-		return out, nil
+	if len(listed) == 0 {
+		return results, nil
 	}
 	ids := make([]string, len(listed))
 	for i, it := range listed {
@@ -376,27 +726,27 @@ func (r *accessReportRun) page(ctx context.Context, afterID string, limit int) (
 		OrganizationID: r.scope.organizationID, WorkspaceID: r.workspaceID, DocumentIds: ids,
 	})
 	if err != nil {
-		return out, err
+		return nil, err
 	}
 	shares := make(map[string][]db.ListLiveDocumentSharesForReportRow, len(listed))
 	for _, sh := range shareRows {
 		shares[sh.DocumentID] = append(shares[sh.DocumentID], sh)
 	}
-	linkRows, err := r.q.CountLiveDocumentShareLinksForDocuments(ctx, db.CountLiveDocumentShareLinksForDocumentsParams{
+	linkRows, err := r.q.ListLiveDocumentShareLinksForReport(ctx, db.ListLiveDocumentShareLinksForReportParams{
 		OrganizationID: r.scope.organizationID, WorkspaceID: r.workspaceID, DocumentIds: ids,
 	})
 	if err != nil {
-		return out, err
+		return nil, err
 	}
-	links := make(map[string]int, len(linkRows))
+	links := make(map[string][]db.ListLiveDocumentShareLinksForReportRow, len(listed))
 	for _, l := range linkRows {
-		links[l.DocumentID] = int(l.N)
+		links[l.DocumentID] = append(links[l.DocumentID], l)
 	}
 	grantRows, err := r.q.ListLiveBreakGlassGrantsForReport(ctx, db.ListLiveBreakGlassGrantsForReportParams{
 		OrganizationID: r.scope.organizationID, WorkspaceID: r.workspaceID, DocumentIds: ids,
 	})
 	if err != nil {
-		return out, err
+		return nil, err
 	}
 	grants := make(map[string][]db.ListLiveBreakGlassGrantsForReportRow, len(listed))
 	for _, g := range grantRows {
@@ -407,37 +757,49 @@ func (r *accessReportRun) page(ctx context.Context, afterID string, limit int) (
 		}
 	}
 	if err := r.s.attachListPathsQ(ctx, r.q, r.scope, r.workspaceID, false, listed); err != nil {
-		return out, err
+		return nil, err
 	}
-	for _, it := range listed {
-		item, keep, err := r.buildItem(ctx, it, shares[it.Document.ID], grants[it.Document.ID], links[it.Document.ID])
+	var built []DocumentAccessReportItem
+	var builtAt []int
+	for n, it := range listed {
+		item, keep, err := r.buildItem(ctx, it, cands[listedAt[n]].changed, shares[it.Document.ID], grants[it.Document.ID], links[it.Document.ID])
 		if err != nil {
-			return out, err
+			return nil, err
 		}
+		results[listedAt[n]].listed = true
+		results[listedAt[n]].scope, results[listedAt[n]].flags = item.GeneralScope, item.Flags
 		if keep {
-			out.items = append(out.items, item)
+			built = append(built, item)
+			builtAt = append(builtAt, listedAt[n])
 		}
 	}
-	return out, r.attachNames(ctx, out.items)
-}
-
-// accessReportCandidate is a narrow candidate row as the document the list
-// mirror reads; the columns it leaves out (content, search text, versions)
-// no report path reads.
-func accessReportCandidate(r db.ListDocumentAccessReportSubtreeCandidatesRow) db.Document {
-	return db.Document{
-		ID: r.ID, OrganizationID: r.OrganizationID, WorkspaceID: r.WorkspaceID, ParentID: r.ParentID,
-		Kind: r.Kind, Title: r.Title, Visibility: r.Visibility, WorkspaceLevel: r.WorkspaceLevel,
-		OwnerKind: r.OwnerKind, OwnerID: r.OwnerID,
-		AclOwnerID: r.AclOwnerID, ArchivedAt: r.ArchivedAt, UpdatedAt: r.UpdatedAt,
+	if err := r.attachNames(ctx, built); err != nil {
+		return nil, err
 	}
+	for n := range built {
+		if r.matchesQ(built[n]) {
+			results[builtAt[n]].item = &built[n]
+		}
+	}
+	return results, nil
 }
 
 // buildItem turns one listed document into its rows, then applies the person
 // and level filters; keep is false when the filters leave nothing of it.
-func (r *accessReportRun) buildItem(ctx context.Context, it DocumentListItem, shares []db.ListLiveDocumentSharesForReportRow, grants []db.ListLiveBreakGlassGrantsForReportRow, links int) (DocumentAccessReportItem, bool, error) {
+func (r *accessReportRun) buildItem(ctx context.Context, it DocumentListItem, changed time.Time, shares []db.ListLiveDocumentSharesForReportRow, grants []db.ListLiveBreakGlassGrantsForReportRow, links []db.ListLiveDocumentShareLinksForReportRow) (DocumentAccessReportItem, bool, error) {
 	doc := it.Document
-	item := DocumentAccessReportItem{Item: it, LiveLinkCount: links}
+	item := DocumentAccessReportItem{Item: it, LiveLinkCount: len(links), AccessChangedAt: changed}
+	item.GeneralScope, item.GeneralLevel, item.Flags = accessReportFacts(doc, shares, len(links))
+	// The revoke buttons follow the gate of the DELETE routes' services: the
+	// share and link routes run requireDocumentACLChange, the break-glass
+	// route lets the grant's holder or anyone who administers revoke it.
+	canRevokeACL := requireDocumentACLChange(doc, it.Access) == nil
+	// Document-level filters need no rows: a document they refuse (or a
+	// person no gate admits) costs nothing more. The facts above stay set, so
+	// the summary's tiles still count it.
+	if !r.matchesDocument(item) || (r.in.PersonID != "" && r.person == nil) {
+		return item, false, nil
+	}
 	// The page's shares in the list mirror's shape: every level below is
 	// listRowAccess over them, the batched form of resolveLevel.
 	mirror := make([]db.ListLiveSharesForDocumentsRow, len(shares))
@@ -500,6 +862,10 @@ func (r *accessReportRun) buildItem(ctx context.Context, it DocumentListItem, sh
 			Source: AccessReportSourceShare, Via: string(DocumentViaShare),
 			PrincipalType: sh.PrincipalType, PrincipalID: sh.PrincipalID, Level: sh.Level,
 			GrantedBy: sh.GrantedBy, GrantedByKind: sh.GrantedByKind, ShareID: sh.ID,
+			Origin: sh.Origin,
+		}
+		if canRevokeACL {
+			row.RevokeKind, row.RevokeID = AccessReportRevokeShare, sh.ID
 		}
 		if sh.CreatedAt.Valid {
 			at := sh.CreatedAt.Time.UTC()
@@ -519,7 +885,29 @@ func (r *accessReportRun) buildItem(ctx context.Context, it DocumentListItem, sh
 		row.EffectiveLevel = accessReportLevel(lvl)
 		item.Rows = append(item.Rows, row)
 	}
-	// Live break-glass grants (UNI-1643 P-10, DOC-05), after the shares in
+	// Live public links (UNI-2039 S2), one row each in creation order. A link
+	// gives anyone who holds it view, so level and effective level are view.
+	for _, l := range links {
+		row := DocumentAccessReportRow{
+			Source: AccessReportSourceLink, Via: AccessReportViaLink,
+			PrincipalType: AccessReportSourceLink, PrincipalID: l.ID,
+			Level: string(DocumentLevelView), EffectiveLevel: string(DocumentLevelView), Active: true,
+			GrantedBy: l.CreatedBy, GrantedByKind: l.CreatedByKind,
+		}
+		if l.CreatedAt.Valid {
+			at := l.CreatedAt.Time.UTC()
+			row.GrantedAt = &at
+		}
+		if l.ExpiresAt.Valid {
+			at := l.ExpiresAt.Time.UTC()
+			row.ExpiresAt = &at
+		}
+		if canRevokeACL {
+			row.RevokeKind, row.RevokeID = AccessReportRevokeLink, l.ID
+		}
+		item.Rows = append(item.Rows, row)
+	}
+	// Live break-glass grants (UNI-1643 P-10, DOC-05), after the links in
 	// granted_at order. The admin opened it for themselves, so granted_by is
 	// the grantee; the reason stays off the report.
 	for _, g := range grants {
@@ -532,6 +920,9 @@ func (r *accessReportRun) buildItem(ctx context.Context, it DocumentListItem, sh
 			PrincipalType: DocumentPrincipalUser, PrincipalID: g.ActorID, Level: g.Level,
 			EffectiveLevel: accessReportLevel(lvl), Active: lvl != DocumentLevelNone,
 			GrantedBy: g.ActorID, GrantedByKind: g.ActorKind,
+		}
+		if (g.ActorID == r.scope.actorID && g.ActorKind == string(audit.KindHuman)) || it.Access.canAdminister() {
+			row.RevokeKind, row.RevokeID = AccessReportRevokeBreakGlass, g.ID
 		}
 		if g.GrantedAt.Valid {
 			at := g.GrantedAt.Time.UTC()
@@ -553,10 +944,10 @@ func (r *accessReportRun) buildItem(ctx context.Context, it DocumentListItem, sh
 			return item, false, nil
 		}
 	}
-	if r.levels != nil {
+	if r.levels != nil || r.sources != nil || r.in.PrincipalType != "" || r.in.NonDefault {
 		kept := item.Rows[:0]
 		for _, row := range item.Rows {
-			if r.levels[row.Level] {
+			if r.matchesRow(row) {
 				kept = append(kept, row)
 			}
 		}
@@ -566,6 +957,69 @@ func (r *accessReportRun) buildItem(ctx context.Context, it DocumentListItem, sh
 		}
 	}
 	return item, true, nil
+}
+
+// matchesDocument is the document-level half of the S5 filters, decided from
+// the document's facts alone: visibility, general scope, flag.
+func (r *accessReportRun) matchesDocument(item DocumentAccessReportItem) bool {
+	if v := r.in.Visibility; v != "" && item.Item.Document.Visibility != v {
+		return false
+	}
+	if r.in.Scope != "" && item.GeneralScope != r.in.Scope {
+		return false
+	}
+	switch r.in.Flag {
+	case "":
+	case AccessReportFlagOutside:
+		if !slices.Contains(item.Flags, AccessReportFlagOtherWS) && !slices.Contains(item.Flags, AccessReportFlagOrganization) {
+			return false
+		}
+	default:
+		if !slices.Contains(item.Flags, r.in.Flag) {
+			return false
+		}
+	}
+	return true
+}
+
+// matchesRow is the row-level half: a row that fails level, principal,
+// source or non_default is dropped, and a document left with no row is too.
+func (r *accessReportRun) matchesRow(row DocumentAccessReportRow) bool {
+	if r.levels != nil && !r.levels[row.Level] {
+		return false
+	}
+	key := accessReportSourceKey(row)
+	if r.sources != nil && !r.sources[key] {
+		return false
+	}
+	if r.in.NonDefault && (key == AccessReportSourceKeyOwner || key == AccessReportSourceKeyWorkspace) {
+		return false
+	}
+	if t := r.in.PrincipalType; t != "" {
+		if row.PrincipalType != t || (r.in.PrincipalID != "" && row.PrincipalID != r.in.PrincipalID) {
+			return false
+		}
+	}
+	return true
+}
+
+// matchesQ is the S5 text filter, run after the names are attached: the
+// document title or the name of a principal on one of its rows, ignoring case
+// and accents. A principal name only reaches this check through a row the
+// caller already sees on a document they manage.
+func (r *accessReportRun) matchesQ(item DocumentAccessReportItem) bool {
+	if r.qFold == "" {
+		return true
+	}
+	if strings.Contains(foldForSearch(item.Item.Document.Title), r.qFold) {
+		return true
+	}
+	for _, row := range item.Rows {
+		if row.PrincipalName != "" && strings.Contains(foldForSearch(row.PrincipalName), r.qFold) {
+			return true
+		}
+	}
+	return false
 }
 
 // rowReachesPerson: the person's own user rows, a workspace row of a
@@ -680,16 +1134,58 @@ func (s *DocumentService) DocumentAccessReport(ctx context.Context, actor Actor,
 	if err != nil {
 		return DocumentAccessReportPage{}, err
 	}
-	res, err := run.page(ctx, in.AfterID, effectiveAccessReportLimit(in.Limit))
+	res, err := run.page(ctx, in, effectiveAccessReportLimit(in.Limit))
 	if err != nil {
 		return DocumentAccessReportPage{}, err
 	}
 	out := DocumentAccessReportPage{
 		GeneratedAt: s.now().UTC(), Items: res.items,
-		Candidates: res.candidates, Skipped: res.skipped, NextAfterID: res.nextAfterID,
+		Candidates: res.candidates, Skipped: res.skipped, Next: res.next,
 	}
 	if run.folder != nil {
 		out.FolderID, out.FolderTitle = run.folder.ID, run.folder.Title
 	}
 	return out, nil
+}
+
+// accessReportFacts are the whole-document facts of S1, read from every live
+// share before a row filter runs: the general scope (an organization share
+// wins over workspace visibility), and the warning flags the tiles and the
+// flag filter share one definition of.
+func accessReportFacts(doc db.Document, shares []db.ListLiveDocumentSharesForReportRow, links int) (scope, level string, flags []string) {
+	scope = AccessReportScopeRestricted
+	if doc.Visibility != documentVisibilityRestricted {
+		scope, level = AccessReportScopeWorkspace, doc.WorkspaceLevel
+	}
+	var otherWS, org, directManage bool
+	for _, sh := range shares {
+		switch sh.PrincipalType {
+		case DocumentPrincipalOrganization:
+			org = true
+			scope, level = AccessReportScopeOrganization, sh.Level
+		case DocumentPrincipalWorkspace:
+			if sh.PrincipalID != doc.WorkspaceID {
+				otherWS = true
+			}
+		}
+		isOwner := sh.PrincipalType == DocumentPrincipalUser && doc.AclOwnerID.Valid && sh.PrincipalID == doc.AclOwnerID.String
+		if sh.Level == string(DocumentLevelManage) && !isOwner &&
+			(sh.PrincipalType == DocumentPrincipalUser || sh.PrincipalType == DocumentPrincipalWorkspace) {
+			directManage = true
+		}
+	}
+	flags = []string{}
+	if links > 0 {
+		flags = append(flags, AccessReportFlagPublicLink)
+	}
+	if otherWS {
+		flags = append(flags, AccessReportFlagOtherWS)
+	}
+	if org {
+		flags = append(flags, AccessReportFlagOrganization)
+	}
+	if directManage {
+		flags = append(flags, AccessReportFlagDirectManage)
+	}
+	return scope, level, flags
 }

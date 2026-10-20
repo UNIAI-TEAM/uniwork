@@ -3,6 +3,7 @@ package handler
 import (
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"hash/fnv"
 	"net/http"
@@ -23,12 +24,17 @@ import (
 // and writes the wire shape (contract v1 §3-§4, §7).
 
 // accessReportCursor pins the last candidate read and the scope it was read
-// in: f is the folder, h a hash of the filter, so a cursor never continues a
-// different report.
+// in: f is the folder, h a hash of the filter, s and o the sort and order it
+// walks, so a cursor never continues a different report. k is the sort value
+// of the last candidate (the change time, RFC3339 with nanoseconds, or the
+// title) and id breaks its ties.
 type accessReportCursor struct {
 	ID     string `json:"id"`
 	Folder string `json:"f"`
 	Filter string `json:"h"`
+	Sort   string `json:"s"`
+	Order  string `json:"o"`
+	Key    string `json:"k"`
 }
 
 // accessReportFilterHash is 8 hex digits over the person, level and
@@ -36,8 +42,19 @@ type accessReportCursor struct {
 func accessReportFilterHash(in service.DocumentAccessReportQuery) string {
 	levels := append([]string(nil), in.Levels...)
 	sort.Strings(levels)
+	sources := append([]string(nil), in.Sources...)
+	sort.Strings(sources)
+	nonDefault := "0"
+	if in.NonDefault {
+		nonDefault = "1"
+	}
 	h := fnv.New32a()
-	_, _ = h.Write([]byte(in.PersonID + "|" + strings.Join(levels, ",") + "|" + in.Visibility))
+	// The pre-UNI-2039 filters first, then the S5 ones, so the hash of a
+	// request that sets none of the new filters keeps only the old part
+	// followed by empty fields.
+	_, _ = h.Write([]byte(in.PersonID + "|" + strings.Join(levels, ",") + "|" + in.Visibility +
+		"|" + in.Q + "|" + in.PrincipalType + ":" + in.PrincipalID + "|" + in.Scope + "|" + strings.Join(sources, ",") +
+		"|" + in.Flag + "|" + nonDefault))
 	return fmt.Sprintf("%08x", h.Sum32())
 }
 
@@ -48,19 +65,54 @@ func encodeAccessReportCursor(c accessReportCursor) string {
 
 // accessReportQuery reads the filters both routes share. A value the service
 // refuses (an unknown level or visibility) comes back from it as 400.
-func accessReportQuery(r *http.Request) service.DocumentAccessReportQuery {
+func accessReportQuery(r *http.Request) (service.DocumentAccessReportQuery, error) {
 	q := r.URL.Query()
 	in := service.DocumentAccessReportQuery{
 		FolderID:   strings.TrimSpace(q.Get("folder_id")),
 		PersonID:   strings.TrimSpace(q.Get("person_id")),
 		Visibility: strings.TrimSpace(q.Get("visibility")),
+		Sort:       strings.TrimSpace(q.Get("sort")),
+		Order:      strings.TrimSpace(q.Get("order")),
+		Q:          strings.TrimSpace(q.Get("q")),
+		Scope:      strings.TrimSpace(q.Get("scope")),
+		Flag:       strings.TrimSpace(q.Get("flag")),
 	}
-	for _, l := range strings.Split(q.Get("level"), ",") {
-		if l = strings.TrimSpace(l); l != "" {
-			in.Levels = append(in.Levels, l)
+	in.Levels = splitAccessReportList(q.Get("level"))
+	in.Sources = splitAccessReportList(q.Get("source"))
+	switch strings.TrimSpace(q.Get("non_default")) {
+	case "", "0":
+	case "1", "true":
+		in.NonDefault = true
+	default:
+		return in, errors.New("non_default phải là 1 hoặc 0")
+	}
+	if raw := strings.TrimSpace(q.Get("principal")); raw != "" {
+		typ, id, _ := strings.Cut(raw, ":")
+		switch {
+		case typ == service.DocumentPrincipalUser:
+			// user:<id> is person_id's long form: one filter, one meaning.
+			if id == "" || (in.PersonID != "" && in.PersonID != id) {
+				return in, errors.New("principal user cần id và khớp person_id")
+			}
+			in.PersonID = id
+		case typ == service.AccessReportSourceLink, typ == service.DocumentPrincipalWorkspace, typ == service.DocumentPrincipalOrganization:
+			in.PrincipalType, in.PrincipalID = typ, id
+		default:
+			return in, errors.New("principal không hợp lệ")
 		}
 	}
-	return in
+	return in, nil
+}
+
+// splitAccessReportList reads a comma-separated filter list.
+func splitAccessReportList(raw string) []string {
+	var out []string
+	for _, v := range strings.Split(raw, ",") {
+		if v = strings.TrimSpace(v); v != "" {
+			out = append(out, v)
+		}
+	}
+	return out
 }
 
 // documentAccessReport is GET /workspaces/{workspaceID}/documents/access-report.
@@ -69,7 +121,11 @@ func (h *handlers) documentAccessReport(w http.ResponseWriter, r *http.Request) 
 		respondError(w, http.StatusNotImplemented, "storage_unavailable", "documents are not configured")
 		return
 	}
-	in := accessReportQuery(r)
+	in, err := accessReportQuery(r)
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "invalid_request", err.Error())
+		return
+	}
 	if raw := strings.TrimSpace(r.URL.Query().Get("limit")); raw != "" {
 		n, err := strconv.Atoi(raw)
 		if err != nil || n < 0 {
@@ -79,14 +135,12 @@ func (h *handlers) documentAccessReport(w http.ResponseWriter, r *http.Request) 
 		in.Limit = n
 	}
 	if raw := strings.TrimSpace(r.URL.Query().Get("cursor")); raw != "" {
-		var c accessReportCursor
-		dec, err := base64.RawURLEncoding.DecodeString(raw)
-		if err != nil || json.Unmarshal(dec, &c) != nil || c.ID == "" ||
-			c.Folder != in.FolderID || c.Filter != accessReportFilterHash(in) {
+		after, ok := decodeAccessReportCursor(raw, in)
+		if !ok {
 			respondError(w, http.StatusBadRequest, "invalid_request", "cursor không hợp lệ")
 			return
 		}
-		in.AfterID = c.ID
+		in.After = after
 	}
 	page, err := h.Documents.DocumentAccessReport(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "workspaceID"), in)
 	if err != nil {
@@ -109,15 +163,71 @@ func (h *handlers) documentAccessReport(w http.ResponseWriter, r *http.Request) 
 		out.Summary.Rows += len(it.Rows)
 	}
 	out.Summary.Documents = len(out.Documents)
-	if page.NextAfterID != "" {
-		cursor := encodeAccessReportCursor(accessReportCursor{ID: page.NextAfterID, Folder: in.FolderID, Filter: accessReportFilterHash(in)})
+	if page.Next != nil {
+		cursor := encodeAccessReportCursor(newAccessReportCursor(in, *page.Next))
 		out.NextCursor = &cursor
 	}
 	respondJSON(w, http.StatusOK, out)
 }
 
+// newAccessReportCursor pins the position after key in the report in describes.
+func newAccessReportCursor(in service.DocumentAccessReportQuery, key service.AccessReportKey) accessReportCursor {
+	mode, descending := in.SortOrder()
+	order := service.AccessReportOrderAsc
+	if descending {
+		order = service.AccessReportOrderDesc
+	}
+	c := accessReportCursor{ID: key.ID, Folder: in.FolderID, Filter: accessReportFilterHash(in), Sort: mode, Order: order}
+	if mode == service.AccessReportSortTitle {
+		c.Key = key.Title
+	} else {
+		c.Key = key.Changed.UTC().Format(time.RFC3339Nano)
+	}
+	return c
+}
+
+// decodeAccessReportCursor reads a cursor and checks it belongs to this very
+// report: folder, filter hash, sort and order all match (ok=false otherwise).
+func decodeAccessReportCursor(raw string, in service.DocumentAccessReportQuery) (*service.AccessReportKey, bool) {
+	var c accessReportCursor
+	dec, err := base64.RawURLEncoding.DecodeString(raw)
+	if err != nil || json.Unmarshal(dec, &c) != nil || c.ID == "" {
+		return nil, false
+	}
+	want := newAccessReportCursor(in, service.AccessReportKey{})
+	if c.Folder != want.Folder || c.Filter != want.Filter || c.Sort != want.Sort || c.Order != want.Order {
+		return nil, false
+	}
+	key := &service.AccessReportKey{ID: c.ID}
+	if c.Sort == service.AccessReportSortTitle {
+		key.Title = c.Key
+		return key, true
+	}
+	at, err := time.Parse(time.RFC3339Nano, c.Key)
+	if err != nil {
+		return nil, false
+	}
+	key.Changed = at.UTC()
+	return key, true
+}
+
 func accessReportFilterDTO(in service.DocumentAccessReportQuery) sdo.DocumentAccessReportFilterDTO {
-	out := sdo.DocumentAccessReportFilterDTO{Level: append([]string{}, in.Levels...)}
+	mode, descending := in.SortOrder()
+	order := service.AccessReportOrderAsc
+	if descending {
+		order = service.AccessReportOrderDesc
+	}
+	out := sdo.DocumentAccessReportFilterDTO{
+		Level: append([]string{}, in.Levels...), Sort: mode, Order: order,
+		Source: append([]string{}, in.Sources...), NonDefault: in.NonDefault,
+		Q: optionalString(in.Q), Scope: optionalString(in.Scope), Flag: optionalString(in.Flag),
+	}
+	if ref := in.PrincipalRef(); ref != "" {
+		out.Principal = &ref
+	} else if in.PersonID != "" {
+		ref := service.DocumentPrincipalUser + ":" + in.PersonID
+		out.Principal = &ref
+	}
 	if in.PersonID != "" {
 		p := in.PersonID
 		out.PersonID = &p
@@ -127,6 +237,14 @@ func accessReportFilterDTO(in service.DocumentAccessReportQuery) sdo.DocumentAcc
 		out.Visibility = &v
 	}
 	return out
+}
+
+// accessReportLevelString is the wire form of the caller's level.
+func accessReportLevelString(l service.DocumentLevel) string {
+	if l == service.DocumentLevelNone {
+		return "none"
+	}
+	return string(l)
 }
 
 func optionalString(s string) *string {
@@ -142,6 +260,13 @@ func accessReportDocumentDTO(it service.DocumentAccessReportItem, withPerson boo
 		ID: doc.ID, Title: doc.Title, Kind: doc.Kind, Visibility: doc.Visibility,
 		Path:          make([]sdo.DocumentPathItemSDO, 0, len(it.Item.Path)),
 		LiveLinkCount: it.LiveLinkCount,
+		GeneralScope:  sdo.DocumentAccessReportGeneralScopeDTO{Kind: it.GeneralScope, Level: optionalString(it.GeneralLevel)},
+		Flags:         append([]string{}, it.Flags...),
+		MyLevel:       accessReportLevelString(it.Item.Access.Level),
+		AdminScope:    it.Item.Access.AdminScope,
+	}
+	if !it.AccessChangedAt.IsZero() {
+		info.AccessChangedAt = it.AccessChangedAt.UTC().Format(time.RFC3339)
 	}
 	for _, p := range it.Item.Path {
 		info.Path = append(info.Path, sdo.DocumentPathItemSDO{ID: p.ID, Title: p.Title})
@@ -170,6 +295,14 @@ func accessReportDocumentDTO(it service.DocumentAccessReportItem, withPerson boo
 		if row.GrantedAt != nil {
 			at := row.GrantedAt.UTC().Format(time.RFC3339)
 			dto.GrantedAt = &at
+		}
+		if row.RevokeKind != "" {
+			dto.RevokeTarget = &sdo.DocumentAccessReportRevokeTargetDTO{Kind: row.RevokeKind, ID: row.RevokeID}
+		}
+		dto.Origin = optionalString(row.Origin)
+		if row.ExpiresAt != nil {
+			at := row.ExpiresAt.UTC().Format(time.RFC3339)
+			dto.ExpiresAt = &at
 		}
 		out.Rows = append(out.Rows, dto)
 	}
@@ -205,9 +338,13 @@ func (h *handlers) exportDocumentAccessReport(w http.ResponseWriter, r *http.Req
 		respondError(w, http.StatusNotImplemented, "storage_unavailable", "documents are not configured")
 		return
 	}
-	in := accessReportQuery(r)
+	in, err := accessReportQuery(r)
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "invalid_request", err.Error())
+		return
+	}
 	ew := &accessReportExportWriter{ResponseWriter: w}
-	_, err := h.Documents.ExportDocumentAccessReport(r.Context(), service.Human(middleware.UserID(r.Context())),
+	_, err = h.Documents.ExportDocumentAccessReport(r.Context(), service.Human(middleware.UserID(r.Context())),
 		chi.URLParam(r, "workspaceID"), in, strings.TrimSpace(r.URL.Query().Get("format")), ew)
 	if err == nil {
 		return
@@ -218,4 +355,69 @@ func (h *handlers) exportDocumentAccessReport(w http.ResponseWriter, r *http.Req
 		return
 	}
 	h.mapServiceError(w, err)
+}
+
+// documentAccessReportSummary is GET
+// /workspaces/{workspaceID}/documents/access-report/summary (UNI-2039 S6).
+func (h *handlers) documentAccessReportSummary(w http.ResponseWriter, r *http.Request) {
+	if h.Documents == nil {
+		respondError(w, http.StatusNotImplemented, "storage_unavailable", "documents are not configured")
+		return
+	}
+	in, err := accessReportQuery(r)
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "invalid_request", err.Error())
+		return
+	}
+	sum, err := h.Documents.DocumentAccessReportSummary(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "workspaceID"), in)
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	respondJSON(w, http.StatusOK, sdo.DocumentAccessReportSummaryResultSDO{
+		GeneratedAt: sum.GeneratedAt.UTC().Format(time.RFC3339),
+		Tiles: sdo.DocumentAccessReportTilesDTO{
+			PublicLink: sum.Tiles.PublicLink, OutsideWorkspace: sum.Tiles.OutsideWorkspace, DirectManage: sum.Tiles.DirectManage,
+			Documents: sum.Tiles.Documents, Restricted: sum.Tiles.Restricted, Workspace: sum.Tiles.Workspace, Organization: sum.Tiles.Organization,
+		},
+		MatchingDocuments: sum.MatchingDocuments, Skipped: sum.Skipped, Truncated: sum.Truncated,
+	})
+}
+
+// documentAccessReportPrincipals is GET
+// /workspaces/{workspaceID}/documents/access-report/principals (UNI-2039 S7).
+func (h *handlers) documentAccessReportPrincipals(w http.ResponseWriter, r *http.Request) {
+	if h.Documents == nil {
+		respondError(w, http.StatusNotImplemented, "storage_unavailable", "documents are not configured")
+		return
+	}
+	q := r.URL.Query()
+	in := service.DocumentAccessReportPrincipalsQuery{
+		FolderID: strings.TrimSpace(q.Get("folder_id")),
+		Q:        strings.TrimSpace(q.Get("q")),
+		Kind:     strings.TrimSpace(q.Get("kind")),
+		Levels:   splitAccessReportList(q.Get("level")),
+		Sort:     strings.TrimSpace(q.Get("sort")),
+		Order:    strings.TrimSpace(q.Get("order")),
+	}
+	res, err := h.Documents.DocumentAccessReportPrincipals(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "workspaceID"), in)
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	out := sdo.DocumentAccessReportPrincipalsSDO{
+		GeneratedAt: res.GeneratedAt.UTC().Format(time.RFC3339),
+		Principals:  make([]sdo.DocumentAccessReportPrincipalDTO, 0, len(res.Principals)),
+		Truncated:   res.Truncated,
+	}
+	for _, p := range res.Principals {
+		out.Principals = append(out.Principals, sdo.DocumentAccessReportPrincipalDTO{
+			PrincipalType: p.PrincipalType, PrincipalID: optionalString(p.PrincipalID), PrincipalName: optionalString(p.PrincipalName),
+			Kind: p.Kind, MemberCount: p.MemberCount, DocumentCount: p.DocumentCount, MainSource: p.MainSource,
+			Levels: sdo.DocumentAccessReportLevelSplitDTO{
+				View: p.Levels["view"], Comment: p.Levels["comment"], Edit: p.Levels["edit"], Manage: p.Levels["manage"],
+			},
+		})
+	}
+	respondJSON(w, http.StatusOK, out)
 }

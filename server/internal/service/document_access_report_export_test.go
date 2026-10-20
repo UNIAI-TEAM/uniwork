@@ -66,15 +66,18 @@ func TestAccessReportExportCSV(t *testing.T) {
 	}
 	wantHeader := "document_id,document_title,document_path,document_kind,visibility,acl_owner_name,live_link_count," +
 		"source,via,principal_type,principal_id,principal_name,level,effective_level,active,granted_by,granted_by_name,granted_at," +
-		"report_generated_at,report_filter"
+		"report_generated_at,report_filter,expires_at" // UNI-2039 S2: the new column is the last
 	if got := strings.Join(lines[0], ","); got != wantHeader {
 		t.Fatalf("header:\n got  %s\n want %s", got, wantHeader)
 	}
-	// acl_owner (manage) and the member share (view); the level filter keeps both.
-	if len(lines) != 3 || res.Rows != 2 || res.Documents != 1 {
+	// acl_owner (manage), the member share (view) and the live link (view, UNI-2039 S2).
+	if len(lines) != 4 || res.Rows != 3 || res.Documents != 1 {
 		t.Fatalf("lines=%d rows=%d documents=%d", len(lines), res.Rows, res.Documents)
 	}
-	share := lines[2]
+	share, link := lines[2], lines[3]
+	if share[len(share)-1] != "" || link[7] != "link" || link[len(link)-1] == "" {
+		t.Fatalf("expires_at: share line %v, link line %v", share, link)
+	}
 	if share[1] != "Hợp đồng ABC" || share[2] != "Hợp đồng" || share[5] != "aclowner" || share[6] != "1" ||
 		share[7] != "share" || share[11] != "member" || share[12] != "view" || share[16] != "aclowner" {
 		t.Fatalf("share line: %v", share)
@@ -95,7 +98,7 @@ func TestAccessReportExportCSV(t *testing.T) {
 	if n != 1 {
 		t.Fatalf("audit rows = %d, want 1", n)
 	}
-	if meta["folder_id"] != in.FolderID || meta["format"] != "csv" || meta["row_count"] != float64(2) || meta["document_count"] != float64(1) {
+	if meta["folder_id"] != in.FolderID || meta["format"] != "csv" || meta["row_count"] != float64(3) || meta["document_count"] != float64(1) {
 		t.Fatalf("audit metadata: %v", meta)
 	}
 	if blob, _ := json.Marshal(meta); bytes.Contains(blob, []byte("aclowner")) || bytes.Contains(blob, []byte("@")) {

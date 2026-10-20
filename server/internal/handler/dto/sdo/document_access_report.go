@@ -25,6 +25,16 @@ type DocumentAccessReportFilterDTO struct {
 	PersonID   *string  `json:"person_id" description:"Người đang lọc; null = mọi người" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
 	Level      []string `json:"level" description:"Các mức đang lọc; rỗng = mọi mức" example:"[\"edit\",\"manage\"]"`
 	Visibility *string  `json:"visibility" description:"workspace, restricted hoặc null = mọi phạm vi" example:"restricted"`
+	// UNI-2039 S4: the order the page walks.
+	Sort  string `json:"sort" description:"Khóa sắp xếp đang dùng: changed hoặc title" example:"changed"`
+	Order string `json:"order" description:"Chiều sắp xếp đang dùng: asc hoặc desc" example:"desc"`
+	// UNI-2039 S5: the filters on top of person_id/level/visibility.
+	Q          *string  `json:"q" description:"Từ khóa tìm theo tiêu đề hoặc tên principal; null = không lọc" example:"hợp đồng"`
+	Principal  *string  `json:"principal" description:"<type>:<id> đang lọc (user:<id> khi lọc person_id); null = không lọc" example:"workspace:01J8X4WS9N1P2Q3R4S5T6U7V8"`
+	Scope      *string  `json:"scope" description:"restricted, workspace, organization hoặc null" example:"organization"`
+	Source     []string `json:"source" description:"Các nguồn đang lọc; rỗng = mọi nguồn" example:"[\"direct\",\"chat\"]"`
+	Flag       *string  `json:"flag" description:"public_link, outside_workspace, direct_manage hoặc null" example:"public_link"`
+	NonDefault bool     `json:"non_default" description:"true khi chỉ hiện quyền khác mặc định" example:"false"`
 }
 
 // DocumentAccessReportDocumentDTO is one listed document with its rows.
