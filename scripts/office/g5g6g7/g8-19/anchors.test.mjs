@@ -1222,7 +1222,8 @@ for (const [label, mutate, pattern] of [
   ["the copy is editable", (lv) => void (lv.desktop.status = { readOnly: false }), /read-only/],
   ["the copy reports access edit", (lv) => void (lv.desktop.status = { access: "edit" }), /read-only/],
   ["the copy's open version id is not the viewed version", (lv) => void (lv.desktop.contextVersionId = "ver-3"), /ver-3, want ver-2/],
-  ["the editor's panel lists but never shows the comment", (lv) => void (lv.desktop.panel = { panels: 1, commentIds: [] }), /c1/],
+  ["the editor's panel lists but never shows the comment", (lv) => void (lv.desktop.panel = { panels: 1, commentIds: [] }), /panels 1/],
+  ["the copy shows no comments panel at all (panels 0)", (lv) => void (lv.desktop.panel = { panels: 0, commentIds: [] }), /view copy shows no comments panel with the comment \(panels 0\)/],
   ["the open failed", (lv) => void (lv.desktop = { ran: false, status: "FAIL", reason: "the app opened no @v2 copy" }), /opened no @v2 copy/],
 ]) {
   test(`check:lost-view-version desktop: ${label} -> FAIL`, () => {
@@ -1234,11 +1235,11 @@ for (const [label, mutate, pattern] of [
   });
 }
 
-test("check:lost-view-version desktop: what the app cannot report (no read-only flag, no open panel) is recorded, not judged", () => {
+test("check:lost-view-version desktop: what the app cannot report (no read-only flag, no version id, probe errored with no panel data) is recorded, not judged", () => {
   const lv = lostViewRecord();
   lv.desktop.status = {};
   lv.desktop.contextVersionId = null;
-  lv.desktop.panel = { panels: 0, commentIds: [] };
+  lv.desktop.panel = null;
   const d = lostStep(passingRecord({ lostView: lv }));
   assert.equal(d.status, "PASS", JSON.stringify(d));
   assert.match(d.note ?? "", /not reported/);

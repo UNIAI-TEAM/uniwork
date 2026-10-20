@@ -914,7 +914,8 @@ function decideLostWeb(part, versionNo, commentId) {
 /**
  * The desktop half: the view ticket opened the `@vN` copy. Judged only on what the app reports: the copy
  * path, a read-only flag, the version id the copy's comments bridge answers and the editor's panel listing
- * the comment; a fact the app does not report is recorded in `note`, not failed.
+ * the comment (required once the probe ran: panels 0 or a missing id FAILs); a fact the app does not report
+ * (including a probe that returned no panel data) is recorded in `note`, not failed.
  */
 function decideLostDesktop(part, expected, commentId) {
   if (!part) return { status: "FAIL", reason: "the desktop view did not run" };
@@ -928,10 +929,10 @@ function decideLostDesktop(part, expected, commentId) {
   if (typeof part.contextVersionId === "string") {
     if (part.contextVersionId !== expected.versionId) reasons.push(`the copy's open version id is ${part.contextVersionId}, want ${expected.versionId}`);
   } else notes.push("the copy's open version id");
-  const panel = part.panel ?? {};
-  if ((panel.panels ?? 0) > 0) {
-    if (!(panel.commentIds ?? []).includes(commentId)) reasons.push(`the editor's comments panel does not list comment ${commentId}`);
-  } else notes.push("the revealed thread (no comments panel is open)");
+  if (part.panel && typeof part.panel === "object") {
+    // The probe ran: the contract is that the comment is revealed, so a copy with no panel listing it fails.
+    if (!(part.panel.commentIds ?? []).includes(commentId)) reasons.push(`the view copy shows no comments panel with the comment (panels ${part.panel.panels ?? 0})`);
+  } else notes.push("the revealed thread (the panel probe returned nothing)");
   const res = check(reasons);
   return res.status === "PASS" && notes.length > 0 ? { ...res, note: `not reported by the app: ${notes.join("; ")}` } : res;
 }
@@ -1323,7 +1324,7 @@ async function runLostViewVersion({ ctx, world, A, desk, doc, rec, rowOf, commen
         copyPath: opened.path,
         contextVersionId: context?.ok === true && typeof context.value?.versionId === "string" ? context.value.versionId : null,
         status: pickDocStatus(status),
-        panel: { panels: seen.value?.panels ?? 0, commentIds: seen.value?.commentIds ?? [] },
+        panel: seen.value && typeof seen.value === "object" ? { panels: seen.value.panels ?? 0, commentIds: seen.value.commentIds ?? [] } : null,
       };
     } catch (err) {
       lv.desktop = failedPart(err);
