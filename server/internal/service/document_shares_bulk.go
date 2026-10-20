@@ -35,7 +35,8 @@ type writtenUserShare struct {
 // at one level, without the audit: the caller records the written grants in
 // the shape its command promises (one row per grant for a Documents batch
 // share, one batch row for a chat send). Same rules per user: the same live
-// level is kept unchanged and not written, another live level is revoked and
+// level is kept unchanged and not written (keepsLiveShare: a manual grant
+// still takes over a chat-origin row), another live level is revoked and
 // replaced, and a chat grant over a live share remembers the manual level it
 // raised (priorManualLevelForChatGrant). before is the document's live share
 // set read inside the caller's transaction before any write; userIDs are
@@ -54,7 +55,7 @@ func writeUserSharesBulk(
 	live := make(map[string]db.DocumentShare, len(userIDs))
 	todo := make([]string, 0, len(userIDs))
 	for _, id := range userIDs {
-		if prev, ok := prevByUser[id]; ok && prev.Level == string(level) {
+		if prev, ok := prevByUser[id]; ok && keepsLiveShare(prev, level, src.kind) {
 			live[id] = prev
 			continue
 		}

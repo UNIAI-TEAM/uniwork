@@ -274,7 +274,8 @@ func (s *ChatService) commitDocumentMessage(
 		}
 	}
 	// 3.1.e.iv: the grants. The audience was decided before the upload and is
-	// passed in: a member who joined meanwhile gets nothing (§3.4), and the
+	// passed in: a member who joined meanwhile gets nothing (§3.4), one who
+	// left meanwhile is dropped under the member-row lock (S1-fix B1), and the
 	// notify decision is taken here, before the first grant, against the
 	// command-start shares (SH-S3 R1-01).
 	msgID := util.NewID()
@@ -336,7 +337,9 @@ func (s *ChatService) commitDocumentMessage(
 // grantDocumentToRoomMembers grants the document to the room's recipients
 // inside the caller's transaction (UNI-2012 D2a, S1c). Only-raise: a recipient
 // who already holds at least the requested effective level keeps it unchanged,
-// and the sender is never granted below manage. Every recipient is checked
+// and the sender is never granted below manage. A recipient who is no longer
+// a member of the room is dropped under the member-row lock
+// (lockCurrentRoomRecipients, S1-fix B1). Every recipient is checked
 // against the organization membership gate inside the transaction, in one
 // query for the whole room, because the share writer does not validate
 // principals itself (R3). Effective levels are resolved against the share set
@@ -364,6 +367,10 @@ func (s *ChatService) grantDocumentToRoomMembers(
 	}
 	if len(candidates) == 0 {
 		return nil
+	}
+	candidates, err := s.lockCurrentRoomRecipients(ctx, q, roomID, candidates)
+	if err != nil || len(candidates) == 0 {
+		return err
 	}
 	admitted, err := s.docs.orgs.AdmittedMemberIDsQ(ctx, q, doc.OrganizationID, candidates)
 	if err != nil {
@@ -425,6 +432,47 @@ func (s *ChatService) grantDocumentToRoomMembers(
 		"document_id":  doc.ID,
 		"workspace_id": doc.WorkspaceID,
 	}})
+}
+
+// lockCurrentRoomRecipients keeps the recipients who are still members of the
+// room inside the grant's transaction (UNI-2012 S1-fix B1): the audience was
+// read before the upload, and a member who left meanwhile must not get a
+// grant their removal's reconcile could no longer see. The member rows are
+// read FOR SHARE, so a leave that has not committed yet waits for the grant
+// (its reconcile then sees the grant and revokes it), and a leave that
+// committed first no longer matches. A workspace or channel room also
+// requires the workspace membership now, as documentGrantRecipients did.
+func (s *ChatService) lockCurrentRoomRecipients(ctx context.Context, q *db.Queries, roomID string, recipients []string) ([]string, error) {
+	locked, err := q.LockActiveChatRoomMembersForGrant(ctx, db.LockActiveChatRoomMembersForGrantParams{
+		RoomID: roomID, UserIds: recipients,
+	})
+	if err != nil {
+		return nil, err
+	}
+	inRoom := make(map[string]bool, len(locked))
+	for _, id := range locked {
+		inRoom[id] = true
+	}
+	room, err := q.GetChatRoomByID(ctx, roomID)
+	if err != nil {
+		return nil, err
+	}
+	var inWorkspace map[string]bool
+	switch room.Kind {
+	case chatRoomKindWorkspace, chatRoomKindChannel:
+		inWorkspace, err = s.ws.AdmittedMemberIDsQ(ctx, q, roomAnchorWorkspaceID(room), locked)
+		if err != nil {
+			return nil, err
+		}
+	}
+	out := make([]string, 0, len(recipients))
+	for _, id := range recipients {
+		if !inRoom[id] || (inWorkspace != nil && !inWorkspace[id]) {
+			continue
+		}
+		out = append(out, id)
+	}
+	return out, nil
 }
 
 // existingChatMessageInTx is existingMessageByClientMsgID read through the

@@ -2663,6 +2663,46 @@ func (q *Queries) ListDefaultChatRoomMissingMembers(ctx context.Context, workspa
 	return items, nil
 }
 
+const lockActiveChatRoomMembersForGrant = `-- name: LockActiveChatRoomMembersForGrant :many
+SELECT user_id FROM chat_room_members
+WHERE room_id = $1
+  AND user_id = ANY($2::text[])
+  AND status IN ('invited', 'active')
+ORDER BY id
+FOR SHARE
+`
+
+type LockActiveChatRoomMembersForGrantParams struct {
+	RoomID  string   `json:"room_id"`
+	UserIds []string `json:"user_ids"`
+}
+
+// tenant: parent room_id
+// The chat document grant's recipients who are still invited or active
+// members of the room, read FOR SHARE inside the grant's transaction
+// (UNI-2012 S1-fix B1). A leave or removal updates the member row, so it
+// waits for the grant to commit (and its reconcile then sees the grant), or
+// it committed first and the row no longer matches here.
+func (q *Queries) LockActiveChatRoomMembersForGrant(ctx context.Context, arg LockActiveChatRoomMembersForGrantParams) ([]string, error) {
+	rows, err := q.db.Query(ctx, lockActiveChatRoomMembersForGrant, arg.RoomID, arg.UserIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var user_id string
+		if err := rows.Scan(&user_id); err != nil {
+			return nil, err
+		}
+		items = append(items, user_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const lockChatRoom = `-- name: LockChatRoom :exec
 SELECT id FROM chat_rooms WHERE id = $1 FOR UPDATE
 `

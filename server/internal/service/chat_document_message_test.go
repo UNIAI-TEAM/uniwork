@@ -176,12 +176,6 @@ func TestSendDocumentMessageCreatesDocumentGrantsAndOneMessage(t *testing.T) {
 	if !msg.Document.CanUploadVersion {
 		t.Fatalf("sender cannot upload a version: %+v", msg.Document)
 	}
-	// Only the document itself gets a share row.
-	for _, sh := range shares {
-		if sh.DocumentID != doc.ID {
-			t.Fatalf("unexpected share target: %+v", sh)
-		}
-	}
 }
 
 // TestSendDocumentMessageReplay is §7.1 test 2.
@@ -1042,8 +1036,8 @@ func TestChatDocumentShareRevokerUnit(t *testing.T) {
 		t.Fatalf("Name() = %q, want chat_document_share_revoker", revoker.Name())
 	}
 	topics := revoker.Topics()
-	if len(topics) != 2 || topics[0] != "chat.room.member_removed" || topics[1] != "member.removed" {
-		t.Fatalf("Topics() = %v, want [chat.room.member_removed member.removed]", topics)
+	if len(topics) != 3 || topics[0] != "chat.room.member_removed" || topics[1] != "member.removed" || topics[2] != "member.left" {
+		t.Fatalf("Topics() = %v, want [chat.room.member_removed member.removed member.left]", topics)
 	}
 
 	// Manual share (no source_kind) raised by chat -> records prior manual level.
@@ -1239,8 +1233,10 @@ func TestChatDocumentShareSourceMarkerAndRevokeOnLeave(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// A different member set: CreateGroup returns the existing group for the
+	// same set, which would make groupB groupA.
 	groupB, err := f.svc.CreateGroup(ctx, f.ua.ID, f.ws.ID, CreateGroupInput{
-		Name: "multi-b", MemberUserIDs: []string{f.ub.ID, uc.ID},
+		Name: "multi-b", MemberUserIDs: []string{f.ub.ID, ud.ID},
 	})
 	if err != nil {
 		t.Fatal(err)

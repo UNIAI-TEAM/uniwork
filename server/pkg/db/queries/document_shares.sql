@@ -244,23 +244,18 @@ WHERE organization_id = sqlc.arg(organization_id)
   AND document_id = sqlc.arg(document_id)
   AND revoked_at IS NULL;
 
--- Live chat-origin shares granted to one user from one chat room in the
--- organization (UNI-2012 D2a). Manual shares and pre-existing chat shares have
--- source_kind IS NULL and are never returned here.
--- name: ListLiveChatDocumentSharesForUserInRoom :many
-SELECT *
-FROM document_shares
-WHERE organization_id = sqlc.arg(organization_id)
-  AND principal_type = 'user'
-  AND principal_id = sqlc.arg(user_id)
-  AND source_kind = 'chat'
-  AND source_room_id = sqlc.arg(room_id)
-  AND revoked_at IS NULL
-ORDER BY created_at, id;
-
--- Live chat-origin shares granted to one user in the organization whose source
--- room no longer holds the user as an invited or active member (UNI-2012 D2a).
--- name: ListLiveChatDocumentSharesForUserLeftRooms :many
+-- The live chat-origin shares of one user in the organization that their own
+-- source no longer backs (UNI-2012 S1-fix). A chat grant is backed while the
+-- user is an invited or active member of the source room, the source message
+-- is a live document message of the same document, and that membership is
+-- the one the grant was made in: the message, or the grant itself, is not
+-- older than the membership row (a rejoin inserts a new row, so a grant from
+-- an earlier membership is stale). Every share returned is reconciled under
+-- the document lock, where FindChatDocumentShareAnchor decides again. A
+-- deactivated member is skipped: deactivation keeps what the person owns and
+-- reactivation restores their rooms. Manual shares and pre-existing chat
+-- grants have source_kind IS NULL and are never returned here.
+-- name: ListChatDocumentSharesToReconcile :many
 SELECT s.*
 FROM document_shares s
 WHERE s.organization_id = sqlc.arg(organization_id)
@@ -270,42 +265,58 @@ WHERE s.organization_id = sqlc.arg(organization_id)
   AND s.revoked_at IS NULL
   AND NOT EXISTS (
     SELECT 1
+    FROM organization_members om
+    WHERE om.organization_id = s.organization_id
+      AND om.user_id = s.principal_id
+      AND om.deactivated_at IS NOT NULL
+  )
+  AND NOT EXISTS (
+    SELECT 1
     FROM chat_room_members m
-    JOIN chat_rooms r ON r.id = m.room_id
+    JOIN chat_messages msg
+      ON msg.room_id = m.room_id
+     AND msg.organization_id = m.organization_id
     WHERE m.organization_id = s.organization_id
       AND m.room_id = s.source_room_id
       AND m.user_id = s.principal_id
       AND m.status IN ('invited', 'active')
-      AND r.archived_at IS NULL
+      AND msg.id = s.source_message_id
+      AND msg.deleted_at IS NULL
+      AND msg.kind = 'document'
+      AND msg.metadata->>'document_id' = s.document_id
+      AND (msg.created_at >= m.created_at OR s.created_at >= m.created_at)
   )
 ORDER BY s.created_at, s.id;
 
--- Another non-archived chat room in the organization where the user is still
--- an invited or active member and a live document message names the document
--- (UNI-2012 D2a).
--- name: FindActiveChatRoomDocumentMessageForUser :one
+-- The room and message that back a user's chat grant on one document now
+-- (UNI-2012 S1-fix): a live document message of the document in a room the
+-- user is an invited or active member of, sent during that membership - or
+-- the grant's own source message, when the grant was made during it (a file
+-- message converted in place keeps its older created_at). The grant's own
+-- source wins, so a backed share is never re-pointed. No row: the grant is
+-- stale and is revoked.
+-- name: FindChatDocumentShareAnchor :one
 SELECT m.room_id, msg.id AS message_id
 FROM chat_room_members m
-JOIN chat_rooms r
-  ON r.id = m.room_id
- AND r.organization_id = m.organization_id
 JOIN chat_messages msg
   ON msg.room_id = m.room_id
  AND msg.organization_id = m.organization_id
 WHERE m.organization_id = sqlc.arg(organization_id)
   AND m.user_id = sqlc.arg(user_id)
   AND m.status IN ('invited', 'active')
-  AND r.archived_at IS NULL
   AND msg.deleted_at IS NULL
   AND msg.kind = 'document'
   AND msg.metadata->>'document_id' = sqlc.arg(document_id)::text
-  AND (sqlc.arg(exclude_room_id)::text = '' OR m.room_id <> sqlc.arg(exclude_room_id)::text)
-ORDER BY msg.created_at ASC, msg.id ASC
+  AND (
+    msg.created_at >= m.created_at
+    OR (msg.id = sqlc.arg(source_message_id)::text AND sqlc.arg(granted_at)::timestamptz >= m.created_at)
+  )
+ORDER BY (msg.id = sqlc.arg(source_message_id)::text) DESC, msg.created_at ASC, msg.id ASC
 LIMIT 1;
 
--- Re-points a live chat-origin share to a surviving room and message when the
--- recipient leaves one room while remaining active in another room that holds
--- a live card for the same document (UNI-2012 D2a).
+-- Re-points a live chat-origin share to the room and message that back it now
+-- (FindChatDocumentShareAnchor) when its own source no longer does
+-- (UNI-2012 D2a, S1-fix).
 -- name: RepointDocumentShareChatSource :one
 UPDATE document_shares
 SET source_room_id = sqlc.arg(source_room_id),

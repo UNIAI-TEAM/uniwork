@@ -41,6 +41,20 @@ SELECT id FROM chat_rooms WHERE id = $1 FOR UPDATE;
 SELECT user_id FROM chat_room_members
 WHERE room_id = $1 AND status IN ('invited', 'active');
 
+-- name: LockActiveChatRoomMembersForGrant :many
+-- tenant: parent room_id
+-- The chat document grant's recipients who are still invited or active
+-- members of the room, read FOR SHARE inside the grant's transaction
+-- (UNI-2012 S1-fix B1). A leave or removal updates the member row, so it
+-- waits for the grant to commit (and its reconcile then sees the grant), or
+-- it committed first and the row no longer matches here.
+SELECT user_id FROM chat_room_members
+WHERE room_id = sqlc.arg(room_id)
+  AND user_id = ANY(sqlc.arg(user_ids)::text[])
+  AND status IN ('invited', 'active')
+ORDER BY id
+FOR SHARE;
+
 -- name: UpdateChatRoomMemberLastRead :exec
 -- tenant: parent room_id
 -- A read implies delivered: the delivered cursor never trails the read one.

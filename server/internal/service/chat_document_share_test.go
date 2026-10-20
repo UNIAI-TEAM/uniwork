@@ -252,11 +252,6 @@ func TestShareAttachmentAsDocument(t *testing.T) {
 	if len(shares) != 1 || shares[0].PrincipalID != f.ub.ID || shares[0].Level != "comment" {
 		t.Fatalf("shares = %+v, want 1 share for ub at comment", shares)
 	}
-	for _, sh := range shares {
-		if sh.DocumentID != doc.ID {
-			t.Fatalf("unexpected share target: %+v", sh)
-		}
-	}
 
 	// Emits chat.message.updated after commit.
 	if countEvents(f.pub.events, "chat.message.updated") < 1 {

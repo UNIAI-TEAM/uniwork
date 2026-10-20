@@ -187,50 +187,55 @@ func (q *Queries) CountLiveDocumentShares(ctx context.Context, arg CountLiveDocu
 	return column_1, err
 }
 
-const findActiveChatRoomDocumentMessageForUser = `-- name: FindActiveChatRoomDocumentMessageForUser :one
+const findChatDocumentShareAnchor = `-- name: FindChatDocumentShareAnchor :one
 SELECT m.room_id, msg.id AS message_id
 FROM chat_room_members m
-JOIN chat_rooms r
-  ON r.id = m.room_id
- AND r.organization_id = m.organization_id
 JOIN chat_messages msg
   ON msg.room_id = m.room_id
  AND msg.organization_id = m.organization_id
 WHERE m.organization_id = $1
   AND m.user_id = $2
   AND m.status IN ('invited', 'active')
-  AND r.archived_at IS NULL
   AND msg.deleted_at IS NULL
   AND msg.kind = 'document'
   AND msg.metadata->>'document_id' = $3::text
-  AND ($4::text = '' OR m.room_id <> $4::text)
-ORDER BY msg.created_at ASC, msg.id ASC
+  AND (
+    msg.created_at >= m.created_at
+    OR (msg.id = $4::text AND $5::timestamptz >= m.created_at)
+  )
+ORDER BY (msg.id = $4::text) DESC, msg.created_at ASC, msg.id ASC
 LIMIT 1
 `
 
-type FindActiveChatRoomDocumentMessageForUserParams struct {
-	OrganizationID string `json:"organization_id"`
-	UserID         string `json:"user_id"`
-	DocumentID     string `json:"document_id"`
-	ExcludeRoomID  string `json:"exclude_room_id"`
+type FindChatDocumentShareAnchorParams struct {
+	OrganizationID  string             `json:"organization_id"`
+	UserID          string             `json:"user_id"`
+	DocumentID      string             `json:"document_id"`
+	SourceMessageID string             `json:"source_message_id"`
+	GrantedAt       pgtype.Timestamptz `json:"granted_at"`
 }
 
-type FindActiveChatRoomDocumentMessageForUserRow struct {
+type FindChatDocumentShareAnchorRow struct {
 	RoomID    string `json:"room_id"`
 	MessageID string `json:"message_id"`
 }
 
-// Another non-archived chat room in the organization where the user is still
-// an invited or active member and a live document message names the document
-// (UNI-2012 D2a).
-func (q *Queries) FindActiveChatRoomDocumentMessageForUser(ctx context.Context, arg FindActiveChatRoomDocumentMessageForUserParams) (FindActiveChatRoomDocumentMessageForUserRow, error) {
-	row := q.db.QueryRow(ctx, findActiveChatRoomDocumentMessageForUser,
+// The room and message that back a user's chat grant on one document now
+// (UNI-2012 S1-fix): a live document message of the document in a room the
+// user is an invited or active member of, sent during that membership - or
+// the grant's own source message, when the grant was made during it (a file
+// message converted in place keeps its older created_at). The grant's own
+// source wins, so a backed share is never re-pointed. No row: the grant is
+// stale and is revoked.
+func (q *Queries) FindChatDocumentShareAnchor(ctx context.Context, arg FindChatDocumentShareAnchorParams) (FindChatDocumentShareAnchorRow, error) {
+	row := q.db.QueryRow(ctx, findChatDocumentShareAnchor,
 		arg.OrganizationID,
 		arg.UserID,
 		arg.DocumentID,
-		arg.ExcludeRoomID,
+		arg.SourceMessageID,
+		arg.GrantedAt,
 	)
-	var i FindActiveChatRoomDocumentMessageForUserRow
+	var i FindChatDocumentShareAnchorRow
 	err := row.Scan(&i.RoomID, &i.MessageID)
 	return i, err
 }
@@ -502,6 +507,93 @@ func (q *Queries) InsertUserDocumentSharesBatch(ctx context.Context, arg InsertU
 	return items, nil
 }
 
+const listChatDocumentSharesToReconcile = `-- name: ListChatDocumentSharesToReconcile :many
+SELECT s.id, s.organization_id, s.workspace_id, s.document_id, s.principal_type, s.principal_id, s.level, s.granted_by, s.granted_by_kind, s.revoked_at, s.revoked_by, s.created_at, s.source_kind, s.source_room_id, s.source_message_id, s.prior_manual_level
+FROM document_shares s
+WHERE s.organization_id = $1
+  AND s.principal_type = 'user'
+  AND s.principal_id = $2
+  AND s.source_kind = 'chat'
+  AND s.revoked_at IS NULL
+  AND NOT EXISTS (
+    SELECT 1
+    FROM organization_members om
+    WHERE om.organization_id = s.organization_id
+      AND om.user_id = s.principal_id
+      AND om.deactivated_at IS NOT NULL
+  )
+  AND NOT EXISTS (
+    SELECT 1
+    FROM chat_room_members m
+    JOIN chat_messages msg
+      ON msg.room_id = m.room_id
+     AND msg.organization_id = m.organization_id
+    WHERE m.organization_id = s.organization_id
+      AND m.room_id = s.source_room_id
+      AND m.user_id = s.principal_id
+      AND m.status IN ('invited', 'active')
+      AND msg.id = s.source_message_id
+      AND msg.deleted_at IS NULL
+      AND msg.kind = 'document'
+      AND msg.metadata->>'document_id' = s.document_id
+      AND (msg.created_at >= m.created_at OR s.created_at >= m.created_at)
+  )
+ORDER BY s.created_at, s.id
+`
+
+type ListChatDocumentSharesToReconcileParams struct {
+	OrganizationID string `json:"organization_id"`
+	UserID         string `json:"user_id"`
+}
+
+// The live chat-origin shares of one user in the organization that their own
+// source no longer backs (UNI-2012 S1-fix). A chat grant is backed while the
+// user is an invited or active member of the source room, the source message
+// is a live document message of the same document, and that membership is
+// the one the grant was made in: the message, or the grant itself, is not
+// older than the membership row (a rejoin inserts a new row, so a grant from
+// an earlier membership is stale). Every share returned is reconciled under
+// the document lock, where FindChatDocumentShareAnchor decides again. A
+// deactivated member is skipped: deactivation keeps what the person owns and
+// reactivation restores their rooms. Manual shares and pre-existing chat
+// grants have source_kind IS NULL and are never returned here.
+func (q *Queries) ListChatDocumentSharesToReconcile(ctx context.Context, arg ListChatDocumentSharesToReconcileParams) ([]DocumentShare, error) {
+	rows, err := q.db.Query(ctx, listChatDocumentSharesToReconcile, arg.OrganizationID, arg.UserID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []DocumentShare{}
+	for rows.Next() {
+		var i DocumentShare
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.WorkspaceID,
+			&i.DocumentID,
+			&i.PrincipalType,
+			&i.PrincipalID,
+			&i.Level,
+			&i.GrantedBy,
+			&i.GrantedByKind,
+			&i.RevokedAt,
+			&i.RevokedBy,
+			&i.CreatedAt,
+			&i.SourceKind,
+			&i.SourceRoomID,
+			&i.SourceMessageID,
+			&i.PriorManualLevel,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listDocumentShares = `-- name: ListDocumentShares :many
 SELECT id, organization_id, workspace_id, document_id, principal_type, principal_id, level, granted_by, granted_by_kind, revoked_at, revoked_by, created_at, source_kind, source_room_id, source_message_id, prior_manual_level
 FROM document_shares
@@ -609,129 +701,6 @@ func (q *Queries) ListLiveBreakGlassGrantsForDocuments(ctx context.Context, arg 
 	return items, nil
 }
 
-const listLiveChatDocumentSharesForUserInRoom = `-- name: ListLiveChatDocumentSharesForUserInRoom :many
-SELECT id, organization_id, workspace_id, document_id, principal_type, principal_id, level, granted_by, granted_by_kind, revoked_at, revoked_by, created_at, source_kind, source_room_id, source_message_id, prior_manual_level
-FROM document_shares
-WHERE organization_id = $1
-  AND principal_type = 'user'
-  AND principal_id = $2
-  AND source_kind = 'chat'
-  AND source_room_id = $3
-  AND revoked_at IS NULL
-ORDER BY created_at, id
-`
-
-type ListLiveChatDocumentSharesForUserInRoomParams struct {
-	OrganizationID string      `json:"organization_id"`
-	UserID         string      `json:"user_id"`
-	RoomID         pgtype.Text `json:"room_id"`
-}
-
-// Live chat-origin shares granted to one user from one chat room in the
-// organization (UNI-2012 D2a). Manual shares and pre-existing chat shares have
-// source_kind IS NULL and are never returned here.
-func (q *Queries) ListLiveChatDocumentSharesForUserInRoom(ctx context.Context, arg ListLiveChatDocumentSharesForUserInRoomParams) ([]DocumentShare, error) {
-	rows, err := q.db.Query(ctx, listLiveChatDocumentSharesForUserInRoom, arg.OrganizationID, arg.UserID, arg.RoomID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []DocumentShare{}
-	for rows.Next() {
-		var i DocumentShare
-		if err := rows.Scan(
-			&i.ID,
-			&i.OrganizationID,
-			&i.WorkspaceID,
-			&i.DocumentID,
-			&i.PrincipalType,
-			&i.PrincipalID,
-			&i.Level,
-			&i.GrantedBy,
-			&i.GrantedByKind,
-			&i.RevokedAt,
-			&i.RevokedBy,
-			&i.CreatedAt,
-			&i.SourceKind,
-			&i.SourceRoomID,
-			&i.SourceMessageID,
-			&i.PriorManualLevel,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listLiveChatDocumentSharesForUserLeftRooms = `-- name: ListLiveChatDocumentSharesForUserLeftRooms :many
-SELECT s.id, s.organization_id, s.workspace_id, s.document_id, s.principal_type, s.principal_id, s.level, s.granted_by, s.granted_by_kind, s.revoked_at, s.revoked_by, s.created_at, s.source_kind, s.source_room_id, s.source_message_id, s.prior_manual_level
-FROM document_shares s
-WHERE s.organization_id = $1
-  AND s.principal_type = 'user'
-  AND s.principal_id = $2
-  AND s.source_kind = 'chat'
-  AND s.revoked_at IS NULL
-  AND NOT EXISTS (
-    SELECT 1
-    FROM chat_room_members m
-    JOIN chat_rooms r ON r.id = m.room_id
-    WHERE m.organization_id = s.organization_id
-      AND m.room_id = s.source_room_id
-      AND m.user_id = s.principal_id
-      AND m.status IN ('invited', 'active')
-      AND r.archived_at IS NULL
-  )
-ORDER BY s.created_at, s.id
-`
-
-type ListLiveChatDocumentSharesForUserLeftRoomsParams struct {
-	OrganizationID string `json:"organization_id"`
-	UserID         string `json:"user_id"`
-}
-
-// Live chat-origin shares granted to one user in the organization whose source
-// room no longer holds the user as an invited or active member (UNI-2012 D2a).
-func (q *Queries) ListLiveChatDocumentSharesForUserLeftRooms(ctx context.Context, arg ListLiveChatDocumentSharesForUserLeftRoomsParams) ([]DocumentShare, error) {
-	rows, err := q.db.Query(ctx, listLiveChatDocumentSharesForUserLeftRooms, arg.OrganizationID, arg.UserID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []DocumentShare{}
-	for rows.Next() {
-		var i DocumentShare
-		if err := rows.Scan(
-			&i.ID,
-			&i.OrganizationID,
-			&i.WorkspaceID,
-			&i.DocumentID,
-			&i.PrincipalType,
-			&i.PrincipalID,
-			&i.Level,
-			&i.GrantedBy,
-			&i.GrantedByKind,
-			&i.RevokedAt,
-			&i.RevokedBy,
-			&i.CreatedAt,
-			&i.SourceKind,
-			&i.SourceRoomID,
-			&i.SourceMessageID,
-			&i.PriorManualLevel,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const listLiveSharesForDocuments = `-- name: ListLiveSharesForDocuments :many
 SELECT document_id, principal_type, principal_id, level
 FROM document_shares
@@ -804,9 +773,9 @@ type RepointDocumentShareChatSourceParams struct {
 	DocumentID      string      `json:"document_id"`
 }
 
-// Re-points a live chat-origin share to a surviving room and message when the
-// recipient leaves one room while remaining active in another room that holds
-// a live card for the same document (UNI-2012 D2a).
+// Re-points a live chat-origin share to the room and message that back it now
+// (FindChatDocumentShareAnchor) when its own source no longer does
+// (UNI-2012 D2a, S1-fix).
 func (q *Queries) RepointDocumentShareChatSource(ctx context.Context, arg RepointDocumentShareChatSourceParams) (DocumentShare, error) {
 	row := q.db.QueryRow(ctx, repointDocumentShareChatSource,
 		arg.SourceRoomID,

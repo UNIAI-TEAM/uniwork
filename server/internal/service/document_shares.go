@@ -212,7 +212,8 @@ func validShareLevel(level DocumentLevel) error {
 
 // applyDocumentShare writes one grant inside the caller's transaction, after
 // the caller has gated the actor and validated the principal: the same live
-// level is returned unchanged with no audit row, another live level is
+// level is returned unchanged with no audit row (unless a manual grant takes
+// over a chat-origin row, keepsLiveShare), another live level is
 // revoked and replaced, and a new grant is inserted with its audit row and
 // document.shared event. A share naming the document's own workspace is not a
 // grant of its own (BR-04, SH-S1 item 2): it merges into the home row.
@@ -240,7 +241,7 @@ func (s *DocumentService) applyDocumentShareWithBatch(ctx context.Context, q *db
 		PrincipalID:    in.PrincipalID,
 	})
 	hasPrev := err == nil
-	if hasPrev && prev.Level == string(in.Level) {
+	if hasPrev && keepsLiveShare(prev, in.Level, in.SourceKind) {
 		return prev, nil
 	}
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
@@ -314,6 +315,19 @@ func (s *DocumentService) applyDocumentShareWithBatch(ctx context.Context, q *db
 		return db.DocumentShare{}, err
 	}
 	return sh, nil
+}
+
+// keepsLiveShare reports whether a grant at level from sourceKind leaves the
+// live share prev as it is: the same level is not written again, except when
+// a manual grant meets a chat-origin row (UNI-2012 S1-fix B4). The manual
+// grant then takes the row over (revoke and insert with no source), so leaving
+// the room no longer revokes what the manager granted. A chat grant never
+// takes over a manual row, and a chat replay keeps its own row.
+func keepsLiveShare(prev db.DocumentShare, level DocumentLevel, sourceKind string) bool {
+	if prev.Level != string(level) {
+		return false
+	}
+	return sourceKind == DocumentShareSourceKindChat || !prev.SourceKind.Valid
 }
 
 // priorManualLevelForChatGrant decides the prior_manual_level column of a new
