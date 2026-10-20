@@ -177,8 +177,9 @@ export function ChatInfoPanel(props: ChatInfoPanelProps) {
         docked ? "w-75 shrink-0" : "absolute inset-y-0 right-0 z-30 w-full shadow-floating sm:max-w-85",
       )}
     >
-      <div data-window-drag className="flex h-16 shrink-0 items-center border-b border-border pr-2 pl-5">
-        <h2 className="min-w-0 flex-1 truncate font-display text-title-sm font-bold text-foreground">{heading}</h2>
+      {/* 56px, level with the conversation header beside it. */}
+      <div data-window-drag className="flex h-14 shrink-0 items-center border-b border-border pr-2 pl-5">
+        <h2 className="min-w-0 flex-1 truncate text-body-lg font-semibold text-foreground">{heading}</h2>
         <Button
           ref={closeRef}
           type="button"
@@ -280,7 +281,7 @@ function ChatInfoHero({
       />
     );
     line =
-      online > 0 ? <span className="text-success">{t("chat.presence_online")}</span> : t("chat.dm_direct_message");
+      online > 0 ? <span className="text-primary">{t("chat.presence_online")}</span> : t("chat.dm_direct_message");
     detail = activeContact.email || undefined;
   } else {
     const face =

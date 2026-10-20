@@ -60,6 +60,10 @@ func (s *DocumentService) attachListShareScopes(ctx context.Context, actor Actor
 		return err
 	}
 	for i := range items {
+		if items[i].Document.Kind == DocumentKindFolder {
+			// A folder is never shared (UNI-1974): no scope to summarize.
+			continue
+		}
 		scope := scopes[items[i].Document.ID]
 		items[i].ShareScope = &scope
 	}

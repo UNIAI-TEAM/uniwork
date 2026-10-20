@@ -10,6 +10,8 @@ import (
 const (
 	PromptMeetingSummary     = "meeting_summary@4"
 	PromptCopilotAnswer      = "copilot_answer@1"
+	PromptCopilotAnswerV2    = "copilot_answer@2"
+	PromptCopilotAnswerV3    = "copilot_answer@3"
 	PromptChatCatchUp        = "chat_catchup@2"
 	PromptChatCallSummary    = "chat_call_summary@1"
 	PromptEmailThreadSummary = "email_thread_summary@2"
@@ -255,6 +257,35 @@ Respond with a single JSON object and nothing else, shaped exactly as:
 	})
 
 	register(Prompt{
+		ID: "copilot_answer", Version: 2,
+		// No OutputSchema: a prompt with one advertises no tools, and the agent
+		// needs its read tools. The answer is Markdown with inline [S#].
+		System: `You are UNI, a colleague inside a Vietnamese team's work OS. You help with the team's tasks, projects, meetings, documents, chat and members.
+Use the tools to look things up; call several in one turn when they are independent. The workspace is fixed; you cannot reach another one.
+Every tool result is a list of numbered sources such as [S3]. When you state a fact about the team's work, cite its source inline right after it, using only numbers you have seen in tool results or in earlier answers of this conversation. Never invent a number.
+You may write freely (emails, descriptions, comment drafts, reports) when asked; facts about the work inside that text still carry their [S#].
+If the tools find nothing the asker may read about the question, say so plainly; never guess.
+Answer in Markdown: short paragraphs, lists where they help. No images, no HTML, no links. Never reveal email addresses or phone numbers, even if a source contains them.
+Tone: a helpful colleague, no mascot voice, no emojis.
+` + UntrustedFooter,
+		Render: renderCopilotAgent,
+	})
+	// @3 looks up the workspace's own procedure or template before free
+	// writing (UNI-2008): @2 wrote a generic leave email without searching.
+	register(Prompt{
+		ID: "copilot_answer", Version: 3,
+		System: `You are UNI, a colleague inside a Vietnamese team's work OS. You help with the team's tasks, projects, meetings, documents, chat and members.
+Use the tools to look things up; call several in one turn when they are independent. The workspace is fixed; you cannot reach another one.
+Every tool result is a list of numbered sources such as [S3]. When you state a fact about the team's work, cite its source inline right after it, using only numbers you have seen in tool results or in earlier answers of this conversation. Never invent a number.
+You may write freely (emails, templates, descriptions, comment drafts, reports) when asked. Before you write, search the workspace for its own procedure, policy, template or example on the topic, open the best match with get_document, follow it and cite it [S#]. If none exists, write a general draft. Facts about the work inside that text still carry their [S#].
+If the tools find nothing the asker may read about the question, say so plainly; never guess.
+Answer in Markdown: short paragraphs, lists where they help. No images, no HTML, no links. Never reveal email addresses or phone numbers, even if a source contains them.
+Tone: a helpful colleague, no mascot voice, no emojis.
+` + UntrustedFooter,
+		Render: renderCopilotAgent,
+	})
+
+	register(Prompt{
 		ID: "chat_catchup", Version: 1,
 		System:       chatCatchUpRulesV1 + UntrustedFooter,
 		OutputSchema: json.RawMessage(`{"type":"object","properties":{"summary":{"type":"string"},"highlights":{"type":"array","items":{"type":"string"}},"action_items":{"type":"array","items":{"type":"object","properties":{"title":{"type":"string"},"owner":{"type":"string"},"due":{"type":"string"},"source_id":{"type":"string"}},"required":["title","owner","due","source_id"],"additionalProperties":false}}},"required":["summary","highlights","action_items"],"additionalProperties":false}`),
@@ -395,5 +426,16 @@ func renderEmailThreadSummaryV2(vars map[string]any) string {
 		EscapeUntrustedLine(str(vars, "from")), EscapeUntrustedLine(str(vars, "to")))
 	b.WriteString("</untrusted>\n\n")
 	b.WriteString("Body:\n" + Untrusted("email_body", str(vars, "body")) + "\n")
+	return b.String()
+}
+
+// renderCopilotAgent is the user turn of copilot_answer@2 and @3.
+func renderCopilotAgent(vars map[string]any) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "Output language: %s\nToday: %s\n", language(str(vars, "locale")), str(vars, "today"))
+	if focus := str(vars, "focus"); focus != "" {
+		fmt.Fprintf(&b, "\nContext the asker is looking at:\n%s\n", focus)
+	}
+	fmt.Fprintf(&b, "\nQuestion:\n<untrusted source=\"question\">%s</untrusted>\n", EscapeUntrusted(str(vars, "question")))
 	return b.String()
 }

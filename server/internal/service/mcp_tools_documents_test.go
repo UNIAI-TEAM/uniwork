@@ -358,18 +358,18 @@ func TestMcpDocumentsKeepTheirOwnPermissions(t *testing.T) {
 		}
 	}
 
-	// Shared with the member, both come in: get, list and search.
-	for _, id := range []string{secret.Document.ID, folder.Document.ID} {
-		if _, err := docs.ShareDocument(ctx, Human(x.ua.ID), id, DocumentShareInput{PrincipalType: DocumentPrincipalUser, PrincipalID: member.UserID, Level: DocumentLevelView}); err != nil {
-			t.Fatal(err)
-		}
+	// Shared with the member, the page comes in: get, list and search. A folder
+	// cannot be shared (UNI-1974), so it stays closed to the member.
+	if _, err := docs.ShareDocument(ctx, Human(x.ua.ID), secret.Document.ID, DocumentShareInput{PrincipalType: DocumentPrincipalUser, PrincipalID: member.UserID, Level: DocumentLevelView}); err != nil {
+		t.Fatal(err)
 	}
-	only("after the share", open.Document.ID, secret.Document.ID, folder.Document.ID)
-	for _, id := range []string{secret.Document.ID, folder.Document.ID} {
-		raw, err := callMcpTool(t, x.tools, member, "get_document", `{"workspace_id":"`+x.w.ID+`","document_id":"`+id+`"}`)
-		if err != nil || !strings.Contains(string(raw), id) {
-			t.Errorf("member reads the shared document %s: %s (%v)", id, raw, err)
-		}
+	if _, err := docs.ShareDocument(ctx, Human(x.ua.ID), folder.Document.ID, DocumentShareInput{PrincipalType: DocumentPrincipalUser, PrincipalID: member.UserID, Level: DocumentLevelView}); err == nil {
+		t.Fatal("a folder was shared")
+	}
+	only("after the share", open.Document.ID, secret.Document.ID)
+	raw, err := callMcpTool(t, x.tools, member, "get_document", `{"workspace_id":"`+x.w.ID+`","document_id":"`+secret.Document.ID+`"}`)
+	if err != nil || !strings.Contains(string(raw), secret.Document.ID) {
+		t.Errorf("member reads the shared document: %s (%v)", raw, err)
 	}
 }
 
@@ -874,14 +874,15 @@ func TestMcpCreateDocumentRefusals(t *testing.T) {
 	}
 }
 
-// A page goes in the workspace root, a folder or a page. It takes the
-// visibility of the one it goes in (CreatePage); a parent that is not the
+// A page goes in the workspace root, a folder or a page. Under a page it takes
+// that page's visibility; a folder is never shared, so a page under one is
+// private (CreatePage); a parent that is not the
 // person's to edit, or is not there, reads as the one not-found answer.
 func TestMcpCreateDocumentUnderAParent(t *testing.T) {
 	x := newMcpToolWorld(t)
 	ctx := context.Background()
 	docs := x.docs(t)
-	folder, err := docs.CreatePage(ctx, Human(x.ua.ID), x.w.ID, CreatePageInput{Kind: DocumentKindFolder, Title: "Thư mục", Visibility: documentVisibilityWorkspace})
+	folder, err := docs.CreatePage(ctx, Human(x.ua.ID), x.w.ID, CreatePageInput{Kind: DocumentKindFolder, Title: "Thư mục"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -900,8 +901,12 @@ func TestMcpCreateDocumentUnderAParent(t *testing.T) {
 		if err != nil {
 			t.Fatalf("under %s: %v", parent, err)
 		}
-		if row := x.docRow(t, item["id"].(string)); item["parent_id"] != parent || row.ParentID.String != parent || row.Visibility != documentVisibilityWorkspace {
-			t.Errorf("under %s: item %v, row %+v", parent, item, row)
+		want := documentVisibilityWorkspace
+		if parent == folder.Document.ID {
+			want = documentVisibilityRestricted
+		}
+		if row := x.docRow(t, item["id"].(string)); item["parent_id"] != parent || row.ParentID.String != parent || row.Visibility != want {
+			t.Errorf("under %s: item %v, row %+v, want %s", parent, item, row, want)
 		}
 	}
 
@@ -926,8 +931,8 @@ func TestMcpCreateDocumentUnderAParent(t *testing.T) {
 	if _, err := x.tools.document(ctx, member, x.w.ID, child); !errors.Is(err, ErrNotFound) {
 		t.Errorf("another member reads a page under a restricted folder: %v", err)
 	}
-	// The shares of a restricted folder are not copied to a page created in it.
-	shared, err := docs.CreatePage(ctx, Human(x.ua.ID), x.w.ID, CreatePageInput{Kind: DocumentKindFolder, Title: "Thư mục chia sẻ", Visibility: documentVisibilityRestricted})
+	// The shares of a restricted page are not copied to a page created in it.
+	shared, err := docs.CreatePage(ctx, Human(x.ua.ID), x.w.ID, CreatePageInput{Title: "Trang chia sẻ", Visibility: documentVisibilityRestricted, Content: json.RawMessage(mcpTestPage)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -939,10 +944,10 @@ func TestMcpCreateDocumentUnderAParent(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := x.tools.document(ctx, member, x.w.ID, shared.Document.ID); err != nil {
-		t.Fatalf("control: the member reads the folder shared with them: %v", err)
+		t.Fatalf("control: the member reads the page shared with them: %v", err)
 	}
 	if _, err := x.tools.document(ctx, member, x.w.ID, item["id"].(string)); !errors.Is(err, ErrNotFound) {
-		t.Errorf("the member reads the page under the folder that was shared with them: %v", err)
+		t.Errorf("the member reads the page under the page that was shared with them: %v", err)
 	}
 
 	// Every parent that cannot be used reads exactly as one that does not exist.
@@ -970,7 +975,7 @@ func TestMcpCreateDocumentUnderAParent(t *testing.T) {
 	if _, err := docs.ArchiveDocument(ctx, Human(x.ua.ID), trashed.Document.ID, ArchiveDocumentInput{}); err != nil {
 		t.Fatal(err)
 	}
-	viewOnly, err := docs.CreatePage(ctx, Human(x.ua.ID), x.w.ID, CreatePageInput{Kind: DocumentKindFolder, Title: "Chỉ xem", Visibility: documentVisibilityRestricted})
+	viewOnly, err := docs.CreatePage(ctx, Human(x.ua.ID), x.w.ID, CreatePageInput{Title: "Chỉ xem", Visibility: documentVisibilityRestricted, Content: json.RawMessage(mcpTestPage)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -982,11 +987,11 @@ func TestMcpCreateDocumentUnderAParent(t *testing.T) {
 		p      McpPrincipal
 		parent string
 	}{
-		"a folder of a sibling workspace":              {x.p, inSibling.Document.ID},
-		"a folder of another organization":             {x.p, inOther.Document.ID},
-		"a folder in the trash":                        {x.p, trashed.Document.ID},
-		"a restricted folder the person cannot read":   {member, secret.Document.ID},
-		"a restricted folder the person can only read": {member, viewOnly.Document.ID},
+		"a folder of a sibling workspace":            {x.p, inSibling.Document.ID},
+		"a folder of another organization":           {x.p, inOther.Document.ID},
+		"a folder in the trash":                      {x.p, trashed.Document.ID},
+		"a restricted folder the person cannot read": {member, secret.Document.ID},
+		"a restricted page the person can only read": {member, viewOnly.Document.ID},
 	} {
 		_, err := create(c.p, c.parent)
 		if !errors.Is(err, ErrNotFound) || err.Error() != unknown.Error() {

@@ -284,6 +284,8 @@ type Routes struct {
 	UnsubscribePush            http.HandlerFunc
 
 	AiCapabilities       http.HandlerFunc
+	GetOrgAskModels      http.HandlerFunc
+	SetOrgAskModels      http.HandlerFunc
 	AskUni               http.HandlerFunc
 	ChatCatchUp          http.HandlerFunc
 	ListAiConversations  http.HandlerFunc
@@ -480,10 +482,14 @@ type Routes struct {
 	ListChatRoomMessages             http.HandlerFunc
 	GetChatRoomMessage               http.HandlerFunc
 	SearchChatRoomMessages           http.HandlerFunc
+	SearchChatMessages               http.HandlerFunc
 	ListChatRoomMessagesAround       http.HandlerFunc
 	SendChatRoomMessage              http.HandlerFunc
 	SendChatVoiceMessage             http.HandlerFunc
 	SendChatFileMessage              http.HandlerFunc
+	SendChatDocumentMessage          http.HandlerFunc
+	ShareChatMessageAsDocument       http.HandlerFunc
+	GetChatRoomDetail                http.HandlerFunc
 	VoteChatPollMessage              http.HandlerFunc
 	ToggleChatMessageReaction        http.HandlerFunc
 	EditChatMessage                  http.HandlerFunc
@@ -571,6 +577,7 @@ type Routes struct {
 	ResolveOfficeFrameAssets http.HandlerFunc
 	GetOfficeFrameAsset      http.HandlerFunc
 	GetOfficeFrameLinked     http.HandlerFunc
+	GetOfficeFrameAvatar     http.HandlerFunc
 	// PDF export of the frame's document (UNI-1013, W8).
 	ExportOfficeFramePDF http.HandlerFunc
 	// GO-A7's AI handlers on the frame-token mount (UNI-1014, ADR 0029 D9).
@@ -655,6 +662,13 @@ type Routes struct {
 	CreateDocumentShareBatch    http.HandlerFunc
 	UpdateDocumentAccess        http.HandlerFunc
 	RevokeDocumentShare         http.HandlerFunc
+	// DOC-07 (UNI-1631): a person asks a document's managers for access; the
+	// managers list, approve and decline. The create answer is uniform (202)
+	// so the route never proves the document exists.
+	CreateDocumentAccessRequest  http.HandlerFunc
+	ListDocumentAccessRequests   http.HandlerFunc
+	ApproveDocumentAccessRequest http.HandlerFunc
+	DeclineDocumentAccessRequest http.HandlerFunc
 	// Emergency view access for a workspace admin on a restricted document
 	// (DOC-05; UNI-1628).
 	CreateDocumentBreakGlass http.HandlerFunc

@@ -97,10 +97,12 @@ describe("ChatThreadSidePanel", () => {
     expect(props.onSendReply).toHaveBeenCalledWith("ws1:group:g1:thread:m1", "m1");
   });
 
-  it("edits my reply in its own field, and closing hands back to the page", () => {
+  it("edits my reply in its own field, and closing hands back to the page", async () => {
     const props = renderPanel();
     const panel = screen.getByRole("complementary", { name: "Chủ đề" });
-    fireEvent.click(within(document.getElementById("chat-msg-m2")!).getByRole("button", { name: "Sửa" }));
+    // Sửa is in the reply's "Thêm" menu.
+    fireEvent.click(within(document.getElementById("chat-msg-m2")!).getByRole("button", { name: "Thêm" }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Sửa" }));
     expect(within(panel).getByRole("textbox", { name: "Sửa tin nhắn" })).toHaveValue("Cắt còn 30 giây");
 
     fireEvent.click(within(panel).getByRole("button", { name: "Đóng chủ đề" }));

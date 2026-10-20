@@ -25,6 +25,8 @@ export interface SystemNotificationPayload {
   href: string;
   title: string;
   body: string;
+  /** No sound with the banner (UniChat's "Âm thanh khi có tin mới" off). */
+  silent?: boolean;
 }
 
 type ClickHandler = (payload: SystemNotificationPayload) => void;
@@ -97,6 +99,7 @@ export function showWebNotification(payload: SystemNotificationPayload): void {
   try {
     notification = new ctor(payload.title, {
       body: payload.body,
+      silent: payload.silent ?? false,
       // Collapse repeat banners for the same inbox row (e.g. a reconnect
       // replays the `inbox:new` event).
       tag: payload.itemId,

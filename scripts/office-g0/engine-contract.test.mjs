@@ -33,6 +33,7 @@ import {
   WIRE_FORMAT,
   CONTRACT_VERSION,
   PROTOCOL_VERSION,
+  ENGINE_JOB_TRANSPORT,
   validateEnvelope,
   payloadFingerprint,
   canonicalJson,
@@ -334,6 +335,7 @@ test("every error code carries a status, a class, a kind and a retryable flag", 
 
 test("wire fields on the frozen examples are snake_case", () => {
   assert.equal(WIRE_FORMAT, "snake_case");
+  assert.equal(ENGINE_JOB_TRANSPORT, "framed/1");
   const envelope = baseSerializeEnvelope();
   const snake = /^[a-z][a-z0-9]*(_[a-z0-9]+)*$/;
   for (const key of Object.keys(envelope)) {

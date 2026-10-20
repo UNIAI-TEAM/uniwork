@@ -90,12 +90,68 @@ func (q *Queries) CountMyTasks(ctx context.Context, arg CountMyTasksParams) (int
 	return column_1, err
 }
 
+const countOpenTasksByAssignee = `-- name: CountOpenTasksByAssignee :many
+SELECT assignee_id::text AS assignee_id,
+       count(*)::bigint AS open_count,
+       (count(*) FILTER (WHERE due_date < $1::date))::bigint AS overdue_count
+FROM tasks
+WHERE tasks.organization_id = $2
+  AND tasks.workspace_id = $3
+  AND assignee_id IS NOT NULL AND assignee_id <> ''
+  AND NOT EXISTS (
+    SELECT 1 FROM task_statuses s WHERE s.organization_id = tasks.organization_id
+      AND s.workspace_id = tasks.workspace_id AND s.key = tasks.status AND s.category IN ('done','cancelled'))
+GROUP BY assignee_id
+ORDER BY overdue_count DESC, open_count DESC, assignee_id
+LIMIT 200
+`
+
+type CountOpenTasksByAssigneeParams struct {
+	Today          pgtype.Date `json:"today"`
+	OrganizationID string      `json:"organization_id"`
+	WorkspaceID    string      `json:"workspace_id"`
+}
+
+type CountOpenTasksByAssigneeRow struct {
+	AssigneeID   string `json:"assignee_id"`
+	OpenCount    int64  `json:"open_count"`
+	OverdueCount int64  `json:"overdue_count"`
+}
+
+// Open (not done/cancelled) tasks per assignee; overdue = due before today.
+func (q *Queries) CountOpenTasksByAssignee(ctx context.Context, arg CountOpenTasksByAssigneeParams) ([]CountOpenTasksByAssigneeRow, error) {
+	rows, err := q.db.Query(ctx, countOpenTasksByAssignee, arg.Today, arg.OrganizationID, arg.WorkspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CountOpenTasksByAssigneeRow{}
+	for rows.Next() {
+		var i CountOpenTasksByAssigneeRow
+		if err := rows.Scan(&i.AssigneeID, &i.OpenCount, &i.OverdueCount); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const countTasks = `-- name: CountTasks :one
 SELECT count(*)::bigint FROM tasks
-WHERE organization_id = $1
-  AND workspace_id = $2
+WHERE tasks.organization_id = $1
+  AND tasks.workspace_id = $2
   AND ($3::text IS NULL OR status = $3)
   AND ($4::text IS NULL OR project_id = $4)
+  AND ($5::text IS NULL OR assignee_id = $5)
+  AND ($6::text IS NULL OR priority = $6)
+  AND ($7::date IS NULL OR due_date >= $7)
+  AND ($8::date IS NULL OR due_date <= $8)
+  AND ($9::date IS NULL OR (due_date < $9 AND NOT EXISTS (
+    SELECT 1 FROM task_statuses s WHERE s.organization_id = tasks.organization_id
+      AND s.workspace_id = tasks.workspace_id AND s.key = tasks.status AND s.category IN ('done','cancelled'))))
 `
 
 type CountTasksParams struct {
@@ -103,6 +159,11 @@ type CountTasksParams struct {
 	WorkspaceID    string      `json:"workspace_id"`
 	Status         pgtype.Text `json:"status"`
 	ProjectID      pgtype.Text `json:"project_id"`
+	AssigneeID     pgtype.Text `json:"assignee_id"`
+	Priority       pgtype.Text `json:"priority"`
+	DueFrom        pgtype.Date `json:"due_from"`
+	DueTo          pgtype.Date `json:"due_to"`
+	OverdueBefore  pgtype.Date `json:"overdue_before"`
 }
 
 func (q *Queries) CountTasks(ctx context.Context, arg CountTasksParams) (int64, error) {
@@ -111,6 +172,11 @@ func (q *Queries) CountTasks(ctx context.Context, arg CountTasksParams) (int64, 
 		arg.WorkspaceID,
 		arg.Status,
 		arg.ProjectID,
+		arg.AssigneeID,
+		arg.Priority,
+		arg.DueFrom,
+		arg.DueTo,
+		arg.OverdueBefore,
 	)
 	var column_1 int64
 	err := row.Scan(&column_1)
@@ -1406,12 +1472,19 @@ func (q *Queries) NextTaskNumber(ctx context.Context, arg NextTaskNumberParams) 
 
 const queryTasks = `-- name: QueryTasks :many
 SELECT id, workspace_id, title, description, status, priority, assignee_id, due_date, position, created_by, created_at, updated_at, kind, created_by_kind, assignee_kind, organization_id, number, project_id, parent_task_id, assignee_type, creator_type, creator_id, acceptance_criteria, context_refs, metadata, properties, start_date, stage, origin_type, origin_id, first_executed_at, revision, last_activity_at, start_at, due_at FROM tasks
-WHERE organization_id = $1
-  AND workspace_id = $2
+WHERE tasks.organization_id = $1
+  AND tasks.workspace_id = $2
   AND ($3::text IS NULL OR status = $3)
   AND ($4::text IS NULL OR project_id = $4)
+  AND ($5::text IS NULL OR assignee_id = $5)
+  AND ($6::text IS NULL OR priority = $6)
+  AND ($7::date IS NULL OR due_date >= $7)
+  AND ($8::date IS NULL OR due_date <= $8)
+  AND ($9::date IS NULL OR (due_date < $9 AND NOT EXISTS (
+    SELECT 1 FROM task_statuses s WHERE s.organization_id = tasks.organization_id
+      AND s.workspace_id = tasks.workspace_id AND s.key = tasks.status AND s.category IN ('done','cancelled'))))
 ORDER BY status, position, created_at
-LIMIT $6 OFFSET $5
+LIMIT $11 OFFSET $10
 `
 
 type QueryTasksParams struct {
@@ -1419,6 +1492,11 @@ type QueryTasksParams struct {
 	WorkspaceID    string      `json:"workspace_id"`
 	Status         pgtype.Text `json:"status"`
 	ProjectID      pgtype.Text `json:"project_id"`
+	AssigneeID     pgtype.Text `json:"assignee_id"`
+	Priority       pgtype.Text `json:"priority"`
+	DueFrom        pgtype.Date `json:"due_from"`
+	DueTo          pgtype.Date `json:"due_to"`
+	OverdueBefore  pgtype.Date `json:"overdue_before"`
 	OffsetN        int32       `json:"offset_n"`
 	LimitN         int32       `json:"limit_n"`
 }
@@ -1429,6 +1507,11 @@ func (q *Queries) QueryTasks(ctx context.Context, arg QueryTasksParams) ([]Task,
 		arg.WorkspaceID,
 		arg.Status,
 		arg.ProjectID,
+		arg.AssigneeID,
+		arg.Priority,
+		arg.DueFrom,
+		arg.DueTo,
+		arg.OverdueBefore,
 		arg.OffsetN,
 		arg.LimitN,
 	)

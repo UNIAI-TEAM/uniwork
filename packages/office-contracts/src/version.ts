@@ -5,6 +5,9 @@ import { z } from "zod";
 // under fixtures/ plus a Go-side update in server/internal/office.
 export const ENGINE_CONTRACT_VERSION = "uniwork-office-engine-contract/1";
 export const ENGINE_PROTOCOL_VERSION = 1;
+// Job transport capability (SIZE-OPS1): a job's input bytes ride a framed body
+// after the JSON envelope instead of base64 inside it; see ENVELOPE_MAX_BYTES.
+export const ENGINE_JOB_TRANSPORT = "framed/1";
 export const WIRE_FORMAT = "snake_case";
 
 // The frozen G0 lab bridge protocol (CONTRACT-v1.1.md). Distinct from the

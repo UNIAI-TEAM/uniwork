@@ -21,9 +21,13 @@ type Prefs struct {
 // An emergency access to a restricted document also pushes (DOC-05), and so
 // does a ringing call. A trash notice stays out of the digest too
 // (TRASH-NOTIFY-01, Q-R2: in-app only).
+// An access request pushes to the manager, who is the one who can answer it,
+// and an approval pushes to the requester, who is waiting to get in; a
+// decline does not (§4.4).
 func DefaultPrefs(kind string) Prefs {
-	push := kind == KindMentioned || kind == KindDocumentMentioned || kind == KindDocumentDiscussionMentioned || kind == KindDocumentBreakGlass ||
+	push := kind == KindMentioned || kind == KindDocumentMentioned || kind == KindDocumentBodyMentioned || kind == KindDocumentDiscussionMentioned || kind == KindDocumentBreakGlass ||
 		kind == KindDocumentShared ||
+		kind == KindDocumentAccessRequested || kind == KindDocumentAccessApproved ||
 		kind == KindTaskAssigned || kind == KindTasksAssigned || kind == KindMeetingStarting ||
 		kind == KindChatReminder || kind == KindChatMentioned || kind == KindChatDM || kind == KindChatCallIncoming ||
 		kind == KindDocumentEditRequested || kind == KindDocumentEditTakenOver

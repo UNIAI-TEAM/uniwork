@@ -71,6 +71,7 @@ export const paths = {
   },
   about: () => "/about",
   security: () => "/security",
+  privacy: () => "/privacy",
   guide: (slug: string) => `/learn/${encodeURIComponent(slug)}`,
   marketing: marketingHref,
   vietnamese: vietnamesePath,
@@ -129,6 +130,8 @@ export const paths = {
       chatMessages: () => `${base}/chat?view=messages`,
       /** Chat's channels of this workspace. */
       chatChannels: () => `${base}/chat?view=channels`,
+      /** UniChat's own settings (the shell keeps to /chat*), beside the workspace rail. */
+      chatSettings: () => `${base}/chat/settings`,
       /** Opens a room (and optionally scrolls to a message) on the chat page. */
       chatConversation: (roomId: string, messageId?: string) => {
         const params = new URLSearchParams();
@@ -189,6 +192,7 @@ export const GLOBAL_PREFIXES = [
   "/vi",
   "/about",
   "/security",
+  "/privacy",
 ] as const;
 
 export function isGlobalPath(path: string): boolean {

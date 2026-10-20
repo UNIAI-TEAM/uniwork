@@ -201,6 +201,42 @@ describe("locateModuleBundle", () => {
     const out = await materialize(archive, scratch());
     expect(loadBundle(locateModuleBundle(out, "html")!).manifest.module).toBe("html");
   });
+
+  it("resolves a release tarball wrapped in a single top directory (dist-web/) and installs a module", async () => {
+    // web-0.1.0-5932073 packs dist-web/<module>/<version>/ instead of the flat
+    // <module>/<version>/ of earlier releases; the unwrap is one level.
+    const hold = scratch();
+    renameSync(distWeb(["docs", "html"]), join(hold, "dist-web"));
+    expect(locateModuleBundle(join(hold, "dist-web"), "docs")).toBe(join(hold, "dist-web", "docs", "0.1.0-docs"));
+    const archive = join(scratch(), "wrapped.tar.gz");
+    execFileSync("tar", ["-czf", archive, "-C", hold, "."]);
+    const out = await materialize(archive, scratch());
+    const dir = locateModuleBundle(out, "html");
+    expect(dir).toBe(join(out, "dist-web", "html", "0.1.0-html"));
+    const bundle = loadBundle(dir!);
+    const target = install(dir!, bundle, join(scratch(), "html"));
+    expect(existsSync(join(target, "manifest.json"))).toBe(true);
+  });
+
+  it("finds nothing when the module sits under a second wrapper directory", () => {
+    // Only one unwrap: root -> a, then a's single child b is never entered.
+    const root = scratch();
+    mkdirSync(join(root, "a"));
+    renameSync(distWeb(["docs"]), join(root, "a", "b"));
+    expect(locateModuleBundle(root, "docs")).toBeNull();
+  });
+
+  it("does not guess when the root holds two directories and nothing else", async () => {
+    const root = scratch();
+    renameSync(distWeb(["docs"]), join(root, "dist-web"));
+    renameSync(distWeb(["pdf"]), join(root, "other"));
+    expect(locateModuleBundle(root, "docs")).toBeNull();
+    expect(locateModuleBundle(root, "pdf")).toBeNull();
+    const archive = join(scratch(), "two.tar.gz");
+    execFileSync("tar", ["-czf", archive, "-C", root, "."]);
+    const out = await materialize(archive, scratch());
+    expect(locateModuleBundle(out, "docs")).toBeNull();
+  });
 });
 
 describe("offerableFrameVersion", () => {

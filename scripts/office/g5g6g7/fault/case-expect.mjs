@@ -20,9 +20,61 @@
 const isCount = (value) => Number.isInteger(value) && value >= 0;
 const isStatus = (value) => isCount(value) || (typeof value === "string" && value !== "");
 
-const TOP_KEYS = new Set(["server", "proxyLog", "clientPath", "clientIntents", "clientIntentsWhileFull", "notes"]);
+const TOP_KEYS = new Set(["server", "proxyLog", "clientPath", "clientIntents", "clientIntentsWhileFull", "offline", "notes"]);
 const SERVER_KEYS = new Set(["versionDelta", "versionDeltaAfterAi", "lookup", "statuses", "errorCodes"]);
 const LOOKUP_KEYS = new Set(["status", "outcome", "errorCode"]);
+
+/**
+ * The offline-library states of the fork's S3 rows (`OFFLINE_ROW_STATES`,
+ * apps/shell/src/shared/offline-library.ts): the values `expect.offline.*States`
+ * may name, so a typo in cases.json fails here instead of never matching a row.
+ */
+export const OFFLINE_ROW_STATES = Object.freeze([
+  "revoked", "deleted", "lease-expired", "locked", "disk-full", "corrupt", "interrupted", "downloading", "verifying",
+  "lease-expiring", "update-available", "update-kept", "waiting-network", "archived", "moved", "view-only", "ready",
+]);
+
+/** `expect.offline` (the FL rows): the machine-readable shape of the offline-library readings. */
+const OFFLINE_KEYS = Object.freeze({
+  boolean: ["capabilityOn", "neverReadyWhileFaulted", "neverServedTampered", "contentNotServed", "draftKept", "keptOldCopy",
+    "neverExtendsLease", "nothingDecrypted", "accountALockedWhileSignedOut", "accountAScopeWiped", "deploymentAScopeUnchanged",
+    "signedOutKeepsNoName"],
+  // `downloadRequestsMin` is a proxy-log key (expect.proxyLog), never an offline one (review r1 R1-1)
+  count: ["plaintextCopies", "accountBRows", "accountBCopies", "accountBPlaintextNames", "deploymentBRows", "deploymentBCopies", "deploymentARows",
+    "diskMountMb", "diskLeaveBytes", "layerBudgetBytes", "clockSkewMinutes", "renewRefusalStatus"],
+  // refusal codes of an offline action (fork shared/offline-library.ts OfflineFailureCode): a driver accepts these and no other
+  codes: ["openRefusalCodes"],
+  // shortLeaseStates: what a row reads once the rewritten short lease is granted (fork lease/clock.ts: < 4 h left = lease-expiring)
+  states: ["faultedStates", "recoveredStates", "firstLaunchStates", "shortLeaseStates", "regrantStates", "tamperAccepts", "tamperNeverStates"],
+  text: ["lockReason", "renewRefusalCode"],
+});
+
+/** Every `expect.offline` key, whatever its kind: the app-driver coverage test reads a row's keys against this. */
+export const OFFLINE_EXPECT_KEYS = Object.freeze(Object.values(OFFLINE_KEYS).flat());
+
+function checkOffline(offline, where, problems) {
+  if (!offline || typeof offline !== "object" || Array.isArray(offline)) {
+    problems.push(`${where}: expect.offline is not an object`);
+    return;
+  }
+  for (const key of Object.keys(offline)) {
+    if (!OFFLINE_KEYS.boolean.includes(key) && !OFFLINE_KEYS.count.includes(key) && !OFFLINE_KEYS.states.includes(key) && !OFFLINE_KEYS.text.includes(key) && !OFFLINE_KEYS.codes.includes(key))
+      problems.push(`${where}: unknown expect.offline key "${key}"`);
+  }
+  for (const key of OFFLINE_KEYS.boolean) if (key in offline && typeof offline[key] !== "boolean") problems.push(`${where}: expect.offline.${key} is not a boolean`);
+  for (const key of OFFLINE_KEYS.count) if (key in offline && !isCount(offline[key])) problems.push(`${where}: expect.offline.${key} is not a count`);
+  for (const key of OFFLINE_KEYS.states) {
+    const list = offline[key];
+    if (key in offline && !(Array.isArray(list) && list.length > 0 && list.every((s) => OFFLINE_ROW_STATES.includes(s))))
+      problems.push(`${where}: expect.offline.${key} is not a non-empty list of offline row states`);
+  }
+  for (const key of OFFLINE_KEYS.codes) {
+    const list = offline[key];
+    if (key in offline && !(Array.isArray(list) && list.length > 0 && list.every((c) => typeof c === "string" && /^[a-z_]+$/.test(c))))
+      problems.push(`${where}: expect.offline.${key} is not a non-empty list of refusal codes`);
+  }
+  for (const key of OFFLINE_KEYS.text) if (key in offline && !(typeof offline[key] === "string" && offline[key])) problems.push(`${where}: expect.offline.${key} is not a string`);
+}
 
 /** Counts and status lists over the proxy log; `*Min` = at least, `*Statuses` = the exact status sequence. */
 export const PROXY_LOG_KEYS = Object.freeze({
@@ -35,6 +87,8 @@ export const PROXY_LOG_KEYS = Object.freeze({
   uploadPostsAfterStop: "count", commitPostsWhileBlocked: "count", commitPostsWhilePaused: "count",
   commitLookupsAfterStuckMin: "count", uploadPostsReachedUpstreamMin: "count", appCommitPosts: "count",
   writesAfterForeignSignIn: "count", writesWhileFull: "count",
+  // G7-03b (FL) rows: the content downloads of one document the proxy saw
+  downloadRequestsMin: "count",
 });
 
 function checkShape(expect, where, problems, { partial }) {
@@ -70,6 +124,7 @@ function checkShape(expect, where, problems, { partial }) {
   if ("clientPath" in expect && !(Array.isArray(expect.clientPath) && expect.clientPath.length > 0 && expect.clientPath.every((s) => typeof s === "string" && s)))
     problems.push(`${where}: expect.clientPath is not a list of state names`);
   for (const key of ["clientIntents", "clientIntentsWhileFull"]) if (key in expect && !isCount(expect[key])) problems.push(`${where}: expect.${key} is not a count`);
+  if ("offline" in expect) checkOffline(expect.offline, where, problems);
   if (!partial) {
     const notes = expect.notes;
     if (!notes || typeof notes !== "object" || Array.isArray(notes)) problems.push(`${where}: expect.notes missing`);
@@ -104,6 +159,7 @@ export function caseExpect(row, exit = null) {
   const statuses = { ...base.server?.statuses, ...over.server?.statuses };
   const errorCodes = { ...base.server?.errorCodes, ...over.server?.errorCodes };
   const proxyLog = { ...base.proxyLog, ...over.proxyLog };
+  const offline = { ...base.offline, ...over.offline };
   const need = (value, what) => {
     if (value === undefined) throw new Error(`${id}: cases.json expect.${what} is missing (the driver reads it, never a number of its own)`);
     return value;
@@ -121,6 +177,9 @@ export function caseExpect(row, exit = null) {
     errorCode: (step) => need(errorCodes[step], `server.errorCodes.${step}`),
     proxy: (key) => need(proxyLog[key], `proxyLog.${key}`),
     proxyKeys: () => Object.keys(proxyLog),
+    /** one `expect.offline` value (the FL rows): the driver reads its states and counts here, never a literal of its own */
+    offline: (key) => need(offline[key], `offline.${key}`),
+    offlineKeys: () => Object.keys(offline),
     clientPath: () => need(pick(over.clientPath, base.clientPath), "clientPath"),
     clientIntents: () => count(pick(over.clientIntents, base.clientIntents), "clientIntents"),
     clientIntentsWhileFull: () => count(pick(over.clientIntentsWhileFull, base.clientIntentsWhileFull), "clientIntentsWhileFull"),

@@ -241,6 +241,11 @@ func (w *isoWorld) buildOfficeFrame(t *testing.T, tn *isoTenant) {
 	tn.ids["frameAsset"] = isoString(t, out, "asset_id")
 	out = w.call(t, "GET", base, tn.token, nil)
 	tn.ids["frameRevision"] = isoString(t, out, "revision")
+	// File-backed avatars for the owner and the peer (UNI-1986), read through
+	// /api/v1/office-frame/documents/{documentID}/avatars/{userID}.
+	w.upload(t, "/api/v1/me/avatar", tn.token, isoMultipart{filename: "owner-avatar.png", contentType: "image/png", content: docsPNG})
+	w.upload(t, "/api/v1/me/avatar", tn.peerToken, isoMultipart{filename: "peer-avatar.png", contentType: "image/png", content: docsPNG})
+	tn.ids["frameAvatarUser"] = tn.peerID
 
 	// The source frame (UNI-1869): a DOCX task attachment under "Từ nơi khác",
 	// a source token minted by the owner's session for it (registered so do()
@@ -292,6 +297,59 @@ func (w *isoWorld) frameLinkedChecks(t *testing.T) {
 	} {
 		if status, raw := w.do(t, http.MethodGet, c.url, c.token, isoBody{}); status != http.StatusUnauthorized {
 			t.Errorf("%s on the linked route = %d, want 401: %s", name, status, isoClip(raw))
+		}
+	}
+}
+
+func isoFrameAvatarCheck(t *testing.T, tn *isoTenant, raw []byte) {
+	t.Helper()
+	if !bytes.Equal(raw, docsPNG) {
+		t.Errorf("%s frame avatar control body = %d bytes, want docsPNG (%d bytes)", tn.tag, len(raw), len(docsPNG))
+	}
+}
+
+// frameAvatarChecks pins the cross-tenant and credential cases of the frame
+// avatar route (UNI-1986): the owner reads a same-organization avatar with
+// their frame token, A's frame token on A's document + B's user answers the
+// same 404 body as an unknown ULID, and B's frame token cannot read A's user.
+func (w *isoWorld) frameAvatarChecks(t *testing.T) {
+	t.Helper()
+	path := func(docID, userID string) string {
+		return "/api/v1/office-frame/documents/" + docID + "/avatars/" + userID
+	}
+	for _, tn := range []*isoTenant{w.alpha, w.bravo} {
+		for _, uid := range []string{tn.userID, tn.peerID} {
+			status, raw := w.do(t, http.MethodGet, path(tn.ids["frameDocument"], uid), tn.ids["frameToken"], isoBody{})
+			if status != http.StatusOK || !bytes.Equal(raw, docsPNG) {
+				t.Errorf("%s frame avatar %s = %d (%d bytes), want 200 docsPNG", tn.tag, uid, status, len(raw))
+			}
+			hStatus, hRaw := w.do(t, http.MethodHead, path(tn.ids["frameDocument"], uid), tn.ids["frameToken"], isoBody{})
+			if hStatus != http.StatusOK || len(hRaw) != 0 {
+				t.Errorf("%s HEAD frame avatar %s = %d (%d bytes), want 200 empty", tn.tag, uid, hStatus, len(hRaw))
+			}
+		}
+	}
+	status404, want404 := w.do(t, http.MethodGet, path(w.alpha.ids["frameDocument"], "01J8X4NONEXISTENT000000000"), w.alpha.ids["frameToken"], isoBody{})
+	if status404 != http.StatusNotFound || len(want404) == 0 {
+		t.Fatalf("unknown frame avatar = %d %s, want 404", status404, isoClip(want404))
+	}
+	for name, c := range map[string]struct{ url, token string }{
+		"A's document + B's owner via A's frame token": {path(w.alpha.ids["frameDocument"], w.bravo.userID), w.alpha.ids["frameToken"]},
+		"A's document + B's peer via A's frame token":  {path(w.alpha.ids["frameDocument"], w.bravo.peerID), w.alpha.ids["frameToken"]},
+		"A's document + A's owner via B's frame token": {path(w.alpha.ids["frameDocument"], w.alpha.userID), w.bravo.ids["frameToken"]},
+		"A's document + A's peer via B's frame token":  {path(w.alpha.ids["frameDocument"], w.alpha.peerID), w.bravo.ids["frameToken"]},
+	} {
+		status, raw := w.do(t, http.MethodGet, c.url, c.token, isoBody{})
+		if status != http.StatusNotFound || !bytes.Equal(raw, want404) {
+			t.Errorf("%s = %d %q, want uniform 404 %q", name, status, raw, want404)
+		}
+	}
+	for name, c := range map[string]struct{ url, token string }{
+		"A's session token": {path(w.alpha.ids["frameDocument"], w.alpha.peerID), w.alpha.peerToken},
+		"no credential":     {path(w.alpha.ids["frameDocument"], w.alpha.peerID), ""},
+	} {
+		if status, raw := w.do(t, http.MethodGet, c.url, c.token, isoBody{}); status != http.StatusUnauthorized {
+			t.Errorf("%s on the frame avatar route = %d, want 401: %s", name, status, isoClip(raw))
 		}
 	}
 }

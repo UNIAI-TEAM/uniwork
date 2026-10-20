@@ -37,11 +37,20 @@ const CODE_TO_CLASS: Record<string, DocumentErrorClass> = {
   ai_context_forbidden: "permission",
   ai_tool_not_allowed: "permission",
   platform_role_insufficient: "permission",
+  // The offline lease is revoked, from an older policy epoch, gone or its
+  // signature no longer verifies (G5-D1 row 15): the app drops its committed
+  // copy and keeps the locked drafts. Mirrors error_class.go.
+  offline_lease_revoked: "permission",
   not_found: "missing",
   engine_incompatible: "incompatible",
   unauthorized: "session",
   invalid_token: "session",
   invalid_code: "session",
+  // The desktop device session is gone (device_revoked) or its refresh token
+  // was already spent (refresh_reused): both run the session recovery path.
+  // Mirrors error_class.go.
+  device_revoked: "session",
+  refresh_reused: "session",
   // 423: someone else holds the edit lock (UNI-1645). The server carries no
   // class for it, so this entry is the only path to "locked" - without it a
   // 423 classifies unknown and the save machine keeps retrying.

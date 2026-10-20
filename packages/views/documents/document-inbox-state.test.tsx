@@ -8,6 +8,7 @@ import type { Notification, User, Workspace } from "@uniwork/core/types";
 import { WorkspaceProvider } from "../layout/workspace-context";
 import { resourceHref } from "../notifications/resource-href";
 import { fakeNav, requestMock, wrapWithNav } from "../test/api-mock";
+import "../test/lazy-document-editor";
 import { DocumentDetailView } from "./document-detail-view";
 
 const { t } = initI18n();

@@ -1,8 +1,8 @@
 {
   "schema": 1,
-  "pinVersion": "0.1.0-f6395d8",
-  "forkSha": "f6395d8",
-  "capturedOn": "2026-10-18T05:15:36.716Z",
+  "pinVersion": "0.1.0-f01befd",
+  "forkSha": "f01befd",
+  "capturedOn": "2026-10-20T04:59:22.302Z",
   "viewport": {
     "desktop": {
       "w": 1440,
@@ -40,35 +40,35 @@
       "masks": []
     },
     "desktop/fx-md-notes-vi": {
-      "sha256": "0cf65354df35450724f5e02867dfdf1423fb2e0ce241d552f9a1505d0c876e76",
+      "sha256": "04a3feb2da47dec8f3d018ecaf9f125bcae638a52c52a08ebfe14122c686b36a",
       "masks": []
     },
     "desktop/fx-html-page-vi": {
-      "sha256": "2779c6eba7e07efe33a8a5b9b089ea5092fc5077223e291cf90bc92a49a43b3f",
+      "sha256": "be0599cdb7718f1c687d80e4272e1c36aebb43fdc7806199338982957e08e7ae",
       "masks": []
     },
     "web/fx-xlsx-revenue-xyz": {
-      "sha256": "5cd1026c8acc31bd51af6f98a86466b9688fad2ef5b1984f9117595e300ca4bc",
+      "sha256": "b6556c2bca05ba87d119f4b23f32f14006419f53c3f89fe22624547525ed303f",
       "masks": []
     },
     "web/fx-docx-report-vi": {
-      "sha256": "fdbe07717bcf88558f6915fa1a4f4bc2499f5cc0fd7cdb44e42a1b966f7652e7",
+      "sha256": "4632aaa4950726577a63425bb791d03960424406537da3c253f2b805aec919f5",
       "masks": []
     },
     "web/fx-pptx-deck-vi": {
-      "sha256": "e9c08c0267f3b6eccbbb1f856fe5274a369ad88d26c0ab99b0af36ee26c26399",
+      "sha256": "9780b8c59cabb741286793c458011d90b47903790123dd6909b27f12a2c227e0",
       "masks": []
     },
     "web/fx-pdf-invoice-vi": {
-      "sha256": "3d85dcb298eae00da54d988d3bfc326e620f05c41f7dffdb2f2b486eba1d1497",
+      "sha256": "b4e9c806161c537800a33c591df51bc2222c3ed4afc4ddd09c73243bbb2de919",
       "masks": []
     },
     "web/fx-md-notes-vi": {
-      "sha256": "1ff84643ed202632203868622c5a85ad1a48f7e527a72474029a2ecb1ae48525",
+      "sha256": "76d5ebda6544fea4c992b2a39522060087f72ba5137fb38dd42dce07b1f73535",
       "masks": []
     },
     "web/fx-html-page-vi": {
-      "sha256": "4116577e1028659aee02d753ce6d28f5514e530769e91cd05eb68fc8661adac8",
+      "sha256": "25f0097597f9a3fc868871cae9a0a3d66b32ba4a83b2b1ec9021985bd5d7acae",
       "masks": []
     }
   }

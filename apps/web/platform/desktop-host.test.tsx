@@ -11,6 +11,7 @@ import type { User, Workspace } from "@uniwork/core/types";
 import { WorkspaceProvider } from "@uniwork/views/layout/workspace-context";
 import { DesktopHost, UniChatBadge, useIsUniChatHost } from "./desktop-host";
 import { WebNavigationProvider } from "./navigation";
+import { useChatDeviceNotificationStore } from "@uniwork/core/chat/device-notification-store";
 
 const router = vi.hoisted(() => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn(), forward: vi.fn(), prefetch: vi.fn() }));
 vi.mock("next/navigation", () => ({
@@ -158,6 +159,12 @@ describe("UniChatBadge", () => {
     await act(async () => {
       captured.qc?.setQueryData(chatKeys.rooms("ws1"), [room("a", 0, 0), room("m", 5, 1, true)]);
     });
+    await vi.waitFor(() => expect(bridge.setBadgeCount).toHaveBeenLastCalledWith(1));
+
+    // Cài đặt › Thông báo: the count leaves the icon on this device, and comes back.
+    act(() => useChatDeviceNotificationStore.getState().setPref("badge", false));
+    await vi.waitFor(() => expect(bridge.setBadgeCount).toHaveBeenLastCalledWith(0));
+    act(() => useChatDeviceNotificationStore.getState().setPref("badge", true));
     await vi.waitFor(() => expect(bridge.setBadgeCount).toHaveBeenLastCalledWith(1));
 
     act(() => root.unmount());
