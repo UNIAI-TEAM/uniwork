@@ -183,28 +183,9 @@ func TestAccessReportRevokeTargetMirrorsTheRevokeGates(t *testing.T) {
 		}
 	}
 
-	// A My Folder row is locked for share changes (requireDocumentACLChange),
-	// so a share left on one has no revoke target; its break-glass grant does,
-	// because that route's gate is only "holder or administers".
-	mf := f.arDoc(t, tn, arDocSpec{kind: DocumentKindFolder, visibility: "restricted", aclOwner: tn.aclOwner.ID})
-	if _, err := f.pool.Exec(f.ctx, `UPDATE documents SET system_kind = 'my_folder' WHERE id = $1`, mf.ID); err != nil {
-		t.Fatal(err)
-	}
-	f.share(t, mf, DocumentPrincipalUser, tn.member.ID, DocumentLevelView, tn.aclOwner.ID)
-	mfGrant := f.arBreakGlass(t, mf, tn.wsAdmin.ID, time.Now().Add(time.Hour), false)
-	it := arItem(t, f.report(t, Human(tn.aclOwner.ID), tn.wsA, DocumentAccessReportQuery{}), mf.ID)
-	for _, r := range it.Rows {
-		switch r.Source {
-		case AccessReportSourceShare:
-			if r.RevokeKind != "" {
-				t.Errorf("share on My Folder carries %q", r.RevokeKind)
-			}
-		case AccessReportSourceBreakGlass:
-			if r.RevokeID != mfGrant {
-				t.Errorf("break-glass on My Folder: %+v", r)
-			}
-		}
-	}
+	// UNI-2039 fx1: My Folder is a folder, so it is never a row of the report
+	// (TestAccessReportExcludesFoldersAndMyFolder); the revoke targets of its
+	// shares are not reachable from here.
 }
 
 func TestAccessReportSortValidation(t *testing.T) {

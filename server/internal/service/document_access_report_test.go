@@ -189,7 +189,7 @@ func TestAccessReportWorkspaceScopeListsManagedDocs(t *testing.T) {
 	}
 }
 
-func TestAccessReportFolderScopeIsRecursiveAndIncludesRoot(t *testing.T) {
+func TestAccessReportFolderScopeIsRecursiveAndExcludesFolders(t *testing.T) {
 	f := newDocPermFixture(t)
 	tn := f.tenant(t, "ar2")
 	root := f.arDoc(t, tn, arDocSpec{kind: DocumentKindFolder, title: "Hợp đồng"})
@@ -200,7 +200,8 @@ func TestAccessReportFolderScopeIsRecursiveAndIncludesRoot(t *testing.T) {
 	f.arDoc(t, tn, arDocSpec{parent: sub.ID, archived: true}) // in the trash
 
 	page := f.report(t, Human(tn.owner.ID), tn.wsA, DocumentAccessReportQuery{FolderID: root.ID})
-	arSame(t, "listed", arSorted(arIDs(page)...), arSorted(root.ID, sub.ID, deep.ID, direct.ID))
+	// UNI-2039 fx1: the root and the subfolder are scopes, not rows.
+	arSame(t, "listed", arSorted(arIDs(page)...), arSorted(deep.ID, direct.ID))
 	if page.FolderID != root.ID || page.FolderTitle != "Hợp đồng" {
 		t.Fatalf("scope = %q %q", page.FolderID, page.FolderTitle)
 	}

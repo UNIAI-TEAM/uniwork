@@ -34,6 +34,10 @@ WHERE d.organization_id = sqlc.arg(organization_id)
   AND d.workspace_id = sqlc.arg(workspace_id)
   AND d.archived_at IS NULL
   AND d.owner_id IS NULL
+  -- UNI-2039 fx1: the report lists documents, not containers. A folder (My Folder
+  -- is one) is a scope the picker or folder_id names, never a row of the report.
+  AND d.kind <> 'folder'
+  AND d.system_kind IS NULL
   AND (sqlc.arg(visibility)::text = '' OR d.visibility = sqlc.arg(visibility)::text)
   -- MYFOLDER-01 (UNI-1891): drop a candidate the admin would reach only
   -- through see_all when it lives inside another member's My Folder. A row
@@ -124,6 +128,10 @@ WHERE d.organization_id = sqlc.arg(organization_id)
   AND d.workspace_id = sqlc.arg(workspace_id)
   AND d.archived_at IS NULL
   AND d.owner_id IS NULL
+  -- UNI-2039 fx1: the report lists documents, not containers. A folder (My Folder
+  -- is one) is a scope the picker or folder_id names, never a row of the report.
+  AND d.kind <> 'folder'
+  AND d.system_kind IS NULL
   AND (sqlc.arg(visibility)::text = '' OR d.visibility = sqlc.arg(visibility)::text)
   -- MYFOLDER-01 (UNI-1891): drop a candidate the admin would reach only
   -- through see_all when it lives inside another member's My Folder. A row

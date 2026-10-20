@@ -172,6 +172,10 @@ WHERE d.organization_id = $8
   AND d.workspace_id = $9
   AND d.archived_at IS NULL
   AND d.owner_id IS NULL
+  -- UNI-2039 fx1: the report lists documents, not containers. A folder (My Folder
+  -- is one) is a scope the picker or folder_id names, never a row of the report.
+  AND d.kind <> 'folder'
+  AND d.system_kind IS NULL
   AND ($12::text = '' OR d.visibility = $12::text)
   -- MYFOLDER-01 (UNI-1891): drop a candidate the admin would reach only
   -- through see_all when it lives inside another member's My Folder. A row
@@ -340,6 +344,10 @@ WHERE d.organization_id = $8
   AND d.workspace_id = $9
   AND d.archived_at IS NULL
   AND d.owner_id IS NULL
+  -- UNI-2039 fx1: the report lists documents, not containers. A folder (My Folder
+  -- is one) is a scope the picker or folder_id names, never a row of the report.
+  AND d.kind <> 'folder'
+  AND d.system_kind IS NULL
   AND ($10::text = '' OR d.visibility = $10::text)
   -- MYFOLDER-01 (UNI-1891): drop a candidate the admin would reach only
   -- through see_all when it lives inside another member's My Folder. A row
