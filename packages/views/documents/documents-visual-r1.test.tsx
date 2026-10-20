@@ -141,7 +141,7 @@ describe("phone row menu (finding 7)", () => {
   it("leaves it out of a page row", async () => {
     renderList([documentRow(file("p1", "Kế hoạch Q4", { kind: "page" }))]);
     fireEvent.click(screen.getByRole("button", { name: t("documents.home.row.menu", { title: "Kế hoạch Q4" }) }));
-    await screen.findByRole("menuitem", { name: t("documents.home.row.open_web") });
+    await screen.findByRole("menuitem", { name: t("documents.tree.menu.open") });
     expect(screen.queryByRole("menuitem", { name: t("documents.home.row.open_app") })).toBeNull();
   });
 });

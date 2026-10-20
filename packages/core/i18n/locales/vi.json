@@ -9600,7 +9600,12 @@
         "more_than_7_days": "Còn trên 7 ngày"
       },
       "days_left_one": "Còn {{count}} ngày",
-      "days_left_other": "Còn {{count}} ngày"
+      "days_left_other": "Còn {{count}} ngày",
+      "menu": {
+        "copy_link": "Sao chép link",
+        "link_copied": "Đã sao chép link",
+        "link_copy_failed": "Không sao chép được link. Thử lại."
+      }
     },
     "tree": {
       "aria_label": "Cây tài liệu",

@@ -41,6 +41,7 @@ import { useDropUpload } from "./use-drop-upload";
 import type { OfficeModule } from "@uniwork/core/office/docs-frame-protocol";
 import { useSourceOfficeViewer } from "./source-office-viewer";
 import { useLibraryRowDialogs } from "./use-library-row-dialogs";
+import { useLibraryRowFileCommands } from "./use-library-row-file-commands";
 import { shouldRetryFolderDetail } from "./use-tree-reveal";
 import { DocumentsSearchResults } from "./documents-search-results";
 import { useDocumentsSearch } from "./use-documents-search";
@@ -189,12 +190,13 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
   });
 
   const rowDialogs = useLibraryRowDialogs({ wsId, tree: library.tree, folderId, folderTitle: openFolderTitle });
+  const fileCommands = useLibraryRowFileCommands({ wsId, documentHref: wsPaths.document });
   const trashActions = useTrashActions({ wsId, rows: library.state.rows });
   const shelvedActions = useShelvedActions({ wsId, rows: library.state.rows });
   // Move and archive sit on the rows of this workspace's own lists for
   // people who may change the open folder; the server decides per document.
   // Lưu trữ joins the same set (U-4: manage-only at the menu item itself).
-  const rowCommands = canCreate && (view.kind === "home" || view.kind === "recent" || view.kind === "starred" || view.kind === "sharedByMe");
+  const rowCommands = canCreate && (view.kind === "home" || view.kind === "recent" || view.kind === "starred" || view.kind === "shared" || view.kind === "sharedByMe");
 
   const memberIndex = useMemo(() => new Map((members.data ?? []).map((m) => [m.user_id, m])), [members.data]);
   const drop = useDropUpload({
@@ -260,6 +262,10 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
     // Any reader may open Share from a row (UNI-2009); it is not gated by canCreate like the commands above.
     onShare: rowDialogs.onShare,
     onShelve: rowCommands ? (doc) => shelvedActions.onShelve(doc) : undefined,
+    // Link and download are reads, offered to any reader; the copy needs edit, which the menu checks per row.
+    onCopyLink: fileCommands.onCopyLink,
+    onDownload: fileCommands.onDownload,
+    onDuplicate: rowCommands ? fileCommands.onDuplicate : undefined,
     onToggleStar: orgId
       ? (documentId, starred) => {
           const op = starred ? unfavorite : favorite;
@@ -546,6 +552,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
       {shelvedActions.dialog}
 
       {rowDialogs.dialogs}
+      {fileCommands.dialogs}
     </div>
   );
 }
