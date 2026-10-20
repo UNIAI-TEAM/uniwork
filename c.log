@@ -1,0 +1,6 @@
+$ bash ~/.uniwork-cloud/.cursor/cloud/start.sh >/dev/null 2>&1 || true; git rev-parse HEAD; git log --oneline -4; for p in 19696 14696; do for pid in $(lsof -ti tcp:$p 2>/dev/null); do kill $pid; done; done; sleep 2; fuser -k 19696/tcp 14696/tcp 2>/dev/null; sleep 1; for p in 19696 14696; do lsof -ti tcp:$p >/dev/null 2>&1 && echo "PORT_STILL_BUSY=$p"; done; true
+0914100bf81ada51262e8c43935ed34122556952
+0914100bf chore: merge UNI-2019 G819-A07b (bfcd0c9fc) into the G5-G7 root
+137518e65 chore: merge UNI-2010 CHAT-FILE-SHARE-UI (143c6593c) into the G5-G7 root
+143c6593c fix(chat): document meta chip only on the own bubble, level badge keeps the resting look
+da9551bc2 fix(chat): own-bubble hover/focus contrast, document meta chip on the wall
