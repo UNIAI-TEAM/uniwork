@@ -368,3 +368,120 @@ describe("useFirstSaveNaming: where the document is saved (UNI-1960)", () => {
     await expect(answer).resolves.toBe(false);
   });
 });
+
+describe("useFirstSaveNaming: share with the workspace (UNI-2038 G4)", () => {
+  const MANAGED = { ...UNTITLED_DOC, my_level: "manage", visibility: "private" } as Document;
+
+  /** The decoded PATCH bodies, in order. */
+  const patchBodies = () => callsTo("PATCH", "/api/v1/documents/doc-1").map(({ init }) => patchJson(["", init]) as Record<string, unknown>);
+
+  it("shows the toggle off by default and saves without a visibility", async () => {
+    routeDocuments({ move: moved("f-fin") });
+    const { hook } = setup({ doc: MANAGED });
+    const { answer } = await openDialog(hook);
+    const toggle = await screen.findByRole("switch", { name: "Chia sẻ với workspace" });
+    expect(toggle).toHaveAttribute("aria-checked", "false");
+    fireEvent.click(screen.getByRole("button", { name: "Lưu" }));
+    await expect(answer).resolves.toBe(true);
+    const bodies = patchBodies();
+    expect(bodies).toHaveLength(1);
+    expect(bodies[0]).not.toHaveProperty("visibility");
+  });
+
+  it("turned on, sends ONE PATCH carrying revision, title and visibility", async () => {
+    routeDocuments({ move: moved("f-fin") });
+    const { hook } = setup({ doc: MANAGED });
+    const { answer } = await openDialog(hook);
+    fireEvent.click(await screen.findByRole("switch", { name: "Chia sẻ với workspace" }));
+    expect(screen.getByText("Mọi người trong workspace có thể xem tài liệu này")).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("Tên tài liệu"), { target: { value: "Kế hoạch Q4" } });
+    fireEvent.click(screen.getByRole("button", { name: "Lưu" }));
+    await expect(answer).resolves.toBe(true);
+    expect(patchBodies()).toEqual([{ revision: "4", title: "Kế hoạch Q4", visibility: "workspace" }]);
+  });
+
+  it("keeps the dialog open with the error when the PATCH is refused (403), toggle unchanged", async () => {
+    requestMock.mockImplementation((path: string, init?: MockInit) => {
+      if (path === "/api/v1/documents/doc-1" && init?.method === "PATCH") {
+        return Promise.reject(new ApiError("Only people who manage this document can do this.", "forbidden", 403));
+      }
+      if (path === "/api/v1/documents/doc-1") return Promise.resolve({ document: MANAGED });
+      if (path.startsWith("/api/v1/workspaces/ws-1/documents/tree")) return Promise.resolve(FOREST);
+      return Promise.reject(new Error(`unexpected ${init?.method ?? "GET"} ${path}`));
+    });
+    const { hook } = setup({ doc: MANAGED });
+    const { answer } = await openDialog(hook);
+    const settled = vi.fn();
+    void answer.then(settled);
+    fireEvent.click(await screen.findByRole("switch", { name: "Chia sẻ với workspace" }));
+    fireEvent.click(screen.getByRole("button", { name: "Lưu" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Only people who manage this document can do this.");
+    expect(screen.getByRole("dialog", { name: "Đặt tên tài liệu" })).toBeTruthy();
+    expect(screen.getByRole("switch", { name: "Chia sẻ với workspace" })).toHaveAttribute("aria-checked", "true");
+    expect(settled).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Hủy" }));
+    await expect(answer).resolves.toBe(false);
+  });
+
+  it("writes again when the toggle changes after a refused move", async () => {
+    let refuse = true;
+    routeDocuments({
+      move: () => refuse ? Promise.reject(new ApiError("refused", "forbidden", 403)) : moved("f-fin")(),
+    });
+    const { hook } = setup({ doc: MANAGED });
+    const { answer } = await openDialog(hook);
+    await screen.findByText("Thư mục của tôi");
+    await pickFolder("Tài chính");
+    fireEvent.click(screen.getByRole("button", { name: "Lưu" }));
+    await screen.findByRole("alert");
+    expect(patchBodies()).toHaveLength(1);
+    // The same retry (nothing changed) does not write the PATCH twice.
+    refuse = false;
+    fireEvent.click(screen.getByRole("switch", { name: "Chia sẻ với workspace" }));
+    fireEvent.click(screen.getByRole("button", { name: "Lưu" }));
+    await expect(answer).resolves.toBe(true);
+    const bodies = patchBodies();
+    expect(bodies).toHaveLength(2);
+    expect(bodies[1]).toMatchObject({ visibility: "workspace" });
+  });
+
+  it("Cancel and Esc send no PATCH even with the toggle on", async () => {
+    routeDocuments({ move: moved("f-fin") });
+    const { hook } = setup({ doc: MANAGED });
+    let { answer } = await openDialog(hook);
+    fireEvent.click(await screen.findByRole("switch", { name: "Chia sẻ với workspace" }));
+    fireEvent.click(screen.getByRole("button", { name: "Hủy" }));
+    await expect(answer).resolves.toBe(false);
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    ({ answer } = await openDialog(hook));
+    // A reopened dialog starts off again.
+    expect(await screen.findByRole("switch", { name: "Chia sẻ với workspace" })).toHaveAttribute("aria-checked", "false");
+    fireEvent.keyDown(screen.getByRole("dialog", { name: "Đặt tên tài liệu" }), { key: "Escape" });
+    await expect(answer).resolves.toBe(false);
+    expect(patchBodies()).toHaveLength(0);
+  });
+
+  it("shows a document that is already shared as on and aria-disabled, with a hint, and never sends visibility", async () => {
+    routeDocuments({ move: moved("f-fin") });
+    const { hook } = setup({ doc: { ...MANAGED, visibility: "workspace" } as Document });
+    const { answer } = await openDialog(hook);
+    const toggle = await screen.findByRole("switch", { name: "Chia sẻ với workspace" });
+    expect(toggle).toHaveAttribute("aria-checked", "true");
+    expect(toggle).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByText("Đã chia sẻ với workspace")).toBeTruthy();
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-checked", "true");
+    fireEvent.click(screen.getByRole("button", { name: "Lưu" }));
+    await expect(answer).resolves.toBe(true);
+    expect(patchBodies()[0]).not.toHaveProperty("visibility");
+  });
+
+  it("has no toggle when the person cannot manage the document", async () => {
+    routeDocuments({ move: moved("f-fin") });
+    const { hook } = setup({ doc: { ...MANAGED, my_level: "edit" } as Document });
+    await openDialog(hook);
+    await screen.findByText("Thư mục của tôi");
+    expect(screen.queryByRole("switch")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Hủy" }));
+  });
+});

@@ -15,6 +15,7 @@ import { FolderPickerDialog } from "../../documents/folder-picker-dialog";
 import { loadMoveRevision, myFolderFirst } from "../../documents/document-tree-model";
 import type { FirstSaveNamer } from "./docs-frame-session-model";
 import { describeLocation, FirstSaveLocation } from "./first-save-location";
+import { FirstSaveShare } from "./first-save-share";
 
 /**
  * UNI-1847 (SAVE-01), D1: the file a never-saved blank Office document stores.
@@ -81,8 +82,10 @@ export function useFirstSaveNaming({
   const [initialTitle, setInitialTitle] = useState("");
   // A successful submit also fires onOpenChange(false): it must not read as a cancel.
   const namedThisClose = useRef(false);
-  // The title already written for a document: a retry after a refused move must not write it again.
-  const written = useRef<{ id: string; title: string } | null>(null);
+  // What the PATCH already wrote for a document (title + whether it asked to share): a retry after a
+  // refused move must not write it again, but a changed title or toggle must.
+  const written = useRef<{ id: string; title: string; share: boolean } | null>(null);
+  const [share, setShare] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [moveError, setMoveError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -96,16 +99,21 @@ export function useFirstSaveNaming({
     for (const ask of asks) ask(namedNow);
   };
 
-  const writeTitle = async (docId: string, ws: string, title: string) => {
+  const writeTitle = async (docId: string, ws: string, title: string, shareNow: boolean) => {
     const revision = await loadMoveRevision(queryClient, ws, docId).catch(() => null);
     if (!revision) throw new Error("the document revision could not be read");
-    const updated = await patchDocument(docId, { revision, title });
+    // One PATCH: the server writes the title and the home-workspace row in a single transaction.
+    const updated = await patchDocument(docId, { revision, title, ...(shareNow ? { visibility: "workspace" as const } : {}) });
     if (!updated) throw new Error("the document rename was refused");
-    written.current = { id: docId, title };
+    written.current = { id: docId, title, share: shareNow };
     // The title changes everywhere the document is listed or opened.
     queryClient.setQueryData(documentKeys.detail(ws, docId), updated);
     await queryClient.invalidateQueries({ queryKey: documentKeys.workspace(ws) });
   };
+
+  // Opening a private document to the workspace needs manage; one already shared stays shared (never sent off).
+  const alreadyShared = doc?.visibility === "workspace";
+  const canShare = doc?.my_level === "manage" && !alreadyShared;
 
   const submit = async (title: string): Promise<boolean | void> => {
     const { doc: current, wsId: ws, module: mod, onNamed: notify, target: picked } = latest.current;
@@ -113,8 +121,9 @@ export function useFirstSaveNaming({
     setMoveError(null);
     setBusy(true);
     try {
-      if (written.current?.id !== current.id || written.current.title !== title) {
-        await writeTitle(current.id, ws, title);
+      const shareNow = canShare && share;
+      if (written.current?.id !== current.id || written.current.title !== title || written.current.share !== shareNow) {
+        await writeTitle(current.id, ws, title, shareNow);
       }
       if (picked !== undefined && picked !== (current.parent_id ?? null)) {
         try {
@@ -151,6 +160,7 @@ export function useFirstSaveNaming({
           const title = current?.title ?? "";
           setInitialTitle(title.toLowerCase().endsWith(ext.toLowerCase()) ? title.slice(0, -ext.length) : title);
           setTarget(undefined);
+          setShare(false);
           setMoveError(null);
           setOpen(true);
         }
@@ -186,6 +196,9 @@ export function useFirstSaveNaming({
         disabled={busy}
         onChange={() => setPickerOpen(true)}
       />
+      {doc?.my_level === "manage" ? (
+        <FirstSaveShare checked={share} alreadyShared={alreadyShared} disabled={busy} onChange={setShare} />
+      ) : null}
       <FolderPickerDialog
         open={pickerOpen}
         onOpenChange={setPickerOpen}
