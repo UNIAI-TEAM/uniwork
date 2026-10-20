@@ -244,3 +244,28 @@ func TestDocumentDownloadJobRefusals(t *testing.T) {
 		t.Fatalf("anonymous POST = %d, want 401", res.StatusCode)
 	}
 }
+
+// A creator with two jobs in flight gets 429 download_jobs_busy with
+// Retry-After 30; a settled job frees the slot.
+func TestDocumentDownloadJobBusyRefusal(t *testing.T) {
+	z := newZipWorld(t)
+	a := z.upload(t, "One", "one.md", "1")
+	var ids []string
+	for i := 0; i < 2; i++ {
+		res, out := doJSON(t, z.srv, "POST", z.base(), z.token, map[string]any{"document_ids": []string{a}})
+		if res.StatusCode != 202 {
+			t.Fatalf("job %d = %d %v, want 202", i, res.StatusCode, out)
+		}
+		ids = append(ids, out["id"].(string))
+	}
+	res, out := doJSON(t, z.srv, "POST", z.base(), z.token, map[string]any{"document_ids": []string{a}})
+	code, _ := errCodeClass(out)
+	fields, _ := out["error"].(map[string]any)["fields"].(map[string]any)
+	if res.StatusCode != 429 || code != "download_jobs_busy" || fields["retry_after"] != float64(30) || res.Header.Get("Retry-After") != "30" {
+		t.Fatalf("third job = %d %v retry-after %q, want 429 download_jobs_busy / 30", res.StatusCode, out, res.Header.Get("Retry-After"))
+	}
+	z.build(t, ids[0])
+	if res, out := doJSON(t, z.srv, "POST", z.base(), z.token, map[string]any{"document_ids": []string{a}}); res.StatusCode != 202 {
+		t.Fatalf("after a job settled = %d %v, want 202", res.StatusCode, out)
+	}
+}

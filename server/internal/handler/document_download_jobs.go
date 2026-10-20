@@ -30,6 +30,10 @@ func (h *handlers) createDocumentDownloadJob(w http.ResponseWriter, r *http.Requ
 	wsID := chi.URLParam(r, "workspaceID")
 	job, err := h.Documents.CreateDocumentDownloadJob(r.Context(), service.Human(middleware.UserID(r.Context())), wsID, in.DocumentIDs)
 	if err != nil {
+		// download_jobs_busy carries fields.retry_after; the header repeats it.
+		if retry, ok := uniworkRetryAfter(err); ok {
+			w.Header().Set("Retry-After", retry)
+		}
 		h.mapServiceError(w, err)
 		return
 	}

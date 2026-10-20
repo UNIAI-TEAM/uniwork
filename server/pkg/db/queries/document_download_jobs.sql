@@ -44,3 +44,14 @@ SELECT file_id FROM document_download_jobs WHERE file_id = ANY(sqlc.arg('file_id
 -- name: ClearDocumentDownloadJobFiles :exec
 UPDATE document_download_jobs SET file_id = NULL
 WHERE organization_id = $1 AND file_id IS NOT NULL;
+
+-- name: LockDocumentDownloadCreator :exec
+-- Serializes the per-creator active-job count with the insert that follows it,
+-- so two concurrent requests cannot both pass the cap.
+SELECT pg_advisory_xact_lock(hashtextextended('document-download:' || sqlc.arg(created_by)::text, 0));
+
+-- name: CountActiveDocumentDownloadJobs :one
+SELECT count(*) FROM document_download_jobs
+WHERE organization_id = $1 AND workspace_id = $2
+  AND created_by = $3 AND created_by_kind = $4
+  AND status IN ('queued', 'running');

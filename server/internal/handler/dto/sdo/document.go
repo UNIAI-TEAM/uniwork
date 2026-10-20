@@ -832,6 +832,8 @@ type DocumentDownloadSkipSDO struct {
 // DocumentDownloadJobSDO is the multi-document zip download job (UNI-2045
 // SV-9), answered by the 202 create and by the poll. status is queued,
 // running, ready, failed or expired (the set is open: read it with a default).
+// The zip is not counted against the organization's storage quota: it is kept
+// for one hour after it is ready, then released by the next sweep (minutes).
 type DocumentDownloadJobSDO struct {
 	ID          string                    `json:"id" example:"01J8X4DLJ0N1P2Q3R4S5T6U7"`
 	Status      string                    `json:"status" description:"queued | running | ready | failed | expired" example:"ready"`

@@ -573,7 +573,7 @@ func registerDocuments(r, callerDocs api, h Routes, flags *featureflag.Service, 
 	})
 	d.Post("/workspaces/{workspaceID}/documents/download-jobs", h.CreateDocumentDownloadJob, apiOp{
 		summary:     "Request a zip of several documents",
-		description: "Xếp hàng một zip các tệp đã chọn (UNI-2045). Body {document_ids}: 1-100 ULID khác nhau, sai -> 400 invalid_request. Chỉ tệp: trang và thư mục bị bỏ qua (not_a_file); tài liệu không đọc được, của workspace/tổ chức khác hoặc không tồn tại đều là not_found, không kèm tiêu đề. Tổng dung lượng bản hiện hành của các tệp người gọi tải được > 1 GiB -> 422 download_too_large kèm fields.max_bytes. Trả 202 {id, status:queued, ...}; hỏi GET cho tới khi ready. Mỗi tệp ghi access log tải đúng một lần khi build; một dòng audit documents.download_job_created.",
+		description: "Xếp hàng một zip các tệp đã chọn (UNI-2045). Body {document_ids}: 1-100 ULID khác nhau, sai -> 400 invalid_request. Chỉ tệp: trang và thư mục bị bỏ qua (not_a_file); tài liệu không đọc được, của workspace/tổ chức khác hoặc không tồn tại đều là not_found, không kèm tiêu đề. Tổng dung lượng bản hiện hành của các tệp người gọi tải được > 1 GiB -> 422 download_too_large kèm fields.max_bytes. Người tạo đã có 2 job queued/running -> 429 download_jobs_busy kèm Retry-After 30 (fields.retry_after). Trả 202 {id, status:queued, ...}; hỏi GET cho tới khi ready. Mỗi tệp ghi access log tải đúng một lần khi build; một dòng audit documents.download_job_created.",
 		tags:        []string{"documents"},
 		sdi:         sdi.CreateDocumentDownloadJobSDI{},
 		sdo:         sdo.DocumentDownloadJobSDO{},

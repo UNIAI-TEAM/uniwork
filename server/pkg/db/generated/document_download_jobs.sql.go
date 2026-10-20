@@ -54,6 +54,32 @@ func (q *Queries) CompleteDocumentDownloadJob(ctx context.Context, arg CompleteD
 	return id, err
 }
 
+const countActiveDocumentDownloadJobs = `-- name: CountActiveDocumentDownloadJobs :one
+SELECT count(*) FROM document_download_jobs
+WHERE organization_id = $1 AND workspace_id = $2
+  AND created_by = $3 AND created_by_kind = $4
+  AND status IN ('queued', 'running')
+`
+
+type CountActiveDocumentDownloadJobsParams struct {
+	OrganizationID string `json:"organization_id"`
+	WorkspaceID    string `json:"workspace_id"`
+	CreatedBy      string `json:"created_by"`
+	CreatedByKind  string `json:"created_by_kind"`
+}
+
+func (q *Queries) CountActiveDocumentDownloadJobs(ctx context.Context, arg CountActiveDocumentDownloadJobsParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countActiveDocumentDownloadJobs,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.CreatedBy,
+		arg.CreatedByKind,
+	)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const documentDownloadHeldFileIDs = `-- name: DocumentDownloadHeldFileIDs :many
 SELECT file_id FROM document_download_jobs WHERE file_id = ANY($1::text[])
 `
@@ -218,6 +244,17 @@ func (q *Queries) ListExpiredDocumentDownloadFiles(ctx context.Context) ([]ListE
 		return nil, err
 	}
 	return items, nil
+}
+
+const lockDocumentDownloadCreator = `-- name: LockDocumentDownloadCreator :exec
+SELECT pg_advisory_xact_lock(hashtextextended('document-download:' || $1::text, 0))
+`
+
+// Serializes the per-creator active-job count with the insert that follows it,
+// so two concurrent requests cannot both pass the cap.
+func (q *Queries) LockDocumentDownloadCreator(ctx context.Context, createdBy string) error {
+	_, err := q.db.Exec(ctx, lockDocumentDownloadCreator, createdBy)
+	return err
 }
 
 const releaseDocumentDownloadFile = `-- name: ReleaseDocumentDownloadFile :execrows

@@ -457,6 +457,15 @@ func TestDocumentDownloadJobFailsWhenNothingCanBeDownloaded(t *testing.T) {
 	}
 }
 
+// sweepZips runs the short-tick pass the document worker makes. The fixture's
+// service holds the fake file service, so it releases through the same path.
+func sweepZips(t *testing.T, z *zipFixture) {
+	t.Helper()
+	if _, err := z.env.svc.SweepDocumentDownloads(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestDocumentDownloadJobExpiresAndReleasesTheZip(t *testing.T) {
 	z := newZipFixture(t)
 	ctx := context.Background()
@@ -482,7 +491,7 @@ func TestDocumentDownloadJobExpiresAndReleasesTheZip(t *testing.T) {
 		t.Fatal("the reference provider does not hold a live zip")
 	}
 	// The sweep leaves a zip inside its window alone.
-	releaseExpiredDocumentDownloads(ctx, z.env.f.pool, z.env.f.q, z.env.fake)
+	sweepZips(t, z)
 	if !held() {
 		t.Fatal("the sweep released a zip before it expired")
 	}
@@ -501,7 +510,7 @@ func TestDocumentDownloadJobExpiresAndReleasesTheZip(t *testing.T) {
 	if ce := wantCode(t, err, "document_download_expired"); ce.Status != 410 {
 		t.Fatalf("expired download = %+v, want 410", ce)
 	}
-	releaseExpiredDocumentDownloads(ctx, z.env.f.pool, z.env.f.q, z.env.fake)
+	sweepZips(t, z)
 	if held() {
 		t.Fatal("the sweep kept the expired zip referenced")
 	}

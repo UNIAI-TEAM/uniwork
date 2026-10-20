@@ -32,8 +32,15 @@ const (
 	// job zips; a var-free constant, the 422 reports it as max_bytes.
 	documentDownloadMaxBytes int64 = 1 << 30
 	// documentDownloadWindow is how long a ready zip stays downloadable. After
-	// it the sweep releases the object (releaseExpiredDocumentDownloads).
+	// it the sweep releases the object (SweepDocumentDownloads, every
+	// idempotency-key tick). The zip is not counted against the storage quota:
+	// its purpose is not in storageMeteredPurposes, and it lives at most this
+	// window plus one sweep tick.
 	documentDownloadWindow = time.Hour
+	// documentDownloadMaxActive is how many jobs one creator may have queued
+	// or running at once; the next request answers 429 download_jobs_busy.
+	documentDownloadMaxActive = 2
+	documentDownloadBusyRetry = 30
 )
 
 // Skip reasons. A document the caller cannot read, from another workspace or
@@ -79,6 +86,14 @@ func errDownloadTooLarge() error {
 		Status: http.StatusUnprocessableEntity, Code: "download_too_large",
 		Msg:    "các tệp đã chọn vượt 1 GiB: hãy chọn ít tệp hơn",
 		Fields: map[string]any{"max_bytes": documentDownloadMaxBytes},
+	}
+}
+
+func errDownloadBusy() error {
+	return CodedError{
+		Status: http.StatusTooManyRequests, Code: "download_jobs_busy",
+		Msg:    "bạn đang có hai bản tải đang được tạo: hãy đợi một bản xong rồi thử lại",
+		Fields: map[string]any{"retry_after": documentDownloadBusyRetry},
 	}
 }
 
@@ -148,7 +163,8 @@ func (s *DocumentService) classifyDownload(ctx context.Context, q *db.Queries, a
 // CreateDocumentDownloadJob queues one zip of the named files. The caller's
 // own gates decide what is downloadable: unreadable, foreign and missing ids
 // are not refused here (that would be an existence oracle), they only stop
-// counting toward the 1 GiB cap and are skipped by the build.
+// counting toward the 1 GiB cap and are skipped by the build. A creator with
+// two jobs already queued or running gets 429 download_jobs_busy.
 func (s *DocumentService) CreateDocumentDownloadJob(ctx context.Context, actor Actor, workspaceID string, ids []string) (DocumentDownloadJob, error) {
 	if err := validateDownloadIDs(ids); err != nil {
 		return DocumentDownloadJob{}, err
@@ -181,6 +197,19 @@ func (s *DocumentService) CreateDocumentDownloadJob(ctx context.Context, actor A
 	}
 	defer tx.Rollback(ctx)
 	q := s.q.WithTx(tx)
+	if err := q.LockDocumentDownloadCreator(ctx, actor.ID); err != nil {
+		return DocumentDownloadJob{}, err
+	}
+	active, err := q.CountActiveDocumentDownloadJobs(ctx, db.CountActiveDocumentDownloadJobsParams{
+		OrganizationID: scope.organizationID, WorkspaceID: workspaceID,
+		CreatedBy: actor.ID, CreatedByKind: string(actor.Kind),
+	})
+	if err != nil {
+		return DocumentDownloadJob{}, err
+	}
+	if active >= documentDownloadMaxActive {
+		return DocumentDownloadJob{}, errDownloadBusy()
+	}
 	row, err := q.InsertDocumentDownloadJob(ctx, db.InsertDocumentDownloadJobParams{
 		ID: util.NewID(), OrganizationID: scope.organizationID, WorkspaceID: workspaceID,
 		CreatedBy: actor.ID, CreatedByKind: string(actor.Kind), DocumentIds: ids,
@@ -303,10 +332,20 @@ func (s *DocumentService) OpenDocumentDownloadJob(ctx context.Context, actor Act
 	return DocumentDownloadZip{Reader: reader, Filename: name, ContentType: "application/zip"}, nil
 }
 
+// SweepDocumentDownloads is the document worker's short-tick pass over the
+// zip jobs: it releases the zips whose window has closed. The download route is
+// what enforces the window; this lets the collector see the unlink within
+// minutes instead of at the daily audit retention tick.
+func (s *DocumentService) SweepDocumentDownloads(ctx context.Context) (int64, error) {
+	if s == nil || s.q == nil || s.pool == nil {
+		return 0, nil
+	}
+	releaseExpiredDocumentDownloads(ctx, s.pool, s.q, s.files)
+	return 0, nil
+}
+
 // releaseExpiredDocumentDownloads drops the file reference of every zip whose
-// window has closed. It rides the audit retention tick beside the privacy
-// export release: the download route is what enforces the window, and this
-// only lets the collector see the unlink.
+// window has closed.
 func releaseExpiredDocumentDownloads(ctx context.Context, pool *pgxpool.Pool, q *db.Queries, fs files.Service) {
 	if fs == nil || pool == nil {
 		return
