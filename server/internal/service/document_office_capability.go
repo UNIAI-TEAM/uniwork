@@ -84,7 +84,7 @@ func (s *DocumentOfficeService) Capability(ctx context.Context, actor Actor, doc
 			return OfficeCapability{}, err
 		}
 	}
-	format, err := s.formatForVersion(ctx, actor.ID, doc, current)
+	format, err := s.formatForVersion(ctx, doc, current)
 	if err != nil {
 		return OfficeCapability{}, err
 	}
@@ -151,7 +151,7 @@ func blankEvidenceLevel(supported bool) office.EvidenceLevel {
 // format. A page document, a missing version or a type no engine lane owns is
 // a typed refusal, never a guess. ver may be nil: the current version is read
 // then.
-func (s *DocumentOfficeService) formatForVersion(ctx context.Context, userID string, doc db.Document, ver *db.DocumentVersion) (office.Format, error) {
+func (s *DocumentOfficeService) formatForVersion(ctx context.Context, doc db.Document, ver *db.DocumentVersion) (office.Format, error) {
 	if doc.Kind == DocumentKindFolder {
 		return "", officeErr("unsupported_operation", "folder_document")
 	}
@@ -187,9 +187,6 @@ func (s *DocumentOfficeService) formatForVersion(ctx context.Context, userID str
 			f.Filename = prev
 		}
 	}
-	if isTxtFilename(f.Filename) && !s.documents.txtOpenEnabled(ctx, userID, doc.WorkspaceID, doc.OrganizationID) {
-		return "", officeErr("unsupported_operation", "format_not_supported")
-	}
 	format, ok := officeFormatForFile(f)
 	if !ok {
 		return "", officeErr("unsupported_operation", "format_not_supported")
@@ -199,8 +196,9 @@ func (s *DocumentOfficeService) formatForVersion(ctx context.Context, userID str
 
 // officeFormatForFile maps a verified file record to an engine format. The
 // extension decides first: a markdown upload sniffs as text/plain, so the
-// content type alone cannot tell md from txt or csv. Its .txt mapping is only
-// safe behind the office_txt_open gate at the caller.
+// content type alone cannot tell md from txt or csv. A .txt maps to markdown
+// by its name alone; text/plain without that name (a .csv, a .log) stays
+// unmapped.
 func officeFormatForFile(f files.File) (office.Format, bool) {
 	switch strings.ToLower(path.Ext(f.Filename)) {
 	case ".docx":
@@ -305,7 +303,7 @@ type BlankFileInput struct {
 
 // CreateBlankFile makes a new document whose first version holds a blank
 // seed. For formats with a bound serialize (md, html, xlsx, pdf) the bytes are
-// the engine own output; DOCX and PPTX store their embedded seed as it is
+// the engine own output; DOCX, PPTX and txt store their seed as it is
 // (blankViaEngine). For the engine path, Go submits a serialize job over a small server-chosen seed
 // (an empty file is not a document - the file validator refuses zero bytes),
 // verifies the engine's output through FileService and creates the document
@@ -319,9 +317,9 @@ func (s *DocumentOfficeService) CreateBlankFile(ctx context.Context, actor Actor
 	if actor.Kind != audit.KindHuman || actor.ID == "" {
 		return DocumentFileResult{}, ErrForbidden
 	}
-	format, ok := parseOfficeFormat(in.Format)
+	format, ok := parseBlankFormat(in.Format)
 	if !ok {
-		return DocumentFileResult{}, Invalid("format must be one of docx, xlsx, pptx, pdf, md, html")
+		return DocumentFileResult{}, Invalid("format must be one of docx, xlsx, pptx, pdf, md, html, txt")
 	}
 	if err := validateDocumentDestination(in.Destination, in.ParentID); err != nil {
 		return DocumentFileResult{}, err
@@ -569,6 +567,11 @@ func blankSeedFor(format office.Format, title string) ([]byte, string, bool) {
 	switch format {
 	case office.FormatMD:
 		return []byte("# " + name + "\n"), "untitled.md", true
+	case officeFormatTXT:
+		// One newline, not zero bytes: the file validator refuses an empty
+		// upload. The name carries .txt, which is what makes the document
+		// open in the markdown module's plain mode.
+		return []byte("\n"), "untitled.txt", true
 	case office.FormatHTML:
 		escaped := html.EscapeString(name)
 		return []byte("<!doctype html>\n<html><head><meta charset=\"utf-8\"><title>" + escaped +
@@ -592,9 +595,10 @@ func blankSeedFor(format office.Format, title string) ([]byte, string, bool) {
 
 // blankViaEngine reports whether the blank bytes go through an engine
 // serialize job before the first version exists. DOCX and PPTX bind no
-// serialize operation, so their seed is stored as it is.
+// serialize operation, so their seed is stored as it is; so is a plain-text
+// seed, since the engine has no txt format.
 func blankViaEngine(format office.Format) bool {
-	return format != office.FormatDOCX && format != office.FormatPPTX
+	return format != office.FormatDOCX && format != office.FormatPPTX && format != officeFormatTXT
 }
 
 // OfficeJobRequest is the HTTP-facing start request: the server resolves the
@@ -673,7 +677,7 @@ func (s *DocumentOfficeService) StartOfficeJobForDocument(ctx context.Context, a
 	} else if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return db.OfficeJob{}, err
 	}
-	format, err := s.formatForVersion(ctx, actor.ID, doc, nil)
+	format, err := s.formatForVersion(ctx, doc, nil)
 	if err != nil {
 		return db.OfficeJob{}, err
 	}

@@ -77,16 +77,13 @@ func TestOfficeFormatFlagsAreOnByDefaultAndEngineStaysOff(t *testing.T) {
 	}
 }
 
-func TestOfficeTxtOpenFlagIsOffByDefaultPublicAndReviewed(t *testing.T) {
-	flags := EvaluateFrontendPublicFlags(context.Background(), nil)
-	f, ok := Lookup("office_txt_open")
-	if !ok {
-		t.Fatal("office_txt_open is not declared")
+func TestOfficeTxtOpenFlagIsGone(t *testing.T) {
+	// .txt opens like .md with no flag of its own (UNI-2046): the key is not
+	// declared and not published to the web.
+	if _, ok := Lookup("office_txt_open"); ok {
+		t.Fatal("office_txt_open is still declared")
 	}
-	if f.Default || !f.Public || f.Owner != "office" || !f.ReviewAt.Equal(day(2027, 3, 31)) {
-		t.Fatalf("office_txt_open = %+v, want default off, public, owner office, review 2027-03-31", f)
-	}
-	if v, published := flags["office_txt_open"]; !published || v {
-		t.Fatalf("office_txt_open published=%v value=%v, want published and false", published, v)
+	if _, published := EvaluateFrontendPublicFlags(context.Background(), nil)["office_txt_open"]; published {
+		t.Fatal("office_txt_open is still published")
 	}
 }

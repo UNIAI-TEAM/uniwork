@@ -656,7 +656,7 @@ func TestDocumentSourceChatMarkdownOpens(t *testing.T) {
 	}
 }
 
-func TestDocumentSourceTxtOpenGateAndPlainTextNarrowing(t *testing.T) {
+func TestDocumentSourceTxtOpensWithoutAFlagAndPlainTextNarrowing(t *testing.T) {
 	env := newFakeDocStorageEnv(t)
 	s := &sourceScene{t: t, ctx: context.Background(), f: env.f, tn: env.tn}
 	tn := env.tn
@@ -698,65 +698,36 @@ func TestDocumentSourceTxtOpenGateAndPlainTextNarrowing(t *testing.T) {
 	logID := send("server.log", "text/plain", "chat-log-gate-1", []byte("line\n"))
 	mdLongID := send("ghi-chu.markdown", "text/markdown", "chat-mdlong-gate-1", []byte("# md\n"))
 
-	// Flag off (default): .txt has CanOpenInApp == false and MintSource refuses with ErrNotFound.
+	// No flag: .txt is openable like .md; .csv and .log with text/plain stay not openable.
 	page, err := svc.List(s.ctx, human(tn.member), tn.wsA, DocumentSourceFilter{})
 	if err != nil {
-		t.Fatalf("List (flag off): %v", err)
+		t.Fatalf("List: %v", err)
 	}
 	byID := map[string]DocumentSourceItem{}
 	for _, it := range page.Items {
 		byID[it.ID] = it
 	}
-	for _, id := range []string{txtID, csvID, logID} {
-		if byID[id].CanOpenInApp {
-			t.Fatalf("flag off: %s CanOpenInApp = true, want false", id)
-		}
-		if _, err := frame.MintSource(s.ctx, human(tn.member), tn.wsA, id); !errors.Is(err, ErrNotFound) {
-			t.Fatalf("flag off: MintSource(%s) = %v, want ErrNotFound", id, err)
-		}
-	}
-	// Flag off: .markdown sources still mint and authorize (flag-off leaves
-	// pre-existing non-.txt sources untouched).
-	mtok, err := frame.MintSource(s.ctx, human(tn.member), tn.wsA, mdLongID)
-	if err != nil || mtok.Claims.ModuleName() != OfficeFrameModuleMarkdown {
-		t.Fatalf("flag off: MintSource(.markdown) = %+v, %v; want module markdown", mtok, err)
-	}
-	if _, _, err := frame.AuthorizeSource(s.ctx, mtok.Claims); err != nil {
-		t.Fatalf("flag off: AuthorizeSource(.markdown) = %v", err)
-	}
-
-	// Flag on: .txt opens as markdown; .csv and .log with text/plain stay not openable.
-	env.svc.SetFlags(staticDocFlags{"office_txt_open": true})
-	page, err = svc.List(s.ctx, human(tn.member), tn.wsA, DocumentSourceFilter{})
-	if err != nil {
-		t.Fatalf("List (flag on): %v", err)
-	}
-	byID = map[string]DocumentSourceItem{}
-	for _, it := range page.Items {
-		byID[it.ID] = it
-	}
 	if !byID[txtID].CanOpenInApp {
-		t.Fatal("flag on: .txt CanOpenInApp = false, want true")
+		t.Fatal(".txt CanOpenInApp = false, want true")
 	}
 	for _, id := range []string{csvID, logID} {
 		if byID[id].CanOpenInApp {
-			t.Fatalf("flag on: %s CanOpenInApp = true, want false", id)
+			t.Fatalf("%s CanOpenInApp = true, want false", id)
 		}
 		if _, err := frame.MintSource(s.ctx, human(tn.member), tn.wsA, id); !errors.Is(err, ErrNotFound) {
-			t.Fatalf("flag on: MintSource(%s) = %v, want ErrNotFound", id, err)
+			t.Fatalf("MintSource(%s) = %v, want ErrNotFound", id, err)
 		}
 	}
 	tok, err := frame.MintSource(s.ctx, human(tn.member), tn.wsA, txtID)
 	if err != nil || tok.Claims.ModuleName() != OfficeFrameModuleMarkdown {
-		t.Fatalf("flag on: MintSource(.txt) = %+v, %v", tok, err)
+		t.Fatalf("MintSource(.txt) = %+v, %v", tok, err)
 	}
 	if _, item, err := frame.AuthorizeSource(s.ctx, tok.Claims); err != nil || !item.CanOpenInApp {
-		t.Fatalf("flag on: AuthorizeSource(.txt) = %+v, %v", item, err)
+		t.Fatalf("AuthorizeSource(.txt) = %+v, %v", item, err)
 	}
-	// Turning the flag back off invalidates AuthorizeSource for an already-minted .txt token.
-	env.svc.SetFlags(staticDocFlags{"office_txt_open": false})
-	if _, _, err := frame.AuthorizeSource(s.ctx, tok.Claims); !errors.Is(err, ErrNotFound) {
-		t.Fatalf("flag off after mint: AuthorizeSource(.txt) = %v, want ErrNotFound", err)
+	mtok, err := frame.MintSource(s.ctx, human(tn.member), tn.wsA, mdLongID)
+	if err != nil || mtok.Claims.ModuleName() != OfficeFrameModuleMarkdown {
+		t.Fatalf("MintSource(.markdown) = %+v, %v; want module markdown", mtok, err)
 	}
 }
 
