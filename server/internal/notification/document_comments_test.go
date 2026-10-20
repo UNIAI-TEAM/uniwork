@@ -366,7 +366,8 @@ func TestDocumentCommentResolveNotification(t *testing.T) {
 	f.handleLast(t, "document.comment_resolved")
 
 	got := f.inbox(t, f.member.ID)
-	if len(got) != 1 || got[0].Kind != KindDocumentCommentResolved || got[0].TitleKey != "notifications.kind.document_comment_resolved" {
+	if len(got) != 1 || got[0].Kind != KindDocumentCommentResolved || got[0].TitleKey != "notifications.kind.document_comment_resolved" ||
+		!contains(got[0].Params, `"comment_id":"`+root.ID+`"`) || !contains(got[0].Params, `"kind":"comment"`) {
 		t.Fatalf("member inbox = %+v", got)
 	}
 	if len(f.inbox(t, f.owner.ID)) != 0 {
@@ -381,7 +382,8 @@ func TestDocumentCommentResolveNotification(t *testing.T) {
 		t.Fatalf("self resolve added a row for the author: %+v", n)
 	}
 	ownerGot := f.inbox(t, f.owner.ID)
-	if len(ownerGot) != 1 || ownerGot[0].Kind != KindDocumentCommentResolved || !contains(ownerGot[0].Params, own.ID) {
+	if len(ownerGot) != 1 || ownerGot[0].Kind != KindDocumentCommentResolved ||
+		!contains(ownerGot[0].Params, `"comment_id":"`+own.ID+`"`) || !contains(ownerGot[0].Params, `"kind":"comment"`) {
 		t.Fatalf("owner inbox on author self-resolve = %+v, want one resolved row for %s", ownerGot, own.ID)
 	}
 
@@ -559,6 +561,25 @@ func TestDocumentCommentResolveOwnersNotification(t *testing.T) {
 			if rows := f.inbox(t, uid); len(rows) != 0 {
 				t.Fatalf("%s inbox = %+v, want none", name, rows)
 			}
+		}
+	})
+
+	t.Run("unwired administer port still notifies the comment author and skips the ACL owner", func(t *testing.T) {
+		f := newDocumentFixture(t)
+		docID := f.document(t, "workspace", "Chưa nối cổng quản trị")
+		author := f.addMember(t, "res-unwired-author@example.com", "Tác Giả Khi Chưa Nối")
+		resolver := f.addMember(t, "res-unwired-actor@example.com", "Người Giải Quyết Khi Chưa Nối")
+
+		c := f.commentOf(t, author.ID, docID, "vẫn báo tác giả", "comment")
+		f.resolve(t, resolver.ID, c.ID)
+		f.handleLast(t, "document.comment_resolved")
+
+		rows := f.inbox(t, author.ID)
+		if len(rows) != 1 || rows[0].Kind != KindDocumentCommentResolved {
+			t.Fatalf("author inbox with unwired administer port = %+v, want 1 resolved notice", rows)
+		}
+		if rows := f.inbox(t, f.owner.ID); len(rows) != 0 {
+			t.Fatalf("ACL owner inbox with unwired administer port = %+v, want none", rows)
 		}
 	})
 }
