@@ -2,10 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
-import { useAiCapabilities } from "@uniwork/core/ai";
-import { errorCode } from "@uniwork/core/api/http";
 import {
   emailHubHasReadableBody,
   emailHubKeys,
@@ -21,10 +18,9 @@ import {
   useEmailHubSidebarCounts,
   useEmailHubThread,
   useEmailHubThreads,
-  useSummarizeEmailHubThread,
   useSyncEmailHub,
 } from "@uniwork/core/email-hub/hooks";
-import type { EmailHubThread, EmailHubThreadSummary } from "@uniwork/core/types/email-hub";
+import type { EmailHubThread } from "@uniwork/core/types/email-hub";
 import { useMediaQuery } from "@uniwork/ui/hooks/use-media-query";
 import { toastApiError } from "../toast-api-error";
 import { useWorkspace } from "../layout/workspace-context";
@@ -43,12 +39,11 @@ import { EmailHubViewListPanel } from "./email-hub-view-list-panel";
 import { useEmailHubAccountPanel, useEmailHubAvailableAccounts } from "./use-email-hub-account-panel";
 import { useEmailHubScheduledActions } from "./use-email-hub-scheduled-actions";
 import { useEmailHubShortcuts } from "./use-email-hub-shortcuts";
+import { useEmailHubListAi } from "./use-email-hub-list-ai";
 import { useEmailHubShortcutsPref } from "./use-email-hub-shortcuts-pref";
 import { useEmailHubThreadActions } from "./use-email-hub-thread-actions";
+import { useEmailHubThreadPrefetch } from "./use-email-hub-thread-prefetch";
 import { EmailHubSenderAvatarProvider } from "./email-hub-sender-avatar-context";
-
-const EMAIL_HUB_LIST_PREFETCH_TOP = 5;
-const EMAIL_HUB_HOVER_PREFETCH_MS = 50;
 
 export function EmailHubView() {
   const { t, i18n } = useTranslation();
@@ -90,40 +85,13 @@ export function EmailHubView() {
   const imapLabels = useMemo(() => imapLabelsQuery.data?.labels ?? [], [imapLabelsQuery.data?.labels]);
   const sync = useSyncEmailHub(wsId);
   const disconnect = useDisconnectEmailHubAccount(wsId);
-  const summarizeThread = useSummarizeEmailHubThread(wsId);
-  const { data: aiCaps } = useAiCapabilities(wsId);
-  const aiEnabled = !!aiCaps?.enabled;
-  const [threadAiSummaries, setThreadAiSummaries] = useState<Record<string, EmailHubThreadSummary>>({});
-  const [analyzingThreadId, setAnalyzingThreadId] = useState<string | null>(null);
+  const { aiEnabled, threadAiSummaries, analyzingThreadId, analyzeFromList, handleThreadAiSummary } =
+    useEmailHubListAi(wsId, accountId, selectedId);
 
   const isScheduledFolder = folder === "SCHEDULED";
   const mailFolder: EmailHubMailFolderKey = isScheduledFolder ? "INBOX" : folder;
   const scheduled = useEmailHubScheduledSends(wsId, accountId);
   const readingEmail = !!selectedId;
-  const hoverPrefetchTimers = useRef(new Map<string, number>());
-
-  useEffect(() => {
-    const timers = hoverPrefetchTimers.current;
-    return () => {
-      for (const timer of timers.values()) window.clearTimeout(timer);
-      timers.clear();
-    };
-  }, []);
-
-  const prefetchThreadHover = useCallback(
-    (id: string) => {
-      if (!accountId || id === selectedId) return;
-      const timers = hoverPrefetchTimers.current;
-      const pending = timers.get(id);
-      if (pending !== undefined) window.clearTimeout(pending);
-      const timer = window.setTimeout(() => {
-        timers.delete(id);
-        prefetchEmailHubThread(qc, wsId, accountId, id);
-      }, EMAIL_HUB_HOVER_PREFETCH_MS);
-      timers.set(id, timer);
-    },
-    [accountId, qc, selectedId, wsId],
-  );
   const sidebarCounts = useEmailHubSidebarCounts(wsId, accountId);
 
   const [accountList, rememberDisconnectedAccount] = useEmailHubAvailableAccounts(accounts.data?.accounts);
@@ -168,6 +136,7 @@ export function EmailHubView() {
   );
   const rows = useMemo(() => threads.data?.pages.flatMap((page) => page.threads) ?? [], [threads.data]);
   const selectedRow = useMemo(() => rows.find((row) => row.id === selectedId) ?? null, [rows, selectedId]);
+  const prefetchThreadHover = useEmailHubThreadPrefetch(wsId, accountId, selectedId, rows);
   const scheduledActions = useEmailHubScheduledActions(wsId, accountId, selectedScheduled, setSelectedId);
   const detail = useEmailHubThread(wsId, accountId, isScheduledFolder ? null : selectedId, selectedRow);
 
@@ -180,23 +149,6 @@ export function EmailHubView() {
     setSelectedId(null);
     void qc.removeQueries({ queryKey: emailHubKeys.thread(wsId, accountId, goneId) });
   }, [accountId, debouncedSearch, hasAttachmentsOnly, isScheduledFolder, qc, rows, selectedId, threads.isFetched, threads.isFetching, unreadOnly, wsId]);
-
-  useEffect(() => {
-    if (!accountId || rows.length === 0) return;
-    const selectedIdx = selectedId ? rows.findIndex((row) => row.id === selectedId) : -1;
-    const prefetchIds = new Set<string>();
-    for (const row of rows.slice(0, EMAIL_HUB_LIST_PREFETCH_TOP)) {
-      prefetchIds.add(row.id);
-    }
-    if (selectedIdx >= 0) {
-      for (const row of rows.slice(Math.max(0, selectedIdx - 1), selectedIdx + 2)) {
-        prefetchIds.add(row.id);
-      }
-    }
-    for (const id of prefetchIds) {
-      if (id !== selectedId) prefetchEmailHubThread(qc, wsId, accountId, id);
-    }
-  }, [accountId, rows, qc, wsId, selectedId]);
 
   const openCompose = useCallback((mode: ComposeMode, source?: EmailHubThread | null) => {
     setComposeMode(mode);
@@ -239,41 +191,6 @@ export function EmailHubView() {
       if (row && !row.is_read && !activeAccount?.needs_reconnect) threadActions.setRead(threadId, true);
     },
     [accountId, activeAccount?.needs_reconnect, qc, rows, threadActions, wsId],
-  );
-
-  const analyzeFromList = useCallback(
-    (threadId: string) => {
-      if (!accountId || !aiEnabled) return;
-      setAnalyzingThreadId(threadId);
-      summarizeThread.mutate(
-        { accountId, threadId, locale: locale === "en-US" ? "en" : "vi" },
-        {
-          onSuccess: (data) => {
-            if (data.summary) setThreadAiSummaries((prev) => ({ ...prev, [threadId]: data }));
-          },
-          onError: (err) => {
-            if (errorCode(err) === "nothing_to_summarize") toast.error(t("email_hub.ai.nothing_to_summarize"));
-            else toastApiError(err, t("email_hub.ai.summarize_error"));
-          },
-          onSettled: () => setAnalyzingThreadId(null),
-        },
-      );
-    },
-    [accountId, aiEnabled, locale, summarizeThread, t],
-  );
-
-  const handleThreadAiSummary = useCallback(
-    (data: EmailHubThreadSummary) => {
-      if (!selectedId) return;
-      setThreadAiSummaries((prev) => {
-        const cur = prev[selectedId];
-        if (cur?.summary === data.summary && cur?.cached === data.cached && cur?.summarized_at === data.summarized_at) {
-          return prev;
-        }
-        return { ...prev, [selectedId]: data };
-      });
-    },
-    [selectedId],
   );
 
   const accountMenu = useEmailHubAccountPanel(
