@@ -1,6 +1,6 @@
 # Meetings sau họp — đợt 8: xuất trang UniNote ra DOCX/PDF — Kế hoạch
 
-> **Trạng thái:** in-progress — UNI-2004 (đợt 8 của UNI-1995), nhánh `feature/UNI-2004-meetings-sau-hop-dot-8-xuat-trang-uninot`, PR vào `develop`.
+> **Trạng thái:** in-progress — UNI-2004 (đợt 8 của UNI-1995), nhánh `feature/UNI-2004-meetings-sau-hop-dot-8-xuat-trang-uninot`, PR vào `develop`. Đã làm cả năm việc (engine `export:page`, route `POST /documents/{documentID}/export`, cờ `page_export`, menu trang); PDF thật còn chờ ảnh engine có Chromium + bundle Docs (`UNIWORK_DOCS_PDF_ASSETS`).
 
 **Mục tiêu:** spec `2026-10-20-meeting-follow-through-design.md` §1.1 (G9), D13, §6.6 (dòng
 `POST /documents/{documentID}/export`), §7.7, §12 dòng 8. Mọi trang UniNote (`kind=page`) xuất
