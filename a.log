@@ -1,0 +1,11 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git rev-parse HEAD; git log --oneline -8; echo "HEAD_PROBE_DONE"
+aeb13f5016ccc1ba768532c52088e6483f267f52
+aeb13f501 fix(g7-08): supply active sheetId in X-E1 stub and inflate FlateDecode/ObjStm in PDF oracle
+44deba721 test(g7-08): add red tests for X-E1 stub sheetId and compressed PDF oracle
+8ccb5eb13 chore(merge): G5-G7 root d1ac5f5f2 (REPIN-4) into G7-08 (UNI-1385)
+d1ac5f5f2 chore: merge UNI-1919 REPIN-4 (pin web-0.1.0-b1cbd5d; 8e80776d2) into the G5-G7 root
+b26e23f93 chore: merge UNI-1988 SIZE-OPS1 (framed engine job transport; abb82ea3a) into the G5-G7 root
+8e80776d2 docs(office): put the REPIN-4 clauses after the older pin chain list
+0382737cf test(office): re-bless the G7-06 goldens at the web-0.1.0-b1cbd5d frame pin
+abb82ea3a chore: merge the G5-G7 root 032e0fbb3 into SIZE-OPS1 (UNI-1988)
+HEAD_PROBE_DONE
