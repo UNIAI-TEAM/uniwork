@@ -1,0 +1,5 @@
+$ git rev-parse HEAD; git log --oneline -3
+d27e1e377bb2f2ae5b724474a6fa39d8f7cbadb9
+d27e1e377 fix(office): stream stored version export input via readBase and 4-byte ZIP peek (SIZE-OPS2)
+9959f325c fix(office): sweep stale API spool temp files on startup and interval (SIZE-OPS2)
+8cb13a296 chore: merge UNI-1966 CHAT-DOC-SHARE (server + web; 9aca0dc81) into the G5-G7 root
