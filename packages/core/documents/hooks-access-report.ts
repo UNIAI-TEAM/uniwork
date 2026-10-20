@@ -43,9 +43,13 @@ export function useDocumentAccessReport(
     initialPageParam: "",
     getNextPageParam: (last) => last.next_cursor || undefined,
     // A filter or sort change keeps the rows on screen until the new first page
-    // lands; another folder does not, so its title never sits on the old rows.
+    // lands; another folder or workspace does not, so its title never sits on
+    // the old rows.
     placeholderData: (previous, previousQuery) =>
-      previousQuery?.queryKey[documentKeys.accessReportRoot(wsId).length] === (folderId ?? "") ? previous : undefined,
+      previousQuery?.queryKey[1] === wsId &&
+      previousQuery.queryKey[documentKeys.accessReportRoot(wsId).length] === (folderId ?? "")
+        ? previous
+        : undefined,
     enabled: (opts?.enabled ?? true) && !!wsId,
   });
 }

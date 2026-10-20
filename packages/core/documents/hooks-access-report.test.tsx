@@ -82,6 +82,20 @@ describe("useDocumentAccessReport (UNI-1643)", () => {
     expect(documentKeys.accessReport("w1", "f2", { levels: ["edit", "view"], personId: "u1" })).not.toEqual(base);
   });
 
+  it("does not carry rows across workspaces, even for the same folder", async () => {
+    vi.mocked(fetch).mockImplementation(async (input) =>
+      String(input).includes("/workspaces/w2/") ? new Promise<Response>(() => undefined) : json(page("d1", null)),
+    );
+    const { wrapper } = setup();
+    const { result, rerender } = renderHook(({ ws }) => useDocumentAccessReport(ws, "f1", {}), {
+      wrapper,
+      initialProps: { ws: "w1" },
+    });
+    await waitFor(() => expect(result.current.data).toBeDefined());
+    rerender({ ws: "w2" });
+    expect(result.current.data).toBeUndefined();
+  });
+
   it("fails the query when the answer is not a report, never an empty report", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ nope: true }));
     const { wrapper } = setup();

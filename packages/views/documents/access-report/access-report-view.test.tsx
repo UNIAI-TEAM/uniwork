@@ -455,6 +455,39 @@ describe("AccessReportView - review fixes (r2)", () => {
   });
 });
 
+describe("AccessReportView - placeholder rows (r3)", () => {
+  const hangOnFilter = (url: URL, first: unknown) =>
+    url.searchParams.get("non_default") ? new Promise(() => undefined) : first;
+
+  it("an empty result does not flash the empty state while a filter change loads", async () => {
+    serve({ report: (url) => hangOnFilter(url, page(EMPTY_PAGE)), summary: () => totals({ skipped: 0, matching_documents: 0 }) });
+    const nav = renderView();
+    await screen.findByRole("heading", { name: at("empty") });
+    fireEvent.click(screen.getByRole("checkbox", { name: at("only_non_default") }));
+    await waitFor(() => expect(lastUrl(nav).get("non_default")).toBe("1"));
+    await waitFor(() => expect(calls(REPORT_PATH).some((u) => u.searchParams.get("non_default") === "1")).toBe(true));
+    expect(screen.queryByRole("heading", { name: at("empty") })).toBeNull();
+    expect(screen.getByRole("status", { name: at("loading") })).toBeInTheDocument();
+  });
+
+  it("never asks for the next page with a placeholder cursor", async () => {
+    serve({
+      report: (url) => {
+        if (url.searchParams.get("non_default")) return new Promise(() => undefined);
+        if (url.searchParams.get("cursor") === "c1") throw new ApiError("boom", 500);
+        return page({ ...EMPTY_PAGE, next_cursor: "c1" });
+      },
+    });
+    const nav = renderView();
+    await waitFor(() => expect(calls(REPORT_PATH).some((u) => u.searchParams.get("cursor") === "c1")).toBe(true));
+    await screen.findByRole("alert");
+    fireEvent.click(screen.getByRole("checkbox", { name: at("only_non_default") }));
+    await waitFor(() => expect(lastUrl(nav).get("non_default")).toBe("1"));
+    await waitFor(() => expect(calls(REPORT_PATH).some((u) => u.searchParams.get("non_default") === "1")).toBe(true));
+    expect(calls(REPORT_PATH).filter((u) => u.searchParams.get("non_default") && u.searchParams.get("cursor"))).toHaveLength(0);
+  });
+});
+
 describe("AccessReportView - states", () => {
   it("empty: nothing matches and nothing was skipped", async () => {
     serve({ report: () => page(EMPTY_PAGE), summary: () => totals({ skipped: 0, matching_documents: 0 }) });

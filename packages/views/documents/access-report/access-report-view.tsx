@@ -93,7 +93,7 @@ export function AccessReportView({ wsId, workspaceName, workspaceSlug, libraryHr
   while (trailingEmpty < pages.length && pages[pages.length - 1 - trailingEmpty]!.documents.length === 0) trailingEmpty++;
   // Nothing shown yet: read on until something is. Asked for the next page:
   // read on through a bounded run of empty pages.
-  const readOn = shown.length === 0 || (advancing && index + 1 >= shown.length && trailingEmpty < MAX_EMPTY_PAGES);
+  const readOn = !report.isPlaceholderData && (shown.length === 0 || (advancing && index + 1 >= shown.length && trailingEmpty < MAX_EMPTY_PAGES));
   useEffect(() => {
     if (report.data && readOn && hasNextPage && !isFetchingNextPage && !isFetchNextPageError) void fetchNextPage();
   }, [report.data, readOn, hasNextPage, isFetchingNextPage, isFetchNextPageError, fetchNextPage]);
@@ -111,7 +111,7 @@ export function AccessReportView({ wsId, workspaceName, workspaceSlug, libraryHr
 
   const status = report.error instanceof ApiError ? report.error.status : 0;
   const unusable = report.isError && (status === 403 || status === 404);
-  const noRows = !report.isPending && !report.isError && shown.length === 0 && !hasNextPage;
+  const noRows = !report.isPending && !report.isPlaceholderData && !report.isError && shown.length === 0 && !hasNextPage;
   // A file with no rows names its filter and time only in its file name: say so
   // beside the button that makes it. Not when documents were merely skipped.
   const emptyNoteId = useId();
