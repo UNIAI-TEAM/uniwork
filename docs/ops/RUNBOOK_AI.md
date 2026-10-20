@@ -172,6 +172,27 @@ Alert của `office_uniwork_ai` (lỗi, latency, usage unknown, run, tool call b
 runbook theo tên alert trong [`docs/runbooks/README.md`](../runbooks/README.md) (ngưỡng pending G7-D1). Upstream sập/đổi,
 đối soát usage và trần đồng thời: [`RUNBOOK_OFFICE_SYNC.md`](RUNBOOK_OFFICE_SYNC.md).
 
+## Hỏi UNI agent (P1)
+
+Hỏi UNI chạy như agent đọc (vòng model → tool → model) khi flag `ask_uni_agent` bật cho người hỏi và tổ chức của họ.
+
+- **Bật/tắt**: ở `/admin/flags`, đặt override `ask_uni_agent` theo tổ chức hoặc theo người dùng (override thắng file tĩnh và `FF_ASK_UNI_AGENT`). Tắt = quay về luồng retrieval cũ, không mất dữ liệu.
+- **Model Tự động**: đổi bằng `AI_MODEL_COPILOT_AGENT` (phải nằm trong allowlist, xem bảng cấu hình ở trên). Tổ chức chọn model được dùng qua `GET/PUT /api/v1/orgs/{org}/ai/ask-models` (body `{"models": ["haiku","sonnet"]}`, PUT chỉ owner/admin).
+
+| Metric | Loại | Ý nghĩa |
+| --- | --- | --- |
+| `uniwork_ai_ask_runs_total{outcome}` | counter | Lượt agent theo `answered`, `agent_failed`, `refused`, `rate_limited`, `busy`, `timeout`. Lỗi hạ tầng tính là `agent_failed` |
+| `uniwork_ai_ask_run_rounds` | histogram (0–5) | Số vòng model mỗi lượt; dồn về 5 = agent chạm trần vòng |
+| `uniwork_ai_ask_run_seconds` | histogram | Thời gian một lượt |
+| `uniwork_ai_ask_tool_calls_total{tool,status}` | counter | Call tool theo 12 tên trong registry (tên khác gom về `other`) và `ok`, `error`, `truncated` |
+| `uniwork_ai_ask_tool_seconds{tool}` | histogram | Độ trễ từng tool |
+
+Khi chi phí tăng đột biến:
+
+1. Xem `uniwork_ai_cost_usd_total{model}` để biết model nào đẩy chi phí, và `AiSumRunUsage` (sqlc, theo tổ chức + run id) để biết run nào.
+2. Hạ model Tự động (`AI_MODEL_COPILOT_AGENT`), hoặc tắt Opus của tổ chức bằng `PUT /api/v1/orgs/{org}/ai/ask-models`.
+3. Chưa đủ: tắt `ask_uni_agent` cho tổ chức đó bằng override.
+
 ## Không bao giờ
 
 - Không log prompt, nguồn hay câu trả lời. `ai_messages` là dữ liệu người dùng,
