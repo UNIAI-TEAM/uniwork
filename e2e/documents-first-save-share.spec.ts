@@ -8,7 +8,7 @@ import { workspaceSeed } from "./onboard";
  * UNI-2038 (G4): sharing moved out of the quick-create strip into the first-save
  * dialog. A blank docx made from its quick-create pill is private; the first Save
  * opens "Đặt tên tài liệu", and its "Chia sẻ với workspace" switch writes the title
- * and the workspace visibility in one PATCH. After a reload the library row reads as
+ * and the workspace visibility in one PATCH. After a reload the row in Thư mục của tôi reads as
  * shared with the workspace, which only holds if the server accepted `visibility` on
  * a My Folder blank (the unit tests run against a mocked transport).
  *
@@ -54,8 +54,16 @@ test("the first-save share switch makes the new document shared with the workspa
   await dialog.getByRole("button", { name: "Lưu" }).click();
   await expect(dialog).toBeHidden({ timeout: 30_000 });
 
-  // After a reload the library row is shared with the workspace.
+  // After a reload the document sits in Thư mục của tôi (a blank is created in My
+  // Folder, not at the workspace root, so the home root never lists it) and its row
+  // is shared with the workspace.
   await page.goto(`/${owner.orgSlug}/${owner.wsSlug}/documents`);
+  await page
+    .getByRole("navigation", { name: "Điều hướng tài liệu" })
+    .getByRole("treeitem", { name: /^Thư mục của tôi/ })
+    .getByText("Thư mục của tôi", { exact: true })
+    .click();
+  await expect(page.getByRole("heading", { level: 1, name: "Thư mục của tôi", exact: true })).toBeVisible({ timeout: 30_000 });
   const row = contentRow(page, title);
   await expect(row).toBeVisible({ timeout: 60_000 });
   await expect(libraryBadge(row)).toHaveAttribute("data-scope-kind", "workspace", { timeout: 60_000 });
