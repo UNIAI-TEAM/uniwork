@@ -12,8 +12,9 @@ import (
 const liveKitWebhookPath = "/integrations/livekit/webhook"
 
 // summaryLimit wraps POST /meetings/{id}/summary only: the ai-meeting-summary
-// bucket router.go builds (UNI-1853 M9).
-func registerMeetings(r api, h Routes, summaryLimit func(http.Handler) http.Handler) {
+// bucket router.go builds (UNI-1853 M9). minutesFlag hides the minutes routes
+// behind meeting_minutes (UNI-2003).
+func registerMeetings(r api, h Routes, summaryLimit, minutesFlag func(http.Handler) http.Handler) {
 	r.Get("/workspaces/{workspaceID}/meetings", h.ListMeetings, apiOp{
 		summary: "List meetings", tags: []string{"meetings"}, sdi: sdi.ListMeetingsSDI{}, sdo: sdo.MeetingListSDO{}, auth: true,
 	})
@@ -224,6 +225,32 @@ func registerMeetings(r api, h Routes, summaryLimit func(http.Handler) http.Hand
 		summary: "Restore a dismissed action item (clerk)", tags: []string{"meetings"},
 		description: "Chỉ từ đã bỏ qua, không thì 409 action_item_not_dismissed.",
 		sdo:         sdo.StatusSDO{}, auth: true,
+	})
+	minutes := r.With(minutesFlag)
+	minutes.Get("/meetings/{meetingID}/minutes", h.GetMeetingMinutes, apiOp{
+		summary: "The meeting's minutes (a UniNote page) and whether they are finalized", tags: []string{"meetings"},
+		description: "Mọi thành viên workspace. minutes null khi chưa lập, hoặc trang đã bị xoá hay vào thùng rác. " +
+			"edited_since_finalized: nội dung trang được lưu sau phiên bản đã chốt. 404 feature_disabled khi cờ meeting_minutes tắt.",
+		sdo: sdo.MeetingMinutesSDO{}, auth: true,
+	})
+	minutes.Post("/meetings/{meetingID}/minutes", h.CreateMeetingMinutes, apiOp{
+		summary: "Make the minutes page from the meeting's data (clerk)", tags: []string{"meetings"},
+		description: "Cuộc họp ENDED, không thì 409 invalid_meeting_state; đã có biên bản còn sống → 409 minutes_exist. " +
+			"Tạo trang ở gốc workspace (cả workspace xem, chủ trì và thư ký hiện tại sửa, người lập quản lý) và ghi vào cuộc họp " +
+			"trong một giao dịch. Số liệu lấy từ bảng, diễn giải từ tóm tắt mới nhất. 403 not_meeting_clerk.",
+		sdi: sdi.CreateMinutesSDI{}, sdo: sdo.MeetingMinutesSDO{}, auth: true,
+	})
+	minutes.Post("/meetings/{meetingID}/minutes/finalize", h.FinalizeMeetingMinutes, apiOp{
+		summary: "Finalize the minutes as a document version (clerk with edit)", tags: []string{"meetings"},
+		description: "Tạo một phiên bản tài liệu và ghi id của nó vào cuộc họp trong cùng giao dịch; chốt lại sau khi sửa thay id. " +
+			"Nội dung chưa đổi so với phiên bản gần nhất thì ghi phiên bản đó. 403 not_meeting_clerk, 403 minutes_edit_required, " +
+			"409 minutes_missing.",
+		sdo: sdo.MeetingMinutesSDO{}, auth: true,
+	})
+	minutes.Post("/meetings/{meetingID}/minutes/reopen", h.ReopenMeetingMinutes, apiOp{
+		summary: "Reopen finalized minutes as a draft (clerk with edit)", tags: []string{"meetings"},
+		description: "Xoá thông tin chốt trên cuộc họp; phiên bản vẫn ở lịch sử tài liệu. Như chốt: 403 minutes_edit_required, 409 minutes_missing.",
+		sdo:         sdo.MeetingMinutesSDO{}, auth: true,
 	})
 	r.Post("/meetings/{meetingID}/recording/start", h.StartRecording, apiOp{
 		summary: "Start recording", tags: []string{"meetings"}, sdo: sdo.RecordingSDO{}, auth: true,

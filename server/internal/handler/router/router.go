@@ -267,7 +267,8 @@ func New(d Deps, h Routes) http.Handler {
 			// so a member who makes instant meetings to host cannot drain the
 			// organization's AI quota through the 300/min global budget. The
 			// service adds one run per meeting at a time (summary_in_progress).
-			registerMeetings(authed, h, mw.RateLimitByIdentityBucket(d.Redis, "ai-meeting-summary", 6, time.Minute, proxies, bearerUser(d.Minter)))
+			registerMeetings(authed, h, mw.RateLimitByIdentityBucket(d.Redis, "ai-meeting-summary", 6, time.Minute, proxies, bearerUser(d.Minter)),
+				mw.RequireFeatureFlag(d.FeatureFlags, "meeting_minutes"))
 			// Chat writes budget per signed-in person and per route: an office
 			// NAT must not pool everyone's sends, and walking message or room
 			// ids must not mint a fresh budget per id.

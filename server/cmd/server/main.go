@@ -405,6 +405,8 @@ func main() {
 			RequestMaxPerHour: cfg.DocumentEditRequestMaxPerHour,
 		},
 	})
+	// A meeting's minutes are a page of this service (UNI-2003).
+	meetingSvc.Docs = documentSvc
 	// The document maintenance worker (auto-version, purge, compaction -
 	// G1-04b - and the commit intent sweep of G5-07) runs on the same service
 	// the routes use; it is awaited in the shutdown sequence below, so a sweep

@@ -411,3 +411,20 @@ type AttendanceSDO struct {
 	Summary       AttendanceSummaryDTO `json:"summary"`
 	Rows          []AttendanceRowDTO   `json:"rows"`
 }
+
+// MeetingMinutesDTO is the minutes of a meeting: a UniNote page it references.
+type MeetingMinutesDTO struct {
+	DocumentID           string  `json:"document_id" description:"Trang UniNote của biên bản" example:"01J8X4DOC0N1P2Q3R4S5T6U7V8"`
+	Finalized            bool    `json:"finalized" description:"Đã chốt (có phiên bản được ghi nhận)"`
+	FinalizedAt          *string `json:"finalized_at" description:"Lúc chốt; null khi là bản nháp" example:"2026-10-20T03:00:00Z"`
+	FinalizedBy          *string `json:"finalized_by" description:"Người chốt; null khi là bản nháp" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
+	FinalizedVersionID   *string `json:"finalized_version_id" description:"Phiên bản tài liệu đã chốt" example:"01J8X4VER0N1P2Q3R4S5T6U7V8"`
+	FinalizedVersion     *int32  `json:"finalized_version" description:"Số thứ tự phiên bản đã chốt trong lịch sử trang" example:"2"`
+	EditedSinceFinalized bool    `json:"edited_since_finalized" description:"Nội dung trang đã được lưu sau phiên bản đã chốt"`
+	CanEdit              bool    `json:"can_edit" description:"Người gọi có quyền sửa trang (cần cho chốt và bỏ chốt)"`
+}
+
+// MeetingMinutesSDO answers GET and the commands of /api/v1/meetings/{meetingID}/minutes.
+type MeetingMinutesSDO struct {
+	Minutes *MeetingMinutesDTO `json:"minutes" description:"null khi cuộc họp chưa có biên bản, hoặc trang đã bị xoá hay vào thùng rác"`
+}

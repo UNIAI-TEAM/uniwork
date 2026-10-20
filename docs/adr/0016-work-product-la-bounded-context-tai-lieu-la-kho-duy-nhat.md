@@ -71,6 +71,11 @@ nghiệp vụ, và Work Product không nên tự nuôi kho riêng.
 - Office Bridge (C-16) ghi vào `document_versions`, thống nhất với quyết định này.
 - Cái giá đã chấp nhận: một Work Product "rỗng" (chưa có biểu diễn nào) là trạng thái
   hợp lệ và UI phải xử lý, thay vì dựa vào việc luôn có sẵn một tệp.
+- *Bổ sung 2026-10-20 (UNI-2003, spec meeting follow-through §14 Q1):* biên bản cuộc
+  họp là một trang UniNote bình thường trong cây tài liệu, cuộc họp chỉ tham chiếu nó
+  (`meetings.minutes_document_id`); "chốt" chỉ là một phiên bản tài liệu mà cuộc họp ghi
+  id, không có vòng đời duyệt riêng. Nội dung vẫn ở một kho; khi C-14 có, biên bản
+  chuyển thành Work Product sở hữu trang đó.
 
 ## Test giữ luật
 

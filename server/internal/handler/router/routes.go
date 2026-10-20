@@ -400,6 +400,10 @@ type Routes struct {
 	MeetingEvidence                http.HandlerFunc
 	ListActionItems                http.HandlerFunc
 	ListCarriedOverItems           http.HandlerFunc
+	GetMeetingMinutes              http.HandlerFunc
+	CreateMeetingMinutes           http.HandlerFunc
+	FinalizeMeetingMinutes         http.HandlerFunc
+	ReopenMeetingMinutes           http.HandlerFunc
 	AddActionItem                  http.HandlerFunc
 	DismissActionItem              http.HandlerFunc
 	RestoreActionItem              http.HandlerFunc

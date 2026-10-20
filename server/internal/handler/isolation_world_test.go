@@ -194,6 +194,7 @@ func newIsolationServer(t *testing.T) *isoWorld {
 	// dispatcher does.
 	docs.SetEditLockConfig(service.DocumentEditLockConfig{TTL: time.Hour})
 	d.Documents = docs
+	d.Meetings.Docs = docs
 	d.DesktopAuth = service.NewDesktopAuthService(pool, q, d.Minter, d.Cfg)
 	d.McpAuth = service.NewMcpAuthService(pool, q, d.Organizations, d.Cfg)
 	d.McpAuth.SetFlags(mcpTestFlags(true))

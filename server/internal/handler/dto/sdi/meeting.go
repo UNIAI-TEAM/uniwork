@@ -209,3 +209,8 @@ type PatchMotionSDI struct {
 type CastBallotSDI struct {
 	Choice string `json:"choice" enum:"YES,NO,ABSTAIN" description:"Không đổi được sau khi gửi" example:"YES"`
 }
+
+// CreateMinutesSDI is POST /api/v1/meetings/{meetingID}/minutes.
+type CreateMinutesSDI struct {
+	Locale string `json:"locale" description:"Ngôn ngữ biên bản: vi | en; bỏ trống hoặc giá trị khác = vi" example:"vi"`
+}
