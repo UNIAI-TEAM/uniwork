@@ -2088,6 +2088,7 @@ func auditTranscription(t *testing.T, f *auditFixture, submitErr error) (*Meetin
 	if err != nil {
 		t.Fatal(err)
 	}
+	seedMeetingAudioSession(t, f.pool, m, f.owner.ID, string(up.File.ID))
 	if _, err := s.RequestTranscription(f.ctx, f.owner.ID, m.ID, TranscriptionRequest{UploadID: string(up.File.ID), Consent: true}); err != nil {
 		t.Fatal(err)
 	}

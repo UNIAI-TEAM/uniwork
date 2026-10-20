@@ -1092,6 +1092,16 @@ func (w *isoWorld) buildActivity(t *testing.T, tn *isoTenant) {
 		if err != nil {
 			t.Fatalf("stage meeting audio: %v", err)
 		}
+		// The completed session the upload route leaves behind: it names the
+		// uploader and the meeting, which a transcription request must match.
+		if _, err := w.pool.Exec(ctx, `INSERT INTO file_multipart_uploads (id, organization_id, workspace_id, file_id,
+			file_upload_session_id, created_by, created_by_kind, opened_via, storage_upload_id, object_key, filename, size_bytes,
+			part_size, total_parts, probe_head_sha256, probe_tail_sha256, status, expires_at, closed_at, meeting_id)
+			VALUES ($1, $2, $3, $4, $5, $6, 'human', 'meeting_audio', 's', 'k', 'f', 1, 1, 1, 'h', '', 'completed',
+			now() + interval '1 day', now(), $7)`,
+			util.NewID(), tn.orgID, tn.wsID, string(up.File.ID), util.NewID(), tn.userID, tn.ids["heldMeeting"]); err != nil {
+			t.Fatalf("meeting audio session: %v", err)
+		}
 		return string(up.File.ID)
 	}
 	out = w.call(t, "POST", "/api/v1/meetings/"+tn.ids["heldMeeting"]+"/transcriptions", tn.token, map[string]any{

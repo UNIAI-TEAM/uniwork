@@ -193,6 +193,61 @@ func (q *Queries) FailTranscription(ctx context.Context, arg FailTranscriptionPa
 	return i, err
 }
 
+const getMeetingAudioUpload = `-- name: GetMeetingAudioUpload :one
+SELECT id, organization_id, workspace_id, document_id, file_id, file_upload_session_id, created_by, created_by_kind, opened_via, token_document_id, storage_upload_id, object_key, filename, size_bytes, part_size, total_parts, title, parent_id, visibility, probe_head_sha256, probe_tail_sha256, cd_offset, cd_size, status, failure_code, result_document_id, result_version_upload_id, lease_owner, lease_expires_at, expires_at, closed_at, created_at, updated_at, meeting_id FROM file_multipart_uploads
+WHERE file_id = $1 AND organization_id = $2
+  AND opened_via = 'meeting_audio' AND status = 'completed'
+`
+
+type GetMeetingAudioUploadParams struct {
+	FileID         string `json:"file_id"`
+	OrganizationID string `json:"organization_id"`
+}
+
+// The completed meeting_audio session that staged file_id in this
+// organization: who uploaded it, and for which meeting.
+func (q *Queries) GetMeetingAudioUpload(ctx context.Context, arg GetMeetingAudioUploadParams) (FileMultipartUpload, error) {
+	row := q.db.QueryRow(ctx, getMeetingAudioUpload, arg.FileID, arg.OrganizationID)
+	var i FileMultipartUpload
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.WorkspaceID,
+		&i.DocumentID,
+		&i.FileID,
+		&i.FileUploadSessionID,
+		&i.CreatedBy,
+		&i.CreatedByKind,
+		&i.OpenedVia,
+		&i.TokenDocumentID,
+		&i.StorageUploadID,
+		&i.ObjectKey,
+		&i.Filename,
+		&i.SizeBytes,
+		&i.PartSize,
+		&i.TotalParts,
+		&i.Title,
+		&i.ParentID,
+		&i.Visibility,
+		&i.ProbeHeadSha256,
+		&i.ProbeTailSha256,
+		&i.CdOffset,
+		&i.CdSize,
+		&i.Status,
+		&i.FailureCode,
+		&i.ResultDocumentID,
+		&i.ResultVersionUploadID,
+		&i.LeaseOwner,
+		&i.LeaseExpiresAt,
+		&i.ExpiresAt,
+		&i.ClosedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.MeetingID,
+	)
+	return i, err
+}
+
 const getMeetingTranscription = `-- name: GetMeetingTranscription :one
 SELECT id, organization_id, workspace_id, meeting_id, file_id, filename, content_type, size_bytes, estimated_seconds, starts_at, language, status, provider, model, provider_job_id, attempts, lease_until, next_attempt_at, deadline_at, error_code, audio_seconds, usage_event_id, created_by, created_by_kind, created_at, started_at, completed_at FROM meeting_transcriptions WHERE id = $1
 `
@@ -659,4 +714,17 @@ func (q *Queries) TranscriptSources(ctx context.Context, meetingID string) (Tran
 	var i TranscriptSourcesRow
 	err := row.Scan(&i.HasAgent, &i.TranscriptionIds)
 	return i, err
+}
+
+const transcriptionOverdue = `-- name: TranscriptionOverdue :one
+SELECT (deadline_at IS NOT NULL AND deadline_at < now())::boolean FROM meeting_transcriptions WHERE id = $1
+`
+
+// tenant: by-id
+// The job deadline, judged on the database's clock like every queue time.
+func (q *Queries) TranscriptionOverdue(ctx context.Context, id string) (bool, error) {
+	row := q.db.QueryRow(ctx, transcriptionOverdue, id)
+	var column_1 bool
+	err := row.Scan(&column_1)
+	return column_1, err
 }

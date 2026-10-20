@@ -41,10 +41,10 @@ func TestBytePlusSubmitSendsTheContract(t *testing.T) {
 	defer srv.Close()
 	bp := NewBytePlusFileTranscriber(srv.URL, "key-1", "res-1")
 	id, err := bp.Submit(context.Background(), FileTranscribeRequest{
-		AudioURL: "https://store.example/a.mp3?sig=x", MIME: "audio/mpeg", Language: "vi", Diarize: true,
+		RequestID: "tr1-2", AudioURL: "https://store.example/a.mp3?sig=x", MIME: "audio/mpeg", Language: "vi", Diarize: true,
 	})
-	if err != nil || id == "" {
-		t.Fatalf("submit = %q, %v", id, err)
+	if err != nil || id != "tr1-2" {
+		t.Fatalf("submit = %q, %v; want the caller's request id", id, err)
 	}
 	r := seen[0]
 	if r.Method != http.MethodPost || r.URL.Path != "/submit" {
@@ -122,6 +122,9 @@ func TestBytePlusPoll(t *testing.T) {
 			}
 			if err != nil || res.Done != tc.wantDone {
 				t.Fatalf("poll = %+v, %v", res, err)
+			}
+			if res.Silent != (tc.name == "silent audio") {
+				t.Fatalf("silent = %v", res.Silent)
 			}
 			if tc.name != "done" {
 				return

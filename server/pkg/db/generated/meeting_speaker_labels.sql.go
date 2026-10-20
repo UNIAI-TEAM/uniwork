@@ -50,6 +50,10 @@ const getMeetingSpeakerLabelView = `-- name: GetMeetingSpeakerLabelView :one
 WITH numbered AS (
   SELECT ml.id, row_number() OVER (ORDER BY ml.created_at, ml.id)::int AS number
   FROM meeting_speaker_labels ml WHERE ml.meeting_id = $2
+    AND (ml.label_key NOT LIKE 'upload:%' OR split_part(ml.label_key, ':', 2) IN (
+    SELECT DISTINCT ON (t.file_id) t.id FROM meeting_transcriptions t
+    WHERE t.meeting_id = ml.meeting_id AND t.status = 'COMPLETE'
+    ORDER BY t.file_id, t.completed_at DESC, t.id DESC))
 )
 SELECT l.id, l.organization_id, l.workspace_id, l.meeting_id, l.label_key, l.user_id, l.name, l.created_by, l.created_by_kind, l.created_at, l.updated_at, n.number,
   COALESCE(u.display_name, '')::text AS user_name,
@@ -155,6 +159,10 @@ SELECT l.id, l.organization_id, l.workspace_id, l.meeting_id, l.label_key, l.use
 FROM (
   SELECT ml.id, ml.organization_id, ml.workspace_id, ml.meeting_id, ml.label_key, ml.user_id, ml.name, ml.created_by, ml.created_by_kind, ml.created_at, ml.updated_at, row_number() OVER (ORDER BY ml.created_at, ml.id)::int AS number
   FROM meeting_speaker_labels ml WHERE ml.meeting_id = $1
+    AND (ml.label_key NOT LIKE 'upload:%' OR split_part(ml.label_key, ':', 2) IN (
+    SELECT DISTINCT ON (t.file_id) t.id FROM meeting_transcriptions t
+    WHERE t.meeting_id = ml.meeting_id AND t.status = 'COMPLETE'
+    ORDER BY t.file_id, t.completed_at DESC, t.id DESC))
 ) l
 LEFT JOIN users u ON u.id = l.user_id
 LEFT JOIN LATERAL (
@@ -188,7 +196,9 @@ type ListMeetingSpeakerLabelsRow struct {
 // tenant: parent meeting_id
 // Every label with its number in the meeting (order of first appearance,
 // "Người nói n"), the name it was given (a member's current display name, or
-// the free name) and its first line, so a clerk can tell who spoke it.
+// the free name) and its first line, so a clerk can tell who spoke it. The
+// labels of an uploaded file's superseded runs are left out (UNI-2001): only
+// each file's latest COMPLETE run reaches the transcript (parent spec §7.3).
 func (q *Queries) ListMeetingSpeakerLabels(ctx context.Context, meetingID string) ([]ListMeetingSpeakerLabelsRow, error) {
 	rows, err := q.db.Query(ctx, listMeetingSpeakerLabels, meetingID)
 	if err != nil {
@@ -226,12 +236,16 @@ func (q *Queries) ListMeetingSpeakerLabels(ctx context.Context, meetingID string
 }
 
 const listMeetingSpeakerNames = `-- name: ListMeetingSpeakerNames :many
-SELECT l.label_key,
-  row_number() OVER (ORDER BY l.created_at, l.id)::int AS number,
-  COALESCE(NULLIF(l.name, ''), u.display_name, '')::text AS name
-FROM meeting_speaker_labels l
-LEFT JOIN users u ON u.id = l.user_id
-WHERE l.meeting_id = $1
+SELECT ml.label_key,
+  row_number() OVER (ORDER BY ml.created_at, ml.id)::int AS number,
+  COALESCE(NULLIF(ml.name, ''), u.display_name, '')::text AS name
+FROM meeting_speaker_labels ml
+LEFT JOIN users u ON u.id = ml.user_id
+WHERE ml.meeting_id = $1
+  AND (ml.label_key NOT LIKE 'upload:%' OR split_part(ml.label_key, ':', 2) IN (
+    SELECT DISTINCT ON (t.file_id) t.id FROM meeting_transcriptions t
+    WHERE t.meeting_id = ml.meeting_id AND t.status = 'COMPLETE'
+    ORDER BY t.file_id, t.completed_at DESC, t.id DESC))
 `
 
 type ListMeetingSpeakerNamesRow struct {

@@ -2843,6 +2843,9 @@ func TestUploadSessionMeetingAudio(t *testing.T) {
 	if sess.TotalParts != 2 {
 		t.Fatalf("parts = %d", sess.TotalParts)
 	}
+	if row, err := env.f.q.GetFileMultipartUploadByID(ctx, sess.SessionID); err != nil || row.MeetingID.String != "meeting-1" {
+		t.Fatalf("the session does not name its meeting: %q %v", row.MeetingID.String, err)
+	}
 	res, err := env.svc.CompleteUploadSession(ctx, member, sess.SessionID, CompleteUploadSessionInput{Parts: uploadAllParts(t, env, sess.SessionID, body)})
 	if err != nil {
 		t.Fatalf("complete: %v", err)

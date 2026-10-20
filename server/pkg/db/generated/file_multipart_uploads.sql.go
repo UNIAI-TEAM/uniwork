@@ -61,7 +61,7 @@ WHERE id IN (
   LIMIT $2::int
   FOR UPDATE SKIP LOCKED
 )
-RETURNING id, organization_id, workspace_id, document_id, file_id, file_upload_session_id, created_by, created_by_kind, opened_via, token_document_id, storage_upload_id, object_key, filename, size_bytes, part_size, total_parts, title, parent_id, visibility, probe_head_sha256, probe_tail_sha256, cd_offset, cd_size, status, failure_code, result_document_id, result_version_upload_id, lease_owner, lease_expires_at, expires_at, closed_at, created_at, updated_at
+RETURNING id, organization_id, workspace_id, document_id, file_id, file_upload_session_id, created_by, created_by_kind, opened_via, token_document_id, storage_upload_id, object_key, filename, size_bytes, part_size, total_parts, title, parent_id, visibility, probe_head_sha256, probe_tail_sha256, cd_offset, cd_size, status, failure_code, result_document_id, result_version_upload_id, lease_owner, lease_expires_at, expires_at, closed_at, created_at, updated_at, meeting_id
 `
 
 type ClaimExpiredFileMultipartUploadsParams struct {
@@ -113,6 +113,7 @@ func (q *Queries) ClaimExpiredFileMultipartUploads(ctx context.Context, arg Clai
 			&i.ClosedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.MeetingID,
 		); err != nil {
 			return nil, err
 		}
@@ -136,7 +137,7 @@ SET status = 'completed',
 WHERE id = $4::text
   AND status = 'validating'
   AND lease_owner = $5::text
-RETURNING id, organization_id, workspace_id, document_id, file_id, file_upload_session_id, created_by, created_by_kind, opened_via, token_document_id, storage_upload_id, object_key, filename, size_bytes, part_size, total_parts, title, parent_id, visibility, probe_head_sha256, probe_tail_sha256, cd_offset, cd_size, status, failure_code, result_document_id, result_version_upload_id, lease_owner, lease_expires_at, expires_at, closed_at, created_at, updated_at
+RETURNING id, organization_id, workspace_id, document_id, file_id, file_upload_session_id, created_by, created_by_kind, opened_via, token_document_id, storage_upload_id, object_key, filename, size_bytes, part_size, total_parts, title, parent_id, visibility, probe_head_sha256, probe_tail_sha256, cd_offset, cd_size, status, failure_code, result_document_id, result_version_upload_id, lease_owner, lease_expires_at, expires_at, closed_at, created_at, updated_at, meeting_id
 `
 
 type CompleteFileMultipartUploadParams struct {
@@ -191,6 +192,7 @@ func (q *Queries) CompleteFileMultipartUpload(ctx context.Context, arg CompleteF
 		&i.ClosedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.MeetingID,
 	)
 	return i, err
 }
@@ -245,7 +247,7 @@ func (q *Queries) FailFileMultipartUpload(ctx context.Context, arg FailFileMulti
 }
 
 const getFileMultipartUploadByID = `-- name: GetFileMultipartUploadByID :one
-SELECT id, organization_id, workspace_id, document_id, file_id, file_upload_session_id, created_by, created_by_kind, opened_via, token_document_id, storage_upload_id, object_key, filename, size_bytes, part_size, total_parts, title, parent_id, visibility, probe_head_sha256, probe_tail_sha256, cd_offset, cd_size, status, failure_code, result_document_id, result_version_upload_id, lease_owner, lease_expires_at, expires_at, closed_at, created_at, updated_at
+SELECT id, organization_id, workspace_id, document_id, file_id, file_upload_session_id, created_by, created_by_kind, opened_via, token_document_id, storage_upload_id, object_key, filename, size_bytes, part_size, total_parts, title, parent_id, visibility, probe_head_sha256, probe_tail_sha256, cd_offset, cd_size, status, failure_code, result_document_id, result_version_upload_id, lease_owner, lease_expires_at, expires_at, closed_at, created_at, updated_at, meeting_id
 FROM file_multipart_uploads
 WHERE id = $1
 `
@@ -288,6 +290,7 @@ func (q *Queries) GetFileMultipartUploadByID(ctx context.Context, id string) (Fi
 		&i.ClosedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.MeetingID,
 	)
 	return i, err
 }
@@ -318,6 +321,7 @@ INSERT INTO file_multipart_uploads (
     probe_tail_sha256,
     cd_offset,
     cd_size,
+    meeting_id,
     status,
     expires_at,
     created_at,
@@ -346,12 +350,13 @@ INSERT INTO file_multipart_uploads (
     $21::text,
     $22::bigint,
     $23::bigint,
+    $24::text,
     'open',
-    $24::timestamptz,
     $25::timestamptz,
-    $25::timestamptz
+    $26::timestamptz,
+    $26::timestamptz
 )
-RETURNING id, organization_id, workspace_id, document_id, file_id, file_upload_session_id, created_by, created_by_kind, opened_via, token_document_id, storage_upload_id, object_key, filename, size_bytes, part_size, total_parts, title, parent_id, visibility, probe_head_sha256, probe_tail_sha256, cd_offset, cd_size, status, failure_code, result_document_id, result_version_upload_id, lease_owner, lease_expires_at, expires_at, closed_at, created_at, updated_at
+RETURNING id, organization_id, workspace_id, document_id, file_id, file_upload_session_id, created_by, created_by_kind, opened_via, token_document_id, storage_upload_id, object_key, filename, size_bytes, part_size, total_parts, title, parent_id, visibility, probe_head_sha256, probe_tail_sha256, cd_offset, cd_size, status, failure_code, result_document_id, result_version_upload_id, lease_owner, lease_expires_at, expires_at, closed_at, created_at, updated_at, meeting_id
 `
 
 type InsertFileMultipartUploadParams struct {
@@ -378,6 +383,7 @@ type InsertFileMultipartUploadParams struct {
 	ProbeTailSha256     string             `json:"probe_tail_sha256"`
 	CdOffset            pgtype.Int8        `json:"cd_offset"`
 	CdSize              pgtype.Int8        `json:"cd_size"`
+	MeetingID           pgtype.Text        `json:"meeting_id"`
 	ExpiresAt           pgtype.Timestamptz `json:"expires_at"`
 	CreatedAt           pgtype.Timestamptz `json:"created_at"`
 }
@@ -409,6 +415,7 @@ func (q *Queries) InsertFileMultipartUpload(ctx context.Context, arg InsertFileM
 		arg.ProbeTailSha256,
 		arg.CdOffset,
 		arg.CdSize,
+		arg.MeetingID,
 		arg.ExpiresAt,
 		arg.CreatedAt,
 	)
@@ -447,6 +454,7 @@ func (q *Queries) InsertFileMultipartUpload(ctx context.Context, arg InsertFileM
 		&i.ClosedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.MeetingID,
 	)
 	return i, err
 }
@@ -463,7 +471,7 @@ WHERE id = $4::text
     status = 'open'
     OR (status = 'validating' AND (lease_expires_at IS NULL OR lease_expires_at <= $3::timestamptz))
   )
-RETURNING id, organization_id, workspace_id, document_id, file_id, file_upload_session_id, created_by, created_by_kind, opened_via, token_document_id, storage_upload_id, object_key, filename, size_bytes, part_size, total_parts, title, parent_id, visibility, probe_head_sha256, probe_tail_sha256, cd_offset, cd_size, status, failure_code, result_document_id, result_version_upload_id, lease_owner, lease_expires_at, expires_at, closed_at, created_at, updated_at
+RETURNING id, organization_id, workspace_id, document_id, file_id, file_upload_session_id, created_by, created_by_kind, opened_via, token_document_id, storage_upload_id, object_key, filename, size_bytes, part_size, total_parts, title, parent_id, visibility, probe_head_sha256, probe_tail_sha256, cd_offset, cd_size, status, failure_code, result_document_id, result_version_upload_id, lease_owner, lease_expires_at, expires_at, closed_at, created_at, updated_at, meeting_id
 `
 
 type LeaseFileMultipartUploadForValidationParams struct {
@@ -516,6 +524,7 @@ func (q *Queries) LeaseFileMultipartUploadForValidation(ctx context.Context, arg
 		&i.ClosedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.MeetingID,
 	)
 	return i, err
 }

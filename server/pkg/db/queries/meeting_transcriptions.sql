@@ -135,3 +135,15 @@ SELECT
 -- tenant: system
 -- FS-C1 section 6: a transcription row holds its uploaded recording.
 SELECT DISTINCT file_id FROM meeting_transcriptions WHERE file_id = ANY($1::text[]);
+
+-- name: GetMeetingAudioUpload :one
+-- The completed meeting_audio session that staged file_id in this
+-- organization: who uploaded it, and for which meeting.
+SELECT * FROM file_multipart_uploads
+WHERE file_id = sqlc.arg('file_id') AND organization_id = sqlc.arg('organization_id')
+  AND opened_via = 'meeting_audio' AND status = 'completed';
+
+-- name: TranscriptionOverdue :one
+-- tenant: by-id
+-- The job deadline, judged on the database's clock like every queue time.
+SELECT (deadline_at IS NOT NULL AND deadline_at < now())::boolean FROM meeting_transcriptions WHERE id = $1;

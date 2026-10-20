@@ -3,10 +3,15 @@ package service
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"errors"
 	"net/http"
+	"strings"
+	"sync"
 	"testing"
 	"time"
+
+	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/unicomhub/uniwork/server/internal/ai"
 	"github.com/unicomhub/uniwork/server/internal/ai/provider"
@@ -59,15 +64,40 @@ func mp3(seconds int, marker string) []byte {
 
 func (e transcriptionEnv) upload(t *testing.T, name string, body []byte) string {
 	t.Helper()
+	return e.uploadFor(t, e.m, e.host.ID, name, body)
+}
+
+// uploadFor stages a recording the way the upload session leaves it: the
+// file on the fake files service, and the completed meeting_audio session
+// that names its uploader and meeting.
+func (e transcriptionEnv) uploadFor(t *testing.T, m db.Meeting, userID, name string, body []byte) string {
+	t.Helper()
 	up, err := e.files.Upload(context.Background(), files.UploadInput{
-		Actor: audit.User(e.host.ID), Purpose: files.MeetingAudio, IdempotencyKey: util.NewID(),
-		Scope:    files.Scope{OrganizationID: e.m.OrganizationID, WorkspaceID: e.m.WorkspaceID},
+		Actor: audit.User(userID), Purpose: files.MeetingAudio, IdempotencyKey: util.NewID(),
+		Scope:    files.Scope{OrganizationID: m.OrganizationID, WorkspaceID: m.WorkspaceID},
 		Filename: name, Body: bytes.NewReader(body),
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
+	seedMeetingAudioSession(t, e.s.pool, m, userID, string(up.File.ID))
 	return string(up.File.ID)
+}
+
+// seedMeetingAudioSession writes the completed upload session row a
+// meeting_audio file comes with.
+func seedMeetingAudioSession(t *testing.T, pool interface {
+	Exec(context.Context, string, ...any) (pgconn.CommandTag, error)
+}, m db.Meeting, userID, fileID string) {
+	t.Helper()
+	if _, err := pool.Exec(context.Background(), `INSERT INTO file_multipart_uploads (id, organization_id, workspace_id, file_id,
+		file_upload_session_id, created_by, created_by_kind, opened_via, storage_upload_id, object_key, filename, size_bytes,
+		part_size, total_parts, probe_head_sha256, probe_tail_sha256, status, expires_at, closed_at, meeting_id)
+		VALUES ($1, $2, $3, $4, $5, $6, 'human', 'meeting_audio', 's', 'k', 'f', 1, 1, 1, 'h', '', 'completed',
+		now() + interval '1 day', now(), $7)`,
+		util.NewID(), m.OrganizationID, m.WorkspaceID, fileID, util.NewID(), userID, m.ID); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func codedOf(err error) (string, int) {
@@ -452,5 +482,265 @@ func TestTranscriptSourceRule(t *testing.T) {
 	}
 	if bytes.Contains([]byte(prompt), []byte("caption")) || bytes.Contains([]byte(prompt), []byte("old run")) {
 		t.Fatalf("summary input carries a superseded source: %s", prompt)
+	}
+}
+
+// Fix round 1 (UNI-2001 review).
+
+// Two workers on one due row: the first holds it through the vendor call,
+// the second finds nothing to claim, and the vendor sees one submit.
+func TestTranscriptionWorkersRacingSubmitOnce(t *testing.T) {
+	e := transcriptionFixture(t)
+	ctx := context.Background()
+	tr, err := e.s.RequestTranscription(ctx, e.host.ID, e.m.ID, TranscriptionRequest{UploadID: e.upload(t, "hop.mp3", mp3(60, "race")), Consent: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	inside, release := make(chan struct{}), make(chan struct{})
+	var once sync.Once
+	e.vendor.OnSubmit = func(provider.FileTranscribeRequest) {
+		once.Do(func() { close(inside) })
+		<-release
+	}
+	done := make(chan error, 1)
+	go func() { done <- e.s.runTranscriptions(ctx) }()
+	<-inside
+	if err := e.s.runTranscriptions(ctx); err != nil {
+		t.Fatal(err)
+	}
+	close(release)
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+	got := transcription(t, e.s, tr.ID)
+	if len(e.vendor.Submits) != 1 || got.Status != TranscriptionRunning || got.Attempts != 1 {
+		t.Fatalf("submits = %d, row = %s attempt %d", len(e.vendor.Submits), got.Status, got.Attempts)
+	}
+	if e.vendor.Submits[0].RequestID != tr.ID+"-1" {
+		t.Fatalf("request id = %q", e.vendor.Submits[0].RequestID)
+	}
+}
+
+// A holder that lost its lease while the vendor answered records nothing,
+// settles that submit's usage row, and the next holder sends the same
+// request id again.
+func TestTranscriptionLostLeaseResubmitsTheSameRequest(t *testing.T) {
+	e := transcriptionFixture(t)
+	ctx := context.Background()
+	tr, err := e.s.RequestTranscription(ctx, e.host.ID, e.m.ID, TranscriptionRequest{UploadID: e.upload(t, "hop.mp3", mp3(60, "lost")), Consent: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.vendor.OnSubmit = func(provider.FileTranscribeRequest) {
+		e.vendor.OnSubmit = nil
+		if _, err := e.s.pool.Exec(ctx, `UPDATE meeting_transcriptions SET lease_until = now() + interval '5 minutes' WHERE id = $1`, tr.ID); err != nil {
+			t.Error(err)
+		}
+	}
+	if err := e.s.runTranscriptions(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if got := transcription(t, e.s, tr.ID); got.Status != TranscriptionQueued || got.Attempts != 0 || got.ProviderJobID != "" {
+		t.Fatalf("a lost lease recorded the submit: %+v", got)
+	}
+	if n := countWhere(t, e.s, `SELECT count(*) FROM ai_usage_events WHERE organization_id = $1 AND capability = 'meeting_transcribe' AND status = 'pending'`, e.m.OrganizationID); n != 0 {
+		t.Fatalf("%d usage rows left pending", n)
+	}
+	if _, err := e.s.pool.Exec(ctx, `UPDATE meeting_transcriptions SET lease_until = NULL WHERE id = $1`, tr.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.s.runTranscriptions(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if len(e.vendor.Submits) != 2 || e.vendor.Submits[1].RequestID != e.vendor.Submits[0].RequestID {
+		t.Fatalf("submits = %+v", e.vendor.Submits)
+	}
+	if got := transcription(t, e.s, tr.ID); got.Status != TranscriptionRunning || got.Attempts != 1 {
+		t.Fatalf("after the resubmit = %s %d", got.Status, got.Attempts)
+	}
+}
+
+// The flag is the legal kill switch (§7.5): with it off, a queued job is not
+// sent and keeps its attempts.
+func TestTranscriptionKillSwitchHoldsQueuedJobs(t *testing.T) {
+	e := transcriptionFixture(t)
+	ctx := context.Background()
+	tr, err := e.s.RequestTranscription(ctx, e.host.ID, e.m.ID, TranscriptionRequest{UploadID: e.upload(t, "hop.mp3", mp3(60, "kill")), Consent: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.s.SetFlags(mcpFlagsExcept{off: transcriptionFlag})
+	if err := e.s.runTranscriptions(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if got := transcription(t, e.s, tr.ID); got.Status != TranscriptionQueued || got.Attempts != 0 || len(e.vendor.Submits) != 0 {
+		t.Fatalf("sent with the flag off: %s %d submits %d", got.Status, got.Attempts, len(e.vendor.Submits))
+	}
+	e.s.SetFlags(mcpFlagsExcept{})
+	due(t, e.s, e.m.ID)
+	if err := e.s.runTranscriptions(ctx); err != nil || len(e.vendor.Submits) != 1 {
+		t.Fatalf("flag back on: submits %d %v", len(e.vendor.Submits), err)
+	}
+}
+
+// Silent audio is COMPLETE with no lines and no minutes.
+func TestTranscriptionSilentAudioBillsNothing(t *testing.T) {
+	e := transcriptionFixture(t)
+	ctx := context.Background()
+	e.vendor.Silent = true
+	tr, err := e.s.RequestTranscription(ctx, e.host.ID, e.m.ID, TranscriptionRequest{UploadID: e.upload(t, "hop.mp3", mp3(120, "quiet")), Consent: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	before := transcriptionMinutes(t, e.s, e.m.OrganizationID)
+	for range 2 {
+		due(t, e.s, e.m.ID)
+		if err := e.s.runTranscriptions(ctx); err != nil {
+			t.Fatal(err)
+		}
+	}
+	got := transcription(t, e.s, tr.ID)
+	if got.Status != TranscriptionComplete || got.AudioSeconds.Int32 != 0 {
+		t.Fatalf("silent = %+v", got)
+	}
+	if spent := transcriptionMinutes(t, e.s, e.m.OrganizationID) - before; spent != 0 {
+		t.Fatalf("silent audio metered %d minutes", spent)
+	}
+	if n := countWhere(t, e.s, `SELECT count(*) FROM meeting_transcript_segments WHERE transcription_id = $1`, tr.ID); n != 0 {
+		t.Fatalf("silent audio left %d segments", n)
+	}
+}
+
+// The job deadline is judged on the database clock.
+func TestTranscriptionDeadlineFailsTheAttempt(t *testing.T) {
+	e := transcriptionFixture(t)
+	ctx := context.Background()
+	e.vendor.Pending = 100
+	tr, err := e.s.RequestTranscription(ctx, e.host.ID, e.m.ID, TranscriptionRequest{UploadID: e.upload(t, "hop.mp3", mp3(60, "late")), Consent: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := e.s.runTranscriptions(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.s.pool.Exec(ctx, `UPDATE meeting_transcriptions SET deadline_at = now() - interval '1 second', next_attempt_at = now() WHERE id = $1`, tr.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.s.runTranscriptions(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if got := transcription(t, e.s, tr.ID); got.Status != TranscriptionQueued || got.ErrorCode != transcriptionErrTimeout || e.vendor.Polls != 0 {
+		t.Fatalf("past deadline = %s %q polls %d", got.Status, got.ErrorCode, e.vendor.Polls)
+	}
+}
+
+// Only the uploader queues a recording, and only for the meeting it was
+// uploaded for.
+func TestTranscriptionUploadIsBoundToItsUploaderAndMeeting(t *testing.T) {
+	e := transcriptionFixture(t)
+	ctx := context.Background()
+	part := e.upload(t, "hop.mp3", mp3(60, "bound"))
+	if _, err := e.s.pool.Exec(ctx, `UPDATE workspace_members SET role = 'admin' WHERE user_id = $1`, e.member.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.s.RequestTranscription(ctx, e.member.ID, e.m.ID, TranscriptionRequest{UploadID: part, Consent: true}); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("another clerk queued the host's recording: %v", err)
+	}
+	start := time.Now().Add(24 * time.Hour).Truncate(time.Second)
+	other, err := e.s.Create(ctx, e.host.ID, e.m.WorkspaceID, CreateMeetingInput{Title: "Họp khác", StartsAt: start, EndsAt: start.Add(time.Hour)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	held := time.Now().Add(-time.Hour).Truncate(time.Second)
+	if other, err = e.s.RecordHeld(ctx, e.host.ID, other.ID, held, held.Add(time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.s.RequestTranscription(ctx, e.host.ID, other.ID, TranscriptionRequest{UploadID: part, Consent: true}); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("a recording was queued for another meeting: %v", err)
+	}
+	if _, err := e.s.RequestTranscription(ctx, e.host.ID, e.m.ID, TranscriptionRequest{UploadID: part, Consent: true}); err != nil {
+		t.Fatalf("the uploader, its meeting: %v", err)
+	}
+}
+
+// The estimate reads the recording's own header: a 32 kbit/s MP3 is four
+// times longer than the size-only table says, and so is its charge.
+func TestTranscriptionEstimateReadsTheHeader(t *testing.T) {
+	e := transcriptionFixture(t)
+	ctx := context.Background()
+	body := append([]byte("ID3\x04\x00\x00\x00\x00\x00\x00"), 0xff, 0xfb, 0x10, 0x64)
+	body = append(body, bytes.Repeat([]byte{0}, 600*4000-len(body))...)
+	tr, err := e.s.RequestTranscription(ctx, e.host.ID, e.m.ID, TranscriptionRequest{UploadID: e.upload(t, "32k.mp3", body), Consent: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tr.EstimatedSeconds != 600 {
+		t.Fatalf("estimate = %d, want 600", tr.EstimatedSeconds)
+	}
+}
+
+// The upload session refuses, with 402, a recording the plan cannot pay
+// for, before any byte is sent.
+func TestOpenAudioUploadSessionChecksTheMinutesFirst(t *testing.T) {
+	e := transcriptionFixture(t)
+	ctx := context.Background()
+	head := mp3(1, "head")
+	in := OpenUploadSessionInput{
+		Filename: "hop.mp3", SizeBytes: 3600 * 16000, IdempotencyKey: util.NewID(),
+		Probe: UploadSessionProbeInput{HeadB64: base64.StdEncoding.EncodeToString(head)},
+	}
+	setTranscriptionQuota(t, e.s, e.m.OrganizationID, 30)
+	if _, err := e.s.OpenAudioUploadSession(ctx, e.host.ID, e.m.ID, in); err == nil {
+		t.Fatal("an hour of audio opened against 30 minutes")
+	} else if code, status := codedOf(err); code != "quota_exceeded" || status != http.StatusPaymentRequired {
+		t.Fatalf("over quota = %v", err)
+	}
+	// Within the minutes it gets past the check (no session service is wired
+	// here, so it stops at 503).
+	setTranscriptionQuota(t, e.s, e.m.OrganizationID, 120)
+	if _, err := e.s.OpenAudioUploadSession(ctx, e.host.ID, e.m.ID, in); err == nil {
+		t.Fatal("opened without a session service")
+	} else if code, _ := codedOf(err); code != "transcription_unavailable" {
+		t.Fatalf("within quota = %v", err)
+	}
+}
+
+// Labels of an uploaded file's superseded runs are neither listed nor
+// counted; the latest run's are numbered from one.
+func TestSpeakerLabelsHideSupersededUploadRuns(t *testing.T) {
+	e := transcriptionFixture(t)
+	ctx := context.Background()
+	run := func(at time.Duration) string {
+		t.Helper()
+		id := util.NewID()
+		if _, err := e.s.pool.Exec(ctx, `INSERT INTO meeting_transcriptions (id, organization_id, workspace_id, meeting_id, file_id, content_type, size_bytes,
+			estimated_seconds, starts_at, language, status, created_by, created_by_kind, completed_at)
+			VALUES ($1, $2, $3, $4, 'file-1', 'audio/mpeg', 1, 1, now(), 'vi', 'COMPLETE', $5, 'human', now() + make_interval(secs => $6))`,
+			id, e.m.OrganizationID, e.m.WorkspaceID, e.m.ID, e.host.ID, at.Seconds()); err != nil {
+			t.Fatal(err)
+		}
+		for _, l := range []string{"1", "2"} {
+			if _, err := e.s.q.InsertMeetingSpeakerLabel(ctx, db.InsertMeetingSpeakerLabelParams{
+				ID: util.NewID(), OrganizationID: e.m.OrganizationID, WorkspaceID: e.m.WorkspaceID, MeetingID: e.m.ID,
+				LabelKey: "upload:" + id + ":" + l, CreatedBy: "meeting_transcription", CreatedByKind: "system",
+			}); err != nil {
+				t.Fatal(err)
+			}
+		}
+		return id
+	}
+	old := run(0)
+	latest := run(time.Second)
+	labels, err := e.s.SpeakerLabels(ctx, e.member.ID, e.m.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(labels) != 2 {
+		t.Fatalf("labels = %d, want the latest run's 2", len(labels))
+	}
+	for i, l := range labels {
+		if !strings.HasPrefix(l.LabelKey, "upload:"+latest+":") || l.Number != int32(i+1) || strings.Contains(l.LabelKey, old) {
+			t.Fatalf("label %d = %s number %d", i, l.LabelKey, l.Number)
+		}
 	}
 }

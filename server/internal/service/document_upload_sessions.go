@@ -501,7 +501,7 @@ func (s *DocumentService) OpenMeetingAudioUploadSession(ctx context.Context, act
 	}
 	return s.openUploadSession(ctx, actor, openSessionTarget{
 		openedVia: openedViaMeetingAudio, purpose: files.MeetingAudio,
-		orgID: orgID, workspaceID: workspaceID, targetID: meetingID,
+		orgID: orgID, workspaceID: workspaceID, targetID: meetingID, meetingID: meetingID,
 	}, in)
 }
 
@@ -510,6 +510,7 @@ type openSessionTarget struct {
 	// purpose is the file purpose the session uploads; "" is DocumentFile.
 	// Only the document purposes and meeting_audio ride these sessions.
 	purpose         files.UploadPurpose
+	meetingID       string
 	orgID           string
 	workspaceID     string
 	documentID      string
@@ -766,6 +767,7 @@ func (s *DocumentService) recordOpenedUploadSession(
 		ProbeTailSha256:     probeTailSHA,
 		CdOffset:            cdOffsetPg,
 		CdSize:              cdSizePg,
+		MeetingID:           nullText(tgt.meetingID),
 		ExpiresAt:           pgtype.Timestamptz{Time: expiresAt, Valid: true},
 		CreatedAt:           pgtype.Timestamptz{Time: now, Valid: true},
 	})

@@ -52,13 +52,28 @@ func TestBilledAudioSeconds(t *testing.T) {
 // An upload is estimated from its stored size and verified type alone: one
 // hour of 128 kbit/s MP3 is 3600 s, a WAV counts at the 16 kHz mono rate.
 func TestEstimateAudioSecondsFromSize(t *testing.T) {
-	if got := EstimateAudioSecondsFromSize(3600*16000, "audio/mpeg"); got != 3600 {
+	if got := EstimateAudioSecondsFromHead(3600*16000, "audio/mpeg", nil); got != 3600 {
 		t.Fatalf("mp3 = %v", got)
 	}
-	if got := EstimateAudioSecondsFromSize(32000*10, "audio/wav"); got != 10 {
+	if got := EstimateAudioSecondsFromHead(32000*10, "audio/wav", nil); got != 10 {
 		t.Fatalf("wav = %v", got)
 	}
-	if got := EstimateAudioSecondsFromSize(0, "audio/mpeg"); got != 0 {
+	if got := EstimateAudioSecondsFromHead(0, "audio/mpeg", nil); got != 0 {
 		t.Fatalf("empty = %v", got)
+	}
+	// The head knows better than the table: a 32 kbit/s MPEG-1 Layer III
+	// frame after an ID3 tag is 4000 bytes a second...
+	id3 := append([]byte("ID3\x04\x00\x00\x00\x00\x00\x05"), make([]byte, 5)...)
+	mp3 := append(id3, 0xff, 0xfb, 0x10, 0x64)
+	if got := EstimateAudioSecondsFromHead(4000*600, "audio/mpeg", mp3); got != 600 {
+		t.Fatalf("32 kbit/s mp3 = %v, want 600", got)
+	}
+	// ...and a WAV header states its own byte rate (8 kHz 16-bit mono).
+	wav := make([]byte, 44)
+	copy(wav, "RIFF")
+	copy(wav[8:], "WAVE")
+	binary.LittleEndian.PutUint32(wav[28:32], 16000)
+	if got := EstimateAudioSecondsFromHead(16000*90, "audio/wav", wav); got != 90 {
+		t.Fatalf("wav header = %v, want 90", got)
 	}
 }

@@ -1218,6 +1218,7 @@ type FileMultipartUpload struct {
 	ClosedAt              pgtype.Timestamptz `json:"closed_at"`
 	CreatedAt             pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt             pgtype.Timestamptz `json:"updated_at"`
+	MeetingID             pgtype.Text        `json:"meeting_id"`
 }
 
 // FileService upload coordination: one row per logical upload (one idempotency key). Carries the actor pair, the backend-verified scope, the purpose, the claim deadline and the write lease. Temporary grant before a business object claims the file; after claim it is retention/audit data, not an ACL.

@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -20,6 +21,9 @@ import (
 // call.
 
 type FileTranscribeRequest struct {
+	// RequestID is the caller's id for this job, stable across a retry of
+	// the same attempt so the vendor sees one request; "" mints a random one.
+	RequestID string
 	// AudioURL is a presigned read URL the vendor downloads from.
 	AudioURL string
 	MIME     string
@@ -41,6 +45,8 @@ type FileTranscribeResult struct {
 	// Seconds is the audio duration the vendor reported; 0 when unknown.
 	Seconds float64
 	Model   string
+	// Silent: the vendor found no speech at all (nothing to bill).
+	Silent bool
 }
 
 type FileTranscriber interface {
@@ -101,11 +107,14 @@ func (b *BytePlusFileTranscriber) Submit(ctx context.Context, req FileTranscribe
 	if lang == "" {
 		lang = byteplusLanguages["vi"]
 	}
-	var id [16]byte
-	if _, err := rand.Read(id[:]); err != nil {
-		return "", err
+	jobID := req.RequestID
+	if jobID == "" {
+		var id [16]byte
+		if _, err := rand.Read(id[:]); err != nil {
+			return "", err
+		}
+		jobID = hex.EncodeToString(id[:])
 	}
-	jobID := hex.EncodeToString(id[:])
 	body := map[string]any{
 		"audio": map[string]any{"url": req.AudioURL, "format": format, "language": lang},
 		"request": map[string]any{
@@ -132,7 +141,7 @@ func (b *BytePlusFileTranscriber) Poll(ctx context.Context, jobID string) (FileT
 	case byteplusProcessing, byteplusQueued:
 		return FileTranscribeResult{Model: b.Model()}, nil
 	case byteplusSilence:
-		return FileTranscribeResult{Done: true, Model: b.Model()}, nil
+		return FileTranscribeResult{Done: true, Silent: true, Model: b.Model()}, nil
 	case byteplusOK:
 	default:
 		return FileTranscribeResult{}, &FileJobError{Code: status}
@@ -208,22 +217,32 @@ func (b *BytePlusFileTranscriber) call(ctx context.Context, path, jobID string, 
 // ---- Fake ----
 
 // FakeFileTranscriber finishes every job on its first poll with Segments (two
-// fixed lines when nil) and Seconds. SubmitErr / PollErr fail those calls;
-// Pending > 0 answers that many polls "still running" first.
+// fixed lines when nil) and Seconds, or as silent audio. SubmitErr / PollErr
+// fail those calls; Pending > 0 answers that many polls "still running"
+// first; OnSubmit runs inside Submit (a test holds a worker there). Safe for
+// concurrent workers.
 type FakeFileTranscriber struct {
 	Segments  []FileSegment
 	Seconds   float64
+	Silent    bool
 	SubmitErr error
 	PollErr   error
 	Pending   int
+	OnSubmit  func(FileTranscribeRequest)
 	Submits   []FileTranscribeRequest
 	Polls     int
+	mu        sync.Mutex
 }
 
 func (f *FakeFileTranscriber) Name() string  { return "fake" }
 func (f *FakeFileTranscriber) Model() string { return "fake-file-transcribe" }
 
 func (f *FakeFileTranscriber) Submit(_ context.Context, req FileTranscribeRequest) (string, error) {
+	if f.OnSubmit != nil {
+		f.OnSubmit(req)
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	f.Submits = append(f.Submits, req)
 	if f.SubmitErr != nil {
 		return "", f.SubmitErr
@@ -232,6 +251,8 @@ func (f *FakeFileTranscriber) Submit(_ context.Context, req FileTranscribeReques
 }
 
 func (f *FakeFileTranscriber) Poll(_ context.Context, _ string) (FileTranscribeResult, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	f.Polls++
 	if f.PollErr != nil {
 		return FileTranscribeResult{}, f.PollErr
@@ -239,6 +260,9 @@ func (f *FakeFileTranscriber) Poll(_ context.Context, _ string) (FileTranscribeR
 	if f.Pending > 0 {
 		f.Pending--
 		return FileTranscribeResult{Model: f.Model()}, nil
+	}
+	if f.Silent {
+		return FileTranscribeResult{Done: true, Silent: true, Model: f.Model()}, nil
 	}
 	segs := f.Segments
 	if segs == nil {

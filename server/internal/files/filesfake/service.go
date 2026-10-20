@@ -282,6 +282,9 @@ func (f *Fake) ResolveMany(_ context.Context, in files.ResolveInput) ([]files.Re
 		resolved := files.Resolved{File: e.file}
 		if in.Mode == files.ReadPresign {
 			expires := f.now().Add(files.MaxResolveURLTTL)
+			if in.MaxTTL > 0 && in.MaxTTL < files.MaxResolveURLTTL {
+				expires = f.now().Add(in.MaxTTL)
+			}
 			// A URL never outlives the grant behind it: the preview URL of an
 			// unclaimed file stops with its claim window (T1-Q7).
 			if !e.referenced && e.claimExpiresAt.Before(expires) {

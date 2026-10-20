@@ -275,5 +275,8 @@ func (s *MeetingService) AssignSpeakerLabel(ctx context.Context, actorID, meetin
 		return db.ListMeetingSpeakerLabelsRow{}, err
 	}
 	v, err := s.q.GetMeetingSpeakerLabelView(ctx, db.GetMeetingSpeakerLabelViewParams{ID: up.ID, MeetingID: m.ID})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return db.ListMeetingSpeakerLabelsRow{}, ErrNotFound // a superseded upload run's label
+	}
 	return db.ListMeetingSpeakerLabelsRow(v), err
 }

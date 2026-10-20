@@ -3,8 +3,11 @@ package service
 import (
 	"context"
 	"errors"
+	"io"
+	"log/slog"
 	"math"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -43,6 +46,9 @@ const (
 	// A clock in the future by more than this is a wrong time, not a skew.
 	heldClockSkew = time.Minute
 )
+
+// transcriptionURLTTL is how long the vendor may read the recording (§7.4).
+const transcriptionURLTTL = 6 * time.Hour
 
 // pollSeconds is transcriptionPollInterval for the queries, which schedule
 // on the database's clock.
@@ -149,6 +155,15 @@ func (s *MeetingService) OpenAudioUploadSession(ctx context.Context, userID, mee
 	if err := s.requireTranscription(ctx, m.OrganizationID); err != nil {
 		return UploadSessionView{}, err
 	}
+	// The size is known now: a recording the plan cannot pay for is refused
+	// before 2 GiB travel, with the same estimate the request will use. An
+	// unreadable head is left to the open's own probe check.
+	if head, err := decodeBase64Probe(in.Probe.HeadB64); err == nil {
+		mime := files.NormalizeContentType(files.DetectContentType(head, in.Filename))
+		if err := s.checkTranscriptionQuota(ctx, s.q, m.OrganizationID, estimateSeconds(in.SizeBytes, mime, head)); err != nil {
+			return UploadSessionView{}, err
+		}
+	}
 	if s.uploads == nil {
 		return UploadSessionView{}, errTranscriptionUnavailable()
 	}
@@ -194,6 +209,16 @@ func (s *MeetingService) RequestTranscription(ctx context.Context, userID, meeti
 	if err := s.requireTranscription(ctx, m.OrganizationID); err != nil {
 		return db.MeetingTranscription{}, err
 	}
+	// Only the person who uploaded the recording queues it, and only for the
+	// meeting the upload session was opened for; anything else is not found.
+	up, err := s.q.GetMeetingAudioUpload(ctx, db.GetMeetingAudioUploadParams{FileID: uploadID, OrganizationID: m.OrganizationID})
+	if errors.Is(err, pgx.ErrNoRows) || err == nil && (up.CreatedBy != userID || up.MeetingID.String != m.ID) {
+		return db.MeetingTranscription{}, ErrNotFound
+	}
+	if err != nil {
+		return db.MeetingTranscription{}, err
+	}
+	head := s.audioHead(ctx, m, uploadID)
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return db.MeetingTranscription{}, err
@@ -209,13 +234,9 @@ func (s *MeetingService) RequestTranscription(ctx context.Context, userID, meeti
 		return db.MeetingTranscription{}, filesError(err)
 	}
 	f := claimed[0]
-	estimate := int32(math.Ceil(ai.EstimateAudioSecondsFromSize(f.SizeBytes, f.ContentType)))
-	open, err := q.OpenTranscriptionMinutes(ctx, m.OrganizationID)
-	if err != nil {
+	estimate := estimateSeconds(f.SizeBytes, f.ContentType, head)
+	if err := s.checkTranscriptionQuota(ctx, q, m.OrganizationID, estimate); err != nil {
 		return db.MeetingTranscription{}, err
-	}
-	if err := s.ent.CheckQuota(ctx, m.OrganizationID, FeatureMeetingTranscription, billedMinutes(float64(estimate))+open); err != nil {
-		return db.MeetingTranscription{}, paymentRequired(err)
 	}
 	start, err := q.MeetingTranscriptionFileStart(ctx, db.MeetingTranscriptionFileStartParams{MeetingID: m.ID, FileID: string(f.ID)})
 	if err != nil {
@@ -260,6 +281,41 @@ func (s *MeetingService) Transcriptions(ctx context.Context, userID, meetingID s
 	return s.q.ListMeetingTranscriptions(ctx, meetingID)
 }
 
+// estimateSeconds is the up-front length of a recording (§7.4): its size
+// at the rate its head declares, else at the container's typical rate.
+func estimateSeconds(size int64, mime string, head []byte) int32 {
+	return int32(math.Ceil(ai.EstimateAudioSecondsFromHead(size, mime, head)))
+}
+
+// audioHead reads the first 64 KiB of a staged recording for the estimate;
+// nil when it cannot (the estimate then uses the table).
+func (s *MeetingService) audioHead(ctx context.Context, m db.Meeting, fileID string) []byte {
+	r, err := s.files.Open(ctx, files.OpenInput{
+		Scope: files.Scope{OrganizationID: m.OrganizationID, WorkspaceID: m.WorkspaceID}, FileID: files.FileID(fileID),
+		Length: files.DetectHeadBytes,
+	})
+	if err != nil {
+		return nil
+	}
+	defer func() { _ = r.Close() }()
+	head, err := io.ReadAll(io.LimitReader(r.Body, files.DetectHeadBytes))
+	if err != nil {
+		return nil
+	}
+	return head
+}
+
+// checkTranscriptionQuota refuses, with 402, a recording whose estimated
+// minutes and the organization's open jobs together pass what is left of
+// meeting.transcription.
+func (s *MeetingService) checkTranscriptionQuota(ctx context.Context, q *db.Queries, orgID string, seconds int32) error {
+	open, err := q.OpenTranscriptionMinutes(ctx, orgID)
+	if err != nil {
+		return err
+	}
+	return paymentRequired(s.ent.CheckQuota(ctx, orgID, FeatureMeetingTranscription, billedMinutes(float64(seconds))+open))
+}
+
 // billedMinutes is per started minute, at least one (ADR 0029).
 func billedMinutes(seconds float64) int64 {
 	return max(int64(math.Ceil(seconds/60)), 1)
@@ -293,20 +349,25 @@ func (s *MeetingService) recordTranscription(ctx context.Context, q *db.Queries,
 // runTranscriptions is the 15 s worker (§7.4), off the outbox because one
 // job outlives an outbox delivery. Rows are claimed with SKIP LOCKED and a
 // lease, so nodes never work the same row; the lease value is the holder's
-// token for every write after it. Without a vendor the rows wait.
+// token for every write after it. Rows are claimed one at a time, right
+// before their work, so the 2-minute lease always covers the one vendor call
+// (its client gives up after a minute) or the one completion behind it: a
+// batch claimed up front would age its last rows' leases while the first
+// ones run, and another node would submit them a second time. Without a
+// vendor the rows wait.
 func (s *MeetingService) runTranscriptions(ctx context.Context) error {
 	if !s.AI.MeetingTranscribeAvailable() || s.files == nil {
 		return nil
 	}
-	rows, err := s.q.ClaimMeetingTranscriptions(ctx, db.ClaimMeetingTranscriptionsParams{
-		LeaseSeconds: int32(transcriptionLease / time.Second), RowLimit: transcriptionBatch,
-	})
-	if err != nil {
-		return err
-	}
 	var errs []error
-	for _, t := range rows {
-		if err := s.advanceTranscription(ctx, t); err != nil {
+	for range transcriptionBatch {
+		rows, err := s.q.ClaimMeetingTranscriptions(ctx, db.ClaimMeetingTranscriptionsParams{
+			LeaseSeconds: int32(transcriptionLease / time.Second), RowLimit: 1,
+		})
+		if err != nil || len(rows) == 0 {
+			return errors.Join(append(errs, err)...)
+		}
+		if err := s.advanceTranscription(ctx, rows[0]); err != nil {
 			errs = append(errs, err)
 		}
 	}
@@ -317,7 +378,11 @@ func (s *MeetingService) advanceTranscription(ctx context.Context, t db.MeetingT
 	if t.Status == TranscriptionQueued || t.ProviderJobID == "" {
 		return s.submitTranscription(ctx, t)
 	}
-	if t.DeadlineAt.Valid && time.Now().After(t.DeadlineAt.Time) {
+	overdue, err := s.q.TranscriptionOverdue(ctx, t.ID)
+	if err != nil {
+		return err
+	}
+	if overdue {
 		s.AI.MeetingTranscribeAbandon(ctx, t.UsageEventID.String)
 		return s.failTranscriptionAttempt(ctx, t, transcriptionErrTimeout, t.Attempts)
 	}
@@ -342,25 +407,44 @@ func (s *MeetingService) advanceTranscription(ctx context.Context, t db.MeetingT
 }
 
 func (s *MeetingService) submitTranscription(ctx context.Context, t db.MeetingTranscription) error {
+	// The flag is the legal kill switch (§7.5) and the plan may have lapsed:
+	// a job not sent yet waits, uncounted, until both allow it again.
+	if !s.TranscriptionAvailable(ctx, t.OrganizationID) {
+		_, err := s.q.RescheduleTranscription(ctx, db.RescheduleTranscriptionParams{ID: t.ID, Lease: t.LeaseUntil, AfterSeconds: pollSeconds})
+		return err
+	}
 	resolved, err := s.files.ResolveMany(ctx, files.ResolveInput{
 		Scope: files.Scope{OrganizationID: t.OrganizationID, WorkspaceID: t.WorkspaceID},
 		Mode:  files.ReadPresign, Disposition: files.DispositionAttachment, FileIDs: []files.FileID{files.FileID(t.FileID)},
+		MaxTTL: transcriptionURLTTL,
 	})
 	if err != nil || len(resolved) == 0 || resolved[0].Err != nil || resolved[0].URL == "" {
 		return s.failTranscriptionAttempt(ctx, t, transcriptionErrFile, t.Attempts+1)
 	}
 	jobID, usageID, err := s.AI.MeetingTranscribeSubmit(ctx,
 		ai.CloudCall{Actor: audit.Actor{Kind: audit.Kind(t.CreatedByKind), ID: t.CreatedBy}, OrganizationID: t.OrganizationID},
-		provider.FileTranscribeRequest{AudioURL: resolved[0].URL, MIME: t.ContentType, Language: t.Language, Diarize: true})
+		provider.FileTranscribeRequest{
+			// One id per (row, attempt): a submit repeated after a lost
+			// answer is the same vendor request, not a second job.
+			RequestID: t.ID + "-" + strconv.Itoa(int(t.Attempts)+1),
+			AudioURL:  resolved[0].URL, MIME: t.ContentType, Language: t.Language, Diarize: true,
+		})
 	if err != nil {
 		return s.failTranscriptionAttempt(ctx, t, transcriptionErrProvider, t.Attempts+1)
 	}
 	job := max(transcriptionMinJob, 3*time.Duration(t.EstimatedSeconds)*time.Second)
-	_, err = s.q.MarkTranscriptionSubmitted(ctx, db.MarkTranscriptionSubmittedParams{
+	n, err := s.q.MarkTranscriptionSubmitted(ctx, db.MarkTranscriptionSubmittedParams{
 		ID: t.ID, Lease: t.LeaseUntil, Provider: s.AI.MeetingTranscriberName(), Model: s.AI.MeetingTranscriberModel(),
 		ProviderJobID: jobID, UsageEventID: strText(usageID),
 		JobSeconds: int32(job / time.Second), AfterSeconds: pollSeconds,
 	})
+	if err == nil && n == 0 {
+		// The lease moved on while the vendor answered: the row is not ours to
+		// record. Its next holder resubmits under the same request id; this
+		// job's usage row is settled so it does not stay pending.
+		s.AI.MeetingTranscribeAbandon(ctx, usageID)
+		slog.Warn("meeting transcription: lease lost during submit", "transcription", t.ID, "usage_event_id", usageID)
+	}
 	return err
 }
 
@@ -401,8 +485,10 @@ func (s *MeetingService) failTranscriptionAttempt(ctx context.Context, t db.Meet
 // seconds, the minutes on meeting.transcription, the timeline line, the
 // audit row and transcription.completed.
 func (s *MeetingService) completeTranscription(ctx context.Context, t db.MeetingTranscription, res provider.FileTranscribeResult) error {
+	// Silent audio (the vendor heard no speech) is COMPLETE with nothing to
+	// bill: the minutes meter speech, and nothing was transcribed.
 	seconds := res.Seconds
-	if seconds <= 0 {
+	if seconds <= 0 && !res.Silent {
 		seconds = float64(t.EstimatedSeconds)
 	}
 	model := res.Model
@@ -449,12 +535,14 @@ func (s *MeetingService) completeTranscription(ctx context.Context, t db.Meeting
 			return err
 		}
 	}
-	if err := s.ent.RecordUsage(ctx, q, ConsumeInput{
-		OrganizationID: t.OrganizationID, WorkspaceID: t.WorkspaceID, Meter: FeatureMeetingTranscription,
-		Delta: billedMinutes(seconds), Actor: transcriptionActor,
-		RefType: "meeting_transcription", RefID: t.ID, IdempotencyKey: "transcription:" + t.ID,
-	}); err != nil {
-		return err
+	if !res.Silent {
+		if err := s.ent.RecordUsage(ctx, q, ConsumeInput{
+			OrganizationID: t.OrganizationID, WorkspaceID: t.WorkspaceID, Meter: FeatureMeetingTranscription,
+			Delta: billedMinutes(seconds), Actor: transcriptionActor,
+			RefType: "meeting_transcription", RefID: t.ID, IdempotencyKey: "transcription:" + t.ID,
+		}); err != nil {
+			return err
+		}
 	}
 	m, err := q.GetMeeting(ctx, t.MeetingID)
 	if err != nil {

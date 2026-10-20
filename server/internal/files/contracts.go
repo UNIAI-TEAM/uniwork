@@ -142,6 +142,9 @@ type ResolveInput struct {
 	Mode        ReadMode
 	Disposition Disposition
 	FileIDs     []FileID
+	// MaxTTL caps a presigned URL below MaxResolveURLTTL when set: a URL
+	// handed to a third party lives no longer than its job needs.
+	MaxTTL time.Duration
 	// Variant signs a derivative of each id instead of the original, under
 	// the same rules as OpenInput.Variant: authorized as its source, and a
 	// file without that derivative signs the original. Resolved.File stays
