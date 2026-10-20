@@ -24,7 +24,7 @@ type Prefs struct {
 func DefaultPrefs(kind string) Prefs {
 	push := kind == KindMentioned || kind == KindDocumentMentioned || kind == KindDocumentDiscussionMentioned || kind == KindDocumentBreakGlass ||
 		kind == KindDocumentShared ||
-		kind == KindTaskAssigned || kind == KindMeetingStarting ||
+		kind == KindTaskAssigned || kind == KindTasksAssigned || kind == KindMeetingStarting ||
 		kind == KindChatReminder || kind == KindChatMentioned || kind == KindChatDM || kind == KindChatCallIncoming ||
 		kind == KindDocumentEditRequested || kind == KindDocumentEditTakenOver
 	return Prefs{InApp: true, Push: push, Email: kind != KindDocumentTrashedByOther}

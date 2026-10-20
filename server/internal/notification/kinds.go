@@ -11,6 +11,7 @@ package notification
 // the preference matrix; NOTIFICATION_KINDS in packages/core mirrors the list.
 const (
 	KindTaskAssigned      = "task_assigned"
+	KindTasksAssigned     = "tasks_assigned" // several at once, one creation (UNI-1996)
 	KindTaskStatusChanged = "task_status_changed"
 	KindTaskCommented     = "task_commented"
 	KindMentioned         = "mentioned"
@@ -70,7 +71,7 @@ const (
 
 // Kinds is the list in display order.
 var Kinds = []string{
-	KindTaskAssigned, KindTaskStatusChanged, KindTaskCommented, KindMentioned,
+	KindTaskAssigned, KindTasksAssigned, KindTaskStatusChanged, KindTaskCommented, KindMentioned,
 	KindMeetingInvited, KindMeetingStarting, KindMeetingSummaryReminder,
 	KindMemberAdded, KindRoleChanged, KindAuditExportReady, KindChatFollowUp, KindChatReminder, KindEmailHubNewMail,
 	KindDocumentCommented, KindDocumentMentioned,

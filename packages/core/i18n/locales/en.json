@@ -591,6 +591,7 @@
       "digest_hint": "One email a day at 08:00 in your time zone, only when something is unread.",
       "kinds": {
         "task_assigned": "Assigned a task",
+        "tasks_assigned": "Assigned several tasks at once",
         "task_status_changed": "Task status changed",
         "task_commented": "New comment",
         "mentioned": "Mentioned",
@@ -5534,6 +5535,7 @@
     "keys_archive": "archive",
     "kind": {
       "task_assigned": "{{actor}} assigned you “{{task}}”",
+      "tasks_assigned": "{{actor}} assigned you {{count}} tasks",
       "task_status_changed": "{{actor}} moved “{{task}}” to {{status}}",
       "task_commented": "{{actor}} commented on “{{task}}”",
       "mentioned": "{{actor}} mentioned you in “{{task}}”",

@@ -15,6 +15,7 @@ import "strings"
 var titles = map[string]map[string]string{
 	"vi": {
 		KindTaskAssigned:                "{{actor}} đã giao bạn việc “{{task}}”",
+		KindTasksAssigned:               "{{actor}} đã giao bạn {{count}} việc",
 		KindTaskStatusChanged:           "{{actor}} chuyển “{{task}}” sang {{status}}",
 		KindTaskCommented:               "{{actor}} đã bình luận trong “{{task}}”",
 		KindMentioned:                   "{{actor}} đã nhắc đến bạn trong “{{task}}”",
@@ -50,6 +51,7 @@ var titles = map[string]map[string]string{
 	},
 	"en": {
 		KindTaskAssigned:                "{{actor}} assigned you “{{task}}”",
+		KindTasksAssigned:               "{{actor}} assigned you {{count}} tasks",
 		KindTaskStatusChanged:           "{{actor}} moved “{{task}}” to {{status}}",
 		KindTaskCommented:               "{{actor}} commented on “{{task}}”",
 		KindMentioned:                   "{{actor}} mentioned you in “{{task}}”",

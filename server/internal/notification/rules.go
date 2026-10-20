@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -116,6 +117,7 @@ type env struct {
 type rule func(ctx context.Context, e env, ev outbox.Row, p map[string]string) ([]Draft, error)
 
 var rules = map[string]rule{
+	"task.created":           ruleTaskCreated,
 	"task.updated":           ruleTaskUpdated,
 	"task.comment_added":     ruleTaskCommentAdded,
 	"document.comment_added": ruleDocumentCommentAdded,
@@ -326,6 +328,105 @@ func ruleTaskUpdated(ctx context.Context, e env, ev outbox.Row, p map[string]str
 		out = append(out, ds...)
 	}
 	return out, nil
+}
+
+// ruleTaskCreated tells the human assignee of a task created already
+// assigned (UNI-1996); agents are never told. One transaction that hands a
+// person several tasks is one notification, sent by the event of the
+// smallest task id: the audit rows of a transaction share correlation id and
+// occurred_at, which is also the event's created_at, so every event of the
+// batch finds the same group without a column for it.
+func ruleTaskCreated(ctx context.Context, e env, ev outbox.Row, p map[string]string) ([]Draft, error) {
+	task, err := e.q.GetTask(ctx, p["task_id"])
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	if !task.AssigneeID.Valid || task.AssigneeKind != string(audit.KindHuman) {
+		return nil, nil
+	}
+	assignee := task.AssigneeID.String
+	ids, err := createdWithAssignee(ctx, e.q, ev, assignee)
+	if err != nil {
+		return nil, err
+	}
+	if !slices.Contains(ids, task.ID) {
+		ids = []string{task.ID}
+	}
+	leader := slices.Min(ids)
+	if task.ID != leader {
+		return nil, nil
+	}
+	orgID, err := orgOf(ctx, e.q, ev, task.WorkspaceID)
+	if err != nil {
+		return nil, err
+	}
+	r := newRecipients(ctx, e, ev, task.WorkspaceID)
+	r.add(assignee)
+	actor := actorName(ctx, e.q, ev)
+	if len(ids) == 1 {
+		return r.drafts(orgID, KindTaskAssigned, "task:"+task.ID+":assigned", "task", task.ID,
+			map[string]string{"actor": actor, "task": task.Title})
+	}
+	resType, resID, err := batchResource(ctx, e.q, ids)
+	if err != nil {
+		return nil, err
+	}
+	return r.drafts(orgID, KindTasksAssigned, "tasks:"+leader+":assigned", resType, resID,
+		map[string]string{"actor": actor, "count": strconv.Itoa(len(ids))})
+}
+
+// createdWithAssignee lists the tasks ev's transaction created for assignee
+// as a human, read from their audit rows; nil without a correlation id.
+func createdWithAssignee(ctx context.Context, q *db.Queries, ev outbox.Row, assignee string) ([]string, error) {
+	if !ev.CorrelationID.Valid {
+		return nil, nil
+	}
+	rows, err := q.ListAuditEventsInTransaction(ctx, db.ListAuditEventsInTransactionParams{
+		CorrelationID: ev.CorrelationID.String, Action: audit.ActionTaskCreated, OccurredAt: ev.CreatedAt,
+	})
+	if err != nil {
+		return nil, err
+	}
+	var ids []string
+	for _, row := range rows {
+		var changes map[string]audit.Change
+		if err := json.Unmarshal([]byte(row.Changes), &changes); err != nil {
+			return nil, fmt.Errorf("notification: audit changes of %s: %w", row.ID, err)
+		}
+		kind, _ := changeTo(changes, "assignee_kind")
+		id, _ := changeTo(changes, "assignee_id")
+		if kind == string(audit.KindHuman) && id == assignee {
+			ids = append(ids, row.ResourceID)
+		}
+	}
+	return ids, nil
+}
+
+// batchResource points a batch at its meeting when every task still there
+// came out of the same one, and at the leader task otherwise.
+func batchResource(ctx context.Context, q *db.Queries, ids []string) (string, string, error) {
+	meetingID := ""
+	// shortcut: only the first 50 tasks are read; a larger batch from one meeting is not expected.
+	for _, id := range ids[:min(len(ids), 50)] {
+		t, err := q.GetTask(ctx, id)
+		if errors.Is(err, pgx.ErrNoRows) {
+			continue
+		}
+		if err != nil {
+			return "", "", err
+		}
+		if t.OriginType.String != "meeting" || !t.OriginID.Valid || (meetingID != "" && t.OriginID.String != meetingID) {
+			return "task", slices.Min(ids), nil
+		}
+		meetingID = t.OriginID.String
+	}
+	if meetingID == "" {
+		return "task", slices.Min(ids), nil
+	}
+	return "meeting", meetingID, nil
 }
 
 // mentionedIn finds workspace members named as @Display Name in body. There

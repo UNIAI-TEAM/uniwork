@@ -2,6 +2,7 @@ package notification
 
 import (
 	"errors"
+	"slices"
 	"testing"
 
 	"github.com/unicomhub/uniwork/server/internal/service"
@@ -80,7 +81,7 @@ func TestServicePreferencesAndPush(t *testing.T) {
 	f := newFixture(t)
 	svc := NewService(f.q, PushConfig{})
 	rows, err := svc.Preferences(f.ctx, f.member.ID)
-	if err != nil || len(rows) != len(Kinds) || !rows[0].Push || rows[1].Push {
+	if err != nil || len(rows) != len(Kinds) || !rows[0].Push || rows[slices.Index(Kinds, KindTaskStatusChanged)].Push {
 		t.Fatalf("defaults = %+v err=%v", rows, err)
 	}
 	if _, err := svc.SetPreferences(f.ctx, f.member.ID, []KindPrefs{{Kind: "bogus"}}); err == nil {

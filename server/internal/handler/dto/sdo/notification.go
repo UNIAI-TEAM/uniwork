@@ -5,7 +5,7 @@ import "encoding/json"
 // NotificationDTO is one inbox row. title_key + params render client-side.
 type NotificationDTO struct {
 	ID              string `json:"id" example:"01K4NOTIF00000000000000001"`
-	Kind            string `json:"kind" description:"task_assigned, task_status_changed, task_commented, mentioned, meeting_invited, meeting_starting, member_added, role_changed, audit_export_ready" example:"task_assigned"`
+	Kind            string `json:"kind" description:"task_assigned, tasks_assigned, task_status_changed, task_commented, mentioned, meeting_invited, meeting_starting, member_added, role_changed, audit_export_ready" example:"task_assigned"`
 	WorkspaceID     string `json:"workspace_id,omitempty" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
 	OrganizationID  string `json:"organization_id" example:"01J8X4K2M0N1P2Q3R4S5T6U7V9"`
 	ResourceType    string `json:"resource_type" description:"task, meeting, workspace, audit_export, chat_message hoặc email_account" example:"task"`

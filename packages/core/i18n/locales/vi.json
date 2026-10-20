@@ -590,6 +590,7 @@
       "digest_hint": "Email gom một lần mỗi ngày lúc 08:00 theo múi giờ của bạn, chỉ khi có thông báo chưa xem.",
       "kinds": {
         "task_assigned": "Được giao việc",
+        "tasks_assigned": "Được giao nhiều việc một lúc",
         "task_status_changed": "Việc đổi trạng thái",
         "task_commented": "Bình luận mới",
         "mentioned": "Được nhắc đến",
@@ -5530,6 +5531,7 @@
     "keys_archive": "lưu trữ",
     "kind": {
       "task_assigned": "{{actor}} đã giao bạn việc “{{task}}”",
+      "tasks_assigned": "{{actor}} đã giao bạn {{count}} việc",
       "task_status_changed": "{{actor}} chuyển “{{task}}” sang {{status}}",
       "task_commented": "{{actor}} đã bình luận trong “{{task}}”",
       "mentioned": "{{actor}} đã nhắc đến bạn trong “{{task}}”",
