@@ -68,6 +68,7 @@ type evalWorld struct {
 	w       db.Workspace
 	other   db.User // member of the other organization
 	otherWS string
+	docs    *DocumentService             // the seed's documents, wired into the agent's tools as main.go does
 	refs    map[string]string            // task title -> PREFIX-N
 	ws2     string                       // a second workspace of the asker's organization
 	reqs    []provider.CompletionRequest // every request the provider saw (fake or recorded live)
@@ -84,7 +85,10 @@ func (e *evalWorld) useAgent(t *testing.T, on bool) {
 	if !on {
 		return
 	}
-	e.s.SetReadTools(NewMcpToolService(e.s.q, e.s, NewHomeService(e.s.q, e.s.ws), e.s.ws, "https://app.example.test"))
+	tools := NewMcpToolService(e.s.q, e.s, NewHomeService(e.s.q, e.s.ws), e.s.ws, "https://app.example.test")
+	tools.SetDocuments(e.docs)
+	tools.SetFlags(base)
+	e.s.SetReadTools(tools)
 	e.s.SetFlags(evalAgentFlags{base: base, org: e.w.OrganizationID})
 	t.Cleanup(func() { e.s.SetFlags(base) })
 }
@@ -170,6 +174,11 @@ func seedAskEval(t *testing.T) *evalWorld {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// The budget meeting is "last week's" (agent-meeting-budget): held and ended
+	// seven days ago, the same weekday of the previous week, so it has its summary.
+	if _, err := s.pool.Exec(ctx, `UPDATE meetings SET starts_at = now() - interval '7 days', ends_at = now() - interval '7 days' + interval '1 hour', status = $2 WHERE id = $1`, budget.ID, MeetingEnded); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := s.q.InsertMeetingSummary(ctx, db.InsertMeetingSummaryParams{
 		ID: util.NewID(), MeetingID: budget.ID, Summary: "Chốt ngân sách marketing 50 triệu cho tháng 9.",
 		Decisions: "Duyệt ngân sách marketing 50 triệu.", ActionItems: "Lan Anh gửi bảng ngân sách.", Model: "test",
@@ -230,7 +239,7 @@ func seedAskEval(t *testing.T) *evalWorld {
 	if _, err := s.tasks.Create(ctx, Human(owner.ID), w2.Workspace.ID, CreateTaskInput{Title: "Hợp đồng đối tác riêng"}); err != nil {
 		t.Fatal(err)
 	}
-	e := &evalWorld{s: s, fake: fake, asker: asker, owner: owner, w: w, other: other, otherWS: ov.Workspace.ID, refs: refs, ws2: w2.Workspace.ID}
+	e := &evalWorld{s: s, fake: fake, asker: asker, owner: owner, w: w, other: other, otherWS: ov.Workspace.ID, refs: refs, ws2: w2.Workspace.ID, docs: docs}
 	// Record every request, not only the last: an agent run makes several, and
 	// a forbidden title in any of them is a leak.
 	if inner := fake.Reply; inner != nil {
@@ -471,6 +480,11 @@ func TestAskUniEvalLive(t *testing.T) {
 	}
 	cases := loadEvalCases(t)
 	e := seedAskEval(t)
+	// The eval organization is on Starter (100k AI tokens a month), which an
+	// agent run spends in about a dozen questions; lift it so every case is asked.
+	if _, err := e.s.pool.Exec(context.Background(), `UPDATE subscriptions SET overrides = '{"ai.tokens": 100000000}'::jsonb WHERE organization_id = $1`, e.w.OrganizationID); err != nil {
+		t.Fatal(err)
+	}
 	gw := ai.NewGateway(e.s.q, recordingProvider{Provider: p, e: e}, NewAIQuota(e.s.ent), nil, opts)
 	e.s.gw, e.s.meetings.AI, e.fake = gw, gw, nil
 	agent := os.Getenv("ASKUNI_EVAL_AGENT") == "1"
