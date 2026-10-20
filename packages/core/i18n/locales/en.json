@@ -3014,6 +3014,17 @@
     "quorumHint": "Leave empty for none. Falling short only shows a warning; it never blocks the meeting.",
     "quorumInvalid": "Enter a whole number from 1 to 100",
     "allowJoinRequestHint": "Signed-in workspace members only — not for external guests.",
+    "dialIn": {
+      "title": "Join by phone",
+      "description": "Call the number, enter the PIN and press #. The host admits you like a guest.",
+      "number": "Number",
+      "pin": "PIN",
+      "rotate": "New PIN",
+      "rotateTitle": "Draw a new dial-in PIN?",
+      "rotateHint": "The old PIN stops working at once, and people who got the invite need the new one. Anyone already in the meeting stays.",
+      "rotated": "New PIN drawn",
+      "phoneChip": "Phone"
+    },
     "externalGuestLinks": "External guests (no account)",
     "externalGuestLinksDescription": "Create and manage links so people without a UniWork account can join.",
     "externalGuestLinksClosedDescription": "Links that were used so people without a UniWork account could join.",

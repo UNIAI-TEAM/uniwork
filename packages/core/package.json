@@ -53,6 +53,7 @@
     "./meetings/recording-playback-cache": "./meetings/recording-playback-cache.ts",
     "./meetings/summary-task-items": "./meetings/summary-task-items.ts",
     "./meetings/summary": "./meetings/summary-hooks.ts",
+    "./meetings/dial-in": "./meetings/dial-in-hooks.ts",
     "./documents": "./documents/hooks.ts",
     "./documents/schema": "./documents/schema.ts",
     "./documents/hooks": "./documents/hooks.ts",

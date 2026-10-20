@@ -10,6 +10,7 @@ import { moduleTone } from "../layout/module-tones";
 import { useWorkspace } from "../layout/workspace-context";
 import { AppLink } from "../navigation";
 import { formatMeetingStart, meetingLocale } from "./meeting-datetime";
+import { MeetingDialInSection } from "./meeting-dial-in-section";
 import { meetingTimeZoneLabel } from "./meeting-detail-format";
 import { MeetingInviteLinksSection } from "./meeting-invite-links-section";
 import { MeetingParticipantsSection } from "./meeting-participants-section";
@@ -83,6 +84,7 @@ export function MeetingDetailAside({
     <div className="flex min-w-0 flex-col gap-4">
       {/* Once the meeting is over its links read as closed: nothing to revoke or create. */}
       {canHost ? <MeetingInviteLinksSection meetingId={meeting.id} canCreate={open} /> : null}
+      {open ? <MeetingDialInSection meetingId={meeting.id} canHost={canHost} /> : null}
       <PanelCard id="details-heading" icon={Info} iconTone={moduleTone("meetings")} title={t("meetings.details")}>
         <dl className="-my-2 divide-y divide-border">
           <DetailRow label={t("meetings.timezone")}>{timezone}</DetailRow>
