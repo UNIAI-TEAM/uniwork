@@ -70,3 +70,10 @@ DELETE FROM meeting_action_items i
 WHERE i.organization_id = sqlc.arg(organization_id) AND i.meeting_id = sqlc.arg(meeting_id)
   AND i.source = 'AI' AND i.dismissed_at IS NULL
   AND NOT EXISTS (SELECT 1 FROM tasks t WHERE t.id = i.task_id AND t.organization_id = i.organization_id);
+
+-- name: LockMeetingSummaryChanges :exec
+-- Serializes every write on a meeting's summaries and action items: storing a
+-- new summary, adding, dismissing, restoring and converting items all take
+-- this lock in their transaction first, so a conversion never lands on an
+-- item a regenerated summary is replacing. Released at commit or rollback.
+SELECT pg_advisory_xact_lock(hashtextextended('meeting_summary_tx:' || sqlc.arg(meeting_id)::text, 0));

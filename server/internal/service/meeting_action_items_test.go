@@ -129,9 +129,6 @@ func TestConvertActionItemsIsAtomic(t *testing.T) {
 	if len(got) != 2 || got["meeting_id"] != m.ID || got["workspace_id"] != w.ID {
 		t.Fatalf("action_item.converted payload carries ids only: %v", got)
 	}
-	if n := countRows(t, s, `SELECT count(*) FROM meeting_summary_task_links WHERE meeting_id = $1`, m.ID); n != 0 {
-		t.Fatalf("the retired link table was written: %d", n)
-	}
 }
 
 func TestConvertActionItemsRefusesHandledItems(t *testing.T) {

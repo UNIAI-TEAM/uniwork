@@ -66,6 +66,9 @@ func TestMeetingActionItemsBackfill(t *testing.T) {
 	// keys to organizations, workspaces and users; this exercise is about
 	// summaries and links only, so their triggers are off for the transaction.
 	exec(`SET LOCAL session_replication_role = replica`)
+	// UNI-1999 dropped the link table this backfill reads; bring it back,
+	// empty, inside the transaction.
+	exec(readMigration(t, "9991792144600001_meeting_summary_task_links.up.sql"))
 	for _, m := range []string{meeting, broken, invalid} {
 		exec(`INSERT INTO meetings (id, organization_id, workspace_id, title, starts_at, ends_at, room_name, created_by, host_user_id)
 			VALUES ($1, $2, $3, 'Giao ban', now(), now() + interval '1 hour', $1, $4, $4)`, m, org, ws, user)

@@ -298,6 +298,19 @@ func (q *Queries) LockMeetingActionItems(ctx context.Context, arg LockMeetingAct
 	return items, nil
 }
 
+const lockMeetingSummaryChanges = `-- name: LockMeetingSummaryChanges :exec
+SELECT pg_advisory_xact_lock(hashtextextended('meeting_summary_tx:' || $1::text, 0))
+`
+
+// Serializes every write on a meeting's summaries and action items: storing a
+// new summary, adding, dismissing, restoring and converting items all take
+// this lock in their transaction first, so a conversion never lands on an
+// item a regenerated summary is replacing. Released at commit or rollback.
+func (q *Queries) LockMeetingSummaryChanges(ctx context.Context, meetingID string) error {
+	_, err := q.db.Exec(ctx, lockMeetingSummaryChanges, meetingID)
+	return err
+}
+
 const nextMeetingActionItemPosition = `-- name: NextMeetingActionItemPosition :one
 SELECT COALESCE(MAX(position) + 1, 0)::int AS position
 FROM meeting_action_items
