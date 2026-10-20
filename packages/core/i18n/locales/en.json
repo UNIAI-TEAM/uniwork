@@ -4826,6 +4826,8 @@
     "poll_deadline_must_be_future": "Poll deadline must be in the future.",
     "poll_deadline_invalid": "Invalid poll deadline.",
     "poll_closed": "Poll closed",
+    "poll_vote_activity_line": "<b>{{name}}</b> joined the poll: <b>{{question}}</b>",
+    "poll_vote_activity_view": "View",
     "poll_closed_toast": "Poll \"{{question}}\" has closed",
     "poll_view_voters": "View poll details",
     "poll_voters_title": "Poll details",

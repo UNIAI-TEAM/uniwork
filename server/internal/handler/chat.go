@@ -153,6 +153,12 @@ func toChatMessageDTO(m service.ChatMessageRow) sdo.ChatMessageDTO {
 			VotesByUser:     m.Poll.VotesByUser,
 		}
 	}
+	if m.PollVote != nil {
+		out.PollVote = &sdo.ChatPollVoteActivityDTO{
+			PollMessageID: m.PollVote.PollMessageID,
+			Question:      m.PollVote.Question,
+		}
+	}
 	if m.Reminder != nil {
 		out.Reminder = &sdo.ChatReminderDTO{
 			Body:     m.Reminder.Body,

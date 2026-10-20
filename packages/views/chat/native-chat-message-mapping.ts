@@ -114,6 +114,12 @@ function mapRecord(record: ChatMessageRecord): ChatMessage {
           votes_by_user: record.poll.votes_by_user,
         }
       : undefined,
+    pollVote: record.poll_vote
+      ? {
+          pollMessageId: record.poll_vote.poll_message_id,
+          question: record.poll_vote.question,
+        }
+      : undefined,
     reminder: record.reminder
       ? {
           body: record.reminder.body,
