@@ -14,8 +14,6 @@ import (
 )
 
 const (
-	maxDocumentAccessBatch = 100
-
 	DocumentAccessOnExistingUpdate = "update"
 	DocumentAccessOnExistingKeep   = "keep"
 
@@ -123,9 +121,12 @@ func errDocumentAccessRejected(rejected []DocumentAccessRejectedItem) error {
 	}
 }
 
+// validateAccessBatchInput has no upper bound on items (UNI-2012 S1e): the
+// people picker may name everyone in the organization. The 1 MiB JSON body cap
+// in the handler is the only size limit left.
 func validateAccessBatchInput(in UpdateDocumentAccessInput) ([]DocumentAccessBatchItem, error) {
-	if len(in.Items) < 1 || len(in.Items) > maxDocumentAccessBatch {
-		return nil, Invalid("items phải có từ 1 đến 100 mục")
+	if len(in.Items) < 1 {
+		return nil, Invalid("items phải có ít nhất 1 mục")
 	}
 	items := make([]DocumentAccessBatchItem, len(in.Items))
 	for i, raw := range in.Items {

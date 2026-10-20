@@ -282,7 +282,7 @@ type ShareDocumentBatchSDI struct {
 // UNI-1781): batch grant/update/revoke/keep across users, workspaces and the
 // organization, with optional dry_run preview.
 type UpdateDocumentAccessSDI struct {
-	Items  []DocumentAccessItemSDI `json:"items" description:"1–100 mục phân quyền; trùng (principal_type, principal_id) -> 422 document_access_rejected"`
+	Items  []DocumentAccessItemSDI `json:"items" description:"Từ 1 mục phân quyền, không giới hạn trên (body tối đa 1 MiB); trùng (principal_type, principal_id) -> 422 document_access_rejected"`
 	DryRun bool                    `json:"dry_run,omitempty" description:"true = chỉ tính preview và kết quả dự kiến, không ghi DB" example:"false"`
 }
 
