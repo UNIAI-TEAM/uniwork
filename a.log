@@ -1,0 +1,5 @@
+$ git rev-parse HEAD; git log --oneline -3
+785f71ab9b7bd3fc1779a1bfbf2773ced83257af
+785f71ab9 test(office): cover older-version export Start refusal and replay cleanup (SIZE-OPS2 r2)
+85acdd46a fix(office): bound legacy spool copy lifetime below stale sweep age (SIZE-OPS2 r2)
+d27e1e377 fix(office): stream stored version export input via readBase and 4-byte ZIP peek (SIZE-OPS2)

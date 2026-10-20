@@ -1,0 +1,2 @@
+$ (cd server && gofmt -l internal/office internal/service cmd/server && go vet ./internal/service/ ./cmd/server/ && go tool staticcheck ./internal/service/ ./cmd/server/ && go build -o /tmp/ops2-server ./cmd/server && rm -f /tmp/ops2-server); echo "GO_STATIC_EXIT=$?"
+GO_STATIC_EXIT=0
