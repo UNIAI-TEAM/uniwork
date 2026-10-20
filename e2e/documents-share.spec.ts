@@ -115,7 +115,7 @@ test("AC01 one person at View: popup, confirmation toast, list row, and a dry ru
   await pickCandidate(dialog, s.member.name, who(s.member.name));
   await expect(chipList(dialog).getByText(who(s.member.name))).toBeVisible();
   await expect(dialog.getByText("Đã chọn 1", { exact: true })).toBeVisible();
-  await expect(dialog.getByRole("combobox", { name: "Mức quyền" })).toHaveText(/Chỉ xem/);
+  await expect(dialog.getByRole("combobox", { name: "Mức quyền", exact: true })).toHaveText(/Chỉ xem/);
   await submitShare(dialog).click();
 
   await toast(page, "Đã chia sẻ cho 1 đối tượng");
@@ -169,7 +169,7 @@ test("AC03 three people at Edit and seven at View: per-person levels with a live
   await dialog.getByRole("button", { name: "Thiết lập quyền riêng" }).click();
   const summary = dialog.getByRole("status").filter({ hasText: /Chỉ xem|Chỉnh sửa/ });
   await expect(summary).toHaveText("3 Chỉ xem");
-  await dialog.getByRole("combobox", { name: `Mức quyền ${s.other.name}` }).click();
+  await dialog.getByRole("combobox", { name: `Mức quyền của ${s.other.name}` }).click();
   await page.getByRole("listbox").filter({ visible: true }).getByRole("option", { name: "Chỉnh sửa" }).click();
   await expect(summary).toHaveText("2 Chỉ xem · 1 Chỉnh sửa");
 
@@ -181,7 +181,7 @@ test("AC03 three people at Edit and seven at View: per-person levels with a live
   await expect(openList.getByRole("option", { name: "Nhận xét" })).toBeVisible();
   await openList.getByRole("option", { name: "Nhận xét" }).click();
   await expect(dialog.getByText("Đặt tất cả 3 đối tượng thành Nhận xét?")).toBeVisible();
-  await dialog.getByRole("button", { name: /^Hu/ }).click();
+  await dialog.getByRole("button", { name: "Hủy", exact: true }).click();
   await expect(summary).toHaveText("2 Chỉ xem · 1 Chỉnh sửa");
 
   await submitShare(dialog).click();
@@ -233,7 +233,7 @@ test("AC05 + Q-S1 the organization at Edit asks to confirm; Manage is refused fo
   const confirm = dialog.getByTestId("share-add-confirm");
   await expect(confirm).toContainText(/Chia sẻ cho toàn bộ Tổ chức .* \(\d+ thành viên\) ở mức Chỉnh sửa/, { timeout: 30_000 });
   expect((await sharesOf(request, s.owner.token, id)).shares ?? []).toHaveLength(0);
-  await confirm.getByRole("button", { name: /^Hu/ }).click();
+  await confirm.getByRole("button", { name: "Hủy", exact: true }).click();
   await expect(confirm).toHaveCount(0);
   expect((await sharesOf(request, s.owner.token, id)).shares ?? []).toHaveLength(0);
 

@@ -132,7 +132,7 @@ export function ShareDialog({
         className="max-h-[85vh] overflow-y-auto sm:max-w-lg [&>*]:min-w-0"
       >
         <DialogHeader>
-          <DialogTitle className="break-words pr-8">
+          <DialogTitle className="line-clamp-2 break-words pr-8" title={docTitle || undefined}>
             {docTitle
               ? t("documents.share.title_named", { title: docTitle })
               : t("documents.share.title")}

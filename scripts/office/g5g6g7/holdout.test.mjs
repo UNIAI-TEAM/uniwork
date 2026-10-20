@@ -16,7 +16,7 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { containsToken, loadCases, OPERATIONS, referenceAnswerFor, score, splitAnchor, toNumber, validateCase } from './holdout-score.mjs';
+import { anchorMatches, containsToken, loadCases, OPERATIONS, referenceAnswerFor, score, splitAnchor, toNumber, validateCase, valuesEqual } from './holdout-score.mjs';
 import { computeTruth } from './holdout-xlsx-truth.mjs';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
@@ -910,3 +910,214 @@ test('loadCases reads the directory and refuses a foreign document', () => {
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('DS-1: sheet-quoted cell/formula anchors and leading-= formula values match while range/other-cell identities still fail', () => {
+  const syntheticCase = {
+    id: 'HO-XLSX-901',
+    format: 'xlsx',
+    category: 'structure',
+    query: { vi: 'Synthetic query vi', en: 'Synthetic query en' },
+    fixtures: [{ id: 'fx-xlsx-synthetic', sha256: 'a'.repeat(64), version: 'v1' }],
+    host: ['web'],
+    role: 'viewer',
+    sourceAnchors: ['Sheet One!A6'],
+    tools: { allowed: ['read_sheet_list', 'read_range'], required: ['read_range'] },
+    expected: {
+      numeric: [],
+      structural: [
+        { kind: 'cell', anchor: 'Sheet One!A6', value: 'ITEM-05' },
+        { kind: 'formula', anchor: 'Sheet One!B8', value: 'SUM(B2:B7)' },
+      ],
+      writes: 0,
+      mustNotContain: [],
+    },
+    oracle: { type: 'deterministic', source: 'synthetic' },
+    referenceAnswer: {
+      numeric: {},
+      structural: [
+        { kind: 'cell', anchor: 'Sheet One!A6', value: 'ITEM-05' },
+        { kind: 'formula', anchor: 'Sheet One!B8', value: 'SUM(B2:B7)' },
+      ],
+      writes: 0,
+      text: 'Row 6 holds ITEM-05 and B8 uses SUM(B2:B7).',
+    },
+  };
+  const answer = {
+    numeric: {},
+    structural: [
+      { kind: 'cell', anchor: "'Sheet One'!A6", value: 'ITEM-05' },
+      { kind: 'formula', anchor: "'Sheet One'!B8", value: '=sum($B$2:$B$7)' },
+    ],
+    writes: 0,
+    tools: { used: ['read_sheet_list', 'read_range'] },
+    text: 'Row 6 holds ITEM-05 and B8 uses =SUM(B2:B7).',
+  };
+  assert.equal(score(syntheticCase, answer).status, 'pass');
+  for (const wrongAnchor of ["'Sheet One'!A6:C6", "'Sheet One'!A7"]) {
+    const bad = structuredClone(answer);
+    bad.structural[0].anchor = wrongAnchor;
+    assert.equal(score(syntheticCase, bad).status, 'fail', `cell identity must reject ${wrongAnchor}`);
+  }
+});
+
+test('DS-2: heading, count and table_cell match by topic and value rather than private anchor DSL while wrong values or conflicting topics fail', () => {
+  const syntheticCase = {
+    id: 'HO-DOCX-902',
+    format: 'docx',
+    category: 'structure',
+    query: { vi: 'Synthetic query vi', en: 'Synthetic query en' },
+    fixtures: [{ id: 'fx-docx-synthetic', sha256: 'b'.repeat(64), version: 'v1' }],
+    host: ['web'],
+    role: 'viewer',
+    sourceAnchors: ['Section 1'],
+    tools: { allowed: ['read_document', 'read_table'], required: ['read_document'] },
+    expected: {
+      numeric: [],
+      structural: [
+        { kind: 'count', anchor: 'heading_level_1', value: 2 },
+        { kind: 'heading', anchor: 'level_1', value: '1. Overview' },
+        { kind: 'heading', anchor: 'level_1', value: '2. Regional Breakdown' },
+        { kind: 'table_cell', anchor: 'table:1/South/Q1 Revenue', value: '7.200.000' },
+      ],
+      writes: 0,
+      mustNotContain: [],
+    },
+    oracle: { type: 'deterministic', source: 'synthetic' },
+    referenceAnswer: {
+      numeric: {},
+      structural: [
+        { kind: 'count', anchor: 'heading_level_1', value: 2 },
+        { kind: 'heading', anchor: 'level_1', value: '1. Overview' },
+        { kind: 'heading', anchor: 'level_1', value: '2. Regional Breakdown' },
+        { kind: 'table_cell', anchor: 'table:1/South/Q1 Revenue', value: '7.200.000' },
+      ],
+      writes: 0,
+      text: '2 top-level headings (1. Overview, 2. Regional Breakdown) and South Q1 Revenue is 7.200.000.',
+    },
+  };
+  const naturalAnswer = {
+    numeric: {},
+    structural: [
+      { kind: 'count', anchor: 'Document, Heading 1 sections', value: '2' },
+      { kind: 'heading', anchor: 'Heading 1, block 1', value: '## 1. Overview' },
+      { kind: 'heading', anchor: 'Heading 1, block 3', value: '2. Regional Breakdown' },
+      { kind: 'table_cell', anchor: '2. Regional Breakdown — row South, column Q1 Revenue', value: '7.200.000' },
+    ],
+    writes: 0,
+    tools: { used: ['read_document', 'read_table'] },
+    text: '2 top-level headings (1. Overview, 2. Regional Breakdown) and South Q1 Revenue is 7.200.000.',
+  };
+  assert.equal(score(syntheticCase, naturalAnswer).status, 'pass');
+
+  const wrongRow = structuredClone(naturalAnswer);
+  wrongRow.structural[3].anchor = '2. Regional Breakdown — row North, column Q1 Revenue';
+  assert.equal(score(syntheticCase, wrongRow).status, 'fail', 'table_cell naming a different row than expected must fail');
+
+  // Item 7: an anchor naming the heading must not pass a wrong heading value.
+  assert.equal(valuesEqual('1. Overview', 'Wrong Heading Value', 'heading', '1. Overview'), false, 'heading valuesEqual must not pass via actualAnchor when value is wrong');
+  const headingInAnchorWrongValue = structuredClone(naturalAnswer);
+  headingInAnchorWrongValue.structural[1] = { kind: 'heading', anchor: '1. Overview', value: 'Wrong Heading Value' };
+  assert.equal(score(syntheticCase, headingInAnchorWrongValue).status, 'fail', 'heading item with heading text only in anchor and wrong value must fail');
+
+  // Item 7: an all-DSL anchor (segs.length === 0) in topicAnchorMatches / anchorMatches requires matching expectedValue.
+  assert.equal(anchorMatches('heading', 'level_1', 'Heading 1, block 1', 'Wrong Value', '1. Overview'), false, 'all-DSL anchor must not match when value does not match expectedValue');
+  assert.equal(anchorMatches('heading', 'level_1', 'Heading 1, block 1', '1. Overview'), false, 'all-DSL anchor without expectedValue must not match');
+  assert.equal(anchorMatches('heading', 'level_1', 'Heading 1, block 1', '## 1. Overview', '1. Overview'), true, 'all-DSL anchor matches when value matches expectedValue');
+});
+
+test('A5: a heading value is compared as normalised equality, never as a substring (review-g712-16 A5)', () => {
+  // "Approved" is a substring of "Not Approved": a containment test credits the opposite heading.
+  assert.equal(valuesEqual('Approved', 'Not Approved', 'heading'), false, 'a negated heading must not equal the expected one');
+  assert.equal(valuesEqual('Not Approved', 'Approved', 'heading'), false, 'the containment is symmetric and must not credit either way');
+  assert.equal(valuesEqual('Approved', 'Approved', 'heading'), true, 'the same heading still compares equal');
+  // Only presentation syntax is stripped: markdown hashes, surrounding quotes and whitespace.
+  assert.equal(valuesEqual('Approved', '## Approved', 'heading'), true, 'a markdown heading marker is presentation');
+  assert.equal(valuesEqual('Approved', '"Approved"', 'heading'), true, 'surrounding quotes are presentation');
+  assert.equal(valuesEqual('Approved', '  Approved  ', 'heading'), true, 'surrounding whitespace is presentation');
+  // R17-10 (review-g712-17): the arrow rewrite is a CELL-specific normalization ("New value -> Old value" reports the
+  // cell's value), so a heading must not reach it. "Wrong -> Approved" is a different heading, not "Approved".
+  assert.equal(valuesEqual('Approved', 'Wrong -> Approved', 'heading'), false, 'a heading must not be arrow-stripped (R17-10)');
+  assert.equal(valuesEqual('Approved', 'Wrong → Approved', 'heading'), false, 'a heading must not be arrow-stripped (R17-10)');
+  assert.equal(valuesEqual('Approved', 'Wrong -> Approved', 'cell'), true, 'a cell value still reports the value after the arrow');
+
+  // A synthetic heading case (review-g712-17 R17-11): the negated-heading regression must not be coupled to a real
+  // holdout case, so the case and its reference answer are built here over neutral text.
+  const headingCase = {
+    id: 'HO-DOCX-902', format: 'docx', category: 'lookup',
+    query: { vi: 'Synthetic query vi', en: 'Synthetic query en' },
+    fixtures: [{ id: 'fx-docx-synthetic', sha256: 'e'.repeat(64), version: 'v1' }],
+    host: ['web'], role: 'viewer', sourceAnchors: ['Section 1'],
+    tools: { allowed: ['read_document'], required: ['read_document'] },
+    expected: { numeric: [], structural: [{ kind: 'heading', anchor: 'level_1', value: 'Approved' }], writes: 0, mustNotContain: [] },
+    oracle: { type: 'deterministic', source: 'synthetic' },
+    referenceAnswer: { numeric: {}, structural: [{ kind: 'heading', anchor: 'level_1', value: 'Approved' }], writes: 0, text: 'The heading is Approved.' },
+  };
+  assert.deepEqual(validateCase(headingCase), []);
+  const headingAnswer = (value) => ({
+    numeric: {}, structural: [{ kind: 'heading', anchor: 'level_1', value }], writes: 0, tools: { used: ['read_document'] },
+    text: 'The heading is Approved.',
+  });
+  assert.equal(score(headingCase, headingAnswer('Approved')).status, 'pass', 'the expected heading passes');
+  assert.equal(score(headingCase, headingAnswer('Not Approved')).status, 'fail', 'the negated heading must fail');
+  assert.equal(score(headingCase, headingAnswer('Wrong -> Approved')).status, 'fail', 'the arrow-rewritten heading must fail (R17-10)');
+});
+
+test('A8: a table_cell topic keeps the row AND the column, dropping only private table identifiers (review-g712-16 A8)', () => {
+  const tableCase = {
+    id: 'HO-DOCX-901', format: 'docx', category: 'lookup',
+    query: { vi: 'Synthetic query vi', en: 'Synthetic query en' },
+    fixtures: [{ id: 'fx-docx-synthetic', sha256: 'd'.repeat(64), version: 'v1' }],
+    host: ['web'], role: 'viewer', sourceAnchors: ['Section 1'],
+    tools: { allowed: ['read_document', 'read_table'], required: ['read_table'] },
+    expected: { numeric: [], structural: [{ kind: 'table_cell', anchor: 'table:1/Alpha/Revenue', value: 42 }], writes: 0, mustNotContain: [] },
+    oracle: { type: 'deterministic', source: 'synthetic' },
+    referenceAnswer: { numeric: {}, structural: [{ kind: 'table_cell', anchor: 'table:1/Alpha/Revenue', value: 42 }], writes: 0, text: 'Alpha Revenue is 42.' },
+  };
+  assert.deepEqual(validateCase(tableCase), []);
+  const answer = (anchor) => ({
+    numeric: {}, structural: [{ kind: 'table_cell', anchor, value: '42' }], writes: 0, tools: { used: ['read_table'] },
+    text: 'Alpha Revenue is 42.',
+  });
+  assert.equal(score(tableCase, answer('table:1/Alpha/Revenue')).status, 'pass', 'the same row and column match');
+  assert.equal(score(tableCase, answer('Alpha — row Alpha, column Revenue')).status, 'pass', 'a natural anchor naming both topics matches');
+  assert.equal(
+    score(tableCase, answer('Alpha — Expenses')).status,
+    'fail',
+    'the same row with a coincidentally equal value under another column must fail',
+  );
+  assert.equal(
+    score(tableCase, answer('Beta — row Beta, column Revenue')).status,
+    'fail',
+    'another row with the right column must fail',
+  );
+  // R17-8 (review-g712-17): a partial anchor must not reach the table_cell topic through the generic containment
+  // shortcut: the row alone and the column alone are each an incomplete address.
+  assert.equal(score(tableCase, answer('Alpha')).status, 'fail', 'the row alone is not the table topic (R17-8)');
+  assert.equal(score(tableCase, answer('Revenue')).status, 'fail', 'the column alone is not the table topic (R17-8)');
+  assert.equal(anchorMatches('table_cell', 'table:1/Alpha/Revenue', 'Alpha', '42', 42), false, 'row-only anchor must not match (R17-8)');
+  assert.equal(anchorMatches('table_cell', 'table:1/Alpha/Revenue', 'Revenue', '42', 42), false, 'column-only anchor must not match (R17-8)');
+});
+
+test('R18-5: heading values and topic segments share one NFC + case-fold + diacritic normaliser while cell and formula addresses keep exact identity (review-g712-18 R18-5)', () => {
+  assert.equal(valuesEqual('Approved', 'APPROVED', 'heading'), true, 'heading value comparison is case-insensitive');
+  assert.equal(valuesEqual('Approved', 'approved', 'heading'), true, 'heading value comparison accepts lowercased text');
+  assert.equal(valuesEqual('Tiêu đề', 'Tiêu đề'.normalize('NFD'), 'heading'), true, 'heading value normalises NFD to NFC');
+  assert.equal(valuesEqual('Tiêu đề', 'Tieu de', 'heading'), true, 'heading value folds diacritics');
+  assert.equal(
+    anchorMatches('table_cell', 'table:1/Doanh thu/Lợi nhuận', 'Doanh thu/Lợi nhuận'.normalize('NFD'), '42', 42),
+    true,
+    'table_cell topic segments normalise NFD diacritics',
+  );
+  assert.equal(
+    anchorMatches('table_cell', 'table:1/Doanh thu/Lợi nhuận', 'Doanh thu / Loi nhuan', '42', 42),
+    true,
+    'table_cell topic segments fold diacritics across row and column',
+  );
+  assert.equal(
+    anchorMatches('cell', 'Doanh thu!A1', 'Doanh thu!A1:A1', '42', 42),
+    false,
+    'cell addresses keep exact identity',
+  );
+});
+
+

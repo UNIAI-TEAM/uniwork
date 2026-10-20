@@ -655,6 +655,21 @@ func (s *DocumentService) withDocumentViewOrAdministerMutationLocked(
 	return s.withDocumentGateLocked(ctx, actor, documentID, treeWorkspaceID, decideDocumentViewOrAdminister, shelve, fn)
 }
 
+// withDocumentAdministerMutation is the gate of the commands only a manager
+// runs (DOC-07's approve and decline; §9.6.1): withDocumentGateLocked with
+// decideDocumentAdminister, so a caller who cannot read the document and holds
+// no AdminScope gets not found, a reader below manage gets forbidden, and an
+// archived document is found only by those who may administer it. The lock
+// order is the siblings' - the workspace tree first when one is named, then
+// the document row - so this gate serializes with every other document
+// mutation.
+func (s *DocumentService) withDocumentAdministerMutation(
+	ctx context.Context, actor Actor, documentID string, shelve shelveGate,
+	fn func(q *db.Queries, doc db.Document, access DocumentAccess) error,
+) error {
+	return s.withDocumentGateLocked(ctx, actor, documentID, "", decideDocumentAdminister, shelve, fn)
+}
+
 func (s *DocumentService) withDocumentGateLocked(
 	ctx context.Context, actor Actor, documentID, treeWorkspaceID string,
 	decide func(db.Document, DocumentAccess) error, shelve shelveGate,

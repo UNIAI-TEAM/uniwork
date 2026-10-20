@@ -3,6 +3,8 @@ export const chatKeys = {
   rooms: (wsId: string) => ["chat", "rooms", wsId] as const,
   /** The caller's unread across every workspace: account-level, not workspace-scoped. */
   unreadSummary: () => ["chat", "unread-summary"] as const,
+  /** One room's detail read (UNI-1966 L5): viewer-scoped flags the list omits. */
+  roomDetail: (wsId: string, roomId: string) => ["chat", "room-detail", wsId, roomId] as const,
   channels: (wsId: string, scope: string, projectId = "") =>
     ["chat", "channels", wsId, scope, projectId] as const,
   projectChannels: (wsId: string, projectId: string) =>
@@ -51,6 +53,8 @@ export const chatKeys = {
   followUps: (wsId: string) => ["chat", "follow-ups", wsId] as const,
   roomMessageSearch: (wsId: string, roomId: string, query: string) =>
     ["chat", "room-message-search", wsId, roomId, query] as const,
+  /** The sidebar's search across my rooms in one scope (Tin nhắn or a workspace). */
+  messageSearch: (wsId: string, scope: string, query: string) => ["chat", "message-search", wsId, scope, query] as const,
   roomMembers: (wsId: string, roomId: string) => ["chat", "room-members", wsId, roomId] as const,
   lookup: (wsId: string, email: string) => ["chat", "lookup", wsId, email] as const,
   block: (wsId: string, userId: string) => ["chat", "block", wsId, userId] as const,

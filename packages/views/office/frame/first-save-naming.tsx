@@ -4,13 +4,17 @@ import { useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { patchDocument } from "@uniwork/core/api/endpoints/documents";
+import { useDocumentTree, useMoveDocument } from "@uniwork/core/documents/hooks-collections";
 import { documentKeys } from "@uniwork/core/documents/keys";
 import type { Document } from "@uniwork/core/types/document";
 import type { FileMeta, OfficeModule } from "@uniwork/core/office/docs-frame-protocol";
 import { officeModuleSpec } from "@uniwork/core/office/office-modules";
+import { documentErrorMessage } from "../../documents/document-error-message";
 import { FolderNameDialog } from "../../documents/folder-name-dialog";
-import { loadMoveRevision } from "../../documents/document-tree-model";
+import { FolderPickerDialog } from "../../documents/folder-picker-dialog";
+import { loadMoveRevision, myFolderFirst } from "../../documents/document-tree-model";
 import type { FirstSaveNamer } from "./docs-frame-session-model";
+import { describeLocation, FirstSaveLocation } from "./first-save-location";
 
 /**
  * UNI-1847 (SAVE-01), D1: the file a never-saved blank Office document stores.
@@ -47,7 +51,9 @@ export interface FirstSaveNaming extends FirstSaveNamer {
  * `firstSave` option of `useDocsFrameSession`: the session adds "nothing saved
  * this session yet" and `viewOnly`; this hook owns the untitled/version-1 check,
  * the dialog, the title PATCH and the frame's rename notice. One dialog serves
- * every concurrent ask (a frame Ctrl+S racing a header Save).
+ * every concurrent ask (a frame Ctrl+S racing a header Save). UNI-1960: the dialog
+ * also shows where the document will live and lets the person pick another folder;
+ * the move runs after the title is written, and a refused move keeps the dialog open.
  */
 export function useFirstSaveNaming({
   document: doc,
@@ -64,8 +70,9 @@ export function useFirstSaveNaming({
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   // Latest values for the callbacks that outlive the render they were made in.
-  const latest = useRef({ doc, module, wsId, onNamed });
-  latest.current = { doc, module, wsId, onNamed };
+  const [target, setTarget] = useState<string | null | undefined>(undefined);
+  const latest = useRef({ doc, module, wsId, onNamed, target });
+  latest.current = { doc, module, wsId, onNamed, target };
   // The document whose title was written this session (another blank prompts again): the stored
   // filename stays `untitled.<ext>` (FileService keeps its own name), so only this can tell.
   const named = useRef<string | null>(null);
@@ -74,6 +81,13 @@ export function useFirstSaveNaming({
   const [initialTitle, setInitialTitle] = useState("");
   // A successful submit also fires onOpenChange(false): it must not read as a cancel.
   const namedThisClose = useRef(false);
+  // The title already written for a document: a retry after a refused move must not write it again.
+  const written = useRef<{ id: string; title: string } | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [moveError, setMoveError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const tree = useDocumentTree(wsId, undefined, { enabled: open });
+  const move = useMoveDocument(wsId);
 
   const settle = (namedNow: boolean) => {
     const asks = pending.current;
@@ -82,17 +96,41 @@ export function useFirstSaveNaming({
     for (const ask of asks) ask(namedNow);
   };
 
-  const submit = async (title: string): Promise<boolean | void> => {
-    const { doc: current, wsId: ws, module: mod, onNamed: notify } = latest.current;
-    if (!current) throw new Error("the document is not loaded");
-    const revision = await loadMoveRevision(queryClient, ws, current.id).catch(() => null);
+  const writeTitle = async (docId: string, ws: string, title: string) => {
+    const revision = await loadMoveRevision(queryClient, ws, docId).catch(() => null);
     if (!revision) throw new Error("the document revision could not be read");
-    const updated = await patchDocument(current.id, { revision, title });
+    const updated = await patchDocument(docId, { revision, title });
     if (!updated) throw new Error("the document rename was refused");
-    namedThisClose.current = true;
+    written.current = { id: docId, title };
     // The title changes everywhere the document is listed or opened.
-    queryClient.setQueryData(documentKeys.detail(ws, current.id), updated);
+    queryClient.setQueryData(documentKeys.detail(ws, docId), updated);
     await queryClient.invalidateQueries({ queryKey: documentKeys.workspace(ws) });
+  };
+
+  const submit = async (title: string): Promise<boolean | void> => {
+    const { doc: current, wsId: ws, module: mod, onNamed: notify, target: picked } = latest.current;
+    if (!current) throw new Error("the document is not loaded");
+    setMoveError(null);
+    setBusy(true);
+    try {
+      if (written.current?.id !== current.id || written.current.title !== title) {
+        await writeTitle(current.id, ws, title);
+      }
+      if (picked !== undefined && picked !== (current.parent_id ?? null)) {
+        try {
+          const revision = await loadMoveRevision(queryClient, ws, current.id);
+          if (!revision) throw new Error("the document revision could not be read");
+          await move.mutateAsync({ documentId: current.id, parent_id: picked, revision });
+        } catch (failure) {
+          // The name stays written and in the field: the person retries or cancels.
+          setMoveError(documentErrorMessage(failure, t, "documents.tree.move_failed"));
+          return false;
+        }
+      }
+    } finally {
+      setBusy(false);
+    }
+    namedThisClose.current = true;
     named.current = current.id;
     // The stored filename never follows the title: the frame's display name is
     // the title with the module's own extension, so its bar and recents read it.
@@ -112,10 +150,20 @@ export function useFirstSaveNaming({
           const ext = fileExtension(current, mod);
           const title = current?.title ?? "";
           setInitialTitle(title.toLowerCase().endsWith(ext.toLowerCase()) ? title.slice(0, -ext.length) : title);
+          setTarget(undefined);
+          setMoveError(null);
           setOpen(true);
         }
       }),
   };
+
+  const chosen = target === undefined ? (doc?.parent_id ?? null) : target;
+  const location = describeLocation(
+    tree.data?.documents,
+    chosen,
+    target === undefined ? (doc?.breadcrumbs ?? []) : [],
+    t,
+  );
 
   const dialog = (
     <FolderNameDialog
@@ -129,8 +177,34 @@ export function useFirstSaveNaming({
       selectAllOnOpen
       kind={doc?.kind ?? "file"}
       onSubmit={submit}
+      error={moveError}
       data-testid="first-save-name-dialog"
-    />
+    >
+      <FirstSaveLocation
+        label={location.label}
+        myFolder={location.myFolder}
+        disabled={busy}
+        onChange={() => setPickerOpen(true)}
+      />
+      <FolderPickerDialog
+        open={pickerOpen}
+        onOpenChange={setPickerOpen}
+        title={t("documents.detail.first_save.picker_title")}
+        description={t("documents.detail.first_save.picker_description")}
+        submitLabel={t("documents.detail.first_save.picker_submit")}
+        tree={myFolderFirst(tree.data?.documents ?? [])}
+        initialFolderId={chosen}
+        currentFolderId={chosen}
+        movingId={doc?.id ?? null}
+        pending={false}
+        error={null}
+        onSubmit={(folderId) => {
+          setTarget(folderId);
+          setMoveError(null);
+          setPickerOpen(false);
+        }}
+      />
+    </FolderNameDialog>
   );
 
   return { ...namer, dialog, open };

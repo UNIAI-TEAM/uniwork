@@ -371,7 +371,7 @@ describe("ChatSidebar", () => {
     expect(within(tabs).getByRole("button", { name: "Riêng" })).toBeInTheDocument();
   });
 
-  it("shows the organization over the workspace name, and no ⌘K outside UniChat", () => {
+  it("keeps the head to one line, the workspace name alone, and no ⌘K outside UniChat", () => {
     render(
       wrapWithNav(
         <WorkspaceProvider
@@ -391,8 +391,10 @@ describe("ChatSidebar", () => {
       ),
     );
     const trigger = screen.getByRole("button", { name: "Tùy chọn trò chuyện trong Truyền thông" });
-    expect(within(trigger).getByText("Unicom · Workspace").closest(".uppercase")).not.toBeNull();
-    expect(screen.getByText("Kênh của workspace này")).toBeInTheDocument();
+    expect(trigger).toHaveTextContent("Truyền thông");
+    // The rail names the workspace already: no caption over it, no line under it.
+    expect(screen.queryByText("Unicom · Workspace")).not.toBeInTheDocument();
+    expect(screen.queryByText("Kênh của workspace này")).not.toBeInTheDocument();
     expect(screen.getByRole("searchbox")).toHaveAttribute("placeholder", "Tìm kênh, tin nhắn trong Truyền thông…");
     expect(screen.queryByText("⌘K")).not.toBeInTheDocument();
   });

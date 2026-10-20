@@ -255,3 +255,53 @@ test('holdout-backend loads the file with --tool-schemas semantics and offers ev
   const tools = offeredTools(caseDoc, catalogue);
   assert.deepEqual(tools.map((t) => t.function.name).sort(), Object.keys(TOOL_OPS.markdown).sort());
 });
+
+// G7-12-SCHEMA step 3 (UNI-1964): the four formats C6 ran name-only (slides / pdf / markdown / html) get the file's
+// own schemas once the runner hands the file over, so the surface a run records has no name-only module and the
+// required keys the holdout cases rely on (contract-draft.md "Required keys in the file") are actually there. The
+// per-tool "the offered tool is the file's own object" identity for all six modules is pinned by the test above; this
+// pins the negative list the report reads (`conditions.scoped.nameOnly.modules`) and the case-required keys.
+const CASE_REQUIRED_KEYS = {
+  slides: { read_slide: ['slideIndex'], apply_ops: ['ops'] },
+  pdf: { read_pages: ['start'], search_text: ['query'], edit_text: ['page', 'old_text', 'new_text'], edit_block: ['page', 'paragraph_text', 'new_text'] },
+  markdown: { read_blocks: ['startIndex', 'endIndex'], apply_ops: ['ops'] },
+  html: { apply_ops: ['ops'] },
+};
+
+test('the committed file leaves no name-only module and carries the required keys of the four formats', () => {
+  const catalogue = toolCatalogue(file);
+  const surface = toolSurface(catalogue, { fileSha256: sha256Hex(schemaBytes), frameTotals: frameToolCounts() });
+  assert.deepEqual(
+    Object.entries(surface).filter(([, v]) => v.source === 'name-only').map(([m]) => m),
+    [],
+    'no module of the six is name-only once the file is handed over',
+  );
+  for (const module of Object.keys(CASE_REQUIRED_KEYS)) assert.match(surface[module].source, /^file:[0-9a-f]{64}$/, `${module}: the surface is the file's own`);
+  for (const [module, tools] of Object.entries(CASE_REQUIRED_KEYS)) {
+    for (const [name, keys] of Object.entries(tools)) {
+      const own = file[module].find((t) => t.function.name === name);
+      assert.ok(own, `${module}/${name} is in the file`);
+      const required = own.function.parameters.required ?? [];
+      for (const key of keys) assert.ok(required.includes(key), `${module}/${name}: required key "${key}" is present (required: ${required.join(', ') || 'none'})`);
+    }
+  }
+});
+
+// Review r1 F5 (UNI-1964): the Go test transcribes the harness's TOOL_OPS mapping for slides, pdf, markdown and html
+// into uniworkMappedFormatTools. This test extracts that Go map literal and holds its four sets equal to
+// Object.keys(TOOL_OPS[module]), so adding or removing a mapped tool on either side fails here.
+const GO_SCHEMA_TABLE_TEST = path.join(repoRoot, 'server/internal/ai/openai_facade_schema_table_test.go');
+
+test('uniworkMappedFormatTools in openai_facade_schema_table_test.go matches TOOL_OPS for slides, pdf, markdown and html', () => {
+  const goSource = fs.readFileSync(GO_SCHEMA_TABLE_TEST, 'utf8');
+  const blockMatch = /var\s+uniworkMappedFormatTools\s*=\s*map\[string\]\[\]string\{([\s\S]*?)\n\}/.exec(goSource);
+  assert.ok(blockMatch, 'uniworkMappedFormatTools map literal is present in openai_facade_schema_table_test.go');
+  const fromGo = {};
+  for (const [, module, body] of blockMatch[1].matchAll(/"([^"]+)"\s*:\s*\{([^}]*)\}/g)) {
+    fromGo[module] = [...body.matchAll(/"([^"]+)"/g)].map((m) => m[1]).sort();
+  }
+  const fromJs = Object.fromEntries(
+    ['slides', 'pdf', 'markdown', 'html'].map((module) => [module, Object.keys(TOOL_OPS[module]).sort()]),
+  );
+  assert.deepEqual(fromGo, fromJs);
+});

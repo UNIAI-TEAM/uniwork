@@ -191,6 +191,42 @@ func TestCommitIntentLookupInFlightAndExpiredClaim(t *testing.T) {
 	}
 }
 
+// A commit whose staged upload claim has expired is refused before the intent
+// claim runs: document_commit.go resolves the upload first, so no intent row
+// exists and a lookup of that key answers 410 commit_intent_unknown. This pins
+// the D fact the fork's B69-lite path rests on - a first-attempt expiry is
+// unknown, and the signed rule sends it to reconciling-stuck, never to a blind
+// resend under the same key.
+func TestCommitIntentExpiredStagedUploadLeavesNoIntent(t *testing.T) {
+	env := newIntentEnv(t)
+	member := human(env.tn.member)
+	created := env.createFile(t, member, "expired-upload.pdf", pdfBody("v1"))
+	up := env.upload(t, member, created.Document.ID, "expired-upload-v2.pdf", pdfBody("v2"))
+	key := util.NewID()
+
+	// The staged upload outlives its 24 hour claim window (T1-Q5), the way a
+	// stalled attempt does; the intent claim never sees it.
+	env.fake.Advance(files.ClaimTTL + time.Minute)
+
+	_, err := env.commit(member, created.Document.ID, up.UploadID, created.Document.Revision, key)
+	ce := wantCode(t, err, "document_upload_invalid")
+	if ce.Status != 409 || ce.Fields["reason"] != files.CodeClaimExpired {
+		t.Fatalf("expired staged upload = %+v", ce)
+	}
+	if n := env.intentCount(t, key); n != 0 {
+		t.Fatalf("intent rows = %d, want 0: the refusal precedes the intent claim", n)
+	}
+
+	_, err = env.lookup(member, created.Document.ID, key)
+	ce = wantCode(t, err, "commit_intent_unknown")
+	if ce.Status != 410 || ce.Fields["outcome"] != CommitIntentUnknown {
+		t.Fatalf("lookup = %+v, want 410 unknown", ce)
+	}
+	if env.m.lookups[CommitIntentUnknown] != 1 || env.m.lookups[CommitIntentNotCommitted] != 0 {
+		t.Fatalf("lookups = %v, want unknown=1 and not_committed=0", env.m.lookups)
+	}
+}
+
 // An attempt whose claim expired cannot late-commit, whether a newer attempt
 // renewed the intent or nobody did.
 func TestCommitIntentFenceRefusesLateCommit(t *testing.T) {

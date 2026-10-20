@@ -84,11 +84,7 @@ describe("ChatVoiceMessageRow", () => {
         />,
       ),
     );
-    expect(container.querySelector("#chat-msg-message-hl .flex.w-fit")).toHaveClass(
-      "before:bg-brand-subtle",
-      "before:ring-1",
-      "before:ring-brand/25",
-    );
+    expect(container.querySelector("#chat-msg-message-hl")).toHaveClass("before:bg-brand-subtle", "before:ring-1", "before:ring-brand/25");
   });
 
   it("has no transcript chip while AI is off", async () => {

@@ -503,7 +503,7 @@ func TestDocumentOfficeJob(t *testing.T) {
 			g := office.ServiceGrant{
 				V: 1, GrantID: row.GrantID, JobID: row.ID, ActorID: row.CreatedBy, ActorKind: "human",
 				OrganizationID: f.org, WorkspaceID: f.ws, DocumentID: f.doc, Operation: office.OperationSerialize, Format: office.FormatMD,
-				BaseRevision: f.rev, BaseVersionID: f.ver, Input: &office.GrantInput{Checksum: base.checksum, Length: int64(len(base.bytes))},
+				BaseRevision: f.rev, BaseVersionID: f.ver, Input: &office.GrantInput{Checksum: base.checksum, Length: base.length},
 				DeadlineAt: time.Now().Add(time.Minute).UnixMilli(), IssuedAt: time.Now().UnixMilli(), ExpiresAt: time.Now().Add(30 * time.Second).UnixMilli(),
 			}
 			mut(&g)
@@ -518,18 +518,18 @@ func TestDocumentOfficeJob(t *testing.T) {
 		// Reuse: the consumed grant with a changed payload.
 		reused, changed := signed(func(*office.ServiceGrant) {})
 		changed.Payload = bytes.Replace(env.Payload, []byte(`"document_model_ref":"`), []byte(`"document_model_ref":"x`), 1)
-		if _, err := engine.Submit(ctx, reused, changed); office.ErrorCode(err) != "payload_fingerprint_mismatch" {
+		if _, err := engine.Submit(ctx, reused, changed, base.source()); office.ErrorCode(err) != "payload_fingerprint_mismatch" {
 			t.Fatalf("reused grant, new payload: %v", err)
 		}
 		// Expired.
 		fresh := func(g *office.ServiceGrant) { g.GrantID, g.JobID = util.NewID(), util.NewID() }
 		expired, expiredEnv := signed(func(g *office.ServiceGrant) { fresh(g); g.ExpiresAt = time.Now().Add(-time.Second).UnixMilli() })
-		if _, err := engine.Submit(ctx, expired, expiredEnv); office.ErrorCode(err) != "grant_expired" {
+		if _, err := engine.Submit(ctx, expired, expiredEnv, base.source()); office.ErrorCode(err) != "grant_expired" {
 			t.Fatalf("expired grant: %v", err)
 		}
 		// Wrong scope: a grant for another base version.
 		scoped, scopedEnv := signed(func(g *office.ServiceGrant) { fresh(g); g.BaseVersionID = util.NewID() })
-		if _, err := engine.Submit(ctx, scoped, scopedEnv); office.ErrorCode(err) != "grant_scope" {
+		if _, err := engine.Submit(ctx, scoped, scopedEnv, base.source()); office.ErrorCode(err) != "grant_scope" {
 			t.Fatalf("wrong-scope grant: %v", err)
 		}
 		// Signed with the service token instead of the grant key.

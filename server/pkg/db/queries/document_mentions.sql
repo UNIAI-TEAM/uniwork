@@ -166,6 +166,19 @@ FROM (
 ORDER BY c.can_view DESC, c.display_name, c.user_id
 LIMIT sqlc.arg(row_limit)::int;
 
+-- The mentioned ids a page-body mention may notify (UNI-1968,
+-- BODY-MENTION-NOTIFY): those that are an active human member of the
+-- document's own organization. A deactivated member is out - both membership
+-- gates refuse them (F-03) - and an agent id is out with them, because an
+-- agent is never an organization_members row. The service reads the ids from
+-- the page content and passes them in, so the query only filters; the
+-- organization is the one on the document row the caller already authorized.
+-- name: ListActiveOrganizationMemberIds :many
+SELECT user_id FROM organization_members
+WHERE organization_id = sqlc.arg(organization_id)::text
+  AND deactivated_at IS NULL
+  AND user_id = ANY(sqlc.arg(user_ids)::text[]);
+
 -- Mention candidates for an owned document (G8-06, UNI-1401; C-01 section
 -- 13.4): an owned document's level comes from its owning product, so its
 -- readers cannot be read from membership or shares here. The picker therefore

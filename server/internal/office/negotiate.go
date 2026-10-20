@@ -14,7 +14,8 @@ import (
 // CapabilityResult is the engine's /v1/capability answer for one format: the
 // engine identity plus the per-operation rows. contract_version and
 // protocol_version are optional because the service build advertises only
-// engine_version today; when they are present they are checked as well.
+// engine_version and job_transport today; when they are present they are
+// checked as well.
 type CapabilityResult struct {
 	JobID           string            `json:"job_id"`
 	State           string            `json:"state"`
@@ -22,6 +23,7 @@ type CapabilityResult struct {
 	EngineVersion   string            `json:"engine_version"`
 	ContractVersion string            `json:"contract_version"`
 	ProtocolVersion *int              `json:"protocol_version"`
+	JobTransport    string            `json:"job_transport"`
 	Format          Format            `json:"format"`
 	Capabilities    []CapabilityEntry `json:"capabilities"`
 	Limits          CapabilityLimits  `json:"limits"`
@@ -55,6 +57,9 @@ func Negotiate(ctx context.Context, engine CapabilityReader, format Format) (Cap
 	}
 	if res.ProtocolVersion != nil && *res.ProtocolVersion != ProtocolVersion {
 		return CapabilityResult{}, NewEngineError("protocol_mismatch", "protocol_version:"+strconv.Itoa(*res.ProtocolVersion))
+	}
+	if res.JobTransport != JobTransport {
+		return CapabilityResult{}, NewEngineError("engine_incompatible", "job_transport:"+res.JobTransport)
 	}
 	return res, nil
 }

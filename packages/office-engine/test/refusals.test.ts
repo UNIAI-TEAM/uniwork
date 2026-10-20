@@ -17,7 +17,6 @@ const validSubmit = {
   format: "docx" as const,
   deadline_ms: 30000,
   payload: {
-    input_bytes: "aGVsbG8=",
     input_checksum: "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824",
     input_length: 5,
     base_revision: 1,
@@ -70,7 +69,6 @@ describe("transport refusal mapping", () => {
         payload: {
           source_version_id: "V1",
           target_format: "pdf",
-          input_bytes: "",
           input_checksum: EMPTY_SHA256,
           input_length: 0,
         },

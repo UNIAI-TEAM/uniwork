@@ -54,7 +54,6 @@ export function runOfficeEngineContractSuite(name: string, factory: () => Office
         payload: {
           source_version_id: "V1",
           target_format: "pdf",
-          input_bytes: "",
           input_checksum: EMPTY_SHA256,
           input_length: 0,
         },

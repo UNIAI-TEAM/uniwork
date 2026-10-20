@@ -9,6 +9,9 @@ export const OFFICE_ENGINE_FLAG = "office_engine";
 /** .docx opens in the genoffice Docs frame (UNI-1013); on by default on the server since 2026-10-09. */
 export const OFFICE_DOCS_WEB_FLAG = "office_docs_web";
 
+/** .txt opens in the genoffice Markdown frame (UNI-1813); off by default on the server, so an absent key reads off. */
+export const OFFICE_TXT_OPEN_FLAG = "office_txt_open";
+
 const OFFICE_FORMAT_FLAGS: Readonly<Record<string, string>> = {
   docx: "office_docx",
   xlsx: "office_xlsx",

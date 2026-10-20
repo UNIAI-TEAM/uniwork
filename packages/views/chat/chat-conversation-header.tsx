@@ -13,8 +13,8 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from "@uniwork/ui/components/ui/tooltip";
 import { cn } from "@uniwork/ui/lib/utils";
 
-/** 44px icon buttons with a 12px radius, as on the canvas header. */
-const HEADER_ICON_BUTTON = "size-11 rounded-lg text-muted-foreground hover:text-foreground";
+/** 36px icon buttons with a 10px radius (the primitive grows them to 44px on a coarse pointer). */
+const HEADER_ICON_BUTTON = "size-9 rounded-[10px] text-muted-foreground hover:text-foreground";
 
 /** A header toggle that is on (panel shown, search open): the brand wash, as on the canvas. */
 const PRESSED = "bg-brand-subtle text-brand-subtle-foreground hover:bg-brand-subtle hover:text-brand-subtle-foreground";
@@ -133,12 +133,12 @@ export function ChatConversationHeader({
     <header
       data-window-drag
       className={cn(
-        "flex h-16 shrink-0 items-center gap-3 border-b border-border bg-surface pr-2 pl-3 sm:pr-3 sm:pl-5",
+        "flex h-14 shrink-0 items-center gap-3 border-b border-border bg-surface pr-2 pl-3 sm:pr-2.5 sm:pl-4",
         className,
       )}
     >
       {onBack ? (
-        <HeaderAction icon={ChevronLeft} label={backAriaLabel} onClick={onBack} className="-ml-1 lg:hidden" />
+        <HeaderAction icon={ChevronLeft} label={backAriaLabel} onClick={onBack} className="-ml-1 md:hidden" />
       ) : null}
       {/* The list carries its own collapse control; once it is hidden, the
           way back lives here. Narrow screens swap list and thread with the
@@ -165,7 +165,7 @@ export function ChatConversationHeader({
             tabIndex={-1}
             data-chat-conversation-title=""
             title={title}
-            className="truncate font-display text-title-sm font-bold text-foreground focus-visible:outline-offset-2"
+            className="truncate text-body-lg font-semibold text-foreground focus-visible:outline-offset-2"
           >
             {title}
           </h2>

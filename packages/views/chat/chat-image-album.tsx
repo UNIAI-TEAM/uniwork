@@ -8,16 +8,15 @@ import { cn } from "@uniwork/ui/lib/utils";
 import type { ChatMessage } from "./chat-messages";
 import { toastChatError } from "./chat-error-message";
 import { ChatImagePreviewDialog } from "./chat-image-preview-dialog";
-import { ChatMessageHoverActions } from "./chat-message-hover-actions";
+import { ChatMessageActionsFrame } from "./chat-message-hover-actions";
 import { ChatMessageA11yLabel, ChatMessageMeta, chatMessageLabelId } from "./chat-message-parts";
-import { chatBubbleShape, chatRowContentShellClass, chatRowHighlightClass } from "./chat-message-row";
+import { CHAT_BUBBLE_OTHER, CHAT_BUBBLE_OWN, CHAT_ROW_WASH, chatBubbleShape } from "./chat-message-row";
 import type { ChatNameContextEntry } from "./chat-page-utils";
 import { ChatSenderAvatar } from "./chat-sender-avatar";
 import { MessageTaskCard } from "./message-task-card";
 import { senderNameClass } from "./sender-colors";
 import { useChatFileDownload } from "./use-chat-file-download";
 import { useChatMediaSrc, useFreshChatMediaUrl } from "./use-chat-media-url";
-import { useMessageActionsReveal } from "./use-message-actions-reveal";
 
 type MessageAction = (message: ChatMessage) => void;
 
@@ -39,7 +38,6 @@ const ALBUM_VISIBLE = 4;
 
 /** The grid by how many tiles show (canvas: 3 = a tall photo beside two). */
 const GRID_CLASS: Record<number, string> = {
-  1: "grid-cols-1 grid-rows-[12rem] w-[min(100%,16rem)]",
   2: "grid-cols-2 grid-rows-[12rem]",
   3: "grid-cols-[1.55fr_1fr] grid-rows-[repeat(2,6.5rem)]",
   4: "grid-cols-2 grid-rows-[repeat(2,8rem)]",
@@ -117,7 +115,6 @@ function AlbumTile({
   actions: AlbumActions;
 }) {
   const { t } = useTranslation();
-  const reveal = useMessageActionsReveal();
   const file = message.file;
   const name = file?.filename || t("chat.file_untitled");
   const { src, status, onError } = useChatMediaSrc(
@@ -128,33 +125,21 @@ function AlbumTile({
     file?.url_expires_at,
   );
   return (
-    // Each photo is its own message: hover or long-press shows that photo's actions above it.
-    <div
-      ref={reveal.rootRef}
-      data-chat-message-id={message.id}
-      {...reveal.bind}
-      data-message-actions-anchor
-      className={cn(
-        "group/message relative min-h-0 min-w-0 pointer-coarse:select-none pointer-coarse:[-webkit-touch-callout:none]",
-        className,
-      )}
+    // Each photo is its own message: hovering shows that photo's actions over
+    // its corner (a neighbour sits beside it), a right click or long press its menu.
+    <ChatMessageActionsFrame
+      message={message}
+      isOwn={isOwn}
+      canEdit={false}
+      overlay
+      {...actions}
+      className={cn("min-h-0 min-w-0 pointer-coarse:select-none pointer-coarse:[-webkit-touch-callout:none]", className)}
     >
-      <ChatMessageHoverActions
-        message={message}
-        isOwn={isOwn}
-        {...actions}
-        canEdit={false}
-        forceOpen={reveal.open}
-        anchorRef={reveal.rootRef}
-      />
       <button
         type="button"
         id={anchor ? `chat-msg-${message.id}` : undefined}
         aria-label={t("chat.message_list.file_open_named", { name })}
-        className={cn(
-          "relative block size-full cursor-zoom-in overflow-hidden rounded-[inherit] bg-muted focus-visible:outline-offset-2",
-          reveal.open && "pointer-events-none",
-        )}
+        className="relative block size-full cursor-zoom-in overflow-hidden rounded-[inherit] bg-muted focus-visible:outline-offset-2"
         onClick={onOpen}
       >
         {status === "ready" && src ? (
@@ -175,7 +160,7 @@ function AlbumTile({
           </span>
         ) : null}
       </button>
-    </div>
+    </ChatMessageActionsFrame>
   );
 }
 
@@ -256,13 +241,14 @@ function ChatImageAlbumRowImpl({
       tabIndex={-1}
       className={cn(
         "flex w-full max-w-full rounded-lg focus-visible:outline-offset-2",
+        CHAT_ROW_WASH,
         isOwn ? "justify-end" : "justify-start",
         compactTop ? "mt-0.5" : "mt-3",
       )}
     >
       <ChatMessageA11yLabel messageId={head.id} senderLabel={senderLabel} ts={head.ts} />
-      <div className={cn(chatRowContentShellClass(isOwn), "max-w-[min(100%,26rem)]", chatRowHighlightClass(false))}>
-        {isOwn ? null : showAvatar ? (
+      <div className={cn("flex max-w-[min(85%,26rem)] gap-2", isOwn && "flex-row-reverse")}>
+        {isOwn || !showSenderName ? null : showAvatar ? (
           <span className="shrink-0 self-end">
             <ChatSenderAvatar userId={head.sender} name={senderLabel} avatarUrl={senderAvatarUrl} nameContext={nameContext} />
           </span>
@@ -273,11 +259,7 @@ function ChatImageAlbumRowImpl({
           <div
             role="group"
             aria-label={t("chat.album_aria", { count: album.length })}
-            className={cn(
-              "overflow-hidden",
-              visible === 1 ? "w-fit max-w-full" : "w-100 max-w-full",
-              chatBubbleShape(isOwn, !compactTop),
-            )}
+            className={cn("w-100 max-w-full p-0.75", chatBubbleShape(isOwn, !compactTop), isOwn ? CHAT_BUBBLE_OWN : CHAT_BUBBLE_OTHER)}
           >
             {showSenderName && !isOwn && showAvatar ? (
               <p className={cn("px-2 pt-1 pb-1 text-label font-semibold", senderNameClass(head.sender, isOwn))} aria-hidden>

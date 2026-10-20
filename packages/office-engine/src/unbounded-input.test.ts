@@ -5,8 +5,10 @@ import { XlsxAdapter } from "./xlsx/adapter.ts";
 // The server contract bounds (ENGINE_LIMITS) stay the default; a host may
 // inject Number.POSITIVE_INFINITY. A zero-filled buffer is not an OOXML
 // package, so an adapter that got past the size gate answers not_office_file
-// instead of too_large.
-const OVER_INPUT = new Uint8Array(ENGINE_LIMITS.max_input_bytes + 1);
+// instead of too_large. Since SIZE-OPS1 the bound is 2 GiB, so the over-bound
+// input is a stand-in that only reports its length (zero bytes read as
+// undefined) instead of a real 2 GiB allocation.
+const OVER_INPUT = { length: ENGINE_LIMITS.max_input_bytes + 1 } as unknown as Uint8Array;
 
 const adapter = (maxInputBytes?: number) =>
   new XlsxAdapter({ engine: {} as never, ...(maxInputBytes === undefined ? {} : { maxInputBytes }) });

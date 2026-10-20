@@ -111,6 +111,7 @@ export type ConvertResult = z.infer<typeof convertResultSchema>;
 export const capabilityResultSchema = z.object({
   ...resultBase,
   operation: z.literal("capability"),
+  job_transport: z.string().optional(),
   format: officeFormatSchema,
   capabilities: z.array(
     z.object({
