@@ -168,7 +168,7 @@ func (q *Queries) ListAttendanceMarks(ctx context.Context, meetingID string) ([]
 }
 
 const lockMeetingForAttendance = `-- name: LockMeetingForAttendance :one
-SELECT id, workspace_id, title, description, starts_at, ends_at, room_name, created_by, created_at, updated_at, status, meeting_type, host_user_id, actual_start_at, actual_end_at, timezone, allow_join_request, preferred_provider_key, version, updated_by, canceled_by, canceled_at, cancel_reason, project_id, created_by_kind, quorum_percent, attendance_finalized_at, attendance_finalized_by, organization_id, scribe_off_at, scribe_off_by FROM meetings WHERE id = $1 FOR UPDATE
+SELECT id, workspace_id, title, description, starts_at, ends_at, room_name, created_by, created_at, updated_at, status, meeting_type, host_user_id, actual_start_at, actual_end_at, timezone, allow_join_request, preferred_provider_key, version, updated_by, canceled_by, canceled_at, cancel_reason, project_id, created_by_kind, quorum_percent, attendance_finalized_at, attendance_finalized_by, organization_id, scribe_off_at, scribe_off_by, dial_in_pin, sip_dispatch_rule_id FROM meetings WHERE id = $1 FOR UPDATE
 `
 
 // tenant: by-id
@@ -209,6 +209,8 @@ func (q *Queries) LockMeetingForAttendance(ctx context.Context, id string) (Meet
 		&i.OrganizationID,
 		&i.ScribeOffAt,
 		&i.ScribeOffBy,
+		&i.DialInPin,
+		&i.SipDispatchRuleID,
 	)
 	return i, err
 }
@@ -218,7 +220,7 @@ UPDATE meetings SET
   attendance_finalized_at = $1,
   attendance_finalized_by = $2
 WHERE id = $3
-RETURNING id, workspace_id, title, description, starts_at, ends_at, room_name, created_by, created_at, updated_at, status, meeting_type, host_user_id, actual_start_at, actual_end_at, timezone, allow_join_request, preferred_provider_key, version, updated_by, canceled_by, canceled_at, cancel_reason, project_id, created_by_kind, quorum_percent, attendance_finalized_at, attendance_finalized_by, organization_id, scribe_off_at, scribe_off_by
+RETURNING id, workspace_id, title, description, starts_at, ends_at, room_name, created_by, created_at, updated_at, status, meeting_type, host_user_id, actual_start_at, actual_end_at, timezone, allow_join_request, preferred_provider_key, version, updated_by, canceled_by, canceled_at, cancel_reason, project_id, created_by_kind, quorum_percent, attendance_finalized_at, attendance_finalized_by, organization_id, scribe_off_at, scribe_off_by, dial_in_pin, sip_dispatch_rule_id
 `
 
 type SetAttendanceFinalizedParams struct {
@@ -263,6 +265,8 @@ func (q *Queries) SetAttendanceFinalized(ctx context.Context, arg SetAttendanceF
 		&i.OrganizationID,
 		&i.ScribeOffAt,
 		&i.ScribeOffBy,
+		&i.DialInPin,
+		&i.SipDispatchRuleID,
 	)
 	return i, err
 }

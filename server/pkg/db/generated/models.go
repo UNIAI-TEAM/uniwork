@@ -1505,6 +1505,8 @@ type Meeting struct {
 	OrganizationID        string             `json:"organization_id"`
 	ScribeOffAt           pgtype.Timestamptz `json:"scribe_off_at"`
 	ScribeOffBy           pgtype.Text        `json:"scribe_off_by"`
+	DialInPin             pgtype.Text        `json:"dial_in_pin"`
+	SipDispatchRuleID     pgtype.Text        `json:"sip_dispatch_rule_id"`
 }
 
 type MeetingAccessGrant struct {
