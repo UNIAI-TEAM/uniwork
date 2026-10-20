@@ -39,9 +39,11 @@ func TestMeetingActionItemsBackfill(t *testing.T) {
 		user    = "01USRBACKFILLAI00000000001"
 		meeting = "01MTGBACKFILLAI00000000001"
 		broken  = "01MTGBACKFILLAI00000000002"
+		invalid = "01MTGBACKFILLAI00000000003"
 		older   = "01SUMBACKFILLAI00000000001"
 		latest  = "01SUMBACKFILLAI00000000002"
 		junk    = "01SUMBACKFILLAI00000000003"
+		notJSON = "01SUMBACKFILLAI00000000004"
 		taskOld = "01TSKBACKFILLAI00000000001" // older summary, item 0
 		taskA   = "01TSKBACKFILLAI00000000002" // latest, item 0
 		taskB   = "01TSKBACKFILLAI00000000003" // latest, item 1, second conversion
@@ -64,7 +66,7 @@ func TestMeetingActionItemsBackfill(t *testing.T) {
 	// keys to organizations, workspaces and users; this exercise is about
 	// summaries and links only, so their triggers are off for the transaction.
 	exec(`SET LOCAL session_replication_role = replica`)
-	for _, m := range []string{meeting, broken} {
+	for _, m := range []string{meeting, broken, invalid} {
 		exec(`INSERT INTO meetings (id, organization_id, workspace_id, title, starts_at, ends_at, room_name, created_by, host_user_id)
 			VALUES ($1, $2, $3, 'Giao ban', now(), now() + interval '1 hour', $1, $4, $4)`, m, org, ws, user)
 	}
@@ -76,6 +78,9 @@ func TestMeetingActionItemsBackfill(t *testing.T) {
 		`[{"title":"Gửi báo cáo","owner":"Bình","due":"thứ sáu"},{"title":"Đặt phòng"},{"title":"Chờ"},{"title":"  "}]`, user)
 	exec(`INSERT INTO meeting_summaries (id, organization_id, meeting_id, summary, action_items, created_by)
 		VALUES ($1, $2, $3, 'hỏng', '{"not":"an array"}', $4)`, junk, org, broken, user)
+	// Not JSON at all: the migration must skip it, not abort.
+	exec(`INSERT INTO meeting_summaries (id, organization_id, meeting_id, summary, action_items, created_by)
+		VALUES ($1, $2, $3, 'hỏng hẳn', '[{"title": "cắt ngang', $4)`, notJSON, org, invalid, user)
 	for i, task := range []string{taskOld, taskA, taskB} {
 		exec(`INSERT INTO tasks (id, organization_id, workspace_id, number, title, created_by, creator_id, creator_type, last_activity_at)
 			VALUES ($1, $2, $3, $4, 'task', $5, $5, 'member', now())`, task, org, ws, 900000+i, user)
@@ -95,7 +100,7 @@ func TestMeetingActionItemsBackfill(t *testing.T) {
 
 	rows, err := tx.Query(ctx, `SELECT summary_id, position, title, owner_text, due_text, COALESCE(task_id, ''),
 		converted_by IS NOT NULL AND converted_at IS NOT NULL, source, created_by, created_by_kind, workspace_id
-		FROM meeting_action_items WHERE meeting_id IN ($1, $2) ORDER BY summary_id, position`, meeting, broken)
+		FROM meeting_action_items WHERE meeting_id IN ($1, $2, $3) ORDER BY summary_id, position`, meeting, broken, invalid)
 	if err != nil {
 		t.Fatal(err)
 	}

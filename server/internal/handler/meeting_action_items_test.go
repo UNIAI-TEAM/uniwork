@@ -2,8 +2,10 @@ package handler
 
 import (
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -127,6 +129,22 @@ func TestMeetingActionItemsHTTP(t *testing.T) {
 	res, out = doJSON(t, srv, "POST", base+"/"+roomID+"/restore", host, nil)
 	if res.StatusCode != http.StatusConflict || errorCode(out) != "action_item_not_dismissed" {
 		t.Fatalf("restore twice: %d %v", res.StatusCode, out)
+	}
+	// A chunked body (no Content-Length) is still read, through decode's cap.
+	req, _ := http.NewRequest("POST", srv.URL+base+"/"+roomID+"/dismiss", io.MultiReader(strings.NewReader(`{"reason":"Chunked"}`)))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+host)
+	chunked, err := srv.Client().Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = chunked.Body.Close()
+	if chunked.StatusCode != http.StatusOK || req.ContentLength != 0 {
+		t.Fatalf("chunked dismiss: %d (content length %d)", chunked.StatusCode, req.ContentLength)
+	}
+	_, out = doJSON(t, srv, "GET", base, host, nil)
+	if got := out["items"].([]any)[1].(map[string]any); got["dismiss_reason"] != "Chunked" {
+		t.Fatalf("chunked reason not stored: %v", got)
 	}
 	res, out = doJSON(t, srv, "POST", "/api/v1/meetings/"+meetingID+"/summary/tasks", host, map[string]any{})
 	if res.StatusCode != http.StatusNotFound && res.StatusCode != http.StatusMethodNotAllowed {

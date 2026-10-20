@@ -67,7 +67,9 @@ func (h *handlers) addActionItem(w http.ResponseWriter, r *http.Request) {
 
 func (h *handlers) dismissActionItem(w http.ResponseWriter, r *http.Request) {
 	var in sdi.DismissActionItemSDI
-	if r.ContentLength > 0 && !decode(w, r, &in, maxJSONBody) {
+	// The reason is optional, so no body at all is fine; any body, chunked
+	// ones included, goes through decode and its size cap.
+	if r.Body != http.NoBody && !decode(w, r, &in, maxJSONBody) {
 		return
 	}
 	if err := h.Meetings.DismissActionItem(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "meetingID"),

@@ -42,8 +42,8 @@ CREATE TABLE meeting_action_items (
 --    the task of its oldest live link when it has one.
 -- 2. Every live link of an older summary becomes a row with its task, so no
 --    converted item is lost and no pending item of an old summary comes back.
--- A stored array that is not an array, or an item with a blank title, makes
--- no row.
+-- A stored value that is not JSON, or not an array, or an item with a blank
+-- title, makes no row.
 WITH latest AS (
   SELECT DISTINCT ON (meeting_id) id, meeting_id
   FROM meeting_summaries
@@ -62,8 +62,14 @@ items AS (
          (latest.id IS NOT NULL) AS is_latest
   FROM meeting_summaries s
   LEFT JOIN latest ON latest.id = s.id
+  -- CASE branches run in order, so a column that is not JSON at all is never
+  -- cast (pg_input_is_valid, PostgreSQL 16+) and cannot abort the migration.
   CROSS JOIN LATERAL jsonb_array_elements(
-    CASE WHEN jsonb_typeof(s.action_items::jsonb) = 'array' THEN s.action_items::jsonb ELSE '[]'::jsonb END
+    CASE
+      WHEN NOT pg_input_is_valid(s.action_items, 'jsonb') THEN '[]'::jsonb
+      WHEN jsonb_typeof(s.action_items::jsonb) = 'array' THEN s.action_items::jsonb
+      ELSE '[]'::jsonb
+    END
   ) WITH ORDINALITY AS e(item, ord)
 )
 INSERT INTO meeting_action_items (

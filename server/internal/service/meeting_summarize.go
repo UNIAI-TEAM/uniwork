@@ -367,8 +367,11 @@ func (s *MeetingService) handledActionItemTitles(ctx context.Context, m db.Meeti
 		}
 		titles = append(titles, capRunes(it.Title, summaryExistingItemRunes, "…"))
 	}
-	// shortcut: past summaryExistingItems the oldest handled items are not
-	// shown to the model; the title filter of storeSummary still drops them.
+	// shortcut: past summaryExistingItems only the last ones in list order
+	// reach the model, so the first handled AI items (lowest positions; the
+	// list puts AI items before manual and live ones) are left out. The title
+	// filter of storeSummary still drops a repeat of any of them; move to a
+	// rune budget if meetings ever hold that many handled items.
 	if len(titles) > summaryExistingItems {
 		titles = titles[len(titles)-summaryExistingItems:]
 	}
