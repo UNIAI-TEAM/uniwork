@@ -661,6 +661,23 @@ describe("DocumentsPageView", () => {
     expect((call?.[1] as { body?: { title?: string } }).body?.title).toBe(t("documents.page.new_page"));
   });
 
+  it("creates a blank .txt from the Văn bản pill as format txt, then opens it", async () => {
+    const onOpen = vi.fn();
+    route({ list: () => [], post: () => ({ document: file("n3", t("documents.home.default_names.txt")) }) });
+    renderView(onOpen);
+
+    fireEvent.click(await pillButton("txt"));
+
+    await waitFor(() => expect(onOpen).toHaveBeenCalledWith("n3"));
+    const call = postCall("POST");
+    expect(call?.[0]).toBe(`${LIST_BASE}/files/blank`);
+    expect((call?.[1] as { body?: unknown }).body).toEqual({
+      format: "txt",
+      title: t("documents.home.default_names.txt"),
+      destination: "my_folder",
+    });
+  });
+
   it("creates a blank file with its default name from a pill, then opens the editor", async () => {
     const onOpen = vi.fn();
     route({ list: () => [], post: () => ({ document: file("n1", t("documents.home.default_names.docx")) }) });
