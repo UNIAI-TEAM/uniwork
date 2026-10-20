@@ -7,6 +7,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdi"
 	"github.com/unicomhub/uniwork/server/internal/middleware"
 	"github.com/unicomhub/uniwork/server/internal/service"
 )
@@ -60,6 +61,34 @@ func (h *handlers) sendChatDocumentMessage(w http.ResponseWriter, r *http.Reques
 		ReplyToMessageID: replyTo,
 		ClientMsgID:      strings.TrimSpace(r.FormValue("client_msg_id")),
 	})
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	respondJSON(w, http.StatusOK, map[string]any{"message": toChatMessageDTO(msg)})
+}
+
+// sendChatDocumentLink is POST .../chat/rooms/{roomID}/messages/document-link
+// (UNI-2012 D5): an existing document goes into the room as a kind="document"
+// message, and the room's members get share_level on it. Only a sender who
+// may share the document gets past the service; the caller is always a human.
+func (h *handlers) sendChatDocumentLink(w http.ResponseWriter, r *http.Request) {
+	if h.Chat == nil || h.Chat.DocumentsService() == nil {
+		respondError(w, http.StatusNotImplemented, "storage_unavailable", "documents are not configured")
+		return
+	}
+	var in sdi.SendChatDocumentLinkSDI
+	if !decode(w, r, &in, maxJSONBody) {
+		return
+	}
+	ctx := r.Context()
+	msg, err := h.Chat.SendDocumentLinkMessage(ctx, middleware.UserID(ctx),
+		chi.URLParam(r, "workspaceID"), chi.URLParam(r, "roomID"), service.SendDocumentLinkInput{
+			DocumentID:       strings.TrimSpace(in.DocumentID),
+			ShareLevel:       strings.TrimSpace(in.ShareLevel),
+			ReplyToMessageID: in.ReplyToMessageID,
+			ClientMsgID:      strings.TrimSpace(in.ClientMsgID),
+		})
 	if err != nil {
 		h.mapServiceError(w, err)
 		return
