@@ -1,0 +1,8 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -5
+612fa7623fb60b7f3155105351b7dac303ad342a
+8cb13a29642ec32a84c202baf6845db783fc0533
+612fa7623 refactor(server): decouple idempotency_keys sweep loop and close r1 review gaps
+dc26913fd test(server): cover idempotency_keys retention sweep, batching, and worker wiring
+db819396e feat(server): sweep expired idempotency_keys on a 10m retention loop
+8cb13a296 chore: merge UNI-1966 CHAT-DOC-SHARE (server + web; 9aca0dc81) into the G5-G7 root
+9aca0dc81 fix(chat): keep the access request button when a request was sent earlier (UNI-1966)
