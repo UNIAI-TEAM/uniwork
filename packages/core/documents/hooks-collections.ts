@@ -47,11 +47,16 @@ export function documentFilterKey(filter?: ListDocumentsOpts): string {
  *  holds on it. */
 export type DocumentListFilters = Pick<ListDocumentsBaseOpts, "format" | "access">;
 
-/** The key fragment of the chip filters: "" when neither is set, so an
- *  unfiltered list keeps the key it had before the chips became query params. */
-function documentListFilterKey(filters?: DocumentListFilters): string {
-  if (!filters?.format && !filters?.access) return "";
-  return documentFilterKey({ format: filters.format, access: filters.access });
+/** The column sort of the tables (UNI-2038): part of the key, so another order
+ *  starts from page 1. Only the lists that sort on the server take it. */
+export type DocumentListSort = Pick<ListDocumentsBaseOpts, "sort" | "order">;
+
+/** The key fragment of the chip filters and the sort: "" when none is set, so
+ *  an unfiltered, unsorted list keeps the key it had before the chips became
+ *  query params. */
+function documentListFilterKey(filters?: DocumentListFilters & DocumentListSort): string {
+  if (!filters?.format && !filters?.access && !filters?.sort && !filters?.order) return "";
+  return documentFilterKey({ format: filters.format, access: filters.access, sort: filters.sort, order: filters.order });
 }
 
 /**
@@ -111,7 +116,7 @@ export function useDocumentArchiveImpact(wsId: string, documentId: string, opts?
 
 /** Recently opened/edited documents (humans only; agents get 403). The
  *  format/access chips filter it server-side and key it like the flat list. */
-export function useRecentDocuments(wsId: string, opts?: DocumentListFilters & { enabled?: boolean }) {
+export function useRecentDocuments(wsId: string, opts?: DocumentListFilters & DocumentListSort & { enabled?: boolean }) {
   return useInfiniteQuery({
     queryKey: documentKeys.recent(wsId, documentListFilterKey(opts)),
     queryFn: ({ pageParam, signal }) =>
@@ -122,6 +127,8 @@ export function useRecentDocuments(wsId: string, opts?: DocumentListFilters & { 
           limit: DOCUMENT_PAGE_SIZE,
           format: opts?.format,
           access: opts?.access,
+          sort: opts?.sort,
+          order: opts?.order,
         },
         signal,
       ),
@@ -133,7 +140,7 @@ export function useRecentDocuments(wsId: string, opts?: DocumentListFilters & { 
 
 /** Documents the caller received through a share, across the organization.
  *  Paged like the other lists: `next_cursor` drives the next page. */
-export function useSharedWithMe(wsId: string, opts?: DocumentListFilters & { enabled?: boolean }) {
+export function useSharedWithMe(wsId: string, opts?: DocumentListFilters & DocumentListSort & { enabled?: boolean }) {
   return useInfiniteQuery({
     queryKey: documentKeys.sharedWithMe(wsId, documentListFilterKey(opts)),
     queryFn: ({ pageParam, signal }) =>
@@ -144,6 +151,8 @@ export function useSharedWithMe(wsId: string, opts?: DocumentListFilters & { ena
           limit: DOCUMENT_PAGE_SIZE,
           format: opts?.format,
           access: opts?.access,
+          sort: opts?.sort,
+          order: opts?.order,
         },
         signal,
       ),
@@ -157,7 +166,7 @@ export function useSharedWithMe(wsId: string, opts?: DocumentListFilters & { ena
  *  person/group share or workspace visibility; public links and My Folder rows
  *  excluded). Under `documentKeys.workspace(wsId)` so `document.shared`,
  *  `document.share_revoked`, and `document.workspace_access_changed` refresh it. */
-export function useSharedByMe(wsId: string, opts?: DocumentListFilters & { enabled?: boolean }) {
+export function useSharedByMe(wsId: string, opts?: DocumentListFilters & DocumentListSort & { enabled?: boolean }) {
   return useInfiniteQuery({
     queryKey: documentKeys.sharedByMe(wsId, documentListFilterKey(opts)),
     queryFn: ({ pageParam, signal }) =>
@@ -168,6 +177,8 @@ export function useSharedByMe(wsId: string, opts?: DocumentListFilters & { enabl
           limit: DOCUMENT_PAGE_SIZE,
           format: opts?.format,
           access: opts?.access,
+          sort: opts?.sort,
+          order: opts?.order,
         },
         signal,
       ),

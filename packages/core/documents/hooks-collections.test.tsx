@@ -389,6 +389,40 @@ describe("documents collection hooks", () => {
     expect(qc.getQueryData(documentKeys.recent("w1"))).toBeUndefined();
   });
 
+  it("the sibling lists put sort and order in the request and in their own cache entry (UNI-2038 S2)", async () => {
+    vi.mocked(fetch).mockImplementation(() => Promise.resolve(json(listBody([summary("d1")]))));
+    const { qc, wrapper } = setup();
+    const recent = renderHook(() => useRecentDocuments("w1", { sort: "name", order: "asc" }), { wrapper });
+    const shared = renderHook(() => useSharedWithMe("w1", { sort: "size", order: "desc" }), { wrapper });
+    const byMe = renderHook(() => useSharedByMe("w1", { sort: "editor", order: "asc" }), { wrapper });
+    await waitFor(() => expect(recent.result.current.isSuccess).toBe(true));
+    await waitFor(() => expect(shared.result.current.isSuccess).toBe(true));
+    await waitFor(() => expect(byMe.result.current.isSuccess).toBe(true));
+    const urls = vi.mocked(fetch).mock.calls.map(([url]) => new URL(String(url)));
+    const of = (suffix: string) => urls.find((u) => u.pathname.endsWith(suffix))!;
+    expect(of("/documents/recent").searchParams.get("sort")).toBe("name");
+    expect(of("/documents/recent").searchParams.get("order")).toBe("asc");
+    expect(of("/documents/shared-with-me").searchParams.get("sort")).toBe("size");
+    expect(of("/documents/shared-with-me").searchParams.get("order")).toBe("desc");
+    expect(urls.find((u) => u.searchParams.get("shared_by_me") === "true")!.searchParams.get("sort")).toBe("editor");
+    // A sorted list is not the unsorted entry, so a new order starts from page 1.
+    expect(qc.getQueryData(documentKeys.recent("w1", documentFilterKey({ sort: "name", order: "asc" })))).toBeDefined();
+    expect(qc.getQueryData(documentKeys.recent("w1"))).toBeUndefined();
+  });
+
+  it("useDocumentList keys the sort so each order is its own entry (UNI-2038 S2)", async () => {
+    vi.mocked(fetch).mockImplementation(() => Promise.resolve(json(listBody([summary("d1")]))));
+    const { qc, wrapper } = setup();
+    const filter = { parentId: "", sort: "updated", order: "desc" } as const;
+    const { result } = renderHook(() => useDocumentList("w1", filter), { wrapper });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    const url = new URL(String(vi.mocked(fetch).mock.calls[0]![0]));
+    expect(url.searchParams.get("sort")).toBe("updated");
+    expect(url.searchParams.get("order")).toBe("desc");
+    expect(qc.getQueryData(documentKeys.list("w1", documentFilterKey(filter)))).toBeDefined();
+    expect(documentFilterKey(filter)).not.toBe(documentFilterKey({ ...filter, order: "asc" }));
+  });
+
   it("useSharedWithMe and useSharedByMe take the same chips", async () => {
     vi.mocked(fetch)
       .mockResolvedValueOnce(json(listBody([summary("s1", { my_level: "edit", via: "share" })])))
