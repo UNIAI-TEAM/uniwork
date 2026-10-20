@@ -1,6 +1,6 @@
 # Đợt 4 (UNI-1999): việc còn tồn từ các cuộc họp trước — kế hoạch triển khai
 
-> **Trạng thái:** in-progress — kế hoạch ngày 2026-10-20, nhánh `feature/UNI-1999-meetings-sau-hop-dot-4-viec-con-ton-tu-c` (xếp trên UNI-1998).
+> **Trạng thái:** in-progress — kế hoạch ngày 2026-10-20; đã làm xong trên nhánh `feature/UNI-1999-meetings-sau-hop-dot-4-viec-con-ton-tu-c` (xếp trên UNI-1998): chép bù + xoá `meeting_summary_task_links`, `GET carried-over-items`, core, mục "Việc còn tồn" trên trang chi tiết và Copilot, e2e `meetings-follow-through.spec.ts` (chạy xanh trên app của worktree với `AI_PROVIDER=fake`); chờ review và merge.
 
 **Mục tiêu:** Cuộc họp có dự án thấy các việc đã giao mà task chưa xong từ những cuộc họp đã kết thúc trước nó cùng dự án (D8). Chép bù các liên kết cũ còn sót rồi xoá `meeting_summary_task_links`. Spec: `docs/superpowers/specs/2026-10-20-meeting-follow-through-design.md` §1.3 D8, §5.1 (đoạn cuối), §6.1, §6.5, §9.2 mục 2, §9.3, §13.1 đợt 4, §13.3.
 
@@ -28,4 +28,5 @@
 
 - "Xong" = nhóm trạng thái `done`/`cancelled`, như `task_closed` của đợt 3 và "việc đang mở" của home/my-work.
 - Quá hạn tính theo múi giờ của cuộc họp đang xem.
+- AI giả (`AI_PROVIDER=fake`) trả việc cho tóm tắt cuộc họp từ dòng ghi chú "Việc: <tiêu đề> | <người>", để e2e có việc để giao; không có nhà cung cấp AI thì e2e tự bỏ qua.
 - Chép bù: liên kết sống (task còn) mà chưa việc nào mang `task_id` → nếu việc AI cùng `(summary_id, position)` (id tất định của đợt 3) còn chờ và chưa bỏ qua thì gắn task vào nó (liên kết cũ nhất), còn lại thêm việc mới với id tất định theo id liên kết.
