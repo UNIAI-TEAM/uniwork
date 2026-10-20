@@ -262,8 +262,18 @@ func ParseSummaryJSON(s string) (MeetingSummary, error) {
 		}
 	}
 	out.Decisions = decisions
-	items := make([]ActionItem, 0, len(out.ActionItems))
-	for _, it := range out.ActionItems {
+	out.ActionItems = cleanActionItems(out.ActionItems)
+	if out.Summary == "" && len(out.Decisions) == 0 && len(out.ActionItems) == 0 {
+		return MeetingSummary{}, ErrOutputInvalid.wrap(errors.New("empty summary"))
+	}
+	return out, nil
+}
+
+// cleanActionItems trims and caps the items a model proposed, dropping the
+// untitled ones.
+func cleanActionItems(in []ActionItem) []ActionItem {
+	items := make([]ActionItem, 0, len(in))
+	for _, it := range in {
 		it.Title = capRunes(strings.TrimSpace(it.Title), maxItemTitleRunes)
 		if it.Title == "" || len(items) >= maxSummaryItems {
 			continue
@@ -273,11 +283,27 @@ func ParseSummaryJSON(s string) (MeetingSummary, error) {
 		it.Evidence = capEvidence(it.Evidence)
 		items = append(items, it)
 	}
-	out.ActionItems = items
-	if out.Summary == "" && len(out.Decisions) == 0 && len(out.ActionItems) == 0 {
-		return MeetingSummary{}, ErrOutputInvalid.wrap(errors.New("empty summary"))
+	return items
+}
+
+// ParseLiveItemsJSON reads meeting_live_items output. Unlike a summary, an
+// empty "action_items" array is a correct answer: most stretches of a
+// meeting settle nothing.
+func ParseLiveItemsJSON(s string) ([]ActionItem, error) {
+	raw, err := extractJSON(s)
+	if err != nil {
+		return nil, ErrOutputInvalid.wrap(err)
 	}
-	return out, nil
+	var out struct {
+		ActionItems *[]ActionItem `json:"action_items"`
+	}
+	if err := json.Unmarshal(raw, &out); err != nil {
+		return nil, ErrOutputInvalid.wrap(fmt.Errorf("parse live items: %w", err))
+	}
+	if out.ActionItems == nil {
+		return nil, ErrOutputInvalid.wrap(errors.New("no action_items"))
+	}
+	return cleanActionItems(*out.ActionItems), nil
 }
 
 // capEvidence keeps at most maxEvidenceLabels labels of a plausible length;

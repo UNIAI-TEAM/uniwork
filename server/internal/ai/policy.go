@@ -30,6 +30,9 @@ const (
 	// CapOfficeUniworkAI is the Office editors' UniWork AI agent loop (G6-D1
 	// A1): a tool-calling chat, one Complete per tool-result round.
 	CapOfficeUniworkAI Capability = "office_uniwork_ai"
+	// CapMeetingLiveItems is the scribe's in-meeting action items (scribe
+	// spec §4.4): up to 20 calls an hour per meeting, hence the fast model.
+	CapMeetingLiveItems Capability = "meeting_live_items"
 )
 
 // ModelPolicy is the source-code constant behind a capability: the default
@@ -57,6 +60,7 @@ var (
 
 var policies = map[Capability]ModelPolicy{
 	CapMeetingSummarization: {Default: flagship, MaxTokens: 4096, Temperature: 0},
+	CapMeetingLiveItems:     {Default: fast, MaxTokens: 1024, Temperature: 0},
 	CapCopilotAnswer:        {Default: flagship, MaxTokens: 1500, Temperature: 0},
 	CapCopilotAgent:         {Default: copilotAgent, MaxTokens: 4096, Temperature: 0},
 	CapChatCatchUp:          {Default: flagship, MaxTokens: 2048, Temperature: 0},

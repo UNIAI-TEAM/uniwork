@@ -9,6 +9,7 @@ import (
 // Prompt keys used by callers.
 const (
 	PromptMeetingSummary     = "meeting_summary@5"
+	PromptMeetingLiveItems   = "meeting_live_items@1"
 	PromptCopilotAnswer      = "copilot_answer@1"
 	PromptCopilotAnswerV2    = "copilot_answer@2"
 	PromptCopilotAnswerV3    = "copilot_answer@3"
@@ -115,6 +116,23 @@ Respond with a single JSON object and nothing else, shaped exactly as:
 - "evidence" lists the labels of the lines a decision or action item rests on, written without brackets, for example ["S12", "N3"]. Use only labels that appear in the input. Use an empty array when no line supports it, for example a vote taken from "Recorded votes".
 - Write every string in the language named by the caller.
 `
+
+// meetingLiveItemsRules is meeting_live_items@1 (scribe spec §4.4, §8): the
+// newest transcript lines of a meeting under way, the meeting's existing
+// items, and the same owner/due rules as meeting_summary@3+.
+const meetingLiveItemsRules = `You pick out follow-up tasks from the newest lines of a meeting that is still under way, for a Vietnamese work team.
+Respond with a single JSON object and nothing else, shaped exactly as:
+{"action_items": [{"title": string, "owner": string, "due": string, "evidence": string[]}]}
+- "action_items": tasks someone must do next that these lines state or clearly agree on; empty array if none. Leave out a topic the lines are still discussing. "title" is an imperative sentence. "owner" is a person the input names as responsible, written as it appears there, or "" when nobody is named. "due" is a date or relative time as stated in the input, or "" when none is stated. Never guess an owner or a due date.
+- Each transcript line starts with a label in square brackets, for example [S1]. "evidence" lists the labels of the lines an item rests on, written without brackets, for example ["S3"]. Use only labels that appear in the input.
+- The transcript comes from automatic speech recognition and may contain misheard words and names. Do not invent names, dates or numbers to repair it; leave out a passage you cannot understand.
+- A speaker label may be a technical identifier rather than a name; never use an identifier as an owner.
+- "Existing action items" lists tasks this meeting already has. Never put one of them in "action_items" again, even in different words.
+- Most stretches of a meeting settle nothing: an empty "action_items" array is a correct answer.
+- Write every string in the language named by the caller.
+`
+
+const meetingLiveItemsSchema = `{"type":"object","properties":{"action_items":{"type":"array","items":{"type":"object","properties":{"title":{"type":"string"},"owner":{"type":"string"},"due":{"type":"string"},"evidence":{"type":"array","items":{"type":"string"}}},"required":["title","owner","due","evidence"],"additionalProperties":false}}},"required":["action_items"],"additionalProperties":false}`
 
 const meetingSummarySchema = `{"type":"object","properties":{"summary":{"type":"string"},"decisions":{"type":"array","items":{"type":"string"}},"action_items":{"type":"array","items":{"type":"object","properties":{"title":{"type":"string"},"owner":{"type":"string"},"due":{"type":"string"}},"required":["title","owner","due"],"additionalProperties":false}}},"required":["summary","decisions","action_items"],"additionalProperties":false}`
 
@@ -271,6 +289,15 @@ func init() {
 		ID: "meeting_summary", Version: 5,
 		System:       meetingSummaryRulesV5 + meetingSummaryFactRules + meetingSummaryInputRules + meetingSummaryExistingRules + UntrustedFooter,
 		OutputSchema: json.RawMessage(meetingSummarySchemaV5),
+		Render:       func(vars map[string]any) string { return renderMeetingSummary(vars, 5) },
+	})
+
+	// The input is a subset of a summary's (title, existing items, labelled
+	// transcript), so it renders the way meeting_summary@5 does.
+	register(Prompt{
+		ID: "meeting_live_items", Version: 1,
+		System:       meetingLiveItemsRules + UntrustedFooter,
+		OutputSchema: json.RawMessage(meetingLiveItemsSchema),
 		Render:       func(vars map[string]any) string { return renderMeetingSummary(vars, 5) },
 	})
 

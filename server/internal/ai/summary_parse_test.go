@@ -74,3 +74,23 @@ func TestParseSummaryJSONEvidence(t *testing.T) {
 		t.Fatalf("a decision that is neither string nor object: %v", err)
 	}
 }
+
+// TestParseLiveItemsJSON (UNI-2025): an empty array is an answer, a missing
+// one or garbage is ErrOutputInvalid, items are cleaned like a summary's.
+func TestParseLiveItemsJSON(t *testing.T) {
+	for _, in := range []string{"no json", `{}`, `{"action_items":null}`, `{"action_items":"x"}`} {
+		if _, err := ParseLiveItemsJSON(in); !errors.Is(err, ErrOutputInvalid) {
+			t.Errorf("ParseLiveItemsJSON(%q) = %v, want ErrOutputInvalid", in, err)
+		}
+	}
+	if got, err := ParseLiveItemsJSON(`{"action_items":[]}`); err != nil || len(got) != 0 {
+		t.Fatalf("empty: %v %v", got, err)
+	}
+	got, err := ParseLiveItemsJSON("```json\n" + `{"action_items":[{"title":" Gửi báo giá ","owner":" An ","due":"","evidence":[" S2 "]},{"title":"  ","owner":"","due":"","evidence":[]}]}` + "\n```")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(got, []ActionItem{{Title: "Gửi báo giá", Owner: "An", Evidence: []string{"S2"}}}) {
+		t.Fatalf("not cleaned: %+v", got)
+	}
+}
