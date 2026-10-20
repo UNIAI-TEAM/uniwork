@@ -1537,3 +1537,41 @@ func TestGatewayStreamDeadlineIsPricedToo(t *testing.T) {
 		t.Fatalf("%+v", row)
 	}
 }
+
+func TestGatewayCancelledStreamKeepsReportedInputAndEstimatesOutputFromText(t *testing.T) {
+	// Anthropic's message_start: input final, output_tokens 1 mid-stream.
+	ps := partialStreamer{completeOnly{Provider: &provider.Fake{}}, provider.CompletionResponse{Text: "123456789012345678901234567890", Model: "fake", InputTokens: 120, OutputTokens: 1}}
+	g, q := gatewayFixture(t, ps, &fakeQuota{})
+	priceFake(t, q)
+	ctx, cancel := context.WithCancel(context.Background())
+	req := askReq()
+	req.OnDelta = func(string) { cancel() }
+	_, err := g.Complete(ctx, req)
+	var ae *Error
+	if !errors.As(err, &ae) {
+		t.Fatal(err)
+	}
+	row, _ := q.AiGetUsageEvent(context.Background(), ae.UsageEventID)
+	if row.InputTokens != 120 || row.OutputTokens != 10 {
+		t.Fatalf("in %d out %d", row.InputTokens, row.OutputTokens)
+	}
+}
+
+func TestGatewayCancelledStreamWithNothingIsCancelledAtZeroCost(t *testing.T) {
+	ps := partialStreamer{completeOnly{Provider: &provider.Fake{}}, provider.CompletionResponse{Model: "fake"}}
+	quota := &fakeQuota{}
+	g, q := gatewayFixture(t, ps, quota)
+	priceFake(t, q)
+	ctx, cancel := context.WithCancel(context.Background())
+	req := askReq()
+	req.OnDelta = func(string) { cancel() }
+	_, err := g.Complete(ctx, req)
+	var ae *Error
+	if !errors.Is(err, ErrCancelled) || !errors.As(err, &ae) {
+		t.Fatalf("%v", err)
+	}
+	row, _ := q.AiGetUsageEvent(context.Background(), ae.UsageEventID)
+	if row.Status != "cancelled" || row.ReasonCode.String != "ai_cancelled" || row.CostMicros != 0 || len(quota.recorded) != 0 {
+		t.Fatalf("%+v %+v", row, quota.recorded)
+	}
+}

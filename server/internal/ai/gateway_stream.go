@@ -39,7 +39,7 @@ func stoppedTokens(b int) int { return (b + 2) / 3 }
 // end that way and the usual failure path applies.
 func (g *Gateway) settleCancelled(sctx, ctx context.Context, req Request, creq provider.CompletionRequest, row db.AiUsageEvent,
 	model string, resp provider.CompletionResponse, perr error, latency time.Duration) (error, bool) {
-	if req.OnDelta == nil || (resp.Text == "" && resp.InputTokens == 0 && resp.OutputTokens == 0) {
+	if req.OnDelta == nil {
 		return nil, false
 	}
 	timedOut := errors.Is(perr, context.DeadlineExceeded) || errors.Is(ctx.Err(), context.DeadlineExceeded)
@@ -49,10 +49,13 @@ func (g *Gateway) settleCancelled(sctx, ctx context.Context, req Request, creq p
 	if resp.Model == "" {
 		resp.Model = model
 	}
-	if !resp.UsagePresent {
-		if resp.OutputTokens == 0 {
-			resp.OutputTokens = stoppedTokens(len(resp.Text))
-		}
+	// Nothing arrived at all: record the stop at cost 0 and charge nothing.
+	nothing := resp.Text == "" && resp.InputTokens == 0 && resp.OutputTokens == 0
+	if !resp.UsagePresent && !nothing {
+		// A mid-stream output count (Anthropic's message_start says 1) is not
+		// final; the text received is the better figure. A reported input
+		// count is final and kept.
+		resp.OutputTokens = max(resp.OutputTokens, stoppedTokens(len(resp.Text)))
 		if resp.InputTokens == 0 {
 			resp.InputTokens = stoppedTokens(requestBytes(creq))
 		}
@@ -64,7 +67,9 @@ func (g *Gateway) settleCancelled(sctx, ctx context.Context, req Request, creq p
 	if err := g.settle(sctx, row.ID, row.OrganizationID, resp, "cancelled", code, latency, nil, true); err != nil {
 		g.log.Warn("ai: settle cancelled call", "usage_event_id", row.ID, "err", err)
 	}
-	g.charge(sctx, req, row.ID, resp)
+	if !nothing {
+		g.charge(sctx, req, row.ID, resp)
+	}
 	g.observe(req.Capability, "cancelled", latency)
 	g.log.Info("ai: call stopped", "usage_event_id", row.ID, "capability", req.Capability, "code", code)
 	return out.wrapUsage(perr, row.ID), true
