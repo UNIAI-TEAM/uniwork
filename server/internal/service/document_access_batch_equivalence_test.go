@@ -173,8 +173,8 @@ func normalizeBatchID(s, batchID string) string {
 // implementation (one resolver call per person and state, one write and one
 // audit row per item) before the set-based rewrite, over a mixed batch that
 // touches every item shape: raise, revoke, keep, same level, a chat-origin row
-// at the same level (left as it is) and below it (replaced, provenance
-// dropped), a workspace grant raise, a new organization grant, the home row,
+// at the same level (still "unchanged", but taken over as manual, B4) and below
+// it (replaced, provenance dropped), a workspace grant raise, a new organization grant, the home row,
 // an organization admin below their member level, a revoke of nobody, and a
 // run of fresh grantees. Same input must give the same results, preview,
 // share rows, audit rows and outbox rows, in the same order.
@@ -318,7 +318,7 @@ result 7 workspace/WSA updated level=comment prev=view share=false
 result 8 user/orgadmin granted level=view prev=- share=true
 result 9 user/wsadmin unchanged level=- prev=- share=false
 result 10 user/fresh1 granted level=manage prev=- share=true
-result 11 user/fresh4 unchanged level=view prev=view share=false
+result 11 user/fresh4 unchanged level=view prev=view share=true
 result 12 user/fresh5 updated level=edit prev=comment share=true
 result 13 user/fresh2 granted level=comment prev=- share=true
 result 14 user/aclowner granted level=view prev=- share=true
@@ -354,7 +354,8 @@ share(user/fresh0/view/live) revoked_by= source= prior= by=aclowner/human
 share(user/fresh1/manage/live) revoked_by= source= prior= by=aclowner/human
 share(user/fresh2/comment/live) revoked_by= source= prior= by=aclowner/human
 share(user/fresh3/view/live) revoked_by= source= prior= by=aclowner/human
-share(user/fresh4/view/live) revoked_by= source=chat prior= by=aclowner/human
+share(user/fresh4/view/live) revoked_by= source= prior= by=aclowner/human
+share(user/fresh4/view/revoked) revoked_by=aclowner source=chat prior= by=aclowner/human
 share(user/fresh5/comment/revoked) revoked_by=aclowner source=chat prior=view by=aclowner/human
 share(user/fresh5/edit/live) revoked_by= source= prior= by=aclowner/human
 share(user/member/comment/revoked) revoked_by=aclowner source= prior= by=aclowner/human
@@ -371,6 +372,7 @@ audit document.shared by=aclowner/human changes={"level":{"from":null,"to":"view
 audit document.workspace_access_changed by=aclowner/human changes={"workspace_level":{"from":"view","to":"comment"}} meta={"batch_id":"BATCH"}
 audit document.shared by=aclowner/human changes={"level":{"from":null,"to":"view"}} meta={"batch_id":"BATCH","principal_id":"orgadmin","principal_type":"user","share_id":"share(user/orgadmin/view/live)"}
 audit document.shared by=aclowner/human changes={"level":{"from":null,"to":"manage"}} meta={"batch_id":"BATCH","principal_id":"fresh1","principal_type":"user","share_id":"share(user/fresh1/manage/live)"}
+audit document.shared by=aclowner/human changes={} meta={"batch_id":"BATCH","principal_id":"fresh4","principal_type":"user","share_id":"share(user/fresh4/view/live)"}
 audit document.shared by=aclowner/human changes={"level":{"from":"comment","to":"edit"}} meta={"batch_id":"BATCH","principal_id":"fresh5","principal_type":"user","share_id":"share(user/fresh5/edit/live)"}
 audit document.shared by=aclowner/human changes={"level":{"from":null,"to":"comment"}} meta={"batch_id":"BATCH","principal_id":"fresh2","principal_type":"user","share_id":"share(user/fresh2/comment/live)"}
 audit document.shared by=aclowner/human changes={"level":{"from":null,"to":"view"}} meta={"batch_id":"BATCH","principal_id":"aclowner","principal_type":"user","share_id":"share(user/aclowner/view/live)"}
@@ -383,6 +385,7 @@ outbox document.shared document_id=DOC share_id=share(organization/ORG/view/live
 outbox document.workspace_access_changed document_id=DOC workspace_id=WSA
 outbox document.shared document_id=DOC share_id=share(user/orgadmin/view/live) workspace_id=WSA
 outbox document.shared document_id=DOC notify_user_id=fresh1 share_id=share(user/fresh1/manage/live) workspace_id=WSA
+outbox document.shared document_id=DOC share_id=share(user/fresh4/view/live) workspace_id=WSA
 outbox document.shared document_id=DOC notify_user_id=fresh5 share_id=share(user/fresh5/edit/live) workspace_id=WSA
 outbox document.shared document_id=DOC notify_user_id=fresh2 share_id=share(user/fresh2/comment/live) workspace_id=WSA
 outbox document.shared document_id=DOC share_id=share(user/aclowner/view/live) workspace_id=WSA

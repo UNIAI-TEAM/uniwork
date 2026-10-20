@@ -88,8 +88,9 @@ func (s *DocumentService) applyAccessBatchItems(
 			return nil, err
 		}
 	}
-	// Every user granted here has no live share at the item's level, so the
-	// bulk writer writes each one (none is kept as it is).
+	// Every user granted here is one the bulk writer writes rather than keeps:
+	// a new grant, a level change, or a manual item over a chat-origin share
+	// at the same level (its takeover, keepsLiveShare).
 	granted := make(map[string]db.DocumentShare)
 	for _, lvl := range grantLevels {
 		live, _, err := writeUserSharesBulk(ctx, q, actor, doc, sharesBefore, grantsByLevel[lvl], lvl, userShareSource{})

@@ -772,7 +772,8 @@ func (s *DocumentService) applyAccessBatchItem(
 
 // accessBatchWrite is the write a share item asks for once its outcome is
 // decided: none, a revoke of the live share, or a grant at the item's level
-// (a new share, or a revoke-and-replace of a live one at another level).
+// (a new share, a revoke-and-replace of a live one at another level, or a
+// manual takeover of a chat-origin share at the same level).
 type accessBatchWrite int
 
 const (
@@ -822,6 +823,16 @@ func decideAccessBatchShareItem(index int, it DocumentAccessBatchItem, prevShare
 		unchanged := target
 		res.Status = DocumentAccessStatusUnchanged
 		res.Level = &unchanged
+		// The level is unchanged, so the item (and the preview) says
+		// "unchanged"; the row's provenance is not. A manual item at the level
+		// of a chat-origin share takes that row over (UNI-2012 B4), the same
+		// decision ShareDocument and the batch share make through
+		// keepsLiveShare, so leaving the room does not revoke what the manager
+		// confirmed in the Share dialog. Nobody's access changes, so the
+		// notify decision (a strict raise only) is unaffected.
+		if !keepsLiveShare(prevShare, target, "") {
+			return res, accessBatchWriteGrant
+		}
 		return res, accessBatchWriteNone
 	}
 	res.Status = DocumentAccessStatusUpdated
