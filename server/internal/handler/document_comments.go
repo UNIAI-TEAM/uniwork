@@ -145,8 +145,10 @@ func (h *handlers) respondDocumentCommentWith(w http.ResponseWriter, r *http.Req
 		var err error
 		anchorVerNo, err = h.Documents.DocumentCommentAnchorVersionNo(r.Context(), c)
 		if err != nil {
-			h.mapServiceError(w, err)
-			return
+			if h.Log != nil {
+				h.Log.Warn("document comments: resolve anchor version no", "comment_id", c.ID, "err", err)
+			}
+			anchorVerNo = nil
 		}
 	}
 	out := sdo.DocumentCommentSDO{Comment: documentCommentDTO(c, anchorVerNo, displayName, avatarURL, nil)}
