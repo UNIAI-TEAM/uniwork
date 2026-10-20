@@ -27,7 +27,7 @@ const vi: GuideContent = {
       ["Thiết bị và phiên đăng nhập", "Mã nhận thông báo đẩy (push token), nền tảng, tên thiết bị, phiên bản ứng dụng, địa chỉ IP và trình duyệt/ứng dụng của phiên đăng nhập", "Gửi thông báo, quản lý phiên, phát hiện truy cập bất thường"],
       ["Nhật ký hoạt động", "Hành động thay đổi dữ liệu (ai, lúc nào, làm gì) kèm địa chỉ IP và trình duyệt/ứng dụng", "Bảo mật, truy vết và giải quyết tranh chấp trong tổ chức"],
       ["Đo hiệu năng web", "Thời gian tải trang và độ phản hồi, không gắn với tài khoản", "Giữ trang web nhanh"],
-    ] } },
+    ], layout: "wide-middle" } },
     { title: "Quyền truy cập trên điện thoại và máy tính", paragraphs: [
       "Ứng dụng chỉ xin quyền khi bạn dùng tính năng cần nó, và bạn có thể tắt trong cài đặt của thiết bị bất cứ lúc nào.",
     ], steps: [
@@ -62,7 +62,7 @@ const vi: GuideContent = {
       ["Google (Firebase Cloud Messaging), Apple (APNs)", "Đưa thông báo đẩy tới máy Android và iPhone", "Theo hạ tầng của Google và Apple"],
       ["Google", "Đăng nhập bằng Google (khi bạn chọn); gửi email hệ thống như mã xác minh", "Theo hạ tầng của Google"],
       ["GitHub", "Lưu bản cài và bản cập nhật UniChat, UniOffice cho máy tính", "Theo hạ tầng của GitHub"],
-    ] } },
+    ], layout: "wide-middle" } },
     { title: "Lưu giữ và xóa dữ liệu", paragraphs: [
       "Nội dung được giữ khi tổ chức còn dùng dịch vụ. Tin nhắn bạn xóa bị ẩn với mọi người ngay; tài liệu bị xóa nằm trong thùng rác 30 ngày rồi bị xóa vĩnh viễn; mỗi tài liệu giữ tối đa 500 phiên bản; tệp không còn được dùng ở đâu bị xóa khỏi kho lưu trữ trong lần dọn dẹp hằng ngày.",
       "Xóa tài khoản: đăng nhập UniWork trên web, vào Cài đặt → Bảo mật → Xóa tài khoản và xác nhận lại danh tính. Email, tên, ảnh đại diện, mật khẩu, liên kết Google, số điện thoại và thông tin hồ sơ bị xóa; mọi phiên đăng nhập và mã nhận thông báo bị thu hồi. Nội dung bạn đã gửi trong tổ chức vẫn thuộc tổ chức đó và hiển thị dưới tên \"Người dùng đã xóa\". Nếu bạn đang là chủ một tổ chức, hãy chuyển quyền sở hữu trước.",
@@ -103,7 +103,7 @@ const en: GuideContent = {
       ["Devices and sessions", "Push notification token, platform, device name, app version, IP address and browser/app of each session", "Sending notifications, managing sessions, detecting unusual access"],
       ["Activity log", "Actions that change data (who, when, what) with IP address and browser/app", "Security, traceability and resolving disputes within the organization"],
       ["Web performance", "Page load and responsiveness timings, not linked to an account", "Keeping the website fast"],
-    ] } },
+    ], layout: "wide-middle" } },
     { title: "Device permissions", paragraphs: [
       "The apps ask for a permission only when you use the feature that needs it, and you can turn it off in your device settings at any time.",
     ], steps: [
@@ -138,7 +138,7 @@ const en: GuideContent = {
       ["Google (Firebase Cloud Messaging), Apple (APNs)", "Delivering push notifications to Android phones and iPhones", "Google's and Apple's infrastructure"],
       ["Google", "Sign in with Google (when you choose it); sending system email such as verification codes", "Google's infrastructure"],
       ["GitHub", "Hosting UniChat and UniOffice desktop installers and updates", "GitHub's infrastructure"],
-    ] } },
+    ], layout: "wide-middle" } },
     { title: "Retention and deletion", paragraphs: [
       "Content is kept while the organization uses the service. A message you delete is hidden from everyone immediately; a deleted document stays in the trash for 30 days and is then permanently deleted; each document keeps up to 500 versions; files no longer used anywhere are removed from storage by a daily clean-up.",
       "Deleting your account: sign in to UniWork on the web, open Settings → Security → Delete account and confirm your identity. Your email, name, profile photo, password, Google link, phone number and profile details are removed, and every session and notification token is revoked. Content you posted in an organization stays with that organization and is shown as \"Deleted user\". If you own an organization, transfer ownership first.",

@@ -18,6 +18,15 @@ describe("privacy policy", () => {
     expect(guideContent("privacy", "en").sections[7]!.paragraphs.join(" ")).toContain("Settings → Security → Delete account");
   });
 
+  // Long provider names and descriptions overflowed the Office table's narrow middle column.
+  it("lays out every table with a wide description column", () => {
+    for (const locale of ["en", "vi"] as const) {
+      const tables = guideContent("privacy", locale).sections.flatMap(section => section.table ? [section.table] : []);
+      expect(tables).toHaveLength(2);
+      expect(tables.every(table => table.layout === "wide-middle")).toBe(true);
+    }
+  });
+
   it("is the page the footer links to", () => {
     expect(siteInformation.privacyUrl).toBe("/privacy");
   });
