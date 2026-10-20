@@ -658,6 +658,9 @@ func TestDocumentSourceChatMarkdownOpens(t *testing.T) {
 
 func TestDocumentSourceTxtOpensWithoutAFlagAndPlainTextNarrowing(t *testing.T) {
 	env := newFakeDocStorageEnv(t)
+	// A stale office_txt_open=false (an old override or FF_ env of a deployed
+	// host) is inert: nothing reads that key any more, so .txt still opens.
+	env.svc.SetFlags(staticDocFlags{"office_txt_open": false})
 	s := &sourceScene{t: t, ctx: context.Background(), f: env.f, tn: env.tn}
 	tn := env.tn
 	store := newMemStorage()
