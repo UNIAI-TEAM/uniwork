@@ -1,0 +1,13 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -10
+b0d6b9f9193ffd72f8c7d6e704f877b5ae7e8e91
+c271d8201f389046b1492ceb9a4ea9a21ba7bb37
+b0d6b9f91 test(office): pin the deactivated validator, the HEAD budget and the sniff read error (UNI-1986)
+848a75e69 fix(office): keep storage outages out of the frame avatar 404 (UNI-1986)
+df92542a3 feat(office): proxy frame avatar requests and send frames same-origin avatar paths (UNI-1986)
+c63606e7a test(office): pin the frame avatar route isolation and its uniform 404 (UNI-1986)
+9bb449b4c feat(office): serve frame avatars from a same-origin route (UNI-1986)
+c271d8201 chore: merge UNI-1385 G7-08 AI matrix harness (81699e2d1) into the G5-G7 root
+c8d3144fb chore(merge): W2 e2e spec fix (4c084ac28) into CDS-FU (UNI-1992)
+89a71702a refactor(email-hub): split the hub view under the line limit (UNI-1992)
+4c084ac28 test(e2e): scope the new-DM picker row to the dialog in the block-peer spec (UNI-1992)
+593944b3e fix(chat): keep the sent-earlier note out of the status while a send is pending (UNI-1992)
