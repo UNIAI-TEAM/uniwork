@@ -353,13 +353,14 @@ func TestDocumentCommentReplyMentionPriority(t *testing.T) {
 	}
 }
 
-// Resolving a Comment notifies its author; resolving your own comment or a
-// Discussion notifies nobody.
+// Resolving a Comment notifies its author and the document's owners (never the
+// actor); resolving a Discussion notifies nobody (OQ-C7, UNI-2032).
 func TestDocumentCommentResolveNotification(t *testing.T) {
 	f := newDocumentFixture(t)
+	f.consumer.SetDocumentAdministrators(f.docs)
 	docID := f.document(t, "workspace", "Giải quyết")
 
-	// The author here is the member; the owner resolves it.
+	// Actor is the owner -> owner gets none, author gets one.
 	root := f.commentOf(t, f.member.ID, docID, "cần xử lý", "comment")
 	f.resolve(t, f.owner.ID, root.ID)
 	f.handleLast(t, "document.comment_resolved")
@@ -369,24 +370,197 @@ func TestDocumentCommentResolveNotification(t *testing.T) {
 		t.Fatalf("member inbox = %+v", got)
 	}
 	if len(f.inbox(t, f.owner.ID)) != 0 {
-		t.Fatal("the resolving actor was notified")
+		t.Fatal("the resolving owner actor was notified")
 	}
 
-	// Self-resolve: silent.
+	// Actor is the author -> author gets none, the document's owner gets one.
 	own := f.commentOf(t, f.member.ID, docID, "tự xử lý", "comment")
 	f.resolve(t, f.member.ID, own.ID)
 	f.handleLast(t, "document.comment_resolved")
 	if n := f.inbox(t, f.member.ID); len(n) != 1 {
-		t.Fatalf("self resolve added a row: %+v", n)
+		t.Fatalf("self resolve added a row for the author: %+v", n)
+	}
+	ownerGot := f.inbox(t, f.owner.ID)
+	if len(ownerGot) != 1 || ownerGot[0].Kind != KindDocumentCommentResolved || !contains(ownerGot[0].Params, own.ID) {
+		t.Fatalf("owner inbox on author self-resolve = %+v, want one resolved row for %s", ownerGot, own.ID)
 	}
 
-	// A Discussion resolve has no notification row in the table.
+	// A Discussion resolve has no notification row in the table for author or owner.
 	disc := f.comment(t, f.member.ID, docID, "thảo luận")
-	f.resolve(t, f.owner.ID, disc.ID)
+	f.resolve(t, f.member.ID, disc.ID)
 	f.handleLast(t, "document.comment_resolved")
 	if n := f.inbox(t, f.member.ID); len(n) != 1 {
-		t.Fatalf("discussion resolve added a row: %+v", n)
+		t.Fatalf("discussion resolve added a row for the author: %+v", n)
 	}
+	if n := f.inbox(t, f.owner.ID); len(n) != 1 {
+		t.Fatalf("discussion resolve added a row for the owner: %+v", n)
+	}
+}
+
+// TestDocumentCommentResolveOwnersNotification pins the OQ-C7 recipient set
+// (UNI-2032): the comment author plus the document's owners at that moment
+// (ACL owner while still an effective member, plus every live user share at
+// manage), never the actor, one notice per person, and no fallback to
+// workspace admins or lower share levels.
+func TestDocumentCommentResolveOwnersNotification(t *testing.T) {
+	t.Run("author and owners all distinct from actor each get one notice", func(t *testing.T) {
+		f := newDocumentFixture(t)
+		f.consumer.SetDocumentAdministrators(f.docs)
+		docID := f.document(t, "workspace", "Đồng sở hữu")
+		author := f.addMember(t, "res-author@example.com", "Tác Giả")
+		resolver := f.addMember(t, "res-actor@example.com", "Người Giải Quyết")
+		coOwner := f.addMember(t, "res-coowner@example.com", "Đồng Quản Lý")
+		if _, err := f.docs.ShareDocument(f.ctx, service.Human(f.owner.ID), docID, service.DocumentShareInput{
+			PrincipalType: service.DocumentPrincipalUser, PrincipalID: coOwner.ID, Level: service.DocumentLevelManage,
+		}); err != nil {
+			t.Fatal(err)
+		}
+
+		c := f.commentOf(t, author.ID, docID, "kiểm tra mục 3", "comment")
+		f.resolve(t, resolver.ID, c.ID)
+		f.handleLast(t, "document.comment_resolved")
+
+		for name, uid := range map[string]string{
+			"author":       author.ID,
+			"ACL owner":    f.owner.ID,
+			"manage share": coOwner.ID,
+		} {
+			rows := f.inbox(t, uid)
+			if len(rows) != 1 || rows[0].Kind != KindDocumentCommentResolved || rows[0].GroupKey != "document:"+docID+":resolved:"+c.ID {
+				t.Fatalf("%s inbox = %+v, want one resolved notice", name, rows)
+			}
+		}
+		if rows := f.inbox(t, resolver.ID); len(rows) != 0 {
+			t.Fatalf("resolver actor inbox = %+v, want none", rows)
+		}
+	})
+
+	t.Run("author who is also a manage holder or ACL owner gets one notice", func(t *testing.T) {
+		f := newDocumentFixture(t)
+		f.consumer.SetDocumentAdministrators(f.docs)
+		docID := f.document(t, "workspace", "Trùng tác giả và chủ")
+		manageAuthor := f.addMember(t, "res-manage-author@example.com", "Tác Giả Quản Lý")
+		resolver := f.addMember(t, "res-other-actor@example.com", "Người Khác")
+		if _, err := f.docs.ShareDocument(f.ctx, service.Human(f.owner.ID), docID, service.DocumentShareInput{
+			PrincipalType: service.DocumentPrincipalUser, PrincipalID: manageAuthor.ID, Level: service.DocumentLevelManage,
+		}); err != nil {
+			t.Fatal(err)
+		}
+
+		c1 := f.commentOf(t, manageAuthor.ID, docID, "tác giả giữ manage", "comment")
+		f.resolve(t, resolver.ID, c1.ID)
+		ev := f.lastEvent(t, "document.comment_resolved")
+		drafts, err := ruleDocumentCommentResolved(f.ctx, f.consumer.env, ev, map[string]string{"document_id": docID, "comment_id": c1.ID})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(drafts) != 2 {
+			t.Fatalf("drafts = %+v, want 2 (manageAuthor once + ACL owner once)", drafts)
+		}
+		f.handleLast(t, "document.comment_resolved")
+
+		if rows := f.inbox(t, manageAuthor.ID); len(rows) != 1 || rows[0].Count != 1 {
+			t.Fatalf("manage author inbox = %+v, want single unmerged notice", rows)
+		}
+		if rows := f.inbox(t, f.owner.ID); len(rows) != 1 {
+			t.Fatalf("ACL owner inbox = %+v, want one notice", rows)
+		}
+
+		// Actor is the author -> author gets none, the other owners each get one.
+		c2 := f.commentOf(t, manageAuthor.ID, docID, "tự đóng khi có chủ khác", "comment")
+		f.resolve(t, manageAuthor.ID, c2.ID)
+		f.handleLast(t, "document.comment_resolved")
+		if rows := f.inbox(t, manageAuthor.ID); len(rows) != 1 {
+			t.Fatalf("resolving author-owner got a notice for their own resolve: %+v", rows)
+		}
+		if rows := f.inbox(t, f.owner.ID); len(rows) != 2 {
+			t.Fatalf("ACL owner inbox after second resolve = %+v, want 2 rows", rows)
+		}
+	})
+
+	t.Run("owner who left or is deactivated and view or edit holders get none", func(t *testing.T) {
+		f := newDocumentFixture(t)
+		f.consumer.SetDocumentAdministrators(f.docs)
+		leftOwner := f.addMember(t, "res-left-owner@example.com", "Chủ Đã Rời")
+		deactOwner := f.addMember(t, "res-deact-owner@example.com", "Chủ Đã Khóa")
+		deactManage := f.addMember(t, "res-deact-manage@example.com", "Quản Lý Đã Khóa")
+		liveManage := f.addMember(t, "res-live-manage@example.com", "Quản Lý Còn Hoạt Động")
+		editHolder := f.addMember(t, "res-edit@example.com", "Người Sửa")
+		viewHolder := f.addMember(t, "res-view@example.com", "Người Xem")
+		wsAdmin := f.addMember(t, "res-ws-admin@example.com", "Quản Trị WS")
+		author := f.addMember(t, "res-only-author@example.com", "Tác Giả Bình Luận")
+		resolver := f.addMember(t, "res-only-actor@example.com", "Người Đóng")
+		if _, err := f.pool.Exec(f.ctx,
+			`UPDATE workspace_members SET role = 'admin' WHERE workspace_id = $1 AND user_id = $2`, f.wsID, wsAdmin.ID); err != nil {
+			t.Fatal(err)
+		}
+
+		docID := f.document(t, "workspace", "Chủ rời đi")
+		if _, err := f.pool.Exec(f.ctx, `UPDATE documents SET acl_owner_id = $1 WHERE id = $2`, leftOwner.ID, docID); err != nil {
+			t.Fatal(err)
+		}
+		for _, grant := range []struct {
+			uid   string
+			level service.DocumentLevel
+		}{
+			{deactManage.ID, service.DocumentLevelManage},
+			{liveManage.ID, service.DocumentLevelManage},
+			{editHolder.ID, service.DocumentLevelEdit},
+			{viewHolder.ID, service.DocumentLevelView},
+		} {
+			if _, err := f.docs.ShareDocument(f.ctx, service.Human(f.owner.ID), docID, service.DocumentShareInput{
+				PrincipalType: service.DocumentPrincipalUser, PrincipalID: grant.uid, Level: grant.level,
+			}); err != nil {
+				t.Fatal(err)
+			}
+		}
+		// leftOwner leaves the workspace; deactManage is deactivated in the org.
+		if _, err := f.pool.Exec(f.ctx,
+			`DELETE FROM workspace_members WHERE workspace_id = $1 AND user_id = $2`, f.wsID, leftOwner.ID); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := f.pool.Exec(f.ctx,
+			`UPDATE organization_members SET deactivated_at = now() WHERE organization_id = $1 AND user_id = $2`, f.orgID, deactManage.ID); err != nil {
+			t.Fatal(err)
+		}
+
+		c := f.commentOf(t, author.ID, docID, "cần chủ xem", "comment")
+		f.resolve(t, resolver.ID, c.ID)
+		f.handleLast(t, "document.comment_resolved")
+
+		// Also check a deactivated ACL owner on a second document.
+		docDeact := f.document(t, "workspace", "Chủ bị khóa")
+		if _, err := f.pool.Exec(f.ctx, `UPDATE documents SET acl_owner_id = $1 WHERE id = $2`, deactOwner.ID, docDeact); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := f.pool.Exec(f.ctx,
+			`UPDATE organization_members SET deactivated_at = now() WHERE organization_id = $1 AND user_id = $2`, f.orgID, deactOwner.ID); err != nil {
+			t.Fatal(err)
+		}
+		cDeact := f.commentOf(t, author.ID, docDeact, "chủ bị khóa", "comment")
+		f.resolve(t, resolver.ID, cDeact.ID)
+		f.handleLast(t, "document.comment_resolved")
+
+		if rows := f.inbox(t, liveManage.ID); len(rows) != 1 || rows[0].Kind != KindDocumentCommentResolved {
+			t.Fatalf("live manage holder inbox = %+v, want 1 resolved notice", rows)
+		}
+		if rows := f.inbox(t, author.ID); len(rows) != 2 {
+			t.Fatalf("author inbox = %+v, want 2 resolved notices", rows)
+		}
+		for name, uid := range map[string]string{
+			"left ACL owner":        leftOwner.ID,
+			"deactivated ACL owner": deactOwner.ID,
+			"deactivated manage":    deactManage.ID,
+			"edit share holder":     editHolder.ID,
+			"view share holder":     viewHolder.ID,
+			"workspace admin":       wsAdmin.ID,
+			"resolver actor":        resolver.ID,
+		} {
+			if rows := f.inbox(t, uid); len(rows) != 0 {
+				t.Fatalf("%s inbox = %+v, want none", name, rows)
+			}
+		}
+	})
 }
 
 // A reply to a comment whose author lost read access notifies nobody: the
