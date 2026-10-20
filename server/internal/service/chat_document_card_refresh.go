@@ -7,6 +7,8 @@ import (
 	"log/slog"
 	"slices"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/unicomhub/uniwork/server/internal/outbox"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
@@ -16,6 +18,13 @@ import (
 // refreshes. The newest cards go first; the overflow is logged by document id
 // and refetches when its room is next opened.
 const chatDocumentCardRefreshCap = 500
+
+// chatDocumentCardRefreshCoalesce is how long one (topic, document, command)
+// refresh is remembered. A command that writes many grants emits one
+// document.shared row per grant, all in one transaction and so all committed
+// together; the first row refreshes every card, the rest of the batch finds
+// the key and returns.
+const chatDocumentCardRefreshCoalesce = 30 * time.Second
 
 // chatDocumentCardTopics are the document events that change what a chat card
 // shows: the version badge, the title, the viewer's access and the archive
@@ -43,16 +52,61 @@ var chatDocumentCardTopics = []string{
 // memory and ephemeral publishes, no per-room query however many cards there
 // are. Moving it to the notify lane would slow the document.version_created,
 // .updated, .workspace_access_changed and .restored frames of the Documents UI.
+//
+// A Documents batch share of N people writes N document.shared rows, one per
+// grant, and each would refresh every card of the document again: N reads and
+// up to N x cards publishes on the lane (UNI-2012 SF2). The refresher
+// coalesces them per (topic, document, correlation id): rows of one command
+// share the request's correlation id, and a card reads the document's current
+// state whenever it refetches, so one refresh per command is enough. The
+// memory is per process and short; the frame is ephemeral, so a second node
+// refreshing once more costs nothing, and a row that fails gives its key back
+// so the retry still refreshes. A row without a correlation id is never
+// coalesced, and a different topic of the same command refreshes on its own.
 type ChatDocumentCardRefresher struct {
 	q    *db.Queries
 	chat *ChatService
 	log  *slog.Logger
+
+	mu        sync.Mutex
+	seen      map[string]time.Time
+	lastSweep time.Time
+	now       func() time.Time
 }
 
 // NewChatDocumentCardRefresher wires the consumer over the chat service that
 // owns room delivery.
 func NewChatDocumentCardRefresher(q *db.Queries, chat *ChatService) *ChatDocumentCardRefresher {
-	return &ChatDocumentCardRefresher{q: q, chat: chat, log: slog.Default()}
+	return &ChatDocumentCardRefresher{q: q, chat: chat, log: slog.Default(), seen: map[string]time.Time{}, now: time.Now}
+}
+
+// claim reports whether this row is the first of its command to be refreshed
+// within the coalescing window, and remembers the key when it is. Expired keys
+// are dropped at most once per window, so the map stays as small as the
+// commands of one window.
+func (c *ChatDocumentCardRefresher) claim(key string) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	now := c.now()
+	if now.Sub(c.lastSweep) >= chatDocumentCardRefreshCoalesce {
+		for k, at := range c.seen {
+			if now.Sub(at) >= chatDocumentCardRefreshCoalesce {
+				delete(c.seen, k)
+			}
+		}
+		c.lastSweep = now
+	}
+	if at, ok := c.seen[key]; ok && now.Sub(at) < chatDocumentCardRefreshCoalesce {
+		return false
+	}
+	c.seen[key] = now
+	return true
+}
+
+func (c *ChatDocumentCardRefresher) release(key string) {
+	c.mu.Lock()
+	delete(c.seen, key)
+	c.mu.Unlock()
 }
 
 func (*ChatDocumentCardRefresher) Name() string { return "chat_document_card_refresher" }
@@ -61,7 +115,7 @@ func (*ChatDocumentCardRefresher) Topics() []string {
 	return append([]string(nil), chatDocumentCardTopics...)
 }
 
-func (c *ChatDocumentCardRefresher) Handle(ctx context.Context, ev outbox.Row) error {
+func (c *ChatDocumentCardRefresher) Handle(ctx context.Context, ev outbox.Row) (err error) {
 	var payload struct {
 		DocumentID string `json:"document_id"`
 	}
@@ -76,6 +130,17 @@ func (c *ChatDocumentCardRefresher) Handle(ctx context.Context, ev outbox.Row) e
 	orgID := strings.TrimSpace(ev.OrganizationID.String)
 	if docID == "" || orgID == "" || c.chat == nil {
 		return nil
+	}
+	if corr := strings.TrimSpace(ev.CorrelationID.String); corr != "" {
+		key := ev.Topic + "|" + orgID + "|" + docID + "|" + corr
+		if !c.claim(key) {
+			return nil
+		}
+		defer func() {
+			if err != nil {
+				c.release(key)
+			}
+		}()
 	}
 	cards, err := c.q.ListLiveChatDocumentCardTargets(ctx, db.ListLiveChatDocumentCardTargetsParams{
 		OrganizationID: orgID, DocumentID: docID, RowLimit: chatDocumentCardRefreshCap,
