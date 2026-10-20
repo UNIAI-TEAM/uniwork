@@ -193,7 +193,7 @@ describe("editor wins", () => {
   it("recognises only an element inside the document-editor scope", () => {
     const scope = document.createElement("div");
     scope.setAttribute(DOCUMENT_EDITOR_SCOPE_ATTRIBUTE, DOCUMENT_EDITOR_SCOPE);
-    scope.contentEditable = "true";
+    scope.setAttribute("contenteditable", "true");
     const paragraph = document.createElement("p");
     scope.append(paragraph);
     const composer = document.createElement("div");
@@ -204,6 +204,19 @@ describe("editor wins", () => {
     expect(isDocumentEditorShortcutTarget(composer)).toBe(false);
     expect(isDocumentEditorShortcutTarget(document.body)).toBe(false);
     expect(isDocumentEditorShortcutTarget(null)).toBe(false);
+  });
+
+  it("stops recognising the scope once the editor is read-only, because it binds nothing then", () => {
+    const scope = document.createElement("div");
+    scope.setAttribute(DOCUMENT_EDITOR_SCOPE_ATTRIBUTE, DOCUMENT_EDITOR_SCOPE);
+    scope.setAttribute("contenteditable", "true");
+    const paragraph = document.createElement("p");
+    scope.append(paragraph);
+    document.body.append(scope);
+    expect(isDocumentEditorShortcutTarget(paragraph)).toBe(true);
+    scope.setAttribute("contenteditable", "false");
+    expect(isDocumentEditorShortcutTarget(paragraph)).toBe(false);
+    expect(isDocumentEditorShortcutTarget(scope)).toBe(false);
   });
 });
 

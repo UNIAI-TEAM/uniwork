@@ -254,10 +254,14 @@ export function isEditableShortcutTarget(target: EventTarget | null): boolean {
   );
 }
 
-/** Whether the target sits inside the UniNote page editor, where Office chords win over global ones. */
+/**
+ * Whether the target sits inside the UniNote page editor, where Office chords
+ * win over global ones. A read-only editor binds nothing, so only an editable
+ * scope counts.
+ */
 export function isDocumentEditorShortcutTarget(target: EventTarget | null): boolean {
   if (!(target instanceof Element)) return false;
-  return target.closest(`[${DOCUMENT_EDITOR_SCOPE_ATTRIBUTE}="${DOCUMENT_EDITOR_SCOPE}"]`) !== null;
+  return target.closest(`[${DOCUMENT_EDITOR_SCOPE_ATTRIBUTE}="${DOCUMENT_EDITOR_SCOPE}"][contenteditable="true"]`) !== null;
 }
 
 const PORTAL_LAYER_SELECTOR =
