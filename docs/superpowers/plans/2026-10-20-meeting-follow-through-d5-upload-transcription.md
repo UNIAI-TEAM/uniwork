@@ -1,6 +1,6 @@
 # Sau họp đợt 5 (UNI-2001): họp trực tiếp không có máy trong phòng — kế hoạch triển khai
 
-> **Trạng thái:** in-progress — kế hoạch; chưa có code.
+> **Trạng thái:** in-progress — đủ server (held, purpose `meeting_audio` trên phiên tải BIGUP, bảng và worker ghi lời, provider BytePlus + gateway, nguồn transcript §7.3, thông báo) và web (hai hộp thoại, trạng thái ghi lời) trên nhánh `feature/UNI-2001-…`; chưa chạy với BytePlus thật, chờ review và merge; cờ ngoài nội bộ chờ thỏa thuận xử lý dữ liệu (§7.5).
 
 **Spec:** `docs/superpowers/specs/2026-10-20-meeting-follow-through-design.md` §1.1 G6/G7,
 §1.3 D9, D10, D14, D15, §5.3, §5.5, §6.4, §7.3, §7.4, §7.5, §8.1–8.3, §9.2 mục 3, §12 dòng 5,
@@ -65,5 +65,11 @@ sổ phút `meeting.transcription`, báo người yêu cầu khi xong hoặc l�
 
 ## Quyết định
 
-Ghi ở báo cáo (`Decision: …`). Bật cờ ngoài nội bộ chờ §7.5 (thỏa thuận xử lý dữ liệu với
+Ghi ở báo cáo (`Decision: …`). Hai điều spec giao kiểm đầu đợt:
+
+- `video/mp4`: tài liệu BytePlus (file "bigmodel") chỉ liệt kê raw/wav/mp3/ogg; bản tham khảo
+  chạy thật gửi thêm m4a, webm. Không nhận `video/mp4`; nhận mp3, m4a (`audio/mp4`), wav, ogg,
+  webm.
+- Phút ghi lời file tính vào cùng sổ `meeting.transcription` với thư ký AI, kiểm trước bằng
+  ước lượng từ dung lượng cộng các việc đang chờ của tổ chức; 402 khi không đủ. Bật cờ ngoài nội bộ chờ §7.5 (thỏa thuận xử lý dữ liệu với
 BytePlus).
