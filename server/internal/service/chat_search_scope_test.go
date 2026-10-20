@@ -11,8 +11,10 @@ import (
 // in, within one scope — Tin nhắn (the organization's DMs and groups) or a
 // workspace (its room and channels) — and never a room they are not in.
 func TestSearchMessagesAcrossMyRooms(t *testing.T) {
-	s, _, _, ua, ub, w := chatFixture(t)
+	s, _, q, ua, ub, w := chatFixture(t)
 	ctx := context.Background()
+	addOrgMember(t, q, w.OrganizationID, ub.ID)
+	addWorkspaceMember(t, q, w.ID, ub.ID)
 
 	dm, err := s.ResolveDM(ctx, ua.ID, w.ID, ub.ID)
 	if err != nil {

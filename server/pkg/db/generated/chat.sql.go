@@ -179,7 +179,6 @@ type CountPinnedChatMessagesInRoomParams struct {
 	WorkspaceID string `json:"workspace_id"`
 }
 
-// tenant: workspace_id from RequireMember on the room
 func (q *Queries) CountPinnedChatMessagesInRoom(ctx context.Context, arg CountPinnedChatMessagesInRoomParams) (int32, error) {
 	row := q.db.QueryRow(ctx, countPinnedChatMessagesInRoom, arg.RoomID, arg.WorkspaceID)
 	var column_1 int32
