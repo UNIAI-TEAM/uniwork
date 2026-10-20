@@ -11,7 +11,7 @@ import (
 // (UNI-2012 D5): an existing page goes into the DM as a document card the
 // receiver reads at the granted level; manage and an unknown level are 400,
 // a malformed body is 400, a missing document is 404 and a non-member of the
-// room is refused.
+// room is forbidden.
 func TestSendChatDocumentLink(t *testing.T) {
 	srv := newTestServerWithFilesAndDocuments(t)
 	f := setupChatFixtureOn(t, srv, "chatdoclink")
@@ -83,7 +83,7 @@ func TestSendChatDocumentLink(t *testing.T) {
 	}
 	// A workspace member outside the DM is refused by the room gate.
 	res, out = doJSON(t, f.srv, "POST", path, f.tokens["c"], map[string]any{"document_id": docID})
-	if res.StatusCode != http.StatusForbidden && res.StatusCode != http.StatusNotFound {
-		t.Fatalf("non-member send = %d %v", res.StatusCode, out)
+	if res.StatusCode != http.StatusForbidden {
+		t.Fatalf("non-member send = %d %v, want 403", res.StatusCode, out)
 	}
 }

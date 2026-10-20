@@ -45,8 +45,8 @@ type SendDocumentLinkInput struct {
 
 // SendDocumentLinkMessage sends an existing document into a room. The order:
 // validate, the room gate, the replay fast path, the recipients, then one
-// transaction that replays an existing message before any write, re-checks the
-// sender, locks the document row and runs the share gate on it, grants and
+// transaction that re-checks the sender, replays an existing message before any
+// write, locks the document row and runs the share gate on it, grants and
 // writes the message. The publish runs after the commit.
 func (s *ChatService) SendDocumentLinkMessage(
 	ctx context.Context, userID, workspaceID, roomID string, in SendDocumentLinkInput,
@@ -128,9 +128,9 @@ func (s *ChatService) documentLinkReplyTo(ctx context.Context, room db.ChatRoom,
 	return pgtype.Text{String: replyID, Valid: true}, nil
 }
 
-// commitDocumentLinkMessage is the one transaction of a link send: the replay
-// lookup first, then the sender's gates, the document row lock and its share
-// gate, the grants and the message.
+// commitDocumentLinkMessage is the one transaction of a link send: the sender's
+// gates, the replay lookup, the document row lock and its share gate, the
+// grants and the message.
 func (s *ChatService) commitDocumentLinkMessage(
 	ctx context.Context,
 	userID, workspaceID string,
@@ -147,6 +147,14 @@ func (s *ChatService) commitDocumentLinkMessage(
 	defer func() { _ = tx.Rollback(ctx) }()
 	q := s.q.WithTx(tx)
 
+	// The sender's gates come first: a sender who lost the workspace between
+	// the fast path and here is refused, not handed their old message back.
+	if _, err := s.ws.RequireMemberQ(ctx, q, workspaceID, userID); err != nil {
+		return db.ChatMessage{}, false, err
+	}
+	if err := s.requireCanSendInRoom(ctx, userID, room.ID, room); err != nil {
+		return db.ChatMessage{}, false, err
+	}
 	if clientMsgID != "" {
 		existing, found, err := existingChatMessageInTx(ctx, q, room.ID, userID, clientMsgID)
 		if err != nil {
@@ -158,12 +166,6 @@ func (s *ChatService) commitDocumentLinkMessage(
 			}
 			return existing, false, nil
 		}
-	}
-	if _, err := s.ws.RequireMemberQ(ctx, q, workspaceID, userID); err != nil {
-		return db.ChatMessage{}, false, err
-	}
-	if err := s.requireCanSendInRoom(ctx, userID, room.ID, room); err != nil {
-		return db.ChatMessage{}, false, err
 	}
 	actor := Human(userID)
 	doc, err := s.shareableDocumentForLinkQ(ctx, q, actor, room, documentID)
@@ -183,6 +185,9 @@ func (s *ChatService) commitDocumentLinkMessage(
 	if clientMsgID != "" {
 		clientMsg = pgtype.Text{String: clientMsgID, Valid: true}
 	}
+	// The body is the title, which a sender who may administer but not read the
+	// document still sends to the room: ShareDocument hands the same metadata
+	// to whoever an administrator shares with.
 	msg, err := q.CreateChatDocumentMessage(ctx, db.CreateChatDocumentMessageParams{
 		ID:               msgID,
 		RoomID:           room.ID,
