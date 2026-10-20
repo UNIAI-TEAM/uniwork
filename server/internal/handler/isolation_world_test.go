@@ -730,6 +730,14 @@ func (w *isoWorld) buildDocuments(t *testing.T, tn *isoTenant) {
 	})
 	tn.ids["unshelveDocument"] = isoID(t, out, "document")
 	w.call(t, "POST", "/api/v1/documents/"+tn.ids["unshelveDocument"]+"/shelve", tn.token, nil)
+	// UNI-2012 D5: the chat link send gets its own page. Sending "document" at
+	// comment into the room raises the peer's seeded view share there (D2a: the
+	// manual row ends, a chat row remembering it takes over), so the revoke
+	// control later in the pass would name an ended share and see 404.
+	out = w.call(t, "POST", "/api/v1/workspaces/"+tn.wsID+"/documents", tn.token, map[string]any{
+		"title": m + " Chat link page", "kind": "page",
+	})
+	tn.ids["chatLinkDocument"] = isoID(t, out, "document")
 	dp := "/api/v1/documents/" + tn.ids["document"]
 	out = w.call(t, "POST", dp+"/comments", tn.token, map[string]any{"body": m + " doc comment", "type": "comment"})
 	tn.ids["docComment"] = isoID(t, out, "comment")
