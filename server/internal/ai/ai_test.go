@@ -1090,3 +1090,25 @@ func TestStripUntrustedTagsNestedAndUnclosed(t *testing.T) {
 		}
 	}
 }
+
+// TestFakeReplyTurnsTaskNotesIntoActionItems: under AI_PROVIDER=fake a
+// meeting note line "Việc: <title> | <owner>" becomes an action item, so the
+// E2E of the meeting follow-through (UNI-1999) has items to work on; other
+// notes, and the transcript, make none.
+func TestFakeReplyTurnsTaskNotesIntoActionItems(t *testing.T) {
+	p, _ := LookupPrompt(PromptMeetingSummary)
+	prompt := p.Render(map[string]any{
+		"title": "Giao ban", "locale": "vi",
+		"notes":      []string{"Host: Việc: Gửi báo giá | ft-peer\nViệc: In tài liệu", "Host: Chốt ngày ra mắt"},
+		"transcript": []TranscriptLine{{Speaker: "An", Text: "Việc: không phải ghi chú"}},
+	})
+	resp := FakeReply(provider.CompletionRequest{System: p.System, Messages: []provider.Message{{Role: "user", Content: prompt}}})
+	out, err := ParseSummaryJSON(resp.Text)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []ActionItem{{Title: "Gửi báo giá", Owner: "ft-peer"}, {Title: "In tài liệu"}}
+	if len(out.ActionItems) != len(want) || out.ActionItems[0] != want[0] || out.ActionItems[1] != want[1] {
+		t.Fatalf("action items = %+v, want %+v", out.ActionItems, want)
+	}
+}

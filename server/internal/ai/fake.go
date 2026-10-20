@@ -74,13 +74,35 @@ func FakeReply(req provider.CompletionRequest) provider.CompletionResponse {
 		b, _ := json.Marshal(MediaAnalysis{Text: "Phân tích thử nghiệm của " + itoa(parts) + " tệp."})
 		text = string(b)
 	default:
-		b, _ := json.Marshal(MeetingSummary{Summary: "Bản tóm tắt thử nghiệm.", Decisions: []string{}, ActionItems: []ActionItem{}})
+		b, _ := json.Marshal(MeetingSummary{Summary: "Bản tóm tắt thử nghiệm.", Decisions: []string{}, ActionItems: fakeNoteActionItems(last)})
 		text = string(b)
 	}
 	// UsagePresent mirrors the scripted path in provider/fake.go: the fake knows
 	// its own token counts, so a fake turn is known usage, not the unknown-usage
 	// reconciliation branch (spec §8.2; G6-03b is the first reader).
 	return provider.CompletionResponse{Text: text, Model: req.Model, UsagePresent: true, InputTokens: estimateTokens(req.System + last), OutputTokens: estimateTokens(text), StopReason: "end_turn"}
+}
+
+// fakeNoteActionItems reads the meeting's notes block: a line holding
+// "Việc: <title>" or "Việc: <title> | <owner>" is an action item, so a
+// development or E2E run can drive the follow-through with items it chose.
+func fakeNoteActionItems(prompt string) []ActionItem {
+	items := []ActionItem{}
+	_, block, ok := strings.Cut(prompt, `<untrusted source="notes">`)
+	if !ok {
+		return items
+	}
+	block, _, _ = strings.Cut(block, "</untrusted>")
+	for _, line := range strings.Split(block, "\n") {
+		// The first line of a note carries its author ("An: Việc: …").
+		_, rest, ok := strings.Cut(line, "Việc:")
+		if !ok {
+			continue
+		}
+		title, owner, _ := strings.Cut(rest, "|")
+		items = append(items, ActionItem{Title: strings.TrimSpace(title), Owner: strings.TrimSpace(owner)})
+	}
+	return items
 }
 
 func itoa(n int) string {
