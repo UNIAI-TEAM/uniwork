@@ -32,6 +32,7 @@ import { ChatForwardContext } from "./chat-forward-context";
 import { ChatPeerReadAtContext } from "./chat-message-parts";
 import { CHAT_WALL } from "./chat-wall";
 import { toastChatError } from "./chat-error-message";
+import { ChatMessageActionsLayerProvider } from "./chat-message-actions-layer";
 import { VirtualChatMessageList, updateStickToBottomFromScroll, useReaderScrollAt } from "./virtual-chat-message-list";
 import type { NameContextEntry } from "./native-chat-message-mapping";
 import { NativeChatLiveRegion } from "./native-chat-live-region";
@@ -492,6 +493,7 @@ export function NativeChatMessagePanel({
               <ChatMessageLinksProvider value={linksValue}>
                 <ChatPeerReadAtContext.Provider value={receiptReadAt}>
                   <ChatForwardContext.Provider value={actions.onForward ?? null}>
+                    <ChatMessageActionsLayerProvider>
                     <VirtualChatMessageList
                       key={roomId}
                       messages={messages}
@@ -510,6 +512,7 @@ export function NativeChatMessagePanel({
                       }
                       renderMessage={renderMessage}
                     />
+                    </ChatMessageActionsLayerProvider>
                   </ChatForwardContext.Provider>
                 </ChatPeerReadAtContext.Provider>
               </ChatMessageLinksProvider>

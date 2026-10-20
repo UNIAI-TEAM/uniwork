@@ -11,7 +11,9 @@ import {
   type FocusEvent,
   type KeyboardEvent,
   type ReactNode,
+  type RefObject,
 } from "react";
+import { createPortal } from "react-dom";
 import {
   Bookmark,
   ChevronDown,
@@ -41,6 +43,10 @@ import type { ChatMessage } from "./chat-messages";
 import { ChatSeenByContextRow } from "./chat-seen-by";
 import { ChatForwardContext, isForwardableChatMessage } from "./chat-forward-context";
 import { emojiPickerStrings } from "./chat-expression-utils";
+import {
+  useMessageActionsPortalPosition,
+  useRegisterMessageActionsOpen,
+} from "./chat-message-actions-layer";
 import { useActionsBarPlacement } from "./use-actions-bar-placement";
 import { MODULE_ICONS } from "../layout/module-icons";
 
@@ -58,8 +64,19 @@ const CONTEXT_MENU_ROW = cn(
   "hover:bg-muted focus-visible:bg-muted focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50",
 );
 
-const CONTEXT_PANEL = "min-w-52 rounded-xl border border-border bg-popover py-1 shadow-floating";
-const REACTION_PILL = "flex items-center gap-0.5 rounded-full border border-border bg-popover px-1.5 py-1 shadow-floating";
+/** Floating stacks like Telegram: glass surface, soft menu shadow — no heavy border. */
+const CONTEXT_PANEL = cn(
+  "min-w-52 rounded-xl py-1",
+  "bg-surface-raised/92 text-popover-foreground",
+  "shadow-menu ring-1 ring-surface-border/70",
+  "supports-backdrop-filter:backdrop-blur-md",
+);
+const REACTION_PILL = cn(
+  "flex items-center gap-0.5 rounded-full px-1.5 py-1",
+  "bg-surface-raised/92",
+  "shadow-menu ring-1 ring-surface-border/70",
+  "supports-backdrop-filter:backdrop-blur-md",
+);
 
 /** The quick reactions the bar offers before the other actions. */
 const QUICK_REACTIONS = ["👍", "❤️", "😂", "🎉", "😮", "🙏"] as const;
@@ -215,9 +232,11 @@ export function ChatMessageHoverActions({
   onFollowUp,
   canEdit = true,
   forceOpen = false,
+  anchorRef,
 }: {
   message: ChatMessage;
   isOwn: boolean;
+  anchorRef?: RefObject<HTMLElement | null>;
   onReply?: (message: ChatMessage) => void;
   onReact?: (message: ChatMessage) => void;
   /** When set, the bar leads with the quick reactions instead of the single 👍. */
@@ -247,7 +266,11 @@ export function ChatMessageHoverActions({
   const canDelete = isOwn && Boolean(onDelete);
   const pinLabel = message.pinned ? t("chat.action_unpin") : t("chat.action_pin");
   const workHubActions = Boolean(onCreateTask || onLinkTask || onFollowUp);
-  useActionsBarPlacement(barRef, canInteract);
+  const menuOpen = forceOpen || pickerOpen;
+  useRegisterMessageActionsOpen(message.id, menuOpen);
+  const portalStyle = useMessageActionsPortalPosition(anchorRef, barRef, menuOpen, isOwn);
+  const usePortal = Boolean(anchorRef && menuOpen);
+  useActionsBarPlacement(barRef, canInteract && !usePortal);
 
   if (!canInteract) return null;
 
@@ -289,26 +312,32 @@ export function ChatMessageHoverActions({
   const showSecondary =
     Boolean(onThread || (canEdit && onEdit) || workHubActions || isOwn);
 
-  return (
-    // Telegram-style stack: reaction pill, then a labelled context menu. Shown on
-    // right-click, long press, or keyboard focus into the message.
+  const panel = (
     <div
       ref={barRef}
       data-message-actions
       // Only relays the roving-tabindex keys of the toolbar and menu inside it.
       role="presentation"
+      data-for={message.id}
       onKeyDown={onKeyDown}
       onFocusCapture={onFocusCapture}
+      style={usePortal ? { ...portalStyle, visibility: portalStyle ? "visible" : "hidden" } : undefined}
       className={cn(
-        "pointer-events-none absolute bottom-full z-10 mb-1.5 flex w-max flex-col gap-1.5 opacity-0",
-        "after:absolute after:inset-x-0 after:top-full after:h-1.5 after:content-['']",
-        "data-[place=inside]:bottom-auto data-[place=inside]:mb-0 data-[place=inside]:after:hidden",
-        (forceOpen || pickerOpen) && "pointer-events-auto opacity-100",
-        // Keyboard focus (focus-visible) reveals the stack; a tap's focus-within
-        // does not: it would flash the menu over the card the finger just hit
-        // (UNI-1966 F-01). Right-click and long press open it (forceOpen).
-        "transition-opacity duration-(--duration-fast) group-has-[:focus-visible]/message:pointer-events-auto group-has-[:focus-visible]/message:opacity-100",
-        isOwn ? "right-0 items-end" : "left-0 items-start",
+        "flex w-max flex-col gap-1.5",
+        usePortal
+          ? "pointer-events-auto"
+          : cn(
+              "pointer-events-none absolute bottom-full z-50 mb-1.5 opacity-0",
+              "after:absolute after:inset-x-0 after:top-full after:h-1.5 after:content-['']",
+              "data-[place=inside]:bottom-auto data-[place=inside]:mb-0 data-[place=inside]:after:hidden",
+              menuOpen && "pointer-events-auto opacity-100",
+              // Keyboard focus (focus-visible) reveals the stack; a tap's focus-within
+              // does not: it would flash the menu over the card the finger just hit
+              // (UNI-1966 F-01). Right-click and long press open it (menuOpen).
+              "transition-opacity duration-(--duration-fast) group-has-[:focus-visible]/message:pointer-events-auto group-has-[:focus-visible]/message:opacity-100",
+              isOwn ? "right-0" : "left-0",
+            ),
+        isOwn ? "items-end" : "items-start",
       )}
     >
       <div
@@ -398,4 +427,7 @@ export function ChatMessageHoverActions({
       </div>
     </div>
   );
+
+  if (usePortal && typeof document !== "undefined") return createPortal(panel, document.body);
+  return panel;
 }

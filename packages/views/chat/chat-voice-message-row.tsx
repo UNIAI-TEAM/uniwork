@@ -15,7 +15,14 @@ import type { ChatMessage } from "./chat-messages";
 import { ChatMessageHoverActions, chatMessageActionsRailClass } from "./chat-message-hover-actions";
 import { ChatForwardedLabel } from "./chat-forwarded-label";
 import { ChatMessageA11yLabel, ChatMessageMeta, ChatReactionChips, chatMessageLabelId } from "./chat-message-parts";
-import { CHAT_BUBBLE_OTHER, CHAT_BUBBLE_OWN, CHAT_ROW_HOVER, chatBubbleShape, ChatThreadRepliesLink } from "./chat-message-row";
+import {
+  CHAT_BUBBLE_OTHER,
+  CHAT_BUBBLE_OWN,
+  chatBubbleShape,
+  chatRowContentShellClass,
+  chatRowHighlightClass,
+  ChatThreadRepliesLink,
+} from "./chat-message-row";
 import { useFreshChatMediaUrl } from "./use-chat-media-url";
 import { senderNameClass } from "./sender-colors";
 import type { ChatNameContextEntry } from "./chat-page-utils";
@@ -223,35 +230,54 @@ function ChatVoiceMessageRowImpl({
       tabIndex={-1}
       className={cn(
         "flex w-full max-w-full rounded-lg transition-colors duration-(--duration-standard) focus-visible:outline-offset-2",
-        CHAT_ROW_HOVER,
         compactTop ? "mt-0.5" : "mt-3",
-        isOwn ? "justify-end" : "justify-start gap-2",
-        // A deep link jumped here: the row's brand wash, as the text row's (canvas).
-        highlighted && "before:bg-brand-subtle before:ring-1 before:ring-brand/25 hover:before:bg-brand-subtle",
+        isOwn ? "justify-end" : "justify-start",
       )}
     >
       <ChatMessageA11yLabel messageId={message.id} senderLabel={senderLabel} ts={message.ts} />
-      {!isOwn ? (
-        <div className="w-8.5 shrink-0 self-end">
-          {lastOfRun ? (
-            <ChatSenderAvatar
-              userId={message.sender}
-              name={senderLabel}
-              avatarUrl={senderAvatarUrl}
-              nameContext={nameContext}
-            />
-          ) : null}
-        </div>
-      ) : null}
-      <div
-        ref={reveal.rootRef}
-        {...reveal.bind}
-        className={cn(
-          "group/message relative flex max-w-[85%] flex-col gap-1 sm:max-w-[72%] pointer-coarse:select-none pointer-coarse:[-webkit-touch-callout:none]",
-          isOwn ? "items-end" : "items-start",
-        )}
-      >
-        <div className={chatMessageActionsRailClass(isOwn)}>
+      <div className={cn(chatRowContentShellClass(isOwn), chatRowHighlightClass(highlighted))}>
+        {!isOwn ? (
+          <div className="w-8.5 shrink-0 self-end">
+            {lastOfRun ? (
+              <ChatSenderAvatar
+                userId={message.sender}
+                name={senderLabel}
+                avatarUrl={senderAvatarUrl}
+                nameContext={nameContext}
+              />
+            ) : null}
+          </div>
+        ) : null}
+        <div
+          ref={reveal.rootRef}
+          data-chat-message-id={message.id}
+          {...reveal.bind}
+          className={cn(
+            "group/message relative flex min-w-0 flex-col gap-1 pointer-coarse:select-none pointer-coarse:[-webkit-touch-callout:none]",
+            isOwn ? "items-end" : "items-start",
+          )}
+        >
+        <ChatMessageHoverActions
+          message={message}
+          isOwn={isOwn}
+          onReply={onReply}
+          onReact={onReact}
+          onToggleReaction={onToggleReaction}
+          onThread={onThread}
+          onPin={onPin}
+          onCopy={onCopy}
+          onDelete={onDelete}
+          onCreateTask={onCreateTask}
+          onLinkTask={onLinkTask}
+          onFollowUp={onFollowUp}
+          canEdit={false}
+          forceOpen={reveal.open}
+          anchorRef={reveal.rootRef}
+        />
+        <div
+          data-message-actions-anchor
+          className={cn(chatMessageActionsRailClass(isOwn), reveal.open && "pointer-events-none")}
+        >
           <div className={cn("flex min-w-0 flex-col gap-0.5", isOwn ? "items-end" : "items-start")}>
             <div
               className={cn(
@@ -285,22 +311,7 @@ function ChatVoiceMessageRowImpl({
             <ChatReactionChips message={message} isOwn={isOwn} onToggleReaction={onToggleReaction} onReact={onReact} />
             <ChatThreadRepliesLink message={message} isOwn={isOwn} onThread={onThread} nameContext={nameContext} />
           </div>
-          <ChatMessageHoverActions
-            message={message}
-            isOwn={isOwn}
-            onReply={onReply}
-            onReact={onReact}
-            onToggleReaction={onToggleReaction}
-            onThread={onThread}
-            onPin={onPin}
-            onCopy={onCopy}
-            onDelete={onDelete}
-            onCreateTask={onCreateTask}
-            onLinkTask={onLinkTask}
-            onFollowUp={onFollowUp}
-            canEdit={false}
-            forceOpen={reveal.open}
-          />
+        </div>
         </div>
       </div>
     </article>

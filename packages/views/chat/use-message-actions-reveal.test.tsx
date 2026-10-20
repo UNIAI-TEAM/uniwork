@@ -42,6 +42,14 @@ describe("useMessageActionsReveal", () => {
     expect(screen.getByText("closed")).toBeInTheDocument();
   });
 
+  it("closes when the timeline is scrolled while open", () => {
+    render(<Probe />);
+    fireEvent.contextMenu(screen.getByTestId("message"));
+    expect(screen.getByText("open")).toBeInTheDocument();
+    fireEvent.wheel(screen.getByTestId("message"), { deltaY: 40 });
+    expect(screen.getByText("closed")).toBeInTheDocument();
+  });
+
   it("treats a moving touch as a scroll and ignores the mouse", async () => {
     render(<Probe />);
     const message = screen.getByTestId("message");

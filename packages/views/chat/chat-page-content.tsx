@@ -240,7 +240,12 @@ export function ChatPageContent(props: ChatPageContentProps) {
   };
 
   return (
-    <ChatPersonMessageProvider onMessage={messagePerson} onCall={callPerson} roomId={activeRoomId}>
+    <ChatPersonMessageProvider
+      onMessage={messagePerson}
+      onCall={callPerson}
+      roomId={activeRoomId}
+      workspaceId={workspaceId}
+    >
       <ChatPageContentDialogs
         {...props}
         createPollOpen={createPollOpen}
