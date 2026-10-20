@@ -109,6 +109,44 @@ describe("DocAccessCell", () => {
   });
 });
 
+describe("DocAccessCell pill", () => {
+  // Rules.dc.html section 1 draws a filled pill: Hạn chế/Riêng tư grey,
+  // Workspace blue, Được chia sẻ amber. The pill is the Badge primitive with
+  // semantic tokens, so it follows light and dark.
+  const pillOf = (kind: "restricted" | "workspace" | "shared") => {
+    const props =
+      kind === "workspace"
+        ? { visibility: "workspace", shareScope: scopeOf({ home_workspace: true }) }
+        : { visibility: "restricted", shareScope: scopeOf(kind === "shared" ? { users: 1 } : {}) };
+    const { container } = render(<DocAccessCell {...props} myLevel="manage" />);
+    return container.querySelector("[data-access-kind]") as HTMLElement;
+  };
+
+  it.each([
+    ["restricted", "bg-muted", "text-muted-foreground"],
+    ["workspace", "bg-primary/10", "text-primary"],
+    ["shared", "bg-warning-soft", "text-warning-soft-foreground"],
+  ] as const)("draws %s as a filled Badge with %s %s", (kind, fill, ink) => {
+    const pill = pillOf(kind);
+    expect(pill).toHaveAttribute("data-access-kind", kind);
+    expect(pill).toHaveAttribute("data-slot", "badge");
+    expect(pill).toHaveClass("rounded-4xl", fill, ink);
+  });
+
+  it("keeps the level line under the pill, outside it", () => {
+    const pill = pillOf("restricted");
+    expect(pill).toHaveTextContent("Riêng tư");
+    expect(pill).not.toHaveTextContent("Bạn:");
+    expect(screen.getByText("Bạn: Quản lý").previousElementSibling).toBe(pill);
+  });
+
+  it("truncates a long label inside the pill instead of overflowing", () => {
+    const pill = pillOf("shared");
+    expect(pill.querySelector(".truncate")).toHaveTextContent("Được chia sẻ");
+    expect(pill).toHaveClass("max-w-full");
+  });
+});
+
 describe("DocPersonCell", () => {
   it("shows a 24px avatar and the display name", () => {
     const { container } = render(<DocPersonCell name="Lê Thu" />);
