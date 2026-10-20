@@ -370,7 +370,7 @@ describe("useFirstSaveNaming: where the document is saved (UNI-1960)", () => {
 });
 
 describe("useFirstSaveNaming: share with the workspace (UNI-2038 G4)", () => {
-  const MANAGED = { ...UNTITLED_DOC, my_level: "manage", visibility: "private" } as Document;
+  const MANAGED = { ...UNTITLED_DOC, my_level: "manage", visibility: "restricted" } as Document;
 
   /** The decoded PATCH bodies, in order. */
   const patchBodies = () => callsTo("PATCH", "/api/v1/documents/doc-1").map(({ init }) => patchJson(["", init]) as Record<string, unknown>);
