@@ -597,6 +597,8 @@
         "meeting_invited": "Được mời họp",
         "meeting_starting": "Họp sắp bắt đầu",
         "meeting_summary_reminder": "Nhắc tóm tắt sau cuộc họp",
+        "meeting_transcript_ready": "Ghi lời file ghi âm xong",
+        "meeting_transcript_failed": "Ghi lời file ghi âm bị lỗi",
         "member_added": "Được thêm vào workspace",
         "role_changed": "Vai trò thay đổi",
         "audit_export_ready": "Bản xuất nhật ký sẵn sàng",
@@ -3197,6 +3199,8 @@
     "activity_created": "đã tạo cuộc họp",
     "activity_started": "đã bắt đầu cuộc họp",
     "activity_ended": "đã kết thúc cuộc họp",
+    "activity_recorded_held": "đã ghi nhận cuộc họp đã diễn ra, không mở phòng",
+    "activity_transcription_completed": "đã ghi lời xong một file ghi âm",
     "activity_canceled": "đã hủy cuộc họp",
     "activity_restored": "đã khôi phục cuộc họp",
     "activity_updated": "đã cập nhật cuộc họp",
@@ -3793,7 +3797,42 @@
       "speakersEmpty": "Chưa có người nói nào từ micro hội trường.",
       "speakersLoadFailed": "Không tải được danh sách người nói."
     },
-    "summaryPartial": "Tóm tắt dựa trên một phần cuộc họp: transcript dài hơn mức AI đọc được một lần."
+    "summaryPartial": "Tóm tắt dựa trên một phần cuộc họp: transcript dài hơn mức AI đọc được một lần.",
+    "held": {
+      "button": "Ghi nhận đã họp",
+      "title": "Ghi nhận cuộc họp đã diễn ra",
+      "description": "Dùng khi họp trực tiếp mà không mở phòng. Nhập giờ thực tế; cuộc họp chuyển sang đã kết thúc và có thể tải file ghi âm lên để ghi lời.",
+      "endInFuture": "Giờ kết thúc không được ở tương lai.",
+      "submit": "Ghi nhận",
+      "done": "Đã ghi nhận cuộc họp đã diễn ra."
+    },
+    "transcription": {
+      "uploadButton": "Tải file ghi âm",
+      "title": "Tải file ghi âm lên",
+      "description": "UNI ghi lời file ghi âm của buổi họp. Cuộc họp nhiều phần thì tải lần lượt theo thứ tự: mỗi phần nối tiếp phần trước.",
+      "fileLabel": "File ghi âm",
+      "fileHint": "MP3, M4A, WAV, OGG hoặc WebM, tối đa 2 GiB. Không nhận file video.",
+      "tooLarge": "File lớn hơn 2 GiB. Chia nhỏ rồi tải từng phần.",
+      "languageLabel": "Ngôn ngữ chính",
+      "language_vi": "Tiếng Việt",
+      "language_en": "Tiếng Anh",
+      "consent": "Tôi đã thông báo cho người dự họp về việc ghi âm",
+      "consentHint": "Giọng nói là dữ liệu cá nhân. File được gửi tới dịch vụ ghi lời xử lý ở ngoài Việt Nam.",
+      "submit": "Tải lên và ghi lời",
+      "uploading": "Đang tải lên… {{percent}}%",
+      "queued": "Đã nhận file. Ghi lời xong sẽ có thông báo.",
+      "status": {
+        "QUEUED": "Đang chờ ghi lời \"{{file}}\"",
+        "RUNNING": "Đang ghi lời \"{{file}}\"",
+        "COMPLETE": "Đã ghi lời \"{{file}}\"",
+        "FAILED": "Không ghi lời được \"{{file}}\""
+      },
+      "error": {
+        "file_unavailable": "Không đọc được file.",
+        "provider_error": "Dịch vụ ghi lời báo lỗi.",
+        "timeout": "Quá thời gian chờ."
+      }
+    }
   },
   "calendar": {
     "title": "Lịch",
@@ -5567,6 +5606,8 @@
       "meeting_invited": "{{actor}} đã mời bạn họp “{{meeting}}”",
       "meeting_starting": "“{{meeting}}” bắt đầu sau {{minutes}} phút",
       "meeting_summary_reminder": "“{{meeting}}” đã kết thúc · Tóm tắt và tạo việc",
+      "meeting_transcript_ready": "Đã ghi lời xong file ghi âm “{{meeting}}”",
+      "meeting_transcript_failed": "Không ghi lời được file ghi âm “{{meeting}}”",
       "member_added": "{{actor}} đã thêm bạn vào workspace {{workspace}}",
       "role_changed": "{{actor}} đã đổi vai trò của bạn thành {{role}}",
       "audit_export_ready": "Bản xuất nhật ký của bạn đã sẵn sàng",

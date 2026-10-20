@@ -1299,6 +1299,25 @@ describe("useRealtimeSync › meeting scribe", () => {
       ]),
     );
   });
+
+  it("refreshes a meeting's transcriptions, transcript and labels on transcription.*", () => {
+    vi.useFakeTimers();
+    const { invalidate, client } = setup();
+    client.emit({
+      type: "transcription.completed",
+      payload: { meeting_id: "m1", transcription_id: "t1", workspace_id: "ws1" },
+    } as WSMessage);
+    act(() => {
+      vi.advanceTimersByTime(1750);
+    });
+    expect(keysCalled(invalidate)).toEqual(
+      expect.arrayContaining([
+        JSON.stringify(["meeting-transcriptions", "m1"]),
+        JSON.stringify(["meeting-transcript", "m1"]),
+        JSON.stringify(["meeting-speaker-labels", "m1"]),
+      ]),
+    );
+  });
 });
 
 describe("useRealtimeSync › home summary", () => {

@@ -23,6 +23,7 @@ import {
 import { meetingTimeZoneLabel } from "./meeting-detail-format";
 import { MeetingEditDialog } from "./meeting-edit-dialog";
 import { MeetingPersonAvatar } from "./meeting-person";
+import { MeetingRecordHeldButton } from "./meeting-record-held-dialog";
 import { formatRelativeTime, meetingDurationParts } from "./meeting-relative-time";
 import { MeetingRsvpBar } from "./meeting-rsvp-bar";
 import { browserTimeZone } from "./meeting-schedule-fields";
@@ -260,6 +261,7 @@ export function MeetingDetailHero({
                       }
                     />
                   ) : null}
+                  {canHost ? <MeetingRecordHeldButton workspaceId={workspaceId} meeting={meeting} /> : null}
                   {canCancel ? (
                     <Button type="button" size="sm" variant="destructive" onClick={onCancel}>
                       <Ban aria-hidden />
@@ -282,6 +284,9 @@ export function MeetingDetailHero({
                   <Play aria-hidden />
                   {t("meetings.start")}
                 </Button>
+              ) : null}
+              {canHost && scheduled && nowMs >= Date.parse(meeting.starts_at) ? (
+                <MeetingRecordHeldButton workspaceId={workspaceId} meeting={meeting} size="lg" />
               ) : null}
               {open ? (
                 <Button type="button" size="lg" variant="brand" onClick={onJoin}>

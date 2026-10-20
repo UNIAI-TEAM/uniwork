@@ -329,12 +329,17 @@ function keysFor(
       if (payload.meeting_id) push(meetingKeys.transcript(payload.meeting_id));
       break;
     }
-    // A shared-mic speaker label appeared or was assigned: the labels, and the
-    // names the transcript shows for them.
-    case "speaker_label.updated": {
+    // A speaker label appeared or was assigned, or an uploaded recording was
+    // queued, transcribed or failed (UNI-2001): the labels, the names and
+    // lines of the transcript, and the recordings' status.
+    case "speaker_label.updated":
+    case "transcription.requested":
+    case "transcription.completed":
+    case "transcription.failed": {
       if (payload.meeting_id) {
         push(meetingKeys.speakerLabels(payload.meeting_id));
         push(meetingKeys.transcript(payload.meeting_id));
+        push(meetingKeys.transcriptions(payload.meeting_id));
       }
       break;
     }

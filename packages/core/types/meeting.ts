@@ -168,6 +168,11 @@ export const TranscriptSegmentSchema = z.object({
   speaker_label: z.string().optional(),
   /** …and its "Speaker n" number in the meeting (absent when unknown). */
   room_speaker: z.number().optional(),
+  /** CAPTION | AGENT | TRANSCRIPTION (an uploaded recording). */
+  source: z.string().optional(),
+  transcription_id: z.string().optional(),
+  start_ms: z.number().optional(),
+  end_ms: z.number().optional(),
 });
 export type MeetingTranscriptSegment = z.infer<typeof TranscriptSegmentSchema>;
 
@@ -248,6 +253,8 @@ export const MeetingCapabilitiesSchema = z.object({
   recording: z.boolean().optional(),
   /** The AI scribe agent serves this workspace's meetings. */
   scribe: z.boolean().optional(),
+  /** Uploaded recordings may be transcribed in batch (UNI-2001). */
+  transcription: z.boolean().optional(),
 });
 export type MeetingCapabilities = z.infer<typeof MeetingCapabilitiesSchema>;
 
@@ -362,3 +369,24 @@ export type MotionDraftInput = {
   threshold: MotionThreshold;
   base: MotionBase;
 };
+
+/** One transcription of one uploaded recording (UNI-2001). */
+export const MeetingTranscriptionSchema = z.object({
+  id: z.string(),
+  meeting_id: z.string(),
+  file_id: z.string().optional(),
+  filename: z.string().optional(),
+  size_bytes: z.number().optional(),
+  language: z.string().optional(),
+  /** QUEUED | RUNNING | COMPLETE | FAILED */
+  status: z.string(),
+  /** file_unavailable | provider_error | timeout */
+  error_code: z.string().optional(),
+  attempts: z.number().optional(),
+  starts_at: z.string().optional(),
+  audio_seconds: z.number().optional(),
+  created_by: z.string().optional(),
+  created_at: z.string().optional(),
+  completed_at: z.string().optional(),
+});
+export type MeetingTranscription = z.infer<typeof MeetingTranscriptionSchema>;

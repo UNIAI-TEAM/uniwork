@@ -54,6 +54,7 @@
     "./meetings/summary-task-items": "./meetings/summary-task-items.ts",
     "./meetings/summary": "./meetings/summary-hooks.ts",
     "./meetings/speaker-labels": "./meetings/speaker-label-hooks.ts",
+    "./meetings/transcriptions": "./meetings/transcription-hooks.ts",
     "./documents": "./documents/hooks.ts",
     "./documents/schema": "./documents/schema.ts",
     "./documents/hooks": "./documents/hooks.ts",
