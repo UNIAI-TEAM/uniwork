@@ -19,7 +19,7 @@ var (
 		"get_meeting": true, "list_projects": true, "get_project": true, "get_document": true,
 		"list_chat_rooms": true, "read_chat_room": true, "list_members": true, "member_workload": true,
 	}
-	askOutcomes = map[string]bool{"answered": true, "agent_failed": true, "refused": true, "rate_limited": true, "busy": true, "timeout": true}
+	askOutcomes = map[string]bool{"answered": true, "agent_failed": true, "refused": true, "rate_limited": true, "busy": true, "timeout": true, "stopped": true, "interrupted": true}
 	askStatuses = map[string]bool{"ok": true, "error": true, "truncated": true}
 )
 
@@ -27,7 +27,7 @@ func NewAIAsk() *AIAsk {
 	return &AIAsk{
 		Runs: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name: "uniwork_ai_ask_runs_total",
-			Help: "Ask UNI agent runs by outcome (answered, agent_failed, refused, rate_limited, busy, timeout); a vendor or quota limit is rate_limited, infrastructure errors count as agent_failed.",
+			Help: "Ask UNI agent runs by outcome (answered, agent_failed, refused, rate_limited, busy, timeout, stopped, interrupted); a vendor or quota limit is rate_limited, infrastructure errors count as agent_failed, a run the asker stopped is stopped and one cut by a server shutdown interrupted.",
 		}, []string{"outcome"}),
 		Rounds: prometheus.NewHistogram(prometheus.HistogramOpts{
 			Name:    "uniwork_ai_ask_run_rounds",

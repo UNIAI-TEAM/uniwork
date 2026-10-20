@@ -1,0 +1,255 @@
+package service
+
+import (
+	"context"
+	"reflect"
+	"slices"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/jackc/pgx/v5/pgtype"
+
+	"github.com/unicomhub/uniwork/server/internal/ai"
+	"github.com/unicomhub/uniwork/server/internal/ai/provider"
+	"github.com/unicomhub/uniwork/server/internal/util"
+	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
+)
+
+// joinDeltas is the text of the delta events in events.
+func joinDeltas(events []AskEvent) string {
+	var b strings.Builder
+	for _, e := range events {
+		if e.Name == "delta" {
+			b.WriteString(e.Delta)
+		}
+	}
+	return b.String()
+}
+
+// lastStep is the index of the last step event, -1 for none.
+func lastStep(events []AskEvent) int {
+	for i := len(events) - 1; i >= 0; i-- {
+		if events[i].Name == "step" {
+			return i
+		}
+	}
+	return -1
+}
+
+// cancelOnDelta is a sink that records events and calls stop once, right
+// after the n-th delta: the stream is cut at a known point, never by a clock.
+func cancelOnDelta(events *[]AskEvent, n int, stop func()) AskSink {
+	seen := 0
+	return func(e AskEvent) {
+		*events = append(*events, e)
+		if e.Name == "delta" {
+			if seen++; seen == n {
+				stop()
+			}
+		}
+	}
+}
+
+// priceAgentModel gives the fake agent model a rate, so a charged call costs.
+func priceAgentModel(t *testing.T, s *AskUNIService) {
+	t.Helper()
+	if _, err := s.q.AiInsertRate(context.Background(), db.AiInsertRateParams{
+		ID: util.NewID(), Provider: "fake", Model: "fake", InputMicrosPerMtok: 2_000_000, OutputMicrosPerMtok: 10_000_000,
+		EffectiveAt: pgtype.Timestamptz{Time: time.Now().Add(-time.Minute), Valid: true},
+	}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestAskAgentStreamsStepsDeltasCitationsDone(t *testing.T) {
+	s, fake, ua, w := agentAskFixture(t)
+	agentTask(t, s, ua, w, "Banner Tết")
+	agentTask(t, s, ua, w, "Banner Trung thu")
+	scriptAgent(fake, "banner", "Có 2 việc [S1]")
+	fake.StreamChunk = 4
+	var events []AskEvent
+	res, err := s.AskStream(context.Background(), ua.ID, w.ID, AskInput{Question: "Banner tới đâu?", Locale: "vi"}, collectEvents(&events))
+	if err != nil {
+		t.Fatal(err)
+	}
+	// 14 runes in 4-rune deltas: the answer streams live, and no trailing
+	// delta repeats it.
+	if want := []string{"run", "step", "delta", "delta", "delta", "delta", "citations", "done"}; !slices.Equal(eventNames(events), want) {
+		t.Fatalf("events %v, want %v", eventNames(events), want)
+	}
+	if want := (AskStepEvent{Round: 1, Phase: "tool", Tool: "search", Counts: map[string]int{"task": 2}}); !reflect.DeepEqual(*events[1].Step, want) {
+		t.Fatalf("step %+v, want %+v", *events[1].Step, want)
+	}
+	if got := joinDeltas(events[lastStep(events):]); got != res.Message.Content || got != "Có 2 việc [S1]" {
+		t.Fatalf("deltas after the last step %q, stored %q", got, res.Message.Content)
+	}
+	if len(res.Citations) != 1 || !slices.Equal(events[6].Citations, res.Citations) {
+		t.Fatalf("citations %+v vs %+v", events[6].Citations, res.Citations)
+	}
+	if events[7].Done == nil || events[7].Done.Message.ID != res.Message.ID {
+		t.Fatalf("done %+v", events[7].Done)
+	}
+}
+
+func TestAskAgentStopStoresPartialAndCharges(t *testing.T) {
+	s, fake, ua, w := agentAskFixture(t)
+	priceAgentModel(t, s)
+	m := &agentMetricsFake{}
+	s.SetAgentMetrics(m)
+	s.agentRuns = newUniworkConcurrency(nil, "ai:ask:", askAgentPodMax, 1, askAgentGlobalMax, time.Minute)
+	agentTask(t, s, ua, w, "Banner Tết")
+	scriptAgent(fake, "banner", "Có 2 việc [S1]")
+	// The cancel comes inside the second delta, so the stream sees it before
+	// any third delta, whatever the delay.
+	fake.StreamChunk, fake.StreamDelay = 4, 10*time.Millisecond
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	var events []AskEvent
+	res, err := s.AskStream(ctx, ua.ID, w.ID, AskInput{Question: "Banner tới đâu?", Locale: "vi"}, cancelOnDelta(&events, 2, cancel))
+	if err != nil {
+		t.Fatalf("err %v, want the stopped turn stored and returned", err)
+	}
+	sent := joinDeltas(events)
+	if sent != "Có 2 việ" || res.Message.Notice.String != ai.NoticeStopped || res.Message.Content != sent {
+		t.Fatalf("deltas %q, stored %+v", sent, res.Message)
+	}
+	names := eventNames(events)
+	if done := events[len(events)-1]; !slices.Equal(names[len(names)-2:], []string{"citations", "done"}) || done.Done.Message.Notice.String != ai.NoticeStopped {
+		t.Fatalf("events %v", names)
+	}
+	rows, err := s.q.AiListMessages(context.Background(), res.ConversationID)
+	if err != nil || len(rows) != 2 || rows[1].Notice.String != ai.NoticeStopped || rows[1].Content != sent {
+		t.Fatalf("stored rows %+v %v", rows, err)
+	}
+	usage, err := s.q.AiGetUsageEvent(context.Background(), res.Message.UsageEventID.String)
+	if err != nil || usage.Status != "cancelled" || usage.ReasonCode.String != ai.ErrCancelled.Code || usage.CostMicros <= 0 {
+		t.Fatalf("usage row of the stopped call %+v %v", usage, err)
+	}
+	if res.Usage.InputTokens <= 10 || res.Usage.OutputTokens <= 5 {
+		t.Fatalf("usage %+v, want the stopped call's tokens added", res.Usage)
+	}
+	release, err := s.agentRuns.Acquire(context.Background(), w.OrganizationID)
+	if err != nil {
+		t.Fatalf("the run's slot was not released: %v", err)
+	}
+	release()
+	if !reflect.DeepEqual(m.runs, []string{"stopped/1"}) {
+		t.Fatalf("runs %v", m.runs)
+	}
+}
+
+func TestAskAgentShutdownInterruptsRun(t *testing.T) {
+	s, fake, ua, w := agentAskFixture(t)
+	m := &agentMetricsFake{}
+	s.SetAgentMetrics(m)
+	agentTask(t, s, ua, w, "Banner Tết")
+	scriptAgent(fake, "banner", "Có 2 việc [S1]")
+	// Shutdown reaches the run on another goroutine: the wait after the
+	// first delta ends with it, not the clock.
+	fake.StreamChunk, fake.StreamDelay = 4, 5*time.Second
+	var events []AskEvent
+	res, err := s.AskStream(context.Background(), ua.ID, w.ID, AskInput{Question: "Banner tới đâu?", Locale: "vi"}, cancelOnDelta(&events, 1, s.Shutdown))
+	if err != nil {
+		t.Fatal(err)
+	}
+	done := events[len(events)-1]
+	if done.Name != "done" || done.Done.Message.Notice.String != ai.NoticeInterrupted || done.Done.Message.Content != "Có 2" {
+		t.Fatalf("last event %s %+v", done.Name, done.Done)
+	}
+	rows, err := s.q.AiListMessages(context.Background(), res.ConversationID)
+	if err != nil || len(rows) != 2 || rows[1].Notice.String != ai.NoticeInterrupted || rows[1].Content != "Có 2" {
+		t.Fatalf("stored rows %+v %v", rows, err)
+	}
+	if !reflect.DeepEqual(m.runs, []string{"interrupted/1"}) {
+		t.Fatalf("runs %v", m.runs)
+	}
+	s.Shutdown() // again, with nothing in flight
+}
+
+func TestAskAgentRetryEmitsARetryStep(t *testing.T) {
+	s, fake, ua, w := agentAskFixture(t)
+	agentTask(t, s, ua, w, "Banner Tết")
+	calls := 0
+	fake.Reply = func(provider.CompletionRequest) provider.CompletionResponse {
+		calls++
+		switch calls {
+		case 1:
+			return provider.CompletionResponse{ToolCalls: []provider.ToolCall{searchCall("call-1")}, StopReason: "tool_use", UsagePresent: true, InputTokens: 10}
+		case 2:
+			return provider.CompletionResponse{Text: "Banner đang", StopReason: "max_tokens", UsagePresent: true, InputTokens: 10}
+		}
+		return provider.CompletionResponse{Text: "ok [S1]", StopReason: "end_turn", UsagePresent: true, InputTokens: 10}
+	}
+	fake.StreamChunk = 4
+	var events []AskEvent
+	res, err := s.AskStream(context.Background(), ua.ID, w.ID, AskInput{Question: "Banner?", Locale: "vi"}, collectEvents(&events))
+	if err != nil {
+		t.Fatal(err)
+	}
+	i := lastStep(events)
+	if i < 0 || events[i].Step.Phase != "retry" {
+		t.Fatalf("events %v, want a retry step last", eventNames(events))
+	}
+	if before, after := joinDeltas(events[:i]), joinDeltas(events[i:]); before != "Banner đang" || after != "ok [S1]" || res.Message.Content != after {
+		t.Fatalf("deltas before the retry %q, after %q, stored %q", before, after, res.Message.Content)
+	}
+}
+
+func TestAskStreamP0StopStoresAnEmptyStoppedTurn(t *testing.T) {
+	s, _, ua, _, w := askFixture(t)
+	if _, err := s.tasks.Create(context.Background(), Human(ua.ID), w.ID, CreateTaskInput{Title: "Viết spec F-09"}); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	var events []AskEvent
+	sink := func(e AskEvent) {
+		events = append(events, e)
+		if e.Name == "run" {
+			cancel() // the asker leaves before the model answers
+		}
+	}
+	res, err := s.AskStream(ctx, ua.ID, w.ID, AskInput{Question: "spec F-09", Locale: "vi"}, sink)
+	if err != nil {
+		t.Fatalf("err %v, want the stopped turn stored", err)
+	}
+	if want := []string{"run", "citations", "done"}; !slices.Equal(eventNames(events), want) {
+		t.Fatalf("events %v, want %v", eventNames(events), want)
+	}
+	if res.Message.Notice.String != ai.NoticeStopped || res.Message.Content != "" || messageCount(t, s, res.ConversationID) != 2 {
+		t.Fatalf("stored %+v", res.Message)
+	}
+}
+
+// Untrusted tags are stripped before a delta leaves, even when one spans two
+// deltas (ruling PF1): a "<" not yet closed is held back, and a call whose
+// stripped text stops extending what was sent sends nothing more.
+func TestAskStreamDraftStripsTagsAcrossDeltas(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		raw  []string
+		want []string
+	}{
+		{"tag across deltas", []string{"ok <untr", "usted source=\"x\">a", "</untrusted> b"}, []string{"ok ", "a", " b"}},
+		{"open bracket held", []string{"a < b", " c"}, []string{"a "}},
+		// A full-width bracket is not held back: once the tag completes, the
+		// stripped text drops what was sent, and the call sends nothing more.
+		{"text that shrinks stops the call", []string{"x ＜untr", "usted y", "\nz"}, []string{"x ＜untr"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var events []AskEvent
+			d := &askDraft{emit: collectEvents(&events)}
+			for _, r := range tc.raw {
+				d.add(r)
+			}
+			var got []string
+			for _, e := range events {
+				got = append(got, e.Delta)
+			}
+			if !slices.Equal(got, tc.want) || d.sent != strings.Join(tc.want, "") {
+				t.Fatalf("deltas %q (sent %q), want %q", got, d.sent, tc.want)
+			}
+		})
+	}
+}

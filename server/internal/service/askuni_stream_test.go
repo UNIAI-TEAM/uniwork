@@ -122,12 +122,14 @@ func TestAskStreamAgentEmitsRunFirstWithItsRunID(t *testing.T) {
 	s, fake, ua, w := agentAskFixture(t)
 	agentTask(t, s, ua, w, "Banner Tết")
 	scriptAgent(fake, "banner", "Xong [S1]")
+	fake.StreamChunk = 64 // the answer in one delta
 	var events []AskEvent
 	res, err := s.AskStream(context.Background(), ua.ID, w.ID, AskInput{Question: "Banner tới đâu?", Locale: "vi"}, collectEvents(&events))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := []string{"run", "delta", "citations", "done"}; !slices.Equal(eventNames(events), want) {
+	// The search round reports a step; the answer streams live (Task 4).
+	if want := []string{"run", "step", "delta", "citations", "done"}; !slices.Equal(eventNames(events), want) {
 		t.Fatalf("events %v, want %v", eventNames(events), want)
 	}
 	if res.RunID == "" || events[0].Run.RunID != res.RunID {

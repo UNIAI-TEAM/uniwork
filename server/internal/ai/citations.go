@@ -35,6 +35,14 @@ const NoticeAgentFailed = "agent_failed"
 // refusal); the row stores no content.
 const NoticeRefused = "refused"
 
+// NoticeStopped marks a turn the asker stopped midway; the row keeps the
+// answer text streamed until then.
+const NoticeStopped = "stopped"
+
+// NoticeInterrupted marks a turn cut by the server shutting down; the row
+// keeps the answer text streamed until then.
+const NoticeInterrupted = "interrupted"
+
 // NoSourcesAnswer is what the caller says when the pack is empty: the
 // model is not even asked, so it cannot assert anything (spec §3.6).
 const NoSourcesAnswer = "Chưa đủ dữ liệu trong workspace để trả lời."

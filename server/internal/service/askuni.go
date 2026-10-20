@@ -41,6 +41,9 @@ type AskUNIService struct {
 	// agent's run and tool surface, nil reporting nothing.
 	agentRuns    *uniworkConcurrency
 	agentMetrics AskAgentMetrics
+	// life ends when Shutdown runs; every agent run is cancelled with it.
+	life     context.Context
+	shutdown context.CancelCauseFunc
 }
 
 // SetEmailHub wires Email Hub for focus reads (optional; set from main after construction).
@@ -63,10 +66,12 @@ func (s *AskUNIService) SetReadTools(m *McpToolService) { s.reads = m }
 type taskRow = db.Task
 
 func NewAskUNIService(pool *pgxpool.Pool, q *db.Queries, ws *WorkspaceService, orgs *OrganizationService, tasks *TaskService, meetings *MeetingService, chat *ChatService, gw *ai.Gateway, rdb *redis.Client) *AskUNIService {
+	life, shutdown := context.WithCancelCause(context.Background())
 	return &AskUNIService{
 		pool: pool, q: q, ws: ws, orgs: orgs, tasks: tasks, meetings: meetings, chat: chat, gw: gw,
 		ent: NewEntitlementService(pool, q), rdb: rdb, now: time.Now,
 		agentRuns: newUniworkConcurrency(rdb, "ai:ask:", askAgentPodMax, askAgentOrgMax, askAgentGlobalMax, askAgentDeadline+10*time.Second),
+		life:      life, shutdown: shutdown,
 	}
 }
 
@@ -256,16 +261,29 @@ func (s *AskUNIService) AskStream(ctx context.Context, userID, workspaceID strin
 			},
 			History: history(rows), Sources: pack, Truncated: truncated, Tools: AskUniTools(s),
 		})
-		if err != nil {
+		switch {
+		case err != nil && (errors.Is(err, ai.ErrCancelled) || ctx.Err() != nil):
+			// The asker left mid-call. P0 streams no text, so the turn is
+			// kept empty, stored past the request (R6).
+			notice = ai.NoticeStopped
+			var e *ai.Error
+			if errors.As(err, &e) {
+				resp.UsageEventID = e.UsageEventID
+			}
+			var cancel context.CancelFunc
+			ctx, cancel = context.WithTimeout(context.WithoutCancel(ctx), askAgentStoreTimeout)
+			defer cancel()
+		case err != nil:
 			return AskResult{}, err
-		}
-		answer, err = ai.ParseAnswer(resp.Text, pack)
-		if err != nil {
-			return AskResult{}, err
-		}
-		answer.Answer = ai.StripUntrustedTags(answer.Answer)
-		if strings.TrimSpace(answer.Answer) == "" {
-			answer.Answer, notice = "", ai.NoticeEmptyAnswer
+		default:
+			answer, err = ai.ParseAnswer(resp.Text, pack)
+			if err != nil {
+				return AskResult{}, err
+			}
+			answer.Answer = ai.StripUntrustedTags(answer.Answer)
+			if strings.TrimSpace(answer.Answer) == "" {
+				answer.Answer, notice = "", ai.NoticeEmptyAnswer
+			}
 		}
 	}
 	citations := make([]AskCitation, 0, len(answer.Citations))

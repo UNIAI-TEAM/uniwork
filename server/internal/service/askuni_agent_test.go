@@ -917,7 +917,7 @@ func TestAskAgentToolDeadlineIsTimeout(t *testing.T) {
 	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
 	defer cancel()
 	tc := ai.ToolContext{ActorID: ua.ID, OrganizationID: w.OrganizationID, WorkspaceID: w.ID}
-	_, err := s.agentToolCall(ctx, s.agentTools(), tc, searchCall("call-1"), newSourceBook(nil), 0, askAgentToolResultMax)
+	_, _, err := s.agentToolCall(ctx, s.agentTools(), tc, searchCall("call-1"), newSourceBook(nil), 0, askAgentToolResultMax)
 	if !errors.Is(err, ai.ErrProviderTimeout) || !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("err %v, want ai_provider_timeout wrapping the deadline", err)
 	}
