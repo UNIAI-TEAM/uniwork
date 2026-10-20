@@ -92,3 +92,30 @@ async def test_room_close_calls_once_more_only_with_new_finals():
     clock.t += 30
     await c.tick()
     assert len(calls) == 1  # closed: the cadence stops
+
+
+async def test_a_call_cancelled_at_shutdown_leaves_its_lines_to_final():
+    import asyncio
+
+    clock = Clock()
+    started = asyncio.Event()
+    calls: list[str] = []
+
+    async def extract() -> None:
+        calls.append("call")
+        if len(calls) == 1:
+            started.set()
+            await asyncio.sleep(3600)  # in flight when shutdown cancels it
+
+    c = ExtractCadence(extract, clock=clock)
+    finals(c, clock, 5)
+    clock.t += 20
+    tick = asyncio.create_task(c.tick())
+    await started.wait()
+    tick.cancel()
+    try:
+        await tick
+    except asyncio.CancelledError:
+        pass
+    await c.final()
+    assert calls == ["call", "call"]

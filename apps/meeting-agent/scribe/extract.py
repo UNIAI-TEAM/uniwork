@@ -8,6 +8,7 @@ covers the same lines."""
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 from collections import deque
@@ -73,8 +74,13 @@ class ExtractCadence:
         self._last_call = now
         # Reset before the call: on failure the server's cursor has not moved,
         # so the next due call reads these lines again.
-        self._new = 0
+        taken, self._new = self._new, 0
         try:
             await self._extract()
+        except asyncio.CancelledError:
+            # Cancelled in flight at shutdown: the cursor has not moved, so
+            # final() must still see these lines.
+            self._new += taken
+            raise
         except Exception as e:  # noqa: BLE001 - live items are a nicety; the summary covers the meeting
             log.warning("extract failed err=%s", type(e).__name__)
