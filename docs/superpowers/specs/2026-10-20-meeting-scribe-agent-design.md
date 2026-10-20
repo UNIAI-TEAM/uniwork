@@ -1,6 +1,6 @@
 # Meetings: Thư ký AI trong phòng họp (LiveKit Agents)
 
-> **Trạng thái:** in-progress — spec đã duyệt ngày 2026-10-20 (chủ sản phẩm trả lời §13 cùng ngày); chưa triển khai đợt nào.
+> **Trạng thái:** in-progress — spec đã duyệt ngày 2026-10-20 (chủ sản phẩm trả lời §13 cùng ngày); S0 xong (kết quả ở `2026-10-20-meeting-scribe-agent-s0-results.md`), S1 đang triển khai (UNI-2023).
 
 **Issue:** UNI-1995 (cha); S0 UNI-2022, S1 UNI-2023, S2 UNI-2024, S3 UNI-2025, S4
 UNI-2026, S5 UNI-2027, S6 UNI-2028, S7 UNI-2029; hạ tầng SIP UNI-2030; ghi hình sang

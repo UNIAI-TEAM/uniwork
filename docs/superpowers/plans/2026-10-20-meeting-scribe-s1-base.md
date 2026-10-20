@@ -1,6 +1,6 @@
 # Thư ký AI S1 (UNI-2023): thư ký AI nền — kế hoạch triển khai
 
-> **Trạng thái:** in-progress — kế hoạch ngày 2026-10-20, triển khai trên nhánh `feature/UNI-2023-meetings-thu-ky-ai-s1-thu-ky-ai-nen-ghi-lo`.
+> **Trạng thái:** in-progress — đủ 5 lớp trên nhánh `feature/UNI-2023-meetings-thu-ky-ai-s1-thu-ky-ai-nen-ghi-lo` (ADR, migration, server, agent + CI + deploy, web; e2e có cổng `E2E_SCRIBE=1`); chưa chạy thật với LiveKit + agent + AssemblyAI, chờ review và merge.
 
 **Spec:** `docs/superpowers/specs/2026-10-20-meeting-scribe-agent-design.md` §1.3, §3, §4.1,
 §4.2, §4.6, §6.1, §6.2 (`scribe_off_at/_by`, cột segment), §7.1, §7.2 (`PUT /scribe`,
