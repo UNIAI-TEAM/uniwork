@@ -8,6 +8,7 @@ import { ApiError } from "@uniwork/core/api";
 import { useDocumentEditLock } from "@uniwork/core/documents/hooks-edit-lock";
 import { useDocumentSave } from "@uniwork/core/documents/hooks";
 import { documentKeys } from "@uniwork/core/documents/keys";
+import { parseVersionParam } from "@uniwork/core/office/version-view";
 import type { DocumentSaveState } from "@uniwork/core/documents/save-state";
 import type { Document } from "@uniwork/core/types/document";
 import { useNavigation } from "../navigation";
@@ -59,13 +60,15 @@ export function useDocumentEditLockUi({ wsId, doc, canEdit, active, hasUnsavedWo
   const qc = useQueryClient();
   const { searchParams } = useNavigation();
   const page = doc.kind === "page";
+  // A stored version open read-only (`?version=N`, UNI-2033) holds no lock: reading must not block the editors.
+  const versionView = !page && parseVersionParam(searchParams.get("version")) !== null;
   const baseRef = useRef(doc.revision);
   // After an expiry while away: take the lock back only if the server is still at the editor's base.
   const canReclaim = useCallback(async () => {
     const fresh = await refetch();
     return !fresh.isError && fresh.data?.revision === baseRef.current;
   }, [refetch]);
-  const lock = useDocumentEditLock(wsId, doc.id, { canEdit: canEdit && active, client: page ? "web_page" : "web_office", canReclaim });
+  const lock = useDocumentEditLock(wsId, doc.id, { canEdit: canEdit && active && !versionView, client: page ? "web_page" : "web_office", canReclaim });
   const save = useDocumentSave(wsId, doc.id, doc.revision, { editLockId: lock.editLockId });
   const saveState = save.state as DocumentSaveState;
   baseRef.current = saveState.revision;

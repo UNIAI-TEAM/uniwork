@@ -42,21 +42,25 @@ export interface DocumentsHomeHeaderProps {
   onFolder: (folderId: string) => void;
   /** The commands the open folder's ⋯ menu may offer (its own level gates them). */
   folderHandlers: Pick<LibraryRowHandlers, "onNewSubfolder" | "onRename" | "onMove" | "onShelve" | "onArchive" | "onToggleStar" | "isStarred">;
+  /** Opens the access report scoped to the open folder; offered in its ⋯ menu to a manager. */
+  onAccessReport?: (folderId: string) => void;
   search: UseDocumentsSearchResult;
   canCreate: boolean;
   create: CreateChoicesProps;
-  /** Host extras beside the create buttons (Office launch, the access report, the mobile nav). */
+  /** Host extras beside the create buttons (Office launch, the mobile nav). */
   actions?: React.ReactNode;
 }
 
-export function DocumentsHomeHeader({ wsId, folderDoc, canRename, myFolderId = null, onRoot, onFolder, folderHandlers, search, canCreate, create, actions }: DocumentsHomeHeaderProps) {
+export function DocumentsHomeHeader({ wsId, folderDoc, canRename, myFolderId = null, onRoot, onFolder, folderHandlers, onAccessReport, search, canCreate, create, actions }: DocumentsHomeHeaderProps) {
   const { t } = useTranslation();
   const rename = useUpdateDocument(wsId, folderDoc?.id ?? "");
   const myFolder = isMyFolder(folderDoc);
   const folderLabel = folderDoc
     ? (myFolder ? t("documents.home.my_folder.label") : folderDoc.title) || t("documents.detail.untitled")
     : t("documents.home.sidebar.home");
-  const menuItems = folderDoc ? folderMenuItems(folderDoc, folderHandlers, t) : [];
+  const menuItems = folderDoc
+    ? folderMenuItems(folderDoc, folderHandlers, t, onAccessReport && (() => onAccessReport(folderDoc.id)))
+    : [];
   const starred = Boolean(folderDoc && folderHandlers.isStarred(folderDoc.id));
   const canMenu = Boolean(folderDoc) && (menuItems.length > 0 || Boolean(folderHandlers.onToggleStar));
   const folderMenu =

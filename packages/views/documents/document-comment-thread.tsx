@@ -9,6 +9,7 @@ import type {
 } from "@uniwork/core/types/document";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
+import { AppLink } from "../navigation";
 import { DocumentCommentComposer, type SendOptions, type SendOutcome } from "./document-comment-composer";
 import { DocumentCommentEntry } from "./document-comment-entry";
 import type { MentionNames } from "./document-comment-body";
@@ -55,6 +56,11 @@ export interface ThreadContext {
   blockedReasonId?: string;
   deletedKey: string;
   postSendNotices?: ReadonlyMap<string, DocumentCommentMentionWithoutAccess[]>;
+  /**
+   * Where a lost comment's version opens read-only (UNI-2033), or null when it cannot: the page URL
+   * `?version=N&comment=<id>` and N. Absent = the panel offers no such action.
+   */
+  versionView?: (root: DocumentComment) => { href: string; versionNo: number } | null;
   actions: ThreadActions;
 }
 
@@ -100,6 +106,7 @@ export function DocumentCommentThread({
   const stateKey = root.kind === "comment" ? anchorStateKey(root.anchor_state) : null;
   const resolved = !!root.resolved_at;
   const deleted = !!root.deleted_at;
+  const viewVersion = root.kind === "comment" && root.anchor_state === "lost" && !deleted ? ctx.versionView?.(root) ?? null : null;
   const target = replyTargetOf(thread);
   const mine = (comment: DocumentComment) =>
     !!ctx.currentUserId && comment.author_id === ctx.currentUserId && comment.author_kind !== "agent";
@@ -124,13 +131,18 @@ export function DocumentCommentThread({
     .filter(Boolean)
     .join(" ");
 
-  const meta = anchor || stateKey || resolved ? (
+  const meta = anchor || stateKey || resolved || viewVersion ? (
     <p className="mt-0.5 flex flex-wrap items-center gap-x-2 text-micro text-muted-foreground">
       {anchor ? <span id={anchorId} title={anchor.title}>{t(anchor.key, anchor.values)}</span> : null}
       {stateKey ? (
         <span id={stateId} className="font-medium text-warning-soft-foreground" data-anchor-state={root.anchor_state}>
           {t(stateKey)}
         </span>
+      ) : null}
+      {viewVersion ? (
+        <AppLink href={viewVersion.href} data-anchor-action="view-version" className="font-medium text-primary underline-offset-2 hover:underline">
+          {t(K.collabAnchorViewVersion, { n: viewVersion.versionNo })}
+        </AppLink>
       ) : null}
       {resolved ? <span id={statusId} className="rounded bg-muted px-1.5 font-medium text-foreground">{t(K.collabResolved)}</span> : null}
     </p>

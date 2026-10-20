@@ -1,6 +1,6 @@
 "use client";
 
-import { Archive, Folder, FolderInput, FolderOpen, FolderPlus, Ellipsis, Pencil, Star, StarOff, Trash2 } from "lucide-react";
+import { Archive, Folder, FolderInput, FolderOpen, FolderPlus, Ellipsis, Pencil, ShieldCheck, Star, StarOff, Trash2 } from "lucide-react";
 import { useId } from "react";
 import { useTranslation } from "react-i18next";
 import { isMyFolder, isShelved, type DocumentTreeNode } from "@uniwork/core/types/document";
@@ -146,6 +146,8 @@ export function folderMenuItems(
   doc: DocumentSummaryRow,
   handlers: Pick<LibraryRowHandlers, "onNewSubfolder" | "onRename" | "onMove" | "onShelve" | "onArchive">,
   t: (key: string) => string,
+  /** The open folder's header offers its access report; the cards do not pass this. */
+  onAccessReport?: (doc: DocumentSummaryRow) => void,
 ): FolderMenuItem[] {
   if (doc.archived_at) return [];
   const level = rowLevel(doc);
@@ -159,6 +161,10 @@ export function folderMenuItems(
   }
   if (!myFolder && handlers.onMove && canMoveRow(level)) {
     items.push({ id: "move", label: t("documents.tree.menu.move_to"), icon: FolderInput, run: () => handlers.onMove?.(doc) });
+  }
+  // The report lists grants, which only a manager may read (the server decides again).
+  if (onAccessReport && canArchiveRow(level)) {
+    items.push({ id: "access-report", label: t("documents.accessReport.menu_folder"), icon: ShieldCheck, run: () => onAccessReport(doc) });
   }
   if (!myFolder && handlers.onShelve && canArchiveRow(level) && !isShelved(doc)) {
     // ARCHIVE-01 U-4: Lưu trữ sits beside the trash command, manage-only and

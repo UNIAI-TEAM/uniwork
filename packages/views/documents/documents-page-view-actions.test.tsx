@@ -933,12 +933,35 @@ describe("FD-09 fix r2: trashed folder restore and one menu vocabulary", () => {
   });
 });
 
-describe("workspace access report entry (UNI-1643)", () => {
-  it("the header overflow opens the workspace access report for any member", async () => {
+describe("workspace access report entry (UNI-1643, moved to the sub-nav by UNI-2009)", () => {
+  it("opens the workspace access report from the Documents sub-nav for any member", async () => {
     route({});
     const adapter = renderView();
-    fireEvent.click(await screen.findByRole("button", { name: t("documents.actions.menu_label") }));
-    fireEvent.click(await screen.findByRole("menuitem", { name: t("documents.accessReport.menu_workspace") }));
+    const nav = await screen.findByRole("navigation", { name: t("documents.home.sidebar.label") });
+    fireEvent.click(within(nav).getByRole("link", { name: t("documents.accessReport.title") }));
     expect(adapter.push).toHaveBeenCalledWith("/acme/doi/documents/access-report");
+  });
+
+  it.each(["archived", "recent", "starred"])("keeps the entry on the %s view and draws no header overflow for it", async (view) => {
+    route({});
+    renderView({ ...nav(), searchParams: new URLSearchParams(`view=${view}`) });
+    const subnav = await screen.findByRole("navigation", { name: t("documents.home.sidebar.label") });
+    expect(within(subnav).getByRole("link", { name: t("documents.accessReport.title") })).toHaveAttribute(
+      "href",
+      "/acme/doi/documents/access-report",
+    );
+    expect(screen.queryByRole("button", { name: t("documents.actions.menu_label") })).toBeNull();
+  });
+
+  it("draws no header overflow on the home screen", async () => {
+    route({ list: () => [summary()] });
+    renderView();
+    await screen.findByText("Kế hoạch Q4");
+    expect(screen.queryByRole("button", { name: t("documents.actions.menu_label") })).toBeNull();
+  });
+
+  it("drops the workspace-scoped header menu key from both languages", () => {
+    expect("menu_workspace" in enLocale.documents.accessReport).toBe(false);
+    expect("menu_workspace" in viLocale.documents.accessReport).toBe(false);
   });
 });

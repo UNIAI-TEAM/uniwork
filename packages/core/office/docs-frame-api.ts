@@ -156,11 +156,11 @@ export function docsFrameError(error: unknown): DocsProtocolError {
 }
 
 /** A 200 whose body did not match the contract (parseWithFallback answered null). */
-function malformed(endpoint: string): DocsProtocolError {
+export function malformed(endpoint: string): DocsProtocolError {
   return new DocsProtocolError({ code: "internal", message: `${endpoint}: response did not match the contract`, retryable: true });
 }
 
-function fileMeta(doc: OfficeFrameDocument | OfficeFrameSource): FileMeta {
+export function fileMeta(doc: OfficeFrameDocument | OfficeFrameSource): FileMeta {
   const modifiedAt = doc.updated_at ? Date.parse(doc.updated_at) : Number.NaN;
   return {
     fileId: "source_id" in doc ? doc.source_id : doc.document_id,
@@ -197,7 +197,7 @@ function frameAssets(doc: OfficeFrameDocument): Record<string, string> | undefin
 }
 
 /** The token opens exactly one document; anything else is refused before a round trip. */
-function sameDocument(fileId: string, call: DocsFrameCall): void {
+export function sameDocument(fileId: string, call: DocsFrameCall): void {
   if (fileId !== call.documentId) {
     throw new DocsProtocolError({ code: "forbidden", message: "the frame token is scoped to another document", status: 403 });
   }

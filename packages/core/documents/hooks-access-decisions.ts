@@ -9,6 +9,7 @@ import {
   type DocumentAccessRequestDecision,
   type DocumentAccessRequestLevel,
 } from "../api/endpoints/documents-access-requests";
+import { invalidateDocumentLists } from "./invalidate-lists";
 import { documentKeys } from "./keys";
 
 /**
@@ -42,13 +43,12 @@ function useDecisionInvalidation(wsId: string, documentId: string, grant: boolea
     // Approve may have created a share; decline changes only the list, but the
     // dialog's pending count rides on `shares`, so both refresh together. An
     // approval also lands the document in the caller's Shared by me list, so
-    // its root refreshes without waiting for document.shared (UNI-1851 F2).
-    onSuccess: () =>
-      Promise.all([
-        requests(),
-        qc.invalidateQueries({ queryKey: documentKeys.shares(wsId, documentId) }),
-        ...(grant ? [qc.invalidateQueries({ queryKey: documentKeys.sharedByMe(wsId) })] : []),
-      ]),
+    // its root refreshes without waiting for document.shared (UNI-1851 F2), and
+    // the row's Access cell moves in every list (UNI-2009).
+    onSuccess: () => {
+      if (grant) void invalidateDocumentLists(qc, wsId);
+      return Promise.all([requests(), qc.invalidateQueries({ queryKey: documentKeys.shares(wsId, documentId) })]);
+    },
     // 409 access_request_closed: someone else handled it or it expired, so the
     // list the manager is looking at is stale.
     onError: (err: unknown) => (errorCode(err) === "access_request_closed" ? requests() : undefined),

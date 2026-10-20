@@ -6,12 +6,38 @@ package handler
 // (contract-collab sections 2.2, 2.6, 4.3).
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"errors"
+	"log/slog"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
+
+	"github.com/jackc/pgx/v5"
 
 	"github.com/unicomhub/uniwork/server/internal/service"
 	"github.com/unicomhub/uniwork/server/internal/util"
+	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
+
+type faultVersionLookupDB struct {
+	db.DBTX
+	err error
+}
+
+type faultVersionRow struct{ err error }
+
+func (r faultVersionRow) Scan(...any) error { return r.err }
+
+func (f faultVersionLookupDB) QueryRow(ctx context.Context, sql string, args ...any) pgx.Row {
+	if f.err != nil && strings.Contains(sql, "FROM document_versions") {
+		return faultVersionRow{err: f.err}
+	}
+	return f.DBTX.QueryRow(ctx, sql, args...)
+}
 
 const (
 	anchorXLSXMime    = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -292,5 +318,174 @@ func TestDocumentCommentAnchorsHTTPPptxBlank(t *testing.T) {
 		if code, _ := errCodeClass(out); res.StatusCode != 400 || code != "invalid_request" {
 			t.Fatalf("%s: %d code=%q %v", name, res.StatusCode, code, out)
 		}
+	}
+}
+
+// TestDocumentCommentAnchorsVersionNoHTTP pins UNI-2033 T1 over the real HTTP
+// surface: list and single-comment answers carry anchor_version_no equal to
+// the stored anchor_version_id's ordinal, null when unanchored or when the
+// version row is gone, and the list_token does not change when the derived
+// ordinal changes.
+func TestDocumentCommentAnchorsVersionNoHTTP(t *testing.T) {
+	w := newDocumentCollabWorld(t)
+	docID, versions := w.anchorFileDoc(t, "Anchor version no", anchorXLSXMime, 3)
+
+	wantVerNo := func(t *testing.T, where string, c map[string]any, want any) {
+		t.Helper()
+		got, present := c["anchor_version_no"]
+		if !present {
+			t.Fatalf("%s: anchor_version_no key missing from %v", where, c)
+		}
+		if got != want {
+			t.Fatalf("%s: anchor_version_no = %v (%T), want %v (%T)", where, got, got, want, want)
+		}
+	}
+
+	// Anchored create on version 1 (versions[0]): single answer carries 1.
+	res, out := doJSON(t, w.srv, "POST", w.commentsPath(docID), w.member, map[string]any{
+		"body": "neo v1", "kind": "comment", "anchor": anchorXLSXBody("B7"), "base_version_id": versions[0],
+	})
+	if res.StatusCode != 201 {
+		t.Fatalf("create v1: %d %v", res.StatusCode, out)
+	}
+	c1 := out["comment"].(map[string]any)
+	c1ID := c1["id"].(string)
+	wantVerNo(t, "create v1", c1, float64(1))
+
+	// Anchored create on version 3 (versions[2]): single answer carries 3.
+	res, out = doJSON(t, w.srv, "POST", w.commentsPath(docID), w.member, map[string]any{
+		"body": "neo v3", "kind": "comment", "anchor": anchorXLSXBody("C7"), "base_version_id": versions[2],
+	})
+	if res.StatusCode != 201 {
+		t.Fatalf("create v3: %d %v", res.StatusCode, out)
+	}
+	c3 := out["comment"].(map[string]any)
+	c3ID := c3["id"].(string)
+	wantVerNo(t, "create v3", c3, float64(3))
+
+	// Unanchored discussion create: single answer carries null.
+	res, out = doJSON(t, w.srv, "POST", w.commentsPath(docID), w.member, map[string]any{
+		"body": "thảo luận chung", "kind": "discussion",
+	})
+	if res.StatusCode != 201 {
+		t.Fatalf("create discussion: %d %v", res.StatusCode, out)
+	}
+	disc := out["comment"].(map[string]any)
+	discID := disc["id"].(string)
+	wantVerNo(t, "create discussion", disc, nil)
+
+	// Single-comment mutations (PATCH, resolve, reopen) preserve anchor_version_no.
+	res, out = doJSON(t, w.srv, "PATCH", w.commentsPath(docID)+"/"+c1ID, w.member, map[string]any{"body": "neo v1 sửa"})
+	if res.StatusCode != 200 {
+		t.Fatalf("patch c1: %d %v", res.StatusCode, out)
+	}
+	wantVerNo(t, "patch c1", out["comment"].(map[string]any), float64(1))
+
+	res, out = doJSON(t, w.srv, "POST", w.commentsPath(docID)+"/"+c1ID+"/resolve", w.member, nil)
+	if res.StatusCode != 200 {
+		t.Fatalf("resolve c1: %d %v", res.StatusCode, out)
+	}
+	wantVerNo(t, "resolve c1", out["comment"].(map[string]any), float64(1))
+
+	res, out = doJSON(t, w.srv, "DELETE", w.commentsPath(docID)+"/"+c1ID+"/resolve", w.member, nil)
+	if res.StatusCode != 200 {
+		t.Fatalf("reopen c1: %d %v", res.StatusCode, out)
+	}
+	wantVerNo(t, "reopen c1", out["comment"].(map[string]any), float64(1))
+
+	// PUT anchors moves c1 to version 2 (versions[1]), then marks it lost on
+	// version 3 (which keeps anchor_version_id = versions[1]).
+	res, out = doJSON(t, w.srv, "PUT", w.commentsPath(docID)+"/anchors", w.member, map[string]any{
+		"version_id": versions[1],
+		"anchors":    []any{map[string]any{"comment_id": c1ID, "anchor": anchorXLSXBody("B8"), "state": "exact"}},
+	})
+	if res.StatusCode != 200 {
+		t.Fatalf("PUT anchors v2: %d %v", res.StatusCode, out)
+	}
+	res, out = doJSON(t, w.srv, "PUT", w.commentsPath(docID)+"/anchors", w.member, map[string]any{
+		"version_id": versions[2],
+		"anchors":    []any{map[string]any{"comment_id": c1ID, "anchor": anchorXLSXBody("B8"), "state": "lost"}},
+	})
+	if res.StatusCode != 200 {
+		t.Fatalf("PUT anchors v3 lost: %d %v", res.StatusCode, out)
+	}
+
+	// Single-comment mutation after rebind to version 2 carries 2 before version 2 is deleted.
+	res, out = doJSON(t, w.srv, "PATCH", w.commentsPath(docID)+"/"+c1ID, w.member, map[string]any{"body": "neo v2 sửa"})
+	if res.StatusCode != 200 {
+		t.Fatalf("patch c1 after v2 rebind: %d %v", res.StatusCode, out)
+	}
+	wantVerNo(t, "patch c1 after v2 rebind", out["comment"].(map[string]any), float64(2))
+
+	// List carries 2 for c1, 3 for c3, and null for the unanchored discussion.
+	res, out = doJSON(t, w.srv, "GET", w.commentsPath(docID), w.member, nil)
+	if res.StatusCode != 200 {
+		t.Fatalf("list: %d %v", res.StatusCode, out)
+	}
+	tokenBefore := out["list_token"].(string)
+	byID := map[string]map[string]any{}
+	for _, raw := range out["comments"].([]any) {
+		row := raw.(map[string]any)
+		byID[row["id"].(string)] = row
+	}
+	wantVerNo(t, "list c1 (v2 lost)", byID[c1ID], float64(2))
+	wantVerNo(t, "list c3 (v3 exact)", byID[c3ID], float64(3))
+	wantVerNo(t, "list discussion", byID[discID], nil)
+
+	// Delete version 2's row by SQL: c1's anchor_version_id stays versions[1],
+	// both list and single answers report anchor_version_no = null, and the
+	// list_token is unchanged because the derived ordinal is not hashed.
+	if _, err := w.pool.Exec(context.Background(), "DELETE FROM document_versions WHERE id = $1", versions[1]); err != nil {
+		t.Fatalf("delete version 2: %v", err)
+	}
+	res, out = doJSON(t, w.srv, "GET", w.commentsPath(docID), w.member, nil)
+	if res.StatusCode != 200 {
+		t.Fatalf("list after version gone: %d %v", res.StatusCode, out)
+	}
+	if gotToken := out["list_token"].(string); gotToken != tokenBefore {
+		t.Fatalf("list_token changed when version row vanished: %q -> %q", tokenBefore, gotToken)
+	}
+	byIDAfter := map[string]map[string]any{}
+	for _, raw := range out["comments"].([]any) {
+		row := raw.(map[string]any)
+		byIDAfter[row["id"].(string)] = row
+	}
+	if byIDAfter[c1ID]["anchor_version_id"] != versions[1] {
+		t.Fatalf("c1 anchor_version_id = %v, want %s", byIDAfter[c1ID]["anchor_version_id"], versions[1])
+	}
+	wantVerNo(t, "list c1 after version gone", byIDAfter[c1ID], nil)
+	wantVerNo(t, "list c3 still live", byIDAfter[c3ID], float64(3))
+
+	// Single-comment answer when the version row is gone also reports null.
+	res, out = doJSON(t, w.srv, "POST", w.commentsPath(docID)+"/"+c1ID+"/resolve", w.member, nil)
+	if res.StatusCode != 200 {
+		t.Fatalf("resolve c1 after version gone: %d %v", res.StatusCode, out)
+	}
+	wantVerNo(t, "resolve c1 after version gone", out["comment"].(map[string]any), nil)
+
+	// Post-commit version lookup failure degrades to anchor_version_no = null
+	// with a Warn log instead of turning a committed mutation into HTTP 500.
+	c3Row, err := w.docs.GetDocumentComment(context.Background(), service.Human(w.memberID), c3ID)
+	if err != nil {
+		t.Fatalf("load c3 row: %v", err)
+	}
+	var logBuf bytes.Buffer
+	faultH := &handlers{Deps: Deps{
+		Documents: service.NewDocumentService(w.pool, db.New(faultVersionLookupDB{DBTX: w.pool, err: errors.New("injected version lookup failure")}), nil, nil),
+		Actors:    service.NewActorService(w.q),
+		Log:       slog.New(slog.NewTextHandler(&logBuf, nil)),
+	}}
+	rec := httptest.NewRecorder()
+	faultH.respondDocumentComment(rec, httptest.NewRequest("POST", w.commentsPath(docID)+"/"+c3ID+"/resolve", nil), http.StatusOK, c3Row)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("fault-injected post-commit lookup status = %d, want 200: %s", rec.Code, rec.Body.String())
+	}
+	var faultOut map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &faultOut); err != nil {
+		t.Fatalf("decode fault-injected response: %v", err)
+	}
+	wantVerNo(t, "fault-injected post-commit lookup", faultOut["comment"].(map[string]any), nil)
+	if gotLog := logBuf.String(); !strings.Contains(gotLog, "comment_id="+c3ID) || !strings.Contains(gotLog, "injected version lookup failure") {
+		t.Fatalf("expected Warn log with comment_id=%s and error, got %q", c3ID, gotLog)
 	}
 }

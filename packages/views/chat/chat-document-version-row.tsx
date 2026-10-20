@@ -7,6 +7,7 @@ import { cn } from "@uniwork/ui/lib/utils";
 import { useOptionalWorkspace } from "../layout/workspace-context";
 import { useNavigation } from "../navigation";
 import type { ChatMessage } from "./chat-messages";
+import { CHAT_ROW_WASH } from "./chat-message-row";
 
 /**
  * UNI-1966 (contract §4.4 / L7): the compact system line a version commit
@@ -48,8 +49,9 @@ function ChatDocumentVersionRowImpl({
       tabIndex={-1}
       className={cn(
         "flex w-full max-w-full justify-center rounded-lg",
+        CHAT_ROW_WASH,
         compactTop ? "mt-1" : "mt-2",
-        highlighted && "bg-brand-subtle ring-2 ring-brand",
+        highlighted && "before:bg-brand-subtle before:ring-1 before:ring-brand/25",
       )}
     >
       {canOpen ? (

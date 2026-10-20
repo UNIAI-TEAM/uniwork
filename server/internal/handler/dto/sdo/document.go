@@ -550,6 +550,7 @@ type DocumentCommentDTO struct {
 	Anchor      json.RawMessage      `json:"anchor" description:"Neo theo định dạng tài liệu; null khi không neo" example:"{\"format\":\"xlsx\",\"v\":1,\"sheet\":\"S1\",\"range\":\"B7\"}"`
 	AnchorState *string              `json:"anchor_state" description:"exact, stale hoặc lost; null khi không neo" example:"stale"`
 	AnchorVer   *string              `json:"anchor_version_id" description:"ULID phiên bản neo đang lưu; null khi không neo" example:"01J8X4VER0N1P2Q3R4S5T6U7V8"`
+	AnchorVerNo *int32               `json:"anchor_version_no" description:"Số thứ tự phiên bản neo đang lưu; null khi không neo hoặc phiên bản không còn" example:"1"`
 	DeletedAt   *string              `json:"deleted_at" description:"Thời điểm xóa mềm; có giá trị = khung \"Nội dung đã bị xóa\"" example:"2026-10-13T09:00:00Z"`
 	DeletedByID *string              `json:"deleted_by_id" description:"ULID người xóa; null khi chưa xóa" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
 	DeletedKind *string              `json:"deleted_by_kind" description:"human, agent hoặc system; null khi chưa xóa" example:"human"`

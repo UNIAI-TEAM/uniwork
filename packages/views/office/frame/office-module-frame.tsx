@@ -5,6 +5,7 @@ import { Printer, Save } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { createOfficeFrameApi, createOfficeFrameSourceApi, type DocsFrameApi } from "@uniwork/core/office/docs-frame-api";
+import { createVersionFrameApi } from "@uniwork/core/office/docs-frame-version-api";
 import type { FileMeta, OfficeModule, ProtocolErrorShape, SavedPayload, Theme } from "@uniwork/core/office/docs-frame-protocol";
 import { officeFrameSrc, officeModuleSpec } from "@uniwork/core/office/office-modules";
 import { createShortcutChord, shortcutMatchesEvent, shouldIgnoreGlobalShortcutEvent } from "@uniwork/core/shortcuts";
@@ -29,6 +30,7 @@ import { useFrameFocus } from "./frame-focus";
 import { useDocsFrameRefusal } from "./docs-frame-refusal";
 import { dimChromeAround } from "./frame-modal-chrome";
 import { FrameDesktopOpenAction, type FrameDesktopOpenProps } from "./frame-desktop-open";
+import { FrameVersionBanner, FrameVersionUnavailable } from "./frame-version-banner";
 import { FrameSaveBlockedDialog, FrameSizeWarningChip } from "./frame-size-ui";
 import { useDocsFrameSession } from "./use-docs-frame-session";
 import type { OfficeFrameFileRef } from "./docs-frame-session-model";
@@ -49,7 +51,10 @@ export interface OfficeModuleFrameProps {
   /** The genoffice web module; must be the module the server derives for the document. */
   module: OfficeModule;
   wsId: string;
-  /** The file the frame opens; `kind: "source"` is a file from another module, always read-only (UNI-1869). */
+  /**
+   * The file the frame opens; `kind: "source"` is a file from another module, always read-only (UNI-1869);
+   * a `version` on a document opens that stored version read-only (UNI-2033).
+   */
   fileRef: OfficeFrameFileRef;
   /** Document title, for the frame's accessible name until the editor reports its own. */
   title: string;
@@ -77,10 +82,14 @@ export interface OfficeModuleFrameProps {
   myLevel?: string | null;
   /** The comment a deep link names (`?comment=`): the editor's panel scrolls to it when it has comments. */
   revealCommentId?: string | null;
+  /** False once the Inbox landing on a lost comment's version has happened in this page open (the host outlives this frame's remounts). */
+  landOnLost?: boolean;
   /** The editor says whether its own panel is the page's comments panel (a frame that predates comments says no). */
   onFrameCommentsChange?: (framePanel: boolean) => void;
   /** The session failed for good (mint refused, bundle missing, handshake timeout): the host may close the frame's host surface. */
   onSessionFailure?: (failure: ProtocolErrorShape) => void;
+  /** The way back from a version view to the current version (the banner's button and the unavailable notice's). */
+  onBackToCurrent?: () => void;
   /** Called when the frame sends `close_requested {reason: 'escape'}`; defaults on a document route to leaving to `libraryHref` through the leave guard. */
   onCloseRequested?: () => void;
   /** Stored document size in bytes, for the size-based lag banner fallback when the browser lacks a lag PerformanceObserver. */
@@ -128,11 +137,16 @@ function useFrameTheme(): Theme {
  */
 export function OfficeModuleFrame({
   module, wsId, fileRef, title, frameVersion, api, readonly = false, fitContent = false,
-  onTitleChange, onSaved, onSavedAs, controlsRef, desktopOpen, libraryHref, myLevel, revealCommentId,
-  onFrameCommentsChange, onSessionFailure, onCloseRequested, fileSizeBytes, documentDetail, hasLagObserver, lagStorage, className,
+  onTitleChange, onSaved, onSavedAs, controlsRef, desktopOpen, libraryHref, myLevel, revealCommentId, landOnLost,
+  onFrameCommentsChange, onSessionFailure, onBackToCurrent, onCloseRequested, fileSizeBytes, documentDetail, hasLagObserver, lagStorage, className,
 }: OfficeModuleFrameProps) {
   const isSource = fileRef.kind === "source";
-  const frameApi = api ?? defaultFrameApi(module, isSource);
+  const viewVersion = !isSource ? fileRef.version : undefined;
+  const isVersion = viewVersion !== undefined;
+  // One stateless version API per (module, version): the session keys its endpoint on it staying put.
+  const versionApi = useMemo(() => (viewVersion === undefined ? null : createVersionFrameApi(module, viewVersion)), [module, viewVersion]);
+  // A version view always reads through the version API: a caller's `api` would open the head bytes under a version banner.
+  const frameApi = versionApi ?? api ?? defaultFrameApi(module, isSource);
   const { t, i18n } = useTranslation(undefined, { keyPrefix: "office.docsFrame" });
   const { t: tRoot } = useTranslation();
   const headerSlot = useHeaderActionsSlotAvailable();
@@ -156,28 +170,28 @@ export function OfficeModuleFrame({
     iframeRef, frameOrigin, module, documentId: fileRef.id,
     fileSizeBytes, hasLagObserver, lagStorage,
   });
-  const frameComments = useFrameComments({ wsId, frameVersion, documentId: fileRef.id, myLevel, revealCommentId });
+  const frameComments = useFrameComments({ wsId, frameVersion, documentId: fileRef.id, myLevel, revealCommentId, viewVersion, landOnLost, openVersion: documentDetail?.file?.version });
   const { framePanel } = frameComments;
   const onFrameCommentsChangeRef = useRef(onFrameCommentsChange);
   onFrameCommentsChangeRef.current = onFrameCommentsChange;
   // The document page's edit lock, when this frame is its editor (UNI-1645). A source has no
   // lock: it never reads the page's, whatever provider it sits under.
   const pageEditLock = useFrameEditLock();
-  const editLock = isSource ? null : pageEditLock;
+  const editLock = isSource || isVersion ? null : pageEditLock;
   // UNI-1847 (SAVE-01): the first save of a never-saved blank asks for its name before the
   // upload; every save entry point (header, leave, the frame's own Save) goes through it.
   // `onNamed` reaches the session's notifyRenamed through a ref: the session is created below.
   const notifyRenamedRef = useRef<((file: FileMeta) => void) | null>(null);
   const naming = useFirstSaveNaming({
-    document: isSource ? null : (documentDetail ?? null),
+    document: isSource || isVersion ? null : (documentDetail ?? null),
     module,
     wsId,
     onNamed: (file) => notifyRenamedRef.current?.(file),
   });
   const session = useDocsFrameSession({
     iframeRef, frameOrigin, frameSrc: src, api: frameApi, module, wsId, fileRef, editLock,
-    // A source is read-only by construction; its `ofs1.` token writes nowhere.
-    readonly: readonly || isSource,
+    // A source is read-only by construction; its `ofs1.` token writes nowhere. A version view is too.
+    readonly: readonly || isSource || isVersion,
     // Only a stored document has the comments the binding serves.
     comments: isSource ? undefined : frameComments.binding,
     // The same my_level the binding reads: a `comment` level keeps a can_edit === false
@@ -194,7 +208,7 @@ export function OfficeModuleFrame({
       onSavedAs?.(copyId, name);
     },
     // The first save of a never-saved blank asks for its name before the upload (SAVE-01).
-    firstSave: isSource ? undefined : naming,
+    firstSave: isSource || isVersion ? undefined : naming,
     // The frame asks to save a copy under the source's own name: name it the way UniWork names a copy.
     copyName: (name) => {
       const base = stripExtension(name);
@@ -403,6 +417,11 @@ export function OfficeModuleFrame({
     return <OfficeTooLargeNotice format={officeModuleSpec(module).format} reason={refusalReason} />;
   }
 
+  // A version the document does not have: the notice and the way back, not the generic failure.
+  if (isVersion && session.status === "failed" && session.failure?.code === "not_found") {
+    return <FrameVersionUnavailable className={cn("flex min-h-0 min-w-0 flex-1 flex-col bg-background", className)} onBackToCurrent={onBackToCurrent} />;
+  }
+
   if (session.status === "failed") {
     const code = featureDisabled ? "feature_disabled" : session.failure?.code ?? "internal";
     return (
@@ -429,6 +448,9 @@ export function OfficeModuleFrame({
       data-save-state={saveState}
       data-frame-modal={session.modal || undefined}
     >
+      {viewVersion !== undefined ? (
+        <FrameVersionBanner documentId={fileRef.id} versionNo={viewVersion} desktopOpen={desktopOpen} onBackToCurrent={onBackToCurrent} />
+      ) : null}
       {headerSlot && !session.viewOnly && session.status === "ready" ? (
         // The page header around the frame says whether the frame's edits are saved.
         <HeaderActionsFill actions={headerStatus} />
