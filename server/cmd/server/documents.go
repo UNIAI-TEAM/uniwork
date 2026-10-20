@@ -18,12 +18,14 @@ type documentServiceOptions struct {
 	// only internal/service may import internal/files
 	// (arch_test.go TestFilesContractIsALeafCalledOnlyFromTheServiceTier).
 	// Nil means no file store is wired, as the assembly test needs.
-	Files                *service.FileService
-	Flags                service.DocumentFlags
-	Metrics              service.DocumentMetrics
-	IntentMetrics        service.OfficeIntentMetrics
-	Policy               service.CommitIntentPolicy
+	Files         *service.FileService
+	Flags         service.DocumentFlags
+	Metrics       service.DocumentMetrics
+	IntentMetrics service.OfficeIntentMetrics
+	Policy        service.CommitIntentPolicy
+	// IdempotencyKeyPolicy is the IDEMPOTENCY_KEY_* retention and sweep cadence (UNI-1983); a zero field keeps the default.
 	IdempotencyKeyPolicy service.IdempotencyKeyPolicy
+	// EditLock is the DOCUMENT_EDIT_* timing (UNI-1645 §7); a zero field keeps
 	// the addendum default.
 	EditLock service.DocumentEditLockConfig
 }

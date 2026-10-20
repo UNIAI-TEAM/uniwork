@@ -55,6 +55,8 @@ func TestDocumentWorkersCommitIntentSweepTick(t *testing.T) {
 		const customTick = 15 * time.Millisecond
 		svc := NewDocumentService(nil, nil, nil, nil)
 		svc.SetCommitIntentPolicy(CommitIntentPolicy{SweepTick: customTick})
+		// Move the idempotency-key loop off the shared 10m default: this assertion is about the commit-intent loop.
+		svc.SetIdempotencyKeyPolicy(IdempotencyKeyPolicy{SweepTick: time.Hour})
 		w := svc.NewDocumentWorkers()
 		if w.IntentTick != customTick {
 			t.Fatalf("NewDocumentWorkers().IntentTick = %v, want %v", w.IntentTick, customTick)
@@ -133,6 +135,8 @@ func TestDocumentWorkersIdempotencyKeySweepTick(t *testing.T) {
 		const customTick = 15 * time.Millisecond
 		svc := NewDocumentService(nil, nil, nil, nil)
 		svc.SetIdempotencyKeyPolicy(IdempotencyKeyPolicy{SweepTick: customTick})
+		// Move the commit-intent loop off the shared 10m default: this assertion is about the idempotency-key loop.
+		svc.SetCommitIntentPolicy(CommitIntentPolicy{SweepTick: time.Hour})
 		w := svc.NewDocumentWorkers()
 		if w.IdempotencyKeyTick != customTick {
 			t.Fatalf("NewDocumentWorkers().IdempotencyKeyTick = %v, want %v", w.IdempotencyKeyTick, customTick)

@@ -54,13 +54,14 @@ type DocumentWorkers struct {
 	// enabled the desktop bridge. When wired, its retention sweep runs on the
 	// same hourly maintenance cadence as document purge.
 	officeLaunch *OfficeLaunchService
-	// AutoVersionTick, PurgeTick, CompactTick, IntentTick override the sweep cadences;
-	// zero keeps the defaults above.
+	// AutoVersionTick, PurgeTick, CompactTick, IntentTick, IdempotencyKeyTick
+	// override the sweep cadences; zero keeps the defaults above.
 	AutoVersionTick    time.Duration
 	PurgeTick          time.Duration
 	CompactTick        time.Duration
 	IntentTick         time.Duration
 	IdempotencyKeyTick time.Duration
+
 	// after replaces the timer (tests); nil uses a real timer.
 	after func(time.Duration) <-chan time.Time
 	// swept observes every finished pass (tests): "auto_version" | "purge" |
@@ -106,8 +107,6 @@ func (w *DocumentWorkers) Run(ctx context.Context) {
 	if compactTick <= 0 {
 		compactTick = documentCompactTick
 	}
-	intentExplicit := w.IntentTick > 0 || (w.svc != nil && w.svc.intentPolicy.SweepTick > 0)
-	idempExplicit := w.IdempotencyKeyTick > 0 || (w.svc != nil && w.svc.idempotencyPolicy.SweepTick > 0)
 	intentTick := w.IntentTick
 	if intentTick <= 0 && w.svc != nil {
 		intentTick = w.svc.intentPolicy.sweepTick()
@@ -122,12 +121,6 @@ func (w *DocumentWorkers) Run(ctx context.Context) {
 	if idempotencyKeyTick <= 0 {
 		idempotencyKeyTick = idempotencyKeySweepTick
 	}
-	if intentExplicit && !idempExplicit {
-		idempotencyKeyTick = intentTick
-	} else if idempExplicit && !intentExplicit {
-		intentTick = idempotencyKeyTick
-	}
-	sameIdempotencyTick := idempotencyKeyTick == intentTick
 	type workerLoop struct {
 		tick time.Duration
 		run  func(context.Context)
@@ -174,24 +167,16 @@ func (w *DocumentWorkers) Run(ctx context.Context) {
 			// Retention of closed multipart rows (RETENTION-02) rides this
 			// tick next to the expiry that closes them.
 			w.sweepMultipartRows(ctx)
-			if sameIdempotencyTick {
-				idempErr := w.sweepIdempotencyKeys(ctx)
-				if w.swept != nil {
-					w.swept("idempotency_key", idempErr)
-				}
-			}
 			if w.swept != nil {
 				w.swept("commit_intent", err)
 			}
 		}},
-	}
-	if !sameIdempotencyTick {
-		loops = append(loops, workerLoop{idempotencyKeyTick, func(ctx context.Context) {
+		{idempotencyKeyTick, func(ctx context.Context) {
 			err := w.sweepIdempotencyKeys(ctx)
 			if w.swept != nil {
 				w.swept("idempotency_key", err)
 			}
-		}})
+		}},
 	}
 	var wg sync.WaitGroup
 	for _, loop := range loops {

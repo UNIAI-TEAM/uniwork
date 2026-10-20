@@ -5,11 +5,12 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgtype"
 	"net/http"
 	"strconv"
 	"time"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
@@ -202,6 +203,17 @@ func CheckTaskRevision(got, want int64) error {
 		Fields: map[string]any{"got": got, "want": want},
 	}
 }
+
+// DefaultIdempotencyKeyRetention is the default retention window for
+// idempotency_keys rows (G5-D2 §2.2, UNI-1983); IDEMPOTENCY_KEY_RETENTION
+// overrides it (config.Config). idempotencyKeySweepBatch bounds one sweep
+// statement, and idempotencyKeySweepTick is the default pass cadence
+// (IDEMPOTENCY_KEY_SWEEP_TICK).
+const (
+	DefaultIdempotencyKeyRetention = 7 * 24 * time.Hour
+	idempotencyKeySweepBatch       = 500
+	idempotencyKeySweepTick        = 10 * time.Minute
+)
 
 // IdempotencyKeyPolicy is the retention window and sweep cadence for
 // idempotency_keys (G5-D2 §2.2, UNI-1983). A zero field keeps the default.
