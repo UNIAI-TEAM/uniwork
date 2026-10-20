@@ -222,7 +222,13 @@ test("webFrameSelectors names the module frame host, its ready state and its ifr
     ready: '[data-office-docs-frame][data-office-module="sheets"][data-state="ready"]',
     iframe: '[data-office-docs-frame][data-office-module="sheets"] iframe[data-testid="office-docs-frame-iframe"]',
   });
-  assert.throws(() => webFrameSelectors("markdown"), /kind must be one of docs, sheets, slides, pdf/);
+  assert.deepEqual(webFrameSelectors("markdown"), {
+    host: '[data-office-docs-frame][data-office-module="markdown"]',
+    ready: '[data-office-docs-frame][data-office-module="markdown"][data-state="ready"]',
+    iframe: '[data-office-docs-frame][data-office-module="markdown"] iframe[data-testid="office-docs-frame-iframe"]',
+  });
+  assert.equal(webFrameSelectors("html").host, '[data-office-docs-frame][data-office-module="html"]');
+  assert.throws(() => webFrameSelectors("spreadsheet"), /kind must be one of docs, sheets, slides, pdf, markdown, html/);
 });
 
 test("classifyWebSave: a 2xx commit is saved with the new version id; anything else names why", () => {
@@ -243,6 +249,15 @@ test("webSave waits for the ready frame, focuses its iframe, presses Control+s a
   assert.ok(page.log.some((e) => e[0] === "evaluate" && e[1]?.focus === webFrameSelectors("docs").iframe), "the iframe is focused first");
 });
 
+test("webSave drives the markdown and html module frames on their own host, never the docs one", async () => {
+  for (const kind of ["markdown", "html"]) {
+    const page = fakeFramePage();
+    assert.equal((await webSave(page, { kind, timeoutMs: 5_000 })).status, "saved");
+    assert.deepEqual(page.log[0], ["waitForSelector", webFrameSelectors(kind).ready, 5_000]);
+    assert.ok(!page.log[0][1].includes('"docs"'));
+  }
+});
+
 test("webSave: a frame that never gets ready, a commit that never comes and a refused commit are not saved", async () => {
   const notReady = await webSave(fakeFramePage({ ready: false }), { kind: "pdf", timeoutMs: 10 });
   assert.equal(notReady.status, "error");
@@ -252,7 +267,7 @@ test("webSave: a frame that never gets ready, a commit that never comes and a re
   const refused = await webSave(fakeFramePage({ commit: { status: 409, body: { error: { code: "document_version_conflict" } } } }), { kind: "sheets" });
   assert.equal(refused.status, "error");
   assert.equal(refused.httpStatus, 409);
-  await assert.rejects(webSave(fakeFramePage(), { kind: "html" }), /kind must be one of/);
+  await assert.rejects(webSave(fakeFramePage(), { kind: "spreadsheet" }), /kind must be one of/);
 });
 
 test("webFrameEval runs a function inside the module frame's document, bounded", async () => {

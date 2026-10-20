@@ -1,4 +1,5 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { QueryClient } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@uniwork/core/api";
 import { clearDocumentAccessRequestSent } from "@uniwork/core/documents/hooks-access-requests";
@@ -82,6 +83,19 @@ describe("ChatDocumentRequestAccess", () => {
     await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent(K("sent")));
     expect(sendCalls()).toHaveLength(1);
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
+  });
+
+  it("never shows the earlier-request note while its own send is still pending (RFC-601)", async () => {
+    // The request resolved, so the hook has written the device flag and notified the card,
+    // but the hook-level onSuccess (the invalidation) has not settled: the send is pending.
+    const client = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
+    vi.spyOn(client, "invalidateQueries").mockImplementation(() => new Promise(() => {}));
+    requestMock.mockResolvedValue({ status: "sent" });
+    render(wrap(<ChatDocumentRequestAccess workspaceId="ws1" documentId="doc1" />, client));
+    fireEvent.click(button());
+    await waitFor(() => expect(localStorage.getItem("uniwork_document_access_request_sent:doc1")).not.toBeNull());
+    await waitFor(() => expect(button()).toHaveAttribute("aria-disabled", "true"));
+    expect(screen.getByRole("status")).toBeEmptyDOMElement();
   });
 
   it("stops claiming a request waits once a decision clears the flag, for a send made in this mount too", async () => {
