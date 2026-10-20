@@ -223,7 +223,7 @@ func TestChatPinTwoMessagesInRoom(t *testing.T) {
 	ctx := context.Background()
 	addOrgMember(t, q, w.OrganizationID, ub.ID)
 	addWorkspaceMember(t, q, w.ID, ub.ID)
-	dm, err := s.CreateOrGetDM(ctx, ua.ID, w.ID, ub.ID)
+	dm, err := s.ResolveDM(ctx, ua.ID, w.ID, ub.ID)
 	if err != nil {
 		t.Fatalf("dm: %v", err)
 	}
