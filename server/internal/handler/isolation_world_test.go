@@ -176,6 +176,9 @@ func newIsolationServer(t *testing.T) *isoWorld {
 	d.Auth.SetMail(renderer, discardOutbox{})
 
 	d.Meetings.Tasks = d.Tasks
+	// meeting_dial_in on, so the owner's control on the dial-in routes is a
+	// real read and rotation, not the dial_in_unavailable refusal.
+	d.Meetings.SetFlags(mcpTestFlags(true))
 	d.Meetings.Chat = d.Chat
 	d.Tasks.Chat = d.Chat
 	d.Chat.SetAIGateway(d.Meetings.AI)
