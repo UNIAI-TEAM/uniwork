@@ -9,7 +9,6 @@ import { useUploadDocumentAsset } from "@uniwork/core/documents/hooks";
 import type { DocumentSaveState } from "@uniwork/core/documents/save-state";
 import { isShelved, type Document } from "@uniwork/core/types/document";
 import { Button } from "@uniwork/ui/components/ui/button";
-import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { BreadcrumbHeader } from "../layout/breadcrumb-header";
 import { HeaderActionsSlot, HeaderActionsSlotProvider } from "../layout/header-actions-slot";
@@ -39,6 +38,7 @@ import { useShelvedWriteGuard } from "./use-shelved-write-guard";
 import { newerPageRevision, type DocumentPageMetadataHandle, type DocumentPageMetadataStatus } from "./use-document-page-metadata";
 import { BodyMentionGate, useBodyMentionDeepLink } from "./document-body-mention-gate";
 import { usePageSaveRequest } from "./page-toolbar/use-page-save-request";
+import { PageBodySkeleton } from "./page-body-skeleton";
 
 /**
  * The editor chunk. The document route must stay inside the bundle budget, so
@@ -135,8 +135,6 @@ export function DocumentWorkspace({
   const editLock = useDocumentEditLockUi({ wsId, doc, canEdit, active: doc.kind === "page" || officeEditorMounted,
     hasUnsavedWork: checkUnsaved, refetch, editorRef, title: doc.kind === "page" ? pageTitle : doc.title });
   const { save, editable } = editLock;
-  // Ctrl/Cmd+S in the page editor flushes the autosave; the header indicator reports the outcome.
-  const pageEditorHostRef = usePageSaveRequest(() => save.flush());
   const uploadAsset = useUploadDocumentAsset(wsId, doc.id);
   const state = save.state as DocumentSaveState;
   // One live-again retry per refusal run, so a server that keeps refusing never loops.
@@ -150,6 +148,8 @@ export function DocumentWorkspace({
   const refusedShelved = useShelvedWriteGuard(wsId, doc.id, state.errorCode, goLiveAgain);
   if (refusedShelved !== writeRefusedShelved) setWriteRefusedShelved(refusedShelved);
   const metadataRef = useRef<DocumentPageMetadataHandle>(null);
+  // Ctrl/Cmd+S in the title or the body: the title goes first, then the body autosave flushes; the header indicator reports the outcome.
+  const pageHostRef = usePageSaveRequest(() => { void metadataRef.current?.flush(); save.flush(); });
   const [metadataStatus, setMetadataStatus] = useState<DocumentPageMetadataStatus>({ dirty: false, pending: false, failed: false });
   const metadataStatusRef = useRef(metadataStatus);
   const queuedBodyRef = useRef<unknown>(undefined);
@@ -584,7 +584,7 @@ export function DocumentWorkspace({
         }
       >
         {doc.kind === "page" ? (
-          <div className="mx-auto w-full min-w-0 max-w-3xl">
+          <div ref={pageHostRef} className="mx-auto w-full min-w-0 max-w-3xl">
             {editLock.prompt ? <EditRequestPrompt {...editLock.prompt} /> : null}
             <DocumentPageHeader wsId={wsId} doc={doc} editable={editable} shelved={shelved} titleRef={titleRef} metadataRef={metadataRef}
               onTitleChange={setPageTitle} onFocusBody={() => editorRef.current?.focus("start")}
@@ -592,21 +592,17 @@ export function DocumentWorkspace({
               getRevision={() => stateRef.current.revision}
               onStatusChange={handleMetadataStatus} onSaved={(saved) => save.updateBase(saved.revision, saved)} />
           <BodyMentionGate wsId={wsId} doc={doc} state={state} />
-          <Suspense
-            fallback={
-              <div className="min-h-64 space-y-3" aria-busy>
-                <Skeleton className="h-4 w-full" />
-                <Skeleton className="h-4 w-5/6" />
-                <Skeleton className="h-4 w-2/3" />
-              </div>
-            }
-          >
-            <div ref={pageEditorHostRef} className="mx-auto w-full max-w-3xl">
+          <Suspense fallback={<PageBodySkeleton />}>
+            <div className="mx-auto w-full max-w-3xl">
               <DocumentEditor
                 ref={editorRef}
-                wsId={wsId} documentId={doc.id}
-                initialContent={doc.content} content={doc.content} contentRevision={doc.revision}
-                dirty={dirty} editable={editable}
+                wsId={wsId}
+                documentId={doc.id}
+                initialContent={doc.content}
+                content={doc.content}
+                contentRevision={doc.revision}
+                dirty={dirty}
+                editable={editable}
                 onChange={handleChange}
                 onUploadAsset={uploader}
                 onAssetError={handleAssetError}

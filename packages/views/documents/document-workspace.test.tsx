@@ -534,6 +534,28 @@ describe("DocumentWorkspace autosave", () => {
       expect(patchCalls()).toHaveLength(1);
     });
 
+    it("saves the pending title at once from the title field and stops the browser's Save page", async () => {
+      // The server echoes the new title; a stale echo would make the header send it again forever.
+      requestMock.mockImplementation((path: string, opts?: { method?: string; body?: { title?: string } }) =>
+        path === "/api/v1/documents/d1" && opts?.method === "PATCH"
+          ? Promise.resolve({ document: pageDocument({ revision: "4", title: opts.body?.title ?? "Kế hoạch Q3" }) })
+          : Promise.resolve({}),
+      );
+      renderWorkspace();
+      await findEditor();
+      const title = screen.getByRole("textbox", { name: t("documents.page_ui.title_label") });
+      fireEvent.change(title, { target: { value: "Kế hoạch Q4" } });
+      expect(patchCalls()).toHaveLength(0);
+
+      expect(title.dispatchEvent(ctrlS({ isComposing: true }))).toBe(true);
+      expect(title.dispatchEvent(ctrlS({ shiftKey: true }))).toBe(true);
+      expect(patchCalls()).toHaveLength(0);
+      expect(title.dispatchEvent(ctrlS())).toBe(false);
+      // The title's own 600 ms debounce has not run yet: the key sent it.
+      await waitFor(() => expect(patchCalls()).toHaveLength(1), { timeout: 400 });
+      expect(patchCalls()[0]?.body).toMatchObject({ title: "Kế hoạch Q4" });
+    });
+
     it("does not flush while an IME is composing", async () => {
       savedDocument();
       renderWorkspace();
