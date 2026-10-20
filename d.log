@@ -1,0 +1,6 @@
+$ bash ~/.uniwork-cloud/.cursor/cloud/start.sh >/dev/null 2>&1 || true; git rev-parse HEAD; git log --oneline -4; for p in 18550 3000; do for pid in $(lsof -ti tcp:$p 2>/dev/null); do kill $pid; done; done; sleep 2; fuser -k 18550/tcp 3000/tcp 2>/dev/null; sleep 1; for p in 18550 3000; do lsof -ti tcp:$p >/dev/null 2>&1 && echo "PORT_STILL_BUSY=$p"; done; true
+654294ed12ecb99daf76892fe191d87689ddf3b8
+654294ed1 chore: merge UNI-2019 follow-up B (d8661b23f) into the G5-G7 root
+71057d05e chore: merge UNI-2033 T5 D web version view (b125175a8) into the G5-G7 root
+5dac99395 docs(office): name anchor_version_id as the version a lost comment opens
+8c388c963 chore: merge UNI-2033 T1 anchor_version_no (1ee496eb0) into the G5-G7 root
