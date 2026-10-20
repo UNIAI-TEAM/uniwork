@@ -10815,9 +10815,9 @@
       },
       "open_office": "Mở UniWork Office",
       "sort": {
-        "label": "Sắp xếp",
-        "name": "Tên (A→Z)",
-        "updated": "Cập nhật (mới nhất)"
+        "column": "Sắp xếp theo {{column}}",
+        "ascending": "tăng dần",
+        "descending": "giảm dần"
       },
       "folder_invalid": {
         "title": "Không mở được thư mục này",

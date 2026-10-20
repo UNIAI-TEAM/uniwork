@@ -81,6 +81,14 @@ describe("documents-sources endpoints", () => {
     expect(out.next_cursor).toBe("c2");
   });
 
+  it("listDocumentSources sends sort and order when asked", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ items: [], next_cursor: null }));
+    await listDocumentSources("w1", { sort: "name", order: "asc", limit: 50 });
+    expect(String(vi.mocked(fetch).mock.calls[0]![0])).toBe(
+      "http://api.test/api/v1/workspaces/w1/documents/sources?sort=name&order=asc&limit=50",
+    );
+  });
+
   it("listDocumentSources has no query string without filters", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ items: [], next_cursor: null }));
     await listDocumentSources("w1");
