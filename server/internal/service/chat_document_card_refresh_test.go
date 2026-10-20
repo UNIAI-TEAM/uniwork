@@ -17,9 +17,10 @@ import (
 )
 
 // TestChatDocumentCardRefresherTopics pins the topic list: every topic is a
-// catalogued document.* event, the list is exactly the seven that change a
-// card, and none of them is a realtime-lane topic the consumer would slow
-// down (it runs on the notify lane).
+// catalogued document.* event and the list is exactly the seven that change a
+// card. The lane is chosen where the consumer is registered
+// (cmd/server/main.go): the realtime lane, which the one-read handler meets, so
+// these topics are not slowed down.
 func TestChatDocumentCardRefresherTopics(t *testing.T) {
 	want := []string{
 		"document.archived", "document.restored", "document.share_revoked", "document.shared",

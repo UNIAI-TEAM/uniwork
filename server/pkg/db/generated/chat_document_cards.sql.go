@@ -7,43 +7,80 @@ package db
 
 import (
 	"context"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const listLiveChatDocumentCardMessages = `-- name: ListLiveChatDocumentCardMessages :many
-SELECT id, room_id
-FROM chat_messages
-WHERE organization_id = $1
-  AND kind = 'document'
-  AND deleted_at IS NULL
-  AND metadata->>'document_id' = $2::text
-ORDER BY created_at DESC, id DESC
+const listLiveChatDocumentCardTargets = `-- name: ListLiveChatDocumentCardTargets :many
+SELECT
+  m.id AS message_id,
+  m.room_id,
+  r.kind AS room_kind,
+  r.is_default AS room_is_default,
+  r.workspace_id AS room_workspace_id,
+  COALESCE(mem.user_ids, '{}')::text[] AS member_user_ids,
+  COUNT(*) OVER ()::int AS total_cards
+FROM chat_messages m
+JOIN chat_rooms r ON r.id = m.room_id AND r.organization_id = m.organization_id
+LEFT JOIN LATERAL (
+  SELECT array_agg(DISTINCT cm.user_id) AS user_ids
+  FROM chat_room_members cm
+  WHERE cm.room_id = r.id
+    AND cm.organization_id = r.organization_id
+    AND cm.status IN ('invited', 'active')
+    AND r.kind NOT IN ('workspace', 'channel')
+) mem ON true
+WHERE m.organization_id = $1
+  AND m.kind = 'document'
+  AND m.deleted_at IS NULL
+  AND m.metadata->>'document_id' = $2::text
+ORDER BY m.created_at DESC, m.id DESC
 LIMIT $3::int
 `
 
-type ListLiveChatDocumentCardMessagesParams struct {
+type ListLiveChatDocumentCardTargetsParams struct {
 	OrganizationID string `json:"organization_id"`
 	DocumentID     string `json:"document_id"`
 	RowLimit       int32  `json:"row_limit"`
 }
 
-type ListLiveChatDocumentCardMessagesRow struct {
-	ID     string `json:"id"`
-	RoomID string `json:"room_id"`
+type ListLiveChatDocumentCardTargetsRow struct {
+	MessageID       string      `json:"message_id"`
+	RoomID          string      `json:"room_id"`
+	RoomKind        string      `json:"room_kind"`
+	RoomIsDefault   bool        `json:"room_is_default"`
+	RoomWorkspaceID pgtype.Text `json:"room_workspace_id"`
+	MemberUserIds   []string    `json:"member_user_ids"`
+	TotalCards      int32       `json:"total_cards"`
 }
 
-// The live chat cards of one document in an organization, newest first (UNI-2012
-// S1b). Served by idx_chat_messages_org_document_card. A card of another
-// organization never matches: the organization is the first predicate.
-func (q *Queries) ListLiveChatDocumentCardMessages(ctx context.Context, arg ListLiveChatDocumentCardMessagesParams) ([]ListLiveChatDocumentCardMessagesRow, error) {
-	rows, err := q.db.Query(ctx, listLiveChatDocumentCardMessages, arg.OrganizationID, arg.DocumentID, arg.RowLimit)
+// The live chat cards of one document in an organization, newest first, each
+// with what a refresh frame needs to reach its room (UNI-2012 S1b): the room's
+// kind, default flag and workspace, and for a DM or group the current member
+// user ids (the same set ListChatRoomMemberUserIDs selects). One indexed read
+// (idx_chat_messages_org_document_card) so the consumer stays on the realtime
+// lane. total_cards counts every live card of the document, whatever the limit,
+// so the consumer can log how many a truncated refresh dropped. The organization is the first predicate and the room is joined under
+// the same one, so a card of another organization, or a card whose room row
+// names another, never matches.
+func (q *Queries) ListLiveChatDocumentCardTargets(ctx context.Context, arg ListLiveChatDocumentCardTargetsParams) ([]ListLiveChatDocumentCardTargetsRow, error) {
+	rows, err := q.db.Query(ctx, listLiveChatDocumentCardTargets, arg.OrganizationID, arg.DocumentID, arg.RowLimit)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []ListLiveChatDocumentCardMessagesRow{}
+	items := []ListLiveChatDocumentCardTargetsRow{}
 	for rows.Next() {
-		var i ListLiveChatDocumentCardMessagesRow
-		if err := rows.Scan(&i.ID, &i.RoomID); err != nil {
+		var i ListLiveChatDocumentCardTargetsRow
+		if err := rows.Scan(
+			&i.MessageID,
+			&i.RoomID,
+			&i.RoomKind,
+			&i.RoomIsDefault,
+			&i.RoomWorkspaceID,
+			&i.MemberUserIds,
+			&i.TotalCards,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
