@@ -8,7 +8,7 @@
 
 - Migration `999…_meeting_action_items_catch_up` (chép bù, idempotent) và `999…_drop_meeting_summary_task_links` (xoá bảng; down dựng lại bảng rỗng). Xoá `queries/meeting_summary_task_links.sql` và code sinh; `LockMeetingSummaryChanges` chuyển sang `meeting_action_items.sql`.
 - Query `ListCarriedOverActionItems` trong `meeting_action_items.sql`.
-- Service `MeetingService.CarriedOverItems` (`meeting_action_items.go`), dùng lại định nghĩa "xong" (`task_closed`: nhóm trạng thái done/cancelled) và "quá hạn" của đợt 3.
+- Service `MeetingService.CarriedOverItems` (`meeting_carried_over.go`), dùng lại định nghĩa "xong" (`task_closed`: nhóm trạng thái done/cancelled) và "quá hạn" của đợt 3.
 - API `GET /meetings/{meetingID}/carried-over-items` (thành viên), SDO `MeetingCarriedOverItemsSDO`.
 - Core: `getMeetingCarriedOverItems` + schema khoan dung + test sai định dạng; `useMeetingCarriedOverItems`, key `meetingKeys.carriedOver(id)`; realtime: `task.created|updated|deleted` làm mới.
 - Views: `meeting-action-items/carried-over-section.tsx` (mục trên trang chi tiết, gom theo cuộc họp gốc; nhóm thu gọn trong Copilot).
@@ -29,4 +29,4 @@
 - "Xong" = nhóm trạng thái `done`/`cancelled`, như `task_closed` của đợt 3 và "việc đang mở" của home/my-work.
 - Quá hạn tính theo múi giờ của cuộc họp đang xem.
 - AI giả (`AI_PROVIDER=fake`) trả việc cho tóm tắt cuộc họp từ dòng ghi chú "Việc: <tiêu đề> | <người>", để e2e có việc để giao; không có nhà cung cấp AI thì e2e tự bỏ qua.
-- Chép bù: liên kết sống (task còn) mà chưa việc nào mang `task_id` → nếu việc AI cùng `(summary_id, position)` (id tất định của đợt 3) còn chờ và chưa bỏ qua thì gắn task vào nó (liên kết cũ nhất), còn lại thêm việc mới với id tất định theo id liên kết.
+- Chép bù: liên kết sống (task còn) mà chưa việc nào mang `task_id` → nếu việc AI cùng `summary_id` và cùng tiêu đề với phần tử của liên kết còn chờ và chưa bỏ qua thì gắn task vào nó (liên kết cũ nhất; bản tóm tắt do server mới lưu tự đánh số `position`, nên tìm theo tiêu đề), còn lại thêm việc mới với id tất định theo id liên kết.
