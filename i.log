@@ -1,0 +1,2 @@
+$ pnpm --filter @uniwork/web exec tsc --noEmit -p . > /tmp/uni2012r1-tc-web.log 2>&1; rc=$?; tail -15 /tmp/uni2012r1-tc-web.log; echo "WEB_TC_EXIT=$rc"
+WEB_TC_EXIT=0

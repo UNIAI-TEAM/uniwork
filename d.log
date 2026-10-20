@@ -1,0 +1,4 @@
+$ unset OPENAI_API_KEY; pnpm --filter @uniwork/core exec vitest run > /tmp/uni2012r1-core.log 2>&1; rc=$?; grep -E "Test Files|Tests |FAIL|Error" /tmp/uni2012r1-core.log | head -40; echo "CORE_VITEST_EXIT=$rc"
+ Test Files  288 passed (288)
+      Tests  3098 passed (3098)
+CORE_VITEST_EXIT=0

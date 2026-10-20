@@ -1,0 +1,4 @@
+$ unset OPENAI_API_KEY; pnpm --filter @uniwork/web exec vitest run > /tmp/uni2012r1-web.log 2>&1; rc=$?; grep -E "Test Files|Tests |FAIL|Error|No test" /tmp/uni2012r1-web.log | head -40; echo "WEB_TEST_EXIT=$rc"
+ Test Files  34 passed (34)
+      Tests  331 passed (331)
+WEB_TEST_EXIT=0

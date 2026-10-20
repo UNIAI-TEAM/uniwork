@@ -1,0 +1,18 @@
+$ unset OPENAI_API_KEY; pnpm --filter @uniwork/views exec vitest run > /tmp/uni2012r1-views.log 2>&1; rc=$?; grep -E "Test Files|Tests |FAIL|Error" /tmp/uni2012r1-views.log | head -60; echo "VIEWS_VITEST_EXIT=$rc"
+Error: Not implemented: window.focus
+Error: Not implemented: window.focus
+Error: Not implemented: window.focus
+Error: Not implemented: window.focus
+Error: Not implemented: window.focus
+Error: Not implemented: window.focus
+Error: Not implemented: window.focus
+Error: Not implemented: window.focus
+Error: Not implemented: window.focus
+Error: Not implemented: window.focus
+Error: Not implemented: window.focus
+Error: Not implemented: navigation (except hash changes)
+Error: Not implemented: navigation (except hash changes)
+Error: Not implemented: navigation (except hash changes)
+ Test Files  690 passed (690)
+      Tests  6459 passed (6459)
+VIEWS_VITEST_EXIT=0

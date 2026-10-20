@@ -1,0 +1,5 @@
+$ git rev-parse HEAD; git log --oneline -3
+1df95b0d42cb162c77b7347dd74e8857bb30d21d
+1df95b0d4 fix(documents): a same-level manual access item takes over a chat-origin share (UNI-2012 B4)
+763a6511a fix(chat): replay a link send after the sender's gates, pin the refusal tests (UNI-2012 N3-N5)
+8b31d4fd4 fix(chat): coalesce the document card refresh per command (UNI-2012 SF2)

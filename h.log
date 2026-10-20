@@ -1,0 +1,17 @@
+$ pnpm --filter @uniwork/views exec tsc --noEmit -p . > /tmp/uni2012r1-tc-views.log 2>&1; rc=$?; tail -15 /tmp/uni2012r1-tc-views.log; echo "VIEWS_TC_EXIT=$rc"
+
+FATAL ERROR: Ineffective mark-compacts near heap limit Allocation failed - JavaScript heap out of memory
+----- Native stack trace -----
+
+ 1: 0xe46bbe node::OOMErrorHandler(char const*, v8::OOMDetails const&) [node]
+ 2: 0x1245390 v8::Utils::ReportOOMFailure(v8::internal::Isolate*, char const*, v8::OOMDetails const&) [node]
+ 3: 0x1245667 v8::internal::V8::FatalProcessOutOfMemory(v8::internal::Isolate*, char const*, v8::OOMDetails const&) [node]
+ 4: 0x1474575  [node]
+ 5: 0x14745a3  [node]
+ 6: 0x148d67a  [node]
+ 7: 0x1490848  [node]
+ 8: 0x1cf93d1  [node]
+undefined
+/workspace/packages/views:
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command was killed with SIGABRT (Aborted): tsc --noEmit -p .
+VIEWS_TC_EXIT=1
