@@ -1,0 +1,3 @@
+$ git checkout -q 1a28f4363; rc=$?; git rev-parse --short HEAD; echo "ROOT_CHECKOUT_EXIT=$rc"
+1a28f4363
+ROOT_CHECKOUT_EXIT=0
