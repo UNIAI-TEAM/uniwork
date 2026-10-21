@@ -407,8 +407,6 @@ var isoReferences = []isoReference{
 		covers: []string{"PutProjectSDI.lead_id"}},
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/{messageID}/poll/vote", what: "option", body: map[string]any{
 		"option_id": isoRef("pollOption")}, covers: []string{"VoteChatPollSDI.option_id"}},
-	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/{messageID}/poll/options", what: "poll message", body: map[string]any{
-		"label": "iso option"}, covers: []string{"AddChatPollOptionSDI.label"}},
 	{method: "POST", pattern: "/api/v1/me/notifications/read", what: "workspace filter", allow2xx: true, body: map[string]any{
 		"all": true, "workspace_id": isoRef("ws")}, covers: []string{"NotificationIDsSDI.workspace_id"}},
 	{method: "POST", pattern: "/api/v1/me/onboarding/complete", what: "workspace", allow2xx: true, body: map[string]any{
