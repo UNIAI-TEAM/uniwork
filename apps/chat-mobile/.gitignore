@@ -1,6 +1,8 @@
-# Expo prebuild output and caches; app.config.ts is the source.
-ios/
-android/
+# Expo prebuild output and caches; app.config.ts is the source. Anchored to
+# the app's root: modules/*/android and modules/*/ios are the local Expo
+# modules' own sources and are committed (native-modules.test.ts).
+/ios/
+/android/
 .expo/
 dist/
 expo-env.d.ts

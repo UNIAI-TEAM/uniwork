@@ -1,0 +1,25 @@
+// UniChat's native call support on Android (docs/adr/drafts/0038): the
+// incoming-call notification, the in-call foreground service, the ringer and
+// the decline / hang-up actions. Built by the app's Gradle like any Expo module.
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'expo.modules.unichatcalls'
+version = '0.1.0'
+
+android {
+  namespace "expo.modules.unichatcalls"
+  defaultConfig {
+    versionCode 1
+    versionName "0.1.0"
+  }
+}
+
+dependencies {
+  // NotificationCompat.CallStyle (1.9+) and ServiceCompat.startForeground with a type (1.12+).
+  implementation 'androidx.core:core:1.17.0'
+  // HeadlessJsTaskService for the decline and hang-up actions; the app links React Native itself.
+  compileOnly 'com.facebook.react:react-android'
+}
