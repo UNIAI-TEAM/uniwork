@@ -21,9 +21,9 @@ import { useOptionalWorkspace } from "../../layout/workspace-context";
 import { MODULE_ICONS } from "../../layout/module-icons";
 import { moduleTone } from "../../layout/module-tones";
 import { AiSummaryTasksDialog } from "../../tasks/ai-summary-tasks-dialog";
-import { toastApiError } from "../../toast-api-error";
+import { apiErrorCopy } from "../../api-error-copy";
 import { MeetingSectionError, MeetingSectionLoading } from "../meeting-section-state";
-import { SummaryLiveRegion } from "../meeting-summary/summary-generate-controls";
+import { SummaryLiveRegion, useAnnouncement } from "../meeting-summary/summary-generate-controls";
 import { useMemberIndex } from "../use-member-index";
 import {
   ConvertedRow,
@@ -56,6 +56,21 @@ function ProgressLine({ counts }: { counts: MeetingActionItemCounts }) {
   );
 }
 
+/** Rows keep this much room below a focused control while the phone's assign bar sticks (WCAG 2.4.11). */
+const STICKY_BAR_CLEARANCE = "max-sm:**:scroll-mb-[calc(5rem+env(safe-area-inset-bottom))]";
+
+const NO_ITEMS: readonly MeetingActionItem[] = [];
+
+/** Focuses a pending row's checkbox; false when that row is not on screen. */
+function focusPendingRow(root: HTMLElement | null, id: string | undefined): boolean {
+  const row = id
+    ? Array.from(root?.querySelectorAll<HTMLElement>("[data-action-item]") ?? []).find((el) => el.dataset.actionItem === id)
+    : undefined;
+  const box = row?.querySelector<HTMLElement>('[role="checkbox"]');
+  box?.focus();
+  return Boolean(box);
+}
+
 function GroupHeading({ children }: { children: string }) {
   return <h3 className="mb-2 text-label font-semibold text-foreground">{children}</h3>;
 }
@@ -82,10 +97,11 @@ function RowsSkeleton() {
  * when, priority, project; the server's suggestions are the starting point
  * and the clerk's choices are final), assign; dismiss one with an optional
  * reason; add one the summary missed. The call to action stays rendered
- * (aria-disabled with a reason when nothing is ticked), so the focus the
- * dialog hands back on close has somewhere to land; it is the primary
- * button only once something is ticked, and on a phone it then sticks to
- * the bottom of the screen so it is never below every row.
+ * once there is any item, even with none left pending (aria-disabled, with
+ * the reason beside it), so the focus the dialog hands back on close has
+ * somewhere to land; it is the primary button only once something is
+ * ticked, and on a phone it then sticks to the bottom of the screen so it
+ * is never below every row.
  */
 function ClerkPendingList({
   workspaceId,
@@ -112,11 +128,23 @@ function ClerkPendingList({
   const dismiss = useDismissMeetingActionItem(meetingId);
   const { memberOf } = useMemberIndex(workspaceId);
   const [adding, setAdding] = useState(false);
+  const [dismissError, setDismissError] = useState<{ id: string; text: string } | null>(null);
   const addRef = useRef<HTMLButtonElement>(null);
+  const assignRef = useRef<HTMLButtonElement>(null);
+  const listRef = useRef<HTMLUListElement>(null);
   const returnFocus = useRef(false);
+  // A dismissed row unmounts with its focused button: once it leaves, focus the next row, else Add item.
+  const landing = useRef<{ leaving: string; next?: string } | null>(null);
   const count = flow.pickedPending.length;
   const blocked = count === 0 || flow.pending;
   const sticky = variant === "panel" && count > 0;
+
+  useEffect(() => {
+    const l = landing.current;
+    if (!l || pending.some((p) => p.id === l.leaving)) return;
+    landing.current = null;
+    if (!focusPendingRow(listRef.current, l.next)) (addRef.current ?? assignRef.current)?.focus();
+  }, [pending]);
 
   // The form unmounts the button that opened it: when it closes, focus goes back there, not to <body>.
   useEffect(() => {
@@ -132,8 +160,8 @@ function ClerkPendingList({
   return (
     <div className="space-y-2.5">
       {pending.length > 0 ? (
-        <ul className={LIST_CLASS[variant]}>
-          {pending.map((item) => (
+        <ul ref={listRef} className={cn(LIST_CLASS[variant], sticky && STICKY_BAR_CLEARANCE)}>
+          {pending.map((item, at) => (
             <PendingRow
               key={item.id}
               item={item}
@@ -148,7 +176,10 @@ function ClerkPendingList({
                   // One shared mutation: TanStack runs only the latest mutate()'s callbacks, so a
                   // second dismiss while one is in flight would lose the first's done/toast.
                   pending={dismiss.isPending}
-                  onDismiss={(reason, done) =>
+                  error={dismissError?.id === item.id ? dismissError.text : undefined}
+                  onDismiss={(reason, done) => {
+                    setDismissError(null);
+                    landing.current = { leaving: item.id, next: (pending[at + 1] ?? pending[at - 1])?.id };
                     dismiss.mutate(
                       { itemId: item.id, reason },
                       {
@@ -156,27 +187,38 @@ function ClerkPendingList({
                           done();
                           announce(t("meetings.actionItemsSection.dismissed"));
                         },
-                        onError: (err) => toastApiError(err, t("meetings.actionItemsSection.dismissFailed")),
+                        onError: (err) => {
+                          landing.current = null;
+                          setDismissError({
+                            id: item.id,
+                            text: apiErrorCopy(err) ?? t("meetings.actionItemsSection.dismissFailed"),
+                          });
+                        },
                       },
-                    )
-                  }
+                    );
+                  }}
                 />
               }
             />
           ))}
         </ul>
       ) : null}
-      {adding ? <AddActionItemForm meetingId={meetingId} onDone={closeAdd} announce={announce} /> : null}
+      {adding ? (
+        <div className={cn(sticky && STICKY_BAR_CLEARANCE)}>
+          <AddActionItemForm meetingId={meetingId} onDone={closeAdd} announce={announce} />
+        </div>
+      ) : null}
       <div
         data-testid="action-items-bar"
         className={cn(
           "flex flex-wrap items-center gap-2",
           sticky &&
-            "max-sm:sticky max-sm:bottom-0 max-sm:z-10 max-sm:-mx-4 max-sm:border-t max-sm:border-border max-sm:bg-surface max-sm:px-4 max-sm:py-3",
+            "max-sm:sticky max-sm:bottom-0 max-sm:z-10 max-sm:-mx-4 max-sm:border-t max-sm:border-border max-sm:bg-surface max-sm:px-4 max-sm:pt-3 max-sm:pb-[calc(0.75rem+env(safe-area-inset-bottom))]",
         )}
       >
-        {pending.length > 0 ? (
+        {items.length > 0 ? (
           <Button
+            ref={assignRef}
             type="button"
             size="sm"
             variant={count > 0 ? "default" : "outline"}
@@ -195,12 +237,14 @@ function ClerkPendingList({
             {t("meetings.actionItemsSection.add")}
           </Button>
         )}
+        {count === 0 && items.length > 0 ? (
+          <p id={reasonId} className="text-caption text-muted-foreground">
+            {pending.length > 0
+              ? t("meetings.actionItemsSection.pickReason")
+              : t("meetings.actionItemsSection.nothingPending")}
+          </p>
+        ) : null}
       </div>
-      {count === 0 ? (
-        <p id={reasonId} className="sr-only">
-          {t("meetings.actionItemsSection.pickReason")}
-        </p>
-      ) : null}
       <AiSummaryTasksDialog
         open={flow.dialogOpen}
         onOpenChange={flow.setDialogOpen}
@@ -260,10 +304,15 @@ export function MeetingActionItemsSection({
   const { data: project } = useProject(workspaceId, projectId || "");
   const workspace = useOptionalWorkspace()?.workspace;
   const wsPaths = workspace ? paths.workspace(workspace.organization_slug, workspace.slug) : null;
-  const [announcement, setAnnouncement] = useState("");
+  // Sequenced, so a second identical "dismissed" is announced again.
+  const [announcement, announce] = useAnnouncement();
   const [showDismissed, setShowDismissed] = useState(false);
+  const [restoreError, setRestoreError] = useState<{ id: string; text: string } | null>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  // A restored row unmounts with its focused button: follow the item back to its pending row.
+  const restoring = useRef<string | null>(null);
 
-  const items = query.data?.items ?? [];
+  const items = query.data?.items ?? NO_ITEMS;
   const pending: MeetingActionItem[] = [];
   const converted: MeetingActionItem[] = [];
   const dismissed: MeetingActionItem[] = [];
@@ -284,12 +333,19 @@ export function MeetingActionItemsSection({
     }
   }
 
+  useEffect(() => {
+    const id = restoring.current;
+    if (!id || items.some((item) => item.id === id && item.status === "DISMISSED")) return;
+    restoring.current = null;
+    focusPendingRow(bodyRef.current, id);
+  }, [items]);
+
   const body = query.isPending ? (
     <RowsSkeleton />
   ) : query.isError && !query.data ? (
     <MeetingSectionError message={t("meetings.actionItemsSection.loadFailed")} onRetry={() => void query.refetch()} />
   ) : (
-    <div className="space-y-4" data-testid="meeting-action-items">
+    <div ref={bodyRef} className="space-y-4" data-testid="meeting-action-items">
       {items.length > 0 && query.data ? <ProgressLine counts={query.data.counts} /> : null}
       {items.length === 0 && !canClerk ? (
         <p className="text-label text-muted-foreground">{t("meetings.actionItemsSection.emptyReadOnly")}</p>
@@ -310,7 +366,7 @@ export function MeetingActionItemsSection({
               items={items}
               pending={pending}
               variant={variant}
-              announce={setAnnouncement}
+              announce={announce}
               selection={selection}
             />
           ) : (
@@ -365,14 +421,23 @@ export function MeetingActionItemsSection({
                   item={item}
                   variant={variant}
                   restoring={restore.isPending && restore.variables === item.id}
+                  error={restoreError?.id === item.id ? restoreError.text : undefined}
                   onRestore={
                     canClerk
                       ? () => {
                           // Same shared-mutation reason as dismiss: one restore at a time.
                           if (restore.isPending) return;
+                          setRestoreError(null);
+                          restoring.current = item.id;
                           restore.mutate(item.id, {
-                            onSuccess: () => setAnnouncement(t("meetings.actionItemsSection.restored")),
-                            onError: (err) => toastApiError(err, t("meetings.actionItemsSection.restoreFailed")),
+                            onSuccess: () => announce(t("meetings.actionItemsSection.restored")),
+                            onError: (err) => {
+                              restoring.current = null;
+                              setRestoreError({
+                                id: item.id,
+                                text: apiErrorCopy(err) ?? t("meetings.actionItemsSection.restoreFailed"),
+                              });
+                            },
                           });
                         }
                       : undefined
@@ -389,7 +454,7 @@ export function MeetingActionItemsSection({
   if (variant === "compact") {
     return (
       <section className="space-y-3">
-        <SummaryLiveRegion message={announcement} />
+        <SummaryLiveRegion message={announcement.text} seq={announcement.seq} />
         {body}
       </section>
     );
@@ -403,7 +468,7 @@ export function MeetingActionItemsSection({
       title={t("meetings.actionItemsSection.title")}
       className="overflow-clip"
     >
-      <SummaryLiveRegion message={announcement} />
+      <SummaryLiveRegion message={announcement.text} seq={announcement.seq} />
       {body}
     </PanelCard>
   );

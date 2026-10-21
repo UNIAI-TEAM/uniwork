@@ -4,6 +4,7 @@ import { useState, type ReactNode } from "react";
 import { CalendarDays, CircleAlert, Flag, FolderKanban, ListChecks, PenLine, Sparkles, UserRound } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { TaskPriority } from "@uniwork/core/types";
+import { useMembers } from "@uniwork/core/workspaces";
 import { Dialog } from "@uniwork/ui/components/ui/dialog";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { Label } from "@uniwork/ui/components/ui/label";
@@ -17,6 +18,12 @@ import { PriorityPicker } from "./pickers/priority-picker";
 // Every control keeps the 32px of Input and DateField; the small select
 // trigger (data-[size=sm], 28px) is raised to match.
 const FIELD_CLASS = "w-full max-w-none data-[size=sm]:h-8";
+
+// What the AI read from the source: neutral, so it never reads as a selection.
+const SAID_CHIP_CLASS =
+  "inline-flex max-w-full items-center gap-1 rounded-md bg-muted px-1.5 py-0.5 text-caption text-muted-foreground";
+
+const sameName = (a: string, b: string | undefined) => a.trim().toLowerCase() === b?.trim().toLowerCase();
 
 /** What the person confirms for one AI action item. null is "nobody" / "no due date", a choice. */
 export interface AiSummaryTaskDraft {
@@ -100,11 +107,14 @@ function TaskEditorCard({
   onChange: (patch: Partial<AiSummaryTaskDraft>) => void;
 }) {
   const { t } = useTranslation();
+  const { data: members } = useMembers(wsId);
   const dueId = `${idPrefix}-due-${seed.index}`;
   const titleId = `${idPrefix}-title-${seed.index}`;
   const titleErrorId = `${titleId}-error`;
   const titleBlank = draft.title !== undefined && draft.title.trim() === "";
-  const owner = seed.owner?.trim();
+  const picked = members?.find((m) => m.user_id === draft.assigneeId)?.display_name;
+  // The owner the AI read, unless it is who the select already shows: one name, once.
+  const owner = seed.owner?.trim() && !sameName(seed.owner, picked) ? seed.owner.trim() : undefined;
   const due = seed.due?.trim();
 
   return (
@@ -153,13 +163,13 @@ function TaskEditorCard({
             {owner || (due && copy.spokenDue) ? (
               <div className="flex flex-wrap gap-1.5">
                 {owner ? (
-                  <span className="inline-flex max-w-full items-center gap-1 rounded-md bg-brand-subtle px-1.5 py-0.5 text-caption text-brand-subtle-foreground">
+                  <span className={SAID_CHIP_CLASS}>
                     <Sparkles className="size-3 shrink-0" aria-hidden />
                     {copy.suggestedOwner(owner)}
                   </span>
                 ) : null}
                 {due && copy.spokenDue ? (
-                  <span className="inline-flex max-w-full items-center gap-1 rounded-md bg-brand-subtle px-1.5 py-0.5 text-caption text-brand-subtle-foreground">
+                  <span className={SAID_CHIP_CLASS}>
                     <Sparkles className="size-3 shrink-0" aria-hidden />
                     {copy.spokenDue(due)}
                   </span>
@@ -169,9 +179,10 @@ function TaskEditorCard({
           </div>
         </div>
 
-        <FieldBlock icon={UserRound} label={t("meetings.assignTaskTo")}>
+        <FieldBlock icon={UserRound} label={t("tasks.assignee")}>
           <MeetingAssigneeSelect
             workspaceId={wsId}
+            ariaLabel={t("tasks.assignee")}
             value={draft.assigneeId ?? undefined}
             onChange={(userId) => onChange({ assigneeId: userId ?? null })}
             unassignedLabel={copy.unassignedLabel}
@@ -184,7 +195,8 @@ function TaskEditorCard({
             <PriorityPicker
               value={draft.priority}
               ariaLabel={t("tasks.priority")}
-              triggerClassName={cn(FIELD_CLASS, "justify-start gap-1.5 border border-input px-2.5 font-normal")}
+              // h-8: the sm button trigger is 28px, 4px short of the date field beside it.
+              triggerClassName={cn(FIELD_CLASS, "h-8 justify-start gap-1.5 border border-input px-2.5 font-normal")}
               onChange={(priority) => onChange({ priority })}
             />
           </FieldBlock>
@@ -336,10 +348,16 @@ export function AiSummaryTasksDialog({
     setShown({ seeds, copy, itemNotes });
   }
   const view = open ? { seeds, copy, itemNotes } : shown;
+  // Escape, the scrim and the close button cannot drop a review while it is being sent:
+  // its answer (the duplicate marks) lands on this dialog.
+  const changeOpen = (next: boolean) => {
+    if (!next && pending) return;
+    onOpenChange(next);
+  };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <FormDialogContent size="lg" className="sm:max-w-xl">
+    <Dialog open={open} onOpenChange={changeOpen}>
+      <FormDialogContent size="lg" className="sm:max-w-xl" showCloseButton={!pending}>
         <AiSummaryTasksForm
           key={opening}
           wsId={wsId}
@@ -349,7 +367,7 @@ export function AiSummaryTasksDialog({
           copy={view.copy}
           itemNotes={view.itemNotes}
           pending={pending}
-          onCancel={() => onOpenChange(false)}
+          onCancel={() => changeOpen(false)}
           onConfirm={onConfirm}
         />
       </FormDialogContent>

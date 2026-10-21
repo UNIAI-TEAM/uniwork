@@ -124,14 +124,14 @@ describe("MeetingActionItemsSection", () => {
     expect(screen.getByText("Lý do: Đã có bản in")).toBeInTheDocument();
   });
 
-  it("labels an item the AI scribe heard during the meeting with its time", async () => {
+  it("labels an item the AI scribe heard during the meeting as the scribe's, with its time", async () => {
     const live = { id: "a5", source: "LIVE", title: "Gửi báo giá", status: "PENDING", created_at: "2026-10-21T03:42:00Z" };
     const noTime = { id: "a6", source: "LIVE", title: "Chốt lịch", status: "PENDING", created_at: "not a time" };
     respond({ items: () => ({ items: [live, noTime], counts: { pending: 2, converted: 0, dismissed: 0, tasks_done: 0, tasks_overdue: 0 } }) });
     renderSection();
     expect(await screen.findByText("Gửi báo giá")).toBeInTheDocument();
-    expect(screen.getByText(/^Trong lúc họp · \d{2}:\d{2}$/)).toBeInTheDocument();
-    expect(screen.getByText("Trong lúc họp")).toBeInTheDocument();
+    expect(screen.getByText(/^Thư ký AI ghi lúc \d{2}:\d{2}$/)).toBeInTheDocument();
+    expect(screen.getByText("Thư ký AI ghi trong họp")).toBeInTheDocument();
   });
 
   it("is read-only for a member who is not a clerk", async () => {
@@ -198,14 +198,15 @@ describe("MeetingActionItemsSection", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Giao 2 việc" }));
     const dialog = await screen.findByRole("dialog");
-    expect(within(dialog).getByText("Được nhắc: Mai Anh")).toBeInTheDocument();
+    // The owner said in the room is the one already picked: named once, in the select.
+    expect(within(dialog).queryByText(/Trong họp nói: Mai Anh/)).not.toBeInTheDocument();
 
     const [firstTitle] = within(dialog).getAllByRole("textbox", { name: "Tiêu đề việc" });
     fireEvent.change(firstTitle!, { target: { value: "Gửi biên bản họp" } });
-    const [assignee] = within(dialog).getAllByRole("combobox", { name: "Gán cho" });
+    const [assignee] = within(dialog).getAllByRole("combobox", { name: "Người phụ trách" });
     await waitFor(() => expect(assignee).toHaveTextContent("Mai Anh"));
     await u.click(assignee!);
-    await u.click(await screen.findByRole("option", { name: "Không gán" }));
+    await u.click(await screen.findByRole("option", { name: "Chưa giao" }));
     fireEvent.click(within(dialog).getByRole("button", { name: "Giao 2 việc" }));
 
     await waitFor(() => expect(posts("/action-items/convert")).toHaveLength(1));
@@ -215,7 +216,9 @@ describe("MeetingActionItemsSection", () => {
         { action_item_id: "a1", assignee_id: null, due_date: null, project_id: "p1" },
       ],
     });
-    await waitFor(() => expect(toast.success).toHaveBeenCalled());
+    // One channel for the outcome, in the same words as the button.
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Đã giao 1 việc.", expect.anything()));
+    expect(screen.getByTestId("summary-live-region")).not.toHaveTextContent("Đã giao");
   });
 
   it("names the items that duplicate an open task, keeping the review open with them marked", async () => {
@@ -288,5 +291,152 @@ describe("MeetingActionItemsSection", () => {
     renderSection();
     expect(await screen.findByText("Chưa có việc cần làm. Thêm việc để giao sau họp.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Thêm việc" })).toBeInTheDocument();
+  });
+});
+
+describe("MeetingActionItemsSection source labels", () => {
+  it("labels what the AI drew from the summary, on every group", async () => {
+    renderSection();
+    fireEvent.click(await screen.findByRole("button", { name: /Đã bỏ qua \(1\)/ }));
+    await screen.findByText("In tài liệu");
+    // Pending, assigned and dismissed AI rows all keep their source.
+    expect(screen.getAllByText("Từ tóm tắt AI")).toHaveLength(3);
+    // The label stays out of the checkbox's name.
+    expect(screen.getByRole("checkbox", { name: "Gửi biên bản" })).toBeInTheDocument();
+  });
+});
+
+describe("MeetingActionItemsSection focus", () => {
+  const counts = { pending: 0, converted: 0, dismissed: 0, tasks_done: 0, tasks_overdue: 0 };
+  /** The list the server answers, switched once the command lands. */
+  function respondThen(before: unknown[], after: unknown[], fail?: string) {
+    let current = before;
+    respond({ items: () => ({ items: current, counts }) });
+    const base = requestMock.getMockImplementation()!;
+    requestMock.mockImplementation((path: unknown, init?: { method?: string }) => {
+      if (init?.method === "POST" && fail && String(path).endsWith(fail)) return Promise.reject(new Error("boom"));
+      if (init?.method === "POST") current = after;
+      return base(path, init);
+    });
+  }
+
+  it("moves to the next pending row once a dismissed one leaves the list", async () => {
+    const third = { id: "a4", source: "AI", title: "Chốt lịch", status: "PENDING" };
+    respondThen([pendingAI, pendingManual, third], [pendingAI, { ...pendingManual, status: "DISMISSED" }, third]);
+    renderSection();
+    fireEvent.click(await screen.findByRole("button", { name: 'Bỏ qua "Đặt phòng"' }));
+    expect(await screen.findByRole("dialog", { name: "Bỏ qua việc này?" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Bỏ qua việc" }));
+    await waitFor(() => expect(screen.getByRole("checkbox", { name: "Chốt lịch" })).toHaveFocus());
+  });
+
+  it("lands on Add item when the last pending row is dismissed", async () => {
+    respondThen([pendingManual], [{ ...pendingManual, status: "DISMISSED" }]);
+    renderSection();
+    fireEvent.click(await screen.findByRole("button", { name: 'Bỏ qua "Đặt phòng"' }));
+    fireEvent.click(await screen.findByRole("button", { name: "Bỏ qua việc" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Thêm việc" })).toHaveFocus());
+  });
+
+  it("follows a restored item back to its pending row", async () => {
+    respondThen([pendingAI, dismissed], [pendingAI, { ...dismissed, status: "PENDING" }]);
+    renderSection();
+    fireEvent.click(await screen.findByRole("button", { name: /Đã bỏ qua \(1\)/ }));
+    fireEvent.click(await screen.findByRole("button", { name: 'Khôi phục "In tài liệu"' }));
+    await waitFor(() => expect(screen.getByRole("checkbox", { name: "In tài liệu" })).toHaveFocus());
+  });
+
+  it("keeps the assign button, and the focus on it, once every pending item is assigned", async () => {
+    const u = userEvent.setup();
+    respondThen([pendingAI], [{ ...converted, id: "a0", title: pendingAI.title }]);
+    renderSection();
+    await u.click(await screen.findByRole("checkbox", { name: "Gửi biên bản" }));
+    await u.click(screen.getByRole("button", { name: "Giao 1 việc" }));
+    const dialog = await screen.findByRole("dialog");
+    await u.click(within(dialog).getByRole("button", { name: "Giao 1 việc" }));
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Đã giao (1)" })).toBeInTheDocument());
+    const cta = screen.getByRole("button", { name: "Giao việc" });
+    await waitFor(() => expect(cta).toHaveFocus());
+    expect(cta).toHaveAttribute("aria-disabled", "true");
+    // The reason is on screen, not only for a screen reader.
+    const reason = document.getElementById(cta.getAttribute("aria-describedby") ?? "");
+    expect(reason).toHaveTextContent("Không còn việc nào chờ giao");
+    expect(reason).not.toHaveClass("sr-only");
+  });
+});
+
+describe("MeetingActionItemsSection errors", () => {
+  it("says on the title why an empty add is refused", async () => {
+    renderSection();
+    fireEvent.click(await screen.findByRole("button", { name: "Thêm việc" }));
+    const title = screen.getByRole("textbox", { name: "Tên việc" });
+    expect(title).not.toHaveAttribute("aria-invalid");
+    fireEvent.click(screen.getByRole("button", { name: "Thêm" }));
+    expect(title).toHaveAttribute("aria-invalid", "true");
+    expect(document.getElementById(title.getAttribute("aria-describedby")?.split(" ")[0] ?? "")).toHaveTextContent(
+      "Nhập tên việc.",
+    );
+    expect(posts("/meetings/m1/action-items")).toHaveLength(0);
+  });
+
+  it("shows a failed add inside the form, not in a toast", async () => {
+    vi.mocked(toast.error).mockClear();
+    const base = requestMock.getMockImplementation()!;
+    requestMock.mockImplementation((path: unknown, init?: { method?: string }) =>
+      init?.method === "POST" ? Promise.reject(new Error("boom")) : base(path, init),
+    );
+    renderSection();
+    fireEvent.click(await screen.findByRole("button", { name: "Thêm việc" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Tên việc" }), { target: { value: "Gọi khách" } });
+    fireEvent.click(screen.getByRole("button", { name: "Thêm" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Chưa thêm được việc. Thử lại.");
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it("shows a failed dismiss in its popover and a failed restore beside its row", async () => {
+    vi.mocked(toast.error).mockClear();
+    const base = requestMock.getMockImplementation()!;
+    requestMock.mockImplementation((path: unknown, init?: { method?: string }) =>
+      init?.method === "POST" ? Promise.reject(new Error("boom")) : base(path, init),
+    );
+    renderSection();
+    fireEvent.click(await screen.findByRole("button", { name: 'Bỏ qua "Đặt phòng"' }));
+    fireEvent.click(await screen.findByRole("button", { name: "Bỏ qua việc" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Chưa bỏ qua được việc. Thử lại.");
+    fireEvent.click(screen.getByRole("button", { name: "Hủy" }));
+
+    fireEvent.click(screen.getByRole("button", { name: /Đã bỏ qua \(1\)/ }));
+    fireEvent.click(await screen.findByRole("button", { name: 'Khôi phục "In tài liệu"' }));
+    await waitFor(() => expect(screen.getByText("Chưa khôi phục được việc. Thử lại.")).toHaveAttribute("role", "alert"));
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+});
+
+describe("MeetingActionItemsSection announcements", () => {
+  it("announces a second identical dismiss again: the region empties, then refills", async () => {
+    renderSection();
+    const region = () => screen.getByTestId("summary-live-region");
+    fireEvent.click(await screen.findByRole("button", { name: 'Bỏ qua "Đặt phòng"' }));
+    fireEvent.click(await screen.findByRole("button", { name: "Bỏ qua việc" }));
+    await waitFor(() => expect(region()).toHaveTextContent("Đã bỏ qua việc."));
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Bỏ qua việc" })).not.toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole("button", { name: 'Bỏ qua "Đặt phòng"' }));
+    const confirm = await screen.findByRole("button", { name: "Bỏ qua việc" });
+    vi.useFakeTimers();
+    try {
+      fireEvent.click(confirm);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(10);
+      });
+      expect(posts("/a1/dismiss")).toHaveLength(2);
+      expect(region()).toBeEmptyDOMElement();
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(50);
+      });
+      expect(region()).toHaveTextContent("Đã bỏ qua việc.");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

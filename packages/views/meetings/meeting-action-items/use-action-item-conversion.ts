@@ -105,18 +105,17 @@ export function useActionItemConversion({
       onSuccess: (result) => {
         setDialogOpen(false);
         setPicked(NONE);
+        // The outcome is said once, by the toast (sonner's live region); the
+        // section's region only carried "assigning…".
         if (!result) {
           // The tasks may exist; the refetched list shows which. Never
           // report "0 tasks" for an answer that could not be read.
-          const text = t("meetings.summaryAi.createdUnknown");
-          announce(text);
-          toast.warning(text);
+          toast.warning(t("meetings.summaryAi.createdUnknown"));
           return;
         }
         const count = result.links.length;
         const only = count === 1 ? result.links[0]?.task_id : undefined;
-        announce(t("meetings.actionItemsSection.assignedStatus", { count }));
-        toast.success(t("meetings.tasksCreated", { count }), {
+        toast.success(t("meetings.actionItemsSection.assignedStatus", { count }), {
           action:
             wsPaths && nav
               ? {
@@ -128,9 +127,7 @@ export function useActionItemConversion({
       },
       onError: (err) => {
         const code = errorCode(err) ?? "";
-        const text = summaryErrorText(err, t, "tasks", { items });
-        announce(text);
-        toast.error(text);
+        toast.error(summaryErrorText(err, t, "tasks", { items }));
         // A duplicate leaves the review open with the clashing items marked,
         // so the clerk chooses what to drop or move.
         if (code === "active_duplicate_task") setDuplicates(new Set(errorItemIds(err)));

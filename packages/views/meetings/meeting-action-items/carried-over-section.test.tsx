@@ -85,7 +85,7 @@ describe("MeetingCarriedOverSection", () => {
     expect(await within(older).findByText("Mai Anh")).toBeInTheDocument();
     expect(within(older).getByText("Quá hạn")).toBeInTheDocument();
     expect(within(newer).getByText("Đặt phòng hội thảo")).toBeInTheDocument();
-    expect(within(newer).getByText("Chưa gán")).toBeInTheDocument();
+    expect(within(newer).getByText("Chưa giao")).toBeInTheDocument();
   });
 
   it("renders nothing when nothing carries over, or the answer is unreadable", async () => {

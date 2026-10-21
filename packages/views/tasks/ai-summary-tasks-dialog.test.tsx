@@ -153,6 +153,47 @@ describe("AiSummaryTasksDialog", () => {
     );
   });
 
+  it("names the said owner only when it is not who is picked, in a neutral chip", async () => {
+    requestMock.mockImplementation((path: unknown) =>
+      String(path).endsWith("/members")
+        ? Promise.resolve({ members: [{ workspace_id: "w1", user_id: "u-mai", role: "member", email: "m@x.com", display_name: "Mai Anh" }] })
+        : Promise.resolve({}),
+    );
+    const picked = { ...seed, owner: "mai anh", draft: { ...seed.draft, assigneeId: "u-mai" } };
+    const other = { ...seed, index: 1, title: "Đặt phòng", owner: "Bảo", draft: { ...seed.draft, assigneeId: "u-mai" } };
+    render(wrap(<Harness open seeds={[picked, other]} />));
+    const dialog = await screen.findByRole("dialog");
+    const chip = await within(dialog).findByText("AI ghi: Bảo");
+    await waitFor(() => expect(within(dialog).queryByText("AI ghi: mai anh")).not.toBeInTheDocument());
+    // Muted, not the brand fill of a selection.
+    expect(chip).toHaveClass("bg-muted");
+    expect(chip).not.toHaveClass("bg-brand-subtle");
+    expect(within(dialog).getAllByRole("combobox", { name: "Người phụ trách" })).toHaveLength(2);
+  });
+
+  it("cannot be closed while the tasks are being created", async () => {
+    const onOpenChange = vi.fn();
+    render(
+      wrap(
+        <AiSummaryTasksDialog
+          open
+          onOpenChange={onOpenChange}
+          wsId="w1"
+          idPrefix="t"
+          seeds={[seed]}
+          copy={copyFor(1)}
+          pending
+          onConfirm={vi.fn()}
+        />,
+      ),
+    );
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.keyDown(dialog, { key: "Escape" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Hủy" }));
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
+    expect(within(dialog).queryByRole("button", { name: "Đóng" })).not.toBeInTheDocument();
+  });
+
   it("marks the item a refusal named on its card", () => {
     render(wrap(<Harness open seeds={[seed]} notes={{ 0: "Trùng tên với một việc đang mở" }} />));
     expect(within(screen.getByRole("dialog")).getByText("Trùng tên với một việc đang mở")).toBeInTheDocument();

@@ -1,13 +1,13 @@
 "use client";
 import { useId, useState, type ReactNode } from "react";
-import { Circle, CircleCheck, RotateCcw } from "lucide-react";
+import { Circle, CircleCheck, RotateCcw, Sparkles } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { MeetingActionItem } from "@uniwork/core/meetings/action-items";
 import { Badge } from "@uniwork/ui/components/ui/badge";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Checkbox } from "@uniwork/ui/components/ui/checkbox";
 import { Label } from "@uniwork/ui/components/ui/label";
-import { Popover, PopoverContent, PopoverTrigger } from "@uniwork/ui/components/ui/popover";
+import { Popover, PopoverContent, PopoverTitle, PopoverTrigger } from "@uniwork/ui/components/ui/popover";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { Textarea } from "@uniwork/ui/components/ui/textarea";
 import { cn } from "@uniwork/ui/lib/utils";
@@ -53,27 +53,49 @@ function formatClock(iso: string | null | undefined, locale: string): string | n
 }
 
 /**
- * Where a typed or live item came from; AI items need no badge, the section
- * says so. A live item also says when the AI scribe heard it.
+ * Where an item came from: typed by a clerk, drawn from the AI summary, or
+ * heard by the AI scribe during the meeting (with when). An unknown source
+ * shows nothing rather than a guess.
  */
 function SourceBadge({ source, createdAt }: { source?: string | null; createdAt?: string | null }) {
   const { t, i18n } = useTranslation();
-  if (source !== "MANUAL" && source !== "LIVE") return null;
+  if (source !== "MANUAL" && source !== "LIVE" && source !== "AI") return null;
   const time = source === "LIVE" ? formatClock(createdAt, meetingLocale(i18n.language)) : null;
   return (
     <Badge variant="outline" className="ml-1.5 align-middle">
+      {source === "MANUAL" ? null : <Sparkles aria-hidden />}
       {source === "MANUAL"
         ? t("meetings.actionItemsSection.sourceManual")
-        : time
-          ? t("meetings.actionItemsSection.sourceLiveAt", { time })
-          : t("meetings.actionItemsSection.sourceLive")}
+        : source === "AI"
+          ? t("meetings.actionItemsSection.sourceAi")
+          : time
+            ? t("meetings.actionItemsSection.sourceLiveAt", { time })
+            : t("meetings.actionItemsSection.sourceLive")}
     </Badge>
   );
 }
 
-function RowShell({ variant, highlight, children }: { variant: ActionItemsVariant; highlight?: boolean; children: ReactNode }) {
+function RowShell({
+  variant,
+  highlight,
+  itemId,
+  children,
+}: {
+  variant: ActionItemsVariant;
+  highlight?: boolean;
+  /** Lets the section find the row's checkbox to move focus to. */
+  itemId?: string;
+  children: ReactNode;
+}) {
   return (
-    <li className={cn("space-y-1 text-body text-foreground transition-colors", ROW_CLASS[variant], highlight && "bg-surface-selected")}>
+    <li
+      data-action-item={itemId}
+      className={cn(
+        "space-y-1 text-body text-foreground transition-colors",
+        ROW_CLASS[variant],
+        highlight && "bg-surface-selected",
+      )}
+    >
       {children}
     </li>
   );
@@ -114,7 +136,7 @@ export function PendingRow({
     .filter(Boolean)
     .join(" · ");
   return (
-    <RowShell variant={variant} highlight={checked}>
+    <RowShell variant={variant} highlight={checked} itemId={item.id}>
       <div className="flex items-start gap-3">
         {selectable ? (
           <Checkbox
@@ -157,8 +179,8 @@ export function ConvertedRow({
   assigneeName,
   evidence,
 }: {
-  /** Only the title and the task are read, so a carried-over task fits too. */
-  item: Pick<MeetingActionItem, "title" | "task">;
+  /** Only the title, the task and the source are read, so a carried-over task fits too. */
+  item: Pick<MeetingActionItem, "title" | "task"> & Partial<Pick<MeetingActionItem, "source" | "created_at">>;
   variant: ActionItemsVariant;
   taskHref: string | null;
   assigneeName?: string;
@@ -176,17 +198,21 @@ export function ConvertedRow({
     <RowShell variant={variant}>
       <p className="flex items-start gap-3">
         <Glyph aria-hidden className={cn("mt-0.5 size-4 shrink-0", task?.done ? "text-success" : "text-faint-foreground")} />
-        {taskHref ? (
-          <AppLink
-            href={taskHref}
-            className="min-w-0 text-pretty underline-offset-2 hover:underline"
-            aria-label={t("meetings.actionItemsSection.openTask", { title })}
-          >
-            {title}
-          </AppLink>
-        ) : (
-          <span className="min-w-0 text-pretty">{title}</span>
-        )}
+        <span className="min-w-0 text-pretty">
+          {taskHref ? (
+            <AppLink
+              href={taskHref}
+              // 44px tall on touch through ::after; the 20px line alone is too small a tap.
+              className="relative underline-offset-2 hover:underline pointer-coarse:after:absolute pointer-coarse:after:inset-x-0 pointer-coarse:after:-inset-y-3"
+              aria-label={t("meetings.actionItemsSection.openTask", { title })}
+            >
+              {title}
+            </AppLink>
+          ) : (
+            title
+          )}
+          <SourceBadge source={item.source} createdAt={item.created_at} />
+        </span>
       </p>
       <p className="flex flex-wrap items-center gap-x-1.5 pl-7 text-caption text-muted-foreground">
         <span>{assigneeName ?? t("meetings.actionItemsSection.unassigned")}</span>
@@ -212,21 +238,32 @@ export function DismissedRow({
   variant,
   onRestore,
   restoring,
+  error,
 }: {
   item: MeetingActionItem;
   variant: ActionItemsVariant;
   onRestore?: () => void;
   restoring?: boolean;
+  /** Why the last restore failed, said beside the row. */
+  error?: string;
 }) {
   const { t } = useTranslation();
   return (
     <RowShell variant={variant}>
       <div className="flex items-start gap-3">
         <div className="min-w-0 flex-1 space-y-1">
-          <p className="text-pretty text-muted-foreground line-through">{item.title}</p>
+          <p className="text-pretty text-muted-foreground">
+            <span className="line-through">{item.title}</span>
+            <SourceBadge source={item.source} createdAt={item.created_at} />
+          </p>
           {item.dismiss_reason ? (
             <p className="text-caption text-muted-foreground">
               {t("meetings.actionItemsSection.reason", { reason: item.dismiss_reason })}
+            </p>
+          ) : null}
+          {error ? (
+            <p role="alert" className="text-caption text-destructive">
+              {error}
             </p>
           ) : null}
         </div>
@@ -254,10 +291,13 @@ export function DismissedRow({
 export function DismissActionItemButton({
   title,
   pending,
+  error,
   onDismiss,
 }: {
   title: string;
   pending: boolean;
+  /** Why the last dismiss failed, said in the popover. */
+  error?: string;
   onDismiss: (reason: string, done: () => void) => void;
 }) {
   const { t } = useTranslation();
@@ -274,6 +314,7 @@ export function DismissActionItemButton({
         }
       />
       <PopoverContent align="end" className="w-72 space-y-2">
+        <PopoverTitle className="text-label">{t("meetings.actionItemsSection.dismissTitle")}</PopoverTitle>
         <Label htmlFor={reasonId} className="text-caption">
           {t("meetings.actionItemsSection.dismissReason")}
         </Label>
@@ -285,6 +326,11 @@ export function DismissActionItemButton({
           value={reason}
           onChange={(e) => setReason(e.target.value)}
         />
+        {error ? (
+          <p role="alert" className="text-caption text-destructive">
+            {error}
+          </p>
+        ) : null}
         <div className="flex justify-end gap-2">
           <Button type="button" size="sm" variant="ghost" onClick={() => setOpen(false)}>
             {t("common.cancel")}
@@ -292,7 +338,8 @@ export function DismissActionItemButton({
           <Button
             type="button"
             size="sm"
-            variant="destructive"
+            // Reversible (Restore brings it back): not the destructive red.
+            variant="outline"
             aria-disabled={pending || undefined}
             onClick={() => {
               if (pending) return;
