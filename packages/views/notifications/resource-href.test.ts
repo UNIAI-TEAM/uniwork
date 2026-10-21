@@ -44,10 +44,10 @@ describe("resourceHref", () => {
     expect(resourceHref(n, workspace, [workspace])).toBe("/acme/team/my-tasks");
   });
 
-  it("opens the summary panel, where the transcript is, when a transcript is ready or failed", () => {
+  it("opens the transcript card when a transcript is ready or failed", () => {
     for (const kind of ["meeting_transcript_ready", "meeting_transcript_failed"] as const) {
       const n = notification({ kind, resource_type: "meeting", resource_id: "m1" });
-      expect(resourceHref(n, workspace, [workspace])).toBe("/acme/team/meetings/m1?section=summary");
+      expect(resourceHref(n, workspace, [workspace])).toBe("/acme/team/meetings/m1?section=transcript");
     }
   });
 

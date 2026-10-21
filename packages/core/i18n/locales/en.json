@@ -5862,9 +5862,6 @@
     "merged_other_other": "and {{count}} more changes",
     "trashed_more_one": "and {{count}} more",
     "trashed_more_other": "and {{count}} more",
-    "next_step": {
-      "meeting_transcript_failed": "Open the meeting to upload the file again."
-    },
     "deleted": "deleted",
     "unread_dot": "Unread",
     "unread_elsewhere": "Unread notifications in another workspace",
@@ -5992,7 +5989,6 @@
     "untitled": "New chat",
     "delete_conversation": "Delete conversation",
     "sources": "Sources",
-    "source_transcript": "Transcript: {{title}}",
     "you": "You",
     "uni": "UNI",
     "usage_tokens": "{{in}} in · {{out}} out",

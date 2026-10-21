@@ -5858,9 +5858,6 @@
     "merged_other_other": "và {{count}} thay đổi khác",
     "trashed_more_one": "và {{count}} mục khác",
     "trashed_more_other": "và {{count}} mục khác",
-    "next_step": {
-      "meeting_transcript_failed": "Mở cuộc họp để tải lại tệp."
-    },
     "deleted": "đã xóa",
     "unread_dot": "Chưa đọc",
     "unread_elsewhere": "Có thông báo chưa đọc ở workspace khác",
@@ -5988,7 +5985,6 @@
     "untitled": "Hội thoại mới",
     "delete_conversation": "Xóa hội thoại",
     "sources": "Nguồn",
-    "source_transcript": "Lời thoại: {{title}}",
     "you": "Bạn",
     "uni": "UNI",
     "usage_tokens": "{{in}} vào · {{out}} ra",

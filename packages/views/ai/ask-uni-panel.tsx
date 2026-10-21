@@ -66,14 +66,6 @@ function MeetingContextChip({ meetingId }: { meetingId: string }) {
   );
 }
 
-/** A source's label; the server prefixes a transcript with English "Transcript: ", the reader's language replaces it. */
-function citationTitle(c: AiCitation, t: (key: string, opts?: Record<string, string>) => string): string {
-  const title = c.title || c.kind;
-  if (c.kind !== "transcript") return title;
-  // shortcut: strips the server's English prefix; drop once askuni_transcript.go sends the bare title.
-  return t("source_transcript", { title: title.replace(/^Transcript:\s*/, "") });
-}
-
 /** The ai.errors.* key for a failed ask; the meeting copilot's Ask UNI box reads it too. */
 export function resolveErrorKey(err: unknown): string {
   const code = errorCode(err) ?? "";
@@ -97,7 +89,7 @@ function Citations({ citations }: { citations: AiCitation[] }) {
             className="inline-flex max-w-full items-center gap-1 text-caption text-primary underline-offset-2 hover:underline pointer-coarse:min-h-11"
           >
             <span className="tabular-nums">[{c.source_id}]</span>
-            <span className="truncate">{citationTitle(c, t)}</span>
+            <span className="truncate">{c.title || c.kind}</span>
           </AppLink>
         </li>
       ))}

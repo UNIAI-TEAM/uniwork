@@ -229,13 +229,15 @@ func ResourceURL(ctx context.Context, q *db.Queries, origin string, n db.Notific
 	case "meeting":
 		// Mirrors resource-href.ts: a batch of assigned tasks lands on the
 		// assignee's own tasks (paths.ts myTasks: the row names no task), the
-		// summary and transcript kinds on the summary panel, which holds the
-		// transcript (use-meeting-section-deep-link.ts).
+		// summary kinds on the summary panel and the transcript kinds on the
+		// transcript card (use-meeting-section-deep-link.ts).
 		switch n.Kind {
 		case KindTasksAssigned:
 			return base + "/my-tasks", nil
-		case KindMeetingSummaryReminder, KindMeetingSummaryReady, KindMeetingTranscriptReady, KindMeetingTranscriptFailed:
+		case KindMeetingSummaryReminder, KindMeetingSummaryReady:
 			return base + "/meetings/" + n.ResourceID + "?section=summary", nil
+		case KindMeetingTranscriptReady, KindMeetingTranscriptFailed:
+			return base + "/meetings/" + n.ResourceID + "?section=transcript", nil
 		}
 		return base + "/meetings/" + n.ResourceID, nil
 	case "audit_export":

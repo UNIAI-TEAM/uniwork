@@ -28,7 +28,6 @@ export function plainSnippet(raw: string): string {
 type NotificationSnippet =
   | { kind: "text"; text: string }
   | { kind: "deleted"; key: string }
-  | { kind: "next_step"; key: string }
   | { kind: "trashed"; document: string; count: number }
   | null;
 
@@ -39,10 +38,6 @@ type NotificationSnippet =
  * of post it was, and never shows what it said.
  */
 export function notificationSnippet(n: Notification): NotificationSnippet {
-  // The server's sentence says the transcript failed; the row says what to do.
-  if (n.kind === "meeting_transcript_failed") {
-    return n.resource_deleted ? null : { kind: "next_step", key: "notifications.next_step.meeting_transcript_failed" };
-  }
   if (n.resource_type !== "document" || n.resource_access_lost || n.resource_deleted) return null;
   // A trash notice names the top item and how many others rode in its batch (TRASH-NOTIFY-01).
   if (n.kind === "document_trashed_by_other") {

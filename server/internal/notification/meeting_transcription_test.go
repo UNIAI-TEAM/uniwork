@@ -1,6 +1,7 @@
 package notification
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -46,6 +47,10 @@ func TestRuleTranscriptionTellsTheRequester(t *testing.T) {
 			}
 			if len(f.inbox(t, f.owner.ID)) != 0 {
 				t.Fatal("someone other than the requester was told")
+			}
+			// Push and email open the transcript card, as the inbox row does.
+			if url, err := ResourceURL(f.ctx, f.q, "https://app.test", got[0]); err != nil || !strings.HasSuffix(url, "/meetings/"+m.ID+"?section=transcript") {
+				t.Fatalf("url = %q %v", url, err)
 			}
 			// An event of another tenant names nothing it can reach.
 			ev.ID, ev.OrganizationID = util.NewID(), pgtype.Text{String: "other-org", Valid: true}

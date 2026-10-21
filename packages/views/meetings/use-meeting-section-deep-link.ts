@@ -5,10 +5,10 @@ import { useOptionalNavigation } from "../navigation";
 
 const SECTION_PARAM = "section";
 /** Section name in the URL → id of the heading the page scrolls to. */
-const SECTION_ANCHORS: Record<string, string> = { summary: "summary-heading", "action-items": "action-items-heading" };
+const SECTION_ANCHORS: Record<string, string> = { summary: "summary-heading", "action-items": "action-items-heading", transcript: "transcript-heading" };
 
 /**
- * `/meetings/<id>?section=summary` (or `action-items`) scrolls the detail page
+ * `/meetings/<id>?section=summary` (or `action-items`, `transcript`) scrolls the detail page
  * to that panel once the meeting has loaded (the panel is data-driven, inside an inner
  * scroller, so a native #hash cannot do it). The param is dropped once used,
  * so a reload does not jump again. Where a notification lands (C-11 §9.1 V1).

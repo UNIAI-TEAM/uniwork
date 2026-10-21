@@ -55,11 +55,9 @@ describe("notificationSnippet", () => {
     });
   });
 
-  // The server's sentence says what failed; the row adds what to do about it.
-  it("gives a failed transcript its next step, unless the meeting is gone", () => {
+  // The server's sentence already says what to do when a transcript fails.
+  it("adds no second line to a failed transcript", () => {
     const failed = { ...base, kind: "meeting_transcript_failed", resource_type: "meeting", params: { meeting: "Giao ban" } } as Notification;
-    expect(notificationSnippet(failed)).toEqual({ kind: "next_step", key: "notifications.next_step.meeting_transcript_failed" });
-    expect(notificationSnippet({ ...failed, resource_deleted: true })).toBeNull();
-    expect(notificationSnippet({ ...failed, kind: "meeting_transcript_ready" })).toBeNull();
+    expect(notificationSnippet(failed)).toBeNull();
   });
 });
