@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"crypto/hmac"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -29,13 +31,34 @@ import (
 // scope only (UNI-2039 fx1): the last candidate read may be a document the
 // caller cannot read, so its title or change time never travels here; the
 // service looks the sort value up from the id inside the tenant-constrained
-// read.
+// read. The token is sealed with the server secret (UNI-2039 L1) and binds
+// the workspace and the caller too, so the anchor id cannot be forged,
+// re-aimed at another sort or scope, or replayed by another account to learn
+// where an unreadable document sits in the walk.
 type accessReportCursor struct {
-	ID     string `json:"id"`
-	Folder string `json:"f"`
-	Filter string `json:"h"`
-	Sort   string `json:"s"`
-	Order  string `json:"o"`
+	ID        string `json:"id"`
+	Folder    string `json:"f"`
+	Filter    string `json:"h"`
+	Sort      string `json:"s"`
+	Order     string `json:"o"`
+	Workspace string `json:"w"`
+	User      string `json:"u"`
+}
+
+// accessReportCursorPrefix tags the sealed token format; a new format takes a
+// new prefix.
+const accessReportCursorPrefix = "acr1."
+
+// accessReportCursorMAC is the signature over the prefixed payload. The key is
+// derived from the server secret under its own label, so an access-report
+// cursor can never pass for a change-feed cursor, an access token or a frame
+// token (compare newChangeCursorCodec in package service).
+func accessReportCursorMAC(secret, body string) []byte {
+	k := hmac.New(sha256.New, []byte(secret))
+	k.Write([]byte("uniwork/document-access-report-cursor/v1"))
+	m := hmac.New(sha256.New, k.Sum(nil))
+	m.Write([]byte(body))
+	return m.Sum(nil)
 }
 
 // accessReportFilterHash is 8 hex digits over the person, level and
@@ -59,9 +82,10 @@ func accessReportFilterHash(in service.DocumentAccessReportQuery) string {
 	return fmt.Sprintf("%08x", h.Sum32())
 }
 
-func encodeAccessReportCursor(c accessReportCursor) string {
+func encodeAccessReportCursor(secret string, c accessReportCursor) string {
 	raw, _ := json.Marshal(c)
-	return base64.RawURLEncoding.EncodeToString(raw)
+	body := accessReportCursorPrefix + base64.RawURLEncoding.EncodeToString(raw)
+	return body + "." + base64.RawURLEncoding.EncodeToString(accessReportCursorMAC(secret, body))
 }
 
 // accessReportQuery reads the filters both routes share. A value the service
@@ -136,7 +160,7 @@ func (h *handlers) documentAccessReport(w http.ResponseWriter, r *http.Request) 
 		in.Limit = n
 	}
 	if raw := strings.TrimSpace(r.URL.Query().Get("cursor")); raw != "" {
-		after, ok := decodeAccessReportCursor(raw, in)
+		after, ok := decodeAccessReportCursor(h.Cfg.JWTSecret, raw, h.accessReportCursorScope(r, in))
 		if !ok {
 			respondError(w, http.StatusBadRequest, "invalid_request", "cursor không hợp lệ")
 			return
@@ -165,32 +189,60 @@ func (h *handlers) documentAccessReport(w http.ResponseWriter, r *http.Request) 
 	}
 	out.Summary.Documents = len(out.Documents)
 	if page.Next != nil {
-		cursor := encodeAccessReportCursor(newAccessReportCursor(in, *page.Next))
+		cursor := encodeAccessReportCursor(h.Cfg.JWTSecret, newAccessReportCursor(h.accessReportCursorScope(r, in), in, *page.Next))
 		out.NextCursor = &cursor
 	}
 	respondJSON(w, http.StatusOK, out)
 }
 
-// newAccessReportCursor pins the position after key in the report in describes.
-func newAccessReportCursor(in service.DocumentAccessReportQuery, key service.AccessReportKey) accessReportCursor {
+// accessReportCursorScope is what the request presenting a cursor stands in:
+// the report (folder, filters, sort, order) in this workspace for this caller.
+func (h *handlers) accessReportCursorScope(r *http.Request, in service.DocumentAccessReportQuery) accessReportCursor {
+	c := newAccessReportCursor(accessReportCursor{}, in, service.AccessReportKey{})
+	c.Workspace = chi.URLParam(r, "workspaceID")
+	c.User = middleware.UserID(r.Context())
+	return c
+}
+
+// newAccessReportCursor pins the position after key in the report in describes;
+// scope carries the workspace and caller the token is bound to.
+func newAccessReportCursor(scope accessReportCursor, in service.DocumentAccessReportQuery, key service.AccessReportKey) accessReportCursor {
 	mode, descending := in.SortOrder()
 	order := service.AccessReportOrderAsc
 	if descending {
 		order = service.AccessReportOrderDesc
 	}
-	return accessReportCursor{ID: key.ID, Folder: in.FolderID, Filter: accessReportFilterHash(in), Sort: mode, Order: order}
+	return accessReportCursor{
+		ID: key.ID, Folder: in.FolderID, Filter: accessReportFilterHash(in), Sort: mode, Order: order,
+		Workspace: scope.Workspace, User: scope.User,
+	}
 }
 
-// decodeAccessReportCursor reads a cursor and checks it belongs to this very
-// report: folder, filter hash, sort and order all match (ok=false otherwise).
-func decodeAccessReportCursor(raw string, in service.DocumentAccessReportQuery) (*service.AccessReportKey, bool) {
+// decodeAccessReportCursor reads a cursor and checks it was sealed by this
+// server and belongs to this very report: workspace, caller, folder, filter
+// hash, sort and order all match (ok=false otherwise, for a tampered, foreign,
+// truncated or unsigned token alike).
+func decodeAccessReportCursor(secret, raw string, want accessReportCursor) (*service.AccessReportKey, bool) {
+	rest, ok := strings.CutPrefix(raw, accessReportCursorPrefix)
+	if !ok {
+		return nil, false
+	}
+	payload, sig, ok := strings.Cut(rest, ".")
+	if !ok || payload == "" || sig == "" {
+		return nil, false
+	}
+	// Strict: one spelling per MAC.
+	got, err := base64.RawURLEncoding.Strict().DecodeString(sig)
+	if err != nil || !hmac.Equal(got, accessReportCursorMAC(secret, accessReportCursorPrefix+payload)) {
+		return nil, false
+	}
 	var c accessReportCursor
-	dec, err := base64.RawURLEncoding.DecodeString(raw)
+	dec, err := base64.RawURLEncoding.Strict().DecodeString(payload)
 	if err != nil || json.Unmarshal(dec, &c) != nil || c.ID == "" {
 		return nil, false
 	}
-	want := newAccessReportCursor(in, service.AccessReportKey{})
-	if c.Folder != want.Folder || c.Filter != want.Filter || c.Sort != want.Sort || c.Order != want.Order {
+	if c.Workspace != want.Workspace || c.User != want.User || c.Folder != want.Folder ||
+		c.Filter != want.Filter || c.Sort != want.Sort || c.Order != want.Order {
 		return nil, false
 	}
 	return &service.AccessReportKey{ID: c.ID}, true
