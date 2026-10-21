@@ -1,0 +1,5 @@
+$ for i in $(seq 1 14); do test -f /tmp/pr7r8-go-handler.exit && break; sleep 30; done; echo "DONE_FILE=$(test -f /tmp/pr7r8-go-handler.exit && echo yes || echo no)"; grep -cE "^\s*--- PASS" /tmp/pr7r8-go-handler.log; grep -E "^=== RUN" /tmp/pr7r8-go-handler.log | tail -1; rc=$(cat /tmp/pr7r8-go-handler.exit 2>/dev/null || echo 99); echo "TEST_GO_EXIT=$rc"; [ $rc -eq 0 ]
+DONE_FILE=yes
+836
+=== RUN   TestCORSExposesTheAccessReportExportHeaders
+TEST_GO_EXIT=0

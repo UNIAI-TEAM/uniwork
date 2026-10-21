@@ -1,0 +1,6 @@
+$ ls -la /tmp/pr7r8-cover-go-handler.out; b=$(git hash-object -w /tmp/pr7r8-cover-go-handler.out); echo "COVER_BLOB=go-handler=$b"; git push origin "$b:refs/test-artifacts/pr7-rehearsal-r8/go-handler-fcde53e88" > /tmp/pr7r8-push-go-handler.log 2>&1; rc=$?; tail -2 /tmp/pr7r8-push-go-handler.log; echo "COVER_PUSH_EXIT=$rc"; [ $rc -eq 0 ]
+-rw-r--r-- 1 ubuntu ubuntu 556554 Oct 21 16:25 /tmp/pr7r8-cover-go-handler.out
+COVER_BLOB=go-handler=0703019f44a38960a4ac31077401fe0773512afa
+To https://github.com/UNIAI-TEAM/uniwork
+ * [new reference]       0703019f44a38960a4ac31077401fe0773512afa -> refs/test-artifacts/pr7-rehearsal-r8/go-handler-fcde53e88
+COVER_PUSH_EXIT=0

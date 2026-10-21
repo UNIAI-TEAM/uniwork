@@ -1,0 +1,8 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin advisor/pr7-rehearsal; git rev-parse HEAD FETCH_HEAD; git log --oneline -3; test "$(git rev-parse HEAD)" = "$(git rev-parse FETCH_HEAD)"; rc=$?; echo; echo "SYNCED_EXIT=$rc"; [ $rc -eq 0 ]
+fcde53e88d6d500a44b549ee87c6eaefc82d11d4
+fcde53e88d6d500a44b549ee87c6eaefc82d11d4
+fcde53e88 chore: merge UNI-2047 N-05 quick-create strip web (d3ec3cd6b) into the G5-G7 root
+890cdd6e3 chore: merge UNI-2056 doc-change-notify server + core (c63d1d928) into the G5-G7 root
+d3ec3cd6b feat(documents): test the quick-create strip and the last-created pill, never offer Plain text there (UNI-2047 N-05)
+
+SYNCED_EXIT=0
