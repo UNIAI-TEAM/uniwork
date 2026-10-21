@@ -7,6 +7,7 @@ import {
   contentRowOpen,
   createFolder,
   createFolderChain,
+  createMyFolderFolder,
   createPage,
   documentIdsLinkedIn,
   expectCardOrder,
@@ -1491,15 +1492,14 @@ test("FD-A08 breadcrumb navigates segments, follows browser Back/Forward, omits 
     );
   }
 
-  // A shared document never names the owner's private folder (UNI-1974: a folder is never
-  // shared, so only a page inside it is), and the forbidden ?folder= shows the error state.
-  const secretRoot = await createFolder(
+  // A shared document never names a folder in the owner's My Folder (the only private folder
+  // since ADR 0037; a folder is never shared, so only a page inside it is), and the forbidden
+  // ?folder= shows the error state.
+  const secretRoot = await createMyFolderFolder(
     page,
     ws.owner.token,
     ws.wsId,
     "Thư mục Cha Bí Mật",
-    null,
-    "restricted",
   );
   const sharedChild = await createPage(
     page,
@@ -1650,15 +1650,13 @@ test("FD-A09 unified search and ⌘K find folders and documents by title, filter
     },
   );
 
-  // Restricted ancestor with a shared child page (a folder is never shared, UNI-1974) to verify
-  // search path never leaks unreadable ancestor.
-  const restrictedParent = await createFolder(
+  // Unreadable ancestor (a folder in the owner's My Folder, ADR 0037) with a shared child page
+  // (a folder is never shared, UNI-1974) to verify search path never leaks unreadable ancestor.
+  const restrictedParent = await createMyFolderFolder(
     page,
     ws.owner.token,
     ws.wsId,
     "Thư mục Cha Ẩn",
-    null,
-    "restricted",
   );
   const sharedLeaf = await createPage(
     page,
@@ -2012,9 +2010,11 @@ test("FD-A10 (entity/email link API) structured graph DOCUMENT links and email-h
   );
 });
 
-test("FD-A11 prevents duplicate sibling folder names (case-insensitive, accent-sensitive NFC, concurrent race, restricted leak check) while allowing same-name documents", async ({
+test("FD-A11 a clashing folder create takes the next free (n) (case-insensitive, accent-sensitive NFC, concurrent race, My Folder leak check), a rename into a taken name is 409, and same-name documents are allowed", async ({
   page,
 }) => {
+  // ADR 0037 §7: a folder create is never refused for its name; the server
+  // appends " (n)". A rename into a name a live sibling holds stays 409.
   const ws = await seedFolderWorkspace(page, "fd-a11", { withMemberB: true });
   const parent = await createFolder(
     page,
@@ -2023,7 +2023,8 @@ test("FD-A11 prevents duplicate sibling folder names (case-insensitive, accent-s
     "Thư mục Cha",
   );
 
-  // 1. Create "Hợp đồng" and verify case-insensitive & NFD duplicates return 409 folder_name_taken.
+  // 1. Create "Hợp đồng"; a case-insensitive and an NFD duplicate create each land under the
+  // next free " (n)" (the NFD title is stored NFC, and "(1)" is already held case-insensitively).
   await createFolder(page, ws.owner.token, ws.wsId, "Hợp đồng", parent.id);
 
   const upperDup = await apiCreateDocument(page, ws.owner.token, ws.wsId, {
@@ -2034,8 +2035,8 @@ test("FD-A11 prevents duplicate sibling folder names (case-insensitive, accent-s
   expect(
     upperDup.status,
     `${upperDup.status} ${JSON.stringify(upperDup.error)}`,
-  ).toBe(409);
-  expect(upperDup.error?.code).toBe("folder_name_taken");
+  ).toBe(201);
+  expect(upperDup.data?.title).toBe("HỢP ĐỒNG (1)");
 
   const nfdDup = await apiCreateDocument(page, ws.owner.token, ws.wsId, {
     title: "Hợp đồng".normalize("NFD"),
@@ -2045,10 +2046,11 @@ test("FD-A11 prevents duplicate sibling folder names (case-insensitive, accent-s
   expect(
     nfdDup.status,
     `${nfdDup.status} ${JSON.stringify(nfdDup.error)}`,
-  ).toBe(409);
-  expect(nfdDup.error?.code).toBe("folder_name_taken");
+  ).toBe(201);
+  expect(nfdDup.data?.title).toBe("Hợp đồng (2)");
 
-  // 2. Accent-sensitive: "Ma" and "Mã" are distinct and both succeed under the same parent.
+  // 2. Accent-sensitive: "Ma" and "Mã" are distinct and both succeed under the same parent,
+  // with no suffix.
   const folderMa = await apiCreateDocument(page, ws.owner.token, ws.wsId, {
     title: "Ma",
     kind: "folder",
@@ -2058,6 +2060,7 @@ test("FD-A11 prevents duplicate sibling folder names (case-insensitive, accent-s
     folderMa.status,
     `${folderMa.status} ${JSON.stringify(folderMa.error)}`,
   ).toBe(201);
+  expect(folderMa.data?.title).toBe("Ma");
   const folderMaAccent = await apiCreateDocument(
     page,
     ws.owner.token,
@@ -2072,10 +2075,25 @@ test("FD-A11 prevents duplicate sibling folder names (case-insensitive, accent-s
     folderMaAccent.status,
     `${folderMaAccent.status} ${JSON.stringify(folderMaAccent.error)}`,
   ).toBe(201);
+  expect(folderMaAccent.data?.title).toBe("Mã");
 
-  // 3. Two concurrent creates with the same name under the same parent yield one 201 and one 409.
-  // server/internal/service/document_names.go:73-74 (normalizeDocumentTitle) applies norm.NFC(strings.TrimSpace(raw))
-  // and server/pkg/db/queries/document_names.sql:16-34 compares lower(title COLLATE "und-x-icu").
+  // 2b. A rename into a taken name stays 409 folder_name_taken: case-insensitive and NFD.
+  for (const taken of ["hợp đồng", "Hợp đồng".normalize("NFD")]) {
+    const renamed = await patchDocument(page, ws.owner.token, folderMa.data!.id, {
+      revision: folderMa.data!.revision,
+      title: taken,
+    });
+    expect(
+      renamed.status,
+      `${renamed.status} ${JSON.stringify(renamed.error)}`,
+    ).toBe(409);
+    expect(renamed.error?.code).toBe("folder_name_taken");
+  }
+
+  // 3. Two concurrent creates with the same name under the same parent both land: one keeps the
+  // name, the other takes " (1)". Never two live siblings with one name.
+  // server/internal/service/document_names.go (availableFolderCreateTitle) applies norm.NFC(strings.TrimSpace(raw))
+  // and server/pkg/db/queries/document_names.sql compares lower(title COLLATE "und-x-icu").
   const [race1, race2] = await Promise.all([
     apiCreateDocument(
       page,
@@ -2101,9 +2119,12 @@ test("FD-A11 prevents duplicate sibling folder names (case-insensitive, accent-s
     ),
   ]);
   expect(
-    [race1.status, race2.status].sort(),
+    [race1.status, race2.status],
     `race1=${race1.status} (${JSON.stringify(race1.error)}), race2=${race2.status} (${JSON.stringify(race2.error)})`,
-  ).toEqual([201, 409]);
+  ).toEqual([201, 201]);
+  const raceTitles = [race1.data!.title, race2.data!.title];
+  expect(new Set(raceTitles.map((t) => t.toLowerCase())).size, raceTitles.join(" | ")).toBe(2);
+  expect(raceTitles.filter((t) => t.endsWith(" (1)")), raceTitles.join(" | ")).toHaveLength(1);
 
   // 4. Same-name documents (pages and files) under the same parent are allowed (201).
   const page1 = await apiCreateDocument(page, ws.owner.token, ws.wsId, {
@@ -2138,17 +2159,17 @@ test("FD-A11 prevents duplicate sibling folder names (case-insensitive, accent-s
   );
   expect(file1.id).not.toBe(file2.id);
 
-  // 5. Restricted sibling folder collision: 409 response to User B carries NO id or title of A's restricted folder.
-  // Both sit at the root: a folder is never shared (UNI-1974), so B cannot create inside A's folder at all.
-  const restrictedSibling = await createFolder(
+  // 5. My Folder leak check: a folder in the owner's My Folder is private, and the same name at
+  // the workspace root, created by B, takes no suffix: the answer carries no id or title of A's
+  // private folder and no sign that it exists. A second create of that name at the root clashes
+  // with a folder everyone can see, so it takes " (1)".
+  const privateSibling = await createMyFolderFolder(
     page,
     ws.owner.token,
     ws.wsId,
     "Dự Án Mật Của Owner",
-    null,
-    "restricted",
   );
-  const blindCollision = await apiCreateDocument(
+  const blindCreate = await apiCreateDocument(
     page,
     ws.member!.token,
     ws.wsId,
@@ -2158,14 +2179,30 @@ test("FD-A11 prevents duplicate sibling folder names (case-insensitive, accent-s
     },
   );
   expect(
-    blindCollision.status,
-    `${blindCollision.status} ${JSON.stringify(blindCollision.error)}`,
-  ).toBe(409);
-  expect(blindCollision.error?.code).toBe("folder_name_taken");
-  expect(blindCollision.rawText).not.toContain(restrictedSibling.id);
-  expect(blindCollision.rawText).not.toContain(restrictedSibling.title);
+    blindCreate.status,
+    `${blindCreate.status} ${JSON.stringify(blindCreate.error)}`,
+  ).toBe(201);
+  expect(blindCreate.data?.title).toBe("dự án mật của owner");
+  expect(blindCreate.rawText).not.toContain(privateSibling.id);
+  expect(blindCreate.rawText).not.toContain(privateSibling.title);
 
-  // 6. Both create and rename surface 409 as a field error (role="alert") in the dialog.
+  const publicClash = await apiCreateDocument(
+    page,
+    ws.member!.token,
+    ws.wsId,
+    {
+      title: "dự án mật của owner",
+      kind: "folder",
+    },
+  );
+  expect(
+    publicClash.status,
+    `${publicClash.status} ${JSON.stringify(publicClash.error)}`,
+  ).toBe(201);
+  expect(publicClash.data?.title).toBe("dự án mật của owner (1)");
+
+  // 6. Create takes the next free " (n)" in the dialog (toast carries the stored name); rename
+  // surfaces 409 as a field error (role="alert") in the dialog.
   await loginFolderUser(page, ws.owner.email);
   await page.goto(`/${ws.orgSlug}/${ws.wsSlug}/documents?folder=${parent.id}`);
 
@@ -2176,11 +2213,9 @@ test("FD-A11 prevents duplicate sibling folder names (case-insensitive, accent-s
   });
   await createDlg.getByLabel("Tên thư mục").fill("HỢP ĐỒNG");
   await createDlg.getByRole("button", { name: "Tạo" }).click();
-  await expect(createDlg.getByRole("alert")).toContainText(
-    "Đã có thư mục tên này ở đây. Hãy đặt tên khác.",
-  );
-  await createDlg.getByLabel("Tên thư mục").press("Escape");
   await expect(createDlg).toBeHidden();
+  await expect(page.getByText("Đã tạo thư mục HỢP ĐỒNG (3)")).toBeVisible();
+  await expect(folderCard(page, "HỢP ĐỒNG (3)")).toBeVisible();
 
   // "Ma" is a sibling folder card; its ⋯ menu carries the same row labels.
   await folderCard(page, "Ma")
