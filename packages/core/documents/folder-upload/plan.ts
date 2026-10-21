@@ -110,17 +110,21 @@ function compareFolders(a: string, b: string): number {
 
 export interface PlanFileUploadOptions {
   limits: FolderUploadLimits;
+  /** Level of the destination folder, as in `PlanFolderUploadOptions`; workspace root (the default) is 0. */
+  parentLevel?: number;
 }
 
 /**
  * Files mode (CONTRACT section 10, A1): several loose files straight into the
  * destination. The folder planner's skip rules and limits, without root,
- * folders, depth or "(n)": two files with the same name are both kept and
- * never renamed (FD-D10). Only the last path segment is read, as the name.
+ * folders or "(n)": two files with the same name are both kept and never
+ * renamed (FD-D10). Only the last path segment is read, as the name. The
+ * server still checks the destination's depth (A2): parentLevel + 1 over
+ * maxDepth is `too_deep`.
  */
 export function planFileUpload(
   entries: readonly FolderUploadEntry[],
-  { limits }: PlanFileUploadOptions,
+  { limits, parentLevel = 0 }: PlanFileUploadOptions,
 ): FolderUploadPlan {
   const skipped: { path: string; reason: FolderUploadSkipReason }[] = [];
   const files: PlannedFile[] = [];
@@ -149,6 +153,7 @@ export function planFileUpload(
   const bytes = files.reduce((sum, f) => sum + f.size, 0);
   let refusal: FolderUploadPlan["refusal"] = null;
   if (files.length === 0) refusal = { code: "nothing_to_upload" };
+  else if (parentLevel + 1 > limits.maxDepth) refusal = { code: "too_deep", limit: limits.maxDepth, actual: parentLevel + 1 };
   else if (files.length > limits.maxFiles) refusal = { code: "too_many_files", limit: limits.maxFiles, actual: files.length };
   else if (bytes > limits.maxTotalBytes) refusal = { code: "too_large_total", limit: limits.maxTotalBytes, actual: bytes };
   return {

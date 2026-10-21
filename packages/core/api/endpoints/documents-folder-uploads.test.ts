@@ -23,6 +23,7 @@ const wireBatch = (over: Record<string, unknown> = {}) => ({
   id: "b1",
   status: "open",
   parent_id: "p1",
+  mode: "folder",
   root_folder_id: "r1",
   root_title: "Hồ sơ (1)",
   share_with_workspace: false,
@@ -88,6 +89,19 @@ describe("documents folder-uploads endpoints", () => {
     await expect(getFolderUpload("w1", "b1")).resolves.toMatchObject({ root_folder_id: null, root_title: null, folders: [] });
     // Malformed root fields read as absent, never as a string.
     await expect(getFolderUpload("w1", "b1")).resolves.toMatchObject({ root_folder_id: null, root_title: null, folders: [] });
+  });
+
+  it("reads the batch mode, deriving it from root_folder_id when missing or malformed", async () => {
+    const { mode: _mode, ...noMode } = wireBatch();
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(json(wireBatch({ mode: "files", root_folder_id: null, root_title: null, folders: [] })))
+      .mockResolvedValueOnce(json(noMode))
+      .mockResolvedValueOnce(json(wireBatch({ mode: 7, root_folder_id: null, root_title: null })))
+      .mockResolvedValueOnce(json(wireBatch({ mode: "weird" })));
+    await expect(getFolderUpload("w1", "b1")).resolves.toMatchObject({ mode: "files" });
+    await expect(getFolderUpload("w1", "b1")).resolves.toMatchObject({ mode: "folder" });
+    await expect(getFolderUpload("w1", "b1")).resolves.toMatchObject({ mode: "files" });
+    await expect(getFolderUpload("w1", "b1")).resolves.toMatchObject({ mode: "folder" });
   });
 
   it("reads drifted fields leniently: unknown statuses, bad targets, broken entries", async () => {
