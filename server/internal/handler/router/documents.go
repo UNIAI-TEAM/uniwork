@@ -95,7 +95,7 @@ import (
 //	GET    /api/v1/orgs/{orgID}/documents/favorites
 //	PUT    /api/v1/orgs/{orgID}/documents/settings                (G1-05b)
 //	GET    /api/v1/orgs/{orgID}/documents/settings                (G1-08)
-func registerDocuments(r, callerDocs api, h Routes, flags *featureflag.Service, editRequestLimit, accessRequestLimit, folderUploadPlanLimit func(http.Handler) http.Handler) {
+func registerDocuments(r, callerDocs api, h Routes, flags *featureflag.Service, editRequestLimit, accessRequestLimit, folderUploadPlanLimit, folderUploadLimit func(http.Handler) http.Handler) {
 	d := r.With(mw.RequireFeatureFlag(flags, "documents"))
 	registerDocumentEditLock(d, h, editRequestLimit)
 
@@ -602,6 +602,22 @@ func registerDocuments(r, callerDocs api, h Routes, flags *featureflag.Service, 
 		sdo:    sdo.FolderUploadBatchSDO{},
 		status: http.StatusCreated,
 		auth:   true,
+	})
+	d.With(folderUploadLimit).Get("/workspaces/{workspaceID}/documents/folder-uploads/{batchID}", h.GetFolderUpload, apiOp{
+		summary: "Get a folder upload batch",
+		description: "Trạng thái một lô tải thư mục (UNI-2052): mỗi tệp một dòng pending|done|failed, counts, và target ký mới cho tệp pending (tệp lớn chỉ liệt kê các phần còn thiếu trên storage) để client tiếp tục sau khi mất mạng. Chỉ người tạo đọc được; người khác (kể cả thành viên cùng workspace) -> 404. " +
+			"Lô hết hạn (24 giờ sau khi lập, hoặc sweep đã đóng) -> 410 folder_upload_expired; lô canceled hoặc completed trả nguyên trạng, không có target. Bucket folder-upload 120 lượt/phút/người -> 429 rate_limited. Đọc không ghi audit.",
+		tags: []string{"documents"},
+		sdo:  sdo.FolderUploadBatchSDO{},
+		auth: true,
+	})
+	d.With(folderUploadLimit).Delete("/workspaces/{workspaceID}/documents/folder-uploads/{batchID}", h.CancelFolderUpload, apiOp{
+		summary: "Cancel a folder upload batch",
+		description: "Hủy lô tải thư mục (UNI-2052): lô open -> canceled, hủy upload nhiều phần còn treo trên storage và các phiên tải đơn của tệp pending; thư mục và tài liệu đã tạo giữ nguyên. Một dòng audit documents.folder_upload_canceled {batch_id, pending_count}. " +
+			"Idempotent: gọi lại trả 200 cùng nội dung, không thêm audit; lô completed trả nguyên trạng, không audit. Chỉ người tạo; người khác -> 404. Lô hết hạn -> 410 folder_upload_expired. Bucket folder-upload 120 lượt/phút/người.",
+		tags: []string{"documents"},
+		sdo:  sdo.FolderUploadBatchSDO{},
+		auth: true,
 	})
 	d.Get("/workspaces/{workspaceID}/documents/download-jobs/{jobID}", h.GetDocumentDownloadJob, apiOp{
 		summary:     "Get a document zip download job",

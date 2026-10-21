@@ -614,6 +614,14 @@ var isoRoutes = map[string]isoSpec{
 	"GET /api/v1/files/{fileID}/content":                                         {skipControl: "reads need the ticket POST .../files/resolve mints; without it everyone is refused"},
 	"HEAD /api/v1/files/{fileID}/content":                                        {skipControl: "reads need the ticket POST .../files/resolve mints; without it everyone is refused"},
 
+	// Folder upload batch read and cancel (UNI-2052 w3). B naming A's batch is
+	// 404 on both (the batch is the creator's alone). The seeded batch is
+	// completed: the owner's GET answers it without targets and the owner's
+	// DELETE answers it unchanged (no status change, no audit row), so the
+	// control cancels nothing the other batch routes need.
+	"GET /api/v1/workspaces/{workspaceID}/documents/folder-uploads/{batchID}":    {},
+	"DELETE /api/v1/workspaces/{workspaceID}/documents/folder-uploads/{batchID}": {},
+
 	"GET /api/v1/workspaces/{workspaceID}/calendar/connections/{provider}/calendars":                       {skipControl: "no OAuth client is configured in tests; the owner gets 503"},
 	"PUT /api/v1/workspaces/{workspaceID}/calendar/connections/{provider}/calendars":                       {body: isoJSON(map[string]any{"calendar_ids": []string{"primary"}}), skipControl: "owner 5xx found by G8-04, owner: calendar (no provider client is configured in tests; the owner gets 503)"},
 	"GET /api/v1/meetings/{meetingID}/recordings/{recordingID}/content":                                    {control: []int{http.StatusConflict}},

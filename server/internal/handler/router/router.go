@@ -312,7 +312,10 @@ func New(d Deps, h Routes) http.Handler {
 				mw.RateLimitByIdentityBucket(d.Redis, "doc-access-request", 20, time.Hour, proxies, bearerUser(d.Minter)),
 				// Folder upload PLAN (UNI-2052 §9): 10 a minute per signed-in
 				// person, beside the two-open-batches cap in the service.
-				mw.RateLimitByIdentityBucket(d.Redis, "folder-upload-plan", 10, time.Minute, proxies, bearerUser(d.Minter)))
+				mw.RateLimitByIdentityBucket(d.Redis, "folder-upload-plan", 10, time.Minute, proxies, bearerUser(d.Minter)),
+				// Folder upload batch routes (UNI-2052 §9): GET, DELETE (and
+				// COMPLETE) share 120 a minute per signed-in person.
+				mw.RateLimitByIdentityBucket(d.Redis, "folder-upload", 120, time.Minute, proxies, bearerUser(d.Minter)))
 			registerDocumentSources(docs, h, d.FeatureFlags)
 			registerSignatures(authed, h)
 			// Personal AI keys: per signed-in person across the whole group, 30/min (ADR 0029).

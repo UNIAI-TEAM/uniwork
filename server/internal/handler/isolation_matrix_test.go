@@ -760,6 +760,11 @@ func isoParam(t *testing.T, pattern string, segs []string, i int, tn *isoTenant)
 			return tn.get(t, "downloadJob")
 		}
 		return tn.get(t, "officeJob")
+	case "{batchID}":
+		// The folder upload batch (UNI-2052) is seeded completed, so a DELETE
+		// control answers it unchanged and never takes a batch the other routes
+		// need.
+		return tn.get(t, "folderUpload")
 	case "{exportID}":
 		return tn.get(t, "auditExport")
 	case "{privacyExportID}":
