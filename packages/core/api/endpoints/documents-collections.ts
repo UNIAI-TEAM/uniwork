@@ -34,6 +34,12 @@ const enc = encodeURIComponent;
 
 /** The columns the document tables sort by on the server. */
 export type DocumentSortColumn = "updated" | "name" | "size" | "editor";
+/** A grouped screen's own order (UNI-2045 W11): Recent by its last activity
+ *  (SV-1), Shared with me by the share date (SV-3). */
+export type DocumentScreenSort = "activity" | "shared";
+
+/** Recent's Tất cả / Đã mở / Đã sửa segment (UNI-2045 SV-1b); left out is every activity. */
+export type DocumentRecentActivity = "opened" | "edited";
 export type DocumentSortOrder = "asc" | "desc";
 
 /** Filters of GET /workspaces/{ws}/documents. `parentId: ""` lists the
@@ -44,7 +50,7 @@ export interface ListDocumentsBaseOpts {
   q?: string;
   /** The column the tables sort by (UNI-2038); left out keeps the list's own
    *  fixed order. The trash takes only its own order (listTrashedDocuments). */
-  sort?: DocumentSortColumn;
+  sort?: DocumentSortColumn | DocumentScreenSort;
   order?: DocumentSortOrder;
   /** "document" is every kind but folder (folders contract v1.0). */
   kind?: DocumentKind | "document";
@@ -61,8 +67,9 @@ export interface ListDocumentsBaseOpts {
    *  left out, the search keeps its old behaviour. */
   match?: "title";
   archived?: boolean;
+  /** The editor filter (Người sửa): rows whose last editor is this user. */
   updatedBy?: string;
-  /** RFC3339 lower/upper bound on updated_at. */
+  /** RFC3339 lower/upper bound on updated_at (on shelved: shelved_at). */
   updatedFrom?: string;
   updatedTo?: string;
   cursor?: string;
@@ -76,7 +83,7 @@ export type ListDocumentsOpts = ListDocumentsBaseOpts &
   );
 
 /** `trash` is the Thùng rác list: archived=1 in its one fixed order (see listTrashedDocuments). */
-function listQuery(opts?: ListDocumentsOpts & { shelved?: boolean; trash?: boolean }): string {
+function listQuery(opts?: ListDocumentsOpts & { shelved?: boolean; trash?: boolean; activity?: DocumentRecentActivity }): string {
   if (!opts) return "";
   const p = new URLSearchParams();
   if (opts.trash) {
@@ -93,6 +100,7 @@ function listQuery(opts?: ListDocumentsOpts & { shelved?: boolean; trash?: boole
   if (opts.sort) p.set("sort", opts.sort);
   if (opts.order) p.set("order", opts.order);
   if (opts.match) p.set("match", opts.match);
+  if (opts.activity) p.set("activity", opts.activity);
   if (opts.archived !== undefined) p.set("archived", opts.archived ? "1" : "0");
   if (opts.shelved === true) p.set("shelved", "true");
   if (opts.updatedBy) p.set("updated_by", opts.updatedBy);
@@ -122,12 +130,20 @@ export async function listDocuments(
   return parsed;
 }
 
+/** The filters every collection list takes besides the cursor (UNI-1868
+ *  chips, UNI-2045 SV-7/SV-8 editor and updated window). */
+type CollectionListOpts = Pick<
+  ListDocumentsBaseOpts,
+  "cursor" | "limit" | "format" | "access" | "updatedBy" | "updatedFrom" | "updatedTo"
+>;
+
 /** GET /api/v1/workspaces/{workspaceID}/documents/recent — what the person
  *  opened or last edited. Humans only; an agent token answers 403. Takes the
- *  same `format`/`access` filters as the flat list. */
+ *  flat list's `format`/`access`/`updated_*` filters, `activity` (SV-1b) and
+ *  `sort=activity` (SV-1). */
 export async function listRecentDocuments(
   wsId: string,
-  opts?: Pick<ListDocumentsBaseOpts, "cursor" | "limit" | "format" | "access" | "sort" | "order">,
+  opts?: CollectionListOpts & Pick<ListDocumentsBaseOpts, "sort" | "order"> & { activity?: DocumentRecentActivity },
   signal?: AbortSignal,
 ): Promise<DocumentList> {
   const raw = await request(`/api/v1/workspaces/${enc(wsId)}/documents/recent${listQuery(opts)}`, { signal });
@@ -144,7 +160,7 @@ export async function listRecentDocuments(
  *  the page (default 50, max 100), and a denied candidate never takes a slot. */
 export async function listSharedWithMe(
   wsId: string,
-  opts?: Pick<ListDocumentsBaseOpts, "cursor" | "limit" | "format" | "access" | "sort" | "order">,
+  opts?: CollectionListOpts & Pick<ListDocumentsBaseOpts, "sort" | "order">,
   signal?: AbortSignal,
 ): Promise<DocumentList> {
   const raw = await request(
@@ -184,7 +200,7 @@ export async function listFavoriteDocuments(
  */
 export async function listSharedByMe(
   wsId: string,
-  cursorOrOpts?: string | Pick<ListDocumentsBaseOpts, "cursor" | "limit" | "format" | "access" | "sort" | "order">,
+  cursorOrOpts?: string | (CollectionListOpts & Pick<ListDocumentsBaseOpts, "sort" | "order">),
   signal?: AbortSignal,
 ): Promise<DocumentList> {
   const opts = typeof cursorOrOpts === "string" ? { cursor: cursorOrOpts } : cursorOrOpts;
@@ -195,6 +211,9 @@ export async function listSharedByMe(
       limit: opts?.limit,
       format: opts?.format,
       access: opts?.access,
+      updatedBy: opts?.updatedBy,
+      updatedFrom: opts?.updatedFrom,
+      updatedTo: opts?.updatedTo,
       sort: opts?.sort,
       order: opts?.order,
     })}`,
@@ -217,7 +236,7 @@ export async function listSharedByMe(
  */
 export async function listShelvedDocuments(
   wsId: string,
-  opts?: Pick<ListDocumentsBaseOpts, "cursor" | "limit" | "format" | "access">,
+  opts?: CollectionListOpts,
   signal?: AbortSignal,
 ): Promise<DocumentList> {
   const raw = await request(
@@ -227,6 +246,9 @@ export async function listShelvedDocuments(
       limit: opts?.limit,
       format: opts?.format,
       access: opts?.access,
+      updatedBy: opts?.updatedBy,
+      updatedFrom: opts?.updatedFrom,
+      updatedTo: opts?.updatedTo,
     })}`,
     { signal },
   );
@@ -246,7 +268,7 @@ export async function listShelvedDocuments(
  */
 export async function listTrashedDocuments(
   wsId: string,
-  opts?: Pick<ListDocumentsBaseOpts, "cursor" | "limit" | "kind" | "format" | "access">,
+  opts?: CollectionListOpts & Pick<ListDocumentsBaseOpts, "kind">,
   signal?: AbortSignal,
 ): Promise<DocumentList> {
   const raw = await request(
@@ -255,6 +277,9 @@ export async function listTrashedDocuments(
       kind: opts?.kind,
       format: opts?.format,
       access: opts?.access,
+      updatedBy: opts?.updatedBy,
+      updatedFrom: opts?.updatedFrom,
+      updatedTo: opts?.updatedTo,
       cursor: opts?.cursor,
       limit: opts?.limit,
     })}`,

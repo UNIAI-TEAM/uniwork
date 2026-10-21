@@ -7,7 +7,7 @@ import { DocumentsLibraryList } from "./documents-library-list";
 import type { LibraryRowHandlers } from "./documents-library-row";
 import type { DocListBulk } from "./doclist/bulk-actions";
 import { ShelvedToolbar, SHELVED_BY_SYSTEM, type ShelvedByOption } from "./documents-shelved-toolbar";
-import { groupRows, type DocumentSummaryRow, type TypeChip } from "./library-rows";
+import type { DocumentSummaryRow, TypeChip } from "./library-rows";
 import type { useDocumentsLibrary } from "./use-documents-library";
 
 /** The commands a shelved row offers (ARCHIVE-01 U-3/U-4). The page owns the
@@ -39,7 +39,7 @@ export interface DocumentsShelvedViewProps {
 
 /**
  * The Lưu trữ view (Archive.dc, ARCHIVE-01 U-2): its heading and intro, the
- * shelved toolbar (Loại chips + "Lưu trữ bởi") and the shared document list
+ * shelved toolbar (the shared filter bar + "Lưu trữ bởi") and the shared document list
  * with `screen="shelved"` (UNI-2045 W3): the Lưu trữ column (avatar + who
  * shelved · date), `Bỏ lưu trữ` · ⋯ on the row and the menu `Mở` · `Bỏ lưu
  * trữ` · `Tải xuống` │ `Chuyển vào thùng rác`, flat in the server's
@@ -59,7 +59,7 @@ export function DocumentsShelvedView({ library, chip, onChip, members, handlers,
       .map((id) => ({ value: id, label: t("documents.shelved_list.shelved_by_former") })),
     ...(library.shelvedHasSystem ? [{ value: SHELVED_BY_SYSTEM, label: t("documents.shelved_list.shelved_by_system") }] : []),
   ];
-  const filtered = chip !== "all" || library.shelvedBy !== null;
+  const filtered = chip !== "all" || library.shelvedBy !== null || library.editor !== "any" || library.updated !== "any";
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-5 sm:px-6">
       <div className="flex items-start justify-between gap-3">
@@ -72,16 +72,20 @@ export function DocumentsShelvedView({ library, chip, onChip, members, handlers,
       <ShelvedToolbar
         chip={chip}
         onChip={onChip}
+        editor={library.editor}
+        onEditor={library.setEditor}
+        members={members}
+        updated={library.updated}
+        onUpdated={library.setUpdated}
         shelvedByOptions={shelvedByOptions}
         shelvedBy={library.shelvedBy}
         onShelvedBy={library.setShelvedBy}
       />
       <DocumentsLibraryList
-        groups={groupRows(state.rows, "none", library.folderIndex)}
+        groups={[{ key: "all", rows: state.rows }]}
         loading={state.loading}
         failure={state.failure}
         filteredBy={filtered ? (library.clientFiltered ? "client" : "server") : null}
-        typeFiltered={chip !== "all"}
         emptyFiltered={{
           title: t("documents.shelved_list.no_matches_title"),
           description: t("documents.shelved_list.no_matches_description"),
@@ -96,7 +100,7 @@ export function DocumentsShelvedView({ library, chip, onChip, members, handlers,
         onRetry={state.refetch}
         onClearFilters={() => {
           onChip("all");
-          library.setShelvedBy(null);
+          library.clearFilters();
         }}
         handlers={{ ...handlers, onUnshelve: actions.onUnshelve, onArchive: actions.onTrash, isBusy: actions.isUnshelving }}
         empty={{ title: t("documents.shelved_list.empty_title"), description: t("documents.shelved_list.empty_description") }}

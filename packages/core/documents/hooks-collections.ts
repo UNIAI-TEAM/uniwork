@@ -15,6 +15,7 @@ import {
   restoreDocument,
   shelveDocument,
   unshelveDocument,
+  type DocumentRecentActivity,
   type ListDocumentsBaseOpts,
   type ListDocumentsOpts,
   type MoveDocumentBody,
@@ -36,7 +37,7 @@ export { canManageTrashed, useEnsureMyFolder };
 const DOCUMENT_PAGE_SIZE = 50;
 
 /** Stable key fragment of a filter object: sorted entries, undefined dropped. */
-export function documentFilterKey(filter?: ListDocumentsOpts): string {
+export function documentFilterKey(filter?: object): string {
   if (!filter) return "";
   const entries = Object.entries(filter)
     .filter(([, value]) => value !== undefined)
@@ -44,10 +45,11 @@ export function documentFilterKey(filter?: ListDocumentsOpts): string {
   return JSON.stringify(entries);
 }
 
-/** The library's type/access chips (UNI-1868), shared by every collection
- *  list: the format a row's current version carries, and the level the caller
- *  holds on it. */
-export type DocumentListFilters = Pick<ListDocumentsBaseOpts, "format" | "access">;
+/** The library's filters, shared by every collection list: the type/access
+ *  chips (UNI-1868) — the format a row's current version carries, and the
+ *  level the caller holds on it — and the filter bar's Người sửa / Cập nhật
+ *  (UNI-2045 SV-8). */
+export type DocumentListFilters = Pick<ListDocumentsBaseOpts, "format" | "access" | "updatedBy" | "updatedFrom" | "updatedTo">;
 
 /** The column sort of the tables (UNI-2038): part of the key, so another order
  *  starts from page 1. Only the lists that sort on the server take it. */
@@ -56,9 +58,22 @@ export type DocumentListSort = Pick<ListDocumentsBaseOpts, "sort" | "order">;
 /** The key fragment of the chip filters and the sort: "" when none is set, so
  *  an unfiltered, unsorted list keeps the key it had before the chips became
  *  query params. */
-function documentListFilterKey(filters?: DocumentListFilters & DocumentListSort): string {
-  if (!filters?.format && !filters?.access && !filters?.sort && !filters?.order) return "";
-  return documentFilterKey({ format: filters.format, access: filters.access, sort: filters.sort, order: filters.order });
+function documentListFilterKey(filters?: DocumentListFilters & DocumentListSort & { activity?: DocumentRecentActivity }): string {
+  if (!filters) return "";
+  const { format, access, sort, order, updatedBy, updatedFrom, updatedTo, activity } = filters;
+  if (!format && !access && !sort && !order && !updatedBy && !updatedFrom && !updatedTo && !activity) return "";
+  return documentFilterKey({ format, access, sort, order, updatedBy, updatedFrom, updatedTo, activity });
+}
+
+/** The filters every collection request carries, picked off a hook's opts. */
+function listFilterParams(opts?: DocumentListFilters) {
+  return {
+    format: opts?.format,
+    access: opts?.access,
+    updatedBy: opts?.updatedBy,
+    updatedFrom: opts?.updatedFrom,
+    updatedTo: opts?.updatedTo,
+  };
 }
 
 /**
@@ -118,8 +133,12 @@ export function useDocumentArchiveImpact(wsId: string, documentId: string, opts?
 }
 
 /** Recently opened/edited documents (humans only; agents get 403). The
- *  format/access chips filter it server-side and key it like the flat list. */
-export function useRecentDocuments(wsId: string, opts?: DocumentListFilters & DocumentListSort & { enabled?: boolean }) {
+ *  filters, the Đã mở / Đã sửa segment (`activity`) and the sort run
+ *  server-side and key it like the flat list. */
+export function useRecentDocuments(
+  wsId: string,
+  opts?: DocumentListFilters & DocumentListSort & { activity?: DocumentRecentActivity; enabled?: boolean },
+) {
   return useInfiniteQuery({
     queryKey: documentKeys.recent(wsId, documentListFilterKey(opts)),
     placeholderData: keepWhileSorting(documentKeys.recent(wsId, documentListFilterKey(opts))),
@@ -129,8 +148,8 @@ export function useRecentDocuments(wsId: string, opts?: DocumentListFilters & Do
         {
           cursor: pageParam || undefined,
           limit: DOCUMENT_PAGE_SIZE,
-          format: opts?.format,
-          access: opts?.access,
+          ...listFilterParams(opts),
+          activity: opts?.activity,
           sort: opts?.sort,
           order: opts?.order,
         },
@@ -154,8 +173,7 @@ export function useSharedWithMe(wsId: string, opts?: DocumentListFilters & Docum
         {
           cursor: pageParam || undefined,
           limit: DOCUMENT_PAGE_SIZE,
-          format: opts?.format,
-          access: opts?.access,
+          ...listFilterParams(opts),
           sort: opts?.sort,
           order: opts?.order,
         },
@@ -181,8 +199,7 @@ export function useSharedByMe(wsId: string, opts?: DocumentListFilters & Documen
         {
           cursor: pageParam || undefined,
           limit: DOCUMENT_PAGE_SIZE,
-          format: opts?.format,
-          access: opts?.access,
+          ...listFilterParams(opts),
           sort: opts?.sort,
           order: opts?.order,
         },
@@ -202,7 +219,7 @@ export function useTrashedDocuments(
   wsId: string,
   opts?: DocumentListFilters & Pick<ListDocumentsBaseOpts, "kind"> & { enabled?: boolean },
 ) {
-  const filter = { kind: opts?.kind, format: opts?.format, access: opts?.access };
+  const filter = { kind: opts?.kind, ...listFilterParams(opts) };
   return useInfiniteQuery({
     queryKey: documentKeys.list(wsId, `trash:${documentFilterKey(filter)}`),
     queryFn: ({ pageParam, signal }) =>
@@ -226,8 +243,7 @@ export function useShelvedDocuments(wsId: string, opts?: DocumentListFilters & {
         {
           cursor: pageParam || undefined,
           limit: DOCUMENT_PAGE_SIZE,
-          format: opts?.format,
-          access: opts?.access,
+          ...listFilterParams(opts),
         },
         signal,
       ),

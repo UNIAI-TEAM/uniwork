@@ -12,6 +12,7 @@ import { LibraryRowView, type LibraryRowHandlers } from "./documents-library-row
 import { DocListBulkBar } from "./doclist/bulk-bar";
 import { bulkPlans, rowBulkActions, type BulkActionId, type DocListBulk } from "./doclist/bulk-actions";
 import { docListSpec, type DocListScreen } from "./doclist/columns";
+import { docListGroupLabelKey, type DocListGroupId } from "./doclist/groups";
 import { useDocListSelection } from "./doclist/selection";
 import { libraryGroupSpans, specLadder } from "./library-columns";
 import type { RowGroup } from "./library-rows";
@@ -30,12 +31,8 @@ export interface DocumentsLibraryListProps {
    *  only what has loaded (merged source rows, starred, the sources view), so
    *  while the server has more the copy says so and offers the next page. */
   filteredBy?: "server" | "client" | null;
-  /** The access filter (not only the type chip) is on, so the empty line names access, not file type. */
-  accessFiltered?: boolean;
-  /** The type chip is on too: with both on, the empty line names the filters, not one of them. */
-  typeFiltered?: boolean;
-  /** The home Edited by / Updated filter is on: the empty line names "the filters", never a file type. */
-  homeFiltered?: boolean;
+  /** Người sửa, Cập nhật or Gần đây's segment is on: the empty line names "the filters", never a file type. */
+  metaFiltered?: boolean;
   /** The create cards sit above the list, so the no-match hint may point at them. */
   cardsShown?: boolean;
   /** The no-matches copy of the open view when it is not the generic library
@@ -77,9 +74,7 @@ export function DocumentsLibraryList({
   loading,
   failure,
   filteredBy = null,
-  accessFiltered = false,
-  typeFiltered = false,
-  homeFiltered = false,
+  metaFiltered = false,
   cardsShown = false,
   emptyFiltered,
   hasMore,
@@ -166,19 +161,15 @@ export function DocumentsLibraryList({
           description={
             emptyFiltered?.description ??
             t(
-              homeFiltered || (accessFiltered && typeFiltered)
+              metaFiltered
                 ? clientFiltered && hasMore
                   ? "documents.home.no_matches_filters_more_description"
                   : "documents.home.no_matches_filters_description"
-                : accessFiltered
-                  ? clientFiltered && hasMore
-                    ? "documents.home.no_matches_access_more_description"
-                    : "documents.home.no_matches_access_description"
-                  : clientFiltered && hasMore
-                    ? "documents.home.no_matches_more_description"
-                    : cardsShown
-                      ? "documents.home.no_matches_description"
-                      : "documents.home.no_matches_plain_description",
+                : clientFiltered && hasMore
+                  ? "documents.home.no_matches_more_description"
+                  : cardsShown
+                    ? "documents.home.no_matches_description"
+                    : "documents.home.no_matches_plain_description",
             )
           }
           role="status"
@@ -200,15 +191,8 @@ export function DocumentsLibraryList({
     return <CollectionPageState icon={empty.icon ?? FolderOpen} title={empty.title} description={empty.description} role="status" actions={empty.actions} />;
   }
 
+  // "all" is a flat list; any other key is a date group (doclist/groups.ts).
   const showGroups = !(groups.length === 1 && groups[0]?.key === "all");
-  const groupTitle = (group: RowGroup): string => {
-    if (group.title) return group.title;
-    if (group.key === "folders") return t("documents.home.groups.type.folder");
-    if (group.key === "unfiled") return t("documents.home.groups.unfiled");
-    if (group.key.startsWith("origin:")) return t(`documents.home.origin.${group.key.slice(7)}`);
-    if (group.key.startsWith("type:")) return t(`documents.home.groups.type.${group.key.slice(5)}`, { defaultValue: t("documents.home.groups.type.other") });
-    return "";
-  };
 
   const ladder = specLadder(screen, { selectable });
   const groupSpans = libraryGroupSpans(ladder);
@@ -283,39 +267,42 @@ export function DocumentsLibraryList({
               })}
             </tr>
           </thead>
-          {groups.map((group) => (
-            <tbody key={group.key}>
-              {showGroups ? (
-                <tr className="border-b border-border bg-muted/40">
-                  <th scope="rowgroup" colSpan={alwaysOn} data-library-group className="whitespace-nowrap px-3 py-1.5 text-left text-caption font-medium text-foreground">
-                    {groupTitle(group)}
-                    <span className="ml-1.5 font-mono tabular-nums text-muted-foreground">{group.rows.length}</span>
-                  </th>
-                  {groupSpans.map((spanner) => (
-                    <th key={spanner.cell} aria-hidden colSpan={spanner.span} className={spanner.cell} />
-                  ))}
-                </tr>
-              ) : null}
-              {group.rows.map((row) => (
-                <LibraryRowView
-                  key={row.id}
-                  row={row}
-                  handlers={handlers}
-                  ladder={ladder}
-                  screen={screen}
-                  highlighted={row.id === highlightId}
-                  selection={
-                    bulkOn
-                      ? {
-                          selected: selection.isSelected(row.id),
-                          onToggle: actionsByRow.get(row.id)?.size ? (range) => selection.toggle(row.id, range) : undefined,
-                        }
-                      : undefined
-                  }
-                />
-              ))}
-            </tbody>
-          ))}
+          {groups.map((group) => {
+            const title = t(docListGroupLabelKey(group.key as DocListGroupId));
+            return (
+              <tbody key={group.key}>
+                {showGroups ? (
+                  <tr className="border-b border-border bg-muted/40">
+                    <th scope="rowgroup" colSpan={alwaysOn} data-library-group className="whitespace-nowrap px-3 py-1.5 text-left text-caption font-medium text-foreground">
+                      {title}
+                      <span className="ml-1.5 font-mono tabular-nums text-muted-foreground">{group.rows.length}</span>
+                    </th>
+                    {groupSpans.map((spanner) => (
+                      <th key={spanner.cell} aria-hidden colSpan={spanner.span} className={spanner.cell} />
+                    ))}
+                  </tr>
+                ) : null}
+                {group.rows.map((row) => (
+                  <LibraryRowView
+                    key={row.id}
+                    row={row}
+                    handlers={handlers}
+                    ladder={ladder}
+                    screen={screen}
+                    highlighted={row.id === highlightId}
+                    selection={
+                      bulkOn
+                        ? {
+                            selected: selection.isSelected(row.id),
+                            onToggle: actionsByRow.get(row.id)?.size ? (range) => selection.toggle(row.id, range) : undefined,
+                          }
+                        : undefined
+                    }
+                  />
+                ))}
+              </tbody>
+            );
+          })}
         </table>
       </div>
       {hasMore ? (

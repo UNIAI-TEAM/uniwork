@@ -15,25 +15,18 @@ import {
 } from "@uniwork/core/documents/hooks-collections";
 import { isEndpointMissing, useDocumentSources } from "@uniwork/core/documents/hooks-library";
 import type { DocumentSourceType } from "@uniwork/core/documents/sources-schema";
-import type {
-  DocumentAccessFilter,
-  DocumentFileFormat,
-  DocumentList,
-  DocumentTreeNode,
-} from "@uniwork/core/types/document";
+import type { DocumentFileFormat, DocumentList, DocumentTreeNode } from "@uniwork/core/types/document";
 import { myFolderFirst } from "./document-tree-model";
 import type { LibraryView } from "./documents-sidebar";
 import {
-  documentRow,
-  indexTree,
-  matchesAccess,
-  matchesChip,
-  sourceRow,
-  type AccessFilter,
-  type FolderInfo,
-  type LibraryRow,
-  type TypeChip,
-} from "./library-rows";
+  editorFilterId,
+  matchesMeta,
+  updatedFilterSince,
+  type ActivityFilter,
+  type EditorFilter,
+  type UpdatedFilter,
+} from "./doclist/filters";
+import { documentRow, matchesChip, sourceRow, type LibraryRow, type TypeChip } from "./library-rows";
 import {
   mergeSorted,
   readLibrarySort,
@@ -107,26 +100,7 @@ function documentState(q: InfiniteLike<DocumentList>): LibraryState {
   };
 }
 
-const SOURCE_TYPES = new Set<string>(["docx", "xlsx", "pptx", "pdf", "md", "html"]);
-
-/** The home filter bar's "Người sửa" value: everyone, the viewer, or one member id. */
-export type EditorFilter = "any" | "me" | string;
-
-/** The home filter bar's "Cập nhật" buckets; "any" sends no lower bound. */
-export const UPDATED_FILTERS = ["any", "today", "7d", "30d"] as const;
-export type UpdatedFilter = (typeof UPDATED_FILTERS)[number];
-
-/** The RFC3339 lower bound a Cập nhật bucket stands for; null for "any". */
-function updatedFilterSince(filter: UpdatedFilter, now: number = Date.now()): string | null {
-  if (filter === "today") {
-    const day = new Date(now);
-    day.setHours(0, 0, 0, 0);
-    return day.toISOString();
-  }
-  if (filter === "7d") return new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString();
-  if (filter === "30d") return new Date(now - 30 * 24 * 60 * 60 * 1000).toISOString();
-  return null;
-}
+const SOURCE_TYPES = new Set<string>(["docx", "xlsx", "pptx", "pdf", "md", "html", "txt"]);
 
 export interface UseDocumentsLibraryInput {
   wsId: string;
@@ -158,8 +132,8 @@ export function useDocumentsLibrary({ wsId, orgId, enabled, view, folderId, chip
   const sourcesWanted = chip !== "page" && ((home && !folderId) || view.kind === "sources");
   const userId = useAuthStore((s) => s.user?.id ?? null);
   const [lastUserId, setLastUserId] = useState<string | null>(userId);
-  const [access, setAccess] = useState<AccessFilter>("all");
   const [editor, setEditor] = useState<EditorFilter>("any");
+  const [activity, setActivity] = useState<ActivityFilter>("all");
   // The bound is fixed when the bucket is picked: recomputing it per render
   // would change the list query key on every render.
   const [updated, setUpdatedState] = useState<{ filter: UpdatedFilter; since: string | null }>({ filter: "any", since: null });
@@ -198,79 +172,79 @@ export function useDocumentsLibrary({ wsId, orgId, enabled, view, folderId, chip
   );
 
   // The server-side pair of the type chips (UNI-1868): the file chips become
-  // `format`, "UniNote" keeps `kind=page`, and the access buttons become
-  // `access`. The trash accepts only `format` and `access=restricted` — a
-  // manage/edit carried in from another tab is clamped here, and the toolbar
-  // hides those options while the trash is open.
+  // `format` and "UniNote" keeps `kind=page`. The trash has no filter bar.
   const serverFormat = SOURCE_TYPES.has(chip) ? (chip as DocumentFileFormat) : undefined;
   const archived = view.kind === "archived";
   const shelvedView = view.kind === "shelved";
   const [shelvedBy, setShelvedBy] = useState<string | null>(null);
-  const serverAccess: DocumentAccessFilter | undefined =
-    access === "all" ? undefined : archived && access !== "restricted" ? undefined : access;
 
   const tree = useDocumentTree(wsId, undefined, { enabled });
   const favorites = useDocumentFavorites(orgId, { enabled: enabled && !!orgId });
-  // The home filter bar's editor/recency filters are server parameters of
-  // GET /documents so they hold under paging (lead decision, TRASH-A3); they
-  // apply to the home root only — a folder list and the other views keep their
-  // own filters.
+  // The filter bar's Người sửa / Cập nhật (UNI-2045 W10): server parameters
+  // on every list that pages there (home root, Recent, both Shared lists,
+  // Lưu trữ — SV-8) so they hold under paging; the lists loaded in full (an
+  // open folder, Có gắn sao, the files of other modules) filter on the client.
   const homeRoot = home && !folderId;
-  const editorParam = homeRoot ? (editor === "any" ? undefined : editor === "me" ? (userId ?? undefined) : editor) : undefined;
-  const updatedParam = homeRoot ? (updated.since ?? undefined) : undefined;
+  const folderView = home && Boolean(folderId);
+  const editorId = editorFilterId(editor, userId);
+  const updatedSince = updated.since ?? undefined;
+  const serverMeta = { updatedBy: editorId, updatedFrom: updatedSince };
   const listFilter = useMemo(
     () => ({
       // The board's home list is ROOT documents only: parent_id="" (empty
       // string) is the server's "roots" marker; a folder's own id scopes the
-      // list to that level (Main.dc, TV-3 option A).
+      // list to that level (Main.dc, TV-3 option A). A folder is loaded in
+      // full and filtered here, so its request carries no filter.
       ...(home ? { parentId: folderId ?? "" } : {}),
-      ...(chip === "page" ? { kind: "page" as const } : {}),
-      ...(serverFormat ? { format: serverFormat } : {}),
-      ...(serverAccess ? { access: serverAccess } : {}),
-      ...(editorParam ? { updatedBy: editorParam } : {}),
-      ...(updatedParam ? { updatedFrom: updatedParam } : {}),
+      ...(homeRoot && chip === "page" ? { kind: "page" as const } : {}),
+      ...(homeRoot && serverFormat ? { format: serverFormat } : {}),
+      ...(homeRoot && editorId ? { updatedBy: editorId } : {}),
+      ...(homeRoot && updatedSince ? { updatedFrom: updatedSince } : {}),
       ...(homeRoot ? serverSort : {}),
     }),
-    [home, folderId, homeRoot, chip, editorParam, updatedParam, serverFormat, serverAccess, serverSort],
+    [home, folderId, homeRoot, chip, editorId, updatedSince, serverFormat, serverSort],
   );
   const homeQuery = useDocumentList(wsId, listFilter, { enabled: enabled && home });
   const folderAutoPaging = useLoadInFull(homeQuery, enabled && home && Boolean(folderId));
   // Có gắn sao (UNI-2045 SV-2): the workspace's starred rows as full list rows
   // with `favorited_at`, loaded in full and then filtered and sorted here like
-  // an open folder; it sends no filter or sort (those move with W10/W12).
+  // an open folder; it sends no filter or sort (the sort moves with W12).
   const starredQuery = useWorkspaceFavoriteDocuments(wsId, { enabled: enabled && view.kind === "starred" });
   const starredAutoPaging = useLoadInFull(starredQuery, enabled && view.kind === "starred");
   // Thùng rác: always `deleted` ascending (UNI-2045 Q2), fixed by the endpoint.
+  // Thùng rác has no filter bar (the page passes chip "all").
   const archivedQuery = useTrashedDocuments(wsId, {
     enabled: enabled && archived,
     kind: chip === "page" ? "page" : undefined,
     format: serverFormat,
-    access: serverAccess,
   });
-  // ARCHIVE-01 U-2: the shelved list takes `format` server-side like the
-  // trash; the "Trang" chip and the member filter stay on the client (the
-  // endpoint has no `kind` or `shelved_by` parameter), and the access filter
-  // is not offered there, so it never reaches the query either.
+  // ARCHIVE-01 U-2: the shelved list takes `format` and Người sửa / Cập nhật
+  // server-side (SV-8; Cập nhật windows shelved_at there); the "UniNote" chip
+  // and the "Lưu trữ bởi" member filter stay on the client (the endpoint has
+  // no `kind` or `shelved_by` parameter, and `updated_by` is the last editor,
+  // not who shelved it).
   const shelvedQuery = useShelvedDocuments(wsId, {
     enabled: enabled && shelvedView,
     format: serverFormat,
+    ...serverMeta,
   });
   const recentQuery = useRecentDocuments(wsId, {
     enabled: enabled && view.kind === "recent",
     format: serverFormat,
-    access: serverAccess,
+    ...serverMeta,
+    activity: activity === "all" ? undefined : activity,
     ...serverSort,
   });
   const sharedQuery = useSharedWithMe(wsId, {
     enabled: enabled && view.kind === "shared",
     format: serverFormat,
-    access: serverAccess,
+    ...serverMeta,
     ...serverSort,
   });
   const sharedByMeQuery = useSharedByMe(wsId, {
     enabled: enabled && view.kind === "sharedByMe",
     format: serverFormat,
-    access: serverAccess,
+    ...serverMeta,
     ...serverSort,
   });
   const sourceFilter = useMemo(
@@ -294,7 +268,6 @@ export function useDocumentsLibrary({ wsId, orgId, enabled, view, folderId, chip
   const sourcesAvailable = !sourcesMissing && (Boolean(sourcesQuery.data) || answeredFor === wsId);
 
   const nodes: DocumentTreeNode[] = useMemo(() => myFolderFirst(tree.data?.documents ?? []), [tree.data]);
-  const folderIndex: Map<string, FolderInfo> = useMemo(() => indexTree(nodes), [nodes]);
   const starred = useMemo(
     () => (favorites.data ?? []).filter((fav) => !fav.workspace_id || fav.workspace_id === wsId),
     [favorites.data, wsId],
@@ -362,41 +335,28 @@ export function useDocumentsLibrary({ wsId, orgId, enabled, view, folderId, chip
     }
   }
 
-  // What the server could not filter (UNI-1868): the starred view (loaded in
-  // full) and the sources view keep the client predicates on every row, and
-  // on a merged home they run on the source rows only — a document row there
-  // is the server's answer. Recent and shared-with-me take `format`/`access`
-  // but no `kind`, so the "UniNote" chip there is narrowed on the client, and
-  // the empty state says "in what is loaded". A merged home counts only while
-  // source rows actually merged — an empty sources answer leaves the doc list
-  // fully server-filtered.
-  const mergedHome = Boolean(home && !folderId && sourcesWanted && sourcesAvailable && sourceRows.length > 0);
+  // What the server could not filter (UNI-1868, UNI-2045 W10): the lists
+  // loaded in full (an open folder, Có gắn sao) and the sources view run the
+  // chip, Người sửa and Cập nhật predicates on every row, and a merged home on
+  // its source rows only — a document row there is the server's answer.
+  // Recent and both Shared lists take `format` but no `kind`, so the
+  // "UniNote" chip there is narrowed on the client, and the empty state says
+  // "in what is loaded". A merged home counts only while source rows actually
+  // merged — an empty sources answer leaves the doc list fully server-filtered.
+  const mergedHome = Boolean(homeRoot && sourcesWanted && sourcesAvailable && sourceRows.length > 0);
+  const loadedInFull = view.kind === "starred" || view.kind === "sources" || folderView;
   const pageChipOnListWithoutKind =
     chip === "page" && (view.kind === "recent" || view.kind === "shared" || view.kind === "sharedByMe" || shelvedView);
   // The "Lưu trữ bởi" member filter is always client-side: the server has no
   // shelved_by parameter, so it narrows only the loaded pages (Q-UI2).
   const memberFiltered = shelvedView && shelvedBy !== null;
-  const clientFiltered =
-    view.kind === "starred" || view.kind === "sources" || mergedHome || pageChipOnListWithoutKind || memberFiltered;
-  // The server filters the document rows by editorParam/updatedParam too; the
-  // merged source rows come from another list, so the same predicates run on
-  // them here (TRASH-A3).
-  const updatedAfter = updatedParam ? Date.parse(updatedParam) : null;
-  const sourceMetaMatches = (row: LibraryRow) =>
-    row.type !== "source" ||
-    ((!editorParam || row.source.owner?.id === editorParam) && (!updatedAfter || Date.parse(row.source.updated_at ?? "") >= updatedAfter));
+  const clientFiltered = loadedInFull || mergedHome || pageChipOnListWithoutKind || memberFiltered;
   const filtered = state.rows.filter((row) => {
-    if (shelvedView) {
-      if (memberFiltered) {
-        if (row.type !== "document") return false;
-        if ((row.doc.shelved_by ?? SHELVED_BY_SYSTEM) !== shelvedBy) return false;
-      }
-      return !pageChipOnListWithoutKind || matchesChip(row, chip);
-    }
-    // Only the type predicate runs on recent/shared: the server already applied `access` there.
+    if (memberFiltered && (row.type !== "document" || (row.doc.shelved_by ?? SHELVED_BY_SYSTEM) !== shelvedBy)) return false;
+    // Only the type predicate runs on the server-paged lists: the server applied the rest there.
     if (pageChipOnListWithoutKind) return matchesChip(row, chip);
-    const clientSide = view.kind === "starred" || view.kind === "sources" || (mergedHome && row.type === "source");
-    return (!clientSide || (matchesChip(row, chip) && matchesAccess(row, access))) && sourceMetaMatches(row);
+    const clientSide = loadedInFull || (mergedHome && row.type === "source");
+    return !clientSide || (matchesChip(row, chip) && matchesMeta(row, editorId, updated.since));
   });
   const rows = sortedOnClient ? sortRows(filtered, sort, editorNames) : filtered;
   // The member filter's options: the distinct shelved_by ids the loaded rows
@@ -407,29 +367,35 @@ export function useDocumentsLibrary({ wsId, orgId, enabled, view, folderId, chip
     ? [...new Set(state.rows.flatMap((row) => (row.type === "document" && row.doc.shelved_by ? [row.doc.shelved_by] : [])))].sort()
     : [];
   const shelvedHasSystem = shelvedView && state.rows.some((row) => row.type === "document" && row.doc.shelved_by === null);
+  const clearFilters = () => {
+    setEditor("any");
+    setUpdated("any");
+    setActivity("all");
+    setShelvedBy(null);
+  };
   return {
     state: { ...state, rows },
-    /** Whether the chip/access filters ran on the client here — decides which
+    /** Whether the filter bar ran on the client here — decides which
      *  empty-state copy the list shows ("no matches" server-side vs "no
      *  matches in what is loaded" client-side). */
     clientFiltered,
     tree: nodes,
     /** True while the first tree answer is on its way (a disabled tree is not loading). */
     treeLoading: tree.isLoading,
-    folderIndex,
     /** The loaded document rows by id: a folder card takes its editor, date and level from its own row. */
     docById: new Map(state.rows.flatMap((row) => (row.type === "document" ? [[row.doc.id, row.doc]] : []))),
     starredIds: new Set(starred.map((fav) => fav.document_id)),
     starredCount: favorites.data ? starred.length : null,
     sourcesAvailable,
-    // The trash never offers or sends manage/edit: the toolbar reads this
-    // clamped value, not the raw state.
-    access: (serverAccess ?? "all") as AccessFilter,
-    setAccess,
     editor,
     setEditor,
     updated: updated.filter,
     setUpdated,
+    /** Gần đây's Tất cả / Đã mở / Đã sửa. */
+    activity,
+    setActivity,
+    /** Người sửa, Cập nhật, the segment and "Lưu trữ bởi" back to their defaults (the type chip is the page's). */
+    clearFilters,
     sort,
     setSort,
     /** The "Lưu trữ bởi" member filter (shelved view only): null = anyone,

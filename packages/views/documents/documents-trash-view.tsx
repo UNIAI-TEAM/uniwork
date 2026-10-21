@@ -96,7 +96,7 @@ export function DocumentsTrashView({
         <p className="text-caption text-muted-foreground">{t("documents.trash.subtitle")}</p>
       </div>
       <DocumentsLibraryList
-        groups={[{ key: "all", title: "", rows }]}
+        groups={[{ key: "all", rows }]}
         loading={loading}
         failure={failure}
         hasMore={hasMore}

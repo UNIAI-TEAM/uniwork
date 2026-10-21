@@ -10759,7 +10759,6 @@
         "folders_other": "{{count}} folders"
       },
       "filters": {
-        "type": "Type",
         "editor": "Edited by",
         "updated": "Updated",
         "editor_any": "Any",
@@ -10767,7 +10766,11 @@
         "updated_any": "Any time",
         "updated_today": "Today",
         "updated_7d": "Past 7 days",
-        "updated_30d": "Past 30 days"
+        "updated_30d": "Past 30 days",
+        "activity_label": "Filter by activity",
+        "activity_all": "All",
+        "activity_opened": "Opened",
+        "activity_edited": "Edited"
       },
       "sidebar": {
         "label": "Documents navigation",
@@ -10806,22 +10809,15 @@
       },
       "chips_label": "Filter by type",
       "chips": {
-        "all": "All",
+        "all": "All types",
         "page": "UniNote",
-        "docx": "Docs",
-        "xlsx": "Sheets",
-        "pptx": "Slides",
-        "pdf": "PDF",
-        "md": "MD",
-        "html": "HTML"
-      },
-      "access_filter_label": "Filter by access",
-      "access_group_caption": "Access",
-      "access_filters": {
-        "all": "All",
-        "manage": "I manage",
-        "edit": "I can edit",
-        "restricted": "Private"
+        "docx": ".docx",
+        "xlsx": ".xlsx",
+        "pptx": ".pptx",
+        "pdf": ".pdf",
+        "md": ".md",
+        "html": ".html",
+        "txt": ".txt"
       },
       "access": {
         "view": "View only",
@@ -10832,27 +10828,6 @@
         "you_prefix": "You: {{level}}",
         "manage_for": "Manage access for {{title}}",
         "view_for": "View access for {{title}}"
-      },
-      "group_by": {
-        "label": "Group by",
-        "folder": "Folder",
-        "source": "Source",
-        "type": "File type",
-        "none": "No grouping"
-      },
-      "groups": {
-        "unfiled": "Not in a folder",
-        "type": {
-          "page": "UniNote",
-          "folder": "Folders",
-          "docx": "Docs",
-          "xlsx": "Sheets",
-          "pptx": "Slides",
-          "pdf": "PDF",
-          "md": "Markdown",
-          "html": "HTML",
-          "other": "Other files"
-        }
       },
       "columns": {
         "name": "Name",
@@ -10913,8 +10888,6 @@
       "no_matches_description": "No files of this type. Create one above or clear the filter.",
       "no_matches_plain_description": "No files of this type. Clear the filter to see everything.",
       "no_matches_more_description": "No files of this type in what has loaded so far. Load more to keep looking, or clear the filter.",
-      "no_matches_access_description": "No documents match this access. Clear the filter to see everything.",
-      "no_matches_access_more_description": "No documents match this access in what has loaded so far. Load more to keep looking, or clear the filter.",
       "no_matches_filters_description": "No documents match these filters. Clear the filters to see everything.",
       "no_matches_filters_more_description": "No documents match these filters in what has loaded so far. Load more to keep looking, or clear the filters.",
       "drop_hint": "Drop files on the list to upload them.",

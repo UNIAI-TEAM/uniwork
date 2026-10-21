@@ -34,7 +34,7 @@ import { DocumentsTrashView } from "./documents-trash-view";
 import { DocumentsSidebar, DocumentsSidebarSheet, type LibraryView } from "./documents-sidebar";
 import { downloadSourceFile } from "./download-source-file";
 import { DocumentUploadDialog } from "./document-upload-dialog";
-import { groupRows, type GroupBy, type TypeChip } from "./library-rows";
+import type { TypeChip } from "./library-rows";
 import { nextSort } from "./library-sort";
 import { sourceParentPath } from "./source-links";
 import { useDocumentsLibrary } from "./use-documents-library";
@@ -87,7 +87,6 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
     setView(viewFromSearchParams(searchParams));
   }
   const [chip, setChip] = useState<TypeChip>("all");
-  const [groupBy, setGroupBy] = useState<GroupBy>("folder");
   const [navOpen, setNavOpen] = useState(false);
 
   // The trashed document a notification pointed at is scrolled to and focused once per id, the first time its row shows.
@@ -110,7 +109,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
     [context?.workspace.organization_slug, context?.workspace.slug, wsId],
   );
 
-  // Only the home root and the list views show a type control.
+  // Every list screen but Thùng rác shows the filter bar (UNI-2045 W10).
   const members = useMembers(enabled ? wsId : "");
   const names = useMemo(() => new Map((members.data ?? []).map((m) => [m.user_id, m.display_name])), [members.data]);
   const library = useDocumentsLibrary({
@@ -119,7 +118,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
     enabled,
     view,
     folderId,
-    chip: view.kind === "archived" || folderId ? "all" : chip,
+    chip: view.kind === "archived" ? "all" : chip,
     editorNames: names,
   });
   const search = useDocumentsSearch(wsId, enabled);
@@ -198,7 +197,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
   // The bulk bar (UNI-2045 W9) on every list screen but the sources view; a
   // new folder, view or filter starts a fresh selection.
   const bulkCommands = useDocListBulkCommands({ wsId, tree: library.tree, onDownloadOne: fileCommands.onDownload });
-  const selectionKey = [wsId, view.kind, view.kind === "sources" ? (view.source ?? "") : "", folderId ?? "", chip, library.access, library.editor, library.updated, library.shelvedBy ?? ""].join("|");
+  const selectionKey = [wsId, view.kind, view.kind === "sources" ? (view.source ?? "") : "", folderId ?? "", chip, library.activity, library.editor, library.updated, library.shelvedBy ?? ""].join("|");
   // Move and archive sit on the rows of this workspace's own lists for
   // people who may change the open folder; the server decides per document.
   // Lưu trữ joins the same set (U-4: manage-only at the menu item itself).
@@ -213,10 +212,9 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
 
   const goHome = (next: LibraryView, nextFolder: string | null = null) => {
     if (next.kind !== view.kind) {
-      // Each view has its own filter controls; none carries over unseen.
+      // A screen change starts with no filter; none carries over unseen.
       setChip("all");
-      library.setAccess("all");
-      library.setShelvedBy(null);
+      library.clearFilters();
     }
     setView(next);
     setNavOpen(false);
@@ -286,18 +284,17 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
   };
 
   const homeView = view.kind === "home";
-  const homeFilters = homeView && !folderId && (library.editor !== "any" || library.updated !== "any");
-  const accessFiltered = library.access !== "all";
-  // "filtered" answers "is a filter on" (editor/updated live on the home filter
-  // bar, chip/access everywhere the list toolbar shows): it gates the folder's
-  // subfolders-only suppression (TV-4), the root's empty copy and the
-  // no-results state, so all three read the same flag.
-  const filtered = homeFilters || chip !== "all" || accessFiltered;
+  const metaFiltered = library.editor !== "any" || library.updated !== "any" || (view.kind === "recent" && library.activity !== "all");
+  // "filtered" answers "is a filter on" (the filter bar of every list screen):
+  // it gates the folder's subfolders-only suppression (TV-4), the root's empty
+  // copy and the no-results state, so all three read the same flag.
+  const filtered = metaFiltered || chip !== "all";
   const filteredBy = filtered ? (library.clientFiltered ? ("client" as const) : ("server" as const)) : null;
   const state = library.state;
   // At home and in a folder the folders are cards above the table.
   const tableRows = homeView ? nonFolderRows(state.rows) : state.rows;
-  const groups = groupRows(tableRows, homeView ? "none" : groupBy, library.folderIndex, myFolderLabel);
+  const listScreen = docListScreenOfView(view);
+  const groups = [{ key: "all", rows: tableRows }];
   const subfolders = subfoldersOf(library.tree, folderId);
   // The root's folders come from the tree query: until it answers, an empty root
   // list cannot tell "no folders" from "folders not here yet".
@@ -360,9 +357,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
       loading={listLoading}
       failure={state.failure}
       filteredBy={filteredBy}
-      accessFiltered={accessFiltered}
-      typeFiltered={chip !== "all"}
-      homeFiltered={homeFilters}
+      metaFiltered={metaFiltered}
       cardsShown={canCreate && homeView}
       hasMore={state.hasMore}
       loadingMore={state.loadingMore}
@@ -370,13 +365,11 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
       onRetry={state.refetch}
       onClearFilters={() => {
         setChip("all");
-        library.setAccess("all");
-        library.setEditor("any");
-        library.setUpdated("any");
+        library.clearFilters();
       }}
       handlers={handlers}
       sort={{ value: library.sort, onSort: (column) => library.setSort(nextSort(library.sort, column)) }}
-      screen={docListScreenOfView(view)}
+      screen={listScreen}
       selectable={view.kind !== "sources"}
       bulk={bulkCommands.bulk}
       selectionKey={selectionKey}
@@ -386,10 +379,6 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
   const toolbar = {
     chip,
     onChip: setChip,
-    access: library.access,
-    onAccess: library.setAccess,
-    groupBy,
-    onGroupBy: setGroupBy,
     editor: library.editor,
     onEditor: library.setEditor,
     members: members.data,
@@ -511,7 +500,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
             ) : homeView ? (
               <div className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-5 sm:px-6">
                 {canCreate ? <DocumentsHomeNote create={folderId ? null : createProps} /> : null}
-                {folderId ? null : <LibraryToolbar variant="home" {...toolbar} />}
+                <LibraryToolbar {...toolbar} className="border-t border-border pt-4" />
                 <DocumentsSections
                   folderTitle={folderId ? "documents.home.sections.subfolders" : "documents.home.sections.folders"}
                   folders={subfolders}
@@ -536,7 +525,10 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
                   <h2 className="text-title font-semibold">{t(`documents.home.views.${view.kind === "sources" ? (view.source ?? "sources") : view.kind === "sharedByMe" ? "shared_by_me" : view.kind}`)}</h2>
                   {navButton}
                 </div>
-                <LibraryToolbar variant="list" {...toolbar} />
+                <LibraryToolbar
+                  {...toolbar}
+                  {...(view.kind === "recent" ? { activity: library.activity, onActivity: library.setActivity } : {})}
+                />
                 {libraryList}
               </div>
             )}

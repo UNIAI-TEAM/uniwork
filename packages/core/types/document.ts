@@ -39,8 +39,9 @@ export type DocumentSystemKind = (typeof DOCUMENT_SYSTEM_KINDS)[number];
  * `?format=` list, which is also the value it reports per file row. The
  * server answers with the MIME the current version was verified as, else the
  * title's extension, so a row's `format` here is the server's own reading.
+ * `txt` joined with UNI-2045 SV-7 (MIME text/plain, else the extension).
  */
-export const DOCUMENT_FILE_FORMATS = ["docx", "xlsx", "pptx", "pdf", "md", "html"] as const;
+export const DOCUMENT_FILE_FORMATS = ["docx", "xlsx", "pptx", "pdf", "md", "html", "txt"] as const;
 export type DocumentFileFormat = (typeof DOCUMENT_FILE_FORMATS)[number];
 
 /**

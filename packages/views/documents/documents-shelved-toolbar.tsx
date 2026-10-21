@@ -10,8 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@uniwork/ui/components/ui/select";
-import { TypeChipRow } from "./documents-library-toolbar";
-import type { TypeChip } from "./library-rows";
+import { LibraryToolbar, type LibraryToolbarProps } from "./documents-library-toolbar";
 
 /** The Select value of the system row (a shelved item whose `shelved_by` is
  *  null — a batch or daemon write, not a member). User ids never collide with
@@ -28,9 +27,7 @@ export interface ShelvedByOption {
   label: string;
 }
 
-export interface ShelvedToolbarProps {
-  chip: TypeChip;
-  onChip: (chip: TypeChip) => void;
+export interface ShelvedToolbarProps extends Omit<LibraryToolbarProps, "activity" | "onActivity" | "children" | "className"> {
   /** The "Lưu trữ bởi" options: members + former members seen on loaded rows + system. */
   shelvedByOptions: ShelvedByOption[];
   /** The active member filter: null (anyone), a user id, or SHELVED_BY_SYSTEM. */
@@ -39,12 +36,14 @@ export interface ShelvedToolbarProps {
 }
 
 /**
- * The toolbar of the Lưu trữ list (Archive.dc, ARCHIVE-01 U-2): the Loại
- * chips the other list views carry (the sidebar navigates), then the member filter — the
- * server has no `shelved_by` parameter, so it narrows only the loaded pages
- * and says so — and the fixed "Lưu trữ gần nhất" sort the server answers with.
+ * The toolbar of the Lưu trữ list (Archive.dc, ARCHIVE-01 U-2): the filter
+ * bar every list screen carries (UNI-2045 W10), then the "Lưu trữ bởi" member
+ * filter — the server has no `shelved_by` parameter and SV-8's `updated_by` is
+ * the last editor, not who shelved the item, so it narrows only the loaded
+ * pages and says so — and the fixed "Lưu trữ gần nhất" sort the server
+ * answers with.
  */
-export function ShelvedToolbar({ chip, onChip, shelvedByOptions, shelvedBy, onShelvedBy }: ShelvedToolbarProps) {
+export function ShelvedToolbar({ shelvedByOptions, shelvedBy, onShelvedBy, ...bar }: ShelvedToolbarProps) {
   const { t } = useTranslation();
   const items = [
     { value: SHELVED_BY_ANY, label: t("documents.shelved_list.filter_by_any") },
@@ -52,8 +51,7 @@ export function ShelvedToolbar({ chip, onChip, shelvedByOptions, shelvedBy, onSh
   ];
   const selected = shelvedBy ?? SHELVED_BY_ANY;
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <TypeChipRow chip={chip} onChip={onChip} />
+    <LibraryToolbar {...bar}>
       <div className="flex min-w-0 flex-col gap-0.5">
         <div className="flex items-center gap-2">
           <Label htmlFor="documents-shelved-by" className="shrink-0 text-caption text-muted-foreground">
@@ -87,6 +85,6 @@ export function ShelvedToolbar({ chip, onChip, shelvedByOptions, shelvedBy, onSh
         <ArrowDownUp aria-hidden className="size-3.5" />
         {t("documents.shelved_list.sort_shelved_desc")}
       </div>
-    </div>
+    </LibraryToolbar>
   );
 }
