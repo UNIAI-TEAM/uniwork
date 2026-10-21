@@ -155,7 +155,14 @@ describe("MeetingRoomPeopleTab", () => {
     it("never offers the room microphone for a phone caller", async () => {
       // A phone row matched to its record (today a SIP identity never is):
       // the scribe would have to diarize the phone line under the caller's id.
-      const phone = { ...hostInRoom, identity: "uw_participant_p-host", name: "Điện thoại ••• 1234", kind: ParticipantKind.SIP };
+      // Admitted, so the roster lists it: a held caller is not listed at all.
+      const phone = {
+        ...hostInRoom,
+        identity: "uw_participant_p-host",
+        name: "Điện thoại ••• 1234",
+        kind: ParticipantKind.SIP,
+        attributes: { "uw.dial_in": "admitted" },
+      };
       setSessionUser({ ...me, id: "u-admin", display_name: "Admin" });
       live.participants = [phone, { ...hostInRoom, identity: "uw_agent_scribe", name: "UniWork AI", isAgent: true }];
       render(
