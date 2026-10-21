@@ -385,6 +385,6 @@ describe("ProjectDetailPage", () => {
       ),
     );
     fireEvent.click(await screen.findByRole("button", { name: "Hỏi UNI về dự án này" }, LONG));
-    expect(useAiPanelStore.getState().pendingFocus).toEqual({ kind: "project", id: "p1" });
+    expect(useAiPanelStore.getState().pendingFocus).toEqual({ kind: "project", id: "p1", label: "Q3 launch" });
   });
 });

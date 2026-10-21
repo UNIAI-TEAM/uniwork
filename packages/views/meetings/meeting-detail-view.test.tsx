@@ -143,7 +143,7 @@ describe("MeetingDetailView", () => {
     useAiPanelStore.setState({ open: false, pendingFocus: null });
     render(shell(withAskUniDock(<MeetingDetailView workspaceId="w1" meetingId="m1" onJoin={() => {}} onDeleted={() => {}} />)));
     fireEvent.click(await screen.findByRole("button", { name: "Hỏi UNI về cuộc họp này" }));
-    expect(useAiPanelStore.getState().pendingFocus).toEqual({ kind: "meeting", id: "m1" });
+    expect(useAiPanelStore.getState().pendingFocus).toEqual({ kind: "meeting", id: "m1", label: "Standup" });
   });
 
   it("uses a single-column detail layout inside a contextual panel", async () => {

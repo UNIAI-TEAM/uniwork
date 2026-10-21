@@ -5,6 +5,8 @@ import { create } from "zustand";
 type AskUniPanelFocus = {
   kind: "task" | "meeting" | "email_thread" | "document" | "project" | "room" | "thread" | "message";
   id: string;
+  /** The object's name for the composer's chip; never sent. */
+  label?: string;
 };
 
 /** Client state of the Ask UNI panel (⌘J): open/closed and which conversation is showing. */

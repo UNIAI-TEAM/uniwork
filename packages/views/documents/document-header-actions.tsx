@@ -8,7 +8,7 @@ export function DocumentHeaderActions() {
   const chrome = useDocumentCommentsChrome();
   return (
     <>
-      {chrome ? <AskUniFocusButton kind="document" id={chrome.doc.id} workspaceId={chrome.wsId} /> : null}
+      {chrome ? <AskUniFocusButton kind="document" id={chrome.doc.id} title={chrome.doc.title} workspaceId={chrome.wsId} /> : null}
       <DocumentCommentsHeaderActions />
     </>
   );

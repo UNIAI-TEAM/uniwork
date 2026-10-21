@@ -153,6 +153,15 @@ describe("AskUniComposer", () => {
     expect(screen.queryByRole("button", { name: "Bỏ phạm vi Cuộc họp" })).toBeNull();
   });
 
+  it("names the entry point's object on its chip, and sends only its kind and id", async () => {
+    const { onSend, box } = mount();
+    act(() => useAiPanelStore.getState().openWithFocus({ kind: "task", id: "t2", label: "Nộp app lên store" }));
+    expect(await screen.findByRole("button", { name: "Bỏ phạm vi Task: Nộp app lên store" })).toBeInTheDocument();
+    type(box(), "Còn vướng gì?");
+    fireEvent.keyDown(box(), { key: "Enter" });
+    expect(onSend.mock.calls[0]![0].focus).toEqual({ kind: "task", id: "t2" });
+  });
+
   it("sends the remembered model, but Auto when that model is no longer enabled", async () => {
     useAskModelChoice.setState({ model: "opus", effort: "high" });
     const { onSend, box } = mount();

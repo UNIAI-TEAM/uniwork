@@ -25,9 +25,9 @@ export function useAskUniOpener(focus: AskUniFocus, workspaceId?: string): (() =
 }
 
 /** Icon button "Hỏi UNI về <object>" for a detail screen's header. */
-export function AskUniFocusButton({ kind, id, workspaceId }: { kind: FocusKind; id: string; workspaceId?: string }) {
+export function AskUniFocusButton({ kind, id, title, workspaceId }: { kind: FocusKind; id: string; title?: string; workspaceId?: string }) {
   const { t } = useTranslation();
-  const open = useAskUniOpener({ kind, id }, workspaceId);
+  const open = useAskUniOpener({ kind, id, label: title }, workspaceId);
   if (!open) return null;
   const label = t(`ai.ask_about_${kind}`);
   return (

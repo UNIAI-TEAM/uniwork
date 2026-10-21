@@ -87,7 +87,8 @@ export function AskUniComposer({
   // An entry point's focus becomes the chip once.
   useEffect(() => {
     if (!pendingFocus) return;
-    setFocus({ kind: pendingFocus.kind, id: pendingFocus.id, label: kindLabel(pendingFocus.kind) });
+    const kind = kindLabel(pendingFocus.kind);
+    setFocus({ kind: pendingFocus.kind, id: pendingFocus.id, label: pendingFocus.label ? `${kind}: ${pendingFocus.label}` : kind });
     clearPendingFocus();
     box.current?.focus();
     // kindLabel only reads the language, which a pending focus does not outlive.

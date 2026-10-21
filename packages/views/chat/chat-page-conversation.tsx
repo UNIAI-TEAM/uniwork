@@ -86,7 +86,7 @@ export function ChatPageConversation({
   const edit = useChatInlineEdit({ workspaceId, roomId: activeRoomId, nameContext });
   // Threads, mentions and sender names belong to rooms with more than two people.
   const many = target.kind !== "dm";
-  const askUni = useAskUniOpener({ kind: "room", id: activeRoomId }, workspaceId);
+  const askUni = useAskUniOpener({ kind: "room", id: activeRoomId, label: headerTitle }, workspaceId);
 
   return (
     <>

@@ -129,7 +129,7 @@ export function ProjectDetailPage({
               }
               actions={
                 <>
-                  <AskUniFocusButton kind="project" id={projectId} workspaceId={workspaceId} />
+                  <AskUniFocusButton kind="project" id={projectId} title={project.title} workspaceId={workspaceId} />
                   <PinToggleButton
                     workspaceId={workspaceId}
                     itemType="project"

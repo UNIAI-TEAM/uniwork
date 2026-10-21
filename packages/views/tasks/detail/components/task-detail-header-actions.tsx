@@ -102,7 +102,7 @@ export function TaskDetailHeaderActions({
   return (
     <>
       <TaskDetailThreadNav workspaceId={workspaceId} taskId={task.id} />
-      <AskUniFocusButton kind="task" id={task.id} workspaceId={workspaceId} />
+      <AskUniFocusButton kind="task" id={task.id} title={task.title} workspaceId={workspaceId} />
       <PinToggleButton
         workspaceId={workspaceId}
         itemType="task"

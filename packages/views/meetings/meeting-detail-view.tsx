@@ -189,7 +189,7 @@ export function MeetingDetailView({
                 }
               />
             ) : null}
-            <AskUniFocusButton kind="meeting" id={meetingId} workspaceId={workspaceId} />
+            <AskUniFocusButton kind="meeting" id={meetingId} title={meeting.title} workspaceId={workspaceId} />
             {headerActions}
           </>
         }

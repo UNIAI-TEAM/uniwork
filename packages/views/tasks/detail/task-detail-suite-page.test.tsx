@@ -175,7 +175,7 @@ describe("TaskDetailSuitePage", () => {
     useAiPanelStore.setState({ open: false, pendingFocus: null });
     render(shell(withAskUniDock(<TaskDetailSuitePage workspaceId="w1" taskId="t1" />)));
     fireEvent.click(await screen.findByRole("button", { name: "Hỏi UNI về task này" }));
-    expect(useAiPanelStore.getState().pendingFocus).toEqual({ kind: "task", id: "t1" });
+    expect(useAiPanelStore.getState().pendingFocus).toEqual({ kind: "task", id: "t1", label: "Ship detail shell" });
   });
 
   it("đặt công việc cha từ menu thao tác, có tìm kiếm", async () => {

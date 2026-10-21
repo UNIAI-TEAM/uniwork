@@ -16,7 +16,7 @@ function mount(flagOn: boolean) {
     wrapWithNav(
       <FeatureFlagsProvider service={service}>
         <WorkspaceProvider workspace={workspace} user={user}>
-          <AskUniFocusButton kind="task" id="t1" />
+          <AskUniFocusButton kind="task" id="t1" title="Nộp app lên store" />
         </WorkspaceProvider>
       </FeatureFlagsProvider>,
     ),
@@ -30,11 +30,11 @@ beforeEach(() => {
 });
 
 describe("AskUniFocusButton", () => {
-  it("opens the dock with the focus", async () => {
+  it("opens the dock with the focus and its title", async () => {
     mount(true);
     fireEvent.click(await screen.findByRole("button", { name: "Hỏi UNI về task này" }));
     expect(useAiPanelStore.getState().open).toBe(true);
-    expect(useAiPanelStore.getState().pendingFocus).toEqual({ kind: "task", id: "t1" });
+    expect(useAiPanelStore.getState().pendingFocus).toEqual({ kind: "task", id: "t1", label: "Nộp app lên store" });
   });
 
   it("hidden when the flag is off", async () => {
