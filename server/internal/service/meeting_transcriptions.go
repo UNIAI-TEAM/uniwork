@@ -633,6 +633,18 @@ func (s *MeetingService) completeTranscription(ctx context.Context, t db.Meeting
 	if err := s.writeAudit(ctx, q, m, "TRANSCRIPTION_COMPLETED", transcriptionActor.ID, "", "", "{}"); err != nil {
 		return false, err
 	}
+	// A held meeting's auto summary usually ran before its recording came in
+	// and settled with nothing to read: the transcript queues it again. A
+	// summary that exists, a person's or the system's, is never redone.
+	if m.Status == MeetingEnded {
+		if _, err := q.GetLatestMeetingSummary(ctx, m.ID); errors.Is(err, pgx.ErrNoRows) {
+			if err := s.queueAutoSummary(ctx, q, m); err != nil {
+				return false, err
+			}
+		} else if err != nil {
+			return false, err
+		}
+	}
 	if err := s.recordTranscription(ctx, q, done, transcriptionActor, audit.ActionMeetingTranscriptionCompleted, "transcription.completed",
 		map[string]any{"audio_seconds": done.AudioSeconds.Int32, "segments": len(res.Segments), "usage_event_id": t.UsageEventID.String}); err != nil {
 		return false, err

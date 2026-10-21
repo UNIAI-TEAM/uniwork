@@ -16,10 +16,15 @@ SET auto_summary_enabled = EXCLUDED.auto_summary_enabled,
 RETURNING *;
 
 -- name: QueueMeetingAutoSummary :exec
--- A meeting ends once; a second queue of the same meeting changes nothing.
+-- A meeting ends once. A later queue comes from a recording transcribed
+-- after the end (UNI-2028): if the meeting's row is still there, maybe held
+-- by a run about to settle with nothing to read, it is due again and free,
+-- so that run's settle (keyed on its lease) no longer deletes it. A row
+-- already settled is gone, and the caller queues only without a summary.
 INSERT INTO meeting_auto_summaries (meeting_id, organization_id, due_at)
 VALUES (sqlc.arg(meeting_id), sqlc.arg(organization_id), now() + make_interval(secs => sqlc.arg(after_seconds)::int))
-ON CONFLICT (meeting_id) DO NOTHING;
+ON CONFLICT (meeting_id) DO UPDATE SET due_at = EXCLUDED.due_at, lease_until = NULL, attempts = 0
+WHERE meeting_auto_summaries.organization_id = sqlc.arg(organization_id);
 
 -- name: HurryMeetingAutoSummary :exec
 -- The agent reported /agent/finished: its last lines are in, so the summary

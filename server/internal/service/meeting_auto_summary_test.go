@@ -495,3 +495,94 @@ func TestAutoSummaryTransientErrorRetries(t *testing.T) {
 		t.Fatalf("retry: err=%v calls=%d", err, calls.Load())
 	}
 }
+
+// heldWithUploads: a meeting held in person, in the transcription fixture's
+// workspace, with a model that summarizes, and a way to transcribe one
+// uploaded recording of it to the end.
+func heldWithUploads(t *testing.T) (transcriptionEnv, db.Meeting, *atomic.Int32, func()) {
+	t.Helper()
+	e := transcriptionFixture(t)
+	s, ctx := e.s, context.Background()
+	calls := &atomic.Int32{}
+	s.AI = ai.NewGateway(s.q, autoSummaryReply(calls), NewAIQuota(s.ent), nil, ai.Options{Cloud: ai.CloudTools{MeetingTranscriber: e.vendor}})
+	start := time.Now().Add(time.Hour).Truncate(time.Second)
+	m, err := s.Create(ctx, e.host.ID, e.m.WorkspaceID, CreateMeetingInput{Title: "Họp chi bộ tháng", StartsAt: start, EndsAt: start.Add(time.Hour)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	began := time.Now().Add(-2 * time.Hour).Truncate(time.Second)
+	if m, err = s.RecordHeld(ctx, e.host.ID, m.ID, began, began.Add(time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	transcribe := func() {
+		t.Helper()
+		if _, err := s.RequestTranscription(ctx, e.host.ID, m.ID, TranscriptionRequest{UploadID: e.uploadFor(t, m, e.host.ID, "hop.mp3", mp3(60, util.NewID())), Consent: true}); err != nil {
+			t.Fatal(err)
+		}
+		for range 2 { // submit, then the poll that completes it
+			if err := s.runTranscriptions(ctx); err != nil {
+				t.Fatal(err)
+			}
+			due(t, s, m.ID)
+		}
+	}
+	return e, m, calls, transcribe
+}
+
+// Fix round 1 follow-up: a held meeting's auto summary settles with nothing
+// to read; its uploaded recording, once transcribed, queues it again. Once a
+// summary exists, a further upload queues nothing.
+func TestCompletedUploadQueuesTheAutoSummary(t *testing.T) {
+	e, m, calls, transcribe := heldWithUploads(t)
+	s, ctx := e.s, context.Background()
+	makeAutoDue(t, s, m.ID)
+	if err := s.claimAutoSummaries(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if _, queued := autoQueue(t, s, m.ID); queued || calls.Load() != 0 || outboxTopicCount(t, s, topicAutoSummaryFailed, m.ID) != 0 {
+		t.Fatalf("held run: queued=%v calls=%d; with no source it settles quietly", queued, calls.Load())
+	}
+	transcribe()
+	if due, ok := autoQueue(t, s, m.ID); !ok || due > autoSummaryWait {
+		t.Fatalf("after the upload: due in %v (queued %v)", due, ok)
+	}
+	makeAutoDue(t, s, m.ID)
+	if err := s.claimAutoSummaries(ctx); err != nil {
+		t.Fatal(err)
+	}
+	sum, err := s.q.GetLatestMeetingSummary(ctx, m.ID)
+	if err != nil || sum.CreatedByKind != "system" || calls.Load() != 1 {
+		t.Fatalf("summary = %+v %v, calls %d", sum, err, calls.Load())
+	}
+	transcribe()
+	if _, queued := autoQueue(t, s, m.ID); queued {
+		t.Fatal("a second upload queued a summary over the one that exists")
+	}
+}
+
+// The upload completes while the held meeting's run holds its row (about to
+// settle as no source): the row is due again and free, and the old holder's
+// settle no longer deletes it.
+func TestCompletedUploadRequeuesALeasedRow(t *testing.T) {
+	e, m, calls, transcribe := heldWithUploads(t)
+	s, ctx := e.s, context.Background()
+	makeAutoDue(t, s, m.ID)
+	held, err := s.q.ClaimMeetingAutoSummary(ctx, 60)
+	if err != nil || held.MeetingID != m.ID {
+		t.Fatalf("claim = %+v %v", held, err)
+	}
+	transcribe()
+	if err := s.settleAutoSummary(ctx, held, m, false); err != nil {
+		t.Fatal(err)
+	}
+	if due, ok := autoQueue(t, s, m.ID); !ok || due > autoSummaryWait {
+		t.Fatalf("the old holder's settle removed the requeued row: due in %v (queued %v)", due, ok)
+	}
+	makeAutoDue(t, s, m.ID)
+	if err := s.claimAutoSummaries(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.q.GetLatestMeetingSummary(ctx, m.ID); err != nil || calls.Load() != 1 {
+		t.Fatalf("no summary after the requeue: %v, calls %d", err, calls.Load())
+	}
+}

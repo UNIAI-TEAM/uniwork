@@ -118,7 +118,8 @@ func (q *Queries) MeetingAutoSummaryQueued(ctx context.Context, meetingID string
 const queueMeetingAutoSummary = `-- name: QueueMeetingAutoSummary :exec
 INSERT INTO meeting_auto_summaries (meeting_id, organization_id, due_at)
 VALUES ($1, $2, now() + make_interval(secs => $3::int))
-ON CONFLICT (meeting_id) DO NOTHING
+ON CONFLICT (meeting_id) DO UPDATE SET due_at = EXCLUDED.due_at, lease_until = NULL, attempts = 0
+WHERE meeting_auto_summaries.organization_id = $2
 `
 
 type QueueMeetingAutoSummaryParams struct {
@@ -127,7 +128,11 @@ type QueueMeetingAutoSummaryParams struct {
 	AfterSeconds   int32  `json:"after_seconds"`
 }
 
-// A meeting ends once; a second queue of the same meeting changes nothing.
+// A meeting ends once. A later queue comes from a recording transcribed
+// after the end (UNI-2028): if the meeting's row is still there, maybe held
+// by a run about to settle with nothing to read, it is due again and free,
+// so that run's settle (keyed on its lease) no longer deletes it. A row
+// already settled is gone, and the caller queues only without a summary.
 func (q *Queries) QueueMeetingAutoSummary(ctx context.Context, arg QueueMeetingAutoSummaryParams) error {
 	_, err := q.db.Exec(ctx, queueMeetingAutoSummary, arg.MeetingID, arg.OrganizationID, arg.AfterSeconds)
 	return err
