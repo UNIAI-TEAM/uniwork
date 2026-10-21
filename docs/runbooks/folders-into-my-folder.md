@@ -48,6 +48,7 @@ Thứ tự bắt buộc: **deploy code server → `--dry-run` → chạy thật 
    WHERE actor_id = 'folder-ws-public' AND metadata::jsonb->>'batch_id' = '<batch_id>';
    ```
    `unit_id` là thư mục gốc của đơn vị; `changes` có `parent_id` trước/sau (và `title` nếu bị đánh số).
+   My Folder do lệnh tạo (chủ chưa có) có dòng `document.created` với actor là chủ (`metadata.system_kind = 'my_folder'`), nên không nằm trong truy vấn `actor_id = 'folder-ws-public'` ở trên.
 4. Tài liệu bên trong không đổi quyền: mỗi tài liệu giữ `visibility`, `workspace_level` và share của riêng nó; chỉ `parent_id` của
    tài liệu thuộc chủ khác đổi (về gốc).
 
