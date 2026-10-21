@@ -422,7 +422,7 @@ func TestDocumentChangedRelocationTellsThePrivateOwner(t *testing.T) {
 	if err := audit.NewRecorder().Record(ctx, f.q.WithTx(tx), audit.Entry{
 		OrganizationID: f.orgID, WorkspaceID: f.wsID, Actor: service.Human(f.member.ID),
 		Action: audit.ActionDocumentMoved, ResourceType: "document", ResourceID: docID,
-		Metadata: map[string]any{"reason": "folder_trashed", "from_folder_id": folder, "batch_id": util.NewID()},
+		Metadata: map[string]any{"reason": audit.ReasonFolderTrashed, "from_folder_id": folder, "batch_id": util.NewID()},
 	}, audit.Event{Topic: "document.moved", Payload: map[string]string{"document_id": docID, "workspace_id": f.wsID}}); err != nil {
 		t.Fatal(err)
 	}

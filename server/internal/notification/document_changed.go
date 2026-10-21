@@ -34,11 +34,6 @@ const (
 // and counts the rest.
 const docChangeSamples = 3
 
-// relocationReason is the audit metadata.reason of a UNI-2055 rule-7 move:
-// a folder went to the trash and a document its actor cannot manage went to
-// the workspace root instead (hook proposal v2).
-const relocationReason = "folder_trashed"
-
 // DocChange is the part of a document_changed draft the fold write path
 // needs: the group prefix it searches under (same actor and verb), the one
 // document this event adds, and the title kept for a purged document.
@@ -122,7 +117,7 @@ func ruleDocumentMovedChange(ctx context.Context, e env, ev outbox.Row, p map[st
 	if err != nil {
 		return nil, err
 	}
-	if reason, _ := meta["reason"].(string); reason == relocationReason {
+	if reason, _ := meta["reason"].(string); reason == audit.ReasonFolderTrashed {
 		return documentChangeDrafts(ctx, e, ev, p, docVerbRelocated, docChangeOpts{ownerAlways: true})
 	}
 	return documentChangeDrafts(ctx, e, ev, p, docVerbMoved, docChangeOpts{})
