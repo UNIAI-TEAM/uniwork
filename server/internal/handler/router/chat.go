@@ -367,11 +367,26 @@ func registerChat(r api, h Routes, chatWriteLimit, chatReactLimit, chatRoomLimit
 		sdo:         sdo.ChatMessageDTO{},
 		auth:        true,
 	})
+	r.Get("/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/{messageID}/poll/voters", h.GetChatPollVoters, apiOp{
+		summary:     "List chat poll voters",
+		description: "Danh sách ai bầu gì; chỉ khi poll cho phép xem người bầu và kết quả.",
+		tags:        []string{"chat"},
+		sdo:         sdo.ChatPollVotersSDO{},
+		auth:        true,
+	})
 	r.With(chatReactLimit).Post("/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/{messageID}/poll/vote", h.VoteChatPollMessage, apiOp{
 		summary:     "Vote on chat poll",
 		description: "Bỏ phiếu trên tin nhắn bình chọn.",
 		tags:        []string{"chat"},
 		sdi:         sdi.VoteChatPollSDI{},
+		sdo:         sdo.ChatMessageDTO{},
+		auth:        true,
+	})
+	r.With(chatReactLimit).Post("/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/{messageID}/poll/options", h.AddChatPollOptionMessage, apiOp{
+		summary:     "Add chat poll option",
+		description: "Thêm lựa chọn vào bình chọn khi allow_add_options được bật.",
+		tags:        []string{"chat"},
+		sdi:         sdi.AddChatPollOptionSDI{},
 		sdo:         sdo.ChatMessageDTO{},
 		auth:        true,
 	})

@@ -675,7 +675,10 @@ func (w *isoWorld) buildChat(t *testing.T, tn *isoTenant) {
 	tn.ids["message"] = isoID(t, out, "message")
 	w.call(t, "POST", rp+"/threads/"+tn.ids["message"]+"/messages", tn.peerToken, map[string]any{"body": m + " thread reply", "client_msg_id": util.NewID()})
 	out = w.call(t, "POST", rp+"/messages", tn.token, map[string]any{
-		"client_msg_id": util.NewID(), "poll": map[string]any{"question": m + " poll", "options": []string{"Canteen", "Outside"}},
+		"client_msg_id": util.NewID(), "poll": map[string]any{
+			"question": m + " poll", "options": []string{"Canteen", "Outside"},
+			"settings": map[string]any{"allow_add_options": true},
+		},
 	})
 	tn.ids["pollMessage"] = isoID(t, out, "message")
 	tn.ids["pollOption"] = isoString(t, out["message"].(map[string]any)["poll"].(map[string]any)["options"].([]any)[0].(map[string]any), "id")

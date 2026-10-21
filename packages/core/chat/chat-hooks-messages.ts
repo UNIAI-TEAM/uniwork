@@ -186,7 +186,33 @@ export function useVoteChatPollMessage(workspaceId: string) {
       chat.voteChatPollMessage(workspaceId, input.roomId, input.messageId, input.optionId),
     onSuccess: (data, variables) => {
       applyChatMessageResponse(qc, workspaceId, variables.roomId, data, false);
+      void qc.invalidateQueries({ queryKey: chatKeys.pollVoters(workspaceId, variables.messageId) });
     },
+  });
+}
+
+export function useAddChatPollOptionMessage(workspaceId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { roomId: string; messageId: string; label: string }) =>
+      chat.addChatPollOptionMessage(workspaceId, input.roomId, input.messageId, input.label),
+    onSuccess: (data, variables) => {
+      applyChatMessageResponse(qc, workspaceId, variables.roomId, data, false);
+      void qc.invalidateQueries({ queryKey: chatKeys.pollVoters(workspaceId, variables.messageId) });
+    },
+  });
+}
+
+export function useChatPollVoters(
+  workspaceId: string,
+  roomId: string,
+  messageId: string,
+  enabled: boolean,
+) {
+  return useQuery({
+    queryKey: chatKeys.pollVoters(workspaceId, messageId),
+    queryFn: () => chat.getChatPollVoters(workspaceId, roomId, messageId),
+    enabled: enabled && Boolean(workspaceId && roomId && messageId),
   });
 }
 

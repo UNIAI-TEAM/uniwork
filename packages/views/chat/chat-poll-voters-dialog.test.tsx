@@ -2,15 +2,27 @@ import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { ChatPollVotersDialog } from "./chat-poll-voters-dialog";
 
+const mockVoters = { U1: ["o1"], U2: ["o1"], U3: ["o1"], U4: ["o2"] };
+
+vi.mock("@uniwork/core/chat", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@uniwork/core/chat")>();
+  return {
+    ...actual,
+    useChatPollVoters: () => ({ data: mockVoters, isPending: false, isError: false }),
+  };
+});
+
 const props = {
   open: true,
   onOpenChange: vi.fn(),
+  workspaceId: "ws1",
+  roomId: "room1",
+  messageId: "msg1",
   question: "Ăn trưa ở đâu?",
   options: [
     { id: "o1", label: "Phở", votes: 3 },
     { id: "o2", label: "Bún chả", votes: 1 },
   ],
-  votesByUser: { U1: ["o1"], U2: ["o1"], U3: ["o1"], U4: ["o2"] },
   nameContext: [
     { user_id: "U1", display_name: "Lan" },
     { user_id: "U2", display_name: "Minh" },

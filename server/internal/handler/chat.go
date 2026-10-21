@@ -184,7 +184,6 @@ func toChatMessageDTO(m service.ChatMessageRow) sdo.ChatMessageDTO {
 				HideVoters:           m.Poll.Settings.HideVoters,
 			},
 			ViewerOptionIDs: m.Poll.ViewerOptionIDs,
-			VotesByUser:     m.Poll.VotesByUser,
 		}
 	}
 	if m.PollVote != nil {
@@ -753,6 +752,41 @@ func (h *handlers) voteChatPollMessage(w http.ResponseWriter, r *http.Request) {
 		chi.URLParam(r, "roomID"),
 		chi.URLParam(r, "messageID"),
 		in.OptionID,
+	)
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	respondJSON(w, http.StatusOK, map[string]any{"message": toChatMessageDTO(msg)})
+}
+
+func (h *handlers) getChatPollVoters(w http.ResponseWriter, r *http.Request) {
+	votes, err := h.Chat.ChatPollVoters(
+		r.Context(),
+		middleware.UserID(r.Context()),
+		chi.URLParam(r, "workspaceID"),
+		chi.URLParam(r, "roomID"),
+		chi.URLParam(r, "messageID"),
+	)
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	respondJSON(w, http.StatusOK, sdo.ChatPollVotersSDO{VotesByUser: votes})
+}
+
+func (h *handlers) addChatPollOptionMessage(w http.ResponseWriter, r *http.Request) {
+	var in sdi.AddChatPollOptionSDI
+	if !decode(w, r, &in, maxJSONBody) {
+		return
+	}
+	msg, err := h.Chat.AddChatPollOptionMessage(
+		r.Context(),
+		middleware.UserID(r.Context()),
+		chi.URLParam(r, "workspaceID"),
+		chi.URLParam(r, "roomID"),
+		chi.URLParam(r, "messageID"),
+		in.Label,
 	)
 	if err != nil {
 		h.mapServiceError(w, err)

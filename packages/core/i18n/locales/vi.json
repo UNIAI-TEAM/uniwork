@@ -3959,6 +3959,7 @@
       "card_label": "{{kind}} của {{sender}}, {{time}}",
       "card_label_no_time": "{{kind}} của {{sender}}",
       "poll_vote_failed": "Chưa bỏ phiếu được. Thử lại.",
+      "poll_add_option_failed": "Chưa thêm được lựa chọn. Thử lại.",
       "poll_pick_one": "Chọn một",
       "poll_pick_many": "Chọn nhiều",
       "poll_view_option_voters": "Xem {{count}} người chọn {{label}}",

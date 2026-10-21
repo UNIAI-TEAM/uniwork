@@ -196,10 +196,6 @@ export const ChatMessageSchema = z.object({
         .array(z.string())
         .nullish()
         .transform((value) => value ?? []),
-      votes_by_user: z
-        .record(z.string(), z.array(z.string()))
-        .nullish()
-        .transform((value) => value ?? undefined),
     })
     .optional(),
   poll_vote: z
