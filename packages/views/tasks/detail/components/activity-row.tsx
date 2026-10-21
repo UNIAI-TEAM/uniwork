@@ -30,6 +30,10 @@ export function isTimelineActivity(event: AuditEvent): boolean {
   return !DUPLICATED_BY_THE_TIMELINE.test(event.action);
 }
 
+function isEmpty(value: unknown): boolean {
+  return value === null || value === undefined || value === "";
+}
+
 /** The AI app a change came through (ADR 0033), or "" when none or malformed. */
 function viaClient(event: AuditEvent): string {
   const via = event.metadata.via;
@@ -65,10 +69,13 @@ export function TaskActivityRow({
   // Position is an internal ordering coordinate, not a meaningful task-detail
   // change. Keep it in the immutable audit event for the organization log,
   // but omit it from this resource-local timeline and its remaining-field count.
-  // On creation the assignee's kind only restates the assignee.
+  // On creation the assignee's kind only restates the assignee, and a field
+  // created empty is not news ("Hạn: Không có").
   const created = event.action === "task.created";
   const timelineChanges = changeEntries(event).filter(
-    ([field]) => field !== "position" && !(created && field === "assignee_kind"),
+    ([field, change]) =>
+      field !== "position" &&
+      !(created && (field === "assignee_kind" || isEmpty(change.to))),
   );
   const changes = timelineChanges.slice(0, 2);
   const via = viaClient(event);

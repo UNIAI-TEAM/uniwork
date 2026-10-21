@@ -1178,6 +1178,8 @@
         "assignee_kind": "Assignee kind",
         "due_date": "Due",
         "start_date": "Start date",
+        "start_at": "Start time",
+        "due_at": "End time",
         "project_id": "Project",
         "parent_task_id": "Parent task",
         "position": "Position",

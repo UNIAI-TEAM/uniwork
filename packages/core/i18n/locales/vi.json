@@ -1177,6 +1177,8 @@
         "assignee_kind": "Loại người phụ trách",
         "due_date": "Hạn",
         "start_date": "Ngày bắt đầu",
+        "start_at": "Giờ bắt đầu",
+        "due_at": "Giờ kết thúc",
         "project_id": "Dự án",
         "parent_task_id": "Công việc cha",
         "position": "Vị trí",
