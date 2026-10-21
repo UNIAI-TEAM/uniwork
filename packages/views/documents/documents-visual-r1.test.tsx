@@ -86,10 +86,8 @@ describe("phone row layout (finding 1)", () => {
     const button = name.closest("button");
     expect(button).toHaveClass("w-full", "min-w-0");
     expect(button?.querySelector("span.min-w-0")).toHaveClass("flex-1");
-    // The icon-only app button does not take width from the name until the actions column widens (container, not viewport).
-    const quick = document.querySelector("[data-office-desktop-action]");
-    // UNI-2045: that is the table rung of the shared ladder (26rem on the workspace screen).
-    expect(quick?.parentElement).toHaveClass("hidden", "@min-[26rem]/library:block");
+    // RFD-16: no app button in the Actions cell at any width (the command lives in the menu), so nothing takes width from the name.
+    expect(screen.queryByRole("button", { name: t("office.desktop.row_action") })).toBeNull();
     // TV-12: the truncating name keeps the full title on hover (native title).
     expect(name).toHaveAttribute("title", "Báo giá tháng 10.docx");
   });

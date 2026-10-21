@@ -34,8 +34,6 @@ export interface RowLadder {
   columns: readonly LibraryColumn[];
   /** The header row: hidden while only Name and actions exist. */
   head: string;
-  /** The app command in the actions cell: shown once the actions column has room for it. */
-  quick: string;
   /** The editor part of the secondary line: hidden once its column exists. */
   metaHides: string;
   /** The updated · size part of the secondary line: hidden once those columns exist. */
@@ -87,7 +85,7 @@ export function libraryGroupSpans(ladder: { columns: readonly LibraryColumn[] })
 // derives a rung that has no entry.
 // `hideNow` is `hide` with `!`: it wins over a display class of the same rung
 // (the row's own 34rem `inline`, which the workspace Access rung can equal).
-type RungClasses = { col: string; cell: string; head: string; hide: string; hideNow: string; show: string };
+type RungClasses = { col: string; cell: string; head: string; hide: string; hideNow: string };
 
 // `w-[Npx]` of each column, written out for the same reason: Tailwind cannot see a class built from a number.
 const WIDTH_CLASSES: Record<number, string> = {
@@ -108,14 +106,14 @@ function widthClass(px: number): string {
 }
 
 const RUNG_CLASSES: Record<number, RungClasses> = {
-  26: { col: "hidden @min-[26rem]/library:table-column", cell: "hidden @min-[26rem]/library:table-cell", head: "hidden bg-muted/50 @min-[26rem]/library:table-header-group", hide: "@min-[26rem]/library:hidden", hideNow: "@min-[26rem]/library:hidden!", show: "hidden @min-[26rem]/library:block" },
-  33: { col: "hidden @min-[33rem]/library:table-column", cell: "hidden @min-[33rem]/library:table-cell", head: "hidden bg-muted/50 @min-[33rem]/library:table-header-group", hide: "@min-[33rem]/library:hidden", hideNow: "@min-[33rem]/library:hidden!", show: "hidden @min-[33rem]/library:block" },
-  34: { col: "hidden @min-[34rem]/library:table-column", cell: "hidden @min-[34rem]/library:table-cell", head: "hidden bg-muted/50 @min-[34rem]/library:table-header-group", hide: "@min-[34rem]/library:hidden", hideNow: "@min-[34rem]/library:hidden!", show: "hidden @min-[34rem]/library:block" },
-  41: { col: "hidden @min-[41rem]/library:table-column", cell: "hidden @min-[41rem]/library:table-cell", head: "hidden bg-muted/50 @min-[41rem]/library:table-header-group", hide: "@min-[41rem]/library:hidden", hideNow: "@min-[41rem]/library:hidden!", show: "hidden @min-[41rem]/library:block" },
-  42: { col: "hidden @min-[42rem]/library:table-column", cell: "hidden @min-[42rem]/library:table-cell", head: "hidden bg-muted/50 @min-[42rem]/library:table-header-group", hide: "@min-[42rem]/library:hidden", hideNow: "@min-[42rem]/library:hidden!", show: "hidden @min-[42rem]/library:block" },
-  47: { col: "hidden @min-[47rem]/library:table-column", cell: "hidden @min-[47rem]/library:table-cell", head: "hidden bg-muted/50 @min-[47rem]/library:table-header-group", hide: "@min-[47rem]/library:hidden", hideNow: "@min-[47rem]/library:hidden!", show: "hidden @min-[47rem]/library:block" },
-  49: { col: "hidden @min-[49rem]/library:table-column", cell: "hidden @min-[49rem]/library:table-cell", head: "hidden bg-muted/50 @min-[49rem]/library:table-header-group", hide: "@min-[49rem]/library:hidden", hideNow: "@min-[49rem]/library:hidden!", show: "hidden @min-[49rem]/library:block" },
-  54: { col: "hidden @min-[54rem]/library:table-column", cell: "hidden @min-[54rem]/library:table-cell", head: "hidden bg-muted/50 @min-[54rem]/library:table-header-group", hide: "@min-[54rem]/library:hidden", hideNow: "@min-[54rem]/library:hidden!", show: "hidden @min-[54rem]/library:block" },
+  26: { col: "hidden @min-[26rem]/library:table-column", cell: "hidden @min-[26rem]/library:table-cell", head: "hidden bg-muted/50 @min-[26rem]/library:table-header-group", hide: "@min-[26rem]/library:hidden", hideNow: "@min-[26rem]/library:hidden!" },
+  33: { col: "hidden @min-[33rem]/library:table-column", cell: "hidden @min-[33rem]/library:table-cell", head: "hidden bg-muted/50 @min-[33rem]/library:table-header-group", hide: "@min-[33rem]/library:hidden", hideNow: "@min-[33rem]/library:hidden!" },
+  34: { col: "hidden @min-[34rem]/library:table-column", cell: "hidden @min-[34rem]/library:table-cell", head: "hidden bg-muted/50 @min-[34rem]/library:table-header-group", hide: "@min-[34rem]/library:hidden", hideNow: "@min-[34rem]/library:hidden!" },
+  41: { col: "hidden @min-[41rem]/library:table-column", cell: "hidden @min-[41rem]/library:table-cell", head: "hidden bg-muted/50 @min-[41rem]/library:table-header-group", hide: "@min-[41rem]/library:hidden", hideNow: "@min-[41rem]/library:hidden!" },
+  42: { col: "hidden @min-[42rem]/library:table-column", cell: "hidden @min-[42rem]/library:table-cell", head: "hidden bg-muted/50 @min-[42rem]/library:table-header-group", hide: "@min-[42rem]/library:hidden", hideNow: "@min-[42rem]/library:hidden!" },
+  47: { col: "hidden @min-[47rem]/library:table-column", cell: "hidden @min-[47rem]/library:table-cell", head: "hidden bg-muted/50 @min-[47rem]/library:table-header-group", hide: "@min-[47rem]/library:hidden", hideNow: "@min-[47rem]/library:hidden!" },
+  49: { col: "hidden @min-[49rem]/library:table-column", cell: "hidden @min-[49rem]/library:table-cell", head: "hidden bg-muted/50 @min-[49rem]/library:table-header-group", hide: "@min-[49rem]/library:hidden", hideNow: "@min-[49rem]/library:hidden!" },
+  54: { col: "hidden @min-[54rem]/library:table-column", cell: "hidden @min-[54rem]/library:table-cell", head: "hidden bg-muted/50 @min-[54rem]/library:table-header-group", hide: "@min-[54rem]/library:hidden", hideNow: "@min-[54rem]/library:hidden!" },
 };
 
 /** The rung's literal classes; a spec that derives a rung without an entry throws (the ladder test names it). */
@@ -176,7 +174,6 @@ export function specLadder(screen: DocListScreen, opts: { selectable?: boolean }
   return {
     columns,
     head: at("table").head,
-    quick: at("table").show,
     metaHides: at("editor").hide,
     metaTailHides: at("table").hide,
     accessLineHides: at("editor").hide,

@@ -217,7 +217,7 @@ describe("bulk selection", () => {
     expect((bulk.run.mock.calls[0]![0] as BulkPlan).docs.map((d) => d.id)).toEqual(["a", "b"]);
   });
 
-  it("drops a group's rows from the selection when it collapses, and a shift range never spans a hidden row", () => {
+  it("drops a group's rows from the selection when it collapses", () => {
     const groups = [
       { key: "this_week", rows: [doc("a"), doc("b")] },
       { key: "earlier", rows: [doc("c"), doc("d")] },
@@ -230,6 +230,21 @@ describe("bulk selection", () => {
     collapsed = true;
     rerender(grouped(groups, { screen: "recent", collapse: collapse() }));
     expect(within(bar()).getByText(t("documents.list.bulk.selected", { count: 2 }))).toBeInTheDocument();
+  });
+
+  it("never lets a shift range span the rows of a collapsed middle group", () => {
+    const groups = [
+      { key: "today", rows: [doc("a"), doc("b")] },
+      { key: "this_week", rows: [doc("c"), doc("d")] },
+      { key: "earlier", rows: [doc("e"), doc("f")] },
+    ];
+    const collapse: GroupCollapse = { isCollapsed: (id) => id === "this_week", onToggle: noop };
+    render(grouped(groups, { screen: "recent", collapse }));
+    expect(screen.queryByRole("checkbox", { name: t("documents.list.bulk.select_row", { title: "Tệp c" }) })).toBeNull();
+    fireEvent.click(rowBox("Tệp a"));
+    fireEvent.click(rowBox("Tệp f"), { shiftKey: true });
+    // a, b, e, f: the two hidden rows are not part of the range.
+    expect(within(bar()).getByText(t("documents.list.bulk.selected", { count: 4 }))).toBeInTheDocument();
   });
 
   it("disables the bar's actions while a batch is in flight", () => {

@@ -118,7 +118,7 @@ describe("Tailwind literals", () => {
       for (const column of spec.columns.filter((c) => c.id !== "name")) expect(source, `${screen}/${column.id}`).toContain(`"w-[${column.width}px]"`);
       const rungs = docListRungs(spec);
       for (const rung of Object.values(rungs)) {
-        for (const utility of ["table-column", "table-cell", "table-header-group", "hidden", "hidden!", "block"]) {
+        for (const utility of ["table-column", "table-cell", "table-header-group", "hidden", "hidden!"]) {
           expect(source, `${screen} ${rung}rem ${utility}`).toContain(`@min-[${rung}rem]/library:${utility}`);
         }
       }

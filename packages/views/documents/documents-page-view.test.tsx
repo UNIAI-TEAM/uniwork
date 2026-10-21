@@ -675,7 +675,16 @@ describe("DocumentsPageView", () => {
     const pageRow = await rowOf("Kế hoạch Q4");
     expect(within(pageRow).queryByRole("button", { name: t("office.desktop.row_action") })).toBeNull();
 
-    fireEvent.click(within(fileRow).getByRole("button", { name: t("office.desktop.row_action") }));
+    // RFD-16: the row's actions are Star and the menu; the app command is the menu's Mở bằng UniWork Office.
+    expect(within(fileRow).queryByRole("button", { name: t("office.desktop.row_action") })).toBeNull();
+    expect(within(pageRow).queryByRole("menuitem", { name: t("documents.home.row.open_app") })).toBeNull();
+    const actions = fileRow.querySelector<HTMLElement>("td[data-column='actions']")!;
+    expect(within(actions).getAllByRole("button").map((button) => button.getAttribute("aria-label"))).toEqual([
+      t("documents.home.row.star_item", { title: "Báo giá.docx" }),
+      t("documents.home.row.menu", { title: "Báo giá.docx" }),
+    ]);
+    fireEvent.click(within(fileRow).getByRole("button", { name: t("documents.home.row.menu", { title: "Báo giá.docx" }) }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: t("documents.home.row.open_app") }));
     await waitFor(() => expect(createSession).toHaveBeenCalledTimes(1));
     expect(createSession.mock.calls[0]?.[0]).toBe("f1");
     expect(createSession.mock.calls[0]?.[1]).toMatchObject({ operation: "view", deployment_id: "dep-1" });
@@ -831,7 +840,8 @@ describe("DocumentsPageView", () => {
     renderView(vi.fn(), { desktopOpen: desktopOpenWith(createSession) });
     for (const [title, id, operation] of [["Sửa.docx", "f1", "edit"], ["Xem.docx", "f2", "view"]] as const) {
       createSession.mockClear();
-      fireEvent.click(within(await rowOf(title)).getByRole("button", { name: t("office.desktop.row_action") }));
+      fireEvent.click(within(await rowOf(title)).getByRole("button", { name: t("documents.home.row.menu", { title }) }));
+      fireEvent.click(await screen.findByRole("menuitem", { name: t("documents.home.row.open_app") }));
       await waitFor(() => expect(createSession).toHaveBeenCalledTimes(1));
       expect(createSession.mock.calls[0]?.[0]).toBe(id);
       expect(createSession.mock.calls[0]?.[1]).toMatchObject({ operation });
