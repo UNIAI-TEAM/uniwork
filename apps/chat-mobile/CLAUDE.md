@@ -422,7 +422,8 @@ một dòng thì ghi lý do ở dòng trên.
   thì giữ loại đã có và chỉ đổi thông báo (không bao giờ tự dừng service của cuộc gọi đang chạy),
   `CallRinger`, Từ chối/Gác máy → `CallActionReceiver` → headless task `UniChatCallAction` (không khởi động được thì
   `PendingActions` giữ tới lần mở sau), activity hiện trên màn khoá chỉ khi được mở bởi cuộc gọi
-  (`CallLockScreen`, nhả khi cuộc gọi xong; listener đăng ký qua `UniChatCallsPackage.kt` — autolinking chỉ nhận
+  (`CallLockScreen`, nhả khi cuộc gọi xong, và khi lần đổ chuông mở app không thành màn cuộc gọi — cuộc gọi đã kết thúc
+  lúc app mở lạnh, công tắc gọi tắt — trước khi tab Chat mở phòng, `use-deep-link-target.ts`; listener đăng ký qua `UniChatCallsPackage.kt` — autolinking chỉ nhận
   `Package` từ file tên `*Package.kt`). Mã Kotlin nằm trong git: `.gitignore` của app chỉ bỏ `/android/` và `/ios/` ở
   gốc; `native-modules.test.ts` đỏ khi git thiếu project native của module, khi có gì dưới đó bị ignore, khi một
   `Package` nằm sai file, hay khi autolinking không liệt kê `UniChatCallsPackage`. Khai báo ở `plugins/with-unichat-calls.js` (quyền, service, receiver; gỡ

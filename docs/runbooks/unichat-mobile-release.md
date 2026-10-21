@@ -337,6 +337,8 @@ khi nào dịch vụ chạy, ai được báo) với module native giả; chỉ 
   báo có "Cuộc gọi thoại · chạm để quay lại" với đồng hồ và Gác máy; Gác máy ở đó kết thúc cuộc gọi ở cả hai bên.
 - [ ] Nghe từ màn khoá chưa mở khoá: màn cuộc gọi hiện ngay trên màn khoá (không đòi mở khoá); gác máy thì màn khoá
   trở lại như trước.
+- [ ] B kill app, khoá máy; A gọi rồi gác ngay khi màn B vừa sáng (app còn đang mở lạnh): B thấy lại màn khoá của máy,
+  không phải phòng chat với A.
 - [ ] A gọi rồi đưa app xuống nền (Home) trước khi B nghe; B nghe: tiếng hai chiều vẫn còn ở A sau 2 phút, thông báo
   "đang diễn ra" của A chuyển sang đồng hồ; A mở lại app: không lỗi, cuộc gọi vẫn chạy.
 - [ ] Bản 0.2.x còn cài trên một máy Android khi server đã deploy: A gọi, máy đó vẫn hiện push "A đang gọi" (không

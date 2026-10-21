@@ -17,7 +17,7 @@ import { useDeepLinkTarget } from "./use-deep-link-target";
 const mockParams: { current: Record<string, string | undefined> } = { current: {} };
 jest.mock("expo-router", () => ({ router: { push: jest.fn(), setParams: jest.fn() }, useLocalSearchParams: () => mockParams.current }));
 jest.mock("@/data/calls/call-store", () => ({ callEngine: { ringFromPush: jest.fn(async () => true), joinFromPush: jest.fn(async () => true) } }));
-jest.mock("@/data/calls/native-calls", () => ({ nativeCalls: { cancelIncomingCall: jest.fn(), takeAnsweredCall: jest.fn(() => false) } }));
+jest.mock("@/data/calls/native-calls", () => ({ nativeCalls: { cancelIncomingCall: jest.fn(), releaseLockScreen: jest.fn(), takeAnsweredCall: jest.fn(() => false) } }));
 const mockFlags = { calls: true };
 jest.mock("@/data/remote-config", () => ({ readMobileFlag: () => mockFlags.calls }));
 const mockResolveDM = jest.fn(async (_userId: string): Promise<{ id: string } | null> => ({ id: "dm-1" }));
@@ -25,7 +25,7 @@ jest.mock("@/data/mutations/rooms", () => ({ useResolveDM: () => ({ mutateAsync:
 
 const mockRouter = jest.requireMock<{ router: { push: jest.Mock; setParams: jest.Mock } }>("expo-router").router;
 const mockCalls = jest.requireMock<{ callEngine: { ringFromPush: jest.Mock; joinFromPush: jest.Mock } }>("@/data/calls/call-store").callEngine;
-const mockNative = jest.requireMock<{ nativeCalls: { cancelIncomingCall: jest.Mock; takeAnsweredCall: jest.Mock } }>("@/data/calls/native-calls").nativeCalls;
+const mockNative = jest.requireMock<{ nativeCalls: { cancelIncomingCall: jest.Mock; releaseLockScreen: jest.Mock; takeAnsweredCall: jest.Mock } }>("@/data/calls/native-calls").nativeCalls;
 
 const chat: ChatWorkspace = { wsId: "w1", orgSlug: "acme", wsSlug: "main", workspaceName: "Main", userId: "me" };
 
@@ -131,9 +131,15 @@ describe("useDeepLinkTarget", () => {
     expect(mockCalls.ringFromPush).toHaveBeenCalledWith("r1", "c1");
     expect(mockRouter.push).not.toHaveBeenCalled();
 
+    expect(mockNative.releaseLockScreen).not.toHaveBeenCalled();
+
+    // Audit (calls, lock-screen leak): a ring that ended while the app cold-booted over the lock screen must give the
+    // lock back before the room opens, or anyone holding the locked phone reads every chat.
     mockCalls.ringFromPush.mockResolvedValueOnce(false);
     await land({ room: "r2", call: "c2" });
     expect(mockNative.cancelIncomingCall).toHaveBeenCalledWith("c2");
+    expect(mockNative.releaseLockScreen).toHaveBeenCalledTimes(1);
+    expect(mockNative.releaseLockScreen.mock.invocationCallOrder[0]).toBeLessThan(mockRouter.push.mock.invocationCallOrder.at(-1) ?? 0);
     expect(mockRouter.push).toHaveBeenCalledWith("/acme/main/room/r2");
   });
 
@@ -160,6 +166,7 @@ describe("useDeepLinkTarget", () => {
     mockNative.takeAnsweredCall.mockReturnValue(true);
     await land({ room: "r1", call: "c1" });
     expect(mockNative.cancelIncomingCall).toHaveBeenCalledWith("c1");
+    expect(mockNative.releaseLockScreen).toHaveBeenCalledTimes(1);
     expect(mockCalls.joinFromPush).not.toHaveBeenCalled();
     expect(mockNative.takeAnsweredCall).not.toHaveBeenCalled();
     expect(toasts()).toEqual([viText("mobile.calls.disabled")]);

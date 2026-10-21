@@ -47,6 +47,8 @@ export function useDeepLinkTarget(chat: ChatWorkspace | null) {
     switch (plan.kind) {
       case "calls-off":
         nativeCalls.cancelIncomingCall(plan.callId);
+        // The ringing notification may have opened the app over the lock screen; no call shows now, so the lock comes back.
+        nativeCalls.releaseLockScreen();
         toast.info(t("mobile.calls.disabled"));
         router.push(chatRoutes.room(chat, plan.roomId));
         return;
@@ -58,8 +60,11 @@ export function useDeepLinkTarget(chat: ChatWorkspace | null) {
           : callEngine.ringFromPush(plan.roomId, plan.callId);
         void open.then((ringing) => {
           if (ringing) return;
-          // Over (its end push not here yet): the phone's own ringing notification goes too.
+          // Over (its end push not here yet): the phone's own ringing notification goes too. The app may be showing
+          // over the lock screen for that ring; the call screen never came, so the room must not open past the lock
+          // (the engine's sync only releases it on a change of call, and nothing changed).
           nativeCalls.cancelIncomingCall(plan.callId);
+          nativeCalls.releaseLockScreen();
           router.push(chatRoutes.room(chat, plan.roomId));
         });
         return;
