@@ -25,10 +25,13 @@ const expoPushURL = "https://exp.host/--/api/v2/push/send"
 
 // ExpoPushSender delivers to the mobile app through Expo Push Service. It
 // needs no configuration; AccessToken is only for Expo's enhanced security.
+// Receipts, when set, gets every accepted ticket so the delivery outcome is
+// read later (push_receipts.go).
 type ExpoPushSender struct {
 	Client      *http.Client
 	URL         string
 	AccessToken string
+	Receipts    *ExpoReceipts
 }
 
 type expoMessage struct {
@@ -45,6 +48,7 @@ type expoMessage struct {
 type expoResponse struct {
 	Data []struct {
 		Status  string `json:"status"`
+		ID      string `json:"id"`
 		Details struct {
 			Error string `json:"error"`
 		} `json:"details"`
@@ -52,7 +56,8 @@ type expoResponse struct {
 }
 
 // Send posts one message and maps its ticket: DeviceNotRegistered revokes the
-// subscription, any other failure (ticket error, 429, 5xx) is retried.
+// subscription, any other failure (ticket error, 429, 5xx) is retried, and an
+// accepted ticket is handed to Receipts.
 func (s ExpoPushSender) Send(ctx context.Context, sub db.PushSubscription, msg PushMessage) error {
 	payload, err := json.Marshal([]expoMessage{{
 		To: sub.Endpoint, Title: msg.Title, Body: msg.Body,
@@ -116,6 +121,7 @@ func (s ExpoPushSender) Send(ctx context.Context, sub db.PushSubscription, msg P
 	t := out.Data[0]
 	switch {
 	case t.Status == "ok":
+		s.Receipts.Track(t.ID, sub.ID)
 		return nil
 	case t.Details.Error == "DeviceNotRegistered":
 		return ErrSubscriptionGone

@@ -12,6 +12,8 @@ type Notifications struct {
 	// PushSuppressed counts pushes dropped on purpose: a chat push to an active
 	// recipient, a call push with the mobile calls switch off.
 	PushSuppressed *prometheus.CounterVec
+	// PushReceipts counts Expo push receipts read back after delivery.
+	PushReceipts *prometheus.CounterVec
 }
 
 func NewNotifications() *Notifications {
@@ -36,11 +38,15 @@ func NewNotifications() *Notifications {
 			Name: "uniwork_push_suppressed_total",
 			Help: "Pushes dropped before sending, by kind: a chat push to a recipient with a presence beat within two minutes, or an incoming-call push while the unichat_mobile_calls switch is off for them.",
 		}, []string{"kind"}),
+		PushReceipts: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "uniwork_push_receipts_total",
+			Help: "Expo push receipts by result: ok, device_not_registered (subscription revoked), message_too_big, message_rate_exceeded, mismatch_sender_id, invalid_credentials, error, expired (no receipt within a day), dropped (pending list full).",
+		}, []string{"result"}),
 	}
 }
 
 func (n *Notifications) Collectors() []prometheus.Collector {
-	return []prometheus.Collector{n.Created, n.Merged, n.Push, n.Digest, n.PushSuppressed}
+	return []prometheus.Collector{n.Created, n.Merged, n.Push, n.Digest, n.PushSuppressed, n.PushReceipts}
 }
 
 func (n *Notifications) IncNotificationCreated(kind string) { n.Created.WithLabelValues(kind).Inc() }
@@ -52,3 +58,5 @@ func (n *Notifications) IncPushSent(result string) { n.Push.WithLabelValues(resu
 func (n *Notifications) IncDigestSent() { n.Digest.Inc() }
 
 func (n *Notifications) IncPushSuppressed(kind string) { n.PushSuppressed.WithLabelValues(kind).Inc() }
+
+func (n *Notifications) IncPushReceipt(result string) { n.PushReceipts.WithLabelValues(result).Inc() }

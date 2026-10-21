@@ -516,7 +516,11 @@ func main() {
 		webSender = notification.WebPushSender{PublicKey: cfg.VAPIDPublicKey, PrivateKey: cfg.VAPIDPrivateKey, Subject: cfg.VAPIDSubject}
 		log.Info("web push enabled", "subject", cfg.VAPIDSubject)
 	}
-	pushSender := notification.NewPrefixSender(notification.ExpoPushSender{AccessToken: cfg.ExpoAccessToken}, webSender)
+	// Expo receipts (the delivery outcome behind an accepted ticket): a gone
+	// phone's subscription is revoked, every result is counted. Read by a
+	// worker that stops with runCancel and is awaited below.
+	pushReceipts := notification.NewExpoReceipts(cfg.ExpoAccessToken, q.RevokePushSubscription, log)
+	pushSender := notification.NewPrefixSender(notification.ExpoPushSender{AccessToken: cfg.ExpoAccessToken, Receipts: pushReceipts}, webSender)
 	pushConsumer := notification.NewPushConsumer(q, pushSender, cfg.FrontendOrigin)
 	pushConsumer.SetPresence(chatSvc)
 	pushConsumer.SetCallRinging(chatSvc)
@@ -556,6 +560,7 @@ func main() {
 		service.SetAuditCounter(reg.Outbox)
 		notifConsumer.SetMetrics(reg.Notifications)
 		pushConsumer.SetMetrics(reg.Notifications)
+		pushReceipts.SetMetrics(reg.Notifications)
 		digest.SetMetrics(reg.Notifications)
 		graphMarker.SetMetrics(reg.Graph)
 		graphWorker.SetMetrics(reg.Graph)
@@ -577,6 +582,8 @@ func main() {
 	// runCancel and is awaited below.
 	chatRemindersDone := make(chan struct{})
 	go func() { chatSvc.NewChatReminderWorker().Run(runCtx); close(chatRemindersDone) }()
+	pushReceiptsDone := make(chan struct{})
+	go func() { pushReceipts.Run(runCtx); close(pushReceiptsDone) }()
 	// Run returns only once every lane has stopped, so awaiting dispatcherDone
 	// at shutdown awaits all of them.
 	dispatcherDone := make(chan struct{})
@@ -880,6 +887,11 @@ func main() {
 	case <-chatRemindersDone:
 	case <-time.After(30 * time.Second):
 		log.Warn("chat: reminder worker did not stop in time")
+	}
+	select {
+	case <-pushReceiptsDone:
+	case <-time.After(30 * time.Second):
+		log.Warn("notifications: expo receipt worker did not stop in time")
 	}
 	select {
 	case <-fileGCDone:
