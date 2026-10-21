@@ -242,6 +242,15 @@ func (s *MeetingService) summarize(ctx context.Context, m db.Meeting, actor Acto
 		return db.MeetingSummary{}, err
 	}
 	defer release()
+	// summarizeAuto's "a clerk's summary stands" read ran before the lease: a
+	// clerk's run may have stored one and released in between.
+	if actor == autoSummaryActor {
+		if _, err := s.q.GetLatestMeetingSummary(ctx, meetingID); err == nil {
+			return db.MeetingSummary{}, errAutoSummaryNotDue
+		} else if !errors.Is(err, pgx.ErrNoRows) {
+			return db.MeetingSummary{}, err
+		}
+	}
 	// Reading the sources and asking the model end inside the lease.
 	runCtx, cancelRun := context.WithTimeout(ctx, budget.lease-time.Minute)
 	defer cancelRun()

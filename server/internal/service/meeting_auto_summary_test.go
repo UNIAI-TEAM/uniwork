@@ -586,3 +586,25 @@ func TestCompletedUploadRequeuesALeasedRow(t *testing.T) {
 		t.Fatalf("no summary after the requeue: %v, calls %d", err, calls.Load())
 	}
 }
+
+// A clerk's summary stored between summarizeAuto's read and the lease claim
+// still stands: summarize reads again once it holds the lease.
+func TestAutoSummaryRechecksAClerkSummaryInsideTheLease(t *testing.T) {
+	var calls atomic.Int32
+	s, ua, m, _ := summaryFixture(t, autoSummaryReply(&calls), ai.Options{})
+	ctx := context.Background()
+	ended, err := s.End(ctx, ua.ID, m.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Summarize(ctx, ua.ID, m.ID, "vi"); err != nil {
+		t.Fatal(err)
+	}
+	before := calls.Load()
+	if _, err := s.summarize(ctx, ended, autoSummaryActor, autoSummaryLocale); !errors.Is(err, errAutoSummaryNotDue) {
+		t.Fatalf("err = %v, want not due", err)
+	}
+	if calls.Load() != before {
+		t.Fatal("the auto run paid the model over a clerk's summary")
+	}
+}
