@@ -205,7 +205,8 @@ export function MeetingDetailView({
           </>
         }
       />
-      <div className="min-h-0 flex-1 overflow-auto">
+      {/* relative: absolute descendants (sr-only text, checkbox inputs) belong to this scroller, not the frame. */}
+      <div className="relative min-h-0 flex-1 overflow-auto">
         <div
           data-testid="meeting-detail-content"
           className={cn(
