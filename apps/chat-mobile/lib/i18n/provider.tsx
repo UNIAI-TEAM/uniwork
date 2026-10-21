@@ -4,9 +4,8 @@ import * as Localization from "expo-localization";
 import * as SecureStore from "expo-secure-store";
 import { createContext, use, useEffect, useMemo, useState, type ReactNode } from "react";
 import { I18nextProvider } from "react-i18next";
+import { LOCALE_KEY } from "@/data/app-locale";
 import { DEFAULT_LOCALE, i18n, matchSupportedLocale, type SupportedLocale } from "./singleton";
-
-const LOCALE_KEY = "locale_preference";
 
 const SYSTEM_LOCALE = matchSupportedLocale(Localization.getLocales().map((locale) => locale.languageTag));
 void i18n.changeLanguage(SYSTEM_LOCALE);

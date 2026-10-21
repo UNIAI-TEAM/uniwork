@@ -4,21 +4,24 @@
 // SDK first, the boundary below), the build's identity on every request, the
 // "Update required" gate above everything, and the toasts; S3 the encrypted
 // device store (unsent messages, cached rooms) and the splash held until the
-// first screen knows where it is going.
+// first screen knows where it is going; S4 the native calls (the in-call
+// service, a Decline that waited, the push handler while open) and the
+// localized notification channels.
 import "../global.css";
 
 import { registerGlobals } from "@livekit/react-native";
 import { PortalHost } from "@rn-primitives/portal";
 import * as Sentry from "@sentry/react-native";
 import { QueryClientProvider } from "@tanstack/react-query";
-import { configureRuntime, runtimeConfig } from "@uniwork/core/runtime-config";
-import Constants from "expo-constants";
+import { runtimeConfig } from "@uniwork/core/runtime-config";
 import * as Linking from "expo-linking";
 import * as Notifications from "expo-notifications";
 import { Stack, ThemeProvider, router, useNavigationContainerRef, type ErrorBoundaryProps } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useRef, type ReactNode } from "react";
+import { useTranslation } from "react-i18next";
+import { Platform } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { UpdateGate } from "@/components/app/update-gate";
@@ -28,28 +31,29 @@ import { api } from "@/data/api";
 import { isAuthCallbackUrl } from "@/data/auth/callback";
 import { authConfig, session } from "@/data/auth/flow";
 import { useAuthStore } from "@/data/auth/store";
+import { bootRuntime } from "@/data/boot";
 import { buildInfo } from "@/data/build-info";
+import { startNativeCalls } from "@/data/calls/call-wiring";
+import { nativeCalls } from "@/data/calls/native-calls";
+import { ensureNotificationChannels } from "@/data/notification-channels";
 import { queryClient } from "@/data/query-client";
 import { createDevicePersister, installAccountCache } from "@/data/query-persister";
-import { initSentry, sentryNavigation } from "@/data/sentry";
+import { sentryNavigation } from "@/data/sentry";
 import { installDeviceStore, openDeviceStore } from "@/data/storage/device-store";
 import { openNativeDeviceStore } from "@/data/storage/native-device-store";
-import { clientHeaders } from "@/lib/build-info";
 import { deepLinkHref, parseDeepLink, setPendingDeepLink } from "@/lib/deep-link";
 import { I18nProvider } from "@/lib/i18n/provider";
-import { appEnvironment, runtimeFromExtra, sentryDsn } from "@/lib/runtime-extra";
 import { NAV_THEME } from "@/lib/theme";
 import { useColorScheme } from "@/lib/use-color-scheme";
 
-const extra = Constants.expoConfig?.extra;
-// Crash reporting first, so the rest of boot is covered; nothing starts without a DSN.
-initSentry({ dsn: sentryDsn(extra), environment: appEnvironment(extra), info: buildInfo() });
-// Before the first request: every data/* module reads runtimeConfig() per call.
-configureRuntime(runtimeFromExtra(extra));
-// Every REST call names the build (X-Client-Version / -OS / -Update-Id); the socket does in realtime-provider.
-api.setClientIdentity(clientHeaders(buildInfo()));
+// Crash reporting first, so the rest of boot is covered (nothing starts without a DSN); then the
+// server URLs every data/* module reads per call and the build's identity on every REST call
+// (X-Client-Version / -OS / -Update-Id); the socket names it in realtime-provider.
+bootRuntime();
 // WebRTC globals for LiveKit, once, before any call (M3).
 registerGlobals();
+// The call's foreground service follows the call engine; Decline / Hang up taps that waited run now.
+startNativeCalls();
 // The encrypted store the outbox and the cached rooms live in, before the session is restored.
 installDeviceStore(openNativeDeviceStore);
 installAccountCache({ queryClient, persister: createDevicePersister(openDeviceStore), version: buildInfo().version });
@@ -80,6 +84,12 @@ function openUrl(url: string, navigate = false) {
 function AuthInitializer({ children }: { children: ReactNode }) {
   // 401 on several in-flight requests must tear down once, not once each.
   const signingOut = useRef(false);
+  const { t, i18n } = useTranslation();
+
+  // Android's channels (calls, missed calls, mentions, messages, the rest) in the app's language, renamed when it changes.
+  useEffect(() => {
+    void ensureNotificationChannels(t, { platform: Platform.OS, native: nativeCalls });
+  }, [t, i18n.language]);
 
   useEffect(() => {
     const signOut = () => {

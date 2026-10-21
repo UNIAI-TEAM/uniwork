@@ -30,6 +30,15 @@ describe("parseDeepLink", () => {
     expect(deepLinkHref({ orgSlug: "acme", wsSlug: "hq", roomId: "r1", callId: "c-1" })).toBe("/acme/hq/chat?room=r1&call=c-1");
   });
 
+  it("keeps the Answer button's answer=1 for a call, and only for a call", () => {
+    const link = parseDeepLink(`${APP_URL}/acme/hq/chat?room=r1&call=c-1&answer=1`, APP_URL, SCHEME);
+    expect(link).toEqual({ orgSlug: "acme", wsSlug: "hq", roomId: "r1", callId: "c-1", answer: true });
+    expect(deepLinkHref(link!)).toBe("/acme/hq/chat?room=r1&call=c-1&answer=1");
+    expect(parseDeepLink(`${APP_URL}/acme/hq/chat?room=r1&answer=1`, APP_URL, SCHEME)).toEqual({ orgSlug: "acme", wsSlug: "hq", roomId: "r1" });
+    expect(parseDeepLink(`${APP_URL}/acme/hq/chat?room=r1&call=c-1&answer=yes`, APP_URL, SCHEME)?.answer).toBeUndefined();
+    expect(deepLinkHref({ orgSlug: "acme", wsSlug: "hq", roomId: "r1", answer: true })).toBe("/acme/hq/chat?room=r1");
+  });
+
   it("unwraps <scheme>://open?url=<percent-encoded path>, scheme case-insensitively", () => {
     const path = encodeURIComponent("/acme/hq/chat?room=r1");
     expect(parseDeepLink(`${SCHEME}://open?url=${path}`, APP_URL, SCHEME)).toEqual({

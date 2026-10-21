@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "description": "UniChat mobile app: Expo (iOS + Android) client of the UniWork chat",
-  "main": "expo-router/entry",
+  "main": "index.ts",
   "scripts": {
     "dev": "expo start",
     "ios": "bash scripts/native-run.sh ios",
@@ -63,6 +63,7 @@
     "expo-splash-screen": "~57.0.10",
     "expo-status-bar": "~57.0.1",
     "expo-system-ui": "~57.0.4",
+    "expo-task-manager": "~57.0.21",
     "expo-updates": "~57.0.26",
     "expo-web-browser": "~57.0.3",
     "i18next": "catalog:",

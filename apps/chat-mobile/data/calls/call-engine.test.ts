@@ -232,6 +232,46 @@ describe("call engine on the phone", () => {
     expect(moved.deps.hangup).not.toHaveBeenCalled();
   });
 
+  it("a tap on a ringing notification shows the ringing screen, without answering", async () => {
+    pendingInvites = [{ ...invite(), invited_at: new Date(Date.now() - 5_000).toISOString() } as never];
+    const ringing = setup();
+    expect(await ringing.engine.ringFromPush("room-dm", "c1")).toBe(true);
+    expect(ringing.call()).toMatchObject({ status: "incoming", callId: "c1" });
+    expect(ringing.deps.accept).not.toHaveBeenCalled();
+    // A second tap (the full-screen intent, then the notification) changes nothing.
+    expect(await ringing.engine.ringFromPush("room-dm", "c1")).toBe(true);
+    expect(ringing.deps.pending).toHaveBeenCalledTimes(1);
+
+    pendingInvites = [];
+    const gone = setup();
+    expect(await gone.engine.ringFromPush("room-dm", "c1")).toBe(false);
+    expect(gone.call().status).toBe("idle");
+
+    // Another call under way: this one is not shown over it.
+    const busy = setup();
+    busy.engine.onInvite(invite({ call_id: "other" }));
+    expect(await busy.engine.ringFromPush("room-dm", "c1")).toBe(false);
+    expect(busy.deps.pending).not.toHaveBeenCalled();
+
+    // Answer on a call already being answered here: nothing more to do, and not the room either.
+    const answering = setup();
+    answering.engine.onInvite(invite());
+    await answering.engine.acceptCall();
+    expect(await answering.engine.joinFromPush("room-dm", "c1")).toBe(true);
+    expect(answering.deps.accept).toHaveBeenCalledTimes(1);
+
+    const detached = setup();
+    detached.detach();
+    expect(await detached.engine.ringFromPush("room-dm", "c1")).toBe(false);
+  });
+
+  it("names the workspace it rings in, none once the last one closes", () => {
+    const { engine, detach } = setup();
+    expect(engine.contextWorkspaceId()).toBe("ws1");
+    detach();
+    expect(engine.contextWorkspaceId()).toBeNull();
+  });
+
   it("a push tap answers a call that still rings, and opens the room otherwise", async () => {
     pendingInvites = [{ ...invite(), invited_at: new Date(Date.now() - 5_000).toISOString() } as never];
     const ringing = setup();

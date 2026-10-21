@@ -203,6 +203,10 @@ export default ({ config, projectRoot }: ConfigContext): ExpoConfig => {
       ],
       // WebRTC's screen-sharing service: UniChat shares no screen (store compliance S2).
       ["./plugins/with-removed-android-services", { services: ["com.oney.WebRTCModule.MediaProjectionService"] }],
+      // Native calls on Android (docs/adr/drafts/0038, modules/unichat-calls): the
+      // ringing screen's full-screen intent, the call's foreground service
+      // (phoneCall, microphone, camera), Bluetooth audio and the Decline / Hang up actions.
+      "./plugins/with-unichat-calls",
       // Crash reporting: uploads source maps and native symbols from the EAS
       // build. Organization, project and token come from the build's
       // environment (SENTRY_ORG, SENTRY_PROJECT, SENTRY_AUTH_TOKEN), never from

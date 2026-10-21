@@ -3,30 +3,46 @@
 // level deeper, in [org]/[ws]/_layout — select-workspace is workspace-less.
 // The call screen (M3) sits here, once, above every workspace screen: a push
 // can stack a second workspace over the first, and a call outlives both.
+import { useQuery } from "@tanstack/react-query";
 import Constants from "expo-constants";
 import { Redirect, Stack } from "expo-router";
 import { useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { Platform, View } from "react-native";
 import { CallOverlay } from "@/components/calls/call-overlay";
 import { api } from "@/data/api";
 import { useAuthStore } from "@/data/auth/store";
+import { setAppBadge } from "@/data/badge";
+import { nativeCalls } from "@/data/calls/native-calls";
 import { createLogger } from "@/data/logger";
+import { ensureNotificationChannels } from "@/data/notification-channels";
 import { registerPushToken } from "@/data/push";
+import { unreadSummaryOptions } from "@/data/queries/chat";
 import { easProjectId } from "@/lib/runtime-extra";
+import { appBadgeCount } from "@/lib/workspace-unread";
 
 const log = createLogger("push");
 
 export default function AppLayout() {
+  const { i18n } = useTranslation();
   const userId = useAuthStore((s) => s.user?.id ?? null);
   const isLoading = useAuthStore((s) => s.isLoading);
+  const unread = useQuery({ ...unreadSummaryOptions(), enabled: userId !== null }).data;
+  const badge = userId ? appBadgeCount(unread) : 0;
 
   useEffect(() => {
     if (!userId) return;
-    registerPushToken({ api, projectId: easProjectId(Constants.expoConfig?.extra), platform: Platform.OS }).catch(
+    const channels = () => ensureNotificationChannels((key) => i18n.t(key), { platform: Platform.OS, native: nativeCalls });
+    registerPushToken({ api, projectId: easProjectId(Constants.expoConfig?.extra), platform: Platform.OS, channels }).catch(
       // A simulator has no push token; the app works without one.
       (err: unknown) => log.warn("registration failed", { error: err instanceof Error ? err.name : typeof err }),
     );
-  }, [userId]);
+  }, [userId, i18n]);
+
+  // The app icon counts what is unread (audit P2 Calls); nothing once signed out.
+  useEffect(() => {
+    void setAppBadge(badge);
+  }, [badge]);
 
   // A cold-start deep route mounts here before the session is restored.
   if (isLoading) return null;

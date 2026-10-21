@@ -39,3 +39,13 @@ export function badgeText(count: number): string | null {
   if (count <= 0) return null;
   return count > 99 ? "99+" : String(count);
 }
+
+/**
+ * The app icon's badge: everything unread the person can reach, every
+ * workspace's channels plus the organization-wide direct messages (counted
+ * once, not once per workspace).
+ */
+export function appBadgeCount(summary: ChatUnreadSummary | undefined): number {
+  const workspaces = (summary?.workspaces ?? []).reduce((sum, entry) => sum + Math.max(0, entry.unread), 0);
+  return workspaces + Math.max(0, summary?.direct.unread ?? 0);
+}

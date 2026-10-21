@@ -43,20 +43,21 @@ import { toast } from "@/data/stores/toast-store";
 function useDeepLinkTarget(chat: ChatWorkspace | null) {
   const { t } = useTranslation();
   const qc = useQueryClient();
-  const params = useLocalSearchParams<{ room?: string; message?: string; dm?: string; call?: string }>();
+  const params = useLocalSearchParams<{ room?: string; message?: string; dm?: string; call?: string; answer?: string }>();
   const handled = useRef<string | null>(null);
 
   useEffect(() => {
-    const key = [params.room, params.message, params.dm, params.call].map((value) => value ?? "").join("|");
-    if (key === "|||") {
+    const key = [params.room, params.message, params.dm, params.call, params.answer].map((value) => value ?? "").join("|");
+    if (key === "||||") {
       handled.current = null;
       return;
     }
     if (!chat || handled.current === key) return;
     handled.current = key;
-    const { room, message, dm, call } = params;
-    router.setParams({ room: undefined, message: undefined, dm: undefined, call: undefined });
-    // A "X đang gọi" push: answer while it rings, else the room, where the missed call is logged.
+    const { room, message, dm, call, answer } = params;
+    router.setParams({ room: undefined, message: undefined, dm: undefined, call: undefined, answer: undefined });
+    // A ringing call's push or notification: its ringing screen while it rings (Answer
+    // on the notification answers at once), else the room, where the missed call is logged.
     if (room && call) {
       // With the server's calls switch off the push opens the room, where the call is logged.
       if (!readMobileFlag(qc, "unichat_mobile_calls")) {
@@ -64,8 +65,9 @@ function useDeepLinkTarget(chat: ChatWorkspace | null) {
         router.push(chatRoutes.room(chat, room));
         return;
       }
-      void callEngine.joinFromPush(room, call).then((joined) => {
-        if (!joined) router.push(chatRoutes.room(chat, room));
+      const open = answer === "1" ? callEngine.joinFromPush(room, call) : callEngine.ringFromPush(room, call);
+      void open.then((ringing) => {
+        if (!ringing) router.push(chatRoutes.room(chat, room));
       });
       return;
     }

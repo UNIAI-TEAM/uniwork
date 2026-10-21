@@ -66,13 +66,16 @@ describe("registerPushToken", () => {
     expect(notifications.setNotificationChannelAsync).not.toHaveBeenCalled();
   });
 
-  it("creates the high-importance chat channel on Android first", async () => {
+  it("creates the Android channels before the permission prompt", async () => {
     const { registerPushToken } = await load();
-    await registerPushToken({ api, projectId: "p1", platform: "android" });
-    expect(notifications.setNotificationChannelAsync).toHaveBeenCalledWith("chat", expect.objectContaining({ importance: 4 }));
-    expect(notifications.setNotificationChannelAsync.mock.invocationCallOrder[0]).toBeLessThan(
-      notifications.requestPermissionsAsync.mock.invocationCallOrder[0] ?? 0,
-    );
+    const channels = vi.fn(async () => undefined);
+    await registerPushToken({ api, projectId: "p1", platform: "android", channels });
+    expect(channels).toHaveBeenCalledTimes(1);
+    expect(channels.mock.invocationCallOrder[0]).toBeLessThan(notifications.requestPermissionsAsync.mock.invocationCallOrder[0] ?? 0);
+    // No channels to create on iOS, and none asked for: registration goes on.
+    await registerPushToken({ api, projectId: "p1", platform: "ios", channels });
+    expect(channels).toHaveBeenCalledTimes(1);
+    expect(await registerPushToken({ api, projectId: "p1", platform: "android" })).toBe("ExponentPushToken[abc]");
   });
 
   it("stops at a denied permission", async () => {

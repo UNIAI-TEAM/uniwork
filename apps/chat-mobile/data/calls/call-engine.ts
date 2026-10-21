@@ -177,6 +177,16 @@ export function createCallEngine(deps: CallEngineDeps) {
     if (latest) applyIncomingInvite(pendingToPayload(latest), { skipRoomCheck: true });
   }
 
+  async function ringFromPush(roomId: string, callId: string) {
+    if (!ctx) return false;
+    if (!isLive(current())) {
+      const invites = await deps.pending(ctx.wsId).catch(() => []);
+      const invite = latestRingingInvite(invites.filter((i) => i.room_id === roomId && i.call_id === callId));
+      if (invite) applyIncomingInvite(pendingToPayload(invite), { skipRoomCheck: true });
+    }
+    return liveWith(callId) !== null;
+  }
+
   async function connectCall(roomId: string, callId: string, peerName: string, outgoing: boolean, callKind: VoiceCallKind, callerName?: string, withCamera = false) {
     setCall({ status: "connecting", callId, roomId, peerName, outgoing, callKind, callerName, withCamera });
     let creds: { token: string; url: string } | null = null;
@@ -331,18 +341,23 @@ export function createCallEngine(deps: CallEngineDeps) {
       if (current().status === "ended") setCall({ status: "idle" });
     },
     /**
-     * A tap on a "X đang gọi" push: answer if the call still rings for this
-     * person, else false and the caller opens the room (where the missed-call
-     * log lands).
+     * The Answer button of the phone's own ringing notification: answer if
+     * the call still rings for this person (true too when it is already
+     * being answered here), else false and the caller opens the room (where
+     * the missed-call log lands).
      */
     async joinFromPush(roomId: string, callId: string) {
-      if (!ctx) return false;
-      if (!liveWith(callId, "incoming") && !isLive(current())) {
-        const invites = await deps.pending(ctx.wsId).catch(() => []);
-        const invite = latestRingingInvite(invites.filter((i) => i.room_id === roomId && i.call_id === callId));
-        if (invite) applyIncomingInvite(pendingToPayload(invite), { skipRoomCheck: true });
-      }
-      return liveWith(callId, "incoming") ? acceptCall() : false;
+      if (!(await ringFromPush(roomId, callId))) return false;
+      return liveWith(callId, "incoming") ? acceptCall() : true;
     },
+    /**
+     * A tap on a ringing push or notification (or its full-screen intent on
+     * a locked phone): the call's ringing screen, Answer and Decline, if it
+     * still rings for this person (audit P2 Calls: a tap answered at once).
+     * False when it does not, and the caller opens the room.
+     */
+    ringFromPush,
+    /** The workspace the engine rings and calls in now, null with none open. */
+    contextWorkspaceId: () => ctx?.wsId ?? null,
   };
 }

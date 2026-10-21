@@ -20,6 +20,11 @@ interface RegisterPushOptions {
   projectId: string | undefined;
   /** Platform.OS, passed in so this module stays free of react-native */
   platform: string;
+  /**
+   * Creates the Android channels (data/notification-channels.ts): Android
+   * wants one before the permission prompt and the first push.
+   */
+  channels?: () => Promise<void>;
 }
 
 const log = createLogger("push");
@@ -37,7 +42,7 @@ export async function isPushEnabled(): Promise<boolean> {
 }
 
 /** Resolves to the registered Expo push token, or null when nothing was registered. */
-export async function registerPushToken({ api, projectId, platform }: RegisterPushOptions): Promise<string | null> {
+export async function registerPushToken({ api, projectId, platform, channels }: RegisterPushOptions): Promise<string | null> {
   if (!(await isPushEnabled())) return null;
   if (!projectId) {
     if (!skipLogged) {
@@ -46,13 +51,7 @@ export async function registerPushToken({ api, projectId, platform }: RegisterPu
     }
     return null;
   }
-  if (platform === "android") {
-    // Android needs a channel before the first notification; HIGH makes chat messages heads-up.
-    await Notifications.setNotificationChannelAsync("chat", {
-      name: "Chat",
-      importance: Notifications.AndroidImportance.HIGH,
-    });
-  }
+  if (platform === "android") await channels?.();
   const permission = await Notifications.requestPermissionsAsync();
   if (!permission.granted) return null;
   const { data: token } = await Notifications.getExpoPushTokenAsync({ projectId });
