@@ -235,6 +235,24 @@
           "c0424076a5c7443babfeeb091d77e84d18446fc28": "Tài liệu và UniNote: trình soạn UniNote có thanh định dạng, mẹo cho lần dùng đầu và bảng phím tắt; menu \"/\" và phím tắt Markdown dùng được cả ở dòng sau khi ngắt dòng. Tệp .txt mở được trong trình soạn ở chế độ văn bản thuần. Hộp thoại lưu lần đầu cho chọn thư mục, tài liệu Office có mục In, và hộp thoại chia sẻ rõ ràng hơn, dùng thống nhất chữ \"Riêng tư\". \"Thư mục của tôi\" là một mục duy nhất trong cây thư mục, \"Tôi đã chia sẻ\" chỉ liệt kê mục cao nhất được chia sẻ, ô bình luận hiện @Tên khi nhắc ai đó, và luồng thảo luận có giao diện mới.",
           "c5f3b1fb9b72701e4053bd93ccc2f4e2cc053d750": "Thư viện Tài liệu được chỉnh nhiều chi tiết: nhãn chia sẻ cho người có quyền bình luận, tên thư mục dài được rút gọn, mở đường dẫn của một tài liệu sẽ mở đúng thư mục chứa nó, \"Chia sẻ với workspace\" tách riêng khỏi mục Thư mục, và trạng thái trống phù hợp hơn khi tệp nằm trong các thư mục."
         }
+      },
+      "v1_8_0": {
+        "title": "Thông báo bình chọn trong Chat, trang Chính sách quyền riêng tư và bình luận tài liệu rõ ràng hơn",
+        "summary": "Chat hiện thông báo khi có người bình chọn kèm nút tới cuộc bình chọn, và chuông cuộc gọi trong trò chuyện riêng không bị tắt theo thông báo phòng. Trang Chính sách quyền riêng tư có tại /privacy. Bình luận tài liệu cho xem lại phiên bản chứa đoạn được bình luận và báo cho người liên quan khi bình luận được giải quyết. Email Hub đồng bộ thư gắn sao, Thùng rác và Spam chính xác hơn.",
+        "note": "Tắt thông báo của một phòng chỉ chặn chuông với cuộc gọi nhóm và kênh; cuộc gọi trong trò chuyện riêng vẫn đổ chuông.",
+        "features": {
+          "c65f3f63676c33fb8ffa3973af36f699c95167a06": "Khi có người bình chọn trong Chat, cuối cuộc trò chuyện hiện một dòng thông báo nhỏ cho biết ai vừa tham gia cuộc bình chọn nào, kèm nút Xem để tới đúng cuộc bình chọn đó; thẻ bình chọn gốc giữ nguyên vị trí và cập nhật số phiếu.",
+          "c12721dfeb1a1ec3d59d6255b2ae6bb92fdb15fa6": "Trang Chính sách quyền riêng tư công khai tại /privacy, có bản tiếng Việt và tiếng Anh: dữ liệu được thu thập, quyền thiết bị, AI, các nhà cung cấp xử lý dữ liệu, thời gian lưu giữ, cách xóa tài khoản hoặc tổ chức và quyền của bạn theo Nghị định 13/2023. Chân trang có đường dẫn tới trang này cùng email hỗ trợ; mục xóa tài khoản có đường dẫn riêng /privacy#delete-account, và bảng trong trang được xếp gọn trên điện thoại."
+        },
+        "improvements": {
+          "c831c0910ee27de6a508932005979a31836ebc7b0": "Bình luận tài liệu: khi đoạn được bình luận không còn trong bản hiện tại, bình luận ghi rõ điều đó và cho mở phiên bản còn chứa đoạn này ở chế độ chỉ đọc, rồi quay lại bản hiện tại. Đánh dấu một bình luận là đã giải quyết sẽ báo cho người viết bình luận và chủ sở hữu tài liệu. Mở thông báo về tài liệu bạn không còn quyền truy cập sẽ hiện \"không có quyền\", còn tài liệu đã xóa hiện \"đã xóa\"; mở tài liệu Office từ một bình luận không còn tồn tại vẫn mở được tài liệu. Trong Chat, nút chia sẻ tệp dạng tài liệu và thẻ tài liệu trên tin nhắn của bạn dễ đọc hơn.",
+          "c70c6965823b95e78087da436b7f1f37d2d6220a1": "Cuộc gọi trong Chat: tắt thông báo của một phòng chỉ chặn chuông với cuộc gọi nhóm và kênh; cuộc gọi trong trò chuyện riêng vẫn đổ chuông. Danh sách phòng hiện lượt bình chọn mới nhất ở dòng xem trước."
+        },
+        "fixes": {
+          "c00442921bb805d62e2acd4ca821b9961afa5d2b8": "Trên trang giới thiệu, biểu tượng và tên các ứng dụng trong menu điện thoại hiển thị thẳng hàng trở lại.",
+          "c012ad1c97b8e1fe0bdb6476e3db9fda8e288eb7c": "Ảnh gửi riêng trong Chat không còn viền màu bao quanh; ảnh kèm trích dẫn vẫn có viền mỏng, và album ảnh bỏ khoảng đệm thừa.",
+          "c95903b75040d1eeb842587f70e0f88954ca44f9f": "Email Hub: thư gắn sao từ Gmail được đồng bộ chính xác hơn, kể cả khi làm mới toàn bộ tài khoản; thư bạn chuyển vào Thùng rác hoặc Spam từ ứng dụng email khác hiện đúng thư mục mà không phải chờ hay mở các thư mục đó."
+        }
       }
     }
   },
