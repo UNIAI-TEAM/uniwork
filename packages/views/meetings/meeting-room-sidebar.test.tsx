@@ -188,21 +188,21 @@ describe("MeetingRoomSidebar", () => {
     expect(onTabChange).toHaveBeenCalledWith("motions");
   });
 
-  it("does not mount the UNI tab, or run its queries, while the dock is closed", async () => {
+  it("keeps the UNI tab mounted while the dock is closed, so a typed note survives", async () => {
     setSessionUser(me);
-    const { rerender } = render(
+    const docked = (open: boolean) =>
       wrapWithNav(
-        <MeetingRoomSidebar meetingId="m1" meeting={meeting} workspaceId="w1" tab="copilot" onTabChange={() => {}} open={false} />,
-      ),
-    );
-    await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 0));
-    });
-    expect(screen.getByRole("tabpanel")).toBeEmptyDOMElement();
-    expect(requestMock.mock.calls.some(([p]) => String(p).endsWith("/summary"))).toBe(false);
-    rerender(
-      wrapWithNav(<MeetingRoomSidebar meetingId="m1" meeting={meeting} workspaceId="w1" tab="copilot" onTabChange={() => {}} />),
-    );
-    await waitFor(() => expect(requestMock.mock.calls.some(([p]) => String(p).endsWith("/summary"))).toBe(true));
+        <MeetingSidebarDock open={open}>
+          <MeetingRoomSidebar meetingId="m1" meeting={meeting} workspaceId="w1" tab="copilot" onTabChange={() => {}} />
+        </MeetingSidebarDock>,
+      );
+    const { rerender } = render(docked(true));
+    fireEvent.click(await screen.findByRole("tab", { name: "Ghi chú" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Ghi chú mới" }), { target: { value: "Chốt ngân sách" } });
+
+    rerender(docked(false));
+    rerender(docked(true));
+
+    expect(screen.getByRole("textbox", { name: "Ghi chú mới" })).toHaveValue("Chốt ngân sách");
   });
 });

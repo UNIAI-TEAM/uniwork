@@ -167,6 +167,17 @@ describe("MeetingScribeCaptions translation (B9)", () => {
     expect(screen.getByTestId("meeting-caption-announcer")).toHaveTextContent("Lan: Chốt lịch");
   });
 
+  it("still reads a line whose translation lands after a newer line that needed none", async () => {
+    render(wrap(<MeetingScribeCaptions enabled meetingId="m1" />));
+    fireEvent.click(screen.getByRole("button", { name: "English" }));
+    await waitFor(() => expect(lk.handlers.has(scribeTranslationTopic("en"))).toBe(true));
+    await caption("uw_agent_scribe", attrs("uw_participant_p1", "TR1-1", true), "Gửi báo giá");
+    await caption("uw_agent_scribe", { ...attrs("uw_participant_p2", "TR1-2", true), "uw.language": "en" }, "Agreed");
+    expect(screen.getByTestId("meeting-caption-announcer")).toHaveTextContent("Minh: Agreed");
+    await caption("uw_agent_scribe", { "uw.segment_id": "TR1-1" }, "Send the quote", scribeTranslationTopic("en"));
+    expect(screen.getByTestId("meeting-caption-announcer")).toHaveTextContent("Lan: Send the quote");
+  });
+
   it("says plainly that the original shows when no translation comes, and reads the line once", async () => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
     try {

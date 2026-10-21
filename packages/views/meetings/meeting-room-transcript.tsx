@@ -1,11 +1,10 @@
 "use client";
-import { useCallback, useLayoutEffect, useRef } from "react";
+import { useLayoutEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { useOlderTranscript } from "@uniwork/core/meetings";
 import type { MeetingTranscriptSegment } from "@uniwork/core/types/meeting";
 import { MeetingFeedLoadOlder } from "./meeting-feed-load-older";
 import { transcriptSpeaker } from "./meeting-transcript-panel";
-import { useWindowedList } from "./use-windowed-list";
 
 // This close to the bottom still counts as reading the newest line.
 const STICK_PX = 48;
@@ -13,8 +12,8 @@ const STICK_PX = 48;
 /**
  * The room's live transcript: its own scroll area that follows new lines
  * while the reader is at the bottom, keeps their place when they scrolled up
- * or an older page lands above, reads earlier pages on request, and mounts
- * only the rows near the viewport once the meeting runs long.
+ * or an older page lands above, and reads earlier pages on request. Lines of
+ * any height stay mounted; the browser skips laying out the ones off screen.
  */
 export function MeetingRoomTranscript({
   meetingId,
@@ -27,19 +26,10 @@ export function MeetingRoomTranscript({
 }) {
   const { t } = useTranslation();
   const older = useOlderTranscript(meetingId);
-  const list = useWindowedList(segments.length);
   const scrollEl = useRef<HTMLDivElement | null>(null);
   const atBottom = useRef(true);
   // What the reader saw before this render: which line led the list, and where they were.
   const seen = useRef<{ first?: string; height: number; top: number }>({ height: 0, top: 0 });
-  const { scrollRef } = list;
-  const setScroll = useCallback(
-    (el: HTMLDivElement | null) => {
-      scrollEl.current = el;
-      scrollRef(el);
-    },
-    [scrollRef],
-  );
 
   useLayoutEffect(() => {
     const el = scrollEl.current;
@@ -68,7 +58,7 @@ export function MeetingRoomTranscript({
 
   return (
     <div
-      ref={setScroll}
+      ref={scrollEl}
       onScroll={onScroll}
       // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- a scrollable region takes focus so a keyboard can scroll it (axe scrollable-region-focusable)
       tabIndex={0}
@@ -84,17 +74,12 @@ export function MeetingRoomTranscript({
           onLoad={older.loadOlder}
         />
       ) : null}
-      <ol
-        style={list.windowed ? { paddingTop: list.window.padTop, paddingBottom: list.window.padBottom } : undefined}
-      >
-        {segments.slice(list.window.start, list.window.end).map((s, i) => (
+      <ol>
+        {segments.map((s) => (
           <li
             key={s.id}
-            // Spacing inside the row, so the row measured is the row repeated.
-            className="pb-2"
-            ref={i === 0 ? list.measureRow : undefined}
-            aria-setsize={list.windowed ? segments.length : undefined}
-            aria-posinset={list.windowed ? list.window.start + i + 1 : undefined}
+            // Off screen a line is not laid out; it keeps its last real height (or about one line before it has one).
+            className="pb-2 [content-visibility:auto] [contain-intrinsic-size:auto_3.25rem]"
           >
             <p className="rounded-lg bg-surface-hover px-2.5 py-2 text-body text-foreground">
               <span className="text-caption font-medium text-foreground">{transcriptSpeaker(s, t)}</span>

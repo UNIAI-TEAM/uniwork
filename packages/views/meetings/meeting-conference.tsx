@@ -214,7 +214,7 @@ function ConferenceStage({
   // The AI scribe in the room captions everyone; without it each viewer keeps
   // their own Web Speech captions (spec D12).
   const scribeInRoom = useScribeInRoom();
-  const renderSidebar = (tabsEnd?: ReactNode, open = true) => (
+  const renderSidebar = (tabsEnd?: ReactNode) => (
     <RoomSidebar
       meetingId={resolvedMeetingId || undefined}
       meeting={meeting}
@@ -228,7 +228,6 @@ function ConferenceStage({
       onDismissCatchUp={dismissCatchUp}
       className="h-full w-full"
       tabsEnd={tabsEnd}
-      open={open}
       scribeOn={scribeInRoom}
     />
   );
@@ -357,7 +356,7 @@ function ConferenceStage({
             open={sidebarPinned}
             className="min-h-0 w-[22rem] shrink-0 overflow-hidden rounded-2xl bg-surface ring-1 ring-surface-border xl:w-[24rem]"
           >
-            {renderSidebar(undefined, sidebarPinned)}
+            {renderSidebar()}
           </MeetingSidebarDock>
         ) : null}
       </div>

@@ -71,7 +71,6 @@ export function MeetingRoomSidebar({
   tabsEnd,
   lateMinutes = null,
   onDismissCatchUp,
-  open = true,
   scribeOn = false,
 }: {
   meetingId?: string;
@@ -89,12 +88,6 @@ export function MeetingRoomSidebar({
   /** How late this member is when late enough for the catch-up card (catchUpLateMinutes). */
   lateMinutes?: number | null;
   onDismissCatchUp?: () => void;
-  /**
-   * On screen. A closed dock keeps the sidebar mounted (the chat draft), but
-   * not the UNI tab: its queries need not run for a panel nobody sees, and
-   * what it showed comes back from the query cache.
-   */
-  open?: boolean;
   /** The AI scribe is in the room. */
   scribeOn?: boolean;
 }) {
@@ -133,7 +126,6 @@ export function MeetingRoomSidebar({
   function panelContent(id: MeetingSidebarTab): ReactNode {
     switch (id) {
       case "copilot":
-        if (!open) return null;
         return meetingId ? (
           <MeetingRoomCopilotTab
             meetingId={meetingId}

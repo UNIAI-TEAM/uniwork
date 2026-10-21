@@ -71,9 +71,10 @@ type TranslationState = "idle" | "translating" | "original";
  * A final waits for its translation only when it was said in another
  * language than the picked one (the agent skips the rest), and only for
  * TRANSLATION_WAIT_MS: the agent drops what it cannot send in time and the
- * server may skip a batch, so after that the original stands. `spoken` is
- * the newest final whose wait is over, so each line reaches a screen reader
- * once, in the language it will stay in.
+ * server may skip a batch, so after that the original stands. `ready` holds
+ * the finals whose wait is over, oldest first, so each line reaches a screen
+ * reader in the language it will stay in, even one whose translation lands
+ * after a newer line that needed none.
  */
 function useScribeCaptions(enabled: boolean, lang: CaptionLanguage) {
   const room = useRoomContext();
@@ -132,8 +133,8 @@ function useScribeCaptions(enabled: boolean, lang: CaptionLanguage) {
     : waiting(newestForeign)
       ? "translating"
       : "original";
-  const spoken = [...shown].reverse().find((l) => l.final && !waiting(l));
-  return { lines: shown, state, spoken };
+  const ready = shown.filter((l) => l.final && !waiting(l));
+  return { lines: shown, state, ready };
 }
 
 /**
@@ -157,13 +158,20 @@ function useTranslationNotice(lang: CaptionLanguage, state: TranslationState): s
   return notice;
 }
 
-/** Announces each final once: a later translation of a line already read never repeats it. */
-function useSpokenOnce(spoken: ScribeCaption | undefined): ScribeCaption | undefined {
-  const [said, setSaid] = useState<ScribeCaption>();
-  const id = spoken?.segmentId;
+/**
+ * Announces each final once, oldest first: the lines that became ready since
+ * the last announcement are said together, and a later translation of a line
+ * already read never repeats it.
+ */
+function useSpokenOnce(ready: readonly ScribeCaption[]): readonly ScribeCaption[] {
+  const told = useRef(new Set<string>());
+  const [said, setSaid] = useState<readonly ScribeCaption[]>([]);
   useEffect(() => {
-    if (spoken && id !== said?.segmentId) setSaid(spoken);
-  }, [spoken, id, said?.segmentId]);
+    const fresh = ready.filter((l) => !told.current.has(l.segmentId));
+    if (fresh.length === 0) return;
+    for (const l of fresh) told.current.add(l.segmentId);
+    setSaid(fresh);
+  }, [ready]);
   return said;
 }
 
@@ -239,8 +247,8 @@ export function MeetingScribeCaptions({
   const { t } = useTranslation();
   const room = useRoomContext();
   const { lang, pick } = useCaptionLanguage(meetingId);
-  const { lines, state, spoken } = useScribeCaptions(enabled, lang);
-  const said = useSpokenOnce(spoken);
+  const { lines, state, ready } = useScribeCaptions(enabled, lang);
+  const said = useSpokenOnce(ready);
   const notice = useTranslationNotice(lang, state);
   const nameOf = (identity: string) =>
     room.getParticipantByIdentity(identity)?.name || t("meetings.scribe.unknownSpeaker");
@@ -249,7 +257,7 @@ export function MeetingScribeCaptions({
     <div className={cn("dark pointer-events-none w-full max-w-3xl", className)} data-testid="meeting-scribe-captions">
       {/* Interim words change several times a second; only finished sentences reach assistive tech, each once. */}
       <p role="status" aria-live="polite" className="sr-only" data-testid="meeting-caption-announcer">
-        {said ? `${nameOf(said.identity)}: ${said.text}` : ""}
+        {said.map((l) => `${nameOf(l.identity)}: ${l.text}`).join(" ")}
       </p>
       <p role="status" aria-live="polite" className="sr-only" data-testid="meeting-caption-translation-notice">
         {notice}
