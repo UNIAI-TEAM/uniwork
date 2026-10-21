@@ -161,6 +161,19 @@ describe("MeetingScribeCaptions translation (B9)", () => {
     );
   });
 
+  it("says nothing when the reset on close is refused: the room is closing anyway", async () => {
+    const error = vi.spyOn(toast, "error").mockImplementation(() => "");
+    const { unmount } = render(wrap(<MeetingScribeCaptions enabled meetingId="m1" />));
+    fireEvent.click(screen.getByRole("button", { name: "English" }));
+    await waitFor(() => expect(requestMock).toHaveBeenCalledTimes(1));
+    requestMock.mockRejectedValueOnce(new Error("meeting_ended"));
+    unmount();
+    await waitFor(() => expect(requestMock).toHaveBeenCalledTimes(2));
+    await act(async () => {});
+    expect(error).not.toHaveBeenCalled();
+    error.mockRestore();
+  });
+
   it("sends picks one at a time, so the server and the picker end on the last one", async () => {
     let finishEnglish: (v: unknown) => void = () => {};
     requestMock.mockReturnValueOnce(new Promise((res) => (finishEnglish = res)));
