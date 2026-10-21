@@ -1,0 +1,4 @@
+$ cd server && go vet ./internal/service; echo "VET_EXIT=$?"; out="$(gofmt -l ./internal/service)"; echo "$out"; test -z "$out"; echo "GOFMT_EXIT=$?"
+VET_EXIT=0
+
+GOFMT_EXIT=0

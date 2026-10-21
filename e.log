@@ -1,0 +1,2 @@
+$ grep -nE "^\s*--- FAIL|^(FAIL|ok|panic)|DATA RACE" /tmp/uni2012r3-b.log | cut -c1-300 | head -60
+169:ok  	github.com/unicomhub/uniwork/server/internal/service	18.970s

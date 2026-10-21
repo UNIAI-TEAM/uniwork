@@ -1,0 +1,7 @@
+$ . scripts/local-env.sh; unset OPENAI_API_KEY OPENAI_BASE_URL; export REDIS_TEST_URL=redis://localhost:6379/1 AI_PROVIDER=fake CGO_ENABLED=1; bash scripts/ensure-postgres.sh >/dev/null 2>&1; cd server && go test -race -count=3 -v ./internal/service -run '^(TestDeleteLinkDocumentMessageRacingReconcileAndLinkSend|TestChatGrantLeaveAfterCommitIsReconciled|TestChatGrantRecheckCatchesLeaveBeforeCommit|TestChatDocumentSendsCommitOnOneConnection)$' -timeout 30m > /tmp/uni2012r3-a.log 2>&1; echo "NAMED_RACE_EXIT=$?"; grep -cE "^\s*--- PASS" /tmp/uni2012r3-a.log | sed 's/^/PASS=/'; grep -cE "^\s*--- FAIL" /tmp/uni2012r3-a.log | sed 's/^/FAIL=/'; grep -c "DATA RACE" /tmp/uni2012r3-a.log | sed 's/^/RACES=/'
+warning: STORAGE_BACKEND is unset and MINIO_* is empty; the server will refuse to start.
+         set STORAGE_BACKEND=local with LOCAL_UPLOAD_DIR, or configure MinIO (see .env.example).
+NAMED_RACE_EXIT=0
+PASS=21
+FAIL=0
+RACES=0
