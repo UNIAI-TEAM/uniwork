@@ -51,6 +51,9 @@ export function notificationTitleKey(n: Notification): string {
   // The requester was never allowed to read the title, so a declined request's
   // sentence has no document to drop (access addendum §3.4).
   if (n.kind === "document_access_declined") return n.title_key;
+  // A batch not from one meeting (or a row from before the meeting param)
+  // reads without it, never `cuộc họp ""` (server titles.go).
+  if (n.kind === "tasks_assigned" && !n.params.meeting?.trim()) return `${n.title_key}_nomeeting`;
   const untitled = n.resource_type === "document" && n.title_key.startsWith("notifications.kind.document_") && !n.kind.startsWith("document_edit_");
   const key = untitled && !n.params.document?.trim() ? `${n.title_key}_untitled` : n.title_key;
   if (n.kind === "document_shared" && !SHARE_LEVELS.has(n.params.level ?? "")) return `${key}_nolevel`;

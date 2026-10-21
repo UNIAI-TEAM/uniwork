@@ -164,7 +164,8 @@ func TestRuleTaskCreatedGroupsOneTransaction(t *testing.T) {
 		t.Helper()
 		got := f.inbox(t, f.member.ID)
 		if len(got) != 1 || got[0].Kind != KindTasksAssigned || got[0].GroupKey != "tasks:"+smallestID(mine)+":assigned" ||
-			got[0].ResourceType != "task" || got[0].ResourceID != smallestID(mine) || params(t, got[0])["count"] != "3" {
+			got[0].ResourceType != "task" || got[0].ResourceID != smallestID(mine) || params(t, got[0])["count"] != "3" ||
+			params(t, got[0])["meeting"] != "" {
 			t.Fatalf("%s: member inbox = %+v", pass, got)
 		}
 		got2 := f.inbox(t, member2.ID)
@@ -223,12 +224,16 @@ func TestRuleTaskCreatedPointsAMeetingBatchAtTheMeeting(t *testing.T) {
 	if len(got) != 1 || got[0].Kind != KindTasksAssigned || got[0].ResourceType != "meeting" || got[0].ResourceID != m.ID {
 		t.Fatalf("member inbox = %+v", got)
 	}
-	// The push link lands where the action items are, as the inbox does.
+	// The sentence names the meeting the tasks came from.
+	if p := params(t, got[0]); p["meeting"] != "Họp tuần" {
+		t.Fatalf("params = %v", p)
+	}
+	// The push link lands on the assignee's own tasks, as the inbox does.
 	url, err := ResourceURL(f.ctx, f.q, "https://app.test", got[0])
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := "https://app.test/notif-org/notif-ws/meetings/" + m.ID + "?section=action-items"; url != want {
+	if want := "https://app.test/notif-org/notif-ws/my-tasks"; url != want {
 		t.Fatalf("url = %q, want %q", url, want)
 	}
 }

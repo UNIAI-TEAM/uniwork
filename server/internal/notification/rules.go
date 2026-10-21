@@ -387,8 +387,18 @@ func ruleTaskCreated(ctx context.Context, e env, ev outbox.Row, p map[string]str
 	if err != nil {
 		return nil, err
 	}
-	return r.drafts(orgID, KindTasksAssigned, "tasks:"+task.ID+":assigned", resType, resID,
-		map[string]string{"actor": actor, "count": strconv.Itoa(len(ids))})
+	params := map[string]string{"actor": actor, "count": strconv.Itoa(len(ids))}
+	if resType == "meeting" {
+		// The tasks' origin is the meeting; it lives in their workspace.
+		m, err := e.q.GetMeeting(ctx, resID)
+		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			return nil, err
+		}
+		if err == nil && m.WorkspaceID == task.WorkspaceID {
+			params["meeting"] = m.Title
+		}
+	}
+	return r.drafts(orgID, KindTasksAssigned, "tasks:"+task.ID+":assigned", resType, resID, params)
 }
 
 // createdForSameAssignee reads the human assignee taskID was created with and

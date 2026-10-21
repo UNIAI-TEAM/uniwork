@@ -3,6 +3,7 @@ package notification
 import (
 	"encoding/json"
 	"os"
+	"slices"
 	"testing"
 )
 
@@ -25,7 +26,7 @@ func TestTitlesMatchClientLocales(t *testing.T) {
 		if err := json.Unmarshal(raw, &doc); err != nil {
 			t.Fatal(err)
 		}
-		for _, kind := range Kinds {
+		for _, kind := range append(slices.Clone(Kinds), tasksAssignedNoMeetingTitleKey) {
 			if got, want := titles[locale][kind], doc.Notifications.Kind[kind]; got != want {
 				t.Errorf("%s %s: server %q, client %q", locale, kind, got, want)
 			}
@@ -45,6 +46,14 @@ func TestTitlesMatchClientLocales(t *testing.T) {
 		}
 	}
 	if got := Title("vi", KindTaskAssigned, map[string]string{"actor": "An", "task": "Spec"}); got != "An đã giao bạn việc “Spec”" {
+		t.Fatalf("Title = %q", got)
+	}
+	// A batch from one meeting names it; any other batch (or a row from before
+	// the meeting param) reads without it, never `cuộc họp ""`.
+	if got := Title("vi", KindTasksAssigned, map[string]string{"actor": "An", "count": "3", "meeting": "Họp tuần"}); got != `An đã giao bạn 3 việc từ cuộc họp "Họp tuần"` {
+		t.Fatalf("Title = %q", got)
+	}
+	if got := Title("vi", KindTasksAssigned, map[string]string{"actor": "An", "count": "3"}); got != "An đã giao bạn 3 việc" {
 		t.Fatalf("Title = %q", got)
 	}
 	if got := Title("xx", KindAuditExportReady, nil); got != titles["en"][KindAuditExportReady] {

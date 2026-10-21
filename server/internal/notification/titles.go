@@ -15,7 +15,8 @@ import "strings"
 var titles = map[string]map[string]string{
 	"vi": {
 		KindTaskAssigned:                "{{actor}} đã giao bạn việc “{{task}}”",
-		KindTasksAssigned:               "{{actor}} đã giao bạn {{count}} việc",
+		KindTasksAssigned:               "{{actor}} đã giao bạn {{count}} việc từ cuộc họp \"{{meeting}}\"",
+		tasksAssignedNoMeetingTitleKey:  "{{actor}} đã giao bạn {{count}} việc",
 		KindTaskStatusChanged:           "{{actor}} chuyển “{{task}}” sang {{status}}",
 		KindTaskCommented:               "{{actor}} đã bình luận trong “{{task}}”",
 		KindMentioned:                   "{{actor}} đã nhắc đến bạn trong “{{task}}”",
@@ -23,8 +24,8 @@ var titles = map[string]map[string]string{
 		KindMeetingStarting:             "“{{meeting}}” bắt đầu sau {{minutes}} phút",
 		KindMeetingSummaryReminder:      "“{{meeting}}” đã kết thúc · Tóm tắt và tạo việc",
 		KindMeetingSummaryReady:         "Tóm tắt “{{meeting}}” đã sẵn sàng · Xem và giao việc",
-		KindMeetingTranscriptReady:      "Đã ghi lời xong file ghi âm “{{meeting}}”",
-		KindMeetingTranscriptFailed:     "Không ghi lời được file ghi âm “{{meeting}}”",
+		KindMeetingTranscriptReady:      "Đã có bản ghi lời thoại cho tệp ghi âm của \"{{meeting}}\"",
+		KindMeetingTranscriptFailed:     "Không tạo được bản ghi lời thoại cho tệp ghi âm của \"{{meeting}}\". Mở cuộc họp để tải lại tệp.",
 		KindMemberAdded:                 "{{actor}} đã thêm bạn vào workspace {{workspace}}",
 		KindRoleChanged:                 "{{actor}} đã đổi vai trò của bạn thành {{role}}",
 		KindAuditExportReady:            "Bản xuất nhật ký của bạn đã sẵn sàng",
@@ -55,7 +56,8 @@ var titles = map[string]map[string]string{
 	},
 	"en": {
 		KindTaskAssigned:                "{{actor}} assigned you “{{task}}”",
-		KindTasksAssigned:               "{{actor}} assigned you {{count}} tasks",
+		KindTasksAssigned:               "{{actor}} assigned you {{count}} tasks from the meeting \"{{meeting}}\"",
+		tasksAssignedNoMeetingTitleKey:  "{{actor}} assigned you {{count}} tasks",
 		KindTaskStatusChanged:           "{{actor}} moved “{{task}}” to {{status}}",
 		KindTaskCommented:               "{{actor}} commented on “{{task}}”",
 		KindMentioned:                   "{{actor}} mentioned you in “{{task}}”",
@@ -63,8 +65,8 @@ var titles = map[string]map[string]string{
 		KindMeetingStarting:             "“{{meeting}}” starts in {{minutes}} minutes",
 		KindMeetingSummaryReminder:      "“{{meeting}}” ended · Summarize it and create tasks",
 		KindMeetingSummaryReady:         "“{{meeting}}” summary is ready · Review it and assign tasks",
-		KindMeetingTranscriptReady:      "The recording of “{{meeting}}” is transcribed",
-		KindMeetingTranscriptFailed:     "The recording of “{{meeting}}” could not be transcribed",
+		KindMeetingTranscriptReady:      "The transcript of the recording for \"{{meeting}}\" is ready",
+		KindMeetingTranscriptFailed:     "Couldn't transcribe the recording for \"{{meeting}}\". Open the meeting to upload the file again.",
 		KindMemberAdded:                 "{{actor}} added you to workspace {{workspace}}",
 		KindRoleChanged:                 "{{actor}} changed your role to {{role}}",
 		KindAuditExportReady:            "Your audit export is ready",
@@ -155,6 +157,11 @@ var kindTitles = map[string]map[string]string{
 // client locales; it is not a kind.
 const editRequestDeclinedTitleKey = KindDocumentEditRequestAnswered + "_declined"
 
+// tasksAssignedNoMeetingTitleKey keys the tasks_assigned sentence for a batch
+// that did not come from one meeting (or a row from before the meeting
+// param); it is not a kind.
+const tasksAssignedNoMeetingTitleKey = KindTasksAssigned + "_nomeeting"
+
 // Title renders the kind's title in locale with params, i18next-style
 // {{name}} substitution. Unknown locale falls back to en.
 func Title(locale, kind string, params map[string]string) string {
@@ -165,6 +172,9 @@ func Title(locale, kind string, params map[string]string) string {
 	}
 	if kind == KindDocumentEditRequestAnswered && params["decision"] == editDecisionDecline {
 		kind = editRequestDeclinedTitleKey
+	}
+	if kind == KindTasksAssigned && strings.TrimSpace(params["meeting"]) == "" {
+		kind = tasksAssignedNoMeetingTitleKey
 	}
 	s := loc[kind]
 	if s == "" {
