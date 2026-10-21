@@ -10,6 +10,7 @@ import {
   DESC_LIMIT,
   TITLE_LIMIT,
 } from "./map.mjs";
+import { orderIssues } from "./order.mjs";
 
 test("taskTitle prefixes the key once and cuts at 500 runes", () => {
   assert.equal(taskTitle("UNI-423", "Sửa cổng"), "UNI-423: Sửa cổng");
@@ -100,4 +101,20 @@ test("mapAssignee applies the three email pairs and leaves agents unassigned", (
   assert.equal(agent.assigneeId, null);
   assert.equal(agent.note.agent, true);
   assert.equal(agent.note.name, "LEVI");
+});
+
+test("orderIssues puts parents first and reports only the cycle", () => {
+  const issues = [
+    { id: "child", parent_issue_id: "parent" },
+    { id: "parent", parent_issue_id: null },
+    { id: "a", parent_issue_id: "b" },
+    { id: "b", parent_issue_id: "a" },
+    { id: "tail", parent_issue_id: "a" },
+  ];
+  const got = orderIssues(issues);
+  assert.deepEqual(got.cycles.sort(), ["a", "b"]);
+  assert.ok(got.order.indexOf("parent") < got.order.indexOf("child"));
+  assert.ok(got.order.includes("tail"));
+  assert.ok(!got.order.includes("a"));
+  assert.ok(!got.order.includes("b"));
 });
