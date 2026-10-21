@@ -19,6 +19,23 @@ const (
 	DocumentSortEditor  = "editor"
 )
 
+// The screen-specific keys of UNI-2045: each one is the timestamp column a
+// list is about, only valid on its own route (a key on another route is 400)
+// and descending by default. They share the (timestamp, id) keyset.
+const (
+	// DocumentSortActivity is the caller's last activity on /documents/recent.
+	DocumentSortActivity = "activity"
+	// DocumentSortStarred is when the caller starred the document (favorites).
+	DocumentSortStarred = "starred"
+	// DocumentSortShared is the share time: the granting share's created_at on
+	// shared-with-me, the newest live grant on shared_by_me.
+	DocumentSortShared = "shared"
+	// DocumentSortDeleted is archived_at, on the trash (archived=1).
+	DocumentSortDeleted = "deleted"
+	// DocumentSortShelved is shelved_at, on the archive shelf (shelved=1).
+	DocumentSortShelved = "shelved"
+)
+
 // DocumentSort is the parsed sort/order pair; the zero value means "no sort".
 type DocumentSort struct {
 	Key  string
@@ -40,22 +57,35 @@ func (s DocumentSort) Order() string {
 	}
 }
 
-// ParseDocumentSort resolves ?sort= and ?order=. Without order, updated and
-// size run newest/largest first and name and editor run A to Z; order
-// without sort and any unknown value are 400.
+// ParseDocumentSort resolves ?sort= and ?order= for a list that takes only the
+// four column keys. Without order, updated and size run newest/largest first
+// and name and editor run A to Z; order without sort and any unknown value are
+// 400.
 func ParseDocumentSort(key, order string) (DocumentSort, error) {
+	return ParseDocumentSortFor(key, order, "")
+}
+
+// ParseDocumentSortFor is ParseDocumentSort for a route that also takes its
+// own screen key (UNI-2045): extra is that key ("" = none). The screen key
+// defaults to descending; the same word on any other route is unknown.
+func ParseDocumentSortFor(key, order, extra string) (DocumentSort, error) {
 	var out DocumentSort
-	switch key {
-	case "":
+	switch {
+	case key == "":
 		if order != "" {
 			return out, Invalid("order chỉ dùng cùng sort")
 		}
 		return out, nil
-	case DocumentSortUpdated, DocumentSortSize:
+	case key == DocumentSortUpdated || key == DocumentSortSize:
 		out = DocumentSort{Key: key, Desc: true}
-	case DocumentSortName, DocumentSortEditor:
+	case key == DocumentSortName || key == DocumentSortEditor:
 		out = DocumentSort{Key: key}
+	case extra != "" && key == extra:
+		out = DocumentSort{Key: key, Desc: true}
 	default:
+		if extra != "" {
+			return DocumentSort{}, Invalid("sort phải là updated, name, size, editor hoặc " + extra)
+		}
 		return DocumentSort{}, Invalid("sort phải là updated, name, size hoặc editor")
 	}
 	switch order {
@@ -68,6 +98,20 @@ func ParseDocumentSort(key, order string) (DocumentSort, error) {
 		return DocumentSort{}, Invalid("order phải là asc hoặc desc")
 	}
 	return out, nil
+}
+
+// CheckRoute refuses a screen key (activity, starred, shared, deleted,
+// shelved) that is not the one key this route takes; extra is "" for a route
+// with none. The handler parses per route already - this keeps a service
+// caller from binding a key its query has no order for.
+func (s DocumentSort) CheckRoute(extra string) error {
+	switch s.Key {
+	case DocumentSortActivity, DocumentSortStarred, DocumentSortShared, DocumentSortDeleted, DocumentSortShelved:
+		if s.Key != extra {
+			return Invalid("sort " + s.Key + " không dùng được trên danh sách này")
+		}
+	}
+	return nil
 }
 
 // DocumentSortCursor is the part of an opaque cursor that only a sorted page
@@ -107,8 +151,11 @@ func (c DocumentSortCursor) ValidShape(hasAt bool) bool {
 		return false
 	}
 	switch c.Sort {
-	case DocumentSortUpdated:
+	case DocumentSortUpdated, DocumentSortActivity, DocumentSortStarred, DocumentSortDeleted, DocumentSortShelved:
 		return hasAt
+	case DocumentSortShared:
+		// A shared_by_me row with no live grant has no key and sorts last.
+		return hasAt || c.Null
 	case DocumentSortSize:
 		return c.Num != nil
 	case DocumentSortName, DocumentSortEditor:
@@ -129,6 +176,8 @@ func NewDocumentSortCursor(sort DocumentSort, size int64, name, editor string, e
 		c.Text = &name
 	case DocumentSortEditor:
 		c.Text = &editor
+		c.Null = editorNull
+	case DocumentSortShared:
 		c.Null = editorNull
 	}
 	return c

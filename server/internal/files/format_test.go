@@ -2,7 +2,7 @@ package files
 
 import "testing"
 
-// UNI-1868: one table maps the documents library's six formats to the MIME a
+// UNI-1868: one table maps the documents library's seven formats to the MIME a
 // verified upload carries, and answers a row's format from its MIME with the
 // title's extension as the fallback. The list SQL takes the same table's MIME
 // list, so this test is what pins both readings.
@@ -19,13 +19,15 @@ func TestDocumentFormat(t *testing.T) {
 		{"pdf by mime", "application/pdf", "báo cáo.pdf", DocumentFormatPDF},
 		{"markdown by mime", "text/markdown", "ghi chú", DocumentFormatMD},
 		{"html by mime", "text/html", "trang", DocumentFormatHTML},
+		{"txt by mime", "text/plain", "ghi chú", DocumentFormatTXT},
+		{"txt by extension", "", "ghi chú.TXT", DocumentFormatTXT},
 		// The verified MIME wins over a title naming another format.
 		{"mime wins", "application/pdf", "báo cáo.docx", DocumentFormatPDF},
 		// A MIME the table cannot name leaves the title to answer, upper case
 		// included; a generic upload type is the case that happens in practice.
 		{"generic mime falls back", "application/octet-stream", "ghi chú.MD", DocumentFormatMD},
 		{"no mime falls back", "", "trang.HTML", DocumentFormatHTML},
-		// Neither names one of the six.
+		// Neither names one of the seven.
 		{"unknown mime and extension", "application/zip", "kho.zip", ""},
 		{"legacy office is not a lane", "application/msword", "cũ.doc", ""},
 		{"no extension", "", "không có phần mở rộng", ""},
@@ -42,7 +44,7 @@ func TestDocumentFormat(t *testing.T) {
 }
 
 func TestDocumentFormatTable(t *testing.T) {
-	if got, want := len(DocumentFormats()), 6; got != want {
+	if got, want := len(DocumentFormats()), 7; got != want {
 		t.Fatalf("DocumentFormats() = %d formats, want %d", got, want)
 	}
 	// DocumentFormats and DocumentFormatMimes are the table's two views and

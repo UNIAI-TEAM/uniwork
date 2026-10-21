@@ -824,6 +824,7 @@ func New(d Deps) http.Handler {
 
 		ListDocuments:                  h.listDocuments,
 		ListRecentDocuments:            h.listRecentDocuments,
+		ListFavoriteDocuments:          h.listFavoriteDocuments,
 		ListDocumentChanges:            h.listDocumentChanges,
 		PutOfficeOfflineLease:          h.putOfficeOfflineLease,
 		DeleteOfficeOfflineLease:       h.deleteOfficeOfflineLease,
