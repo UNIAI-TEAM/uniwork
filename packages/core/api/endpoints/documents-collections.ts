@@ -42,6 +42,7 @@ export type DocumentScreenSort = "activity" | "shared" | "shelved";
 /** Recent's Tất cả / Đã mở / Đã sửa segment (UNI-2045 SV-1b); left out is every activity. */
 export type DocumentRecentActivity = "opened" | "edited";
 export type DocumentSortOrder = "asc" | "desc";
+
 /** Filters of GET /workspaces/{ws}/documents. `parentId: ""` lists the
  *  workspace roots; leaving it undefined is the flat list. `sharedByMe: true`
  *  lists documents the caller owns and has shared (`parent_id` + `shared_by_me`
@@ -103,8 +104,8 @@ function listQuery(opts?: ListDocumentsOpts & { shelved?: boolean; trash?: boole
   if (opts.sort) p.set("sort", opts.sort);
   if (opts.order) p.set("order", opts.order);
   if (opts.match) p.set("match", opts.match);
-  if (opts.activity) p.set("activity", opts.activity);
   if (opts.includeOwned) p.set("include_owned", "true");
+  if (opts.activity) p.set("activity", opts.activity);
   if (opts.archived !== undefined) p.set("archived", opts.archived ? "1" : "0");
   if (opts.shelved === true) p.set("shelved", "true");
   if (opts.updatedBy) p.set("updated_by", opts.updatedBy);

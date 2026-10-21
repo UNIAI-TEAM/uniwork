@@ -7,6 +7,7 @@ import (
 	"image"
 	"image/color"
 	"image/png"
+	"sort"
 	"strings"
 	"testing"
 )
@@ -282,5 +283,23 @@ func TestValidateFileAcceptsPageSiblings(t *testing.T) {
 			_, err := validate(body, "image/webp", DefaultFileLimits)
 			wantReason(t, err, ReasonImageHeader)
 		})
+	}
+}
+
+func TestUploadExtensionsMatchTheMIMEMap(t *testing.T) {
+	exts := UploadExtensions()
+	if len(exts) != len(expectedMIMEByExtension) || !sort.StringsAreSorted(exts) {
+		t.Fatalf("UploadExtensions() = %v", exts)
+	}
+	for _, ext := range exts {
+		if strings.HasPrefix(ext, ".") || ext != strings.ToLower(ext) {
+			t.Fatalf("extension %q is not lowercase without a dot", ext)
+		}
+		if _, ok := ExpectedMIMEForExtension("x." + strings.ToUpper(ext)); !ok {
+			t.Fatalf("ExpectedMIMEForExtension refuses listed %q", ext)
+		}
+	}
+	if _, ok := ExpectedMIMEForExtension("setup.exe"); ok {
+		t.Fatal("exe accepted")
 	}
 }

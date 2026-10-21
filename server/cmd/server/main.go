@@ -408,6 +408,8 @@ func main() {
 			RequestTTL:        cfg.DocumentEditRequestTTL,
 			RequestMaxPerHour: cfg.DocumentEditRequestMaxPerHour,
 		},
+		FolderUploadMaxFiles: cfg.FolderUploadMaxFiles,
+		FolderUploadMaxBytes: cfg.FolderUploadMaxBytes,
 	})
 	// The chat document send files its bytes into the Documents tree and the
 	// read path resolves each message's document block against it

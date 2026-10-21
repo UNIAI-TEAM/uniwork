@@ -1159,6 +1159,35 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				t.Fatal(err)
 			}
 		},
+		audit.ActionDocumentsFolderUploadPlanned: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.document(t)
+			svc.SetFiles(filesfake.New(filesfake.Options{}))
+			d, err := f.q.GetDocumentByID(f.ctx, docID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := svc.CreateFolderUpload(f.ctx, Human(f.owner.ID), d.WorkspaceID, CreateFolderUploadInput{
+				RootName: "Audit folder", Folders: []string{"a"}, IdempotencyKey: "audit-folder-upload",
+				Files: []FolderUploadFileInput{{FileKey: "k1", Path: "a", Filename: "x.md", SizeBytes: 3}},
+			}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentsFolderUploadCanceled: func(t *testing.T, f *auditFixture) {
+			svc, workspaceID, batchID := f.openFolderUpload(t, "audit-folder-cancel")
+			if _, err := svc.CancelFolderUpload(f.ctx, Human(f.owner.ID), workspaceID, batchID); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentsFolderUploadExpired: func(t *testing.T, f *auditFixture) {
+			svc, _, batchID := f.openFolderUpload(t, "audit-folder-expire")
+			if _, err := f.pool.Exec(f.ctx, `UPDATE document_folder_uploads SET expires_at = now() - interval '1 minute' WHERE id = $1`, batchID); err != nil {
+				t.Fatal(err)
+			}
+			if n, err := svc.SweepFolderUploads(f.ctx); err != nil || n == 0 {
+				t.Fatalf("SweepFolderUploads = %d, err = %v", n, err)
+			}
+		},
 		audit.ActionDocumentShareRevoked: func(t *testing.T, f *auditFixture) {
 			svc, docID := f.document(t)
 			sh, err := svc.ShareDocument(f.ctx, Human(f.owner.ID), docID, DocumentShareInput{
@@ -2241,6 +2270,26 @@ func (f *auditFixture) documentEditHold(t *testing.T) (*DocumentService, string,
 		t.Fatal(err)
 	}
 	return svc, docID, l.Lock.ID, sid
+}
+
+// openFolderUpload plans a one-file folder upload as the owner and answers the
+// service, the workspace and the open batch (UNI-2052).
+func (f *auditFixture) openFolderUpload(t *testing.T, key string) (*DocumentService, string, string) {
+	t.Helper()
+	svc, docID := f.document(t)
+	svc.SetFiles(filesfake.New(filesfake.Options{}))
+	d, err := f.q.GetDocumentByID(f.ctx, docID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := svc.CreateFolderUpload(f.ctx, Human(f.owner.ID), d.WorkspaceID, CreateFolderUploadInput{
+		RootName: "Audit folder", Folders: []string{"a"}, IdempotencyKey: key,
+		Files: []FolderUploadFileInput{{FileKey: "k1", Path: "a", Filename: "x.md", SizeBytes: 3}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return svc, d.WorkspaceID, b.ID
 }
 
 // documentAccessRequest is a restricted document the member cannot read and

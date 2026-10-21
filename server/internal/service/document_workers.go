@@ -176,6 +176,9 @@ func (w *DocumentWorkers) Run(ctx context.Context) {
 			// The zip jobs (UNI-2045) share this short tick: an expired zip
 			// should leave storage within minutes, not at the daily audit tick.
 			w.sweepDocumentDownloads(ctx)
+			// Folder upload batches (UNI-2052) ride the same tick: an abandoned
+			// batch should free its multipart storage within minutes.
+			w.sweepFolderUploads(ctx)
 			if w.swept != nil {
 				w.swept("idempotency_key", err)
 			}
@@ -252,6 +255,12 @@ func (w *DocumentWorkers) sweepBreakGlassGrants(ctx context.Context) {
 func (w *DocumentWorkers) sweepDocumentDownloads(ctx context.Context) {
 	w.recordRetentionSweep(ctx, "document_download", func(ctx context.Context) (int64, error) {
 		return w.svc.SweepDocumentDownloads(ctx)
+	})
+}
+
+func (w *DocumentWorkers) sweepFolderUploads(ctx context.Context) {
+	w.recordRetentionSweep(ctx, "folder_upload", func(ctx context.Context) (int64, error) {
+		return w.svc.SweepFolderUploads(ctx)
 	})
 }
 

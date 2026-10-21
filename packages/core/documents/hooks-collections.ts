@@ -64,7 +64,9 @@ function documentListFilterKey(
   if (!filters) return "";
   const { format, access, sort, order, updatedBy, updatedFrom, updatedTo, activity } = filters;
   const includeOwned = filters.includeOwned || undefined;
-  if (!format && !access && !sort && !order && !updatedBy && !updatedFrom && !updatedTo && !activity && !includeOwned) return "";
+  if (!format && !access && !sort && !order && !updatedBy && !updatedFrom && !updatedTo && !activity && !includeOwned) {
+    return "";
+  }
   return documentFilterKey({ format, access, sort, order, updatedBy, updatedFrom, updatedTo, activity, includeOwned });
 }
 
@@ -142,7 +144,8 @@ export function useDocumentArchiveImpact(wsId: string, documentId: string, opts?
  *  of the key. */
 export function useRecentDocuments(
   wsId: string,
-  opts?: DocumentListFilters & DocumentListSort & { activity?: DocumentRecentActivity; enabled?: boolean; includeOwned?: boolean },
+  opts?: DocumentListFilters &
+    DocumentListSort & { activity?: DocumentRecentActivity; enabled?: boolean; includeOwned?: boolean },
 ) {
   return useInfiniteQuery({
     queryKey: documentKeys.recent(wsId, documentListFilterKey(opts)),
