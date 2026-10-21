@@ -10,7 +10,7 @@ vi.mock("./api", () => ({ api: { request: vi.fn() } }));
 import { chatApi } from "./chat-api";
 import { roomTimelineOptions } from "./queries/chat";
 import { chatKeys } from "./queries/chat-keys";
-import { hydrateFromPush, refreshRoomHead, refreshStaleTimelines } from "./timeline-refresh";
+import { REFRESH_CONCURRENCY, hydrateFromPush, refreshRoomHead, refreshStaleTimelines } from "./timeline-refresh";
 
 const msg = (id: string, minute: number, roomId = "r1"): ChatMessageRecord =>
   ({ id, room_id: roomId, workspace_id: "w1", sender_id: "u2", kind: "text", body: id, created_at: `2026-10-22T10:${String(minute).padStart(2, "0")}:00Z`, reactions: {}, mentioned_user_ids: [] }) as unknown as ChatMessageRecord;
@@ -69,6 +69,50 @@ describe("refreshStaleTimelines", () => {
     await refreshStaleTimelines(qc, 6);
     // "empty" has a cached page with no message while the list says one came at 10:02.
     expect(listMessages.mock.calls.map(([, roomId]) => roomId).sort()).toEqual(["empty", "marked", "older", "unread"]);
+  });
+
+  it("a room whose newest message is a thread reply is read once, not on every background (the list counts replies, the timeline does not)", async () => {
+    const qc = new QueryClient();
+    // The thread reply came at 10:09; the newest main-timeline message is from 10:05.
+    listMessages.mockImplementation(async (_ws, roomId) => [msg(`main-${roomId}`, 5, roomId)]);
+    qc.setQueryData(chatKeys.rooms("w1"), [room("t", 9)]);
+    qc.setQueryData(chatKeys.roomMessages("w1", "t"), timeline([msg("old", 1, "t")]));
+    await refreshStaleTimelines(qc);
+    await refreshStaleTimelines(qc);
+    expect(listMessages).toHaveBeenCalledTimes(1);
+    // Something new in the room moves the list's time: read again, once.
+    qc.setQueryData(chatKeys.rooms("w1"), [room("t", 12)]);
+    await refreshStaleTimelines(qc);
+    await refreshStaleTimelines(qc);
+    expect(listMessages).toHaveBeenCalledTimes(2);
+  });
+
+  it("a read that failed is asked again next time", async () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    listMessages.mockRejectedValueOnce(new TypeError("Network request failed")).mockImplementation(async (_ws, roomId) => [msg(`main-${roomId}`, 5, roomId)]);
+    qc.setQueryData(chatKeys.rooms("w1"), [room("t", 9)]);
+    qc.setQueryData(chatKeys.roomMessages("w1", "t"), timeline([msg("old", 1, "t")]));
+    await refreshStaleTimelines(qc);
+    await refreshStaleTimelines(qc);
+    await refreshStaleTimelines(qc);
+    expect(listMessages).toHaveBeenCalledTimes(2);
+  });
+
+  it(`reads at most ${REFRESH_CONCURRENCY} rooms at once`, async () => {
+    const qc = new QueryClient();
+    const rooms = Array.from({ length: REFRESH_CONCURRENCY + 3 }, (_, i) => room(`r${i}`, 9, 1));
+    qc.setQueryData(chatKeys.rooms("w1"), rooms);
+    let inFlight = 0;
+    let most = 0;
+    listMessages.mockImplementation(async (_ws, roomId) => {
+      most = Math.max(most, ++inFlight);
+      await new Promise((resolve) => setTimeout(resolve, 1));
+      inFlight -= 1;
+      return [msg(`fresh-${roomId}`, 9, roomId)];
+    });
+    await refreshStaleTimelines(qc);
+    expect(listMessages).toHaveBeenCalledTimes(rooms.length);
+    expect(most).toBe(REFRESH_CONCURRENCY);
   });
 
   it("a timeline on screen is never read by it", async () => {
