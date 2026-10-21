@@ -159,17 +159,11 @@ func (s *DocumentService) relocateOutOfTrashedFolder(ctx context.Context, q *db.
 		if err != nil {
 			return err
 		}
-		// The stored title goes back unchanged: it is normalized already, so
-		// this is a no-op for every row written since the normalizer. A legacy
-		// title the normalizer refuses is kept as it is rather than blocking the
-		// trash (a relocation is not a rename).
-		title, nerr := normalizeDocumentTitle(row.Kind, row.Title)
-		if nerr != nil {
-			title = row.Title
-		}
+		// The stored title goes back unchanged, whatever shape a legacy row
+		// has: a relocation is not the owner's rename.
 		moved, err := q.DetachDocumentToRoot(ctx, db.DetachDocumentToRootParams{
 			ID: row.ID, OrganizationID: row.OrganizationID, WorkspaceID: row.WorkspaceID,
-			Position: position, Title: title, SearchText: documentSearchText(title, row.ContentText),
+			Position: position, Title: row.Title, SearchText: documentSearchText(row.Title, row.ContentText),
 			UpdatedBy: actor.ID, UpdatedByKind: string(actor.Kind),
 		})
 		if errors.Is(err, pgx.ErrNoRows) {

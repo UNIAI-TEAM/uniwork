@@ -650,6 +650,14 @@ var titleNamingHelpers = []string{
 	"restoreNames(",
 }
 
+// titleKeepingWriters are the functions allowed to run a title-writing
+// statement without a naming helper, each with the reason. The guard also
+// requires that the statement passes the row's own stored title, so an exempt
+// function cannot start writing a different string unseen.
+var titleKeepingWriters = map[string]string{
+	"relocateOutOfTrashedFolder": "writes the stored title back unchanged; a relocation is not a rename",
+}
+
 // TestDocumentTitleWritePathsUseTheNormalizer is the guard the appendix asks
 // for (§3.3): no non-test file may run one of the title-writing statements from
 // a function that does not go through a naming helper. It is textual on
@@ -664,6 +672,7 @@ func TestDocumentTitleWritePathsUseTheNormalizer(t *testing.T) {
 		t.Fatal("no document*.go files found: the guard would pass on nothing")
 	}
 	seen := map[string]bool{}
+	seenExempt := map[string]bool{}
 	for _, name := range files {
 		if strings.HasSuffix(name, "_test.go") {
 			continue
@@ -674,6 +683,13 @@ func TestDocumentTitleWritePathsUseTheNormalizer(t *testing.T) {
 		}
 		for _, site := range titleWriteSites(string(raw)) {
 			seen[site.call] = true
+			if fn, reason, ok := exemptWriter(site.function); ok {
+				seenExempt[fn] = true
+				if site.call != "q.DetachDocumentToRoot(" || !strings.Contains(site.body, "Title: row.Title,") {
+					t.Errorf("%s: %s is exempt (%s) but does not write the row's own Title:\n%s", name, site.call, reason, site.function)
+				}
+				continue
+			}
 			if !mentionsAny(site.body, titleNamingHelpers) {
 				t.Errorf("%s: %s runs outside a naming helper:\n%s", name, site.call, site.function)
 			}
@@ -684,6 +700,22 @@ func TestDocumentTitleWritePathsUseTheNormalizer(t *testing.T) {
 			t.Errorf("no call site found for %s: the guard needs updating with the statement", call)
 		}
 	}
+	for fn := range titleKeepingWriters {
+		if !seenExempt[fn] {
+			t.Errorf("exempt writer %s has no title-writing call site: drop it from titleKeepingWriters", fn)
+		}
+	}
+}
+
+// exemptWriter reports whether the top-level function declaration line names
+// one of titleKeepingWriters.
+func exemptWriter(declaration string) (fn, reason string, ok bool) {
+	for name, why := range titleKeepingWriters {
+		if strings.Contains(declaration, ") "+name+"(") {
+			return name, why, true
+		}
+	}
+	return "", "", false
 }
 
 type titleWriteSite struct {
