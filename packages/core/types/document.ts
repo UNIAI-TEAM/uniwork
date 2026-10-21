@@ -171,6 +171,17 @@ export function isMyFolder(
   }
 }
 
+/**
+ * True for a workspace folder (UNI-2055 W1): a folder outside the My Folder
+ * subtree, which carries `visibility: "workspace"` and no `system_kind`. My
+ * Folder and everything under it stay `restricted`.
+ */
+export function isWorkspaceFolder(
+  doc: { kind?: string | null; visibility?: string | null; system_kind?: string | null } | null | undefined,
+): boolean {
+  return doc?.kind === "folder" && doc.visibility === "workspace" && !doc.system_kind;
+}
+
 /** True when the caller manages a trashed row (RESTORE-01): views use this to
  *  enable Restore / Delete forever and disable them for view/edit/unknown.
  *  A workspace admin on a restricted row arrives with no my_level and
@@ -394,6 +405,9 @@ export const DocumentSummarySchema = z.object({
   via: z.string().nullable().optional(),
   admin_scope: z.boolean().optional().catch(undefined),
   share_scope: DocumentShareScopeSchema.nullable().optional().catch(undefined),
+  // UNI-2055 W6: a folder with nothing the caller can see in it, computed for
+  // this viewer; absent or drifted reads as unknown (never as a count).
+  is_empty: z.boolean().optional().catch(undefined),
   owner_kind: z.string().nullable().optional(),
   owner_id: z.string().nullable().optional(),
   archived_at: z.string().nullable().optional().catch(undefined),
@@ -532,6 +546,8 @@ export interface DocumentTreeNode {
   system_kind?: DocumentSystemKind | null;
   visibility?: DocumentVisibility;
   share_scope?: DocumentShareScope | null;
+  /** UNI-2055 W6: no document in the folder is visible to this viewer; absent = unknown. */
+  is_empty?: boolean;
   position: number;
   children: DocumentTreeNode[];
 }
@@ -546,6 +562,7 @@ export const DocumentTreeNodeSchema: z.ZodType<DocumentTreeNode> = z.lazy(() =>
     system_kind: z.string().nullable().optional().catch(undefined),
     visibility: z.string().optional().catch(undefined),
     share_scope: DocumentShareScopeSchema.nullable().optional().catch(undefined),
+    is_empty: z.boolean().optional().catch(undefined),
     position: z.number().optional().default(0),
     children: z.array(DocumentTreeNodeSchema).optional().default([]),
   }),

@@ -5,7 +5,7 @@
  */
 export type { Decision, DecisionReason, PermissionContext } from "./types";
 export { canCommentDocument, documentLevelRank } from "./rules";
-export { canAdministerDocument, canAssignAgent, canCreateWorkspaceInOrg, canDeleteMeeting, canDeleteTask, canEditDocument, canHostMeeting, canInviteMembers, canManageAuditSettings, canReadAuditLog, canUpdateWorkspaceSettings } from "./rules";
+export { canAdministerDocument, canAssignAgent, canCreateInsideFolder, canCreateWorkspaceInOrg, canDeleteMeeting, canDeleteTask, canEditDocument, canHostMeeting, canInviteMembers, canManageAuditSettings, canReadAuditLog, canUpdateWorkspaceSettings } from "./rules";
 export {
   canChangeOrgRole,
   canDeactivateMember,
