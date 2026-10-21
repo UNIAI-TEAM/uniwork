@@ -19,9 +19,11 @@ import (
 
 	"github.com/unicomhub/uniwork/server/internal/ai"
 	"github.com/unicomhub/uniwork/server/internal/ai/provider"
+	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/auth"
 	"github.com/unicomhub/uniwork/server/internal/config"
 	"github.com/unicomhub/uniwork/server/internal/featureflags"
+	"github.com/unicomhub/uniwork/server/internal/files"
 	"github.com/unicomhub/uniwork/server/internal/graph/projector"
 	"github.com/unicomhub/uniwork/server/internal/mail"
 	"github.com/unicomhub/uniwork/server/internal/realtime"
@@ -129,6 +131,9 @@ func newIsolationServer(t *testing.T) *isoWorld {
 	t.Setenv("AI_CLOUD_SEARCH_PROVIDER", "fake")
 	t.Setenv("AI_CLOUD_IMAGE_PROVIDER", "fake")
 	t.Setenv("AI_CLOUD_TRANSCRIBE_PROVIDER", "fake")
+	// Uploaded meeting recordings (UNI-2001) on the fake vendor: the
+	// transcription routes then serve their owner. No worker runs here.
+	t.Setenv("AI_MEETING_TRANSCRIBE_PROVIDER", "fake")
 	d, pool := newTestDeps(t, nil, discardOutbox{})
 	// The Office desktop bridge: the download profile and the desktop client
 	// the launch and device routes check against.
@@ -176,6 +181,7 @@ func newIsolationServer(t *testing.T) *isoWorld {
 	d.Auth.SetMail(renderer, discardOutbox{})
 
 	d.Meetings.Tasks = d.Tasks
+	d.Meetings.SetFlags(d.FeatureFlags)
 	d.Meetings.Chat = d.Chat
 	d.Tasks.Chat = d.Chat
 	d.Chat.SetAIGateway(d.Meetings.AI)
@@ -196,6 +202,7 @@ func newIsolationServer(t *testing.T) *isoWorld {
 	docs.SetAccessRequestSources(d.Tasks, d.Meetings)
 	d.Documents = docs
 	d.Meetings.Docs = docs
+	d.Meetings.SetUploads(docs)
 	// The chat document send files its bytes into the same Documents service
 	// (UNI-1966): without it the route answers 501 and the isolation row
 	// proves nothing.
@@ -1065,6 +1072,46 @@ func (w *isoWorld) buildActivity(t *testing.T, tn *isoTenant) {
 	m := tn.marker
 	ws := "/api/v1/workspaces/" + tn.wsID
 
+	// A meeting held without a room (UNI-2001), its recording queued for
+	// transcription through the route, and a second recording staged for the
+	// reference case. The recordings are staged on FileService directly: the
+	// shared upload session is the documents' one, already in this world.
+	out := w.call(t, "POST", "/api/v1/workspaces/"+tn.wsID+"/meetings", tn.token, map[string]any{
+		"title": m + " Held", "starts_at": time.Now().Add(48 * time.Hour).UTC().Truncate(time.Minute).Format(time.RFC3339),
+		"ends_at": time.Now().Add(49 * time.Hour).UTC().Truncate(time.Minute).Format(time.RFC3339),
+	})
+	tn.ids["heldMeeting"] = isoID(t, out, "meeting")
+	began := time.Now().Add(-2 * time.Hour).UTC().Truncate(time.Second)
+	w.call(t, "POST", "/api/v1/meetings/"+tn.ids["heldMeeting"]+"/held", tn.token, map[string]any{
+		"started_at": began.Format(time.RFC3339), "ended_at": began.Add(time.Hour).Format(time.RFC3339),
+	})
+	stageAudio := func(name string) string {
+		up, err := w.files.Upload(ctx, files.UploadInput{
+			Actor: audit.User(tn.userID), Purpose: files.MeetingAudio, IdempotencyKey: util.NewID(), Filename: name,
+			Scope: files.Scope{OrganizationID: tn.orgID, WorkspaceID: tn.wsID},
+			Body:  bytes.NewReader(append([]byte("ID3\x04\x00\x00\x00\x00\x00\x00"+m), 0xff, 0xfb, 0x90, 0x64)),
+		})
+		if err != nil {
+			t.Fatalf("stage meeting audio: %v", err)
+		}
+		// The completed session the upload route leaves behind: it names the
+		// uploader and the meeting, which a transcription request must match.
+		if _, err := w.pool.Exec(ctx, `INSERT INTO file_multipart_uploads (id, organization_id, workspace_id, file_id,
+			file_upload_session_id, created_by, created_by_kind, opened_via, storage_upload_id, object_key, filename, size_bytes,
+			part_size, total_parts, probe_head_sha256, probe_tail_sha256, status, expires_at, closed_at, meeting_id)
+			VALUES ($1, $2, $3, $4, $5, $6, 'human', 'meeting_audio', 's', 'k', 'f', 1, 1, 1, 'h', '', 'completed',
+			now() + interval '1 day', now(), $7)`,
+			util.NewID(), tn.orgID, tn.wsID, string(up.File.ID), util.NewID(), tn.userID, tn.ids["heldMeeting"]); err != nil {
+			t.Fatalf("meeting audio session: %v", err)
+		}
+		return string(up.File.ID)
+	}
+	out = w.call(t, "POST", "/api/v1/meetings/"+tn.ids["heldMeeting"]+"/transcriptions", tn.token, map[string]any{
+		"upload_id": stageAudio(strings.ToLower(m) + "-part-1.mp3"), "language": "vi", "consent": true,
+	})
+	tn.ids["transcription"] = isoID(t, out, "transcription")
+	tn.ids["meetingAudioUpload"] = stageAudio(strings.ToLower(m) + "-part-2.mp3")
+
 	w.call(t, "POST", "/api/v1/tasks/"+tn.ids["task"]+"/reactions", tn.token, map[string]any{"emoji": "👍"})
 	w.call(t, "POST", "/api/v1/comments/"+tn.ids["taskComment"]+"/reactions", tn.token, map[string]any{"emoji": "👍"})
 	w.call(t, "PUT", ws+"/task-view-preferences", tn.token, map[string]any{"scope_type": "workspace", "prefs": map[string]any{"layout": "list"}})
@@ -1079,7 +1126,7 @@ func (w *isoWorld) buildActivity(t *testing.T, tn *isoTenant) {
 
 	// The live meeting: a mark, chat, a transcript line, a summary, a vote.
 	live := "/api/v1/meetings/" + tn.ids["liveMeeting"]
-	out := w.call(t, "GET", live+"/participants", tn.token, nil)
+	out = w.call(t, "GET", live+"/participants", tn.token, nil)
 	var hostPID string
 	for _, p := range isoList(t, out, "participants") {
 		if p["user_id"] == tn.userID {

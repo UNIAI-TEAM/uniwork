@@ -165,6 +165,15 @@ func NewGateway(q *db.Queries, p provider.Provider, quota Quota, rec *audit.Reco
 
 func (g *Gateway) Enabled() bool { return g != nil && g.p != nil }
 
+// CallTimeout bounds one provider call (AI_TIMEOUT_SECONDS); a caller that
+// claims work around a call sizes its lease from it.
+func (g *Gateway) CallTimeout() time.Duration {
+	if g == nil {
+		return 60 * time.Second
+	}
+	return g.opts.Timeout
+}
+
 // ModelSelectable reports whether a person may pick model: it is on the
 // allowlist (including AI_MODEL_ALLOW) and priced for this provider, so a pick
 // can never route to a model nobody priced.

@@ -10,7 +10,6 @@ import { Input } from "@uniwork/ui/components/ui/input";
 import { MeetingPersonAvatar } from "@uniwork/views/meetings/meeting-person";
 import { MeetingUnderlineTabs } from "@uniwork/views/meetings/meeting-underline-tabs";
 import { MeetingCopilotHeader } from "@uniwork/views/meetings/meeting-copilot/meeting-copilot-header";
-import { MeetingCopilotFooter } from "@uniwork/views/meetings/meeting-copilot/meeting-copilot-footer";
 
 export const DEMO_MEETING_PEOPLE = [DEMO_MEMBERS[1]!.name, DEMO_MEMBERS[2]!.name, DEMO_MEMBERS[3]!.name, DEMO_MEMBERS[0]!.name];
 const MEETING_DEMO_TABS = ["copilot", "chat", "participants", "motions", "recordings"] as const;
@@ -49,7 +48,6 @@ export function ProductMeetingPanel({ tab, onTab, onClose, onTask, compact, stat
           {section === "notes" && <><p>{t("landing.playback.meetingGoal")}</p>{notes.map((value, index) => <p key={index}>{value}</p>)}<form onSubmit={event => { event.preventDefault(); if (note.trim()) { setNotes(current => [...current, note.trim()].slice(-8)); setNote(""); } }}><Input value={note} onChange={event => setNote(event.target.value)} aria-label={t("meetings.notesInputLabel")} placeholder={t("meetings.notesPlaceholder")} maxLength={500} /><Button type="submit" variant="outline" size="icon" aria-label={t("meetings.addNote")} disabled={!note.trim()}><Send aria-hidden /></Button></form></>}
           {section === "actions" && (summary ? <><p>{t("landing.studio.task_design")}</p><Button type="button" variant="brand" className="mt-3 w-full" disabled={!onTask} onClick={() => onTask?.(t("landing.studio.task_design"))}>{t("meetings.createTasksInUniwork", { count: 1 })}</Button></> : <p>{t("meetings.summaryEmpty")}</p>)}
         </div>
-        <MeetingCopilotFooter />
         <small className="product-meeting-sample">{t("landing.lovable.sample")}</small>
       </>}
       {tab === "participants" && <div className="product-meeting-roster">{DEMO_MEETING_PEOPLE.map(name => <div key={name}><MeetingPersonAvatar name={name} size="default" /><span><strong>{name}</strong><small>{t("landing.lovable.member")}</small></span></div>)}</div>}

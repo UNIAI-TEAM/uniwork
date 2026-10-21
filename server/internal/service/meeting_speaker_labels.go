@@ -259,6 +259,13 @@ func (s *MeetingService) AssignSpeakerLabel(ctx context.Context, actorID, meetin
 	if err != nil {
 		return db.ListMeetingSpeakerLabelsRow{}, err
 	}
+	// A label of a superseded upload run is hidden (UNI-2001): refuse it
+	// before any write, as if it did not exist.
+	if _, err := q.GetMeetingSpeakerLabelView(ctx, db.GetMeetingSpeakerLabelViewParams{ID: l.ID, MeetingID: m.ID}); errors.Is(err, pgx.ErrNoRows) {
+		return db.ListMeetingSpeakerLabelsRow{}, ErrNotFound
+	} else if err != nil {
+		return db.ListMeetingSpeakerLabelsRow{}, err
+	}
 	up, err := q.AssignMeetingSpeakerLabel(ctx, db.AssignMeetingSpeakerLabelParams{
 		ID: l.ID, UserID: pgtype.Text{String: uid, Valid: uid != ""}, Name: nm,
 	})

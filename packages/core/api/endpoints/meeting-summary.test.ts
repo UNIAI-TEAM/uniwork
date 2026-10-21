@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { configureRuntime, resetRuntimeConfig } from "../../runtime-config";
 import { setAccessToken } from "../session";
-import { createMeetingSummary, getMeetingSummary } from "./meeting-summary";
+import { createMeetingCatchUp, createMeetingSummary, getMeetingSummary } from "./meeting-summary";
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
@@ -70,5 +70,35 @@ describe("meeting summary endpoints", () => {
     expect(sentBody()).toEqual({ locale: "vi" });
     vi.mocked(fetch).mockResolvedValueOnce(json({ summary: { summary: 1 } }));
     expect(await createMeetingSummary("m1", "en")).toBeNull();
+  });
+
+  it("createMeetingCatchUp posts the locale and keeps each point's time", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        summary: "Đã chốt lịch demo.",
+        highlights: [{ text: "Demo thứ Sáu", segment_id: "g1", spoken_at: "2026-10-21T02:05:00Z" }, { text: "Từ ghi chú" }],
+        action_items: [{ title: "Gửi bản demo", owner: "An", segment_id: "g2", spoken_at: "2026-10-21T02:10:00Z" }],
+        generated_at: "2026-10-21T02:25:00Z",
+        partial: false,
+      }),
+    );
+    const res = await createMeetingCatchUp("m1", "vi");
+    expect(String(vi.mocked(fetch).mock.calls[0]![0])).toBe("http://api.test/api/v1/meetings/m1/catch-up");
+    expect(sentBody()).toEqual({ locale: "vi" });
+    expect(res?.highlights[0]).toEqual({ text: "Demo thứ Sáu", segment_id: "g1", spoken_at: "2026-10-21T02:05:00Z" });
+    expect(res?.action_items[0]?.title).toBe("Gửi bản demo");
+  });
+
+  it("createMeetingCatchUp degrades: bad lists read as empty, no summary reads as null", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ summary: "S", highlights: "x", action_items: null, partial: "no" }));
+    expect(await createMeetingCatchUp("m1", "vi")).toEqual({
+      summary: "S",
+      highlights: [],
+      action_items: [],
+      generated_at: "",
+      partial: false,
+    });
+    vi.mocked(fetch).mockResolvedValueOnce(json({ summary: 3 }));
+    expect(await createMeetingCatchUp("m1", "en")).toBeNull();
   });
 });

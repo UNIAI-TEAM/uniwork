@@ -66,6 +66,7 @@ func AskUniTools(s *AskUNIService) ai.Registry {
 		read(askToolSearch, "Tasks, meetings and chat in the workspace that match a query", s.searchWorkspace),
 		read(askToolTask, "One task with its comments", s.taskContext),
 		read(askToolMeeting, "One meeting with its summary", s.meetingContext),
+		s.transcriptTool(),
 		read(askToolMember, "Workspace members by name and role", s.memberContext),
 		read(askToolChat, "Recent messages in rooms the asker belongs to", s.chatContext),
 	}
@@ -92,6 +93,13 @@ func (s *AskUNIService) Sources(ctx context.Context, in ai.SourceQuery) ([]ai.So
 				return nil, err
 			}
 			out = append(out, focus...)
+			if in.Focus.Kind == "meeting" {
+				said, err := s.focusTranscript(ctx, tc, in.Focus.ID, in.Question)
+				if err != nil {
+					return nil, err
+				}
+				out = append(out, said...)
+			}
 		}
 	}
 	found, err := s.searchWorkspace(ctx, tc, in.Question)

@@ -6,6 +6,8 @@ import { getMeetingEvidence } from "../api/endpoints/meeting-evidence";
 import type { MeetingEvidenceRef } from "../types/meeting";
 import { meetingKeys } from "./hooks";
 
+export type { MeetingCatchUp } from "../api/endpoints/meeting-summary";
+
 /**
  * A 4xx answer (no access, an old server's 404 for "no summary yet") comes
  * back the same on a retry; a 5xx or a dropped connection gets the default
@@ -36,6 +38,12 @@ export function useCreateMeetingSummary(meetingId: string) {
     },
   });
 }
+
+/** Asks for the late joiner's brief; nothing is cached client-side (the server shares it for two minutes). */
+export function useMeetingCatchUp(meetingId: string) {
+  return useMutation({ mutationFn: (locale: string) => api.createMeetingCatchUp(meetingId, locale) });
+}
+
 
 /** The lines a decision or an action item cites, read when the reader opens them. */
 export function useMeetingEvidence(meetingId: string, refs: readonly MeetingEvidenceRef[], enabled: boolean) {

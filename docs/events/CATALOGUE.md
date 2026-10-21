@@ -262,6 +262,9 @@ khai nó, hoặc khi tập trường đổi. Mở thêm trường hay topic cầ
 | `transcript.appended` | 1 | `meeting_id` | — | meeting | ephemeral |
 | `scribe.updated` | 1 | `meeting_id`, `workspace_id` | — | meeting | outbox |
 | `speaker_label.updated` | 1 | `meeting_id`, `workspace_id` | — | meeting | outbox |
+| `transcription.requested` | 1 | `meeting_id`, `transcription_id`, `workspace_id` | — | workspace | outbox |
+| `transcription.completed` | 1 | `meeting_id`, `transcription_id`, `workspace_id` | — | workspace | outbox |
+| `transcription.failed` | 1 | `meeting_id`, `transcription_id`, `workspace_id` | — | workspace | outbox |
 | `user.offline` | 1 | `user_id` | — | workspace | ephemeral |
 | `user.presence` | 1 | `user_id` | — | workspace | ephemeral |
 | `webhook.deliver` | 1 | `subscription_id`, `event_id` | — | - | outbox |

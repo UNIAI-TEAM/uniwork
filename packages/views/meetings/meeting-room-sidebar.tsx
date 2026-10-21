@@ -7,6 +7,7 @@ import type { Meeting } from "@uniwork/core/types";
 import { cn } from "@uniwork/ui/lib/utils";
 import { MeetingMotionsList } from "./meeting-motions-list";
 import { MeetingRoomChatTab } from "./meeting-room-chat-tab";
+import { lateJoinMinutes } from "./meeting-copilot/meeting-catch-up-card";
 import { MeetingRoomCopilotTab } from "./meeting-room-copilot-tab";
 import { MeetingRoomFilesTab } from "./meeting-room-files-tab";
 import { MeetingRoomPeopleTab } from "./meeting-room-people-tab";
@@ -68,6 +69,7 @@ export function MeetingRoomSidebar({
   onTabChange,
   chatUnread = 0,
   tabsEnd,
+  joinedAt,
 }: {
   meetingId?: string;
   meeting?: Meeting;
@@ -81,6 +83,8 @@ export function MeetingRoomSidebar({
   chatUnread?: number;
   /** Beside the tab row (the sheet's close button), so it never covers a tab. */
   tabsEnd?: ReactNode;
+  /** When this viewer entered the room (ms): a member late by 10+ minutes is offered a catch-up. */
+  joinedAt?: number;
 }) {
   const { t } = useTranslation();
   const baseId = useId();
@@ -123,6 +127,11 @@ export function MeetingRoomSidebar({
             workspaceId={guestMode ? undefined : workspaceId}
             projectId={guestMode ? undefined : meeting?.project_id}
             canClerk={isClerk}
+            lateMinutes={
+              !guestMode && joinedAt !== undefined && meeting?.status === "IN_PROGRESS"
+                ? lateJoinMinutes(meeting.actual_start_at, joinedAt)
+                : null
+            }
           />
         ) : (
           <p className="text-label text-muted-foreground">{t("meetings.aiUnavailable")}</p>

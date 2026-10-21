@@ -7,6 +7,7 @@ export type UploadSessionTarget =
       visibility?: string | null;
     }
   | { kind: "version"; documentId: string }
+  | { kind: "meeting_audio"; meetingId: string }
   | { kind: "frame"; documentId: string; frameToken: string };
 
 export function uploadTargetKey(target: UploadSessionTarget): string {
@@ -17,6 +18,8 @@ export function uploadTargetKey(target: UploadSessionTarget): string {
         : `workspace:${target.workspaceId}`;
     case "version":
       return `version:${target.documentId}`;
+    case "meeting_audio":
+      return `meeting_audio:${target.meetingId}`;
     case "frame":
       return `frame:${target.documentId}`;
   }

@@ -21,7 +21,9 @@ ON CONFLICT (meeting_id, label_key) DO NOTHING;
 -- tenant: parent meeting_id
 -- Every label with its number in the meeting (order of first appearance,
 -- "Người nói n"), the name it was given (a member's current display name, or
--- the free name) and its first line, so a clerk can tell who spoke it.
+-- the free name) and its first line, so a clerk can tell who spoke it. The
+-- labels of an uploaded file's superseded runs are left out (UNI-2001): only
+-- each file's latest COMPLETE run reaches the transcript (parent spec §7.3).
 SELECT l.*,
   COALESCE(u.display_name, '')::text AS user_name,
   COALESCE(s.text, '')::text AS sample,
@@ -29,6 +31,10 @@ SELECT l.*,
 FROM (
   SELECT ml.*, row_number() OVER (ORDER BY ml.created_at, ml.id)::int AS number
   FROM meeting_speaker_labels ml WHERE ml.meeting_id = $1
+    AND (ml.label_key NOT LIKE 'upload:%' OR split_part(ml.label_key, ':', 2) IN (
+    SELECT DISTINCT ON (t.file_id) t.id FROM meeting_transcriptions t
+    WHERE t.meeting_id = ml.meeting_id AND t.status = 'COMPLETE'
+    ORDER BY t.file_id, t.completed_at DESC, t.id DESC))
 ) l
 LEFT JOIN users u ON u.id = l.user_id
 LEFT JOIN LATERAL (
@@ -46,6 +52,10 @@ LIMIT 500;
 WITH numbered AS (
   SELECT ml.id, row_number() OVER (ORDER BY ml.created_at, ml.id)::int AS number
   FROM meeting_speaker_labels ml WHERE ml.meeting_id = sqlc.arg('meeting_id')
+    AND (ml.label_key NOT LIKE 'upload:%' OR split_part(ml.label_key, ':', 2) IN (
+    SELECT DISTINCT ON (t.file_id) t.id FROM meeting_transcriptions t
+    WHERE t.meeting_id = ml.meeting_id AND t.status = 'COMPLETE'
+    ORDER BY t.file_id, t.completed_at DESC, t.id DESC))
 )
 SELECT l.*, n.number,
   COALESCE(u.display_name, '')::text AS user_name,
@@ -63,12 +73,16 @@ WHERE l.id = sqlc.arg('id') AND l.meeting_id = sqlc.arg('meeting_id');
 -- name: ListMeetingSpeakerNames :many
 -- tenant: parent meeting_id
 -- Every label's number and, when assigned, the name a transcript line shows.
-SELECT l.label_key,
-  row_number() OVER (ORDER BY l.created_at, l.id)::int AS number,
-  COALESCE(NULLIF(l.name, ''), u.display_name, '')::text AS name
-FROM meeting_speaker_labels l
-LEFT JOIN users u ON u.id = l.user_id
-WHERE l.meeting_id = $1;
+SELECT ml.label_key,
+  row_number() OVER (ORDER BY ml.created_at, ml.id)::int AS number,
+  COALESCE(NULLIF(ml.name, ''), u.display_name, '')::text AS name
+FROM meeting_speaker_labels ml
+LEFT JOIN users u ON u.id = ml.user_id
+WHERE ml.meeting_id = $1
+  AND (ml.label_key NOT LIKE 'upload:%' OR split_part(ml.label_key, ':', 2) IN (
+    SELECT DISTINCT ON (t.file_id) t.id FROM meeting_transcriptions t
+    WHERE t.meeting_id = ml.meeting_id AND t.status = 'COMPLETE'
+    ORDER BY t.file_id, t.completed_at DESC, t.id DESC));
 
 -- name: LockMeetingSpeakerLabel :one
 -- tenant: parent meeting_id

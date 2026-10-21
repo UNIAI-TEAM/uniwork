@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"testing"
 	"time"
@@ -17,6 +18,7 @@ import (
 	authpkg "github.com/unicomhub/uniwork/server/internal/auth"
 	"github.com/unicomhub/uniwork/server/internal/config"
 	"github.com/unicomhub/uniwork/server/internal/emailhub/imapclient"
+	"github.com/unicomhub/uniwork/server/internal/files"
 	"github.com/unicomhub/uniwork/server/internal/files/filesfake"
 	"github.com/unicomhub/uniwork/server/internal/mail"
 	"github.com/unicomhub/uniwork/server/internal/meetings"
@@ -1801,6 +1803,34 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				t.Fatal(err)
 			}
 		},
+		// UNI-2001: the host records a meeting held without a room.
+		audit.ActionMeetingHeldRecorded: func(t *testing.T, f *auditFixture) {
+			auditHeldMeeting(t, f)
+		},
+		// UNI-2001: a clerk queues an uploaded recording for transcription.
+		audit.ActionMeetingTranscriptionRequested: func(t *testing.T, f *auditFixture) {
+			auditTranscription(t, f, nil)
+		},
+		// UNI-2001: the worker lands the finished job.
+		audit.ActionMeetingTranscriptionCompleted: func(t *testing.T, f *auditFixture) {
+			s, _ := auditTranscription(t, f, nil)
+			for range 2 { // submit, then the poll that finds it done
+				auditTranscriptionDue(t, f)
+				if err := s.runTranscriptions(f.ctx); err != nil {
+					t.Fatal(err)
+				}
+			}
+		},
+		// UNI-2001: the vendor refused the job three times.
+		audit.ActionMeetingTranscriptionFailed: func(t *testing.T, f *auditFixture) {
+			s, _ := auditTranscription(t, f, errors.New("vendor down"))
+			for range transcriptionMaxAttempts {
+				auditTranscriptionDue(t, f)
+				if err := s.runTranscriptions(f.ctx); err != nil {
+					t.Fatal(err)
+				}
+			}
+		},
 		// UNI-1237: the provider refused the mailbox's credential; it needs reconnect.
 		audit.ActionEmailHubAccountAuthFailed: func(t *testing.T, f *auditFixture) {
 			f.build(t)
@@ -2070,6 +2100,10 @@ func auditActions() []string {
 		audit.ActionMeetingScribeToggled,
 		audit.ActionMeetingSharedMicToggled,
 		audit.ActionMeetingSpeakerLabelAssigned,
+		audit.ActionMeetingHeldRecorded,
+		audit.ActionMeetingTranscriptionRequested,
+		audit.ActionMeetingTranscriptionCompleted,
+		audit.ActionMeetingTranscriptionFailed,
 		audit.ActionOrganizationMcpPolicyChanged,
 		audit.ActionOrganizationMcpWritePolicyChanged,
 		audit.ActionOrganizationAskModelsChanged,
@@ -2077,6 +2111,57 @@ func auditActions() []string {
 }
 
 const auditPassword = "password123"
+
+// auditHeldMeeting records a scheduled meeting as held an hour ago.
+func auditHeldMeeting(t *testing.T, f *auditFixture) (*MeetingService, db.Meeting) {
+	t.Helper()
+	w := f.build(t)
+	s := NewMeetingService(f.pool, f.q, f.ws, NopPublisher{}, &meetings.FakeProvider{}, MeetingRuntime{TokenTTL: time.Minute, HMACKey: []byte("t")})
+	start := time.Now().Add(time.Hour).Truncate(time.Second)
+	m, err := s.Create(f.ctx, f.owner.ID, w.ID, CreateMeetingInput{Title: "Audit", StartsAt: start, EndsAt: start.Add(time.Hour)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	held := time.Now().Add(-2 * time.Hour)
+	if m, err = s.RecordHeld(f.ctx, f.owner.ID, m.ID, held, held.Add(time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	return s, m
+}
+
+// auditTranscription queues one uploaded minute of a held meeting with the
+// fake vendor, which fails every submit with submitErr when set.
+func auditTranscription(t *testing.T, f *auditFixture, submitErr error) (*MeetingService, *provider.FakeFileTranscriber) {
+	t.Helper()
+	s, m := auditHeldMeeting(t, f)
+	fs := filesfake.New(filesfake.Options{})
+	s.SetFiles(fs)
+	s.SetFlags(mcpFlagsExcept{})
+	vendor := &provider.FakeFileTranscriber{SubmitErr: submitErr}
+	s.AI = ai.NewGateway(f.q, nil, nil, nil, ai.Options{Cloud: ai.CloudTools{MeetingTranscriber: vendor}})
+	if _, err := f.pool.Exec(f.ctx, `UPDATE subscriptions SET overrides = COALESCE(overrides, '{}'::jsonb) || '{"meeting.transcription": 100}'::jsonb WHERE organization_id = $1`, m.OrganizationID); err != nil {
+		t.Fatal(err)
+	}
+	up, err := fs.Upload(f.ctx, files.UploadInput{
+		Actor: audit.User(f.owner.ID), Purpose: files.MeetingAudio, IdempotencyKey: util.NewID(), Filename: "hop.mp3",
+		Scope: files.Scope{OrganizationID: m.OrganizationID, WorkspaceID: m.WorkspaceID}, Body: bytes.NewReader(mp3(60, "audit")),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	seedMeetingAudioSession(t, f.pool, m, f.owner.ID, string(up.File.ID))
+	if _, err := s.RequestTranscription(f.ctx, f.owner.ID, m.ID, TranscriptionRequest{UploadID: string(up.File.ID), Consent: true}); err != nil {
+		t.Fatal(err)
+	}
+	return s, vendor
+}
+
+func auditTranscriptionDue(t *testing.T, f *auditFixture) {
+	t.Helper()
+	if _, err := f.pool.Exec(f.ctx, `UPDATE meeting_transcriptions SET next_attempt_at = now() - interval '1 second' WHERE organization_id = $1`, f.orgID); err != nil {
+		t.Fatal(err)
+	}
+}
 
 type auditFixture struct {
 	ctx     context.Context

@@ -22,10 +22,14 @@ const (
 	// The system summarized an ended meeting (UNI-2026, scribe spec §4.5): it
 	// replaces the reminder for that meeting.
 	KindMeetingSummaryReady = "meeting_summary_ready"
-	KindMemberAdded         = "member_added"
-	KindRoleChanged         = "role_changed"
-	KindAuditExportReady    = "audit_export_ready"
-	KindChatFollowUp        = "chat_follow_up"
+	// An uploaded meeting recording was transcribed, or failed for good
+	// (UNI-2001, parent spec §8.3): sent to the clerk who asked.
+	KindMeetingTranscriptReady  = "meeting_transcript_ready"
+	KindMeetingTranscriptFailed = "meeting_transcript_failed"
+	KindMemberAdded             = "member_added"
+	KindRoleChanged             = "role_changed"
+	KindAuditExportReady        = "audit_export_ready"
+	KindChatFollowUp            = "chat_follow_up"
 	// A chat reminder came due (H16), fired by the server's reminder worker.
 	KindChatReminder    = "chat_reminder"
 	KindEmailHubNewMail = "email_hub_new_mail"
@@ -80,6 +84,7 @@ const (
 var Kinds = []string{
 	KindTaskAssigned, KindTasksAssigned, KindTaskStatusChanged, KindTaskCommented, KindMentioned,
 	KindMeetingInvited, KindMeetingStarting, KindMeetingSummaryReminder, KindMeetingSummaryReady,
+	KindMeetingTranscriptReady, KindMeetingTranscriptFailed,
 	KindMemberAdded, KindRoleChanged, KindAuditExportReady, KindChatFollowUp, KindChatReminder, KindEmailHubNewMail,
 	KindDocumentCommented, KindDocumentMentioned, KindDocumentBodyMentioned,
 	KindDocumentCommentReplied, KindDocumentDiscussionMentioned, KindDocumentDiscussionReplied, KindDocumentCommentResolved,

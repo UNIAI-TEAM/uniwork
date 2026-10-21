@@ -1,6 +1,6 @@
 "use client";
 import { useState, type ReactNode } from "react";
-import { Ban, CalendarX2, Pencil, PhoneOff, RotateCcw } from "lucide-react";
+import { Ban, CalendarX2, MessageCircleQuestionMark, Pencil, PhoneOff, RotateCcw } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import {
   displayMeetingStatus,
@@ -15,6 +15,7 @@ import {
   useRestoreMeeting,
   useStartMeeting,
 } from "@uniwork/core/meetings";
+import { useAiCapabilities } from "@uniwork/core/ai";
 import { paths } from "@uniwork/core/paths";
 import { useMeetingClerk } from "@uniwork/core/meetings/attendance";
 import { useMeetingMinutesEnabled } from "@uniwork/core/meetings/minutes";
@@ -25,6 +26,7 @@ import { toast } from "sonner";
 import { Button, buttonVariants } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
 import { ConfirmDialog } from "../common/form-dialog";
+import { PanelCard } from "../common/panel-card";
 import { toastApiError } from "../toast-api-error";
 import { AppLink } from "../navigation";
 import { BreadcrumbHeader } from "../layout/breadcrumb-header";
@@ -32,6 +34,7 @@ import { CollectionPageHeaderAction, CollectionPageState } from "../layout/colle
 import { useWorkspace } from "../layout/workspace-context";
 import { MeetingActivityTimeline } from "./meeting-activity-timeline";
 import { MeetingAttendanceCard } from "./meeting-attendance-card";
+import { MeetingAskBox } from "./meeting-copilot/meeting-ask-box";
 import { MeetingDetailAside, MeetingDetailRoster } from "./meeting-detail-aside";
 import { MeetingDetailHero } from "./meeting-detail-hero";
 import { MeetingEditDialog } from "./meeting-edit-dialog";
@@ -74,6 +77,7 @@ export function MeetingDetailView({
   const { memberOf } = useMemberIndex(workspaceId);
   const nowMs = useNow();
   const { data: activity } = useMeetingActivity(meetingId);
+  const { data: aiCaps } = useAiCapabilities(workspaceId);
   const { canHost, canCancel } = useMeetingPermissions(meeting ?? null, workspaceId);
   // Host, secretary or workspace admin: the summary and the action items (spec D3).
   const { isClerk } = useMeetingClerk(meeting ?? null, workspaceId);
@@ -285,6 +289,14 @@ export function MeetingDetailView({
               {(scheduled || inProgress) && meeting.project_id ? (
                 <div className="order-3 min-w-0 empty:hidden">
                   <MeetingCarriedOverSection workspaceId={workspaceId} meetingId={meeting.id} />
+                </div>
+              ) : null}
+              {showSummary && aiCaps?.ask_uni ? (
+                <div className="order-3 min-w-0">
+                  <PanelCard title={t("meetings.askUniTitle")} icon={MessageCircleQuestionMark}>
+                    {/* Chat takes a message only from someone in the room. */}
+                    <MeetingAskBox workspaceId={workspaceId} meetingId={meetingId} canShare={inProgress && Boolean(myParticipant)} />
+                  </PanelCard>
                 </div>
               ) : null}
               {/* The roll is working space while the meeting runs, so it gets the wide column. */}

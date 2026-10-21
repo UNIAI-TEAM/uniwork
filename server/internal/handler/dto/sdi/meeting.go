@@ -171,6 +171,11 @@ type CreateSummarySDI struct {
 	Locale string `json:"locale" description:"Ngôn ngữ đầu ra: vi | en; bỏ trống hoặc giá trị khác = vi" example:"vi"`
 }
 
+// MeetingCatchUpSDI is POST /api/v1/meetings/{meetingID}/catch-up (scribe spec §5.1, B7).
+type MeetingCatchUpSDI struct {
+	Locale string `json:"locale" description:"Ngôn ngữ đầu ra: vi | en; bỏ trống hoặc giá trị khác = vi" example:"vi"`
+}
+
 type SummaryTaskItemSDI struct {
 	Title       string  `json:"title" minLength:"1" example:"Gửi báo cáo sprint"`
 	Description string  `json:"description"`
@@ -256,4 +261,27 @@ type CastBallotSDI struct {
 // CreateMinutesSDI is POST /api/v1/meetings/{meetingID}/minutes.
 type CreateMinutesSDI struct {
 	Locale string `json:"locale" description:"Ngôn ngữ biên bản: vi | en; bỏ trống hoặc giá trị khác = vi" example:"vi"`
+}
+
+// RecordMeetingHeldSDI is POST /api/v1/meetings/{meetingID}/held: the actual
+// times of a meeting held in person without a room (UNI-2001).
+type RecordMeetingHeldSDI struct {
+	StartedAt string `json:"started_at" format:"date-time" description:"Giờ bắt đầu thực tế (RFC 3339)" example:"2026-10-20T01:30:00Z"`
+	EndedAt   string `json:"ended_at" format:"date-time" description:"Giờ kết thúc thực tế; sau started_at và không ở tương lai" example:"2026-10-20T03:00:00Z"`
+}
+
+// RequestTranscriptionSDI is POST /api/v1/meetings/{meetingID}/transcriptions.
+type RequestTranscriptionSDI struct {
+	UploadID string `json:"upload_id" description:"upload_id do POST /upload-sessions/{sessionID}/complete trả về cho phiên tải purpose meeting_audio" example:"01JA09K3N1P2Q3R4S5T6U7V8"`
+	Language string `json:"language,omitempty" enum:"vi,en" description:"Ngôn ngữ chính của buổi họp; bỏ trống = vi" example:"vi"`
+	Consent  bool   `json:"consent" description:"Người tải lên xác nhận đã thông báo cho người dự họp về việc ghi âm (Nghị định 13/2023/NĐ-CP); false -> 422 recording_consent_required" example:"true"`
+}
+
+// CreateMeetingAudioUploadSessionSDI is POST
+// /api/v1/meetings/{meetingID}/audio-upload-sessions: the shared large upload
+// session for a meeting recording (purpose meeting_audio, UNI-2001).
+type CreateMeetingAudioUploadSessionSDI struct {
+	Filename  string                `json:"filename" description:"Tên tệp ghi âm" example:"hop-chi-bo.m4a"`
+	SizeBytes int64                 `json:"size_bytes" description:"Kích thước tệp (byte), tối đa 2 GiB (413 file_too_large); không có ngưỡng dưới" example:"28800000"`
+	Probe     UploadSessionProbeSDI `json:"probe" description:"head_b64 là đúng min(size_bytes, 64 KiB) byte đầu tệp; loại tệp đọc từ đó phải là âm thanh mp3, m4a, wav, ogg hoặc webm (415 khác đi). Các trường central directory bị bỏ qua"`
 }

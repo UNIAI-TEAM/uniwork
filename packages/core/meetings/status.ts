@@ -21,6 +21,8 @@ const ACTIVITY_KEYS: Record<string, string> = {
   MEETING_CREATED: "meetings.activity_created",
   MEETING_STARTED: "meetings.activity_started",
   MEETING_ENDED: "meetings.activity_ended",
+  MEETING_RECORDED_HELD: "meetings.activity_recorded_held",
+  TRANSCRIPTION_COMPLETED: "meetings.activity_transcription_completed",
   MEETING_CANCELED: "meetings.activity_canceled",
   MEETING_RESTORED: "meetings.activity_restored",
   MEETING_UPDATED: "meetings.activity_updated",

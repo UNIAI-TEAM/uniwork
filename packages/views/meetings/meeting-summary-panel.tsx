@@ -14,6 +14,7 @@ import { cn } from "@uniwork/ui/lib/utils";
 import { MeetingDecisionsBlock } from "./meeting-decisions-block";
 import { MeetingFeedLoadOlder } from "./meeting-feed-load-older";
 import { MeetingRecordingDialog } from "./meeting-recording-dialog";
+import { MeetingRecordingUploadButton, MeetingTranscriptionStatus } from "./meeting-recording-upload";
 import { PanelCard } from "../common/panel-card";
 import { MeetingSectionError, MeetingTextSkeleton } from "./meeting-section-state";
 import { MeetingSpeakerLabelsButton } from "./meeting-speaker-labels-dialog";
@@ -130,7 +131,11 @@ export function MeetingSummaryPanel({
               }
             />
             {canClerk ? <MeetingSpeakerLabelsButton meetingId={meetingId} workspaceId={workspaceId} /> : null}
+            {canClerk && meeting.status === "ENDED" ? (
+              <MeetingRecordingUploadButton meetingId={meetingId} workspaceId={workspaceId} />
+            ) : null}
           </div>
+          <MeetingTranscriptionStatus meetingId={meetingId} />
           <CollapsibleContent>
             <ol className="mt-2 max-h-80 space-y-1.5 overflow-y-auto rounded-lg border border-border bg-surface-hover p-3" data-testid="meeting-transcript">
               {olderTranscript.hasOlder ? (

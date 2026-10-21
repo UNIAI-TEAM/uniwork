@@ -33,6 +33,9 @@ type isoReference struct {
 	// docKey names the fixture document the path's {documentID} should name
 	// instead of the default page (for an anchor case, a file document).
 	docKey string
+	// meetingKey does the same for {meetingID} (a meeting held without a
+	// room, for the transcription case).
+	meetingKey string
 	// noControl says why the own-ids request is not sent (it is
 	// destructive, or there is no own counterpart).
 	noControl string
@@ -133,6 +136,9 @@ func (c isoReference) build(w *isoWorld, own, ref *isoTenant) isoBody {
 func (c isoReference) refPath(t *testing.T, tn *isoTenant) (string, bool) {
 	t.Helper()
 	path, ok := isoPath(t, c.pattern, tn)
+	if ok && c.meetingKey != "" {
+		path = strings.Replace(path, tn.ids["meeting"], tn.get(t, c.meetingKey), 1)
+	}
 	if !ok || c.docKey == "" {
 		return path, ok
 	}
@@ -230,6 +236,8 @@ var isoReferences = []isoReference{
 		noControl: "B's peer is already an attendee", covers: []string{"InviteParticipantSDI.user_id"}},
 	{method: "PUT", pattern: "/api/v1/meetings/{meetingID}/speaker-labels/{speakerLabelID}", what: "speaker", body: map[string]any{"user_id": isoRef("peer")},
 		covers: []string{"AssignSpeakerLabelSDI.user_id"}},
+	{method: "POST", pattern: "/api/v1/meetings/{meetingID}/transcriptions", what: "staged recording", meetingKey: "heldMeeting",
+		body: map[string]any{"upload_id": isoRef("meetingAudioUpload"), "language": "vi", "consent": true}, covers: []string{"RequestTranscriptionSDI.upload_id"}},
 	{method: "POST", pattern: "/api/v1/meetings/{meetingID}/host-transfer", what: "new host", body: map[string]any{"new_host_user_id": isoRef("peer")},
 		noControl: "handing B's meeting to B's peer would take the owner's host role for later cases", covers: []string{"HostTransferSDI.new_host_user_id"}},
 	{method: "POST", pattern: "/api/v1/meetings/{meetingID}/join", what: "invite link", body: map[string]any{"invite_link_id": isoRef("inviteLink"), "secret": isoRef("inviteSecret")},

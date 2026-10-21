@@ -349,6 +349,18 @@ const (
 	// cleared it (MeetingService.AssignSpeakerLabel, UNI-2024).
 	ActionMeetingSpeakerLabelAssigned = "meeting.speaker_label_assigned"
 
+	// A host or admin recorded that a meeting was held without a room:
+	// SCHEDULED → ENDED at the reported times (MeetingService.RecordHeld,
+	// UNI-2001).
+	ActionMeetingHeldRecorded = "meeting.held_recorded"
+
+	// An uploaded meeting recording was queued for transcription (metadata
+	// consent_confirmed: the clerk confirmed attendees were told it was
+	// recorded), and the job finished or failed for good (UNI-2001).
+	ActionMeetingTranscriptionRequested = "meeting.transcription_requested"
+	ActionMeetingTranscriptionCompleted = "meeting.transcription_completed"
+	ActionMeetingTranscriptionFailed    = "meeting.transcription_failed"
+
 	ActionAuditExportRequested = "audit.export_requested"
 	ActionAuditExported        = "audit.exported"
 	ActionAuditRetentionSet    = "audit.retention_set"

@@ -245,6 +245,7 @@ func (s *MeetingService) RunWorkers(ctx context.Context) {
 	for range autoSummaryConcurrency {
 		loop("auto_summary", autoSummaryTick, s.claimAutoSummaries)
 	}
+	loop("transcriptions", transcriptionPollInterval, s.runTranscriptions)
 	loop("reconcile", reconcileInterval, func(ctx context.Context) error {
 		return errors.Join(s.ReconcileStaleAttendance(ctx, 50), s.ReconcileProviderDesync(ctx, 50))
 	})

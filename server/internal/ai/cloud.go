@@ -45,6 +45,9 @@ type CloudTools struct {
 	Search      provider.Searcher
 	Images      provider.ImageGenerator
 	Transcriber provider.Transcriber
+	// MeetingTranscriber transcribes uploaded meeting recordings (parent spec
+	// 2026-10-20-meeting-follow-through §7.4).
+	MeetingTranscriber provider.FileTranscriber
 }
 
 // CloudFromEnv reads AI_CLOUD_*_PROVIDER and their keys. An unknown name or a
@@ -80,6 +83,15 @@ func CloudFromEnv(get func(string) string) CloudTools {
 		}
 	case "fake":
 		c.Transcriber = &provider.FakeTranscriber{}
+	}
+	switch name("AI_MEETING_TRANSCRIBE_PROVIDER") {
+	case "byteplus":
+		base, key, res := strings.TrimSpace(get("AI_MEETING_TRANSCRIBE_BASE_URL")), get("AI_MEETING_TRANSCRIBE_API_KEY"), strings.TrimSpace(get("AI_MEETING_TRANSCRIBE_RESOURCE_ID"))
+		if base != "" && key != "" && res != "" {
+			c.MeetingTranscriber = provider.NewBytePlusFileTranscriber(base, key, res)
+		}
+	case "fake":
+		c.MeetingTranscriber = &provider.FakeFileTranscriber{}
 	}
 	return c
 }

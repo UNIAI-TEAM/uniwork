@@ -690,6 +690,7 @@ func main() {
 	askUNI.SetFlags(flags)
 	// The meeting_scribe flag decides per organization whether the AI scribe is dispatched (UNI-2023).
 	meetingSvc.SetFlags(flags)
+	meetingSvc.SetUploads(documentSvc)
 	// Leave, an invitation switch and account deletion revoke the Google
 	// grants of the mailboxes they disconnect.
 	orgMemberSvc.SetEmailHub(emailHubSvc)

@@ -6,7 +6,8 @@ import { MeetingRecordingDialog } from "./meeting-recording-dialog";
 import { useAddNote, useRecordings } from "@uniwork/core/meetings";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Input } from "@uniwork/ui/components/ui/input";
-import { MeetingCopilotFooter } from "./meeting-copilot/meeting-copilot-footer";
+import { MeetingAskBox } from "./meeting-copilot/meeting-ask-box";
+import { MeetingCatchUpCard } from "./meeting-copilot/meeting-catch-up-card";
 import { MeetingCopilotHeader } from "./meeting-copilot/meeting-copilot-header";
 import { MeetingActionItemsSection } from "./meeting-action-items/meeting-action-items-section";
 import { MeetingCarriedOverSection } from "./meeting-action-items/carried-over-section";
@@ -31,6 +32,7 @@ export function MeetingRoomCopilotTab({
   meetingId,
   projectId,
   canClerk,
+  lateMinutes,
 }: {
   workspaceId?: string;
   meetingId: string;
@@ -38,6 +40,8 @@ export function MeetingRoomCopilotTab({
   projectId?: string;
   /** Host, secretary or workspace admin. */
   canClerk: boolean;
+  /** How late this member joined, when late enough for the catch-up card (B7); guests never get one. */
+  lateMinutes?: number | null;
 }) {
   const { t, i18n } = useTranslation();
   const [section, setSection] = useState<CopilotSection>("insights");
@@ -124,6 +128,12 @@ export function MeetingRoomCopilotTab({
 
       {!gen.aiOn && gen.capsLoaded ? (
         <p className="shrink-0 pb-2 text-label text-muted-foreground">{t("meetings.aiUnavailable")}</p>
+      ) : null}
+
+      {workspaceId && lateMinutes ? (
+        <div className="shrink-0 pb-2">
+          <MeetingCatchUpCard meetingId={meetingId} lateMinutes={lateMinutes} />
+        </div>
       ) : null}
 
       <MeetingUnderlineTabs
@@ -263,7 +273,7 @@ export function MeetingRoomCopilotTab({
         ) : null}
       </div>
 
-      <MeetingCopilotFooter />
+      {workspaceId ? <MeetingAskBox workspaceId={workspaceId} meetingId={meetingId} canShare /> : null}
       <SummaryRegenerateConfirm gen={gen} />
       {playbackId ? (
         <MeetingRecordingDialog
