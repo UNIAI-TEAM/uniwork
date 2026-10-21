@@ -25,7 +25,7 @@ const RECORDING_STATUSES = new Set(["ACTIVE", "PROCESSING", "COMPLETE", "FAILED"
  * in the reader's language: the room mic's "Room mic · Speaker n", an uploaded
  * file's plain "Speaker n" (its label key starts with "upload:").
  */
-function transcriptSpeaker(s: MeetingTranscriptSegment, t: ReturnType<typeof useTranslation>["t"]): string {
+export function transcriptSpeaker(s: MeetingTranscriptSegment, t: ReturnType<typeof useTranslation>["t"]): string {
   const upload = s.speaker_label?.startsWith("upload:") === true;
   if (s.room_speaker) return t(upload ? "meetings.fileSpeaker" : "meetings.scribe.speakerLabel", { n: s.room_speaker });
   if (s.speaker_label?.endsWith(":?")) return t(upload ? "meetings.fileSpeakerUnknown" : "meetings.scribe.speakerUnknown");

@@ -141,6 +141,7 @@ export function MeetingSpeakerLabelsDialog({
                       workspaceId={workspaceId}
                       value={d.userId}
                       unassignedLabel={t("meetings.scribe.speakerNotAssigned")}
+                      ariaLabel={`${title} · ${t("meetings.scribe.speakerMember")}`}
                       className="w-full"
                       onChange={(next) => set({ userId: next, name: next ? "" : d.name })}
                     />

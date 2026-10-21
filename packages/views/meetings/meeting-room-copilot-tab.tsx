@@ -22,6 +22,7 @@ import { useSummaryGeneration } from "./meeting-summary/use-summary-generation";
 import { MeetingUnderlineTabs } from "./meeting-underline-tabs";
 import { meetingLocale } from "./meeting-datetime";
 import { MeetingRowsSkeleton, MeetingSectionError, MeetingTextSkeleton } from "./meeting-section-state";
+import { transcriptSpeaker } from "./meeting-transcript-panel";
 
 type CopilotSection = "notes" | "transcript" | "insights" | "actions";
 
@@ -227,7 +228,7 @@ export function MeetingRoomCopilotTab({
               <ol className="space-y-2">
                 {(transcript ?? []).map((s) => (
                   <li key={s.id} className="rounded-lg bg-surface-hover px-2.5 py-2 text-body text-foreground">
-                    <span className="text-caption font-medium text-foreground">{s.speaker_name || "—"}</span>
+                    <span className="text-caption font-medium text-foreground">{transcriptSpeaker(s, t)}</span>
                     <span className="text-muted-foreground"> · </span>
                     {s.text}
                   </li>
