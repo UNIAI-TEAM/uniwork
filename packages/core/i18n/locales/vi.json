@@ -3331,6 +3331,7 @@
     "activity_link_revoked": "đã thu hồi liên kết mời",
     "activity_attendance_finalized": "đã chốt điểm danh",
     "activity_minutes_finalized": "đã chốt biên bản",
+    "activity_minutes_reopened": "đã bỏ chốt biên bản",
     "activity_motion_opened": "đã mở biểu quyết",
     "activity_mic_locked": "đã khóa mic của một người tham gia",
     "activity_mic_unlocked": "đã mở khóa mic của một người tham gia",

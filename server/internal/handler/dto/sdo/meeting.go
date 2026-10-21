@@ -513,7 +513,7 @@ type MeetingMinutesDTO struct {
 	FinalizedVersionID   *string `json:"finalized_version_id" description:"Phiên bản tài liệu đã chốt" example:"01J8X4VER0N1P2Q3R4S5T6U7V8"`
 	FinalizedVersion     *int32  `json:"finalized_version" description:"Số thứ tự phiên bản đã chốt trong lịch sử trang" example:"2"`
 	EditedSinceFinalized bool    `json:"edited_since_finalized" description:"Nội dung trang đã được lưu sau phiên bản đã chốt"`
-	CanEdit              bool    `json:"can_edit" description:"Người gọi có quyền sửa trang (cần cho chốt và bỏ chốt)"`
+	CanEdit              bool    `json:"can_edit" description:"Người gọi có quyền sửa trang và trang không ở kho lưu trữ (cần cho chốt và bỏ chốt)"`
 }
 
 // MeetingMinutesSDO answers GET and the commands of /api/v1/meetings/{meetingID}/minutes.

@@ -78,6 +78,7 @@ const KIND: Record<string, ActivityKind> = {
   RECORDING_STOPPED: "recording",
   ATTENDANCE_FINALIZED: "governance",
   MINUTES_FINALIZED: "governance",
+  MINUTES_REOPENED: "governance",
   MOTION_OPENED: "governance",
   MOTION_CLOSED: "governance",
   PARTICIPANT_PUBLISH_REVOKED: "moderation",

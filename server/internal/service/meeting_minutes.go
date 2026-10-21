@@ -50,7 +50,8 @@ type MeetingMinutes struct {
 	FinalizedVersion int32
 	// EditedSinceFinalized: the page's content was saved after that version.
 	EditedSinceFinalized bool
-	// CanEdit is the caller's level on the page, edit or more.
+	// CanEdit is the caller's level on the page, edit or more, on a page
+	// that is not shelved (a shelved page refuses finalize and reopen).
 	CanEdit bool
 	// Readable is false for a member who may not read the page (it was made
 	// private since): the meeting still says it has minutes and whether they
@@ -125,7 +126,7 @@ func (s *MeetingService) describeMinutes(ctx context.Context, userID string, m d
 	if err != nil {
 		return nil, err
 	}
-	out.CanEdit = level.AtLeast(DocumentLevelEdit)
+	out.CanEdit = level.AtLeast(DocumentLevelEdit) && !doc.ShelvedAt.Valid
 	out.Readable = level.AtLeast(DocumentLevelView)
 	if !out.Readable {
 		out.DocumentID, out.FinalizedVersionID, out.FinalizedVersion, out.EditedSinceFinalized = "", "", 0, false
@@ -224,6 +225,9 @@ func (s *MeetingService) ReopenMinutes(ctx context.Context, userID, meetingID st
 			return nil
 		}
 		if err := q.ReopenMeetingMinutes(ctx, db.ReopenMeetingMinutesParams{ID: m.ID, OrganizationID: m.OrganizationID}); err != nil {
+			return err
+		}
+		if err := s.writeAudit(ctx, q, m, "MINUTES_REOPENED", userID, "", "", "{}"); err != nil {
 			return err
 		}
 		return s.recordMinutes(ctx, q, m, userID, audit.ActionMeetingMinutesReopened, "minutes.reopened", doc.ID,

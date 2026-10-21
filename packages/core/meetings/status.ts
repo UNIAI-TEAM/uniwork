@@ -41,6 +41,7 @@ const ACTIVITY_KEYS: Record<string, string> = {
   CONFERENCE_SESSION_ENDED: "meetings.activity_session_ended",
   ATTENDANCE_FINALIZED: "meetings.activity_attendance_finalized",
   MINUTES_FINALIZED: "meetings.activity_minutes_finalized",
+  MINUTES_REOPENED: "meetings.activity_minutes_reopened",
 };
 
 export function activityLabelKey(eventType: string): string {

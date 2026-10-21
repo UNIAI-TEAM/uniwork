@@ -66,6 +66,13 @@ func TestCreateMinutes(t *testing.T) {
 
 	_, err := s.CreateMinutes(ctx, uc.ID, m.ID, "vi")
 	wantCode(t, err, "not_meeting_clerk")
+	// The time line is the meeting's actual times on its own clock, never the
+	// scheduled ones and never UTC.
+	if _, err := s.pool.Exec(ctx, `UPDATE meetings SET timezone = 'Asia/Ho_Chi_Minh',
+		starts_at = '2026-10-20T01:00:00Z', ends_at = '2026-10-20T02:00:00Z',
+		actual_start_at = '2026-10-20T02:05:00Z', actual_end_at = '2026-10-20T03:40:00Z' WHERE id = $1`, m.ID); err != nil {
+		t.Fatal(err)
+	}
 	// The secretary clerks: the minutes are theirs to make.
 	got, err := s.CreateMinutes(ctx, ub.ID, m.ID, "vi")
 	if err != nil {
@@ -81,7 +88,7 @@ func TestCreateMinutes(t *testing.T) {
 	if !strings.HasPrefix(doc.Title, "Biên bản: Giao ban (") || doc.ParentID.Valid || doc.Visibility != "workspace" {
 		t.Fatalf("page = %q parent=%v visibility=%q", doc.Title, doc.ParentID, doc.Visibility)
 	}
-	for _, want := range []string{"Chủ trì", "Nhóm chốt ngân sách.", "Chốt ngân sách quý 4", "Người được mời"} {
+	for _, want := range []string{"09:05 – 10:40 (GMT+7), 20/10/2026", "Chủ trì", "Nhóm chốt ngân sách.", "Chốt ngân sách quý 4", "Người được mời"} {
 		if !strings.Contains(doc.ContentText, want) {
 			t.Errorf("page text lacks %q:\n%s", want, doc.ContentText)
 		}
@@ -245,4 +252,35 @@ func TestFinalizeMinutes(t *testing.T) {
 	if n := countRows(t, s, `SELECT count(*) FROM outbox_events WHERE topic = 'minutes.reopened' AND payload::jsonb->>'meeting_id' = $1`, m.ID); n != 1 {
 		t.Fatalf("minutes.reopened events = %d", n)
 	}
+	// The meeting's timeline says so too, or it would still read "finalized".
+	if n := countRows(t, s, `SELECT count(*) FROM meeting_audit_logs WHERE meeting_id = $1 AND event_type = 'MINUTES_REOPENED' AND actor_id = $2`, m.ID, ub.ID); n != 1 {
+		t.Fatalf("reopened timeline rows = %d", n)
+	}
+	// Reopening a draft writes nothing.
+	if _, err := s.ReopenMinutes(ctx, ub.ID, m.ID); err != nil {
+		t.Fatal(err)
+	}
+	if n := countRows(t, s, `SELECT count(*) FROM meeting_audit_logs WHERE meeting_id = $1 AND event_type = 'MINUTES_REOPENED'`, m.ID); n != 1 {
+		t.Fatalf("reopened timeline rows after a no-op = %d", n)
+	}
+}
+
+// A shelved minutes page is read-only: the meeting does not offer finalize
+// or reopen, which the page would refuse.
+func TestShelvedMinutesCannotBeEdited(t *testing.T) {
+	s, ua, _, _, m := minutesFixture(t)
+	ctx := context.Background()
+	made, err := s.CreateMinutes(ctx, ua.ID, m.ID, "vi")
+	if err != nil || !made.CanEdit {
+		t.Fatalf("made = %+v %v", made, err)
+	}
+	if _, err := s.Docs.ShelveDocument(ctx, Human(ua.ID), made.DocumentID, ArchiveDocumentInput{}); err != nil {
+		t.Fatal(err)
+	}
+	v, err := s.Minutes(ctx, ua.ID, m.ID)
+	if err != nil || v == nil || v.CanEdit || !v.Readable {
+		t.Fatalf("shelved minutes = %+v %v", v, err)
+	}
+	_, err = s.FinalizeMinutes(ctx, ua.ID, m.ID)
+	wantCode(t, err, "document_shelved")
 }

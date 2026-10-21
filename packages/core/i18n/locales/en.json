@@ -3332,6 +3332,7 @@
     "activity_link_revoked": "revoked an invite link",
     "activity_attendance_finalized": "finalized attendance",
     "activity_minutes_finalized": "finalized the minutes",
+    "activity_minutes_reopened": "reopened the minutes",
     "activity_motion_opened": "opened voting",
     "activity_mic_locked": "locked a participant's mic",
     "activity_mic_unlocked": "unlocked a participant's mic",
