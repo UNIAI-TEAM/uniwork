@@ -1,0 +1,4 @@
+$ node scripts/office/build-upstream.mjs > /tmp/pr7r6-upstream.log 2>&1; rc=$?; tail -15 /tmp/pr7r6-upstream.log; echo; echo "UPSTREAM_BUILD_EXIT=$rc"
+{"ok":true,"record":"/workspace/.go-tmp/office-upstream-build/build-record.json"}
+
+UPSTREAM_BUILD_EXIT=0
