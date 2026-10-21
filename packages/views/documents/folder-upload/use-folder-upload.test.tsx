@@ -214,6 +214,13 @@ describe("useFolderUpload", () => {
     expect(await screen.findByText("Lượt tải này không khớp với lần trước. Hãy chọn lại tệp.")).toBeInTheDocument();
   });
 
+  it("counts a queued files run as an upload, not a folder", async () => {
+    setup();
+    stage(entries("Một", ["a.pdf"]));
+    act(() => hook.addFiles([pdf("a.pdf"), pdf("b.pdf")]));
+    expect(await screen.findByText("Còn 1 lượt tải lên đang chờ.")).toBeInTheDocument();
+  });
+
   it("refuses files that would sit deeper than the depth limit, in the dialog", async () => {
     setup({ limits: { ...WITH_FOLDERS, folder_upload: { ...WITH_FOLDERS.folder_upload!, max_depth: 2 } } });
     act(() => hook.addFiles([pdf("a.pdf"), pdf("b.pdf")]));

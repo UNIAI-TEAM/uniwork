@@ -10041,7 +10041,7 @@
         "cancel": "Hủy",
         "submit": "Tải lên",
         "submitting": "Đang chuẩn bị…",
-        "queue_more": "Còn {{count}} thư mục đang chờ.",
+        "queue_more": "Còn {{count}} lượt tải lên đang chờ.",
         "waiting": "Máy chủ đang bận, sẽ tự thử lại sau ít giây…"
       },
       "skip_reason": {
@@ -10110,15 +10110,28 @@
           "untrusted_target": "Địa chỉ tải lên không hợp lệ nên đã bị chặn. Hãy tải lại thư mục; nếu vẫn lỗi, báo quản trị viên.",
           "untrusted_target_files": "Địa chỉ tải lên không hợp lệ nên đã bị chặn. Hãy tải lại tệp; nếu vẫn lỗi, báo quản trị viên.",
           "aborted": "Lượt tải tệp này đã bị dừng. Thử lại các tệp lỗi.",
-          "folder_upload_file_settled": "Tệp này đã được xử lý trước đó nên không tải lên lại được.",
-          "folder_upload_target_signed": "Tệp này cần một đường dẫn tải lên khác với đường dẫn ứng dụng đã dùng. Hãy tải lại thư mục.",
-          "folder_upload_target_signed_files": "Tệp này cần một đường dẫn tải lên khác với đường dẫn ứng dụng đã dùng. Hãy tải lại tệp.",
-          "unknown": "Không tải lên được tệp này."
+          "folder_upload_file_settled": "Máy chủ chưa xác nhận được tệp này. Thử lại các tệp lỗi.",
+          "folder_upload_target_signed": "Không kết nối được kho lưu trữ. Thử lại các tệp lỗi.",
+          "unknown": "Không tải lên được tệp này.",
+          "upload_session_busy": "Máy chủ đang kiểm tra tệp này ở một yêu cầu khác. Thử lại các tệp lỗi sau ít phút."
         },
         "expired_note": "Lượt tải lên đã hết hạn nên không thử lại được. Hãy tải lại thư mục.",
         "expired_note_files": "Lượt tải lên đã hết hạn nên không thử lại được. Hãy tải lại tệp.",
         "final_hint": "Sửa tệp rồi tải lại thư mục.",
-        "final_hint_files": "Sửa rồi tải lại tệp."
+        "final_hint_files": "Sửa rồi tải lại tệp.",
+        "reason_no_retry": {
+          "network": "Mất kết nối khi tải tệp này.",
+          "target_expired": "Liên kết tải lên của tệp này đã hết hạn.",
+          "http_5xx": "Máy chủ tạm thời không phản hồi.",
+          "missing_part_url": "Thiếu địa chỉ tải lên cho một phần của tệp lớn.",
+          "aborted": "Lượt tải tệp này đã bị dừng.",
+          "parts_invalid": "Các phần của tệp lớn không khớp.",
+          "upload_session_busy": "Máy chủ đang kiểm tra tệp này ở một yêu cầu khác.",
+          "folder_upload_file_settled": "Máy chủ chưa xác nhận được tệp này.",
+          "folder_upload_target_signed": "Không kết nối được kho lưu trữ."
+        },
+        "reupload_hint": "Hãy tải lại thư mục để thêm các tệp này.",
+        "reupload_hint_files": "Hãy tải lại các tệp này."
       },
       "retry_toast": {
         "progress": "Đang thử lại «{{name}}» — {{done}}/{{total}} tệp",
@@ -10137,9 +10150,8 @@
         "document_too_deep_files": "Thư mục đích đã lồng quá sâu — tối đa {{max}} cấp.",
         "document_parent_kind": "Không thể tải vào mục này. Hãy chọn một thư mục.",
         "invalid_request": "Tên tệp hoặc thư mục không hợp lệ. Hãy đổi tên rồi thử lại.",
-        "folder_upload_file_settled": "Tệp này đã được xử lý trước đó nên không tải lên lại được.",
-        "folder_upload_target_signed": "Tệp này cần một đường dẫn tải lên khác với đường dẫn ứng dụng đã dùng. Hãy tải lại thư mục.",
-        "folder_upload_target_signed_files": "Tệp này cần một đường dẫn tải lên khác với đường dẫn ứng dụng đã dùng. Hãy tải lại tệp.",
+        "folder_upload_file_settled": "Máy chủ chưa xác nhận được tệp. Thử lại sau ít phút.",
+        "folder_upload_target_signed": "Không kết nối được kho lưu trữ. Thử lại sau ít phút.",
         "invalid_request_named": "Tên «{{file}}» không hợp lệ. Hãy đổi tên rồi thử lại.",
         "folder_uploads_busy": "Đang có quá nhiều lượt tải thư mục. Hãy thử lại sau ít phút.",
         "folder_uploads_busy_files": "Đang có quá nhiều lượt tải lên. Hãy thử lại sau ít phút.",

@@ -52,6 +52,14 @@ describe("runErrorMessage", () => {
     );
   });
 
+  it("never prints a bare file_key (AMENDMENT 6): only file_key reads as the unnamed sentence", () => {
+    for (const code of ["invalid_request", "folder_upload_file_too_large", "folder_upload_unsupported_type"]) {
+      const message = runErrorMessage(t, refused(code, { file_key: "f-0007", max_bytes: 1024 }), "vi");
+      expect(message, code).toBe(runErrorMessage(t, refused(code, { max_bytes: 1024 }), "vi"));
+      expect(message, code).not.toContain("f-0007");
+    }
+  });
+
   it("names the file of a refusal that carries fields.path or fields.filename", () => {
     const invalid = runErrorMessage(t, refused("invalid_request", { path: "Báo cáo/a:b.pdf" }), "vi");
     expect(invalid).toContain("Báo cáo/a:b.pdf");
@@ -143,17 +151,31 @@ describe("failureReasonMessage", () => {
     }
   });
 
-  it("has final sentences for the AMENDMENT 4 content-PUT codes", () => {
+  it("reads the AMENDMENT 4 content-PUT codes as retryable (core 64c6520aa)", () => {
     const generic = failureReasonMessage(t, "no_such_code");
-    for (const code of ["folder_upload_file_settled", "folder_upload_target_signed"]) {
+    for (const code of ["folder_upload_file_settled", "folder_upload_target_signed", "upload_session_busy"]) {
       expect(failureReasonMessage(t, code), code).not.toBe(generic);
-      expect(en(`documents.folder_upload.report.reason.${code}`), code).not.toBe(
-        en("documents.folder_upload.report.reason.unknown"),
-      );
+      expect(failureReasonMessage(t, code), code).toContain("Thử lại các tệp lỗi");
+      expect(failureReasonMessage(en, code), code).toContain("Retry the failed files");
+      // Nothing about re-uploading: the runner retries them.
+      expect(failureReasonMessage(t, code), code).not.toMatch(/tải lại thư mục|không tải lên lại được/);
     }
-    expect(failureReasonMessage(t, "folder_upload_file_settled")).toContain("đã được xử lý");
-    expect(failureReasonMessage(t, "folder_upload_target_signed")).toContain("tải lại thư mục");
-    expect(en("documents.folder_upload.report.reason.folder_upload_target_signed")).toContain("Upload the folder again");
+    expect(failureReasonMessage(t, "folder_upload_target_signed")).toContain("kho lưu trữ");
+    expect(failureReasonMessage(en, "folder_upload_target_signed")).toContain("storage");
+    expect(runErrorMessage(t, refused("folder_upload_target_signed"), "vi")).not.toMatch(/tải lại thư mục/);
+    expect(runErrorMessage(t, refused("folder_upload_file_settled"), "vi")).not.toMatch(/không tải lên lại được/);
+  });
+
+  it("points at no retry button when the report cannot retry (R2-3)", () => {
+    for (const code of ["network", "target_expired", "http_5xx", "http_503", "missing_part_url", "aborted", "parts_invalid", "upload_session_busy", "folder_upload_file_settled", "folder_upload_target_signed"]) {
+      for (const tt of [t, en]) {
+        const message = failureReasonMessage(tt, code, undefined, "folder", false);
+        expect(message, code).not.toMatch(/Thử lại|Retry|Try again/);
+        expect(message, code).not.toBe(failureReasonMessage(tt, "no_such_code"));
+      }
+    }
+    // A final sentence keeps its own advice.
+    expect(failureReasonMessage(t, "storage_quota_exceeded", undefined, "folder", false)).toContain("tải lại thư mục");
   });
 
   it("says why an unsupported_media file was refused when the server gave a reason", () => {
@@ -190,7 +212,7 @@ describe("refusalMessage", () => {
 // ADDENDUM 2 A7: a files-mode run has no folder, so no sentence may tell the
 // person to upload "the folder" again; the folder mode keeps its sentences.
 describe("files-mode copy", () => {
-  const FINAL = ["unsupported_media", "storage_quota_exceeded", "not_found", "untrusted_target", "folder_upload_target_signed"];
+  const FINAL = ["unsupported_media", "storage_quota_exceeded", "not_found", "untrusted_target"];
   const RUN = [
     "folder_upload_target_signed",
     "idempotency_payload_mismatch",

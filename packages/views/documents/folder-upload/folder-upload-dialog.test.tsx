@@ -181,9 +181,9 @@ describe("FolderUploadDialog", () => {
     expect(onSubmit).not.toHaveBeenCalled();
   });
 
-  it("tells how many folders still wait behind this one", () => {
+  it("tells how many uploads still wait behind this one, folders and files alike", () => {
     renderDialog({ queued: 2 });
-    expect(screen.getByText("Còn 2 thư mục đang chờ.")).toBeInTheDocument();
+    expect(screen.getByText("Còn 2 lượt tải lên đang chờ.")).toBeInTheDocument();
   });
 
   it("says the server is busy while the run waits out Retry-After", () => {

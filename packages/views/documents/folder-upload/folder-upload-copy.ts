@@ -117,7 +117,21 @@ const FAILURE_CODES = [
   "aborted",
   "folder_upload_file_settled",
   "folder_upload_target_signed",
+  "upload_session_busy",
 ] as const;
+
+// Sentences that end in "Thử lại các tệp lỗi": a report that cannot retry reads their `reason_no_retry` form (R2-3).
+const RETRY_POINTING = new Set([
+  "network",
+  "target_expired",
+  "http_5xx",
+  "missing_part_url",
+  "aborted",
+  "parts_invalid",
+  "upload_session_busy",
+  "folder_upload_file_settled",
+  "folder_upload_target_signed",
+]);
 
 // Reasons the server gives beside `unsupported_media`; one it has not told us about reads as the plain sentence.
 const UNSUPPORTED_MEDIA_REASONS = ["zip_unreadable"] as const;
@@ -130,7 +144,6 @@ const SELF_HINTED_FINAL = new Set([
   "storage_quota_exceeded",
   "not_found",
   "untrusted_target",
-  "folder_upload_target_signed",
 ]);
 
 /** The `report.reason.*` key of a failure; a code the client does not know is `unknown`, any `http_5nn` is `http_5xx`. */
@@ -142,14 +155,21 @@ function failureSentenceKey(code: string | undefined, reason?: string): string {
   return (FAILURE_CODES as readonly string[]).includes(known) ? known : "unknown";
 }
 
-/** One sentence per failure code (and `unsupported_media` reason); a code the client does not know reads as the generic one. */
+/**
+ * One sentence per failure code (and `unsupported_media` reason); a code the
+ * client does not know reads as the generic one. `canRetry` false (the report
+ * has no retry button) drops the "retry the failed files" advice.
+ */
 export function failureReasonMessage(
   t: TFunction,
   code: string | undefined,
   reason?: string,
   mode: FolderUploadMode = "folder",
+  canRetry = true,
 ): string {
-  return t(`documents.folder_upload.report.reason.${failureSentenceKey(code, reason)}`, modeContext(mode));
+  const key = failureSentenceKey(code, reason);
+  if (!canRetry && RETRY_POINTING.has(key)) return t(`documents.folder_upload.report.reason_no_retry.${key}`);
+  return t(`documents.folder_upload.report.reason.${key}`, modeContext(mode));
 }
 
 /** True when the failure's own sentence already says what to do after a final failure. */

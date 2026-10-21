@@ -40,12 +40,20 @@ export interface FolderUploadReportDialogProps {
 export function FolderUploadReportDialog({ open, onOpenChange, name, failures, canRetry = true, expired = false, onRetry, mode = "folder" }: FolderUploadReportDialogProps) {
   const { t } = useTranslation();
   const ctx = modeContext(mode);
-  // One place for "fix it and upload again": a final failure's own sentence when it says so, else one hint under the list.
-  const finalHint =
-    !expired &&
-    failures.some(
-      (failure) => (!canRetry || failure.retryable === false) && !failureSentenceHasHint(failure.code, failure.reason),
-    );
+  const retryNow = canRetry && !expired;
+  // One place for the advice once retrying cannot help: a final failure's own sentence when it says what to do,
+  // else one hint under the list ("fix the file" when a failure is final, "upload again" when only the retry is gone).
+  const unadvised = expired
+    ? []
+    : failures.filter(
+        (failure) => (!retryNow || failure.retryable === false) && !failureSentenceHasHint(failure.code, failure.reason),
+      );
+  const footerHint =
+    unadvised.length === 0
+      ? null
+      : unadvised.some((failure) => failure.retryable === false)
+        ? "documents.folder_upload.report.final_hint"
+        : "documents.folder_upload.report.reupload_hint";
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg" closeLabel={t("common.close")}>
@@ -63,19 +71,19 @@ export function FolderUploadReportDialog({ open, onOpenChange, name, failures, c
               <span className="truncate font-mono text-caption text-foreground" title={failure.path}>
                 {failure.path}
               </span>
-              <span className="text-caption text-muted-foreground">{failureReasonMessage(t, failure.code, failure.reason, mode)}</span>
+              <span className="text-caption text-muted-foreground">{failureReasonMessage(t, failure.code, failure.reason, mode, retryNow)}</span>
             </li>
           ))}
         </ul>
         {expired ? (
           <p className="text-caption text-muted-foreground">{t("documents.folder_upload.report.expired_note", ctx)}</p>
         ) : null}
-        {finalHint ? <p className="text-caption text-muted-foreground">{t("documents.folder_upload.report.final_hint", ctx)}</p> : null}
+        {footerHint ? <p className="text-caption text-muted-foreground">{t(footerHint, ctx)}</p> : null}
         <DialogFooter className="px-0 pb-0">
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
             {t("documents.folder_upload.report.close")}
           </Button>
-          {canRetry && !expired ? (
+          {retryNow ? (
             <Button
               type="button"
               aria-disabled={failures.length === 0 || undefined}

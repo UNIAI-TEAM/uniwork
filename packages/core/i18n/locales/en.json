@@ -10046,8 +10046,8 @@
         "cancel": "Cancel",
         "submit": "Upload",
         "submitting": "Preparing…",
-        "queue_more_one": "{{count}} more folder is waiting.",
-        "queue_more_other": "{{count}} more folders are waiting.",
+        "queue_more_one": "{{count}} more upload is waiting.",
+        "queue_more_other": "{{count}} more uploads are waiting.",
         "waiting": "The server is busy, retrying in a few seconds…"
       },
       "skip_reason": {
@@ -10117,15 +10117,28 @@
           "untrusted_target": "The upload address wasn’t trusted, so it was blocked. Upload the folder again; if it keeps happening, tell an admin.",
           "untrusted_target_files": "The upload address wasn’t trusted, so it was blocked. Upload the files again; if it keeps happening, tell an admin.",
           "aborted": "The upload of this file was stopped. Retry the failed files.",
-          "folder_upload_file_settled": "This file was already handled, so it can’t be uploaded again.",
-          "folder_upload_target_signed": "This file expects a different upload route than the one the app used. Upload the folder again.",
-          "folder_upload_target_signed_files": "This file expects a different upload route than the one the app used. Upload the file again.",
-          "unknown": "This file couldn’t be uploaded."
+          "folder_upload_file_settled": "The server couldn’t confirm this file yet. Retry the failed files.",
+          "folder_upload_target_signed": "Couldn’t reach storage. Retry the failed files.",
+          "unknown": "This file couldn’t be uploaded.",
+          "upload_session_busy": "The server is still checking this file in another request. Retry the failed files in a moment."
         },
         "expired_note": "The upload expired, so it can’t be retried. Upload the folder again.",
         "expired_note_files": "The upload expired, so it can’t be retried. Upload the files again.",
         "final_hint": "Fix the file, then upload the folder again.",
-        "final_hint_files": "Fix the file, then upload it again."
+        "final_hint_files": "Fix the file, then upload it again.",
+        "reason_no_retry": {
+          "network": "The connection dropped while uploading this file.",
+          "target_expired": "The upload link for this file expired.",
+          "http_5xx": "The server wasn’t responding.",
+          "missing_part_url": "An upload address is missing for a part of this large file.",
+          "aborted": "The upload of this file was stopped.",
+          "parts_invalid": "The parts of the large file don’t add up.",
+          "upload_session_busy": "The server was still checking this file in another request.",
+          "folder_upload_file_settled": "The server couldn’t confirm this file.",
+          "folder_upload_target_signed": "Couldn’t reach storage."
+        },
+        "reupload_hint": "Upload the folder again to add these files.",
+        "reupload_hint_files": "Upload these files again."
       },
       "retry_toast": {
         "progress": "Retrying “{{name}}” — {{done}}/{{total}} files",
@@ -10144,9 +10157,8 @@
         "document_too_deep_files": "The destination folder is nested too deeply — {{max}} levels at most.",
         "document_parent_kind": "You can’t upload into this item. Pick a folder.",
         "invalid_request": "A file or folder name isn’t valid. Rename it and try again.",
-        "folder_upload_file_settled": "This file was already handled, so it can’t be uploaded again.",
-        "folder_upload_target_signed": "This file expects a different upload route than the one the app used. Upload the folder again.",
-        "folder_upload_target_signed_files": "This file expects a different upload route than the one the app used. Upload the file again.",
+        "folder_upload_file_settled": "The server couldn’t confirm a file yet. Try again in a few minutes.",
+        "folder_upload_target_signed": "Couldn’t reach storage. Try again in a few minutes.",
         "invalid_request_named": "The name “{{file}}” isn’t valid. Rename it and try again.",
         "folder_uploads_busy": "Too many folder uploads are running. Try again in a few minutes.",
         "folder_uploads_busy_files": "Too many uploads are running. Try again in a few minutes.",

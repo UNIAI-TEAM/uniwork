@@ -81,6 +81,19 @@ describe("FolderUploadReportDialog", () => {
     expect(screen.getByText("Lượt tải lên đã hết hạn nên không thử lại được. Hãy tải lại tệp.")).toBeInTheDocument();
   });
 
+  it("points at no retry button when the batch cannot retry, and says to upload again once (R2-3)", () => {
+    renderReport({ canRetry: false, failures: [{ path: "Báo cáo/a.pdf", code: "network", retryable: true }] });
+    expect(screen.queryByRole("button", { name: "Thử lại các tệp lỗi" })).toBeNull();
+    expect(screen.queryByText(/Thử lại/)).toBeNull();
+    expect(screen.getByText("Mất kết nối khi tải tệp này.")).toBeInTheDocument();
+    expect(screen.getAllByText(/tải lại thư mục/i)).toHaveLength(1);
+  });
+
+  it("keeps the retry sentence beside the retry button", () => {
+    renderReport({ canRetry: true, failures: [{ path: "Báo cáo/a.pdf", code: "network", retryable: true }] });
+    expect(screen.getByText("Mất kết nối khi tải tệp này. Thử lại các tệp lỗi.")).toBeInTheDocument();
+  });
+
   it("reads the server's reason beside the code", () => {
     renderReport({ failures: [{ path: "Báo cáo/a.docx", code: "unsupported_media", reason: "zip_unreadable", retryable: false }] });
     expect(
