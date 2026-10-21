@@ -10945,6 +10945,8 @@
         "star": "Gắn sao",
         "starred": "Đã gắn sao",
         "unstar": "Bỏ gắn sao",
+        "star_item": "Gắn sao {{title}}",
+        "unstar_item": "Bỏ gắn sao {{title}}",
         "go_to_source": "Xem nơi đính kèm",
         "go_to_source_named": "Xem nơi đính kèm: {{title}}",
         "preview_failed": "Không xem được file. Thử lại.",

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { initI18n, setLocale } from "@uniwork/core/i18n";
 import { DocumentsLibraryList } from "./documents-library-list";
@@ -422,6 +422,42 @@ describe("trash vs archive icons", () => {
     const shelve = screen.getByRole("menuitem", { name: t("documents.shelved_list.shelve") });
     expect(trash.querySelector("svg.lucide-trash-2")).not.toBeNull();
     expect(shelve.querySelector("svg.lucide-archive")).not.toBeNull();
+  });
+});
+
+describe("quick star button on a live row (RFD-04)", () => {
+  const starButton = (title: string, starred: boolean) =>
+    screen.queryByRole("button", { name: t(starred ? "documents.home.row.unstar_item" : "documents.home.row.star_item", { title }) });
+
+  it("toggles the star from the row, before the ⋯ menu, with the state in aria-pressed and a 44px coarse target", () => {
+    const onToggleStar = vi.fn();
+    renderList([doc("a", "A.docx")], { onToggleStar });
+    const button = starButton("A.docx", false)!;
+    expect(button).toHaveAttribute("aria-pressed", "false");
+    expect(button.className).toContain("pointer-coarse:size-11");
+    expect(button.compareDocumentPosition(screen.getByRole("button", { name: t("documents.home.row.menu", { title: "A.docx" }) })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    fireEvent.click(button);
+    expect(onToggleStar).toHaveBeenCalledWith("a", false);
+  });
+
+  it("reads pressed on a starred row and unstars it", () => {
+    const onToggleStar = vi.fn();
+    renderList([doc("a", "A.docx")], { onToggleStar, isStarred: () => true });
+    const button = starButton("A.docx", true)!;
+    expect(button).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(button);
+    expect(onToggleStar).toHaveBeenCalledWith("a", true);
+  });
+
+  it("is absent where the row menu has no star: no host handler, a shelved row, a trashed row", () => {
+    renderList([doc("a", "A.docx")], { onToggleStar: undefined });
+    expect(starButton("A.docx", false)).toBeNull();
+    cleanup();
+    renderList([doc("b", "B.docx", { shelved_at: "2026-10-20T01:00:00Z" })], { onToggleStar: vi.fn(), onUnshelve: vi.fn() }, { screen: "shelved" });
+    expect(starButton("B.docx", false)).toBeNull();
+    cleanup();
+    renderList([doc("c", "C.docx", { archived_at: "2026-10-20T01:00:00Z" })], { onToggleStar: vi.fn(), onRestore: vi.fn(), onPurge: vi.fn(), onViewDetails: vi.fn() }, { screen: "trash" });
+    expect(starButton("C.docx", false)).toBeNull();
   });
 });
 

@@ -44,6 +44,7 @@ import { EMPTY_CELL, formatBytes, formatListDate } from "./doclist/format";
 import { docListRowFields } from "./doclist/row-fields";
 import { DocLifecycleAction, type DocLifecycleHandlers } from "./doclist/lifecycle-action";
 import type { RowMenuHandlers } from "./doclist/row-menu";
+import { DocStarAction } from "./doclist/star-action";
 import { DocScreenCell, DocScreenLine, type DocListMemberLookup } from "./doclist/screen-cells";
 import { libraryCell, libraryPad, type RowLadder } from "./library-columns";
 import { LibraryRowAccessCell } from "./library-row-access-cell";
@@ -425,6 +426,7 @@ export function LibraryRowView({
                 {sourceLink}
               </div>
             ) : null}
+            {doc ? <DocStarAction menu={menu} title={title} starred={starred} /> : null}
             {doc ? <DocLifecycleAction screen={screen} doc={doc} title={title} handlers={handlers} /> : null}
             {menu.length > 0 ? (
               <DropdownMenu>

@@ -10956,6 +10956,8 @@
         "star": "Star",
         "starred": "Starred",
         "unstar": "Remove star",
+        "star_item": "Star {{title}}",
+        "unstar_item": "Remove star from {{title}}",
         "go_to_source": "View where attached",
         "go_to_source_named": "View where attached: {{title}}",
         "preview_failed": "Could not open the file. Try again.",
