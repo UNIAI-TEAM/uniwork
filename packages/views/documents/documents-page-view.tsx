@@ -487,6 +487,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
                   bulk={bulkCommands.bulk}
                   selectionKey={selectionKey}
                   focusId={focusId}
+                  collapse={collapse}
                   claimFocus={claimFocus}
                   hasMore={state.hasMore}
                   loadingMore={state.loadingMore}

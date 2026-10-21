@@ -7,7 +7,7 @@ import { DocumentsLibraryList } from "./documents-library-list";
 import type { LibraryRowHandlers } from "./documents-library-row";
 import type { DocListBulk } from "./doclist/bulk-actions";
 import { groupRowsByDate } from "./doclist/date-groups";
-import { useCollapsedGroups } from "./doclist/group-state";
+import type { GroupCollapse } from "./doclist/group-state";
 import type { LibraryRow } from "./library-rows";
 import type { TrashActions } from "./use-trash-actions";
 
@@ -32,6 +32,8 @@ export interface DocumentsTrashViewProps {
   bulk?: DocListBulk;
   /** A new value clears the selection. */
   selectionKey?: string;
+  /** The page's own collapse state of the trash groups: one instance per page, so two screens never overwrite each other's stored choice. */
+  collapse: GroupCollapse;
 }
 
 /**
@@ -58,9 +60,19 @@ export function DocumentsTrashView({
   onLoadMore,
   bulk,
   selectionKey,
+  collapse,
 }: DocumentsTrashViewProps) {
   const { t } = useTranslation();
-  const collapse = useCollapsedGroups("trash");
+  const groups = groupRowsByDate(rows, "trash", new Date());
+  // A notification's row inside a collapsed group is revealed first (once per target: a later manual collapse stays).
+  const hiddenGroup = focusId ? groups.find((group) => collapse.isCollapsed(group.key) && group.rows.some((each) => each.id === focusId))?.key : undefined;
+  const revealed = useRef<string | null>(null);
+  const { onToggle } = collapse;
+  useEffect(() => {
+    if (!focusId || !hiddenGroup || revealed.current === focusId) return;
+    revealed.current = focusId;
+    onToggle(hiddenGroup);
+  }, [focusId, hiddenGroup, onToggle]);
   const boxRef = useRef<HTMLDivElement>(null);
   const pagedFromCount = useRef<number | null>(null);
   useEffect(() => {
@@ -91,7 +103,7 @@ export function DocumentsTrashView({
       const target = firstNew?.querySelector<HTMLElement>("[data-trash-restore]") ?? box?.querySelector<HTMLElement>("table");
       target?.focus({ focusVisible: true } as FocusOptions);
     }
-  }, [focusId, claimFocus, rows, hasMore, loadingMore]);
+  }, [focusId, claimFocus, rows, hasMore, loadingMore, hiddenGroup]);
 
   return (
     <div ref={boxRef} className="flex flex-col gap-5">
@@ -100,7 +112,7 @@ export function DocumentsTrashView({
         <p className="text-caption text-muted-foreground">{t("documents.trash.subtitle")}</p>
       </div>
       <DocumentsLibraryList
-        groups={groupRowsByDate(rows, "trash", new Date())}
+        groups={groups}
         collapse={collapse}
         loading={loading}
         failure={failure}
