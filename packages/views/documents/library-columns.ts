@@ -38,6 +38,8 @@ export interface RowLadder {
   metaHides: string;
   /** The updated · size part of the secondary line: hidden once those columns exist. */
   metaTailHides: string;
+  /** The separator between the editor and the updated · size part: `metaTailHides` with `!`, as it also carries its own 34rem `inline`. */
+  metaTailDotHides: string;
   /** The whole secondary line (level + Restricted mark): hidden once Truy cập exists. */
   accessLineHides: string;
   /** The level · scope part of the secondary line: hidden once the access column exists. */
@@ -178,6 +180,7 @@ export function specLadder(screen: DocListScreen, opts: { selectable?: boolean }
     head: at("table").head,
     metaHides: at("editor").hide,
     metaTailHides: at("table").hide,
+    metaTailDotHides: at("table").hideNow,
     accessLineHides: at("editor").hide,
     accessGroupHides: at("access").hide,
     metaDotHides: at("access").hideNow,

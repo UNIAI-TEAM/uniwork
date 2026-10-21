@@ -301,6 +301,32 @@ describe("shared by me scope line (SW-V2, SW-V4)", () => {
 });
 
 describe("narrow secondary line at 390 (< 34rem, UNI-1902)", () => {
+  it("draws the separators inside a wrapping line only from 34rem, so a wrapped line never ends in one (N5)", () => {
+    renderList([
+      doc("a", "Hợp đồng mẫu.docx", {
+        my_level: "manage",
+        via: "owner" as DocumentSummaryRow["via"],
+        visibility: "restricted",
+        share_scope: SCOPE_PRIVATE,
+        updated_at: "2026-10-17T03:00:00Z",
+        size_bytes: 2500,
+      }),
+    ]);
+    const line = document.querySelector('[data-library-row="a"] [data-library-access-line]') as HTMLElement;
+    const metaGroup = line.querySelector("[data-library-meta-line]") as HTMLElement;
+    const accessGroup = line.querySelector("[data-library-access-group]") as HTMLElement;
+    // Editor and date · size are two rows below 34rem (no separator between rows); from 34rem they share one.
+    const [editorEl, dateDot, dateSize] = Array.from(metaGroup.children) as HTMLElement[];
+    expect(editorEl).toHaveClass("truncate", "basis-full", "@min-[34rem]/library:basis-auto");
+    expect(dateDot).toHaveTextContent("·");
+    expect(dateDot).toHaveClass("hidden", "@min-[34rem]/library:inline", "@min-[31rem]/library:hidden!");
+    // The date and size never split from each other.
+    expect(dateSize).toHaveClass("shrink-0", "whitespace-nowrap");
+    // The level and the scope badge: the dot between them leaves with the wrap.
+    const levelDot = Array.from(accessGroup.children).find((el) => el.textContent === "·") as HTMLElement;
+    expect(levelDot).toHaveClass("hidden", "@min-[34rem]/library:inline");
+  });
+
   it("wraps meta (editor · date · size) above level · share scope below 34rem with a non-truncating date and no orphan separator", () => {
     renderList([
       doc("a", "Hợp đồng mẫu.docx", {

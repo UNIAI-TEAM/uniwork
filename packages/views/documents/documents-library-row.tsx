@@ -309,9 +309,12 @@ export function LibraryRowView({
                 editor ? ladder.metaHides : ladder.metaTailHides,
               )}
             >
-              {editor ? <span className={cn("min-w-0 truncate", ladder.metaHides)}>{editor}</span> : null}
-              {editor && metaTail ? <span aria-hidden className={cn("shrink-0", ladder.metaTailHides)}>·</span> : null}
-              {metaTail ? <span className={cn("shrink-0", ladder.metaTailHides)}>{metaTail}</span> : null}
+              {/* Below 34rem the editor and date · size stand on their own rows (the editor truncates, the date and size never split), so no separator can end a wrapped line (N5). */}
+              {editor ? <span className={cn("min-w-0 basis-full truncate @min-[34rem]/library:basis-auto", ladder.metaHides)}>{editor}</span> : null}
+              {editor && metaTail ? (
+                <span aria-hidden className={cn("hidden shrink-0 @min-[34rem]/library:inline", ladder.metaTailDotHides)}>·</span>
+              ) : null}
+              {metaTail ? <span className={cn("shrink-0 whitespace-nowrap", ladder.metaTailHides)}>{metaTail}</span> : null}
             </span>
           ) : null}
           {editor && (levelLabel || showNarrowScope) ? (
@@ -320,7 +323,7 @@ export function LibraryRowView({
           {levelLabel || showNarrowScope ? (
             <span data-library-access-group className={cn("flex max-w-full shrink-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 @min-[34rem]/library:max-w-none @min-[34rem]/library:flex-nowrap", ladder.accessGroupHides)}>
               {levelLabel ? <span className="shrink-0">{levelLabel}</span> : null}
-              {levelLabel && showNarrowScope ? <span aria-hidden className="shrink-0">·</span> : null}
+              {levelLabel && showNarrowScope ? <span aria-hidden className="hidden shrink-0 @min-[34rem]/library:inline">·</span> : null}
               {showNarrowScope ? (
                 <DocumentShareScopeBadge
                   shareScope={doc?.share_scope}
