@@ -1,0 +1,4 @@
+$ for i in $(seq 1 36); do test -f /tmp/uni2012r7-svcd.exit && break; sleep 30; done; echo "DONE_FILE=$(test -f /tmp/uni2012r7-svcd.exit && echo yes || echo no)"; grep -cE "^\s*--- PASS" /tmp/uni2012r7-svcd.log; grep -E "^(=== RUN)" /tmp/uni2012r7-svcd.log | tail -1
+DONE_FILE=yes
+1379
+=== RUN   TestRollbackRestoresAdoptedPendingFile
