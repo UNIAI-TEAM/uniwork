@@ -1,0 +1,4 @@
+$ grep -E "^(ok|FAIL|\?)\s" /tmp/uni2012r8-svcc.log | cut -c1-200 | head -150
+ok  	github.com/unicomhub/uniwork/server/internal/service	181.333s	coverage: 33.4% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/service/backfill	1.026s	coverage: 3.4% of statements
+?   	github.com/unicomhub/uniwork/server/internal/service/templates	[no test files]

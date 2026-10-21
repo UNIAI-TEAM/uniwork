@@ -1,0 +1,4 @@
+$ for i in $(seq 1 36); do test -f /tmp/uni2012r8-svcc.exit && break; sleep 30; done; echo "DONE_FILE=$(test -f /tmp/uni2012r8-svcc.exit && echo yes || echo no)"; grep -cE "^\s*--- PASS" /tmp/uni2012r8-svcc.log; grep -E "^(=== RUN)" /tmp/uni2012r8-svcc.log | tail -1
+DONE_FILE=yes
+754
+=== RUN   TestMarkSharedLocatorsHoldsConflicts
