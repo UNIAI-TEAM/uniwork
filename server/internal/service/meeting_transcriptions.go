@@ -44,6 +44,9 @@ const (
 	transcriptionMaxAttempts = 3
 	// A rate-limited submit waits the vendor's Retry-After, at most this.
 	transcriptionMaxRateWait = 10 * time.Minute
+	// The lowest bitrate a claimed duration may imply (12 kbit/s, AMR-NB);
+	// claiming longer only refuses the claimant.
+	transcriptionMinBytesPerSec = 1_500
 	// A clock in the future by more than this is a wrong time, not a skew.
 	heldClockSkew = time.Minute
 )
@@ -290,13 +293,15 @@ func (s *MeetingService) Transcriptions(ctx context.Context, userID, meetingID s
 // at the rate its head declares, else at the container's typical rate.
 //
 // reported is the duration the browser read from the file's metadata (0
-// when it could not): it wins, held between what the bytes allow at 4 MB/s
-// and at 16 kB/s, since the client says it. It sizes the quota check and
+// when it could not): it wins, held between what the bytes allow at the
+// type's ceiling (ai.AudioByteRateCeiling: 320 kbit/s audio, a WAV's own PCM
+// rate, 20 Mbit/s video) and at 12 kbit/s, since the client says it: a
+// shorter claim would let a long file pass the quota check. It sizes the quota check and
 // the job deadline; the minutes billed are the vendor's audio_duration
 // (this estimate only when the vendor reports none).
 func estimateSeconds(size int64, mime string, head []byte, reported float64) int32 {
 	if reported > 0 && size > 0 {
-		lo, hi := float64(size)/4_000_000, float64(size)/16_000
+		lo, hi := float64(size)/float64(ai.AudioByteRateCeiling(mime, head)), float64(size)/transcriptionMinBytesPerSec
 		return int32(math.Ceil(min(max(reported, lo), hi)))
 	}
 	return int32(math.Ceil(ai.EstimateAudioSecondsFromHead(size, mime, head)))
@@ -390,16 +395,21 @@ func (s *MeetingService) runTranscriptions(ctx context.Context) error {
 }
 
 func (s *MeetingService) advanceTranscription(ctx context.Context, t db.MeetingTranscription) error {
-	if t.Status == TranscriptionQueued || t.ProviderJobID == "" {
-		return s.submitTranscription(ctx, t)
-	}
 	overdue, err := s.q.TranscriptionOverdue(ctx, t.ID)
 	if err != nil {
 		return err
 	}
+	if t.Status == TranscriptionQueued || t.ProviderJobID == "" {
+		if overdue {
+			// A day in the queue (rate limited, held by the kill switch):
+			// the requester hears it failed instead of waiting forever.
+			return s.failTranscription(ctx, t, transcriptionErrTimeout, t.Attempts)
+		}
+		return s.submitTranscription(ctx, t)
+	}
 	if overdue {
 		s.AI.MeetingTranscribeAbandon(ctx, t.UsageEventID.String)
-		return s.failTranscriptionAttempt(ctx, t, transcriptionErrTimeout, t.Attempts)
+		return s.dropVendorJob(ctx, t, s.failTranscriptionAttempt(ctx, t, transcriptionErrTimeout, t.Attempts))
 	}
 	res, err := s.AI.MeetingTranscribePoll(ctx, t.UsageEventID.String, t.ProviderJobID)
 	var jobErr *provider.FileJobError
@@ -409,9 +419,9 @@ func (s *MeetingService) advanceTranscription(ctx context.Context, t db.MeetingT
 		slog.Warn("meeting transcription: vendor failed the job", "transcription", t.ID,
 			"status", jobErr.Code, "permanent", jobErr.Permanent, "reason", jobErr.Reason)
 		if jobErr.Permanent {
-			return s.failTranscription(ctx, t, transcriptionErrProvider, t.Attempts)
+			return s.dropVendorJob(ctx, t, s.failTranscription(ctx, t, transcriptionErrProvider, t.Attempts))
 		}
-		return s.failTranscriptionAttempt(ctx, t, transcriptionErrProvider, t.Attempts)
+		return s.dropVendorJob(ctx, t, s.failTranscriptionAttempt(ctx, t, transcriptionErrProvider, t.Attempts))
 	case err != nil:
 		// A transport error: the job may still run; ask again next tick.
 		_, rerr := s.q.RescheduleTranscription(ctx, db.RescheduleTranscriptionParams{
@@ -472,6 +482,9 @@ func (s *MeetingService) submitTranscription(ctx context.Context, t db.MeetingTr
 		_, rerr := s.q.RescheduleTranscription(ctx, db.RescheduleTranscriptionParams{ID: t.ID, Lease: t.LeaseUntil, AfterSeconds: int32(wait / time.Second)})
 		return rerr
 	case err != nil:
+		// The error names the operation and the HTTP status or the
+		// transport reason, never the key or the audio URL.
+		slog.Warn("meeting transcription: submit failed", "transcription", t.ID, "attempt", t.Attempts+1, "err", err)
 		return s.failTranscriptionAttempt(ctx, t, transcriptionErrProvider, t.Attempts+1)
 	}
 	job := max(transcriptionMinJob, 3*time.Duration(t.EstimatedSeconds)*time.Second)
@@ -488,6 +501,23 @@ func (s *MeetingService) submitTranscription(ctx context.Context, t db.MeetingTr
 		slog.Warn("meeting transcription: lease lost during submit", "transcription", t.ID, "usage_event_id", usageID)
 	}
 	return err
+}
+
+// dropVendorJob deletes the vendor's copy of a job the worker just gave up
+// on (§7.5), best effort, once the row no longer runs it: a holder whose
+// write lost the lease leaves the job to the row's next holder.
+func (s *MeetingService) dropVendorJob(ctx context.Context, t db.MeetingTranscription, failErr error) error {
+	if failErr != nil {
+		return failErr
+	}
+	row, err := s.q.GetMeetingTranscription(ctx, t.ID)
+	if err != nil || row.Status == TranscriptionRunning && row.ProviderJobID == t.ProviderJobID {
+		return err
+	}
+	if derr := s.AI.MeetingTranscribeDelete(ctx, t.ProviderJobID); derr != nil {
+		slog.Warn("meeting transcription: vendor transcript not deleted", "transcription", t.ID, "err", derr)
+	}
+	return nil
 }
 
 // failTranscriptionAttempt ends one attempt: back to the queue after a pause

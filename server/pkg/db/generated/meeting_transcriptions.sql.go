@@ -717,11 +717,14 @@ func (q *Queries) TranscriptSources(ctx context.Context, meetingID string) (Tran
 }
 
 const transcriptionOverdue = `-- name: TranscriptionOverdue :one
-SELECT (deadline_at IS NOT NULL AND deadline_at < now())::boolean FROM meeting_transcriptions WHERE id = $1
+SELECT ((deadline_at IS NOT NULL AND deadline_at < now())
+  OR (status = 'QUEUED' AND created_at < now() - interval '24 hours'))::boolean
+FROM meeting_transcriptions WHERE id = $1
 `
 
 // tenant: by-id
-// The job deadline, judged on the database's clock like every queue time.
+// The job deadline, judged on the database's clock like every queue time;
+// a job still queued a day after it was requested is overdue too.
 func (q *Queries) TranscriptionOverdue(ctx context.Context, id string) (bool, error) {
 	row := q.db.QueryRow(ctx, transcriptionOverdue, id)
 	var column_1 bool

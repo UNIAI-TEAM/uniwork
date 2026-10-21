@@ -19,7 +19,34 @@ const (
 	audioBytesPerSecMP4Audio      = 12000 // 96 kbit/s AAC
 	audioBytesPerSecVideo         = 125000
 	audioBytesPerSecCompressedOth = 6000 // opus/ogg/webm/flac-ish, 48 kbit/s
+
+	// Ceilings: the fastest a type may play, so a claimed length or a header
+	// can never shrink an estimate below size ÷ ceiling. 320 kbit/s is the
+	// top MP3/AAC rate; 20 Mbit/s is a 1080p phone video (4K is over-counted
+	// about 2.5×, which only matters near the plan limit).
+	audioBytesPerSecAudioCeiling = 40_000
+	audioBytesPerSecVideoCeiling = 2_500_000
 )
+
+// AudioByteRateCeiling is the highest byte rate a recording of this type may
+// claim: a WAV's own PCM rate when its head is known, else the type's
+// ceiling above.
+func AudioByteRateCeiling(mime string, head []byte) int {
+	mime = strings.ToLower(mime)
+	switch {
+	case strings.HasPrefix(mime, "video/"):
+		return audioBytesPerSecVideoCeiling
+	case isWAV(mime):
+		if r := wavByteRate(head); r > 0 {
+			return r
+		}
+	}
+	return audioBytesPerSecAudioCeiling
+}
+
+func isWAV(mime string) bool {
+	return mime == "audio/wav" || mime == "audio/x-wav" || mime == "audio/wave"
+}
 
 // BilledAudioSeconds is the duration a transcription is charged for:
 // the vendor's reported seconds when it gave any, else the size estimate.
@@ -53,7 +80,7 @@ func EstimateAudioSecondsFromHead(size int64, mime string, head []byte) float64 
 func audioByteRate(mime string, data []byte) int {
 	mime = strings.ToLower(mime)
 	switch {
-	case mime == "audio/wav" || mime == "audio/x-wav" || mime == "audio/wave":
+	case isWAV(mime):
 		if r := wavByteRate(data); r > 0 {
 			return r
 		}
@@ -71,13 +98,23 @@ func audioByteRate(mime string, data []byte) int {
 	return audioBytesPerSecCompressedOth
 }
 
-// wavByteRate reads the byte rate a RIFF/WAVE header declares; 0 when the
-// header is not one or the value is implausible.
+// wavByteRate reads the byte rate of a RIFF/WAVE header; 0 when the header
+// is not one or the value is implausible. The declared byte rate is not
+// trusted on its own (decoders play PCM by its sample rate, channels and
+// sample size): PCM counts at most at that product, any other codec at most
+// at the audio ceiling.
 func wavByteRate(b []byte) int {
 	if len(b) < 44 || string(b[0:4]) != "RIFF" || string(b[8:12]) != "WAVE" {
 		return 0
 	}
 	r := int(binary.LittleEndian.Uint32(b[28:32]))
+	switch binary.LittleEndian.Uint16(b[20:22]) {
+	case 1, 0xfffe: // PCM, WAVE_FORMAT_EXTENSIBLE
+		pcm := int(binary.LittleEndian.Uint32(b[24:28])) * int(binary.LittleEndian.Uint16(b[22:24])) * int(binary.LittleEndian.Uint16(b[34:36])) / 8
+		r = min(r, pcm)
+	default:
+		r = min(r, audioBytesPerSecAudioCeiling)
+	}
 	if r < 1000 || r > 4_000_000 {
 		return 0
 	}

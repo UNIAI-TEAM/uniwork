@@ -145,5 +145,8 @@ WHERE file_id = sqlc.arg('file_id') AND organization_id = sqlc.arg('organization
 
 -- name: TranscriptionOverdue :one
 -- tenant: by-id
--- The job deadline, judged on the database's clock like every queue time.
-SELECT (deadline_at IS NOT NULL AND deadline_at < now())::boolean FROM meeting_transcriptions WHERE id = $1;
+-- The job deadline, judged on the database's clock like every queue time;
+-- a job still queued a day after it was requested is overdue too.
+SELECT ((deadline_at IS NOT NULL AND deadline_at < now())
+  OR (status = 'QUEUED' AND created_at < now() - interval '24 hours'))::boolean
+FROM meeting_transcriptions WHERE id = $1;

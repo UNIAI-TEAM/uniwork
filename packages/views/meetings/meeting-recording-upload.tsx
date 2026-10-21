@@ -174,6 +174,8 @@ export function MeetingRecordingUploadDialog({
  * bills what the vendor measures). Undefined when the browser cannot tell:
  * the server then estimates from the size.
  */
+const MEDIA_PROBE_MS = 5000;
+
 function readMediaDuration(file: File): Promise<number | undefined> {
   return new Promise((resolve) => {
     let url: string;
@@ -185,12 +187,16 @@ function readMediaDuration(file: File): Promise<number | undefined> {
     }
     // A video element reads audio files too.
     const media = document.createElement("video");
-    const done = (seconds: number | undefined) => {
+    // A browser that never answers gives up after 5 s, like one that cannot.
+    const timer = setTimeout(() => done(undefined), MEDIA_PROBE_MS);
+    function done(seconds: number | undefined) {
+      clearTimeout(timer);
       media.onloadedmetadata = null;
       media.onerror = null;
+      media.removeAttribute("src");
       URL.revokeObjectURL(url);
       resolve(seconds);
-    };
+    }
     media.preload = "metadata";
     media.onloadedmetadata = () => done(Number.isFinite(media.duration) && media.duration > 0 ? media.duration : undefined);
     media.onerror = () => done(undefined);

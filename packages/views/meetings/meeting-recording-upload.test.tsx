@@ -119,6 +119,35 @@ describe("MeetingRecordingUploadDialog", () => {
     }
   });
 
+  it("gives up on the length after 5 s and lets go of the file", async () => {
+    vi.useFakeTimers();
+    const revoke = vi.fn();
+    const urls = { createObjectURL: URL.createObjectURL, revokeObjectURL: URL.revokeObjectURL };
+    Object.assign(URL, { createObjectURL: vi.fn(() => "blob:stuck"), revokeObjectURL: revoke });
+    const src = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, "src");
+    const removeAttribute = vi.spyOn(HTMLMediaElement.prototype, "removeAttribute");
+    // A browser that never answers the metadata.
+    Object.defineProperty(HTMLMediaElement.prototype, "src", { configurable: true, set() {} });
+    try {
+      render(wrap(<MeetingRecordingUploadDialog meetingId="m1" onOpenChange={() => {}} />));
+      fireEvent.change(screen.getByLabelText("File ghi âm"), { target: { files: [mp3(1000, "hop.mp4")] } });
+      await act(async () => {
+        vi.advanceTimersByTime(4999);
+      });
+      expect(revoke).not.toHaveBeenCalled();
+      await act(async () => {
+        vi.advanceTimersByTime(1);
+      });
+      expect(revoke).toHaveBeenCalledWith("blob:stuck");
+      expect(removeAttribute).toHaveBeenCalledWith("src");
+    } finally {
+      vi.useRealTimers();
+      removeAttribute.mockRestore();
+      Object.assign(URL, urls);
+      if (src) Object.defineProperty(HTMLMediaElement.prototype, "src", src);
+    }
+  });
+
   it("refuses a file over 2 GiB before sending anything", () => {
     render(wrap(<MeetingRecordingUploadDialog meetingId="m1" onOpenChange={() => {}} />));
     fireEvent.change(screen.getByLabelText("File ghi âm"), { target: { files: [mp3(3 * 1024 ** 3)] } });

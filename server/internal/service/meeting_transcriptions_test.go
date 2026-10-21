@@ -7,6 +7,7 @@ import (
 	"errors"
 	"math"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"sync"
 	"testing"
@@ -848,7 +849,8 @@ func TestTranscriptionVendorDeleteFailureKeepsTheJob(t *testing.T) {
 }
 
 // The duration the browser read from the file's metadata replaces the
-// size-based estimate, held between 4 MB/s and 16 kB/s of the file's size.
+// size-based estimate, held between the type's ceiling (320 kbit/s audio,
+// 20 Mbit/s video) and 12 kbit/s of the file's size.
 func TestTranscriptionEstimateTakesTheReportedDuration(t *testing.T) {
 	const size = 18 * 60 * 2_000_000 // 18 minutes of 16 Mbit/s phone video
 	for _, tc := range []struct {
@@ -857,13 +859,19 @@ func TestTranscriptionEstimateTakesTheReportedDuration(t *testing.T) {
 	}{
 		{0, int32(math.Ceil(size / 125000.0))}, // missing: today's estimate
 		{1080, 1080},
-		{1, size / 4_000_000}, // too short for the bytes
-		{1e9, size / 16_000},  // too long for the bytes
+		{1, size / 2_500_000}, // too short: 20 Mbit/s is the video ceiling
+		{1e9, size / 1_500},   // too long: 12 kbit/s is the floor
 		{math.NaN(), int32(math.Ceil(size / 125000.0))},
 	} {
 		if got := estimateSeconds(size, "video/mp4", nil, tc.reported); got != tc.want {
 			t.Errorf("reported %v: estimate %d, want %d", tc.reported, got, tc.want)
 		}
+	}
+	// A 2 GiB M4A cannot claim nine minutes to slip under the plan: audio
+	// plays at 320 kbit/s at most.
+	const m4a = 2 << 30
+	if got := estimateSeconds(m4a, "audio/mp4", nil, 540); got < m4a/40_000 {
+		t.Fatalf("2 GiB m4a claiming 540 s = %d s, want >= %d", got, m4a/40_000)
 	}
 	e := transcriptionFixture(t)
 	tr, err := e.s.RequestTranscription(context.Background(), e.host.ID, e.m.ID,
@@ -873,5 +881,97 @@ func TestTranscriptionEstimateTakesTheReportedDuration(t *testing.T) {
 	}
 	if tr.EstimatedSeconds != 591 {
 		t.Fatalf("estimate = %d, want the reported 591", tr.EstimatedSeconds)
+	}
+}
+
+// A job still queued a day after it was requested (a vendor answering 429
+// forever, a kill switch never lifted) ends FAILED with timeout, its audit
+// row and its transcription.failed event (the requester's notification).
+func TestTranscriptionQueuedForADayFails(t *testing.T) {
+	e := transcriptionFixture(t)
+	ctx := context.Background()
+	e.vendor.SubmitErr = &provider.RetryAfterError{After: time.Minute}
+	tr, err := e.s.RequestTranscription(ctx, e.host.ID, e.m.ID, TranscriptionRequest{UploadID: e.upload(t, "hop.mp3", mp3(30, "day")), Consent: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := e.s.runTranscriptions(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if got := transcription(t, e.s, tr.ID); got.Status != TranscriptionQueued {
+		t.Fatalf("rate limited = %s", got.Status)
+	}
+	if _, err := e.s.pool.Exec(ctx, `UPDATE meeting_transcriptions SET created_at = now() - interval '25 hours' WHERE id = $1`, tr.ID); err != nil {
+		t.Fatal(err)
+	}
+	due(t, e.s, e.m.ID)
+	if err := e.s.runTranscriptions(ctx); err != nil {
+		t.Fatal(err)
+	}
+	got := transcription(t, e.s, tr.ID)
+	if got.Status != TranscriptionFailed || got.ErrorCode != transcriptionErrTimeout || len(e.vendor.Submits) != 1 {
+		t.Fatalf("a day in the queue = %s %q, %d submits", got.Status, got.ErrorCode, len(e.vendor.Submits))
+	}
+	if n := countWhere(t, e.s, `SELECT count(*) FROM outbox_events WHERE topic = 'transcription.failed' AND payload::jsonb->>'transcription_id' = $1`, tr.ID); n != 1 {
+		t.Fatalf("transcription.failed events = %d", n)
+	}
+}
+
+// The vendor's copy of a job the worker gives up on is deleted too: one
+// abandoned at its deadline (it may still finish there), and one replaced
+// by a new job after a download error. Against AssemblyAI's own contract.
+func TestTranscriptionDeletesAbandonedVendorJobs(t *testing.T) {
+	for _, tc := range []struct {
+		name, poll string
+		deadline   bool
+	}{
+		{"deadline", `{"id":"job-1","status":"processing"}`, true},
+		{"download error", `{"id":"job-1","status":"error","error":"Download error, unable to download https://x/a.mp3"}`, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var mu sync.Mutex
+			var deletes []string
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch r.Method {
+				case http.MethodPost:
+					_, _ = w.Write([]byte(`{"id":"job-1","status":"queued"}`))
+				case http.MethodGet:
+					_, _ = w.Write([]byte(tc.poll))
+				case http.MethodDelete:
+					mu.Lock()
+					deletes = append(deletes, r.URL.Path)
+					mu.Unlock()
+					_, _ = w.Write([]byte(`{"id":"job-1","status":"completed"}`))
+				}
+			}))
+			defer srv.Close()
+			e := transcriptionFixture(t)
+			e.s.AI = ai.NewGateway(e.s.q, nil, nil, nil, ai.Options{Cloud: ai.CloudTools{MeetingTranscriber: provider.NewAssemblyAIFileTranscriber(srv.URL, "k")}})
+			ctx := context.Background()
+			tr, err := e.s.RequestTranscription(ctx, e.host.ID, e.m.ID, TranscriptionRequest{UploadID: e.upload(t, "hop.mp3", mp3(30, tc.name)), Consent: true})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := e.s.runTranscriptions(ctx); err != nil {
+				t.Fatal(err)
+			}
+			if tc.deadline {
+				if _, err := e.s.pool.Exec(ctx, `UPDATE meeting_transcriptions SET deadline_at = now() - interval '1 second' WHERE id = $1`, tr.ID); err != nil {
+					t.Fatal(err)
+				}
+			}
+			due(t, e.s, e.m.ID)
+			if err := e.s.runTranscriptions(ctx); err != nil {
+				t.Fatal(err)
+			}
+			if got := transcription(t, e.s, tr.ID); got.Status != TranscriptionQueued || got.Attempts != 1 {
+				t.Fatalf("after giving up = %s attempts %d", got.Status, got.Attempts)
+			}
+			mu.Lock()
+			defer mu.Unlock()
+			if len(deletes) != 1 || deletes[0] != "/v2/transcript/job-1" {
+				t.Fatalf("vendor deletes = %v", deletes)
+			}
+		})
 	}
 }
