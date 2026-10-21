@@ -253,6 +253,27 @@ describe("DocumentArchiveDialog", () => {
       ).toBeInTheDocument();
     });
 
+    it("drops the 0-and-0 count line and keeps the relocation sentence when nothing of the actor's goes to trash (TV-06)", async () => {
+      requestMock.mockImplementation((path: string) => {
+        if (path === "/api/v1/documents/f1/archive-impact") {
+          return Promise.resolve({ folders: 0, documents: 0, total: 1, max_nodes: 1000, too_large: false, relocated_count: 3 });
+        }
+        return Promise.resolve({});
+      });
+      renderDialog({ doc: folderFixture() });
+
+      expect(await screen.findByText(t("documents.archive.delete_relocated"))).toBeInTheDocument();
+      expect(screen.queryByText(/^0 /)).toBeNull();
+      expect(
+        screen.queryByText(
+          t("documents.archive.delete_body", {
+            subfolders: t("documents.archive.delete_subfolders", { count: 0 }),
+            documents: t("documents.archive.delete_documents", { count: 0 }),
+          }),
+        ),
+      ).toBeNull();
+    });
+
     it.each([{ relocated_count: 0 }, {}])("leaves the body as it was when relocated_count is %j", async (extra) => {
       requestMock.mockImplementation((path: string) => {
         if (path === "/api/v1/documents/f1/archive-impact") {

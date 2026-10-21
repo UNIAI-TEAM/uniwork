@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import type { User, Workspace } from "@uniwork/core/types";
@@ -87,5 +87,23 @@ describe("NotificationBell", () => {
     renderBell();
     const list = await screen.findByRole("list", { name: "Hộp việc" });
     expect(within(list).getByRole("link", { name: /đã di chuyển 50 tài liệu/ })).toHaveAttribute("href", "/acme/team/inbox?notification=n7");
+  });
+
+  it("marks a trashed single-document row read on click, once, and opens nothing (RFW-10)", async () => {
+    const trashed = {
+      ...row, id: "n8", kind: "document_changed", resource_type: "document", resource_id: "d1", title_key: "notifications.kind.document_changed",
+      params: { actor: "An", verb: "trashed", document_count: "1" }, count: 1, sample_documents: [{ id: "d1", title: "Kế hoạch Q4" }],
+    };
+    requestMock.mockImplementation((path: string) => {
+      if (path.startsWith("/api/v1/me/notifications/unread-count")) return Promise.resolve({ total: 1, by_workspace: { ws1: 1 } });
+      if (path.startsWith("/api/v1/me/notifications?")) return Promise.resolve({ notifications: [trashed], next_before: "" });
+      return Promise.resolve({ status: "ok" });
+    });
+    renderBell();
+    const list = await screen.findByRole("list", { name: "Hộp việc" });
+    expect(within(list).queryByRole("link")).toBeNull();
+    fireEvent.click(within(list).getByRole("button", { name: /vào thùng rác/ }));
+    await waitFor(() => expect(requestMock).toHaveBeenCalledWith("/api/v1/me/notifications/read", expect.anything()));
+    expect(requestMock.mock.calls.filter(([path]) => path === "/api/v1/me/notifications/read")).toHaveLength(1);
   });
 });

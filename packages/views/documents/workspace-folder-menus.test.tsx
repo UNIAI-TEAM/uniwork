@@ -51,12 +51,12 @@ const detail = (id: string, over: Record<string, unknown> = {}) => ({
   ...over,
 });
 
-function answer(opts: { role?: string; level?: string; post?: (path: string) => unknown } = {}) {
+function answer(opts: { role?: string; level?: string; post?: (path: string) => unknown; tree?: DocumentTreeNode[] } = {}) {
   requestMock.mockImplementation((path: string, init?: { method?: string }) => {
     if (path === `/api/v1/workspaces/${WS}/me`) {
       return Promise.resolve({ membership: { user_id: "u1", role: opts.role ?? "member", source: "membership" } });
     }
-    if (path.startsWith(TREE_URL)) return Promise.resolve({ documents: forest });
+    if (path.startsWith(TREE_URL)) return Promise.resolve({ documents: opts.tree ?? forest });
     if (init?.method === "POST") return Promise.resolve(opts.post?.(path) ?? { document: detail("x") });
     if (path.startsWith("/api/v1/documents/")) {
       const id = path.split("/")[4]?.split("?")[0] ?? "x";
@@ -276,6 +276,74 @@ describe("create-folder note per caller (UNI-2055 W1)", () => {
     expect(within(await open(row({}))).getByText(note())).toBeInTheDocument();
     cleanup();
     expect(within(await open(row({ system_kind: "my_folder", visibility: "restricted" }))).queryByText(note())).toBeNull();
+  });
+
+  it("judges the header and empty-state New folder from the open folder's row when the tree lacks it (RFW-13)", async () => {
+    answer();
+    const openRow = (over: Partial<DocumentSummaryRow>) =>
+      ({ id: "lost-open", workspace_id: WS, kind: "folder", title: "Chưa tải", visibility: "workspace", revision: "1", ...over }) as DocumentSummaryRow;
+    function Harness({ folderRow }: { folderRow: DocumentSummaryRow | null }) {
+      const { onCreateFolder, dialogs } = useLibraryRowDialogs({ wsId: WS, tree: [], folderId: "lost-open", folderTitle: "Chưa tải", folderRow });
+      return (
+        <>
+          <button type="button" onClick={() => onCreateFolder()}>
+            go
+          </button>
+          {dialogs}
+        </>
+      );
+    }
+    const open = async (folderRow: DocumentSummaryRow | null) => {
+      render(wrap(<Harness folderRow={folderRow} />));
+      fireEvent.click(screen.getByRole("button", { name: "go" }));
+      return screen.findByRole("dialog");
+    };
+
+    expect(within(await open(openRow({}))).getByText(note())).toBeInTheDocument();
+    cleanup();
+    expect(within(await open(openRow({ system_kind: "my_folder", visibility: "restricted" }))).queryByText(note())).toBeNull();
+    cleanup();
+    expect(within(await open(null)).queryByText(note())).toBeNull();
+  });
+
+  describe("a tree shaped like the real server's: no visibility on any node (TV-01)", () => {
+    const bare = (id: string, over: Partial<DocumentTreeNode> = {}): DocumentTreeNode => ({
+      id, title: id, kind: "folder", position: 0, children: [], ...over,
+    });
+    const real: DocumentTreeNode[] = [
+      bare("mf", { system_kind: "my_folder", children: [bare("mf-sub", { parent_id: "mf", children: [bare("mf-deep", { parent_id: "mf-sub" })] })] }),
+      bare("wf", { children: [bare("wf-sub", { parent_id: "wf", children: [bare("wf-deep", { parent_id: "wf-sub" })] })] }),
+      bare("page", { kind: "page" }),
+    ];
+
+    it("decides by ancestry: a workspace folder has no My Folder above it", () => {
+      for (const id of ["wf", "wf-sub", "wf-deep"]) expect(newFolderIsWorkspaceVisible(real, id)).toBe(true);
+      for (const id of ["mf", "mf-sub", "mf-deep", "page", "missing"]) expect(newFolderIsWorkspaceVisible(real, id)).toBe(false);
+      expect(newFolderIsWorkspaceVisible(real, null)).toBe(true);
+    });
+
+    it("lets an explicit visibility win over ancestry", () => {
+      const tree = [bare("wf", { children: [bare("wf-r", { parent_id: "wf", visibility: "restricted" })] })];
+      expect(newFolderIsWorkspaceVisible(tree, "wf-r")).toBe(false);
+      expect(newFolderIsWorkspaceVisible([], "lost", { kind: "folder", visibility: "workspace" })).toBe(true);
+    });
+
+    it("notes the create under a workspace sub-folder and under none of My Folder's (tree menu)", async () => {
+      answer({ tree: real });
+      render(wrap(<DocumentTree wsId={WS} />));
+      fireEvent.keyDown(await screen.findByRole("treeitem", { name: /^mf/ }), { key: "ArrowRight" });
+      fireEvent.keyDown(await screen.findByRole("treeitem", { name: /^wf$/ }), { key: "ArrowRight" });
+      const create = async (name: RegExp) => {
+        fireEvent.contextMenu(await screen.findByRole("treeitem", { name }));
+        fireEvent.click(await screen.findByRole("menuitem", { name: t("documents.tree.menu.new_subfolder") }));
+        return screen.findByRole("dialog");
+      };
+      const inWorkspace = await create(/^wf-sub/);
+      expect(within(inWorkspace).getByText(note())).toBeInTheDocument();
+      fireEvent.keyDown(inWorkspace, { key: "Escape" });
+      await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+      expect(within(await create(/^mf-sub/)).queryByText(note())).toBeNull();
+    });
   });
 
   it("notes nothing for a missing parent that is My Folder or not a folder (tree menu)", () => {

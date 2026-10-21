@@ -277,11 +277,38 @@ describe("document_changed click target (item 4)", () => {
     expect(screen.queryByRole("link")).toBeNull();
     expect(container.querySelector("[data-row-focus]")).toBeNull();
     expect(container).toHaveTextContent("An đã chuyển tài liệu “Kế hoạch Q4” vào thùng rác");
-    expect(container).toHaveTextContent("đã xóa");
+    // The document is in the trash, restorable: the row stays dimmed but never says "deleted" (RFW-11).
+    expect(container).not.toHaveTextContent("đã xóa");
+    expect(container.querySelector("em, .italic")).toBeNull();
     fireEvent.click(container.querySelector("li")!);
     expect(nav.push).not.toHaveBeenCalled();
     expect(onOpenList).not.toHaveBeenCalled();
     expect(resourceHref(n, workspace, [workspace])).not.toContain("view=archived");
+  });
+
+  it("marks an unread inert row read on click without navigating (RFW-10), and only once it is unread", () => {
+    const onOpen = vi.fn();
+    const n = changed({ verb: "trashed" });
+    const { nav, unmount } = row(n, { onOpen });
+    fireEvent.click(screen.getByRole("button", { name: /vào thùng rác/ }));
+    expect(onOpen).toHaveBeenCalledTimes(1);
+    expect(onOpen).toHaveBeenCalledWith(n);
+    expect(nav.push).not.toHaveBeenCalled();
+    unmount();
+
+    const readRow = row({ ...n, read_at: "2026-10-21T04:00:00Z" }, { onOpen });
+    expect(screen.queryByRole("button")).toBeNull();
+    expect(screen.queryByRole("link")).toBeNull();
+    readRow.unmount();
+    expect(onOpen).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows the deleted tag only for a document that is really gone (RFW-11)", () => {
+    const purged = row(changed({ verb: "deleted" }));
+    expect(purged.container).toHaveTextContent("đã xóa");
+    purged.unmount();
+    const gone = row(changed({ verb: "renamed" }, { resource_deleted: true }));
+    expect(gone.container).toHaveTextContent("đã xóa");
   });
 
   it("renders a one-document change whose document was purged as the dimmed, inert gone row", () => {
@@ -545,5 +572,26 @@ describe("document_changed list from the bell and Home (RFW-01)", () => {
     expect(await within(dialog).findByRole("link", { name: /Tài liệu d1/ })).toBeInTheDocument();
     expect(nav.push).not.toHaveBeenCalled();
     expect(requestMock).toHaveBeenCalledWith("/api/v1/me/notifications/n1/documents");
+  });
+
+  it("marks a trashed single-document Home row read on click, once, without navigating (RFW-10)", async () => {
+    serve([]);
+    const nav = {
+      push: vi.fn(), replace: vi.fn(), back: vi.fn(),
+      pathname: "/acme/team", searchParams: new URLSearchParams(), getShareableUrl: (p: string) => p,
+    };
+    const summary = { inbox: [changed({ verb: "trashed" })], partial: [] } as unknown as HomeSummary;
+    render(
+      wrapWithNav(
+        <WorkspaceProvider workspace={workspace} user={user}>
+          <HomeInbox summary={summary} loading={false} retrying={false} onRetry={() => undefined} />
+        </WorkspaceProvider>,
+        nav,
+      ),
+    );
+    fireEvent.click(await screen.findByRole("button", { name: /vào thùng rác/ }));
+    await waitFor(() => expect(requestMock).toHaveBeenCalledWith("/api/v1/me/notifications/read", expect.anything()));
+    expect(requestMock.mock.calls.filter(([path]) => path === "/api/v1/me/notifications/read")).toHaveLength(1);
+    expect(nav.push).not.toHaveBeenCalled();
   });
 });
