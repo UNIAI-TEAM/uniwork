@@ -1,0 +1,9 @@
+$ export NODE_OPTIONS=--max-old-space-size=6144; unset OPENAI_API_KEY; GATE_LEVEL=strict pnpm --filter @uniwork/web test > /tmp/uni2012r2-web.log 2>&1; rc=$?; grep -E "Test Files|Tests |FAIL|Error|threshold|ERROR|No test" /tmp/uni2012r2-web.log | head -40; tail -5 /tmp/uni2012r2-web.log; echo "WEB_TEST_EXIT=$rc"
+ Test Files  34 passed (34)
+      Tests  331 passed (331)
+Statements   : 82.84% ( 198/239 )
+Branches     : 76.79% ( 139/181 )
+Functions    : 73.01% ( 46/63 )
+Lines        : 88.7% ( 157/177 )
+================================================================================
+WEB_TEST_EXIT=0

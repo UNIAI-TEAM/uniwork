@@ -1,0 +1,23 @@
+$ export NODE_OPTIONS=--max-old-space-size=6144; unset OPENAI_API_KEY; GATE_LEVEL=strict pnpm --filter @uniwork/views test > /tmp/uni2012r2-views.log 2>&1; rc=$?; grep -E "Test Files|Tests |FAIL|Error|threshold|ERROR" /tmp/uni2012r2-views.log | head -60; tail -5 /tmp/uni2012r2-views.log; echo "VIEWS_TEST_EXIT=$rc"
+Error: Not implemented: window.focus
+Error: Not implemented: window.focus
+Error: Not implemented: window.focus
+Error: Not implemented: window.focus
+Error: Not implemented: window.focus
+Error: Not implemented: window.focus
+Error: Not implemented: window.focus
+Error: Not implemented: window.focus
+Error: Not implemented: window.focus
+Error: Not implemented: window.focus
+Error: Not implemented: window.focus
+Error: Not implemented: navigation (except hash changes)
+Error: Not implemented: navigation (except hash changes)
+Error: Not implemented: navigation (except hash changes)
+ Test Files  697 passed (697)
+      Tests  6545 passed (6545)
+Statements   : 83.58% ( 36231/43348 )
+Branches     : 77.61% ( 31403/40462 )
+Functions    : 79.05% ( 9144/11566 )
+Lines        : 85.94% ( 32184/37449 )
+================================================================================
+VIEWS_TEST_EXIT=0

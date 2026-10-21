@@ -1,0 +1,6 @@
+$ export NODE_OPTIONS=--max-old-space-size=6144; node --test scripts/*.test.mjs > /tmp/uni2012r2-scripts.log 2>&1; rc=$?; grep -E "^# (tests|pass|fail|skipped)|^not ok" /tmp/uni2012r2-scripts.log | head -40; echo "SCRIPTS_EXIT=$rc"
+# tests 128
+# pass 128
+# fail 0
+# skipped 0
+SCRIPTS_EXIT=0
