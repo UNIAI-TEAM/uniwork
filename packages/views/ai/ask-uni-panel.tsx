@@ -163,7 +163,8 @@ export function AskUniPanel() {
     if (!q || ask.isPending) return;
     setPendingQuestion(q);
     setQuestion("");
-    const focus = pendingFocus ?? undefined;
+    // A follow-up keeps the conversation's focus: the server does not store it, and the chip says it holds.
+    const focus = pendingFocus ?? (activeConversationId ? focusByConversation[activeConversationId] : undefined);
     ask.mutate(
       {
         question: q,

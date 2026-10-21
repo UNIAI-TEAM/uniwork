@@ -173,6 +173,17 @@ describe("AskUniPanel", () => {
     );
     expect(await screen.findByText("Có 1 việc quá hạn: [S1] Viết spec.")).toBeInTheDocument();
     expect(screen.getByText("Cuộc họp: Giao ban tuần 42")).toBeInTheDocument();
+    // A follow-up asks about the same meeting.
+    fireEvent.change(screen.getByRole("textbox", { name: "Câu hỏi cho UNI" }), { target: { value: "ai giữ việc ngân sách?" } });
+    fireEvent.click(screen.getByRole("button", { name: "Hỏi" }));
+    await waitFor(() =>
+      expect(requestMock).toHaveBeenCalledWith(
+        "/api/v1/workspaces/ws1/ai/ask",
+        expect.objectContaining({
+          body: expect.objectContaining({ question: "ai giữ việc ngân sách?", focus: { kind: "meeting", id: "m1" } }),
+        }),
+      ),
+    );
   });
 
   it("keeps an empty send in the tab order and hides the Enter hint under a finger", async () => {
