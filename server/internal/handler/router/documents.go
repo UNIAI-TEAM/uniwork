@@ -102,7 +102,8 @@ func registerDocuments(r, callerDocs api, h Routes, flags *featureflag.Service, 
 	d.Post("/workspaces/{workspaceID}/documents", h.CreateDocument, apiOp{
 		summary: "Create a page or folder document",
 		description: "Tạo trang hoặc thư mục trong workspace. Body JSON (≤ 2 MiB content + envelope): title, kind=page|folder, parent_id (trang/thư mục; thư mục chỉ nằm ở gốc hoặc trong thư mục, sai -> 422 document_parent_kind), thư mục không nhận content (-> 422 folder_not_supported), icon, content ProseMirror {type:\"doc\"} (server sanitize), visibility workspace|restricted. " +
-			"Tài liệu mới ở gốc mặc định riêng tư (restricted); gửi workspace để mở dòng Workspace gốc ở mức Chỉ xem (nâng mức trong hộp Chia sẻ); bỏ trống dưới cha trang thì kế thừa cha (cả mức), ở gốc hoặc dưới thư mục = restricted; giá trị khác -> 400 invalid_request; thư mục với visibility=workspace -> 422 folder_not_shareable (thư mục không bao giờ được chia sẻ). " +
+			"Tài liệu mới ở gốc mặc định riêng tư (restricted); gửi workspace để mở dòng Workspace gốc ở mức Chỉ xem (nâng mức trong hộp Chia sẻ); bỏ trống dưới cha trang thì kế thừa cha (cả mức), ở gốc hoặc dưới thư mục = restricted; giá trị khác -> 400 invalid_request. " +
+			"Thư mục (ADR 0037): visibility do vị trí quyết định, giá trị gửi lên bị bỏ qua - ngoài My Folder = workspace/view (cả workspace thấy tên), trong cây My Folder = restricted; mọi thành viên người của workspace tạo được bên trong thư mục chung; tên trùng với thư mục sống cùng cha (của bất kỳ ai) -> tự thêm \" (1)\", \" (2)\"..., không trả 409. " +
 			"Idempotency-Key ràng create với fingerprint payload: replay trả lại trang đã tạo, payload khác cùng key -> 409 idempotency_payload_mismatch.",
 		tags:   []string{"documents"},
 		sdi:    sdi.CreateDocumentSDI{},
@@ -160,7 +161,7 @@ func registerDocuments(r, callerDocs api, h Routes, flags *featureflag.Service, 
 	d.Patch("/documents/{documentID}", h.PatchDocument, apiOp{
 		summary: "Update a document",
 		description: "Autosave/metadata của working copy. revision bắt buộc (chuỗi thập phân của base client thấy); base cũ -> 422 revision_conflict kèm fields.current_revision. " +
-			"Field nil giữ nguyên; icon rỗng xóa icon; content thay thế working copy sau khi sanitize. Thư mục đặt visibility=workspace -> 422 folder_not_shareable (đóng một thư mục cũ về restricted vẫn được phép).",
+			"Field nil giữ nguyên; icon rỗng xóa icon; content thay thế working copy sau khi sanitize. Thư mục không nhận visibility (do vị trí quyết định, ADR 0037) -> 422 folder_not_shareable; đổi tên/biểu tượng thư mục chung chỉ người tạo và admin workspace/tổ chức (người khác -> 403); đổi tên trùng thư mục cùng cha -> 409 folder_name_taken.",
 		tags: []string{"documents"},
 		sdi:  sdi.PatchDocumentSDI{},
 		sdo:  sdo.DocumentSDO{},
@@ -680,12 +681,13 @@ func registerDocuments(r, callerDocs api, h Routes, flags *featureflag.Service, 
 		auth:        true,
 	})
 	d.Post("/documents/{documentID}/move", h.MoveDocument, apiOp{
-		summary:     "Move a document",
-		description: "Đổi cha/thứ tự trong cùng workspace. Kiểm edit cả nguồn lẫn đích; chu trình (kể cả thư mục vào chính nó hoặc thư mục con) -> 422 document_cycle, cha sai loại -> 422 document_parent_kind, quá 20 cấp -> 422 document_too_deep, khác workspace -> 422 cross_workspace_reference; tài liệu thuộc Work Product -> 409. Idempotency-Key replay an toàn.",
-		tags:        []string{"documents"},
-		sdi:         sdi.MoveDocumentSDI{},
-		sdo:         sdo.DocumentSDO{},
-		auth:        true,
+		summary: "Move a document",
+		description: "Đổi cha/thứ tự trong cùng workspace. Kiểm edit cả nguồn lẫn đích; chu trình (kể cả thư mục vào chính nó hoặc thư mục con) -> 422 document_cycle, cha sai loại -> 422 document_parent_kind, quá 20 cấp -> 422 document_too_deep, khác workspace -> 422 cross_workspace_reference; tài liệu thuộc Work Product -> 409. " +
+			"Thư mục chung (ADR 0037): chỉ người tạo và admin workspace/tổ chức di chuyển được (người khác -> 403); đích là thư mục chung thì mọi thành viên người được thả tài liệu vào; thư mục chung (hoặc thư mục con của nó) vào My Folder -> 422 folder_into_my_folder; thư mục trong My Folder ra workspace -> nó và mọi thư mục con thành workspace/view, tài liệu bên trong giữ quyền. Idempotency-Key replay an toàn.",
+		tags: []string{"documents"},
+		sdi:  sdi.MoveDocumentSDI{},
+		sdo:  sdo.DocumentSDO{},
+		auth: true,
 	})
 	d.Post("/documents/{documentID}/archive", h.ArchiveDocument, apiOp{
 		summary:     "Archive a document subtree",

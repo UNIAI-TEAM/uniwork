@@ -201,7 +201,7 @@ func TestWorkspaceFolderCreateGate(t *testing.T) {
 	// A folder upload inside a workspace folder: its folders open, nothing
 	// else changes.
 	batch, err := e.svc.CreateFolderUpload(ctx, e.b, e.tn.wsA, CreateFolderUploadInput{
-		ParentID: &folder.ID, RootName: "Tải lên", Folders: []string{"con"},
+		ParentID: &folder.ID, RootName: "Tải lên", Folders: []string{"con"}, IdempotencyKey: util.NewID(),
 	})
 	if err != nil {
 		t.Fatalf("B folder upload inside A's folder: %v", err)

@@ -205,7 +205,9 @@ func (s *DocumentService) MoveDocument(ctx context.Context, actor Actor, documen
 		if err != nil {
 			return DocumentView{}, err
 		}
-		if err := decideDocumentAccess(parent, paccess, DocumentLevelEdit); err != nil {
+		// A workspace folder takes a member's document like a create
+		// (ADR 0037 §4).
+		if err := s.decideParentContribution(ctx, q, actor, parent, paccess); err != nil {
 			return DocumentView{}, err
 		}
 		// A shelved destination is read-only: named only to a caller who
@@ -231,6 +233,20 @@ func (s *DocumentService) MoveDocument(ctx context.Context, actor Actor, documen
 			return DocumentView{}, errDocumentTooDeep()
 		}
 	}
+	// ADR 0037 §6: a folder's visibility follows its location. A workspace
+	// folder (the moved one or one below it) never enters a My Folder tree;
+	// out of one, the subtree's folders open after the write below.
+	destInMyFolder := false
+	if in.ParentID != "" {
+		if destInMyFolder, err = folderInMyFolderTree(ctx, q, parent); err != nil {
+			return DocumentView{}, err
+		}
+	}
+	if doc.Kind == DocumentKindFolder && destInMyFolder {
+		if err := refuseWorkspaceFoldersIntoMyFolder(subtree); err != nil {
+			return DocumentView{}, err
+		}
+	}
 
 	position := 0.0
 	if in.Position != nil {
@@ -251,9 +267,10 @@ func (s *DocumentService) MoveDocument(ctx context.Context, actor Actor, documen
 	// behind the tree lock, and every attempt re-reads the taken names rather
 	// than reusing the previous attempt's answer (§3.3).
 	//
-	// Visibility is deliberately untouched: it is inherited only when a document
-	// is created (CreatePage, CreateFileDocument), never on a move, so a
-	// restricted folder is not a boundary around what is moved into it.
+	// A document's visibility is deliberately untouched: it is inherited only
+	// when a document is created (CreatePage, CreateFileDocument), never on a
+	// move, so a folder is not a boundary around what is moved into it. Only
+	// folders follow their location (relocateSubtreeFolders below).
 	scope := documentNameScope{
 		OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID,
 		ParentID: in.ParentID, Kind: doc.Kind, ExcludeID: doc.ID,
@@ -320,6 +337,11 @@ func (s *DocumentService) MoveDocument(ctx context.Context, actor Actor, documen
 		"document_id": updated.ID, "workspace_id": updated.WorkspaceID,
 	}}); err != nil {
 		return DocumentView{}, err
+	}
+	if doc.Kind == DocumentKindFolder && !destInMyFolder {
+		if updated, err = s.relocateSubtreeFolders(ctx, q, actor, updated, subtree); err != nil {
+			return DocumentView{}, err
+		}
 	}
 	view, err := s.documentView(ctx, q, actor, updated)
 	if err != nil {

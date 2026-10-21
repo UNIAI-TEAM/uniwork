@@ -136,6 +136,9 @@ func TestErrorClassTable(t *testing.T) {
 		// UNI-1974: a folder is never shared (422); a refusal of the request,
 		// neither a lost permission nor a conflict to reload.
 		"folder_not_shareable",
+		// ADR 0037 §6 (UNI-2055): a workspace folder never enters My Folder
+		// (422); a refusal of the request, like folder_not_shareable.
+		"folder_into_my_folder",
 	}
 	for _, code := range unclassified {
 		if got := ErrorClassFor(code); got != "" {

@@ -29,8 +29,11 @@ type FolderUnshareReport struct {
 	HomeRows int
 }
 
-// UnshareFolders makes every folder private and revokes the live shares on it
-// (UNI-1974, CLAUDE.md: a folder is never shared). The documents inside are not
+// UnshareFolders revokes the live shares on every folder (UNI-1974, CLAUDE.md:
+// a folder is never shared) and closes the home row of a folder whose
+// location says restricted - a workspace-visible folder inside a My Folder
+// tree; outside one, workspace/view is the folder's own state (ADR 0037) and
+// stays. The documents inside are not
 // touched: shares never inherit, so their own access is the same before and
 // after. It runs the existing home-row writer and the share revoker, so each
 // change carries its audit row and its document.workspace_access_changed /
@@ -97,13 +100,25 @@ func (s *DocumentService) unshareOneFolder(ctx context.Context, id string, dryRu
 	if err != nil {
 		return false, 0, err
 	}
-	home = doc.Visibility == documentVisibilityWorkspace
+	// ADR 0037: a folder's home row follows its location. Outside every My
+	// Folder tree workspace/view is the folder's right state, so only a
+	// workspace-visible folder inside a My Folder tree is closed, through the
+	// location write; the shares are what the pass still removes.
+	inMyFolder, err := folderInMyFolderTree(ctx, q, doc)
+	if err != nil {
+		return false, 0, err
+	}
+	location := doc.Visibility == documentVisibilityWorkspace
+	home = location && inMyFolder
 	// A share naming the folder's own workspace is the legacy twin of the home
-	// row and is revoked by the home-row writer, not counted twice here.
+	// row and is revoked by the home-row writer, not counted twice here - on a
+	// folder whose open home row stays, it is revoked as a share like any other.
 	own := 0
-	for _, sh := range live {
-		if sh.PrincipalType == DocumentPrincipalWorkspace && sh.PrincipalID == doc.WorkspaceID {
-			own++
+	if !location || inMyFolder {
+		for _, sh := range live {
+			if sh.PrincipalType == DocumentPrincipalWorkspace && sh.PrincipalID == doc.WorkspaceID {
+				own++
+			}
 		}
 	}
 	shares = len(live) - own
@@ -111,9 +126,13 @@ func (s *DocumentService) unshareOneFolder(ctx context.Context, id string, dryRu
 		return home || own > 0, shares, nil
 	}
 	if home || own > 0 {
-		doc, err = writeDocumentHomeRow(ctx, q, folderUnshareActor, doc, documentHomeRowMove{
+		move := documentHomeRowMove{
 			Visibility: documentVisibilityRestricted, WorkspaceLevel: doc.WorkspaceLevel, BatchID: batchID,
-		})
+		}
+		if home {
+			move.WorkspaceLevel, move.FolderLocation = string(DocumentLevelView), true
+		}
+		doc, err = writeDocumentHomeRow(ctx, q, folderUnshareActor, doc, move)
 		if err != nil {
 			return false, 0, err
 		}

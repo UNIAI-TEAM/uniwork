@@ -216,9 +216,6 @@ func (s *DocumentService) CreatePage(ctx context.Context, actor Actor, workspace
 		if err := validDocumentVisibility(in.Visibility); err != nil {
 			return DocumentView{}, err
 		}
-		if kind == DocumentKindFolder && in.Visibility == documentVisibilityWorkspace {
-			return DocumentView{}, errFolderNotShareable()
-		}
 	}
 	var page sanitizedPage
 	if len(in.Content) > 0 {
@@ -293,30 +290,28 @@ func (s *DocumentService) CreatePage(ctx context.Context, actor Actor, workspace
 		parent = &p
 	}
 	// U-SH2: private at the root unless the request opens the home row; a
-	// child inherits its parent's pair.
+	// child inherits its parent's pair. A folder ignores the request: its
+	// location decides (ADR 0037) - restricted inside a My Folder tree,
+	// workspace/view everywhere else.
 	visibility, workspaceLevel := createHomeRow(in.Visibility, parent)
+	if kind == DocumentKindFolder {
+		inMyFolder, err := parentInMyFolderTree(ctx, q, parent)
+		if err != nil {
+			return DocumentView{}, err
+		}
+		visibility, workspaceLevel = folderHomeRowAt(inMyFolder)
+	}
 	position, err := q.NextDocumentPosition(ctx, db.NextDocumentPositionParams{
 		OrganizationID: w.OrganizationID, WorkspaceID: workspaceID, ParentID: nullText(parentID),
 	})
 	if err != nil {
 		return DocumentView{}, err
 	}
-	if kind == DocumentKindFolder {
-		// FD-D4/FD-D5: two live folders of one workspace never hold one name
-		// under one parent. Under the tree lock taken above this read is
-		// serialized with every other naming writer; the index of PR 2 is the
-		// safety net behind it.
-		if err := s.requireFreeFolderName(ctx, q, documentNameScope{
-			OrganizationID: w.OrganizationID, WorkspaceID: workspaceID, ParentID: parentID, Kind: kind,
-		}, title); err != nil {
-			return DocumentView{}, err
-		}
-	}
 	docID := util.NewID()
 	if err := s.consumePageBytes(ctx, q, actor, db.Document{ID: docID, OrganizationID: w.OrganizationID, WorkspaceID: workspaceID}, int64(len(page.content))); err != nil {
 		return DocumentView{}, err
 	}
-	doc, err := q.InsertDocument(ctx, db.InsertDocumentParams{
+	insert := db.InsertDocumentParams{
 		ID:             docID,
 		OrganizationID: w.OrganizationID,
 		WorkspaceID:    workspaceID,
@@ -337,7 +332,15 @@ func (s *DocumentService) CreatePage(ctx context.Context, actor Actor, workspace
 		CreatedByKind:  string(actor.Kind),
 		UpdatedBy:      actor.ID,
 		UpdatedByKind:  string(actor.Kind),
-	})
+	}
+	// FD-D4: two live folders of one workspace never hold one name under one
+	// parent; a folder create takes the next free " (n)" (ADR 0037 §7).
+	var doc db.Document
+	if kind == DocumentKindFolder {
+		doc, err = s.insertFolderWithFreeName(ctx, tx, q, insert)
+	} else {
+		doc, err = q.InsertDocument(ctx, insert)
+	}
 	if err != nil {
 		return DocumentView{}, documentTitleWriteError(kind, err)
 	}
@@ -373,6 +376,42 @@ func (s *DocumentService) CreatePage(ctx context.Context, actor Actor, workspace
 		return DocumentView{}, err
 	}
 	return view, nil
+}
+
+// insertFolderWithFreeName inserts a folder under the name its parent leaves
+// free (ADR 0037 §7): the requested title when no live sibling folder of any
+// creator holds it, else the smallest free "title (n)" from 1, the folder
+// upload's rule. The tree lock serializes every naming writer; the
+// folder-name index is the safety net, so the insert runs in a SAVEPOINT and
+// a unique violation re-reads the names and tries again. A create is never
+// refused for its name; out of attempts it answers folder_name_taken.
+func (s *DocumentService) insertFolderWithFreeName(ctx context.Context, tx pgx.Tx, q *db.Queries, in db.InsertDocumentParams) (db.Document, error) {
+	scope := documentNameScope{
+		OrganizationID: in.OrganizationID, WorkspaceID: in.WorkspaceID,
+		ParentID: in.ParentID.String, Kind: DocumentKindFolder,
+	}
+	requested := in.Title
+	var doc db.Document
+	var err error
+	for attempt := 1; attempt <= titleWriteAttempts; attempt++ {
+		err = s.withTitleSavepoint(ctx, tx, attempt, func() error {
+			name, err := s.availableFolderCreateTitle(ctx, q, scope, requested)
+			if err != nil {
+				return err
+			}
+			in.Title, in.SearchText = name, documentSearchText(name, in.ContentText)
+			row, err := q.InsertDocument(ctx, in)
+			if err != nil {
+				return err
+			}
+			doc = row
+			return nil
+		})
+		if err == nil || !isUniqueViolation(err) {
+			return doc, err
+		}
+	}
+	return db.Document{}, err
 }
 
 // pageReplay is what the ledger keeps for a page create: the id only.
@@ -417,12 +456,16 @@ func (s *DocumentService) replayCreatedPage(ctx context.Context, q *db.Queries, 
 // edit pages in both - and the check must refuse before an Office engine is
 // asked to work for a create lockPageParent would refuse anyway.
 func (s *DocumentService) authorizeParentIn(ctx context.Context, actor Actor, parentID, workspaceID string) error {
-	parent, _, err := s.authorizeDocument(ctx, actor, parentID, DocumentLevelEdit)
+	parent, access, err := s.authorizeDocument(ctx, actor, parentID, DocumentLevelView)
 	if err != nil {
 		return err
 	}
 	if parent.WorkspaceID != workspaceID || parent.OwnerKind.Valid {
 		return ErrNotFound
+	}
+	// A workspace folder takes children from every member (ADR 0037 §4).
+	if err := s.decideParentContribution(ctx, s.q, actor, parent, access); err != nil {
+		return err
 	}
 	// A shelved parent is read-only: the create under it is refused here as
 	// it will be under the row lock (lockPageParent).
@@ -459,7 +502,9 @@ func (s *DocumentService) lockPageParent(ctx context.Context, q *db.Queries, act
 	if err != nil {
 		return db.Document{}, err
 	}
-	if err := decideDocumentAccess(parent, access, DocumentLevelEdit); err != nil {
+	// Edit on the parent, or a workspace folder, which takes children from
+	// every member of its workspace (ADR 0037 §4).
+	if err := s.decideParentContribution(ctx, q, actor, parent, access); err != nil {
 		return db.Document{}, err
 	}
 	// The trash is not a place to create in, whoever may restore it.
@@ -754,9 +799,10 @@ func (s *DocumentService) updateDocument(ctx context.Context, actor Actor, docum
 			if !access.canAdminister() {
 				return ErrForbidden
 			}
-			// A folder is never opened to the workspace; closing a legacy one
-			// stays allowed. Behind the access gate so a stranger sees 404.
-			if doc.Kind == DocumentKindFolder && *in.Visibility == documentVisibilityWorkspace {
+			// A folder's visibility follows its location (ADR 0037): no PATCH
+			// moves it either way. Behind the access gate so a stranger sees
+			// 404.
+			if doc.Kind == DocumentKindFolder {
 				return errFolderNotShareable()
 			}
 			// Opening a restricted document to the workspace would hand the
