@@ -302,6 +302,9 @@ và giọng đọc. Một iPhone (VoiceOver) và một máy Android (TalkBack):
   dấu đã đọc"; "Trả lời" gõ một câu rồi Gửi: thông báo biến mất, người kia nhận tin (một lần), phòng hết chưa đọc trên
   web; tắt mạng rồi trả lời: tin nằm trong outbox và đi khi mở app có mạng; "Đánh dấu đã đọc": huy hiệu phòng về 0. Đổi
   ngôn ngữ app: nút đổi theo. iOS (khi có bản build): hai nút mở app rồi chạy (không mất câu trả lời).
+  Chỉ máy thật xác nhận đường app đã kill: test chỉ giữ dạng payload task nền nhận (`content.dataString`, theo
+  `NotificationSerializer` của expo-notifications 57); vòng xoay mãi trên ô trả lời mà tin không đi là task không đọc
+  được payload — xem log `push` "chat notification action" trong logcat.
 - [ ] Ngôn ngữ: iOS Cài đặt › UniChat › Ngôn ngữ và Android 13+ Cài đặt › Ứng dụng › UniChat › Ngôn ngữ chỉ liệt kê
   Tiếng Việt và English; đổi ngôn ngữ trong app rồi nhận một push: push nói đúng ngôn ngữ đó (`users.locale` đổi theo,
   xem bằng `GET /api/v1/me`). Tiếng Anh: "1 reply", "2 replies".

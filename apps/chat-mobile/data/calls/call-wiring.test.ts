@@ -153,6 +153,16 @@ describe("runCallPushTask", () => {
     expect(deps.bootRuntime).not.toHaveBeenCalled();
   });
 
+  it("hands over the shape Android's task really receives: the push's data as `dataString` on the content", async () => {
+    const dataString = JSON.stringify({ workspace_id: "w-1", room_id: "r-1", message_id: "m-1" });
+    const content = { title: "Minh", body: "hi", dataString };
+    await wiring.runCallPushTask({ actionIdentifier: "reply", userText: "ok", notification: { request: { identifier: "n1", content } } });
+    await wiring.runCallPushTask({ actionIdentifier: "mark_read", notification: { request: { identifier: "n2", content } } });
+    expect(chatActions.runChatNotificationAction).toHaveBeenNthCalledWith(1, expect.objectContaining({ action: "reply", text: "ok", key: "n1:reply" }));
+    expect(chatActions.runChatNotificationAction).toHaveBeenNthCalledWith(2, expect.objectContaining({ action: "mark_read", key: "n2:mark_read" }));
+    expect(deps.bootRuntime).not.toHaveBeenCalled();
+  });
+
   it("boots the runtime and the language, then rings with the app's own notification", async () => {
     await wiring.runCallPushTask({ data: { dataString: JSON.stringify(INVITE) } });
     expect(deps.bootRuntime).toHaveBeenCalledTimes(1);

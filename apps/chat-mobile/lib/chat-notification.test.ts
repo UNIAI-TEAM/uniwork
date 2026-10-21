@@ -48,6 +48,28 @@ describe("chatNotificationAction", () => {
     });
   });
 
+  it("reads the shape Android's background task receives: the push's data as `dataString` JSON on the content, no `data`", () => {
+    // expo-notifications' NotificationSerializer.toBundle(NotificationRequest) for a push of Expo's service.
+    const native = (actionIdentifier: string, extra: Record<string, unknown> = {}) => ({
+      actionIdentifier,
+      notification: { request: { identifier: "n1", content: { title: "Minh", body: "hi", dataString: JSON.stringify(data) } } },
+      ...extra,
+    });
+    expect(chatNotificationAction(native("reply", { userText: "ok" }))).toEqual({
+      action: "reply",
+      key: "n1:reply",
+      notificationId: "n1",
+      target: { workspaceId: "w", roomId: "r", messageId: "m" },
+      text: "ok",
+    });
+    expect(chatNotificationAction(native("mark_read"))).toEqual(chatNotificationAction(response("mark_read")));
+    // One response heard by both the listener (data parsed) and the task (dataString) carries one key.
+    expect(chatNotificationAction(native("reply", { userText: "ok" }))?.key).toBe(chatNotificationAction(response("reply", { userText: "ok" }))?.key);
+    const broken = { actionIdentifier: "mark_read", notification: { request: { identifier: "n1", content: { dataString: "{not json" } } } };
+    expect(chatNotificationAction(broken)).toBeNull();
+    expect(chatNotificationAction({ actionIdentifier: "mark_read", notification: { request: { identifier: "n1", content: { title: "Minh" } } } })).toBeNull();
+  });
+
   it("is none for a plain tap, an empty reply, a push that is not a chat message, or no response", () => {
     expect(chatNotificationAction(response("expo.modules.notifications.actions.DEFAULT"))).toBeNull();
     expect(chatNotificationAction(response("reply", { userText: "   " }))).toBeNull();

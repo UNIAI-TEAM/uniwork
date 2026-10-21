@@ -33,7 +33,7 @@ function text(value: unknown): string {
   return typeof value === "string" ? value : "";
 }
 
-/** A push's data as the platform hands it: the object, or Android's `dataString` JSON inside it. */
+/** A push's data as the platform hands it: the object, or Android's `dataString` JSON in its place. */
 function pushData(value: unknown): Record<string, unknown> | null {
   const data = record(value);
   if (!data || typeof data.dataString !== "string") return data;
@@ -63,7 +63,11 @@ export function chatNotificationAction(response: unknown): ChatNotificationActio
   if (action !== REPLY_ACTION && action !== MARK_READ_ACTION) return null;
   const request = record(record(outer?.notification)?.request);
   const notificationId = text(request?.identifier);
-  const target = chatPushTarget(record(request?.content)?.data);
+  // A listener gets the push's data parsed into `content.data` (expo-notifications' mapNotificationResponse);
+  // Android's background task gets the native bundle as is: for a push of Expo's service, the data is a JSON
+  // string at `content.dataString` and there is no `data` (NotificationSerializer.toBundle(NotificationRequest)).
+  const content = record(request?.content);
+  const target = chatPushTarget(content?.data ?? (typeof content?.dataString === "string" ? { dataString: content.dataString } : null));
   if (!target) return null;
   // One action of one notification runs once, whichever of the listener and the background task hears it first.
   const key = `${notificationId || target.messageId}:${action}`;

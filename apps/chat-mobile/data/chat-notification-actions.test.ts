@@ -35,7 +35,7 @@ vi.mock("./storage/native-device-store", () => ({ openNativeDeviceStore: "native
 vi.mock("./stores/chat-send-store", () => ({ hydrateChatSendStore: deps.hydrateChatSendStore, useChatSendStore: { persist: { hasHydrated: () => deps.hydrated } } }));
 vi.mock("./stores/pending-ops-store", () => ({ hydratePendingOpsStore: deps.hydratePendingOpsStore, usePendingOpsStore: { persist: { hasHydrated: () => deps.hydrated } } }));
 
-import type { ChatNotificationAction } from "@/lib/chat-notification";
+import { chatNotificationAction, type ChatNotificationAction } from "@/lib/chat-notification";
 import {
   appChatActionEnv,
   chatMessageCategoryActions,
@@ -120,6 +120,18 @@ describe("handleChatNotificationAction", () => {
     const room = fakeEnv();
     await handleChatNotificationAction(reply(), room);
     expect(room.send).toHaveBeenCalledWith({ workspaceId: "w", roomId: "r", senderId: "me", body: "ok" });
+  });
+
+  it("sends once a reply that both the listener and Android's task hear (an app alive in the background)", async () => {
+    const data = { workspace_id: "w", room_id: "r", message_id: "m" };
+    const response = (content: Record<string, unknown>) => ({ actionIdentifier: "reply", userText: "ok", notification: { request: { identifier: "both-1", content } } });
+    const listener = chatNotificationAction(response({ data }));
+    const task = chatNotificationAction(response({ dataString: JSON.stringify(data) }));
+    if (!listener || !task) throw new Error("both paths must read the reply");
+    const env = fakeEnv();
+    const outcomes = await Promise.all([handleChatNotificationAction(task, env), handleChatNotificationAction(listener, env)]);
+    expect(outcomes.sort()).toEqual(["duplicate", "replied"]);
+    expect(env.send).toHaveBeenCalledTimes(1);
   });
 
   it("does nothing for a phone nobody is signed in on", async () => {
