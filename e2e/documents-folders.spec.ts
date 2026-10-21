@@ -592,8 +592,9 @@ test("FD-A03 upload into the open folder places the uploaded file under the open
       .getByText("Thư mục Nhận Tải Lên"),
   ).toBeVisible();
 
-  // Open the real Upload file dialog from the header "Tải lên" (documents-home-create.tsx CreateMenu).
+  // Open the real Upload file dialog from the header "Tải lên" menu (documents-home-create.tsx).
   await page.getByRole("button", { name: "Tải lên", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Tải lên tệp" }).click();
   const uploadDialog = page.getByRole("dialog", { name: "Tải tệp lên" });
   await expect(uploadDialog).toBeVisible();
   await uploadDialog
