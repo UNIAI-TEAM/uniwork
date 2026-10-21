@@ -1,6 +1,8 @@
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { waitFor } from "@testing-library/react";
+import { useAiPanelStore } from "@uniwork/core/ai";
+import { FeatureFlagService, FeatureFlagsProvider, StaticProvider } from "@uniwork/core/feature-flags";
 import { initI18n, setLocale } from "@uniwork/core/i18n";
 import userEvent from "@testing-library/user-event";
 import { toast } from "sonner";
@@ -215,5 +217,55 @@ describe("WorkspaceTopBar", () => {
     fireEvent.click(search);
     expect(useSearchStore.getState().open).toBe(true);
     useSearchStore.setState({ open: false });
+  });
+});
+
+describe("WorkspaceChrome Ask UNI", () => {
+  function renderChrome(flagOn: boolean, bare = false) {
+    requestMock.mockReset();
+    requestMock.mockImplementation((path: string) =>
+      Promise.resolve(
+        path === "/api/v1/workspaces/ws1/ai/capabilities"
+          ? { enabled: true, ask_uni: true, meeting_summary: true, quota: { used_tokens: 0, limit_tokens: 500000 } }
+          : {},
+      ),
+    );
+    useAiPanelStore.setState({ open: true, conversationId: null, workspaceId: null, fullPage: false });
+    const service = new FeatureFlagService(new StaticProvider({ ask_uni_stream: { default: flagOn } }));
+    return render(
+      wrapWithNav(
+        <ThemeProvider>
+          <LocaleAdapterProvider adapter={localeAdapter}>
+            <FeatureFlagsProvider service={service}>
+              <WorkspaceProvider workspace={workspace} user={user}>
+                <SidebarProvider hasExternalTrigger>
+                  <WorkspaceChrome bare={bare}>
+                    <p>page</p>
+                  </WorkspaceChrome>
+                </SidebarProvider>
+              </WorkspaceProvider>
+            </FeatureFlagsProvider>
+          </LocaleAdapterProvider>
+        </ThemeProvider>,
+      ),
+    );
+  }
+
+  it("keeps the overlay panel while the flag is off", async () => {
+    renderChrome(false);
+    expect(await screen.findByRole("dialog", { name: /Hỏi UNI/ })).toBeInTheDocument();
+    expect(screen.queryByRole("complementary", { name: "Hỏi UNI" })).toBeNull();
+  });
+
+  it("docks the panel beside the page while the flag is on", async () => {
+    renderChrome(true);
+    expect(await screen.findByRole("complementary", { name: "Hỏi UNI" })).toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: /Hỏi UNI/ })).toBeNull();
+    expect(screen.getByText("page")).toBeVisible();
+  });
+
+  it("keeps the overlay panel in the bare UniChat shell even with the flag on", async () => {
+    renderChrome(true, true);
+    expect(await screen.findByRole("dialog", { name: /Hỏi UNI/ })).toBeInTheDocument();
   });
 });

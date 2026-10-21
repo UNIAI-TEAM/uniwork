@@ -5,6 +5,7 @@ import { Ellipsis, Languages, Monitor, Moon, Plus, Sun } from "lucide-react";
 import { motion, useReducedMotion } from "motion/react";
 import { useTranslation } from "react-i18next";
 import { DEFAULT_LOCALE, SUPPORTED_LOCALES, setLocale, type SupportedLocale } from "@uniwork/core/i18n";
+import { useFlag } from "@uniwork/core/feature-flags";
 import { useLocaleAdapter } from "@uniwork/core/i18n/react";
 import { useTheme } from "@uniwork/ui/components/common/theme-provider";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -30,7 +31,8 @@ import {
 } from "@uniwork/ui/lib/motion";
 import { cn } from "@uniwork/ui/lib/utils";
 import { AskUniButton } from "../ai/ask-uni-button";
-import { AskUniPanel } from "../ai/ask-uni-panel";
+import { AskUniDock } from "../ai/ask-uni-dock";
+import { AskUniLegacyPanel } from "../ai/ask-uni-legacy-panel";
 import { NotificationBell } from "../notifications/notification-bell";
 import { SearchCommand, SearchTrigger } from "../search";
 import { NewTaskDialog } from "../tasks/new-task-dialog";
@@ -57,8 +59,29 @@ export function WorkspaceChrome({ children, bare = false }: { children: ReactNod
   const { pathname } = useNavigation();
   const { workspace } = useWorkspace();
   const reduceMotion = useReducedMotion() ?? false;
+  // The UniChat shell keeps the overlay panel; the docked one is for the workspace layout.
+  const docked = useFlag("ask_uni_stream", false) && !bare;
   // The page the shell opened on appears as is; a route moved to fades in.
   const [firstPathname] = useState(pathname);
+  // Enter only, no AnimatePresence exit: children is the host's route
+  // slot, which already renders the NEW route, so an exiting copy would
+  // mount the next page once inside it and again when the exit ends —
+  // and a deep link (?message=, ?comment=) consumed by the first mount
+  // was lost with it (UNI-1814).
+  const page = (
+    <motion.div
+      key={pathname}
+      initial={pathname === firstPathname ? false : { opacity: 0, y: reduceMotion ? 0 : UI_MOTION_DISTANCE.subtle }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{
+        duration: reduceMotion ? UI_MOTION_DURATION.micro : UI_MOTION_DURATION.fast,
+        ease: UI_EASE_OUT,
+      }}
+      className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
+    >
+      {children}
+    </motion.div>
+  );
   return (
     <PreferenceToastProvider>
       {bare ? (
@@ -68,24 +91,8 @@ export function WorkspaceChrome({ children, bare = false }: { children: ReactNod
       )}
       <GlobalShortcuts onCreateTask={openCreate} />
       <SearchCommand onCreateTask={openCreate} />
-      <AskUniPanel />
-      {/* Enter only, no AnimatePresence exit: children is the host's route
-          slot, which already renders the NEW route, so an exiting copy would
-          mount the next page once inside it and again when the exit ends —
-          and a deep link (?message=, ?comment=) consumed by the first mount
-          was lost with it (UNI-1814). */}
-      <motion.div
-        key={pathname}
-        initial={pathname === firstPathname ? false : { opacity: 0, y: reduceMotion ? 0 : UI_MOTION_DISTANCE.subtle }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{
-          duration: reduceMotion ? UI_MOTION_DURATION.micro : UI_MOTION_DURATION.fast,
-          ease: UI_EASE_OUT,
-        }}
-        className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
-      >
-        {children}
-      </motion.div>
+      {docked ? null : <AskUniLegacyPanel />}
+      {docked ? <AskUniDock>{page}</AskUniDock> : page}
       <CreateTaskDraftTray workspaceId={workspace.id} onOpenDraft={openCreate} />
     </PreferenceToastProvider>
   );
