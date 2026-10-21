@@ -76,6 +76,9 @@ export function emailHubThreadCapabilities(thread: EmailHubThread, browserFolder
   };
 }
 
+/** Plain `S` stars the open thread (use-email-hub-shortcuts.ts); ARIA syntax for aria-keyshortcuts. */
+const STAR_KEYSHORTCUT = "S";
+
 function ToolbarDivider() {
   return <Separator orientation="vertical" className="mx-1 h-5" />;
 }
@@ -292,7 +295,8 @@ export function EmailHubThreadToolbar({
                 className={cn(
                   thread.is_starred ? "text-warning hover:text-warning" : "text-muted-foreground hover:text-foreground",
                 )}
-                aria-label={t("email_hub.star_shortcut")}
+                aria-label={t("email_hub.star")}
+                aria-keyshortcuts={STAR_KEYSHORTCUT}
                 aria-pressed={thread.is_starred}
                 disabled={pending.star}
                 onClick={actions.onToggleStar}

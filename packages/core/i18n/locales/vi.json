@@ -552,7 +552,8 @@
     "collapseSidebar": "Thu gọn thanh bên",
     "shortcutMac": "⌘K",
     "shortcutOther": "Ctrl+K",
-    "askUni": "Hỏi UNI ({{shortcut}})"
+    "askUni": "Hỏi UNI ({{shortcut}})",
+    "askUniName": "Hỏi UNI"
   },
   "search": {
     "title": "Tìm kiếm",
@@ -2101,7 +2102,6 @@
     "last_sync": "Đồng bộ lúc {{when}}",
     "to_recipient": "Đến: {{name}}",
     "select_thread": "Chọn email: {{subject}}",
-    "star_shortcut": "Gắn sao (S)",
     "archive_shortcut": "Lưu trữ (E)",
     "trash_shortcut": "Xóa (#)",
     "mark_unread_shortcut": "Đánh dấu chưa đọc (Shift+U)",
