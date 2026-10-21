@@ -76,6 +76,8 @@ module.exports = {
     "components/chat/room-typing.tsx",
     "components/chat/use-stable-handlers.ts",
     "components/people/use-is-online.ts",
+    // S5 review: the people rows of new-chat, new-group and room info (member-rows.test).
+    "components/people/member-rows.tsx",
   ],
   coverageReporters: ["text-summary"],
   // Measured on the files above; only ever raised (CLAUDE.md › Coverage only

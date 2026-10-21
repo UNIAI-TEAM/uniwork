@@ -7,19 +7,19 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { router, Stack, useLocalSearchParams } from "expo-router";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ActivityIndicator, FlatList, KeyboardAvoidingView, Pressable, ScrollView, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ChatHeader } from "@/components/chat/chat-header";
 import { useChatWorkspace, type ChatWorkspace } from "@/components/chat/use-chat-workspace";
+import { GroupPickRow } from "@/components/people/member-rows";
 import { PersonAvatar } from "@/components/people/person-avatar";
 import { SearchField } from "@/components/ui/search-field";
 import { Text } from "@/components/ui/text";
 import { chatApi } from "@/data/chat-api";
 import { chatKeys } from "@/data/queries/chat-keys";
 import { nicknamesOptions, roomMembersOptions, workspaceMembersOptions } from "@/data/queries/chat";
-import { usePresenceStore } from "@/data/stores/chat-presence-store";
 import { chatRoutes } from "@/lib/chat-routes";
 import { displayLabelForChatContact } from "@/lib/rooms-display";
 import { foldedIncludes } from "@/lib/search-fold";
@@ -40,7 +40,6 @@ function NewGroup({ chat, roomId }: { chat: ChatWorkspace; roomId: string | null
   const members = useQuery(workspaceMembersOptions(chat.wsId));
   const inRoom = useQuery({ ...roomMembersOptions(chat.wsId, roomId ?? ""), enabled: roomId !== null });
   const nicknames = useQuery(nicknamesOptions(chat.wsId)).data;
-  const online = usePresenceStore((s) => s.onlineUserIds);
   const [name, setName] = useState("");
   const [q, setQ] = useState("");
   const [picked, setPicked] = useState<string[]>([]);
@@ -56,7 +55,11 @@ function NewGroup({ chat, roomId }: { chat: ChatWorkspace; roomId: string | null
     [members.data, nicknames, chat.userId, q],
   );
   const labelOf = (userId: string) => people.find((p) => p.user_id === userId)?.label ?? (members.data ?? []).find((m) => m.user_id === userId)?.display_name ?? "";
-  const toggle = (userId: string) => setPicked((current) => (current.includes(userId) ? current.filter((id) => id !== userId) : [...current, userId]));
+  // Stable, so a row redraws only for its own presence or selection (member-rows.tsx).
+  const toggle = useCallback(
+    (userId: string) => setPicked((current) => (current.includes(userId) ? current.filter((id) => id !== userId) : [...current, userId])),
+    [],
+  );
   const ready = roomId ? picked.length > 0 : name.trim().length > 0 && picked.length >= GROUP_MIN_OTHERS;
 
   const submit = () => {
@@ -117,8 +120,8 @@ function NewGroup({ chat, roomId }: { chat: ChatWorkspace; roomId: string | null
       <View className="h-2 bg-muted" />
       <FlatList
         data={people}
-        // The rows read the selection and presence: a change re-renders them.
-        extraData={[picked, already, online]}
+        // The rows read the selection; each reads its own presence.
+        extraData={[picked, already]}
         keyExtractor={(m) => m.user_id}
         keyboardShouldPersistTaps="handled"
         ListHeaderComponent={
@@ -127,36 +130,9 @@ function NewGroup({ chat, roomId }: { chat: ChatWorkspace; roomId: string | null
           </Text>
         }
         ListEmptyComponent={members.isPending ? <ActivityIndicator className="py-8" accessibilityLabel={t("chat.loading_members")} /> : null}
-        renderItem={({ item, index }) => {
-          const isIn = already.has(userKey(item.user_id));
-          const selected = picked.includes(item.user_id);
-          const isOnline = Boolean(online[userKey(item.user_id)]);
-          return (
-            <Pressable
-              accessibilityRole="checkbox"
-              accessibilityState={{ checked: selected || isIn, disabled: isIn }}
-              accessibilityLabel={[item.label, isIn ? t("chat.already_in_group") : null].filter(Boolean).join(", ")}
-              disabled={isIn}
-              onPress={() => toggle(item.user_id)}
-              className="min-h-16 flex-row items-center gap-3 pl-4 active:bg-secondary"
-            >
-              <PersonAvatar name={item.label} size={44} online={isOnline} seed={item.user_id} />
-              <View className={cn("min-w-0 flex-1 flex-row items-center gap-3 self-stretch py-2 pr-4", index < people.length - 1 && "border-b-hairline border-border")}>
-                <View className="min-w-0 flex-1 gap-px">
-                  <Text className="text-base font-display font-bold text-foreground" numberOfLines={1}>
-                    {item.label}
-                  </Text>
-                  <Text className="text-sm text-muted-foreground" numberOfLines={1}>
-                    {isIn ? t("chat.already_in_group") : item.email}
-                  </Text>
-                </View>
-                <View className={cn("h-6 w-6 items-center justify-center rounded-full border-2", selected || isIn ? "border-primary bg-primary" : "border-border")}>
-                  {selected || isIn ? <Ionicons name="checkmark" size={15} color={theme.primaryForeground} /> : null}
-                </View>
-              </View>
-            </Pressable>
-          );
-        }}
+        renderItem={({ item, index }) => (
+          <GroupPickRow person={item} last={index === people.length - 1} isIn={already.has(userKey(item.user_id))} selected={picked.includes(item.user_id)} onToggle={toggle} />
+        )}
       />
       <SafeAreaView edges={["bottom"]} className="border-t border-border bg-background px-4 pt-2.5">
         <Text className="pb-2 text-center text-[13px] text-muted-foreground">

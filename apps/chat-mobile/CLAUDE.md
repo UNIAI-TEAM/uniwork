@@ -288,7 +288,9 @@ một dòng thì ghi lý do ở dòng trên.
   `useRoomContext`: bong bóng gõ và dòng trạng thái của header tự đọc (`room-typing.tsx`). **Danh sách phòng**:
   `buildRoomList` dựng hàng không có gõ và hiện diện; `room-list-view.tsx` phủ dòng gõ (`roomListTypingLines`), mỗi
   hàng DM đọc người kia bằng `useIsOnline` (selector theo từng người, `components/people/use-is-online.ts`; cũng
-  dùng ở composer và danh bạ, `LivePersonAvatar`), hàng so bằng `sameRoomListRow`, chạm vào hành động trên hàng mới
+  dùng ở composer, danh bạ, `LivePersonAvatar` và các hàng người memo của `components/people/member-rows.tsx` — tin nhắn
+  mới, tạo/thêm nhóm, chi tiết phòng; không màn nào đọc cả tập `onlineUserIds` trừ dải "đang hoạt động" của danh bạ),
+  hàng so bằng `sameRoomListRow`, chạm vào hành động trên hàng mới
   nhất cùng key. Đừng truyền closure mới hay object dựng trong render vào một cell: test đếm render đỏ.
   `lib/user-id.ts` (`userKey`/`sameUser`) thay `trim().toUpperCase()` ngoài các file copy từ web. Link việc của tin
   hỏi theo cửa sổ (`lib/link-windows.ts`, ranh giới theo hash id): tin mới chỉ refetch cửa sổ mới nhất; cửa sổ vừa

@@ -11,7 +11,7 @@ import type { ChatRoomRecord } from "@uniwork/core/api/endpoints/chat-schemas";
 import { isDefaultWorkspaceChannel } from "@uniwork/core/chat/chat-room-helpers";
 import { Image } from "expo-image";
 import { router, Stack, useLocalSearchParams } from "expo-router";
-import { useMemo, useRef, useState, type ComponentProps, type ReactNode } from "react";
+import { useMemo, useRef, useState, type ComponentProps } from "react";
 import { useTranslation } from "react-i18next";
 import { ActivityIndicator, Alert, Pressable, ScrollView, TextInput, useWindowDimensions, View } from "react-native";
 import { ChatHeader } from "@/components/chat/chat-header";
@@ -19,7 +19,7 @@ import { RoomAvatar } from "@/components/chat/room-avatar";
 import { DmSafetyRows, MemberSafetySheet, type SafetyPerson } from "@/components/chat/room-safety";
 import { useChatWorkspace, type ChatWorkspace } from "@/components/chat/use-chat-workspace";
 import { useRoomContext } from "@/components/chat/use-room-context";
-import { PersonAvatar } from "@/components/people/person-avatar";
+import { RoomMemberRow } from "@/components/people/member-rows";
 import { SearchField } from "@/components/ui/search-field";
 import { Text } from "@/components/ui/text";
 import { useMobileFlag } from "@/data/remote-config";
@@ -28,7 +28,6 @@ import { leaveRoom, setRoomMuted } from "@/data/chat-actions";
 import type { ChatSharedSummary } from "@/data/chat-api";
 import type { RoomTimeline } from "@/data/chat-timeline";
 import { roomSearchOptions, roomTimelineOptions, sharedSummaryOptions } from "@/data/queries/chat";
-import { usePresenceStore } from "@/data/stores/chat-presence-store";
 import { chatRoutes } from "@/lib/chat-routes";
 import { deepLinkHref } from "@/lib/deep-link";
 import { messagePreviewText } from "@/lib/message-display";
@@ -40,7 +39,6 @@ import { useColorScheme } from "@/lib/use-color-scheme";
 import { cn } from "@/lib/utils";
 import { voiceCallKindFromServer } from "@/lib/voice-call";
 import { toast } from "@/data/stores/toast-store";
-import { userKey } from "@/lib/user-id";
 import { chatMediaSource, IMAGE_CACHE_POLICY } from "@/lib/media-source";
 
 /** Members shown before "Xem tất cả" (the board lists four). */
@@ -77,23 +75,6 @@ function QuickAction(props: { icon: ComponentProps<typeof Ionicons>["name"]; lab
 }
 
 const Divider = () => <View className="h-2 bg-muted" />;
-
-/** A member's row: someone else's opens their menu (a DM, report, block); one's own only reads out. */
-function MemberRowShell({ label, onPress, children }: { label: string; onPress?: () => void; children: ReactNode }) {
-  const className = "min-h-14 flex-row items-center gap-3";
-  if (!onPress) {
-    return (
-      <View accessible accessibilityLabel={label} className={className}>
-        {children}
-      </View>
-    );
-  }
-  return (
-    <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} className={`${className} active:opacity-70`}>
-      {children}
-    </Pressable>
-  );
-}
 
 function SharedSection({ shared, onOpenMessage }: { shared: ChatSharedSummary; onOpenMessage: (messageId: string) => void }) {
   const { t } = useTranslation();
@@ -175,7 +156,6 @@ function RoomInfo({ chat, roomId }: { chat: ChatWorkspace; roomId: string }) {
   const { colorScheme } = useColorScheme();
   const theme = THEME[colorScheme];
   const room = useRoomContext(chat, roomId);
-  const online = usePresenceStore((s) => s.onlineUserIds);
   const searchInput = useRef<TextInput>(null);
   const [q, setQ] = useState("");
   const [allMembers, setAllMembers] = useState(false);
@@ -187,7 +167,6 @@ function RoomInfo({ chat, roomId }: { chat: ChatWorkspace; roomId: string }) {
   const callsOn = useMobileFlag("unichat_mobile_calls");
   const callable = callsOn && room.room !== null && ["dm", "group", "channel"].includes(room.room.kind) && !isDefaultWorkspaceChannel(room.room);
   const isGroup = room.room?.kind === "group";
-  const isOnline = (userId: string) => Boolean(online[userKey(userId)]);
   const memberCount = room.members.length || (room.room?.member_count ?? 0);
   const heroLine =
     room.room?.kind === "dm"
@@ -310,38 +289,17 @@ function RoomInfo({ chat, roomId }: { chat: ChatWorkspace; roomId: string }) {
               </Pressable>
             ) : null}
           </View>
-          {members.map((member, index) => {
-            const name = senderLabelFor({ sender: member.user_id }, chat.userId, t("chat.you"), room.nameContext);
-            const memberOnline = isOnline(member.user_id);
-            const status = memberOnline ? t("chat.presence_online") : member.email;
-            const role = member.role === "admin" ? t("chat.mobile.room_role_admin_short") : null;
-            return (
-              <MemberRowShell
-                key={member.user_id}
-                label={[name, status, role].filter(Boolean).join(", ")}
-                onPress={member.user_id === chat.userId ? undefined : () => setMemberMenu({ userId: member.user_id, name })}
-              >
-                <PersonAvatar name={name} size={40} online={memberOnline} seed={member.user_id} />
-                <View className={cn("min-w-0 flex-1 flex-row items-center gap-2 self-stretch py-1.5", index < members.length - 1 && "border-b-hairline border-border")}>
-                  <View className="min-w-0 flex-1">
-                    <Text className="text-[15px] font-semibold text-foreground" numberOfLines={1}>
-                      {name}
-                    </Text>
-                    {status ? (
-                      <Text className={cn("text-[13px]", memberOnline ? "text-success-solid" : "text-muted-foreground")} numberOfLines={1}>
-                        {status}
-                      </Text>
-                    ) : null}
-                  </View>
-                  {role ? (
-                    <View className="h-6 justify-center rounded-full bg-tint-blue px-2.5">
-                      <Text className="text-xs font-semibold text-primary">{role}</Text>
-                    </View>
-                  ) : null}
-                </View>
-              </MemberRowShell>
-            );
-          })}
+          {members.map((member, index) => (
+            <RoomMemberRow
+              key={member.user_id}
+              userId={member.user_id}
+              name={senderLabelFor({ sender: member.user_id }, chat.userId, t("chat.you"), room.nameContext)}
+              email={member.email}
+              admin={member.role === "admin"}
+              last={index === members.length - 1}
+              onOpen={member.user_id === chat.userId ? undefined : setMemberMenu}
+            />
+          ))}
         </View>
 
         {room.room?.kind === "dm" && room.room.peer_user_id ? (
