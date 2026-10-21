@@ -1,0 +1,15 @@
+$ grep -E "^\s*--- FAIL|^(FAIL|panic)|WARNING: DATA RACE|not formatted|^staticcheck|vet:" /tmp/uni2012r6-service.log | cut -c1-250 | head -80
+--- FAIL: TestDocumentAccessBatchMatchesThePerItemPath (0.59s)
+    --- FAIL: TestDocumentAccessBatchMatchesThePerItemPath/apply (0.15s)
+--- FAIL: TestDocumentReferences (0.75s)
+    --- FAIL: TestDocumentReferences/local (0.38s)
+--- FAIL: TestUploadSessionFailureRecordsAssembledVersionForCleanup (0.94s)
+--- FAIL: TestFileThumbnailIsCollectedAfterItsSource (1.33s)
+--- FAIL: TestFileGCUnderKeyRoot (0.34s)
+--- FAIL: TestFileGCDefaultIsDryRunAndWritesNothing (0.35s)
+--- FAIL: TestFileGCCancelDoesNotResetAge (0.26s)
+--- FAIL: TestFileGCExpiresUnclaimedUploads (0.26s)
+--- FAIL: TestFileGCLastReferenceGone (0.27s)
+panic: test timed out after 1h0m0s
+FAIL	github.com/unicomhub/uniwork/server/internal/service	3600.357s
+FAIL

@@ -1,0 +1,3 @@
+$ for i in $(seq 1 36); do test -f /tmp/uni2012r6-service.exit && break; sleep 30; done; echo "DONE_FILE=$(test -f /tmp/uni2012r6-service.exit && echo yes || echo no)"; grep -cE "^\s*--- PASS" /tmp/uni2012r6-service.log; grep -E "^(=== RUN)" /tmp/uni2012r6-service.log | tail -1
+DONE_FILE=no
+0
