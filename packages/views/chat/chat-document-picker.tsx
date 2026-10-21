@@ -42,7 +42,7 @@ function DocumentRowButton({ row, onPick }: { row: ChatPickerDocument; onPick: (
       <button
         type="button"
         data-member-picker-row=""
-        className="pointer-coarse:min-h-11 flex min-h-12 w-full items-center gap-3 px-3 py-2 text-left transition-colors hover:bg-muted focus-visible:bg-muted"
+        className="pointer-coarse:min-h-11 flex min-h-12 w-full items-center gap-3 rounded-lg px-3 py-2 text-left transition-colors hover:bg-muted focus-visible:bg-muted focus-visible:-outline-offset-2"
         onClick={() => onPick(row)}
       >
         <DocumentTypeIcon format={documentIconFormat(row.kind, row.title)} className="size-7" decorative />
@@ -110,7 +110,7 @@ function PickerList({
       {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions */}
       <ul
         aria-label={t("chat.document_picker.list_label")}
-        className="max-h-80 divide-y divide-border overflow-y-auto rounded-xl border border-border"
+        className="max-h-80 divide-y divide-border overflow-y-auto rounded-xl border border-border p-1"
         onKeyDown={moveRowFocus}
       >
         {picker.rows.map((row) => (
