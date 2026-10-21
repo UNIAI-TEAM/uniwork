@@ -29,6 +29,7 @@ import { selectRoomSends, useChatSendStore } from "@/data/stores/chat-send-store
 import { chatRoutes } from "@/lib/chat-routes";
 import { canCallRoom, roomHeaderMark } from "@/lib/conversation-display";
 import { buildMainTimelineMessages } from "@/lib/timeline-display";
+import { unreadSnapshot } from "@/lib/unread-divider";
 import { voiceCallKindFromServer } from "@uniwork/core/chat/voice-call-kind";
 
 function RoomConversation({ chat, roomId, linkedMessageId }: { chat: ChatWorkspace; roomId: string; linkedMessageId: string | null }) {
@@ -39,6 +40,8 @@ function RoomConversation({ chat, roomId, linkedMessageId }: { chat: ChatWorkspa
   const [anchorId, setAnchorId] = useState<string | null>(linkedMessageId);
   const [jump, setJump] = useState<{ id: string; seq: number } | null>(linkedMessageId ? { id: linkedMessageId, seq: 0 } : null);
   const [atLatest, setAtLatest] = useState(true);
+  // Where this room's unread messages began, read from the inbox before opening marks it read (lib/unread-divider.ts).
+  const [unread] = useState(() => unreadSnapshot(qc.getQueryData(roomsOptions(chat.wsId).queryKey)?.find((entry) => entry.id === roomId)));
   // Unread in the other conversations, on the back button (MobileChat board).
   const otherUnread = useQuery(roomsOptions(chat.wsId)).data?.reduce((sum, entry) => (entry.id === roomId ? sum : sum + (entry.unread_count ?? 0)), 0) ?? 0;
 
@@ -137,6 +140,8 @@ function RoomConversation({ chat, roomId, linkedMessageId }: { chat: ChatWorkspa
         onAtLatestChange={setAtLatest}
         onSend={anchorRows ? backToLatest : undefined}
         onJumpToLatest={anchorRows ? backToLatest : undefined}
+        unread={unread}
+        historyComplete={timeline.isSuccess && !timeline.hasNextPage}
       />
       {/* The room's load span ends when its newest page is drawn (Sentry performance; no-op without a DSN). */}
       <ScreenFullyDrawn record={!timeline.isPending} />

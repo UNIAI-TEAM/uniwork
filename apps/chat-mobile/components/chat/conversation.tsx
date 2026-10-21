@@ -51,6 +51,7 @@ import type { PendingFile } from "@/lib/send-pipeline";
 import { messageView } from "@/lib/message-display";
 import type { TimelineMessage, TimelineRow } from "@/lib/timeline-display";
 import { layoutTimeline } from "@/lib/timeline-layout";
+import { firstUnreadMessageId, type UnreadSnapshot } from "@/lib/unread-divider";
 import { useColorScheme } from "@/components/ui/use-color-scheme";
 import { Composer, type ComposerEdit, type ComposerReply } from "./composer";
 import { ConnectionBanner } from "./connection-banner";
@@ -108,6 +109,10 @@ interface Props {
   onSend?: () => void;
   /** Set while the room shows a page around an older message: the jump button goes back to the latest page. */
   onJumpToLatest?: () => void;
+  /** Where the unread messages began when the room opened (lib/unread-divider.ts): their line, and the room opens on it. */
+  unread?: UnreadSnapshot | null;
+  /** The oldest message of the conversation is loaded: nothing older could be the first unread one. */
+  historyComplete?: boolean;
 }
 
 export function Conversation(props: Props) {
@@ -201,6 +206,17 @@ export function Conversation(props: Props) {
     setLatestSignal((n) => n + 1);
   };
   const newCount = countNewSince(messages, awaySinceId, userId);
+  // "N tin chưa đọc" above the first message that came after the reader's pointer when the room opened.
+  const historyComplete = props.historyComplete ?? false;
+  const firstUnreadId = useMemo(
+    () => firstUnreadMessageId(messages, userId, props.unread?.since ?? null, historyComplete),
+    [messages, userId, props.unread?.since, historyComplete],
+  );
+  const unreadCount = props.unread?.count ?? 0;
+  const unreadLine = useMemo(
+    () => (firstUnreadId ? { id: firstUnreadId, label: unreadCount > 0 ? t("chat.unread_count_chip", { count: unreadCount }) : t("chat.new_messages") } : null),
+    [firstUnreadId, unreadCount, t],
+  );
 
   const ctx: MessageCardContext = useMemo(
     () => ({
@@ -334,6 +350,7 @@ export function Conversation(props: Props) {
               empty={threadRootId || !room.room ? null : t(room.room.kind === "dm" ? "chat.dm_empty" : "chat.group_empty", { name: room.title })}
               bottom={<ConversationTyping roomId={roomId} nameContext={room.nameContext} isGroup={room.isGroup} />}
               latestSignal={latestSignal}
+              unread={unreadLine}
             />
             {!atLatest || props.onJumpToLatest ? <JumpToLatest count={newCount} onPress={jumpToLatest} /> : null}
           </ImageBackground>

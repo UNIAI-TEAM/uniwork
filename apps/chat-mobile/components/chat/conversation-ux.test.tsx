@@ -36,7 +36,7 @@ const record = (id: string, sender: string, minute: number, body = `message ${id
 
 const history = Array.from({ length: 6 }, (_, i) => record(`m0${i}`, i % 2 ? "ME" : "U2", i * 10));
 
-function Screen({ records, onJumpToLatest }: { records: ChatMessageRecord[]; onJumpToLatest?: () => void }) {
+function Screen({ records, onJumpToLatest, unread }: { records: ChatMessageRecord[]; onJumpToLatest?: () => void; unread?: { since: string; count: number } }) {
   const room = useRoomContext(chat, "r1");
   const messages: TimelineMessage[] = records.map(toTimelineMessage);
   return (
@@ -52,6 +52,8 @@ function Screen({ records, onJumpToLatest }: { records: ChatMessageRecord[]; onJ
       onQuoteJump={jest.fn()}
       onAtLatestChange={jest.fn()}
       onJumpToLatest={onJumpToLatest}
+      unread={unread}
+      historyComplete
     />
   );
 }
@@ -246,5 +248,16 @@ describe("a draft left in the room", () => {
     await fireEvent.press(screen.getByRole("button", { name: viText("chat.mobile.cancel_reply") }));
     expect(useDraftStore.getState().drafts["ME/w1/r1/"]?.reply).toBeUndefined();
     expect(useDraftStore.getState().drafts["ME/w1/r1/"]?.text).toBe("Đồng ý,");
+  });
+});
+
+describe("the unread line", () => {
+  it("says how many were unread above the first of them, or 'new' when the count is unknown", async () => {
+    const since = new Date(T0 + 25 * 60_000).toISOString();
+    const { rerender } = await render(<Screen records={history} unread={{ since, count: 2 }} />);
+    await settle();
+    expect(screen.getByLabelText(viText("chat.unread_count_chip", { count: 2 }))).toBeOnTheScreen();
+    await rerender(<Screen records={history} unread={{ since, count: 0 }} />);
+    expect(screen.getByLabelText(viText("chat.new_messages"))).toBeOnTheScreen();
   });
 });

@@ -17,12 +17,17 @@
 // one screenful first, ten cells a batch and a window of 11 screens rather
 // than 21, so a 2,000-message history keeps a few dozen bubbles mounted.
 //
+// A room opened with unread messages draws "N tin chưa đọc" above the first
+// of them and, when that is past the first screen, opens on it (near the top,
+// unanimated), as WhatsApp, Telegram and Slack do; the line stays while the
+// room is open.
+//
 // A jump far up the loaded pages goes without animation (a long animated
 // scroll over cells never measured overshoots, then corrects: a visible double
 // scroll); a target never measured is reached by the average row height, then
 // retried a few times at its index, never animated. A target outside the
 // loaded pages is the room's to load (roomAroundOptions), not this list's.
-import { memo, useCallback, useEffect, useRef, type ReactNode } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { FlatList, View, type ListRenderItem } from "react-native";
 import { Text } from "@/components/ui/text";
@@ -36,6 +41,8 @@ const FAR_JUMP_ROWS = 30;
 /** Attempts at a jump target the list has not measured yet, after the first. */
 const JUMP_RETRIES = 3;
 const RETRY_MS = 60;
+/** Rows from the newest within which the unread line is on the first screen already: no scroll to it. */
+const UNREAD_IN_VIEW_ROWS = 8;
 
 interface Props {
   /** Newest first, the inverted list's order (lib/timeline-layout.ts): never reversed here per change. */
@@ -54,9 +61,36 @@ interface Props {
   empty?: string | null;
   /** A new value scrolls to the newest message. */
   latestSignal?: number;
+  /** The first unread message when the room opened, and what its line says. */
+  unread?: { id: string; label: string } | null;
 }
 
-const keyOf = (row: TimelineRow) => row.key;
+type ListRow = TimelineRow | { type: "unread"; key: "unread"; label: string };
+
+const keyOf = (row: ListRow) => row.key;
+
+/** The rows with the unread line above the first unread message (the next index, in the inverted list's order). */
+function withUnreadRow(rows: TimelineRow[], unread: { id: string; label: string } | null | undefined): ListRow[] {
+  if (!unread) return rows;
+  const index = rows.findIndex((row) => row.type === "message" && row.message.id === unread.id);
+  if (index < 0) return rows;
+  return [...rows.slice(0, index + 1), { type: "unread", key: "unread", label: unread.label }, ...rows.slice(index + 1)];
+}
+
+/** "N tin chưa đọc" between two hairlines, read as one line. */
+const UnreadRow = memo(function UnreadRow({ label }: { label: string }) {
+  return (
+    <View className="flex-row items-center gap-2.5 px-4 pb-1.5 pt-3" accessible accessibilityLabel={label} testID="unread-divider">
+      <View className="h-px flex-1 bg-primary/40" />
+      <View className="rounded-full bg-chat-chip px-3 py-[3px]">
+        <Text className="text-footnote font-semibold text-primary" style={{ fontVariant: ["tabular-nums"] }}>
+          {label}
+        </Text>
+      </View>
+      <View className="h-px flex-1 bg-primary/40" />
+    </View>
+  );
+});
 
 const DayRow = memo(function DayRow({ ts }: { ts: number }) {
   const { t, i18n } = useTranslation();
@@ -70,12 +104,13 @@ const DayRow = memo(function DayRow({ ts }: { ts: number }) {
   );
 });
 
-export function MessageList({ rows, renderMessage, onLoadOlder, loadingOlder, onRetryOlder, bottom, jumpTo, onAtLatestChange, empty, latestSignal = 0 }: Props) {
-  const list = useRef<FlatList<TimelineRow>>(null);
+export function MessageList({ rows, renderMessage, onLoadOlder, loadingOlder, onRetryOlder, bottom, jumpTo, onAtLatestChange, empty, latestSignal = 0, unread }: Props) {
+  const list = useRef<FlatList<ListRow>>(null);
+  const data = useMemo(() => withUnreadRow(rows, unread), [rows, unread]);
   const jumped = useRef<number | null>(null);
   const atLatest = useRef(true);
-  const renderItem: ListRenderItem<TimelineRow> = useCallback(
-    ({ item }) => (item.type === "day" ? <DayRow ts={item.ts} /> : <>{renderMessage(item)}</>),
+  const renderItem: ListRenderItem<ListRow> = useCallback(
+    ({ item }) => (item.type === "day" ? <DayRow ts={item.ts} /> : item.type === "unread" ? <UnreadRow label={item.label} /> : <>{renderMessage(item)}</>),
     [renderMessage],
   );
 
@@ -90,7 +125,7 @@ export function MessageList({ rows, renderMessage, onLoadOlder, loadingOlder, on
 
   useEffect(() => {
     if (!jumpTo || jumped.current === jumpTo.seq) return;
-    const index = rows.findIndex((row) => row.type === "message" && row.message.id === jumpTo.id);
+    const index = data.findIndex((row) => row.type === "message" && row.message.id === jumpTo.id);
     if (index < 0) return;
     // After the first layout pass, or the list does not know the rows' heights yet.
     const timer = setTimeout(() => {
@@ -99,7 +134,26 @@ export function MessageList({ rows, renderMessage, onLoadOlder, loadingOlder, on
       list.current?.scrollToIndex({ index, viewPosition: 0.5, animated: index <= FAR_JUMP_ROWS });
     }, 50);
     return () => clearTimeout(timer);
-  }, [rows, jumpTo]);
+  }, [data, jumpTo]);
+
+  // Opened with unread messages past the first screen: open on their line (a link to a message wins).
+  const landedOn = useRef<string | null>(null);
+  useEffect(() => {
+    if (!unread || jumpTo || landedOn.current === unread.id) return;
+    const index = data.findIndex((row) => row.type === "unread");
+    if (index < 0) return;
+    if (index < UNREAD_IN_VIEW_ROWS) {
+      landedOn.current = unread.id;
+      return;
+    }
+    // After the first layout pass; viewPosition 0.9 is near the top of the inverted list, with the line in view.
+    const timer = setTimeout(() => {
+      landedOn.current = unread.id;
+      retries.current = 0;
+      list.current?.scrollToIndex({ index, viewPosition: 0.9, animated: false });
+    }, 50);
+    return () => clearTimeout(timer);
+  }, [data, unread, jumpTo]);
 
   const onScrollToIndexFailed = useCallback((info: { index: number; averageItemLength: number }) => {
     list.current?.scrollToOffset({ offset: info.averageItemLength * info.index, animated: false });
@@ -132,7 +186,7 @@ export function MessageList({ rows, renderMessage, onLoadOlder, loadingOlder, on
     <FlatList
       ref={list}
       testID="message-list"
-      data={rows}
+      data={data}
       inverted
       keyExtractor={keyOf}
       renderItem={renderItem}

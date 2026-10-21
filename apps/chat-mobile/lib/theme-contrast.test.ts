@@ -25,6 +25,7 @@ const PAIRS: [Slot, Slot, string][] = [
   ["chatBubbleOther", "mutedForeground", "their bubble's time"],
   ["chatBubbleOther", "primary", "a link or my mention in their bubble"],
   ["chatChip", "chatChipForeground", "day chips, call logs, the load error on the wall"],
+  ["chatChip", "primary", "the unread line's chip"],
   ["chatWall", "chatChipForeground", "the wall itself"],
   ["tintBlue", "tintBlueForeground", "tinted tiles"],
   ["tintRed", "tintRedForeground", "a missed call"],

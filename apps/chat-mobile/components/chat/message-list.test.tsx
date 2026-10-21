@@ -100,4 +100,38 @@ describe("MessageList", () => {
     await rerender(list(newestFirst(messages(3)), { loadingOlder: true }));
     expect(screen.getByText("tin 2")).toBeOnTheScreen();
   });
+
+  describe("the unread line", () => {
+    const unreadIndex = (rows: TimelineRow[]) => rows.findIndex((row) => row.type === "message" && row.message.id === "m40");
+
+    it("sits right above the first unread message and opens the room on it when that is past the first screen", async () => {
+      const rows = newestFirst(messages(100));
+      await render(list(rows, { unread: { id: "m40", label: "60 tin chưa đọc" } }));
+      await advance(50);
+      // Newest first: the line is the row after its message, so it draws above it.
+      expect(scrollToIndex.mock.calls).toEqual([[{ index: unreadIndex(rows) + 1, viewPosition: 0.9, animated: false }]]);
+      await advance(50);
+      expect(scrollToIndex).toHaveBeenCalledTimes(1);
+    });
+
+    it("does not scroll when the line is on the first screen, nor when a link names a message", async () => {
+      const rows = newestFirst(messages(10));
+      await render(list(rows, { unread: { id: "m8", label: "2 tin chưa đọc" } }));
+      await advance(50);
+      expect(scrollToIndex).not.toHaveBeenCalled();
+      // Read top to bottom (the inverted list renders newest first): the older message, the line, then the unread ones.
+      const texts = screen.getAllByText(/^tin [789]$|tin chưa đọc/).map((node) => node.props.children as string);
+      expect(texts).toEqual(["tin 9", "tin 8", "2 tin chưa đọc", "tin 7"]);
+      const long = newestFirst(messages(100));
+      await render(list(long, { unread: { id: "m40", label: "60 tin chưa đọc" }, jumpTo: { id: "m90", seq: 1 } }));
+      await advance(50);
+      expect(scrollToIndex).toHaveBeenCalledTimes(1);
+      expect(scrollToIndex).toHaveBeenLastCalledWith(expect.objectContaining({ viewPosition: 0.5 }));
+    });
+
+    it("draws nothing for a message not in the list", async () => {
+      await render(list(newestFirst(messages(10)), { unread: { id: "gone", label: "1 tin chưa đọc" } }));
+      expect(screen.queryByTestId("unread-divider")).toBeNull();
+    });
+  });
 });

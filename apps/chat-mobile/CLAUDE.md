@@ -504,7 +504,11 @@ một dòng thì ghi lý do ở dòng trên.
   khi một tin của mình chuyển sang lỗi lúc phòng đang mở (`use-send-failure-feedback.ts`, kèm câu đọc cho trình đọc màn
   hình) — instance ở `components/ui/haptics.ts`. **Chuyển động**: `useReduceMotion` (`components/ui/a11y.ts`) là cách
   đọc duy nhất công tắc giảm chuyển động (bắt đầu ở "đứng yên"); `CallAwareModal` đổi `slide` thành `fade` cho mọi sheet
-  khi bật. Toast đọc một lần: TalkBack qua live region, VoiceOver qua `announceForAccessibility` (chỉ iOS); nút về tin mới nhất `components/chat/jump-to-latest.tsx` khi cuộn lên hoặc đang
+  khi bật. Toast đọc một lần: TalkBack qua live region, VoiceOver qua `announceForAccessibility` (chỉ iOS); vạch "N tin chưa đọc" (`lib/unread-divider.ts`, port
+  `firstUnreadIndex`/`unreadSinceOf` của web): con trỏ đã đọc và số chưa đọc chụp từ danh sách phòng lúc mở (trước khi
+  mở phòng đánh dấu đã đọc), vạch nằm trên tin đầu tiên của người khác sau con trỏ, giữ tới khi rời phòng; quá màn đầu
+  thì phòng mở tại vạch (không animate; link tới một tin thắng); tin chưa đọc vượt các trang đã tải thì không vẽ vạch thay
+  vì vẽ sai chỗ; nút về tin mới nhất `components/chat/jump-to-latest.tsx` khi cuộn lên hoặc đang
   xem trang cũ (`onJumpToLatest`), đếm tin người khác gửi từ lúc rời đáy (`countNewSince`, như web), tự gửi thì cuộn
   xuống (`latestSignal` của `MessageList`); ảnh xem lớn `zoomable-image.tsx` (chụm, chạm hai lần, kéo khi phóng to, vuốt
   dọc ở 1x để đóng; toán ở `lib/zoom.ts`; Modal có `GestureHandlerRootView` riêng). **Cỡ chữ**: vai trò ở
