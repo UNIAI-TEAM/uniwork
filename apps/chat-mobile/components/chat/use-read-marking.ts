@@ -4,12 +4,11 @@
 // leaving it, and while it is on screen with the app in front, once a newer
 // message has stayed at the bottom for 1.5 s. It is also the room the socket
 // subscribes first and whose messages are not counted unread.
-import { useQueryClient } from "@tanstack/react-query";
 import { useFocusEffect, useIsFocused } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AppState } from "react-native";
 import { useAuthStore } from "@/data/auth/store";
-import { markRoomRead } from "@/data/pending-ops";
+import { useMarkRoomRead } from "@/data/mutations/messages";
 import { useActiveChatRoomStore } from "@/data/stores/chat-active-room-store";
 
 const CHAT_READ_DEBOUNCE_MS = 1500;
@@ -47,7 +46,7 @@ export function useActiveRoom(roomId: string, onFocus?: () => (() => void) | voi
 }
 
 export function useRoomReadMarking(wsId: string, roomId: string, newestMessageId: string | null, atLatest: boolean) {
-  const qc = useQueryClient();
+  const markRoomRead = useMarkRoomRead();
   // In front: the app is active and no thread or details screen covers the room.
   const appActive = useAppActive();
   const focused = useIsFocused();
@@ -56,9 +55,9 @@ export function useRoomReadMarking(wsId: string, roomId: string, newestMessageId
   // A read that cannot go now is queued and retried (data/pending-ops.ts); one the server refuses is reported there.
   const onFocus = useCallback(() => {
     if (!userId) return;
-    void markRoomRead(qc, wsId, roomId, userId);
-    return () => void markRoomRead(qc, wsId, roomId, userId);
-  }, [qc, wsId, roomId, userId]);
+    markRoomRead(wsId, roomId, userId);
+    return () => markRoomRead(wsId, roomId, userId);
+  }, [markRoomRead, wsId, roomId, userId]);
   useActiveRoom(roomId, onFocus);
 
   const marked = useRef<{ roomId: string; messageId: string } | null>(null);
@@ -73,8 +72,8 @@ export function useRoomReadMarking(wsId: string, roomId: string, newestMessageId
     if (last.messageId === newestMessageId || !atLatest || !active || !userId) return;
     const timer = setTimeout(() => {
       marked.current = { roomId, messageId: newestMessageId };
-      void markRoomRead(qc, wsId, roomId, userId);
+      markRoomRead(wsId, roomId, userId);
     }, CHAT_READ_DEBOUNCE_MS);
     return () => clearTimeout(timer);
-  }, [active, atLatest, newestMessageId, qc, roomId, wsId, userId]);
+  }, [active, atLatest, newestMessageId, markRoomRead, roomId, wsId, userId]);
 }

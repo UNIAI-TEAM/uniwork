@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { REDACTED } from "@/lib/redact";
-import { breadcrumb, installReportSink, isExpectedError, isReporting, reportError, setReportTag, setReportUser, type ReportSink } from "./report";
+import { breadcrumb, installReportSink, isExpectedError, isReporting, RefusedError, reportError, setReportTag, setReportUser, type ReportSink } from "./report";
 
 const apiError = (status: number) => Object.assign(new Error(`HTTP ${status}`), { name: "ApiError", status });
 
@@ -33,6 +33,7 @@ describe("isExpectedError", () => {
     expect(isExpectedError(apiError(404))).toBe(true);
     expect(isExpectedError(apiError(429))).toBe(true);
     expect(isExpectedError(Object.assign(new Error("aborted"), { name: "AbortError" }))).toBe(true);
+    expect(isExpectedError(new RefusedError("chat_pending_op_refused"))).toBe(true);
     expect(isExpectedError(apiError(500))).toBe(false);
     expect(isExpectedError(Object.assign(new Error("x"), { name: "ApiError", status: "500" }))).toBe(false);
     expect(isExpectedError(new TypeError("undefined is not a function"))).toBe(false);

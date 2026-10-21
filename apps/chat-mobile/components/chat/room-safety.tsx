@@ -5,14 +5,15 @@
 // blocked. A block hides the DM from the one who blocked (ChatService.
 // hideDMWithPeer), so blocking from its details goes back to the list.
 import { Ionicons } from "@expo/vector-icons";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { router } from "expo-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Alert, Pressable, View } from "react-native";
 import { ActionSheet, type SheetAction } from "@/components/ui/action-sheet";
 import { Text } from "@/components/ui/text";
-import { blockStatusOptions, setBlocked } from "@/data/queries/safety";
+import { useBlockUser } from "@/data/mutations/safety";
+import { blockStatusOptions } from "@/data/queries/safety";
 import { toast } from "@/data/stores/toast-store";
 import type { ReportTarget } from "@/lib/report";
 import { THEME } from "@/lib/theme";
@@ -27,10 +28,10 @@ export interface SafetyPerson {
 /** Asks first (the web's confirm), then blocks; an unblock needs no confirm. */
 function useBlockToggle(wsId: string) {
   const { t } = useTranslation();
-  const qc = useQueryClient();
+  const setBlocked = useBlockUser(wsId).mutateAsync;
   return (person: SafetyPerson, blocked: boolean, onBlocked?: () => void) => {
     if (blocked) {
-      void setBlocked(qc, wsId, person.userId, false).then(
+      void setBlocked({ userId: person.userId, blocked: false }).then(
         () => toast.success(t("mobile.safety.unblocked", { name: person.name })),
         () => toast.error(t("chat.unblock_failed")),
       );
@@ -42,7 +43,7 @@ function useBlockToggle(wsId: string) {
         text: t("chat.block_user"),
         style: "destructive",
         onPress: () =>
-          void setBlocked(qc, wsId, person.userId, true).then(
+          void setBlocked({ userId: person.userId, blocked: true }).then(
             () => {
               toast.success(t("mobile.safety.blocked", { name: person.name }));
               onBlocked?.();

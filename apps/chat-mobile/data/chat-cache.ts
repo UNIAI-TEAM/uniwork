@@ -301,3 +301,10 @@ export function patchChatRoomRead(qc: QueryClient, wsId: string, viewerId: strin
     }),
   );
 }
+
+/** A signed media URL past its expiry: load the message again; its fresh URLs flow back through the cache. */
+export async function refreshMessageMedia(qc: QueryClient, wsId: string, roomId: string, messageId: string): Promise<ChatMessageRecord | null> {
+  const fresh = await chatApi.getMessage(wsId, roomId, messageId);
+  if (fresh) applyChatMessageResponse(qc, wsId, roomId, fresh, false);
+  return fresh;
+}

@@ -25,7 +25,7 @@ import { Text } from "@/components/ui/text";
 import { WorkspaceSwitchSheet } from "@/components/workspace/workspace-switch-sheet";
 import { callEngine } from "@/data/calls/call-store";
 import { nativeCalls } from "@/data/calls/native-calls";
-import { resolveDMRoom, setRoomMuted } from "@/data/chat-actions";
+import { useResolveDM, useSetRoomMuted } from "@/data/mutations/rooms";
 import { nicknamesOptions, roomsOptions, unreadSummaryOptions, workspaceMembersOptions } from "@/data/queries/chat";
 import { workspaceListOptions } from "@/data/queries/workspaces";
 import { useChatPinsStore } from "@/data/stores/chat-pins-store";
@@ -45,6 +45,7 @@ import { toast } from "@/data/stores/toast-store";
 function useDeepLinkTarget(chat: ChatWorkspace | null) {
   const { t } = useTranslation();
   const qc = useQueryClient();
+  const resolveDM = useResolveDM(chat?.wsId ?? "").mutateAsync;
   const params = useLocalSearchParams<{ room?: string; message?: string; dm?: string; call?: string; answer?: string }>();
   const handled = useRef<string | null>(null);
 
@@ -84,22 +85,23 @@ function useDeepLinkTarget(chat: ChatWorkspace | null) {
       return;
     }
     if (dm) {
-      resolveDMRoom(qc, chat.wsId, dm)
+      resolveDM(dm)
         .then((resolved) => {
           if (resolved) router.push(chatRoutes.room(chat, resolved.id));
           else toast.error(t("chat.dm_failed"));
         })
         .catch(() => toast.error(t("chat.dm_failed")));
     }
-  }, [chat, params, qc, t]);
+  }, [chat, params, qc, t, resolveDM]);
 }
 
 export default function ChatTab() {
   const { t, i18n } = useTranslation();
-  const qc = useQueryClient();
   const { colorScheme } = useColorScheme();
   const theme = THEME[colorScheme];
   const chat = useChatWorkspace();
+  const resolveDM = useResolveDM(chat?.wsId ?? "").mutateAsync;
+  const setRoomMuted = useSetRoomMuted(chat?.wsId ?? "").mutateAsync;
   const wsId = chat?.wsId ?? "";
   useDeepLinkTarget(chat);
 
@@ -179,11 +181,11 @@ export default function ChatTab() {
         return;
       }
       if (row.entry.kind !== "dm") return;
-      resolveDMRoom(qc, chat.wsId, row.entry.contact.user_id)
+      resolveDM(row.entry.contact.user_id)
         .then((room) => room && router.push(chatRoutes.room(chat, room.id)))
         .catch(() => toast.error(t("chat.dm_failed")));
     },
-    [chat, qc, t],
+    [chat, resolveDM, t],
   );
 
   const menuActions: SheetAction[] = [];
@@ -201,7 +203,7 @@ export default function ChatTab() {
         key: "mute",
         label: muted ? t("chat.mobile.unmute_notifications") : t("chat.settings_mute_notifications"),
         icon: muted ? "notifications-outline" : "notifications-off-outline",
-        onPress: () => void setRoomMuted(qc, chat.wsId, roomId, !muted).catch(() => toast.error(t("common.error"))),
+        onPress: () => void setRoomMuted({ roomId, muted: !muted }).catch(() => toast.error(t("common.error"))),
       });
     }
   }

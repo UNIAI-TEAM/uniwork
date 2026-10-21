@@ -122,3 +122,21 @@ export const roomSearchOptions = (wsId: string, roomId: string, q: string) =>
     enabled: q.trim().length >= 2,
     staleTime: 30_000,
   });
+
+/** The last few messages of a room for a list row's long-press preview: read-only, it never marks the room read. */
+export const roomPreviewOptions = (wsId: string, roomId: string, limit: number) =>
+  queryOptions({
+    queryKey: chatKeys.roomPreview(wsId, roomId),
+    queryFn: ({ signal }) => chatApi.listMessages(wsId, roomId, { limit, markRead: false }, signal),
+    enabled: roomId !== "",
+    staleTime: 10_000,
+  });
+
+/** Whether a live call is being recorded, asked every `intervalMs` while it is on screen. */
+export const callRecordingOptions = (wsId: string, roomId: string, callId: string, intervalMs: number) =>
+  queryOptions({
+    queryKey: chatKeys.callRecording(wsId, roomId, callId),
+    queryFn: () => chatApi.callRecordingActive(wsId, roomId, callId),
+    enabled: wsId !== "" && roomId !== "" && callId !== "",
+    refetchInterval: intervalMs,
+  });

@@ -23,6 +23,8 @@ import {
   roomTimelineOptions,
   threadTimelineOptions,
   workspaceMembersOptions,
+  callRecordingOptions,
+  roomPreviewOptions,
 } from "./chat";
 import { chatKeys } from "./chat-keys";
 
@@ -100,6 +102,22 @@ describe("chat query options", () => {
     expect(roomSearchOptions("w1", "r1", " a ").enabled).toBe(false);
     expect(roomSearchOptions("w1", "r1", "kế").queryKey).toEqual(chatKeys.roomSearch("w1", "r1", "kế"));
     expect(chatApi.listMessagesAround).toHaveBeenCalledWith("w1", "r1", "m1");
+  });
+
+  it("reads a row's preview without marking it read, and polls a live call's recording", async () => {
+    const qc = new QueryClient();
+    const list = vi.spyOn(chatApi, "listMessages").mockResolvedValue([]);
+    const recording = vi.spyOn(chatApi, "callRecordingActive").mockResolvedValue(true);
+    await qc.fetchQuery(roomPreviewOptions("w1", "r1", 4));
+    expect(list).toHaveBeenCalledWith("w1", "r1", { limit: 4, markRead: false }, expect.any(AbortSignal));
+    expect(roomPreviewOptions("w1", "r1", 4).queryKey).toEqual(["chat", "w1", "room-preview", "r1"]);
+    expect(roomPreviewOptions("w1", "", 4).enabled).toBe(false);
+    await expect(qc.fetchQuery(callRecordingOptions("w1", "r1", "c1", 15_000))).resolves.toBe(true);
+    expect(recording).toHaveBeenCalledWith("w1", "r1", "c1");
+    expect(callRecordingOptions("w1", "r1", "c1", 15_000)).toMatchObject({ queryKey: ["chat", "w1", "call-recording", "r1", "c1"], enabled: true, refetchInterval: 15_000 });
+    expect(callRecordingOptions("w1", "", "", 15_000).enabled).toBe(false);
+    expect(callRecordingOptions("", "r1", "c1", 15_000).enabled).toBe(false);
+    expect(callRecordingOptions("w1", "r1", "", 15_000).enabled).toBe(false);
   });
 
   it("reads the unread summary, the channels I am in and a room's shared files", async () => {

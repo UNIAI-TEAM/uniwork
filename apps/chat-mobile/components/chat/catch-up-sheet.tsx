@@ -5,7 +5,6 @@
 // before the person agreed to the AI processing notice (Apple 5.1.2(i)):
 // until then the sheet shows the notice instead (ai-consent-notice.tsx).
 import { Ionicons } from "@expo/vector-icons";
-import { useMutation } from "@tanstack/react-query";
 import { useEffect, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { ActivityIndicator, Pressable, ScrollView, View } from "react-native";
@@ -14,7 +13,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { SheetGrabber } from "@/components/ui/action-sheet";
 import { Text } from "@/components/ui/text";
 import { TintTile } from "@/components/ui/tint-tile";
-import { chatApi } from "@/data/chat-api";
+import { useCatchUp } from "@/data/mutations/rooms";
 import { AiConsentActions, AiConsentText, useAiConsent } from "./ai-consent-notice";
 import { continuousCorners } from "@/lib/radius";
 import { THEME } from "@/lib/theme";
@@ -62,14 +61,15 @@ function Section({ label, children }: { label: string; children: ReactNode }) {
 export function CatchUpSheet({ wsId, target, onClose, onOpenRoom }: { wsId: string; target: CatchUpTarget | null; onClose: () => void; onOpenRoom: (roomId: string) => void }) {
   const { t, i18n } = useTranslation();
   const { colorScheme } = useColorScheme();
-  const brief = useMutation({ mutationFn: (roomId: string) => chatApi.catchUp(wsId, { room_id: roomId, locale: i18n.language }) });
+  const brief = useCatchUp(wsId);
   const { mutate, reset } = brief;
   const roomId = target?.roomId ?? null;
   const consented = useAiConsent();
+  const locale = i18n.language;
   useEffect(() => {
-    if (roomId && consented) mutate(roomId);
+    if (roomId && consented) mutate({ roomId, locale });
     else reset();
-  }, [roomId, consented, mutate, reset]);
+  }, [roomId, consented, locale, mutate, reset]);
   const result = brief.data ?? null;
   const highlights = result ? (result.highlight_items.length > 0 ? result.highlight_items.map((item) => item.text) : result.highlights) : [];
   const empty = result !== null && result.message_count === 0 && highlights.length === 0 && result.action_items.length === 0;

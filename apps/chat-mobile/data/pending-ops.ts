@@ -17,7 +17,7 @@ import { applyChatMessageResponse } from "./chat-cache";
 import { chatApi, type ChatApi } from "./chat-api";
 import type { RoomTimeline } from "./chat-timeline";
 import { chatKeys } from "./queries/chat-keys";
-import { reportError } from "./report";
+import { RefusedError, reportError } from "./report";
 import { createRetryTimers, type RetryTimers } from "./retry-timers";
 import { usePendingOpsStore, type PendingOp } from "./stores/pending-ops-store";
 
@@ -160,7 +160,7 @@ async function enqueue(qc: QueryClient, op: PendingOp | null, dropKey: string, d
   }
   usePendingOpsStore.getState().put(op);
   await flushPendingOps(qc, op.workspaceId, op.userId, deps);
-  if (refused.delete(`${op.key}#${op.rev}`)) throw new Error("chat_pending_op_refused");
+  if (refused.delete(`${op.key}#${op.rev}`)) throw new RefusedError("chat_pending_op_refused");
 }
 
 /** Opening a room, reaching its newest message, or leaving it: the badge clears now, the server follows. */

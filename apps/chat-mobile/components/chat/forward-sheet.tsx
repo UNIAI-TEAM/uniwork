@@ -11,7 +11,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { SheetGrabber, useAfterDismiss } from "@/components/ui/action-sheet";
 import { SearchField } from "@/components/ui/search-field";
 import { Text } from "@/components/ui/text";
-import { chatApi } from "@/data/chat-api";
+import { useForwardMessage } from "@/data/mutations/messages";
 import { nicknamesOptions, roomsOptions } from "@/data/queries/chat";
 import { roomHeaderMark } from "@/lib/conversation-display";
 import { continuousCorners } from "@/lib/radius";
@@ -24,6 +24,7 @@ export function ForwardSheet({ chat, messageId, onClose }: { chat: ChatWorkspace
   const { t } = useTranslation();
   const { choose, onDismiss } = useAfterDismiss(onClose);
   const [query, setQuery] = useState("");
+  const forwardMessage = useForwardMessage(chat.wsId).mutateAsync;
   const rooms = useQuery({ ...roomsOptions(chat.wsId), enabled: messageId !== null });
   const nicknames = useQuery({ ...nicknamesOptions(chat.wsId), enabled: messageId !== null }).data;
   const rows = useMemo(() => {
@@ -36,12 +37,7 @@ export function ForwardSheet({ chat, messageId, onClose }: { chat: ChatWorkspace
   // root view where components/ui/toast-host.tsx draws, so a toast would be hidden.
   const forward = (roomId: string) => {
     if (!messageId) return;
-    void chatApi
-      .forwardMessage(chat.wsId, messageId, [roomId])
-      .then((count) => {
-        if (count === 0) Alert.alert(t("common.error"));
-      })
-      .catch(() => Alert.alert(t("common.error")));
+    void forwardMessage({ messageId, roomIds: [roomId] }).catch(() => Alert.alert(t("common.error")));
   };
 
   return (

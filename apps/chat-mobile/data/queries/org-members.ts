@@ -11,7 +11,7 @@ import { api } from "../api";
 const enc = encodeURIComponent;
 
 /** The organization tier's keys; an org slug, not a workspace id, scopes them. */
-export const orgMemberKeys = {
+const orgMemberKeys = {
   deactivated: (orgSlug: string) => ["org", orgSlug, "deactivated-members"] as const,
 };
 

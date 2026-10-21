@@ -1,7 +1,8 @@
 // Fixture test for the app's quality rules in eslint.config.mjs (ADR 0037):
 // no `any`, the React Native accessibility rules, no JSX literal text, no
-// console call outside data/logger.ts, and no react-native Modal outside
-// components/ui/call-aware-modal.tsx. A
+// console call outside data/logger.ts, no react-native Modal outside
+// components/ui/call-aware-modal.tsx, and no endpoint or command called from
+// a screen or a component (the mutation layer, data/mutations/command.ts). A
 // rule that silently drops out of the config turns its case green here.
 import path from "node:path";
 import { ESLint } from "eslint";
@@ -58,6 +59,26 @@ describe("mobile quality lint", { timeout: 60_000 }, () => {
     ],
   ])("%s is red", async (_name, code, rule) => {
     expect(await ruleIds(head + code)).toContain(rule);
+  });
+
+  it.each([
+    'import { chatApi } from "@/data/chat-api";\nexport const go = () => chatApi.signalTyping("w", "r");',
+    'import { editMessage } from "@/data/chat-actions";\nexport const x = editMessage;',
+    'import { toggleReaction } from "@/data/pending-ops";\nexport const x = toggleReaction;',
+    'import { sendChatMessage } from "@/data/chat-send";\nexport const x = sendChatMessage;',
+    'import { safetyApi } from "@/data/safety-api";\nexport const x = safetyApi;',
+    'import { setBlocked } from "@/data/safety-actions";\nexport const x = setBlocked;',
+    'import { accountApi } from "@/data/account-api";\nexport const x = accountApi;',
+    'import { chatApi } from "../../data/chat-api";\nexport const x = chatApi;',
+    'import { revokeDevice } from "@/data/queries/devices";\nexport const x = revokeDevice;',
+  ])("a component calling an endpoint or a command is red: %s", async (code) => {
+    expect(await ruleIds(code)).toContain("@typescript-eslint/no-restricted-imports");
+  });
+
+  it("a component may take the endpoints' types and the mutation hooks", async () => {
+    const code =
+      'import type { ChatFollowUp } from "@/data/chat-api";\nimport { useEditMessage } from "@/data/mutations/messages";\nimport { devicesOptions } from "@/data/queries/devices";\nexport type F = ChatFollowUp;\nexport const x = [useEditMessage, devicesOptions];';
+    expect(await ruleIds(code)).toEqual([]);
   });
 
   it("a labelled, translated control with a valid role and state is green", async () => {

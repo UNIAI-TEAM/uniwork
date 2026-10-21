@@ -15,7 +15,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { PersonAvatar } from "@/components/people/person-avatar";
 import { useAfterDismiss } from "@/components/ui/action-sheet";
 import { Text } from "@/components/ui/text";
-import { FOLLOW_UP_HOURS } from "@/data/chat-actions";
+import { FOLLOW_UP_HOURS } from "@/lib/follow-ups";
 import type { ChatFollowUp } from "@/data/chat-api";
 import { messagePreviewText, messageView, pendingPreviewText } from "@/lib/message-display";
 import { senderNameClass } from "@/lib/sender-colors";

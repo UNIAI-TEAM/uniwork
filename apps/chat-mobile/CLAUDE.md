@@ -22,6 +22,16 @@ nhau; test đó đi theo import bắc cầu của từng mục nên mục không
 tách file ở core, không nới lint. Fixture: `lib/lint-boundary.test.ts`.
 Logic khác của web: **copy, ghi nguồn**, test parity — không import.
 
+Lớp mutation (UNI-2053 S7, audit T4): `app/` và `components/` đổi trạng thái server chỉ qua hook ở
+`data/mutations/*` (`messages`, `rooms`, `safety`, `account`; mỗi hook là một `useMutation` qua `useCommand` của
+`command.ts`, key mutation là tên lệnh nên lỗi là bug tới Sentry một lần qua `MutationCache`, lỗi mong đợi —
+offline, 4xx, `RefusedError` của `data/report.ts` — thì không; màn hình báo lỗi từ `mutateAsync`). Lệnh và việc
+chúng làm với cache ở `data/chat-actions.ts`, `safety-actions.ts`, `chat-send.ts`, `pending-ops.ts`. Lint cấm
+`app/`/`components/` import giá trị từ `@/data/{chat-api,chat-actions,chat-send,pending-ops,safety-api,
+safety-actions,account-api}` và `revokeDevice` (`import type` vẫn được; trừ `app/_layout.tsx` — composition root
+trao endpoint cho dịch vụ lúc boot — và file test, vốn mock transport). Query mới thì thêm `*Options` ở
+`data/queries/`, không gọi `chatApi` trong component.
+
 Cùng file lint còn giữ năm luật chất lượng (fixture: `lib/lint-quality.test.ts`):
 `@typescript-eslint/no-explicit-any` bật (base tắt cho web); bộ `all` của
 `eslint-plugin-react-native-a11y` (role, state, value, action, live region,
@@ -178,7 +188,7 @@ một dòng thì ghi lý do ở dòng trên.
   `useAiConsent()`. Đồng ý chỉ do client giữ: không route AI nào của server đọc nó, và tin của người dùng vẫn tới
   Anthropic khi thành viên khác dùng AI trên web — chính sách và dòng "Xử lý AI" của listing nói đúng vậy
   (`privacy-content.test.ts`), đừng viết lại thành "chỉ khi người dùng đồng ý". **Báo cáo và chặn**: `data/safety-api.ts` (route chặn của web + `POST …/chat/reports`), key
-  `chatKeys.blockStatus`, `data/queries/safety.ts`; `components/chat/report-sheet.tsx` (lý do đóng theo
+  `chatKeys.blockStatus`, `data/queries/safety.ts`, lệnh chặn `data/safety-actions.ts` qua `data/mutations/safety.ts`; `components/chat/report-sheet.tsx` (lý do đóng theo
   `lib/report.ts` = CHECK của server, mô tả, "chặn luôn"), `room-safety.tsx` (DM: chặn/bỏ chặn + báo cáo trong chi
   tiết, banner trong cuộc trò chuyện; nhóm: chạm thành viên → nhắn riêng/báo cáo/chặn), nhấn giữ tin của người khác ›
   Báo cáo. Audit `chat.report.created` ghi người báo cáo làm actor, nên chủ sở hữu và quản trị viên (kể cả khi chính họ
@@ -203,7 +213,7 @@ một dòng thì ghi lý do ở dòng trên.
   (`queries/chat-keys.ts`, không import `chatKeys` web; mỗi resource một module và một key factory — `chatKeys`
   (mọi key dưới `["chat", wsId]` trừ unread-summary của cả tài khoản, kể cả call log, preview nhấn giữ, ghi âm
   cuộc gọi; `chat-keys.test.ts` đỏ khi một key lồng dưới prefix của key khác ngoài các họ đã khai),
-  `orgMemberKeys` (`queries/org-members.ts`), `workspaceKeys`, `deviceKeys`; thành viên workspace và biệt danh chỉ
+  `org-members.ts` (khoá tầng tổ chức), `workspaceKeys`, `deviceKeys`; thành viên workspace và biệt danh chỉ
   đọc qua `chatApi`. Call log refetch khi có `chat.voice.hangup` (server ghi log trước khi phát frame), khi hangup
   của chính máy xong (`onHangupSettled` của `call-store.ts`) và khi reconnect; reconnect cũng refetch thành viên), cache
   (`chat-timeline.ts` ← core `room-timeline`, `chat-cache.ts` ← core
@@ -290,7 +300,8 @@ một dòng thì ghi lý do ở dòng trên.
   app đã ở nền, Từ chối khi app đã kill (headless task, giới hạn
   khởi động service nền), định tuyến Bluetooth, badge theo launcher.
   Kind giàu (M3): endpoint trong `data/chat-api.ts`, lệnh và cache trong
-  `data/chat-actions.ts` (bỏ phiếu, tin thoại, nhắc, follow-up, tạo việc);
+  `data/chat-actions.ts` (follow-up, tạo việc, nhóm, chuyển tiếp; bỏ phiếu ở `pending-ops.ts`, tin thoại và nhắc là
+  lượt gửi của outbox), màn gọi qua `data/mutations/*`;
   composer ghi âm (`components/chat/use-voice-recorder.ts`), mở
   `expression-sheet.tsx` và `reminder-sheet.tsx`; follow-up và "Tạo việc" ở
   sheet nhấn giữ; thẻ việc `task-card.tsx` dưới tin.

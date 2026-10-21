@@ -5,7 +5,7 @@
 // rules (at least two others, members of the workspace); the screen only
 // says what it needs before the button wakes up.
 import { Ionicons } from "@expo/vector-icons";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { router, Stack, useLocalSearchParams } from "expo-router";
 import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -18,8 +18,7 @@ import { GroupPickRow } from "@/components/people/member-rows";
 import { PersonAvatar } from "@/components/people/person-avatar";
 import { SearchField } from "@/components/ui/search-field";
 import { Text } from "@/components/ui/text";
-import { chatApi } from "@/data/chat-api";
-import { chatKeys } from "@/data/queries/chat-keys";
+import { useCreateGroup, useInviteGroupMembers } from "@/data/mutations/rooms";
 import { nicknamesOptions, roomMembersOptions, workspaceMembersOptions } from "@/data/queries/chat";
 import { chatRoutes } from "@/lib/chat-routes";
 import { displayLabelForChatContact } from "@/lib/rooms-display";
@@ -35,7 +34,8 @@ const GROUP_MIN_OTHERS = 2;
 
 function NewGroup({ chat, roomId }: { chat: ChatWorkspace; roomId: string | null }) {
   const { t } = useTranslation();
-  const qc = useQueryClient();
+  const createGroup = useCreateGroup(chat.wsId).mutateAsync;
+  const inviteMembers = useInviteGroupMembers(chat.wsId, roomId ?? "").mutateAsync;
   const { colorScheme } = useColorScheme();
   const theme = THEME[colorScheme];
   const members = useQuery(workspaceMembersOptions(chat.wsId));
@@ -67,17 +67,8 @@ function NewGroup({ chat, roomId }: { chat: ChatWorkspace; roomId: string | null
     if (!ready || busy) return;
     setBusy(true);
     const run = roomId
-      ? chatApi.inviteGroupMembers(chat.wsId, roomId, picked).then((room) => {
-          if (!room) throw new Error("chat_group_invite_failed");
-          void qc.invalidateQueries({ queryKey: chatKeys.roomMembers(chat.wsId, roomId) });
-          void qc.invalidateQueries({ queryKey: chatKeys.rooms(chat.wsId) });
-          router.back();
-        })
-      : chatApi.createGroup(chat.wsId, { name: name.trim(), member_user_ids: picked }).then((room) => {
-          if (!room) throw new Error("chat_group_create_failed");
-          void qc.invalidateQueries({ queryKey: chatKeys.rooms(chat.wsId) });
-          router.replace(chatRoutes.room(chat, room.id));
-        });
+      ? inviteMembers(picked).then(() => router.back())
+      : createGroup({ name: name.trim(), memberUserIds: picked }).then((room) => router.replace(chatRoutes.room(chat, room.id)));
     run.catch(() => toast.error(t("common.error"))).finally(() => setBusy(false));
   };
 

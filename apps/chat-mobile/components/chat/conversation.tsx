@@ -9,7 +9,7 @@
 // reaction are felt (data/haptics.ts), new messages are read to a screen
 // reader, and a conversation scrolled up shows "N new" to jump back down —
 // where one's own send always lands too.
-import { useQueries, useQuery, useQueryClient, type UseQueryResult } from "@tanstack/react-query";
+import { useQueries, useQuery, type UseQueryResult } from "@tanstack/react-query";
 import wallDotsDark from "@/assets/chat-wall-dots-dark.png";
 import wallDotsLight from "@/assets/chat-wall-dots-light.png";
 import { titleFromMessageBody } from "@uniwork/core/chat/message-links";
@@ -23,16 +23,21 @@ import { ActivityIndicator, Alert, ImageBackground, View } from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { haptics } from "@/components/ui/haptics";
 import { PersonAvatar } from "@/components/people/person-avatar";
+import type { ChatApi } from "@/data/chat-api";
 import {
-  createTaskFromMessage,
-  deleteMessage,
-  editMessage,
-  followUpCommand,
-  togglePin,
-} from "@/data/chat-actions";
-import { chatApi } from "@/data/chat-api";
-import { chatSendDeps, discardPendingSend, retryPendingSend, sendChatMessage, type ChatSendInput } from "@/data/chat-send";
-import { toggleReaction, votePoll } from "@/data/pending-ops";
+  useCreateTask,
+  useDeleteMessage,
+  useDiscardSend,
+  useEditMessage,
+  useFollowUp,
+  useReact,
+  useRetrySend,
+  useSendMessage,
+  useSignalTyping,
+  useTogglePin,
+  useVotePoll,
+  type SendInput,
+} from "@/data/mutations/messages";
 import { followUpsOptions, roomLinksOptions } from "@/data/queries/chat";
 import { countNewSince } from "@/lib/arrivals";
 import { chatRoutes } from "@/lib/chat-routes";
@@ -70,7 +75,7 @@ import { toast } from "@/data/stores/toast-store";
 // The MobileChat wall: a dot every 22 pt, one tile per scheme, repeated.
 const WALL_DOTS = { light: wallDotsLight, dark: wallDotsDark };
 
-type ChatMessageLink = Awaited<ReturnType<typeof chatApi.listRoomMessageLinks>>[number];
+type ChatMessageLink = Awaited<ReturnType<ChatApi["listRoomMessageLinks"]>>[number];
 
 /** Each window's answer, or undefined while it has none; TanStack keeps the same array while no answer changed. */
 const windowAnswers = (results: UseQueryResult<ChatMessageLink[]>[]): (ChatMessageLink[] | undefined)[] => results.map((result) => result.data);
@@ -99,7 +104,6 @@ interface Props {
 export function Conversation(props: Props) {
   const { chat, roomId, threadRootId, room, messages } = props;
   const { t } = useTranslation();
-  const qc = useQueryClient();
   const [actionMessage, setActionMessage] = useState<TimelineMessage | null>(null);
   const [reply, setReply] = useState<ComposerReply | null>(null);
   const [edit, setEdit] = useState<ComposerEdit | null>(null);
@@ -110,6 +114,18 @@ export function Conversation(props: Props) {
   const [reported, setReported] = useState<{ messageId: string; senderId: string; name: string } | null>(null);
   const { wsId, userId } = chat;
   const { colorScheme } = useColorScheme();
+  // Every change to the server goes through the mutation layer (data/mutations/*).
+  const sendMessage = useSendMessage(wsId, roomId, userId).mutate;
+  const retrySend = useRetrySend().mutate;
+  const discardSend = useDiscardSend();
+  const editMessage = useEditMessage(wsId, roomId).mutateAsync;
+  const deleteMessage = useDeleteMessage(wsId, roomId).mutateAsync;
+  const togglePin = useTogglePin(wsId, roomId).mutateAsync;
+  const toggleReaction = useReact(wsId, roomId, userId).mutateAsync;
+  const votePoll = useVotePoll(wsId, roomId, userId).mutateAsync;
+  const followUpCommand = useFollowUp(wsId).mutateAsync;
+  const createTask = useCreateTask(wsId, roomId).mutateAsync;
+  const signalTyping = useSignalTyping(wsId, roomId);
 
   const rows = useMemo(() => buildTimelineRows(messages), [messages]);
   const continued = useMemo(() => continuedRunKeys(rows), [rows]);
@@ -173,9 +189,9 @@ export function Conversation(props: Props) {
       roomId,
       userId,
       onOpenImage: (url, name, messageId) => setImage({ id: messageId ?? url, url, name }),
-      onVotePoll: (messageId, optionId) => void votePoll(qc, wsId, roomId, messageId, optionId, userId).catch(() => toast.error(t("chat.message_list.poll_vote_failed"))),
+      onVotePoll: (messageId, optionId) => void votePoll({ messageId, optionId }).catch(() => toast.error(t("chat.message_list.poll_vote_failed"))),
     }),
-    [wsId, chat.orgSlug, chat.wsSlug, roomId, userId, qc, t],
+    [wsId, chat.orgSlug, chat.wsSlug, roomId, userId, votePoll, t],
   );
 
   // The tasks made from the messages on screen, one request per window of lib/link-windows.ts (the web's
@@ -199,11 +215,11 @@ export function Conversation(props: Props) {
   };
   // Every send goes through the outbox (data/chat-send.ts): on screen at once, kept across a restart, sent in order,
   // felt, and scrolled to wherever the reader was.
-  const enqueue = (input: Omit<ChatSendInput, "workspaceId" | "roomId" | "senderId">) => {
+  const enqueue = (input: SendInput) => {
     haptics.send();
     props.onSend?.();
     setLatestSignal((n) => n + 1);
-    void sendChatMessage(qc, { workspaceId: wsId, roomId, senderId: userId, ...input }, chatSendDeps);
+    sendMessage(input);
   };
   const send = (body: string) => enqueue({ body, replyToMessageId: takeReply(), threadRootId });
   const sendFile = (file: PendingFile) => enqueue({ body: "", file, replyToMessageId: takeReply() });
@@ -211,7 +227,7 @@ export function Conversation(props: Props) {
   const quoteOf = (message: TimelineMessage) => ({ id: message.id, sender: room.senderName(message), text: quoteText(message) });
   const react = (messageId: string, emoji: string) => {
     haptics.reaction();
-    void toggleReaction(qc, wsId, roomId, messageId, emoji, userId).catch(() => toast.error(t("chat.message_list.react_failed")));
+    void toggleReaction({ messageId, emoji }).catch(() => toast.error(t("chat.message_list.react_failed")));
   };
   // What VoiceOver / TalkBack hear when someone else's message arrives at the bottom (audit U2).
   useArrivalAnnouncements(roomId, messages, userId, (message) => ({ sender: room.senderName(message), preview: quoteText(message) }));
@@ -307,9 +323,9 @@ export function Conversation(props: Props) {
         onSendFile={sendFile}
         onEdit={(messageId, body) => {
           setEdit(null);
-          void editMessage(qc, wsId, roomId, messageId, body).catch(() => toast.error(t("chat.message_list.edit_failed")));
+          void editMessage({ messageId, body }).catch(() => toast.error(t("chat.message_list.edit_failed")));
         }}
-        onTyping={() => void chatApi.signalTyping(wsId, roomId).catch(() => undefined)}
+        onTyping={signalTyping}
         onSendVoice={(clip) =>
           enqueue({ body: "", file: { uri: clip.uri, name: "voice.m4a", mimeType: "audio/mp4" }, voiceDurationMs: clip.durationMs, replyToMessageId: takeReply() })
         }
@@ -348,7 +364,7 @@ export function Conversation(props: Props) {
             {
               text: t("chat.action_delete"),
               style: "destructive",
-              onPress: () => void deleteMessage(qc, wsId, roomId, m.id).catch(() => toast.error(t("chat.message_list.delete_failed"))),
+              onPress: () => void deleteMessage(m.id).catch(() => toast.error(t("chat.message_list.delete_failed"))),
             },
           ])
         }
@@ -356,23 +372,23 @@ export function Conversation(props: Props) {
           const followUp = openFollowUp(m.id);
           const run =
             command === "create"
-              ? followUpCommand(qc, wsId, "create", m.id)
+              ? followUpCommand({ command: "create", id: m.id })
               : !followUp
                 ? Promise.resolve()
                 : command === "convert"
-                  ? createTaskFromMessage(qc, wsId, roomId, { followUpId: followUp.id })
-                  : followUpCommand(qc, wsId, command, followUp.id);
+                  ? createTask({ followUpId: followUp.id })
+                  : followUpCommand({ command, id: followUp.id });
           void run.catch(() => toast.error(t(command === "convert" ? "chat.follow_up.convert_failed" : "chat.follow_up.update_failed")));
         }}
         onCreateTask={(m) =>
-          void createTaskFromMessage(qc, wsId, roomId, { messageId: m.id, title: titleFromMessageBody(deserializeMessageBodyToComposerDraft(m.body)) }).catch(() =>
+          void createTask({ messageId: m.id, title: titleFromMessageBody(deserializeMessageBodyToComposerDraft(m.body)) }).catch(() =>
             toast.error(t("chat.link.create_error")),
           )
         }
-        onRetry={(m) => m.pending && void retryPendingSend(qc, m.pending, chatSendDeps)}
-        onDiscard={(m) => m.pending && discardPendingSend(m.pending.clientMsgId, chatSendDeps)}
+        onRetry={(m) => m.pending && retrySend(m.pending)}
+        onDiscard={(m) => m.pending && discardSend(m.pending.clientMsgId)}
         onMoreReactions={setEmojiFor}
-        onPin={(m) => void togglePin(qc, wsId, roomId, m.id).catch(failed)}
+        onPin={(m) => void togglePin(m.id).catch(failed)}
         onForward={(m) => setForwardId(m.id)}
         onReport={(m) => setReported({ messageId: m.id, senderId: m.sender, name: room.senderName(m) })}
       />

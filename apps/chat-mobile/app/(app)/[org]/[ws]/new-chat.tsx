@@ -2,7 +2,7 @@
 // (resolveDMRoom opens the DM, creating it on first use) or browse the
 // workspace's channels.
 import { Ionicons } from "@expo/vector-icons";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { router, Stack } from "expo-router";
 import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -12,7 +12,7 @@ import { useChatWorkspace, type ChatWorkspace } from "@/components/chat/use-chat
 import { DmPickRow } from "@/components/people/member-rows";
 import { SearchField } from "@/components/ui/search-field";
 import { Text } from "@/components/ui/text";
-import { resolveDMRoom } from "@/data/chat-actions";
+import { useResolveDM } from "@/data/mutations/rooms";
 import { nicknamesOptions, workspaceMembersOptions } from "@/data/queries/chat";
 import { chatRoutes } from "@/lib/chat-routes";
 import { displayLabelForChatContact } from "@/lib/rooms-display";
@@ -24,7 +24,7 @@ import { sameUser } from "@/lib/user-id";
 
 function NewChat({ chat }: { chat: ChatWorkspace }) {
   const { t } = useTranslation();
-  const qc = useQueryClient();
+  const resolveDM = useResolveDM(chat.wsId).mutateAsync;
   const { colorScheme } = useColorScheme();
   const theme = THEME[colorScheme];
   const members = useQuery(workspaceMembersOptions(chat.wsId));
@@ -46,7 +46,7 @@ function NewChat({ chat }: { chat: ChatWorkspace }) {
   const open = useCallback(
     (userId: string) => {
       setOpening(userId);
-      resolveDMRoom(qc, chat.wsId, userId)
+      resolveDM(userId)
         .then((room) => {
           if (room) router.replace(chatRoutes.room(chat, room.id));
           else toast.error(t("chat.dm_failed"));
@@ -54,7 +54,7 @@ function NewChat({ chat }: { chat: ChatWorkspace }) {
         .catch(() => toast.error(t("chat.dm_failed")))
         .finally(() => setOpening(null));
     },
-    [qc, chat, t],
+    [resolveDM, chat, t],
   );
 
   return (

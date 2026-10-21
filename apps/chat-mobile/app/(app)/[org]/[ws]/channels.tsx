@@ -1,7 +1,7 @@
 // The channel directory (spec §2.1, MobChannels board): the workspace's
 // public channels the reader has not joined; a tap joins one and opens it.
 import { Ionicons } from "@expo/vector-icons";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { router, Stack } from "expo-router";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -11,7 +11,7 @@ import { RoomAvatar } from "@/components/chat/room-avatar";
 import { useChatWorkspace, type ChatWorkspace } from "@/components/chat/use-chat-workspace";
 import { SearchField } from "@/components/ui/search-field";
 import { Text } from "@/components/ui/text";
-import { joinChannel } from "@/data/chat-actions";
+import { useJoinChannel } from "@/data/mutations/rooms";
 import { discoverableChannelsOptions, myChannelsOptions } from "@/data/queries/chat";
 import { chatRoutes } from "@/lib/chat-routes";
 import { foldedIncludes } from "@/lib/search-fold";
@@ -22,7 +22,7 @@ import { toast } from "@/data/stores/toast-store";
 
 function ChannelDirectory({ chat }: { chat: ChatWorkspace }) {
   const { t } = useTranslation();
-  const qc = useQueryClient();
+  const joinChannel = useJoinChannel(chat.wsId).mutateAsync;
   const { colorScheme } = useColorScheme();
   const theme = THEME[colorScheme];
   const channels = useQuery(discoverableChannelsOptions(chat.wsId));
@@ -40,7 +40,7 @@ function ChannelDirectory({ chat }: { chat: ChatWorkspace }) {
 
   const join = (roomId: string, name: string) => {
     setJoining(roomId);
-    joinChannel(qc, chat.wsId, roomId)
+    joinChannel(roomId)
       .then(() => router.replace(chatRoutes.room(chat, roomId)))
       .catch(() => toast.error(t("chat.channel.join_failed", { name })))
       .finally(() => setJoining(null));

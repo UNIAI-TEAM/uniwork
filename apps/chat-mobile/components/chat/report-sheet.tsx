@@ -5,7 +5,6 @@
 // step, as the big messengers offer. The organization's admins read reports
 // in the audit trail (chat.report.created). A refusal stays in the sheet,
 // said under the button (a toast would sit under the Modal).
-import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AccessibilityInfo, ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, Switch, TextInput, View } from "react-native";
@@ -13,8 +12,7 @@ import { CallAwareModal } from "@/components/ui/call-aware-modal";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { SheetGrabber } from "@/components/ui/action-sheet";
 import { Text } from "@/components/ui/text";
-import { setBlocked } from "@/data/queries/safety";
-import { safetyApi } from "@/data/safety-api";
+import { useBlockUser, useReport } from "@/data/mutations/safety";
 import { toast } from "@/data/stores/toast-store";
 import { continuousCorners } from "@/lib/radius";
 import { REPORT_DETAILS_MAX, REPORT_REASONS, reportBody, type ReportReason, type ReportTarget } from "@/lib/report";
@@ -34,7 +32,8 @@ interface Props {
 
 export function ReportSheet({ wsId, target, blockUserId, onClose, onReported }: Props) {
   const { t } = useTranslation();
-  const qc = useQueryClient();
+  const report = useReport(wsId).mutateAsync;
+  const setBlocked = useBlockUser(wsId).mutateAsync;
   const { colorScheme } = useColorScheme();
   const theme = THEME[colorScheme];
   const [reason, setReason] = useState<ReportReason | null>(null);
@@ -69,14 +68,14 @@ export function ReportSheet({ wsId, target, blockUserId, onClose, onReported }: 
     setBusy(true);
     setError(null);
     try {
-      await safetyApi.report(wsId, reportBody(target, reason, details));
+      await report(reportBody(target, reason, details));
     } catch {
       setBusy(false);
       say(t("mobile.report.failed"));
       return;
     }
     // The report stands even if the block fails; the person can block from the details later.
-    const blocked = alsoBlock && blockUserId ? await setBlocked(qc, wsId, blockUserId, true).then(() => true, () => false) : false;
+    const blocked = alsoBlock && blockUserId ? await setBlocked({ userId: blockUserId, blocked: true }).then(() => true, () => false) : false;
     setBusy(false);
     reset();
     onClose();

@@ -25,7 +25,7 @@ import { ensureCallPermissions } from "@/components/ui/permission-gate";
 import { Text } from "@/components/ui/text";
 import { useMobileFlag } from "@/data/remote-config";
 import { callEngine } from "@/data/calls/call-store";
-import { leaveRoom, setRoomMuted } from "@/data/chat-actions";
+import { useLeaveRoom, useSetRoomMuted } from "@/data/mutations/rooms";
 import type { ChatSharedSummary } from "@/data/chat-api";
 import type { RoomTimeline } from "@/data/chat-timeline";
 import { roomSearchOptions, roomTimelineOptions, sharedSummaryOptions } from "@/data/queries/chat";
@@ -154,6 +154,8 @@ function SharedSection({ shared, onOpenMessage }: { shared: ChatSharedSummary; o
 function RoomInfo({ chat, roomId }: { chat: ChatWorkspace; roomId: string }) {
   const { t, i18n } = useTranslation();
   const qc = useQueryClient();
+  const leaveRoom = useLeaveRoom(chat.wsId).mutateAsync;
+  const setRoomMuted = useSetRoomMuted(chat.wsId).mutateAsync;
   const { colorScheme } = useColorScheme();
   const theme = THEME[colorScheme];
   const room = useRoomContext(chat, roomId);
@@ -192,7 +194,7 @@ function RoomInfo({ chat, roomId }: { chat: ChatWorkspace; roomId: string }) {
         text: t("chat.leave_conversation"),
         style: "destructive",
         onPress: () =>
-          void leaveRoom(qc, chat.wsId, roomId)
+          void leaveRoom(roomId)
             .then(() => router.dismissAll())
             .catch(() => toast.error(t("chat.leave_conversation_failed"))),
       },
@@ -215,7 +217,7 @@ function RoomInfo({ chat, roomId }: { chat: ChatWorkspace; roomId: string }) {
             <QuickAction
               icon={muted ? "notifications-outline" : "notifications-off-outline"}
               label={muted ? t("chat.mobile.unmute_notifications") : t("chat.settings_mute_notifications")}
-              onPress={() => void setRoomMuted(qc, chat.wsId, roomId, !muted).catch(() => toast.error(t("common.error")))}
+              onPress={() => void setRoomMuted({ roomId, muted: !muted }).catch(() => toast.error(t("common.error")))}
             />
             <QuickAction icon="search" label={t("chat.mobile.search_short")} accessibilityLabel={t("chat.search_messages")} onPress={() => searchInput.current?.focus()} />
             {callable ? (

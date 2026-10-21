@@ -13,7 +13,7 @@ import { Conversation } from "@/components/chat/conversation";
 import { useChatWorkspace, type ChatWorkspace } from "@/components/chat/use-chat-workspace";
 import { useActiveRoom } from "@/components/chat/use-read-marking";
 import { useRoomContext } from "@/components/chat/use-room-context";
-import { markThreadRead } from "@/data/chat-actions";
+import { useMarkThreadRead } from "@/data/mutations/rooms";
 import { threadTimelineOptions } from "@/data/queries/chat";
 import { selectRoomSends, useChatSendStore } from "@/data/stores/chat-send-store";
 import { THEME } from "@/lib/theme";
@@ -23,6 +23,7 @@ import { useColorScheme } from "@/lib/use-color-scheme";
 function ThreadConversation({ chat, roomId, rootId }: { chat: ChatWorkspace; roomId: string; rootId: string }) {
   const { t } = useTranslation();
   const { colorScheme } = useColorScheme();
+  const markThreadRead = useMarkThreadRead(chat.wsId).mutateAsync;
   const room = useRoomContext(chat, roomId);
   const thread = useInfiniteQuery(threadTimelineOptions(chat.wsId, roomId, rootId));
   const sends = useChatSendStore(useShallow((s) => selectRoomSends(s.entries, chat.wsId, roomId, chat.userId)));
@@ -37,8 +38,8 @@ function ThreadConversation({ chat, roomId, rootId }: { chat: ChatWorkspace; roo
   );
 
   const onFocus = useCallback(() => {
-    void markThreadRead(chat.wsId, rootId).catch(() => undefined);
-  }, [chat.wsId, rootId]);
+    void markThreadRead(rootId).catch(() => undefined);
+  }, [markThreadRead, rootId]);
   useActiveRoom(roomId, onFocus);
 
   return (

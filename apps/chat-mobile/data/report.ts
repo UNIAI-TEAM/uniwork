@@ -43,13 +43,22 @@ function statusOf(error: unknown): number | undefined {
 }
 
 /**
+ * A command the server turned down for good once it was delivered (a queued
+ * reaction or vote it refused): the screen says so, and the queue that met the
+ * refusal already logged it. Thrown to reject the screen's promise, never a bug.
+ */
+export class RefusedError extends Error {
+  override name = "RefusedError";
+}
+
+/**
  * What is not a bug and would only drown the real ones: the network being
- * down or slow (status 0, an abort), and any 4xx — the server answered a
- * request it judged wrong, and the screen already says so. A 5xx and every
- * error that is not an ApiError are reported.
+ * down or slow (status 0, an abort), any 4xx — the server answered a request
+ * it judged wrong, and the screen already says so — and a RefusedError. A 5xx
+ * and every other error are reported.
  */
 export function isExpectedError(error: unknown): boolean {
-  if (error instanceof Error && error.name === "AbortError") return true;
+  if (error instanceof Error && (error.name === "AbortError" || error.name === "RefusedError")) return true;
   const status = statusOf(error);
   return status !== undefined && status < 500;
 }

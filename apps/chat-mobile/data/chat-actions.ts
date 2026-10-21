@@ -8,13 +8,18 @@ import type { ChatRoomRecord } from "@uniwork/core/api/endpoints/chat-schemas";
 import { applyChatMessageResponse, patchChatMessageDeleted } from "./chat-cache";
 import { chatApi, type ChatTask } from "./chat-api";
 import { chatKeys } from "./queries/chat-keys";
+import { followUpDueAt } from "@/lib/follow-ups";
 
 /** The read pointer of a thread; the server hands back the one it replaced. */
 export function markThreadRead(wsId: string, rootId: string): Promise<string | null> {
   return chatApi.markThreadRead(wsId, rootId);
 }
 
-/** Optimistic: the flag moves only this person's row, and a failure restores it. */
+/**
+ * Optimistic: the flag moves only this person's row, and a failure restores
+ * it. The request's own error is rethrown (offline and a 4xx are not bugs to
+ * report); an answer that is not "ok" is.
+ */
 export async function setRoomMuted(qc: QueryClient, wsId: string, roomId: string, muted: boolean): Promise<void> {
   const key = chatKeys.rooms(wsId);
   await qc.cancelQueries({ queryKey: key });
@@ -22,10 +27,11 @@ export async function setRoomMuted(qc: QueryClient, wsId: string, roomId: string
   qc.setQueryData<ChatRoomRecord[]>(key, (old) =>
     old?.map((room) => (room.id === roomId ? { ...room, notifications_muted: muted } : room)),
   );
-  const ok = await chatApi.setRoomMuted(wsId, roomId, muted).catch(() => false);
-  if (!ok) {
+  try {
+    if (!(await chatApi.setRoomMuted(wsId, roomId, muted))) throw new Error("chat_room_mute_failed");
+  } catch (error) {
     qc.setQueryData(key, previous);
-    throw new Error("chat_room_mute_failed");
+    throw error;
   }
 }
 
@@ -44,18 +50,36 @@ export async function deleteMessage(qc: QueryClient, wsId: string, roomId: strin
   void qc.invalidateQueries({ queryKey: chatKeys.rooms(wsId) });
 }
 
-/** A signed media URL past its expiry: load the message again; its fresh URLs flow back through the cache. */
-export async function refreshMessageMedia(qc: QueryClient, wsId: string, roomId: string, messageId: string) {
-  const fresh = await chatApi.getMessage(wsId, roomId, messageId);
-  if (fresh) applyChatMessageResponse(qc, wsId, roomId, fresh, false);
-  return fresh;
-}
-
 /** The DM with a person, created on first use; null when the server answers none. */
 export async function resolveDMRoom(qc: QueryClient, wsId: string, userId: string): Promise<ChatRoomRecord | null> {
   const room = await chatApi.resolveDMRoom(wsId, userId);
   void qc.invalidateQueries({ queryKey: chatKeys.rooms(wsId) });
   return room;
+}
+
+/** A new group with the people picked; rejects when the server answers no room. */
+export async function createGroup(qc: QueryClient, wsId: string, input: { name: string; memberUserIds: string[] }): Promise<ChatRoomRecord> {
+  const room = await chatApi.createGroup(wsId, { name: input.name, member_user_ids: input.memberUserIds });
+  if (!room) throw new Error("chat_group_create_failed");
+  void qc.invalidateQueries({ queryKey: chatKeys.rooms(wsId) });
+  return room;
+}
+
+/** Adds people to a group; its members and the list (a name made of members) follow. */
+export async function inviteGroupMembers(qc: QueryClient, wsId: string, roomId: string, memberUserIds: string[]): Promise<ChatRoomRecord> {
+  const room = await chatApi.inviteGroupMembers(wsId, roomId, memberUserIds);
+  if (!room) throw new Error("chat_group_invite_failed");
+  void qc.invalidateQueries({ queryKey: chatKeys.roomMembers(wsId, roomId) });
+  void qc.invalidateQueries({ queryKey: chatKeys.rooms(wsId) });
+  return room;
+}
+
+/**
+ * Forwards a message to other rooms. Nothing is written into a cache: each
+ * target hears its copy over realtime. No copy made is a failure to show.
+ */
+export async function forwardMessage(wsId: string, messageId: string, targetRoomIds: string[]): Promise<void> {
+  if ((await chatApi.forwardMessage(wsId, messageId, targetRoomIds)) === 0) throw new Error("chat_forward_failed");
 }
 
 export async function joinChannel(qc: QueryClient, wsId: string, roomId: string): Promise<ChatRoomRecord | null> {
@@ -68,12 +92,8 @@ export async function joinChannel(qc: QueryClient, wsId: string, roomId: string)
 // M3: the rich kinds. A voice clip and a reminder are sends (chat-send.ts); a
 // read, a reaction and a poll vote work offline too (pending-ops.ts).
 
-export const FOLLOW_UP_HOURS = 2;
-const FOLLOW_UP_DUE_MS = FOLLOW_UP_HOURS * 60 * 60 * 1000;
-
 const FOLLOW_UP_COMMANDS = {
-  // MobileActions board: "Theo dõi sau · 2 giờ nữa" — the follow-up comes due in two hours.
-  create: (wsId: string, id: string) => chatApi.createFollowUp(wsId, id, { due_at: new Date(Date.now() + FOLLOW_UP_DUE_MS).toISOString() }),
+  create: (wsId: string, id: string) => chatApi.createFollowUp(wsId, id, { due_at: followUpDueAt(Date.now()) }),
   complete: (wsId: string, id: string) => chatApi.patchFollowUp(wsId, id, { completed: true }),
   remove: (wsId: string, id: string) => chatApi.deleteFollowUp(wsId, id),
 };

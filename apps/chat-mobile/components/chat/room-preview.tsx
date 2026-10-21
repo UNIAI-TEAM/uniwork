@@ -7,8 +7,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { View } from "react-native";
 import { Text } from "@/components/ui/text";
-import { chatApi } from "@/data/chat-api";
-import { chatKeys } from "@/data/queries/chat-keys";
+import { roomPreviewOptions } from "@/data/queries/chat";
 import { bubbleCorners } from "@/lib/conversation-display";
 import { messagePreviewText } from "@/lib/message-display";
 import { continuousCorners } from "@/lib/radius";
@@ -23,12 +22,7 @@ const PREVIEW_MESSAGES = 4;
 export function RoomPreview({ wsId, row, userId }: { wsId: string; row: RoomListRow; userId: string }) {
   const { t } = useTranslation();
   const roomId = row.roomId ?? "";
-  const latest = useQuery({
-    queryKey: chatKeys.roomPreview(wsId, roomId),
-    queryFn: ({ signal }) => chatApi.listMessages(wsId, roomId, { limit: PREVIEW_MESSAGES, markRead: false }, signal),
-    enabled: roomId !== "",
-    staleTime: 10_000,
-  }).data;
+  const latest = useQuery(roomPreviewOptions(wsId, roomId, PREVIEW_MESSAGES)).data;
   const messages = [...(latest ?? [])].sort((a, b) => Date.parse(a.created_at) - Date.parse(b.created_at)).slice(-PREVIEW_MESSAGES);
   const group = row.mark.kind !== "dm";
   return (

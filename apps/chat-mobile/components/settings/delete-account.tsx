@@ -16,7 +16,7 @@ import { CallAwareModal } from "@/components/ui/call-aware-modal";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { SheetGrabber } from "@/components/ui/action-sheet";
 import { Text } from "@/components/ui/text";
-import { accountApi } from "@/data/account-api";
+import { useDeleteAccount } from "@/data/mutations/account";
 import { useAuthStore } from "@/data/auth/store";
 import { toast } from "@/data/stores/toast-store";
 import { deleteAccountFailure, deleteProofBody, deleteProofMode, type DeleteProofMode } from "@/lib/account-deletion";
@@ -61,6 +61,7 @@ function DeleteAccountSheet({ visible, onClose, orgSlug, wsSlug }: SheetProps) {
   const [error, setError] = useState<string | null>(null);
   const [owner, setOwner] = useState(false);
   const [busy, setBusy] = useState(false);
+  const deleteAccount = useDeleteAccount().mutateAsync;
   const input = useRef<TextInput>(null);
   const appUrl = runtimeConfig().appUrl;
 
@@ -87,7 +88,7 @@ function DeleteAccountSheet({ visible, onClose, orgSlug, wsSlug }: SheetProps) {
     setError(null);
     setBusy(true);
     try {
-      await accountApi.deleteAccount(deleteProofBody(mode, proof));
+      await deleteAccount(deleteProofBody(mode, proof));
     } catch (err) {
       setBusy(false);
       const failure = deleteAccountFailure(err);

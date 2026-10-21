@@ -4,7 +4,7 @@
 // message again; the fresh copy flows back through the room cache.
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef } from "react";
-import { refreshMessageMedia } from "@/data/chat-actions";
+import { refreshMessageMedia } from "@/data/chat-cache";
 import { isChatMediaUrlFresh } from "@/lib/message-display";
 import type { ChatMessageRecord } from "@uniwork/core/api/endpoints/chat-schemas";
 

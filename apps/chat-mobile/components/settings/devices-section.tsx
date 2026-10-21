@@ -2,13 +2,14 @@
 // marked, the others revocable after a confirm. A revoked device is signed out
 // by the server within a minute (data/queries/devices.ts).
 import { Ionicons } from "@expo/vector-icons";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { ActivityIndicator, Alert, View } from "react-native";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Text } from "@/components/ui/text";
-import { devicesOptions, revokeDevice, type Device } from "@/data/queries/devices";
+import { useRevokeDevice } from "@/data/mutations/account";
+import { devicesOptions, type Device } from "@/data/queries/devices";
 import { formatCallTime } from "@/lib/call-log-display";
 import { THEME } from "@/lib/theme";
 import { useColorScheme } from "@/lib/use-color-scheme";
@@ -49,18 +50,13 @@ function DeviceRow({ device, onRevoke }: { device: Device; onRevoke: (name: stri
 
 export function DevicesSection() {
   const { t } = useTranslation();
-  const queryClient = useQueryClient();
   const devices = useQuery(devicesOptions());
-  const revoke = useMutation({
-    mutationFn: revokeDevice,
-    onSettled: () => queryClient.invalidateQueries({ queryKey: devicesOptions().queryKey }),
-    onError: () => toast.error(t("settings.security.sessions.revokeFailed")),
-  });
+  const revoke = useRevokeDevice().mutateAsync;
 
   const confirm = (device: Device, name: string) =>
     Alert.alert(t("mobile.settings.revoke_title", { device: name }), t("mobile.settings.revoke_body"), [
       { text: t("common.cancel"), style: "cancel" },
-      { text: t("settings.security.sessions.revoke"), style: "destructive", onPress: () => revoke.mutate(device.id) },
+      { text: t("settings.security.sessions.revoke"), style: "destructive", onPress: () => void revoke(device.id).catch(() => toast.error(t("settings.security.sessions.revokeFailed"))) },
     ]);
 
   return (

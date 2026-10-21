@@ -6,18 +6,21 @@ vi.mock("./api", () => ({ api: { request: vi.fn() } }));
 
 import { chatApi } from "./chat-api";
 import {
+  createGroup,
   createTaskFromMessage,
+  forwardMessage,
+  inviteGroupMembers,
   deleteMessage,
   followUpCommand,
   editMessage,
   joinChannel,
   leaveRoom,
   markThreadRead,
-  refreshMessageMedia,
   resolveDMRoom,
   setRoomMuted,
   togglePin,
 } from "./chat-actions";
+import { refreshMessageMedia } from "./chat-cache";
 import { flattenRoomTimeline, type RoomTimeline } from "./chat-timeline";
 import { chatKeys } from "./queries/chat-keys";
 
@@ -70,7 +73,7 @@ describe("chat actions", () => {
     await setRoomMuted(qc, "w1", "r1", true);
     expect(rooms(qc)?.map((r) => r.notifications_muted)).toEqual([true, undefined]);
     await expect(setRoomMuted(qc, "w1", "r1", false)).rejects.toThrow("chat_room_mute_failed");
-    await expect(setRoomMuted(qc, "w1", "r1", false)).rejects.toThrow("chat_room_mute_failed");
+    await expect(setRoomMuted(qc, "w1", "r1", false)).rejects.toThrow("offline");
     expect(rooms(qc)?.[0]?.notifications_muted).toBe(true);
     vi.spyOn(chatApi, "setRoomMuted").mockResolvedValue(true);
     await setRoomMuted(new QueryClient(), "w1", "r1", true);
@@ -113,6 +116,27 @@ describe("chat actions", () => {
     expect(await refreshMessageMedia(qc, "w1", "r1", "m1")).toBe(fresh);
     expect(flattenRoomTimeline(qc.getQueryData<RoomTimeline>(timelineKey)!)[0]?.file?.url).toBe("https://s/new");
     expect(await refreshMessageMedia(qc, "w1", "r1", "m1")).toBeNull();
+  });
+
+  it("creates a group and adds people to one, refreshing what they change; no room back is a failure", async () => {
+    const qc = new QueryClient();
+    const invalidate = vi.spyOn(qc, "invalidateQueries");
+    const create = vi.spyOn(chatApi, "createGroup").mockResolvedValueOnce(room("g1", { kind: "group" })).mockResolvedValueOnce(null);
+    const invite = vi.spyOn(chatApi, "inviteGroupMembers").mockResolvedValueOnce(room("g1", { kind: "group" })).mockResolvedValueOnce(null);
+    expect(await createGroup(qc, "w1", { name: "Đội", memberUserIds: ["u2", "u3"] })).toMatchObject({ id: "g1" });
+    expect(create).toHaveBeenCalledWith("w1", { name: "Đội", member_user_ids: ["u2", "u3"] });
+    await expect(createGroup(qc, "w1", { name: "Đội", memberUserIds: ["u2"] })).rejects.toThrow("chat_group_create_failed");
+    expect(await inviteGroupMembers(qc, "w1", "g1", ["u4"])).toMatchObject({ id: "g1" });
+    expect(invite).toHaveBeenCalledWith("w1", "g1", ["u4"]);
+    await expect(inviteGroupMembers(qc, "w1", "g1", ["u4"])).rejects.toThrow("chat_group_invite_failed");
+    expect(invalidate.mock.calls.map(([f]) => f?.queryKey)).toEqual([chatKeys.rooms("w1"), chatKeys.roomMembers("w1", "g1"), chatKeys.rooms("w1")]);
+  });
+
+  it("forwards a message; no copy made is a failure", async () => {
+    const forward = vi.spyOn(chatApi, "forwardMessage").mockResolvedValueOnce(1).mockResolvedValueOnce(0);
+    await forwardMessage("w1", "m1", ["r2"]);
+    expect(forward).toHaveBeenCalledWith("w1", "m1", ["r2"]);
+    await expect(forwardMessage("w1", "m1", ["r2"])).rejects.toThrow("chat_forward_failed");
   });
 
   it("opens a DM and joins a channel, refreshing the lists", async () => {

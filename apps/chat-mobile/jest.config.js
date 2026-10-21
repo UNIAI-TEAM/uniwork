@@ -89,6 +89,8 @@ module.exports = {
     "components/chat/use-arrival-announcements.ts",
     // The image viewer's zoom and close gestures (zoomable-image.test, RNGH's jest utilities).
     "components/chat/zoomable-image.tsx",
+    // UNI-2053 S7 architecture: the mutation layer every screen changes server state through.
+    "data/mutations/*.ts",
   ],
   coverageReporters: ["text-summary"],
   // Measured on the files above; only ever raised (CLAUDE.md › Coverage only
@@ -97,6 +99,7 @@ module.exports = {
   // compliance screens, each at 100 % (98.72 / 93.64 / 97.67 / 99.59), then
   // with S4's native-call components, each at 100 % (98.92 / 94.35 / 98.06 / 99.65),
   // then with S5's list cells, each at 100 % (99.01 / 95.42 / 98.26 / 99.68), then with S6's
-  // accessibility, primer, jump-to-latest and zoom files, each at 100 % (99.42 / 96.39 / 99.63 / 99.86).
+  // accessibility, primer, jump-to-latest and zoom files, each at 100 % (99.42 / 96.39 / 99.63 / 99.86), then
+  // with S7's mutation layer, at 100 % (99.47 / 96.52 / 99.69 / 99.87).
   coverageThreshold: { global: { statements: 99, branches: 96, functions: 99, lines: 99 } },
 };

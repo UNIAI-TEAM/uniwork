@@ -11,6 +11,49 @@ import { fileURLToPath } from "node:url";
 // which checks what each entry pulls in transitively.
 const CORE_ALLOWLIST = JSON.parse(readFileSync(fileURLToPath(new globalThis.URL("./core-allowlist.json", import.meta.url)), "utf8"));
 
+// The import boundary (ADR 0011) every file keeps; the UI block below adds the mutation layer's.
+const restrictedPaths = [
+  ...lucideAliasPaths,
+  {
+    // Audit C2: a sheet left open sits over the ringing call's Answer button.
+    name: "react-native",
+    importNames: ["Modal"],
+    message: "Use CallAwareModal (components/ui/call-aware-modal.tsx): an incoming call closes it.",
+  },
+];
+const restrictedPatterns = [
+  {
+    group: ["@uniwork/views", "@uniwork/views/*", "@uniwork/ui", "@uniwork/ui/*", "next", "next/*"],
+    message: "Mobile owns its UI and never hosts views/ui/next (ADR 0011).",
+  },
+  {
+    group: ["@react-navigation/*"],
+    message: "Import navigation hooks and themes from expo-router; its navigation context is separate.",
+  },
+  {
+    group: ["**/packages/**", "**/node_modules/**"],
+    message: "Reach packages/core through @uniwork/core/<allowlisted subpath>, never by relative path.",
+  },
+  {
+    // A regex, not a group: gitignore-style `!` negations cannot
+    // re-include a path under an excluded parent, so an allowlist is
+    // impossible with `group`. types/* is left to the pattern below.
+    regex: `^@uniwork/core(?!/(?:types/[^/]+|${CORE_ALLOWLIST.join("|")})$)(?:/.*)?$`,
+    caseSensitive: true,
+    message: "Only the pure modules in scripts/mobile-core-allowlist.test.mjs may be imported from @uniwork/core (ADR 0011).",
+  },
+  {
+    group: ["@uniwork/core/types/*"],
+    allowTypeImports: true,
+    message: "@uniwork/core/types/* is `import type` only on mobile (ADR 0011).",
+  },
+];
+
+// The mutation layer (data/mutations/command.ts): screens and components
+// change server state through its hooks, never by calling an endpoint or a
+// command themselves. Types stay importable.
+const COMMAND_MODULES = ["chat-api", "chat-actions", "chat-send", "pending-ops", "safety-api", "safety-actions", "account-api"];
+
 export default [
   ...reactConfig,
   { ignores: [".expo/", "dist/", "coverage/", "android/", "ios/"] },
@@ -93,41 +136,31 @@ export default [
         selector: "ImportExpression > Literal[value=/^@uniwork\\u002fcore/]",
         message: "No dynamic import of @uniwork/core on mobile; use a static import of an allowlisted subpath (ADR 0011).",
       }],
+      "@typescript-eslint/no-restricted-imports": ["error", { paths: restrictedPaths, patterns: restrictedPatterns }],
+    },
+  },
+  // Replaces the rule's options for app/ and components/, so it restates the boundary above.
+  // app/_layout.tsx is the composition root: it hands endpoints to boot services as dependencies.
+  // Tests import the endpoint modules they mock (the transport stays the seam, as in packages/views).
+  {
+    files: ["app/**/*.{ts,tsx}", "components/**/*.{ts,tsx}"],
+    ignores: ["app/_layout.tsx", "**/*.test.{ts,tsx}"],
+    rules: {
       "@typescript-eslint/no-restricted-imports": ["error", {
         paths: [
-          ...lucideAliasPaths,
+          ...restrictedPaths,
           {
-            // Audit C2: a sheet left open sits over the ringing call's Answer button.
-            name: "react-native",
-            importNames: ["Modal"],
-            message: "Use CallAwareModal (components/ui/call-aware-modal.tsx): an incoming call closes it.",
+            name: "@/data/queries/devices",
+            importNames: ["revokeDevice"],
+            message: "Revoke a device with useRevokeDevice (data/mutations/account.ts).",
           },
         ],
         patterns: [
+          ...restrictedPatterns,
           {
-            group: ["@uniwork/views", "@uniwork/views/*", "@uniwork/ui", "@uniwork/ui/*", "next", "next/*"],
-            message: "Mobile owns its UI and never hosts views/ui/next (ADR 0011).",
-          },
-          {
-            group: ["@react-navigation/*"],
-            message: "Import navigation hooks and themes from expo-router; its navigation context is separate.",
-          },
-          {
-            group: ["**/packages/**", "**/node_modules/**"],
-            message: "Reach packages/core through @uniwork/core/<allowlisted subpath>, never by relative path.",
-          },
-          {
-            // A regex, not a group: gitignore-style `!` negations cannot
-            // re-include a path under an excluded parent, so an allowlist is
-            // impossible with `group`. types/* is left to the pattern below.
-            regex: `^@uniwork/core(?!/(?:types/[^/]+|${CORE_ALLOWLIST.join("|")})$)(?:/.*)?$`,
-            caseSensitive: true,
-            message: "Only the pure modules in scripts/mobile-core-allowlist.test.mjs may be imported from @uniwork/core (ADR 0011).",
-          },
-          {
-            group: ["@uniwork/core/types/*"],
+            group: COMMAND_MODULES.flatMap((name) => [`@/data/${name}`, `**/data/${name}`]),
             allowTypeImports: true,
-            message: "@uniwork/core/types/* is `import type` only on mobile (ADR 0011).",
+            message: "Change server state through a data/mutations/* hook; screens never call an endpoint or a command (data/mutations/command.ts).",
           },
         ],
       }],

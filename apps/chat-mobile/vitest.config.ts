@@ -33,6 +33,9 @@ export default defineConfig({
         "data/calls/call-store.ts",
         // A React hook: rendered and measured by the jest-expo layer (jest.config.js).
         "data/realtime/use-call-realtime.ts",
+        // The mutation layer's hooks (useMutation over the commands tested here): rendered and measured by
+        // the jest-expo layer (data/mutations/mutations.test.tsx).
+        "data/mutations/**",
       ],
       reporter: ["text-summary"],
       // Blocks at every GATE_LEVEL (ADR 0037): not routed through scripts/coverage-gate.ts.
