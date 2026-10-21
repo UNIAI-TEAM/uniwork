@@ -98,6 +98,22 @@ func TestMeetingTranscriptToolCapsAt200Segments(t *testing.T) {
 	}
 }
 
+// A keyword scans the oldest summaryTranscriptRows lines; when the stretch
+// holds more, the tool says so instead of answering "nothing matches".
+func TestMeetingTranscriptToolSaysWhenTheKeywordScanWasCut(t *testing.T) {
+	s, _, ua, _, w := askFixture(t)
+	m := liveCatchUpMeeting(t, s, ua.ID, w.ID)
+	for i := range summaryTranscriptRows {
+		catchUpSegment(t, s, m, "AGENT", "An", fmt.Sprintf("câu số %d", i), time.Duration(3*summaryTranscriptRows-i)*time.Second)
+	}
+	catchUpSegment(t, s, m, "AGENT", "Bình", "Ngân sách quý IV", time.Second)
+	tc := ai.ToolContext{ActorID: ua.ID, OrganizationID: m.OrganizationID, WorkspaceID: w.ID}
+	items := runTranscriptTool(t, s, tc, fmt.Sprintf(`{"meeting_id":%q,"from":"","to":"","query":"ngan sach"}`, m.ID))
+	if len(items) == 0 || items[len(items)-1].Kind != "note" {
+		t.Fatalf("a cut keyword scan must end with a note that more lines exist, got %+v", items)
+	}
+}
+
 // P0 (ask_uni_agent off): a question asked with a meeting in focus also
 // reads the transcript lines that match it.
 func TestAskMeetingFocusReadsTheTranscript(t *testing.T) {
