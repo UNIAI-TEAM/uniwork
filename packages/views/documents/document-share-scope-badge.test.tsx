@@ -258,7 +258,13 @@ describe("DocumentShareScopeBadge (UNI-1785)", () => {
       />,
     );
     const libRow = document.querySelector('[data-library-row="d1"]') as HTMLElement;
-    expect(within(libRow).getAllByText("4 người")).toHaveLength(2);
+    // The narrow name-line badge still names the people; the access cell is the
+    // shared pill (Được chia sẻ + level line), never the people count.
+    expect(within(libRow).getAllByText("4 người")).toHaveLength(1);
+    const accessCell = libRow.querySelector('td[data-column="access"]') as HTMLElement;
+    expect(accessCell.querySelector("[data-access-kind]")).toHaveAttribute("data-access-kind", "shared");
+    expect(within(accessCell).getByText("Được chia sẻ")).toBeInTheDocument();
+    expect(within(accessCell).queryByText("4 người")).not.toBeInTheDocument();
     unmount();
 
     // Search results mount
