@@ -28,8 +28,9 @@ export default defineConfig({
         "data/realtime/use-chat-realtime.ts",
         // The call wiring: the engine (call-engine.ts, tested) on the chat API and the socket.
         "data/calls/call-store.ts",
-        // A React hook: rendered and measured by the jest-expo layer (jest.config.js).
+        // React hooks: rendered and measured by the jest-expo layer (jest.config.js).
         "data/realtime/use-call-realtime.ts",
+        "data/realtime/use-workspace-realtime.ts",
         // The mutation layer's hooks (useMutation over the commands tested here): rendered and measured by
         // the jest-expo layer (data/mutations/mutations.test.tsx).
         "data/mutations/**",

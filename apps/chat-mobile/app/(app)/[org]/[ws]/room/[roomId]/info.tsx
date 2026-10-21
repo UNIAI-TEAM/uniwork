@@ -8,14 +8,15 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { isDefaultWorkspaceChannel } from "@uniwork/core/chat/chat-room-helpers";
-import { Image } from "expo-image";
 import { router, Stack, useLocalSearchParams } from "expo-router";
-import { useMemo, useRef, useState, type ComponentProps } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ActivityIndicator, Alert, Pressable, ScrollView, TextInput, useWindowDimensions, View } from "react-native";
+import { ActivityIndicator, Alert, Pressable, ScrollView, TextInput, View } from "react-native";
 import { ChatHeader } from "@/components/chat/chat-header";
 import { RoomAvatar } from "@/components/chat/room-avatar";
 import { DmSafetyRows, MemberSafetySheet, type SafetyPerson } from "@/components/chat/room-safety";
+import { Divider, QuickAction } from "@/components/chat/room-info/quick-action";
+import { SharedSection } from "@/components/chat/room-info/shared-section";
 import { useChatWorkspace, type ChatWorkspace } from "@/components/chat/use-chat-workspace";
 import { useRoomContext } from "@/components/chat/use-room-context";
 import { RoomMemberRow } from "@/components/people/member-rows";
@@ -25,7 +26,6 @@ import { Text } from "@/components/ui/text";
 import { useMobileFlag } from "@/data/remote-config";
 import { callEngine } from "@/data/calls/call-store";
 import { useLeaveRoom, useSetRoomMuted } from "@/data/mutations/rooms";
-import type { ChatSharedSummary } from "@/data/chat-api-schemas";
 import type { RoomTimeline } from "@/data/chat-timeline";
 import { roomSearchOptions, roomTimelineOptions, sharedSummaryOptions } from "@/data/queries/chat";
 import { chatRoutes } from "@/lib/chat-routes";
@@ -36,114 +36,11 @@ import { canCallRoom, keptCounts, roomHeaderMark } from "@/lib/conversation-disp
 import { THEME } from "@/lib/theme";
 import { formatMessageDay, toTimelineMessage } from "@/lib/timeline-display";
 import { useColorScheme } from "@/components/ui/use-color-scheme";
-import { cn } from "@/lib/utils";
 import { voiceCallKindFromServer } from "@uniwork/core/chat/voice-call-kind";
 import { toast } from "@/data/stores/toast-store";
-import { chatMediaSource, IMAGE_CACHE_POLICY } from "@/lib/media-source";
 
 /** Members shown before "Xem tất cả" (the board lists four). */
 const MEMBERS_PREVIEW = 5;
-/** Photo tiles in the shared grid; the last one says how many more there are. */
-const PHOTO_TILES = 6;
-
-type SharedTab = "photo" | "file" | "link" | "voice";
-
-function QuickAction(props: { icon: ComponentProps<typeof Ionicons>["name"]; label: string; accessibilityLabel?: string; onPress: () => void }) {
-  const { colorScheme } = useColorScheme();
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={props.accessibilityLabel ?? props.label}
-      onPress={props.onPress}
-      className="w-[84px] items-center gap-1.5 active:opacity-70"
-    >
-      <View className="h-12 w-12 items-center justify-center rounded-full bg-muted">
-        <Ionicons name={props.icon} size={22} color={THEME[colorScheme].primary} />
-      </View>
-      <Text className="text-center text-caption font-semibold text-foreground" numberOfLines={1}>
-        {props.label}
-      </Text>
-    </Pressable>
-  );
-}
-
-const Divider = () => <View className="h-2 bg-muted" />;
-
-function SharedSection({ shared, onOpenMessage }: { shared: ChatSharedSummary; onOpenMessage: (messageId: string) => void }) {
-  const { t } = useTranslation();
-  const [tab, setTab] = useState<SharedTab>("photo");
-  // Three tiles to a row across the 20 pt margins, 4 pt apart.
-  const tile = Math.floor((useWindowDimensions().width - 40 - 8) / 3);
-  const counts: Record<SharedTab, number> = {
-    photo: shared.counts.photo + shared.counts.gif + shared.counts.video,
-    file: shared.counts.file,
-    link: shared.counts.link,
-    voice: shared.counts.voice,
-  };
-  const tabs: { key: SharedTab; label: string }[] = [
-    { key: "photo", label: t("chat.mobile.tab_photos", { count: counts.photo }) },
-    { key: "file", label: t("chat.mobile.tab_files", { count: counts.file }) },
-    { key: "link", label: t("chat.mobile.tab_links", { count: counts.link }) },
-    { key: "voice", label: t("chat.mobile.tab_voice", { count: counts.voice }) },
-  ];
-  const photos = shared.recent_photos.slice(0, PHOTO_TILES);
-  const more = counts.photo - (photos.length - 1);
-  return (
-    <View className="pb-3.5 pt-3.5" accessibilityLabel={t("chat.mobile.shared_title")}>
-      <Text className="mb-2 px-5 text-footnote font-semibold text-muted-foreground" accessibilityRole="header">
-        {t("chat.mobile.shared_title")}
-      </Text>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} className="grow-0" contentContainerClassName="gap-1.5 px-5 pb-2.5" accessibilityRole="tablist" accessibilityLabel={t("chat.mobile.shared_kinds_aria")}>
-        {tabs.map((item) => {
-          const active = item.key === tab;
-          return (
-            <Pressable
-              key={item.key}
-              accessibilityRole="tab"
-              accessibilityState={{ selected: active }}
-              onPress={() => setTab(item.key)}
-              className={cn("min-h-8 justify-center rounded-full px-3 py-1", active ? "bg-tint-blue" : "active:bg-secondary")}
-            >
-              <Text className={cn("text-footnote font-semibold", active ? "text-primary" : "text-muted-foreground")} style={{ fontVariant: ["tabular-nums"] }}>
-                {item.label}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </ScrollView>
-      {tab === "photo" && photos.length > 0 ? (
-        <View className="flex-row flex-wrap gap-1 px-5">
-          {photos.map((photo, index) => {
-            const last = index === photos.length - 1 && counts.photo > photos.length;
-            const thumb = photo.thumb_url || photo.url;
-            return (
-              <Pressable
-                key={photo.message_id}
-                accessibilityRole="imagebutton"
-                accessibilityLabel={last ? t("chat.mobile.shared_more_photos", { count: counts.photo }) : photo.title || t("chat.media_image")}
-                onPress={() => onOpenMessage(photo.message_id)}
-                className="overflow-hidden rounded-[10px] bg-muted"
-                style={{ width: tile, height: tile }}
-              >
-                {thumb ? (
-                  <Image source={chatMediaSource(thumb, photo.message_id, "thumb")} cachePolicy={IMAGE_CACHE_POLICY} contentFit="cover" style={{ width: "100%", height: "100%" }} />
-                ) : null}
-                {last ? (
-                  <View className="absolute inset-0 items-center justify-center bg-black/45">
-                    <Text className="text-title3 font-display font-bold text-on-solid">+{more}</Text>
-                  </View>
-                ) : null}
-              </Pressable>
-            );
-          })}
-        </View>
-      ) : (
-        <Text className="px-5 py-2 text-callout text-muted-foreground">{t("chat.mobile.shared_tab_hint", { count: counts[tab] })}</Text>
-      )}
-    </View>
-  );
-}
-
 function RoomInfo({ chat, roomId }: { chat: ChatWorkspace; roomId: string }) {
   const { t, i18n } = useTranslation();
   const qc = useQueryClient();

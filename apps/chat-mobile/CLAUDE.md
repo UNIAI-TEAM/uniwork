@@ -265,6 +265,8 @@ một dòng thì ghi lý do ở dòng trên.
   định, `components/chat/use-deep-link-target.ts` (jest) làm. File route chỉ ghép màn: logic có nhánh nằm ở `lib/`
   (thuần, vitest — `quickCatchUp`, `pickerPeople`, `channelDirectory`, `canCallRoom`, `keptCounts`,
   `missedCallCount`, `selectQueuedRoomIds`) hoặc ở hook của `components/` có test jest; không đặt test dưới `app/`.
+  Component con không định nghĩa trong file route: `components/chat/room-info/*` (khối "Đã chia sẻ", nút nhanh) cho
+  chi tiết phòng; realtime cấp workspace là `data/realtime/use-workspace-realtime.ts`.
   Chuỗi: cả subtree `chat` của core + `chat.mobile.*` trong
   `scripts/sync-i18n.mjs`. `lib/message-display.ts › messageContent` đọc record một lần thành union phân biệt
   (`{ view: "image", file }`, `{ view: "poll", poll }`…): card nhận payload đã thu hẹp, không `x!` (lint
@@ -444,8 +446,12 @@ Hai lớp test, không chung file (ADR 0037 — cả hai chặn ở mọi `GATE_
   `fireGestureHandler`, file test import `react-native-gesture-handler/jestSetup`); `onUpdate` chỉ chạy từ sự kiện
   ACTIVE thứ hai. Test đếm render chờ hàng xuất hiện (`waitFor`), không chờ một khoảng cố định.
   `test/jest-resolver.js` thay resolver của worklets (bản gốc khớp mọi đường dẫn
-  pnpm có chữ `react-native-worklets`, làm mất mock native của Expo). Sàn coverage
-  đo trên file trong `collectCoverageFrom`; thêm file thì thêm test và nâng sàn.
+  pnpm có chữ `react-native-worklets`, làm mất mock native của Expo). Coverage đo **cả cây** `components/**` và các
+  hook React của `data/` mà vitest bỏ ra (mỗi file đúng một lớp đo; chỉ `app/` không đo — file route chỉ ghép).
+  Sàn theo từng file ở `coverage-floor.json` (`scripts/mobile-coverage-floor.mjs --write` sau một lần
+  `test:components`: lấy số cao hơn giữa sàn cũ và hôm nay, không bao giờ hạ; file đã xoá thì rời); file chưa ghi
+  (component mới) gộp vào sàn `global` 90/80/90/90 — component mới không test thì đỏ
+  (`scripts/mobile-coverage-floor.test.mjs`). Thêm test thì chạy lại `--write` để nâng sàn.
   Không đặt test dưới `app/` (expo-router coi là route).
 
 Máy thật không thấy `localhost` của máy dev: đặt `UNICHAT_API_URL=http://<LAN IP>:8080`

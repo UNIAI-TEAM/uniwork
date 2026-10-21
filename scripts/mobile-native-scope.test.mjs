@@ -19,6 +19,8 @@ test("the app's own code, config and assets need the native build; its docs, flo
     "apps/chat-mobile/eslint.config.mjs",
     "apps/chat-mobile/jest.config.js",
     "apps/chat-mobile/vitest.config.ts",
+    "apps/chat-mobile/coverage-floor.json",
+    "apps/chat-mobile/data/persisted-schema.lock.json",
   ];
   assert.deepEqual(nativePaths(changed, new Set()), changed.slice(0, 5));
 });
