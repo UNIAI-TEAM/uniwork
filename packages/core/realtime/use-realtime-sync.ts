@@ -2,7 +2,6 @@
 
 import { type QueryClient, useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
-import type { MeetingActionItems } from "../api/endpoints/meeting-action-items";
 import type { WSClient } from "../api/ws-client";
 import type { WSMessage } from "../api/ws-types";
 import { calendarKeys } from "../calendar/keys";
@@ -28,6 +27,7 @@ import type { WSEventType } from "../types/events";
 import { workspaceKeys } from "../workspaces/keys";
 import { createChatRealtimePatchScheduler } from "./chat-realtime-patch-scheduler";
 import { documentFrameKeys } from "./document-events";
+import { followThroughFrameKeys, meetingTaskFrameKeys } from "./meeting-follow-through-events";
 import { changesOwnMembership, ownMembershipKeys, reloadSessionUser } from "./own-membership";
 import {
   createInvalidateScheduler,
@@ -114,18 +114,7 @@ function keysFor(
       // A linked task's title, status or due date shows in the chat info panel.
       push(chatKeys.roomLinkedTasksRoot(wsId));
     }
-    // A converted action item shows its task's state; only cached lists that
-    // hold this task refetch.
-    if ((type === "task.updated" || type === "task.deleted") && payload.task_id) {
-      for (const [key, data] of qc.getQueriesData<MeetingActionItems>({ queryKey: meetingKeys.actionItemsRoot })) {
-        if (data?.items.some((it) => it.task?.id === payload.task_id)) push(key);
-      }
-    }
-    // Carried-over lists read other meetings' tasks: a conversion creates one,
-    // finishing or deleting one takes it off.
-    if (type === "task.created" || type === "task.updated" || type === "task.deleted") {
-      push(meetingKeys.carriedOverRoot);
-    }
+    meetingTaskFrameKeys(qc, type, payload.task_id).forEach(push);
     pushCalendar();
     return keys;
   }
@@ -133,6 +122,12 @@ function keysFor(
   const documentFrame = documentFrameKeys(wsId, type, payload);
   if (documentFrame) {
     for (const k of documentFrame) push(k);
+    return keys;
+  }
+
+  const followThrough = followThroughFrameKeys(type, payload);
+  if (followThrough) {
+    followThrough.forEach(push);
     return keys;
   }
 
@@ -360,32 +355,6 @@ function keysFor(
       if (payload.meeting_id) push(meetingKeys.chat(payload.meeting_id));
       break;
     }
-    // A new summary replaces the pending AI action items; the action_item.*
-    // events change the list itself (so no clerk converts an item twice).
-    case "summary.created":
-      if (payload.meeting_id) {
-        push(meetingKeys.summary(payload.meeting_id));
-        push(meetingKeys.activity(payload.meeting_id));
-        push(meetingKeys.actionItems(payload.meeting_id));
-      }
-      break;
-    case "action_item.created":
-    case "action_item.dismissed":
-    case "action_item.restored":
-    case "action_item.converted":
-      if (payload.meeting_id) {
-        push(meetingKeys.actionItems(payload.meeting_id));
-        if (type === "action_item.converted") push(meetingKeys.activity(payload.meeting_id));
-      }
-      break;
-    case "minutes.created":
-    case "minutes.finalized":
-    case "minutes.reopened":
-      if (payload.meeting_id) {
-        push(meetingKeys.minutes(payload.meeting_id));
-        if (type === "minutes.finalized") push(meetingKeys.activity(payload.meeting_id));
-      }
-      break;
     case "profile.updated":
     case "department.created":
     case "department.updated":
