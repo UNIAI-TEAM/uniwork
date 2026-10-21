@@ -165,6 +165,28 @@ describe("comments.shareView and the commentsShareView capability (G8-18)", () =
   });
 });
 
+describe("comments.viewVersion and the commentsViewVersion capability (UNI-2033)", () => {
+  const envelope = (kind: string, payload: unknown) => ({ ns: PROTOCOL_NS, v: PROTOCOL_VERSION, id: "f1", kind, type: "comments.viewVersion", payload });
+
+  it("is a comments request and a capability key", () => {
+    expect(isCommentsRequestType("comments.viewVersion")).toBe(true);
+    expect(CAPABILITY_KEYS).toContain("commentsViewVersion");
+  });
+
+  it("accepts only a comment id and a positive integer version on the request", () => {
+    expect(parseEnvelope(envelope("request", { comment_id: "c1", version_no: 3 }))).toMatchObject({ ok: true });
+    for (const bad of [null, {}, { comment_id: "", version_no: 3 }, { comment_id: "c1", version_no: 0 }, { comment_id: "c1", version_no: 1.5 }, { comment_id: "c1", version_no: "3" }, { comment_id: 1, version_no: 3 }]) {
+      expect(parseEnvelope(envelope("request", bad))).toMatchObject({ ok: false, reason: "malformed" });
+    }
+  });
+
+  it("answers {opened: boolean}", () => {
+    expect(parseEnvelope(envelope("response", { opened: true }))).toMatchObject({ ok: true });
+    expect(parseEnvelope(envelope("response", { opened: false }))).toMatchObject({ ok: true });
+    expect(parseEnvelope(envelope("response", { opened: "yes" }))).toMatchObject({ ok: false, reason: "malformed" });
+  });
+});
+
 describe("api.saveCopy and the saveCopy capability (UNI-1872)", () => {
   const envelope = (kind: string, payload: unknown) => ({ ns: PROTOCOL_NS, v: PROTOCOL_VERSION, id: "f6", kind, type: "api.saveCopy", payload });
 

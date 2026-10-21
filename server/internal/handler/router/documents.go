@@ -25,6 +25,9 @@ import (
 //	GET    /api/v1/workspaces/{workspaceID}/documents/changes      (G5-01a)
 //	GET    /api/v1/workspaces/{workspaceID}/documents/shared-with-me (G1-05b)
 //	GET    /api/v1/workspaces/{workspaceID}/documents/tree         (G1-05b)
+//	POST   /api/v1/workspaces/{workspaceID}/documents/download-jobs  (UNI-2045)
+//	GET    /api/v1/workspaces/{workspaceID}/documents/download-jobs/{jobID}
+//	GET    /api/v1/workspaces/{workspaceID}/documents/download-jobs/{jobID}/download
 //	GET    /api/v1/documents/{documentID}
 //	PATCH  /api/v1/documents/{documentID}
 //	POST   /api/v1/documents/{documentID}/move                    (G1-05b)
@@ -374,7 +377,7 @@ func registerDocuments(r, callerDocs api, h Routes, flags *featureflag.Service, 
 	d.Post("/workspaces/{workspaceID}/documents/files/blank", h.CreateBlankDocumentFile, apiOp{
 		summary: "Create a blank file document",
 		description: "Tạo tài liệu mới với bytes do engine sinh: server chọn seed, engine serialize, FileService xác minh, rồi đường create G1 tạo document + version 1. " +
-			"Chỉ định dạng có blank generator (md, html, xlsx, docx, pptx, pdf) được nhận; docx/pptx là gói OOXML tối thiểu server tạo sẵn (1 đoạn trống / 1 slide 16:9 trống), pdf là 1 trang A4 trống; định dạng khác -> 501 unsupported_operation và KHÔNG tạo file Office rỗng. " +
+			"Chỉ định dạng có blank generator (md, html, xlsx, docx, pptx, pdf, txt) được nhận; docx/pptx là gói OOXML tối thiểu server tạo sẵn (1 đoạn trống / 1 slide 16:9 trống), pdf là 1 trang A4 trống, txt (\"Văn bản\") là tệp untitled.txt text/plain chỉ có một dòng trống, server lưu nguyên không qua engine; định dạng khác -> 501 unsupported_operation và KHÔNG tạo file Office rỗng. " +
 			"visibility workspace|restricted: tài liệu mới ở gốc mặc định riêng tư, gửi workspace để mở dòng Workspace gốc ở mức Chỉ xem, bỏ trống dưới cha thì kế thừa cha (cả mức), giá trị khác -> 400 invalid_request. Idempotency-Key replay trả tài liệu đã tạo.",
 		tags:   []string{"documents"},
 		sdi:    sdi.CreateBlankDocumentFileSDI{},
@@ -521,7 +524,7 @@ func registerDocuments(r, callerDocs api, h Routes, flags *featureflag.Service, 
 	d.Get("/workspaces/{workspaceID}/documents", h.ListDocuments, apiOp{
 		summary: "List documents",
 		description: "Danh sách tài liệu workspace, mới sửa trước. parent_id = một cấp cây theo position; q = tìm toàn workspace kèm snippet; shared_by_me=true = tài liệu sống người gọi làm ACL owner đang chia sẻ (dùng cùng parent_id -> 400 invalid_filter); kind/archived/updated_by/updated_from/updated_to là filter. " +
-			"format (docx, xlsx, pptx, pdf, md, html) lọc theo định dạng của phiên bản hiện tại (MIME đã xác minh, nếu không có thì theo phần mở rộng tiêu đề; thư mục luôn ở lại, trang không khớp) và access (manage, edit, restricted) lọc theo quyền của người gọi trên dòng, cùng cấp mà my_level báo. " +
+			"format (docx, xlsx, pptx, pdf, md, html, txt) lọc theo định dạng của phiên bản hiện tại (MIME đã xác minh, nếu không có thì theo phần mở rộng tiêu đề; thư mục luôn ở lại, trang không khớp) và access (manage, edit, restricted) lọc theo quyền của người gọi trên dòng, cùng cấp mà my_level báo. " +
 			"Giá trị lạ, format cùng kind=page, và access=manage/edit trên thùng rác -> 400 invalid_filter. Quyền và cả hai filter được lọc trong query trước limit nên cursor ổn định và trang luôn đầy khi còn dòng khớp; archived=1 chỉ manage.",
 		tags: []string{"documents"},
 		sdi:  sdi.ListDocumentsSDI{},
@@ -533,6 +536,14 @@ func registerDocuments(r, callerDocs api, h Routes, flags *featureflag.Service, 
 		description: "Tài liệu người dùng đã mở (access log) hoặc sửa gần đây, lọc quyền trước limit, cursor ổn định. format và access nhận như danh sách phẳng (giá trị lạ -> 400 invalid_filter). Agent không có \"gần đây\" -> 403.",
 		tags:        []string{"documents"},
 		sdi:         sdi.ListRecentDocumentsSDI{},
+		sdo:         sdo.DocumentListSDO{},
+		auth:        true,
+	})
+	d.Get("/workspaces/{workspaceID}/documents/favorites", h.ListFavoriteDocuments, apiOp{
+		summary:     "List my favorite documents in a workspace",
+		description: "Tài liệu người gọi đã gắn sao trong workspace này, mỗi dòng là DocumentSummaryDTO kèm favorited_at (người gọi gắn sao khi nào), mới gắn trước (sort=starred mặc định giảm dần). Chỉ trả dòng người gọi còn đọc được: chia sẻ bị thu hồi hoặc tài liệu vào thùng rác rụng khỏi danh sách, dòng sao vẫn còn và quay lại khi có quyền. Lọc kind, format như danh sách phẳng (giá trị lạ -> 400 invalid_filter); cursor keyset gắn với sort/order; agent -> 403. Route favorites cấp tổ chức (/orgs/{orgID}/documents/favorites) giữ nguyên.",
+		tags:        []string{"documents"},
+		sdi:         sdi.ListFavoriteDocumentsSDI{},
 		sdo:         sdo.DocumentListSDO{},
 		auth:        true,
 	})
@@ -566,6 +577,45 @@ func registerDocuments(r, callerDocs api, h Routes, flags *featureflag.Service, 
 		tags:        []string{"documents"},
 		sdi:         sdi.DocumentAccessReportExportSDI{},
 		produces:    "text/csv; charset=utf-8",
+		auth:        true,
+	})
+	d.Post("/workspaces/{workspaceID}/documents/download-jobs", h.CreateDocumentDownloadJob, apiOp{
+		summary:     "Request a zip of several documents",
+		description: "Xếp hàng một zip các tệp đã chọn (UNI-2045). Body {document_ids}: 1-100 ULID khác nhau, sai -> 400 invalid_request. Chỉ tệp: trang và thư mục bị bỏ qua (not_a_file); tài liệu không đọc được, của workspace/tổ chức khác hoặc không tồn tại đều là not_found, không kèm tiêu đề. Tổng dung lượng bản hiện hành của các tệp người gọi tải được > 1 GiB -> 422 download_too_large kèm fields.max_bytes. Người tạo đã có 2 job queued/running -> 429 download_jobs_busy kèm Retry-After 30 (fields.retry_after). Trả 202 {id, status:queued, ...}; hỏi GET cho tới khi ready. Mỗi tệp ghi access log tải đúng một lần khi build; một dòng audit documents.download_job_created.",
+		tags:        []string{"documents"},
+		sdi:         sdi.CreateDocumentDownloadJobSDI{},
+		sdo:         sdo.DocumentDownloadJobSDO{},
+		status:      http.StatusAccepted,
+		auth:        true,
+	})
+	d.Get("/workspaces/{workspaceID}/documents/download-jobs/{jobID}", h.GetDocumentDownloadJob, apiOp{
+		summary:     "Get a document zip download job",
+		description: "Trạng thái job và link tải khi ready. Chỉ người tạo đọc được; người khác (kể cả thành viên cùng workspace) -> 404. Link hết hạn 1 giờ sau khi ready; sau đó status=expired và download_url=null.",
+		tags:        []string{"documents"},
+		sdo:         sdo.DocumentDownloadJobSDO{},
+		auth:        true,
+	})
+	d.Get("/workspaces/{workspaceID}/documents/download-jobs/{jobID}/download", h.DownloadDocumentDownloadJob, apiOp{
+		summary:     "Download the zip of a document download job",
+		description: "Tải zip qua FileService proxy; người tạo, workspace và cửa sổ 1 giờ được kiểm tra lại mỗi lần tải. Hết hạn -> 410 document_download_expired; chưa ready hoặc failed -> 404.",
+		tags:        []string{"documents"},
+		produces:    "application/zip",
+		auth:        true,
+	})
+	d.Get("/workspaces/{workspaceID}/documents/access-report/summary", h.DocumentAccessReportSummary, apiOp{
+		summary:     "Read the document access report summary",
+		description: "Số liệu toàn phạm vi của báo cáo quyền truy cập (UNI-2039): quét cả workspace hoặc folder_id (gồm thư mục con) trong một snapshot, mỗi lô 500, trần 10.000 tài liệu (quá thì truncated=true). tiles chỉ theo phạm vi, không theo bộ lọc (public_link, outside_workspace, direct_manage, documents, restricted, workspace, organization); matching_documents theo cùng bộ lọc như trang; skipped là tài liệu người gọi chỉ xem. Không phải thành viên workspace hoặc agent -> 403; folder_id không dùng được -> 404; bộ lọc lạ -> 400. Đọc không ghi audit.",
+		tags:        []string{"documents"},
+		sdi:         sdi.DocumentAccessReportSummaryQuerySDI{},
+		sdo:         sdo.DocumentAccessReportSummaryResultSDO{},
+		auth:        true,
+	})
+	d.Get("/workspaces/{workspaceID}/documents/access-report/principals", h.DocumentAccessReportPrincipals, apiOp{
+		summary:     "Read the document access report by principal",
+		description: "Bảng theo người của báo cáo quyền truy cập (UNI-2039): mỗi principal (thành viên, workspace nhà, workspace khác, tổ chức, ai có link) một dòng với số tài liệu người gọi quản lý, phân bố mức cao nhất và nguồn chính. Không phân trang, tối đa 500 principal (quá thì truncated=true). q lọc theo tên principal, kind theo loại, level theo mức dòng, sort=count|name. Mở một dòng: gọi trang báo cáo với principal=<type>:<id>. Chỉ tên, không email.",
+		tags:        []string{"documents"},
+		sdi:         sdi.DocumentAccessReportPrincipalsSDI{},
+		sdo:         sdo.DocumentAccessReportPrincipalsSDO{},
 		auth:        true,
 	})
 	d.Get("/workspaces/{workspaceID}/documents/tree", h.DocumentTree, apiOp{

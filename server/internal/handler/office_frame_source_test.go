@@ -223,12 +223,11 @@ func TestOfficeFrameSourceChatMarkdownOpensAndDownloads(t *testing.T) {
 	}
 }
 
-// TestOfficeFrameSourceTxtOpenGate (UNI-1813): a .txt source file has
-// can_open_in_app: false and refuses frame-token mint while office_txt_open is
-// off (default); once office_txt_open is on, can_open_in_app is true and it
-// mints/opens in module "markdown", while .csv and .log stay not openable.
-func TestOfficeFrameSourceTxtOpenGate(t *testing.T) {
-	srv, q := sourceFrameWorld(t)
+// TestOfficeFrameSourceTxtOpensWithoutAFlag (UNI-2046): a .txt source file has
+// can_open_in_app: true and mints/opens in module "markdown" with no flag,
+// while .csv and .log stay not openable.
+func TestOfficeFrameSourceTxtOpensWithoutAFlag(t *testing.T) {
+	srv, _ := sourceFrameWorld(t)
 	f := setupChatFixtureOn(t, srv, "srcf-txt")
 	member := f.tokens["b"]
 
@@ -261,59 +260,31 @@ func TestOfficeFrameSourceTxtOpenGate(t *testing.T) {
 	logID := seedChatSource("server.log", "text/plain", "src-log-1", []byte("log\n"))
 	mdLongID := seedChatSource("ghi-chu.markdown", "text/markdown", "src-mdlong-1", []byte("# md\n"))
 
-	// Flag off (default): .txt has can_open_in_app: false and mint returns 404.
-	// .csv and .log are not document kinds, so they are never sources
-	// (UNI-1967) and their mint is the same 404.
+	// No flag: .txt has can_open_in_app: true like .md. .csv and .log are not
+	// document kinds, so they are never sources (UNI-1967) and their mint is
+	// a 404.
 	res, list := doJSON(t, srv, "GET", "/api/v1/workspaces/"+f.wsID+"/documents/sources", member, nil)
 	if res.StatusCode != http.StatusOK {
-		t.Fatalf("list sources (flag off): %d %v", res.StatusCode, list)
+		t.Fatalf("list sources: %d %v", res.StatusCode, list)
 	}
-	itemsByID := func(out map[string]any) map[string]map[string]any {
-		m := map[string]map[string]any{}
-		for _, raw := range out["items"].([]any) {
-			row := raw.(map[string]any)
-			m[row["id"].(string)] = row
-		}
-		return m
+	rows := map[string]map[string]any{}
+	for _, raw := range list["items"].([]any) {
+		row := raw.(map[string]any)
+		rows[row["id"].(string)] = row
 	}
-	rows := itemsByID(list)
-	if rows[txtID]["can_open_in_app"] != false {
-		t.Fatalf("flag off: .txt can_open_in_app = %v, want false", rows[txtID]["can_open_in_app"])
-	}
-	for _, id := range []string{csvID, logID} {
-		if _, listed := rows[id]; listed {
-			t.Fatalf("flag off: non-document source %s is listed", id)
-		}
-	}
-	for _, id := range []string{txtID, csvID, logID} {
-		if res, out := doJSON(t, srv, "POST", "/api/v1/workspaces/"+f.wsID+"/documents/sources/"+id+"/office/frame-token", member, nil); res.StatusCode != http.StatusNotFound {
-			t.Fatalf("flag off: mint %s = %d %v, want 404", id, res.StatusCode, out)
-		}
-	}
-	// Flag off: .markdown sources still mint and open as before.
-	if minted := sourceFrameMint(t, srv, f.wsID, mdLongID, member); minted["module"] != "markdown" {
-		t.Fatalf("flag off: minted .markdown source module = %v, want markdown", minted["module"])
-	}
-
-	// Enable office_txt_open for the organization.
-	setOfficeFrameFlagFor(t, q, "office_txt_open", f.orgID, true)
-	t.Cleanup(func() { setOfficeFrameFlagFor(t, q, "office_txt_open", f.orgID, false) })
-
-	res, list = doJSON(t, srv, "GET", "/api/v1/workspaces/"+f.wsID+"/documents/sources", member, nil)
-	if res.StatusCode != http.StatusOK {
-		t.Fatalf("list sources (flag on): %d %v", res.StatusCode, list)
-	}
-	rows = itemsByID(list)
 	if rows[txtID]["can_open_in_app"] != true {
-		t.Fatalf("flag on: .txt can_open_in_app = %v, want true", rows[txtID]["can_open_in_app"])
+		t.Fatalf(".txt can_open_in_app = %v, want true", rows[txtID]["can_open_in_app"])
 	}
 	for _, id := range []string{csvID, logID} {
 		if _, listed := rows[id]; listed {
-			t.Fatalf("flag on: non-document source %s is listed", id)
+			t.Fatalf("non-document source %s is listed", id)
 		}
 		if res, out := doJSON(t, srv, "POST", "/api/v1/workspaces/"+f.wsID+"/documents/sources/"+id+"/office/frame-token", member, nil); res.StatusCode != http.StatusNotFound {
-			t.Fatalf("flag on: mint %s = %d %v, want 404", id, res.StatusCode, out)
+			t.Fatalf("mint %s = %d %v, want 404", id, res.StatusCode, out)
 		}
+	}
+	if minted := sourceFrameMint(t, srv, f.wsID, mdLongID, member); minted["module"] != "markdown" {
+		t.Fatalf("minted .markdown source module = %v, want markdown", minted["module"])
 	}
 	minted := sourceFrameMint(t, srv, f.wsID, txtID, member)
 	if minted["module"] != "markdown" {

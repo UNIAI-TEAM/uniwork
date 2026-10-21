@@ -404,7 +404,19 @@ func TestOfficeBlankAndCopyRoutes(t *testing.T) {
 			t.Fatalf("%s blank replay = %d %v", row.format, res.StatusCode, again)
 		}
 	}
-	res, out := doJSON(t, w.srv, "POST", "/api/v1/workspaces/"+w.wsID+"/documents/files/blank", w.token,
+	// "Văn bản" (UNI-2046): a plain-text blank, stored as untitled.txt /
+	// text/plain, that opens in the markdown module with no flag.
+	res, out := doJSON(t, w.srv, "POST", blankPath, w.token, map[string]string{"format": "txt", "title": "Văn bản"})
+	txtDoc, _ := out["document"].(map[string]any)
+	txtFile, _ := txtDoc["file"].(map[string]any)
+	if res.StatusCode != 201 || txtDoc == nil || txtDoc["title"] != "Văn bản" || txtDoc["kind"] != "file" ||
+		txtFile == nil || txtFile["filename"] != "untitled.txt" || txtFile["mime_type"] != "text/plain" {
+		t.Fatalf("txt blank = %d %v", res.StatusCode, out)
+	}
+	if minted := w.mintFrameToken(t, txtDoc["id"].(string)); minted["module"] != "markdown" {
+		t.Fatalf("txt blank minted module = %v, want markdown", minted["module"])
+	}
+	res, out = doJSON(t, w.srv, "POST", "/api/v1/workspaces/"+w.wsID+"/documents/files/blank", w.token,
 		map[string]string{"format": "nope", "title": "Trong"})
 	if code, _ := errCodeClass(out); res.StatusCode != 400 || code != "invalid_request" {
 		t.Fatalf("bad format blank = %d %v", res.StatusCode, out)

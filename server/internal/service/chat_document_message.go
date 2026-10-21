@@ -361,7 +361,7 @@ func (s *ChatService) grantDocumentToRoomMembers(
 			return err
 		}
 		if _, err := s.docs.applyDocumentShareWithBatch(ctx, q, actor, doc, access,
-			DocumentShareInput{PrincipalType: DocumentPrincipalUser, PrincipalID: recipientID, Level: level},
+			DocumentShareInput{PrincipalType: DocumentPrincipalUser, PrincipalID: recipientID, Level: level, Origin: DocumentShareOriginChat},
 			"", notifyUserID); err != nil {
 			return err
 		}

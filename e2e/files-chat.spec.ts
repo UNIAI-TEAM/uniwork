@@ -135,6 +135,15 @@ async function openChat(page: Page) {
   await expect(page.getByPlaceholder("Nhập tin nhắn…")).toBeVisible({ timeout: 30_000 });
 }
 
+// Since UNI-1965 direct messages live in their own "Tin nhắn" view: the
+// new-conversation button and the DM list render only there, not in the
+// workspace channels list that openChat lands on.
+async function openMessages(page: Page) {
+  watchRoomDetail(page);
+  await page.goto(`/${orgSlug}/${wsSlug}/chat?view=messages`);
+  await expect(page.getByRole("button", { name: "Tạo cuộc trò chuyện" })).toBeVisible({ timeout: 30_000 });
+}
+
 test.describe.serial("chat file and voice messages", () => {
   // Registration, invitation and the second organization need more than the
   // 60s default; the assertions themselves stay short.
@@ -310,7 +319,7 @@ test.describe.serial("chat file and voice messages", () => {
   });
 
   test("blocking a peer closes the direct messages in both directions", async () => {
-    await openChat(member);
+    await openMessages(member);
     // Member opens a direct conversation with the owner.
     await member.getByRole("button", { name: "Tạo cuộc trò chuyện" }).click();
     await member.getByRole("menuitem", { name: "Nhắn tin với người mới" }).click();
@@ -343,10 +352,17 @@ test.describe.serial("chat file and voice messages", () => {
     await member.getByRole("alertdialog").getByRole("button", { name: "Chặn nhắn tin" }).click();
 
     // The owner opens the same conversation and finds the composer closed.
-    await openChat(owner);
-    await owner.getByText("Thành Viên", { exact: true }).first().click();
-    await expect(owner.getByPlaceholder("Không thể nhắn tin")).toBeVisible({ timeout: 20_000 });
-    await expect(owner.getByPlaceholder("Không thể nhắn tin")).toBeDisabled();
+    await openMessages(owner);
+    // The Messages view already opens the most recent DM; click its row (scoped to
+    // the conversation list, not the header or the author name in the timeline).
+    await owner
+      .getByRole("navigation", { name: "Danh sách trò chuyện" })
+      .getByRole("button", { name: /Thành Viên/ })
+      .click();
+    // A closed composer exposes the reason as the textbox's accessible name, not as a placeholder.
+    const blockedComposer = owner.getByRole("textbox", { name: "Không thể nhắn tin" });
+    await expect(blockedComposer).toBeVisible({ timeout: 20_000 });
+    await expect(blockedComposer).toBeDisabled();
     await expect(owner.getByRole("button", { name: "Gửi", exact: true })).toHaveCount(0);
   });
 });

@@ -27,8 +27,9 @@ export const API_CALLS = {
     path: "/documents/{documentID}/office/sessions",
     params: { documentID: "id" },
     sdi: "CreateOfficeLaunchSessionSDI",
-    // comment_id (G8-07): the launch ticket names the comment the app reveals; G8-19 sends it
-    body: ["operation", "deployment_id", "client_id", "return_hint", "comment_id"],
+    // comment_id (G8-07): the launch ticket names the comment the app reveals; G8-19 sends it.
+    // version (UNI-2033): with operation "view" the ticket opens that stored version read-only (the @vN copy)
+    body: ["operation", "version", "deployment_id", "client_id", "return_hint", "comment_id"],
   },
   desktopDevices: { method: "GET", path: "/auth/desktop/devices" },
   requestOrganizationDeletion: { method: "POST", path: "/orgs/{orgID}/privacy/deletion", params: { orgID: "id" }, sdi: "CreatePrivacyDeletionSDI", body: ["confirm_slug"] },

@@ -81,10 +81,13 @@ func TestDocumentListSortOverHTTP(t *testing.T) {
 			wantErr(t, res, out, 400, "invalid_request", "")
 		}
 	}
+	// UNI-2045 SV-0: the trash and the shelf take the sort now; recent is no
+	// such view, so a sort next to archived/shelved stays 400 there.
 	for _, q := range []string{"?sort=name&archived=1", "?sort=name&archived=true", "?sort=updated&shelved=1"} {
-		for _, root := range []string{base, base + "/recent"} {
-			res, out := get(root + q)
-			wantErr(t, res, out, 400, "invalid_request", "")
+		res, out := get(base + "/recent" + q)
+		wantErr(t, res, out, 400, "invalid_request", "")
+		if res, out := get(base + q); res.StatusCode != 200 {
+			t.Errorf("GET %s%s = %d %v, want 200", base, q, res.StatusCode, out)
 		}
 	}
 
@@ -201,13 +204,15 @@ func TestDocumentSortParamsInOpenAPI(t *testing.T) {
 	if err := json.NewDecoder(res.Body).Decode(&spec); err != nil {
 		t.Fatal(err)
 	}
-	for _, p := range []string{
-		"/api/v1/workspaces/{workspaceID}/documents",
-		"/api/v1/workspaces/{workspaceID}/documents/recent",
-		"/api/v1/workspaces/{workspaceID}/documents/shared-with-me",
-		"/api/v1/workspaces/{workspaceID}/documents/sources",
+	// UNI-2045: the screen keys ride after the four column keys.
+	for p, sortEnum := range map[string][]string{
+		"/api/v1/workspaces/{workspaceID}/documents":                {"updated", "name", "size", "editor", "deleted", "shelved", "shared"},
+		"/api/v1/workspaces/{workspaceID}/documents/favorites":      {"updated", "name", "size", "editor", "starred"},
+		"/api/v1/workspaces/{workspaceID}/documents/recent":         {"updated", "name", "size", "editor", "activity"},
+		"/api/v1/workspaces/{workspaceID}/documents/shared-with-me": {"updated", "name", "size", "editor", "shared"},
+		"/api/v1/workspaces/{workspaceID}/documents/sources":        {"updated", "name", "size", "editor"},
 	} {
-		wantEnum := map[string][]string{"sort": {"updated", "name", "size", "editor"}, "order": {"asc", "desc"}}
+		wantEnum := map[string][]string{"sort": sortEnum, "order": {"asc", "desc"}}
 		found := map[string]bool{}
 		for _, param := range spec.Paths[p]["get"].Parameters {
 			enum, ok := wantEnum[param.Name]
@@ -224,6 +229,72 @@ func TestDocumentSortParamsInOpenAPI(t *testing.T) {
 		}
 		if len(found) != 2 {
 			t.Errorf("%s publishes %v, want sort and order", p, found)
+		}
+	}
+}
+
+// UNI-2045 SV-1..SV-8: the new route, query parameters and row fields are in
+// the published OpenAPI.
+func TestDoclistParamsInOpenAPI(t *testing.T) {
+	d, pool := newTestDeps(t, nil, discardOutbox{})
+	d.Cfg.EnableSwagger = true
+	q := db.New(pool)
+	docs := service.NewDocumentService(pool, q, d.Organizations, d.Workspaces)
+	docs.SetEntitlements(service.NewEntitlementService(pool, q))
+	docs.SetFiles(filesfake.New(filesfake.Options{}))
+	d.Documents = docs
+	srv := httptest.NewServer(New(d))
+	t.Cleanup(srv.Close)
+	res, err := srv.Client().Get(srv.URL + "/swagger/doc.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	var spec struct {
+		Paths map[string]map[string]struct {
+			Parameters []struct {
+				Name string `json:"name"`
+				In   string `json:"in"`
+			} `json:"parameters"`
+		} `json:"paths"`
+		Components struct {
+			Schemas map[string]struct {
+				Properties map[string]json.RawMessage `json:"properties"`
+			} `json:"schemas"`
+		} `json:"components"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&spec); err != nil {
+		t.Fatal(err)
+	}
+	root := "/api/v1/workspaces/{workspaceID}/documents"
+	for path, want := range map[string][]string{
+		root:                     {"format", "updated_by", "updated_from", "updated_to", "shared_by_me", "archived", "shelved"},
+		root + "/recent":         {"format", "activity", "updated_by", "updated_from", "updated_to"},
+		root + "/shared-with-me": {"format", "updated_by", "updated_from", "updated_to"},
+		root + "/favorites":      {"format", "kind", "cursor", "limit", "sort", "order"},
+	} {
+		have := map[string]bool{}
+		for _, p := range spec.Paths[path]["get"].Parameters {
+			if p.In == "query" {
+				have[p.Name] = true
+			}
+		}
+		if len(spec.Paths[path]["get"].Parameters) == 0 {
+			t.Errorf("GET %s is not published", path)
+		}
+		for _, name := range want {
+			if !have[name] {
+				t.Errorf("GET %s lacks query parameter %s (has %v)", path, name, have)
+			}
+		}
+	}
+	row, ok := spec.Components.Schemas["SdoDocumentSummaryDTO"]
+	if !ok {
+		t.Fatalf("SdoDocumentSummaryDTO is not a published schema")
+	}
+	for _, field := range []string{"is_owner", "updated_by_user", "last_activity", "favorited_at", "shared", "share_summary"} {
+		if _, ok := row.Properties[field]; !ok {
+			t.Errorf("SdoDocumentSummaryDTO lacks %s", field)
 		}
 	}
 }
