@@ -547,7 +547,7 @@ PDF closed-panel Save), with a frame protocol change (see below): `comments.view
 `bb8702153`) UNI-1986 (frame comment avatars: the collab kit's `AvatarSource` / `useAvatarSrc` in `packages/ui/src/collab`, the
 same-origin blob loader `web/modules/shared/avatar`, and its provider mounted in the Docs, PDF, Sheets and Slides server-comments
 hosts and in `FrameDiscussion`; no frame protocol change, see "Frame avatars (UNI-1986)") and the vi "Văn bản thuần" Plain text
-New-menu label of the shell; `51e1da41f` adds over `929f0cac7` (through fork main `190942864`) UNI-2011 (the keys, menus and hints
+New-menu label of the shell; `51e1da41f` adds over `929f0cac7` (through fork main `51e1da41f`) UNI-2011 (the keys, menus and hints
 of the six editors come from one `@genoffice/shortcuts` table, `packages/shortcuts`: Docs Save As is F12 on the web and Ctrl+Shift+S
 is Apply Styles, Alt+F1 inserts a chart in Sheets, Docs Ctrl/Cmd+O stays the browser's where the host grants no Open, the ribbon
 collapse key comes from the table (`packages/ui/src/ribbon-collapse.tsx`), and the HTML Preview relays app keys to the frame only on
@@ -599,9 +599,9 @@ and verified file by file on install.
 
 `0.1.0-51e1da4` has the same file counts per module as the table below, and the build log measures it as the table shows (unpacked
 `docs` 17.72, `pdf` 17.29, `markdown` 8.86, `html` 2.62, `slides` 6.35, `sheets` 27.84 MiB; gzip 11.94, 8.01, 2.80, 0.81, 2.48, 7.93 MiB; initial
-download 5.92, 2.78, 3.76, 2.61, 4.95, 6.40 MiB). Against the `0.1.0-929f0ca` figures the unpacked sizes grew by 0.06 to 0.13 MiB, the
-`sheets` initial download grew from 4.13 to 6.40 MiB (its deferred part fell from 23.58 to 21.44 MiB: the entry chunk `index` went from 4.06 to 6.44 MB while the
-lazy `App` chunk went from 8.57 to 6.34 MB, so the chunk split moved code into the entry) and the other initial downloads grew by 0.11 to 0.13 MiB.
+download 5.92, 2.78, 3.76, 2.61, 4.95, 6.40 MiB). Against the `0.1.0-929f0ca` figures the unpacked sizes grew by 0.11 to 0.13 MiB, the
+`sheets` initial download grew from 4.14 to 6.40 MiB (gzip 1.14 to 1.80 MiB) (its deferred part fell from 23.58 to 21.44 MiB: the entry chunk `index` went from 4.07 to 6.44 MB while the
+lazy `App` chunk went from 8.58 to 6.34 MB, so the chunk split moved code into the entry) and the other initial downloads grew by 0.11 to 0.13 MiB.
 
 Sizes of the `0.1.0-51e1da4` bundles as the build log reports them (the `0.1.0-d57e60f` build was measured against `0.1.0-1abc493`: `docs`, `pdf`, `markdown`, `html` and `slides` unpacked +0.01 MiB each, `sheets` gzip 7.91 MiB (7.90 before); `0.1.0-1abc493` itself was identical to `0.1.0-f01befd`, `0.1.0-b1cbd5d` and `0.1.0-b5da4d4`, except `sheets`, whose unpacked size is 27.71 MiB (27.70 before)):
 
