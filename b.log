@@ -1,0 +1,25 @@
+$ cd server && GOTOOLCHAIN=go1.27.2 go run golang.org/x/vuln/cmd/govulncheck@v1.7.0 ./... > /tmp/pr7r6-vuln.log 2>&1; rc=$?; tail -40 /tmp/pr7r6-vuln.log | cut -c1-250; echo; echo "GOVULN_EXIT=$rc"
+go: downloading go1.27.2 (linux/amd64)
+go: downloading golang.org/x/vuln v1.7.0
+go: downloading golang.org/x/telemetry v0.0.0-20260811182544-a038080d80e5
+go: downloading golang.org/x/mod v0.39.0
+go: downloading golang.org/x/sync v0.22.0
+=== Symbol Results ===
+
+Vulnerability #1: GO-2026-6809
+    Distrust compromised intermediate certificates in crypto/x509
+  More info: https://pkg.go.dev/vuln/GO-2026-6809
+  Standard library
+    Found in: crypto/x509@go1.27.2
+    Fixed in: crypto/x509@go1.27.3
+    Example traces found:
+      #1: internal/ai/provider/byok_client.go:413:21: provider.idleBody.Read calls http.readWriteCloserBody.Read, which eventually calls x509.Certificate.Verify
+
+Your code is affected by 1 vulnerability from the Go standard library.
+This scan also found 4 vulnerabilities in packages you import and 2
+vulnerabilities in modules you require, but your code doesn't appear to call
+these vulnerabilities.
+Use '-show verbose' for more details.
+exit status 3
+
+GOVULN_EXIT=1
