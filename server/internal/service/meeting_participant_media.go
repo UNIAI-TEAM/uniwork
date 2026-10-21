@@ -76,7 +76,15 @@ func (s *MeetingService) SetParticipantPublish(ctx context.Context, actorID, mee
 	if room == "" {
 		room = meetings.RoomNameForMeeting(m.ID)
 	}
-	identity := providerIdentity(p)
+	identity := meetings.IdentityForParticipant(participantID)
+	if isDialInParticipant(p) {
+		// A caller is named by the live connection their session holds.
+		conn, ok := s.liveConnection(ctx, room, s.dialInConnectionSID(ctx, p))
+		if !ok {
+			return coded(http.StatusConflict, "participant_not_connected", "người gọi không còn trong phòng")
+		}
+		identity = conn.Identity
+	}
 	// Locks live only on the provider: read the one this call leaves alone, or
 	// the write below, which replaces the whole set, would lift it. The read
 	// and the write take turns per participant (an advisory lock held until

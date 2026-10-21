@@ -587,7 +587,7 @@ func (s *MeetingService) ApproveJoinRequest(ctx context.Context, actorID, reques
 		return err
 	}
 	if isDialInGuest(decided.RequesterGuestID.String) {
-		s.admitDialInCaller(ctx, m, p)
+		s.admitDialInCaller(ctx, m, p, decided)
 	}
 	return nil
 }
@@ -618,7 +618,7 @@ func (s *MeetingService) RejectJoinRequest(ctx context.Context, actorID, request
 		meetingRelatedPayload(m, map[string]string{"join_request_id": requestID}),
 		audit.Diff(map[string]any{"status": JoinPending}, map[string]any{"status": JoinRejected}))
 	if isDialInGuest(jr.RequesterGuestID.String) {
-		s.dropRefusedDialInCaller(ctx, m, jr.RequesterGuestID.String)
+		s.dropRefusedDialInCaller(ctx, m, jr)
 	}
 	return nil
 }

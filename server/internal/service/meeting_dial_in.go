@@ -2,6 +2,9 @@ package service
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -27,10 +30,16 @@ const (
 	dialInFlag = "meeting_dial_in"
 	// ParticipantKindSIP marks a provider event about a phone caller.
 	ParticipantKindSIP = "sip"
-	// LiveKit names an inbound caller sip_<hash of the number> (the rule hides
-	// the number); UniWork keeps that identity as the caller's guest id, so
-	// the participant row and the room identity are one string.
-	dialInIdentityPrefix = "sip_"
+	// A caller's guest id: uw_sip_ + an HMAC of LiveKit's identity under the
+	// server secret (MaskDialInEvent).
+	dialInGuestPrefix = "uw_sip_"
+	// Every rule UniWork makes is named "uniwork <meetingID>".
+	dialInRulePrefix = "uniwork "
+	// A rule no meeting points at is deleted once it is this old.
+	dialInStrayAge = time.Minute
+	// livekitSIPRuleAttr is the participant attribute LiveKit SIP sets to the
+	// dispatch rule that routed the call.
+	livekitSIPRuleAttr = "sip.ruleID"
 	// dialInStateAttr tells clients a caller is still held ("waiting") or in
 	// the meeting ("admitted"); a held caller is not tiled or listed.
 	dialInStateAttr  = "uw.dial_in"
@@ -62,15 +71,10 @@ func dialInOpen(m db.Meeting) bool {
 	return m.Status == MeetingScheduled || m.Status == MeetingInProgress
 }
 
-func isDialInGuest(guestID string) bool { return strings.HasPrefix(guestID, dialInIdentityPrefix) }
+func isDialInGuest(guestID string) bool { return strings.HasPrefix(guestID, dialInGuestPrefix) }
 
-// providerIdentity is the room identity of a participant: a caller's is
-// their guest id, everyone else's is uw_participant_<id>.
-func providerIdentity(p db.MeetingParticipant) string {
-	if p.PrincipalType == PrincipalGuest && isDialInGuest(p.GuestID.String) {
-		return p.GuestID.String
-	}
-	return meetings.IdentityForParticipant(p.ID)
+func isDialInParticipant(p db.MeetingParticipant) bool {
+	return p.PrincipalType == PrincipalGuest && isDialInGuest(p.GuestID.String)
 }
 
 // dialInName is the caller's display name from the provider's ("Phone 1234"):
@@ -226,8 +230,17 @@ func (s *MeetingService) ensureDialIn(ctx context.Context, meetingID string) err
 		}
 	}
 	ruleID, err := s.provider.CreateDialInRule(ctx, meetings.DialInRuleRequest{
-		RoomName: meetings.RoomNameForMeeting(m.ID), Pin: pin, TrunkID: s.rt.SIPTrunkID, Name: "uniwork " + m.ID,
+		RoomName: meetings.RoomNameForMeeting(m.ID), Pin: pin, TrunkID: s.rt.SIPTrunkID, Name: dialInRulePrefix + m.ID,
 	})
+	if errors.Is(err, meetings.ErrDialInRuleConflict) {
+		// A rule this deployment does not know of (a stray one, or another
+		// tenant of the trunk) holds the PIN: draw a new one, try next sweep.
+		s.count("dial_in_rule_conflict")
+		if _, rerr := s.rotateDialInPin(ctx, m, dialInActor); rerr != nil {
+			return errors.Join(err, rerr)
+		}
+		return err
+	}
 	if err != nil {
 		s.count("dial_in_rule_failed")
 		return err
@@ -263,7 +276,9 @@ func (s *MeetingService) deleteDialInRule(ctx context.Context, meetingID, ruleID
 
 // sweepDialIn is the 15 s worker: every meeting holding a rule, and with
 // dial-in configured every meeting in progress without one, goes through
-// ensureDialIn. It repairs a Start or End whose provider call failed.
+// ensureDialIn, then its phone connections are checked (a hold the webhook
+// missed). It repairs a Start or End whose provider call failed, and deletes
+// stray uniwork rules.
 //
 // shortcut: the batch is the oldest 200 meetings, flag off or not; past 200
 // meetings in progress at once, newer ones wait for an inline ensure. Page
@@ -282,47 +297,108 @@ func (s *MeetingService) sweepDialIn(ctx context.Context) error {
 		if err := s.ensureDialIn(cctx, id); err != nil {
 			errs = append(errs, err)
 		}
+		if err := s.sweepDialInCallers(cctx, id); err != nil {
+			errs = append(errs, err)
+		}
+		cancel()
+	}
+	if s.dialInConfigured() {
+		cctx, cancel := context.WithTimeout(ctx, dialInCallBudget)
+		errs = append(errs, s.sweepStrayDialInRules(cctx))
 		cancel()
 	}
 	return errors.Join(errs...)
 }
 
+// MaskDialInEvent is how a phone caller's webhook enters UniWork: LiveKit's
+// identity (sip_ + an unsalted 64-bit hash of the number, reversible over the
+// Vietnamese number space) becomes the keyed guest id, and the name keeps
+// only the last four digits. Nothing downstream stores the raw identity; the
+// live connection is found again by its SID when the server acts on it.
+func (s *MeetingService) MaskDialInEvent(ev ProviderNeutralEvent) ProviderNeutralEvent {
+	if ev.ParticipantKind != ParticipantKindSIP {
+		return ev
+	}
+	ev.Identity = s.dialInGuestID(ev.Identity)
+	ev.ParticipantName = dialInName(ev.ParticipantName)
+	return ev
+}
+
+// dialInGuestID keys the provider identity with the server secret, so the
+// stored id says nothing about the number to whoever reads the database.
+func (s *MeetingService) dialInGuestID(providerIdentity string) string {
+	mac := hmac.New(sha256.New, s.rt.HMACKey)
+	mac.Write([]byte("dial-in:" + providerIdentity))
+	return dialInGuestPrefix + hex.EncodeToString(mac.Sum(nil))[:32]
+}
+
 // HoldDialInCaller takes every grant away from a caller who just entered the
-// room, straight from the webhook request so the gap stays one provider round
-// trip. A caller already admitted (a redelivered join) is left alone; when
-// that cannot be read, the caller is held.
-func (s *MeetingService) HoldDialInCaller(ctx context.Context, ev ProviderNeutralEvent) {
+// room, straight from the webhook request (after the event is queued), so
+// the gap stays one provider round trip; the 15 s sweep holds anyone this
+// misses. ev is masked; identity is the raw provider identity, used here
+// only. The connection already admitted (a redelivered join) is left alone;
+// when that cannot be read, the caller is held.
+func (s *MeetingService) HoldDialInCaller(ctx context.Context, ev ProviderNeutralEvent, identity string) {
 	if ev.ParticipantKind != ParticipantKindSIP || s.provider == nil {
 		return
 	}
 	meetingID := strings.TrimPrefix(ev.RoomName, "uw_mtg_")
-	admitted, err := s.q.DialInCallerAdmitted(ctx, db.DialInCallerAdmittedParams{MeetingID: meetingID, GuestID: strText(ev.Identity)})
-	if err == nil && admitted {
+	if s.connectionAdmitted(ctx, meetingID, ev.Identity, ev.ParticipantSID) {
 		return
 	}
-	s.holdDialInCaller(ctx, ev.RoomName, ev.Identity, ev.ParticipantName)
+	s.holdDialInCaller(ctx, ev.RoomName, identity, ev.ParticipantName)
 }
 
-func (s *MeetingService) holdDialInCaller(ctx context.Context, room, identity, providerName string) {
+func (s *MeetingService) connectionAdmitted(ctx context.Context, meetingID, guestID, sid string) bool {
+	admitted, err := s.q.DialInCallerAdmitted(ctx, db.DialInCallerAdmittedParams{MeetingID: meetingID, GuestID: strText(guestID), ParticipantSid: sid})
+	return err == nil && admitted
+}
+
+func (s *MeetingService) holdDialInCaller(ctx context.Context, room, identity, name string) {
 	if err := s.provider.UpdateParticipant(ctx, meetings.UpdateProviderParticipantRequest{
-		RoomName: room, Identity: identity, Name: dialInName(providerName),
+		RoomName: room, Identity: identity, Name: dialInName(name),
 		Attributes: map[string]string{dialInStateAttr: "waiting"},
 	}); err != nil {
 		slog.Warn("meeting dial-in: caller not held", "room", room, "err", err)
 	}
 }
 
-func (s *MeetingService) hangUpDialInCaller(ctx context.Context, room, identity string) {
-	if err := s.provider.RemoveParticipant(ctx, meetings.RemoveProviderParticipantRequest{RoomName: room, Identity: identity}); err != nil {
+// liveConnection finds the connection a SID names in the room; the raw
+// identity it returns is used for one provider call and never stored.
+func (s *MeetingService) liveConnection(ctx context.Context, room, sid string) (meetings.ProviderParticipant, bool) {
+	if sid == "" {
+		return meetings.ProviderParticipant{}, false
+	}
+	ps, err := s.provider.ListParticipants(ctx, room)
+	if err != nil {
+		slog.Warn("meeting dial-in: room not listed", "room", room, "err", err)
+		return meetings.ProviderParticipant{}, false
+	}
+	for _, p := range ps {
+		if p.SID == sid {
+			return p, true
+		}
+	}
+	return meetings.ProviderParticipant{}, false
+}
+
+func (s *MeetingService) hangUpConnection(ctx context.Context, room, sid string) {
+	conn, ok := s.liveConnection(ctx, room, sid)
+	if !ok {
+		return
+	}
+	if err := s.provider.RemoveParticipant(ctx, meetings.RemoveProviderParticipantRequest{RoomName: room, Identity: conn.Identity}); err != nil {
 		slog.Warn("meeting dial-in: caller not dropped", "room", room, "err", err)
 	}
 }
 
-// dialInCallerJoined files the caller's join request on the webhook's
-// transaction. It files nothing — and settleDialInCaller then drops the call
-// — when the meeting is not in progress, the call came through a rule that
-// is not the meeting's current one, or the host removed this caller. Every
-// call is a new knock: callers without caller id share one identity.
+// dialInCallerJoined files the connection's join request on the webhook's
+// transaction (ev is masked). It files nothing — and settleDialInCaller then
+// drops the call — when the meeting is not in progress, the call came
+// through a rule that is not the meeting's current one, or the host removed
+// this caller. Every connection is a new knock: a pending knock of the same
+// caller is handed to the newest connection, and an earlier admission is
+// never inherited.
 func (s *MeetingService) dialInCallerJoined(ctx context.Context, q *db.Queries, sess db.MeetingConferenceSession, ev ProviderNeutralEvent) error {
 	m, err := q.GetMeeting(ctx, sess.MeetingID)
 	if err != nil {
@@ -338,39 +414,110 @@ func (s *MeetingService) dialInCallerJoined(ctx context.Context, q *db.Queries, 
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return err
 	}
-	_, err = s.ensureJoinRequestTx(ctx, q, m, AdmissionContext{
+	jr, err := s.ensureJoinRequestTx(ctx, q, m, AdmissionContext{
 		MeetingID: m.ID, GuestID: ev.Identity, DisplayName: dialInName(ev.ParticipantName), RequestAgain: true,
 	}, "")
-	return err
+	if err != nil {
+		return err
+	}
+	return q.SetJoinRequestProviderSid(ctx, db.SetJoinRequestProviderSidParams{ID: jr.ID, ParticipantSid: ev.ParticipantSID})
 }
 
-// settleDialInCaller runs after the join committed: a caller with a pending
-// request is held (again, in case the webhook's hold failed); one without
-// is dropped; one already admitted is left alone.
-func (s *MeetingService) settleDialInCaller(ctx context.Context, sess db.MeetingConferenceSession, ev ProviderNeutralEvent) {
-	admitted, err := s.q.DialInCallerAdmitted(ctx, db.DialInCallerAdmittedParams{MeetingID: sess.MeetingID, GuestID: strText(ev.Identity)})
-	if err == nil && admitted {
-		return
-	}
-	_, err = s.q.GetPendingJoinRequestForGuest(ctx, db.GetPendingJoinRequestForGuestParams{MeetingID: sess.MeetingID, RequesterGuestID: strText(ev.Identity)})
+// pendingKnock is the caller's pending request when it belongs to this
+// connection.
+func (s *MeetingService) pendingKnock(ctx context.Context, q *db.Queries, meetingID, guestID, sid string) (db.MeetingJoinRequest, bool, error) {
+	jr, err := q.GetPendingJoinRequestForGuest(ctx, db.GetPendingJoinRequestForGuestParams{MeetingID: meetingID, RequesterGuestID: strText(guestID)})
 	if errors.Is(err, pgx.ErrNoRows) {
-		s.hangUpDialInCaller(ctx, ev.RoomName, ev.Identity)
-		return
+		return db.MeetingJoinRequest{}, false, nil
 	}
-	s.holdDialInCaller(ctx, ev.RoomName, ev.Identity, ev.ParticipantName)
+	if err != nil {
+		return db.MeetingJoinRequest{}, false, err
+	}
+	return jr, jr.ProviderParticipantSid.String == sid, nil
 }
 
-// dialInCallerLeft takes a caller who hung up while waiting out of the host's
-// queue, and closes the room session of one who was admitted.
+// settleDialInCaller runs after the join committed: a connection with its
+// own pending knock is held (again, in case the webhook's hold failed), one
+// without is dropped, the admitted one is left alone.
+func (s *MeetingService) settleDialInCaller(ctx context.Context, sess db.MeetingConferenceSession, ev ProviderNeutralEvent) {
+	if s.connectionAdmitted(ctx, sess.MeetingID, ev.Identity, ev.ParticipantSID) {
+		return
+	}
+	_, mine, err := s.pendingKnock(ctx, s.q, sess.MeetingID, ev.Identity, ev.ParticipantSID)
+	if err == nil && !mine {
+		s.hangUpConnection(ctx, ev.RoomName, ev.ParticipantSID)
+		return
+	}
+	if conn, ok := s.liveConnection(ctx, ev.RoomName, ev.ParticipantSID); ok && !dialInHeld(conn) {
+		s.holdDialInCaller(ctx, ev.RoomName, conn.Identity, ev.ParticipantName)
+	}
+}
+
+func dialInHeld(p meetings.ProviderParticipant) bool {
+	return p.Attributes[dialInStateAttr] == "waiting" && !p.Permissions.CanSubscribe && !p.Permissions.CanPublish && !p.Permissions.CanPublishData
+}
+
+// sweepDialInCallers is the backstop for a lost or failed hold (LiveKit
+// drops webhooks when its queue is full): every phone connection in the
+// room that is not admitted is held and has its own pending knock, or is
+// dropped like a join webhook would have it.
+func (s *MeetingService) sweepDialInCallers(ctx context.Context, meetingID string) error {
+	m, err := s.q.GetMeeting(ctx, meetingID)
+	if err != nil || m.Status != MeetingInProgress || !m.SipDispatchRuleID.Valid {
+		return nil
+	}
+	sess, err := s.q.GetOpenConferenceSession(ctx, m.ID)
+	if err != nil {
+		return nil
+	}
+	ps, err := s.provider.ListParticipants(ctx, sess.ProviderRoomName)
+	if err != nil {
+		return err
+	}
+	for _, p := range ps {
+		if !p.SIP {
+			continue
+		}
+		ev := s.MaskDialInEvent(ProviderNeutralEvent{
+			Type: "conference.participant_joined", RoomName: sess.ProviderRoomName, Identity: p.Identity,
+			ParticipantSID: p.SID, ParticipantKind: ParticipantKindSIP, ParticipantName: p.Name,
+			SIPRuleID: p.Attributes[livekitSIPRuleAttr], OccurredAt: time.Now().UTC(),
+		})
+		if s.connectionAdmitted(ctx, m.ID, ev.Identity, ev.ParticipantSID) {
+			continue
+		}
+		if err := s.inTx(ctx, func(q *db.Queries) error { return s.dialInCallerJoined(ctx, q, sess, ev) }); err != nil {
+			return err
+		}
+		s.settleDialInCaller(ctx, sess, ev)
+	}
+	return nil
+}
+
+func (s *MeetingService) inTx(ctx context.Context, fn func(q *db.Queries) error) error {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if err := fn(s.q.WithTx(tx)); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
+// dialInCallerLeft takes a connection that hung up while waiting out of the
+// host's queue (its own knock only), and closes its room session if it was
+// admitted (the leave closes only the session of the same connection).
 func (s *MeetingService) dialInCallerLeft(ctx context.Context, q *db.Queries, sess db.MeetingConferenceSession, ev ProviderNeutralEvent) (bool, error) {
-	jr, err := q.GetPendingJoinRequestForGuest(ctx, db.GetPendingJoinRequestForGuestParams{MeetingID: sess.MeetingID, RequesterGuestID: strText(ev.Identity)})
-	switch {
-	case err == nil:
+	jr, mine, err := s.pendingKnock(ctx, q, sess.MeetingID, ev.Identity, ev.ParticipantSID)
+	if err != nil {
+		return false, err
+	}
+	if mine {
 		if err := s.cancelDialInRequest(ctx, q, jr); err != nil {
 			return false, err
 		}
-	case !errors.Is(err, pgx.ErrNoRows):
-		return false, err
 	}
 	p, err := q.GetGuestParticipantAnyStatus(ctx, db.GetGuestParticipantAnyStatusParams{MeetingID: sess.MeetingID, GuestID: strText(ev.Identity)})
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -400,10 +547,10 @@ func (s *MeetingService) cancelDialInRequest(ctx context.Context, q *db.Queries,
 	return nil
 }
 
-// admitDialInCaller gives an approved caller their voice and ears, and opens
-// the room session the join webhook could not (the caller was held then).
-// A caller who hung up meanwhile gets neither.
-func (s *MeetingService) admitDialInCaller(ctx context.Context, m db.Meeting, p db.MeetingParticipant) {
+// admitDialInCaller gives the approved connection its voice and ears and
+// opens its room session, keyed by that connection's SID. A caller who hung
+// up meanwhile gets neither.
+func (s *MeetingService) admitDialInCaller(ctx context.Context, m db.Meeting, p db.MeetingParticipant, jr db.MeetingJoinRequest) {
 	if s.provider == nil {
 		return
 	}
@@ -411,23 +558,26 @@ func (s *MeetingService) admitDialInCaller(ctx context.Context, m db.Meeting, p 
 	if err != nil {
 		return
 	}
-	identity := providerIdentity(p)
+	sid := jr.ProviderParticipantSid.String
+	conn, ok := s.liveConnection(ctx, sess.ProviderRoomName, sid)
+	if !ok {
+		return
+	}
 	if err := s.provider.UpdateParticipant(ctx, meetings.UpdateProviderParticipantRequest{
-		RoomName: sess.ProviderRoomName, Identity: identity,
+		RoomName: sess.ProviderRoomName, Identity: conn.Identity,
 		Permissions: meetings.MediaPermissions{CanSubscribe: true, CanPublish: true},
 		Attributes:  map[string]string{dialInStateAttr: "admitted"},
 	}); err != nil {
 		slog.Warn("meeting dial-in: caller not admitted", "meeting", m.ID, "err", err)
 		return
 	}
-	tx, err := s.pool.Begin(ctx)
+	var changed bool
+	err = s.inTx(ctx, func(q *db.Queries) error {
+		changed, err = s.roomParticipantJoinedAs(ctx, q, sess,
+			ProviderNeutralEvent{Identity: p.GuestID.String, ParticipantSID: sid, OccurredAt: time.Now().UTC()}, p.ID)
+		return err
+	})
 	if err != nil {
-		return
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
-	changed, err := s.roomParticipantJoinedAs(ctx, s.q.WithTx(tx), sess,
-		ProviderNeutralEvent{Identity: identity, OccurredAt: time.Now().UTC()}, p.ID)
-	if err != nil || tx.Commit(ctx) != nil {
 		slog.Warn("meeting dial-in: room session not opened", "meeting", m.ID, "err", err)
 		return
 	}
@@ -436,8 +586,8 @@ func (s *MeetingService) admitDialInCaller(ctx context.Context, m db.Meeting, p 
 	}
 }
 
-// dropRefusedDialInCaller ends the call of a caller the host refused.
-func (s *MeetingService) dropRefusedDialInCaller(ctx context.Context, m db.Meeting, guestID string) {
+// dropRefusedDialInCaller ends the call of the connection the host refused.
+func (s *MeetingService) dropRefusedDialInCaller(ctx context.Context, m db.Meeting, jr db.MeetingJoinRequest) {
 	if s.provider == nil {
 		return
 	}
@@ -445,5 +595,40 @@ func (s *MeetingService) dropRefusedDialInCaller(ctx context.Context, m db.Meeti
 	if sess, err := s.q.GetOpenConferenceSession(ctx, m.ID); err == nil {
 		room = sess.ProviderRoomName
 	}
-	s.hangUpDialInCaller(ctx, room, guestID)
+	s.hangUpConnection(ctx, room, jr.ProviderParticipantSid.String)
+}
+
+// dialInConnectionSID is the connection an admitted caller is on, "" when
+// they are not in the room.
+func (s *MeetingService) dialInConnectionSID(ctx context.Context, p db.MeetingParticipant) string {
+	sid, err := s.q.OpenDialInSessionSid(ctx, db.OpenDialInSessionSidParams{MeetingID: p.MeetingID, ParticipantID: p.ID})
+	if err != nil {
+		return ""
+	}
+	return sid.String
+}
+
+// sweepStrayDialInRules deletes uniwork rules no meeting points at: a rule
+// made whose meeting write then failed or lost a race and whose delete also
+// failed. A rule younger than a minute may still be on its way to its row.
+func (s *MeetingService) sweepStrayDialInRules(ctx context.Context) error {
+	rules, err := s.provider.ListDialInRules(ctx)
+	if err != nil {
+		return err
+	}
+	held, err := s.q.ListMeetingDialInRuleIDs(ctx)
+	if err != nil {
+		return err
+	}
+	live := make(map[string]bool, len(held))
+	for _, id := range held {
+		live[id] = true
+	}
+	for _, r := range rules {
+		if !strings.HasPrefix(r.Name, dialInRulePrefix) || live[r.ID] || r.CreatedAt.IsZero() || time.Since(r.CreatedAt) < dialInStrayAge {
+			continue
+		}
+		s.deleteDialInRule(ctx, "", r.ID)
+	}
+	return nil
 }

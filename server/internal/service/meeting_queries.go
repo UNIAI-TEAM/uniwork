@@ -69,7 +69,7 @@ func (s *MeetingService) HandleProviderEvent(ctx context.Context, ev ProviderNeu
 	if errors.Is(err, pgx.ErrNoRows) {
 		if ev.Type == "conference.participant_joined" && ev.ParticipantKind == ParticipantKindSIP && s.provider != nil {
 			// A stale rule dialled a caller into a meeting that is over.
-			s.hangUpDialInCaller(ctx, ev.RoomName, ev.Identity)
+			s.hangUpConnection(ctx, ev.RoomName, ev.ParticipantSID)
 		}
 		return nil // no open conference for this room: nothing to apply
 	}
@@ -184,6 +184,10 @@ func (s *MeetingService) applyOutbox(ctx context.Context, row db.OutboxEvent) er
 		}
 		return err
 	case "provider.remove_participant":
+		if p["identity"] == "" {
+			s.hangUpConnection(ctx, p["room_name"], p["participant_sid"])
+			return nil
+		}
 		return s.provider.RemoveParticipant(ctx, meetings.RemoveProviderParticipantRequest{
 			RoomName: p["room_name"], Identity: p["identity"],
 		})

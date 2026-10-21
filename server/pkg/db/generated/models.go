@@ -1641,19 +1641,20 @@ type MeetingInviteLink struct {
 }
 
 type MeetingJoinRequest struct {
-	ID                  string             `json:"id"`
-	MeetingID           string             `json:"meeting_id"`
-	RequesterUserID     pgtype.Text        `json:"requester_user_id"`
-	RequesterGuestID    pgtype.Text        `json:"requester_guest_id"`
-	DisplayNameSnapshot string             `json:"display_name_snapshot"`
-	InviteLinkID        pgtype.Text        `json:"invite_link_id"`
-	Status              string             `json:"status"`
-	RequestedAt         pgtype.Timestamptz `json:"requested_at"`
-	ReviewedBy          pgtype.Text        `json:"reviewed_by"`
-	ReviewedAt          pgtype.Timestamptz `json:"reviewed_at"`
-	DecisionReason      pgtype.Text        `json:"decision_reason"`
-	ExpiresAt           pgtype.Timestamptz `json:"expires_at"`
-	OrganizationID      string             `json:"organization_id"`
+	ID                     string             `json:"id"`
+	MeetingID              string             `json:"meeting_id"`
+	RequesterUserID        pgtype.Text        `json:"requester_user_id"`
+	RequesterGuestID       pgtype.Text        `json:"requester_guest_id"`
+	DisplayNameSnapshot    string             `json:"display_name_snapshot"`
+	InviteLinkID           pgtype.Text        `json:"invite_link_id"`
+	Status                 string             `json:"status"`
+	RequestedAt            pgtype.Timestamptz `json:"requested_at"`
+	ReviewedBy             pgtype.Text        `json:"reviewed_by"`
+	ReviewedAt             pgtype.Timestamptz `json:"reviewed_at"`
+	DecisionReason         pgtype.Text        `json:"decision_reason"`
+	ExpiresAt              pgtype.Timestamptz `json:"expires_at"`
+	OrganizationID         string             `json:"organization_id"`
+	ProviderParticipantSid pgtype.Text        `json:"provider_participant_sid"`
 }
 
 type MeetingMotion struct {

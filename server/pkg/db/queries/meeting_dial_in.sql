@@ -51,11 +51,34 @@ LIMIT sqlc.arg('row_limit');
 
 -- name: DialInCallerAdmitted :one
 -- tenant: parent meeting_id
--- A caller is in the meeting proper (not held) while their guest participant
--- has an open room session: admission opens it, hanging up closes it.
+-- One connection of a caller is in the meeting proper (not held) while it
+-- has an open room session: admission opens it for that connection's SID,
+-- its hang-up closes it. A redial is another connection and knocks again.
 SELECT EXISTS (
   SELECT 1 FROM meeting_attendance_sessions a
   JOIN meeting_participants p ON p.id = a.participant_id
   WHERE a.meeting_id = sqlc.arg('meeting_id') AND p.meeting_id = sqlc.arg('meeting_id')
     AND p.principal_type = 'GUEST' AND p.guest_id = sqlc.arg('guest_id') AND a.left_at IS NULL
+    AND a.provider_participant_sid = sqlc.arg('participant_sid')::text
 );
+
+-- name: OpenDialInSessionSid :one
+-- tenant: parent meeting_id
+-- The connection an admitted caller is on, to remove or mute it.
+SELECT provider_participant_sid FROM meeting_attendance_sessions
+WHERE meeting_id = $1 AND participant_id = $2 AND left_at IS NULL
+ORDER BY joined_at DESC
+LIMIT 1;
+
+-- name: SetJoinRequestProviderSid :exec
+-- tenant: by-id
+-- The connection a pending phone knock belongs to; a newer connection of the
+-- same caller takes the knock over.
+UPDATE meeting_join_requests SET provider_participant_sid = sqlc.arg('participant_sid')::text
+WHERE id = sqlc.arg('id') AND status = 'PENDING';
+
+-- name: ListMeetingDialInRuleIDs :many
+-- tenant: system
+-- Every rule a meeting row points at, so the sweep can tell a stray uniwork
+-- rule (made, then lost to a failed write) from a live one.
+SELECT sip_dispatch_rule_id::text FROM meetings WHERE sip_dispatch_rule_id IS NOT NULL;

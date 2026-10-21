@@ -129,6 +129,24 @@ func (f *FakeProvider) UpdateParticipant(_ context.Context, req UpdateProviderPa
 		f.Permissions = map[string]MediaPermissions{}
 	}
 	f.Permissions[req.RoomName+"/"+req.Identity] = req.Permissions
+	for i, p := range f.RoomParticipants[req.RoomName] {
+		if p.Identity != req.Identity {
+			continue
+		}
+		p.Permissions = req.Permissions
+		if req.Name != "" {
+			p.Name = req.Name
+		}
+		attrs := map[string]string{}
+		for k, v := range p.Attributes {
+			attrs[k] = v
+		}
+		for k, v := range req.Attributes {
+			attrs[k] = v
+		}
+		p.Attributes = attrs
+		f.RoomParticipants[req.RoomName][i] = p
+	}
 	return nil
 }
 

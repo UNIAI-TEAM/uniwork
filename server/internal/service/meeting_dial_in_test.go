@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -200,13 +201,43 @@ func dialInAuditCount(t *testing.T, s *MeetingService, meetingID, action, kind s
 	return n
 }
 
-// sipJoin is the webhook a caller's entry produces: kind SIP, LiveKit's
-// hashed identity, the masked name and the rule that routed the call.
+// sipJoin is the webhook a caller's entry produces, as LiveKit sends it:
+// kind SIP, LiveKit's hashed identity, its name and the rule that routed the
+// call.
 func sipJoin(m db.Meeting, typ, identity, sid string) ProviderNeutralEvent {
 	return ProviderNeutralEvent{
 		Type: typ, RoomName: meetings.RoomNameForMeeting(m.ID), Identity: identity,
 		ProviderEventID: typ + sid, ParticipantSID: sid, OccurredAt: time.Now().UTC(),
 		ParticipantKind: ParticipantKindSIP, ParticipantName: "Phone 1234", SIPRuleID: m.SipDispatchRuleID.String,
+	}
+}
+
+// dialIn connects a caller (LiveKit now lists them, with the grants of a
+// fresh SIP participant) and delivers the join webhook the way the handler
+// does: masked, queued, held, then applied by the inbox.
+func dialIn(t *testing.T, s *MeetingService, fake *meetings.FakeProvider, m db.Meeting, identity, sid string) ProviderNeutralEvent {
+	t.Helper()
+	raw := sipJoin(m, "conference.participant_joined", identity, sid)
+	fake.Join(raw.RoomName, meetings.ProviderParticipant{
+		Identity: identity, SID: sid, Name: raw.ParticipantName, SIP: true,
+		Attributes:  map[string]string{"sip.ruleID": raw.SIPRuleID},
+		Permissions: meetings.MediaPermissions{CanSubscribe: true, CanPublish: true, CanPublishData: true},
+	})
+	ev := s.MaskDialInEvent(raw)
+	s.HoldDialInCaller(context.Background(), ev, identity)
+	if err := s.HandleProviderEvent(context.Background(), ev); err != nil {
+		t.Fatal(err)
+	}
+	return ev
+}
+
+// hangUp drops the connection from the room and delivers its leave webhook.
+func hangUp(t *testing.T, s *MeetingService, fake *meetings.FakeProvider, m db.Meeting, identity, sid string) {
+	t.Helper()
+	room := meetings.RoomNameForMeeting(m.ID)
+	_ = fake.RemoveParticipant(context.Background(), meetings.RemoveProviderParticipantRequest{RoomName: room, Identity: identity})
+	if err := s.HandleProviderEvent(context.Background(), s.MaskDialInEvent(sipJoin(m, "conference.participant_left", identity, sid))); err != nil {
+		t.Fatal(err)
 	}
 }
 
@@ -222,23 +253,32 @@ func lastUpdateFor(t *testing.T, fake *meetings.FakeProvider, identity string) m
 	return meetings.UpdateProviderParticipantRequest{}
 }
 
+func pendingKnockOf(t *testing.T, s *MeetingService, m db.Meeting, guestID string) (db.MeetingJoinRequest, bool) {
+	t.Helper()
+	jr, err := s.q.GetPendingJoinRequestForGuest(context.Background(), db.GetPendingJoinRequestForGuestParams{MeetingID: m.ID, RequesterGuestID: strText(guestID)})
+	return jr, err == nil
+}
+
+func admitted(s *MeetingService, m db.Meeting, guestID, sid string) bool {
+	return s.connectionAdmitted(context.Background(), m.ID, guestID, sid)
+}
+
 func TestDialInCallerWaitsInTheLobbyUntilAdmitted(t *testing.T) {
 	s, fake, ua, _, m := dialInFixture(t)
 	ctx := context.Background()
 	m = reloadMeeting(t, s, m.ID)
 	const caller = "sip_c15a31c71649a522"
-	ev := sipJoin(m, "conference.participant_joined", caller, "PA_1")
-	s.HoldDialInCaller(ctx, ev)
+	ev := dialIn(t, s, fake, m, caller, "PA_1")
+	if !strings.HasPrefix(ev.Identity, "uw_sip_") || strings.Contains(ev.Identity, "c15a31c71649a522") {
+		t.Fatalf("masked identity %q", ev.Identity)
+	}
 	held := lastUpdateFor(t, fake, caller)
 	if held.Permissions != (meetings.MediaPermissions{}) || held.Name != "Điện thoại ••• 1234" || held.Attributes[dialInStateAttr] != "waiting" {
 		t.Fatalf("hold = %+v", held)
 	}
-	if err := s.HandleProviderEvent(ctx, ev); err != nil {
-		t.Fatal(err)
-	}
-	jr, err := s.q.GetPendingJoinRequestForGuest(ctx, db.GetPendingJoinRequestForGuestParams{MeetingID: m.ID, RequesterGuestID: strText(caller)})
-	if err != nil || jr.DisplayNameSnapshot != "Điện thoại ••• 1234" {
-		t.Fatalf("join request %+v err=%v", jr, err)
+	jr, ok := pendingKnockOf(t, s, m, ev.Identity)
+	if !ok || jr.DisplayNameSnapshot != "Điện thoại ••• 1234" || jr.ProviderParticipantSid.String != "PA_1" {
+		t.Fatalf("join request %+v ok=%v", jr, ok)
 	}
 	if _, removed := fake.Snapshot(); len(removed) != 0 {
 		t.Fatalf("a waiting caller was hung up: %v", removed)
@@ -246,36 +286,73 @@ func TestDialInCallerWaitsInTheLobbyUntilAdmitted(t *testing.T) {
 	if err := s.ApproveJoinRequest(ctx, ua.ID, jr.ID); err != nil {
 		t.Fatal(err)
 	}
-	admitted := lastUpdateFor(t, fake, caller)
-	if !admitted.Permissions.CanSubscribe || !admitted.Permissions.CanPublish || admitted.Attributes[dialInStateAttr] != "admitted" {
-		t.Fatalf("admit = %+v", admitted)
+	in := lastUpdateFor(t, fake, caller)
+	if !in.Permissions.CanSubscribe || !in.Permissions.CanPublish || in.Attributes[dialInStateAttr] != "admitted" {
+		t.Fatalf("admit = %+v", in)
 	}
-	p, err := s.q.GetGuestParticipantAnyStatus(ctx, db.GetGuestParticipantAnyStatusParams{MeetingID: m.ID, GuestID: strText(caller)})
+	p, err := s.q.GetGuestParticipantAnyStatus(ctx, db.GetGuestParticipantAnyStatusParams{MeetingID: m.ID, GuestID: strText(ev.Identity)})
 	if err != nil || p.Standing != StandingObserver {
 		t.Fatalf("participant %+v err=%v", p, err)
 	}
-	if in, _ := s.q.DialInCallerAdmitted(ctx, db.DialInCallerAdmittedParams{MeetingID: m.ID, GuestID: strText(caller)}); !in {
-		t.Fatal("admission opened no room session")
+	if !admitted(s, m, ev.Identity, "PA_1") {
+		t.Fatal("admission opened no room session for the connection")
 	}
-	// A redelivered join does not mute the admitted caller again.
+	// A redelivered join does not mute the admitted connection again.
 	before, _ := fake.Snapshot()
-	s.HoldDialInCaller(ctx, ev)
+	s.HoldDialInCaller(ctx, ev, caller)
 	if after, _ := fake.Snapshot(); len(after) != len(before) {
 		t.Fatal("an admitted caller was held again")
 	}
-	if err := s.HandleProviderEvent(ctx, sipJoin(m, "conference.participant_left", caller, "PA_1")); err != nil {
-		t.Fatal(err)
-	}
-	if in, _ := s.q.DialInCallerAdmitted(ctx, db.DialInCallerAdmittedParams{MeetingID: m.ID, GuestID: strText(caller)}); in {
-		t.Fatal("hanging up left the room session open")
-	}
-	// The host removes the caller: the call is dropped by its own identity.
+	// The host removes the caller: the call is dropped by its connection,
+	// and the queued removal names no identity.
 	if err := s.RemoveParticipant(ctx, ua.ID, m.ID, p.ID); err != nil {
 		t.Fatal(err)
 	}
-	var identity string
-	if err := s.pool.QueryRow(ctx, `SELECT payload::jsonb->>'identity' FROM outbox_events WHERE topic = 'provider.remove_participant' ORDER BY created_at DESC LIMIT 1`).Scan(&identity); err != nil || identity != caller {
-		t.Fatalf("removal targets %q err=%v", identity, err)
+	var payload string
+	if err := s.pool.QueryRow(ctx, `SELECT payload FROM outbox_events WHERE topic = 'provider.remove_participant' ORDER BY created_at DESC LIMIT 1`).Scan(&payload); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(payload, caller) || !strings.Contains(payload, `"participant_sid":"PA_1"`) {
+		t.Fatalf("removal payload %s", payload)
+	}
+	hangUp(t, s, fake, m, caller, "PA_1")
+	if admitted(s, m, ev.Identity, "PA_1") {
+		t.Fatal("hanging up left the room session open")
+	}
+}
+
+// Every connection knocks: a redial (or a second caller without caller id)
+// on the same LiveKit identity inherits nothing from an admitted one, and
+// the first connection's hang-up touches only its own session.
+func TestDialInRedialIsANewKnock(t *testing.T) {
+	s, fake, ua, _, m := dialInFixture(t)
+	ctx := context.Background()
+	m = reloadMeeting(t, s, m.ID)
+	const caller = "sip_anonymous0000"
+	a := dialIn(t, s, fake, m, caller, "PA_A")
+	ja, _ := pendingKnockOf(t, s, m, a.Identity)
+	if err := s.ApproveJoinRequest(ctx, ua.ID, ja.ID); err != nil {
+		t.Fatal(err)
+	}
+	b := dialIn(t, s, fake, m, caller, "PA_B")
+	if admitted(s, m, b.Identity, "PA_B") {
+		t.Fatal("the second connection inherited the first one's admission")
+	}
+	if held := lastUpdateFor(t, fake, caller); held.Attributes[dialInStateAttr] != "waiting" {
+		t.Fatalf("second connection not held: %+v", held)
+	}
+	jb, ok := pendingKnockOf(t, s, m, b.Identity)
+	if !ok || jb.ID == ja.ID || jb.ProviderParticipantSid.String != "PA_B" {
+		t.Fatalf("second knock %+v ok=%v", jb, ok)
+	}
+	if err := s.HandleProviderEvent(ctx, s.MaskDialInEvent(sipJoin(m, "conference.participant_left", caller, "PA_A"))); err != nil {
+		t.Fatal(err)
+	}
+	if again, ok := pendingKnockOf(t, s, m, b.Identity); !ok || again.ID != jb.ID {
+		t.Fatal("the first connection's hang-up withdrew the second one's knock")
+	}
+	if admitted(s, m, a.Identity, "PA_A") {
+		t.Fatal("the first connection's session stayed open")
 	}
 }
 
@@ -284,13 +361,10 @@ func TestDialInCallerRefusedOrGoneLeavesNoOneWaiting(t *testing.T) {
 	ctx := context.Background()
 	m = reloadMeeting(t, s, m.ID)
 	// Rejected: the call is dropped.
-	ev := sipJoin(m, "conference.participant_joined", "sip_aaaa", "PA_a")
-	if err := s.HandleProviderEvent(ctx, ev); err != nil {
-		t.Fatal(err)
-	}
-	jr, err := s.q.GetPendingJoinRequestForGuest(ctx, db.GetPendingJoinRequestForGuestParams{MeetingID: m.ID, RequesterGuestID: strText("sip_aaaa")})
-	if err != nil {
-		t.Fatal(err)
+	a := dialIn(t, s, fake, m, "sip_aaaa", "PA_a")
+	jr, ok := pendingKnockOf(t, s, m, a.Identity)
+	if !ok {
+		t.Fatal("no knock")
 	}
 	if err := s.RejectJoinRequest(ctx, ua.ID, jr.ID, ""); err != nil {
 		t.Fatal(err)
@@ -298,37 +372,139 @@ func TestDialInCallerRefusedOrGoneLeavesNoOneWaiting(t *testing.T) {
 	if _, removed := fake.Snapshot(); len(removed) != 1 || removed[0].Identity != "sip_aaaa" {
 		t.Fatalf("removed = %v", removed)
 	}
-	// Hung up while waiting: the request leaves the host's queue.
-	if err := s.HandleProviderEvent(ctx, sipJoin(m, "conference.participant_joined", "sip_bbbb", "PA_b")); err != nil {
-		t.Fatal(err)
-	}
-	if err := s.HandleProviderEvent(ctx, sipJoin(m, "conference.participant_left", "sip_bbbb", "PA_b")); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := s.q.GetPendingJoinRequestForGuest(ctx, db.GetPendingJoinRequestForGuestParams{MeetingID: m.ID, RequesterGuestID: strText("sip_bbbb")}); err == nil {
+	// Hung up while waiting: the knock leaves the host's queue.
+	b := dialIn(t, s, fake, m, "sip_bbbb", "PA_b")
+	hangUp(t, s, fake, m, "sip_bbbb", "PA_b")
+	if _, ok := pendingKnockOf(t, s, m, b.Identity); ok {
 		t.Fatal("a caller who hung up is still waiting")
 	}
 	// Routed by a rule that is not the meeting's: dropped, nothing filed.
-	stray := sipJoin(m, "conference.participant_joined", "sip_cccc", "PA_c")
-	stray.SIPRuleID = "SDR_other"
-	if err := s.HandleProviderEvent(ctx, stray); err != nil {
+	raw := sipJoin(m, "conference.participant_joined", "sip_cccc", "PA_c")
+	raw.SIPRuleID = "SDR_other"
+	fake.Join(raw.RoomName, meetings.ProviderParticipant{Identity: "sip_cccc", SID: "PA_c", SIP: true})
+	if err := s.HandleProviderEvent(ctx, s.MaskDialInEvent(raw)); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.q.GetPendingJoinRequestForGuest(ctx, db.GetPendingJoinRequestForGuestParams{MeetingID: m.ID, RequesterGuestID: strText("sip_cccc")}); err == nil {
+	if _, ok := pendingKnockOf(t, s, m, s.dialInGuestID("sip_cccc")); ok {
 		t.Fatal("a stray caller was queued")
 	}
-	if _, removed := fake.Snapshot(); len(removed) != 2 || removed[1].Identity != "sip_cccc" {
+	if _, removed := fake.Snapshot(); removed[len(removed)-1].Identity != "sip_cccc" {
 		t.Fatalf("removed = %v", removed)
 	}
 	// After the end a stale rule may still dial someone in: dropped too.
 	if _, err := s.End(ctx, ua.ID, m.ID); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.HandleProviderEvent(ctx, sipJoin(m, "conference.participant_joined", "sip_dddd", "PA_d")); err != nil {
+	dialIn(t, s, fake, m, "sip_dddd", "PA_d")
+	if _, removed := fake.Snapshot(); removed[len(removed)-1].Identity != "sip_dddd" {
+		t.Fatalf("removed = %v", removed)
+	}
+}
+
+// LiveKit drops webhooks when its queue is full: the sweep finds a caller
+// nobody held and holds them, with their own knock, within one tick.
+func TestDialInSweepHoldsACallerWhoseWebhookWasLost(t *testing.T) {
+	s, fake, _, _, m := dialInFixture(t)
+	ctx := context.Background()
+	m = reloadMeeting(t, s, m.ID)
+	room := meetings.RoomNameForMeeting(m.ID)
+	fake.Join(room, meetings.ProviderParticipant{
+		Identity: "sip_lost", SID: "PA_lost", Name: "Phone 9876", SIP: true,
+		Attributes:  map[string]string{"sip.ruleID": m.SipDispatchRuleID.String},
+		Permissions: meetings.MediaPermissions{CanSubscribe: true, CanPublish: true, CanPublishData: true},
+	})
+	if err := s.sweepDialIn(ctx); err != nil {
 		t.Fatal(err)
 	}
-	if _, removed := fake.Snapshot(); len(removed) != 3 || removed[2].Identity != "sip_dddd" {
-		t.Fatalf("removed = %v", removed)
+	held := lastUpdateFor(t, fake, "sip_lost")
+	if held.Permissions != (meetings.MediaPermissions{}) || held.Attributes[dialInStateAttr] != "waiting" || held.Name != "Điện thoại ••• 9876" {
+		t.Fatalf("hold = %+v", held)
+	}
+	if jr, ok := pendingKnockOf(t, s, m, s.dialInGuestID("sip_lost")); !ok || jr.ProviderParticipantSid.String != "PA_lost" {
+		t.Fatalf("knock %+v ok=%v", jr, ok)
+	}
+	// Already held: the next sweep leaves the caller as they are.
+	before, _ := fake.Snapshot()
+	if err := s.sweepDialIn(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if after, _ := fake.Snapshot(); len(after) != len(before) {
+		t.Fatal("a held caller was held again on every sweep")
+	}
+}
+
+// The spec keeps only the last four digits. LiveKit's identity is an
+// unsalted hash of the number, so it must not land in any row, above all
+// in append-only audit_events.
+func TestNoRawCallerIdentityIsStored(t *testing.T) {
+	s, fake, ua, _, m := dialInFixture(t)
+	ctx := context.Background()
+	m = reloadMeeting(t, s, m.ID)
+	const caller = "sip_9f86d081884c7d65"
+	ev := dialIn(t, s, fake, m, caller, "PA_1")
+	jr, _ := pendingKnockOf(t, s, m, ev.Identity)
+	if err := s.ApproveJoinRequest(ctx, ua.ID, jr.ID); err != nil {
+		t.Fatal(err)
+	}
+	hangUp(t, s, fake, m, caller, "PA_1")
+	ev = dialIn(t, s, fake, m, caller, "PA_2")
+	jr, _ = pendingKnockOf(t, s, m, ev.Identity)
+	if err := s.RejectJoinRequest(ctx, ua.ID, jr.ID, ""); err != nil {
+		t.Fatal(err)
+	}
+	for _, table := range []string{"audit_events", "meeting_audit_logs", "meeting_participants", "meeting_join_requests", "meeting_attendance_sessions", "outbox_events"} {
+		var n int
+		if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM `+table+` x WHERE x::text LIKE '%' || $1 || '%' OR x::text LIKE '%Phone 1234%'`, "9f86d081884c7d65").Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		if n != 0 {
+			t.Errorf("%s holds the caller's raw identity or number in %d rows", table, n)
+		}
+	}
+}
+
+// LiveKit refuses a rule whose PIN another rule on the trunk already holds
+// (a stray one, or another tenant of the trunk): the meeting draws a new PIN
+// and the next sweep makes the rule.
+func TestDialInRuleConflictRotatesThePIN(t *testing.T) {
+	s, fake, ua, _, a := dialInFixture(t)
+	ctx := context.Background()
+	fake.DialInRuleErr = fmt.Errorf("refused: %w", meetings.ErrDialInRuleConflict)
+	b, err := s.CreateInstant(ctx, ua.ID, a.WorkspaceID, "PIN bị chiếm")
+	if err != nil {
+		t.Fatal(err)
+	}
+	fake.DialInRuleErr = nil
+	if b.DialInPin.String == reloadMeeting(t, s, b.ID).DialInPin.String {
+		t.Fatal("the PIN was not rotated after the conflict")
+	}
+	if n := dialInAuditCount(t, s, b.ID, "meeting.dial_in_pin_rotated", "system"); n != 1 {
+		t.Fatalf("rotations audited = %d", n)
+	}
+	if err := s.sweepDialIn(ctx); err != nil {
+		t.Fatal(err)
+	}
+	b = reloadMeeting(t, s, b.ID)
+	if got := fake.LiveDialInRules()[b.SipDispatchRuleID.String].Pin; !b.SipDispatchRuleID.Valid || got != b.DialInPin.String {
+		t.Fatalf("rule pin %q, meeting %+v", got, b.SipDispatchRuleID)
+	}
+}
+
+func TestDialInSweepDeletesStrayRules(t *testing.T) {
+	s, fake, _, _, m := dialInFixture(t)
+	ctx := context.Background()
+	held := reloadMeeting(t, s, m.ID).SipDispatchRuleID.String
+	fake.ListedRules = []meetings.DialInRule{
+		{ID: "SDR_stray", Name: "uniwork 01GONE", CreatedAt: time.Now().Add(-2 * time.Minute)},
+		{ID: "SDR_young", Name: "uniwork 01NEW", CreatedAt: time.Now().Add(-10 * time.Second)},
+		{ID: "SDR_lms", Name: "lms-core hotline", CreatedAt: time.Now().Add(-time.Hour)},
+		{ID: held, Name: "uniwork " + m.ID, CreatedAt: time.Now().Add(-time.Hour)},
+	}
+	if err := s.sweepDialIn(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if fake.DialInDeletes == nil || len(fake.DialInDeletes) != 1 || fake.DialInDeletes[0] != "SDR_stray" {
+		t.Fatalf("deleted %v", fake.DialInDeletes)
 	}
 }
 
@@ -362,19 +538,24 @@ func TestCalendarInviteCarriesTheDialInLine(t *testing.T) {
 	}
 }
 
-// Removal, mute and the scribe's speaker lookup all name a caller by the
-// room identity LiveKit gave them, which is their guest id.
-func TestProviderIdentityOfACallerIsTheirGuestID(t *testing.T) {
-	caller := db.MeetingParticipant{ID: "p1", PrincipalType: PrincipalGuest, GuestID: strText("sip_c15a31c71649a522")}
-	guest := db.MeetingParticipant{ID: "p2", PrincipalType: PrincipalGuest, GuestID: strText("01J9GUEST")}
-	user := db.MeetingParticipant{ID: "p3", PrincipalType: PrincipalUser, UserID: strText("u1")}
-	if got := providerIdentity(caller); got != "sip_c15a31c71649a522" {
-		t.Fatalf("caller = %q", got)
+// Removal, mute and the scribe's speaker lookup tell a caller apart by the
+// keyed guest id, never by LiveKit's identity.
+func TestDialInGuestIDIsKeyedAndStable(t *testing.T) {
+	s, _, _, _ := meetingFixture(t)
+	id := s.dialInGuestID("sip_c15a31c71649a522")
+	if !strings.HasPrefix(id, "uw_sip_") || len(id) != len("uw_sip_")+32 || strings.Contains(id, "c15a31c71649a522") {
+		t.Fatalf("guest id %q", id)
 	}
-	if got := providerIdentity(guest); got != "uw_participant_p2" {
-		t.Fatalf("guest = %q", got)
+	if s.dialInGuestID("sip_c15a31c71649a522") != id || s.dialInGuestID("sip_other") == id {
+		t.Fatal("guest id is not a stable function of the identity")
 	}
-	if got := providerIdentity(user); got != "uw_participant_p3" {
-		t.Fatalf("user = %q", got)
+	other := *s
+	other.rt.HMACKey = []byte("another secret")
+	if other.dialInGuestID("sip_c15a31c71649a522") == id {
+		t.Fatal("guest id does not depend on the server secret")
+	}
+	if !isDialInParticipant(db.MeetingParticipant{PrincipalType: PrincipalGuest, GuestID: strText(id)}) ||
+		isDialInParticipant(db.MeetingParticipant{PrincipalType: PrincipalGuest, GuestID: strText("01J9GUEST")}) {
+		t.Fatal("dial-in participant not told apart")
 	}
 }
