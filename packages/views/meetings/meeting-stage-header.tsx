@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useEffect, useRef, useState } from "react";
+import { memo, useEffect, useState } from "react";
 import {
   Clock,
   PanelRightClose,
@@ -34,6 +34,7 @@ import {
   meetingLocale,
 } from "./meeting-datetime";
 import { MeetingPersonAvatar } from "./meeting-person";
+import { OnOffAnnouncer } from "./meeting-room-announcers";
 import { useRoomAvatarOf } from "./meeting-room-avatars";
 import { MeetingScribeChip } from "./meeting-scribe-chip";
 import { humanParticipants, ROSTER_EVENTS } from "./meeting-signals";
@@ -75,28 +76,6 @@ function RemainingTimeChip({ endsAt }: { endsAt: string }) {
       <Clock aria-hidden className="size-3.5 shrink-0 opacity-90" />
       {pastScheduledEnd ? t("meetings.pastScheduledEndShort") : remaining}
     </span>
-  );
-}
-
-/**
- * Always mounted, so a screen reader hears when recording starts or stops —
- * for everyone in the room, not only the host who pressed the button.
- */
-function RecordingAnnouncer({ recording }: { recording: boolean }) {
-  const { t } = useTranslation();
-  const previous = useRef(recording);
-  const [text, setText] = useState("");
-
-  useEffect(() => {
-    if (previous.current === recording) return;
-    previous.current = recording;
-    setText(t(recording ? "meetings.recordingStarted" : "meetings.recordingStopped"));
-  }, [recording, t]);
-
-  return (
-    <p role="status" aria-live="polite" className="sr-only" data-testid="meeting-recording-announcer">
-      {text}
-    </p>
   );
 }
 
@@ -262,7 +241,12 @@ export const MeetingStageHeader = memo(function MeetingStageHeader({
           </div>
 
           <div className="flex flex-wrap items-center gap-1.5 @2xl/stagehead:justify-end sm:gap-2">
-            <RecordingAnnouncer recording={recording} />
+            <OnOffAnnouncer
+              on={recording}
+              onText={t("meetings.recordingStarted")}
+              offText={t("meetings.recordingStopped")}
+              testId="meeting-recording-announcer"
+            />
             {recording ? (
               <span
                 className="inline-flex items-center gap-1 rounded-full bg-destructive-solid px-2 py-1 text-caption font-medium text-on-solid"

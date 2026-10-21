@@ -41,6 +41,7 @@ import {
   ParticipantPresenceAnnouncer,
   ReactionAnnouncer,
   ScreenShareAnnouncer,
+  ScribeAnnouncer,
   useMeetingChatUnread,
 } from "./meeting-room-announcers";
 import { MeetingRoomAvatarsProvider } from "./meeting-room-avatars";
@@ -365,6 +366,7 @@ function ConferenceStage({
       <ReactionAnnouncer />
       <ParticipantPresenceAnnouncer />
       <ScreenShareAnnouncer />
+      <ScribeAnnouncer />
       <ChatMessageAnnouncer latest={chatUnread.latest} visible={chatVisible} />
     </div>
   );

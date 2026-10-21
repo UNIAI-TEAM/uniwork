@@ -103,6 +103,8 @@ vi.mock("./meeting-room-announcers", () => ({
   ParticipantPresenceAnnouncer: () => null,
   ReactionAnnouncer: () => null,
   ScreenShareAnnouncer: () => null,
+  ScribeAnnouncer: () => null,
+  OnOffAnnouncer: () => null,
   useMeetingChatUnread: () => ({ unread: 0, latest: undefined }),
 }));
 vi.mock("./meeting-captions", () => ({

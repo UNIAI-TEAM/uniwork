@@ -4,15 +4,15 @@ import { ConnectionState, ParticipantKind, RoomEvent, Track } from "livekit-clie
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import { wrapWithNav } from "../test/api-mock";
-import { ParticipantPresenceAnnouncer, ScreenShareAnnouncer } from "./meeting-room-announcers";
+import { ParticipantPresenceAnnouncer, ScreenShareAnnouncer, ScribeAnnouncer } from "./meeting-room-announcers";
 import { MeetingStageHeader } from "./meeting-stage-header";
 
-const lk = vi.hoisted(() => ({ room: null as unknown }));
+const lk = vi.hoisted(() => ({ room: null as unknown, remote: [] as { identity: string; isAgent?: boolean }[] }));
 
 vi.mock("@livekit/components-react", () => ({
   useRoomContext: () => lk.room,
   useParticipants: () => [],
-  useRemoteParticipants: () => [],
+  useRemoteParticipants: () => lk.remote,
 }));
 
 class FakeRoom extends EventEmitter {
@@ -30,6 +30,7 @@ beforeAll(() => {
 beforeEach(() => {
   vi.useFakeTimers();
   lk.room = new FakeRoom();
+  lk.remote = [];
 });
 
 afterEach(() => {
@@ -296,5 +297,23 @@ describe("MeetingStageHeader recording announcement", () => {
 
     rerender(wrapWithNav(<MeetingStageHeader meetingTitle="Standup" recording={false} />));
     expect(live).toHaveTextContent("Đã dừng ghi hình");
+  });
+});
+
+describe("ScribeAnnouncer", () => {
+  it("says when the AI scribe starts and stops transcribing, as the recording announcer does", () => {
+    vi.useRealTimers();
+    const { rerender } = render(<ScribeAnnouncer />);
+    const live = screen.getByTestId("meeting-scribe-announcer");
+    expect(live).toHaveAttribute("role", "status");
+    expect(live).toHaveTextContent("");
+
+    lk.remote = [{ identity: "uw_agent_scribe", isAgent: true }];
+    rerender(<ScribeAnnouncer />);
+    expect(live).toHaveTextContent("Thư ký AI đang ghi lời");
+
+    lk.remote = [];
+    rerender(<ScribeAnnouncer />);
+    expect(live).toHaveTextContent("Thư ký AI đã dừng ghi lời");
   });
 });
