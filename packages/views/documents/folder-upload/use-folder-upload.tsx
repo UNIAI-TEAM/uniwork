@@ -177,7 +177,7 @@ export function useFolderUpload({
       dismissHead();
       uploadToast.current = createFolderUploadToast({
         t: latest.current.t,
-        name: plan.rootTitle,
+        name: plan.rootTitle ?? destination.name,
         total: plan.totals.files,
         onCancelAll: () => run.handle?.cancel(),
       });
@@ -209,17 +209,18 @@ export function useFolderUpload({
     run.handle = running;
     const settle = (report: FolderUploadReport) => {
       begin();
+      const title = report.root?.title ?? plan.rootTitle ?? destination.name;
       uploadToast.current?.settle({
-        title: report.root.title,
+        title,
         total: report.total,
         done: report.done,
         failed: report.failed.length,
         canceled: report.canceled,
         expired: report.expired,
         onOpenFolder: () => {
-          if (report.root.id) latest.current.onOpenFolder(report.root.id);
+          if (report.root?.id) latest.current.onOpenFolder(report.root.id);
         },
-        onViewFailures: () => showReport(report.root.title, report, running),
+        onViewFailures: () => showReport(title, report, running),
       });
     };
     running.done.then(settle, (failure: unknown) => {
@@ -243,7 +244,7 @@ export function useFolderUpload({
       const report = await handle.retryFailed();
       if (report.failed.length === 0) {
         setReportView(null);
-        toast.success(t("documents.folder_upload.toast.success", { count: report.done, name: report.root.title }));
+        toast.success(t("documents.folder_upload.toast.success", { count: report.done, name: report.root?.title ?? name }));
       } else {
         setReportView({ name, report, handle });
       }

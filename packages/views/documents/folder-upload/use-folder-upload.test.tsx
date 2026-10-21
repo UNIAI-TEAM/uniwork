@@ -213,7 +213,8 @@ describe("useFolderUpload", () => {
   it("shows the partial result, the report with the reason per file, and retries only on request", async () => {
     const { transport } = setup(
       {},
-      { fileErrors: { "b.pdf": { code: "storage_quota_exceeded", message: "" } } },
+      // upload_missing keeps the file pending at the server, so it can be retried.
+      { fileErrors: { "b.pdf": { code: "upload_missing", message: "" } } },
     );
     stage(entries("Mới", ["a.pdf", "b.pdf"]));
     upload();
@@ -225,7 +226,7 @@ describe("useFolderUpload", () => {
     });
 
     expect(await screen.findByText("Mới/b.pdf")).toBeInTheDocument();
-    expect(screen.getByText(t("documents.folder_upload.report.reason.storage_quota_exceeded"))).toBeInTheDocument();
+    expect(screen.getByText(t("documents.folder_upload.report.reason.upload_missing"))).toBeInTheDocument();
     expect(transport.calls.filter((c) => c.method === "status")).toHaveLength(0);
     fireEvent.click(screen.getByRole("button", { name: t("documents.folder_upload.report.retry") }));
     await waitFor(() => expect(transport.calls.some((c) => c.method === "status")).toBe(true));
