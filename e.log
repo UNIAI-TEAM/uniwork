@@ -1,0 +1,4 @@
+$ docker build -f server/Dockerfile -t pr7r7-server:801c7371c server > /tmp/pr7r7-docker.log 2>&1; rc=$?; tail -25 /tmp/pr7r7-docker.log | cut -c1-250; echo; echo "DOCKER_BUILD_EXIT=$rc"
+bash: line 1: docker: command not found
+
+DOCKER_BUILD_EXIT=127

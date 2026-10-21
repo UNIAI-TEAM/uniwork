@@ -1,0 +1,7 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin advisor/pr7-rehearsal; git rev-parse HEAD FETCH_HEAD; git log --oneline -2; test "$(git rev-parse HEAD)" = "$(git rev-parse FETCH_HEAD)"; rc=$?; echo; echo "SYNCED_EXIT=$rc"
+801c7371c15132eb5c879d0b310228132d0f4015
+801c7371c15132eb5c879d0b310228132d0f4015
+801c7371c ci: move govulncheck and the server image to go1.27.3
+7abf4622d chore: merge develop (76a8aadb0) into the G5-G7 root
+
+SYNCED_EXIT=0

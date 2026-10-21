@@ -1,0 +1,5 @@
+$ grep -E "GOVULN_GO_VERSION:|GO_VERSION:" .github/workflows/ci.yml; head -1 server/Dockerfile
+  GO_VERSION: "1.27.0"
+  GOVULN_GO_VERSION: "1.27.3"
+      # on GO_VERSION: staticcheck v0.8.1 cannot read go1.27.2 export data
+FROM golang:1.27.3-alpine AS build

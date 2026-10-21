@@ -1,0 +1,3 @@
+$ docker version --format '{{.Server.Version}}' 2>&1 | tail -2; rc=$?; echo "DOCKER_AVAILABLE_EXIT=$rc"
+bash: line 1: docker: command not found
+DOCKER_AVAILABLE_EXIT=0

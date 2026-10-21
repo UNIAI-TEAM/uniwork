@@ -1,0 +1,4 @@
+$ docker run --rm --entrypoint ls pr7r7-server:801c7371c -la /usr/local/bin/server /usr/local/bin/migrate /usr/local/bin/graph-rebuild 2>&1; rc=$?; docker image ls pr7r7-server --format '{{.Repository}}:{{.Tag}} {{.Size}}'; echo "IMAGE_BINARIES_EXIT=$rc"
+bash: line 1: docker: command not found
+bash: line 1: docker: command not found
+IMAGE_BINARIES_EXIT=127
