@@ -36,3 +36,38 @@ export function linkWindows(ids: readonly string[]): string[][] {
   if (current.length > 0) windows.push(current);
   return windows;
 }
+
+/** What the screen reads of a message link (data/chat-api.ts › MessageLinkSchema). */
+interface MessageLink {
+  message_id: string;
+  target_type: string;
+  target_id: string;
+}
+
+/**
+ * The task ids under each message, from each window's answer. A window still
+ * waiting for one (its key changed when a message joined it, or an older page
+ * merged into it) keeps the ids its messages showed before, so their cards stay
+ * and their rows do not redraw until the answer comes. The query's
+ * `keepPreviousData` cannot do this: `useQueries` gives a changed key a new
+ * observer, which has no previous data to keep.
+ */
+export function taskIdsByMessage(
+  windows: readonly (readonly string[])[],
+  answers: readonly (readonly MessageLink[] | undefined)[],
+  previous: ReadonlyMap<string, readonly string[]>,
+): Map<string, readonly string[]> {
+  const map = new Map<string, readonly string[]>();
+  windows.forEach((ids, i) => {
+    const answer = answers[i];
+    if (!answer) {
+      for (const id of ids) {
+        const kept = previous.get(id);
+        if (kept) map.set(id, kept);
+      }
+      return;
+    }
+    for (const link of answer) if (link.target_type === "task") map.set(link.message_id, [...(map.get(link.message_id) ?? []), link.target_id]);
+  });
+  return map;
+}

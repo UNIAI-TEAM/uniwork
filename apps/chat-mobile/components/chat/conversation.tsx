@@ -30,7 +30,7 @@ import { toggleReaction, votePoll } from "@/data/pending-ops";
 import { followUpsOptions, roomLinksOptions } from "@/data/queries/chat";
 import { chatRoutes } from "@/lib/chat-routes";
 import { continuedRunKeys } from "@/lib/conversation-display";
-import { linkWindows } from "@/lib/link-windows";
+import { linkWindows, taskIdsByMessage as readTaskIds } from "@/lib/link-windows";
 import { deserializeMessageBodyToComposerDraft } from "@/lib/mentions";
 import { messagePreviewText } from "@/lib/message-display";
 import { buildMessageRowModels, type MessageRowModel, type Receipt } from "@/lib/message-row-model";
@@ -63,8 +63,8 @@ const WALL_DOTS = { light: wallDotsLight, dark: wallDotsDark };
 
 type ChatMessageLink = Awaited<ReturnType<typeof chatApi.listRoomMessageLinks>>[number];
 
-/** Every window's links as one list; TanStack keeps it the same array while no answer changed. */
-const allLinks = (results: UseQueryResult<ChatMessageLink[]>[]): ChatMessageLink[] => results.flatMap((result) => result.data ?? []);
+/** Each window's answer, or undefined while it has none; TanStack keeps the same array while no answer changed. */
+const windowAnswers = (results: UseQueryResult<ChatMessageLink[]>[]): (ChatMessageLink[] | undefined)[] => results.map((result) => result.data);
 
 interface Props {
   chat: ChatWorkspace;
@@ -147,14 +147,16 @@ export function Conversation(props: Props) {
   );
 
   // The tasks made from the messages on screen, one request per window of lib/link-windows.ts (the web's
-  // chat-message-links-context): a new message refetches the newest window, not everything shown.
+  // chat-message-links-context): a new message refetches the newest window, not everything shown. A window
+  // whose key just changed keeps the cards its messages had until its answer comes (readTaskIds).
   const windows = useMemo(() => linkWindows(messages.flatMap((m) => (m.record ? [m.id] : []))), [messages]);
-  const links = useQueries({ queries: windows.map((ids) => roomLinksOptions(wsId, roomId, ids)), combine: allLinks });
+  const answers = useQueries({ queries: windows.map((ids) => roomLinksOptions(wsId, roomId, ids)), combine: windowAnswers });
+  const previousTaskIds = useRef<ReadonlyMap<string, readonly string[]>>(new Map());
   const taskIdsByMessage = useMemo(() => {
-    const map = new Map<string, string[]>();
-    for (const link of links) if (link.target_type === "task") map.set(link.message_id, [...(map.get(link.message_id) ?? []), link.target_id]);
-    return map;
-  }, [links]);
+    const next = readTaskIds(windows, answers, previousTaskIds.current);
+    previousTaskIds.current = next;
+    return next;
+  }, [windows, answers]);
   const followUps = useQuery(followUpsOptions(wsId)).data;
   const openFollowUp = (messageId: string) => followUps?.find((f) => f.message_id === messageId && !f.completed_at) ?? null;
   // The quote goes with this message only: cleared now, not when a slow delivery ends.

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { linkWindows } from "./link-windows";
+import { linkWindows, taskIdsByMessage } from "./link-windows";
 
 const ulids = (count: number, from = 0) => Array.from({ length: count }, (_, i) => `01JA${String(from + i).padStart(22, "0")}`);
 const keys = (windows: string[][]) => windows.map((w) => w.join(","));
@@ -37,5 +37,28 @@ describe("linkWindows", () => {
     const withOlder = keys(linkWindows([...ulids(100, 0), ...ids]));
     // Every window after the first boundary inside the visible ids is unchanged.
     expect(withOlder.slice(-(before.length - 1))).toEqual(before.slice(1));
+  });
+});
+
+describe("taskIdsByMessage", () => {
+  const link = (message_id: string, target_id: string, target_type = "task") => ({ message_id, target_id, target_type });
+
+  it("reads the tasks of every answered window, several per message, and skips other targets", () => {
+    const map = taskIdsByMessage(
+      [["a", "b"], ["c"]],
+      [[link("a", "t1"), link("a", "t2"), link("b", "d1", "document")], [link("c", "t3")]],
+      new Map(),
+    );
+    expect(Object.fromEntries(map)).toEqual({ a: ["t1", "t2"], c: ["t3"] });
+  });
+
+  it("a window waiting for its answer keeps what its messages showed; an answered one replaces it", () => {
+    const previous = new Map([
+      ["a", ["t1"]],
+      ["c", ["t3"]],
+    ]);
+    const map = taskIdsByMessage([["a", "b"], ["c", "d"]], [undefined, []], previous);
+    expect(Object.fromEntries(map)).toEqual({ a: ["t1"] });
+    expect(map.get("a")).toBe(previous.get("a"));
   });
 });
