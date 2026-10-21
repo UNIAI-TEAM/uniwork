@@ -1447,6 +1447,7 @@ LEFT JOIN (
   WHERE a.organization_id = $1
     AND a.workspace_id = $2
     AND a.actor_id = $3::text
+    AND a.via IS DISTINCT FROM 'ai_context'
   GROUP BY a.document_id
 ) op ON op.document_id = d.id
 LEFT JOIN (
@@ -1639,6 +1640,8 @@ type ListRecentDocumentsPageRow struct {
 // no per-edit history, versions are snapshots) and their last live comment. The
 // two aggregates read the caller's own rows once instead of probing every
 // document (a probe per row cost seconds on a 10k-document workspace).
+// UNI-2045 F3: a read the AI context made on the caller's behalf (via =
+// 'ai_context') is not the caller opening the document, so it is left out.
 // UNI-2038 S3: the sort keys of a row, computed once. The name key is the
 // title itself under the Vietnamese ICU collation (Đ sorts after D, tones and
 // case variants stay together, whatever the database locale is); the size key is the current

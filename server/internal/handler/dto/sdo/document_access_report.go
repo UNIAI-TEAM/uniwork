@@ -9,7 +9,7 @@ type DocumentAccessReportSDO struct {
 	GeneratedAt string                            `json:"generated_at" description:"Thời điểm server đọc, RFC3339 UTC" example:"2026-10-15T03:40:00Z"`
 	Documents   []DocumentAccessReportDocumentDTO `json:"documents" description:"Tài liệu người gọi quản lý trên trang này, theo id tăng dần"`
 	Summary     DocumentAccessReportSummaryDTO    `json:"summary" description:"Số đếm của trang này"`
-	NextCursor  *string                           `json:"next_cursor" description:"Cursor trang kế; null khi hết. Trang có thể ngắn hoặc rỗng mà vẫn còn cursor" example:"eyJpZCI6IjAxSjhYNERPQzBOMVAyUTNSNFM1VDZVNyJ9"`
+	NextCursor  *string                           `json:"next_cursor" description:"Cursor trang kế (chuỗi mờ, gửi lại nguyên vẹn); null khi hết. Trang có thể ngắn hoặc rỗng mà vẫn còn cursor" example:"acr1.opaque-cursor"`
 }
 
 // DocumentAccessReportScopeDTO echoes the resolved scope of the report.
