@@ -449,6 +449,21 @@ describe("AccessReportPeople - open row", () => {
   });
 });
 
+describe("AccessReportPeople - workspace member count", () => {
+  it("reads a one-member workspace in the singular (en)", async () => {
+    serve(undefined, {
+      generated_at: "x",
+      principals: [{ ...principals[0], member_count: 1 }],
+      truncated: false,
+    });
+    renderPeople();
+    expect(await screen.findByText(at("kind_home_workspace", { count: 1 }))).toBeInTheDocument();
+    // English splits one from many; the row passes the count the plural needs.
+    expect(at("kind_home_workspace", { count: 1, lng: "en" })).toBe("Whole workspace · 1 member");
+    expect(at("kind_home_workspace", { count: 24, lng: "en" })).toBe("Whole workspace · 24 members");
+  });
+});
+
 describe("AccessReportPeople - row identity", () => {
   it("opens only the row that was clicked when two principals share a param but not a kind", async () => {
     const twin = { principal_type: "user", principal_id: "u2", principal_name: "Hưng Nguyễn Duy", member_count: null, document_count: 2, levels: levels(0, 0, 1, 1), main_source: "direct" };

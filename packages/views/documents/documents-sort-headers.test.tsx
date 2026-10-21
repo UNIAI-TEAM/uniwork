@@ -93,10 +93,6 @@ function source(over: Record<string, unknown> = {}) {
   };
 }
 
-function favorite(over: Record<string, unknown> = {}) {
-  return { document_id: "fav-1", workspace_id: WS, title: "Báo giá.docx", kind: "file", ...over };
-}
-
 interface Routes {
   tree?: () => unknown[];
   list?: (path: string) => unknown[];
@@ -104,6 +100,8 @@ interface Routes {
   sources?: (path: string) => unknown[];
   sourcesCursor?: (path: string) => string | null;
   favorites?: () => unknown[];
+  /** The Starred screen's rows, GET {LIST_BASE}/favorites (UNI-2045 SV-2). */
+  starred?: () => unknown[];
   detail?: (id: string) => unknown;
 }
 
@@ -119,6 +117,7 @@ function route(routes: Routes) {
     };
     if (path.startsWith(TREE_URL)) return run(() => ({ documents: routes.tree?.() ?? [] }));
     if (path === FAVORITES_URL) return run(() => ({ favorites: routes.favorites?.() ?? [] }));
+    if (path.startsWith(`${LIST_BASE}/favorites`)) return run(() => ({ documents: routes.starred?.() ?? [], next_cursor: null }));
     if (path.startsWith(`${LIST_BASE}/sources`) && method === "GET") {
       return run(() => ({ items: routes.sources?.(path) ?? [], next_cursor: routes.sourcesCursor?.(path) ?? null }));
     }
@@ -152,6 +151,15 @@ const sortButton = (column: "name" | "editor" | "updated" | "size") =>
   });
 const headerOf = (column: "name" | "editor" | "updated" | "size") =>
   screen.getByRole("columnheader", { name: new RegExp(`^${escape(t(`documents.home.columns.${column}`))}`) });
+const headers = () => screen.getAllByRole("columnheader");
+const headerByLabel = (label: string) => headers().find((th) => th.textContent?.startsWith(label))!;
+const labelOf = (id: string) => t(`documents.list.screen_column.${id}`);
+const buttonByLabel = (label: string) =>
+  screen.findByRole("button", { name: new RegExp(`^${escape(t("documents.home.sort.column", { column: label }))}`) });
+/** The headers that claim a direction: one, the sorted column. */
+const sortedHeaders = () => headers().filter((th) => ["ascending", "descending"].includes(th.getAttribute("aria-sort") ?? ""));
+const sortedLabels = () => sortedHeaders().map((th) => th.textContent);
+const groupHeaders = () => Array.from(document.querySelectorAll("[data-library-group]")).map((cell) => cell.textContent);
 const rowOrder = () => Array.from(document.querySelectorAll("[data-library-row]")).map((tr) => tr.getAttribute("data-library-row"));
 
 /** Serves each list in the order its own `sort`/`order` ask for, from titles by id. */
@@ -280,9 +288,9 @@ describe("the table headers sort (UNI-2038 S2)", () => {
   });
 
   it.each([
-    ["recent", "recent", `${LIST_BASE}/recent`],
-    ["shared", "shared", `${LIST_BASE}/shared-with-me`],
-  ])("%s view: the request carries sort/order and a header click changes it", async (_name, view, base) => {
+    ["recent", "recent", `${LIST_BASE}/recent`, "activity"],
+    ["shared", "shared", `${LIST_BASE}/shared-with-me`, "shared"],
+  ])("%s view: the request and the arrow carry its own order until a header click picks a column (UNI-2045 W11, W12)", async (_name, view, base, own) => {
     requestMock.mockImplementation((path: string) => {
       const p = String(path);
       if (p.startsWith(TREE_URL)) return Promise.resolve({ documents: [] });
@@ -293,9 +301,13 @@ describe("the table headers sort (UNI-2038 S2)", () => {
     });
     renderView(`/org/${WS}/documents?view=${view}`);
     await screen.findByText("An");
-    expect(lastQuery(calls(base, true)).get("sort")).toBe("updated");
+    // Untouched, the list asks for the screen's own order so its date groups hold under paging.
+    expect(lastQuery(calls(base, true)).get("sort")).toBe(own);
     expect(lastQuery(calls(base, true)).get("order")).toBe("desc");
-    expect(headerOf("updated")).toHaveAttribute("aria-sort", "descending");
+    // The arrow is on the screen's own column, never on Cập nhật while the list is in its own order (W12).
+    expect(headerByLabel(labelOf(own))).toHaveAttribute("aria-sort", "descending");
+    expect(headerOf("updated")).toHaveAttribute("aria-sort", "none");
+    expect(sortedLabels()).toEqual([labelOf(own)]);
     fireEvent.click(await sortButton("name"));
     await waitFor(() => expect(rowOrder()).toEqual(["d-a", "d-b", "d-c"]));
     expect(lastQuery(calls(base, true)).get("sort")).toBe("name");
@@ -308,9 +320,12 @@ describe("the table headers sort (UNI-2038 S2)", () => {
     await screen.findByText("An");
     const q = lastQuery(listCalls());
     expect(q.get("shared_by_me")).toBe("true");
-    expect(q.get("sort")).toBe("updated");
+    // SV-4: its own order, the latest share, until a column is picked (W12).
+    expect(q.get("sort")).toBe("shared");
     expect(q.get("order")).toBe("desc");
     expect(q.has("parent_id")).toBe(false);
+    expect(sortedLabels()).toEqual([labelOf("shared_with")]);
+    expect(headerOf("updated")).toHaveAttribute("aria-sort", "none");
     fireEvent.click(await sortButton("name"));
     await waitFor(() => expect(lastQuery(listCalls()).get("sort")).toBe("name"));
     expect(lastQuery(listCalls()).get("shared_by_me")).toBe("true");
@@ -320,16 +335,17 @@ describe("the table headers sort (UNI-2038 S2)", () => {
   it("starred view: sorts the loaded favorites on the client without a list refetch", async () => {
     route({
       list: () => [],
-      favorites: () => [
-        favorite({ document_id: "s-b", title: "Bình.docx" }),
-        favorite({ document_id: "s-a", title: "An.docx" }),
-        favorite({ document_id: "s-c", title: "Chi.docx" }),
+      starred: () => [
+        summary({ id: "s-b", kind: "file", title: "Bình.docx" }),
+        summary({ id: "s-a", kind: "file", title: "An.docx" }),
+        summary({ id: "s-c", kind: "file", title: "Chi.docx" }),
       ],
     });
     renderView(`/org/${WS}/documents?view=starred`);
     await screen.findByText("An.docx");
     const before = requestMock.mock.calls.length;
     expect(listCalls().every((path) => !queryOf(path).get("sort"))).toBe(true);
+    expect(requestMock.mock.calls.some(([path]) => String(path) === `${LIST_BASE}/favorites?limit=50`)).toBe(true);
 
     fireEvent.click(await sortButton("name"));
     await waitFor(() => expect(rowOrder()).toEqual(["s-a", "s-b", "s-c"]));
@@ -371,7 +387,7 @@ describe("the table headers sort (UNI-2038 S2)", () => {
     await screen.findByText("An");
     fireEvent.click(await sortButton("name"));
     await waitFor(() => expect(rowOrder()).toEqual(["d-a", "d-b", "d-c"]));
-    expect(JSON.parse(defaultStorage.getItem("uniwork_documents_sort:u1")!)).toEqual({ column: "name", order: "asc" });
+    expect(JSON.parse(defaultStorage.getItem("uniwork_documents_sort:u1")!)).toEqual({ workspace: { column: "name", order: "asc" } });
     first.unmount();
 
     requestMock.mockClear();
@@ -389,14 +405,246 @@ describe("the table headers sort (UNI-2038 S2)", () => {
     expect(headerOf("name")).toHaveAttribute("aria-sort", "ascending");
     expect(queryOf(listCalls()[0]!).get("sort")).toBe("name");
     expect(defaultStorage.getItem("uniwork_documents_folder_sort:u1")).toBeNull();
-    expect(JSON.parse(defaultStorage.getItem("uniwork_documents_sort:u1")!)).toEqual({ column: "name", order: "asc" });
+    expect(JSON.parse(defaultStorage.getItem("uniwork_documents_sort:u1")!)).toEqual({ workspace: { column: "name", order: "asc" } });
   });
 
-  it("Lưu trữ and Thùng rác keep plain headers and send no sort", async () => {
+  it("Lưu trữ asks for sort=shelved&order=desc, marks its own column, and re-asks for the S3 column on a click (W12, SV-0)", async () => {
     route({ list: sortedBy(ROWS) });
     renderView(`/org/${WS}/documents?view=shelved`);
-    await screen.findByRole("table");
+    await screen.findByText("An");
+    const first = lastQuery(listCalls());
+    expect(first.get("shelved")).toBe("true");
+    expect(first.get("sort")).toBe("shelved");
+    expect(first.get("order")).toBe("desc");
+    expect(sortedLabels()).toEqual([labelOf("shelved")]);
+    fireEvent.click(await sortButton("name"));
+    await waitFor(() => expect(lastQuery(listCalls()).get("sort")).toBe("name"));
+    expect(lastQuery(listCalls()).get("order")).toBe("asc");
+    expect(lastQuery(listCalls()).get("shelved")).toBe("true");
+    expect(sortedLabels()).toEqual([t("documents.home.columns.name")]);
+  });
+});
+
+// UNI-2045 W12: the sort is one entry per screen. A screen with a screen
+// column shows it sorted descending until a column is picked; the screen
+// column toggles, any other column sends the S3 key; a pick on one screen
+// never reaches another.
+describe("the default sort of each screen (UNI-2045 W12)", () => {
+  const recentUrl = `${LIST_BASE}/recent`;
+  const sharedUrl = `${LIST_BASE}/shared-with-me`;
+  const SCREENS = [
+    { view: "recent", own: "activity", base: recentUrl },
+    { view: "shared", own: "shared", base: sharedUrl },
+    { view: "shared-by-me", own: "shared_with", base: LIST_BASE },
+    { view: "shelved", own: "shelved", base: LIST_BASE },
+  ] as const;
+  const KEY: Record<string, string> = { activity: "activity", shared: "shared", shared_with: "shared", shelved: "shelved" };
+
+  function serve(rows = ROWS) {
+    requestMock.mockImplementation((path: string) => {
+      const p = String(path);
+      if (p.startsWith(TREE_URL)) return Promise.resolve({ documents: [] });
+      if (p === FAVORITES_URL) return Promise.resolve({ favorites: [] });
+      if (p.startsWith(`${LIST_BASE}/sources`)) return Promise.resolve({ items: [], next_cursor: null });
+      if (p.startsWith(`${LIST_BASE}/favorites`)) return Promise.resolve({ documents: [], next_cursor: null });
+      if (p.startsWith(LIST_BASE)) return Promise.resolve({ documents: sortedBy(rows)(p), next_cursor: null });
+      return Promise.resolve({});
+    });
+  }
+
+  it.each(SCREENS)("$view: default request, one arrow on the screen column, a click toggles it and another column sends its S3 key", async ({ view, own, base }) => {
+    serve();
+    renderView(`/org/${WS}/documents?view=${view}`);
+    await screen.findByText("An");
+    const asked = () => lastQuery(calls(base, true));
+    expect(asked().get("sort")).toBe(KEY[own]);
+    expect(asked().get("order")).toBe("desc");
+    expect(sortedLabels()).toEqual([labelOf(own)]);
+    expect(headerByLabel(labelOf(own))).toHaveAttribute("aria-sort", "descending");
+
+    fireEvent.click(await buttonByLabel(labelOf(own)));
+    await waitFor(() => expect(asked().get("order")).toBe("asc"));
+    expect(asked().get("sort")).toBe(KEY[own]);
+    expect(headerByLabel(labelOf(own))).toHaveAttribute("aria-sort", "ascending");
+    fireEvent.click(await buttonByLabel(labelOf(own)));
+    await waitFor(() => expect(asked().get("order")).toBe("desc"));
+    expect(headerByLabel(labelOf(own))).toHaveAttribute("aria-sort", "descending");
+
+    fireEvent.click(await sortButton("size"));
+    await waitFor(() => expect(asked().get("sort")).toBe("size"));
+    expect(asked().get("order")).toBe("desc");
+    expect(sortedLabels()).toEqual([t("documents.home.columns.size")]);
+    expect(headerByLabel(labelOf(own))).toHaveAttribute("aria-sort", "none");
+  });
+
+  it("the workspace home has no screen column: Cập nhật is its default and the only arrow", async () => {
+    serve();
+    renderView();
+    await screen.findByText("An");
+    expect(lastQuery(listCalls()).get("sort")).toBe("updated");
+    expect(lastQuery(listCalls()).get("order")).toBe("desc");
+    expect(sortedLabels()).toEqual([t("documents.home.columns.updated")]);
+  });
+
+  it("Có gắn sao: the starred date descending by default, ordered on the client, no sort in the request", async () => {
+    route({
+      starred: () => [
+        summary({ id: "s-old", kind: "file", title: "Cũ.docx", favorited_at: "2026-10-01T00:00:00Z" }),
+        summary({ id: "s-new", kind: "file", title: "Mới.docx", favorited_at: "2026-10-05T00:00:00Z" }),
+        summary({ id: "s-mid", kind: "file", title: "Giữa.docx", favorited_at: "2026-10-03T00:00:00Z" }),
+      ],
+    });
+    renderView(`/org/${WS}/documents?view=starred`);
+    await screen.findByText("Mới.docx");
+    expect(rowOrder()).toEqual(["s-new", "s-mid", "s-old"]);
+    expect(sortedLabels()).toEqual([labelOf("starred")]);
+    expect(headerByLabel(labelOf("starred"))).toHaveAttribute("aria-sort", "descending");
+    fireEvent.click(await buttonByLabel(labelOf("starred")));
+    await waitFor(() => expect(rowOrder()).toEqual(["s-old", "s-mid", "s-new"]));
+    expect(headerByLabel(labelOf("starred"))).toHaveAttribute("aria-sort", "ascending");
+    fireEvent.click(await sortButton("name"));
+    await waitFor(() => expect(rowOrder()).toEqual(["s-old", "s-mid", "s-new"]));
+    expect(sortedLabels()).toEqual([t("documents.home.columns.name")]);
     expect(listCalls().every((path) => !queryOf(path).get("sort"))).toBe(true);
+  });
+
+  it("Thùng rác: always deleted ascending, the headers are plain, the groups stay", async () => {
+    route({
+      list: () => [
+        summary({ id: "t1", title: "Sắp xóa", archived_at: "2026-10-01T00:00:00Z", purge_after: new Date(Date.now() + 2 * 86_400_000).toISOString() }),
+        summary({ id: "t2", title: "Còn lâu", archived_at: "2026-10-18T00:00:00Z", purge_after: new Date(Date.now() + 20 * 86_400_000).toISOString() }),
+      ],
+    });
+    renderView(`/org/${WS}/documents?view=archived`);
+    await screen.findByText("Sắp xóa");
+    expect(lastQuery(listCalls()).get("archived")).toBe("1");
+    expect(lastQuery(listCalls()).get("sort")).toBe("deleted");
+    expect(lastQuery(listCalls()).get("order")).toBe("asc");
     expect(screen.queryAllByRole("button", { name: /^Sắp xếp theo|^Sort by/ })).toHaveLength(0);
+    expect(sortedHeaders()).toHaveLength(0);
+    expect(groupHeaders()).toHaveLength(2);
+  });
+
+  it("a column picked on Gần đây changes neither the home table nor Được chia sẻ với tôi, and each screen reads its own entry back", async () => {
+    serve();
+    const first = renderView(`/org/${WS}/documents?view=recent`);
+    await screen.findByText("An");
+    fireEvent.click(await sortButton("name"));
+    await waitFor(() => expect(lastQuery(calls(recentUrl, true)).get("sort")).toBe("name"));
+    expect(JSON.parse(defaultStorage.getItem("uniwork_documents_sort:u1")!)).toEqual({ recent: { column: "name", order: "asc" } });
+    first.unmount();
+
+    requestMock.mockClear();
+    const home = renderView();
+    await screen.findByText("An");
+    expect(lastQuery(listCalls()).get("sort")).toBe("updated");
+    expect(sortedLabels()).toEqual([t("documents.home.columns.updated")]);
+    home.unmount();
+
+    requestMock.mockClear();
+    const shared = renderView(`/org/${WS}/documents?view=shared`);
+    await screen.findByText("An");
+    expect(lastQuery(calls(sharedUrl, true)).get("sort")).toBe("shared");
+    expect(sortedLabels()).toEqual([labelOf("shared")]);
+    shared.unmount();
+
+    requestMock.mockClear();
+    renderView(`/org/${WS}/documents?view=recent`);
+    await screen.findByText("An");
+    expect(lastQuery(calls(recentUrl, true)).get("sort")).toBe("name");
+    expect(lastQuery(calls(recentUrl, true)).get("order")).toBe("asc");
+    expect(sortedLabels()).toEqual([t("documents.home.columns.name")]);
+  });
+
+  it("an open folder shares the workspace entry with the home table", async () => {
+    defaultStorage.setItem("uniwork_documents_sort:u1", JSON.stringify({ workspace: { column: "name", order: "asc" } }));
+    route({
+      tree: () => [{ id: "fo1", title: "Dự án CCB", kind: "folder", position: 0, children: [] }],
+      detail: (id) => (id === "fo1" ? folderDetail() : null),
+      list: (path) => (queryOf(path).get("parent_id") === "fo1" ? ROWS.map((r) => summary({ ...r, parent_id: "fo1" })) : []),
+    });
+    renderView(`/org/${WS}/documents?folder=fo1`);
+    await screen.findByText("An");
+    expect(rowOrder()).toEqual(["d-a", "d-b", "d-c"]);
+    expect(sortedLabels()).toEqual([t("documents.home.columns.name")]);
+  });
+
+  it("reads the old single value once as the workspace entry; the other screens start from their own default", async () => {
+    defaultStorage.setItem("uniwork_documents_sort:u1", JSON.stringify({ column: "size", order: "asc" }));
+    serve();
+    const home = renderView();
+    await screen.findByText("An");
+    expect(lastQuery(listCalls()).get("sort")).toBe("size");
+    expect(lastQuery(listCalls()).get("order")).toBe("asc");
+    expect(JSON.parse(defaultStorage.getItem("uniwork_documents_sort:u1")!)).toEqual({ workspace: { column: "size", order: "asc" } });
+    home.unmount();
+    requestMock.mockClear();
+    renderView(`/org/${WS}/documents?view=recent`);
+    await screen.findByText("An");
+    expect(lastQuery(calls(recentUrl, true)).get("sort")).toBe("activity");
+    expect(sortedLabels()).toEqual([labelOf("activity")]);
+  });
+
+  it("falls back to every screen's default when storage throws, and a click still sorts", async () => {
+    const get = vi.spyOn(defaultStorage, "getItem").mockImplementation(() => {
+      throw new Error("SecurityError");
+    });
+    const set = vi.spyOn(defaultStorage, "setItem").mockImplementation(() => {
+      throw new Error("QuotaExceededError");
+    });
+    try {
+      serve();
+      renderView(`/org/${WS}/documents?view=recent`);
+      await screen.findByText("An");
+      expect(lastQuery(calls(recentUrl, true)).get("sort")).toBe("activity");
+      expect(sortedLabels()).toEqual([labelOf("activity")]);
+      fireEvent.click(await sortButton("name"));
+      await waitFor(() => expect(lastQuery(calls(recentUrl, true)).get("sort")).toBe("name"));
+      expect(sortedLabels()).toEqual([t("documents.home.columns.name")]);
+    } finally {
+      get.mockRestore();
+      set.mockRestore();
+    }
+  });
+
+  describe.each([
+    { view: "recent", base: recentUrl, own: "activity", row: (id: string, title: string, at: string) => ({ id, title, last_activity: { kind: "edited", at } }) },
+    { view: "shared", base: sharedUrl, own: "shared", row: (id: string, title: string, at: string) => ({ id, title, shared: { by: "u2", by_kind: "human", by_name: "Dũng", at } }) },
+  ])("the date groups of $view", ({ view, base, own, row }) => {
+    const rows = () => {
+      const now = Date.now();
+      return [
+        row("g1", "Vừa xong", new Date(now - 60_000).toISOString()),
+        row("g2", "Cũ hơn", "2024-01-05T00:00:00Z"),
+      ].map((r) => summary(r));
+    };
+    const serveGroups = () =>
+      requestMock.mockImplementation((path: string) => {
+        const p = String(path);
+        if (p.startsWith(TREE_URL)) return Promise.resolve({ documents: [] });
+        if (p === FAVORITES_URL) return Promise.resolve({ favorites: [] });
+        if (p.startsWith(`${LIST_BASE}/sources`)) return Promise.resolve({ items: [], next_cursor: null });
+        if (p.split("?")[0] === base) return Promise.resolve({ documents: rows(), next_cursor: null });
+        return Promise.resolve({ documents: [], next_cursor: null });
+      });
+
+    it("show while the screen column is sorted descending and go away under any other sort", async () => {
+      serveGroups();
+      renderView(`/org/${WS}/documents?view=${view}`);
+      await screen.findAllByText("Vừa xong"); // the Mở tiếp card repeats a title (W14)
+      expect(groupHeaders().length).toBeGreaterThan(0);
+
+      fireEvent.click(await sortButton("name"));
+      await waitFor(() => expect(groupHeaders()).toEqual([]));
+      // The screen column again: descending is its own order, so the groups return.
+      fireEvent.click(await buttonByLabel(labelOf(own)));
+      await waitFor(() => expect(lastQuery(calls(base, true)).get("sort")).toBe(own));
+      expect(lastQuery(calls(base, true)).get("order")).toBe("desc");
+      await waitFor(() => expect(groupHeaders().length).toBeGreaterThan(0));
+      // Ascending is the reverse of the groups' order: flat.
+      fireEvent.click(await buttonByLabel(labelOf(own)));
+      await waitFor(() => expect(lastQuery(calls(base, true)).get("order")).toBe("asc"));
+      await waitFor(() => expect(groupHeaders()).toEqual([]));
+    });
   });
 });

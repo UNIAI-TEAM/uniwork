@@ -1,34 +1,77 @@
-import type { DocumentSortColumn, DocumentSortOrder } from "@uniwork/core/api/endpoints/documents-collections";
+import type { DocumentScreenSort, DocumentSortColumn } from "@uniwork/core/api/endpoints/documents-collections";
 import { defaultStorage } from "@uniwork/core/platform";
 import type { StorageAdapter } from "@uniwork/core/types/storage";
+import { DOC_LIST_SCREENS, docListSpec, nextDocListSort, type DocListScreen, type DocListSortKey, type DocListSortOrder } from "./doclist/columns";
 import { rowSizeBytes, rowTitle, rowUpdatedAt, type LibraryRow } from "./library-rows";
 
-// The column sort of the documents tables (UNI-2038 S2). `{ column, order }`
-// is one piece of state per viewer; the lists that page on the server send it
-// as `sort`/`order` and show the server's order untouched, the lists that are
+// The column sort of the documents tables (UNI-2038 S2, UNI-2045 W12).
+// `{ column, order }` is one piece of state per viewer *per screen*: a screen
+// with a screen column (Gần đây, Có gắn sao, the two Shared lists, Lưu trữ)
+// starts on that column, newest first, and a column picked on one screen never
+// reaches another. The lists that page on the server send the sort as
+// `sort`/`order` and show the server's order untouched, the lists that are
 // loaded in full (Starred, an open folder) are ordered here.
 
-export type LibrarySortColumn = DocumentSortColumn;
-export type LibrarySortOrder = DocumentSortOrder;
+export type LibrarySortColumn = DocListSortKey;
+export type LibrarySortOrder = DocListSortOrder;
 
 export interface LibrarySort {
   column: LibrarySortColumn;
   order: LibrarySortOrder;
 }
 
-export const DEFAULT_LIBRARY_SORT: LibrarySort = { column: "updated", order: "desc" };
+/** What the viewer picked, per screen; a screen that is not in the map is in its default order. */
+export type LibrarySortMap = Partial<Record<DocListScreen, LibrarySort>>;
 
-/** The header cells that sort: Truy cập (computed per viewer after the query) and Thao tác never do. */
-export const SORTABLE_COLUMNS: readonly string[] = ["name", "editor", "updated", "size"];
+const DEFAULTS = new Map<DocListScreen, LibrarySort>();
 
-export function isSortableColumn(id: string): id is LibrarySortColumn {
-  return SORTABLE_COLUMNS.includes(id);
+/**
+ * The order a screen shows until a column is picked: its screen column,
+ * newest first (Thùng rác: Đã xóa, the soonest to go first, and fixed); on the
+ * workspace, which has no screen column, Cập nhật. One object per screen, so a
+ * caller may compare it by reference.
+ */
+export function defaultSortOf(screen: DocListScreen): LibrarySort {
+  let sort = DEFAULTS.get(screen);
+  if (!sort) {
+    const { key, order } = docListSpec(screen).defaultSort;
+    sort = { column: key, order };
+    DEFAULTS.set(screen, sort);
+  }
+  return sort;
 }
 
-/** What a header click does: a new column starts ascending (Cập nhật and Dung lượng: newest/largest first), the sorted column flips. */
+export const DEFAULT_LIBRARY_SORT: LibrarySort = defaultSortOf("workspace");
+
+/** The sort a screen shows: the viewer's pick, else its default. The trash is fixed. */
+export function sortOf(sorts: LibrarySortMap, screen: DocListScreen): LibrarySort {
+  return (screen === "trash" ? undefined : sorts[screen]) ?? defaultSortOf(screen);
+}
+
+/** What a header click does: the sorted column flips, a new one starts at its natural end (Tên and Người sửa ascending, the rest newest/largest first). */
 export function nextSort(current: LibrarySort, column: LibrarySortColumn): LibrarySort {
-  if (current.column === column) return { column, order: current.order === "asc" ? "desc" : "asc" };
-  return { column, order: column === "updated" || column === "size" ? "desc" : "asc" };
+  const { key, order } = nextDocListSort({ key: current.column, order: current.order }, column);
+  return { column: key, order };
+}
+
+const S3_COLUMNS: readonly LibrarySortColumn[] = ["name", "editor", "updated", "size"];
+
+/** The `sort` values the server takes (starred is ordered here, the trash is fixed). */
+type ServerSortColumn = DocumentSortColumn | DocumentScreenSort;
+
+/** The `sort`/`order` request parameters of a sort; nothing when the column is ordered on the client. */
+export function serverSortParams(sort: LibrarySort): { sort: ServerSortColumn; order: LibrarySortOrder } | Record<string, never> {
+  return sort.column === "starred" || sort.column === "deleted" ? {} : { sort: sort.column, order: sort.order };
+}
+
+/** The sort the files of other modules take: the S3 columns only (a screen's own key means nothing there). */
+export function sourcesSortParams(sort: LibrarySort): { sort: DocumentSortColumn; order: LibrarySortOrder } | Record<string, never> {
+  return S3_COLUMNS.includes(sort.column) ? { sort: sort.column as DocumentSortColumn, order: sort.order } : {};
+}
+
+/** The columns a screen's header can sort by: the S3 four and its own screen column; none in the trash. */
+function sortableOn(screen: DocListScreen): readonly LibrarySortColumn[] {
+  return screen === "trash" ? [] : docListSpec(screen).columns.flatMap((column) => (column.sortKey ? [column.sortKey] : []));
 }
 
 /** The display name of a row's last editor, or null when nobody is named (an agent, an unknown member). */
@@ -42,6 +85,12 @@ function editorOf(row: LibraryRow, names: EditorNames): string | null {
 
 function timeOf(row: LibraryRow): number | null {
   const time = Date.parse(rowUpdatedAt(row));
+  return Number.isNaN(time) ? null : time;
+}
+
+/** When the viewer starred a document (SV-2); null for a row that carries no such date. */
+function starredAtOf(row: LibraryRow): number | null {
+  const time = row.type === "document" && row.doc.favorited_at ? Date.parse(row.doc.favorited_at) : Number.NaN;
   return Number.isNaN(time) ? null : time;
 }
 
@@ -101,8 +150,10 @@ export function compareRows(a: LibraryRow, b: LibraryRow, sort: LibrarySort, nam
       break;
     }
     default: {
-      const ta = timeOf(a);
-      const tb = timeOf(b);
+      // Cập nhật, and Ngày gắn sao on Có gắn sao: the only screen column the client orders.
+      const at = sort.column === "starred" ? starredAtOf : timeOf;
+      const ta = at(a);
+      const tb = at(b);
       if (ta === null || tb === null) {
         if (ta !== tb) return ta === null ? 1 : -1;
       } else {
@@ -154,57 +205,79 @@ export const SORT_STORAGE_KEY = "uniwork_documents_sort";
 // The folder view's old two-value choice; read once into the new key, then dropped.
 const LEGACY_FOLDER_SORT_KEY = "uniwork_documents_folder_sort";
 
-function isSort(value: unknown): value is LibrarySort {
+function isSortPair(value: unknown): value is { column: string; order: LibrarySortOrder } {
   if (typeof value !== "object" || value === null) return false;
   const { column, order } = value as Record<string, unknown>;
-  return typeof column === "string" && isSortableColumn(column) && (order === "asc" || order === "desc");
+  return typeof column === "string" && (order === "asc" || order === "desc");
+}
+
+function isSortOn(screen: DocListScreen, value: unknown): value is LibrarySort {
+  return isSortPair(value) && (sortableOn(screen) as readonly string[]).includes(value.column);
 }
 
 export function sortStorageKey(userId: string): string {
   return `${SORT_STORAGE_KEY}:${userId}`;
 }
 
+type SortStorage = Pick<StorageAdapter, "getItem" | "setItem" | "removeItem">;
+
+/** The stored map as an object of valid entries: each screen keeps only a column it can sort by (the trash keeps none). */
+function validEntries(raw: Record<string, unknown>): LibrarySortMap {
+  const sorts: LibrarySortMap = {};
+  for (const screen of DOC_LIST_SCREENS) {
+    const entry = raw[screen];
+    if (isSortOn(screen, entry)) sorts[screen] = { column: entry.column as LibrarySortColumn, order: entry.order };
+  }
+  return sorts;
+}
+
 /**
- * Reads the viewer's sort from the core StorageAdapter. An old folder-sort
- * value ("name" | "updated") becomes the new pair once and its key is removed;
- * missing, malformed or throwing storage falls back to the default.
+ * Reads the viewer's sort of every screen from the core StorageAdapter. The
+ * stored value is a map by screen. Two older shapes are read once into the
+ * workspace entry (an open folder shares it) and the key is rewritten as a
+ * map: the single `{ column, order }` every table used to share, and the
+ * folder view's "name" | "updated" under its own key, which is removed.
+ * Missing, malformed or throwing storage gives no entries, so every screen
+ * shows its default.
  */
-export function readLibrarySort(
-  userId: string | null | undefined,
-  storage: Pick<StorageAdapter, "getItem" | "setItem" | "removeItem"> | null | undefined = defaultStorage,
-): LibrarySort {
-  if (!userId || !storage) return DEFAULT_LIBRARY_SORT;
+export function readLibrarySorts(userId: string | null | undefined, storage: SortStorage | null | undefined = defaultStorage): LibrarySortMap {
+  if (!userId || !storage) return {};
   try {
     const raw = storage.getItem(sortStorageKey(userId));
     if (raw) {
       const parsed: unknown = JSON.parse(raw);
-      if (isSort(parsed)) return parsed;
+      if (isSortPair(parsed)) {
+        const migrated: LibrarySortMap = isSortOn("workspace", parsed) ? { workspace: parsed } : {};
+        writeLibrarySorts(userId, migrated, storage);
+        return migrated;
+      }
+      if (typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)) return validEntries(parsed as Record<string, unknown>);
     }
   } catch {
-    // Malformed JSON or blocked storage: fall through to the legacy key, then the default.
+    // Malformed JSON or blocked storage: fall through to the legacy key, then no entries.
   }
   try {
     const legacyKey = `${LEGACY_FOLDER_SORT_KEY}:${userId}`;
     const legacy = storage.getItem(legacyKey);
-    if (legacy === null) return DEFAULT_LIBRARY_SORT;
-    const migrated: LibrarySort = legacy === "name" ? { column: "name", order: "asc" } : DEFAULT_LIBRARY_SORT;
-    storage.setItem(sortStorageKey(userId), JSON.stringify(migrated));
+    if (legacy === null) return {};
+    const migrated: LibrarySortMap = { workspace: legacy === "name" ? { column: "name", order: "asc" } : DEFAULT_LIBRARY_SORT };
+    writeLibrarySorts(userId, migrated, storage);
     storage.removeItem(legacyKey);
     return migrated;
   } catch {
-    return DEFAULT_LIBRARY_SORT;
+    return {};
   }
 }
 
-/** Persists the viewer's sort under one key for every table; ignores storage failures. */
-export function writeLibrarySort(
+/** Persists the viewer's per-screen sorts under one key; ignores storage failures. */
+export function writeLibrarySorts(
   userId: string | null | undefined,
-  sort: LibrarySort,
+  sorts: LibrarySortMap,
   storage: Pick<StorageAdapter, "setItem"> | null | undefined = defaultStorage,
 ): void {
   if (!userId || !storage) return;
   try {
-    storage.setItem(sortStorageKey(userId), JSON.stringify(sort));
+    storage.setItem(sortStorageKey(userId), JSON.stringify(sorts));
   } catch {
     // Storage unavailable or blocked: keep the in-memory selection for this session.
   }

@@ -4,11 +4,12 @@ import { initI18n, setLocale } from "@uniwork/core/i18n";
 import { DocumentsLibraryList } from "./documents-library-list";
 import { formatLockTime } from "./edit-lock-copy";
 import { LibraryRowView, type LibraryRowHandlers } from "./documents-library-row";
-import { libraryLadder } from "./library-columns";
+import { specLadder } from "./library-columns";
 import { documentRow, type DocumentSummaryRow } from "./library-rows";
 import { favoriteRow } from "./starred-rows";
 import type { User, Workspace } from "@uniwork/core/types";
 import { WorkspaceProvider } from "../layout/workspace-context";
+import type { DocListScreen } from "./doclist/columns";
 
 // TRASH-01 Area 2 (UNI-1841): the documents table takes the board's six columns
 // (Tên · Truy cập · Người sửa gần nhất · Cập nhật · Dung lượng · Thao tác) at
@@ -62,10 +63,10 @@ const handlers: LibraryRowHandlers = {
   personName: () => "An",
 };
 
-function renderList(rows: DocumentSummaryRow[], over: Partial<LibraryRowHandlers> = {}, opts: { sharedByMe?: boolean } = {}) {
+function renderList(rows: DocumentSummaryRow[], over: Partial<LibraryRowHandlers> = {}, opts: { screen?: DocListScreen } = {}) {
   return render(
     <DocumentsLibraryList
-      groups={[{ key: "all", title: "", rows: rows.map(documentRow) }]}
+      groups={[{ key: "all", rows: rows.map(documentRow) }]}
       loading={false}
       failure={null}
       filteredBy={null}
@@ -75,7 +76,7 @@ function renderList(rows: DocumentSummaryRow[], over: Partial<LibraryRowHandlers
       onRetry={vi.fn()}
       onClearFilters={vi.fn()}
       handlers={{ ...handlers, ...over }}
-      sharedByMe={opts.sharedByMe}
+      screen={opts.screen}
       empty={{ title: "empty", description: "empty" }}
     />,
   );
@@ -85,7 +86,7 @@ function renderRow(row: DocumentSummaryRow, over: Partial<LibraryRowHandlers> = 
   return render(
     <table>
       <tbody>
-        <LibraryRowView row={documentRow(row)} handlers={{ ...handlers, ...over }} ladder={libraryLadder()} />
+        <LibraryRowView row={documentRow(row)} handlers={{ ...handlers, ...over }} ladder={specLadder("workspace", { selectable: false })} />
       </tbody>
     </table>,
   );
@@ -132,18 +133,52 @@ describe("access column", () => {
     const accessA = cellsOf("a")[1]!;
     expect(within(accessA).getByText("Riêng tư")).toBeTruthy();
     expect(within(accessA).getByText("Bạn: Quản lý")).toBeTruthy();
-    // A restricted row keeps the amber lock (warning token) ahead of the label.
-    expect(accessA.querySelector("svg.text-warning")).toBeTruthy();
+    // UNI-2045 W1b: a restricted row is a filled grey pill (muted tokens) with the lock ahead of the label.
+    const pillA = accessA.querySelector("[data-access-kind='restricted']")!;
+    expect(pillA).toHaveClass("bg-muted", "text-muted-foreground");
+    expect(pillA.querySelector("svg")).toBeTruthy();
     const accessB = cellsOf("b")[1]!;
     expect(within(accessB).getByText("Workspace")).toBeTruthy();
-    expect(within(accessB).getByText("Bạn: Chỉ xem")).toBeTruthy();
+    // UNI-2045: the shared level words (Xem / Bình luận / Sửa / Quản lý).
+    expect(within(accessB).getByText("Bạn: Xem")).toBeTruthy();
   });
 
-  it("reads 'Bạn: Chủ sở hữu' when the row's via is owner", () => {
+  it("reads 'Chủ sở hữu' when the row's via is owner (until SV-5 sends is_owner)", () => {
     renderList([doc("a", "A.docx", { my_level: "manage", via: "owner" as DocumentSummaryRow["via"] })]);
     const access = cellsOf("a")[1]!;
-    expect(within(access).getByText("Bạn: Chủ sở hữu")).toBeTruthy();
+    expect(within(access).getByText("Chủ sở hữu")).toBeTruthy();
     expect(within(access).queryByText("Bạn: Quản lý")).toBeNull();
+  });
+
+  it("reads is_owner (SV-5) over via, both ways", () => {
+    renderList([
+      doc("a", "A.docx", { my_level: "manage", via: "share" as DocumentSummaryRow["via"], is_owner: true }),
+      doc("b", "B.docx", { my_level: "edit", via: "owner" as DocumentSummaryRow["via"], is_owner: false }),
+    ]);
+    expect(within(cellsOf("a")[1]!).getByText("Chủ sở hữu")).toBeTruthy();
+    expect(within(cellsOf("b")[1]!).getByText("Bạn: Sửa")).toBeTruthy();
+    expect(within(cellsOf("b")[1]!).queryByText("Chủ sở hữu")).toBeNull();
+  });
+
+  it("names the editor from updated_by_user (SV-6) with the photo, else from the member list", () => {
+    const member = (id: string) => (id === "u1" ? { name: "An", avatarUrl: "https://cdn.test/member-an.png" } : ("former" as const));
+    renderList(
+      [
+        doc("a", "A.docx", { updated_by_user: { name: "Nguyễn Văn An", avatar_url: "https://cdn.test/an.png" } }),
+        doc("b", "B.docx", { updated_by_user: { name: "Lê Bảo" } }),
+        doc("c", "C.docx"),
+      ],
+      { member },
+    );
+    const editor = (id: string) => cellsOf(id).find((td) => td.dataset.column === "editor")!;
+    expect(within(editor("a")).getByText("Nguyễn Văn An")).toBeTruthy();
+    expect(editor("a").querySelector("img")?.getAttribute("src")).toBe("https://cdn.test/an.png");
+    // A photo-less editor draws the initial, never another person's photo.
+    expect(within(editor("b")).getByText("Lê Bảo")).toBeTruthy();
+    expect(editor("b").querySelector("img")).toBeNull();
+    // Today's server: the member list names the editor and gives the photo.
+    expect(within(editor("c")).getByText("An")).toBeTruthy();
+    expect(editor("c").querySelector("img")?.getAttribute("src")).toBe("https://cdn.test/member-an.png");
   });
 
   it("labels unshared restricted rows as 'Riêng tư'", () => {
@@ -151,9 +186,11 @@ describe("access column", () => {
     expect(screen.getAllByText("Riêng tư").length).toBeGreaterThanOrEqual(1);
   });
 
-  it("shows — when the row carries no visibility, and keeps the narrow-row level on the secondary line", () => {
+  it("reads an unknown visibility as Riêng tư with no level line, and keeps the narrow-row level off the secondary line", () => {
     renderList([doc("c", "C.docx", { my_level: undefined, visibility: "weird" as DocumentSummaryRow["visibility"] })]);
-    expect(within(cellsOf("c")[1]!).getByText("—")).toBeTruthy();
+    // UNI-2045: the shared pill never guesses a wider scope; with no level there is no "Bạn:" line.
+    expect(cellsOf("c")[1]!.querySelector("[data-access-kind]")).toHaveAttribute("data-access-kind", "restricted");
+    expect(cellsOf("c")[1]!.textContent).not.toMatch(/Bạn:/);
     const line = document.querySelector('[data-library-row="c"] [data-library-access-line]')!;
     expect(line.textContent).not.toMatch(/Bạn:/);
   });
@@ -179,7 +216,7 @@ describe("access column", () => {
 
 describe("shared by me scope line (SW-V2, SW-V4)", () => {
   it("shows the plain home-workspace scope on the narrow line only on Shared by me", () => {
-    renderList([doc("a", "A.docx", { visibility: "workspace", share_scope: SCOPE_HOME })], {}, { sharedByMe: true });
+    renderList([doc("a", "A.docx", { visibility: "workspace", share_scope: SCOPE_HOME })], {}, { screen: "shared-by-me" });
     const line = document.querySelector('[data-library-row="a"] [data-library-access-line]') as HTMLElement;
     const badge = within(line).getByTestId("document-share-scope-badge");
     expect(badge.textContent).toBe("Workspace");
@@ -250,7 +287,7 @@ describe("shared by me scope line (SW-V2, SW-V4)", () => {
       <WorkspaceProvider workspace={workspace} user={sessionUser}>
         <table>
           <tbody>
-            <LibraryRowView row={documentRow(doc("a", "A.docx", { share_scope: SCOPE_HOME }))} handlers={handlers} ladder={libraryLadder()} />
+            <LibraryRowView row={documentRow(doc("a", "A.docx", { share_scope: SCOPE_HOME }))} handlers={handlers} ladder={specLadder("workspace", { selectable: false })} />
           </tbody>
         </table>
       </WorkspaceProvider>,
@@ -289,6 +326,7 @@ describe("narrow secondary line at 390 (< 34rem, UNI-1902)", () => {
     const accessGroup = line.querySelector("[data-library-access-group]") as HTMLElement;
     expect(metaGroup).toBeTruthy();
     expect(accessGroup).toBeTruthy();
+    // UNI-2045: the editor part leaves when Người sửa gần nhất joins (42rem on the workspace screen).
     expect(metaGroup).toHaveClass("basis-full", "min-w-0", "@min-[34rem]/library:basis-auto", "@min-[42rem]/library:hidden");
     expect(accessGroup).toHaveClass("shrink-0");
 
@@ -297,7 +335,8 @@ describe("narrow secondary line at 390 (< 34rem, UNI-1902)", () => {
 
     const dateSizeEl = Array.from(metaGroup.querySelectorAll("span")).find((el) => el.textContent?.includes("2,4 KB")) as HTMLElement;
     expect(dateSizeEl).toBeTruthy();
-    expect(dateSizeEl.textContent).toMatch(/17\/10\/2(6|026)/);
+    // The shared list date drops the year inside the current year (today is not pinned here).
+    expect(dateSizeEl.textContent).toMatch(/^17\/10(\/2026)? · 2,4 KB$/);
     expect(dateSizeEl).toHaveClass("shrink-0");
     expect(dateSizeEl).not.toHaveClass("truncate");
 
@@ -311,12 +350,14 @@ describe("narrow secondary line at 390 (< 34rem, UNI-1902)", () => {
 
     const interDot = Array.from(line.children).find((el) => el.textContent === "·") as HTMLElement;
     expect(interDot).toBeTruthy();
-    expect(interDot).toHaveClass("hidden", "@min-[34rem]/library:inline", "@min-[42rem]/library:hidden");
+    // UNI-2045: the dot leaves with the access group, at the access rung (34rem on the workspace screen, where it equals the dot's own 34rem: `!` settles the tie).
+    expect(interDot).toHaveClass("hidden", "@min-[34rem]/library:inline", "@min-[34rem]/library:hidden!");
 
     const lineB = document.querySelector('[data-library-row="b"] [data-library-access-line]') as HTMLElement;
     const metaB = lineB.querySelector("[data-library-meta-line]") as HTMLElement;
     const accessB = lineB.querySelector("[data-library-access-group]") as HTMLElement;
-    expect(metaB).toHaveClass("@min-[29rem]/library:hidden");
+    // UNI-2045: without an editor the meta group is updated · size, gone at the table rung (26rem).
+    expect(metaB).toHaveClass("@min-[26rem]/library:hidden");
     expect(metaB.firstElementChild?.textContent).not.toBe("·");
     expect(metaB.lastElementChild?.textContent).not.toBe("·");
     expect(accessB.firstElementChild?.textContent).not.toBe("·");
@@ -394,7 +435,7 @@ describe("starred view rows (SV-1)", () => {
           <LibraryRowView
             row={documentRow(favoriteRow(fav, { id: "f1", archived_at: "2026-10-01T00:00:00Z" }))}
             handlers={{ ...handlers, isStarred: () => true }}
-            ladder={libraryLadder()}
+            ladder={specLadder("workspace", { selectable: false })}
           />
         </tbody>
       </table>,
@@ -409,12 +450,13 @@ describe("starred view rows (SV-1)", () => {
           <LibraryRowView
             row={documentRow(favoriteRow(fav, { id: "f1", my_level: "manage", via: "owner" as DocumentSummaryRow["via"] }))}
             handlers={{ ...handlers, isStarred: () => true }}
-            ladder={libraryLadder()}
+            ladder={specLadder("workspace", { selectable: false })}
           />
         </tbody>
       </table>,
     );
-    expect(screen.getByText("Bạn: Chủ sở hữu")).toBeInTheDocument();
+    // The column and the narrow line both say it (only one is on screen at a time).
+    expect(screen.getAllByText("Chủ sở hữu")).toHaveLength(2);
   });
 });
 

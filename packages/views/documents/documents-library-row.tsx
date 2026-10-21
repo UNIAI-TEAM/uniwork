@@ -1,18 +1,19 @@
 "use client";
 
-import { useId, useRef } from "react";
-import type { LucideIcon } from "lucide-react";
-import { Archive, Download, Ellipsis, ExternalLink, FolderInput, FolderOpen, FolderPlus, MonitorUp, Pencil, Share2, Star, StarOff, Trash2 } from "lucide-react";
+import { Fragment, useId, useRef, type ReactNode } from "react";
+import { Ellipsis, Star } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { isMyFolder, isShelved } from "@uniwork/core/types/document";
 import { Badge } from "@uniwork/ui/components/ui/badge";
 import { Button } from "@uniwork/ui/components/ui/button";
+import { Checkbox } from "@uniwork/ui/components/ui/checkbox";
 import {
   ContextMenu,
   ContextMenuContent,
   ContextMenuGroup,
   ContextMenuItem,
   ContextMenuLabel,
+  ContextMenuSeparator,
   ContextMenuTrigger,
 } from "@uniwork/ui/components/ui/context-menu";
 import {
@@ -21,6 +22,7 @@ import {
   DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@uniwork/ui/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@uniwork/ui/components/ui/tooltip";
@@ -34,17 +36,24 @@ import {
   isPlainHomeWorkspaceScope,
   shareScopeView,
 } from "./document-share-scope-badge";
-import { DocumentTypeIcon } from "./document-type-icon";
 import { EditLockHolderChip } from "./edit-lock-holder-chip";
-import { libraryCell, type LibraryLadder } from "./library-columns";
+import { docAccessLevel } from "./doclist/access";
+import { DocNameCell, DocPersonCell } from "./doclist/cells";
+import { docListSpec, type DocListScreen } from "./doclist/columns";
+import { EMPTY_CELL, formatBytes, formatListDate } from "./doclist/format";
+import { docListRowFields } from "./doclist/row-fields";
+import { DocLifecycleAction, type DocLifecycleHandlers } from "./doclist/lifecycle-action";
+import type { RowMenuHandlers } from "./doclist/row-menu";
+import { DocScreenCell, DocScreenLine, type DocListMemberLookup } from "./doclist/screen-cells";
+import { libraryCell, libraryPad, type RowLadder } from "./library-columns";
 import { LibraryRowAccessCell } from "./library-row-access-cell";
-import { canArchiveRow, canMoveRow, canShareRow, rowAppOperation, rowLevel } from "./row-level";
+import { canShareRow, rowAppOperation, rowLevel } from "./row-level";
 import { sourceLinkIcon, sourceLinkLabelKey, sourceLinkNamedLabelKey, sourceOpenAction, sourceParentLinked } from "./source-links";
+import { docRowMenu } from "./doclist/row-menu";
+import { RowMenuItems } from "./doclist/row-menu-items";
 import {
-  formatBytes,
   isFolderRow,
   rowFormat,
-  rowAccessLabelKey,
   rowSizeBytes,
   rowTitle,
   rowUpdatedAt,
@@ -58,7 +67,9 @@ const APP_FORMATS = new Set(["docx", "xlsx", "pptx", "pdf", "md", "html"]);
 /** How a library row reaches "Open in UniWork Office" (host wiring, per row). */
 export type LibraryDesktopOpen = (doc: { id: string; organization_id: string; current_version: number }) => FrameDesktopOpenProps;
 
-export interface LibraryRowHandlers {
+export interface LibraryRowHandlers
+  extends Pick<RowMenuHandlers, "onUnshelve" | "onRestore" | "onViewDetails" | "onPurge">,
+    DocLifecycleHandlers {
   onOpen: (documentId: string) => void;
   onFolder: (folderId: string) => void;
   onGoToSource: (row: Extract<LibraryRow, { type: "source" }>) => void;
@@ -89,41 +100,37 @@ export interface LibraryRowHandlers {
    *  wires it so a folder opens the confirm dialog and a document shelves at
    *  once with an undo toast. */
   onShelve?: (doc: DocumentSummaryRow) => void;
+  /** Sao chép link / Tạo bản sao / Tải xuống on a document row (UNI-2045 W8); absent hides the item. */
+  onCopyLink?: (doc: DocumentSummaryRow) => void;
+  onDuplicate?: (doc: DocumentSummaryRow) => void;
+  onDownload?: (doc: DocumentSummaryRow) => void;
+  /** Names who deleted / shelved a row in the Thùng rác and Lưu trữ columns. */
+  member?: DocListMemberLookup;
   /** The display name of a person id, or null when unknown. */
   personName: (userId: string, kind: string) => string | null;
+  /** The folder a document sits in, for the Name cell's location line; absent draws none. */
+  locationName?: (doc: DocumentSummaryRow) => string | null;
   desktopOpen?: LibraryDesktopOpen;
-}
-
-interface RowAction {
-  id: string;
-  label: string;
-  icon: LucideIcon;
-  run: () => void;
-}
-
-function formatDate(iso: string, locale: string): string {
-  const date = new Date(iso);
-  if (!iso || Number.isNaN(date.getTime())) return "";
-  return new Intl.DateTimeFormat(locale || undefined, { dateStyle: "short" }).format(date);
-}
-
-/** The first letter of a name, for the editor's initial. */
-function initial(name: string): string {
-  return name.trim().charAt(0).toUpperCase();
 }
 
 export function LibraryRowView({
   row,
   handlers,
   ladder,
-  sharedByMe = false,
+  screen = "workspace",
+  highlighted = false,
+  selection,
 }: {
   row: LibraryRow;
   handlers: LibraryRowHandlers;
   /** The column ladder the list's header and colgroup were built from (library-columns.ts). */
-  ladder: LibraryLadder;
-  /** The list is "Shared by me" (SW-V2): the plain home-workspace scope also shows on the narrow line. */
-  sharedByMe?: boolean;
+  ladder: RowLadder;
+  /** The screen the list shows (doclist/columns.ts); "shared-by-me" also keeps the plain home-workspace scope on the narrow line (SW-V2). */
+  screen?: DocListScreen;
+  /** The row a notification pointed at (`?focus=` on Thùng rác): ringed apart from hover. */
+  highlighted?: boolean;
+  /** Bulk selection (W9): the row's state, and its toggle when the bar has an action for it (`range` = shift). */
+  selection?: { selected: boolean; onToggle?: (range: boolean) => void };
 }) {
   const { t, i18n } = useTranslation();
   const appRequest = useRef<(() => Promise<DesktopOpenOutcome>) | null>(null);
@@ -137,13 +144,18 @@ export function LibraryRowView({
   const source = row.type === "source" ? row.source : null;
   const sourceLinked = source ? sourceParentLinked(source.parent) : false;
 
+  // The agreed optional list fields (SV-1..SV-6); each reads undefined until the schema parses it.
+  const fields = doc ? docListRowFields(doc) : {};
+  // SV-6 names the editor with their photo; without it the member list does both (a photo-less SV-6 editor draws the initial).
   const editor = doc
-    ? doc.updated_by
-      ? handlers.personName(doc.updated_by, doc.updated_by_kind)
-      : null
+    ? fields.updatedByUser?.name ?? (doc.updated_by ? handlers.personName(doc.updated_by, doc.updated_by_kind) : null)
     : source?.owner?.name || null;
+  const memberEditor = doc?.updated_by && !fields.updatedByUser ? handlers.member?.(doc.updated_by) : null;
+  const editorAvatar = fields.updatedByUser ? fields.updatedByUser.avatarUrl : memberEditor && memberEditor !== "former" ? memberEditor.avatarUrl : null;
+  // The shared list formats answer "—" for nothing to show; the narrow meta line
+  // below leaves such a part out instead of printing the dash.
   const size = formatBytes(rowSizeBytes(row), i18n.language);
-  const updated = formatDate(rowUpdatedAt(row), i18n.language);
+  const updated = formatListDate(rowUpdatedAt(row), new Date(), i18n.language, { yesterday: t("documents.list.date.yesterday") });
 
   // "Open in app" sits on every document file row (user decision 6); a viewer
   // gets a read-only session. Source files have no launch route yet
@@ -151,21 +163,22 @@ export function LibraryRowView({
   // A starred row whose document is not in any loaded list has no version or
   // organisation yet: no app action until the document is known.
   const desktop =
-    doc && doc.kind === "file" && doc.current_version > 0 && APP_FORMATS.has(format) && handlers.desktopOpen && !doc.archived_at
+    doc && doc.kind === "file" && doc.current_version > 0 && APP_FORMATS.has(format) && handlers.desktopOpen && !doc.archived_at && screen !== "shelved"
       ? handlers.desktopOpen({ id: doc.id, organization_id: doc.organization_id, current_version: doc.current_version })
       : null;
   const level = rowLevel(doc);
-  // The board's Truy cập cell: scope badge on line 1 (DocumentShareScopeBadge),
-  // the viewer's level on line 2, "Chủ sở hữu" when the row's via is owner.
-  // The narrow secondary line shows the level word and any non-default scope until the column joins.
-  const levelKey = rowAccessLabelKey(row);
+  // The Truy cập cell is the shared pill + level line (DocAccessCell); the
+  // narrow secondary line shows the level word and any non-default scope until the column joins.
+  // SV-5 `is_owner` when the response carries it; until then a row reached via ownership reads as the owner's.
+  const isOwner = fields.isOwner ?? doc?.via === "owner";
+  const accessLevel = doc ? docAccessLevel(doc.my_level, doc.admin_scope) : null;
   // A row without `share_scope` shows no scope; it is never guessed from `visibility`.
   // A folder is never shared (UNI-1974), so it shows none whatever a row carries.
   const scope = doc && doc.kind !== "folder" ? (doc.share_scope ?? null) : null;
   // On Shared by me the plain "home workspace" scope is the answer the reader
   // came for (SW-V2); on every other view the narrow line omits the default.
-  const showNarrowScope = Boolean(scope && (sharedByMe || !isPlainHomeWorkspaceScope(scope)));
-  const levelLabel = doc?.via === "owner" ? t("documents.home.access.owner") : levelKey ? t(levelKey) : null;
+  const showNarrowScope = Boolean(scope && (screen === "shared-by-me" || !isPlainHomeWorkspaceScope(scope)));
+  const levelLabel = doc && isOwner ? t("documents.list.access.owner") : accessLevel ? t(`documents.list.access.level.${accessLevel}`) : null;
   // Same resolution the badge applies: only the viewer's current workspace is named.
   const resolvedWorkspaceName = (!doc?.workspace_id || doc.workspace_id === currentWorkspace?.id ? (currentWorkspace?.name ?? "") : "").trim();
   // SW-V4: the narrow badge is not focusable inside the name button, so the
@@ -173,14 +186,17 @@ export function LibraryRowView({
   // (the badge's hidden span via scopeDescId) and the ⋯ menu label.
   const scopeInfo = showNarrowScope && scope ? shareScopeView(scope, t, resolvedWorkspaceName) : null;
   const starred = Boolean(doc && handlers.isStarred(doc.id));
-  const metaTail = [updated, size].filter(Boolean).join(" · ");
+  const metaTail = [updated, size].filter((part) => part !== EMPTY_CELL).join(" · ");
 
-  // A row whose archive stamp survived into a live list is inert: the trash
-  // view (its own rows) owns restore/purge, so here nothing runs on it.
+  // A trashed row runs only what the Thùng rác screen wires (its menu, below);
+  // on a live list such a row is inert.
   const trashed = Boolean(doc?.archived_at);
 
   const primary = () => {
-    if (doc && folder) handlers.onFolder(doc.id);
+    if (doc && trashed) handlers.onViewDetails?.(doc);
+    // A shelved item opens read-only; a shelved folder never browses.
+    else if (doc && screen === "shelved") handlers.onOpen(doc.id);
+    else if (doc && folder) handlers.onFolder(doc.id);
     else if (doc) handlers.onOpen(doc.id);
     else if (row.type === "source") {
       // U-SRC1 + UNI-1869: the primary click opens the file view-only where the
@@ -191,71 +207,19 @@ export function LibraryRowView({
     }
   };
 
-  const actions: RowAction[] = [];
-  if (doc && trashed) {
-    // No live-list command applies to a trashed row; the badge says why.
-  } else if (doc && folder) {
-    actions.push({ id: "open-folder", label: t("documents.home.row.open_folder"), icon: FolderOpen, run: primary });
-  } else if (doc) {
-    actions.push({ id: "open", label: t("documents.home.row.open_web"), icon: ExternalLink, run: primary });
-    if (desktop) {
-      actions.push({ id: "open-app", label: t("documents.home.row.open_app"), icon: MonitorUp, run: () => void appRequest.current?.() });
-    }
-  }
-  // Star / Unstar reaches folders too (SV-4): every row but a trashed folder,
-  // wherever the host passes onToggleStar (home table, folder view, Starred).
-  if (doc && !trashed && handlers.onToggleStar) {
-    actions.push({
-      id: "star",
-      label: starred ? t("documents.home.row.unstar") : t("documents.home.row.star"),
-      icon: starred ? StarOff : Star,
-      run: () => handlers.onToggleStar?.(doc.id, starred),
-    });
-  }
   // Share is not a level-gated command: every reader opens the dialog (as
-  // DocumentActionsMenu does), so it sits beside Star, ahead of the edit commands.
-  const shareable = Boolean(doc && handlers.onShare && canShareRow(doc));
-  if (doc && shareable) {
-    actions.push({ id: "share", label: t("documents.actions.share"), icon: Share2, run: () => handlers.onShare?.(doc) });
-  }
-  // Each command follows the level of THIS row (create subfolder / rename /
-  // move: edit, archive: manage); a trashed row offers none of them.
-  if (doc && !trashed) {
-    if (folder && handlers.onNewSubfolder && canMoveRow(level)) {
-      actions.push({ id: "new-subfolder", label: t("documents.home.row.new_subfolder"), icon: FolderPlus, run: () => handlers.onNewSubfolder?.(doc) });
-    }
-    if (!myFolder && handlers.onRename && canMoveRow(level)) {
-      actions.push({ id: "rename", label: t("documents.home.row.rename"), icon: Pencil, run: () => handlers.onRename?.(doc) });
-    }
-    if (!myFolder && handlers.onMove && canMoveRow(level)) {
-      actions.push({ id: "move", label: t("documents.tree.menu.move_to"), icon: FolderInput, run: () => handlers.onMove?.(doc) });
-    }
-    if (handlers.onShelve && canArchiveRow(level) && !myFolder && !isShelved(doc)) {
-      // U-4: shelve sits beside the trash command, manage-only and never on
-      // the My Folder root; the page decides document-now vs folder-dialog.
-      actions.push({ id: "shelve", label: t("documents.shelved_list.shelve"), icon: Archive, run: () => handlers.onShelve?.(doc) });
-    }
-    if (!myFolder && handlers.onArchive && canArchiveRow(level)) {
-      // A folder's dialog says Delete (FD-D6), so its row says it too, with the tree menu's words.
-      // Both are the trash command, so both draw the trash icon; Archive belongs to shelve above.
-      actions.push(
-        folder
-          ? { id: "archive", label: t("documents.tree.menu.delete"), icon: Trash2, run: () => handlers.onArchive?.(doc) }
-          : { id: "archive", label: t("documents.home.row.archive"), icon: Trash2, run: () => handlers.onArchive?.(doc) },
-      );
-    }
-  }
-  if (row.type === "source") {
-    // A parent kind with no route offers neither the menu item nor the button.
-    if (sourceLinked) {
-      actions.push({ id: "go-to-source", label: t(sourceLinkLabelKey(row.source.parent)), icon: sourceLinkIcon(row.source.parent), run: () => handlers.onGoToSource(row) });
-    }
-    actions.push({ id: "download", label: t("documents.home.row.download"), icon: Download, run: () => handlers.onDownloadSource(row.source.id) });
-    // Only a file the server marks as copyable offers the save.
-    if (row.source.can_save) {
-      actions.push({ id: "save", label: t("documents.home.row.save_to_folder"), icon: FolderInput, run: () => handlers.onSaveSource(row) });
-    }
-  }
+  // DocumentActionsMenu does); the Access cell shares its gate with the menu item.
+  const shareable = Boolean(doc && !trashed && handlers.onShare && canShareRow(doc));
+  // One ordered menu for the ⋯ dropdown and the right-click menu (doclist/row-menu.ts).
+  const menu = docRowMenu(row, {
+    handlers,
+    starred,
+    open: primary,
+    openApp: desktop ? () => void appRequest.current?.() : undefined,
+    screen,
+  });
+  // The title opens a trashed row only where its menu offers Xem chi tiết (manage, never a folder).
+  const inert = trashed && !menu.some((group) => group.some((item) => item.id === "view-details"));
   // The app command joins the actions cell only when its column is wide
   // enough (the ladder's quick rung); the source's own link button below
   // is icon-sized and rendered at every width.
@@ -292,18 +256,24 @@ export function LibraryRowView({
     </Tooltip>
   ) : null;
 
+  const screenColumn = docListSpec(screen).screenColumn;
   const nameCell = (
-    <>
-      <DocumentTypeIcon format={folder ? "folder" : format} className={cn("size-6 shrink-0", folder && "text-muted-foreground")} />
-      <span className="min-w-0 flex-1">
-        <span className="flex items-center gap-2">
-          {/* TV-12: the truncated name still reads in full on hover. */}
-          <span title={title} className="truncate text-body text-foreground">{title}</span>
+    <DocNameCell
+      kind={folder ? "folder" : (doc?.kind ?? "file")}
+      format={folder ? "folder" : format}
+      title={title}
+      location={doc && screen !== "workspace" ? (handlers.locationName?.(doc) ?? null) : null}
+      badges={
+        <>
           {starred ? (
             <Star role="img" aria-label={t("documents.home.row.starred")} className="size-3.5 shrink-0 fill-current text-brand" />
           ) : null}
-          {trashed ? (
+          {trashed && screen !== "trash" ? (
             <Badge variant="secondary" className="shrink-0">{t("documents.library.archived_badge")}</Badge>
+          ) : null}
+          {/* U-11: a shelved row that also sits in the trash keeps its "Đã lưu trữ" label. */}
+          {screen === "trash" && isShelved(doc) ? (
+            <Badge variant="secondary" className="shrink-0">{t("documents.shelved_list.badge")}</Badge>
           ) : null}
           {doc?.edit_lock && !doc.edit_lock.held_by_me ? (
             <EditLockHolderChip
@@ -312,98 +282,135 @@ export function LibraryRowView({
               offlineHoldUntil={doc.edit_lock.offline_hold_until}
             />
           ) : null}
+        </>
+      }
+    >
+      {/* Below the table rung the row stacks under Name: the screen column's content first (it never hides), then the stand-ins below. */}
+      {screenColumn ? <DocScreenLine column={screenColumn} fields={fields} member={handlers.member} className={ladder.screenLineHides} /> : null}
+      {/* Below 34rem the meta group (editor · date · size) and level · share scope stay on separate lines (the editor needs the room until ~33rem); from 34rem they join one line until their columns take over (library-columns.ts). */}
+      {editor || metaTail || levelLabel || showNarrowScope ? (
+        <span
+          data-library-access-line
+          className={cn(
+            "flex flex-wrap min-w-0 items-center gap-x-1.5 gap-y-0.5 overflow-hidden text-caption text-muted-foreground @min-[34rem]/library:flex-nowrap",
+            ladder.accessLineHides,
+          )}
+        >
+          {editor || metaTail ? (
+            <span
+              data-library-meta-line
+              className={cn(
+                "flex basis-full min-w-0 items-center gap-1.5 overflow-hidden @min-[34rem]/library:basis-auto",
+                editor ? ladder.metaHides : ladder.metaTailHides,
+              )}
+            >
+              {editor ? <span className={cn("min-w-0 truncate", ladder.metaHides)}>{editor}</span> : null}
+              {editor && metaTail ? <span aria-hidden className={cn("shrink-0", ladder.metaTailHides)}>·</span> : null}
+              {metaTail ? <span className={cn("shrink-0", ladder.metaTailHides)}>{metaTail}</span> : null}
+            </span>
+          ) : null}
+          {editor && (levelLabel || showNarrowScope) ? (
+            <span aria-hidden className={cn("hidden shrink-0 @min-[34rem]/library:inline", ladder.metaDotHides)}>·</span>
+          ) : null}
+          {levelLabel || showNarrowScope ? (
+            <span data-library-access-group className={cn("flex shrink-0 items-center gap-1.5", ladder.accessGroupHides)}>
+              {levelLabel ? <span className="shrink-0">{levelLabel}</span> : null}
+              {levelLabel && showNarrowScope ? <span aria-hidden className="shrink-0">·</span> : null}
+              {showNarrowScope ? (
+                <DocumentShareScopeBadge
+                  shareScope={doc?.share_scope}
+                  workspaceId={doc?.workspace_id}
+                  compact
+                  focusable={false}
+                  descriptionId={scopeDescId}
+                />
+              ) : null}
+            </span>
+          ) : null}
         </span>
-        {/* Below 34rem the meta group (editor · date · size) and level · share scope stay on separate lines (the editor needs the room until ~33rem); from 34rem they join one line until their columns take over (library-columns.ts). */}
-        {editor || metaTail || levelLabel || showNarrowScope ? (
-          <span
-            data-library-access-line
-            className={cn(
-              "flex flex-wrap min-w-0 items-center gap-x-1.5 gap-y-0.5 overflow-hidden text-caption text-muted-foreground @min-[34rem]/library:flex-nowrap",
-              ladder.accessLineHides,
-            )}
-          >
-            {editor || metaTail ? (
-              <span
-                data-library-meta-line
-                className={cn(
-                  "flex basis-full min-w-0 items-center gap-1.5 overflow-hidden @min-[34rem]/library:basis-auto",
-                  editor ? ladder.metaHides : ladder.metaTailHides,
-                )}
-              >
-                {editor ? <span className={cn("min-w-0 truncate", ladder.metaHides)}>{editor}</span> : null}
-                {editor && metaTail ? <span aria-hidden className={cn("shrink-0", ladder.metaTailHides)}>·</span> : null}
-                {metaTail ? <span className={cn("shrink-0", ladder.metaTailHides)}>{metaTail}</span> : null}
-              </span>
-            ) : null}
-            {editor && (levelLabel || showNarrowScope) ? (
-              <span aria-hidden className={cn("hidden shrink-0 @min-[34rem]/library:inline", ladder.metaDotHides)}>·</span>
-            ) : null}
-            {levelLabel || showNarrowScope ? (
-              <span data-library-access-group className={cn("flex shrink-0 items-center gap-1.5", ladder.accessGroupHides)}>
-                {levelLabel ? <span className="shrink-0">{levelLabel}</span> : null}
-                {levelLabel && showNarrowScope ? <span aria-hidden className="shrink-0">·</span> : null}
-                {showNarrowScope ? (
-                  <DocumentShareScopeBadge
-                    shareScope={doc?.share_scope}
-                    workspaceId={doc?.workspace_id}
-                    compact
-                    focusable={false}
-                    descriptionId={scopeDescId}
-                  />
-                ) : null}
-              </span>
-            ) : null}
-          </span>
-        ) : null}
-      </span>
-    </>
+      ) : null}
+    </DocNameCell>
   );
+
+  // Every column but Actions, in the ladder's order (doclist/columns.ts); the actions cell follows them below.
+  const cells: Record<string, ReactNode> = {
+    select: (
+      <td data-column="select" className={cn("py-2", libraryPad(ladder, "select"))}>
+        {selection?.onToggle ? (
+          <Checkbox
+            checked={selection.selected}
+            onCheckedChange={(_checked, details) => selection.onToggle?.("shiftKey" in details.event && details.event.shiftKey === true)}
+            aria-label={t("documents.list.bulk.select_row", { title })}
+          />
+        ) : null}
+      </td>
+    ),
+    name: (
+      <td data-column="name" className="px-3 py-2">
+        {inert ? (
+          <div className="flex w-full min-w-0 items-center gap-3 text-left pointer-coarse:min-h-11">{nameCell}</div>
+        ) : (
+          <button
+            type="button"
+            onClick={primary}
+            aria-describedby={scopeInfo && scopeInfo.tooltipText !== scopeInfo.label ? scopeDescId : undefined}
+            className="flex w-full min-w-0 items-center gap-3 text-left pointer-coarse:min-h-11"
+          >
+            {nameCell}
+          </button>
+        )}
+      </td>
+    ),
+    access: (
+      <LibraryRowAccessCell
+        doc={doc}
+        scope={scope}
+        isOwner={isOwner}
+        title={title}
+        workspaceName={resolvedWorkspaceName}
+        ladder={ladder}
+        onShare={shareable ? handlers.onShare : undefined}
+      />
+    ),
+    editor: (
+      <td data-column="editor" className={cn("py-2", libraryPad(ladder, "editor"), libraryCell(ladder, "editor"))}>
+        <DocPersonCell name={editor} avatarUrl={editorAvatar} kind={doc?.updated_by_kind} />
+      </td>
+    ),
+    updated: (
+      <td data-column="updated" className={cn("whitespace-nowrap py-2 font-mono text-caption tabular-nums text-muted-foreground", libraryPad(ladder, "updated"), libraryCell(ladder, "updated"))}>
+        {updated}
+      </td>
+    ),
+    size: (
+      <td data-column="size" className={cn("whitespace-nowrap py-2 font-mono text-caption tabular-nums text-muted-foreground", libraryPad(ladder, "size"), libraryCell(ladder, "size"))}>
+        {size}
+      </td>
+    ),
+  };
+  if (screenColumn) {
+    cells[screenColumn] = (
+      <td data-column={screenColumn} className={cn("py-2", libraryPad(ladder, screenColumn), libraryCell(ladder, screenColumn))}>
+        {/* A source row (home root merge) has no screen field: it keeps its own cells and a dash here. */}
+        <DocScreenCell column={screenColumn} fields={fields} member={handlers.member} />
+      </td>
+    );
+  }
 
   return (
     <ContextMenu>
       <ContextMenuTrigger
         render={<tr />}
         data-library-row={row.id}
-        className="group/row border-b border-border transition-colors last:border-b-0 hover:bg-accent/40"
+        data-focused={highlighted || undefined}
+        aria-selected={selection ? selection.selected : undefined}
+        className={cn(
+          "group/row border-b border-border transition-colors last:border-b-0 hover:bg-accent/40",
+          highlighted && "bg-accent/60 ring-2 ring-inset ring-ring",
+        )}
       >
-        <td className="px-3 py-2">
-          {trashed ? (
-            <div className="flex w-full min-w-0 items-center gap-3 text-left pointer-coarse:min-h-11">{nameCell}</div>
-          ) : (
-            <button
-              type="button"
-              onClick={primary}
-              aria-describedby={scopeInfo && scopeInfo.tooltipText !== scopeInfo.label ? scopeDescId : undefined}
-              className="flex w-full min-w-0 items-center gap-3 text-left pointer-coarse:min-h-11"
-            >
-              {nameCell}
-            </button>
-          )}
-        </td>
-        <LibraryRowAccessCell
-          doc={doc}
-          scope={scope}
-          levelLabel={levelLabel}
-          title={title}
-          workspaceName={resolvedWorkspaceName}
-          ladder={ladder}
-          onShare={shareable ? handlers.onShare : undefined}
-        />
-        <td className={cn("px-3 py-2", libraryCell(ladder, "editor"))}>
-          {editor ? (
-            <span className="flex items-center gap-2 text-body text-foreground">
-              <span aria-hidden className="flex size-5 shrink-0 items-center justify-center rounded-full bg-muted text-caption text-muted-foreground">
-                {initial(editor)}
-              </span>
-              <span className="truncate">{editor}</span>
-            </span>
-          ) : (
-            <span className="text-muted-foreground">—</span>
-          )}
-        </td>
-        <td className={cn("px-3 py-2 font-mono text-caption tabular-nums text-muted-foreground", libraryCell(ladder, "updated"))}>{updated || "—"}</td>
-        <td className={cn("px-3 py-2 font-mono text-caption tabular-nums text-muted-foreground", libraryCell(ladder, "size"))}>{size || "—"}</td>
-        <td className="px-2 py-2">
+        {ladder.columns.map((column) => (column.id === "actions" ? null : <Fragment key={column.id}>{cells[column.id]}</Fragment>))}
+        <td data-column="actions" className="px-2 py-2">
           <div className="flex items-center justify-end gap-1">
             {quick ? (
               // Until the actions column widens (first ladder rung) the app command lives in the ⋯ menu so the name keeps the row.
@@ -418,7 +425,8 @@ export function LibraryRowView({
                 {sourceLink}
               </div>
             ) : null}
-            {actions.length > 0 ? (
+            {doc ? <DocLifecycleAction screen={screen} doc={doc} title={title} handlers={handlers} /> : null}
+            {menu.length > 0 ? (
               <DropdownMenu>
                 <DropdownMenuTrigger
                   render={
@@ -435,12 +443,7 @@ export function LibraryRowView({
                       </DropdownMenuLabel>
                     </DropdownMenuGroup>
                   ) : null}
-                  {actions.map((action) => (
-                    <DropdownMenuItem key={action.id} className="gap-2 px-2 py-2 pointer-coarse:min-h-11" onClick={action.run}>
-                      <action.icon aria-hidden className="size-3.5" />
-                      {action.label}
-                    </DropdownMenuItem>
-                  ))}
+                  <RowMenuItems groups={menu} row={row} t={t} Item={DropdownMenuItem} Separator={DropdownMenuSeparator} />
                 </DropdownMenuContent>
               </DropdownMenu>
             ) : null}
@@ -453,12 +456,7 @@ export function LibraryRowView({
             <ContextMenuLabel className="font-normal normal-case tracking-normal">{scopeInfo.tooltipText}</ContextMenuLabel>
           </ContextMenuGroup>
         ) : null}
-        {actions.map((action) => (
-          <ContextMenuItem key={action.id} className="gap-2 px-2 py-2 pointer-coarse:min-h-11" onClick={action.run}>
-            <action.icon aria-hidden className="size-3.5" />
-            {action.label}
-          </ContextMenuItem>
-        ))}
+        <RowMenuItems groups={menu} row={row} t={t} Item={ContextMenuItem} Separator={ContextMenuSeparator} />
       </ContextMenuContent>
     </ContextMenu>
   );

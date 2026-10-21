@@ -767,14 +767,14 @@ describe("shelved row keep-list (RAR-01)", () => {
       await openShelved();
       fireEvent.click(within(await rowOf("bao-cao.pdf")).getByRole("button", { name: t("documents.home.row.menu", { title: "bao-cao.pdf" }) }));
       const names = (await screen.findAllByRole("menuitem")).map((item) => item.textContent);
-      expect(names).toEqual(
-        expect.arrayContaining([
-          t("documents.home.row.open_web"),
-          t("documents.home.row.download"),
-          t("documents.shelved_list.unshelve"),
-          t("documents.actions.archive"),
-        ]),
-      );
+      // UNI-2045 W3: one builder, the contract order Mở · Bỏ lưu trữ · Tải xuống | Chuyển vào thùng rác (last, red).
+      expect(names).toEqual([
+        t("documents.tree.menu.open"),
+        t("documents.shelved_list.unshelve"),
+        t("documents.home.row.download"),
+        t("documents.home.row.archive"),
+      ]);
+      expect(screen.getAllByRole("menuitem").at(-1)).toHaveAttribute("data-variant", "destructive");
       expect(names).not.toContain(t("documents.home.row.rename"));
       expect(names).not.toContain(t("documents.tree.menu.move_to"));
       fireEvent.click(screen.getByRole("menuitem", { name: t("documents.home.row.download") }));
@@ -783,7 +783,7 @@ describe("shelved row keep-list (RAR-01)", () => {
       await waitFor(() => expect(click).toHaveBeenCalled());
 
       fireEvent.click(within(await rowOf("Trang cũ")).getByRole("button", { name: t("documents.home.row.menu", { title: "Trang cũ" }) }));
-      await screen.findByRole("menuitem", { name: t("documents.home.row.open_web") });
+      await screen.findByRole("menuitem", { name: t("documents.tree.menu.open") });
       expect(screen.queryByRole("menuitem", { name: t("documents.home.row.download") })).toBeNull();
     } finally {
       vi.unstubAllGlobals();
@@ -835,7 +835,8 @@ describe("shelved row keep-list (RAR-01)", () => {
     fireEvent.click(within(await rowOf("so-lieu.xlsx")).getByRole("button", { name: t("documents.home.row.menu", { title: "so-lieu.xlsx" }) }));
     expect(await screen.findByRole("menuitem", { name: t("documents.home.row.download") })).toBeInTheDocument();
     expect(screen.queryByRole("menuitem", { name: t("documents.shelved_list.unshelve") })).toBeNull();
-    expect(screen.queryByRole("menuitem", { name: t("documents.actions.archive") })).toBeNull();
+    expect(screen.queryByRole("menuitem", { name: t("documents.home.row.archive") })).toBeNull();
+    expect(screen.getAllByRole("menuitem").map((item) => item.textContent)).toEqual([t("documents.tree.menu.open"), t("documents.home.row.download")]);
   });
 });
 
@@ -873,7 +874,7 @@ describe("shelved list copy and audience (F3, F4)", () => {
     ).toBeInTheDocument();
   });
 
-  it("shows each row's audience in Truy cập, with the lock on a restricted one, not the viewer's level", async () => {
+  it("shows each row's audience in Truy cập with the shared pill and the viewer's level line (UNI-2045 W3)", async () => {
     route({
       list: (path) =>
         query(path).get("shelved") === "true"
@@ -882,13 +883,79 @@ describe("shelved list copy and audience (F3, F4)", () => {
     });
     renderView();
     await openShelved();
-    // rowVisibilityLabelKey now maps to documents.scope.* (UNI-1785 rename):
-    // workspace → "Workspace", restricted → "Riêng tư" with the lock icon.
-    const open = await rowOf("Cả nhóm xem");
-    expect(within(open).getByText(t("documents.scope.workspace"))).toBeInTheDocument();
-    expect(within(open).queryByText(t("documents.home.access.manage"))).toBeNull();
-    const closed = await rowOf("Hồ sơ riêng");
-    const cell = within(closed).getByText(t("documents.scope.private"));
-    expect(cell.parentElement?.querySelector("svg")).not.toBeNull();
+    // The same Access cell as every list screen (contract UNI-2045 → Truy cập): the pill, then "Bạn: Quản lý".
+    const open = (await rowOf("Cả nhóm xem")).querySelector<HTMLElement>("[data-column='access']")!;
+    expect(within(open).getByText(t("documents.list.access.workspace"))).toBeInTheDocument();
+    expect(within(open).getByText(t("documents.list.access.you", { level: t("documents.list.access.level.manage") }))).toBeInTheDocument();
+    const closed = (await rowOf("Hồ sơ riêng")).querySelector<HTMLElement>("[data-column='access']")!;
+    const pill = within(closed).getByText(t("documents.list.access.restricted"));
+    expect(pill.parentElement?.querySelector("svg")).not.toBeNull();
+  });
+
+});
+
+// UNI-2045 W3: Lưu trữ is the shared list with screen="shelved": the shared
+// columns with Lưu trữ (avatar + who shelved · date) after Tên, Bỏ lưu trữ on
+// the row for a manager, and the ⋯ menu from the one row builder.
+describe("Lưu trữ on the shared list (UNI-2045 W3)", () => {
+  it("draws the shared columns with Lưu trữ after Tên", async () => {
+    route({ list: (path) => (query(path).get("shelved") === "true" ? [shelved()] : []), members: () => [member()] });
+    renderView();
+    await openShelved();
+    await rowOf("Kế hoạch Q4");
+    expect(screen.getAllByRole("columnheader").map((th) => th.textContent?.trim())).toEqual([
+      t("documents.list.column.select"),
+      t("documents.list.column.name"),
+      t("documents.list.screen_column.shelved"),
+      t("documents.list.column.access"),
+      t("documents.list.column.editor"),
+      t("documents.list.column.updated"),
+      t("documents.list.column.size"),
+      t("documents.list.column.actions"),
+    ]);
+  });
+
+  it("shows the avatar and who shelved, then the date, in the Lưu trữ column", async () => {
+    route({
+      list: (path) => (query(path).get("shelved") === "true" ? [shelved({ shelved_at: new Date(2025, 4, 6, 10, 0).toISOString() })] : []),
+      members: () => [member()],
+    });
+    renderView();
+    await openShelved();
+    const cell = (await rowOf("Kế hoạch Q4")).querySelector<HTMLElement>("[data-column='shelved']")!;
+    await waitFor(() => expect(within(cell).getByText("Mai Trường")).toBeInTheDocument());
+    expect(cell.querySelector("[data-slot='avatar']")).not.toBeNull();
+    expect(within(cell).getByText("06/05/2025")).toBeInTheDocument();
+  });
+
+  it("puts Bỏ lưu trữ and ⋯ on a manager's row, only ⋯ on a viewer's", async () => {
+    route({
+      list: (path) =>
+        query(path).get("shelved") === "true" ? [shelved(), shelved({ id: "d2", title: "Chỉ xem", my_level: "view" })] : [],
+    });
+    renderView();
+    await openShelved();
+    const managed = await rowOf("Kế hoạch Q4");
+    expect(within(managed).getByRole("button", { name: t("documents.shelved_list.unshelve_item", { title: "Kế hoạch Q4" }) })).toBeInTheDocument();
+    expect(within(managed).getByRole("button", { name: t("documents.home.row.menu", { title: "Kế hoạch Q4" }) })).toBeInTheDocument();
+    const viewed = await rowOf("Chỉ xem");
+    expect(within(viewed).queryByRole("button", { name: t("documents.shelved_list.unshelve_item", { title: "Chỉ xem" }) })).toBeNull();
+    expect(within(viewed).getByRole("button", { name: t("documents.home.row.menu", { title: "Chỉ xem" }) })).toBeInTheDocument();
+  });
+
+  it("sorts by its own column, Lưu trữ newest first, and asks the server for it (W12, SV-0)", async () => {
+    route({ list: (path) => (query(path).get("shelved") === "true" ? [shelved()] : []) });
+    renderView();
+    await openShelved();
+    await rowOf("Kế hoạch Q4");
+    const asked = requestMock.mock.calls.map(([path]) => query(String(path))).filter((q) => q.get("shelved") === "true").at(-1)!;
+    expect(asked.get("sort")).toBe("shelved");
+    expect(asked.get("order")).toBe("desc");
+    const sorted = screen.getAllByRole("columnheader").filter((th) => ["ascending", "descending"].includes(th.getAttribute("aria-sort") ?? ""));
+    expect(sorted).toHaveLength(1);
+    expect(sorted[0]).toHaveTextContent(t("documents.list.screen_column.shelved"));
+    // The Truy cập and Thao tác headers stay plain.
+    const access = screen.getAllByRole("columnheader").find((th) => th.textContent === t("documents.list.column.access"))!;
+    expect(within(access).queryByRole("button")).toBeNull();
   });
 });

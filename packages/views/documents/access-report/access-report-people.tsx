@@ -11,6 +11,7 @@ import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { cn } from "@uniwork/ui/lib/utils";
 import { initialOf } from "../../chat/chat-initials";
 import { CollectionPageState } from "../../layout/collection-page";
+import { SORT_HEADER_BUTTON } from "../library-sort-header";
 import { accessLevelLabel, accessSourceLabel, principalTypeLabel, REPORT_LEVELS } from "./access-report-labels";
 import { AccessReportPersonDocs, principalParam } from "./access-report-person-docs";
 
@@ -139,43 +140,45 @@ export function AccessReportPeople({ wsId, folderId, search, kind, levels, skipp
 
   return (
     // A size container: an open row's documents size themselves to this box (cqw), not to the viewport.
-    <div className="overflow-x-auto rounded-lg border border-border [container-type:inline-size]">
-      <table aria-label={t("documents.accessReport.tab_people")} aria-busy={query.isFetching || undefined} className="w-full border-collapse text-body sm:min-w-[56rem]">
-        <thead className="bg-muted/40">
-          <tr className="border-b border-border">
-            {sortHeader("name", t("documents.accessReport.col_principal"))}
-            {sortHeader("count", t("documents.accessReport.col_count"))}
-            <th scope="col" className={cn(TH, NARROW_HIDDEN)}>{t("documents.accessReport.col_split")}</th>
-            <th scope="col" className={cn(TH, NARROW_HIDDEN)}>{t("documents.accessReport.col_main_source")}</th>
-            <th scope="col" className={cn(TH, "w-12")}>
-              <span className="sr-only">{t("documents.accessReport.col_expand")}</span>
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {people.map((p) => {
-            const key = `${principalParam(p)}:${p.kind}`;
-            return (
-              <PersonRow
-                key={key}
-                wsId={wsId}
-                principal={p}
-                open={openKey === key}
-                onToggle={() => setOpenKey(openKey === key ? null : key)}
-                folderId={folderId}
-                levels={levels}
-                documentHref={documentHref}
-              />
-            );
-          })}
-        </tbody>
-      </table>
+    <div className="overflow-hidden rounded-lg border border-border">
+      <div className="overflow-x-auto [container-type:inline-size]">
+        <table aria-label={t("documents.accessReport.tab_people")} aria-busy={query.isFetching || undefined} className="w-full border-collapse text-left text-body sm:min-w-[56rem]">
+          <thead className="bg-muted/50">
+            <tr className="border-b border-border text-caption text-muted-foreground">
+              {sortHeader("name", t("documents.accessReport.col_principal"))}
+              {sortHeader("count", t("documents.accessReport.col_count"))}
+              <th scope="col" className={cn(TH, NARROW_HIDDEN)}>{t("documents.accessReport.col_split")}</th>
+              <th scope="col" className={cn(TH, NARROW_HIDDEN)}>{t("documents.accessReport.col_main_source")}</th>
+              <th scope="col" className={cn(TH, "w-12")}>
+                <span className="sr-only">{t("documents.accessReport.col_expand")}</span>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {people.map((p) => {
+              const key = `${principalParam(p)}:${p.kind}`;
+              return (
+                <PersonRow
+                  key={key}
+                  wsId={wsId}
+                  principal={p}
+                  open={openKey === key}
+                  onToggle={() => setOpenKey(openKey === key ? null : key)}
+                  folderId={folderId}
+                  levels={levels}
+                  documentHref={documentHref}
+                />
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
 
-const TH = "px-3 py-2 text-left text-caption font-medium whitespace-nowrap text-muted-foreground";
-const TD = "px-3 py-3 align-middle";
+const TH = "px-3 py-2 font-medium whitespace-nowrap";
+const TD = "px-3 py-2 align-middle";
 // Below sm the split bar and the main source leave the row (an open row lists each document's level and source).
 const NARROW_HIDDEN = "max-sm:hidden";
 
@@ -194,10 +197,10 @@ function SortHeader({ column, label, active, onPick }: { column: PeopleSortKey; 
         type="button"
         aria-label={t("documents.accessReport.sort_by", { column: label })}
         onClick={onPick}
-        className={cn("inline-flex min-h-8 items-center gap-1 rounded-sm hover:text-foreground pointer-coarse:min-h-11", active && "text-foreground")}
+        className={cn(SORT_HEADER_BUTTON, active && "text-foreground")}
       >
-        {label}
-        {active ? <Arrow aria-hidden className="size-3.5" /> : null}
+        <span className="truncate">{label}</span>
+        {active ? <Arrow aria-hidden className="size-3.5 shrink-0" /> : null}
       </button>
     </th>
   );
@@ -225,7 +228,7 @@ function PersonRow({ wsId, principal: p, open, onToggle, folderId, levels, docum
 
   return (
     <Fragment>
-      <tr className={cn("border-b border-border", open && "bg-muted/40")}>
+      <tr className={cn("border-b border-border transition-colors last:border-b-0 hover:bg-accent/40", open && "bg-muted/40")}>
         <td className={TD}>
           <button
             type="button"

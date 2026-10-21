@@ -6,7 +6,7 @@ import { initI18n } from "@uniwork/core/i18n";
 import { requestMock, wrapWithNav } from "../test/api-mock";
 import { DocumentsPageView } from "./documents-page-view";
 import { LibraryRowView, type LibraryRowHandlers } from "./documents-library-row";
-import { libraryLadder } from "./library-columns";
+import { specLadder } from "./library-columns";
 import { documentRow } from "./library-rows";
 import { favoriteRow } from "./starred-rows";
 
@@ -103,13 +103,10 @@ function route(routes: Routes) {
 
 const queryOf = (path: string) => new URLSearchParams(path.split("?")[1] ?? "");
 
-/** Picks a type in the home filter bar's "Loại" select (TRASH-A3 replaced the chip row at home). */
+/** Presses a type chip of the filter bar (one bar on every screen since UNI-2045 W10). */
 async function pickType(chip: string) {
-  fireEvent.click(await screen.findByRole("combobox", { name: new RegExp(`^${t("documents.home.filters.type")}`) }));
-  const option = within(await screen.findByRole("listbox")).getByText(t(`documents.home.chips.${chip}`));
-  // Base UI only commits a click that started on the item with a pointer.
-  fireEvent.pointerDown(option);
-  fireEvent.click(option);
+  const chips = await screen.findByRole("group", { name: t("documents.home.chips_label") });
+  fireEvent.click(within(chips).getByRole("button", { name: t(`documents.home.chips.${chip}`) }));
 }
 const writes = (method: string) =>
   requestMock.mock.calls.filter(([, opts]) => (opts as { method?: string } | undefined)?.method === method);
@@ -283,7 +280,7 @@ describe("starred rows without a loaded copy (m1)", () => {
     render(
       <table>
         <tbody>
-          <LibraryRowView row={documentRow(favoriteRow(fav, known))} handlers={handlers} ladder={libraryLadder()} />
+          <LibraryRowView row={documentRow(favoriteRow(fav, known))} handlers={handlers} ladder={specLadder("workspace", { selectable: false })} />
         </tbody>
       </table>,
     );
@@ -303,7 +300,7 @@ describe("starred rows without a loaded copy (m1)", () => {
     const { unmount } = render(
       <table>
         <tbody>
-          <LibraryRowView row={documentRow(favoriteRow(fav))} handlers={handlers} ladder={libraryLadder()} />
+          <LibraryRowView row={documentRow(favoriteRow(fav))} handlers={handlers} ladder={specLadder("workspace", { selectable: false })} />
         </tbody>
       </table>,
     );
@@ -316,7 +313,7 @@ describe("starred rows without a loaded copy (m1)", () => {
           <LibraryRowView
             row={documentRow(favoriteRow(fav))}
             handlers={{ ...handlers, isStarred: () => false }}
-            ladder={libraryLadder()}
+            ladder={specLadder("workspace", { selectable: false })}
           />
         </tbody>
       </table>,

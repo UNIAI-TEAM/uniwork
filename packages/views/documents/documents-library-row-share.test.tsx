@@ -4,7 +4,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vites
 import { initI18n, setLocale } from "@uniwork/core/i18n";
 import type { DocumentSourceFile } from "@uniwork/core/documents/sources-schema";
 import { LibraryRowView, type LibraryRowHandlers } from "./documents-library-row";
-import { libraryLadder } from "./library-columns";
+import { specLadder } from "./library-columns";
 import { documentRow, sourceRow, type DocumentSummaryRow, type LibraryRow } from "./library-rows";
 
 // UNI-2009: change access from a list row without opening the document. The
@@ -62,7 +62,7 @@ function renderRow(row: LibraryRow, over: Partial<LibraryRowHandlers> = {}) {
   return render(
     <table>
       <tbody>
-        <LibraryRowView row={row} handlers={{ ...handlers, ...over }} ladder={libraryLadder()} />
+        <LibraryRowView row={row} handlers={{ ...handlers, ...over }} ladder={specLadder("workspace", { selectable: false })} />
       </tbody>
     </table>,
   );
@@ -181,7 +181,7 @@ describe("the Access cell as a button", () => {
     const row = doc({ my_level: "edit", via: "share" });
     renderRow(documentRow(row));
     const button = within(accessCell()).getByRole("button", { name: (name) => name.startsWith(t("documents.home.access.view_for", { title: row.title })) });
-    expect(button).toHaveAccessibleName("Xem quyền truy cập của Kế hoạch Q4.docx Workspace Bạn: Chỉnh sửa");
+    expect(button).toHaveAccessibleName("Xem quyền truy cập của Kế hoạch Q4.docx Workspace Bạn: Sửa");
     fireEvent.click(button);
     expect(handlers.onShare).toHaveBeenCalledWith(row);
   });
