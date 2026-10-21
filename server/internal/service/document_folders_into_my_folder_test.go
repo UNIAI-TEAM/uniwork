@@ -333,14 +333,15 @@ func TestFoldersIntoMyFolderSkipsFoldersAlreadyInMyFolder(t *testing.T) {
 	}
 	inside := x.folder(t, a, "Đã ở trong", mf.Document.ID)
 	deeper := x.folder(t, a, "Sâu hơn", inside.ID)
+	deepest := x.folder(t, a, "Sâu nhất", deeper.ID)
 	before := x.passRows(t)
-	hashes := []string{x.hash(t, mf.Document.ID), x.hash(t, inside.ID), x.hash(t, deeper.ID)}
+	hashes := []string{x.hash(t, mf.Document.ID), x.hash(t, inside.ID), x.hash(t, deeper.ID), x.hash(t, deepest.ID)}
 
 	res := x.run(t, false, x.tn.orgID)
 	if res.Units != 0 || res.MovedFolders != 0 || res.RelocatedDocuments != 0 {
 		t.Fatalf("report = %+v, want nothing", res)
 	}
-	for i, id := range []string{mf.Document.ID, inside.ID, deeper.ID} {
+	for i, id := range []string{mf.Document.ID, inside.ID, deeper.ID, deepest.ID} {
 		if x.hash(t, id) != hashes[i] {
 			t.Fatalf("%s changed", id)
 		}
@@ -492,5 +493,29 @@ func TestFoldersIntoMyFolderSkipsFolderWithoutOwnerWithReason(t *testing.T) {
 	}
 	if !x.get(t, good.ID).ParentID.Valid {
 		t.Fatal("one skipped folder stopped the pass")
+	}
+}
+
+// An ownerless private folder nested in a unit travels with the unit in a real
+// run, so the dry run must not find it again as a unit of its own and report a
+// bogus no_owner skip: both reports are the same.
+func TestFoldersIntoMyFolderDryRunCountsOwnerlessNestedFolderLikeRealRun(t *testing.T) {
+	x := newFimFixture(t, "fim13")
+	top := x.folder(t, x.tn.member, "Trên cùng", "")
+	nested := x.folder(t, x.tn.member, "Không chủ lồng", top.ID)
+	if _, err := x.f.pool.Exec(x.f.ctx, `UPDATE documents SET acl_owner_id = NULL WHERE id = $1`, nested.ID); err != nil {
+		t.Fatal(err)
+	}
+
+	dry := x.run(t, true, x.tn.orgID)
+	real := x.run(t, false, x.tn.orgID)
+	if dry.Units != real.Units || dry.MovedFolders != real.MovedFolders || len(dry.Skipped) != len(real.Skipped) {
+		t.Fatalf("dry = %+v, real = %+v, want the same counts", dry, real)
+	}
+	if real.Units != 1 || real.MovedFolders != 1 || len(real.Skipped) != 0 {
+		t.Fatalf("real = %+v, want one unit moved and nothing skipped", real)
+	}
+	if got := x.get(t, nested.ID).ParentID; !got.Valid || got.String != top.ID {
+		t.Fatalf("the nested folder left its unit: parent = %+v", got)
 	}
 }
