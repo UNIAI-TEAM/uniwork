@@ -205,6 +205,30 @@ describe("Documents home folder upload entries (UNI-2052)", () => {
     expect(within(dialog).getByTestId("folder-upload-summary")).toHaveTextContent("1 tệp");
   });
 
+  it("opens one files-mode pre-flight for a folder's sibling files dropped with it, after the folder's (A6)", async () => {
+    route({ folderUpload: true });
+    renderView();
+    await screenWithFolderUpload();
+    const zone = screen.getByRole("region", { name: t("documents.page.title") });
+    const a = new File(["x"], "a.pdf", { type: "application/pdf" });
+    const b = new File(["y"], "b.pdf", { type: "application/pdf" });
+    const items = [
+      { kind: "file", webkitGetAsEntry: () => dirEntry("Báo cáo", [fileEntry("x.pdf")]), getAsFile: () => null },
+      { kind: "file", webkitGetAsEntry: () => fileEntry("a.pdf"), getAsFile: () => a },
+      { kind: "file", webkitGetAsEntry: () => fileEntry("b.pdf"), getAsFile: () => b },
+    ];
+    await act(async () => {
+      fireEvent.drop(zone, { dataTransfer: { types: ["Files"], files: [], items, dropEffect: "none" } });
+    });
+    const dialog = await screen.findByTestId("folder-upload-dialog");
+    expect(dialog).toHaveAttribute("data-mode", "folder");
+    expect(within(dialog).getByText(t("documents.folder_upload.dialog.queue_more", { count: 1 }))).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: t("documents.folder_upload.dialog.cancel") }));
+    await waitFor(() => expect(screen.getByTestId("folder-upload-dialog")).toHaveAttribute("data-mode", "files"));
+    expect(screen.getByTestId("folder-upload-summary")).toHaveTextContent("2 tệp");
+    expect(screen.queryByTestId("folder-upload-root")).toBeNull();
+  });
+
   it("skips a dropped folder with one toast when the server has no folder uploads", async () => {
     route({ folderUpload: false });
     renderView();

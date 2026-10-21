@@ -89,6 +89,7 @@ export function useDocumentsUploads({
     maxBytes: limits.upload_max_bytes,
     upload: fileUpload.uploadDroppedFile,
     onFolders: folderUpload.available ? folderUpload.addFolders : undefined,
+    onFiles: folderUpload.available ? folderUpload.addFiles : undefined,
     foldersReady: !configLoading,
     maxFolderFiles: limits.folder_upload?.max_files,
   });

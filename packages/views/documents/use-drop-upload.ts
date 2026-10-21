@@ -47,12 +47,18 @@ interface QueuedUploadEntry {
  * for the answer before it is handed over or explained. A folder cut at the
  * read bound (`maxFolderFiles * 4` files) is refused here, with the lower-bound
  * count, rather than staged half-read.
+ *
+ * Two or more loose files in one drop go to `onFiles` as ONE multi-file run
+ * (ADDENDUM 2), after the drop's folders; a single loose file, or any files
+ * when `onFiles` is absent (no folder upload on the server), take the old
+ * one-file-at-a-time queue. Until `foldersReady`, several files wait too.
  */
 export function useDropUpload({
   enabled,
   upload,
   maxBytes = DEFAULT_DOCUMENT_MAX_BYTES,
   onFolders,
+  onFiles,
   foldersReady = true,
   maxFolderFiles,
 }: {
@@ -60,6 +66,8 @@ export function useDropUpload({
   upload: (file: File) => Promise<void>;
   maxBytes?: number;
   onFolders?: (folders: FolderUploadEntry<File>[][]) => void;
+  /** Takes two or more loose files of one drop as one multi-file run; gated like `onFolders`. */
+  onFiles?: (files: File[]) => void;
   /** False while the config that decides `onFolders` is still loading. */
   foldersReady?: boolean;
   /** `max_files` of the folder-upload limits, for the read bound of a dropped folder. */
@@ -76,8 +84,9 @@ export function useDropUpload({
   // one to settle — and every file waiting in line gets its own toast (I-1).
   const chainRef = useRef<Promise<void>>(Promise.resolve());
   const jobsRef = useRef<QueuedUploadEntry[][]>([]);
-  const folderGate = useRef({ onFolders, ready: foldersReady, maxFolderFiles, waiters: [] as (() => void)[] });
+  const folderGate = useRef({ onFolders, onFiles, ready: foldersReady, maxFolderFiles, waiters: [] as (() => void)[] });
   folderGate.current.onFolders = onFolders;
+  folderGate.current.onFiles = onFiles;
   folderGate.current.ready = foldersReady;
   folderGate.current.maxFolderFiles = maxFolderFiles;
   useEffect(() => {
@@ -196,6 +205,14 @@ export function useDropUpload({
     if (staged.length > 0) handler(staged);
   };
 
+  /** Several loose files: one multi-file run once the config allows it, else the old queue. */
+  const stageLooseFiles = async (files: File[]) => {
+    if (!folderGate.current.ready) await whenFoldersReady();
+    const handler = folderGate.current.onFiles;
+    if (handler) handler(files);
+    else void enqueueUpload(files);
+  };
+
   const zoneProps = enabled
     ? {
         onDragEnter: (event: DragEvent) => {
@@ -228,12 +245,15 @@ export function useDropUpload({
             const unavailable = ready && !handler;
             const reading = unavailable ? null : readDroppedFolders(items, { maxFiles: maxFolderFiles });
             if (unavailable) toast.info(t("documents.folder_upload.toast.folders_unavailable"));
-            if (loose.length > 0) void enqueueUpload(loose);
-            if (reading) void stageDroppedFolders(reading);
+            const several = loose.length >= 2 && !unavailable;
+            if (loose.length > 0 && !several) void enqueueUpload(loose);
+            // The loose files' run queues behind the drop's folders.
+            if (reading) void stageDroppedFolders(reading).then(() => (several ? stageLooseFiles(loose) : undefined));
             return;
           }
           const files = Array.from(event.dataTransfer.files);
-          if (files.length > 0) void enqueueUpload(files);
+          if (files.length >= 2) void stageLooseFiles(files);
+          else if (files.length > 0) void enqueueUpload(files);
         },
       }
     : {};
