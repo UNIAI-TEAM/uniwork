@@ -26,7 +26,7 @@ func toTranscriptDTO(s db.MeetingTranscriptSegment) sdo.TranscriptSegmentDTO {
 func toSummaryDTO(s db.MeetingSummary) sdo.MeetingSummaryDTO {
 	d := sdo.MeetingSummaryDTO{
 		ID: s.ID, MeetingID: s.MeetingID, Summary: s.Summary, Model: s.Model,
-		CreatedBy: s.CreatedBy, CreatedAt: rfc3339(s.CreatedAt), Partial: s.Partial, Decisions: []sdo.MeetingSummaryDecisionDTO{},
+		CreatedBy: s.CreatedBy, CreatedByKind: s.CreatedByKind, CreatedAt: rfc3339(s.CreatedAt), Partial: s.Partial, Decisions: []sdo.MeetingSummaryDecisionDTO{},
 	}
 	for _, dec := range service.DecodeSummaryDecisions(s.Decisions) {
 		d.Decisions = append(d.Decisions, sdo.MeetingSummaryDecisionDTO{Text: dec.Text, Evidence: toEvidenceRefsDTO(dec.Evidence)})

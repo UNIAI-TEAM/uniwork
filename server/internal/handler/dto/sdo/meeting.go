@@ -254,8 +254,19 @@ type MeetingSummaryDTO struct {
 	Decisions []MeetingSummaryDecisionDTO `json:"decisions"`
 	Model     string                      `json:"model"`
 	CreatedBy string                      `json:"created_by"`
-	CreatedAt string                      `json:"created_at"`
-	Partial   bool                        `json:"partial" description:"Tóm tắt dựa trên một phần cuộc họp: transcript dài hơn ngân sách đầu vào"`
+	// CreatedByKind is system for the summary made when the meeting ended (UNI-2026).
+	CreatedByKind string `json:"created_by_kind" enum:"human,agent,system" description:"system = tóm tắt tự tạo khi họp xong" example:"system"`
+	CreatedAt     string `json:"created_at"`
+	Partial       bool   `json:"partial" description:"Tóm tắt dựa trên một phần cuộc họp: transcript dài hơn ngân sách đầu vào"`
+}
+
+// MeetingSettingsSDO is the organization's meeting settings (UNI-2026).
+type MeetingSettingsSDO struct {
+	OrganizationID     string  `json:"organization_id" example:"01J8X4ORGN1P2Q3R4S5T6U7V8"`
+	AutoSummaryEnabled bool    `json:"auto_summary_enabled" description:"Hệ thống tự tạo tóm tắt khi cuộc họp kết thúc" example:"true"`
+	UpdatedBy          *string `json:"updated_by,omitempty" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
+	UpdatedByKind      *string `json:"updated_by_kind,omitempty" description:"human, agent hoặc system" example:"human"`
+	UpdatedAt          *string `json:"updated_at,omitempty" example:"2026-10-21T09:00:00Z"`
 }
 
 type MeetingSummarySDO struct {

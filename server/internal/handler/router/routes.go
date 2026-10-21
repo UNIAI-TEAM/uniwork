@@ -394,6 +394,8 @@ type Routes struct {
 	MeetingActivity                http.HandlerFunc
 	AppendTranscript               http.HandlerFunc
 	SetMeetingScribe               http.HandlerFunc
+	GetMeetingSettings             http.HandlerFunc
+	SetMeetingSettings             http.HandlerFunc
 	SetParticipantSharedMic        http.HandlerFunc
 	ListSpeakerLabels              http.HandlerFunc
 	AssignSpeakerLabel             http.HandlerFunc

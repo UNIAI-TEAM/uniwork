@@ -168,6 +168,16 @@ func registerMeetings(r api, h Routes, summaryLimit, minutesOrg, minutesFlag fun
 		summary: "List transcript segments (newest page first; ?before= older, ?after= delta)", tags: []string{"meetings"},
 		sdi: sdi.MeetingFeedSDI{}, sdo: sdo.TranscriptListSDO{}, auth: true,
 	})
+	r.Get("/orgs/{orgID}/meetings/settings", h.GetMeetingSettings, apiOp{
+		summary:     "Read the organization meeting settings",
+		description: "Cài đặt cuộc họp của tổ chức: tóm tắt tự tạo khi họp xong. Chỉ owner/admin tổ chức đọc được; tổ chức chưa từng đổi trả về mặc định (bật), không ghi dòng nào.",
+		tags:        []string{"meetings"}, sdo: sdo.MeetingSettingsSDO{}, auth: true,
+	})
+	r.Put("/orgs/{orgID}/meetings/settings", h.SetMeetingSettings, apiOp{
+		summary:     "Switch the summary the system makes when a meeting ends",
+		description: "Bật/tắt tóm tắt tự tạo khi họp xong cho cả tổ chức. Chỉ owner/admin tổ chức; áp cho cuộc họp kết thúc từ nay, cuộc họp đang chờ tóm tắt cũng kiểm lại trước khi chạy. Tắt thì chủ trì nhận nhắc tóm tắt như cũ. Đổi giá trị ghi audit meeting.settings_changed.",
+		tags:        []string{"meetings"}, sdi: sdi.SetMeetingSettingsSDI{}, sdo: sdo.MeetingSettingsSDO{}, auth: true,
+	})
 	r.Put("/meetings/{meetingID}/scribe", h.SetMeetingScribe, apiOp{
 		summary:     "Switch the AI scribe off or on for one meeting",
 		description: "Chủ trì hoặc quản trị workspace; cuộc họp SCHEDULED hoặc IN_PROGRESS. Mặc định bật; đang họp thì thư ký được gỡ khỏi phòng hoặc gọi vào ngay. Ghi audit meeting.scribe_toggled và phát scribe.updated.",

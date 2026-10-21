@@ -153,3 +153,39 @@ func (h *handlers) assignSpeakerLabel(w http.ResponseWriter, r *http.Request) {
 	}
 	respondJSON(w, 200, sdo.SpeakerLabelSDO{Label: toSpeakerLabelDTO(l)})
 }
+
+// getMeetingSettings is GET /orgs/{orgID}/meetings/settings (UNI-2026).
+func (h *handlers) getMeetingSettings(w http.ResponseWriter, r *http.Request) {
+	set, err := h.Meetings.GetMeetingSettings(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "orgID"))
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	respondMeetingSettings(w, set)
+}
+
+// setMeetingSettings is PUT /orgs/{orgID}/meetings/settings (UNI-2026).
+func (h *handlers) setMeetingSettings(w http.ResponseWriter, r *http.Request) {
+	var in sdi.SetMeetingSettingsSDI
+	if !decode(w, r, &in, maxJSONBody) {
+		return
+	}
+	set, err := h.Meetings.SetMeetingAutoSummary(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "orgID"), in.AutoSummaryEnabled)
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	respondMeetingSettings(w, set)
+}
+
+func respondMeetingSettings(w http.ResponseWriter, set db.MeetingSetting) {
+	out := sdo.MeetingSettingsSDO{OrganizationID: set.OrganizationID, AutoSummaryEnabled: set.AutoSummaryEnabled}
+	if set.UpdatedBy != "" {
+		out.UpdatedBy, out.UpdatedByKind = &set.UpdatedBy, &set.UpdatedByKind
+	}
+	if set.UpdatedAt.Valid {
+		at := rfc3339(set.UpdatedAt)
+		out.UpdatedAt = &at
+	}
+	respondJSON(w, http.StatusOK, out)
+}

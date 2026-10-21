@@ -136,6 +136,11 @@ type AgentFinishedSDI struct {
 }
 
 // SetMeetingScribeSDI is PUT /api/v1/meetings/{meetingID}/scribe.
+// SetMeetingSettingsSDI is PUT /orgs/{orgID}/meetings/settings (UNI-2026).
+type SetMeetingSettingsSDI struct {
+	AutoSummaryEnabled bool `json:"auto_summary_enabled" description:"false = không tự tạo tóm tắt khi họp xong (chủ trì nhận nhắc như cũ); true = tự tạo (mặc định)" example:"false"`
+}
+
 type SetMeetingScribeSDI struct {
 	Enabled bool `json:"enabled" description:"false = tắt thư ký AI cho cuộc họp này; true = bật lại (mặc định bật)" example:"false"`
 }

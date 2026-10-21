@@ -758,6 +758,7 @@ func (w *isoWorld) buildDocuments(t *testing.T, tn *isoTenant) {
 	}
 	tn.ids["breakGlassGrant"] = grantID
 	w.call(t, "PUT", "/api/v1/orgs/"+tn.orgID+"/documents/settings", tn.token, map[string]any{"public_links_enabled": true})
+	w.call(t, "PUT", "/api/v1/orgs/"+tn.orgID+"/meetings/settings", tn.token, map[string]any{"auto_summary_enabled": false})
 	out = w.call(t, "POST", dp+"/links", tn.token, map[string]any{})
 	tn.ids["docLink"] = isoID(t, out, "link")
 	tn.ids["docLinkToken"] = isoString(t, out, "token")
@@ -1149,6 +1150,12 @@ func (w *isoWorld) buildActivity(t *testing.T, tn *isoTenant) {
 		VALUES ($1, $2, $3, $4, 'FINISHED', now(), 'meeting_scribe', 'system')`,
 		util.NewID(), tn.orgID, tn.wsID, tn.ids["meeting"]); err != nil {
 		t.Fatalf("meeting scribe run: %v", err)
+	}
+	// An ended meeting waiting for its auto summary (UNI-2026): only
+	// endMeeting queues it, and the isolation world configures no model.
+	if _, err := w.pool.Exec(ctx, `INSERT INTO meeting_auto_summaries (meeting_id, organization_id, due_at)
+		VALUES ($1, $2, now() + interval '1 hour') ON CONFLICT DO NOTHING`, tn.ids["meeting"], tn.orgID); err != nil {
+		t.Fatalf("meeting auto summary: %v", err)
 	}
 	// A speaker label of the shared microphone, filed the way
 	// AppendAgentSegments files it (the agent API has no session caller).
