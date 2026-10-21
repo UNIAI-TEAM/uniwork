@@ -93,10 +93,6 @@ function source(over: Record<string, unknown> = {}) {
   };
 }
 
-function favorite(over: Record<string, unknown> = {}) {
-  return { document_id: "fav-1", workspace_id: WS, title: "Báo giá.docx", kind: "file", ...over };
-}
-
 interface Routes {
   tree?: () => unknown[];
   list?: (path: string) => unknown[];
@@ -104,6 +100,8 @@ interface Routes {
   sources?: (path: string) => unknown[];
   sourcesCursor?: (path: string) => string | null;
   favorites?: () => unknown[];
+  /** The Starred screen's rows, GET {LIST_BASE}/favorites (UNI-2045 SV-2). */
+  starred?: () => unknown[];
   detail?: (id: string) => unknown;
 }
 
@@ -119,6 +117,7 @@ function route(routes: Routes) {
     };
     if (path.startsWith(TREE_URL)) return run(() => ({ documents: routes.tree?.() ?? [] }));
     if (path === FAVORITES_URL) return run(() => ({ favorites: routes.favorites?.() ?? [] }));
+    if (path.startsWith(`${LIST_BASE}/favorites`)) return run(() => ({ documents: routes.starred?.() ?? [], next_cursor: null }));
     if (path.startsWith(`${LIST_BASE}/sources`) && method === "GET") {
       return run(() => ({ items: routes.sources?.(path) ?? [], next_cursor: routes.sourcesCursor?.(path) ?? null }));
     }
@@ -320,16 +319,17 @@ describe("the table headers sort (UNI-2038 S2)", () => {
   it("starred view: sorts the loaded favorites on the client without a list refetch", async () => {
     route({
       list: () => [],
-      favorites: () => [
-        favorite({ document_id: "s-b", title: "Bình.docx" }),
-        favorite({ document_id: "s-a", title: "An.docx" }),
-        favorite({ document_id: "s-c", title: "Chi.docx" }),
+      starred: () => [
+        summary({ id: "s-b", kind: "file", title: "Bình.docx" }),
+        summary({ id: "s-a", kind: "file", title: "An.docx" }),
+        summary({ id: "s-c", kind: "file", title: "Chi.docx" }),
       ],
     });
     renderView(`/org/${WS}/documents?view=starred`);
     await screen.findByText("An.docx");
     const before = requestMock.mock.calls.length;
     expect(listCalls().every((path) => !queryOf(path).get("sort"))).toBe(true);
+    expect(requestMock.mock.calls.some(([path]) => String(path) === `${LIST_BASE}/favorites?limit=50`)).toBe(true);
 
     fireEvent.click(await sortButton("name"));
     await waitFor(() => expect(rowOrder()).toEqual(["s-a", "s-b", "s-c"]));

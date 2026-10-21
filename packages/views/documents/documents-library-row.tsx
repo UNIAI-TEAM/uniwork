@@ -142,9 +142,12 @@ export function LibraryRowView({
 
   // The agreed optional list fields (SV-1..SV-6); each reads undefined until the schema parses it.
   const fields = doc ? docListRowFields(doc) : {};
+  // SV-6 names the editor with their photo; without it the member list does both (a photo-less SV-6 editor draws the initial).
   const editor = doc
     ? fields.updatedByUser?.name ?? (doc.updated_by ? handlers.personName(doc.updated_by, doc.updated_by_kind) : null)
     : source?.owner?.name || null;
+  const memberEditor = doc?.updated_by && !fields.updatedByUser ? handlers.member?.(doc.updated_by) : null;
+  const editorAvatar = fields.updatedByUser ? fields.updatedByUser.avatarUrl : memberEditor && memberEditor !== "former" ? memberEditor.avatarUrl : null;
   // The shared list formats answer "—" for nothing to show; the narrow meta line
   // below leaves such a part out instead of printing the dash.
   const size = formatBytes(rowSizeBytes(row), i18n.language);
@@ -357,7 +360,7 @@ export function LibraryRowView({
     ),
     editor: (
       <td data-column="editor" className={cn("py-2", libraryPad(ladder, "editor"), libraryCell(ladder, "editor"))}>
-        <DocPersonCell name={editor} avatarUrl={fields.updatedByUser?.avatarUrl} kind={doc?.updated_by_kind} />
+        <DocPersonCell name={editor} avatarUrl={editorAvatar} kind={doc?.updated_by_kind} />
       </td>
     ),
     updated: (

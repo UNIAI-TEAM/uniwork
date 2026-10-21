@@ -92,10 +92,6 @@ function source(over: Record<string, unknown> = {}) {
   };
 }
 
-function favorite(over: Record<string, unknown> = {}) {
-  return { document_id: "fav-1", workspace_id: WS, title: "Báo giá.docx", kind: "file", ...over };
-}
-
 interface Routes {
   tree?: () => unknown[];
   list?: (path: string) => unknown[];
@@ -103,6 +99,8 @@ interface Routes {
   sources?: (path: string) => unknown[];
   sourcesCursor?: (path: string) => string | null;
   favorites?: () => unknown[];
+  /** The Starred screen's rows, GET {LIST_BASE}/favorites (UNI-2045 SV-2). */
+  starred?: () => unknown[];
   detail?: (id: string) => unknown;
 }
 
@@ -118,6 +116,7 @@ function route(routes: Routes) {
     };
     if (path.startsWith(TREE_URL)) return run(() => ({ documents: routes.tree?.() ?? [] }));
     if (path === FAVORITES_URL) return run(() => ({ favorites: routes.favorites?.() ?? [] }));
+    if (path.startsWith(`${LIST_BASE}/favorites`)) return run(() => ({ documents: routes.starred?.() ?? [], next_cursor: null }));
     if (path.startsWith(`${LIST_BASE}/sources`) && method === "GET") {
       return run(() => ({ items: routes.sources?.(path) ?? [], next_cursor: routes.sourcesCursor?.(path) ?? null }));
     }
@@ -422,7 +421,10 @@ describe("server-side type and access filters (UNI-1868)", () => {
   it("keeps client filtering on starred: chips hide favorites without touching the list requests", async () => {
     route({
       list: () => [summary()],
-      favorites: () => [favorite({ document_id: "star-docx", title: "Báo giá.docx" }), favorite({ document_id: "star-pdf", title: "Hợp đồng.pdf", kind: "file" })],
+      starred: () => [
+        summary({ id: "star-docx", kind: "file", title: "Báo giá.docx" }),
+        summary({ id: "star-pdf", kind: "file", title: "Hợp đồng.pdf" }),
+      ],
     });
     renderView(`/org/${WS}/documents?view=starred`);
     expect(await screen.findByText("Báo giá.docx")).toBeInTheDocument();
@@ -432,8 +434,9 @@ describe("server-side type and access filters (UNI-1868)", () => {
     await clickChip("pdf");
     expect(await screen.findByText("Hợp đồng.pdf")).toBeInTheDocument();
     expect(screen.queryByText("Báo giá.docx")).toBeNull();
-    // No refetch for a client-only filter on this view.
+    // No refetch for a client-only filter on this view, and the starred route takes no format.
     expect(listCalls().length).toBe(callsBefore);
+    expect(requestMock.mock.calls.every(([path]) => !String(path).startsWith(`${LIST_BASE}/favorites?format`))).toBe(true);
     expect(listCalls().every((path) => !queryOf(path).get("format"))).toBe(true);
   });
 

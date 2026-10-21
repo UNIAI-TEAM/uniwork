@@ -158,6 +158,23 @@ export async function listSharedWithMe(
   return parsed;
 }
 
+/** GET /api/v1/workspaces/{workspaceID}/documents/favorites (UNI-2045 SV-2) —
+ *  the caller's starred documents in the workspace as list rows, each with its
+ *  `favorited_at`, newest star first; keyset paging on `cursor`. The org-wide
+ *  favorites route (document-favorites.ts) stays for the star toggles. */
+export async function listFavoriteDocuments(
+  wsId: string,
+  opts?: Pick<ListDocumentsBaseOpts, "cursor" | "limit">,
+  signal?: AbortSignal,
+): Promise<DocumentList> {
+  const raw = await request(`/api/v1/workspaces/${enc(wsId)}/documents/favorites${listQuery(opts)}`, { signal });
+  const parsed = parseWithFallback<DocumentList | null>(raw, DocumentListSchema, null, {
+    endpoint: "GET /api/v1/workspaces/{ws}/documents/favorites",
+  });
+  if (!parsed) throw new Error("document_list_invalid");
+  return parsed;
+}
+
 /**
  * GET /api/v1/workspaces/{workspaceID}/documents?shared_by_me=true —
  * non-archived documents in the workspace that the caller owns (`acl_owner_id`)

@@ -139,4 +139,11 @@ export const documentKeys = {
    */
   favoritesRoot: ["documents", "favorites"] as const,
   favorites: (orgId: string) => [...documentKeys.favoritesRoot, orgId] as const,
+  /**
+   * The Starred screen's rows (UNI-2045 SV-2): full list rows of one
+   * workspace, so they sit under the workspace root and a `document.*` frame
+   * (a rename, an archive) refreshes them like any list; the star toggles
+   * invalidate them beside `favoritesRoot`.
+   */
+  favoriteList: (wsId: string) => [...documentKeys.workspace(wsId), "favorites"] as const,
 };

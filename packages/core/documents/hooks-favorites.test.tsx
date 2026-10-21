@@ -91,7 +91,7 @@ describe("document favorite hooks", () => {
       .mockResolvedValueOnce(json({ documents: [row("d2")], next_cursor: null }));
     const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     const wrapper = wrapperFor(qc);
-    const idle = renderHook(() => useWorkspaceFavoriteDocuments("w1", { enabled: false }), { wrapper });
+    const idle = renderHook(() => useWorkspaceFavoriteDocuments("w2", { enabled: false }), { wrapper });
     expect(idle.result.current.fetchStatus).toBe("idle");
 
     const list = renderHook(() => useWorkspaceFavoriteDocuments("w1"), { wrapper });
@@ -101,10 +101,10 @@ describe("document favorite hooks", () => {
       await list.result.current.fetchNextPage();
     });
     expect(String(vi.mocked(fetch).mock.calls[1]![0])).toBe("http://api.test/api/v1/workspaces/w1/documents/favorites?cursor=c2&limit=50");
-    expect(list.result.current.data?.pages.flatMap((p) => p.documents.map((d) => d.id))).toEqual(["d1", "d2"]);
+    const cached = qc.getQueryData<{ pages: { documents: { id: string }[] }[] }>(documentKeys.favoriteList("w1"));
+    expect(cached?.pages.flatMap((p) => p.documents.map((d) => d.id))).toEqual(["d1", "d2"]);
     // Under the workspace root, so a document.* frame refreshes it like every other list.
     expect(documentKeys.favoriteList("w1").slice(0, 2)).toEqual(documentKeys.workspace("w1"));
-    expect(qc.getQueryData(documentKeys.favoriteList("w1"))).toBeDefined();
   });
 
   it("favorite/unfavorite also refresh every workspace starred list", async () => {

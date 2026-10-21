@@ -9610,6 +9610,20 @@
         "copy_link": "Copy link",
         "link_copied": "Link copied",
         "link_copy_failed": "Could not copy the link. Try again."
+      },
+      "activity": {
+        "edited": "You edited",
+        "opened": "You opened",
+        "commented": "You commented"
+      },
+      "starred_by_you": "You starred",
+      "share_summary": {
+        "people_one": "{{count}} person",
+        "people_other": "{{count}} people",
+        "workspaces_one": "{{count}} workspace",
+        "workspaces_other": "{{count}} workspaces",
+        "links_one": "{{count}} link",
+        "links_other": "{{count}} links"
       }
     },
     "tree": {

@@ -9,7 +9,7 @@ import { documentIconFormat, fileExtension } from "./document-type-icon";
 // The type chip and the access filter went server-side with UNI-1868 (the document lists take
 // `format`/`access`/`kind` and key them), so `matchesChip`/`matchesAccess`
 // remain only for what the server cannot filter: merged source rows, the
-// starred view (favorites + cache) and the sources view.
+// starred view (loaded in full) and the sources view.
 export type DocumentSummaryRow = DocumentList["documents"][number];
 
 export type LibraryRow =

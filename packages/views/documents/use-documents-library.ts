@@ -1,11 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
 import { useAuthStore } from "@uniwork/core/auth";
 import { classifyDocumentError } from "@uniwork/core/documents/errors";
-import { documentKeys } from "@uniwork/core/documents/keys";
-import { useDocumentFavorites } from "@uniwork/core/documents/hooks-favorites";
+import { useDocumentFavorites, useWorkspaceFavoriteDocuments } from "@uniwork/core/documents/hooks-favorites";
 import {
   useDocumentList,
   useDocumentTree,
@@ -44,7 +42,6 @@ import {
   type EditorNames,
   type LibrarySort,
 } from "./library-sort";
-import { favoriteRow, knownDocuments } from "./starred-rows";
 import { SHELVED_BY_SYSTEM } from "./documents-shelved-toolbar";
 
 const FOLDER_SORT_ROW_CAP = 1000;
@@ -74,6 +71,27 @@ export interface LibraryState {
 
 function failureOf(error: unknown): "error" | "permission" {
   return error && classifyDocumentError(error).cls === "permission" ? "permission" : "error";
+}
+
+/**
+ * Pages a list in full, up to FOLDER_SORT_ROW_CAP rows, while `active`: a list
+ * the client sorts must be whole before it is shown. Answers whether it is
+ * still paging; the view shows nothing (loading) until it is not.
+ */
+function useLoadInFull(q: InfiniteLike<DocumentList>, active: boolean): boolean {
+  const loaded = q.data?.pages.reduce((sum, page) => sum + page.documents.length, 0) ?? 0;
+  const lastPage = q.data?.pages.at(-1)?.documents.length ?? 0;
+  const paging = active && Boolean(q.hasNextPage) && !q.isError && lastPage > 0 && loaded < FOLDER_SORT_ROW_CAP;
+  useEffect(() => {
+    if (paging && !q.isFetchingNextPage) void q.fetchNextPage();
+  }, [paging, q]);
+  return paging;
+}
+
+/** A list loaded in full: no rows and still loading while it pages. */
+function wholeState(q: InfiniteLike<DocumentList>, paging: boolean): LibraryState {
+  const docs = documentState(q);
+  return { ...docs, rows: paging ? [] : docs.rows, loading: docs.loading || paging, hasMore: !paging && docs.hasMore };
 }
 
 function documentState(q: InfiniteLike<DocumentList>): LibraryState {
@@ -191,7 +209,6 @@ export function useDocumentsLibrary({ wsId, orgId, enabled, view, folderId, chip
   const serverAccess: DocumentAccessFilter | undefined =
     access === "all" ? undefined : archived && access !== "restricted" ? undefined : access;
 
-  const queryClient = useQueryClient();
   const tree = useDocumentTree(wsId, undefined, { enabled });
   const favorites = useDocumentFavorites(orgId, { enabled: enabled && !!orgId });
   // The home filter bar's editor/recency filters are server parameters of
@@ -216,27 +233,13 @@ export function useDocumentsLibrary({ wsId, orgId, enabled, view, folderId, chip
     }),
     [home, folderId, homeRoot, chip, editorParam, updatedParam, serverFormat, serverAccess, serverSort],
   );
-  // The starred view reads the workspace root list too (the home root's own
-  // cache entry when it was open), so starred rows get dates and editors.
   const homeQuery = useDocumentList(wsId, listFilter, { enabled: enabled && home });
-  const folderLoadedCount = homeQuery.data?.pages.reduce((sum, page) => sum + page.documents.length, 0) ?? 0;
-  const lastFolderPageCount = homeQuery.data?.pages.at(-1)?.documents.length ?? 0;
-  const folderAutoPaging =
-    enabled &&
-    home &&
-    Boolean(folderId) &&
-    Boolean(homeQuery.hasNextPage) &&
-    !homeQuery.isError &&
-    lastFolderPageCount > 0 &&
-    folderLoadedCount < FOLDER_SORT_ROW_CAP;
-
-  useEffect(() => {
-    if (folderAutoPaging && !homeQuery.isFetchingNextPage) {
-      void homeQuery.fetchNextPage();
-    }
-  }, [folderAutoPaging, homeQuery]);
-
-  const rootQuery = useDocumentList(wsId, {}, { enabled: enabled && view.kind === "starred" });
+  const folderAutoPaging = useLoadInFull(homeQuery, enabled && home && Boolean(folderId));
+  // Có gắn sao (UNI-2045 SV-2): the workspace's starred rows as full list rows
+  // with `favorited_at`, loaded in full and then filtered and sorted here like
+  // an open folder; it sends no filter or sort (those move with W10/W12).
+  const starredQuery = useWorkspaceFavoriteDocuments(wsId, { enabled: enabled && view.kind === "starred" });
+  const starredAutoPaging = useLoadInFull(starredQuery, enabled && view.kind === "starred");
   // Thùng rác: always `deleted` ascending (UNI-2045 Q2), fixed by the endpoint.
   const archivedQuery = useTrashedDocuments(wsId, {
     enabled: enabled && archived,
@@ -297,17 +300,6 @@ export function useDocumentsLibrary({ wsId, orgId, enabled, view, folderId, chip
     [favorites.data, wsId],
   );
 
-  // A cache read, not a subscription: recomputed when one of the lists above
-  // answers (their data is the dependency) and not on every render.
-  const known = useMemo(
-    () =>
-      view.kind === "starred"
-        ? knownDocuments([[null, rootQuery.data], ...queryClient.getQueriesData({ queryKey: documentKeys.workspace(wsId) })])
-        : null,
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- the cache entries are read through getQueriesData; these answers are what change them
-    [view.kind, queryClient, wsId, rootQuery.data, homeQuery.data, recentQuery.data, sharedQuery.data, sharedByMeQuery.data, archivedQuery.data, favorites.data],
-  );
-
   const sourceRows = (sourcesQuery.data?.pages.flatMap((page) => page.items) ?? []).map(sourceRow);
   let state: LibraryState;
   switch (view.kind) {
@@ -326,20 +318,9 @@ export function useDocumentsLibrary({ wsId, orgId, enabled, view, folderId, chip
     case "shelved":
       state = documentState(shelvedQuery);
       break;
-    case "starred": {
-      // The root list is read through its hook so an answer re-renders the
-      // view; other cached lists and details count too (read, never fetched).
-      state = {
-        rows: starred.map((fav) => documentRow(favoriteRow(fav, known?.get(fav.document_id)))),
-        loading: favorites.isPending && !!orgId,
-        failure: favorites.isError && !favorites.data ? failureOf(favorites.error) : null,
-        hasMore: false,
-        loadingMore: false,
-        loadMore: () => undefined,
-        refetch: () => void favorites.refetch(),
-      };
+    case "starred":
+      state = wholeState(starredQuery, starredAutoPaging);
       break;
-    }
     case "sources":
       state = {
         rows: sourceRows,
@@ -354,14 +335,10 @@ export function useDocumentsLibrary({ wsId, orgId, enabled, view, folderId, chip
     default: {
       const docs = documentState(homeQuery);
       if (folderId) {
-        const directRows = docs.rows.filter(
-          (row) => row.type === "document" && (row.doc.parent_id === undefined || row.doc.parent_id === folderId),
-        );
+        const whole = wholeState(homeQuery, folderAutoPaging);
         state = {
-          ...docs,
-          rows: folderAutoPaging ? [] : directRows,
-          loading: docs.loading || folderAutoPaging,
-          hasMore: !folderAutoPaging && docs.hasMore,
+          ...whole,
+          rows: whole.rows.filter((row) => row.type === "document" && (row.doc.parent_id === undefined || row.doc.parent_id === folderId)),
         };
         break;
       }
@@ -385,8 +362,8 @@ export function useDocumentsLibrary({ wsId, orgId, enabled, view, folderId, chip
     }
   }
 
-  // What the server could not filter (UNI-1868): the starred view (favorites
-  // + cache) and the sources view keep the client predicates on every row, and
+  // What the server could not filter (UNI-1868): the starred view (loaded in
+  // full) and the sources view keep the client predicates on every row, and
   // on a merged home they run on the source rows only — a document row there
   // is the server's answer. Recent and shared-with-me take `format`/`access`
   // but no `kind`, so the "UniNote" chip there is narrowed on the client, and

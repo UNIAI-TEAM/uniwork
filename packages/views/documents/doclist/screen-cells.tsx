@@ -14,8 +14,7 @@ import type { DocListRowFields } from "./row-fields";
 // (contract UNI-2045 §"Cột đặc trưng"), fed by the row's optional fields
 // (row-fields.ts). A renderer draws the table cell and the text the narrow
 // row stacks under Name when the column is off; without its field it answers
-// null and the cell writes "—". The words of each column ("Bạn đã mở",
-// "3 người · 1 link", ...) belong to W4-W7, which replace their own entry.
+// null and the cell writes "—" (today's server sends none of SV-1..SV-4).
 
 /** A workspace member by user id: their name and avatar, "former" when the
  *  loaded member list does not hold them, null while that list still loads. */
@@ -41,6 +40,8 @@ interface ScreenCellContext {
   member?: DocListMemberLookup;
 }
 
+const SUB_LINE = "font-mono text-caption tabular-nums";
+
 /** At or under this many days left the trash countdown turns red (as the "Sắp xóa vĩnh viễn" group). */
 const URGENT_DAYS = 7;
 
@@ -56,13 +57,57 @@ const date = (at: string | null | undefined, ctx: ScreenCellContext): string | n
   return value === EMPTY_CELL ? null : value;
 };
 
-const dateCell = (at: (fields: DocListRowFields) => string | null | undefined): ScreenCellRenderer => ({
-  cell: (fields, ctx) => {
-    const value = date(at(fields), ctx);
-    return value ? <span className="font-mono text-caption tabular-nums text-foreground">{value}</span> : null;
-  },
-  line: (fields, ctx) => date(at(fields), ctx),
-});
+/** A main line over the muted 12px sub line (a date unless `words`); null when both are empty. */
+function twoLines(main: ReactNode, sub: string | null | undefined, opts: { words?: boolean } = {}): ReactNode {
+  if (!main && !sub) return null;
+  return (
+    <span className="flex min-w-0 flex-col gap-0.5">
+      {main}
+      {sub ? <span className={cn("truncate text-muted-foreground", opts.words ? "text-caption" : SUB_LINE)}>{sub}</span> : null}
+    </span>
+  );
+}
+
+/** The narrow row's line: the parts that have a value, joined by " · ". */
+const joinLine = (parts: readonly (string | null | undefined)[]): string | null => {
+  const line = parts.filter((part): part is string => Boolean(part));
+  return line.length > 0 ? line.join(" · ") : null;
+};
+
+const MAIN_TEXT = "truncate text-body text-foreground";
+
+/** Recent's dot colour per activity; a kind this client does not know has no dot and no words. */
+const ACTIVITY_DOT: Record<string, string> = { edited: "bg-primary", opened: "bg-success", commented: "bg-warning" };
+
+function activityWords(fields: DocListRowFields, ctx: ScreenCellContext): { kind: string; text: string } | null {
+  const kind = fields.lastActivity?.kind;
+  switch (kind) {
+    case "edited":
+    case "opened":
+    case "commented":
+      return { kind, text: ctx.t(`documents.list.activity.${kind}`) };
+    default:
+      return null;
+  }
+}
+
+/** "3 người · 1 workspace · 1 link", the zero parts left out; null when every count is zero. */
+function shareSummaryText(fields: DocListRowFields, ctx: ScreenCellContext): string | null {
+  const summary = fields.shareSummary;
+  if (!summary) return null;
+  const parts = [
+    summary.people > 0 ? ctx.t("documents.list.share_summary.people", { count: summary.people }) : null,
+    summary.workspaces > 0 ? ctx.t("documents.list.share_summary.workspaces", { count: summary.workspaces }) : null,
+    summary.links > 0 ? ctx.t("documents.list.share_summary.links", { count: summary.links }) : null,
+  ];
+  return joinLine(parts);
+}
+
+/** A member's photo by id; the name always comes from the server's own field. */
+function memberAvatar(userId: string, ctx: ScreenCellContext): string | null {
+  const found = ctx.member?.(userId) ?? null;
+  return found && found !== "former" ? found.avatarUrl : null;
+}
 
 /** Who did it: a member's name and avatar, `formerKey` for an id the member
  *  list does not hold, `systemKey` (or nothing) for a null id, nothing while
@@ -87,30 +132,57 @@ function purgeLeft(fields: DocListRowFields, ctx: ScreenCellContext): { text: st
   return days === null ? null : { text: ctx.t("documents.list.days_left", { count: days }), urgent: days <= URGENT_DAYS };
 }
 
-const SUB_LINE = "font-mono text-caption tabular-nums";
-
-/** The screen columns of the seven screens; W4-W7 replace the four date-only ones with their own words. */
+/** The screen columns of the seven screens (contract UNI-2045 §"Cột đặc trưng"). */
 const SCREEN_CELLS: Partial<Record<DocListScreenColumnId, ScreenCellRenderer>> = {
-  activity: dateCell((fields) => fields.lastActivity?.at),
-  starred: dateCell((fields) => fields.favoritedAt),
+  // Gần đây: dot + "Bạn đã sửa|mở|bình luận" · date.
+  activity: {
+    cell: (fields, ctx) => {
+      if (!fields.lastActivity) return null;
+      const words = activityWords(fields, ctx);
+      return twoLines(
+        words ? (
+          <span className="flex min-w-0 items-center gap-1.5 text-body text-foreground">
+            <span aria-hidden data-activity-kind={words.kind} className={cn("size-2 shrink-0 rounded-full", ACTIVITY_DOT[words.kind])} />
+            <span className="truncate">{words.text}</span>
+          </span>
+        ) : null,
+        date(fields.lastActivity.at, ctx),
+      );
+    },
+    line: (fields, ctx) => (fields.lastActivity ? joinLine([activityWords(fields, ctx)?.text, date(fields.lastActivity.at, ctx)]) : null),
+  },
+  // Có gắn sao: date · "Bạn gắn sao".
+  starred: {
+    cell: (fields, ctx) => {
+      const at = date(fields.favoritedAt, ctx);
+      if (!at) return null;
+      return twoLines(<span className={cn("text-foreground", SUB_LINE)}>{at}</span>, ctx.t("documents.list.starred_by_you"), { words: true });
+    },
+    line: (fields, ctx) => {
+      const at = date(fields.favoritedAt, ctx);
+      return at ? joinLine([at, ctx.t("documents.list.starred_by_you")]) : null;
+    },
+  },
+  // Được chia sẻ với tôi: avatar + who shared · date; a name the server withholds reads "—".
   shared: {
     cell: (fields, ctx) => {
       if (!fields.shared) return null;
-      const at = date(fields.shared.at, ctx);
-      return (
-        <span className="flex min-w-0 flex-col gap-0.5">
-          <DocPersonCell name={fields.shared.byName} kind={fields.shared.byKind} />
-          {at ? <span className="font-mono text-caption tabular-nums text-muted-foreground">{at}</span> : null}
-        </span>
+      return twoLines(
+        <DocPersonCell name={fields.shared.byName} avatarUrl={memberAvatar(fields.shared.by, ctx)} kind={fields.shared.byKind} />,
+        date(fields.shared.at, ctx),
       );
     },
-    line: (fields, ctx) => {
-      if (!fields.shared) return null;
-      const parts = [fields.shared.byName, date(fields.shared.at, ctx)].filter((part): part is string => Boolean(part));
-      return parts.length > 0 ? parts.join(" · ") : null;
-    },
+    line: (fields, ctx) => (fields.shared ? joinLine([fields.shared.byName ?? EMPTY_CELL, date(fields.shared.at, ctx)]) : null),
   },
-  shared_with: dateCell((fields) => fields.shareSummary?.latestAt),
+  // Tôi đã chia sẻ: "3 người · 1 workspace · 1 link" · the latest share's date.
+  shared_with: {
+    cell: (fields, ctx) => {
+      if (!fields.shareSummary) return null;
+      const text = shareSummaryText(fields, ctx);
+      return twoLines(text ? <span className={MAIN_TEXT}>{text}</span> : null, date(fields.shareSummary.latestAt, ctx));
+    },
+    line: (fields, ctx) => (fields.shareSummary ? joinLine([shareSummaryText(fields, ctx), date(fields.shareSummary.latestAt, ctx)]) : null),
+  },
   // Thùng rác: who deleted · (date · "Còn N ngày").
   deleted: {
     cell: (fields, ctx) => {

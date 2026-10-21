@@ -886,6 +886,9 @@
     "documents.list.access.shared",
     "documents.list.access.workspace",
     "documents.list.access.you",
+    "documents.list.activity.commented",
+    "documents.list.activity.edited",
+    "documents.list.activity.opened",
     "documents.list.column.access",
     "documents.list.column.actions",
     "documents.list.column.editor",
@@ -910,6 +913,13 @@
     "documents.list.screen_column.shared",
     "documents.list.screen_column.shared_with",
     "documents.list.screen_column.shelved",
-    "documents.list.screen_column.starred"
+    "documents.list.screen_column.starred",
+    "documents.list.share_summary.links_one",
+    "documents.list.share_summary.links_other",
+    "documents.list.share_summary.people_one",
+    "documents.list.share_summary.people_other",
+    "documents.list.share_summary.workspaces_one",
+    "documents.list.share_summary.workspaces_other",
+    "documents.list.starred_by_you"
   ]
 }

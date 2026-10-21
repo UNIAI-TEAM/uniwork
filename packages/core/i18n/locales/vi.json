@@ -9605,6 +9605,20 @@
         "copy_link": "Sao chép link",
         "link_copied": "Đã sao chép link",
         "link_copy_failed": "Không sao chép được link. Thử lại."
+      },
+      "activity": {
+        "edited": "Bạn đã sửa",
+        "opened": "Bạn đã mở",
+        "commented": "Bạn đã bình luận"
+      },
+      "starred_by_you": "Bạn gắn sao",
+      "share_summary": {
+        "people_one": "{{count}} người",
+        "people_other": "{{count}} người",
+        "workspaces_one": "{{count}} workspace",
+        "workspaces_other": "{{count}} workspace",
+        "links_one": "{{count}} link",
+        "links_other": "{{count}} link"
       }
     },
     "tree": {

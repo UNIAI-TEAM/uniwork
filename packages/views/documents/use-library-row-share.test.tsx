@@ -64,6 +64,7 @@ function route(list: DocumentSummaryRow[], favorites: DocumentSummaryRow[] = lis
       return Promise.resolve({ favorites: favorites.map((d) => ({ document_id: d.id, workspace_id: WS, title: d.title, kind: d.kind })) });
     }
     if (path.startsWith("/api/v1/orgs/")) return Promise.resolve({ members: [], workspaces: [] });
+    if (path.startsWith(`${LIST_BASE}/favorites`)) return Promise.resolve({ documents: favorites, next_cursor: null });
     if (path.startsWith(LIST_BASE)) return Promise.resolve({ documents: list, next_cursor: null });
     return Promise.resolve({});
   });
@@ -188,9 +189,9 @@ describe("every list host wires the Access cell and the row menu to the dialog",
   });
 });
 
-// The Starred view builds its rows from the favorites plus a loaded copy of the
-// same document (favoriteRow); the Share gate must read that copy's owner, not
-// a default, so a starred work-product document offers what its own list does.
+// The Starred view's rows are the document's own list rows (UNI-2045 SV-2); the
+// Share gate reads their owner and level, so a starred work-product document
+// offers what its own list does.
 describe("the Starred view keeps the Share gate of the document's own row", () => {
   async function renderStarred(list: DocumentSummaryRow[], favorites: DocumentSummaryRow[]) {
     route(list, favorites);
@@ -229,10 +230,10 @@ describe("the Starred view keeps the Share gate of the document's own row", () =
     expect(await shareItem(tr)).toBeNull();
   });
 
-  it("offers neither on a starred document whose copy has not loaded", async () => {
+  it("reads the gate from the starred row itself, with no other list loaded", async () => {
     const tr = await renderStarred([], [row()]);
-    expect(accessButtons(tr)).toHaveLength(0);
-    expect(await shareItem(tr)).toBeNull();
+    expect(within(tr).getByRole("button", { name: new RegExp(t("documents.home.access.manage_for", { title })) })).toBeInTheDocument();
+    expect(await shareItem(tr)).not.toBeNull();
   });
 
   it("names Manage access for a starred document the viewer administers through admin_scope", async () => {

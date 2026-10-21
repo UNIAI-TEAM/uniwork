@@ -2,9 +2,8 @@ import type { DocumentSummaryRow } from "../library-rows";
 
 // The optional list fields the server agreed for UNI-2045 (SV-1..SV-6, see
 // contract "Hình dạng server đã chốt"), read in this one place. The core
-// schema does not parse them yet, so a parsed row never carries them and every
-// field below reads undefined today; W4-W7 add each to the schema and then
-// read it here from the typed row instead of the loose record.
+// schema parses each leniently (a drifted block is absent), and a server that
+// does not send one yet leaves it undefined here too.
 
 export interface DocListLastActivity {
   kind: string;
@@ -58,55 +57,39 @@ export interface DocListRowFields {
   updatedByUser?: { name: string; avatarUrl: string | null } | null;
 }
 
-type Loose = Record<string, unknown>;
-
-const record = (value: unknown): Loose | null => (value && typeof value === "object" && !Array.isArray(value) ? (value as Loose) : null);
-const text = (value: unknown): string | undefined => (typeof value === "string" && value !== "" ? value : undefined);
-const count = (value: unknown): number => (typeof value === "number" && Number.isFinite(value) && value > 0 ? Math.floor(value) : 0);
+const text = (value: string | null | undefined): string | undefined => (value ? value : undefined);
 
 /** The agreed optional fields of one row; a missing or malformed field reads undefined. */
 export function docListRowFields(doc: DocumentSummaryRow): DocListRowFields {
-  const raw = doc as unknown as Loose;
   const fields: DocListRowFields = {};
 
   if (doc.archived_at) {
     fields.trashed = { by: doc.archived_by || null, at: doc.archived_at, purgeAfter: doc.purge_after || null };
   }
-  const shelvedAt = text(raw.shelved_at);
-  if (shelvedAt) fields.shelved = { by: text(raw.shelved_by) ?? null, at: shelvedAt };
+  const shelvedAt = text(doc.shelved_at);
+  if (shelvedAt) fields.shelved = { by: text(doc.shelved_by) ?? null, at: shelvedAt };
 
-  const activity = record(raw.last_activity);
-  const activityKind = text(activity?.kind);
-  const activityAt = text(activity?.at);
-  if (activityKind && activityAt) fields.lastActivity = { kind: activityKind, at: activityAt };
+  const activity = doc.last_activity;
+  if (activity?.kind && activity.at) fields.lastActivity = { kind: activity.kind, at: activity.at };
 
-  const favoritedAt = text(raw.favorited_at);
+  const favoritedAt = text(doc.favorited_at);
   if (favoritedAt) fields.favoritedAt = favoritedAt;
 
-  const shared = record(raw.shared);
-  const sharedBy = text(shared?.by);
-  const sharedAt = text(shared?.at);
-  if (shared && sharedBy && sharedAt) {
-    fields.shared = { by: sharedBy, byKind: text(shared.by_kind) ?? "human", byName: text(shared.by_name) ?? null, at: sharedAt };
+  const shared = doc.shared;
+  if (shared?.by && shared.at) {
+    fields.shared = { by: shared.by, byKind: text(shared.by_kind) ?? "human", byName: text(shared.by_name) ?? null, at: shared.at };
   }
 
-  const summary = record(raw.share_summary);
+  const summary = doc.share_summary;
   if (summary) {
-    fields.shareSummary = {
-      people: count(summary.people),
-      workspaces: count(summary.workspaces),
-      links: count(summary.links),
-      latestAt: text(summary.latest_at) ?? null,
-    };
+    fields.shareSummary = { people: summary.people, workspaces: summary.workspaces, links: summary.links, latestAt: text(summary.latest_at) ?? null };
   }
 
-  if (typeof raw.is_owner === "boolean") fields.isOwner = raw.is_owner;
+  if (typeof doc.is_owner === "boolean") fields.isOwner = doc.is_owner;
 
-  if (raw.updated_by_user === null) fields.updatedByUser = null;
-  else {
-    const user = record(raw.updated_by_user);
-    const name = text(user?.name);
-    if (name) fields.updatedByUser = { name, avatarUrl: text(user?.avatar_url) ?? null };
+  if (doc.updated_by_user === null) fields.updatedByUser = null;
+  else if (doc.updated_by_user?.name) {
+    fields.updatedByUser = { name: doc.updated_by_user.name, avatarUrl: text(doc.updated_by_user.avatar_url) ?? null };
   }
 
   return fields;
