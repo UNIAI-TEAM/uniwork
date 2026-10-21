@@ -21,6 +21,7 @@ export const JOBS = {
   "doctor-bundle": "mobile",
   "android-release": "native",
   "android-smoke": "native",
+  "ios-release": "native",
 };
 
 /**

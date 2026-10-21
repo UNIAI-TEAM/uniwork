@@ -27,6 +27,9 @@ name: Mobile Verify
 #                   cold-starts to its sign-in screen and stays up; then times
 #                   five cold starts and weighs the APK against
 #                   apps/chat-mobile/perf-budget.json (scripts/mobile-perf.mjs).
+#   ios-release     the same scope as android-release: `expo prebuild -p ios`,
+#                   CocoaPods, an ad-hoc signed Release build for the simulator
+#                   (no Apple account), then smoke-launch.yaml on a simulator
 #   gate            always runs last and fails unless every job the change
 #                   needed succeeded (scripts/mobile-verify-gate.mjs): the one
 #                   required status check (scripts/branch-protection.json), so
@@ -322,10 +325,87 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+  ios-release:
+    # Audit P1 "ios-never-built": iOS had no build anywhere a PR could see. A
+    # Release build for the simulator needs no Apple account (ad-hoc signed),
+    # proves prebuild, CocoaPods and Xcode still take the native project, and
+    # the cold-start smoke proves the binary boots to its sign-in screen.
+    name: iOS simulator release build
+    needs: scope
+    if: needs.scope.outputs.native == 'true'
+    runs-on: macos-26
+    timeout-minutes: 90
+    env:
+      # Same release configuration as android-release.
+      UNICHAT_ENV: production
+      UNICHAT_API_URL: https://api.example.invalid
+      UNICHAT_APP_URL: https://app.example.invalid
+      SENTRY_DISABLE_AUTO_UPLOAD: "true"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      # Maestro runs on the JVM.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+      - run: pnpm install --frozen-lockfile --filter "@uniwork/chat-mobile..."
+      # SDK 57 needs Xcode 27; take the newest the image has (as the nightly does).
+      - name: Select Xcode
+        run: |
+          sudo xcode-select -s "$(ls -d /Applications/Xcode_*.app | sort -V | tail -1)"
+          xcodebuild -version
+      - name: Prebuild and install the pods
+        working-directory: apps/chat-mobile
+        run: pnpm exec expo prebuild -p ios --clean
+      - name: Build Release for the simulator
+        working-directory: apps/chat-mobile
+        run: |
+          set -euo pipefail
+          workspace="$(ls -d ios/*.xcworkspace)"
+          # Ad-hoc signing: the applinks entitlement needs a signature even on a
+          # simulator, and an unsigned app cannot reach the keychain (SecureStore).
+          xcodebuild -workspace "$workspace" -scheme "$(basename "$workspace" .xcworkspace)" \
+            -configuration Release -sdk iphonesimulator -derivedDataPath build \
+            CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM= PROVISIONING_PROFILE_SPECIFIER= \
+            build
+      - name: Boot a simulator and install the app
+        working-directory: apps/chat-mobile
+        run: |
+          set -euo pipefail
+          udid="$(xcrun simctl list devices available --json | jq -r '[.devices | to_entries[] | select(.key | test("iOS")) | .value[] | select(.name | startswith("iPhone"))] | last | .udid')"
+          xcrun simctl boot "$udid"
+          xcrun simctl bootstatus "$udid" -b
+          xcrun simctl install "$udid" build/Build/Products/Release-iphonesimulator/*.app
+          echo "UDID=$udid" >> "$GITHUB_ENV"
+          { echo "### UniChat iOS simulator Release build"; echo; du -sh build/Build/Products/Release-iphonesimulator/*.app | awk '{printf "- `%s`: %s\n", $2, $1}'; } | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Install Maestro ${{ env.MAESTRO_VERSION }}
+        run: |
+          set -euo pipefail
+          curl -fsSL -o "$RUNNER_TEMP/maestro.zip" "https://github.com/mobile-dev-inc/maestro/releases/download/cli-$MAESTRO_VERSION/maestro.zip"
+          unzip -q "$RUNNER_TEMP/maestro.zip" -d "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/maestro/bin" >> "$GITHUB_PATH"
+      - name: Cold start reaches sign-in on the simulator
+        working-directory: apps/chat-mobile/maestro
+        run: maestro --device "$UDID" test flows/smoke-launch.yaml
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: maestro-smoke-ios
+          path: ~/.maestro/tests/**
+          if-no-files-found: ignore
+          retention-days: 7
+
   gate:
     # The required status check (scripts/branch-protection.json): keep the name.
     name: UniChat mobile gate
-    needs: [scope, checks, doctor-bundle, android-release, android-smoke]
+    needs: [scope, checks, doctor-bundle, android-release, android-smoke, ios-release]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5

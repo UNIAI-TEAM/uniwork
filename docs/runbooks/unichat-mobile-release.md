@@ -47,15 +47,20 @@ của bản store trên kênh đó (`staging` cho `internal`/`preview`, `product
   ghim `EXPO_DOCTOR_VERSION`, rồi `expo export --platform android` cấu hình production, đo bằng
   `scripts/mobile-bundle-budget.mjs` theo `apps/chat-mobile/bundle-budget.json`: bytecode Hermes, gzip, số module);
   `android-release` (`expo prebuild` + `./gradlew :app:assembleRelease`, x86_64) rồi `android-smoke` (APK đó trên
-  emulator, `maestro/flows/smoke-launch.yaml`: mở lạnh tới màn đăng nhập) chỉ khi thay đổi chạm binary
+  emulator, `maestro/flows/smoke-launch.yaml`: mở lạnh tới màn đăng nhập) và `ios-release` (macOS: `expo prebuild -p
+  ios`, CocoaPods, `xcodebuild -configuration Release -sdk iphonesimulator` ký ad-hoc — không cần tài khoản Apple — rồi
+  cùng `smoke-launch.yaml` trên simulator) chỉ khi thay đổi chạm binary
   (`scripts/mobile-native-scope.mjs`: code/cấu hình/asset của app, đồ thị cài đặt, file `packages/core` app import
-  lúc chạy). Không đọc secret: URL máy chủ là placeholder, `SENTRY_DISABLE_AUTO_UPLOAD=true`.
+  lúc chạy). Không đọc secret: URL máy chủ là placeholder, `SENTRY_DISABLE_AUTO_UPLOAD=true`. Đỏ ở `ios-release` mà
+  Android xanh: thường là một plugin cấu hình hay gói native chỉ hỏng phía iOS (Podfile, entitlement, `Info.plist`);
+  tái hiện trên máy Mac bằng đúng hai lệnh của job.
 - `chat-mobile-release.yml` gọi đúng workflow đó trên SHA của tag (job `verify`, `force_native: true`) trước khi đụng
   EAS: `android-release` và `android-smoke` luôn chạy cho bản phát hành, kể cả tag bị đẩy lại (`git push -f`) mà diff
   không chạm binary. Sửa một trong bốn workflow (cả `chat-mobile-update.yml`) cũng chạy `mobile-verify.yml`, để
   `scripts/mobile-workflows.test.mjs` kiểm lời hứa của chúng.
 - `chat-mobile-verify.yml` hằng đêm: job `android-production` build AAB release mọi ABI từ profile production
-  (không cần tài khoản) và các luồng Maestro — ba luồng vàng trên cả hai nền tảng, thêm
+  (không cần tài khoản), job `ios` build bản Release simulator kể cả khi thiếu biến `MAESTRO_*` (chỉ simulator và các
+  luồng chờ cổng), và các luồng Maestro — ba luồng vàng trên cả hai nền tảng, thêm
   `offline-send-relaunch.yaml` trên Android (chế độ máy bay: ba tin viết offline sống qua kill, mở lạnh offline vào
   inbox và phòng từ cache, bật mạng thì tới đúng thứ tự, mỗi tin một lần); thiếu biến `MAESTRO_*` thì run theo lịch
   **đỏ**, không xanh. `background-resume.yaml` (người khác viết lúc app ở nền, trong và quá cửa sổ ân hạn 25 s của

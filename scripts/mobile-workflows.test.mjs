@@ -32,11 +32,18 @@ test("the release runs every PR check on the tagged SHA before EAS, Android only
 test("mobile-verify can be called and builds the release only through its jobs", () => {
   const wf = read("mobile-verify.yml");
   assert.match(wf, /^ {2}workflow_call:$/m);
-  for (const job of ["scope", "checks", "doctor-bundle", "android-release", "android-smoke", "gate"]) assert.match(wf, new RegExp(`^ {2}${job}:$`, "m"), `job ${job}`);
+  for (const job of ["scope", "checks", "doctor-bundle", "android-release", "android-smoke", "ios-release", "gate"]) assert.match(wf, new RegExp(`^ {2}${job}:$`, "m"), `job ${job}`);
   assert.match(envPin(wf, "EXPO_DOCTOR_VERSION") ?? "", EXACT, "EXPO_DOCTOR_VERSION is an exact version");
   assert.match(wf, /node scripts\/mobile-bundle-budget\.mjs/);
   assert.match(wf, /\.\/gradlew :app:assembleRelease/);
   assert.match(wf, /maestro test flows\/smoke-launch\.yaml/, "the cold-start smoke runs the release APK");
+  // Audit "ios-never-built": every native PR compiles iOS too, for the simulator, without an Apple account.
+  const ios = jobsOf(wf).jobs.get("ios-release") ?? "";
+  assert.match(ios, /^ {4}runs-on: macos-/m, "iOS builds on macOS");
+  assert.match(ios, /expo prebuild -p ios/);
+  assert.match(ios, /-configuration Release -sdk iphonesimulator/);
+  assert.match(ios, /CODE_SIGN_IDENTITY=- /, "ad-hoc signed: no Apple account");
+  assert.match(ios, /maestro --device "\$UDID" test flows\/smoke-launch\.yaml/, "and boots to sign-in on a simulator");
   // Accessibility on the device: the largest font scale and dark mode, the flow, then the audit, blocking.
   assert.match(
     wf,
@@ -68,6 +75,13 @@ test("the nightly pins Maestro, fails a scheduled run without its settings, and 
   assert.match(gate, /exit 1/);
   assert.doesNotMatch(gate, /::notice::Maestro skipped/);
   assert.match(wf, /^ {2}android-production:$/m);
+  // The iOS build no longer waits on the Maestro settings; only its simulator and flows do.
+  const ios = jobsOf(wf).jobs.get("ios") ?? "";
+  assert.match(ios, /^ {4}if: \$\{\{ !cancelled\(\) \}\}$/m, "the nightly iOS build runs without the Maestro settings");
+  assert.match(ios, /- name: Build for the simulator\n(?! {8}if:)/, "the build step itself is unconditional");
+  for (const step of ["Boot a simulator and install the app", "Sign in, read and send", "Push opens the room", "Join a call"]) {
+    assert.match(ios, new RegExp(`- name: ${step}\\n {8}if: needs\\.gate\\.outputs\\.ready == 'true'`), `${step} waits for the gate`);
+  }
   assert.match(wf, /\.\/gradlew :app:bundleRelease/);
   // The golden chat flow again at the largest text in dark mode, and the room audited (as warnings: its pills
   // reach their target through hit slop, which a dump cannot see).
@@ -334,4 +348,13 @@ test("the smoke and the nightly time the app on the emulator against perf-budget
   ]) {
     assert.doesNotMatch(text, /UNICHAT_PERF_MARKS/, `${where} must not log the startup marks`);
   }
+});
+
+// Audit "doc-drift": the nightly's header said mobile-verify built arm64 while it built x86_64.
+test("the nightly's description of the PR builds names the ABI mobile-verify really builds", () => {
+  const abi = read("mobile-verify.yml").match(/:app:assembleRelease [^\n]*-PreactNativeArchitectures=(\S+)/)?.[1];
+  assert.ok(abi, "mobile-verify pins one ABI for the PR build");
+  const header = read("chat-mobile-verify.yml").split(/^on:$/m)[0].replace(/\n# ?/g, " ");
+  assert.match(header, new RegExp(`an ${abi} Android release build`), `the nightly header says ${abi}`);
+  assert.doesNotMatch(header, /arm64/, "no stale ABI claim");
 });

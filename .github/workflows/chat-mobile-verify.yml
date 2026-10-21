@@ -12,11 +12,13 @@ name: UniChat mobile verify
 # (scripts/mobile-perf.mjs against apps/chat-mobile/perf-budget.json): five
 # cold starts to the inbox, then frames and memory while scrolling back
 # through MAESTRO_ROOM_ID's history (seed it with 500+ messages: runbook).
-# Typecheck, lint, unit and component tests, the bundle budget and an arm64
-# release build stay in mobile-verify.yml on every PR that reaches the app.
-# Here, besides Maestro, `android-production` builds the store artifact (an
-# AAB, every ABI) from the production profile each night: no account or
-# secret needed, so it always runs.
+# Typecheck, lint, unit and component tests, the bundle budget, an x86_64
+# Android release build and an iOS simulator release build stay in
+# mobile-verify.yml on every PR that reaches the app (scripts/mobile-workflows.test.mjs
+# holds this line to that workflow's ABI). Here, besides Maestro,
+# `android-production` builds the store artifact (an AAB, every ABI) from the
+# production profile each night, and `ios` builds its Release binary even when
+# the Maestro settings are missing: no account or secret needed for either.
 #
 # Repository settings it reads (names only; Maestro picks up every MAESTRO_*
 # variable of its environment):
@@ -102,8 +104,12 @@ jobs:
           echo "ready=true" >> "$GITHUB_OUTPUT"
 
   ios:
+    # The build runs whatever the gate says (audit "ios-never-built": it was
+    # hostage to the Maestro settings); the simulator and the flows only when
+    # the gate is ready. A scheduled run without the settings is still red, by
+    # the gate.
     needs: gate
-    if: needs.gate.outputs.ready == 'true'
+    if: ${{ !cancelled() }}
     runs-on: macos-26
     timeout-minutes: 120
     env:
@@ -143,6 +149,7 @@ jobs:
             CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM= PROVISIONING_PROFILE_SPECIFIER= \
             build
       - name: Boot a simulator and install the app
+        if: needs.gate.outputs.ready == 'true'
         working-directory: apps/chat-mobile
         run: |
           set -euo pipefail
@@ -152,6 +159,7 @@ jobs:
           xcrun simctl install "$udid" build/Build/Products/Release-iphonesimulator/*.app
           echo "UDID=$udid" >> "$GITHUB_ENV"
       - name: Install Maestro ${{ env.MAESTRO_VERSION }}
+        if: needs.gate.outputs.ready == 'true'
         # The release zip itself, not the get.maestro.mobile.dev script: the
         # script is unversioned and its default is whatever shipped last.
         run: |
@@ -161,6 +169,7 @@ jobs:
           echo "$RUNNER_TEMP/maestro/bin" >> "$GITHUB_PATH"
           "$RUNNER_TEMP/maestro/bin/maestro" --version
       - name: Sign in, read and send
+        if: needs.gate.outputs.ready == 'true'
         working-directory: apps/chat-mobile/maestro
         env:
           # The test account reaches the Maestro runs only, not install or build.
@@ -168,6 +177,7 @@ jobs:
           MAESTRO_TEST_PASSWORD: ${{ secrets.MAESTRO_TEST_PASSWORD }}
         run: maestro --device "$UDID" test flows/chat-read-send.yaml
       - name: Push opens the room
+        if: needs.gate.outputs.ready == 'true'
         working-directory: apps/chat-mobile/maestro
         env:
           # The test account reaches the Maestro runs only, not install or build.
@@ -184,6 +194,7 @@ jobs:
           xcrun simctl push "$UDID" "$APP_ID" "$RUNNER_TEMP/push.apns"
           maestro --device "$UDID" test -e PUSH_DELIVERED=true flows/push-open-room.yaml
       - name: Join a call
+        if: needs.gate.outputs.ready == 'true'
         working-directory: apps/chat-mobile/maestro
         env:
           # The test account reaches the Maestro runs only, not install or build.
@@ -191,7 +202,7 @@ jobs:
           MAESTRO_TEST_PASSWORD: ${{ secrets.MAESTRO_TEST_PASSWORD }}
         run: maestro --device "$UDID" test flows/call-join.yaml
       - uses: actions/upload-artifact@v4
-        if: always()
+        if: always() && needs.gate.outputs.ready == 'true'
         with:
           name: maestro-ios
           # Screenshots only: Maestro's command log records the typed test password.

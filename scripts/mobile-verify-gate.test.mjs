@@ -20,7 +20,7 @@ test("a JS-only change needs the checks and the bundle, not the native builds", 
 
 test("a native change needs every job to succeed", () => {
   assert.equal(verdict({ scope: scope(true, true), ...all("success") }).ok, true);
-  for (const job of ["android-release", "android-smoke"]) {
+  for (const job of ["android-release", "android-smoke", "ios-release"]) {
     for (const result of ["failure", "cancelled", "skipped"]) {
       assert.equal(verdict({ scope: scope(true, true), ...all("success"), [job]: { result } }).ok, false, `${job} ${result}`);
     }
