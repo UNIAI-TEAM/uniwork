@@ -145,6 +145,19 @@ async function rowOf(title: string) {
   return row as HTMLElement;
 }
 
+/** Opens the row's ⋯ menu (UNI-2045 W2: Xóa vĩnh viễn moved off the row into it). */
+async function rowMenu(title: string) {
+  fireEvent.click(within(await rowOf(title)).getByRole("button", { name: t("documents.home.row.menu", { title }) }));
+  return screen.findByRole("menu");
+}
+
+/** Picks Xóa vĩnh viễn from the row's ⋯ menu. */
+async function purgeFrom(title: string) {
+  fireEvent.click(within(await rowMenu(title)).getByRole("menuitem", { name: t("documents.trash.purge") }));
+}
+
+const menuLabels = (menu: HTMLElement) => within(menu).getAllByRole("menuitem").map((el) => el.textContent?.trim());
+
 const postsTo = (suffix: string) =>
   requestMock.mock.calls.filter(
     ([path, opts]) => String(path).endsWith(suffix) && (opts as { method?: string } | undefined)?.method === "POST",
@@ -159,17 +172,25 @@ beforeEach(() => {
 });
 
 describe("trash list", () => {
-  it("names itself Thùng rác, explains the 30-day rule and shows the trash columns", async () => {
+  it("names itself Thùng rác, explains the 30-day rule and shows the shared columns with Đã xóa after Tên (UNI-2045 W2)", async () => {
     route({ list: () => [trashed()] });
     renderView();
     await openTrash();
     expect(await screen.findByRole("heading", { level: 1, name: t("documents.trash.title") })).toBeInTheDocument();
     expect(screen.getByText(t("documents.trash.subtitle"))).toBeInTheDocument();
     expect(await screen.findByText(t("documents.trash.note"), { exact: false })).toBeInTheDocument();
-    for (const key of ["name", "deleted_by", "deleted_at", "purge_in"] as const) {
-      expect(screen.getByText(t(`documents.trash.columns.${key}`))).toBeInTheDocument();
-    }
-    expect(screen.getByText(t("documents.trash.columns.actions"))).toBeInTheDocument();
+    await rowOf("Kế hoạch Q4");
+    const headers = screen.getAllByRole("columnheader").map((th) => th.textContent?.trim());
+    expect(headers).toEqual([
+      t("documents.list.column.select"),
+      t("documents.list.column.name"),
+      t("documents.list.screen_column.deleted"),
+      t("documents.list.column.access"),
+      t("documents.list.column.editor"),
+      t("documents.list.column.updated"),
+      t("documents.list.column.size"),
+      t("documents.list.column.actions"),
+    ]);
   });
 
   it("offers Khôi phục and Xóa vĩnh viễn on a row the viewer manages", async () => {
@@ -178,8 +199,8 @@ describe("trash list", () => {
     await openTrash();
     const row = await rowOf("Kế hoạch Q4");
     expect(within(row).getByRole("button", { name: t("documents.trash.restore_item", { title: "Kế hoạch Q4" }) })).toBeInTheDocument();
-    expect(within(row).getByRole("button", { name: t("documents.trash.purge_item", { title: "Kế hoạch Q4" }) })).toBeInTheDocument();
     expect(within(row).queryByText(t("documents.trash.read_only"))).toBeNull();
+    expect(menuLabels(await rowMenu("Kế hoạch Q4"))).toEqual([t("documents.trash.restore"), t("documents.trash.view_details"), t("documents.trash.purge")]);
   });
 
   it("keeps Khôi phục and Xóa vĩnh viễn on a restricted row a workspace admin sees (no my_level, admin_scope)", async () => {
@@ -188,8 +209,8 @@ describe("trash list", () => {
     await openTrash();
     const row = await rowOf("Hồ sơ hạn chế");
     expect(within(row).getByRole("button", { name: t("documents.trash.restore_item", { title: "Hồ sơ hạn chế" }) })).toBeInTheDocument();
-    expect(within(row).getByRole("button", { name: t("documents.trash.purge_item", { title: "Hồ sơ hạn chế" }) })).toBeInTheDocument();
     expect(within(row).queryByText(t("documents.trash.read_only"))).toBeNull();
+    expect(menuLabels(await rowMenu("Hồ sơ hạn chế"))).toEqual([t("documents.trash.restore"), t("documents.trash.view_details"), t("documents.trash.purge")]);
   });
 
   it("shows the read-only label and no actions on a row the viewer only edits, and its name does not open", async () => {
@@ -202,7 +223,8 @@ describe("trash list", () => {
     // jsdom ignores the container ladder: the name cell's wrapped line and the actions cell both carry the label.
     expect(within(row).getAllByText(t("documents.trash.read_only")).length).toBeGreaterThan(0);
     expect(within(row).queryByRole("button", { name: t("documents.trash.restore_item", { title: "Slide kick-off.pptx" }) })).toBeNull();
-    expect(within(row).queryByRole("button", { name: t("documents.trash.purge_item", { title: "Slide kick-off.pptx" }) })).toBeNull();
+    // Every menu item needs manage, so the row has no ⋯ at all (hidden, never disabled).
+    expect(within(row).queryByRole("button", { name: t("documents.home.row.menu", { title: "Slide kick-off.pptx" }) })).toBeNull();
     // The name is inert text, not a button (T-3: content stays manage-only).
     expect(within(row).queryByRole("button", { name: /Slide kick-off/ })).toBeNull();
     fireEvent.click(within(row).getByText("Slide kick-off.pptx"));
@@ -225,20 +247,31 @@ describe("trash list", () => {
     expect(within(second).getAllByText(t("documents.trash.deleted_by_unknown")).length).toBeGreaterThan(0);
   });
 
-  it("counts the purge deadline down in days, names today, and marks an expired row", async () => {
+  it("counts the days left from purge_after: the last day and a past deadline read 1, and 7 or fewer turn red (UNI-2045 Q3)", async () => {
+    const inMs = (ms: number) => new Date(Date.now() + ms).toISOString();
+    const DAY = 86_400_000;
     route({
       list: () => [
-        trashed({ id: "n12", title: "Mười hai ngày", purge_after: purgeInDays(12) }),
-        trashed({ id: "n0", title: "Hết hạn hôm nay", purge_after: purgeInDays(0) }),
-        trashed({ id: "nx", title: "Quá hạn", purge_after: purgeInDays(-3) }),
+        trashed({ id: "n12", title: "Mười hai ngày", purge_after: inMs(12 * DAY - 60_000) }),
+        trashed({ id: "n8", title: "Tám ngày", purge_after: inMs(7 * DAY + 3_600_000) }),
+        trashed({ id: "n7", title: "Bảy ngày", purge_after: inMs(7 * DAY - 3_600_000) }),
+        trashed({ id: "n0", title: "Hết hạn hôm nay", purge_after: inMs(3_600_000) }),
+        trashed({ id: "nx", title: "Quá hạn", purge_after: inMs(-3 * DAY) }),
       ],
     });
     renderView();
     await openTrash();
-    expect(within(await rowOf("Mười hai ngày")).getByText(t("documents.trash.purge_days", { count: 12 }))).toBeInTheDocument();
-    expect(within(await rowOf("Hết hạn hôm nay")).getByText(t("documents.trash.purge_today"))).toBeInTheDocument();
-    expect(within(await rowOf("Quá hạn")).getByText(t("documents.trash.purge_expired"))).toBeInTheDocument();
+    const left = async (title: string, count: number) => {
+      const cell = (await rowOf(title)).querySelector<HTMLElement>("[data-column='deleted']")!;
+      return within(cell).getByText(t("documents.list.days_left", { count }));
+    };
+    expect(await left("Mười hai ngày", 12)).not.toHaveClass("text-destructive");
+    expect(await left("Tám ngày", 8)).not.toHaveClass("text-destructive");
+    expect(await left("Bảy ngày", 7)).toHaveClass("text-destructive");
+    expect(await left("Hết hạn hôm nay", 1)).toHaveClass("text-destructive");
+    expect(await left("Quá hạn", 1)).toHaveClass("text-destructive");
   });
+
 });
 
 describe("deleted-at stamp", () => {
@@ -266,7 +299,7 @@ describe("deleted-at stamp", () => {
 });
 
 describe("trash row edge cases", () => {
-  it("renders a dash, never NaN, for a missing or an invalid purge_after", async () => {
+  it("leaves the days left out, never NaN, for a missing or an invalid purge_after", async () => {
     route({
       list: () => [
         trashed({ id: "m1", title: "Không hạn", purge_after: null }),
@@ -278,9 +311,9 @@ describe("trash row edge cases", () => {
     await openTrash();
     for (const title of ["Không hạn", "Hạn lỗi"]) {
       const row = await rowOf(title);
-      // Deleter and deleted-at are present, so the one dash is the countdown cell.
-      expect(within(row).getAllByText("—")).toHaveLength(1);
+      expect(within(row).queryByText(/^Còn \d+ ngày$/)).toBeNull();
       expect(row).not.toHaveTextContent("NaN");
+      expect(within(row.querySelector<HTMLElement>("[data-column='deleted']")!).getByText("Mai Trường")).toBeInTheDocument();
     }
   });
 
@@ -291,9 +324,9 @@ describe("trash row edge cases", () => {
     });
     renderView();
     await openTrash();
-    const row = await rowOf("Do hệ thống");
-    expect(within(row).getAllByText("—")).toHaveLength(1);
-    expect(within(row).queryByText(t("documents.trash.deleted_by_unknown"))).toBeNull();
+    const cell = (await rowOf("Do hệ thống")).querySelector<HTMLElement>("[data-column='deleted']")!;
+    expect(within(cell).getByText("—")).toBeInTheDocument();
+    expect(within(cell).queryByText(t("documents.trash.deleted_by_unknown"))).toBeNull();
   });
 });
 
@@ -444,7 +477,7 @@ describe("stale rows", () => {
     });
     renderView();
     await openTrash();
-    fireEvent.click(within(await rowOf("Đã mất")).getByRole("button", { name: t("documents.trash.purge_item", { title: "Đã mất" }) }));
+    await purgeFrom("Đã mất");
     const dialog = await screen.findByRole("alertdialog");
     fireEvent.click(within(dialog).getByRole("button", { name: t("documents.trash.purge") }));
     await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
@@ -482,14 +515,14 @@ describe("permanent delete", () => {
     });
     renderView();
     await openTrash();
-    fireEvent.click(within(await rowOf("Kế hoạch Q4")).getByRole("button", { name: t("documents.trash.purge_item", { title: "Kế hoạch Q4" }) }));
+    await purgeFrom("Kế hoạch Q4");
     const dialog = await screen.findByRole("alertdialog");
     expect(within(dialog).getByText(t("documents.trash.purge_title", { title: "Kế hoạch Q4" }))).toBeInTheDocument();
     fireEvent.click(within(dialog).getByRole("button", { name: t("common.cancel") }));
     await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
     expect(postsTo("/purge")).toHaveLength(0);
 
-    fireEvent.click(within(await rowOf("Kế hoạch Q4")).getByRole("button", { name: t("documents.trash.purge_item", { title: "Kế hoạch Q4" }) }));
+    await purgeFrom("Kế hoạch Q4");
     const again = await screen.findByRole("alertdialog");
     fireEvent.click(within(again).getByRole("button", { name: t("documents.trash.purge") }));
     await waitFor(() => expect(postsTo("/purge").map(([path]) => path)).toEqual(["/api/v1/documents/d1/purge"]));
@@ -502,7 +535,7 @@ describe("permanent delete", () => {
     route({ list: () => [trashed({ kind: "folder", title: "Dự án cũ" })] });
     renderView();
     await openTrash();
-    fireEvent.click(within(await rowOf("Dự án cũ")).getByRole("button", { name: t("documents.trash.purge_item", { title: "Dự án cũ" }) }));
+    await purgeFrom("Dự án cũ");
     const dialog = await screen.findByRole("alertdialog");
     expect(within(dialog).getByText(t("documents.trash.purge_folder_description"))).toBeInTheDocument();
   });
@@ -522,14 +555,14 @@ describe("permanent delete", () => {
     renderView();
     await openTrash();
 
-    fireEvent.click(within(await rowOf("Thư mục lớn")).getByRole("button", { name: t("documents.trash.purge_item", { title: "Thư mục lớn" }) }));
+    await purgeFrom("Thư mục lớn");
     let dialog = await screen.findByRole("alertdialog");
     fireEvent.click(within(dialog).getByRole("button", { name: t("documents.trash.purge") }));
     expect(await within(dialog).findByRole("alert")).toHaveTextContent(t("documents.trash.too_large"));
     fireEvent.click(within(dialog).getByRole("button", { name: t("common.cancel") }));
     await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
 
-    fireEvent.click(within(await rowOf("Cấm xóa")).getByRole("button", { name: t("documents.trash.purge_item", { title: "Cấm xóa" }) }));
+    await purgeFrom("Cấm xóa");
     dialog = await screen.findByRole("alertdialog");
     fireEvent.click(within(dialog).getByRole("button", { name: t("documents.trash.purge") }));
     expect(await within(dialog).findByRole("alert")).toHaveTextContent(t("documents.trash.no_permission"));
@@ -546,7 +579,7 @@ describe("permanent delete", () => {
     });
     renderView();
     await openTrash();
-    fireEvent.click(within(await rowOf("Kế hoạch Q4")).getByRole("button", { name: t("documents.trash.purge_item", { title: "Kế hoạch Q4" }) }));
+    await purgeFrom("Kế hoạch Q4");
     const dialog = await screen.findByRole("alertdialog");
     const confirm = within(dialog).getByRole("button", { name: t("documents.trash.purge") });
     fireEvent.click(confirm);
@@ -567,7 +600,7 @@ describe("permanent delete", () => {
     });
     renderView();
     await openTrash();
-    fireEvent.click(within(await rowOf("Kế hoạch Q4")).getByRole("button", { name: t("documents.trash.purge_item", { title: "Kế hoạch Q4" }) }));
+    await purgeFrom("Kế hoạch Q4");
     const dialog = await screen.findByRole("alertdialog");
     fireEvent.click(within(dialog).getByRole("button", { name: t("documents.trash.purge") }));
     expect(await within(dialog).findByRole("alert")).toHaveTextContent(t("documents.trash.purge_failed"));
@@ -586,9 +619,10 @@ describe("permanent delete", () => {
     });
     renderView();
     await openTrash();
-    const trigger = within(await rowOf("Kế hoạch Q4")).getByRole("button", { name: t("documents.trash.purge_item", { title: "Kế hoạch Q4" }) });
+    const trigger = within(await rowOf("Kế hoạch Q4")).getByRole("button", { name: t("documents.home.row.menu", { title: "Kế hoạch Q4" }) });
     trigger.focus();
     fireEvent.click(trigger);
+    fireEvent.click(within(await screen.findByRole("menu")).getByRole("menuitem", { name: t("documents.trash.purge") }));
     const dialog = await screen.findByRole("alertdialog");
     fireEvent.click(within(dialog).getByRole("button", { name: t("documents.trash.purge") }));
     await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
@@ -866,5 +900,73 @@ describe("focused trash row", () => {
     await waitFor(() => expect(restore).toHaveFocus());
     expect(list.contains(document.activeElement)).toBe(true);
     expect(document.activeElement).not.toBe(document.body);
+  });
+});
+
+// UNI-2045 W2: Thùng rác is the shared list with screen="trash" (Q2: always
+// deleted ascending, no header sort; menu Khôi phục · Xem chi tiết | Xóa vĩnh viễn).
+describe("trash on the shared list (UNI-2045 W2)", () => {
+  it("always asks for archived=1&sort=deleted&order=asc and shows its fixed order on Đã xóa and draws no sort button", async () => {
+    route({ list: () => [trashed()] });
+    renderView();
+    await openTrash();
+    await rowOf("Kế hoạch Q4");
+    const trashCalls = requestMock.mock.calls
+      .map(([path]) => String(path))
+      .filter((path) => path.startsWith(LIST_BASE) && new URLSearchParams(path.split("?")[1] ?? "").get("archived") === "1");
+    expect(trashCalls.length).toBeGreaterThan(0);
+    for (const path of trashCalls) {
+      const params = new URLSearchParams(path.split("?")[1]);
+      expect(params.get("sort")).toBe("deleted");
+      expect(params.get("order")).toBe("asc");
+    }
+    // The order is fixed: Đã xóa shows it (aria-sort + arrow), no header is a button.
+    for (const th of screen.getAllByRole("columnheader")) {
+      if (th.textContent === "Đã xóa") expect(th).toHaveAttribute("aria-sort", "ascending");
+      else expect(th).not.toHaveAttribute("aria-sort");
+      expect(within(th).queryByRole("button")).toBeNull();
+    }
+  });
+
+  it("shows who deleted and the days left in the Đã xóa column", async () => {
+    route({ list: () => [trashed({ purge_after: new Date(Date.now() + 3 * 86_400_000 - 60_000).toISOString() })], members: () => [member()] });
+    renderView();
+    await openTrash();
+    const cell = (await rowOf("Kế hoạch Q4")).querySelector<HTMLElement>("[data-column='deleted']")!;
+    expect(within(cell).getByText("Mai Trường")).toBeInTheDocument();
+    expect(within(cell).getByText(t("documents.list.days_left", { count: 3 }))).toHaveClass("text-destructive");
+  });
+
+  it("puts Xóa vĩnh viễn last and red in both the ⋯ and the right-click menu", async () => {
+    route({ list: () => [trashed()] });
+    renderView();
+    await openTrash();
+    const menu = await rowMenu("Kế hoạch Q4");
+    const items = within(menu).getAllByRole("menuitem");
+    expect(items.at(-1)).toHaveAttribute("data-variant", "destructive");
+    expect(items.filter((item) => item.getAttribute("data-variant") === "destructive")).toHaveLength(1);
+    fireEvent.keyDown(menu, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
+    fireEvent.contextMenu(await rowOf("Kế hoạch Q4"));
+    expect(menuLabels(await screen.findByRole("menu"))).toEqual([t("documents.trash.restore"), t("documents.trash.view_details"), t("documents.trash.purge")]);
+  });
+
+  it("opens the document read-only from Xem chi tiết and restores from the menu", async () => {
+    route({ list: () => [trashed({ kind: "file", title: "Báo cáo.docx" })], post: () => ({ document: trashed({ archived_at: null, parent_id: null }), affected: ["d1"] }) });
+    const onOpen = vi.fn();
+    renderView(nav(), onOpen);
+    await openTrash();
+    fireEvent.click(within(await rowMenu("Báo cáo.docx")).getByRole("menuitem", { name: t("documents.trash.view_details") }));
+    expect(onOpen).toHaveBeenCalledWith("d1");
+    await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
+    fireEvent.click(within(await rowMenu("Báo cáo.docx")).getByRole("menuitem", { name: t("documents.trash.restore") }));
+    await waitFor(() => expect(postsTo("/restore").map(([path]) => path)).toEqual(["/api/v1/documents/d1/restore"]));
+  });
+
+  it("offers a trashed folder no Xem chi tiết", async () => {
+    route({ list: () => [trashed({ kind: "folder", title: "Dự án cũ" })] });
+    renderView();
+    await openTrash();
+    expect(menuLabels(await rowMenu("Dự án cũ"))).toEqual([t("documents.trash.restore"), t("documents.trash.purge")]);
   });
 });

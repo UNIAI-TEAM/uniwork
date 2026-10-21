@@ -13,6 +13,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@uniwork/ui/components/ui/dropdown-menu";
+import { formatListDate } from "./doclist/format";
 import type { LibraryRowHandlers } from "./documents-library-row";
 import { isFolderRow, type DocumentSummaryRow, type LibraryRow } from "./library-rows";
 import { canArchiveRow, canMoveRow, rowLevel } from "./row-level";
@@ -53,9 +54,7 @@ export function DocumentsFoldersGrid({ folders, docById, handlers, onOpenFolder 
         const meta = [
           sub > 0 ? t("documents.home.folder_card.folders", { count: sub }) : "",
           doc?.updated_by ? handlers.personName(doc.updated_by, doc.updated_by_kind) : "",
-          doc?.updated_at
-            ? new Intl.DateTimeFormat(i18n.language || undefined, { dateStyle: "short" }).format(new Date(doc.updated_at))
-            : "",
+          doc?.updated_at ? formatListDate(doc.updated_at, new Date(), i18n.language, { yesterday: t("documents.list.date.yesterday") }) : "",
         ]
           .filter(Boolean)
           .join(" · ");

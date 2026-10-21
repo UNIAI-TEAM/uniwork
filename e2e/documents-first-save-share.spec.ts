@@ -1,7 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { contentRow } from "./documents-folders-fixtures";
 import { onboardDocumentsUser } from "./documents-onboard";
-import { libraryBadge } from "./documents-share-fixtures";
+import { libraryAccessPill } from "./documents-share-fixtures";
 import { workspaceSeed } from "./onboard";
 
 /**
@@ -56,7 +56,7 @@ test("the first-save share switch makes the new document shared with the workspa
 
   // After a reload the document sits in Thư mục của tôi (a blank is created in My
   // Folder, not at the workspace root, so the home root never lists it) and its row
-  // is shared with the workspace.
+  // reads Workspace in the access pill.
   await page.goto(`/${owner.orgSlug}/${owner.wsSlug}/documents`);
   await page
     .getByRole("navigation", { name: "Điều hướng tài liệu" })
@@ -66,5 +66,7 @@ test("the first-save share switch makes the new document shared with the workspa
   await expect(page.getByRole("heading", { level: 1, name: "Thư mục của tôi", exact: true })).toBeVisible({ timeout: 30_000 });
   const row = contentRow(page, title);
   await expect(row).toBeVisible({ timeout: 60_000 });
-  await expect(libraryBadge(row)).toHaveAttribute("data-scope-kind", "workspace", { timeout: 60_000 });
+  const pill = libraryAccessPill(row);
+  await expect(pill).toHaveAttribute("data-access-kind", "workspace", { timeout: 60_000 });
+  await expect(pill).toHaveText("Workspace");
 });

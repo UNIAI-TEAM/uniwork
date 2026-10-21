@@ -295,9 +295,23 @@ export function submitShare(dialog: Locator): Locator {
   return dialog.getByRole("button", { name: "Chia sẻ", exact: true });
 }
 
-/** The row of the library table for a title, once the list has it. */
-export function libraryBadge(row: Locator): Locator {
-  return row.getByTestId("document-share-scope-badge").first();
+/**
+ * The access pill of a library row (Truy cập column, UNI-2045 W1): `data-access-kind`
+ * is `restricted` (Riêng tư), `workspace` (Workspace) or `shared` (Được chia sẻ).
+ * It replaced the scope badge, whose type-and-count text now rides the Share button's
+ * description (`libraryAccessScope`).
+ */
+export function libraryAccessPill(row: Locator): Locator {
+  return row.locator("[data-access-kind]").first();
+}
+
+/**
+ * The Share button of a library row's access cell: its accessible description is the
+ * scope composition ("2 người", "Workspace <name> · 2 người") and exists only when the
+ * composition says more than the pill's own label.
+ */
+export function libraryAccessButton(row: Locator): Locator {
+  return row.getByRole("button", { name: /^(Quản lý quyền truy cập của|Xem quyền truy cập của) / });
 }
 
 /**

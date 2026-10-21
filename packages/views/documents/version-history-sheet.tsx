@@ -38,7 +38,8 @@ import {
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { documentErrorMessage } from "./document-error-message";
-import { formatFileSize, formatWhen } from "./document-format";
+import { formatBytes } from "./doclist/format";
+import { formatWhen } from "./document-format";
 import { reportWriteRefused } from "./edit-lock-refusal";
 import { VersionAuthor } from "./version-author";
 
@@ -284,7 +285,7 @@ export function VersionHistorySheet({ open, onOpenChange, wsId, doc }: VersionHi
                       <p className="truncate text-caption text-muted-foreground">
                         {version.label ? <span className="text-foreground">{version.label} · </span> : null}
                         {reasonLabel(t, version)}
-                        {version.size_bytes > 0 ? ` · ${formatFileSize(version.size_bytes, i18n.language)}` : ""}
+                        {version.size_bytes > 0 ? ` · ${formatBytes(version.size_bytes, i18n.language)}` : ""}
                         {version.created_at ? ` · ${formatWhen(version.created_at, i18n.language)}` : ""}
                       </p>
                       <VersionAuthor version={version} members={memberById} ready={members.data !== undefined} />
