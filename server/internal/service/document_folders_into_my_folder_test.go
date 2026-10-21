@@ -190,6 +190,8 @@ func TestFoldersIntoMyFolderAuditsAndEmitsEachMovedRow(t *testing.T) {
 	}
 }
 
+// The move allocator numbers a clash from (2) (FD-D5: "A", "A (2)"), so the
+// folder that finds the name taken in My Folder becomes "Báo cáo (2)".
 func TestFoldersIntoMyFolderNameClashGetsNumber(t *testing.T) {
 	x := newFimFixture(t, "fim3")
 	a := x.tn.member
@@ -205,8 +207,8 @@ func TestFoldersIntoMyFolderNameClashGetsNumber(t *testing.T) {
 		t.Fatalf("report = %+v", res)
 	}
 	got := x.get(t, root.ID)
-	if got.Title != "Báo cáo (1)" || got.ParentID.String != mfView.Document.ID {
-		t.Fatalf("folder = %q under %v, want \"Báo cáo (1)\" in My Folder", got.Title, got.ParentID)
+	if got.Title != "Báo cáo (2)" || got.ParentID.String != mfView.Document.ID {
+		t.Fatalf("folder = %q under %v, want \"Báo cáo (2)\" in My Folder", got.Title, got.ParentID)
 	}
 }
 
