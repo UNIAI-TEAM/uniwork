@@ -108,12 +108,10 @@ export interface ReadPersistedClient {
   dropped: number;
 }
 
-/** A copy read from disk, every query re-read through its schema; null when the envelope itself does not read. */
-export function readPersistedClient(raw: unknown): ReadPersistedClient | null {
-  const envelope = PersistedClientSchema.safeParse(raw);
-  if (!envelope.success) return null;
+/** Kept queries read from disk, each re-read through its schema; one that does not read is left out and counted. */
+export function readPersistedQueries(candidates: readonly unknown[]): { queries: PersistedQuery[]; dropped: number } {
   let dropped = 0;
-  const queries = envelope.data.clientState.queries.flatMap((candidate): PersistedQuery[] => {
+  const queries = candidates.flatMap((candidate): PersistedQuery[] => {
     const query = PersistedQuerySchema.safeParse(candidate);
     const read = query.success ? readerFor(query.data.queryKey)?.(query.data.state.data) : undefined;
     if (!query.success || !read?.ok) {
@@ -122,6 +120,14 @@ export function readPersistedClient(raw: unknown): ReadPersistedClient | null {
     }
     return [{ ...query.data, state: { ...query.data.state, data: read.data } }];
   });
+  return { queries, dropped };
+}
+
+/** A copy read from disk, every query re-read through its schema; null when the envelope itself does not read. */
+export function readPersistedClient(raw: unknown): ReadPersistedClient | null {
+  const envelope = PersistedClientSchema.safeParse(raw);
+  if (!envelope.success) return null;
+  const { queries, dropped } = readPersistedQueries(envelope.data.clientState.queries);
   const { timestamp, buster } = envelope.data;
   // No mutation is ever kept (query-persister.ts › shapePersistedClient).
   return { client: { timestamp, buster, clientState: { mutations: [], queries } }, dropped };

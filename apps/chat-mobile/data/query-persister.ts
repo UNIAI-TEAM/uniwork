@@ -22,17 +22,26 @@
 // or background refresh reads it afresh. A restored query lives in memory as
 // long as the copy may (PERSISTED_CACHE_MAX_AGE_MS), not the 10 minutes of
 // the rest: nothing re-reads the disk on a memory miss, so an offline open an
-// hour after a cold start would find nothing. Each kept timeline is its own key, written only when it
-// changed, so a frame in one room rewrites that room and the small envelope,
-// not every room. Saves follow only a change of kept data (a fetch's answer,
-// a patch) and wait a second after the last one, so a burst of realtime
-// frames is one write.
+// hour after a cold start would find nothing.
+//
+// Cost (audit P2 Perf). Every kept query is its own key (a timeline under
+// `query-cache/timeline/`, the rest under `query-cache/query/`), written only
+// when its data changed: a query whose data is the same object with the same
+// update time as last written (TanStack's structural sharing keeps it so) is
+// not even stringified, so a frame in one room serializes that room and the
+// small envelope, not a 1,000-person member list. Saves follow only a change
+// of kept data (a fetch's answer, a patch) and wait a second after the last
+// one, so a burst of realtime frames is one write. A cold start reads in two
+// steps: the first screen's queries (workspaces, rooms, unread counts,
+// nicknames) before the splash lifts, the rest (members, room members,
+// timelines) just after it, off the splash's clock. A save in between never
+// drops a copy not read back yet.
 import type { Query, QueryClient } from "@tanstack/react-query";
-import { dehydrate } from "@tanstack/react-query";
+import { dehydrate, hydrate } from "@tanstack/react-query";
 import { persistQueryClientRestore, persistQueryClientSave, type PersistedClient, type Persister } from "@tanstack/query-persist-client-core";
 import { z } from "zod";
 import { createLogger } from "./logger";
-import { CACHE_SCHEMA_VERSION, persistedRooms, readPersistedClient } from "./persisted-cache";
+import { CACHE_SCHEMA_VERSION, persistedRooms, readPersistedClient, readPersistedQueries } from "./persisted-cache";
 import { chatKeys } from "./queries/chat-keys";
 import type { DeviceStore } from "./storage/device-store";
 
@@ -44,6 +53,10 @@ export const PERSIST_THROTTLE_MS = 1_000;
 const STORE_KEY = "query-cache";
 /** One key per kept timeline: `query-cache/timeline/<queryHash>`. */
 const TIMELINE_PREFIX = `${STORE_KEY}/timeline/`;
+/** One key per other kept query: `query-cache/query/<queryHash>`. */
+const QUERY_PREFIX = `${STORE_KEY}/query/`;
+/** After the first screen's queries are back, how long the rest waits: the inbox draws first. */
+export const RESTORE_LATER_MS = 100;
 
 const log = createLogger("query-cache");
 
@@ -79,14 +92,23 @@ function recentRoomIds(queries: readonly DehydratedQuery[], limit: number): Set<
   return keep;
 }
 
+// The newest page cut from each timeline's data, kept while that data is the same object: an unchanged
+// timeline hands the writer the same data every save, and the writer skips it without serializing it.
+const firstPages = new WeakMap<object, { pages: unknown[]; pageParams: unknown[] }>();
+
 /** One room's timeline as kept: its newest page only (chat-timeline.ts › RoomTimeline). */
 function firstPageOnly(query: DehydratedQuery): DehydratedQuery {
   const { data } = query.state;
   if (data === null || typeof data !== "object") return query;
   const pages: unknown = Reflect.get(data, "pages");
   if (!Array.isArray(pages) || pages.length <= 1) return query;
-  const pageParams: unknown = Reflect.get(data, "pageParams");
-  return { ...query, state: { ...query.state, data: { pages: pages.slice(0, 1), pageParams: Array.isArray(pageParams) ? pageParams.slice(0, 1) : [] } } };
+  let first = firstPages.get(data);
+  if (!first) {
+    const pageParams: unknown = Reflect.get(data, "pageParams");
+    first = { pages: pages.slice(0, 1), pageParams: Array.isArray(pageParams) ? pageParams.slice(0, 1) : [] };
+    firstPages.set(data, first);
+  }
+  return { ...query, state: { ...query.state, data: first } };
 }
 
 /** The copy written to disk: the timelines of the most recent rooms, each one page. */
@@ -123,75 +145,123 @@ function parseJson(raw: string): unknown {
   }
 }
 
-// The envelope names the timeline keys it was written with; one written before they were split has none.
-const TimelineKeysSchema = z.object({ timelines: z.array(z.string()) }).catch({ timelines: [] });
+// The envelope names the keys it was written with: `first` read before the splash lifts, `later` after.
+// One written before queries had their own keys holds them inside it, with `timelines` for the timelines.
+const EnvelopeKeysSchema = z
+  .object({ first: z.array(z.string()).catch([]), later: z.array(z.string()).catch([]), timelines: z.array(z.string()).catch([]) })
+  .catch({ first: [], later: [], timelines: [] });
 const EnvelopeQueriesSchema = z.looseObject({ clientState: z.looseObject({ queries: z.array(z.unknown()) }) });
 
-/** The envelope with its timelines back among its queries, for one read through the schemas. */
-function withTimelines(envelope: unknown, timelines: readonly unknown[]): unknown {
+/** The envelope with `queries` added among its own, for one read through the schemas. */
+function withQueries(envelope: unknown, queries: readonly unknown[]): unknown {
   const parsed = EnvelopeQueriesSchema.safeParse(envelope);
   if (!parsed.success) return envelope;
   const { clientState } = parsed.data;
-  return { ...parsed.data, clientState: { ...clientState, queries: [...clientState.queries, ...timelines] } };
+  return { ...parsed.data, clientState: { ...clientState, queries: [...clientState.queries, ...queries] } };
 }
 
-const timelineKeysIn = (store: DeviceStore) => store.keys().filter((key) => key.startsWith(TIMELINE_PREFIX));
+const isOwnKey = (key: string) => key.startsWith(TIMELINE_PREFIX) || key.startsWith(QUERY_PREFIX);
+const ownKeysIn = (store: DeviceStore) => store.keys().filter(isOwnKey);
+
+/** The queries a cold start's first screen draws: the inbox. Members, room members and timelines come after. */
+function isFirstScreen(query: DehydratedQuery): boolean {
+  const [root, , kind] = query.queryKey;
+  return root === "workspaces" || query.queryKey[1] === "unread-summary" || kind === "rooms" || kind === "nicknames";
+}
+
+const keyOf = (query: DehydratedQuery) => `${isTimeline(query) ? TIMELINE_PREFIX : QUERY_PREFIX}${query.queryHash}`;
+
+// What a key holds on disk, and the data and update time it was written from (none when read back from disk).
+interface Written {
+  json: string;
+  data?: unknown;
+  updatedAt?: number;
+}
+
+/** The device persister: the whole copy read back in one go, or in two (`restoreLater`). */
+export interface DevicePersister extends Persister {
+  /**
+   * The kept queries a restore left for after the first screen, read through the schemas; each is
+   * returned once. None when the last restore found no copy, or a removal came since.
+   */
+  restoreLater: () => Promise<DehydratedQuery[]>;
+}
 
 /**
- * The persister over the device store: the envelope under one key, each kept
- * timeline under its own, rewritten only when it changed; read back through
- * the schemas, and a copy that does not read is dropped.
+ * The persister over the device store: a small envelope under one key, each
+ * kept query under its own, rewritten only when its data changed; read back
+ * through the schemas, the first screen's queries first, and a copy that does
+ * not read is dropped.
  */
-export function createDevicePersister(open: () => Promise<DeviceStore>): Persister {
-  // What each timeline key holds on disk now, as last written or read.
-  const written = new Map<string, string>();
+export function createDevicePersister(open: () => Promise<DeviceStore>): DevicePersister {
+  const written = new Map<string, Written>();
+  // Keys a restore left for later and nobody read since: a save keeps them listed and on disk.
+  let later = new Set<string>();
+  const readKeys = (store: DeviceStore, keys: readonly string[]) =>
+    keys.flatMap((key) => {
+      const json = isOwnKey(key) ? store.getString(key) : undefined;
+      if (json === undefined) return [];
+      written.set(key, { json });
+      return [parseJson(json)];
+    });
   return {
     persistClient: async (client) => {
       const store = await open();
       const shaped = shapePersistedClient(client);
-      const timelines = shaped.clientState.queries.filter(isTimeline);
-      const keys = new Set<string>();
-      for (const query of timelines) {
-        const key = `${TIMELINE_PREFIX}${query.queryHash}`;
+      const first: string[] = [];
+      const rest: string[] = [];
+      for (const query of shaped.clientState.queries) {
+        const key = keyOf(query);
+        (isFirstScreen(query) ? first : rest).push(key);
+        later.delete(key);
+        const { data, dataUpdatedAt } = query.state;
+        const last = written.get(key);
+        if (last !== undefined && last.data === data && last.updatedAt === dataUpdatedAt && data !== undefined) continue;
         // The time of this dehydrate changes on every save and is never read back (persisted-cache.ts): not a change.
         const json = JSON.stringify(query, (field, value: unknown) => (field === "dehydratedAt" ? undefined : value));
-        keys.add(key);
-        if (written.get(key) === json) continue;
-        store.set(key, json);
-        written.set(key, json);
+        if (last?.json !== json) store.set(key, json);
+        written.set(key, { json, data, updatedAt: dataUpdatedAt });
       }
-      for (const key of timelineKeysIn(store)) {
-        if (keys.has(key)) continue;
+      const keep = new Set([...first, ...rest, ...later]);
+      for (const key of ownKeysIn(store)) {
+        if (keep.has(key)) continue;
         store.remove(key);
         written.delete(key);
       }
-      const envelope = { ...shaped, clientState: { mutations: [], queries: shaped.clientState.queries.filter((query) => !isTimeline(query)) }, timelines: [...keys] };
+      const envelope = { buster: shaped.buster, timestamp: shaped.timestamp, clientState: { mutations: [], queries: [] }, first, later: [...rest, ...later] };
       store.set(STORE_KEY, JSON.stringify(envelope));
     },
     restoreClient: async () => {
       const store = await open();
       written.clear();
+      later = new Set();
       const raw = store.getString(STORE_KEY);
       if (!raw) return undefined;
       const envelope = parseJson(raw);
-      const timelines = TimelineKeysSchema.parse(envelope).timelines.flatMap((key) => {
-        const json = key.startsWith(TIMELINE_PREFIX) ? store.getString(key) : undefined;
-        if (json === undefined) return [];
-        written.set(key, json);
-        return [parseJson(json)];
-      });
-      const read = readPersistedClient(withTimelines(envelope, timelines));
+      const keys = EnvelopeKeysSchema.parse(envelope);
+      const read = readPersistedClient(withQueries(envelope, readKeys(store, keys.first)));
       if (!read) {
         log.warn("cached rooms unreadable");
         return undefined;
       }
       if (read.dropped > 0) log.warn("cached queries dropped", { count: read.dropped });
+      later = new Set([...keys.later, ...keys.timelines]);
       return read.client;
+    },
+    restoreLater: async () => {
+      const store = await open();
+      const keys = [...later];
+      later = new Set();
+      if (keys.length === 0) return [];
+      const { queries, dropped } = readPersistedQueries(readKeys(store, keys));
+      if (dropped > 0) log.warn("cached queries dropped", { count: dropped });
+      return queries;
     },
     removeClient: async () => {
       const store = await open();
-      for (const key of timelineKeysIn(store)) store.remove(key);
+      for (const key of ownKeysIn(store)) store.remove(key);
       written.clear();
+      later = new Set();
       store.remove(STORE_KEY);
     },
   };
@@ -199,7 +269,8 @@ export function createDevicePersister(open: () => Promise<DeviceStore>): Persist
 
 interface Installed {
   queryClient: QueryClient;
-  persister: Persister;
+  /** The device persister; one without `restoreLater` reads its whole copy before the first screen. */
+  persister: Persister & Partial<Pick<DevicePersister, "restoreLater">>;
 }
 
 let installed: Installed | null = null;
@@ -237,6 +308,7 @@ export function installAccountCache(next: Installed | null): void {
 }
 
 const errorName = (error: unknown) => (error instanceof Error ? error.name : typeof error);
+const HYDRATE_OPTIONS = { defaultOptions: { queries: { gcTime: PERSISTED_CACHE_MAX_AGE_MS } } };
 
 async function restoreAndSubscribe(userId: string, { queryClient, persister }: Installed): Promise<void> {
   stopWrites();
@@ -258,7 +330,7 @@ async function restoreAndSubscribe(userId: string, { queryClient, persister }: I
       buster,
       maxAge: PERSISTED_CACHE_MAX_AGE_MS,
       // TanStack keeps the longest gcTime a query was given, so an observer's 10 minutes do not shorten it.
-      hydrateOptions: { defaultOptions: { queries: { gcTime: PERSISTED_CACHE_MAX_AGE_MS } } },
+      hydrateOptions: HYDRATE_OPTIONS,
     });
   } catch (error) {
     log.warn("cached rooms not restored", { error: errorName(error) });
@@ -292,10 +364,26 @@ async function restoreAndSubscribe(userId: string, { queryClient, persister }: I
     kept = kept.filter((query) => !isRoom(query));
     timer ??= setTimeout(save, PERSIST_THROTTLE_MS);
   };
+  // The rest of the copy, once the first screen had its turn. Hydrate keeps what memory fetched since
+  // (it never overwrites newer data), and the rest joins what the disk holds for this person.
+  const restoreLater = persister.restoreLater;
+  const laterTimer = restoreLater
+    ? setTimeout(() => {
+        restoreLater()
+          .then((queries) => {
+            if (!current() || queries.length === 0) return;
+            hydrate(queryClient, { mutations: [], queries }, HYDRATE_OPTIONS);
+            const known = new Set(kept.map((query) => query.queryHash));
+            kept = [...kept, ...queries.filter((query) => !known.has(query.queryHash))];
+          })
+          .catch((error: unknown) => log.warn("cached rooms not restored", { error: errorName(error) }));
+      }, RESTORE_LATER_MS)
+    : null;
   stop = () => {
     unsubscribe();
     forgetCarried = null;
     if (timer) clearTimeout(timer);
+    if (laterTimer) clearTimeout(laterTimer);
     timer = null;
   };
 }

@@ -2,7 +2,7 @@
   "query-cache": {
     "version": 1,
     "file": "data/persisted-cache.ts",
-    "sha256": "d853e8c7b7dc8db9bf656788c124a7c068ecf8e7e897b4fc1463850dc9724c04"
+    "sha256": "298280d36caec144c99eb53498955e06ff29c3e8c0ef204c4e25a29eb748674e"
   },
   "chat-send-outbox": {
     "version": 1,

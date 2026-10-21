@@ -180,8 +180,15 @@ một dòng thì ghi lý do ở dòng trên.
   reject cho màn hình báo. **Cache đĩa**:
   `data/query-persister.ts` — allowlist `["workspaces"]`, rooms, unread-summary, nicknames, members, room-members và
   trang mới nhất của 24 phòng hoạt động gần nhất; chỉ ghi khi một query được giữ có data mới (câu trả lời fetch, patch
-  — không phải fetch bắt đầu, observer hay bộ nhớ bỏ query), sau 1 s yên; mỗi timeline một key MMKV
-  (`query-cache/timeline/<queryHash>`), chỉ ghi lại khi đổi, vỏ nhỏ ở `query-cache`; buster
+  — không phải fetch bắt đầu, observer hay bộ nhớ bỏ query), sau 1 s yên; mỗi query được giữ một key MMKV
+  (`query-cache/timeline/<queryHash>` cho timeline, `query-cache/query/<queryHash>` cho phần còn lại), chỉ ghi lại khi
+  data đổi — data cùng object và cùng `dataUpdatedAt` với lần ghi trước thì không cả `JSON.stringify` (structural
+  sharing giữ object; trang mới nhất cắt từ timeline được nhớ theo object data), nên một frame tuần tự hoá phòng đó và
+  vỏ nhỏ ở `query-cache`, không phải danh sách 1.000 thành viên (test đếm `JSON.stringify`). Mở lạnh đọc hai bước: vỏ
+  liệt kê `first` (workspaces, rooms, unread-summary, nicknames — màn đầu) và `later` (thành viên, thành viên phòng,
+  timeline); splash chỉ chờ `first`, `later` đọc và hydrate `RESTORE_LATER_MS` (100 ms) sau (hydrate không ghi đè data
+  mới hơn bộ nhớ đã fetch), và lần lưu trước đó không xoá key nào chưa đọc lại; vỏ cũ (query nằm trong vỏ, `timelines`)
+  vẫn đọc được; buster
   `<CACHE_SCHEMA_VERSION>:<userId>` (bản store mới và OTA đều giữ cache, đọc qua schema). Đĩa không phải gương của bộ
   nhớ: `gcTime` 10 phút bỏ query không ai xem, nên query được giữ mà bộ nhớ đã bỏ được mang từ bản trước
   (`withEvicted`) tới khi quá 7 ngày hay phòng rời nhóm gần nhất / danh sách. Frame chỉ patch bộ nhớ nên không tới được
@@ -189,7 +196,7 @@ một dòng thì ghi lý do ở dòng trên.
   (`dropCarriedTimeline`, gọi từ `chat-cache.ts`) — thiếu còn hơn sai. Query khôi phục từ đĩa sống trong bộ nhớ
   bằng tuổi của bản đĩa (`hydrateOptions` `gcTime` = 7 ngày; TanStack giữ `gcTime` lớn nhất nên observer 10 phút
   không rút ngắn): không gì đọc lại đĩa khi bộ nhớ thiếu, nên mở offline một giờ sau mở lạnh vẫn có trang. Khôi phục trước màn đầu
-  (`restoreAccountCache` trong auth store), xoá khi đăng xuất (`dropAccountCache`, cả các key timeline). Bản trên
+  (`restoreAccountCache` trong auth store), xoá khi đăng xuất (`dropAccountCache`, cả các key của từng query). Bản trên
   đĩa là dữ liệu không tin được như câu trả lời mạng (OTA giữ buster mà đổi code đọc): `data/persisted-cache.ts`
   kiểm vỏ rồi đọc lại data của từng query qua đúng schema đã dựng nó từ mạng (`data/chat-api-schemas.ts`,
   `data/schemas.ts`, schema của core như `ChatUnreadSummarySchema`), query không đọc được bị bỏ riêng (refetch như lần mở đầu), không chỗ nào cast từ đĩa. Outbox và
