@@ -1,0 +1,6 @@
+$ ls -la /tmp/pr7r5-cover-go-service-f.out; b=$(git hash-object -w /tmp/pr7r5-cover-go-service-f.out); echo "COVER_BLOB=go-service-f=$b"; git push origin "$b:refs/test-artifacts/pr7-rehearsal-r5/go-service-f-40dd5c7e1" > /tmp/pr7r5-push-go-service-f.log 2>&1; rc=$?; tail -2 /tmp/pr7r5-push-go-service-f.log; echo "COVER_PUSH_EXIT=$rc"
+-rw-r--r-- 1 ubuntu ubuntu 2833431 Oct 21 06:33 /tmp/pr7r5-cover-go-service-f.out
+COVER_BLOB=go-service-f=30f029530e16c7b6f1e342fc6aba2d388565fb6d
+To https://github.com/UNIAI-TEAM/uniwork
+ * [new reference]       30f029530e16c7b6f1e342fc6aba2d388565fb6d -> refs/test-artifacts/pr7-rehearsal-r5/go-service-f-40dd5c7e1
+COVER_PUSH_EXIT=0

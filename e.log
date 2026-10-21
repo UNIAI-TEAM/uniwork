@@ -1,0 +1,5 @@
+$ for i in $(seq 1 14); do test -f /tmp/pr7r5-go-service-f.exit && break; sleep 30; done; echo "DONE_FILE=$(test -f /tmp/pr7r5-go-service-f.exit && echo yes || echo no)"; grep -cE "^\s*--- PASS" /tmp/pr7r5-go-service-f.log; grep -E "^=== RUN" /tmp/pr7r5-go-service-f.log | tail -1; echo "TEST_GO_EXIT=$(cat /tmp/pr7r5-go-service-f.exit 2>/dev/null || echo still-running)"
+DONE_FILE=yes
+853
+=== RUN   TestRollbackRestoresAdoptedPendingFile
+TEST_GO_EXIT=0
