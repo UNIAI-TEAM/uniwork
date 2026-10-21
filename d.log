@@ -1,0 +1,7 @@
+$ grep -nE "^\s*--- (PASS|FAIL).*(OneConnection|DocumentVersionLine)" /tmp/uni2012r3fix-a.log | cut -c1-200
+75:--- PASS: TestChatDocumentSendsCommitOnOneConnection (0.33s)
+103:--- PASS: TestDocumentVersionLineOnlyFromTheCard (0.30s)
+105:--- PASS: TestDocumentVersionLineReplaySafe (0.29s)
+269:--- PASS: TestChatDocumentSendsCommitOnOneConnection (0.30s)
+297:--- PASS: TestDocumentVersionLineOnlyFromTheCard (0.32s)
+299:--- PASS: TestDocumentVersionLineReplaySafe (0.27s)

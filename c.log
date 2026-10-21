@@ -1,0 +1,10 @@
+$ grep -nE "^\s*--- FAIL|^(FAIL|ok|panic)|DATA RACE|_test.go:[0-9]+:" /tmp/uni2012r3fix-a.log | cut -c1-300 | head -60
+52:    chat_document_message_test.go:597: SendDocumentMessage(1000-member room): send=58.737821ms replay=2.213225ms live_shares=1000 doc_audits=2 shared_outbox=1
+133:    document_storage_harness_test.go:143: MINIO_* is not set; start MinIO with `docker compose -f docker-compose.minio.yml up -d minio`
+173:    document_storage_harness_test.go:143: MINIO_* is not set; start MinIO with `docker compose -f docker-compose.minio.yml up -d minio`
+193:    document_shares_chunk_test.go:259: link send to 450 members over 150 manual shares: 28.902117ms
+246:    chat_document_message_test.go:597: SendDocumentMessage(1000-member room): send=61.338067ms replay=2.591191ms live_shares=1000 doc_audits=2 shared_outbox=1
+327:    document_storage_harness_test.go:143: MINIO_* is not set; start MinIO with `docker compose -f docker-compose.minio.yml up -d minio`
+367:    document_storage_harness_test.go:143: MINIO_* is not set; start MinIO with `docker compose -f docker-compose.minio.yml up -d minio`
+387:    document_shares_chunk_test.go:259: link send to 450 members over 150 manual shares: 30.075896ms
+390:ok  	github.com/unicomhub/uniwork/server/internal/service	39.082s

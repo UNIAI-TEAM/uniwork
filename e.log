@@ -1,0 +1,10 @@
+$ git show b64d291dc -- server/internal/service/document_commit.go | git apply -R; echo "MUTATION_APPLIED=$?"; git diff --stat | tail -3; . scripts/local-env.sh; unset OPENAI_API_KEY OPENAI_BASE_URL; export REDIS_TEST_URL=redis://localhost:6379/1 AI_PROVIDER=fake; (cd server && go test -count=1 -v ./internal/service -run '^TestChatDocumentSendsCommitOnOneConnection$' -timeout 5m > /tmp/uni2012r3fix-m.log 2>&1; echo "MUTANT_EXIT=$? (expect 1)"); git checkout -- server; git diff --quiet HEAD; echo "TREE_RESTORED=$?"; grep -nE "^\s*--- (PASS|FAIL)|_test.go:[0-9]+:" /tmp/uni2012r3fix-m.log | cut -c1-300 | head
+MUTATION_APPLIED=0
+ server/internal/service/document_commit.go | 30 ++++++++----------------------
+ 1 file changed, 8 insertions(+), 22 deletions(-)
+warning: STORAGE_BACKEND is unset and MINIO_* is empty; the server will refuse to start.
+         set STORAGE_BACKEND=local with LOCAL_UPLOAD_DIR, or configure MinIO (see .env.example).
+MUTANT_EXIT=1 (expect 1)
+TREE_RESTORED=0
+2:    chat_document_share_fix2_test.go:263: save with a chat room on one free connection: timeout: context already done: context deadline exceeded
+3:--- FAIL: TestChatDocumentSendsCommitOnOneConnection (15.25s)
