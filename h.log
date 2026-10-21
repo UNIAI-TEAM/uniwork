@@ -1,0 +1,6 @@
+$ grep -E "^\s*--- FAIL|^(FAIL|panic)|WARNING: DATA RACE|not formatted|^staticcheck|vet:" /tmp/uni2012r7-svcb.log | cut -c1-250 | head -80
+--- FAIL: TestDocumentReferences (0.76s)
+    --- FAIL: TestDocumentReferences/local (0.39s)
+FAIL
+FAIL	github.com/unicomhub/uniwork/server/internal/service	308.404s
+FAIL
