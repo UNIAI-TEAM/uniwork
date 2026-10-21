@@ -277,7 +277,7 @@ func (s *ChatService) commitDocumentMessage(
 	if _, err := s.ws.RequireMemberQ(ctx, q, workspaceID, userID); err != nil {
 		return db.ChatMessage{}, false, err
 	}
-	if err := s.requireCanSendInRoom(ctx, userID, room.ID, room); err != nil {
+	if err := s.requireCanSendInRoomQ(ctx, q, userID, room.ID, room); err != nil {
 		return db.ChatMessage{}, false, err
 	}
 
