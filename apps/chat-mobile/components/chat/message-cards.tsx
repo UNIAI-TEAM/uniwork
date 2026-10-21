@@ -34,6 +34,7 @@ import { cn } from "@/lib/utils";
 import { useChatMediaSrc, useFreshChatMediaUrl } from "./use-chat-media";
 import { toast } from "@/data/stores/toast-store";
 import { sameUser } from "@/lib/user-id";
+import { bubbleImageSize, chatMediaSource, IMAGE_CACHE_POLICY } from "@/lib/media-source";
 
 export interface MessageCardContext {
   wsId: string;
@@ -138,12 +139,14 @@ function ImageCard({ record, ctx, onLongPress }: { record: ChatMessageRecord; ct
     void freshUrl(record.id, { url: file.url, expiresAt: file.url_expires_at }, (m) => m.file?.url)
       .then((url) => ctx.onOpenImage(url, file.filename, record.id))
       .catch(() => toast.error(t("chat.media_unavailable", { name: file.filename })));
+  // Shaped like the photo when the server read its size, so the bubble does not jump when it arrives.
+  const box = bubbleImageSize(file.width, file.height);
   return (
     <Pressable {...longPress} onPress={open} accessibilityRole="imagebutton" accessibilityLabel={t("chat.message_list.file_open_named", { name: file.filename || t("chat.media_image") })}>
       {src ? (
-        <Image source={{ uri: src }} contentFit="cover" style={{ width: 230, height: 230, borderRadius: 14 }} />
+        <Image source={chatMediaSource(src, record.id, "thumb")} cachePolicy={IMAGE_CACHE_POLICY} contentFit="cover" style={{ ...box, borderRadius: 14 }} />
       ) : (
-        <View className="items-center justify-center rounded-[14px] bg-muted" style={{ width: 230, height: 230 }}>
+        <View className="items-center justify-center rounded-[14px] bg-muted" style={box}>
           <Text className="text-xs text-muted-foreground">{t("chat.message_list.image_preview_loading")}</Text>
         </View>
       )}
@@ -411,7 +414,7 @@ export function MessageContent({ record, own, ctx, onLongPress }: { record: Chat
       return <MessageText body={record.body} own={own} userId={ctx.userId} />;
     case "media": {
       const media = parseChatMediaMessageBody(record.body)!;
-      return <Image source={{ uri: media.url }} contentFit="contain" style={{ width: 160, height: 160 }} accessibilityLabel={media.alt} />;
+      return <Image source={{ uri: media.url }} cachePolicy={IMAGE_CACHE_POLICY} contentFit="contain" style={{ width: 160, height: 160 }} accessibilityLabel={media.alt} />;
     }
     case "image":
       return <ImageCard record={record} ctx={ctx} onLongPress={onLongPress} />;

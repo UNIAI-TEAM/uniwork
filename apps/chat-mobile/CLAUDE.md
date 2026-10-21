@@ -291,7 +291,12 @@ một dòng thì ghi lý do ở dòng trên.
   dùng ở composer và danh bạ, `LivePersonAvatar`), hàng so bằng `sameRoomListRow`, chạm vào hành động trên hàng mới
   nhất cùng key. Đừng truyền closure mới hay object dựng trong render vào một cell: test đếm render đỏ.
   `lib/user-id.ts` (`userKey`/`sameUser`) thay `trim().toUpperCase()` ngoài các file copy từ web. Link việc của tin
-  hỏi theo cửa sổ (`lib/link-windows.ts`, ranh giới theo hash id): tin mới chỉ refetch cửa sổ mới nhất. Theme: chọn
+  hỏi theo cửa sổ (`lib/link-windows.ts`, ranh giới theo hash id): tin mới chỉ refetch cửa sổ mới nhất. **Ảnh**: mọi
+  ảnh là `expo-image` với `cachePolicy` memory-disk (`lib/media-source.ts`): ảnh chat khoá cache theo id tin + biến thể
+  (`thumb`/`full`), avatar và icon workspace theo URL bỏ query (đường dẫn object đã là một tệp bất biến); server ký URL
+  media chat theo đầu giờ (`chatMediaSigningWindow`, `files.ResolveInput.SigningWindow`) nên refetch trong giờ trả đúng
+  URL và record cũ, và trả `width`/`height` của ảnh khi đọc được header lúc tải lên — bong bóng ảnh giữ đúng tỷ lệ
+  (`bubbleImageSize`) trước khi ảnh tới. Theme: chọn
   một lần lúc boot (`data/theme-preference.ts`, `loadThemePreference` trong `app/_layout.tsx`), `useColorScheme` chỉ đọc
   store. **Đo**: `components/chat/conversation-renders.test.tsx` và `chat-tab-renders.test.tsx` (jest, job `mobile`)
   khoá số render của hàng khi gõ, hiện diện, tin mới, biểu cảm; ngân sách bundle như cũ. `inlineRequires` của Metro

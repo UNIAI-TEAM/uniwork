@@ -16,6 +16,7 @@ import { THEME } from "@/lib/theme";
 import { formatMessageDay, formatMessageTime } from "@/lib/timeline-display";
 import { cn } from "@/lib/utils";
 import { useChatMediaSrc } from "./use-chat-media";
+import { chatMediaSource, IMAGE_CACHE_POLICY } from "@/lib/media-source";
 
 export interface ViewerPhoto {
   id: string;
@@ -37,7 +38,7 @@ function Page({ photo, wsId, roomId, width, openedUrl, onSrc }: { photo: ViewerP
   }, [uri, photo.id, onSrc]);
   return (
     <View style={{ width, flex: 1 }}>
-      {uri ? <Image source={{ uri }} contentFit="contain" style={{ flex: 1 }} accessibilityLabel={file?.filename ?? ""} /> : null}
+      {uri ? <Image source={chatMediaSource(uri, photo.id, "full")} cachePolicy={IMAGE_CACHE_POLICY} contentFit="contain" style={{ flex: 1 }} accessibilityLabel={file?.filename ?? ""} /> : null}
     </View>
   );
 }

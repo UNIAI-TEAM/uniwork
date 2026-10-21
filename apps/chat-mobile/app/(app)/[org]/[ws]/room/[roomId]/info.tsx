@@ -41,6 +41,7 @@ import { cn } from "@/lib/utils";
 import { voiceCallKindFromServer } from "@/lib/voice-call";
 import { toast } from "@/data/stores/toast-store";
 import { userKey } from "@/lib/user-id";
+import { chatMediaSource, IMAGE_CACHE_POLICY } from "@/lib/media-source";
 
 /** Members shown before "Xem tất cả" (the board lists four). */
 const MEMBERS_PREVIEW = 5;
@@ -149,7 +150,9 @@ function SharedSection({ shared, onOpenMessage }: { shared: ChatSharedSummary; o
                 className="overflow-hidden rounded-[10px] bg-muted"
                 style={{ width: tile, height: tile }}
               >
-                {photo.thumb_url || photo.url ? <Image source={{ uri: photo.thumb_url ?? photo.url }} contentFit="cover" style={{ width: "100%", height: "100%" }} /> : null}
+                {photo.thumb_url || photo.url ? (
+                  <Image source={chatMediaSource((photo.thumb_url || photo.url)!, photo.message_id, "thumb")} cachePolicy={IMAGE_CACHE_POLICY} contentFit="cover" style={{ width: "100%", height: "100%" }} />
+                ) : null}
                 {last ? (
                   <View className="absolute inset-0 items-center justify-center bg-black/45">
                     <Text className="text-lg font-display font-bold text-on-solid">+{more}</Text>

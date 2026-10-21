@@ -10,6 +10,7 @@ import type { TimelineMessage } from "@/lib/timeline-display";
 import type { MessageCardContext } from "./message-cards";
 import { useChatMediaSrc, useFreshChatMediaUrl } from "./use-chat-media";
 import { toast } from "@/data/stores/toast-store";
+import { chatMediaSource, IMAGE_CACHE_POLICY } from "@/lib/media-source";
 
 const GRID_WIDTH = 262;
 const GAP = 3;
@@ -34,7 +35,7 @@ function Tile({ message, ctx, width, height, more, corners, onLongPress }: { mes
       className="overflow-hidden bg-muted"
       style={[{ width, height }, corners]}
     >
-      {src ? <Image source={{ uri: src }} contentFit="cover" style={{ width, height }} /> : null}
+      {src ? <Image source={chatMediaSource(src, message.id, "thumb")} cachePolicy={IMAGE_CACHE_POLICY} contentFit="cover" style={{ width, height }} /> : null}
       {more > 0 ? (
         <View className="absolute inset-0 items-center justify-center bg-black/45">
           <Text className="text-xl font-display font-bold text-on-solid">+{more}</Text>

@@ -20,6 +20,7 @@ import { continuousCorners } from "@/lib/radius";
 import { THEME } from "@/lib/theme";
 import { useColorScheme } from "@/lib/use-color-scheme";
 import { cn } from "@/lib/utils";
+import { IMAGE_CACHE_POLICY } from "@/lib/media-source";
 
 type Kind = "stickers" | "gifs";
 
@@ -94,7 +95,7 @@ export function ExpressionSheet({ wsId, visible, onClose, onPick }: { wsId: stri
                 className={cn("overflow-hidden bg-muted", kind === "stickers" ? "rounded-[18px] p-2" : "rounded-xl")}
                 style={{ aspectRatio: kind === "stickers" ? 1 : 16 / 10 }}
               >
-                <Image source={{ uri: item.previewUrl }} contentFit={kind === "stickers" ? "contain" : "cover"} style={{ flex: 1 }} />
+                <Image source={{ uri: item.previewUrl }} cachePolicy={IMAGE_CACHE_POLICY} contentFit={kind === "stickers" ? "contain" : "cover"} style={{ flex: 1 }} />
               </View>
             </Pressable>
           )}
