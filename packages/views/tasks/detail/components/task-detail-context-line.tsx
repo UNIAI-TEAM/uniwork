@@ -2,43 +2,63 @@
 
 import { CircleCheck, CircleDot } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { ApiError } from "@uniwork/core/api";
 import { useMeeting } from "@uniwork/core/meetings";
 import { paths } from "@uniwork/core/paths";
 import { useChildTaskProgress, useTask } from "@uniwork/core/tasks";
 import type { Task } from "@uniwork/core/types";
+import { tintForegroundClass } from "@uniwork/ui/components/common/icon-tile";
+import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
+import { cn } from "@uniwork/ui/lib/utils";
+import { shortDateFormat } from "../../../common/date-pill";
 import { MODULE_ICONS } from "../../../layout/module-icons";
+import { moduleTone } from "../../../layout/module-tones";
 import { useWorkspace } from "../../../layout/workspace-context";
 import { AppLink } from "../../../navigation";
-import { formatInstantDate } from "../../../people/person-facts";
 
 const MeetingIcon = MODULE_ICONS.meetings;
+const MEETING_ICON_CLASS = cn("size-3.5 shrink-0", tintForegroundClass[moduleTone("meetings")]);
 
-/** "From meeting: {title} · {day}" for a task the meeting summary created (spec §9.4). */
+/** Why the meeting cannot be shown: deleted, not yours to see, or not read at all (offline, a 5xx). */
+function unavailableKey(error: unknown): string {
+  if (error instanceof ApiError && error.status === 404) return "tasks.detail.meeting_gone";
+  if (error instanceof ApiError && error.status === 403) return "tasks.detail.meeting_forbidden";
+  return "tasks.detail.meeting_unavailable";
+}
+
+/**
+ * "From meeting {title} · {day}" for a task the meeting summary created (spec
+ * §9.4), in the parent line's shape: a muted label, the name in medium weight
+ * (the part that gives way), and the date in the task page's short format.
+ */
 function TaskMeetingOrigin({ meetingId }: { meetingId: string }) {
   const { t, i18n } = useTranslation();
   const { workspace } = useWorkspace();
   const meeting = useMeeting(meetingId);
 
-  if (meeting.isPending) return null;
+  // The line keeps its place while the meeting loads, so the header does not jump.
+  if (meeting.isPending) return <Skeleton aria-hidden className="h-4 w-56 max-w-full" />;
   if (!meeting.data) {
     return (
       <span className="inline-flex items-center gap-1.5">
-        <MeetingIcon className="size-3.5 shrink-0" aria-hidden />
-        {t("tasks.detail.meeting_gone")}
+        <MeetingIcon className={MEETING_ICON_CLASS} aria-hidden />
+        {t(unavailableKey(meeting.error))}
       </span>
     );
   }
-  // Always with the year: a meeting from last year must not read as this year.
-  const date = formatInstantDate(meeting.data.starts_at, i18n.language);
+  const start = new Date(meeting.data.starts_at);
+  const date = Number.isNaN(start.getTime())
+    ? ""
+    : start.toLocaleDateString(i18n.language, shortDateFormat(String(start.getFullYear())));
   return (
     <AppLink
       href={paths.workspace(workspace.organization_slug, workspace.slug).meeting(meeting.data.id)}
       className="inline-flex min-w-0 items-center gap-1.5 hover:text-foreground"
     >
-      <MeetingIcon className="size-3.5 shrink-0" aria-hidden />
-      <span className="max-w-96 truncate">
-        {t("tasks.detail.from_meeting", { title: meeting.data.title, date })}
-      </span>
+      <MeetingIcon className={MEETING_ICON_CLASS} aria-hidden />
+      <span className="shrink-0">{t("tasks.detail.from_meeting")}</span>
+      <span className="min-w-0 max-w-80 truncate font-medium text-foreground">{meeting.data.title}</span>
+      {date ? <span className="shrink-0 tabular-nums">{`· ${date}`}</span> : null}
     </AppLink>
   );
 }
