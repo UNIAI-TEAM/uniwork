@@ -1,0 +1,8 @@
+$ git rev-parse HEAD; git log --oneline -3; free -m | head -2; nproc
+65e917359dc78742d530315ea53da7ab27e79a5c
+65e917359 fix(chat): give the document card's title room at 390 touch (UNI-2012 V2-N1 V2-N2)
+5bb149fd8 test(chat): pin the own-bubble touch more look and the coarse-pointer bar rule (UNI-2012 R4-4 R4-5)
+bec8c676a fix(chat): hide the hover bar's more button under a coarse pointer on a document card (UNI-2012 R4-5)
+               total        used        free      shared  buff/cache   available
+Mem:           16003       11464        1327          56        3596        4538
+4
