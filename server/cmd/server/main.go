@@ -413,6 +413,10 @@ func main() {
 	})
 	// A meeting's minutes are a page of this service (UNI-2003).
 	meetingSvc.Docs = documentSvc
+	// The meeting_scribe flag decides per organization whether the AI scribe is dispatched (UNI-2023).
+	// Set before RunWorkers: the dial-in sweep reads both, and nil flags drop every rule.
+	meetingSvc.SetFlags(flags)
+	meetingSvc.SetUploads(documentSvc)
 	// The chat document send files its bytes into the Documents tree and the
 	// read path resolves each message's document block against it
 	// (UNI-1966), so the chat service holds the one Documents service the
@@ -689,9 +693,6 @@ func main() {
 	askUNI.SetEmailHub(emailHubSvc)
 	askUNI.SetDocuments(documentSvc)
 	askUNI.SetFlags(flags)
-	// The meeting_scribe flag decides per organization whether the AI scribe is dispatched (UNI-2023).
-	meetingSvc.SetFlags(flags)
-	meetingSvc.SetUploads(documentSvc)
 	// Leave, an invitation switch and account deletion revoke the Google
 	// grants of the mailboxes they disconnect.
 	orgMemberSvc.SetEmailHub(emailHubSvc)
