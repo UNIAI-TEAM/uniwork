@@ -28,6 +28,7 @@
     "electron-vite": "catalog:",
     "eslint": "^9.32.0",
     "typescript": "catalog:",
+    "vite": "catalog:",
     "vitest": "catalog:"
   }
 }

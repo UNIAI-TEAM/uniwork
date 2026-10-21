@@ -41,6 +41,12 @@ const byKind: Record<(typeof KNOWN_MESSAGE_KINDS)[number], ChatMessageRecord> = 
   system: { ...base, kind: "system" },
   voice_call_log: { ...base, kind: "voice_call_log", voice_call: { outcome: "completed", caller_id: "u1", duration_seconds: 65 } },
   poll: { ...base, kind: "poll", poll },
+  poll_vote: {
+    ...base,
+    kind: "poll_vote",
+    body: "Ăn trưa?",
+    poll_vote: { poll_message_id: "poll1", question: "Ăn trưa?" },
+  },
   reminder: { ...base, kind: "reminder", reminder: { body: "Họp", remind_at: "2026-10-17T11:00:00Z", repeat: "none" } },
   note: { ...base, kind: "note", note: { body: "Ghi chú", pin_to_top: false } },
   voice: { ...base, kind: "voice", voice: { duration_ms: 4000, content_type: "audio/mp4", size_bytes: 1, url: "", url_expires_at: "" } },
