@@ -210,11 +210,29 @@ export function formatMeetingDate(iso: string | null | undefined, locale: string
   return new Intl.DateTimeFormat(locale, { day: "2-digit", month: "2-digit", year: "numeric" }).format(ms);
 }
 
+/** The one way a meetings screen writes a day: "Thứ Năm, 28 tháng 8". */
+export const MEETING_DAY_FORMAT: Intl.DateTimeFormatOptions = { weekday: "long", day: "numeric", month: "long" };
+
 /** Day heading for a group of meetings: "Thứ Năm, 28 tháng 8". */
 export function formatMeetingDay(dayKey: string, locale = "vi-VN"): string {
   const d = new Date(`${dayKey}T12:00:00`);
   if (Number.isNaN(d.getTime())) return dayKey;
-  return new Intl.DateTimeFormat(locale, { weekday: "long", day: "numeric", month: "long" }).format(d);
+  return new Intl.DateTimeFormat(locale, MEETING_DAY_FORMAT).format(d);
+}
+
+/**
+ * The window a meeting is told by: the schedule, until it has ended with
+ * both actual times on record — then when it really ran, so an instant
+ * meeting closed after two minutes does not read as its default hour.
+ */
+export function meetingShownWindow(
+  meeting: { starts_at: string; ends_at: string; actual_start_at?: string; actual_end_at?: string },
+  ended: boolean,
+): { startsAt: string; endsAt: string } {
+  const start = meeting.actual_start_at ?? "";
+  const end = meeting.actual_end_at ?? "";
+  const ran = ended && Number.isFinite(Date.parse(start)) && Date.parse(end) >= Date.parse(start);
+  return ran ? { startsAt: start, endsAt: end } : { startsAt: meeting.starts_at, endsAt: meeting.ends_at };
 }
 
 /** Remaining time until `endsAt` as `HH:MM:SS`. Null when the stamp is unusable. */

@@ -19,6 +19,7 @@ import {
   formatMeetingTimes,
   meetingDayKey,
   meetingLocale,
+  meetingShownWindow,
   sameUtcOffset,
 } from "./meeting-datetime";
 import { meetingTimeZoneLabel } from "./meeting-detail-format";
@@ -112,7 +113,8 @@ export function MeetingDetailHero({
   const canceled = status === "CANCELED";
   const open = scheduled || live;
 
-  const duration = meetingDurationParts(meeting.starts_at, meeting.ends_at);
+  const shown = meetingShownWindow(meeting, ended);
+  const duration = meetingDurationParts(shown.startsAt, shown.endsAt);
   const durationLabel = duration
     ? [
         duration.hours > 0 ? t("meetings.durationHours", { count: duration.hours }) : null,
@@ -145,10 +147,10 @@ export function MeetingDetailHero({
   // Times read in the viewer's clock. When the meeting was set in another
   // zone, both clocks are named so "09:00" is never ambiguous.
   const viewerZone = browserTimeZone();
-  const startDate = new Date(meeting.starts_at);
+  const startDate = new Date(shown.startsAt);
   const meetingZone = meeting.timezone?.trim() || "";
   const otherZone = meetingZone !== "" && !sameUtcOffset(meetingZone, viewerZone, startDate.getTime());
-  const times = formatMeetingTimes(meeting.starts_at, meeting.ends_at, locale);
+  const times = formatMeetingTimes(shown.startsAt, shown.endsAt, locale);
 
   return (
     <section aria-labelledby={headingId} className="rounded-xl border border-surface-border bg-surface shadow-surface">
@@ -175,7 +177,7 @@ export function MeetingDetailHero({
         </h1>
 
         <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2">
-          <MetaItem icon={CalendarDays}>{formatMeetingDay(meetingDayKey(meeting.starts_at), locale)}</MetaItem>
+          <MetaItem icon={CalendarDays}>{formatMeetingDay(meetingDayKey(shown.startsAt), locale)}</MetaItem>
           <MetaItem icon={Clock}>
             <span className="tabular-nums">
               {otherZone
@@ -189,7 +191,7 @@ export function MeetingDetailHero({
             <MetaItem icon={Globe}>
               <span className="tabular-nums">
                 {t("meetings.timesInZone", {
-                  times: formatMeetingRange(meeting.starts_at, meeting.ends_at, locale, meetingZone),
+                  times: formatMeetingRange(shown.startsAt, shown.endsAt, locale, meetingZone),
                   zone: meetingTimeZoneLabel(meetingZone, i18n.language, startDate),
                 })}
               </span>

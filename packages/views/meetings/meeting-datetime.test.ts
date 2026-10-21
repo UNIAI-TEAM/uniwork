@@ -9,6 +9,7 @@ import {
   formatRemaining,
   meetingDayKey,
   meetingLocale,
+  meetingShownWindow,
   sameUtcOffset,
   scheduleWindowIso,
   splitIsoLocal,
@@ -170,5 +171,19 @@ describe("sameUtcOffset", () => {
     expect(sameUtcOffset("Asia/Tokyo", "Asia/Ho_Chi_Minh", at)).toBe(false);
     expect(sameUtcOffset("Europe/London", "UTC", Date.parse("2026-01-10T00:00:00Z"))).toBe(true);
     expect(sameUtcOffset("Europe/London", "UTC", at)).toBe(false);
+  });
+});
+
+describe("meetingShownWindow", () => {
+  const m = { starts_at: "2026-10-21T13:15:00Z", ends_at: "2026-10-21T14:15:00Z" };
+  const ran = { actual_start_at: "2026-10-21T13:16:00Z", actual_end_at: "2026-10-21T13:18:00Z" };
+  it("reads an ended meeting by its actual run", () => {
+    expect(meetingShownWindow({ ...m, ...ran }, true)).toEqual({ startsAt: ran.actual_start_at, endsAt: ran.actual_end_at });
+  });
+  it("keeps the schedule before the end, or when either actual time is missing or bad", () => {
+    const scheduled = { startsAt: m.starts_at, endsAt: m.ends_at };
+    expect(meetingShownWindow({ ...m, ...ran }, false)).toEqual(scheduled);
+    expect(meetingShownWindow({ ...m, actual_start_at: ran.actual_start_at }, true)).toEqual(scheduled);
+    expect(meetingShownWindow({ ...m, actual_start_at: "x", actual_end_at: ran.actual_end_at }, true)).toEqual(scheduled);
   });
 });

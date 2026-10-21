@@ -4,6 +4,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vite
 import { initI18n } from "@uniwork/core/i18n";
 import type { Meeting } from "@uniwork/core/types";
 import { requestMock, wrapWithNav } from "../test/api-mock";
+import { formatMeetingTimes } from "./meeting-datetime";
 import { MeetingDetailHero } from "./meeting-detail-hero";
 
 beforeAll(() => {
@@ -165,6 +166,31 @@ describe("MeetingDetailHero", () => {
     });
     expect(screen.queryByRole("button", { name: "Vào phòng họp" })).not.toBeInTheDocument();
     expect(screen.getByText(/đã qua khung giờ/i)).toBeInTheDocument();
+  });
+
+  it("reads an ended meeting by when it actually ran, not the window it was given", () => {
+    const now = Date.now();
+    const iso = (offsetMin: number) => new Date(now + offsetMin * 60_000).toISOString();
+    renderHero({
+      status: "ENDED",
+      meeting_type: "INSTANT",
+      starts_at: iso(-10),
+      ends_at: iso(50),
+      actual_start_at: iso(-10),
+      actual_end_at: iso(-8),
+    });
+    const actual = formatMeetingTimes(iso(-10), iso(-8), "vi-VN");
+    expect(screen.getByText(actual)).toBeInTheDocument();
+    expect(screen.queryByText(formatMeetingTimes(iso(-10), iso(50), "vi-VN"))).not.toBeInTheDocument();
+    expect(screen.getByText(/2 phút/)).toBeInTheDocument();
+    expect(screen.queryByText(/1 giờ/)).not.toBeInTheDocument();
+  });
+
+  it("keeps the scheduled window for an ended meeting that never recorded its run", () => {
+    const window = windowFromNow(-2 * 60 * 60_000);
+    renderHero({ status: "ENDED", ...window });
+    expect(screen.getByText(formatMeetingTimes(window.starts_at, window.ends_at, "vi-VN"))).toBeInTheDocument();
+    expect(screen.getByText(/30 phút/)).toBeInTheDocument();
   });
 
   it("names both clocks when the meeting was set in another zone", () => {
