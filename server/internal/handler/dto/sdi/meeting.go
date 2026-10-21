@@ -138,7 +138,9 @@ type AgentFinishedSDI struct {
 // SetMeetingScribeSDI is PUT /api/v1/meetings/{meetingID}/scribe.
 // SetMeetingSettingsSDI is PUT /orgs/{orgID}/meetings/settings (UNI-2026).
 type SetMeetingSettingsSDI struct {
-	AutoSummaryEnabled bool `json:"auto_summary_enabled" description:"false = không tự tạo tóm tắt khi họp xong (chủ trì nhận nhắc như cũ); true = tự tạo (mặc định)" example:"false"`
+	// A pointer, so a body without the field is refused rather than read as
+	// false (which would switch auto summaries off for the organization).
+	AutoSummaryEnabled *bool `json:"auto_summary_enabled" description:"Bắt buộc; thiếu thì 400 invalid_request. false = không tự tạo tóm tắt khi họp xong (chủ trì nhận nhắc như cũ); true = tự tạo (mặc định)" example:"false"`
 }
 
 type SetMeetingScribeSDI struct {
