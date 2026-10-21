@@ -1,6 +1,6 @@
 # folders-into-my-folder — đưa thư mục riêng cũ vào My Folder của chủ
 
-> **Trạng thái:** in-progress · **Sev:** 3 · **Rule:** không có alert — lệnh vận hành một lần của UNI-2055 (ADR 0037 điểm 8) · **File:** `server/cmd/uniwork-admin/main.go` (`folders-into-my-folder`), `server/internal/service/document_folders_into_my_folder.go`
+> **Trạng thái:** shipped · **Sev:** 3 · **Rule:** không có alert — lệnh vận hành một lần của UNI-2055 (ADR 0037 điểm 8) · **File:** `server/cmd/uniwork-admin/main.go` (`folders-into-my-folder`), `server/internal/service/document_folders_into_my_folder.go`
 
 Từ ADR 0037 thư mục ngoài My Folder hiện cho cả workspace; thư mục trong My Folder vẫn riêng tư. Dữ liệu cũ còn thư mục `restricted`
 nằm ngoài My Folder (gốc workspace, dưới một trang, hoặc dưới thư mục của người khác): nếu để nguyên, chúng là thư mục "riêng tư giữa
