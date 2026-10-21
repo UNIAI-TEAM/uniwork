@@ -24,6 +24,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LivePersonAvatar } from "@/components/people/person-avatar";
 import { ActionSheet } from "@/components/ui/action-sheet";
 import { haptics } from "@/components/ui/haptics";
+import { useTapTarget } from "@/components/ui/tap-target";
 import { Text } from "@/components/ui/text";
 import { CHAT_FILE_MAX_LABEL, CHAT_FILE_PICKER_TYPES, isChatAcceptedFile, isChatFileTooLarge } from "@/lib/file-accept";
 import { formatVoiceCallDuration } from "@uniwork/core/chat/voice-call-duration";
@@ -92,6 +93,11 @@ export function Composer(props: Props) {
   const [attachOpen, setAttachOpen] = useState(false);
   const typingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const allLabel = t("chat.mention_all");
+  // 48 dp of target and a ripple on Android (lib/platform-ui.ts): the round 44 pt buttons, the 42 pt sticker
+  // button inside the field's border, the 48 pt mention rows.
+  const roundTap = useTapTarget(44, true);
+  const fieldTap = useTapTarget(42, true);
+  const rowTap = useTapTarget(48);
   const insets = useSafeAreaInsets();
   // 0 while the keyboard is down, 1 once it is up; the keyboard-avoiding view above lifts the rest.
   const { progress } = useReanimatedKeyboardAnimation();
@@ -229,6 +235,7 @@ export function Composer(props: Props) {
         <View className="border-b border-border" accessibilityLabel={t("chat.mention_picker_label")}>
           {suggestions.map((candidate) => (
             <Pressable
+              {...rowTap}
               key={candidate.kind === "all" ? "all" : candidate.userId}
               accessibilityRole="button"
               accessibilityLabel={candidate.kind === "all" ? `@${allLabel}, ${t("chat.mention_all_hint")}` : `@${candidate.label}`}
@@ -272,7 +279,7 @@ export function Composer(props: Props) {
               {banner.text}
             </Text>
           </View>
-          <Pressable accessibilityRole="button" accessibilityLabel={edit ? t("common.cancel") : t("chat.mobile.cancel_reply")} onPress={banner.cancel} className="h-11 w-11 items-center justify-center">
+          <Pressable {...roundTap} accessibilityRole="button" accessibilityLabel={edit ? t("common.cancel") : t("chat.mobile.cancel_reply")} onPress={banner.cancel} className="h-11 w-11 items-center justify-center">
             <Ionicons name="close" size={18} color={theme.mutedForeground} />
           </Pressable>
         </View>
@@ -280,6 +287,7 @@ export function Composer(props: Props) {
       <View className={cn("flex-row items-end gap-1.5 py-2 pr-2", attach ? "pl-2" : "pl-3")}>
         {attach && !voice.active ? (
           <Pressable
+            {...roundTap}
             accessibilityRole="button"
             accessibilityLabel={t("chat.composer_attach")}
             onPress={() => setAttachOpen(true)}
@@ -312,10 +320,9 @@ export function Composer(props: Props) {
             />
             {attach ? (
               <Pressable
+                {...fieldTap}
                 accessibilityRole="button"
                 accessibilityLabel={t("chat.expression_picker_open")}
-                // 42 pt inside the field's border, 44 pt target.
-                hitSlop={2}
                 onPress={props.onOpenExpressions}
                 className="h-[42px] w-[42px] items-center justify-center rounded-full active:bg-secondary"
               >
@@ -326,19 +333,20 @@ export function Composer(props: Props) {
         )}
         {voice.active ? (
           <>
-            <Pressable accessibilityRole="button" accessibilityLabel={t("common.cancel")} testID="composer-voice-cancel" onPress={() => void voice.cancel()} className="h-11 w-11 items-center justify-center rounded-full">
+            <Pressable {...roundTap} accessibilityRole="button" accessibilityLabel={t("common.cancel")} testID="composer-voice-cancel" onPress={() => void voice.cancel()} className="h-11 w-11 items-center justify-center rounded-full">
               <Ionicons name="trash-outline" size={22} color={theme.destructive} />
             </Pressable>
-            <Pressable accessibilityRole="button" accessibilityLabel={t("chat.send")} testID="composer-voice-send" onPress={() => void voice.send()} className="h-11 w-11 items-center justify-center rounded-full bg-primary">
+            <Pressable {...roundTap} accessibilityRole="button" accessibilityLabel={t("chat.send")} testID="composer-voice-send" onPress={() => void voice.send()} className="h-11 w-11 items-center justify-center rounded-full bg-primary">
               <Ionicons name="send" size={20} color={theme.primaryForeground} />
             </Pressable>
           </>
         ) : !trimmed && attach ? (
-          <Pressable accessibilityRole="button" accessibilityLabel={t("chat.voice_message")} testID="composer-voice" onPress={startVoice} className="h-11 w-11 items-center justify-center rounded-full bg-primary">
+          <Pressable {...roundTap} accessibilityRole="button" accessibilityLabel={t("chat.voice_message")} testID="composer-voice" onPress={startVoice} className="h-11 w-11 items-center justify-center rounded-full bg-primary">
             <Ionicons name="mic-outline" size={22} color={theme.primaryForeground} />
           </Pressable>
         ) : (
           <Pressable
+            {...roundTap}
             accessibilityRole="button"
             accessibilityLabel={edit ? t("chat.edit_dialog_save") : t("chat.send")}
             accessibilityState={{ disabled: !trimmed || tooLong }}

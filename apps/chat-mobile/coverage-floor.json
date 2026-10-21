@@ -157,10 +157,10 @@
       "lines": 100
     },
     "components/chat/message-actions.tsx": {
-      "statements": 61,
+      "statements": 64,
       "branches": 84,
       "functions": 21,
-      "lines": 75
+      "lines": 77
     },
     "components/chat/message-cards.tsx": {
       "statements": 44,
@@ -253,10 +253,10 @@
       "lines": 100
     },
     "components/chat/room-list-parts.tsx": {
-      "statements": 52,
-      "branches": 33,
-      "functions": 53,
-      "lines": 52
+      "statements": 94,
+      "branches": 62,
+      "functions": 86,
+      "lines": 94
     },
     "components/chat/room-list-view.tsx": {
       "statements": 100,
@@ -588,6 +588,12 @@
       "functions": 100,
       "lines": 100
     },
+    "components/ui/tap-target.ts": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
     "components/ui/text.tsx": {
       "statements": 100,
       "branches": 62,
@@ -614,7 +620,7 @@
     },
     "components/workspace/workspace-avatar.tsx": {
       "statements": 75,
-      "branches": 35,
+      "branches": 42,
       "functions": 100,
       "lines": 72
     },

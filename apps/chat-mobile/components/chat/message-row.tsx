@@ -14,6 +14,8 @@ import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { Pressable, View, type AccessibilityActionEvent } from "react-native";
 import Animated, { FadeIn, ZoomIn } from "react-native-reanimated";
+import { useRipple } from "@/components/ui/ripple";
+import { useTapTarget } from "@/components/ui/tap-target";
 import { Text } from "@/components/ui/text";
 import { bubbleCorners } from "@/lib/conversation-display";
 import { senderNameClass } from "@/lib/sender-colors";
@@ -101,6 +103,12 @@ export const MessageRow = memo(function MessageRow(props: MessageRowProps) {
   const theme = THEME[scheme];
   const record = message.record;
   const time = formatMessageTime(message.ts, i18n.language);
+  // The platform's target and Android's ripple (lib/platform-ui.ts): 30 pt reaction pills that wrap side by side
+  // grow up and down only; the 32 pt thread chip all round; the quote keeps its slop inside the bubble.
+  const reactionTap = useTapTarget(30);
+  const reactionSlop = { top: reactionTap.hitSlop, bottom: reactionTap.hitSlop };
+  const threadTap = useTapTarget(32);
+  const quoteRipple = useRipple();
 
   if (record && messageView(record) === "system") {
     return (
@@ -188,6 +196,7 @@ export const MessageRow = memo(function MessageRow(props: MessageRowProps) {
             accessibilityElementsHidden={!interactive}
             importantForAccessibility={interactive ? "auto" : "no-hide-descendants"}
             hitSlop={8}
+            android_ripple={quoteRipple}
             onPress={() => props.onPressQuote(quote.id)}
             className={cn("rounded-[10px] border-l-[3px] px-2 py-1", own ? "border-chat-bubble-own-foreground bg-chat-bubble-own-foreground/15" : "border-primary bg-tint-blue")}
           >
@@ -231,8 +240,8 @@ export const MessageRow = memo(function MessageRow(props: MessageRowProps) {
               accessibilityRole="button"
               accessibilityLabel={t(mine.has(emoji) ? "chat.message_list.reaction_mine_aria" : "chat.message_list.reaction_aria", { emoji, count })}
               accessibilityState={{ selected: mine.has(emoji) }}
-              // 30 pt pill, 44 pt target.
-              hitSlop={7}
+              hitSlop={reactionSlop}
+              android_ripple={reactionTap.android_ripple}
               onPress={() => props.onToggleReaction(message, emoji)}
               className={cn("min-h-[30px] flex-row items-center gap-1 rounded-full border px-2.5", mine.has(emoji) ? "border-primary bg-tint-blue" : "border-border bg-chat-bubble-other")}
             >
@@ -253,8 +262,7 @@ export const MessageRow = memo(function MessageRow(props: MessageRowProps) {
           accessibilityRole="button"
           // The label, not the children: the icon's glyph is a character a screen reader would spell.
           accessibilityLabel={t(record.thread_unread ? "chat.thread_replies_unread" : "chat.thread_replies", { count: record.reply_count })}
-          // 32 pt pill, 44 pt target.
-          hitSlop={6}
+          {...threadTap}
           onPress={() => props.onPressThread(message)}
           className={cn("mt-1 min-h-8 flex-row items-center gap-1.5 rounded-full bg-chat-chip px-3", avatar && "ml-9")}
         >

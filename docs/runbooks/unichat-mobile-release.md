@@ -294,7 +294,7 @@ và giọng đọc. Một iPhone (VoiceOver) và một máy Android (TalkBack):
   màn hình (không phải ở tin mới nhất). Mọi sheet: kéo grabber xuống đóng, kéo ngắn bật lại, sheet có danh sách vẫn cuộn
   được; VoiceOver vuốt hai ngón hình chữ Z đóng sheet; bật Giảm chuyển động thì sheet hiện mờ dần, không trượt. Dark
   mode: giờ và dấu tick trên bong bóng của mình đọc rõ, "đã xem" là huy hiệu tick đặc khác "đã tới". Android: nút back là
-  mũi tên, nút/hàng có hiệu ứng gợn sóng, vuốt trả lời rung một nhịp khi qua ngưỡng. Tin thoại: chạm thanh sóng để tua,
+  mũi tên, nút/hàng có hiệu ứng gợn sóng (cả nút gửi/đính kèm/mic của composer, thanh cảm xúc, chip lọc, tin thoại), vuốt trả lời rung một nhịp khi qua ngưỡng. Tin thoại: chạm thanh sóng để tua,
   chip 1×/1.5×/2×, TalkBack vuốt lên/xuống tua 5 s. CI đã chạy màn đăng nhập ở font_scale 2.0 + dark và audit nhãn/48 dp
   (`scripts/mobile-a11y-audit.mjs`); nightly chạy lại `chat-read-send` ở cỡ chữ lớn nhất + dark: đọc cảnh báo audit của
   phòng trong log job.

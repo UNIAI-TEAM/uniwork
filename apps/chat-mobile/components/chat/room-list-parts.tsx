@@ -5,6 +5,8 @@ import { Ionicons } from "@expo/vector-icons";
 import type { ComponentProps } from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable, ScrollView, View } from "react-native";
+import { useRipple } from "@/components/ui/ripple";
+import { useTapTarget } from "@/components/ui/tap-target";
 import { Text } from "@/components/ui/text";
 import { WorkspaceAvatar } from "@/components/workspace/workspace-avatar";
 import type { ChatScope } from "@/lib/chat-scope";
@@ -29,8 +31,10 @@ export function WorkspacePill(props: { name: string; seed?: string; iconUrl?: st
   const { t } = useTranslation();
   const { colorScheme } = useColorScheme();
   const other = props.otherUnread ?? 0;
+  const tap = useTapTarget(44);
   return (
     <Pressable
+      {...tap}
       accessibilityRole="button"
       accessibilityLabel={other > 0 ? t("chat.mobile.workspace_pill_aria", { name: props.name, count: other }) : t("chat.mobile.workspace_pill_aria_quiet", { name: props.name })}
       onPress={props.onPress}
@@ -66,6 +70,9 @@ export function FilterChips({
   filters?: readonly RoomListFilter[];
 }) {
   const { t } = useTranslation();
+  // 34 pt chips side by side: the slop grows them up and down only, never into the next chip.
+  const tap = useTapTarget(34);
+  const slop = { top: tap.hitSlop, bottom: tap.hitSlop };
   return (
     <ScrollView
       horizontal
@@ -84,7 +91,8 @@ export function FilterChips({
             key={filter}
             accessibilityRole="button"
             accessibilityState={{ selected: active }}
-            hitSlop={{ top: 5, bottom: 5 }}
+            hitSlop={slop}
+            android_ripple={tap.android_ripple}
             onPress={() => onChange(filter)}
             className={cn("min-h-[34px] flex-row items-center gap-1.5 rounded-full px-3.5 py-1", active ? "bg-primary" : "bg-muted active:opacity-80")}
           >
@@ -132,6 +140,8 @@ export function ScopeSwitch(props: {
   const { t } = useTranslation();
   const { colorScheme } = useColorScheme();
   const theme = THEME[colorScheme];
+  const tap = useTapTarget(44);
+  const slop = { top: tap.hitSlop, bottom: tap.hitSlop };
   const sides: { scope: ChatScope; label: string; totals: ScopeTotals }[] = [
     { scope: "messages", label: t("chat.scope.messages_title"), totals: props.messages },
     { scope: "workspace", label: t("chat.scope.channels_tab"), totals: props.channels },
@@ -146,6 +156,8 @@ export function ScopeSwitch(props: {
             key={side.scope}
             accessibilityRole="tab"
             accessibilityState={{ selected: on }}
+            hitSlop={slop}
+            android_ripple={tap.android_ripple}
             onPress={() => props.onChange(side.scope)}
             // The lift is a style, not `shadow-sm`: a shadow class appearing on a mounted
             // Pressable makes NativeWind remount it, and in dev that crashes on the router's context.
@@ -236,8 +248,10 @@ function StateTile({ icon, tone }: { icon: IconName; tone: "blue" | "red" }) {
 function PillButton({ icon, label, primary = false, onPress }: { icon: IconName; label: string; primary?: boolean; onPress: () => void }) {
   const { colorScheme } = useColorScheme();
   const theme = THEME[colorScheme];
+  const ripple = useRipple();
   return (
     <Pressable
+      android_ripple={ripple}
       accessibilityRole="button"
       onPress={onPress}
       className={cn("min-h-12 flex-row items-center justify-center gap-2 rounded-full px-6 py-3 active:opacity-80", primary ? "bg-primary" : "bg-muted")}
@@ -288,11 +302,13 @@ export function RoomListEmpty(props: { searching: boolean; filter: RoomListFilte
 export function RoomListError({ onRetry }: { onRetry: () => void }) {
   const { t } = useTranslation();
   const { colorScheme } = useColorScheme();
+  const tap = useTapTarget(44);
   return (
     <View accessibilityRole="alert" className="flex-1 items-center px-8 pt-28">
       <StateTile icon="alert-circle-outline" tone="red" />
       <Text className="mt-5 max-w-[300px] text-center text-headline font-display font-bold leading-6 text-foreground">{t("chat.sidebar_load_failed")}</Text>
       <Pressable
+        {...tap}
         accessibilityRole="button"
         onPress={onRetry}
         className="mt-5 min-h-11 flex-row items-center gap-2 rounded-full bg-muted px-[22px] py-2.5 active:opacity-80"

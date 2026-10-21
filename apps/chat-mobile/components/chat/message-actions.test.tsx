@@ -48,3 +48,27 @@ describe("MessageActionsSheet › report", () => {
     expect(screen.queryByRole("button", { name: viText("mobile.report.action") })).toBeNull();
   });
 });
+
+describe("MessageActionsSheet › touch", () => {
+  const ripples = (name: string) => expect(screen.getByRole("button", { name }).props.nativeBackgroundAndroid).toEqual(expect.objectContaining({ type: "RippleAndroid" }));
+
+  it("draws every reaction 44 pt round, 48 dp tall on Android without reaching into its neighbour, with a ripple", async () => {
+    await render(<MessageActionsSheet {...props(false)} />);
+    for (const name of [viText("chat.mobile.react_label_like"), viText("chat.action_react_more")]) {
+      const button = screen.getByRole("button", { name });
+      expect(button.props.className).toContain("h-11 w-11");
+      expect(button.props.hitSlop).toEqual({ top: 2, bottom: 2 });
+      ripples(name);
+    }
+  });
+
+  it("gives each menu row 48 dp on Android and 46 pt on iOS, with a ripple", async () => {
+    const { unmount } = await render(<MessageActionsSheet {...props(false)} />);
+    expect(screen.getByRole("button", { name: viText("chat.action_copy") }).props.className).toContain("min-h-12");
+    ripples(viText("chat.action_copy"));
+    await unmount();
+    jest.replaceProperty(Platform, "OS", "ios");
+    await render(<MessageActionsSheet {...props(false)} />);
+    expect(screen.getByRole("button", { name: viText("chat.action_copy") }).props.className).toContain("min-h-[46px]");
+  });
+});

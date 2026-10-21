@@ -1,5 +1,6 @@
 import { ChatMessageSchema, type ChatMessageRecord } from "@uniwork/core/api/endpoints/chat-schemas";
 import { fireEvent, screen } from "@testing-library/react-native";
+import { Platform } from "react-native";
 import { formatMessageTime, type TimelineMessage } from "@/lib/timeline-display";
 import type { PendingSend } from "@/lib/send-pipeline";
 import { render, viText } from "@/test/render";
@@ -223,5 +224,22 @@ describe("links and bold in a message", () => {
     const p = props(sent({ body: "**https://a.example/x**", sender_id: "u1" }), { own: true });
     await render(<MessageRow {...p} />);
     expect(screen.getByRole("link", { name: viText("mobile.conversation.link_label", { link: "a.example/x" }) })).toBeOnTheScreen();
+  });
+
+  it("gives reactions, the thread chip and the quote the platform's target and a ripple on Android", async () => {
+    jest.replaceProperty(Platform, "OS", "android");
+    try {
+      const card = sent({ kind: "hologram", body: "", reactions: { "👍": 2 }, reply_count: 3 });
+      await render(<MessageRow {...props(card, { quote: { sender: "An", text: "Ảnh hôm qua?", id: "m0" } })} />);
+      const reaction = screen.getByRole("button", { name: viText("chat.message_list.reaction_aria", { emoji: "👍", count: 2 }) });
+      // 30 pt pills that wrap side by side: they grow up and down only.
+      expect(reaction.props.hitSlop).toEqual({ top: 9, bottom: 9 });
+      const thread = screen.getByRole("button", { name: viText("chat.thread_replies", { count: 3 }) });
+      expect(thread.props.hitSlop).toBe(8);
+      const quote = screen.getByRole("button", { name: viText("chat.reply_quote_jump", { preview: "Ảnh hôm qua?" }) });
+      for (const control of [reaction, thread, quote]) expect(control.props.nativeBackgroundAndroid).toEqual(expect.objectContaining({ type: "RippleAndroid" }));
+    } finally {
+      jest.restoreAllMocks();
+    }
   });
 });

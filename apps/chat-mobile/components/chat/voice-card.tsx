@@ -12,6 +12,7 @@ import { setAudioModeAsync, useAudioPlayer, useAudioPlayerStatus } from "expo-au
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable, View, type AccessibilityActionEvent, type GestureResponderEvent } from "react-native";
+import { useTapTarget } from "@/components/ui/tap-target";
 import { Text } from "@/components/ui/text";
 import { useColorScheme } from "@/components/ui/use-color-scheme";
 import { bestEffort } from "@/data/report";
@@ -69,6 +70,9 @@ export function VoiceCard({ record, voice, ctx, own, onLongPress }: Props) {
     else onLongPress();
   };
 
+  const playTap = useTapTarget(44, true);
+  // The chip is drawn 28 pt tall: its slop makes up the platform's target.
+  const rateTap = useTapTarget(28);
   const total = formatVoiceCallDuration(voice.duration_ms / 1000);
   const position = formatVoiceCallDuration(status.currentTime);
   const played = playedBars(status.currentTime, status.duration, VOICE_BARS.length);
@@ -76,6 +80,7 @@ export function VoiceCard({ record, voice, ctx, own, onLongPress }: Props) {
   return (
     <View className="min-h-11 min-w-[220px] flex-row items-center gap-2.5">
       <Pressable
+        {...playTap}
         onPress={toggle}
         onLongPress={onLongPress}
         disabled={!src}
@@ -122,11 +127,11 @@ export function VoiceCard({ record, voice, ctx, own, onLongPress }: Props) {
         <Text className={cn("text-caption", own ? "text-chat-bubble-own-meta" : "text-muted-foreground")}>{started ? `${position} / ${total}` : total}</Text>
       </View>
       <Pressable
+        {...rateTap}
         onPress={cycleRate}
         accessibilityRole="button"
         accessibilityLabel={t("chat.voice_speed_label", { rate })}
         testID="voice-rate"
-        hitSlop={8}
         className={cn("min-h-7 min-w-10 items-center justify-center rounded-full px-2", own ? "bg-chat-bubble-own-foreground/15" : "bg-muted")}
       >
         <Text className={cn("text-caption font-semibold", own ? "text-chat-bubble-own-foreground" : "text-foreground")} style={{ fontVariant: ["tabular-nums"] }}>

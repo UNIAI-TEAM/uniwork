@@ -5,6 +5,7 @@
 // screen. Rows are counted through PersonAvatar, which only a drawn row reaches.
 import { act, fireEvent, screen, waitFor } from "@testing-library/react-native";
 import type { ReactNode } from "react";
+import { Platform } from "react-native";
 import NewChatScreen from "@/app/(app)/[org]/[ws]/new-chat";
 import NewGroupScreen from "@/app/(app)/[org]/[ws]/new-group";
 import RoomInfoScreen from "@/app/(app)/[org]/[ws]/room/[roomId]/info";
@@ -14,6 +15,7 @@ import { chatApi } from "@/data/chat-api";
 import { usePresenceStore } from "@/data/stores/chat-presence-store";
 import { render, viText } from "@/test/render";
 import { ChatRoomSchema } from "@uniwork/core/api/endpoints/chat-schemas";
+import { DmPickRow, GroupPickRow, RoomMemberRow } from "./member-rows";
 
 const mockRenders = new Map<string, number>();
 jest.mock("./person-avatar", () => ({
@@ -131,5 +133,25 @@ describe("people rows read their own presence", () => {
     await fireEvent.press(screen.getByRole("button", { name: "Người 2, u2@acme.vn" }));
     expect(screen.getByText(viText("mobile.report.action_user", { name: "Người 2" }))).toBeOnTheScreen();
     expect(take()).toEqual({});
+  });
+});
+
+describe("people rows on Android", () => {
+  it("answer a press with a ripple (each row is 56 dp or more, past the 48 dp target)", async () => {
+    jest.replaceProperty(Platform, "OS", "android");
+    const person = { user_id: "U9", label: "Người 9", email: "u9@acme.vn" };
+    await render(
+      <>
+        <DmPickRow person={person} last busy={false} disabled={false} onOpen={jest.fn()} />
+        <GroupPickRow person={{ ...person, user_id: "U8", label: "Người 8" }} last isIn={false} selected={false} onToggle={jest.fn()} />
+        <RoomMemberRow userId="U7" name="Người 7" email="u7@acme.vn" admin={false} last onOpen={jest.fn()} />
+      </>,
+    );
+    const rows = [
+      screen.getByRole("button", { name: `${viText("chat.start_dm")}: Người 9` }),
+      screen.getByRole("checkbox", { name: "Người 8" }),
+      screen.getByRole("button", { name: "Người 7, u7@acme.vn" }),
+    ];
+    for (const row of rows) expect(row.props.nativeBackgroundAndroid).toEqual(expect.objectContaining({ type: "RippleAndroid" }));
   });
 });

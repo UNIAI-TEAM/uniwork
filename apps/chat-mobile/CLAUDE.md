@@ -524,8 +524,13 @@ một dòng thì ghi lý do ở dòng trên.
   xuống (`latestSignal` của `MessageList`); ảnh xem lớn `zoomable-image.tsx` (chụm, chạm hai lần, kéo khi phóng to, vuốt
   dọc ở 1x để đóng; toán ở `lib/zoom.ts`; Modal có `GestureHandlerRootView` riêng). **Quy ước Android** (`lib/platform-ui.ts`, `components/ui/ripple.ts`): nút back
   là mũi tên trên Android, chevron trên iOS; vùng chạm tối thiểu 44 pt (iOS) / 48 dp (Android) — `Button` (mọi size,
-  size nhỏ qua `hitSlop`) và `HeaderIconButton` tự tính `hitSlopFor`; `Button`, nút header, dòng của sheet, dòng phòng,
-  dòng Cài đặt có `android_ripple` theo mực của theme. **Cỡ chữ**: vai trò ở
+  size nhỏ qua `hitSlop`) và `HeaderIconButton` tự tính `hitSlopFor`; điều khiển tự dựng trải `useTapTarget(cỡ vẽ, tròn?)`
+  (`components/ui/tap-target.ts`: `hitSlop` bù tới vùng chạm của nền tảng + `android_ripple`) — composer (đính kèm,
+  sticker, gửi, mic, huỷ trả lời, dòng gợi ý @), thanh cảm xúc và menu nhấn giữ (`message-actions.tsx`: nút cảm xúc
+  44 pt, dòng menu 48 dp trên Android), cảm xúc/chủ đề/trích dẫn trên tin, tin thoại (phát, tốc độ), pill workspace,
+  chip lọc, tab Tin nhắn/Kênh, Thử lại; điều khiển nằm cạnh nhau (chip, cảm xúc, tab) chỉ nới trên/dưới để chạm không
+  rơi sang hàng xóm. `Button`, nút header, dòng của sheet, dòng phòng, dòng người, dòng Cài đặt có `android_ripple`
+  theo mực của theme. Test component đọc ripple ở `nativeBackgroundAndroid` của view host. **Cỡ chữ**: vai trò ở
   `lib/type-scale.json` (`text-meta` … `text-display-xl`, `text-emoji*`; tailwind và `cn()` đọc cùng file — thiếu
   `extendTailwindMerge` thì `text-footnote` bị coi là màu); `lib/type-scale.test.ts` đỏ khi `app/`/`components/` dùng
   `text-sm`… hay `text-[13px]`. Phần tử chứa chữ dùng `min-h-*` + padding dọc, không `h-*` cố định (cả `Button`, ô tìm kiếm, ô nhập); cùng test đỏ

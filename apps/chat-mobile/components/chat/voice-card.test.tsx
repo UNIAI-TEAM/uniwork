@@ -5,6 +5,7 @@
 import { ChatMessageSchema } from "@uniwork/core/api/endpoints/chat-schemas";
 import { act, fireEvent, screen } from "@testing-library/react-native";
 import { useAudioPlayer, useAudioPlayerStatus } from "expo-audio";
+import { Platform } from "react-native";
 import { render, viText } from "@/test/render";
 import { VoiceCard } from "./voice-card";
 
@@ -96,5 +97,19 @@ describe("VoiceCard", () => {
     status({ duration: 0 });
     await render(<VoiceCard record={{ ...record, voice: expired }} voice={expired} ctx={ctx} own={false} onLongPress={jest.fn()} />);
     expect(screen.getByRole("adjustable").props.accessibilityState).toEqual({ disabled: true });
+  });
+
+  it("gives play and the speed chip the platform's target, with a ripple on Android", async () => {
+    jest.replaceProperty(Platform, "OS", "android");
+    try {
+      await render(<VoiceCard record={record} voice={voice} ctx={ctx} own={false} onLongPress={jest.fn()} />);
+      expect(playButton().props.hitSlop).toBe(2);
+      expect(screen.getByTestId("voice-rate").props.hitSlop).toBe(10);
+      for (const control of [playButton(), screen.getByTestId("voice-rate")]) {
+        expect(control.props.nativeBackgroundAndroid).toEqual(expect.objectContaining({ type: "RippleAndroid" }));
+      }
+    } finally {
+      jest.restoreAllMocks();
+    }
   });
 });

@@ -7,6 +7,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { memo, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { ActivityIndicator, Pressable, View } from "react-native";
+import { useRipple } from "@/components/ui/ripple";
 import { Text } from "@/components/ui/text";
 import { THEME } from "@/lib/theme";
 import { useColorScheme } from "@/components/ui/use-color-scheme";
@@ -29,8 +30,10 @@ export const DmPickRow = memo(function DmPickRow(props: { person: PickPerson; la
   const { t } = useTranslation();
   const { colorScheme } = useColorScheme();
   const online = useIsOnline(person.user_id);
+  const ripple = useRipple();
   return (
     <Pressable
+      android_ripple={ripple}
       accessibilityRole="button"
       accessibilityLabel={[`${t("chat.start_dm")}: ${person.label}`, online ? t("chat.presence_online") : null].filter(Boolean).join(", ")}
       accessibilityState={{ busy }}
@@ -63,8 +66,10 @@ export const GroupPickRow = memo(function GroupPickRow(props: { person: PickPers
   const { colorScheme } = useColorScheme();
   const online = useIsOnline(person.user_id);
   const checked = props.selected || isIn;
+  const ripple = useRipple();
   return (
     <Pressable
+      android_ripple={ripple}
       accessibilityRole="checkbox"
       accessibilityState={{ checked, disabled: isIn }}
       accessibilityLabel={[person.label, isIn ? t("chat.already_in_group") : null].filter(Boolean).join(", ")}
@@ -93,6 +98,7 @@ export const GroupPickRow = memo(function GroupPickRow(props: { person: PickPers
 /** A member's row: someone else's opens their menu (a DM, report, block); one's own only reads out. */
 function MemberRowShell({ label, onPress, children }: { label: string; onPress?: () => void; children: ReactNode }) {
   const className = "min-h-14 flex-row items-center gap-3";
+  const ripple = useRipple();
   if (!onPress) {
     return (
       <View accessible accessibilityLabel={label} className={className}>
@@ -101,7 +107,7 @@ function MemberRowShell({ label, onPress, children }: { label: string; onPress?:
     );
   }
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} className={`${className} active:opacity-70`}>
+    <Pressable android_ripple={ripple} accessibilityRole="button" accessibilityLabel={label} onPress={onPress} className={`${className} active:opacity-70`}>
       {children}
     </Pressable>
   );

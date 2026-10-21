@@ -67,6 +67,30 @@ describe("Composer", () => {
     expect(input()).toHaveDisplayValue("");
   });
 
+  it("gives every control 48 dp of target and a ripple on Android", async () => {
+    const touchable = (name: string) => {
+      const button = screen.getByRole("button", { name });
+      // Pressable hands Android's ripple to its native view as nativeBackgroundAndroid.
+      expect(button.props.nativeBackgroundAndroid).toEqual(expect.objectContaining({ type: "RippleAndroid" }));
+      return button.props.hitSlop as number;
+    };
+    const { unmount } = await render(<Composer {...props({ reply: { id: "m1", sender: "Bình", text: "Mai họp nhé" } })} />);
+    expect(touchable(viText("chat.composer_attach"))).toBe(2);
+    expect(touchable(viText("chat.expression_picker_open"))).toBe(3);
+    expect(touchable(viText("chat.voice_message"))).toBe(2);
+    expect(touchable(viText("chat.mobile.cancel_reply"))).toBe(2);
+    await fireEvent.changeText(input(), "@");
+    await fireEvent(input(), "selectionChange", { nativeEvent: { selection: { start: 1, end: 1 } } });
+    expect(touchable(`@all, ${viText("chat.mention_all_hint")}`)).toBe(0);
+    await fireEvent.changeText(input(), "Chào");
+    expect(touchable(viText("chat.send"))).toBe(2);
+    await unmount();
+    mockVoice({ active: true, elapsedMs: 1_000 });
+    await render(<Composer {...props()} />);
+    expect(touchable(viText("common.cancel"))).toBe(2);
+    expect(touchable(viText("chat.send"))).toBe(2);
+  });
+
   it("keeps send disabled on an empty draft where there is no voice button", async () => {
     await render(<Composer {...props({ allowAttachments: false })} />);
     expect(sendButton()).toBeDisabled();

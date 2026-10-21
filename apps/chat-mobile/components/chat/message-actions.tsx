@@ -14,6 +14,8 @@ import { CallAwareModal } from "@/components/ui/call-aware-modal";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { PersonAvatar } from "@/components/people/person-avatar";
 import { useAfterDismiss } from "@/components/ui/action-sheet";
+import { useRipple } from "@/components/ui/ripple";
+import { useTapTarget } from "@/components/ui/tap-target";
 import { Text } from "@/components/ui/text";
 import { FOLLOW_UP_HOURS } from "@/lib/follow-ups";
 import type { ChatFollowUp } from "@/data/chat-api-schemas";
@@ -83,6 +85,12 @@ export function MessageActionsSheet(props: Props) {
   const { colorScheme } = useColorScheme();
   const theme = THEME[colorScheme];
   const { choose, onDismiss } = useAfterDismiss(onClose);
+  // 44 pt round reactions side by side: Android's 48 dp comes from vertical slop only, so a tap never lands on
+  // the neighbour (the bar has no room for seven 48 dp buttons on a 360 dp phone). Menu rows grow to 48 dp there.
+  const reactionTap = useTapTarget(44, true);
+  const reactionSlop = { top: reactionTap.hitSlop, bottom: reactionTap.hitSlop };
+  const rowRipple = useRipple();
+  const rowHeight = Platform.OS === "android" ? "min-h-12" : "min-h-[46px]";
   const record = message?.record;
   const items: MenuItem[] = [];
   if (message?.pending) {
@@ -129,6 +137,8 @@ export function MessageActionsSheet(props: Props) {
             {QUICK_REACTIONS.map(([emoji, labelKey]) => (
               <Pressable
                 key={emoji}
+                hitSlop={reactionSlop}
+                android_ripple={reactionTap.android_ripple}
                 accessibilityRole="button"
                 accessibilityLabel={t(labelKey)}
                 accessibilityState={{ selected: mine.has(emoji) }}
@@ -142,10 +152,12 @@ export function MessageActionsSheet(props: Props) {
               </Pressable>
             ))}
             <Pressable
+              hitSlop={reactionSlop}
+              android_ripple={reactionTap.android_ripple}
               accessibilityRole="button"
               accessibilityLabel={t("chat.action_react_more")}
               onPress={() => choose(() => props.onMoreReactions(message))}
-              className="h-10 w-10 items-center justify-center rounded-full bg-muted active:bg-secondary"
+              className="h-11 w-11 items-center justify-center rounded-full bg-muted active:bg-secondary"
             >
               <Ionicons name="chevron-down" size={20} color={theme.mutedForeground} />
             </Pressable>
@@ -188,11 +200,12 @@ export function MessageActionsSheet(props: Props) {
                 <View key={item.key}>
                   {divider ? <View className="h-1.5 bg-muted" /> : null}
                   <Pressable
+                    android_ripple={rowRipple}
                     accessibilityRole="button"
                     // The label, not the children: the icon's glyph is a character a screen reader would spell.
                     accessibilityLabel={item.hint ? `${item.label}, ${item.hint}` : item.label}
                     onPress={() => choose(item.onPress)}
-                    className={cn("min-h-[46px] flex-row items-center gap-3 px-3.5 active:bg-secondary", index > 0 && !divider && "border-t border-border")}
+                    className={cn(rowHeight, "flex-row items-center gap-3 px-3.5 active:bg-secondary", index > 0 && !divider && "border-t border-border")}
                   >
                     <Ionicons name={item.icon} size={20} color={item.destructive ? theme.destructive : theme.mutedForeground} />
                     <Text className={cn("flex-1 text-subhead", item.destructive ? "text-destructive" : "text-foreground")}>{item.label}</Text>
