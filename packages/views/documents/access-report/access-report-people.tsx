@@ -142,13 +142,13 @@ export function AccessReportPeople({ wsId, folderId, search, kind, levels, skipp
     // A size container: an open row's documents size themselves to this box (cqw), not to the viewport.
     <div className="overflow-hidden rounded-lg border border-border">
       <div className="overflow-x-auto [container-type:inline-size]">
-        <table aria-label={t("documents.accessReport.tab_people")} aria-busy={query.isFetching || undefined} className="w-full border-collapse text-left text-body sm:min-w-[56rem]">
+        <table aria-label={t("documents.accessReport.tab_people")} aria-busy={query.isFetching || undefined} className="w-full border-collapse text-left text-body lg:min-w-[56rem]">
           <thead className="bg-muted/50">
             <tr className="border-b border-border text-caption text-muted-foreground">
               {sortHeader("name", t("documents.accessReport.col_principal"))}
               {sortHeader("count", t("documents.accessReport.col_count"))}
               <th scope="col" className={cn(TH, NARROW_HIDDEN)}>{t("documents.accessReport.col_split")}</th>
-              <th scope="col" className={cn(TH, NARROW_HIDDEN)}>{t("documents.accessReport.col_main_source")}</th>
+              <th scope="col" className={cn(TH, TABLET_HIDDEN)}>{t("documents.accessReport.col_main_source")}</th>
               <th scope="col" className={cn(TH, "w-12")}>
                 <span className="sr-only">{t("documents.accessReport.col_expand")}</span>
               </th>
@@ -181,6 +181,8 @@ const TH = "px-3 py-2 font-medium whitespace-nowrap";
 const TD = "px-3 py-2 align-middle";
 // Below sm the split bar and the main source leave the row (an open row lists each document's level and source).
 const NARROW_HIDDEN = "max-sm:hidden";
+// The main source also leaves below lg, where the table has no width floor: at 768 it would clip it and the expand column.
+const TABLET_HIDDEN = "max-lg:hidden";
 
 function next(current: { sort: PeopleSortKey; order: PeopleSortOrder }, column: PeopleSortKey) {
   if (current.sort !== column) return { sort: column, order: DEFAULT_ORDER[column] };
@@ -262,7 +264,7 @@ function PersonRow({ wsId, principal: p, open, onToggle, folderId, levels, docum
             </span>
           </div>
         </td>
-        <td className={cn(TD, NARROW_HIDDEN, "text-muted-foreground")}>{mainSource}</td>
+        <td className={cn(TD, TABLET_HIDDEN, "text-muted-foreground")}>{mainSource}</td>
         <td className={cn(TD, "text-right")}>
           {/* A bigger target for the pointer; the name button is the one keyboard and screen-reader stop. */}
           <button
