@@ -12,7 +12,7 @@ vi.mock("./flow", () => ({ session: sessionMock }));
 const workspaceClear = vi.hoisted(() => vi.fn(async () => undefined));
 vi.mock("../stores/workspace-store", () => ({ useWorkspaceStore: { getState: () => ({ clear: workspaceClear }) } }));
 
-const queryClientMock = vi.hoisted(() => ({ name: "the app's query client" }));
+const queryClientMock = vi.hoisted(() => ({ name: "the app's query client", getQueryData: vi.fn<(key: unknown) => unknown>(() => undefined) }));
 vi.mock("../query-client", () => ({ queryClient: queryClientMock }));
 const clearAccountCache = vi.hoisted(() => vi.fn());
 vi.mock("../remote-config", () => ({ clearAccountCache }));
@@ -36,6 +36,9 @@ const pushMock = vi.hoisted(() => ({
   forgetPushToken: vi.fn(),
 }));
 vi.mock("../push", () => pushMock);
+
+const wipeDeviceTraces = vi.hoisted(() => vi.fn<(ids: readonly string[]) => Promise<void>>(async () => undefined));
+vi.mock("../local-wipe", () => ({ wipeDeviceTraces }));
 
 import { ApiError } from "../api";
 import { installReportSink } from "../report";
@@ -196,5 +199,35 @@ describe("auth store", () => {
     } finally {
       installReportSink(null);
     }
+  });
+
+  it("accountDeleted ends the session without asking the server, then wipes what the account left on the phone", async () => {
+    const order: string[] = [];
+    sessionMock.logout.mockImplementation(async () => {
+      order.push("session");
+    });
+    wipeDeviceTraces.mockImplementation(async () => {
+      order.push("wipe");
+    });
+    queryClientMock.getQueryData.mockReturnValueOnce([{ id: "w1" }, { id: "w2" }]);
+    useChatSendStore.setState({ entries: [{ clientMsgId: "c1" } as never] });
+    useAuthStore.getState().setUser(user);
+
+    await useAuthStore.getState().accountDeleted();
+
+    expect(useAuthStore.getState().user).toBeNull();
+    // The server already revoked every push subscription of the account.
+    expect(pushMock.unregisterPushToken).not.toHaveBeenCalled();
+    expect(pushMock.forgetPushToken).toHaveBeenCalledTimes(1);
+    expect(workspaceClear).toHaveBeenCalledTimes(1);
+    expect(clearAccountCache).toHaveBeenCalledExactlyOnceWith(queryClientMock);
+    expect(useChatSendStore.getState().entries).toEqual([]);
+    expect(wipeDeviceTraces).toHaveBeenCalledExactlyOnceWith(["w1", "w2"]);
+    expect(order).toEqual(["session", "wipe"]);
+  });
+
+  it("accountDeleted with no workspace list cached still wipes the device", async () => {
+    await useAuthStore.getState().accountDeleted();
+    expect(wipeDeviceTraces).toHaveBeenCalledExactlyOnceWith([]);
   });
 });

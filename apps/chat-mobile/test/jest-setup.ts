@@ -18,7 +18,7 @@ jest.mock("expo-router", () => {
     heavy: { fontFamily: "System", fontWeight: "700" },
   };
   const colors = { primary: "", background: "", card: "", text: "", border: "", notification: "" };
-  const router = { push: jest.fn(), replace: jest.fn(), back: jest.fn(), navigate: jest.fn(), canGoBack: jest.fn(() => true) };
+  const router = { push: jest.fn(), replace: jest.fn(), back: jest.fn(), navigate: jest.fn(), dismissAll: jest.fn(), dismissTo: jest.fn(), canGoBack: jest.fn(() => true) };
   return {
     DefaultTheme: { dark: false, colors, fonts },
     DarkTheme: { dark: true, colors, fonts },

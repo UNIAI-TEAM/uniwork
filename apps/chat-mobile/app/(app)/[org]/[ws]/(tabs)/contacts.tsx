@@ -2,7 +2,8 @@
 // them (minus the deactivated, whom a DM would refuse), with their nicknames
 // and who is online — a strip of the online ones above the list — A–Z. A tap
 // opens the DM through the deep-link contract the chat tab (M2a) honours;
-// block banners live on that DM, as on the web.
+// the DM says when either side blocked (room-safety.tsx › DmBlockBanner), and
+// its details block, unblock and report, as on the web.
 import { useQuery } from "@tanstack/react-query";
 import { router } from "expo-router";
 import { useMemo, useRef, useState } from "react";

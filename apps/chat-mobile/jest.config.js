@@ -49,10 +49,22 @@ module.exports = {
     "components/settings/about-section.tsx",
     // The calls hook (data/realtime/use-call-realtime.test.tsx): the kill switch must not end a call.
     "data/realtime/use-call-realtime.ts",
+    // UNI-2053 S2 store compliance: deleting the account, Privacy & legal, the AI
+    // notice (and the catch-up sheet it gates), reporting and blocking, licenses.
+    "components/settings/delete-account.tsx",
+    "components/settings/legal-section.tsx",
+    "components/settings/settings-row.tsx",
+    "components/settings/licenses-list.tsx",
+    "components/settings/use-open-web-page.ts",
+    "components/chat/ai-consent-notice.tsx",
+    "components/chat/catch-up-sheet.tsx",
+    "components/chat/report-sheet.tsx",
+    "components/chat/room-safety.tsx",
   ],
   coverageReporters: ["text-summary"],
   // Measured on the files above; only ever raised (CLAUDE.md › Coverage only
   // goes up). Blocks at every GATE_LEVEL (ADR 0037). Raised with UNI-2053's
-  // four components (97.2 / 90.05 / 94.8 / 99.1).
-  coverageThreshold: { global: { statements: 97, branches: 90, functions: 94, lines: 99 } },
+  // four components (97.2 / 90.05 / 94.8 / 99.1), then with S2's store
+  // compliance screens, each at 100 % (98.72 / 93.64 / 97.67 / 99.59).
+  coverageThreshold: { global: { statements: 98, branches: 93, functions: 97, lines: 99 } },
 };

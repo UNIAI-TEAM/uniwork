@@ -1,7 +1,8 @@
 // Ported from usf apps/mobile/app/(app)/[workspace]/more/settings.tsx. The
 // settings tab: the account (read only), the workspace and a way to switch it,
-// push for this device, the signed-in devices, theme, language, About (the
-// build, its channel and update), and sign out.
+// push for this device, the signed-in devices, theme, language, Privacy &
+// legal (policy, AI processing, support, licenses), About (the build, its
+// channel and update), sign out, and deleting the account.
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
 import { router } from "expo-router";
@@ -11,6 +12,8 @@ import { Pressable, ScrollView, View } from "react-native";
 import { useWorkspaceSlugs } from "@/components/chat/use-chat-workspace";
 import { PersonAvatar } from "@/components/people/person-avatar";
 import { AboutSection } from "@/components/settings/about-section";
+import { DeleteAccountSection } from "@/components/settings/delete-account";
+import { LegalSection } from "@/components/settings/legal-section";
 import { DevicesSection } from "@/components/settings/devices-section";
 import { PushSection } from "@/components/settings/push-section";
 import { SettingsSection } from "@/components/settings/settings-section";
@@ -21,6 +24,7 @@ import { WorkspaceAvatar } from "@/components/workspace/workspace-avatar";
 import { WorkspaceSwitchSheet } from "@/components/workspace/workspace-switch-sheet";
 import { useAuthStore } from "@/data/auth/store";
 import { workspaceListOptions } from "@/data/queries/workspaces";
+import { chatRoutes } from "@/lib/chat-routes";
 import { useLocalePreference } from "@/lib/i18n/provider";
 import type { SupportedLocale } from "@/lib/i18n/singleton";
 import { continuousCorners } from "@/lib/radius";
@@ -147,6 +151,7 @@ export default function SettingsTab() {
         <DevicesSection />
         <OptionGroup title={t("settings.preferences.theme")} options={THEME_OPTIONS} value={preference} onChange={setPreference} />
         <OptionGroup title={t("settings.preferences.language")} options={LOCALE_OPTIONS} value={locale} onChange={setLocale} />
+        <LegalSection licensesHref={chatRoutes.licenses({ orgSlug: org, wsSlug: ws })} />
         <AboutSection />
         <View className="gap-3.5 pt-1">
           <Button
@@ -159,6 +164,7 @@ export default function SettingsTab() {
             <Text className="text-base font-semibold">{t("auth.logout")}</Text>
           </Button>
         </View>
+        <DeleteAccountSection orgSlug={org} wsSlug={ws} />
       </ScrollView>
       <WorkspaceSwitchSheet visible={switchOpen} onClose={() => setSwitchOpen(false)} currentWsId={workspace?.id ?? ""} />
     </View>

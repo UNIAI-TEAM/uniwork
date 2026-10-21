@@ -9,7 +9,8 @@ import * as SecureStore from "expo-secure-store";
 import type { ApiClient } from "./api";
 import { createLogger } from "./logger";
 
-const PUSH_PREF_KEY = "push_enabled";
+/** This device's push choice in SecureStore; data/local-wipe.ts drops it with an erased account. */
+export const PUSH_PREF_KEY = "push_enabled";
 
 type PushApi = Pick<ApiClient, "subscribePush" | "unsubscribePush">;
 

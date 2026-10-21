@@ -1,7 +1,9 @@
 // "Bắt kịp nhanh" on the phone (MobileList board): the banner above the list
 // opens this sheet, which asks UNI for a brief of the conversation holding the
 // most unread messages (POST …/ai/chat/catch-up, as the web's
-// chat-catch-up-sheet.tsx does) and offers to open it.
+// chat-catch-up-sheet.tsx does) and offers to open it. Nothing is sent
+// before the person agreed to the AI processing notice (Apple 5.1.2(i)):
+// until then the sheet shows the notice instead (ai-consent-notice.tsx).
 import { Ionicons } from "@expo/vector-icons";
 import { useMutation } from "@tanstack/react-query";
 import { useEffect, type ReactNode } from "react";
@@ -12,6 +14,7 @@ import { SheetGrabber } from "@/components/ui/action-sheet";
 import { Text } from "@/components/ui/text";
 import { TintTile } from "@/components/ui/tint-tile";
 import { chatApi } from "@/data/chat-api";
+import { AiConsentActions, AiConsentText, useAiConsent } from "./ai-consent-notice";
 import { continuousCorners } from "@/lib/radius";
 import { THEME } from "@/lib/theme";
 import { useColorScheme } from "@/lib/use-color-scheme";
@@ -61,10 +64,11 @@ export function CatchUpSheet({ wsId, target, onClose, onOpenRoom }: { wsId: stri
   const brief = useMutation({ mutationFn: (roomId: string) => chatApi.catchUp(wsId, { room_id: roomId, locale: i18n.language }) });
   const { mutate, reset } = brief;
   const roomId = target?.roomId ?? null;
+  const consented = useAiConsent();
   useEffect(() => {
-    if (roomId) mutate(roomId);
+    if (roomId && consented) mutate(roomId);
     else reset();
-  }, [roomId, mutate, reset]);
+  }, [roomId, consented, mutate, reset]);
   const result = brief.data ?? null;
   const highlights = result ? (result.highlight_items.length > 0 ? result.highlight_items.map((item) => item.text) : result.highlights) : [];
   const empty = result !== null && result.message_count === 0 && highlights.length === 0 && result.action_items.length === 0;
@@ -89,7 +93,12 @@ export function CatchUpSheet({ wsId, target, onClose, onOpenRoom }: { wsId: stri
           </View>
         </View>
         <ScrollView contentContainerClassName="gap-4 px-5 pb-4">
-          {failed ? (
+          {!consented ? (
+            <>
+              <AiConsentText />
+              <AiConsentActions onDecline={onClose} />
+            </>
+          ) : failed ? (
             <Text accessibilityRole="alert" className="text-base text-destructive">
               {t("chat.ai.catch_up_failed")}
             </Text>
@@ -133,7 +142,7 @@ export function CatchUpSheet({ wsId, target, onClose, onOpenRoom }: { wsId: stri
             </>
           )}
         </ScrollView>
-        {target ? (
+        {target && consented ? (
           <View className="px-4 pb-2 pt-1">
             <Pressable accessibilityRole="button" className="h-12 flex-row items-center justify-center gap-2 rounded-full bg-primary active:opacity-80" onPress={() => onOpenRoom(target.roomId)}>
               <Text className="text-base font-semibold text-primary-foreground">{t("chat.mobile.catch_up_open", { name: target.title })}</Text>

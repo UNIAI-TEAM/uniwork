@@ -2,18 +2,21 @@
 // search, call and (a group) add people as round quick actions; search inside
 // it (searchChatRoomMessages; a result opens the room at that message); what it
 // has shared (GET …/shared-summary: counts per kind, the newest photos); its
-// pins, notes and polls; its members with presence; and leaving it.
+// pins, notes and polls; its members with presence (a tap on someone else
+// opens a DM, report or block); for a DM, block and report (room-safety.tsx);
+// and leaving it.
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ChatRoomRecord } from "@uniwork/core/api/endpoints/chat-schemas";
 import { isDefaultWorkspaceChannel } from "@uniwork/core/chat/chat-room-helpers";
 import { Image } from "expo-image";
 import { router, Stack, useLocalSearchParams } from "expo-router";
-import { useMemo, useRef, useState, type ComponentProps } from "react";
+import { useMemo, useRef, useState, type ComponentProps, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { ActivityIndicator, Alert, Pressable, ScrollView, TextInput, useWindowDimensions, View } from "react-native";
 import { ChatHeader } from "@/components/chat/chat-header";
 import { RoomAvatar } from "@/components/chat/room-avatar";
+import { DmSafetyRows, MemberSafetySheet, type SafetyPerson } from "@/components/chat/room-safety";
 import { useChatWorkspace, type ChatWorkspace } from "@/components/chat/use-chat-workspace";
 import { useRoomContext } from "@/components/chat/use-room-context";
 import { PersonAvatar } from "@/components/people/person-avatar";
@@ -27,6 +30,7 @@ import type { RoomTimeline } from "@/data/chat-timeline";
 import { roomSearchOptions, roomTimelineOptions, sharedSummaryOptions } from "@/data/queries/chat";
 import { usePresenceStore } from "@/data/stores/chat-presence-store";
 import { chatRoutes } from "@/lib/chat-routes";
+import { deepLinkHref } from "@/lib/deep-link";
 import { messagePreviewText } from "@/lib/message-display";
 import { senderLabelFor } from "@/lib/people-display";
 import type { RoomMark } from "@/lib/room-list";
@@ -71,6 +75,23 @@ function QuickAction(props: { icon: ComponentProps<typeof Ionicons>["name"]; lab
 }
 
 const Divider = () => <View className="h-2 bg-muted" />;
+
+/** A member's row: someone else's opens their menu (a DM, report, block); one's own only reads out. */
+function MemberRowShell({ label, onPress, children }: { label: string; onPress?: () => void; children: ReactNode }) {
+  const className = "min-h-14 flex-row items-center gap-3";
+  if (!onPress) {
+    return (
+      <View accessible accessibilityLabel={label} className={className}>
+        {children}
+      </View>
+    );
+  }
+  return (
+    <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} className={`${className} active:opacity-70`}>
+      {children}
+    </Pressable>
+  );
+}
 
 function SharedSection({ shared, onOpenMessage }: { shared: ChatSharedSummary; onOpenMessage: (messageId: string) => void }) {
   const { t } = useTranslation();
@@ -154,6 +175,7 @@ function RoomInfo({ chat, roomId }: { chat: ChatWorkspace; roomId: string }) {
   const searchInput = useRef<TextInput>(null);
   const [q, setQ] = useState("");
   const [allMembers, setAllMembers] = useState(false);
+  const [memberMenu, setMemberMenu] = useState<SafetyPerson | null>(null);
   const search = useQuery(roomSearchOptions(chat.wsId, roomId, q));
   const shared = useQuery(sharedSummaryOptions(chat.wsId, roomId)).data;
   const muted = room.room?.notifications_muted === true;
@@ -290,7 +312,11 @@ function RoomInfo({ chat, roomId }: { chat: ChatWorkspace; roomId: string }) {
             const status = memberOnline ? t("chat.presence_online") : member.email;
             const role = member.role === "admin" ? t("chat.mobile.room_role_admin_short") : null;
             return (
-              <View key={member.user_id} accessible accessibilityLabel={[name, status, role].filter(Boolean).join(", ")} className="min-h-14 flex-row items-center gap-3">
+              <MemberRowShell
+                key={member.user_id}
+                label={[name, status, role].filter(Boolean).join(", ")}
+                onPress={member.user_id === chat.userId ? undefined : () => setMemberMenu({ userId: member.user_id, name })}
+              >
                 <PersonAvatar name={name} size={40} online={memberOnline} seed={member.user_id} />
                 <View className={cn("min-w-0 flex-1 flex-row items-center gap-2 self-stretch py-1.5", index < members.length - 1 && "border-b-hairline border-border")}>
                   <View className="min-w-0 flex-1">
@@ -309,10 +335,17 @@ function RoomInfo({ chat, roomId }: { chat: ChatWorkspace; roomId: string }) {
                     </View>
                   ) : null}
                 </View>
-              </View>
+              </MemberRowShell>
             );
           })}
         </View>
+
+        {room.room?.kind === "dm" && room.room.peer_user_id ? (
+          <>
+            <Divider />
+            <DmSafetyRows wsId={chat.wsId} person={{ userId: room.room.peer_user_id, name: room.title }} />
+          </>
+        ) : null}
 
         {canLeave ? (
           <>
@@ -324,6 +357,12 @@ function RoomInfo({ chat, roomId }: { chat: ChatWorkspace; roomId: string }) {
           </>
         ) : null}
       </ScrollView>
+      <MemberSafetySheet
+        wsId={chat.wsId}
+        person={memberMenu}
+        onClose={() => setMemberMenu(null)}
+        onMessage={(person) => router.push(deepLinkHref({ orgSlug: chat.orgSlug, wsSlug: chat.wsSlug, dmUserId: person.userId }))}
+      />
     </View>
   );
 }

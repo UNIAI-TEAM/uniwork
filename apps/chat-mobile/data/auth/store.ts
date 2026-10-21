@@ -4,7 +4,9 @@
 import type { User } from "@uniwork/core/types/user";
 import { create } from "zustand";
 import { ApiError, api } from "../api";
+import { wipeDeviceTraces } from "../local-wipe";
 import { forgetPushToken, unregisterPushToken } from "../push";
+import { workspaceListOptions } from "../queries/workspaces";
 import { queryClient } from "../query-client";
 import { clearAccountCache } from "../remote-config";
 import { setReportUser } from "../report";
@@ -22,6 +24,12 @@ interface AuthState {
   /** a session adopted outside login() (a deep-link callback after a dismissed browser): /me, once, no restore */
   adoptSession: () => Promise<void>;
   logout: () => Promise<void>;
+  /**
+   * After POST /me/delete: the server already ended every session and push
+   * subscription of the account, so nothing is asked of it; everything the
+   * account left on this phone is wiped (data/local-wipe.ts).
+   */
+  accountDeleted: () => Promise<void>;
   /** overwrite the in-memory user after PATCH /me; the server response is the source of truth */
   setUser: (user: User) => void;
 }
@@ -75,6 +83,20 @@ function loadUser(): Promise<User | null> {
   return inflight;
 }
 
+/**
+ * The session moves the epoch first, then clears the Keychain and revokes the
+ * device (a revoke the server refuses is dropped). The next account on this
+ * device must not land in this one's workspace, nor see its cached rooms,
+ * messages or unsent bubbles (the remote config stays under the update gate
+ * and is asked again).
+ */
+async function endAccountSession(): Promise<void> {
+  await session.logout();
+  await useWorkspaceStore.getState().clear();
+  clearAccountCache(queryClient);
+  useChatSendStore.getState().clear();
+}
+
 export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   isLoading: true,
@@ -103,14 +125,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ user: null });
     setReportUser(null);
     await dropPushSubscription();
-    // the session moves the epoch first, then clears the Keychain and revokes the device
-    await session.logout();
-    // the next account on this device must not land in this one's workspace,
-    // nor see its cached rooms, messages or unsent bubbles (the remote config
-    // stays under the update gate and is asked again)
-    await useWorkspaceStore.getState().clear();
-    clearAccountCache(queryClient);
-    useChatSendStore.getState().clear();
+    await endAccountSession();
+  },
+
+  accountDeleted: async () => {
+    // Read before the cache goes: the workspaces whose pins this phone keeps.
+    const workspaceIds = (queryClient.getQueryData(workspaceListOptions().queryKey) ?? []).map((w) => w.id);
+    set({ user: null });
+    setReportUser(null);
+    forgetPushToken();
+    await endAccountSession();
+    await wipeDeviceTraces(workspaceIds);
   },
 
   setUser: (user) => set({ user }),

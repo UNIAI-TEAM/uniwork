@@ -13,6 +13,7 @@ import { useShallow } from "zustand/react/shallow";
 import { ChatHeader, HeaderIconButton } from "@/components/chat/chat-header";
 import { Conversation } from "@/components/chat/conversation";
 import { RoomAvatar } from "@/components/chat/room-avatar";
+import { DmBlockBanner } from "@/components/chat/room-safety";
 import { useChatWorkspace, type ChatWorkspace } from "@/components/chat/use-chat-workspace";
 import { useRoomReadMarking } from "@/components/chat/use-read-marking";
 import { useRoomContext } from "@/components/chat/use-room-context";
@@ -107,6 +108,9 @@ function RoomConversation({ chat, roomId, linkedMessageId }: { chat: ChatWorkspa
               <Text className="text-sm font-semibold text-primary">{t("chat.search_back_to_latest")}</Text>
             </Pressable>
           </View>
+        ) : room.room?.kind === "dm" && room.room.peer_user_id ? (
+          // Which side blocked, so a refused send is not a mystery (room-safety.tsx).
+          <DmBlockBanner wsId={chat.wsId} peerUserId={room.room.peer_user_id} />
         ) : null
       }
       messages={messages}

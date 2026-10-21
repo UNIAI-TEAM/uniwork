@@ -134,14 +134,42 @@
       "timezoneEmpty": "No matching time zone.",
       "toastSaved": "Saved"
     },
-    "profile": {
-      "email": "Email"
-    },
     "security": {
+      "delete": {
+        "section": "Delete account",
+        "description": "Under Decree 13 you may erase your personal data. Email, name, photo and sign-in are removed; work you created stays under “Deleted user”.",
+        "label": "Delete permanently",
+        "hint": "Cannot be undone. If you own an organization, transfer ownership first.",
+        "open": "Delete account",
+        "title": "Delete your account?",
+        "body": "You will be signed out everywhere and cannot sign in again. This cannot be undone.",
+        "proof": {
+          "password": "Enter your current password to confirm",
+          "code": "Enter your two-factor code to confirm",
+          "email": "Type your email address to confirm"
+        },
+        "ownerHint": "An account that owns an organization cannot be deleted until ownership is transferred.",
+        "cancel": "Cancel",
+        "confirm": "Delete permanently",
+        "failed": "Could not delete the account",
+        "required": {
+          "password": "Enter your password to confirm.",
+          "code": "Enter your two-factor code to confirm.",
+          "email": "Type your email address to confirm."
+        },
+        "incorrect": {
+          "password": "That password isn't right. Enter it again to delete the account.",
+          "code": "That code isn't right or has expired. Enter a new one to delete the account.",
+          "email": "That doesn't match the email you're signed in with. Type it again to delete the account."
+        }
+      },
       "sessions": {
         "revoke": "Revoke",
         "revokeFailed": "Could not revoke the session"
       }
+    },
+    "profile": {
+      "email": "Email"
     },
     "notifications": {
       "push_section": "Push notifications"
@@ -1454,6 +1482,87 @@
       "none": "None",
       "copy": "Copy version details",
       "copied": "Version details copied"
+    },
+    "account": {
+      "what_happens": "What happens",
+      "consequence_identity": "Your email, name, photo, password and Google sign-in are erased for good.",
+      "consequence_content": "Messages and work you created stay with your organization, shown as “Deleted user”.",
+      "consequence_devices": "Every device is signed out and stops getting notifications; the account's data on this phone is wiped.",
+      "consequence_final": "This cannot be undone.",
+      "policy_link": "Read the data deletion policy",
+      "owner_title": "Transfer ownership first",
+      "owner_body": "You own an organization. Hand ownership to another admin in Settings › Organization on the web, then come back to delete your account.",
+      "owner_open_web": "Open settings on the web",
+      "rate_limited": "Too many attempts. Wait a few minutes, then try again.",
+      "offline": "Couldn't reach the server. Check your connection, then try again.",
+      "deleting": "Deleting…",
+      "deleted": "Your account has been deleted."
+    },
+    "legal": {
+      "title": "Privacy & legal",
+      "privacy": "Privacy policy",
+      "terms": "Terms of use",
+      "support": "Contact support",
+      "support_subject": "UniChat {{version}} support",
+      "support_copied": "No email app on this phone. {{email}} copied.",
+      "licenses": "Open-source licenses",
+      "ai": "AI processing",
+      "ai_on": "Agreed",
+      "ai_off": "Not agreed",
+      "open_failed": "Couldn't open the page. Try again later."
+    },
+    "ai_consent": {
+      "title": "UNI uses AI to summarize",
+      "body": "To summarize, UniWork sends the messages of the conversation you pick, with sender names and times, to {{provider}}, our AI model provider, in the United States.",
+      "point_on_request": "AI runs only when you ask, never in the background.",
+      "point_no_training": "Your content is not used to train AI models.",
+      "point_withdraw": "You can withdraw at any time in Settings › Privacy & legal.",
+      "agree": "Agree and continue",
+      "decline": "Not now",
+      "withdraw": "Withdraw consent",
+      "withdrawn": "Withdrawn. UNI will ask again before the next summary.",
+      "agreed_on": "You agreed on {{date}}.",
+      "failed": "Couldn't save your choice. Try again later.",
+      "learn_more": "Read the privacy policy"
+    },
+    "report": {
+      "action": "Report",
+      "action_user": "Report {{name}}",
+      "title_message": "Report this message?",
+      "title_user": "Report {{name}}?",
+      "body": "Your organization's admins review reports. {{name}} won't know who reported them.",
+      "reason_label": "Reason",
+      "reason_spam": "Spam or scam",
+      "reason_harassment": "Harassment or bullying",
+      "reason_hate": "Hate or discrimination",
+      "reason_sexual": "Sexual content",
+      "reason_violence": "Violence or threats",
+      "reason_self_harm": "Self-harm",
+      "reason_other": "Something else",
+      "details_label": "Add details (optional)",
+      "details_placeholder": "What happened?",
+      "also_block": "Also block messages with {{name}}",
+      "pick_reason": "Pick a reason to send the report.",
+      "submit": "Send report",
+      "sent": "Report sent. Thank you.",
+      "sent_blocked": "Report sent and {{name}} blocked.",
+      "failed": "Couldn't send the report. Try again later."
+    },
+    "safety": {
+      "section": "Privacy & safety",
+      "blocked": "{{name}} blocked.",
+      "unblocked": "{{name}} unblocked.",
+      "member_actions": "Options for {{name}}",
+      "message": "Send a direct message"
+    },
+    "licenses": {
+      "title": "Open-source licenses",
+      "intro_one": "UniChat is built on {{count}} open-source package. Thank you to its contributors.",
+      "intro_other": "UniChat is built on {{count}} open-source packages. Thank you to their contributors.",
+      "search": "Search packages",
+      "empty": "No package matches.",
+      "unknown": "License not stated",
+      "open": "Open the page of {{name}}"
     }
   }
 }

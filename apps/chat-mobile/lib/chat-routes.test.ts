@@ -13,5 +13,6 @@ describe("chatRoutes", () => {
     expect(chatRoutes.channels({ orgSlug: "a b", wsSlug: "c" })).toBe("/a%20b/c/channels");
     expect(chatRoutes.newGroup(ws)).toBe("/acme/hq/new-group");
     expect(chatRoutes.newGroup(ws, "g/1")).toBe("/acme/hq/new-group?room=g%2F1");
+    expect(chatRoutes.licenses(ws)).toBe("/acme/hq/licenses");
   });
 });

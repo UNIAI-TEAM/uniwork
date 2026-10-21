@@ -51,6 +51,7 @@ import type { MessageCardContext } from "./message-cards";
 import { MessageList } from "./message-list";
 import { MessageRow, type Receipt } from "./message-row";
 import { PinnedBar } from "./pinned-bar";
+import { ReportSheet } from "./report-sheet";
 import { ReminderSheet } from "./reminder-sheet";
 import { SwipeToReply } from "./swipe-to-reply";
 import { TypingBubble } from "./typing-bubble";
@@ -91,6 +92,7 @@ export function Conversation(props: Props) {
   const [sheet, setSheet] = useState<"expressions" | "reminder" | null>(null);
   const [emojiFor, setEmojiFor] = useState<TimelineMessage | null>(null);
   const [forwardId, setForwardId] = useState<string | null>(null);
+  const [reported, setReported] = useState<{ messageId: string; senderId: string; name: string } | null>(null);
   const { wsId, userId } = chat;
   const { colorScheme } = useColorScheme();
 
@@ -342,6 +344,15 @@ export function Conversation(props: Props) {
         onMoreReactions={setEmojiFor}
         onPin={(m) => void togglePin(qc, wsId, roomId, m.id).catch(failed)}
         onForward={(m) => setForwardId(m.id)}
+        onReport={(m) => setReported({ messageId: m.id, senderId: m.sender, name: room.senderName(m) })}
+      />
+      <ReportSheet
+        wsId={wsId}
+        target={reported ? { kind: "message", messageId: reported.messageId, name: reported.name } : null}
+        blockUserId={reported?.senderId}
+        onClose={() => setReported(null)}
+        // A block hides the DM from the one who blocked (ChatService.hideDMWithPeer): back to the list.
+        onReported={(blocked) => blocked && room.room?.kind === "dm" && router.dismissAll()}
       />
       <EmojiSheet
         visible={emojiFor !== null}

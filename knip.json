@@ -55,7 +55,8 @@
         "react-native-css-interop"
       ],
       "entry": [
-        "scripts/sync-i18n.mjs"
+        "scripts/sync-i18n.mjs",
+        "scripts/generate-licenses.mjs"
       ]
     },
     "packages/*": {},

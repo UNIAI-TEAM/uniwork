@@ -13,6 +13,9 @@ export const UserSchema = z.object({
   mfa_enabled_at: z.string().nullable().optional(),
   has_password: z.boolean().optional(),
   platform_role: z.string().optional(),
+  // The AI processing notice the person agreed to (PUT /me/ai-consent); null when never or withdrawn.
+  ai_consent_version: z.string().nullable().optional(),
+  ai_consent_at: z.string().nullable().optional(),
 });
 export type User = z.infer<typeof UserSchema>;
 

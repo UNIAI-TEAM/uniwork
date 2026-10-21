@@ -134,14 +134,42 @@
       "timezoneEmpty": "Không có múi giờ nào khớp.",
       "toastSaved": "Đã lưu"
     },
-    "profile": {
-      "email": "Email"
-    },
     "security": {
+      "delete": {
+        "section": "Xóa tài khoản",
+        "description": "Theo Nghị định 13, bạn có quyền xóa dữ liệu cá nhân. Email, tên, ảnh và đăng nhập bị xóa; công việc bạn đã tạo giữ lại dưới tên “Người dùng đã xóa”.",
+        "label": "Xóa vĩnh viễn",
+        "hint": "Không hoàn tác được. Nếu bạn là chủ sở hữu tổ chức, hãy chuyển quyền trước.",
+        "open": "Xóa tài khoản",
+        "title": "Xóa tài khoản của bạn?",
+        "body": "Bạn sẽ bị đăng xuất khỏi mọi thiết bị và không đăng nhập lại được. Thao tác này không hoàn tác.",
+        "proof": {
+          "password": "Nhập mật khẩu hiện tại để xác nhận",
+          "code": "Nhập mã xác thực hai lớp để xác nhận",
+          "email": "Gõ lại địa chỉ email của bạn để xác nhận"
+        },
+        "ownerHint": "Tài khoản đang là chủ sở hữu tổ chức không xóa được cho đến khi chuyển quyền.",
+        "cancel": "Hủy",
+        "confirm": "Xóa vĩnh viễn",
+        "failed": "Không xóa được tài khoản",
+        "required": {
+          "password": "Nhập mật khẩu để xác nhận.",
+          "code": "Nhập mã xác thực hai lớp để xác nhận.",
+          "email": "Gõ lại email của bạn để xác nhận."
+        },
+        "incorrect": {
+          "password": "Mật khẩu chưa đúng. Nhập lại để xóa tài khoản.",
+          "code": "Mã xác thực chưa đúng hoặc đã hết hạn. Nhập mã mới để xóa tài khoản.",
+          "email": "Email chưa khớp với tài khoản đang đăng nhập. Gõ lại để xóa tài khoản."
+        }
+      },
       "sessions": {
         "revoke": "Thu hồi",
         "revokeFailed": "Không thu hồi được phiên"
       }
+    },
+    "profile": {
+      "email": "Email"
     },
     "notifications": {
       "push_section": "Thông báo đẩy"
@@ -1454,6 +1482,87 @@
       "none": "Không có",
       "copy": "Sao chép thông tin phiên bản",
       "copied": "Đã sao chép thông tin phiên bản"
+    },
+    "account": {
+      "what_happens": "Điều gì sẽ xảy ra",
+      "consequence_identity": "Email, tên, ảnh đại diện, mật khẩu và liên kết Google bị xóa vĩnh viễn.",
+      "consequence_content": "Tin nhắn và công việc bạn đã tạo vẫn thuộc tổ chức, hiển thị dưới tên “Người dùng đã xóa”.",
+      "consequence_devices": "Mọi thiết bị bị đăng xuất và ngừng nhận thông báo; dữ liệu của tài khoản trên điện thoại này bị xóa.",
+      "consequence_final": "Không hoàn tác được.",
+      "policy_link": "Đọc chính sách xóa dữ liệu",
+      "owner_title": "Hãy chuyển quyền sở hữu trước",
+      "owner_body": "Bạn đang là chủ sở hữu một tổ chức. Chuyển quyền cho một quản trị viên khác trong Cài đặt › Tổ chức trên web, rồi quay lại xóa tài khoản.",
+      "owner_open_web": "Mở cài đặt trên web",
+      "rate_limited": "Bạn đã thử quá nhiều lần. Đợi vài phút rồi thử lại.",
+      "offline": "Không kết nối được máy chủ. Kiểm tra mạng rồi thử lại.",
+      "deleting": "Đang xóa…",
+      "deleted": "Đã xóa tài khoản của bạn."
+    },
+    "legal": {
+      "title": "Quyền riêng tư và pháp lý",
+      "privacy": "Chính sách quyền riêng tư",
+      "terms": "Điều khoản sử dụng",
+      "support": "Liên hệ hỗ trợ",
+      "support_subject": "Hỗ trợ UniChat {{version}}",
+      "support_copied": "Máy chưa có ứng dụng email. Đã sao chép địa chỉ {{email}}.",
+      "licenses": "Giấy phép mã nguồn mở",
+      "ai": "Xử lý AI",
+      "ai_on": "Đã đồng ý",
+      "ai_off": "Chưa đồng ý",
+      "open_failed": "Không mở được trang. Thử lại sau."
+    },
+    "ai_consent": {
+      "title": "UNI dùng AI để tóm tắt",
+      "body": "Để tóm tắt, UniWork gửi tin nhắn của cuộc trò chuyện bạn chọn, kèm tên người gửi và thời gian, tới {{provider}} — nhà cung cấp mô hình AI, đặt tại Hoa Kỳ.",
+      "point_on_request": "AI chỉ chạy khi bạn yêu cầu, không bao giờ ở chế độ nền.",
+      "point_no_training": "Nội dung của bạn không được dùng để huấn luyện mô hình AI.",
+      "point_withdraw": "Bạn có thể rút lại đồng ý bất cứ lúc nào trong Cài đặt › Quyền riêng tư và pháp lý.",
+      "agree": "Đồng ý và tiếp tục",
+      "decline": "Để sau",
+      "withdraw": "Rút lại đồng ý",
+      "withdrawn": "Đã rút lại. UNI sẽ hỏi lại trước lần tóm tắt tiếp theo.",
+      "agreed_on": "Bạn đã đồng ý ngày {{date}}.",
+      "failed": "Không lưu được lựa chọn. Thử lại sau.",
+      "learn_more": "Đọc chính sách quyền riêng tư"
+    },
+    "report": {
+      "action": "Báo cáo",
+      "action_user": "Báo cáo {{name}}",
+      "title_message": "Báo cáo tin nhắn này?",
+      "title_user": "Báo cáo {{name}}?",
+      "body": "Quản trị viên tổ chức của bạn sẽ xem báo cáo. {{name}} không biết ai đã báo cáo.",
+      "reason_label": "Lý do",
+      "reason_spam": "Spam hoặc lừa đảo",
+      "reason_harassment": "Quấy rối hoặc bắt nạt",
+      "reason_hate": "Thù ghét hoặc phân biệt đối xử",
+      "reason_sexual": "Nội dung khiêu dâm",
+      "reason_violence": "Bạo lực hoặc đe dọa",
+      "reason_self_harm": "Tự gây hại",
+      "reason_other": "Lý do khác",
+      "details_label": "Mô tả thêm (không bắt buộc)",
+      "details_placeholder": "Điều gì đã xảy ra?",
+      "also_block": "Chặn nhắn tin với {{name}}",
+      "pick_reason": "Chọn một lý do để gửi báo cáo.",
+      "submit": "Gửi báo cáo",
+      "sent": "Đã gửi báo cáo. Cảm ơn bạn.",
+      "sent_blocked": "Đã gửi báo cáo và chặn {{name}}.",
+      "failed": "Không gửi được báo cáo. Thử lại sau."
+    },
+    "safety": {
+      "section": "Quyền riêng tư và an toàn",
+      "blocked": "Đã chặn {{name}}.",
+      "unblocked": "Đã bỏ chặn {{name}}.",
+      "member_actions": "Tùy chọn cho {{name}}",
+      "message": "Nhắn tin riêng"
+    },
+    "licenses": {
+      "title": "Giấy phép mã nguồn mở",
+      "intro_one": "UniChat được xây dựng trên {{count}} gói mã nguồn mở. Cảm ơn những người đã đóng góp.",
+      "intro_other": "UniChat được xây dựng trên {{count}} gói mã nguồn mở. Cảm ơn những người đã đóng góp.",
+      "search": "Tìm gói",
+      "empty": "Không có gói nào khớp.",
+      "unknown": "Không ghi giấy phép",
+      "open": "Mở trang của {{name}}"
     }
   }
 }

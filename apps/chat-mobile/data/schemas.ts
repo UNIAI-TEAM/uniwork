@@ -19,6 +19,9 @@ const UserSchema = z.object({
   mfa_enabled_at: z.string().nullable().optional(),
   has_password: z.boolean().optional(),
   platform_role: z.string().optional(),
+  // A drifted value reads as "not agreed": the consent sheet asks again rather than sending unasked.
+  ai_consent_version: z.string().nullable().optional().catch(null),
+  ai_consent_at: z.string().nullable().optional().catch(null),
 });
 
 /** GET /api/v1/me */

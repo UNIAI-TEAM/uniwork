@@ -7,6 +7,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { COMPLIANCE_ONLY } from "./i18n-compliance.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const coreLocales = path.resolve(here, "../../../packages/core/i18n/locales");
@@ -19,6 +20,8 @@ const PATHS = [
   "common",
   "nav",
   "settings.preferences",
+  // UNI-2053 S2: deleting the account on the phone says what the web's dialog says.
+  "settings.security.delete",
   "workspace.pickTitle",
   // The whole web chat copy: the mobile chat tab speaks with the web's words.
   "chat",
@@ -362,7 +365,10 @@ function build(locale) {
   }
   set(out, "chat.mobile", CHAT_MOBILE_ONLY[locale]);
   const mobile = MOBILE_ONLY[locale].mobile;
-  return { ...out, mobile: { ...mobile, ...RELEASE_ONLY[locale], calls: { ...mobile.calls, ...RELEASE_ONLY[locale].calls } } };
+  return {
+    ...out,
+    mobile: { ...mobile, ...RELEASE_ONLY[locale], ...COMPLIANCE_ONLY[locale], calls: { ...mobile.calls, ...RELEASE_ONLY[locale].calls } },
+  };
 }
 
 const check = process.argv.includes("--check");

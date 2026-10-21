@@ -35,4 +35,6 @@ export const chatKeys = {
   roomLinksRoot: (wsId: string, roomId: string) => ["chat", wsId, "message-links", roomId] as const,
   task: (wsId: string, taskId: string) => ["chat", wsId, "task", taskId] as const,
   expressions: (wsId: string, kind: "stickers" | "gifs", q: string) => ["chat", wsId, "expressions", kind, q] as const,
+  /** Whether the reader and one person block each other (DM info, the DM's banner, a member's menu). */
+  blockStatus: (wsId: string, userId: string) => ["chat", wsId, "block", userId] as const,
 };

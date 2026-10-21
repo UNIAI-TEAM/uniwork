@@ -18,4 +18,6 @@ export const chatRoutes = {
   channels: (ws: WorkspaceSlugs) => `${base(ws)}/channels`,
   /** A new group, or (with a room) more members for that group. */
   newGroup: (ws: WorkspaceSlugs, roomId?: string) => `${base(ws)}/new-group${roomId ? `?room=${encodeURIComponent(roomId)}` : ""}`,
+  /** Settings › Privacy & legal › Open-source licenses. */
+  licenses: (ws: WorkspaceSlugs) => `${base(ws)}/licenses`,
 };

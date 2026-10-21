@@ -2,8 +2,9 @@
 // dimmed screen, the quick reactions, the message itself lifted out, and a
 // menu card — reply, reply in a thread, copy; "make a task" (M3, the web's ⋯
 // menu) and the message's follow-up (follow it later, or done / to a task /
-// drop it); edit / delete for one's own message. A local message that did not
-// go gets retry / delete instead.
+// drop it); edit / delete for one's own message, report for someone else's
+// (store UGC policy). A local message that did not go gets retry / delete
+// instead.
 import { Ionicons } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
 import type { ReactNode } from "react";
@@ -60,6 +61,8 @@ interface Props {
   onMoreReactions: (message: TimelineMessage) => void;
   onPin: (message: TimelineMessage) => void;
   onForward: (message: TimelineMessage) => void;
+  /** Someone else's message only (report-sheet.tsx). */
+  onReport: (message: TimelineMessage) => void;
 }
 
 interface MenuItem {
@@ -105,6 +108,7 @@ export function MessageActionsSheet(props: Props) {
     items.push({ key: "forward", group: 1, icon: "arrow-redo-outline", label: t("chat.forward.action"), onPress: () => props.onForward(message) });
     if (own && text) items.push({ key: "edit", group: 2, icon: "create-outline", label: t("chat.action_edit"), onPress: () => props.onEdit(message) });
     if (own) items.push({ key: "delete", group: 2, icon: "trash-outline", label: t("chat.action_delete"), destructive: true, onPress: () => props.onDelete(message) });
+    if (!own && message.sender) items.push({ key: "report", group: 2, icon: "flag-outline", label: t("mobile.report.action"), destructive: true, onPress: () => props.onReport(message) });
   }
   const mine = new Set(record?.my_reactions ?? []);
   const pending = message?.pending;
@@ -191,6 +195,8 @@ export function MessageActionsSheet(props: Props) {
                   {divider ? <View className="h-1.5 bg-muted" /> : null}
                   <Pressable
                     accessibilityRole="button"
+                    // The label, not the children: the icon's glyph is a character a screen reader would spell.
+                    accessibilityLabel={item.hint ? `${item.label}, ${item.hint}` : item.label}
                     onPress={() => choose(item.onPress)}
                     className={cn("min-h-[46px] flex-row items-center gap-3 px-3.5 active:bg-secondary", index > 0 && !divider && "border-t border-border")}
                   >
