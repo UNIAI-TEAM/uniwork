@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { ChevronDown, FolderUp, Plus, Upload } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -26,7 +27,7 @@ export interface CreateChoicesProps {
   /** A create is always private; sharing is chosen in the first-save dialog or the Share dialog (UNI-2038). */
   onCreate: (type: CreateType) => void;
   onUpload: () => void;
-  /** Present when the server takes folder uploads (UNI-2052): the toolbar Upload becomes a files / folder menu and the New menu gets "Tải lên thư mục". Absent = the old single Upload. */
+  /** Present when the server takes folder uploads (UNI-2052): the toolbar Upload opens a files / folder menu and the New menu gets "Tải lên thư mục". Absent = the same toolbar control uploads files at once. */
   onUploadFolder?: () => void;
   /** Present when a folder is open: adds "Mới → Thư mục" to the New menu (FD-D9). A folder is never shared, so the toggle does not apply to it (UNI-1974). */
   onNewFolder?: () => void;
@@ -84,18 +85,38 @@ export function CreateMenu({
   onNewFolder,
 }: CreateChoicesProps) {
   const { t } = useTranslation();
+  const [uploadMenuOpen, setUploadMenuOpen] = useState(false);
   const menuTypes: readonly CreateMenuType[] = onNewFolder ? CREATE_MENU_TYPES : CREATE_TYPES;
   return (
     <>
-      {onUploadFolder ? (
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            render={<Button type="button" variant="outline" size="sm" className="hidden sm:inline-flex" />}
-          >
-            <Upload aria-hidden className="size-3.5" />
-            {t("documents.folder_upload.menu_label")}
-            <ChevronDown aria-hidden className="size-3.5" />
-          </DropdownMenuTrigger>
+      {/* One control from first paint: while the config has not said folder upload is available the trigger is a plain button that uploads files, then it opens the files / folder menu. The same Button node renders in both states, so focus and layout stay put (RF15). */}
+      <DropdownMenu
+        open={uploadMenuOpen && onUploadFolder !== undefined}
+        onOpenChange={setUploadMenuOpen}
+      >
+        <DropdownMenuTrigger
+          render={(props) =>
+            onUploadFolder ? (
+              <Button {...props} type="button" variant="outline" size="sm" className="hidden sm:inline-flex" />
+            ) : (
+              <Button
+                ref={props.ref}
+                type="button"
+                variant="outline"
+                size="sm"
+                className="hidden sm:inline-flex"
+                onClick={onUpload}
+              >
+                {props.children}
+              </Button>
+            )
+          }
+        >
+          <Upload aria-hidden className="size-3.5" />
+          {t("documents.folder_upload.menu_label")}
+          {onUploadFolder ? <ChevronDown aria-hidden className="size-3.5" /> : null}
+        </DropdownMenuTrigger>
+        {onUploadFolder ? (
           <DropdownMenuContent align="end" className="min-w-48">
             <DropdownMenuItem className="gap-2 px-2 py-2 pointer-coarse:min-h-11" onClick={onUpload}>
               <Upload aria-hidden className="size-4" />
@@ -106,13 +127,8 @@ export function CreateMenu({
               {t("documents.folder_upload.menu_folder")}
             </DropdownMenuItem>
           </DropdownMenuContent>
-        </DropdownMenu>
-      ) : (
-        <Button type="button" variant="outline" size="sm" className="hidden sm:inline-flex" onClick={onUpload}>
-          <Upload aria-hidden className="size-3.5" />
-          {t("documents.home.create.upload.button")}
-        </Button>
-      )}
+        ) : null}
+      </DropdownMenu>
       <DropdownMenu>
         <DropdownMenuTrigger
           render={<Button type="button" size="sm" aria-disabled={pending || undefined} />}

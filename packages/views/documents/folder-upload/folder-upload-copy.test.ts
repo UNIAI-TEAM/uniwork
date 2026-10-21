@@ -35,8 +35,8 @@ describe("runErrorMessage", () => {
       "invalid_request",
       "folder_uploads_busy",
       "idempotency_payload_mismatch",
-      "folder_upload_expired",
-      "folder_upload_canceled",
+      "folder_upload_file_settled",
+      "folder_upload_target_signed",
       "http_403",
       "http_404",
     ]) {
@@ -46,16 +46,42 @@ describe("runErrorMessage", () => {
     }
   });
 
-  it("reads an ApiError the same way and shows 429 and 410 by status", () => {
+  it("reads an ApiError the same way and shows 429 by status", () => {
     expect(runErrorMessage(t, new ApiError("busy", "folder_uploads_busy", 429), "vi")).toBe(
       t("documents.folder_upload.error.folder_uploads_busy"),
     );
-    expect(runErrorMessage(t, new ApiError("gone", "folder_upload_expired", 410), "vi")).toBe(
-      t("documents.folder_upload.error.folder_upload_expired"),
+  });
+
+  it("names the file of a refusal that carries fields.path or fields.filename", () => {
+    const invalid = runErrorMessage(t, refused("invalid_request", { path: "Báo cáo/a:b.pdf" }), "vi");
+    expect(invalid).toContain("Báo cáo/a:b.pdf");
+    expect(runErrorMessage(t, refused("invalid_request", { file_key: "k1" }), "vi")).toBe(
+      t("documents.folder_upload.error.invalid_request"),
     );
-    expect(runErrorMessage(t, new ApiError("conflict", "folder_upload_canceled", 409), "vi")).toBe(
-      t("documents.folder_upload.error.folder_upload_canceled"),
+    const tooLarge = runErrorMessage(
+      t,
+      refused("folder_upload_file_too_large", { path: "Dự án/phim.pdf", filename: "phim.pdf", max_bytes: 200 * 1024 ** 2 }),
+      "vi",
     );
+    expect(tooLarge).toContain("Dự án/phim.pdf");
+    expect(tooLarge).toContain("200 MB");
+    const unsupported = runErrorMessage(t, refused("folder_upload_unsupported_type", { filename: "x.exe" }), "vi");
+    expect(unsupported).toContain("x.exe");
+    expect(runErrorMessage(t, refused("folder_upload_unsupported_type"), "vi")).toBe(
+      t("documents.folder_upload.error.folder_upload_unsupported_type"),
+    );
+    expect(en("documents.folder_upload.error.invalid_request_named", { file: "a/b.pdf" })).toContain("a/b.pdf");
+  });
+
+  it("no longer carries the keys that nothing reads", () => {
+    for (const key of [
+      "documents.folder_upload.dialog.failed",
+      "documents.folder_upload.toast.failed",
+      "documents.folder_upload.error.folder_upload_expired",
+      "documents.folder_upload.error.folder_upload_canceled",
+    ]) {
+      expect(i18n.exists(key), key).toBe(false);
+    }
   });
 
   it("falls back to the generic sentence for an unknown code, a 5xx and a plain Error", () => {
@@ -76,20 +102,67 @@ describe("runErrorMessage", () => {
 });
 
 describe("failureReasonMessage", () => {
-  it("has one sentence per v0.2 file code", () => {
+  const SERVER = [
+    "upload_missing",
+    "size_mismatch",
+    "unsupported_media",
+    "storage_quota_exceeded",
+    "not_found",
+    "parts_invalid",
+  ];
+  const CLIENT = [
+    "network",
+    "target_expired",
+    "http_5xx",
+    "missing_etag",
+    "missing_part_url",
+    "untrusted_target",
+    "aborted",
+  ];
+
+  it("has one sentence per server code and per client code", () => {
     const generic = failureReasonMessage(t, "no_such_code");
-    for (const code of [
-      "upload_missing",
-      "size_mismatch",
-      "unsupported_media",
-      "storage_quota_exceeded",
-      "not_found",
-      "parts_invalid",
-      "missing_etag",
-    ]) {
+    for (const code of [...SERVER, ...CLIENT]) {
       expect(failureReasonMessage(t, code), code).not.toBe(generic);
+      expect(en(`documents.folder_upload.report.reason.${code}`), code).not.toBe(
+        en("documents.folder_upload.report.reason.unknown"),
+      );
     }
     expect(failureReasonMessage(t, undefined)).toBe(generic);
+  });
+
+  it("reads any http_5xx status as the server being unavailable", () => {
+    expect(failureReasonMessage(t, "http_503")).toBe(failureReasonMessage(t, "http_5xx"));
+    expect(failureReasonMessage(t, "http_502")).not.toBe(failureReasonMessage(t, "no_such_code"));
+  });
+
+  it("tells the person to fix the file and upload the folder again for the final server codes", () => {
+    for (const code of ["unsupported_media", "storage_quota_exceeded"]) {
+      expect(failureReasonMessage(t, code), code).toContain("tải lại thư mục");
+      expect(en(`documents.folder_upload.report.reason.${code}`), code).toContain("upload the folder again");
+    }
+  });
+
+  it("has final sentences for the AMENDMENT 4 content-PUT codes", () => {
+    const generic = failureReasonMessage(t, "no_such_code");
+    for (const code of ["folder_upload_file_settled", "folder_upload_target_signed"]) {
+      expect(failureReasonMessage(t, code), code).not.toBe(generic);
+      expect(en(`documents.folder_upload.report.reason.${code}`), code).not.toBe(
+        en("documents.folder_upload.report.reason.unknown"),
+      );
+    }
+    expect(failureReasonMessage(t, "folder_upload_file_settled")).toContain("đã được xử lý");
+    expect(failureReasonMessage(t, "folder_upload_target_signed")).toContain("tải lại thư mục");
+    expect(en("documents.folder_upload.report.reason.folder_upload_target_signed")).toContain("Upload the folder again");
+  });
+
+  it("says why an unsupported_media file was refused when the server gave a reason", () => {
+    expect(failureReasonMessage(t, "unsupported_media", "zip_unreadable")).not.toBe(
+      failureReasonMessage(t, "unsupported_media"),
+    );
+    expect(failureReasonMessage(t, "unsupported_media", "something_new")).toBe(
+      failureReasonMessage(t, "unsupported_media"),
+    );
   });
 });
 
@@ -97,6 +170,19 @@ describe("refusalMessage", () => {
   it("names the folder count of the too_many_folders refusal", () => {
     expect(refusalMessage(t, { code: "too_many_folders", limit: 500, actual: 530 } as never, "vi")).toBe(
       "530 thư mục — tối đa 500",
+    );
+  });
+
+  it("reads a lower bound as 'hơn N' when a dropped folder was cut at the read bound", () => {
+    const refusal = { code: "too_many_files", limit: 500, actual: 2000 } as never;
+    expect(refusalMessage(t, refusal, "vi", { lowerBound: true })).toBe("Hơn 2.000 tệp — tối đa 500");
+    expect(refusalMessage(t, refusal, "vi")).toBe("2.000 tệp — tối đa 500");
+    expect(en("documents.folder_upload.refusal.too_many_files_over", { actual: "2,000", limit: "500" })).toBe(
+      "Over 2,000 files — 500 at most",
+    );
+    // Only the file count has a lower-bound reading.
+    expect(refusalMessage(t, { code: "too_deep", limit: 20, actual: 21 } as never, "vi", { lowerBound: true })).toBe(
+      "Sâu 21 cấp — tối đa 20",
     );
   });
 });

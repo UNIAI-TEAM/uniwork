@@ -140,4 +140,60 @@ describe("useDropUpload folders (UNI-2052)", () => {
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith(t("documents.folder_upload.toast.read_failed")));
     expect(onFolders).not.toHaveBeenCalled();
   });
+
+  it("refuses a folder that was cut at the read bound with the 'over N' copy and still stages the others", async () => {
+    const onFolders = vi.fn();
+    const big = dirEntry("Kho", ["1", "2", "3", "4", "5"].map((n) => fileEntry(`${n}.pdf`)));
+    const { result } = renderHook(() =>
+      useDropUpload({ enabled: true, upload: vi.fn(), onFolders, maxFolderFiles: 1 }),
+    );
+    act(() =>
+      result.current.zoneProps.onDrop?.(
+        drop([{ entry: big }, { entry: dirEntry("Nhỏ", [fileEntry("a.pdf")]) }]),
+      ),
+    );
+    await waitFor(() => expect(onFolders).toHaveBeenCalledTimes(1));
+    const lists = onFolders.mock.calls[0]?.[0] as { path: string }[][];
+    expect(lists.map((list) => list[0]?.path)).toEqual(["Nhỏ/a.pdf"]);
+    expect(toast.error).toHaveBeenCalledWith(t("documents.folder_upload.toast.refused", { name: "Kho" }), {
+      description: "Hơn 4 tệp — tối đa 1",
+    });
+  });
+
+  it("waits for the config to resolve instead of calling folder upload unavailable", async () => {
+    const onFolders = vi.fn();
+    const { result, rerender } = renderHook(
+      (props: { ready: boolean; withFolders: boolean }) =>
+        useDropUpload({
+          enabled: true,
+          upload: vi.fn(),
+          foldersReady: props.ready,
+          onFolders: props.withFolders ? onFolders : undefined,
+        }),
+      { initialProps: { ready: false, withFolders: false } },
+    );
+    act(() => result.current.zoneProps.onDrop?.(drop([{ entry: dirEntry("Báo cáo", [fileEntry("a.pdf")]) }])));
+    // Let the folder walk finish: the drop must still be waiting for the config.
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(toast.info).not.toHaveBeenCalled();
+    expect(onFolders).not.toHaveBeenCalled();
+
+    rerender({ ready: true, withFolders: true });
+    await waitFor(() => expect(onFolders).toHaveBeenCalledTimes(1));
+    expect(toast.info).not.toHaveBeenCalled();
+  });
+
+  it("explains once the config has resolved without folder upload", async () => {
+    const { result, rerender } = renderHook(
+      (props: { ready: boolean }) => useDropUpload({ enabled: true, upload: vi.fn(), foldersReady: props.ready }),
+      { initialProps: { ready: false } },
+    );
+    act(() => result.current.zoneProps.onDrop?.(drop([{ entry: dirEntry("A", [fileEntry("1.pdf")]) }])));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(toast.info).not.toHaveBeenCalled();
+    rerender({ ready: true });
+    await waitFor(() =>
+      expect(toast.info).toHaveBeenCalledWith(t("documents.folder_upload.toast.folders_unavailable")),
+    );
+  });
 });
