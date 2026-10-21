@@ -1,0 +1,3 @@
+$ (cd server && go build ./...) > /tmp/pr7-go-prep.log 2>&1; rc=$?; tail -5 /tmp/pr7-go-prep.log; echo; echo "GO_PREP_EXIT=$rc"
+
+GO_PREP_EXIT=0
