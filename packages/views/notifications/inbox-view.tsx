@@ -18,6 +18,7 @@ import { MODULE_ICONS } from "../layout/module-icons";
 import { moduleTone } from "../layout/module-tones";
 import { useWorkspace } from "../layout/workspace-context";
 import { AppLink } from "../navigation";
+import { DocumentChangedDialog } from "./document-changed-dialog";
 import { groupInbox, type InboxGroupKey } from "./inbox-groups";
 import { InboxToolbar, type CategoryFilter, type ReadFilter } from "./inbox-toolbar";
 import { inboxCategory, unreadByCategory } from "./notification-category";
@@ -65,6 +66,8 @@ export function InboxView() {
   // `r` never pulls the focused row out from under the keyboard. The hold
   // lasts while focus stays in the list; once it leaves (or a filter swaps
   // the list), every row goes back to the group its state says.
+  // The row whose affected documents are listed (a folded document_changed row); kept after close so the list does not flash empty.
+  const [documents, setDocuments] = useState<{ id: string; workspaceId: string; open: boolean } | null>(null);
   const [pinned, setPinned] = useState<ReadonlyMap<string, InboxGroupKey>>(() => new Map());
   const unpin = () => setPinned((prev) => (prev.size === 0 ? prev : new Map()));
 
@@ -286,6 +289,7 @@ export function InboxView() {
                       onToggleRead={toggleRead}
                       onArchive={(row) => archiveAndMove(row, ordered.indexOf(row))}
                       onKeyDown={onRowKeyDown}
+                      onOpenList={(row) => setDocuments({ id: row.id, workspaceId: row.workspace_id, open: true })}
                     />
                   ))}
                 </GroupSection>
@@ -307,6 +311,14 @@ export function InboxView() {
           </div>
         )}
       </div>
+      {documents ? (
+        <DocumentChangedDialog
+          notificationId={documents.id}
+          open={documents.open}
+          workspace={(workspaces ?? []).find((w) => w.id === documents.workspaceId) ?? workspace}
+          onOpenChange={(next) => setDocuments((cur) => (cur ? { ...cur, open: next } : cur))}
+        />
+      ) : null}
     </div>
   );
 }

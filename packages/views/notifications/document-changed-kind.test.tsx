@@ -34,7 +34,7 @@ const workspace: Workspace = {
 // Test shorthand: sample_title_1..3 build the row's top-level `sample_documents` (AMENDMENT 1: the wire
 // carries no titles in params); a key that is left out is a sample the reader cannot read.
 const changed = (shorthand: Record<string, string> = {}, over: Partial<Notification> = {}): Notification => {
-  const { sample_title_1, sample_title_2, sample_title_3, ...params } = { sample_title_1: "Kế hoạch Q4", ...shorthand };
+  const { sample_title_1, sample_title_2, sample_title_3, ...params }: Record<string, string | undefined> = { sample_title_1: "Kế hoạch Q4", ...shorthand };
   const sample_documents = [sample_title_1, sample_title_2, sample_title_3]
     .map((title, i) => (title === undefined ? null : { id: `d${i + 1}`, title }))
     .filter((d): d is { id: string; title: string } => d !== null);
@@ -42,7 +42,7 @@ const changed = (shorthand: Record<string, string> = {}, over: Partial<Notificat
     id: "n1", kind: "document_changed", workspace_id: "ws1", organization_id: "o1", resource_type: "document",
     resource_id: "d1", resource_deleted: false, resource_access_lost: false, comment_deleted: false, actor_kind: "human",
     actor_id: "u2", title_key: "notifications.kind.document_changed", count: 1, created_at: "2026-10-21T03:00:00Z",
-    params: { actor: "An", verb: "renamed", document_count: "1", sample_document_ids: "d1", ...params },
+    params: { actor: "An", verb: "renamed", document_count: "1", sample_document_ids: "d1", ...(params as Record<string, string>) },
     sample_documents,
     ...over,
   };
@@ -375,7 +375,7 @@ describe("document_changed list dialog in the Inbox (item 4)", () => {
       expect(requestMock).toHaveBeenCalledWith("/api/v1/me/notifications/read", expect.objectContaining({ body: { ids: ["n1"] } })),
     );
     expect(nav.push).not.toHaveBeenCalled();
-    expect(requestMock).toHaveBeenCalledWith("/api/v1/me/notifications/n1/documents", expect.anything());
+    expect(requestMock).toHaveBeenCalledWith("/api/v1/me/notifications/n1/documents");
     const items = await within(dialog).findAllByRole("listitem");
     expect(items).toHaveLength(4);
     expect(within(dialog).getByRole("link", { name: /Tài liệu d1/ })).toHaveAttribute("href", "/acme/team/documents/d1");
@@ -401,7 +401,7 @@ describe("document_changed list dialog in the Inbox (item 4)", () => {
     expect(within(dialog).queryByText("Tài liệu d3")).toBeNull();
     fireEvent.click(within(dialog).getByRole("button", { name: "Xem thêm" }));
     expect(await within(dialog).findByText("Tài liệu d3")).toBeInTheDocument();
-    expect(requestMock).toHaveBeenCalledWith("/api/v1/me/notifications/n1/documents?cursor=c2", expect.anything());
+    expect(requestMock).toHaveBeenCalledWith("/api/v1/me/notifications/n1/documents?cursor=c2");
     expect(within(dialog).queryByRole("button", { name: "Xem thêm" })).toBeNull();
   });
 

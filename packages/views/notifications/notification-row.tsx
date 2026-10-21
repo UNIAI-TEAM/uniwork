@@ -9,6 +9,7 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import { UI_EASE_OUT, UI_MOTION_DURATION } from "@uniwork/ui/lib/motion";
 import { cn } from "@uniwork/ui/lib/utils";
 import { AppLink } from "../navigation";
+import { documentChangedFacts, documentChangedHasPage, isDocumentChanged, opensDocumentList } from "./document-changed";
 import { NotificationMark } from "./notification-mark";
 import { notificationSnippet } from "./notification-snippet";
 import { quoted } from "./trashed-notice";
@@ -27,6 +28,12 @@ export interface NotificationRowProps {
   compact?: boolean;
   /** The inbox's mail keys (j/k/r/e), attached to the row's link. */
   onKeyDown?: (e: KeyboardEvent<HTMLElement>) => void;
+  /**
+   * Opens the list of a folded document-change row (more than one document).
+   * Only the Inbox hosts that dialog; a host without it (the bell, Home) leaves
+   * the row an ordinary link to `href`.
+   */
+  onOpenList?: (n: Notification) => void;
   /** Off where every row is unread (Home), so the bar would tell nothing apart. */
   unreadBar?: boolean;
 }
@@ -65,19 +72,25 @@ export function NotificationRow({
   onArchive,
   compact,
   onKeyDown,
+  onOpenList,
   unreadBar = true,
 }: NotificationRowProps) {
   const { t, i18n } = useTranslation();
   const now = useNow();
   const reduceMotion = useReducedMotion() ?? false;
   const unread = !n.read_at;
-  const merged = n.count > 1 ? t("notifications.merged_other", { count: n.count - 1 }) : "";
+  // A folded document-change row counts documents, not events: its own sentence already says how many.
+  const changed = isDocumentChanged(n);
+  const merged = n.count > 1 && !changed ? t("notifications.merged_other", { count: n.count - 1 }) : "";
+  const list = onOpenList && opensDocumentList(n) ? onOpenList : null;
+  // The row's resource flags are about the first document only; a change row decides by its verb and count.
+  const gone = changed ? !documentChangedHasPage(n) && !list : n.resource_deleted;
   const actions = !compact && onToggleRead && onArchive ? { onToggleRead, onArchive } : null;
   const snippet = notificationSnippet(n);
 
   const body = (
     <>
-      <NotificationMark notification={n} dimmed={!unread || n.resource_deleted} />
+      <NotificationMark notification={n} dimmed={!unread || gone} />
       <span className="flex min-w-0 flex-1 flex-col gap-0.5">
         <span
           className={cn(
@@ -99,13 +112,20 @@ export function NotificationRow({
           <span
             className={cn(
               "text-caption text-muted-foreground",
-              snippet.kind === "trashed" ? "flex min-w-0 gap-1" : "line-clamp-1",
+              snippet.kind === "trashed" || snippet.kind === "documents" ? "flex min-w-0 gap-1" : "line-clamp-1",
               snippet.kind === "deleted" && "italic",
             )}
             data-notification-snippet={snippet.kind}
           >
             {snippet.kind === "text" ? (
               snippet.text
+            ) : snippet.kind === "documents" ? (
+              // The titles give way to the ellipsis; "và N tài liệu khác" never does.
+              <>
+                <span className="min-w-0 truncate">{snippet.titles.map(quoted).join(", ")}</span>
+                {snippet.more > 0 ? " " : null}
+                {snippet.more > 0 ? <span className="shrink-0">{t("notifications.documents_more", { count: snippet.more })}</span> : null}
+              </>
             ) : snippet.kind === "trashed" ? (
               // The name gives way to the ellipsis; "và N mục khác" never does.
               <>
@@ -128,8 +148,8 @@ export function NotificationRow({
           </time>
           {merged ? <span aria-hidden>·</span> : null}
           {merged ? <span>{merged}</span> : null}
-          {n.resource_deleted ? <span aria-hidden>·</span> : null}
-          {n.resource_deleted ? <span className="italic">{t("notifications.deleted")}</span> : null}
+          {gone ? <span aria-hidden>·</span> : null}
+          {gone ? <span className="italic">{t("notifications.deleted")}</span> : null}
         </span>
       </span>
     </>
@@ -171,7 +191,7 @@ export function NotificationRow({
         "hover:[--row-fill:var(--surface-hover)] focus-within:[--row-fill:var(--surface-selected)]",
       )}
     >
-      {n.resource_deleted ? (
+      {gone ? (
         <div className={rowClass}>{body}</div>
       ) : (
         <AppLink
@@ -182,11 +202,32 @@ export function NotificationRow({
           onClick={(e) => {
             if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
             onOpen(n);
+            if (list) {
+              e.preventDefault();
+              list(n);
+            }
           }}
         >
           {body}
         </AppLink>
       )}
+      {list ? (
+        // Under the sentence, in the text column (mark 2.25rem + gaps), so the way in is visible without a hover.
+        <div className="pb-2 pl-15">
+          <Button
+            type="button"
+            variant="link"
+            size="sm"
+            className="h-auto px-0 py-0.5"
+            onClick={() => {
+              onOpen(n);
+              list(n);
+            }}
+          >
+            {t("notifications.view_documents", { count: documentChangedFacts(n).count })}
+          </Button>
+        </div>
+      ) : null}
       {actions ? (
         <div
           className={cn(

@@ -109,6 +109,16 @@ type Page = api.NotificationPage;
 /** A list entry is one page (bell, home) or the inbox's pages. */
 type Cached = Page | InfiniteData<Page, string>;
 
+/**
+ * Everything under `lists()` is invalidated together, but not everything there
+ * is a list of notifications: the documents of a folded row (`documents(id)`)
+ * share the prefix. Those entries are left alone by the row rewrites.
+ */
+function isRowList(data: unknown): data is Cached {
+  const first = data && typeof data === "object" && "pages" in data ? (data as InfiniteData<unknown>).pages[0] : data;
+  return !!first && typeof first === "object" && Array.isArray((first as { notifications?: unknown }).notifications);
+}
+
 function mapRows(data: Cached, fn: (rows: Notification[]) => Notification[]): Cached {
   if ("pages" in data) return { ...data, pages: data.pages.map((p) => ({ ...p, notifications: fn(p.notifications) })) };
   return { ...data, notifications: fn(data.notifications) };
@@ -123,7 +133,7 @@ function rowsOf(data: Cached | undefined): Notification[] {
 function rewriteLists(qc: ReturnType<typeof useQueryClient>, fn: (rows: Notification[]) => Notification[]) {
   const snapshots = qc.getQueriesData<Cached>({ queryKey: notificationKeys.lists() });
   for (const [key, data] of snapshots) {
-    if (!data) continue;
+    if (!isRowList(data)) continue;
     qc.setQueryData<Cached>(key, mapRows(data, fn));
   }
   return snapshots;
@@ -159,6 +169,7 @@ function settle(qc: ReturnType<typeof useQueryClient>) {
 function cachedRows(qc: ReturnType<typeof useQueryClient>, ids: string[]): Notification[] {
   const seen = new Map<string, Notification>();
   for (const [, data] of qc.getQueriesData<Cached>({ queryKey: notificationKeys.lists() })) {
+    if (!isRowList(data)) continue;
     for (const n of rowsOf(data)) if (ids.includes(n.id)) seen.set(n.id, n);
   }
   return [...seen.values()];
