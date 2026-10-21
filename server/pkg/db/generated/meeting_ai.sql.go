@@ -534,6 +534,72 @@ func (q *Queries) ListTranscriptSegmentsBefore(ctx context.Context, arg ListTran
 	return items, nil
 }
 
+const listTranscriptSegmentsBetween = `-- name: ListTranscriptSegmentsBetween :many
+SELECT id, meeting_id, participant_id, speaker_name, text, spoken_at, created_at, organization_id, source, transcription_id, start_ms, end_ms, speaker_label, client_segment_id, language FROM meeting_transcript_segments
+WHERE meeting_id = $1
+  AND spoken_at >= $2::timestamptz AND spoken_at < $3::timestamptz
+  AND (CASE WHEN $4::bool
+    THEN source = 'AGENT' OR transcription_id = ANY($5::text[])
+    ELSE source = 'CAPTION' END)
+ORDER BY spoken_at, id
+LIMIT $6
+`
+
+type ListTranscriptSegmentsBetweenParams struct {
+	MeetingID        string             `json:"meeting_id"`
+	FromAt           pgtype.Timestamptz `json:"from_at"`
+	ToAt             pgtype.Timestamptz `json:"to_at"`
+	Rich             bool               `json:"rich"`
+	TranscriptionIds []string           `json:"transcription_ids"`
+	RowLimit         int32              `json:"row_limit"`
+}
+
+// tenant: parent meeting_id
+// Oldest first in [from_at, to_at) under the same source rule: Ask UNI's
+// get_meeting_transcript reads a stretch of the meeting (scribe spec §5.2).
+func (q *Queries) ListTranscriptSegmentsBetween(ctx context.Context, arg ListTranscriptSegmentsBetweenParams) ([]MeetingTranscriptSegment, error) {
+	rows, err := q.db.Query(ctx, listTranscriptSegmentsBetween,
+		arg.MeetingID,
+		arg.FromAt,
+		arg.ToAt,
+		arg.Rich,
+		arg.TranscriptionIds,
+		arg.RowLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []MeetingTranscriptSegment{}
+	for rows.Next() {
+		var i MeetingTranscriptSegment
+		if err := rows.Scan(
+			&i.ID,
+			&i.MeetingID,
+			&i.ParticipantID,
+			&i.SpeakerName,
+			&i.Text,
+			&i.SpokenAt,
+			&i.CreatedAt,
+			&i.OrganizationID,
+			&i.Source,
+			&i.TranscriptionID,
+			&i.StartMs,
+			&i.EndMs,
+			&i.SpeakerLabel,
+			&i.ClientSegmentID,
+			&i.Language,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listTranscriptSegmentsCreatedSince = `-- name: ListTranscriptSegmentsCreatedSince :many
 SELECT id, meeting_id, participant_id, speaker_name, text, spoken_at, created_at, organization_id, source, transcription_id, start_ms, end_ms, speaker_label, client_segment_id, language FROM meeting_transcript_segments
 WHERE meeting_id = $1 AND created_at >= $2::timestamptz

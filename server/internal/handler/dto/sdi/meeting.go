@@ -164,6 +164,11 @@ type CreateSummarySDI struct {
 	Locale string `json:"locale" description:"Ngôn ngữ đầu ra: vi | en; bỏ trống hoặc giá trị khác = vi" example:"vi"`
 }
 
+// MeetingCatchUpSDI is POST /api/v1/meetings/{meetingID}/catch-up (scribe spec §5.1, B7).
+type MeetingCatchUpSDI struct {
+	Locale string `json:"locale" description:"Ngôn ngữ đầu ra: vi | en; bỏ trống hoặc giá trị khác = vi" example:"vi"`
+}
+
 type SummaryTaskItemSDI struct {
 	Title       string  `json:"title" minLength:"1" example:"Gửi báo cáo sprint"`
 	Description string  `json:"description"`

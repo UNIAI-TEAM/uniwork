@@ -251,6 +251,32 @@ type MeetingSummaryDTO struct {
 	Partial     bool                          `json:"partial" description:"Tóm tắt dựa trên một phần cuộc họp: transcript dài hơn ngân sách đầu vào"`
 }
 
+// MeetingCatchUpPointDTO is one key point of a late joiner's brief and the
+// stretch of speech it came from.
+type MeetingCatchUpPointDTO struct {
+	Text      string  `json:"text" description:"Ý chính" example:"Chốt demo vào thứ Sáu"`
+	SegmentID string  `json:"segment_id,omitempty" description:"Đoạn lời đầu tiên của quãng nói chứa ý này; trống khi ý lấy từ ghi chú" example:"01K7SEG00000000000000000001"`
+	SpokenAt  *string `json:"spoken_at,omitempty" description:"RFC3339: lúc đoạn lời đó được nói" example:"2026-10-21T02:05:00Z"`
+}
+
+// MeetingCatchUpItemDTO is a follow-up people agreed on, pointed like a point.
+type MeetingCatchUpItemDTO struct {
+	Title     string  `json:"title" example:"Gửi bản demo cho khách"`
+	Owner     string  `json:"owner,omitempty" example:"An"`
+	Due       string  `json:"due,omitempty" example:"thứ Sáu"`
+	SegmentID string  `json:"segment_id,omitempty" example:"01K7SEG00000000000000000001"`
+	SpokenAt  *string `json:"spoken_at,omitempty" example:"2026-10-21T02:05:00Z"`
+}
+
+// MeetingCatchUpSDO is POST /api/v1/meetings/{meetingID}/catch-up.
+type MeetingCatchUpSDO struct {
+	Summary     string                   `json:"summary" example:"Nhóm đã chốt lịch demo và bàn ngân sách quý IV."`
+	Highlights  []MeetingCatchUpPointDTO `json:"highlights"`
+	ActionItems []MeetingCatchUpItemDTO  `json:"action_items"`
+	GeneratedAt string                   `json:"generated_at" description:"RFC3339: lúc bản tóm tắt được tạo (dùng chung tối đa 2 phút)" example:"2026-10-21T02:25:00Z"`
+	Partial     bool                     `json:"partial" description:"Phần lời cũ nhất không vừa ngân sách và bị bỏ"`
+}
+
 type MeetingSummarySDO struct {
 	Summary *MeetingSummaryDTO `json:"summary"`
 }

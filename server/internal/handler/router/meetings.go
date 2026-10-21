@@ -228,6 +228,13 @@ func registerMeetings(r api, h Routes, summaryLimit func(http.Handler) http.Hand
 			"hoặc ai_rate_limited (fields.retry_after), 502 ai_failed, 503 ai_not_configured, 504 ai_timeout.",
 		sdi: sdi.CreateSummarySDI{}, sdo: sdo.MeetingSummarySDO{}, auth: true,
 	})
+	r.Post("/meetings/{meetingID}/catch-up", h.MeetingCatchUp, apiOp{
+		summary: "Brief a late joiner on what they missed (workspace members)",
+		description: "Chỉ thành viên workspace (khách 403); cuộc họp IN_PROGRESS (khác -> 409 invalid_meeting_state). Tóm tắt lời nói (quy tắc nguồn transcript) và ghi chú từ đầu họp qua ai.Gateway (capability meeting_catch_up, trừ tín dụng AI); mỗi ý trỏ về đoạn lời và giờ nói. " +
+			"Kết quả dùng chung theo cuộc họp và ngôn ngữ trong 2 phút, nên nhiều người vào muộn chỉ tốn một lần gọi; trả về cho riêng người gọi, không lưu. " +
+			"Lỗi: 402 ai_quota_exceeded, 429 rate_limited, 502 ai_failed, 503 ai_not_configured, 504 ai_timeout.",
+		tags: []string{"meetings"}, sdi: sdi.MeetingCatchUpSDI{}, sdo: sdo.MeetingCatchUpSDO{}, auth: true,
+	})
 	r.Post("/meetings/{meetingID}/summary/tasks", h.CreateSummaryTasks, apiOp{
 		summary: "Create tasks from summary action items",
 		description: "Chỉ host/admin. Tạo task cho các action item đã chọn của bản tóm tắt mới nhất trong một giao dịch: " +

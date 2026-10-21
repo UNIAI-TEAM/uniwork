@@ -157,6 +157,37 @@ func (h *handlers) createSummary(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, 200, sdo.MeetingSummarySDO{Summary: &dto})
 }
 
+func (h *handlers) meetingCatchUp(w http.ResponseWriter, r *http.Request) {
+	var in sdi.MeetingCatchUpSDI
+	if r.ContentLength > 0 && !decode(w, r, &in, maxJSONBody) {
+		return
+	}
+	res, err := h.AskUNI.MeetingCatchUp(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "meetingID"), summaryLocale(in.Locale))
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	at := func(t *time.Time) *string {
+		if t == nil {
+			return nil
+		}
+		v := t.UTC().Format(time.RFC3339)
+		return &v
+	}
+	out := sdo.MeetingCatchUpSDO{
+		Summary: res.Summary, GeneratedAt: res.GeneratedAt.UTC().Format(time.RFC3339), Partial: res.Partial,
+		Highlights:  make([]sdo.MeetingCatchUpPointDTO, 0, len(res.Highlights)),
+		ActionItems: make([]sdo.MeetingCatchUpItemDTO, 0, len(res.ActionItems)),
+	}
+	for _, p := range res.Highlights {
+		out.Highlights = append(out.Highlights, sdo.MeetingCatchUpPointDTO{Text: p.Text, SegmentID: p.SegmentID, SpokenAt: at(p.SpokenAt)})
+	}
+	for _, a := range res.ActionItems {
+		out.ActionItems = append(out.ActionItems, sdo.MeetingCatchUpItemDTO{Title: a.Title, Owner: a.Owner, Due: a.Due, SegmentID: a.SegmentID, SpokenAt: at(a.SpokenAt)})
+	}
+	respondJSON(w, 200, out)
+}
+
 // blankAsNil reads "" like null: both mean "none" for an assignee or a due date.
 func blankAsNil(s *string) *string {
 	if s == nil || strings.TrimSpace(*s) == "" {

@@ -15,6 +15,19 @@ WHERE meeting_id = sqlc.arg('meeting_id')
     ELSE source = 'CAPTION' END)
 ORDER BY spoken_at DESC, id DESC LIMIT sqlc.arg('row_limit');
 
+-- name: ListTranscriptSegmentsBetween :many
+-- tenant: parent meeting_id
+-- Oldest first in [from_at, to_at) under the same source rule: Ask UNI's
+-- get_meeting_transcript reads a stretch of the meeting (scribe spec §5.2).
+SELECT * FROM meeting_transcript_segments
+WHERE meeting_id = sqlc.arg('meeting_id')
+  AND spoken_at >= sqlc.arg('from_at')::timestamptz AND spoken_at < sqlc.arg('to_at')::timestamptz
+  AND (CASE WHEN sqlc.arg('rich')::bool
+    THEN source = 'AGENT' OR transcription_id = ANY(sqlc.arg('transcription_ids')::text[])
+    ELSE source = 'CAPTION' END)
+ORDER BY spoken_at, id
+LIMIT sqlc.arg('row_limit');
+
 -- name: ListTranscriptSegmentsBefore :many
 -- tenant: parent meeting_id
 -- The page older than the cursor row; the plain spoken_at bound lets the
