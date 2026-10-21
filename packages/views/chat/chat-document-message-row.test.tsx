@@ -103,14 +103,20 @@ function renderCard(
 /** A live row: the message menu (and the document entries in it) needs reply and react. */
 const LIVE = { onReply: vi.fn(), onReact: vi.fn() } satisfies Partial<RowProps>;
 
-/** The level badge beside the title (fine pointer) and the one in the caption line (coarse pointer): css shows one. */
-function levelBadges(text: string) {
+/** The card's one level badge: beside the title under a fine pointer, in the caption line under a coarse one. */
+function levelBadge(text: string): HTMLElement {
   const all = screen.getAllByText(text);
-  expect(all).toHaveLength(2);
-  return {
-    side: all.find((el) => el.parentElement?.tagName !== "P")!,
-    caption: all.find((el) => el.parentElement?.tagName === "P")!,
-  };
+  expect(all).toHaveLength(1);
+  expect(document.querySelectorAll("[data-slot=badge]")).toHaveLength(1);
+  return all[0]!;
+}
+
+/** Stubs `(pointer: coarse)` as matching, as the meeting notes tests do. */
+function stubCoarsePointer() {
+  const real = window.matchMedia.bind(window);
+  vi.spyOn(window, "matchMedia").mockImplementation((query: string) =>
+    query === "(pointer: coarse)" ? ({ ...real(query), matches: true } as MediaQueryList) : real(query),
+  );
 }
 
 /** The hover bar's "…" (last in the DOM; the card's touch "…" comes first and is css-hidden on a fine pointer). */
@@ -217,13 +223,11 @@ describe("ChatDocumentMessageRow", () => {
       const secondary = screen.getByText(/Phiên bản 3/).parentElement!;
       expect(secondary).toHaveClass("text-chat-bubble-own-meta");
       expect(secondary).not.toHaveClass("text-muted-foreground");
-      const { side, caption } = levelBadges("Quản lý");
-      for (const badge of [side, caption]) {
-        expect(badge).toHaveClass(...ownControl);
-        expect(badge).not.toHaveClass("bg-secondary");
-        // The badge is a plain span: only the resting look, never the control's hover / open / focus states.
-        expect(badge.className).not.toMatch(/(^|\s)(hover|aria-expanded|focus-visible):\S*chat-bubble-own/);
-      }
+      const badge = levelBadge("Quản lý");
+      expect(badge).toHaveClass(...ownControl);
+      expect(badge).not.toHaveClass("bg-secondary");
+      // The badge is a plain span: only the resting look, never the control's hover / open / focus states.
+      expect(badge.className).not.toMatch(/(^|\s)(hover|aria-expanded|focus-visible):\S*chat-bubble-own/);
     });
 
     it("other bubble: the time stays plain meta in its px-1 wrapper, no wall chip", () => {
@@ -263,9 +267,7 @@ describe("ChatDocumentMessageRow", () => {
       renderCard(documentMessage(FULL), { isOwn: false });
       expect(screen.getByText(/Phiên bản 3/).parentElement).toHaveClass("text-muted-foreground");
       expect(screen.getByRole("button", { name: /Mở trong Tài liệu/ })).toHaveClass("text-foreground");
-      const { side, caption } = levelBadges("Quản lý");
-      expect(side).toHaveClass("bg-secondary");
-      expect(caption).toHaveClass("bg-secondary");
+      expect(levelBadge("Quản lý")).toHaveClass("bg-secondary");
     });
   });
 
@@ -328,7 +330,7 @@ describe("ChatDocumentMessageRow", () => {
   it("shows the sender's share count and the viewer's level badge", () => {
     renderCard(documentMessage({ ...DOC, viewer_level: "comment", recipient_count: 4 }));
     expect(screen.getByText(/Đã chia sẻ với 4 người/)).toBeInTheDocument();
-    levelBadges("Nhận xét");
+    levelBadge("Nhận xét");
   });
 
   it("renders no badge when the viewer level is absent (old server)", () => {
@@ -338,19 +340,22 @@ describe("ChatDocumentMessageRow", () => {
   });
 
   describe("room for the title at 390 touch (UNI-2012 V2-N1 V2-N2)", () => {
-    it("shows the level badge beside the title on a fine pointer and in the caption line on a coarse one", () => {
+    it("renders one level badge beside the title under a fine pointer", () => {
       renderCard(documentMessage(FULL));
-      const { side, caption } = levelBadges("Quản lý");
-      // Beside the title: a sibling of the title column, gone under a coarse pointer.
+      const badge = levelBadge("Quản lý");
+      // A sibling of the title column, not in the caption line.
       const titleRow = screen.getByRole("button", { name: /Mở trong Tài liệu/ }).closest("div.flex.items-center");
-      expect(side.parentElement).toBe(titleRow);
-      expect(side).toHaveClass("pointer-coarse:hidden");
-      // In the caption line after the segments: hidden by default, shown under a coarse pointer.
+      expect(badge.parentElement).toBe(titleRow);
+      expect(badge).toHaveClass("shrink-0");
+    });
+
+    it("renders one level badge in the caption line, after the segments, under a coarse pointer", () => {
+      stubCoarsePointer();
+      renderCard(documentMessage(FULL));
+      const badge = levelBadge("Quản lý");
       const line = screen.getByText(/Phiên bản 3/).parentElement!;
-      expect(caption.parentElement).toBe(line);
-      expect(line.lastElementChild).toBe(caption);
-      expect(caption).toHaveClass("hidden", "pointer-coarse:inline-flex");
-      expect(caption).not.toHaveClass("pointer-coarse:hidden");
+      expect(badge.parentElement).toBe(line);
+      expect(line.lastElementChild).toBe(badge);
     });
 
     it("never breaks the caption inside a segment: each carries nowrap and the line wraps between them", () => {

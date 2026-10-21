@@ -5,6 +5,7 @@ import { LockKeyhole } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { paths } from "@uniwork/core/paths";
 import { Badge } from "@uniwork/ui/components/ui/badge";
+import { useCoarsePointer } from "@uniwork/ui/hooks/use-pointer";
 import { cn } from "@uniwork/ui/lib/utils";
 import { useOptionalWorkspace } from "../layout/workspace-context";
 import { useNavigation } from "../navigation";
@@ -191,6 +192,7 @@ export function ChatDocumentCard({
   isOwn: boolean;
 }) {
   const { t } = useTranslation();
+  const coarse = useCoarsePointer();
   const doc = message.document;
   const workspace = useOptionalWorkspace()?.workspace;
   const navigation = useNavigation();
@@ -264,22 +266,16 @@ export function ChatDocumentCard({
                 {t("chat.document_shared_with_count", { count: doc.recipient_count })}
               </span>
             ) : null}
-            {/* Touch only: the badge leaves the row (below) so the title keeps its width. */}
-            {level ? (
-              <Badge
-                variant="secondary"
-                className={cn("hidden pointer-coarse:inline-flex", isOwn && OWN_BUBBLE_CONTROL_REST)}
-              >
+            {/* Touch only: the badge leaves the title row so the title keeps its width. */}
+            {level && coarse ? (
+              <Badge variant="secondary" className={cn(isOwn && OWN_BUBBLE_CONTROL_REST)}>
                 {t(`documents.share.level_${level}`)}
               </Badge>
             ) : null}
           </p>
         </div>
-        {level ? (
-          <Badge
-            variant="secondary"
-            className={cn("shrink-0 pointer-coarse:hidden", isOwn && OWN_BUBBLE_CONTROL_REST)}
-          >
+        {level && !coarse ? (
+          <Badge variant="secondary" className={cn("shrink-0", isOwn && OWN_BUBBLE_CONTROL_REST)}>
             {t(`documents.share.level_${level}`)}
           </Badge>
         ) : null}
