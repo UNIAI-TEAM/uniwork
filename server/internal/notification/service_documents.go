@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -61,24 +62,27 @@ type DocumentsPage struct {
 	More bool
 }
 
-// docParams reads the two params the sample resolution needs; anything
+// docParams reads the two params the sample resolution needs. The consumer
+// writes every param as a string, the sample ids comma-joined; anything
 // malformed reads as empty so a bad row never blanks the inbox.
 func docParams(raw string) (verb string, sampleIDs []string) {
 	var m struct {
-		Verb string   `json:"verb"`
-		IDs  []string `json:"sample_document_ids"`
+		Verb string `json:"verb"`
+		IDs  string `json:"sample_document_ids"`
 	}
 	if json.Unmarshal([]byte(raw), &m) != nil {
 		return "", nil
 	}
-	if len(m.IDs) > maxSampleDocuments {
-		m.IDs = m.IDs[:maxSampleDocuments]
+	for _, id := range strings.Split(m.IDs, ",") {
+		if id = strings.TrimSpace(id); id != "" && len(sampleIDs) < maxSampleDocuments {
+			sampleIDs = append(sampleIDs, id)
+		}
 	}
-	return m.Verb, m.IDs
+	return m.Verb, sampleIDs
 }
 
-// withSampleIDs rewrites sample_document_ids in a params JSON object to ids,
-// keeping every other key and its type; a malformed value is returned
+// withSampleIDs rewrites sample_document_ids in a params JSON object to ids
+// (comma-joined, as the consumer writes them), keeping every other key; a malformed value is returned
 // unchanged so a bad row never blanks. The ids the reader cannot read are
 // removed so the params never name a document the samples do not.
 func withSampleIDs(raw string, ids []string) string {
@@ -89,7 +93,7 @@ func withSampleIDs(raw string, ids []string) string {
 	if _, has := m["sample_document_ids"]; !has {
 		return raw
 	}
-	enc, err := json.Marshal(ids)
+	enc, err := json.Marshal(strings.Join(ids, ","))
 	if err != nil {
 		return raw
 	}

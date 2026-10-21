@@ -53,16 +53,13 @@ func newNotifyDocsFixture(t *testing.T) *notifyDocsFixture {
 func (f *notifyDocsFixture) notify(t *testing.T, verb string, sample []string, docs ...[2]string) string {
 	t.Helper()
 	ctx := context.Background()
-	quoted := make([]string, 0, len(sample))
-	for _, id := range sample {
-		quoted = append(quoted, `"`+id+`"`)
-	}
 	n, err := f.q.UpsertNotification(ctx, db.UpsertNotificationParams{
 		ID: util.NewID(), UserID: f.memberID, OrganizationID: f.orgID, WorkspaceID: pgtype.Text{String: f.wsID, Valid: true},
 		Kind: "document_changed", GroupKey: "doc_change:" + f.userID + ":" + verb + ":" + util.NewID(),
 		ResourceType: "workspace", ResourceID: f.wsID, ActorKind: "human", ActorID: f.userID,
 		TitleKey: "notifications.kind.document_changed",
-		Params:   fmt.Sprintf(`{"verb":%q,"document_count":%d,"sample_document_ids":[%s]}`, verb, len(docs), strings.Join(quoted, ",")),
+		// Every param is a string, the sample ids comma-joined, as the consumer writes them.
+		Params: fmt.Sprintf(`{"verb":%q,"document_count":"%d","sample_document_ids":%q}`, verb, len(docs), strings.Join(sample, ",")),
 	})
 	if err != nil {
 		t.Fatalf("notification: %v", err)
