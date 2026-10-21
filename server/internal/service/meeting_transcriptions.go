@@ -131,6 +131,11 @@ func (s *MeetingService) RecordHeld(ctx context.Context, userID, meetingID strin
 	if err := s.writeAudit(ctx, q, m, "MEETING_RECORDED_HELD", userID, MeetingScheduled, MeetingEnded, "{}"); err != nil {
 		return db.Meeting{}, err
 	}
+	// As endMeeting does (A5). With no notes or transcript yet (the audio is
+	// usually uploaded later) the run settles quietly as summary_no_source.
+	if err := s.queueAutoSummary(ctx, q, ended); err != nil {
+		return db.Meeting{}, err
+	}
 	s.recordAction(ctx, q, ended, audit.User(userID), audit.ActionMeetingHeldRecorded, "meeting.ended", nil,
 		audit.Diff(map[string]any{"status": MeetingScheduled}, map[string]any{
 			"status": MeetingEnded, "actual_start_at": tsOrNil(ended.ActualStartAt), "actual_end_at": tsOrNil(ended.ActualEndAt),

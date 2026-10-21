@@ -180,6 +180,43 @@ func TestEndQueuesTheAutoSummary(t *testing.T) {
 	})
 }
 
+// UNI-2001's "held" ends a meeting without endMeeting: it queues the auto
+// summary the same way, behind the same switch.
+func TestRecordHeldQueuesTheAutoSummary(t *testing.T) {
+	ctx := context.Background()
+	held := func(t *testing.T, s *MeetingService, ua db.User, m db.Meeting) db.Meeting {
+		t.Helper()
+		start := time.Now().Add(time.Hour).Truncate(time.Second)
+		sched, err := s.Create(ctx, ua.ID, m.WorkspaceID, CreateMeetingInput{Title: "Họp trực tiếp", StartsAt: start, EndsAt: start.Add(time.Hour)})
+		if err != nil {
+			t.Fatal(err)
+		}
+		began := time.Now().Add(-2 * time.Hour).Truncate(time.Second)
+		if _, err := s.RecordHeld(ctx, ua.ID, sched.ID, began, began.Add(time.Hour)); err != nil {
+			t.Fatal(err)
+		}
+		return sched
+	}
+	t.Run("queued", func(t *testing.T) {
+		var calls atomic.Int32
+		s, ua, m, _ := summaryFixture(t, autoSummaryReply(&calls), ai.Options{})
+		sched := held(t, s, ua, m)
+		if due, ok := autoQueue(t, s, sched.ID); !ok || due > autoSummaryWait {
+			t.Fatalf("due in %v (queued %v), want ~10s", due, ok)
+		}
+	})
+	t.Run("organization switched it off", func(t *testing.T) {
+		var calls atomic.Int32
+		s, ua, m, _ := summaryFixture(t, autoSummaryReply(&calls), ai.Options{})
+		if _, err := s.SetMeetingAutoSummary(ctx, Human(ua.ID), m.OrganizationID, false); err != nil {
+			t.Fatal(err)
+		}
+		if _, ok := autoQueue(t, s, held(t, s, ua, m).ID); ok {
+			t.Fatal("queued with the switch off")
+		}
+	})
+}
+
 // A run that empties the room mid-meeting (D18) opens nothing: only an ended
 // meeting's queue row is pulled in, and an in-progress meeting has none.
 func TestAgentFinishedOfAMidMeetingRunOpensNothing(t *testing.T) {
