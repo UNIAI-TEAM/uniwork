@@ -256,6 +256,11 @@ describe("timeline edges the core suite leaves out", () => {
     refreshRoomTimelineOnOpen(qc, "ws1", "room1");
     expect(qc.getQueryData(key)).toBeUndefined();
     expect(invalidate).toHaveBeenCalledWith({ queryKey: key });
+
+    // Reopening a loaded room (unlike a reconnect) forgets the pages scrolled in last time.
+    qc.setQueryData(key, timeline([msg("b", 2)], [msg("a", 1)]));
+    refreshRoomTimelineOnOpen(qc, "ws1", "room1");
+    expect(qc.getQueryData<RoomTimeline>(key)?.pages).toEqual([[msg("b", 2)]]);
   });
 
   it("waits out a failing fetch in flight without throwing (the query reports it)", async () => {
