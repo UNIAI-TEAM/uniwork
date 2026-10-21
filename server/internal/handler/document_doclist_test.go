@@ -368,6 +368,59 @@ func TestDoclistRecentLastActivity(t *testing.T) {
 	}
 }
 
+// UNI-2012 F5: include_owned=true keeps a document the caller owns on
+// /documents/recent after somebody else edits it (their own activity on it is
+// gone), at its updated_at with kind "owned"; without the flag nothing changes,
+// and a row the caller neither owns nor touched never appears.
+func TestDoclistRecentIncludeOwned(t *testing.T) {
+	w := newDocsWorld(t)
+	memberTok, memberID := docsJoinWorkspace(t, w, "dl-owned-member@example.com")
+	base := dlBase(w) + "/recent"
+	now := time.Now().UTC().Truncate(time.Second)
+	at := func(h int) time.Time { return now.Add(time.Duration(-h) * time.Hour) }
+	mine := dlCreatePages(t, w, memberTok, "mine-edited-by-other", "mine-opened-later", "mine-edited-by-me")
+	editedByOther, openedLater, editedByMe := mine[0], mine[1], mine[2]
+	others := dlCreatePages(t, w, w.token, "not-mine")
+	notMine := others[0]
+	// the other person's edit is the last change on the first two rows.
+	dlExec(t, `UPDATE documents SET updated_by = $1, updated_by_kind = 'human', updated_at = $2 WHERE id = $3`, w.userID, at(3), editedByOther)
+	dlExec(t, `UPDATE documents SET updated_by = $1, updated_by_kind = 'human', updated_at = $2 WHERE id = $3`, w.userID, at(6), openedLater)
+	dlLog(t, w, openedLater, memberID, "view", at(2))
+	dlExec(t, `UPDATE documents SET updated_by = $1, updated_by_kind = 'human', updated_at = $2 WHERE id = $3`, memberID, at(4), editedByMe)
+	dlExec(t, `UPDATE documents SET updated_at = $1 WHERE id = $2`, at(1), notMine)
+
+	// off: only what the caller touched; the document someone else edited is gone.
+	for _, q := range []string{"", "?include_owned=false", "?include_owned=1"} {
+		res, out := dlGet(t, w, memberTok, base+q)
+		want := []string{editedByMe, openedLater} // updated_at order: at(4), at(6)
+		if got := dlIDs(out); res.StatusCode != 200 || !reflect.DeepEqual(got, want) {
+			t.Errorf("recent%s = %v (%d), want %v", q, got, res.StatusCode, want)
+		}
+	}
+	// on: the owned document is back at its updated_at, the others keep their kind.
+	res, out := dlGet(t, w, memberTok, base+"?include_owned=true&sort=activity")
+	if res.StatusCode != 200 {
+		t.Fatalf("recent include_owned: %d %v", res.StatusCode, out)
+	}
+	if got, want := dlIDs(out), []string{openedLater, editedByOther, editedByMe}; !reflect.DeepEqual(got, want) {
+		t.Errorf("recent include_owned order = %v, want %v", got, want)
+	}
+	got := dlActivity(out)
+	want := map[string][2]string{
+		openedLater:   {"opened", at(2).Format(time.RFC3339)},
+		editedByMe:    {"edited", at(4).Format(time.RFC3339)},
+		editedByOther: {"owned", at(3).Format(time.RFC3339)},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("last_activity = %v, want %v", got, want)
+	}
+	// a page of one still pages.
+	res, out = dlGet(t, w, memberTok, base+"?include_owned=true&limit=1")
+	if cursor, _ := out["next_cursor"].(string); res.StatusCode != 200 || cursor == "" {
+		t.Errorf("first include_owned page: %d %v", res.StatusCode, out)
+	}
+}
+
 // Three pages with shared activity times, both directions: the order is
 // (activity, id) in one direction and each row comes once.
 func TestDoclistRecentActivityPagesWithSharedKeys(t *testing.T) {

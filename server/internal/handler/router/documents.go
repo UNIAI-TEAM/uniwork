@@ -533,7 +533,7 @@ func registerDocuments(r, callerDocs api, h Routes, flags *featureflag.Service, 
 	})
 	d.Get("/workspaces/{workspaceID}/documents/recent", h.ListRecentDocuments, apiOp{
 		summary:     "List recent documents",
-		description: "Tài liệu người dùng đã mở (access log) hoặc sửa gần đây, lọc quyền trước limit, cursor ổn định. format và access nhận như danh sách phẳng (giá trị lạ -> 400 invalid_filter). Agent không có \"gần đây\" -> 403.",
+		description: "Tài liệu người dùng đã mở (access log) hoặc sửa gần đây, lọc quyền trước limit, cursor ổn định. format và access nhận như danh sách phẳng (giá trị lạ -> 400 invalid_filter). include_owned=true thêm cả tài liệu người gọi sở hữu. Agent không có \"gần đây\" -> 403.",
 		tags:        []string{"documents"},
 		sdi:         sdi.ListRecentDocumentsSDI{},
 		sdo:         sdo.DocumentListSDO{},

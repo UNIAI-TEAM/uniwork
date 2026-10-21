@@ -216,17 +216,18 @@ type ListDocumentsSDI struct {
 // "title", else 400) is validated identically to the list route so a shared
 // client query string is accepted and ignored.
 type ListRecentDocumentsSDI struct {
-	Cursor      *string `query:"cursor" description:"next_cursor của trang trước" example:"eyJ0IjoiMjAyNi0wOS0yN1QwOTowMDowMFoiLCJpZCI6IjAxSjhYNERPQzBOMVAyUTNSNFM1VDZVNyJ9"`
-	Limit       *int32  `query:"limit" description:"Kích thước trang, mặc định 50, tối đa 100" example:"10"`
-	Match       *string `query:"match" description:"Chỉ nhận title (hoặc bỏ trống); recent không lọc theo q nên giá trị hợp lệ được chấp nhận và bỏ qua, giá trị khác -> 400" example:"title"`
-	Format      *string `query:"format" description:"Lọc theo định dạng tệp của phiên bản hiện tại: docx, xlsx, pptx, pdf, md, html hoặc txt; thư mục luôn nằm trong kết quả, trang không bao giờ khớp; giá trị khác -> 400 invalid_filter" example:"pdf"`
-	Access      *string `query:"access" description:"Lọc theo quyền của người gọi trên dòng: manage (chỉ manage), edit (edit hoặc manage), restricted (visibility=restricted); giá trị khác -> 400 invalid_filter" example:"manage"`
-	Sort        *string `query:"sort" enum:"updated,name,size,editor,activity" description:"Sắp xếp theo cột: updated (updated_at), name (tiêu đề, bảng mã tiếng Việt), size (dung lượng phiên bản tệp hiện tại, trang/thư mục = 0), editor (tên hiển thị người sửa gần nhất; người sửa là agent/đã xóa luôn xếp cuối) hoặc activity (last_activity.at, mặc định giảm dần). Bỏ trống = thứ tự riêng của danh sách và con trỏ cũ. Giá trị khác -> 400 invalid_request; kết hợp archived hoặc shelved -> 400; next_cursor của một sort không dùng được cho sort/order khác (400)" example:"activity"`
-	Activity    *string `query:"activity" enum:"opened,edited" description:"Lọc theo hoạt động của người gọi: opened (có dòng access log của người gọi), edited (người gọi là người sửa gần nhất); bỏ trống = tất cả; giá trị khác -> 400 invalid_filter" example:"opened"`
-	UpdatedBy   *string `query:"updated_by" description:"Lọc theo ULID người sửa gần nhất (cùng nghĩa với danh sách phẳng)" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
-	UpdatedFrom *string `query:"updated_from" description:"Mốc updated_at từ (RFC3339)" example:"2026-09-01T00:00:00Z"`
-	UpdatedTo   *string `query:"updated_to" description:"Mốc updated_at đến (RFC3339)" example:"2026-09-30T23:59:59Z"`
-	Order       *string `query:"order" enum:"asc,desc" description:"Chiều sắp xếp; chỉ dùng cùng sort (order không có sort -> 400). Bỏ trống: updated và size giảm dần, name và editor tăng dần" example:"asc"`
+	Cursor       *string `query:"cursor" description:"next_cursor của trang trước" example:"eyJ0IjoiMjAyNi0wOS0yN1QwOTowMDowMFoiLCJpZCI6IjAxSjhYNERPQzBOMVAyUTNSNFM1VDZVNyJ9"`
+	Limit        *int32  `query:"limit" description:"Kích thước trang, mặc định 50, tối đa 100" example:"10"`
+	Match        *string `query:"match" description:"Chỉ nhận title (hoặc bỏ trống); recent không lọc theo q nên giá trị hợp lệ được chấp nhận và bỏ qua, giá trị khác -> 400" example:"title"`
+	Format       *string `query:"format" description:"Lọc theo định dạng tệp của phiên bản hiện tại: docx, xlsx, pptx, pdf, md, html hoặc txt; thư mục luôn nằm trong kết quả, trang không bao giờ khớp; giá trị khác -> 400 invalid_filter" example:"pdf"`
+	Access       *string `query:"access" description:"Lọc theo quyền của người gọi trên dòng: manage (chỉ manage), edit (edit hoặc manage), restricted (visibility=restricted); giá trị khác -> 400 invalid_filter" example:"manage"`
+	Sort         *string `query:"sort" enum:"updated,name,size,editor,activity" description:"Sắp xếp theo cột: updated (updated_at), name (tiêu đề, bảng mã tiếng Việt), size (dung lượng phiên bản tệp hiện tại, trang/thư mục = 0), editor (tên hiển thị người sửa gần nhất; người sửa là agent/đã xóa luôn xếp cuối) hoặc activity (last_activity.at, mặc định giảm dần). Bỏ trống = thứ tự riêng của danh sách và con trỏ cũ. Giá trị khác -> 400 invalid_request; kết hợp archived hoặc shelved -> 400; next_cursor của một sort không dùng được cho sort/order khác (400)" example:"activity"`
+	Activity     *string `query:"activity" enum:"opened,edited" description:"Lọc theo hoạt động của người gọi: opened (có dòng access log của người gọi), edited (người gọi là người sửa gần nhất); bỏ trống = tất cả; giá trị khác -> 400 invalid_filter" example:"opened"`
+	IncludeOwned *bool   `query:"include_owned" description:"true = liệt kê thêm tài liệu người gọi là ACL owner (theo updated_at) dù người khác đã sửa sau đó; mặc định chỉ tài liệu người gọi đã mở, sửa hoặc bình luận" example:"true"`
+	UpdatedBy    *string `query:"updated_by" description:"Lọc theo ULID người sửa gần nhất (cùng nghĩa với danh sách phẳng)" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
+	UpdatedFrom  *string `query:"updated_from" description:"Mốc updated_at từ (RFC3339)" example:"2026-09-01T00:00:00Z"`
+	UpdatedTo    *string `query:"updated_to" description:"Mốc updated_at đến (RFC3339)" example:"2026-09-30T23:59:59Z"`
+	Order        *string `query:"order" enum:"asc,desc" description:"Chiều sắp xếp; chỉ dùng cùng sort (order không có sort -> 400). Bỏ trống: updated và size giảm dần, name và editor tăng dần" example:"asc"`
 }
 
 // ListFavoriteDocumentsSDI documents GET

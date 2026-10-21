@@ -83,6 +83,10 @@ type ListDocumentsInput struct {
 	// Activity narrows /documents/recent to what the caller opened or edited
 	// (UNI-2045 SV-1b): "" (all), "opened" or "edited". Other lists ignore it.
 	Activity string
+	// IncludeOwned also lists, on /documents/recent, the documents the caller
+	// owns (acl_owner) at their updated_at, so one stays listed after somebody
+	// else edits it (UNI-2012 F5). Other lists ignore it.
+	IncludeOwned bool
 }
 
 // The activity filter of /documents/recent and the kinds last_activity reports.
@@ -955,7 +959,8 @@ func (s *DocumentService) listRecentDocumentsPage(ctx context.Context, actor Act
 		// agent cap.
 		Access: nullText(filters.access), AccessLevels: filters.accessLevels, Agent: false,
 		CursorAt: cursorAt, CursorID: nullText(cursor.ID), PageLimit: int32(limit + 1),
-		Activity: nullText(in.Activity), UpdatedBy: nullText(in.UpdatedBy), UpdatedFrom: from, UpdatedTo: to,
+		IncludeOwned: in.IncludeOwned,
+		Activity:     nullText(in.Activity), UpdatedBy: nullText(in.UpdatedBy), UpdatedFrom: from, UpdatedTo: to,
 		SortKey: sortArg.key, SortDesc: sortArg.desc, SortCursorID: sortArg.id, SortCursorAt: sortArg.at,
 		SortCursorNum: sortArg.num, SortCursorText: sortArg.text, SortCursorNull: sortArg.null,
 	})
