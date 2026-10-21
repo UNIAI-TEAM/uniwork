@@ -76,6 +76,13 @@ export function emailHubThreadCapabilities(thread: EmailHubThread, browserFolder
   };
 }
 
+/**
+ * The reader's one-key shortcuts (use-email-hub-shortcuts.ts), in ARIA syntax for
+ * aria-keyshortcuts. `#` stays `#` rather than Shift+3: the handler matches the
+ * character the layout produces, and Shift+3 is not `#` on every layout.
+ */
+const KEYSHORTCUTS = { back: "Escape", archive: "E", trash: "#", markUnread: "Shift+U", star: "S" } as const;
+
 function ToolbarDivider() {
   return <Separator orientation="vertical" className="mx-1 h-5" />;
 }
@@ -173,15 +180,19 @@ export function EmailHubThreadToolbar({
   actions,
   pending,
   aiOpen,
+  shortcutsOn,
 }: {
   thread: EmailHubThread;
   browserFolder: string;
   actions: EmailHubThreadActions;
   pending: EmailHubThreadPending;
   aiOpen: boolean;
+  /** The reader's single-key switch: off, only Escape still works, so only it is advertised. */
+  shortcutsOn: boolean;
 }) {
   const { t } = useTranslation();
   const can = emailHubThreadCapabilities(thread, browserFolder);
+  const keys = (key: string) => (shortcutsOn ? key : undefined);
 
   const primary = can.inSpam
     ? { label: t("email_hub.not_spam"), icon: Inbox, onClick: actions.onNotSpam, disabled: pending.move }
@@ -199,7 +210,13 @@ export function EmailHubThreadToolbar({
       role="toolbar"
       aria-label={t("email_hub.thread_toolbar")}
     >
-      <EmailHubIconAction icon={ArrowLeft} label={t("email_hub.back_to_list_shortcut")} onClick={actions.onBack} />
+      <EmailHubIconAction
+        icon={ArrowLeft}
+        label={t("email_hub.back_to_list")}
+        tooltip={t("email_hub.back_to_list_shortcut")}
+        keyShortcuts={KEYSHORTCUTS.back}
+        onClick={actions.onBack}
+      />
       <ToolbarDivider />
       <TriageOverflowMenu can={can} actions={actions} pending={pending} />
 
@@ -208,7 +225,9 @@ export function EmailHubThreadToolbar({
           <>
             <EmailHubIconAction
               icon={Archive}
-              label={t("email_hub.archive_shortcut")}
+              label={t("email_hub.archive")}
+              tooltip={t("email_hub.archive_shortcut")}
+              keyShortcuts={keys(KEYSHORTCUTS.archive)}
               disabled={pending.move}
               onClick={actions.onArchive}
             />
@@ -223,7 +242,9 @@ export function EmailHubThreadToolbar({
         {can.canTrash ? (
           <EmailHubIconAction
             icon={Trash2}
-            label={t("email_hub.trash_shortcut")}
+            label={t("email_hub.trash")}
+            tooltip={t("email_hub.trash_shortcut")}
+            keyShortcuts={keys(KEYSHORTCUTS.trash)}
             disabled={pending.move}
             className="hover:text-destructive"
             onClick={actions.onTrash}
@@ -235,7 +256,9 @@ export function EmailHubThreadToolbar({
             {can.canMarkUnread ? (
               <EmailHubIconAction
                 icon={MailOpen}
-                label={t("email_hub.mark_unread_shortcut")}
+                label={t("email_hub.bulk.mark_unread")}
+                tooltip={t("email_hub.mark_unread_shortcut")}
+                keyShortcuts={keys(KEYSHORTCUTS.markUnread)}
                 disabled={pending.markRead}
                 onClick={actions.onMarkUnread}
               />
@@ -292,7 +315,8 @@ export function EmailHubThreadToolbar({
                 className={cn(
                   thread.is_starred ? "text-warning hover:text-warning" : "text-muted-foreground hover:text-foreground",
                 )}
-                aria-label={t("email_hub.star_shortcut")}
+                aria-label={t("email_hub.star")}
+                aria-keyshortcuts={keys(KEYSHORTCUTS.star)}
                 aria-pressed={thread.is_starred}
                 disabled={pending.star}
                 onClick={actions.onToggleStar}

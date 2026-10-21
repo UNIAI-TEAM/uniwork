@@ -553,7 +553,8 @@
     "collapseSidebar": "Collapse sidebar",
     "shortcutMac": "⌘K",
     "shortcutOther": "Ctrl+K",
-    "askUni": "Ask UNI ({{shortcut}})"
+    "askUni": "Ask UNI ({{shortcut}})",
+    "askUniName": "Ask UNI"
   },
   "search": {
     "title": "Search",
@@ -2102,7 +2103,6 @@
     "last_sync": "Synced {{when}}",
     "to_recipient": "To: {{name}}",
     "select_thread": "Select email: {{subject}}",
-    "star_shortcut": "Star (S)",
     "archive_shortcut": "Archive (E)",
     "trash_shortcut": "Delete (#)",
     "mark_unread_shortcut": "Mark as unread (Shift+U)",
