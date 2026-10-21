@@ -238,7 +238,8 @@ và giọng đọc. Một iPhone (VoiceOver) và một máy Android (TalkBack):
   chat, phòng, composer, Cài đặt không cắt chữ; nút và chip cao lên theo chữ; số trên huy hiệu chỉ to tới 1.4×.
 - [ ] Màn giải thích quyền: lần đầu ghi tin thoại, gọi, gọi video, lần đầu vào app (thông báo) đều hiện màn của UniChat
   trước hộp thoại hệ thống; "Để sau" không hiện hộp thoại; đã từ chối hẳn thì màn nói quyền đang tắt và "Mở Cài đặt"
-  mở đúng trang của UniChat. Lời nhắc thông báo lúc mở app chỉ hiện một lần mỗi máy; Cài đặt › Thông báo hỏi lại.
+  mở đúng trang của UniChat. Lời nhắc thông báo lúc mở app chỉ hiện một lần mỗi máy, kể cả khi bấm "Tiếp tục" rồi từ
+  chối ở hộp thoại hệ thống (Android 13+: mở lại app không hỏi nữa); Cài đặt › Thông báo hỏi lại.
 - [ ] Ngôn ngữ: iOS Cài đặt › UniChat › Ngôn ngữ và Android 13+ Cài đặt › Ứng dụng › UniChat › Ngôn ngữ chỉ liệt kê
   Tiếng Việt và English; đổi ngôn ngữ trong app rồi nhận một push: push nói đúng ngôn ngữ đó (`users.locale` đổi theo,
   xem bằng `GET /api/v1/me`). Tiếng Anh: "1 reply", "2 replies".

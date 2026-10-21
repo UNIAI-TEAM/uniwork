@@ -331,7 +331,8 @@ một dòng thì ghi lý do ở dòng trên.
   cỡ chữ (`BADGE_MAX_FONT_SCALE` 1.4). **Quyền**: `data/permissions.ts` (màn giải thích `components/ui/permission-primer.tsx`
   qua `stores/permission-primer-store.ts`, instance native `components/ui/permission-gate.ts`): đã cấp thì đi tiếp, hệ
   thống còn hỏi được thì giải thích rồi mới hỏi, không hỏi được nữa thì mở `Linking.openSettings`; `once` (thông báo lúc
-  mở app) chỉ hỏi một lần mỗi máy và không tự đưa ra Cài đặt; Cài đặt › Thông báo hỏi lại. Micro trước tin thoại
+  mở app) chỉ hỏi một lần mỗi máy (nhớ ngay khi màn giải thích đã hiện, dù "Để sau" hay từ chối ở hộp thoại hệ thống:
+  Android 13+ lần từ chối đầu vẫn báo `canAskAgain`) và không tự đưa ra Cài đặt; Cài đặt › Thông báo hỏi lại. Micro trước tin thoại
   (`use-voice-recorder.ts`) và trước gọi/nghe (`ensureCallPermissions`; cuộc gọi vẫn đi tiếp khi bị từ chối), camera
   trước gọi video; ảnh không cần (trình chọn của hệ thống). **Ngôn ngữ**: chuỗi tiếng Anh có `{{count}}` là cặp
   `_one`/`_other`, tiếng Việt một khoá (như core; `lib/i18n.test.ts` đỏ khi thiếu); i18next 26 không có

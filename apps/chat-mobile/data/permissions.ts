@@ -4,8 +4,9 @@
 // that prompt for later. Once the system will not ask again (refused for good,
 // or turned off in Settings), the primer says so and offers the phone's
 // Settings (Linking.openSettings) instead of a button that does nothing. The
-// launch-time notifications ask (`once`) is shown a single time per phone: a
-// "not now" is remembered and only Settings › Notifications asks again.
+// launch-time notifications ask (`once`) is shown a single time per phone: its
+// primer is remembered whatever the answer (a "not now", or a refusal in the
+// system dialog) and only Settings › Notifications asks again.
 // Photos need no primer: the photo picker is the system's own (PHPicker,
 // Android's photo picker) and asks UniChat for no permission.
 import type { DeviceStore } from "./storage/device-store";
@@ -69,11 +70,11 @@ export function createPermissionGate({ api, present, openSettings, openStore }: 
       if (options.once) {
         const store = await openStore();
         if (step === "settings" || store.getString(dismissedKey(kind))) return false;
-        if (!(await present({ kind, reason, step }))) {
-          store.set(dismissedKey(kind), "1");
-          return false;
-        }
-        return (await api.request(kind)).granted;
+        const go = await present({ kind, reason, step });
+        // Remembered whatever the person picks: Android 13+ still reads canAskAgain=true after a first
+        // refusal in the system dialog, so only this key keeps the launch ask to one per phone.
+        store.set(dismissedKey(kind), "1");
+        return go ? (await api.request(kind)).granted : false;
       }
       const go = await present({ kind, reason, step });
       if (step === "settings") {

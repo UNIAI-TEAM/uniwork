@@ -84,6 +84,15 @@ describe("createPermissionGate", () => {
     expect(off.present).not.toHaveBeenCalled();
   });
 
+  it("asks at launch only once even when the person went on and refused in the system dialog (Android 13+)", async () => {
+    // Android's first refusal still reads canAskAgain=true: only a remembered primer keeps it to one ask.
+    const { gate, present, api } = setup(undetermined, undetermined);
+    await expect(gate.ensure("notifications", "notifications", { once: true })).resolves.toBe(false);
+    await expect(gate.ensure("notifications", "notifications", { once: true })).resolves.toBe(false);
+    expect(present).toHaveBeenCalledTimes(1);
+    expect(api.request).toHaveBeenCalledTimes(1);
+  });
+
   it("falls back to the system's own prompt when the status cannot be read", async () => {
     const { gate, api, present } = setup();
     vi.mocked(api.read).mockRejectedValueOnce(new Error("no module"));
