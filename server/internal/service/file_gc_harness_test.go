@@ -162,7 +162,7 @@ func productionProviders() []files.ReferenceProvider {
 	return []files.ReferenceProvider{
 		NewTaskAttachmentProvider(), NewUserAvatarProvider(), chatFileReferenceProvider{},
 		chatVoiceRecordingProvider{}, MeetingRecordingProvider{}, AuditExportReferenceProvider(),
-		PrivacyExportReferenceProvider(),
+		PrivacyExportReferenceProvider(), DocumentDownloadReferenceProvider(),
 		DocumentVersionReferenceProvider{}, DocumentAssetReferenceProvider{}, OfficeJobOutputProvider{},
 		WorkspaceIconProvider{}, ChatRoomAvatarProvider{}, ChatLinkPreviewImageProvider{},
 	}
