@@ -1,0 +1,14 @@
+$ ls -la /tmp/cov; grep -cE "^\s*--- PASS" /tmp/uni2012r2b-full.log | sed 's/^/GO_PASS_COUNT=/'; grep -cE "^\s*--- FAIL" /tmp/uni2012r2b-full.log | sed 's/^/GO_FAIL_COUNT=/'; grep -cE "^\s*--- SKIP" /tmp/uni2012r2b-full.log | sed 's/^/GO_SKIP_COUNT=/'; grep -E "^\s*--- FAIL|^FAIL|^panic" /tmp/uni2012r2b-full.log | head -40
+total 4212
+drwxr-xr-x   2 ubuntu ubuntu    4096 Oct 21 00:32 .
+drwxrwxrwt. 14 root   root      4096 Oct 21 01:02 ..
+-rw-r--r--   1 ubuntu ubuntu 4303718 Oct 21 01:02 cover.out
+GO_PASS_COUNT=7195
+GO_FAIL_COUNT=3
+GO_SKIP_COUNT=57
+--- FAIL: TestDeleteLinkDocumentMessageRacingReconcileAndLinkSend (1.22s)
+    --- FAIL: TestDeleteLinkDocumentMessageRacingReconcileAndLinkSend/delete_holds_the_lock,_a_link_send_waits (0.32s)
+--- FAIL: TestChatGrantLeaveAfterCommitIsReconciled (20.31s)
+FAIL
+FAIL	github.com/unicomhub/uniwork/server/internal/service	1628.144s
+FAIL

@@ -1,0 +1,2 @@
+$ grep -nE "testing.go.*race detected|race detected during execution" /tmp/uni2012r2b-full.log | cut -c1-300 | head
+20304:    testing.go:1865: race detected during execution of test

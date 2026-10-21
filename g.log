@@ -1,0 +1,243 @@
+$ awk '/^=== RUN +(TestDeleteLinkDocumentMessageRacingReconcileAndLinkSend|TestChatGrantLeaveAfterCommitIsReconciled)( |$)/{f=1} f{print substr($0,1,400);n++} n>120{f=0;n=0}' /tmp/uni2012r2b-full.log | head -260
+=== RUN   TestDeleteLinkDocumentMessageRacingReconcileAndLinkSend
+=== RUN   TestDeleteLinkDocumentMessageRacingReconcileAndLinkSend/reconcile_holds_the_lock,_delete_waits
+=== RUN   TestDeleteLinkDocumentMessageRacingReconcileAndLinkSend/delete_holds_the_lock,_reconcile_waits
+=== RUN   TestDeleteLinkDocumentMessageRacingReconcileAndLinkSend/delete_holds_the_lock,_a_link_send_waits
+==================
+WARNING: DATA RACE
+Read at 0x00c000a57c70 by goroutine 3004:
+  github.com/unicomhub/uniwork/server/internal/service.(*capturePublisher).PublishToScope()
+      /workspace/server/internal/service/task_test.go:37 +0x5d
+  github.com/unicomhub/uniwork/server/internal/service.(*ChatService).publishChatRoomEvent()
+      /workspace/server/internal/service/chat_org.go:48 +0x6ab
+  github.com/unicomhub/uniwork/server/internal/service.(*ChatService).publishCreatedChatMessage()
+      /workspace/server/internal/service/chat_voice_message.go:217 +0x5b4
+  github.com/unicomhub/uniwork/server/internal/service.(*ChatService).SendDocumentLinkMessage()
+      /workspace/server/internal/service/chat_document_link.go:108 +0xc2a
+  github.com/unicomhub/uniwork/server/internal/service.TestDeleteLinkDocumentMessageRacingReconcileAndLinkSend.func7.3()
+      /workspace/server/internal/service/chat_document_delete_fix2_test.go:405 +0x2a4
+
+Previous write at 0x00c000a57c70 by goroutine 3003:
+  github.com/unicomhub/uniwork/server/internal/service.(*capturePublisher).SendToUser()
+      /workspace/server/internal/service/task_test.go:42 +0x2f9
+  github.com/unicomhub/uniwork/server/internal/service.(*capturePublisher).SendToUsers()
+      /workspace/server/internal/service/task_test.go:51 +0x20d
+  github.com/unicomhub/uniwork/server/internal/service.(*ChatService).publishChatRoomMembersEvent()
+      /workspace/server/internal/service/chat_org.go:58 +0x256
+  github.com/unicomhub/uniwork/server/internal/service.(*ChatService).publishChatRoomActivity()
+      /workspace/server/internal/service/chat_org.go:62 +0x674
+  github.com/unicomhub/uniwork/server/internal/service.(*ChatService).publishChatMessageChange()
+      /workspace/server/internal/service/chat_actions.go:282 +0x55f
+  github.com/unicomhub/uniwork/server/internal/service.(*ChatService).publishChatMessageDeleted()
+      /workspace/server/internal/service/chat_actions.go:196 +0x18a4
+  github.com/unicomhub/uniwork/server/internal/service.(*ChatService).DeleteChatMessage()
+      /workspace/server/internal/service/chat_actions.go:166 +0x162f
+  github.com/unicomhub/uniwork/server/internal/service.TestDeleteLinkDocumentMessageRacingReconcileAndLinkSend.func7.2()
+      /workspace/server/internal/service/chat_document_delete_fix2_test.go:399 +0x1c4
+
+Goroutine 3004 (running) created at:
+  github.com/unicomhub/uniwork/server/internal/service.TestDeleteLinkDocumentMessageRacingReconcileAndLinkSend.func7()
+      /workspace/server/internal/service/chat_document_delete_fix2_test.go:403 +0x7f6
+  testing.tRunner()
+      /usr/local/go/src/testing/testing.go:2193 +0x21c
+  testing.(*T).Run.gowrap1()
+      /usr/local/go/src/testing/testing.go:2258 +0x38
+
+Goroutine 3003 (finished) created at:
+  github.com/unicomhub/uniwork/server/internal/service.TestDeleteLinkDocumentMessageRacingReconcileAndLinkSend.func7()
+      /workspace/server/internal/service/chat_document_delete_fix2_test.go:399 +0x5fd
+  testing.tRunner()
+      /usr/local/go/src/testing/testing.go:2193 +0x21c
+  testing.(*T).Run.gowrap1()
+      /usr/local/go/src/testing/testing.go:2258 +0x38
+==================
+==================
+WARNING: DATA RACE
+Read at 0x00c000a57c88 by goroutine 3004:
+  github.com/unicomhub/uniwork/server/internal/service.(*capturePublisher).PublishToScope()
+      /workspace/server/internal/service/task_test.go:38 +0x20a
+  github.com/unicomhub/uniwork/server/internal/service.(*ChatService).publishChatRoomEvent()
+      /workspace/server/internal/service/chat_org.go:48 +0x6ab
+  github.com/unicomhub/uniwork/server/internal/service.(*ChatService).publishCreatedChatMessage()
+      /workspace/server/internal/service/chat_voice_message.go:217 +0x5b4
+  github.com/unicomhub/uniwork/server/internal/service.(*ChatService).SendDocumentLinkMessage()
+      /workspace/server/internal/service/chat_document_link.go:108 +0xc2a
+  github.com/unicomhub/uniwork/server/internal/service.TestDeleteLinkDocumentMessageRacingReconcileAndLinkSend.func7.3()
+      /workspace/server/internal/service/chat_document_delete_fix2_test.go:405 +0x2a4
+
+Previous write at 0x00c000a57c88 by goroutine 3003:
+  github.com/unicomhub/uniwork/server/internal/service.(*capturePublisher).SendToUser()
+      /workspace/server/internal/service/task_test.go:43 +0x444
+  github.com/unicomhub/uniwork/server/internal/service.(*capturePublisher).SendToUsers()
+      /workspace/server/internal/service/task_test.go:51 +0x20d
+  github.com/unicomhub/uniwork/server/internal/service.(*ChatService).publishChatRoomMembersEvent()
+      /workspace/server/internal/service/chat_org.go:58 +0x256
+  github.com/unicomhub/uniwork/server/internal/service.(*ChatService).publishChatRoomActivity()
+      /workspace/server/internal/service/chat_org.go:62 +0x674
+  github.com/unicomhub/uniwork/server/internal/service.(*ChatService).publishChatMessageChange()
+      /workspace/server/internal/service/chat_actions.go:282 +0x55f
+  github.com/unicomhub/uniwork/server/internal/service.(*ChatService).publishChatMessageDeleted()
+      /workspace/server/internal/service/chat_actions.go:196 +0x18a4
+  github.com/unicomhub/uniwork/server/internal/service.(*ChatService).DeleteChatMessage()
+      /workspace/server/internal/service/chat_actions.go:166 +0x162f
+  github.com/unicomhub/uniwork/server/internal/service.TestDeleteLinkDocumentMessageRacingReconcileAndLinkSend.func7.2()
+      /workspace/server/internal/service/chat_document_delete_fix2_test.go:399 +0x1c4
+
+Goroutine 3004 (running) created at:
+  github.com/unicomhub/uniwork/server/internal/service.TestDeleteLinkDocumentMessageRacingReconcileAndLinkSend.func7()
+      /workspace/server/internal/service/chat_document_delete_fix2_test.go:403 +0x7f6
+  testing.tRunner()
+      /usr/local/go/src/testing/testing.go:2193 +0x21c
+  testing.(*T).Run.gowrap1()
+      /usr/local/go/src/testing/testing.go:2258 +0x38
+
+Goroutine 3003 (finished) created at:
+  github.com/unicomhub/uniwork/server/internal/service.TestDeleteLinkDocumentMessageRacingReconcileAndLinkSend.func7()
+      /workspace/server/internal/service/chat_document_delete_fix2_test.go:399 +0x5fd
+  testing.tRunner()
+      /usr/local/go/src/testing/testing.go:2193 +0x21c
+  testing.(*T).Run.gowrap1()
+      /usr/local/go/src/testing/testing.go:2258 +0x38
+==================
+==================
+WARNING: DATA RACE
+Read at 0x00c000a57ca0 by goroutine 3004:
+  github.com/unicomhub/uniwork/server/internal/service.(*capturePublisher).SendToUsers()
+      /workspace/server/internal/service/task_test.go:49 +0x84
+  github.com/unicomhub/uniwork/server/internal/service.(*ChatService).publishChatRoomMembersEvent()
+      /workspace/server/internal/service/chat_org.go:58 +0x256
+  github.com/unicomhub/uniwork/server/internal/service.(*ChatService).publishChatRoomActivity()
+      /workspace/server/internal/service/chat_org.go:62 +0x7bd
+  github.com/unicomhub/uniwork/server/internal/service.(*ChatService).publishCreatedChatMessage()
+      /workspace/server/internal/service/chat_voice_message.go:218 +0x6ac
+  github.com/unicomhub/uniwork/server/internal/service.(*ChatService).SendDocumentLinkMessage()
+      /workspace/server/internal/service/chat_document_link.go:108 +0xc2a
+  github.com/unicomhub/uniwork/server/internal/service.TestDeleteLinkDocumentMessageRacingReconcileAndLinkSend.func7.3()
+      /workspace/server/internal/service/chat_document_delete_fix2_test.go:405 +0x2a4
+
+Previous write at 0x00c000a57ca0 by goroutine 3003:
+  github.com/unicomhub/uniwork/server/internal/service.(*capturePublisher).SendToUsers()
+      /workspace/server/internal/service/task_test.go:49 +0x145
+  github.com/unicomhub/uniwork/server/internal/service.(*ChatService).publishChatRoomMembersEvent()
+      /workspace/server/internal/service/chat_org.go:58 +0x256
+=== RUN   TestChatGrantLeaveAfterCommitIsReconciled
+    chat_document_share_fix2_test.go:176: send while a leave was in flight: context deadline exceeded
+--- FAIL: TestChatGrantLeaveAfterCommitIsReconciled (20.31s)
+=== RUN   TestChatDocumentShareLowersToBackingLevelOnLeave
+--- PASS: TestChatDocumentShareLowersToBackingLevelOnLeave (1.95s)
+=== RUN   TestChatDocumentReconcileContinuesPastAFailingShare
+--- PASS: TestChatDocumentReconcileContinuesPastAFailingShare (0.29s)
+=== RUN   TestChatDocumentReconcileSkipsDeactivatedMember
+--- PASS: TestChatDocumentReconcileSkipsDeactivatedMember (0.27s)
+=== RUN   TestChatDocumentShareBackedByArchivedRoom
+--- PASS: TestChatDocumentShareBackedByArchivedRoom (0.31s)
+=== RUN   TestPromotedMessageBacksAMemberWhoJoinedAfterIt
+--- PASS: TestPromotedMessageBacksAMemberWhoJoinedAfterIt (0.30s)
+=== RUN   TestChatDocumentGrantSkipsRecipientWhoLeftDuringUpload
+--- PASS: TestChatDocumentGrantSkipsRecipientWhoLeftDuringUpload (0.30s)
+=== RUN   TestShareAttachmentAsDocumentSkipsRecipientWhoLeft
+--- PASS: TestShareAttachmentAsDocumentSkipsRecipientWhoLeft (0.32s)
+=== RUN   TestChatDocumentShareRevokedOnOrganizationLeave
+--- PASS: TestChatDocumentShareRevokedOnOrganizationLeave (0.27s)
+=== RUN   TestChatDocumentShareReconcileRacingRemovals
+--- PASS: TestChatDocumentShareReconcileRacingRemovals (0.33s)
+=== RUN   TestManualShareOverChatGrantSurvivesLeave
+--- PASS: TestManualShareOverChatGrantSurvivesLeave (0.29s)
+=== RUN   TestChatDocumentShareReconcileIsBoundToMembership
+--- PASS: TestChatDocumentShareReconcileIsBoundToMembership (0.31s)
+=== RUN   TestChatDocumentShareRestoreAndRepointAreAudited
+--- PASS: TestChatDocumentShareRestoreAndRepointAreAudited (0.35s)
+=== RUN   TestChatDocumentGrantSkipsEffectiveHomeRowEdit
+--- PASS: TestChatDocumentGrantSkipsEffectiveHomeRowEdit (0.30s)
+=== RUN   TestCanShareAsDocumentViewerFlag
+--- PASS: TestCanShareAsDocumentViewerFlag (0.29s)
+=== RUN   TestShareAttachmentAsDocument
+--- PASS: TestShareAttachmentAsDocument (0.27s)
+=== RUN   TestShareAttachmentAsDocumentReplayAndErrors
+--- PASS: TestShareAttachmentAsDocumentReplayAndErrors (0.32s)
+=== RUN   TestDocumentVersionLineOnlyFromTheCard
+--- PASS: TestDocumentVersionLineOnlyFromTheCard (1.09s)
+=== RUN   TestDocumentVersionLineReplaySafe
+--- PASS: TestDocumentVersionLineReplaySafe (0.40s)
+=== RUN   TestShareAttachmentAsDocumentOver50Recipients
+--- PASS: TestShareAttachmentAsDocumentOver50Recipients (1.07s)
+=== RUN   TestShareAttachmentAsDocumentCrossWorkspace
+--- PASS: TestShareAttachmentAsDocumentCrossWorkspace (0.35s)
+=== RUN   TestRoomMessageFansOutAsOneBatch
+--- PASS: TestRoomMessageFansOutAsOneBatch (0.26s)
+=== RUN   TestInviteWritesOneMembersAddedEvent
+--- PASS: TestInviteWritesOneMembersAddedEvent (0.24s)
+=== RUN   TestSanitizeChatFilename
+=== PAUSE TestSanitizeChatFilename
+=== RUN   TestValidateFileMessageInput
+=== PAUSE TestValidateFileMessageInput
+=== RUN   TestExtForChatFileContentType
+=== PAUSE TestExtForChatFileContentType
+=== RUN   TestSanitizeChatFilenameTruncates
+=== PAUSE TestSanitizeChatFilenameTruncates
+=== RUN   TestFileMessageFromMetadataRejectsBad
+=== PAUSE TestFileMessageFromMetadataRejectsBad
+=== RUN   TestFileMessageFromMetadata
+=== PAUSE TestFileMessageFromMetadata
+=== RUN   TestCreateFileMessageAndGet
+--- PASS: TestCreateFileMessageAndGet (0.24s)
+=== RUN   TestChatFileMessageRequestsThumbnailForPhotosFS
+--- PASS: TestChatFileMessageRequestsThumbnailForPhotosFS (0.81s)
+=== RUN   TestChatFileAllowlistsAgree
+--- PASS: TestChatFileAllowlistsAgree (0.06s)
+=== RUN   TestChatDocumentShareableTypesMirrorTheServer
+--- PASS: TestChatDocumentShareableTypesMirrorTheServer (0.00s)
+=== RUN   TestChatFileAndVoiceCapsPinForFileServiceMigration
+=== PAUSE TestChatFileAndVoiceCapsPinForFileServiceMigration
+=== RUN   TestChatMessageMetadataKeepsStorageLocatorPinForFileServiceMigration
+--- PASS: TestChatMessageMetadataKeepsStorageLocatorPinForFileServiceMigration (0.53s)
+=== RUN   TestChatFileMessageClientMsgIDIdempotencyPinForFileServiceMigration
+--- PASS: TestChatFileMessageClientMsgIDIdempotencyPinForFileServiceMigration (0.26s)
+=== RUN   TestFileMessageRequiresRoomMembershipAndHonoursDMBlock
+--- PASS: TestFileMessageRequiresRoomMembershipAndHonoursDMBlock (0.27s)
+=== RUN   TestCreateFollowUp
+--- PASS: TestCreateFollowUp (0.26s)
+=== RUN   TestFollowUpLifecycle
+--- PASS: TestFollowUpLifecycle (7.83s)
+=== RUN   TestFollowUpDeleteAndValidation
+--- PASS: TestFollowUpDeleteAndValidation (0.28s)
+=== RUN   TestFollowUpIsPersonal
+--- PASS: TestFollowUpIsPersonal (0.24s)
+=== RUN   TestForwardChatMessageToTwoRooms
+--- PASS: TestForwardChatMessageToTwoRooms (0.29s)
+=== RUN   TestForwardChatMessageHonoursAllowForward
+--- PASS: TestForwardChatMessageHonoursAllowForward (0.32s)
+=== RUN   TestForwardChatMessageRefusesATargetAndWritesNothing
+--- PASS: TestForwardChatMessageRefusesATargetAndWritesNothing (0.38s)
+=== RUN   TestForwardChatMessageRefusesRoomBoundKinds
+--- PASS: TestForwardChatMessageRefusesRoomBoundKinds (0.39s)
+=== RUN   TestForwardChatFileIsReadableInTheTarget
+--- PASS: TestForwardChatFileIsReadableInTheTarget (1.34s)
+=== RUN   TestForwardChatMessageCarriesTheLinkPreview
+--- PASS: TestForwardChatMessageCarriesTheLinkPreview (0.24s)
+=== RUN   TestChatGifsFallbackWithoutAPIKey
+--- PASS: TestChatGifsFallbackWithoutAPIKey (0.23s)
+=== RUN   TestChatGifsTenorProxy
+--- PASS: TestChatGifsTenorProxy (0.23s)
+=== RUN   TestMapTenorGif
+--- PASS: TestMapTenorGif (0.00s)
+=== RUN   TestLargeGroupIsCreatedAndStillDeduplicated
+--- PASS: TestLargeGroupIsCreatedAndStillDeduplicated (0.37s)
+=== RUN   TestLegacyGroupKeyIsRehashedByTheMigration
+--- PASS: TestLegacyGroupKeyIsRehashedByTheMigration (0.34s)
+=== RUN   TestGroupSizeIsCapped
+--- PASS: TestGroupSizeIsCapped (0.33s)
+=== RUN   TestChatHistoryPagingKeepsSameInstantMessages
+--- PASS: TestChatHistoryPagingKeepsSameInstantMessages (0.39s)
+=== RUN   TestInviteMembersNeedsAModeratorOutsideSmallGroups
+--- PASS: TestInviteMembersNeedsAModeratorOutsideSmallGroups (0.35s)
+=== RUN   TestFirstPreviewURL
+--- PASS: TestFirstPreviewURL (0.00s)
+=== RUN   TestChatLinkPreviewIsFetchedOncePerURLAndShownToTheRoom
+--- PASS: TestChatLinkPreviewIsFetchedOncePerURLAndShownToTheRoom (0.31s)
+=== RUN   TestChatLinkPreviewKeepsARefusalAndRetriesAFailureAfterAnHour
+--- PASS: TestChatLinkPreviewKeepsARefusalAndRetriesAFailureAfterAnHour (0.29s)
+=== RUN   TestCreateTaskFromMessageAndLink
+--- PASS: TestCreateTaskFromMessageAndLink (0.31s)
+=== RUN   TestCreateTaskFromMessageAttachesProject
+--- PASS: TestCreateTaskFromMessageAttachesProject (0.28s)

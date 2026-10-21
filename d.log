@@ -1,0 +1,2 @@
+$ grep -nE "^(ok|FAIL)\s.*internal/service\s" /tmp/uni2012r2b-full.log | cut -c1-200
+28281:FAIL	github.com/unicomhub/uniwork/server/internal/service	1628.144s
