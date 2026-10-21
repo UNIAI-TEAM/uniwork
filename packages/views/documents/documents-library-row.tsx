@@ -303,7 +303,7 @@ export function LibraryRowView({
             <span
               data-library-meta-line
               className={cn(
-                "flex basis-full min-w-0 items-center gap-1.5 overflow-hidden @min-[34rem]/library:basis-auto",
+                "flex basis-full min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 overflow-hidden @min-[34rem]/library:basis-auto @min-[34rem]/library:flex-nowrap",
                 editor ? ladder.metaHides : ladder.metaTailHides,
               )}
             >

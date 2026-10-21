@@ -116,6 +116,12 @@ describe("DocumentsTrashView", () => {
     expect(within(sorted[0]!).queryByRole("button")).toBeNull();
   });
 
+  it("lets the narrow editor · date · size line wrap below 34rem, so the editor is not cut by the size (F7)", () => {
+    renderView();
+    const meta = document.querySelector<HTMLElement>("[data-library-row='a'] [data-library-meta-line]")!;
+    expect(meta).toHaveClass("flex-wrap", "@min-[34rem]/library:flex-nowrap");
+  });
+
   it("puts Khôi phục on the row for a manager and calls the action with the row", () => {
     const { props } = renderView();
     fireEvent.click(screen.getByRole("button", { name: "Khôi phục a.docx" }));

@@ -120,6 +120,11 @@ describe("deleted screen column", () => {
     render(<DocScreenLine column="deleted" fields={docListRowFields(trashed())} member={members} />);
     expect(screen.getByText("Mai Trường · 08:00 · Còn 30 ngày")).toBeInTheDocument();
   });
+
+  it("lets the narrow line wrap instead of cutting the countdown at 390 (F7)", () => {
+    render(<DocScreenLine column="deleted" fields={docListRowFields(trashed())} member={members} />);
+    expect(screen.getByText(/Còn 30 ngày/)).not.toHaveClass("truncate");
+  });
 });
 
 describe("shelved screen column", () => {

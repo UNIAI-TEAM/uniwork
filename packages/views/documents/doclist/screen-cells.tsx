@@ -257,7 +257,8 @@ export function DocScreenLine({ column, fields, member, className }: ScreenCellP
   const line = SCREEN_CELLS[column]?.line(fields, ctx) ?? null;
   if (!line) return null;
   return (
-    <span data-doclist-screen-line className={cn("block truncate text-caption text-muted-foreground", className)}>
+    // Thùng rác wraps: its line is the longest (who · date · Còn N ngày) and the countdown must not be the part that is cut.
+    <span data-doclist-screen-line className={cn("block text-caption text-muted-foreground", column !== "deleted" && "truncate", className)}>
       {line}
     </span>
   );
