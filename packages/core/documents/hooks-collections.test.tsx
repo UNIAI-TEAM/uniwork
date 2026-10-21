@@ -411,6 +411,19 @@ describe("documents collection hooks", () => {
     expect(qc.getQueryData(documentKeys.recent("w1"))).toBeUndefined();
   });
 
+  it("Lưu trữ puts sort and order in the request and in its own cache entry (UNI-2045 W12, SV-0)", async () => {
+    vi.mocked(fetch).mockImplementation(() => Promise.resolve(json(listBody([summary("d1")]))));
+    const { qc, wrapper } = setup();
+    const shelved = renderHook(() => useShelvedDocuments("w1", { sort: "shelved", order: "desc" }), { wrapper });
+    await waitFor(() => expect(shelved.result.current.isSuccess).toBe(true));
+    const url = new URL(String(vi.mocked(fetch).mock.calls[0]![0]));
+    expect(url.searchParams.get("shelved")).toBe("true");
+    expect(url.searchParams.get("sort")).toBe("shelved");
+    expect(url.searchParams.get("order")).toBe("desc");
+    expect(qc.getQueryData(documentKeys.shelved("w1", documentFilterKey({ sort: "shelved", order: "desc" })))).toBeDefined();
+    expect(qc.getQueryData(documentKeys.shelved("w1"))).toBeUndefined();
+  });
+
   it("useDocumentList keys the sort so each order is its own entry (UNI-2038 S2)", async () => {
     vi.mocked(fetch).mockImplementation(() => Promise.resolve(json(listBody([summary("d1")]))));
     const { qc, wrapper } = setup();

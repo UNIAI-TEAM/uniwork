@@ -63,8 +63,8 @@ describe("documents-collections filters (UNI-2045 W10)", () => {
     const calls = [
       () => listRecentDocuments("w1", { ...WINDOW }),
       () => listSharedWithMe("w1", { ...WINDOW }),
-      () => listSharedByMe("w1", { ...WINDOW }),
-      () => listShelvedDocuments("w1", { ...WINDOW }),
+      () => listSharedByMe("w1", { sort: "shared", order: "desc", ...WINDOW }),
+      () => listShelvedDocuments("w1", { sort: "shelved", order: "desc", ...WINDOW }),
       () => listTrashedDocuments("w1", { ...WINDOW }),
     ];
     for (const [index, call] of calls.entries()) {
@@ -114,12 +114,31 @@ describe("documents-collections filters (UNI-2045 W10)", () => {
     expect(params(1).get("sort")).toBe("shared");
   });
 
+  it("Lưu trữ and Shared by me send their own order (W12: sort=shelved / sort=shared, SV-0 / SV-4)", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json(listBody()));
+    await listShelvedDocuments("w1", { sort: "shelved", order: "desc" });
+    expect(params(0).get("shelved")).toBe("true");
+    expect(params(0).get("sort")).toBe("shelved");
+    expect(params(0).get("order")).toBe("desc");
+    vi.mocked(fetch).mockResolvedValueOnce(json(listBody()));
+    await listShelvedDocuments("w1", { sort: "name", order: "asc" });
+    expect(params(1).get("sort")).toBe("name");
+    expect(params(1).get("order")).toBe("asc");
+    vi.mocked(fetch).mockResolvedValueOnce(json(listBody()));
+    await listSharedByMe("w1", { sort: "shared", order: "desc" });
+    expect(params(2).get("shared_by_me")).toBe("true");
+    expect(params(2).get("sort")).toBe("shared");
+    vi.mocked(fetch).mockResolvedValueOnce(json(listBody()));
+    await listShelvedDocuments("w1", {});
+    expect(params(3).has("sort")).toBe(false);
+  });
+
   it.each(malformedBodies)("a filtered list that answers malformed still throws rather than fake-empty %#", async (body) => {
     for (const call of [
       () => listRecentDocuments("w1", { activity: "edited", ...WINDOW }),
       () => listSharedWithMe("w1", { format: "txt", ...WINDOW }),
-      () => listSharedByMe("w1", { ...WINDOW }),
-      () => listShelvedDocuments("w1", { ...WINDOW }),
+      () => listSharedByMe("w1", { sort: "shared", order: "desc", ...WINDOW }),
+      () => listShelvedDocuments("w1", { sort: "shelved", order: "desc", ...WINDOW }),
       () => listTrashedDocuments("w1", { ...WINDOW }),
     ]) {
       vi.mocked(fetch).mockResolvedValueOnce(json(body));
