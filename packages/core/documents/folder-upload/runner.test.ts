@@ -610,3 +610,54 @@ describe("runFolderUpload review-fe-r1 fixes", () => {
     expect(seen(refused.transport)).toEqual([[], []]);
   });
 });
+
+describe("runFolderUpload retry classification by status (review r2, R2B-2)", () => {
+  const puts = (calls: FakeFolderUploadCall[]) => calls.filter((c) => c.method === "put");
+  const unavailable = { status: 503, code: "storage_unavailable" };
+
+  it("a 503 with a server code at the content PUT ends retryable, and retryFailed completes it", async () => {
+    const { transport, handle } = setup(files(1), { putFailures: { "f000.pdf": [unavailable, unavailable, unavailable] } });
+    const report = await settle(handle.done);
+    expect(report.failed).toEqual([{ path: "R/f000.pdf", filename: "f000.pdf", code: "storage_unavailable", retryable: true }]);
+    expect(report.canRetry).toBe(true);
+    const retried = await settle(handle.retryFailed());
+    expect(retried).toMatchObject({ done: 1, failed: [], canRetry: false });
+    expect(puts(transport.calls)).toHaveLength(4);
+  });
+
+  it("a 503 with a server code on complete ends retryable, and retryFailed completes without a PUT", async () => {
+    const { transport, handle } = setup(files(1));
+    for (let i = 0; i < 3; i++) transport.failNext("complete", folderUploadApiError(503, "storage_unavailable"));
+    const report = await settle(handle.done);
+    expect(report.failed).toEqual([{ path: "R/f000.pdf", filename: "f000.pdf", code: "storage_unavailable", retryable: true }]);
+    const before = transport.calls.length;
+    const retried = await settle(handle.retryFailed());
+    expect(transport.calls.slice(before).map((c) => c.method)).toEqual(["status", "complete"]);
+    expect(retried).toMatchObject({ done: 1, failed: [] });
+  });
+
+  it("a 429 at the content PUT waits Retry-After once, then succeeds", async () => {
+    const { transport, handle } = setup(files(1), {
+      putFailures: { "f000.pdf": [{ status: 429, code: "rate_limited", retryAfter: 7 }] },
+    });
+    await vi.advanceTimersByTimeAsync(6_900);
+    expect(puts(transport.calls)).toHaveLength(1);
+    const report = await settle(handle.done);
+    expect(puts(transport.calls)).toHaveLength(2);
+    expect(report).toMatchObject({ done: 1, failed: [] });
+  });
+
+  it("a second 429 at the content PUT ends retryable", async () => {
+    const limited = { status: 429, code: "rate_limited", retryAfter: 1 };
+    const { handle } = setup(files(1), { putFailures: { "f000.pdf": [limited, limited] } });
+    const report = await settle(handle.done);
+    expect(report.failed).toEqual([{ path: "R/f000.pdf", filename: "f000.pdf", code: "rate_limited", retryable: true }]);
+  });
+
+  it("a 429 that persists on complete ends retryable", async () => {
+    const { transport, handle } = setup(files(1));
+    for (let i = 0; i < 2; i++) transport.failNext("complete", folderUploadApiError(429, "rate_limited", {}, 1));
+    const report = await settle(handle.done);
+    expect(report.failed).toEqual([{ path: "R/f000.pdf", filename: "f000.pdf", code: "rate_limited", retryable: true }]);
+  });
+});

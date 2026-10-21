@@ -8,9 +8,11 @@ import {
   fileKey,
   isExpired,
   isRetryableCode,
+  isRetryableError,
   isTransient,
   newIdempotencyKey,
   planBody,
+  rateLimitWaitMs,
   RETRY_DELAYS_MS,
   sleep,
   withRetry,
@@ -225,8 +227,7 @@ export function runFolderUpload(opts: RunFolderUploadOptions): FolderUploadHandl
       const kind = batchEnd(err);
       if (kind) return end(kind);
       const code = failureCode(err);
-      const retryable = isRetryableCode(code) || (err instanceof ApiError && err.status === 429);
-      for (const f of left) fail(f, code, undefined, retryable);
+      for (const f of left) fail(f, code, undefined, isRetryableError(err));
     }
   }
 
@@ -272,6 +273,7 @@ export function runFolderUpload(opts: RunFolderUploadOptions): FolderUploadHandl
     const blob = opts.file(f.planned.index);
     let retries = 0;
     let refreshed = false;
+    let waited429 = false;
     for (;;) {
       if (stopped()) return;
       // The clock check only saves a PUT; after one refresh the PUT decides
@@ -305,9 +307,17 @@ export function runFolderUpload(opts: RunFolderUploadOptions): FolderUploadHandl
           f.target = null;
           continue;
         }
-        if (isTransient(err) && retries < RETRY_DELAYS_MS.length) {
-          const delay = RETRY_DELAYS_MS[retries] as number;
-          retries += 1;
+        const limited = err instanceof ApiError && err.status === 429 && !waited429;
+        if (limited || (isTransient(err) && retries < RETRY_DELAYS_MS.length)) {
+          // A 429 waits Retry-After once, as withRetry does for complete/status.
+          let delay: number;
+          if (limited) {
+            waited429 = true;
+            delay = rateLimitWaitMs(err);
+          } else {
+            delay = RETRY_DELAYS_MS[retries] as number;
+            retries += 1;
+          }
           try {
             await sleep(delay, controller.signal);
           } catch {
@@ -315,7 +325,7 @@ export function runFolderUpload(opts: RunFolderUploadOptions): FolderUploadHandl
           }
           continue;
         }
-        return fail(f, failureCode(err));
+        return fail(f, failureCode(err), undefined, isRetryableError(err));
       }
     }
   }

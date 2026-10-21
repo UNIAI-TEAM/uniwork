@@ -45,6 +45,8 @@ export type FakePutFailure =
 export interface FakePutRefusal {
   status: number;
   code: string;
+  /** Retry-After seconds the answer carries (a 429). */
+  retryAfter?: number;
   settle?: "done" | FolderUploadFileError;
 }
 
@@ -287,7 +289,7 @@ export function createFakeFolderUploadTransport(options: FakeFolderUploadOptions
             file.target = null;
             if (batch) recount(batch);
           }
-          throw folderUploadApiError(failure.status, failure.code);
+          throw folderUploadApiError(failure.status, failure.code, undefined, failure.retryAfter);
         }
         if (failure === "network" || failure === "partial-network") throw new TypeError("Failed to fetch");
         if (failure === "5xx") throw folderUploadApiError(503, "internal");
