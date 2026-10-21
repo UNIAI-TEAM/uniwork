@@ -74,6 +74,8 @@ export interface FakeFolderUploadOptions {
   sessionTargets?: boolean;
   /** The client clock runs this far ahead: every target reads as expired, storage still takes it. */
   clientClockAheadMs?: number;
+  /** Filename -> how many complete answers report it `upload_session_busy` (AMENDMENT 6) before it is checked. */
+  busyComplete?: Record<string, number>;
   /** Filenames whose first complete answer leaves out their result. */
   dropResults?: string[];
   /** Errors the next calls of a method throw, in order (e.g. a 429 then nothing). */
@@ -141,6 +143,7 @@ export function createFakeFolderUploadTransport(options: FakeFolderUploadOptions
   const partSize = options.partSize ?? 8 * 1024 * 1024;
   const dropOnce = new Set(options.dropResults ?? []);
   const fileErrors = new Map(Object.entries(options.fileErrors ?? {}));
+  const busy = new Map(Object.entries(options.busyComplete ?? {}));
   // The storage and server clock; the client's Date.now() is ahead of it.
   const serverNow = () => Date.now() - (options.clientClockAheadMs ?? 0);
   let batch: FolderUploadBatch | null = null;
@@ -247,8 +250,9 @@ export function createFakeFolderUploadTransport(options: FakeFolderUploadOptions
           : [{ path: "", id: "folder-root" }, ...(body.folders ?? []).map((path, i) => ({ path, id: `folder-${i + 1}` }))],
         files: body.files.map((f) => ({
           file_key: f.file_key,
-          path: f.path,
-          filename: f.filename,
+          // The server answers NFC paths and names (AMENDMENT 6).
+          path: f.path.normalize("NFC"),
+          filename: f.filename.normalize("NFC"),
           size_bytes: f.size_bytes,
           status: "pending",
           document_id: null,
@@ -332,6 +336,12 @@ export function createFakeFolderUploadTransport(options: FakeFolderUploadOptions
           return { file_key: item.file_key, status: "failed", document_id: null, error: { code: "not_found", message: "" } };
         }
         if (file.status === "pending") {
+          const busyLeft = busy.get(file.filename) ?? 0;
+          if (busyLeft > 0) {
+            busy.set(file.filename, busyLeft - 1);
+            const error = { code: "upload_session_busy", message: "" };
+            return { file_key: file.file_key, status: "failed", document_id: null, error, retryable: true };
+          }
           const injected = fileErrors.get(file.filename);
           if (!stored.has(file.file_key)) {
             const error = { code: "upload_missing", message: "" };

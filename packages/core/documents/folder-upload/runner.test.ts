@@ -661,3 +661,63 @@ describe("runFolderUpload retry classification by status (review r2, R2B-2)", ()
     expect(report.failed).toEqual([{ path: "R/f000.pdf", filename: "f000.pdf", code: "rate_limited", retryable: true }]);
   });
 });
+
+describe("runFolderUpload server AMENDMENT 6", () => {
+  const completes = (calls: FakeFolderUploadCall[]) => calls.filter((c) => c.method === "complete");
+  const puts = (calls: FakeFolderUploadCall[]) => calls.filter((c) => c.method === "put");
+
+  it("6a: upload_session_busy on complete is re-sent by the runner, with no second PUT", async () => {
+    const { transport, handle } = setup(files(2), { busyComplete: { "f000.pdf": 1 } });
+    const report = await settle(handle.done);
+    expect(completes(transport.calls).map((c) => (c.method === "complete" ? c.items.map((i) => i.file_key) : []))).toEqual([
+      ["f-0001", "f-0002"],
+      ["f-0001"],
+    ]);
+    expect(puts(transport.calls)).toHaveLength(2);
+    expect(report).toMatchObject({ done: 2, failed: [], canRetry: false });
+  });
+
+  it("6a: a busy file that stays busy is reported upload_session_busy and retryable, and retryFailed completes it", async () => {
+    const { transport, handle } = setup(files(1), { busyComplete: { "f000.pdf": 3 } });
+    const report = await settle(handle.done);
+    // First attempt plus at most two more (1 s and 3 s apart).
+    expect(completes(transport.calls)).toHaveLength(3);
+    expect(report.failed).toEqual([{ path: "R/f000.pdf", filename: "f000.pdf", code: "upload_session_busy", retryable: true }]);
+    expect(report.canRetry).toBe(true);
+    const before = transport.calls.length;
+    const retried = await settle(handle.retryFailed());
+    expect(transport.calls.slice(before).map((c) => c.method)).toEqual(["status", "complete"]);
+    expect(retried).toMatchObject({ done: 1, failed: [] });
+  });
+
+  it("6b: a plan refusal that names a file_key gains the file's path and filename", async () => {
+    const { handle } = setup(files(3), {
+      errors: { plan: [folderUploadApiError(422, "invalid_request", { file_key: "f-0002", reason: "name" })] },
+    });
+    const err = await settle(handle.done.catch((e: unknown) => e));
+    expect(err).toBeInstanceOf(FolderUploadRefusedError);
+    expect(err).toMatchObject({
+      code: "invalid_request",
+      fields: { file_key: "f-0002", reason: "name", path: "R/f001.pdf", filename: "f001.pdf" },
+    });
+  });
+
+  it("6b: an unknown file_key leaves the refusal fields as they are", async () => {
+    const fields = { file_key: "f-0099", reason: "name" };
+    const { handle } = setup(files(2), { errors: { plan: [folderUploadApiError(422, "invalid_request", fields)] } });
+    const err = await settle(handle.done.catch((e: unknown) => e));
+    expect((err as FolderUploadRefusedError).fields).toEqual(fields);
+  });
+
+  it("6c: an NFD filename matches the NFC path the server answers, by file_key", async () => {
+    const nfd = "Ba\u0301o ca\u0301o.pdf";
+    const nfc = "Báo cáo.pdf";
+    const { transport, handle } = setup([{ path: `R/${nfd}`, size: 1 }, { path: "R/b.pdf", size: 1 }], {
+      fileErrors: { [nfc]: { code: "unsupported_media", message: "" } },
+    });
+    const report = await settle(handle.done);
+    expect(transport.batch?.files[0]).toMatchObject({ path: "", filename: nfc });
+    expect(report.done).toBe(1);
+    expect(report.failed).toEqual([{ path: `R/${nfc}`, filename: nfc, code: "unsupported_media", retryable: false }]);
+  });
+});
