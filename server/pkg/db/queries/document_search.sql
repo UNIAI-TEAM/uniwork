@@ -1049,12 +1049,15 @@ LEFT JOIN document_versions cv
 -- no per-edit history, versions are snapshots) and their last live comment. The
 -- two aggregates read the caller's own rows once instead of probing every
 -- document (a probe per row cost seconds on a 10k-document workspace).
+-- UNI-2045 F3: a read the AI context made on the caller's behalf (via =
+-- 'ai_context') is not the caller opening the document, so it is left out.
 LEFT JOIN (
   SELECT a.document_id, max(a.occurred_at) AS seen_at
   FROM document_access_logs a
   WHERE a.organization_id = sqlc.arg(organization_id)
     AND a.workspace_id = sqlc.arg(workspace_id)
     AND a.actor_id = sqlc.arg(actor_id)::text
+    AND a.via IS DISTINCT FROM 'ai_context'
   GROUP BY a.document_id
 ) op ON op.document_id = d.id
 LEFT JOIN (
