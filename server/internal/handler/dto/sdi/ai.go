@@ -17,6 +17,18 @@ type AskUniSDI struct {
 	Effort         string           `json:"effort,omitempty" maxLength:"20" description:"low, medium hoặc high; rỗng hoặc giá trị lạ = medium. Chỉ có tác dụng khi agent bật" example:"medium"`
 }
 
+// AiFeedbackSDI is PUT /api/v1/ai/conversations/{conversationID}/messages/{messageID}/feedback.
+type AiFeedbackSDI struct {
+	Rating string `json:"rating" description:"up hoặc down" example:"down"`
+	Reason string `json:"reason,omitempty" description:"Rỗng, wrong_facts, missing_sources, not_helpful hoặc other" example:"wrong_facts"`
+	Note   string `json:"note,omitempty" maxLength:"500" description:"Ghi chú tự do, tối đa 500 ký tự" example:"Sai ngày hạn của task"`
+}
+
+// AiRenameConversationSDI is PATCH /api/v1/ai/conversations/{conversationID}.
+type AiRenameConversationSDI struct {
+	Title string `json:"title" minLength:"1" maxLength:"80" description:"Tiêu đề mới, 1–80 ký tự sau khi cắt khoảng trắng hai đầu" example:"Việc quá hạn tuần này"`
+}
+
 // AskModelsSDI is PUT /api/v1/orgs/{org}/ai/ask-models.
 type AskModelsSDI struct {
 	Models []string `json:"models" description:"Bắt buộc. Các model Hỏi UNI được chọn rõ trong tổ chức (haiku, sonnet, opus); [] = chỉ Tự động. Thiếu trường, null hoặc khóa lạ -> 400. Tự động (model mặc định của nền tảng) luôn dùng được, công tắc này chỉ giới hạn các lựa chọn rõ" example:"[\"haiku\",\"sonnet\"]"`

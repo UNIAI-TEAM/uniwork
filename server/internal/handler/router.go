@@ -518,6 +518,9 @@ func New(d Deps) http.Handler {
 		ListAiConversations:  h.listAiConversations,
 		ListAiMessages:       h.listAiMessages,
 		DeleteAiConversation: h.deleteAiConversation,
+		RenameAiConversation: h.renameAiConversation,
+		SetAiFeedback:        h.setAiFeedback,
+		ClearAiFeedback:      h.clearAiFeedback,
 		WorkspaceAiUsage:     h.workspaceAiUsage,
 		OrganizationAiUsage:  h.organizationAiUsage,
 

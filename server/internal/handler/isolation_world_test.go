@@ -863,6 +863,8 @@ func (w *isoWorld) buildOrganization(t *testing.T, tn *isoTenant) {
 	}
 	out = w.call(t, "POST", "/api/v1/workspaces/"+tn.wsID+"/ai/ask", tn.token, map[string]any{"question": m + " question"})
 	tn.ids["conversation"] = isoString(t, out, "conversation_id")
+	tn.ids["aiAnswer"] = out["message"].(map[string]any)["id"].(string)
+	w.call(t, "PUT", "/api/v1/ai/conversations/"+tn.ids["conversation"]+"/messages/"+tn.ids["aiAnswer"]+"/feedback", tn.token, map[string]any{"rating": "up"}, http.StatusNoContent)
 }
 
 // buildSeeded writes the rows only a provider, a worker or a mailbox would

@@ -663,6 +663,9 @@ func (s *AskUNIService) DeleteConversation(ctx context.Context, userID, conversa
 	if err := q.AiDeleteMessages(ctx, conversationID); err != nil {
 		return err
 	}
+	if err := q.AiDeleteConversationFeedback(ctx, conversationID); err != nil {
+		return err
+	}
 	if err := q.AiDeleteConversation(ctx, conversationID); err != nil {
 		return err
 	}

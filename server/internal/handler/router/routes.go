@@ -292,6 +292,9 @@ type Routes struct {
 	ListAiConversations  http.HandlerFunc
 	ListAiMessages       http.HandlerFunc
 	DeleteAiConversation http.HandlerFunc
+	RenameAiConversation http.HandlerFunc
+	SetAiFeedback        http.HandlerFunc
+	ClearAiFeedback      http.HandlerFunc
 	WorkspaceAiUsage     http.HandlerFunc
 	OrganizationAiUsage  http.HandlerFunc
 

@@ -164,9 +164,7 @@ func (h *handlers) listAiConversations(w http.ResponseWriter, r *http.Request) {
 	}
 	out := sdo.AiConversationListSDO{Conversations: make([]sdo.AiConversationDTO, 0, len(rows))}
 	for _, c := range rows {
-		out.Conversations = append(out.Conversations, sdo.AiConversationDTO{
-			ID: c.ID, Title: c.Title, CreatedAt: c.CreatedAt.Time.UTC().Format(time.RFC3339), UpdatedAt: c.UpdatedAt.Time.UTC().Format(time.RFC3339),
-		})
+		out.Conversations = append(out.Conversations, toAiConversationDTO(c))
 	}
 	respondJSON(w, 200, out)
 }
@@ -190,6 +188,47 @@ func (h *handlers) deleteAiConversation(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	respondJSON(w, 200, sdo.StatusSDO{Status: "ok"})
+}
+
+func toAiConversationDTO(c db.AiConversation) sdo.AiConversationDTO {
+	return sdo.AiConversationDTO{
+		ID: c.ID, Title: c.Title, CreatedAt: c.CreatedAt.Time.UTC().Format(time.RFC3339), UpdatedAt: c.UpdatedAt.Time.UTC().Format(time.RFC3339),
+	}
+}
+
+func (h *handlers) renameAiConversation(w http.ResponseWriter, r *http.Request) {
+	var in sdi.AiRenameConversationSDI
+	if !decode(w, r, &in, maxJSONBody) {
+		return
+	}
+	c, err := h.AskUNI.RenameConversation(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "conversationID"), in.Title)
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	respondJSON(w, 200, toAiConversationDTO(c))
+}
+
+func (h *handlers) setAiFeedback(w http.ResponseWriter, r *http.Request) {
+	var in sdi.AiFeedbackSDI
+	if !decode(w, r, &in, maxJSONBody) {
+		return
+	}
+	err := h.AskUNI.SetFeedback(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "conversationID"), chi.URLParam(r, "messageID"),
+		service.AskFeedbackInput{Rating: in.Rating, Reason: in.Reason, Note: in.Note})
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *handlers) clearAiFeedback(w http.ResponseWriter, r *http.Request) {
+	if err := h.AskUNI.ClearFeedback(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "conversationID"), chi.URLParam(r, "messageID")); err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func usageWindow(r *http.Request) (time.Time, time.Time) {

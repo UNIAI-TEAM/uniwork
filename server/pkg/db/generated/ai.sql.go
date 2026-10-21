@@ -11,6 +11,21 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const aiClearMessageFeedback = `-- name: AiClearMessageFeedback :exec
+DELETE FROM ai_message_feedback WHERE organization_id = $1 AND message_id = $2 AND created_by = $3
+`
+
+type AiClearMessageFeedbackParams struct {
+	OrganizationID string `json:"organization_id"`
+	MessageID      string `json:"message_id"`
+	CreatedBy      string `json:"created_by"`
+}
+
+func (q *Queries) AiClearMessageFeedback(ctx context.Context, arg AiClearMessageFeedbackParams) error {
+	_, err := q.db.Exec(ctx, aiClearMessageFeedback, arg.OrganizationID, arg.MessageID, arg.CreatedBy)
+	return err
+}
+
 const aiCreateConversation = `-- name: AiCreateConversation :one
 INSERT INTO ai_conversations (id, organization_id, workspace_id, user_id, title)
 VALUES ($1, $2, $3, $4, $5)
@@ -53,6 +68,16 @@ DELETE FROM ai_conversations WHERE id = $1
 // tenant: by-id
 func (q *Queries) AiDeleteConversation(ctx context.Context, id string) error {
 	_, err := q.db.Exec(ctx, aiDeleteConversation, id)
+	return err
+}
+
+const aiDeleteConversationFeedback = `-- name: AiDeleteConversationFeedback :exec
+DELETE FROM ai_message_feedback WHERE conversation_id = $1
+`
+
+// tenant: parent conversation_id
+func (q *Queries) AiDeleteConversationFeedback(ctx context.Context, conversationID string) error {
+	_, err := q.db.Exec(ctx, aiDeleteConversationFeedback, conversationID)
 	return err
 }
 
@@ -151,6 +176,33 @@ func (q *Queries) AiGetConversation(ctx context.Context, id string) (AiConversat
 		&i.Title,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const aiGetMessageInConversation = `-- name: AiGetMessageInConversation :one
+SELECT id, organization_id, conversation_id, role, content, citations, usage_event_id, created_at, notice FROM ai_messages WHERE id = $1 AND conversation_id = $2
+`
+
+type AiGetMessageInConversationParams struct {
+	ID             string `json:"id"`
+	ConversationID string `json:"conversation_id"`
+}
+
+// tenant: parent conversation_id
+func (q *Queries) AiGetMessageInConversation(ctx context.Context, arg AiGetMessageInConversationParams) (AiMessage, error) {
+	row := q.db.QueryRow(ctx, aiGetMessageInConversation, arg.ID, arg.ConversationID)
+	var i AiMessage
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.ConversationID,
+		&i.Role,
+		&i.Content,
+		&i.Citations,
+		&i.UsageEventID,
+		&i.CreatedAt,
+		&i.Notice,
 	)
 	return i, err
 }
@@ -493,6 +545,32 @@ func (q *Queries) AiListMessages(ctx context.Context, conversationID string) ([]
 	return items, nil
 }
 
+const aiRenameConversation = `-- name: AiRenameConversation :one
+UPDATE ai_conversations SET title = $2, updated_at = now() WHERE id = $1
+RETURNING id, organization_id, workspace_id, user_id, title, created_at, updated_at
+`
+
+type AiRenameConversationParams struct {
+	ID    string `json:"id"`
+	Title string `json:"title"`
+}
+
+// tenant: by-id
+func (q *Queries) AiRenameConversation(ctx context.Context, arg AiRenameConversationParams) (AiConversation, error) {
+	row := q.db.QueryRow(ctx, aiRenameConversation, arg.ID, arg.Title)
+	var i AiConversation
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.WorkspaceID,
+		&i.UserID,
+		&i.Title,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const aiSumRunUsage = `-- name: AiSumRunUsage :one
 SELECT COUNT(*)::bigint AS calls,
   COALESCE(SUM(input_tokens), 0)::bigint AS input_tokens,
@@ -546,6 +624,42 @@ type AiTouchConversationParams struct {
 // tenant: by-id
 func (q *Queries) AiTouchConversation(ctx context.Context, arg AiTouchConversationParams) error {
 	_, err := q.db.Exec(ctx, aiTouchConversation, arg.ID, arg.Title)
+	return err
+}
+
+const aiUpsertMessageFeedback = `-- name: AiUpsertMessageFeedback :exec
+INSERT INTO ai_message_feedback (id, organization_id, workspace_id, conversation_id, message_id, rating, reason, note, created_by)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+ON CONFLICT (message_id, created_by)
+DO UPDATE SET rating = EXCLUDED.rating, reason = EXCLUDED.reason, note = EXCLUDED.note, updated_at = now()
+WHERE ai_message_feedback.organization_id = EXCLUDED.organization_id
+`
+
+type AiUpsertMessageFeedbackParams struct {
+	ID             string `json:"id"`
+	OrganizationID string `json:"organization_id"`
+	WorkspaceID    string `json:"workspace_id"`
+	ConversationID string `json:"conversation_id"`
+	MessageID      string `json:"message_id"`
+	Rating         string `json:"rating"`
+	Reason         string `json:"reason"`
+	Note           string `json:"note"`
+	CreatedBy      string `json:"created_by"`
+}
+
+// tenant: parent conversation_id
+func (q *Queries) AiUpsertMessageFeedback(ctx context.Context, arg AiUpsertMessageFeedbackParams) error {
+	_, err := q.db.Exec(ctx, aiUpsertMessageFeedback,
+		arg.ID,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.ConversationID,
+		arg.MessageID,
+		arg.Rating,
+		arg.Reason,
+		arg.Note,
+		arg.CreatedBy,
+	)
 	return err
 }
 
