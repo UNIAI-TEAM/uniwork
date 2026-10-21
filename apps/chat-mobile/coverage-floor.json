@@ -163,10 +163,10 @@
       "lines": 100
     },
     "components/chat/message-list.tsx": {
-      "statements": 67,
-      "branches": 47,
-      "functions": 61,
-      "lines": 73
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
     },
     "components/chat/message-row.tsx": {
       "statements": 98,
@@ -301,10 +301,10 @@
       "lines": 100
     },
     "components/chat/use-chat-media.ts": {
-      "statements": 0,
-      "branches": 0,
-      "functions": 0,
-      "lines": 0
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
     },
     "components/chat/use-chat-workspace.ts": {
       "statements": 100,
@@ -326,7 +326,7 @@
     },
     "components/chat/use-room-context.ts": {
       "statements": 100,
-      "branches": 82,
+      "branches": 88,
       "functions": 100,
       "lines": 100
     },
@@ -360,6 +360,12 @@
       "functions": 100,
       "lines": 100
     },
+    "components/contacts/contact-list.tsx": {
+      "statements": 100,
+      "branches": 87,
+      "functions": 100,
+      "lines": 100
+    },
     "components/contacts/letter-index.tsx": {
       "statements": 100,
       "branches": 100,
@@ -380,7 +386,7 @@
     },
     "components/people/person-avatar.tsx": {
       "statements": 100,
-      "branches": 72,
+      "branches": 95,
       "functions": 100,
       "lines": 100
     },
@@ -645,6 +651,12 @@
     "data/realtime/use-ws-subscriptions.ts": {
       "statements": 87,
       "branches": 50,
+      "functions": 100,
+      "lines": 100
+    },
+    "data/use-account-sync.ts": {
+      "statements": 100,
+      "branches": 100,
       "functions": 100,
       "lines": 100
     }

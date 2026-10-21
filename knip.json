@@ -24,7 +24,8 @@
         "rustc",
         "awk",
         "go",
-        "dbus-run-session"
+        "dbus-run-session",
+        "adb"
       ],
       "ignoreDependencies": [
         "@playwright/test",
