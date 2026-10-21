@@ -120,7 +120,25 @@ pnpm --filter @uniwork/chat-mobile dev        # Metro; UNICHAT_ENV=dev mặc đ�
 pnpm --filter @uniwork/chat-mobile ios        # scripts/native-run.sh ios (prebuild rồi run)
 pnpm --filter @uniwork/chat-mobile android
 pnpm --filter @uniwork/chat-mobile test | typecheck | lint
+pnpm --filter @uniwork/chat-mobile test:unit         # vitest, node: lib/ data/ app.config
+pnpm --filter @uniwork/chat-mobile test:components   # jest-expo + RNTL: components/**/*.test.tsx
 ```
+
+Hai lớp test, không chung file (ADR 0037 — cả hai chặn ở mọi `GATE_LEVEL`):
+
+- `vitest.config.ts` — `*.test.ts` trong `lib/`, `data/`, môi trường node, sàn
+  100/100/100/100 cứng (không qua `scripts/coverage-gate.ts`); không loại file để
+  qua sàn, nhánh không thể xảy ra thì viết lại.
+- `jest.config.js` — `components/**/*.test.tsx`, preset `jest-expo` với
+  `@testing-library/react-native` 14 (mọi `render`/`fireEvent` đều `await`), truy
+  vấn theo role và label như người dùng VoiceOver/TalkBack. Render qua
+  `test/render.tsx` (i18n tiếng Việt, `QueryClient` mới), `viText(key)` là chuỗi
+  người nghe. `test/jest-setup.ts` mock `expo-router`, `expo-audio`, safe area,
+  Reanimated và làm đỏ test nào log `console.error` (update ngoài `act`…).
+  `test/jest-resolver.js` thay resolver của worklets (bản gốc khớp mọi đường dẫn
+  pnpm có chữ `react-native-worklets`, làm mất mock native của Expo). Sàn coverage
+  đo trên file trong `collectCoverageFrom`; thêm file thì thêm test và nâng sàn.
+  Không đặt test dưới `app/` (expo-router coi là route).
 
 Máy thật không thấy `localhost` của máy dev: đặt `UNICHAT_API_URL=http://<LAN IP>:8080`
 và `UNICHAT_APP_URL=http://<LAN IP>:3000` khi chạy, và chạy server + web với

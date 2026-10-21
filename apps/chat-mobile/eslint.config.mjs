@@ -14,9 +14,9 @@ const CORE_ALLOWLIST = JSON.parse(readFileSync(fileURLToPath(new globalThis.URL(
 export default [
   ...reactConfig,
   { ignores: [".expo/", "dist/", "coverage/", "android/", "ios/"] },
-  // Expo loads these as CommonJS at build time.
+  // Expo and Jest load these as CommonJS (the jest resolver and asset stub too).
   {
-    files: ["*.config.js"],
+    files: ["*.config.js", "test/*.js"],
     languageOptions: { sourceType: "commonjs", globals: { require: "readonly", module: "writable", __dirname: "readonly" } },
     rules: { "@typescript-eslint/no-require-imports": "off" },
   },
@@ -60,6 +60,8 @@ export default [
           "metro.config.js",
           "tailwind.config.js",
           "vitest.config.ts",
+          "jest.config.js",
+          "test/**",
           "eslint.config.mjs",
         ],
         peerDependencies: true,

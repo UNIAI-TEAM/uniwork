@@ -85,6 +85,8 @@ export function ActionSheet({ visible, onClose, title, label, above, actions, la
               <Pressable
                 key={action.key}
                 accessibilityRole="button"
+                // The label, not the children: the icon's glyph is a character a screen reader would spell.
+                accessibilityLabel={action.label}
                 className="w-1/4 items-center gap-2 rounded-2xl py-2 active:bg-secondary"
                 onPress={() => choose(action.onPress)}
               >
@@ -101,6 +103,8 @@ export function ActionSheet({ visible, onClose, title, label, above, actions, la
               <Pressable
                 key={action.key}
                 accessibilityRole="button"
+                // The label, not the children: the icon's glyph is a character a screen reader would spell.
+                accessibilityLabel={action.label}
                 className={cn("min-h-[52px] flex-row items-center gap-3.5 px-5 active:bg-secondary", index > 0 && "border-t border-border")}
                 onPress={() => choose(action.onPress)}
               >

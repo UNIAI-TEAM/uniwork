@@ -8,6 +8,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { memo, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { Pressable, View } from "react-native";
 import Animated, { FadeIn, ZoomIn } from "react-native-reanimated";
 import { Text } from "@/components/ui/text";
@@ -61,12 +62,17 @@ export interface MessageRowProps {
   onToggleReaction: (message: TimelineMessage, emoji: string) => void;
 }
 
-/** A local message's state where a sent one has its time: sending, waiting for the network, or failed. */
+/** A local message's state in words: sending, waiting for the network, or failed. */
+function pendingStatusText(status: NonNullable<TimelineMessage["pending"]>["status"], t: TFunction): string {
+  return status === "failed" ? t("chat.send_failed") : status === "queued" ? t("chat.mobile.send_queued") : t("chat.mobile.send_sending");
+}
+
+/** A local message's state where a sent one has its time. */
 function PendingMeta({ message, scheme }: { message: TimelineMessage; scheme: "light" | "dark" }) {
   const { t } = useTranslation();
   const theme = THEME[scheme];
   const failed = message.pending!.status === "failed";
-  const status = failed ? t("chat.send_failed") : message.pending!.status === "queued" ? t("chat.mobile.send_queued") : t("chat.mobile.send_sending");
+  const status = pendingStatusText(message.pending!.status, t);
   return (
     <>
       <Ionicons name={failed ? "alert-circle" : "time-outline"} size={13} color={failed ? theme.chatBubbleOwnForeground : theme.chatBubbleOwnMeta} />
@@ -103,7 +109,14 @@ export const MessageRow = memo(function MessageRow(props: MessageRowProps) {
 
   const interactive = album ? true : record ? INTERACTIVE_VIEWS.has(messageView(record)) : false;
   const footTs = album?.at(-1)?.ts ?? message.ts;
-  const preview = record ? messagePreviewText(record, t) : message.body;
+  // A pending message has no record yet: its own text, with mentions as names, or its file's name.
+  const preview = record
+    ? messagePreviewText(record, t)
+    : message.pending!.file
+      ? message.pending!.file.name
+      : deserializeMessageBodyToComposerDraft(message.pending!.body);
+  // The bubble is one accessible element, so what its foot shows must be in its label too.
+  const state = message.pending ? pendingStatusText(message.pending.status, t) : record?.edited_at ? t("chat.edited_label") : null;
   const longPress = () => props.onLongPress(message);
   const reactions = Object.entries(record?.reactions ?? {}).filter(([, count]) => count > 0);
   const mine = new Set(record?.my_reactions ?? []);
@@ -119,7 +132,7 @@ export const MessageRow = memo(function MessageRow(props: MessageRowProps) {
       <Pressable
         // A card with its own button, or a quote that jumps, stays reachable on its own.
         accessible={!interactive && !quote}
-        accessibilityLabel={`${t("chat.message_list.label", { sender: senderName, time })}. ${preview}`}
+        accessibilityLabel={[`${t("chat.message_list.label", { sender: senderName, time })}. ${preview}`, state].filter(Boolean).join(". ")}
         accessibilityActions={[{ name: "longpress", label: t("chat.message_actions_aria") }]}
         onAccessibilityAction={longPress}
         onLongPress={longPress}
@@ -154,9 +167,7 @@ export const MessageRow = memo(function MessageRow(props: MessageRowProps) {
         ) : record ? (
           <MessageContent record={record} own={own} ctx={ctx} onLongPress={longPress} />
         ) : (
-          <Text className="text-base text-chat-bubble-own-foreground">
-            {message.pending!.file ? message.pending!.file.name : deserializeMessageBodyToComposerDraft(message.pending!.body)}
-          </Text>
+          <Text className="text-base text-chat-bubble-own-foreground">{preview}</Text>
         )}
         <View className={cn("flex-row items-center gap-1 self-end", album && "px-2 pb-1")}>
           {record ? (
@@ -202,6 +213,8 @@ export const MessageRow = memo(function MessageRow(props: MessageRowProps) {
       {showThread && record && record.reply_count > 0 ? (
         <Pressable
           accessibilityRole="button"
+          // The label, not the children: the icon's glyph is a character a screen reader would spell.
+          accessibilityLabel={t(record.thread_unread ? "chat.thread_replies_unread" : "chat.thread_replies", { count: record.reply_count })}
           // 32 pt pill, 44 pt target.
           hitSlop={6}
           onPress={() => props.onPressThread(message)}
