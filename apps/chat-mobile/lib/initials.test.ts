@@ -22,6 +22,9 @@ describe("initials", () => {
     expect(roomInitialsOf("Đội Nội dung")).toBe("ND");
     expect(roomInitialsOf("Truyền thông")).toBe("TT");
     expect(roomInitialsOf("UNICOM")).toBe("U");
+    // One code point per word, so an emoji is never cut in half.
+    expect(roomInitialsOf("🚀 Ra mắt")).toBe("🚀R");
+    expect(initialsOf("Lan 😀")).toBe("L😀");
     expect(initialOf("")).toBe("?");
     // A name still loading must not break the face.
     expect(roomInitialsOf(undefined)).toBe("?");

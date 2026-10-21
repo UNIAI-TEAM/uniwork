@@ -13,7 +13,8 @@ export function initialsOf(name: string | null | undefined): string {
   if (words.length < 2) return initialOf(name);
   return words
     .slice(-2)
-    .map((word) => Array.from(word)[0] ?? "")
+    // slice, not [0]: one code point, so an astral first letter stays whole.
+    .map((word) => Array.from(word).slice(0, 1).join(""))
     .join("")
     .toUpperCase();
 }
@@ -31,7 +32,7 @@ export function roomInitialsOf(name: string | null | undefined): string {
   if (rest.length < 2) return initialOf(rest.join(" "));
   return rest
     .slice(0, 2)
-    .map((word) => Array.from(word)[0] ?? "")
+    .map((word) => Array.from(word).slice(0, 1).join(""))
     .join("")
     .toUpperCase();
 }

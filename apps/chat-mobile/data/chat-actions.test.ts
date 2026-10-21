@@ -19,6 +19,7 @@ import {
   sendReminder,
   sendVoiceMessage,
   setRoomMuted,
+  togglePin,
   toggleReaction,
   votePoll,
 } from "./chat-actions";
@@ -103,6 +104,15 @@ describe("chat actions", () => {
       body: "sửa",
       edited_at: "2026-10-17T10:05:00Z",
     });
+  });
+
+  it("puts a pin's answer in place", async () => {
+    const qc = new QueryClient();
+    withTimeline(qc, [msg("m1")]);
+    const pin = vi.spyOn(chatApi, "togglePin").mockResolvedValue(msg("m1", { pinned: true }));
+    await togglePin(qc, "w1", "r1", "m1");
+    expect(pin).toHaveBeenCalledWith("w1", "r1", "m1");
+    expect(flattenRoomTimeline(qc.getQueryData<RoomTimeline>(timelineKey)!)[0]?.pinned).toBe(true);
   });
 
   it("deletes a message, and reports a delete the server did not confirm", async () => {

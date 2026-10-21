@@ -171,8 +171,12 @@ export function buildRoomList(input: {
     const { prefix, body } = isGroup
       ? splitChatSidebarPreviewPrefix(previewText, formatChatSidebarPreviewText(preview, { ...previewOptions, isGroup: false }))
       : { prefix: null, body: previewText };
-    const ownLast = preview ? preview.senderId.trim().toUpperCase() === currentUserId.trim().toUpperCase() : false;
-    const seen = entry.kind === "dm" && ownLast && preview ? isMessageSeenByPeer(Date.parse(preview.createdAt), room?.peer_last_read_at) : false;
+    // A tick only on a DM whose last message is mine: the peer's read pointer says whether it was seen.
+    const seen =
+      entry.kind === "dm" &&
+      preview != null &&
+      preview.senderId.trim().toUpperCase() === currentUserId.trim().toUpperCase() &&
+      isMessageSeenByPeer(Date.parse(preview.createdAt), room?.peer_last_read_at);
     let title: string;
     let mark: RoomMark;
     switch (entry.kind) {

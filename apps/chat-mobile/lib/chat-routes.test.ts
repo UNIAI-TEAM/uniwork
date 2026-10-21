@@ -11,5 +11,7 @@ describe("chatRoutes", () => {
     expect(chatRoutes.info(ws, "r1")).toBe("/acme/hq/room/r1/info");
     expect(chatRoutes.newChat(ws)).toBe("/acme/hq/new-chat");
     expect(chatRoutes.channels({ orgSlug: "a b", wsSlug: "c" })).toBe("/a%20b/c/channels");
+    expect(chatRoutes.newGroup(ws)).toBe("/acme/hq/new-group");
+    expect(chatRoutes.newGroup(ws, "g/1")).toBe("/acme/hq/new-group?room=g%2F1");
   });
 });

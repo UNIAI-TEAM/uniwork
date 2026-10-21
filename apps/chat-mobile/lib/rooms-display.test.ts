@@ -164,6 +164,7 @@ describe("chat-sidebar-preview", () => {
     expect(isMissedCallPreview(call, "CALLER")).toBe(false);
     expect(formatChatSidebarPreviewText({ ...call, callOutcome: "completed" }, options)).toBe("Cuộc gọi thoại");
     expect(formatChatSidebarPreviewText({ ...base, body: "", kind: "voice", durationMs: 41200 }, options)).toBe("Tin nhắn thoại · 0:42");
+    expect(formatChatSidebarPreviewText({ ...base, body: "", kind: "voice", durationMs: 3_725_000 }, options)).toBe("Tin nhắn thoại · 1:02:05");
     expect(formatChatSidebarPreviewText({ ...base, body: "", kind: "voice" }, options)).toBe("Tin nhắn thoại");
     expect(formatChatSidebarPreviewText({ ...base, body: "IMG_0042.JPG", kind: "file" }, options)).toBe("Ảnh");
     expect(formatChatSidebarPreviewText({ ...base, body: "bao-gia.pdf", kind: "file" }, options)).toBe("bao-gia.pdf");
@@ -180,6 +181,7 @@ describe("chat-sidebar-preview", () => {
     expect(splitChatSidebarPreviewPrefix(null, null)).toEqual({ prefix: null, body: null });
     expect(givenNameOf("Phòng HC")).toBe("Phòng HC");
     expect(givenNameOf("Hà")).toBe("Hà");
+    expect(givenNameOf("   ")).toBe("");
   });
 
   it("formats group preview with sender prefix", () => {

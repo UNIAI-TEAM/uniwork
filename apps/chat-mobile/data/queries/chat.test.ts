@@ -10,6 +10,9 @@ import {
   discoverableChannelsOptions,
   expressionsOptions,
   followUpsOptions,
+  myChannelsOptions,
+  sharedSummaryOptions,
+  unreadSummaryOptions,
   roomLinksOptions,
   taskOptions,
   nicknamesOptions,
@@ -97,6 +100,22 @@ describe("chat query options", () => {
     expect(roomSearchOptions("w1", "r1", " a ").enabled).toBe(false);
     expect(roomSearchOptions("w1", "r1", "kế").queryKey).toEqual(chatKeys.roomSearch("w1", "r1", "kế"));
     expect(chatApi.listMessagesAround).toHaveBeenCalledWith("w1", "r1", "m1");
+  });
+
+  it("reads the unread summary, the channels I am in and a room's shared files", async () => {
+    const qc = new QueryClient();
+    const unread = vi.spyOn(chatApi, "unreadSummary").mockResolvedValue({ direct: { unread: 0, mentions: 0 }, workspaces: [] });
+    const channels = vi.spyOn(chatApi, "listChannels").mockResolvedValue([]);
+    const shared = vi.spyOn(chatApi, "sharedSummary").mockResolvedValue({ counts: { photo: 0, gif: 0, video: 0, file: 0, link: 0, voice: 0 }, recent_photos: [] });
+    await qc.fetchQuery(unreadSummaryOptions());
+    await qc.fetchQuery(myChannelsOptions("w1"));
+    await qc.fetchQuery(sharedSummaryOptions("w1", "r1"));
+    expect(unread).toHaveBeenCalledWith(expect.any(AbortSignal));
+    expect(channels).toHaveBeenCalledWith("w1", "mine");
+    expect(shared).toHaveBeenCalledWith("w1", "r1", expect.any(AbortSignal));
+    expect(unreadSummaryOptions().queryKey).toEqual(chatKeys.unreadSummary());
+    expect(myChannelsOptions("w1").queryKey).toEqual(["chat", "w1", "channels", "mine"]);
+    expect(sharedSummaryOptions("w1", "r1").queryKey).toEqual(["chat", "w1", "shared-summary", "r1"]);
   });
 
   it("asks the rich-kind endpoints the web asks (M3)", async () => {

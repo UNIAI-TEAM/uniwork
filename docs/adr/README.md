@@ -48,6 +48,7 @@ số thứ tự không trùng và mỗi file có dòng Trạng thái.
 | [0034](0034-desktop-dung-khoa-luu-tren-uniwork-qua-proxy-byok.md) | Desktop đã đăng nhập dùng khóa cá nhân đã lưu trên UniWork qua proxy BYOK của 0029: khóa không bao giờ rời server, dùng lại route proxy và cổng của web, khóa trên máy thắng theo từng nhà cung cấp, dòng sử dụng ghi `office.byok_desktop`; khóa dùng chung do quản trị tổ chức đặt là hướng mở rộng; bổ sung cho 0028/0029 |
 | [0035](0035-xem-truoc-lien-ket-server-tai-trang-va-anh.md) | Xem trước liên kết trong chat: server tải trang và ảnh lúc tin được gửi (lane chậm, qua bộ tải chặn SSRF `internal/linkpreview`: http/https cổng 80/443, mọi IP phải công khai, quay số IP đã kiểm, kiểm lại mỗi redirect, 5 s, HTML 1 MiB, ảnh 2 MiB), ảnh lưu trong kho UniWork, dùng chung một lần mỗi URL mỗi tổ chức; máy người xem không gọi trang ngoài |
 | [0036](0036-thu-muc-khong-bao-gio-duoc-chia-se.md) | Thư mục không bao giờ được chia sẻ (không visibility workspace, không share, không link); chỉ tài liệu được chia sẻ; con của thư mục bắt đầu riêng tư; người nhận không thấy thư mục của chủ (`parent_id` bị che, gốc danh sách/cây); dọn dữ liệu cũ bằng `uniwork-admin folders-unshare` |
+| [0037](0037-cong-chat-luong-mobile-chan-o-moi-muc.md) | Cổng chất lượng của `apps/chat-mobile` (sàn coverage vitest 100%, sàn jest-expo, lint) chặn ở mọi `GATE_LEVEL`; không loại file để qua sàn; bổ sung cho 0014 |
 
 ## Bản nháp
 

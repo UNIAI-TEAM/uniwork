@@ -93,6 +93,16 @@ describe("buildRoomList", () => {
     expect(roomless).toEqual([expect.objectContaining({ key: "workspace", roomId: null, room: null, unread: 0, mentionUnread: 0, pinned: false })]);
   });
 
+  it("ticks a DM whose last message is mine once the peer has read past it, never a group or their message", () => {
+    const dm = (readAt: string | undefined, sender = "U1") =>
+      room({ id: "dm1", kind: "dm", name: "Bình", peer_user_id: "u2", last_message_body: "ok", last_message_sender_id: sender, last_message_at: "2026-10-17T10:00:00Z", peer_last_read_at: readAt });
+    const seenOf = (rows: ReturnType<typeof buildRoomList>, key: string) => rows.find((row) => row.key === key)?.seen;
+    expect(seenOf(buildRoomList({ ...base, rooms: [dm("2026-10-17T10:00:05Z")] }), "dm:u2")).toBe(true);
+    expect(seenOf(buildRoomList({ ...base, rooms: [dm("2026-10-17T09:59:00Z")] }), "dm:u2")).toBe(false);
+    expect(seenOf(buildRoomList({ ...base, rooms: [dm("2026-10-17T10:00:05Z", "u2")] }), "dm:u2")).toBe(false);
+    expect(seenOf(buildRoomList(base), "group:g1")).toBe(false);
+  });
+
   it("keeps a group's own empty preview empty", () => {
     const rows = buildRoomList({ ...base, rooms: [room({ id: "g2", kind: "group", name: "Mới" })] });
     expect(rows.find((row) => row.key === "group:g2")?.subtitle).toBeNull();

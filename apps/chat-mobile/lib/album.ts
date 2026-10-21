@@ -16,7 +16,7 @@ export function isAlbumPhoto(message: TimelineMessage): boolean {
   if (!record || message.pending || record.kind !== "file" || !file) return false;
   const contentType = resolveChatFileContentType(file);
   if (contentType === "image/gif" || !isChatImageContentType(contentType, file.filename)) return false;
-  const reacted = Object.values(record.reactions ?? {}).some((count) => count > 0);
+  const reacted = Object.values(record.reactions).some((count) => count > 0);
   return !message.replyToEventId && !(record.reply_count > 0) && !record.forwarded_from && !reacted;
 }
 

@@ -22,6 +22,7 @@ describe("workspace-unread", () => {
     expect(unreadInOtherWorkspaces(undefined, "a")).toBe(0);
     expect(unreadForTabBadge(summary, "a")).toBe(8);
     expect(unreadForTabBadge(summary, "c")).toBe(2);
+    expect(unreadForTabBadge(undefined, "a")).toBe(0);
   });
 
   it("picks the row's meta line", () => {

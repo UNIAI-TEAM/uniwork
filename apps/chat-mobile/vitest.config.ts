@@ -1,6 +1,5 @@
 import path from "node:path";
 import { defineConfig } from "vitest/config";
-import { coverageThresholds } from "../../scripts/coverage-gate";
 import { vitestPoolOptions } from "../../scripts/vitest-pool";
 
 // Node environment only, for pure helpers in lib/, headless data-layer logic in
@@ -19,6 +18,8 @@ export default defineConfig({
       // need the native runtime; realtime-provider imports react-native
       // (AppState/NetInfo/Platform), use-ws-subscriptions imports it, and
       // query-client wires AppState / NetInfo into TanStack at module load.
+      // Never exclude a file to pass the floor (ADR 0037); component code is
+      // covered by the jest-expo layer (jest.config.js), not here.
       exclude: [
         "**/*.test.ts",
         "lib/theme.ts",
@@ -33,7 +34,8 @@ export default defineConfig({
         "data/realtime/use-call-realtime.ts",
       ],
       reporter: ["text-summary"],
-      thresholds: coverageThresholds({ statements: 100, branches: 100, functions: 100, lines: 100 }),
+      // Blocks at every GATE_LEVEL (ADR 0037): not routed through scripts/coverage-gate.ts.
+      thresholds: { statements: 100, branches: 100, functions: 100, lines: 100 },
     },
   },
 });
