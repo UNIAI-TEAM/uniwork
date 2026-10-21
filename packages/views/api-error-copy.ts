@@ -1,4 +1,4 @@
-import { apiErrorMessage, errorCode } from "@uniwork/core/api";
+import { ApiError, apiErrorMessage, errorCode } from "@uniwork/core/api";
 import { getI18n } from "react-i18next";
 
 /**
@@ -24,12 +24,29 @@ const API_ERROR_KEYS: Readonly<Record<string, string>> = {
   minutes_unavailable: "meetings.minutes.errors.minutes_unavailable",
   email_hub_reauth_required: "email_hub.reconnect.error",
   email_hub_smtp_disabled: "email_hub.connect.error_smtp_disabled",
+  // The generic codes errors.go answers with an English placeholder
+  // ("forbidden", "internal error") whatever language the person reads.
+  forbidden: "errors.api.forbidden",
+  not_found: "errors.api.not_found",
+  conflict: "errors.api.conflict",
+  rate_limited: "errors.api.rate_limited",
+  idempotency_in_flight: "errors.api.idempotency_in_flight",
+  internal: "errors.api.internal",
 };
 
-/** The localized sentence for a known code, else the server's own message. */
+/**
+ * The localized sentence for a known code; for a request that never reached
+ * the server, a network sentence; else the server's own sentence, but only to
+ * a Vietnamese reader (the language the server writes) and never for a 5xx.
+ * Undefined means the caller's localized fallback says it best.
+ */
 export function apiErrorCopy(err: unknown): string | undefined {
-  const key = API_ERROR_KEYS[errorCode(err) ?? ""];
   const i18n = getI18n();
+  const key = API_ERROR_KEYS[errorCode(err) ?? ""];
   if (key && i18n?.exists(key)) return i18n.t(key);
+  // fetch() rejects with a TypeError ("Failed to fetch", "Load failed") when the request never left.
+  if (err instanceof TypeError) return i18n?.t("errors.api.network");
+  if (!(err instanceof ApiError) || err.status >= 500) return undefined;
+  if (i18n && !(i18n.resolvedLanguage ?? i18n.language).startsWith("vi")) return undefined;
   return apiErrorMessage(err);
 }

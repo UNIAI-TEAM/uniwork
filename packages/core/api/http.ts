@@ -119,14 +119,16 @@ export function errorClassOf(err: unknown): ApiErrorClass | undefined {
 /**
  * Human-readable message from a failed API call. Prefers the server's sentence
  * when the transport wrapped it in ApiError; otherwise falls back to a generic
- * Error's message.
+ * Error's message. A TypeError is fetch()'s own English ("Failed to fetch",
+ * "Load failed") or a code bug, never a sentence for a person, so it answers
+ * undefined and the caller's localized fallback shows instead.
  */
 export function apiErrorMessage(err: unknown): string | undefined {
   if (err instanceof ApiError) {
     const message = err.message.trim();
     if (message) return message;
   }
-  if (err instanceof Error) {
+  if (err instanceof Error && !(err instanceof TypeError)) {
     const message = err.message.trim();
     if (message) return message;
   }
