@@ -351,3 +351,36 @@ func TestNotificationDocumentsOpenAPI(t *testing.T) {
 		}
 	}
 }
+
+// BE-R2-2: a trashed notice names its documents to the people it is addressed
+// to, who read them before the command and do not manage them; any other verb
+// still drops a trashed document a non-manager cannot open.
+func TestNotificationDocumentsTrashedNoticeNamesWhatTheReaderCouldRead(t *testing.T) {
+	f := newNotifyDocsFixture(t)
+	byOther := f.createDoc(t, f.token, "Do chủ trả vào thùng", "workspace")
+	if _, err := f.pool.Exec(context.Background(),
+		`UPDATE documents SET archived_at = now(), archived_by = $2 WHERE id = $1`, byOther, f.userID); err != nil {
+		t.Fatalf("trash document: %v", err)
+	}
+	trashedN := f.notify(t, "trashed", []string{byOther, f.secret}, [2]string{byOther}, [2]string{f.secret})
+	res, out := doJSON(t, f.srv, "GET", notifyDocsPath(trashedN, ""), f.member, nil)
+	if res.StatusCode != 200 {
+		t.Fatalf("list: %d %v", res.StatusCode, out)
+	}
+	byID := docsByID(t, out)
+	if d := byID[byOther]; d["title"] != "Do chủ trả vào thùng" || d["trashed"] != true || d["deleted"] != false {
+		t.Fatalf("trashed row of a document the member reads but does not manage = %v", d)
+	}
+	if _, has := byID[f.secret]; has || len(byID) != 1 {
+		t.Fatalf("secret document listed: %v", out)
+	}
+
+	movedN := f.notify(t, "moved", nil, [2]string{byOther})
+	res, out = doJSON(t, f.srv, "GET", notifyDocsPath(movedN, ""), f.member, nil)
+	if res.StatusCode != 200 {
+		t.Fatalf("list: %d %v", res.StatusCode, out)
+	}
+	if byID := docsByID(t, out); len(byID) != 0 {
+		t.Fatalf("a moved notice lists a trashed document to a non-manager: %v", out)
+	}
+}

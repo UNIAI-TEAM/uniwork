@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -34,10 +33,6 @@ const (
 // docChangeSamples bounds sample_document_ids: the inbox names a few titles
 // and counts the rest.
 const docChangeSamples = 3
-
-// docChangeSignalGap is how long a folded row must have sat still before a
-// fold sends notification.created again (BE-R1-5).
-const docChangeSignalGap = 2 * time.Second
 
 // DocChange is the part of a document_changed draft the fold write path
 // needs: the group prefix it searches under (same actor and verb), the one

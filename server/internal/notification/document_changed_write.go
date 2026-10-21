@@ -6,7 +6,6 @@ import (
 	"errors"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -21,7 +20,8 @@ import (
 // redelivered event never reaches it. The group claim serializes every event
 // of one (recipient, actor, verb); under it the open row of the same command,
 // or of the same actor and verb inside the sliding window, takes the document
-// and recounts, and otherwise a new row opens. Only a new row may push.
+// and recounts, and otherwise a new row opens. Every insert and every fold
+// signals the inbox; only a new row may push.
 func (c *Consumer) writeDocChange(ctx context.Context, tx pgx.Tx, q *db.Queries, correlationID string, d Draft, prefs Prefs) error {
 	dc := d.DocChange
 	if err := q.ClaimNotificationGroup(ctx, d.UserID+":"+d.Kind+":"+dc.GroupPrefix); err != nil {
@@ -57,12 +57,6 @@ func (c *Consumer) writeDocChange(ctx context.Context, tx pgx.Tx, q *db.Queries,
 	}); err != nil {
 		return err
 	}
-	// A fold signals the inbox only when the row sat still for a while: a
-	// wide command then sends a recipient its first frame and about one per
-	// docChangeSignalGap of delivery, not one per document. The trade-off: the
-	// last folds of a burst may send no frame, and the count they add shows
-	// on the inbox's next read (BE-R1-5).
-	signal := !merged || !open.UpdatedAt.Valid || time.Since(open.UpdatedAt.Time) >= docChangeSignalGap
 	if merged {
 		count, err := q.CountNotificationDocuments(ctx, open.ID)
 		if err != nil {
@@ -83,23 +77,21 @@ func (c *Consumer) writeDocChange(ctx context.Context, tx pgx.Tx, q *db.Queries,
 			return err
 		}
 	}
-	var events []audit.Event
-	if signal {
-		events = append(events, audit.Event{
-			Topic: TopicCreated, Payload: map[string]string{"notification_id": open.ID, "user_id": d.UserID},
-			OrganizationID: d.OrganizationID, WorkspaceID: d.WorkspaceID,
-		})
-	}
+	// Every event signals, folds included: the client coalesces a burst of
+	// notification.created frames into one refetch wave, and a throttle here
+	// would leave the last folds of a wide command with no frame (BE-R2-1).
+	events := []audit.Event{{
+		Topic: TopicCreated, Payload: map[string]string{"notification_id": open.ID, "user_id": d.UserID},
+		OrganizationID: d.OrganizationID, WorkspaceID: d.WorkspaceID,
+	}}
 	if prefs.Push && !merged {
 		events = append(events, audit.Event{
 			Topic: TopicPush, Payload: map[string]string{"notification_id": open.ID, "user_id": d.UserID},
 			OrganizationID: d.OrganizationID, WorkspaceID: d.WorkspaceID,
 		})
 	}
-	if len(events) > 0 {
-		if err := c.recorder.Emit(ctx, q, audit.System("notification"), events...); err != nil {
-			return err
-		}
+	if err := c.recorder.Emit(ctx, q, audit.System("notification"), events...); err != nil {
+		return err
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return err
