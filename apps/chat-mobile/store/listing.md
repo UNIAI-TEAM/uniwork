@@ -49,8 +49,8 @@ tin, gọi giữa thành viên một tổ chức), không chia sẻ vị trí. N
 ## Quyền riêng tư
 
 App gửi về server UniWork, qua Expo Push Service (bên thứ ba, rồi APNs/FCM), tới Sentry (bên thứ ba, báo cáo
-crash; UNI-2053) và — chỉ khi người dùng yêu cầu tóm tắt và đã đồng ý — qua server UniWork tới Anthropic (nhà cung cấp
-mô hình AI) những dữ liệu sau. Không có quảng cáo, không theo dõi giữa app (App Tracking Transparency: không),
+crash; UNI-2053) và — khi người dùng, hay một thành viên khác của cuộc trò chuyện hoặc cuộc gọi chung, dùng tính năng
+AI — qua server UniWork tới Anthropic (nhà cung cấp mô hình AI) những dữ liệu sau. Không có quảng cáo, không theo dõi giữa app (App Tracking Transparency: không),
 không bán dữ liệu. Ghi Expo và Sentry vào chính sách riêng tư (spec §11). Báo cáo crash không chứa nội dung tin, email,
 tên, token hay query của URL (`lib/redact.ts` lọc trước khi gửi), không chụp màn hình, không ghi lại phiên.
 
@@ -62,8 +62,8 @@ tên, token hay query của URL (`lib/redact.ts` lọc trước khi gửi), khô
 | Push token Expo, tên máy, nền tảng | Đăng ký push, đăng nhập (danh sách thiết bị) | Identifiers → Device ID; App Functionality; Linked | Device or other IDs; App functionality |
 | Chẩn đoán: báo cáo crash và hiệu năng (Sentry, bên thứ ba) | Khi app crash hay một thao tác lỗi phía server; mẫu 10 % phiên cho thời gian mở app và màn hình. Chỉ khi bản build có `SENTRY_DSN` | Diagnostics → Crash Data, Performance Data; App Functionality; Linked (id người dùng dạng mã, không email/tên); không Tracking | Collected → App info and performance → Crash logs, Diagnostics; App functionality; Shared: không (Sentry là nhà cung cấp dịch vụ xử lý thay); không tuỳ chọn |
 | Mã định danh trong báo cáo crash | Cùng báo cáo trên: id người dùng UniWork (mã ULID), phiên bản, bản dựng, kênh và id bản cập nhật | Identifiers → User ID; App Functionality; Linked | Personal info → User IDs; App functionality |
-| Xử lý AI (Anthropic, bên thứ ba) | Chỉ khi người dùng bấm "Bắt kịp nhanh" và đã đồng ý ở màn thông báo xử lý AI (nêu tên Anthropic, dữ liệu gửi đi, không dùng để huấn luyện, rút lại ở Cài đặt › Quyền riêng tư và pháp lý; câu trả lời lưu trên server, `PUT /me/ai-consent`). Gửi tin nhắn của cuộc trò chuyện được chọn kèm tên người gửi và thời gian; server UniWork gửi đi, app không gọi thẳng Anthropic | User Content → Emails or Text Messages; App Functionality; Linked; Apple 5.1.2(i): có màn đồng ý trước lần đầu | Messages → Other in-app messages; App functionality; **Shared** với nhà cung cấp dịch vụ (Anthropic, Hoa Kỳ); chỉ theo yêu cầu người dùng |
-| Báo cáo vi phạm | Người dùng báo cáo một tin nhắn hay một người: lý do, lời mô tả (tuỳ chọn), id tin và người | User Content → Other User Content; App Functionality; Linked | Messages → Other in-app messages; App functionality |
+| Xử lý AI (Anthropic, bên thứ ba) | Khi **bất kỳ thành viên nào** dùng AI trên nội dung chung: người dùng này bấm "Bắt kịp nhanh" trên điện thoại, hoặc một thành viên khác dùng Bắt kịp, Hỏi UNI hay tóm tắt cuộc gọi trên web/máy tính. Gửi tin nhắn của cuộc trò chuyện (và nội dung cuộc gọi đã ghi, khi có người ghi) kèm tên người gửi và thời gian — gồm cả tin của người dùng này; server UniWork gửi đi, app không gọi thẳng Anthropic. Màn thông báo xử lý AI trên điện thoại (nêu tên Anthropic, dữ liệu gửi đi, không dùng để huấn luyện, rút lại ở Cài đặt › Quyền riêng tư và pháp lý; câu trả lời lưu trên server, `PUT /me/ai-consent`) chỉ chặn yêu cầu AI của chính người dùng từ điện thoại: server chưa đọc câu trả lời đó, web và máy tính không hỏi | User Content → Emails or Text Messages (và Audio Data nếu khai cuộc gọi đã ghi); App Functionality; Linked; Apple 5.1.2(i): màn đồng ý trước yêu cầu AI đầu tiên từ điện thoại — không bao trùm việc thành viên khác dùng AI | Messages → Other in-app messages; App functionality; **Shared** với nhà cung cấp dịch vụ (Anthropic, Hoa Kỳ); khi người dùng hoặc một thành viên khác dùng tính năng AI |
+| Báo cáo vi phạm | Người dùng báo cáo một tin nhắn hay một người: lý do, lời mô tả (tuỳ chọn), id tin và người. Chủ sở hữu và quản trị viên tổ chức thấy lý do, người/tin bị báo cáo và **người báo cáo** trong Nhật ký hoạt động; lời mô tả chỉ nằm trong bản xuất dữ liệu của tổ chức | User Content → Other User Content; App Functionality; Linked | Messages → Other in-app messages; App functionality |
 
 Mọi dữ liệu mã hoá khi truyền (HTTPS/WSS).
 
@@ -79,12 +79,19 @@ chính sách riêng tư: `https://app.uniworkos.com/privacy`; URL xoá tài kho�
 Tin nhắn chỉ đi giữa thành viên một tổ chức. Báo cáo: nhấn giữ một tin › Báo cáo; chi tiết cuộc trò chuyện riêng ›
 Báo cáo; chạm một thành viên trong chi tiết nhóm › Báo cáo — chọn lý do (spam, quấy rối, thù ghét, khiêu dâm, bạo lực,
 tự gây hại, khác), mô tả tuỳ chọn, và có thể chặn luôn. Báo cáo lưu ở server (`chat_reports`) và ghi nhật ký
-`chat.report.created` mà chủ sở hữu và quản trị viên tổ chức xem được. Chặn: chi tiết cuộc trò chuyện riêng hoặc thành
+`chat.report.created`: chủ sở hữu và quản trị viên tổ chức thấy nó ở web › Cài đặt › Nhật ký hoạt động — lý do, người
+và tin bị báo cáo, **ai đã báo cáo** (sheet báo cáo nói điều này; người bị báo cáo không nhận thông báo, nhưng nếu là
+chủ sở hữu/quản trị viên thì cũng thấy). Lời mô tả của người báo cáo không vào nhật ký (nhật ký không xoá được, không
+chứa chữ tự do); chủ sở hữu đọc nó trong bản xuất dữ liệu của tổ chức. Chưa có màn hình đọc và xử lý báo cáo, và nhà
+vận hành UniWork không tự thấy báo cáo nào: người dùng và reviewer báo cáo thẳng với nhà vận hành qua
+`contact@unicomhub.com` (chính sách riêng tư nói vậy). Chặn: chi tiết cuộc trò chuyện riêng hoặc thành
 viên nhóm › Chặn nhắn tin (hai bên không nhắn riêng được; cuộc trò chuyện biến khỏi danh sách người chặn); cuộc trò
 chuyện hiện người nào đã chặn. Ghi chú cho reviewer (en):
 
 > Long-press any message from another person and choose "Report". In a direct conversation, open its details (tap the
-> name at the top) for "Block" and "Report". Reports go to the organization's admins.
+> name at the top) for "Block" and "Report". The organization's owners and admins see each report (reason, the
+> person or message reported, and who reported it) in the web app's Settings › Activity log. Anyone can also report
+> content or a user directly to the operator at contact@unicomhub.com.
 
 ## Quyền và chuỗi xin quyền
 

@@ -21,6 +21,38 @@ describe("privacy policy", () => {
     }
   });
 
+  const paragraphs = (locale: "en" | "vi") => guideContent("privacy", locale).sections.flatMap(section => section.paragraphs);
+
+  // The audit row of chat.report.created names the reporter as its actor and
+  // every owner and admin reads the activity log, so the policy may not promise
+  // that the person reported never learns who reported them (they can, when
+  // they are an owner or admin). The reporter's words never reach the log.
+  it("says who sees a report, the reporter included, and how to reach the operator", () => {
+    for (const locale of ["en", "vi"] as const) {
+      const reports = paragraphs(locale).find(paragraph => paragraph.startsWith(locale === "vi" ? "Báo cáo và chặn" : "Reports and blocking"));
+      expect(reports).toBeDefined();
+      expect(reports).toContain(locale === "vi" ? "và ai đã báo cáo" : "and who reported it");
+      expect(reports).toContain(locale === "vi" ? "nếu họ là chủ sở hữu hoặc quản trị viên thì họ cũng xem được" : "if they are an owner or admin they can see the report too");
+      expect(reports).toContain(locale === "vi" ? "bản xuất dữ liệu của tổ chức" : "organization's data export");
+      expect(reports).toContain(legalEntity.email);
+      expect(reports).not.toMatch(locale === "vi" ? /không biết ai đã báo cáo/ : /does not learn who reported/);
+    }
+  });
+
+  // No AI route reads the consent the phone records (PUT /me/ai-consent), and
+  // web and desktop never ask: the notice covers the phone's own requests, and
+  // a member's messages in a shared conversation reach the provider whenever
+  // any member uses AI on it.
+  it("scopes the AI consent notice to the phone apps and says shared content goes out on any member's request", () => {
+    for (const locale of ["en", "vi"] as const) {
+      const ai = paragraphs(locale).find(paragraph => paragraph.includes("Anthropic"))!;
+      expect(ai).toContain(locale === "vi" ? "ứng dụng UniChat cho Android và iPhone" : "UniChat apps for Android and iPhone");
+      expect(ai).toContain(locale === "vi" ? "khi bất kỳ thành viên nào dùng AI" : "whenever any member uses AI");
+      expect(ai).toContain(locale === "vi" ? "chỉ áp dụng cho yêu cầu AI của chính bạn" : "covers only your own AI requests");
+      expect(ai).not.toMatch(locale === "vi" ? /Trong ứng dụng UniChat, trước lần đầu/ : /In the UniChat app you are asked/);
+    }
+  });
+
   it("carries a machine-readable effective date", () => {
     expect(guideContent("privacy", "en").effective?.dateTime).toBe("2026-10-21");
     expect(guideContent("privacy", "vi").effective?.dateTime).toBe("2026-10-21");

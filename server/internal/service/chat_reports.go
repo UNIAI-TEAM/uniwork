@@ -16,7 +16,10 @@ import (
 // Google Play's user-generated content policy). A report is a row the
 // organization's owners and admins read through the audit trail
 // (chat.report.created); the reporter's own words stay in the row and never
-// reach the audit metadata, which carries no free text.
+// reach the audit metadata, which carries no free text. The audit actor is the
+// reporter, so every owner and admin — the person reported among them, when
+// they hold that role — sees who filed it: the report sheet and the privacy
+// policy say so, and must not promise the reporter is hidden.
 
 const (
 	chatReportResource   = "chat_report"

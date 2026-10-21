@@ -1530,7 +1530,7 @@
       "action_user": "Report {{name}}",
       "title_message": "Report this message?",
       "title_user": "Report {{name}}?",
-      "body": "Your organization's admins review reports. {{name}} won't know who reported them.",
+      "body": "Your organization's owners and admins can see the report, including who sent it. UniChat doesn't notify {{name}}.",
       "reason_label": "Reason",
       "reason_spam": "Spam or scam",
       "reason_harassment": "Harassment or bullying",

@@ -166,9 +166,13 @@ biến thể và ký giống CI (thiếu `UNICHAT_ENV` là cấu hình dev: khô
 từng mục khi đã nộp:
 
 - [ ] **Privacy policy**: `https://app.uniworkos.com/privacy` (tiếng Việt `/vi/privacy`). Trang phải nói đúng những gì
-  app làm: AI (Anthropic, chỉ khi người dùng yêu cầu, có màn đồng ý), báo cáo vi phạm, xoá tài khoản trong app, 18+.
+  app làm: AI (Anthropic, khi bất kỳ thành viên nào dùng AI trên nội dung chung; màn đồng ý trên điện thoại chỉ cho yêu
+  cầu của chính người dùng), báo cáo vi phạm (chủ sở hữu/quản trị viên thấy cả người báo cáo; báo thẳng nhà vận hành qua
+  `contact@unicomhub.com`), xoá tài khoản trong app, 18+. `apps/web/features/landing/privacy-content.test.ts` giữ hai
+  câu đó.
 - [ ] **Data safety** (Play) / **App Privacy** (Apple): điền theo bảng "Quyền riêng tư" của `store/listing.md`, gồm
-  dòng "Xử lý AI" (chia sẻ với nhà cung cấp dịch vụ Anthropic, chỉ khi người dùng yêu cầu) và "Báo cáo vi phạm". Mã hoá
+  dòng "Xử lý AI" (chia sẻ với nhà cung cấp dịch vụ Anthropic khi người dùng **hoặc một thành viên khác** dùng tính
+  năng AI — đừng khai "chỉ theo yêu cầu người dùng") và "Báo cáo vi phạm". Mã hoá
   khi truyền: có. Người dùng yêu cầu xoá dữ liệu được: có.
 - [ ] **Account deletion** (Play bắt buộc với app cho tạo tài khoản; Apple 5.1.1(v)): trong app ở Cài đặt › Xóa tài
   khoản (đăng xuất mọi thiết bị, xoá dữ liệu trên máy). URL xoá cho Play:
@@ -185,9 +189,11 @@ từng mục khi đã nộp:
   **Users interact** (nhắn tin, gọi giữa thành viên tổ chức); không chia sẻ vị trí, không mua trong app. Apple: Age
   Rating **18+**, khớp chính sách (dịch vụ dành cho người từ 18 tuổi).
 - [ ] **User-generated content** (Play UGC, Apple 1.2): khai báo app có nội dung do người dùng tạo; cơ chế: báo cáo tin
-  nhắn hoặc người (nhấn giữ tin › Báo cáo; chi tiết cuộc trò chuyện › Báo cáo/Chặn), chặn nhắn tin riêng, quản trị viên
-  tổ chức xem báo cáo trong nhật ký hoạt động (`chat.report.created`) và xử lý theo chính sách của tổ chức; liên hệ
-  `contact@unicomhub.com`.
+  nhắn hoặc người (nhấn giữ tin › Báo cáo; chi tiết cuộc trò chuyện › Báo cáo/Chặn), chặn nhắn tin riêng, chủ sở hữu và
+  quản trị viên tổ chức thấy báo cáo (lý do, người/tin bị báo cáo, người báo cáo) trong Nhật ký hoạt động
+  (`chat.report.created`) và xử lý theo chính sách của tổ chức; lời mô tả chỉ có trong bản xuất dữ liệu của tổ chức.
+  Chưa có màn hình xử lý báo cáo, nên kênh tới nhà vận hành là `contact@unicomhub.com`: hộp thư đó phải có người trực
+  và trả lời báo cáo nội dung (Apple 1.2 đòi xử lý kịp thời) trước khi nộp.
 - [ ] **App access**: tài khoản demo (mục "Tài khoản demo cho review" của `store/listing.md`).
 - [ ] **Government apps / Financial features / Health**: không.
 

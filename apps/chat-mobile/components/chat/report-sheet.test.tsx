@@ -2,6 +2,7 @@ import { act, fireEvent, screen } from "@testing-library/react-native";
 import { AccessibilityInfo } from "react-native";
 import { safetyApi } from "@/data/safety-api";
 import { useToastStore } from "@/data/stores/toast-store";
+import { i18n } from "@/lib/i18n/singleton";
 import { render, viText } from "@/test/render";
 import { ReportSheet } from "./report-sheet";
 
@@ -34,6 +35,20 @@ describe("ReportSheet", () => {
     // Picking a reason clears the prompt.
     await fireEvent.press(screen.getByRole("radio", { name: viText("mobile.report.reason_spam") }));
     expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  // The server's audit row names the reporter and every owner and admin reads
+  // the activity log, so the sheet may not promise the reporter is hidden from
+  // the person reported (who may be an owner or admin).
+  it("says owners and admins see who sent the report, in both languages", () => {
+    const vi = viText("mobile.report.body", { name: "Bình" });
+    const en = i18n.getFixedT("en")("mobile.report.body", { name: "Bình" });
+    expect(vi).toContain("Chủ sở hữu và quản trị viên");
+    expect(vi).toContain("kể cả ai đã gửi");
+    expect(vi).not.toContain("không biết ai đã báo cáo");
+    expect(en).toContain("owners and admins");
+    expect(en).toContain("including who sent it");
+    expect(en).not.toContain("won't know who reported");
   });
 
   it("sends the message, the reason and the words, then thanks the reporter", async () => {

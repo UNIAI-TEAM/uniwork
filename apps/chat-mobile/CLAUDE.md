@@ -118,11 +118,15 @@ một dòng thì ghi lý do ở dòng trên.
   version để hỏi lại mọi người, và sửa mục AI của `privacy-content.ts` cùng PR), câu trả lời lưu ở server
   (`PUT/DELETE /me/ai-consent`, `user.ai_consent_version`) qua `data/ai-consent.ts`; `catch-up-sheet.tsx` không gọi AI
   khi chưa đồng ý mà vẽ `components/chat/ai-consent-notice.tsx`; tính năng AI mới trên điện thoại dùng cùng
-  `useAiConsent()`. **Báo cáo và chặn**: `data/safety-api.ts` (route chặn của web + `POST …/chat/reports`), key
+  `useAiConsent()`. Đồng ý chỉ do client giữ: không route AI nào của server đọc nó, và tin của người dùng vẫn tới
+  Anthropic khi thành viên khác dùng AI trên web — chính sách và dòng "Xử lý AI" của listing nói đúng vậy
+  (`privacy-content.test.ts`), đừng viết lại thành "chỉ khi người dùng đồng ý". **Báo cáo và chặn**: `data/safety-api.ts` (route chặn của web + `POST …/chat/reports`), key
   `chatKeys.blockStatus`, `data/queries/safety.ts`; `components/chat/report-sheet.tsx` (lý do đóng theo
   `lib/report.ts` = CHECK của server, mô tả, "chặn luôn"), `room-safety.tsx` (DM: chặn/bỏ chặn + báo cáo trong chi
   tiết, banner trong cuộc trò chuyện; nhóm: chạm thành viên → nhắn riêng/báo cáo/chặn), nhấn giữ tin của người khác ›
-  Báo cáo. **Android FGS**: `expo-audio` tắt phát/ghi nền tường minh, `plugins/with-removed-android-services.js` gỡ
+  Báo cáo. Audit `chat.report.created` ghi người báo cáo làm actor, nên chủ sở hữu và quản trị viên (kể cả khi chính họ
+  bị báo cáo) thấy ai đã báo cáo: sheet và chính sách nói thế, không hứa ẩn danh (`report-sheet.test.tsx`,
+  `privacy-content.test.ts`). **Android FGS**: `expo-audio` tắt phát/ghi nền tường minh, `plugins/with-removed-android-services.js` gỡ
   `MediaProjectionService` (`tools:node="remove"`); `android-manifest.test.ts` giữ danh sách quyền và dịch vụ cuối của
   bản release (`scripts/android-manifest.mjs`: introspect của `expo config` với biến thể production + manifest của
   từng thư viện được link). Thêm quyền/dịch vụ thì sửa test đó, bảng quyền của `store/listing.md` và checklist Play
