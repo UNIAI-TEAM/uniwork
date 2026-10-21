@@ -51,14 +51,20 @@ const mockSignals = {
   mintToken: jest.fn(async () => ({ token: "t", url: "wss://lk.test" })),
   createCallId: () => "call-1",
 };
+const mockHangupListeners = new Set<(wsId: string) => void>();
 // jest.mock factories run before this file's consts: the engine reads the fakes at call time.
 jest.mock("@/data/calls/call-store", () => {
   const { createCallEngine } = jest.requireActual<typeof import("@/data/calls/call-engine")>("@/data/calls/call-engine");
   return {
+    // As call-store.ts: a settled hangup tells every listener which workspace it was in.
+    onHangupSettled: (listener: (wsId: string) => void) => {
+      mockHangupListeners.add(listener);
+      return () => mockHangupListeners.delete(listener);
+    },
     callEngine: createCallEngine({
       invite: () => mockSignals.invite(),
       accept: () => mockSignals.accept(),
-      hangup: () => mockSignals.hangup(),
+      hangup: (wsId: string) => mockSignals.hangup().finally(() => mockHangupListeners.forEach((listener) => listener(wsId))),
       pending: () => mockSignals.pending(),
       outgoing: () => mockSignals.outgoing(),
       mintToken: () => mockSignals.mintToken(),
@@ -163,6 +169,20 @@ describe("useCallRealtime and the calls kill switch", () => {
     expect(callEngine.store.getState().call).toMatchObject({ status: "ended", reason: "missed" });
     await act(async () => unmount());
     expect(remove).toHaveBeenCalled();
+  });
+
+  it("refetches the calls tab once a hangup this phone sent has settled, and stops listening on unmount", async () => {
+    const { queryClient, unmount } = await render(<Probe wsId="ws-1" />);
+    const invalidate = jest.spyOn(queryClient, "invalidateQueries");
+    await act(async () => {
+      await callEngine.startCall("room-1", "Lan", "dm");
+    });
+    await act(async () => {
+      await callEngine.hangUp();
+    });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["chat", "ws-1", "call-logs"] });
+    await act(async () => unmount());
+    expect(mockHangupListeners.size).toBe(0);
   });
 
   it("closing the workspace (the last one open) still ends the call here", async () => {

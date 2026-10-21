@@ -189,7 +189,7 @@ describe("socket lifecycle", () => {
     expect(list).toHaveBeenCalledWith("w1", "r1", { after: "c-m1", limit: 50, markRead: false });
   });
 
-  it("after a reconnect refreshes the rooms list, nicknames, threads and the open timelines", async () => {
+  it("after a reconnect refreshes the rooms list, nicknames, members, call logs, threads and the open timelines", async () => {
     vi.useFakeTimers();
     show(qc, timelineKey, { pages: [[msg("m2", 2)], [msg("m1", 1)]], pageParams: [null, { cursor: "c" }] });
     const invalidate = vi.spyOn(qc, "invalidateQueries");
@@ -199,8 +199,23 @@ describe("socket lifecycle", () => {
     await vi.advanceTimersByTimeAsync(ROOM_ACTIVITY_DEBOUNCE_MS);
     const keys = invalidate.mock.calls.map(([filters]) => filters?.queryKey);
     expect(keys).toEqual(
-      expect.arrayContaining([chatKeys.rooms("w1"), chatKeys.nicknames("w1"), ["chat", "w1", "thread-messages"], timelineKey]),
+      expect.arrayContaining([
+        chatKeys.rooms("w1"),
+        chatKeys.nicknames("w1"),
+        chatKeys.members("w1"),
+        chatKeys.callLogs("w1"),
+        ["chat", "w1", "thread-messages"],
+        timelineKey,
+      ]),
     );
+  });
+
+  it("refetches the call logs once a call hangs up (the server wrote the log before the frame)", async () => {
+    vi.useFakeTimers();
+    const invalidate = vi.spyOn(qc, "invalidateQueries");
+    createChatRealtime(qc, deps).handle({ type: "chat.voice.hangup", payload: { room_id: "r1", call_id: "c1", user_id: "u2" } });
+    await vi.advanceTimersByTimeAsync(ROOM_ACTIVITY_DEBOUNCE_MS);
+    expect(invalidate.mock.calls.map(([filters]) => filters?.queryKey)).toEqual([chatKeys.callLogs("w1")]);
   });
 
   it("does not drop a frame whose GET failed (audit R4): a new message is read by a catch-up, the list follows", async () => {

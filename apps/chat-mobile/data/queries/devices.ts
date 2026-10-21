@@ -40,5 +40,10 @@ export async function revokeDevice(deviceSessionId: string): Promise<void> {
   await api.request(`/api/v1/auth/desktop/devices/${encodeURIComponent(deviceSessionId)}`, { method: "DELETE" });
 }
 
+/** The account's native sign-ins (Settings › devices). */
+export const deviceKeys = {
+  all: () => ["auth-devices"] as const,
+};
+
 export const devicesOptions = () =>
-  queryOptions({ queryKey: ["auth-devices"] as const, queryFn: ({ signal }) => fetchDevices(signal) });
+  queryOptions({ queryKey: deviceKeys.all(), queryFn: ({ signal }) => fetchDevices(signal) });

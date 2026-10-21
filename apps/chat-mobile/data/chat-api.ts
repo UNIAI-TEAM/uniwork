@@ -11,7 +11,6 @@ import {
   ChatGifListSchema,
   ChatMessageEnvelopeSchema,
   ChatMessagesListSchema,
-  ChatNicknameMapSchema,
   ChatRoomEnvelopeSchema,
   ChatRoomMemberSchema,
   ChatRoomsListSchema,
@@ -22,7 +21,6 @@ import {
   type ChatMessageRecord,
   type ChatVoiceToken,
   type PendingChatVoiceInvite,
-  type ChatNicknameMap,
   type ChatRoomMemberRecord,
   type ChatRoomRecord,
 } from "@uniwork/core/api/endpoints/chat-schemas";
@@ -86,17 +84,19 @@ export type ChatSharedSummary = z.infer<typeof SharedSummarySchema>;
 const ActiveRecordingSchema = z.object({ recording: z.object({ id: z.string().optional() }).nullish().catch(undefined) });
 const EMPTY_SHARED_SUMMARY: ChatSharedSummary = { counts: { photo: 0, gif: 0, video: 0, file: 0, link: 0, voice: 0 }, recent_photos: [] };
 
-/** A workspace member as the new-DM picker and mention list need one. */
+/** A workspace member as the contacts tab, the new-DM picker and the mention list need one. */
 export interface WorkspaceMemberRecord {
   user_id: string;
   email: string;
   display_name: string;
+  avatar_url?: string;
 }
 
 const WorkspaceMemberSchema = z.object({
   user_id: z.string(),
   email: z.string().catch(""),
   display_name: z.string().catch(""),
+  avatar_url: z.string().optional().catch(undefined),
 });
 
 // One drifted member must not empty the picker.
@@ -111,6 +111,8 @@ const WorkspaceMembersSchema = z.object({
       }),
     ),
 });
+
+const NicknamesSchema = z.object({ nicknames: z.record(z.string(), z.unknown()).catch({}) });
 
 const PresenceBeatSchema = z.object({ online_user_ids: z.array(z.string()).optional() });
 
@@ -305,11 +307,12 @@ export function createChatApi(request: Request) {
     },
     async listNicknames(wsId: string): Promise<Record<string, string>> {
       const raw = await request(`${ws(wsId)}/chat/nicknames`);
-      const parsed = parseWithFallback<ChatNicknameMap>(raw, ChatNicknameMapSchema, { nicknames: {} }, { endpoint: "GET /api/v1/workspaces/{ws}/chat/nicknames" });
+      const parsed = parseWithFallback<{ nicknames: Record<string, unknown> }>(raw, NicknamesSchema, { nicknames: {} }, { endpoint: "GET /api/v1/workspaces/{ws}/chat/nicknames" });
       const out: Record<string, string> = {};
+      // One drifted entry is dropped, not the map (core's ChatNicknameMapSchema would empty it).
       for (const [userId, nickname] of Object.entries(parsed.nicknames)) {
         const key = userKey(userId);
-        if (key) out[key] = nickname;
+        if (key && typeof nickname === "string") out[key] = nickname;
       }
       return out;
     },

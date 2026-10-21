@@ -19,7 +19,7 @@ import { Separator } from "@/components/ui/separator";
 import { Text } from "@/components/ui/text";
 import { useAuthStore } from "@/data/auth/store";
 import { callLogsOptions, type CallLog } from "@/data/queries/call-logs";
-import { chatNicknamesOptions } from "@/data/queries/contacts";
+import { nicknamesOptions } from "@/data/queries/chat";
 import { useMobileFlag } from "@/data/remote-config";
 import { callEngine } from "@/data/calls/call-store";
 import { useWorkspaceStore } from "@/data/stores/workspace-store";
@@ -107,7 +107,7 @@ export default function CallsTab() {
   const userId = useAuthStore((s) => s.user?.id ?? "");
   const [filter, setFilter] = useState<CallLogFilter>("all");
   const logs = useInfiniteQuery({ ...callLogsOptions(wsId), enabled: !!wsId });
-  const nicknames = useQuery({ ...chatNicknamesOptions(wsId), enabled: !!wsId });
+  const nicknames = useQuery({ ...nicknamesOptions(wsId), enabled: !!wsId });
   const { isStale, isFetching, refetch, hasNextPage, isFetchingNextPage, fetchNextPage } = logs;
 
   // A call ended in a room since the last look shows when the tab comes back.

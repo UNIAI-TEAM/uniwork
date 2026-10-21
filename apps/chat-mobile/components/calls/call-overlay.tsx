@@ -19,6 +19,7 @@ import { Text } from "@/components/ui/text";
 import { callEngine, useVoiceCall } from "@/data/calls/call-store";
 import { chatApi } from "@/data/chat-api";
 import { roomsOptions } from "@/data/queries/chat";
+import { chatKeys } from "@/data/queries/chat-keys";
 import { useWorkspaceStore } from "@/data/stores/workspace-store";
 import type { CallRoom as CallRoomComponent } from "./call-room";
 import { ringtoneFor } from "@/lib/call-ringtone";
@@ -142,7 +143,7 @@ export function CallOverlay() {
   const live = call.status === "active";
   const wsId = useWorkspaceStore((s) => s.current?.wsId ?? "");
   const recording = useQuery({
-    queryKey: ["call-recording", wsId, live ? call.roomId : "", live ? call.callId : ""],
+    queryKey: chatKeys.callRecording(wsId, live ? call.roomId : "", live ? call.callId : ""),
     queryFn: () => (live ? chatApi.callRecordingActive(wsId, call.roomId, call.callId) : Promise.resolve(false)),
     enabled: live && wsId !== "",
     refetchInterval: RECORDING_POLL_MS,

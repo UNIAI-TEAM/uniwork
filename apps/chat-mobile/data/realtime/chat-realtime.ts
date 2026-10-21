@@ -169,6 +169,10 @@ export function createChatRealtime(qc: QueryClient, deps: ChatRealtimeDeps) {
         // The reader's own pointer moved: the per-workspace counts follow.
         if (payload.user_id && payload.user_id === viewer.userId) schedule(chatKeys.unreadSummary());
         return;
+      case "chat.voice.hangup":
+        // The hangup is published after the server wrote the call's log (SignalVoiceHangup).
+        schedule(chatKeys.callLogs(wsId));
+        return;
       case "chat.typing":
         if (roomId && payload.user_id && viewer.userId) deps.typing.bump(roomId, payload.user_id, viewer.userId);
         return;
@@ -185,8 +189,8 @@ export function createChatRealtime(qc: QueryClient, deps: ChatRealtimeDeps) {
 
   /** Frames sent while the socket was down are gone: each cache refreshes its own keys (ADR 0011 §5). */
   function reconnect(): void {
-    schedule(chatKeys.rooms(wsId), chatKeys.nicknames(wsId), chatKeys.unreadSummary());
-    void qc.invalidateQueries({ queryKey: ["chat", wsId, "thread-messages"] });
+    schedule(chatKeys.rooms(wsId), chatKeys.nicknames(wsId), chatKeys.members(wsId), chatKeys.callLogs(wsId), chatKeys.unreadSummary());
+    void qc.invalidateQueries({ queryKey: chatKeys.threadsRoot(wsId) });
     refreshLoadedRoomTimelines(qc, wsId);
   }
 

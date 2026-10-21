@@ -8,7 +8,7 @@ import { ErrorFallback } from "@/components/ui/error-fallback";
 import { session } from "@/data/auth/flow";
 import { useAuthStore } from "@/data/auth/store";
 import { useVoiceCall } from "@/data/calls/call-store";
-import { workspaceListOptions } from "@/data/queries/workspaces";
+import { workspaceKeys, workspaceListOptions } from "@/data/queries/workspaces";
 import { useRemoteConfigOrganization } from "@/data/remote-config";
 import { RealtimeProvider } from "@/data/realtime/realtime-provider";
 import { useCallRealtime } from "@/data/realtime/use-call-realtime";
@@ -34,9 +34,9 @@ function RealtimeSubscriptions({ wsId }: { wsId: string }) {
   useWSSubscriptions(
     (ws) => [
       ws.onAny((message) => {
-        if (message.type.startsWith("workspace.")) void queryClient.invalidateQueries({ queryKey: ["workspaces"] });
+        if (message.type.startsWith("workspace.")) void queryClient.invalidateQueries({ queryKey: workspaceKeys.list() });
       }),
-      ws.onReconnect(() => void queryClient.invalidateQueries({ queryKey: ["workspaces"] })),
+      ws.onReconnect(() => void queryClient.invalidateQueries({ queryKey: workspaceKeys.list() })),
     ],
     [queryClient],
   );

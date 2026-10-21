@@ -24,7 +24,7 @@ export function RoomPreview({ wsId, row, userId }: { wsId: string; row: RoomList
   const { t } = useTranslation();
   const roomId = row.roomId ?? "";
   const latest = useQuery({
-    queryKey: [...chatKeys.roomMessagesRoot(wsId), "preview", roomId],
+    queryKey: chatKeys.roomPreview(wsId, roomId),
     queryFn: ({ signal }) => chatApi.listMessages(wsId, roomId, { limit: PREVIEW_MESSAGES, markRead: false }, signal),
     enabled: roomId !== "",
     staleTime: 10_000,

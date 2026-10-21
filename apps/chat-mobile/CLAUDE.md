@@ -195,7 +195,12 @@ một dòng thì ghi lý do ở dòng trên.
   `send-pipeline`, `mentions`, `file-accept`, `media-body`, `search-fold`,
   `people-display`, `message-display`, `room-list`); `data/*` — endpoint
   (`chat-api.ts`, mỗi endpoint một case malformed), key riêng
-  (`queries/chat-keys.ts`, không import `chatKeys` web), cache
+  (`queries/chat-keys.ts`, không import `chatKeys` web; mỗi resource một module và một key factory — `chatKeys`
+  (mọi key dưới `["chat", wsId]` trừ unread-summary của cả tài khoản, kể cả call log, preview nhấn giữ, ghi âm
+  cuộc gọi; `chat-keys.test.ts` đỏ khi một key lồng dưới prefix của key khác ngoài các họ đã khai),
+  `orgMemberKeys` (`queries/org-members.ts`), `workspaceKeys`, `deviceKeys`; thành viên workspace và biệt danh chỉ
+  đọc qua `chatApi`. Call log refetch khi có `chat.voice.hangup` (server ghi log trước khi phát frame), khi hangup
+  của chính máy xong (`onHangupSettled` của `call-store.ts`) và khi reconnect; reconnect cũng refetch thành viên), cache
   (`chat-timeline.ts` ← core `room-timeline`, `chat-cache.ts` ← core
   `realtime-cache`, viewer là tham số), outbox bền (`chat-send.ts` +
   `stores/chat-send-store.ts`, mục Offline-first), `realtime/chat-realtime.ts` (bảng §8

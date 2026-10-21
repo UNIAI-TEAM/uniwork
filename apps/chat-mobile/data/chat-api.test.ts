@@ -87,7 +87,7 @@ const cases: Case[] = [
   { name: "markThreadRead", call: (c) => c.markThreadRead("w1", "root"), path: `${W}/chat/threads/root/read`, method: "POST", good: { previous_read_at: "2026-10-01T00:00:00Z" }, read: "2026-10-01T00:00:00Z", fallback: null },
   { name: "listChannels", call: (c) => c.listChannels("w1", "discoverable"), path: `${W}/chat/channels?scope=discoverable`, method: "GET", good: { rooms: [{ ...roomRec, kind: "channel" }] }, read: [expect.objectContaining({ kind: "channel" })], fallback: [] },
   { name: "joinChannel", call: (c) => c.joinChannel("w1", "r1"), path: `${W}/chat/channels/r1/join`, method: "POST", body: {}, good: { room: roomRec }, read: expect.objectContaining({ id: "r1" }), fallback: null },
-  { name: "listNicknames", call: (c) => c.listNicknames("w1"), path: `${W}/chat/nicknames`, method: "GET", good: { nicknames: { u1: "Bé", " ": "x" } }, read: { U1: "Bé" }, fallback: {} },
+  { name: "listNicknames", call: (c) => c.listNicknames("w1"), path: `${W}/chat/nicknames`, method: "GET", good: { nicknames: { u1: "Bé", " ": "x", u2: 5 } }, read: { U1: "Bé" }, fallback: {} },
   {
     name: "listWorkspaceMembers",
     call: (c) => c.listWorkspaceMembers("w1"),

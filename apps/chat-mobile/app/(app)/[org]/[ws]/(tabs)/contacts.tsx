@@ -19,7 +19,8 @@ import { SearchField } from "@/components/ui/search-field";
 import { Separator } from "@/components/ui/separator";
 import { Text } from "@/components/ui/text";
 import { useAuthStore } from "@/data/auth/store";
-import { chatNicknamesOptions, deactivatedMembersOptions, workspaceMembersOptions } from "@/data/queries/contacts";
+import { nicknamesOptions, workspaceMembersOptions } from "@/data/queries/chat";
+import { deactivatedMembersOptions } from "@/data/queries/org-members";
 import { usePresenceStore } from "@/data/stores/chat-presence-store";
 import { useWorkspaceStore } from "@/data/stores/workspace-store";
 import { contactSections, type ContactRow } from "@/lib/contacts-display";
@@ -109,7 +110,7 @@ export default function ContactsTab() {
   const members = useQuery({ ...workspaceMembersOptions(wsId), enabled: !!wsId });
   // Unreadable, it hides no one (the web's list), so it never blocks the tab.
   const deactivated = useQuery({ ...deactivatedMembersOptions(org), enabled: !!wsId });
-  const nicknames = useQuery({ ...chatNicknamesOptions(wsId), enabled: !!wsId });
+  const nicknames = useQuery({ ...nicknamesOptions(wsId), enabled: !!wsId });
 
   const hidden = useMemo(() => new Set(deactivated.data ?? NO_ONE), [deactivated.data]);
   const sections = useMemo(

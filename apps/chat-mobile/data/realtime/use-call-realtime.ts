@@ -8,16 +8,18 @@
 // never ends or strands one (use-call-realtime.test.tsx). A return to the
 // foreground and every reconnect reconcile the call with the server (audit
 // C1): a ring the server no longer lists stops, a call ringing now is picked up.
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
 import { AppState, type AppStateStatus } from "react-native";
 import { useAuthStore } from "@/data/auth/store";
-import { callEngine } from "@/data/calls/call-store";
+import { callEngine, onHangupSettled } from "@/data/calls/call-store";
+import { chatKeys } from "@/data/queries/chat-keys";
 import { roomsOptions } from "@/data/queries/chat";
 import { useMobileFlag } from "@/data/remote-config";
 import { useWSSubscriptions } from "@/lib/use-ws-subscriptions";
 
 export function useCallRealtime(wsId: string) {
+  const qc = useQueryClient();
   const userId = useAuthStore((s) => s.user?.id ?? null);
   const { data: rooms } = useQuery(roomsOptions(wsId));
   const roomsRef = useRef(rooms);
@@ -32,6 +34,10 @@ export function useCallRealtime(wsId: string) {
     if (!userId) return;
     return callEngine.attach({ wsId, userId, allowedRoomIds: () => new Set((roomsRef.current ?? []).map((room) => room.id)) });
   }, [wsId, userId]);
+
+  // A hangup this phone sent has its log written by the time the server answers; another's arrives as
+  // chat.voice.hangup (data/realtime/chat-realtime.ts). Either way the calls tab refetches.
+  useEffect(() => onHangupSettled((callWsId) => void qc.invalidateQueries({ queryKey: chatKeys.callLogs(callWsId) })), [qc]);
 
   // Runs after the attach above (effects run in order), and again when the switch comes back on.
   useEffect(() => {
