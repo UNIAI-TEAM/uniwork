@@ -187,13 +187,15 @@ func TestFolderTrashImpactCountsRelocationWithoutLeaking(t *testing.T) {
 	if got != want {
 		t.Fatalf("impact = %+v, want %+v", got, want)
 	}
-	// The admin manages A's pages: nothing relocates.
+	// The admin administers the pages but reads none of them (restricted, no
+	// share): what the actor cannot see relocates too (UNI-2055 TV-02), so only
+	// the two folders go to the trash.
 	adminView, err := e.svc.ArchiveImpact(ctx, e.admin, folder.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if adminView.Relocated != 0 || adminView.Total != 6 {
-		t.Fatalf("admin impact = %+v, want 6 rows, none relocated", adminView)
+	if wantAdmin := (DocumentArchiveImpact{Folders: 1, Documents: 0, Total: 2, Relocated: 3, MaxNodes: documentArchiveMaxNodes}); adminView != wantAdmin {
+		t.Fatalf("admin impact = %+v, want %+v", adminView, wantAdmin)
 	}
 	res := e.trash(t, e.b, folder.ID)
 	if len(res.Affected) != got.Total {
@@ -430,5 +432,50 @@ func TestFolderTrashBoundBeatsRelocation(t *testing.T) {
 	}
 	if got, err := e.svc.ArchiveImpact(ctx, e.b, folder.ID); err != nil || !got.TooLarge {
 		t.Fatalf("impact over the bound = %+v, %v, want too_large", got, err)
+	}
+}
+
+// TV-02 (card rules 6 and 7, Q1): an admin who administers a page without
+// reading it (restricted, no share) does not trash it with the folder either.
+// The page goes to the workspace root with its subtree, access and title, is
+// left out of the impact's documents and total, and counts as relocated.
+func TestFolderTrashRelocatesWhatAnAdminCannotRead(t *testing.T) {
+	e := newWSFolderEnv(t)
+	ctx := e.f.ctx
+	folder := e.mkFolder(t, e.admin, "", "Thư mục của quản trị")
+	mine := e.mkPage(t, e.admin, folder.ID, "Của quản trị")
+	hidden := e.mkPage(t, e.a, folder.ID, "Riêng của B")
+	under := e.mkPage(t, e.a, hidden.ID, "Con của B")
+	if _, err := e.svc.GetDocument(ctx, e.admin, hidden.ID); err == nil {
+		t.Fatal("the admin reads B's restricted page, the fixture does not hold the case")
+	}
+
+	got, err := e.svc.ArchiveImpact(ctx, e.admin, folder.ID)
+	if err != nil {
+		t.Fatalf("impact: %v", err)
+	}
+	if want := (DocumentArchiveImpact{Folders: 0, Documents: 1, Total: 2, Relocated: 1, MaxNodes: documentArchiveMaxNodes}); got != want {
+		t.Fatalf("impact = %+v, want %+v", got, want)
+	}
+	res := e.trash(t, e.admin, folder.ID)
+	if len(res.Affected) != got.Total {
+		t.Fatalf("archive stamped %d rows, the preview promised %d", len(res.Affected), got.Total)
+	}
+	wantTrashed(t, e.doc(t, folder.ID), res.BatchID, "folder")
+	wantTrashed(t, e.doc(t, mine.ID), res.BatchID, "the admin's own page")
+	moved := e.doc(t, hidden.ID)
+	wantAtRoot(t, moved, "B's restricted page")
+	if moved.Title != hidden.Title || moved.Visibility != hidden.Visibility || moved.AclOwnerID != hidden.AclOwnerID {
+		t.Fatalf("B's page changed beyond its place: %+v -> %+v", hidden, moved)
+	}
+	if got := e.doc(t, under.ID); got.ParentID.String != hidden.ID || got.ArchivedAt.Valid {
+		t.Fatalf("page under the relocated one = parent %q archived %v", got.ParentID.String, got.ArchivedAt.Valid)
+	}
+	if n := e.count(t, `SELECT count(*) FROM audit_events WHERE action = 'document.moved' AND resource_id = $1
+		AND metadata::jsonb->>'reason' = $2`, hidden.ID, audit.ReasonFolderTrashed); n != 1 {
+		t.Fatalf("%d folder_trashed rows for B's page, want 1", n)
+	}
+	if _, err := e.svc.GetDocument(ctx, e.a, hidden.ID); err != nil {
+		t.Fatalf("B lost their page: %v", err)
 	}
 }
