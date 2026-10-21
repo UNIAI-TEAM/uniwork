@@ -672,7 +672,13 @@ func (s *DocumentService) documentChangeReadersQ(ctx context.Context, q *db.Quer
 			candidates = append(candidates, id)
 		}
 	}
-	if len(candidates) == 0 || len(candidates) > documentChangeNoticeCap {
+	if len(candidates) > documentChangeNoticeCap {
+		slog.Debug("document purge: too many people to tell, deleted notice skipped",
+			"document", doc.ID, "organization", doc.OrganizationID, "workspace", doc.WorkspaceID,
+			"candidates", len(candidates), "cap", documentChangeNoticeCap)
+		return nil, nil
+	}
+	if len(candidates) == 0 {
 		return nil, nil
 	}
 	return s.FilterDocumentReadersQ(ctx, q, doc.ID, candidates)
