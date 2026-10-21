@@ -1,12 +1,6 @@
-import { useQuery } from "@tanstack/react-query";
-import { getPublicConfig } from "../api/endpoints/config";
 import { useFlag } from "../feature-flags";
+import { useOrganizationConfig } from "../feature-flags/use-public-config";
 import { OFFICE_DOCS_WEB_FLAG, OFFICE_ENGINE_FLAG, OFFICE_TXT_OPEN_FLAG, officeFlagsAllow, officeFormatFlagKey } from "../office/format-flags";
-
-const officeConfigKeys = {
-  all: ["office-public-config"] as const,
-  organization: (organizationId: string) => [...officeConfigKeys.all, organizationId] as const,
-};
 
 /**
  * Where the Office editor stands for one document: `loading` until the
@@ -15,28 +9,6 @@ const officeConfigKeys = {
  * only `off` may be described as "turned off".
  */
 export type OfficeEnabledState = "loading" | "on" | "off" | "unknown";
-
-/**
- * A 200 whose body drifted degrades to `flags: {}` in `getPublicConfig`. The
- * server publishes `office_engine` (a public key) in every healthy answer, so
- * its absence means the answer is unusable: an error, retried and never cached
- * as a settled "off" for the query's stale time (UNI-954 R4-4).
- */
-async function fetchOrganizationConfig(organizationId: string | undefined) {
-  const config = await getPublicConfig(organizationId);
-  if (typeof config.flags[OFFICE_ENGINE_FLAG] !== "boolean") throw new Error("office_config_unreadable");
-  return config;
-}
-
-function useOrganizationOfficeConfig(organizationId: string | undefined) {
-  return useQuery({
-    queryKey: officeConfigKeys.organization(organizationId ?? ""),
-    queryFn: () => fetchOrganizationConfig(organizationId),
-    enabled: Boolean(organizationId),
-    staleTime: 5 * 60_000,
-    retry: 1,
-  });
-}
 
 /**
  * Whether the Office editor may open a document of `format` owned by
@@ -53,7 +25,7 @@ export function useOfficeEnabled(organizationId: string | undefined, format: str
   const engine = useFlag(OFFICE_ENGINE_FLAG, false);
   // The format flag defaults on; a format with no flag reads the engine itself.
   const formatOn = useFlag(officeFormatFlagKey(format) ?? OFFICE_ENGINE_FLAG, true);
-  const scoped = useOrganizationOfficeConfig(organizationId);
+  const scoped = useOrganizationConfig(organizationId);
   const retry = () => { void scoped.refetch(); };
   // When the newest settled answer arrived: a repeat of the same answer is still a new decision point.
   const answeredAt = scoped.dataUpdatedAt;
@@ -78,7 +50,7 @@ export function useOfficeDocsWebEnabled(organizationId: string | undefined): Off
  */
 export function useOfficeWebFlagEnabled(flag: string, organizationId: string | undefined): OfficeEnabledState {
   const global = useFlag(flag, true);
-  const scoped = useOrganizationOfficeConfig(organizationId);
+  const scoped = useOrganizationConfig(organizationId);
   if (!organizationId) return global ? "on" : "off";
   if (scoped.data) return scoped.data.flags[flag] !== false ? "on" : "off";
   return scoped.isError ? "unknown" : "loading";
@@ -97,7 +69,7 @@ export function useOfficeWebFlagEnabled(flag: string, organizationId: string | u
  */
 export function useOfficeTxtOpenEnabled(organizationId: string | undefined): OfficeEnabledState {
   const global = useFlag(OFFICE_TXT_OPEN_FLAG, false);
-  const scoped = useOrganizationOfficeConfig(organizationId);
+  const scoped = useOrganizationConfig(organizationId);
   if (!organizationId) return global ? "on" : "off";
   if (scoped.data) return scoped.data.flags[OFFICE_TXT_OPEN_FLAG] === true ? "on" : "off";
   return scoped.isError ? "unknown" : "loading";

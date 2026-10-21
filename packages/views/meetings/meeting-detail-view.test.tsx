@@ -865,7 +865,7 @@ describe("MeetingDetailView › minutes", () => {
   function respondEnded(minutesOn: boolean) {
     requestMock.mockImplementation((path: unknown) => {
       const p = String(path);
-      if (p === "/api/v1/config?organization_id=o1") return Promise.resolve({ flags: { meeting_minutes: minutesOn } });
+      if (p === "/api/v1/config?organization_id=o1") return Promise.resolve({ flags: { office_engine: false, meeting_minutes: minutesOn } });
       if (p === "/api/v1/meetings/m1") {
         return Promise.resolve({ meeting: { ...meeting, status: "ENDED", actual_end_at: "2026-09-09T08:27:00Z" } });
       }
