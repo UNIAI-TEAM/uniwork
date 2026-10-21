@@ -102,6 +102,10 @@ test("docked Ask UNI streams an answer, stops a run and opens with a focus", asy
 
     await box.fill(`câu thứ hai ${stamp}`);
     await dock.getByRole("button", { name: "Gửi" }).click();
+    // The fake provider streams with no delay, so the run usually ends before Stop can be pressed and the
+    // notice is not reached here. It is covered by TestAskAgentStopStoresPartialAndCharges and
+    // TestAskUniStreamClientLeavingStoresAStoppedTurn (Go) and the notices test in
+    // packages/views/ai/ask-uni-answer.test.tsx.
     const stopped = await dock.getByRole("button", { name: "Dừng" }).click({ timeout: 2_000 }).then(() => true, () => false);
     if (stopped) {
       await expect(dock.getByText("Đã dừng trước khi trả lời xong.")).toBeVisible({ timeout: 15_000 });
@@ -109,7 +113,8 @@ test("docked Ask UNI streams an answer, stops a run and opens with a focus", asy
       test.info().annotations.push({ type: "note", description: "run finished before Stop could be pressed" });
     }
 
-    await page.getByText(title).click();
+    // The first answer cites this task, so the dock holds a link with the same title: match outside the dock only.
+    await page.getByText(title).and(page.locator(":not(aside *)")).click();
     await page.getByRole("button", { name: "Hỏi UNI về task này" }).click();
     await expect(dock.getByRole("button", { name: "Bỏ phạm vi Task" })).toBeVisible();
   } finally {
