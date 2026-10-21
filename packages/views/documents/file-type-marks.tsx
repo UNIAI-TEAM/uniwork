@@ -1,15 +1,14 @@
 "use client";
 
 import { useId } from "react";
-import { cn } from "@uniwork/ui/lib/utils";
 import { UniNoteIcon } from "./uninote-icon";
 
 // The file-type marks of UniWork Office (genoffice shell assets
 // apps/shell/src/renderer/src/assets/file-*.svg), inlined once so the web and
 // the desktop app show the same artwork. They are product marks, like
 // ../common/provider-icons.tsx: their colours are the marks', not theme slots.
-// The page mark is the UniNote tile (Documents design, 2026-10-16): the glyph
-// in the blue tint pair, so it follows the theme.
+// The page mark is the UniNote tile (./uninote-icon.tsx), drawn on the same
+// grid and with fixed colours like the rest.
 
 interface MarkProps {
   className?: string;
@@ -106,11 +105,6 @@ function PdfMark({ className }: MarkProps) {
   );
 }
 
-/** The UniNote tile: the glyph in the blue tint pair, legible in both modes. */
 function PageMark({ className }: MarkProps) {
-  return (
-    <span className={cn("flex items-center justify-center rounded-[20%] bg-tint-blue text-tint-blue-foreground", className)}>
-      <UniNoteIcon className="size-[70%]" />
-    </span>
-  );
+  return <UniNoteIcon className={className} />;
 }

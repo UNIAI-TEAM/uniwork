@@ -133,3 +133,31 @@ describe("documentFrameKeys - access request frames", () => {
     expect(documentFrameKeys(ws, "task.updated", frame)).toBeNull();
   });
 });
+
+// UNI-2052: one coalesced frame per folder / multi-file upload batch. It is
+// ids-only (batch_id, workspace_id, root_folder_id - "" for a multi-file
+// upload) and refreshes the library exactly like document.created, once.
+describe("documentFrameKeys - document.batch_uploaded", () => {
+  const batch = { batch_id: "b1", workspace_id: ws, root_folder_id: "f1" };
+
+  it("refreshes the workspace documents root once, like document.created", () => {
+    const keys = documentFrameKeys(ws, "document.batch_uploaded", batch);
+    expect(keys).toEqual([documentKeys.workspace(ws)]);
+    expect(keys).toEqual(documentFrameKeys(ws, "document.created", { document_id: "d1", workspace_id: ws }));
+  });
+
+  it("treats an empty root_folder_id (multi-file upload) the same", () => {
+    expect(documentFrameKeys(ws, "document.batch_uploaded", { ...batch, root_folder_id: "" })).toEqual([
+      documentKeys.workspace(ws),
+    ]);
+  });
+
+  it("refreshes nothing for a frame stamped with another workspace", () => {
+    expect(documentFrameKeys(ws, "document.batch_uploaded", { ...batch, workspace_id: "ws2" })).toEqual([]);
+  });
+
+  it("does not throw on an empty or malformed payload", () => {
+    expect(() => documentFrameKeys(ws, "document.batch_uploaded", {})).not.toThrow();
+    expect(documentFrameKeys(ws, "document.batch_uploaded", { batch_id: "b1" })).toEqual([documentKeys.workspace(ws)]);
+  });
+});

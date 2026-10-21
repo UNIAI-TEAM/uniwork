@@ -5,12 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/go-redis/redismock/v9"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/redis/go-redis/v9"
 
 	"github.com/unicomhub/uniwork/server/internal/ai"
 	"github.com/unicomhub/uniwork/server/internal/ai/provider"
@@ -167,27 +168,53 @@ func TestAskPromptInjection(t *testing.T) {
 	}
 }
 
-func TestAskRateLimitFailClosed(t *testing.T) {
+// The per-user Ask limit (ruling P22) counts in one step that always leaves
+// the key its window, and gives up after the limiters' 100 ms: a dead or
+// stalled Redis lets the ask through.
+func TestAskRateLimitFailsOpenAndExpires(t *testing.T) {
 	s, _, ua, _, w := askFixture(t)
 	ctx := context.Background()
-	rdb, mock := redismock.NewClientMock()
+
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = l.Close() })
+	go func() { // accepts and never answers: a stalled Redis
+		for {
+			c, err := l.Accept()
+			if err != nil {
+				return
+			}
+			t.Cleanup(func() { _ = c.Close() })
+		}
+	}()
+	stalled := redis.NewClient(&redis.Options{Addr: l.Addr().String(), MaxRetries: -1, ContextTimeoutEnabled: true})
+	t.Cleanup(func() { _ = stalled.Close() })
+	s.rdb = stalled
+	started := time.Now()
+	if err := s.rateLimit(ctx, ua.ID); err != nil {
+		t.Fatalf("a stalled Redis must fail open: %v", err)
+	}
+	if d := time.Since(started); d > time.Second {
+		t.Fatalf("the limiter waited %v on a stalled Redis, want about 100ms", d)
+	}
+
+	rdb := uniworkRedis(t)
 	s.rdb = rdb
 	key := "uw:ai:ask:" + ua.ID
-	mock.ExpectIncr(key).SetErr(errors.New("redis down"))
-	if _, err := s.Ask(ctx, ua.ID, w.ID, AskInput{Question: "x"}); !errors.Is(err, ai.ErrRateLimited) {
-		t.Fatalf("redis error must fail closed: %v", err)
+	t.Cleanup(func() { _ = rdb.Del(context.Background(), key, "uw:ai:ask:org:"+w.OrganizationID).Err() })
+	if err := rdb.Set(ctx, key, askRateLimit-1, 0).Err(); err != nil { // no TTL, as a split INCR/EXPIRE could leave it
+		t.Fatal(err)
 	}
-	mock.ExpectIncr(key).SetVal(askRateLimit + 1)
+	if _, err := s.Ask(ctx, ua.ID, w.ID, AskInput{Question: "x"}); err != nil {
+		t.Fatalf("ask %d of %d: %v", askRateLimit, askRateLimit, err)
+	}
+	if d, err := rdb.TTL(ctx, key).Result(); err != nil || d <= 0 || d > askRateWindow {
+		t.Fatalf("TTL %v %v, want the key given its window back", d, err)
+	}
 	if _, err := s.Ask(ctx, ua.ID, w.ID, AskInput{Question: "x"}); !errors.Is(err, ai.ErrRateLimited) {
 		t.Fatalf("over budget: %v", err)
-	}
-	mock.ExpectIncr(key).SetVal(1)
-	mock.ExpectExpire(key, askRateWindow).SetVal(true)
-	if _, err := s.Ask(ctx, ua.ID, w.ID, AskInput{Question: "x"}); err != nil {
-		t.Fatalf("first call in window: %v", err)
-	}
-	if err := mock.ExpectationsWereMet(); err != nil {
-		t.Fatal(err)
 	}
 }
 
