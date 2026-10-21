@@ -96,6 +96,11 @@ type VoteChatPollSDI struct {
 	OptionID string `json:"option_id" description:"Selected poll option id" example:"01J8X4OPT0N1P2Q3R4S5T6U7V8"`
 }
 
+// AddChatPollOptionSDI is POST .../messages/{messageID}/poll/options.
+type AddChatPollOptionSDI struct {
+	Label string `json:"label" description:"New poll option label" example:"Quán phở"`
+}
+
 // CreateChatReminderSDI creates a reminder in a chat room.
 type CreateChatReminderSDI struct {
 	Body     string `json:"body" description:"Reminder content" example:"Họp sprint lúc 9h"`

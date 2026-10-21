@@ -514,7 +514,9 @@ type Routes struct {
 	SendChatDocumentMessage          http.HandlerFunc
 	ShareChatMessageAsDocument       http.HandlerFunc
 	GetChatRoomDetail                http.HandlerFunc
+	GetChatPollVoters                http.HandlerFunc
 	VoteChatPollMessage              http.HandlerFunc
+	AddChatPollOptionMessage         http.HandlerFunc
 	ToggleChatMessageReaction        http.HandlerFunc
 	EditChatMessage                  http.HandlerFunc
 	DeleteChatMessage                http.HandlerFunc

@@ -5,6 +5,8 @@ import {
   inviteChatGroupMembers,
   patchChatRoom,
   voteChatPollMessage,
+  addChatPollOptionMessage,
+  getChatPollVoters,
   uploadChatRoomAvatar,
   removeChatRoomAvatar,
   ensureWorkspaceChatRoom,
@@ -1029,6 +1031,16 @@ describe("chat endpoints", () => {
   it("voteChatPollMessage degrades on malformed response", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ message: 1 }));
     expect(await voteChatPollMessage("ws1", "room1", "msg1", "opt1")).toBeNull();
+  });
+
+  it("addChatPollOptionMessage degrades on malformed response", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ message: 1 }));
+    expect(await addChatPollOptionMessage("ws1", "room1", "msg1", "New")).toBeNull();
+  });
+
+  it("getChatPollVoters degrades on malformed response", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ votes_by_user: "bad" }));
+    expect(await getChatPollVoters("ws1", "room1", "msg1")).toEqual({});
   });
 
   it("inviteChatGroupMembers degrades on malformed response", async () => {

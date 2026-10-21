@@ -49,6 +49,8 @@ export const chatKeys = {
     ["chat", "room-shared-summary", wsId, roomId] as const,
   /** The stored transcript of one voice message (UNI-1908 F2). */
   voiceTranscript: (wsId: string, messageId: string) => ["chat", "voice-transcript", wsId, messageId] as const,
+  /** Who voted on a poll message (UNI-1726); fetched only when opening the voters dialog. */
+  pollVoters: (wsId: string, messageId: string) => ["chat", "poll-voters", wsId, messageId] as const,
   /** Prefix for all Follow-up list variants; invalidate with this key only. */
   followUps: (wsId: string) => ["chat", "follow-ups", wsId] as const,
   roomMessageSearch: (wsId: string, roomId: string, query: string) =>
