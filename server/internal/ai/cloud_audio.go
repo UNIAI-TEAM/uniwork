@@ -98,19 +98,29 @@ func audioByteRate(mime string, data []byte) int {
 	return audioBytesPerSecCompressedOth
 }
 
-// wavByteRate reads the byte rate of a RIFF/WAVE header; 0 when the header
-// is not one or the value is implausible. The declared byte rate is not
+// wavByteRate reads the byte rate of a RIFF/WAVE header's "fmt " chunk,
+// wherever it sits (field recorders put bext or JUNK before it); 0 when the
+// head holds none or the value is implausible. The declared byte rate is not
 // trusted on its own (decoders play PCM by its sample rate, channels and
 // sample size): PCM counts at most at that product, any other codec at most
 // at the audio ceiling.
 func wavByteRate(b []byte) int {
-	if len(b) < 44 || string(b[0:4]) != "RIFF" || string(b[8:12]) != "WAVE" {
+	if len(b) < 12 || string(b[0:4]) != "RIFF" || string(b[8:12]) != "WAVE" {
 		return 0
 	}
-	r := int(binary.LittleEndian.Uint32(b[28:32]))
-	switch binary.LittleEndian.Uint16(b[20:22]) {
+	i := 12
+	for i+8+16 <= len(b) && string(b[i:i+4]) != "fmt " {
+		size := int(binary.LittleEndian.Uint32(b[i+4 : i+8]))
+		i += 8 + size + size&1 // chunks are padded to an even length
+	}
+	if i+8+16 > len(b) {
+		return 0
+	}
+	f := b[i+8:]
+	r := int(binary.LittleEndian.Uint32(f[8:12]))
+	switch binary.LittleEndian.Uint16(f[0:2]) {
 	case 1, 0xfffe: // PCM, WAVE_FORMAT_EXTENSIBLE
-		pcm := int(binary.LittleEndian.Uint32(b[24:28])) * int(binary.LittleEndian.Uint16(b[22:24])) * int(binary.LittleEndian.Uint16(b[34:36])) / 8
+		pcm := int(binary.LittleEndian.Uint32(f[4:8])) * int(binary.LittleEndian.Uint16(f[2:4])) * int(binary.LittleEndian.Uint16(f[14:16])) / 8
 		r = min(r, pcm)
 	default:
 		r = min(r, audioBytesPerSecAudioCeiling)

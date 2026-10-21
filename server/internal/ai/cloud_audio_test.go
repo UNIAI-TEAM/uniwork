@@ -11,6 +11,8 @@ func wavBytes(byteRate uint32, seconds int) []byte {
 	b := make([]byte, 44+int(byteRate)*seconds)
 	copy(b[0:], "RIFF")
 	copy(b[8:], "WAVE")
+	copy(b[12:], "fmt ")
+	binary.LittleEndian.PutUint32(b[16:], 16)
 	binary.LittleEndian.PutUint16(b[20:], 1) // PCM, 16-bit stereo at byteRate
 	binary.LittleEndian.PutUint16(b[22:], 2)
 	binary.LittleEndian.PutUint32(b[24:], byteRate/4)
@@ -76,6 +78,8 @@ func TestEstimateAudioSecondsFromSize(t *testing.T) {
 	wav := make([]byte, 44)
 	copy(wav, "RIFF")
 	copy(wav[8:], "WAVE")
+	copy(wav[12:], "fmt ")
+	binary.LittleEndian.PutUint32(wav[16:], 16)
 	binary.LittleEndian.PutUint32(wav[28:32], 16000)
 	if got := EstimateAudioSecondsFromHead(16000*90, "audio/wav", wav); got != 90 {
 		t.Fatalf("wav header = %v, want 90", got)
@@ -90,6 +94,8 @@ func TestWAVByteRateIsClampedAndTheCeilingFollowsTheType(t *testing.T) {
 		b := make([]byte, 44)
 		copy(b, "RIFF")
 		copy(b[8:], "WAVE")
+		copy(b[12:], "fmt ")
+		binary.LittleEndian.PutUint32(b[16:], 16)
 		binary.LittleEndian.PutUint16(b[20:22], format)
 		binary.LittleEndian.PutUint16(b[22:24], channels)
 		binary.LittleEndian.PutUint32(b[24:28], sampleRate)
@@ -124,5 +130,31 @@ func TestWAVByteRateIsClampedAndTheCeilingFollowsTheType(t *testing.T) {
 		if got := AudioByteRateCeiling(tc.mime, tc.head); got != tc.want {
 			t.Errorf("ceiling %s = %d, want %d", tc.mime, got, tc.want)
 		}
+	}
+}
+
+// Field recorders (Zoom H-series, broadcast WAV) put a bext or JUNK chunk
+// before "fmt "; the rate is read from wherever "fmt " sits, so an hour of
+// 48 kHz 24-bit stereo is an hour, not the 40 kB/s fallback's nine.
+func TestWAVByteRateFindsFmtAfterOtherChunks(t *testing.T) {
+	const bext = 603 // odd: the chunk is padded to an even length
+	b := make([]byte, 12+8+bext+1+8+16)
+	copy(b, "RIFF")
+	copy(b[8:], "WAVE")
+	copy(b[12:], "bext")
+	binary.LittleEndian.PutUint32(b[16:], bext)
+	f := 12 + 8 + bext + 1
+	copy(b[f:], "fmt ")
+	binary.LittleEndian.PutUint32(b[f+4:], 16)
+	binary.LittleEndian.PutUint16(b[f+8:], 1)
+	binary.LittleEndian.PutUint16(b[f+10:], 2)
+	binary.LittleEndian.PutUint32(b[f+12:], 48000)
+	binary.LittleEndian.PutUint32(b[f+16:], 288000)
+	binary.LittleEndian.PutUint16(b[f+22:], 24)
+	if got := AudioByteRateCeiling("audio/wav", b); got != 288000 {
+		t.Fatalf("ceiling = %d, want 288000", got)
+	}
+	if got := EstimateAudioSecondsFromHead(288000*3600, "audio/wav", b); got != 3600 {
+		t.Fatalf("one hour = %v s, want 3600", got)
 	}
 }
