@@ -1,0 +1,5 @@
+$ bash scripts/go-cover-floor.sh .go-tmp/cover.out; echo "COVER_FLOOR_EXIT=$?"; cat server/coverage.floor
+cover: open .go-tmp/cover.out: no such file or directory
+coverage % is below the floor 74% (server/coverage.floor)
+COVER_FLOOR_EXIT=1
+74

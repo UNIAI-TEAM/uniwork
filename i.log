@@ -1,0 +1,4 @@
+$ grep -E "^\s*--- FAIL" /tmp/uni2012r2-go.log | head -80
+--- FAIL: TestDeleteLinkDocumentMessageRacingReconcileAndLinkSend (1.20s)
+    --- FAIL: TestDeleteLinkDocumentMessageRacingReconcileAndLinkSend/delete_holds_the_lock,_a_link_send_waits (0.41s)
+--- FAIL: TestChatGrantLeaveAfterCommitIsReconciled (20.45s)
