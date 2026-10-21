@@ -169,6 +169,7 @@ func accessBatchGrantRecord(actor Actor, doc db.Document, sh, prev db.DocumentSh
 				"share_id":       sh.ID,
 				"principal_type": sh.PrincipalType,
 				"principal_id":   sh.PrincipalID,
+				"origin":         sh.Origin,
 				"batch_id":       batchID,
 			},
 		},

@@ -156,6 +156,7 @@ func recordUserSharesEach(ctx context.Context, q *db.Queries, actor Actor, doc d
 						"share_id":       sh.ID,
 						"principal_type": sh.PrincipalType,
 						"principal_id":   sh.PrincipalID,
+						"origin":         sh.Origin,
 					},
 				},
 				Events: []audit.Event{{Topic: "document.shared", Payload: payload}},
