@@ -23,7 +23,7 @@ import { nicknamesOptions, workspaceMembersOptions } from "@/data/queries/chat";
 import { deactivatedMembersOptions } from "@/data/queries/org-members";
 import { useWorkspaceStore } from "@/data/stores/workspace-store";
 import { contactSections, type ContactRow } from "@/lib/contacts-display";
-import { deepLinkHref } from "@/lib/deep-link";
+import { inAppDmHref } from "@/lib/deep-link";
 
 const NO_ONE: readonly string[] = [];
 
@@ -49,7 +49,8 @@ export default function ContactsTab() {
     [members.data, userId, hidden, nicknames.data, query],
   );
   const count = sections.reduce((sum, section) => sum + section.data.length, 0);
-  const openDm = useCallback((row: ContactRow) => router.push(deepLinkHref({ orgSlug: org, wsSlug: ws, dmUserId: row.user_id })), [org, ws]);
+  // The person's own tap: vouched for, so the Chat tab opens it without the outside link's confirm.
+  const openDm = useCallback((row: ContactRow) => router.push(inAppDmHref({ orgSlug: org, wsSlug: ws }, row.user_id)), [org, ws]);
   // A search narrows the list itself; the strip only greets an unfiltered tab.
   const everyone = useMemo(() => (query.trim() ? [] : sections.flatMap((section) => section.data)), [query, sections]);
 

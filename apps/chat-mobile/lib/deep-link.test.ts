@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { deepLinkHref, incomingUrlAction, parseDeepLink, setPendingDeepLink, systemPathToRoute, takePendingDeepLink } from "./deep-link";
+import { deepLinkHref, inAppDmHref, incomingUrlAction, parseDeepLink, setPendingDeepLink, systemPathToRoute, takeInAppDm, takePendingDeepLink } from "./deep-link";
 
 const APP_URL = "https://app.uniworkos.com";
 const SCHEME = "uniworkchat";
@@ -88,6 +88,25 @@ describe("pending deep link", () => {
     setPendingDeepLink(link);
     expect(takePendingDeepLink()).toBe(link);
     expect(takePendingDeepLink()).toBeNull();
+  });
+});
+
+describe("in-app DM (Contacts, room info)", () => {
+  it("vouches for the one DM the app asked for, once and for a few seconds; a link's dm= is never vouched for", () => {
+    expect(takeInAppDm("u2", 0)).toBe(false);
+    expect(inAppDmHref({ orgSlug: "acme", wsSlug: "hq" }, "u2", 1_000)).toBe("/acme/hq/chat?dm=u2");
+    expect(takeInAppDm("u2", 2_000)).toBe(true);
+    expect(takeInAppDm("u2", 2_000)).toBe(false);
+    // Another person's DM (an outside link landing meanwhile) spends the vouch without using it.
+    inAppDmHref({ orgSlug: "acme", wsSlug: "hq" }, "u2", 1_000);
+    expect(takeInAppDm("u9", 1_500)).toBe(false);
+    expect(takeInAppDm("u2", 1_500)).toBe(false);
+    // Stale: the tab never took it in time.
+    inAppDmHref({ orgSlug: "acme", wsSlug: "hq" }, "u2", 1_000);
+    expect(takeInAppDm("u2", 11_001)).toBe(false);
+    // The real clock by default.
+    inAppDmHref({ orgSlug: "acme", wsSlug: "hq" }, "u3");
+    expect(takeInAppDm("u3")).toBe(true);
   });
 });
 

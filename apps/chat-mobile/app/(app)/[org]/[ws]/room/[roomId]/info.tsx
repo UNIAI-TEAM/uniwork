@@ -33,7 +33,7 @@ import { useMobileFlag } from "@/data/remote-config";
 import { toast } from "@/data/stores/toast-store";
 import { chatRoutes } from "@/lib/chat-routes";
 import { canCallRoom, keptCounts } from "@/lib/conversation-display";
-import { deepLinkHref } from "@/lib/deep-link";
+import { inAppDmHref } from "@/lib/deep-link";
 import { senderLabelFor } from "@/lib/people-display";
 
 /** The screen once the workspace resolved: its queries and the wiring of the parts (components/chat/room-info/). */
@@ -107,7 +107,7 @@ function RoomInfo({ chat, roomId }: { chat: ChatWorkspace; roomId: string }) {
         wsId={chat.wsId}
         person={memberMenu}
         onClose={() => setMemberMenu(null)}
-        onMessage={(person) => router.push(deepLinkHref({ orgSlug: chat.orgSlug, wsSlug: chat.wsSlug, dmUserId: person.userId }))}
+        onMessage={(person) => router.push(inAppDmHref(chat, person.userId))}
       />
     </View>
   );

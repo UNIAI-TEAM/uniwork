@@ -10,7 +10,9 @@
 // (an implicit VIEW intent). So no link acts on its own: `call=` only shows the
 // ringing screen, never answers (the notification's Answer reaches the app
 // through its own PendingIntent, modules/unichat-calls › CallLaunchTokens), and
-// `dm=` asks before it opens a conversation (components/chat/use-deep-link-target.ts).
+// `dm=` asks before it opens a conversation (components/chat/use-deep-link-target.ts)
+// — unless the app itself asked for that DM a moment ago (inAppDmHref: a
+// contact's row, a member's Message), which no URL can claim.
 
 import { isAuthCallbackUrl } from "./auth-callback-url";
 
@@ -103,4 +105,24 @@ export function takePendingDeepLink(): DeepLink | null {
   const link = pending;
   pending = null;
   return link;
+}
+
+// "Message this person" inside the app (Contacts, room info) goes through the Chat tab's `dm=` too, so the back
+// button lands on the inbox; it is the person's own tap, so the tab opens it without the outside link's confirm.
+// The vouch is held here in memory, never in the URL: a param could be forged by any link (a custom-scheme URL
+// that parseDeepLink does not recognise reaches expo-router untouched). One DM, used once, for a few seconds.
+const IN_APP_DM_TTL_MS = 10_000;
+let inAppDm: { userId: string; at: number } | null = null;
+
+/** The Chat tab's href for a DM the person asked for in the app, vouched for once. */
+export function inAppDmHref(slugs: Pick<DeepLink, "orgSlug" | "wsSlug">, userId: string, now = Date.now()): string {
+  inAppDm = { userId, at: now };
+  return deepLinkHref({ orgSlug: slugs.orgSlug, wsSlug: slugs.wsSlug, dmUserId: userId });
+}
+
+/** Whether the app itself just asked to open this DM; the vouch is spent either way. */
+export function takeInAppDm(userId: string, now = Date.now()): boolean {
+  const vouched = inAppDm;
+  inAppDm = null;
+  return vouched !== null && vouched.userId === userId && now - vouched.at <= IN_APP_DM_TTL_MS;
 }

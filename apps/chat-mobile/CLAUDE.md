@@ -366,7 +366,9 @@ một dòng thì ghi lý do ở dòng trên.
   màn hình ở `app/(app)/[org]/[ws]/{(tabs)/chat,room/[roomId]/{index,info,thread/[rootId]},new-chat,new-group,channels}.tsx`
   + `components/chat/*`. Route tab `/{org}/{ws}/chat` nhận `room`/`message`/`dm`
   của `lib/deep-link.ts › deepLinkHref` (hợp đồng với push và tab khác): `lib/deep-link-target.ts` (thuần) quyết
-  định, `components/chat/use-deep-link-target.ts` (jest) làm. File route chỉ ghép màn — query, state của màn và nối
+  định, `components/chat/use-deep-link-target.ts` (jest) làm. `dm=` từ ngoài app hỏi trước khi mở; "Nhắn tin" trong
+  app (Danh bạ, thông tin phòng) đi qua `inAppDmHref`, bảo lãnh trong bộ nhớ (một DM, một lần, 10 s — không bao giờ là
+  param, vì URL nào cũng giả được param) nên mở thẳng. File route chỉ ghép màn — query, state của màn và nối
   các phần — và **không được đo** (jest không đo `app/`), nên logic có nhánh nằm ở `lib/` (thuần, vitest —
   `quickCatchUp`, `pickerPeople`, `channelDirectory`, `canCallRoom`, `keptCounts`, `missedCallCount`,
   `selectQueuedRoomIds`) hoặc ở component/hook của `components/` có test jest; không đặt test dưới `app/`. Component

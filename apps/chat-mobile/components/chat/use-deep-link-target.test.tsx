@@ -8,6 +8,7 @@ import { Alert, type AlertButton } from "react-native";
 import { ensureCallPermissions } from "@/components/ui/permission-gate";
 import { workspaceMembersOptions } from "@/data/queries/chat";
 import { useToastStore } from "@/data/stores/toast-store";
+import { inAppDmHref } from "@/lib/deep-link";
 import { render, viText } from "@/test/render";
 import type { ChatWorkspace } from "./use-chat-workspace";
 import { useDeepLinkTarget } from "./use-deep-link-target";
@@ -124,6 +125,22 @@ describe("useDeepLinkTarget", () => {
     // No display name: the email names them.
     await land({ dm: "u5" }, chat, queryClient);
     expect(Alert.alert).toHaveBeenLastCalledWith(viText("mobile.security.dm_confirm_title"), viText("mobile.security.dm_confirm_body", { name: "an@acme.vn" }), expect.any(Array));
+  });
+
+  // Review: tapping a contact (or a member's Message) said "A link wants to open a direct message" — false, on a
+  // primary flow. The app's own tap is vouched for in memory and opens at once; a link with the same params is not.
+  it("opens a DM the person asked for in the app at once, and still asks for the same link from outside", async () => {
+    inAppDmHref(chat, "u2");
+    await land({ dm: "u2" });
+    expect(Alert.alert).not.toHaveBeenCalled();
+    expect(mockResolveDM).toHaveBeenCalledWith("u2");
+    expect(mockRouter.push).toHaveBeenCalledWith("/acme/main/room/dm-1");
+
+    jest.clearAllMocks();
+    mockParams.current = {};
+    await land({ dm: "u2" });
+    expect(Alert.alert).toHaveBeenCalledTimes(1);
+    expect(mockResolveDM).not.toHaveBeenCalled();
   });
 
   it("rings for a call's push, and opens the room when the call is already over", async () => {

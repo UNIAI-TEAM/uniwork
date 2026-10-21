@@ -364,7 +364,8 @@ khi nào dịch vụ chạy, ai được báo) với module native giả; chỉ 
   --ez expo.modules.unichatcalls.ANSWER true`: app chỉ hiện màn đổ chuông, micro không mở; máy đang khoá thì app không
   hiện trên màn khoá. Bấm Nghe trên thông báo thì nghe như thường.
 - [ ] Mở một link `https://app.uniworkos.com/<org>/<ws>/chat?dm=<userId>` từ trình duyệt: app hỏi "Mở cuộc trò chuyện
-  riêng?" kèm tên người; Hủy thì không tạo phòng nào.
+  riêng?" kèm tên người; Hủy thì không tạo phòng nào. Chạm một người ở tab Danh bạ, hay "Nhắn tin" ở thành viên trong
+  thông tin phòng: mở thẳng cuộc trò chuyện, không hỏi.
 - [ ] Android 9–12 (quyền bộ nhớ đã bị gỡ): gửi ảnh từ thư viện, chụp ảnh từ composer, gửi một tệp PDF — không lỗi quyền.
 - [ ] Cài đặt › Quyền riêng tư và bảo mật › Khoá UniChat: bật đòi Face ID/vân tay trước; kill app, mở lại: màn khoá và
   hộp thoại sinh trắc hiện ngay, Huỷ thì ở lại màn khoá, "Mở khoá" hỏi lại; về Home 30 s rồi quay lại với "1 phút":

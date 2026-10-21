@@ -1,7 +1,8 @@
 // Carries out, once per link, what a deep link on the Chat tab asks for
 // (lib/deep-link-target.ts decides; this only acts): open a room, open a DM
 // once the person agrees (a link from a page, a message or another app must not
-// create conversations on the account by itself), show
+// create conversations on the account by itself; the app's own "Message" taps
+// are vouched for in memory, lib/deep-link.ts › inAppDmHref, and open at once), show
 // a ringing call's screen, answer it after the microphone primer when the
 // notification's own Answer button opened the app (nativeCalls.takeAnsweredCall:
 // a token only that PendingIntent carries, so no URL, page or other app can
@@ -21,6 +22,7 @@ import { workspaceMembersOptions } from "@/data/queries/chat";
 import { readMobileFlag } from "@/data/remote-config";
 import { toast } from "@/data/stores/toast-store";
 import { chatRoutes } from "@/lib/chat-routes";
+import { takeInAppDm } from "@/lib/deep-link";
 import { deepLinkKey, planDeepLink, type DeepLinkParams } from "@/lib/deep-link-target";
 import { sameUser } from "@/lib/user-id";
 import type { ChatWorkspace } from "./use-chat-workspace";
@@ -80,6 +82,11 @@ export function useDeepLinkTarget(chat: ChatWorkspace | null) {
               else toast.error(t("chat.dm_failed"));
             })
             .catch(() => toast.error(t("chat.dm_failed")));
+        // The person's own tap in the app (Contacts, room info): nothing to confirm.
+        if (takeInAppDm(plan.userId)) {
+          void open();
+          return;
+        }
         // Resolving may create the room, a write on the account: the person decides, knowing with whom.
         const member = qc.getQueryData(workspaceMembersOptions(chat.wsId).queryKey)?.find((m) => sameUser(m.user_id, plan.userId));
         const name = member?.display_name || member?.email;
