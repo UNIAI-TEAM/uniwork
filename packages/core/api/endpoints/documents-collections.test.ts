@@ -127,6 +127,14 @@ describe("documents-collections endpoints", () => {
     expect(url.searchParams.has("order")).toBe(false);
   });
 
+  it("listRecentDocuments sends the activity sort with include_owned", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json(listBody()));
+    await listRecentDocuments("w1", { sort: "activity", includeOwned: true, limit: 5 });
+    expect(String(vi.mocked(fetch).mock.calls[0]![0])).toBe(
+      "http://api.test/api/v1/workspaces/w1/documents/recent?sort=activity&include_owned=true&limit=5",
+    );
+  });
+
   it("the sibling lists carry sort and order next to the chip filters", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json(listBody()));
     await listRecentDocuments("w1", { format: "pdf", sort: "size", order: "desc", limit: 5 });

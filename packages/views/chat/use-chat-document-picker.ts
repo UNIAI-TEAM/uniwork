@@ -39,8 +39,11 @@ export function useChatDocumentPicker(workspaceId: string, open: boolean) {
   const settling = trimmed !== settled;
 
   // includeOwned: a document the sender owns stays in the list after somebody
-  // else edits it, which ends their own open/edit on it.
-  const recent = useRecentDocuments(workspaceId, { enabled: open && !searching, includeOwned: true });
+  // else edits it, which ends their own open/edit on it. sort=activity orders
+  // the rows by what the sender did last (an owned row counts at its
+  // updated_at), so a document opened yesterday is not buried under owned
+  // documents that changed last week.
+  const recent = useRecentDocuments(workspaceId, { enabled: open && !searching, includeOwned: true, sort: "activity" });
   const search = useDocumentList(
     workspaceId,
     { q: settled || undefined, match: "title", kind: "document" },

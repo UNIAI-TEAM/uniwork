@@ -35,6 +35,8 @@ const enc = encodeURIComponent;
 /** The columns the document tables sort by on the server. */
 export type DocumentSortColumn = "updated" | "name" | "size" | "editor";
 export type DocumentSortOrder = "asc" | "desc";
+/** The caller's last activity on a row, newest first by default: a sort key of `/documents/recent` only (other lists answer 400). */
+type DocumentRecentSort = "activity";
 
 /** Filters of GET /workspaces/{ws}/documents. `parentId: ""` lists the
  *  workspace roots; leaving it undefined is the flat list. `sharedByMe: true`
@@ -44,7 +46,7 @@ export interface ListDocumentsBaseOpts {
   q?: string;
   /** The column the tables sort by (UNI-2038); left out keeps the list's own
    *  fixed order. `archived` and `shelved` lists refuse it with 400. */
-  sort?: DocumentSortColumn;
+  sort?: DocumentSortColumn | DocumentRecentSort;
   order?: DocumentSortOrder;
   /** "document" is every kind but folder (folders contract v1.0). */
   kind?: DocumentKind | "document";

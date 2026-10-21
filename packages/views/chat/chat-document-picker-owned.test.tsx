@@ -46,4 +46,16 @@ describe("ChatDocumentPicker empty-query list (UNI-2012 F5)", () => {
     expect(recent.length).toBeGreaterThan(0);
     for (const path of recent) expect(new URLSearchParams(path.split("?")[1]).get("include_owned")).toBe("true");
   });
+
+  it("orders the empty-query list by the sender's last activity, not by updated_at", async () => {
+    render(wrap(<ChatDocumentPicker open onOpenChange={vi.fn()} workspaceId={WS} roomId="room1" />));
+    await screen.findByText("De-xuat.pdf");
+    const recent = requestMock.mock.calls.map(([path]) => String(path)).filter((p) => p.includes("/documents/recent"));
+    expect(recent.length).toBeGreaterThan(0);
+    for (const path of recent) {
+      const params = new URLSearchParams(path.split("?")[1]);
+      expect(params.get("sort")).toBe("activity");
+      expect(params.has("order")).toBe(false);
+    }
+  });
 });
