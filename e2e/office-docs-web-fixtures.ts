@@ -20,6 +20,8 @@ const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingm
 export interface DocsWebPin {
   version: string;
   entry: string;
+  /** The response headers the pin says the frame is served with (the CSP). */
+  headers?: Record<string, string>;
 }
 
 export function readPinnedFrame(): DocsWebPin {
@@ -92,6 +94,7 @@ export async function setFlag(flag: string, organizationId: string, enabled: boo
 }
 
 export interface VersionRow {
+  id: string;
   version: number;
   reason: string;
   size_bytes: number;
@@ -126,14 +129,15 @@ const heldEditLocks = new Map<string, string>();
 /**
  * Opens `seeded.documentUrl`, captures the page's `POST /api/v1/documents/{id}/edit-lock`
  * `lock_id` answer (UNI-1645), and records it so `releaseSeededEditLock` (and
- * `seededEditLockId` for `commitElsewhere`) can use it.
+ * `seededEditLockId` for `commitElsewhere`) can use it. `search` (for example `?comment=<id>`) is
+ * appended to the document URL.
  */
-export async function openSeededDocument(page: Page, seeded: SeededDocx): Promise<string> {
+export async function openSeededDocument(page: Page, seeded: SeededDocx, search = ""): Promise<string> {
   const expectedPath = `/api/v1/documents/${seeded.documentId}/edit-lock`;
   const acquired = page.waitForResponse(
     (r) => r.request().method() === "POST" && new URL(r.url()).pathname === expectedPath,
   );
-  await page.goto(seeded.documentUrl);
+  await page.goto(`${seeded.documentUrl}${search}`);
   const response = await acquired;
   expect(response.ok(), `acquire edit lock: HTTP ${response.status()} ${await response.text()}`).toBeTruthy();
   const { lock_id } = (await response.json()) as { lock_id: string };
