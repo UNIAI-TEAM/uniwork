@@ -789,6 +789,13 @@ func (s *DocumentService) planFolderUpload(ctx context.Context, actor Actor, org
 // document.created event: the batch's one document.batch_uploaded event
 // stands for the whole tree.
 func (s *DocumentService) insertFolderUploadFolder(ctx context.Context, q *db.Queries, actor Actor, orgID, workspaceID, parentID, title string, position float64, batchID string, inMyFolder bool) (string, error) {
+	// The plan normalized every segment and the root name was only suffixed
+	// since; normalizing again here is idempotent and keeps the write path
+	// self-evidently normalized for the title-write guard.
+	title, err := normalizeDocumentTitle(DocumentKindFolder, title)
+	if err != nil {
+		return "", err
+	}
 	visibility, level := folderHomeRowAt(inMyFolder)
 	doc, err := q.InsertDocument(ctx, db.InsertDocumentParams{
 		ID:             util.NewID(),

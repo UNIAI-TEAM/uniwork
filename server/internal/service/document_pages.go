@@ -390,9 +390,14 @@ func (s *DocumentService) insertFolderWithFreeName(ctx context.Context, tx pgx.T
 		OrganizationID: in.OrganizationID, WorkspaceID: in.WorkspaceID,
 		ParentID: in.ParentID.String, Kind: DocumentKindFolder,
 	}
-	requested := in.Title
+	// The caller normalized the title already; doing it here too makes this the
+	// write path's own proof (the title-write guard reads this function body),
+	// and it is idempotent.
+	requested, err := normalizeDocumentTitle(DocumentKindFolder, in.Title)
+	if err != nil {
+		return db.Document{}, err
+	}
 	var doc db.Document
-	var err error
 	for attempt := 1; attempt <= titleWriteAttempts; attempt++ {
 		err = s.withTitleSavepoint(ctx, tx, attempt, func() error {
 			name, err := s.availableFolderCreateTitle(ctx, q, scope, requested)
