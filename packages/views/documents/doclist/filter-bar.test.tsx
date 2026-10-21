@@ -102,7 +102,9 @@ const CHIP_LABELS = ["Mọi loại", "UniNote", ".docx", ".xlsx", ".pptx", ".pdf
 const chipGroup = () => screen.queryByRole("group", { name: t("documents.home.chips_label") });
 const editorSelect = () => screen.queryByRole("combobox", { name: new RegExp(`^${t("documents.home.filters.editor")}`) });
 const updatedSelect = () => screen.queryByRole("combobox", { name: new RegExp(`^${t("documents.home.filters.updated")}`) });
-const activityGroup = () => screen.queryByRole("group", { name: t("documents.home.filters.activity_label") });
+const activityGroup = () => screen.queryByRole("radiogroup", { name: t("documents.home.filters.activity_label") });
+/** The table alone: the Mở tiếp cards above it repeat a recent title (W14). */
+const inTable = () => within(screen.getByRole("table"));
 
 async function choose(combobox: HTMLElement, label: string) {
   fireEvent.click(combobox);
@@ -173,15 +175,15 @@ describe("one filter bar (W10)", () => {
   it("sends format=txt, the Người sửa id, the Cập nhật bound and the Gần đây segment to the server", async () => {
     route({ list: () => [summary("r1", { last_activity: { kind: "opened", at: ago(5) } })] });
     renderView("/?view=recent");
-    await screen.findByText("r1");
+    await screen.findAllByText("r1");
     const recent = (path: string) => path.startsWith(`${LIST_BASE}/recent`);
 
     fireEvent.click(within(chipGroup()!).getByRole("button", { name: ".txt" }));
     await waitFor(() => expect(queryOf(lastCall(recent)).get("format")).toBe("txt"));
 
-    fireEvent.click(within(activityGroup()!).getByRole("button", { name: "Đã sửa" }));
+    fireEvent.click(within(activityGroup()!).getByRole("radio", { name: "Đã sửa" }));
     await waitFor(() => expect(queryOf(lastCall(recent)).get("activity")).toBe("edited"));
-    expect(within(activityGroup()!).getByRole("button", { name: "Đã sửa" })).toHaveAttribute("aria-pressed", "true");
+    expect(within(activityGroup()!).getByRole("radio", { name: "Đã sửa" })).toHaveAttribute("aria-checked", "true");
 
     await choose(editorSelect()!, "Bình");
     await waitFor(() => expect(queryOf(lastCall(recent)).get("updated_by")).toBe("u2"));
@@ -191,7 +193,7 @@ describe("one filter bar (W10)", () => {
     const query = queryOf(lastCall(recent));
     expect([query.get("format"), query.get("activity"), query.get("updated_by")]).toEqual(["txt", "edited", "u2"]);
 
-    fireEvent.click(within(activityGroup()!).getByRole("button", { name: "Tất cả" }));
+    fireEvent.click(within(activityGroup()!).getByRole("radio", { name: "Tất cả" }));
     await waitFor(() => expect(queryOf(lastCall(recent)).has("activity")).toBe(false));
   });
 
@@ -245,7 +247,7 @@ describe("one filter bar (W10)", () => {
     renderView("/?view=recent");
     await screen.findByText("row");
     await choose(editorSelect()!, "Bình");
-    fireEvent.click(within(activityGroup()!).getByRole("button", { name: "Đã mở" }));
+    fireEvent.click(within(activityGroup()!).getByRole("radio", { name: "Đã mở" }));
     fireEvent.click((await screen.findAllByRole("button", { name: new RegExp(t("documents.home.sidebar.shared")) }))[0]!);
     await waitFor(() => expect(listCalls(`${LIST_BASE}/shared-with-me`).length).toBeGreaterThan(0));
     expect(editorSelect()!.textContent).toContain(t("documents.home.filters.editor_any"));
@@ -263,7 +265,7 @@ describe("date groups (W11)", () => {
   it("groups Gần đây by last activity in its own order and goes flat under another sort", async () => {
     route({ list: () => recentRows() });
     renderView("/?view=recent");
-    await screen.findByText("today-doc");
+    await screen.findAllByText("today-doc");
     const recent = (path: string) => path.startsWith(`${LIST_BASE}/recent`);
     expect(queryOf(lastCall(recent)).get("sort")).toBe("activity");
     expect(queryOf(lastCall(recent)).get("order")).toBe("desc");
@@ -275,7 +277,7 @@ describe("date groups (W11)", () => {
     fireEvent.click(screen.getByRole("button", { name: new RegExp(t("documents.list.column.name")) }));
     await waitFor(() => expect(queryOf(lastCall(recent)).get("sort")).toBe("name"));
     await waitFor(() => expect(screen.queryByRole("button", { name: /^Hôm nay/ })).toBeNull());
-    expect(screen.getByText("today-doc")).toBeInTheDocument();
+    expect(inTable().getByText("today-doc")).toBeInTheDocument();
   });
 
   it("groups Được chia sẻ với tôi by the share date, asking for sort=shared", async () => {
@@ -299,25 +301,25 @@ describe("date groups (W11)", () => {
   it("remembers a collapsed group per user and screen across a remount", async () => {
     route({ list: () => recentRows() });
     const first = renderView("/?view=recent");
-    await screen.findByText("today-doc");
+    await screen.findAllByText("today-doc");
     fireEvent.click(await groupButton("Hôm nay"));
-    await waitFor(() => expect(screen.queryByText("today-doc")).toBeNull());
+    await waitFor(() => expect(inTable().queryByText("today-doc")).toBeNull());
     expect((await groupButton("Hôm nay")).getAttribute("aria-expanded")).toBe("false");
     expect(JSON.parse(localStorage.getItem(GROUPS_KEY) ?? "{}")).toEqual({ recent: ["today"] });
     first.unmount();
     cleanup();
 
     renderView("/?view=recent");
-    await screen.findByText("old-doc");
+    await screen.findAllByText("old-doc");
     expect((await groupButton("Hôm nay")).getAttribute("aria-expanded")).toBe("false");
-    expect(screen.queryByText("today-doc")).toBeNull();
+    expect(inTable().queryByText("today-doc")).toBeNull();
   });
 
   it("renders every group open when the storage throws or holds corrupt JSON", async () => {
     route({ list: () => recentRows() });
     localStorage.setItem(GROUPS_KEY, "{broken");
     const corrupt = renderView("/?view=recent");
-    await screen.findByText("today-doc");
+    await screen.findAllByText("today-doc");
     expect((await groupButton("Hôm nay")).getAttribute("aria-expanded")).toBe("true");
     corrupt.unmount();
     cleanup();
@@ -329,11 +331,11 @@ describe("date groups (W11)", () => {
       throw new Error("blocked");
     });
     renderView("/?view=recent");
-    await screen.findByText("today-doc");
+    await screen.findAllByText("today-doc");
     const today = await groupButton("Hôm nay");
     expect(today.getAttribute("aria-expanded")).toBe("true");
     // A toggle still works for the session even when it cannot be saved.
     fireEvent.click(today);
-    await waitFor(() => expect(screen.queryByText("today-doc")).toBeNull());
+    await waitFor(() => expect(inTable().queryByText("today-doc")).toBeNull());
   });
 });

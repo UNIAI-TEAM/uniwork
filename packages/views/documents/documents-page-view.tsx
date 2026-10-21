@@ -31,6 +31,8 @@ import { useDocListBulkCommands } from "./doclist/use-bulk-commands";
 import type { LibraryDesktopOpen, LibraryRowHandlers } from "./documents-library-row";
 import { LibraryToolbar } from "./documents-library-toolbar";
 import { DocumentsSections, nonFolderRows, subfoldersOf } from "./documents-folders-grid";
+import { continueCards, RecentContinue } from "./documents-recent-continue";
+import { DocumentsScreenHead } from "./documents-screen-head";
 import { DocumentsShelvedView } from "./documents-shelved-view";
 import { DocumentsTrashView } from "./documents-trash-view";
 import { DocumentsSidebar, DocumentsSidebarSheet, type LibraryView } from "./documents-sidebar";
@@ -352,9 +354,13 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
     </Button>
   );
   const hostActions = officeHome ? <OfficeHomeLaunch {...officeHome} /> : null;
-  // Home, folder and Trash carry their own h1 (the boards); the other views
-  // and the gate states keep the collection header.
-  const collectionHeader = gate !== "on" || !(homeView || view.kind === "archived");
+  // Home, folder and Trash carry their own h1 (the boards), and so do the list
+  // screens with the shared head (UNI-2045 W14); Lưu trữ and the gate states
+  // keep the collection header.
+  const screenHead = !homeView && view.kind !== "archived" && view.kind !== "shelved";
+  const collectionHeader = gate !== "on" || view.kind === "shelved";
+  // Gần đây's Mở tiếp cards (recent-canvas): only while no filter or search narrows the list.
+  const cards = view.kind === "recent" && !filtered && !search.active ? continueCards(state.rows) : [];
   const libraryList = (
     <DocumentsLibraryList
       groups={groups}
@@ -433,6 +439,10 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
                     </>
                   }
                 />
+              </div>
+            ) : screenHead ? (
+              <div className="mx-auto max-w-6xl px-4 pt-5 sm:px-6">
+                <DocumentsScreenHead view={view} search={search} actions={navButton} />
               </div>
             ) : null}
             {search.active ? (
@@ -526,10 +536,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
               </div>
             ) : (
               <div className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-5 sm:px-6">
-                <div className="flex items-start justify-between gap-3">
-                  <h2 className="text-title font-semibold">{t(`documents.home.views.${view.kind === "sources" ? (view.source ?? "sources") : view.kind === "sharedByMe" ? "shared_by_me" : view.kind}`)}</h2>
-                  {navButton}
-                </div>
+                {cards.length > 0 ? <RecentContinue cards={cards} onOpen={onOpen} /> : null}
                 <LibraryToolbar
                   {...toolbar}
                   {...(view.kind === "recent" ? { activity: library.activity, onActivity: library.setActivity } : {})}

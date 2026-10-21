@@ -11032,7 +11032,18 @@
         "empty_description": "Try another name or change the filter. Clear the search to go back to the folder.",
         "error_title": "Couldn't search",
         "error_description": "Check your connection and try again."
+      },
+      "view_subtitle": {
+        "recent": "Documents you opened or edited in the last 30 days",
+        "starred": "Documents you marked to open quickly",
+        "shared": "Documents other people shared directly with you",
+        "shared_by_me": "Your documents shared with other people",
+        "sources": "Files sent in Chat, Meetings, Email and Tasks of this workspace"
       }
+    },
+    "recent": {
+      "continue_title": "Pick up where you left off",
+      "continue_when": "{{activity}} at {{when}}"
     },
     "scope": {
       "private": "Private",

@@ -640,7 +640,7 @@ describe("starring a document", () => {
     await waitFor(() => expect(within(sidebarItem(t("documents.home.sidebar.starred"))).getByText("1")).toBeInTheDocument());
 
     fireEvent.click(sidebarItem(t("documents.home.sidebar.starred")));
-    expect(await screen.findByRole("heading", { level: 2, name: t("documents.home.views.starred") })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { level: 1, name: t("documents.home.views.starred") })).toBeInTheDocument();
     expect(await rowOf("Kế hoạch Q4")).toBeInTheDocument();
     expect(screen.queryByText("Khác")).toBeNull();
   });
@@ -797,7 +797,7 @@ describe("library views", () => {
     renderView();
     await screen.findByText("Kế hoạch Q4");
     fireEvent.click(await screen.findByRole("button", { name: t("documents.home.origin.chat") }));
-    expect(await screen.findByRole("heading", { level: 2, name: t("documents.home.views.chat") })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { level: 1, name: t("documents.home.views.chat") })).toBeInTheDocument();
     expect(filters.some((path) => new URLSearchParams(path.split("?")[1] ?? "").get("source") === "chat")).toBe(true);
     expect(screen.queryByText("Kế hoạch Q4")).toBeNull();
     expect(await rowOf("Đề xuất ngân sách.pdf")).toBeInTheDocument();

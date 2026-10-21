@@ -631,7 +631,7 @@ describe("the default sort of each screen (UNI-2045 W12)", () => {
     it("show while the screen column is sorted descending and go away under any other sort", async () => {
       serveGroups();
       renderView(`/org/${WS}/documents?view=${view}`);
-      await screen.findByText("Vừa xong");
+      await screen.findAllByText("Vừa xong"); // the Mở tiếp card repeats a title (W14)
       expect(groupHeaders().length).toBeGreaterThan(0);
 
       fireEvent.click(await sortButton("name"));

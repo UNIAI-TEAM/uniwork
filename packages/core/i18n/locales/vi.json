@@ -11021,7 +11021,18 @@
         "empty_description": "Thử tên khác hoặc đổi bộ lọc. Xóa ô tìm để quay lại thư mục.",
         "error_title": "Không tìm được",
         "error_description": "Kiểm tra kết nối rồi thử lại."
+      },
+      "view_subtitle": {
+        "recent": "Tài liệu bạn đã mở hoặc sửa trong 30 ngày qua",
+        "starred": "Tài liệu bạn đánh dấu để mở nhanh",
+        "shared": "Tài liệu người khác chia sẻ trực tiếp cho bạn",
+        "shared_by_me": "Tài liệu của bạn đang chia sẻ cho người khác",
+        "sources": "Tệp được gửi trong Trò chuyện, Cuộc họp, Email và Công việc của workspace này"
       }
+    },
+    "recent": {
+      "continue_title": "Mở tiếp",
+      "continue_when": "{{activity}} lúc {{when}}"
     },
     "scope": {
       "private": "Riêng tư",

@@ -374,7 +374,7 @@ describe("DocumentsPageView", () => {
 
       await openView("shared_by_me");
       expect(nav.push).toHaveBeenCalledWith("/acme/doi/documents?view=shared-by-me");
-      expect(await screen.findByRole("heading", { level: 2, name: t("documents.home.views.shared_by_me") })).toBeInTheDocument();
+      expect(await screen.findByRole("heading", { level: 1, name: t("documents.home.views.shared_by_me") })).toBeInTheDocument();
       expect(await screen.findByText("Đề xuất ngân sách Q4.docx")).toBeInTheDocument();
 
       const sbmCalls = urls.filter((u) => queryOf(u).get("shared_by_me") === "true");
@@ -388,7 +388,7 @@ describe("DocumentsPageView", () => {
       route({ list: () => [] });
       renderView(vi.fn(), { initialUrl: `/acme/doi/documents?view=shared-by-me` });
 
-      expect(await screen.findByRole("heading", { level: 2, name: t("documents.home.views.shared_by_me") })).toBeInTheDocument();
+      expect(await screen.findByRole("heading", { level: 1, name: t("documents.home.views.shared_by_me") })).toBeInTheDocument();
       expect(screen.getAllByRole("button", { name: t("documents.home.sidebar.shared_by_me") })[0]).toHaveAttribute("aria-current", "page");
       expect(await screen.findByText(t("documents.home.empty.shared_by_me_title"))).toBeInTheDocument();
       expect(screen.getByText(t("documents.home.empty.shared_by_me_description"))).toBeInTheDocument();

@@ -431,7 +431,7 @@ describe("FD-07 W-A: folder URL, tree reveal, invalid folder state, and root (+)
     expect(screen.getByRole("treeitem", { name: /Hợp đồng/ })).toHaveAttribute("aria-current", "true");
 
     fireEvent.click(screen.getAllByRole("button", { name: new RegExp(t("documents.home.sidebar.recent")) })[0]!);
-    expect(await screen.findByRole("heading", { level: 2, name: t("documents.home.views.recent") })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { level: 1, name: t("documents.home.views.recent") })).toBeInTheDocument();
     expect(await screen.findByText("Tài liệu gần đây")).toBeInTheDocument();
     expect(screen.queryByRole("navigation", { name: t("documents.home.breadcrumb_label") })).toBeNull();
 
@@ -443,7 +443,7 @@ describe("FD-07 W-A: folder URL, tree reveal, invalid folder state, and root (+)
     const restoredCrumbs = await screen.findByRole("navigation", { name: t("documents.home.breadcrumb_label") });
     expect(within(restoredCrumbs).getByText("Hợp đồng")).toHaveAttribute("aria-current", "page");
     expect(screen.getByRole("treeitem", { name: /Hợp đồng/ })).toHaveAttribute("aria-current", "true");
-    expect(screen.queryByRole("heading", { level: 2, name: t("documents.home.views.recent") })).toBeNull();
+    expect(screen.queryByRole("heading", { level: 1, name: t("documents.home.views.recent") })).toBeNull();
   });
 
   it("restores Recent when navigating Recent -> Starred -> Back", async () => {
@@ -459,20 +459,20 @@ describe("FD-07 W-A: folder URL, tree reveal, invalid folder state, and root (+)
     await screen.findByText(t("documents.home.empty.title"));
 
     fireEvent.click(screen.getAllByRole("button", { name: new RegExp(t("documents.home.sidebar.recent")) })[0]!);
-    expect(await screen.findByRole("heading", { level: 2, name: t("documents.home.views.recent") })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { level: 1, name: t("documents.home.views.recent") })).toBeInTheDocument();
     expect(await screen.findByText("Tài liệu gần đây")).toBeInTheDocument();
 
     fireEvent.click(screen.getAllByRole("button", { name: new RegExp(t("documents.home.sidebar.starred")) })[0]!);
-    expect(await screen.findByRole("heading", { level: 2, name: t("documents.home.views.starred") })).toBeInTheDocument();
-    expect(screen.queryByRole("heading", { level: 2, name: t("documents.home.views.recent") })).toBeNull();
+    expect(await screen.findByRole("heading", { level: 1, name: t("documents.home.views.starred") })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { level: 1, name: t("documents.home.views.recent") })).toBeNull();
 
     act(() => {
       nav.back();
     });
 
-    expect(await screen.findByRole("heading", { level: 2, name: t("documents.home.views.recent") })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { level: 1, name: t("documents.home.views.recent") })).toBeInTheDocument();
     expect(await screen.findByText("Tài liệu gần đây")).toBeInTheDocument();
-    expect(screen.queryByRole("heading", { level: 2, name: t("documents.home.views.starred") })).toBeNull();
+    expect(screen.queryByRole("heading", { level: 1, name: t("documents.home.views.starred") })).toBeNull();
   });
 
   it.each([

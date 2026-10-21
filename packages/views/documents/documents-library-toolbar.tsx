@@ -10,6 +10,7 @@ import {
   SelectValue,
 } from "@uniwork/ui/components/ui/select";
 import { cn } from "@uniwork/ui/lib/utils";
+import { DocumentTypeIcon } from "./document-type-icon";
 import { ACTIVITY_FILTERS, UPDATED_FILTERS, type ActivityFilter, type EditorFilter, type UpdatedFilter } from "./doclist/filters";
 import { TYPE_CHIPS, type TypeChip } from "./library-rows";
 
@@ -35,8 +36,9 @@ const FILTER_SELECT =
   "h-8 gap-1.5 rounded-md border border-border bg-background px-3 text-caption text-foreground pointer-coarse:h-11";
 
 const PILL =
-  "h-7 shrink-0 rounded-full border px-3 text-caption transition-colors pointer-coarse:h-11 pointer-coarse:min-h-11 pointer-coarse:min-w-11";
-const PILL_ON = "border-foreground bg-foreground text-background";
+  "inline-flex h-7 shrink-0 items-center gap-1.5 rounded-full border px-3 text-caption transition-colors pointer-coarse:h-11 pointer-coarse:min-h-11 pointer-coarse:min-w-11";
+// Both boards: the pressed chip takes the primary tint, never a filled black pill.
+const PILL_ON = "border-primary bg-primary/10 font-medium text-primary";
 const PILL_OFF = "border-border bg-background text-foreground hover:bg-accent";
 
 /**
@@ -69,23 +71,7 @@ export function LibraryToolbar({
   const updatedItems = UPDATED_FILTERS.map((value) => ({ value, label: t(`documents.home.filters.updated_${value}`) }));
   return (
     <div className={cn("flex flex-wrap items-center gap-2", className)}>
-      {activity !== undefined ? (
-        <div role="group" aria-label={t("documents.home.filters.activity_label")} className="flex shrink-0 gap-1">
-          {ACTIVITY_FILTERS.map((value) => (
-            <button
-              key={value}
-              type="button"
-              aria-pressed={activity === value}
-              onClick={() => {
-                if (value !== activity) onActivity?.(value);
-              }}
-              className={cn(PILL, activity === value ? PILL_ON : PILL_OFF)}
-            >
-              {t(`documents.home.filters.activity_${value}`)}
-            </button>
-          ))}
-        </div>
-      ) : null}
+      {activity !== undefined ? <ActivitySegment activity={activity} onActivity={onActivity} /> : null}
       <TypeChipRow chip={chip} onChip={onChip} />
       <FilterSelect
         label={t("documents.home.filters.editor")}
@@ -100,6 +86,55 @@ export function LibraryToolbar({
         onPick={(next) => onUpdated?.(next as UpdatedFilter)}
       />
       {children}
+    </div>
+  );
+}
+
+const SEGMENT =
+  "h-7 shrink-0 rounded-md px-3 text-caption transition-colors pointer-coarse:h-11 pointer-coarse:min-h-11 pointer-coarse:min-w-11";
+
+/**
+ * Gần đây's Tất cả / Đã mở / Đã sửa (both boards): a segmented radio group.
+ * One radio sits in the tab order; the arrow keys move the choice, as a radio group does.
+ */
+function ActivitySegment({ activity, onActivity }: { activity: ActivityFilter; onActivity?: (activity: ActivityFilter) => void }) {
+  const { t } = useTranslation();
+  const pick = (value: ActivityFilter) => {
+    if (value !== activity) onActivity?.(value);
+  };
+  const onKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>) => {
+    const step = event.key === "ArrowRight" || event.key === "ArrowDown" ? 1 : event.key === "ArrowLeft" || event.key === "ArrowUp" ? -1 : 0;
+    if (!step) return;
+    event.preventDefault();
+    const index = ACTIVITY_FILTERS.indexOf(activity);
+    const next = ACTIVITY_FILTERS[(index + step + ACTIVITY_FILTERS.length) % ACTIVITY_FILTERS.length]!;
+    pick(next);
+    event.currentTarget.parentElement?.querySelector<HTMLButtonElement>(`[data-value="${next}"]`)?.focus();
+  };
+  return (
+    <div
+      role="radiogroup"
+      aria-label={t("documents.home.filters.activity_label")}
+      className="flex shrink-0 gap-0.5 rounded-lg bg-muted p-0.5"
+    >
+      {ACTIVITY_FILTERS.map((value) => (
+        <button
+          key={value}
+          type="button"
+          role="radio"
+          data-value={value}
+          aria-checked={activity === value}
+          tabIndex={activity === value ? 0 : -1}
+          onClick={() => pick(value)}
+          onKeyDown={onKeyDown}
+          className={cn(
+            SEGMENT,
+            activity === value ? "bg-background font-medium text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
+          )}
+        >
+          {t(`documents.home.filters.activity_${value}`)}
+        </button>
+      ))}
     </div>
   );
 }
@@ -120,8 +155,9 @@ function TypeChipRow({ chip, onChip }: TypeChipRowProps) {
           type="button"
           aria-pressed={chip === value}
           onClick={() => onChip(value)}
-          className={cn(PILL, chip === value ? PILL_ON : PILL_OFF)}
+          className={cn(PILL, value !== "all" && "pl-1.5", chip === value ? PILL_ON : PILL_OFF)}
         >
+          {value !== "all" ? <DocumentTypeIcon format={value} decorative className="size-4" /> : null}
           {t(`documents.home.chips.${value}`)}
         </button>
       ))}
