@@ -1,0 +1,4 @@
+$ for i in $(seq 1 14); do test -f /tmp/pr7r9-go-service-b.exit && break; sleep 30; done; echo "DONE_FILE=$(test -f /tmp/pr7r9-go-service-b.exit && echo yes || echo no)"; grep -cE "^\s*--- PASS" /tmp/pr7r9-go-service-b.log; grep -E "^=== RUN" /tmp/pr7r9-go-service-b.log | tail -1
+DONE_FILE=yes
+816
+=== RUN   TestWorkspaceSlugChangeRejectsBadAndIgnoresUnchanged
