@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+
+	"github.com/unicomhub/uniwork/server/internal/service"
 )
 
 // UNI-2039 L1: the access-report cursor is sealed with the server secret, so a
@@ -185,5 +187,28 @@ func TestAccessReportSealedCursorPagesThrough(t *testing.T) {
 	}
 	if len(seen) != 3 || pages < 3 {
 		t.Fatalf("walked %d pages and saw %d documents, want 3 pages and 3 documents", pages, len(seen))
+	}
+}
+
+// The cursor carries the workspace and the caller it was minted for; a token
+// replayed under another workspace, another account or another secret is
+// refused, and the matching triple is accepted (the control).
+func TestAccessReportCursorIsBoundToTheWorkspaceClaim(t *testing.T) {
+	in := service.DocumentAccessReportQuery{Sort: "title"}
+	own := accessReportCursor{Workspace: "W1", User: "U1"}
+	mint := encodeAccessReportCursor("s", newAccessReportCursor(own, in, service.AccessReportKey{ID: "A1"}))
+	if key, ok := decodeAccessReportCursor("s", mint, newAccessReportCursor(own, in, service.AccessReportKey{})); !ok || key == nil || key.ID != "A1" {
+		t.Fatalf("matching workspace, user and secret refused: %v %v", key, ok)
+	}
+	for name, want := range map[string]accessReportCursor{
+		"other workspace": {Workspace: "W2", User: "U1"},
+		"other user":      {Workspace: "W1", User: "U2"},
+	} {
+		if _, ok := decodeAccessReportCursor("s", mint, newAccessReportCursor(want, in, service.AccessReportKey{})); ok {
+			t.Errorf("%s accepted", name)
+		}
+	}
+	if _, ok := decodeAccessReportCursor("s2", mint, newAccessReportCursor(own, in, service.AccessReportKey{})); ok {
+		t.Error("another secret accepted")
 	}
 }
