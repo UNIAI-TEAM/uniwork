@@ -48,7 +48,7 @@ const handlers: LibraryRowHandlers = {
 function renderList(sort: LibrarySort | null, onSort = vi.fn(), extra: { screen?: DocListScreen } = {}) {
   render(
     <DocumentsLibraryList
-      groups={[{ key: "all", title: "", rows: [documentRow(file("a"))] }]}
+      groups={[{ key: "all", rows: [documentRow(file("a"))] }]}
       loading={false}
       failure={null}
       filteredBy={null}

@@ -266,7 +266,7 @@ describe("DocumentsPageView", () => {
     expect(urls.some((url) => queryOf(url).get("cursor") === "c2")).toBe(true);
   });
 
-  it("filters by the Loại select on the server: ?format= for file types, ?kind=page for UniNote", async () => {
+  it("filters by the type chips on the server: ?format= for file types, ?kind=page for UniNote", async () => {
     const urls: string[] = [];
     route({
       list: (path) => {
@@ -281,13 +281,13 @@ describe("DocumentsPageView", () => {
     renderView(vi.fn());
     expect(await screen.findByText("Số liệu.xlsx")).toBeInTheDocument();
 
-    await choose(typeSelect(), t("documents.home.chips.docx"));
+    await pickType(t("documents.home.chips.docx"));
     await waitFor(() => expect(urls.some((url) => queryOf(url).get("format") === "docx")).toBe(true));
     expect(await screen.findByText("Báo giá.docx")).toBeInTheDocument();
     expect(screen.queryByText("Số liệu.xlsx")).toBeNull();
     expect(screen.queryByText("Kế hoạch Q4")).toBeNull();
 
-    await choose(typeSelect(), t("documents.home.chips.page"));
+    await pickType(t("documents.home.chips.page"));
     await waitFor(() => expect(urls.some((url) => queryOf(url).get("kind") === "page")).toBe(true));
     expect(await screen.findByText("Kế hoạch Q4")).toBeInTheDocument();
     expect(screen.queryByText("Báo giá.docx")).toBeNull();
@@ -298,195 +298,27 @@ describe("DocumentsPageView", () => {
     renderView(vi.fn());
     await screen.findByText("Kế hoạch Q4");
 
-    await choose(typeSelect(), t("documents.home.chips.pdf"));
+    await pickType(t("documents.home.chips.pdf"));
     expect(await screen.findByText(t("documents.library.no_matches_title"))).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: t("documents.library.clear_filters") }));
     expect(await screen.findByText("Kế hoạch Q4")).toBeInTheDocument();
   });
 
-  describe("access filter (UNI-1642, server-side since UNI-1868), on the Recent view where the chips and pills live", () => {
-    // Answers like the server does under the filters: format drops non-matching
-    // files but keeps folders, access drops rows the filter does not cover.
-    const accessRows = [
-      summary({ id: "fo1", kind: "folder", title: "Thư mục chung", my_level: "manage" }),
-      summary({ my_level: "manage" }),
-      file("f1", "Báo giá.docx", { my_level: "edit" }),
-      file("f2", "Số liệu.xlsx", { my_level: "view" }),
-      file("f3", "Hợp đồng.docx", { my_level: "manage", visibility: "restricted" }),
-    ];
-    const serverFiltered = (path: string) => {
-      const q = queryOf(path);
-      const access = q.get("access");
-      const format = q.get("format");
-      const keepAccess = (row: Record<string, unknown>) => {
-        if (access === "manage") return row.my_level === "manage";
-        if (access === "edit") return row.my_level === "edit" || row.my_level === "manage";
-        if (access === "restricted") return row.visibility === "restricted";
-        return true;
-      };
-      const keepFormat = (row: Record<string, unknown>) => {
-        if (!format) return true;
-        if (row.kind === "folder") return true;
-        return row.kind === "file" && (row.format === format || String(row.title).toLowerCase().endsWith(`.${format}`));
-      };
-      return accessRows.filter((row) => keepAccess(row) && keepFormat(row));
-    };
-    const accessGroup = () => screen.getByRole("group", { name: t("documents.home.access_filter_label") });
-    const typeGroup = () => screen.getByRole("group", { name: t("documents.home.chips_label") });
-    const pressed = (group: HTMLElement, name: string) => within(group).getByRole("button", { name }).getAttribute("aria-pressed");
-
-    it("filters through the real hook via ?access=, and clear-filters puts every row and both All chips back", async () => {
-      route({ list: serverFiltered });
-      renderView(vi.fn());
-      await openView("recent");
-      await screen.findByText("Số liệu.xlsx");
-
-      fireEvent.click(within(accessGroup()).getByRole("button", { name: t("documents.home.access_filters.edit") }));
-      expect(pressed(accessGroup(), t("documents.home.access_filters.edit"))).toBe("true");
-      await waitFor(() =>
-        expect(requestMock.mock.calls.some(([path]) => queryOf(String(path)).get("access") === "edit")).toBe(true),
-      );
-      expect(await screen.findByText("Kế hoạch Q4")).toBeInTheDocument();
-      expect(screen.getByText("Báo giá.docx")).toBeInTheDocument();
-      expect(screen.getByText("Hợp đồng.docx")).toBeInTheDocument();
-      expect(screen.queryByText("Số liệu.xlsx")).toBeNull();
-
-      fireEvent.click(within(accessGroup()).getByRole("button", { name: t("documents.home.access_filters.restricted") }));
-      expect(await screen.findByText("Hợp đồng.docx")).toBeInTheDocument();
-      expect(screen.queryByText("Báo giá.docx")).toBeNull();
-
-      // Nothing is both restricted and a spreadsheet: the empty state offers the clear action.
-      fireEvent.click(within(typeGroup()).getByRole("button", { name: t("documents.home.chips.xlsx") }));
-      expect(await screen.findByText(t("documents.library.no_matches_title"))).toBeInTheDocument();
-      fireEvent.click(screen.getByRole("button", { name: t("documents.library.clear_filters") }));
-
-      expect(await screen.findByText("Số liệu.xlsx")).toBeInTheDocument();
-      expect(screen.getByText("Báo giá.docx")).toBeInTheDocument();
-      expect(pressed(accessGroup(), t("documents.home.access_filters.all"))).toBe("true");
-      expect(pressed(typeGroup(), t("documents.home.chips.all"))).toBe("true");
-    });
-
-    it("ANDs a type chip with the access filter in the request, and the empty line names the filters when both are on", async () => {
-      route({ list: serverFiltered });
-      renderView(vi.fn());
-      await openView("recent");
-      await screen.findByText("Số liệu.xlsx");
-
-      fireEvent.click(within(typeGroup()).getByRole("button", { name: t("documents.home.chips.docx") }));
-      fireEvent.click(within(accessGroup()).getByRole("button", { name: t("documents.home.access_filters.manage") }));
-      await waitFor(() =>
-        expect(
-          requestMock.mock.calls.some(([path]) => {
-            const q = queryOf(String(path));
-            return q.get("format") === "docx" && q.get("access") === "manage";
-          }),
-        ).toBe(true),
-      );
-      expect(await screen.findByText("Hợp đồng.docx")).toBeInTheDocument();
-      expect(screen.getByText("Thư mục chung")).toBeInTheDocument();
-      expect(screen.queryByText("Báo giá.docx")).toBeNull();
-      expect(screen.queryByText("Kế hoạch Q4")).toBeNull();
-      expect(screen.queryByText("Số liệu.xlsx")).toBeNull();
-
-      fireEvent.click(within(typeGroup()).getByRole("button", { name: t("documents.home.chips.xlsx") }));
-      fireEvent.click(within(accessGroup()).getByRole("button", { name: t("documents.home.access_filters.restricted") }));
-      expect(await screen.findByText(t("documents.home.no_matches_filters_description"))).toBeInTheDocument();
-      expect(screen.queryByText(t("documents.home.no_matches_access_description"))).toBeNull();
-    });
-
-    it("keeps the access-only empty line when only the access filter is on", async () => {
-      route({ list: (path) => (queryOf(path).get("access") === "manage" ? [] : [summary({ my_level: "view" })]) });
-      renderView(vi.fn());
-      await openView("recent");
-      await screen.findByText("Kế hoạch Q4");
-
-      fireEvent.click(within(accessGroup()).getByRole("button", { name: t("documents.home.access_filters.manage") }));
-      expect(await screen.findByText(t("documents.home.no_matches_access_description"))).toBeInTheDocument();
-    });
-    it("never leaks a manage/edit access filter into the trash request (the server 400s it there)", async () => {
-      route({
-        list: (path) =>
-          queryOf(path).get("archived") === "1"
-            ? queryOf(path).get("access") === "restricted"
-              ? [file("tr2", "Đã xoá.docx", { visibility: "restricted", archived_at: "2026-10-10T03:00:00Z" })]
-              : [summary({ id: "tr1", title: "Xoá mềm", archived_at: "2026-10-10T03:00:00Z" })]
-            : [summary()],
-      });
-      renderView(vi.fn());
-      await screen.findByText("Kế hoạch Q4");
-      await openView("recent");
-      await screen.findByText("Kế hoạch Q4");
-
-      // A manage/edit selection from the Recent toolbar must not leak into the
-      // trash request: the server answers it 400 invalid_filter.
-      fireEvent.click(within(accessGroup()).getByRole("button", { name: t("documents.home.access_filters.manage") }));
-      await openView("trash");
-      expect(await screen.findByText("Xoá mềm")).toBeInTheDocument();
-      for (const [path] of requestMock.mock.calls) {
-        const q = queryOf(String(path));
-        if (q.get("archived") === "1") {
-          expect(q.get("access") === "manage" || q.get("access") === "edit").toBe(false);
-        }
-      }
-    });
-  });
-
-  it("groups by folder by default and by file type on request, on the Recent view (home has no grouping)", async () => {
+  it("keeps the home table flat and Recent flat while no row carries a last activity (W11 needs SV-1)", async () => {
     route({
-      tree: () => [
-        treeNode({ id: "fo1", title: "Dự án CCB", kind: "folder" }),
-        treeNode({ id: "fo-empty", title: "Thư mục trống", kind: "folder" }),
-      ],
-      list: () => [
-        summary(),
-        summary({ id: "fo1", kind: "folder", title: "Dự án CCB" }),
-        summary({ id: "fo-empty", kind: "folder", title: "Thư mục trống" }),
-        file("f1", "Báo giá.docx", { parent_id: "fo1" }),
-      ],
+      tree: () => [treeNode({ id: "fo1", title: "Dự án CCB", kind: "folder" })],
+      list: () => [summary(), summary({ id: "fo1", kind: "folder", title: "Dự án CCB" }), file("f1", "Báo giá.docx", { parent_id: "fo1" })],
     });
     renderView(vi.fn());
-    await screen.findByText("Báo giá.docx");
+    await screen.findByText("Kế hoạch Q4");
     const groupHeaders = () => Array.from(document.querySelectorAll("[data-library-group]")).map((cell) => cell.textContent);
-    // The home table is flat: no group headings.
     expect(groupHeaders()).toEqual([]);
     await openView("recent");
     await screen.findByText("Báo giá.docx");
-    await waitFor(() =>
-      expect(groupHeaders()).toEqual([
-        `${t("documents.home.groups.type.folder")}2`,
-        `${t("documents.home.groups.unfiled")}1`,
-        "Dự án CCB1",
-      ]),
-    );
-    const groupBody = (headerText: string) => {
-      const header = Array.from(document.querySelectorAll("[data-library-group]")).find(
-        (cell) => cell.textContent === headerText,
-      );
-      const tbody = header?.closest("tbody");
-      if (!tbody) throw new Error(`no tbody for group ${headerText}`);
-      return tbody;
-    };
-    const foldersGroup = groupBody(`${t("documents.home.groups.type.folder")}2`);
-    const unfiledGroup = groupBody(`${t("documents.home.groups.unfiled")}1`);
-    expect(within(foldersGroup).getByText("Dự án CCB")).toBeInTheDocument();
-    expect(within(foldersGroup).getByText("Thư mục trống")).toBeInTheDocument();
-    expect(within(unfiledGroup).queryByText("Dự án CCB")).toBeNull();
-    expect(within(unfiledGroup).queryByText("Thư mục trống")).toBeNull();
-    expect(within(unfiledGroup).getByText("Kế hoạch Q4")).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("combobox", { name: t("documents.home.group_by.label") }));
-    const option = within(await screen.findByRole("listbox")).getByText(t("documents.home.group_by.type"));
-    // Base UI only commits a click that started on the item with a pointer.
-    fireEvent.pointerDown(option);
-    fireEvent.click(option);
-
-    await waitFor(() =>
-      expect(groupHeaders()).toEqual([
-        `${t("documents.home.groups.type.page")}1`,
-        `${t("documents.home.groups.type.folder")}2`,
-        `${t("documents.home.groups.type.docx")}1`,
-      ]),
-    );
+    expect(groupHeaders()).toEqual([]);
+    // Q6: no Group by select and no access filter on the Recent toolbar.
+    expect(screen.queryByText("Nhóm theo")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Tôi quản lý" })).toBeNull();
   });
 
   it("explains the archive permission instead of rendering an empty archive", async () => {
@@ -1286,7 +1118,7 @@ describe("DocumentsPageView", () => {
       const crumbs = screen.getByRole("navigation", { name: t("documents.home.breadcrumb_label") });
       fireEvent.click(within(crumbs).getByRole("button", { name: t("documents.home.sidebar.home") }));
       await screen.findByText("Tài liệu gốc");
-      expect(screen.getByRole("combobox", { name: new RegExp(`^${escape(t("documents.home.filters.type"))}`) })).toBeInTheDocument();
+      expect(screen.getByRole("group", { name: t("documents.home.chips_label") })).toBeInTheDocument();
 
       setItemSpy.mockClear();
       fireEvent.click(screen.getByRole("treeitem", { name: /Thư mục B/ }));
@@ -1505,7 +1337,7 @@ describe("DocumentsPageView", () => {
       expect(urls.some((u) => queryOf(u).get("parent_id") === "fo1")).toBe(true);
     });
 
-    it("keeps root and folder apart per FD-D9: filters at root, none in a folder, the sort in the table headers of both, never grouped", async () => {
+    it("keeps root and folder apart per FD-D9: the same filter bar in both (UNI-2045 W10), the sort in the table headers of both, never grouped", async () => {
       route({
         tree: () => [treeNode({ id: "fo1", title: "Dự án CCB", kind: "folder" })],
         detail: (id) => (id === "fo1" ? folderDetail({ id: "fo1", title: "Dự án CCB" }) : null),
@@ -1518,8 +1350,8 @@ describe("DocumentsPageView", () => {
       await screen.findByText("Báo giá.docx");
 
       expect(noSortSelect()).toBe(true);
-      expect(screen.getByRole("combobox", { name: new RegExp(`^${escape(t("documents.home.filters.type"))}`) })).toBeInTheDocument();
-      expect(screen.queryByRole("combobox", { name: t("documents.home.group_by.label") })).toBeNull();
+      expect(screen.getByRole("group", { name: t("documents.home.chips_label") })).toBeInTheDocument();
+      expect(screen.queryByText("Nhóm theo")).toBeNull();
       expect(screen.queryByRole("columnheader", { name: t("documents.home.columns.type") })).toBeNull();
       expect(headerOf("updated")).toHaveAttribute("aria-sort", "descending");
       const groupHeaders = () => Array.from(document.querySelectorAll("[data-library-group]")).map((c) => c.textContent);
@@ -1530,8 +1362,8 @@ describe("DocumentsPageView", () => {
       await screen.findByRole("columnheader", { name: t("documents.home.columns.access") });
       expect(noSortSelect()).toBe(true);
       expect(headerOf("updated")).toHaveAttribute("aria-sort", "descending");
-      expect(screen.queryByRole("combobox", { name: new RegExp(`^${escape(t("documents.home.filters.type"))}`) })).toBeNull();
-      expect(screen.queryByRole("combobox", { name: t("documents.home.group_by.label") })).toBeNull();
+      expect(screen.getByRole("group", { name: t("documents.home.chips_label") })).toBeInTheDocument();
+      expect(screen.queryByText("Nhóm theo")).toBeNull();
       // Same six board columns inside a folder (F-7): Truy cập, never Loại.
       expect(screen.queryByRole("columnheader", { name: t("documents.home.columns.type") })).toBeNull();
       expect(await screen.findByRole("columnheader", { name: t("documents.home.columns.access") })).toBeInTheDocument();
@@ -1621,8 +1453,8 @@ describe("DocumentsPageView", () => {
       renderView(vi.fn(), { initialUrl: `/org/${WS}/documents?folder=fo2` });
       await screen.findByText("Kế hoạch Q4");
 
-      // A folder has no type chips and no scope tabs, only the breadcrumb.
-      expect(screen.queryByRole("group", { name: t("documents.home.chips_label") })).toBeNull();
+      // A folder carries the shared filter bar (UNI-2045 W10) and no scope tabs.
+      expect(screen.getByRole("group", { name: t("documents.home.chips_label") })).toBeInTheDocument();
       const crumbs = screen.getByRole("navigation", { name: t("documents.home.breadcrumb_label") });
       for (const btn of within(crumbs).getAllByRole("button")) {
         expect(btn).toHaveClass("pointer-coarse:min-w-11", "pointer-coarse:min-h-11");
@@ -1752,15 +1584,10 @@ async function pillButton(type: string) {
   return within(strip).getByRole("button", { name: new RegExp(escape(t(`documents.home.create.${type}.chip`))) });
 }
 
-const typeSelect = () => new RegExp(`^${escape(t("documents.home.filters.type"))}`);
-
-/** Opens a Select by its trigger name and commits an option. */
-async function choose(comboboxName: string | RegExp, option: string | RegExp) {
-  fireEvent.click(await screen.findByRole("combobox", { name: comboboxName }));
-  const optionEl = within(await screen.findByRole("listbox")).getByText(option);
-  // Base UI only commits a click that started on the item with a pointer.
-  fireEvent.pointerDown(optionEl);
-  fireEvent.click(optionEl);
+/** Presses a type chip of the filter bar (UNI-2045 W10). */
+async function pickType(label: string) {
+  const chips = await screen.findByRole("group", { name: t("documents.home.chips_label") });
+  fireEvent.click(within(chips).getByRole("button", { name: label }));
 }
 
 /** Switches the view through the sidebar nav (the scope tabs are gone). */

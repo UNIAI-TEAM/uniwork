@@ -150,10 +150,11 @@ describe("home layout (Main.dc)", () => {
     // No My Folder root-create hint line under Tạo nhanh (user 2026-10-19).
     expect(screen.queryByText(/Thư mục của tôi \(chỉ bạn thấy\)/)).toBeNull();
 
-    // The greeting, the create card grid, the scope tabs and the old chips are gone.
+    // The greeting, the create card grid and the scope tabs are gone; the type chips are the
+    // filter bar every screen shares (UNI-2045 W10), with no Group by (Q6).
     expect(screen.queryByRole("tablist")).toBeNull();
-    expect(screen.queryByRole("group", { name: t("documents.home.chips_label") })).toBeNull();
-    expect(screen.queryByRole("combobox", { name: t("documents.home.group_by.label") })).toBeNull();
+    expect(screen.getByRole("group", { name: t("documents.home.chips_label") })).toBeInTheDocument();
+    expect(screen.queryByText("Nhóm theo")).toBeNull();
     expect(screen.queryByText(/Chào buổi/)).toBeNull();
   });
 
@@ -330,11 +331,12 @@ describe("folder layout (Folder.dc)", () => {
     );
     expect(screen.queryByText(/Dự án CCB”/)).toBeNull();
 
-    // No Tạo nhanh strip, no scope tabs, no chip group, no filters inside a folder.
+    // No Tạo nhanh strip and no scope tabs inside a folder; the filter bar is
+    // the one every list screen carries (UNI-2045 W10), filtering on the client.
     expect(screen.queryByRole("region", { name: t("documents.home.quick_create.label") })).toBeNull();
     expect(screen.queryByRole("tablist")).toBeNull();
-    expect(screen.queryByRole("group", { name: t("documents.home.chips_label") })).toBeNull();
-    expect(screen.queryByRole("combobox", { name: new RegExp(t("documents.home.filters.editor")) })).toBeNull();
+    expect(screen.getByRole("group", { name: t("documents.home.chips_label") })).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: new RegExp(t("documents.home.filters.editor")) })).toBeInTheDocument();
     // Sorting lives in the table headers now (UNI-2038): no sort Select in a folder.
     expect(screen.queryByRole("combobox", { name: /^Sắp xếp|^Sort/ })).toBeNull();
   });
@@ -431,9 +433,10 @@ describe("trash view (Trash.dc)", () => {
     // UNI-2045 W2: the shared columns, the Đã xóa screen column right after Tên.
     expect(screen.getByRole("columnheader", { name: t("documents.list.screen_column.deleted") })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: t("documents.trash.restore_item", { title: "Cũ" }) })).toBeInTheDocument();
-    // The old scope tabs / chips / group-by never appear here.
+    // The old scope tabs never appear here, and Thùng rác has no filter bar (UNI-2045 W10).
     expect(screen.queryByRole("tablist")).toBeNull();
-    expect(screen.queryByRole("combobox", { name: t("documents.home.group_by.label") })).toBeNull();
+    expect(screen.queryByRole("group", { name: t("documents.home.chips_label") })).toBeNull();
+    expect(screen.queryByText("Nhóm theo")).toBeNull();
     expect(screen.queryByRole("heading", { level: 2, name: t("documents.home.views.archived") })).toBeNull();
     expect(screen.queryByRole("heading", { level: 1, name: t("documents.home.sidebar.home") })).toBeNull();
   });

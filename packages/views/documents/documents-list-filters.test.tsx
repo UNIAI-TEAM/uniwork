@@ -8,11 +8,11 @@ import { WorkspaceProvider } from "../layout/workspace-context";
 import { fakeNav, requestMock, wrapWithNav } from "../test/api-mock";
 import { DocumentsPageView } from "./documents-page-view";
 
-// LISTFILTER-01 (UNI-1868): the type chips and the access filter run on the
-// server now — the library sends `format`/`access`/`kind` on every document
-// list (home, folder, recent, shared, trash), the trash only ever sends
-// `format` and `access=restricted`, and the rows the server cannot filter
-// (merged source files, starred) keep the client predicates.
+// LISTFILTER-01 (UNI-1868) and UNI-2045 W10: the type chips and Người sửa
+// run on the server where a list pages there — `format`/`kind`/`updated_by`
+// on the home root, recent and both shared lists — the trash has no filter
+// bar, and the rows the server cannot filter (merged source files, starred,
+// an open folder) keep the client predicates. The access filter is gone (Q6).
 
 const { t } = initI18n();
 
@@ -138,27 +138,18 @@ const listCalls = () =>
   requestMock.mock.calls
     .map(([path]) => String(path))
     .filter((path) => path.startsWith(LIST_BASE) && !path.startsWith(`${LIST_BASE}/sources`));
-const chipGroup = () => screen.getByRole("group", { name: t("documents.home.chips_label") });
-/** Picks a type: a chip button where the list toolbar has them, the home filter bar's "Loại" select at home. */
+/** Presses a type chip of the filter bar every list screen carries (UNI-2045 W10). */
 const clickChip = async (key: string) => {
-  const group = screen.queryByRole("group", { name: t("documents.home.chips_label") });
-  if (group) {
-    fireEvent.click(within(group).getByRole("button", { name: t(`documents.home.chips.${key}`) }));
-    return;
-  }
-  fireEvent.click(await screen.findByRole("combobox", { name: new RegExp(`^${t("documents.home.filters.type")}`) }));
-  const option = within(await screen.findByRole("listbox")).getByText(t(`documents.home.chips.${key}`));
-  // Base UI only commits a click that started on the item with a pointer.
+  const group = await screen.findByRole("group", { name: t("documents.home.chips_label") });
+  fireEvent.click(within(group).getByRole("button", { name: t(`documents.home.chips.${key}`) }));
+};
+/** Picks "Người sửa: Tôi" in the filter bar. */
+const pickEditorMe = async () => {
+  fireEvent.click(await screen.findByRole("combobox", { name: new RegExp(`^${t("documents.home.filters.editor")}`) }));
+  const option = within(await screen.findByRole("listbox")).getByText(t("documents.home.filters.editor_me"));
   fireEvent.pointerDown(option);
   fireEvent.click(option);
 };
-const accessGroup = () => screen.getByRole("group", { name: t("documents.home.access_filter_label") });
-const clickAccess = (key: string) =>
-  fireEvent.click(
-    within(accessGroup()).getByRole("button", {
-      name: t(`documents.home.access_filters.${key}`),
-    }),
-  );
 const SCOPE_SIDEBAR: Record<string, string> = { home: "home", recent: "recent", shared: "shared", archived: "trash" };
 /** Opens a scope through the sidebar nav (the scope tabs are gone, TRASH-01). */
 const scopeTab = (key: string) =>
@@ -178,7 +169,7 @@ beforeEach(() => {
   });
 });
 
-describe("server-side type and access filters (UNI-1868)", () => {
+describe("server-side type and editor filters (UNI-1868, UNI-2045 W10)", () => {
   it("sends format on the home list, restarts at page 1 on a chip change, and never re-sends an old cursor", async () => {
     route({
       list: (path) => {
@@ -199,34 +190,28 @@ describe("server-side type and access filters (UNI-1868)", () => {
     expect(filtered.every((path) => !queryOf(path).get("cursor"))).toBe(true);
   });
 
-  it("sends kind=page for the Trang chip and both filters together for chip + access", async () => {
+  it("sends kind=page for the Trang chip and both filters together for chip + Người sửa", async () => {
     route({ list: () => [summary()] });
     renderView();
     await screen.findByText("Kế hoạch Q4");
-    // kind=page goes to the main list only; the home filter bar's "Loại"
-    // select carries the Trang chip there.
+    // kind=page goes to the main list only.
     await clickChip("page");
     await waitFor(() => expect(listCalls().some((path) => queryOf(path).get("kind") === "page")).toBe(true));
 
-    // The access pills exist only on the list toolbar — the format+access
-    // pair is exercised on Recent.
     fireEvent.click(await scopeTab("recent"));
     await clickChip("docx");
-    clickAccess("edit");
+    await pickEditorMe();
     await waitFor(() =>
       expect(
         listCalls().some((path) => {
           const q = queryOf(path);
-          return q.get("format") === "docx" && q.get("access") === "edit";
+          return path.startsWith(`${LIST_BASE}/recent`) && q.get("format") === "docx" && q.get("updated_by") === "u1";
         }),
       ).toBe(true),
     );
-    // The Trang chip is a client filter on Recent (that endpoint has no
-    // kind param), and a view switch resets both filters — so the
-    // kind=page+access pair has no surface to assert on.
   });
 
-  it("sends format and access on recent, shared-with-me and shared-by-me, and parent_id in an open folder", async () => {
+  it("sends format and Người sửa on recent, shared-with-me and shared-by-me, and parent_id in an open folder", async () => {
     route({
       // Folder cards on home come from the tree, not the document list.
       tree: () => [{ id: "fo1", title: "Dự án CCB", kind: "folder", position: 0, children: [] }],
@@ -253,17 +238,17 @@ describe("server-side type and access filters (UNI-1868)", () => {
     );
     expect(await screen.findByText("Gần đây.docx")).toBeInTheDocument();
 
-    // A view switch resets chip and access, so the shared-with-me pair is
+    // A view switch resets the filters, so the shared-with-me pair is
     // picked on that view, not carried over.
     fireEvent.click(await scopeTab("shared"));
     await screen.findByText("Được chia sẻ");
     await clickChip("docx");
-    clickAccess("manage");
+    await pickEditorMe();
     await waitFor(() =>
       expect(
         listCalls().some((path) => {
           const q = queryOf(path);
-          return path.startsWith(`${LIST_BASE}/shared-with-me`) && q.get("format") === "docx" && q.get("access") === "manage";
+          return path.startsWith(`${LIST_BASE}/shared-with-me`) && q.get("format") === "docx" && q.get("updated_by") === "u1";
         }),
       ).toBe(true),
     );
@@ -272,20 +257,20 @@ describe("server-side type and access filters (UNI-1868)", () => {
     fireEvent.click(await scopeTab("shared_by_me"));
     await screen.findByText("Tôi chia sẻ");
     await clickChip("docx");
-    clickAccess("manage");
+    await pickEditorMe();
     await waitFor(() =>
       expect(
         listCalls().some((path) => {
           const q = queryOf(path);
-          return q.get("shared_by_me") === "true" && !q.has("parent_id") && q.get("format") === "docx" && q.get("access") === "manage";
+          return q.get("shared_by_me") === "true" && !q.has("parent_id") && q.get("format") === "docx" && q.get("updated_by") === "u1";
         }),
       ).toBe(true),
     );
     expect(await screen.findByText("Tôi chia sẻ.docx")).toBeInTheDocument();
 
-    // The open folder's list is the same endpoint keyed by parent_id; the
-    // folder toolbar has no type/access controls (and a view switch reset
-    // them anyway), so parent_id is the only param to assert.
+    // The open folder's list is the same endpoint keyed by parent_id; it is
+    // loaded in full and filtered on the client, so parent_id is the only
+    // param to assert.
     fireEvent.click(await scopeTab("home"));
     // The name appears on both the folder card and the sidebar tree; the
     // card is the clickable one here.
@@ -345,47 +330,39 @@ describe("server-side type and access filters (UNI-1868)", () => {
     expect(screen.queryByText("Chỉ có tệp.docx")).toBeNull();
   });
 
-  it("sends only format and access=restricted to the trash, and never carries a stale access from another view", async () => {
+  it("sends no filter to the trash, and never carries one from another view", async () => {
     route({
-      list: (path) => {
-        const q = queryOf(path);
-        if (q.get("archived") === "1") return q.get("access") === "restricted" ? [file("tr2", "Đã xoá.docx", { visibility: "restricted" })] : [summary({ id: "tr1", title: "Xoá mềm" })];
-        return [summary()];
-      },
+      list: (path) => (queryOf(path).get("archived") === "1" ? [summary({ id: "tr1", title: "Xoá mềm" })] : [summary()]),
     });
     renderView();
     await screen.findByText("Kế hoạch Q4");
-    // Access pills exist only on the list toolbar: set manage on Recent, then
-    // switch to the trash — the server would 400 a trash request with manage.
     fireEvent.click(await scopeTab("recent"));
-    clickAccess("manage");
-    await waitFor(() => expect(listCalls().some((path) => queryOf(path).get("access") === "manage")).toBe(true));
+    await clickChip("docx");
+    await pickEditorMe();
+    await waitFor(() => expect(listCalls().some((path) => queryOf(path).get("updated_by") === "u1")).toBe(true));
 
     fireEvent.click(await scopeTab("archived"));
     expect(await screen.findByText("Xoá mềm")).toBeInTheDocument();
-    // The trash request must not inherit manage: the server would 400 it.
     await waitFor(() => expect(listCalls().some((path) => queryOf(path).get("archived") === "1")).toBe(true));
     for (const path of listCalls()) {
       const q = queryOf(path);
       if (q.get("archived") === "1") {
-        expect(q.get("access") === "manage" || q.get("access") === "edit").toBe(false);
+        expect([q.get("format"), q.get("access"), q.get("updated_by"), q.get("updated_from")]).toEqual([null, null, null, null]);
       }
     }
-    // The trash view has no toolbar at all (TRASH-01): nothing to click, and
-    // the clamp above is the only guard — no manage/edit ever reaches the server.
+    // The trash view has no filter bar at all (UNI-2045 W10).
+    expect(screen.queryByRole("group", { name: t("documents.home.chips_label") })).toBeNull();
   });
 
-  it("keeps client filtering for merged source rows: the chip goes to the sources API, access never does", async () => {
+  it("keeps client filtering for merged source rows: the chip goes to the sources API, Người sửa never does", async () => {
     route({
       list: (path) => {
         const q = queryOf(path);
-        const access = q.get("access");
+        const editor = q.get("updated_by");
         const format = q.get("format");
         // Emulate the server: only rows that survive both filters come back.
-        return [summary({ id: "own", title: "Ghi chú quản lý", my_level: "manage" }), file("f1", "Báo giá.docx")].filter(
-          (row) =>
-            (access !== "manage" || row.my_level === "manage") &&
-            (!format || (row.kind === "file" && String(row.title).toLowerCase().endsWith(`.${format}`))),
+        return [summary({ id: "own", title: "Ghi chú của tôi", updated_by: "u1" }), file("f1", "Báo giá.docx", { updated_by: "u2" })].filter(
+          (row) => (!editor || (row as Record<string, unknown>).updated_by === editor) && (!format || (row.kind === "file" && String(row.title).toLowerCase().endsWith(`.${format}`))),
         );
       },
       sources: (path) => (queryOf(path).get("type") === "docx" ? [source({ name: "Kèm.docx", extension: "docx" })] : [source()]),
@@ -393,18 +370,14 @@ describe("server-side type and access filters (UNI-1868)", () => {
     renderView();
     await screen.findByText("Đề xuất ngân sách.pdf");
 
-    // Access pills exist only on the list toolbar; Recent still merges the
-    // sources lane, so the split-server/client check runs there.
-    fireEvent.click(await scopeTab("recent"));
-    clickAccess("manage");
-    // Source rows have no server access filter: the client drops them; the
-    // document rows were filtered on the server (Báo giá.docx is edit-only).
+    await pickEditorMe();
+    // Source rows have no server editor filter: the client drops them (their
+    // owner is u2); the document rows were filtered on the server.
     await waitFor(() => expect(screen.queryByText("Đề xuất ngân sách.pdf")).toBeNull());
-    // The doc row re-appears when the server's filtered answer lands.
-    expect(await screen.findByText("Ghi chú quản lý")).toBeInTheDocument();
+    expect(await screen.findByText("Ghi chú của tôi")).toBeInTheDocument();
     expect(screen.queryByText("Báo giá.docx")).toBeNull();
     const sourceCallsList = requestMock.mock.calls.filter(([path]) => String(path).startsWith(`${LIST_BASE}/sources`));
-    expect(sourceCallsList.every(([path]) => !queryOf(String(path)).get("access"))).toBe(true);
+    expect(sourceCallsList.every(([path]) => !queryOf(String(path)).get("updated_by"))).toBe(true);
 
     await clickChip("docx");
     // The chip reaches the sources API as `type`; the doc list sees `format`.
@@ -448,8 +421,8 @@ describe("server-side type and access filters (UNI-1868)", () => {
     });
     renderView(`/org/${WS}/documents?view=sources`);
     await screen.findByText(t("documents.home.views.sources"));
-    clickAccess("manage");
-    expect(await screen.findByText(t("documents.home.no_matches_access_more_description"))).toBeInTheDocument();
+    await pickEditorMe();
+    expect(await screen.findByText(t("documents.home.no_matches_filters_more_description"))).toBeInTheDocument();
     expect(screen.getByRole("button", { name: t("documents.library.load_more") })).toBeInTheDocument();
   });
 
@@ -466,7 +439,6 @@ describe("server-side type and access filters (UNI-1868)", () => {
     await clickChip("pdf");
     expect(await screen.findByText(t("documents.library.no_matches_title"))).toBeInTheDocument();
     expect(screen.queryByText(t("documents.home.no_matches_more_description"))).toBeNull();
-    expect(screen.queryByText(t("documents.home.no_matches_access_more_description"))).toBeNull();
     expect(screen.queryByText(t("documents.home.no_matches_filters_more_description"))).toBeNull();
   });
 

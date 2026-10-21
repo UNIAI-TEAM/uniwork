@@ -66,7 +66,7 @@ const handlers: LibraryRowHandlers = {
 function renderList(rows: DocumentSummaryRow[], over: Partial<LibraryRowHandlers> = {}, opts: { screen?: DocListScreen } = {}) {
   return render(
     <DocumentsLibraryList
-      groups={[{ key: "all", title: "", rows: rows.map(documentRow) }]}
+      groups={[{ key: "all", rows: rows.map(documentRow) }]}
       loading={false}
       failure={null}
       filteredBy={null}

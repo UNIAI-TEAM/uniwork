@@ -2,11 +2,10 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { initI18n, setLocale } from "@uniwork/core/i18n";
 import { DocumentsLibraryList } from "./documents-library-list";
-import { LibraryToolbar } from "./documents-library-toolbar";
 import { type LibraryRowHandlers } from "./documents-library-row";
-import { ACCESS_FILTERS, documentRow, type AccessFilter, type DocumentSummaryRow, type LibraryRow } from "./library-rows";
+import { documentRow, type DocumentSummaryRow, type LibraryRow } from "./library-rows";
 
-// UNI-1642: the "My access" and "Visibility" columns and the access filter beside the type chips.
+// UNI-1642: the "My access" and "Visibility" columns (the access filter left the toolbar with UNI-2045 Q6).
 
 const { t } = initI18n();
 
@@ -55,7 +54,7 @@ const handlers: LibraryRowHandlers = {
 function renderList(rows: LibraryRow[]) {
   return render(
     <DocumentsLibraryList
-      groups={[{ key: "unfiled", title: "", rows }]}
+      groups={[{ key: "all", rows }]}
       loading={false}
       failure={null}
       filteredBy={null}
@@ -134,41 +133,5 @@ describe("library table access column", () => {
     expect(line("b")!.textContent).not.toContain("Workspace");
     // Unknown/missing level and visibility show nothing in the line.
     expect(line("c")?.textContent ?? "").not.toMatch(/Chỉ xem|Chỉnh sửa|Xem|Sửa|Quản lý|Nhận xét|Riêng tư|Hạn chế/);
-  });
-});
-
-describe("access filter in the toolbar", () => {
-  function renderToolbar(access: AccessFilter, onAccess = vi.fn()) {
-    render(
-      <LibraryToolbar
-        variant="list"
-        chip="all"
-        onChip={vi.fn()}
-        access={access}
-        onAccess={onAccess}
-        groupBy="none"
-        onGroupBy={vi.fn()}
-      />,
-    );
-    return onAccess;
-  }
-
-  it("is its own labelled group of pressed-state buttons, captioned so it is not a second type row", () => {
-    renderToolbar("all");
-    const group = screen.getByRole("group", { name: t("documents.home.access_filter_label") });
-    expect(ACCESS_FILTERS).toEqual(["all", "manage", "edit", "restricted"]);
-    expect(within(group).getAllByRole("button").map((b) => b.textContent)).toEqual(["Tất cả", "Tôi quản lý", "Tôi sửa được", "Riêng tư"]);
-    expect(within(group).getByRole("button", { name: "Tất cả" }).getAttribute("aria-pressed")).toBe("true");
-    expect(within(group).getByRole("button", { name: "Tôi sửa được" }).getAttribute("aria-pressed")).toBe("false");
-    // A visible caption sits before the group, and no divider is left to orphan when the groups wrap.
-    expect(screen.getByText(t("documents.home.access_group_caption"))).toBeTruthy();
-    expect(t("documents.home.access_group_caption")).toBe("Quyền");
-    expect(document.querySelector("span.w-px")).toBeNull();
-  });
-
-  it("reports the pressed filter", () => {
-    const onAccess = renderToolbar("all");
-    fireEvent.click(screen.getByRole("button", { name: "Tôi quản lý" }));
-    expect(onAccess).toHaveBeenCalledWith("manage");
   });
 });

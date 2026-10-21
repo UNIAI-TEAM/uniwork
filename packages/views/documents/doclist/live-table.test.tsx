@@ -77,7 +77,7 @@ const handlers: LibraryRowHandlers = {
 function renderList(screenId: DocListScreen, rows: DocumentSummaryRow[] = [doc("a")], opts: { selectable?: boolean } = {}) {
   return render(
     <DocumentsLibraryList
-      groups={[{ key: "all", title: "", rows: rows.map(documentRow) }]}
+      groups={[{ key: "all", rows: rows.map(documentRow) }]}
       loading={false}
       failure={null}
       filteredBy={null}

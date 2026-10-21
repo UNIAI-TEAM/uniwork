@@ -244,7 +244,7 @@ describe("DocumentShareScopeBadge (UNI-1785)", () => {
 
     const { unmount } = render(
       <DocumentsLibraryList
-        groups={[{ key: "unfiled", title: "", rows: [documentRow(summaryRow)] }]}
+        groups={[{ key: "all", rows: [documentRow(summaryRow)] }]}
         loading={false}
         failure={null}
         filteredBy={null}

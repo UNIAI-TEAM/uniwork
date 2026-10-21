@@ -56,7 +56,7 @@ const handlers: LibraryRowHandlers = {
 function renderList(rows: LibraryRow[] = [documentRow(file("f1", "Báo giá tháng 10.docx"))], over: Partial<LibraryRowHandlers> = {}) {
   return render(
     <DocumentsLibraryList
-      groups={[{ key: "unfiled", title: "", rows }]}
+      groups={[{ key: "earlier", rows }]}
       loading={false}
       failure={null}
       filteredBy={null}

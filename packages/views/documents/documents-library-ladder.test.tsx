@@ -60,7 +60,7 @@ const handlers: LibraryRowHandlers = {
 function renderList(opts: { screen?: DocListScreen } = {}) {
   return render(
     <DocumentsLibraryList
-      groups={[{ key: "unfiled", title: "Nhóm", rows: [documentRow(file("a"))] }]}
+      groups={[{ key: "earlier", rows: [documentRow(file("a"))] }]}
       loading={false}
       failure={null}
       filteredBy={null}

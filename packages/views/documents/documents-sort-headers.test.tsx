@@ -279,9 +279,9 @@ describe("the table headers sort (UNI-2038 S2)", () => {
   });
 
   it.each([
-    ["recent", "recent", `${LIST_BASE}/recent`],
-    ["shared", "shared", `${LIST_BASE}/shared-with-me`],
-  ])("%s view: the request carries sort/order and a header click changes it", async (_name, view, base) => {
+    ["recent", "recent", `${LIST_BASE}/recent`, "activity"],
+    ["shared", "shared", `${LIST_BASE}/shared-with-me`, "shared"],
+  ])("%s view: the request carries its own order until a header click picks a column (UNI-2045 W11)", async (_name, view, base, own) => {
     requestMock.mockImplementation((path: string) => {
       const p = String(path);
       if (p.startsWith(TREE_URL)) return Promise.resolve({ documents: [] });
@@ -292,7 +292,8 @@ describe("the table headers sort (UNI-2038 S2)", () => {
     });
     renderView(`/org/${WS}/documents?view=${view}`);
     await screen.findByText("An");
-    expect(lastQuery(calls(base, true)).get("sort")).toBe("updated");
+    // Untouched, the list asks for the screen's own order so its date groups hold under paging.
+    expect(lastQuery(calls(base, true)).get("sort")).toBe(own);
     expect(lastQuery(calls(base, true)).get("order")).toBe("desc");
     expect(headerOf("updated")).toHaveAttribute("aria-sort", "descending");
     fireEvent.click(await sortButton("name"));

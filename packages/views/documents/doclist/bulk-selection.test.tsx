@@ -62,7 +62,7 @@ function bulkSpy() {
 function list(rows: DocumentSummaryRow[], opts: { screen?: DocListScreen; handlers?: LibraryRowHandlers; bulk?: DocListBulk; selectionKey?: string } = {}) {
   return (
     <DocumentsLibraryList
-      groups={[{ key: "all", title: "", rows: rows.map(documentRow) }]}
+      groups={[{ key: "all", rows: rows.map(documentRow) }]}
       loading={false}
       failure={null}
       hasMore={false}
