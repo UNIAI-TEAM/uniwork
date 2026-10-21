@@ -6,6 +6,8 @@ import {
   ChatRoomMemberPermissionsSchema,
   ChatRoomMemberSchema,
   ChatRoomsListSchema,
+  ChatUnreadSummarySchema,
+  EMPTY_UNREAD_SUMMARY,
   WorkspaceChatRoomSchema,
   enc,
   toWorkspaceChatRoom,
@@ -14,6 +16,7 @@ import type {
   ChatRoomMemberPermissions,
   ChatRoomMemberRecord,
   ChatRoomRecord,
+  ChatUnreadSummary,
   WorkspaceChatRoom,
 } from "./chat-schemas";
 
@@ -28,34 +31,6 @@ export async function listChatRooms(
   });
   return parsed.rooms ?? [];
 }
-
-const ChatUnreadTotalsSchema = z.object({
-  unread: z.number().catch(0),
-  mentions: z.number().catch(0),
-});
-
-const ChatWorkspaceUnreadSchema = ChatUnreadTotalsSchema.extend({ workspace_id: z.string() });
-
-const ChatUnreadSummarySchema = z.object({
-  direct: ChatUnreadTotalsSchema.catch({ unread: 0, mentions: 0 }),
-  // One drifted row drops alone instead of emptying every badge.
-  workspaces: z
-    .array(z.unknown())
-    .catch([])
-    .transform((items) =>
-      items.flatMap((item) => {
-        const row = ChatWorkspaceUnreadSchema.safeParse(item);
-        return row.success ? [row.data] : [];
-      }),
-    ),
-});
-/**
- * The caller's chat unread across workspaces (muted rooms count mentions
- * only): dms and groups once in `direct`, each workspace's channels apart.
- */
-type ChatUnreadSummary = z.infer<typeof ChatUnreadSummarySchema>;
-
-const EMPTY_UNREAD_SUMMARY: ChatUnreadSummary = { direct: { unread: 0, mentions: 0 }, workspaces: [] };
 
 export async function getChatUnreadSummary(signal?: AbortSignal): Promise<ChatUnreadSummary> {
   const raw = await request("/api/v1/me/chat/unread-summary", { signal });

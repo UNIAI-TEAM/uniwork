@@ -6,7 +6,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable, ScrollView, useWindowDimensions, View } from "react-native";
 import { Text } from "@/components/ui/text";
-import type { ChatSharedSummary } from "@/data/chat-api-schemas";
+import type { ChatRoomSharedSummary } from "@uniwork/core/api/endpoints/chat-schemas";
 import { chatMediaSource, IMAGE_CACHE_POLICY } from "@/lib/media-source";
 import { cn } from "@/lib/utils";
 
@@ -15,7 +15,7 @@ const PHOTO_TILES = 6;
 
 type SharedTab = "photo" | "file" | "link" | "voice";
 
-export function SharedSection({ shared, onOpenMessage }: { shared: ChatSharedSummary; onOpenMessage: (messageId: string) => void }) {
+export function SharedSection({ shared, onOpenMessage }: { shared: ChatRoomSharedSummary; onOpenMessage: (messageId: string) => void }) {
   const { t } = useTranslation();
   const [tab, setTab] = useState<SharedTab>("photo");
   // Three tiles to a row across the 20 pt margins, 4 pt apart.

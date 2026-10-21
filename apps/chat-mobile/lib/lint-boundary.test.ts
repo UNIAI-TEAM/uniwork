@@ -62,6 +62,8 @@ describe("ADR 0011 import boundary", { timeout: 60_000 }, () => {
     'import { parseWithFallback } from "@uniwork/core/api/schema";',
     'import { canManageRoom } from "@uniwork/core/chat/room-permissions-utils";',
     'import type { User } from "@uniwork/core/types/user";',
+    // A types module on the allowlist is a pure schema: its values come in too.
+    'import { ChatCatchUpResponseSchema } from "@uniwork/core/types/ai";',
     'import { clsx } from "clsx";',
     'import { z } from "zod";',
     'import type { ViewStyle } from "react-native";',

@@ -2,7 +2,7 @@
 // badge (MobileWorkspaces, MobileList boards), from GET /me/chat/unread-summary:
 // `direct` is the DMs and groups of the organization, shown at every
 // workspace, so only the `workspaces` rows tell one workspace from another.
-import type { ChatUnreadSummary } from "@/data/chat-api-schemas";
+import type { ChatUnreadSummary } from "@uniwork/core/api/endpoints/chat-schemas";
 
 export interface WorkspaceUnread {
   unread: number;

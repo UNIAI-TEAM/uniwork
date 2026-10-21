@@ -1,61 +1,65 @@
-// The chat endpoints the mobile chat tab calls, copied from
-// packages/core/api/endpoints/{chat-rooms,chat-messages,chat-threads,
-// chat-channels,chat-users,chat-presence,chat-voice,chat-media,
+// The chat endpoints the mobile chat tab calls. The chat user (block, lookup,
+// nicknames) and presence routes are core's own factories
+// (@uniwork/core/api/endpoints/chat-{users,presence}-api) on the app's
+// transport, and the unread, shared-media and catch-up answers read through
+// core's schemas, so the web and the phone share one implementation of those.
+// The rest is copied from packages/core/api/endpoints/{chat-rooms,
+// chat-messages,chat-threads,chat-channels,chat-voice,chat-media,
 // chat-follow-ups,chat-links}.ts, tasks.ts (getTask) and workspaces.ts
-// (ADR 0011: those reach the web transport). Same paths, same lenient schemas
+// (ADR 0011: those reach the web transport): same paths, same lenient schemas
 // (imported from the allowlisted chat-schemas), same fallbacks; only the
-// transport is the app's own. chat-api.test.ts holds a malformed-response
-// case for every one of them.
+// transport is the app's own. Moving each of them behind a core factory, as
+// the two above, is the follow-up (web-copies.json counts what is left).
+// chat-api.test.ts holds a malformed-response case for every one of them.
 import { parseWithFallback } from "@uniwork/core/api/schema";
+import { createChatPresenceApi } from "@uniwork/core/api/endpoints/chat-presence-api";
+import { createChatUsersApi } from "@uniwork/core/api/endpoints/chat-users-api";
 import {
   ChatGifListSchema,
   ChatMessageEnvelopeSchema,
   ChatMessagesListSchema,
   ChatRoomEnvelopeSchema,
   ChatRoomMemberSchema,
+  ChatRoomSharedSummarySchema,
   ChatRoomsListSchema,
+  ChatUnreadSummarySchema,
   ChatVoiceTokenSchema,
+  EMPTY_SHARED_SUMMARY,
+  EMPTY_UNREAD_SUMMARY,
   PendingChatVoiceInvitesSchema,
   enc,
   type ChatGifRecord,
+  type ChatRequest,
+  type ChatRoomSharedSummary,
+  type ChatUnreadSummary,
   type ChatMessageRecord,
   type ChatVoiceToken,
   type PendingChatVoiceInvite,
   type ChatRoomMemberRecord,
   type ChatRoomRecord,
 } from "@uniwork/core/api/endpoints/chat-schemas";
+import { ChatCatchUpResponseSchema, type ChatCatchUpResponse } from "@uniwork/core/types/ai";
 import { z } from "zod";
 import { api } from "./api";
 import {
   ActiveRecordingSchema,
-  ChatCatchUpSchema,
-  ChatUnreadSummarySchema,
-  EMPTY_SHARED_SUMMARY,
-  EMPTY_UNREAD_SUMMARY,
   FollowUpEnvelopeSchema,
   FollowUpListSchema,
   LinkListSchema,
   MembersSchema,
-  NicknamesSchema,
   OkSchema,
   OutgoingVoiceCallsSchema,
-  PresenceBeatSchema,
-  SharedSummarySchema,
   StatusSchema,
   TaskEnvelopeSchema,
   ThreadReadSchema,
   WorkspaceMembersSchema,
-  type ChatCatchUp,
   type ChatFollowUp,
   type ChatMessageLink,
-  type ChatSharedSummary,
   type ChatTask,
-  type ChatUnreadSummary,
   type OutgoingVoiceCall,
   type WorkspaceMemberRecord,
 } from "./chat-api-schemas";
 import type { PendingFile } from "@/lib/send-pipeline";
-import { userKey } from "@/lib/user-id";
 
 type Request = (path: string, init?: RequestInit) => Promise<unknown>;
 
@@ -73,7 +77,19 @@ function query(params: Record<string, string | number | undefined>): string {
 
 const json = (method: string, body: unknown = {}): RequestInit => ({ method, body: JSON.stringify(body) });
 
+/** The app's transport as core's endpoint factories take it: a JSON body is serialised here. */
+export function toChatRequest(request: Request): ChatRequest {
+  return (path, opts = {}) =>
+    request(path, {
+      ...(opts.method ? { method: opts.method } : {}),
+      ...(opts.signal ? { signal: opts.signal } : {}),
+      ...(opts.body === undefined ? {} : { body: JSON.stringify(opts.body) }),
+    });
+}
+
 export function createChatApi(request: Request) {
+  const users = createChatUsersApi(toChatRequest(request));
+  const presence = createChatPresenceApi(toChatRequest(request));
   const ws = (wsId: string) => `/api/v1/workspaces/${enc(wsId)}`;
   const room = (wsId: string, roomId: string) => `${ws(wsId)}/chat/rooms/${enc(roomId)}`;
 
@@ -107,10 +123,9 @@ export function createChatApi(request: Request) {
       return parseWithFallback(raw, ChatUnreadSummarySchema, EMPTY_UNREAD_SUMMARY, { endpoint: "GET /api/v1/me/chat/unread-summary" });
     },
     /** UNI's brief of one room's unread messages ("Bắt kịp nhanh"); null when the answer is not a brief. */
-    async catchUp(wsId: string, body: { room_id: string; locale?: string; since?: string }): Promise<ChatCatchUp | null> {
+    async catchUp(wsId: string, body: { room_id: string; locale?: string; since?: string }): Promise<ChatCatchUpResponse | null> {
       const raw = await request(`${ws(wsId)}/ai/chat/catch-up`, json("POST", body));
-      const parsed = parseWithFallback<ChatCatchUp | null>(raw, ChatCatchUpSchema, null, { endpoint: "POST /api/v1/workspaces/{ws}/ai/chat/catch-up" });
-      return parsed;
+      return parseWithFallback<ChatCatchUpResponse | null>(raw, ChatCatchUpResponseSchema, null, { endpoint: "POST /api/v1/workspaces/{ws}/ai/chat/catch-up" });
     },
     resolveDMRoom(wsId: string, userId: string) {
       return roomOf(request(`${ws(wsId)}/chat/dm`, json("POST", { user_id: userId })), "POST /api/v1/workspaces/{ws}/chat/dm");
@@ -221,33 +236,25 @@ export function createChatApi(request: Request) {
     joinChannel(wsId: string, roomId: string) {
       return roomOf(request(`${ws(wsId)}/chat/channels/${enc(roomId)}/join`, json("POST")), "POST /api/v1/workspaces/{ws}/chat/channels/{roomID}/join");
     },
-    async listNicknames(wsId: string): Promise<Record<string, string>> {
-      const raw = await request(`${ws(wsId)}/chat/nicknames`);
-      const parsed = parseWithFallback<{ nicknames: Record<string, unknown> }>(raw, NicknamesSchema, { nicknames: {} }, { endpoint: "GET /api/v1/workspaces/{ws}/chat/nicknames" });
-      const out: Record<string, string> = {};
-      // One drifted entry is dropped, not the map (core's ChatNicknameMapSchema would empty it).
-      for (const [userId, nickname] of Object.entries(parsed.nicknames)) {
-        const key = userKey(userId);
-        if (key && typeof nickname === "string") out[key] = nickname;
-      }
-      return out;
+    /** Nicknames keyed by the upper-cased user id; one drifted entry is dropped alone (core's chat-users-api). */
+    listNicknames(wsId: string): Promise<Record<string, string>> {
+      return users.listChatNicknames(wsId);
     },
     async listWorkspaceMembers(wsId: string): Promise<WorkspaceMemberRecord[]> {
       const raw = await request(`${ws(wsId)}/members`);
       return parseWithFallback(raw, WorkspaceMembersSchema, { members: [] }, { endpoint: "GET /api/v1/workspaces/{ws}/members" }).members;
     },
-    /** One online heartbeat; the workspace's online user ids, or null when the answer carries none. */
-    async beatPresence(wsId: string, visible: boolean): Promise<string[] | null> {
-      const raw = await request(`${ws(wsId)}/chat/presence`, json("POST", { state: "online", visible }));
-      return parseWithFallback<z.infer<typeof PresenceBeatSchema>>(raw, PresenceBeatSchema, {}, { endpoint: "POST /api/v1/workspaces/{ws}/chat/presence" }).online_user_ids ?? null;
+    /** One online heartbeat; the workspace's online user ids, or null when the answer carries none (core's chat-presence-api). */
+    beatPresence(wsId: string, visible: boolean): Promise<string[] | null> {
+      return presence.beatChatPresence(wsId, visible);
     },
     leavePresence(wsId: string) {
       return ok(request(`${ws(wsId)}/chat/presence`, json("POST", { state: "offline" })), "POST /api/v1/workspaces/{ws}/chat/presence");
     },
     /** GET …/rooms/{id}/shared-summary: what the room has shared, for the info screen (MobRoomInfo board). */
-    async sharedSummary(wsId: string, roomId: string, signal?: AbortSignal): Promise<ChatSharedSummary> {
+    async sharedSummary(wsId: string, roomId: string, signal?: AbortSignal): Promise<ChatRoomSharedSummary> {
       const raw = await request(`${room(wsId, roomId)}/shared-summary`, { signal });
-      return parseWithFallback(raw, SharedSummarySchema, EMPTY_SHARED_SUMMARY, { endpoint: "GET /api/v1/workspaces/{ws}/chat/rooms/{roomID}/shared-summary" });
+      return parseWithFallback(raw, ChatRoomSharedSummarySchema, EMPTY_SHARED_SUMMARY, { endpoint: "GET /api/v1/workspaces/{ws}/chat/rooms/{roomID}/shared-summary" });
     },
     /** POST …/chat/groups (chat-rooms.ts › createChatGroup): the new group, or null. */
     createGroup(wsId: string, input: { name: string; member_user_ids: string[] }): Promise<ChatRoomRecord | null> {

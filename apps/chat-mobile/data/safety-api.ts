@@ -1,39 +1,34 @@
 // Blocking and reporting (Apple 1.2, Google Play's user-generated content
-// policy). The block routes are the web's (packages/core/api/endpoints/
-// chat-users.ts › getChatBlockStatus, blockChatUser, unblockChatUser, copied:
-// ADR 0011); the report route is POST …/chat/reports. safety-api.test.ts
-// holds a malformed-response case for each.
+// policy). The block routes are core's own (@uniwork/core/api/endpoints/
+// chat-users-api, the factory the web binds too) on the app's transport; the
+// report route is POST …/chat/reports, which only the phone calls.
+// safety-api.test.ts holds a malformed-response case for each.
 import { parseWithFallback } from "@uniwork/core/api/schema";
-import { ChatBlockStatusSchema, enc, type ChatBlockStatus } from "@uniwork/core/api/endpoints/chat-schemas";
+import { createChatUsersApi } from "@uniwork/core/api/endpoints/chat-users-api";
+import { enc, type ChatBlockStatus } from "@uniwork/core/api/endpoints/chat-schemas";
 import { z } from "zod";
 import type { ReportBody } from "@/lib/report";
 import { api } from "./api";
+import { toChatRequest } from "./chat-api";
 
 type Request = (path: string, init?: RequestInit) => Promise<unknown>;
 
-const StatusSchema = z.object({ status: z.string().optional() });
 const ReportSchema = z.object({ id: z.string(), status: z.string().catch("open") });
 
 export type ChatReportReceipt = z.infer<typeof ReportSchema>;
 
-const NOT_BLOCKED: ChatBlockStatus = { blocked_by_me: false, blocked_me: false };
-
 export function createSafetyApi(request: Request) {
-  const user = (wsId: string, userId: string) => `/api/v1/workspaces/${enc(wsId)}/chat/users/${enc(userId)}/block`;
-  async function ok(raw: Promise<unknown>, endpoint: string): Promise<boolean> {
-    return parseWithFallback(await raw, StatusSchema, { status: "" }, { endpoint }).status === "ok";
-  }
+  const users = createChatUsersApi(toChatRequest(request));
   return {
     /** Unreadable reads as "not blocked": the composer stays usable and the server still refuses a blocked send. */
-    async blockStatus(wsId: string, userId: string, signal?: AbortSignal): Promise<ChatBlockStatus> {
-      const raw = await request(user(wsId, userId), { signal });
-      return parseWithFallback(raw, ChatBlockStatusSchema, NOT_BLOCKED, { endpoint: "GET /api/v1/workspaces/{ws}/chat/users/{userID}/block" });
+    blockStatus(wsId: string, userId: string, signal?: AbortSignal): Promise<ChatBlockStatus> {
+      return users.getChatBlockStatus(wsId, userId, signal);
     },
     block(wsId: string, userId: string): Promise<boolean> {
-      return ok(request(user(wsId, userId), { method: "POST" }), "POST /api/v1/workspaces/{ws}/chat/users/{userID}/block");
+      return users.blockChatUser(wsId, userId);
     },
     unblock(wsId: string, userId: string): Promise<boolean> {
-      return ok(request(user(wsId, userId), { method: "DELETE" }), "DELETE /api/v1/workspaces/{ws}/chat/users/{userID}/block");
+      return users.unblockChatUser(wsId, userId);
     },
     /** The filed report, or null when the 2xx answer drifted (it was still filed). */
     async report(wsId: string, body: ReportBody): Promise<ChatReportReceipt | null> {

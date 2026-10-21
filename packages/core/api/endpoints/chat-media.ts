@@ -1,8 +1,8 @@
 import { z } from "zod";
 import { request } from "../http";
 import { parseWithFallback } from "../schema";
-import { ChatGifItemSchema, ChatGifListSchema, ChatMediaStatusSchema, enc } from "./chat-schemas";
-import type { ChatGifRecord } from "./chat-schemas";
+import { ChatGifItemSchema, ChatGifListSchema, ChatMediaStatusSchema, ChatRoomSharedSummarySchema, EMPTY_SHARED_SUMMARY, enc } from "./chat-schemas";
+import type { ChatGifRecord, ChatRoomSharedSummary } from "./chat-schemas";
 
 function mapChatGifRecord(raw: z.infer<typeof ChatGifItemSchema>): ChatGifRecord {
   return {
@@ -78,33 +78,6 @@ export async function getChatMediaStatus(workspaceId: string): Promise<{ tenorEn
   });
   return { tenorEnabled: parsed.tenor_enabled ?? false };
 }
-
-const ChatSharedPhotoSchema = z.object({
-  message_id: z.string(),
-  file_id: z.string().optional().catch(undefined),
-  title: z.string().catch(""),
-  url: z.string().optional().catch(undefined),
-  thumb_url: z.string().optional().catch(undefined),
-  url_expires_at: z.string().optional().catch(undefined),
-  created_at: z.string().catch(""),
-});
-
-const count = z.number().int().nonnegative().catch(0);
-
-const ChatRoomSharedSummarySchema = z.object({
-  counts: z
-    .object({ photo: count, gif: count, video: count, file: count, link: count, voice: count })
-    .catch({ photo: 0, gif: 0, video: 0, file: 0, link: 0, voice: 0 }),
-  recent_photos: z.array(ChatSharedPhotoSchema).catch([]),
-});
-
-/** A room's shared-media counts and its newest photos (at most 6, newest first). */
-type ChatRoomSharedSummary = z.infer<typeof ChatRoomSharedSummarySchema>;
-
-const EMPTY_SHARED_SUMMARY: ChatRoomSharedSummary = {
-  counts: { photo: 0, gif: 0, video: 0, file: 0, link: 0, voice: 0 },
-  recent_photos: [],
-};
 
 export async function getChatRoomSharedSummary(
   workspaceId: string,

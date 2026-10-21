@@ -31,21 +31,14 @@
       "packages/core/chat/chat-hooks-rooms.ts": "ec2b45feb5aa25c928167c63453dab344bd65f8a4a20cac2ca04eeacfef38dc6",
       "packages/core/chat/thread-hooks.ts": "5bc995cb60f1b595b879ec635a88e236c60458976213e9a1573dbe39ab147e91"
     },
-    "apps/chat-mobile/data/chat-api-schemas.ts": {
-      "packages/core/api/endpoints/chat-media.ts": "36264e5f637a49b255b7750d3f76d7468b5728cfad19fb5399c16fe90c0408b0",
-      "packages/core/api/endpoints/chat-rooms.ts": "ac68560059a3f628fcd7dbbf2d89f5ccd62ded926fbb1ca355aa5f374adb4760",
-      "packages/core/types/ai.ts": "3952faab76379a49845b4d9a7acb5bb9766cd404a005cb5399af984c304c97b5"
-    },
     "apps/chat-mobile/data/chat-api.ts": {
       "packages/core/api/endpoints/chat-channels.ts": "5f3abf07b5eb9f9695dfd55943aa2ace89e47b961631e912f91f47682f99778a",
       "packages/core/api/endpoints/chat-follow-ups.ts": "eb59130cb4ae1ded248f7e3794b954b46a00e0de5fedef4140b03903a80a6e90",
       "packages/core/api/endpoints/chat-links.ts": "8feab86e7af5dcd5d7d3bd2ba41e3947d0e6434f6b6fd269911869544685658b",
-      "packages/core/api/endpoints/chat-media.ts": "36264e5f637a49b255b7750d3f76d7468b5728cfad19fb5399c16fe90c0408b0",
+      "packages/core/api/endpoints/chat-media.ts": "d7674d57c1af842fdcdf13c6751f3eeb3603d6be15d49a535b6dd33e55a91320",
       "packages/core/api/endpoints/chat-messages.ts": "07b0e5273b3c0e80ad8f3c9caf6ff00d105ff1ce5776684f55242139022e3deb",
-      "packages/core/api/endpoints/chat-presence.ts": "e6687d52eb4ce4415f6f5b4165c005f32679ed107ba95cd5ef9629c998168c68",
-      "packages/core/api/endpoints/chat-rooms.ts": "ac68560059a3f628fcd7dbbf2d89f5ccd62ded926fbb1ca355aa5f374adb4760",
+      "packages/core/api/endpoints/chat-rooms.ts": "6dab926396418cb4ef2dfe6716ad1849ed0dfd242f49761dea54e180711e6f39",
       "packages/core/api/endpoints/chat-threads.ts": "e93f67664ca9dcc650b146bd2d38f30d842ba6d2df27fcb504a28b0e9acb78db",
-      "packages/core/api/endpoints/chat-users.ts": "57e5182cd5d3740f66f7e5a0905f14acec108b86f2faf617bcc648c830aad9da",
       "packages/core/api/endpoints/chat-voice.ts": "b04b811253fede1bc585b4cda86edd8dfd1c86cc68238616a41a3787187b7ab0"
     },
     "apps/chat-mobile/data/chat-cache.ts": {
@@ -68,9 +61,6 @@
     },
     "apps/chat-mobile/data/realtime/use-chat-scopes.ts": {
       "packages/core/realtime/use-chat-room-scopes.ts": "877a7d7c7a8600e70460626be873ba771668627c7243beddf340c613ba9dfb18"
-    },
-    "apps/chat-mobile/data/safety-api.ts": {
-      "packages/core/api/endpoints/chat-users.ts": "57e5182cd5d3740f66f7e5a0905f14acec108b86f2faf617bcc648c830aad9da"
     },
     "apps/chat-mobile/data/stores/chat-presence-store.ts": {
       "packages/core/chat/presence-store.ts": "62ede20ddd23062c1f2dd0e9ac18fcbc7cb0f68bfd6d77a391c1578ab26c05a0"

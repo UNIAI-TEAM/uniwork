@@ -23,7 +23,8 @@ describe("safety endpoints", () => {
   it("block and unblock answer whether the server said ok", async () => {
     request.mockResolvedValueOnce({ status: "ok" });
     await expect(safety.block("w 1", "u1")).resolves.toBe(true);
-    expect(request).toHaveBeenLastCalledWith(U, { method: "POST" });
+    // The web's request (core's chat-users-api): an empty JSON body.
+    expect(request).toHaveBeenLastCalledWith(U, { method: "POST", body: "{}" });
     request.mockResolvedValueOnce({ status: "ok" });
     await expect(safety.unblock("w 1", "u1")).resolves.toBe(true);
     expect(request).toHaveBeenLastCalledWith(U, { method: "DELETE" });
@@ -47,6 +48,6 @@ describe("safety endpoints", () => {
 
   it("the app's instance goes through the shared transport", async () => {
     await safetyApi.block("w1", "u1");
-    expect(api.request).toHaveBeenCalledWith("/api/v1/workspaces/w1/chat/users/u1/block", { method: "POST" });
+    expect(api.request).toHaveBeenCalledWith("/api/v1/workspaces/w1/chat/users/u1/block", { method: "POST", body: "{}" });
   });
 });

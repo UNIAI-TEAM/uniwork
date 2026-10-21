@@ -14,9 +14,9 @@
 // this file's hash to the version, so editing it is a decision about the
 // version, never an accident.
 import type { PersistedClient } from "@tanstack/query-persist-client-core";
-import { ChatMessagesListSchema, ChatRoomsListSchema, type ChatRoomRecord } from "@uniwork/core/api/endpoints/chat-schemas";
+import { ChatMessagesListSchema, ChatRoomsListSchema, ChatUnreadSummarySchema, type ChatRoomRecord } from "@uniwork/core/api/endpoints/chat-schemas";
 import { z } from "zod";
-import { ChatUnreadSummarySchema, MembersSchema, WorkspaceMembersSchema } from "./chat-api-schemas";
+import { MembersSchema, WorkspaceMembersSchema } from "./chat-api-schemas";
 import { WorkspacesResponseSchema } from "./schemas";
 
 export const CACHE_SCHEMA_VERSION = 1;

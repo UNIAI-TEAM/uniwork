@@ -43,9 +43,10 @@ const restrictedPatterns = [
     message: "Only the pure modules in scripts/mobile-core-allowlist.test.mjs may be imported from @uniwork/core (ADR 0011).",
   },
   {
-    group: ["@uniwork/core/types/*"],
+    // A types module on the allowlist (a pure zod schema, e.g. types/ai) may be imported for its values too.
+    group: ["@uniwork/core/types/*", ...CORE_ALLOWLIST.filter((entry) => entry.startsWith("types/")).map((entry) => `!@uniwork/core/${entry}`)],
     allowTypeImports: true,
-    message: "@uniwork/core/types/* is `import type` only on mobile (ADR 0011).",
+    message: "@uniwork/core/types/* is `import type` only on mobile, unless allowlisted (ADR 0011).",
   },
 ];
 

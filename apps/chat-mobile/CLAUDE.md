@@ -17,13 +17,19 @@ dẫn tương đối vào `packages/*`; cấm `@uniwork/core` và mọi subpath 
 allowlist trong `scripts/mobile-core-allowlist.test.mjs` (`api/schema`,
 `api/endpoints/chat-schemas`, `permissions/rules`, `paths/paths`,
 `paths/marketing`, `types/events`, các `chat/*-utils` thuần…) và
-`@uniwork/core/types/*` chỉ với `import type`. Hai danh sách phải giống
+`@uniwork/core/types/*` chỉ với `import type`, trừ module `types/*` có trong allowlist (`types/ai`: schema zod thuần). Hai danh sách phải giống
 nhau; test đó đi theo import bắc cầu của từng mục nên mục không thuần phải
 tách file ở core, không nới lint. Fixture: `lib/lint-boundary.test.ts`.
 Logic thuần dùng chung nằm ở core và được import (UNI-2053 S7: `chat/search-fold`, `chat/initials`,
 `chat/identity-tint`, `chat/contact-labels`, `chat/typing-label`, `chat/voice-call-{types,kind,invites,duration}`,
 `chat/room-timeline-pages` — trang timeline và mọi phép thuần trên nó, tách khỏi `room-timeline.ts` của core —
-web và điện thoại cùng một bản; thêm mục thì thêm vào `core-allowlist.json` và `exports` của core). Logic khác của web:
+web và điện thoại cùng một bản; thêm mục thì thêm vào `core-allowlist.json` và `exports` của core). Endpoint dùng chung
+là factory nhận transport (`api/endpoints/chat-users-api` — tra cứu, chặn, biệt danh; `chat-presence-api` — nhịp hiện
+diện): web bind `request` của `http.ts` (`chat-users.ts`, `chat-presence.ts` chỉ còn dòng bind), điện thoại bind
+transport của nó qua `toChatRequest` (`data/chat-api.ts`); schema mà cả hai đọc (`ChatUnreadSummarySchema`,
+`ChatRoomSharedSummarySchema` trong `chat-schemas`, `ChatCatchUpResponseSchema` của `types/ai`) cũng là của core. Endpoint
+chat còn lại trong `data/chat-api.ts` vẫn là bản copy: chuyển từng nhóm thành factory như hai nhóm trên là việc tiếp theo,
+`web-copies.json` đếm phần còn lại. Logic khác của web:
 **copy, ghi nguồn ở comment đầu file** ("Copied/Ported from …", "← packages/…"), test parity — không import.
 `web-copies.json` ghi sha256 của từng file nguồn web mà mỗi bản copy nêu, lúc bản copy được rà lần cuối;
 `scripts/mobile-web-copies.test.mjs` (chạy cả ở `ci.yml`, nên PR chỉ sửa web cũng đỏ) đỏ khi một nguồn đổi, khi có
@@ -151,7 +157,7 @@ một dòng thì ghi lý do ở dòng trên.
   khôi phục trước màn đầu (`restoreAccountCache` trong auth store), xoá khi đăng xuất (`dropAccountCache`). Bản trên
   đĩa là dữ liệu không tin được như câu trả lời mạng (OTA giữ buster mà đổi code đọc): `data/persisted-cache.ts`
   kiểm vỏ rồi đọc lại data của từng query qua đúng schema đã dựng nó từ mạng (`data/chat-api-schemas.ts`,
-  `data/schemas.ts`), query không đọc được bị bỏ riêng (refetch như lần mở đầu), không chỗ nào cast từ đĩa. Outbox và
+  `data/schemas.ts`, schema của core như `ChatUnreadSummarySchema`), query không đọc được bị bỏ riêng (refetch như lần mở đầu), không chỗ nào cast từ đĩa. Outbox và
   lượt chờ cũng vậy: mỗi mục qua schema zod của `lib/persisted-records.ts` (cả trường lồng: tệp, tin thoại, nhắc
   hẹn), mục hỏng bị bỏ riêng; `migrate` của hai store chạy các bước theo version (`migratePersisted`) và giữ state của
   bản mới hơn (OTA bị rollback) thay vì để zustand xoá cả hàng đợi. `data/persisted-schema.lock.json` ghim hash của
@@ -226,7 +232,7 @@ một dòng thì ghi lý do ở dòng trên.
   khi chưa đồng ý mà vẽ `components/chat/ai-consent-notice.tsx`; tính năng AI mới trên điện thoại dùng cùng
   `useAiConsent()`. Đồng ý chỉ do client giữ: không route AI nào của server đọc nó, và tin của người dùng vẫn tới
   Anthropic khi thành viên khác dùng AI trên web — chính sách và dòng "Xử lý AI" của listing nói đúng vậy
-  (`privacy-content.test.ts`), đừng viết lại thành "chỉ khi người dùng đồng ý". **Báo cáo và chặn**: `data/safety-api.ts` (route chặn của web + `POST …/chat/reports`), key
+  (`privacy-content.test.ts`), đừng viết lại thành "chỉ khi người dùng đồng ý". **Báo cáo và chặn**: `data/safety-api.ts` (route chặn qua factory `chat-users-api` của core + `POST …/chat/reports`), key
   `chatKeys.blockStatus`, `data/queries/safety.ts`, lệnh chặn `data/safety-actions.ts` qua `data/mutations/safety.ts`; `components/chat/report-sheet.tsx` (lý do đóng theo
   `lib/report.ts` = CHECK của server, mô tả, "chặn luôn"), `room-safety.tsx` (DM: chặn/bỏ chặn + báo cáo trong chi
   tiết, banner trong cuộc trò chuyện; nhóm: chạm thành viên → nhắn riêng/báo cáo/chặn), nhấn giữ tin của người khác ›

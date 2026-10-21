@@ -88,6 +88,11 @@ describe("ai endpoints", () => {
     expect(drifted.summary).toBe("Lệch");
     expect(drifted.highlights).toEqual(["a"]);
     expect(drifted.highlight_items).toEqual([]);
+    // The same for the action items: one drifted list empties alone (the phone reads this schema too).
+    vi.mocked(fetch).mockResolvedValueOnce(json({ summary: "Lệch", action_items: [{ owner: "An" }] }));
+    const noActions = await chatCatchUp("ws1", { room_id: "r1" });
+    expect(noActions.summary).toBe("Lệch");
+    expect(noActions.action_items).toEqual([]);
   });
 
   it("conversations and messages degrade to empty lists", async () => {

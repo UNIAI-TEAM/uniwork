@@ -1001,10 +1001,12 @@ describe("chat endpoints", () => {
     expect(await listChatNicknames("ws1")).toEqual({ U1: "Long" });
   });
 
-  it("listChatNicknames degrades on non-string nicknames", async () => {
+  it("listChatNicknames drops a non-string nickname alone, and reads a drifted map as none", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(
       json({ nicknames: { U1: 123, U2: "Ok" } }),
     );
+    expect(await listChatNicknames("ws1")).toEqual({ U2: "Ok" });
+    vi.mocked(fetch).mockResolvedValueOnce(json({ nicknames: "nope" }));
     expect(await listChatNicknames("ws1")).toEqual({});
   });
 

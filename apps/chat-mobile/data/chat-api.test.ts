@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const transport = vi.hoisted(() => ({ request: vi.fn<(path: string, init?: RequestInit) => Promise<unknown>>() }));
 vi.mock("./api", () => ({ api: transport }));
 
-import { chatApi, createChatApi, type ChatApi } from "./chat-api";
+import { chatApi, createChatApi, toChatRequest, type ChatApi } from "./chat-api";
 
 const request = vi.fn<(path: string, init?: RequestInit) => Promise<unknown>>();
 const chat = createChatApi(request);
@@ -242,7 +242,17 @@ const cases: Case[] = [
     method: "POST",
     body: { room_id: "r1", locale: "vi" },
     good: { summary: "Đã chốt lịch.", highlights: ["Họp 3 giờ"], action_items: [{ title: "Gửi báo giá" }], message_count: 4 },
-    read: { summary: "Đã chốt lịch.", highlights: ["Họp 3 giờ"], highlight_items: [], action_items: [{ title: "Gửi báo giá", owner: "", due: "" }], message_count: 4 },
+    // Core's ChatCatchUpResponseSchema, the web's own (the phone reads the brief's fields of it).
+    read: {
+      summary: "Đã chốt lịch.",
+      highlights: ["Họp 3 giờ"],
+      highlight_items: [],
+      action_items: [{ title: "Gửi báo giá", owner: "", due: "", source_message_id: "" }],
+      message_count: 4,
+      mode: "unread",
+      since: "",
+      usage: { input_tokens: 0, output_tokens: 0 },
+    },
     fallback: null,
   },
   {
@@ -289,6 +299,21 @@ const cases: Case[] = [
   },
   { name: "getTask", call: (c) => c.getTask("t 1"), path: "/api/v1/tasks/t%201", method: "GET", good: { task: { id: "t 1", title: "A", identifier: "UNI-2", status: "done" } }, read: expect.objectContaining({ status: "done" }), fallback: null },
 ];
+
+describe("toChatRequest", () => {
+  // Core's endpoint factories hand a JSON value; the app's transport takes a RequestInit with a string body.
+  it("passes the method and signal, serialises a body, and adds nothing that was not given", async () => {
+    const request = vi.fn(async () => "answer");
+    const signal = new AbortController().signal;
+    const core = toChatRequest(request);
+    await expect(core("/a", { method: "PUT", body: { x: 1 }, signal })).resolves.toBe("answer");
+    await core("/b");
+    expect(request.mock.calls).toEqual([
+      ["/a", { method: "PUT", signal, body: '{"x":1}' }],
+      ["/b", {}],
+    ]);
+  });
+});
 
 describe("chat endpoints", () => {
   it.each(cases)("$name sends the web's request and reads its answer", async ({ call, path, method, body, good, read }) => {

@@ -29,5 +29,8 @@
   "chat/voice-call-duration",
   "chat/typing-label",
   "chat/contact-labels",
-  "chat/room-timeline-pages"
+  "chat/room-timeline-pages",
+  "api/endpoints/chat-users-api",
+  "api/endpoints/chat-presence-api",
+  "types/ai"
 ]

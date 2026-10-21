@@ -362,11 +362,6 @@ export const ChatBlockStatusSchema = z.object({
 });
 export type ChatBlockStatus = z.infer<typeof ChatBlockStatusSchema>;
 
-export const ChatNicknameMapSchema = z.object({
-  nicknames: z.record(z.string(), z.string()).optional().default({}),
-});
-export type ChatNicknameMap = z.infer<typeof ChatNicknameMapSchema>;
-
 export const ChatGifItemSchema = z.object({
   id: z.string(),
   label: z.string(),
@@ -425,3 +420,77 @@ export function olderThan(message: { cursor?: string; created_at: string }): {
 } {
   return message.cursor ? { cursor: message.cursor } : { before: message.created_at };
 }
+
+// The two summaries the web and the phone both read (chat-rooms.ts ›
+// getChatUnreadSummary, chat-media.ts › getChatRoomSharedSummary, and the
+// phone's chat API and its disk cache): one definition, so their leniency
+// cannot drift apart.
+const ChatUnreadTotalsSchema = z.object({
+  unread: z.number().catch(0),
+  mentions: z.number().catch(0),
+});
+
+const ChatWorkspaceUnreadSchema = ChatUnreadTotalsSchema.extend({ workspace_id: z.string() });
+
+export const ChatUnreadSummarySchema = z.object({
+  direct: ChatUnreadTotalsSchema.catch({ unread: 0, mentions: 0 }),
+  // One drifted row drops alone instead of emptying every badge.
+  workspaces: z
+    .array(z.unknown())
+    .catch([])
+    .transform((items) =>
+      items.flatMap((item) => {
+        const row = ChatWorkspaceUnreadSchema.safeParse(item);
+        return row.success ? [row.data] : [];
+      }),
+    ),
+});
+/**
+ * The caller's chat unread across workspaces (muted rooms count mentions
+ * only): dms and groups once in `direct`, each workspace's channels apart.
+ */
+export type ChatUnreadSummary = z.infer<typeof ChatUnreadSummarySchema>;
+
+export const EMPTY_UNREAD_SUMMARY: ChatUnreadSummary = { direct: { unread: 0, mentions: 0 }, workspaces: [] };
+
+const ChatSharedPhotoSchema = z.object({
+  message_id: z.string(),
+  file_id: z.string().optional().catch(undefined),
+  title: z.string().catch(""),
+  url: z.string().optional().catch(undefined),
+  thumb_url: z.string().optional().catch(undefined),
+  url_expires_at: z.string().optional().catch(undefined),
+  created_at: z.string().catch(""),
+});
+
+const sharedCount = z.number().int().nonnegative().catch(0);
+
+export const ChatRoomSharedSummarySchema = z.object({
+  counts: z
+    .object({ photo: sharedCount, gif: sharedCount, video: sharedCount, file: sharedCount, link: sharedCount, voice: sharedCount })
+    .catch({ photo: 0, gif: 0, video: 0, file: 0, link: 0, voice: 0 }),
+  recent_photos: z.array(ChatSharedPhotoSchema).catch([]),
+});
+
+/** A room's shared-media counts and its newest photos (at most 6, newest first). */
+export type ChatRoomSharedSummary = z.infer<typeof ChatRoomSharedSummarySchema>;
+
+export const EMPTY_SHARED_SUMMARY: ChatRoomSharedSummary = {
+  counts: { photo: 0, gif: 0, video: 0, file: 0, link: 0, voice: 0 },
+  recent_photos: [],
+};
+
+/** The method, JSON body and abort signal of one chat request: what the endpoint factories (chat-users-api.ts, chat-presence-api.ts) hand their transport. */
+export interface ChatRequestOpts {
+  method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+  /** A JSON value; the transport serialises it. */
+  body?: unknown;
+  signal?: AbortSignal;
+}
+
+/**
+ * A transport for the endpoint factories: the web binds `request` of
+ * ../http.ts, the phone its own client. It resolves to the parsed JSON body
+ * (undefined for a 204) and rejects on a failed response.
+ */
+export type ChatRequest = (path: string, opts?: ChatRequestOpts) => Promise<unknown>;
