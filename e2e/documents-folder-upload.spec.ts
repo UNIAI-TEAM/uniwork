@@ -154,12 +154,18 @@ test("FU-03 a run over the file limit is refused in the pre-flight with the numb
   await expect(dialog.getByTestId("folder-upload-summary")).toHaveCount(0);
   await expect(shareSwitch(dialog)).toHaveCount(0);
 
-  // The button is aria-disabled: it stays focusable and does nothing.
+  // The button is aria-disabled: it stays focusable and does nothing. Playwright will not click an
+  // aria-disabled element, so the click is forced (and Enter pressed) to prove the JS guard holds.
   const submit = submitButton(dialog);
   await expect(submit).toHaveAttribute("aria-disabled", "true");
-  await submit.click();
-  await expect(dialog).toBeVisible();
-  expect(plans).toEqual([]);
+  await submit.click({ force: true });
+  await submit.press("Enter");
+  const until = Date.now() + 1_500;
+  while (Date.now() < until) {
+    await expect(dialog).toBeVisible();
+    expect(plans).toEqual([]);
+    await page.waitForTimeout(200);
+  }
 
   await dialog.getByRole("button", { name: "Hủy" }).click();
   await expect(dialog).toBeHidden();
