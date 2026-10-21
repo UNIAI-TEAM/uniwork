@@ -12,6 +12,18 @@
       "functions": 100,
       "lines": 100
     },
+    "components/app/privacy-guard.tsx": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
+    "components/app/privacy.ts": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
     "components/app/update-gate.tsx": {
       "statements": 100,
       "branches": 100,
@@ -480,6 +492,18 @@
       "functions": 100,
       "lines": 100
     },
+    "components/settings/privacy-section.tsx": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
+    "components/settings/push-previews-row.tsx": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
     "components/settings/push-section.tsx": {
       "statements": 0,
       "branches": 0,
@@ -493,6 +517,12 @@
       "lines": 100
     },
     "components/settings/settings-section.tsx": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
+    "components/settings/switch-row.tsx": {
       "statements": 100,
       "branches": 100,
       "functions": 100,
