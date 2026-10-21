@@ -281,7 +281,9 @@ func (s *MeetingService) createScheduled(ctx context.Context, userID, workspaceI
 	}
 	tz := strings.TrimSpace(in.Timezone)
 	if tz == "" {
-		tz = "UTC"
+		if tz, err = s.creatorTimezone(ctx, userID); err != nil {
+			return db.Meeting{}, err
+		}
 	}
 	allow := true
 	if in.AllowJoinRequest != nil {

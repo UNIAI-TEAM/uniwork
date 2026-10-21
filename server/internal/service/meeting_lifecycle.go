@@ -23,6 +23,10 @@ func (s *MeetingService) CreateInstant(ctx context.Context, userID, workspaceID 
 	if title == "" {
 		title = "Cuộc họp tức thì"
 	}
+	tz, err := s.creatorTimezone(ctx, userID)
+	if err != nil {
+		return db.Meeting{}, err
+	}
 	now := time.Now().UTC()
 	id := util.NewID()
 	tx, err := s.pool.Begin(ctx)
@@ -37,7 +41,7 @@ func (s *MeetingService) CreateInstant(ctx context.Context, userID, workspaceID 
 		EndsAt:   pgtype.Timestamptz{Time: now.Add(time.Hour), Valid: true},
 		RoomName: meetings.RoomNameForMeeting(id), CreatedBy: userID, CreatedByKind: string(audit.KindHuman),
 		Status: MeetingScheduled, MeetingType: MeetingTypeInstant,
-		HostUserID: userID, Timezone: "UTC", AllowJoinRequest: true,
+		HostUserID: userID, Timezone: tz, AllowJoinRequest: true,
 	})
 	if err != nil {
 		return db.Meeting{}, err

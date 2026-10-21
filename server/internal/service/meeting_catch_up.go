@@ -130,6 +130,7 @@ func (s *AskUNIService) meetingCatchUp(ctx context.Context, userID string, m db.
 		return MeetingCatchUpResult{}, false, err
 	}
 	now := s.now().UTC()
+	loc := meetingLocation(m.Timezone)
 	sources, partial := catchUpSources(segs, notes, meetingClock(m))
 	partial = partial || len(segs) >= summaryTranscriptRows
 	if len(sources) == 0 {
@@ -147,8 +148,10 @@ func (s *AskUNIService) meetingCatchUp(ctx context.Context, userID string, m db.
 		Actor: Human(userID), OrganizationID: m.OrganizationID, WorkspaceID: m.WorkspaceID,
 		Capability: ai.CapMeetingCatchUp, PromptID: ai.PromptMeetingCatchUp,
 		Vars: map[string]any{
-			"locale": locale, "title": m.Title, "now": now.Format(time.RFC3339),
-			"started": m.ActualStartAt.Time.UTC().Format(time.RFC3339), "sources": ai.RenderSources(pack),
+			// In the meeting's zone, like the sources' times, so a time the
+			// model writes reads on the participants' clock.
+			"locale": locale, "title": m.Title, "now": now.In(loc).Format(time.RFC3339),
+			"started": m.ActualStartAt.Time.In(loc).Format(time.RFC3339), "sources": ai.RenderSources(pack),
 		},
 		Sources: pack, Truncated: partial,
 	})
@@ -223,12 +226,10 @@ func catchUpSources(segs []db.MeetingTranscriptSegment, notes []db.ListMeetingNo
 	return out, partial
 }
 
-// meetingClock writes a time as the meeting's own clock shows it.
+// meetingClock writes a time as the meeting's own clock shows it (Vietnam's
+// for a meeting without a usable zone, as everywhere else).
 func meetingClock(m db.Meeting) func(time.Time) string {
-	loc, err := time.LoadLocation(m.Timezone)
-	if err != nil || m.Timezone == "" {
-		loc = time.UTC
-	}
+	loc := meetingLocation(m.Timezone)
 	return func(t time.Time) string { return t.In(loc).Format("15:04") }
 }
 

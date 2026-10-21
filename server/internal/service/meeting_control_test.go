@@ -63,6 +63,35 @@ func TestInstantMeeting(t *testing.T) {
 	}
 }
 
+// A meeting made without a zone (every instant one) is set in its creator's,
+// not UTC: the detail page, the minutes and the catch-up read their clock
+// from it.
+func TestMeetingWithoutAZoneTakesTheCreators(t *testing.T) {
+	s, ua, _, w := meetingFixture(t)
+	ctx := context.Background()
+	if _, err := s.pool.Exec(ctx, `UPDATE users SET timezone = 'Asia/Tokyo' WHERE id = $1`, ua.ID); err != nil {
+		t.Fatal(err)
+	}
+	m, err := s.CreateInstant(ctx, ua.ID, w.ID, "Now")
+	if err != nil || m.Timezone != "Asia/Tokyo" {
+		t.Fatalf("instant zone = %q %v", m.Timezone, err)
+	}
+	start := time.Now().Add(time.Hour)
+	sm, err := s.Create(ctx, ua.ID, w.ID, CreateMeetingInput{Title: "S", StartsAt: start, EndsAt: start.Add(time.Hour)})
+	if err != nil || sm.Timezone != "Asia/Tokyo" {
+		t.Fatalf("scheduled zone = %q %v", sm.Timezone, err)
+	}
+	if _, err := s.pool.Exec(ctx, `UPDATE users SET timezone = 'Not/AZone' WHERE id = $1`, ua.ID); err != nil {
+		t.Fatal(err)
+	}
+	if m, err = s.CreateInstant(ctx, ua.ID, w.ID, "Now"); err != nil || m.Timezone != defaultMeetingTimezone {
+		t.Fatalf("unusable profile zone = %q %v", m.Timezone, err)
+	}
+	if got := meetingClock(db.Meeting{Timezone: "Asia/Tokyo"})(time.Date(2026, 10, 21, 9, 27, 0, 0, time.UTC)); got != "18:27" {
+		t.Fatalf("meeting clock = %q", got)
+	}
+}
+
 func TestHostTransferAndRemove(t *testing.T) {
 	s, ua, ub, w := meetingFixture(t)
 	addMember(t, s, w.ID, ub.ID)
