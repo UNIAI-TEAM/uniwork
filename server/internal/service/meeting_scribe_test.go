@@ -611,3 +611,34 @@ func TestSweepWithScribeDisabledClosesOpenRuns(t *testing.T) {
 		t.Fatalf("dispatches=%d removals=%d", dispatches, removals)
 	}
 }
+
+// Review R2 M1: the sweep is the only dispatcher once a room fills after
+// Start, so it pages through every meeting it must look at, not the first
+// batch only.
+func TestSweepPagesThroughEveryMeeting(t *testing.T) {
+	s, fake, ua, m := scribeFixture(t)
+	ctx := context.Background()
+	prev := scribeSweepBatch
+	scribeSweepBatch = 2
+	t.Cleanup(func() { scribeSweepBatch = prev })
+	ids := []string{m.ID}
+	for range 4 {
+		other, err := s.CreateInstant(ctx, ua.ID, m.WorkspaceID, "Giao ban")
+		if err != nil {
+			t.Fatal(err)
+		}
+		joinRoom(t, s, other, ua.ID)
+		ids = append(ids, other.ID)
+	}
+	if err := s.sweepScribes(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if d, _ := fake.ScribeCalls(); d != len(ids) {
+		t.Fatalf("dispatches = %d, want %d", d, len(ids))
+	}
+	for _, id := range ids {
+		if r := latestRun(t, s, id); r.Status != ScribeDispatched {
+			t.Fatalf("meeting %s: %+v", id, r)
+		}
+	}
+}

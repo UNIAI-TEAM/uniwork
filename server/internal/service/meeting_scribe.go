@@ -31,7 +31,6 @@ const (
 	// The sweep doubles as the "room without its agent" check, since LiveKit's
 	// restart_policy exists only on Cloud (§4.6).
 	scribeSweepInterval = 15 * time.Second
-	scribeSweepBatch    = 200
 	// A dispatch not ACTIVE this long while people are in the room is one
 	// failure; the third fails the run, retried after scribeRetryAfter (§4.1).
 	scribeActiveDeadline = 60 * time.Second
@@ -46,6 +45,9 @@ const (
 	// code switching (S0 §2.3).
 	scribeLocale = "vi"
 )
+
+// scribeSweepBatch is one page of the sweep; a var so a test can page.
+var scribeSweepBatch int32 = 200
 
 // scribeActor attributes runs, metered minutes and run-state events.
 var scribeActor = audit.System("meeting_scribe")
@@ -322,19 +324,25 @@ func (s *MeetingService) emitScribeUpdated(ctx context.Context, m db.Meeting) {
 // with people in the room. With MEETING_SCRIBE_ENABLED off it still closes the
 // open runs and removes their agents.
 func (s *MeetingService) sweepScribes(ctx context.Context) error {
-	ids, err := s.q.ListScribeSweepMeetings(ctx, db.ListScribeSweepMeetingsParams{WithPeople: s.scribeConfigured(), RowLimit: scribeSweepBatch})
-	if err != nil {
-		return err
-	}
+	params := db.ListScribeSweepMeetingsParams{WithPeople: s.scribeConfigured(), RowLimit: scribeSweepBatch}
 	var errs []error
-	for _, id := range ids {
-		cctx, cancel := context.WithTimeout(ctx, scribeCallTimeout)
-		if err := s.ensureScribe(cctx, id); err != nil {
-			errs = append(errs, err)
+	for {
+		ids, err := s.q.ListScribeSweepMeetings(ctx, params)
+		if err != nil {
+			return errors.Join(append(errs, err)...)
 		}
-		cancel()
+		for _, id := range ids {
+			cctx, cancel := context.WithTimeout(ctx, scribeCallTimeout)
+			if err := s.ensureScribe(cctx, id); err != nil {
+				errs = append(errs, err)
+			}
+			cancel()
+		}
+		if len(ids) < int(scribeSweepBatch) {
+			return errors.Join(errs...)
+		}
+		params.After = ids[len(ids)-1]
 	}
-	return errors.Join(errs...)
 }
 
 // SetScribe switches the scribe off or back on for one meeting (D14): host

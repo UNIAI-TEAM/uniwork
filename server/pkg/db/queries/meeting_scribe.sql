@@ -85,16 +85,20 @@ SELECT
 
 -- name: ListScribeSweepMeetings :many
 -- tenant: system
--- Meetings the 15 s scribe sweep looks at: those holding an open run that
--- may need closing, and, when dispatching is on (with_people), the ones in
--- progress with people in the room. Oldest start first, so a batch that does
--- not cover everyone always serves the same meetings before newer ones.
-SELECT m.id FROM meetings m
-WHERE (sqlc.arg('with_people')::bool AND m.status = 'IN_PROGRESS' AND EXISTS (
-    SELECT 1 FROM meeting_attendance_sessions a WHERE a.meeting_id = m.id AND a.left_at IS NULL))
-  OR EXISTS (
-    SELECT 1 FROM meeting_scribe_runs r WHERE r.meeting_id = m.id AND r.status IN ('DISPATCHED', 'ACTIVE'))
-ORDER BY m.actual_start_at ASC NULLS LAST, m.id
+-- One page of the meetings the 15 s scribe sweep looks at, by id after the
+-- last page: those holding an open run that may need closing
+-- (uidx_meeting_scribe_runs_open), and of the meetings in progress
+-- (idx_meetings_in_progress_ends) the ones with people in the room when
+-- dispatching is on (with_people).
+SELECT s.id::text AS id FROM (
+  SELECT r.meeting_id AS id FROM meeting_scribe_runs r WHERE r.status IN ('DISPATCHED', 'ACTIVE')
+  UNION
+  SELECT m.id FROM meetings m
+  WHERE sqlc.arg('with_people')::bool AND m.status = 'IN_PROGRESS' AND EXISTS (
+    SELECT 1 FROM meeting_attendance_sessions a WHERE a.meeting_id = m.id AND a.left_at IS NULL)
+) s
+WHERE s.id > sqlc.arg('after')::text
+ORDER BY s.id
 LIMIT sqlc.arg('row_limit');
 
 -- name: SetMeetingScribeOff :one
