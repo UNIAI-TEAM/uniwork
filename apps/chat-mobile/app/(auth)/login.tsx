@@ -1,7 +1,8 @@
 // Ported from usf apps/mobile/app/(auth)/login.tsx, re-cut for PKCE: one
 // button opens the system browser; the session store loads /me afterwards.
 // Laid out as canvas MobLogin: the mark and the welcome up top, the error and
-// the button at the thumb.
+// the button at the thumb. At the largest text sizes the page scrolls instead
+// of pushing the button off the screen (Maestro's a11y-large-text-dark flow).
 import { Ionicons } from "@expo/vector-icons";
 import wallDotsDark from "@/assets/chat-wall-dots-dark.png";
 import wallDotsLight from "@/assets/chat-wall-dots-light.png";
@@ -10,7 +11,7 @@ import wallFadeLight from "@/assets/wall-fade-light.png";
 import { Redirect } from "expo-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Image, ImageBackground, View } from "react-native";
+import { Image, ImageBackground, ScrollView, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { UniChatLogo } from "@/components/brand/unichat-logo";
 import { PersonAvatar } from "@/components/people/person-avatar";
@@ -52,7 +53,7 @@ export default function Login() {
   };
 
   return (
-    <View className="flex-1 bg-background">
+    <ScrollView className="flex-1 bg-background" contentContainerStyle={{ flexGrow: 1 }} bounces={false} testID="login-screen">
       {/* The illustration of the MobLogin board: a wall of dots fading out, a sample exchange around the mark. Decorative. */}
       <View className="relative h-[440px]" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
         <ImageBackground source={WALL_DOTS[colorScheme]} resizeMode="repeat" className="absolute inset-0 bg-chat-wall" />
@@ -94,7 +95,7 @@ export default function Login() {
             <Text className="shrink text-center text-callout text-destructive">{t("auth.desktop.unichat_login_failed")}</Text>
           </View>
         ) : null}
-        <Button disabled={busy} className="min-h-12 rounded-full py-3" onPress={() => void onPress()}>
+        <Button disabled={busy} className="min-h-12 rounded-full py-3" onPress={() => void onPress()} testID="login-button">
           <Text className="text-body font-semibold">{t("auth.desktop.unichat_login_button")}</Text>
         </Button>
         <View className="flex-row items-center justify-center gap-1.5">
@@ -103,6 +104,6 @@ export default function Login() {
         </View>
       </View>
       <SafeAreaView edges={["bottom"]} />
-    </View>
+    </ScrollView>
   );
 }

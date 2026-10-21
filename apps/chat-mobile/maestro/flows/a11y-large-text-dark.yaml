@@ -1,0 +1,27 @@
+# Accessibility smoke, on every PR that reaches the binary (mobile-verify.yml ›
+# android-smoke), right after smoke-launch.yaml: the CI step first sets the
+# emulator to its largest font scale (2.0) and to dark mode, then runs this
+# flow and scripts/mobile-a11y-audit.mjs on the screen it leaves. The sign-in
+# screen must still show its copy and reach its button (the page scrolls
+# rather than pushing it off the screen), and the button must work. No server:
+# the build points at placeholder URLs, as in smoke-launch.yaml.
+appId: com.uniworkos.chat
+name: Sign-in at the largest text size, in dark mode
+tags:
+  - smoke
+  - a11y
+---
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible: "Welcome to UniChat|Chào mừng đến với UniChat"
+    timeout: 60000
+- assertVisible: "Message and call your team, right from your phone.|Nhắn tin và gọi cho cả đội ngay trên điện thoại."
+- scrollUntilVisible:
+    element:
+      id: login-button
+    direction: DOWN
+    timeout: 10000
+- assertVisible:
+    id: login-button
+- assertVisible: "Sign in with your UniWork account in the browser|Đăng nhập bằng tài khoản UniWork trong trình duyệt"

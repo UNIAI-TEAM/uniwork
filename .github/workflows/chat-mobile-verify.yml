@@ -272,6 +272,12 @@ jobs:
             cd apps/chat-mobile/maestro && maestro test flows/push-open-room.yaml
             cd apps/chat-mobile/maestro && maestro test flows/call-join.yaml
             cd apps/chat-mobile/maestro && maestro test flows/offline-send-relaunch.yaml
+            adb shell settings put system font_scale 2.0
+            adb shell cmd uimode night yes
+            cd apps/chat-mobile/maestro && maestro test flows/chat-read-send.yaml
+            node scripts/mobile-a11y-audit.mjs --package "$APP_ID" --min-dp 44 --warn --out "$RUNNER_TEMP/a11y-room.json"
+            adb shell settings put system font_scale 1.0
+            adb shell cmd uimode night no
       - uses: actions/upload-artifact@v4
         if: always()
         with:

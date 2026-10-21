@@ -286,6 +286,18 @@ và giọng đọc. Một iPhone (VoiceOver) và một máy Android (TalkBack):
   chối ở hộp thoại hệ thống (Android 13+: mở lại app không hỏi nữa); Cài đặt › Thông báo hỏi lại.
 - [ ] Nghe từ thông báo trên máy cài mới, đang khoá (Android): bấm "Nghe" thì màn giải thích micro hiện và ở lại trên màn
   đổ chuông; "Tiếp tục" hiện hộp thoại hệ thống, rồi cuộc gọi mới nối (micro đã được hỏi).
+- [ ] Trải nghiệm hoàn thiện (audit UX 8/10). Phòng ngoài 12 phòng có cache, tắt mạng giữa lúc mở: "Không tải được tin
+  nhắn · Thử lại", không phải lời mời "bắt đầu trò chuyện"; bật mạng rồi "Thử lại" thì tin hiện. Link trong tin: chạm mở
+  trình duyệt trong app, nhấn giữ có Mở/Sao chép/Chia sẻ (rung), VoiceOver/TalkBack có hành động "Liên kết …" trên bong
+  bóng; `**đậm**` hiện đậm. Viết dở trong một phòng, rời phòng và kill app: mở lại thấy nguyên chữ và trích dẫn, danh
+  sách phòng hiện "Nháp: …" màu đỏ; gửi thì nháp mất. Phòng có ≥ 20 tin chưa đọc: mở ra ở vạch "N tin chưa đọc" gần đầu
+  màn hình (không phải ở tin mới nhất). Mọi sheet: kéo grabber xuống đóng, kéo ngắn bật lại, sheet có danh sách vẫn cuộn
+  được; VoiceOver vuốt hai ngón hình chữ Z đóng sheet; bật Giảm chuyển động thì sheet hiện mờ dần, không trượt. Dark
+  mode: giờ và dấu tick trên bong bóng của mình đọc rõ, "đã xem" là huy hiệu tick đặc khác "đã tới". Android: nút back là
+  mũi tên, nút/hàng có hiệu ứng gợn sóng, vuốt trả lời rung một nhịp khi qua ngưỡng. Tin thoại: chạm thanh sóng để tua,
+  chip 1×/1.5×/2×, TalkBack vuốt lên/xuống tua 5 s. CI đã chạy màn đăng nhập ở font_scale 2.0 + dark và audit nhãn/48 dp
+  (`scripts/mobile-a11y-audit.mjs`); nightly chạy lại `chat-read-send` ở cỡ chữ lớn nhất + dark: đọc cảnh báo audit của
+  phòng trong log job.
 - [ ] Ngôn ngữ: iOS Cài đặt › UniChat › Ngôn ngữ và Android 13+ Cài đặt › Ứng dụng › UniChat › Ngôn ngữ chỉ liệt kê
   Tiếng Việt và English; đổi ngôn ngữ trong app rồi nhận một push: push nói đúng ngôn ngữ đó (`users.locale` đổi theo,
   xem bằng `GET /api/v1/me`). Tiếng Anh: "1 reply", "2 replies".

@@ -600,7 +600,10 @@ hai lớp test, `pnpm knip --workspace apps/chat-mobile`, `expo install --check`
 `scripts/mobile-bundle-budget.mjs`, trần cho từng nền tảng — iOS có ngân sách trước khi có bản build) và `android-release` (`expo prebuild` +
 `./gradlew :app:assembleRelease` x86_64, chỉ khi `scripts/mobile-native-scope.mjs`
 nói thay đổi chạm binary) rồi `android-smoke` (cài APK đó lên emulator, chạy
-`maestro/flows/smoke-launch.yaml`: mở lạnh tới màn đăng nhập, không cần server; rồi `scripts/mobile-perf.mjs` đo kích
+`maestro/flows/smoke-launch.yaml`: mở lạnh tới màn đăng nhập, không cần server; cuối job, ở font_scale 2.0 và dark mode,
+`flows/a11y-large-text-dark.yaml` (màn đăng nhập cuộn được, vẫn tới nút) rồi `scripts/mobile-a11y-audit.mjs` (dump
+uiautomator: mọi điều khiển của app có tên và ≥ 48 dp; hitSlop không thấy được trong dump nên nightly audit phòng ở
+44 dp, chỉ cảnh báo); rồi `scripts/mobile-perf.mjs` đo kích
 thước APK và 5 lần mở lạnh — tới khung đầu và tới mốc `first-screen` — theo `perf-budget.json`; nightly đo thêm mở lạnh
 tới `inbox` và khung/bộ nhớ khi cuộn phòng dài, runbook › Đo hiệu năng trên thiết bị). Mốc là `perfMark(name)` của
 `data/logger.ts` (một dòng `UniChatPerf mark=<tên>` trong log máy, mỗi tên một lần mỗi tiến trình), chỉ bản build với

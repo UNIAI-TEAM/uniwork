@@ -35,6 +35,13 @@ test("mobile-verify can be called and builds the release only through its jobs",
   assert.match(wf, /node scripts\/mobile-bundle-budget\.mjs/);
   assert.match(wf, /\.\/gradlew :app:assembleRelease/);
   assert.match(wf, /maestro test flows\/smoke-launch\.yaml/, "the cold-start smoke runs the release APK");
+  // Accessibility on the device: the largest font scale and dark mode, the flow, then the audit, blocking.
+  assert.match(
+    wf,
+    /font_scale 2\.0\n\s+adb shell cmd uimode night yes\n\s+cd apps\/chat-mobile\/maestro && maestro test flows\/a11y-large-text-dark\.yaml\n\s+node scripts\/mobile-a11y-audit\.mjs --package com\.uniworkos\.chat --out /,
+    "the smoke runs the sign-in at the largest text in dark mode and audits it",
+  );
+  assert.match(wf, /scripts\/mobile-a11y-audit\.test\.mjs/, "the contract step runs the audit's own test");
   assert.match(envPin(wf, "MAESTRO_VERSION") ?? "", EXACT, "MAESTRO_VERSION is an exact version");
   assert.match(wf, /scripts\/mobile-workflows\.test\.mjs/, "the contract step runs this test");
   assert.match(wf, /scripts\/mobile-knip\.test\.mjs/, "the contract step runs the knip exception test");
@@ -57,6 +64,9 @@ test("the nightly pins Maestro, fails a scheduled run without its settings, and 
   assert.doesNotMatch(gate, /::notice::Maestro skipped/);
   assert.match(wf, /^ {2}android-production:$/m);
   assert.match(wf, /\.\/gradlew :app:bundleRelease/);
+  // The golden chat flow again at the largest text in dark mode, and the room audited (as warnings: its pills
+  // reach their target through hit slop, which a dump cannot see).
+  assert.match(wf, /font_scale 2\.0\n\s+adb shell cmd uimode night yes\n\s+cd apps\/chat-mobile\/maestro && maestro test flows\/chat-read-send\.yaml\n\s+node scripts\/mobile-a11y-audit\.mjs/);
 });
 
 // The OTA path (audit R3): from CI, after every PR check on the SHA, staged by
