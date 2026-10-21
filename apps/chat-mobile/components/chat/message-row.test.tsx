@@ -50,7 +50,7 @@ const props = (message: TimelineMessage, extra: Partial<MessageRowProps> = {}): 
   receipt: null,
   highlighted: false,
   showThread: true,
-  ctx: { wsId: "w1", orgSlug: "acme", wsSlug: "hq", roomId: "r1", userId: "u1", onOpenImage: jest.fn(), onVotePoll: jest.fn() },
+  ctx: { wsId: "w1", orgSlug: "acme", wsSlug: "hq", roomId: "r1", userId: "u1", onOpenImage: jest.fn(), onVotePoll: jest.fn(), onOpenLink: jest.fn(), onLinkMenu: jest.fn() },
   scheme: "light",
   ...handlers(),
   ...extra,
@@ -184,5 +184,42 @@ describe("MessageRow", () => {
   it("draws a system line as one centred, readable chip", async () => {
     await render(<MessageRow {...props(sent({ kind: "system", body: "An đã thêm Bình vào nhóm" }))} />);
     expect(screen.getByLabelText("An đã thêm Bình vào nhóm")).toBeOnTheScreen();
+  });
+});
+
+describe("links and bold in a message", () => {
+  const body = "Xem **bản chốt** ở https://docs.example.com/a?b=1. và https://b.example/";
+
+  it("draws the bold without its stars and each address as a link that opens on a tap", async () => {
+    const p = props(sent({ body }));
+    await render(<MessageRow {...p} />);
+    expect(screen.getByText("bản chốt")).toBeOnTheScreen();
+    expect(screen.queryByText(/\*\*/)).toBeNull();
+    const link = screen.getByRole("link", { name: viText("mobile.conversation.link_label", { link: "docs.example.com/a?b=1" }) });
+    await fireEvent.press(link);
+    expect(p.ctx.onOpenLink).toHaveBeenCalledWith("https://docs.example.com/a?b=1");
+    await fireEvent(link, "longPress");
+    expect(p.ctx.onLinkMenu).toHaveBeenCalledWith("https://docs.example.com/a?b=1");
+  });
+
+  it("gives a screen reader one action per link on the bubble, after the menu", async () => {
+    const p = props(sent({ body }));
+    await render(<MessageRow {...p} />);
+    const bubble = screen.getByLabelText(new RegExp(`^${viText("chat.message_list.label", { sender: "Bình", time: TIME })}`));
+    expect(bubble.props.accessibilityActions).toEqual([
+      { name: "longpress", label: viText("chat.message_actions_aria") },
+      { name: "link_0", label: viText("mobile.conversation.link_label", { link: "docs.example.com/a?b=1" }) },
+      { name: "link_1", label: viText("mobile.conversation.link_label", { link: "b.example" }) },
+    ]);
+    await fireEvent(bubble, "accessibilityAction", { nativeEvent: { actionName: "link_1" } });
+    expect(p.ctx.onLinkMenu).toHaveBeenCalledWith("https://b.example/");
+    await fireEvent(bubble, "accessibilityAction", { nativeEvent: { actionName: "link_9" } });
+    expect(p.onLongPress).toHaveBeenCalledTimes(1);
+  });
+
+  it("links in my own bubble too", async () => {
+    const p = props(sent({ body: "**https://a.example/x**", sender_id: "u1" }), { own: true });
+    await render(<MessageRow {...p} />);
+    expect(screen.getByRole("link", { name: viText("mobile.conversation.link_label", { link: "a.example/x" }) })).toBeOnTheScreen();
   });
 });

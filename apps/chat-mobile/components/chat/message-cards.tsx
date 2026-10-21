@@ -20,7 +20,7 @@ import { TINTS, TintTile } from "@/components/ui/tint-tile";
 import { deepLinkHref } from "@/lib/deep-link";
 import { formatFileSize, isReminderDue, messageContent, pollResults, voiceCallLogLabel } from "@/lib/message-display";
 import { formatVoiceCallDuration } from "@uniwork/core/chat/voice-call-duration";
-import { mentionSegments } from "@/lib/mentions";
+import { messageBodySegments, spokenLink } from "@/lib/message-format";
 import { THEME } from "@/lib/theme";
 import { fileBadge, type Tint } from "@/lib/tint";
 import { formatMessageDateTime, formatMessageTime } from "@/lib/timeline-display";
@@ -42,6 +42,10 @@ export interface MessageCardContext {
   onOpenImage: (url: string, name: string, messageId?: string) => void;
   /** A tap on a poll option (M3); the cache takes the answer. */
   onVotePoll: (messageId: string, optionId: string) => void;
+  /** A tap on a link in a message: the in-app browser. */
+  onOpenLink: (url: string) => void;
+  /** A long press on a link (or a screen reader's link action): open, copy or share it (link-sheet.tsx). */
+  onLinkMenu: (url: string) => void;
 }
 
 /** The views whose card is a button of its own (the row then is not one accessible element). */
@@ -71,23 +75,43 @@ function useLongPressProps(onLongPress: () => void) {
   };
 }
 
-/** Text with @mentions set apart; a mention of the reader stands out more. */
-function MessageText({ body, own, userId }: { body: string; own: boolean; userId: string }) {
+/**
+ * Text with @mentions set apart (a mention of the reader stands out more), its web addresses as links and its
+ * **bold** in bold, as on the web (lib/message-format.ts). A link opens on a tap and offers open / copy / share on
+ * a long press; inside a bubble read as one element a screen reader reaches each link as an action (message-row.tsx).
+ */
+function MessageText({ body, own, ctx }: { body: string; own: boolean; ctx: MessageCardContext }) {
+  const { t } = useTranslation();
   return (
     <Text className={cn("text-body", ink(own).text)}>
-      {mentionSegments(body).map((segment, index) =>
-        segment.mention ? (
+      {messageBodySegments(body).map((segment, index) =>
+        segment.kind === "mention" ? (
           <Text
             key={index}
             className={cn(
               "font-semibold",
               own
                 ? "text-chat-bubble-own-foreground underline"
-                : (segment.userId !== undefined && sameUser(segment.userId, userId)) || segment.mention === "all"
+                : (segment.userId !== undefined && sameUser(segment.userId, ctx.userId)) || segment.mention === "all"
                   ? "text-primary"
                   : "text-foreground",
             )}
           >
+            {segment.text}
+          </Text>
+        ) : segment.kind === "link" ? (
+          <Text
+            key={index}
+            accessibilityRole="link"
+            accessibilityLabel={t("mobile.conversation.link_label", { link: spokenLink(segment.url) })}
+            onPress={() => ctx.onOpenLink(segment.url)}
+            onLongPress={() => ctx.onLinkMenu(segment.url)}
+            className={cn("underline", segment.bold && "font-semibold", own ? "text-chat-bubble-own-foreground" : "text-primary")}
+          >
+            {segment.text}
+          </Text>
+        ) : segment.bold ? (
+          <Text key={index} className="font-semibold">
             {segment.text}
           </Text>
         ) : (
@@ -405,7 +429,7 @@ export function MessageContent({ record, own, ctx, onLongPress }: { record: Chat
   const content = messageContent(record);
   switch (content.view) {
     case "text":
-      return <MessageText body={record.body} own={own} userId={ctx.userId} />;
+      return <MessageText body={record.body} own={own} ctx={ctx} />;
     case "media":
       return <Image source={{ uri: content.media.url }} cachePolicy={IMAGE_CACHE_POLICY} contentFit="contain" style={{ width: 160, height: 160 }} accessibilityLabel={content.media.alt} />;
     case "image":

@@ -19,6 +19,7 @@ import { bubbleCorners } from "@/lib/conversation-display";
 import { senderNameClass } from "@/lib/sender-colors";
 import { deserializeMessageBodyToComposerDraft } from "@/lib/mentions";
 import { messagePreviewText, messageView, pendingPreviewText } from "@/lib/message-display";
+import { messageLinks, spokenLink } from "@/lib/message-format";
 import type { Receipt } from "@/lib/message-row-model";
 import { THEME } from "@/lib/theme";
 import type { PendingSend } from "@/lib/send-pipeline";
@@ -27,6 +28,9 @@ import { cn } from "@/lib/utils";
 import { AlbumGrid } from "./album-grid";
 import { INTERACTIVE_VIEWS, MessageContent, type MessageCardContext } from "./message-cards";
 import { TaskCards } from "./task-card";
+
+/** A screen reader's actions name at most this many of a message's links (the menu would bury the rest). */
+const MAX_LINK_ACTIONS = 5;
 
 /** bảng Ngôn ngữ: a sent message appears in 180 ms; a reaction pops on a spring. */
 const SEND_IN = FadeIn.duration(180);
@@ -130,10 +134,19 @@ export const MessageRow = memo(function MessageRow(props: MessageRowProps) {
   // A local message's tap opens retry / delete (a sending one: delete only, as message-actions.tsx offers).
   const hint = message.pending ? t(message.pending.status === "sending" ? "mobile.a11y.bubble_sending_hint" : "mobile.a11y.bubble_retry_hint") : undefined;
   const longPress = () => props.onLongPress(message);
-  // Every long-press action reachable without a long press: the menu, and the quoted message (audit U3).
-  const actions = [{ name: "longpress", label: t("chat.message_actions_aria") }, ...(quote ? [{ name: "open_quote", label: t("chat.reply_quote_jump", { preview: quote.text }) }] : [])];
+  // The links of a text message, each a screen-reader action that opens its open / copy / share sheet (link-sheet.tsx).
+  const links = record && messageView(record) === "text" ? messageLinks(record.body).slice(0, MAX_LINK_ACTIONS) : [];
+  // Every long-press action reachable without a long press: the menu, the quoted message (audit U3) and each link.
+  const actions = [
+    { name: "longpress", label: t("chat.message_actions_aria") },
+    ...(quote ? [{ name: "open_quote", label: t("chat.reply_quote_jump", { preview: quote.text }) }] : []),
+    ...links.map((url, index) => ({ name: `link_${index}`, label: t("mobile.conversation.link_label", { link: spokenLink(url) }) })),
+  ];
   const onAction = (event: AccessibilityActionEvent) => {
-    if (event.nativeEvent.actionName === "open_quote" && quote) props.onPressQuote(quote.id);
+    const name = event.nativeEvent.actionName;
+    const link = name.startsWith("link_") ? links[Number(name.slice(5))] : undefined;
+    if (link) ctx.onLinkMenu(link);
+    else if (name === "open_quote" && quote) props.onPressQuote(quote.id);
     else longPress();
   };
   // A card with its own buttons (a photo, a file, a poll…) keeps them reachable: the bubble is then not one element,

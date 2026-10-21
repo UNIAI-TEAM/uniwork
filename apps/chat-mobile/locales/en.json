@@ -1658,7 +1658,13 @@
       "load_failed": "Couldn't load messages",
       "thread_load_failed": "Couldn't load this thread",
       "load_failed_hint": "Your conversation history is still on the server. Check your connection and try again.",
-      "older_load_failed": "Couldn't load older messages"
+      "older_load_failed": "Couldn't load older messages",
+      "link_label": "Link {{link}}",
+      "link_open": "Open link",
+      "link_copy": "Copy link",
+      "link_share": "Share link",
+      "link_copied": "Link copied",
+      "link_open_failed": "Couldn't open this link."
     },
     "a11y": {
       "bubble_quote": "Replying to {{sender}}: {{text}}",

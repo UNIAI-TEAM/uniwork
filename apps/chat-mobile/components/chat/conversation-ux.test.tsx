@@ -20,6 +20,7 @@ import type { ChatWorkspace } from "./use-chat-workspace";
 import { useRoomContext } from "./use-room-context";
 
 jest.mock("./connection-banner", () => ({ ConnectionBanner: () => null }));
+jest.mock("expo-web-browser", () => ({ openBrowserAsync: jest.fn(async () => ({ type: "dismiss" })) }));
 jest.mock("./swipe-to-reply", () => ({ SwipeToReply: ({ children }: { children: ReactNode }) => children }));
 jest.mock("./use-voice-recorder", () => ({
   VOICE_MAX_MS: 120_000,
@@ -215,5 +216,19 @@ describe("new messages and a screen reader", () => {
     await again.rerender(<Screen records={[...history, record("m10", "ME", 100)]} />);
     await flush();
     expect(announce).not.toHaveBeenCalled();
+  });
+});
+
+describe("a link in a message", () => {
+  it("opens on a tap, and a long press offers open, copy and share, felt", async () => {
+    const WebBrowser = jest.requireMock<{ openBrowserAsync: jest.Mock }>("expo-web-browser");
+    await render(<Screen records={[...history, record("m10", "U2", 100, "Tài liệu: https://docs.example.com/plan")]} />);
+    await settle();
+    const link = screen.getByRole("link", { name: viText("mobile.conversation.link_label", { link: "docs.example.com/plan" }) });
+    await fireEvent.press(link);
+    expect(WebBrowser.openBrowserAsync).toHaveBeenCalledWith("https://docs.example.com/plan");
+    await fireEvent(link, "longPress");
+    expect(Haptics.impactAsync).toHaveBeenCalledWith("medium");
+    expect(screen.getByRole("button", { name: viText("mobile.conversation.link_copy") })).toBeOnTheScreen();
   });
 });

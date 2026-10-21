@@ -58,6 +58,7 @@ import { ExpressionSheet } from "./expression-sheet";
 import { ForwardSheet } from "./forward-sheet";
 import { ImageViewer, type ViewerPhoto } from "./image-viewer";
 import { JumpToLatest } from "./jump-to-latest";
+import { LinkSheet, useOpenLink } from "./link-sheet";
 import { MessageActionsSheet } from "./message-actions";
 import type { MessageCardContext } from "./message-cards";
 import { MessageCell, type MessageHandlers } from "./message-cell";
@@ -117,6 +118,8 @@ export function Conversation(props: Props) {
   const [emojiFor, setEmojiFor] = useState<TimelineMessage | null>(null);
   const [forwardId, setForwardId] = useState<string | null>(null);
   const [reported, setReported] = useState<{ messageId: string; senderId: string; name: string } | null>(null);
+  const [linkMenu, setLinkMenu] = useState<string | null>(null);
+  const openLink = useOpenLink();
   const { wsId, userId } = chat;
   const { colorScheme } = useColorScheme();
   // Every change to the server goes through the mutation layer (data/mutations/*).
@@ -202,8 +205,13 @@ export function Conversation(props: Props) {
       userId,
       onOpenImage: (url, name, messageId) => setImage({ id: messageId ?? url, url, name }),
       onVotePoll: (messageId, optionId) => void votePoll({ messageId, optionId }).catch(() => toast.error(t("chat.message_list.poll_vote_failed"))),
+      onOpenLink: openLink,
+      onLinkMenu: (url) => {
+        haptics.longPress();
+        setLinkMenu(url);
+      },
     }),
-    [wsId, chat.orgSlug, chat.wsSlug, roomId, userId, votePoll, t],
+    [wsId, chat.orgSlug, chat.wsSlug, roomId, userId, votePoll, t, openLink],
   );
 
   // The tasks made from the messages on screen, one request per window of lib/link-windows.ts (the web's
@@ -423,6 +431,7 @@ export function Conversation(props: Props) {
         }}
       />
       <ForwardSheet chat={chat} messageId={forwardId} onClose={() => setForwardId(null)} />
+      <LinkSheet url={linkMenu} onClose={() => setLinkMenu(null)} />
       <ImageViewer wsId={wsId} roomId={roomId} photos={photos} opened={image} onClose={() => setImage(null)} />
     </KeyboardAvoidingView>
   );

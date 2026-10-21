@@ -67,7 +67,7 @@ const handlers = (): MessageHandlers => ({
   onReply: jest.fn(),
 });
 
-const ctx = { wsId: "w1", orgSlug: "acme", wsSlug: "hq", roomId: "r1", userId: "ME", onOpenImage: jest.fn(), onVotePoll: jest.fn() };
+const ctx = { wsId: "w1", orgSlug: "acme", wsSlug: "hq", roomId: "r1", userId: "ME", onOpenImage: jest.fn(), onVotePoll: jest.fn(), onOpenLink: jest.fn(), onLinkMenu: jest.fn() };
 
 afterEach(async () => {
   await act(async () => {

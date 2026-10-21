@@ -1602,7 +1602,13 @@
       "load_failed": "Không tải được tin nhắn",
       "thread_load_failed": "Không tải được chủ đề này",
       "load_failed_hint": "Lịch sử trò chuyện vẫn còn trên máy chủ. Kiểm tra kết nối rồi thử lại.",
-      "older_load_failed": "Không tải được tin cũ hơn"
+      "older_load_failed": "Không tải được tin cũ hơn",
+      "link_label": "Liên kết {{link}}",
+      "link_open": "Mở liên kết",
+      "link_copy": "Sao chép liên kết",
+      "link_share": "Chia sẻ liên kết",
+      "link_copied": "Đã sao chép liên kết",
+      "link_open_failed": "Không mở được liên kết này."
     },
     "a11y": {
       "bubble_quote": "Trả lời {{sender}}: {{text}}",

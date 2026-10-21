@@ -110,6 +110,9 @@
       "packages/views/chat/chat-poll-message-row.tsx": "39f51af3bc7237a3c3009b914bb559ad682a4b181fea420c6041e7e17d7a9641",
       "packages/views/chat/voice-call-log-row.tsx": "edd51acff6fd1ab04d766c69b2fd8e64e17edaf0290e528d91a002eb8782307e"
     },
+    "apps/chat-mobile/lib/message-format.ts": {
+      "packages/views/chat/chat-message-body.tsx": "c8d39c21e4ec3c3fa6747a622628b32fee7f40a26504d8ca01ca80e81556b7b8"
+    },
     "apps/chat-mobile/lib/people-display.ts": {
       "packages/views/chat/chat-page-utils.ts": "63980c22641b82a6582aa9cabcdaaad16011c87f1a6fb5d462201ef3ecbeec99",
       "packages/views/chat/native-chat-message-mapping.ts": "f813d1100c55fc2b001e838cf3007f8cec012ec59e2e493074dc855f2104bc77"
