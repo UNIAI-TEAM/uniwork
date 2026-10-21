@@ -157,6 +157,13 @@ type PickerState = { pickerOpen: boolean; setPickerOpen: (open: boolean) => void
 /** The frame's picker: the right-click menu's "Thêm cảm xúc" opens the bar's picker. */
 const MessagePickerContext = createContext<PickerState | null>(null);
 
+/** The bar's buttons the roving focus walks: one css-hidden (display: none) cannot take focus, so it is skipped. */
+function rovingButtons(bar: HTMLElement | null): HTMLButtonElement[] {
+  return Array.from(bar?.querySelectorAll<HTMLButtonElement>("button") ?? []).filter(
+    (button) => getComputedStyle(button).display !== "none",
+  );
+}
+
 /** What the frame hands its descendants so an in-bubble "…" can open the same menu as the bar's. */
 type MessageMenuState = { message: ChatMessage; isOwn: boolean; canEdit: boolean; handlers: ChatMessageActionHandlers };
 const MessageMenuContext = createContext<MessageMenuState | null>(null);
@@ -196,7 +203,7 @@ export function ChatMessageHoverActions({ message, isOwn, canEdit = true, overla
   // along the bar (roving tabindex), so a long thread is not dozens of stops.
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
-    const buttons = Array.from(barRef.current?.querySelectorAll<HTMLButtonElement>("button") ?? []);
+    const buttons = rovingButtons(barRef.current);
     const index = buttons.indexOf(document.activeElement as HTMLButtonElement);
     if (index < 0) return;
     event.preventDefault();
@@ -227,8 +234,10 @@ export function ChatMessageHoverActions({ message, isOwn, canEdit = true, overla
   // the roving tab order and the accessibility tree; focusing one unfolds them.
   const extra = pickerOpen || menuOpen ? "ml-0.5" : FOLDED;
   // A document card's actions live only in the menu: its "…" stays unfolded
-  // on hover so a mouse finds them without a right click.
-  const moreExtra = handlers.documentItems ? "ml-0.5" : extra;
+  // on hover so a mouse finds them without a right click. On a coarse pointer
+  // the card carries its own "…" (ChatMessageTouchMore) for the same menu, so
+  // the bar's is hidden there instead of showing two "Thêm" side by side.
+  const moreExtra = handlers.documentItems ? "ml-0.5 pointer-coarse:hidden" : extra;
 
   return (
     // Hidden until the message is hovered or focused (or one of its popups is
