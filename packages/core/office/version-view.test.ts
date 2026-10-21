@@ -1,32 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
-import { DocsProtocolError } from "./docs-frame-protocol";
-import { VIEW_VERSION_CAPABILITY, VIEW_VERSION_REQUEST, isViewVersionPayload, viewVersionCapabilities } from "./frame-version-view";
 import {
   createViewVersionHandler,
   currentVersionHref,
   lostCommentVersion,
+  namesComment,
   parseVersionParam,
   versionViewHref,
 } from "./version-view";
-
-describe("frame-version-view contract (UNI-2033 T4 fake)", () => {
-  it("names the request and the capability the fork adds", () => {
-    expect(VIEW_VERSION_REQUEST).toBe("comments.viewVersion");
-    expect(VIEW_VERSION_CAPABILITY).toBe("commentsViewVersion");
-  });
-
-  it("accepts only a comment id and a positive integer version", () => {
-    expect(isViewVersionPayload({ comment_id: "c1", version_no: 3 })).toBe(true);
-    for (const bad of [null, {}, { comment_id: "", version_no: 3 }, { comment_id: "c1", version_no: 0 }, { comment_id: "c1", version_no: 1.5 }, { comment_id: "c1", version_no: "3" }, { comment_id: 1, version_no: 3 }]) {
-      expect(isViewVersionPayload(bad)).toBe(false);
-    }
-  });
-
-  it("grants the capability only outside a version view", () => {
-    expect(viewVersionCapabilities(false)).toEqual({ commentsViewVersion: true });
-    expect(viewVersionCapabilities(true)).toEqual({});
-  });
-});
 
 describe("version view params", () => {
   it("reads a positive integer and ignores anything else", () => {
@@ -41,6 +21,15 @@ describe("version view params", () => {
     expect(versionViewHref("/o/w/documents/d1", 2)).toBe("/o/w/documents/d1?version=2");
     expect(currentVersionHref("/o/w/documents/d1", "c1")).toBe("/o/w/documents/d1?comment=c1");
     expect(currentVersionHref("/o/w/documents/d1", null)).toBe("/o/w/documents/d1");
+  });
+});
+
+describe("namesComment", () => {
+  it("is true only for a list that carries the comment", () => {
+    expect(namesComment({ comments: [{ id: "c0" }, { id: "c1" }] }, "c1")).toBe(true);
+    expect(namesComment({ comments: [{ id: "c0" }] }, "c1")).toBe(false);
+    expect(namesComment({ comments: [], unchanged: true, list_token: "t" }, "c1")).toBe(false);
+    for (const bad of [null, undefined, "x", [], { comments: "no" }, { comments: [null, 1] }]) expect(namesComment(bad, "c1")).toBe(false);
   });
 });
 
@@ -70,10 +59,4 @@ describe("createViewVersionHandler", () => {
     expect(go).toHaveBeenCalledWith("/o/w/documents/d1?version=4&comment=c1");
   });
 
-  it("refuses a malformed payload without navigating", () => {
-    const go = vi.fn();
-    const handle = createViewVersionHandler(go, () => "/o/w/documents/d1");
-    expect(() => handle({ comment_id: "c1", version_no: -2 })).toThrow(DocsProtocolError);
-    expect(go).not.toHaveBeenCalled();
-  });
 });

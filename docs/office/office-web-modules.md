@@ -483,8 +483,10 @@ module spec copies that shape, so adding one needs no CI change.
 
 ## Pinned builds
 
-All six modules are pinned to one fork commit, fork main `1abc493e4` (`0.1.0-1abc493`, the current REPIN-6 pin of
-UNI-1919: UNI-1993 and UNI-2020 over `0.1.0-f01befd`), replacing `0.1.0-f01befd` (the REPIN-5 pin: fork main `f01befd65`,
+All six modules are pinned to one fork commit, fork main `d57e60f81` (`0.1.0-d57e60f`, the current UNI-2033 pin: the
+lost-comment "View in version N" and the UNI-2017 comment anchors after Save over `0.1.0-1abc493`), replacing
+`0.1.0-1abc493` (the REPIN-6 pin of UNI-1919: fork main `1abc493e4`, UNI-1993 and UNI-2020 over `0.1.0-f01befd`),
+`0.1.0-f01befd` (the REPIN-5 pin: fork main `f01befd65`,
 UNI-1987 and UNI-1990 over `0.1.0-b1cbd5d`), `0.1.0-b1cbd5d` (the final REPIN-4 pin: fork main `b1cbd5db4`,
 AIPANEL-FU slice A, UNI-1984 and UNI-1989), `0.1.0-b5da4d4` (the provisional REPIN-4 pin: fork main
 `b5da4d4dc`, slice A and UNI-1984 only, no root ever shipped it as final), `0.1.0-9f867d9`
@@ -532,13 +534,22 @@ read-only HTML; on the web bridge a read-only copy uses the static srcdoc frame,
 specs only) and UNI-2020 (Sheets server comments: `SheetsServerComments.tsx`, `reveal-focus-guard.ts`, `univer-view.ts`; a
 launch-ticket reveal selects the anchor cell, its sheet switch is explicit navigation that survives a background-load restore, and the
 thread keeps focus for about 1.4 s while Univer refocuses; no frame protocol change); UNI-1961 and UNI-2016 are the desktop shell
-only (`apps/shell`), so they are no web frame change),
+only (`apps/shell`), so they are no web frame change); `d57e60f81` adds over `1abc493e4` UNI-2033 (a lost comment offers "View in
+version N": the comments kit label and action in `packages/ui/src/collab` and the per-editor server-comments hosts of Docs, Sheets,
+Slides and PDF, `web/modules/shared/comments/version-view.ts` and `frame-api.ts` with the frame's `window.uniworkComments.openVersion`
+and the open version id; the Slides server comments pane now shows in Reading and sorter views; the desktop shell opens the version
+read-only, titled as a view copy only for a UniWork view copy) and UNI-2017 G819-A02a/b/c (comment anchors after Save: the Docs
+anchor tracker and resend, the Sheets anchor store with the replay of local edits for a comment first seen at the Save receipt, the
+PDF closed-panel Save), with a frame protocol change (see below): `comments.viewVersion`, the `commentsViewVersion` capability and
+`anchor_version_no` on a comment, all additive, `PROTOCOL_VERSION` stays 1,
 UNI-1920 (the locked-out Docs "Save as a copy" the
 host's `api.saveCopy` answers, and the
 frame-side Ctrl/Cmd+P accelerator in Docs and HTML), and the SIZE-F1 + LAG-F1 frame protocol and UI events (with
 `protocolSha256` matching the vendored `packages/core/office/docs-frame-{protocol,endpoint,host}.ts`; the fork touched
 nothing under `web/docs/protocol` between `82c8381e1` and `1abc493e4` (and only its README between `5932073ee` and
-`82c8381e1`), so the protocol hash and the `f6395d85d` vendored headers are unchanged), the AI model picker that keeps a
+`82c8381e1`), so the protocol hash and the `f6395d85d` vendored headers were unchanged up to `1abc493e4`; at `d57e60f81` only
+`types.ts` changed (`comments.viewVersion`, `commentsViewVersion`, `anchor_version_no`; `PROTOCOL_VERSION` 1), so the `protocol`
+digest is now `914cc471...1664`, the `endpoint` and `host` digests are unchanged, and the three vendored headers name `d57e60f81`), the AI model picker that keeps a
 provider with an empty model list (`7888df06c`, the UniWork AI row; the S7-S9 UX floor checks no longer skip), the UXF-01/08/09
 fixes (picker focus ring, listbox structure, S8 disclosure), the UXF-FIX (UNI-1824) web-frame UX floor fixes (UXF-03 Docs S5
 "Xem khác biệt" in-dialog comparison, UXF-04 `.uw-live` nodes outside `inertSiblings`, UXF-05 `GrayText` text and border on
@@ -546,8 +557,8 @@ fixes (picker focus ring, listbox structure, S8 disclosure), the UXF-FIX (UNI-18
 UXF-07 full-width S5 below 768 px, UXF-10 fixed window live nodes created at frame init, and the `ConflictIo.saveCopy` contract
 for UXF-02), the G8-11 Discussion panel web side, the G6-09 AI edit-undo tables, and the DOC-05 comment level,
 `comments.shareView` and `canActOnComment` root author. Built clean (no `-dirty` suffix) with `npm run build:web -- --all` in a
-detached worktree of `1abc493e4` on bro (linux-arm64; the Sheets wasm is the arm64 line `bd3873bc...7445` of the fork's
-checksum file), published at `web-0.1.0-1abc493` (`dist-web-0.1.0-1abc493.tar.gz`, sha256 `427a7299...a8f4`), and
+detached worktree of `d57e60f81` on bro (linux-arm64; the Sheets wasm is the arm64 line `bd3873bc...7445` of the fork's
+checksum file), published at `web-0.1.0-d57e60f` (`dist-web-0.1.0-d57e60f.tar.gz`, sha256 `0d4746a5...346f`), and
 written by `node apps/web/scripts/office-frame-sync.mjs --all --pin --from <tarball>` alongside `source.json`.
 UXF-03/04/05/06/07/10 have their expected-fail markers removed in `e2e/office-ux-floor.spec.ts` (since `0.1.0-5a72c13`, waiting
 for the cloud e2e run to confirm); UXF-02's marker left with UNI-1872 (`09da7ebb9`): the D web host supplies
@@ -567,16 +578,16 @@ headers did not change from `36e9e23`, only version, SHA and manifest digest. Wr
 `node apps/web/scripts/office-frame-sync.mjs --all --pin --from <tarball of dist-web>`
 and verified file by file on install.
 
-Sizes of the `0.1.0-1abc493` bundles (identical to `0.1.0-f01befd`, `0.1.0-b1cbd5d` and `0.1.0-b5da4d4` as the build log reports them, except `sheets`, whose unpacked size is 27.71 MiB (27.70 before); against `0.1.0-9f867d9` only the `pdf` unpacked size and the `html` initial download moved, each by 0.01 MiB):
+Sizes of the `0.1.0-d57e60f` bundles (against `0.1.0-1abc493` as the build logs report them: `docs`, `pdf`, `markdown`, `html` and `slides` unpacked +0.01 MiB each, `sheets` gzip 7.91 MiB (7.90 before); `0.1.0-1abc493` itself was identical to `0.1.0-f01befd`, `0.1.0-b1cbd5d` and `0.1.0-b5da4d4`, except `sheets`, whose unpacked size is 27.71 MiB (27.70 before); against `0.1.0-9f867d9` only the `pdf` unpacked size and the `html` initial download moved, each by 0.01 MiB):
 
 | module | pin | files | unpacked | gzip | initial download | CSP beyond the shared policy |
 | --- | --- | --- | --- | --- | --- | --- |
-| `docs` | `docs.pin.json` | 46 | 17.58 MiB | 11.92 MiB | 5.78 MiB | none |
-| `pdf` | `pdf.pin.json` | 229 | 17.17 MiB | 7.99 MiB | 2.66 MiB | `script-src 'wasm-unsafe-eval'` (pdf.js decoders) |
-| `markdown` | `markdown.pin.json` | 90 | 8.73 MiB | 2.78 MiB | 3.63 MiB | none |
-| `html` | `html.pin.json` | 7 | 2.48 MiB | 0.78 MiB | 2.47 MiB | `frame-src 'self'` + `documents[/preview.html]` |
-| `slides` | `slides.pin.json` | 19 | 6.23 MiB | 2.46 MiB | 4.83 MiB | `media-src blob:` |
-| `sheets` | `sheets.pin.json` | 219 | 27.71 MiB | 7.90 MiB | 4.13 MiB | `script-src 'wasm-unsafe-eval'` (xlsx engine, GO-D3 = C) |
+| `docs` | `docs.pin.json` | 46 | 17.59 MiB | 11.92 MiB | 5.79 MiB | none |
+| `pdf` | `pdf.pin.json` | 229 | 17.18 MiB | 7.99 MiB | 2.67 MiB | `script-src 'wasm-unsafe-eval'` (pdf.js decoders) |
+| `markdown` | `markdown.pin.json` | 90 | 8.74 MiB | 2.78 MiB | 3.64 MiB | none |
+| `html` | `html.pin.json` | 7 | 2.49 MiB | 0.78 MiB | 2.48 MiB | `frame-src 'self'` + `documents[/preview.html]` |
+| `slides` | `slides.pin.json` | 19 | 6.24 MiB | 2.46 MiB | 4.84 MiB | `media-src blob:` |
+| `sheets` | `sheets.pin.json` | 219 | 27.71 MiB | 7.91 MiB | 4.13 MiB | `script-src 'wasm-unsafe-eval'` (xlsx engine, GO-D3 = C) |
 
 The `pdf` bundle grew by 2.6 MiB at `b60d5ff`: it ships 12 real Liberation TTFs
 (about 4.2 MiB, `pdf/<version>/fonts/`, fetched lazily by Insert text, so the initial

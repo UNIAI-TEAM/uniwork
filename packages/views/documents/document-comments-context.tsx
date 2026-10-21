@@ -1,9 +1,10 @@
 "use client";
 
-import { createContext, use, useCallback, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
+import { createContext, use, useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import { MessageSquare } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useFlag } from "@uniwork/core/feature-flags";
+import { parseVersionParam } from "@uniwork/core/office/version-view";
 import type { Document } from "@uniwork/core/types/document";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { useHeaderActionsSlotFilled } from "../layout/header-actions-slot";
@@ -37,6 +38,11 @@ interface DocumentCommentsChrome {
   deepLinkId: string;
   /** The tab hint a `?comment=` link carries (`&kind=discussion`), for a post no longer in the list. */
   deepLinkKind: DocumentCommentsTab;
+  /**
+   * The link the lost-version landing has already decided for (UNI-2033). Lives here, not in the pane, so a
+   * pane that closes and opens again, or a return to head with the same `?comment=`, does not bounce twice.
+   */
+  landedLink: RefObject<string | null>;
 }
 
 /**
@@ -70,6 +76,13 @@ export function DocumentCommentsProvider({
   // comments panel (invariant 8), so neither the trigger nor DocumentCommentsPanel render.
   const [framePanel, setFramePanel] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const landedLink = useRef<string | null>(null);
+  // A link seen inside a version view is decided there: back on head the same `?comment=` stays on head,
+  // even when the pane was closed (or not yet listed) while the version view was up. Same rule as the frame host's.
+  const inVersionView = parseVersionParam(nav?.searchParams.get("version") ?? null) !== null;
+  useEffect(() => {
+    if (inVersionView && deepLinkId) landedLink.current = deepLinkId;
+  }, [inVersionView, deepLinkId]);
   // Closing from inside the panel must land focus back on the control that
   // opened it (the Sheet path restores it on its own; the inline rail does
   // not). Opening keeps the natural focus on the trigger.
@@ -78,7 +91,7 @@ export function DocumentCommentsProvider({
     if (!next) triggerRef.current?.focus();
   }, []);
   const value = useMemo(
-    () => (framePanel ? null : { wsId, doc, open, setOpen, triggerRef, tab, setTab, deepLinkId, deepLinkKind }),
+    () => (framePanel ? null : { wsId, doc, open, setOpen, triggerRef, tab, setTab, deepLinkId, deepLinkKind, landedLink }),
     [framePanel, wsId, doc, open, setOpen, tab, deepLinkId, deepLinkKind],
   );
   return (

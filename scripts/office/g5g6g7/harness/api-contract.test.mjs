@@ -76,6 +76,11 @@ test("sdiFields treats pointer / omitempty fields as optional even when they car
   assert.equal(fields.comment_id?.required, false);
 });
 
+test("mintLaunch may carry the version of a view ticket (UNI-2033 lost-view step)", () => {
+  assert.ok(API_CALLS.mintLaunch.body.includes("version"));
+  assert.equal(sdiFields("CreateOfficeLaunchSessionSDI").version?.required, false);
+});
+
 test("the slug-for-id mistake of cloud round 5 is caught: createWorkspace's {org} reaches the service as an id", () => {
   const target = pathParamTarget("CreateOrgWorkspace", "org");
   assert.deepEqual({ method: target.method, kind: paramKind(target.name) }, { method: "CreateInOrg", kind: "id" });
