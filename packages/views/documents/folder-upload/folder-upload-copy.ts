@@ -102,6 +102,8 @@ const FAILURE_CODES = [
   "missing_part_url",
   "untrusted_target",
   "aborted",
+  "folder_upload_file_settled",
+  "folder_upload_target_signed",
 ] as const;
 
 // Reasons the server gives beside `unsupported_media`; one it has not told us about reads as the plain sentence.
@@ -124,6 +126,8 @@ export function failureReasonMessage(t: TFunction, code: string | undefined, rea
 // Whole-run answers with a fixed sentence (the ones with numbers or a file name are cased in runErrorMessage).
 const RUN_ERROR_CODES = [
   "document_parent_kind",
+  "folder_upload_file_settled",
+  "folder_upload_target_signed",
   "folder_uploads_busy",
   "idempotency_payload_mismatch",
   "http_403",

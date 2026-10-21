@@ -10096,6 +10096,8 @@
           "missing_part_url": "Thiếu địa chỉ tải lên cho một phần của tệp lớn. Thử lại các tệp lỗi.",
           "untrusted_target": "Địa chỉ tải lên không hợp lệ nên đã bị chặn. Hãy tải lại thư mục; nếu vẫn lỗi, báo quản trị viên.",
           "aborted": "Lượt tải tệp này đã bị dừng. Thử lại các tệp lỗi.",
+          "folder_upload_file_settled": "Tệp này đã được xử lý trước đó nên không tải lên lại được.",
+          "folder_upload_target_signed": "Tệp này cần một đường dẫn tải lên khác với đường dẫn ứng dụng đã dùng. Hãy tải lại thư mục.",
           "unknown": "Không tải lên được tệp này."
         },
         "expired_note": "Lượt tải lên đã hết hạn nên không thử lại được. Hãy tải lại thư mục."
@@ -10111,6 +10113,8 @@
         "document_too_deep": "Thư mục lồng quá sâu — tối đa {{max}} cấp.",
         "document_parent_kind": "Không thể tải vào mục này. Hãy chọn một thư mục.",
         "invalid_request": "Tên tệp hoặc thư mục không hợp lệ. Hãy đổi tên rồi thử lại.",
+        "folder_upload_file_settled": "Tệp này đã được xử lý trước đó nên không tải lên lại được.",
+        "folder_upload_target_signed": "Tệp này cần một đường dẫn tải lên khác với đường dẫn ứng dụng đã dùng. Hãy tải lại thư mục.",
         "invalid_request_named": "Tên «{{file}}» không hợp lệ. Hãy đổi tên rồi thử lại.",
         "folder_uploads_busy": "Đang có quá nhiều lượt tải thư mục. Hãy thử lại sau ít phút.",
         "idempotency_payload_mismatch": "Lượt tải này không khớp với lần trước. Hãy chọn lại thư mục.",

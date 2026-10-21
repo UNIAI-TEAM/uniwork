@@ -10103,6 +10103,8 @@
           "missing_part_url": "An upload address is missing for a part of this large file. Retry the failed files.",
           "untrusted_target": "The upload address wasn’t trusted, so it was blocked. Upload the folder again; if it keeps happening, tell an admin.",
           "aborted": "The upload of this file was stopped. Retry the failed files.",
+          "folder_upload_file_settled": "This file was already handled, so it can’t be uploaded again.",
+          "folder_upload_target_signed": "This file expects a different upload route than the one the app used. Upload the folder again.",
           "unknown": "This file couldn’t be uploaded."
         },
         "expired_note": "The upload expired, so it can’t be retried. Upload the folder again."
@@ -10118,6 +10120,8 @@
         "document_too_deep": "The folder is nested too deeply — {{max}} levels at most.",
         "document_parent_kind": "You can’t upload into this item. Pick a folder.",
         "invalid_request": "A file or folder name isn’t valid. Rename it and try again.",
+        "folder_upload_file_settled": "This file was already handled, so it can’t be uploaded again.",
+        "folder_upload_target_signed": "This file expects a different upload route than the one the app used. Upload the folder again.",
         "invalid_request_named": "The name “{{file}}” isn’t valid. Rename it and try again.",
         "folder_uploads_busy": "Too many folder uploads are running. Try again in a few minutes.",
         "idempotency_payload_mismatch": "This upload doesn’t match the previous attempt. Pick the folder again.",

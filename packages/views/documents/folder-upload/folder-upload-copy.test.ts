@@ -35,6 +35,8 @@ describe("runErrorMessage", () => {
       "invalid_request",
       "folder_uploads_busy",
       "idempotency_payload_mismatch",
+      "folder_upload_file_settled",
+      "folder_upload_target_signed",
       "http_403",
       "http_404",
     ]) {
@@ -139,6 +141,19 @@ describe("failureReasonMessage", () => {
       expect(failureReasonMessage(t, code), code).toContain("tải lại thư mục");
       expect(en(`documents.folder_upload.report.reason.${code}`), code).toContain("upload the folder again");
     }
+  });
+
+  it("has final sentences for the AMENDMENT 4 content-PUT codes", () => {
+    const generic = failureReasonMessage(t, "no_such_code");
+    for (const code of ["folder_upload_file_settled", "folder_upload_target_signed"]) {
+      expect(failureReasonMessage(t, code), code).not.toBe(generic);
+      expect(en(`documents.folder_upload.report.reason.${code}`), code).not.toBe(
+        en("documents.folder_upload.report.reason.unknown"),
+      );
+    }
+    expect(failureReasonMessage(t, "folder_upload_file_settled")).toContain("đã được xử lý");
+    expect(failureReasonMessage(t, "folder_upload_target_signed")).toContain("tải lại thư mục");
+    expect(en("documents.folder_upload.report.reason.folder_upload_target_signed")).toContain("Upload the folder again");
   });
 
   it("says why an unsupported_media file was refused when the server gave a reason", () => {
