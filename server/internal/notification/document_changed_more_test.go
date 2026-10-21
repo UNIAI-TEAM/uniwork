@@ -145,9 +145,27 @@ func (f *docChangeFixture) createdEvents(t *testing.T, userID string) int {
 	return n
 }
 
-func TestDocumentChangedWideCommandSendsAFewFrames(t *testing.T) {
+// lastCreatedAt is when the newest notification.created row addressed to
+// userID was written.
+func (f *docChangeFixture) lastCreatedAt(t *testing.T, userID string) time.Time {
+	t.Helper()
+	var at time.Time
+	if err := f.pool.QueryRow(f.ctx,
+		`SELECT max(created_at) FROM outbox_events WHERE topic = $1 AND payload::jsonb ->> 'user_id' = $2`,
+		TopicCreated, userID).Scan(&at); err != nil {
+		t.Fatal(err)
+	}
+	return at
+}
+
+// A wide command signals the inbox on every delivered event: the client
+// coalesces a burst into one refetch wave (use-realtime-sync), and a
+// throttled server would leave the last folds with no frame, so the row
+// would show its first count until a reload (BE-R2-1).
+func TestDocumentChangedWideCommandSignalsEveryDeliveredEvent(t *testing.T) {
 	f := newDocChangeFixture(t)
-	ids := make([]string, 50)
+	const events = 50
+	ids := make([]string, events)
 	for i := range ids {
 		ids[i] = f.sharedPage(t, "Tài liệu "+strconv.Itoa(i))
 	}
@@ -155,16 +173,14 @@ func TestDocumentChangedWideCommandSendsAFewFrames(t *testing.T) {
 	for i, id := range ids {
 		f.rename(t, ctx, f.member.ID, id, "Đổi tên "+strconv.Itoa(i))
 	}
-	start := time.Now()
 	f.deliver(t)
-	// A fold emits notification.created only when the row was last touched
-	// two seconds ago or more, so a recipient hears the first insert and at
-	// most one more frame per two seconds of delivery.
-	bound := 1 + int(time.Since(start)/(2*time.Second)) + 1
 	for _, u := range []string{f.owner.ID, f.sharee.ID, f.starrer.ID} {
-		f.one(t, u, "renamed", 50)
-		if got := f.createdEvents(t, u); got > bound || got >= 50 {
-			t.Fatalf("user %s: %d notification.created frames for one 50-document command, want at most %d", u, got, bound)
+		n := f.one(t, u, "renamed", events)
+		if got := f.createdEvents(t, u); got != events {
+			t.Fatalf("user %s: %d notification.created frames for %d delivered events, want one each", u, got, events)
+		}
+		if last := f.lastCreatedAt(t, u); last.Before(n.UpdatedAt.Time) {
+			t.Fatalf("user %s: the last notification.created (%s) is older than the last fold (%s); the final count has no frame", u, last, n.UpdatedAt.Time)
 		}
 	}
 }
