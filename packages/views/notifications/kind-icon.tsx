@@ -34,7 +34,8 @@ const ICONS: Record<NotificationKind, LucideIcon> = {
   mentioned: AtSign,
   meeting_invited: MODULE_ICONS.meetings,
   meeting_starting: MODULE_ICONS.meetings,
-  meeting_summary_reminder: Sparkles,
+  // A prompt to act, not something AI made: the reminder glyph chat_reminder uses.
+  meeting_summary_reminder: AlarmClock,
   meeting_summary_ready: Sparkles,
   meeting_transcript_ready: FileHeadphone,
   meeting_transcript_failed: CircleAlert,

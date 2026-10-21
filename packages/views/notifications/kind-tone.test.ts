@@ -25,6 +25,16 @@ describe("kindTone", () => {
     expect(kindIcon("document_break_glass")).toBe(ShieldAlert);
   });
 
+  // A failure is a signal, not a module colour: it must not read as one more meeting notice.
+  it("marks a failed transcript in red", () => {
+    expect(kindTone("meeting_transcript_failed")).toBe("red");
+    expect(kindTone("meeting_transcript_ready")).toBe(moduleTone("meetings"));
+  });
+
+  it("draws the summary reminder apart from the summary the system made", () => {
+    expect(kindIcon("meeting_summary_reminder")).not.toBe(kindIcon("meeting_summary_ready"));
+  });
+
   it("gives an unknown kind the neutral grey", () => {
     expect(kindTone("something_new")).toBe("gray");
   });

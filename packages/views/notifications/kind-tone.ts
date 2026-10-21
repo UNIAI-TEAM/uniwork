@@ -7,7 +7,8 @@ import { moduleTone } from "../layout/module-tones";
  * read from the same table the sidebar uses — so a task notification carries
  * the tasks green the person already knows from the nav, a meeting one the
  * meetings violet. A kind from a newer server, or one with no module, takes
- * the neutral grey.
+ * the neutral grey. A failure is the exception: it carries the danger red, so
+ * it never reads as one more notice from its module.
  */
 const KIND_TONES: Record<NotificationKind, Tint> = {
   task_assigned: moduleTone("tasks"),
@@ -22,7 +23,7 @@ const KIND_TONES: Record<NotificationKind, Tint> = {
   meeting_summary_reminder: moduleTone("meetings"),
   meeting_summary_ready: moduleTone("meetings"),
   meeting_transcript_ready: moduleTone("meetings"),
-  meeting_transcript_failed: moduleTone("meetings"),
+  meeting_transcript_failed: "red",
   member_added: moduleTone("people"),
   role_changed: moduleTone("people"),
   audit_export_ready: "gray",
