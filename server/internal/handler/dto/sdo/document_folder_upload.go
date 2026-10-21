@@ -19,7 +19,7 @@ type FolderUploadTargetSDO struct {
 
 // FolderUploadErrorSDO is why one file of a batch failed.
 type FolderUploadErrorSDO struct {
-	Code    string `json:"code" description:"upload_missing | size_mismatch | unsupported_media | storage_quota_exceeded | not_found | parts_invalid (tập mở)" example:"upload_missing"`
+	Code    string `json:"code" description:"upload_missing | size_mismatch | unsupported_media | storage_quota_exceeded | not_found | parts_invalid | upload_session_busy (tập mở)" example:"upload_missing"`
 	Message string `json:"message" example:"chưa thấy tệp trên kho lưu trữ"`
 	Reason  string `json:"reason,omitempty" description:"Lý do kiểm định dạng khi code là unsupported_media" example:"pdf_trailer"`
 }
@@ -81,7 +81,7 @@ type FolderUploadFileResultSDO struct {
 	Status     string                `json:"status" description:"done | failed" example:"done"`
 	DocumentID *string               `json:"document_id" description:"Tài liệu đã tạo khi done" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
 	Error      *FolderUploadErrorSDO `json:"error" description:"Lỗi khi failed"`
-	Retryable  bool                  `json:"retryable" description:"true: tệp vẫn pending (upload_missing, parts_invalid, size_mismatch), tải lại từ đích mới của GET rồi COMPLETE lại; false: done, failed hẳn hoặc not_found" example:"false"`
+	Retryable  bool                  `json:"retryable" description:"true: tệp vẫn pending (upload_missing, parts_invalid, size_mismatch, upload_session_busy), tải lại từ đích mới của GET rồi COMPLETE lại; false: done, failed hẳn hoặc not_found" example:"false"`
 }
 
 // FolderUploadCompleteBatchSDO is the batch after a COMPLETE.
