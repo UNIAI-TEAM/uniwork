@@ -1,0 +1,2 @@
+$ pnpm install --frozen-lockfile >/dev/null 2>&1; rc=$?; echo "INSTALL_EXIT=$rc"
+INSTALL_EXIT=0

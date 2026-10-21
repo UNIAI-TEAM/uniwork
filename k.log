@@ -1,0 +1,4 @@
+$ for i in $(seq 1 14); do test -f /tmp/pr7r5-e2e.exit && break; sleep 30; done; echo "DONE_FILE=$(test -f /tmp/pr7r5-e2e.exit && echo yes || echo no)"; tail -2 /tmp/pr7r5-e2e.log
+DONE_FILE=yes
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @uniwork/e2e@0.0.0 test: `playwright test --reporter=list --shard=5/8`
+Exit status 1
