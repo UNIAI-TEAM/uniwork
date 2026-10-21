@@ -155,10 +155,11 @@ biến thể và ký giống CI (thiếu `UNICHAT_ENV` là cấu hình dev: khô
   khởi động) và khởi động lại. Máy dưới mức đó chỉ còn màn "Cần cập nhật UniChat" với link store (`UNICHAT_STORE_*`,
   hoặc link thử nghiệm khi store chưa có). Chỉ đặt sau khi bản mới đã có trên store/track mà người dùng thấy.
 - Tắt gọi: `FF_UNICHAT_MOBILE_CALLS=false` (cả hệ thống) hoặc override theo tổ chức/người dùng ở console admin
-  (flag `unichat_mobile_calls`). Máy ẩn nút gọi, không đổ chuông, push cuộc gọi cũ (đã tới máy) mở phòng; cuộc gọi đang
-  diễn ra không bị cắt. Server cũng ngừng gửi push "X đang gọi" cho người mà công tắc tắt (đánh giá theo người nhận và
+  (flag `unichat_mobile_calls`). Máy ẩn nút gọi, không đổ chuông (cả màn đổ chuông native của Android), push cuộc gọi
+  cũ (đã tới máy) mở phòng; cuộc gọi đang diễn ra không bị cắt và giữ dịch vụ cuộc gọi của nó. Server cũng ngừng gửi push "X đang gọi" cho người mà công tắc tắt (đánh giá theo người nhận và
   tổ chức của cuộc gọi, như máy đọc nó; dòng inbox vẫn còn, `uniwork_push_suppressed_total{kind="chat_call_incoming"}`
-  đếm), nên máy không reo kể cả khi app chưa đọc cấu hình. Bật lại: xoá biến/override.
+  đếm) và không gửi push "kết thúc" (`chat.voice.ring_closed`), nên máy không reo kể cả khi app chưa đọc cấu hình.
+  Bật lại: xoá biến/override.
 
 **Play Console App content và App Store Connect (trước bản production đầu tiên; làm lại khi quyền, dịch vụ hay dữ liệu
 đổi).** Nguồn chữ là `apps/chat-mobile/store/listing.md`; danh sách quyền và dịch vụ của bản release là
@@ -178,12 +179,18 @@ từng mục khi đã nộp:
   khoản (đăng xuất mọi thiết bị, xoá dữ liệu trên máy). URL xoá cho Play:
   `https://app.uniworkos.com/privacy#delete-account` (mục "Lưu giữ và xóa dữ liệu", neo cố định). Ghi chú cho reviewer
   Apple: "Settings › Delete account".
-- [ ] **Foreground service permissions**: bản hiện tại **không khai báo loại FGS nào** — test kia giữ
-  `FOREGROUND_SERVICE_*` rỗng (expo-audio tắt phát nền, `MediaProjectionService` của WebRTC bị gỡ bằng
-  `plugins/with-removed-android-services.js`). Khi lát gọi native thêm dịch vụ cuộc gọi (`phoneCall`/`microphone`/
-  `camera`), mỗi loại cần trong Play Console › App content › Foreground service permissions: mô tả tác vụ người dùng
-  thấy được ("cuộc gọi thoại/video đang diễn ra, có thông báo cuộc gọi"), hệ quả nếu bị hoãn, và **một video ngắn**
-  (quay màn hình: nhận cuộc gọi → khoá máy → cuộc gọi vẫn tiếp tục, thông báo cuộc gọi hiện). Thiếu video là bị từ chối.
+- [ ] **Foreground service permissions**: đúng một dịch vụ, cuộc gọi (`expo.modules.unichatcalls.CallService`,
+  `phoneCall|microphone|camera`; `android-manifest.test.ts` giữ đúng ba `FOREGROUND_SERVICE_*` đó; expo-audio tắt
+  phát nền, `MediaProjectionService` của WebRTC bị gỡ bằng `plugins/with-removed-android-services.js`). Mỗi loại
+  khai trong Play Console › App content › Foreground service permissions: tác vụ người dùng thấy được ("cuộc gọi
+  thoại/video giữa thành viên tổ chức đang diễn ra, có thông báo cuộc gọi với Gác máy"; `microphone`/`camera`: micro và
+  camera của chính người dùng trong cuộc gọi họ gọi hoặc nghe), hệ quả nếu bị hoãn (cuộc gọi mất tiếng/hình khi khoá
+  máy), và **một video ngắn** (quay màn hình: nhận cuộc gọi trên máy khoá → Nghe → khoá máy giữa cuộc gọi, tiếng vẫn
+  còn → thông báo cuộc gọi đang diễn ra → Gác máy). Thiếu video là bị từ chối.
+- [ ] **Full-screen intent** (Android 14+, `USE_FULL_SCREEN_INTENT`): khai app là ứng dụng gọi điện (Play Console › App
+  content › Full-screen intent: "Calling — shows the incoming call screen of a VoIP call"). Không được duyệt thì Android
+  14+ không cấp sẵn, cuộc gọi chỉ là thông báo heads-up và Cài đặt › Thông báo hiện dòng "Hiện cuộc gọi đến toàn màn
+  hình".
 - [ ] **Target audience and content**: nhóm tuổi **chỉ 18+**; không nhắm tới trẻ em; không quảng cáo (Ads: No).
 - [ ] **Content rating** (IARC): app nhắn tin công việc; không bạo lực/tình dục/cờ bạc; Interactive elements:
   **Users interact** (nhắn tin, gọi giữa thành viên tổ chức); không chia sẻ vị trí, không mua trong app. Apple: Age
@@ -211,6 +218,30 @@ từng mục khi đã nộp:
   "không ai nghe"). Android là chính; iOS có thể bị hệ điều hành treo app nền giữa hai frame tới khi có CallKit.
 - [ ] Đăng xuất rồi đăng nhập tài khoản khác: không thấy phòng, tin hay hàng đợi của tài khoản trước.
 
+**Cuộc gọi native trên Android (UNI-2053 S4, `docs/adr/drafts/0038-…`).** Test node/jest giữ chính sách (khi nào reo,
+khi nào dịch vụ chạy, ai được báo) với module native giả; chỉ máy Android thật (bản `preview`/`internal` có
+`GOOGLE_SERVICES_JSON` và FCM) xác nhận phần Kotlin. Hai tài khoản, A gọi B (luồng có sẵn:
+`maestro/flows/call-answer-incoming.yaml`, chạy tay):
+
+- [ ] B kill app, khoá máy; A gọi 1-1: màn B sáng, màn đổ chuông toàn màn hình hiện trên màn khoá (tên A, "Cuộc gọi
+  thoại đến", Nghe / Từ chối), nhạc chuông là nhạc chuông của máy; chế độ rung chỉ rung, im lặng không kêu.
+- [ ] Nghe: app mở trên màn cuộc gọi và nối; khoá máy giữa cuộc gọi — tiếng hai chiều vẫn còn sau 2 phút; thanh thông
+  báo có "Cuộc gọi thoại · chạm để quay lại" với đồng hồ và Gác máy; Gác máy ở đó kết thúc cuộc gọi ở cả hai bên.
+- [ ] Từ chối trên thông báo khi app đã kill: chuông tắt ngay, A thấy "từ chối" trong vài giây (không phải đợi 45 s).
+- [ ] B có hai máy Android: nghe ở máy 1 thì máy 2 thôi reo trong vài giây; A gác máy khi B chưa nghe thì máy B thôi
+  reo và hiện "Cuộc gọi nhỡ từ A" (kênh Cuộc gọi nhỡ).
+- [ ] B đang mở app ở workspace khác của cùng tổ chức (hoặc màn chọn workspace): cuộc gọi hiện thông báo heads-up có
+  Nghe / Từ chối; đang mở đúng workspace: chỉ màn cuộc gọi trong app reo, không kèm thông báo.
+- [ ] Đang mở một sheet (nhấn giữ tin, ảnh xem lớn) khi cuộc gọi tới: sheet đóng, nút Nghe bấm được.
+- [ ] Trong cuộc gọi có tai nghe Bluetooth: lần gọi đầu hỏi quyền "thiết bị ở gần"; nút Âm thanh liệt kê Bluetooth /
+  Loa trong / Loa ngoài và chuyển được; cuộc gọi thoại bắt đầu ở loa trong, gọi video ở loa ngoài.
+- [ ] Android 14: Cài đặt hệ thống › Ứng dụng › UniChat › Thu hồi "toàn màn hình": cuộc gọi chỉ còn heads-up, Cài đặt ›
+  Thông báo trong app hiện dòng bật lại và mở đúng trang.
+- [ ] Cài đặt hệ thống › Thông báo của UniChat: các kênh "Cuộc gọi đến", "Cuộc gọi đang diễn ra", "Cuộc gọi nhỡ",
+  "Lượt nhắc đến bạn", "Tin nhắn", "Thông báo khác" theo ngôn ngữ app; không còn kênh "Chat"; biểu tượng app có số
+  tin chưa đọc (launcher hỗ trợ).
+- [ ] `FF_UNICHAT_MOBILE_CALLS=false`: không máy nào reo, cuộc gọi đang diễn ra vẫn tiếp tục với thông báo của nó.
+
 ## Triệu chứng
 
 - Run release xanh với notice `EXPO_TOKEN is not set` — đúng khi chưa thiết lập; sau thiết lập là thiếu secret.
@@ -228,6 +259,8 @@ từng mục khi đã nộp:
   deletion" (không tìm thấy lối xoá trong app hoặc URL), "User generated content" (thiếu báo cáo/chặn), "Data safety"
   lệch với hành vi, hoặc Apple 5.1.2(i) (gửi dữ liệu cho AI không hỏi).
 - PR đỏ ở `android-manifest.test.ts`: một gói native, plugin hay tuỳ chọn plugin đổi quyền hoặc dịch vụ Android.
+- Android không reo khi app đóng (chỉ reo khi mở), reo mà không có màn toàn màn hình, Từ chối không tới người gọi,
+  hay mất tiếng khi khoá máy giữa cuộc gọi (cuộc gọi native, `modules/unichat-calls`).
 - Người dùng báo tin kẹt "Chờ có mạng để gửi" khi đã có mạng, app mở vào danh sách trống dù trước đó có dữ liệu, hoặc
   banner "Đang kết nối…" không tắt.
 
@@ -314,6 +347,16 @@ từng mục khi đã nộp:
    lộ: thu hồi robot token trên expo.dev, tạo token mới vào Environment. Khoá ký OTA lộ: tạo cặp khoá/chứng chỉ mới,
    commit chứng chỉ mới, cắt bản store (binary cũ vẫn tin chứng chỉ cũ cho tới khi người dùng cập nhật; đặt
    `UNICHAT_MOBILE_MIN_SUPPORTED_VERSION` khi bản mới đủ phổ biến).
+
+17. Cuộc gọi native trên Android hỏng (triệu chứng ở trên). Không reo khi app đóng: push data-only không tới — thiếu
+   `GOOGLE_SERVICES_JSON` của bản build, máy tắt thông báo hay đang tiết kiệm pin nặng (Doze vẫn nhận FCM ưu tiên cao;
+   chế độ "hạn chế" của vài hãng thì không: hướng dẫn người dùng bỏ hạn chế pin cho UniChat), hoặc
+   `uniwork_push_sent_total{result="failed"}` tăng ở server. Reo mà không toàn màn hình: Android 14 đã thu hồi
+   full-screen intent (Cài đặt › Thông báo trong app có dòng bật lại) hoặc Play chưa duyệt khai báo. Từ chối không tới
+   người gọi khi app đã kill: Android từ chối khởi động task nền — hành động chờ tới lần mở app sau (người gọi vẫn hết
+   giờ đổ chuông). Mất tiếng khi khoá máy: dịch vụ cuộc gọi không chạy (Sentry/breadcrumb của bản đó; quyền micro chưa
+   cấp lúc bắt đầu thì dịch vụ chạy lại khi LiveKit nối). Lỗi trong Kotlin cần bản store; trong lúc chờ có thể tắt gọi
+   (mục 11).
 
 ## Leo thang
 

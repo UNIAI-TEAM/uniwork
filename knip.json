@@ -58,7 +58,8 @@
         "scripts/sync-i18n.mjs",
         "scripts/generate-licenses.mjs",
         "scripts/android-manifest.mjs",
-        "plugins/*.js"
+        "plugins/*.js",
+        "maestro/scripts/*.js"
       ]
     },
     "packages/*": {},

@@ -113,15 +113,26 @@ review. Chuỗi iOS hiện chỉ có tiếng Việt; muốn bản tiếng Anh th
 | Thư viện ảnh | iOS `NSPhotoLibraryUsageDescription`; Android dùng photo picker, không xin quyền | M2a | Chọn ảnh để gửi vào cuộc trò chuyện | UniChat mở thư viện ảnh để bạn gửi ảnh vào cuộc trò chuyện. / UniChat opens your photo library so you can send photos in a conversation. |
 | Micro | iOS `NSMicrophoneUsageDescription`, Android `RECORD_AUDIO` | M3 | Gọi thoại/video và ghi tin thoại; chỉ bật khi người dùng vào cuộc gọi hay bấm ghi | UniChat dùng micro cho cuộc gọi và tin nhắn thoại. / UniChat uses the microphone for calls and voice messages. |
 | Camera | iOS `NSCameraUsageDescription`, Android `CAMERA` | M3 | Gọi video; chỉ bật khi người dùng bật camera trong cuộc gọi | UniChat dùng camera khi bạn bật video trong cuộc gọi. / UniChat uses the camera when you turn on video in a call. |
+| Màn cuộc gọi đến toàn màn hình | Android `USE_FULL_SCREEN_INTENT` (Android 14+: Play chỉ cấp sẵn cho app gọi điện, người dùng thu hồi được) | S4 | Hiện màn đổ chuông (Nghe / Từ chối) trên máy đang khoá khi có người gọi; không dùng cho gì khác. Bị thu hồi thì cuộc gọi chỉ là thông báo heads-up, Cài đặt › Thông báo có dòng mở lại | — (không có hộp thoại; trang cài đặt hệ thống) |
+| Quản lý cuộc gọi của app | Android `MANAGE_OWN_CALLS` | S4 | Android 14 chỉ cho chạy dịch vụ nền kiểu `phoneCall` với app tự quản lý cuộc gọi; UniChat không đọc hay đặt cuộc gọi điện thoại | — (quyền thường, cấp lúc cài) |
+| Thiết bị ở gần (Bluetooth) | Android 12+ `BLUETOOTH_CONNECT` | S4 | Đưa âm thanh cuộc gọi qua tai nghe Bluetooth; chỉ hỏi khi bắt đầu cuộc gọi, từ chối thì cuộc gọi vẫn dùng loa máy | — (hộp thoại hệ thống "thiết bị ở gần") |
 
-Không CallKit/VoIP push (spec §12 Q7), nên không có background mode `voip`. iOS có background mode `audio` để cuộc gọi
-giữ tiếng khi người dùng rời app hoặc khoá máy (lý do cho review: "keeps an ongoing voice/video call audible").
+Không CallKit/VoIP push trên iOS (chưa có tài khoản Apple; kế hoạch PushKit + CallKit ở
+`docs/adr/drafts/0038-cuoc-goi-native-android-va-ke-hoach-callkit-ios.md`), nên không có background mode `voip`. iOS
+có background mode `audio` để cuộc gọi giữ tiếng khi người dùng rời app hoặc khoá máy (lý do cho review: "keeps an
+ongoing voice/video call audible"); `expo-task-manager` tự thêm `fetch` và plugin `with-unichat-calls` gỡ nó đi (app
+không tải nền trên iOS).
 
-**Android, dịch vụ chạy nền (foreground service): hiện không có loại nào.** `expo-audio` tắt phát/ghi nền
-(`enableBackgroundPlayback: false`; tin thoại dừng khi rời app), `MediaProjectionService` của WebRTC (chia sẻ màn hình,
-app không dùng) bị gỡ khỏi manifest. Danh sách quyền và dịch vụ cuối cùng của bản release do
-`android-manifest.test.ts` giữ; thêm loại FGS (như dịch vụ cuộc gọi) thì thêm dòng ở bảng trên và khai báo trên Play
-kèm video (runbook › Play Console App content).
+**Android, dịch vụ chạy nền (foreground service): đúng một, dịch vụ cuộc gọi** (`expo.modules.unichatcalls.CallService`,
+`phoneCall|microphone|camera`). Chạy từ lúc cuộc gọi đang nối tới lúc kết thúc, với thông báo cuộc gọi đang diễn ra (tên,
+đồng hồ, Gác máy); `microphone` và `camera` chỉ được thêm khi quyền đó đã cấp. Khai báo trên Play (runbook › Play Console
+App content): kiểu `phoneCall` — "VoIP voice and video calls between members of an organization", `microphone` và
+`camera` — "the user's own microphone/camera during a call they started or answered", kèm video quay màn hình: nhận
+cuộc gọi trên máy khoá → Nghe → khoá máy giữa cuộc gọi → thông báo cuộc gọi đang diễn ra → Gác máy. `expo-audio` tắt
+phát/ghi nền (`enableBackgroundPlayback: false`; tin thoại dừng khi rời app), `MediaProjectionService` của WebRTC (chia
+sẻ màn hình, app không dùng) bị gỡ khỏi manifest. Hai dịch vụ không chạy nền khác: `TaskJobService` của
+`expo-task-manager` (nhận push cuộc gọi data-only khi app đóng) và `CallActionTaskService` (Từ chối/Gác máy trên thông
+báo báo cho server). Danh sách quyền và dịch vụ cuối cùng của bản release do `android-manifest.test.ts` giữ.
 
 ## Tài khoản demo cho review
 

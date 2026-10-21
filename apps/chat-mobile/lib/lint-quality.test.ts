@@ -1,6 +1,7 @@
 // Fixture test for the app's quality rules in eslint.config.mjs (ADR 0037):
-// no `any`, the React Native accessibility rules, no JSX literal text and no
-// console call outside data/logger.ts. A
+// no `any`, the React Native accessibility rules, no JSX literal text, no
+// console call outside data/logger.ts, and no react-native Modal outside
+// components/ui/call-aware-modal.tsx. A
 // rule that silently drops out of the config turns its case green here.
 import path from "node:path";
 import { ESLint } from "eslint";
@@ -50,6 +51,11 @@ describe("mobile quality lint", { timeout: 60_000 }, () => {
     ],
     ["literal JSX text", "export function A() {\n  return <Text>Xin chào</Text>;\n}", "i18next/no-literal-string"],
     ["a console call (logs go through data/logger.ts)", 'export const log = () => console.warn("x");', "no-console"],
+    [
+      "react-native's Modal (a sheet must close for a ringing call: CallAwareModal)",
+      'import { Modal } from "react-native";\nexport const A = () => <Modal visible />;',
+      "@typescript-eslint/no-restricted-imports",
+    ],
   ])("%s is red", async (_name, code, rule) => {
     expect(await ruleIds(head + code)).toContain(rule);
   });

@@ -22,13 +22,14 @@ nhau; test đó đi theo import bắc cầu của từng mục nên mục không
 tách file ở core, không nới lint. Fixture: `lib/lint-boundary.test.ts`.
 Logic khác của web: **copy, ghi nguồn**, test parity — không import.
 
-Cùng file lint còn giữ bốn luật chất lượng (fixture: `lib/lint-quality.test.ts`):
+Cùng file lint còn giữ năm luật chất lượng (fixture: `lib/lint-quality.test.ts`):
 `@typescript-eslint/no-explicit-any` bật (base tắt cho web); bộ `all` của
 `eslint-plugin-react-native-a11y` (role, state, value, action, live region,
 `importantForAccessibility` hợp lệ; không touchable trong phần tử `accessible`)
 trừ `has-accessibility-hint` — tắt có lý do ghi trong config: hint chỉ dùng khi
 nhãn không nói rõ kết quả; `i18next/no-literal-string` (`jsx-text-only`)
-như `packages/views`; và `no-console` ngoài `data/logger.ts`. Tắt một luật ở
+như `packages/views`; `no-console` ngoài `data/logger.ts`; và không `Modal` của react-native
+ngoài `components/ui/call-aware-modal.tsx` (sheet phải đóng khi có cuộc gọi đến). Tắt một luật ở
 một dòng thì ghi lý do ở dòng trên.
 
 ## Cấu trúc
@@ -135,9 +136,9 @@ một dòng thì ghi lý do ở dòng trên.
   foreground (`min_supported_mobile_version`, `mobile_flags`, link store);
   `components/app/update-gate.tsx` chặn cả app (cả màn đăng nhập) khi version
   dưới mức tối thiểu; `useMobileFlag(name)` / `readMobileFlag(qc, name)` cho
-  công tắc (`unichat_mobile_calls`: tắt thì ẩn nút gọi, không đổ chuông, push
-  cuộc gọi mở phòng; server cũng không gửi push cuộc gọi cho người đó —
-  `PushConsumer.SetMobileCalls`; cuộc gọi đang diễn ra không bị cắt). Chưa có câu trả lời hay server không tới được thì không
+  công tắc (`unichat_mobile_calls`: tắt thì ẩn nút gọi, không đổ chuông — cả màn đổ chuông
+  native của Android, push cuộc gọi mở phòng; server cũng không gửi push cuộc gọi hay push kết thúc cho người đó —
+  `PushConsumer.SetMobileCalls`; cuộc gọi đang diễn ra không bị cắt và giữ dịch vụ cuộc gọi). Chưa có câu trả lời hay server không tới được thì không
   chặn gì và mọi công tắc ở mặc định. Lỗi một thao tác → `toast.error(...)`
   (`data/stores/toast-store.ts`, `components/ui/toast-host.tsx`); `Alert.alert`
   chỉ cho xác nhận thật (xoá, rời, thu hồi) và trong sheet là `Modal` (toast vẽ
@@ -172,7 +173,8 @@ một dòng thì ghi lý do ở dòng trên.
   Báo cáo. Audit `chat.report.created` ghi người báo cáo làm actor, nên chủ sở hữu và quản trị viên (kể cả khi chính họ
   bị báo cáo) thấy ai đã báo cáo: sheet và chính sách nói thế, không hứa ẩn danh (`report-sheet.test.tsx`,
   `privacy-content.test.ts`). **Android FGS**: `expo-audio` tắt phát/ghi nền tường minh, `plugins/with-removed-android-services.js` gỡ
-  `MediaProjectionService` (`tools:node="remove"`); `android-manifest.test.ts` giữ danh sách quyền và dịch vụ cuối của
+  `MediaProjectionService` (`tools:node="remove"`); FGS duy nhất là dịch vụ cuộc gọi (`phoneCall|microphone|camera`,
+  mục Cuộc gọi native); `android-manifest.test.ts` giữ danh sách quyền và dịch vụ cuối của
   bản release (`scripts/android-manifest.mjs`: introspect của `expo config` với biến thể production + manifest của
   từng thư viện được link). Thêm quyền/dịch vụ thì sửa test đó, bảng quyền của `store/listing.md` và checklist Play
   App content của runbook cùng PR.
@@ -215,10 +217,50 @@ một dòng thì ghi lý do ở dòng trên.
   `components/calls/call-overlay.tsx` (lớp toàn màn hình, không phải Modal,
   gắn một lần ở `(app)/_layout.tsx`, trên mọi màn workspace; mỗi layout
   workspace `attach` ngữ cảnh vào engine, cái trên cùng được dùng) + `call-room.tsx` (LiveKit RN;
-  `registerGlobals()` ở `app/_layout.tsx`). Nhạc chuông: `lib/call-ringtone.ts`
+  `registerGlobals()` ở `app/_layout.tsx`). Mọi sheet/dialog là `components/ui/call-aware-modal.tsx`
+  (lint cấm `Modal` của react-native ở nơi khác): cuộc gọi bắt đầu đổ chuông thì sheet đang mở đóng qua
+  `onRequestClose` của nó (audit C2). Nhạc chuông: `lib/call-ringtone.ts`
   render `assets/sounds/ring-*.wav` (test so byte; sinh lại bằng
-  `UPDATE_RINGTONES=1`). Push "X đang gọi" mang `?call=`; tab Chat gọi
-  `callEngine.joinFromPush`. Cần dev client (EAS), không chạy Expo Go.
+  `UPDATE_RINGTONES=1`); trên Android cuộc gọi đến reo trong app bằng nhạc chuông của máy trên luồng chuông
+  (`CallRinger` native), WAV chỉ còn cho iOS và nhạc chờ của người gọi. Nút âm thanh
+  (`components/calls/audio-output-button.tsx`, `lib/audio-outputs.ts`): Android liệt kê Bluetooth/tai nghe/loa
+  trong/loa ngoài khi có tai nghe, iOS mở route picker; gọi thoại bắt đầu ở loa trong, video ở loa ngoài.
+  Push "X đang gọi" mang `?call=`; tab Chat gọi `callEngine.ringFromPush` (màn đổ chuông, không tự trả lời);
+  `&answer=1` (nút Nghe của thông báo native) gọi `joinFromPush`. Cần dev client (EAS), không chạy Expo Go.
+- Cuộc gọi native trên Android (UNI-2053 S4; `docs/adr/drafts/0038-cuoc-goi-native-android-va-ke-hoach-callkit-ios.md`).
+  `modules/unichat-calls` là Expo module cục bộ (Kotlin, tự autolink từ `modules/`; `index.ts` trả `null` ngoài
+  Android) — chỉ là cầu nối, không chính sách: thông báo cuộc gọi đến `CallStyle.forIncomingCall` + full-screen intent
+  trên kênh `calls` (nhạc chuông của máy, `USAGE_NOTIFICATION_RINGTONE`, lặp tới khi hết `timeoutMs`), foreground
+  service `CallService` (`phoneCall`, thêm `microphone`/`camera` khi quyền đã cấp) với `CallStyle.forOngoingCall`,
+  `CallRinger`, Từ chối/Gác máy → `CallActionReceiver` → headless task `UniChatCallAction` (không khởi động được thì
+  `PendingActions` giữ tới lần mở sau), activity hiện trên màn khoá chỉ khi được mở bởi cuộc gọi
+  (`CallLockScreen`, nhả khi cuộc gọi xong). Khai báo ở `plugins/with-unichat-calls.js` (quyền, service, receiver; gỡ
+  background mode `fetch` mà plugin tự động của `expo-task-manager` thêm cho iOS). Chính sách ở TypeScript, test node
+  với module giả (`data/calls/native-calls.ts` là no-op khi không có module): `lib/call-push.ts` đọc push cuộc gọi
+  (`call_invite`/`call_end`/`call_missed`, mọi giá trị là chuỗi); `data/calls/call-push.ts` quyết định reo — công tắc
+  tắt hay hết cửa sổ thì không, màn cuộc gọi đã có cuộc gọi đó (hay cuộc gọi khác) thì không, đang mở app trong một
+  workspace thì hỏi danh sách chờ trước, còn lại hiện thông báo native (heads-up khi app đang mở, audit C3);
+  `data/calls/call-actions.ts` (Từ chối khi app đã kill chỉ báo server cho cuộc gọi 1-1, bằng phiên đã lưu);
+  `data/calls/call-native-sync.ts` theo engine (service từ connecting tới hết, hỏi `BLUETOOTH_CONNECT` lúc bắt đầu
+  trên API 31+, gỡ thông báo đổ chuông khi màn trong app reo, nhả màn khoá). `data/calls/call-wiring.ts` nối tất cả:
+  task nền của `expo-task-manager` cho push data-only và headless task đăng ký ở entry mới `index.ts`
+  (`data/calls/background-tasks.ts`, trước `expo-router/entry`, để runtime không giao diện cũng có), còn
+  `startNativeCalls()` (ở `app/_layout.tsx`) gắn sync, chạy hành động đang chờ và `setNotificationHandler`
+  (`lib/notification-presentation.ts`: push của workspace đang mở thì im, khác thì banner). `data/boot.ts` là phần
+  boot chung (Sentry, `configureRuntime`, header) mà task nền cũng gọi; `data/app-locale.ts` cho task nền nói đúng ngôn
+  ngữ. Kênh Android (`lib/notification-channels.ts`, `data/notification-channels.ts`): `calls`, `call_ongoing` (native),
+  `missed_calls`, `mentions`, `messages`, `general`, dịch theo ngôn ngữ app lúc mở và khi đổi ngôn ngữ, kênh cũ `chat`
+  bị xoá; server chọn kênh theo kind (`push_expo.go › pushChannel`) — đổi âm thanh/độ ưu tiên của kênh thì phải đổi id.
+  Badge app = mọi tin chưa đọc (`appBadgeCount`, `data/badge.ts`). Android 14+ bị thu hồi full-screen intent thì Cài
+  đặt › Thông báo hiện `components/settings/full-screen-calls-row.tsx`. Server: push đổ chuông tới Android là data-only,
+  iOS giữ push hiển thị; `chat.voice.ring_closed` (outbox, cùng transaction đóng hàng ring) → push data-only "kết thúc"
+  tới máy Android; cuộc gọi 1-1 nhỡ là "Cuộc gọi nhỡ từ X" trên `missed_calls`.
+  **Chỉ máy thật kiểm được** (checklist ở runbook › Cuộc gọi native trên Android; luồng tay
+  `maestro/flows/call-answer-incoming.yaml`): Kotlin có biên dịch (máy dev không có Android SDK; CI
+  `android-release` build nó), push data-only tới khi app bị kill (cần FCM thật), màn toàn màn hình trên máy khoá, nhạc
+  chuông theo công tắc chuông/DND, Nghe từ màn khoá (Android có thể đòi mở khoá cho nút Nghe vì activity chỉ tự đặt
+  `showWhenLocked` lúc chạy), micro còn sau khi khoá máy giữa cuộc gọi, Từ chối khi app đã kill (headless task, giới hạn
+  khởi động service nền), định tuyến Bluetooth, badge theo launcher.
   Kind giàu (M3): endpoint trong `data/chat-api.ts`, lệnh và cache trong
   `data/chat-actions.ts` (bỏ phiếu, tin thoại, nhắc, follow-up, tạo việc);
   composer ghi âm (`components/chat/use-voice-recorder.ts`), mở
@@ -332,7 +374,8 @@ Runbook: `docs/runbooks/unichat-mobile-release.md`; plan:
   trên runner tắt upload Sentry); sửa workflow nào trong bốn cũng kích `mobile-verify.yml` nên
   test đó luôn chạy.
 - `maestro/`: `subflows/sign-in.yaml` đăng nhập qua sheet trình duyệt thật (không
-  có lối tắt phiên thử nghiệm trong bản nào), ba luồng vàng
+  có lối tắt phiên thử nghiệm trong bản nào); `flows/call-answer-incoming.yaml` (khung, chạy tay: cần tài khoản thứ
+  hai gọi qua `scripts/ring-from-caller.js` và máy có FCM thật; chưa nằm trong workflow nào); ba luồng vàng
   `flows/{chat-read-send,push-open-room,call-join}.yaml` chạy hằng đêm bởi
   `.github/workflows/chat-mobile-verify.yml` với server staging (biến
   `MAESTRO_*`; thiếu thì run theo lịch **đỏ**, chạy tay bỏ chọn `maestro` để chỉ

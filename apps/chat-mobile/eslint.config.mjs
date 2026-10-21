@@ -21,6 +21,15 @@ export default [
     languageOptions: { sourceType: "commonjs", globals: { require: "readonly", module: "writable", __dirname: "readonly" } },
     rules: { "@typescript-eslint/no-require-imports": "off" },
   },
+  // Maestro's runScript files run in its own JavaScript engine, with its
+  // http and output objects and the flow's -e inputs as globals.
+  {
+    files: ["maestro/scripts/*.js"],
+    languageOptions: {
+      sourceType: "script",
+      globals: { http: "readonly", output: "writable", MAESTRO_API_URL: "readonly", MAESTRO_CALLER_TOKEN: "readonly", MAESTRO_CALLER_WS_ID: "readonly", MAESTRO_DM_ROOM_ID: "readonly" },
+    },
+  },
   // Node scripts (scripts/sync-i18n.mjs) run outside the bundle.
   { files: ["scripts/*.mjs"], languageOptions: { globals: { process: "readonly", console: "readonly" } } },
   // The base config turns this off for the web packages; the app's types are

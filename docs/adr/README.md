@@ -68,5 +68,10 @@ không được governance test đếm. Khi chấp nhận: chuyển ra thư mụ
 ngày 2026-10-15 (người dùng trả lời Q-K1 = (a): khóa cá nhân đã lưu trên UniWork; khóa dùng chung
 do quản trị tổ chức đặt là hướng mở rộng). Giữ số 0034.
 
+`drafts/0038-cuoc-goi-native-android-va-ke-hoach-callkit-ios.md` (UNI-2053 S4, 2026-10-21, `proposed`):
+cuộc gọi native trên Android (CallStyle, full-screen intent, foreground service, push data-only và
+`chat.voice.ring_closed`) đã xây cùng bản nháp; iOS PushKit + CallKit là kế hoạch chờ tài khoản Apple.
+Xem lại quyết định "không CallKit" của spec M3.
+
 [0025](0025-mot-process-cho-api-va-worker.md) chưa có guard test (test chạy hai bản của mỗi
 job, land cùng việc làm worker an toàn đa replica); đến lúc đó 0025 không thêm luật vào `CLAUDE.md`.

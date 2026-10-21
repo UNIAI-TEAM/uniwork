@@ -1,0 +1,46 @@
+# Answer an incoming call from Android's own ringing notification
+# (docs/adr/drafts/0038): skeleton, not in any workflow yet.
+#
+# Needs what the nightly does not have: a second account that calls the test
+# account (scripts/ring-from-caller.js, MAESTRO_CALLER_* inputs), and an
+# emulator with Google Play services and the build's google-services.json, so
+# the data-only FCM push really arrives. Run it by hand on such a device:
+#   cd apps/chat-mobile/maestro && maestro test \
+#     -e MAESTRO_API_URL=… -e MAESTRO_CALLER_TOKEN=… -e MAESTRO_CALLER_WS_ID=… \
+#     -e MAESTRO_DM_ROOM_ID=… flows/call-answer-incoming.yaml
+#
+# What it proves: with UniChat in the background, the call push becomes the
+# CallStyle notification (caller's name, Answer / Decline), Answer opens the
+# app on the call screen and the call connects, and hanging up ends it.
+# Not proven here: the full-screen ringing over a locked screen (Maestro
+# cannot lock the device), audio between the two, the in-call service keeping
+# the microphone with the screen off — the release checklist does those by
+# hand (docs/runbooks/unichat-mobile-release.md › Native calls on Android).
+appId: com.uniworkos.chat.staging
+name: Answer an incoming call from the notification
+tags:
+  - calls
+  - two-account
+---
+- launchApp
+- runFlow: ../subflows/sign-in.yaml
+# Background the app: the ring must come from the push, not the socket.
+- pressKey: Home
+- runScript: ../scripts/ring-from-caller.js
+- extendedWaitUntil:
+    visible: "(Answer|Trả lời|Nghe)"
+    timeout: 30000
+- tapOn: "(Answer|Trả lời|Nghe)"
+- extendedWaitUntil:
+    visible:
+      id: call-active
+    timeout: 30000
+- extendedWaitUntil:
+    visible: "(Connected|Đã kết nối) · .+"
+    timeout: 30000
+- tapOn:
+    id: call-hangup
+- extendedWaitUntil:
+    notVisible:
+      id: call-active
+    timeout: 15000
