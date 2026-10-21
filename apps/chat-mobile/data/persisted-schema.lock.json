@@ -13,5 +13,10 @@
     "version": 1,
     "file": "lib/persisted-records.ts",
     "sha256": "f1922e64306e0691325931093e4cc22239474ac470d52b4d350bf7d78b15a9db"
+  },
+  "chat-drafts": {
+    "version": 1,
+    "file": "lib/drafts.ts",
+    "sha256": "f98e2175d9d3ae8bce6ddd2660b868fd23b2aa3d542ca8dafd44c83aa2ac7178"
   }
 }

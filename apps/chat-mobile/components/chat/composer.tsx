@@ -41,6 +41,7 @@ import type { PendingFile } from "@/lib/send-pipeline";
 import { THEME } from "@/lib/theme";
 import { useColorScheme } from "@/components/ui/use-color-scheme";
 import { cn } from "@/lib/utils";
+import { useDraftPersistence } from "./use-drafts";
 import { useVoiceRecorder, VOICE_MAX_MS, type VoiceClip } from "./use-voice-recorder";
 import { VoiceWave } from "./voice-wave";
 import { toast } from "@/data/stores/toast-store";
@@ -59,6 +60,8 @@ export interface ComposerEdit {
 }
 
 interface Props {
+  /** Where the text is kept while unsent (components/chat/use-drafts.ts); without one nothing is kept. */
+  draftKey?: string;
   candidates: ChatMentionCandidate[];
   /** The field's hint; a thread says "Trả lời trong chủ đề…" (MobThread board). */
   placeholder?: string;
@@ -82,8 +85,10 @@ export function Composer(props: Props) {
   const { t } = useTranslation();
   const { colorScheme } = useColorScheme();
   const theme = THEME[colorScheme];
-  const [draft, setDraft] = useState("");
-  const [cursor, setCursor] = useState(0);
+  // What was being written here last time, back in the field (lib/drafts.ts).
+  const kept = useDraftPersistence(props.draftKey);
+  const [draft, setDraft] = useState(kept.initialText);
+  const [cursor, setCursor] = useState(kept.initialText.length);
   const [attachOpen, setAttachOpen] = useState(false);
   const typingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const allLabel = t("chat.mention_all");
@@ -98,13 +103,21 @@ export function Composer(props: Props) {
     void voice.start().catch(() => toast.error(t("chat.voice_record_failed")));
   };
 
-  // Editing starts from the message's own text, with its mentions as "@Tên".
+  // Editing starts from the message's own text, with its mentions as "@Tên"; the draft it borrows the field from is
+  // kept first, and comes back when the edit is saved or cancelled.
+  const { flush: keepDraft, savedText } = kept;
   useEffect(() => {
     if (!edit) return;
+    keepDraft();
     const text = deserializeMessageBodyToComposerDraft(edit.body);
     setDraft(text);
     setCursor(text.length);
-  }, [edit]);
+  }, [edit, keepDraft]);
+  const restoreDraft = () => {
+    const text = savedText();
+    setDraft(text);
+    setCursor(text.length);
+  };
 
   useEffect(
     () => () => {
@@ -121,6 +134,7 @@ export function Composer(props: Props) {
 
   const onChange = (text: string) => {
     setDraft(text);
+    if (!edit) kept.save(text);
     if (typingTimer.current) clearTimeout(typingTimer.current);
     typingTimer.current = null;
     if (!text.trim() || edit) return;
@@ -131,6 +145,7 @@ export function Composer(props: Props) {
     if (!active) return;
     const { nextDraft, nextCursor } = insertMentionToken(draft, active.start, cursor, formatComposerMentionDisplay(candidate, allLabel));
     setDraft(nextDraft);
+    if (!edit) kept.save(nextDraft);
     setCursor(nextCursor);
   };
 
@@ -141,9 +156,11 @@ export function Composer(props: Props) {
     if (edit) {
       // A mention keeps the id it was sent with, even when another person shares the name.
       props.onEdit(edit.id, serializeComposerDraftToMessageBody(trimmed, [...mentionCandidatesFromBody(edit.body), ...candidates], allLabel));
-    } else {
-      props.onSend(serializeComposerDraftToMessageBody(trimmed, candidates, allLabel));
+      restoreDraft();
+      return;
     }
+    props.onSend(serializeComposerDraftToMessageBody(trimmed, candidates, allLabel));
+    kept.clear();
     setDraft("");
     setCursor(0);
   };
@@ -196,7 +213,7 @@ export function Composer(props: Props) {
         title: t("chat.edit_dialog_title"),
         text: deserializeMessageBodyToComposerDraft(edit.body),
         cancel: () => {
-          setDraft("");
+          restoreDraft();
           props.onCancelEdit();
         },
       }

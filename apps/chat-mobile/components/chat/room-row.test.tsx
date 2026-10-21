@@ -84,4 +84,11 @@ describe("RoomRow", () => {
     expect(haptics.impactAsync).toHaveBeenCalledTimes(1);
     expect(row.props.accessibilityActions).toEqual([{ name: "longpress", label: viText("chat.settings_manage_room") }]);
   });
+
+  it("shows a draft left unsent in place of the last message, and reads it so", async () => {
+    await render(<RoomRow {...props({ draft: "Mai họp lúc 9 giờ", prefix: "Bạn: " })} />);
+    expect(screen.getByText(viText("chat.sidebar_draft_label"))).toBeOnTheScreen();
+    expect(screen.queryByText("Mai họp nhé")).toBeNull();
+    expect(screen.getByRole("button", { name: `Bình, ${viText("chat.sidebar_draft_label")} Mai họp lúc 9 giờ, 09:41` })).toBeOnTheScreen();
+  });
 });

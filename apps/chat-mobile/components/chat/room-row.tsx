@@ -30,6 +30,8 @@ export interface RoomRowProps {
   seen?: boolean;
   /** A message of this room waits in the send queue for the network. */
   queued?: boolean;
+  /** What the person was writing here and did not send: "Nháp: …" in place of the last message. */
+  draft?: string | null;
   time: string | null;
   unread: number;
   mentionUnread: number;
@@ -42,14 +44,14 @@ export interface RoomRowProps {
 }
 
 export const RoomRow = memo(function RoomRow(props: RoomRowProps) {
-  const { title, mark, seed, prefix, subtitle, typing, missed, seen, queued, time, unread, mentionUnread, muted, pinned, onPress, onLongPress, testID } = props;
+  const { title, mark, seed, prefix, subtitle, typing, missed, seen, queued, draft, time, unread, mentionUnread, muted, pinned, onPress, onLongPress, testID } = props;
   const { t } = useTranslation();
   const { colorScheme } = useColorScheme();
   const theme = THEME[colorScheme];
   const hasUnread = unread > 0 || mentionUnread > 0;
   const label = [
     title,
-    queued ? t("chat.mobile.send_queued") : `${prefix ?? ""}${subtitle ?? ""}`,
+    queued ? t("chat.mobile.send_queued") : draft ? `${t("chat.sidebar_draft_label")} ${draft}` : `${prefix ?? ""}${subtitle ?? ""}`,
     time,
     seen ? t("chat.sidebar_seen_aria") : null,
     mentionUnread > 0 ? t("chat.mention_unread_badge_aria", { count: mentionUnread }) : null,
@@ -97,6 +99,11 @@ export const RoomRow = memo(function RoomRow(props: RoomRowProps) {
                 {t("chat.mobile.send_queued")}
               </Text>
             </View>
+          ) : draft ? (
+            // WhatsApp's and the web's draft line: the label in red, then the words.
+            <Text className="flex-1 text-subhead leading-5 text-muted-foreground" numberOfLines={1}>
+              <Text className="text-subhead font-medium text-destructive">{t("chat.sidebar_draft_label")}</Text> {draft}
+            </Text>
           ) : (
             <Text
               className={cn("flex-1 text-subhead leading-5", typing ? "font-medium text-primary" : missed ? "text-destructive" : "text-muted-foreground")}

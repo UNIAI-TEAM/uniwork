@@ -176,7 +176,11 @@ một dòng thì ghi lý do ở dòng trên.
   cảm, bình chọn offline**: `data/pending-ops.ts` + `stores/pending-ops-store.ts` — cache hiện lựa chọn ngay (`lib/optimistic-message.ts`, luật toggle của server),
   mỗi thứ một mục giữ mong muốn cuối; endpoint của server là toggle nên lần giao có thể đã tới (mất câu trả lời,
   khởi động lại) và mọi phiếu bầu đều GET tin trước rồi chỉ chạm phần còn khác; từ chối hẳn thì bỏ, refetch phòng
-  và reject cho màn hình báo (lượt đọc thì báo Sentry, không toast). **Sửa và xoá tin cũng offline** (cùng hàng đợi,
+  và reject cho màn hình báo (lượt đọc thì báo Sentry, không toast). **Nháp** (`lib/drafts.ts`, `stores/draft-store.ts`, `components/chat/use-drafts.ts`): chữ đang viết và tin đang trích
+  của từng (người, workspace, phòng, chủ đề) sống qua rời phòng và kill app — composer ghi sau 400 ms ngừng gõ, ngay khi
+  composer đóng hay app rời foreground, gửi thì xoá; sửa tin mượn ô nhập rồi trả lại nháp; danh sách phòng hiện
+  "Nháp: …" (trừ khi có người đang gõ). Persist như outbox (đọc qua `DraftSchema`, quá 30 ngày thì bỏ, có trong
+  `persisted-schema.lock.json`), hydrate lúc boot, xoá khi đăng xuất. **Sửa và xoá tin cũng offline** (cùng hàng đợi,
   key `edit/<ws>/<msg>`, `delete/<ws>/<msg>`): sửa hiện ngay (`withEdit`: body mới + `edited_at`), lần sửa cuối thắng,
   giao bằng PATCH cả body (idempotent, không đọc trước); xoá gỡ tin khỏi timeline ngay và bỏ mọi mong muốn còn chờ cho
   tin đó (sửa, biểu cảm, phiếu); 404 khi giao là đã xong (tin đã mất), từ chối hẳn thì refetch phòng (tin quay lại) và

@@ -17,7 +17,7 @@ import { isDefaultWorkspaceChannel } from "@uniwork/core/chat/chat-room-helpers"
 import { deliveredToAllAt, furthestReadAt, isMessageSeenByPeer, seenByMembers } from "@uniwork/core/chat/read-receipt-utils";
 import * as Clipboard from "expo-clipboard";
 import { router } from "expo-router";
-import { useCallback, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Alert, ImageBackground, View } from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
@@ -39,6 +39,8 @@ import {
   type SendInput,
 } from "@/data/mutations/messages";
 import { followUpsOptions, roomLinksOptions } from "@/data/queries/chat";
+import { readDraft, useDraftStore } from "@/data/stores/draft-store";
+import { draftKey } from "@/lib/drafts";
 import { countNewSince } from "@/lib/arrivals";
 import { chatRoutes } from "@/lib/chat-routes";
 import { linkWindows, taskIdsByMessage as readTaskIds } from "@/lib/link-windows";
@@ -112,7 +114,10 @@ export function Conversation(props: Props) {
   const { chat, roomId, threadRootId, room, messages } = props;
   const { t } = useTranslation();
   const [actionMessage, setActionMessage] = useState<TimelineMessage | null>(null);
-  const [reply, setReply] = useState<ComposerReply | null>(null);
+  // The composer's draft and the message it quotes outlive the screen (lib/drafts.ts, audit UX P2).
+  const composerDraftKey = draftKey(chat.userId, chat.wsId, roomId, threadRootId);
+  const [reply, setReply] = useState<ComposerReply | null>(() => readDraft(composerDraftKey)?.reply ?? null);
+  useEffect(() => useDraftStore.getState().setReply(composerDraftKey, reply), [composerDraftKey, reply]);
   const [edit, setEdit] = useState<ComposerEdit | null>(null);
   const [image, setImage] = useState<{ id: string; url: string; name: string } | null>(null);
   const [sheet, setSheet] = useState<"expressions" | "reminder" | null>(null);
@@ -335,6 +340,7 @@ export function Conversation(props: Props) {
         </View>
       )}
       <Composer
+        draftKey={composerDraftKey}
         candidates={room.candidates}
         canSend={room.canSend}
         allowAttachments={!threadRootId}

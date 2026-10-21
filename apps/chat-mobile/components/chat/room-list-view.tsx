@@ -1,6 +1,6 @@
 // The Chat tab's list of conversations (audit P2 Perf). Rows come built
 // without typing or presence (lib/room-list.ts); the typing lines are laid over
-// them here and each DM row reads its peer's presence itself, so a typing frame
+// them here (with the drafts left in rooms) and each DM row reads its peer's presence itself, so a typing frame
 // redraws the row that types and a presence change the row of that person.
 // Every cell gets the same handlers object and is skipped while its row draws
 // the same, so a new message redraws the rows it moved or changed only. The
@@ -26,10 +26,12 @@ interface ItemProps {
   /** "Chi đang nhập…" over the last message while someone types. */
   typingLine: string | null;
   queued: boolean;
+  /** What the person left unsent in this room, one line. */
+  draft: string | null;
   handlers: RowHandlers;
 }
 
-function RoomListItem({ row, typingLine, queued, handlers }: ItemProps) {
+function RoomListItem({ row, typingLine, queued, draft, handlers }: ItemProps) {
   const { mark } = row;
   const online = useIsOnline(mark.kind === "dm" ? mark.userId : undefined);
   // This cell renders only when its row, typing line, send state or presence changed: no memo to keep here.
@@ -46,6 +48,8 @@ function RoomListItem({ row, typingLine, queued, handlers }: ItemProps) {
       missed={!typing && row.missed}
       seen={row.seen}
       queued={queued}
+      // Who is typing outranks the draft, as on the web's list.
+      draft={typing ? null : draft}
       time={row.time}
       unread={row.unread}
       mentionUnread={row.mentionUnread}
@@ -61,7 +65,7 @@ function RoomListItem({ row, typingLine, queued, handlers }: ItemProps) {
 /** A cell redraws when its row draws differently, its typing line or send state changed. */
 const MemoRoomListItem = memo(
   RoomListItem,
-  (a, b) => a.typingLine === b.typingLine && a.queued === b.queued && a.handlers === b.handlers && sameRoomListRow(a.row, b.row),
+  (a, b) => a.typingLine === b.typingLine && a.queued === b.queued && a.draft === b.draft && a.handlers === b.handlers && sameRoomListRow(a.row, b.row),
 );
 
 type ListProps = Pick<ComponentProps<typeof FlashList<RoomListRow>>, "ListHeaderComponent" | "ListEmptyComponent" | "refreshControl">;
@@ -71,6 +75,8 @@ interface Props extends ListProps {
   typingLines: Readonly<Record<string, string>>;
   /** Rooms with a message waiting in the send queue for the network. */
   queuedRooms: ReadonlySet<string>;
+  /** Room id → the draft left there (components/chat/use-drafts.ts › useRoomDraftLines). */
+  drafts?: Readonly<Record<string, string>>;
   onOpen: (row: RoomListRow) => void;
   onMenu: (row: RoomListRow) => void;
 }
@@ -83,7 +89,9 @@ const PINNED_TO_TOP = { disabled: true } as const;
 // A DM row and a group or channel row are laid out alike but carry different avatars: recycled within their kind.
 const typeOf = (row: RoomListRow) => row.mark.kind;
 
-export function RoomListView({ rows, typingLines, queuedRooms, onOpen, onMenu, ...list }: Props) {
+const NO_DRAFTS: Readonly<Record<string, string>> = {};
+
+export function RoomListView({ rows, typingLines, queuedRooms, drafts = NO_DRAFTS, onOpen, onMenu, ...list }: Props) {
   // A skipped cell holds the row it last drew; a tap acts on the newest row with that key.
   const latest = useRef(new Map<string, RoomListRow>());
   latest.current = useMemo(() => new Map(rows.map((row) => [row.key, row])), [rows]);
@@ -97,10 +105,11 @@ export function RoomListView({ rows, typingLines, queuedRooms, onOpen, onMenu, .
         row={item}
         typingLine={item.roomId ? (typingLines[item.roomId] ?? null) : null}
         queued={item.roomId ? queuedRooms.has(item.roomId) : false}
+        draft={item.roomId ? (drafts[item.roomId] ?? null) : null}
         handlers={handlers}
       />
     ),
-    [typingLines, queuedRooms, handlers],
+    [typingLines, queuedRooms, drafts, handlers],
   );
   return (
     <FlashList

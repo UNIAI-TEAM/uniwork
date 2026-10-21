@@ -12,6 +12,7 @@ import { AccessibilityInfo, FlatList } from "react-native";
 import { chatApi } from "@/data/chat-api";
 import * as chatSend from "@/data/chat-send";
 import * as pendingOps from "@/data/pending-ops";
+import { useDraftStore } from "@/data/stores/draft-store";
 import { toTimelineMessage, type TimelineMessage } from "@/lib/timeline-display";
 import { render, viText } from "@/test/render";
 import { Conversation } from "./conversation";
@@ -230,5 +231,20 @@ describe("a link in a message", () => {
     await fireEvent(link, "longPress");
     expect(Haptics.impactAsync).toHaveBeenCalledWith("medium");
     expect(screen.getByRole("button", { name: viText("mobile.conversation.link_copy") })).toBeOnTheScreen();
+  });
+});
+
+describe("a draft left in the room", () => {
+  it("comes back with the message it quoted, and a cancelled quote is forgotten", async () => {
+    useDraftStore.getState().clearAll();
+    useDraftStore.getState().setText("ME/w1/r1/", "Đồng ý,");
+    useDraftStore.getState().setReply("ME/w1/r1/", { id: "m01", sender: "Bình", text: "Mai họp nhé?" });
+    await render(<Screen records={history} />);
+    await settle();
+    expect(screen.getByTestId("composer-input").props.value).toBe("Đồng ý,");
+    expect(screen.getByText(viText("chat.replying_to", { preview: "Mai họp nhé?" }))).toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole("button", { name: viText("chat.mobile.cancel_reply") }));
+    expect(useDraftStore.getState().drafts["ME/w1/r1/"]?.reply).toBeUndefined();
+    expect(useDraftStore.getState().drafts["ME/w1/r1/"]?.text).toBe("Đồng ý,");
   });
 });

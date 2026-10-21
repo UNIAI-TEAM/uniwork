@@ -139,6 +139,13 @@ describe("RoomListView", () => {
     expect(screen.getByText("Bình")).toBeOnTheScreen();
   });
 
+  it("shows a room's draft on its row, unless someone is typing there", async () => {
+    await render(<RoomListView rows={rows} typingLines={{ g1: "Chi đang nhập…" }} queuedRooms={new Set()} drafts={{ dm2: "Mai họp", g1: "bị che" }} onOpen={jest.fn()} onMenu={jest.fn()} />);
+    expect(screen.getByRole("button", { name: new RegExp(`^Bình, ${viText("chat.sidebar_draft_label")} Mai họp`) })).toBeOnTheScreen();
+    expect(screen.getByText("Chi đang nhập…")).toBeOnTheScreen();
+    expect(screen.queryByText(/bị che/)).toBeNull();
+  });
+
   it("opens and manages the newest row with the key the tapped cell drew", async () => {
     const onOpen = jest.fn();
     const onMenu = jest.fn();

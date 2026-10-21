@@ -16,6 +16,7 @@ import { CatchUpBanner, CatchUpSheet, type CatchUpTarget } from "@/components/ch
 import { ConnectionBanner } from "@/components/chat/connection-banner";
 import { FilterChips, RoomListEmpty, RoomListError, RoomListSkeleton, ScopeHint, ScopeSwitch, WorkspacePill } from "@/components/chat/room-list-parts";
 import { RoomListView } from "@/components/chat/room-list-view";
+import { useRoomDraftLines } from "@/components/chat/use-drafts";
 import { RoomPreview } from "@/components/chat/room-preview";
 import { useChatWorkspace } from "@/components/chat/use-chat-workspace";
 import { useDeepLinkTarget } from "@/components/chat/use-deep-link-target";
@@ -63,6 +64,8 @@ export default function ChatTab() {
   const otherUnread = unreadInOtherWorkspaces(summary.data, wsId);
   const sends = useChatSendStore((s) => s.entries);
   const queuedRooms = useMemo(() => selectQueuedRoomIds(sends, wsId, chat?.userId ?? ""), [sends, wsId, chat?.userId]);
+  // "Nháp: …" on the rows of rooms left with an unsent draft.
+  const draftLines = useRoomDraftLines(wsId, chat?.userId ?? "");
   const [switchOpen, setSwitchOpen] = useState(false);
   const [catchUp, setCatchUp] = useState<CatchUpTarget | null>(null);
   const pinnedByRoomId = useChatPinsStore((s) => s.byRoomId);
@@ -201,6 +204,7 @@ export default function ChatTab() {
             rows={shown}
             typingLines={typingLines}
             queuedRooms={queuedRooms}
+            drafts={draftLines}
             onOpen={open}
             onMenu={setMenuRow}
             ListHeaderComponent={

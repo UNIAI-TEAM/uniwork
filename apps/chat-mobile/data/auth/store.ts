@@ -22,6 +22,7 @@ import { clearAccountCache } from "../remote-config";
 import { bestEffort, setReportUser } from "../report";
 import { currentSessionEpoch } from "../session-epoch";
 import { hydrateChatSendStore, useChatSendStore } from "../stores/chat-send-store";
+import { hydrateDraftStore, useDraftStore } from "../stores/draft-store";
 import { hydratePendingOpsStore, usePendingOpsStore } from "../stores/pending-ops-store";
 import { useWorkspaceStore } from "../stores/workspace-store";
 import { session } from "./flow";
@@ -113,22 +114,28 @@ async function endAccountSession(): Promise<void> {
   await forgetAccountLocally();
 }
 
-/** Everything an account left on this phone besides its session: workspace, stored person, cached rooms, queues and their files. */
+/** Everything an account left on this phone besides its session: workspace, stored person, cached rooms, queues and their files, drafts. */
 async function forgetAccountLocally(): Promise<void> {
   await Promise.all([useWorkspaceStore.getState().clear(), forgetLastUser(), dropAccountCache()]);
   clearAccountCache(queryClient);
   clearChatOutbox(chatSendDeps);
   clearPendingOps(pendingOpsDeps);
+  useDraftStore.getState().clearAll();
 }
 
-/** Something of the last person is still on this phone: who they were, or what they queued. */
+/** Something of the last person is still on this phone: who they were, what they queued, or what they left unsent. */
 function leftTraces(lastUser: User | null): boolean {
-  return lastUser !== null || useChatSendStore.getState().entries.length > 0 || usePendingOpsStore.getState().ops.length > 0;
+  return (
+    lastUser !== null ||
+    useChatSendStore.getState().entries.length > 0 ||
+    usePendingOpsStore.getState().ops.length > 0 ||
+    Object.keys(useDraftStore.getState().drafts).length > 0
+  );
 }
 
-/** What the device kept across the last run: the unsent messages and the queued reads, reactions and votes. */
+/** What the device kept across the last run: the unsent messages, the queued reads, reactions and votes, and the drafts. */
 async function hydrateDeviceState(): Promise<void> {
-  await Promise.all([hydrateChatSendStore(), hydratePendingOpsStore()]);
+  await Promise.all([hydrateChatSendStore(), hydratePendingOpsStore(), hydrateDraftStore()]);
 }
 
 let adopting: Promise<void> | null = null;

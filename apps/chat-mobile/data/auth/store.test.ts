@@ -59,6 +59,7 @@ vi.mock("../local-wipe", () => ({ wipeDeviceTraces }));
 import { ApiError } from "../api";
 import { installReportSink } from "../report";
 import { useChatSendStore } from "../stores/chat-send-store";
+import { useDraftStore } from "../stores/draft-store";
 import { usePendingOpsStore } from "../stores/pending-ops-store";
 import { PUSH_UNREGISTER_BUDGET_MS, useAuthStore } from "./store";
 
@@ -128,10 +129,17 @@ describe("auth store", () => {
     expect(useChatSendStore.getState().entries).toEqual([]);
     expect(cacheMock.dropAccountCache).toHaveBeenCalledTimes(2);
 
+    // A draft left in a room is the last person's too: it goes, with the rest.
+    sessionMock.restore.mockResolvedValueOnce(false);
+    useDraftStore.getState().setText("u1/w1/r1/", "chưa gửi");
+    await useAuthStore.getState().initialize();
+    expect(useDraftStore.getState().drafts).toEqual({});
+    expect(cacheMock.dropAccountCache).toHaveBeenCalledTimes(3);
+
     // Nothing of anyone left: nothing to wipe.
     sessionMock.restore.mockResolvedValueOnce(false);
     await useAuthStore.getState().initialize();
-    expect(cacheMock.dropAccountCache).toHaveBeenCalledTimes(2);
+    expect(cacheMock.dropAccountCache).toHaveBeenCalledTimes(3);
   });
 
   it("initialize: a first start whose /me finds the session ended wipes the queue left behind", async () => {
