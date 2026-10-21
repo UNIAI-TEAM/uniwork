@@ -58,12 +58,14 @@ export function MeetingUnderlineTabs<T extends string>({
     if (target !== value) onChange(target);
   }
 
+  // Tight padding so the room's five tabs fit a 384px sidebar whole; the row
+  // still scrolls when badges push it past the edge.
   return (
     <div
       role="tablist"
       aria-orientation="horizontal"
       className={cn(
-        "isolate flex w-full min-w-0 shrink-0 items-stretch gap-1 overflow-x-auto border-b border-border [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+        "isolate flex w-full min-w-0 shrink-0 items-stretch overflow-x-auto border-b border-border [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
         className,
       )}
     >
@@ -84,7 +86,7 @@ export function MeetingUnderlineTabs<T extends string>({
             aria-controls={active ? panelId?.(tab) : undefined}
             tabIndex={active ? 0 : -1}
             className={cn(
-              "relative min-h-10 shrink-0 rounded-md border-0 bg-transparent outline-none focus-visible:ring-[3px] focus-visible:ring-inset focus-visible:ring-ring/50 px-2.5 py-2 text-caption font-medium leading-tight whitespace-nowrap transition-colors duration-standard pointer-coarse:min-h-11",
+              "relative min-h-10 shrink-0 rounded-md border-0 bg-transparent outline-none focus-visible:ring-[3px] focus-visible:ring-inset focus-visible:ring-ring/50 px-2 py-2 text-caption font-medium leading-tight whitespace-nowrap transition-colors duration-standard pointer-coarse:min-h-11",
               active ? "text-brand" : "text-muted-foreground hover:text-foreground",
             )}
             onClick={() => onChange(tab)}
