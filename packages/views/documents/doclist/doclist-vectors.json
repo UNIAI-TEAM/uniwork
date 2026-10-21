@@ -365,6 +365,36 @@
         "en": "1.5 GB",
         "label": "GB",
         "vi": "1,5 GB"
+      },
+      {
+        "bytes": 1048575,
+        "en": "1 MB",
+        "label": "rounds up to 1024 KB, rolls over to MB",
+        "vi": "1 MB"
+      },
+      {
+        "bytes": 1073741823,
+        "en": "1 GB",
+        "label": "rounds up to 1024 MB, rolls over to GB",
+        "vi": "1 GB"
+      },
+      {
+        "bytes": 1047552,
+        "en": "1,023 KB",
+        "label": "exactly 1023 KB stays in KB",
+        "vi": "1.023 KB"
+      },
+      {
+        "bytes": 10234,
+        "en": "10 KB",
+        "label": "9.99 KB reads as 10 KB",
+        "vi": "10 KB"
+      },
+      {
+        "bytes": 1099511627775,
+        "en": "1,024 GB",
+        "label": "just below 1 TB stays in GB (no larger unit)",
+        "vi": "1.024 GB"
       }
     ]
   },
