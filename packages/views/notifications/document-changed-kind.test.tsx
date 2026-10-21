@@ -419,6 +419,19 @@ describe("document_changed click target (item 4)", () => {
       expect(screen.getByRole("link")).toBeInTheDocument();
       expect(screen.getByRole("button", { name: "Xem 3 tài liệu" })).toBeInTheDocument();
     });
+
+    it("keeps the list when more documents than the server's samples may be readable (RFW-19)", () => {
+      // The server keeps only the first 3 ids as samples and filters them at read time, so an empty list with
+      // five documents does not prove the reader can read none of them.
+      const many = unreadable({}, { document_count: "5" });
+      const five = { ...many, count: 5 };
+      expect(opensDocumentList(five)).toBe(true);
+      expect(documentChangedHasPage(five)).toBe(true);
+      expect(resourceHref(five, workspace, [workspace])).toBe("/acme/team/inbox?notification=n1");
+      row(five, { onOpenList: vi.fn() });
+      expect(screen.getByRole("link")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Xem 5 tài liệu" })).toBeInTheDocument();
+    });
   });
 
   it("opens the list instead of navigating when the host has one, and marks the row read", () => {
