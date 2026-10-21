@@ -518,8 +518,9 @@ một dòng thì ghi lý do ở dòng trên.
   khi bật. Toast đọc một lần: TalkBack qua live region, VoiceOver qua `announceForAccessibility` (chỉ iOS); vạch "N tin chưa đọc" (`lib/unread-divider.ts`, port
   `firstUnreadIndex`/`unreadSinceOf` của web): con trỏ đã đọc và số chưa đọc chụp từ danh sách phòng lúc mở (trước khi
   mở phòng đánh dấu đã đọc), vạch nằm trên tin đầu tiên của người khác sau con trỏ, giữ tới khi rời phòng; quá màn đầu
-  thì phòng mở tại vạch (không animate; link tới một tin thắng); tin chưa đọc vượt các trang đã tải thì không vẽ vạch thay
-  vì vẽ sai chỗ; nút về tin mới nhất `components/chat/jump-to-latest.tsx` khi cuộn lên hoặc đang
+  thì phòng mở tại vạch (không animate; link tới một tin thắng); tin chưa đọc vượt các trang đã tải thì phòng tải thêm
+  trang cũ (`components/chat/use-unread-backfill.ts`, tối đa `UNREAD_BACKFILL_PAGES` = 4 trang, tức tới ~250 tin chưa
+  đọc, không khi đang fetch) rồi vẽ vạch và mở tại đó; vượt nữa thì không vẽ vạch thay vì vẽ sai chỗ (mở ở tin mới nhất); nút về tin mới nhất `components/chat/jump-to-latest.tsx` khi cuộn lên hoặc đang
   xem trang cũ (`onJumpToLatest`), đếm tin người khác gửi từ lúc rời đáy (`countNewSince`, như web), tự gửi thì cuộn
   xuống (`latestSignal` của `MessageList`); ảnh xem lớn `zoomable-image.tsx` (chụm, chạm hai lần, kéo khi phóng to, vuốt
   dọc ở 1x để đóng; toán ở `lib/zoom.ts`; Modal có `GestureHandlerRootView` riêng). **Quy ước Android** (`lib/platform-ui.ts`, `components/ui/ripple.ts`): nút back

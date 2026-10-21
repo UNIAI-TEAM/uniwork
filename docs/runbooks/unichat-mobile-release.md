@@ -291,7 +291,8 @@ và giọng đọc. Một iPhone (VoiceOver) và một máy Android (TalkBack):
   trình duyệt trong app, nhấn giữ có Mở/Sao chép/Chia sẻ (rung), VoiceOver/TalkBack có hành động "Liên kết …" trên bong
   bóng; `**đậm**` hiện đậm. Viết dở trong một phòng, rời phòng và kill app: mở lại thấy nguyên chữ và trích dẫn, danh
   sách phòng hiện "Nháp: …" màu đỏ; gửi thì nháp mất. Phòng có ≥ 20 tin chưa đọc: mở ra ở vạch "N tin chưa đọc" gần đầu
-  màn hình (không phải ở tin mới nhất). Mọi sheet: kéo grabber xuống đóng, kéo ngắn bật lại, sheet có danh sách vẫn cuộn
+  màn hình (không phải ở tin mới nhất); phòng có ~120 tin chưa đọc (quá một trang 50 tin): sau một nhịp tải trang cũ
+  vẫn mở ở vạch đó. Mọi sheet: kéo grabber xuống đóng, kéo ngắn bật lại, sheet có danh sách vẫn cuộn
   được; VoiceOver vuốt hai ngón hình chữ Z đóng sheet; bật Giảm chuyển động thì sheet hiện mờ dần, không trượt. Dark
   mode: giờ và dấu tick trên bong bóng của mình đọc rõ, "đã xem" là huy hiệu tick đặc khác "đã tới". Android: nút back là
   mũi tên, nút/hàng có hiệu ứng gợn sóng (cả nút gửi/đính kèm/mic của composer, thanh cảm xúc, chip lọc, tin thoại), vuốt trả lời rung một nhịp khi qua ngưỡng. Tin thoại: chạm thanh sóng để tua,

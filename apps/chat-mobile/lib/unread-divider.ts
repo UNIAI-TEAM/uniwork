@@ -42,3 +42,15 @@ export function firstUnreadMessageId(messages: readonly TimelineMessage[], curre
   if (!complete && before.every((message) => message.sender === currentUserId || sentAtMs(message) > at)) return null;
   return first.id;
 }
+
+/**
+ * How many older pages a room opened with unread messages loads, at most, to find where they begin (50 messages a
+ * page: the line is drawn for up to 250 unread, within the eight pages the sliding window keeps,
+ * data/timeline-window.ts). Past that the room opens at the newest message with no line.
+ */
+export const UNREAD_BACKFILL_PAGES = 4;
+
+/** True when only the history not loaded yet keeps the unread line from being drawn: an older page would place it. */
+export function unreadLineNeedsOlder(messages: readonly TimelineMessage[], currentUserId: string, since: string | null, complete: boolean): boolean {
+  return !complete && firstUnreadMessageId(messages, currentUserId, since, false) === null && firstUnreadMessageId(messages, currentUserId, since, true) !== null;
+}

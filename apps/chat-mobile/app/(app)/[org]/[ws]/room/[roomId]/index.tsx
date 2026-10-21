@@ -19,6 +19,7 @@ import { useChatWorkspace, type ChatWorkspace } from "@/components/chat/use-chat
 import { useRoomReadMarking } from "@/components/chat/use-read-marking";
 import { useRoomContext } from "@/components/chat/use-room-context";
 import { useTimelineWindow } from "@/components/chat/use-timeline-window";
+import { useUnreadBackfill } from "@/components/chat/use-unread-backfill";
 import { Text } from "@/components/ui/text";
 import { useMobileFlag } from "@/data/remote-config";
 import { ScreenFullyDrawn } from "@/data/sentry";
@@ -65,6 +66,17 @@ function RoomConversation({ chat, roomId, linkedMessageId }: { chat: ChatWorkspa
     () => buildMainTimelineMessages({ anchorRows, latestRows, pending: sends, currentUserId: chat.userId }),
     [anchorRows, latestRows, sends, chat.userId],
   );
+
+  const historyComplete = timeline.isSuccess && !timeline.hasNextPage;
+  // More unread than the newest page holds: a few older pages load until the unread line has its place.
+  useUnreadBackfill({
+    messages,
+    userId: chat.userId,
+    since: unread?.since ?? null,
+    complete: historyComplete,
+    canLoadOlder: anchorRows === null && timeline.hasNextPage && !timeline.isFetching,
+    loadOlder: () => void timeline.fetchNextPage(),
+  });
 
   useRoomReadMarking(chat.wsId, roomId, latestRows.at(-1)?.id ?? null, atLatest && anchorRows === null);
   // Back at the newest message: the older pages scrolled in on the way up are dropped (a sliding window).
@@ -141,7 +153,7 @@ function RoomConversation({ chat, roomId, linkedMessageId }: { chat: ChatWorkspa
         onSend={anchorRows ? backToLatest : undefined}
         onJumpToLatest={anchorRows ? backToLatest : undefined}
         unread={unread}
-        historyComplete={timeline.isSuccess && !timeline.hasNextPage}
+        historyComplete={historyComplete}
       />
       {/* The room's load span ends when its newest page is drawn (Sentry performance; no-op without a DSN). */}
       <ScreenFullyDrawn record={!timeline.isPending} />

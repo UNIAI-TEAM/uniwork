@@ -2,7 +2,7 @@
 // use-chat-catch-up-ui.ts › unreadSinceOf), on the phone's timeline messages.
 import { describe, expect, it } from "vitest";
 import type { TimelineMessage } from "./timeline-display";
-import { firstUnreadMessageId, unreadSnapshot } from "./unread-divider";
+import { firstUnreadMessageId, UNREAD_BACKFILL_PAGES, unreadLineNeedsOlder, unreadSnapshot } from "./unread-divider";
 
 const T = Date.UTC(2026, 9, 22, 2, 0);
 const msg = (id: string, sender: string, second: number, extra: Partial<TimelineMessage> = {}): TimelineMessage => ({ id, sender, body: id, ts: T + second * 1000, ...extra });
@@ -53,5 +53,28 @@ describe("firstUnreadMessageId", () => {
     const allNew = [msg("mine", "me", 5), msg("a", "u2", 30), msg("b", "u2", 40)];
     expect(firstUnreadMessageId(allNew, "me", since, false)).toBeNull();
     expect(firstUnreadMessageId(allNew, "me", since, true)).toBe("a");
+  });
+});
+
+describe("unreadLineNeedsOlder", () => {
+  const since = new Date(T + 10_000).toISOString();
+  const allNew = [msg("a", "u2", 30), msg("b", "u2", 40)];
+
+  it("asks for older pages exactly when only the missing history keeps the line from being drawn", () => {
+    expect(unreadLineNeedsOlder(allNew, "me", since, false)).toBe(true);
+    // The history ends here: the line is drawn on what is loaded.
+    expect(unreadLineNeedsOlder(allNew, "me", since, true)).toBe(false);
+    // The pointer is inside what is loaded: the line is already drawn.
+    expect(unreadLineNeedsOlder([msg("old", "u2", 5), ...allNew], "me", since, false)).toBe(false);
+  });
+
+  it("asks for nothing without a pointer or without anything unread loaded", () => {
+    expect(unreadLineNeedsOlder(allNew, "me", null, false)).toBe(false);
+    expect(unreadLineNeedsOlder([msg("mine", "me", 30)], "me", since, false)).toBe(false);
+    expect(unreadLineNeedsOlder([], "me", since, false)).toBe(false);
+  });
+
+  it("bounds the search: a few pages, past one screen of a busy room", () => {
+    expect(UNREAD_BACKFILL_PAGES).toBeGreaterThanOrEqual(3);
   });
 });

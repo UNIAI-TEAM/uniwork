@@ -366,6 +366,12 @@
       "functions": 100,
       "lines": 100
     },
+    "components/chat/use-unread-backfill.ts": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
     "components/chat/use-voice-recorder.ts": {
       "statements": 0,
       "branches": 0,
