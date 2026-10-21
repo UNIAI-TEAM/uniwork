@@ -342,7 +342,10 @@ func (s *ChatService) commitDocumentMessage(
 		// with the rollback below.
 		if clientMsgID != "" && isUniqueViolation(err) {
 			// The pool read: the unique violation aborted this transaction, so
-			// a lookup through q would fail with 25P02.
+			// a lookup through q would fail with 25P02. Roll it back first so
+			// its connection is free for the read; the deferred rollback is
+			// then a no-op.
+			_ = tx.Rollback(ctx)
 			existing, found, lookupErr := s.existingMessageByClientMsgID(ctx, room.ID, userID, clientMsgID)
 			if lookupErr != nil || found {
 				if found && existing.Kind != chatMessageKindDocument {

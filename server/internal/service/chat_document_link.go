@@ -205,6 +205,8 @@ func (s *ChatService) commitDocumentLinkMessage(
 		// A concurrent retry with the same key committed first: replay it,
 		// and this transaction's grants go with the rollback.
 		if clientMsgID != "" && isUniqueViolation(err) {
+			// Free the aborted transaction's connection before the pool read.
+			_ = tx.Rollback(ctx)
 			existing, found, lookupErr := s.existingMessageByClientMsgID(ctx, room.ID, userID, clientMsgID)
 			if lookupErr != nil || found {
 				if found && existing.Kind != chatMessageKindDocument {

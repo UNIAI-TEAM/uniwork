@@ -247,6 +247,24 @@ func TestChatDocumentSendsCommitOnOneConnection(t *testing.T) {
 	if _, err := f.svc.ShareAttachmentAsDocument(ctx, f.ua.ID, f.ws.ID, room.ID, fileMsg.ID, ShareAttachmentAsDocumentInput{}); err != nil {
 		t.Fatalf("share as document on one free connection: %v", err)
 	}
+
+	// A save that names the room writes the version line in its own
+	// transaction: the room and send guards read on that transaction's
+	// connection too, and the line proves they ran rather than refused.
+	up, err := f.docs.UploadDocumentFile(ctx, Human(f.ua.ID), sent.Document.DocumentID, DocumentUploadInput{
+		Filename: "mot-ket-noi.md", Body: bytes.NewReader([]byte("# Một kết nối v2\n")), IdempotencyKey: "one-conn-up-v2",
+	})
+	if err != nil {
+		t.Fatalf("upload on one free connection: %v", err)
+	}
+	if _, err := f.docs.CommitFileVersion(ctx, Human(f.ua.ID), sent.Document.DocumentID, CommitFileVersionInput{
+		UploadID: up.UploadID, BaseRevision: 1, IdempotencyKey: "one-conn-commit-v2", ChatRoomID: room.ID,
+	}); err != nil {
+		t.Fatalf("save with a chat room on one free connection: %v", err)
+	}
+	if got := f.chatMessagesOfKind(t, room.ID, chatMessageKindDocumentVersion); got != 1 {
+		t.Fatalf("document_version messages in room = %d, want 1", got)
+	}
 }
 
 // TestChatDocumentShareLowersToBackingLevelOnLeave is SF3 for a leave: ub got
