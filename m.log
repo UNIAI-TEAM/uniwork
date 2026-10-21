@@ -1,0 +1,115 @@
+$ rc=$(cat /tmp/pr7r9-e2e.exit 2>/dev/null || echo 99); grep -vE "^\s+at " /tmp/pr7r9-e2e.log | grep -E "✘|failed|flaky|passed|skipped|did not run|Error:" | head -80; tail -n 30 /tmp/pr7r9-e2e.log; for f in e2e/test-results/*/error-context.md; do [ -f "$f" ] && { echo "===== $f"; head -c 3000 "$f"; }; done; grep -qE "[0-9]+ passed" /tmp/pr7r9-e2e.log || { echo "no passing test"; [ "$rc" = 0 ] && rc=1; }; echo; echo "E2E_EXIT=$rc"; [ $rc -eq 0 ]
+  ✘  16 documents-share-no-folder.spec.ts:68:1 › a page shared from My Folder or a private folder shows on its own for the recipient (55ms)
+    Error: {"document":{"id":"01M5FVWYRHF2DVNW3NEHDDZXJT","organization_id":"01M5FVWY0QPBE3HZFBYPZS2K7P","workspace_id":"01M5FVWY10Z3J0PC4PRXASM23P","kind":"folder","title":"Thư mục mở mvigbulv","visibility":"workspace","revision":"1","current_version":0,"position":2,"my_level":"manage","via":"member","created_by":"01M5FVWY076QSBVXKHY6986HSG","created_by_kind":"human","updated_by":"01M5FVWY076QSBVXKHY6986HSG","updated_by_kind":"human","created_at":"2026-10-21T18:34:41Z","updated_at":"2026-10-21T18:34:41Z"}}
+  1 failed
+  48 passed (3.3m)
+
+    Expected: 422
+    Received: 201
+
+      90 |       data: { kind: "folder", title: `Thư mục mở ${stamp}`, visibility: "workspace" },
+      91 |     });
+    > 92 |     expect(open.status(), await open.text()).toBe(422);
+         |                                              ^
+      93 |     expect(((await open.json()) as { error: { code: string } }).error.code).toBe("folder_not_shareable");
+      94 |   });
+      95 |
+        at /workspace/e2e/documents-share-no-folder.spec.ts:92:46
+        at /workspace/e2e/documents-share-no-folder.spec.ts:80:3
+
+    Error Context: test-results/documents-share-no-folder--d084c-n-its-own-for-the-recipient/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/documents-share-no-folder--d084c-n-its-own-for-the-recipient/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/documents-share-no-folder--d084c-n-its-own-for-the-recipient/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    documents-share-no-folder.spec.ts:68:1 › a page shared from My Folder or a private folder shows on its own for the recipient 
+  48 passed (3.3m)
+/workspace/e2e:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @uniwork/e2e@0.0.0 test: `playwright test --reporter=list --shard=2/8`
+Exit status 1
+===== e2e/test-results/documents-share-no-folder--d084c-n-its-own-for-the-recipient/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: documents-share-no-folder.spec.ts >> a page shared from My Folder or a private folder shows on its own for the recipient
+- Location: documents-share-no-folder.spec.ts:68:1
+
+# Error details
+
+```
+Error: {"document":{"id":"01M5FVWYRHF2DVNW3NEHDDZXJT","organization_id":"01M5FVWY0QPBE3HZFBYPZS2K7P","workspace_id":"01M5FVWY10Z3J0PC4PRXASM23P","kind":"folder","title":"Thư mục mở mvigbulv","visibility":"workspace","revision":"1","current_version":0,"position":2,"my_level":"manage","via":"member","created_by":"01M5FVWY076QSBVXKHY6986HSG","created_by_kind":"human","updated_by":"01M5FVWY076QSBVXKHY6986HSG","updated_by_kind":"human","created_at":"2026-10-21T18:34:41Z","updated_at":"2026-10-21T18:34:41Z"}}
+
+
+expect(received).toBe(expected) // Object.is equality
+
+Expected: 422
+Received: 201
+```
+
+# Test source
+
+```ts
+  1   | import { expect, test, type APIRequestContext } from "@playwright/test";
+  2   | import { libraryRowButton } from "./documents-onboard";
+  3   | import {
+  4   |   api,
+  5   |   authHeaders,
+  6   |   buildShareScene,
+  7   |   docPath,
+  8   |   grantAccess,
+  9   |   openSession,
+  10  |   readDoc,
+  11  |   userItem,
+  12  |   type ShareScene,
+  13  | } from "./documents-share-fixtures";
+  14  | 
+  15  | /**
+  16  |  * UNI-1974 (FOLDER-SHARE-OFF): only documents are shared, and a shared
+  17  |  * document is never attached to the owner's folder on the recipient's side.
+  18  |  * An owner shares a page from My Folder and a page from an ordinary private
+  19  |  * folder; the recipient finds both on their own in Shared with me, search and
+  20  |  * the detail view, with no parent id, no path and no breadcrumb, and a folder
+  21  |  * itself refuses every share (422 folder_not_shareable).
+  22  |  *
+  23  |  * Needs the same runtime as documents-share.spec.ts (FF_DOCUMENTS on, the
+  24  |  * worktree's migrations applied, Team plan seeded by the fixture scene). Run
+  25  |  * by the cloud runner, not locally.
+  26  |  */
+  27  | test.describe.configure({ timeout: 360_000 });
+  28  | 
+  29  | const tag = `fso1974-${Date.now().toString(36)}`;
+  30  | const stamp = Date.now().toString(36);
+  31  | 
+  32  | let s: ShareScene;
+  33  | 
+  34  | test.beforeAll(async ({ browser }) => {
+  35  |   test.setTimeout(600_000);
+  36  |   const page = await browser.newPage();
+  37  |   try {
+  38  |     s = await buildShareScene(page, tag, 0);
+  39  |   } finally {
+  40  |     await page.close();
+  41  |   }
+  42  | });
+  43  | 
+  44  | interface Row {
+  45  |   id: string;
+  46  |   title: string;
+  47  |   parent_id?: string | null;
+  48  |   path?: unknown[];
+  49  | }
+  50  | 
+  51  | async function create(request: APIRequestContext, body: Record<string, unknown>): Promise<Row> {
+  52  |   const res = await request.post(`${api}/api/v1/workspaces/${s.m.aOwn
+E2E_EXIT=1
