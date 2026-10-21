@@ -1,5 +1,5 @@
 "use client";
-import { Phone } from "lucide-react";
+import { Copy, Phone } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -15,6 +15,27 @@ import { toastApiError } from "../toast-api-error";
  * §5.4): the deployment's number and the meeting's PIN. Hidden unless the
  * server offers dial-in for this meeting; the host may draw a new PIN.
  */
+/** A value to read aloud or type: copied whole, digits and all. */
+function CopyValue({ value, label }: { value: string; label: string }) {
+  const { t } = useTranslation();
+  const copy = () => {
+    // No clipboard outside a secure context: say so rather than do nothing.
+    if (!navigator.clipboard) {
+      toast.error(t("meetings.dialIn.copyFailed"));
+      return;
+    }
+    navigator.clipboard
+      .writeText(value)
+      .then(() => toast.success(t("common.copied")))
+      .catch(() => toast.error(t("meetings.dialIn.copyFailed")));
+  };
+  return (
+    <Button type="button" size="icon-sm" variant="ghost" className="text-muted-foreground" aria-label={label} onClick={copy}>
+      <Copy aria-hidden />
+    </Button>
+  );
+}
+
 export function MeetingDialInSection({ meetingId, canHost }: { meetingId: string; canHost: boolean }) {
   const { t } = useTranslation();
   const { data } = useMeetingDialIn(meetingId);
@@ -32,21 +53,32 @@ export function MeetingDialInSection({ meetingId, canHost }: { meetingId: string
         description={t("meetings.dialIn.description")}
         footer={
           canHost ? (
-            <Button type="button" size="sm" variant="outline" onClick={() => setConfirming(true)}>
+            // A rare, disruptive chore: quieter than anything a caller needs.
+            <Button type="button" size="sm" variant="ghost" onClick={() => setConfirming(true)}>
               {t("meetings.dialIn.rotate")}
             </Button>
           ) : undefined
         }
       >
         <dl className="-my-2 divide-y divide-border">
-          <div className="flex items-baseline justify-between gap-3 py-2">
+          <div className="flex items-center justify-between gap-3 py-1.5">
             <dt className="shrink-0 text-label text-muted-foreground">{t("meetings.dialIn.number")}</dt>
-            <dd className="min-w-0 text-right text-body tabular-nums text-foreground">{data.number}</dd>
+            <dd className="flex min-w-0 items-center gap-1">
+              {/* tel: dials on a phone; the spaces are for reading, not dialling. */}
+              <a
+                href={`tel:${data.number.replace(/[^\d+]/g, "")}`}
+                className="min-w-0 text-right text-body tabular-nums text-foreground underline-offset-4 hover:underline"
+              >
+                {data.number}
+              </a>
+              <CopyValue value={data.number} label={t("meetings.dialIn.copyNumber")} />
+            </dd>
           </div>
-          <div className="flex items-baseline justify-between gap-3 py-2">
+          <div className="flex items-center justify-between gap-3 py-1.5">
             <dt className="shrink-0 text-label text-muted-foreground">{t("meetings.dialIn.pin")}</dt>
-            <dd className="min-w-0 text-right text-body font-medium tabular-nums tracking-widest text-foreground">
-              {data.pin}
+            <dd className="flex min-w-0 items-center gap-1">
+              <span className="text-right text-body font-medium tabular-nums tracking-widest text-foreground">{data.pin}</span>
+              <CopyValue value={data.pin} label={t("meetings.dialIn.copyPin")} />
             </dd>
           </div>
         </dl>
