@@ -7,6 +7,7 @@
 import * as Notifications from "expo-notifications";
 import * as SecureStore from "expo-secure-store";
 import type { ApiClient } from "./api";
+import { createLogger } from "./logger";
 
 const PUSH_PREF_KEY = "push_enabled";
 
@@ -19,6 +20,8 @@ interface RegisterPushOptions {
   /** Platform.OS, passed in so this module stays free of react-native */
   platform: string;
 }
+
+const log = createLogger("push");
 
 let registeredToken: string | null = null;
 let skipLogged = false;
@@ -38,7 +41,7 @@ export async function registerPushToken({ api, projectId, platform }: RegisterPu
   if (!projectId) {
     if (!skipLogged) {
       skipLogged = true;
-      console.info("[push] no EAS projectId in app config; push registration skipped");
+      log.info("no EAS projectId in app config; push registration skipped");
     }
     return null;
   }
@@ -85,4 +88,14 @@ export async function unregisterPushToken(api: PushApi): Promise<void> {
   if (!token) return;
   registeredToken = null;
   await api.unsubscribePush({ endpoint: token });
+}
+
+/**
+ * A sign-out the server already made (refresh expired, device revoked): no
+ * session is left to authorize the unsubscribe, so only this process forgets
+ * the token; the server stops pushing to an ended device session on its own
+ * (ListDeliverablePushSubscriptions), and the next sign-in registers afresh.
+ */
+export function forgetPushToken(): void {
+  registeredToken = null;
 }

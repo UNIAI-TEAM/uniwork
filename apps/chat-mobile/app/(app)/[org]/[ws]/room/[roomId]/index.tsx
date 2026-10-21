@@ -17,6 +17,7 @@ import { useChatWorkspace, type ChatWorkspace } from "@/components/chat/use-chat
 import { useRoomReadMarking } from "@/components/chat/use-read-marking";
 import { useRoomContext } from "@/components/chat/use-room-context";
 import { Text } from "@/components/ui/text";
+import { useMobileFlag } from "@/data/remote-config";
 import { callEngine } from "@/data/calls/call-store";
 import { refreshRoomTimelineOnOpen } from "@/data/chat-timeline";
 import { roomAroundOptions, roomTimelineOptions, roomsOptions } from "@/data/queries/chat";
@@ -61,7 +62,9 @@ function RoomConversation({ chat, roomId, linkedMessageId }: { chat: ChatWorkspa
   useRoomReadMarking(chat.wsId, roomId, latestRows.at(-1)?.id ?? null, atLatest && anchorRows === null);
 
   // The web's chat header calls from a DM, a group or a channel, never from the workspace room.
-  const callable = room.room && ["dm", "group", "channel"].includes(room.room.kind) && !isDefaultWorkspaceChannel(room.room);
+  // ...and only while the server's calls switch is on (data/remote-config.ts).
+  const callsOn = useMobileFlag("unichat_mobile_calls");
+  const callable = callsOn && room.room && ["dm", "group", "channel"].includes(room.room.kind) && !isDefaultWorkspaceChannel(room.room);
   const call = (withCamera: boolean) => void callEngine.startCall(roomId, room.title, voiceCallKindFromServer(room.room?.kind), { withCamera });
 
   const backToLatest = () => {

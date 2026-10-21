@@ -29,9 +29,16 @@ vi.mock("../api", () => {
   return { api: apiMock, ApiError };
 });
 
+const pushMock = vi.hoisted(() => ({
+  unregisterPushToken: vi.fn<(api: unknown) => Promise<void>>(async () => undefined),
+  forgetPushToken: vi.fn(),
+}));
+vi.mock("../push", () => pushMock);
+
 import { ApiError } from "../api";
+import { installReportSink } from "../report";
 import { useChatSendStore } from "../stores/chat-send-store";
-import { useAuthStore } from "./store";
+import { PUSH_UNREGISTER_BUDGET_MS, useAuthStore } from "./store";
 
 const user = {
   id: "u1",
@@ -137,5 +144,55 @@ describe("auth store", () => {
     await useAuthStore.getState().logout();
     expect(queryClear).toHaveBeenCalledTimes(1);
     expect(useChatSendStore.getState().entries).toEqual([]);
+  });
+
+  it("every sign-out drops the push subscription first, while the session can still authorize it", async () => {
+    const order: string[] = [];
+    pushMock.unregisterPushToken.mockImplementation(async () => {
+      order.push("unsubscribe");
+    });
+    sessionMock.logout.mockImplementation(async () => {
+      order.push("session");
+    });
+    await useAuthStore.getState().logout();
+    expect(pushMock.unregisterPushToken).toHaveBeenCalledWith(apiMock);
+    expect(order).toEqual(["unsubscribe", "session"]);
+  });
+
+  it("a sign-out the server made (session already over) forgets the token without a call it could not authorize", async () => {
+    sessionMock.status.mockReturnValue("signed-out");
+    await useAuthStore.getState().logout();
+    expect(pushMock.forgetPushToken).toHaveBeenCalledTimes(1);
+    expect(pushMock.unregisterPushToken).not.toHaveBeenCalled();
+    expect(sessionMock.logout).toHaveBeenCalledTimes(1);
+  });
+
+  it("a failed or hanging unsubscribe never holds the sign-out up past its budget", async () => {
+    pushMock.unregisterPushToken.mockRejectedValueOnce(new Error("offline"));
+    await useAuthStore.getState().logout();
+    expect(sessionMock.logout).toHaveBeenCalledTimes(1);
+
+    vi.useFakeTimers();
+    try {
+      pushMock.unregisterPushToken.mockImplementationOnce(() => new Promise<void>(() => {}));
+      const done = useAuthStore.getState().logout();
+      await vi.advanceTimersByTimeAsync(PUSH_UNREGISTER_BUDGET_MS);
+      await done;
+      expect(sessionMock.logout).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("names the signed-in person to crash reporting by id only, and forgets them on sign-out", async () => {
+    const setUser = vi.fn();
+    installReportSink({ captureException: vi.fn(), addBreadcrumb: vi.fn(), setUser, setTag: vi.fn() });
+    try {
+      await useAuthStore.getState().initialize();
+      await useAuthStore.getState().logout();
+      expect(setUser.mock.calls).toEqual([["u1"], [null]]);
+    } finally {
+      installReportSink(null);
+    }
   });
 });

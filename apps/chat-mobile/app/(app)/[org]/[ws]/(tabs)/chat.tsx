@@ -11,7 +11,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { router, useLocalSearchParams } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Alert, FlatList, Pressable, RefreshControl, View } from "react-native";
+import { FlatList, Pressable, RefreshControl, View } from "react-native";
 import { CatchUpBanner, CatchUpSheet, type CatchUpTarget } from "@/components/chat/catch-up-sheet";
 import { FilterChips, RoomListEmpty, RoomListError, RoomListSkeleton, ScopeHint, ScopeSwitch, WorkspacePill } from "@/components/chat/room-list-parts";
 import { RoomPreview } from "@/components/chat/room-preview";
@@ -36,6 +36,8 @@ import { buildRoomList, filterRoomList, type RoomListFilter, type RoomListRow } 
 import { THEME } from "@/lib/theme";
 import { useColorScheme } from "@/lib/use-color-scheme";
 import { unreadInOtherWorkspaces } from "@/lib/workspace-unread";
+import { readMobileFlag } from "@/data/remote-config";
+import { toast } from "@/data/stores/toast-store";
 
 /** Opens the room a deep link names, once per link. */
 function useDeepLinkTarget(chat: ChatWorkspace | null) {
@@ -56,6 +58,12 @@ function useDeepLinkTarget(chat: ChatWorkspace | null) {
     router.setParams({ room: undefined, message: undefined, dm: undefined, call: undefined });
     // A "X đang gọi" push: answer while it rings, else the room, where the missed call is logged.
     if (room && call) {
+      // With the server's calls switch off the push opens the room, where the call is logged.
+      if (!readMobileFlag(qc, "unichat_mobile_calls")) {
+        toast.info(t("mobile.calls.disabled"));
+        router.push(chatRoutes.room(chat, room));
+        return;
+      }
       void callEngine.joinFromPush(room, call).then((joined) => {
         if (!joined) router.push(chatRoutes.room(chat, room));
       });
@@ -69,9 +77,9 @@ function useDeepLinkTarget(chat: ChatWorkspace | null) {
       resolveDMRoom(qc, chat.wsId, dm)
         .then((resolved) => {
           if (resolved) router.push(chatRoutes.room(chat, resolved.id));
-          else Alert.alert(t("chat.dm_failed"));
+          else toast.error(t("chat.dm_failed"));
         })
-        .catch(() => Alert.alert(t("chat.dm_failed")));
+        .catch(() => toast.error(t("chat.dm_failed")));
     }
   }, [chat, params, qc, t]);
 }
@@ -154,7 +162,7 @@ export default function ChatTab() {
       if (row.entry.kind !== "dm") return;
       resolveDMRoom(qc, chat.wsId, row.entry.contact.user_id)
         .then((room) => room && router.push(chatRoutes.room(chat, room.id)))
-        .catch(() => Alert.alert(t("chat.dm_failed")));
+        .catch(() => toast.error(t("chat.dm_failed")));
     },
     [chat, qc, t],
   );
@@ -174,7 +182,7 @@ export default function ChatTab() {
         key: "mute",
         label: muted ? t("chat.mobile.unmute_notifications") : t("chat.settings_mute_notifications"),
         icon: muted ? "notifications-outline" : "notifications-off-outline",
-        onPress: () => void setRoomMuted(qc, chat.wsId, roomId, !muted).catch(() => Alert.alert(t("common.error"))),
+        onPress: () => void setRoomMuted(qc, chat.wsId, roomId, !muted).catch(() => toast.error(t("common.error"))),
       });
     }
   }

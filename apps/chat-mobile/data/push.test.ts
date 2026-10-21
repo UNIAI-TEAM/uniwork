@@ -36,8 +36,13 @@ beforeEach(() => {
   store.values.clear();
   store.failRead = false;
   vi.spyOn(console, "info").mockImplementation(() => undefined);
+  // data/logger.ts writes to the console in a development build only.
+  (globalThis as { __DEV__?: boolean }).__DEV__ = true;
 });
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => {
+  delete (globalThis as { __DEV__?: boolean }).__DEV__;
+  vi.restoreAllMocks();
+});
 
 describe("registerPushToken", () => {
   it("skips registration without an EAS projectId and logs once", async () => {
@@ -89,6 +94,14 @@ describe("unregisterPushToken", () => {
     await unregisterPushToken(api);
     expect(api.unsubscribePush).toHaveBeenCalledTimes(1);
     expect(api.unsubscribePush).toHaveBeenCalledWith({ endpoint: "ExponentPushToken[abc]" });
+  });
+
+  it("forgets the token without a call after a sign-out the server made", async () => {
+    const { forgetPushToken, registerPushToken, unregisterPushToken } = await load();
+    await registerPushToken({ api, projectId: "p1", platform: "ios" });
+    forgetPushToken();
+    await unregisterPushToken(api);
+    expect(api.unsubscribePush).not.toHaveBeenCalled();
   });
 });
 

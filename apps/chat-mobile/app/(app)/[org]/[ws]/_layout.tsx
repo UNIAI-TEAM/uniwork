@@ -2,11 +2,13 @@
 // is the source of truth: validated against the workspace list, synced into
 // the store, and the realtime socket lives for the workspace session.
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Redirect, Stack, useLocalSearchParams } from "expo-router";
+import { Redirect, Stack, useLocalSearchParams, type ErrorBoundaryProps } from "expo-router";
 import { useEffect, useMemo } from "react";
+import { ErrorFallback } from "@/components/ui/error-fallback";
 import { session } from "@/data/auth/flow";
 import { useAuthStore } from "@/data/auth/store";
 import { workspaceListOptions } from "@/data/queries/workspaces";
+import { useRemoteConfigOrganization } from "@/data/remote-config";
 import { RealtimeProvider } from "@/data/realtime/realtime-provider";
 import { useCallRealtime } from "@/data/realtime/use-call-realtime";
 import { useChatRealtime } from "@/data/realtime/use-chat-realtime";
@@ -16,6 +18,11 @@ import { useWSSubscriptions } from "@/lib/use-ws-subscriptions";
 
 /** A cold-start deep link mounts the tabs under the target, so back has somewhere to go. */
 export const unstable_settings = { anchor: "(tabs)" } as const;
+
+/** A crash inside one workspace keeps the shell (and a call's overlay) and offers a retry. */
+export function ErrorBoundary(props: ErrorBoundaryProps) {
+  return <ErrorFallback {...props} boundary="workspace" />;
+}
 
 /** Workspace-wide subscriptions; feature hooks join them here. */
 function RealtimeSubscriptions({ wsId }: { wsId: string }) {
@@ -42,6 +49,8 @@ export default function WorkspaceLayout() {
   const tokens = useMemo(() => socketTokenReaders(session), []);
 
   const matched = workspaces?.find((w) => w.organization_slug === org && w.slug === ws);
+  // The kill switches are evaluated for this workspace's organization (data/remote-config.ts).
+  useRemoteConfigOrganization(matched?.organization_id ?? null);
 
   useEffect(() => {
     if (matched) void setCurrent({ orgSlug: matched.organization_slug, wsSlug: matched.slug, wsId: matched.id });

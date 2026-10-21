@@ -12,10 +12,8 @@ import { Button } from "@/components/ui/button";
 import { CardPressable } from "@/components/ui/card";
 import { Text } from "@/components/ui/text";
 import { WorkspaceAvatar } from "@/components/workspace/workspace-avatar";
-import { api } from "@/data/api";
 import { unreadSummaryOptions } from "@/data/queries/chat";
 import { useAuthStore } from "@/data/auth/store";
-import { unregisterPushToken } from "@/data/push";
 import { workspaceListOptions } from "@/data/queries/workspaces";
 import { useWorkspaceStore } from "@/data/stores/workspace-store";
 import { THEME } from "@/lib/theme";
@@ -34,11 +32,6 @@ export default function SelectWorkspace() {
   const onSelect = async (ws: Workspace) => {
     await setCurrent({ orgSlug: ws.organization_slug, wsSlug: ws.slug, wsId: ws.id });
     router.replace(`/${ws.organization_slug}/${ws.slug}/chat`);
-  };
-
-  const onLogout = async () => {
-    await unregisterPushToken(api).catch(() => undefined);
-    await logout();
   };
 
   const organization = data?.[0]?.organization_name;
@@ -107,7 +100,7 @@ export default function SelectWorkspace() {
           </View>
         )}
         <View className="border-t border-border pt-5">
-          <Button variant="outline" className="h-12 rounded-full sm:h-12" onPress={() => void onLogout()}>
+          <Button variant="outline" className="h-12 rounded-full sm:h-12" onPress={() => void logout()}>
             <Ionicons name="log-out-outline" size={18} color={THEME[colorScheme].foreground} />
             <Text className="text-[15px] font-semibold">{t("auth.logout")}</Text>
           </Button>

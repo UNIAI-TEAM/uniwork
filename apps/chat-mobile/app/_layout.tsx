@@ -1,36 +1,55 @@
 // Ported from usf apps/mobile/app/_layout.tsx without Keyboard / Lightbox /
 // session-activity: the root providers, the 401 teardown, deep links and the
-// notification tap, all above the Stack.
+// notification tap, all above the Stack. UNI-2053 adds crash reporting (the
+// SDK first, the boundary below), the build's identity on every request, the
+// "Update required" gate above everything, and the toasts.
 import "../global.css";
 
 import { registerGlobals } from "@livekit/react-native";
 import { PortalHost } from "@rn-primitives/portal";
+import * as Sentry from "@sentry/react-native";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { configureRuntime, runtimeConfig } from "@uniwork/core/runtime-config";
 import Constants from "expo-constants";
 import * as Linking from "expo-linking";
 import * as Notifications from "expo-notifications";
-import { Stack, ThemeProvider, router } from "expo-router";
+import { Stack, ThemeProvider, router, useNavigationContainerRef, type ErrorBoundaryProps } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useRef, type ReactNode } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import { UpdateGate } from "@/components/app/update-gate";
+import { ErrorFallback } from "@/components/ui/error-fallback";
+import { ToastHost } from "@/components/ui/toast-host";
 import { api } from "@/data/api";
 import { isAuthCallbackUrl } from "@/data/auth/callback";
 import { authConfig, session } from "@/data/auth/flow";
 import { useAuthStore } from "@/data/auth/store";
+import { buildInfo } from "@/data/build-info";
 import { queryClient } from "@/data/query-client";
+import { initSentry, sentryNavigation } from "@/data/sentry";
 import { useWorkspaceStore } from "@/data/stores/workspace-store";
+import { clientHeaders } from "@/lib/build-info";
 import { deepLinkHref, parseDeepLink, setPendingDeepLink } from "@/lib/deep-link";
 import { I18nProvider } from "@/lib/i18n/provider";
-import { runtimeFromExtra } from "@/lib/runtime-extra";
+import { appEnvironment, runtimeFromExtra, sentryDsn } from "@/lib/runtime-extra";
 import { NAV_THEME } from "@/lib/theme";
 import { useColorScheme } from "@/lib/use-color-scheme";
 
+const extra = Constants.expoConfig?.extra;
+// Crash reporting first, so the rest of boot is covered; nothing starts without a DSN.
+initSentry({ dsn: sentryDsn(extra), environment: appEnvironment(extra), info: buildInfo() });
 // Before the first request: every data/* module reads runtimeConfig() per call.
-configureRuntime(runtimeFromExtra(Constants.expoConfig?.extra));
+configureRuntime(runtimeFromExtra(extra));
+// Every REST call names the build (X-Client-Version / -OS / -Update-Id); the socket does in realtime-provider.
+api.setClientIdentity(clientHeaders(buildInfo()));
 // WebRTC globals for LiveKit, once, before any call (M3).
 registerGlobals();
+
+/** A render crash anywhere: a retry screen instead of a white one, reported (components/ui/error-fallback.tsx). */
+export function ErrorBoundary(props: ErrorBoundaryProps) {
+  return <ErrorFallback {...props} boundary="root" />;
+}
 
 /** A URL from the OS: the PKCE callback completes the sign-in; a chat link waits
  *  for one, or is pushed only when expo-router did not already route it
@@ -95,23 +114,31 @@ function AuthInitializer({ children }: { children: ReactNode }) {
   return children;
 }
 
-export default function RootLayout() {
+function RootLayout() {
   const { colorScheme, isDarkColorScheme } = useColorScheme();
+  // Screen loads and app start as Sentry spans (no-op without a DSN).
+  const navigationRef = useNavigationContainerRef();
+  useEffect(() => {
+    sentryNavigation.registerNavigationContainer(navigationRef);
+  }, [navigationRef]);
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <I18nProvider>
         <SafeAreaProvider>
           <QueryClientProvider client={queryClient}>
             <ThemeProvider value={NAV_THEME[colorScheme]}>
-              <AuthInitializer>
-                <StatusBar style={isDarkColorScheme ? "light" : "dark"} />
-                <Stack screenOptions={{ headerShown: false }}>
-                  <Stack.Screen name="index" />
-                  <Stack.Screen name="(auth)" />
-                  <Stack.Screen name="(app)" />
-                </Stack>
-                <PortalHost />
-              </AuthInitializer>
+              <StatusBar style={isDarkColorScheme ? "light" : "dark"} />
+              <UpdateGate>
+                <AuthInitializer>
+                  <Stack screenOptions={{ headerShown: false }}>
+                    <Stack.Screen name="index" />
+                    <Stack.Screen name="(auth)" />
+                    <Stack.Screen name="(app)" />
+                  </Stack>
+                  <PortalHost />
+                </AuthInitializer>
+              </UpdateGate>
+              <ToastHost />
             </ThemeProvider>
           </QueryClientProvider>
         </SafeAreaProvider>
@@ -119,3 +146,6 @@ export default function RootLayout() {
     </GestureHandlerRootView>
   );
 }
+
+// Sentry's root wrapper: touch breadcrumbs and the app-start span; a pass-through without a DSN.
+export default Sentry.wrap(RootLayout);

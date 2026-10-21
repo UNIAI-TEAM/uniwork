@@ -19,6 +19,7 @@ import { useRoomContext } from "@/components/chat/use-room-context";
 import { PersonAvatar } from "@/components/people/person-avatar";
 import { SearchField } from "@/components/ui/search-field";
 import { Text } from "@/components/ui/text";
+import { useMobileFlag } from "@/data/remote-config";
 import { callEngine } from "@/data/calls/call-store";
 import { leaveRoom, setRoomMuted } from "@/data/chat-actions";
 import type { ChatSharedSummary } from "@/data/chat-api";
@@ -34,6 +35,7 @@ import { formatMessageDay, toTimelineMessage } from "@/lib/timeline-display";
 import { useColorScheme } from "@/lib/use-color-scheme";
 import { cn } from "@/lib/utils";
 import { voiceCallKindFromServer } from "@/lib/voice-call";
+import { toast } from "@/data/stores/toast-store";
 
 /** Members shown before "Xem tất cả" (the board lists four). */
 const MEMBERS_PREVIEW = 5;
@@ -156,7 +158,8 @@ function RoomInfo({ chat, roomId }: { chat: ChatWorkspace; roomId: string }) {
   const shared = useQuery(sharedSummaryOptions(chat.wsId, roomId)).data;
   const muted = room.room?.notifications_muted === true;
   const canLeave = room.room !== null && !isDefaultWorkspaceChannel(room.room);
-  const callable = room.room !== null && ["dm", "group", "channel"].includes(room.room.kind) && !isDefaultWorkspaceChannel(room.room);
+  const callsOn = useMobileFlag("unichat_mobile_calls");
+  const callable = callsOn && room.room !== null && ["dm", "group", "channel"].includes(room.room.kind) && !isDefaultWorkspaceChannel(room.room);
   const isGroup = room.room?.kind === "group";
   const isOnline = (userId: string) => Boolean(online[userId.trim().toUpperCase()]);
   const memberCount = room.members.length || (room.room?.member_count ?? 0);
@@ -185,7 +188,7 @@ function RoomInfo({ chat, roomId }: { chat: ChatWorkspace; roomId: string }) {
         onPress: () =>
           void leaveRoom(qc, chat.wsId, roomId)
             .then(() => router.dismissAll())
-            .catch(() => Alert.alert(t("chat.leave_conversation_failed"))),
+            .catch(() => toast.error(t("chat.leave_conversation_failed"))),
       },
     ]);
 
@@ -206,7 +209,7 @@ function RoomInfo({ chat, roomId }: { chat: ChatWorkspace; roomId: string }) {
             <QuickAction
               icon={muted ? "notifications-outline" : "notifications-off-outline"}
               label={muted ? t("chat.mobile.unmute_notifications") : t("chat.settings_mute_notifications")}
-              onPress={() => void setRoomMuted(qc, chat.wsId, roomId, !muted).catch(() => Alert.alert(t("common.error")))}
+              onPress={() => void setRoomMuted(qc, chat.wsId, roomId, !muted).catch(() => toast.error(t("common.error")))}
             />
             <QuickAction icon="search" label={t("chat.mobile.search_short")} accessibilityLabel={t("chat.search_messages")} onPress={() => searchInput.current?.focus()} />
             {callable ? (

@@ -40,9 +40,15 @@ module.exports = {
     "components/chat/message-row.tsx",
     "components/chat/room-row.tsx",
     "components/calls/call-overlay.tsx",
+    // UNI-2053: the crash screen, the toasts, the update gate and Settings › About.
+    "components/ui/error-fallback.tsx",
+    "components/ui/toast-host.tsx",
+    "components/app/update-gate.tsx",
+    "components/settings/about-section.tsx",
   ],
   coverageReporters: ["text-summary"],
-  // Measured on the files above when the layer landed; only ever raised
-  // (CLAUDE.md › Coverage only goes up). Blocks at every GATE_LEVEL (ADR 0037).
-  coverageThreshold: { global: { statements: 96, branches: 89, functions: 93, lines: 98 } },
+  // Measured on the files above; only ever raised (CLAUDE.md › Coverage only
+  // goes up). Blocks at every GATE_LEVEL (ADR 0037). Raised with UNI-2053's
+  // four components (97.2 / 90.05 / 94.8 / 99.1).
+  coverageThreshold: { global: { statements: 97, branches: 90, functions: 94, lines: 99 } },
 };

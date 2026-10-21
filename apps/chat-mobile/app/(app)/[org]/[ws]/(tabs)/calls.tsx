@@ -19,6 +19,7 @@ import { Text } from "@/components/ui/text";
 import { useAuthStore } from "@/data/auth/store";
 import { callLogsOptions, type CallLog } from "@/data/queries/call-logs";
 import { chatNicknamesOptions } from "@/data/queries/contacts";
+import { useMobileFlag } from "@/data/remote-config";
 import { callEngine } from "@/data/calls/call-store";
 import { useWorkspaceStore } from "@/data/stores/workspace-store";
 import { callLogSections, callLogTitle, callLogView, formatCallClock, formatCallTime, type CallLogFilter } from "@/lib/call-log-display";
@@ -43,6 +44,8 @@ function CallRow({ log, userId, nicknames, onPress }: { log: CallLog; userId: st
   const { t, i18n } = useTranslation();
   const { colorScheme } = useColorScheme();
   const theme = THEME[colorScheme];
+  // The server's kill switch (data/remote-config.ts): off keeps the history, hides calling back.
+  const callsOn = useMobileFlag("unichat_mobile_calls");
   const view = callLogView(log, userId);
   const title = callLogTitle(log, nicknames);
   const label = t(view.labelKey, view.labelParams);
@@ -77,16 +80,18 @@ function CallRow({ log, userId, nicknames, onPress }: { log: CallLog; userId: st
         </View>
       </View>
       <Text className="text-[13px] text-muted-foreground">{time}</Text>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`${t("chat.voice_call_call_back")} ${title}`}
-        testID="calls-row-callback"
-        hitSlop={4}
-        onPress={() => void callEngine.startCall(log.room_id, title, voiceCallKindFromServer(log.room_kind), { withCamera: log.video })}
-        className="h-11 w-11 items-center justify-center rounded-full active:bg-secondary"
-      >
-        <Ionicons name={log.video ? "videocam-outline" : "call-outline"} size={22} color={theme.primary} />
-      </Pressable>
+      {callsOn ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`${t("chat.voice_call_call_back")} ${title}`}
+          testID="calls-row-callback"
+          hitSlop={4}
+          onPress={() => void callEngine.startCall(log.room_id, title, voiceCallKindFromServer(log.room_kind), { withCamera: log.video })}
+          className="h-11 w-11 items-center justify-center rounded-full active:bg-secondary"
+        >
+          <Ionicons name={log.video ? "videocam-outline" : "call-outline"} size={22} color={theme.primary} />
+        </Pressable>
+      ) : null}
     </Pressable>
   );
 }

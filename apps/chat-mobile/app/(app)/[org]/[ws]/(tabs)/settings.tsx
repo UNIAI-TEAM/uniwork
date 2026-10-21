@@ -1,16 +1,16 @@
 // Ported from usf apps/mobile/app/(app)/[workspace]/more/settings.tsx. The
 // settings tab: the account (read only), the workspace and a way to switch it,
-// push for this device, the signed-in devices, theme, language, the build, and
-// sign out.
+// push for this device, the signed-in devices, theme, language, About (the
+// build, its channel and update), and sign out.
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
-import Constants from "expo-constants";
 import { router } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { useState } from "react";
 import { Pressable, ScrollView, View } from "react-native";
 import { useWorkspaceSlugs } from "@/components/chat/use-chat-workspace";
 import { PersonAvatar } from "@/components/people/person-avatar";
+import { AboutSection } from "@/components/settings/about-section";
 import { DevicesSection } from "@/components/settings/devices-section";
 import { PushSection } from "@/components/settings/push-section";
 import { SettingsSection } from "@/components/settings/settings-section";
@@ -19,9 +19,7 @@ import { Header } from "@/components/ui/header";
 import { Text } from "@/components/ui/text";
 import { WorkspaceAvatar } from "@/components/workspace/workspace-avatar";
 import { WorkspaceSwitchSheet } from "@/components/workspace/workspace-switch-sheet";
-import { api } from "@/data/api";
 import { useAuthStore } from "@/data/auth/store";
-import { unregisterPushToken } from "@/data/push";
 import { workspaceListOptions } from "@/data/queries/workspaces";
 import { useLocalePreference } from "@/lib/i18n/provider";
 import type { SupportedLocale } from "@/lib/i18n/singleton";
@@ -105,11 +103,6 @@ export default function SettingsTab() {
   const [switchOpen, setSwitchOpen] = useState(false);
   const name = user?.display_name.trim() || user?.email || "";
 
-  const onLogout = async () => {
-    await unregisterPushToken(api).catch(() => undefined);
-    await logout();
-  };
-
   return (
     <View className="flex-1 bg-muted dark:bg-background">
       {/* shortcut: Header takes no className, so its band stays bg-background over the grouped page; pass the page colour once it does. */}
@@ -154,18 +147,17 @@ export default function SettingsTab() {
         <DevicesSection />
         <OptionGroup title={t("settings.preferences.theme")} options={THEME_OPTIONS} value={preference} onChange={setPreference} />
         <OptionGroup title={t("settings.preferences.language")} options={LOCALE_OPTIONS} value={locale} onChange={setLocale} />
+        <AboutSection />
         <View className="gap-3.5 pt-1">
           <Button
             variant="destructive"
             className="h-12 rounded-full bg-destructive-solid active:opacity-90 sm:h-12 dark:bg-destructive-solid"
-            onPress={() => void onLogout()}
+            // logout() drops this phone's push subscription first (data/auth/store.ts).
+            onPress={() => void logout()}
           >
             <Ionicons name="log-out-outline" size={18} color={THEME.light.primaryForeground} />
             <Text className="text-base font-semibold">{t("auth.logout")}</Text>
           </Button>
-          <Text className="text-center text-xs text-muted-foreground">
-            {t("mobile.settings.version", { version: Constants.expoConfig?.version ?? "" })}
-          </Text>
         </View>
       </ScrollView>
       <WorkspaceSwitchSheet visible={switchOpen} onClose={() => setSwitchOpen(false)} currentWsId={workspace?.id ?? ""} />
