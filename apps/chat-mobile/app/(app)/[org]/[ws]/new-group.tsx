@@ -9,7 +9,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { router, Stack, useLocalSearchParams } from "expo-router";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ActivityIndicator, Alert, FlatList, KeyboardAvoidingView, Pressable, ScrollView, TextInput, View } from "react-native";
+import { ActivityIndicator, FlatList, KeyboardAvoidingView, Pressable, ScrollView, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ChatHeader } from "@/components/chat/chat-header";
 import { useChatWorkspace, type ChatWorkspace } from "@/components/chat/use-chat-workspace";
@@ -26,6 +26,7 @@ import { foldedIncludes } from "@/lib/search-fold";
 import { THEME } from "@/lib/theme";
 import { useColorScheme } from "@/lib/use-color-scheme";
 import { cn } from "@/lib/utils";
+import { toast } from "@/data/stores/toast-store";
 
 /** The fewest others a new group takes (chat.create_group_description). */
 const GROUP_MIN_OTHERS = 2;
@@ -72,7 +73,7 @@ function NewGroup({ chat, roomId }: { chat: ChatWorkspace; roomId: string | null
           void qc.invalidateQueries({ queryKey: chatKeys.rooms(chat.wsId) });
           router.replace(chatRoutes.room(chat, room.id));
         });
-    run.catch(() => Alert.alert(t("common.error"))).finally(() => setBusy(false));
+    run.catch(() => toast.error(t("common.error"))).finally(() => setBusy(false));
   };
 
   return (

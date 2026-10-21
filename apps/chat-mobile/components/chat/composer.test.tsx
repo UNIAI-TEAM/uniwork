@@ -1,7 +1,8 @@
 import { act, fireEvent, screen } from "@testing-library/react-native";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
-import { Alert, Platform } from "react-native";
+import { Platform } from "react-native";
+import { toast } from "@/data/stores/toast-store";
 import type { ChatMentionCandidate } from "@/lib/mentions";
 import { render, viText } from "@/test/render";
 import { Composer } from "./composer";
@@ -48,7 +49,8 @@ beforeEach(() => {
   mockVoice();
   // The attach sheet runs a choice after iOS reports the modal gone (useAfterDismiss); Android runs it at once.
   jest.replaceProperty(Platform, "OS", "android");
-  jest.spyOn(Alert, "alert").mockImplementation(() => {});
+  // Failures are toasts now (data/stores/toast-store.ts), not blocking alerts.
+  jest.spyOn(toast, "error").mockImplementation(() => 0);
 });
 afterEach(() => jest.restoreAllMocks());
 
@@ -175,10 +177,10 @@ describe("Composer", () => {
     await render(<Composer {...props()} />);
     await fireEvent.press(screen.getByRole("button", { name: viText("chat.voice_message") }));
     expect(start).toHaveBeenCalled();
-    expect(Alert.alert).toHaveBeenCalledWith(viText("chat.voice_record_failed"));
+    expect(toast.error).toHaveBeenCalledWith(viText("chat.voice_record_failed"));
     mockVoice({ start: jest.fn(async () => Promise.reject(new Error("busy"))) });
     await fireEvent.press(screen.getByRole("button", { name: viText("chat.voice_message") }));
-    expect(Alert.alert).toHaveBeenCalledTimes(2);
+    expect(toast.error).toHaveBeenCalledTimes(2);
   });
 
   it("opens stickers from the field and the attach sheet's other entries", async () => {
@@ -206,11 +208,11 @@ describe("Composer", () => {
 
     pick.mockResolvedValueOnce({ canceled: false, assets: [{ ...asset, fileName: "virus.exe", mimeType: "application/x-msdownload" }] } as never);
     await photo();
-    expect(Alert.alert).toHaveBeenLastCalledWith(viText("chat.file_type_unsupported"));
+    expect(toast.error).toHaveBeenLastCalledWith(viText("chat.file_type_unsupported"));
 
     pick.mockResolvedValueOnce({ canceled: false, assets: [{ ...asset, fileSize: 30 * 1024 * 1024 }] } as never);
     await photo();
-    expect(Alert.alert).toHaveBeenLastCalledWith(viText("chat.file_too_large", { max: "25 MB" }));
+    expect(toast.error).toHaveBeenLastCalledWith(viText("chat.file_too_large", { max: "25 MB" }));
 
     pick.mockResolvedValueOnce({ canceled: true, assets: null } as never);
     await photo();

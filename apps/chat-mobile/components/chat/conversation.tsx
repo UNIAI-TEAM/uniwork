@@ -59,6 +59,7 @@ import { TypingBubble } from "./typing-bubble";
 const WALL_DOTS = { light: wallDotsLight, dark: wallDotsDark };
 import type { ChatWorkspace } from "./use-chat-workspace";
 import type { useRoomContext } from "./use-room-context";
+import { toast } from "@/data/stores/toast-store";
 
 interface Props {
   chat: ChatWorkspace;
@@ -121,7 +122,7 @@ export function Conversation(props: Props) {
   };
   const seenByOf = (message: TimelineMessage | null) => (message?.record && receiptsOn ? seenByMembers(message.record, room.members, message.sender) : []);
 
-  const failed = useCallback(() => Alert.alert(t("common.error")), [t]);
+  const failed = useCallback(() => toast.error(t("common.error")), [t]);
 
   const ctx: MessageCardContext = useMemo(
     () => ({
@@ -131,7 +132,7 @@ export function Conversation(props: Props) {
       roomId,
       userId,
       onOpenImage: (url, name, messageId) => setImage({ id: messageId ?? url, url, name }),
-      onVotePoll: (messageId, optionId) => void votePoll(qc, wsId, roomId, messageId, optionId).catch(() => Alert.alert(t("chat.message_list.poll_vote_failed"))),
+      onVotePoll: (messageId, optionId) => void votePoll(qc, wsId, roomId, messageId, optionId).catch(() => toast.error(t("chat.message_list.poll_vote_failed"))),
     }),
     [wsId, chat.orgSlug, chat.wsSlug, roomId, userId, qc, t],
   );
@@ -192,7 +193,7 @@ export function Conversation(props: Props) {
         onPressQuote={props.onQuoteJump}
         onPressThread={(m) => router.push(chatRoutes.thread(chat, roomId, m.id))}
         onPressPending={setActionMessage}
-        onToggleReaction={(m, emoji) => void toggleReaction(qc, wsId, roomId, m.id, emoji).catch(() => Alert.alert(t("chat.message_list.react_failed")))}
+        onToggleReaction={(m, emoji) => void toggleReaction(qc, wsId, roomId, m.id, emoji).catch(() => toast.error(t("chat.message_list.react_failed")))}
       />
     );
     if (message.id !== threadRootId)
@@ -269,7 +270,7 @@ export function Conversation(props: Props) {
         onSendFile={sendFile}
         onEdit={(messageId, body) => {
           setEdit(null);
-          void editMessage(qc, wsId, roomId, messageId, body).catch(() => Alert.alert(t("chat.message_list.edit_failed")));
+          void editMessage(qc, wsId, roomId, messageId, body).catch(() => toast.error(t("chat.message_list.edit_failed")));
         }}
         onTyping={() => void chatApi.signalTyping(wsId, roomId).catch(() => undefined)}
         onSendVoice={(clip) => {
@@ -277,7 +278,7 @@ export function Conversation(props: Props) {
           // A clip is not queued like text: a failed send says so and gives the quote back.
           void sendVoiceMessage(qc, wsId, roomId, { ...clip, replyToMessageId: takeReply() }).catch(() => {
             setReply((current) => current ?? quote);
-            Alert.alert(t("chat.voice_record_failed"));
+            toast.error(t("chat.voice_record_failed"));
           });
         }}
         onOpenExpressions={() => setSheet("expressions")}
@@ -287,7 +288,7 @@ export function Conversation(props: Props) {
       <ReminderSheet
         visible={sheet === "reminder"}
         onClose={() => setSheet(null)}
-        onCreate={(input) => void sendReminder(qc, wsId, roomId, input).catch(() => Alert.alert(t("chat.reminder_create_failed")))}
+        onCreate={(input) => void sendReminder(qc, wsId, roomId, input).catch(() => toast.error(t("chat.reminder_create_failed")))}
       />
       <MessageActionsSheet
         message={actionMessage}
@@ -298,7 +299,7 @@ export function Conversation(props: Props) {
         inThread={Boolean(threadRootId)}
         followUp={actionMessage ? openFollowUp(actionMessage.id) : null}
         onClose={() => setActionMessage(null)}
-        onReact={(m, emoji) => void toggleReaction(qc, wsId, roomId, m.id, emoji).catch(() => Alert.alert(t("chat.message_list.react_failed")))}
+        onReact={(m, emoji) => void toggleReaction(qc, wsId, roomId, m.id, emoji).catch(() => toast.error(t("chat.message_list.react_failed")))}
         onReply={(m) => {
           setEdit(null);
           setReply(quoteOf(m));
@@ -315,7 +316,7 @@ export function Conversation(props: Props) {
             {
               text: t("chat.action_delete"),
               style: "destructive",
-              onPress: () => void deleteMessage(qc, wsId, roomId, m.id).catch(() => Alert.alert(t("chat.message_list.delete_failed"))),
+              onPress: () => void deleteMessage(qc, wsId, roomId, m.id).catch(() => toast.error(t("chat.message_list.delete_failed"))),
             },
           ])
         }
@@ -329,11 +330,11 @@ export function Conversation(props: Props) {
                 : command === "convert"
                   ? createTaskFromMessage(qc, wsId, roomId, { followUpId: followUp.id })
                   : followUpCommand(qc, wsId, command, followUp.id);
-          void run.catch(() => Alert.alert(t(command === "convert" ? "chat.follow_up.convert_failed" : "chat.follow_up.update_failed")));
+          void run.catch(() => toast.error(t(command === "convert" ? "chat.follow_up.convert_failed" : "chat.follow_up.update_failed")));
         }}
         onCreateTask={(m) =>
           void createTaskFromMessage(qc, wsId, roomId, { messageId: m.id, title: titleFromMessageBody(deserializeMessageBodyToComposerDraft(m.body)) }).catch(() =>
-            Alert.alert(t("chat.link.create_error")),
+            toast.error(t("chat.link.create_error")),
           )
         }
         onRetry={(m) => m.pending && void deliverPendingSend(qc, m.pending, chatSendDeps)}
@@ -348,7 +349,7 @@ export function Conversation(props: Props) {
         onPick={(emoji) => {
           const target = emojiFor;
           setEmojiFor(null);
-          if (target) void toggleReaction(qc, wsId, roomId, target.id, emoji).catch(() => Alert.alert(t("chat.message_list.react_failed")));
+          if (target) void toggleReaction(qc, wsId, roomId, target.id, emoji).catch(() => toast.error(t("chat.message_list.react_failed")));
         }}
       />
       <ForwardSheet chat={chat} messageId={forwardId} onClose={() => setForwardId(null)} />

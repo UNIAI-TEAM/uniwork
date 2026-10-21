@@ -12,7 +12,7 @@ import { Image } from "expo-image";
 import * as WebBrowser from "expo-web-browser";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { Alert, Pressable, View } from "react-native";
+import { Pressable, View } from "react-native";
 import { Text } from "@/components/ui/text";
 import { TINTS, TintTile } from "@/components/ui/tint-tile";
 import { deepLinkHref } from "@/lib/deep-link";
@@ -32,6 +32,7 @@ import { formatMessageDateTime, formatMessageTime } from "@/lib/timeline-display
 import { useColorScheme } from "@/lib/use-color-scheme";
 import { cn } from "@/lib/utils";
 import { useChatMediaSrc, useFreshChatMediaUrl } from "./use-chat-media";
+import { toast } from "@/data/stores/toast-store";
 
 export interface MessageCardContext {
   wsId: string;
@@ -135,7 +136,7 @@ function ImageCard({ record, ctx, onLongPress }: { record: ChatMessageRecord; ct
   const open = () =>
     void freshUrl(record.id, { url: file.url, expiresAt: file.url_expires_at }, (m) => m.file?.url)
       .then((url) => ctx.onOpenImage(url, file.filename, record.id))
-      .catch(() => Alert.alert(t("chat.media_unavailable", { name: file.filename })));
+      .catch(() => toast.error(t("chat.media_unavailable", { name: file.filename })));
   return (
     <Pressable {...longPress} onPress={open} accessibilityRole="imagebutton" accessibilityLabel={t("chat.message_list.file_open_named", { name: file.filename || t("chat.media_image") })}>
       {src ? (
@@ -161,7 +162,7 @@ function FileCard({ record, ctx, own, onLongPress }: { record: ChatMessageRecord
   const open = () =>
     void freshUrl(record.id, { url: file.download_url || file.url, expiresAt: file.url_expires_at }, (m) => m.file?.download_url || m.file?.url)
       .then((url) => WebBrowser.openBrowserAsync(url))
-      .catch(() => Alert.alert(t("chat.file_download_failed")));
+      .catch(() => toast.error(t("chat.file_download_failed")));
   return (
     <Pressable {...longPress} onPress={open} accessibilityRole="button" accessibilityLabel={t("chat.message_list.file_open_named", { name })} className="min-w-[240px] flex-row items-center gap-3">
       <View className={cn("h-12 w-12 items-center justify-center rounded-lg", TINTS[badge.tint].bg)}>

@@ -14,7 +14,7 @@ import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Alert, Keyboard, Pressable, TextInput, View } from "react-native";
+import { Keyboard, Pressable, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { PersonAvatar } from "@/components/people/person-avatar";
 import { ActionSheet } from "@/components/ui/action-sheet";
@@ -38,6 +38,7 @@ import { useColorScheme } from "@/lib/use-color-scheme";
 import { cn } from "@/lib/utils";
 import { useVoiceRecorder, VOICE_MAX_MS, type VoiceClip } from "./use-voice-recorder";
 import { VoiceWave } from "./voice-wave";
+import { toast } from "@/data/stores/toast-store";
 
 const TYPING_DEBOUNCE_MS = 600;
 
@@ -89,9 +90,9 @@ export function Composer(props: Props) {
     void voice
       .start()
       .then((started) => {
-        if (!started) Alert.alert(t("chat.voice_record_failed"));
+        if (!started) toast.error(t("chat.voice_record_failed"));
       })
-      .catch(() => Alert.alert(t("chat.voice_record_failed")));
+      .catch(() => toast.error(t("chat.voice_record_failed")));
 
   // Above the home indicator while the keyboard is down; the keyboard-avoiding view takes over when it is up.
   useEffect(() => {
@@ -157,11 +158,11 @@ export function Composer(props: Props) {
   const sendPicked = (file: PendingFile) => {
     const asset = { name: file.name, mimeType: file.mimeType, size: file.size };
     if (!isChatAcceptedFile(asset)) {
-      Alert.alert(t("chat.file_type_unsupported"));
+      toast.error(t("chat.file_type_unsupported"));
       return;
     }
     if (isChatFileTooLarge(asset)) {
-      Alert.alert(t("chat.file_too_large", { max: CHAT_FILE_MAX_LABEL }));
+      toast.error(t("chat.file_too_large", { max: CHAT_FILE_MAX_LABEL }));
       return;
     }
     props.onSendFile(file);

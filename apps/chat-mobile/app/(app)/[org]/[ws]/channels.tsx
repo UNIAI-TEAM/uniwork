@@ -5,7 +5,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { router, Stack } from "expo-router";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ActivityIndicator, Alert, FlatList, Pressable, View } from "react-native";
+import { ActivityIndicator, FlatList, Pressable, View } from "react-native";
 import { ChatHeader } from "@/components/chat/chat-header";
 import { RoomAvatar } from "@/components/chat/room-avatar";
 import { useChatWorkspace, type ChatWorkspace } from "@/components/chat/use-chat-workspace";
@@ -18,6 +18,7 @@ import { foldedIncludes } from "@/lib/search-fold";
 import { THEME } from "@/lib/theme";
 import { useColorScheme } from "@/lib/use-color-scheme";
 import { cn } from "@/lib/utils";
+import { toast } from "@/data/stores/toast-store";
 
 function ChannelDirectory({ chat }: { chat: ChatWorkspace }) {
   const { t } = useTranslation();
@@ -41,7 +42,7 @@ function ChannelDirectory({ chat }: { chat: ChatWorkspace }) {
     setJoining(roomId);
     joinChannel(qc, chat.wsId, roomId)
       .then(() => router.replace(chatRoutes.room(chat, roomId)))
-      .catch(() => Alert.alert(t("chat.channel.join_failed", { name })))
+      .catch(() => toast.error(t("chat.channel.join_failed", { name })))
       .finally(() => setJoining(null));
   };
 

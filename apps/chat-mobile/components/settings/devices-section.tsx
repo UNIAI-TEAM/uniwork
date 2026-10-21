@@ -13,6 +13,7 @@ import { formatCallTime } from "@/lib/call-log-display";
 import { THEME } from "@/lib/theme";
 import { useColorScheme } from "@/lib/use-color-scheme";
 import { SettingsSection } from "./settings-section";
+import { toast } from "@/data/stores/toast-store";
 
 const PLATFORM_NAMES: Record<string, string> = { ios: "iOS", android: "Android", macos: "macOS", darwin: "macOS", windows: "Windows", linux: "Linux" };
 
@@ -53,7 +54,7 @@ export function DevicesSection() {
   const revoke = useMutation({
     mutationFn: revokeDevice,
     onSettled: () => queryClient.invalidateQueries({ queryKey: devicesOptions().queryKey }),
-    onError: () => Alert.alert(t("settings.security.sessions.revokeFailed")),
+    onError: () => toast.error(t("settings.security.sessions.revokeFailed")),
   });
 
   const confirm = (device: Device, name: string) =>

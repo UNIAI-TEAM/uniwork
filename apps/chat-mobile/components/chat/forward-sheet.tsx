@@ -31,6 +31,8 @@ export function ForwardSheet({ chat, messageId, onClose }: { chat: ChatWorkspace
     return q ? titled.filter((row) => foldedIncludes(row.title, q)) : titled;
   }, [rooms.data, nicknames, chat.workspaceName, t, query]);
 
+  // An Alert, not a toast: this sheet is a Modal, a native window above the
+  // root view where components/ui/toast-host.tsx draws, so a toast would be hidden.
   const forward = (roomId: string) => {
     if (!messageId) return;
     void chatApi

@@ -4,11 +4,12 @@
 // the viewer, which pages through the conversation's photos.
 import { Image } from "expo-image";
 import { useTranslation } from "react-i18next";
-import { Alert, Pressable, View } from "react-native";
+import { Pressable, View } from "react-native";
 import { Text } from "@/components/ui/text";
 import type { TimelineMessage } from "@/lib/timeline-display";
 import type { MessageCardContext } from "./message-cards";
 import { useChatMediaSrc, useFreshChatMediaUrl } from "./use-chat-media";
+import { toast } from "@/data/stores/toast-store";
 
 const GRID_WIDTH = 262;
 const GAP = 3;
@@ -22,7 +23,7 @@ function Tile({ message, ctx, width, height, more, corners, onLongPress }: { mes
   const open = () =>
     void freshUrl(message.id, { url: file.url, expiresAt: file.url_expires_at }, (m) => m.file?.url)
       .then((url) => ctx.onOpenImage(url, file.filename, message.id))
-      .catch(() => Alert.alert(t("chat.media_unavailable", { name: file.filename })));
+      .catch(() => toast.error(t("chat.media_unavailable", { name: file.filename })));
   return (
     <Pressable
       accessibilityRole="imagebutton"

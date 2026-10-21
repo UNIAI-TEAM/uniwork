@@ -6,7 +6,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { router, Stack } from "expo-router";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ActivityIndicator, Alert, FlatList, Pressable, View } from "react-native";
+import { ActivityIndicator, FlatList, Pressable, View } from "react-native";
 import { ChatHeader } from "@/components/chat/chat-header";
 import { useChatWorkspace, type ChatWorkspace } from "@/components/chat/use-chat-workspace";
 import { PersonAvatar } from "@/components/people/person-avatar";
@@ -21,6 +21,7 @@ import { foldedIncludes } from "@/lib/search-fold";
 import { THEME } from "@/lib/theme";
 import { useColorScheme } from "@/lib/use-color-scheme";
 import { cn } from "@/lib/utils";
+import { toast } from "@/data/stores/toast-store";
 
 function NewChat({ chat }: { chat: ChatWorkspace }) {
   const { t } = useTranslation();
@@ -48,9 +49,9 @@ function NewChat({ chat }: { chat: ChatWorkspace }) {
     resolveDMRoom(qc, chat.wsId, userId)
       .then((room) => {
         if (room) router.replace(chatRoutes.room(chat, room.id));
-        else Alert.alert(t("chat.dm_failed"));
+        else toast.error(t("chat.dm_failed"));
       })
-      .catch(() => Alert.alert(t("chat.dm_failed")))
+      .catch(() => toast.error(t("chat.dm_failed")))
       .finally(() => setOpening(null));
   };
 
