@@ -336,6 +336,36 @@ func TestDoclistRecentLastActivity(t *testing.T) {
 		res, out := dlGet(t, w, memberTok, base+"?cursor="+cursor+q)
 		wantErr(t, res, out, 400, "invalid_request", "")
 	}
+
+	// membership by activity never outlives the permission: a restricted document the
+	// caller opened, edited and commented on through a user share leaves recent, on
+	// every sort and activity filter, once the share is revoked.
+	_, secret := docsCreatePageBody(t, w, w.token, map[string]any{"title": "lost-access", "visibility": "restricted"})
+	if res, out := doJSON(t, w.srv, "POST", "/api/v1/documents/"+secret+"/shares", w.token, map[string]any{
+		"principal_type": "user", "principal_id": memberID, "level": "view",
+	}); res.StatusCode != 201 && res.StatusCode != 200 {
+		t.Fatalf("share: %d %v", res.StatusCode, out)
+	}
+	dlLog(t, w, secret, memberID, "view", at(7))
+	dlComment(t, w, secret, memberID, at(6))
+	dlExec(t, `UPDATE documents SET updated_by = $1, updated_by_kind = 'human', updated_at = $2 WHERE id = $3`, memberID, at(7), secret)
+	lostRoutes := []string{"", "?sort=activity", "?sort=activity&activity=opened", "?sort=activity&activity=edited"}
+	for _, q := range lostRoutes {
+		res, out := dlGet(t, w, memberTok, base+q)
+		if res.StatusCode != 200 || !contains(dlIDs(out), secret) {
+			t.Errorf("recent%s before the revoke = %v (%d), want it to list the shared document", q, dlIDs(out), res.StatusCode)
+		}
+	}
+	shareID := dlOneShareID(t, w, secret, memberID)
+	if res, out := doJSON(t, w.srv, "DELETE", "/api/v1/documents/"+secret+"/shares/"+shareID, w.token, nil); res.StatusCode != 204 && res.StatusCode != 200 {
+		t.Fatalf("revoke: %d %v", res.StatusCode, out)
+	}
+	for _, q := range lostRoutes {
+		res, out := dlGet(t, w, memberTok, base+q)
+		if res.StatusCode != 200 || contains(dlIDs(out), secret) {
+			t.Errorf("recent%s after the revoke = %v (%d), want the document gone", q, dlIDs(out), res.StatusCode)
+		}
+	}
 }
 
 // Three pages with shared activity times, both directions: the order is
