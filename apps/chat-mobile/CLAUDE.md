@@ -66,11 +66,46 @@ một dòng thì ghi lý do ở dòng trên.
   AppState/NetInfo), `use-<feature>-realtime` (hook theo feature, patch rồi
   invalidate hẹp). Luật socket: frame `subscribe`/`unsubscribe` chỉ đi sau
   `auth_ack` (server đòi auth là frame đầu; replay lo phần còn lại); frame
-  `{error}` trước auth là kết thúc — `onSessionEnded(error)`, không backoff,
-  provider chỉ refresh với `invalid token`; `active` chỉ `resume()` sau
-  `background` hoặc khi socket chưa auth. Reader token cho provider là
+  `{error}` trước auth là kết thúc của socket đó — `onSessionEnded(error)`, client
+  không tự redial; provider giao cho `realtime/socket-recovery.ts` (thuần): 4001 và
+  `invalid token` thì refresh, refresh lỗi tạm thời thì thử lại theo backoff
+  2/5/15/60 s có jitter (`data/retry-timers.ts`), `too many connections` thì redial
+  theo cùng backoff, lời từ chối khác (không phải thành viên) thì chờ tín hiệu sau;
+  reset khi socket `online`. `active` chỉ `resume()` khi socket đã pause (trạng thái
+  `offline`) hoặc chưa auth. Reader token cho provider là
   `realtime/refresh-for-socket.ts` (thuần): thử token hiện tại trước, refresh
   khi vẫn là token đã chết, thất bại tạm thời thì reject để giữ phiên.
+  `ws-client` báo trạng thái `connecting`/`online`/`waiting`/`offline`
+  (`onConnectionStateChange`), provider đưa qua `useConnectionState()` cho
+  `components/chat/connection-banner.tsx` ("Đang chờ mạng…" khi NetInfo offline,
+  "Đang kết nối…" khi socket mất quá 1.5 s; trên danh sách chat và mọi cuộc trò chuyện).
+- Offline-first (UNI-2053 S3; audit P0-3, R1–R5, C1). **Mở lạnh**: `useAuthStore.initialize()`
+  đọc cùng lúc phiên (`session.restore({ awaitRefresh: false })`: có credential là đủ, refresh chạy nền), người
+  dùng cuối (`data/auth/last-user.ts`, Keychain cạnh phiên, ghi sau mỗi `/me`/`setUser`, bỏ qua khi epoch đổi),
+  workspace và các hàng đợi; có credential + người dùng đã lưu thì vào inbox ngay và `/me` revalidate phía sau.
+  Chỉ phán quyết của server (onChange(null), `onUnauthorized`) mới đăng xuất; offline/5xx/timeout giữ người dùng.
+  Splash (`expo-splash-screen`, plugin trong `app.config.ts`) giữ tới khi `isLoading` tắt, tối đa 8 s
+  (`app/_layout.tsx`). **Kho trên máy**: `data/storage/device-store.ts` (thuần, mặc định bộ nhớ — test node không
+  cần mock) ← `native-device-store.ts` cài lúc boot: MMKV (`react-native-mmkv` + `react-native-nitro-modules`)
+  mã hoá AES-256, khoá ngẫu nhiên trong Keychain/Keystore (`AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY`); mở lỗi thì chạy
+  bằng bộ nhớ và log. Store zustand persist trên đó dùng `skipHydration` + hydrate trong `initialize()` và bỏ mọi
+  lần ghi trước khi hydrate (không ghi đè hàng đợi trên đĩa bằng mảng rỗng). **Outbox**: `data/chat-send.ts` —
+  mọi lần gửi (chữ, ảnh/tệp, tin thoại, nhắc hẹn) vào `stores/chat-send-store.ts` (persist; `sending` → `queued`
+  khi đọc lại, `client_msg_id` làm replay an toàn), tệp chép vào `documents/outbox/<clientMsgId>/`
+  (`data/outbox-files.ts`) trước khi xếp hàng, xoá khi server nhận, khi bỏ hoặc khi đăng xuất; một hàng FIFO nghiêm
+  ngặt cho mỗi (workspace, phòng, người gửi), một lần gửi một tin; guard flush theo workspace + người gửi; lỗi tạm
+  thời giữ hàng của phòng và thử lại theo backoff; flush khi mở workspace, NetInfo online, socket reconnect và mỗi
+  lần về foreground (`use-chat-realtime.ts`). **Đọc, biểu cảm, bình chọn offline**: `data/pending-ops.ts` +
+  `stores/pending-ops-store.ts` — cache hiện lựa chọn ngay (`lib/optimistic-message.ts`, luật toggle của server),
+  mỗi thứ một mục giữ mong muốn cuối; endpoint của server là toggle nên lần giao có thể đã tới (mất câu trả lời,
+  khởi động lại) và mọi phiếu bầu đều GET tin trước rồi chỉ chạm phần còn khác; từ chối hẳn thì bỏ, refetch phòng
+  và reject cho màn hình báo (lượt đọc thì báo Sentry, không toast). Sửa và xoá tin vẫn chỉ online. **Cache đĩa**:
+  `data/query-persister.ts` — allowlist `["workspaces"]`, rooms, unread-summary, nicknames, members, room-members và
+  trang mới nhất của 12 phòng hoạt động gần nhất; ghi sau 1 s yên; buster `<version>:<userId>`; khôi phục trước
+  màn đầu (`restoreAccountCache` trong auth store), xoá khi đăng xuất (`dropAccountCache`). Thêm query vào cache
+  đĩa thì sửa `shouldPersistQuery` và test. **Realtime**: `chat-realtime.ts` không bỏ frame khi GET lỗi (tin mới →
+  catch-up phòng, sửa/nhắc → refetch phòng, trả lời chủ đề → refetch chủ đề, danh sách theo sau); mỗi phòng một GET
+  một lúc, frame đến trong lúc đó gộp theo tin và từ 2 tin mới trên timeline đang hiện thì đọc bằng một catch-up.
 - Quan sát và phát hành (UNI-2053). `data/report.ts` là cửa duy nhất tới báo
   crash (no-op khi chưa có sink; 4xx và mất mạng không báo; `force` cho
   boundary); `data/sentry.ts` cài Sentry làm sink khi có DSN (release
@@ -107,7 +142,8 @@ một dòng thì ghi lý do ở dòng trên.
   Cài đặt › Xóa tài khoản (`components/settings/delete-account.tsx`, port dialog web) nêu hệ quả, xin một bằng chứng
   theo `lib/account-deletion.ts` (mật khẩu, else mã hai lớp, else gõ lại email), gọi `POST /me/delete`
   (`data/account-api.ts`), `owner_must_transfer` → hướng dẫn chuyển quyền trên web; thành công thì
-  `useAuthStore.accountDeleted()` (không gọi server: phiên và push đã bị thu hồi) + `data/local-wipe.ts` (cache ảnh,
+  `useAuthStore.accountDeleted()` (không gọi server: phiên và push đã bị thu hồi; như đăng xuất, xoá người dùng đã
+  lưu, outbox và tệp của nó, lượt đọc/biểu cảm chờ gửi, cache đĩa) + `data/local-wipe.ts` (cache ảnh,
   thông báo, badge, lựa chọn push, ghim từng workspace; theme và ngôn ngữ giữ vì là của máy). **Quyền riêng tư và pháp
   lý** (`components/settings/legal-section.tsx`, link ở `lib/legal-links.ts`: `/privacy` và `/vi/privacy`, neo
   `#delete-account`, terms ẩn tới khi có URL, `mailto:` hỗ trợ — không có app mail thì chép địa chỉ), mở trang qua
@@ -144,9 +180,8 @@ một dòng thì ghi lý do ở dòng trên.
   (`chat-api.ts`, mỗi endpoint một case malformed), key riêng
   (`queries/chat-keys.ts`, không import `chatKeys` web), cache
   (`chat-timeline.ts` ← core `room-timeline`, `chat-cache.ts` ← core
-  `realtime-cache`, viewer là tham số), hàng đợi gửi trong phiên
-  (`chat-send.ts` + `stores/chat-send-store.ts`, `client_msg_id`, flush khi
-  NetInfo online hoặc socket reconnect), `realtime/chat-realtime.ts` (bảng §8
+  `realtime-cache`, viewer là tham số), outbox bền (`chat-send.ts` +
+  `stores/chat-send-store.ts`, mục Offline-first), `realtime/chat-realtime.ts` (bảng §8
   spec cha, thuần) và `realtime/use-chat-realtime.ts` (hook mỏng, gắn ở
   `[org]/[ws]/_layout.tsx`, ≤ 25 scope qua `selectLazyChatScopeRoomIds`);
   màn hình ở `app/(app)/[org]/[ws]/{(tabs)/chat,room/[roomId]/{index,info,thread/[rootId]},new-chat,new-group,channels}.tsx`
@@ -161,7 +196,11 @@ một dòng thì ghi lý do ở dòng trên.
   `data/calls/call-engine.ts` (máy trạng thái của `use-native-voice-call.ts`,
   store vanilla, test node) → `data/calls/call-store.ts` (một engine, nối
   `chatApi`) ← `data/realtime/use-call-realtime.ts` (`chat.voice.*`, đồng bộ
-  lời mời chờ khi mở workspace và mỗi lần reconnect). UI:
+  lời mời chờ khi mở workspace; mỗi lần reconnect và mỗi lần từ background về
+  thì `callEngine.reconcile()`: chuông mà server không còn liệt kê thì dừng). Cuộc gọi
+  đang đến/đổ chuông/đang nối/đang diễn ra (`lib/call-socket.ts`) giữ socket mở khi
+  app vào background (`holdOpen` của `RealtimeProvider`, audit C1); hết cuộc gọi thì
+  pause như thường. UI:
   `components/calls/call-overlay.tsx` (lớp toàn màn hình, không phải Modal,
   gắn một lần ở `(app)/_layout.tsx`, trên mọi màn workspace; mỗi layout
   workspace `attach` ngữ cảnh vào engine, cái trên cùng được dùng) + `call-room.tsx` (LiveKit RN;

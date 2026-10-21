@@ -77,6 +77,7 @@ const vi: GuideContent = {
     ] },
     { title: "Bảo mật", paragraphs: [
       "Dữ liệu được mã hóa khi truyền (HTTPS, WSS). Mật khẩu chỉ lưu dạng băm; khóa xác thực hai lớp, khóa API AI riêng và lịch sử hội thoại AI được mã hóa khi lưu. Quyền truy cập được kiểm tra theo tổ chức và workspace ở mọi yêu cầu, và mọi thay đổi dữ liệu được ghi vào nhật ký hoạt động không sửa được.",
+      "Ứng dụng UniChat trên Android và iPhone giữ một bản trên điện thoại để dùng được khi mất mạng: danh sách cuộc trò chuyện, số tin chưa đọc, danh bạ của workspace, các tin mới nhất của những cuộc trò chuyện gần đây, và tin, lượt đọc, biểu cảm, bình chọn bạn đã gửi khi chưa có mạng. Bản này được mã hóa trên máy bằng khóa giữ trong Keychain hoặc Keystore của điện thoại; khóa không rời máy nên bản sao lưu hay máy khác không đọc được bản này. Ảnh và tệp chờ gửi nằm trong thư mục riêng của ứng dụng và bị xóa khi đã gửi. Mọi thứ bị xóa khi bạn đăng xuất hoặc xóa tài khoản.",
     ] },
     { title: "Độ tuổi", paragraphs: [
       "UniWork, UniOffice và UniChat là công cụ làm việc cho tổ chức, dành cho người từ 18 tuổi. Chúng tôi không cố ý thu thập dữ liệu của trẻ em.",
@@ -155,6 +156,7 @@ const en: GuideContent = {
     ] },
     { title: "Security", paragraphs: [
       "Data is encrypted in transit (HTTPS, WSS). Passwords are stored only as hashes; two-factor secrets, your own AI API keys and AI conversation history are encrypted at rest. Access is checked against the organization and workspace on every request, and every data change is written to an activity log that cannot be altered.",
+      "The UniChat apps for Android and iPhone keep a copy on the phone so they work without a connection: your conversation list, unread counts, the workspace's people, the latest messages of recent conversations, and the messages, reads, reactions and votes you made while offline. That copy is encrypted on the phone with a key held in the phone's Keychain or Keystore; the key never leaves the phone, so a backup or another device cannot read the copy. Photos and files waiting to be sent sit in the app's private folder and are deleted once sent. All of it is erased when you sign out or delete your account.",
     ] },
     { title: "Age", paragraphs: [
       "UniWork, UniOffice and UniChat are work tools for organizations, intended for people aged 18 and over. We do not knowingly collect children's data.",

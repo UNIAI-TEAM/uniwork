@@ -67,9 +67,18 @@ tên, token hay query của URL (`lib/redact.ts` lọc trước khi gửi), khô
 
 Mọi dữ liệu mã hoá khi truyền (HTTPS/WSS).
 
+**Lưu trên máy (UNI-2053 S3, để app dùng được khi mất mạng).** Phiên đăng nhập và hồ sơ người dùng cuối (tên, email,
+id) nằm trong Keychain/Keystore. Tin chưa gửi được, lượt đọc, biểu cảm và bình chọn chờ gửi, cùng bản sao danh sách
+cuộc trò chuyện, số chưa đọc, danh bạ của workspace và trang tin mới nhất của 12 cuộc trò chuyện gần nhất nằm trong
+một kho MMKV **mã hoá AES-256** bằng khoá ngẫu nhiên giữ trong Keychain/Keystore, chỉ trên máy này (khoá không vào bản
+sao lưu và không chuyển máy, nên bản sao lưu hay máy khác không đọc được kho). Ảnh, tệp và tin thoại chưa gửi được chép vào thư mục riêng của app (được hệ
+điều hành bảo vệ, không mã hoá thêm) và xoá ngay khi server nhận. Tất cả bị xoá khi đăng xuất hay xoá tài khoản.
+Dữ liệu này không rời máy nên không là dữ liệu "thu thập" trong Apple App Privacy hay Google Data safety; câu hỏi
+"Data is encrypted in transit" của Play: có.
+
 **Xoá tài khoản.** Trong app: Cài đặt › Xóa tài khoản — nêu hệ quả, xác nhận lại bằng mật khẩu (hoặc mã hai lớp, hoặc
 gõ lại email với tài khoản chỉ Google), gọi `POST /api/v1/me/delete`, rồi đăng xuất mọi thiết bị và xoá dữ liệu của tài
-khoản trên máy (cache, ảnh đã lưu, thông báo, ghim). Chủ sở hữu tổ chức được hướng dẫn chuyển quyền trên web trước. URL
+khoản trên máy (bản sao cuộc trò chuyện, tin và tệp chưa gửi, ảnh đã lưu, thông báo, ghim). Chủ sở hữu tổ chức được hướng dẫn chuyển quyền trên web trước. URL
 chính sách riêng tư: `https://app.uniworkos.com/privacy`; URL xoá tài khoản cho Play:
 `https://app.uniworkos.com/privacy#delete-account`. Cài đặt › Quyền riêng tư và pháp lý mở cả hai, liên hệ hỗ trợ
 (`contact@unicomhub.com`) và danh sách giấy phép mã nguồn mở.

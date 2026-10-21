@@ -197,6 +197,20 @@ từng mục khi đã nộp:
 - [ ] **App access**: tài khoản demo (mục "Tài khoản demo cho review" của `store/listing.md`).
 - [ ] **Government apps / Financial features / Health**: không.
 
+**Kiểm tra trên máy trước bản store (offline và realtime, UNI-2053 S3).** Test node và jest giữ logic; chỉ máy thật
+(bản `preview` hoặc `internal`) xác nhận phần native — MMKV mã hoá, splash, thư mục outbox, socket giữ khi gọi:
+
+- [ ] Đã đăng nhập, bật chế độ máy bay, kill app, mở lại: splash rồi thẳng vào danh sách chat với dữ liệu cũ, banner
+  "Đang chờ mạng…", không về màn đăng nhập. Server trả 5xx (staging tắt API) cũng vậy.
+- [ ] Offline: gửi chữ, một ảnh, một tin thoại, một nhắc hẹn; thả một biểu cảm, bình chọn; kill app; mở lại vẫn thấy
+  bốn bong bóng "Chờ có mạng để gửi"; bật mạng: tin tới đúng thứ tự, mỗi tin một lần (xem trên web), biểu cảm và phiếu
+  khớp, ảnh không mất dù đã xoá cache của trình chọn ảnh.
+- [ ] Mạng chập chờn (Network Link Conditioner / `adb shell svc wifi disable` vài giây): banner "Đang kết nối…" chỉ
+  hiện khi mất quá 1.5 s và tự tắt; tin mới vẫn hiện, không phải mở lại phòng.
+- [ ] Gọi 1-1, bên gọi đưa app xuống nền khi đang đổ chuông, bên nghe bắt máy: bên gọi vào cuộc gọi (không hết giờ
+  "không ai nghe"). Android là chính; iOS có thể bị hệ điều hành treo app nền giữa hai frame tới khi có CallKit.
+- [ ] Đăng xuất rồi đăng nhập tài khoản khác: không thấy phòng, tin hay hàng đợi của tài khoản trước.
+
 ## Triệu chứng
 
 - Run release xanh với notice `EXPO_TOKEN is not set` — đúng khi chưa thiết lập; sau thiết lập là thiếu secret.
@@ -214,6 +228,8 @@ từng mục khi đã nộp:
   deletion" (không tìm thấy lối xoá trong app hoặc URL), "User generated content" (thiếu báo cáo/chặn), "Data safety"
   lệch với hành vi, hoặc Apple 5.1.2(i) (gửi dữ liệu cho AI không hỏi).
 - PR đỏ ở `android-manifest.test.ts`: một gói native, plugin hay tuỳ chọn plugin đổi quyền hoặc dịch vụ Android.
+- Người dùng báo tin kẹt "Chờ có mạng để gửi" khi đã có mạng, app mở vào danh sách trống dù trước đó có dữ liệu, hoặc
+  banner "Đang kết nối…" không tắt.
 
 ## Kiểm tra
 
@@ -230,7 +246,13 @@ từng mục khi đã nộp:
    `client_version` của socket cho biết bản nào đang gọi.
 5. Cấu hình một biến thể: `UNICHAT_ENV=staging UNICHAT_API_URL=… UNICHAT_APP_URL=… pnpm --filter
    @uniwork/chat-mobile exec expo config --type public` (tên, bundle id, scheme, `updates`, `extra`).
-6. Nightly: artifact `maestro-ios` / `maestro-android` của run chỉ có ảnh chụp màn hình (log lệnh của Maestro ghi mật
+6. Offline và realtime: Sentry, lọc release đó, tìm breadcrumb `device store unavailable` (kho mã hoá không mở được
+   — Keychain/Keystore khoá, module native thiếu: app chạy bằng bộ nhớ, không giữ gì qua lần mở), `outbox copy failed`
+   (tệp gửi từ chỗ trình chọn để lại), `cached rooms not restored`/`not saved`, và lỗi tag `source:pending-op`
+   (server từ chối hẳn một lượt đọc/biểu cảm/bình chọn). Tin kẹt "Chờ có mạng để gửi": máy thử lại sau 2, 5, 15 rồi mỗi
+   60 s, và ngay khi có mạng, socket nối lại hay app về foreground — tin vẫn kẹt nghĩa là server trả lỗi tạm thời
+   (5xx/429/timeout) cho `POST …/messages`; xem log server theo `X-Client-Version`. Socket: `client_version` trong log hub.
+7. Nightly: artifact `maestro-ios` / `maestro-android` của run chỉ có ảnh chụp màn hình (log lệnh của Maestro ghi mật
    khẩu đã gõ và repo công khai, nên không tải lên); log từng bước nằm trong log của job. Bước đầu đỏ là nguyên nhân,
    các bước sau thường là hệ quả.
 
@@ -283,7 +305,12 @@ từng mục khi đã nộp:
 14. `android-manifest.test.ts` đỏ: quyền/dịch vụ mới có chủ đích thì cập nhật danh sách trong test, bảng quyền của
    `store/listing.md` và khai báo Play cùng PR; không chủ đích thì tìm gói kéo nó vào (`scripts/android-manifest.mjs`
    đọc manifest của từng thư viện) và gỡ bằng `tools:node="remove"` trong `plugins/with-removed-android-services.js`.
-15. Khoá Apple/Google hết hạn hoặc lộ: thu hồi ở Apple/Google, tạo khoá mới, tải lại bằng `eas credentials`; `EXPO_TOKEN`
+15. Tin kẹt trong hàng đợi hay cache trên máy hỏng: sửa nguyên nhân ở server (tin chờ tự đi khi server nhận lại, mỗi
+   tin một lần nhờ `client_msg_id`). Một máy cụ thể: đăng xuất rồi đăng nhập lại xoá hàng đợi, tệp chờ và cache trên
+   máy đó (tin chưa gửi mất — báo người dùng). Cache trên máy tự bỏ khi lên phiên bản mới (buster là version + user).
+   Kho mã hoá không mở được trên nhiều máy (breadcrumb ở Kiểm tra 6): lỗi native của `react-native-mmkv`/
+   `react-native-nitro-modules`, cần bản store; app vẫn chạy, chỉ không giữ gì offline.
+16. Khoá Apple/Google hết hạn hoặc lộ: thu hồi ở Apple/Google, tạo khoá mới, tải lại bằng `eas credentials`; `EXPO_TOKEN`
    lộ: thu hồi robot token trên expo.dev, tạo token mới vào Environment. Khoá ký OTA lộ: tạo cặp khoá/chứng chỉ mới,
    commit chứng chỉ mới, cắt bản store (binary cũ vẫn tin chứng chỉ cũ cho tới khi người dùng cập nhật; đặt
    `UNICHAT_MOBILE_MIN_SUPPORTED_VERSION` khi bản mới đủ phổ biến).
