@@ -1,6 +1,6 @@
 # Thư ký AI S6 (UNI-2028): phụ đề dịch Việt ↔ Anh — kế hoạch triển khai
 
-> **Trạng thái:** in-progress — kế hoạch; đã gộp chồng B (S1, S2, đợt 5 UNI-2001, S5) vào nhánh này và nối "Ghi nhận đã họp" với tóm tắt tự tạo; S6 đang làm.
+> **Trạng thái:** in-progress — đã gộp chồng B hai lần (S1, S2, đợt 5 UNI-2001 kể cả bản chuyển sang AssemblyAI, S5), nối "Ghi nhận đã họp" với tóm tắt tự tạo, và làm đủ S6: prompt `caption_translate@1`, `POST /agent/translate` (trần 1/giây/ngôn ngữ, bỏ qua lặng lẽ), `PUT /caption-language` (server đặt `uw.caption_lang`), agent gom và phát `uw.caption.<L>`, bộ chọn Gốc / Tiếng Việt / English; chưa chạy thật với model và phòng LiveKit, chờ review và merge.
 
 **Spec:** `docs/superpowers/specs/2026-10-20-meeting-scribe-agent-design.md` §1.3 D11, §5.3 (B9),
 §7.1 (`POST /meetings/{meetingID}/agent/translate`), §7.2 (`PUT /meetings/{meetingID}/caption-language`),
