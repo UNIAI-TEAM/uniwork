@@ -74,6 +74,42 @@ library UI, and any web-in-frame step. G8-A09 has none, so the web frame pin (05
 fork G8-12..15) does not gate it; the rows that do (A02, A04, A07) are T2 and T3's and report BLOCKED
 on that pin themselves.
 
+## G8-A02 steps
+
+`anchors.mjs` `runG8A02` records each check in `rec` and `decideG8A02` judges them (FAIL beats BLOCKED beats PASS):
+`check:closed-panel-save`, `check:create`, `check:shift`, `check:rest-sees-moved`, `check:remove-lost`,
+`check:lost-view-version`, `check:invalid-versions`, `check:web-to-desktop`.
+
+## G8-A02 check:lost-view-version (UNI-2033)
+
+Runs right after the remove step, recorded as `details.lostView`, judged right after `check:remove-lost`. If the
+remove step did not leave the row `lost` it is NOT_JUDGED (`cascadeFrom: check:remove-lost`, or the source that
+cascaded into it), and BLOCKED with the same blocker when the remove step itself is BLOCKED. Three halves, each
+FAIL / BLOCKED / PASS on its own:
+
+- **server**: A reads the row. `anchor_state` is `lost`, `anchor_version_id` is the head the shift Save made (the last
+  Save before the delete), `anchor_version_no` is that version's ordinal. The expected ordinal is the one the versions
+  list (`listDocumentVersions`) gives that id and must equal the `version` getDocument reported at the shift Save; two
+  answers that differ are a harness FAIL naming both.
+- **web** (a browser as A, `observeVersionView`): opens `/{org}/{ws}/documents/{id}?comment=<id>&version=N` and reads
+  the page: the `office-version-view-banner` (D `frame-version-banner.tsx`) shows version N, the page is not the
+  `office-version-view-unavailable` notice, the frame fetched `office-frame/documents/{id}/content?version=N`, and the
+  thread is revealed (the frame's comments panel lists it, or D's pane highlights it). No Save commit and no
+  comments.anchors PUT of the document is made during the view: from the browser's own requests, and from
+  `logs/server.log` after the open (null without a log, then the browser's requests judge). Then it opens
+  `?comment=<id>` alone and the URL must switch to `?version=N&comment=<id>` exactly once.
+- **desktop**: a launch ticket `{operation: "view", version: N, comment_id}` opens a `...@vN` copy. Judged on what the
+  app reports: the copy path contains `@vN`, `uniworkActiveDocStatus` is not `readOnly: false` / `access: "edit"`, the
+  copy's comments bridge answers the viewed version's id as its open version, and the editor's comments panel (when it
+  is open) lists the comment. A fact the app does not report is listed in the step's `note`, never failed.
+
+The web half is BLOCKED by `viewVersionPinBlock` while the pinned frame predates the fork UNI-2033 protocol
+(blocker `frame pin predates the fork UNI-2033 kit/protocol (T6 re-pin)`, owner `g6-fork_ui T6`). The probe reads
+facts, never a timeout: the pin's git sha against the older pins (the G5-G7 base and fork `1abc493`), its
+`protocolSha256.protocol` against the pre-T4 value (`4e86...`, the T4 value `914c...` lifts the block), and, when a
+fork clone answers, whether T4's commit `e854a49ae` is an ancestor of the pin. The pre-G8 pins keep the existing R1
+blocker (same text, so the row shows one blocker). Re-pinning the frames (T6) lifts it with no change here.
+
 ## G8-A02 closed-panel Save
 
 `anchors.mjs` `runClosedPanelSave`: the desktop opens the document, the harness waits for the editor's first list in

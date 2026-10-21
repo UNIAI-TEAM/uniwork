@@ -5,13 +5,15 @@
 -- name: InsertDocumentShare :one
 INSERT INTO document_shares (
   id, organization_id, workspace_id, document_id, principal_type,
-  principal_id, level, granted_by, granted_by_kind,
+  principal_id, level, granted_by, granted_by_kind, origin,
   source_kind, source_room_id, source_message_id, prior_manual_level
 ) VALUES (
   sqlc.arg(id), sqlc.arg(organization_id), sqlc.arg(workspace_id),
   sqlc.arg(document_id), sqlc.arg(principal_type),
   sqlc.arg(principal_id), sqlc.arg(level), sqlc.arg(granted_by),
   sqlc.arg(granted_by_kind),
+  -- UNI-2039 S3: '' means direct (every caller but the chat path).
+  COALESCE(NULLIF(sqlc.arg(origin)::text, ''), 'direct'),
   sqlc.narg(source_kind), sqlc.narg(source_room_id),
   sqlc.narg(source_message_id), sqlc.narg(prior_manual_level)
 )
@@ -69,13 +71,15 @@ WHERE id = sqlc.arg(id)
 -- The organization/workspace pair written is the authorized document's own.
 INSERT INTO document_shares (
   id, organization_id, workspace_id, document_id, principal_type,
-  principal_id, level, granted_by, granted_by_kind,
+  principal_id, level, granted_by, granted_by_kind, origin,
   source_kind, source_room_id, source_message_id, prior_manual_level
 )
 SELECT r.id, sqlc.arg(organization_id)::text, sqlc.arg(workspace_id)::text,
   sqlc.arg(document_id)::text, 'user',
   r.principal_id, sqlc.arg(level)::text, sqlc.arg(granted_by)::text,
   sqlc.arg(granted_by_kind)::text,
+  -- UNI-2039 S3: '' means direct (the Documents batch share).
+  COALESCE(NULLIF(sqlc.arg(origin)::text, ''), 'direct'),
   sqlc.narg(source_kind)::text, sqlc.narg(source_room_id)::text,
   sqlc.narg(source_message_id)::text, NULLIF(r.prior_manual_level, '')
 FROM (

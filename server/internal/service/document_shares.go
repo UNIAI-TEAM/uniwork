@@ -21,6 +21,13 @@ import (
 // leaves a chat room.
 const DocumentShareSourceKindChat = "chat"
 
+// Share origins (UNI-2039 S3), stored in document_shares.origin. A chat
+// grant (SourceKind chat) is always origin chat.
+const (
+	DocumentShareOriginDirect = "direct"
+	DocumentShareOriginChat   = "chat"
+)
+
 // DocumentShareInput is one grant (C-01 §5.3): a principal of the
 // document's organization and the level it receives. SourceKind, SourceRoomID
 // and SourceMessageID are set only on the chat document send/share paths.
@@ -31,6 +38,10 @@ type DocumentShareInput struct {
 	SourceKind      string
 	SourceRoomID    string
 	SourceMessageID string
+	// Origin is where the grant came from (UNI-2039 S3): "" or "direct" for
+	// the share panel and every API caller, "chat" for a document sent in a
+	// chat message.
+	Origin string
 }
 
 // errDocumentOwned is the §13.4 refusal: sharing, links, visibility, moving
@@ -254,8 +265,10 @@ func (s *DocumentService) applyDocumentShareWithBatch(ctx context.Context, q *db
 		}
 		before = map[string]any{"level": prev.Level}
 	}
+	origin := in.Origin
 	var sourceKind, sourceRoomID, sourceMessageID pgtype.Text
 	if in.SourceKind == DocumentShareSourceKindChat {
+		origin = DocumentShareOriginChat
 		sourceKind = nullText(in.SourceKind)
 		sourceRoomID = nullText(in.SourceRoomID)
 		sourceMessageID = nullText(in.SourceMessageID)
@@ -271,6 +284,7 @@ func (s *DocumentService) applyDocumentShareWithBatch(ctx context.Context, q *db
 		Level:            string(in.Level),
 		GrantedBy:        actor.ID,
 		GrantedByKind:    string(actor.Kind),
+		Origin:           origin,
 		SourceKind:       sourceKind,
 		SourceRoomID:     sourceRoomID,
 		SourceMessageID:  sourceMessageID,
@@ -283,6 +297,7 @@ func (s *DocumentService) applyDocumentShareWithBatch(ctx context.Context, q *db
 		"share_id":       sh.ID,
 		"principal_type": sh.PrincipalType,
 		"principal_id":   sh.PrincipalID,
+		"origin":         sh.Origin,
 	}
 	if batchID != "" {
 		meta["batch_id"] = batchID
@@ -815,6 +830,22 @@ type SharedDocument struct {
 	// ShareScope summarizes who reaches this row's document (SH-S3, UNI-1782;
 	// addendum §6.4, §7); nil for agent actors.
 	ShareScope *DocumentShareScope
+	// Shared is the share that grants the caller: who, when (UNI-2045 SV-3).
+	Shared DocumentSharedBy
+	// IsOwner is whether the caller is the document's ACL owner (SV-5).
+	IsOwner bool
+	// UpdatedByUser is the last editor, as DocumentListItem.UpdatedByUser (SV-6).
+	UpdatedByUser *DocumentPerson
+}
+
+// DocumentSharedBy says who shared a document with the caller and when - the
+// granter and time of the share the list picked for the row. ByName is nil
+// unless the granter is a human member of the caller's organization.
+type DocumentSharedBy struct {
+	By     string
+	ByKind string
+	ByName *string
+	At     time.Time
 }
 
 // SharedWithMeQuery is one page request of the recipient's shared list.
@@ -828,6 +859,11 @@ type SharedWithMeQuery struct {
 	// (UNI-1868); an unknown value is 400 invalid_filter.
 	Format string
 	Access string
+	// UpdatedBy, UpdatedFrom and UpdatedTo are the last-editor and updated_at
+	// window of the other lists (UNI-2045 SV-8); zero values are absent.
+	UpdatedBy   string
+	UpdatedFrom time.Time
+	UpdatedTo   time.Time
 	// Sort is the optional column sort (UNI-2038 S3). With it the keyset is the
 	// sort key of the last candidate: AfterSort carries the key and
 	// AfterCreatedAt the updated key; without it the share-time keyset above
@@ -894,6 +930,12 @@ func (s *DocumentService) ListSharedWithMe(ctx context.Context, userID, organiza
 	if err := s.attachSharedEditLocks(ctx, Human(userID), organizationID, page.Items); err != nil {
 		return SharedWithMePage{}, err
 	}
+	if err := s.attachSharedByNames(ctx, organizationID, page.Items); err != nil {
+		return SharedWithMePage{}, err
+	}
+	if err := s.attachSharedEditors(ctx, page.Items); err != nil {
+		return SharedWithMePage{}, err
+	}
 	return page, s.attachSharedShareScopes(ctx, Human(userID), organizationID, page.Items)
 }
 
@@ -914,6 +956,9 @@ func (s *DocumentService) listSharedWithMePage(ctx context.Context, userID, orga
 			workspaceIDs = append(workspaceIDs, w.ID)
 		}
 	}
+	if err := in.Sort.CheckRoute(DocumentSortShared); err != nil {
+		return SharedWithMePage{}, err
+	}
 	limit := EffectiveSharedWithMeLimit(in.Limit)
 	filters, err := resolveListFilters(in.Format, in.Access, "", false)
 	if err != nil {
@@ -930,7 +975,7 @@ func (s *DocumentService) listSharedWithMePage(ctx context.Context, userID, orga
 		if !in.Sort.Active() {
 			return r.CreatedAt.Time, r.Document.ID, DocumentSortCursor{}
 		}
-		return r.Document.UpdatedAt.Time, r.Document.ID, NewDocumentSortCursor(in.Sort, r.SortSize, r.SortName, r.SortEditor, r.SortEditorNull)
+		return r.SortAt.Time, r.Document.ID, NewDocumentSortCursor(in.Sort, r.SortSize, r.SortName, r.SortEditor, r.SortEditorNull)
 	}
 	out := make([]SharedDocument, 0, limit)
 	for {
@@ -943,6 +988,13 @@ func (s *DocumentService) listSharedWithMePage(ctx context.Context, userID, orga
 			Format: nullText(filters.format), FormatMime: nullText(filters.formatMime),
 			FormatMimes: files.DocumentFormatMimes(),
 			Access:      nullText(filters.access), AccessLevels: filters.accessLevels,
+			UpdatedBy: nullText(in.UpdatedBy),
+		}
+		if !in.UpdatedFrom.IsZero() {
+			params.UpdatedFrom = pgtype.Timestamptz{Time: in.UpdatedFrom, Valid: true}
+		}
+		if !in.UpdatedTo.IsZero() {
+			params.UpdatedTo = pgtype.Timestamptz{Time: in.UpdatedTo, Valid: true}
 		}
 		switch {
 		case in.Sort.Active():
@@ -977,7 +1029,9 @@ func (s *DocumentService) listSharedWithMePage(ctx context.Context, userID, orga
 				// does not list it.
 				continue
 			}
-			out = append(out, SharedDocument{Document: r.Document, Access: acc})
+			out = append(out, SharedDocument{Document: r.Document, Access: acc, IsOwner: isACLOwner(&r.Document, Human(userID)), Shared: DocumentSharedBy{
+				By: r.GrantedBy, ByKind: r.GrantedByKind, At: r.CreatedAt.Time.UTC(),
+			}})
 			if len(out) == limit {
 				// The keyset points just past the row that filled the page;
 				// candidates after it (denied or not) are re-read by the next
@@ -993,4 +1047,47 @@ func (s *DocumentService) listSharedWithMePage(ctx context.Context, userID, orga
 		afterAt, afterID, afterSort = nextAfter(rows[len(rows)-1])
 	}
 	return SharedWithMePage{Items: out}, nil
+}
+
+// attachSharedByNames names the granter of each row's share, once per page: only
+// a human member of the caller's organization has a name (UNI-2045 SV-3).
+func (s *DocumentService) attachSharedByNames(ctx context.Context, organizationID string, items []SharedDocument) error {
+	ids := make([]string, 0, len(items))
+	for _, it := range items {
+		if it.Shared.ByKind == string(audit.KindHuman) {
+			ids = append(ids, it.Shared.By)
+		}
+	}
+	people, err := s.organizationPeople(ctx, organizationID, ids, false)
+	if err != nil {
+		return err
+	}
+	for i := range items {
+		if items[i].Shared.ByKind != string(audit.KindHuman) {
+			continue
+		}
+		if p, ok := people[items[i].Shared.By]; ok {
+			name := p.Name
+			items[i].Shared.ByName = &name
+		}
+	}
+	return nil
+}
+
+// attachSharedEditors names the last editor of each shared row (UNI-2045 SV-6).
+func (s *DocumentService) attachSharedEditors(ctx context.Context, items []SharedDocument) error {
+	docs := make([]*db.Document, len(items))
+	for i := range items {
+		docs[i] = &items[i].Document
+	}
+	people, err := s.editorPeople(ctx, docs)
+	if err != nil {
+		return err
+	}
+	for i := range items {
+		if p, ok := people[items[i].Document.ID]; ok {
+			items[i].UpdatedByUser = &p
+		}
+	}
+	return nil
 }

@@ -107,14 +107,15 @@ func TestOfficeFrameOpenSaveConflictReopen(t *testing.T) {
 	}
 
 	// A markdown file is another module's document: its own flag (switched
-	// off here for the organization) decides. A format with no web module gets
-	// no frame; a non-member gets the same 404.
+	// off here for the organization) decides; a non-member gets a 404.
 	setOfficeFrameFlagFor(t, w.q, "office_markdown_web", w.orgID, false)
 	if res, out := doJSON(t, w.srv, "POST", "/api/v1/documents/"+markdownID+"/office/frame-token", w.token, nil); res.StatusCode != 403 {
 		t.Fatalf("markdown mint = %d %v", res.StatusCode, out)
 	}
+	// A .txt is the markdown module's document too (UNI-2046): the same flag
+	// refuses it, with no flag of its own.
 	textID := w.createDocx(t, "notes.txt", []byte("plain text\n"))
-	if res, out := doJSON(t, w.srv, "POST", "/api/v1/documents/"+textID+"/office/frame-token", w.token, nil); res.StatusCode != 404 {
+	if res, out := doJSON(t, w.srv, "POST", "/api/v1/documents/"+textID+"/office/frame-token", w.token, nil); res.StatusCode != 403 {
 		t.Fatalf("text mint = %d %v", res.StatusCode, out)
 	}
 	if res, out := doJSON(t, w.srv, "POST", "/api/v1/documents/"+documentID+"/office/frame-token", w.outsiderToken(t), nil); res.StatusCode != 404 {
@@ -416,39 +417,25 @@ func TestOfficeFrameCommitIdenticalBytesNoOp(t *testing.T) {
 	}
 }
 
-// TestOfficeFrameTxtOpenGateAndSaveRoundTrip (UNI-1813): a .txt document is
-// refused at capability and frame-token while office_txt_open is off (default);
-// once office_txt_open is on, it opens in the markdown module, a save round-trip
+// TestOfficeFrameTxtOpensWithoutAFlagAndSaveRoundTrip (UNI-2046): a .txt
+// document opens in the markdown module with no flag, a save round-trip
 // preserves filename ".txt" and mime_type "text/plain", and .csv / .log files
-// stay refused either way.
-func TestOfficeFrameTxtOpenGateAndSaveRoundTrip(t *testing.T) {
+// stay refused.
+func TestOfficeFrameTxtOpensWithoutAFlagAndSaveRoundTrip(t *testing.T) {
 	w := newOfficeWorld(t, true)
 	txtID := w.createDocx(t, "ghi-chu.txt", []byte("dong 1\ndong 2\n"))
 	logID := w.createDocx(t, "server.log", []byte("a,b\n1,2\n"))
 
-	// Flag off (default): capability is 501 format_not_supported, frame-token is 404.
 	res, out := doJSON(t, w.srv, "GET", "/api/v1/documents/"+txtID+"/office/capabilities", w.token, nil)
-	if code, _ := errCodeClass(out); res.StatusCode != 501 || code != "unsupported_operation" {
-		t.Fatalf("flag-off .txt capability = %d %v", res.StatusCode, out)
-	}
-	if res, out := doJSON(t, w.srv, "POST", "/api/v1/documents/"+txtID+"/office/frame-token", w.token, nil); res.StatusCode != 404 {
-		t.Fatalf("flag-off .txt mint = %d %v", res.StatusCode, out)
-	}
-
-	// Enable office_txt_open for the organization.
-	setOfficeFrameFlagFor(t, w.q, "office_txt_open", w.orgID, true)
-	t.Cleanup(func() { setOfficeFrameFlagFor(t, w.q, "office_txt_open", w.orgID, false) })
-
-	res, out = doJSON(t, w.srv, "GET", "/api/v1/documents/"+txtID+"/office/capabilities", w.token, nil)
 	if res.StatusCode != 200 || out["format"] != "md" {
-		t.Fatalf("flag-on .txt capability = %d %v", res.StatusCode, out)
+		t.Fatalf(".txt capability = %d %v", res.StatusCode, out)
 	}
-	// .log (text/plain) never opens even with office_txt_open enabled.
+	// .log (text/plain) never opens with or without any flag.
 	if res, out := doJSON(t, w.srv, "GET", "/api/v1/documents/"+logID+"/office/capabilities", w.token, nil); res.StatusCode != 501 {
-		t.Fatalf("flag-on .log capability = %d %v", res.StatusCode, out)
+		t.Fatalf(".log capability = %d %v", res.StatusCode, out)
 	}
 	if res, out := doJSON(t, w.srv, "POST", "/api/v1/documents/"+logID+"/office/frame-token", w.token, nil); res.StatusCode != 404 {
-		t.Fatalf("flag-on .log mint = %d %v", res.StatusCode, out)
+		t.Fatalf(".log mint = %d %v", res.StatusCode, out)
 	}
 
 	minted := w.mintFrameToken(t, txtID)
@@ -485,19 +472,5 @@ func TestOfficeFrameTxtOpenGateAndSaveRoundTrip(t *testing.T) {
 	savedFile, _ := saved["file"].(map[string]any)
 	if savedFile["filename"] != "ghi-chu.txt" || savedFile["mime_type"] != "text/plain" || savedFile["version"].(float64) != 2 {
 		t.Fatalf("saved .txt file = %v", savedFile)
-	}
-
-	// Turning office_txt_open off closes existing frame tokens for .txt.
-	setOfficeFrameFlagFor(t, w.q, "office_txt_open", w.orgID, false)
-	if res, out := doJSON(t, w.srv, "GET", base, token, nil); res.StatusCode != 404 {
-		t.Fatalf("open .txt after flag off = %d %v", res.StatusCode, out)
-	}
-	if res, raw := doMultipart(t, w.srv, "POST", base+"/uploads", token, nil, "ghi-chu.txt", edited, nil); res.StatusCode != 404 {
-		t.Fatalf("upload .txt after flag off = %d %s", res.StatusCode, raw)
-	}
-	if res, out := doJSONHeaders(t, w.srv, "POST", base+"/versions/commit", token,
-		map[string]string{"Idempotency-Key": "txt-save-after-off"},
-		map[string]string{"upload_id": up.UploadID, "base_revision": saved["revision"].(string)}); res.StatusCode != 404 {
-		t.Fatalf("commit .txt after flag off = %d %v", res.StatusCode, out)
 	}
 }

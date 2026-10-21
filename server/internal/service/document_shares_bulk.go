@@ -61,8 +61,10 @@ func writeUserSharesBulk(
 		}
 		todo = append(todo, id)
 	}
+	var origin string
 	var sourceKind, sourceRoomID, sourceMessageID pgtype.Text
 	if src.kind == DocumentShareSourceKindChat {
+		origin = DocumentShareOriginChat
 		sourceKind = nullText(src.kind)
 		sourceRoomID = nullText(src.roomID)
 		sourceMessageID = nullText(src.messageID)
@@ -93,7 +95,7 @@ func writeUserSharesBulk(
 		}
 		rows, err := q.InsertUserDocumentSharesBatch(ctx, db.InsertUserDocumentSharesBatchParams{
 			OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID, DocumentID: doc.ID,
-			Level: string(level), GrantedBy: actor.ID, GrantedByKind: string(actor.Kind),
+			Level: string(level), GrantedBy: actor.ID, GrantedByKind: string(actor.Kind), Origin: origin,
 			SourceKind: sourceKind, SourceRoomID: sourceRoomID, SourceMessageID: sourceMessageID,
 			Ids: ids, PrincipalIds: chunk, PriorManualLevels: priors,
 		})

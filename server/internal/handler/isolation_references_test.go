@@ -296,6 +296,12 @@ var isoReferences = []isoReference{
 		"version_id": isoOwn("anchorVersionID"), "anchors": []any{map[string]any{
 			"comment_id": isoRef("docComment"), "anchor": map[string]any{"format": "docx", "v": 1, "path": []any{3, 0}, "start": 12, "end": 40, "quote": "q", "prefix": "", "suffix": ""}, "state": "exact"}}},
 		covers: []string{"DocumentCommentAnchorItemSDI.comment_id"}},
+	// UNI-2045 SV-9: B's owner names A's file in the zip request. The job is
+	// accepted and skips the id as not_found, so 2xx is fine as long as the
+	// answer shows nothing of A's and no row of A's changes.
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/documents/download-jobs", what: "documents of another tenant", allow2xx: true,
+		body:   map[string]any{"document_ids": []any{isoRef("fileDocument")}},
+		covers: []string{"CreateDocumentDownloadJobSDI.document_ids"}},
 	{method: "POST", pattern: "/api/v1/documents/{documentID}/copies", what: "parent page", idempotent: true, body: map[string]any{
 		"consent": "copy", "parent_id": isoRef("document")}, covers: []string{"CopyDocumentSDI.parent_id"}},
 	{method: "POST", pattern: "/api/v1/documents/{documentID}/copies", what: "convert job", idempotent: true, body: map[string]any{

@@ -199,6 +199,11 @@ func isoAccessRequestCreate(_ *isoWorld, _ *isoTenant) isoBody {
 	return isoBody{json: map[string]any{"requested_level": "view", "message": "isolation matrix"}}
 }
 
+// isoDownloadJobBody asks for the tenant's own file document as a zip.
+func isoDownloadJobBody(_ *isoWorld, tn *isoTenant) isoBody {
+	return isoBody{json: map[string]any{"document_ids": []string{tn.ids["fileDocument"]}}}
+}
+
 // isoUnknownDocumentID is a well-formed ULID that names no row: the id the
 // uniformAnswer check pairs with the foreign one, so the route's answer cannot
 // depend on whether the document exists.
@@ -571,19 +576,27 @@ var isoRoutes = map[string]isoSpec{
 	"GET /api/v1/workspaces/{workspaceID}/projects/search":           {query: "?q=Project"},
 	// The access report (UNI-1643) over the tenant's folder: the mixed pass
 	// sends B's workspace with A's folder.
-	"GET /api/v1/workspaces/{workspaceID}/documents/access-report":               {query: "?folder_id={folderID}"},
-	"GET /api/v1/workspaces/{workspaceID}/documents/access-report/export":        {query: "?folder_id={folderID}&format=csv"},
-	"GET /api/v1/workspaces/{workspaceID}/task-view-preferences":                 {query: "?scope_type=workspace"},
-	"GET /api/v1/workspaces/{workspaceID}/task-views":                            {query: "?scope_type=workspace"},
-	"GET /api/v1/workspaces/{workspaceID}/calendar/connections/{provider}/start": {skipControl: "no OAuth client is configured in tests; the owner gets 503"},
-	"POST /api/v1/workspaces/{workspaceID}/email-hub/oauth/{provider}/start":     {skipControl: "no OAuth client is configured in tests; the owner gets 404"},
-	"GET /api/v1/meetings/{meetingID}/lobby-ws":                                  {class: isoRealtime, reason: "lobby WebSocket: the auth frame is checked against the knock - TestIsolationRealtime"},
-	"POST /api/v1/orgs/{orgID}/ai/byok/{aiProvider}/chat/completions":            {body: isoJSON(map[string]any{"model": "m"}), skipControl: reasonBYOKVendor},
-	"POST /api/v1/orgs/{orgID}/ai/byok/{aiProvider}/messages":                    {body: isoJSON(map[string]any{"model": "m"}), skipControl: reasonBYOKVendor},
-	"POST /api/v1/orgs/{orgID}/ai/byok/{aiProvider}/generate":                    {body: isoJSON(map[string]any{"model": "m", "request": map[string]any{}}), skipControl: reasonBYOKVendor},
-	"GET /api/v1/orgs/{orgID}/ai/byok/{aiProvider}/models":                       {skipControl: reasonBYOKVendor},
-	"GET /api/v1/files/{fileID}/content":                                         {skipControl: "reads need the ticket POST .../files/resolve mints; without it everyone is refused"},
-	"HEAD /api/v1/files/{fileID}/content":                                        {skipControl: "reads need the ticket POST .../files/resolve mints; without it everyone is refused"},
+	"GET /api/v1/workspaces/{workspaceID}/documents/access-report":            {query: "?folder_id={folderID}"},
+	"GET /api/v1/workspaces/{workspaceID}/documents/access-report/export":     {query: "?folder_id={folderID}&format=csv"},
+	"GET /api/v1/workspaces/{workspaceID}/documents/access-report/summary":    {query: "?folder_id={folderID}"},
+	"GET /api/v1/workspaces/{workspaceID}/documents/access-report/principals": {query: "?folder_id={folderID}"},
+	// The zip download job (UNI-2045): the request names the tenant's own file;
+	// the job row is queued and has no file, so its download answers 404 to its
+	// own creator too. In the mixed pass B's workspace carries A's ids: the job
+	// is accepted and skips them as not_found (nothing of A's in the answer).
+	"POST /api/v1/workspaces/{workspaceID}/documents/download-jobs":                 {body: isoDownloadJobBody, mixedOK: "an id of another tenant is skipped as not_found like an unknown one; the job answer carries no id or text of A's"},
+	"GET /api/v1/workspaces/{workspaceID}/documents/download-jobs/{jobID}/download": {control: []int{http.StatusNotFound}},
+	"GET /api/v1/workspaces/{workspaceID}/task-view-preferences":                    {query: "?scope_type=workspace"},
+	"GET /api/v1/workspaces/{workspaceID}/task-views":                               {query: "?scope_type=workspace"},
+	"GET /api/v1/workspaces/{workspaceID}/calendar/connections/{provider}/start":    {skipControl: "no OAuth client is configured in tests; the owner gets 503"},
+	"POST /api/v1/workspaces/{workspaceID}/email-hub/oauth/{provider}/start":        {skipControl: "no OAuth client is configured in tests; the owner gets 404"},
+	"GET /api/v1/meetings/{meetingID}/lobby-ws":                                     {class: isoRealtime, reason: "lobby WebSocket: the auth frame is checked against the knock - TestIsolationRealtime"},
+	"POST /api/v1/orgs/{orgID}/ai/byok/{aiProvider}/chat/completions":               {body: isoJSON(map[string]any{"model": "m"}), skipControl: reasonBYOKVendor},
+	"POST /api/v1/orgs/{orgID}/ai/byok/{aiProvider}/messages":                       {body: isoJSON(map[string]any{"model": "m"}), skipControl: reasonBYOKVendor},
+	"POST /api/v1/orgs/{orgID}/ai/byok/{aiProvider}/generate":                       {body: isoJSON(map[string]any{"model": "m", "request": map[string]any{}}), skipControl: reasonBYOKVendor},
+	"GET /api/v1/orgs/{orgID}/ai/byok/{aiProvider}/models":                          {skipControl: reasonBYOKVendor},
+	"GET /api/v1/files/{fileID}/content":                                            {skipControl: "reads need the ticket POST .../files/resolve mints; without it everyone is refused"},
+	"HEAD /api/v1/files/{fileID}/content":                                           {skipControl: "reads need the ticket POST .../files/resolve mints; without it everyone is refused"},
 
 	"GET /api/v1/workspaces/{workspaceID}/calendar/connections/{provider}/calendars":                       {skipControl: "no OAuth client is configured in tests; the owner gets 503"},
 	"PUT /api/v1/workspaces/{workspaceID}/calendar/connections/{provider}/calendars":                       {body: isoJSON(map[string]any{"calendar_ids": []string{"primary"}}), skipControl: "owner 5xx found by G8-04, owner: calendar (no provider client is configured in tests; the owner gets 503)"},

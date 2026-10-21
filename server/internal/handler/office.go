@@ -199,7 +199,7 @@ func (h *handlers) createBlankDocumentFile(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	if !service.ValidOfficeFormat(in.Format) {
-		respondError(w, http.StatusBadRequest, "invalid_request", "format must be one of docx, xlsx, pptx, pdf, md, html, xls, odt")
+		respondError(w, http.StatusBadRequest, "invalid_request", "format must be one of docx, xlsx, pptx, pdf, md, html, txt, xls, odt")
 		return
 	}
 	res, err := h.Office.CreateBlankFile(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "workspaceID"), service.BlankFileInput{

@@ -337,6 +337,11 @@ func pathParamSDI(path string) any {
 			ResourceType string `path:"resourceType" description:"Loại tài nguyên: task hoặc meeting" example:"task"`
 			ResourceID   string `path:"resourceID" description:"ULID tài nguyên" example:"01J8X4TASKN1P2Q3R4S5T6U7"`
 		}{}
+	case "workspaceID,jobID":
+		return struct {
+			WorkspaceID string `path:"workspaceID" description:"ULID workspace" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
+			JobID       string `path:"jobID" description:"ULID job tải zip nhiều tài liệu" example:"01J8X4DLJ0N1P2Q3R4S5T6U7"`
+		}{}
 	case "workspaceID,nodeType,nodeID":
 		return struct {
 			WorkspaceID string `path:"workspaceID" description:"ULID workspace" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`

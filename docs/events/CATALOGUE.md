@@ -73,6 +73,7 @@ khai nó, hoặc khi tập trường đổi. Mở thêm trường hay topic cầ
 | `audit.export_requested` | 1 | `export_id`, `organization_id` | — | - | outbox |
 | `file.thumbnail_requested` | 1 | `file_id`, `organization_id` | — | - | outbox |
 | `chat.link_preview.requested` | 1 | `room_id`, `message_id`, `organization_id` | — | - | outbox |
+| `document.download_job_requested` | 1 | `job_id`, `organization_id`, `workspace_id` | — | - | outbox |
 | `audit.exported` | 1 | `export_id`, `organization_id`, `user_id` | — | user | outbox |
 | `chat.mention.created` | 1 | `room_id`, `message_id`, `sender_id`, `thread_root_id` | — | user | ephemeral |
 | `chat.message` | 1 | `meeting_id` | — | meeting | ephemeral |

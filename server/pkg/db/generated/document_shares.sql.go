@@ -188,7 +188,7 @@ func (q *Queries) CountLiveDocumentShares(ctx context.Context, arg CountLiveDocu
 }
 
 const getDocumentShare = `-- name: GetDocumentShare :one
-SELECT id, organization_id, workspace_id, document_id, principal_type, principal_id, level, granted_by, granted_by_kind, revoked_at, revoked_by, created_at, source_kind, source_room_id, source_message_id, prior_manual_level
+SELECT id, organization_id, workspace_id, document_id, principal_type, principal_id, level, granted_by, granted_by_kind, revoked_at, revoked_by, created_at, source_kind, source_room_id, source_message_id, prior_manual_level, origin
 FROM document_shares
 WHERE organization_id = $1
   AND workspace_id = $2
@@ -233,6 +233,7 @@ func (q *Queries) GetDocumentShare(ctx context.Context, arg GetDocumentSharePara
 		&i.SourceRoomID,
 		&i.SourceMessageID,
 		&i.PriorManualLevel,
+		&i.Origin,
 	)
 	return i, err
 }
@@ -290,17 +291,19 @@ const insertDocumentShare = `-- name: InsertDocumentShare :one
 
 INSERT INTO document_shares (
   id, organization_id, workspace_id, document_id, principal_type,
-  principal_id, level, granted_by, granted_by_kind,
+  principal_id, level, granted_by, granted_by_kind, origin,
   source_kind, source_room_id, source_message_id, prior_manual_level
 ) VALUES (
   $1, $2, $3,
   $4, $5,
   $6, $7, $8,
   $9,
-  $10, $11,
-  $12, $13
+  -- UNI-2039 S3: '' means direct (every caller but the chat path).
+  COALESCE(NULLIF($10::text, ''), 'direct'),
+  $11, $12,
+  $13, $14
 )
-RETURNING id, organization_id, workspace_id, document_id, principal_type, principal_id, level, granted_by, granted_by_kind, revoked_at, revoked_by, created_at, source_kind, source_room_id, source_message_id, prior_manual_level
+RETURNING id, organization_id, workspace_id, document_id, principal_type, principal_id, level, granted_by, granted_by_kind, revoked_at, revoked_by, created_at, source_kind, source_room_id, source_message_id, prior_manual_level, origin
 `
 
 type InsertDocumentShareParams struct {
@@ -313,6 +316,7 @@ type InsertDocumentShareParams struct {
 	Level            string      `json:"level"`
 	GrantedBy        string      `json:"granted_by"`
 	GrantedByKind    string      `json:"granted_by_kind"`
+	Origin           string      `json:"origin"`
 	SourceKind       pgtype.Text `json:"source_kind"`
 	SourceRoomID     pgtype.Text `json:"source_room_id"`
 	SourceMessageID  pgtype.Text `json:"source_message_id"`
@@ -333,6 +337,7 @@ func (q *Queries) InsertDocumentShare(ctx context.Context, arg InsertDocumentSha
 		arg.Level,
 		arg.GrantedBy,
 		arg.GrantedByKind,
+		arg.Origin,
 		arg.SourceKind,
 		arg.SourceRoomID,
 		arg.SourceMessageID,
@@ -356,6 +361,7 @@ func (q *Queries) InsertDocumentShare(ctx context.Context, arg InsertDocumentSha
 		&i.SourceRoomID,
 		&i.SourceMessageID,
 		&i.PriorManualLevel,
+		&i.Origin,
 	)
 	return i, err
 }
@@ -363,21 +369,23 @@ func (q *Queries) InsertDocumentShare(ctx context.Context, arg InsertDocumentSha
 const insertUserDocumentSharesBatch = `-- name: InsertUserDocumentSharesBatch :many
 INSERT INTO document_shares (
   id, organization_id, workspace_id, document_id, principal_type,
-  principal_id, level, granted_by, granted_by_kind,
+  principal_id, level, granted_by, granted_by_kind, origin,
   source_kind, source_room_id, source_message_id, prior_manual_level
 )
 SELECT r.id, $1::text, $2::text,
   $3::text, 'user',
   r.principal_id, $4::text, $5::text,
   $6::text,
-  $7::text, $8::text,
-  $9::text, NULLIF(r.prior_manual_level, '')
+  -- UNI-2039 S3: '' means direct (the Documents batch share).
+  COALESCE(NULLIF($7::text, ''), 'direct'),
+  $8::text, $9::text,
+  $10::text, NULLIF(r.prior_manual_level, '')
 FROM (
-  SELECT unnest($10::text[]) AS id,
-    unnest($11::text[]) AS principal_id,
-    unnest($12::text[]) AS prior_manual_level
+  SELECT unnest($11::text[]) AS id,
+    unnest($12::text[]) AS principal_id,
+    unnest($13::text[]) AS prior_manual_level
 ) AS r
-RETURNING id, organization_id, workspace_id, document_id, principal_type, principal_id, level, granted_by, granted_by_kind, revoked_at, revoked_by, created_at, source_kind, source_room_id, source_message_id, prior_manual_level
+RETURNING id, organization_id, workspace_id, document_id, principal_type, principal_id, level, granted_by, granted_by_kind, revoked_at, revoked_by, created_at, source_kind, source_room_id, source_message_id, prior_manual_level, origin
 `
 
 type InsertUserDocumentSharesBatchParams struct {
@@ -387,6 +395,7 @@ type InsertUserDocumentSharesBatchParams struct {
 	Level             string      `json:"level"`
 	GrantedBy         string      `json:"granted_by"`
 	GrantedByKind     string      `json:"granted_by_kind"`
+	Origin            string      `json:"origin"`
 	SourceKind        pgtype.Text `json:"source_kind"`
 	SourceRoomID      pgtype.Text `json:"source_room_id"`
 	SourceMessageID   pgtype.Text `json:"source_message_id"`
@@ -412,6 +421,7 @@ func (q *Queries) InsertUserDocumentSharesBatch(ctx context.Context, arg InsertU
 		arg.Level,
 		arg.GrantedBy,
 		arg.GrantedByKind,
+		arg.Origin,
 		arg.SourceKind,
 		arg.SourceRoomID,
 		arg.SourceMessageID,
@@ -443,6 +453,7 @@ func (q *Queries) InsertUserDocumentSharesBatch(ctx context.Context, arg InsertU
 			&i.SourceRoomID,
 			&i.SourceMessageID,
 			&i.PriorManualLevel,
+			&i.Origin,
 		); err != nil {
 			return nil, err
 		}
@@ -541,7 +552,7 @@ func (q *Queries) ListChatDocumentShareBackings(ctx context.Context, arg ListCha
 }
 
 const listChatDocumentSharesToReconcile = `-- name: ListChatDocumentSharesToReconcile :many
-SELECT s.id, s.organization_id, s.workspace_id, s.document_id, s.principal_type, s.principal_id, s.level, s.granted_by, s.granted_by_kind, s.revoked_at, s.revoked_by, s.created_at, s.source_kind, s.source_room_id, s.source_message_id, s.prior_manual_level
+SELECT s.id, s.organization_id, s.workspace_id, s.document_id, s.principal_type, s.principal_id, s.level, s.granted_by, s.granted_by_kind, s.revoked_at, s.revoked_by, s.created_at, s.source_kind, s.source_room_id, s.source_message_id, s.prior_manual_level, s.origin
 FROM document_shares s
 WHERE s.organization_id = $1
   AND s.principal_type = 'user'
@@ -616,6 +627,7 @@ func (q *Queries) ListChatDocumentSharesToReconcile(ctx context.Context, arg Lis
 			&i.SourceRoomID,
 			&i.SourceMessageID,
 			&i.PriorManualLevel,
+			&i.Origin,
 		); err != nil {
 			return nil, err
 		}
@@ -628,7 +640,7 @@ func (q *Queries) ListChatDocumentSharesToReconcile(ctx context.Context, arg Lis
 }
 
 const listDocumentShares = `-- name: ListDocumentShares :many
-SELECT id, organization_id, workspace_id, document_id, principal_type, principal_id, level, granted_by, granted_by_kind, revoked_at, revoked_by, created_at, source_kind, source_room_id, source_message_id, prior_manual_level
+SELECT id, organization_id, workspace_id, document_id, principal_type, principal_id, level, granted_by, granted_by_kind, revoked_at, revoked_by, created_at, source_kind, source_room_id, source_message_id, prior_manual_level, origin
 FROM document_shares
 WHERE organization_id = $1
   AND workspace_id = $2
@@ -669,6 +681,7 @@ func (q *Queries) ListDocumentShares(ctx context.Context, arg ListDocumentShares
 			&i.SourceRoomID,
 			&i.SourceMessageID,
 			&i.PriorManualLevel,
+			&i.Origin,
 		); err != nil {
 			return nil, err
 		}
@@ -735,7 +748,7 @@ func (q *Queries) ListLiveBreakGlassGrantsForDocuments(ctx context.Context, arg 
 }
 
 const listLiveChatDocumentSharesOfDocument = `-- name: ListLiveChatDocumentSharesOfDocument :many
-SELECT s.id, s.organization_id, s.workspace_id, s.document_id, s.principal_type, s.principal_id, s.level, s.granted_by, s.granted_by_kind, s.revoked_at, s.revoked_by, s.created_at, s.source_kind, s.source_room_id, s.source_message_id, s.prior_manual_level
+SELECT s.id, s.organization_id, s.workspace_id, s.document_id, s.principal_type, s.principal_id, s.level, s.granted_by, s.granted_by_kind, s.revoked_at, s.revoked_by, s.created_at, s.source_kind, s.source_room_id, s.source_message_id, s.prior_manual_level, s.origin
 FROM document_shares s
 WHERE s.organization_id = $1
   AND s.workspace_id = $2
@@ -804,6 +817,7 @@ func (q *Queries) ListLiveChatDocumentSharesOfDocument(ctx context.Context, arg 
 			&i.SourceRoomID,
 			&i.SourceMessageID,
 			&i.PriorManualLevel,
+			&i.Origin,
 		); err != nil {
 			return nil, err
 		}
@@ -875,7 +889,7 @@ WHERE id = $3
   AND document_id = $6
   AND source_kind = 'chat'
   AND revoked_at IS NULL
-RETURNING id, organization_id, workspace_id, document_id, principal_type, principal_id, level, granted_by, granted_by_kind, revoked_at, revoked_by, created_at, source_kind, source_room_id, source_message_id, prior_manual_level
+RETURNING id, organization_id, workspace_id, document_id, principal_type, principal_id, level, granted_by, granted_by_kind, revoked_at, revoked_by, created_at, source_kind, source_room_id, source_message_id, prior_manual_level, origin
 `
 
 type RepointDocumentShareChatSourceParams struct {
@@ -917,6 +931,7 @@ func (q *Queries) RepointDocumentShareChatSource(ctx context.Context, arg Repoin
 		&i.SourceRoomID,
 		&i.SourceMessageID,
 		&i.PriorManualLevel,
+		&i.Origin,
 	)
 	return i, err
 }

@@ -30,16 +30,24 @@ import (
 // empty = roots) and the flat workspace list (absent); the service owns the
 // filter, permission and cursor semantics.
 func documentListInput(w http.ResponseWriter, r *http.Request) (service.ListDocumentsInput, bool) {
+	return documentListInputFor(w, r, false)
+}
+
+// documentListInputFor is documentListInput for the flat list (recent false) or
+// for /documents/recent, whose own screen sort key is activity (UNI-2045).
+func documentListInputFor(w http.ResponseWriter, r *http.Request, recent bool) (service.ListDocumentsInput, bool) {
 	q := r.URL.Query()
 	in := service.ListDocumentsInput{
-		Query:      strings.TrimSpace(q.Get("q")),
-		Match:      strings.TrimSpace(q.Get("match")),
-		Kind:       strings.TrimSpace(q.Get("kind")),
-		Format:     strings.TrimSpace(q.Get("format")),
-		Access:     strings.TrimSpace(q.Get("access")),
-		UpdatedBy:  strings.TrimSpace(q.Get("updated_by")),
-		SharedByMe: strings.TrimSpace(q.Get("shared_by_me")) == "true",
-		Cursor:     strings.TrimSpace(q.Get("cursor")),
+		Query:       strings.TrimSpace(q.Get("q")),
+		Match:       strings.TrimSpace(q.Get("match")),
+		Kind:        strings.TrimSpace(q.Get("kind")),
+		Format:      strings.TrimSpace(q.Get("format")),
+		Access:      strings.TrimSpace(q.Get("access")),
+		UpdatedBy:   strings.TrimSpace(q.Get("updated_by")),
+		SharedByMe:  strings.TrimSpace(q.Get("shared_by_me")) == "true",
+		Cursor:      strings.TrimSpace(q.Get("cursor")),
+		Activity:    strings.TrimSpace(q.Get("activity")),
+		WithEditors: true,
 	}
 	if q.Has("parent_id") {
 		parent := strings.TrimSpace(q.Get("parent_id"))
@@ -61,25 +69,17 @@ func documentListInput(w http.ResponseWriter, r *http.Request) (service.ListDocu
 		}
 		in.Shelved = v
 	}
-	sort, ok := documentSortInput(w, q, in.Archived, in.Shelved)
+	extra := listSortRoute(in.Archived, in.Shelved, in.SharedByMe)
+	if recent {
+		extra = service.DocumentSortActivity
+	}
+	sort, ok := documentSortInput(w, q, extra)
 	if !ok {
 		return in, false
 	}
 	in.Sort = sort
-	for _, f := range []struct {
-		name string
-		dst  *time.Time
-	}{{"updated_from", &in.UpdatedFrom}, {"updated_to", &in.UpdatedTo}} {
-		raw := strings.TrimSpace(q.Get(f.name))
-		if raw == "" {
-			continue
-		}
-		t, err := time.Parse(time.RFC3339, raw)
-		if err != nil {
-			respondError(w, http.StatusBadRequest, "invalid_request", f.name+" must be an RFC3339 timestamp")
-			return in, false
-		}
-		*f.dst = t
+	if !parseUpdatedWindow(w, q, &in.UpdatedFrom, &in.UpdatedTo) {
+		return in, false
 	}
 	if raw := strings.TrimSpace(q.Get("limit")); raw != "" {
 		n, err := strconv.Atoi(raw)
@@ -92,15 +92,50 @@ func documentListInput(w http.ResponseWriter, r *http.Request) (service.ListDocu
 	return in, true
 }
 
+// parseUpdatedWindow reads updated_from / updated_to (RFC3339) into from and to;
+// an absent value leaves its target zero. It answers 400 itself and returns
+// false on a bad timestamp.
+func parseUpdatedWindow(w http.ResponseWriter, q url.Values, from, to *time.Time) bool {
+	for _, f := range []struct {
+		name string
+		dst  *time.Time
+	}{{"updated_from", from}, {"updated_to", to}} {
+		raw := strings.TrimSpace(q.Get(f.name))
+		if raw == "" {
+			continue
+		}
+		t, err := time.Parse(time.RFC3339, raw)
+		if err != nil {
+			respondError(w, http.StatusBadRequest, "invalid_request", f.name+" must be an RFC3339 timestamp")
+			return false
+		}
+		*f.dst = t
+	}
+	return true
+}
+
+// listSortRoute is the screen sort key the flat list takes under its query: the
+// trash sorts by deletion time, the shelf by shelving time, shared_by_me by the
+// time of the newest grant (UNI-2045); every other shape takes the four column
+// keys only. The same word on another shape is 400.
+func listSortRoute(archived, shelved, sharedByMe bool) string {
+	switch {
+	case archived:
+		return service.DocumentSortDeleted
+	case shelved:
+		return service.DocumentSortShelved
+	case sharedByMe:
+		return service.DocumentSortShared
+	}
+	return ""
+}
+
 // documentSortInput parses ?sort= and ?order= once for every documents list
 // that takes them (UNI-2038 S3): a missing sort keeps the list's own order, an
-// unknown value, order without sort and a sort on the trash or the archive
-// shelf (which keep their own order) are 400.
-func documentSortInput(w http.ResponseWriter, q url.Values, archived, shelved bool) (service.DocumentSort, bool) {
-	sort, err := service.ParseDocumentSort(strings.TrimSpace(q.Get("sort")), strings.TrimSpace(q.Get("order")))
-	if err == nil && sort.Active() && (archived || shelved) {
-		err = service.Invalid("sort không dùng được cùng archived hoặc shelved")
-	}
+// unknown value, order without sort and a screen key that is not this route's
+// own (extra, "" for none) are 400.
+func documentSortInput(w http.ResponseWriter, q url.Values, extra string) (service.DocumentSort, bool) {
+	sort, err := service.ParseDocumentSortFor(strings.TrimSpace(q.Get("sort")), strings.TrimSpace(q.Get("order")), extra)
 	if err != nil {
 		var ve service.ValidationError
 		msg := "invalid sort"
@@ -141,11 +176,53 @@ func (h *handlers) listRecentDocuments(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusNotImplemented, "storage_unavailable", "documents are not configured")
 		return
 	}
-	in, ok := documentListInput(w, r)
+	in, ok := documentListInputFor(w, r, true)
 	if !ok {
 		return
 	}
+	// Recent is no trash or shelf view: a sort next to archived/shelved stays 400.
+	if in.Sort.Active() && (in.Archived || in.Shelved) {
+		respondError(w, http.StatusBadRequest, "invalid_request", "sort không dùng được cùng archived hoặc shelved")
+		return
+	}
 	page, err := h.Documents.ListRecentDocuments(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "workspaceID"), in)
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	respondJSON(w, http.StatusOK, documentListSDO(page))
+}
+
+// listFavoriteDocuments is GET /workspaces/{workspaceID}/documents/favorites:
+// the caller's stars in the workspace as list rows (UNI-2045 SV-2), newest star
+// first. Only kind, format, sort/order, cursor and limit are read; a request
+// without a sort is the starred order.
+func (h *handlers) listFavoriteDocuments(w http.ResponseWriter, r *http.Request) {
+	if h.Documents == nil {
+		respondError(w, http.StatusNotImplemented, "storage_unavailable", "documents are not configured")
+		return
+	}
+	q := r.URL.Query()
+	in := service.ListDocumentsInput{
+		Kind:        strings.TrimSpace(q.Get("kind")),
+		Format:      strings.TrimSpace(q.Get("format")),
+		Cursor:      strings.TrimSpace(q.Get("cursor")),
+		WithEditors: true,
+	}
+	sort, ok := documentSortInput(w, q, service.DocumentSortStarred)
+	if !ok {
+		return
+	}
+	in.Sort = sort
+	if raw := strings.TrimSpace(q.Get("limit")); raw != "" {
+		n, err := strconv.Atoi(raw)
+		if err != nil || n < 0 {
+			respondError(w, http.StatusBadRequest, "invalid_request", "limit must be a non-negative integer")
+			return
+		}
+		in.Limit = n
+	}
+	page, err := h.Documents.ListFavoriteDocuments(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "workspaceID"), in)
 	if err != nil {
 		h.mapServiceError(w, err)
 		return
@@ -171,10 +248,14 @@ func (h *handlers) listSharedWithMe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	in := service.SharedWithMeQuery{
-		Format: strings.TrimSpace(r.URL.Query().Get("format")),
-		Access: strings.TrimSpace(r.URL.Query().Get("access")),
+		Format:    strings.TrimSpace(r.URL.Query().Get("format")),
+		Access:    strings.TrimSpace(r.URL.Query().Get("access")),
+		UpdatedBy: strings.TrimSpace(r.URL.Query().Get("updated_by")),
 	}
-	sort, ok := documentSortInput(w, r.URL.Query(), false, false)
+	if !parseUpdatedWindow(w, r.URL.Query(), &in.UpdatedFrom, &in.UpdatedTo) {
+		return
+	}
+	sort, ok := documentSortInput(w, r.URL.Query(), service.DocumentSortShared)
 	if !ok {
 		return
 	}
@@ -401,6 +482,23 @@ func toDocumentSummaryDTO(item service.DocumentListItem) sdo.DocumentSummaryDTO 
 	dto := documentSummaryDTO(item.Document, item.Facts, item.Snippet, access)
 	dto.EditLock = documentRowEditLockSDO(item.EditLock)
 	dto.ShareScope = documentRowShareScopeSDO(item.ShareScope)
+	dto.IsOwner = &item.IsOwner
+	dto.UpdatedByUser = editorSDO(item.UpdatedByUser)
+	if item.FavoritedAt != nil {
+		at := item.FavoritedAt.UTC().Format(time.RFC3339)
+		dto.FavoritedAt = &at
+	}
+	if sum := item.ShareSummary; sum != nil {
+		out := &sdo.DocumentShareSummarySDO{People: sum.People, Workspaces: sum.Workspaces, Links: sum.Links}
+		if sum.LatestAt != nil {
+			at := sum.LatestAt.UTC().Format(time.RFC3339)
+			out.LatestAt = &at
+		}
+		dto.ShareSummary = out
+	}
+	if item.LastActivity != nil {
+		dto.LastActivity = &sdo.DocumentLastActivitySDO{Kind: item.LastActivity.Kind, At: item.LastActivity.At.UTC().Format(time.RFC3339)}
+	}
 	if len(item.Path) > 0 {
 		dto.Path = make([]sdo.DocumentPathItemSDO, len(item.Path))
 		for i, p := range item.Path {
@@ -410,11 +508,32 @@ func toDocumentSummaryDTO(item service.DocumentListItem) sdo.DocumentSummaryDTO 
 	return dto
 }
 
+// editorSDO renders the last editor of a row; nil keeps the key out of the answer.
+func editorSDO(p *service.DocumentPerson) *sdo.DocumentEditorSDO {
+	if p == nil {
+		return nil
+	}
+	out := &sdo.DocumentEditorSDO{Name: p.Name}
+	if p.AvatarURL != "" {
+		url := p.AvatarURL
+		out.AvatarURL = &url
+	}
+	return out
+}
+
 func toSharedDocumentSummaryDTO(row service.SharedDocument) sdo.DocumentSummaryDTO {
 	access := row.Access
 	dto := documentSummaryDTO(row.Document, row.Facts, "", &access)
 	dto.EditLock = documentRowEditLockSDO(row.EditLock)
 	dto.ShareScope = documentRowShareScopeSDO(row.ShareScope)
+	dto.IsOwner = &row.IsOwner
+	dto.UpdatedByUser = editorSDO(row.UpdatedByUser)
+	if row.Shared.By != "" {
+		dto.Shared = &sdo.DocumentSharedSDO{
+			By: row.Shared.By, ByKind: row.Shared.ByKind, ByName: row.Shared.ByName,
+			At: row.Shared.At.UTC().Format(time.RFC3339),
+		}
+	}
 	return dto
 }
 

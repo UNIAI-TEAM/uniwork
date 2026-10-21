@@ -13,7 +13,6 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/files"
 	"github.com/unicomhub/uniwork/server/internal/office"
 	"github.com/unicomhub/uniwork/server/internal/util"
-	"github.com/unicomhub/uniwork/server/pkg/featureflag"
 )
 
 // G2-07a (UNI-690): the capability answer, the pre-mutation negotiation and
@@ -40,17 +39,6 @@ func (f *officeFixture) reseed(t *testing.T, filename string, body []byte) {
 	}
 	setWorkspaceLevel(t, f.pf, res.Document, string(DocumentLevelEdit))
 	f.doc, f.ver, f.rev = res.Document.ID, res.Version.ID, res.Document.Revision
-}
-
-type userDocFlags map[string]bool
-
-func (f userDocFlags) IsEnabled(ctx context.Context, key string, def bool) bool {
-	if key == "office_txt_open" {
-		if v, ok := f[featureflag.EvalContextFrom(ctx).UserID]; ok {
-			return v
-		}
-	}
-	return def
 }
 
 func (f *officeFixture) officeJobCount(t *testing.T, documentID string) int {
@@ -152,61 +140,20 @@ func TestDocumentOfficeCapabilityForTxtAndPlainText(t *testing.T) {
 	svc := f.service(eng)
 	frame := NewOfficeFrameService(f.docs, "office-frame-test-secret-0123456789abcdef")
 
-	// Flag off (default): .txt is not openable and answers format_not_supported.
+	// No flag gates .txt: it resolves like .md the moment it is stored. A stale
+	// office_txt_open=false (an old override or FF_ env of a deployed host) is
+	// inert: nothing reads that key any more, so .txt still opens.
+	f.docs.SetFlags(staticDocFlags{"office_txt_open": false})
 	f.reseed(t, "ghi-chu.txt", []byte("dong 1\ndong 2\n"))
-	if _, err := svc.Capability(ctx, f.actor, f.doc); err == nil {
-		t.Fatal("flag-off .txt document answered a capability")
-	} else if ee := wantOfficeCode(t, err, "unsupported_operation"); ee.Reason != "format_not_supported" {
-		t.Fatalf("flag-off .txt refusal = %+v", ee)
-	}
-	if _, err := svc.StartOfficeJobForDocument(ctx, f.actor, f.doc, OfficeJobRequest{
-		Operation: string(office.OperationSerialize), IdempotencyKey: util.NewID(),
-	}); err == nil {
-		t.Fatal("flag-off .txt document started an office job")
-	} else if ee := wantOfficeCode(t, err, "unsupported_operation"); ee.Reason != "format_not_supported" {
-		t.Fatalf("flag-off .txt job refusal = %+v", ee)
-	}
 
-	// A user-scope override enables .txt for that user only on both Capability
-	// and the job submission paths, while another member keeps the default off.
-	f.docs.SetFlags(userDocFlags{f.actor.ID: true})
-	if caps, err := svc.Capability(ctx, f.actor, f.doc); err != nil || caps.Format != office.FormatMD {
-		t.Fatalf("user-override on .txt capability = %+v, %v", caps, err)
-	}
-	if _, err := svc.Capability(ctx, human(f.tn.wsAdmin), f.doc); err == nil {
-		t.Fatal("other user without override answered a .txt capability")
-	} else if ee := wantOfficeCode(t, err, "unsupported_operation"); ee.Reason != "format_not_supported" {
-		t.Fatalf("other user .txt refusal = %+v", ee)
-	}
-	if _, err := svc.StartOfficeJob(ctx, human(f.tn.wsAdmin), OfficeJobInput{
-		OrganizationID: f.org, WorkspaceID: f.ws, DocumentID: f.doc,
-		BaseVersionID: f.ver, BaseRevision: f.rev,
-		Operation: office.OperationSerialize, Format: office.FormatMD, IdempotencyKey: util.NewID(),
-	}); err == nil {
-		t.Fatal("other user without override started a .txt job via loadBase")
-	} else if ee := wantOfficeCode(t, err, "unsupported_operation"); ee.Reason != "format_not_supported" {
-		t.Fatalf("other user .txt loadBase refusal = %+v", ee)
-	}
-	if job, err := svc.StartOfficeJob(ctx, f.actor, OfficeJobInput{
-		OrganizationID: f.org, WorkspaceID: f.ws, DocumentID: f.doc,
-		BaseVersionID: f.ver, BaseRevision: f.rev,
-		Operation: office.OperationSerialize, Format: office.FormatMD, IdempotencyKey: util.NewID(),
-	}); err != nil || job.Format != string(office.FormatMD) {
-		t.Fatalf("user-override on .txt StartOfficeJob = %+v, %v", job, err)
-	}
-	if _, err := svc.CancelOfficeJobForDocument(ctx, f.actor, f.doc, eng.grants[len(eng.grants)-1].JobID); err != nil {
-		t.Fatalf("cancel first .txt job: %v", err)
-	}
-
-	// Flag on: .txt (and .TXT) resolves to FormatMD, while .csv and .log
+	// .txt (and .TXT) resolves to FormatMD with no flag, while .csv and .log
 	// (even when sniffed as text/plain) never open in the frame.
-	f.docs.SetFlags(staticDocFlags{"office_txt_open": true})
 	caps, err := svc.Capability(ctx, f.actor, f.doc)
 	if err != nil {
-		t.Fatalf("flag-on .txt capability: %v", err)
+		t.Fatalf(".txt capability: %v", err)
 	}
 	if caps.Format != office.FormatMD {
-		t.Fatalf("flag-on .txt format = %q, want %q", caps.Format, office.FormatMD)
+		t.Fatalf(".txt format = %q, want %q", caps.Format, office.FormatMD)
 	}
 	// An office job on a .txt document starts as FormatMD; after the engine
 	// commits its provider output (whose stored filename in the real FileService
@@ -216,7 +163,7 @@ func TestDocumentOfficeCapabilityForTxtAndPlainText(t *testing.T) {
 		Operation: string(office.OperationSerialize), IdempotencyKey: util.NewID(),
 	})
 	if err != nil || txtJob.Format != string(office.FormatMD) {
-		t.Fatalf("flag-on .txt StartOfficeJobForDocument = %+v, %v", txtJob, err)
+		t.Fatalf(".txt StartOfficeJobForDocument = %+v, %v", txtJob, err)
 	}
 	eng.finish(t, txtJob.ID, []byte("dong 1\ndong 2 engine\n"), "text/plain")
 	doneJob, err := svc.GetOfficeJob(ctx, f.actor, f.org, f.ws, txtJob.ID)
@@ -431,7 +378,7 @@ func TestDocumentOfficeBlankRefusalsKeyOfAPlainUpload(t *testing.T) {
 // A blank seed is always non-empty: the file validator refuses zero bytes, so
 // the engine must produce a real first version, never an empty file.
 func TestBlankSeedIsNeverEmpty(t *testing.T) {
-	for _, format := range []office.Format{office.FormatMD, office.FormatHTML, office.FormatXLSX, office.FormatDOCX, office.FormatPPTX, office.FormatPDF} {
+	for _, format := range []office.Format{office.FormatMD, office.FormatHTML, office.FormatXLSX, office.FormatDOCX, office.FormatPPTX, office.FormatPDF, officeFormatTXT} {
 		seed, filename, ok := blankSeedFor(format, "Tieu de")
 		if want := "untitled." + string(format); ok && filename != want {
 			t.Fatalf("seed %s filename = %q, want %q", format, filename, want)
@@ -450,6 +397,93 @@ func TestBlankSeedIsNeverEmpty(t *testing.T) {
 		if _, _, ok := blankSeedFor(format, "Tieu de"); ok {
 			t.Fatalf("unsupported format %s has a blank seed", format)
 		}
+	}
+}
+
+// A blank "Văn bản" (UNI-2046) is a server-chosen "\n" stored as it is, like
+// the DOCX/PPTX seed: no engine job runs (the engine has no txt format; the
+// file validator refuses zero bytes, so the seed is one newline). The document
+// is untitled.txt / text/plain and opens in the markdown module with no flag.
+func TestDocumentOfficeBlankTxt(t *testing.T) {
+	ctx := context.Background()
+	f := newOfficeFixture(t, "# Ghi chu\n")
+	if !ValidOfficeFormat("txt") || !ValidOfficeFormat("md") || ValidOfficeFormat("csv") {
+		t.Fatal("ValidOfficeFormat must accept txt and md and refuse csv")
+	}
+	if _, ok := parseOfficeFormat("txt"); ok {
+		t.Fatal("parseOfficeFormat accepted txt: a convert target must stay one of the engine formats")
+	}
+	eng := newScriptedEngine()
+	eng.fake = f.files.Fake
+	svc := f.service(eng)
+	frame := NewOfficeFrameService(f.docs, "office-frame-test-secret-0123456789abcdef")
+
+	res, err := svc.CreateBlankFile(ctx, f.actor, f.ws, BlankFileInput{Format: "txt", Title: "Ghi chu nhanh"})
+	if err != nil {
+		t.Fatalf("blank txt: %v", err)
+	}
+	if res.File.Filename != "untitled.txt" || res.File.MimeType != "text/plain" || res.Document.Title != "Ghi chu nhanh" {
+		t.Fatalf("blank txt = title %q file %+v", res.Document.Title, res.File)
+	}
+	eng.mu.Lock()
+	submitted := len(eng.jobs)
+	eng.mu.Unlock()
+	if submitted != 0 {
+		t.Fatalf("blank txt ran %d engine jobs, want none", submitted)
+	}
+	// Visibility and parent go through the same shared path as the docx blank.
+	shared, err := svc.CreateBlankFile(ctx, f.actor, f.ws, BlankFileInput{Format: "txt", Title: "Chia se", Visibility: documentVisibilityWorkspace})
+	if err != nil {
+		t.Fatalf("blank txt workspace: %v", err)
+	}
+	if shared.Document.Visibility != documentVisibilityWorkspace || shared.Document.WorkspaceLevel != string(DocumentLevelView) {
+		t.Fatalf("blank txt workspace = %q/%q, want workspace/view", shared.Document.Visibility, shared.Document.WorkspaceLevel)
+	}
+	folder, err := f.docs.CreatePage(ctx, f.actor, f.ws, CreatePageInput{Kind: DocumentKindFolder, Title: "Thu muc txt"})
+	if err != nil {
+		t.Fatalf("folder: %v", err)
+	}
+	inFolder, err := svc.CreateBlankFile(ctx, f.actor, f.ws, BlankFileInput{Format: "txt", Title: "Trong thu muc", ParentID: folder.Document.ID})
+	if err != nil {
+		t.Fatalf("blank txt in a folder: %v", err)
+	}
+	docxInFolder, err := svc.CreateBlankFile(ctx, f.actor, f.ws, BlankFileInput{Format: "docx", Title: "Docx trong thu muc", ParentID: folder.Document.ID})
+	if err != nil {
+		t.Fatalf("blank docx in a folder: %v", err)
+	}
+	if inFolder.Document.ParentID.String != folder.Document.ID || !inFolder.Document.ParentID.Valid {
+		t.Fatalf("blank txt parent = %+v, want %s", inFolder.Document.ParentID, folder.Document.ID)
+	}
+	if inFolder.Document.Visibility != docxInFolder.Document.Visibility || inFolder.Document.WorkspaceLevel != docxInFolder.Document.WorkspaceLevel {
+		t.Fatalf("blank txt in a folder = %q/%q, docx = %q/%q", inFolder.Document.Visibility, inFolder.Document.WorkspaceLevel,
+			docxInFolder.Document.Visibility, docxInFolder.Document.WorkspaceLevel)
+	}
+	// No engine deployed: a txt blank needs none.
+	if _, err := f.service(nil).CreateBlankFile(ctx, f.actor, f.ws, BlankFileInput{Format: "txt"}); err != nil {
+		t.Fatalf("blank txt without an engine: %v", err)
+	}
+	// Opens as md in the markdown module with no flag.
+	setWorkspaceLevel(t, f.pf, res.Document, string(DocumentLevelEdit))
+	caps, err := svc.Capability(ctx, f.actor, res.Document.ID)
+	if err != nil || caps.Format != office.FormatMD {
+		t.Fatalf("blank txt capability = %+v, %v", caps, err)
+	}
+	tok, err := frame.Mint(ctx, f.actor, res.Document.ID)
+	if err != nil || tok.Claims.ModuleName() != OfficeFrameModuleMarkdown {
+		t.Fatalf("blank txt frame mint = %+v, %v", tok, err)
+	}
+	// The same key answers the same document; another title under it is a mismatch.
+	key := util.NewID()
+	first, err := svc.CreateBlankFile(ctx, f.actor, f.ws, BlankFileInput{Format: "txt", Title: "Lap lai", IdempotencyKey: key})
+	if err != nil {
+		t.Fatalf("blank txt keyed: %v", err)
+	}
+	again, err := svc.CreateBlankFile(ctx, f.actor, f.ws, BlankFileInput{Format: "txt", Title: "Lap lai", IdempotencyKey: key})
+	if err != nil || again.Document.ID != first.Document.ID {
+		t.Fatalf("blank txt replay = %+v, %v", again.Document, err)
+	}
+	if _, err := svc.CreateBlankFile(ctx, f.actor, f.ws, BlankFileInput{Format: "txt", Title: "Khac", IdempotencyKey: key}); err == nil {
+		t.Fatal("blank txt on a used key with another title succeeded")
 	}
 }
 

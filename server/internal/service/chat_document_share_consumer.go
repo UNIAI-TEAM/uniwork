@@ -222,6 +222,7 @@ func revokeChatDocumentShare(ctx context.Context, q *db.Queries, actor Actor, do
 			"principal_type":         restored.PrincipalType,
 			"principal_id":           restored.PrincipalID,
 			"restored_from_share_id": live.ID,
+			"origin":                 restored.Origin,
 			"transition":             "manual_share_restored",
 		},
 	}, audit.Event{Topic: "document.shared", Payload: map[string]string{

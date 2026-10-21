@@ -225,7 +225,7 @@ func (s *ChatService) resolveChatDocument(ctx context.Context, actor Actor, room
 	info.Title = doc.Title
 	info.VersionNumber = doc.CurrentVersion
 	info.Revision = doc.Revision
-	info.Format, info.CanOpenInApp = s.chatDocumentFormat(ctx, actor.ID, doc)
+	info.Format, info.CanOpenInApp = s.chatDocumentFormat(ctx, doc)
 	// The count is the sender's aggregate only (§5): a member who later gains
 	// access must not learn the audience from the card.
 	if doc.CreatedBy == actor.ID {
@@ -247,10 +247,9 @@ func chatDocumentCanUploadVersion(doc db.Document, access DocumentAccess) bool {
 
 // chatDocumentFormat is the type icon's format and the §5 open-in-app rule.
 // The rule is the Office frame's own (office_frame.go's load): a live file
-// document whose current version a module opens, with a .txt behind the
-// txtOpenEnabled flag. A page or folder document has no file, so no format
-// and no editor.
-func (s *ChatService) chatDocumentFormat(ctx context.Context, userID string, doc db.Document) (string, bool) {
+// document whose current version a module opens. A page or folder document
+// has no file, so no format and no editor.
+func (s *ChatService) chatDocumentFormat(ctx context.Context, doc db.Document) (string, bool) {
 	if doc.Kind != DocumentKindFile {
 		return "", false
 	}
@@ -261,9 +260,6 @@ func (s *ChatService) chatDocumentFormat(ctx context.Context, userID string, doc
 	format := documentSourceExtension(file.Filename)
 	if format == "" {
 		format = documentSourceExtension(doc.Title)
-	}
-	if isTxtFilename(file.Filename) && !s.docs.txtOpenEnabled(ctx, userID, doc.WorkspaceID, doc.OrganizationID) {
-		return format, false
 	}
 	_, openable := officeFrameModuleOf(file.MimeType, file.Filename)
 	return format, openable

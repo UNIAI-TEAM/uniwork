@@ -471,6 +471,7 @@ func (s *ChatService) grantDocumentToRoomMembers(
 		Changes:        audit.Diff(nil, map[string]any{"level": string(level)}),
 		Metadata: map[string]any{
 			"principal_type":    DocumentPrincipalUser,
+			"origin":            DocumentShareOriginChat,
 			"source_kind":       DocumentShareSourceKindChat,
 			"source_room_id":    roomID,
 			"source_message_id": messageID,
