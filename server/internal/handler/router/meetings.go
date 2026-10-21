@@ -185,7 +185,7 @@ func registerMeetings(r api, h Routes, summaryLimit, minutesOrg, minutesFlag fun
 	})
 	r.Put("/meetings/{meetingID}/participants/{participantID}/shared-mic", h.SetParticipantSharedMic, apiOp{
 		summary:     "Mark or unmark a participant as the room's shared microphone (clerk)",
-		description: "Chủ tọa, thư ký hoặc quản trị workspace; cuộc họp SCHEDULED hoặc IN_PROGRESS. Server ghi shared_mic_at và đặt attribute LiveKit uw.shared_mic (người tham gia không tự đặt được); thư ký AI tách người nói trên mic đó. Ghi audit meeting.shared_mic_toggled và phát participant.updated.",
+		description: "Chủ tọa, thư ký hoặc quản trị workspace; cuộc họp SCHEDULED hoặc IN_PROGRESS. Server ghi shared_mic_at và đặt attribute LiveKit uw.shared_mic (người tham gia không tự đặt được); thư ký AI tách người nói trên mic đó. Ghi audit meeting.shared_mic_toggled và phát participant.updated. 409 shared_mic_dial_in: người gọi điện thoại không làm micro hội trường được (bỏ thì được).",
 		tags:        []string{"meetings"}, sdi: sdi.SetSharedMicSDI{}, sdo: sdo.ParticipantSDO{}, auth: true,
 	})
 	r.Get("/meetings/{meetingID}/speaker-labels", h.ListSpeakerLabels, apiOp{

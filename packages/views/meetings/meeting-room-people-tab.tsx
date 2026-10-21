@@ -287,7 +287,8 @@ export function MeetingRoomPeopleTab({
                                     standingOnly={meta.isHost}
                                   />
                                 ) : null}
-                                {isClerk && scribeInRoom ? (
+                                {/* Never a phone line: the scribe would diarize it under the caller's id. */}
+                                {isClerk && scribeInRoom && participantRole(participant, guests) !== "phone" ? (
                                   <MeetingSharedMicMenuItem
                                     meetingId={meetingId}
                                     participant={meta.api}

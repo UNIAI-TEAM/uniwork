@@ -588,7 +588,7 @@ func (s *MeetingService) ApproveJoinRequest(ctx context.Context, actorID, reques
 		return err
 	}
 	if isDialInGuest(decided.RequesterGuestID.String) {
-		s.admitDialInCaller(ctx, m, p, decided)
+		s.admitDialInCaller(ctx, m, p, decided.ProviderParticipantSid.String)
 	}
 	return nil
 }

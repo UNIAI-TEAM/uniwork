@@ -24,6 +24,20 @@ SELECT EXISTS (
   WHERE dial_in_pin = sqlc.arg('pin') AND sip_dispatch_rule_id IS NOT NULL AND id <> sqlc.arg('id')
 );
 
+-- name: LockMeetingDialIn :exec
+-- Serializes ensures of one meeting's rule across replicas (Start's inline
+-- ensure and a sweep): otherwise the second sees no rule, makes one for the
+-- same PIN, is refused by the first's rule and rotates the PIN people hold.
+SELECT pg_advisory_xact_lock(hashtextextended('meeting_dial_in:' || sqlc.arg(meeting_id)::text, 0));
+
+-- name: DialInSweepTryLock :one
+-- Run lease of the dial-in sweep (the file_gc pattern): a session lock held
+-- on one connection for the sweep, so only one replica sweeps per tick.
+SELECT pg_try_advisory_lock(sqlc.arg('lock_key')::bigint) AS locked;
+
+-- name: DialInSweepUnlock :one
+SELECT pg_advisory_unlock(sqlc.arg('lock_key')::bigint) AS unlocked;
+
 -- name: SetMeetingDialInRule :execrows
 -- tenant: by-id
 -- Records the rule only while it still fits: the meeting is in progress, has
@@ -42,25 +56,37 @@ WHERE id = sqlc.arg('id') AND sip_dispatch_rule_id = sqlc.arg('rule_id');
 -- tenant: system
 -- The dial-in sweep: every meeting holding a rule (it may have ended or lost
 -- the flag), and with dial-in on (with_ensure) every meeting in progress
--- without one. Oldest start first, like the scribe sweep.
+-- without one. Rule holders first, so meetings of organizations without the
+-- flag never crowd them out of the batch; then oldest start first.
 SELECT id FROM meetings
 WHERE sip_dispatch_rule_id IS NOT NULL
    OR (sqlc.arg('with_ensure')::bool AND status = 'IN_PROGRESS' AND sip_dispatch_rule_id IS NULL)
-ORDER BY actual_start_at ASC NULLS LAST, id
+ORDER BY (sip_dispatch_rule_id IS NULL), actual_start_at ASC NULLS LAST, id
 LIMIT sqlc.arg('row_limit');
 
 -- name: DialInCallerAdmitted :one
 -- tenant: parent meeting_id
 -- One connection of a caller is in the meeting proper (not held) while it
--- has an open room session: admission opens it for that connection's SID,
--- its hang-up closes it. A redial is another connection and knocks again.
-SELECT EXISTS (
-  SELECT 1 FROM meeting_attendance_sessions a
-  JOIN meeting_participants p ON p.id = a.participant_id
-  WHERE a.meeting_id = sqlc.arg('meeting_id') AND p.meeting_id = sqlc.arg('meeting_id')
-    AND p.principal_type = 'GUEST' AND p.guest_id = sqlc.arg('guest_id') AND a.left_at IS NULL
-    AND a.provider_participant_sid = sqlc.arg('participant_sid')::text
-);
+-- has an open room session (in_session): admission opens it for that
+-- connection's SID, its hang-up closes it. A redial is another connection
+-- and knocks again. approved: the host approved this connection's knock and
+-- the caller is not removed, so it counts as admitted even before (or
+-- without) its session — the approval commits first, then the provider call.
+SELECT
+  EXISTS (
+    SELECT 1 FROM meeting_attendance_sessions a
+    JOIN meeting_participants p ON p.id = a.participant_id
+    WHERE a.meeting_id = sqlc.arg('meeting_id') AND p.meeting_id = sqlc.arg('meeting_id')
+      AND p.principal_type = 'GUEST' AND p.guest_id = sqlc.arg('guest_id') AND a.left_at IS NULL
+      AND a.provider_participant_sid = sqlc.arg('participant_sid')::text
+  ) AS in_session,
+  EXISTS (
+    SELECT 1 FROM meeting_join_requests r
+    JOIN meeting_participants p ON p.meeting_id = r.meeting_id AND p.guest_id = r.requester_guest_id
+    WHERE r.meeting_id = sqlc.arg('meeting_id') AND r.requester_guest_id = sqlc.arg('guest_id')
+      AND r.status = 'APPROVED' AND r.provider_participant_sid = sqlc.arg('participant_sid')::text
+      AND p.principal_type = 'GUEST' AND p.status = 'ACTIVE'
+  ) AS approved;
 
 -- name: OpenDialInSessionSid :one
 -- tenant: parent meeting_id

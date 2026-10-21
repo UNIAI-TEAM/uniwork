@@ -252,6 +252,12 @@ func (f *FakeProvider) CreateDialInRule(_ context.Context, req DialInRuleRequest
 	if f.DialInRuleErr != nil {
 		return "", f.DialInRuleErr
 	}
+	// Like LiveKit: one trunk routes a PIN to one rule.
+	for _, r := range f.DialInRules {
+		if r.Pin == req.Pin && r.TrunkID == req.TrunkID {
+			return "", ErrDialInRuleConflict
+		}
+	}
 	f.DialInCreates++
 	if f.DialInRules == nil {
 		f.DialInRules = map[string]DialInRuleRequest{}
