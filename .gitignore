@@ -66,6 +66,7 @@ server/internal/handler/data/
 !.github/workflows/chat-desktop-release.yml
 !.github/workflows/chat-mobile-release.yml
 !.github/workflows/chat-mobile-verify.yml
+!.github/workflows/chat-mobile-update.yml
 .codex/
 .pnpm-store/
 .uniwork-dev/
@@ -76,3 +77,8 @@ apps/web/public/office-frame/
 
 # Written by ci/Jenkinsfile.app-dev.groovy on the deploy host.
 deploy/app-dev/env/image.env
+
+# EAS Update code-signing private keys (expo-updates codesigning:generate):
+# only the certificate (apps/chat-mobile/certs/) is committed, never a key.
+private-key.pem
+public-key.pem

@@ -25,7 +25,8 @@ name: Mobile Verify
 # Every check here blocks at every GATE_LEVEL (ADR 0037). No secret is read:
 # the server URLs are placeholders (the app is built, never run), and EAS, the
 # stores and Sentry are not reached. chat-mobile-release.yml calls this
-# workflow on the SHA it releases.
+# workflow on the SHA it releases, chat-mobile-update.yml on the SHA it
+# publishes as an OTA update.
 
 on:
   push:
@@ -45,6 +46,7 @@ on:
       # scripts/mobile-knip.test.mjs run when these change.
       - ".github/workflows/chat-mobile-release.yml"
       - ".github/workflows/chat-mobile-verify.yml"
+      - ".github/workflows/chat-mobile-update.yml"
       - "knip.json"
   pull_request:
     branches: [main, develop]
@@ -63,6 +65,7 @@ on:
       # scripts/mobile-knip.test.mjs run when these change.
       - ".github/workflows/chat-mobile-release.yml"
       - ".github/workflows/chat-mobile-verify.yml"
+      - ".github/workflows/chat-mobile-update.yml"
       - "knip.json"
   workflow_call:
     inputs:

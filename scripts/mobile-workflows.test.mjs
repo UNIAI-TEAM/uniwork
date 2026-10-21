@@ -6,7 +6,7 @@ import os from "node:os";
 import path from "node:path";
 
 // The release path of UniChat mobile (docs/runbooks/unichat-mobile-release.md,
-// ADR 0037): what the three workflows promise, held so an edit cannot quietly
+// ADR 0037): what the four workflows promise, held so an edit cannot quietly
 // drop it.
 const root = path.resolve(import.meta.dirname, "..");
 const read = (f) => fs.readFileSync(path.join(root, ".github/workflows", f), "utf8");
@@ -54,13 +54,35 @@ test("the nightly pins Maestro, fails a scheduled run without its settings, and 
   assert.match(wf, /\.\/gradlew :app:bundleRelease/);
 });
 
-// Both triggers must fire when any of the three workflows changes, or an edit to
-// the release or the nightly merges without this test having run.
-test("mobile-verify runs on an edit to any of the three workflows, on push and on pull_request", () => {
+// The OTA path (audit R3): from CI, after every PR check on the SHA, staged by
+// a rollout share, signed once the certificate exists, its maps in Sentry.
+test("an OTA update is verified first, staged, signed when the app carries a certificate, and fails loudly without a token", () => {
+  const wf = read("chat-mobile-update.yml");
+  assert.match(wf, /^ {2}workflow_dispatch:$/m);
+  assert.doesNotMatch(wf, /^ {2}(push|pull_request|schedule):/m, "a person decides when an update ships");
+  assert.match(wf, /^ {2}verify:\n {4}uses: \.\/\.github\/workflows\/mobile-verify\.yml$/m, "a verify job that calls mobile-verify.yml");
+  assert.match(wf, /^ {2}publish:\n {4}needs: verify$/m, "publish waits for verify");
+  assert.match(envPin(wf, "EAS_CLI_VERSION") ?? "", EXACT, "EAS_CLI_VERSION is an exact version");
+  assert.equal(envPin(wf, "EAS_CLI_VERSION"), envPin(read("chat-mobile-release.yml"), "EAS_CLI_VERSION"), "the same eas-cli as the store release");
+  assert.match(wf, /eas-version: \$\{\{ env\.EAS_CLI_VERSION \}\}/);
+  for (const input of ["channel", "rollout_percentage", "message"]) assert.match(wf, new RegExp(`^ {6}${input}:$`, "m"), `input ${input}`);
+  // Inputs reach the shell through env, never interpolated into a script.
+  assert.doesNotMatch(wf.split(/^jobs:$/m)[1] ?? "", /run: [^\n]*\$\{\{ inputs\./);
+  assert.match(wf, /eas update --platform android --channel "\$CHANNEL" --environment "\$EAS_ENVIRONMENT"/);
+  assert.match(wf, /--rollout-percentage "\$ROLLOUT"/);
+  assert.match(wf, /certs\/eas-update-certificate\.pem/);
+  assert.match(wf, /--private-key-path/);
+  assert.match(wf, /::error::EXPO_TOKEN is not set[^\n]*\n\s+exit 1/, "a dispatched publish without a token fails");
+  assert.match(wf, /sentry-expo-upload-sourcemaps dist/);
+});
+
+// Both triggers must fire when any of the four workflows changes, or an edit to
+// the release, the nightly or the OTA path merges without this test having run.
+test("mobile-verify runs on an edit to any of the four workflows, on push and on pull_request", () => {
   const wf = read("mobile-verify.yml");
   for (const event of ["push", "pull_request"]) {
     const block = wf.match(new RegExp(`^ {2}${event}:\\n([\\s\\S]*?)(?=^ {2}\\S)`, "m"))?.[1] ?? "";
-    for (const file of ["mobile-verify.yml", "chat-mobile-release.yml", "chat-mobile-verify.yml"]) {
+    for (const file of ["mobile-verify.yml", "chat-mobile-release.yml", "chat-mobile-verify.yml", "chat-mobile-update.yml"]) {
       assert.ok(block.includes(`- ".github/workflows/${file}"`), `${event} paths list ${file}`);
     }
     assert.ok(block.includes('- "knip.json"'), `${event} paths list knip.json (scripts/mobile-knip.test.mjs reads it)`);

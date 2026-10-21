@@ -1,0 +1,191 @@
+name: UniChat mobile OTA update
+
+# Publishes a JavaScript-only update of UniChat mobile (apps/chat-mobile) with
+# EAS Update, from CI instead of a laptop (audit R3), staged and signed.
+# Runbook: docs/runbooks/unichat-mobile-release.md › Phát OTA.
+#
+#   channel             the EAS Update channel (eas.json): internal (Play
+#                       internal / TestFlight, staging servers), preview or
+#                       production
+#   rollout_percentage  the share of that channel's phones that take it at
+#                       once; raise it later with `eas update:edit` (runbook)
+#   message             what changed, shown in the EAS dashboard
+#
+# The update reaches only binaries whose native fingerprint matches
+# (app.config.ts › runtimeVersion policy "fingerprint"): a change that needs
+# native work matches no phone and has to ship as a store build
+# (chat-mobile-release.yml). `verify` first runs every PR check on the SHA
+# (mobile-verify.yml); nothing is published unless it is green.
+#
+# The chat-mobile-release environment holds the secrets: EXPO_TOKEN (required:
+# a dispatched publish without it fails), EAS_UPDATE_PRIVATE_KEY (required once
+# apps/chat-mobile/certs/eas-update-certificate.pem is committed: phones built
+# with the certificate refuse an unsigned update) and SENTRY_AUTH_TOKEN with
+# the SENTRY_ORG / SENTRY_PROJECT variables (optional: without them the source
+# maps are not uploaded and the run says so). The server URLs and SENTRY_DSN
+# come from the EAS environment of the channel, as for a build.
+
+on:
+  workflow_dispatch:
+    inputs:
+      channel:
+        description: EAS Update channel
+        type: choice
+        options: [internal, preview, production]
+        required: true
+      rollout_percentage:
+        description: Share of the channel's phones that take the update now (1-100)
+        type: number
+        default: 10
+        required: true
+      message:
+        description: What changed (shown in the EAS dashboard)
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: chat-mobile-update-${{ inputs.channel }}
+  cancel-in-progress: false
+
+env:
+  NODE_VERSION: "22"
+  # The same pinned eas-cli as the store release (chat-mobile-release.yml).
+  EAS_CLI_VERSION: "24.12.0"
+  EXPO_NO_TELEMETRY: "1"
+
+jobs:
+  verify:
+    uses: ./.github/workflows/mobile-verify.yml
+    with:
+      force_native: true
+
+  publish:
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: chat-mobile-release
+    env:
+      CHANNEL: ${{ inputs.channel }}
+      ROLLOUT: ${{ inputs.rollout_percentage }}
+      MESSAGE: ${{ inputs.message }}
+    steps:
+      - name: Settings and inputs
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "::error::EXPO_TOKEN is not set in the chat-mobile-release environment, so nothing can be published. First-time setup: docs/runbooks/unichat-mobile-release.md"
+            exit 1
+          fi
+          if ! [[ "$ROLLOUT" =~ ^[0-9]+$ ]] || [ "$ROLLOUT" -lt 1 ] || [ "$ROLLOUT" -gt 100 ]; then
+            echo "::error::rollout_percentage must be a whole number from 1 to 100, got $ROLLOUT"
+            exit 1
+          fi
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: The commit is on main or develop
+        run: |
+          set -euo pipefail
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main && ! git merge-base --is-ancestor "$GITHUB_SHA" origin/develop; then
+            echo "::error::$GITHUB_SHA is on neither main nor develop"
+            exit 1
+          fi
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      # The app and what it imports only, as the release does.
+      - run: pnpm install --frozen-lockfile --filter "@uniwork/chat-mobile..."
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: ${{ env.EAS_CLI_VERSION }}
+          token: ${{ secrets.EXPO_TOKEN }}
+      - id: target
+        name: The EAS environment of the channel (eas.json)
+        run: |
+          set -euo pipefail
+          case "$CHANNEL" in
+            internal|preview) echo "environment=preview" >> "$GITHUB_OUTPUT" ;;
+            production) echo "environment=production" >> "$GITHUB_OUTPUT" ;;
+            *) echo "::error::unknown channel $CHANNEL"; exit 1 ;;
+          esac
+      - name: The update carries the channel's servers
+        working-directory: apps/chat-mobile
+        env:
+          EAS_ENVIRONMENT: ${{ steps.target.outputs.environment }}
+        # An update's manifest is its config: published without the URLs it
+        # would point every phone that takes it at nothing.
+        run: |
+          set -euo pipefail
+          eas env:exec "$EAS_ENVIRONMENT" "npx expo config --type public --json" > "$RUNNER_TEMP/config.json"
+          node -e '
+            const c = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8").replace(/^[^{]*/, ""));
+            const missing = ["apiUrl", "appUrl"].filter((k) => !c.extra?.[k]);
+            if (missing.length) { console.error(`::error::the ${process.env.EAS_ENVIRONMENT} EAS environment has no ${missing.join(", ")}`); process.exit(1); }
+            if (!c.extra?.sentryDsn) console.log("::notice::no SENTRY_DSN in the EAS environment: phones on this update report no crashes");
+          ' "$RUNNER_TEMP/config.json"
+      - id: signing
+        name: Code signing key (required once the certificate is committed)
+        working-directory: apps/chat-mobile
+        env:
+          EAS_UPDATE_PRIVATE_KEY: ${{ secrets.EAS_UPDATE_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          if [ ! -f certs/eas-update-certificate.pem ]; then
+            echo "::notice::No code-signing certificate in the app yet: the update is unsigned (runbook › Ký OTA)."
+            echo "args=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ -z "$EAS_UPDATE_PRIVATE_KEY" ]; then
+            echo "::error::certs/eas-update-certificate.pem is committed but EAS_UPDATE_PRIVATE_KEY is not set: phones would refuse an unsigned update"
+            exit 1
+          fi
+          umask 077
+          printf '%s\n' "$EAS_UPDATE_PRIVATE_KEY" > "$RUNNER_TEMP/eas-update-private-key.pem"
+          echo "args=--private-key-path $RUNNER_TEMP/eas-update-private-key.pem" >> "$GITHUB_OUTPUT"
+      - name: Publish to the channel, staged
+        working-directory: apps/chat-mobile
+        env:
+          EAS_ENVIRONMENT: ${{ steps.target.outputs.environment }}
+          SIGNING_ARGS: ${{ steps.signing.outputs.args }}
+        # Android only until the Apple account exists (UNI-1838), as the store release.
+        run: |
+          set -euo pipefail
+          # shellcheck disable=SC2086 # SIGNING_ARGS is empty or one flag and its path: split on purpose.
+          eas update --platform android --channel "$CHANNEL" --environment "$EAS_ENVIRONMENT" \
+            --message "$MESSAGE" --rollout-percentage "$ROLLOUT" --non-interactive $SIGNING_ARGS
+      - name: Upload the source maps to Sentry
+        working-directory: apps/chat-mobile
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
+        # The bundles carry Sentry debug ids (metro.config.js), so the maps
+        # match the update's crashes without a release of their own.
+        run: |
+          set -euo pipefail
+          if [ -z "$SENTRY_AUTH_TOKEN" ] || [ -z "$SENTRY_ORG" ] || [ -z "$SENTRY_PROJECT" ]; then
+            echo "::notice::SENTRY_AUTH_TOKEN, SENTRY_ORG or SENTRY_PROJECT is not set: this update's crashes will show minified stacks"
+            exit 0
+          fi
+          pnpm exec sentry-expo-upload-sourcemaps dist
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "### UniChat OTA update"
+            echo
+            echo "- channel: \`$CHANNEL\`, rollout: $ROLLOUT %"
+            echo "- commit: \`$GITHUB_SHA\`"
+            echo "- widen or roll back: docs/runbooks/unichat-mobile-release.md › Phát OTA"
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Remove the signing key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/eas-update-private-key.pem"
