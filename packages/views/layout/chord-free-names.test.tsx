@@ -107,7 +107,7 @@ describe("accessible names stay chord-free, the chord rides on aria-keyshortcuts
         it(`Email Hub ${what} button`, () => {
           render(
             wrapWithNav(
-              <EmailHubThreadToolbar thread={thread} browserFolder="INBOX" actions={actions} pending={pending} aiOpen={false} />,
+              <EmailHubThreadToolbar thread={thread} browserFolder="INBOX" actions={actions} pending={pending} aiOpen={false} shortcutsOn />,
             ),
           );
           const button = screen.getByRole("button", { name: new RegExp(`^${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`) });
@@ -120,7 +120,7 @@ describe("accessible names stay chord-free, the chord rides on aria-keyshortcuts
       it("Email Hub star button", () => {
         render(
           wrapWithNav(
-            <EmailHubThreadToolbar thread={thread} browserFolder="INBOX" actions={actions} pending={pending} aiOpen={false} />,
+            <EmailHubThreadToolbar thread={thread} browserFolder="INBOX" actions={actions} pending={pending} aiOpen={false} shortcutsOn />,
           ),
         );
         const star = screen.getByRole("button", { name: /^(Gắn sao|Star)/, pressed: false });
@@ -130,4 +130,19 @@ describe("accessible names stay chord-free, the chord rides on aria-keyshortcuts
       });
     });
   }
+});
+
+describe("Email Hub reader keys switched off", () => {
+  it("advertises only Escape, which still works", () => {
+    render(
+      wrapWithNav(
+        <EmailHubThreadToolbar thread={thread} browserFolder="INBOX" actions={actions} pending={pending} aiOpen={false} shortcutsOn={false} />,
+      ),
+    );
+    const advertised = screen
+      .getAllByRole("button")
+      .map((b) => b.getAttribute("aria-keyshortcuts"))
+      .filter(Boolean);
+    expect(advertised).toEqual(["Escape"]);
+  });
 });
