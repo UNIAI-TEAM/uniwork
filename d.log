@@ -1,0 +1,11 @@
+$ . scripts/local-env.sh; unset OPENAI_API_KEY OPENAI_BASE_URL; export REDIS_TEST_URL=redis://localhost:6379/1 AI_PROVIDER=fake; bash scripts/ensure-postgres.sh >/dev/null 2>&1; cd server; go test -count=1 -timeout 10m -v -run '^TestDocumentAccessBatchMatchesThePerItemPath$' ./internal/service > /tmp/r5b.log 2>&1; rc=$?; grep -E '^\s*--- (FAIL|PASS)|_test.go:[0-9]+|"origin"' /tmp/r5b.log | cut -c1-300 | head -30; echo; echo "UNI2012_TEST_EXIT=$rc"
+warning: STORAGE_BACKEND is unset and MINIO_* is empty; the server will refuse to start.
+         set STORAGE_BACKEND=local with LOCAL_UPLOAD_DIR, or configure MinIO (see .env.example).
+    document_access_batch_equivalence_test.go:267: apply rows differ from the per-item path:
+        audit document.shared by=aclowner/human changes={"level":{"from":"view","to":"comment"}} meta={"batch_id":"BATCH","origin":"direct","principal_id":"WSB","principal_type":"workspace","share_id":"share(workspace/WSB/comment/live)"}
+        audit document.shared by=aclowner/human changes={"level":{"from":null,"to":"view"}} meta={"batch_id":"BATCH","origin":"direct","principal_id":"ORG","principal_type":"organization","share_id":"share(organization/ORG/view/live)"}
+--- FAIL: TestDocumentAccessBatchMatchesThePerItemPath (0.24s)
+    --- PASS: TestDocumentAccessBatchMatchesThePerItemPath/dry_run (0.04s)
+    --- FAIL: TestDocumentAccessBatchMatchesThePerItemPath/apply (0.03s)
+
+UNI2012_TEST_EXIT=1

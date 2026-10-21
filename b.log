@@ -1,0 +1,10 @@
+$ . scripts/local-env.sh; unset OPENAI_API_KEY OPENAI_BASE_URL; export REDIS_TEST_URL=redis://localhost:6379/1 AI_PROVIDER=fake; bash scripts/ensure-postgres.sh >/dev/null 2>&1; cd server; go test -count=1 -timeout 15m -v -run 'TestFileGC|TestFileThumbnailIsCollectedAfterItsSource|TestUploadSessionFailureRecordsAssembledVersionForCleanup|TestDocumentReferences|TestDocumentAccessBatchMatchesThePerItemPath' ./internal/service > /tmp/r5t.log 2>&1; rc=$?; grep -cE '^\s*--- PASS' /tmp/r5t.log | sed 's/^/PASS_COUNT=/'; grep -E '^\s*--- FAIL|_test.go:[0-9]+' /tmp/r5t.log | cut -c1-300 | head -60; echo; echo "HEAD_TEST_EXIT=$rc"
+warning: STORAGE_BACKEND is unset and MINIO_* is empty; the server will refuse to start.
+         set STORAGE_BACKEND=local with LOCAL_UPLOAD_DIR, or configure MinIO (see .env.example).
+PASS_COUNT=32
+    document_access_batch_equivalence_test.go:267: apply rows differ from the per-item path:
+--- FAIL: TestDocumentAccessBatchMatchesThePerItemPath (0.69s)
+    --- FAIL: TestDocumentAccessBatchMatchesThePerItemPath/apply (0.03s)
+    document_storage_harness_test.go:143: MINIO_* is not set; start MinIO with `docker compose -f docker-compose.minio.yml up -d minio`
+
+HEAD_TEST_EXIT=1

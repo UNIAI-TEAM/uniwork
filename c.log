@@ -1,0 +1,3 @@
+$ git fetch -q origin feature/UNI-2012-chat-file-doc-rights; git checkout -q 65e917359; rc=$?; git rev-parse --short HEAD; echo "CHECKOUT_EXIT=$rc"
+65e917359
+CHECKOUT_EXIT=0
