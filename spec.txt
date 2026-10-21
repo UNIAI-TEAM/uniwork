@@ -1,0 +1,13 @@
+git rev-parse HEAD; nproc; git diff --quiet HEAD; echo "TREE_CLEAN_EXIT=$?"
+cd server && go vet ./...; echo "VET_EXIT=$?"
+cd server && out="$(gofmt -l .)"; echo "$out"; test -z "$out"; echo "GOFMT_EXIT=$?"
+cd server && go tool staticcheck ./...; echo "STATICCHECK_EXIT=$?"
+. scripts/local-env.sh; unset OPENAI_API_KEY OPENAI_BASE_URL; export REDIS_TEST_URL=redis://localhost:6379/1 AI_PROVIDER=fake CGO_ENABLED=1; bash scripts/ensure-postgres.sh >/dev/null 2>&1; mkdir -p .go-tmp; cd server && go test -race -count=1 -v -timeout 150m -coverprofile="$(cd .. && pwd)/.go-tmp/cover.out" $(go list ./... | grep -vE '/pkg/db/generated$|/cmd/(migrate|seed|uniwork-admin)$|/internal/testutil$') > /tmp/uni2012r3f-go.log 2>&1; echo "TEST_GO_EXIT=$?"
+grep -cE "^\s*--- PASS" /tmp/uni2012r3f-go.log | sed 's/^/GO_PASS_COUNT=/'; grep -cE "^\s*--- FAIL" /tmp/uni2012r3f-go.log | sed 's/^/GO_FAIL_COUNT=/'; grep -cE "^\s*--- SKIP" /tmp/uni2012r3f-go.log | sed 's/^/GO_SKIP_COUNT=/'; grep -c "WARNING: DATA RACE" /tmp/uni2012r3f-go.log | sed 's/^/DATA_RACE_COUNT=/'
+grep -E "^\s*--- FAIL|^(FAIL|panic)|WARNING: DATA RACE" /tmp/uni2012r3f-go.log | cut -c1-250 | head -80
+grep -E "^(ok|FAIL|\?)\s" /tmp/uni2012r3f-go.log | cut -c1-200 | head -150
+awk '/WARNING: DATA RACE/{f=1;n=0} f{print substr($0,1,250);n++} n>40{f=0}' /tmp/uni2012r3f-go.log | head -200
+ls -la "$PWD/.go-tmp/cover.out"; cd server && go tool cover -func="$(cd .. && pwd)/.go-tmp/cover.out" | tail -1; cat coverage.floor
+bash scripts/go-cover-floor.sh "$PWD/.go-tmp/cover.out"; echo "COVER_FLOOR_EXIT=$?"
+grep -E "^\s*--- (PASS|FAIL|SKIP): (TestIsolationMatrix|TestIsolationRealtime|TestIsolationMCP|TestEveryBodyIDFieldHasAReferenceCase|TestEveryAuditedCommandWritesItsRow|TestReusedAuditActionCommandsWriteTheirOwnRows|TestReactionAndPinAnswersResolveTheDocumentCard|TestTenantColumnIsNotNull|TestEveryBusinessTableCarriesOrganizationID|TestNewTablesCarryOrganizationID|TestEveryQueryNamesItsTenant|TestActorConstructedOnlyInService|TestActorKindOnEveryCreatedBy)" /tmp/uni2012r3f-go.log | cut -c1-200 | head -120
+grep -E "^\s*--- (PASS|FAIL|SKIP): TestIsolationMatrix/" /tmp/uni2012r3f-go.log | cut -c1-200 | head -80
