@@ -514,64 +514,6 @@ func (q *Queries) ListAuditEventsForExport(ctx context.Context, arg ListAuditEve
 	return items, nil
 }
 
-const listAuditEventsInTransaction = `-- name: ListAuditEventsInTransaction :many
-SELECT t.id, t.organization_id, t.workspace_id, t.actor_kind, t.actor_id, t.action, t.resource_type, t.resource_id, t.changes, t.metadata, t.correlation_id, t.request_id, t.ip_address, t.user_agent, t.occurred_at, t.xact_id FROM audit_events t
-WHERE t.correlation_id = $1 AND t.action = $2
-  AND t.xact_id = (SELECT a.xact_id FROM audit_events a
-                   WHERE a.correlation_id = $1 AND a.action = $2
-                     AND a.resource_id = $3
-                   ORDER BY a.occurred_at LIMIT 1)
-ORDER BY t.resource_id
-`
-
-type ListAuditEventsInTransactionParams struct {
-	CorrelationID string `json:"correlation_id"`
-	Action        string `json:"action"`
-	ResourceID    string `json:"resource_id"`
-}
-
-// tenant: system
-// The notification consumer groups what one transaction did: the rows of
-// this action written by the transaction (xact_id) that wrote this
-// resource's row. One correlation id may span several transactions (an MCP
-// call), so xact_id is what tells them apart.
-func (q *Queries) ListAuditEventsInTransaction(ctx context.Context, arg ListAuditEventsInTransactionParams) ([]AuditEvent, error) {
-	rows, err := q.db.Query(ctx, listAuditEventsInTransaction, arg.CorrelationID, arg.Action, arg.ResourceID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []AuditEvent{}
-	for rows.Next() {
-		var i AuditEvent
-		if err := rows.Scan(
-			&i.ID,
-			&i.OrganizationID,
-			&i.WorkspaceID,
-			&i.ActorKind,
-			&i.ActorID,
-			&i.Action,
-			&i.ResourceType,
-			&i.ResourceID,
-			&i.Changes,
-			&i.Metadata,
-			&i.CorrelationID,
-			&i.RequestID,
-			&i.IpAddress,
-			&i.UserAgent,
-			&i.OccurredAt,
-			&i.XactID,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const listAuditExports = `-- name: ListAuditExports :many
 SELECT id, organization_id, requested_by, requested_by_kind, format, from_at, to_at, row_count, object_key, error, created_at, started_at, completed_at, failed_at, expires_at, file_id FROM audit_exports
 WHERE organization_id = $1
@@ -700,6 +642,66 @@ func (q *Queries) ListResourceAuditEvents(ctx context.Context, arg ListResourceA
 		arg.WorkspaceID,
 		arg.Limit,
 	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AuditEvent{}
+	for rows.Next() {
+		var i AuditEvent
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.WorkspaceID,
+			&i.ActorKind,
+			&i.ActorID,
+			&i.Action,
+			&i.ResourceType,
+			&i.ResourceID,
+			&i.Changes,
+			&i.Metadata,
+			&i.CorrelationID,
+			&i.RequestID,
+			&i.IpAddress,
+			&i.UserAgent,
+			&i.OccurredAt,
+			&i.XactID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listTaskCreatedEventsInTransaction = `-- name: ListTaskCreatedEventsInTransaction :many
+SELECT t.id, t.organization_id, t.workspace_id, t.actor_kind, t.actor_id, t.action, t.resource_type, t.resource_id, t.changes, t.metadata, t.correlation_id, t.request_id, t.ip_address, t.user_agent, t.occurred_at, t.xact_id FROM audit_events t
+WHERE t.action = 'task.created' AND t.correlation_id = $1
+  AND t.xact_id = (SELECT a.xact_id FROM audit_events a
+                   WHERE a.correlation_id = $1 AND a.action = 'task.created'
+                     AND a.resource_id = $2
+                   ORDER BY a.occurred_at LIMIT 1)
+ORDER BY t.resource_id
+`
+
+type ListTaskCreatedEventsInTransactionParams struct {
+	CorrelationID string `json:"correlation_id"`
+	ResourceID    string `json:"resource_id"`
+}
+
+// tenant: system
+// The notification consumer groups what one command did: the task.created
+// rows under this correlation id written by the transaction (xact_id) that
+// wrote this task's row. One correlation id may span several transactions (an
+// MCP call) and one transaction several commands, and a client can reuse one
+// correlation id for every request, so the outer read goes by xact_id first
+// through idx_audit_events_task_created_xact; the action is a literal so the
+// partial index matches the prepared (generic) plan.
+func (q *Queries) ListTaskCreatedEventsInTransaction(ctx context.Context, arg ListTaskCreatedEventsInTransactionParams) ([]AuditEvent, error) {
+	rows, err := q.db.Query(ctx, listTaskCreatedEventsInTransaction, arg.CorrelationID, arg.ResourceID)
 	if err != nil {
 		return nil, err
 	}

@@ -399,8 +399,8 @@ func createdForSameAssignee(ctx context.Context, q *db.Queries, ev outbox.Row, t
 	if !ev.CorrelationID.Valid {
 		return "", nil, nil // unreachable: audit.Recorder.Record mints one per command
 	}
-	rows, err := q.ListAuditEventsInTransaction(ctx, db.ListAuditEventsInTransactionParams{
-		CorrelationID: ev.CorrelationID.String, Action: audit.ActionTaskCreated, ResourceID: taskID,
+	rows, err := q.ListTaskCreatedEventsInTransaction(ctx, db.ListTaskCreatedEventsInTransactionParams{
+		CorrelationID: ev.CorrelationID.String, ResourceID: taskID,
 	})
 	if err != nil {
 		return "", nil, err

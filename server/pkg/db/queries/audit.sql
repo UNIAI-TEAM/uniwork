@@ -134,16 +134,19 @@ WHERE correlation_id = $1 AND action = $2 AND resource_id = $3
 ORDER BY occurred_at DESC
 LIMIT 1;
 
--- name: ListAuditEventsInTransaction :many
+-- name: ListTaskCreatedEventsInTransaction :many
 -- tenant: system
--- The notification consumer groups what one transaction did: the rows of
--- this action written by the transaction (xact_id) that wrote this
--- resource's row. One correlation id may span several transactions (an MCP
--- call), so xact_id is what tells them apart.
+-- The notification consumer groups what one command did: the task.created
+-- rows under this correlation id written by the transaction (xact_id) that
+-- wrote this task's row. One correlation id may span several transactions (an
+-- MCP call) and one transaction several commands, and a client can reuse one
+-- correlation id for every request, so the outer read goes by xact_id first
+-- through idx_audit_events_task_created_xact; the action is a literal so the
+-- partial index matches the prepared (generic) plan.
 SELECT t.* FROM audit_events t
-WHERE t.correlation_id = sqlc.arg(correlation_id) AND t.action = sqlc.arg(action)
+WHERE t.action = 'task.created' AND t.correlation_id = sqlc.arg(correlation_id)
   AND t.xact_id = (SELECT a.xact_id FROM audit_events a
-                   WHERE a.correlation_id = sqlc.arg(correlation_id) AND a.action = sqlc.arg(action)
+                   WHERE a.correlation_id = sqlc.arg(correlation_id) AND a.action = 'task.created'
                      AND a.resource_id = sqlc.arg(resource_id)
                    ORDER BY a.occurred_at LIMIT 1)
 ORDER BY t.resource_id;
