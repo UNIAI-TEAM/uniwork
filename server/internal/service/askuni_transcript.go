@@ -142,31 +142,6 @@ func (s *AskUNIService) agentMeetingTranscript(ctx context.Context, tc ai.ToolCo
 	return items, nil
 }
 
-// transcriptTool is the P0 registry's entry beside get_meeting_context.
-func (s *AskUNIService) transcriptTool() ai.Tool {
-	return ai.Tool{
-		Name: askToolTranscript, Description: transcriptToolDesc, Kind: ai.ToolRead, Risk: ai.RiskLow, Schema: agentSchema(transcriptToolProps()),
-		Handle: func(ctx context.Context, tc ai.ToolContext, input json.RawMessage) (json.RawMessage, error) {
-			var a transcriptArgs
-			if err := json.Unmarshal(input, &a); err != nil {
-				return nil, McpInvalidArgs{Msg: "arguments must match the tool's schema"}
-			}
-			m, segs, _, err := s.meetingTranscript(ctx, tc, a)
-			if err != nil {
-				return nil, err
-			}
-			if len(segs) == 0 {
-				return json.Marshal([]ai.Source{})
-			}
-			src, err := s.transcriptSource(ctx, m, segs)
-			if err != nil {
-				return nil, err
-			}
-			return json.Marshal([]ai.Source{src})
-		},
-	}
-}
-
 // focusStopwords are question words too common in speech to say what a line
 // is about; the focus ranking ignores them (folded form).
 var focusStopwords = map[string]bool{

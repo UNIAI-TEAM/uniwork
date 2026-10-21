@@ -66,7 +66,6 @@ func AskUniTools(s *AskUNIService) ai.Registry {
 		read(askToolSearch, "Tasks, meetings and chat in the workspace that match a query", s.searchWorkspace),
 		read(askToolTask, "One task with its comments", s.taskContext),
 		read(askToolMeeting, "One meeting with its summary", s.meetingContext),
-		s.transcriptTool(),
 		read(askToolMember, "Workspace members by name and role", s.memberContext),
 		read(askToolChat, "Recent messages in rooms the asker belongs to", s.chatContext),
 	}
