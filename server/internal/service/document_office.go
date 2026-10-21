@@ -11,6 +11,7 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
@@ -160,13 +161,14 @@ type OfficeJobInput struct {
 	DocumentModelRef string
 	Edits            []office.EditOp
 	// TargetFormat is a convert or export job's output format; it must be
-	// the one target office.ConvertTargets (or office.ExportTargets) names for
-	// Format. Empty for every other operation.
+	// the target office.ConvertTargets (or one of office.ExportTargets) names
+	// for Format. Empty for every other operation.
 	TargetFormat office.Format
 
-	// exportBound and input are set only by ExportFramePDF (UNI-1013): the
-	// public job route keeps refusing export, and input, when set, replaces
-	// the base version's bytes with the frame's unsaved edit of that base.
+	// exportBound and input are set only by the export routes - ExportFramePDF
+	// (UNI-1013) and ExportPage (UNI-2004): the public job route keeps refusing
+	// export. input, when set, replaces the base version's bytes with the
+	// frame's unsaved edit of that base, or is the whole input of a page job.
 	exportBound bool
 	input       *officeInput
 }
@@ -247,8 +249,8 @@ func (s *DocumentOfficeService) StartOfficeJob(ctx context.Context, actor Actor,
 		return db.OfficeJob{}, office.ErrNotConfigured
 	}
 	if in.Operation == office.OperationExport && !in.exportBound {
-		// Export is bound only behind the Docs web frame (ExportFramePDF);
-		// refuse it here before a row or an output intent exists.
+		// Export is bound only behind its own routes (ExportFramePDF,
+		// ExportPage); refuse it here before a row or an output intent exists.
 		return db.OfficeJob{}, officeErr("unsupported_operation", "export_not_bound")
 	}
 	key := strings.TrimSpace(in.IdempotencyKey)
@@ -499,6 +501,14 @@ func (i officeInput) source() office.InputSource {
 // works on - the base version's, or the supplied edit of that base - beside
 // the revision loadBase accepted the base against.
 func (s *DocumentOfficeService) jobInput(ctx context.Context, actor Actor, in OfficeJobInput) (officeInput, office.Format, int64, error) {
+	if in.Format == office.FormatPage {
+		// A page has no stored file version: its export carries its own
+		// input, built from the page row ExportPage authorized.
+		if in.input == nil {
+			return officeInput{}, "", 0, ErrOfficeJobInvalid
+		}
+		return *in.input, office.FormatPage, in.BaseRevision, nil
+	}
 	input, format, baseRevision, err := s.loadBase(ctx, actor, in)
 	if err != nil || in.input == nil {
 		return input, format, baseRevision, err
@@ -643,7 +653,7 @@ func officeFingerprint(in OfficeJobInput, checksum string, length int64) string 
 // any mutation.
 func checkConvertPair(in OfficeJobInput) error {
 	if in.Operation == office.OperationExport {
-		if want, ok := office.ExportTargets[in.Format]; !ok || in.TargetFormat != want {
+		if !slices.Contains(office.ExportTargets[in.Format], in.TargetFormat) {
 			return officeErr("unsupported_operation", "export_pair_not_bound")
 		}
 		return nil

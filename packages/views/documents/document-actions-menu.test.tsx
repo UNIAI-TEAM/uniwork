@@ -15,7 +15,7 @@ import { DocumentCommentsHeaderActions, DocumentCommentsProvider, documentCommen
 
 const { t } = initI18n();
 
-const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
+const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn(), loading: vi.fn(() => "toast-1"), dismiss: vi.fn() }));
 vi.mock("sonner", () => ({ toast }));
 
 /** The labelled action a sonner toast option carries (our shelve undo). */
@@ -447,3 +447,67 @@ describe("DocumentActionsMenu ?access=requests (DOC7-W02)", () => {
   });
 });
 
+
+describe("DocumentActionsMenu page export (UNI-2004)", () => {
+  const page = () => documentFixture({ kind: "page", file: null, title: "Biên bản họp", my_level: "view" });
+  const renderWithFlags = (doc: Document, flags: Record<string, { default: boolean }>) =>
+    render(
+      wrapWithNav(
+        <FeatureFlagsProvider service={new FeatureFlagService(new StaticProvider(flags))}>
+          <WorkspaceProvider workspace={workspace} user={user}>
+            <DocumentActionsMenu wsId={WS} doc={doc} />
+          </WorkspaceProvider>
+        </FeatureFlagsProvider>,
+      ),
+    );
+  const stubSave = () => {
+    Object.assign(URL, { createObjectURL: vi.fn(() => "blob:page"), revokeObjectURL: vi.fn() });
+    return vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+  };
+
+  it("lets a reader export a page as DOCX and saves the file under the server's name", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response("PK", { status: 200, headers: { "Content-Disposition": 'attachment; filename="bien-ban.docx"' } }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const click = stubSave();
+    renderWithFlags(page(), { page_export: { default: true } });
+    await openMenu();
+    expect(screen.getByRole("menuitem", { name: t("documents.actions.export_pdf") })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("menuitem", { name: t("documents.actions.export_docx") }));
+    await waitFor(() => expect(click).toHaveBeenCalled());
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toContain("/api/v1/documents/d1/export");
+    expect(init.method).toBe("POST");
+    expect(JSON.parse(String(init.body))).toEqual({ format: "docx" });
+    expect((click.mock.contexts[0] as HTMLAnchorElement).download).toBe("bien-ban.docx");
+    expect(toast.dismiss).toHaveBeenCalledWith("toast-1");
+  });
+
+  it("says the server cannot export the format when the PDF renderer is missing", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ error: { code: "engine_incompatible", message: "docs_pdf_assets_missing" } }), {
+          status: 409,
+          headers: { "Content-Type": "application/json" },
+        }),
+      ),
+    );
+    stubSave();
+    renderWithFlags(page(), { page_export: { default: true } });
+    await openMenu();
+    fireEvent.click(screen.getByRole("menuitem", { name: t("documents.actions.export_pdf") }));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith(t("documents.actions.export_unavailable"), { id: "toast-1" }));
+  });
+
+  it("offers no export when page_export is off, or on a file document", async () => {
+    const { unmount } = renderWithFlags(page(), { page_export: { default: false } });
+    await openMenu();
+    expect(screen.queryByRole("menuitem", { name: t("documents.actions.export_docx") })).toBeNull();
+    unmount();
+    renderWithFlags(documentFixture(), { page_export: { default: true } });
+    await openMenu();
+    expect(screen.queryByRole("menuitem", { name: t("documents.actions.export_docx") })).toBeNull();
+  });
+});

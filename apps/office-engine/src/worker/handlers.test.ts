@@ -43,13 +43,14 @@ afterEach(async () => {
 });
 
 describe("handler table", () => {
-  it("binds md/html serialize, the pdf + xlsx open/serialize/edit lanes, the Q7 converters and the docx PDF export", () => {
+  it("binds md/html serialize, the pdf + xlsx open/serialize/edit lanes, the Q7 converters, the docx PDF export and the page export", () => {
     expect([...BOUND_OPERATIONS].sort()).toEqual([
       "convert:odt",
       "convert:xls",
       "edit:pdf",
       "edit:xlsx",
       "export:docx",
+      "export:page",
       "open:pdf",
       "open:xlsx",
       "serialize:html",

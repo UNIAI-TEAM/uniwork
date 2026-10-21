@@ -323,6 +323,9 @@ func New(d Deps, h Routes) http.Handler {
 				// 429 from access_request_cooldown by its code.
 				mw.RateLimitByIdentityBucket(d.Redis, "doc-access-request", 20, time.Hour, proxies, bearerUser(d.Minter)))
 			registerDocumentSources(docs, h, d.FeatureFlags)
+			// Page exports (UNI-2004) hold an engine worker for seconds: 20/min
+			// per signed-in person across every page, like the frame's export.
+			registerPageExport(docs, h, d.FeatureFlags, mw.RateLimitByIdentityBucket(d.Redis, "page-export", 20, time.Minute, proxies, bearerUser(d.Minter)))
 			registerSignatures(authed, h)
 			// Personal AI keys: per signed-in person across the whole group, 30/min (ADR 0029).
 			registerAICredentials(authed, h, mw.RateLimitByIdentityBucket(d.Redis, "ai-credentials", 30, time.Minute, proxies, bearerUser(d.Minter)))

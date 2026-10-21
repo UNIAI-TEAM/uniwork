@@ -29,6 +29,8 @@ import {
 import {
   convertDocument,
   ConvertTypedError,
+  PageInputError,
+  pageToDocx,
 } from "@uniwork/office-engine/convert/native";
 import {
   createXlsxSidecar,
@@ -342,16 +344,22 @@ async function editPdf(message: RunMessage): Promise<HandlerOutcome> {
     before the supervisor's deadline kill. */
 const DOCS_PDF_TIMEOUT_MS = 100_000;
 
-async function exportDocxPdf(message: RunMessage): Promise<HandlerOutcome> {
-  if (!message.inputPath) return { ok: false, code: "engine_result_invalid", reason: "input_required" };
-  if (!message.payloadPath) return { ok: false, code: "engine_result_invalid", reason: "payload_required" };
-  let payload: ConvertJobPayload;
+/** An export job's input path and payload, or the refusal of either. */
+async function exportJob(message: RunMessage): Promise<{ input: string; payload: ConvertJobPayload } | { refused: HandlerOutcome }> {
+  if (!message.inputPath) return { refused: { ok: false, code: "engine_result_invalid", reason: "input_required" } };
+  if (!message.payloadPath) return { refused: { ok: false, code: "engine_result_invalid", reason: "payload_required" } };
   try {
-    payload = JSON.parse(await readFile(message.payloadPath, "utf8")) as ConvertJobPayload;
+    return { input: message.inputPath, payload: JSON.parse(await readFile(message.payloadPath, "utf8")) as ConvertJobPayload };
   } catch {
-    return { ok: false, code: "engine_result_invalid", reason: "export_payload_invalid" };
+    return { refused: { ok: false, code: "engine_result_invalid", reason: "export_payload_invalid" } };
   }
-  if (payload.target_format !== "pdf") return { ok: false, code: "unsupported_operation", reason: "export_pair_not_bound" };
+}
+
+const sourceVersion = (payload: ConvertJobPayload) =>
+  typeof payload.source_version_id === "string" ? { source_version_id: payload.source_version_id } : {};
+
+/** DOCX bytes -> the job's PDF output through the Docs renderer. */
+async function renderPdf(docx: Uint8Array, message: RunMessage, payload: ConvertJobPayload, sourceFormat: string): Promise<HandlerOutcome> {
   if (!message.docsPdfAssetsDir) return { ok: false, code: "engine_incompatible", reason: "docs_pdf_assets_missing" };
   // Chromium renders an untrusted document with its own sandbox off (a uid-dropped
   // process in a container cannot create the namespaces it needs), so the engine's
@@ -361,7 +369,7 @@ async function exportDocxPdf(message: RunMessage): Promise<HandlerOutcome> {
   const pdf = await loadPdf();
   try {
     const rendered = await renderDocxPdf(
-      await readFile(message.inputPath),
+      docx,
       {
         chromiumPath: join(message.docsPdfAssetsDir, "chromium"),
         bundleDir: join(message.docsPdfAssetsDir, "bundle"),
@@ -380,9 +388,9 @@ async function exportDocxPdf(message: RunMessage): Promise<HandlerOutcome> {
       warnings: [],
       result: {
         operation: message.operation,
-        source_format: "docx",
+        source_format: sourceFormat,
         target_format: "pdf",
-        ...(typeof payload.source_version_id === "string" ? { source_version_id: payload.source_version_id } : {}),
+        ...sourceVersion(payload),
         renderer: "genoffice-docs-web",
         print_calls: rendered.printCalls,
       },
@@ -391,6 +399,41 @@ async function exportDocxPdf(message: RunMessage): Promise<HandlerOutcome> {
     if (error instanceof DocsPdfError) return { ok: false, code: error.code, reason: error.reason };
     throw error;
   }
+}
+
+async function exportDocxPdf(message: RunMessage): Promise<HandlerOutcome> {
+  const job = await exportJob(message);
+  if ("refused" in job) return job.refused;
+  if (job.payload.target_format !== "pdf") return { ok: false, code: "unsupported_operation", reason: "export_pair_not_bound" };
+  return renderPdf(await readFile(job.input), message, job.payload, "docx");
+}
+
+// ── UniNote page -> DOCX / PDF export (UNI-2004) ───────────────────────────
+//
+// The input is the page's sanitized JSON with its title and images
+// (page-docx.ts). docx is written here; pdf renders that DOCX through the
+// Docs renderer above, so a page and an uploaded DOCX print the same way.
+
+async function exportPage(message: RunMessage): Promise<HandlerOutcome> {
+  const job = await exportJob(message);
+  if ("refused" in job) return job.refused;
+  const target = job.payload.target_format;
+  if (target !== "docx" && target !== "pdf") return { ok: false, code: "unsupported_operation", reason: "export_pair_not_bound" };
+  let docx: Uint8Array;
+  try {
+    docx = pageToDocx(JSON.parse(await readFile(job.input, "utf8")));
+  } catch (error) {
+    if (error instanceof PageInputError) return { ok: false, code: "engine_result_invalid", reason: error.reason };
+    if (error instanceof SyntaxError) return { ok: false, code: "engine_result_invalid", reason: "page_input_invalid" };
+    throw error;
+  }
+  if (target === "pdf") return renderPdf(docx, message, job.payload, "page");
+  await writeOutput(message.outputPath, docx);
+  return {
+    ok: true,
+    warnings: [],
+    result: { operation: message.operation, source_format: "page", target_format: "docx", ...sourceVersion(job.payload) },
+  };
 }
 
 const HANDLERS: Record<string, Handler> = {
@@ -405,6 +448,7 @@ const HANDLERS: Record<string, Handler> = {
   "convert:xls": convertLegacy,
   "convert:odt": convertLegacy,
   "export:docx": exportDocxPdf,
+  "export:page": exportPage,
 };
 
 /** Keys ("operation:format") this build binds; capability rows read it. */

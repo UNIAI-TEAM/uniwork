@@ -5,6 +5,7 @@ import {
   Archive,
   ArchiveRestore,
   Copy,
+  Download,
   RotateCcwClock,
   MessageSquare,
   Ellipsis,
@@ -31,6 +32,7 @@ import { documentCommentsTitleKey, useDocumentCommentsChrome } from "./document-
 import { AccessLogSheet } from "./access-log-sheet";
 import { DocumentArchiveDialog } from "./document-archive-dialog";
 import { DocumentShelveDialog } from "./document-shelve-dialog";
+import { usePageExport } from "./use-page-export";
 import { useShelvedActions } from "./use-shelved-actions";
 import { DocumentCopyDialog } from "./document-copy-dialog";
 import { ShareDialog } from "./share-dialog";
@@ -105,9 +107,17 @@ export function DocumentActionsMenu({
   const folded = useHeaderActionsSlotFilled();
   const comments = useDocumentCommentsChrome();
   const commentsEnabled = useFlag("documents", false);
+  // Page export (UNI-2004): any reader of a live page, behind page_export.
+  const pageExportEnabled = useFlag("page_export", false);
+  const exportPage = usePageExport(doc);
 
-  const items: { id: Exclude<PanelId, null>; label: string; icon: typeof RotateCcwClock; destructive?: boolean }[] = [];
+  type ItemId = Exclude<PanelId, null> | "export_docx" | "export_pdf";
+  const items: { id: ItemId; label: string; icon: typeof RotateCcwClock; destructive?: boolean }[] = [];
   items.push({ id: "versions", label: t("documents.actions.versions"), icon: RotateCcwClock });
+  if (pageExportEnabled && doc.kind === "page" && !archived) {
+    items.push({ id: "export_docx", label: t("documents.actions.export_docx"), icon: Download });
+    items.push({ id: "export_pdf", label: t("documents.actions.export_pdf"), icon: Download });
+  }
   // Every reader opens Share: a manager manages access there, anyone else sees
   // their own level and sources read-only (access addendum §5.2, U-SH4). The
   // personal My Folder root is never shareable (MYFOLDER-01), and no folder is.
@@ -163,7 +173,9 @@ export function DocumentActionsMenu({
               variant={item.destructive ? "destructive" : "default"}
               className="gap-2 px-2 py-2 pointer-coarse:min-h-11"
               onClick={() => {
-                if (item.id === "shelve") {
+                if (item.id === "export_docx" || item.id === "export_pdf") {
+                  exportPage(item.id === "export_docx" ? "docx" : "pdf");
+                } else if (item.id === "shelve") {
                   // A document shelves directly (undo toast); a folder opens the
                   // same cascade dialog the row menu uses (U-4).
                   if (doc.kind === "folder") setPanel("shelve");

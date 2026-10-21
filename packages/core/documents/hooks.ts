@@ -17,6 +17,7 @@ import {
   type DocumentCreateDestination,
   type PatchDocumentBody,
 } from "../api/endpoints/documents";
+import { exportDocumentPage, type PageExportFormat } from "../api/endpoints/documents-page-export";
 import {
   DocumentNotVerifiableError,
   type Document,
@@ -263,6 +264,14 @@ export function useDocumentDownload(wsId: string, documentId: string) {
   return useMutation({
     mutationFn: ({ version }: { version?: number } = {}) =>
       downloadDocumentFile(documentId, version),
+  });
+}
+
+/** A UniNote page as DOCX or PDF (UNI-2004): a mutation, since it is a
+ *  user-triggered download that changes no cached state. */
+export function useExportDocumentPage(documentId: string) {
+  return useMutation({
+    mutationFn: (format: PageExportFormat) => exportDocumentPage(documentId, format),
   });
 }
 

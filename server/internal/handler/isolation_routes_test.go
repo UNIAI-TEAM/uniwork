@@ -699,6 +699,8 @@ var isoRoutes = map[string]isoSpec{
 	"GET /api/v1/office-frame/documents/{documentID}/avatars/{userID}":           {class: isoScoped, reason: "frame token credential: Authorize rechecks view on the token's document and AvatarFileOf requires an active member of that document's organization; control = owner reads a same-org avatar in control and frame-avatar", checkControl: isoFrameAvatarCheck},
 	"HEAD /api/v1/office-frame/documents/{documentID}/avatars/{userID}":          {class: isoScoped, reason: "frame token credential: Authorize rechecks view on the token's document and AvatarFileOf requires an active member of that document's organization; control = owner reads a same-org avatar in frame-avatar"},
 	"POST /api/v1/office-frame/documents/{documentID}/export/pdf":                {body: isoFile("current.docx", isoDocxMime, isoFrameDocx, nil), skipControl: "owner 5xx found by G8-04, owner: office frame export (the stub engine answers 501 unsupported_operation)"},
+	// UNI-2004: the page export runs ExportFramePDF's job path on the fixture page.
+	"POST /api/v1/documents/{documentID}/export": {body: isoJSON(map[string]any{"format": "docx"}), skipControl: "the stub engine binds no export, so the owner's page export answers 501 unsupported_operation; TestPageExport holds the owner's export"},
 	// The source frame (UNI-1869): a source token, minted by the owner's
 	// session for a DOCX task attachment, opens the metadata and the bytes.
 	// do() sends that token on /api/v1/office-frame/sources/* (frameSources),

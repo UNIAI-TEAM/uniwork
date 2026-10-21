@@ -21,10 +21,12 @@ const CONVERT_TARGETS: Partial<Record<OfficeFormat, "xlsx" | "docx">> = {
   odt: "docx",
 };
 
-/** Source formats whose export is bound, and the target (UNI-1013: docx ->
-    pdf through the Docs web renderer; docs/office/pdf-export-decision.md). */
-const EXPORT_TARGETS: Partial<Record<OfficeFormat, "pdf">> = {
+/** Source formats whose export is bound, and their targets (UNI-1013: docx ->
+    pdf through the Docs web renderer, docs/office/pdf-export-decision.md;
+    UNI-2004: a UniNote page -> docx, and -> pdf through the same renderer). */
+const EXPORT_TARGETS: Partial<Record<OfficeFormat, string>> = {
   docx: "pdf",
+  page: "docx, pdf",
 };
 
 /** Bound operations with a completed format-lane product evidence packet.
@@ -92,7 +94,7 @@ function capabilityRows(format: OfficeFormat): CapabilityEntry[] {
             supported: true,
             runtime: "internal_service",
             evidence_level: "pending",
-            reason: `${format} -> ${target} through the pinned Docs web renderer in headless Chromium (UNI-1013 prototype; needs the staged renderer assets)`,
+            reason: `${format} -> ${target}; pdf through the pinned Docs web renderer in headless Chromium (UNI-1013 prototype; needs the staged renderer assets)`,
           };
         }
         return { operation: op, supported: false, runtime: "none", evidence_level: "pending", reason: "no export is bound for this format in this service build" };
