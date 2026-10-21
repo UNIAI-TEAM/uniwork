@@ -357,7 +357,7 @@ func registerPublicMeetings(r api, h Routes, credentialLimit, joinLimit, lobbyWS
 	})
 	r.With(joinLimit).Put("/meetings/{meetingID}/caption-language", h.SetCaptionLanguage, apiOp{
 		summary: "Pick my caption language (member or active guest)", tags: []string{"meetings"},
-		description: "Người đang trong phòng, kể cả khách; cuộc họp IN_PROGRESS (khác -> 409 invalid_meeting_state). Server đặt attribute LiveKit uw.caption_lang cho đúng người gọi (người tham gia không tự đặt được); thư ký AI dịch phụ đề sang ngôn ngữ đó. lang rỗng = phụ đề gốc, luôn được. vi/en cần cờ meeting_caption_translate và AI (404 feature_disabled), gói có meeting.ai_summary (403 entitlement_required). 503 provider_unavailable khi không đặt được attribute.",
+		description: "Người đang trong phòng, kể cả khách; cuộc họp IN_PROGRESS (khác -> 409 invalid_meeting_state). Server đặt attribute LiveKit uw.caption_lang cho đúng người gọi (người tham gia không tự đặt được); thư ký AI dịch phụ đề sang ngôn ngữ đó. lang rỗng = phụ đề gốc, luôn được. vi/en cần cờ meeting_caption_translate và AI (404 feature_disabled), gói có meeting.ai_summary (403 entitlement_required). 409 not_in_room khi người gọi chưa vào phòng. 503 provider_unavailable khi không đặt được attribute.",
 		sdi:         sdi.SetCaptionLanguageSDI{}, sdo: sdo.StatusSDO{},
 	})
 	r.With(joinLimit).Post("/meetings/{meetingID}/chat", h.AppendChatMessage, apiOp{

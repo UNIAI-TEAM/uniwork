@@ -130,7 +130,7 @@ func (s *MeetingService) SetCaptionLanguage(ctx context.Context, userID, guestID
 	}
 	pid := s.activeParticipantID(ctx, userID, guestID, meetingID)
 	if pid == "" {
-		return Invalid("chưa tham gia phòng họp")
+		return coded(http.StatusConflict, "not_in_room", "chưa tham gia phòng họp")
 	}
 	if s.provider == nil {
 		return coded(http.StatusServiceUnavailable, "provider_unavailable", "không đổi được ngôn ngữ phụ đề")

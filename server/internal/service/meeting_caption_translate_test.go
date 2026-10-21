@@ -165,6 +165,17 @@ func TestSetCaptionLanguage(t *testing.T) {
 	if err := s.SetCaptionLanguage(ctx, "", "not-in-the-room", m.ID, CaptionLangEN); !errors.Is(err, ErrForbidden) {
 		t.Fatalf("a stranger: %v", err)
 	}
+	// A workspace member who never joined the room: a state, not a malformed request.
+	ub, err := s.q.GetUserByEmail(ctx, "b@example.com")
+	if err != nil {
+		t.Fatal(err)
+	}
+	addMember(t, s, m.WorkspaceID, ub.ID)
+	if err := s.SetCaptionLanguage(ctx, ub.ID, "", m.ID, CaptionLangEN); err == nil {
+		t.Fatal("a member outside the room set a caption language")
+	} else if code, status := codedOf(err); code != "not_in_room" || status != http.StatusConflict {
+		t.Fatalf("member outside the room: %v", err)
+	}
 	// Flag off: a language is refused, the original still goes through.
 	s.SetFlags(mcpFlagsExcept{off: captionTranslateFlag})
 	writes := len(fake.AttributeCalls())
