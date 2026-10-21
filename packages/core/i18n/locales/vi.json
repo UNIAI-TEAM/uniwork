@@ -3061,8 +3061,7 @@
       "rotate": "Đổi mã PIN",
       "rotateTitle": "Đổi mã PIN gọi vào?",
       "rotateHint": "Mã cũ hết hiệu lực ngay, người đã nhận thư mời cần mã mới. Ai đang trong phòng vẫn ở lại.",
-      "rotated": "Đã đổi mã PIN",
-      "phoneChip": "Điện thoại"
+      "rotated": "Đã đổi mã PIN"
     },
     "externalGuestLinks": "Khách bên ngoài (không cần tài khoản)",
     "externalGuestLinksDescription": "Tạo và quản lý liên kết để người chưa có tài khoản UniWork tham gia cuộc họp.",
@@ -3158,8 +3157,6 @@
     "summaryAttribution": "Tạo tự động · {{time}}",
     "summaryAttributionFrom": "Tạo tự động từ {{sources}} · {{time}}",
     "summaryAttributionMadeFrom": "Từ {{sources}} · {{time}}",
-    "askAboutMeeting": "Hỏi đáp về cuộc họp",
-    "comingSoon": "Sắp có",
     "catchUpLate_one": "Bạn vào sau {{count}} phút. UNI có thể tóm tắt phần bạn đã lỡ.",
     "catchUpLate_other": "Bạn vào sau {{count}} phút. UNI có thể tóm tắt phần bạn đã lỡ.",
     "catchUpTitle": "Phần bạn đã lỡ",
@@ -4068,7 +4065,6 @@
       "speakersLoading": "Đang tải danh sách người nói",
       "speakersLoadFailed": "Không tải được danh sách người nói."
     },
-    "summaryAuto": "Tóm tắt tự tạo",
     "summaryPartial": "Tóm tắt dựa trên một phần cuộc họp: bản ghi lời thoại dài hơn mức AI đọc được một lần.",
     "held": {
       "button": "Ghi nhận đã họp",

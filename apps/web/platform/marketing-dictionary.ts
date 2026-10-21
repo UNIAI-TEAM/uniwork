@@ -8,7 +8,7 @@ const MEETING_PREVIEW_KEYS = [
   "devicesSettingsTitle", "deviceMic", "deviceCamera", "deviceSpeaker", "chat", "participants", "people", "addNote", "recordingsTab",
   "insightsTab", "notes", "transcriptTab", "actionsTab", "aiSummary", "summaryEmpty", "notesInputLabel", "notesPlaceholder",
   "chatPlaceholder", "recordingsEmpty", "uniworkAi", "betaLabel", "summarizing", "regenerateSummary", "generateSummary",
-  "askAboutMeeting", "comingSoon", "createTasksInUniwork", "recordConfirmTitle", "recordConfirm", "confirmStartRecording",
+  "askUniTitle", "createTasksInUniwork", "recordConfirmTitle", "recordConfirm", "confirmStartRecording",
   "leaveConfirmTitle", "leaveConfirm", "confirmLeave", "status_SCHEDULED", "status_IN_PROGRESS",
 ];
 

@@ -3062,8 +3062,7 @@
       "rotate": "New PIN",
       "rotateTitle": "Draw a new dial-in PIN?",
       "rotateHint": "The old PIN stops working at once, and people who got the invite need the new one. Anyone already in the meeting stays.",
-      "rotated": "New PIN drawn",
-      "phoneChip": "Phone"
+      "rotated": "New PIN drawn"
     },
     "externalGuestLinks": "External guests (no account)",
     "externalGuestLinksDescription": "Create and manage links so people without a UniWork account can join.",
@@ -3159,8 +3158,6 @@
     "summaryAttribution": "Generated automatically · {{time}}",
     "summaryAttributionFrom": "Generated automatically from {{sources}} · {{time}}",
     "summaryAttributionMadeFrom": "From {{sources}} · {{time}}",
-    "askAboutMeeting": "Ask about this meeting",
-    "comingSoon": "Coming soon",
     "catchUpLate_one": "You joined {{count}} minute in. UNI can summarize what you missed.",
     "catchUpLate_other": "You joined {{count}} minutes in. UNI can summarize what you missed.",
     "catchUpTitle": "What you missed",
@@ -4069,7 +4066,6 @@
       "speakersLoading": "Loading speakers",
       "speakersLoadFailed": "Couldn't load the speakers."
     },
-    "summaryAuto": "Auto summary",
     "summaryPartial": "This summary covers part of the meeting: the transcript was longer than the AI reads at once.",
     "held": {
       "button": "Record as held",
