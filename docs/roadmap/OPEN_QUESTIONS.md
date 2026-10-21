@@ -77,7 +77,7 @@ tương ứng và đổi trạng thái sang **Đã duyệt**.
 | G2 | Quota token mặc định/tháng/org khi chưa có billing? | 500k token; owner không tự nâng | **Chốt:** theo đề xuất |
 | G3 | Lưu hội thoại Ask UNI (xóa được) hay không lưu? | Lưu, xóa được | **Chốt:** theo đề xuất |
 | G4 | Provider mặc định SaaS: Anthropic hay OpenAI-compatible? | Anthropic (đã có SDK Go trong meeting) | **Chốt:** theo đề xuất |
-| G5 | Rate limit AI fail-open (như Redis hiện tại) hay fail-closed? | Fail-closed vì tốn tiền thật | **Chốt:** theo đề xuất |
+| G5 | Rate limit AI fail-open (như Redis hiện tại) hay fail-closed? | Fail-closed vì tốn tiền thật | **Chốt:** theo đề xuất. **Thay** ở Ask UNI P1 (UNI-1962): limiter Ask fail-open sau 100ms như mọi limiter; chi phí chặn bằng hạn mức token trong DB |
 
 ## F-10 / A-01 Agent
 

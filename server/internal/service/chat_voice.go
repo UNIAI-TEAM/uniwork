@@ -816,6 +816,7 @@ func chatMessageRowFromMessageFields(
 		Voice:            voiceMessageFromMetadata(kind, metadata),
 		File:             fileMessageFromMetadata(kind, metadata),
 		Poll:             pollFromMetadata(kind, meta, viewerID),
+		PollVote:         pollVoteFromMetadata(kind, meta),
 		Reminder:         reminderFromMetadata(kind, meta),
 		Note:             noteFromMetadata(kind, meta, body),
 		Post:             postFromMetadata(kind, meta, body),

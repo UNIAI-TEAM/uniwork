@@ -99,6 +99,9 @@ type Draft struct {
 	// so a concurrent event of the same group waits and treats the committed
 	// row as already delivered (BE-TN-9).
 	OncePerGroup bool
+	// DocChange is set on document_changed drafts (UNI-2056): the consumer
+	// folds them by their own window instead of the open-row upsert.
+	DocChange *DocChange
 }
 
 // CallRingChecker says whether a chat call still rings for a user: live, and
@@ -120,6 +123,8 @@ type env struct {
 	docAdmins DocumentAdministerChecker
 	summaries SummaryChecker
 	calls     CallRingChecker
+	// docMemo keeps the per-command lookups of the document_changed rules.
+	docMemo *docCommandMemo
 }
 
 // rule turns one outbox row into drafts. Rules are pure apart from reads; the
@@ -147,14 +152,26 @@ var rules = map[string]rule{
 	"document.break_glass_granted": ruleDocumentBreakGlassGranted,
 	// SH-S3 (UNI-1782): a direct user share that raised the recipient's
 	// effective level on the document.
-	"document.shared": ruleDocumentShared,
+	"document.shared": both(ruleDocumentShared, docChangeRule(docVerbAccessChanged)),
 	// DOC-07 (UNI-1631): a person asked a document's managers for access, and
 	// the answer that reaches the requester wherever they are.
 	"document.access_requested":       ruleDocumentAccessRequested,
 	"document.access_request_decided": ruleDocumentAccessRequestDecided,
 	// TRASH-NOTIFY-01 (UNI-1844): somebody else archived a person's
 	// document; the ACL owner hears once per archive batch.
-	"document.archived":      ruleDocumentTrashed,
+	"document.archived": both(ruleDocumentTrashed, ruleDocumentTrashedChange),
+	// DOC-CHANGE-NOTIFY (UNI-2056): one document_changed notice per
+	// recipient per command for every in-scope change of a document
+	// somebody besides the actor can read. The topics that already had a
+	// notify-lane consumer carry their verb themselves; every other verb
+	// arrives on the server-only document.change_noticed, so the frame
+	// topics of a rename, restore, shelve, access change, link or version
+	// keep no consumer here and stay on the realtime lane (BE-R1-1).
+	"document.moved":          ruleDocumentMovedChange,
+	"document.deleted":        ruleDocumentDeletedChange,
+	"document.share_revoked":  docChangeRule(docVerbAccessChanged),
+	"document.change_noticed": ruleDocumentChangeNoticed,
+
 	"participant.invited":    ruleParticipantInvited,
 	"member.joined":          ruleMemberJoined,
 	"member.role_changed":    ruleRoleChanged,

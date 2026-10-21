@@ -483,8 +483,9 @@ module spec copies that shape, so adding one needs no CI change.
 
 ## Pinned builds
 
-All six modules are pinned to one fork commit, fork main `d57e60f81` (`0.1.0-d57e60f`, the current UNI-2033 pin: the
-lost-comment "View in version N" and the UNI-2017 comment anchors after Save over `0.1.0-1abc493`), replacing
+All six modules are pinned to one fork commit, `929f0cac7` (`0.1.0-929f0ca`, the current UNI-1986 pin: fork main `bb8702153`
+plus the frame comment avatars, over `0.1.0-d57e60f`), replacing `0.1.0-d57e60f` (the UNI-2033 pin: fork main `d57e60f81`, the
+lost-comment "View in version N" and the UNI-2017 comment anchors after Save over `0.1.0-1abc493`),
 `0.1.0-1abc493` (the REPIN-6 pin of UNI-1919: fork main `1abc493e4`, UNI-1993 and UNI-2020 over `0.1.0-f01befd`),
 `0.1.0-f01befd` (the REPIN-5 pin: fork main `f01befd65`,
 UNI-1987 and UNI-1990 over `0.1.0-b1cbd5d`), `0.1.0-b1cbd5d` (the final REPIN-4 pin: fork main `b1cbd5db4`,
@@ -541,7 +542,11 @@ and the open version id; the Slides server comments pane now shows in Reading an
 read-only, titled as a view copy only for a UniWork view copy) and UNI-2017 G819-A02a/b/c (comment anchors after Save: the Docs
 anchor tracker and resend, the Sheets anchor store with the replay of local edits for a comment first seen at the Save receipt, the
 PDF closed-panel Save), with a frame protocol change (see below): `comments.viewVersion`, the `commentsViewVersion` capability and
-`anchor_version_no` on a comment, all additive, `PROTOCOL_VERSION` stays 1,
+`anchor_version_no` on a comment, all additive, `PROTOCOL_VERSION` stays 1; `929f0cac7` adds over `d57e60f81` (through fork main
+`bb8702153`) UNI-1986 (frame comment avatars: the collab kit's `AvatarSource` / `useAvatarSrc` in `packages/ui/src/collab`, the
+same-origin blob loader `web/modules/shared/avatar`, and its provider mounted in the Docs, PDF, Sheets and Slides server-comments
+hosts and in `FrameDiscussion`; no frame protocol change, see "Frame avatars (UNI-1986)") and the vi "Văn bản thuần" Plain text
+New-menu label of the shell,
 UNI-1920 (the locked-out Docs "Save as a copy" the
 host's `api.saveCopy` answers, and the
 frame-side Ctrl/Cmd+P accelerator in Docs and HTML), and the SIZE-F1 + LAG-F1 frame protocol and UI events (with
@@ -549,7 +554,9 @@ frame-side Ctrl/Cmd+P accelerator in Docs and HTML), and the SIZE-F1 + LAG-F1 fr
 nothing under `web/docs/protocol` between `82c8381e1` and `1abc493e4` (and only its README between `5932073ee` and
 `82c8381e1`), so the protocol hash and the `f6395d85d` vendored headers were unchanged up to `1abc493e4`; at `d57e60f81` only
 `types.ts` changed (`comments.viewVersion`, `commentsViewVersion`, `anchor_version_no`; `PROTOCOL_VERSION` 1), so the `protocol`
-digest is now `914cc471...1664`, the `endpoint` and `host` digests are unchanged, and the three vendored headers name `d57e60f81`), the AI model picker that keeps a
+digest is now `914cc471...1664`, the `endpoint` and `host` digests are unchanged, and the three vendored headers name `d57e60f81`; at
+`929f0cac7` nothing under `web/docs/protocol` changed, so all three digests and the vendored headers are the ones of `d57e60f81`:
+every pin's `protocolSha256` is identical to the `0.1.0-d57e60f` pins and `frame-protocol-vendor.test.mjs` passes), the AI model picker that keeps a
 provider with an empty model list (`7888df06c`, the UniWork AI row; the S7-S9 UX floor checks no longer skip), the UXF-01/08/09
 fixes (picker focus ring, listbox structure, S8 disclosure), the UXF-FIX (UNI-1824) web-frame UX floor fixes (UXF-03 Docs S5
 "Xem khác biệt" in-dialog comparison, UXF-04 `.uw-live` nodes outside `inertSiblings`, UXF-05 `GrayText` text and border on
@@ -557,8 +564,9 @@ fixes (picker focus ring, listbox structure, S8 disclosure), the UXF-FIX (UNI-18
 UXF-07 full-width S5 below 768 px, UXF-10 fixed window live nodes created at frame init, and the `ConflictIo.saveCopy` contract
 for UXF-02), the G8-11 Discussion panel web side, the G6-09 AI edit-undo tables, and the DOC-05 comment level,
 `comments.shareView` and `canActOnComment` root author. Built clean (no `-dirty` suffix) with `npm run build:web -- --all` in a
-detached worktree of `d57e60f81` on bro (linux-arm64; the Sheets wasm is the arm64 line `bd3873bc...7445` of the fork's
-checksum file), published at `web-0.1.0-d57e60f` (`dist-web-0.1.0-d57e60f.tar.gz`, sha256 `0d4746a5...346f`), and
+detached worktree of `929f0cac7` on bro (linux-arm64; the Sheets wasm is the arm64 line `bd3873bc...7445` of the fork's
+checksum file), published at `web-0.1.0-929f0ca` (`dist-web-0.1.0-929f0ca.tar.gz`, sha256 `d035f159...d5af`; the previous
+`web-0.1.0-d57e60f` is `dist-web-0.1.0-d57e60f.tar.gz`, sha256 `0d4746a5...346f`), and
 written by `node apps/web/scripts/office-frame-sync.mjs --all --pin --from <tarball>` alongside `source.json`.
 UXF-03/04/05/06/07/10 have their expected-fail markers removed in `e2e/office-ux-floor.spec.ts` (since `0.1.0-5a72c13`, waiting
 for the cloud e2e run to confirm); UXF-02's marker left with UNI-1872 (`09da7ebb9`): the D web host supplies
@@ -577,6 +585,9 @@ no `-dirty` suffix, `npm run build:web -- --all` in a detached worktree of
 headers did not change from `36e9e23`, only version, SHA and manifest digest. Written by
 `node apps/web/scripts/office-frame-sync.mjs --all --pin --from <tarball of dist-web>`
 and verified file by file on install.
+
+`0.1.0-929f0ca` has the same file counts per module as the table below (the loader adds no file); the unpacked sizes moved by at most
+0.06 MiB (`docs` 17.60, `pdf` 17.23, `markdown` 8.76, `html` 2.49, `slides` 6.24, `sheets` 27.77 MiB), gzip and initial download were not re-measured.
 
 Sizes of the `0.1.0-d57e60f` bundles (against `0.1.0-1abc493` as the build logs report them: `docs`, `pdf`, `markdown`, `html` and `slides` unpacked +0.01 MiB each, `sheets` gzip 7.91 MiB (7.90 before); `0.1.0-1abc493` itself was identical to `0.1.0-f01befd`, `0.1.0-b1cbd5d` and `0.1.0-b5da4d4`, except `sheets`, whose unpacked size is 27.71 MiB (27.70 before); against `0.1.0-9f867d9` only the `pdf` unpacked size and the `html` initial download moved, each by 0.01 MiB):
 
@@ -760,8 +771,13 @@ field:
   (presigned or provider) is only the signal "has a picture" and is never forwarded into the frame;
 - the rewrite applies only to a frame build that knows the route: the pinned version (`pinnedFrameVersion(module)`)
   must be listed in `AVATAR_ROUTE_FRAME_VERSIONS` (`frame-avatar-url.ts`). Any other build gets `""`, which draws the
-  initials and ends the CSP violation per comment. The re-pin to a bundle with the avatar loader adds its version
-  there.
+  initials and ends the CSP violation per comment. The route is on: the list holds `0.1.0-929f0ca`, the pin of all six
+  modules (the build with the fork's avatar loader). A later re-pin that keeps the loader adds its version there;
+  a build without it must not be listed.
+- `e2e/office-docs-avatars-web.spec.ts` proves it on a real stack (cloud runner): a colleague with a stored picture
+  comments on a DOCX, the owner opens it on `?comment=<id>`, the frame's comment panel shows `img[src^="blob:"]` for that
+  author and initials for one without a picture, the avatar route answers `nosniff` + `sandbox; default-src 'none'`,
+  and the frame document keeps its pinned CSP (`img-src 'self' data: blob:`) with no `securitypolicyviolation`.
 
 **Frame side (fork) to do.** Accept `image/webp` and `image/svg+xml` in the
 asset store's display/read paths (upload stays PNG/JPEG/GIF/WebP), inline

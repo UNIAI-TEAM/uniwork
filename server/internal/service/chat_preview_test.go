@@ -26,6 +26,7 @@ func TestChatSidebarPreviewBody(t *testing.T) {
 		prefix string
 	}{
 		{kind: "poll", prefix: "📊 "},
+		{kind: "poll_vote", prefix: "📊 "},
 		{kind: "reminder", prefix: "⏰ "},
 		{kind: "note", prefix: "📝 "},
 	} {

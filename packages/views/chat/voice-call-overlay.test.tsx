@@ -3,10 +3,13 @@ import { beforeAll, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import { wrap } from "../test/api-mock";
 import { VoiceCallOverlay } from "./voice-call-overlay";
+import { useCallRingtone } from "./use-call-ringtone";
 
 vi.mock("./use-call-ringtone", () => ({
   useCallRingtone: vi.fn(),
 }));
+
+const mockUseCallRingtone = vi.mocked(useCallRingtone);
 
 vi.mock("./voice-call-pre-connect", () => ({
   PreConnectFloatingCall: ({
@@ -170,6 +173,44 @@ describe("VoiceCallOverlay", () => {
     expect(handlers.onRetryEnded).toHaveBeenCalledTimes(1);
     fireEvent.click(screen.getByLabelText("Đóng"));
     expect(handlers.onDismissEnded).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not ring for an incoming channel call", () => {
+    mockUseCallRingtone.mockClear();
+    render(
+      wrap(
+        <VoiceCallOverlay
+          state={{
+            status: "incoming",
+            callId: "c1",
+            roomId: "r1",
+            peerName: "Long",
+            callKind: "channel",
+          }}
+          {...overlayProps}
+        />,
+      ),
+    );
+    expect(mockUseCallRingtone).toHaveBeenCalledWith(null);
+  });
+
+  it("rings for an incoming group call", () => {
+    mockUseCallRingtone.mockClear();
+    render(
+      wrap(
+        <VoiceCallOverlay
+          state={{
+            status: "incoming",
+            callId: "c1",
+            roomId: "r1",
+            peerName: "Long",
+            callKind: "group",
+          }}
+          {...overlayProps}
+        />,
+      ),
+    );
+    expect(mockUseCallRingtone).toHaveBeenCalledWith("incoming");
   });
 
   it("names the blocked device on an incoming call and lets the viewer retry answering", () => {

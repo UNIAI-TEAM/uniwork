@@ -164,6 +164,23 @@ describe("DocumentDetailView 404 from a notice: deleted or revoked", () => {
     expect(await screen.findByRole("heading", { level: 2, name: gone })).toBeInTheDocument();
   });
 
+  // A document_changed row's resource_id is only the first document of a multi-document notice and the
+  // row is never resource_deleted, so it must not stand in for the document's own comment row.
+  it("does not let a newer document_changed row hide the deleted flag of an older comment row", async () => {
+    answer(() =>
+      Promise.resolve({
+        notifications: [
+          noticeRow({ id: "n3", kind: "document_changed", params: { verb: "trashed", document_count: "3" } }),
+          noticeRow({ id: "n1", params: { comment_id: "c9" }, resource_deleted: true }),
+        ],
+        next_before: "",
+      }),
+    );
+    renderPage("comment=c1");
+    expect(await screen.findByRole("heading", { level: 2, name: gone })).toBeInTheDocument();
+    expect(screen.queryByText(noAccess)).toBeNull();
+  });
+
   it("keeps the loading state, not the request form, while the Inbox page is fetched", async () => {
     let resolve!: (v: unknown) => void;
     answer(() => new Promise((r) => { resolve = r; }));

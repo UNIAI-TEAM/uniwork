@@ -174,6 +174,82 @@ describe("useNotificationPages", () => {
   });
 });
 
+describe("useNotificationDocuments", () => {
+  beforeEach(() => {
+    setAccessToken("tok");
+    vi.stubGlobal("fetch", vi.fn());
+    configureRuntime({ apiUrl: "http://api.test" });
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    resetRuntimeConfig();
+    setAccessToken(null);
+  });
+
+  const doc = (id: string) => ({ id, title: `T ${id}`, kind: "page", trashed: false, shelved: false, deleted: false });
+  const clientWith = () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <QueryClientProvider client={qc}>{children}</QueryClientProvider>
+    );
+    return { qc, wrapper };
+  };
+
+  it("stays cold until enabled, then follows next_cursor until a page comes back without one", async () => {
+    vi.mocked(fetch).mockImplementation((input) =>
+      Promise.resolve(
+        String(input).includes("cursor=ndc1.a")
+          ? json({ documents: [doc("d2")], next_cursor: null })
+          : json({ documents: [doc("d1")], next_cursor: "ndc1.a" }),
+      ),
+    );
+    const { qc, wrapper } = clientWith();
+    const { result, rerender } = renderHook(({ on }) => useNotificationDocuments("n1", { enabled: on }), {
+      wrapper,
+      initialProps: { on: false },
+    });
+    expect(fetch).not.toHaveBeenCalled();
+    rerender({ on: true });
+    await waitFor(() => expect(result.current.hasNextPage).toBe(true));
+    expect(String(vi.mocked(fetch).mock.calls[0]![0])).toBe("http://api.test/api/v1/me/notifications/n1/documents");
+    await act(() => result.current.fetchNextPage());
+    await waitFor(() =>
+      expect(result.current.data?.pages.flatMap((p) => p.documents.map((d) => d.id))).toEqual(["d1", "d2"]),
+    );
+    expect(result.current.hasNextPage).toBe(false);
+    expect(String(vi.mocked(fetch).mock.calls[1]![0])).toContain("cursor=ndc1.a");
+    expect(qc.getQueryState(notificationKeys.documents("n1"))).toBeDefined();
+  });
+
+  it("does not run for an empty id", () => {
+    const { wrapper } = clientWith();
+    renderHook(() => useNotificationDocuments(""), { wrapper });
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("is left alone by a read, which patches rows only, and refetches after it", async () => {
+    vi.mocked(fetch).mockImplementation((input) =>
+      Promise.resolve(String(input).endsWith("/read") ? json({ status: "ok" }) : json({ documents: [doc("d1")], next_cursor: null })),
+    );
+    const { qc, wrapper } = clientWith();
+    qc.setQueryData<InfiniteData<NotificationPage, string>>(notificationKeys.pages("ws1", false), {
+      pages: [{ notifications: [row("n1")], next_before: "" }],
+      pageParams: [""],
+    });
+    const docs = renderHook(() => useNotificationDocuments("n1"), { wrapper });
+    await waitFor(() => expect(docs.result.current.isSuccess).toBe(true));
+    const mark = renderHook(() => useMarkRead(), { wrapper });
+    act(() => {
+      mark.result.current.mutate(["n1"]);
+    });
+    await waitFor(() => expect(mark.result.current.isSuccess).toBe(true));
+    const pages = qc.getQueryData<InfiniteData<NotificationPage, string>>(notificationKeys.pages("ws1", false))!;
+    expect(pages.pages[0]!.notifications[0]!.read_at).toBeTruthy();
+    expect(docs.result.current.data?.pages[0]?.documents.map((d) => d.id)).toEqual(["d1"]);
+    await waitFor(() => expect(vi.mocked(fetch).mock.calls.filter((c) => String(c[0]).endsWith("/documents")).length).toBe(2));
+  });
+});
+
 describe("useDocumentNoticePage", () => {
   beforeEach(() => {
     setAccessToken("tok");
@@ -214,72 +290,5 @@ describe("useDocumentNoticePage", () => {
     });
     await waitFor(() => expect(result.current.isError).toBe(true));
     expect(fetch).toHaveBeenCalledTimes(1);
-  });
-});
-
-// UNI-2056: the documents of a folded document_changed row live under the lists() prefix, so the
-// realtime invalidation of lists() refreshes an open list; the row rewrites must not trip over them.
-describe("notification documents of a folded row", () => {
-  const item = (id: string) => ({ id, title: `Tài liệu ${id}`, kind: "page", trashed: false, shelved: false, deleted: false });
-  beforeEach(() => {
-    setAccessToken("tok");
-    vi.stubGlobal("fetch", vi.fn());
-    configureRuntime({ apiUrl: "http://api.test" });
-  });
-  afterEach(() => {
-    vi.unstubAllGlobals();
-    resetRuntimeConfig();
-    setAccessToken(null);
-  });
-
-  it("keys the documents under lists() so notification.created refreshes them", () => {
-    expect(notificationKeys.documents("n1")).toEqual(["notifications", "list", "documents", "n1"]);
-  });
-
-  it("pages through the cursor and refetches when the lists are invalidated", async () => {
-    vi.mocked(fetch)
-      .mockResolvedValueOnce(json({ documents: [item("d1")], next_cursor: "c2" }))
-      .mockResolvedValueOnce(json({ documents: [item("d2")], next_cursor: null }))
-      .mockResolvedValue(json({ documents: [item("d1"), item("d3")], next_cursor: null }));
-    const { qc, wrapper } = setup();
-    const { result } = renderHook(() => useNotificationDocuments("n1"), { wrapper });
-    await waitFor(() => expect(result.current.data?.pages[0]?.documents[0]?.id).toBe("d1"));
-    expect(result.current.hasNextPage).toBe(true);
-    await act(async () => {
-      await result.current.fetchNextPage();
-    });
-    await waitFor(() => expect(result.current.data?.pages.flatMap((p) => p.documents.map((i) => i.id))).toEqual(["d1", "d2"]));
-    expect(result.current.hasNextPage).toBe(false);
-    expect(String(vi.mocked(fetch).mock.calls[1]![0])).toBe("http://api.test/api/v1/me/notifications/n1/documents?cursor=c2");
-    await act(async () => {
-      await qc.invalidateQueries({ queryKey: notificationKeys.lists() });
-    });
-    await waitFor(() => expect(result.current.data?.pages.flatMap((p) => p.documents.map((i) => i.id))).toEqual(["d1", "d3"]));
-  });
-
-  it("stays cold while disabled", () => {
-    const { wrapper } = setup();
-    renderHook(() => useNotificationDocuments("n1", { enabled: false }), { wrapper });
-    expect(fetch).not.toHaveBeenCalled();
-  });
-
-  it("is left untouched, and does not break the mutation, when a row is marked read or archived", async () => {
-    vi.mocked(fetch).mockImplementation(() => Promise.resolve(json({ status: "ok" })));
-    const { qc, wrapper, list } = setup();
-    const data = { pages: [{ documents: [item("d1")], next_cursor: null }], pageParams: [""] };
-    qc.setQueryData(notificationKeys.documents("n1"), data);
-    const read = renderHook(() => useMarkRead(), { wrapper }).result;
-    act(() => {
-      read.current.mutate(["n1"]);
-    });
-    await waitFor(() => expect(read.current.isSuccess).toBe(true));
-    expect(list().notifications[0]!.read_at).toBeTruthy();
-    const archive = renderHook(() => useArchive(), { wrapper }).result;
-    act(() => {
-      archive.current.mutate(["n1"]);
-    });
-    await waitFor(() => expect(archive.current.isSuccess).toBe(true));
-    expect(list().notifications.map((n) => n.id)).toEqual(["n2"]);
-    expect(qc.getQueryData(notificationKeys.documents("n1"))).toEqual(data);
   });
 });

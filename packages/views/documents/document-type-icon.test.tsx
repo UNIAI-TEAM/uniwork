@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { setLocale } from "@uniwork/core/i18n";
+import { MARK_COMPACT } from "@uniwork/ui/brand/mark.generated";
 import { describe, expect, it } from "vitest";
 import { DocumentTypeIcon } from "./document-type-icon";
 import { UniNoteIcon } from "./uninote-icon";
@@ -22,16 +23,16 @@ describe("DocumentTypeIcon accessible labels", () => {
 });
 
 describe("DocumentTypeIcon UniNote kind", () => {
-  it("draws the page kind with the UniNote glyph on a blue tint tile", async () => {
+  it("draws the page kind with the UniNote tile, filling the box like the other marks", async () => {
     await setLocale("en");
     const { container } = render(<DocumentTypeIcon format="page" className="size-7" />);
     const reference = render(<UniNoteIcon />).container.querySelector("svg");
     const svg = container.querySelector("svg");
-    expect(svg?.innerHTML).toBe(reference?.innerHTML);
-    expect(svg).toHaveAttribute("viewBox", "0 0 100 100");
+    expect(svg).toHaveAttribute("viewBox", reference?.getAttribute("viewBox"));
+    expect(svg?.querySelector("g[transform] path")).toHaveAttribute("d", MARK_COMPACT.ribbon);
+    expect(svg).toHaveClass("size-full");
     expect(screen.getByRole("img")).toHaveClass("size-7");
-    const tile = svg?.parentElement;
-    expect(tile).toHaveClass("bg-tint-blue", "text-tint-blue-foreground");
+    expect(container.querySelector(".bg-tint-blue")).toBeNull();
   });
 
   it("leaves the other kinds on their own marks", () => {
@@ -42,7 +43,7 @@ describe("DocumentTypeIcon UniNote kind", () => {
         <DocumentTypeIcon format="file" />
       </>,
     );
-    expect(container.querySelectorAll('svg[viewBox="0 0 100 100"]')).toHaveLength(0);
+    expect(container.querySelectorAll('svg[viewBox="0 0 240 240"] g[transform]')).toHaveLength(0);
     expect(container.querySelector("svg.lucide-folder")).not.toBeNull();
   });
 });

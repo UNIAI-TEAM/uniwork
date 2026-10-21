@@ -26,6 +26,14 @@ func ChatPreviewBody(body, kind string) string {
 	if kind == "voice_call_log" {
 		return ""
 	}
+	if kind == "poll_vote" {
+		preview := strings.TrimSpace(body)
+		runes := []rune(preview)
+		if len(runes) > 120 {
+			preview = string(runes[:120]) + "…"
+		}
+		return "📊 " + preview
+	}
 	if kind == "poll" {
 		preview := strings.TrimSpace(body)
 		runes := []rune(preview)

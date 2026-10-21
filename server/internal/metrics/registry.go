@@ -28,6 +28,7 @@ type Registry struct {
 	Notifications *Notifications
 	AI            *AI
 	AIUniwork     *AIUniwork
+	AIAsk         *AIAsk
 	WebVitals     *WebVitals
 	Documents     *Documents
 	Office        *Office
@@ -87,6 +88,8 @@ func NewRegistry(opts RegistryOptions) *Registry {
 	reg.MustRegister(aiMetrics.Collectors()...)
 
 	aiUniworkMetrics := NewAIUniwork()
+	aiAskMetrics := NewAIAsk()
+	reg.MustRegister(aiAskMetrics.Collectors()...)
 	reg.MustRegister(aiUniworkMetrics.Collectors()...)
 
 	webVitals := NewWebVitals()
@@ -118,6 +121,7 @@ func NewRegistry(opts RegistryOptions) *Registry {
 		Notifications: notificationMetrics,
 		AI:            aiMetrics,
 		AIUniwork:     aiUniworkMetrics,
+		AIAsk:         aiAskMetrics,
 		WebVitals:     webVitals,
 		Documents:     documentMetrics,
 		Office:        officeMetrics,

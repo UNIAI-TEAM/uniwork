@@ -71,6 +71,11 @@ const (
 	// the trash; the ACL owner hears once per archive batch. In-app only by
 	// default (Q-R2: no email, push off).
 	KindDocumentTrashedByOther = "document_trashed_by_other"
+	// DOC-CHANGE-NOTIFY (UNI-2056): somebody changed a document the person
+	// can read - one notice per recipient per command, folded with the same
+	// actor's next command of the same verb. One kind for every verb
+	// (params.verb), in-app only by default.
+	KindDocumentChanged = "document_changed"
 )
 
 // Kinds is the list in display order.
@@ -86,6 +91,7 @@ var Kinds = []string{
 	KindDocumentAccessRequested, KindDocumentAccessApproved, KindDocumentAccessDeclined,
 	KindDocumentShared,
 	KindDocumentTrashedByOther,
+	KindDocumentChanged,
 }
 
 var kindSet = func() map[string]bool {

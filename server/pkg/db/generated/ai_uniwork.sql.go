@@ -36,7 +36,7 @@ UPDATE ai_usage_events SET
   reason_code = 'usage_unknown_reconciled', rate_id = $2, input_tokens = $3, output_tokens = $4,
   cost_micros = $5, completed_at = now()
 WHERE id = $1 AND reason_code = 'usage_unknown'
-RETURNING id, organization_id, workspace_id, actor_id, actor_kind, capability, prompt_id, provider, model, rate_id, input_tokens, output_tokens, cost_micros, status, reason_code, latency_ms, tool_calls, source_count, truncated, correlation_id, created_at, completed_at
+RETURNING id, organization_id, workspace_id, actor_id, actor_kind, capability, prompt_id, provider, model, rate_id, input_tokens, output_tokens, cost_micros, status, reason_code, latency_ms, tool_calls, source_count, truncated, correlation_id, created_at, completed_at, run_id, cache_read_tokens, cache_write_tokens
 `
 
 type AiUniworkClaimUnknownUsageParams struct {
@@ -83,6 +83,9 @@ func (q *Queries) AiUniworkClaimUnknownUsage(ctx context.Context, arg AiUniworkC
 		&i.CorrelationID,
 		&i.CreatedAt,
 		&i.CompletedAt,
+		&i.RunID,
+		&i.CacheReadTokens,
+		&i.CacheWriteTokens,
 	)
 	return i, err
 }
@@ -1052,7 +1055,7 @@ func (q *Queries) AiUniworkTurnsToUsageEvent(ctx context.Context, arg AiUniworkT
 
 const aiUniworkUnknownUsageEvents = `-- name: AiUniworkUnknownUsageEvents :many
 
-SELECT id, organization_id, workspace_id, actor_id, actor_kind, capability, prompt_id, provider, model, rate_id, input_tokens, output_tokens, cost_micros, status, reason_code, latency_ms, tool_calls, source_count, truncated, correlation_id, created_at, completed_at FROM ai_usage_events
+SELECT id, organization_id, workspace_id, actor_id, actor_kind, capability, prompt_id, provider, model, rate_id, input_tokens, output_tokens, cost_micros, status, reason_code, latency_ms, tool_calls, source_count, truncated, correlation_id, created_at, completed_at, run_id, cache_read_tokens, cache_write_tokens FROM ai_usage_events
 WHERE capability = 'office_uniwork_ai' AND reason_code = 'usage_unknown'
 ORDER BY created_at, id
 LIMIT $1::int
@@ -1098,6 +1101,9 @@ func (q *Queries) AiUniworkUnknownUsageEvents(ctx context.Context, batch int32) 
 			&i.CorrelationID,
 			&i.CreatedAt,
 			&i.CompletedAt,
+			&i.RunID,
+			&i.CacheReadTokens,
+			&i.CacheWriteTokens,
 		); err != nil {
 			return nil, err
 		}

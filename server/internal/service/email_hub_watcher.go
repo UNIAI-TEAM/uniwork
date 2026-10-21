@@ -234,6 +234,8 @@ func (s *EmailHubService) runHubWatchLoop(ctx context.Context, accountID string)
 				s.emitEmailHubNewMail(ctx, acc, "")
 			}
 		}
+		// Mail may have left INBOX for Trash/Spam on the provider; refresh those caches too.
+		s.syncTrashAndSpamBestEffort(ctx, acc)
 	}
 }
 

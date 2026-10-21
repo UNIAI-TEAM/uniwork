@@ -61,14 +61,20 @@ const PUSH_BY_DEFAULT = new Set<Kind>([
 ]);
 
 /**
- * Kinds that never email (TRASH-NOTIFY-01, Q-R2: in-app only; UNI-2056: a folded
- * document-change row is in-app only too), mirrored from
+ * Kinds that never email (TRASH-NOTIFY-01, Q-R2: in-app only), mirrored from
  * the Email ceiling `Matrix.For` applies in `server/internal/notification/prefs.go`.
  */
-const NO_EMAIL: Partial<Record<Kind, true>> = { document_trashed_by_other: true, document_changed: true };
+const NO_EMAIL: Partial<Record<Kind, true>> = { document_trashed_by_other: true };
+
+/**
+ * Kinds whose email starts off (mirrors the Email default of `DefaultPrefs`):
+ * the ones that never email, plus the document_changed digest (UNI-2056),
+ * which a person may still switch on.
+ */
+const EMAIL_OFF_BY_DEFAULT = new Set<Kind>(["document_trashed_by_other", "document_changed"]);
 
 function serverDefault(kind: Kind): NotificationPreference {
-  return { kind, in_app: true, push: PUSH_BY_DEFAULT.has(kind), email: !NO_EMAIL[kind] };
+  return { kind, in_app: true, push: PUSH_BY_DEFAULT.has(kind), email: !EMAIL_OFF_BY_DEFAULT.has(kind) };
 }
 
 /**

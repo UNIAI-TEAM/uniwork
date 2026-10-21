@@ -10,8 +10,8 @@ import { isChatImageContentType, resolveChatFileContentType } from "./file-accep
 import { parseChatMediaMessageBody } from "./media-body";
 import { formatChatSidebarPreviewText } from "./rooms-display";
 
-/** Every `chat_messages.kind` the server writes (migration 181's check). */
-export const KNOWN_MESSAGE_KINDS = ["text", "system", "voice_call_log", "poll", "reminder", "note", "voice", "file", "post"] as const;
+/** Every `chat_messages.kind` the server writes (migration poll_vote_kind + document kinds). */
+export const KNOWN_MESSAGE_KINDS = ["text", "system", "voice_call_log", "poll", "poll_vote", "reminder", "note", "voice", "file", "post"] as const;
 
 export type MessageView =
   | "text"
@@ -26,10 +26,16 @@ export type MessageView =
   | "reminder"
   | "call-log"
   | "call-summary"
+  | "poll-vote-activity"
   | "unsupported";
 
 /** The card a message renders as; a kind this build does not know reads "unsupported" (→ "Mở trên web"). */
-export function messageView(record: Pick<ChatMessageRecord, "kind" | "body" | "file" | "voice" | "poll" | "note" | "post" | "reminder" | "voice_call" | "voice_call_summary">): MessageView {
+export function messageView(
+  record: Pick<
+    ChatMessageRecord,
+    "kind" | "body" | "file" | "voice" | "poll" | "poll_vote" | "note" | "post" | "reminder" | "voice_call" | "voice_call_summary"
+  >,
+): MessageView {
   if (record.voice_call_summary) return "call-summary";
   switch (record.kind) {
     case "text":
@@ -45,6 +51,8 @@ export function messageView(record: Pick<ChatMessageRecord, "kind" | "body" | "f
       return record.voice ? "voice" : "unsupported";
     case "poll":
       return record.poll ? "poll" : "unsupported";
+    case "poll_vote":
+      return record.poll_vote?.poll_message_id && record.poll_vote.question ? "poll-vote-activity" : "unsupported";
     case "note":
       return record.note ? "note" : "unsupported";
     case "post":

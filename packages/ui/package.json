@@ -74,6 +74,7 @@
     "eslint": "^9.32.0",
     "jsdom": "catalog:",
     "typescript": "catalog:",
+    "vite": "catalog:",
     "vitest": "catalog:"
   }
 }
