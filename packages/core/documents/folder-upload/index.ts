@@ -8,3 +8,22 @@ export type {
   FolderUploadSkipReason,
   PlannedFile,
 } from "./types";
+export type {
+  FolderUploadFailedFile,
+  FolderUploadHandle,
+  FolderUploadPhase,
+  FolderUploadProgress,
+  FolderUploadReport,
+  FolderUploadRunLimitsInput,
+  RunFolderUploadOptions,
+} from "./runner-types";
+export {
+  asFolderUploadRefusal,
+  FOLDER_UPLOAD_REFUSAL_CODES,
+  FolderUploadRefusedError,
+  type FileTarget,
+  type FolderUploadBatch,
+  type FolderUploadBatchFile,
+  type FolderUploadRefusalWireCode,
+  type FolderUploadTransport,
+} from "./transport";
