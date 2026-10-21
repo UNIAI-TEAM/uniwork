@@ -37,8 +37,8 @@ vi.mock("@dnd-kit/core", async (importOriginal) => {
   };
 });
 
-function node(over: Record<string, unknown>): DocumentTreeNode {
-  return { title: "Nút", kind: "folder", position: 0, visibility: "workspace", children: [], ...over } as DocumentTreeNode;
+function node(over: Partial<DocumentTreeNode> & { id: string }): DocumentTreeNode {
+  return { title: "Nút", kind: "folder", position: 0, visibility: "workspace", children: [], ...over };
 }
 
 const forest: DocumentTreeNode[] = [

@@ -27,6 +27,8 @@ const CODE_TO_CLASS: Record<string, DocumentErrorClass> = {
   // error_class.go when the stamp is stripped or the client predates it.
   document_shelved: "read_only",
   my_folder_locked: "conflict",
+  // UNI-2055 W2: a workspace folder cannot move into My Folder or under it.
+  folder_into_my_folder: "conflict",
   document_deleted: "gone",
   quota_exceeded: "quota",
   forbidden: "permission",

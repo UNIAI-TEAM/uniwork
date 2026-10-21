@@ -11,10 +11,11 @@ import { isMyFolder, type DocumentTreeNode } from "@uniwork/core/types/document"
 import { createSafeId } from "@uniwork/core/utils";
 import { DocumentArchiveDialog } from "./document-archive-dialog";
 import { documentErrorMessage } from "./document-error-message";
-import { findTreeNode, loadMoveRevision } from "./document-tree-model";
+import { findTreeNode, folderLeavesMyFolder, loadMoveRevision } from "./document-tree-model";
 import { FolderNameDialog } from "./folder-name-dialog";
 import { FolderPickerDialog } from "./folder-picker-dialog";
 import type { DocumentSummaryRow } from "./library-rows";
+import { MoveOutConfirmDialog } from "./move-out-confirm-dialog";
 import { canShareRow } from "./row-level";
 import { ShareDialog } from "./share-dialog";
 import { rowShareTarget } from "./share-dialog-target";
@@ -67,6 +68,8 @@ export function useLibraryRowDialogs({
   const [saving, setSaving] = useState<SourceRow | null>(null);
   const [naming, setNaming] = useState<NameDialogState | null>(null);
   const [moving, setMoving] = useState<DocumentSummaryRow | null>(null);
+  // A folder leaving My Folder waits here for the person's yes before any request goes out (UNI-2055 W3).
+  const [confirmingOut, setConfirmingOut] = useState<string | null | undefined>(undefined);
   const [archiving, setArchiving] = useState<DocumentSummaryRow | null>(null);
   const [sharing, setSharing] = useState<DocumentSummaryRow | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -152,7 +155,10 @@ export function useLibraryRowDialogs({
       <FolderPickerDialog
         open={moving !== null}
         onOpenChange={(next) => {
-          if (!next) setMoving(null);
+          if (!next) {
+            setMoving(null);
+            setConfirmingOut(undefined);
+          }
         }}
         title={t("documents.home.move.picker_title")}
         description={
@@ -171,7 +177,21 @@ export function useLibraryRowDialogs({
         pending={moveLoading}
         error={moving ? error : null}
         onSubmit={(target) => {
-          if (moving) void submitMove(moving, target);
+          if (!moving) return;
+          if (folderLeavesMyFolder(tree, [moving.id], target)) {
+            setConfirmingOut(target);
+            return;
+          }
+          void submitMove(moving, target);
+        }}
+      />
+      <MoveOutConfirmDialog
+        open={moving !== null && confirmingOut !== undefined}
+        onCancel={() => setConfirmingOut(undefined)}
+        onConfirm={() => {
+          const target = confirmingOut;
+          setConfirmingOut(undefined);
+          if (moving && target !== undefined) void submitMove(moving, target);
         }}
       />
       {archiving ? (

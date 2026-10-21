@@ -54,7 +54,7 @@ function row(id: string, kind: "folder" | "page" | "file", parentId: string | nu
   } as DocumentSummaryRow;
 }
 
-const moveReason = t("documents.home.move.reason_workspace_folder");
+const moveReason = () => t("documents.home.move.reason_workspace_folder");
 const posts = () => requestMock.mock.calls.filter(([, opts]) => (opts as { method?: string } | undefined)?.method === "POST");
 
 function renderPicker(over: Partial<React.ComponentProps<typeof FolderPickerDialog>> = {}) {
@@ -87,7 +87,7 @@ describe("FolderPickerDialog: workspace folders and My Folder (UNI-2055 A2)", ()
     renderPicker({ movingId: "wf", currentFolderId: null });
     for (const { el } of myFolderRows()) {
       expect(el).toHaveAttribute("aria-disabled", "true");
-      expect(el).toHaveAccessibleDescription(moveReason);
+      expect(el).toHaveAccessibleDescription(moveReason());
     }
     // Other workspace folders and the root stay open as targets.
     expect(screen.getByRole("treeitem", { name: "Thư mục wf2" })).not.toHaveAttribute("aria-disabled");
@@ -235,7 +235,7 @@ describe("bulk move: My Folder guards (UNI-2055 A2)", () => {
     const picker = await screen.findByRole("dialog");
     const mf = within(picker).getByRole("treeitem", { name: t("documents.home.my_folder.label") });
     expect(mf).toHaveAttribute("aria-disabled", "true");
-    expect(mf).toHaveAccessibleDescription(moveReason);
+    expect(mf).toHaveAccessibleDescription(moveReason());
   });
 
   it("asks once for the whole batch when any selected folder leaves My Folder, and Cancel sends nothing", async () => {

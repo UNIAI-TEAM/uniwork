@@ -20,8 +20,10 @@ import {
 } from "@uniwork/ui/components/ui/alert-dialog";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
+import { folderLeavesMyFolder } from "../document-tree-model";
 import { FolderPickerDialog } from "../folder-picker-dialog";
 import type { DocumentSummaryRow } from "../library-rows";
+import { MoveOutConfirmDialog } from "../move-out-confirm-dialog";
 import type { BulkActionId, BulkPlan, DocListBulk } from "./bulk-actions";
 import { BulkShareDialog } from "./bulk-share-dialog";
 
@@ -95,6 +97,8 @@ export function useDocListBulkCommands({
   const zip = useDocumentDownloadJob(wsId, { pollMs: zipPollMs });
   const [confirming, setConfirming] = useState<Pending | null>(null);
   const [moving, setMoving] = useState<Pending | null>(null);
+  // One confirm for the batch when a selected folder leaves My Folder (UNI-2055 W3): the picked target waits here.
+  const [confirmingOut, setConfirmingOut] = useState<string | null | undefined>(undefined);
   const [sharing, setSharing] = useState<Pending | null>(null);
   // A batch or a zip in flight: the bar's buttons wait for it and a second press runs nothing.
   const busy = command.isPending || zip.isPending;
@@ -229,7 +233,10 @@ export function useDocListBulkCommands({
       <FolderPickerDialog
         open={moving !== null}
         onOpenChange={(next) => {
-          if (!next && !busy) setMoving(null);
+          if (!next && !busy) {
+            setMoving(null);
+            setConfirmingOut(undefined);
+          }
         }}
         title={t("documents.list.bulk.move.title", { count: moving?.plan.docs.length ?? 0 })}
         description={t("documents.list.bulk.move.description")}
@@ -238,10 +245,25 @@ export function useDocListBulkCommands({
         rootLabel={t("documents.home.move.root")}
         tree={tree}
         initialFolderId={null}
+        movingIds={moving?.plan.docs.map((doc) => doc.id)}
         pending={busy}
         error={null}
         onSubmit={(target) => {
           if (!moving || busy) return;
+          if (folderLeavesMyFolder(tree, moving.plan.docs.map((doc) => doc.id), target)) {
+            setConfirmingOut(target);
+            return;
+          }
+          void execute(moving, target).finally(() => setMoving(null));
+        }}
+      />
+      <MoveOutConfirmDialog
+        open={moving !== null && confirmingOut !== undefined}
+        onCancel={() => setConfirmingOut(undefined)}
+        onConfirm={() => {
+          const target = confirmingOut;
+          setConfirmingOut(undefined);
+          if (!moving || busy || target === undefined) return;
           void execute(moving, target).finally(() => setMoving(null));
         }}
       />

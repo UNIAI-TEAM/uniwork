@@ -66,6 +66,54 @@ export function moveRefused(
   return subtreeIds(nodes, draggedId).has(targetId);
 }
 
+/** Ids of My Folder and every node under it; empty when the forest holds no My Folder. */
+function myFolderSubtreeIds(nodes: DocumentTreeNode[]): Set<string> {
+  for (const node of nodes) {
+    if (isMyFolder(node)) return subtreeIds([node], node.id);
+    const inner = myFolderSubtreeIds(node.children);
+    if (inner.size > 0) return inner;
+  }
+  return new Set();
+}
+
+/**
+ * UNI-2055 W2: a workspace folder (a folder outside the My Folder subtree, W1)
+ * never lands in My Folder or under it. True when any of `ids` is such a folder
+ * and `targetId` is My Folder or one of its descendants; the server answers the
+ * same move 422 `folder_into_my_folder`. A node the forest does not hold is not
+ * judged here.
+ */
+export function workspaceFolderIntoMyFolder(
+  nodes: DocumentTreeNode[],
+  ids: readonly string[],
+  targetId: string | null,
+): boolean {
+  if (targetId === null) return false;
+  const mine = myFolderSubtreeIds(nodes);
+  if (!mine.has(targetId)) return false;
+  return ids.some((id) => !mine.has(id) && findTreeNode(nodes, id)?.kind === "folder");
+}
+
+/**
+ * UNI-2055 W3: moving a folder from inside the My Folder subtree to a place
+ * outside it turns it (and its sub-folders) into workspace folders, so the
+ * person confirms first. True when any of `ids` is a folder under My Folder and
+ * `targetId` (null = the workspace root) is outside the subtree. Documents move
+ * freely (W4): only folders count.
+ */
+export function folderLeavesMyFolder(
+  nodes: DocumentTreeNode[],
+  ids: readonly string[],
+  targetId: string | null,
+): boolean {
+  const mine = myFolderSubtreeIds(nodes);
+  if (targetId !== null && mine.has(targetId)) return false;
+  return ids.some((id) => {
+    const node = mine.has(id) ? findTreeNode(nodes, id) : null;
+    return node !== null && node.kind === "folder" && !isMyFolder(node);
+  });
+}
+
 /** The forest node with this id, or null when it is not in the loaded forest. */
 export function findTreeNode(nodes: DocumentTreeNode[], id: string): DocumentTreeNode | null {
   for (const node of nodes) {
