@@ -55,6 +55,12 @@ type FakeProvider struct {
 	Updates []UpdateProviderParticipantRequest
 	// Removed keeps every RemoveParticipant call in order.
 	Removed []RemoveProviderParticipantRequest
+	// RoomParticipants is who ListParticipants reports per room; a
+	// RemoveParticipant drops the identity from it.
+	RoomParticipants map[string][]ProviderParticipant
+	// ListedRules is what ListDialInRules reports besides the live rules
+	// (age unknown for those).
+	ListedRules []DialInRule
 }
 
 func (f *FakeProvider) Key() string { return "fake" }
@@ -99,6 +105,17 @@ func (f *FakeProvider) RemoveParticipant(_ context.Context, req RemoveProviderPa
 	f.RemoveCalls++
 	f.LastRemove = req
 	f.Removed = append(f.Removed, req)
+	if f.RemoveErr == nil {
+		left := f.RoomParticipants[req.RoomName][:0:0]
+		for _, p := range f.RoomParticipants[req.RoomName] {
+			if p.Identity != req.Identity {
+				left = append(left, p)
+			}
+		}
+		if f.RoomParticipants != nil {
+			f.RoomParticipants[req.RoomName] = left
+		}
+	}
 	return f.RemoveErr
 }
 
@@ -227,4 +244,30 @@ func (f *FakeProvider) Snapshot() (updates []UpdateProviderParticipantRequest, r
 	f.permMu.Lock()
 	defer f.permMu.Unlock()
 	return append([]UpdateProviderParticipantRequest(nil), f.Updates...), append([]RemoveProviderParticipantRequest(nil), f.Removed...)
+}
+
+func (f *FakeProvider) ListDialInRules(context.Context) ([]DialInRule, error) {
+	f.scribeMu.Lock()
+	defer f.scribeMu.Unlock()
+	out := append([]DialInRule(nil), f.ListedRules...)
+	for id, r := range f.DialInRules {
+		out = append(out, DialInRule{ID: id, Name: r.Name})
+	}
+	return out, nil
+}
+
+func (f *FakeProvider) ListParticipants(_ context.Context, roomName string) ([]ProviderParticipant, error) {
+	f.permMu.Lock()
+	defer f.permMu.Unlock()
+	return append([]ProviderParticipant(nil), f.RoomParticipants[roomName]...), nil
+}
+
+// Join puts a live connection into a room, as LiveKit would list it.
+func (f *FakeProvider) Join(roomName string, p ProviderParticipant) {
+	f.permMu.Lock()
+	defer f.permMu.Unlock()
+	if f.RoomParticipants == nil {
+		f.RoomParticipants = map[string][]ProviderParticipant{}
+	}
+	f.RoomParticipants[roomName] = append(f.RoomParticipants[roomName], p)
 }

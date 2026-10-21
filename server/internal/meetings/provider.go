@@ -2,6 +2,7 @@ package meetings
 
 import (
 	"context"
+	"errors"
 	"time"
 )
 
@@ -28,6 +29,34 @@ type ConferenceProvider interface {
 	// DeleteDialInRule removes it, a rule already gone included.
 	CreateDialInRule(ctx context.Context, req DialInRuleRequest) (string, error)
 	DeleteDialInRule(ctx context.Context, ruleID string) error
+	// ListDialInRules lists the SIP dispatch rules (on the UniWork trunk when
+	// one is set), so the sweep can find rules no meeting points at.
+	ListDialInRules(ctx context.Context) ([]DialInRule, error)
+	// ListParticipants lists who is connected to a room right now.
+	ListParticipants(ctx context.Context, roomName string) ([]ProviderParticipant, error)
+}
+
+// ErrDialInRuleConflict: the provider refused the rule because another one
+// already routes the same PIN on the trunk.
+var ErrDialInRuleConflict = errors.New("dial-in rule conflicts with an existing rule")
+
+// DialInRule is one SIP dispatch rule as the provider lists it; CreatedAt is
+// zero when the provider does not say.
+type DialInRule struct {
+	ID        string
+	Name      string
+	CreatedAt time.Time
+}
+
+// ProviderParticipant is one live connection in a room. SIP marks a phone
+// caller.
+type ProviderParticipant struct {
+	Identity    string
+	SID         string
+	Name        string
+	SIP         bool
+	Attributes  map[string]string
+	Permissions MediaPermissions
 }
 
 // DialInRuleRequest is one PIN-gated route from the phone network into a

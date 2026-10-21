@@ -2,14 +2,17 @@ package meetings
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/livekit/protocol/livekit"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 // fakeLiveKitSIP answers the two SIP Twirp calls the adapter makes and keeps
@@ -110,5 +113,73 @@ func TestDeleteDialInRuleReportsOtherFailures(t *testing.T) {
 	a := &LiveKitAdapter{URL: srv.URL, APIKey: "k", APISecret: "api-secret-at-least-32-characters!!"}
 	if err := a.DeleteDialInRule(context.Background(), "SDR_x"); err == nil {
 		t.Fatal("a failed delete reported success")
+	}
+}
+
+// twirpStub answers one Twirp path with a protobuf message, or with a Twirp
+// error when code is set.
+func twirpStub(t *testing.T, path string, reply proto.Message, code string) *httptest.Server {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != path {
+			t.Errorf("unexpected call %s", r.URL.Path)
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		if code != "" {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = w.Write([]byte(`{"code":"` + code + `","msg":"refused"}`))
+			return
+		}
+		out, _ := proto.Marshal(reply)
+		w.Header().Set("Content-Type", "application/protobuf")
+		_, _ = w.Write(out)
+	}))
+	t.Cleanup(srv.Close)
+	return srv
+}
+
+// LiveKit refuses a second rule for the same trunk and PIN as invalid
+// argument; the service rotates the PIN on that error only.
+func TestCreateDialInRuleReportsAPINConflict(t *testing.T) {
+	srv := twirpStub(t, "/twirp/livekit.SIP/CreateSIPDispatchRule", nil, "invalid_argument")
+	a := &LiveKitAdapter{URL: srv.URL, APIKey: "k", APISecret: "api-secret-at-least-32-characters!!"}
+	_, err := a.CreateDialInRule(context.Background(), DialInRuleRequest{RoomName: "uw_mtg_m1", Pin: "1"})
+	if !errors.Is(err, ErrDialInRuleConflict) {
+		t.Fatalf("err = %v, want ErrDialInRuleConflict", err)
+	}
+}
+
+func TestListDialInRulesReadsIDNameAndAge(t *testing.T) {
+	at := time.Date(2026, 10, 21, 8, 0, 0, 0, time.UTC)
+	srv := twirpStub(t, "/twirp/livekit.SIP/ListSIPDispatchRule", &livekit.ListSIPDispatchRuleResponse{Items: []*livekit.SIPDispatchRuleInfo{
+		{SipDispatchRuleId: "SDR_1", Name: "uniwork m1", CreatedAt: timestamppb.New(at)},
+		{SipDispatchRuleId: "SDR_2", Name: "lms"},
+	}}, "")
+	a := &LiveKitAdapter{URL: srv.URL, APIKey: "k", APISecret: "api-secret-at-least-32-characters!!"}
+	rules, err := a.ListDialInRules(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rules) != 2 || rules[0] != (DialInRule{ID: "SDR_1", Name: "uniwork m1", CreatedAt: at}) || !rules[1].CreatedAt.IsZero() {
+		t.Fatalf("rules = %+v", rules)
+	}
+}
+
+func TestListParticipantsReadsKindSIDAndGrants(t *testing.T) {
+	srv := twirpStub(t, "/twirp/livekit.RoomService/ListParticipants", &livekit.ListParticipantsResponse{Participants: []*livekit.ParticipantInfo{
+		{Identity: "sip_ab", Sid: "PA_1", Name: "Phone 1234", Kind: livekit.ParticipantInfo_SIP,
+			Attributes: map[string]string{"sip.ruleID": "SDR_1"}, Permission: &livekit.ParticipantPermission{CanSubscribe: true}},
+		{Identity: "uw_participant_p1", Sid: "PA_2"},
+	}}, "")
+	a := &LiveKitAdapter{URL: srv.URL, APIKey: "k", APISecret: "api-secret-at-least-32-characters!!"}
+	ps, err := a.ListParticipants(context.Background(), "uw_mtg_m1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ps) != 2 || !ps[0].SIP || ps[1].SIP || ps[0].SID != "PA_1" || ps[0].Identity != "sip_ab" || ps[0].Name != "Phone 1234" ||
+		ps[0].Attributes["sip.ruleID"] != "SDR_1" || !ps[0].Permissions.CanSubscribe || ps[0].Permissions.CanPublish {
+		t.Fatalf("participants = %+v", ps)
 	}
 }

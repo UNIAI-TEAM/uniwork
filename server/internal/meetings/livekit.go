@@ -416,6 +416,10 @@ func (a *LiveKitAdapter) CreateDialInRule(ctx context.Context, req DialInRuleReq
 			TrunkIds: trunks, HidePhoneNumber: true, Name: req.Name,
 		},
 	})
+	var terr twirp.Error
+	if errors.As(err, &terr) && (terr.Code() == twirp.InvalidArgument || terr.Code() == twirp.AlreadyExists) {
+		return "", fmt.Errorf("livekit create dial-in rule: %w: %v", ErrDialInRuleConflict, err)
+	}
 	if err != nil {
 		return "", fmt.Errorf("livekit create dial-in rule: %w", err)
 	}
@@ -436,4 +440,44 @@ func (a *LiveKitAdapter) DeleteDialInRule(ctx context.Context, ruleID string) er
 		return fmt.Errorf("livekit delete dial-in rule: %w", err)
 	}
 	return nil
+}
+
+// ListDialInRules lists the dispatch rules, only the UniWork trunk's when
+// trunkID is set.
+//
+// shortcut: one page (LiveKit's default page size); paginate with Page if a
+// trunk ever holds more rules than that.
+func (a *LiveKitAdapter) ListDialInRules(ctx context.Context) ([]DialInRule, error) {
+	ctx, cancel := a.roomCtx(ctx)
+	defer cancel()
+	res, err := a.sip().ListSIPDispatchRule(ctx, &livekit.ListSIPDispatchRuleRequest{})
+	if err != nil {
+		return nil, fmt.Errorf("livekit list dial-in rules: %w", err)
+	}
+	out := make([]DialInRule, 0, len(res.GetItems()))
+	for _, r := range res.GetItems() {
+		rule := DialInRule{ID: r.GetSipDispatchRuleId(), Name: r.GetName()}
+		if r.GetCreatedAt() != nil {
+			rule.CreatedAt = r.GetCreatedAt().AsTime()
+		}
+		out = append(out, rule)
+	}
+	return out, nil
+}
+
+func (a *LiveKitAdapter) ListParticipants(ctx context.Context, roomName string) ([]ProviderParticipant, error) {
+	ctx, cancel := a.roomCtx(ctx)
+	defer cancel()
+	res, err := a.client().ListParticipants(ctx, &livekit.ListParticipantsRequest{Room: roomName})
+	if err != nil {
+		return nil, fmt.Errorf("livekit list participants: %w", err)
+	}
+	out := make([]ProviderParticipant, 0, len(res.GetParticipants()))
+	for _, p := range res.GetParticipants() {
+		out = append(out, ProviderParticipant{
+			Identity: p.GetIdentity(), SID: p.GetSid(), Name: p.GetName(), SIP: p.GetKind() == livekit.ParticipantInfo_SIP,
+			Attributes: p.GetAttributes(), Permissions: mediaPermissions(p.GetPermission()),
+		})
+	}
+	return out, nil
 }
