@@ -26,7 +26,7 @@ Dự án UniWork trên UniAI (workspace `uni2026`, project `57602a20-04e8-4c08-a
 | Chiều đồng bộ | UniAI sang UniWork. Sửa chỉ trên UniWork giữ nguyên đến khi issue UniAI đổi. Lần UniAI đổi thì các field trong hash được ghi lại theo UniAI |
 | Nhịp | Autopilot chế độ chỉ chạy, cron `*/15 * * * *`, `Asia/Ho_Chi_Minh` |
 | Ai làm việc chép | Chương trình cố định. Agent không chọn field |
-| Nhớ mã task | Hai property trên issue UniAI |
+| Nhớ mã task | Hai khóa metadata trên issue UniAI: `uniwork_task`, `uniwork_sync` |
 
 ## 3. Kiến trúc
 
@@ -41,7 +41,7 @@ Agent không đọc issue và không gọi tool. Chương trình làm bốn vi�
 1. Đọc issue, comment và cây cha–con bằng `uniai`.
 2. Đọc email thành viên, tạo nhãn còn thiếu, đọc comment đã có, và tìm task theo tiêu đề bằng API thường của UniWork. MCP `list_members` không trả email. `list_tasks` không tìm theo tiêu đề và không quá 50 dòng. `get_task` chỉ trả 50 comment mới nhất.
 3. Tạo task, sửa task và thêm comment bằng MCP: `create_task`, `update_task`, `add_comment`.
-4. Ghi property trên issue UniAI.
+4. Ghi metadata trên issue UniAI bằng `uniai issue metadata set`. CLI đang cài không có lệnh `property`.
 
 MCP và API thường không nhận chung một token. Máy chạy giữ hai biến môi trường, không đưa vào git:
 
@@ -54,7 +54,7 @@ MCP và API thường không nhận chung một token. Máy chạy giữ hai bi�
 
 `uniai` trên máy đó đã đăng nhập workspace `uni2026`.
 
-Mỗi issue xong thì ghi property ngay. Lượt bị ngắt thì vòng sau tiếp phần chưa có hash. Lần đầu đi nhiều vòng lịch vì chương trình giữ dưới 100 lần gọi MCP mỗi phút. Cùng lệnh chạy tay khi cần đẩy ngay.
+Mỗi issue xong thì ghi metadata ngay. Lượt bị ngắt thì vòng sau tiếp phần chưa có hash. Lần đầu đi nhiều vòng lịch vì chương trình giữ dưới 100 lần gọi MCP mỗi phút. Cùng lệnh chạy tay khi cần đẩy ngay. Một file khóa chứa pid. Pid đó còn sống thì lần chạy mới in `already running` và thoát 0. Pid không còn thì lần mới giữ khóa.
 
 Chương trình không viết comment lên issue UniAI. Kết quả in ra stdout cho lượt autopilot: số tạo, số sửa, số bỏ qua, và từng issue lỗi.
 
@@ -98,7 +98,7 @@ Comment này ở lại khi sau này gán được người, vì chương trình 
 
 **Nhãn.** Khớp theo đúng tên (`uw-backend`, `phase-C`, `Uniwork Bug`, và mọi tên khác trên issue). Thiếu thì `POST /api/v1/workspaces/{workspaceID}/task-labels` một lần, `name` giữ nguyên, `color` là `#6b7280`, `description` rỗng. Hai nhãn UniWork trùng một tên thì issue đó lỗi, không chọn hộ. Gắn lúc tạo bằng `label_ids`. Lần sửa thì thêm và gỡ bằng `add_label_ids` và `remove_label_ids`.
 
-**Comment.** Đăng theo thời gian, comment cha trước reply. `reply_to` chỉ đặt khi comment cha đã có id bên UniWork. Cha chưa sang thì reply chờ đến khi cha có id trong cùng vòng hoặc vòng sau.
+**Comment.** Đọc bằng `uniai issue comment list <id> --full --output json`. `--full` bắt buộc: thiếu nó, thread đã resolve bị gấp và comment trong thread biến mất. JSON có `id`, `parent_id`, `author_id`, `author_type`, `content`, `created_at`. `author_id` của member là `user_id` trong `uniai workspace member list`. `author_id` của agent là `id` trong `uniai agent list`. Comment có `deleted_at` khác rỗng không vào hash và không được đăng. Comment còn lại đăng theo `created_at`, cha trước reply. `reply_to` chỉ đặt khi comment cha đã có id bên UniWork. Cha đã xóa bên UniAI thì reply đăng không có `reply_to`. Cha chưa sang thì reply chờ đến khi cha có id trong cùng vòng hoặc vòng sau.
 
 Dòng nhìn thấy đầu tiên là tác giả. Phía trên là marker id comment UniAI:
 
@@ -111,20 +111,20 @@ Dòng nhìn thấy đầu tiên là tác giả. Phía trên là marker id commen
 
 Agent thì ngoặc là `agent`, không có email. Trần MCP là 20.000 ký tự. Dài hơn thì giữ marker và dòng tác giả, cắt nội dung.
 
-**Không mang.** Vị trí trên board, stage, `duplicate_of`, property khác ngoài hai property đồng bộ, người theo dõi, liên kết PR, file đính kèm. Sửa hoặc xóa comment đã sang không được đẩy, vì chương trình không gọi API sửa hoặc xóa comment. Issue xóa bên UniAI không xóa task UniWork.
+**Không mang.** Vị trí trên board, stage, `duplicate_of`, custom property của UniAI, người theo dõi, liên kết PR, file đính kèm. Hai khóa metadata `uniwork_task` và `uniwork_sync` là của chương trình này. Sửa hoặc xóa comment đã sang không được đẩy, vì chương trình không gọi API sửa hoặc xóa comment. Issue xóa bên UniAI không xóa task UniWork.
 
 Lần nạp gán người và đặt trạng thái qua MCP, nên người được giao nhận thông báo của những lần tạo và những lần đổi assignee hoặc trạng thái.
 
 ## 5. Nhớ mã và chỉ đẩy phần lệch
 
-Không dùng `updated_at` làm mốc. Ghi property cũng đổi `updated_at` khi giá trị đổi.
+Không dùng `updated_at` làm mốc. Ghi metadata cũng đổi `updated_at` khi giá trị đổi.
 
-Một người tạo hai property kiểu text trên workspace `uni2026` trước lần chạy đầu. Chương trình không tự tạo property. Thiếu property thì dừng trước khi tạo task.
+Hai khóa nằm trong `metadata` của issue, đọc từ `uniai issue list`. Thiếu khóa nghĩa là chưa sang, không phải lỗi cấu hình. Ghi bằng `uniai issue metadata set <id> --key <khóa> --type string --value <giá trị>`.
 
-| Property | Giá trị |
+| Khóa | Giá trị |
 | --- | --- |
-| `UniWork task` | Id task UniWork |
-| `UniWork sync` | SHA-256 hex của JSON chuẩn |
+| `uniwork_task` | Id task UniWork |
+| `uniwork_sync` | SHA-256 hex của JSON chuẩn |
 
 JSON chuẩn là một object, khóa đúng thứ tự bảng dưới, mảng đã xếp, UTF-8, không space sau `:` và `,`:
 
@@ -139,20 +139,20 @@ JSON chuẩn là một object, khóa đúng thứ tự bảng dưới, mảng đ
 | `assignee_id` | Id assignee UniAI, hoặc `""` |
 | `labels` | Tên nhãn, xếp chữ |
 | `parent_issue_id` | Id cha UniAI, hoặc `""` |
-| `comment_ids` | Id comment UniAI, xếp chữ |
+| `comment_ids` | Id comment UniAI còn sống (không có `deleted_at`), xếp chữ |
 
-Hash trùng thì bỏ qua issue đó, kể cả khi ai đó vừa sửa task trên UniWork. Chưa có `UniWork task` thì tạo, cha trước con. Hash khác thì `get_task` lấy `revision` rồi `update_task` những field khác UniAI: tiêu đề đã gắn mã, 16.000 ký tự đầu của mô tả, trạng thái, mức ưu tiên, ngày, assignee, cha, nhãn. `description_truncated` thì ghi lại 16.000 ký tự đầu. `revision_conflict` thì `get_task` lại một lần và `update_task` một lần nữa. Vẫn lệch thì issue đó dừng ở vòng này, không ghi hash mới.
+Hash trùng thì bỏ qua issue đó, kể cả khi ai đó vừa sửa task trên UniWork. Chưa có `uniwork_task` thì tạo, cha trước con. Hash khác thì `get_task` lấy `revision` rồi `update_task` những field khác UniAI: tiêu đề đã gắn mã, 16.000 ký tự đầu của mô tả, trạng thái, mức ưu tiên, ngày, assignee, cha, nhãn. `description_truncated` thì ghi lại 16.000 ký tự đầu. `revision_conflict` thì `get_task` lại một lần và `update_task` một lần nữa. Vẫn lệch thì issue đó dừng ở vòng này, không ghi hash mới.
 
 Comment đã sang được nhận bằng marker trong nội dung, đọc từ `GET /api/v1/tasks/{taskID}/comments` (cũ nhất trước). `get_task` không dùng để quyết định comment nào đã có. Id đã có marker thì không đăng lại. Cùng lúc đọc đó, chương trình nhớ id comment UniWork của từng marker để đặt `reply_to`. Comment vừa đăng trong vòng này lấy id từ kết quả `add_comment`.
 
 Thứ tự một issue mới:
 
 1. `create_task`.
-2. Ghi `UniWork task` ngay.
+2. Ghi `uniwork_task` ngay.
 3. Đăng comment còn thiếu, gồm comment giao việc và phần mô tả dư.
-4. Khi issue đã khớp, ghi `UniWork sync`.
+4. Khi issue đã khớp, ghi `uniwork_sync`.
 
-Đứt sau bước 1 và trước bước 2: vòng sau tìm bằng `POST /api/v1/workspaces/{workspaceID}/tasks/query`, search đúng tiền tố tiêu đề `UNI-423:`. Đúng một task thì ghi id vào property và đi tiếp từ bước 3. Không có task thì tạo. Hai task trở lên thì dừng issue đó, không tạo thêm, không gắn.
+Đứt sau bước 1 và trước bước 2: vòng sau lật `POST /api/v1/workspaces/{workspaceID}/tasks/query` với `project_id` của dự án đích, `limit` 200, tăng `offset` đến hết `total`. Endpoint này không có trường search. Giữ task có `title` đúng bằng tiêu đề đã gắn mã. Đúng một task thì ghi id vào `uniwork_task` và đi tiếp từ bước 3. Không có task thì tạo. Hai task trở lên thì dừng issue đó, không tạo thêm, không gắn.
 
 Hash chỉ ghi khi các field và comment đã khớp. Lỗi giữa chừng thì hash cũ còn, vòng sau đẩy phần thiếu.
 
@@ -164,9 +164,10 @@ Dừng cả vòng, và không ghi hash, khi gặp một trong các việc sau:
 
 - MCP hoặc phiên trả 401.
 - `workspace_id` hoặc `project_id` sai, hoặc dự án không tồn tại.
-- Chưa có property `UniWork task` hoặc `UniWork sync`.
 
 Gọi MCP giữ dưới 100 lần mỗi phút. Bị giới hạn thì chờ rồi thử lại đúng lời gọi đó.
+
+File khóa `scripts/uniai-sync/.sync.lock` chứa pid. Pid còn sống thì lần chạy mới in `already running` và thoát 0. Pid không còn thì lần mới ghi pid của mình và chạy.
 
 Vòng cha: những issue trong vòng được báo và không tạo task.
 
@@ -181,7 +182,7 @@ Ca phải giữ:
 - Cha tạo trước. Con chờ khi cha chưa có id.
 - Hash trùng thì không gọi `update_task` dù `updated_at` mới hơn. Hash khác thì sửa. Comment mới được đăng. Marker đã có thì không đăng lại. Sửa nội dung comment cũ không tạo comment mới.
 - Mô tả dài hơn 16.000 ký tự tách một comment phần dư, lần sau không tách thêm.
-- Sau `create_task` thì ghi property trước comment. Mất property mà tìm thấy đúng một task theo tiêu đề thì gắn lại. Hai task trùng tiền tố thì dừng issue đó.
+- Sau `create_task` thì ghi `uniwork_task` trước comment. Mất khóa mà tìm thấy đúng một task có tiêu đề khớp thì gắn lại. Hai task trùng tiêu đề thì dừng issue đó. Lần chạy thứ hai khi pid khóa còn sống thì thoát 0 và in `already running`.
 - `revision_conflict` thử lại một lần rồi để vòng sau. Issue khác trong vòng vẫn chạy. 401 dừng cả vòng và không ghi hash.
 - Vòng cha được báo và không tạo task.
 
@@ -194,8 +195,7 @@ Trước lần chạy đầu, một người:
 1. Tạo trên UniWork workspace đích một dự án nhận các task, ghi `workspace_id` và `project_id` vào cấu hình.
 2. Tạo grant MCP có quyền ghi cho tài khoản sẽ đứng tên comment, đưa token vào `UNIWORK_MCP_TOKEN`.
 3. Tạo phiên của cùng tài khoản đó cho `UNIWORK_SESSION_TOKEN`.
-4. Trên UniAI, tạo hai property text `UniWork task` và `UniWork sync`.
-5. Tạo autopilot chế độ chỉ chạy, lịch `*/15 * * * *`, múi giờ `Asia/Ho_Chi_Minh`, runbook là lệnh ở §3. Bật lịch sau lần chạy tay đã xem báo cáo.
+4. Tạo autopilot chế độ chỉ chạy, lịch `*/15 * * * *`, múi giờ `Asia/Ho_Chi_Minh`, runbook là lệnh ở §3. Bật lịch sau lần chạy tay đã xem báo cáo.
 
 ## 9. Cố ý không làm
 
