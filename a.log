@@ -1,0 +1,8 @@
+$ git rev-parse HEAD; git log --oneline -3; free -m | head -2; nproc
+315b11eb2d31ac1b6daa9e2209708c84407235a1
+315b11eb2 fix(chat): render the document card's level badge once (UNI-2012 V2-N1)
+3c2b078a0 test(service): give the GC harness the document download provider (UNI-2012)
+155811b25 fix(service): carry origin in the set-based document.shared audit rows (UNI-2012 ORIGIN)
+               total        used        free      shared  buff/cache   available
+Mem:           16003        9440        1540          56        5408        6562
+4
