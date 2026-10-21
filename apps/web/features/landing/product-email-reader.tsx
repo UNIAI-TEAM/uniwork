@@ -14,7 +14,7 @@ export function ProductEmailReader({ thread, folder, actions, aiOpen }: {
   const { t, i18n } = useTranslation();
   const date = new Date(thread.sent_at).toLocaleString(i18n.language === "vi" ? "vi-VN" : "en-US", { dateStyle: "medium", timeStyle: "short" });
   return <article className="product-email-reader" aria-labelledby="demo-email-subject" data-demo-result={thread.is_starred ? "starred" : undefined}>
-    <EmailHubThreadToolbar thread={thread} browserFolder={folder} actions={actions} pending={{ star: false, move: false, markRead: false, snooze: false, download: false }} aiOpen={aiOpen} />
+    <EmailHubThreadToolbar thread={thread} browserFolder={folder} actions={actions} pending={{ star: false, move: false, markRead: false, snooze: false, download: false }} aiOpen={aiOpen} shortcutsOn />
     <div className="product-email-reading-body">
       <div className="product-email-message">
         <header className="space-y-4">

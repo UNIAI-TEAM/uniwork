@@ -371,6 +371,7 @@ export function EmailHubView() {
           actions={actions}
           pending={threadActions.pending}
           aiOpen={aiOpen}
+          shortcutsOn={shortcutsOn}
         />
       ) : (
         <EmailHubViewListPanel

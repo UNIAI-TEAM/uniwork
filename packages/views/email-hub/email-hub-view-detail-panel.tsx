@@ -33,6 +33,7 @@ export type EmailHubViewDetailPanelProps = {
   actions: EmailHubThreadActions;
   pending: EmailHubThreadPending;
   aiOpen: boolean;
+  shortcutsOn: boolean;
 };
 
 function DetailSkeleton() {
@@ -102,6 +103,7 @@ export function EmailHubViewDetailPanel(props: EmailHubViewDetailPanelProps) {
         actions={actions}
         pending={props.pending}
         aiOpen={props.aiOpen}
+        shortcutsOn={props.shortcutsOn}
       />
     );
   } else if (props.detailLoading) {

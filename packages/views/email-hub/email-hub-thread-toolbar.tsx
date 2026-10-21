@@ -180,15 +180,19 @@ export function EmailHubThreadToolbar({
   actions,
   pending,
   aiOpen,
+  shortcutsOn,
 }: {
   thread: EmailHubThread;
   browserFolder: string;
   actions: EmailHubThreadActions;
   pending: EmailHubThreadPending;
   aiOpen: boolean;
+  /** The reader's single-key switch: off, only Escape still works, so only it is advertised. */
+  shortcutsOn: boolean;
 }) {
   const { t } = useTranslation();
   const can = emailHubThreadCapabilities(thread, browserFolder);
+  const keys = (key: string) => (shortcutsOn ? key : undefined);
 
   const primary = can.inSpam
     ? { label: t("email_hub.not_spam"), icon: Inbox, onClick: actions.onNotSpam, disabled: pending.move }
@@ -223,7 +227,7 @@ export function EmailHubThreadToolbar({
               icon={Archive}
               label={t("email_hub.archive")}
               tooltip={t("email_hub.archive_shortcut")}
-              keyShortcuts={KEYSHORTCUTS.archive}
+              keyShortcuts={keys(KEYSHORTCUTS.archive)}
               disabled={pending.move}
               onClick={actions.onArchive}
             />
@@ -240,7 +244,7 @@ export function EmailHubThreadToolbar({
             icon={Trash2}
             label={t("email_hub.trash")}
             tooltip={t("email_hub.trash_shortcut")}
-            keyShortcuts={KEYSHORTCUTS.trash}
+            keyShortcuts={keys(KEYSHORTCUTS.trash)}
             disabled={pending.move}
             className="hover:text-destructive"
             onClick={actions.onTrash}
@@ -254,7 +258,7 @@ export function EmailHubThreadToolbar({
                 icon={MailOpen}
                 label={t("email_hub.bulk.mark_unread")}
                 tooltip={t("email_hub.mark_unread_shortcut")}
-                keyShortcuts={KEYSHORTCUTS.markUnread}
+                keyShortcuts={keys(KEYSHORTCUTS.markUnread)}
                 disabled={pending.markRead}
                 onClick={actions.onMarkUnread}
               />
@@ -312,7 +316,7 @@ export function EmailHubThreadToolbar({
                   thread.is_starred ? "text-warning hover:text-warning" : "text-muted-foreground hover:text-foreground",
                 )}
                 aria-label={t("email_hub.star")}
-                aria-keyshortcuts={KEYSHORTCUTS.star}
+                aria-keyshortcuts={keys(KEYSHORTCUTS.star)}
                 aria-pressed={thread.is_starred}
                 disabled={pending.star}
                 onClick={actions.onToggleStar}

@@ -48,6 +48,7 @@ function detail(active: EmailHubThread) {
       actions={actions}
       pending={pending}
       aiOpen={false}
+      shortcutsOn
     />,
   );
 }
