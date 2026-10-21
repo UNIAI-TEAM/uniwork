@@ -1,6 +1,8 @@
 // Ported from usf apps/mobile/metro.config.js. Watches the monorepo so the
-// @uniwork/core subpaths resolve, looks up node_modules from the app and the
-// root, and follows symlinks for pnpm's isolated layout.
+// @uniwork/core subpaths resolve and looks up node_modules from the app and the
+// root. Metro follows pnpm's symlinks by default (resolver.unstable_enableSymlinks
+// has defaulted to true since Metro 0.79); setting it again is what expo-doctor's
+// Metro check flags, so it is left to the default.
 const { getDefaultConfig } = require("expo/metro-config");
 const { withNativeWind } = require("nativewind/metro");
 const path = require("path");
@@ -15,7 +17,6 @@ config.resolver.nodeModulesPaths = [
   path.resolve(projectRoot, "node_modules"),
   path.resolve(monorepoRoot, "node_modules"),
 ];
-config.resolver.unstable_enableSymlinks = true;
 // NativeWind's babel preset rewrites every JSX file to import
 // react-native-css-interop/jsx-runtime, a dependency of nativewind the app
 // never names; pnpm's isolated layout does not hoist it. Pointing Metro at
