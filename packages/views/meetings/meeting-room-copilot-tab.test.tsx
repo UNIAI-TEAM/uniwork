@@ -85,12 +85,11 @@ describe("MeetingRoomCopilotTab labels and errors", () => {
 });
 
 describe("MeetingRoomCopilotTab honesty", () => {
-  it("shows the unshipped Q&A as one locked row, not a usable-looking input", async () => {
+  it("no longer shows Q&A as a locked coming-soon row: Ask UNI about the meeting has shipped (B8)", async () => {
     render(wrapWithNav(<MeetingRoomCopilotTab workspaceId="w1" meetingId="m1" canHost />));
     await screen.findByRole("button", { name: "Sao chép" });
-    expect(screen.getByText("Hỏi đáp về cuộc họp")).toBeInTheDocument();
-    expect(screen.getByText("Sắp có")).toBeInTheDocument();
-    expect(screen.queryByPlaceholderText(/Hỏi bất cứ điều gì/)).not.toBeInTheDocument();
+    expect(screen.queryByText("Sắp có")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("meeting-copilot-ask-locked")).not.toBeInTheDocument();
   });
 
   it("labels the summary as AI output with the sources it really had and a dated time", async () => {

@@ -127,6 +127,8 @@ function ConferenceStage({
   const [sidebarPinned, setSidebarPinned] = useState(sidebarRoomy);
   const [sidebarTab, setSidebarTab] = useState<MeetingSidebarTab>(guestMode ? "chat" : "copilot");
   const [captionsOn, setCaptionsOn] = useState(false);
+  // When this viewer entered the room: the late joiner's catch-up card counts from it.
+  const [joinedAt] = useState(Date.now);
   const [captionsError, setCaptionsError] = useState<string | null>(null);
   const [footerReserve, setFooterReserve] = useState(96);
   const stageContentRef = useRef<HTMLDivElement>(null);
@@ -206,6 +208,7 @@ function ConferenceStage({
       tab={sidebarTab}
       onTabChange={setSidebarTab}
       chatUnread={chatUnread.unread}
+      joinedAt={joinedAt}
       className="h-full w-full"
       tabsEnd={tabsEnd}
     />

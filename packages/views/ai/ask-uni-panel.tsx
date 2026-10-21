@@ -46,7 +46,8 @@ const KNOWN_ERRORS = new Set([
 
 const SUGGESTIONS = ["suggestion_overdue", "suggestion_meetings", "suggestion_chat"] as const;
 
-function resolveErrorKey(err: unknown): string {
+/** The ai.errors.* key for a failed ask; the meeting copilot's Ask UNI box reads it too. */
+export function resolveErrorKey(err: unknown): string {
   const code = errorCode(err) ?? "";
   if (KNOWN_ERRORS.has(code)) return code;
   const message = (err as { message?: unknown } | null)?.message;
