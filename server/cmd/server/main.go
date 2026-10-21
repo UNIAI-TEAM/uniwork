@@ -493,6 +493,12 @@ func main() {
 	officeLeases := service.NewOfficeLeaseService(documentSvc, flags, cfg)
 	officeLeaseSweep := officeLeases.NewSweeper(log)
 	dispatcher.RegisterLane(outbox.LaneNotify, service.NewOfficeLeaseRevoker(documentSvc))
+	// The multi-document zip (UNI-2045) streams every file through FileService,
+	// so it waits on storage: slow lane, never realtime. The expiry release
+	// rides the audit retention tick already in the shutdown sequence.
+	documentDownloads := service.NewDocumentDownloadConsumer(pool, q, documentSvc)
+	documentDownloads.SetFileService(fileSvc)
+	dispatcher.RegisterLane(outbox.LaneSlow, documentDownloads)
 	// The edit lock (UNI-1645 §3.5): the releaser ends tenures on a revoked
 	// session, lost access, suspension and delete - audit + outbox across
 	// several tables, so it rides the notify lane, not realtime - and the

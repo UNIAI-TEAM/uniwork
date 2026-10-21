@@ -782,6 +782,15 @@ func (w *isoWorld) buildDocuments(t *testing.T, tn *isoTenant) {
 		content: []byte("# " + m + " file body\n"),
 	})
 	tn.ids["fileDocument"] = isoID(t, out, "document")
+	// A zip download job (UNI-2045 SV-9) the tenant's owner created and nobody
+	// built: the poll answers it, the download route has no file yet.
+	tn.ids["downloadJob"] = util.NewID()
+	if _, err := w.pool.Exec(context.Background(), `INSERT INTO document_download_jobs
+		(id, organization_id, workspace_id, created_by, created_by_kind, document_ids)
+		VALUES ($1, $2, $3, $4, 'human', ARRAY[$5]::text[])`,
+		tn.ids["downloadJob"], tn.orgID, tn.wsID, tn.userID, tn.ids["fileDocument"]); err != nil {
+		t.Fatalf("download job: %v", err)
+	}
 	// A comment on the file document itself: the office launch session's
 	// own-rows control must name a comment of the document its path names
 	// (R1-1 binds the ticket's comment to its document).

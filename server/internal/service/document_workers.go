@@ -173,6 +173,9 @@ func (w *DocumentWorkers) Run(ctx context.Context) {
 		}},
 		{idempotencyKeyTick, func(ctx context.Context) {
 			err := w.sweepIdempotencyKeys(ctx)
+			// The zip jobs (UNI-2045) share this short tick: an expired zip
+			// should leave storage within minutes, not at the daily audit tick.
+			w.sweepDocumentDownloads(ctx)
 			if w.swept != nil {
 				w.swept("idempotency_key", err)
 			}
@@ -243,6 +246,12 @@ func (w *DocumentWorkers) sweepMultipartRows(ctx context.Context) {
 func (w *DocumentWorkers) sweepBreakGlassGrants(ctx context.Context) {
 	w.recordRetentionSweep(ctx, "break_glass", func(ctx context.Context) (int64, error) {
 		return w.svc.SweepDocumentBreakGlassGrants(ctx, w.clock()())
+	})
+}
+
+func (w *DocumentWorkers) sweepDocumentDownloads(ctx context.Context) {
+	w.recordRetentionSweep(ctx, "document_download", func(ctx context.Context) (int64, error) {
+		return w.svc.SweepDocumentDownloads(ctx)
 	})
 }
 
