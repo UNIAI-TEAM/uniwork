@@ -7,6 +7,7 @@
 // "X đang gọi" push).
 import type { PendingChatVoiceInvite } from "@uniwork/core/api/endpoints/chat-schemas";
 import { createStore } from "zustand/vanilla";
+import type { OutgoingVoiceCall } from "@/data/chat-api";
 import {
   VOICE_CALL_CONNECTING_TIMEOUT_MS,
   VOICE_CALL_ENDED_DISMISS_MS,
@@ -27,6 +28,8 @@ export interface CallEngineDeps {
   accept(wsId: string, roomId: string, callId: string): Promise<boolean>;
   hangup(wsId: string, roomId: string, callId: string, durationSeconds?: number): Promise<boolean>;
   pending(wsId: string): Promise<PendingChatVoiceInvite[]>;
+  /** The calls this person started that the server still holds, and whether each was answered. */
+  outgoing(wsId: string): Promise<OutgoingVoiceCall[]>;
   mintToken(roomId: string, callId: string): Promise<{ token: string; url: string } | null>;
   createCallId(): string;
 }
@@ -152,6 +155,22 @@ export function createCallEngine(deps: CallEngineDeps) {
     if (!isMultiPartyVoiceCall(incoming.callKind)) void deps.hangup(ctx.wsId, incoming.roomId, incoming.callId).catch(() => undefined);
   }
 
+  /**
+   * A caller still ringing whose socket missed chat.voice.accept (a
+   * reconnect, the phone back from the background) would ring out and hang
+   * up on a callee who answered: the server's list of this person's live
+   * calls says whether it was answered. Only that is acted on; a call it
+   * does not list proves nothing (the server holds calls per node), and the
+   * ring clock still ends one nobody answered.
+   */
+  async function connectIfAnswered(wsId: string, callId: string) {
+    const calls = await deps.outgoing(wsId).catch(() => null);
+    const ringing = liveWith(callId, "ringing");
+    if (ringing && calls?.some((c) => c.call_id === ringing.callId && c.room_id === ringing.roomId && c.accepted)) {
+      await connectCall(ringing.roomId, ringing.callId, ringing.peerName, true, "dm", undefined, ringing.withCamera);
+    }
+  }
+
   async function syncPendingInvites() {
     if (!ctx || isLive(current())) return;
     const latest = latestRingingInvite(await deps.pending(ctx.wsId).catch(() => []));
@@ -225,13 +244,18 @@ export function createCallEngine(deps: CallEngineDeps) {
      * while this phone was not listening are gone. A call still ringing here
      * that the server no longer lists (the caller hung up, another device of
      * ours answered) stops ringing; with no call live, one that rings now is
-     * picked up when `ring` (the calls switch) is on. A ringing, connecting
-     * or live call keeps its clocks and the media connection, which know its
-     * state better than the invite list does.
+     * picked up when `ring` (the calls switch) is on. A call this person is
+     * ringing connects when the server says it was answered meanwhile. A
+     * connecting or live call keeps its clocks and the media connection,
+     * which know its state better than the invite list does.
      */
     async reconcile(options: { ring: boolean }) {
       const state = current();
       if (!ctx) return;
+      if (state.status === "ringing") {
+        await connectIfAnswered(ctx.wsId, state.callId);
+        return;
+      }
       if (state.status !== "incoming") {
         if (options.ring) await syncPendingInvites();
         return;

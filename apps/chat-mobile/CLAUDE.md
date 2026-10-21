@@ -206,7 +206,9 @@ một dòng thì ghi lý do ở dòng trên.
   store vanilla, test node) → `data/calls/call-store.ts` (một engine, nối
   `chatApi`) ← `data/realtime/use-call-realtime.ts` (`chat.voice.*`, đồng bộ
   lời mời chờ khi mở workspace; mỗi lần reconnect và mỗi lần từ background về
-  thì `callEngine.reconcile()`: chuông mà server không còn liệt kê thì dừng). Cuộc gọi
+  thì `callEngine.reconcile()`: chuông mà server không còn liệt kê thì dừng; người gọi đang đổ chuông đọc
+  `outgoing` của `GET …/chat/voice/pending` (cuộc gọi của chính mình server còn giữ) và nối nếu đã được nghe — không
+  có trong danh sách không phải bằng chứng đã kết thúc, đồng hồ chuông vẫn lo). Cuộc gọi
   đang đến/đổ chuông/đang nối/đang diễn ra (`lib/call-socket.ts`) giữ socket mở khi
   app vào background (`holdOpen` của `RealtimeProvider`, audit C1); hết cuộc gọi thì
   pause như thường. UI:

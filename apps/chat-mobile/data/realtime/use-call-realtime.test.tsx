@@ -47,6 +47,7 @@ const mockSignals = {
   accept: jest.fn(async () => true),
   hangup: jest.fn(async () => true),
   pending: jest.fn(async () => []),
+  outgoing: jest.fn(async () => []),
   mintToken: jest.fn(async () => ({ token: "t", url: "wss://lk.test" })),
   createCallId: () => "call-1",
 };
@@ -59,6 +60,7 @@ jest.mock("@/data/calls/call-store", () => {
       accept: () => mockSignals.accept(),
       hangup: () => mockSignals.hangup(),
       pending: () => mockSignals.pending(),
+      outgoing: () => mockSignals.outgoing(),
       mintToken: () => mockSignals.mintToken(),
       createCallId: () => mockSignals.createCallId(),
     }),

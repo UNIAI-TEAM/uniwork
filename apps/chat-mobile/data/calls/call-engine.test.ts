@@ -13,6 +13,7 @@ function setup(overrides: Partial<CallEngineDeps> = {}) {
     accept: vi.fn<CallEngineDeps["accept"]>().mockResolvedValue(true),
     hangup: vi.fn<CallEngineDeps["hangup"]>().mockResolvedValue(true),
     pending: vi.fn<CallEngineDeps["pending"]>(async () => pendingInvites),
+    outgoing: vi.fn<CallEngineDeps["outgoing"]>(async () => []),
     mintToken: vi.fn<CallEngineDeps["mintToken"]>().mockResolvedValue({ token: "tok", url: "wss://lk" }),
     createCallId: vi.fn(() => "new-call"),
     ...overrides,
@@ -320,6 +321,46 @@ describe("call engine reconcile (audit C1)", () => {
     answer([]);
     await reconciling;
     expect(call().status).toBe("idle");
+  });
+
+  // Review of S3: a caller whose socket missed chat.voice.accept rang out and hung up on a callee who answered.
+  it("a call this person is ringing connects when the server says it was answered meanwhile", async () => {
+    const { engine, deps, call } = setup();
+    await engine.startCall("room-dm", "Long", "dm");
+    expect(call()).toMatchObject({ status: "ringing", callId: "new-call" });
+
+    // No answer, someone else's call, the same id in another room, not answered yet: still ringing, and on the ring clock.
+    vi.mocked(deps.outgoing).mockRejectedValueOnce(new TypeError("offline"));
+    await engine.reconcile({ ring: true });
+    for (const listed of [
+      [{ room_id: "room-dm", call_id: "other", accepted: true }],
+      [{ room_id: "room-other", call_id: "new-call", accepted: true }],
+      [{ room_id: "room-dm", call_id: "new-call", accepted: false }],
+    ]) {
+      vi.mocked(deps.outgoing).mockResolvedValueOnce(listed);
+      await engine.reconcile({ ring: true });
+    }
+    expect(call().status).toBe("ringing");
+    expect(deps.pending).not.toHaveBeenCalled();
+
+    vi.mocked(deps.outgoing).mockResolvedValueOnce([{ room_id: "room-dm", call_id: "new-call", accepted: true }]);
+    await engine.reconcile({ ring: true });
+    expect(deps.mintToken).toHaveBeenCalledWith("room-dm", "new-call");
+    expect(call()).toMatchObject({ status: "active", callId: "new-call", outgoing: true });
+    expect(deps.hangup).not.toHaveBeenCalled();
+  });
+
+  it("an answer that lands after the ringing call ended connects nothing", async () => {
+    const { engine, deps, call } = setup();
+    await engine.startCall("room-dm", "Long", "dm");
+    let answer: (calls: Awaited<ReturnType<CallEngineDeps["outgoing"]>>) => void = () => undefined;
+    vi.mocked(deps.outgoing).mockReturnValueOnce(new Promise((resolve) => (answer = resolve)));
+    const reconciling = engine.reconcile({ ring: true });
+    await engine.hangUp();
+    answer([{ room_id: "room-dm", call_id: "new-call", accepted: true }]);
+    await reconciling;
+    expect(deps.mintToken).not.toHaveBeenCalled();
+    expect(call().status).not.toBe("active");
   });
 
   it("with nothing live picks up a call ringing now, only with the switch on; a live call is left to its clocks", async () => {

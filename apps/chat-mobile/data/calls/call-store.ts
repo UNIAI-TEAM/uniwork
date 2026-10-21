@@ -9,6 +9,7 @@ export const callEngine = createCallEngine({
   accept: chatApi.signalVoiceAccept,
   hangup: chatApi.signalVoiceHangup,
   pending: chatApi.listPendingVoiceInvites,
+  outgoing: chatApi.listOutgoingVoiceCalls,
   mintToken: chatApi.mintVoiceToken,
   // A UUID where the runtime has one, else letters, digits and '-': both pass the server's call_id check.
   createCallId: newChatClientMsgId,

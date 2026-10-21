@@ -110,6 +110,15 @@ const cases: Case[] = [
     fallback: [],
   },
   {
+    name: "listOutgoingVoiceCalls",
+    call: (c) => c.listOutgoingVoiceCalls("w1"),
+    path: `${W}/chat/voice/pending`,
+    method: "GET",
+    good: { invites: [], outgoing: [{ room_id: "r1", call_id: "c1", accepted: true }] },
+    read: [{ room_id: "r1", call_id: "c1", accepted: true }],
+    fallback: [],
+  },
+  {
     name: "mintVoiceToken",
     call: (c) => c.mintVoiceToken(" r1 ", "c1"),
     path: "/api/v1/chat/voice/token",

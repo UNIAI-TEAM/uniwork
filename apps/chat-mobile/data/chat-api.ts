@@ -36,6 +36,13 @@ const StatusSchema = z.object({ status: z.string().optional() });
 
 const MembersSchema = z.object({ members: z.array(ChatRoomMemberSchema).optional() });
 
+// GET …/chat/voice/pending › outgoing (mobile only; the web reads `invites`): the calls the caller started that
+// the server still holds. A drifted answer is no evidence, so it reads as none.
+const OutgoingVoiceCallsSchema = z.object({
+  outgoing: z.array(z.object({ room_id: z.string(), call_id: z.string(), accepted: z.boolean() })).optional().default([]),
+});
+export type OutgoingVoiceCall = z.infer<typeof OutgoingVoiceCallsSchema>["outgoing"][number];
+
 // packages/core/api/endpoints/chat-rooms.ts › ChatUnreadSummarySchema: one drifted row drops alone.
 const ChatUnreadTotalsSchema = z.object({ unread: z.number().catch(0), mentions: z.number().catch(0) });
 const ChatWorkspaceUnreadSchema = ChatUnreadTotalsSchema.extend({ workspace_id: z.string() });
@@ -352,6 +359,11 @@ export function createChatApi(request: Request) {
     async listPendingVoiceInvites(wsId: string): Promise<PendingChatVoiceInvite[]> {
       const raw = await request(`${ws(wsId)}/chat/voice/pending`);
       return parseWithFallback(raw, PendingChatVoiceInvitesSchema, { invites: [] }, { endpoint: "GET /api/v1/workspaces/{ws}/chat/voice/pending" }).invites;
+    },
+    /** The calls this person started that are still live, answered or not (call-engine.ts › reconcile). */
+    async listOutgoingVoiceCalls(wsId: string): Promise<OutgoingVoiceCall[]> {
+      const raw = await request(`${ws(wsId)}/chat/voice/pending`);
+      return parseWithFallback(raw, OutgoingVoiceCallsSchema, { outgoing: [] }, { endpoint: "GET /api/v1/workspaces/{ws}/chat/voice/pending" }).outgoing;
     },
     /** The LiveKit url and token of a call; null when the answer carries none. */
     async mintVoiceToken(roomId: string, callId: string): Promise<ChatVoiceToken | null> {
