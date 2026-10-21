@@ -10,7 +10,7 @@ import { Badge } from "@uniwork/ui/components/ui/badge";
 import { cn } from "@uniwork/ui/lib/utils";
 import { initialOf } from "../../chat/chat-initials";
 import { DocumentTypeIcon, documentIconFormat } from "../document-type-icon";
-import { ACCESS_PILL, DocPersonCell } from "../doclist/cells";
+import { ACCESS_PILL } from "../doclist/cells";
 import { formatListDate } from "../doclist/format";
 import { AccessReportGrants, grantName } from "./access-report-grants";
 import { flagLabel, generalScopeLabel, whoLines } from "./access-report-labels";
