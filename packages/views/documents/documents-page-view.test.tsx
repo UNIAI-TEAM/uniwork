@@ -684,6 +684,18 @@ describe("DocumentsPageView", () => {
     expect((call?.[1] as { body?: { title?: string } }).body?.title).toBe(t("documents.page.new_page"));
   });
 
+  it("keeps plain text out of the Tạo nhanh strip: no txt pill, the other seven stay", async () => {
+    route({ list: () => [] });
+    renderView(vi.fn());
+
+    const strip = await screen.findByRole("region", { name: t("documents.home.quick_create.label") });
+    const names = within(strip).getAllByRole("button").map((b) => (b.textContent ?? "").trim());
+    expect(names).toEqual(
+      ["page", "docx", "xlsx", "pptx", "md", "html", "pdf"].map((type) => t(`documents.home.create.${type}.chip`)),
+    );
+    expect(within(strip).queryByTitle(".txt")).toBeNull();
+  });
+
   it("creates a blank file with its default name from a pill, then opens the editor", async () => {
     const onOpen = vi.fn();
     route({ list: () => [], post: () => ({ document: file("n1", t("documents.home.default_names.docx")) }) });

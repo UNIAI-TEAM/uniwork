@@ -9526,6 +9526,7 @@
       "pptx": "Bản trình bày PowerPoint",
       "pdf": "Tài liệu PDF",
       "md": "Tài liệu Markdown",
+      "txt": "Tệp văn bản",
       "html": "Tài liệu HTML",
       "file": "File",
       "page": "UniNote",
@@ -10591,6 +10592,7 @@
         "xlsx": "Bảng tính chưa đặt tên.xlsx",
         "pptx": "Bản trình chiếu chưa đặt tên.pptx",
         "md": "Markdown chưa đặt tên.md",
+        "txt": "Văn bản chưa đặt tên.txt",
         "html": "Trang HTML chưa đặt tên.html",
         "pdf": "PDF chưa đặt tên.pdf"
       },
@@ -10664,6 +10666,10 @@
           "hint": ".md",
           "menu": "Tệp Markdown",
           "ext": ".md"
+        },
+        "txt": {
+          "menu": "Văn bản",
+          "ext": ".txt"
         },
         "html": {
           "chip": "HTML",

@@ -377,7 +377,7 @@ func registerDocuments(r, callerDocs api, h Routes, flags *featureflag.Service, 
 	d.Post("/workspaces/{workspaceID}/documents/files/blank", h.CreateBlankDocumentFile, apiOp{
 		summary: "Create a blank file document",
 		description: "Tạo tài liệu mới với bytes do engine sinh: server chọn seed, engine serialize, FileService xác minh, rồi đường create G1 tạo document + version 1. " +
-			"Chỉ định dạng có blank generator (md, html, xlsx, docx, pptx, pdf) được nhận; docx/pptx là gói OOXML tối thiểu server tạo sẵn (1 đoạn trống / 1 slide 16:9 trống), pdf là 1 trang A4 trống; định dạng khác -> 501 unsupported_operation và KHÔNG tạo file Office rỗng. " +
+			"Chỉ định dạng có blank generator (md, html, xlsx, docx, pptx, pdf, txt) được nhận; docx/pptx là gói OOXML tối thiểu server tạo sẵn (1 đoạn trống / 1 slide 16:9 trống), pdf là 1 trang A4 trống, txt (\"Văn bản\") là tệp untitled.txt text/plain chỉ có một dòng trống, server lưu nguyên không qua engine; định dạng khác -> 501 unsupported_operation và KHÔNG tạo file Office rỗng. " +
 			"visibility workspace|restricted: tài liệu mới ở gốc mặc định riêng tư, gửi workspace để mở dòng Workspace gốc ở mức Chỉ xem, bỏ trống dưới cha thì kế thừa cha (cả mức), giá trị khác -> 400 invalid_request. Idempotency-Key replay trả tài liệu đã tạo.",
 		tags:   []string{"documents"},
 		sdi:    sdi.CreateBlankDocumentFileSDI{},
