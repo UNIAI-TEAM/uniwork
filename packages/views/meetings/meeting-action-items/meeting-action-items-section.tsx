@@ -2,6 +2,8 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { ChevronDown, ListChecks, Plus } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
+import { errorCode } from "@uniwork/core/api/http";
 import {
   useDismissMeetingActionItem,
   useMeetingActionItems,
@@ -60,6 +62,13 @@ function ProgressLine({ counts }: { counts: MeetingActionItemCounts }) {
 const STICKY_BAR_CLEARANCE = "max-sm:**:scroll-mb-[calc(5rem+env(safe-area-inset-bottom))]";
 
 const NO_ITEMS: readonly MeetingActionItem[] = [];
+
+/**
+ * Refusals that mean the row changed elsewhere (assigned, restored, or gone
+ * with a regenerated summary): the refetch moves it away with its popover, so
+ * the refusal is a toast and focus goes where a successful command sends it.
+ */
+const ROW_CHANGED_ELSEWHERE = new Set(["action_item_not_pending", "action_item_not_found", "action_item_not_dismissed"]);
 
 /** Focuses a pending row's checkbox; false when that row is not on screen. */
 function focusPendingRow(root: HTMLElement | null, id: string | undefined): boolean {
@@ -188,6 +197,10 @@ function ClerkPendingList({
                           announce(t("meetings.actionItemsSection.dismissed"));
                         },
                         onError: (err) => {
+                          if (ROW_CHANGED_ELSEWHERE.has(errorCode(err) ?? "")) {
+                            toast.error(t("meetings.actionItemsSection.changedElsewhere"));
+                            return;
+                          }
                           landing.current = null;
                           setDismissError({
                             id: item.id,
@@ -432,6 +445,10 @@ export function MeetingActionItemsSection({
                           restore.mutate(item.id, {
                             onSuccess: () => announce(t("meetings.actionItemsSection.restored")),
                             onError: (err) => {
+                              if (ROW_CHANGED_ELSEWHERE.has(errorCode(err) ?? "")) {
+                                toast.error(t("meetings.actionItemsSection.changedElsewhere"));
+                                return;
+                              }
                               restoring.current = null;
                               setRestoreError({
                                 id: item.id,

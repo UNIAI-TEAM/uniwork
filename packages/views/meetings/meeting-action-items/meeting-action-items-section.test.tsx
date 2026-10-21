@@ -332,6 +332,26 @@ describe("MeetingActionItemsSection focus", () => {
     await waitFor(() => expect(screen.getByRole("checkbox", { name: "Chốt lịch" })).toHaveFocus());
   });
 
+  it("still lands on the next row when the dismiss is refused because another clerk assigned it", async () => {
+    vi.mocked(toast.error).mockClear();
+    const third = { id: "a4", source: "AI", title: "Chốt lịch", status: "PENDING" };
+    let current: unknown[] = [pendingAI, pendingManual, third];
+    respond({ items: () => ({ items: current, counts }) });
+    const base = requestMock.getMockImplementation()!;
+    requestMock.mockImplementation((path: unknown, init?: { method?: string }) => {
+      if (init?.method === "POST" && String(path).endsWith("/dismiss")) {
+        current = [pendingAI, { ...pendingManual, status: "CONVERTED", task_id: "t9" }, third];
+        return Promise.reject(new ApiError("x", "action_item_not_pending", 409));
+      }
+      return base(path, init);
+    });
+    renderSection();
+    fireEvent.click(await screen.findByRole("button", { name: 'Bỏ qua "Đặt phòng"' }));
+    fireEvent.click(await screen.findByRole("button", { name: "Bỏ qua việc" }));
+    await waitFor(() => expect(screen.getByRole("checkbox", { name: "Chốt lịch" })).toHaveFocus());
+    expect(toast.error).toHaveBeenCalledWith("Việc này vừa được người khác xử lý. Danh sách đã cập nhật.");
+  });
+
   it("lands on Add item when the last pending row is dismissed", async () => {
     respondThen([pendingManual], [{ ...pendingManual, status: "DISMISSED" }]);
     renderSection();

@@ -23,7 +23,8 @@ const FIELD_CLASS = "w-full max-w-none data-[size=sm]:h-8";
 const SAID_CHIP_CLASS =
   "inline-flex max-w-full items-center gap-1 rounded-md bg-muted px-1.5 py-0.5 text-caption text-muted-foreground";
 
-const sameName = (a: string, b: string | undefined) => a.trim().toLowerCase() === b?.trim().toLowerCase();
+/** The same person's name as said and as picked: case and spaces aside. */
+export const sameName = (a: string, b: string | undefined) => a.trim().toLowerCase() === b?.trim().toLowerCase();
 
 /** What the person confirms for one AI action item. null is "nobody" / "no due date", a choice. */
 export interface AiSummaryTaskDraft {

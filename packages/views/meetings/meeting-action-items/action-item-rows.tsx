@@ -12,7 +12,8 @@ import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { Textarea } from "@uniwork/ui/components/ui/textarea";
 import { cn } from "@uniwork/ui/lib/utils";
 import { AppLink } from "../../navigation";
-import { formatMeetingDay, meetingLocale } from "../meeting-datetime";
+import { sameName } from "../../tasks/ai-summary-tasks-dialog";
+import { formatMeetingClock, formatMeetingDay, meetingLocale } from "../meeting-datetime";
 
 export type ActionItemsVariant = "panel" | "compact";
 
@@ -45,13 +46,6 @@ function openStateKey(status: string | null | undefined): string {
   }
 }
 
-/** HH:mm of an ISO time as the reader writes it; null when it does not parse. */
-function formatClock(iso: string | null | undefined, locale: string): string | null {
-  const ms = iso ? Date.parse(iso) : NaN;
-  if (!Number.isFinite(ms)) return null;
-  return new Intl.DateTimeFormat(locale, { hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(ms);
-}
-
 /**
  * Where an item came from: typed by a clerk, drawn from the AI summary, or
  * heard by the AI scribe during the meeting (with when). An unknown source
@@ -60,7 +54,8 @@ function formatClock(iso: string | null | undefined, locale: string): string | n
 function SourceBadge({ source, createdAt }: { source?: string | null; createdAt?: string | null }) {
   const { t, i18n } = useTranslation();
   if (source !== "MANUAL" && source !== "LIVE" && source !== "AI") return null;
-  const time = source === "LIVE" ? formatClock(createdAt, meetingLocale(i18n.language)) : null;
+  const createdMs = createdAt ? Date.parse(createdAt) : NaN;
+  const time = source === "LIVE" && Number.isFinite(createdMs) ? formatMeetingClock(createdMs, meetingLocale(i18n.language)) : null;
   return (
     <Badge variant="outline" className="ml-1.5 align-middle">
       {source === "MANUAL" ? null : <Sparkles aria-hidden />}
@@ -128,7 +123,7 @@ export function PendingRow({
   const checkboxId = useId();
   const { t, i18n } = useTranslation();
   // The owner as said, unless the suggestion names the same person: one name, once.
-  const sameOwner = Boolean(suggestedName) && item.owner_text?.trim().toLowerCase() === suggestedName?.trim().toLowerCase();
+  const sameOwner = Boolean(suggestedName) && sameName(item.owner_text ?? "", suggestedName);
   const said = [sameOwner ? null : item.owner_text, item.due_text].filter((v): v is string => Boolean(v?.trim())).join(" · ");
   const dueLabel = item.suggested_due_date ? formatDueDate(item.suggested_due_date, meetingLocale(i18n.language)) : null;
   const selectable = onCheckedChange !== undefined;

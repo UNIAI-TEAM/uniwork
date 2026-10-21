@@ -3942,6 +3942,7 @@
       "dismissConfirm": "Dismiss item",
       "dismissed": "Item dismissed.",
       "dismissFailed": "Could not dismiss the item. Try again.",
+      "changedElsewhere": "Someone else just handled this item. The list is up to date.",
       "restore": "Restore",
       "restoreLabel": "Restore \"{{title}}\"",
       "restored": "Item restored.",

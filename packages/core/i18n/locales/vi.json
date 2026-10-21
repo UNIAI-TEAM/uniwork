@@ -3941,6 +3941,7 @@
       "dismissConfirm": "Bỏ qua việc",
       "dismissed": "Đã bỏ qua việc.",
       "dismissFailed": "Chưa bỏ qua được việc. Thử lại.",
+      "changedElsewhere": "Việc này vừa được người khác xử lý. Danh sách đã cập nhật.",
       "restore": "Khôi phục",
       "restoreLabel": "Khôi phục \"{{title}}\"",
       "restored": "Đã khôi phục việc.",
