@@ -366,7 +366,7 @@ func TestMcpToolsShapeEveryItem(t *testing.T) {
 	}
 	if _, err := x.tools.ask.q.InsertMeetingSummary(ctx, db.InsertMeetingSummaryParams{
 		ID: util.NewID(), MeetingID: meeting.ID, Summary: "Đã chốt OKR quý", Decisions: `["Giữ ngân sách"]`, ActionItems: `[{"title":"Gửi biên bản"}]`,
-		Model: "fake", CreatedBy: x.ua.ID, OrganizationID: x.w.OrganizationID,
+		Model: "fake", CreatedBy: x.ua.ID, CreatedByKind: "human", OrganizationID: x.w.OrganizationID,
 	}); err != nil {
 		t.Fatal(err)
 	}

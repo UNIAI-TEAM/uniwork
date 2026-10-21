@@ -44,6 +44,7 @@ var tenantExportExcluded = map[string]string{
 	"meeting_audit_logs":             "Nhật ký họp cũ, cùng lớp với audit.",
 	"meeting_summary_runs":           "Khóa tạm của lượt tạo tóm tắt AI (hết hạn sau vài phút), sổ kỹ thuật.",
 	"meeting_scribe_runs":            "Sổ kỹ thuật các lượt chạy thư ký AI và số phút đã đo; lời đã ghi nằm trong meeting_transcript_segments.",
+	"meeting_auto_summaries":         "Hàng đợi kỹ thuật của tóm tắt tự tạo (xoá khi xong); tóm tắt nằm trong meeting_summaries.",
 	"mcp_tokens":                     "Token của ứng dụng AI đã kết nối, chỉ lưu digest; là bí mật phiên.",
 }
 
@@ -118,6 +119,7 @@ var tenantExportIncludedTables = []string{
 	"meeting_participants",
 	"meeting_recordings",
 	"meeting_reminders",
+	"meeting_settings",
 	"meeting_speaker_labels",
 	"meeting_summaries",
 	"meeting_transcript_segments",

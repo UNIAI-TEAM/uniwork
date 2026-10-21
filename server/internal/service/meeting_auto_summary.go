@@ -255,11 +255,16 @@ func (s *MeetingService) GetMeetingSettings(ctx context.Context, actor Actor, or
 
 // SetMeetingAutoSummary switches the summary the system makes when a meeting
 // ends (D16). It applies to meetings that end from now on; one already queued
-// checks the switch again before it runs.
-func (s *MeetingService) SetMeetingAutoSummary(ctx context.Context, actor Actor, organizationID string, enabled bool) (db.MeetingSetting, error) {
+// checks the switch again before it runs. A missing value is refused only
+// after the caller is authorized, so an outsider learns nothing from a 400.
+func (s *MeetingService) SetMeetingAutoSummary(ctx context.Context, actor Actor, organizationID string, value *bool) (db.MeetingSetting, error) {
 	if err := s.requireOrgAdmin(ctx, actor, organizationID); err != nil {
 		return db.MeetingSetting{}, err
 	}
+	if value == nil {
+		return db.MeetingSetting{}, Invalid("auto_summary_enabled is required")
+	}
+	enabled := *value
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return db.MeetingSetting{}, err

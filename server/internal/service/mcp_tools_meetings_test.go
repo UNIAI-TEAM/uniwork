@@ -398,7 +398,7 @@ func TestMcpGetMeetingExcerptIsTheSummaryAlone(t *testing.T) {
 	}
 	summary := db.InsertMeetingSummaryParams{
 		ID: util.NewID(), MeetingID: m.ID, Summary: "Đã chốt OKR quý", Decisions: `[{"text":"Giữ ngân sách","evidence":[{"kind":"note","id":"01N"}]}]`, ActionItems: `[{"title":"Gửi biên bản","owner":"","due":"","evidence":["S2"]}]`,
-		Model: "fake", CreatedBy: x.ua.ID, OrganizationID: x.w.OrganizationID,
+		Model: "fake", CreatedBy: x.ua.ID, CreatedByKind: "human", OrganizationID: x.w.OrganizationID,
 	}
 	if _, err := x.tools.ask.q.InsertMeetingSummary(ctx, summary); err != nil {
 		t.Fatal(err)
@@ -453,7 +453,7 @@ func TestMcpGetMeetingExcludesTranscripts(t *testing.T) {
 	}
 	if _, err := x.tools.ask.q.InsertMeetingSummary(ctx, db.InsertMeetingSummaryParams{
 		ID: util.NewID(), MeetingID: m.ID, Summary: "Đã chốt OKR quý", Decisions: `[{"text":"Giữ ngân sách","evidence":[{"kind":"note","id":"01N"}]}]`, ActionItems: `[{"title":"Gửi biên bản","owner":"","due":"","evidence":["S2"]}]`,
-		Model: "fake", CreatedBy: x.ua.ID, OrganizationID: x.w.OrganizationID,
+		Model: "fake", CreatedBy: x.ua.ID, CreatedByKind: "human", OrganizationID: x.w.OrganizationID,
 	}); err != nil {
 		t.Fatal(err)
 	}
