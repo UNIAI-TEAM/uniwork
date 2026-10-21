@@ -5,13 +5,17 @@
 // inbox is there at once, offline included, and every query refetches behind
 // it as usual. Nothing else is kept: search, threads, older pages, tasks and
 // the remote config are asked again. The copy belongs to one person on one
-// build (the buster is the app version and the user id: another account or an
-// update reads nothing of it) and is removed on sign-out. Saves wait a second
-// after the last change, so a burst of realtime frames is one write.
+// build and one cache schema (the buster is CACHE_SCHEMA_VERSION, the store
+// version and the user id: another account, a store update or a change of
+// what a kept record means reads nothing of it) and is removed on sign-out. An
+// OTA keeps the buster, so what it reads goes through the current code's
+// schemas first (data/persisted-cache.ts): nothing is hydrated by a cast.
+// Saves wait a second after the last change, so a burst of realtime frames is
+// one write.
 import type { Query, QueryClient } from "@tanstack/react-query";
 import { persistQueryClientRestore, persistQueryClientSave, type PersistedClient, type Persister } from "@tanstack/query-persist-client-core";
-import type { ChatRoomRecord } from "@uniwork/core/api/endpoints/chat-schemas";
 import { createLogger } from "./logger";
+import { CACHE_SCHEMA_VERSION, persistedRooms, readPersistedClient } from "./persisted-cache";
 import type { DeviceStore } from "./storage/device-store";
 
 /** The rooms whose newest page is kept: the most recently active ones. */
@@ -36,15 +40,15 @@ export function shouldPersistQuery(query: Pick<Query, "queryKey" | "state">): bo
 
 type DehydratedQuery = PersistedClient["clientState"]["queries"][number];
 
-const lastActivity = (room: ChatRoomRecord) => Date.parse(room.last_message_at ?? "") || 0;
+const lastActivity = (room: { last_message_at?: string | null }) => Date.parse(room.last_message_at ?? "") || 0;
 
 /** The rooms of each workspace whose timeline is kept, newest activity first. */
 function recentRoomIds(queries: readonly DehydratedQuery[], limit: number): Set<string> {
   const keep = new Set<string>();
   for (const query of queries) {
     const [root, wsId, kind] = query.queryKey;
-    if (root !== "chat" || kind !== "rooms" || !Array.isArray(query.state.data)) continue;
-    const rooms = [...(query.state.data as ChatRoomRecord[])].sort((a, b) => lastActivity(b) - lastActivity(a)).slice(0, limit);
+    if (root !== "chat" || kind !== "rooms") continue;
+    const rooms = persistedRooms(query.state.data).sort((a, b) => lastActivity(b) - lastActivity(a)).slice(0, limit);
     for (const room of rooms) keep.add(`${String(wsId)}/${room.id}`);
   }
   return keep;
@@ -52,9 +56,12 @@ function recentRoomIds(queries: readonly DehydratedQuery[], limit: number): Set<
 
 /** One room's timeline as kept: its newest page only (chat-timeline.ts › RoomTimeline). */
 function firstPageOnly(query: DehydratedQuery): DehydratedQuery {
-  const data = query.state.data as { pages?: unknown[]; pageParams?: unknown[] } | undefined;
-  if (!data?.pages || data.pages.length <= 1) return query;
-  return { ...query, state: { ...query.state, data: { pages: data.pages.slice(0, 1), pageParams: (data.pageParams ?? []).slice(0, 1) } } };
+  const { data } = query.state;
+  if (data === null || typeof data !== "object") return query;
+  const pages: unknown = Reflect.get(data, "pages");
+  if (!Array.isArray(pages) || pages.length <= 1) return query;
+  const pageParams: unknown = Reflect.get(data, "pageParams");
+  return { ...query, state: { ...query.state, data: { pages: pages.slice(0, 1), pageParams: Array.isArray(pageParams) ? pageParams.slice(0, 1) : [] } } };
 }
 
 /** The copy written to disk: the timelines of the most recent rooms, each one page. */
@@ -69,18 +76,28 @@ export function shapePersistedClient(client: PersistedClient, limit = PERSISTED_
   return { ...client, clientState: { mutations: [], queries: kept } };
 }
 
-/** The persister over the device store: JSON under one key, unreadable copies dropped. */
+function parseJson(raw: string): unknown {
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return undefined;
+  }
+}
+
+/** The persister over the device store: JSON under one key, read back through its schemas; a copy that does not read is dropped. */
 export function createDevicePersister(open: () => Promise<DeviceStore>): Persister {
   return {
     persistClient: async (client) => (await open()).set(STORE_KEY, JSON.stringify(shapePersistedClient(client))),
     restoreClient: async () => {
       const raw = (await open()).getString(STORE_KEY);
       if (!raw) return undefined;
-      try {
-        return JSON.parse(raw) as PersistedClient;
-      } catch {
+      const read = readPersistedClient(parseJson(raw));
+      if (!read) {
+        log.warn("cached rooms unreadable");
         return undefined;
       }
+      if (read.dropped > 0) log.warn("cached queries dropped", { count: read.dropped });
+      return read.client;
     },
     removeClient: async () => void (await open()).remove(STORE_KEY),
   };
@@ -118,7 +135,7 @@ async function restoreAndSubscribe(userId: string, { queryClient, persister, ver
   stopWrites();
   const mine = generation;
   const current = () => generation === mine;
-  const buster = `${version}:${userId}`;
+  const buster = `${CACHE_SCHEMA_VERSION}:${version}:${userId}`;
   // A copy read after a stop is not hydrated: the person it was for may have signed out meanwhile.
   const guarded: Persister = {
     ...persister,

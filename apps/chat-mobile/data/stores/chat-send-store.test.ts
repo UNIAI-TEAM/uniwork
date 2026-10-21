@@ -76,13 +76,40 @@ describe("chat send store", () => {
         { ...entry("no-body"), body: 1 },
         { ...entry("no-time"), createdAt: "1" },
         { ...entry("odd-status"), status: "sent" },
+        // Nested fields are read too: a file without its path, a voice clip without the file, a reminder that repeats oddly.
+        entry("no-uri", { file: { uri: "", name: "x.png" } }),
+        { ...entry("voice-no-clip"), voiceDurationMs: 1200 },
+        { ...entry("odd-repeat"), reminder: { body: "", remindAt: "2026-10-22T09:00:00Z", repeat: "hourly" } },
         entry("ok"),
         entry("sending", { status: "sending" }),
+        entry("voice", { file: { uri: "file:///outbox/voice/clip.m4a", name: "clip.m4a", mimeType: "audio/mp4", size: 10 }, voiceDurationMs: 1200 }),
+        entry("reminder", { body: "", reminder: { body: "call", remindAt: "2026-10-22T09:00:00Z", repeat: "weekly" } }),
       ]).map((e) => [e.clientMsgId, e.status]),
     ).toEqual([
       ["ok", "queued"],
       ["sending", "queued"],
+      ["voice", "queued"],
+      ["reminder", "queued"],
     ]);
+  });
+
+  // zustand without a migrate drops the whole state when the stored version differs: unsent messages lost.
+  it("a queue written by an older or a newer build (an OTA rolled back) still loads", async () => {
+    for (const version of [0, 2]) {
+      // Cleared first: a store already hydrated writes through, and would empty the disk.
+      useChatSendStore.getState().clear();
+      const disk = memoryDeviceStore();
+      disk.set("chat-send-outbox", JSON.stringify({ state: { entries: [entry("kept", { status: "sending" }), { ...entry("bad"), roomId: 1 }] }, version }));
+      installDeviceStore(async () => disk);
+      await hydrateChatSendStore();
+      expect(useChatSendStore.getState().entries.map((e) => [e.clientMsgId, e.status])).toEqual([["kept", "queued"]]);
+    }
+    useChatSendStore.getState().clear();
+    const disk = memoryDeviceStore();
+    disk.set("chat-send-outbox", JSON.stringify({ state: "garbage", version: 0 }));
+    installDeviceStore(async () => disk);
+    await hydrateChatSendStore();
+    expect(useChatSendStore.getState().entries).toEqual([]);
   });
 });
 

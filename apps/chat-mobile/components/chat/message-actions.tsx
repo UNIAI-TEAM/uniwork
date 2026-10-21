@@ -16,7 +16,7 @@ import { PersonAvatar } from "@/components/people/person-avatar";
 import { useAfterDismiss } from "@/components/ui/action-sheet";
 import { Text } from "@/components/ui/text";
 import { FOLLOW_UP_HOURS } from "@/lib/follow-ups";
-import type { ChatFollowUp } from "@/data/chat-api";
+import type { ChatFollowUp } from "@/data/chat-api-schemas";
 import { messagePreviewText, messageView, pendingPreviewText } from "@/lib/message-display";
 import { senderNameClass } from "@/lib/sender-colors";
 import { THEME } from "@/lib/theme";

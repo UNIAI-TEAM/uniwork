@@ -46,8 +46,8 @@ function countMessages(data: RoomTimeline): number {
 export function flattenRoomTimeline(data: RoomTimeline): ChatMessageRecord[] {
   const seen = new Set<string>();
   const out: ChatMessageRecord[] = [];
-  for (let index = data.pages.length - 1; index >= 0; index -= 1) {
-    for (const message of data.pages[index] as ChatMessageRecord[]) {
+  for (const page of [...data.pages].reverse()) {
+    for (const message of page) {
       if (seen.has(message.id)) continue;
       seen.add(message.id);
       out.push(message);
@@ -105,20 +105,21 @@ export function replaceTimelineMessage(data: RoomTimeline, message: ChatMessageR
 
 /** Drop the oldest pages (then the oldest rows of the newest one) past the cap. */
 function capRoomTimeline(data: RoomTimeline): RoomTimeline {
-  let pages = data.pages;
-  let pageParams = data.pageParams;
+  // Oldest pages go first; the newest (the first) always stays and loses its oldest rows instead.
   let total = countMessages(data);
-  while (total > CHAT_MESSAGE_CACHE_MAX && pages.length > 1) {
-    total -= (pages[pages.length - 1] as ChatMessageRecord[]).length;
-    pages = pages.slice(0, -1);
-    pageParams = pageParams.slice(0, -1);
+  let kept = data.pages.length;
+  for (const page of [...data.pages].reverse()) {
+    if (total <= CHAT_MESSAGE_CACHE_MAX || kept === 1) break;
+    total -= page.length;
+    kept -= 1;
   }
-  // Called only on a timeline with a newest page (insertCreatedTimelineMessage).
-  const head = pages[0] as ChatMessageRecord[];
-  if (head.length > CHAT_MESSAGE_CACHE_MAX) {
-    pages = [head.slice(head.length - CHAT_MESSAGE_CACHE_MAX), ...pages.slice(1)];
-  }
-  return pages === data.pages ? data : { pages, pageParams };
+  let trimmed = false;
+  const pages = data.pages.slice(0, kept).map((page, index) => {
+    if (index > 0 || page.length <= CHAT_MESSAGE_CACHE_MAX) return page;
+    trimmed = true;
+    return page.slice(page.length - CHAT_MESSAGE_CACHE_MAX);
+  });
+  return kept === data.pages.length && !trimmed ? data : { pages, pageParams: data.pageParams.slice(0, kept) };
 }
 
 /**

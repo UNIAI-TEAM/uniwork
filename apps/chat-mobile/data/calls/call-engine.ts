@@ -7,7 +7,7 @@
 // "X đang gọi" push).
 import type { PendingChatVoiceInvite } from "@uniwork/core/api/endpoints/chat-schemas";
 import { createStore } from "zustand/vanilla";
-import type { OutgoingVoiceCall } from "@/data/chat-api";
+import type { OutgoingVoiceCall } from "@/data/chat-api-schemas";
 import { incomingStateFromInvite, latestRingingInvite, voiceEventForUser, type VoiceInvitePayload } from "@uniwork/core/chat/voice-call-invites";
 import { isMultiPartyVoiceCall } from "@uniwork/core/chat/voice-call-kind";
 import { VOICE_CALL_CONNECTING_TIMEOUT_MS, VOICE_CALL_ENDED_DISMISS_MS, VOICE_CALL_RING_TIMEOUT_MS, isInformationalEnd, type VoiceCallEndInit, type VoiceCallKind, type VoiceCallOverlayState } from "@uniwork/core/chat/voice-call-types";

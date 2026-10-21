@@ -7,6 +7,7 @@
 // only writer, auth/store.ts hydrates it at boot and clears it on sign-out.
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
+import { PendingOpSchema, migratePersisted, persistedField, readPersistedList, type PersistedStep } from "@/lib/persisted-records";
 import { deviceStateStorage } from "../storage/device-store";
 
 interface OpBase {
@@ -43,22 +44,14 @@ interface PendingOpsState {
   clear: () => void;
 }
 
-const isString = (value: unknown): value is string => typeof value === "string" && value.length > 0;
+/** The queue's persisted shape; a change to what an entry means bumps it with a step in OPS_STEPS. */
+const OPS_VERSION = 1;
+const OPS_STEPS: Record<number, PersistedStep> = {};
 
-/** Entries read back from disk: the ones a delivery can use, each verified first (a restart may have cut one short). */
+/** Entries read back from disk: each one whole (lib/persisted-records.ts), each verified first (a restart may have cut one short). */
 export function rehydratedOps(value: unknown): PendingOp[] {
-  if (!Array.isArray(value)) return [];
-  return value.flatMap((raw: unknown): PendingOp[] => {
-    if (!raw || typeof raw !== "object") return [];
-    const op = raw as PendingOp;
-    if (![op.key, op.workspaceId, op.roomId, op.userId].every(isString) || typeof op.createdAt !== "number") return [];
-    const ok =
-      op.kind === "read" ||
-      (op.kind === "reaction" && isString(op.messageId) && isString(op.emoji) && typeof op.on === "boolean") ||
-      (op.kind === "vote" && isString(op.messageId) && Array.isArray(op.optionIds));
-    // A restart may have cut a delivery short whose request landed: every reaction and vote counts as tried.
-    return ok ? [{ ...op, rev: 0, verify: op.kind !== "read", attempted: op.kind !== "read" }] : [];
-  });
+  // A restart may have cut a delivery short whose request landed: every reaction and vote counts as tried.
+  return readPersistedList(PendingOpSchema, value).map((op): PendingOp => ({ ...op, rev: 0, verify: op.kind !== "read", attempted: op.kind !== "read" }));
 }
 
 export const usePendingOpsStore = create<PendingOpsState>()(
@@ -72,7 +65,8 @@ export const usePendingOpsStore = create<PendingOpsState>()(
     }),
     {
       name: "chat-pending-ops",
-      version: 1,
+      version: OPS_VERSION,
+      migrate: (state, version) => ({ ops: rehydratedOps(persistedField(migratePersisted(state, version, OPS_VERSION, OPS_STEPS), "ops")) }),
       // Written only after the boot read, as the outbox (stores/chat-send-store.ts).
       storage: createJSONStorage(() => ({
         ...deviceStateStorage,
@@ -82,7 +76,7 @@ export const usePendingOpsStore = create<PendingOpsState>()(
       partialize: (state) => ({ ops: state.ops }),
       merge: (persisted, current) => ({
         ...current,
-        ops: [...rehydratedOps((persisted as { ops?: unknown } | undefined)?.ops), ...current.ops].filter(
+        ops: [...rehydratedOps(persistedField(persisted, "ops")), ...current.ops].filter(
           (op, index, all) => all.findIndex((other) => other.key === op.key) === index,
         ),
       }),

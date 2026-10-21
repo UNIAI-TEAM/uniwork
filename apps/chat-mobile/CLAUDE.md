@@ -138,9 +138,18 @@ một dòng thì ghi lý do ở dòng trên.
   khởi động lại) và mọi phiếu bầu đều GET tin trước rồi chỉ chạm phần còn khác; từ chối hẳn thì bỏ, refetch phòng
   và reject cho màn hình báo (lượt đọc thì báo Sentry, không toast). Sửa và xoá tin vẫn chỉ online. **Cache đĩa**:
   `data/query-persister.ts` — allowlist `["workspaces"]`, rooms, unread-summary, nicknames, members, room-members và
-  trang mới nhất của 12 phòng hoạt động gần nhất; ghi sau 1 s yên; buster `<version>:<userId>`; khôi phục trước
-  màn đầu (`restoreAccountCache` trong auth store), xoá khi đăng xuất (`dropAccountCache`). Thêm query vào cache
-  đĩa thì sửa `shouldPersistQuery` và test. **Realtime**: `chat-realtime.ts` không bỏ frame khi GET lỗi (tin mới →
+  trang mới nhất của 12 phòng hoạt động gần nhất; ghi sau 1 s yên; buster `<CACHE_SCHEMA_VERSION>:<version>:<userId>`;
+  khôi phục trước màn đầu (`restoreAccountCache` trong auth store), xoá khi đăng xuất (`dropAccountCache`). Bản trên
+  đĩa là dữ liệu không tin được như câu trả lời mạng (OTA giữ buster mà đổi code đọc): `data/persisted-cache.ts`
+  kiểm vỏ rồi đọc lại data của từng query qua đúng schema đã dựng nó từ mạng (`data/chat-api-schemas.ts`,
+  `data/schemas.ts`), query không đọc được bị bỏ riêng (refetch như lần mở đầu), không chỗ nào cast từ đĩa. Outbox và
+  lượt chờ cũng vậy: mỗi mục qua schema zod của `lib/persisted-records.ts` (cả trường lồng: tệp, tin thoại, nhắc
+  hẹn), mục hỏng bị bỏ riêng; `migrate` của hai store chạy các bước theo version (`migratePersisted`) và giữ state của
+  bản mới hơn (OTA bị rollback) thay vì để zustand xoá cả hàng đợi. `data/persisted-schema.lock.json` ghim hash của
+  module schema với version của nó (`persisted-schema-lock.test.ts`): sửa schema thì quyết định có bump version không
+  (bản ghi giữ shape mà đổi nghĩa → bump `CACHE_SCHEMA_VERSION`, hay version store + bước migrate), rồi
+  `UPDATE_PERSISTED_LOCK=1`. Thêm query vào cache đĩa thì sửa `shouldPersistQuery`, reader trong `persisted-cache.ts`
+  và test. **Realtime**: `chat-realtime.ts` không bỏ frame khi GET lỗi (tin mới →
   catch-up phòng, sửa/nhắc → refetch phòng, trả lời chủ đề → refetch chủ đề, danh sách theo sau); mỗi phòng một GET
   một lúc, frame đến trong lúc đó gộp theo tin và từ 2 tin mới trên timeline đang hiện thì đọc bằng một catch-up.
   Reconnect (mỗi lần về foreground) giữ mọi trang đã cuộn của phòng đang hiện và refetch từng trang (nối lại từ trang

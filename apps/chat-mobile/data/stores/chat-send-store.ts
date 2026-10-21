@@ -10,6 +10,7 @@
 // data/chat-send.ts is the only writer; auth/store.ts hydrates it at boot.
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
+import { PendingSendSchema, migratePersisted, persistedField, readPersistedList, type PersistedStep } from "@/lib/persisted-records";
 import type { PendingSend, SendStatus } from "@/lib/send-pipeline";
 import { deviceStateStorage } from "../storage/device-store";
 
@@ -23,22 +24,13 @@ interface ChatSendState {
   clear: () => void;
 }
 
-const isString = (value: unknown): value is string => typeof value === "string" && value.length > 0;
+/** The outbox's persisted shape; a change to what an entry means bumps it with a step in OUTBOX_STEPS. */
+const OUTBOX_VERSION = 1;
+const OUTBOX_STEPS: Record<number, PersistedStep> = {};
 
-/** An entry read back from disk: the fields a send needs, and never "sending" (nothing is on the wire after a restart). */
+/** Entries read back from disk: each one whole (lib/persisted-records.ts), and never "sending" (nothing is on the wire after a restart). */
 export function rehydratedEntries(value: unknown): PendingSend[] {
-  if (!Array.isArray(value)) return [];
-  return value.flatMap((raw: unknown): PendingSend[] => {
-    if (!raw || typeof raw !== "object") return [];
-    const entry = raw as PendingSend;
-    const valid =
-      [entry.workspaceId, entry.roomId, entry.senderId, entry.clientMsgId].every(isString) &&
-      typeof entry.body === "string" &&
-      typeof entry.createdAt === "number" &&
-      (entry.status === "queued" || entry.status === "sending" || entry.status === "failed");
-    if (!valid) return [];
-    return [entry.status === "sending" ? { ...entry, status: "queued" } : entry];
-  });
+  return readPersistedList(PendingSendSchema, value).map((entry): PendingSend => (entry.status === "sending" ? { ...entry, status: "queued" } : entry));
 }
 
 export const useChatSendStore = create<ChatSendState>()(
@@ -60,7 +52,8 @@ export const useChatSendStore = create<ChatSendState>()(
     }),
     {
       name: "chat-send-outbox",
-      version: 1,
+      version: OUTBOX_VERSION,
+      migrate: (state, version) => ({ entries: rehydratedEntries(persistedField(migratePersisted(state, version, OUTBOX_VERSION, OUTBOX_STEPS), "entries")) }),
       // A write before the boot read would replace the queue on disk with an empty one: dropped until then.
       storage: createJSONStorage(() => ({
         ...deviceStateStorage,
@@ -73,7 +66,7 @@ export const useChatSendStore = create<ChatSendState>()(
         ...current,
         // An entry added before the read (none in practice) stays, after the ones from disk.
         entries: [
-          ...rehydratedEntries((persisted as { entries?: unknown } | undefined)?.entries),
+          ...rehydratedEntries(persistedField(persisted, "entries")),
           ...current.entries,
         ].filter((entry, index, all) => all.findIndex((other) => other.clientMsgId === entry.clientMsgId) === index),
       }),

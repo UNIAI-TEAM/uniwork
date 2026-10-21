@@ -6,7 +6,8 @@
 import type { QueryClient } from "@tanstack/react-query";
 import type { ChatRoomRecord } from "@uniwork/core/api/endpoints/chat-schemas";
 import { applyChatMessageResponse, patchChatMessageDeleted } from "./chat-cache";
-import { chatApi, type ChatTask } from "./chat-api";
+import { chatApi } from "./chat-api";
+import type { ChatTask } from "./chat-api-schemas";
 import { chatKeys } from "./queries/chat-keys";
 import { followUpDueAt } from "@/lib/follow-ups";
 

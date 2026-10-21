@@ -81,7 +81,7 @@ describe("mobile quality lint", { timeout: 60_000 }, () => {
 
   it("a component may take the endpoints' types and the mutation hooks", async () => {
     const code =
-      'import type { ChatFollowUp } from "@/data/chat-api";\nimport type { ApiClient } from "@/data/api";\nimport { useEditMessage } from "@/data/mutations/messages";\nimport { useAnswerAiConsent } from "@/data/mutations/account";\nimport { useSetPushEnabled } from "@/data/mutations/push";\nimport { isPushEnabled } from "@/data/push";\nimport { devicesOptions } from "@/data/queries/devices";\nexport type F = ChatFollowUp;\nexport type C = ApiClient;\nexport const x = [useEditMessage, useAnswerAiConsent, useSetPushEnabled, isPushEnabled, devicesOptions];';
+      'import type { ChatApi } from "@/data/chat-api";\nimport type { ApiClient } from "@/data/api";\nimport { useEditMessage } from "@/data/mutations/messages";\nimport { useAnswerAiConsent } from "@/data/mutations/account";\nimport { useSetPushEnabled } from "@/data/mutations/push";\nimport { isPushEnabled } from "@/data/push";\nimport { devicesOptions } from "@/data/queries/devices";\nexport type F = ChatApi;\nexport type C = ApiClient;\nexport const x = [useEditMessage, useAnswerAiConsent, useSetPushEnabled, isPushEnabled, devicesOptions];';
     expect(await ruleIds(code)).toEqual([]);
   });
 

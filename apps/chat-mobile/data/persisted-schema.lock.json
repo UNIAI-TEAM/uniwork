@@ -1,0 +1,17 @@
+{
+  "query-cache": {
+    "version": 1,
+    "file": "data/persisted-cache.ts",
+    "sha256": "e86a3dd86cf47e51ef6acc3d2b963a45b8aed8a47f8239df6e9a008c12d106e9"
+  },
+  "chat-send-outbox": {
+    "version": 1,
+    "file": "lib/persisted-records.ts",
+    "sha256": "c8bcdcc8d8d91ed631c4d11fe94d9c677523653e5509dd81d7ed1f893393b28b"
+  },
+  "chat-pending-ops": {
+    "version": 1,
+    "file": "lib/persisted-records.ts",
+    "sha256": "c8bcdcc8d8d91ed631c4d11fe94d9c677523653e5509dd81d7ed1f893393b28b"
+  }
+}

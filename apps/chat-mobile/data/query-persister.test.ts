@@ -2,6 +2,8 @@
 import { QueryClient, dehydrate } from "@tanstack/react-query";
 import type { PersistedClient, Persister } from "@tanstack/query-persist-client-core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { ChatMessagesListSchema, ChatRoomsListSchema } from "@uniwork/core/api/endpoints/chat-schemas";
+import { CACHE_SCHEMA_VERSION } from "./persisted-cache";
 import { chatKeys } from "./queries/chat-keys";
 import {
   PERSIST_THROTTLE_MS,
@@ -15,14 +17,19 @@ import {
 import { installReportSink } from "./report";
 import { memoryDeviceStore, type DeviceStore } from "./storage/device-store";
 
-const room = (id: string, last: string | null) => ({ id, last_message_at: last });
-const page = (id: string) => [{ id }];
+// Records as the endpoints' schemas shape them: what the cache holds, and what a restore re-reads.
+const room = (id: string, last: string | null) =>
+  ChatRoomsListSchema.parse({ rooms: [{ id, kind: "dm", name: id, workspace_id: "w1", last_message_at: last ?? undefined }] }).rooms;
+const page = (id: string) =>
+  ChatMessagesListSchema.parse({ messages: [{ id, room_id: "r", workspace_id: "w1", sender_id: "u1", sender_display_name: "A", body: id, created_at: "2026-10-20T00:00:00Z" }] }).messages;
+const unread = (direct: number) => ({ direct: { unread: direct, mentions: 0 }, workspaces: [] });
+const buster = (rest: string) => `${CACHE_SCHEMA_VERSION}:${rest}`;
 
 function seeded(): QueryClient {
   const qc = new QueryClient();
-  qc.setQueryData(["workspaces"], [{ id: "w1" }]);
-  qc.setQueryData(chatKeys.rooms("w1"), [room("old", "2026-10-01T00:00:00Z"), room("new", "2026-10-20T00:00:00Z"), room("never", null)]);
-  qc.setQueryData(chatKeys.unreadSummary(), { direct: 1 });
+  qc.setQueryData(["workspaces"], [{ id: "w1", slug: "w", name: "W", organization_id: "o1", organization_slug: "o", organization_name: "O" }]);
+  qc.setQueryData(chatKeys.rooms("w1"), [...room("old", "2026-10-01T00:00:00Z"), ...room("new", "2026-10-20T00:00:00Z"), ...room("never", null)]);
+  qc.setQueryData(chatKeys.unreadSummary(), unread(1));
   qc.setQueryData(chatKeys.nicknames("w1"), {});
   qc.setQueryData(chatKeys.members("w1"), []);
   qc.setQueryData(chatKeys.roomMembers("w1", "new"), []);
@@ -89,12 +96,14 @@ describe("what is kept", () => {
       },
     };
     expect(shapePersistedClient(odd).clientState.queries).toHaveLength(1);
+    const nullTimeline = { ...odd.clientState.queries[1]!, queryKey: chatKeys.roomMessages("w1", "new"), state: { ...odd.clientState.queries[1]!.state, data: null } };
+    expect(shapePersistedClient({ ...client, clientState: { mutations: [], queries: [...client.clientState.queries, nullTimeline] } }).clientState.queries).toContainEqual(nullTimeline);
     const withRooms: PersistedClient = {
       ...odd,
       clientState: {
         mutations: [],
         queries: [
-          { ...odd.clientState.queries[0]!, state: { ...odd.clientState.queries[0]!.state, data: [room("r", null)] } },
+          { ...odd.clientState.queries[0]!, state: { ...odd.clientState.queries[0]!.state, data: room("r", null) } },
           odd.clientState.queries[1]!,
         ],
       },
@@ -142,12 +151,12 @@ describe("the account's cache", () => {
     const first = seeded();
     installAccountCache({ queryClient: first, persister, version: "0.3.0" });
     await restoreAccountCache("u1");
-    first.setQueryData(chatKeys.rooms("w1"), [room("new", "2026-10-21T00:00:00Z")]);
-    first.setQueryData(chatKeys.unreadSummary(), { direct: 2 });
+    first.setQueryData(chatKeys.rooms("w1"), room("new", "2026-10-21T00:00:00Z"));
+    first.setQueryData(chatKeys.unreadSummary(), unread(2));
     expect(store.getString("query-cache")).toBeUndefined();
     await vi.advanceTimersByTimeAsync(PERSIST_THROTTLE_MS);
     const saved = JSON.parse(store.getString("query-cache")!) as PersistedClient;
-    expect(saved.buster).toBe("0.3.0:u1");
+    expect(saved.buster).toBe(buster("0.3.0:u1"));
     expect(keysOf(saved)).toContain(JSON.stringify(chatKeys.rooms("w1")));
     expect(keysOf(saved)).not.toContain(JSON.stringify(["remote-config"]));
 
@@ -155,17 +164,40 @@ describe("the account's cache", () => {
     const next = new QueryClient();
     installAccountCache({ queryClient: next, persister, version: "0.3.0" });
     await restoreAccountCache("u1");
-    expect(next.getQueryData(chatKeys.rooms("w1"))).toEqual([room("new", "2026-10-21T00:00:00Z")]);
-    expect(next.getQueryData(chatKeys.unreadSummary())).toEqual({ direct: 2 });
+    expect(next.getQueryData(chatKeys.rooms("w1"))).toEqual(room("new", "2026-10-21T00:00:00Z"));
+    expect(next.getQueryData(chatKeys.unreadSummary())).toEqual(unread(2));
+    expect(next.getQueryData(chatKeys.roomMessages("w1", "new"))).toEqual({ pages: [page("n2")], pageParams: [null] });
   });
 
-  it("another person or another build reads nothing of it, and the copy goes", async () => {
-    store.set("query-cache", JSON.stringify({ buster: "0.3.0:u1", timestamp: Date.now(), clientState: dehydrate(seeded()) }));
+  it("another person, another build or another cache schema reads nothing of it, and the copy goes", async () => {
+    for (const [written, reader] of [[buster("0.3.0:u1"), "u2"], [buster("0.2.0:u1"), "u1"], ["0:0.3.0:u1", "u1"]] as const) {
+      store.set("query-cache", JSON.stringify({ buster: written, timestamp: Date.now(), clientState: dehydrate(seeded()) }));
+      const qc = new QueryClient();
+      installAccountCache({ queryClient: qc, persister, version: "0.3.0" });
+      await restoreAccountCache(reader);
+      expect(qc.getQueryData(chatKeys.rooms("w1"))).toBeUndefined();
+      expect(store.getString("query-cache")).toBeUndefined();
+    }
+  });
+
+  // An OTA keeps the buster: what an older bundle wrote is read through this one's schemas, never cast.
+  it("a kept record that no longer reads is dropped alone, and the rest of the inbox opens", async () => {
+    const clientState = dehydrate(seeded(), { shouldDehydrateQuery: shouldPersistQuery });
+    const drifted = clientState.queries.map((q) => (JSON.stringify(q.queryKey) === JSON.stringify(chatKeys.unreadSummary()) ? { ...q, state: { ...q.state, data: "drift" } } : q));
+    store.set("query-cache", JSON.stringify({ buster: buster("0.3.0:u1"), timestamp: Date.now(), clientState: { ...clientState, queries: drifted } }));
     const qc = new QueryClient();
     installAccountCache({ queryClient: qc, persister, version: "0.3.0" });
-    await restoreAccountCache("u2");
-    expect(qc.getQueryData(chatKeys.rooms("w1"))).toBeUndefined();
-    expect(store.getString("query-cache")).toBeUndefined();
+    await restoreAccountCache("u1");
+    expect(qc.getQueryData(chatKeys.unreadSummary())).toBeUndefined();
+    expect(qc.getQueryData(chatKeys.rooms("w1"))).toHaveLength(3);
+    expect(warnings).toContain("cached queries dropped");
+
+    store.set("query-cache", JSON.stringify({ buster: buster("0.3.0:u1"), timestamp: "yesterday" }));
+    const fresh = new QueryClient();
+    installAccountCache({ queryClient: fresh, persister, version: "0.3.0" });
+    await restoreAccountCache("u1");
+    expect(fresh.getQueryCache().getAll()).toHaveLength(0);
+    expect(warnings).toContain("cached rooms unreadable");
   });
 
   it("sign-out stops the writes and removes the copy; a reinstall stops the last subscription", async () => {
@@ -184,7 +216,7 @@ describe("the account's cache", () => {
     await vi.advanceTimersByTimeAsync(PERSIST_THROTTLE_MS);
     expect(store.getString("query-cache")).toBeUndefined();
     installAccountCache(null);
-    qc.setQueryData(chatKeys.rooms("w1"), [room("x", null)]);
+    qc.setQueryData(chatKeys.rooms("w1"), room("x", null));
     await vi.advanceTimersByTimeAsync(PERSIST_THROTTLE_MS);
     expect(store.getString("query-cache")).toBeUndefined();
     await dropAccountCache();
@@ -200,20 +232,20 @@ describe("the account's cache", () => {
     expect(a).toBe(b);
     await Promise.all([a, b]);
     await dropAccountCache();
-    qc.setQueryData(chatKeys.rooms("w1"), [room("b-room", null)]);
+    qc.setQueryData(chatKeys.rooms("w1"), room("b-room", null));
     await vi.advanceTimersByTimeAsync(PERSIST_THROTTLE_MS);
     expect(store.getString("query-cache")).toBeUndefined();
 
     // Done, the next restore of the same person starts afresh and writes again.
     await restoreAccountCache("A");
-    qc.setQueryData(chatKeys.rooms("w1"), [room("a-room", null)]);
+    qc.setQueryData(chatKeys.rooms("w1"), room("a-room", null));
     await vi.advanceTimersByTimeAsync(PERSIST_THROTTLE_MS);
-    expect((JSON.parse(store.getString("query-cache")!) as PersistedClient).buster).toBe("0.3.0:A");
+    expect((JSON.parse(store.getString("query-cache")!) as PersistedClient).buster).toBe(buster("0.3.0:A"));
   });
 
   it("a restore overtaken by another person's, or by a sign-out, neither hydrates nor subscribes", async () => {
     vi.useFakeTimers();
-    store.set("query-cache", JSON.stringify({ buster: "0.3.0:A", timestamp: Date.now(), clientState: dehydrate(seeded()) }));
+    store.set("query-cache", JSON.stringify({ buster: buster("0.3.0:A"), timestamp: Date.now(), clientState: dehydrate(seeded()) }));
     const qc = new QueryClient();
     installAccountCache({ queryClient: qc, persister, version: "0.3.0" });
     const first = restoreAccountCache("A");
@@ -224,9 +256,9 @@ describe("the account's cache", () => {
     const a = restoreAccountCache("A");
     const b = restoreAccountCache("B");
     await Promise.all([a, b]);
-    qc.setQueryData(chatKeys.rooms("w1"), [room("b-room", null)]);
+    qc.setQueryData(chatKeys.rooms("w1"), room("b-room", null));
     await vi.advanceTimersByTimeAsync(PERSIST_THROTTLE_MS);
-    expect((JSON.parse(store.getString("query-cache")!) as PersistedClient).buster).toBe("0.3.0:B");
+    expect((JSON.parse(store.getString("query-cache")!) as PersistedClient).buster).toBe(buster("0.3.0:B"));
     await dropAccountCache();
   });
 
@@ -249,7 +281,7 @@ describe("the account's cache", () => {
     const odd: Persister = { ...broken, restoreClient: () => Promise.reject(new Error("locked")), persistClient: () => Promise.reject("full") };
     installAccountCache({ queryClient: qc, persister: odd, version: "0.3.0" });
     await restoreAccountCache("u1");
-    qc.setQueryData(chatKeys.rooms("w1"), [room("y", null)]);
+    qc.setQueryData(chatKeys.rooms("w1"), room("y", null));
     await vi.advanceTimersByTimeAsync(PERSIST_THROTTLE_MS);
     expect(warnings).toHaveLength(4);
   });

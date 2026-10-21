@@ -31,6 +31,11 @@
       "packages/core/chat/chat-hooks-rooms.ts": "863f93daa298bbe0983de8f360d0038f8ee8b1981086820e1b1b92e5d79ef4e1",
       "packages/core/chat/thread-hooks.ts": "69c3b30397a9f80beba7d77937b65619e03d08106643bcd6b9d57a061a93cc1c"
     },
+    "apps/chat-mobile/data/chat-api-schemas.ts": {
+      "packages/core/api/endpoints/chat-media.ts": "36264e5f637a49b255b7750d3f76d7468b5728cfad19fb5399c16fe90c0408b0",
+      "packages/core/api/endpoints/chat-rooms.ts": "ac68560059a3f628fcd7dbbf2d89f5ccd62ded926fbb1ca355aa5f374adb4760",
+      "packages/core/types/ai.ts": "3952faab76379a49845b4d9a7acb5bb9766cd404a005cb5399af984c304c97b5"
+    },
     "apps/chat-mobile/data/chat-api.ts": {
       "packages/core/api/endpoints/chat-channels.ts": "5f3abf07b5eb9f9695dfd55943aa2ace89e47b961631e912f91f47682f99778a",
       "packages/core/api/endpoints/chat-follow-ups.ts": "eb59130cb4ae1ded248f7e3794b954b46a00e0de5fedef4140b03903a80a6e90",

@@ -54,8 +54,23 @@ describe("pending ops store", () => {
         { ...read("k"), kind: "edit" },
         { ...read("bad-reaction"), kind: "reaction", messageId: "m1", emoji: "👍" },
         { ...read("bad-vote"), kind: "vote", messageId: "m1" },
+        { ...read("vote-no-base"), kind: "vote", messageId: "m1", optionIds: ["a"] },
+        { ...read("vote-odd-option"), kind: "vote", messageId: "m1", optionIds: [1], base: [] },
+        { ...read("reaction-no-base"), kind: "reaction", messageId: "m1", emoji: "👍", on: true },
         vote,
       ]).map((op) => op.key),
     ).toEqual(["v"]);
+  });
+
+  it("a queue written by an older or a newer build (an OTA rolled back) still loads", async () => {
+    for (const version of [0, 2]) {
+      // Cleared first: a store already hydrated writes through, and would empty the disk.
+      usePendingOpsStore.getState().clear();
+      const disk = memoryDeviceStore();
+      disk.set("chat-pending-ops", JSON.stringify({ state: { ops: [read("kept"), { ...read("bad"), kind: "edit" }] }, version }));
+      installDeviceStore(async () => disk);
+      await hydratePendingOpsStore();
+      expect(usePendingOpsStore.getState().ops.map((op) => [op.key, op.rev])).toEqual([["kept", 0]]);
+    }
   });
 });
