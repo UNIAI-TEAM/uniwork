@@ -215,6 +215,17 @@ func isoFolderUploadBody(_ *isoWorld, tn *isoTenant) isoBody {
 	}
 }
 
+// isoFolderUploadContent is the three bytes the seeded file row declares.
+func isoFolderUploadContent(_ *isoWorld, _ *isoTenant) isoBody {
+	return isoBody{raw: []byte("abc")}
+}
+
+// isoFolderUploadComplete completes the seeded file with an ETag no upload
+// answers, so the file stays pending (parts_invalid or upload_missing).
+func isoFolderUploadComplete(_ *isoWorld, tn *isoTenant) isoBody {
+	return isoBody{json: map[string]any{"files": []map[string]any{{"file_key": tn.ids["folderUploadFileKey"], "etag": `"iso"`}}}}
+}
+
 // isoUnknownDocumentID is a well-formed ULID that names no row: the id the
 // uniformAnswer check pairs with the foreign one, so the route's answer cannot
 // depend on whether the document exists.
@@ -613,6 +624,13 @@ var isoRoutes = map[string]isoSpec{
 	"GET /api/v1/orgs/{orgID}/ai/byok/{aiProvider}/models":                       {skipControl: reasonBYOKVendor},
 	"GET /api/v1/files/{fileID}/content":                                         {skipControl: "reads need the ticket POST .../files/resolve mints; without it everyone is refused"},
 	"HEAD /api/v1/files/{fileID}/content":                                        {skipControl: "reads need the ticket POST .../files/resolve mints; without it everyone is refused"},
+
+	// The folder upload content route and COMPLETE (UNI-2052 w2) act on the
+	// seeded batch, whose one file stays pending: the PUT replaces its upload
+	// each pass and COMPLETE sends an ETag that never matches, so the file
+	// never lands and every control pass finds it as the first did.
+	"PUT /api/v1/workspaces/{workspaceID}/documents/folder-uploads/{batchID}/files/{fileKey}/content": {body: isoFolderUploadContent},
+	"POST /api/v1/workspaces/{workspaceID}/documents/folder-uploads/{batchID}/complete":               {body: isoFolderUploadComplete},
 
 	"GET /api/v1/workspaces/{workspaceID}/calendar/connections/{provider}/calendars":                       {skipControl: "no OAuth client is configured in tests; the owner gets 503"},
 	"PUT /api/v1/workspaces/{workspaceID}/calendar/connections/{provider}/calendars":                       {body: isoJSON(map[string]any{"calendar_ids": []string{"primary"}}), skipControl: "owner 5xx found by G8-04, owner: calendar (no provider client is configured in tests; the owner gets 503)"},
