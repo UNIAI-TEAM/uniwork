@@ -237,3 +237,26 @@ test("the OTA publishes from its own branch-limited environment, the store relea
   const runbook = fs.readFileSync(path.join(root, "docs/runbooks/unichat-mobile-release.md"), "utf8");
   assert.match(runbook, /`chat-mobile-update`[^\n]*`main`[^\n]*`develop`/, "the runbook limits chat-mobile-update to main and develop");
 });
+
+// Audit P2 Release: a store release reaches a slice of phones first and widens
+// only on Sentry's crash-free sessions. While the production app on Play has
+// no public release, Play takes drafts only, so the stage is set by hand from
+// the runbook; once it is live, the submit profile carries it.
+test("a production store release is staged and promoted on crash-free sessions", () => {
+  const eas = JSON.parse(fs.readFileSync(path.join(root, "apps/chat-mobile/eas.json"), "utf8"));
+  const android = eas.submit?.production?.android ?? {};
+  assert.equal(android.track, "production");
+  if (android.releaseStatus === "inProgress") {
+    assert.ok(android.rollout > 0 && android.rollout <= 0.1, `rollout ${android.rollout} is a first stage of at most 10 %`);
+  } else {
+    assert.equal(android.releaseStatus, "draft", "a production submit is a draft (staged by hand) or an inProgress rollout");
+    assert.equal(android.rollout, undefined, "Play ignores a rollout on a draft");
+  }
+  const runbook = fs.readFileSync(path.join(root, "docs/runbooks/unichat-mobile-release.md"), "utf8");
+  const section = runbook.split("**Phát hành production theo giai đoạn")[1]?.split(/\n\*\*|\n## /)[0] ?? "";
+  assert.ok(section, "the runbook has the staged production section");
+  assert.match(section, /99\.5 %/, "promotion is gated on crash-free sessions");
+  assert.match(section, /Halt rollout/, "the halt procedure");
+  assert.match(section, /"releaseStatus": "inProgress", "rollout": 0\.05/, "the switch to a submitted first stage once Play is live");
+  assert.match(section, /Phased release/, "the iOS counterpart");
+});

@@ -9,7 +9,7 @@ App `apps/chat-mobile` build trên EAS theo `apps/chat-mobile/eas.json`. Bốn p
 | `development` | `dev` | internal (dev client) | `development` | `development` | Dev trên máy thật, JS từ Metro |
 | `preview` | `staging` | internal (APK / ad hoc, link cài) | `preview` | `preview` | Pilot trước khi có store, QA một nhánh |
 | `internal` | `staging` | store → Play internal (TestFlight khi có tài khoản Apple) | `internal` | `preview` | Mỗi tag `chat-mobile-v*` |
-| `production` | `production` | store (Play: bản nháp) | `production` | `production` | Sau quyết định Q1; phát hành public bấm tay |
+| `production` | `production` | store (Play: bản nháp) | `production` | `production` | Sau quyết định Q1; phát hành theo giai đoạn (mục dưới) |
 
 `version` trong `apps/chat-mobile/app.config.ts` là version store (0.3.0 từ UNI-2053). `runtimeVersion` là
 `policy: fingerprint`: hash của phần native (gói có mã native, plugin, cấu hình trong `app.config.ts` trừ `extra`,
@@ -110,6 +110,22 @@ của bản store trên kênh đó (`staging` cho `internal`/`preview`, `product
    internal hiện ngay sau submit; người thử cài qua link opt-in. iOS: khi có tài khoản Apple (bước 3 của thiết lập),
    đổi `--platform android` thành `--platform all` trong `chat-mobile-release.yml`; Apple xử lý bản build 15–30 phút
    trước khi hiện ở TestFlight.
+
+**Phát hành production theo giai đoạn (Play, App Store)**: một bản store tới một phần máy trước và chỉ mở rộng theo
+crash-free sessions của Sentry cho đúng release đó (`<bundle id>@<version>+<build>`).
+
+1. Bắt đầu ở 5 %. Khi app `com.uniworkos.chat` trên Play chưa có bản phát hành công khai nào, Play chỉ nhận bản nháp,
+   nên `submit.production.android` trong `apps/chat-mobile/eas.json` giữ `"releaseStatus": "draft"`: sau `eas submit -p
+   android --profile production`, Play Console → Production → bản nháp → Edit release → **Staged rollout** 5 %. Từ khi
+   app đã công khai, đổi profile đó thành `"releaseStatus": "inProgress", "rollout": 0.05` qua PR (submit tự đặt 5 %).
+2. Mở rộng 5 % → 20 % → 50 % → 100 %, mỗi bước sau ít nhất 24 giờ, chỉ khi crash-free sessions của release ≥ 99.5 %
+   (Sentry → Releases, cùng ngưỡng với alert ở bước 8 của thiết lập) trên ít nhất 200 phiên, và không có lỗi mới chặn
+   luồng chính (đăng nhập, đọc/gửi tin, push, gọi). Play Console → Production → Manage rollout → Update rollout.
+3. Dừng khi crash-free < 99.5 % hoặc có lỗi chặn: Play Console → Production → **Halt rollout** (máy đã cài giữ bản đó,
+   máy mới không nhận). Lỗi chỉ ở JS: OTA sửa trên kênh `production` (cùng runtime), theo dõi lại rồi Resume rollout.
+   Lỗi native: revert, bump patch, cắt bản store mới và bắt đầu lại từ 5 %. Lỗi ở một tính năng: kill switch (mục dưới).
+4. iOS: khi nộp bản production bật **Phased release for automatic updates** (App Store Connect, 7 ngày); Pause phased
+   release theo cùng ngưỡng 99.5 %.
 
 **Bản cài trực tiếp (chưa có store)**: `eas build -p android --profile preview` cho link tải APK. iOS ad hoc cần Apple
 Developer và đăng ký máy (`eas device:create`) trước `eas build -p ios --profile preview`.

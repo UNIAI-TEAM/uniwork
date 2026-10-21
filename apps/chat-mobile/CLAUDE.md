@@ -219,7 +219,10 @@ Runbook: `docs/runbooks/unichat-mobile-release.md`; plan:
   `certs/eas-update-certificate.pem` thì `updates.codeSigningCertificate` tự
   bật (khoá riêng không bao giờ vào repo; runbook › Ký OTA).
   `eas.json` đặt `SENTRY_ALLOW_FAILURE=true` cho mọi profile: build thiếu token
-  Sentry vẫn xanh.
+  Sentry vẫn xanh. Bản store production phát theo giai đoạn (Play 5 % → 100 %,
+  iOS phased release), mở rộng chỉ khi crash-free sessions ≥ 99.5 % (runbook ›
+  Phát hành production theo giai đoạn); `submit.production.android` là `draft`
+  tới khi app Play công khai, rồi `inProgress` + `rollout: 0.05`.
   `knip.json` bỏ qua `@babel/plugin-transform-react-jsx` (preset
   `react-native-css-interop/babel` gọi nó theo tên mà không khai; thiếu thì
   bước `createReleaseUpdatesResources` của build release đỏ), và hai gói
