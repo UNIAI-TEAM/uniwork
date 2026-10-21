@@ -23,7 +23,10 @@ func retentionIDAt(t time.Time) string {
 
 type retentionRows struct {
 	outbox, webhook, ledger map[string]string // label -> id
+	notification            map[string]struct{ eventID, userID string }
 }
+
+const retentionTestUserID = "01TESTUSER000000000000000001"
 
 // seedRetentionRows writes one row per case the sweep must decide, ages
 // relative to now. Labels name the expected outcome.
@@ -31,7 +34,10 @@ func seedRetentionRows(t *testing.T, pool *pgxpool.Pool, now time.Time) retentio
 	t.Helper()
 	ctx := context.Background()
 	day := 24 * time.Hour
-	rows := retentionRows{outbox: map[string]string{}, webhook: map[string]string{}, ledger: map[string]string{}}
+	rows := retentionRows{
+		outbox: map[string]string{}, webhook: map[string]string{}, ledger: map[string]string{},
+		notification: map[string]struct{ eventID, userID string }{},
+	}
 
 	outbox := []struct {
 		label, status      string
@@ -100,6 +106,29 @@ func seedRetentionRows(t *testing.T, pool *pgxpool.Pool, now time.Time) retentio
 			t.Fatalf("seed ledger %s: %v", r.label, err)
 		}
 	}
+
+	notifications := []struct {
+		label   string
+		eventID string
+		created time.Time
+	}{
+		{label: "orphan-past-floor", eventID: retentionIDAt(now.Add(-35 * day)), created: now.Add(-35 * day)},
+		{label: "orphan-dead-outbox", eventID: rows.outbox["dead-old"], created: now.Add(-40 * day)},
+		{label: "keep-live-outbox", eventID: rows.outbox["keep-done-recent"], created: now.Add(-1 * day)},
+		{label: "keep-reminder-key", eventID: "reminder:01234567890123456789012345", created: now.Add(-60 * day)},
+	}
+	for _, r := range notifications {
+		uid := retentionTestUserID
+		if r.label == "keep-live-outbox" {
+			uid = retentionTestUserID + "-2"
+		}
+		rows.notification[r.label] = struct{ eventID, userID string }{r.eventID, uid}
+		if _, err := pool.Exec(ctx, `
+			INSERT INTO notification_deliveries (event_id, user_id, created_at)
+			VALUES ($1, $2, $3)`, r.eventID, uid, r.created); err != nil {
+			t.Fatalf("seed notification %s: %v", r.label, err)
+		}
+	}
 	return rows
 }
 
@@ -110,6 +139,24 @@ func retentionRemaining(t *testing.T, pool *pgxpool.Pool, table string, ids map[
 	for label, id := range ids {
 		var n int
 		if err := pool.QueryRow(context.Background(), `SELECT count(*) FROM `+table+` WHERE id = $1`, id).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		if n > 0 {
+			out = append(out, label)
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
+func retentionNotificationRemaining(t *testing.T, pool *pgxpool.Pool, rows map[string]struct{ eventID, userID string }) []string {
+	t.Helper()
+	var out []string
+	for label, row := range rows {
+		var n int
+		if err := pool.QueryRow(context.Background(),
+			`SELECT count(*) FROM notification_deliveries WHERE event_id = $1 AND user_id = $2`,
+			row.eventID, row.userID).Scan(&n); err != nil {
 			t.Fatal(err)
 		}
 		if n > 0 {
@@ -173,7 +220,7 @@ func TestEventRetentionDeletesOnlyExpiredTerminalRows(t *testing.T) {
 	if err != nil {
 		t.Fatalf("sweep: %v", err)
 	}
-	want := EventRetentionReport{OutboxDone: 3, OutboxDead: 1, WebhookInbox: 2, ProviderEvents: 1, NotificationDeliveries: 0}
+	want := EventRetentionReport{OutboxDone: 3, OutboxDead: 1, WebhookInbox: 2, ProviderEvents: 1, NotificationDeliveries: 2}
 	if rep != want {
 		t.Fatalf("report = %+v, want %+v", rep, want)
 	}
@@ -191,8 +238,12 @@ func TestEventRetentionDeletesOnlyExpiredTerminalRows(t *testing.T) {
 	if got := retentionRemaining(t, pool, "meeting_provider_events", rows.ledger); !slices.Equal(got, []string{"keep-recent"}) {
 		t.Fatalf("ledger rows left = %v", got)
 	}
+	if got := retentionNotificationRemaining(t, pool, rows.notification); !slices.Equal(got, []string{"keep-live-outbox", "keep-reminder-key"}) {
+		t.Fatalf("notification_deliveries left = %v", got)
+	}
 
-	if spy.deleted["outbox_events"] != 4 || spy.deleted["webhook_inbox"] != 2 || spy.deleted["meeting_provider_events"] != 1 {
+	if spy.deleted["outbox_events"] != 4 || spy.deleted["webhook_inbox"] != 2 || spy.deleted["meeting_provider_events"] != 1 ||
+		spy.deleted["notification_deliveries"] != 2 {
 		t.Fatalf("deleted metric = %v", spy.deleted)
 	}
 	if len(spy.errs) != 0 {
