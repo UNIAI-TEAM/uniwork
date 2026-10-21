@@ -79,7 +79,8 @@ export function createFolderUploadToast({
     if (expired) {
       toast.warning(t("documents.folder_upload.toast.expired", { name: title, done, total: runTotal, ...ctx }), {
         id,
-        duration: closed ? CLOSED_TOAST_MS : Number.POSITIVE_INFINITY,
+        // Without "Xem" there is no decision to wait for, so only the actionable form stays.
+        duration: closed || failed === 0 ? CLOSED_TOAST_MS : Number.POSITIVE_INFINITY,
         action: viewFailures,
       });
       return;

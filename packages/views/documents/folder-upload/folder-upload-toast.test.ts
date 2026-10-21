@@ -129,6 +129,9 @@ describe("createFolderUploadToast", () => {
 
     handle.settle(settled({ done: 12, failed: 0, expired: true }));
     expect(toast.warning.mock.calls[1]?.[1].action).toBeUndefined();
+    // R5-1: no action means no decision to wait for, so this form expires instead of sticking.
+    expect(Number.isFinite(toast.warning.mock.calls[1]?.[1].duration)).toBe(true);
+    expect(toast.warning.mock.calls[0]?.[1].duration).toBe(Number.POSITIVE_INFINITY);
   });
 
   it("uses the server's title for the end state, not the preview name", () => {
