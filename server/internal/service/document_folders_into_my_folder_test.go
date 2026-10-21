@@ -24,15 +24,26 @@ func newFimFixture(t *testing.T, slug string) *fimFixture {
 	return &fimFixture{f: f, tn: f.tenant(t, slug)}
 }
 
-// folder creates a restricted folder through the service as owner (the way a
-// folder was made before the pass), under parentID ("" = workspace root).
+// folder creates a LEGACY private folder as owner (the way a folder was made
+// before ADR 0037), under parentID ("" = workspace root). Since 0037 the create
+// path stores a folder outside My Folder as workspace-visible, so the row is
+// forced back to restricted afterwards (a folder inside My Folder already is).
 func (x *fimFixture) folder(t *testing.T, owner db.User, title, parentID string) db.Document {
 	t.Helper()
 	v, err := x.f.svc.CreatePage(x.f.ctx, Human(owner.ID), x.tn.wsA, CreatePageInput{Kind: DocumentKindFolder, Title: title, ParentID: parentID})
 	if err != nil {
 		t.Fatalf("folder %q: %v", title, err)
 	}
-	return v.Document
+	x.makeLegacyPrivate(t, v.Document.ID)
+	return x.get(t, v.Document.ID)
+}
+
+// makeLegacyPrivate rewrites a folder row to the pre-0037 private shape.
+func (x *fimFixture) makeLegacyPrivate(t *testing.T, id string) {
+	t.Helper()
+	if _, err := x.f.pool.Exec(x.f.ctx, `UPDATE documents SET visibility = 'restricted', workspace_level = 'view' WHERE id = $1`, id); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func (x *fimFixture) page(t *testing.T, owner db.User, title, parentID, visibility string) db.Document {
@@ -423,6 +434,7 @@ func TestFoldersIntoMyFolderOrganizationFilterLimitsThePass(t *testing.T) {
 		t.Fatal(err)
 	}
 	theirs := v.Document
+	x.makeLegacyPrivate(t, theirs.ID)
 	theirsBefore := x.hash(t, theirs.ID)
 
 	x.run(t, false, x.tn.orgID)
