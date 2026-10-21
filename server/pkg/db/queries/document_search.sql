@@ -59,7 +59,9 @@ SELECT d.*,
                         AND g.actor_kind = 'human'
                         AND g.revoked_at IS NULL
                         AND g.expires_at > now())) THEN NULL::text
-                     ELSE left(d.content_text, 160)::text END, '')::text AS snippet
+                     ELSE left(d.content_text, 160)::text END, '')::text AS snippet,
+       sk.name_key AS sort_name, sk.size_key AS sort_size,
+       sk.editor_key AS sort_editor, sk.editor_null AS sort_editor_null
 FROM documents d
 -- UNI-1868: the current version of a file document, for the format filter and
 -- the format each row reports. Joined on the document's own tenant pair and
@@ -70,6 +72,24 @@ LEFT JOIN document_versions cv
  AND cv.workspace_id = d.workspace_id
  AND cv.document_id = d.id
  AND cv.id = d.file_version_id
+-- UNI-2038 S3: the sort keys of a row, computed once. The name key is the
+-- title itself under the Vietnamese ICU collation (Đ sorts after D, tones and
+-- case variants stay together, whatever the database locale is); the size key is the current
+-- file version's size (0 for a page or a folder); the editor key is the last
+-- editor's display name (same collation), and only a human editor with a name has one - an
+-- agent, a removed account or a blank name sets editor_null and sorts last. Each
+-- key is computed only under its own sort (the others are constants), so an
+-- unsorted list pays nothing for them and the users join runs for sort=editor.
+LEFT JOIN users eu
+  ON eu.id = d.updated_by
+ AND d.updated_by_kind = 'human'
+ AND sqlc.narg(sort_key)::text = 'editor'
+CROSS JOIN LATERAL (SELECT
+    (CASE WHEN sqlc.narg(sort_key)::text = 'name' THEN d.title ELSE '' END COLLATE "vi-x-icu")::text AS name_key,
+    (CASE WHEN sqlc.narg(sort_key)::text = 'size' THEN COALESCE(cv.size_bytes, 0) ELSE 0 END)::bigint AS size_key,
+    (CASE WHEN sqlc.narg(sort_key)::text = 'editor' THEN COALESCE(eu.display_name COLLATE "vi-x-icu", '') ELSE '' END)::text AS editor_key,
+    (CASE WHEN sqlc.narg(sort_key)::text = 'editor' THEN NULLIF(btrim(eu.display_name), '') IS NULL ELSE false END)::boolean AS editor_null
+) sk
 WHERE d.organization_id = sqlc.arg(organization_id)
   AND d.workspace_id = sqlc.arg(workspace_id)
   AND d.owner_id IS NULL
@@ -237,19 +257,74 @@ WHERE d.organization_id = sqlc.arg(organization_id)
            AND uw_fold_search(d.title) ILIKE '%' || sqlc.narg(query)::text || '%' ESCAPE '\'))
   AND (sqlc.narg(cursor_at)::timestamptz IS NULL
        OR (d.updated_at, d.id) < (sqlc.narg(cursor_at), sqlc.narg(cursor_id)::text))
-ORDER BY d.updated_at DESC, d.id DESC
+  -- UNI-2038 S3 keyset of a sorted page: (key, id) past the cursor row in the
+  -- requested direction; an editor-less row (editor_null) is always last.
+  AND (sqlc.narg(sort_cursor_id)::text IS NULL OR CASE sqlc.narg(sort_key)::text
+       WHEN 'updated' THEN CASE WHEN sqlc.arg(sort_desc)::boolean
+            THEN (d.updated_at, d.id COLLATE "C") < (sqlc.narg(sort_cursor_at)::timestamptz, sqlc.narg(sort_cursor_id)::text COLLATE "C")
+            ELSE (d.updated_at, d.id COLLATE "C") > (sqlc.narg(sort_cursor_at)::timestamptz, sqlc.narg(sort_cursor_id)::text COLLATE "C") END
+       WHEN 'size' THEN CASE WHEN sqlc.arg(sort_desc)::boolean
+            THEN (sk.size_key, d.id COLLATE "C") < (sqlc.narg(sort_cursor_num)::bigint, sqlc.narg(sort_cursor_id)::text COLLATE "C")
+            ELSE (sk.size_key, d.id COLLATE "C") > (sqlc.narg(sort_cursor_num)::bigint, sqlc.narg(sort_cursor_id)::text COLLATE "C") END
+       WHEN 'name' THEN CASE WHEN sqlc.arg(sort_desc)::boolean
+            THEN (sk.name_key COLLATE "vi-x-icu", d.id COLLATE "C") < (sqlc.narg(sort_cursor_text)::text COLLATE "vi-x-icu", sqlc.narg(sort_cursor_id)::text COLLATE "C")
+            ELSE (sk.name_key COLLATE "vi-x-icu", d.id COLLATE "C") > (sqlc.narg(sort_cursor_text)::text COLLATE "vi-x-icu", sqlc.narg(sort_cursor_id)::text COLLATE "C") END
+       WHEN 'editor' THEN (sk.editor_null::int > sqlc.narg(sort_cursor_null)::boolean::int
+            OR (sk.editor_null = sqlc.narg(sort_cursor_null)::boolean
+                AND CASE WHEN sqlc.arg(sort_desc)::boolean
+            THEN (sk.editor_key COLLATE "vi-x-icu", d.id COLLATE "C") < (sqlc.narg(sort_cursor_text)::text COLLATE "vi-x-icu", sqlc.narg(sort_cursor_id)::text COLLATE "C")
+            ELSE (sk.editor_key COLLATE "vi-x-icu", d.id COLLATE "C") > (sqlc.narg(sort_cursor_text)::text COLLATE "vi-x-icu", sqlc.narg(sort_cursor_id)::text COLLATE "C") END))
+       ELSE true END)
+-- UNI-2038 S3: no sort_key keeps the list's own order (the first two terms);
+-- a sort_key orders by (key, id) in one direction. Every term is a CASE on a
+-- bound parameter, so the planner folds the unused ones away and a plain
+-- (key, id) order remains.
+ORDER BY
+  (CASE WHEN sqlc.narg(sort_key)::text IS NULL THEN d.updated_at END) DESC,
+  (CASE WHEN sqlc.narg(sort_key)::text IS NULL THEN d.id END) DESC,
+  (CASE WHEN sqlc.narg(sort_key)::text = 'editor' THEN sk.editor_null END) ASC,
+  (CASE WHEN sqlc.narg(sort_key)::text = 'name' AND NOT sqlc.arg(sort_desc)::boolean THEN sk.name_key
+        WHEN sqlc.narg(sort_key)::text = 'editor' AND NOT sqlc.arg(sort_desc)::boolean THEN sk.editor_key END) COLLATE "vi-x-icu" ASC,
+  (CASE WHEN sqlc.narg(sort_key)::text = 'name' AND sqlc.arg(sort_desc)::boolean THEN sk.name_key
+        WHEN sqlc.narg(sort_key)::text = 'editor' AND sqlc.arg(sort_desc)::boolean THEN sk.editor_key END) COLLATE "vi-x-icu" DESC,
+  (CASE WHEN sqlc.narg(sort_key)::text = 'size' AND NOT sqlc.arg(sort_desc)::boolean THEN sk.size_key END) ASC,
+  (CASE WHEN sqlc.narg(sort_key)::text = 'size' AND sqlc.arg(sort_desc)::boolean THEN sk.size_key END) DESC,
+  (CASE WHEN sqlc.narg(sort_key)::text = 'updated' AND NOT sqlc.arg(sort_desc)::boolean THEN d.updated_at END) ASC,
+  (CASE WHEN sqlc.narg(sort_key)::text = 'updated' AND sqlc.arg(sort_desc)::boolean THEN d.updated_at END) DESC,
+  (CASE WHEN sqlc.narg(sort_key)::text IS NOT NULL AND NOT sqlc.arg(sort_desc)::boolean THEN d.id COLLATE "C" END) ASC,
+  (CASE WHEN sqlc.narg(sort_key)::text IS NOT NULL AND sqlc.arg(sort_desc)::boolean THEN d.id COLLATE "C" END) DESC
 LIMIT sqlc.arg(page_limit);
 
 -- One level of the tree: children of a parent (NULL parent = roots), cursor
 -- is (position, id) ascending.
 -- name: ListDocumentsByParentPage :many
-SELECT d.*
+SELECT sqlc.embed(d),
+       sk.name_key AS sort_name, sk.size_key AS sort_size,
+       sk.editor_key AS sort_editor, sk.editor_null AS sort_editor_null
 FROM documents d
 LEFT JOIN document_versions cv
   ON cv.organization_id = d.organization_id
  AND cv.workspace_id = d.workspace_id
  AND cv.document_id = d.id
  AND cv.id = d.file_version_id
+-- UNI-2038 S3: the sort keys of a row, computed once. The name key is the
+-- title itself under the Vietnamese ICU collation (Đ sorts after D, tones and
+-- case variants stay together, whatever the database locale is); the size key is the current
+-- file version's size (0 for a page or a folder); the editor key is the last
+-- editor's display name (same collation), and only a human editor with a name has one - an
+-- agent, a removed account or a blank name sets editor_null and sorts last. Each
+-- key is computed only under its own sort (the others are constants), so an
+-- unsorted list pays nothing for them and the users join runs for sort=editor.
+LEFT JOIN users eu
+  ON eu.id = d.updated_by
+ AND d.updated_by_kind = 'human'
+ AND sqlc.narg(sort_key)::text = 'editor'
+CROSS JOIN LATERAL (SELECT
+    (CASE WHEN sqlc.narg(sort_key)::text = 'name' THEN d.title ELSE '' END COLLATE "vi-x-icu")::text AS name_key,
+    (CASE WHEN sqlc.narg(sort_key)::text = 'size' THEN COALESCE(cv.size_bytes, 0) ELSE 0 END)::bigint AS size_key,
+    (CASE WHEN sqlc.narg(sort_key)::text = 'editor' THEN COALESCE(eu.display_name COLLATE "vi-x-icu", '') ELSE '' END)::text AS editor_key,
+    (CASE WHEN sqlc.narg(sort_key)::text = 'editor' THEN NULLIF(btrim(eu.display_name), '') IS NULL ELSE false END)::boolean AS editor_null
+) sk
 WHERE d.organization_id = sqlc.arg(organization_id)
   AND d.workspace_id = sqlc.arg(workspace_id)
   AND d.owner_id IS NULL
@@ -415,7 +490,42 @@ WHERE d.organization_id = sqlc.arg(organization_id)
            AND uw_fold_search(d.title) ILIKE '%' || sqlc.narg(query)::text || '%' ESCAPE '\'))
   AND (sqlc.narg(cursor_position)::float8 IS NULL
        OR (d.position, d.id) > (sqlc.narg(cursor_position), sqlc.narg(cursor_id)::text))
-ORDER BY d.position, d.id
+  -- UNI-2038 S3 keyset of a sorted page: (key, id) past the cursor row in the
+  -- requested direction; an editor-less row (editor_null) is always last.
+  AND (sqlc.narg(sort_cursor_id)::text IS NULL OR CASE sqlc.narg(sort_key)::text
+       WHEN 'updated' THEN CASE WHEN sqlc.arg(sort_desc)::boolean
+            THEN (d.updated_at, d.id COLLATE "C") < (sqlc.narg(sort_cursor_at)::timestamptz, sqlc.narg(sort_cursor_id)::text COLLATE "C")
+            ELSE (d.updated_at, d.id COLLATE "C") > (sqlc.narg(sort_cursor_at)::timestamptz, sqlc.narg(sort_cursor_id)::text COLLATE "C") END
+       WHEN 'size' THEN CASE WHEN sqlc.arg(sort_desc)::boolean
+            THEN (sk.size_key, d.id COLLATE "C") < (sqlc.narg(sort_cursor_num)::bigint, sqlc.narg(sort_cursor_id)::text COLLATE "C")
+            ELSE (sk.size_key, d.id COLLATE "C") > (sqlc.narg(sort_cursor_num)::bigint, sqlc.narg(sort_cursor_id)::text COLLATE "C") END
+       WHEN 'name' THEN CASE WHEN sqlc.arg(sort_desc)::boolean
+            THEN (sk.name_key COLLATE "vi-x-icu", d.id COLLATE "C") < (sqlc.narg(sort_cursor_text)::text COLLATE "vi-x-icu", sqlc.narg(sort_cursor_id)::text COLLATE "C")
+            ELSE (sk.name_key COLLATE "vi-x-icu", d.id COLLATE "C") > (sqlc.narg(sort_cursor_text)::text COLLATE "vi-x-icu", sqlc.narg(sort_cursor_id)::text COLLATE "C") END
+       WHEN 'editor' THEN (sk.editor_null::int > sqlc.narg(sort_cursor_null)::boolean::int
+            OR (sk.editor_null = sqlc.narg(sort_cursor_null)::boolean
+                AND CASE WHEN sqlc.arg(sort_desc)::boolean
+            THEN (sk.editor_key COLLATE "vi-x-icu", d.id COLLATE "C") < (sqlc.narg(sort_cursor_text)::text COLLATE "vi-x-icu", sqlc.narg(sort_cursor_id)::text COLLATE "C")
+            ELSE (sk.editor_key COLLATE "vi-x-icu", d.id COLLATE "C") > (sqlc.narg(sort_cursor_text)::text COLLATE "vi-x-icu", sqlc.narg(sort_cursor_id)::text COLLATE "C") END))
+       ELSE true END)
+-- UNI-2038 S3: no sort_key keeps the list's own order (the first two terms);
+-- a sort_key orders by (key, id) in one direction. Every term is a CASE on a
+-- bound parameter, so the planner folds the unused ones away and a plain
+-- (key, id) order remains.
+ORDER BY
+  (CASE WHEN sqlc.narg(sort_key)::text IS NULL THEN d.position END),
+  (CASE WHEN sqlc.narg(sort_key)::text IS NULL THEN d.id END),
+  (CASE WHEN sqlc.narg(sort_key)::text = 'editor' THEN sk.editor_null END) ASC,
+  (CASE WHEN sqlc.narg(sort_key)::text = 'name' AND NOT sqlc.arg(sort_desc)::boolean THEN sk.name_key
+        WHEN sqlc.narg(sort_key)::text = 'editor' AND NOT sqlc.arg(sort_desc)::boolean THEN sk.editor_key END) COLLATE "vi-x-icu" ASC,
+  (CASE WHEN sqlc.narg(sort_key)::text = 'name' AND sqlc.arg(sort_desc)::boolean THEN sk.name_key
+        WHEN sqlc.narg(sort_key)::text = 'editor' AND sqlc.arg(sort_desc)::boolean THEN sk.editor_key END) COLLATE "vi-x-icu" DESC,
+  (CASE WHEN sqlc.narg(sort_key)::text = 'size' AND NOT sqlc.arg(sort_desc)::boolean THEN sk.size_key END) ASC,
+  (CASE WHEN sqlc.narg(sort_key)::text = 'size' AND sqlc.arg(sort_desc)::boolean THEN sk.size_key END) DESC,
+  (CASE WHEN sqlc.narg(sort_key)::text = 'updated' AND NOT sqlc.arg(sort_desc)::boolean THEN d.updated_at END) ASC,
+  (CASE WHEN sqlc.narg(sort_key)::text = 'updated' AND sqlc.arg(sort_desc)::boolean THEN d.updated_at END) DESC,
+  (CASE WHEN sqlc.narg(sort_key)::text IS NOT NULL AND NOT sqlc.arg(sort_desc)::boolean THEN d.id COLLATE "C" END) ASC,
+  (CASE WHEN sqlc.narg(sort_key)::text IS NOT NULL AND sqlc.arg(sort_desc)::boolean THEN d.id COLLATE "C" END) DESC
 LIMIT sqlc.arg(page_limit);
 
 -- The trash view: manage or edit (workspace admin, the ACL owner, a
@@ -760,13 +870,33 @@ ORDER BY d.position, d.id;
 -- "Recent": documents the actor touched (access log) or last edited
 -- (updated_by), permission-filtered, newest first.
 -- name: ListRecentDocumentsPage :many
-SELECT d.*
+SELECT sqlc.embed(d),
+       sk.name_key AS sort_name, sk.size_key AS sort_size,
+       sk.editor_key AS sort_editor, sk.editor_null AS sort_editor_null
 FROM documents d
 LEFT JOIN document_versions cv
   ON cv.organization_id = d.organization_id
  AND cv.workspace_id = d.workspace_id
  AND cv.document_id = d.id
  AND cv.id = d.file_version_id
+-- UNI-2038 S3: the sort keys of a row, computed once. The name key is the
+-- title itself under the Vietnamese ICU collation (Đ sorts after D, tones and
+-- case variants stay together, whatever the database locale is); the size key is the current
+-- file version's size (0 for a page or a folder); the editor key is the last
+-- editor's display name (same collation), and only a human editor with a name has one - an
+-- agent, a removed account or a blank name sets editor_null and sorts last. Each
+-- key is computed only under its own sort (the others are constants), so an
+-- unsorted list pays nothing for them and the users join runs for sort=editor.
+LEFT JOIN users eu
+  ON eu.id = d.updated_by
+ AND d.updated_by_kind = 'human'
+ AND sqlc.narg(sort_key)::text = 'editor'
+CROSS JOIN LATERAL (SELECT
+    (CASE WHEN sqlc.narg(sort_key)::text = 'name' THEN d.title ELSE '' END COLLATE "vi-x-icu")::text AS name_key,
+    (CASE WHEN sqlc.narg(sort_key)::text = 'size' THEN COALESCE(cv.size_bytes, 0) ELSE 0 END)::bigint AS size_key,
+    (CASE WHEN sqlc.narg(sort_key)::text = 'editor' THEN COALESCE(eu.display_name COLLATE "vi-x-icu", '') ELSE '' END)::text AS editor_key,
+    (CASE WHEN sqlc.narg(sort_key)::text = 'editor' THEN NULLIF(btrim(eu.display_name), '') IS NULL ELSE false END)::boolean AS editor_null
+) sk
 WHERE d.organization_id = sqlc.arg(organization_id)
   AND d.workspace_id = sqlc.arg(workspace_id)
   AND d.owner_id IS NULL
@@ -835,7 +965,42 @@ WHERE d.organization_id = sqlc.arg(organization_id)
                        AND s.principal_id = ANY(sqlc.arg(share_workspaces)::text[]))))))
   AND (sqlc.narg(cursor_at)::timestamptz IS NULL
        OR (d.updated_at, d.id) < (sqlc.narg(cursor_at), sqlc.narg(cursor_id)::text))
-ORDER BY d.updated_at DESC, d.id DESC
+  -- UNI-2038 S3 keyset of a sorted page: (key, id) past the cursor row in the
+  -- requested direction; an editor-less row (editor_null) is always last.
+  AND (sqlc.narg(sort_cursor_id)::text IS NULL OR CASE sqlc.narg(sort_key)::text
+       WHEN 'updated' THEN CASE WHEN sqlc.arg(sort_desc)::boolean
+            THEN (d.updated_at, d.id COLLATE "C") < (sqlc.narg(sort_cursor_at)::timestamptz, sqlc.narg(sort_cursor_id)::text COLLATE "C")
+            ELSE (d.updated_at, d.id COLLATE "C") > (sqlc.narg(sort_cursor_at)::timestamptz, sqlc.narg(sort_cursor_id)::text COLLATE "C") END
+       WHEN 'size' THEN CASE WHEN sqlc.arg(sort_desc)::boolean
+            THEN (sk.size_key, d.id COLLATE "C") < (sqlc.narg(sort_cursor_num)::bigint, sqlc.narg(sort_cursor_id)::text COLLATE "C")
+            ELSE (sk.size_key, d.id COLLATE "C") > (sqlc.narg(sort_cursor_num)::bigint, sqlc.narg(sort_cursor_id)::text COLLATE "C") END
+       WHEN 'name' THEN CASE WHEN sqlc.arg(sort_desc)::boolean
+            THEN (sk.name_key COLLATE "vi-x-icu", d.id COLLATE "C") < (sqlc.narg(sort_cursor_text)::text COLLATE "vi-x-icu", sqlc.narg(sort_cursor_id)::text COLLATE "C")
+            ELSE (sk.name_key COLLATE "vi-x-icu", d.id COLLATE "C") > (sqlc.narg(sort_cursor_text)::text COLLATE "vi-x-icu", sqlc.narg(sort_cursor_id)::text COLLATE "C") END
+       WHEN 'editor' THEN (sk.editor_null::int > sqlc.narg(sort_cursor_null)::boolean::int
+            OR (sk.editor_null = sqlc.narg(sort_cursor_null)::boolean
+                AND CASE WHEN sqlc.arg(sort_desc)::boolean
+            THEN (sk.editor_key COLLATE "vi-x-icu", d.id COLLATE "C") < (sqlc.narg(sort_cursor_text)::text COLLATE "vi-x-icu", sqlc.narg(sort_cursor_id)::text COLLATE "C")
+            ELSE (sk.editor_key COLLATE "vi-x-icu", d.id COLLATE "C") > (sqlc.narg(sort_cursor_text)::text COLLATE "vi-x-icu", sqlc.narg(sort_cursor_id)::text COLLATE "C") END))
+       ELSE true END)
+-- UNI-2038 S3: no sort_key keeps the list's own order (the first two terms);
+-- a sort_key orders by (key, id) in one direction. Every term is a CASE on a
+-- bound parameter, so the planner folds the unused ones away and a plain
+-- (key, id) order remains.
+ORDER BY
+  (CASE WHEN sqlc.narg(sort_key)::text IS NULL THEN d.updated_at END) DESC,
+  (CASE WHEN sqlc.narg(sort_key)::text IS NULL THEN d.id END) DESC,
+  (CASE WHEN sqlc.narg(sort_key)::text = 'editor' THEN sk.editor_null END) ASC,
+  (CASE WHEN sqlc.narg(sort_key)::text = 'name' AND NOT sqlc.arg(sort_desc)::boolean THEN sk.name_key
+        WHEN sqlc.narg(sort_key)::text = 'editor' AND NOT sqlc.arg(sort_desc)::boolean THEN sk.editor_key END) COLLATE "vi-x-icu" ASC,
+  (CASE WHEN sqlc.narg(sort_key)::text = 'name' AND sqlc.arg(sort_desc)::boolean THEN sk.name_key
+        WHEN sqlc.narg(sort_key)::text = 'editor' AND sqlc.arg(sort_desc)::boolean THEN sk.editor_key END) COLLATE "vi-x-icu" DESC,
+  (CASE WHEN sqlc.narg(sort_key)::text = 'size' AND NOT sqlc.arg(sort_desc)::boolean THEN sk.size_key END) ASC,
+  (CASE WHEN sqlc.narg(sort_key)::text = 'size' AND sqlc.arg(sort_desc)::boolean THEN sk.size_key END) DESC,
+  (CASE WHEN sqlc.narg(sort_key)::text = 'updated' AND NOT sqlc.arg(sort_desc)::boolean THEN d.updated_at END) ASC,
+  (CASE WHEN sqlc.narg(sort_key)::text = 'updated' AND sqlc.arg(sort_desc)::boolean THEN d.updated_at END) DESC,
+  (CASE WHEN sqlc.narg(sort_key)::text IS NOT NULL AND NOT sqlc.arg(sort_desc)::boolean THEN d.id COLLATE "C" END) ASC,
+  (CASE WHEN sqlc.narg(sort_key)::text IS NOT NULL AND sqlc.arg(sort_desc)::boolean THEN d.id COLLATE "C" END) DESC
 LIMIT sqlc.arg(page_limit);
 
 -- UNI-1974: the parents of one page of list rows, read in one query so the
