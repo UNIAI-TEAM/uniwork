@@ -88,9 +88,14 @@ export function GlobalShortcuts({ onCreateTask }: { onCreateTask: () => void }) 
 
       event.preventDefault();
       switch (actionId) {
-        case "openSearch":
-          useSearchStore.getState().toggle();
+        case "openSearch": {
+          // A surface with its own search field (chat's conversation list)
+          // answers first, unless a popup owns the keyboard: then the palette
+          // toggles as it does everywhere else.
+          const local = !isPortalLayerShortcutTarget(event.target) && useSearchStore.getState().focusLocalSearch();
+          if (!local) useSearchStore.getState().toggle();
           return;
+        }
         case "ai.askUni":
           useAiPanelStore.getState().toggle();
           return;

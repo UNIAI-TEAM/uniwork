@@ -369,11 +369,11 @@ function hasCommandModifier(shortcut: ShortcutChord): boolean {
 
 /**
  * Cmd/Ctrl+F, with any extra modifier. It belongs to find: the task detail
- * page answers `findInTask`, and the chat page (chat-page-content.tsx) opens
- * message search from a window listener that ignores defaultPrevented, so any
- * other action bound to it would fire alongside that search. The listener
- * matches ctrlKey as well as metaKey, so literal Control+F counts on macOS,
- * as literal Control+B does for the sidebar primitive.
+ * page answers `findInTask`, and the chat page (use-chat-find-shortcut.ts)
+ * opens message search from the same action's chord, so any other action bound
+ * to it would fire alongside that search. Literal Control+F stays reserved on
+ * macOS too: it is the text-field "cursor forward" key and a find chord in
+ * several shells.
  */
 export function isFindShortcut(
   shortcut: ShortcutChord,
