@@ -276,17 +276,25 @@ export function useExportDocumentPage(documentId: string) {
   });
 }
 
+// A refusal may come from a rollout (an engine and a server of different
+// versions) or a credential being rotated: offer the format again after this.
+const PAGE_EXPORT_UNAVAILABLE_MS = 10 * 60_000;
+
 /**
  * Export formats this deployment refused to render (no engine, no PDF
- * renderer): every export menu leaves them out until the page reloads,
- * whichever document or menu mount learned it.
+ * renderer, an engine it cannot use right now): every export menu leaves them
+ * out for PAGE_EXPORT_UNAVAILABLE_MS, whichever document or menu mount learned
+ * it, then offers them again.
  */
 export const usePageExportUnavailable = create<{
   formats: readonly PageExportFormat[];
   markUnavailable: (formats: readonly PageExportFormat[]) => void;
 }>((set) => ({
   formats: [],
-  markUnavailable: (formats) => set((s) => ({ formats: [...new Set([...s.formats, ...formats])] })),
+  markUnavailable: (formats) => {
+    set((s) => ({ formats: [...new Set([...s.formats, ...formats])] }));
+    setTimeout(() => set((s) => ({ formats: s.formats.filter((f) => !formats.includes(f)) })), PAGE_EXPORT_UNAVAILABLE_MS);
+  },
 }));
 
 /**

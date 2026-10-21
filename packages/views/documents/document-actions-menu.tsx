@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useAuthStore } from "@uniwork/core/auth";
+import { usePageExportEnabled } from "@uniwork/core/documents/office-enabled";
 import { useFlag } from "@uniwork/core/feature-flags";
 import { canAdministerDocument } from "@uniwork/core/permissions";
 import { canManageTrashed, isMyFolder, isShelved, type Document } from "@uniwork/core/types/document";
@@ -108,8 +109,8 @@ export function DocumentActionsMenu({
   const folded = useHeaderActionsSlotFilled();
   const comments = useDocumentCommentsChrome();
   const commentsEnabled = useFlag("documents", false);
-  // Page export (UNI-2004): any reader of a live page, behind page_export.
-  const pageExportEnabled = useFlag("page_export", false);
+  // Page export (UNI-2004): any reader of a live page, behind page_export at the page's organization.
+  const pageExportEnabled = usePageExportEnabled(doc.organization_id);
   const pageExport = usePageExport(doc);
 
   type ItemId = Exclude<PanelId, null> | "export_docx" | "export_pdf";

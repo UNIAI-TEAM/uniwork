@@ -44,7 +44,7 @@ function fileName(title: string, format: PageExportFormat): string {
  * Exports a UniNote page (UNI-2004) and hands the file to the browser, named
  * by the server (the page title) or by the title the client has. One export
  * runs at a time; a format the deployment cannot render is reported once and
- * then left out of the menu for the rest of the session.
+ * then left out of the menu for a while (usePageExportUnavailable).
  */
 export function usePageExport(doc: Document): {
   exportPage: (format: PageExportFormat) => void;

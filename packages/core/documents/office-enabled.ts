@@ -74,3 +74,16 @@ export function useOfficeTxtOpenEnabled(organizationId: string | undefined): Off
   if (scoped.data) return scoped.data.flags[OFFICE_TXT_OPEN_FLAG] === true ? "on" : "off";
   return scoped.isError ? "unknown" : "loading";
 }
+
+/**
+ * Whether a UniNote page owned by `organizationId` may be exported
+ * (`page_export`, UNI-2004, default off). The export route checks the flag at
+ * the page's organization, whose overrides only evaluate when /config is asked
+ * for it; only a settled `true` there offers the export. A page with no
+ * organization reads the host's flag.
+ */
+export function usePageExportEnabled(organizationId: string | undefined): boolean {
+  const global = useFlag("page_export", false);
+  const scoped = useOrganizationConfig(organizationId);
+  return organizationId ? scoped.data?.flags.page_export === true : global;
+}

@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { QueryClient } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@uniwork/core/api";
 import { usePageExportUnavailable } from "@uniwork/core/documents/hooks";
@@ -454,16 +455,26 @@ describe("DocumentActionsMenu ?access=requests (DOC7-W02)", () => {
 
 describe("DocumentActionsMenu page export (UNI-2004)", () => {
   const page = () => documentFixture({ kind: "page", file: null, title: "Biên bản họp", my_level: "view" });
-  const renderWithFlags = (doc: Document, flags: Record<string, { default: boolean }>) =>
-    render(
+  /** `flags` for the host; the page's organization answers `orgFlags` (by default the same). */
+  const renderWithFlags = (
+    doc: Document,
+    flags: Record<string, { default: boolean }>,
+    orgFlags: Record<string, boolean> = Object.fromEntries(Object.entries(flags).map(([key, flag]) => [key, flag.default])),
+  ) => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    client.setQueryData(["office-public-config", ORG], { flags: orgFlags });
+    return render(
       wrapWithNav(
         <FeatureFlagsProvider service={new FeatureFlagService(new StaticProvider(flags))}>
           <WorkspaceProvider workspace={workspace} user={user}>
             <DocumentActionsMenu wsId={WS} doc={doc} />
           </WorkspaceProvider>
         </FeatureFlagsProvider>,
+        undefined,
+        client,
       ),
     );
+  };
   const stubSave = () => {
     Object.assign(URL, { createObjectURL: vi.fn(() => "blob:page"), revokeObjectURL: vi.fn() });
     return vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
@@ -560,11 +571,21 @@ describe("DocumentActionsMenu page export (UNI-2004)", () => {
     await openMenu();
     expect(screen.queryByRole("menuitem", { name: t("documents.actions.export_pdf") })).toBeNull();
     expect(screen.getByRole("menuitem", { name: t("documents.actions.export_docx") })).toBeInTheDocument();
-    // For the rest of the session: a menu mounted again, on any page, still leaves it out.
+    // For a while: a menu mounted again, on any page, still leaves it out.
     unmount();
     renderWithFlags(page(), { page_export: { default: true } });
     await openMenu();
     expect(screen.queryByRole("menuitem", { name: t("documents.actions.export_pdf") })).toBeNull();
+  });
+
+  it("reads page_export where the export route does: at the page's organization", async () => {
+    const { unmount } = renderWithFlags(page(), { page_export: { default: false } }, { page_export: true });
+    await openMenu();
+    expect(screen.getByRole("menuitem", { name: t("documents.actions.export_docx") })).toBeInTheDocument();
+    unmount();
+    renderWithFlags(page(), { page_export: { default: true } }, { page_export: false });
+    await openMenu();
+    expect(screen.queryByRole("menuitem", { name: t("documents.actions.export_docx") })).toBeNull();
   });
 
   it("offers no export when page_export is off, or on a file document", async () => {
