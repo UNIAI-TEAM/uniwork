@@ -27,6 +27,8 @@ describe("query and mutation error reporters", () => {
     ]);
   });
 
+  // Offline is status 0: data/api.ts turns React Native's network TypeError and
+  // its own timeout into one (data/api.test.ts drives the real fetch failure).
   it("stay quiet for the expected: offline and 4xx", () => {
     reportQueryError(apiError(0), { queryKey: ["me"] });
     reportMutationError(apiError(403), {}, undefined, { options: {} });

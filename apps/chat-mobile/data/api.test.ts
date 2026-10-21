@@ -10,6 +10,7 @@ const sessionMock = vi.hoisted(() => ({
 vi.mock("./auth/flow", () => ({ session: sessionMock }));
 
 import { ApiError, api, createApiClient } from "./api";
+import { installReportSink, isExpectedError, reportError } from "./report";
 
 const json = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
@@ -112,6 +113,29 @@ describe("api client", () => {
     expect(fetchMock.mock.calls[0]?.[1]?.signal?.aborted).toBe(false);
     await vi.advanceTimersByTimeAsync(1);
     expect(await settled).toMatchObject({ name: "ApiError", status: 0, message: expect.stringMatching(/timed out/) });
+  });
+
+  it("a network failure (React Native's fetch TypeError) is an ApiError status 0 that crash reporting does not send", async () => {
+    // What RN's fetch rejects with when there is no route to the server: DNS, a captive portal, the server down.
+    const failure = new TypeError("Network request failed");
+    fetchMock.mockRejectedValueOnce(failure);
+    const error = await api.getMe().catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(ApiError);
+    expect(error).toMatchObject({ name: "ApiError", status: 0, message: "Network request failed", cause: failure });
+    expect(isExpectedError(error)).toBe(true);
+    const captureException = vi.fn();
+    installReportSink({ captureException, addBreadcrumb: vi.fn(), setUser: vi.fn(), setTag: vi.fn() });
+    reportError(error, { source: "query" });
+    installReportSink(null);
+    expect(captureException).not.toHaveBeenCalled();
+    fetchMock.mockRejectedValueOnce(new TypeError());
+    await expect(api.getMe()).rejects.toMatchObject({ status: 0, message: "Network request failed" });
+  });
+
+  it("any other fetch rejection is rethrown as it is", async () => {
+    const bug = new RangeError("bad header");
+    fetchMock.mockRejectedValueOnce(bug);
+    await expect(api.getMe()).rejects.toBe(bug);
   });
 
   it("posts and deletes push subscriptions with the Expo token and platform; 204 is fine", async () => {

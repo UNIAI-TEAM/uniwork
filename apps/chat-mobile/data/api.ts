@@ -101,6 +101,16 @@ export function createApiClient(deps: ApiClientDeps) {
       if (controller.signal.aborted && !caller?.aborted) {
         throw new ApiError(`Request timed out after ${timeoutMs}ms`, 0);
       }
+      // React Native's fetch rejects with TypeError("Network request failed")
+      // when the server cannot be reached (DNS, a captive portal, a dead link
+      // that NetInfo still calls online). That is the network, not a bug:
+      // status 0, like the timeout, so crash reporting leaves it out
+      // (data/report.ts) and a send retries it (lib/send-pipeline.ts).
+      if (error instanceof TypeError) {
+        const offline = new ApiError(error.message || "Network request failed", 0);
+        offline.cause = error;
+        throw offline;
+      }
       throw error;
     } finally {
       clearTimeout(timer);
