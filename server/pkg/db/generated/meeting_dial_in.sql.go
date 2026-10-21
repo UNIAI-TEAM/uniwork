@@ -95,6 +95,30 @@ func (q *Queries) DialInPinTaken(ctx context.Context, arg DialInPinTakenParams) 
 	return exists, err
 }
 
+const dialInSweepTryLock = `-- name: DialInSweepTryLock :one
+SELECT pg_try_advisory_lock($1::bigint) AS locked
+`
+
+// Run lease of the dial-in sweep (the file_gc pattern): a session lock held
+// on one connection for the sweep, so only one replica sweeps per tick.
+func (q *Queries) DialInSweepTryLock(ctx context.Context, lockKey int64) (bool, error) {
+	row := q.db.QueryRow(ctx, dialInSweepTryLock, lockKey)
+	var locked bool
+	err := row.Scan(&locked)
+	return locked, err
+}
+
+const dialInSweepUnlock = `-- name: DialInSweepUnlock :one
+SELECT pg_advisory_unlock($1::bigint) AS unlocked
+`
+
+func (q *Queries) DialInSweepUnlock(ctx context.Context, lockKey int64) (bool, error) {
+	row := q.db.QueryRow(ctx, dialInSweepUnlock, lockKey)
+	var unlocked bool
+	err := row.Scan(&unlocked)
+	return unlocked, err
+}
+
 const fillMeetingDialInPin = `-- name: FillMeetingDialInPin :one
 UPDATE meetings SET dial_in_pin = DEFAULT
 WHERE id = $1 AND dial_in_pin IS NULL

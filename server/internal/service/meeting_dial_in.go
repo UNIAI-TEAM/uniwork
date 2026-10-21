@@ -47,6 +47,8 @@ const (
 	dialInCallBudget = 10 * time.Second
 	// dialInSweepBudget bounds one whole sweep, under its 15 s interval.
 	dialInSweepBudget = 12 * time.Second
+	// dialInSweepLockKey is the sweep's run lease ("unisip").
+	dialInSweepLockKey int64 = 0x756e69736970
 )
 
 // dialInActor attributes PIN rotations the server makes itself (a PIN another
@@ -310,8 +312,9 @@ func (s *MeetingService) deleteDialInRule(ctx context.Context, meetingID, ruleID
 	}
 }
 
-// sweepDialIn is the 15 s worker: every meeting holding a rule, and with
-// dial-in configured every meeting in progress without one, goes through
+// sweepDialIn is the 15 s worker, run by one replica at a time: every
+// meeting holding a rule, and with dial-in configured every meeting in
+// progress without one, goes through
 // ensureDialIn, then its phone connections are checked (a hold the webhook
 // missed). It repairs a Start or End whose provider call failed, and deletes
 // stray uniwork rules.
@@ -327,6 +330,21 @@ func (s *MeetingService) sweepDialIn(ctx context.Context) error {
 	// 15 s tick into minutes; what it cuts short, the next tick picks up.
 	ctx, cancel := context.WithTimeout(ctx, dialInSweepBudget)
 	defer cancel()
+	// One replica per tick (works without Redis): the others skip.
+	conn, err := s.pool.Acquire(ctx)
+	if err != nil {
+		return err
+	}
+	defer conn.Release()
+	lockQ := db.New(conn)
+	if locked, err := lockQ.DialInSweepTryLock(ctx, dialInSweepLockKey); err != nil || !locked {
+		return err
+	}
+	defer func() {
+		if _, err := lockQ.DialInSweepUnlock(context.WithoutCancel(ctx), dialInSweepLockKey); err != nil {
+			slog.Warn("meeting dial-in: release sweep lease", "err", err)
+		}
+	}()
 	ids, err := s.q.ListDialInSweepMeetings(ctx, db.ListDialInSweepMeetingsParams{WithEnsure: s.dialInConfigured(), RowLimit: dialInSweepBatch})
 	if err != nil {
 		return err

@@ -253,6 +253,42 @@ func TestDialInSweepBatchTakesRuleHoldersFirst(t *testing.T) {
 	}
 }
 
+// One replica sweeps per tick: while another holds the run lease, a sweep
+// does nothing.
+func TestDialInSweepRunsOnOneReplicaAtATime(t *testing.T) {
+	s, fake, ua, _, m := dialInFixture(t)
+	ctx := context.Background()
+	fake.DialInRuleErr = errors.New("sip down")
+	n, err := s.CreateInstant(ctx, ua.ID, m.WorkspaceID, "Chờ sweep")
+	if err != nil {
+		t.Fatal(err)
+	}
+	fake.DialInRuleErr = nil
+	other, err := s.pool.Acquire(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer other.Release()
+	if _, err := other.Exec(ctx, `SELECT pg_advisory_lock($1)`, dialInSweepLockKey); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.sweepDialIn(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if reloadMeeting(t, s, n.ID).SipDispatchRuleID.Valid {
+		t.Fatal("swept while another replica held the run lease")
+	}
+	if _, err := other.Exec(ctx, `SELECT pg_advisory_unlock($1)`, dialInSweepLockKey); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.sweepDialIn(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if !reloadMeeting(t, s, n.ID).SipDispatchRuleID.Valid {
+		t.Fatal("the sweep did nothing once the lease was free")
+	}
+}
+
 func dialInAuditCount(t *testing.T, s *MeetingService, meetingID, action, kind string) int {
 	t.Helper()
 	var n int

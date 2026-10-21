@@ -30,6 +30,14 @@ SELECT EXISTS (
 -- same PIN, is refused by the first's rule and rotates the PIN people hold.
 SELECT pg_advisory_xact_lock(hashtextextended('meeting_dial_in:' || sqlc.arg(meeting_id)::text, 0));
 
+-- name: DialInSweepTryLock :one
+-- Run lease of the dial-in sweep (the file_gc pattern): a session lock held
+-- on one connection for the sweep, so only one replica sweeps per tick.
+SELECT pg_try_advisory_lock(sqlc.arg('lock_key')::bigint) AS locked;
+
+-- name: DialInSweepUnlock :one
+SELECT pg_advisory_unlock(sqlc.arg('lock_key')::bigint) AS unlocked;
+
 -- name: SetMeetingDialInRule :execrows
 -- tenant: by-id
 -- Records the rule only while it still fits: the meeting is in progress, has
