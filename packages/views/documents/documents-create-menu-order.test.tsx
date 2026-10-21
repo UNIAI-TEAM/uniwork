@@ -69,14 +69,38 @@ describe("New menu: plain text entry (UNI-2046)", () => {
   });
 });
 
-describe("Quick create strip: no plain text (UNI-2046, user 2026-10-21 \"không cần quick create txt\")", () => {
-  it("offers no txt chip while the New menu keeps its entry right under Markdown", async () => {
+describe("Quick create strip (UNI-2047 N-05: UniNote and Office only, user 2026-10-21)", () => {
+  const stripChips = () => screen.getAllByRole("button").map((b) => (b.textContent ?? "").trim());
+  const chips = (...types: string[]) => types.map((type) => t(`documents.home.create.${type}.chip`));
+
+  it("offers UniNote, DOCX, XLSX and PPTX; Markdown, HTML, PDF and plain text live only in the New menu", async () => {
     render(wrap(<QuickCreateRow pending={false} unavailable={new Set()} onCreate={vi.fn()} />));
-    const chips = screen.getAllByRole("button").map((b) => (b.textContent ?? "").trim());
-    expect(chips).toEqual(
-      ["page", "docx", "xlsx", "pptx", "md", "html", "pdf"].map((type) => t(`documents.home.create.${type}.chip`)),
-    );
+    expect(stripChips()).toEqual(chips("page", "docx", "xlsx", "pptx"));
     expect(screen.queryByTitle(".txt")).toBeNull();
     expect(t("documents.home.create.txt.chip")).toBe("documents.home.create.txt.chip");
+  });
+
+  it.each(["md", "html", "pdf"] as const)("adds one %s pill after the four when it was created last", (recent) => {
+    const onCreate = vi.fn();
+    render(wrap(<QuickCreateRow pending={false} unavailable={new Set()} onCreate={onCreate} recentType={recent} />));
+    expect(stripChips()).toEqual(chips("page", "docx", "xlsx", "pptx", recent));
+    fireEvent.click(screen.getByRole("button", { name: new RegExp(t(`documents.home.create.${recent}.chip`)) }));
+    expect(onCreate).toHaveBeenCalledWith(recent);
+  });
+
+  it.each(["page", "docx", "xlsx", "pptx", "txt", null, undefined] as const)(
+    "adds no pill when the last type is %s",
+    (recent) => {
+      render(wrap(<QuickCreateRow pending={false} unavailable={new Set()} onCreate={vi.fn()} recentType={recent} />));
+      expect(stripChips()).toEqual(chips("page", "docx", "xlsx", "pptx"));
+    },
+  );
+
+  it("greys the extra pill like the others when the server cannot create that type", () => {
+    render(wrap(<QuickCreateRow pending={false} unavailable={new Set(["pdf"] as const)} onCreate={vi.fn()} recentType="pdf" />));
+    expect(screen.getByRole("button", { name: new RegExp(t("documents.home.create.pdf.chip")) })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
   });
 });

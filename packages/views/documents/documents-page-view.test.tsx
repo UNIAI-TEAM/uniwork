@@ -26,6 +26,7 @@ const LEGACY_FOLDER_SORT_KEY = "uniwork_documents_folder_sort";
 const legacyFolderSortKey = (userId: string) => `${LEGACY_FOLDER_SORT_KEY}:${userId}`;
 const SORT_KEY = "uniwork_documents_sort";
 const userSortKey = (userId: string) => `${SORT_KEY}:${userId}`;
+const lastCreateKey = (wsId: string) => `uniwork:documents:last-create-type:${wsId}`;
 const storedSort = (userId: string) => {
   const raw = defaultStorage.getItem(userSortKey(userId));
   return raw ? (JSON.parse(raw) as unknown) : null;
@@ -123,6 +124,7 @@ beforeEach(() => {
     defaultStorage.removeItem(legacyFolderSortKey(user));
     defaultStorage.removeItem(userSortKey(user));
   }
+  for (const ws of [WS, "ws2"]) defaultStorage.removeItem(lastCreateKey(ws));
   setSessionUser({
     id: "u1",
     email: "an@example.com",
@@ -222,7 +224,7 @@ describe("DocumentsPageView", () => {
 
     expect(await screen.findByText(t("documents.home.empty.title"))).toBeInTheDocument();
     const strip = screen.getByRole("region", { name: t("documents.home.quick_create.label") });
-    for (const type of ["page", "docx", "xlsx", "pptx", "md", "html", "pdf"]) {
+    for (const type of ["page", "docx", "xlsx", "pptx"]) {
       expect(within(strip).getByRole("button", { name: new RegExp(escape(t(`documents.home.create.${type}.chip`))) })).toBeInTheDocument();
     }
     expect(screen.getByRole("button", { name: t("documents.home.create.upload.button") })).toBeInTheDocument();
@@ -516,16 +518,116 @@ describe("DocumentsPageView", () => {
     expect((call?.[1] as { body?: { title?: string } }).body?.title).toBe(t("documents.page.new_page"));
   });
 
-  it("keeps plain text out of the Tạo nhanh strip: no txt pill, the other seven stay", async () => {
+  it("keeps the Tạo nhanh strip to UniNote, DOCX, XLSX and PPTX, with no txt pill", async () => {
     route({ list: () => [] });
     renderView(vi.fn());
 
     const strip = await screen.findByRole("region", { name: t("documents.home.quick_create.label") });
     const names = within(strip).getAllByRole("button").map((b) => (b.textContent ?? "").trim());
     expect(names).toEqual(
-      ["page", "docx", "xlsx", "pptx", "md", "html", "pdf"].map((type) => t(`documents.home.create.${type}.chip`)),
+      ["page", "docx", "xlsx", "pptx"].map((type) => t(`documents.home.create.${type}.chip`)),
     );
     expect(within(strip).queryByTitle(".txt")).toBeNull();
+  });
+
+  describe("the last-created pill", () => {
+    const stripNames = async () => {
+      const strip = await screen.findByRole("region", { name: t("documents.home.quick_create.label") });
+      return within(strip).getAllByRole("button").map((b) => (b.textContent ?? "").trim());
+    };
+    const chips = (...types: string[]) => types.map((type) => t(`documents.home.create.${type}.chip`));
+
+    it("shows a pill for a Markdown file after creating one from the New menu, and keeps it for next time", async () => {
+      const onOpen = vi.fn();
+      route({ list: () => [], post: () => ({ document: file("n3", t("documents.home.default_names.md")) }) });
+      const first = renderView(onOpen);
+      expect(await stripNames()).toEqual(chips("page", "docx", "xlsx", "pptx"));
+
+      fireEvent.click(screen.getByRole("button", { name: new RegExp(t("documents.home.create.menu")) }));
+      fireEvent.click(await screen.findByRole("menuitem", { name: new RegExp(t("documents.home.create.md.menu")) }));
+
+      await waitFor(() => expect(onOpen).toHaveBeenCalledWith("n3"));
+      await waitFor(async () => expect(await stripNames()).toEqual(chips("page", "docx", "xlsx", "pptx", "md")));
+      expect(defaultStorage.getItem(lastCreateKey(WS))).toBe("md");
+
+      // a fresh mount (a reload) still has it
+      first.unmount();
+      renderView(vi.fn());
+      expect(await stripNames()).toEqual(chips("page", "docx", "xlsx", "pptx", "md"));
+    });
+
+    it("creates from the extra pill like from any other", async () => {
+      defaultStorage.setItem(lastCreateKey(WS), "pdf");
+      const onOpen = vi.fn();
+      route({ list: () => [], post: () => ({ document: file("n4", t("documents.home.default_names.pdf")) }) });
+      renderView(onOpen);
+
+      fireEvent.click(await pillButton("pdf"));
+
+      await waitFor(() => expect(onOpen).toHaveBeenCalledWith("n4"));
+      expect((postCall("POST")?.[1] as { body?: { format?: string } }).body?.format).toBe("pdf");
+    });
+
+    it("adds no pill when the last type is one of the four, whatever created it", async () => {
+      const onOpen = vi.fn();
+      route({ list: () => [], post: () => ({ document: file("n5", t("documents.home.default_names.docx")) }) });
+      renderView(onOpen);
+
+      fireEvent.click(await pillButton("docx"));
+
+      await waitFor(() => expect(onOpen).toHaveBeenCalledWith("n5"));
+      expect(defaultStorage.getItem(lastCreateKey(WS))).toBe("docx");
+      expect(await stripNames()).toEqual(chips("page", "docx", "xlsx", "pptx"));
+    });
+
+    it("drops the extra pill once a strip type is created after it", async () => {
+      defaultStorage.setItem(lastCreateKey(WS), "html");
+      route({ list: () => [], post: () => ({ document: summary() }) });
+      renderView(vi.fn());
+      expect(await stripNames()).toEqual(chips("page", "docx", "xlsx", "pptx", "html"));
+
+      fireEvent.click(await pillButton("page"));
+
+      await waitFor(async () => expect(await stripNames()).toEqual(chips("page", "docx", "xlsx", "pptx")));
+    });
+
+    it("is per workspace: another workspace's last type does not show here", async () => {
+      defaultStorage.setItem(lastCreateKey("ws2"), "pdf");
+      route({ list: () => [] });
+      renderView(vi.fn());
+      expect(await stripNames()).toEqual(chips("page", "docx", "xlsx", "pptx"));
+    });
+
+    it("ignores a stored value that is not a create type, and never offers Plain text as a pill", async () => {
+      for (const stored of ["bogus", "txt", ""]) {
+        defaultStorage.setItem(lastCreateKey(WS), stored);
+        route({ list: () => [] });
+        const view = renderView(vi.fn());
+        expect(await stripNames()).toEqual(chips("page", "docx", "xlsx", "pptx"));
+        view.unmount();
+      }
+    });
+
+    it("keeps working when storage cannot be read or written", async () => {
+      const getSpy = vi.spyOn(defaultStorage, "getItem").mockImplementation(() => {
+        throw new Error("blocked");
+      });
+      const setSpy = vi.spyOn(defaultStorage, "setItem").mockImplementation(() => {
+        throw new Error("blocked");
+      });
+      try {
+        const onOpen = vi.fn();
+        route({ list: () => [], post: () => ({ document: file("n6", t("documents.home.default_names.md")) }) });
+        renderView(onOpen);
+        fireEvent.click(await screen.findByRole("button", { name: new RegExp(t("documents.home.create.menu")) }));
+        fireEvent.click(await screen.findByRole("menuitem", { name: new RegExp(t("documents.home.create.md.menu")) }));
+        await waitFor(() => expect(onOpen).toHaveBeenCalledWith("n6"));
+        expect(await stripNames()).toEqual(chips("page", "docx", "xlsx", "pptx", "md"));
+      } finally {
+        getSpy.mockRestore();
+        setSpy.mockRestore();
+      }
+    });
   });
 
   it("creates a blank file with its default name from a pill, then opens the editor", async () => {

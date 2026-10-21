@@ -16,7 +16,7 @@ import { DocumentTypeIcon } from "./document-type-icon";
 import {
   CREATE_MENU_TYPES,
   CREATE_TYPES,
-  QUICK_CREATE_TYPES,
+  quickCreateTypes,
   type CreateMenuType,
   type CreateType,
 } from "./documents-create";
@@ -26,6 +26,8 @@ export interface CreateChoicesProps {
   unavailable: ReadonlySet<CreateType>;
   /** A create is always private; sharing is chosen in the first-save dialog or the Share dialog (UNI-2038). */
   onCreate: (type: CreateType) => void;
+  /** The type this person created last here; the Tạo nhanh strip adds a pill for it when it is not one of the fixed four. */
+  recentType?: CreateType | null;
   onUpload: () => void;
   /** Present when the server takes folder uploads (UNI-2052): the toolbar Upload opens a files / folder menu and the New menu gets "Tải lên thư mục". Absent = the same toolbar control uploads files at once. */
   onUploadFolder?: () => void;
@@ -42,13 +44,14 @@ export function QuickCreateRow({
   pending,
   unavailable,
   onCreate,
-}: Pick<CreateChoicesProps, "pending" | "unavailable" | "onCreate">) {
+  recentType,
+}: Pick<CreateChoicesProps, "pending" | "unavailable" | "onCreate" | "recentType">) {
   const { t } = useTranslation();
 
   return (
     <section aria-label={t("documents.home.quick_create.label")} className="flex flex-wrap items-center gap-2">
       <span className="mr-1 text-caption text-muted-foreground">{t("documents.home.quick_create.label")}</span>
-      {QUICK_CREATE_TYPES.map((type) => {
+      {quickCreateTypes(recentType).map((type) => {
         const off = unavailable.has(type);
         const hint = off ? t("documents.home.create.unavailable_hint") : t(`documents.home.create.${type}.hint`);
         return (
