@@ -1,8 +1,8 @@
 {
   "schema": 1,
-  "pinVersion": "0.1.0-d57e60f",
-  "forkSha": "d57e60f",
-  "capturedOn": "2026-10-20T19:04:47.490Z",
+  "pinVersion": "0.1.0-929f0ca",
+  "forkSha": "929f0ca",
+  "capturedOn": "2026-10-21T04:06:12.451Z",
   "viewport": {
     "desktop": {
       "w": 1440,
@@ -64,7 +64,7 @@
       "masks": []
     },
     "web/fx-md-notes-vi": {
-      "sha256": "e0805178dd88052661fb30a9537b168e0def7a9ce00927b07dea5352374e2562",
+      "sha256": "76d5ebda6544fea4c992b2a39522060087f72ba5137fb38dd42dce07b1f73535",
       "masks": []
     },
     "web/fx-html-page-vi": {
