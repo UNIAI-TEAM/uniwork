@@ -398,8 +398,11 @@ export function useFolderUpload({
     if (!reportView) return;
     const { name, report: last, channel } = reportView;
     const handle = channel.handle;
-    if (!handle || channel.retryToast) return;
+    if (!handle) return;
     setReportView(null);
+    // A retry already runs (this report was reopened from the first toast): its own toast shows it. Closing is all
+    // there is to do, and it never cancels (R2-1).
+    if (channel.retryToast) return;
     const retryToast = createFolderUploadToast({
       t,
       name,
@@ -426,43 +429,48 @@ export function useFolderUpload({
     );
   };
 
-  const dialogs: ReactNode = available ? (
+  const dialogs: ReactNode = (
     <>
-      <input
-        ref={(node) => {
-          inputRef.current = node;
-          // React has no prop for the directory attribute.
-          node?.setAttribute("webkitdirectory", "");
-        }}
-        type="file"
-        multiple
-        hidden
-        tabIndex={-1}
-        aria-hidden
-        data-testid="folder-upload-input"
-        onChange={(event) => {
-          const files = event.target.files;
-          if (files && files.length > 0) addFolders([entriesFromInputFiles(files)]);
-          // The same folder picked twice must still fire onChange.
-          event.target.value = "";
-        }}
-      />
-      <FolderUploadDialog
-        open={head !== null}
-        onOpenChange={(open) => {
-          if (open) return;
-          if (pending) cancelPending();
-          else dismissHead();
-        }}
-        plan={plan}
-        destinationName={head?.destination.name ?? destinationName}
-        parentShared={head?.destination.shared ?? false}
-        queued={Math.max(0, queue.length - 1)}
-        pending={pending}
-        waiting={waiting}
-        error={error}
-        onSubmit={(options) => void confirm(options)}
-      />
+      {available ? (
+        <>
+          <input
+            ref={(node) => {
+              inputRef.current = node;
+              // React has no prop for the directory attribute.
+              node?.setAttribute("webkitdirectory", "");
+            }}
+            type="file"
+            multiple
+            hidden
+            tabIndex={-1}
+            aria-hidden
+            data-testid="folder-upload-input"
+            onChange={(event) => {
+              const files = event.target.files;
+              if (files && files.length > 0) addFolders([entriesFromInputFiles(files)]);
+              // The same folder picked twice must still fire onChange.
+              event.target.value = "";
+            }}
+          />
+          <FolderUploadDialog
+            open={head !== null}
+            onOpenChange={(open) => {
+              if (open) return;
+              if (pending) cancelPending();
+              else dismissHead();
+            }}
+            plan={plan}
+            destinationName={head?.destination.name ?? destinationName}
+            parentShared={head?.destination.shared ?? false}
+            queued={Math.max(0, queue.length - 1)}
+            pending={pending}
+            waiting={waiting}
+            error={error}
+            onSubmit={(options) => void confirm(options)}
+          />
+        </>
+      ) : null}
+      {/* Outside the gate (R3-1): the report needs no create right, and "Xem" must work wherever the page has moved to. */}
       <FolderUploadReportDialog
         open={reportView !== null}
         onOpenChange={(open) => {
@@ -479,7 +487,7 @@ export function useFolderUpload({
         onRetry={retryFailed}
       />
     </>
-  ) : null;
+  );
 
   return { available, openPicker, addFolders, addFiles, dialogs };
 }

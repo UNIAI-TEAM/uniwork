@@ -159,3 +159,22 @@ describe("createFolderUploadToast", () => {
     expect(toast.dismiss).toHaveBeenCalledWith(toast.loading.mock.calls[0]?.[1].id);
   });
 });
+
+// review-fe-r3 R3-2: the closed form has no action and asks for no decision, so it expires.
+describe("the closed toast (R3-2)", () => {
+  it("has a finite duration, while the Xem form stays until the person acts", () => {
+    const { handle } = make();
+    handle.settle(settled({ done: 38, failed: 2 }));
+    expect(toast.warning.mock.calls[0]?.[1].duration).toBe(Number.POSITIVE_INFINITY);
+    handle.close();
+    const closed = toast.warning.mock.calls[1]?.[1];
+    expect(closed.action).toBeUndefined();
+    expect(Number.isFinite(closed.duration)).toBe(true);
+  });
+
+  it("has a finite duration for an expired run settled after the page is gone", () => {
+    const { handle } = make();
+    handle.settle(settled({ done: 10, failed: 30, expired: true, closed: true }));
+    expect(Number.isFinite(toast.warning.mock.calls[0]?.[1].duration)).toBe(true);
+  });
+});

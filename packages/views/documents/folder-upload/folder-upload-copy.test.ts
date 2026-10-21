@@ -249,6 +249,15 @@ describe("files-mode copy", () => {
     expect(runErrorMessage(t, refused("idempotency_payload_mismatch"), "vi")).toContain("chọn lại thư mục");
   });
 
+  // review-fe-r3 R3-4: the unnamed invalid_request sentence has a files variant too.
+  it("never names a folder in the unnamed files-mode invalid_request sentence", () => {
+    const vi = runErrorMessage(t, refused("invalid_request", {}), "vi", "files");
+    expect(vi).toBe("Tên tệp không hợp lệ. Hãy đổi tên rồi thử lại.");
+    expect(vi).not.toContain("thư mục");
+    expect(runErrorMessage(en, refused("invalid_request", {}), "en", "files")).not.toMatch(/folder/i);
+    expect(runErrorMessage(t, refused("invalid_request", {}), "vi")).toContain("thư mục");
+  });
+
   it("names the files, not a folder, in a files-mode refusal", () => {
     expect(refusalMessage(t, { code: "nothing_to_upload" }, "vi", { mode: "files" })).toBe("Không có tệp nào tải lên được.");
     expect(refusalMessage(t, { code: "too_deep", limit: 20, actual: 21 }, "vi", { mode: "files" })).toBe(

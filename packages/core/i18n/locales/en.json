@@ -10157,6 +10157,7 @@
         "document_too_deep_files": "The destination folder is nested too deeply — {{max}} levels at most.",
         "document_parent_kind": "You can’t upload into this item. Pick a folder.",
         "invalid_request": "A file or folder name isn’t valid. Rename it and try again.",
+        "invalid_request_files": "A file name isn’t valid. Rename it and try again.",
         "folder_upload_file_settled": "The server couldn’t confirm a file yet. Try again in a few minutes.",
         "folder_upload_target_signed": "Couldn’t reach storage. Try again in a few minutes.",
         "invalid_request_named": "The name “{{file}}” isn’t valid. Rename it and try again.",

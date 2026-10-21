@@ -10150,6 +10150,7 @@
         "document_too_deep_files": "Thư mục đích đã lồng quá sâu — tối đa {{max}} cấp.",
         "document_parent_kind": "Không thể tải vào mục này. Hãy chọn một thư mục.",
         "invalid_request": "Tên tệp hoặc thư mục không hợp lệ. Hãy đổi tên rồi thử lại.",
+        "invalid_request_files": "Tên tệp không hợp lệ. Hãy đổi tên rồi thử lại.",
         "folder_upload_file_settled": "Máy chủ chưa xác nhận được tệp. Thử lại sau ít phút.",
         "folder_upload_target_signed": "Không kết nối được kho lưu trữ. Thử lại sau ít phút.",
         "invalid_request_named": "Tên \"{{file}}\" không hợp lệ. Hãy đổi tên rồi thử lại.",

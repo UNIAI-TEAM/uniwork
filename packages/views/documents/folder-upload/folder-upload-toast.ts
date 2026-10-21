@@ -27,6 +27,8 @@ export interface FolderUploadToast {
   dismiss: () => void;
 }
 
+const CLOSED_TOAST_MS = 10000;
+
 /**
  * ONE sonner toast for a whole run (UNI-2052): it is created as the progress
  * line with "Hủy tất cả", then the same id turns into the end state. Never one
@@ -77,7 +79,7 @@ export function createFolderUploadToast({
     if (expired) {
       toast.warning(t("documents.folder_upload.toast.expired", { name: title, done, total: runTotal, ...ctx }), {
         id,
-        duration: Number.POSITIVE_INFINITY,
+        duration: closed ? CLOSED_TOAST_MS : Number.POSITIVE_INFINITY,
         action: viewFailures,
       });
       return;
@@ -85,7 +87,8 @@ export function createFolderUploadToast({
     if (failed > 0) {
       toast.warning(t("documents.folder_upload.toast.partial", { done, total: runTotal, failed }), {
         id,
-        duration: Number.POSITIVE_INFINITY,
+        // The "Xem" form asks for a decision and stays; the closed form only informs, so it expires.
+        duration: closed ? CLOSED_TOAST_MS : Number.POSITIVE_INFINITY,
         action: viewFailures,
         description: closed ? t("documents.folder_upload.toast.closed") : undefined,
       });

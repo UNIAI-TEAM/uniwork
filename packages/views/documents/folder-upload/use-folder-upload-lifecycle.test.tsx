@@ -56,7 +56,7 @@ function Harness(props: UseFolderUploadOptions) {
 }
 
 function setup(over: Partial<UseFolderUploadOptions> = {}, fake: FakeFolderUploadOptions = {}) {
-  // Returns `unmount` too: R2-2 unmounts the page under a run.
+  // Returns `unmount` and `rerender` too: R2-2 unmounts the page under a run, R3-1 keeps it and turns `enabled` off.
   const transport = createFakeFolderUploadTransport(fake);
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const invalidate = vi.spyOn(queryClient, "invalidateQueries");
@@ -76,8 +76,9 @@ function setup(over: Partial<UseFolderUploadOptions> = {}, fake: FakeFolderUploa
     transport,
     ...over,
   };
-  const { unmount } = render(wrap(<Harness {...props} />, queryClient));
-  return { transport, invalidate, onOpenFolder, resolveRootParent, unmount };
+  const { unmount, rerender } = render(wrap(<Harness {...props} />, queryClient));
+  const update = (next: Partial<UseFolderUploadOptions>) => rerender(wrap(<Harness {...props} {...next} />, queryClient));
+  return { transport, invalidate, onOpenFolder, resolveRootParent, unmount, update };
 }
 
 const stage = (...lists: FolderUploadEntry<File>[][]) => act(() => hook.addFolders(lists));
@@ -144,6 +145,98 @@ describe("useFolderUpload retry and the first toast (R2-1)", () => {
     expect(transport.calls.some((c) => c.method === "cancel")).toBe(false);
     release();
     await waitFor(() => expect(toast.success).toHaveBeenCalled());
+    expect(transport.calls.some((c) => c.method === "cancel")).toBe(false);
+  });
+
+  // review-fe-r3 R3-3: "Thử lại" in a report reopened during a running retry is not silent.
+  it("closes the reopened old report on Thử lại while a retry runs, and still cancels nothing", async () => {
+    const { transport } = setup({}, partial);
+    stage(entries("Mới", ["a.pdf", "b.pdf"]));
+    upload();
+    await waitFor(() => expect(toast.warning).toHaveBeenCalled());
+    const first = firstWarning();
+    const release = transport.holdPuts();
+    act(() => {
+      first.action.onClick();
+    });
+    fireEvent.click(await screen.findByRole("button", { name: t("documents.folder_upload.report.retry") }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    act(() => {
+      first.action.onClick();
+    });
+    fireEvent.click(await screen.findByRole("button", { name: t("documents.folder_upload.report.retry") }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(transport.calls.some((c) => c.method === "cancel")).toBe(false);
+    release();
+    await waitFor(() => expect(toast.success).toHaveBeenCalled());
+    expect(transport.calls.some((c) => c.method === "cancel")).toBe(false);
+  });
+});
+
+// review-fe-r3 R3-1: the page stays mounted but the viewer may not create here any more (a folder they
+// cannot edit, or one still loading): "Xem" must still open the report, and the batch can still be closed.
+describe("useFolderUpload report outside the create gate (R3-1)", () => {
+  it("opens the report from Xem after enabled turns false, and retries from it", async () => {
+    const { transport, update } = setup({}, partial);
+    stage(entries("Mới", ["a.pdf", "b.pdf"]));
+    upload();
+    await waitFor(() => expect(toast.warning).toHaveBeenCalled());
+    const first = firstWarning();
+    update({ enabled: false });
+    expect(hook.available).toBe(false);
+    act(() => {
+      first.action.onClick();
+    });
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    fireEvent.click(await screen.findByRole("button", { name: t("documents.folder_upload.report.retry") }));
+    await waitFor(() => expect(toast.success).toHaveBeenCalled());
+    expect(transport.calls.some((c) => c.method === "cancel")).toBe(false);
+  });
+
+  it("closes the batch once when the report is dismissed while enabled is false", async () => {
+    const { transport, update } = setup({}, partial);
+    stage(entries("Mới", ["a.pdf", "b.pdf"]));
+    upload();
+    await waitFor(() => expect(toast.warning).toHaveBeenCalled());
+    const first = firstWarning();
+    update({ enabled: false });
+    act(() => {
+      first.action.onClick();
+    });
+    const [closeButton] = (await screen.findAllByRole("button", { name: t("documents.folder_upload.report.close") })).slice(-1);
+    fireEvent.click(closeButton as HTMLElement);
+    await waitFor(() => expect(transport.calls.filter((c) => c.method === "cancel")).toHaveLength(1));
+  });
+
+  it("renders neither the hidden input nor the pre-flight dialog while enabled is false", () => {
+    const { update } = setup();
+    update({ enabled: false });
+    expect(screen.queryByTestId("folder-upload-input")).toBeNull();
+    act(() => hook.addFolders([entries("Mới", ["a.pdf"])]));
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+});
+
+// review-fe-r3 R3-5: the files-mode branches of the end state (report copy, openId from the destination).
+describe("useFolderUpload files mode end to end (R3-5)", () => {
+  it("runs partial -> Xem -> retry -> success in files words and opens the destination", async () => {
+    const { transport, onOpenFolder } = setup({}, partial);
+    act(() => hook.addFiles([pdf("a.pdf"), pdf("b.pdf")]));
+    upload();
+    await waitFor(() => expect(toast.warning).toHaveBeenCalled());
+    const first = firstWarning();
+    act(() => {
+      first.action.onClick();
+    });
+    const dialog = await screen.findByRole("dialog");
+    // Files-mode report copy: no folder named anywhere in it.
+    expect(dialog.textContent ?? "").not.toMatch(/thư mục/i);
+    fireEvent.click(await screen.findByRole("button", { name: t("documents.folder_upload.report.retry") }));
+    await waitFor(() => expect(toast.success).toHaveBeenCalled());
+    const [message, options] = toast.success.mock.calls[0] ?? [];
+    expect(message).toBe("Đã tải lên 2 tệp vào \"Hợp đồng\"");
+    options.action.onClick();
+    expect(onOpenFolder).toHaveBeenCalledWith("folder-open");
     expect(transport.calls.some((c) => c.method === "cancel")).toBe(false);
   });
 });
