@@ -223,7 +223,8 @@ export function LibraryRowView({
   const inert = trashed && !menu.some((group) => group.some((item) => item.id === "view-details"));
   // The row's actions are Star and the menu (Rules: "live: hàng = Sao · ⋯"); the app command is the menu's
   // Mở bằng UniWork Office. DesktopOpenAction still owns the launch flow and its install prompt, so it stays
-  // mounted, hidden, and the menu item runs it through `appRequest`.
+  // mounted and the menu item runs it through `appRequest`. Its host is `hidden` (display: none), so its button is
+  // neither drawn, focusable nor in the accessibility tree.
   const appHost = desktop ? (
     <div hidden data-app-open-host>
       <DesktopOpenAction
@@ -419,8 +420,8 @@ export function LibraryRowView({
           <div className="flex items-center justify-end gap-1">
             {appHost}
             {sourceLink ? (
-              // Every width, not the quick rung: hover/focus reveals it on a
-              // fine pointer, a coarse pointer shows it always (no hover there).
+              // Every width: hover/focus reveals it on a fine pointer, a
+              // coarse pointer shows it always (no hover there).
               <div className="opacity-0 transition-opacity group-hover/row:opacity-100 focus-within:opacity-100 pointer-coarse:opacity-100">
                 {sourceLink}
               </div>
