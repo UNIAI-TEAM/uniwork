@@ -3331,6 +3331,7 @@
     "endedCannotJoin": "Cuộc họp đã kết thúc",
     "pastScheduledEnd": "Đã quá thời gian dự kiến",
     "pastScheduledEndShort": "Quá giờ",
+    "timeLeft": "{{time}} còn lại",
     "scheduleEnding5Min": "Còn 5 phút theo lịch. Phòng vẫn mở cho đến khi chủ trì kết thúc.",
     "scheduleEnding1Min": "Còn 1 phút theo lịch. Chủ trì có thể tiếp tục hoặc kết thúc họp.",
     "scheduleEndingBanner": "Sắp hết giờ lịch — còn {{time}}",

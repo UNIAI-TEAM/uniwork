@@ -319,7 +319,7 @@ export const MeetingControlBar = memo(function MeetingControlBar({
                   >
                     <Ellipsis aria-hidden />
                   </TooltipTrigger>
-                  <TooltipContent side="top">{t("meetings.more")}</TooltipContent>
+                  <TooltipContent side="top" className="dark">{t("meetings.more")}</TooltipContent>
                 </Tooltip>
                 {/* `dark`, like the admit-guests card: the popup portals out of the dark stage. */}
                 <PopoverContent side="top" className="dark flex w-56 flex-col gap-0.5 p-1.5">
@@ -345,7 +345,7 @@ export const MeetingControlBar = memo(function MeetingControlBar({
               >
                 <PhoneOff aria-hidden />
               </TooltipTrigger>
-              <TooltipContent side="top">{t("meetings.leave")}</TooltipContent>
+              <TooltipContent side="top" className="dark">{t("meetings.leave")}</TooltipContent>
             </Tooltip>
           </div>
         </TooltipProvider>

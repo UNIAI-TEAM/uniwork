@@ -3332,6 +3332,7 @@
     "endedCannotJoin": "This meeting has ended",
     "pastScheduledEnd": "Past scheduled end time",
     "pastScheduledEndShort": "Over time",
+    "timeLeft": "{{time}} left",
     "scheduleEnding5Min": "Five minutes left on the calendar. The room stays open until the host ends it.",
     "scheduleEnding1Min": "One minute left on the calendar. The host can keep going or end the meeting.",
     "scheduleEndingBanner": "Calendar time ending — {{time}} left",

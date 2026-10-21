@@ -352,7 +352,8 @@ function ConferenceStage({
 
       {compact ? (
         <Sheet open={sidebarSheetOpen} onOpenChange={setSidebarSheetOpen}>
-          <SheetContent side="right" className="p-0 data-[side=right]:w-[min(100%,24rem)]" showCloseButton={false}>
+          {/* Full width on a phone (the sheet's own max-w-sm caps it from sm up): 24rem left a sliver of stage. */}
+          <SheetContent side="right" className="p-0 data-[side=right]:w-full" showCloseButton={false}>
             <SheetHeader className="sr-only">
               <SheetTitle>{t("meetings.roomPanel")}</SheetTitle>
             </SheetHeader>
