@@ -1,0 +1,144 @@
+// The calls hook on a real call engine (data/calls/call-engine.ts) with fake
+// signalling: what the server's kill switch (data/remote-config.ts) may and
+// may not do to a call. Rendered by the jest-expo layer (jest.config.js): a
+// hook's effect dependencies are the bug class here, and only React runs them.
+import { act } from "@testing-library/react-native";
+import type { WSClient } from "@/data/realtime/ws-client";
+import { render } from "@/test/render";
+import { useCallRealtime } from "./use-call-realtime";
+
+const mockFlag = { calls: true };
+jest.mock("@/data/remote-config", () => ({ useMobileFlag: () => mockFlag.calls }));
+const mockAuth: { user: { id: string } | null } = { user: { id: "me" } };
+jest.mock("@/data/auth/store", () => ({ useAuthStore: (select: (s: typeof mockAuth) => unknown) => select(mockAuth) }));
+jest.mock("@/data/queries/chat", () => ({
+  roomsOptions: (wsId: string) => ({ queryKey: ["rooms", wsId], queryFn: async () => [{ id: "room-1" }] }),
+}));
+
+type Handler = (payload: unknown) => void;
+const mockSocket = { handlers: new Map<string, Handler>(), reconnect: [] as (() => void)[] };
+jest.mock("@/lib/use-ws-subscriptions", () => {
+  const { useEffect } = jest.requireActual<typeof import("react")>("react");
+  return {
+    useWSSubscriptions: (setup: (ws: WSClient) => (() => void)[]) => {
+      useEffect(() => {
+        const ws = {
+          on: (event: string, handler: Handler) => {
+            mockSocket.handlers.set(event, handler);
+            return () => mockSocket.handlers.delete(event);
+          },
+          onReconnect: (handler: () => void) => {
+            mockSocket.reconnect.push(handler);
+            return () => undefined;
+          },
+        } as unknown as WSClient;
+        const unsubs = setup(ws);
+        return () => unsubs.forEach((u) => u());
+        // Subscribed once per mount, as the real hook does with empty deps.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+      }, []);
+    },
+  };
+});
+
+const mockSignals = {
+  invite: jest.fn(async () => true),
+  accept: jest.fn(async () => true),
+  hangup: jest.fn(async () => true),
+  pending: jest.fn(async () => []),
+  mintToken: jest.fn(async () => ({ token: "t", url: "wss://lk.test" })),
+  createCallId: () => "call-1",
+};
+// jest.mock factories run before this file's consts: the engine reads the fakes at call time.
+jest.mock("@/data/calls/call-store", () => {
+  const { createCallEngine } = jest.requireActual<typeof import("@/data/calls/call-engine")>("@/data/calls/call-engine");
+  return {
+    callEngine: createCallEngine({
+      invite: () => mockSignals.invite(),
+      accept: () => mockSignals.accept(),
+      hangup: () => mockSignals.hangup(),
+      pending: () => mockSignals.pending(),
+      mintToken: () => mockSignals.mintToken(),
+      createCallId: () => mockSignals.createCallId(),
+    }),
+  };
+});
+
+import { callEngine } from "@/data/calls/call-store";
+
+function Probe({ wsId }: { wsId: string }) {
+  useCallRealtime(wsId);
+  return null;
+}
+
+beforeEach(() => {
+  mockFlag.calls = true;
+  mockAuth.user = { id: "me" };
+  mockSocket.handlers.clear();
+  mockSocket.reconnect = [];
+  jest.clearAllMocks();
+});
+
+// Each test leaves the engine idle or on its "ended" panel, which this clears (and its clock).
+afterEach(() => callEngine.dismissEnded());
+
+describe("useCallRealtime and the calls kill switch", () => {
+  it("turning the switch off keeps an ongoing call connected and sends no hang-up", async () => {
+    const { rerender } = await render(<Probe wsId="ws-1" />);
+    await act(async () => {
+      await callEngine.startCall("room-1", "Lan", "dm");
+    });
+    await act(async () => mockSocket.handlers.get("chat.voice.accept")?.({ room_id: "room-1", call_id: "call-1", user_id: "peer", target_user_id: "me" }));
+    expect(callEngine.store.getState().call.status).toBe("active");
+
+    mockFlag.calls = false;
+    await rerender(<Probe wsId="ws-1" />);
+
+    expect(callEngine.store.getState().call).toMatchObject({ status: "active", callId: "call-1" });
+    expect(mockSignals.hangup).not.toHaveBeenCalled();
+    // The call still hears its end from the peer.
+    await act(async () => mockSocket.handlers.get("chat.voice.hangup")?.({ room_id: "room-1", call_id: "call-1", user_id: "peer", target_user_id: "me" }));
+    expect(callEngine.store.getState().call.status).not.toBe("active");
+  });
+
+  it("with the switch off nothing rings and no invite is asked for; turning it on asks once", async () => {
+    mockFlag.calls = false;
+    const { rerender } = await render(<Probe wsId="ws-1" />);
+    expect(mockSignals.pending).not.toHaveBeenCalled();
+    await act(async () => mockSocket.handlers.get("chat.voice.invite")?.({ room_id: "room-1", call_id: "call-2", caller_id: "peer", caller_name: "Lan", call_kind: "dm", target_user_id: "me" }));
+    await act(async () => mockSocket.reconnect.forEach((handler) => handler()));
+    expect(callEngine.store.getState().call.status).toBe("idle");
+    expect(mockSignals.pending).not.toHaveBeenCalled();
+
+    mockFlag.calls = true;
+    await rerender(<Probe wsId="ws-1" />);
+    expect(mockSignals.pending).toHaveBeenCalledTimes(1);
+    await act(async () => mockSocket.reconnect.forEach((handler) => handler()));
+    expect(mockSignals.pending).toHaveBeenCalledTimes(2);
+    await act(async () => mockSocket.handlers.get("chat.voice.invite")?.({ room_id: "room-1", call_id: "call-3", caller_id: "peer", caller_name: "Lan", call_kind: "dm", target_user_id: "me" }));
+    expect(callEngine.store.getState().call).toMatchObject({ status: "incoming", callId: "call-3" });
+    await act(async () => {
+      await callEngine.hangUp();
+    });
+    expect(callEngine.store.getState().call.status).toBe("idle");
+  });
+
+  it("signed out, the workspace attaches nothing and asks for nothing", async () => {
+    mockAuth.user = null;
+    await render(<Probe wsId="ws-1" />);
+    await act(async () => {
+      expect(await callEngine.startCall("room-1", "Lan", "dm")).toBe(false);
+    });
+    expect(mockSignals.pending).not.toHaveBeenCalled();
+  });
+
+  it("closing the workspace (the last one open) still ends the call here", async () => {
+    const { unmount } = await render(<Probe wsId="ws-1" />);
+    await act(async () => {
+      await callEngine.startCall("room-1", "Lan", "dm");
+    });
+    expect(callEngine.store.getState().call.status).toBe("ringing");
+    await act(async () => unmount());
+    expect(callEngine.store.getState().call.status).toBe("idle");
+  });
+});

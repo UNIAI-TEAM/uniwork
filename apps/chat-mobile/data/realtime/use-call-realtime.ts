@@ -3,8 +3,9 @@
 // the invites still ringing when the workspace opens and after every
 // reconnect, as the web's use-native-voice-call does. With the server's calls
 // switch off (data/remote-config.ts) nothing rings: invites are not handed on
-// and none are asked for; a call already under way still hears its accept
-// and hang-up, so turning the switch off never strands one.
+// and none are asked for; a call already under way keeps its workspace
+// context and still hears its accept and hang-up, so turning the switch off
+// never ends or strands one (use-call-realtime.test.tsx).
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
 import { useAuthStore } from "@/data/auth/store";
@@ -22,11 +23,16 @@ export function useCallRealtime(wsId: string) {
   const callsOnRef = useRef(callsOn);
   callsOnRef.current = callsOn;
 
+  // The workspace's context, keyed on who and where only: detaching the last
+  // one ends the call here, so a change of the switch must never re-run it.
   useEffect(() => {
     if (!userId) return;
-    const detach = callEngine.attach({ wsId, userId, allowedRoomIds: () => new Set((roomsRef.current ?? []).map((room) => room.id)) });
-    if (callsOn) void callEngine.syncPendingInvites();
-    return detach;
+    return callEngine.attach({ wsId, userId, allowedRoomIds: () => new Set((roomsRef.current ?? []).map((room) => room.id)) });
+  }, [wsId, userId]);
+
+  // Runs after the attach above (effects run in order), and again when the switch comes back on.
+  useEffect(() => {
+    if (userId && callsOn) void callEngine.syncPendingInvites();
   }, [wsId, userId, callsOn]);
 
   useWSSubscriptions(

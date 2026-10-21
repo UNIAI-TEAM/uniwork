@@ -26,7 +26,9 @@ const TRANSPILE = [
 module.exports = {
   preset: "jest-expo",
   rootDir: __dirname,
-  testMatch: ["<rootDir>/components/**/*.test.tsx"],
+  // components/ and the data layer's React hooks (data/**/*.test.tsx): vitest
+  // keeps data/**/*.test.ts, so the two still never share a file.
+  testMatch: ["<rootDir>/components/**/*.test.tsx", "<rootDir>/data/**/*.test.tsx"],
   setupFilesAfterEnv: ["<rootDir>/test/jest-setup.ts"],
   // React Native's preset maps images only; the ringtones are WAV.
   moduleNameMapper: { "^@/(.*)$": "<rootDir>/$1", "\\.(wav|mp3|m4a)$": "<rootDir>/test/asset-stub.js" },
@@ -45,6 +47,8 @@ module.exports = {
     "components/ui/toast-host.tsx",
     "components/app/update-gate.tsx",
     "components/settings/about-section.tsx",
+    // The calls hook (data/realtime/use-call-realtime.test.tsx): the kill switch must not end a call.
+    "data/realtime/use-call-realtime.ts",
   ],
   coverageReporters: ["text-summary"],
   // Measured on the files above; only ever raised (CLAUDE.md › Coverage only

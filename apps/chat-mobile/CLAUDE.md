@@ -154,7 +154,7 @@ pnpm --filter @uniwork/chat-mobile ios        # scripts/native-run.sh ios (prebu
 pnpm --filter @uniwork/chat-mobile android
 pnpm --filter @uniwork/chat-mobile test | typecheck | lint
 pnpm --filter @uniwork/chat-mobile test:unit         # vitest, node: lib/ data/ app.config
-pnpm --filter @uniwork/chat-mobile test:components   # jest-expo + RNTL: components/**/*.test.tsx
+pnpm --filter @uniwork/chat-mobile test:components   # jest-expo + RNTL: components/**/*.test.tsx, data/**/*.test.tsx
 ```
 
 Hai lớp test, không chung file (ADR 0037 — cả hai chặn ở mọi `GATE_LEVEL`):
@@ -162,7 +162,9 @@ Hai lớp test, không chung file (ADR 0037 — cả hai chặn ở mọi `GATE_
 - `vitest.config.ts` — `*.test.ts` trong `lib/`, `data/`, môi trường node, sàn
   100/100/100/100 cứng (không qua `scripts/coverage-gate.ts`); không loại file để
   qua sàn, nhánh không thể xảy ra thì viết lại.
-- `jest.config.js` — `components/**/*.test.tsx`, preset `jest-expo` với
+- `jest.config.js` — `components/**/*.test.tsx` và hook React của lớp data
+  (`data/**/*.test.tsx`, như `use-call-realtime.test.tsx`: công tắc gọi đổi giữa
+  cuộc gọi không được cắt cuộc gọi), preset `jest-expo` với
   `@testing-library/react-native` 14 (mọi `render`/`fireEvent` đều `await`), truy
   vấn theo role và label như người dùng VoiceOver/TalkBack. Render qua
   `test/render.tsx` (i18n tiếng Việt, `QueryClient` mới), `viText(key)` là chuỗi
