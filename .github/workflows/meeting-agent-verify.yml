@@ -16,6 +16,9 @@ on:
       - "apps/meeting-agent/**"
       - ".github/workflows/meeting-agent-verify.yml"
 
+permissions:
+  contents: read
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
@@ -23,6 +26,7 @@ concurrency:
 jobs:
   agent:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: apps/meeting-agent
