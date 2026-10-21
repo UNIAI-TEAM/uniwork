@@ -12,7 +12,7 @@ import { Text } from "@/components/ui/text";
 import type { ChatMessageRecord } from "@uniwork/core/api/endpoints/chat-schemas";
 import type { TimelineMessage } from "@/lib/timeline-display";
 import type { MessageCardContext } from "./message-cards";
-import { useChatMediaSrc, useFreshChatMediaUrl } from "./use-chat-media";
+import { useChatImageSrc, useFreshChatMediaUrl } from "./use-chat-media";
 import { toast } from "@/data/stores/toast-store";
 import { chatMediaSource, IMAGE_CACHE_POLICY } from "@/lib/media-source";
 
@@ -40,7 +40,7 @@ interface TileProps extends AlbumPhoto {
 
 function Tile({ message, file, ctx, width, height, more, corners, lead, onLongPress }: TileProps) {
   const { t } = useTranslation();
-  const src = useChatMediaSrc(ctx.wsId, ctx.roomId, message.id, file.thumb_url || file.url, file.url_expires_at);
+  const src = useChatImageSrc(ctx.wsId, ctx.roomId, message.id, file.thumb_url || file.url, file.url_expires_at);
   const freshUrl = useFreshChatMediaUrl(ctx.wsId, ctx.roomId);
   const open = () =>
     void freshUrl(message.id, { url: file.url, expiresAt: file.url_expires_at }, (m) => m.file?.url)

@@ -20,7 +20,7 @@ import { Text } from "@/components/ui/text";
 import { THEME } from "@/lib/theme";
 import { formatMessageDay, formatMessageTime } from "@/lib/timeline-display";
 import { cn } from "@/lib/utils";
-import { useChatMediaSrc } from "./use-chat-media";
+import { useChatImageSrc } from "./use-chat-media";
 import { chatMediaSource } from "@/lib/media-source";
 import { DISMISS_DISTANCE } from "@/lib/zoom";
 import { ZoomableImage } from "./zoomable-image";
@@ -51,7 +51,7 @@ interface PageProps {
 
 function Page({ photo, wsId, roomId, width, height, openedUrl, dismissY, onSrc, onDismiss, onZoomChange }: PageProps) {
   const file = photo.record?.file;
-  const src = useChatMediaSrc(wsId, roomId, photo.id, openedUrl ?? file?.url, openedUrl ? undefined : file?.url_expires_at);
+  const src = useChatImageSrc(wsId, roomId, photo.id, openedUrl ?? file?.url, openedUrl ? undefined : file?.url_expires_at);
   const uri = openedUrl ?? src;
   useEffect(() => {
     if (uri) onSrc(photo.id, uri);

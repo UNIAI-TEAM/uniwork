@@ -26,7 +26,7 @@ import { fileBadge, type Tint } from "@/lib/tint";
 import { formatMessageDateTime, formatMessageTime } from "@/lib/timeline-display";
 import { useColorScheme } from "@/components/ui/use-color-scheme";
 import { cn } from "@/lib/utils";
-import { useChatMediaSrc, useFreshChatMediaUrl } from "./use-chat-media";
+import { useChatImageSrc, useChatMediaSrc, useFreshChatMediaUrl } from "./use-chat-media";
 import { bestEffort } from "@/data/report";
 import { toast } from "@/data/stores/toast-store";
 import { sameUser } from "@/lib/user-id";
@@ -128,7 +128,7 @@ function Card({ own, tint, icon, kind, badge, children }: { own: boolean; tint: 
 function ImageCard({ record, file, ctx, onLongPress }: { record: ChatMessageRecord; file: ChatFile; ctx: MessageCardContext; onLongPress: () => void }) {
   const { t } = useTranslation();
   const longPress = useLongPressProps(onLongPress);
-  const src = useChatMediaSrc(ctx.wsId, ctx.roomId, record.id, file.thumb_url || file.url, file.url_expires_at);
+  const src = useChatImageSrc(ctx.wsId, ctx.roomId, record.id, file.thumb_url || file.url, file.url_expires_at);
   const freshUrl = useFreshChatMediaUrl(ctx.wsId, ctx.roomId);
   const open = () =>
     void freshUrl(record.id, { url: file.url, expiresAt: file.url_expires_at }, (m) => m.file?.url)
@@ -139,7 +139,10 @@ function ImageCard({ record, file, ctx, onLongPress }: { record: ChatMessageReco
   return (
     <Pressable {...longPress} onPress={open} accessibilityRole="imagebutton" accessibilityLabel={t("chat.message_list.file_open_named", { name: file.filename || t("chat.media_image") })}>
       {src ? (
-        <Image source={chatMediaSource(src, record.id, "thumb")} cachePolicy={IMAGE_CACHE_POLICY} contentFit="cover" style={{ ...box, borderRadius: 14 }} />
+        // The grey box shows behind a photo still on its way (or waiting for a fresh URL).
+        <View className="overflow-hidden rounded-[14px] bg-muted" style={box}>
+          <Image source={chatMediaSource(src, record.id, "thumb")} cachePolicy={IMAGE_CACHE_POLICY} contentFit="cover" style={box} />
+        </View>
       ) : (
         <View className="items-center justify-center rounded-[14px] bg-muted" style={box}>
           <Text className="text-caption text-muted-foreground">{t("chat.message_list.image_preview_loading")}</Text>

@@ -1,26 +1,44 @@
 // Signed media URLs for a message, mirroring packages/views/chat/use-chat-media-url.ts:
 // storage URLs are presigned per viewer (UNI-1633), so no bearer is needed,
 // but they expire. A URL past its expiry asks the server once for the
-// message again; the fresh copy flows back through the room cache.
+// message again; the fresh copy flows back through the room cache. A photo
+// (useChatImageSrc) keeps drawing while it waits: its disk cache is keyed by
+// message and variant, not by URL (lib/media-source.ts), so a photo seen
+// before shows at once, offline included, and the asks of one room go
+// together (data/media-refresh.ts).
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef } from "react";
 import { refreshMessageMedia } from "@/data/chat-cache";
-import { bestEffort } from "@/data/report";
+import { requestMediaRefresh } from "@/data/media-refresh";
 import { isChatMediaUrlFresh } from "@/lib/message-display";
 import type { ChatMessageRecord } from "@uniwork/core/api/endpoints/chat-schemas";
 
-/** A URL to show now, or null while a fresh one is asked for (or none exists). */
-export function useChatMediaSrc(wsId: string, roomId: string, messageId: string, url: string | undefined, expiresAt: string | undefined) {
+/** Asks once per expired URL for the message's fresh ones (with the room's other asks); a second miss means the server has nothing better. */
+function useRenewal(wsId: string, roomId: string, messageId: string, url: string | undefined, fresh: boolean): void {
   const qc = useQueryClient();
-  const fresh = isChatMediaUrlFresh(url, expiresAt);
-  // The URL a renewal was already asked for: a second miss means the server has nothing better.
   const renewedFor = useRef<string | null>(null);
   useEffect(() => {
     if (!url || fresh || renewedFor.current === url) return;
     renewedFor.current = url;
-    void refreshMessageMedia(qc, wsId, roomId, messageId).catch(bestEffort("chat", "media url not renewed", "report"));
+    requestMediaRefresh(qc, wsId, roomId, messageId);
   }, [fresh, messageId, qc, roomId, url, wsId]);
+}
+
+/** A URL to play or open now, or null while a fresh one is asked for (or none exists). */
+export function useChatMediaSrc(wsId: string, roomId: string, messageId: string, url: string | undefined, expiresAt: string | undefined) {
+  const fresh = isChatMediaUrlFresh(url, expiresAt);
+  useRenewal(wsId, roomId, messageId, url, fresh);
   return fresh ? (url as string) : null;
+}
+
+/**
+ * A photo's URL to draw now: the signed one, even past its expiry. Expired, the image is drawn from the
+ * device's cache under its stable key when it was seen before (the network is not asked), and the room's
+ * fresh URLs are asked for together; a photo never seen waits for them on its grey box.
+ */
+export function useChatImageSrc(wsId: string, roomId: string, messageId: string, url: string | undefined, expiresAt: string | undefined) {
+  useRenewal(wsId, roomId, messageId, url, isChatMediaUrlFresh(url, expiresAt));
+  return url ?? null;
 }
 
 /** A signed URL for a tap (open a file, play a voice message): the current one while fresh, else one signed now. */

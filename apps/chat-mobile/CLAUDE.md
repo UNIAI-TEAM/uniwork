@@ -447,7 +447,13 @@ một dòng thì ghi lý do ở dòng trên.
   (`thumb`/`full`), avatar và icon workspace theo URL bỏ query (đường dẫn object đã là một tệp bất biến); server ký URL
   media chat theo đầu giờ (`chatMediaSigningWindow`, `files.ResolveInput.SigningWindow`) nên refetch trong giờ trả đúng
   URL và record cũ, và trả `width`/`height` của ảnh khi đọc được header lúc tải lên — bong bóng ảnh giữ đúng tỷ lệ
-  (`bubbleImageSize`) trước khi ảnh tới. Theme: chọn
+  (`bubbleImageSize`) trước khi ảnh tới. URL ký hết hạn (server ký 1 giờ, cache đĩa giữ timeline 7 ngày): ảnh vẫn vẽ
+  bằng URL cũ (`useChatImageSrc` — cache đĩa theo id tin nên ảnh đã xem hiện ngay, cả offline; chưa xem thì ô xám), tin
+  thoại/tệp chờ URL mới (`useChatMediaSrc`); mọi lần xin lại của một phòng trong 50 ms gộp một lượt
+  (`data/media-refresh.ts`): ảnh thuộc timeline đang hiện về bằng một lần refetch timeline đó (nhập vào lần refetch
+  đang chạy, như lần mở phòng) khi số ảnh ≥ số trang đã tải, còn lại (chủ đề, trang nhảy tới) xin từng tin — không còn
+  N request, N lần ghi timeline và N lần lưu cache cho N ảnh. Không prefetch: `Image.prefetch` khoá cache theo URL, không
+  theo `cacheKey` của ta. Theme: chọn
   một lần lúc boot (`data/theme-preference.ts`, `loadThemePreference` trong `app/_layout.tsx`), `useColorScheme` chỉ đọc
   store. **Đo**: `components/chat/conversation-renders.test.tsx` và `chat-tab-renders.test.tsx` (jest, job `mobile`)
   khoá số render của hàng khi gõ, hiện diện, tin mới, biểu cảm; ngân sách bundle như cũ. `inlineRequires` của Metro
