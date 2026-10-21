@@ -16,8 +16,9 @@ import (
 )
 
 // config is GET /api/v1/config: the public flags for the caller (anonymous or
-// signed in, optionally in an organization), the RUM sample rate, and the
-// Work Management capability catalogue. Flags never grant anything —
+// signed in, optionally in an organization), the RUM sample rate, the
+// Work Management capability catalogue, and UniChat mobile's version gate and
+// kill switches. Flags never grant anything —
 // permission stays in the services — so the organization id in the query is
 // trusted as a targeting hint only.
 func (h *handlers) config(w http.ResponseWriter, r *http.Request) {
@@ -40,6 +41,8 @@ func (h *handlers) config(w http.ResponseWriter, r *http.Request) {
 		OfficeAPIOrigin:            officeAPIOrigin(h.Cfg.APIPublicURL),
 		UniChatInstallers:          installerChannels(h.Cfg.UniChatInstallers),
 		UniChatStores:              h.Cfg.UniChatStores(),
+		MinSupportedMobileVersion:  h.Cfg.UniChatMobileMinVersion,
+		MobileFlags:                featureflags.EvaluateMobileFlags(ctx, h.FeatureFlags),
 		Documents: sdo.DocumentsConfigSDO{
 			Limits: sdo.DocumentLimitsSDO{
 				UploadMaxBytes: h.Cfg.EffectiveDocumentMaxBytes(),

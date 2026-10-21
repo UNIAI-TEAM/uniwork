@@ -10,6 +10,7 @@ import (
 
 	"github.com/unicomhub/uniwork/server/internal/config"
 	"github.com/unicomhub/uniwork/server/internal/workcapability"
+	"github.com/unicomhub/uniwork/server/pkg/featureflag"
 )
 
 // GET /api/v1/config publishes work-management capabilities (stubs stay
@@ -283,5 +284,46 @@ func TestConfigPublishesUniChatCatalogue(t *testing.T) {
 	}
 	if got.Stores == nil || *got.Stores != (config.UniChatStoreLinks{IOS: "https://apps.apple.com/app/id1234567890"}) {
 		t.Fatalf("stores = %+v", got.Stores)
+	}
+}
+
+// UniChat mobile reads its version gate and kill switches from the same
+// public config: the minimum as configured, every mobile flag at its value.
+func TestConfigPublishesTheMobileGateAndKillSwitches(t *testing.T) {
+	for _, tc := range []struct {
+		name, min string
+		calls     bool
+	}{
+		{name: "no gate, calls on by default", min: "", calls: true},
+		{name: "a minimum and calls switched off", min: "0.3.0", calls: false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if !tc.calls {
+				t.Setenv("FF_UNICHAT_MOBILE_CALLS", "false")
+			}
+			h := New(Deps{Cfg: config.Config{UniChatMobileMinVersion: tc.min}, FeatureFlags: featureflag.NewService(featureflag.NewEnvProvider("FF_")), Log: slog.Default()})
+			rec := httptest.NewRecorder()
+			h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/v1/config", nil))
+			if rec.Code != http.StatusOK {
+				t.Fatalf("status = %d", rec.Code)
+			}
+			var out struct {
+				Min   *string         `json:"min_supported_mobile_version"`
+				Flags map[string]bool `json:"mobile_flags"`
+				Web   map[string]bool `json:"flags"`
+			}
+			if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+				t.Fatal(err)
+			}
+			if out.Min == nil || *out.Min != tc.min {
+				t.Fatalf("min_supported_mobile_version = %v, want %q (always present)", out.Min, tc.min)
+			}
+			if got, ok := out.Flags["unichat_mobile_calls"]; !ok || got != tc.calls {
+				t.Fatalf("mobile_flags.unichat_mobile_calls = %v (present %v), want %v", got, ok, tc.calls)
+			}
+			if _, leaked := out.Web["unichat_mobile_calls"]; leaked {
+				t.Fatal("the calls switch belongs to mobile_flags, not the web flags")
+			}
+		})
 	}
 }

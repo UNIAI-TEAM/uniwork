@@ -21,6 +21,11 @@ type Flag struct {
 	Default     bool
 	// Public flags are published to the web client through GET /api/v1/config.
 	Public bool
+	// Mobile flags are published to UniChat mobile under mobile_flags of
+	// GET /api/v1/config, evaluated for the caller like the public ones. They
+	// are the phone's remote kill switches: a binary in a store cannot be
+	// recalled, so a feature it ships can still be turned off here.
+	Mobile bool
 	Owner  string
 	// ReviewAt is the date the flag must be deleted or extended (§7.3).
 	ReviewAt time.Time
@@ -70,7 +75,24 @@ var catalogue = []Flag{
 	{Key: "graph_ui", Description: "Work Graph: section Liên quan và dòng thời gian trên trang việc (C-11)", Default: false, Public: true, Owner: "graph", ReviewAt: day(2027, 1, 31)},
 	{Key: "mcp_connector", Description: "Connector MCP: client AI bên ngoài (Claude, ChatGPT, Gemini) đọc task và cuộc họp (UNI-1308)", Default: false, Public: true, Owner: "platform", ReviewAt: day(2027, 1, 31)},
 	{Key: "mcp_connector_write", Description: "Connector MCP: tool ghi (tạo, sửa task, dự án, cuộc họp, tài liệu) cho grant có scope write (UNI-1567, ADR 0033)", Default: false, Public: true, Owner: "platform", ReviewAt: day(2027, 3, 31)},
+	// UniChat mobile (UNI-2053). On by default: FF_UNICHAT_MOBILE_CALLS=false
+	// (or an organization/user override) hides calling on every installed
+	// phone at its next config read, incoming calls included.
+	{Key: "unichat_mobile_calls", Description: "UniChat mobile: gọi thoại/video, cả màn cuộc gọi đến native trên Android; tắt là kill switch ẩn và ngừng nhận cuộc gọi trên mọi bản đã cài (UNI-2053)", Default: true, Mobile: true, Owner: "chat", ReviewAt: day(2027, 4, 30)},
 	{Key: "ask_uni_agent", Description: "Hỏi UNI chạy như agent tự tra cứu bằng tool chỉ đọc (UNI-1962, P1); tắt thì giữ luồng P0", Default: false, Public: false, Owner: "ai", ReviewAt: day(2027, 1, 31)},
+}
+
+// EvaluateMobileFlags evaluates every mobile key for the request's context,
+// the same way EvaluateFrontendPublicFlags does for the web: a nil service
+// yields each at its catalogue default.
+func EvaluateMobileFlags(ctx context.Context, flags *featureflag.Service) map[string]bool {
+	out := make(map[string]bool)
+	for _, f := range catalogue {
+		if f.Mobile {
+			out[f.Key] = flags.IsEnabled(ctx, f.Key, f.Default)
+		}
+	}
+	return out
 }
 
 // Catalogue returns a copy of the declared flags.

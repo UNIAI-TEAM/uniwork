@@ -3,6 +3,8 @@ package featureflags
 import (
 	"context"
 	"testing"
+
+	"github.com/unicomhub/uniwork/server/pkg/featureflag"
 )
 
 func TestNoServiceYieldsCatalogueDefaults(t *testing.T) {
@@ -88,5 +90,30 @@ func TestOfficeTxtOpenFlagIsOffByDefaultPublicAndReviewed(t *testing.T) {
 	}
 	if v, published := flags["office_txt_open"]; !published || v {
 		t.Fatalf("office_txt_open published=%v value=%v, want published and false", published, v)
+	}
+}
+
+// UniChat mobile reads its kill switches from mobile_flags; the calls switch is
+// on by default (calls ship in the binary) and only a mobile flag is published there.
+func TestMobileFlagsPublishTheCallsKillSwitchOnByDefault(t *testing.T) {
+	flags := EvaluateMobileFlags(context.Background(), nil)
+	if v, ok := flags["unichat_mobile_calls"]; !ok || !v {
+		t.Fatalf("unichat_mobile_calls published=%v value=%v, want published and true", ok, v)
+	}
+	for _, f := range Catalogue() {
+		if _, published := flags[f.Key]; published != f.Mobile {
+			t.Fatalf("%s: in mobile_flags=%v, want %v", f.Key, published, f.Mobile)
+		}
+	}
+	if _, onWeb := EvaluateFrontendPublicFlags(context.Background(), nil)["unichat_mobile_calls"]; onWeb {
+		t.Fatal("unichat_mobile_calls is a phone switch, not a web flag")
+	}
+}
+
+func TestMobileCallsKillSwitchTurnsOffByEnv(t *testing.T) {
+	t.Setenv("FF_UNICHAT_MOBILE_CALLS", "false")
+	svc := featureflag.NewService(featureflag.NewEnvProvider("FF_"))
+	if EvaluateMobileFlags(context.Background(), svc)["unichat_mobile_calls"] {
+		t.Fatal("FF_UNICHAT_MOBILE_CALLS=false must turn the calls switch off")
 	}
 }
