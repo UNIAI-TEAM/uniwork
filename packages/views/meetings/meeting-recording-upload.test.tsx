@@ -3,11 +3,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vite
 import { toast } from "sonner";
 import { initI18n } from "@uniwork/core/i18n";
 import { requestMock, wrap } from "../test/api-mock";
-import {
-  MeetingRecordingUploadButton,
-  MeetingRecordingUploadDialog,
-  MeetingTranscriptionStatus,
-} from "./meeting-recording-upload";
+import { MeetingRecordingUploadDialog, MeetingTranscriptionStatus } from "./meeting-recording-upload";
 
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
@@ -67,11 +63,16 @@ describe("MeetingRecordingUploadDialog", () => {
     const onOpenChange = vi.fn();
     render(wrap(<MeetingRecordingUploadDialog meetingId="m1" onOpenChange={onOpenChange} />));
     const submit = screen.getByRole("button", { name: "Tải lên và ghi lời" });
-    expect(submit).toBeDisabled();
-    fireEvent.change(screen.getByLabelText("File ghi âm"), { target: { files: [mp3(1000)] } });
-    expect(submit).toBeDisabled();
+    // In the tab order with the reason, never natively disabled.
+    expect(submit).toHaveAttribute("aria-disabled", "true");
+    expect(submit).toHaveAccessibleDescription("Chọn tệp ghi âm trước khi tải lên.");
+    fireEvent.click(submit);
+    expect(requestMock).not.toHaveBeenCalled();
+    fireEvent.change(screen.getByLabelText("Tệp ghi âm"), { target: { files: [mp3(1000)] } });
+    expect(screen.getByText("hop-chi-bo.mp3")).toBeInTheDocument();
+    expect(submit).toHaveAccessibleDescription("Xác nhận đã thông báo cho người dự họp trước khi tải lên.");
     fireEvent.click(screen.getByRole("checkbox", { name: /Tôi đã thông báo cho người dự họp về việc ghi âm/ }));
-    expect(submit).toBeEnabled();
+    expect(submit).not.toHaveAttribute("aria-disabled");
     fireEvent.click(submit);
     await waitFor(() =>
       expect(requestMock).toHaveBeenCalledWith("/api/v1/meetings/m1/transcriptions", {
@@ -81,7 +82,7 @@ describe("MeetingRecordingUploadDialog", () => {
     );
     const open = requestMock.mock.calls.find((c) => c[0] === "/api/v1/meetings/m1/audio-upload-sessions");
     expect(open?.[1]).toMatchObject({ method: "POST", body: { filename: "hop-chi-bo.mp3", size_bytes: 1000 } });
-    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Đã nhận file. Ghi lời xong sẽ có thông báo."));
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Đã nhận tệp. Ghi lời xong sẽ có thông báo."));
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
@@ -100,7 +101,7 @@ describe("MeetingRecordingUploadDialog", () => {
     });
     try {
       render(wrap(<MeetingRecordingUploadDialog meetingId="m1" onOpenChange={() => {}} />));
-      fireEvent.change(screen.getByLabelText("File ghi âm"), { target: { files: [mp3(1000, "hop.mp4")] } });
+      fireEvent.change(screen.getByLabelText("Tệp ghi âm"), { target: { files: [mp3(1000, "hop.mp4")] } });
       await act(async () => {});
       fireEvent.click(screen.getByRole("checkbox", { name: /Tôi đã thông báo/ }));
       fireEvent.click(screen.getByRole("button", { name: "Tải lên và ghi lời" }));
@@ -130,7 +131,7 @@ describe("MeetingRecordingUploadDialog", () => {
     Object.defineProperty(HTMLMediaElement.prototype, "src", { configurable: true, set() {} });
     try {
       render(wrap(<MeetingRecordingUploadDialog meetingId="m1" onOpenChange={() => {}} />));
-      fireEvent.change(screen.getByLabelText("File ghi âm"), { target: { files: [mp3(1000, "hop.mp4")] } });
+      fireEvent.change(screen.getByLabelText("Tệp ghi âm"), { target: { files: [mp3(1000, "hop.mp4")] } });
       await act(async () => {
         vi.advanceTimersByTime(4999);
       });
@@ -148,25 +149,41 @@ describe("MeetingRecordingUploadDialog", () => {
     }
   });
 
-  it("refuses a file over 2 GiB before sending anything", () => {
-    render(wrap(<MeetingRecordingUploadDialog meetingId="m1" onOpenChange={() => {}} />));
-    fireEvent.change(screen.getByLabelText("File ghi âm"), { target: { files: [mp3(3 * 1024 ** 3)] } });
+  it("keeps the file and offers a retry in the dialog when the upload is refused", async () => {
+    const base = requestMock.getMockImplementation()!;
+    let refuse = true;
+    requestMock.mockImplementation(async (path: string, init?: { method?: string }) => {
+      if (refuse && path === "/api/v1/meetings/m1/audio-upload-sessions") throw new Error("storage down");
+      return base(path, init);
+    });
+    const onOpenChange = vi.fn();
+    render(wrap(<MeetingRecordingUploadDialog meetingId="m1" onOpenChange={onOpenChange} />));
+    fireEvent.change(screen.getByLabelText("Tệp ghi âm"), { target: { files: [mp3(1000)] } });
     fireEvent.click(screen.getByRole("checkbox", { name: /Tôi đã thông báo/ }));
-    expect(screen.getByText("File lớn hơn 2 GiB. Chia nhỏ rồi tải từng phần.")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Tải lên và ghi lời" })).toBeDisabled();
-    expect(requestMock).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Tải lên và ghi lời" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Chưa tải được tệp lên.");
+    expect(toast.error).not.toHaveBeenCalled();
+    expect(onOpenChange).not.toHaveBeenCalled();
+    expect(screen.getByText("hop-chi-bo.mp3")).toBeInTheDocument();
+    refuse = false;
+    fireEvent.click(screen.getByRole("button", { name: "Thử lại" }));
+    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
   });
-});
 
-describe("MeetingRecordingUploadButton", () => {
-  it("shows only where batch transcription is available", async () => {
-    const { unmount } = render(wrap(<MeetingRecordingUploadButton workspaceId="w1" meetingId="m1" />));
-    expect(await screen.findByRole("button", { name: "Tải file ghi âm" })).toBeInTheDocument();
-    unmount();
-    requestMock.mockImplementation(async () => ({ transcription: false }));
-    render(wrap(<MeetingRecordingUploadButton workspaceId="w1" meetingId="m1" />));
-    await waitFor(() => expect(requestMock).toHaveBeenCalled());
-    expect(screen.queryByRole("button", { name: "Tải file ghi âm" })).toBeNull();
+  it("takes a file dropped on the picker", () => {
+    render(wrap(<MeetingRecordingUploadDialog meetingId="m1" onOpenChange={() => {}} />));
+    const zone = screen.getByText("Chọn tệp").closest("label")!;
+    fireEvent.drop(zone, { dataTransfer: { files: [mp3(1000)], types: ["Files"] } });
+    expect(screen.getByText("hop-chi-bo.mp3")).toBeInTheDocument();
+  });
+
+  it("refuses a file over 2 GB before sending anything", () => {
+    render(wrap(<MeetingRecordingUploadDialog meetingId="m1" onOpenChange={() => {}} />));
+    fireEvent.change(screen.getByLabelText("Tệp ghi âm"), { target: { files: [mp3(3 * 1024 ** 3)] } });
+    fireEvent.click(screen.getByRole("checkbox", { name: /Tôi đã thông báo/ }));
+    expect(screen.getByText("Tệp lớn hơn 2 GB. Chia nhỏ rồi tải từng phần.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Tải lên và ghi lời" })).toHaveAttribute("aria-disabled", "true");
+    expect(requestMock).not.toHaveBeenCalled();
   });
 });
 
@@ -175,7 +192,13 @@ describe("MeetingTranscriptionStatus", () => {
     requestMock.mockImplementation(async () => ({
       transcriptions: [{ ...transcription, status: "FAILED", error_code: "timeout" }, { ...transcription, id: "t0", status: "COMPLETE" }],
     }));
-    render(wrap(<MeetingTranscriptionStatus meetingId="m1" />));
-    expect(await screen.findByText('Không ghi lời được "hop-chi-bo.mp3" · Quá thời gian chờ.')).toBeInTheDocument();
+    const onRetry = vi.fn();
+    render(wrap(<MeetingTranscriptionStatus meetingId="m1" onRetry={onRetry} />));
+    // An error with the way forward, inside one region that announces the change.
+    const region = screen.getByTestId("meeting-transcription-status");
+    expect(region).toHaveAttribute("role", "status");
+    expect(await screen.findByText('Không ghi lời được "hop-chi-bo.mp3". Quá thời gian chờ.')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Tải lại tệp" }));
+    expect(onRetry).toHaveBeenCalledTimes(1);
   });
 });

@@ -227,3 +227,21 @@ func TestSpeakerLabelsAssignAndNameTheTranscript(t *testing.T) {
 		t.Fatalf("summary input does not name the speakers: %s", prompt)
 	}
 }
+
+// An uploaded recording has no room mic: its unnamed speakers read "Người nói n",
+// the shared mic's keep their "Hội trường ·" prefix.
+func TestSpeakerNameWordsUploadedSpeakersPlainly(t *testing.T) {
+	speakers := map[string]SpeakerName{"upload:T1:A": {Number: 1}, "p:s:A": {Number: 2}, "upload:T1:B": {Number: 3, Name: "Chị Lan"}}
+	cases := []struct{ label, locale, want string }{
+		{"upload:T1:A", "vi", "Người nói 1"},
+		{"upload:T1:A", "en", "Speaker 1"},
+		{"upload:T1:?", "vi", "Không rõ người nói"},
+		{"upload:T1:B", "vi", "Chị Lan"},
+		{"p:s:A", "vi", "Hội trường · Người nói 2"},
+	}
+	for _, c := range cases {
+		if got := speakerName(db.MeetingTranscriptSegment{SpeakerLabel: c.label}, speakers, c.locale); got != c.want {
+			t.Errorf("speakerName(%q, %s) = %q, want %q", c.label, c.locale, got, c.want)
+		}
+	}
+}

@@ -110,3 +110,18 @@ describe("DashboardLayout variant", () => {
     expect(screen.getByTestId("chrome")).toHaveAttribute("data-bare", "true");
   });
 });
+
+describe("DashboardLayout frame", () => {
+  // A hidden frame still scrolls under scrollIntoView/focus once an sr-only
+  // node inside a page's scroller overflows it; clip cannot scroll at all.
+  it("clips the main frame instead of hiding its overflow", () => {
+    render(
+      <DashboardLayout orgSlug="acme" wsSlug="team">
+        <p>workspace body</p>
+      </DashboardLayout>,
+    );
+    const main = screen.getByRole("main");
+    expect(main).toHaveClass("overflow-clip");
+    expect(main).not.toHaveClass("overflow-hidden");
+  });
+});

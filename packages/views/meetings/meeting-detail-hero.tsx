@@ -1,6 +1,6 @@
 "use client";
 import { useId } from "react";
-import { Ban, CalendarClock, CalendarDays, CalendarX2, Clock, Globe, Hourglass, PhoneOff, Play, Users, Video, Zap } from "lucide-react";
+import { Ban, CalendarClock, CalendarDays, CalendarX2, Clock, Globe, Hourglass, ListChecks, PhoneOff, Play, Users, Video, Zap } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { displayMeetingStatus } from "@uniwork/core/meetings";
 import type { Meeting } from "@uniwork/core/types";
@@ -10,6 +10,7 @@ import { Badge } from "@uniwork/ui/components/ui/badge";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
 import { Notice } from "../common/notice";
+import { MODULE_ICONS } from "../layout/module-icons";
 import { MeetingCalendarButton } from "./meeting-calendar-button";
 import {
   formatMeetingDay,
@@ -33,6 +34,14 @@ import { useNow } from "./use-now";
 const AVATAR_STACK_LIMIT = 4;
 
 type HeroPerson = { id: string; name: string; avatarUrl?: unknown };
+
+/** What a clerk does next once the meeting has ended, and how to get there. */
+export type MeetingNextStep = { kind: "assign"; pending: number; onGo: () => void } | { kind: "minutes"; onGo: () => void };
+
+/** Buttons under a hero notice: their own row, so a phone wraps them instead of pushing one off screen. */
+function NoticeActions({ children }: { children: React.ReactNode }) {
+  return <div className="mt-3 flex flex-wrap items-center gap-2">{children}</div>;
+}
 
 function MetaItem({ icon: Icon, children, className }: { icon: typeof Clock; children: React.ReactNode; className?: string }) {
   return (
@@ -67,6 +76,7 @@ export function MeetingDetailHero({
   onExtend,
   onEnd,
   onCancel,
+  nextStep,
 }: {
   workspaceId: string;
   meeting: Meeting;
@@ -85,6 +95,7 @@ export function MeetingDetailHero({
   onExtend: () => void;
   onEnd: () => void;
   onCancel: () => void;
+  nextStep?: MeetingNextStep | null;
 }) {
   const { t, i18n } = useTranslation();
   const locale = meetingLocale(i18n.language);
@@ -171,7 +182,8 @@ export function MeetingDetailHero({
                 ? t("meetings.timesInZone", { times, zone: meetingTimeZoneLabel(viewerZone, i18n.language, startDate) })
                 : times}
             </span>
-            {durationLabel ? <span> · {durationLabel}</span> : null}
+            {/* The no-break space keeps the dot at the end of a line, never at the start of the next. */}
+            {durationLabel ? <span>{"\u00a0· "}{durationLabel}</span> : null}
           </MetaItem>
           {otherZone ? (
             <MetaItem icon={Globe}>
@@ -216,71 +228,93 @@ export function MeetingDetailHero({
         ) : null}
 
         {overtime ? (
-          <Notice
-            tone="warning"
-            icon={Hourglass}
-            layout="inline"
-            className="mt-4 flex-wrap"
-            action={
-              canHost ? (
-                <div className="flex flex-wrap items-center gap-2">
-                  <Button type="button" size="sm" variant="outline" disabled={extendPending} onClick={onExtend}>
-                    <CalendarClock aria-hidden />
-                    {t("meetings.extendWindow")}
-                  </Button>
-                  <Button type="button" size="sm" variant="destructiveSolid" onClick={onEnd}>
-                    <PhoneOff aria-hidden />
-                    {t("meetings.end")}
-                  </Button>
-                </div>
-              ) : undefined
-            }
-          >
-            {t(canHost ? "meetings.overtimeHostHint" : "meetings.overtimeHint", { time: scheduledEnd })}
-          </Notice>
+          <div className="mt-4">
+            <Notice tone="warning" icon={Hourglass} layout="inline">
+              {t(canHost ? "meetings.overtimeHostHint" : "meetings.overtimeHint", { time: scheduledEnd })}
+            </Notice>
+            {canHost ? (
+              <NoticeActions>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  aria-disabled={extendPending || undefined}
+                  onClick={() => {
+                    if (!extendPending) onExtend();
+                  }}
+                >
+                  <CalendarClock aria-hidden />
+                  {t("meetings.extendWindow")}
+                </Button>
+                <Button type="button" size="sm" variant="destructiveSolid" onClick={onEnd}>
+                  <PhoneOff aria-hidden />
+                  {t("meetings.end")}
+                </Button>
+              </NoticeActions>
+            ) : null}
+          </div>
         ) : null}
 
         {missed ? (
-          <Notice
-            tone="info"
-            icon={CalendarX2}
-            layout="inline"
-            className="mt-4 flex-wrap"
-            action={
-              canHost || canCancel ? (
-                <div className="flex flex-wrap items-center gap-2">
-                  {canHost ? (
-                    <MeetingEditDialog
-                      workspaceId={workspaceId}
-                      meeting={meeting}
-                      trigger={
-                        <Button type="button" size="sm" variant="outline">
-                          <CalendarClock aria-hidden />
-                          {t("meetings.reschedule")}
-                        </Button>
-                      }
-                    />
-                  ) : null}
-                  {canHost ? <MeetingRecordHeldButton workspaceId={workspaceId} meeting={meeting} /> : null}
-                  {canCancel ? (
-                    <Button type="button" size="sm" variant="destructive" onClick={onCancel}>
-                      <Ban aria-hidden />
-                      {t("meetings.cancel")}
-                    </Button>
-                  ) : null}
-                </div>
-              ) : undefined
-            }
-          >
-            {t(canHost ? "meetings.missedHostHint" : "meetings.missedHint")}
-          </Notice>
+          <div className="mt-4">
+            <Notice tone="info" icon={CalendarX2} layout="inline">
+              {t(canHost ? "meetings.missedHostHint" : "meetings.missedHint")}
+            </Notice>
+            {canHost || canCancel ? (
+              <NoticeActions>
+                {/* Held in person comes first: the one path that keeps what happened. */}
+                {canHost ? <MeetingRecordHeldButton workspaceId={workspaceId} meeting={meeting} /> : null}
+                {canHost ? (
+                  <MeetingEditDialog
+                    workspaceId={workspaceId}
+                    meeting={meeting}
+                    trigger={
+                      <Button type="button" size="sm" variant="ghost">
+                        <CalendarClock aria-hidden />
+                        {t("meetings.reschedule")}
+                      </Button>
+                    }
+                  />
+                ) : null}
+                {canCancel ? (
+                  <Button type="button" size="sm" variant="destructive" onClick={onCancel}>
+                    <Ban aria-hidden />
+                    {t("meetings.cancel")}
+                  </Button>
+                ) : null}
+              </NoticeActions>
+            ) : null}
+          </div>
+        ) : null}
+
+        {ended && nextStep ? (
+          <div className="mt-5 flex flex-col gap-3 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-label text-muted-foreground">
+              {nextStep.kind === "assign"
+                ? t("meetings.nextStep.assignHint", { count: nextStep.pending })
+                : t("meetings.nextStep.minutesHint")}
+            </p>
+            <Button type="button" className="w-full sm:w-auto" onClick={nextStep.onGo}>
+              {nextStep.kind === "assign" ? <ListChecks aria-hidden /> : <MODULE_ICONS.documents aria-hidden />}
+              {t(nextStep.kind === "assign" ? "meetings.nextStep.assign" : "meetings.nextStep.minutes")}
+            </Button>
+          </div>
         ) : null}
 
         {!showActions ? null : (
           <div className="mt-5 flex flex-col gap-3 border-t border-border pt-4 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex flex-wrap items-center gap-2">
+            {/* A phone stacks the actions full width; from sm they sit in one row. */}
+            <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap sm:items-center">
               {canHost && scheduled ? (
-                <Button type="button" size="lg" variant="outline" disabled={startPending} onClick={onStart}>
+                <Button
+                  type="button"
+                  size="lg"
+                  variant="outline"
+                  aria-disabled={startPending || undefined}
+                  onClick={() => {
+                    if (!startPending) onStart();
+                  }}
+                >
                   <Play aria-hidden />
                   {t("meetings.start")}
                 </Button>
@@ -289,7 +323,7 @@ export function MeetingDetailHero({
                 <MeetingRecordHeldButton workspaceId={workspaceId} meeting={meeting} size="lg" />
               ) : null}
               {open ? (
-                <Button type="button" size="lg" variant="brand" onClick={onJoin}>
+                <Button type="button" size="lg" variant="brand" className="max-sm:order-first" onClick={onJoin}>
                   <Video aria-hidden />
                   {t("meetings.join")}
                   {canHost && pendingJoins > 0 ? (

@@ -232,7 +232,7 @@ test("votes: the secretary drafts, opens and closes an item; the result reaches 
   expect(named?.no).toEqual([]);
 
   // "Đã biểu quyết" renders from the closed item even with no AI summary.
-  const summary = page.getByRole("region", { name: "Tóm tắt AI" });
+  const summary = page.getByRole("region", { name: "Tóm tắt", exact: true });
   await expect(summary.getByText("Đã biểu quyết", { exact: true })).toBeVisible();
   await expect(summary.getByText(title, { exact: true })).toBeVisible();
   await expect(summary.getByText("2 tán thành · 0 không tán thành · 0 không ý kiến", { exact: true })).toBeVisible();

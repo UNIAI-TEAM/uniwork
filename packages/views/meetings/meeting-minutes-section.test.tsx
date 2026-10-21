@@ -1,6 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeAll, describe, expect, it } from "vitest";
+import { ApiError } from "@uniwork/core/api/http";
 import { initI18n } from "@uniwork/core/i18n";
 import type { User, Workspace } from "@uniwork/core/types";
 import { WorkspaceProvider } from "../layout/workspace-context";
@@ -99,7 +100,9 @@ describe("MeetingMinutesSection", () => {
     );
     renderSection();
     await userEvent.click(await screen.findByRole("button", { name: "Xem bản đã chốt (phiên bản 2)" }));
-    expect(await screen.findByRole("dialog", { name: "Không mở được bản đã chốt" })).toBeInTheDocument();
+    // Said in the card, not in a dialog opened only to say so.
+    expect(await screen.findByText(/^Không mở được bản đã chốt/)).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
   it("shows the date alone, not a former member, while members load", async () => {
@@ -109,8 +112,22 @@ describe("MeetingMinutesSection", () => {
       String(path).endsWith("/members") ? new Promise(() => {}) : base(path, init),
     );
     renderSection();
-    expect(await screen.findByText("Chốt ngày 20/10/2026")).toBeInTheDocument();
+    expect(await screen.findByText(/^Chốt ngày Thứ Ba, 20 tháng 10$/)).toBeInTheDocument();
     expect(screen.queryByText(/Thành viên đã rời/)).not.toBeInTheDocument();
+  });
+
+  it("says the minutes did not load and retries", async () => {
+    respond(null);
+    const base = requestMock.getMockImplementation()!;
+    let fail = true;
+    requestMock.mockImplementation((path: unknown, init?: { method?: string }) =>
+      fail && String(path).endsWith("/minutes") ? Promise.reject(new ApiError("down", "forbidden", 403)) : base(path, init),
+    );
+    renderSection();
+    expect(await screen.findByText("Không tải được biên bản.")).toBeInTheDocument();
+    fail = false;
+    await userEvent.click(screen.getByRole("button", { name: "Thử lại" }));
+    expect(await screen.findByRole("button", { name: "Lập biên bản" })).toBeInTheDocument();
   });
 
   it("shows a draft with its page and the finalize action", async () => {
@@ -128,7 +145,9 @@ describe("MeetingMinutesSection", () => {
     respond({ ...finalized, edited_since_finalized: true }, { reopen: draft });
     renderSection();
     expect(await screen.findByText("Đã chốt")).toBeInTheDocument();
-    expect(await screen.findByText("Chốt ngày 20/10/2026 · Mai Anh")).toBeInTheDocument();
+    expect(await screen.findByText("Chốt ngày Thứ Ba, 20 tháng 10 · Mai Anh")).toBeInTheDocument();
+    // A soft state chip, and reopening is the quietest action.
+    expect(screen.getByText("Đã chốt")).toHaveAttribute("data-tone", "success");
     expect(screen.getByRole("button", { name: "Xem bản đã chốt (phiên bản 2)" })).toBeInTheDocument();
     expect(screen.getByText("Đã sửa sau khi chốt. Chốt lại để ghi nhận bản mới.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Chốt lại" })).toBeInTheDocument();

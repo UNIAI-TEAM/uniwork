@@ -1,6 +1,6 @@
 "use client";
 import { lazy, Suspense, useState } from "react";
-import { CircleAlert, ExternalLink, Eye } from "lucide-react";
+import { CircleAlert, ExternalLink, Eye, TriangleAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useDocument } from "@uniwork/core/documents/hooks";
 import {
@@ -11,15 +11,7 @@ import {
   type MeetingMinutes,
 } from "@uniwork/core/meetings/minutes";
 import { paths } from "@uniwork/core/paths";
-import { Badge } from "@uniwork/ui/components/ui/badge";
 import { Button, buttonVariants } from "@uniwork/ui/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@uniwork/ui/components/ui/dialog";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { toast } from "sonner";
@@ -29,8 +21,9 @@ import { MODULE_ICONS } from "../layout/module-icons";
 import { useOptionalWorkspace } from "../layout/workspace-context";
 import { AppLink, useNavigation } from "../navigation";
 import { toastApiError } from "../toast-api-error";
-import { formatMeetingDate, meetingLocale } from "./meeting-datetime";
-import { MeetingSectionLoading } from "./meeting-section-state";
+import { formatMeetingDay, meetingDayKey, meetingLocale } from "./meeting-datetime";
+import { MeetingSectionError, MeetingSectionLoading } from "./meeting-section-state";
+import { ToneBadge } from "./meeting-status-badge";
 import { useMemberIndex } from "./use-member-index";
 
 // The preview brings the editor; only a click on "view the finalized
@@ -39,38 +32,30 @@ const VersionPreviewDialog = lazy(() =>
   import("../documents/version-preview-dialog").then((mod) => ({ default: mod.VersionPreviewDialog })),
 );
 
+/**
+ * The finalized version, once its page has loaded: the button that asked for
+ * it shows the wait, and a page that cannot be read is said in the card, not
+ * in a dialog opened only to say so.
+ */
 function FinalizedVersionPreview({
   workspaceId,
-  minutes,
+  doc,
+  versionNo,
   onClose,
 }: {
   workspaceId: string;
-  minutes: MeetingMinutes;
+  doc: NonNullable<ReturnType<typeof useDocument>["data"]>;
+  versionNo?: number;
   onClose: () => void;
 }) {
-  const { t } = useTranslation();
-  const doc = useDocument(workspaceId, minutes.document_id ?? "", { retry: false });
-  if (doc.isError) {
-    return (
-      <Dialog open onOpenChange={(open) => !open && onClose()}>
-        <DialogContent closeLabel={t("common.close")}>
-          <DialogHeader>
-            <DialogTitle>{t("meetings.minutes.previewFailedTitle")}</DialogTitle>
-            <DialogDescription>{t("meetings.minutes.previewFailed")}</DialogDescription>
-          </DialogHeader>
-        </DialogContent>
-      </Dialog>
-    );
-  }
-  if (!doc.data) return null;
   return (
     <Suspense fallback={null}>
       <VersionPreviewDialog
         open
         onOpenChange={(open) => !open && onClose()}
         wsId={workspaceId}
-        doc={doc.data}
-        versionNo={minutes.finalized_version ?? undefined}
+        doc={doc}
+        versionNo={versionNo}
       />
     </Suspense>
   );
@@ -102,6 +87,8 @@ export function MeetingMinutesSection({
   const wsPaths = workspace ? paths.workspace(workspace.organization_slug, workspace.slug) : null;
   const navigation = useNavigation();
   const [previewOpen, setPreviewOpen] = useState(false);
+  const previewDoc = useDocument(workspaceId, previewOpen ? (minutes?.document_id ?? "") : "", { retry: false });
+  const previewLoading = previewOpen && previewDoc.isPending;
   const busy = create.isPending || finalize.isPending || reopen.isPending;
   const onError = (err: unknown) => toastApiError(err, t("common.error"));
 
@@ -113,20 +100,12 @@ export function MeetingMinutesSection({
       </MeetingSectionLoading>
     );
   } else if (isError) {
-    body = (
-      <div className="flex items-center gap-3">
-        <p role="alert" className="text-caption text-destructive">
-          {t("meetings.minutes.loadFailed")}
-        </p>
-        <Button size="sm" variant="outline" onClick={() => void refetch()}>
-          {t("common.retry")}
-        </Button>
-      </div>
-    );
+    body = <MeetingSectionError message={t("meetings.minutes.loadFailed")} onRetry={() => void refetch()} />;
   } else if (!minutes) {
+    // The same left edge as the card once it has minutes: the button does not jump sides.
     body = (
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-caption text-muted-foreground">
+      <div className="flex flex-col items-start gap-3">
+        <p className="text-label text-muted-foreground">
           {t(canClerk ? "meetings.minutes.emptyClerk" : "meetings.minutes.empty")}
         </p>
         {canClerk ? (
@@ -157,14 +136,17 @@ export function MeetingMinutesSection({
     const finalizerName = membersLoaded
       ? (memberOf(minutes.finalized_by)?.display_name ?? t("meetings.formerMember"))
       : null;
-    const finalizedDate = formatMeetingDate(minutes.finalized_at, meetingLocale(i18n.language));
+    const finalizedDate = minutes.finalized_at
+      ? formatMeetingDay(meetingDayKey(minutes.finalized_at), meetingLocale(i18n.language))
+      : "";
     const canChange = canClerk && minutes.can_edit && Boolean(documentId);
     body = (
       <div className="flex flex-col gap-3">
         <div className="flex flex-wrap items-center gap-2">
-          <Badge variant={minutes.finalized ? "default" : "secondary"}>
+          {/* A soft state chip, not the loudest thing on the card. */}
+          <ToneBadge tone={minutes.finalized ? "success" : "muted"}>
             {t(minutes.finalized ? "meetings.minutes.finalized" : "meetings.minutes.draft")}
-          </Badge>
+          </ToneBadge>
           {minutes.finalized ? (
             <span className="text-caption text-muted-foreground">
               {finalizerName
@@ -174,7 +156,7 @@ export function MeetingMinutesSection({
           ) : null}
         </div>
         {minutes.finalized && minutes.edited_since_finalized ? (
-          <Notice tone="warning" icon={CircleAlert} layout="inline">
+          <Notice tone="warning" icon={TriangleAlert} layout="inline">
             {t("meetings.minutes.editedSince")}
           </Notice>
         ) : null}
@@ -190,12 +172,6 @@ export function MeetingMinutesSection({
               <ExternalLink aria-hidden />
               {t("meetings.minutes.open")}
             </AppLink>
-          ) : null}
-          {minutes.finalized && minutes.finalized_version ? (
-            <Button size="sm" variant="ghost" onClick={() => setPreviewOpen(true)}>
-              <Eye aria-hidden />
-              {t("meetings.minutes.viewFinalized", { no: minutes.finalized_version })}
-            </Button>
           ) : null}
           {canChange && (!minutes.finalized || minutes.edited_since_finalized) ? (
             <Button
@@ -213,10 +189,26 @@ export function MeetingMinutesSection({
               {t(minutes.finalized ? "meetings.minutes.refinalize" : "meetings.minutes.finalize")}
             </Button>
           ) : null}
+          {minutes.finalized && minutes.finalized_version ? (
+            <Button
+              size="sm"
+              variant="ghost"
+              aria-busy={previewLoading || undefined}
+              onClick={() => {
+                if (previewLoading) return;
+                if (previewDoc.isError) void previewDoc.refetch();
+                setPreviewOpen(true);
+              }}
+            >
+              {previewLoading ? <Spinner /> : <Eye aria-hidden />}
+              {t("meetings.minutes.viewFinalized", { no: minutes.finalized_version })}
+            </Button>
+          ) : null}
+          {/* Reopening undoes the finalize: the quietest button on the card. */}
           {canChange && minutes.finalized ? (
             <Button
               size="sm"
-              variant="outline"
+              variant="ghost"
               aria-disabled={busy || undefined}
               onClick={() => {
                 if (busy) return;
@@ -234,8 +226,18 @@ export function MeetingMinutesSection({
         {canClerk && documentId && !minutes.can_edit ? (
           <p className="text-caption text-muted-foreground">{t("meetings.minutes.editRequired")}</p>
         ) : null}
-        {previewOpen ? (
-          <FinalizedVersionPreview workspaceId={workspaceId} minutes={minutes} onClose={() => setPreviewOpen(false)} />
+        {previewOpen && previewDoc.isError ? (
+          <Notice tone="destructive" icon={CircleAlert} layout="inline" live="assertive">
+            {t("meetings.minutes.previewFailed")}
+          </Notice>
+        ) : null}
+        {previewOpen && previewDoc.data ? (
+          <FinalizedVersionPreview
+            workspaceId={workspaceId}
+            doc={previewDoc.data}
+            versionNo={minutes.finalized_version ?? undefined}
+            onClose={() => setPreviewOpen(false)}
+          />
         ) : null}
       </div>
     );

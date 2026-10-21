@@ -1,6 +1,7 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeAll, describe, expect, it } from "vitest";
+import { ApiError } from "@uniwork/core/api/http";
 import { initI18n } from "@uniwork/core/i18n";
 import type { User, Workspace } from "@uniwork/core/types";
 import { WorkspaceProvider } from "../../layout/workspace-context";
@@ -79,7 +80,7 @@ describe("MeetingCarriedOverSection", () => {
     // The group whose task is due first heads the list.
     expect(older.compareDocumentPosition(newer) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(within(older).getByRole("link", { name: "Giao ban tuần 40" })).toHaveAttribute("href", "/org/team/meetings/m-1");
-    expect(within(older).getByRole("link", { name: "Mở việc “Gửi báo giá”" })).toHaveAttribute("href", "/org/team/tasks/t1");
+    expect(within(older).getByRole("link", { name: 'Mở việc "Gửi báo giá"' })).toHaveAttribute("href", "/org/team/tasks/t1");
     expect(within(older).getByText("In tài liệu")).toBeInTheDocument();
     expect(await within(older).findByText("Mai Anh")).toBeInTheDocument();
     expect(within(older).getByText("Quá hạn")).toBeInTheDocument();
@@ -97,6 +98,23 @@ describe("MeetingCarriedOverSection", () => {
     renderSection();
     await waitFor(() => expect(requestMock).toHaveBeenCalled());
     expect(screen.getByTestId("host")).toBeEmptyDOMElement();
+  });
+
+  it("says the list did not load and retries, instead of vanishing", async () => {
+    requestMock.mockReset();
+    let fail = true;
+    requestMock.mockImplementation((path: unknown) => {
+      const p = String(path);
+      if (p.endsWith("/carried-over-items")) {
+        return fail ? Promise.reject(new ApiError("nope", "forbidden", 403)) : Promise.resolve({ items });
+      }
+      return Promise.resolve({});
+    });
+    renderSection();
+    expect(await screen.findByText("Chưa tải được việc còn tồn từ các cuộc họp trước.")).toBeInTheDocument();
+    fail = false;
+    fireEvent.click(screen.getByRole("button", { name: "Thử lại" }));
+    expect(await screen.findByText("Gửi báo giá")).toBeInTheDocument();
   });
 
   it("folds into one group in the Copilot until opened", async () => {

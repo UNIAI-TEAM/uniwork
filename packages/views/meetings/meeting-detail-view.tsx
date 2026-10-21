@@ -1,6 +1,6 @@
 "use client";
 import { useState, type ReactNode } from "react";
-import { Ban, CalendarX2, MessageCircleQuestionMark, Pencil, PhoneOff, RotateCcw } from "lucide-react";
+import { Ban, CalendarX2, Pencil, PhoneOff, RotateCcw, Sparkles } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import {
   displayMeetingStatus,
@@ -18,7 +18,8 @@ import {
 import { useAiCapabilities } from "@uniwork/core/ai";
 import { paths } from "@uniwork/core/paths";
 import { useMeetingClerk } from "@uniwork/core/meetings/attendance";
-import { useMeetingMinutesEnabled } from "@uniwork/core/meetings/minutes";
+import { useMeetingActionItems } from "@uniwork/core/meetings/action-items";
+import { useMeetingMinutes, useMeetingMinutesEnabled } from "@uniwork/core/meetings/minutes";
 import { useMeetingPermissions } from "@uniwork/core/permissions";
 import { useMeetingScope } from "@uniwork/core/realtime";
 import { ApiError } from "@uniwork/core/api";
@@ -36,7 +37,7 @@ import { MeetingActivityTimeline } from "./meeting-activity-timeline";
 import { MeetingAttendanceCard } from "./meeting-attendance-card";
 import { MeetingAskBox } from "./meeting-copilot/meeting-ask-box";
 import { MeetingDetailAside, MeetingDetailRoster } from "./meeting-detail-aside";
-import { MeetingDetailHero } from "./meeting-detail-hero";
+import { MeetingDetailHero, type MeetingNextStep } from "./meeting-detail-hero";
 import { MeetingEditDialog } from "./meeting-edit-dialog";
 import { MeetingJoinRequestsPanel } from "./meeting-join-requests-panel";
 import { MeetingMotionsSection } from "./meeting-motions-section";
@@ -46,9 +47,20 @@ import { MeetingActionItemsSection } from "./meeting-action-items/meeting-action
 import { MeetingCarriedOverSection } from "./meeting-action-items/carried-over-section";
 import { MeetingMinutesSection } from "./meeting-minutes-section";
 import { MeetingSummaryPanel } from "./meeting-summary-panel";
+import { MeetingTranscriptPanel } from "./meeting-transcript-panel";
 import { useMemberIndex } from "./use-member-index";
 import { useMeetingSectionDeepLink } from "./use-meeting-section-deep-link";
 import { useNow } from "./use-now";
+
+/** The hero's next step: bring a section into view and put focus on its first control. */
+function goToSection(headingId: string): void {
+  const heading = document.getElementById(headingId);
+  heading?.scrollIntoView({ block: "start", behavior: "smooth" });
+  heading
+    ?.closest("section")
+    ?.querySelector<HTMLElement>('[role="checkbox"], button:not([aria-disabled="true"]), a[href]')
+    ?.focus({ preventScroll: true });
+}
 
 export function MeetingDetailView({
   workspaceId,
@@ -83,6 +95,10 @@ export function MeetingDetailView({
   const { isClerk } = useMeetingClerk(meeting ?? null, workspaceId);
   // The organization's own answer: an override for it turns the minutes on.
   const minutesOn = useMeetingMinutesEnabled(workspace.organization_id);
+  // What the clerk does next once the meeting has ended (the hero names it).
+  const clerkAfter = isClerk && meeting?.status === "ENDED";
+  const { data: actionItems } = useMeetingActionItems(clerkAfter ? meetingId : "");
+  const minutesQuery = useMeetingMinutes(meetingId, clerkAfter && minutesOn);
   const start = useStartMeeting(workspaceId);
   const end = useEndMeeting(workspaceId);
   const cancel = useCancelMeeting(workspaceId);
@@ -156,6 +172,14 @@ export function MeetingDetailView({
   }));
   const canceledAt = (activity ?? []).find((a) => a.event_type === "MEETING_CANCELED")?.occurred_at;
   const onError = (err: unknown) => toastApiError(err, t("common.error"));
+  const pendingItems = actionItems?.counts.pending ?? 0;
+  const nextStep: MeetingNextStep | null = !clerkAfter
+    ? null
+    : pendingItems > 0
+      ? { kind: "assign", pending: pendingItems, onGo: () => goToSection("action-items-heading") }
+      : minutesOn && minutesQuery.isSuccess && !minutesQuery.data
+        ? { kind: "minutes", onGo: () => goToSection("meeting-minutes-heading") }
+        : null;
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
@@ -205,7 +229,8 @@ export function MeetingDetailView({
           </>
         }
       />
-      <div className="min-h-0 flex-1 overflow-auto">
+      {/* relative: absolute descendants (sr-only text, checkbox inputs) belong to this scroller, not the frame. */}
+      <div className="relative min-h-0 flex-1 overflow-auto">
         <div
           data-testid="meeting-detail-content"
           className={cn(
@@ -232,13 +257,16 @@ export function MeetingDetailView({
             }
             onEnd={() => setConfirm("end")}
             onCancel={() => setConfirm("cancel")}
+            nextStep={nextStep}
           />
 
           {/* The aside scrolls with the page: a sticky column taller than the
               viewport would leave its bottom unreachable. Below lg the columns
-              collapse into one flow (the main column is `contents`), ordered
-              so who is in comes right after any waiting guests, ahead of the
-              summary and notes; from lg the roster heads the side column. */}
+              collapse into one flow (the main column is `contents`). Before and
+              during the meeting, who is in and how to get in come right after
+              any waiting guests; once it is over the work (summary, action
+              items, minutes) leads and the roster and details follow. From lg
+              the roster heads the side column. */}
           <div
             data-testid="meeting-detail-sections"
             className={cn(
@@ -271,6 +299,11 @@ export function MeetingDetailView({
               ) : null}
               {showSummary ? (
                 <div className="order-3 min-w-0">
+                  <MeetingTranscriptPanel workspaceId={workspaceId} meeting={meeting} canClerk={isClerk} />
+                </div>
+              ) : null}
+              {showSummary ? (
+                <div className="order-3 min-w-0">
                   <MeetingActionItemsSection
                     workspaceId={workspaceId}
                     meetingId={meeting.id}
@@ -293,7 +326,7 @@ export function MeetingDetailView({
               ) : null}
               {showSummary && aiCaps?.ask_uni ? (
                 <div className="order-3 min-w-0">
-                  <PanelCard title={t("meetings.askUniTitle")} icon={MessageCircleQuestionMark}>
+                  <PanelCard title={t("meetings.askUniTitle")} icon={Sparkles}>
                     {/* Chat takes a message only from someone in the room. */}
                     <MeetingAskBox workspaceId={workspaceId} meetingId={meetingId} canShare={inProgress && Boolean(myParticipant)} />
                   </PanelCard>
@@ -307,12 +340,14 @@ export function MeetingDetailView({
                 <MeetingNotesSection meetingId={meetingId} locked={closed} />
               </div>
               <div className="order-3 min-w-0">
-                <MeetingActivityTimeline workspaceId={workspaceId} meetingId={meetingId} defaultOpen />
+                {/* Folded once the meeting is over: history, not work. */}
+                <MeetingActivityTimeline workspaceId={workspaceId} meetingId={meetingId} defaultOpen={!closed} />
               </div>
             </div>
             <div
               className={cn(
-                "order-2 min-w-0",
+                "min-w-0",
+                closed ? "order-4" : "order-2",
                 layout === "page" && "lg:col-start-2 lg:row-start-1",
               )}
             >
@@ -325,7 +360,8 @@ export function MeetingDetailView({
             </div>
             <aside
               className={cn(
-                "order-4 min-w-0",
+                "min-w-0",
+                closed ? "order-4" : "order-2",
                 layout === "page" && "lg:col-start-2 lg:row-start-2",
               )}
             >

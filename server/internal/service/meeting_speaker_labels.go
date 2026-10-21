@@ -171,9 +171,19 @@ func speakerName(seg db.MeetingTranscriptSegment, speakers map[string]SpeakerNam
 	}
 	sp := speakers[seg.SpeakerLabel]
 	en := strings.HasPrefix(locale, "en")
+	// An uploaded recording has no room mic: its speakers are plain "Speaker n".
+	upload := strings.HasPrefix(seg.SpeakerLabel, "upload:")
 	switch {
 	case sp.Name != "":
 		return sp.Name
+	case upload && sp.Number > 0 && en:
+		return fmt.Sprintf("Speaker %d", sp.Number)
+	case upload && sp.Number > 0:
+		return fmt.Sprintf("Người nói %d", sp.Number)
+	case upload && en:
+		return "Unknown speaker"
+	case upload:
+		return "Không rõ người nói"
 	case sp.Number > 0 && en:
 		return fmt.Sprintf("Room · Speaker %d", sp.Number)
 	case sp.Number > 0:

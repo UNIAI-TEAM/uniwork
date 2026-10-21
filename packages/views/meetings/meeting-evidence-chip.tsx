@@ -10,7 +10,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@uniwork/ui/components/
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { meetingLocale } from "./meeting-datetime";
 import { MeetingRecordingDialog } from "./meeting-recording-dialog";
-import { MeetingSectionLoading } from "./meeting-section-state";
+import { MeetingSectionError, MeetingSectionLoading } from "./meeting-section-state";
 
 /** Where in a recording a moment falls: the COMPLETE recording running then, and the second into it. */
 export function recordingOffset(
@@ -84,7 +84,7 @@ export function MeetingEvidenceChip({
           }
         />
         <PopoverContent align="start" className="w-80 space-y-2">
-          <h4 className="text-overline text-muted-foreground">{t("meetings.evidence.title")}</h4>
+          <h4 className="text-label font-semibold text-foreground">{t("meetings.evidence.title")}</h4>
           {open ? (
             <EvidenceSources
               meetingId={meetingId}
@@ -132,7 +132,7 @@ function EvidenceSources({
     );
   }
   if (query.isError) {
-    return <p className="text-caption text-destructive">{t("meetings.evidence.error")}</p>;
+    return <MeetingSectionError message={t("meetings.evidence.error")} onRetry={() => void query.refetch()} />;
   }
   if (query.data.length === 0) {
     return <p className="text-caption text-muted-foreground">{t("meetings.evidence.gone")}</p>;
@@ -159,7 +159,8 @@ function EvidenceSources({
                 </>
               ) : null}
             </p>
-            <p className="line-clamp-6 whitespace-pre-wrap text-pretty text-body text-foreground">{src.text}</p>
+            {/* Whole, not clamped: the list scrolls, and a cut quote cannot be opened any further. */}
+            <p className="whitespace-pre-wrap text-pretty text-body text-foreground">{src.text}</p>
             {play ? (
               <Button type="button" size="xs" variant="link" className="h-auto px-0" onClick={() => onPlay(play)}>
                 <Play aria-hidden />

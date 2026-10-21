@@ -1,6 +1,6 @@
 "use client";
 import { useId, useState, type ReactNode } from "react";
-import { CircleCheck, RotateCcw } from "lucide-react";
+import { Circle, CircleCheck, RotateCcw } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { MeetingActionItem } from "@uniwork/core/meetings/action-items";
 import { Badge } from "@uniwork/ui/components/ui/badge";
@@ -12,7 +12,7 @@ import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { Textarea } from "@uniwork/ui/components/ui/textarea";
 import { cn } from "@uniwork/ui/lib/utils";
 import { AppLink } from "../../navigation";
-import { meetingLocale } from "../meeting-datetime";
+import { formatMeetingDay, meetingLocale } from "../meeting-datetime";
 
 export type ActionItemsVariant = "panel" | "compact";
 
@@ -26,13 +26,23 @@ const ROW_CLASS: Record<ActionItemsVariant, string> = {
   compact: "rounded-xl border border-border bg-surface px-3 py-2.5",
 };
 
-/** A YYYY-MM-DD date as the reader writes dates; the raw string when it does not parse. */
-export function formatDueDate(date: string, locale: string): string {
-  const ms = Date.parse(`${date}T00:00:00Z`);
-  if (!Number.isFinite(ms)) return date;
-  return new Intl.DateTimeFormat(locale, { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "UTC" }).format(
-    ms,
-  );
+/** A YYYY-MM-DD due date in the hero's date style ("Thứ Sáu, 25 tháng 9"); the raw string when it does not parse. */
+function formatDueDate(date: string, locale: string): string {
+  return /^\d{4}-\d{2}-\d{2}$/.test(date) ? formatMeetingDay(date, locale) : date;
+}
+
+/** What an open task's state reads as: not every unfinished task is being worked on. */
+function openStateKey(status: string | null | undefined): string {
+  switch (status) {
+    case "todo":
+    case "backlog":
+      return "taskNotStarted";
+    case "in_progress":
+    case "in_review":
+      return "taskOpen";
+    default:
+      return "taskNotDone";
+  }
 }
 
 /** HH:mm of an ISO time as the reader writes it; null when it does not parse. */
@@ -93,39 +103,43 @@ export function PendingRow({
   /** The item's evidence chip (MeetingEvidenceChip). */
   evidence?: ReactNode;
 }) {
+  const checkboxId = useId();
   const { t, i18n } = useTranslation();
-  const said = [item.owner_text, item.due_text].filter((v): v is string => Boolean(v?.trim())).join(" · ");
+  // The owner as said, unless the suggestion names the same person: one name, once.
+  const sameOwner = Boolean(suggestedName) && item.owner_text?.trim().toLowerCase() === suggestedName?.trim().toLowerCase();
+  const said = [sameOwner ? null : item.owner_text, item.due_text].filter((v): v is string => Boolean(v?.trim())).join(" · ");
   const dueLabel = item.suggested_due_date ? formatDueDate(item.suggested_due_date, meetingLocale(i18n.language)) : null;
   const selectable = onCheckedChange !== undefined;
+  const suggestion = [suggestedName, dueLabel ? t("meetings.summaryAi.dueOn", { date: dueLabel }) : null]
+    .filter(Boolean)
+    .join(" · ");
   return (
     <RowShell variant={variant} highlight={checked}>
       <div className="flex items-start gap-3">
         {selectable ? (
           <Checkbox
-            aria-label={item.title}
-            className="mt-0.5"
+            id={checkboxId}
+            // 16px box, 44px target on touch (the primitive's ::after is 40×32).
+            className="mt-0.5 pointer-coarse:after:-inset-3.5"
             checked={checked}
             onCheckedChange={(v) => onCheckedChange(v === true)}
           />
         ) : null}
         <div className="min-w-0 flex-1 space-y-1">
           <p className="text-pretty">
-            {item.title}
+            {selectable ? (
+              // The title ticks the box too, and names it (the badge stays out of the name).
+              <label htmlFor={checkboxId} className="cursor-pointer">
+                {item.title}
+              </label>
+            ) : (
+              item.title
+            )}
             <SourceBadge source={item.source} createdAt={item.created_at} />
           </p>
           {said ? <p className="text-caption text-muted-foreground">{said}</p> : null}
-          {selectable && (suggestedName || dueLabel) ? (
-            <p className="text-caption text-brand">
-              <span aria-hidden>→ </span>
-              {suggestedName ? (
-                <>
-                  <span className="sr-only">{t("meetings.assignedTo")} </span>
-                  {suggestedName}
-                </>
-              ) : null}
-              {suggestedName && dueLabel ? <span aria-hidden> · </span> : null}
-              {dueLabel ? t("meetings.summaryAi.dueOn", { date: dueLabel }) : null}
-            </p>
+          {selectable && suggestion ? (
+            <p className="text-caption text-muted-foreground">{t("meetings.actionItemsSection.suggestion", { value: suggestion })}</p>
           ) : null}
           {evidence}
         </div>
@@ -155,11 +169,13 @@ export function ConvertedRow({
   const task = item.task;
   const title = task?.title || item.title;
   const due = task?.due_date ? formatDueDate(task.due_date, meetingLocale(i18n.language)) : null;
-  const state = task?.done ? "taskDone" : task?.overdue ? "taskOverdue" : "taskOpen";
+  const state = task?.done ? "taskDone" : task?.overdue ? "taskOverdue" : openStateKey(task?.status);
+  // Only a finished task wears the check; an open one is an empty circle.
+  const Glyph = task?.done ? CircleCheck : Circle;
   return (
     <RowShell variant={variant}>
-      <p className="flex items-start gap-1.5">
-        <CircleCheck aria-hidden className={cn("mt-0.5 size-4 shrink-0", task?.done ? "text-success" : "text-faint-foreground")} />
+      <p className="flex items-start gap-3">
+        <Glyph aria-hidden className={cn("mt-0.5 size-4 shrink-0", task?.done ? "text-success" : "text-faint-foreground")} />
         {taskHref ? (
           <AppLink
             href={taskHref}
@@ -172,7 +188,7 @@ export function ConvertedRow({
           <span className="min-w-0 text-pretty">{title}</span>
         )}
       </p>
-      <p className="flex flex-wrap items-center gap-x-1.5 pl-5.5 text-caption text-muted-foreground">
+      <p className="flex flex-wrap items-center gap-x-1.5 pl-7 text-caption text-muted-foreground">
         <span>{assigneeName ?? t("meetings.actionItemsSection.unassigned")}</span>
         {due ? (
           <>
@@ -185,7 +201,7 @@ export function ConvertedRow({
           {t(`meetings.actionItemsSection.${state}`)}
         </span>
       </p>
-      {evidence ? <div className="pl-5.5">{evidence}</div> : null}
+      {evidence ? <div className="pl-7">{evidence}</div> : null}
     </RowShell>
   );
 }
@@ -261,7 +277,14 @@ export function DismissActionItemButton({
         <Label htmlFor={reasonId} className="text-caption">
           {t("meetings.actionItemsSection.dismissReason")}
         </Label>
-        <Textarea id={reasonId} rows={2} maxLength={500} value={reason} onChange={(e) => setReason(e.target.value)} />
+        <Textarea
+          id={reasonId}
+          rows={2}
+          maxLength={500}
+          className="resize-none"
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+        />
         <div className="flex justify-end gap-2">
           <Button type="button" size="sm" variant="ghost" onClick={() => setOpen(false)}>
             {t("common.cancel")}
