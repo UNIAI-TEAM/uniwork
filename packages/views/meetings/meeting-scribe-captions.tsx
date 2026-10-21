@@ -38,7 +38,8 @@ export function applyScribeCaption(lines: readonly ScribeCaption[], c: ScribeCap
 
 /** The AI scribe is in the room: LiveKit's AGENT kind, never an identity prefix (D8). */
 export function useScribeInRoom(): boolean {
-  return useRemoteParticipants().some((p) => p.isAgent);
+  // Joins and leaves only (LiveKit always follows those): a speaking change must not re-render the stage.
+  return useRemoteParticipants({ updateOnlyOn: [] }).some((p) => p.isAgent);
 }
 
 /**
