@@ -16,7 +16,6 @@ class Settings:
     health_port: int
     metrics_port: int
     metrics_dir: str
-    idle_processes: int
     drain_timeout_s: int
 
 
@@ -29,8 +28,6 @@ def load() -> Settings:
         health_port=int(os.environ.get("SCRIBE_HEALTH_PORT", "8081")),
         metrics_port=int(os.environ.get("SCRIBE_METRICS_PORT", "9100")),
         metrics_dir=os.environ.get("PROMETHEUS_MULTIPROC_DIR", "/tmp/scribe-metrics"),
-        # Spec §4.6: warm processes per CPU; a job is one process.
-        idle_processes=int(os.environ.get("SCRIBE_IDLE_PROCESSES", str(os.cpu_count() or 2))),
         # Spec §4.6: a draining pod lets every meeting it serves end (4 h),
         # two minutes under terminationGracePeriodSeconds (14400 s in the chart)
         # so a job the drain cuts off can still post /agent/finished.

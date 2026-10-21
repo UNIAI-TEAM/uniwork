@@ -62,8 +62,10 @@ server = AgentServer(
     setup_fnc=prewarm,
     port=SETTINGS.health_port,
     load_threshold=0.7,
-    num_idle_processes=SETTINGS.idle_processes,
     drain_timeout=SETTINGS.drain_timeout_s,
+    # The shutdown callbacks (flush, closing extract, /agent/finished) get the
+    # 120 s the chart leaves between drain_timeout and the pod's grace period.
+    shutdown_process_timeout=110,
     prometheus_port=SETTINGS.metrics_port,
     prometheus_multiproc_dir=SETTINGS.metrics_dir,
     # Spec §4.1: subscribe and publish data; no audio or video; visible in the room.
