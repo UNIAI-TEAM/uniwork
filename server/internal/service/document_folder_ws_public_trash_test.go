@@ -528,3 +528,27 @@ func TestFolderTrashRelocatesWhatAnAdminCannotRead(t *testing.T) {
 		t.Fatalf("B lost their page: %v", err)
 	}
 }
+
+// A relocation is not a rename (D2-1): a page whose stored title predates the
+// normalizer (padded, written by raw SQL as legacy data) keeps it byte for byte
+// when someone else's folder trash moves it to the workspace root.
+func TestFolderTrashRelocationKeepsTheStoredTitle(t *testing.T) {
+	e := newWSFolderEnv(t)
+	ctx := e.f.ctx
+	const legacyTitle = " Báo cáo  "
+	folder := e.mkFolder(t, e.admin, "", "Thư mục của quản trị")
+	hidden := e.mkPage(t, e.a, folder.ID, "Riêng của B")
+	if _, err := e.f.pool.Exec(ctx, `UPDATE documents SET title = $2 WHERE id = $1`, hidden.ID, legacyTitle); err != nil {
+		t.Fatalf("write the legacy title: %v", err)
+	}
+	if _, err := e.svc.GetDocument(ctx, e.admin, hidden.ID); err == nil {
+		t.Fatal("the admin reads B's restricted page, the fixture does not hold the case")
+	}
+
+	e.trash(t, e.admin, folder.ID)
+	moved := e.doc(t, hidden.ID)
+	wantAtRoot(t, moved, "B's restricted page")
+	if moved.Title != legacyTitle {
+		t.Fatalf("relocated title = %q, want the stored %q untouched", moved.Title, legacyTitle)
+	}
+}
