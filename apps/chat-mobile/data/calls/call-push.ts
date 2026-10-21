@@ -1,12 +1,12 @@
 // What a call push does on the phone (docs/adr/drafts/0038). On Android it
 // arrives data-only, through the background notification task
-// (data/calls/background.ts), whether UniChat is closed, in the background or
+// (data/calls/call-wiring.ts), whether UniChat is closed, in the background or
 // on screen. A ring becomes the app's own incoming-call notification —
 // full-screen on a locked phone, Answer and Decline, the ringtone on the
 // "calls" channel — unless the call already rings in the app's call screen;
 // the end of a ring and a missed call take that notification down. The calls
 // switch (data/remote-config.ts) off means no ring.
-import { appLink, callLink, ringRemainingMs, type CallPush } from "@/lib/call-push";
+import { CALL_RING_WINDOW_MS, appLink, callLink, ringRemainingMs, type CallPush } from "@/lib/call-push";
 import type { VoiceCallState } from "@/lib/voice-call";
 import type { NativeCalls, NativeIncomingCall } from "./native-calls";
 
@@ -58,6 +58,37 @@ export function incomingCallSpec(push: Invite, env: Pick<CallPushEnv, "t" | "sch
     answerLabel: env.t("chat.voice_call_accept"),
     declineLabel: env.t("chat.voice_call_decline"),
   };
+}
+
+/**
+ * The same notification for a call the app is ringing on screen when the
+ * person leaves the app (Home, another app): the call screen is gone from
+ * view, so the ring moves to the notification (answer, decline, full screen
+ * once locked). `chatUrl` is the open workspace's web chat URL.
+ */
+export function incomingSpecFromState(
+  state: Extract<VoiceCallState, { status: "incoming" }>,
+  chatUrl: string,
+  workspaceId: string,
+  env: Pick<CallPushEnv, "t" | "scheme" | "now">,
+): NativeIncomingCall {
+  const group = state.callKind !== "dm";
+  const url = `${chatUrl}?room=${encodeURIComponent(state.roomId)}&call=${encodeURIComponent(state.callId)}`;
+  return incomingCallSpec(
+    {
+      type: "call_invite",
+      callId: state.callId,
+      roomId: state.roomId,
+      workspaceId,
+      callerName: group ? (state.callerName ?? "") : state.peerName,
+      roomName: group ? state.peerName : "",
+      callKind: state.callKind,
+      video: false,
+      expiresAt: env.now() + CALL_RING_WINDOW_MS,
+      url,
+    },
+    env,
+  );
 }
 
 export async function handleCallPush(push: CallPush, env: CallPushEnv): Promise<CallPushOutcome> {

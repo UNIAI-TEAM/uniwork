@@ -23,6 +23,7 @@ import { SearchField } from "@/components/ui/search-field";
 import { Text } from "@/components/ui/text";
 import { WorkspaceSwitchSheet } from "@/components/workspace/workspace-switch-sheet";
 import { callEngine } from "@/data/calls/call-store";
+import { nativeCalls } from "@/data/calls/native-calls";
 import { resolveDMRoom, setRoomMuted } from "@/data/chat-actions";
 import { nicknamesOptions, roomsOptions, unreadSummaryOptions, workspaceMembersOptions } from "@/data/queries/chat";
 import { workspaceListOptions } from "@/data/queries/workspaces";
@@ -61,13 +62,17 @@ function useDeepLinkTarget(chat: ChatWorkspace | null) {
     if (room && call) {
       // With the server's calls switch off the push opens the room, where the call is logged.
       if (!readMobileFlag(qc, "unichat_mobile_calls")) {
+        nativeCalls.cancelIncomingCall(call);
         toast.info(t("mobile.calls.disabled"));
         router.push(chatRoutes.room(chat, room));
         return;
       }
       const open = answer === "1" ? callEngine.joinFromPush(room, call) : callEngine.ringFromPush(room, call);
       void open.then((ringing) => {
-        if (!ringing) router.push(chatRoutes.room(chat, room));
+        if (ringing) return;
+        // Over (its end push not here yet): the phone's own ringing notification goes too.
+        nativeCalls.cancelIncomingCall(call);
+        router.push(chatRoutes.room(chat, room));
       });
       return;
     }

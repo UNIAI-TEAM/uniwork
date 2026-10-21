@@ -4,7 +4,7 @@ import { NOTIFICATION_CHANNELS } from "@/lib/notification-channels";
 const notifications = vi.hoisted(() => ({
   AndroidImportance: { HIGH: 6, DEFAULT: 5 },
   AndroidNotificationVisibility: { PUBLIC: 1, PRIVATE: 2 },
-  setNotificationChannelAsync: vi.fn(async () => null),
+  setNotificationChannelAsync: vi.fn(async (_id: string, _channel: unknown) => null),
   deleteNotificationChannelAsync: vi.fn(async () => undefined),
 }));
 vi.mock("expo-notifications", () => notifications);

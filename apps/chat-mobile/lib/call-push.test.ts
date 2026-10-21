@@ -78,6 +78,12 @@ describe("taskPayloadData", () => {
     expect(taskPayloadData({ data: { body: json, experienceId: "@x/y" } })).toEqual(INVITE);
     expect(taskPayloadData({ collapseKey: null, data: { data: { dataString: json } }, notification: null })).toEqual(INVITE);
     expect(taskPayloadData({ dataString: json })).toEqual(INVITE);
+    // The job that restarts a killed app wraps it once more.
+    expect(taskPayloadData({ notification: { data: { dataString: json } } })).toEqual(INVITE);
+  });
+
+  it("stops looking a few levels down", () => {
+    expect(taskPayloadData({ data: { data: { data: { dataString: json } } } })).toBeNull();
   });
 
   it("takes a payload that already is the data", () => {

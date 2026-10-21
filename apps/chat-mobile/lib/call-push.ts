@@ -82,21 +82,29 @@ export function callPushFromData(value: unknown): CallPush | null {
   }
 }
 
+/** How deep taskPayloadData looks for the FCM data map. */
+const PAYLOAD_DEPTH = 3;
+
 /**
  * The data of a background notification task's payload. On Android the FCM
  * message's data map carries Expo's JSON of what the server sent under
- * `body` (`dataString` in expo-notifications' serialization), at the top of
- * the payload or one `data` level down depending on the path that ran the
- * task; a payload that already is the data is taken as it is.
+ * `body` (`dataString` in expo-notifications' serialization); the map sits
+ * at the top of the payload or under `data` / `notification`, a level or two
+ * down, depending on the path that ran the task (a live app, the job that
+ * restarts a killed one). A map that already is the data is taken as it is.
  */
 export function taskPayloadData(payload: unknown): Record<string, unknown> | null {
-  const root = record(payload);
-  if (!root) return null;
-  for (const candidate of [root, record(root.data), record(record(root.data)?.data)]) {
-    if (!candidate) continue;
-    const parsed = parseJson(candidate.dataString) ?? parseJson(candidate.body);
-    if (parsed) return parsed;
-    if (typeof candidate.type === "string" && typeof candidate.call_id === "string") return candidate;
+  let level = [record(payload)];
+  for (let depth = 0; depth < PAYLOAD_DEPTH; depth++) {
+    const next: (Record<string, unknown> | null)[] = [];
+    for (const candidate of level) {
+      if (!candidate) continue;
+      const parsed = parseJson(candidate.dataString) ?? parseJson(candidate.body);
+      if (parsed) return parsed;
+      if (typeof candidate.type === "string" && typeof candidate.call_id === "string") return candidate;
+      next.push(record(candidate.data), record(candidate.notification));
+    }
+    level = next;
   }
   return null;
 }

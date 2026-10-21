@@ -6,7 +6,7 @@ import { useCallRingtone } from "./use-call-ringtone";
 
 jest.mock("@/data/calls/native-calls", () => ({ nativeCalls: { available: true, startRinging: jest.fn(), stopRinging: jest.fn() } }));
 
-const native = nativeCalls as { available: boolean; startRinging: jest.Mock; stopRinging: jest.Mock };
+const native = nativeCalls as unknown as { available: boolean; startRinging: jest.Mock; stopRinging: jest.Mock };
 
 beforeEach(() => {
   jest.clearAllMocks();

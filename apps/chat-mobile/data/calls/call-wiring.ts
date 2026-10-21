@@ -10,8 +10,9 @@
 //   (call-actions.ts).
 // - startNativeCalls(), once the app's screens load (app/_layout.tsx): the
 //   engine ↔ foreground-service sync (call-native-sync.ts), the Decline /
-//   Hang up taps that could not run before, and the foreground push handler
-//   (lib/notification-presentation.ts).
+//   Hang up taps that could not run before, the foreground push handler
+//   (lib/notification-presentation.ts), and the hand-over of a call ringing
+//   on screen to the notification when the person leaves the app.
 import { runtimeConfig } from "@uniwork/core/runtime-config";
 import * as Notifications from "expo-notifications";
 import * as TaskManager from "expo-task-manager";
@@ -30,7 +31,7 @@ import { readMobileFlag } from "../remote-config";
 import { getCurrentWorkspace } from "../stores/workspace-store";
 import { callActionFrom, handleCallAction, type CallActionEnv } from "./call-actions";
 import { createNativeCallSync, installNativeCallSync } from "./call-native-sync";
-import { handleCallPush, type CallPushEnv } from "./call-push";
+import { handleCallPush, incomingSpecFromState, type CallPushEnv } from "./call-push";
 import { callEngine } from "./call-store";
 import { nativeCalls } from "./native-calls";
 
@@ -131,13 +132,37 @@ export async function foregroundBehavior(data: unknown): Promise<Notifications.N
   return { shouldShowBanner: show, shouldShowList: show, shouldPlaySound: show, shouldSetBadge: false };
 }
 
+/**
+ * A call ringing on screen when the person leaves the app (Home, another
+ * app) moves to the ringing notification, which rings on the calls channel
+ * and answers or declines from there; back in the app, the call screen and
+ * its ringer take it again. Android only (the module is a no-op elsewhere).
+ */
+export function handOverRing(status: string): void {
+  const state = current();
+  if (state.status !== "incoming") return;
+  if (status === "active") {
+    nativeCalls.cancelIncomingCall(state.callId);
+    nativeCalls.startRinging();
+    return;
+  }
+  if (status !== "background") return;
+  const workspace = getCurrentWorkspace();
+  if (!workspace) return;
+  const chatUrl = `${runtimeConfig().appUrl}/${encodeURIComponent(workspace.orgSlug)}/${encodeURIComponent(workspace.wsSlug)}/chat`;
+  nativeCalls.stopRinging();
+  nativeCalls.showIncomingCall(incomingSpecFromState(state, chatUrl, workspace.wsId, pushEnv));
+}
+
 /** Once the app's screens load; the function it returns undoes it (tests). */
 export function startNativeCalls(): () => void {
   const stopSync = installNativeCallSync(callEngine.store, nativeCallSync);
   for (const pending of nativeCalls.takePendingActions()) void runCallActionTask(pending);
   Notifications.setNotificationHandler({ handleNotification: (notification) => foregroundBehavior(notification.request.content.data) });
+  const appState = AppState.addEventListener("change", handOverRing);
   return () => {
     stopSync();
+    appState.remove();
     Notifications.setNotificationHandler(null);
   };
 }

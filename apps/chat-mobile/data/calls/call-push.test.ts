@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { CallPush } from "@/lib/call-push";
 import type { VoiceCallState } from "@/lib/voice-call";
-import { handleCallPush, incomingCallSpec, type CallPushEnv } from "./call-push";
+import { handleCallPush, incomingCallSpec, incomingSpecFromState, type CallPushEnv } from "./call-push";
 
 type Invite = Extract<CallPush, { type: "call_invite" }>;
 
@@ -70,6 +70,26 @@ describe("incomingCallSpec", () => {
     expect(incomingCallSpec(invite({ callKind: "group", roomName: "Đội" }), e).text).toBe('mobile.call_notify.incoming_group {"room":"Đội"}');
     expect(incomingCallSpec(invite({ callKind: "channel" }), e).text).toBe('mobile.call_notify.incoming_group {"room":"mobile.call_notify.group_fallback"}');
     expect(incomingCallSpec(invite({ callerName: "" }), e).callerName).toBe("mobile.call_notify.unknown_caller");
+  });
+});
+
+describe("incomingSpecFromState", () => {
+  const chatUrl = "https://app.uniworkos.com/acme/hq/chat";
+
+  it("rings a DM the call screen had in the notification, named for the caller", () => {
+    const spec = incomingSpecFromState({ status: "incoming", callId: "c-1", roomId: "r-1", peerName: "Minh", callKind: "dm" }, chatUrl, "w-1", env());
+    expect(spec).toMatchObject({ callId: "c-1", roomId: "r-1", workspaceId: "w-1", callerName: "Minh", callKind: "dm", text: "mobile.call_notify.incoming_voice", timeoutMs: 60_000 });
+    expect(spec.openUrl).toBe(`uniworkchat://open?url=${encodeURIComponent(`${chatUrl}?room=r-1&call=c-1`)}`);
+  });
+
+  it("names a group call by its caller and room", () => {
+    const e = env();
+    const spec = incomingSpecFromState({ status: "incoming", callId: "c-2", roomId: "g 1", peerName: "Đội", callKind: "group", callerName: "An" }, chatUrl, "w-1", e);
+    expect(spec).toMatchObject({ callerName: "An", text: 'mobile.call_notify.incoming_group {"room":"Đội"}' });
+    const target = new globalThis.URL(decodeURIComponent(spec.openUrl.split("url=")[1] ?? ""));
+    expect(target.searchParams.get("room")).toBe("g 1");
+    const unnamed = incomingSpecFromState({ status: "incoming", callId: "c-3", roomId: "g", peerName: "Đội", callKind: "channel" }, chatUrl, "w-1", e);
+    expect(unnamed.callerName).toBe("mobile.call_notify.unknown_caller");
   });
 });
 

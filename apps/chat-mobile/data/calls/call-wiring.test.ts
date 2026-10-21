@@ -2,12 +2,12 @@
 // register (Android only) and run the tested policies (call-push.ts,
 // call-actions.ts) with the real engine shape, the session and the API.
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { createStore } from "zustand/vanilla";
+import type { StoreApi } from "zustand/vanilla";
 import type { VoiceCallState } from "@/lib/voice-call";
 
 const rn = vi.hoisted(() => ({
   Platform: { OS: "android", Version: 34 as number | string },
-  AppState: { currentState: "background" },
+  AppState: { currentState: "background", addEventListener: vi.fn(() => ({ remove: vi.fn() })) },
   AppRegistry: { registerHeadlessTask: vi.fn() },
   PermissionsAndroid: { PERMISSIONS: { BLUETOOTH_CONNECT: "android.permission.BLUETOOTH_CONNECT" }, check: vi.fn(async () => false), request: vi.fn(async () => "granted") },
 }));
@@ -45,7 +45,7 @@ vi.mock("../stores/workspace-store", () => ({ getCurrentWorkspace: () => deps.wo
 
 const engine = vi.hoisted(() => ({
   ctx: "w-1" as string | null,
-  store: null as unknown as ReturnType<typeof createStore<{ call: VoiceCallState }>>,
+  store: null as unknown as StoreApi<{ call: VoiceCallState }>,
   syncPendingInvites: vi.fn(async () => undefined),
   hangUp: vi.fn(async () => undefined),
 }));
@@ -243,6 +243,33 @@ describe("foregroundBehavior", () => {
   });
 });
 
+describe("handOverRing", () => {
+  const ringing: VoiceCallState = { status: "incoming", callId: "c-1", roomId: "r-1", peerName: "Minh", callKind: "dm" };
+
+  it("moves a call ringing on screen to the notification when the person leaves, and back on return", () => {
+    engine.store.setState({ call: ringing });
+    wiring.handOverRing("background");
+    expect(native.stopRinging).toHaveBeenCalledTimes(1);
+    expect(native.showIncomingCall).toHaveBeenCalledWith(
+      expect.objectContaining({ callId: "c-1", workspaceId: "w-1", openUrl: `uniworkchat://open?url=${encodeURIComponent("https://app.test/acme/hq/chat?room=r-1&call=c-1")}` }),
+    );
+    wiring.handOverRing("active");
+    expect(native.cancelIncomingCall).toHaveBeenCalledWith("c-1");
+    expect(native.startRinging).toHaveBeenCalledTimes(1);
+    wiring.handOverRing("inactive");
+    expect(native.showIncomingCall).toHaveBeenCalledTimes(1);
+  });
+
+  it("does nothing without a ringing call or an open workspace", () => {
+    wiring.handOverRing("background");
+    engine.store.setState({ call: ringing });
+    deps.workspace = null;
+    wiring.handOverRing("background");
+    expect(native.showIncomingCall).not.toHaveBeenCalled();
+    expect(native.stopRinging).not.toHaveBeenCalled();
+  });
+});
+
 describe("startNativeCalls", () => {
   it("follows the engine with the service, runs the taps that waited and handles pushes while open", async () => {
     deps.pending = [DECLINE, { nope: true }];
@@ -258,7 +285,9 @@ describe("startNativeCalls", () => {
     expect(native.startOngoingCall).toHaveBeenLastCalledWith(expect.objectContaining({ workspaceId: "" }));
     const handler = notifications.setNotificationHandler.mock.calls[0]![0] as { handleNotification: (n: unknown) => Promise<unknown> };
     expect(await handler.handleNotification({ request: { content: { data: INVITE } } })).toMatchObject({ shouldShowBanner: true });
+    expect(rn.AppState.addEventListener).toHaveBeenCalledWith("change", wiring.handOverRing);
     stop();
+    expect(rn.AppState.addEventListener.mock.results[0]?.value.remove).toHaveBeenCalledTimes(1);
     expect(notifications.setNotificationHandler).toHaveBeenLastCalledWith(null);
     engine.store.setState({ call: { status: "idle" } });
     expect(native.stopOngoingCall).not.toHaveBeenCalled();
