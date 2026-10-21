@@ -2,7 +2,13 @@
 // `<input webkitdirectory>` or a drop into `{ path, size, file }` entries for
 // `planFolderUpload`. They only touch File APIs, never the network.
 
+import { isHiddenName } from "./plan";
 import type { FolderUploadEntry } from "./types";
+
+/** `max_files` when the caller does not pass it (GET /config's default). */
+const DEFAULT_MAX_FILES = 500;
+/** A drop stops being read past `max_files` times this: the planner refuses it anyway. */
+const READ_BOUND_FACTOR = 4;
 
 /** Entries of a `webkitdirectory` input; `webkitRelativePath` starts with the picked folder's name. */
 export function entriesFromInputFiles(files: ArrayLike<File>): FolderUploadEntry<File>[] {
@@ -35,22 +41,40 @@ async function readAllEntries(reader: FileSystemDirectoryReader): Promise<FileSy
   }
 }
 
-async function walk(entry: FileSystemEntry, prefix: string, out: FolderUploadEntry<File>[]): Promise<void> {
+/**
+ * Depth-first read. Hidden directories (`.git`, `__MACOSX`, …) are never
+ * opened, and the walk stops once `out` holds more than `bound` files.
+ * Returns false when it stopped early.
+ */
+async function walk(entry: FileSystemEntry, prefix: string, out: FolderUploadEntry<File>[], bound: number): Promise<boolean> {
   const path = `${prefix}${entry.name}`;
   if (entry.isFile) {
     const file = await readFile(entry as FileSystemFileEntry);
     out.push({ path, size: file.size, file });
-    return;
+    return out.length <= bound;
   }
   if (entry.isDirectory) {
+    if (prefix !== "" && isHiddenName(entry.name)) return true;
     const children = await readAllEntries((entry as FileSystemDirectoryEntry).createReader());
-    for (const child of children) await walk(child, `${path}/`, out);
+    for (const child of children) {
+      if (!(await walk(child, `${path}/`, out, bound))) return false;
+    }
   }
+  return true;
+}
+
+interface ReadDroppedFoldersOptions {
+  /** `max_files` of the folder-upload limits; the walk reads at most 4x this plus one per folder. */
+  maxFiles?: number;
 }
 
 /**
  * Walks every folder in a drop. Returns one entry list per dropped top folder
  * (an empty folder gives an empty list) and the loose files dropped beside them.
+ * Hidden directories inside a folder are not read. A folder with more than
+ * `maxFiles * 4` files stops at that bound plus one and is flagged in
+ * `truncated`: its list is still enough for the planner to refuse it with
+ * too_many_files, whose `actual` is then a lower bound ("over N").
  *
  * Call it synchronously from the `onDrop` handler: the browser empties the
  * `DataTransferItemList` once the event's tick ends, so this function captures
@@ -59,7 +83,9 @@ async function walk(entry: FileSystemEntry, prefix: string, out: FolderUploadEnt
  */
 export async function readDroppedFolders(
   items: DataTransferItemList | DataTransferItem[],
-): Promise<{ folders: FolderUploadEntry<File>[][]; looseFiles: File[] }> {
+  opts: ReadDroppedFoldersOptions = {},
+): Promise<{ folders: FolderUploadEntry<File>[][]; looseFiles: File[]; truncated: boolean[] }> {
+  const bound = Math.max(1, opts.maxFiles ?? DEFAULT_MAX_FILES) * READ_BOUND_FACTOR;
   const roots: FileSystemEntry[] = [];
   const looseFiles: File[] = [];
   for (let i = 0; i < items.length; i += 1) {
@@ -73,12 +99,12 @@ export async function readDroppedFolders(
     const file = item.getAsFile();
     if (file) looseFiles.push(file);
   }
-  const folders = await Promise.all(
+  const read = await Promise.all(
     roots.map(async (root) => {
       const out: FolderUploadEntry<File>[] = [];
-      await walk(root, "", out);
-      return out;
+      const complete = await walk(root, "", out, bound);
+      return { out, truncated: !complete };
     }),
   );
-  return { folders, looseFiles };
+  return { folders: read.map((r) => r.out), looseFiles, truncated: read.map((r) => r.truncated) };
 }

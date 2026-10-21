@@ -30,6 +30,11 @@ function nameKey(name: string): string {
   return name.normalize("NFC").trim().toLowerCase();
 }
 
+/** One path segment as read, hidden by the rules above (the drop walker uses it too). */
+export function isHiddenName(raw: string): boolean {
+  return isHiddenSegment(raw, raw.normalize("NFC").trim());
+}
+
 function isHiddenSegment(raw: string, trimmed: string): boolean {
   return (
     trimmed.startsWith(".") ||

@@ -124,6 +124,43 @@ describe("readDroppedFolders", () => {
 
   it("ignores non-file items such as dragged text", async () => {
     const text = { kind: "string", webkitGetAsEntry: () => null, getAsFile: () => null } as unknown as DataTransferItem;
-    expect(await readDroppedFolders([text])).toEqual({ folders: [], looseFiles: [] });
+    expect(await readDroppedFolders([text])).toEqual({ folders: [], looseFiles: [], truncated: [] });
+  });
+
+  it("never opens a hidden directory, by the planner's hidden rule", async () => {
+    const opened: string[] = [];
+    const watched = (name: string, children: FakeNode[]) => {
+      const dir = fakeDir(name, children);
+      return { ...dir, createReader: () => (opened.push(name), dir.createReader()) };
+    };
+    const top = watched("R", [
+      watched(".git", [fakeFile("HEAD")]),
+      watched("__MACOSX", [fakeFile("._a.pdf")]),
+      watched("sub", [fakeFile("b.pdf")]),
+      fakeFile("a.pdf"),
+    ]);
+    const { folders, truncated } = await readDroppedFolders([item(top)]);
+    expect(folders[0]?.map((e) => e.path)).toEqual(["R/sub/b.pdf", "R/a.pdf"]);
+    expect(opened).toEqual(["R", "sub"]);
+    expect(truncated).toEqual([false]);
+  });
+
+  it("stops reading a folder once it holds more than maxFiles x 4 files", async () => {
+    let reads = 0;
+    const counted = (name: string) => {
+      const f = fakeFile(name);
+      return { ...f, file: (ok: (file: File) => void, fail: (e: Error) => void) => ((reads += 1), f.file(ok, fail)) };
+    };
+    const big = fakeDir("Big", [
+      fakeDir("a", Array.from({ length: 6 }, (_, i) => counted(`a${i}.pdf`))),
+      fakeDir("b", Array.from({ length: 6 }, (_, i) => counted(`b${i}.pdf`))),
+    ]);
+    const small = fakeDir("Small", [fakeFile("s.pdf")]);
+    const { folders, truncated } = await readDroppedFolders([item(big), item(small)], { maxFiles: 2 });
+    // The bound is 8: the ninth file proves "over the limit" and the walk stops.
+    expect(folders[0]).toHaveLength(9);
+    expect(reads).toBe(9);
+    expect(folders[1]).toHaveLength(1);
+    expect(truncated).toEqual([true, false]);
   });
 });
