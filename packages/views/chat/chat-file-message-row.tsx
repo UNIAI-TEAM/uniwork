@@ -76,6 +76,7 @@ function ChatFileMessageRowImpl({
   const gif = contentType === "image/gif" && !replyToMessage;
   const pdf = isChatPdfContentType(contentType);
   const photo = edgeToEdge && !gif && !pdf;
+  const photoBare = photo && !replyToMessage;
   // A file or PDF card carries its time on its own line (canvas); a photo on its corner, a GIF under it.
   const cardMeta = !edgeToEdge || pdf ? <ChatMessageMeta message={message} isOwn={isOwn} showTime inline="end" /> : undefined;
 
@@ -134,9 +135,9 @@ function ChatFileMessageRowImpl({
               <div
                 className={cn(
                   "max-w-full overflow-hidden",
-                  !gif && chatBubbleShape(isOwn, !compactTop),
-                  !gif && (isOwn ? CHAT_BUBBLE_OWN : CHAT_BUBBLE_OTHER),
-                  gif ? "flex flex-col gap-1" : photo ? "p-0.75" : "p-2",
+                  !gif && !photoBare && chatBubbleShape(isOwn, !compactTop),
+                  !gif && !photoBare && (isOwn ? CHAT_BUBBLE_OWN : CHAT_BUBBLE_OTHER),
+                  gif || photoBare ? "flex flex-col gap-1" : photo ? "p-0.75" : "p-2",
                 )}
               >
                 {showSenderName && !isOwn && showAvatar ? (
@@ -164,10 +165,15 @@ function ChatFileMessageRowImpl({
                 ) : null}
                 <div
                   className={cn(
-                    // The photo follows the bubble 3px in: 15 round, 4 under the name and at the tail (canvas).
-                    photo && "relative overflow-hidden rounded-[15px] [&>button]:rounded-none",
-                    photo && showSenderName && !isOwn && showAvatar && "rounded-t-[4px]",
-                    photo && (isOwn ? "rounded-br-[4px]" : "rounded-bl-[4px]"),
+                    "relative overflow-hidden [&>button]:rounded-none",
+                    photoBare && chatBubbleShape(isOwn, !compactTop),
+                    photo &&
+                      !photoBare &&
+                      cn(
+                        "rounded-[15px]",
+                        showSenderName && !isOwn && showAvatar && "rounded-t-[4px]",
+                        isOwn ? "rounded-br-[4px]" : "rounded-bl-[4px]",
+                      ),
                   )}
                 >
                   <ChatFileAttachment

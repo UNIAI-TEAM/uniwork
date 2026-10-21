@@ -131,6 +131,7 @@ const historicalCommitExceptions = new Map([
   ["78e441abd9f861ea0cc1d19fae35c47129b31239", "(deploy): change AI_PROVIDER"],
   ["9c94b49eb656ba34ad9cf3415aa13746400d912c", "(test): fix test billing_vnpay_test.go"],
   ["1f375e0f006bbac633448fcbfe0478dada0afbd1", "UNI-1808 (feat): spec và plan tích hợp pavietnam"],
+  ["30b6eb6b60bfa2f242bad5a0d1ad4880f88c745e", "(feat): plan deploy development"],
 ]);
 
 function rejectedCommitSubjects(commits, types) {
