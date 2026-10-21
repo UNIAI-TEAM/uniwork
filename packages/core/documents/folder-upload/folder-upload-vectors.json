@@ -1510,5 +1510,245 @@
         "bytes": 1
       }
     }
+  },
+  {
+    "name": "too_many_folders: folders created, root included, above maxFolders",
+    "input": {
+      "entries": [
+        {
+          "path": "R/a/x.pdf",
+          "size": 1
+        },
+        {
+          "path": "R/b/y.pdf",
+          "size": 2
+        }
+      ],
+      "limits": {
+        "maxFiles": 500,
+        "maxTotalBytes": 2147483648,
+        "maxDepth": 20,
+        "perFileMaxBytes": 209715200,
+        "maxFolders": 2
+      },
+      "parentLevel": 1,
+      "siblingNames": []
+    },
+    "expected": {
+      "rootName": "R",
+      "rootTitle": "R",
+      "folders": [
+        "R",
+        "R/a",
+        "R/b"
+      ],
+      "files": [
+        {
+          "path": "R/a/x.pdf",
+          "filename": "x.pdf",
+          "folderPath": "R/a",
+          "size": 1,
+          "index": 0
+        },
+        {
+          "path": "R/b/y.pdf",
+          "filename": "y.pdf",
+          "folderPath": "R/b",
+          "size": 2,
+          "index": 1
+        }
+      ],
+      "skipped": [],
+      "totals": {
+        "files": 2,
+        "bytes": 3
+      },
+      "refusal": {
+        "code": "too_many_folders",
+        "limit": 2,
+        "actual": 3
+      }
+    }
+  },
+  {
+    "name": "too_many_folders: exactly maxFolders folders is allowed",
+    "input": {
+      "entries": [
+        {
+          "path": "R/a/x.pdf",
+          "size": 1
+        },
+        {
+          "path": "R/b/y.pdf",
+          "size": 2
+        }
+      ],
+      "limits": {
+        "maxFiles": 500,
+        "maxTotalBytes": 2147483648,
+        "maxDepth": 20,
+        "perFileMaxBytes": 209715200,
+        "maxFolders": 3
+      },
+      "parentLevel": 1,
+      "siblingNames": []
+    },
+    "expected": {
+      "rootName": "R",
+      "rootTitle": "R",
+      "folders": [
+        "R",
+        "R/a",
+        "R/b"
+      ],
+      "files": [
+        {
+          "path": "R/a/x.pdf",
+          "filename": "x.pdf",
+          "folderPath": "R/a",
+          "size": 1,
+          "index": 0
+        },
+        {
+          "path": "R/b/y.pdf",
+          "filename": "y.pdf",
+          "folderPath": "R/b",
+          "size": 2,
+          "index": 1
+        }
+      ],
+      "skipped": [],
+      "totals": {
+        "files": 2,
+        "bytes": 3
+      },
+      "refusal": null
+    }
+  },
+  {
+    "name": "server extension list (uploadExtensions) replaces the local one, case-insensitive",
+    "input": {
+      "entries": [
+        {
+          "path": "R/a.exe",
+          "size": 1
+        },
+        {
+          "path": "R/b.docx",
+          "size": 2
+        },
+        {
+          "path": "R/c.PDF",
+          "size": 3
+        },
+        {
+          "path": "R/noext",
+          "size": 4
+        }
+      ],
+      "limits": {
+        "maxFiles": 500,
+        "maxTotalBytes": 2147483648,
+        "maxDepth": 20,
+        "perFileMaxBytes": 209715200,
+        "uploadExtensions": [
+          "pdf",
+          "exe"
+        ]
+      },
+      "parentLevel": 1,
+      "siblingNames": []
+    },
+    "expected": {
+      "rootName": "R",
+      "rootTitle": "R",
+      "folders": [
+        "R"
+      ],
+      "files": [
+        {
+          "path": "R/a.exe",
+          "filename": "a.exe",
+          "folderPath": "R",
+          "size": 1,
+          "index": 0
+        },
+        {
+          "path": "R/c.PDF",
+          "filename": "c.PDF",
+          "folderPath": "R",
+          "size": 3,
+          "index": 2
+        }
+      ],
+      "skipped": [
+        {
+          "path": "R/b.docx",
+          "reason": "unsupported_format"
+        },
+        {
+          "path": "R/noext",
+          "reason": "unsupported_format"
+        }
+      ],
+      "totals": {
+        "files": 2,
+        "bytes": 4
+      },
+      "refusal": null
+    }
+  },
+  {
+    "name": "server extension list keeps the per-file cap",
+    "input": {
+      "entries": [
+        {
+          "path": "R/a.pdf",
+          "size": 11
+        },
+        {
+          "path": "R/b.pdf",
+          "size": 10
+        }
+      ],
+      "limits": {
+        "maxFiles": 500,
+        "maxTotalBytes": 2147483648,
+        "maxDepth": 20,
+        "perFileMaxBytes": 10,
+        "uploadExtensions": [
+          "pdf"
+        ]
+      },
+      "parentLevel": 1,
+      "siblingNames": []
+    },
+    "expected": {
+      "rootName": "R",
+      "rootTitle": "R",
+      "folders": [
+        "R"
+      ],
+      "files": [
+        {
+          "path": "R/b.pdf",
+          "filename": "b.pdf",
+          "folderPath": "R",
+          "size": 10,
+          "index": 1
+        }
+      ],
+      "skipped": [
+        {
+          "path": "R/a.pdf",
+          "reason": "too_large"
+        }
+      ],
+      "totals": {
+        "files": 1,
+        "bytes": 10
+      },
+      "refusal": null
+    }
   }
 ]

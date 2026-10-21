@@ -54,6 +54,24 @@ export function uniqueRootName(name: string, siblingNames: readonly string[]): s
   }
 }
 
+/**
+ * The file check: the server's extension list when GET /config sent one,
+ * else the client's own (`validateDocumentUploadFile`); the per-file cap
+ * either way.
+ */
+function checkFile(
+  filename: string,
+  size: number,
+  limits: FolderUploadLimits,
+): { ok: true } | { ok: false; reason: "unsupported_format" | "too_large" } {
+  if (!limits.uploadExtensions) return validateDocumentUploadFile({ name: filename, size }, limits.perFileMaxBytes);
+  const dot = filename.lastIndexOf(".");
+  const ext = dot > 0 && dot < filename.length - 1 ? filename.slice(dot + 1).toLowerCase() : "";
+  if (!ext || !limits.uploadExtensions.includes(ext)) return { ok: false, reason: "unsupported_format" };
+  if (size > limits.perFileMaxBytes) return { ok: false, reason: "too_large" };
+  return { ok: true };
+}
+
 interface Normalised {
   index: number;
   size: number;
@@ -114,7 +132,7 @@ export function planFolderUpload(
       skipped.push({ path, reason: "name_too_long" });
       return;
     }
-    const check = validateDocumentUploadFile({ name: filename, size: n.size }, limits.perFileMaxBytes);
+    const check = checkFile(filename, n.size, limits);
     if (!check.ok) {
       skipped.push({ path, reason: check.reason });
       return;
@@ -163,6 +181,8 @@ export function planFolderUpload(
     plan.refusal = { code: "too_deep", limit: limits.maxDepth, actual: deepest };
   } else if (files.length > limits.maxFiles) {
     plan.refusal = { code: "too_many_files", limit: limits.maxFiles, actual: files.length };
+  } else if (limits.maxFolders !== undefined && folders.length > limits.maxFolders) {
+    plan.refusal = { code: "too_many_folders", limit: limits.maxFolders, actual: folders.length };
   } else if (bytes > limits.maxTotalBytes) {
     plan.refusal = { code: "too_large_total", limit: limits.maxTotalBytes, actual: bytes };
   }

@@ -21,7 +21,7 @@ describe("planFolderUpload vectors (shared with the desktop app)", () => {
     const names = (vectors as Vector[]).map((v) => v.name).join("\n");
     for (const rule of [
       "hidden", "unsupported_format", "per-file cap", "500 characters", "invalid_path", "NFC", "not created",
-      "ordered top-down", "too_many_files", "too_large_total", "too_deep", "nothing_to_upload", "segment_too_long",
+      "ordered top-down", "too_many_files", "too_many_folders", "uploadExtensions", "too_large_total", "too_deep", "nothing_to_upload", "segment_too_long",
       "multiple_roots", "clash",
     ]) {
       expect(names).toContain(rule);

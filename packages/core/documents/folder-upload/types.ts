@@ -14,6 +14,7 @@ export type FolderUploadSkipReason = "hidden" | "unsupported_format" | "too_larg
 
 export type FolderUploadRefusalCode =
   | "too_many_files"
+  | "too_many_folders"
   | "too_large_total"
   | "too_deep"
   | "nothing_to_upload"
@@ -22,9 +23,13 @@ export type FolderUploadRefusalCode =
 
 export interface FolderUploadLimits {
   maxFiles: number;
+  /** Folders the upload creates, root included; absent = no folder cap. */
+  maxFolders?: number;
   maxTotalBytes: number;
   maxDepth: number;
   perFileMaxBytes: number;
+  /** Server allow-list (lower case, no dot); absent = the client's own list. */
+  uploadExtensions?: readonly string[];
 }
 
 export interface PlannedFile {
