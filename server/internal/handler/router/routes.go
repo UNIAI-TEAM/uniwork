@@ -287,6 +287,7 @@ type Routes struct {
 	GetOrgAskModels      http.HandlerFunc
 	SetOrgAskModels      http.HandlerFunc
 	AskUni               http.HandlerFunc
+	AskUniStream         http.HandlerFunc
 	ChatCatchUp          http.HandlerFunc
 	ListAiConversations  http.HandlerFunc
 	ListAiMessages       http.HandlerFunc

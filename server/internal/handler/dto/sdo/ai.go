@@ -64,6 +64,51 @@ type AskUniSDO struct {
 	Usage          AiUsageDTO   `json:"usage"`
 }
 
+// The Ask UNI stream (ruling R3): each DTO is the data line of one SSE frame.
+
+// AskStreamRunDTO is the data of event run.
+type AskStreamRunDTO struct {
+	RunID          string `json:"run_id" description:"Rỗng khi agent tắt" example:"01K4AIRUN000000000000001"`
+	ConversationID string `json:"conversation_id" example:"01K4AICONV000000000000001"`
+}
+
+// AskStreamStepDTO is the data of event step; the client clears its draft.
+type AskStreamStepDTO struct {
+	Round  int            `json:"round" example:"1"`
+	Phase  string         `json:"phase" description:"tool hoặc retry" example:"tool"`
+	Tool   string         `json:"tool" example:"search_tasks"`
+	Counts map[string]int `json:"counts" description:"Số kết quả theo loại" example:"{\"task\":3}"`
+}
+
+// AskStreamDeltaDTO is the data of event delta.
+type AskStreamDeltaDTO struct {
+	Text string `json:"text" example:"Có 1 việc quá hạn"`
+}
+
+// AskStreamCitationsDTO is the data of event citations.
+type AskStreamCitationsDTO struct {
+	Citations []AiCitationDTO `json:"citations"`
+}
+
+// AskStreamUsageDTO is the tokens of a streamed turn.
+type AskStreamUsageDTO struct {
+	InputTokens      int `json:"input_tokens" example:"812"`
+	OutputTokens     int `json:"output_tokens" example:"96"`
+	CacheReadTokens  int `json:"cache_read_tokens" example:"0"`
+	CacheWriteTokens int `json:"cache_write_tokens" example:"0"`
+}
+
+// AskStreamDoneDTO is the data of event done: the stored answer.
+type AskStreamDoneDTO struct {
+	Message AiMessageDTO      `json:"message"`
+	Usage   AskStreamUsageDTO `json:"usage"`
+}
+
+// AskStreamErrorDTO is the data of event error: a code, never text.
+type AskStreamErrorDTO struct {
+	Code string `json:"code" example:"ai_provider_error"`
+}
+
 // AiConversationDTO is one row of my conversations.
 type AiConversationDTO struct {
 	ID        string `json:"id" example:"01K4AICONV000000000000001"`

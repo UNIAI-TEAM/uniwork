@@ -11,6 +11,7 @@ import (
 //
 //	GET    /api/v1/workspaces/{workspaceID}/ai/capabilities
 //	POST   /api/v1/workspaces/{workspaceID}/ai/ask
+//	POST   /api/v1/workspaces/{workspaceID}/ai/ask/stream
 //	GET    /api/v1/workspaces/{workspaceID}/ai/conversations
 //	GET    /api/v1/ai/conversations/{conversationID}/messages
 //	DELETE /api/v1/ai/conversations/{conversationID}
@@ -33,6 +34,15 @@ func registerAI(r api, h Routes) {
 		sdi:         sdi.AskUniSDI{},
 		sdo:         sdo.AskUniSDO{},
 		auth:        true,
+	})
+	r.Post("/workspaces/{workspaceID}/ai/ask/stream", h.AskUniStream, apiOp{
+		summary: "Ask UNI (stream)",
+		description: "Như Ask UNI nhưng trả text/event-stream. Frame: event run, step, delta, citations, done hoặc error (data chỉ có mã). " +
+			"Lỗi trước sự kiện đầu tiên trả JSON như POST …/ai/ask (402, 429 kèm Retry-After, 503); sau đó là event error. Cứ 15 giây có dòng `: ping`.",
+		tags:     []string{"ai"},
+		sdi:      sdi.AskUniSDI{},
+		produces: "text/event-stream",
+		auth:     true,
 	})
 	r.Post("/workspaces/{workspaceID}/ai/chat/catch-up", h.ChatCatchUp, apiOp{
 		summary:     "Chat CatchUp",

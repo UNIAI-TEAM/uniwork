@@ -513,6 +513,7 @@ func New(d Deps) http.Handler {
 		GetOrgAskModels:      h.getOrgAskModels,
 		SetOrgAskModels:      h.setOrgAskModels,
 		AskUni:               h.askUni,
+		AskUniStream:         h.askUniStream,
 		ChatCatchUp:          h.chatCatchUp,
 		ListAiConversations:  h.listAiConversations,
 		ListAiMessages:       h.listAiMessages,

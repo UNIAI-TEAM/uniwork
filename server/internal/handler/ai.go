@@ -79,11 +79,8 @@ func (h *handlers) setOrgAskModels(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, 200, sdo.AskModelsSDO{Models: keys})
 }
 
-func (h *handlers) askUni(w http.ResponseWriter, r *http.Request) {
-	var in sdi.AskUniSDI
-	if !decode(w, r, &in, maxJSONBody) {
-		return
-	}
+// askInputFromSDI maps the body both ask routes share.
+func askInputFromSDI(in sdi.AskUniSDI) service.AskInput {
 	askIn := service.AskInput{ConversationID: in.ConversationID, Question: in.Question, Locale: in.Locale, Model: in.Model, Effort: in.Effort}
 	if in.Focus != nil {
 		askIn.Focus = &ai.Focus{Kind: in.Focus.Kind, ID: in.Focus.ID}
@@ -91,14 +88,28 @@ func (h *handlers) askUni(w http.ResponseWriter, r *http.Request) {
 	for _, m := range in.Mentions {
 		askIn.Mentions = append(askIn.Mentions, ai.Focus{Kind: m.Kind, ID: m.ID})
 	}
+	return askIn
+}
+
+// refuseAsk answers an ask refused before any answer exists. The agent's busy
+// and organization limits carry the seconds to wait in the error's fields;
+// the shared mapping drops them (P13).
+func (h *handlers) refuseAsk(w http.ResponseWriter, err error) {
+	if retry, ok := uniworkRetryAfter(err); ok {
+		w.Header().Set("Retry-After", retry)
+	}
+	h.mapServiceError(w, err)
+}
+
+func (h *handlers) askUni(w http.ResponseWriter, r *http.Request) {
+	var in sdi.AskUniSDI
+	if !decode(w, r, &in, maxJSONBody) {
+		return
+	}
+	askIn := askInputFromSDI(in)
 	res, err := h.AskUNI.Ask(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "workspaceID"), askIn)
 	if err != nil {
-		// The agent's busy and organization limits carry the seconds to wait
-		// in the error's fields; the shared mapping drops them (P13).
-		if retry, ok := uniworkRetryAfter(err); ok {
-			w.Header().Set("Retry-After", retry)
-		}
-		h.mapServiceError(w, err)
+		h.refuseAsk(w, err)
 		return
 	}
 	respondJSON(w, 200, sdo.AskUniSDO{

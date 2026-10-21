@@ -226,6 +226,13 @@ func (s *AskUNIService) AskStream(ctx context.Context, userID, workspaceID strin
 	if err := s.rateLimit(ctx, userID); err != nil {
 		return AskResult{}, err
 	}
+	// An exhausted quota is a refusal, not a stream that fails after run.
+	// Only a streaming turn asks: without a sink the first model call checks.
+	if emit != nil {
+		if err := s.gw.CheckQuota(ctx, w.OrganizationID); err != nil {
+			return AskResult{}, err
+		}
+	}
 	conv, err := s.conversation(ctx, userID, w, in.ConversationID)
 	if err != nil {
 		return AskResult{}, err

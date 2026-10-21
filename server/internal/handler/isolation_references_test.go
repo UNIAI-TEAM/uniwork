@@ -207,6 +207,10 @@ var isoReferences = []isoReference{
 		"question": "ref", "conversation_id": isoRef("conversation")}, covers: []string{"AskUniSDI.conversation_id"}},
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/ai/ask", what: "mention", body: map[string]any{
 		"question": "ref", "mentions": []any{map[string]any{"kind": "task", "id": isoRef("task")}}}},
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/ai/ask/stream", what: "conversation", body: map[string]any{
+		"question": "ref", "conversation_id": isoRef("conversation")}, covers: []string{"AskUniSDI.conversation_id"}},
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/ai/ask/stream", what: "mention", body: map[string]any{
+		"question": "ref", "mentions": []any{map[string]any{"kind": "task", "id": isoRef("task")}}}},
 
 	// Meetings.
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/meetings", what: "attendee", body: map[string]any{

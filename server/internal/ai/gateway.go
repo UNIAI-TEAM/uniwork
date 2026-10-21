@@ -214,6 +214,15 @@ func (g *Gateway) Provider() string {
 
 func (g *Gateway) SetMetrics(m Metrics) { g.metrics = m }
 
+// CheckQuota refuses with ErrQuotaExceeded before a streamed turn announces
+// itself; Complete checks again, so a turn that races the limit still stops.
+func (g *Gateway) CheckQuota(ctx context.Context, orgID string) error {
+	if g == nil || g.quota == nil {
+		return nil
+	}
+	return g.quota.Check(ctx, orgID)
+}
+
 func (g *Gateway) Complete(ctx context.Context, req Request) (Response, error) {
 	if !g.Enabled() {
 		return Response{}, ErrDisabled
