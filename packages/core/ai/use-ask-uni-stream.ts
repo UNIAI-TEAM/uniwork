@@ -40,9 +40,19 @@ export function useAskUniStream(wsId: string) {
   const seq = useRef(0);
   const ctrl = useRef<AbortController | null>(null);
   const turnConversation = useRef<string | null>(null);
+  const refetchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // A stopped or failed run may be billed, and a new conversation must show in the history list.
+  const refreshAfterEnd = useCallback(() => {
+    void qc.invalidateQueries({ queryKey: aiKeys.conversations(wsId) });
+    void qc.invalidateQueries({ queryKey: aiKeys.capabilities(wsId) });
+    void qc.invalidateQueries({ queryKey: aiKeys.usages() });
+  }, [qc, wsId]);
 
   const abort = useCallback(() => {
     seq.current += 1; // events of the aborted turn are no longer current
+    if (refetchTimer.current) clearTimeout(refetchTimer.current);
+    refetchTimer.current = null;
     ctrl.current?.abort();
     ctrl.current = null;
   }, []);
@@ -108,6 +118,7 @@ export function useAskUniStream(wsId: string) {
           }
           case "error":
             finished = true;
+            refreshAfterEnd();
             setState((s) => ({ ...s, status: "error", errorCode: e.code }));
             break;
         }
@@ -115,15 +126,17 @@ export function useAskUniStream(wsId: string) {
 
       askUniStream(wsId, input, { signal: controller.signal, onEvent }).then(
         () => {
+          if (current() && !finished) refreshAfterEnd();
           if (current() && !finished) setState((s) => ({ ...s, status: "error", errorCode: "stream_ended" }));
         },
         (err: unknown) => {
           if (!current()) return;
+          refreshAfterEnd();
           setState((s) => ({ ...s, status: "error", errorCode: errorCode(err) ?? "internal" }));
         },
       );
     },
-    [abort, qc, wsId],
+    [abort, qc, wsId, refreshAfterEnd],
   );
 
   const stop = useCallback(() => {
@@ -131,8 +144,15 @@ export function useAskUniStream(wsId: string) {
     setState((s) => (s.status === "streaming" ? { ...s, status: "stopped" } : s));
     const conversationId = turnConversation.current;
     // The server stores the question and the partial answer with notice "stopped".
-    if (conversationId) void qc.invalidateQueries({ queryKey: aiKeys.messages(conversationId) });
-  }, [abort, qc]);
+    refreshAfterEnd();
+    if (!conversationId) return;
+    void qc.invalidateQueries({ queryKey: aiKeys.messages(conversationId) });
+    // shortcut: fixed 1500 ms retry, the server stores the stopped turn only after it notices the cancel; upgrade to polling or a server event if that lags.
+    refetchTimer.current = setTimeout(() => {
+      refetchTimer.current = null;
+      void qc.invalidateQueries({ queryKey: aiKeys.messages(conversationId) });
+    }, 1500);
+  }, [abort, qc, refreshAfterEnd]);
 
   return { state, ask, stop };
 }

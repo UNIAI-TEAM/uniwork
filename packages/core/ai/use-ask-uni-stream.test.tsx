@@ -116,6 +116,52 @@ describe("useAskUniStream", () => {
     expect(result.current.state.status).toBe("stopped");
   });
 
+  it("stop after run refreshes the history list and quota, and refetches messages again after 1500 ms", () => {
+    vi.useFakeTimers();
+    try {
+      const { result, qc } = setup();
+      const invalidate = vi.spyOn(qc, "invalidateQueries");
+      act(() => result.current.ask({ question: "q" }));
+      emit({ type: "run", runId: "r", conversationId: "c1" });
+      act(() => result.current.stop());
+      const keys = () => invalidate.mock.calls.map((c) => JSON.stringify(c[0]?.queryKey));
+      expect(keys()).toEqual(
+        expect.arrayContaining([
+          JSON.stringify(aiKeys.conversations("ws1")),
+          JSON.stringify(aiKeys.capabilities("ws1")),
+          JSON.stringify(aiKeys.usages()),
+        ]),
+      );
+      const msgKey = JSON.stringify(aiKeys.messages("c1"));
+      expect(keys().filter((k) => k === msgKey)).toHaveLength(1);
+      act(() => void vi.advanceTimersByTime(1500));
+      expect(keys().filter((k) => k === msgKey)).toHaveLength(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("the delayed refetch is cancelled by unmount and by a newer ask", () => {
+    vi.useFakeTimers();
+    try {
+      const { result, qc, unmount } = setup();
+      const invalidate = vi.spyOn(qc, "invalidateQueries");
+      const count = () => invalidate.mock.calls.filter((c) => JSON.stringify(c[0]?.queryKey) === JSON.stringify(aiKeys.messages("c1"))).length;
+      act(() => result.current.ask({ question: "q" }));
+      emit({ type: "run", runId: "r", conversationId: "c1" });
+      act(() => result.current.stop());
+      act(() => result.current.ask({ question: "next", conversation_id: "c2" }));
+      act(() => void vi.advanceTimersByTime(2000));
+      expect(count()).toBe(1);
+      act(() => result.current.stop());
+      unmount();
+      act(() => void vi.advanceTimersByTime(2000));
+      expect(invalidate.mock.calls.filter((c) => JSON.stringify(c[0]?.queryKey) === JSON.stringify(aiKeys.messages("c2")))).toHaveLength(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("aborts on workspace change and ignores late events", async () => {
     const { result, qc, rerender } = setup();
     act(() => result.current.ask({ question: "q" }));
@@ -150,9 +196,11 @@ describe("useAskUniStream", () => {
   });
 
   it("error event sets errorCode", () => {
-    const { result } = setup();
+    const { result, qc } = setup();
     act(() => result.current.ask({ question: "q" }));
+    const invalidate = vi.spyOn(qc, "invalidateQueries");
     emit({ type: "error", code: "ai_quota_exceeded" });
+    expect(invalidate.mock.calls.map((c) => JSON.stringify(c[0]?.queryKey))).toContain(JSON.stringify(aiKeys.conversations("ws1")));
     expect(result.current.state).toMatchObject({ status: "error", errorCode: "ai_quota_exceeded" });
   });
 
@@ -172,10 +220,15 @@ describe("useAskUniStream", () => {
 });
 
 describe("useAskModelChoice", () => {
-  it("persists model and effort only", () => {
+  it("persists model and effort only, and rehydrates them from storage", async () => {
     useAskModelChoice.getState().setModel("claude-opus");
     useAskModelChoice.getState().setEffort("high");
     const stored = JSON.parse(localStorage.getItem("uniwork_ask_uni_model") ?? "{}") as { state: Record<string, unknown> };
     expect(stored.state).toEqual({ model: "claude-opus", effort: "high" });
+    useAskModelChoice.setState({ model: "", effort: "" });
+    expect(useAskModelChoice.getState().model).toBe("");
+    localStorage.setItem("uniwork_ask_uni_model", JSON.stringify({ ...stored, version: 1 }));
+    await useAskModelChoice.persist.rehydrate();
+    expect(useAskModelChoice.getState()).toMatchObject({ model: "claude-opus", effort: "high" });
   });
 });
