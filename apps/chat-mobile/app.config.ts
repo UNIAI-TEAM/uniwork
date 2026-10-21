@@ -129,8 +129,10 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       ],
     },
     // The permission prompts in English for an English phone; the plugins below
-    // write the Vietnamese ones into Info.plist as the base strings.
-    locales: { en: USAGE_EN },
+    // write the Vietnamese ones into Info.plist as the base strings. Under `ios`:
+    // top-level keys also land in Android's values-b+en/strings.xml, which has no
+    // base string to translate, and lintVitalRelease fails the release build.
+    locales: { en: { ios: USAGE_EN } },
     plugins: [
       "expo-router",
       "expo-secure-store",

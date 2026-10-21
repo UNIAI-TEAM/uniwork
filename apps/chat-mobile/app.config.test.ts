@@ -86,7 +86,8 @@ describe("app.config per UNICHAT_ENV", () => {
     expect(options("@config-plugins/react-native-webrtc")).toEqual({ cameraPermission: camera, microphonePermission: microphone });
     expect(options("expo-image-picker")).toMatchObject({ photosPermission: expect.any(String), cameraPermission: camera, microphonePermission: microphone });
     expect(options("expo-audio")).toEqual({ microphonePermission: microphone });
-    expect(config.locales?.en).toMatchObject({
+    expect(config.locales?.en).toEqual({ ios: expect.any(Object) });
+    expect((config.locales?.en as { ios: Record<string, string> }).ios).toMatchObject({
       NSCameraUsageDescription: expect.stringContaining("camera"),
       NSMicrophoneUsageDescription: expect.stringContaining("microphone"),
       NSPhotoLibraryUsageDescription: expect.any(String),
