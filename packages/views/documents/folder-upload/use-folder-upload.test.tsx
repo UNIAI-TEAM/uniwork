@@ -260,19 +260,45 @@ describe("useFolderUpload", () => {
     expect(toast.info).not.toHaveBeenCalled();
   });
 
-  it("cancels the run on Esc while the plan is still pending", async () => {
-    const { transport } = setup({}, { latencyMs: 60_000 });
+  /** The plan is held for `PLAN_MS`: the dialog must close, and the next one open, well inside that. */
+  const PLAN_MS = 1_200;
+  const leaveWhilePlanning = async (leave: () => void) => {
+    const { transport } = setup({}, { latencyMs: PLAN_MS });
     stage(entries("Mới", ["a.pdf"]));
     upload();
     await waitFor(() => expect(transport.calls.some((c) => c.method === "plan")).toBe(true));
-    fireEvent.keyDown(document.activeElement ?? screen.getByRole("dialog"), { key: "Escape" });
+    leave();
 
-    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
-    expect(toast.loading).not.toHaveBeenCalled();
-    // The next folder can be staged and planned at once: the canceled run let go of the dialog.
+    // The user is out at once: the plan has not answered, so the batch is not canceled yet (d74e1d7c8 waits for it).
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull(), { timeout: 600 });
+    expect(transport.calls.some((c) => c.method === "cancel")).toBe(false);
+    // The next folder opens its dialog while the old run is still cleaning up.
     stage(entries("Hai", ["b.pdf"]));
     expect(await screen.findByTestId("folder-upload-root")).toHaveTextContent("Hai");
+
+    // The plan answers: the run cancels that batch in the background and settles without a trace.
+    await waitFor(() => expect(transport.calls.filter((c) => c.method === "cancel")).toEqual([{ method: "cancel", batchId: "batch-1" }]), {
+      timeout: 3_000,
+    });
+    await waitFor(() => expect(transport.batch?.status).toBe("canceled"), { timeout: 3_000 });
+    expect(transport.calls.some((c) => c.method === "put")).toBe(false);
+    expect(toast.loading).not.toHaveBeenCalled();
+    expect(toast.info).not.toHaveBeenCalled();
+    expect(toast.warning).not.toHaveBeenCalled();
+    expect(toast.error).not.toHaveBeenCalled();
+    // The canceled settle neither closed nor disturbed the dialog of the next folder.
+    expect(screen.getByTestId("folder-upload-root")).toHaveTextContent("Hai");
     expect(screen.getByRole("button", { name: t("documents.folder_upload.dialog.submit") })).not.toHaveAttribute("aria-busy");
+  };
+
+  it("closes the dialog at once on Esc while the plan is still pending, and cancels the batch when the plan answers", async () => {
+    await leaveWhilePlanning(() => fireEvent.keyDown(document.activeElement ?? screen.getByRole("dialog"), { key: "Escape" }));
+  });
+
+  it("closes the dialog at once on Hủy while the plan is still pending, and cancels the batch when the plan answers", async () => {
+    await leaveWhilePlanning(() =>
+      fireEvent.click(screen.getByRole("button", { name: t("documents.folder_upload.dialog.cancel") })),
+    );
   });
 
   it("refuses an empty dropped folder with a toast instead of a dialog", () => {

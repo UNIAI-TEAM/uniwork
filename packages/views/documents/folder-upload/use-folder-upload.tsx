@@ -69,6 +69,8 @@ interface RunChannel {
   failuresLeft: boolean;
   /** The batch was given up (report dismissed, or nothing left to retry) and canceled once. */
   abandoned: boolean;
+  /** The user left the dialog while the plan was pending: the run cleans up in the background and owns no dialog. */
+  left: boolean;
 }
 
 /**
@@ -218,15 +220,19 @@ export function useFolderUpload({
 
   const openPicker = useCallback(() => inputRef.current?.click(), []);
 
-  /** Cancel or Esc while the plan is pending: the run is canceled and the dialog closes on its canceled report. */
+  /**
+   * Cancel, Esc or x while the plan is pending: the user is out, so the dialog closes at once. The runner still
+   * waits for the plan's answer (it cannot know a batch was planned before then), cancels that batch and settles
+   * canceled in the background, with nothing left to show.
+   */
   const cancelPending = () => {
     const channel = dialogRun.current;
-    if (channel?.handle) {
-      channel.handle.cancel();
-      return;
-    }
-    // The destination was still resolving: the run never starts.
     dialogRun.current = null;
+    if (channel?.handle) {
+      channel.left = true;
+      channel.handle.cancel();
+    }
+    // Without a handle the destination was still resolving: the run never starts.
     dismissHead();
   };
 
@@ -289,6 +295,7 @@ export function useFolderUpload({
       shownToast: null,
       failuresLeft: false,
       abandoned: false,
+      left: false,
     };
     dialogRun.current = channel;
     runs.current.add(channel);
@@ -308,8 +315,11 @@ export function useFolderUpload({
     // The plan was answered: the dialog's job is done, the toast takes over.
     const begin = (): FolderUploadToast => {
       if (uploadToast) return uploadToast;
-      dialogRun.current = null;
-      dismissHead();
+      // A run the user already left has no dialog to close: the head now belongs to the next folder.
+      if (!channel.left) {
+        dialogRun.current = null;
+        dismissHead();
+      }
       uploadToast = createFolderUploadToast({
         t: latest.current.t,
         name,
@@ -342,7 +352,7 @@ export function useFolderUpload({
         // The first run's toast keeps its end state; whatever follows is not its to show.
         if (channel.settled) return;
         if (progress.phase === "waiting") {
-          setWaiting(true);
+          if (!channel.left) setWaiting(true);
           return;
         }
         // "uploading" means the plan was answered: the toast takes over. Before it the dialog
@@ -355,16 +365,21 @@ export function useFolderUpload({
       (report) => {
         channel.settled = true;
         if (report.canceled && !uploadToast) {
-          // Canceled from the dialog before the plan was answered: nothing to report.
-          dialogRun.current = null;
-          dismissHead();
+          // Canceled from the dialog before the plan was answered: nothing to report. The dialog is
+          // already gone when the user left; otherwise (a 429 wait) it closes now.
+          if (!channel.left) {
+            dialogRun.current = null;
+            dismissHead();
+          }
           return;
         }
         settleToast(begin(), name, report, channel);
       },
       (failure: unknown) => {
         channel.settled = true;
-        dialogRun.current = null;
+        // The user left: a refusal of a plan they walked away from is not theirs to read.
+        if (channel.left && !uploadToast) return;
+        if (dialogRun.current === channel) dialogRun.current = null;
         if (uploadToast) {
           uploadToast.dismiss();
           toast.error(runErrorMessage(latest.current.t, failure, latest.current.locale, channel.mode));
