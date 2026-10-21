@@ -185,6 +185,13 @@ func TestPromptSnapshots(t *testing.T) {
 		PromptCopilotAnswerV3: copilotAgent,
 		"chat_catchup@1":      catchUp,
 		PromptChatCatchUp:     catchUp,
+		PromptMeetingCatchUp: {
+			"locale": "vi", "title": "Họp giao ban", "started": "2026-10-21T02:00:00Z", "now": "2026-10-21T02:25:00Z",
+			"sources": RenderSources([]Source{
+				{ID: "S1", Kind: "notes", Title: "Ghi chú", Excerpt: "- Chốt lịch demo"},
+				{ID: "S2", Kind: "transcript", Title: "09:03", Excerpt: "An: Ta demo thứ Sáu nhé."},
+			}),
+		},
 		PromptChatCallSummary: {
 			"locale": "vi", "today": "2026-09-16", "duration": "1:05", "participants": "An, Bình",
 			"sources": RenderSources([]Source{
