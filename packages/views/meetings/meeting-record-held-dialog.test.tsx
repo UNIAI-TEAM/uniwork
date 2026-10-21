@@ -8,6 +8,7 @@ import { MeetingRecordHeldButton } from "./meeting-record-held-dialog";
 
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
+const HELD = "/api/v1/meetings/m1/held";
 const NOW = Date.parse("2026-10-20T10:00:00Z");
 
 function meeting(startsAt: string, endsAt: string): Meeting {
@@ -36,19 +37,43 @@ describe("MeetingRecordHeldButton", () => {
     render(wrap(<MeetingRecordHeldButton workspaceId="w1" meeting={meeting("2026-10-20T02:00:00Z", "2026-10-20T03:30:00Z")} />));
     fireEvent.click(screen.getByRole("button", { name: "Ghi nhận đã họp" }));
     fireEvent.click(await screen.findByRole("button", { name: "Ghi nhận" }));
-    await waitFor(() => expect(requestMock).toHaveBeenCalledWith("/api/v1/meetings/m1/held", expect.anything()));
-    const body = (requestMock.mock.calls[0]![1] as { body: { started_at: string; ended_at: string } }).body;
+    await waitFor(() => expect(requestMock).toHaveBeenCalledWith(HELD, expect.anything()));
+    const body = (requestMock.mock.calls.find((c) => c[0] === HELD)![1] as { body: { started_at: string; ended_at: string } }).body;
     expect(Date.parse(body.started_at)).toBe(Date.parse("2026-10-20T02:00:00Z"));
     expect(Date.parse(body.ended_at)).toBe(Date.parse("2026-10-20T03:30:00Z"));
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Đã ghi nhận cuộc họp đã diễn ra."));
   });
 
-  it("refuses an end that has not happened yet", async () => {
-    // Scheduled to end two hours from now: the default end is in the future.
+  it("opens inside the meeting window ending now, without an error", async () => {
+    // Scheduled 09:00–12:00 UTC, now 10:00: the end defaults to now, not the schedule.
     render(wrap(<MeetingRecordHeldButton workspaceId="w1" meeting={meeting("2026-10-20T09:00:00Z", "2026-10-20T12:00:00Z")} />));
     fireEvent.click(screen.getByRole("button", { name: "Ghi nhận đã họp" }));
+    await screen.findByRole("dialog");
+    expect(screen.queryByRole("alert")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Ghi nhận" }));
+    await waitFor(() => expect(requestMock).toHaveBeenCalledWith(HELD, expect.anything()));
+    const body = (requestMock.mock.calls.find((c) => c[0] === HELD)![1] as { body: { started_at: string; ended_at: string } }).body;
+    expect(Date.parse(body.ended_at)).toBe(NOW);
+  });
+
+  it("refuses an end that has not happened yet", async () => {
+    render(wrap(<MeetingRecordHeldButton workspaceId="w1" meeting={meeting("2026-10-20T09:00:00Z", "2026-10-20T12:00:00Z")} />));
+    fireEvent.click(screen.getByRole("button", { name: "Ghi nhận đã họp" }));
+    // The end starts at now (17:00 in the meeting's zone); one hour later is the future.
+    fireEvent.keyDown(await screen.findByLabelText("Giờ kết thúc"), { key: "ArrowUp" });
     expect(await screen.findByRole("alert")).toHaveTextContent("Giờ kết thúc không được ở tương lai.");
-    expect(screen.getByRole("button", { name: "Ghi nhận" })).toBeDisabled();
-    expect(requestMock).not.toHaveBeenCalled();
+    const submit = screen.getByRole("button", { name: "Ghi nhận" });
+    expect(submit).toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(submit);
+    expect(requestMock).not.toHaveBeenCalledWith(HELD, expect.anything());
+  });
+
+  it("keeps a refusal inside the dialog", async () => {
+    requestMock.mockRejectedValue(new Error("boom"));
+    render(wrap(<MeetingRecordHeldButton workspaceId="w1" meeting={meeting("2026-10-20T02:00:00Z", "2026-10-20T03:30:00Z")} />));
+    fireEvent.click(screen.getByRole("button", { name: "Ghi nhận đã họp" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Ghi nhận" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Chưa ghi nhận được cuộc họp.");
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
 });

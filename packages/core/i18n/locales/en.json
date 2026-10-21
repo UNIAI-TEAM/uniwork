@@ -3179,8 +3179,8 @@
     "linkMetaUsesCount_other": "{{count}} uses",
     "linkExpiryDays_one": "{{count}} day",
     "linkExpiryDays_other": "{{count}} days",
-    "missedHint": "The scheduled time passed and the meeting never started. The host can reschedule it.",
-    "missedHostHint": "The scheduled time passed and the meeting never started. Pick a new time, or cancel it so everyone knows.",
+    "missedHint": "The scheduled time passed without the room being opened. The host can record it as held or reschedule it.",
+    "missedHostHint": "The scheduled time passed without the room being opened. If you met in person, record it as held; if not, pick a new time or cancel so everyone knows.",
     "overtimeHint": "The meeting passed its scheduled end at {{time}}, so nobody can join any more. The host can extend it.",
     "overtimeHostHint": "The meeting passed its scheduled end at {{time}}, so nobody can join any more. Extend it to reopen the room, or end the meeting.",
     "noteAdd": "Add",
@@ -4015,10 +4015,19 @@
     "held": {
       "button": "Record as held",
       "title": "Record that the meeting was held",
-      "description": "For a meeting held in person without opening a room. Enter the actual times; the meeting ends and its recording can be uploaded for transcription.",
+      "description": "For a meeting held in person without opening a room. Enter the actual times; the meeting moves to ended.",
+      "descriptionUpload": "For a meeting held in person without opening a room. Enter the actual times; the meeting moves to ended, and you can then upload a recording for UNI to transcribe.",
       "endInFuture": "The end time cannot be in the future.",
       "submit": "Record",
-      "done": "Recorded the meeting as held."
+      "done": "Recorded the meeting as held.",
+      "failed": "The meeting wasn't recorded as held."
+    },
+    "nextStep": {
+      "assign": "Assign tasks",
+      "assignHint_one": "{{count}} action item is waiting to be assigned.",
+      "assignHint_other": "{{count}} action items are waiting to be assigned.",
+      "minutes": "Draft the minutes",
+      "minutesHint": "This meeting has no minutes yet."
     },
     "transcription": {
       "uploadButton": "Upload recording",

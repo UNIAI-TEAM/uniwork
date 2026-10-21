@@ -3178,8 +3178,8 @@
     "linkMetaUsesCount_other": "{{count}} lượt dùng",
     "linkExpiryDays_one": "{{count}} ngày",
     "linkExpiryDays_other": "{{count}} ngày",
-    "missedHint": "Khung giờ đã lên lịch đã qua mà cuộc họp chưa bắt đầu. Chủ trì có thể đặt lại lịch.",
-    "missedHostHint": "Khung giờ đã lên lịch đã qua mà cuộc họp chưa bắt đầu. Đặt lịch mới hoặc hủy để mọi người biết.",
+    "missedHint": "Khung giờ đã qua mà cuộc họp chưa mở phòng. Chủ trì có thể ghi nhận đã họp hoặc đặt lại lịch.",
+    "missedHostHint": "Khung giờ đã qua mà cuộc họp chưa mở phòng. Đã họp trực tiếp thì ghi nhận lại; chưa họp thì đặt lịch mới hoặc hủy để mọi người biết.",
     "overtimeHint": "Cuộc họp đã qua khung giờ lúc {{time}} nên không vào phòng được nữa. Chủ trì có thể gia hạn thêm.",
     "overtimeHostHint": "Cuộc họp đã qua khung giờ lúc {{time}} nên không ai vào phòng được nữa. Gia hạn để mở lại phòng, hoặc kết thúc cuộc họp.",
     "noteAdd": "Thêm",
@@ -4014,10 +4014,19 @@
     "held": {
       "button": "Ghi nhận đã họp",
       "title": "Ghi nhận cuộc họp đã diễn ra",
-      "description": "Dùng khi họp trực tiếp mà không mở phòng. Nhập giờ thực tế; cuộc họp chuyển sang đã kết thúc và có thể tải file ghi âm lên để ghi lời.",
+      "description": "Dùng khi họp trực tiếp mà không mở phòng. Nhập giờ thực tế; cuộc họp chuyển sang đã kết thúc.",
+      "descriptionUpload": "Dùng khi họp trực tiếp mà không mở phòng. Nhập giờ thực tế; cuộc họp chuyển sang đã kết thúc, rồi bạn có thể tải tệp ghi âm lên để UNI ghi lời.",
       "endInFuture": "Giờ kết thúc không được ở tương lai.",
       "submit": "Ghi nhận",
-      "done": "Đã ghi nhận cuộc họp đã diễn ra."
+      "done": "Đã ghi nhận cuộc họp đã diễn ra.",
+      "failed": "Chưa ghi nhận được cuộc họp."
+    },
+    "nextStep": {
+      "assign": "Giao việc",
+      "assignHint_one": "{{count}} việc đang chờ giao.",
+      "assignHint_other": "{{count}} việc đang chờ giao.",
+      "minutes": "Lập biên bản",
+      "minutesHint": "Cuộc họp chưa có biên bản."
     },
     "transcription": {
       "uploadButton": "Tải file ghi âm",
