@@ -103,11 +103,11 @@ describe("library table access column", () => {
     const row = document.querySelector('[data-library-row="a"]') as HTMLElement;
     const cell = within(row).getByText("Bạn: Quản lý").closest("td")!;
     expect(cell.className).toContain("hidden");
-    // UNI-2045: Access joins at the shared ladder's access rung (34rem on the workspace screen).
-    expect(cell.className).toContain("@min-[34rem]/library:table-cell");
+    // UNI-2045: Access joins at the shared ladder's access rung (39rem on the workspace screen).
+    expect(cell.className).toContain("@min-[39rem]/library:table-cell");
     expect(document.querySelectorAll("colgroup col")).toHaveLength(6);
-    expect(document.querySelectorAll("colgroup col.\\@min-\\[34rem\\]\\/library\\:table-column")).toHaveLength(1);
-    expect(document.querySelectorAll("thead th.\\@min-\\[34rem\\]\\/library\\:table-cell")).toHaveLength(1);
+    expect(document.querySelectorAll("colgroup col.\\@min-\\[39rem\\]\\/library\\:table-column")).toHaveLength(1);
+    expect(document.querySelectorAll("thead th.\\@min-\\[39rem\\]\\/library\\:table-cell")).toHaveLength(1);
     // The ladder (documents-library-ladder.test.tsx) holds the rest: no viewport breakpoint decides a column.
     expect(document.querySelector("th.lg\\:table-cell, .xl\\:table-cell, .xl\\:table-column, .xl\\:hidden, .md\\:table-cell")).toBeNull();
   });

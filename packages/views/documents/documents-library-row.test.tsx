@@ -326,8 +326,8 @@ describe("narrow secondary line at 390 (< 34rem, UNI-1902)", () => {
     const accessGroup = line.querySelector("[data-library-access-group]") as HTMLElement;
     expect(metaGroup).toBeTruthy();
     expect(accessGroup).toBeTruthy();
-    // UNI-2045: the editor part leaves when Người sửa gần nhất joins (42rem on the workspace screen).
-    expect(metaGroup).toHaveClass("basis-full", "min-w-0", "@min-[34rem]/library:basis-auto", "@min-[42rem]/library:hidden");
+    // UNI-2045: the editor part leaves when Người sửa gần nhất joins (48rem on the workspace screen).
+    expect(metaGroup).toHaveClass("basis-full", "min-w-0", "@min-[34rem]/library:basis-auto", "@min-[48rem]/library:hidden");
     expect(accessGroup).toHaveClass("shrink-0");
 
     const editorEl = within(metaGroup).getByText("An");
@@ -350,14 +350,14 @@ describe("narrow secondary line at 390 (< 34rem, UNI-1902)", () => {
 
     const interDot = Array.from(line.children).find((el) => el.textContent === "·") as HTMLElement;
     expect(interDot).toBeTruthy();
-    // UNI-2045: the dot leaves with the access group, at the access rung (34rem on the workspace screen, where it equals the dot's own 34rem: `!` settles the tie).
-    expect(interDot).toHaveClass("hidden", "@min-[34rem]/library:inline", "@min-[34rem]/library:hidden!");
+    // UNI-2045: the dot leaves with the access group, at the access rung (39rem on the workspace screen; the `!` wins over the dot's own 34rem `inline`).
+    expect(interDot).toHaveClass("hidden", "@min-[34rem]/library:inline", "@min-[39rem]/library:hidden!");
 
     const lineB = document.querySelector('[data-library-row="b"] [data-library-access-line]') as HTMLElement;
     const metaB = lineB.querySelector("[data-library-meta-line]") as HTMLElement;
     const accessB = lineB.querySelector("[data-library-access-group]") as HTMLElement;
-    // UNI-2045: without an editor the meta group is updated · size, gone at the table rung (26rem).
-    expect(metaB).toHaveClass("@min-[26rem]/library:hidden");
+    // UNI-2045: without an editor the meta group is updated · size, gone at the table rung (31rem).
+    expect(metaB).toHaveClass("@min-[31rem]/library:hidden");
     expect(metaB.firstElementChild?.textContent).not.toBe("·");
     expect(metaB.lastElementChild?.textContent).not.toBe("·");
     expect(accessB.firstElementChild?.textContent).not.toBe("·");
