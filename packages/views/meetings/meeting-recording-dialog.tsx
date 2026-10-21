@@ -1,6 +1,6 @@
 "use client";
 
-import { CircleAlert } from "lucide-react";
+import { CircleAlert, RefreshCw } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -13,6 +13,7 @@ import {
   rememberMeetingRecordingPlayback,
   releaseMeetingRecordingPlayback,
 } from "@uniwork/core/meetings/recording-playback-cache";
+import { Button } from "@uniwork/ui/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -41,6 +42,8 @@ export function MeetingRecordingDialog({
   const playbackUrlRef = useRef<string | null>(null);
   const cacheKeyRef = useRef(meetingRecordingPlaybackCacheKey(meetingId, recordingId));
   const [status, setStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
+  // Bumped by Retry: the load effect runs again without closing the dialog.
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     cacheKeyRef.current = meetingRecordingPlaybackCacheKey(meetingId, recordingId);
@@ -85,7 +88,7 @@ export function MeetingRecordingDialog({
       cancelled = true;
       controller.abort();
     };
-  }, [open, meetingId, recordingId]);
+  }, [open, meetingId, recordingId, attempt]);
 
   const handleVideoError = () => {
     const cacheKey = cacheKeyRef.current;
@@ -119,7 +122,18 @@ export function MeetingRecordingDialog({
           </MeetingSectionLoading>
         ) : null}
         {status === "error" ? (
-          <Notice tone="destructive" icon={CircleAlert} layout="inline" live="assertive">
+          <Notice
+            tone="destructive"
+            icon={CircleAlert}
+            layout="inline"
+            live="assertive"
+            action={
+              <Button type="button" size="sm" variant="outline" onClick={() => setAttempt((n) => n + 1)}>
+                <RefreshCw aria-hidden />
+                {t("common.retry")}
+              </Button>
+            }
+          >
             {t("meetings.recording_play_error")}
           </Notice>
         ) : null}

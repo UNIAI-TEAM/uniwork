@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import { wrap } from "../test/api-mock";
@@ -23,9 +23,12 @@ describe("MeetingRecordingDialog", () => {
     expect(status.querySelector(".aspect-video")).not.toBeNull();
   });
 
-  it("reports a failed load as an alert", async () => {
+  it("reports a failed load as an alert with a retry that loads again", async () => {
+    resolvePlayback.mockReset();
     resolvePlayback.mockRejectedValue(new Error("boom"));
     render(wrap(<MeetingRecordingDialog open onOpenChange={() => {}} meetingId="m1" recordingId="r-error" />));
-    expect(await screen.findByRole("alert")).toHaveTextContent("Không phát được bản ghi. Thử lại sau.");
+    expect(await screen.findByRole("alert")).toHaveTextContent("Không phát được bản ghi.");
+    fireEvent.click(screen.getByRole("button", { name: "Thử lại" }));
+    await waitFor(() => expect(resolvePlayback).toHaveBeenCalledTimes(2));
   });
 });

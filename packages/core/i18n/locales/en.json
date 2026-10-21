@@ -3493,7 +3493,7 @@
     "recording_rewatch": "Watch again",
     "recording_play_title": "Meeting recording",
     "recording_play_loading": "Loading recording…",
-    "recording_play_error": "Could not play the recording. Try again later.",
+    "recording_play_error": "Couldn't play the recording. Check your connection and try again.",
     "recordingStatus": {
       "ACTIVE": "Recording",
       "PROCESSING": "Processing",

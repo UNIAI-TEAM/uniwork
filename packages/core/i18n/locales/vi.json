@@ -3299,7 +3299,7 @@
     "activity_started": "đã bắt đầu cuộc họp",
     "activity_ended": "đã kết thúc cuộc họp",
     "activity_recorded_held": "đã ghi nhận cuộc họp đã diễn ra, không mở phòng",
-    "activity_transcription_completed": "đã ghi lời xong một file ghi âm",
+    "activity_transcription_completed": "đã ghi lời xong một tệp ghi âm",
     "activity_canceled": "đã hủy cuộc họp",
     "activity_restored": "đã khôi phục cuộc họp",
     "activity_updated": "đã cập nhật cuộc họp",
@@ -3492,7 +3492,7 @@
     "recording_rewatch": "Xem lại",
     "recording_play_title": "Bản ghi cuộc họp",
     "recording_play_loading": "Đang tải bản ghi…",
-    "recording_play_error": "Không phát được bản ghi. Thử lại sau.",
+    "recording_play_error": "Không phát được bản ghi. Kiểm tra kết nối rồi thử lại.",
     "recordingStatus": {
       "ACTIVE": "Đang ghi",
       "PROCESSING": "Đang xử lý",
