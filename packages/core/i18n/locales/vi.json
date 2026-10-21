@@ -629,7 +629,8 @@
         "document_access_approved": "Được cấp quyền truy cập tài liệu",
         "document_access_declined": "Yêu cầu truy cập bị từ chối",
         "document_shared": "Tài liệu được chia sẻ với bạn",
-        "document_trashed_by_other": "Tài liệu của bạn bị chuyển vào thùng rác"
+        "document_trashed_by_other": "Tài liệu của bạn bị chuyển vào thùng rác",
+        "document_changed": "Thay đổi trên tài liệu bạn theo dõi"
       },
       "all_kinds": "Mọi loại",
       "channel_all": "{{channel}} cho mọi loại",
@@ -5671,7 +5672,8 @@
       "document_trashed_by_other": "{{actor}} đã chuyển tài liệu của bạn vào thùng rác, khôi phục trước {{date}}",
       "document_trashed_by_other_untitled": "{{actor}} đã chuyển một tài liệu của bạn vào thùng rác, khôi phục trước {{date}}",
       "document_trashed_by_other_nodate": "{{actor}} đã chuyển tài liệu của bạn vào thùng rác",
-      "document_trashed_by_other_untitled_nodate": "{{actor}} đã chuyển một tài liệu của bạn vào thùng rác"
+      "document_trashed_by_other_untitled_nodate": "{{actor}} đã chuyển một tài liệu của bạn vào thùng rác",
+      "document_changed": "{{actor}} đã thay đổi {{document_count}} tài liệu"
     },
     "kindTitle": {
       "document_mentioned": "Bạn được nhắc tên trong bình luận",
@@ -5685,7 +5687,8 @@
       "document_access_approved": "Đã được cấp quyền",
       "document_access_declined": "Yêu cầu bị từ chối",
       "document_shared": "Tài liệu được chia sẻ",
-      "document_trashed_by_other": "Tài liệu của bạn đã vào thùng rác"
+      "document_trashed_by_other": "Tài liệu của bạn đã vào thùng rác",
+      "document_changed": "Tài liệu có thay đổi"
     },
     "archived_one": "Đã lưu trữ {{count}} thông báo",
     "archived_other": "Đã lưu trữ {{count}} thông báo",

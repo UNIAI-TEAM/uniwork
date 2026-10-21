@@ -89,8 +89,7 @@ export function useDocumentNoticePage({
 export function useNotificationDocuments(notificationId: string, { enabled = true }: { enabled?: boolean } = {}) {
   return useInfiniteQuery({
     queryKey: notificationKeys.documents(notificationId),
-    queryFn: ({ pageParam, signal }) =>
-      api.listNotificationDocuments(notificationId, { cursor: pageParam || undefined }, signal),
+    queryFn: ({ pageParam }) => api.listNotificationDocuments(notificationId, { cursor: pageParam || undefined }),
     initialPageParam: "",
     getNextPageParam: (last) => last.next_cursor ?? undefined,
     enabled,
