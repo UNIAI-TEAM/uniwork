@@ -28,6 +28,10 @@ type documentServiceOptions struct {
 	// EditLock is the DOCUMENT_EDIT_* timing (UNI-1645 §7); a zero field keeps
 	// the addendum default.
 	EditLock service.DocumentEditLockConfig
+	// FolderUploadMaxFiles and FolderUploadMaxBytes are FOLDER_UPLOAD_* (UNI-2052);
+	// zero keeps the default.
+	FolderUploadMaxFiles int
+	FolderUploadMaxBytes int64
 }
 
 // newDocumentService builds the process's one DocumentService (BE-I4-1). The
@@ -51,5 +55,6 @@ func newDocumentService(o documentServiceOptions) *service.DocumentService {
 	svc.SetIdempotencyKeyPolicy(o.IdempotencyKeyPolicy)
 	svc.SetFlags(o.Flags)
 	svc.SetEditLockConfig(o.EditLock)
+	svc.SetFolderUploadLimits(o.FolderUploadMaxFiles, o.FolderUploadMaxBytes)
 	return svc
 }

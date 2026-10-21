@@ -60,6 +60,8 @@ var actionsWithoutCommands = map[string]string{
 	audit.ActionOrganizationMcpPolicyChanged:      "covered by mcp_grants_test.go",
 	audit.ActionOrganizationMcpWritePolicyChanged: "covered by mcp_grants_test.go",
 	audit.ActionMeetingRestored:                   "covered by meeting_restore_test.go",
+	audit.ActionDocumentsFolderUploadCanceled:     "the folder upload cancel command lands with UNI-2052 w3, which moves this action into auditCommands",
+	audit.ActionDocumentsFolderUploadExpired:      "the folder upload expiry sweep lands with UNI-2052 w3, which moves this action into auditCommands",
 }
 
 func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
@@ -1129,6 +1131,20 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				t.Fatal(err)
 			}
 			if _, err := svc.CreateDocumentDownloadJob(f.ctx, Human(f.owner.ID), d.WorkspaceID, []string{docID}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentsFolderUploadPlanned: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.document(t)
+			svc.SetFiles(filesfake.New(filesfake.Options{}))
+			d, err := f.q.GetDocumentByID(f.ctx, docID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := svc.CreateFolderUpload(f.ctx, Human(f.owner.ID), d.WorkspaceID, CreateFolderUploadInput{
+				RootName: "Audit folder", Folders: []string{"a"}, IdempotencyKey: "audit-folder-upload",
+				Files: []FolderUploadFileInput{{FileKey: "k1", Path: "a", Filename: "x.md", SizeBytes: 3}},
+			}); err != nil {
 				t.Fatal(err)
 			}
 		},
