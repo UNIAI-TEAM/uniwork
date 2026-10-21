@@ -3,7 +3,7 @@
 import { Maximize2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useChatVoiceCall } from "./chat-voice-call-host";
-import { isMultiPartyVoiceCall } from "./voice-call-kind-utils";
+import { isMultiPartyVoiceCall } from "@uniwork/core/chat/voice-call-kind";
 
 /**
  * Telegram's call bar: while a call is folded to its pill, a slim strip in

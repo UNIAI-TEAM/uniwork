@@ -15,11 +15,11 @@
 // Nothing here ends a call or reads the calls switch: a call already under
 // way keeps its service when the switch is turned off.
 import type { StoreApi } from "zustand/vanilla";
-import type { VoiceCallState } from "@/lib/voice-call";
+import type { VoiceCallOverlayState } from "@uniwork/core/chat/voice-call-types";
 import type { NativeCalls, NativeOngoingCall } from "./native-calls";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
-type InCall = Extract<VoiceCallState, { status: "connecting" | "active" }>;
+type InCall = Extract<VoiceCallOverlayState, { status: "connecting" | "active" }>;
 
 export interface NativeCallSyncEnv {
   native: Pick<NativeCalls, "cancelIncomingCall" | "startOngoingCall" | "stopOngoingCall" | "releaseLockScreen">;
@@ -31,11 +31,11 @@ export interface NativeCallSyncEnv {
   now: () => number;
 }
 
-function inCall(state: VoiceCallState): state is InCall {
+function inCall(state: VoiceCallOverlayState): state is InCall {
   return state.status === "connecting" || state.status === "active";
 }
 
-function callIdOf(state: VoiceCallState): string | undefined {
+function callIdOf(state: VoiceCallOverlayState): string | undefined {
   return state.status === "idle" ? undefined : state.callId;
 }
 
@@ -56,7 +56,7 @@ export function createNativeCallSync(env: NativeCallSyncEnv) {
     };
   }
 
-  function apply(next: VoiceCallState, prev: VoiceCallState): void {
+  function apply(next: VoiceCallOverlayState, prev: VoiceCallOverlayState): void {
     if (next.status === "incoming") env.native.cancelIncomingCall(next.callId);
     if (inCall(next)) {
       if (callId !== next.callId) {
@@ -82,7 +82,7 @@ export function createNativeCallSync(env: NativeCallSyncEnv) {
   return {
     apply,
     /** The call's service again: LiveKit now holds the microphone (the service's microphone type needs it granted). */
-    refresh(state: VoiceCallState): void {
+    refresh(state: VoiceCallOverlayState): void {
       if (inCall(state) && state.callId === callId) env.native.startOngoingCall(ongoing(state));
     },
   };
@@ -91,6 +91,6 @@ export function createNativeCallSync(env: NativeCallSyncEnv) {
 export type NativeCallSync = ReturnType<typeof createNativeCallSync>;
 
 /** Runs the sync on every change of the engine's call; the function it returns stops it. */
-export function installNativeCallSync(store: StoreApi<{ call: VoiceCallState }>, sync: NativeCallSync): () => void {
+export function installNativeCallSync(store: StoreApi<{ call: VoiceCallOverlayState }>, sync: NativeCallSync): () => void {
   return store.subscribe((state, previous) => sync.apply(state.call, previous.call));
 }

@@ -1,4 +1,3 @@
-// Parity: the cases of packages/views/chat/chat-search-fold.test.ts.
 import { describe, expect, it } from "vitest";
 import { foldedIncludes, foldVi } from "./search-fold";
 
@@ -8,7 +7,7 @@ describe("foldVi", () => {
   });
 
   it("matches decomposed input against precomposed text", () => {
-    expect(foldedIncludes("Tuấn", "Tuấn")).toBe(true);
+    expect(foldedIncludes("Tuấn", "Tuấn")).toBe(true);
   });
 
   it("finds unaccented queries and every word", () => {

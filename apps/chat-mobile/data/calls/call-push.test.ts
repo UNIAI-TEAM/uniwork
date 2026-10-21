@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { CallPush } from "@/lib/call-push";
-import type { VoiceCallState } from "@/lib/voice-call";
+import type { VoiceCallOverlayState } from "@uniwork/core/chat/voice-call-types";
 import { handleCallPush, incomingCallSpec, incomingSpecFromState, type CallPushEnv } from "./call-push";
 
 type Invite = Extract<CallPush, { type: "call_invite" }>;
@@ -21,8 +21,8 @@ const invite = (over: Partial<Invite> = {}): Invite => ({
   ...over,
 });
 
-let state: VoiceCallState;
-let afterSync: VoiceCallState | null;
+let state: VoiceCallOverlayState;
+let afterSync: VoiceCallOverlayState | null;
 
 function env(over: Partial<CallPushEnv> = {}): CallPushEnv {
   return {

@@ -1,6 +1,5 @@
-// Copied from packages/views/chat/chat-search-fold.ts (ADR 0011: views is not
-// importable on mobile); keep the two in parity (search-fold.test.ts).
-
+// Vietnamese search folding, shared by the web's pickers and searches and the
+// phone's (ADR 0011: a pure module both hosts import).
 /**
  * Fold a string for Vietnamese search: NFD, strip combining marks, đ → d,
  * lower-case. "tuan" finds "Tuấn", and a name typed on a keyboard that emits

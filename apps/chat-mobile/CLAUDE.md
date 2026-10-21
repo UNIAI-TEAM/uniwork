@@ -20,7 +20,14 @@ allowlist trong `scripts/mobile-core-allowlist.test.mjs` (`api/schema`,
 `@uniwork/core/types/*` chỉ với `import type`. Hai danh sách phải giống
 nhau; test đó đi theo import bắc cầu của từng mục nên mục không thuần phải
 tách file ở core, không nới lint. Fixture: `lib/lint-boundary.test.ts`.
-Logic khác của web: **copy, ghi nguồn**, test parity — không import.
+Logic thuần dùng chung nằm ở core và được import (UNI-2053 S7: `chat/search-fold`, `chat/initials`,
+`chat/identity-tint`, `chat/contact-labels`, `chat/typing-label`, `chat/voice-call-{types,kind,invites,duration}` —
+web và điện thoại cùng một bản; thêm mục thì thêm vào `core-allowlist.json` và `exports` của core). Logic khác của web:
+**copy, ghi nguồn ở comment đầu file** ("Copied/Ported from …", "← packages/…"), test parity — không import.
+`web-copies.json` ghi sha256 của từng file nguồn web mà mỗi bản copy nêu, lúc bản copy được rà lần cuối;
+`scripts/mobile-web-copies.test.mjs` (chạy cả ở `ci.yml`, nên PR chỉ sửa web cũng đỏ) đỏ khi một nguồn đổi, khi có
+bản copy mới chưa ghi, hay khi header và manifest lệch. Rà bản copy (port bản sửa hoặc quyết định không áp dụng) rồi
+`node scripts/mobile-web-copies.mjs --write`.
 
 Lớp mutation (UNI-2053 S7, audit T4): `app/` và `components/` đổi trạng thái server chỉ qua hook ở
 `data/mutations/*` (`messages`, `rooms`, `safety`, `account`; mỗi hook là một `useMutation` qua `useCommand` của
@@ -69,9 +76,9 @@ một dòng thì ghi lý do ở dòng trên.
   đổi sang HSL, đổi một nơi thì đổi cả ba. `radius-tokens.json` là thang
   `--radius-*` của tokens.css. Ngoại lệ có chủ ý (R4b, UNI-1916): các slot
   `chat-*` của chế độ tối và `call-surface` lấy giá trị của canvas, ghi trong
-  comment. Mặt người / phòng / workspace là `--tint-*-solid` theo
-  `lib/identity-tint.ts` (bảy tint, cùng hash với web) với chữ cái của
-  `lib/initials.ts`. Font: Inter (thân) và Plus Jakarta Sans (`font-display`:
+  comment. Mặt người / phòng / workspace là `--tint-*-solid` (`lib/identity-tint.ts › SOLID_TINT_BG`) theo
+  `identityTint` của core (`@uniwork/core/chat/identity-tint`, bảy tint, cùng bản với web) với chữ cái của
+  `@uniwork/core/chat/initials`. Font: Inter (thân) và Plus Jakarta Sans (`font-display`:
   tiêu đề, tên) nhúng bằng plugin `expo-font` trong `app.config.ts`.
 - `data/` (Task 2–3) — `auth/*` (port từ `apps/chat-desktop/src/main/auth/*`),
   `realtime/ws-client.ts`, `api.ts`, `secure-storage.ts`, `session-epoch.ts`.
@@ -207,8 +214,8 @@ một dòng thì ghi lý do ở dòng trên.
   plan `2026-10-17-unichat-mobile-chat.md`). Ba lớp:
   `lib/*` thuần, copy từ web có ghi nguồn và test parity chạy đúng case của
   test web (`rooms-display`, `typing-display`, `timeline-display`,
-  `send-pipeline`, `mentions`, `file-accept`, `media-body`, `search-fold`,
-  `people-display`, `message-display`, `room-list`); `data/*` — endpoint
+  `send-pipeline`, `mentions`, `file-accept`, `media-body`,
+  `people-display`, `message-display`, `room-list`; hash nguồn ở `web-copies.json`); `data/*` — endpoint
   (`chat-api.ts`, mỗi endpoint một case malformed), key riêng
   (`queries/chat-keys.ts`, không import `chatKeys` web; mỗi resource một module và một key factory — `chatKeys`
   (mọi key dưới `["chat", wsId]` trừ unread-summary của cả tài khoản, kể cả call log, preview nhấn giữ, ghi âm
@@ -228,8 +235,9 @@ một dòng thì ghi lý do ở dòng trên.
   `scripts/sync-i18n.mjs`. Kind lạ → `messageView` = `unsupported` → hàng
   "Mở trên web" (`expo-web-browser`, không kích hoạt universal link).
 - Gọi (M3, UNI-1834; spec `2026-10-16-unichat-mobile-calls-design.md`, plan
-  `2026-10-17-unichat-mobile-calls.md`). `lib/voice-call.ts` (thuần, copy
-  `voice-call-{overlay-types,kind-utils,invites,copy}` web) →
+  `2026-10-17-unichat-mobile-calls.md`). Trạng thái, đồng hồ và cách đọc lời mời là của core
+  (`@uniwork/core/chat/voice-call-{types,kind,invites}`, cùng bản với web), `lib/voice-call.ts` chỉ còn câu kết thúc
+  (copy `voice-call-copy.ts` web) →
   `data/calls/call-engine.ts` (máy trạng thái của `use-native-voice-call.ts`,
   store vanilla, test node) → `data/calls/call-store.ts` (một engine, nối
   `chatApi`) ← `data/realtime/use-call-realtime.ts` (`chat.voice.*`, đồng bộ

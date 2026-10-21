@@ -5,7 +5,7 @@
 // (data/calls/background.ts) and become its own ringing notification; an
 // iPhone gets the ring as a visible push. Every value arrives as a string and
 // is read leniently: an unknown type or a missing id is not a call push.
-import type { VoiceCallKind } from "./voice-call";
+import type { VoiceCallKind } from "@uniwork/core/chat/voice-call-types";
 
 export type CallPush =
   | {

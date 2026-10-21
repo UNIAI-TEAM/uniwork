@@ -38,7 +38,7 @@ import { THEME } from "@/lib/theme";
 import { formatMessageDay, toTimelineMessage } from "@/lib/timeline-display";
 import { useColorScheme } from "@/lib/use-color-scheme";
 import { cn } from "@/lib/utils";
-import { voiceCallKindFromServer } from "@/lib/voice-call";
+import { voiceCallKindFromServer } from "@uniwork/core/chat/voice-call-kind";
 import { toast } from "@/data/stores/toast-store";
 import { chatMediaSource, IMAGE_CACHE_POLICY } from "@/lib/media-source";
 

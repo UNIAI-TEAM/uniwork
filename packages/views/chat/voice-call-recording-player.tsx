@@ -5,7 +5,7 @@ import { Maximize, Pause, Play, Volume2, VolumeX } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
-import { formatVoiceCallDuration } from "./voice-call-duration";
+import { formatVoiceCallDuration } from "@uniwork/core/chat/voice-call-duration";
 
 /** A thin track with its filled part and thumb; the real <input type="range"> sits invisibly on top. */
 function Track({

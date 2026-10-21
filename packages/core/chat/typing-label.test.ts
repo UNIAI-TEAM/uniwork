@@ -1,8 +1,13 @@
-import { afterAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { initI18n, setLocale } from "@uniwork/core/i18n";
-import { formatTypingLabel } from "./typing-indicator";
+import { formatTypingLabel } from "./typing-label";
 
 const i18n = initI18n();
+
+// Core's test setup may start in another locale than the views package's did.
+beforeAll(async () => {
+  await setLocale("vi");
+});
 
 describe("formatTypingLabel", () => {
   it("returns null for empty list", () => {
@@ -25,6 +30,17 @@ describe("formatTypingLabel", () => {
     expect(formatTypingLabel(["Alice", "Bob"], i18n.t.bind(i18n), "en")).toBe(
       "Alice and Bob are typing…",
     );
+  });
+});
+
+describe("formatTypingLabel without Intl.ListFormat (Hermes)", () => {
+  it("joins the names with commas", () => {
+    vi.stubGlobal("Intl", { ...Intl, ListFormat: undefined });
+    try {
+      expect(formatTypingLabel(["A", "B", "C"], (key, options) => `${key}:${String(options?.names)}`, "vi")).toBe("chat.typing_list:A, B, C");
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });
 

@@ -3,7 +3,7 @@
 // call-actions.ts) with the real engine shape, the session and the API.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { StoreApi } from "zustand/vanilla";
-import type { VoiceCallState } from "@/lib/voice-call";
+import type { VoiceCallOverlayState } from "@uniwork/core/chat/voice-call-types";
 
 const rn = vi.hoisted(() => ({
   Platform: { OS: "android", Version: 34 as number | string },
@@ -48,13 +48,13 @@ vi.mock("../stores/workspace-store", () => ({ getCurrentWorkspace: () => deps.wo
 
 const engine = vi.hoisted(() => ({
   ctx: "w-1" as string | null,
-  store: null as unknown as StoreApi<{ call: VoiceCallState }>,
+  store: null as unknown as StoreApi<{ call: VoiceCallOverlayState }>,
   syncPendingInvites: vi.fn(async () => undefined),
   hangUp: vi.fn(async () => undefined),
 }));
 vi.mock("./call-store", async () => {
   const { createStore: create } = await import("zustand/vanilla");
-  engine.store = create<{ call: VoiceCallState }>(() => ({ call: { status: "idle" } }));
+  engine.store = create<{ call: VoiceCallOverlayState }>(() => ({ call: { status: "idle" } }));
   return {
     callEngine: {
       store: engine.store,
@@ -265,7 +265,7 @@ describe("foregroundBehavior", () => {
 });
 
 describe("handOverRing", () => {
-  const ringing: VoiceCallState = { status: "incoming", callId: "c-1", roomId: "r-1", peerName: "Minh", callKind: "dm" };
+  const ringing: VoiceCallOverlayState = { status: "incoming", callId: "c-1", roomId: "r-1", peerName: "Minh", callKind: "dm" };
 
   it("moves a call ringing on screen to the notification when the person leaves, and back on return", () => {
     engine.store.setState({ call: ringing });

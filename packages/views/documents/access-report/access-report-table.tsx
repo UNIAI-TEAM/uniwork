@@ -6,7 +6,7 @@ import type { AccessReportDocument, AccessReportRow } from "@uniwork/core/types/
 import { ActorAvatar } from "@uniwork/ui/components/common/actor-avatar";
 import { Badge } from "@uniwork/ui/components/ui/badge";
 import { cn } from "@uniwork/ui/lib/utils";
-import { initialOf } from "../../chat/chat-initials";
+import { initialOf } from "@uniwork/core/chat/initials";
 import { AppLink } from "../../navigation";
 import { formatWhen } from "../document-format";
 import {

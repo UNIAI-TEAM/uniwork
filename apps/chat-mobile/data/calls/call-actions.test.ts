@@ -1,11 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
-import type { VoiceCallState } from "@/lib/voice-call";
+import type { VoiceCallOverlayState } from "@uniwork/core/chat/voice-call-types";
 import { callActionFrom, handleCallAction, type CallActionEnv } from "./call-actions";
 
 const NOW = 1_700_000_000_000;
 const decline = { action: "decline", callId: "c-1", roomId: "r-1", workspaceId: "w-1", callKind: "dm", at: NOW - 1_000 };
 
-function env(state: VoiceCallState = { status: "idle" }): CallActionEnv {
+function env(state: VoiceCallOverlayState = { status: "idle" }): CallActionEnv {
   return { engine: { current: () => state, hangUp: vi.fn(async () => undefined) }, declineOnServer: vi.fn(async () => undefined), now: () => NOW };
 }
 

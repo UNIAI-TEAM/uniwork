@@ -1,18 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { contactLabel, contactSections, foldVi, foldedIncludes, resolveChatNicknameForUser } from "./contacts-display";
+import { contactLabel, contactSections } from "./contacts-display";
+import { resolveChatNicknameForUser } from "@uniwork/core/chat/contact-labels";
 
 const member = (user_id: string, display_name: string, email = `${user_id}@example.com`) => ({ user_id, display_name, email });
-
-// Cases copied from packages/views/chat/chat-search-fold.test.ts.
-describe("foldVi / foldedIncludes (parity with chat-search-fold.ts)", () => {
-  it("strips Vietnamese marks and đ, matches decomposed input, needs every word", () => {
-    expect(foldVi("Nguyễn Văn Đức")).toBe("nguyen van duc");
-    expect(foldedIncludes("Tuấn", "Tuấn")).toBe(true);
-    expect(foldedIncludes("Trần Minh Tuấn", "tuan tran")).toBe(true);
-    expect(foldedIncludes("Trần Minh Tuấn", "tuan hoa")).toBe(false);
-    expect(foldedIncludes("Anything", "  ")).toBe(true);
-  });
-});
 
 // Cases copied from packages/core/chat/contacts-store.test.ts (displayLabelForChatContact).
 describe("contactLabel (parity with displayLabelForChatContact + memberToChatContact)", () => {

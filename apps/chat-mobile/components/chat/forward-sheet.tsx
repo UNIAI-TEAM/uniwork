@@ -16,7 +16,7 @@ import { nicknamesOptions, roomsOptions } from "@/data/queries/chat";
 import { roomHeaderMark } from "@/lib/conversation-display";
 import { continuousCorners } from "@/lib/radius";
 import { roomTitle } from "@/lib/room-list";
-import { foldedIncludes } from "@/lib/search-fold";
+import { foldedIncludes } from "@uniwork/core/chat/search-fold";
 import { RoomAvatar } from "./room-avatar";
 import type { ChatWorkspace } from "./use-chat-workspace";
 

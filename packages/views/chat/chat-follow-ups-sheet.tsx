@@ -32,8 +32,8 @@ import {
   CHAT_SHEET_CLASS,
   CHAT_SHEET_HEADER_CLASS,
 } from "./chat-dialog-look";
-import { identityTint } from "../people/identity-tint";
-import { initialOf, roomInitialsOf } from "./chat-initials";
+import { identityTint } from "@uniwork/core/chat/identity-tint";
+import { initialOf, roomInitialsOf } from "@uniwork/core/chat/initials";
 import { formatMessageDateTime, formatMessageTime, messageDayKey } from "./chat-message-time";
 import { describeChatMediaBody } from "./chat-expression-utils";
 import { deserializeMessageBodyToComposerDraft } from "./chat-mention-utils";

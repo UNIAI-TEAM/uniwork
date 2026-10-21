@@ -16,7 +16,7 @@ import { CHAT_DIALOG_BODY_CLASS, CHAT_DIALOG_CLASS, CHAT_DIALOG_WIDTH } from "./
 import { resolveAvatarUrlFromNameContext } from "./chat-member-avatar";
 import type { ChatNameContextEntry } from "./chat-page-utils";
 import { chatPersonFaceClass } from "./chat-person-card";
-import { initialsOf } from "./chat-initials";
+import { initialsOf } from "@uniwork/core/chat/initials";
 import { pollOptionPercents } from "./chat-poll-percent";
 
 type PollOption = { id: string; label: string; votes: number };

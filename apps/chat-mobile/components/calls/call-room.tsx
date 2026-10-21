@@ -27,7 +27,7 @@ import { Text } from "@/components/ui/text";
 import { nativeCallSync } from "@/data/calls/call-wiring";
 import { callEngine } from "@/data/calls/call-store";
 import { preferredOutputs } from "@/lib/audio-outputs";
-import { formatVoiceCallDuration } from "@/lib/message-display";
+import { formatVoiceCallDuration } from "@uniwork/core/chat/voice-call-duration";
 import { AudioOutputButton } from "./audio-output-button";
 import { CALL, CallButton, CallerHero, SHADOW } from "./call-surface";
 import { toggleCamera } from "./toggle-camera";

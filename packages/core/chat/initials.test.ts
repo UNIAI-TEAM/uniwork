@@ -1,6 +1,6 @@
-// The cases of packages/views/chat/chat-initials.ts' doc comments, which the canvas draws.
+// The cases of the doc comments in initials.ts, which the canvas draws.
 import { describe, expect, it } from "vitest";
-import { initialOf, initialsOf, roomInitialsOf, shortNameOf } from "./initials";
+import { givenNameOf, initialOf, initialsOf, roomInitialsOf, shortNameOf } from "./initials";
 
 describe("initials", () => {
   it("takes a person's last two words", () => {
@@ -10,7 +10,7 @@ describe("initials", () => {
     expect(initialsOf("   ")).toBe("?");
   });
 
-  it("shortens a name to its last two words for the presence strip", () => {
+  it("shortens a name to its last two words for a narrow strip", () => {
     expect(shortNameOf("Nguyễn Thu Hà")).toBe("Thu Hà");
     expect(shortNameOf("Võ Minh")).toBe("Võ Minh");
     expect(shortNameOf(undefined)).toBe("");
@@ -29,5 +29,13 @@ describe("initials", () => {
     // A name still loading must not break the face.
     expect(roomInitialsOf(undefined)).toBe("?");
     expect(initialsOf(null)).toBe("?");
+    expect(initialOf(null)).toBe("?");
+  });
+
+  it("names a person in a busy line by the given name, unless the last word is an acronym", () => {
+    expect(givenNameOf("Bùi Minh Quân")).toBe("Quân");
+    expect(givenNameOf(" Phòng HC ")).toBe("Phòng HC");
+    expect(givenNameOf("Quân")).toBe("Quân");
+    expect(givenNameOf("   ")).toBe("");
   });
 });

@@ -2,7 +2,7 @@
 // what the phone adds: a start that fails, the hang-up button, a disconnect,
 // and answering from a push.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { VOICE_CALL_CONNECTING_TIMEOUT_MS, VOICE_CALL_ENDED_DISMISS_MS, VOICE_CALL_RING_TIMEOUT_MS } from "@/lib/voice-call";
+import { VOICE_CALL_CONNECTING_TIMEOUT_MS, VOICE_CALL_ENDED_DISMISS_MS, VOICE_CALL_RING_TIMEOUT_MS } from "@uniwork/core/chat/voice-call-types";
 import { createCallEngine, type CallEngineDeps } from "./call-engine";
 
 let pendingInvites: Awaited<ReturnType<CallEngineDeps["pending"]>> = [];

@@ -1,10 +1,10 @@
-// Ported from packages/views/chat/chat-search-fold.ts (foldVi, foldedIncludes),
-// packages/views/chat/workspace-member-picker-utils.ts (memberToChatContact,
-// filterWorkspaceMembers) and packages/core/chat/contacts-store.ts
-// (resolveChatNicknameForUser, displayLabelForChatContact): the contacts tab
-// names, finds and leaves out people the way the web's member picker does.
-// The A–Z grouping is the tab's own.
+// Ported from packages/views/chat/workspace-member-picker-utils.ts
+// (memberToChatContact, filterWorkspaceMembers): the contacts tab names, finds
+// and leaves out people the way the web's member picker does, with core's
+// search folding and nickname resolver. The A–Z grouping is the tab's own.
 import { isPlaceholderChatDisplayName } from "@uniwork/core/chat/chat-room-helpers";
+import { resolveChatNicknameForUser } from "@uniwork/core/chat/contact-labels";
+import { foldVi, foldedIncludes } from "@uniwork/core/chat/search-fold";
 
 export interface ContactMember {
   user_id: string;
@@ -21,39 +21,6 @@ export interface ContactRow extends ContactMember {
 export interface ContactSection {
   title: string;
   data: ContactRow[];
-}
-
-/** NFD, combining marks stripped, đ → d, lower case: "tuan" finds "Tuấn". */
-export function foldVi(value: string): string {
-  return value
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .replace(/[đĐ]/g, "d")
-    .toLowerCase();
-}
-
-/** True when every folded word of `query` appears in the folded `text`. */
-export function foldedIncludes(text: string, query: string): boolean {
-  const q = foldVi(query).trim();
-  if (!q) return true;
-  const hay = foldVi(text);
-  return q.split(/\s+/).every((word) => hay.includes(word));
-}
-
-/** A personal nickname whatever the ULID casing of the map's keys. */
-export function resolveChatNicknameForUser(
-  nicknamesByUserId: Readonly<Record<string, string>> | undefined,
-  userId: string,
-): string | undefined {
-  if (!nicknamesByUserId) return undefined;
-  const direct = nicknamesByUserId[userId]?.trim();
-  if (direct) return direct;
-  const key = userId.trim().toUpperCase();
-  for (const [id, nickname] of Object.entries(nicknamesByUserId)) {
-    const trimmed = nickname.trim();
-    if (id.trim().toUpperCase() === key && trimmed) return trimmed;
-  }
-  return undefined;
 }
 
 /** The web's label: nickname, then a real display name (never a raw ULID), then email. */

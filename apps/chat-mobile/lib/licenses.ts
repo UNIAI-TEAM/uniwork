@@ -1,7 +1,7 @@
 // Settings › Privacy & legal › Open-source licenses: the rows of
 // assets/licenses.json (scripts/generate-licenses.mjs) made readable, searched
 // and linked to each package's npm page. Pure.
-import { foldedIncludes } from "./search-fold";
+import { foldedIncludes } from "@uniwork/core/chat/search-fold";
 
 export interface LicenseEntry {
   name: string;

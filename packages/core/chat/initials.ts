@@ -1,21 +1,25 @@
+// The letters a face or a room mark shows, as the web, the phone and the
+// canvas draw them ("Nguyễn Thu Hà" → "TH", "Đội Thiết kế" → "TK"). Pure: the
+// web (packages/views) and the phone (apps/chat-mobile, ADR 0011) share it.
+// A name still loading (null, undefined) never breaks a face.
+
 /** First letter of a display name for an avatar fallback; "?" when empty. */
-export function initialOf(name: string): string {
-  return name.trim().slice(0, 1).toUpperCase() || "?";
+export function initialOf(name: string | null | undefined): string {
+  return (name ?? "").trim().slice(0, 1).toUpperCase() || "?";
 }
+
+/** The first code point of a word, so an emoji or an astral letter is never cut in half. */
+const firstOf = (word: string): string => Array.from(word)[0] ?? "";
 
 /**
  * Two letters for a person's face, from the last two words: a Vietnamese
  * name ends in the given name ("Nguyễn Thu Hà" → "TH"). One word gives one
  * letter. A room's face uses roomInitialsOf.
  */
-export function initialsOf(name: string): string {
-  const words = name.trim().split(/\s+/).filter(Boolean);
+export function initialsOf(name: string | null | undefined): string {
+  const words = (name ?? "").trim().split(/\s+/).filter(Boolean);
   if (words.length < 2) return initialOf(name);
-  return words
-    .slice(-2)
-    .map((word) => Array.from(word)[0] ?? "")
-    .join("")
-    .toUpperCase();
+  return words.slice(-2).map(firstOf).join("").toUpperCase();
 }
 
 /**
@@ -24,15 +28,17 @@ export function initialsOf(name: string): string {
  * a workspace's team groups all start with it, and their faces would blur
  * ("Đội Thiết kế" → "TK", "Đội Nội dung" → "ND"), as the canvas draws them.
  */
-export function roomInitialsOf(name: string): string {
-  const words = name.trim().split(/\s+/).filter(Boolean);
+export function roomInitialsOf(name: string | null | undefined): string {
+  const words = (name ?? "").trim().split(/\s+/).filter(Boolean);
   const rest = words.length > 1 && words[0]?.toLowerCase() === "đội" ? words.slice(1) : words;
   if (rest.length < 2) return initialOf(rest.join(" "));
-  return rest
-    .slice(0, 2)
-    .map((word) => Array.from(word)[0] ?? "")
-    .join("")
-    .toUpperCase();
+  return rest.slice(0, 2).map(firstOf).join("").toUpperCase();
+}
+
+/** A person's name short enough for a narrow strip: a Vietnamese name without its family name ("Nguyễn Thu Hà" → "Thu Hà"). */
+export function shortNameOf(name: string | null | undefined): string {
+  const words = (name ?? "").trim().split(/\s+/).filter(Boolean);
+  return words.length >= 3 ? words.slice(-2).join(" ") : words.join(" ");
 }
 
 /**

@@ -1,3 +1,6 @@
+// A chat call's states, end reasons and clocks: the web's call overlay
+// (packages/views/chat) and the phone's call engine (apps/chat-mobile,
+// ADR 0011) run the same machine on these. Pure types and constants.
 export type VoiceCallKind = "dm" | "group" | "channel";
 
 export type VoiceCallDeviceKind = "audioinput" | "videoinput";

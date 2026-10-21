@@ -6,7 +6,7 @@ import { ensureCallPermissions } from "@/components/ui/permission-gate";
 import { callEngine } from "@/data/calls/call-store";
 import { chatApi } from "@/data/chat-api";
 import { useWorkspaceStore } from "@/data/stores/workspace-store";
-import type { VoiceCallState } from "@/lib/voice-call";
+import type { VoiceCallOverlayState } from "@uniwork/core/chat/voice-call-types";
 import { render, viText } from "@/test/render";
 import { CallOverlay } from "./call-overlay";
 
@@ -22,7 +22,7 @@ jest.mock("./call-room", () => ({
   },
 }));
 
-const setCall = (call: VoiceCallState) => act(() => callEngine.store.setState({ call }));
+const setCall = (call: VoiceCallOverlayState) => act(() => callEngine.store.setState({ call }));
 const base = { callId: "call-1", roomId: "dm1", peerName: "Bình", callKind: "dm" as const };
 
 beforeEach(() => {

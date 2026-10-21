@@ -21,7 +21,9 @@ import { callRecordingOptions, roomsOptions } from "@/data/queries/chat";
 import { useWorkspaceStore } from "@/data/stores/workspace-store";
 import type { CallRoom as CallRoomComponent } from "./call-room";
 import { ringtoneFor } from "@/lib/call-ringtone";
-import { isMultiPartyVoiceCall, voiceCallEndedMessage, type VoiceCallState } from "@/lib/voice-call";
+import { voiceCallEndedMessage } from "@/lib/voice-call";
+import { isMultiPartyVoiceCall } from "@uniwork/core/chat/voice-call-kind";
+import type { VoiceCallOverlayState } from "@uniwork/core/chat/voice-call-types";
 import { CALL, CallButton, CallerHero } from "./call-surface";
 import { useCallRingtone } from "./use-call-ringtone";
 
@@ -56,7 +58,7 @@ const CALL_BACK_REASONS = new Set(["no_answer", "missed", "declined"]);
 /** How often a live call asks whether it is being recorded ("Đang ghi"). */
 const RECORDING_POLL_MS = 15_000;
 
-function CallBody({ call, recording, onMinimize, seed }: { call: Exclude<VoiceCallState, { status: "idle" }>; recording: boolean; onMinimize: () => void; seed?: string }) {
+function CallBody({ call, recording, onMinimize, seed }: { call: Exclude<VoiceCallOverlayState, { status: "idle" }>; recording: boolean; onMinimize: () => void; seed?: string }) {
   const { t } = useTranslation();
   switch (call.status) {
     case "incoming":

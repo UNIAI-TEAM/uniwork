@@ -13,7 +13,7 @@ import { formatMessageDateTime } from "./chat-message-time";
 import { ChatInfoSection } from "./chat-info-panel-parts";
 import { SharedPhotoCell } from "./shared-photo-gallery";
 import { sharedRoomMessagesQuery } from "./use-person-shared";
-import { formatVoiceCallDuration } from "./voice-call-duration";
+import { formatVoiceCallDuration } from "@uniwork/core/chat/voice-call-duration";
 
 type MediaTab = "photo" | "file" | "link" | "voice";
 const TABS: readonly MediaTab[] = ["photo", "file", "link", "voice"];

@@ -14,7 +14,7 @@ import { Text } from "@/components/ui/text";
 import { useJoinChannel } from "@/data/mutations/rooms";
 import { discoverableChannelsOptions, myChannelsOptions } from "@/data/queries/chat";
 import { chatRoutes } from "@/lib/chat-routes";
-import { foldedIncludes } from "@/lib/search-fold";
+import { foldedIncludes } from "@uniwork/core/chat/search-fold";
 import { THEME } from "@/lib/theme";
 import { useColorScheme } from "@/lib/use-color-scheme";
 import { cn } from "@/lib/utils";

@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { callHoldsSocket } from "./call-socket";
-import type { VoiceCallState } from "./voice-call";
+import type { VoiceCallOverlayState } from "@uniwork/core/chat/voice-call-types";
 
 const call = { callId: "c", roomId: "r", peerName: "An", callKind: "dm" } as const;
 
 describe("callHoldsSocket", () => {
   it("holds the socket while a call rings, connects or is on; not when there is none or it ended", () => {
-    const states: [VoiceCallState, boolean][] = [
+    const states: [VoiceCallOverlayState, boolean][] = [
       [{ status: "idle" }, false],
       [{ status: "incoming", ...call }, true],
       [{ status: "ringing", ...call, outgoing: true }, true],

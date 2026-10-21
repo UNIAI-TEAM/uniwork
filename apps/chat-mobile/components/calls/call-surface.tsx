@@ -6,8 +6,9 @@ import { useEffect, useRef, useState } from "react";
 import { AccessibilityInfo, Animated, Easing, Pressable, View } from "react-native";
 import { useAnnounce } from "@/components/ui/a11y";
 import { Text } from "@/components/ui/text";
-import { identityTint, SOLID_TINT_BG } from "@/lib/identity-tint";
-import { initialsOf, roomInitialsOf } from "@/lib/initials";
+import { SOLID_TINT_BG } from "@/lib/identity-tint";
+import { identityTint } from "@uniwork/core/chat/identity-tint";
+import { initialsOf, roomInitialsOf } from "@uniwork/core/chat/initials";
 import { THEME } from "@/lib/theme";
 import { cn } from "@/lib/utils";
 

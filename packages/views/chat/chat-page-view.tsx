@@ -50,7 +50,7 @@ import { buildChatMentionCandidates } from "./chat-mention-utils";
 import { applyKnownPeopleToRoomPreviews } from "./chat-sidebar-preview";
 import { memberDisplayLabel } from "./workspace-member-picker-utils";
 import { ChatPageAuthLoading } from "./chat-page-auth-loading";
-import { givenNameOf } from "./chat-initials";
+import { givenNameOf } from "@uniwork/core/chat/initials";
 import { ChatPageContent } from "./chat-page-content";
 import { ChatSeenByProvider, useChatSeenBy } from "./chat-seen-by";
 import { useChatDeliveredAt } from "./chat-delivered";

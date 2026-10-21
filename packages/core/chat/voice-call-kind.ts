@@ -1,4 +1,6 @@
-import type { VoiceCallKind } from "./voice-call-overlay-types";
+// Group and channel calls are multi-party; a 1-1 call is "dm". Pure, shared
+// by the web and the phone (ADR 0011).
+import type { VoiceCallKind } from "./voice-call-types";
 
 export function isMultiPartyVoiceCall(kind: VoiceCallKind | string | undefined): boolean {
   return kind === "group" || kind === "channel";

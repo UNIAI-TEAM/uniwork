@@ -8,7 +8,7 @@
 // native notification could not show falls back to a plain one. The calls
 // switch (data/remote-config.ts) off means no ring.
 import { CALL_RING_WINDOW_MS, appLink, callLink, ringRemainingMs, type CallPush } from "@/lib/call-push";
-import type { VoiceCallState } from "@/lib/voice-call";
+import type { VoiceCallOverlayState } from "@uniwork/core/chat/voice-call-types";
 import type { NativeCalls, NativeIncomingCall } from "./native-calls";
 
 type Invite = Extract<CallPush, { type: "call_invite" }>;
@@ -27,7 +27,7 @@ export interface CallPushEnv {
   /** The calls switch: the last answer the app holds, else its default (on). */
   callsOn: () => boolean;
   engine: {
-    current(): VoiceCallState;
+    current(): VoiceCallOverlayState;
     contextWorkspaceId(): string | null;
     syncPendingInvites(): Promise<void>;
   };
@@ -41,7 +41,7 @@ export interface CallPushEnv {
 
 export type CallPushOutcome = "shown" | "fallback" | "in_app" | "ignored" | "cleared";
 
-function liveCallId(state: VoiceCallState): string | null {
+function liveCallId(state: VoiceCallOverlayState): string | null {
   return state.status === "idle" || state.status === "ended" ? null : state.callId;
 }
 
@@ -74,7 +74,7 @@ export function incomingCallSpec(push: Invite, env: Pick<CallPushEnv, "t" | "sch
  * once locked). `chatUrl` is the open workspace's web chat URL.
  */
 export function incomingSpecFromState(
-  state: Extract<VoiceCallState, { status: "incoming" }>,
+  state: Extract<VoiceCallOverlayState, { status: "incoming" }>,
   chatUrl: string,
   workspaceId: string,
   env: Pick<CallPushEnv, "t" | "scheme" | "now">,

@@ -10,7 +10,7 @@ import { memo, useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ActivityIndicator, Pressable, ScrollView, SectionList, View } from "react-native";
 import { useWorkspaceSlugs } from "@/components/chat/use-chat-workspace";
-import { shortNameOf } from "@/lib/initials";
+import { shortNameOf } from "@uniwork/core/chat/initials";
 import { PersonAvatar } from "@/components/people/person-avatar";
 import { useIsOnline } from "@/components/people/use-is-online";
 import { Button } from "@/components/ui/button";

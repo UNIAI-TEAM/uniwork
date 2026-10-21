@@ -7,7 +7,7 @@ import { useTranslation } from "react-i18next";
 import { PersonAvatar } from "@/components/people/person-avatar";
 import { useSidebarTypingStore } from "@/data/stores/chat-typing-store";
 import { senderLabelFor, type NameContextEntry } from "@/lib/people-display";
-import { formatTypingLabel } from "@/lib/typing-display";
+import { formatTypingLabel } from "@uniwork/core/chat/typing-label";
 import { ChatHeader } from "./chat-header";
 import { TypingBubble } from "./typing-bubble";
 

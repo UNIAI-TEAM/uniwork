@@ -6,11 +6,11 @@
 // own Decline does (call-engine.ts › leavingSignalsHangup). A tap older than
 // a ring window is dropped: the call ended on its own by then.
 import { CALL_RING_WINDOW_MS } from "@/lib/call-push";
-import type { VoiceCallState } from "@/lib/voice-call";
+import type { VoiceCallOverlayState } from "@uniwork/core/chat/voice-call-types";
 import type { NativeCallAction } from "./native-calls";
 
 export interface CallActionEnv {
-  engine: { current(): VoiceCallState; hangUp(): Promise<void> };
+  engine: { current(): VoiceCallOverlayState; hangUp(): Promise<void> };
   /** Signs the stored session in if needed and declines the call on the server. */
   declineOnServer(workspaceId: string, roomId: string, callId: string): Promise<void>;
   now: () => number;

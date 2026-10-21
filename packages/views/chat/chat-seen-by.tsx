@@ -10,7 +10,7 @@ import type { ChatMenuParts } from "./chat-message-menu-items";
 import type { ChatMessage } from "./chat-messages";
 import { resolveAvatarUrlFromNameContext } from "./chat-member-avatar";
 import { chatPersonFaceClass } from "./chat-person-card";
-import { initialOf } from "./chat-initials";
+import { initialOf } from "@uniwork/core/chat/initials";
 import type { NameContextEntry } from "./native-chat-message-mapping";
 import { ChatPeerDeliveredAtContext } from "./chat-delivered";
 

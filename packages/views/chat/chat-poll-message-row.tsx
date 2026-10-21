@@ -16,7 +16,7 @@ import type { ChatNameContextEntry } from "./chat-page-utils";
 import { ChatPollVotersDialog } from "./chat-poll-voters-dialog";
 import { resolveAvatarUrlFromNameContext } from "./chat-member-avatar";
 import { chatPersonFaceClass } from "./chat-person-card";
-import { initialsOf } from "./chat-initials";
+import { initialsOf } from "@uniwork/core/chat/initials";
 import { pollOptionPercents } from "./chat-poll-percent";
 import { toastChatError } from "./chat-error-message";
 

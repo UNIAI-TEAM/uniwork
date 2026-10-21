@@ -4,8 +4,8 @@ import {
 } from "@uniwork/core/chat/contacts-store";
 import { deserializeMessageBodyToComposerDraft } from "./chat-mention-utils";
 import { describeChatMediaBody, parseChatMediaMessageBody, type ChatMediaLabels } from "./chat-expression-utils";
-import { givenNameOf } from "./chat-initials";
-import { formatVoiceCallDuration } from "./voice-call-duration";
+import { givenNameOf } from "@uniwork/core/chat/initials";
+import { formatVoiceCallDuration } from "@uniwork/core/chat/voice-call-duration";
 
 export type ChatRoomPreview = {
   body: string;

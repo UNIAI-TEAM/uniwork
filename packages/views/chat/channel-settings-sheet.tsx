@@ -26,7 +26,7 @@ import { ChannelSettingsReadonly } from "./channel-settings-readonly";
 import { ChatSettingsHeader, ChatSettingsMenuRow, ChatSettingsSection } from "./chat-settings-ui";
 import { CHAT_FIELD_CLASS, CHAT_FIELD_TEXTAREA_CLASS, CHAT_SELECT_TRIGGER_CLASS, CHAT_SHEET_CLASS } from "./chat-dialog-look";
 import { ChatRoomMark } from "./chat-room-mark";
-import { identityTint } from "../people/identity-tint";
+import { identityTint } from "@uniwork/core/chat/identity-tint";
 import { ConfirmDialog } from "../common/form-dialog";
 import { CHAT_CONFIRM_CLASS } from "./chat-confirm-look";
 import { toastChatError } from "./chat-error-message";

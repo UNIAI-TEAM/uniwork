@@ -8,20 +8,9 @@
 import type { PendingChatVoiceInvite } from "@uniwork/core/api/endpoints/chat-schemas";
 import { createStore } from "zustand/vanilla";
 import type { OutgoingVoiceCall } from "@/data/chat-api";
-import {
-  VOICE_CALL_CONNECTING_TIMEOUT_MS,
-  VOICE_CALL_ENDED_DISMISS_MS,
-  VOICE_CALL_RING_TIMEOUT_MS,
-  incomingStateFromInvite,
-  isInformationalEnd,
-  isMultiPartyVoiceCall,
-  latestRingingInvite,
-  voiceEventForUser,
-  type VoiceCallEndInit,
-  type VoiceCallKind,
-  type VoiceCallState,
-  type VoiceInvitePayload,
-} from "@/lib/voice-call";
+import { incomingStateFromInvite, latestRingingInvite, voiceEventForUser, type VoiceInvitePayload } from "@uniwork/core/chat/voice-call-invites";
+import { isMultiPartyVoiceCall } from "@uniwork/core/chat/voice-call-kind";
+import { VOICE_CALL_CONNECTING_TIMEOUT_MS, VOICE_CALL_ENDED_DISMISS_MS, VOICE_CALL_RING_TIMEOUT_MS, isInformationalEnd, type VoiceCallEndInit, type VoiceCallKind, type VoiceCallOverlayState } from "@uniwork/core/chat/voice-call-types";
 
 export interface CallEngineDeps {
   invite(wsId: string, roomId: string, callId: string, video: boolean): Promise<boolean>;
@@ -42,9 +31,9 @@ export interface CallContext {
   allowedRoomIds: () => ReadonlySet<string>;
 }
 
-type LiveCallState = Exclude<VoiceCallState, { status: "idle" } | { status: "ended" }>;
+type LiveCallState = Exclude<VoiceCallOverlayState, { status: "idle" } | { status: "ended" }>;
 
-function isLive(state: VoiceCallState): state is LiveCallState {
+function isLive(state: VoiceCallOverlayState): state is LiveCallState {
   return state.status !== "idle" && state.status !== "ended";
 }
 
@@ -58,7 +47,7 @@ function leavingSignalsHangup(state: LiveCallState): boolean {
   return state.status !== "incoming" && state.outgoing && isMultiPartyVoiceCall(state.callKind);
 }
 
-function endedFrom(state: LiveCallState, init: VoiceCallEndInit): VoiceCallState {
+function endedFrom(state: LiveCallState, init: VoiceCallEndInit): VoiceCallOverlayState {
   const outgoing = state.status !== "incoming" && state.outgoing;
   const withCamera = state.status === "incoming" ? undefined : state.withCamera;
   const { callId, roomId, peerName, callKind } = state;
@@ -70,7 +59,7 @@ function pendingToPayload({ room_id, call_id, caller_id, caller_name, call_kind,
 }
 
 export function createCallEngine(deps: CallEngineDeps) {
-  const store = createStore<{ call: VoiceCallState }>(() => ({ call: { status: "idle" } }));
+  const store = createStore<{ call: VoiceCallOverlayState }>(() => ({ call: { status: "idle" } }));
   // The open workspaces, innermost last (a push can stack a second workspace
   // screen over the first); a live call implies one (the last detach ends it).
   const contexts: CallContext[] = [];
@@ -89,14 +78,14 @@ export function createCallEngine(deps: CallEngineDeps) {
     return (isLive(state) && state.callId === callId && (!status || state.status === status) ? state : null) as Extract<LiveCallState, { status: S }> | null;
   };
 
-  function setCall(next: VoiceCallState) {
+  function setCall(next: VoiceCallOverlayState) {
     store.setState({ call: next });
     armClock(next);
   }
 
   // Ring, connect and "ended" panels all run on a clock, not forever. A new
   // state always clears the old clock, so a clock that fires is for this one.
-  function armClock(state: VoiceCallState) {
+  function armClock(state: VoiceCallOverlayState) {
     clearTimeout(clock);
     const after = (delay: number, run: () => void) => (clock = setTimeout(run, delay));
     switch (state.status) {

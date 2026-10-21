@@ -1,21 +1,8 @@
 // Parity: the cases of packages/views/chat/chat-sidebar-unified.test.ts and
 // chat-sidebar-preview.test.ts, verbatim, then the mobile-only helpers.
 import { describe, expect, it } from "vitest";
-import {
-  applyKnownPeopleToRoomPreviews,
-  buildUnifiedSidebarEntries,
-  canSendInRoom,
-  comparePinnedRoomOrder,
-  compareRoomPreviewRecency,
-  displayLabelForChatContact,
-  formatChatSidebarPreviewText,
-  givenNameOf,
-  isMissedCallPreview,
-  splitChatSidebarPreviewPrefix,
-  formatChatSidebarTime,
-  resolveChatNicknameForUser,
-  sidebarEntryRoomId,
-} from "./rooms-display";
+import { applyKnownPeopleToRoomPreviews, buildUnifiedSidebarEntries, canSendInRoom, comparePinnedRoomOrder, compareRoomPreviewRecency, formatChatSidebarPreviewText, isMissedCallPreview, splitChatSidebarPreviewPrefix, formatChatSidebarTime, sidebarEntryRoomId } from "./rooms-display";
+import { displayLabelForChatContact, resolveChatNicknameForUser } from "@uniwork/core/chat/contact-labels";
 
 describe("buildUnifiedSidebarEntries", () => {
   it("sorts pinned then recent across kinds into one list", () => {
@@ -179,9 +166,6 @@ describe("chat-sidebar-preview", () => {
     expect(splitChatSidebarPreviewPrefix(group, body)).toEqual({ prefix: "Quân: ", body: "xem giúp" });
     expect(splitChatSidebarPreviewPrefix("xem giúp", "xem giúp")).toEqual({ prefix: null, body: "xem giúp" });
     expect(splitChatSidebarPreviewPrefix(null, null)).toEqual({ prefix: null, body: null });
-    expect(givenNameOf("Phòng HC")).toBe("Phòng HC");
-    expect(givenNameOf("Hà")).toBe("Hà");
-    expect(givenNameOf("   ")).toBe("");
   });
 
   it("formats group preview with sender prefix", () => {

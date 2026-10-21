@@ -2,7 +2,7 @@
 // keep in parity (mentions.test.ts runs the web cases verbatim). It differs
 // from the web only where a branch cannot be reached: callers never pass an
 // empty label, and every candidate carries a user id.
-import { foldVi, foldedIncludes } from "./search-fold";
+import { foldVi, foldedIncludes } from "@uniwork/core/chat/search-fold";
 
 export type ChatMentionCandidate = {
   kind: "member" | "all";

@@ -17,14 +17,8 @@ import { Text } from "@/components/ui/text";
 import { TINTS, TintTile } from "@/components/ui/tint-tile";
 import { deepLinkHref } from "@/lib/deep-link";
 import { parseChatMediaMessageBody } from "@/lib/media-body";
-import {
-  formatFileSize,
-  formatVoiceCallDuration,
-  isReminderDue,
-  messageView,
-  pollResults,
-  voiceCallLogLabel,
-} from "@/lib/message-display";
+import { formatFileSize, isReminderDue, messageView, pollResults, voiceCallLogLabel } from "@/lib/message-display";
+import { formatVoiceCallDuration } from "@uniwork/core/chat/voice-call-duration";
 import { mentionSegments } from "@/lib/mentions";
 import { THEME } from "@/lib/theme";
 import { fileBadge, type Tint } from "@/lib/tint";

@@ -1,4 +1,4 @@
-import { foldVi, foldedIncludes } from "./chat-search-fold";
+import { foldVi, foldedIncludes } from "@uniwork/core/chat/search-fold";
 
 export type ChatMentionCandidate = {
   kind: "member" | "all";

@@ -13,7 +13,8 @@ import { nicknamesOptions, roomMembersOptions, roomsOptions, workspaceMembersOpt
 import { buildChatMentionCandidates } from "@/lib/mentions";
 import { buildChatNameContext, senderLabelFor } from "@/lib/people-display";
 import { roomTitle } from "@/lib/room-list";
-import { canSendInRoom, displayLabelForChatContact, resolveChatNicknameForUser } from "@/lib/rooms-display";
+import { canSendInRoom } from "@/lib/rooms-display";
+import { displayLabelForChatContact, resolveChatNicknameForUser } from "@uniwork/core/chat/contact-labels";
 import type { TimelineMessage } from "@/lib/timeline-display";
 import type { ChatWorkspace } from "./use-chat-workspace";
 

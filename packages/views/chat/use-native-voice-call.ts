@@ -14,8 +14,8 @@ import {
   latestRingingInvite,
   voiceEventForUser,
   type VoiceInvitePayload,
-} from "./voice-call-invites";
-import { isMultiPartyVoiceCall } from "./voice-call-kind-utils";
+} from "@uniwork/core/chat/voice-call-invites";
+import { isMultiPartyVoiceCall } from "@uniwork/core/chat/voice-call-kind";
 import {
   VOICE_CALL_CONNECTING_TIMEOUT_MS,
   VOICE_CALL_ENDED_DISMISS_MS,
@@ -26,7 +26,7 @@ import {
   type VoiceCallEndedState,
   type VoiceCallKind,
   type VoiceCallOverlayState,
-} from "./voice-call-overlay-types";
+} from "@uniwork/core/chat/voice-call-types";
 
 type MintVoiceToken = (
   roomId: string,

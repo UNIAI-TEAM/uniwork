@@ -19,5 +19,14 @@
   "chat/message-links",
   "chat/typing-user-id",
   "chat/composer-priority",
-  "chat/chat-room-helpers"
+  "chat/chat-room-helpers",
+  "chat/search-fold",
+  "chat/initials",
+  "chat/identity-tint",
+  "chat/voice-call-types",
+  "chat/voice-call-kind",
+  "chat/voice-call-invites",
+  "chat/voice-call-duration",
+  "chat/typing-label",
+  "chat/contact-labels"
 ]

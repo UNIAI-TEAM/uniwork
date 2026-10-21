@@ -25,7 +25,7 @@ import { LivePersonAvatar } from "@/components/people/person-avatar";
 import { ActionSheet } from "@/components/ui/action-sheet";
 import { Text } from "@/components/ui/text";
 import { CHAT_FILE_MAX_LABEL, CHAT_FILE_PICKER_TYPES, isChatAcceptedFile, isChatFileTooLarge } from "@/lib/file-accept";
-import { formatVoiceCallDuration } from "@/lib/message-display";
+import { formatVoiceCallDuration } from "@uniwork/core/chat/voice-call-duration";
 import {
   deserializeMessageBodyToComposerDraft,
   filterMentionCandidates,

@@ -1,13 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
 import { createStore } from "zustand/vanilla";
-import type { VoiceCallState } from "@/lib/voice-call";
+import type { VoiceCallOverlayState } from "@uniwork/core/chat/voice-call-types";
 import { createNativeCallSync, installNativeCallSync, type NativeCallSyncEnv } from "./call-native-sync";
 
-const incoming: VoiceCallState = { status: "incoming", callId: "c-1", roomId: "r-1", peerName: "Minh", callKind: "dm" };
-const connecting: VoiceCallState = { status: "connecting", callId: "c-1", roomId: "r-1", peerName: "Minh", outgoing: false, callKind: "dm" };
-const active: VoiceCallState = { ...connecting, status: "active", token: "t", url: "wss://lk" };
-const ended: VoiceCallState = { status: "ended", reason: "peer_ended", callId: "c-1", roomId: "r-1", peerName: "Minh", callKind: "dm", outgoing: false };
-const idle: VoiceCallState = { status: "idle" };
+const incoming: VoiceCallOverlayState = { status: "incoming", callId: "c-1", roomId: "r-1", peerName: "Minh", callKind: "dm" };
+const connecting: VoiceCallOverlayState = { status: "connecting", callId: "c-1", roomId: "r-1", peerName: "Minh", outgoing: false, callKind: "dm" };
+const active: VoiceCallOverlayState = { ...connecting, status: "active", token: "t", url: "wss://lk" };
+const ended: VoiceCallOverlayState = { status: "ended", reason: "peer_ended", callId: "c-1", roomId: "r-1", peerName: "Minh", callKind: "dm", outgoing: false };
+const idle: VoiceCallOverlayState = { status: "idle" };
 
 function setup(over: Partial<NativeCallSyncEnv> = {}) {
   let now = 1_000;
@@ -19,14 +19,14 @@ function setup(over: Partial<NativeCallSyncEnv> = {}) {
     now: () => now,
     ...over,
   };
-  const store = createStore<{ call: VoiceCallState }>(() => ({ call: idle }));
+  const store = createStore<{ call: VoiceCallOverlayState }>(() => ({ call: idle }));
   const sync = createNativeCallSync(env);
   const stop = installNativeCallSync(store, sync);
   return {
     env,
     sync,
     stop,
-    set: (call: VoiceCallState) => store.setState({ call }),
+    set: (call: VoiceCallOverlayState) => store.setState({ call }),
     tick: (ms: number) => (now += ms),
   };
 }

@@ -12,7 +12,7 @@ import { tintClass } from "@uniwork/ui/components/common/icon-tile";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { cn } from "@uniwork/ui/lib/utils";
-import { identityTint } from "../people/identity-tint";
+import { identityTint } from "@uniwork/core/chat/identity-tint";
 import { EmailHubConversationMessage } from "./email-hub-conversation-message";
 import { emailHubLocale, formatEmailFullDate, senderDisplayName } from "./email-hub-format";
 import {

@@ -1,12 +1,12 @@
 import { act, screen } from "@testing-library/react-native";
 import { Text } from "react-native";
 import { callEngine } from "@/data/calls/call-store";
-import type { VoiceCallState } from "@/lib/voice-call";
+import type { VoiceCallOverlayState } from "@uniwork/core/chat/voice-call-types";
 import { render } from "@/test/render";
 import { CallAwareModal } from "./call-aware-modal";
 
-const ringing: VoiceCallState = { status: "incoming", callId: "c-1", roomId: "r-1", peerName: "Bình", callKind: "dm" };
-const setCall = (call: VoiceCallState) => act(() => callEngine.store.setState({ call }));
+const ringing: VoiceCallOverlayState = { status: "incoming", callId: "c-1", roomId: "r-1", peerName: "Bình", callKind: "dm" };
+const setCall = (call: VoiceCallOverlayState) => act(() => callEngine.store.setState({ call }));
 
 afterEach(async () => {
   await setCall({ status: "idle" });

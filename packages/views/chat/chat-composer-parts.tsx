@@ -18,7 +18,7 @@ import {
   COMPOSER_QUOTE_MARK_CLASS,
 } from "./chat-reply-quote";
 import type { ChatVoiceRecorderError, ChatVoiceRecording, ChatVoiceRecorderState } from "./use-chat-voice-recorder";
-import { formatVoiceCallDuration } from "./voice-call-duration";
+import { formatVoiceCallDuration } from "@uniwork/core/chat/voice-call-duration";
 
 const VOICE_MAX_SECONDS = 120;
 /** Bars in the live wave while recording, and in the clip's shape before sending (canvas). */

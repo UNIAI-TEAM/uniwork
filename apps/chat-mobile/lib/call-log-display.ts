@@ -1,9 +1,10 @@
 // Ported from packages/views/chat/voice-call-log-row.tsx (voiceCallLogLabel and
-// the `missed` rule) and packages/views/chat/voice-call-duration.ts: a row of
+// the `missed` rule), with core's formatVoiceCallDuration: a row of
 // the calls tab says what the web's call-log row says in the room. The title
 // and the time are the tab's own.
 import type { CallLog } from "@/data/queries/call-logs";
-import { resolveChatNicknameForUser } from "./contacts-display";
+import { resolveChatNicknameForUser } from "@uniwork/core/chat/contact-labels";
+import { formatVoiceCallDuration } from "@uniwork/core/chat/voice-call-duration";
 import { formatMessageDay } from "./timeline-display";
 
 export interface CallLogView {
@@ -13,16 +14,6 @@ export interface CallLogView {
   direction: "outgoing" | "incoming";
   /** only a call that rang for the viewer and went unanswered */
   missed: boolean;
-}
-
-/** Elapsed seconds as M:SS, or H:MM:SS from an hour. */
-export function formatVoiceCallDuration(totalSeconds: number): string {
-  const safe = Math.max(0, Math.floor(totalSeconds));
-  const hours = Math.floor(safe / 3600);
-  const minutes = Math.floor((safe % 3600) / 60);
-  const seconds = safe % 60;
-  if (hours > 0) return `${hours}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
-  return `${minutes}:${String(seconds).padStart(2, "0")}`;
 }
 
 export function callLogView(

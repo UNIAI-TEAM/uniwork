@@ -28,7 +28,7 @@ import { deepLinkHref } from "@/lib/deep-link";
 import { THEME } from "@/lib/theme";
 import { useColorScheme } from "@/lib/use-color-scheme";
 import { cn } from "@/lib/utils";
-import { voiceCallKindFromServer } from "@/lib/voice-call";
+import { voiceCallKindFromServer } from "@uniwork/core/chat/voice-call-kind";
 import { BADGE_MAX_FONT_SCALE } from "@/lib/type-scale";
 
 // shortcut: "missed" reuses the call-log label (en "Missed voice call"); mobile.calls.filter_missed is requested.

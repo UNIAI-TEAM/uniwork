@@ -1,11 +1,11 @@
 // How one message reads on the phone: which card it gets (spec §4), and the
 // few labels the cards print.
 //   voiceCallLogLabel       ← packages/views/chat/voice-call-log-row.tsx
-//   formatVoiceCallDuration ← packages/views/chat/voice-call-duration.ts
 //   pollResults             ← packages/views/chat/chat-poll-message-row.tsx (hide_results_until_vote, closed)
 // message-display.test.ts covers every kind in chat-schemas plus an unknown one.
 import type { ChatMessageRecord } from "@uniwork/core/api/endpoints/chat-schemas";
 import { isPollExpired } from "@uniwork/core/chat/poll-utils";
+import { formatVoiceCallDuration } from "@uniwork/core/chat/voice-call-duration";
 import { isChatImageContentType, resolveChatFileContentType } from "./file-accept";
 import { parseChatMediaMessageBody } from "./media-body";
 import { deserializeMessageBodyToComposerDraft } from "./mentions";
@@ -56,16 +56,6 @@ export function messageView(record: Pick<ChatMessageRecord, "kind" | "body" | "f
     default:
       return "unsupported";
   }
-}
-
-/** Formats elapsed seconds as M:SS or H:MM:SS. */
-export function formatVoiceCallDuration(totalSeconds: number): string {
-  const safe = Math.max(0, Math.floor(totalSeconds));
-  const hours = Math.floor(safe / 3600);
-  const minutes = Math.floor((safe % 3600) / 60);
-  const seconds = safe % 60;
-  if (hours > 0) return `${hours}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
-  return `${minutes}:${String(seconds).padStart(2, "0")}`;
 }
 
 type TranslateFn = (key: string, options?: Record<string, unknown>) => string;

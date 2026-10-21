@@ -29,7 +29,7 @@ import { selectRoomSends, useChatSendStore } from "@/data/stores/chat-send-store
 import { chatRoutes } from "@/lib/chat-routes";
 import { roomHeaderMark } from "@/lib/conversation-display";
 import { buildMainTimelineMessages } from "@/lib/timeline-display";
-import { voiceCallKindFromServer } from "@/lib/voice-call";
+import { voiceCallKindFromServer } from "@uniwork/core/chat/voice-call-kind";
 
 function RoomConversation({ chat, roomId, linkedMessageId }: { chat: ChatWorkspace; roomId: string; linkedMessageId: string | null }) {
   const { t } = useTranslation();

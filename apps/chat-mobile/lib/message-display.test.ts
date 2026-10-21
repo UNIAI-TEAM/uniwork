@@ -2,18 +2,8 @@ import type { ChatMessageRecord } from "@uniwork/core/api/endpoints/chat-schemas
 import { ChatMessageSchema } from "@uniwork/core/api/endpoints/chat-schemas";
 import { describe, expect, it } from "vitest";
 import { i18n } from "./i18n/singleton";
-import {
-  KNOWN_MESSAGE_KINDS,
-  formatFileSize,
-  formatVoiceCallDuration,
-  isChatMediaUrlFresh,
-  isReminderDue,
-  messagePreviewText,
-  messageView,
-  pendingPreviewText,
-  pollResults,
-  voiceCallLogLabel,
-} from "./message-display";
+import { KNOWN_MESSAGE_KINDS, formatFileSize, isChatMediaUrlFresh, isReminderDue, messagePreviewText, messageView, pendingPreviewText, pollResults, voiceCallLogLabel } from "./message-display";
+import { formatVoiceCallDuration } from "@uniwork/core/chat/voice-call-duration";
 
 const base = ChatMessageSchema.parse({
   id: "m1",

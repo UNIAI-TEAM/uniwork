@@ -17,19 +17,8 @@ import {
   unreadMapFromRooms,
 } from "@uniwork/core/chat/chat-room-helpers";
 import { buildChatNameContext } from "./people-display";
-import {
-  applyKnownPeopleToRoomPreviews,
-  buildUnifiedSidebarEntries,
-  displayLabelForChatContact,
-  formatChatSidebarPreviewText,
-  formatChatSidebarTime,
-  isMissedCallPreview,
-  sidebarEntryRoomId,
-  splitChatSidebarPreviewPrefix,
-  type ChatContact,
-  type ChatRoomPreference,
-  type UnifiedSidebarEntry,
-} from "./rooms-display";
+import { applyKnownPeopleToRoomPreviews, buildUnifiedSidebarEntries, formatChatSidebarPreviewText, formatChatSidebarTime, isMissedCallPreview, sidebarEntryRoomId, splitChatSidebarPreviewPrefix, type ChatRoomPreference, type UnifiedSidebarEntry } from "./rooms-display";
+import { displayLabelForChatContact, type ChatContact } from "@uniwork/core/chat/contact-labels";
 import { formatSidebarTypingPreview, typingNameByUserIdFromContext } from "./typing-display";
 import { sameUser } from "./user-id";
 

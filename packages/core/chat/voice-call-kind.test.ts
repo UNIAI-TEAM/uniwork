@@ -3,9 +3,9 @@ import {
   isMultiPartyVoiceCall,
   voiceCallKindFromServer,
   voiceCallPrimaryLeaveEndsForAll,
-} from "./voice-call-kind-utils";
+} from "./voice-call-kind";
 
-describe("voice-call-kind-utils", () => {
+describe("voice-call-kind", () => {
   it("treats channel like group for multi-party checks", () => {
     expect(isMultiPartyVoiceCall("channel")).toBe(true);
     expect(isMultiPartyVoiceCall("group")).toBe(true);
