@@ -1,0 +1,35 @@
+$ rc=$(cat /tmp/pr7r4-e2e.exit 2>/dev/null || echo 99); grep -vE "^\s+at " /tmp/pr7r4-e2e.log | grep -E "✘|failed|flaky|passed|skipped|did not run|Error:" | head -80; tail -n 30 /tmp/pr7r4-e2e.log; for f in e2e/test-results/*/error-context.md; do [ -f "$f" ] && { echo "===== $f"; head -c 3000 "$f"; }; done; grep -qE "[0-9]+ passed" /tmp/pr7r4-e2e.log || { echo "no passing test"; [ "$rc" = 0 ] && rc=1; }; echo; echo "E2E_EXIT=$rc"
+  31 skipped
+  75 passed (8.6m)
+  ✓   80 organization-switch.spec.ts:84:3 › organization switch › a sole owner closes the organization, lands on /get-started and founds a new one (4.0s)
+  ✓   81 people.spec.ts:47:1 › directory, department, accent-insensitive search, then deactivation (11.1s)
+  ✓   82 projects-suite-parity-smoke.spec.ts:35:1 › projects suite: list + detail TaskSurface always on (5.0s)
+  ✓   83 reset-password.spec.ts:5:1 › quên mật khẩu → link trong mail → mật khẩu mới đăng nhập được (4.8s)
+  ✓   84 seo.spec.ts:4:1 › public locale follows URLs even when the cookie asks for the other language (1.8s)
+  ✓   85 seo.spec.ts:28:1 › guides render without JavaScript and expose related localized destinations (338ms)
+  ✓   86 seo.spec.ts:41:1 › Office guide facts, example images and tables work on mobile in both languages and themes (2.1s)
+  ✓   87 seo.spec.ts:64:1 › public auth links load the application provider and retain Vietnamese (1.2s)
+  ✓   88 seo.spec.ts:77:1 › Vietnamese and English mobile guides work in both themes (2.4s)
+  ✓   89 sidebar-rail.spec.ts:9:1 › every nav row is clickable in the collapsed icon rail (2.9s)
+  ✓   90 smoke.spec.ts:9:1 › register → workspace → task → meeting (7.2s)
+  ✓   91 smoke.spec.ts:70:1 › đường dẫn không tồn tại hiện trang không tìm thấy, không phải màn hình trắng (654ms)
+  ✓   92 task-detail-parity-smoke.spec.ts:55:1 › task detail: suite comment + attachment always on (6.0s)
+  ✓   93 tasks-collection-parity-smoke.spec.ts:34:1 › tasks collection: suite mode controls always on (6.5s)
+  ✓   94 tasks-table.spec.ts:206:1 › board → table stays responsive and navigation still works (6.8s)
+  ✓   95 tasks-table.spec.ts:223:1 › title sort holds across Tải thêm pages (7.1s)
+  ✓   96 tasks-table.spec.ts:235:1 › search finds a task outside the first page (4.9s)
+  ✓   97 tasks-table.spec.ts:255:1 › a child on the third page nests under its parent (4.8s)
+  ✓   98 tasks-table.spec.ts:284:1 › groups by project, then by priority (6.0s)
+  ✓   99 tasks-table.spec.ts:300:1 › a select property edits in place and survives reload (5.5s)
+  ✓  100 tasks-table.spec.ts:328:1 › keyboard column reorder persists across reload (4.0s)
+  ✓  101 text-size.spec.ts:16:1 › the largest text size scales the app, survives a reload and keeps screens in bounds (8.6s)
+  ✓  102 unichat-shell.spec.ts:13:1 › chat-only shell hides the module nav and hands other routes to the browser (3.2s)
+  ✓  103 verify.spec.ts:10:1 › mã sai → lỗi; gửi lại đang khoá; mã đúng → onboarding; cổng chặn khi chưa xác thực (2.6s)
+  ✓  104 verify.spec.ts:39:1 › nút Google chỉ hiện khi server báo có Google (627ms)
+  ✓  105 verify.spec.ts:47:1 › tương phản chữ đạt WCAG AA — /verify light và dark (4.9s)
+  ✓  106 workspace-settings.spec.ts:8:1 › workspace settings: đổi địa chỉ, link cũ tự chuyển sang địa chỉ mới (4.6s)
+
+  31 skipped
+  75 passed (8.6m)
+
+E2E_EXIT=0

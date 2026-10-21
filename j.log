@@ -1,0 +1,4 @@
+$ for i in $(seq 1 14); do test -f /tmp/pr7r4-e2e.exit && break; sleep 30; done; echo "DONE_FILE=$(test -f /tmp/pr7r4-e2e.exit && echo yes || echo no)"; tail -2 /tmp/pr7r4-e2e.log
+DONE_FILE=no
+  ✓   88 seo.spec.ts:77:1 › Vietnamese and English mobile guides work in both themes (2.4s)
+  ✓   89 sidebar-rail.spec.ts:9:1 › every nav row is clickable in the collapsed icon rail (2.9s)
