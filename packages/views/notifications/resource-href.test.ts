@@ -32,6 +32,11 @@ describe("resourceHref", () => {
     expect(resourceHref(n, workspace, [workspace])).toBe("/acme/team/meetings/m1?section=summary");
   });
 
+  it("opens a meeting's summary panel when its auto summary is ready", () => {
+    const n = notification({ kind: "meeting_summary_ready", resource_type: "meeting", resource_id: "m1" });
+    expect(resourceHref(n, workspace, [workspace])).toBe("/acme/team/meetings/m1?section=summary");
+  });
+
   it("opens a meeting's summary panel for the tasks it assigned", () => {
     const n = notification({ kind: "tasks_assigned", resource_type: "meeting", resource_id: "m1" });
     expect(resourceHref(n, workspace, [workspace])).toBe("/acme/team/meetings/m1?section=summary");

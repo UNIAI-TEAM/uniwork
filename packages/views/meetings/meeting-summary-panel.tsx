@@ -230,6 +230,11 @@ function SummaryAttribution({ summary, times }: { summary: MeetingSummary; times
           <Sparkles aria-hidden />
           {t("meetings.aiLabel")}
         </Badge>
+        {summary.created_by_kind === "system" ? (
+          <Badge data-testid="ai-summary-auto" variant="outline">
+            {t("meetings.summaryAuto")}
+          </Badge>
+        ) : null}
         {parts.map((part, i) => (
           <span key={i} className="inline-flex items-center gap-x-1.5">
             {i > 0 ? <span aria-hidden>·</span> : null}

@@ -33,6 +33,7 @@ const ICONS: Record<NotificationKind, LucideIcon> = {
   meeting_invited: MODULE_ICONS.meetings,
   meeting_starting: MODULE_ICONS.meetings,
   meeting_summary_reminder: Sparkles,
+  meeting_summary_ready: Sparkles,
   member_added: UserPlus,
   role_changed: ShieldCheck,
   audit_export_ready: FileDown,

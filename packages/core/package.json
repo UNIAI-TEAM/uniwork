@@ -55,6 +55,7 @@
     "./meetings/recording-playback-cache": "./meetings/recording-playback-cache.ts",
     "./meetings/summary-task-items": "./meetings/summary-task-items.ts",
     "./meetings/summary": "./meetings/summary-hooks.ts",
+    "./meetings/settings": "./meetings/settings-hooks.ts",
     "./meetings/speaker-labels": "./meetings/speaker-label-hooks.ts",
     "./documents": "./documents/hooks.ts",
     "./documents/schema": "./documents/schema.ts",

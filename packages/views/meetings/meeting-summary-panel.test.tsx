@@ -209,6 +209,37 @@ describe("MeetingSummaryPanel attribution", () => {
     expect(await screen.findByTestId("ai-summary-partial")).toHaveTextContent("Tóm tắt dựa trên một phần cuộc họp");
   });
 
+  it("marks the summary the system made when the meeting ended (UNI-2026)", async () => {
+    requestMock.mockImplementation((path: unknown) => {
+      const p = String(path);
+      if (p.endsWith("/meeting-capabilities")) return Promise.resolve({ ai_summary: true });
+      if (p.endsWith("/summary")) {
+        return Promise.resolve({
+          summary: { id: "s1", meeting_id: "m1", summary: "Chốt lịch", created_by_kind: "system", created_at: new Date().toISOString() },
+        });
+      }
+      return Promise.resolve({});
+    });
+    render(wrapWithNav(<MeetingSummaryPanel workspaceId="w1" meeting={meeting} canClerk />));
+    expect(await screen.findByTestId("ai-summary-auto")).toHaveTextContent("Tóm tắt tự tạo");
+  });
+
+  it("does not mark a summary a person made", async () => {
+    requestMock.mockImplementation((path: unknown) => {
+      const p = String(path);
+      if (p.endsWith("/meeting-capabilities")) return Promise.resolve({ ai_summary: true });
+      if (p.endsWith("/summary")) {
+        return Promise.resolve({
+          summary: { id: "s1", meeting_id: "m1", summary: "Chốt lịch", created_by_kind: "human", created_at: new Date().toISOString() },
+        });
+      }
+      return Promise.resolve({});
+    });
+    render(wrapWithNav(<MeetingSummaryPanel workspaceId="w1" meeting={meeting} canClerk />));
+    await screen.findByTestId("ai-attribution");
+    expect(screen.queryByTestId("ai-summary-auto")).toBeNull();
+  });
+
   it("lets the host summarise from notes alone", async () => {
     requestMock.mockImplementation((path: unknown) => {
       const p = String(path);

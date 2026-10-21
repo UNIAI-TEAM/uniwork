@@ -581,6 +581,17 @@
     }
   },
   "settings": {
+    "meetings": {
+        "title": "Meetings",
+        "description": "Meeting settings for the whole organization.",
+        "admin_only": "Only an organization owner or admin can change this setting.",
+        "auto_summary_title": "Summary",
+        "auto_summary_label": "Summarize meetings when they end",
+        "auto_summary_description": "When a meeting ends, UNI writes its summary and suggested tasks and tells the host and secretaries. Turned off, the host gets the summary reminder as before.",
+        "save_failed": "Couldn't save the change. Try again.",
+        "read_failed": "Couldn't read the meeting settings.",
+        "state_unknown": "The current state couldn't be read; switch it on or off to save it."
+      },
     "documents": {
       "title": "Documents",
       "description": "The organization's public links and storage usage.",
@@ -623,6 +634,7 @@
         "meeting_invited": "Invited to a meeting",
         "meeting_starting": "Meeting starting soon",
         "meeting_summary_reminder": "Summary reminder after a meeting",
+        "meeting_summary_ready": "Auto summary ready",
         "member_added": "Added to a workspace",
         "role_changed": "Role changed",
         "audit_export_ready": "Audit export ready",
@@ -674,6 +686,7 @@
         "invoices": "Invoices",
         "audit": "Activity log",
         "privacy": "Organization data",
+        "meetings": "Meetings",
         "documents": "Documents",
         "ai": "AI",
         "organization": "Organization members",
@@ -3957,6 +3970,7 @@
       "speakersEmpty": "No speakers from the room microphone yet.",
       "speakersLoadFailed": "Couldn't load the speakers."
     },
+    "summaryAuto": "Auto summary",
     "summaryPartial": "This summary covers part of the meeting: the transcript was longer than the AI reads at once."
   },
   "calendar": {
@@ -5759,6 +5773,7 @@
       "meeting_invited": "{{actor}} invited you to “{{meeting}}”",
       "meeting_starting": "“{{meeting}}” starts in {{minutes}} minutes",
       "meeting_summary_reminder": "“{{meeting}}” ended · Summarize it and create tasks",
+      "meeting_summary_ready": "“{{meeting}}” summary is ready · Review it and assign tasks",
       "member_added": "{{actor}} added you to workspace {{workspace}}",
       "role_changed": "{{actor}} changed your role to {{role}}",
       "audit_export_ready": "Your audit export is ready",

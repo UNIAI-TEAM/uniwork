@@ -580,6 +580,17 @@
     }
   },
   "settings": {
+    "meetings": {
+        "title": "Cuộc họp",
+        "description": "Cài đặt cuộc họp áp cho cả tổ chức.",
+        "admin_only": "Chỉ owner hoặc admin tổ chức đổi được cài đặt này.",
+        "auto_summary_title": "Tóm tắt",
+        "auto_summary_label": "Tự tạo tóm tắt khi họp xong",
+        "auto_summary_description": "Khi cuộc họp kết thúc, UNI tự tạo tóm tắt và việc đề xuất rồi báo chủ trì và thư ký. Tắt thì chủ trì nhận lời nhắc tóm tắt như trước.",
+        "save_failed": "Không lưu được thay đổi. Thử lại.",
+        "read_failed": "Không đọc được cài đặt cuộc họp.",
+        "state_unknown": "Chưa đọc được trạng thái hiện tại; bật hoặc tắt để ghi lại."
+      },
     "documents": {
       "title": "Tài liệu",
       "description": "Liên kết công khai và dung lượng lưu trữ của tổ chức.",
@@ -622,6 +633,7 @@
         "meeting_invited": "Được mời họp",
         "meeting_starting": "Họp sắp bắt đầu",
         "meeting_summary_reminder": "Nhắc tóm tắt sau cuộc họp",
+        "meeting_summary_ready": "Tóm tắt tự tạo đã sẵn sàng",
         "member_added": "Được thêm vào workspace",
         "role_changed": "Vai trò thay đổi",
         "audit_export_ready": "Bản xuất nhật ký sẵn sàng",
@@ -673,6 +685,7 @@
         "invoices": "Hóa đơn",
         "audit": "Nhật ký hoạt động",
         "privacy": "Dữ liệu tổ chức",
+        "meetings": "Cuộc họp",
         "documents": "Tài liệu",
         "ai": "AI",
         "organization": "Thành viên tổ chức",
@@ -3956,6 +3969,7 @@
       "speakersEmpty": "Chưa có người nói nào từ micro hội trường.",
       "speakersLoadFailed": "Không tải được danh sách người nói."
     },
+    "summaryAuto": "Tóm tắt tự tạo",
     "summaryPartial": "Tóm tắt dựa trên một phần cuộc họp: transcript dài hơn mức AI đọc được một lần."
   },
   "calendar": {
@@ -5755,6 +5769,7 @@
       "meeting_invited": "{{actor}} đã mời bạn họp “{{meeting}}”",
       "meeting_starting": "“{{meeting}}” bắt đầu sau {{minutes}} phút",
       "meeting_summary_reminder": "“{{meeting}}” đã kết thúc · Tóm tắt và tạo việc",
+      "meeting_summary_ready": "Tóm tắt “{{meeting}}” đã sẵn sàng · Xem và giao việc",
       "member_added": "{{actor}} đã thêm bạn vào workspace {{workspace}}",
       "role_changed": "{{actor}} đã đổi vai trò của bạn thành {{role}}",
       "audit_export_ready": "Bản xuất nhật ký của bạn đã sẵn sàng",

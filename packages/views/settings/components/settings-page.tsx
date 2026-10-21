@@ -61,6 +61,7 @@ const BillingTab = lazy(() => import("./billing-tab").then((m) => ({ default: m.
 const InvoicesTab = lazy(() => import("./invoices-tab").then((m) => ({ default: m.InvoicesTab })));
 const DepartmentsTab = lazy(() => import("./departments-tab").then((m) => ({ default: m.DepartmentsTab })));
 const DocumentsTab = lazy(() => import("./documents-settings").then((m) => ({ default: m.DocumentsSettings })));
+const MeetingsTab = lazy(() => import("./meetings-settings").then((m) => ({ default: m.MeetingsSettings })));
 const ConnectedAppsTab = lazy(() => import("./connected-apps-tab").then((m) => ({ default: m.ConnectedAppsTab })));
 const AiAccessTab = lazy(() => import("./ai-access-tab").then((m) => ({ default: m.AiAccessTab })));
 const KeyboardShortcutsTab = lazy(() => import("./keyboard-shortcuts-tab").then((m) => ({ default: m.KeyboardShortcutsTab })));
@@ -115,6 +116,7 @@ const GROUPS: readonly { id: GroupId; tabs: readonly TabDef[] }[] = [
       { value: "billing", label: "billing", icon: CreditCard, Panel: BillingTab, gate: "billing" },
       { value: "invoices", label: "invoices", icon: Receipt, Panel: InvoicesTab, gate: "billing" },
       { value: "documents", label: "documents", icon: FileText, Panel: DocumentsTab, gate: "org_admin" },
+      { value: "meetings", label: "meetings", icon: MODULE_ICONS.meetings, Panel: MeetingsTab, gate: "org_admin" },
       { value: "ai-access", label: "aiAccess", icon: Bot, Panel: AiAccessTab, gate: "org_admin" },
       { value: "audit", label: "audit", icon: ScrollText, Panel: AuditTab, gate: "audit", wide: true },
       { value: "privacy", label: "privacy", icon: Archive, Panel: PrivacyTab, gate: "org_owner" },

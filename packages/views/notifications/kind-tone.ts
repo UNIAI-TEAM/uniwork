@@ -20,6 +20,7 @@ const KIND_TONES: Record<NotificationKind, Tint> = {
   meeting_invited: moduleTone("meetings"),
   meeting_starting: moduleTone("meetings"),
   meeting_summary_reminder: moduleTone("meetings"),
+  meeting_summary_ready: moduleTone("meetings"),
   member_added: moduleTone("people"),
   role_changed: moduleTone("people"),
   audit_export_ready: "gray",

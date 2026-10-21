@@ -225,11 +225,23 @@ export const MeetingSummarySchema = z.object({
   decisions: SummaryDecisionsSchema.nullish(),
   model: z.string().nullish(),
   created_by: z.string().nullish(),
+  /** "system" for the summary made when the meeting ended (UNI-2026). */
+  created_by_kind: z.string().nullish(),
   created_at: z.string().nullish(),
   /** The transcript was longer than the summary's input budget. */
   partial: z.boolean().optional(),
 });
 export type MeetingSummary = z.infer<typeof MeetingSummarySchema>;
+
+/** The organization's meeting settings (UNI-2026). */
+export const MeetingSettingsSchema = z.object({
+  organization_id: z.string(),
+  auto_summary_enabled: z.boolean(),
+  updated_by: z.string().nullish(),
+  updated_by_kind: z.string().nullish(),
+  updated_at: z.string().nullish(),
+});
+export type MeetingSettings = z.infer<typeof MeetingSettingsSchema>;
 
 export const RecordingSchema = z.object({
   id: z.string(),
