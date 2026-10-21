@@ -506,6 +506,77 @@ describe("DocumentWorkspace autosave", () => {
     await waitFor(() => expect(patchCalls()).toHaveLength(1), { timeout: 8_000 });
   });
 
+  describe("Ctrl/Cmd+S in the page editor", () => {
+    function savedDocument() {
+      requestMock.mockImplementation((path: string, opts?: { method?: string }) =>
+        path === "/api/v1/documents/d1" && opts?.method === "PATCH"
+          ? Promise.resolve({ document: pageDocument({ revision: "4", updated_at: "2026-09-28T03:20:00Z" }) })
+          : Promise.resolve({}),
+      );
+    }
+    const ctrlS = (init: KeyboardEventInit = {}) =>
+      new KeyboardEvent("keydown", { key: "s", ctrlKey: true, bubbles: true, cancelable: true, ...init });
+
+    it("flushes the autosave at once instead of waiting out the debounce, and stops the browser's Save page", async () => {
+      savedDocument();
+      renderWorkspace();
+      const surface = await findEditor();
+      pasteText("Xin chào");
+      await waitFor(() => expect(screen.getByText(t("documents.save.unsaved"))).toBeInTheDocument());
+      expect(patchCalls()).toHaveLength(0);
+
+      expect(surface.dispatchEvent(ctrlS())).toBe(false);
+      await waitFor(() => expect(patchCalls()).toHaveLength(1), { timeout: 1_500 });
+      expect(JSON.stringify(patchCalls()[0]?.body.content)).toContain("Xin chào");
+      await waitFor(() => expect(screen.getByRole("status", { name: /^Đã lưu/ })).toBeInTheDocument(), { timeout: 8_000 });
+      // The debounce that was already running does not send a second write.
+      await new Promise((resolve) => setTimeout(resolve, 2_300));
+      expect(patchCalls()).toHaveLength(1);
+    });
+
+    it("saves the pending title at once from the title field and stops the browser's Save page", async () => {
+      // The server echoes the new title; a stale echo would make the header send it again forever.
+      requestMock.mockImplementation((path: string, opts?: { method?: string; body?: { title?: string } }) =>
+        path === "/api/v1/documents/d1" && opts?.method === "PATCH"
+          ? Promise.resolve({ document: pageDocument({ revision: "4", title: opts.body?.title ?? "Kế hoạch Q3" }) })
+          : Promise.resolve({}),
+      );
+      renderWorkspace();
+      await findEditor();
+      const title = screen.getByRole("textbox", { name: t("documents.page_ui.title_label") });
+      fireEvent.change(title, { target: { value: "Kế hoạch Q4" } });
+      expect(patchCalls()).toHaveLength(0);
+
+      expect(title.dispatchEvent(ctrlS({ isComposing: true }))).toBe(true);
+      expect(title.dispatchEvent(ctrlS({ shiftKey: true }))).toBe(true);
+      expect(patchCalls()).toHaveLength(0);
+      expect(title.dispatchEvent(ctrlS())).toBe(false);
+      // The title's own 600 ms debounce has not run yet: the key sent it.
+      await waitFor(() => expect(patchCalls()).toHaveLength(1), { timeout: 400 });
+      expect(patchCalls()[0]?.body).toMatchObject({ title: "Kế hoạch Q4" });
+    });
+
+    it("does not flush while an IME is composing", async () => {
+      savedDocument();
+      renderWorkspace();
+      const surface = await findEditor();
+      pasteText("Xin chào");
+      await waitFor(() => expect(screen.getByText(t("documents.save.unsaved"))).toBeInTheDocument());
+
+      expect(surface.dispatchEvent(ctrlS({ isComposing: true }))).toBe(true);
+      await new Promise((resolve) => setTimeout(resolve, 600));
+      expect(patchCalls()).toHaveLength(0);
+    });
+
+    it("leaves the browser's Save page alone on a read-only page", async () => {
+      requestMock.mockResolvedValue({ document: pageDocument({ revision: "4" }) });
+      renderWorkspace({ my_level: "view" });
+      const surface = await findEditor();
+      expect(surface.dispatchEvent(ctrlS())).toBe(true);
+      expect(patchCalls()).toHaveLength(0);
+    });
+  });
+
   it("keeps a view-only page readable and out of the save loop", async () => {
     requestMock.mockResolvedValue({ document: pageDocument({ revision: "4" }) });
     renderWorkspace({ my_level: "view" });

@@ -3,6 +3,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-libra
 import { useEffect } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { DocsFrameApi } from "@uniwork/core/office/docs-frame-api";
+import { configureShortcutPlatform } from "@uniwork/core/shortcuts";
 import type { Document } from "@uniwork/core/types/document";
 import { PROTOCOL_NS, PROTOCOL_VERSION, isInitPayload, type Envelope, type OfficeModule } from "@uniwork/core/office/docs-frame-protocol";
 import { endOfficeDraftSession } from "@uniwork/core/office/draft-session-key";
@@ -255,6 +256,74 @@ describe("OfficeModuleFrame", () => {
     await frame.respond(frame.sent("print")[0]!, { printed: true });
     fireEvent.keyDown(window, { key: "p", ctrlKey: true });
     await waitFor(() => expect(frame.sent("print")).toHaveLength(2));
+  });
+
+  describe("host Ctrl/Cmd+P (common-06)", () => {
+    async function readyFrame() {
+      const frame = mountFrame("markdown");
+      await frame.ready({ module: "markdown" });
+      await waitFor(() => expect(frame.inits()).toHaveLength(1));
+      await waitFor(() => expect(document.querySelector("[data-office-docs-frame]")).toHaveAttribute("data-state", "ready"));
+      return frame;
+    }
+    afterEach(() => configureShortcutPlatform(null));
+
+    it("prints the document and keeps the browser from printing the host page", async () => {
+      const frame = await readyFrame();
+      const press = new KeyboardEvent("keydown", { key: "p", ctrlKey: true, cancelable: true });
+      act(() => { window.dispatchEvent(press); });
+      expect(press.defaultPrevented).toBe(true);
+      await waitFor(() => expect(frame.sent("print")).toHaveLength(1));
+    });
+
+    it("is Cmd+P on a Mac, where Control+P is the cursor-up key", async () => {
+      configureShortcutPlatform("macos");
+      const frame = await readyFrame();
+      const control = new KeyboardEvent("keydown", { key: "p", ctrlKey: true, cancelable: true });
+      act(() => { window.dispatchEvent(control); });
+      expect(control.defaultPrevented).toBe(false);
+      const command = new KeyboardEvent("keydown", { key: "p", metaKey: true, cancelable: true });
+      act(() => { window.dispatchEvent(command); });
+      expect(command.defaultPrevented).toBe(true);
+      await waitFor(() => expect(frame.sent("print")).toHaveLength(1));
+    });
+
+    it.each([
+      ["Ctrl+Shift+P", { shiftKey: true }],
+      ["Ctrl+Alt+P", { altKey: true }],
+      ["AltGr+P", { altKey: true, modifierAltGraph: true }],
+      ["an IME composition", { isComposing: true }],
+      ["IME keyCode 229", { keyCode: 229 }],
+    ])("ignores %s", async (_name, init) => {
+      const frame = await readyFrame();
+      const press = new KeyboardEvent("keydown", { key: "p", ctrlKey: true, cancelable: true, ...init });
+      act(() => { window.dispatchEvent(press); });
+      await new Promise<void>((resolve) => { setTimeout(resolve, 30); });
+      expect(press.defaultPrevented).toBe(false);
+      expect(frame.sent("print")).toHaveLength(0);
+    });
+
+    it("leaves a chord a focused control already handled", async () => {
+      const frame = await readyFrame();
+      const handled = new KeyboardEvent("keydown", { key: "p", ctrlKey: true, cancelable: true, bubbles: true });
+      handled.preventDefault();
+      act(() => { window.dispatchEvent(handled); });
+      await new Promise<void>((resolve) => { setTimeout(resolve, 30); });
+      expect(frame.sent("print")).toHaveLength(0);
+    });
+
+    it("hears nothing typed inside the frame: it is a separate document with no key message (global-17)", async () => {
+      const frame = await readyFrame();
+      const frameDocument = frame.iframe.contentDocument!;
+      for (const init of [{ key: "p", ctrlKey: true }, { key: "k", ctrlKey: true }, { key: "j", ctrlKey: true }, { key: "s", ctrlKey: true }]) {
+        const press = new KeyboardEvent("keydown", { ...init, bubbles: true, cancelable: true });
+        act(() => { frameDocument.dispatchEvent(press); });
+        expect(press.defaultPrevented, init.key).toBe(false);
+      }
+      await new Promise<void>((resolve) => { setTimeout(resolve, 30); });
+      expect(frame.sent("print")).toHaveLength(0);
+      expect(frame.sent("save")).toHaveLength(0);
+    });
   });
 
   it("shows no Print entry for a read-only source viewer", async () => {

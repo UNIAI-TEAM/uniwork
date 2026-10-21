@@ -5,9 +5,14 @@ import { useTranslation } from "react-i18next";
 import { useMembers } from "@uniwork/core/workspaces";
 import { useDocumentComments } from "@uniwork/core/documents/hooks-comments";
 import { isMyFolder, type Document } from "@uniwork/core/types/document";
+import { createShortcutChord, shortcutMatchesEvent } from "@uniwork/core/shortcuts";
+import { isImeComposing } from "@uniwork/core/utils";
+import { PAGE_SAVE_REQUEST_EVENT } from "../editor/extensions/page-events";
 import { DocumentShelvedBadge } from "./document-shelved-banner";
 import { DocumentPageIcon } from "./document-page-icon";
 import { useDocumentPageMetadata, type DocumentPageMetadataHandle, type DocumentPageMetadataStatus } from "./use-document-page-metadata";
+
+const SAVE_CHORD = createShortcutChord("S", { primary: true });
 
 interface DocumentPageHeaderProps {
   wsId: string;
@@ -82,7 +87,14 @@ export function DocumentPageHeader({ wsId, doc, editable, shelved = false, title
           className="block min-h-10 w-full resize-none overflow-hidden rounded-sm border-0 bg-transparent p-0 font-heading text-display-sm font-semibold tracking-tight text-foreground placeholder:text-muted-foreground sm:text-display"
           onChange={(event) => metadata.changeTitle(event.target.value)} onBlur={() => void metadata.flush()}
           onKeyDown={(event) => {
-            if (event.key !== "Enter" || event.nativeEvent.isComposing) return;
+            if (isImeComposing(event.nativeEvent)) return;
+            if (shortcutMatchesEvent(SAVE_CHORD, event.nativeEvent)) {
+              // Same request the page editor makes for Ctrl/Cmd+S; a held key is swallowed, not repeated.
+              event.preventDefault();
+              if (!event.repeat) event.currentTarget.dispatchEvent(new CustomEvent(PAGE_SAVE_REQUEST_EVENT, { bubbles: true }));
+              return;
+            }
+            if (event.key !== "Enter") return;
             event.preventDefault();
             void metadata.flush();
             onFocusBody();
