@@ -159,7 +159,7 @@ func TestEndQueuesTheAutoSummary(t *testing.T) {
 	t.Run("organization switched it off", func(t *testing.T) {
 		var calls atomic.Int32
 		s, ua, m, _ := summaryFixture(t, autoSummaryReply(&calls), ai.Options{})
-		if _, err := s.SetMeetingAutoSummary(ctx, Human(ua.ID), m.OrganizationID, false); err != nil {
+		if _, err := s.SetMeetingAutoSummary(ctx, Human(ua.ID), m.OrganizationID, new(false)); err != nil {
 			t.Fatal(err)
 		}
 		if _, err := s.End(ctx, ua.ID, m.ID); err != nil {
@@ -208,7 +208,7 @@ func TestRecordHeldQueuesTheAutoSummary(t *testing.T) {
 	t.Run("organization switched it off", func(t *testing.T) {
 		var calls atomic.Int32
 		s, ua, m, _ := summaryFixture(t, autoSummaryReply(&calls), ai.Options{})
-		if _, err := s.SetMeetingAutoSummary(ctx, Human(ua.ID), m.OrganizationID, false); err != nil {
+		if _, err := s.SetMeetingAutoSummary(ctx, Human(ua.ID), m.OrganizationID, new(false)); err != nil {
 			t.Fatal(err)
 		}
 		if _, ok := autoQueue(t, s, held(t, s, ua, m).ID); ok {
@@ -289,7 +289,7 @@ func TestAutoSummaryWorker(t *testing.T) {
 		if _, err := s.End(ctx, ua.ID, m.ID); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := s.SetMeetingAutoSummary(ctx, Human(ua.ID), m.OrganizationID, false); err != nil {
+		if _, err := s.SetMeetingAutoSummary(ctx, Human(ua.ID), m.OrganizationID, new(false)); err != nil {
 			t.Fatal(err)
 		}
 		makeAutoDue(t, s, m.ID)
@@ -346,14 +346,14 @@ func TestMeetingSettingsSwitch(t *testing.T) {
 		t.Fatalf("non-member read: %v, want not found", err)
 	}
 	addOrgMember(t, s.q, w.OrganizationID, ub.ID)
-	if _, err := s.SetMeetingAutoSummary(ctx, Human(ub.ID), w.OrganizationID, false); !errors.Is(err, ErrForbidden) {
+	if _, err := s.SetMeetingAutoSummary(ctx, Human(ub.ID), w.OrganizationID, new(false)); !errors.Is(err, ErrForbidden) {
 		t.Fatalf("member write: %v, want forbidden", err)
 	}
-	set, err = s.SetMeetingAutoSummary(ctx, Human(ua.ID), w.OrganizationID, false)
+	set, err = s.SetMeetingAutoSummary(ctx, Human(ua.ID), w.OrganizationID, new(false))
 	if err != nil || set.AutoSummaryEnabled || set.UpdatedBy != ua.ID {
 		t.Fatalf("owner write = %+v %v", set, err)
 	}
-	if _, err := s.SetMeetingAutoSummary(ctx, Human(ua.ID), w.OrganizationID, false); err != nil {
+	if _, err := s.SetMeetingAutoSummary(ctx, Human(ua.ID), w.OrganizationID, new(false)); err != nil {
 		t.Fatal(err)
 	}
 	if n := countSummaryRows(t, s, `SELECT count(*) FROM audit_events WHERE action = 'meeting.settings_changed' AND organization_id = $1`, w.OrganizationID); n != 1 {

@@ -1751,7 +1751,7 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 		audit.ActionMeetingSettingsChanged: func(t *testing.T, f *auditFixture) {
 			f.build(t)
 			s := NewMeetingService(f.pool, f.q, f.ws, NopPublisher{}, &meetings.FakeProvider{}, MeetingRuntime{TokenTTL: time.Minute, HMACKey: []byte("t")})
-			if _, err := s.SetMeetingAutoSummary(f.ctx, Human(f.owner.ID), f.orgID, false); err != nil {
+			if _, err := s.SetMeetingAutoSummary(f.ctx, Human(f.owner.ID), f.orgID, new(false)); err != nil {
 				t.Fatal(err)
 			}
 		},

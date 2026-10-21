@@ -209,11 +209,7 @@ func (h *handlers) setMeetingSettings(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &in, maxJSONBody) {
 		return
 	}
-	if in.AutoSummaryEnabled == nil {
-		respondError(w, http.StatusBadRequest, "invalid_request", "auto_summary_enabled is required")
-		return
-	}
-	set, err := h.Meetings.SetMeetingAutoSummary(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "orgID"), *in.AutoSummaryEnabled)
+	set, err := h.Meetings.SetMeetingAutoSummary(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "orgID"), in.AutoSummaryEnabled)
 	if err != nil {
 		h.mapServiceError(w, err)
 		return
