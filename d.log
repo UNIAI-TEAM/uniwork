@@ -1,0 +1,4 @@
+$ npm run test -w @genoffice/shortcuts > /tmp/s9-pkg.log 2>&1; rc=$?; grep -E "Test Files|Tests |FAIL|Error" /tmp/s9-pkg.log | head -30; echo "SHORTCUTS_TEST_EXIT=$rc"
+ Test Files  4 passed (4)
+      Tests  124 passed (124)
+SHORTCUTS_TEST_EXIT=0

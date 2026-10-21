@@ -1,0 +1,2 @@
+$ export NODE_OPTIONS=--max-old-space-size=6144; npm run typecheck:web > /tmp/s9-tcw.log 2>&1; rc=$?; grep -E "error TS|npm error" /tmp/s9-tcw.log | head -60; echo "TYPECHECK_WEB_EXIT=$rc"
+TYPECHECK_WEB_EXIT=0
