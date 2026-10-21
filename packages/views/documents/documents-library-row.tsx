@@ -268,7 +268,8 @@ export function LibraryRowView({
       location={doc && screen !== "workspace" ? (handlers.locationName?.(doc) ?? null) : null}
       badges={
         <>
-          {starred ? (
+          {/* The Star action carries a starred row's state; the marker stays only where no Star action is drawn (N4). */}
+          {starred && !menu.flat().some((item) => item.id === "star") ? (
             <Star role="img" aria-label={t("documents.home.row.starred")} className="size-3.5 shrink-0 fill-current text-brand" />
           ) : null}
           {trashed && screen !== "trash" ? (

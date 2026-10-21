@@ -391,7 +391,9 @@ describe("folder star menu (SV-4)", () => {
     const onToggleStar = vi.fn();
     renderList([doc("fo1", "Hợp đồng", { kind: "folder" })], { onToggleStar, isStarred: (id) => id === "fo1" });
     const row = await openMenu("fo1", "Hợp đồng");
-    expect(within(row).getByRole("img", { name: t("documents.home.row.starred") })).toBeInTheDocument();
+    // The Star action carries the state, so the inline marker is not drawn a second time (N4).
+    expect(within(row).queryByRole("img", { name: t("documents.home.row.starred") })).toBeNull();
+    expect(within(row).getByRole("button", { name: t("documents.home.row.unstar_item", { title: "Hợp đồng" }) })).toHaveAttribute("aria-pressed", "true");
     fireEvent.click(screen.getByRole("menuitem", { name: t("documents.home.row.unstar") }));
     expect(onToggleStar).toHaveBeenCalledWith("fo1", true);
   });
@@ -447,6 +449,21 @@ describe("quick star button on a live row (RFD-04)", () => {
     expect(button).toHaveAttribute("aria-pressed", "true");
     fireEvent.click(button);
     expect(onToggleStar).toHaveBeenCalledWith("a", true);
+  });
+
+  it("draws a starred row's star once: the action, not an inline marker beside the title (N4)", () => {
+    renderList([doc("a", "A.docx")], { onToggleStar: vi.fn(), isStarred: () => true });
+    expect(starButton("A.docx", true)).toBeInTheDocument();
+    expect(screen.queryByRole("img", { name: t("documents.home.row.starred") })).toBeNull();
+  });
+
+  it("keeps the inline marker where the row has no Star action", () => {
+    // A starred row the host cannot toggle (no handler) and a shelved or trashed one still say it is starred.
+    renderList([doc("a", "A.docx")], { onToggleStar: undefined, isStarred: () => true });
+    expect(screen.getByRole("img", { name: t("documents.home.row.starred") })).toBeInTheDocument();
+    cleanup();
+    renderList([doc("c", "C.docx", { archived_at: "2026-10-20T01:00:00Z" })], { onToggleStar: vi.fn(), onRestore: vi.fn(), onPurge: vi.fn(), onViewDetails: vi.fn(), isStarred: () => true }, { screen: "trash" });
+    expect(screen.getByRole("img", { name: t("documents.home.row.starred") })).toBeInTheDocument();
   });
 
   it("is absent where the row menu has no star: no host handler, a shelved row, a trashed row", () => {
