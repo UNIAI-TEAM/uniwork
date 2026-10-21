@@ -222,8 +222,7 @@ test("the library lists pages across its views and the tree opens one", async ({
   await sidebar(page).getByRole("button", { name: "Tài liệu của workspace" }).click();
 
   // The type filter drops the page row.
-  await page.getByRole("combobox", { name: /^Loại/ }).click();
-  await page.getByRole("option", { name: "Docs" }).click();
+  await page.getByRole("group", { name: "Lọc theo loại" }).getByRole("button", { name: ".docx", exact: true }).click();
   await expect(page.getByText("Không có tài liệu khớp bộ lọc")).toBeVisible({ timeout: 30_000 });
   await page.getByRole("button", { name: "Bỏ bộ lọc" }).click();
   await myFolderRow(page).click();
