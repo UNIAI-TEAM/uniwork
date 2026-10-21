@@ -1,3 +1,5 @@
+import asyncio
+
 import aiohttp
 import pytest
 from aiohttp import web
@@ -12,6 +14,8 @@ async def server():
 
     async def handle(request: web.Request) -> web.Response:
         calls.append((request.method, request.path, request.headers.get("Authorization", "")))
+        if state.get("hang"):
+            await asyncio.sleep(1)
         if state["fail"] > 0:
             state["fail"] -= 1
             return web.json_response({}, status=503)
@@ -66,3 +70,12 @@ async def test_extract_is_never_retried(server):
             await c.extract()
         assert e.value.status == 503
         assert [(m, p) for m, p, _ in calls] == [("POST", "/api/v1/meetings/01M/agent/extract")]
+
+
+async def test_a_call_without_its_own_timeout_keeps_the_sessions(server):
+    url, _, state = server
+    state["hang"] = True
+    async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=0.2)) as s:
+        c = UniworkClient(s, url, "01M", "uwma_tok", retries=0)
+        with pytest.raises(TimeoutError):
+            await c.segments([{"segment_id": "a"}])

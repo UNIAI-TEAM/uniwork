@@ -47,11 +47,13 @@ class UniworkClient:
         request_timeout: aiohttp.ClientTimeout | None = None,
     ) -> dict:
         retries = self._retries if retries is None else retries
+        # aiohttp reads timeout=None as "no timeout at all", not the session's.
+        timeout = self._s.timeout if request_timeout is None else request_timeout
         delay = self._backoff
         for attempt in range(retries + 1):
             try:
                 async with self._s.request(
-                    method, self._base + path, json=body, headers=self._headers, timeout=request_timeout
+                    method, self._base + path, json=body, headers=self._headers, timeout=timeout
                 ) as r:
                     if r.status < 400:
                         return await r.json()
