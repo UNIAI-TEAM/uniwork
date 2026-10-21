@@ -238,12 +238,20 @@ func fsoByID(page DocumentListPage) map[string]DocumentListItem {
 	return out
 }
 
+// ADR 0037 §9: 0036 rule 3 (a shared document is never attached to the owner's
+// folder on the reader's side) now holds only when the parent sits in another
+// member's My Folder; a workspace folder keeps its documents in place
+// (TestSharedDocumentInWorkspaceFolderKeepsItsPath).
 func TestSharedDocumentIsNotAttachedToTheOwnersFolder(t *testing.T) {
 	x := newFolderOffFixture(t, "fso3")
 	f, ctx := x.f, x.f.ctx
 	root := ""
 
-	folder := x.folder(t, "Thư mục của chủ", "")
+	myFolder, _, err := f.svc.EnsureMyFolder(ctx, x.owner, x.tn.wsA)
+	if err != nil {
+		t.Fatal(err)
+	}
+	folder := x.folder(t, "Thư mục của chủ", myFolder.Document.ID)
 	open := x.page(t, "Mở cho workspace", folder.ID, documentVisibilityWorkspace)
 	shared := x.page(t, "Chia sẻ cho một người", folder.ID, "")
 	hidden := x.page(t, "Riêng tư", folder.ID, "")
@@ -282,8 +290,8 @@ func TestSharedDocumentIsNotAttachedToTheOwnersFolder(t *testing.T) {
 			t.Fatal(err)
 		}
 		got := fsoByID(rootPage)
-		if _, ok := got[folder.ID]; !ok {
-			t.Fatal("owner lost the folder at the root")
+		if _, ok := got[myFolder.Document.ID]; !ok {
+			t.Fatal("owner lost My Folder at the root")
 		}
 		if _, ok := got[open.ID]; ok {
 			t.Fatal("the owner's root must not double-list a document that is inside their folder")
@@ -416,15 +424,18 @@ func TestSharedDocumentIsNotAttachedToTheOwnersFolder(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(own.Breadcrumbs) != 1 || !own.ParentVisible() {
-			t.Fatalf("owner breadcrumbs=%v parentVisible=%v, want the folder", own.Breadcrumbs, own.ParentVisible())
+		if len(own.Breadcrumbs) != 2 || !own.ParentVisible() {
+			t.Fatalf("owner breadcrumbs=%v parentVisible=%v, want My Folder and the folder", own.Breadcrumbs, own.ParentVisible())
 		}
 	})
 }
 
+// ADR 0037: a workspace folder is visible to everyone by its location, not
+// shared, so it is never a Shared by me or a Shared with me row either.
 func TestSharedByMeNeverListsFolders(t *testing.T) {
 	x := newFolderOffFixture(t, "fso4")
 	f, ctx := x.f, x.f.ctx
+	wsFolder := x.folder(t, "Thư mục chung của chủ", "")
 	legacy := x.folder(t, "Cũ đã chia sẻ", "")
 	x.legacyWorkspace(t, legacy.ID)
 	x.legacyShare(t, legacy.ID, DocumentPrincipalUser, x.viewer.ID)
@@ -437,6 +448,9 @@ func TestSharedByMeNeverListsFolders(t *testing.T) {
 	got := fsoByID(page)
 	if _, ok := got[legacy.ID]; ok {
 		t.Fatal("Shared by me lists a (legacy) shared folder")
+	}
+	if _, ok := got[wsFolder.ID]; ok {
+		t.Fatal("Shared by me lists a workspace folder")
 	}
 	if _, ok := got[doc.ID]; !ok {
 		t.Fatal("Shared by me lost the shared document")
@@ -452,6 +466,9 @@ func TestSharedByMeNeverListsFolders(t *testing.T) {
 	for _, it := range sw.Items {
 		if it.Document.ID == legacy.ID {
 			t.Fatal("Shared with me lists a legacy folder share")
+		}
+		if it.Document.ID == wsFolder.ID {
+			t.Fatal("Shared with me lists a workspace folder")
 		}
 	}
 }
