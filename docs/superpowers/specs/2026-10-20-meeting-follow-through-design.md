@@ -468,7 +468,8 @@ thuật làm người phụ trách.
     `completed` xong. `error`: nhà cung cấp không tải được file thì thử lại (URL được ký
     lại), lỗi khác là vĩnh viễn (`FAILED` ngay). HTTP 400/404 (nhà cung cấp không biết
     việc) thì thử lại bằng việc mới; 401, 429, 5xx và lỗi mạng thì hỏi lại lượt sau tới
-    hạn chót. Câu báo lỗi của nhà cung cấp chỉ vào log (URL thay bằng `<url>`), không
+    hạn chót. Việc nằm `QUEUED` quá 24 giờ kể từ lúc yêu cầu (429 mãi, công tắc cờ
+    không mở lại) thành `FAILED` (`timeout`) kèm thông báo. Câu báo lỗi của nhà cung cấp chỉ vào log (URL thay bằng `<url>`), không
     lưu vào DB.
   - Kết quả: `utterances[] {speaker ("A", "B", …), start, end (ms), text}` → segment,
     nhãn người nói là chữ cái. Không có `utterances` mà có chữ thì thành một segment
@@ -483,8 +484,10 @@ thuật làm người phụ trách.
     (cùng tên biến agent thư ký AI đọc), `AI_MEETING_TRANSCRIBE_BASE_URL` (rỗng là
     `https://api.assemblyai.com`, Mỹ; `https://api.eu.assemblyai.com` giữ dữ liệu ở EU).
   - Ước trước cho hạn mức: hộp thoại tải lên đọc thời lượng từ metadata của tệp trên
-    trình duyệt và gửi `duration_seconds`; server kẹp vào [dung lượng ÷ 4 MB/s,
-    dung lượng ÷ 16 kB/s]. Không có thì ước theo dung lượng như cũ. Phút tính phí vẫn
+    trình duyệt và gửi `duration_seconds`; server kẹp vào [dung lượng ÷ trần của loại,
+    dung lượng ÷ 1,5 kB/s]. Trần: âm thanh 40 kB/s (320 kbit/s), WAV theo tốc độ PCM
+    của header (không tin trường byte rate), video 2,5 MB/s (20 Mbit/s, video 1080p của
+    điện thoại). Không có thì ước theo dung lượng như cũ. Phút tính phí vẫn
     lấy từ `audio_duration`.
   - Định dạng: AssemblyAI nhận cả âm thanh và video (mp3, m4a, wav, ogg, webm, mp4, …),
     tối đa 5 GB và 10 giờ mỗi file, nên `meeting_audio` nhận thêm `video/mp4`. Hạn 2 GiB
@@ -523,7 +526,8 @@ chuyển dữ liệu cá nhân ra nước ngoài theo quy định hiện hành (
 Nghị định 13/2023/NĐ-CP). Việc này không chặn code; nó chặn việc bật cờ ngoài nội bộ.
 
 Bản ghi lời file tải lên bị xóa ở AssemblyAI (`DELETE /v2/transcript/{id}`) ngay sau khi
-server lấy về và lưu xong; xóa hỏng thì ghi log, việc vẫn xong.
+server lấy về và lưu xong, và cả việc bị bỏ (quá hạn chót, hoặc lỗi rồi gửi lại bằng việc
+mới); xóa hỏng thì ghi log, việc vẫn đi tiếp.
 
 ### 7.6 Dựng biên bản (đợt 7)
 
