@@ -41,15 +41,14 @@ import {
 import { followUpsOptions, roomLinksOptions } from "@/data/queries/chat";
 import { countNewSince } from "@/lib/arrivals";
 import { chatRoutes } from "@/lib/chat-routes";
-import { continuedRunKeys } from "@/lib/conversation-display";
 import { linkWindows, taskIdsByMessage as readTaskIds } from "@/lib/link-windows";
 import { deserializeMessageBodyToComposerDraft } from "@/lib/mentions";
 import { messagePreviewText } from "@/lib/message-display";
 import { buildMessageRowModels, type MessageRowModel, type Receipt } from "@/lib/message-row-model";
 import type { PendingFile } from "@/lib/send-pipeline";
-import { albumsOf } from "@/lib/album";
 import { messageView } from "@/lib/message-display";
-import { buildTimelineRows, type TimelineMessage, type TimelineRow } from "@/lib/timeline-display";
+import type { TimelineMessage, TimelineRow } from "@/lib/timeline-display";
+import { layoutTimeline } from "@/lib/timeline-layout";
 import { useColorScheme } from "@/components/ui/use-color-scheme";
 import { Composer, type ComposerEdit, type ComposerReply } from "./composer";
 import { ConnectionBanner } from "./connection-banner";
@@ -74,6 +73,7 @@ import { toast } from "@/data/stores/toast-store";
 
 // The MobileChat wall: a dot every 22 pt, one tile per scheme, repeated.
 const WALL_DOTS = { light: wallDotsLight, dark: wallDotsDark };
+const NO_PHOTOS: ViewerPhoto[] = [];
 
 type ChatMessageLink = Awaited<ReturnType<ChatApi["listRoomMessageLinks"]>>[number];
 
@@ -127,14 +127,18 @@ export function Conversation(props: Props) {
   const createTask = useCreateTask(wsId, roomId).mutateAsync;
   const signalTyping = useSignalTyping(wsId, roomId);
 
-  const rows = useMemo(() => buildTimelineRows(messages), [messages]);
-  const continued = useMemo(() => continuedRunKeys(rows), [rows]);
-  const albums = useMemo(() => albumsOf(messages), [messages]);
-  // The viewer pages through every photo on screen, oldest first.
+  // One pass over the messages per change: rows newest first (the inverted list's order), runs, albums and the
+  // index quotes read from, an unchanged message's rows kept from last time (lib/timeline-layout.ts).
+  const { rows, continued, albums, byId } = useMemo(() => layoutTimeline(messages), [messages]);
+  // The viewer pages through every photo on screen, oldest first: gathered while it is open, not on every change.
   const { senderName } = room;
+  const viewerOpen = image !== null;
   const photos: ViewerPhoto[] = useMemo(
-    () => messages.filter((m) => m.record && !m.pending && messageView(m.record) === "image").map((m) => ({ id: m.id, record: m.record, sender: senderName(m), ts: m.ts })),
-    [messages, senderName],
+    () =>
+      viewerOpen
+        ? messages.filter((m) => m.record && !m.pending && messageView(m.record) === "image").map((m) => ({ id: m.id, record: m.record, sender: senderName(m), ts: m.ts }))
+        : NO_PHOTOS,
+    [viewerOpen, messages, senderName],
   );
   // Receipts per sent message (bảng Ngôn ngữ): a DM reads its peer's two cursors off the room,
   // a group or channel the furthest read and the earliest delivered among the others (chat-seen-by.tsx).
@@ -241,7 +245,7 @@ export function Conversation(props: Props) {
     const next = buildMessageRowModels(
       {
         rows,
-        messages,
+        byId,
         userId,
         threadRootId,
         isGroup: room.isGroup,
@@ -258,7 +262,7 @@ export function Conversation(props: Props) {
     );
     previousModels.current = next;
     return next;
-  }, [rows, messages, userId, threadRootId, room.isGroup, continued, albums, room.senderName, quoteText, t, receiptOf, props.jumpTo?.id, taskIdsByMessage]);
+  }, [rows, byId, userId, threadRootId, room.isGroup, continued, albums, room.senderName, quoteText, t, receiptOf, props.jumpTo?.id, taskIdsByMessage]);
 
   // One object of handlers for every cell, always running the latest closures.
   const handlers: MessageHandlers = useStableHandlers({

@@ -45,12 +45,14 @@ export interface MessageRowModel {
 }
 
 export interface MessageRowModelInput {
+  /** In any order (lib/timeline-layout.ts lays them out newest first). */
   rows: readonly TimelineRow[];
-  messages: readonly TimelineMessage[];
+  /** Every loaded message by id (lib/timeline-layout.ts › byId): what a quote is read from. */
+  byId: ReadonlyMap<string, TimelineMessage>;
   userId: string;
   threadRootId?: string;
   isGroup: boolean;
-  /** Message rows whose next row continues the run (lib/conversation-display.ts › continuedRunKeys). */
+  /** Message rows whose next message continues the run (lib/timeline-layout.ts › continued). */
   continued: ReadonlySet<string>;
   albums: { folded: ReadonlySet<string>; byFirstId: ReadonlyMap<string, readonly TimelineMessage[]> };
   senderName: (message: TimelineMessage) => string;
@@ -126,7 +128,7 @@ export function buildMessageRowModels(input: MessageRowModelInput, previous?: Re
   const readers: Readers = { userId, threadRootId, isGroup, senderName: input.senderName, quoteText: input.quoteText, unknownQuoteSender: input.unknownQuoteSender };
   const last = previous ? workings.get(previous) : undefined;
   const sameReadersAsLast = last !== undefined && sameReaders(last.readers, readers);
-  const byId = new Map(input.messages.map((message) => [message.id, message]));
+  const { byId } = input;
   const models = new Map<string, MessageRowModel>();
   const quotedByKey = new Map<string, TimelineMessage | undefined>();
   for (const row of input.rows) {
@@ -183,7 +185,7 @@ export function buildMessageRowModels(input: MessageRowModelInput, previous?: Re
       album,
       root,
       // The server's count covers replies on pages not loaded yet; the loaded ones cover a count not refreshed yet.
-      threadReplies: root ? Math.max(message.record?.reply_count ?? 0, input.messages.length - 1) : 0,
+      threadReplies: root ? Math.max(message.record?.reply_count ?? 0, byId.size - 1) : 0,
       highlighted,
       showThread: !threadRootId,
       swipeToReply: !threadRootId && Boolean(message.record),

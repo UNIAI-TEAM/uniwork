@@ -1,8 +1,8 @@
 import { ChatMessageSchema } from "@uniwork/core/api/endpoints/chat-schemas";
 import { describe, expect, it } from "vitest";
-import { continuedRunKeys } from "./conversation-display";
 import { buildMessageRowModels, sameRowModel, type MessageRowModel, type MessageRowModelInput } from "./message-row-model";
-import { buildTimelineRows, toTimelineMessage, type TimelineMessage } from "./timeline-display";
+import { toTimelineMessage, type TimelineMessage } from "./timeline-display";
+import { layoutTimeline } from "./timeline-layout";
 
 const at = (id: string, sender: string, minutes: number, extra: Partial<TimelineMessage> = {}): TimelineMessage => ({
   id,
@@ -18,13 +18,13 @@ const record = (id: string, sender: string, extra: Record<string, unknown> = {})
   );
 
 function input(messages: TimelineMessage[], extra: Partial<MessageRowModelInput> = {}): MessageRowModelInput {
-  const rows = buildTimelineRows(messages);
+  const { rows, byId, continued } = layoutTimeline(messages);
   return {
     rows,
-    messages,
+    byId,
     userId: "me",
     isGroup: true,
-    continued: continuedRunKeys(rows),
+    continued,
     albums: { folded: new Set(), byFirstId: new Map() },
     senderName: (message) => (message.sender === "me" ? "Bạn" : message.sender.toUpperCase()),
     quoteText: (message) => message.body,
@@ -39,7 +39,7 @@ function input(messages: TimelineMessage[], extra: Partial<MessageRowModelInput>
 describe("buildMessageRowModels", () => {
   it("works out a group's run: the name on the first bubble, the face on the last, the spacer between", () => {
     const models = buildMessageRowModels(input([at("a1", "an", 0), at("a2", "an", 1), at("m1", "me", 2)]));
-    expect([...models.keys()]).toEqual(["a1", "a2", "m1"]);
+    expect([...models.keys()].sort()).toEqual(["a1", "a2", "m1"]);
     expect(models.get("a1")).toMatchObject({ own: false, showSender: true, continued: true, avatar: "spacer", senderName: "AN", receipt: null });
     expect(models.get("a2")).toMatchObject({ showSender: false, continued: false, avatar: "face", compactTop: true });
     expect(models.get("m1")).toMatchObject({ own: true, showSender: false, avatar: "none", receipt: "sent", swipeToReply: false, showThread: true });

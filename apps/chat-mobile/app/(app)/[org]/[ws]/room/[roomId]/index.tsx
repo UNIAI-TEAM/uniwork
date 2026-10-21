@@ -18,6 +18,7 @@ import { RoomChatHeader } from "@/components/chat/room-typing";
 import { useChatWorkspace, type ChatWorkspace } from "@/components/chat/use-chat-workspace";
 import { useRoomReadMarking } from "@/components/chat/use-read-marking";
 import { useRoomContext } from "@/components/chat/use-room-context";
+import { useTimelineWindow } from "@/components/chat/use-timeline-window";
 import { Text } from "@/components/ui/text";
 import { useMobileFlag } from "@/data/remote-config";
 import { ScreenFullyDrawn } from "@/data/sentry";
@@ -63,6 +64,8 @@ function RoomConversation({ chat, roomId, linkedMessageId }: { chat: ChatWorkspa
   );
 
   useRoomReadMarking(chat.wsId, roomId, latestRows.at(-1)?.id ?? null, atLatest && anchorRows === null);
+  // Back at the newest message: the older pages scrolled in on the way up are dropped (a sliding window).
+  useTimelineWindow(chat.wsId, roomId, atLatest && anchorRows === null);
 
   // The web's chat header calls from a DM, a group or a channel, never from the workspace room.
   // ...and only while the server's calls switch is on (data/remote-config.ts).

@@ -4,13 +4,15 @@
 // times, never animated and never forever.
 import { act, fireEvent, screen } from "@testing-library/react-native";
 import { FlatList, Text } from "react-native";
-import { buildTimelineRows, type TimelineMessage, type TimelineRow } from "@/lib/timeline-display";
+import type { TimelineMessage, TimelineRow } from "@/lib/timeline-display";
+import { layoutTimeline } from "@/lib/timeline-layout";
 import { render } from "@/test/render";
 import { MessageList } from "./message-list";
 
 const T0 = new Date(2026, 9, 21, 9, 0).getTime();
 const messages = (count: number): TimelineMessage[] =>
   Array.from({ length: count }, (_, n) => ({ id: `m${n}`, sender: n % 2 ? "U1" : "U2", body: `tin ${n}`, ts: T0 + n * 60_000 }));
+const newestFirst = (list: TimelineMessage[]) => layoutTimeline(list).rows;
 const renderMessage = (row: Extract<TimelineRow, { type: "message" }>) => <Text>{row.message.body}</Text>;
 
 let scrollToIndex: jest.SpyInstance;
@@ -34,7 +36,7 @@ const advance = (ms: number) => act(async () => void jest.advanceTimersByTime(ms
 
 describe("MessageList", () => {
   it("mounts a screenful of a long history, newest first, not all of it", async () => {
-    await render(list(buildTimelineRows(messages(500))));
+    await render(list(newestFirst(messages(500))));
     expect(screen.getByText("tin 499")).toBeOnTheScreen();
     expect(screen.queryByText("tin 0")).toBeNull();
     const flat = screen.getByTestId("message-list").props as { windowSize: number; initialNumToRender: number; maxToRenderPerBatch: number };
@@ -42,7 +44,7 @@ describe("MessageList", () => {
   });
 
   it("animates a jump to a near message, and jumps far without animation", async () => {
-    const rows = buildTimelineRows(messages(100));
+    const rows = newestFirst(messages(100));
     const { rerender } = await render(list(rows, { jumpTo: { id: "m95", seq: 1 } }));
     await advance(50);
     expect(scrollToIndex).toHaveBeenLastCalledWith(expect.objectContaining({ viewPosition: 0.5, animated: true }));
@@ -58,7 +60,7 @@ describe("MessageList", () => {
   });
 
   it("reaches a target it has not measured by estimate, then retries its index a few times, unanimated", async () => {
-    await render(list(buildTimelineRows(messages(100))));
+    await render(list(newestFirst(messages(100))));
     const failed = (screen.getByTestId("message-list").props as { onScrollToIndexFailed: (info: { index: number; averageItemLength: number }) => void }).onScrollToIndexFailed;
     for (let attempt = 0; attempt < 5; attempt += 1) {
       await act(async () => failed({ index: 80, averageItemLength: 50 }));
@@ -70,7 +72,7 @@ describe("MessageList", () => {
   });
 
   it("drops a pending retry when it unmounts", async () => {
-    const { unmount } = await render(list(buildTimelineRows(messages(10))));
+    const { unmount } = await render(list(newestFirst(messages(10))));
     const failed = (screen.getByTestId("message-list").props as { onScrollToIndexFailed: (info: { index: number; averageItemLength: number }) => void }).onScrollToIndexFailed;
     await act(async () => failed({ index: 8, averageItemLength: 50 }));
     await act(async () => failed({ index: 8, averageItemLength: 50 }));
@@ -81,7 +83,7 @@ describe("MessageList", () => {
 
   it("says when the reader leaves and comes back to the newest message, and scrolls down on a new signal", async () => {
     const onAtLatestChange = jest.fn();
-    const rows = buildTimelineRows(messages(30));
+    const rows = newestFirst(messages(30));
     const { rerender } = await render(list(rows, { onAtLatestChange }));
     const scroll = (y: number) => fireEvent.scroll(screen.getByTestId("message-list"), { nativeEvent: { contentOffset: { x: 0, y }, contentSize: { width: 390, height: 3000 }, layoutMeasurement: { width: 390, height: 700 } } });
     await scroll(500);
@@ -95,7 +97,7 @@ describe("MessageList", () => {
   it("says its empty line on an empty wall, and shows older pages loading", async () => {
     const { rerender } = await render(list([], { empty: "Chưa có tin nhắn" }));
     expect(screen.getByText("Chưa có tin nhắn")).toBeOnTheScreen();
-    await rerender(list(buildTimelineRows(messages(3)), { loadingOlder: true }));
+    await rerender(list(newestFirst(messages(3)), { loadingOlder: true }));
     expect(screen.getByText("tin 2")).toBeOnTheScreen();
   });
 });

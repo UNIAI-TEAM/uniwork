@@ -1,15 +1,15 @@
 // What a change to a long conversation costs on the JS thread (audit P2 Perf:
 // a reader scrolled back 40 pages holds 2,000 messages, and every frame,
-// receipt or reaction rebuilds the rows). Two guards: a count of the readers'
-// calls, deterministic, that keeps an update to O(rows changed) work; and a
-// coarse time budget for the whole rebuild, generous enough for a loaded CI
-// runner, that catches a rebuild turned quadratic.
+// receipt or reaction rebuilds the rows). Three guards: a count of the
+// readers' calls and of the reads of the message list, deterministic, that
+// keeps an update to one pass over the messages and O(rows changed) work
+// beyond it; and a coarse time budget for the whole rebuild, generous enough
+// for a loaded CI runner, that catches a rebuild turned quadratic.
 import { ChatMessageSchema } from "@uniwork/core/api/endpoints/chat-schemas";
 import { describe, expect, it } from "vitest";
-import { albumsOf } from "./album";
-import { continuedRunKeys } from "./conversation-display";
 import { buildMessageRowModels, type MessageRowModel, type MessageRowModelInput } from "./message-row-model";
-import { buildTimelineRows, toTimelineMessage, type TimelineMessage } from "./timeline-display";
+import { toTimelineMessage, type TimelineMessage } from "./timeline-display";
+import { layoutTimeline } from "./timeline-layout";
 
 const T0 = new Date(2026, 9, 1, 8, 0).getTime();
 const id = (n: number) => `m${String(n).padStart(5, "0")}`;
@@ -59,15 +59,15 @@ function countedReaders(): Counted {
 
 /** The conversation screen's rebuild (components/chat/conversation.tsx) over `messages`. */
 function rebuild(messages: TimelineMessage[], readers: Counted["readers"], previous?: ReadonlyMap<string, MessageRowModel>) {
-  const rows = buildTimelineRows(messages);
+  const { rows, byId, continued, albums } = layoutTimeline(messages);
   const models = buildMessageRowModels(
     {
       rows,
-      messages,
+      byId,
       userId: "u0",
       isGroup: true,
-      continued: continuedRunKeys(rows),
-      albums: albumsOf(messages),
+      continued,
+      albums,
       unknownQuoteSender: "Trả lời",
       highlightedId: null,
       taskIdsByMessage: new Map(),
@@ -93,6 +93,23 @@ describe("a 2,000-message conversation", () => {
     expect(calls.senderName).toBeLessThanOrEqual(2);
     expect(calls.quoteText).toBe(0);
     expect(next.get(id(1000))).toBe(first.get(id(1000)));
+  });
+
+  it("reads the message list once per change, and keeps every unchanged row's object", () => {
+    const { readers } = countedReaders();
+    const first = rebuild(loaded, readers);
+    let reads = 0;
+    const next = new Proxy([...loaded, ...conversation(1, 2000)], {
+      get(target, property, receiver) {
+        if (typeof property === "string" && /^\d+$/.test(property)) reads += 1;
+        return Reflect.get(target, property, receiver) as unknown;
+      },
+    });
+    const second = rebuild(next, readers, first.models);
+    expect(reads).toBe(2001);
+    // Newest first: the new message (and the day it may open) on top, every row below it last time's object.
+    const kept = second.rows.filter((row) => first.rows.includes(row)).length;
+    expect(kept).toBe(first.rows.length);
   });
 
   it("reads every row again when what names a sender changed (a nickname, the room's people)", () => {

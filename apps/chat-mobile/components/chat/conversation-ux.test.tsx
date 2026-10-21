@@ -2,6 +2,8 @@
 // send is felt and lands in view, a long press and a reaction are felt, a
 // reader scrolled up gets "N new" to jump back down, and a screen reader hears
 // what someone else just sent.
+// The photo viewer's pager and zoom run on the gesture runtime.
+import "react-native-gesture-handler/jestSetup";
 import { ChatMessageSchema, ChatRoomSchema, type ChatMessageRecord } from "@uniwork/core/api/endpoints/chat-schemas";
 import { act, fireEvent, screen } from "@testing-library/react-native";
 import * as Haptics from "expo-haptics";
@@ -97,6 +99,34 @@ describe("Conversation feel", () => {
     await fireEvent.press(screen.getByRole("button", { name: viText("chat.message_list.reaction_aria", { emoji: "👍", count: 1 }) }));
     expect(Haptics.selectionAsync).toHaveBeenCalled();
     expect(pendingOps.toggleReaction).toHaveBeenCalledWith(expect.anything(), "w1", "r1", "m10", "👍", "ME");
+  });
+});
+
+describe("the photo viewer", () => {
+  const photo = (id: string, minute: number) =>
+    ChatMessageSchema.parse({
+      id,
+      room_id: "r1",
+      workspace_id: "w1",
+      sender_id: "U2",
+      sender_display_name: "Bình",
+      kind: "file",
+      body: "",
+      created_at: new Date(T0 + minute * 60_000).toISOString(),
+      file: { id: `f-${id}`, filename: `${id}.jpg`, content_type: "image/jpeg", size_bytes: 1, url: `https://x/${id}.jpg`, url_expires_at: "2099-01-01T00:00:00Z" },
+    });
+
+  it("pages through every photo of the conversation once a photo opens it", async () => {
+    // The opened page renews its URL with the room's other asks: no network in a test.
+    jest.spyOn(chatApi, "getMessage").mockResolvedValue(null);
+    // Ten minutes apart: two photos of their own, not one album.
+    await render(<Screen records={[...history, photo("p1", 100), record("m20", "ME", 105), photo("p2", 110)]} />);
+    await settle();
+    expect(screen.queryByText(viText("chat.image_viewer_position", { current: 1, total: 2 }))).toBeNull();
+    await act(async () => {
+      await fireEvent.press(screen.getByRole("imagebutton", { name: viText("chat.message_list.file_open_named", { name: "p1.jpg" }) }));
+    });
+    expect(await screen.findByText(viText("chat.image_viewer_position", { current: 1, total: 2 }))).toBeOnTheScreen();
   });
 });
 

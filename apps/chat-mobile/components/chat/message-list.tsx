@@ -22,7 +22,7 @@
 // scroll); a target never measured is reached by the average row height, then
 // retried a few times at its index, never animated. A target outside the
 // loaded pages is the room's to load (roomAroundOptions), not this list's.
-import { memo, useCallback, useEffect, useMemo, useRef, type ReactNode } from "react";
+import { memo, useCallback, useEffect, useRef, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { ActivityIndicator, FlatList, View, type ListRenderItem } from "react-native";
 import { Text } from "@/components/ui/text";
@@ -37,6 +37,7 @@ const JUMP_RETRIES = 3;
 const RETRY_MS = 60;
 
 interface Props {
+  /** Newest first, the inverted list's order (lib/timeline-layout.ts): never reversed here per change. */
   rows: TimelineRow[];
   renderMessage: (row: Extract<TimelineRow, { type: "message" }>) => ReactNode;
   onLoadOlder?: () => void;
@@ -68,7 +69,6 @@ const DayRow = memo(function DayRow({ ts }: { ts: number }) {
 
 export function MessageList({ rows, renderMessage, onLoadOlder, loadingOlder, bottom, jumpTo, onAtLatestChange, empty, latestSignal = 0 }: Props) {
   const list = useRef<FlatList<TimelineRow>>(null);
-  const data = useMemo(() => [...rows].reverse(), [rows]);
   const jumped = useRef<number | null>(null);
   const atLatest = useRef(true);
   const renderItem: ListRenderItem<TimelineRow> = useCallback(
@@ -87,7 +87,7 @@ export function MessageList({ rows, renderMessage, onLoadOlder, loadingOlder, bo
 
   useEffect(() => {
     if (!jumpTo || jumped.current === jumpTo.seq) return;
-    const index = data.findIndex((row) => row.type === "message" && row.message.id === jumpTo.id);
+    const index = rows.findIndex((row) => row.type === "message" && row.message.id === jumpTo.id);
     if (index < 0) return;
     // After the first layout pass, or the list does not know the rows' heights yet.
     const timer = setTimeout(() => {
@@ -96,7 +96,7 @@ export function MessageList({ rows, renderMessage, onLoadOlder, loadingOlder, bo
       list.current?.scrollToIndex({ index, viewPosition: 0.5, animated: index <= FAR_JUMP_ROWS });
     }, 50);
     return () => clearTimeout(timer);
-  }, [data, jumpTo]);
+  }, [rows, jumpTo]);
 
   const onScrollToIndexFailed = useCallback((info: { index: number; averageItemLength: number }) => {
     list.current?.scrollToOffset({ offset: info.averageItemLength * info.index, animated: false });
@@ -129,7 +129,7 @@ export function MessageList({ rows, renderMessage, onLoadOlder, loadingOlder, bo
     <FlatList
       ref={list}
       testID="message-list"
-      data={data}
+      data={rows}
       inverted
       keyExtractor={keyOf}
       renderItem={renderItem}

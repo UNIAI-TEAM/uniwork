@@ -440,8 +440,17 @@ một dòng thì ghi lý do ở dòng trên.
   `useRoomContext` lấy người kia của DM qua `select` của query phòng (structural sharing — tin mới đổi record phòng,
   không đổi người kia), `receiptOf` phụ thuộc hai chuỗi con trỏ, không phải object. `messageDayKey` nhớ ngày theo
   timestamp (giới hạn 10.000, xoá khi múi giờ hiện tại đổi, xem tối đa mỗi phút): trước đó nó là phần lớn chi phí dựng.
-  Không đặt `maxPages` cho timeline: cache realtime (`room-timeline-pages`) coi trang đầu là trang mới nhất, và mở lại
-  phòng đã cắt về trang mới nhất.
+  Bố cục timeline là một lượt (`lib/timeline-layout.ts › layoutTimeline`): mỗi tin đọc một lần, ra hàng theo thứ tự
+  của danh sách đảo ngược (mới nhất trước — `MessageList` không đảo mảng mỗi lần đổi), chuỗi bong bóng nối, album và
+  chỉ mục theo id mà trích dẫn đọc; hàng của một tin giữ theo object tin và tin ngay trước nó (cùng múi giờ —
+  `dayKeysEpoch`), nên tin không đổi trả lại đúng object hàng cũ, và "là ảnh album" tính một lần mỗi tin.
+  `buildTimelineRows`, `continuedRunKeys`, `albumsOf` là định nghĩa gốc mà `timeline-layout.test.ts` so bằng; test
+  perf đếm số lần đọc mảng tin (một lượt mỗi lần đổi). Danh sách ảnh của trình xem chỉ dựng khi trình xem mở.
+  Không đặt `maxPages` cho timeline: TanStack bỏ `pages[0]` khi thêm trang cuối, mà cache realtime
+  (`room-timeline-pages`) coi trang đầu là trang mới nhất. Thay vào đó là cửa sổ trượt (`data/timeline-window.ts`,
+  `components/chat/use-timeline-window.ts`): mỗi lần người đọc về tin mới nhất (không đang xem trang quanh một tin
+  cũ), phòng bỏ các trang cũ nhất quá `KEPT_TIMELINE_PAGES` (8 trang, 400 tin), không bao giờ khi đang fetch; cuộn lên
+  thì tải lại theo cursor. Mở lại phòng vẫn cắt về trang mới nhất.
   `lib/user-id.ts` (`userKey`/`sameUser`) thay `trim().toUpperCase()` ngoài các file copy từ web. Link việc của tin
   hỏi theo cửa sổ (`lib/link-windows.ts`, ranh giới theo hash id): tin mới chỉ refetch cửa sổ mới nhất; cửa sổ vừa
   đổi key giữ thẻ việc cũ của các tin trong nó tới khi có câu trả lời (`taskIdsByMessage`; `keepPreviousData` không áp

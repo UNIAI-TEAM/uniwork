@@ -8,7 +8,6 @@ import { isChatImageContentType, resolveChatFileContentType } from "./file-accep
 import { messageDayKey, type TimelineMessage } from "./timeline-display";
 
 const ALBUM_GAP_MS = 2 * 60 * 1000;
-const ALBUM_MAX = 10;
 
 export function isAlbumPhoto(message: TimelineMessage): boolean {
   const record = message.record;
@@ -20,6 +19,14 @@ export function isAlbumPhoto(message: TimelineMessage): boolean {
   return !message.replyToEventId && !(record.reply_count > 0) && !record.forwarded_from && !reacted;
 }
 
+/** Most photos one album holds: the next one starts another. */
+export const ALBUM_MAX = 10;
+
+/** Two album photos side by side join: one sender, within two minutes, on one day. */
+export function photosJoin(prev: TimelineMessage, cur: TimelineMessage): boolean {
+  return cur.sender === prev.sender && cur.ts - prev.ts <= ALBUM_GAP_MS && messageDayKey(cur.ts) === messageDayKey(prev.ts);
+}
+
 /** [start, end) spans of two or more photos, oldest first. */
 export function imageAlbumSpans(messages: readonly TimelineMessage[]): { start: number; end: number }[] {
   const photo = messages.map(isAlbumPhoto);
@@ -28,15 +35,7 @@ export function imageAlbumSpans(messages: readonly TimelineMessage[]): { start: 
   for (let i = 1; i <= messages.length; i += 1) {
     const prev = messages[i - 1];
     const cur = messages[i];
-    const joins =
-      !!prev &&
-      !!cur &&
-      photo[i - 1] &&
-      photo[i] &&
-      cur.sender === prev.sender &&
-      cur.ts - prev.ts <= ALBUM_GAP_MS &&
-      messageDayKey(cur.ts) === messageDayKey(prev.ts) &&
-      i - start < ALBUM_MAX;
+    const joins = !!prev && !!cur && photo[i - 1] && photo[i] && photosJoin(prev, cur) && i - start < ALBUM_MAX;
     if (joins) continue;
     if (i - start >= 2) spans.push({ start, end: i });
     start = i;
@@ -44,7 +43,7 @@ export function imageAlbumSpans(messages: readonly TimelineMessage[]): { start: 
   return spans;
 }
 
-/** The album each first photo opens, and the photos it swallows. */
+/** The album each first photo opens, and the photos it swallows (lib/timeline-layout.ts builds the same in its one pass). */
 export function albumsOf(messages: readonly TimelineMessage[]): { byFirstId: Map<string, TimelineMessage[]>; folded: Set<string> } {
   const byFirstId = new Map<string, TimelineMessage[]>();
   const folded = new Set<string>();

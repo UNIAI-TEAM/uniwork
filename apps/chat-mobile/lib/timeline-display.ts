@@ -60,6 +60,8 @@ const ZONE_CHECK_MS = 60_000;
 const dayKeys = new Map<number, number>();
 let zoneCheckedAt = Number.NEGATIVE_INFINITY;
 let zoneOffset = Number.NaN;
+/** Moves each time the day keys start over for a new UTC offset: a day worked out before then may be wrong now. */
+let zoneEpoch = 0;
 
 function dropDayKeysOnZoneChange(): void {
   const now = Date.now();
@@ -68,7 +70,14 @@ function dropDayKeysOnZoneChange(): void {
   const offset = new Date(now).getTimezoneOffset();
   if (offset === zoneOffset) return;
   zoneOffset = offset;
+  zoneEpoch += 1;
   dayKeys.clear();
+}
+
+/** The current time-zone epoch: anything that kept a day key (lib/timeline-layout.ts) is stale once it moves. */
+export function dayKeysEpoch(): number {
+  dropDayKeysOnZoneChange();
+  return zoneEpoch;
 }
 
 /** Local calendar day of a timestamp, as a comparable key. */
@@ -190,7 +199,11 @@ export type TimelineRow =
   | { type: "day"; key: string; ts: number }
   | { type: "message"; key: string; message: TimelineMessage; compactTop: boolean; showAvatar: boolean };
 
-/** Messages (oldest first) with a day separator before each new local day, newest last. */
+/**
+ * Messages (oldest first) with a day separator before each new local day, newest last. The plain definition:
+ * the screen lays a timeline out with lib/timeline-layout.ts, which builds the same rows newest first, reusing each
+ * unchanged message's rows, and is checked against this one.
+ */
 export function buildTimelineRows(messages: readonly TimelineMessage[]): TimelineRow[] {
   const rows: TimelineRow[] = [];
   messages.forEach((message, index) => {
