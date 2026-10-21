@@ -11,7 +11,7 @@ import { setAudioModeAsync, useAudioPlayer, useAudioPlayerStatus } from "expo-au
 import { Image } from "expo-image";
 import * as WebBrowser from "expo-web-browser";
 import type { ReactNode } from "react";
-import { useTranslation } from "react-i18next";
+import { Trans, useTranslation } from "react-i18next";
 import { Alert, Pressable, View } from "react-native";
 import { Text } from "@/components/ui/text";
 import { TINTS, TintTile } from "@/components/ui/tint-tile";
@@ -43,6 +43,8 @@ export interface MessageCardContext {
   onOpenImage: (url: string, name: string, messageId?: string) => void;
   /** A tap on a poll option (M3); the cache takes the answer. */
   onVotePoll: (messageId: string, optionId: string) => void;
+  /** Scroll the conversation to a message (poll vote activity → original poll). */
+  onJumpToMessage?: (messageId: string) => void;
 }
 
 /** The views whose card is a button of its own (the row then is not one accessible element). */
@@ -328,6 +330,46 @@ function ReminderCard({ record, own }: { record: ChatMessageRecord; own: boolean
   );
 }
 
+/** Zalo-style notice when someone votes (packages/views/chat/chat-poll-vote-activity-row.tsx). */
+function PollVoteActivityChip({
+  record,
+  ctx,
+  senderLabel,
+}: {
+  record: ChatMessageRecord;
+  ctx: MessageCardContext;
+  senderLabel: string;
+}) {
+  const { t } = useTranslation();
+  const theme = useTheme();
+  const activity = record.poll_vote!;
+  const pollId = activity.poll_message_id;
+  const question = activity.question;
+  return (
+    <View className="max-w-full flex-row flex-wrap items-center gap-1.5 self-center rounded-full bg-chat-chip px-3 py-2 ring-1 ring-border/60">
+      <Ionicons name="stats-chart-outline" size={15} color={theme.tintGreenForeground} />
+      <Text className="min-w-0 flex-1 text-[13px] leading-snug text-chat-chip-foreground">
+        <Trans
+          i18nKey="chat.poll_vote_activity_line"
+          values={{ name: senderLabel, question }}
+          components={{ b: <Text className="font-semibold" /> }}
+        />
+      </Text>
+      {pollId && ctx.onJumpToMessage ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t("chat.poll_vote_activity_view")}
+          hitSlop={8}
+          onPress={() => ctx.onJumpToMessage!(pollId)}
+          className="min-h-8 justify-center px-1"
+        >
+          <Text className="text-[13px] font-semibold text-primary">{t("chat.poll_vote_activity_view")}</Text>
+        </Pressable>
+      ) : null}
+    </View>
+  );
+}
+
 /** A call log: a chip, red when the call rang for the reader and went unanswered (voice-call-log-row.tsx's `missed`). */
 function CallLogChip({ record, ctx }: { record: ChatMessageRecord; ctx: MessageCardContext }) {
   const { t, i18n } = useTranslation();
@@ -401,7 +443,19 @@ function UnsupportedCard({ record, ctx, own, onLongPress }: { record: Pick<ChatM
  * "call-log" is a centred chip with its own time, meant to stand on the wall
  * without a bubble.
  */
-export function MessageContent({ record, own, ctx, onLongPress }: { record: ChatMessageRecord; own: boolean; ctx: MessageCardContext; onLongPress: () => void }) {
+export function MessageContent({
+  record,
+  own,
+  ctx,
+  onLongPress,
+  senderLabel,
+}: {
+  record: ChatMessageRecord;
+  own: boolean;
+  ctx: MessageCardContext;
+  onLongPress: () => void;
+  senderLabel?: string;
+}) {
   const { t } = useTranslation();
   const body = cn("text-[15px]", ink(own).text);
   switch (messageView(record)) {
@@ -440,6 +494,8 @@ export function MessageContent({ record, own, ctx, onLongPress }: { record: Chat
       );
     case "reminder":
       return <ReminderCard record={record} own={own} />;
+    case "poll-vote-activity":
+      return <PollVoteActivityChip record={record} ctx={ctx} senderLabel={senderLabel ?? record.sender_display_name ?? ""} />;
     case "call-log":
       return <CallLogChip record={record} ctx={ctx} />;
     case "call-summary":

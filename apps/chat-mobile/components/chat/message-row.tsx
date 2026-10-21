@@ -101,6 +101,20 @@ export const MessageRow = memo(function MessageRow(props: MessageRowProps) {
     );
   }
 
+  if (record && messageView(record) === "poll-vote-activity") {
+    return (
+      <View className="items-center px-3 py-1.5" accessible accessibilityLabel={messagePreviewText(record, t)}>
+        <MessageContent
+          record={record}
+          own={false}
+          ctx={ctx}
+          senderLabel={senderName}
+          onLongPress={() => props.onLongPress(message)}
+        />
+      </View>
+    );
+  }
+
   const interactive = album ? true : record ? INTERACTIVE_VIEWS.has(messageView(record)) : false;
   const footTs = album?.at(-1)?.ts ?? message.ts;
   const preview = record ? messagePreviewText(record, t) : message.body;
