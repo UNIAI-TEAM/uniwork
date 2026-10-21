@@ -3,11 +3,12 @@
 import { useMemo } from "react";
 import { Check } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { useChatPollVoters } from "@uniwork/core/chat";
 import {
   groupPollVotersByOption,
   resolvePollVoterLabel,
-  type PollVotesByUser,
 } from "@uniwork/core/chat/poll-utils";
+import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { ActorAvatar } from "@uniwork/ui/components/common/actor-avatar";
 import { Dialog } from "@uniwork/ui/components/ui/dialog";
 import { cn } from "@uniwork/ui/lib/utils";
@@ -120,9 +121,11 @@ function PollOptionVotersSection({
 export function ChatPollVotersDialog({
   open,
   onOpenChange,
+  workspaceId,
+  roomId,
+  messageId,
   question,
   options,
-  votesByUser,
   focusedOptionId,
   nameContext,
   currentUserId,
@@ -130,15 +133,18 @@ export function ChatPollVotersDialog({
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  workspaceId: string;
+  roomId: string;
+  messageId: string;
   question: string;
   options: PollOption[];
-  votesByUser: PollVotesByUser;
   focusedOptionId?: string | null;
   nameContext: ChatNameContextEntry[];
   currentUserId: string;
   youLabel: string;
 }) {
   const { t } = useTranslation();
+  const { data: votesByUser, isPending } = useChatPollVoters(workspaceId, roomId, messageId, open);
   const totalVotes = options.reduce((sum, option) => sum + option.votes, 0);
   const votersByOption = useMemo(
     () => groupPollVotersByOption(votesByUser, options.map((option) => option.id)),
@@ -147,7 +153,7 @@ export function ChatPollVotersDialog({
   const names: VoterNames = { nameContext, currentUserId, youLabel };
   // The same shares the card shows: whole percents that add up to 100.
   const percents = pollOptionPercents(options.map((option) => option.votes));
-  const myPicks = votesByUser[currentUserId] ?? [];
+  const myPicks = votesByUser?.[currentUserId] ?? [];
 
   const focusedOption = focusedOptionId
     ? options.find((option) => option.id === focusedOptionId)
@@ -162,24 +168,32 @@ export function ChatPollVotersDialog({
         />
 
         <FormDialogBody className={`${CHAT_DIALOG_BODY_CLASS} space-y-2.5 pt-4.5 pb-6`}>
-          <p className="text-micro font-semibold tracking-wider text-muted-foreground uppercase tabular-nums">
-            {focusedOption
-              ? t("chat.poll_voters_option_count", { count: focusedOption.votes })
-              : t("chat.poll_vote_hint", { count: totalVotes })}
-          </p>
-          {focusedOption ? (
-            <PollVoterList voterIds={votersByOption[focusedOption.id] ?? []} names={names} />
+          {isPending ? (
+            <div className="flex justify-center py-8">
+              <Spinner />
+            </div>
           ) : (
-            options.map((option, index) => (
-              <PollOptionVotersSection
-                key={option.id}
-                option={option}
-                voterIds={votersByOption[option.id] ?? []}
-                percent={percents[index] ?? 0}
-                mine={myPicks.includes(option.id)}
-                names={names}
-              />
-            ))
+            <>
+              <p className="text-micro font-semibold tracking-wider text-muted-foreground uppercase tabular-nums">
+                {focusedOption
+                  ? t("chat.poll_voters_option_count", { count: focusedOption.votes })
+                  : t("chat.poll_vote_hint", { count: totalVotes })}
+              </p>
+              {focusedOption ? (
+                <PollVoterList voterIds={votersByOption[focusedOption.id] ?? []} names={names} />
+              ) : (
+                options.map((option, index) => (
+                  <PollOptionVotersSection
+                    key={option.id}
+                    option={option}
+                    voterIds={votersByOption[option.id] ?? []}
+                    percent={percents[index] ?? 0}
+                    mine={myPicks.includes(option.id)}
+                    names={names}
+                  />
+                ))
+              )}
+            </>
           )}
         </FormDialogBody>
       </FormDialogContent>

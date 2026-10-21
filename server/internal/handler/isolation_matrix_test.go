@@ -630,7 +630,7 @@ func isoParam(t *testing.T, pattern string, segs []string, i int, tn *isoTenant)
 		switch {
 		case strings.Contains(pattern, "/ai/conversations/"):
 			return tn.get(t, "aiAnswer")
-		case strings.HasSuffix(pattern, "/poll/vote"):
+		case strings.HasSuffix(pattern, "/poll/vote"), strings.HasSuffix(pattern, "/poll/options"), strings.HasSuffix(pattern, "/poll/voters"):
 			return tn.get(t, "pollMessage")
 		case strings.HasSuffix(pattern, "/task-sync"):
 			// A group thread cannot sync to a task (H12); a public channel's can.

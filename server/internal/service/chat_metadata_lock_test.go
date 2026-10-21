@@ -69,8 +69,8 @@ func TestChatConcurrentPollVotesAreNotLost(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.Poll.Options[0].Votes != len(users) || len(got.Poll.VotesByUser) != len(users) {
-		t.Fatalf("votes=%d voters=%d, want %d", got.Poll.Options[0].Votes, len(got.Poll.VotesByUser), len(users))
+	if got.Poll.Options[0].Votes != len(users) {
+		t.Fatalf("votes=%d, want %d", got.Poll.Options[0].Votes, len(users))
 	}
 }
 

@@ -132,8 +132,9 @@ export function Conversation(props: Props) {
       userId,
       onOpenImage: (url, name, messageId) => setImage({ id: messageId ?? url, url, name }),
       onVotePoll: (messageId, optionId) => void votePoll(qc, wsId, roomId, messageId, optionId).catch(() => Alert.alert(t("chat.message_list.poll_vote_failed"))),
+      onJumpToMessage: props.onQuoteJump,
     }),
-    [wsId, chat.orgSlug, chat.wsSlug, roomId, userId, qc, t],
+    [wsId, chat.orgSlug, chat.wsSlug, roomId, userId, qc, t, props.onQuoteJump],
   );
 
   // The tasks made from the messages on screen, one request per window (the web's chat-message-links-context).
@@ -198,7 +199,7 @@ export function Conversation(props: Props) {
     if (message.id !== threadRootId)
       return (
         <SwipeToReply
-          enabled={!threadRootId && Boolean(message.record)}
+          enabled={!threadRootId && Boolean(message.record) && message.record?.kind !== "poll_vote"}
           onReply={() => {
             setEdit(null);
             setReply(quoteOf(message));
