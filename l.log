@@ -1,0 +1,4 @@
+$ for i in $(seq 1 14); do test -f /tmp/pr7r8-e2e.exit && break; sleep 30; done; echo "DONE_FILE=$(test -f /tmp/pr7r8-e2e.exit && echo yes || echo no)"; tail -2 /tmp/pr7r8-e2e.log
+DONE_FILE=yes
+
+  49 passed (3.3m)
