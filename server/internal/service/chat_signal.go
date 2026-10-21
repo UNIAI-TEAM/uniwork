@@ -76,7 +76,10 @@ func (s *ChatService) SignalVoiceAccept(ctx context.Context, userID, workspaceID
 	}
 	s.trackVoiceCallAccept(roomID, callID, userID)
 	s.trackVoiceCallParticipant(roomID, callID, userID)
-	s.closeVoiceCallRings(ctx, roomID, []string{userID})
+	// Only someone the call rang has a ring row and phones to stop.
+	if voiceCallInvitee(roomID, callID, userID) {
+		s.closeVoiceCallRings(ctx, room, callID, userID, []string{userID})
+	}
 	ev := Event{
 		Type: "chat.voice.accept",
 		Payload: map[string]string{

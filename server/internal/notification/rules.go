@@ -110,6 +110,13 @@ type CallRingChecker interface {
 	VoiceCallRinging(roomID, callID, userID string) bool
 }
 
+// CallVideoChecker says whether a live call was started with the camera on;
+// a CallRingChecker that also implements it lets the phone's ringing screen
+// say "video call". ChatService does.
+type CallVideoChecker interface {
+	VoiceCallVideo(roomID, callID string) bool
+}
+
 // env is what a rule may touch: read queries, the membership gate and the
 // injected document-read resolver.
 type env struct {

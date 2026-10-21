@@ -70,15 +70,19 @@ func (c *PushConsumer) SetMetrics(m Metrics) { c.metrics = m }
 
 func (*PushConsumer) Name() string { return "notification-push" }
 
-func (*PushConsumer) Topics() []string { return []string{TopicPush} }
+func (*PushConsumer) Topics() []string { return []string{TopicPush, TopicCallRingClosed} }
 
 // Handle sends once per subscription and marks the notification pushed, so
 // a retried row after a partial failure does not re-send to the browsers
 // that already got it — pushed_at is per notification, which is the
-// granularity the outbox retries at.
+// granularity the outbox retries at. A closed ring is not a notification: it
+// tells the person's Android phones to stop ringing (handleRingClosed).
 func (c *PushConsumer) Handle(ctx context.Context, ev outbox.Row) error {
 	if c.sender == nil {
 		return nil
+	}
+	if ev.Topic == TopicCallRingClosed {
+		return c.handleRingClosed(ctx, ev)
 	}
 	var p map[string]string
 	if err := json.Unmarshal([]byte(ev.Payload), &p); err != nil {
@@ -129,7 +133,10 @@ func (c *PushConsumer) Handle(ctx context.Context, ev outbox.Row) error {
 	if err != nil {
 		return err
 	}
-	var body, link string
+	var params map[string]string
+	_ = json.Unmarshal([]byte(n.Params), &params)
+	msg := PushMessage{Title: PushTitle(user.Locale, n.Kind, params), Channel: pushChannel(n.Kind), Tag: n.GroupKey}
+	var link string
 	if isChatPushKind(n.Kind) {
 		// The preview is read at delivery, so a message deleted in the
 		// meantime sends nothing.
@@ -140,7 +147,11 @@ func (c *PushConsumer) Handle(ctx context.Context, ev outbox.Row) error {
 		if err != nil {
 			return err
 		}
-		body = pushBody(user.Locale, chatMsg)
+		msg.Body = pushBody(user.Locale, chatMsg)
+		if n.Kind == KindChatDM && chatMsg.Kind == "voice_call_log" {
+			// Only an unanswered DM call notifies its log (ChatService.finalizeVoiceCall).
+			c.missedCall(&msg, user.Locale, params, n, chatMsg)
+		}
 		// The row is in hand, so the link is built here instead of letting
 		// ResourceURL read it a second time.
 		base, ok, err := workspaceBase(ctx, c.q, c.origin, n)
@@ -157,12 +168,16 @@ func (c *PushConsumer) Handle(ctx context.Context, ev outbox.Row) error {
 			return err
 		}
 	}
-	var params map[string]string
-	_ = json.Unmarshal([]byte(n.Params), &params)
-	msg := PushMessage{Title: PushTitle(user.Locale, n.Kind, params), Body: body, URL: link, Tag: n.GroupKey}
+	msg.URL = link
 	if n.Kind == KindChatCallIncoming {
-		// The push rings only as long as the call does (spec M3 §2).
+		// The push rings only as long as the call does (spec M3 §2), and the
+		// phone stops ringing at the end of the window whatever reaches it.
 		msg.TTL = int(callRingWindow / time.Second)
+		msg.Call = CallPush{
+			Type: CallPushInvite, CallID: params["call_id"], RoomID: n.ResourceID, WorkspaceID: n.WorkspaceID.String,
+			CallerName: params["actor"], RoomName: params["room"], CallKind: params["call_kind"], Video: params["video"] == "1",
+			ExpiresAt: n.CreatedAt.Time.Add(callRingWindow).UnixMilli(),
+		}
 	}
 	var failed error
 	for _, sub := range subs {
@@ -189,6 +204,69 @@ func (c *PushConsumer) Handle(ctx context.Context, ev outbox.Row) error {
 		return failed
 	}
 	return c.q.MarkNotificationPushed(ctx, n.ID)
+}
+
+// missedCall turns the push of an unanswered DM call's log into "Cuộc gọi
+// nhỡ từ X" on the missed-calls channel, naming the call so the phone can
+// clear a ring whose end it never heard.
+func (c *PushConsumer) missedCall(msg *PushMessage, locale string, params map[string]string, n db.Notification, chatMsg db.ChatMessage) {
+	var meta struct {
+		CallID string `json:"call_id"`
+		Video  bool   `json:"video"`
+	}
+	_ = json.Unmarshal(chatMsg.Metadata, &meta)
+	msg.Title = MissedCallTitle(locale, meta.Video, params["actor"])
+	msg.Channel = ChannelMissedCalls
+	msg.Call = CallPush{Type: CallPushMissed, CallID: meta.CallID, RoomID: chatMsg.RoomID, WorkspaceID: n.WorkspaceID.String}
+}
+
+// callEndTTL: an end that reaches a phone after its ring window has nothing
+// left to stop (the ring timed out on its own).
+const callEndTTL = int(callRingWindow / time.Second)
+
+// handleRingClosed tells a person's Android phones that a call no longer
+// rings for them: they answered it on one device, declined it, or it ended.
+// A data-only push; the app removes its ringing screen and notification.
+// iPhones keep today's visible push, which this cannot recall. Nothing is
+// sent when the calls switch is off for the person: their phone was never
+// rung, and a ring that outlives a switch flipped mid-call times out alone.
+func (c *PushConsumer) handleRingClosed(ctx context.Context, ev outbox.Row) error {
+	var p map[string]string
+	if err := json.Unmarshal([]byte(ev.Payload), &p); err != nil {
+		return fmt.Errorf("push: payload of %s: %w", ev.ID, err)
+	}
+	userID, roomID, callID := p["user_id"], p["room_id"], p["call_id"]
+	if userID == "" || roomID == "" || callID == "" {
+		return nil
+	}
+	if c.mobileCalls != nil && !c.mobileCalls(ctx, userID, ev.OrganizationID.String) {
+		return nil
+	}
+	subs, err := c.q.ListDeliverablePushSubscriptions(ctx, userID)
+	if err != nil {
+		return err
+	}
+	msg := PushMessage{TTL: callEndTTL, Call: CallPush{Type: CallPushEnd, CallID: callID, RoomID: roomID, WorkspaceID: ev.WorkspaceID.String}}
+	var failed error
+	for _, sub := range subs {
+		if !isExpoPushToken(sub.Endpoint) || !expoAndroid(sub) {
+			continue
+		}
+		err := c.sender.Send(ctx, sub, msg)
+		switch {
+		case err == nil:
+			c.count("sent")
+		case errors.Is(err, ErrPushSkipped):
+			c.count("skipped")
+		case errors.Is(err, ErrSubscriptionGone):
+			c.count("gone")
+			_ = c.q.RevokePushSubscription(ctx, sub.ID)
+		default:
+			c.count("failed")
+			failed = err
+		}
+	}
+	return failed
 }
 
 func (c *PushConsumer) stillRinging(n db.Notification) bool {

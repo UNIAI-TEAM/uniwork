@@ -212,6 +212,20 @@ func (s *ChatService) VoiceCallRinging(roomID, callID, userID string) bool {
 	return ok && !slices.Contains(sess.participantIDs, userID)
 }
 
+// voiceCallInvitee reports whether the live call rang userID through a push
+// (a chat.voice.invite_received row), so answering it has a ring to close.
+func voiceCallInvitee(roomID, callID, userID string) bool {
+	sess, ok := loadVoiceCallSession(voiceCallSessionKey(roomID, callID))
+	return ok && slices.Contains(sess.inviteeIDs, userID)
+}
+
+// VoiceCallVideo reports whether a live call on this node was started with
+// the camera on; the phone's ringing screen names a video call as one.
+func (s *ChatService) VoiceCallVideo(roomID, callID string) bool {
+	sess, ok := loadVoiceCallSession(voiceCallSessionKey(roomID, callID))
+	return ok && sess.video
+}
+
 // trackVoiceCallAccept starts the call clock when someone other than the
 // caller first answers; a group call counts as answered only then (H17), and
 // a later joiner does not restart it.
@@ -610,7 +624,7 @@ func (s *ChatService) finalizeVoiceCall(
 		return nil
 	}
 	sess := raw.(voiceCallSession)
-	s.closeVoiceCallRings(ctx, room.ID, sess.inviteeIDs)
+	s.closeVoiceCallRings(ctx, room, callID, userID, sess.inviteeIDs)
 	outcome, duration := voiceCallOutcome(sess, userID, time.Now())
 	participantIDs := voiceCallParticipantIDsForLog(room, sess)
 	participants, err := s.resolveVoiceCallParticipants(ctx, participantIDs)

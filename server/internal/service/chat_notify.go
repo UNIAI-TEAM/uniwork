@@ -201,13 +201,42 @@ func (s *ChatService) emitVoiceCallRings(ctx context.Context, room db.ChatRoom, 
 }
 
 // closeVoiceCallRings closes the ring rows of people the call no longer rings
-// (they answered, or it ended), so a push still queued for them is dropped.
-// A push already sent is not recalled. Best effort: the call goes on either way.
-func (s *ChatService) closeVoiceCallRings(ctx context.Context, roomID string, userIDs []string) {
-	groups := []string{ChatCallNotifyGroup(roomID)}
-	for _, id := range userIDs {
-		if err := s.q.MarkNotificationGroupsRead(ctx, db.MarkNotificationGroupsReadParams{UserID: id, GroupKeys: groups}); err != nil {
-			slog.WarnContext(ctx, "chat: close call ring", "room_id", roomID, "user_id", id, "error", err)
-		}
+// (they answered, declined, or it ended), so a push still queued for them is
+// dropped, and in the same transaction writes one chat.voice.ring_closed row
+// per person: the push lane tells their Android phones to stop ringing (a
+// ringing screen already on a locked phone would otherwise ring out its
+// window). actorID is who answered or hung up. Best effort: the call goes on
+// either way, and an unrecalled ring still times out on the phone.
+func (s *ChatService) closeVoiceCallRings(ctx context.Context, room db.ChatRoom, callID, actorID string, userIDs []string) {
+	if len(userIDs) == 0 {
+		return
 	}
+	if err := s.closeVoiceCallRingsTx(ctx, room, callID, actorID, userIDs); err != nil {
+		slog.WarnContext(ctx, "chat: close call rings", "room_id", room.ID, "call_id", callID, "error", err)
+	}
+}
+
+func (s *ChatService) closeVoiceCallRingsTx(ctx context.Context, room db.ChatRoom, callID, actorID string, userIDs []string) error {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	qtx := s.q.WithTx(tx)
+	groups := []string{ChatCallNotifyGroup(room.ID)}
+	events := make([]audit.Event, 0, len(userIDs))
+	for _, id := range userIDs {
+		if err := qtx.MarkNotificationGroupsRead(ctx, db.MarkNotificationGroupsReadParams{UserID: id, GroupKeys: groups}); err != nil {
+			return err
+		}
+		events = append(events, audit.Event{
+			Topic: "chat.voice.ring_closed", Version: 1,
+			Payload:        map[string]string{"room_id": room.ID, "call_id": callID, "user_id": id},
+			OrganizationID: room.OrganizationID, WorkspaceID: roomAnchorWorkspaceID(room),
+		})
+	}
+	if err := auditRecorder.Emit(ctx, qtx, Human(actorID), events...); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
 }

@@ -79,17 +79,33 @@ func TestCallInvitePushesTheCalleeWhileItRings(t *testing.T) {
 	if err := pc.Handle(f.ctx, f.lastEvent(t, TopicPush)); err != nil {
 		t.Fatal(err)
 	}
+	rung := f.notificationOf(t, f.lastEvent(t, TopicPush))
+	var rungParams map[string]string
+	if err := json.Unmarshal([]byte(rung.Params), &rungParams); err != nil {
+		t.Fatal(err)
+	}
+	// The phone's own ringing screen gets the call's ids, who calls, the kind
+	// of call and when the ring ends (ADR draft 0038).
 	want := PushMessage{
-		Title: "Chủ Nhóm đang gọi",
-		URL:   "http://app.test/notif-org/notif-ws/chat?room=" + dm.ID + "&call=call-push-1",
-		Tag:   "chat_call:" + dm.ID,
-		TTL:   60,
+		Title:   "Chủ Nhóm đang gọi",
+		URL:     "http://app.test/notif-org/notif-ws/chat?room=" + dm.ID + "&call=call-push-1",
+		Tag:     "chat_call:" + dm.ID,
+		TTL:     60,
+		Channel: ChannelCalls,
+		Call: CallPush{
+			Type: CallPushInvite, CallID: "call-push-1", RoomID: dm.ID, WorkspaceID: f.wsID,
+			CallerName: "Chủ Nhóm", RoomName: rungParams["room"], CallKind: "dm", Video: true,
+			ExpiresAt: rung.CreatedAt.Time.Add(callRingWindow).UnixMilli(),
+		},
 	}
 	if len(spy.sent) != 1 || spy.sent[0] != want || spy.endpoints[0] != "ExponentPushToken[member]" {
 		t.Fatalf("sent = %+v to %v, want %+v to the phone only", spy.sent, spy.endpoints, want)
 	}
-	if n := f.notificationOf(t, f.lastEvent(t, TopicPush)); !n.PushedAt.Valid {
-		t.Fatalf("a call push the browser did not get left the row pending: %+v", n)
+	if rungParams["call_kind"] != "dm" || rungParams["video"] != "1" {
+		t.Fatalf("ring params = %v, want the call's kind and camera", rungParams)
+	}
+	if !rung.PushedAt.Valid {
+		t.Fatalf("a call push the browser did not get left the row pending: %+v", rung)
 	}
 
 	// Answered on another device before the notify lane ran: nothing more.
@@ -365,5 +381,107 @@ func TestGroupCallInviteRingsMembersNotInTheCall(t *testing.T) {
 	}
 	if err := chat.SignalVoiceHangup(f.ctx, f.owner.ID, f.wsID, group.ID, "group-call-1"); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func (f *fixture) subscribeAs(t *testing.T, userID, endpoint, userAgent string) {
+	t.Helper()
+	if _, err := f.q.UpsertPushSubscription(f.ctx, db.UpsertPushSubscriptionParams{
+		ID: util.NewID(), UserID: userID, Endpoint: endpoint, UserAgent: pgtype.Text{String: userAgent, Valid: true},
+	}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// A call that stops ringing for someone (they answered on one device, or the
+// caller hung up) tells their Android phones, so a ringing screen on a locked
+// phone comes down at once instead of ringing out its window. Only Android
+// gets it: an iPhone cannot act on a data-only push, and a browser rings in
+// the page. With the calls switch off for the person nothing is sent.
+func TestCallRingClosedStopsTheAndroidPhones(t *testing.T) {
+	f := newFixture(t)
+	chat := service.NewChatService(f.pool, f.q, f.ws, service.NopPublisher{})
+	f.consumer.SetCallRinging(chat)
+	dm, err := chat.ResolveDM(f.ctx, f.owner.ID, f.wsID, f.member.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.subscribeAs(t, f.member.ID, "ExponentPushToken[android]", "expo/android")
+	f.subscribeAs(t, f.member.ID, "ExponentPushToken[iphone]", "expo/ios")
+	f.subscribe(t, f.member.ID, "https://push.example/member-browser")
+	spy := &spySender{}
+	pc := NewPushConsumer(f.q, spy, "http://app.test")
+
+	if err := chat.SignalVoiceInvite(f.ctx, f.owner.ID, f.wsID, dm.ID, "call-closed-1", false); err != nil {
+		t.Fatal(err)
+	}
+	if err := chat.SignalVoiceAccept(f.ctx, f.member.ID, f.wsID, dm.ID, "call-closed-1"); err != nil {
+		t.Fatal(err)
+	}
+	answered := f.lastEvent(t, TopicCallRingClosed)
+	if p := payloadOf(t, answered); p["user_id"] != f.member.ID || p["room_id"] != dm.ID || p["call_id"] != "call-closed-1" || len(p) != 3 {
+		t.Fatalf("ring_closed payload = %v, want the ids of the callee, the room and the call", p)
+	}
+	if !answered.ActorID.Valid || answered.ActorID.String != f.member.ID || answered.OrganizationID.String != f.orgID {
+		t.Fatalf("ring_closed actor/org = %+v/%+v, want the callee who answered in the call's organization", answered.ActorID, answered.OrganizationID)
+	}
+	if err := pc.Handle(f.ctx, answered); err != nil {
+		t.Fatal(err)
+	}
+	want := PushMessage{TTL: 60, Call: CallPush{Type: CallPushEnd, CallID: "call-closed-1", RoomID: dm.ID, WorkspaceID: answered.WorkspaceID.String}}
+	if len(spy.sent) != 1 || spy.sent[0] != want || spy.endpoints[0] != "ExponentPushToken[android]" {
+		t.Fatalf("ring end sent %+v to %v, want %+v to the Android phone only", spy.sent, spy.endpoints, want)
+	}
+
+	// The caller hangs up: the call's end closes the ring for every invitee.
+	before := len(f.events(t, TopicCallRingClosed))
+	if err := chat.SignalVoiceHangup(f.ctx, f.owner.ID, f.wsID, dm.ID, "call-closed-1"); err != nil {
+		t.Fatal(err)
+	}
+	ended := f.events(t, TopicCallRingClosed)
+	if len(ended) != before+1 || payloadOf(t, ended[len(ended)-1])["user_id"] != f.member.ID || ended[len(ended)-1].ActorID.String != f.owner.ID {
+		t.Fatalf("hangup ring_closed rows = %d (was %d), want one more for the callee by the caller", len(ended), before)
+	}
+
+	// The switch off for the callee: their phone was never rung, nothing is sent.
+	pc.SetMobileCalls(func(context.Context, string, string) bool { return false })
+	if err := pc.Handle(f.ctx, ended[len(ended)-1]); err != nil {
+		t.Fatal(err)
+	}
+	if len(spy.sent) != 1 {
+		t.Fatalf("a closed ring was pushed with the calls switch off: %+v", spy.sent)
+	}
+}
+
+// A DM call nobody answered reaches the callee's phones as a missed call on
+// its own channel, naming the call, not as "X đã nhắn tin cho bạn" over an
+// empty preview.
+func TestUnansweredDMCallPushesAMissedCall(t *testing.T) {
+	f := newFixture(t)
+	chat := service.NewChatService(f.pool, f.q, f.ws, service.NopPublisher{})
+	f.consumer.SetCallRinging(chat)
+	dm, err := chat.ResolveDM(f.ctx, f.owner.ID, f.wsID, f.member.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.subscribeAs(t, f.member.ID, "ExponentPushToken[android]", "expo/android")
+	if err := chat.SignalVoiceInvite(f.ctx, f.owner.ID, f.wsID, dm.ID, "call-missed-1", true); err != nil {
+		t.Fatal(err)
+	}
+	if err := chat.SignalVoiceHangup(f.ctx, f.owner.ID, f.wsID, dm.ID, "call-missed-1"); err != nil {
+		t.Fatal(err)
+	}
+	f.handleLast(t, "chat.dm.received")
+	spy := &spySender{}
+	if err := NewPushConsumer(f.q, spy, "http://app.test").Handle(f.ctx, f.lastEvent(t, TopicPush)); err != nil {
+		t.Fatal(err)
+	}
+	if len(spy.sent) != 1 {
+		t.Fatalf("missed call pushes = %+v", spy.sent)
+	}
+	got := spy.sent[0]
+	if got.Title != "Cuộc gọi video nhỡ từ Chủ Nhóm" || got.Body != "" || got.Channel != ChannelMissedCalls ||
+		got.Call.Type != CallPushMissed || got.Call.CallID != "call-missed-1" || got.Call.RoomID != dm.ID || got.Call.WorkspaceID != f.wsID {
+		t.Fatalf("missed call push = %+v", got)
 	}
 }

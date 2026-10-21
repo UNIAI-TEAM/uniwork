@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -34,15 +35,112 @@ type ExpoPushSender struct {
 	Receipts    *ExpoReceipts
 }
 
+// expoMessage is one Expo push. With no title, body or sound it is a
+// data-only message: Expo hands it to FCM as data, Android shows nothing on
+// its own and the app's background task decides (the call UI).
 type expoMessage struct {
 	To        string            `json:"to"`
-	Title     string            `json:"title"`
+	Title     string            `json:"title,omitempty"`
 	Body      string            `json:"body,omitempty"`
 	Data      map[string]string `json:"data"`
-	Sound     string            `json:"sound"`
-	ChannelID string            `json:"channelId"`
+	Sound     string            `json:"sound,omitempty"`
+	ChannelID string            `json:"channelId,omitempty"`
 	TTL       int               `json:"ttl"`
 	Priority  string            `json:"priority"`
+}
+
+// The Android notification channels the app creates at launch, localized
+// (apps/chat-mobile/lib/notification-channels.ts lists the same ids). A
+// channel's sound and importance are fixed once created, so a change of either
+// is a new id, never an edit of these.
+const (
+	ChannelCalls       = "calls"
+	ChannelMissedCalls = "missed_calls"
+	ChannelMentions    = "mentions"
+	ChannelMessages    = "messages"
+	ChannelGeneral     = "general"
+)
+
+// pushChannel files a notification kind under its channel, so a person can
+// keep calls and mentions loud and silence the rest in the phone's settings.
+func pushChannel(kind string) string {
+	switch kind {
+	case KindChatCallIncoming:
+		return ChannelCalls
+	case KindChatMentioned, KindMentioned, KindDocumentMentioned, KindDocumentBodyMentioned, KindDocumentDiscussionMentioned:
+		return ChannelMentions
+	case KindChatDM, KindChatThreadReplied:
+		return ChannelMessages
+	default:
+		return ChannelGeneral
+	}
+}
+
+// expoAndroid reports a subscription the app registered from Android
+// (notification.Service.SubscribePush stores the platform as the user agent).
+func expoAndroid(sub db.PushSubscription) bool {
+	return sub.UserAgent.Valid && sub.UserAgent.String == "expo/android"
+}
+
+// callData is the data a call push carries: ids, the names a ringing screen
+// shows and when the ring ends. Nothing else about the room or the people.
+func callData(msg PushMessage) map[string]string {
+	c := msg.Call
+	data := map[string]string{"type": c.Type, "call_id": c.CallID, "room_id": c.RoomID}
+	if c.WorkspaceID != "" {
+		data["workspace_id"] = c.WorkspaceID
+	}
+	if msg.URL != "" {
+		data["url"] = msg.URL
+	}
+	if msg.Tag != "" {
+		data["tag"] = msg.Tag
+	}
+	if c.Type != CallPushInvite {
+		return data
+	}
+	data["caller_name"] = c.CallerName
+	data["room_name"] = c.RoomName
+	data["call_kind"] = c.CallKind
+	data["video"] = "0"
+	if c.Video {
+		data["video"] = "1"
+	}
+	data["expires_at"] = strconv.FormatInt(c.ExpiresAt, 10)
+	return data
+}
+
+// expoMessageFor shapes msg for one subscription. A ring and the end of one
+// go to Android as data-only, high-priority messages for the app's own call
+// UI (a full-screen ringing screen, answer and decline); an iPhone keeps the
+// visible "X đang gọi" push and gets no end, which it could not act on. A
+// missed call is visible everywhere and names the call in its data. ok is
+// false when this subscription gets nothing.
+func expoMessageFor(sub db.PushSubscription, msg PushMessage) (expoMessage, bool) {
+	android := expoAndroid(sub)
+	switch msg.Call.Type {
+	case CallPushEnd:
+		if !android {
+			return expoMessage{}, false
+		}
+		return expoMessage{To: sub.Endpoint, Data: callData(msg), TTL: msg.ttl(), Priority: "high"}, true
+	case CallPushInvite:
+		if android {
+			return expoMessage{To: sub.Endpoint, Data: callData(msg), TTL: msg.ttl(), Priority: "high"}, true
+		}
+	}
+	data := map[string]string{"url": msg.URL, "tag": msg.Tag}
+	if msg.Call.Type != "" {
+		data = callData(msg)
+	}
+	channel := msg.Channel
+	if channel == "" {
+		channel = ChannelGeneral
+	}
+	return expoMessage{
+		To: sub.Endpoint, Title: msg.Title, Body: msg.Body, Data: data,
+		Sound: "default", ChannelID: channel, TTL: msg.ttl(), Priority: "high",
+	}, true
 }
 
 type expoResponse struct {
@@ -57,13 +155,14 @@ type expoResponse struct {
 
 // Send posts one message and maps its ticket: DeviceNotRegistered revokes the
 // subscription, any other failure (ticket error, 429, 5xx) is retried, and an
-// accepted ticket is handed to Receipts.
+// accepted ticket is handed to Receipts. A push this subscription cannot use
+// (the end of a ring, for an iPhone) is ErrPushSkipped.
 func (s ExpoPushSender) Send(ctx context.Context, sub db.PushSubscription, msg PushMessage) error {
-	payload, err := json.Marshal([]expoMessage{{
-		To: sub.Endpoint, Title: msg.Title, Body: msg.Body,
-		Data:  map[string]string{"url": msg.URL, "tag": msg.Tag},
-		Sound: "default", ChannelID: "chat", TTL: msg.ttl(), Priority: "high",
-	}})
+	m, ok := expoMessageFor(sub, msg)
+	if !ok {
+		return ErrPushSkipped
+	}
+	payload, err := json.Marshal([]expoMessage{m})
 	if err != nil {
 		return err
 	}

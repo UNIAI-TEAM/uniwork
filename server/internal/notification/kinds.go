@@ -106,4 +106,7 @@ func TitleKey(kind string) string { return "notifications.kind." + kind }
 const (
 	TopicCreated = "notification.created"
 	TopicPush    = "notification.push"
+	// TopicCallRingClosed is ChatService saying a call stopped ringing for one
+	// person; the push consumer tells their Android phones (handleRingClosed).
+	TopicCallRingClosed = "chat.voice.ring_closed"
 )

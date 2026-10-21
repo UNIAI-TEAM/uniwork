@@ -26,6 +26,42 @@ type PushMessage struct {
 	// TTL is how long, in seconds, the push service may hold the message for
 	// an offline device; 0 means pushTTL. It travels as a header, not in the body.
 	TTL int `json:"-"`
+	// Channel is the Android notification channel the phone files the push
+	// under (pushChannel): calls, missed calls, mentions, messages or the
+	// rest. A browser has no channels and never sees it.
+	Channel string `json:"-"`
+	// Call is set on a ring, on the end of one and on a missed call: the
+	// phone's own call UI needs the ids, not a banner. A browser never sees it.
+	Call CallPush `json:"-"`
+}
+
+// The kinds of CallPush. An invite and an end reach Android as data-only,
+// high-priority messages the app turns into its own call UI (docs/adr/drafts/0038); an
+// iPhone gets the invite as today's visible push and no end. A missed call is
+// a visible push everywhere that also names the call, so the app can clear a
+// ring the end push never cleared.
+const (
+	CallPushInvite = "call_invite"
+	CallPushEnd    = "call_end"
+	CallPushMissed = "call_missed"
+)
+
+// CallPush is what the phone's call UI needs: ids, the two names a ringing
+// screen shows, and how long the ring may still last. Type "" means the push
+// is not about a call.
+type CallPush struct {
+	Type        string
+	CallID      string
+	RoomID      string
+	WorkspaceID string
+	CallerName  string
+	RoomName    string
+	// CallKind is the room's kind: dm, group or channel.
+	CallKind string
+	Video    bool
+	// ExpiresAt is when the ring stops, in Unix milliseconds; the phone stops
+	// ringing then even when no end push reaches it.
+	ExpiresAt int64
 }
 
 // pushTTL is the default lifetime of a push: a reminder delivered tomorrow is noise.
