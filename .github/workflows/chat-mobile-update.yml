@@ -172,10 +172,17 @@ jobs:
         working-directory: apps/chat-mobile
         env:
           EAS_UPDATE_PRIVATE_KEY: ${{ secrets.EAS_UPDATE_PRIVATE_KEY }}
+          UNICHAT_ENV: ${{ steps.target.outputs.app_env }}
         run: |
           set -euo pipefail
           if [ ! -f certs/eas-update-certificate.pem ]; then
-            echo "::notice::No code-signing certificate in the app yet: the update is unsigned (runbook › Ký OTA)."
+            # Production phones run what this publishes with the Keychain session in reach: never unsigned
+            # (app.config.ts refuses a production store build without the certificate, audit "ota-unsigned").
+            if [ "$UNICHAT_ENV" = "production" ]; then
+              echo "::error::No code-signing certificate in the app: a production update is never published unsigned (runbook › Ký OTA)."
+              exit 1
+            fi
+            echo "::notice::No code-signing certificate in the app yet: this staging update is unsigned (runbook › Ký OTA)."
             echo "args=" >> "$GITHUB_OUTPUT"
             exit 0
           fi

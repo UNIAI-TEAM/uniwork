@@ -146,6 +146,14 @@ function parseSession(raw: unknown, deploymentId: string): DesktopSession {
   return session;
 }
 
+function appOrigin(): string | null {
+  try {
+    return new URL(runtimeConfig().appUrl).origin;
+  } catch {
+    return null;
+  }
+}
+
 export function createTransport(
   config: { deploymentId: string },
   options: { fetch?: FetchLike; timeoutMs?: number } = {},
@@ -218,7 +226,9 @@ export function createTransport(
       } catch (error) {
         throw error instanceof TransportError ? error : new TransportError("malformed_response");
       }
-      if ((parsed.protocol !== "https:" && parsed.protocol !== "http:") || parsed.username || parsed.password) {
+      // The sign-in page is the app's own (the server builds it from FRONTEND_ORIGIN): same scheme, host and port as
+      // appUrl, which a release build only accepts as https (app.config.ts › serverUrl). Anything else is not opened.
+      if (parsed.origin !== appOrigin() || parsed.username || parsed.password) {
         throw new TransportError("malformed_response");
       }
       return { authorizationUrl: parsed.href };

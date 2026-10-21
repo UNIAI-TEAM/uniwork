@@ -82,6 +82,12 @@ một dòng thì ghi lý do ở dòng trên.
   (chuỗi xin quyền gốc tiếng Việt, `locales.en` dịch). Bundle id
   `com.uniworkos.chat{.dev,.staging}`, scheme `uniworkchat-dev` (dev) / `uniworkchat`; universal link chỉ xác minh
   với id prod.
+  Bảo mật của config (audit "Security & privacy"): staging/production chỉ nhận `UNICHAT_API_URL`/`UNICHAT_APP_URL`
+  `https://` (ném lỗi ở mọi nơi đọc config; socket là `wss://` suy từ API), và `transport.start` chỉ mở trang đăng nhập
+  cùng origin với `appUrl`; bản production trên máy build EAS thiếu `certs/eas-update-certificate.pem` thì ném lỗi
+  (binary không ký OTA không bao giờ được build lại). Android: `allowBackup: false` + `plugins/with-android-backup-rules.js`
+  (data extraction rules loại mọi vùng khỏi sao lưu đám mây và chuyển máy, Android 12+), `READ_/WRITE_EXTERNAL_STORAGE`
+  bị chặn; `android-manifest.test.ts` giữ thuộc tính `application` (không cleartext, không network security config).
 - `lib/` — helper thuần + test vitest (env node), đo trọn ở sàn 100 %. Thuần là luật lint, không phải quy ước
   (khối `lib/**` của `eslint.config.mjs`, fixture `lib/lint-boundary.test.ts`): không import giá trị từ `react*`,
   `react-native*`, `expo*`, `@expo/*`, `@sentry/*`, `nativewind`, LiveKit, hay từ `data/`, `components/`, `app/`
@@ -651,7 +657,8 @@ Runbook: `docs/runbooks/unichat-mobile-release.md`; plan:
   không khớp máy nào; chỉ đổi JS thì phát OTA. Chưa có `EAS_PROJECT_ID` thì
   `updates.enabled: false` và push bỏ qua. Ký OTA: có
   `certs/eas-update-certificate.pem` thì `updates.codeSigningCertificate` tự
-  bật (khoá riêng không bao giờ vào repo; runbook › Ký OTA).
+  bật (khoá riêng không bao giờ vào repo; runbook › Ký OTA); thiếu nó thì build production trên EAS đỏ và OTA kênh
+  production không phát.
   `eas.json` đặt `SENTRY_ALLOW_FAILURE=true` cho mọi profile: build thiếu token
   Sentry vẫn xanh. Bản store production phát theo giai đoạn (Play 5 % → 100 %,
   iOS phased release), mở rộng chỉ khi crash-free sessions ≥ 99.5 % (runbook ›

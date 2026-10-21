@@ -121,7 +121,20 @@ describe("app.config per UNICHAT_ENV", () => {
       NSPhotoLibraryUsageDescription: expect.any(String),
     });
     expect(config.ios?.infoPlist?.UIBackgroundModes).toEqual(["audio"]);
-    expect(config.android?.blockedPermissions).toEqual(["android.permission.SYSTEM_ALERT_WINDOW"]);
+  });
+
+  // Audit (Security & privacy, no-masvs-baseline): unsent attachments sit in plain files under documents/outbox, and the
+  // legacy storage permissions are for apps that read shared storage, which UniChat never does (the system pickers
+  // hand it the files it needs).
+  it("keeps the app's data out of Android backups and device transfers, and asks for no shared storage", () => {
+    const config = build();
+    expect(config.android?.allowBackup).toBe(false);
+    expect(config.plugins).toContain("./plugins/with-android-backup-rules");
+    expect(config.android?.blockedPermissions).toEqual([
+      "android.permission.SYSTEM_ALERT_WINDOW",
+      "android.permission.READ_EXTERNAL_STORAGE",
+      "android.permission.WRITE_EXTERNAL_STORAGE",
+    ]);
   });
 
   it("defaults the urls to the local dev servers and takes UNICHAT_* overrides", () => {
@@ -171,8 +184,8 @@ describe("EAS project and release servers", () => {
   });
 
   // Owner action: generate the certificate (runbook › Ký OTA). Until the file
-  // exists updates are unsigned; from the first binary that embeds it, the
-  // phone accepts only updates signed with its key.
+  // exists a dev or staging binary's updates are unsigned; from the first binary
+  // that embeds it, the phone accepts only updates signed with its key.
   it("signs updates once the code-signing certificate is committed, and not before", () => {
     vi.stubEnv("UNICHAT_EAS_PROJECT_ID", "0f1e2d3c-4b5a-4968-8778-695a4b3c2d1e");
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "unichat-config-"));
@@ -188,6 +201,52 @@ describe("EAS project and release servers", () => {
     } finally {
       fs.rmSync(root, { recursive: true, force: true });
     }
+  });
+
+  // Audit (Security & privacy, ota-unsigned, P1): the first production binary went out accepting unsigned bundles, so
+  // whoever held the Expo account or EXPO_TOKEN could ship JavaScript that reads the Keychain session. A store binary
+  // without the certificate can never be fixed by an update: the build itself refuses.
+  it("refuses a production store build that would accept unsigned updates", () => {
+    vi.stubEnv("UNICHAT_ENV", "production");
+    vi.stubEnv("UNICHAT_EAS_PROJECT_ID", "0f1e2d3c-4b5a-4968-8778-695a4b3c2d1e");
+    stubServers();
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "unichat-config-"));
+    try {
+      vi.stubEnv("EAS_BUILD", "true");
+      expect(() => build(root)).toThrow("certs/eas-update-certificate.pem");
+      // eas-cli's first local read (to find the project id), and a staging build, still go through.
+      vi.stubEnv("EAS_BUILD", undefined);
+      expect(build(root).updates).toEqual({ url: "https://u.expo.dev/0f1e2d3c-4b5a-4968-8778-695a4b3c2d1e" });
+      vi.stubEnv("EAS_BUILD", "true");
+      vi.stubEnv("UNICHAT_ENV", "staging");
+      expect(build(root).updates).not.toHaveProperty("codeSigningCertificate");
+      // Without an EAS project there is no update server to trust.
+      vi.stubEnv("UNICHAT_ENV", "production");
+      vi.stubEnv("UNICHAT_EAS_PROJECT_ID", "");
+      expect(build(root).updates).toEqual({ enabled: false });
+      vi.stubEnv("UNICHAT_EAS_PROJECT_ID", "0f1e2d3c-4b5a-4968-8778-695a4b3c2d1e");
+      fs.mkdirSync(path.join(root, "certs"));
+      fs.writeFileSync(path.join(root, "certs/eas-update-certificate.pem"), "-----BEGIN CERTIFICATE-----\n");
+      expect(build(root).updates).toMatchObject({ codeSigningCertificate: "./certs/eas-update-certificate.pem" });
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  // Audit (Security & privacy, https-not-asserted): a release build talks to its servers over TLS only, and the socket
+  // URL derived from the API's is wss:// then (lib/runtime-extra.ts).
+  it.each([
+    ["staging", "UNICHAT_API_URL", "http://api.example"],
+    ["production", "UNICHAT_APP_URL", "http://app.example"],
+    ["production", "UNICHAT_API_URL", "ftp://api.example"],
+  ])("%s refuses %s that is not https (%s), on the builder or not", (env, name, value) => {
+    vi.stubEnv("UNICHAT_ENV", env);
+    stubServers();
+    vi.stubEnv(name, value);
+    vi.stubEnv("EAS_BUILD", undefined);
+    expect(build).toThrow(`${name} must be an https:// URL`);
+    vi.stubEnv("EAS_BUILD", "true");
+    expect(build).toThrow(`${name} must be an https:// URL`);
   });
 
   it("carries the Sentry DSN of the build environment, and nothing without one", () => {

@@ -6,11 +6,13 @@
 // the same commit as the native change, together with store/listing.md and
 // the runbook's declaration table.
 import { execFileSync } from "node:child_process";
+import { createRequire } from "node:module";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 const report = () =>
   JSON.parse(execFileSync(process.execPath, [path.join(__dirname, "scripts/android-manifest.mjs")], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] })) as {
+    application: Record<string, string>;
     permissions: string[];
     removedPermissions: string[];
     services: { name: string; foregroundServiceType: string }[];
@@ -37,17 +39,27 @@ describe("the release build's Android manifest", () => {
       "android.permission.MANAGE_OWN_CALLS",
       "android.permission.MODIFY_AUDIO_SETTINGS",
       "android.permission.POST_NOTIFICATIONS",
-      "android.permission.READ_EXTERNAL_STORAGE",
       "android.permission.RECEIVE_BOOT_COMPLETED",
       "android.permission.RECORD_AUDIO",
       // The ringing screen over a locked phone (Play: calling apps only).
       "android.permission.USE_FULL_SCREEN_INTENT",
       "android.permission.VIBRATE",
       "android.permission.WAKE_LOCK",
+    ]);
+    // A call never draws over other apps, and UniChat reads no shared storage (app.config.ts › blockedPermissions).
+    expect(manifest.removedPermissions).toEqual([
+      "android.permission.READ_EXTERNAL_STORAGE",
+      "android.permission.SYSTEM_ALERT_WINDOW",
       "android.permission.WRITE_EXTERNAL_STORAGE",
     ]);
-    // A call never draws over other apps (app.config.ts › blockedPermissions).
-    expect(manifest.removedPermissions).toEqual(["android.permission.SYSTEM_ALERT_WINDOW"]);
+    // Nothing leaves the phone in a backup or a device transfer, and no cleartext exception exists: Android 9+
+    // refuses http:// by default and a release build only knows https:// servers (app.config.ts › serverUrl).
+    expect(manifest.application).toEqual({
+      allowBackup: "false",
+      dataExtractionRules: "@xml/unichat_data_extraction_rules",
+      usesCleartextTraffic: "",
+      networkSecurityConfig: "",
+    });
 
     // One foreground service, the call's own (modules/unichat-calls): phoneCall,
     // microphone and camera, each declared on Play. expo-audio's mediaPlayback
@@ -68,5 +80,19 @@ describe("the release build's Android manifest", () => {
       "android.permission.FOREGROUND_SERVICE_MICROPHONE",
       "android.permission.FOREGROUND_SERVICE_PHONE_CALL",
     ]);
+  });
+});
+
+describe("plugins/with-android-backup-rules.js", () => {
+  const rules = createRequire(__filename)("./plugins/with-android-backup-rules.js") as { DATA_EXTRACTION_RULES: string; RULES_NAME: string };
+
+  it("excludes every storage domain from cloud backup and from device-to-device transfer", () => {
+    expect(rules.RULES_NAME).toBe("unichat_data_extraction_rules");
+    const domains = ["root", "file", "database", "sharedpref", "external", "device_root", "device_file", "device_database", "device_sharedpref"];
+    for (const section of ["cloud-backup", "device-transfer"]) {
+      const body = rules.DATA_EXTRACTION_RULES.split(`<${section}>`)[1]?.split(`</${section}>`)[0] ?? "";
+      expect([...body.matchAll(/<exclude domain="([a-z_]+)" path="\." \/>/g)].map((m) => m[1])).toEqual(domains);
+      expect(body).not.toContain("<include");
+    }
   });
 });

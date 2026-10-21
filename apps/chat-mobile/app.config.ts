@@ -30,10 +30,19 @@ const EAS_PROJECT_ID = "916177c9-255d-40c2-b93f-c39e85a73255";
 // the public certificate is committed here once the owner generates it; the
 // private key never is (CI reads it from a secret). From the first binary that
 // embeds the certificate, every update must be signed or the phone refuses it.
+// A production store binary without it would run any JavaScript the Expo
+// account or a leaked EXPO_TOKEN publishes, with the Keychain session in reach,
+// and no update could take that back: the EAS builder refuses to make one
+// (audit "ota-unsigned"). eas-cli's first local read and dev/staging builds go on.
 const CODE_SIGNING_CERTIFICATE = "./certs/eas-update-certificate.pem";
 
-function codeSigning(projectRoot: string): Pick<NonNullable<ExpoConfig["updates"]>, "codeSigningCertificate" | "codeSigningMetadata"> {
-  if (!fs.existsSync(path.resolve(projectRoot, CODE_SIGNING_CERTIFICATE))) return {};
+function codeSigning(projectRoot: string, env: AppEnv): Pick<NonNullable<ExpoConfig["updates"]>, "codeSigningCertificate" | "codeSigningMetadata"> {
+  if (!fs.existsSync(path.resolve(projectRoot, CODE_SIGNING_CERTIFICATE))) {
+    if (env === "production" && process.env.EAS_BUILD === "true") {
+      throw new Error(`${CODE_SIGNING_CERTIFICATE.slice(2)} is required for a production build: a store binary without it accepts unsigned updates (runbook › Ký OTA)`);
+    }
+    return {};
+  }
   return { codeSigningCertificate: CODE_SIGNING_CERTIFICATE, codeSigningMetadata: { keyid: "main", alg: "rsa-v1_5-sha256" } };
 }
 
@@ -58,9 +67,12 @@ function appEnv(): AppEnv {
  * A release variant pointing at localhost is a broken store build: fail the build, not the phone.
  * Only on the EAS builder, though: eas-cli first reads this file locally with just the profile env,
  * to find the project id, and loads the EAS environment holding the URLs only after that.
+ * A release variant talks to its servers over TLS only (the socket's wss:// is derived from the
+ * API's URL, lib/runtime-extra.ts): any other scheme fails wherever the config is read.
  */
 function serverUrl(name: "UNICHAT_API_URL" | "UNICHAT_APP_URL", env: AppEnv, devDefault: string): string {
   const value = process.env[name];
+  if (value && env !== "dev" && !value.startsWith("https://")) throw new Error(`${name} must be an https:// URL when UNICHAT_ENV=${env}`);
   if (value) return value;
   if (env === "dev") return devDefault;
   if (process.env.EAS_BUILD !== "true") return "";
@@ -92,6 +104,9 @@ export default ({ config, projectRoot }: ConfigContext): ExpoConfig => {
     : isStaging
       ? (process.env.EXPO_BUNDLE_IDENTIFIER_STAGING ?? "com.uniworkos.chat.staging")
       : (process.env.EXPO_BUNDLE_IDENTIFIER_DEV ?? "com.uniworkos.chat.dev");
+  // Read first: a missing or cleartext server is the first thing a broken release build is told.
+  const apiUrl = serverUrl("UNICHAT_API_URL", env, "http://localhost:8080");
+  const appUrl = serverUrl("UNICHAT_APP_URL", env, "http://localhost:3000");
   const easProjectId = (process.env.UNICHAT_EAS_PROJECT_ID ?? EAS_PROJECT_ID) || undefined;
   // Crash reporting stays off without it (data/sentry.ts); a DSN is not a secret, it only routes events.
   const sentryDsn = process.env.SENTRY_DSN?.trim() || undefined;
@@ -124,7 +139,7 @@ export default ({ config, projectRoot }: ConfigContext): ExpoConfig => {
     // Downloaded in the background at launch, applied on the next cold start.
     // knip.json ignores expo-updates: knip loads the dev config, where updates are off.
     updates: easProjectId
-      ? { url: `https://u.expo.dev/${easProjectId}`, ...codeSigning(projectRoot ?? process.cwd()) }
+      ? { url: `https://u.expo.dev/${easProjectId}`, ...codeSigning(projectRoot ?? process.cwd(), env) }
       : { enabled: false },
     ios: {
       supportsTablet: false,
@@ -141,8 +156,14 @@ export default ({ config, projectRoot }: ConfigContext): ExpoConfig => {
     },
     android: {
       package: appId,
-      // The WebRTC plugin asks to draw over other apps; a call never does, and Play reviews it.
-      blockedPermissions: ["android.permission.SYSTEM_ALERT_WINDOW"],
+      // The WebRTC plugin asks to draw over other apps; a call never does, and Play reviews it. expo-file-system,
+      // expo-image and expo-image-picker ask for shared storage (up to API 32): UniChat reads only its own files and
+      // what the system pickers hand it, so it asks for none (audit "no-masvs-baseline").
+      blockedPermissions: ["android.permission.SYSTEM_ALERT_WINDOW", "android.permission.READ_EXTERNAL_STORAGE", "android.permission.WRITE_EXTERNAL_STORAGE"],
+      // No cloud backup of the app's files: unsent attachments sit in plain files under documents/outbox, and a
+      // restored session store cannot open on another phone anyway (its Keystore key never leaves this one).
+      // plugins/with-android-backup-rules.js closes the Android 12+ device-to-device transfer too.
+      allowBackup: false,
       // An EAS file variable (docs/evidence/unichat/release-accounts.md): without
       // Firebase, getExpoPushTokenAsync throws on Android and push never registers.
       ...(process.env.GOOGLE_SERVICES_JSON ? { googleServicesFile: process.env.GOOGLE_SERVICES_JSON } : {}),
@@ -227,6 +248,8 @@ export default ({ config, projectRoot }: ConfigContext): ExpoConfig => {
       ],
       // WebRTC's screen-sharing service: UniChat shares no screen (store compliance S2).
       ["./plugins/with-removed-android-services", { services: ["com.oney.WebRTCModule.MediaProjectionService"] }],
+      // Android 12+ copies app data to a new phone even with allowBackup off: nothing of UniChat's goes either way.
+      "./plugins/with-android-backup-rules",
       // Native calls on Android (docs/adr/drafts/0038, modules/unichat-calls): the
       // ringing screen's full-screen intent, the call's foreground service
       // (phoneCall, microphone, camera), Bluetooth audio and the Decline / Hang up actions.
@@ -240,8 +263,8 @@ export default ({ config, projectRoot }: ConfigContext): ExpoConfig => {
     ],
     extra: {
       APP_ENV: env,
-      apiUrl: serverUrl("UNICHAT_API_URL", env, "http://localhost:8080"),
-      appUrl: serverUrl("UNICHAT_APP_URL", env, "http://localhost:3000"),
+      apiUrl,
+      appUrl,
       authClientId: "uniwork-chat-mobile",
       deploymentId: "default",
       // Absent without an EAS project: data/push.ts then skips registration.

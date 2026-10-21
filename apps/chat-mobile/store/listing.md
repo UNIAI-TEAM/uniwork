@@ -78,7 +78,10 @@ id) nằm trong Keychain/Keystore. Tin chưa gửi được, lượt đọc, bi�
 cuộc trò chuyện, số chưa đọc, danh bạ của workspace và trang tin mới nhất của 12 cuộc trò chuyện gần nhất nằm trong
 một kho MMKV **mã hoá AES-256** bằng khoá ngẫu nhiên giữ trong Keychain/Keystore, chỉ trên máy này (khoá không vào bản
 sao lưu và không chuyển máy, nên bản sao lưu hay máy khác không đọc được kho). Ảnh, tệp và tin thoại chưa gửi được chép vào thư mục riêng của app (được hệ
-điều hành bảo vệ, không mã hoá thêm) và xoá ngay khi server nhận. Tất cả bị xoá khi đăng xuất hay xoá tài khoản.
+điều hành bảo vệ, không mã hoá thêm) và xoá ngay khi server nhận. Tất cả bị xoá khi đăng xuất hay xoá tài khoản; mọi
+lần đăng xuất, kể cả khi thiết bị bị thu hồi từ máy khác, còn xoá ảnh đã lưu trong bộ nhớ đệm, thông báo trong khay và số
+trên biểu tượng. Android không sao lưu dữ liệu của app lên đám mây và không chép nó sang máy mới
+(`allowBackup: false` và luật data extraction loại mọi vùng lưu trữ).
 Dữ liệu này không rời máy nên không là dữ liệu "thu thập" trong Apple App Privacy hay Google Data safety; câu hỏi
 "Data is encrypted in transit" của Play: có.
 
@@ -132,6 +135,7 @@ và nghe/gác máy dùng phản hồi chạm của hệ thống (Android `perfor
 | Màn cuộc gọi đến toàn màn hình | Android `USE_FULL_SCREEN_INTENT` (Android 14+: Play chỉ cấp sẵn cho app gọi điện, người dùng thu hồi được) | S4 | Hiện màn đổ chuông (Nghe / Từ chối) trên máy đang khoá khi có người gọi; không dùng cho gì khác. Bị thu hồi thì cuộc gọi chỉ là thông báo heads-up, Cài đặt › Thông báo có dòng mở lại | — (không có hộp thoại; trang cài đặt hệ thống) |
 | Quản lý cuộc gọi của app | Android `MANAGE_OWN_CALLS` | S4 | Android 14 chỉ cho chạy dịch vụ nền kiểu `phoneCall` với app tự quản lý cuộc gọi; UniChat không đọc hay đặt cuộc gọi điện thoại | — (quyền thường, cấp lúc cài) |
 | Thiết bị ở gần (Bluetooth) | Android 12+ `BLUETOOTH_CONNECT` | S4 | Đưa âm thanh cuộc gọi qua tai nghe Bluetooth; chỉ hỏi khi bắt đầu cuộc gọi, từ chối thì cuộc gọi vẫn dùng loa máy | — (hộp thoại hệ thống "thiết bị ở gần") |
+| ~~Bộ nhớ dùng chung~~ | Android `READ_/WRITE_EXTERNAL_STORAGE` **bị gỡ** (`blockedPermissions`) | bảo mật | `expo-file-system`, `expo-image`, `expo-image-picker` khai chúng tới API 32; UniChat chỉ đọc tệp của chính nó và tệp trình chọn hệ thống trao, nên không xin | — |
 
 Không CallKit/VoIP push trên iOS (chưa có tài khoản Apple; kế hoạch PushKit + CallKit ở
 `docs/adr/drafts/0038-cuoc-goi-native-android-va-ke-hoach-callkit-ios.md`), nên không có background mode `voip`. iOS

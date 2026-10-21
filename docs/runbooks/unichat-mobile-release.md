@@ -125,7 +125,11 @@ của bản store trên kênh đó (`staging` cho `internal`/`preview`, `product
    tự bật `codeSigningCertificate` khi file có mặt). Khoá riêng **không bao giờ** vào repo: lưu vào kho bí mật của tổ
    chức và secret `EAS_UPDATE_PRIVATE_KEY` của Environment `chat-mobile-update` (nội dung PEM). Từ binary đầu tiên có
    chứng chỉ, máy từ chối mọi bản OTA không ký; chứng chỉ thêm vào là thay đổi native (fingerprint mới, cần bản store).
-   Mất khoá = không phát OTA được cho các binary đó tới bản store kế tiếp.
+   Mất khoá = không phát OTA được cho các binary đó tới bản store kế tiếp. **Bắt buộc trước bản production** (audit
+   bảo mật "ota-unsigned"): thiếu chứng chỉ thì `app.config.ts` ném lỗi trên máy build EAS với `UNICHAT_ENV=production`
+   (build production đỏ, staging vẫn build), và `chat-mobile-update.yml` từ chối phát OTA kênh `production` không ký.
+   Bản 0.3.0 production đầu tiên được build khi chưa có chứng chỉ: không đưa nó lên track người dùng thấy; build lại
+   AAB sau khi commit chứng chỉ.
 10. Nightly (`chat-mobile-verify.yml`): trên staging, một org thử có một workspace, một **phòng nhóm** (group, không
    phải kênh mặc định của workspace) và một tài khoản thành viên của phòng đó, đăng nhập bằng email/mật khẩu (không
    MFA, không chỉ Google). Phòng nhóm vì cuộc gọi nhóm vào thẳng phòng LiveKit mà không cần người thứ hai; mỗi đêm

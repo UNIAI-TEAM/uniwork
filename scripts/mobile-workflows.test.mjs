@@ -87,6 +87,8 @@ test("an OTA update is verified first, staged, signed when the app carries a cer
   assert.match(wf, /--rollout-percentage "\$ROLLOUT"/);
   assert.match(wf, /certs\/eas-update-certificate\.pem/);
   assert.match(wf, /--private-key-path/);
+  // Audit "ota-unsigned": production is never published unsigned, whatever the certificate's state.
+  assert.match(wf, /if \[ "\$UNICHAT_ENV" = "production" \]; then\n\s+echo "::error::No code-signing certificate[^\n]*\n\s+exit 1/, "an unsigned production update fails");
   assert.match(wf, /::error::EXPO_TOKEN is not set[^\n]*\n\s+exit 1/, "a dispatched publish without a token fails");
   assert.match(wf, /sentry-expo-upload-sourcemaps dist/);
 });

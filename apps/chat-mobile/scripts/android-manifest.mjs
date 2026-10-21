@@ -112,7 +112,15 @@ export function androidManifestReport() {
   }
   for (const name of removed.permissions) permissions.delete(name);
   for (const name of removed.services) services.delete(name);
+  const appAttrs = application.$ ?? {};
   return {
+    // What leaves the phone in a backup or a device transfer, and whether cleartext is allowed (MASVS-STORAGE, -NETWORK).
+    application: {
+      allowBackup: appAttrs["android:allowBackup"] ?? "",
+      dataExtractionRules: appAttrs["android:dataExtractionRules"] ?? "",
+      usesCleartextTraffic: appAttrs["android:usesCleartextTraffic"] ?? "",
+      networkSecurityConfig: appAttrs["android:networkSecurityConfig"] ?? "",
+    },
     permissions: [...permissions].sort(),
     removedPermissions: [...removed.permissions].sort(),
     services: [...services].map(([name, foregroundServiceType]) => ({ name, foregroundServiceType })).sort((a, b) => a.name.localeCompare(b.name)),
