@@ -92,7 +92,7 @@ export function WorkspaceChrome({ children, bare = false }: { children: ReactNod
       <GlobalShortcuts onCreateTask={openCreate} />
       <SearchCommand onCreateTask={openCreate} />
       {docked ? null : <AskUniLegacyPanel />}
-      <AskUniDock docked={docked}>{page}</AskUniDock>
+      <AskUniDock enabled={docked}>{page}</AskUniDock>
       <CreateTaskDraftTray workspaceId={workspace.id} onOpenDraft={openCreate} />
     </PreferenceToastProvider>
   );

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 import { useAiPanelStore } from "@uniwork/core/ai";
 import { initI18n } from "@uniwork/core/i18n";
@@ -74,6 +74,8 @@ describe("AskUniHeader", () => {
     fireEvent.keyDown(input, { key: "Enter" });
     await waitFor(() => expect(requestMock.mock.calls.filter(([, o]) => (o as { method?: string } | undefined)?.method === "PATCH")).toHaveLength(1));
     fireEvent.keyDown(input, { key: "Enter" });
+    // query-core awaits onMutate before the mutation function runs: let a second PATCH reach the transport.
+    await act(async () => {});
     resolve({});
     expect(requestMock.mock.calls.filter(([, o]) => (o as { method?: string } | undefined)?.method === "PATCH")).toHaveLength(1);
   });

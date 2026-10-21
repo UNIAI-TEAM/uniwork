@@ -38,7 +38,7 @@ function mount() {
   return render(
     wrapWithNav(
       <WorkspaceProvider workspace={workspace} user={user}>
-        <AskUniDock docked>
+        <AskUniDock enabled>
           <p>trang chính</p>
         </AskUniDock>
       </WorkspaceProvider>,
@@ -87,7 +87,7 @@ describe("AskUniDock", () => {
     render(
       wrapWithNav(
         <WorkspaceProvider workspace={workspace} user={user}>
-          <AskUniDock docked={false}>
+          <AskUniDock enabled={false}>
             <p>trang chính</p>
           </AskUniDock>
         </WorkspaceProvider>,
@@ -97,6 +97,33 @@ describe("AskUniDock", () => {
     await waitFor(() => expect(requestMock).toHaveBeenCalled());
     expect(screen.queryByRole("complementary")).toBeNull();
     expect(screen.queryByRole("dialog")).toBeNull();
+  });
+});
+
+describe("touch-action", () => {
+  it.each([
+    ["flag off", false, false],
+    ["flag on, closed", true, false],
+    ["flag on, docked", true, true],
+  ])("restores touch-action: auto on the group and every panel (%s)", async (_name, enabled, open) => {
+    window.innerWidth = 1280;
+    useAiPanelStore.setState({ open });
+    render(
+      wrapWithNav(
+        <WorkspaceProvider workspace={workspace} user={user}>
+          <AskUniDock enabled={enabled}>
+            <p>trang chính</p>
+          </AskUniDock>
+        </WorkspaceProvider>,
+      ),
+    );
+    if (open) await screen.findByRole("complementary", { name: "Hỏi UNI" });
+    // The library writes pan-y inline on the group and on each panel's inner div (the one that takes className); an important class beats it.
+    const carriers = [
+      ...document.querySelectorAll('[data-slot="resizable-panel-group"], [data-panel] > div'),
+    ];
+    expect(carriers).toHaveLength(open ? 3 : 2);
+    for (const el of carriers) expect(el).toHaveClass("!touch-auto");
   });
 });
 
