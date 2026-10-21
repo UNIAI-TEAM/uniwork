@@ -138,6 +138,13 @@ export class WSClient {
     this.openSocket();
   }
 
+  /** A heartbeat now, not at the next interval (background-grace.ts: back in the app after a short absence):
+   *  a socket the OS cut meanwhile is replaced within the pong timeout. One check at a time. */
+  probe() {
+    if (!this.isAuthenticated() || this.awaitingPong) return;
+    this.sendHeartbeat();
+  }
+
   /** True when the current socket received auth_ack and is still open. */
   isAuthenticated(): boolean {
     return this.authenticated && this.ws?.readyState === WebSocket.OPEN;

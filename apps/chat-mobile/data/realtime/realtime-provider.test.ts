@@ -136,6 +136,36 @@ describe("RealtimeProvider", () => {
     expect(MockWebSocket.instances).toHaveLength(3);
   });
 
+  it("an app switch within the grace keeps the authenticated socket and probes it; a longer absence pauses it", async () => {
+    vi.useFakeTimers();
+    try {
+      ({ cleanup } = await mount());
+      latest().authenticate();
+      const pings = () => latest().sent.filter((f) => JSON.parse(f).type === "ping").length;
+      latest().onmessage?.({ data: JSON.stringify({ type: "pong" }) });
+      lifecycle.onAppState!("background");
+      await vi.advanceTimersByTimeAsync(10_000);
+      lifecycle.onAppState!("active");
+      expect(MockWebSocket.instances).toHaveLength(1);
+      expect(pings()).toBe(2);
+      latest().onmessage?.({ data: JSON.stringify({ type: "pong" }) });
+
+      lifecycle.onAppState!("background");
+      await vi.advanceTimersByTimeAsync(25_000);
+      // Paused: the next return opens one fresh socket.
+      lifecycle.onAppState!("active");
+      expect(MockWebSocket.instances).toHaveLength(2);
+      // Unmounting while away cancels the pending pause.
+      latest().authenticate();
+      lifecycle.onAppState!("background");
+      cleanup?.();
+      cleanup = undefined;
+      await vi.advanceTimersByTimeAsync(25_000);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("force-reconnects only on the offline → online edge", async () => {
     ({ cleanup } = await mount());
     lifecycle.onNetInfo!({ isConnected: true });

@@ -114,6 +114,23 @@ describe("WSClient application heartbeat", () => {
     client.disconnect();
   });
 
+  it("probes now on demand: one check at a time, none without an authenticated socket", () => {
+    vi.spyOn(Math, "random").mockReturnValue(0);
+    const { client, socket } = connectAuthenticatedClient();
+    // The connect's own heartbeat is still in flight: a probe adds nothing.
+    client.probe();
+    expect(socket.frames().filter((f) => (f as { type: string }).type === "ping")).toHaveLength(1);
+    socket.receive({ type: "pong" });
+    client.probe();
+    expect(socket.frames().filter((f) => (f as { type: string }).type === "ping")).toHaveLength(2);
+    // No pong to the probe: the socket is replaced within the timeout, not at the next interval.
+    vi.advanceTimersByTime(10_001);
+    expect(MockWebSocket.instances).toHaveLength(2);
+    client.probe();
+    expect(latest().sent).toEqual([]);
+    client.disconnect();
+  });
+
   it("treats a failing send as a dead socket and backs off", () => {
     vi.spyOn(Math, "random").mockReturnValue(0);
     const { client, socket } = connectAuthenticatedClient();

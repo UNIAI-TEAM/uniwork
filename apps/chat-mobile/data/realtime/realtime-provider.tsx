@@ -10,13 +10,17 @@
  * workspace switch → unmount/remount → fresh client with the new slug.
  *
  * Lifecycle signals:
- *   AppState 'background'  → pause socket (iOS will kill it anyway; clean
- *                            close avoids a kernel-level reset on resume),
- *                            unless `holdOpen` (a call rings, connects or is
- *                            on: its accept and hang-up frames must arrive,
- *                            audit C1); the pause happens when the call ends
- *   AppState 'active'      → resume socket after 'background', or when the
- *                            socket is not authenticated (iOS zombie)
+ *   AppState 'background'  → pause the socket once the app has been away
+ *                            BACKGROUND_GRACE_MS (background-grace.ts: an app
+ *                            switch costs no reconnect; a clean close before
+ *                            iOS kills it avoids a kernel-level reset on
+ *                            resume), unless `holdOpen` (a call rings,
+ *                            connects or is on: its accept and hang-up frames
+ *                            must arrive, audit C1); the pause happens when
+ *                            the call ends
+ *   AppState 'active'      → back within the grace: probe the socket now;
+ *                            after a pause, past the grace, or over a socket
+ *                            that is not authenticated (iOS zombie): resume
  *   AppState 'inactive'    → ignore (transient: app switcher / Control
  *                            Center / incoming call — tearing down here
  *                            causes spurious reconnect storms)
@@ -39,6 +43,7 @@ import { createContext, use, useEffect, useRef, useState, type ReactNode } from 
 import { AppState, type AppStateStatus, Platform } from "react-native";
 import { buildInfo } from "../build-info";
 import { argsLogger, createLogger } from "../logger";
+import { createBackgroundGrace } from "./background-grace";
 import { createSocketRecovery } from "./socket-recovery";
 import { WSClient } from "./ws-client";
 import type { ConnectionState } from "./ws-types";
@@ -124,16 +129,14 @@ export function RealtimeProvider({ userId, workspaceSlug, getToken, refreshSessi
     setClient(ws);
 
     // ── AppState ────────────────────────────────────────────────
-    const appStateSub = AppState.addEventListener("change", (status: AppStateStatus) => {
-      if (status === "active") {
-        // Foreground after background (we paused) or a zombie (iOS killed it
-        // silently): one fresh socket. An inactive blip, or a background a
-        // call held the socket open through, keeps a healthy one.
-        if (ws.getConnectionState() === "offline" || !ws.isAuthenticated()) ws.resume();
-      } else if (status === "background" && !holdRef.current) {
-        ws.pause();
-      }
+    // A short absence keeps the socket; a long one pauses it; the return probes or redials (background-grace.ts).
+    const grace = createBackgroundGrace(ws, {
+      holdOpen: () => holdRef.current,
+      now: () => Date.now(),
+      setTimer: (run, ms) => setTimeout(run, ms),
+      clearTimer: (timer) => clearTimeout(timer as ReturnType<typeof setTimeout>),
     });
+    const appStateSub = AppState.addEventListener("change", (status: AppStateStatus) => grace.onAppState(status));
 
     // ── NetInfo ─────────────────────────────────────────────────
     lastConnectedRef.current = null;
@@ -151,6 +154,7 @@ export function RealtimeProvider({ userId, workspaceSlug, getToken, refreshSessi
 
     return () => {
       appStateSub.remove();
+      grace.dispose();
       netInfoUnsub();
       recovery.reset();
       connectionSub();

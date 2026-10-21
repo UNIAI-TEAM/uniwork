@@ -116,8 +116,10 @@ một dòng thì ghi lý do ở dòng trên.
   `invalid token` thì refresh, refresh lỗi tạm thời thì thử lại theo backoff
   2/5/15/60 s có jitter (`data/retry-timers.ts`), `too many connections` thì redial
   theo cùng backoff, lời từ chối khác (không phải thành viên) thì chờ tín hiệu sau;
-  reset khi socket `online`. `active` chỉ `resume()` khi socket đã pause (trạng thái
-  `offline`) hoặc chưa auth. Reader token cho provider là
+  reset khi socket `online`. Vào background thì socket ở lại `BACKGROUND_GRACE_MS` (25 s,
+  `realtime/background-grace.ts`, thuần) rồi mới pause — chuyển app nhanh (chép OTP) không reconnect, không refetch;
+  `active` trong cửa sổ đó thì `ws.probe()` (heartbeat ngay, không pong trong 10 s thì thay socket), còn sau khi đã
+  pause, quá cửa sổ (iOS treo JS nên timer không chạy) hoặc socket chưa auth thì `resume()`. Reader token cho provider là
   `realtime/refresh-for-socket.ts` (thuần): thử token hiện tại trước, refresh
   khi vẫn là token đã chết, thất bại tạm thời thì reject để giữ phiên.
   `ws-client` báo trạng thái `connecting`/`online`/`waiting`/`offline`
@@ -180,7 +182,7 @@ một dòng thì ghi lý do ở dòng trên.
   và test. **Realtime**: `chat-realtime.ts` không bỏ frame khi GET lỗi (tin mới →
   catch-up phòng, sửa/nhắc → refetch phòng, trả lời chủ đề → refetch chủ đề, danh sách theo sau); mỗi phòng một GET
   một lúc, frame đến trong lúc đó gộp theo tin và từ 2 tin mới trên timeline đang hiện thì đọc bằng một catch-up.
-  Reconnect (mỗi lần về foreground) giữ mọi trang đã cuộn của phòng đang hiện và refetch từng trang (nối lại từ trang
+  Reconnect (về foreground sau cửa sổ ân hạn, mạng quay lại) giữ mọi trang đã cuộn của phòng đang hiện và refetch từng trang (nối lại từ trang
   mới nhất) để thấy sửa/xoá/biểu cảm lúc offline; chỉ mở lại phòng mới cắt về trang mới nhất.
 - Quan sát và phát hành (UNI-2053). `data/report.ts` là cửa duy nhất tới báo
   crash (no-op khi chưa có sink; `force` cho boundary). `classifyError` chia ba: mong đợi (mất mạng/timeout = 0,
