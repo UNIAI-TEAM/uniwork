@@ -11,7 +11,7 @@ import { useNavigation } from "../navigation";
 import { DocumentTypeIcon } from "../documents/document-type-icon";
 import { ChatDocumentRequestAccess, documentMutedClass } from "./chat-document-actions";
 import { useChatDocumentMenu, type ChatDocumentDesktopOpen } from "./chat-document-menu";
-import { OWN_BUBBLE_CONTROL_REST } from "./chat-file-card";
+import { bubbleControlClass, OWN_BUBBLE_CONTROL_REST } from "./chat-file-card";
 import { ChatMessageActionsFrame, chatMessageActionsRailClass, ChatMessageTouchMore } from "./chat-message-hover-actions";
 import { ChatMessageA11yLabel, ChatMessageMeta, ChatReactionChips, chatMessageLabelId } from "./chat-message-parts";
 import { ChatReplyQuote } from "./chat-reply-quote";
@@ -267,7 +267,7 @@ export function ChatDocumentCard({
           </Badge>
         ) : null}
         {/* Touch has no hover bar: the same menu, one tap away (coarse pointers only). */}
-        <ChatMessageTouchMore className="-mr-1" />
+        <ChatMessageTouchMore className={cn("-mr-1", bubbleControlClass(isOwn))} />
       </div>
     </div>
   );
