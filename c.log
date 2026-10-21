@@ -1,0 +1,3 @@
+$ cd server; go test -count=1 -race -run '^TestFolderUpload' ./internal/service > /tmp/pr7r9-rr2.log 2>&1; rc=$?; grep -E "^(ok|FAIL|---)|DATA RACE" /tmp/pr7r9-rr2.log | head -10 | cut -c1-250; echo "FOLDERUPLOAD_ALL_EXIT=$rc"; [ $rc -eq 0 ]
+ok  	github.com/unicomhub/uniwork/server/internal/service	18.487s
+FOLDERUPLOAD_ALL_EXIT=0

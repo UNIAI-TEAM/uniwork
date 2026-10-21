@@ -1,0 +1,5 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin advisor/pr7-rehearsal; git rev-parse HEAD FETCH_HEAD; test "$(git rev-parse HEAD)" = "$(git rev-parse FETCH_HEAD)"; rc=$?; echo; echo "SYNCED_EXIT=$rc"; [ $rc -eq 0 ]
+d3b358870858cc2dbf4e12f911bab843281b4c4b
+d3b358870858cc2dbf4e12f911bab843281b4c4b
+
+SYNCED_EXIT=0
