@@ -324,6 +324,20 @@ describe("document_changed click target (item 4)", () => {
     expect(screen.getByRole("link")).toBeInTheDocument();
   });
 
+  it("shows no deleted tag on a permanently deleted several-document row (RFW-14)", () => {
+    const purged = row(changed({ verb: "deleted", document_count: "3" }, { count: 3 }), { onOpenList: vi.fn() });
+    expect(screen.getByRole("link")).toBeInTheDocument();
+    // The sentence itself says "đã xóa vĩnh viễn"; only the trailing tag (italic) must be absent.
+    expect(purged.container.querySelector("em, .italic")).toBeNull();
+  });
+
+  it("shows no deleted tag on a several-document row whose first document was deleted (RFW-14)", () => {
+    const partial = row(changed({ verb: "renamed", document_count: "3" }, { count: 3, resource_deleted: true }), { onOpenList: vi.fn() });
+    expect(screen.getByRole("link")).toBeInTheDocument();
+    expect(partial.container).not.toHaveTextContent("đã xóa");
+    expect(partial.container.querySelector("em, .italic")).toBeNull();
+  });
+
   it("is no link at all for one permanently deleted document", () => {
     const { container } = row(changed({ verb: "deleted" }));
     expect(screen.queryByRole("link")).toBeNull();
