@@ -142,7 +142,9 @@ test("a file document takes a new version and downloads it", async ({ page }) =>
   await onboard(page, fileSeed);
 
   await page.goto(`/${fileSeed.orgSlug}/${fileSeed.wsSlug}/documents`);
+  // "Tải lên" is a menu once the server offers folder upload: pick the file entry.
   await page.getByRole("button", { name: "Tải lên", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Tải lên tệp" }).click();
   const uploadDialog = page.getByRole("dialog", { name: "Tải tệp lên" });
   await expect(uploadDialog).toBeVisible();
   await uploadDialog.getByLabel("Chọn tệp").setInputFiles({

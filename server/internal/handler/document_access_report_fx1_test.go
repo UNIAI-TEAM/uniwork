@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/base64"
+	"encoding/json"
 	"regexp"
 	"strings"
 	"testing"
@@ -37,10 +38,13 @@ func TestAccessReportCursorLeaksNoTitleOrTime(t *testing.T) {
 				break
 			}
 			cursors++
-			raw, err := base64.RawURLEncoding.DecodeString(cursor)
+			// The payload is readable (only the signature makes it trusted),
+			// so the leak check reads it the way a client could.
+			payload, err := json.Marshal(accessReportPayload(t, cursor))
 			if err != nil {
 				t.Fatal(err)
 			}
+			raw := payload
 			for _, leak := range []string{"Lương", "mật", `"k"`} {
 				if strings.Contains(string(raw), leak) {
 					t.Fatalf("%s: cursor %s carries %q", sort, raw, leak)
@@ -69,10 +73,18 @@ func TestAccessReportCursorOfAGoneAnchorIs400(t *testing.T) {
 		if cursor == "" {
 			t.Fatalf("%s: no cursor: %v", sort, out)
 		}
-		raw, _ := base64.RawURLEncoding.DecodeString(cursor)
-		gone := strings.Replace(string(raw), `"id":"`, `"id":"01GONE`, 1)
-		forged := base64.RawURLEncoding.EncodeToString([]byte(gone))
-		res, out := doJSON(t, w.srv, "GET", base+"?sort="+sort+"&limit=1&cursor="+forged, w.token, nil)
+		// A genuine, signed cursor whose anchor is gone: the seal holds, the
+		// anchor lookup is what refuses it.
+		var c accessReportCursor
+		rest, _ := strings.CutPrefix(cursor, accessReportCursorPrefix)
+		body, _, _ := strings.Cut(rest, ".")
+		raw, err := base64.RawURLEncoding.DecodeString(body)
+		if err != nil || json.Unmarshal(raw, &c) != nil {
+			t.Fatalf("%s: cursor %q does not open: %v", sort, cursor, err)
+		}
+		c.ID = "01GONE" + c.ID
+		gone := encodeAccessReportCursor("test", c) // newTestDeps signs with JWTSecret "test"
+		res, out := doJSON(t, w.srv, "GET", base+"?sort="+sort+"&limit=1&cursor="+gone, w.token, nil)
 		code, _ := errCodeClass(out)
 		if res.StatusCode != 400 || code != "invalid_request" {
 			t.Errorf("%s: gone anchor: %d %v, want 400 invalid_request", sort, res.StatusCode, out)

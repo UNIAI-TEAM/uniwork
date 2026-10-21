@@ -18,6 +18,7 @@ import { CollectionPageState } from "../layout/collection-page";
 import { useOptionalWorkspace } from "../layout/workspace-context";
 import { AppLink, useNavigation } from "../navigation";
 import { OfficeHomeLaunch, type OfficeHomeLaunchProps } from "../office/office-home-launch";
+import { DocumentsDropOverlay } from "./documents-drop-overlay";
 import { DocumentsGateState, useDocumentsGate } from "./documents-gate";
 import { isParentWorkspaceShared, useCreateOfType } from "./documents-create";
 import { CreateMenu } from "./documents-home-create";
@@ -37,12 +38,10 @@ import { DocumentsShelvedView } from "./documents-shelved-view";
 import { DocumentsTrashView } from "./documents-trash-view";
 import { DocumentsSidebar, DocumentsSidebarSheet, type LibraryView } from "./documents-sidebar";
 import { downloadSourceFile } from "./download-source-file";
-import { DocumentUploadDialog } from "./document-upload-dialog";
 import type { TypeChip } from "./library-rows";
 import { sourceParentPath } from "./source-links";
 import { useDocumentsLibrary } from "./use-documents-library";
-import { useDocumentFileUpload } from "./use-document-file-upload";
-import { useDropUpload } from "./use-drop-upload";
+import { useDocumentsUploads } from "./use-documents-uploads";
 import type { OfficeModule } from "@uniwork/core/office/docs-frame-protocol";
 import { useSourceOfficeViewer } from "./source-office-viewer";
 import { useLibraryRowDialogs } from "./use-library-row-dialogs";
@@ -181,16 +180,19 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
   const parentForCreate = view.kind === "home" ? folderId : null;
   const parentShared = parentForCreate !== null && isParentWorkspaceShared(folderDoc, library.docById.get(parentForCreate));
 
-  const fileUpload = useDocumentFileUpload({
+  const uploads = useDocumentsUploads({
     wsId,
-    parentId: parentForCreate,
     limits,
-    onOpen,
-    description: t(parentForCreate && !isMyFolder(folderDoc) ? "documents.upload.description_folder" : "documents.upload.description"),
-    rootDestination: "my_folder",
-    rootParentId: myFolderId,
+    canUpload: enabled && canCreate && !folderInvalid,
+    parentId: parentForCreate,
+    folderDoc,
+    folderTitle: openFolderTitle,
+    tree: library.tree,
+    myFolderId,
     resolveRootParent: async () => myFolderId ?? (await ensureMyFolder.mutateAsync()).id,
     parentShared,
+    onOpen,
+    onOpenFolder: (id) => goHome({ kind: "home" }, id),
   });
 
   const rowDialogs = useLibraryRowDialogs({ wsId, tree: library.tree, folderId, folderTitle: openFolderTitle });
@@ -207,12 +209,6 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
   const rowCommands = canCreate && (view.kind === "home" || view.kind === "recent" || view.kind === "starred" || view.kind === "shared" || view.kind === "sharedByMe");
 
   const member = useMemo(() => docMemberLookup(members.data), [members.data]);
-  const drop = useDropUpload({
-    enabled: enabled && canCreate && !folderInvalid,
-    maxBytes: limits.upload_max_bytes,
-    upload: fileUpload.uploadDroppedFile,
-  });
-
   const goHome = (next: LibraryView, nextFolder: string | null = null) => {
     if (next.kind !== view.kind) {
       // A screen change starts with no filter; none carries over unseen.
@@ -343,7 +339,8 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
     pending: creator.pending,
     unavailable: creator.unavailable,
     onCreate: (type: Parameters<typeof creator.create>[0]) => void creator.create(type, parentForCreate),
-    onUpload: fileUpload.openUpload,
+    onUpload: uploads.openUpload,
+    onUploadFolder: uploads.openFolderUpload,
     onNewFolder: parentForCreate ? rowDialogs.onCreateFolder : undefined,
   };
 
@@ -417,7 +414,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
           <section
             className="relative min-h-0 min-w-0 flex-1 overflow-y-auto"
             aria-label={t("documents.page.title")}
-            {...drop.zoneProps}
+            {...uploads.zoneProps}
           >
             {homeView ? (
               <div className="mx-auto max-w-6xl px-4 pt-5 sm:px-6">
@@ -545,18 +542,14 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
                 {libraryList}
               </div>
             )}
-            {drop.active ? (
-              <div aria-hidden className="pointer-events-none absolute inset-2 flex items-center justify-center rounded-xl border-2 border-dashed border-primary bg-background/80 text-body font-medium text-foreground">
-                {t("documents.home.drop_active")}
-              </div>
-            ) : null}
+            {uploads.dropActive ? <DocumentsDropOverlay /> : null}
           </section>
         </div>
       )}
 
       <DocumentsSidebarSheet open={navOpen} onOpenChange={setNavOpen} {...sidebar} />
 
-      <DocumentUploadDialog {...fileUpload.dialogProps} />
+      {uploads.dialogs}
 
       {officeViewer.dialog}
 

@@ -13,6 +13,8 @@ import (
 	"context"
 	"encoding/json"
 	"testing"
+
+	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
 func wsrIDs(page DocumentListPage) map[string]DocumentListItem {
@@ -181,8 +183,11 @@ func TestSharedDocumentInWorkspaceFolderKeepsItsPath(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(favs) != 1 || favs[0].Document.ParentID.String != sub.ID {
-			t.Fatalf("favorites = %d rows, parent = %q, want one under %s", len(favs), favs[0].Document.ParentID.String, sub.ID)
+		if len(favs) != 1 {
+			t.Fatalf("favorites = %d rows, want one under %s", len(favs), sub.ID)
+		}
+		if favs[0].Document.ParentID.String != sub.ID {
+			t.Fatalf("favorites parent = %q, want %s", favs[0].Document.ParentID.String, sub.ID)
 		}
 	})
 
@@ -236,6 +241,53 @@ func TestSharedDocumentInWorkspaceFolderKeepsItsPath(t *testing.T) {
 			t.Fatalf("breadcrumbs=%v parentVisible=%v, want none", view.Breadcrumbs, view.ParentVisible())
 		}
 	})
+}
+
+// A share is not membership: a recipient who is not in the folder's workspace
+// reads the shared document, but the workspace folder above it stays masked
+// (no folder id or title), because the folder itself is not readable to them.
+func TestSharedDocumentInWorkspaceFolderStaysMaskedForNonMembers(t *testing.T) {
+	e := newWSFolderEnv(t)
+	ctx := e.f.ctx
+
+	top := e.mkFolder(t, e.a, "", "Thư mục chung của A")
+	doc := e.mkPage(t, e.a, top.ID, "Chia sẻ ra ngoài workspace")
+	recipients := map[string]db.User{"outsider": e.tn.outsider, "bMember": e.tn.bMember}
+	for name, u := range recipients {
+		if _, err := e.svc.ShareDocument(ctx, e.a, doc.ID, DocumentShareInput{
+			PrincipalType: DocumentPrincipalUser, PrincipalID: u.ID, Level: DocumentLevelView,
+		}); err != nil {
+			t.Fatalf("share with %s: %v", name, err)
+		}
+	}
+
+	for name, u := range recipients {
+		t.Run(name, func(t *testing.T) {
+			sw, err := e.svc.ListSharedWithMe(ctx, u.ID, e.tn.orgID, SharedWithMeQuery{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			found := false
+			for _, it := range sw.Items {
+				if it.Document.ID == doc.ID {
+					found = true
+					if it.Document.ParentID.Valid {
+						t.Fatalf("Shared with me names the workspace folder %s", it.Document.ParentID.String)
+					}
+				}
+			}
+			if !found {
+				t.Fatal("the shared document is not in Shared with me")
+			}
+			view, err := e.svc.GetDocument(ctx, human(u), doc.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(view.Breadcrumbs) != 0 || view.ParentVisible() {
+				t.Fatalf("breadcrumbs=%v parentVisible=%v, want none", view.Breadcrumbs, view.ParentVisible())
+			}
+		})
+	}
 }
 
 // Rule 15: tree, search, recent and the realtime reader filter answer a member

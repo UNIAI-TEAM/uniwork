@@ -1,0 +1,164 @@
+common-02|OK|docs-main.ts:6110 accelerator Shift+CmdOrCtrl+N = New Window
+common-05|OK|index.ts:5964 / docs-main.ts:6132 menu accel; pdf App.tsx:6349 k==='s' ignores shift (plain Save); docs App.tsx:5513 e.key==='s' misses Shift+S (as row says)
+common-07|OK|tab-manager before-input-event path + menu CmdOrCtrl+W; MS side Word-Mac Cmd+F4 to check in step 3
+common-08|OK|electron role quit has no Windows accel (menu-item-roles.ts:151); definitions.ts:268 reserves Q
+common-11|OK|ribbon-collapse.tsx:87; Windows branch outside the 3-line window
+common-12|OK|autoHideMenuBar:true at index.ts:3629 (absence of key tips is grep-based = UNVERIFIABLE by line)
+common-16|OK|pdf :6362, docs-main :6183, ui-scale-menu :41 match
+common-17|OK|pdf :6365, docs-main :6188, ui-scale-menu :46 match
+common-18|OK|pdf :6368 e.key==='0' sets fit-width as claimed; docs-main :6193; ui-scale :52
+common-20|OK|docs-main :6223 role togglefullscreen; office-module-frame.tsx:451 allow has no fullscreen
+docs-002|OK|docs-main :6110, App.tsx:5611 comment
+docs-005|OK|docs App.tsx:5513 e.key==='s' (S with Shift never matches); menu :6132
+docs-027|OK|App.tsx:5656-5664 unshifted Comma = subscript; MS page prints Ctrl+Shift+Minus (L1454) so "different" is right
+docs-039|OK|App.tsx:5684 ctrl+Space, !meta/!alt/!shift
+docs-059|OK|menu :6132 is Save As
+docs-063|OK|App.tsx:5561 / docs-main :6274
+docs-069|OK|extensions.ts:1672 Mod-Shift--
+docs-072|OK|App.tsx:5721 Ctrl/Meta+Alt+KeyA
+docs-087|OK|ribbon-collapse.tsx:87
+docs-088|OK|togglefullscreen role
+docs-090|OK|autoHideMenuBar
+docs-095|OK|index.ts:6519 Shift+CmdOrCtrl+H
+sheets-12|OK|global-shortcuts.ts:103 KeyV mod+shift gate sheet; electron role accel Shift+CmdOrCtrl+V
+sheets-22|OK|excel-shortcuts.ts:430/436 Digit9 CTRL_COMMAND (+SHIFT unhide)
+sheets-23|OK|excel-shortcuts.ts:442/448 Digit0
+sheets-39|OK|excel-shortcuts.ts:370 PageDown|CTRL_COMMAND, :385 mac Option+Right
+sheets-40|OK|excel-shortcuts.ts:376, :392
+sheets-77|OK|global-shortcuts.ts:93-99 Semicolon mod=date, mod+shift=time
+sheets-81|OK|univer sheets-filter.shortcut.ts:24 Ctrl+Shift+L; fork global-shortcuts.ts:142 Cmd+Shift+F
+sheets-82|OK|global-shortcuts.ts:156 KeyT mod gate sheet
+slides-15|OK|keyboard-actions.ts:427 `mod && !e.altKey && key d/D` has no shift exclusion -> Ctrl+Shift+D runs duplicateSelected (objects), as the row says; no slide-duplicate key handler exists (duplicateSlides only in context-menu-items.ts:63)
+slides-34|OK|SlideShowView.tsx:405 Escape closes grid; web-slides-api.ts:857-858 onAccelerator ctrl/meta+s saves with no show-mode check
+slides-59|OK|keyboard-actions.ts:157 Ctrl/Cmd+K opens AI ask only when a shape is selected and not editing
+pdf-02|OK|pdf App.tsx:6349 k==='s' (no shift test) -> Save; shell index.ts:5964 menu accel
+pdf-19|WRONG|evidence ui-scale-menu.ts:27 is chromeFollowsUiScale (home/sheets only), says nothing about PDF fullscreen. The claim itself is true: buildPdfMenu (shell index.ts:5935-~6003) has only File + Help, no View/togglefullscreen role. Cite fork:apps/shell/src/main/index.ts:5935
+html-003|OK|html App.tsx:1498 key==='s' (shiftKey? saveAs:save); index.ts:6146
+html-017|OK|codemirror commands index.js:573 Mod-u undoSelection
+html-018|OK|inspector.js:1051 mod+k -> askAi
+html-027|OK|cm-setup.ts:119 defaultKeymap; codemirror :1814 Mod-/ (deleteLine is :1812 Shift-Mod-k)
+markdown-003|OK|App.tsx:1076 + capture listener at :1105
+markdown-019|OK|strike.ts:113 Mod-Shift-s; prosemirror-view index.js:3196 eventBelongsToView returns false when defaultPrevented; markdown handler registered capture=true at App.tsx:1105
+markdown-020|OK|code.ts:161 Mod-e; App.tsx:1090 key==='e' source toggle
+markdown-021|OK|App.tsx:1090
+markdown-026|OK|bullet-list.ts:127 Mod-Shift-8
+markdown-028|OK|task-list.ts:191, blockquote.tsx:130, code-block.ts:212 ; C2 word L1260 prints Ctrl+Alt+C as Copy formatting
+markdown-031|OK|blockKeymap.ts:13
+markdown-032|OK|blockKeymap.ts:15-17
+markdown-040|OK|PlainTextEditor.tsx:113 defaultKeymap+indentWithTab
+uninote-005|OK|code.ts:161 Mod-e; test asserts page-shortcuts.test.ts:37
+uninote-006|OK|bullet-list.ts:127
+uninote-010|OK|test page-shortcuts.test.ts:42 asserts Mod-Alt-c codeBlock; extensions/index.ts:392 mounts CodeBlockExtension (chord itself comes from tiptap code-block.ts:212)
+uninote-015|OK|page-toolbar-model.ts:60 comment "No chord"; test :67-71; definitions.ts:70 openSearch Mod+K allowInEditable
+uninote-026|OK|no Mod-s handler under packages/views/documents (my grep); cited line is only the test header comment, so evidence is indirect (grep-based absence)
+uninote-029|OK|code.ts:161 Mod-e; no TextAlign extension in UniNote (TextAlignStart is a lucide icon)
+uninote-031|OK|definitions.ts:69 ai.askUni allowInEditable:true; global-shortcuts.tsx:75
+uninote-034|OK|hard-break.ts:117 Mod-Enter setHardBreak
+shell-01|OK|index.ts:5950 and :6519 Shift+CmdOrCtrl+H
+shell-03|OK|ui-scale-menu.ts:41/46/52
+shell-07|OK|docs-main.ts:6162 role pasteAndMatchStyle; electron roles :136
+shell-12|OK|docs-main.ts:6274 Alt+CmdOrCtrl+M
+shell-15|OK|index.ts:3629 autoHideMenuBar:true
+shell-16|OK|Home.tsx:1826-1828 ctrl/meta, no alt/shift, key f or p
+global-01|OK|definitions.ts:69; global-shortcuts.tsx:66 keydown
+global-02|OK|definitions.ts:70; chat-sidebar-header.tsx:286 capture listener; global-shortcuts.tsx:109 bubble listener
+global-05|OK|definitions.ts:79-81 Ctrl+Shift+O
+global-06|OK|definitions.ts:84 send = primary+Enter; submit-shortcut.ts isImeComposing guard
+global-07|OK|definitions.ts:85/86 primary [ ] allowInEditable:false
+global-11|OK|sidebar.tsx:207-215 meta/ctrl+b, skips contenteditable/INPUT/TEXTAREA/SELECT, no defaultPrevented / isComposing check; definitions.ts:276 reserves B
+global-12|OK|meeting-room-shortcuts.ts:38 ctrl/meta, no alt/shift/repeat
+global-15|OK|picker-keys.ts:71 ctrl only, rejects meta/alt/shift
+global-16|OK|chat-sidebar-header.tsx:286 capture; chat-page-content.tsx:168 ctrl/meta+f
+docs-001|OK|docs-main.ts:6107 CmdOrCtrl+N
+docs-003|OK|App.tsx:5517, docs-main.ts:6116
+docs-010|OK|extensions.ts:6709 UndoRedo; undo-redo.ts:77 Mod-z; menu :6152
+docs-012|UNVERIFIABLE|absence claim (no repeat/F4 engine); cited line shortcuts.ts:74 is only a "// ---- Text formatting ----" comment, nothing about F4. grep of docs renderer App.tsx for F4 found none
+docs-033|OK|App.tsx:5557 ctrl/meta+D no shift/alt; menu :6269
+docs-053|OK|App.tsx:5695-5697 ctrl/meta+KeyT -> stepHangingIndent(shift?-1:1); browser reservation of Ctrl+Shift+T noted by row
+docs-062|OK|extensions.ts:1940-1941 Tab/Shift-Tab changeLevel
+docs-074|OK|App.tsx:5728-5733 ctrl/meta+alt, endnote KeyE on mac / KeyD otherwise
+docs-097|UNVERIFIABLE|native browser/ProseMirror behaviour; cited prosemirror-view :2813 is a generic arrow handler (confidence low in row)
+docs-100|OK|extensions.ts:1496 Enter, :6738 Space/Enter autolink, page-gap-nav.ts:252 ArrowUp/Down
+sheets-14|OK|univer editor.shortcut.ts:78 KeyCode.F2
+sheets-17|OK|univer copy-fill.shortcut.ts:25 D|CTRL_COMMAND
+sheets-20|OK|excel-shortcuts.ts:468 MINUS|CTRL_COMMAND priority 100, :474 numpad subtract
+sheets-21|OK|ExcelShell.tsx:830 capture keydown; univer value.shortcut.ts:28 DELETE (mac BACKSPACE)
+sheets-26|OK|univer selection.shortcut.ts:316; sheets-main.ts:4756 role selectAll
+sheets-29|OK|univer editor.shortcut.ts:126 KeyCode.ESC
+sheets-37|OK|global-shortcuts.ts:159-160; gateOpen (:173-176) 'grid' returns guards.gridTarget only (no cellEditing test), 'sheet' adds !cellEditing — row's "gate bug candidate" is a fair reading, whether it bites depends on how gridTarget is computed (not traced)
+sheets-38|OK|global-shortcuts.ts:161-162
+sheets-43|OK|univer find-replace.shortcut.ts:57 F|CTRL_COMMAND; sheets App.tsx:2274 comment
+sheets-59|OK|absence confirmed by my grep (no F8 binding under apps/sheets/src/renderer); cited line :157 is only the neighbouring F9 row, as the row admits
+sheets-63|OK|univer style.shortcut.ts:34 (alt keys Ctrl+2/3/4 unbound is stated in notes)
+sheets-64|OK|style.shortcut.ts:43
+sheets-65|OK|style.shortcut.ts:52
+sheets-78|OK|global-shortcuts.ts:78 KeyK mod gate grid
+slides-05|OK|keyboard-actions.ts:164; slides-main.ts:2071; office-module-frame.tsx:265
+slides-06|OK|tab-manager.ts:316; slides-main.ts:2077
+slides-19|OK|keyboard-actions.ts:342-350 nothing-selected branch requires !mod (+rail/body focus), plain arrows only
+slides-22|OK|keyboard-actions.ts:97 F5 && !mod; mac Cmd+Enter branch excludes Shift (:100-112)
+slides-29|OK|show-keys.ts:56
+pdf-06|OK|pdf App.tsx:9224 Enter/Shift+Enter in search box; global handler :6347-6370 only s/z/f/p/=/-/0, no g/F3
+pdf-12|OK|definitions.ts:85-86 goBack/goForward primary [ ]; pdf handler has no bracket keys
+uninote-038|UNVERIFIABLE|absence claim; cited extensions/index.ts:382 is only `StarterKit.configure({` (page mode), which shows nothing about footnotes. No footnote extension imported in index.ts (my grep) so claim is plausible
+uninote-039|UNVERIFIABLE|same as uninote-038 (track changes); evidence line is the StarterKit opener
+uninote-043|OK|list-item.ts:100 Tab, table.ts:577 Tab, code-block.ts:340 Enter
+shell-04|OK|docs-main.ts:6152, sheets-main.ts:4743, slides-main.ts:2089
+shell-11|OK|docs-main.ts:6269 CmdOrCtrl+D. Status inconsistency: same chord/MS value in docs-033 is `same`, here `different`
+global-04|OK|definitions.ts:72 primary F; use-task-detail-shortcuts.ts:61; chat-page-content.tsx:168
+global-17|OK|docs-frame-protocol.ts:1556-1570 FRAME_EVENTS lists exactly the 14 events in the row, no key event; office-module-frame.tsx:265
+common-06|OK|print-accelerator.ts:16-17; office-module-frame.tsx:272; index.ts:5986
+common-10|OK|ribbon-collapse.tsx:79-82
+common-19|OK|docs App.tsx:1875, pdf :6506, slides :1305
+common-21|OK|docs-main.ts:6224 isDev gate; slides-main.ts:2110 always; app-menu.ts:532 accelerator
+shell-02|OK|tab-manager.ts:316; close-tab-chord.ts:22-30 (alt/shift rejected, exactly one of ctrl/meta, key w or code KeyW)
+shell-05|OK|docs-main.ts:6155, sheets-main.ts:4748, slides-main.ts:2090 Shift+CmdOrCtrl+Z; electron roles :154-156 redo = Control+Y on Windows. Status `different` vs web "Ctrl+Y works in TipTap/Univer frames" is as the row states
+shell-08|OK|docs-main.ts:6166, :6171 (Ctrl+F; Ctrl+G or Alt+Cmd+G). Status inconsistency: every key listed equals MS (Ctrl+F, Ctrl+G, Cmd+F, Alt+Cmd+G), `different` only because MS's alternative F5 is unbound, while sheets-14/17/63.. with unbound alternatives are `same`
+shell-10|OK|docs-main.ts:6249-6253
+shell-13|OK|app-menu.ts:486 windowMenuTemplate; electron role minimize :123
+shell-14|OK|electron menu-item-roles.ts:115 hide accelerator Command+H
+shell-17|OK|NotesPane.tsx:188-190 Ctrl/Cmd+Enter saves, IME guard
+shell-20|OK|index.ts:3560 viewMenuTemplate (Home View = interface scale); docs-main.ts:6224; slides-main.ts:2110 (cited :3560 is a doc comment, evidence is indirect)
+shell-dialog-keys|OK|Home.tsx Escape listeners at 450/670/744/908/1959/2092 (cites are the preceding `const onKeyDown` lines); SettingsModal.tsx:1936; Onboarding.tsx:117-118
+global-03|OK|definitions.ts:71 allowInEditable:false; global-shortcuts.tsx:75-76
+global-08|OK|definitions.ts:87-88 defaultShortcut null
+global-09|OK|definitions.ts:265, :288, :293-322 isReservedShortcut; no case for Ctrl+Tab / Ctrl+PageUp / Ctrl+PageDown (confirmed)
+global-10|WRONG|notes say the email-hub listener does not honour defaultPrevented; use-email-hub-shortcuts.ts:61 starts `if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) return;`. Fix: drop "email hub" from that list (sidebar Ctrl+B, meeting room, chat Ctrl+F remain). Rest of row (global-shortcuts.tsx:66 bubble listener, definitions.ts:139 AltGraph drop) OK
+global-13|OK|use-email-hub-shortcuts.ts:61 ignores ctrl/meta/alt/defaultPrevented
+global-20|OK|document-tree.tsx:180 (ctrl||meta)+Arrow*; document-tree-row-menu.tsx:37 ContextMenu / Shift+F10
+docs-004|OK|App.tsx:5513; docs-main.ts:6129
+docs-017|OK|docs-main.ts:6175 role selectAll; tiptap keymap.ts:77 Mod-a
+docs-022|OK|marks.ts:57 Mod-b; docs-main.ts:6249
+docs-026|UNVERIFIABLE|absence; cited shortcuts.ts:74 is only a "// ---- Text formatting ----" comment. My grep: StrikeMark (marks.ts:93-107) has no addKeyboardShortcuts, so claim is plausible
+docs-060|UNVERIFIABLE|absence; cited shortcuts.ts:97 is only a "// ---- Paragraph formatting ----" comment. My grep: no Mod-Shift-8/bullet keymap in docs renderer; Digit8 is Show marks (App.tsx:5705)
+docs-098|OK|tiptap keymap.ts:73/76 Mod-Backspace / Mod-Delete
+docs-102|OK|modal-keys.ts:24 Escape; CommentsPanel.tsx:417 and PromptModal.tsx:64 Ctrl/Cmd+Enter
+sheets-30|OK|excel-jump-nav.ts:509 priority 100 CTRL_COMMAND
+sheets-33|OK|excel-shortcuts.ts:398 only Ctrl+Home registered (absence of Shift variant per row)
+sheets-45|OK|global-shortcuts.ts:100 F11+shift gate sheet
+sheets-52|OK|global-shortcuts.ts:101 KeyE mod gate sheet (mod = ctrl OR meta, so Ctrl+E and Cmd+E both)
+sheets-79|OK|global-shortcuts.ts:79 F2+shift gate grid
+sheets-83|OK|ribbon-collapse.tsx:81-82
+sheets-84|OK|absence; no key-tip code (cited ribbon-collapse.tsx:81 is the only ribbon key handler, as the row says)
+sheets-87|OK|univer view.shortcut.ts:26 EQUAL|CTRL_COMMAND; sheets-main.ts:4761 pageZoom:false. Cross-row inconsistency: desktop_today does not mention that the same Sheets menu carries Ctrl+Alt+= / - / 0 interface scale (common-16..18, shell-03) which are MS's own Excel zoom chords
+sheets-91|OK|global-shortcuts.ts:118-125 ArrowRight/ArrowLeft alt+shift
+sheets-dialog-keys|OK|modal-dialog.ts:50 Escape; FindReplacePanel.tsx:345 Enter/Shift+Enter; GoToDialog.tsx:53
+slides-24|WRONG|keyboard-actions.ts:97 `if (e.key === 'F5' && !mod)` never tests altKey, so Alt+F5 (MS Presenter view) runs startSlideShow(ctx, !e.shiftKey) = start from beginning. web_today/desktop_today "none" and status `missing` should read: Alt+F5 currently starts the slideshow from the beginning (conflict, same handler as F5)
+slides-37|OK|keyboard-actions.ts:433 `mod && !e.altKey && g` -> Cmd+Option+G rejected on mac (as row says)
+slides-40|OK|keyboard-actions.ts:447-455 arrows; mod = 1/zoom px step
+slides-49|OK|keyboard-actions.ts:197 TOGGLE_KEYS[lower] when !shiftKey
+slides-dialog-keys|OK|FindReplaceDialog.tsx:144, PrintDialog.tsx:97, CommentsPane.tsx:147
+html-004|OK|print-accelerator.ts:16-17; inspector.js:970 claimPrint; index.ts:6177
+html-008|OK|app-menu.ts:509 is the Edit menu (roles); indirect cite
+html-011|OK|codemirror commands index.js:1763 Mod-a
+html-022|OK|inspector.js:1067 wheel zoom relayed only in `inspect` mode (browse mode excluded) + App.tsx:1546-1555 stage wheel; row omits the mode condition
+html-025|OK|html App.tsx:1501 key==='\'
+markdown-035|OK|markdown App.tsx:1100 key==='0'
+markdown-037|OK|ribbon-collapse.tsx:79-82
+uninote-009|OK|blockquote.tsx:130 Mod-Shift-b; test :41
+uninote-013|OK|heading.ts:135 Mod-Alt-${level}; test :44
+uninote-021|OK|prosemirror-view index.js:3762 plain paste when shiftKey held (generic ProseMirror)
+uninote-023|OK|use-task-detail-shortcuts.ts:47 only task detail wires findInTask
+uninote-027|OK|office-module-frame.tsx:272 host Ctrl+P is frames only
+uninote-033|OK|hard-break.ts:118 Shift-Enter
+global-18|OK|office-module-frame.tsx:360 Save button; frame-focus.ts:28 focusFrame

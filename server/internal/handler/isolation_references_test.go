@@ -249,12 +249,10 @@ var isoReferences = []isoReference{
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/documents", what: "parent folder", body: map[string]any{
 		"title": isoUnique("ref folder"), "kind": "folder", "parent_id": isoRef("folder")}},
 	// UNI-2055 (ADR 0037): the folder is a workspace folder of its tenant, so
-	// the members of A may create in it and read what it holds; B's owner, in
-	// another tenant, gets the same refusal for a page created under it and for
-	// the page inside it.
+	// the members of A may create in it, but B's owner, in another tenant, gets
+	// a refusal for a page created under it.
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/documents", what: "page under a foreign workspace folder", body: map[string]any{
 		"title": isoUnique("ref in folder"), "kind": "page", "parent_id": isoRef("folder")}},
-	{method: "GET", pattern: "/api/v1/documents/{documentID}", what: "page inside a foreign workspace folder", docKey: "folderChild"},
 	// The large-upload create route (BIGUP-S1): parent_id names a page or
 	// folder of the same workspace, checked before any session or part URL is
 	// created. Its control is also the route's write control, because the

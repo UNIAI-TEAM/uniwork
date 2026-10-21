@@ -18,7 +18,7 @@ type DocumentAccessReportSDI struct {
 	Source     *string `query:"source" description:"Nguồn dòng, cách nhau bằng dấu phẩy: owner, workspace, direct, chat, link, break_glass" example:"direct,chat"`
 	Flag       *string `query:"flag" description:"Cờ cảnh báo của tài liệu: public_link, outside_workspace hoặc direct_manage" example:"public_link"`
 	NonDefault *string `query:"non_default" description:"1 = bỏ tài liệu chỉ có dòng chủ sở hữu và dòng workspace mặc định, và bỏ hai loại dòng đó khỏi các tài liệu còn lại" example:"1"`
-	Cursor     *string `query:"cursor" description:"next_cursor của trang trước; phải đi cùng đúng folder_id và bộ lọc đã tạo ra nó" example:"eyJpZCI6IjAxSjhYNERPQzBOMVAyUTNSNFM1VDZVNyJ9"`
+	Cursor     *string `query:"cursor" description:"next_cursor của trang trước (chuỗi mờ, gửi lại nguyên vẹn); phải đi cùng đúng folder_id, bộ lọc và người gọi đã tạo ra nó" example:"acr1.opaque-cursor"`
 	Limit      *int32  `query:"limit" description:"Số tài liệu ứng viên mỗi trang, mặc định 50, tối đa 100" example:"50"`
 }
 

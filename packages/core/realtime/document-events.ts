@@ -52,6 +52,7 @@ export function documentFrameKeys(
         : [documentKeys.favoritesRoot];
     }
     case "document.created":
+    case "document.batch_uploaded":
     case "document.updated":
     case "document.version_created":
     case "document.shared":
@@ -64,6 +65,12 @@ export function documentFrameKeys(
     case "document.restored":
     case "document.shelved":
     case "document.unshelved": {
+      // UNI-2052: document.batch_uploaded is one coalesced frame per folder or
+      // multi-file upload batch (ids only: batch_id, workspace_id,
+      // root_folder_id, "" for a multi-file upload). It takes the same single
+      // refetch of the workspace root as document.created, so a hundred
+      // uploaded files do not mean a hundred refetches; nothing from the
+      // payload is cached.
       // SH-S1: document.workspace_access_changed (the workspace home row turned
       // on, off or changed level) takes the same refetch a document.updated
       // visibility change always took.

@@ -866,12 +866,19 @@ func (s *DocumentService) applyHomeWorkspaceBatchItem(
 			}, doc, nil
 		}
 		prev := cur
+		closing := documentHomeRowMove{
+			Visibility:     documentVisibilityRestricted,
+			WorkspaceLevel: doc.WorkspaceLevel,
+			BatchID:        batchID,
+		}
+		if dryRun && doc.Kind == DocumentKindFolder {
+			// The preview refuses where the writer will.
+			if err := folderHomeRowMoveAllowed(doc, closing); err != nil {
+				return DocumentAccessItemResult{}, doc, err
+			}
+		}
 		if !dryRun {
-			updated, err := writeDocumentHomeRow(ctx, q, actor, doc, documentHomeRowMove{
-				Visibility:     documentVisibilityRestricted,
-				WorkspaceLevel: doc.WorkspaceLevel,
-				BatchID:        batchID,
-			})
+			updated, err := writeDocumentHomeRow(ctx, q, actor, doc, closing)
 			if err != nil {
 				return DocumentAccessItemResult{}, doc, err
 			}

@@ -247,6 +247,15 @@ func (s *DocumentService) MoveDocument(ctx context.Context, actor Actor, documen
 			return DocumentView{}, err
 		}
 	}
+	// Only a folder that LEAVES a My Folder tree opens: a workspace to
+	// workspace move leaves every pair as stored, so a legacy restricted
+	// folder is not opened by a move. Read before the write, from the old parent.
+	leavesMyFolder := false
+	if doc.Kind == DocumentKindFolder && !destInMyFolder {
+		if leavesMyFolder, err = folderInMyFolderTree(ctx, q, doc); err != nil {
+			return DocumentView{}, err
+		}
+	}
 
 	position := 0.0
 	if in.Position != nil {
@@ -338,7 +347,7 @@ func (s *DocumentService) MoveDocument(ctx context.Context, actor Actor, documen
 	}}); err != nil {
 		return DocumentView{}, err
 	}
-	if doc.Kind == DocumentKindFolder && !destInMyFolder {
+	if leavesMyFolder {
 		if updated, err = s.relocateSubtreeFolders(ctx, q, actor, updated, subtree); err != nil {
 			return DocumentView{}, err
 		}

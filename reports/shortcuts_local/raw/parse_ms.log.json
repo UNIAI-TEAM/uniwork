@@ -1,0 +1,72 @@
+{
+ "word-a11y.html": {
+  "product": "word",
+  "url": "https://support.microsoft.com/en-us/accessibility/word/keyboard-shortcuts-in-word",
+  "tables": 60,
+  "rows": 481,
+  "skipped_non_desktop_cells": {
+   "office-for-ios": 32,
+   "office-for-android": 24,
+   "web": 68
+  },
+  "unparsed": []
+ },
+ "excel-a11y.html": {
+  "product": "excel",
+  "url": "https://support.microsoft.com/en-us/accessibility/excel/keyboard-shortcuts-in-excel",
+  "tables": 47,
+  "rows": 548,
+  "skipped_non_desktop_cells": {
+   "office-for-ios": 32,
+   "office-for-android": 14,
+   "web": 157
+  },
+  "unparsed": []
+ },
+ "ppt-a11y-create.html": {
+  "product": "powerpoint",
+  "url": "https://support.microsoft.com/en-us/accessibility/powerpoint/use-keyboard-shortcuts-to-create-powerpoint-presentations",
+  "tables": 49,
+  "rows": 338,
+  "skipped_non_desktop_cells": {
+   "ios": 55,
+   "android": 12,
+   "web": 111
+  },
+  "unparsed": []
+ },
+ "ppt-a11y-deliver.html": {
+  "product": "powerpoint",
+  "url": "https://support.microsoft.com/en-us/accessibility/powerpoint/use-keyboard-shortcuts-to-deliver-powerpoint-presentations",
+  "tables": 12,
+  "rows": 112,
+  "skipped_non_desktop_cells": {
+   "web": 5
+  },
+  "unparsed": []
+ },
+ "edge-shortcuts.html": {
+  "product": "edge",
+  "url": "https://support.microsoft.com/en-us/edge/microsoft-edge-keyboard-shortcuts",
+  "tables": 4,
+  "rows": 69,
+  "skipped_non_desktop_cells": {},
+  "unparsed": []
+ },
+ "edge-shortcuts-old.html": {
+  "product": "edge",
+  "url": "https://support.microsoft.com/en-us/edge/keyboard-shortcuts-in-microsoft-edge",
+  "tables": 2,
+  "rows": 144,
+  "skipped_non_desktop_cells": {},
+  "unparsed": []
+ },
+ "office-mac-common.html": {
+  "product": "office-common",
+  "url": "https://support.microsoft.com/en-us/accessibility/office-accessibility/common-office-for-mac-keyboard-shortcuts",
+  "tables": 3,
+  "rows": 26,
+  "skipped_non_desktop_cells": {},
+  "unparsed": []
+ }
+}

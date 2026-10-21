@@ -64,7 +64,9 @@ function documentListFilterKey(
   if (!filters) return "";
   const { format, access, sort, order, updatedBy, updatedFrom, updatedTo, activity } = filters;
   const includeOwned = filters.includeOwned || undefined;
-  if (!format && !access && !sort && !order && !updatedBy && !updatedFrom && !updatedTo && !activity && !includeOwned) return "";
+  if (!format && !access && !sort && !order && !updatedBy && !updatedFrom && !updatedTo && !activity && !includeOwned) {
+    return "";
+  }
   return documentFilterKey({ format, access, sort, order, updatedBy, updatedFrom, updatedTo, activity, includeOwned });
 }
 
@@ -138,8 +140,8 @@ export function useDocumentArchiveImpact(wsId: string, documentId: string, opts?
 /** Recently opened/edited documents (humans only; agents get 403). The
  *  filters, the Đã mở / Đã sửa segment (`activity`) and the sort run
  *  server-side and key it like the flat list. `includeOwned` also lists what
- *  the caller owns once somebody else edits it (the chat picker); it is part of
- *  the key. */
+ *  the caller owns once somebody else edits it (the chat picker); it is part
+ *  of the key. */
 export function useRecentDocuments(
   wsId: string,
   opts?: DocumentListFilters &

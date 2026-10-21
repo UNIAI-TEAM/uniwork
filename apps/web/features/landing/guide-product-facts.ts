@@ -1,7 +1,8 @@
 import type { SupportedLocale } from "@uniwork/core/i18n/types";
 import { officeModuleSpec } from "@uniwork/core/office/office-modules";
 
-export type GuideTable = { caption: string; columns: [string, string, string]; rows: [string, string, string][] };
+/** `wide-middle` gives the description column the room (the privacy tables); the default suits short labels and long actions. */
+export type GuideTable = { caption: string; columns: [string, string, string]; rows: [string, string, string][]; layout?: "wide-middle" };
 
 /** Use the same capability contract as the real Office web host. */
 export function officeFormatsTable(locale: SupportedLocale): GuideTable {

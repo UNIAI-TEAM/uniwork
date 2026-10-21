@@ -57,7 +57,7 @@ func (s *DocumentService) UnshareFolders(ctx context.Context, dryRun bool, batch
 		}
 		for _, r := range rows {
 			after = r.ID
-			home, shares, err := s.unshareOneFolder(ctx, r.ID, dryRun, batchID)
+			home, shares, err := s.unshareOneFolder(ctx, r.ID, r.WorkspaceID, dryRun, batchID)
 			if err != nil {
 				return report, err
 			}
@@ -75,15 +75,21 @@ func (s *DocumentService) UnshareFolders(ctx context.Context, dryRun bool, batch
 	}
 }
 
-// unshareOneFolder re-reads the folder under its row lock (a concurrent PATCH
-// or revoke wins), then closes the home row and revokes the live shares.
-func (s *DocumentService) unshareOneFolder(ctx context.Context, id string, dryRun bool, batchID string) (home bool, shares int, err error) {
+// unshareOneFolder re-reads the folder under the workspace tree lock and its
+// row lock (a concurrent PATCH or revoke wins), then closes the home row and
+// revokes the live shares.
+func (s *DocumentService) unshareOneFolder(ctx context.Context, id, workspaceID string, dryRun bool, batchID string) (home bool, shares int, err error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return false, 0, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	q := s.q.WithTx(tx)
+	// Tree lock first, then the row lock: the order move and archive take, and
+	// what folderInMyFolderTree below needs to read a stable parent chain.
+	if err := q.LockDocumentTree(ctx, workspaceID); err != nil {
+		return false, 0, err
+	}
 	doc, err := q.LockDocumentByID(ctx, id)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return false, 0, nil
@@ -110,6 +116,10 @@ func (s *DocumentService) unshareOneFolder(ctx context.Context, id string, dryRu
 	}
 	location := doc.Visibility == documentVisibilityWorkspace
 	home = location && inMyFolder
+	// A legacy workspace folder outside My Folder whose level is not view
+	// (pre-0036 data) gets the location pair, so the level stops granting
+	// every member edit on the folder.
+	normalise := location && !inMyFolder && doc.WorkspaceLevel != string(DocumentLevelView)
 	// A share naming the folder's own workspace is the legacy twin of the home
 	// row and is revoked by the home-row writer, not counted twice here - on a
 	// folder whose open home row stays, it is revoked as a share like any other.
@@ -123,14 +133,18 @@ func (s *DocumentService) unshareOneFolder(ctx context.Context, id string, dryRu
 	}
 	shares = len(live) - own
 	if dryRun {
-		return home || own > 0, shares, nil
+		return home || normalise || own > 0, shares, nil
 	}
-	if home || own > 0 {
+	if home || normalise || own > 0 {
 		move := documentHomeRowMove{
 			Visibility: documentVisibilityRestricted, WorkspaceLevel: doc.WorkspaceLevel, BatchID: batchID,
 		}
 		if home {
 			move.WorkspaceLevel, move.FolderLocation = string(DocumentLevelView), true
+		}
+		if normalise {
+			// Stays open: only the level is brought to view.
+			move.Visibility, move.WorkspaceLevel, move.FolderLocation = documentVisibilityWorkspace, string(DocumentLevelView), true
 		}
 		doc, err = writeDocumentHomeRow(ctx, q, folderUnshareActor, doc, move)
 		if err != nil {
@@ -151,5 +165,5 @@ func (s *DocumentService) unshareOneFolder(ctx context.Context, id string, dryRu
 	if err := tx.Commit(ctx); err != nil {
 		return false, 0, err
 	}
-	return home || own > 0, shares, nil
+	return home || normalise || own > 0, shares, nil
 }

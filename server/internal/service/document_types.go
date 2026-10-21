@@ -37,8 +37,9 @@ func refuseFolder(doc db.Document) error {
 }
 
 // errFolderNotShareable answers every command that would make a folder shared:
-// a folder is a private container, only the documents inside it are shared
-// (UNI-1974). The folder exists and the caller may administer it, it just has
+// a folder is never shared, only the documents inside it are (UNI-1974,
+// ADR 0037 §9: a workspace folder is open to the workspace, a My Folder one
+// to its owner). The folder exists and the caller may administer it, it just has
 // no access to hand out.
 func errFolderNotShareable() error {
 	return coded(http.StatusUnprocessableEntity, "folder_not_shareable", "thư mục không thể chia sẻ; hãy chia sẻ từng tài liệu bên trong")

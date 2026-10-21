@@ -75,6 +75,7 @@ function builderTemplates(): string[] {
     paths.apps.unichat(),
     paths.about(),
     paths.security(),
+    paths.privacy(),
     paths.guide(ID),
     paths.vietnamese(),
     paths.vietnamese([ID]),

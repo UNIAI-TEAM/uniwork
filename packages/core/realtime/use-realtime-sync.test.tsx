@@ -984,6 +984,7 @@ describe("useRealtimeSync", () => {
 
     it.each([
       "document.created",
+      "document.batch_uploaded",
       "document.updated",
       "document.version_created",
       "document.shared",

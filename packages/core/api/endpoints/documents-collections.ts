@@ -104,8 +104,8 @@ function listQuery(opts?: ListDocumentsOpts & { shelved?: boolean; trash?: boole
   if (opts.sort) p.set("sort", opts.sort);
   if (opts.order) p.set("order", opts.order);
   if (opts.match) p.set("match", opts.match);
-  if (opts.activity) p.set("activity", opts.activity);
   if (opts.includeOwned) p.set("include_owned", "true");
+  if (opts.activity) p.set("activity", opts.activity);
   if (opts.archived !== undefined) p.set("archived", opts.archived ? "1" : "0");
   if (opts.shelved === true) p.set("shelved", "true");
   if (opts.updatedBy) p.set("updated_by", opts.updatedBy);
