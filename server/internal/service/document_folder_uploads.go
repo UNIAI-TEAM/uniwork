@@ -408,12 +408,12 @@ func (s *DocumentService) validateFolderPlan(in CreateFolderUploadInput, limits 
 		name := norm.NFC.String(strings.TrimSpace(f.Filename))
 		if name == "" || strings.ContainsAny(name, "/\\") || strings.IndexFunc(name, unicode.IsControl) >= 0 ||
 			len([]rune(name)) > folderUploadMaxFilename {
-			return folderPlan{}, errFolderUploadPath("path", f.Path, "tên tệp không hợp lệ")
+			return folderPlan{}, errFolderUploadPath("file_key", f.FileKey, "tên tệp không hợp lệ")
 		}
 		// Two files of one name in one folder are accepted: a created file is
 		// never renamed or refused for its name (FD-D10), as two single uploads.
 		if f.SizeBytes < 0 {
-			return folderPlan{}, errFolderUploadPath("path", f.Path, "size_bytes không hợp lệ")
+			return folderPlan{}, errFolderUploadPath("file_key", f.FileKey, "size_bytes không hợp lệ")
 		}
 		pf := folderPlanFile{in: f, path: p, filename: name}
 		plan.files = append(plan.files, pf)
@@ -526,11 +526,11 @@ func (s *DocumentService) CreateFolderUpload(ctx context.Context, actor Actor, w
 	if in.ParentID != nil {
 		parentID = strings.TrimSpace(*in.ParentID)
 	}
-	plan, err := s.validateFolderPlan(in, s.FolderUploadLimits())
-	if err != nil {
+	if _, err := s.ws.RequireMember(ctx, workspaceID, actor.ID); err != nil {
 		return FolderUploadBatch{}, err
 	}
-	if _, err := s.ws.RequireMember(ctx, workspaceID, actor.ID); err != nil {
+	plan, err := s.validateFolderPlan(in, s.FolderUploadLimits())
+	if err != nil {
 		return FolderUploadBatch{}, err
 	}
 	orgID, err := s.workspaceOrganization(ctx, workspaceID)
@@ -728,6 +728,12 @@ func (s *DocumentService) planFolderUpload(ctx context.Context, actor Actor, org
 		if _, err := q.InsertDocumentFolderUploadFiles(ctx, params); err != nil {
 			return "", err
 		}
+	} else if _, err := q.SetDocumentFolderUploadStatus(ctx, db.SetDocumentFolderUploadStatusParams{
+		ID: batchID, OrganizationID: orgID, WorkspaceID: workspaceID, Status: folderUploadStatusCompleted,
+	}); err != nil {
+		// A plan with no file has nothing to complete: the tree is there, so the
+		// batch settles now and never holds one of the creator's open slots.
+		return "", err
 	}
 	folderIDs := make([]string, 0, len(ids))
 	if !filesMode {
@@ -841,6 +847,10 @@ func (s *DocumentService) insertFolderUploadFolder(ctx context.Context, q *db.Qu
 	return doc.ID, nil
 }
 
+// errFolderUploadBatchClosed is a mint that found its batch no longer open
+// (a DELETE or the sweep won the race): the caller answers the batch as it is.
+var errFolderUploadBatchClosed = errors.New("folder upload batch is not open")
+
 // folderUploadRow reads one batch for its creator; everyone else, and a
 // creator who lost the workspace since, gets ErrNotFound.
 func (s *DocumentService) folderUploadRow(ctx context.Context, actor Actor, orgID, workspaceID, batchID string) (db.DocumentFolderUpload, error) {
@@ -896,6 +906,15 @@ func (s *DocumentService) folderUploadView(ctx context.Context, actor Actor, org
 			out.Counts.Pending++
 			if mint {
 				t, err := s.mintFolderUploadTarget(ctx, actor, row, f)
+				if errors.Is(err, errFolderUploadBatchClosed) {
+					// DELETE or the sweep closed the batch while this read was
+					// minting: answer it as GET answers that state.
+					closed, err := s.folderUploadView(ctx, actor, orgID, workspaceID, batchID, false)
+					if err == nil && closed.Status == folderUploadStatusExpired {
+						err = errFolderUploadExpired()
+					}
+					return closed, err
+				}
 				if err != nil {
 					return FolderUploadBatch{}, err
 				}
@@ -1019,6 +1038,22 @@ func (s *DocumentService) openFolderUploadMultipart(ctx context.Context, fs *Fil
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	q := s.q.WithTx(tx)
+	// The shared batch row lock conflicts with cancel's FOR UPDATE: either the
+	// cancel commits first and this mint sees it, or this mint commits first and
+	// the cancel then finds the ref it has to release.
+	status, err := q.LockDocumentFolderUploadStatusShared(ctx, db.LockDocumentFolderUploadStatusSharedParams{
+		ID: batch.ID, OrganizationID: batch.OrganizationID, WorkspaceID: batch.WorkspaceID,
+	})
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return "", errors.Join(err, abort())
+	}
+	if err != nil || status != folderUploadStatusOpen {
+		_ = tx.Rollback(ctx)
+		if err := abort(); err != nil {
+			return "", err
+		}
+		return "", errFolderUploadBatchClosed
+	}
 	var cdOffset, cdSize pgtype.Int8
 	if f.CdOffset.Valid {
 		cdOffset, cdSize = f.CdOffset, f.CdSize

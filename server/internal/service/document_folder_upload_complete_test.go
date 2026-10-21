@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"net/http"
+	"sync"
 	"testing"
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
@@ -549,5 +550,142 @@ func TestFolderUploadSignedTargetEndToEnd(t *testing.T) {
 	}
 	if res.Status != "open" || res.Counts.Pending != 1 {
 		t.Fatalf("batch = %s %+v", res.Status, res.Counts)
+	}
+}
+
+// Four COMPLETE calls of the same signed files at once: the file one call
+// finished is never reported failed by another, and every call names the same
+// document.
+func TestFolderUploadConcurrentCompleteOfSignedFilesAnswersDone(t *testing.T) {
+	env := newRealDocStorageEnv(t, localFileBackend())
+	ctx := context.Background()
+	member := human(env.tn.member)
+	a, b := pdfBody("conc-a"), pdfBody("conc-b")
+	batch, err := env.svc.CreateFolderUpload(ctx, member, env.tn.wsA, folderTwoFiles("Song song", a, b))
+	if err != nil {
+		t.Fatalf("plan: %v", err)
+	}
+	for _, f := range batch.Files {
+		body := a
+		if f.FileKey == "f-2" {
+			body = b
+		}
+		req, err := http.NewRequest(f.Target.Method, f.Target.URL, bytes.NewReader(body))
+		if err != nil {
+			t.Fatal(err)
+		}
+		for k, v := range f.Target.Headers {
+			req.Header.Set(k, v)
+		}
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_ = resp.Body.Close()
+		if resp.StatusCode/100 != 2 {
+			t.Fatalf("signed PUT = %d", resp.StatusCode)
+		}
+	}
+	const calls = 4
+	results := make([]FolderUploadCompleteResult, calls)
+	errs := make([]error, calls)
+	var wg sync.WaitGroup
+	for i := 0; i < calls; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			results[i], errs[i] = env.svc.CompleteFolderUpload(ctx, member, env.tn.wsA, batch.ID, []CompleteFolderUploadFileInput{
+				{FileKey: "f-1", ETag: `"s3-etag"`}, {FileKey: "f-2", ETag: `"s3-etag"`},
+			})
+		}()
+	}
+	wg.Wait()
+	for _, key := range []string{"f-1", "f-2"} {
+		var id string
+		for i := 0; i < calls; i++ {
+			if errs[i] != nil {
+				t.Fatalf("call %d: %v", i, errs[i])
+			}
+			r := resultOf(t, results[i], key)
+			if r.Status != "done" || r.DocumentID == "" {
+				t.Fatalf("call %d %s = %+v, want done", i, key, r)
+			}
+			if id == "" {
+				id = r.DocumentID
+			} else if r.DocumentID != id {
+				t.Fatalf("%s answered two documents: %s and %s", key, id, r.DocumentID)
+			}
+		}
+	}
+	if n := env.folderUploadCount(t, `SELECT count(*) FROM documents WHERE organization_id = $1 AND kind <> 'folder'`, env.tn.orgID); n != 2 {
+		t.Fatalf("documents = %d, want 2", n)
+	}
+}
+
+// A multipart file that fails for good (its folder was archived while it
+// uploaded) frees its session and reservation instead of leaving them to the
+// 24 h expiry.
+func TestFolderUploadFinalFailureAbortsTheMultipartSession(t *testing.T) {
+	env := newMultipartDocEnv(t)
+	ctx := context.Background()
+	member := human(env.tn.member)
+	seedStoragePlan(t, env, 100<<20)
+	body, probe := buildLargePDF(25<<20, "folder-final-fail")
+	batch, err := env.svc.CreateFolderUpload(ctx, member, env.tn.wsA, CreateFolderUploadInput{
+		RootName: "Lớn", IdempotencyKey: nextIDK(),
+		Files: []FolderUploadFileInput{{FileKey: "big", Path: "", Filename: "big.pdf", SizeBytes: 25 << 20, Probe: &probe}},
+	})
+	if err != nil {
+		t.Fatalf("plan: %v", err)
+	}
+	sessionID := batch.Files[0].Target.SessionID
+	parts := uploadAllParts(t, env, sessionID, body)
+	if _, err := env.svc.ArchiveDocument(ctx, member, batch.RootFolderID, ArchiveDocumentInput{IdempotencyKey: nextIDK()}); err != nil {
+		t.Fatalf("archive root: %v", err)
+	}
+	res, err := env.svc.CompleteFolderUpload(ctx, member, env.tn.wsA, batch.ID, []CompleteFolderUploadFileInput{{FileKey: "big", Parts: parts}})
+	if err != nil {
+		t.Fatalf("complete: %v", err)
+	}
+	if r := resultOf(t, res, "big"); r.Status != "failed" || r.ErrorCode != "not_found" || r.Retryable {
+		t.Fatalf("big = %+v, want a final not_found", r)
+	}
+	row, err := env.f.q.GetFileMultipartUploadByID(ctx, sessionID)
+	if err != nil || row.Status == "open" {
+		t.Fatalf("session after a final failure = %q, %v, want it closed", row.Status, err)
+	}
+	if used, _ := env.f.q.CountStorageBytesInOrganization(ctx, env.tn.orgID); used != 0 {
+		t.Fatalf("storage after a final failure = %d, want 0", used)
+	}
+}
+
+// A multipart file another COMPLETE is validating answers a retryable
+// per-file result; the call itself is a 200 and the file stays pending.
+func TestFolderUploadCompleteAnswersBusyPerFile(t *testing.T) {
+	env := newMultipartDocEnv(t)
+	ctx := context.Background()
+	member := human(env.tn.member)
+	seedStoragePlan(t, env, 100<<20)
+	body, probe := buildLargePDF(25<<20, "folder-busy")
+	batch, err := env.svc.CreateFolderUpload(ctx, member, env.tn.wsA, CreateFolderUploadInput{
+		RootName: "Lớn", IdempotencyKey: nextIDK(),
+		Files: []FolderUploadFileInput{{FileKey: "big", Path: "", Filename: "big.pdf", SizeBytes: 25 << 20, Probe: &probe}},
+	})
+	if err != nil {
+		t.Fatalf("plan: %v", err)
+	}
+	sessionID := batch.Files[0].Target.SessionID
+	parts := uploadAllParts(t, env, sessionID, body)
+	env.execSQL(t, `UPDATE file_multipart_uploads SET status = 'validating', lease_owner = 'other-call',
+		lease_expires_at = now() + interval '5 minutes' WHERE id = $1`, sessionID)
+	res, err := env.svc.CompleteFolderUpload(ctx, member, env.tn.wsA, batch.ID, []CompleteFolderUploadFileInput{{FileKey: "big", Parts: parts}})
+	if err != nil {
+		t.Fatalf("complete: %v, want a per-file result", err)
+	}
+	if r := resultOf(t, res, "big"); r.Status != "failed" || r.ErrorCode != "upload_session_busy" || !r.Retryable {
+		t.Fatalf("big = %+v, want a retryable upload_session_busy", r)
+	}
+	if res.Status != "open" || res.Counts.Pending != 1 || res.Counts.Failed != 0 {
+		t.Fatalf("batch = %s %+v, want the file still pending", res.Status, res.Counts)
 	}
 }

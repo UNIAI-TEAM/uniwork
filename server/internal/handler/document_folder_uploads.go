@@ -60,6 +60,7 @@ var folderUploadErrorMessages = map[string]string{
 	"storage_quota_exceeded": "tổ chức đã hết dung lượng lưu trữ",
 	"not_found":              "tệp không thuộc lượt tải này",
 	"parts_invalid":          "các phần đã tải lên không khớp",
+	"upload_session_busy":    "tệp đang được một lệnh hoàn tất khác kiểm tra; hãy thử lại sau",
 }
 
 func folderUploadBatchSDO(b service.FolderUploadBatch) sdo.FolderUploadBatchSDO {
