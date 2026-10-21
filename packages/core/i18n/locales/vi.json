@@ -584,12 +584,12 @@
         "title": "Cuộc họp",
         "description": "Cài đặt cuộc họp áp cho cả tổ chức.",
         "admin_only": "Chỉ owner hoặc admin tổ chức đổi được cài đặt này.",
-        "auto_summary_title": "Tóm tắt",
+        "auto_summary_title": "Sau cuộc họp",
         "auto_summary_label": "Tự tạo tóm tắt khi họp xong",
-        "auto_summary_description": "Khi cuộc họp kết thúc, UNI tự tạo tóm tắt và việc đề xuất rồi báo chủ trì và thư ký. Tắt thì chủ trì nhận lời nhắc tóm tắt như trước.",
+        "auto_summary_description": "Khi cuộc họp kết thúc, UNI tự tạo tóm tắt và việc đề xuất rồi báo chủ trì và thư ký. Khi tắt, chủ trì nhận lời nhắc tự tạo tóm tắt sau mỗi cuộc họp.",
         "save_failed": "Không lưu được thay đổi. Thử lại.",
         "read_failed": "Không đọc được cài đặt cuộc họp.",
-        "state_unknown": "Chưa đọc được trạng thái hiện tại; bật hoặc tắt để ghi lại."
+        "state_unknown": "Thử đọc lại, hoặc bật/tắt để ghi trạng thái mới."
       },
     "documents": {
       "title": "Tài liệu",
@@ -602,11 +602,12 @@
       "quota_title": "Dung lượng lưu trữ",
       "quota_label": "storage.bytes",
       "quota_description": "Tài liệu và tệp tính vào hạn mức dung lượng của tổ chức.",
+      "links_section": "Chia sẻ",
       "links_toggle_label": "Liên kết công khai",
       "links_toggle_description": "Cho phép thành viên tạo liên kết xem ẩn danh cho tài liệu.",
       "links_toggle_save_failed": "Không lưu được thay đổi. Thử lại.",
       "links_read_failed": "Không đọc được trạng thái liên kết công khai.",
-      "links_state_unknown": "Chưa đọc được trạng thái hiện tại; bật hoặc tắt để ghi lại.",
+      "links_state_unknown": "Thử đọc lại, hoặc bật/tắt để ghi trạng thái mới.",
       "loading": "Đang tải cài đặt tài liệu…",
       "error": "Không tải được cài đặt tài liệu."
     },

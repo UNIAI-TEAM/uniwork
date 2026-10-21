@@ -585,12 +585,12 @@
         "title": "Meetings",
         "description": "Meeting settings for the whole organization.",
         "admin_only": "Only an organization owner or admin can change this setting.",
-        "auto_summary_title": "Summary",
+        "auto_summary_title": "After a meeting",
         "auto_summary_label": "Summarize meetings when they end",
-        "auto_summary_description": "When a meeting ends, UNI writes its summary and suggested tasks and tells the host and secretaries. Turned off, the host gets the summary reminder as before.",
+        "auto_summary_description": "When a meeting ends, UNI writes its summary and suggested tasks and tells the host and secretaries. When off, the host gets a reminder to make the summary after each meeting.",
         "save_failed": "Couldn't save the change. Try again.",
         "read_failed": "Couldn't read the meeting settings.",
-        "state_unknown": "The current state couldn't be read; switch it on or off to save it."
+        "state_unknown": "Read it again, or switch it on or off to save a new state."
       },
     "documents": {
       "title": "Documents",
@@ -603,11 +603,12 @@
       "quota_title": "Storage",
       "quota_label": "storage.bytes",
       "quota_description": "Documents and files count against the organization's storage quota.",
+      "links_section": "Sharing",
       "links_toggle_label": "Public links",
       "links_toggle_description": "Let members create anonymous view links for documents.",
       "links_toggle_save_failed": "Could not save the change. Retry.",
       "links_read_failed": "Could not read the public-links state.",
-      "links_state_unknown": "The current state could not be read; flip the switch to write it.",
+      "links_state_unknown": "Read it again, or switch it on or off to save a new state.",
       "loading": "Loading document settings…",
       "error": "Could not load the document settings."
     },
