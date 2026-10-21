@@ -1,0 +1,7 @@
+$ (. scripts/local-env.sh && unset OPENAI_API_KEY; export AI_PROVIDER=fake; bash scripts/test-go.sh --race --shard=service --skip-floor > /tmp/svc.log 2>&1); rc=$?; grep -E "^\s*--- FAIL|^(ok|FAIL)\s|DATA RACE|gofmt:|vet:" /tmp/svc.log | tail -30; echo; echo "TEST_GO_SVC_EXIT=$rc"
+warning: STORAGE_BACKEND is unset and MINIO_* is empty; the server will refuse to start.
+         set STORAGE_BACKEND=local with LOCAL_UPLOAD_DIR, or configure MinIO (see .env.example).
+ok  	github.com/unicomhub/uniwork/server/internal/service	911.733s	coverage: 78.0% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/service/backfill	15.214s	coverage: 79.0% of statements
+
+TEST_GO_SVC_EXIT=0
