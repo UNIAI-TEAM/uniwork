@@ -173,3 +173,35 @@ test("a page shared from My Folder or a private folder shows on its own for the 
     }
   });
 });
+
+test("a page shared from inside a workspace folder keeps its folder path for the recipient", async ({ request }) => {
+  const wsFolderTitle = `Thư mục chung của chủ ${stamp}`;
+  const pageTitle = `Trang trong thư mục chung ${stamp}`;
+  const wsFolder = await create(request, { kind: "folder", title: wsFolderTitle });
+  const inWsFolder = await create(request, { kind: "page", title: pageTitle, parent_id: wsFolder.id });
+  await grantAccess(request, s.owner.token, inWsFolder.id, [userItem(s.member, "view")]);
+
+  // ADR 0037 §9: the folder is readable by every member, so the recipient sees the page where it lives.
+  const detail = await readDoc(request, s.member.token, inWsFolder.id);
+  expect(detail.status(), await detail.text()).toBe(200);
+  const body = (await detail.json()) as { document: Row & { breadcrumbs?: Array<{ id: string }> } };
+  expect(body.document.parent_id, "parent_id").toBe(wsFolder.id);
+  expect((body.document.breadcrumbs ?? []).map((c) => c.id), "breadcrumbs").toEqual([wsFolder.id]);
+
+  const found = (await documents(request, `?q=${encodeURIComponent(pageTitle)}&match=title`)).find((d) => d.id === inWsFolder.id);
+  expect(found, "search finds the page").toBeTruthy();
+  expect(found?.parent_id).toBe(wsFolder.id);
+  expect((found?.path ?? []).map((p) => (p as { id: string }).id), "search path").toEqual([wsFolder.id]);
+
+  const shared = await request.get(`${api}/api/v1/workspaces/${s.m.aOwner.wsId}/documents/shared-with-me`, {
+    headers: authHeaders(s.member.token),
+  });
+  expect(shared.status(), await shared.text()).toBe(200);
+  const sharedRows = ((await shared.json()) as { documents: Row[] }).documents;
+  const row = sharedRows.find((d) => d.id === inWsFolder.id);
+  expect(row, "Shared with me lists the page").toBeTruthy();
+  expect(row?.parent_id).toBe(wsFolder.id);
+
+  // The folder itself is still no share: it is workspace-wide by location, not in Shared with me.
+  expect(sharedRows.some((d) => d.id === wsFolder.id)).toBe(false);
+});

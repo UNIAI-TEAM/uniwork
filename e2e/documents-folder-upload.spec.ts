@@ -270,8 +270,9 @@ test("FU-05b exactly one picked file keeps the single-file dialog and opens the 
 });
 
 // Every folder outside My Folder is readable by the whole workspace (ADR 0037), so the "no access" case
-// is a folder inside the owner's My Folder, the one private place for a folder. Upload entries on a
-// readable but view-only folder are not seeded here: the member of this scene may edit in the workspace.
+// is a folder inside the owner's My Folder, the one private place for a folder. FU-07 holds the other
+// side (a member uploads into the owner's workspace folder). A view-only member is not seedable: the
+// workspace invitation API only knows owner, admin and member.
 test("FU-06 a member without access to the folder gets no upload entry, folder or file", async ({ page }) => {
   const workspaceScene = await seedUploadScene(page, "fu-noaccess", { withMemberB: true });
   const member = workspaceScene.member!;
@@ -313,4 +314,38 @@ test("FU-06 a member without access to the folder gets no upload entry, folder o
   }
   const { documents } = await listDocuments(page, scene.owner.token, scene.wsId, { parent_id: scene.target.id });
   expect(documents).toEqual([]);
+});
+
+test("FU-07 a member opens the owner's workspace folder and uploads a folder into it: folders workspace-wide, files private", async ({
+  page,
+}) => {
+  test.slow();
+  const scene = await seedUploadScene(page, "fu-wsmember", { withMemberB: true });
+  const member = scene.member!;
+  await openTarget(page, scene, member.email);
+  await expect(uploadMenuButton(page)).toBeVisible();
+
+  await pickFolder(page);
+  await runPickedFolder(page, TREE_NAME);
+
+  // Read back as the member: the files they uploaded are private to them.
+  const asMember: UploadScene = { ...scene, owner: { token: member.token, email: member.email } };
+  const [top] = await targetFolders(page, asMember);
+  expect(top?.title).toBe(TREE_NAME);
+  expectFullTree(await readLanded(page, asMember, top!.id), { folders: "workspace", files: "restricted" });
+});
+
+test("FU-08 a folder uploaded into a folder of My Folder lands restricted, files included", async ({ page }) => {
+  test.slow();
+  const base = await seedUploadScene(page, "fu-myfolder");
+  const mine = await createMyFolderFolder(page, base.owner.token, base.wsId, "Riêng của tôi");
+  const scene: UploadScene = { ...base, target: { id: mine.id, title: mine.title } };
+  await openTarget(page, scene);
+
+  await pickFolder(page);
+  await runPickedFolder(page, TREE_NAME);
+
+  const [top] = await targetFolders(page, scene);
+  expect(top?.title).toBe(TREE_NAME);
+  expectFullTree(await readLanded(page, scene, top!.id), { folders: "restricted", files: "restricted" });
 });
