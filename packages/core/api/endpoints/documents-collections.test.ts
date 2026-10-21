@@ -232,6 +232,39 @@ describe("documents-collections endpoints", () => {
     expect(out.documents[1]?.admin_scope).toBeUndefined();
   });
 
+  // UNI-2055 W6: is_empty is computed for this viewer; absent or garbage reads as unknown, never a failure.
+  it("list rows and tree nodes keep is_empty true/false and read garbage as unknown", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json(
+        listBody({
+          documents: [
+            summary({ id: "f1", kind: "folder", is_empty: true }),
+            summary({ id: "f2", kind: "folder", is_empty: false }),
+            summary({ id: "f3", kind: "folder", is_empty: "yes" }),
+            summary({ id: "f4", kind: "folder", is_empty: null }),
+            summary({ id: "f5", kind: "folder" }),
+          ],
+        }),
+      ),
+    );
+    const list = await listDocuments("w1");
+    expect(list.documents.map((row) => row.is_empty)).toEqual([true, false, undefined, undefined, undefined]);
+
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        documents: [
+          treeNode({ id: "f1", kind: "folder", is_empty: true }),
+          treeNode({ id: "f2", kind: "folder", is_empty: false }),
+          treeNode({ id: "f3", kind: "folder", is_empty: 1 }),
+          treeNode({ id: "f4", kind: "folder" }),
+        ],
+      }),
+    );
+    const tree = await getDocumentTree("w1");
+    expect(tree.documents.map((node) => node.is_empty)).toEqual([true, false, undefined, undefined]);
+    expect(tree.documents.map((node) => node.id)).toEqual(["f1", "f2", "f3", "f4"]);
+  });
+
   it("listDocuments omits parent_id when the flat list is wanted", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json(listBody({ next_cursor: "n1" })));
     await listDocuments("w1");
