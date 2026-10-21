@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { createFolder, folderCard, getDocument, listDocuments } from "./documents-folders-fixtures";
+import { createFolder, createMyFolderFolder, folderCard, getDocument, listDocuments } from "./documents-folders-fixtures";
 import {
   dropFolder,
   EXPECTED_FILES,
@@ -55,7 +55,7 @@ async function runPickedFolder(page: Page, expectedTitle: string) {
   await expectDoneToast(page, EXPECTED_FILES.length, expectedTitle);
 }
 
-test("FU-01 a picked 3-level folder shows its pre-flight, uploads private, lands as 3 levels, and a second upload becomes (1)", async ({
+test("FU-01 a picked 3-level folder shows its pre-flight, uploads files private into workspace folders, lands as 3 levels, and a second upload becomes (1)", async ({
   page,
 }) => {
   test.slow();
@@ -95,10 +95,10 @@ test("FU-01 a picked 3-level folder shows its pre-flight, uploads private, lands
   await expect(libraryRows(page, "hidden-notes")).toHaveCount(0);
   await expect(libraryRows(page, "skip-me")).toHaveCount(0);
 
-  // The API holds the same tree: skipped files absent, everything private.
+  // The API holds the same tree: skipped files absent, files private, folders workspace-wide (ADR 0037).
   const [first] = await targetFolders(page, scene);
   expect(first?.title).toBe(TREE_NAME);
-  expectFullTree(await readLanded(page, scene, first!.id), { folders: "restricted", files: "restricted" });
+  expectFullTree(await readLanded(page, scene, first!.id), { folders: "workspace", files: "restricted" });
 
   // The same folder again is never merged: it becomes "Ho so 2052 (1)" with its own full tree.
   await gotoTarget(page, scene);
@@ -110,11 +110,11 @@ test("FU-01 a picked 3-level folder shows its pre-flight, uploads private, lands
   const folders = await targetFolders(page, scene);
   expect(folders.map((f) => f.title).sort()).toEqual([TREE_NAME, `${TREE_NAME} (1)`]);
   for (const folder of folders) {
-    expectFullTree(await readLanded(page, scene, folder.id), { folders: "restricted", files: "restricted" });
+    expectFullTree(await readLanded(page, scene, folder.id), { folders: "workspace", files: "restricted" });
   }
 });
 
-test("FU-02 the share switch applies to every file of the run and leaves the folders private", async ({ page }) => {
+test("FU-02 the share switch applies to every file of the run and the folders stay workspace-wide by location", async ({ page }) => {
   test.slow();
   const scene = await seedUploadScene(page, "fu-share");
   await openTarget(page, scene);
@@ -130,7 +130,7 @@ test("FU-02 the share switch applies to every file of the run and leaves the fol
   await expectDoneToast(page, EXPECTED_FILES.length, TREE_NAME);
 
   const [top] = await targetFolders(page, scene);
-  expectFullTree(await readLanded(page, scene, top!.id), { folders: "restricted", files: "workspace" });
+  expectFullTree(await readLanded(page, scene, top!.id), { folders: "workspace", files: "workspace" });
 });
 
 test("FU-03 a run over the file limit is refused in the pre-flight with the numbers and sends nothing", async ({
@@ -197,7 +197,7 @@ test("FU-04 a dropped folder reads through the entry API, skips hidden and unsup
 
   const [top] = await targetFolders(page, scene);
   expect(top?.title).toBe(TREE_NAME);
-  expectFullTree(await readLanded(page, scene, top!.id), { folders: "restricted", files: "restricted" });
+  expectFullTree(await readLanded(page, scene, top!.id), { folders: "workspace", files: "restricted" });
 });
 
 // Files-mode copy and test ids come from the views fixes (branch feature/UNI-2052-views-fx), which this lane does not
@@ -269,13 +269,16 @@ test("FU-05b exactly one picked file keeps the single-file dialog and opens the 
   expect(detail.data?.parent_id).toBe(scene.target.id);
 });
 
-// UNI-2055 (workspace-public folders) will give a real "can view, cannot edit" folder; until then no
-// read-only folder can be seeded (grantDocumentShare on a folder answers 422 folder_not_shareable,
-// UNI-1974), so this holds the nearest case: a folder the member cannot reach at all.
+// Every folder outside My Folder is readable by the whole workspace (ADR 0037), so the "no access" case
+// is a folder inside the owner's My Folder, the one private place for a folder. Upload entries on a
+// readable but view-only folder are not seeded here: the member of this scene may edit in the workspace.
 test("FU-06 a member without access to the folder gets no upload entry, folder or file", async ({ page }) => {
-  const scene = await seedUploadScene(page, "fu-noaccess", { withMemberB: true });
-  const member = scene.member!;
-  // The owner's target folder is private. The member's own folder is the positive control.
+  const workspaceScene = await seedUploadScene(page, "fu-noaccess", { withMemberB: true });
+  const member = workspaceScene.member!;
+  // The owner's target folder sits in the owner's My Folder (ADR 0037): the member cannot read it.
+  // The member's own folder, in the workspace, is the positive control.
+  const hidden = await createMyFolderFolder(page, workspaceScene.owner.token, workspaceScene.wsId, "Riêng của chủ");
+  const scene: UploadScene = { ...workspaceScene, target: { id: hidden.id, title: hidden.title } };
   const own = await createFolder(page, member.token, scene.wsId, "Của thành viên");
   const sceneOf = (folder: { id: string; title: string }): UploadScene => ({ ...scene, target: { id: folder.id, title: folder.title } });
 
