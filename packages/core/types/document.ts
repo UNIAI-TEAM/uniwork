@@ -485,9 +485,13 @@ export type DocumentArchive = Omit<z.infer<typeof DocumentArchiveSchema>, "docum
  * Past the cap the server does not count: only `too_large` and `max_nodes`.
  * A count that is missing, negative or fractional fails the parse, so a
  * drifted answer can never read as "0 items" in the delete dialog.
+ * `relocated_count` (UNI-2055 W5) is the documents of the folder the actor
+ * cannot manage: the trash moves them to their owner's workspace root. It only
+ * words one sentence and is never shown as a number, so an unreadable value
+ * reads as 0 instead of failing the impact.
  */
 export type DocumentArchiveImpact =
-  | { too_large: false; folders: number; documents: number; total: number; max_nodes: number }
+  | { too_large: false; folders: number; documents: number; total: number; max_nodes: number; relocated_count: number }
   | { too_large: true; max_nodes: number };
 
 const count = z.number().int().nonnegative();
@@ -499,6 +503,7 @@ export const DocumentArchiveImpactSchema = z
     total: count.optional(),
     max_nodes: count,
     too_large: z.boolean().optional().default(false),
+    relocated_count: count.optional().catch(0),
   })
   .transform((raw, ctx): DocumentArchiveImpact => {
     if (raw.too_large) return { too_large: true, max_nodes: raw.max_nodes };
@@ -512,6 +517,7 @@ export const DocumentArchiveImpactSchema = z
       documents: raw.documents,
       total: raw.total,
       max_nodes: raw.max_nodes,
+      relocated_count: raw.relocated_count ?? 0,
     };
   });
 

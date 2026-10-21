@@ -10532,6 +10532,7 @@
       "delete_documents_one": "{{count}} document",
       "delete_documents_other": "{{count}} documents",
       "delete_body": "{{subfolders}} and {{documents}} will move to the trash and can be restored within 30 days.",
+      "delete_relocated": "Other people's documents in this folder go back to their owners, with their access unchanged.",
       "delete_loading": "Counting what's in the folder…",
       "delete_impact_error": "Couldn't count what's in the folder. Try again before deleting.",
       "delete_too_large": "The folder holds more than {{max}} items, so it can't go to the trash in one go. Delete what's inside in parts first.",
