@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import type { BlankDocumentFormat } from "@uniwork/core/api/endpoints/documents-blank";
 import { useCreateDocument } from "@uniwork/core/documents/hooks";
 import { isEndpointMissing, useCreateBlankFile, useCreateFolder } from "@uniwork/core/documents/hooks-library";
+import { defaultStorage } from "@uniwork/core/platform";
 import { createSafeId } from "@uniwork/core/utils";
 import { documentErrorMessage } from "./document-error-message";
 
@@ -13,10 +14,38 @@ import { documentErrorMessage } from "./document-error-message";
 export const CREATE_TYPES = ["page", "docx", "xlsx", "pptx", "md", "txt", "html", "pdf"] as const;
 export type CreateType = (typeof CREATE_TYPES)[number];
 
-/** The "Tạo nhanh" strip: CREATE_TYPES minus plain text, which lives only in the New menu (user 2026-10-21). */
-export const QUICK_CREATE_TYPES = CREATE_TYPES.filter(
-  (type): type is Exclude<CreateType, "txt"> => type !== "txt",
-);
+/** The "Tạo nhanh" strip: UniNote and the three Office formats; the rest live only in the New menu (user 2026-10-21). */
+const QUICK_CREATE_TYPES = ["page", "docx", "xlsx", "pptx"] as const satisfies readonly CreateType[];
+
+/**
+ * The strip plus the type created last when it is not already one of them
+ * (user 2026-10-21): someone who keeps making Markdown files gets a pill for it.
+ */
+export function quickCreateTypes(recent: CreateType | null | undefined): readonly CreateType[] {
+  const base: readonly CreateType[] = QUICK_CREATE_TYPES;
+  return recent && !base.includes(recent) ? [...base, recent] : base;
+}
+
+// Per device and per workspace by design, like the mention recency: the goal
+// is a faster next create, not a cross-device preference.
+const LAST_CREATE_KEY = "uniwork:documents:last-create-type:";
+
+function readLastCreateType(wsId: string): CreateType | null {
+  try {
+    const raw = defaultStorage.getItem(`${LAST_CREATE_KEY}${wsId}`);
+    return CREATE_TYPES.find((type) => type === raw) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function writeLastCreateType(wsId: string, type: CreateType): void {
+  try {
+    defaultStorage.setItem(`${LAST_CREATE_KEY}${wsId}`, type);
+  } catch {
+    // Storage full or disabled: the strip just keeps its fixed pills.
+  }
+}
 
 /** What the "New" menu offers inside an open folder: folder first, then CREATE_TYPES (FD-D9). */
 export const CREATE_MENU_TYPES = ["folder", ...CREATE_TYPES] as const;
@@ -66,6 +95,11 @@ export function useCreateOfType(wsId: string, onOpen: (documentId: string) => vo
   const folderBusy = useRef(false);
   const folderKeyRef = useRef<{ title: string; parentId: string | null; key: string } | null>(null);
   const [unavailable, setUnavailable] = useState<ReadonlySet<CreateType>>(new Set());
+  const [lastType, setLastType] = useState<CreateType | null>(() => readLastCreateType(wsId));
+  const remember = (type: CreateType) => {
+    writeLastCreateType(wsId, type);
+    setLastType(type);
+  };
 
   const create = async (type: CreateType, parentId: string | null) => {
     try {
@@ -74,6 +108,7 @@ export function useCreateOfType(wsId: string, onOpen: (documentId: string) => vo
           title: t("documents.page.new_page"),
           ...(parentId ? { parent_id: parentId } : { destination: "my_folder" as const }),
         });
+        remember(type);
         onOpen(doc.id);
         return;
       }
@@ -83,6 +118,7 @@ export function useCreateOfType(wsId: string, onOpen: (documentId: string) => vo
         ...(parentId ? { parent_id: parentId } : { destination: "my_folder" as const }),
         idempotencyKey: createSafeId(),
       });
+      remember(type);
       onOpen(doc.id);
     } catch (error) {
       if (type !== "page" && isEndpointMissing(error)) {
@@ -126,6 +162,7 @@ export function useCreateOfType(wsId: string, onOpen: (documentId: string) => vo
     create,
     newFolder,
     unavailable,
+    lastType,
     pending: createPage.isPending || createBlank.isPending,
     folderPending: createFolder.isPending,
   };

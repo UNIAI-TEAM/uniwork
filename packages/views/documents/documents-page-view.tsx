@@ -338,6 +338,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
   const createProps = {
     pending: creator.pending,
     unavailable: creator.unavailable,
+    recentType: creator.lastType,
     onCreate: (type: Parameters<typeof creator.create>[0]) => void creator.create(type, parentForCreate),
     onUpload: uploads.openUpload,
     onUploadFolder: uploads.openFolderUpload,

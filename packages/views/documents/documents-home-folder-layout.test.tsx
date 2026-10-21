@@ -162,7 +162,7 @@ describe("home layout (Main.dc)", () => {
     route({ list: () => [] });
     renderView();
     const strip = await screen.findByRole("region", { name: t("documents.home.quick_create.label") });
-    const chipTypes = ["page", "docx", "xlsx", "pptx", "md", "html", "pdf"] as const;
+    const chipTypes = ["page", "docx", "xlsx", "pptx"] as const;
     for (const type of chipTypes) {
       expect(within(strip).getByRole("button", { name: new RegExp(t(`documents.home.create.${type}.chip`)) })).toBeInTheDocument();
     }

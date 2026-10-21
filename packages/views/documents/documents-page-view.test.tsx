@@ -222,7 +222,7 @@ describe("DocumentsPageView", () => {
 
     expect(await screen.findByText(t("documents.home.empty.title"))).toBeInTheDocument();
     const strip = screen.getByRole("region", { name: t("documents.home.quick_create.label") });
-    for (const type of ["page", "docx", "xlsx", "pptx", "md", "html", "pdf"]) {
+    for (const type of ["page", "docx", "xlsx", "pptx"]) {
       expect(within(strip).getByRole("button", { name: new RegExp(escape(t(`documents.home.create.${type}.chip`))) })).toBeInTheDocument();
     }
     expect(screen.getByRole("button", { name: t("documents.home.create.upload.button") })).toBeInTheDocument();
@@ -523,7 +523,7 @@ describe("DocumentsPageView", () => {
     const strip = await screen.findByRole("region", { name: t("documents.home.quick_create.label") });
     const names = within(strip).getAllByRole("button").map((b) => (b.textContent ?? "").trim());
     expect(names).toEqual(
-      ["page", "docx", "xlsx", "pptx", "md", "html", "pdf"].map((type) => t(`documents.home.create.${type}.chip`)),
+      ["page", "docx", "xlsx", "pptx"].map((type) => t(`documents.home.create.${type}.chip`)),
     );
     expect(within(strip).queryByTitle(".txt")).toBeNull();
   });
