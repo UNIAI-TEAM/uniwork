@@ -261,9 +261,7 @@ func (s *MeetingService) AssignSpeakerLabel(ctx context.Context, actorID, meetin
 	}
 	// A label of a superseded upload run is hidden (UNI-2001): refuse it
 	// before any write, as if it did not exist.
-	if _, err := q.GetMeetingSpeakerLabelView(ctx, db.GetMeetingSpeakerLabelViewParams{ID: l.ID, MeetingID: m.ID}); errors.Is(err, pgx.ErrNoRows) {
-		return db.ListMeetingSpeakerLabelsRow{}, ErrNotFound
-	} else if err != nil {
+	if _, err := speakerLabelView(ctx, q, m.ID, l.ID); err != nil {
 		return db.ListMeetingSpeakerLabelsRow{}, err
 	}
 	up, err := q.AssignMeetingSpeakerLabel(ctx, db.AssignMeetingSpeakerLabelParams{
@@ -281,6 +279,20 @@ func (s *MeetingService) AssignSpeakerLabel(ctx context.Context, actorID, meetin
 	if err := tx.Commit(ctx); err != nil {
 		return db.ListMeetingSpeakerLabelsRow{}, err
 	}
-	v, err := s.q.GetMeetingSpeakerLabelView(ctx, db.GetMeetingSpeakerLabelViewParams{ID: up.ID, MeetingID: m.ID})
-	return db.ListMeetingSpeakerLabelsRow(v), err
+	return speakerLabelView(ctx, s.q, m.ID, up.ID)
+}
+
+// speakerLabelView is one row of the meeting's label list; ErrNotFound when
+// the list does not show it (a superseded upload run's label).
+func speakerLabelView(ctx context.Context, q *db.Queries, meetingID, id string) (db.ListMeetingSpeakerLabelsRow, error) {
+	rows, err := q.ListMeetingSpeakerLabels(ctx, meetingID)
+	if err != nil {
+		return db.ListMeetingSpeakerLabelsRow{}, err
+	}
+	for _, r := range rows {
+		if r.ID == id {
+			return r, nil
+		}
+	}
+	return db.ListMeetingSpeakerLabelsRow{}, ErrNotFound
 }

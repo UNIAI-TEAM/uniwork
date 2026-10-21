@@ -46,30 +46,6 @@ LEFT JOIN LATERAL (
 ORDER BY l.number
 LIMIT 500;
 
--- name: GetMeetingSpeakerLabelView :one
--- tenant: parent meeting_id
--- One row of ListMeetingSpeakerLabels, for the answer to an assignment.
-WITH numbered AS (
-  SELECT ml.id, row_number() OVER (ORDER BY ml.created_at, ml.id)::int AS number
-  FROM meeting_speaker_labels ml WHERE ml.meeting_id = sqlc.arg('meeting_id')
-    AND (ml.label_key NOT LIKE 'upload:%' OR split_part(ml.label_key, ':', 2) IN (
-    SELECT DISTINCT ON (t.file_id) t.id FROM meeting_transcriptions t
-    WHERE t.meeting_id = ml.meeting_id AND t.status = 'COMPLETE'
-    ORDER BY t.file_id, t.completed_at DESC, t.id DESC))
-)
-SELECT l.*, n.number,
-  COALESCE(u.display_name, '')::text AS user_name,
-  COALESCE((SELECT t.text FROM meeting_transcript_segments t
-    WHERE t.meeting_id = l.meeting_id AND t.speaker_label = l.label_key
-    ORDER BY t.spoken_at, t.id LIMIT 1), '')::text AS sample,
-  (SELECT t.spoken_at FROM meeting_transcript_segments t
-    WHERE t.meeting_id = l.meeting_id AND t.speaker_label = l.label_key
-    ORDER BY t.spoken_at, t.id LIMIT 1)::timestamptz AS first_spoken_at
-FROM meeting_speaker_labels l
-JOIN numbered n ON n.id = l.id
-LEFT JOIN users u ON u.id = l.user_id
-WHERE l.id = sqlc.arg('id') AND l.meeting_id = sqlc.arg('meeting_id');
-
 -- name: ListMeetingSpeakerNames :many
 -- tenant: parent meeting_id
 -- Every label's number and, when assigned, the name a transcript line shows.
