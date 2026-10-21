@@ -85,6 +85,8 @@ module.exports = {
     "components/ui/permission-primer.tsx",
     "components/chat/jump-to-latest.tsx",
     "components/chat/use-arrival-announcements.ts",
+    // The image viewer's zoom and close gestures (zoomable-image.test, RNGH's jest utilities).
+    "components/chat/zoomable-image.tsx",
   ],
   coverageReporters: ["text-summary"],
   // Measured on the files above; only ever raised (CLAUDE.md › Coverage only

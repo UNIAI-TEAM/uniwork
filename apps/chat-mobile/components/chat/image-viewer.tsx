@@ -1,14 +1,18 @@
 // A picture full screen, on black (canvas MobStates, "Xem ảnh"): the close
 // button, who sent it and when, "i / n" with the page dots, and a share
 // button; a swipe pages through the conversation's photos. The opened photo
-// shows the fresh URL its tap fetched; the others resolve their own.
+// shows the fresh URL its tap fetched; the others resolve their own. S6: each
+// photo pinches, double-taps and drags to zoom, and a drag up or down closes
+// the viewer (components/chat/zoomable-image.tsx); the pager holds while a
+// photo is zoomed.
 import { Ionicons } from "@expo/vector-icons";
 import type { ChatMessageRecord } from "@uniwork/core/api/endpoints/chat-schemas";
-import { Image } from "expo-image";
 import { StatusBar } from "expo-status-bar";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { FlatList, Pressable, Share, useWindowDimensions, View } from "react-native";
+import { FlatList, Pressable, Share, useWindowDimensions, View, type LayoutChangeEvent } from "react-native";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
+import Animated, { interpolate, useAnimatedStyle, useSharedValue, type SharedValue } from "react-native-reanimated";
 import { CallAwareModal } from "@/components/ui/call-aware-modal";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { Text } from "@/components/ui/text";
@@ -16,7 +20,9 @@ import { THEME } from "@/lib/theme";
 import { formatMessageDay, formatMessageTime } from "@/lib/timeline-display";
 import { cn } from "@/lib/utils";
 import { useChatMediaSrc } from "./use-chat-media";
-import { chatMediaSource, IMAGE_CACHE_POLICY } from "@/lib/media-source";
+import { chatMediaSource } from "@/lib/media-source";
+import { DISMISS_DISTANCE } from "@/lib/zoom";
+import { ZoomableImage } from "./zoomable-image";
 
 export interface ViewerPhoto {
   id: string;
@@ -29,7 +35,20 @@ export interface ViewerPhoto {
 const MAX_DOTS = 10;
 const WHITE = THEME.dark.foreground;
 
-function Page({ photo, wsId, roomId, width, openedUrl, onSrc }: { photo: ViewerPhoto; wsId: string; roomId: string; width: number; openedUrl: string | null; onSrc: (id: string, url: string) => void }) {
+interface PageProps {
+  photo: ViewerPhoto;
+  wsId: string;
+  roomId: string;
+  width: number;
+  height: number;
+  openedUrl: string | null;
+  dismissY: SharedValue<number>;
+  onSrc: (id: string, url: string) => void;
+  onDismiss: () => void;
+  onZoomChange: (zoomed: boolean) => void;
+}
+
+function Page({ photo, wsId, roomId, width, height, openedUrl, dismissY, onSrc, onDismiss, onZoomChange }: PageProps) {
   const file = photo.record?.file;
   const src = useChatMediaSrc(wsId, roomId, photo.id, openedUrl ?? file?.url, openedUrl ? undefined : file?.url_expires_at);
   const uri = openedUrl ?? src;
@@ -38,7 +57,17 @@ function Page({ photo, wsId, roomId, width, openedUrl, onSrc }: { photo: ViewerP
   }, [uri, photo.id, onSrc]);
   return (
     <View style={{ width, flex: 1 }}>
-      {uri ? <Image source={chatMediaSource(uri, photo.id, "full")} cachePolicy={IMAGE_CACHE_POLICY} contentFit="contain" style={{ flex: 1 }} accessibilityLabel={file?.filename ?? ""} /> : null}
+      {uri && height > 0 ? (
+        <ZoomableImage
+          source={chatMediaSource(uri, photo.id, "full")}
+          label={file?.filename ?? ""}
+          width={width}
+          height={height}
+          dismissY={dismissY}
+          onDismiss={onDismiss}
+          onZoomChange={onZoomChange}
+        />
+      ) : null}
     </View>
   );
 }
@@ -78,23 +107,38 @@ export function ImageViewer({
           time: formatMessageTime(current.ts, i18n.language),
         })
       : null;
+  // The pager's height (the photo's frame), the closing drag that fades the page, and whether a photo is zoomed.
+  const [pageHeight, setPageHeight] = useState(0);
+  const dismissY = useSharedValue(0);
+  const [zoomed, setZoomed] = useState(false);
+  const close = useCallback(() => {
+    setZoomed(false);
+    onClose();
+  }, [onClose]);
+  useEffect(() => {
+    if (opened) dismissY.value = 0;
+  }, [opened, dismissY]);
+  const backdrop = useAnimatedStyle(() => ({ opacity: interpolate(Math.abs(dismissY.value), [0, DISMISS_DISTANCE * 2], [1, 0.35], "clamp") }));
   const share = () => {
     const url = current ? urls.current.get(current.id) : undefined;
     if (url) void Share.share({ url, message: url }).catch(() => undefined);
   };
 
   return (
-    <CallAwareModal visible={opened !== null} animationType="fade" onRequestClose={onClose} statusBarTranslucent>
-      {/* A modal measures its own insets: without its provider the top bar can slide under the clock. */}
+    <CallAwareModal visible={opened !== null} animationType="fade" onRequestClose={close} statusBarTranslucent transparent>
+      {/* A modal measures its own insets: without its provider the top bar can slide under the clock. A modal is
+          its own window on Android, so the zoom gestures need their own root there too. */}
+      <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
-      <View className="flex-1 bg-black">
+      <Animated.View className="absolute inset-0 bg-black" style={backdrop} />
+      <View className="flex-1">
         <StatusBar style="light" />
         <SafeAreaView edges={["top"]}>
           <View className="flex-row items-center gap-2.5 px-3 pb-2.5 pt-2">
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={t("chat.message_list.image_preview_close")}
-              onPress={onClose}
+              onPress={close}
               className="h-11 w-11 items-center justify-center rounded-full bg-white/15 active:bg-white/25"
             >
               {/* The viewer is black in both schemes, so the dark scheme's ink is its white. */}
@@ -119,12 +163,27 @@ export function ImageViewer({
             keyExtractor={(p) => p.id}
             horizontal
             pagingEnabled
+            // A zoomed photo takes the drags; the pager waits until it is back to fit.
+            scrollEnabled={!zoomed}
+            style={{ flex: 1 }}
+            onLayout={(event: LayoutChangeEvent) => setPageHeight(event.nativeEvent.layout.height)}
             showsHorizontalScrollIndicator={false}
             initialScrollIndex={startIndex}
             getItemLayout={(_, i) => ({ length: width, offset: width * i, index: i })}
             onMomentumScrollEnd={(event) => setIndex(Math.round(event.nativeEvent.contentOffset.x / width))}
             renderItem={({ item }) => (
-              <Page photo={item} wsId={wsId} roomId={roomId} width={width} openedUrl={item.id === opened.id ? opened.url : null} onSrc={remember} />
+              <Page
+                photo={item}
+                wsId={wsId}
+                roomId={roomId}
+                width={width}
+                height={pageHeight}
+                openedUrl={item.id === opened.id ? opened.url : null}
+                dismissY={dismissY}
+                onSrc={remember}
+                onDismiss={close}
+                onZoomChange={setZoomed}
+              />
             )}
           />
         ) : null}
@@ -143,6 +202,7 @@ export function ImageViewer({
         </SafeAreaView>
       </View>
       </SafeAreaProvider>
+      </GestureHandlerRootView>
     </CallAwareModal>
   );
 }
