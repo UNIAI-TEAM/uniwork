@@ -102,6 +102,18 @@ describe("documentErrorMessage", () => {
     }
   });
 
+  it("words a server refusal of a workspace folder moved into My Folder (UNI-2055 W2)", () => {
+    const i18n = initI18n();
+    for (const locale of ["vi", "en"] as const) {
+      const t = i18n.getFixedT(locale);
+      const err = new ApiError("server fallback", "folder_into_my_folder", 422);
+      const message = documentErrorMessage(err, t, "documents.tree.move_failed", { locale });
+      expect(message).toBe(t("documents.errors.folder_into_my_folder"));
+      expect(message).not.toBe("server fallback");
+      expect(message).not.toBe("documents.errors.folder_into_my_folder");
+    }
+  });
+
   it("maps 415 unsupported_media_type with and without file context", () => {
     const t = fakeT();
     const err = new ApiError("unsupported", "unsupported_media_type", 415);

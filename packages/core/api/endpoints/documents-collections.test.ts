@@ -655,7 +655,29 @@ describe("documents-collections endpoints", () => {
     const [url, init] = vi.mocked(fetch).mock.calls[0]!;
     expect(String(url)).toBe("http://api.test/api/v1/documents/d%2F1/archive-impact");
     expect(init?.method ?? "GET").toBe("GET");
-    expect(out).toEqual({ folders: 3, documents: 12, total: 16, max_nodes: 1000, too_large: false });
+    expect(out).toEqual({ folders: 3, documents: 12, total: 16, max_nodes: 1000, too_large: false, relocated_count: 0 });
+  });
+
+  it("getDocumentArchiveImpact reads relocated_count, the documents the actor cannot manage (UNI-2055 W5)", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({ folders: 1, documents: 4, total: 6, max_nodes: 1000, too_large: false, relocated_count: 2 }),
+    );
+    await expect(getDocumentArchiveImpact("d1")).resolves.toEqual({
+      folders: 1,
+      documents: 4,
+      total: 6,
+      max_nodes: 1000,
+      too_large: false,
+      relocated_count: 2,
+    });
+  });
+
+  // relocated_count only words a sentence: a value that cannot be read never fails the impact, it reads as 0.
+  it.each([undefined, null, -1, 1.5, "2", {}])("getDocumentArchiveImpact reads relocated_count %j as 0", async (bad) => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({ folders: 1, documents: 4, total: 6, max_nodes: 1000, too_large: false, relocated_count: bad }),
+    );
+    await expect(getDocumentArchiveImpact("d1")).resolves.toMatchObject({ documents: 4, relocated_count: 0 });
   });
 
   it("getDocumentArchiveImpact reads a subtree past the cap without counts", async () => {
@@ -671,6 +693,7 @@ describe("documents-collections endpoints", () => {
       total: 1,
       max_nodes: 1000,
       too_large: false,
+      relocated_count: 0,
     });
   });
 

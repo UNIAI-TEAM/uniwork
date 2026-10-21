@@ -101,6 +101,15 @@ describe("classifyDocumentError", () => {
     });
   });
 
+  it("classifies folder_into_my_folder as a conflict from the code alone", () => {
+    const err = new ApiError("thư mục chung không thể vào Thư mục của tôi", "folder_into_my_folder", 422);
+    expect(classifyDocumentError(err)).toEqual({
+      cls: "conflict",
+      code: "folder_into_my_folder",
+      fields: undefined,
+    });
+  });
+
   it("keeps document_not_in_trash and folder_too_large unclassified while matching their helpers", () => {
     // RESTORE-01 (UNI-1843): neither a live-document purge refusal (400
     // document_not_in_trash) nor a subtree node-cap refusal (400/422
