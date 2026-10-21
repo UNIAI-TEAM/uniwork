@@ -82,6 +82,14 @@ describe("documents folder-uploads endpoints", () => {
     await expect(createFolderUpload("w1", planBody, { idempotencyKey: "k" })).resolves.toBeNull();
   });
 
+  it("reads a files-mode batch: no root folder, no folders (CONTRACT A2)", async () => {
+    const { folders: _folders, ...rest } = wireBatch({ root_folder_id: null, root_title: null });
+    vi.mocked(fetch).mockResolvedValueOnce(json(rest)).mockResolvedValueOnce(json(wireBatch({ root_folder_id: 5, root_title: [], folders: "x" })));
+    await expect(getFolderUpload("w1", "b1")).resolves.toMatchObject({ root_folder_id: null, root_title: null, folders: [] });
+    // Malformed root fields read as absent, never as a string.
+    await expect(getFolderUpload("w1", "b1")).resolves.toMatchObject({ root_folder_id: null, root_title: null, folders: [] });
+  });
+
   it("reads drifted fields leniently: unknown statuses, bad targets, broken entries", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(
       json(

@@ -1,4 +1,10 @@
-export { planFolderUpload, uniqueRootName, type PlanFolderUploadOptions } from "./plan";
+export {
+  planFileUpload,
+  planFolderUpload,
+  uniqueRootName,
+  type PlanFileUploadOptions,
+  type PlanFolderUploadOptions,
+} from "./plan";
 export { entriesFromInputFiles, readDroppedFolders } from "./read-web";
 export type {
   FolderUploadEntry,

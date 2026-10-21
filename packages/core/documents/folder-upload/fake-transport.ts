@@ -213,14 +213,17 @@ export function createFakeFolderUploadTransport(options: FakeFolderUploadOptions
       if (batch) return snapshot();
       stored = new Map();
       const now = Date.now();
+      const filesMode = body.root_name === undefined;
       batch = {
         id: "batch-1",
         status: "open",
         parent_id: body.parent_id,
-        root_folder_id: "folder-root",
-        root_title: options.rootTitle ?? body.root_name,
+        root_folder_id: filesMode ? null : "folder-root",
+        root_title: filesMode ? null : (options.rootTitle ?? body.root_name ?? null),
         share_with_workspace: body.share_with_workspace,
-        folders: [{ path: "", id: "folder-root" }, ...body.folders.map((path, i) => ({ path, id: `folder-${i + 1}` }))],
+        folders: filesMode
+          ? []
+          : [{ path: "", id: "folder-root" }, ...(body.folders ?? []).map((path, i) => ({ path, id: `folder-${i + 1}` }))],
         files: body.files.map((f) => ({
           file_key: f.file_key,
           path: f.path,

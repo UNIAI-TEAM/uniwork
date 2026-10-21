@@ -1750,5 +1750,439 @@
       },
       "refusal": null
     }
+  },
+  {
+    "group": "files_mode",
+    "name": "files mode: every file goes to the destination, no root, no folders",
+    "input": {
+      "entries": [
+        {
+          "path": "a.docx",
+          "size": 10
+        },
+        {
+          "path": "b.pdf",
+          "size": 20
+        }
+      ],
+      "limits": {
+        "maxFiles": 500,
+        "maxTotalBytes": 2147483648,
+        "maxDepth": 20,
+        "perFileMaxBytes": 209715200
+      }
+    },
+    "expected": {
+      "rootName": null,
+      "rootTitle": null,
+      "folders": [],
+      "files": [
+        {
+          "path": "a.docx",
+          "filename": "a.docx",
+          "folderPath": "",
+          "size": 10,
+          "index": 0
+        },
+        {
+          "path": "b.pdf",
+          "filename": "b.pdf",
+          "folderPath": "",
+          "size": 20,
+          "index": 1
+        }
+      ],
+      "skipped": [],
+      "totals": {
+        "files": 2,
+        "bytes": 30
+      },
+      "refusal": null
+    }
+  },
+  {
+    "group": "files_mode",
+    "name": "files mode: two files with the same name are both kept, never renamed",
+    "input": {
+      "entries": [
+        {
+          "path": "Báo cáo.pdf",
+          "size": 1
+        },
+        {
+          "path": "báo cáo.pdf",
+          "size": 2
+        },
+        {
+          "path": "Báo cáo.pdf",
+          "size": 3
+        }
+      ],
+      "limits": {
+        "maxFiles": 500,
+        "maxTotalBytes": 2147483648,
+        "maxDepth": 20,
+        "perFileMaxBytes": 209715200
+      }
+    },
+    "expected": {
+      "rootName": null,
+      "rootTitle": null,
+      "folders": [],
+      "files": [
+        {
+          "path": "Báo cáo.pdf",
+          "filename": "Báo cáo.pdf",
+          "folderPath": "",
+          "size": 1,
+          "index": 0
+        },
+        {
+          "path": "báo cáo.pdf",
+          "filename": "báo cáo.pdf",
+          "folderPath": "",
+          "size": 2,
+          "index": 1
+        },
+        {
+          "path": "Báo cáo.pdf",
+          "filename": "Báo cáo.pdf",
+          "folderPath": "",
+          "size": 3,
+          "index": 2
+        }
+      ],
+      "skipped": [],
+      "totals": {
+        "files": 3,
+        "bytes": 6
+      },
+      "refusal": null
+    }
+  },
+  {
+    "group": "files_mode",
+    "name": "files mode: hidden, unsupported_format, per-file cap and 500 characters skip like a folder",
+    "input": {
+      "entries": [
+        {
+          "path": ".DS_Store",
+          "size": 1
+        },
+        {
+          "path": "~$draft.docx",
+          "size": 1
+        },
+        {
+          "path": "Thumbs.db",
+          "size": 1
+        },
+        {
+          "path": "tool.exe",
+          "size": 1
+        },
+        {
+          "path": "big.pdf",
+          "size": 101
+        },
+        {
+          "path": "ok.pdf",
+          "size": 100
+        },
+        {
+          "path": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.pdf",
+          "size": 1
+        },
+        {
+          "path": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.pdf",
+          "size": 1
+        }
+      ],
+      "limits": {
+        "maxFiles": 500,
+        "maxTotalBytes": 2147483648,
+        "maxDepth": 20,
+        "perFileMaxBytes": 100
+      }
+    },
+    "expected": {
+      "rootName": null,
+      "rootTitle": null,
+      "folders": [],
+      "files": [
+        {
+          "path": "ok.pdf",
+          "filename": "ok.pdf",
+          "folderPath": "",
+          "size": 100,
+          "index": 5
+        },
+        {
+          "path": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.pdf",
+          "filename": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.pdf",
+          "folderPath": "",
+          "size": 1,
+          "index": 7
+        }
+      ],
+      "skipped": [
+        {
+          "path": ".DS_Store",
+          "reason": "hidden"
+        },
+        {
+          "path": "~$draft.docx",
+          "reason": "hidden"
+        },
+        {
+          "path": "Thumbs.db",
+          "reason": "hidden"
+        },
+        {
+          "path": "tool.exe",
+          "reason": "unsupported_format"
+        },
+        {
+          "path": "big.pdf",
+          "reason": "too_large"
+        },
+        {
+          "path": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.pdf",
+          "reason": "name_too_long"
+        }
+      ],
+      "totals": {
+        "files": 2,
+        "bytes": 101
+      },
+      "refusal": null
+    }
+  },
+  {
+    "group": "files_mode",
+    "name": "files mode: names are NFC-normalised and trimmed; an empty or dot name is invalid_path",
+    "input": {
+      "entries": [
+        {
+          "path": "  Kế hoạch.docx ",
+          "size": 4
+        },
+        {
+          "path": "",
+          "size": 1
+        },
+        {
+          "path": " . ",
+          "size": 1
+        },
+        {
+          "path": "..",
+          "size": 1
+        }
+      ],
+      "limits": {
+        "maxFiles": 500,
+        "maxTotalBytes": 2147483648,
+        "maxDepth": 20,
+        "perFileMaxBytes": 209715200
+      }
+    },
+    "expected": {
+      "rootName": null,
+      "rootTitle": null,
+      "folders": [],
+      "files": [
+        {
+          "path": "Kế hoạch.docx",
+          "filename": "Kế hoạch.docx",
+          "folderPath": "",
+          "size": 4,
+          "index": 0
+        }
+      ],
+      "skipped": [
+        {
+          "path": "",
+          "reason": "invalid_path"
+        },
+        {
+          "path": " . ",
+          "reason": "invalid_path"
+        },
+        {
+          "path": "..",
+          "reason": "invalid_path"
+        }
+      ],
+      "totals": {
+        "files": 1,
+        "bytes": 4
+      },
+      "refusal": null
+    }
+  },
+  {
+    "group": "files_mode",
+    "name": "files mode: too_many_files counts the files that would upload",
+    "input": {
+      "entries": [
+        {
+          "path": "a.pdf",
+          "size": 1
+        },
+        {
+          "path": "b.pdf",
+          "size": 1
+        },
+        {
+          "path": "c.pdf",
+          "size": 1
+        },
+        {
+          "path": ".hidden",
+          "size": 1
+        }
+      ],
+      "limits": {
+        "maxFiles": 2,
+        "maxTotalBytes": 2147483648,
+        "maxDepth": 20,
+        "perFileMaxBytes": 209715200
+      }
+    },
+    "expected": {
+      "rootName": null,
+      "rootTitle": null,
+      "folders": [],
+      "files": [
+        {
+          "path": "a.pdf",
+          "filename": "a.pdf",
+          "folderPath": "",
+          "size": 1,
+          "index": 0
+        },
+        {
+          "path": "b.pdf",
+          "filename": "b.pdf",
+          "folderPath": "",
+          "size": 1,
+          "index": 1
+        },
+        {
+          "path": "c.pdf",
+          "filename": "c.pdf",
+          "folderPath": "",
+          "size": 1,
+          "index": 2
+        }
+      ],
+      "skipped": [
+        {
+          "path": ".hidden",
+          "reason": "hidden"
+        }
+      ],
+      "totals": {
+        "files": 3,
+        "bytes": 3
+      },
+      "refusal": {
+        "code": "too_many_files",
+        "limit": 2,
+        "actual": 3
+      }
+    }
+  },
+  {
+    "group": "files_mode",
+    "name": "files mode: too_large_total reports limit and actual bytes; depth and folders never apply",
+    "input": {
+      "entries": [
+        {
+          "path": "a.pdf",
+          "size": 60
+        },
+        {
+          "path": "b.pdf",
+          "size": 50
+        }
+      ],
+      "limits": {
+        "maxFiles": 500,
+        "maxTotalBytes": 100,
+        "maxDepth": 0,
+        "perFileMaxBytes": 209715200,
+        "maxFolders": 0
+      }
+    },
+    "expected": {
+      "rootName": null,
+      "rootTitle": null,
+      "folders": [],
+      "files": [
+        {
+          "path": "a.pdf",
+          "filename": "a.pdf",
+          "folderPath": "",
+          "size": 60,
+          "index": 0
+        },
+        {
+          "path": "b.pdf",
+          "filename": "b.pdf",
+          "folderPath": "",
+          "size": 50,
+          "index": 1
+        }
+      ],
+      "skipped": [],
+      "totals": {
+        "files": 2,
+        "bytes": 110
+      },
+      "refusal": {
+        "code": "too_large_total",
+        "limit": 100,
+        "actual": 110
+      }
+    }
+  },
+  {
+    "group": "files_mode",
+    "name": "files mode: nothing_to_upload when every file is skipped",
+    "input": {
+      "entries": [
+        {
+          "path": "a.exe",
+          "size": 1
+        }
+      ],
+      "limits": {
+        "maxFiles": 500,
+        "maxTotalBytes": 2147483648,
+        "maxDepth": 20,
+        "perFileMaxBytes": 209715200
+      }
+    },
+    "expected": {
+      "rootName": null,
+      "rootTitle": null,
+      "folders": [],
+      "files": [],
+      "skipped": [
+        {
+          "path": "a.exe",
+          "reason": "unsupported_format"
+        }
+      ],
+      "totals": {
+        "files": 0,
+        "bytes": 0
+      },
+      "refusal": {
+        "code": "nothing_to_upload"
+      }
+    }
   }
 ]

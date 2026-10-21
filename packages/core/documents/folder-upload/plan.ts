@@ -108,6 +108,60 @@ function compareFolders(a: string, b: string): number {
   return depth !== 0 ? depth : a.localeCompare(b, "vi");
 }
 
+export interface PlanFileUploadOptions {
+  limits: FolderUploadLimits;
+}
+
+/**
+ * Files mode (CONTRACT section 10, A1): several loose files straight into the
+ * destination. The folder planner's skip rules and limits, without root,
+ * folders, depth or "(n)": two files with the same name are both kept and
+ * never renamed (FD-D10). Only the last path segment is read, as the name.
+ */
+export function planFileUpload(
+  entries: readonly FolderUploadEntry[],
+  { limits }: PlanFileUploadOptions,
+): FolderUploadPlan {
+  const skipped: { path: string; reason: FolderUploadSkipReason }[] = [];
+  const files: PlannedFile[] = [];
+  entries.forEach((entry, index) => {
+    const raw = entry.path.split("/").pop() ?? "";
+    const name = raw.normalize("NFC").trim();
+    if (name === "" || name === "." || name === "..") {
+      skipped.push({ path: entry.path, reason: "invalid_path" });
+      return;
+    }
+    if (isHiddenSegment(raw, name)) {
+      skipped.push({ path: name, reason: "hidden" });
+      return;
+    }
+    if (name.length > DOCUMENT_TITLE_MAX) {
+      skipped.push({ path: name, reason: "name_too_long" });
+      return;
+    }
+    const check = checkFile(name, entry.size, limits);
+    if (!check.ok) {
+      skipped.push({ path: name, reason: check.reason });
+      return;
+    }
+    files.push({ path: name, filename: name, folderPath: "", size: entry.size, index });
+  });
+  const bytes = files.reduce((sum, f) => sum + f.size, 0);
+  let refusal: FolderUploadPlan["refusal"] = null;
+  if (files.length === 0) refusal = { code: "nothing_to_upload" };
+  else if (files.length > limits.maxFiles) refusal = { code: "too_many_files", limit: limits.maxFiles, actual: files.length };
+  else if (bytes > limits.maxTotalBytes) refusal = { code: "too_large_total", limit: limits.maxTotalBytes, actual: bytes };
+  return {
+    rootName: null,
+    rootTitle: null,
+    folders: [],
+    files,
+    skipped,
+    totals: { files: files.length, bytes },
+    refusal,
+  };
+}
+
 export function planFolderUpload(
   entries: readonly FolderUploadEntry[],
   { limits, parentLevel, siblingNames }: PlanFolderUploadOptions,

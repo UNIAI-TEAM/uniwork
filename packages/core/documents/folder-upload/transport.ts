@@ -66,11 +66,12 @@ export interface FolderUploadBatch {
   id: string;
   status: FolderUploadBatchStatus;
   parent_id: string | null;
-  root_folder_id: string;
-  /** The root title after the server's "(n)" decision. */
-  root_title: string;
+  /** Null in files mode (CONTRACT A2): the files go straight into parent_id. */
+  root_folder_id: string | null;
+  /** The root title after the server's "(n)" decision; null in files mode. */
+  root_title: string | null;
   share_with_workspace: boolean;
-  /** Folder paths under the root; the root itself is "". */
+  /** Folder paths under the root; the root itself is ""; [] in files mode. */
   folders: { path: string; id: string }[];
   files: FolderUploadBatchFile[];
   counts: FolderUploadCounts;
@@ -93,10 +94,11 @@ interface FolderUploadPlanFile {
 export interface FolderUploadPlanBody {
   /** Null is the workspace root. */
   parent_id: string | null;
-  root_name: string;
+  /** Absent in files mode (CONTRACT A2), together with `folders`. */
+  root_name?: string;
   share_with_workspace: boolean;
-  /** Folder paths under the root, parents first; the root is not listed. */
-  folders: string[];
+  /** Folder paths under the root, parents first; the root is not listed. Absent in files mode. */
+  folders?: string[];
   files: FolderUploadPlanFile[];
 }
 

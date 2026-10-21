@@ -138,11 +138,13 @@ export function planBody(
   opts: RunFolderUploadOptions,
   probes: Map<number, Awaited<ReturnType<typeof buildUploadProbe>>>,
 ): FolderUploadPlanBody {
+  // Files mode (no root, CONTRACT A2) leaves out root_name and folders entirely.
+  const tree =
+    plan.rootName === null ? {} : { root_name: plan.rootName, folders: plan.folders.filter((f) => f.includes("/")).map(underRoot) };
   return {
     parent_id: opts.parentId,
-    root_name: plan.rootName,
+    ...tree,
     share_with_workspace: opts.shareWithWorkspace,
-    folders: plan.folders.filter((f) => f.includes("/")).map(underRoot),
     files: plan.files.map((f, i) => {
       const probe = probes.get(i);
       return {

@@ -1,13 +1,26 @@
 import { describe, expect, it } from "vitest";
 import vectors from "./folder-upload-vectors.json";
-import { planFolderUpload, uniqueRootName } from "./plan";
+import { planFileUpload, planFolderUpload, uniqueRootName } from "./plan";
 import type { FolderUploadEntry, FolderUploadLimits, FolderUploadPlan } from "./types";
 
 interface Vector {
+  group?: undefined;
   name: string;
   input: { entries: FolderUploadEntry[]; limits: FolderUploadLimits; parentLevel: number; siblingNames: string[] };
   expected: FolderUploadPlan;
 }
+
+/** Files mode (CONTRACT section 10, A1): no root, no folders; the same skip rules and limits. */
+interface FilesVector {
+  group: "files_mode";
+  name: string;
+  input: { entries: FolderUploadEntry[]; limits: FolderUploadLimits };
+  expected: FolderUploadPlan;
+}
+
+const all = vectors as (Vector | FilesVector)[];
+const folderVectors = all.filter((v): v is Vector => v.group === undefined);
+const filesVectors = all.filter((v): v is FilesVector => v.group === "files_mode");
 
 const LIMITS: FolderUploadLimits = {
   maxFiles: 500,
@@ -18,7 +31,7 @@ const LIMITS: FolderUploadLimits = {
 
 describe("planFolderUpload vectors (shared with the desktop app)", () => {
   it("covers every rule at least once", () => {
-    const names = (vectors as Vector[]).map((v) => v.name).join("\n");
+    const names = folderVectors.map((v) => v.name).join("\n");
     for (const rule of [
       "hidden", "unsupported_format", "per-file cap", "500 characters", "invalid_path", "NFC", "not created",
       "ordered top-down", "too_many_files", "too_many_folders", "uploadExtensions", "too_large_total", "too_deep", "nothing_to_upload", "segment_too_long",
@@ -28,8 +41,24 @@ describe("planFolderUpload vectors (shared with the desktop app)", () => {
     }
   });
 
-  it.each(vectors as Vector[])("$name", ({ input, expected }) => {
+  it.each(folderVectors)("$name", ({ input, expected }) => {
     expect(planFolderUpload(input.entries, input)).toEqual(expected);
+  });
+});
+
+describe("planFileUpload vectors (files_mode, shared with the desktop app)", () => {
+  it("covers every files-mode rule at least once", () => {
+    const names = filesVectors.map((v) => v.name).join("\n");
+    for (const rule of [
+      "no root", "same name", "hidden", "unsupported_format", "per-file cap", "500 characters", "NFC", "invalid_path",
+      "too_many_files", "too_large_total", "nothing_to_upload",
+    ]) {
+      expect(names).toContain(rule);
+    }
+  });
+
+  it.each(filesVectors)("$name", ({ input, expected }) => {
+    expect(planFileUpload(input.entries, input)).toEqual(expected);
   });
 });
 

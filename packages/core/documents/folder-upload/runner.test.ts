@@ -5,7 +5,7 @@ import {
   type FakeFolderUploadCall,
   type FakeFolderUploadOptions,
 } from "./fake-transport";
-import { planFolderUpload } from "./plan";
+import { planFileUpload, planFolderUpload } from "./plan";
 import { runFolderUpload } from "./runner";
 import type { FolderUploadProgress, RunFolderUploadOptions } from "./runner-types";
 import { FolderUploadRefusedError } from "./transport";
@@ -292,6 +292,34 @@ describe("runFolderUpload invalidation", () => {
     }
     // 12 files x 600 ms is about 7 s: nowhere near one refresh per file.
     expect(invalidations.length).toBeLessThanOrEqual(6);
+  });
+});
+
+describe("runFolderUpload files mode (CONTRACT section 10)", () => {
+  it("A2/A4: sends no root_name or folders, paths at the destination, and reports no root", async () => {
+    const entries = [{ path: "a.pdf", size: 1 }, { path: "a.pdf", size: 2 }];
+    const plan = planFileUpload(entries, { limits: LIMITS });
+    const transport = createFakeFolderUploadTransport();
+    const handle = runFolderUpload({
+      transport,
+      plan,
+      file: (index) => new Blob(["x".repeat(entries[index]?.size ?? 0)]),
+      parentId: "parent-1",
+      shareWithWorkspace: true,
+      limits: { parallel: 2, completeBatch: 50 },
+      idempotencyKey: "k",
+    });
+    const report = await settle(handle.done);
+    const call = transport.calls.find((c) => c.method === "plan");
+    expect(call?.method === "plan" && call.body).toStrictEqual({
+      parent_id: "parent-1",
+      share_with_workspace: true,
+      files: [
+        { file_key: "f-0001", path: "", filename: "a.pdf", size_bytes: 1 },
+        { file_key: "f-0002", path: "", filename: "a.pdf", size_bytes: 2 },
+      ],
+    });
+    expect(report).toMatchObject({ root: null, done: 2, failed: [], canRetry: false });
   });
 });
 

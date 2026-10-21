@@ -76,7 +76,7 @@ export function runFolderUpload(opts: RunFolderUploadOptions): FolderUploadHandl
   let phase: FolderUploadPhase = "planning";
   let ended: "canceled" | "expired" | null = null;
   let batchId: string | null = null;
-  let root: { id: string | null; title: string } = { id: null, title: plan.rootTitle };
+  let root: FolderUploadReport["root"] = plan.rootTitle === null ? null : { id: null, title: plan.rootTitle };
   let buffer: FileState[] = [];
   let flushTimer: ReturnType<typeof setTimeout> | null = null;
   const inflightCompletes = new Set<Promise<void>>();
@@ -366,7 +366,7 @@ export function runFolderUpload(opts: RunFolderUploadOptions): FolderUploadHandl
       }
     }
     batchId = batch.id;
-    root = { id: batch.root_folder_id, title: batch.root_title || plan.rootTitle };
+    if (plan.rootTitle !== null) root = { id: batch.root_folder_id, title: batch.root_title || plan.rootTitle };
     for (const f of files.values()) {
       if (!batch.files.some((sf) => sf.file_key === f.key)) fail(f, "not_found", undefined, false);
     }

@@ -51,8 +51,11 @@ export interface FolderUploadFailedFile {
 export interface FolderUploadReport {
   /** Null when the run was canceled before the server answered the plan. */
   batchId: string | null;
-  /** The server's root folder and its final title ("Name (1)"); id null before the plan. */
-  root: { id: string | null; title: string };
+  /**
+   * The server's root folder and its final title ("Name (1)"); id null before
+   * the plan. Null in files mode: the files went to the caller's destination.
+   */
+  root: { id: string | null; title: string } | null;
   done: number;
   failed: FolderUploadFailedFile[];
   total: number;

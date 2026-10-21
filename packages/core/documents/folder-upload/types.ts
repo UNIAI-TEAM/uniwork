@@ -36,7 +36,7 @@ export interface PlannedFile {
   /** Normalised relative path, root segment first. */
   path: string;
   filename: string;
-  /** Normalised path of the file's parent folder, root included. */
+  /** Normalised path of the file's parent folder, root included; "" in files mode. */
   folderPath: string;
   size: number;
   /** Position in the input entries, so callers map back to their File objects. */
@@ -44,11 +44,11 @@ export interface PlannedFile {
 }
 
 export interface FolderUploadPlan {
-  /** Root folder name as found. */
-  rootName: string;
-  /** Root folder name after the "(n)" preview. */
-  rootTitle: string;
-  /** Relative folder paths including the root, top-down. */
+  /** Root folder name as found; null in files mode (`planFileUpload`), which has no root. */
+  rootName: string | null;
+  /** Root folder name after the "(n)" preview; null in files mode. */
+  rootTitle: string | null;
+  /** Relative folder paths including the root, top-down; [] in files mode. */
   folders: string[];
   files: PlannedFile[];
   skipped: { path: string; reason: FolderUploadSkipReason }[];

@@ -127,8 +127,9 @@ const BatchSchema = z
     id: z.string().min(1),
     status: z.string().catch("open").transform(batchStatus),
     parent_id: z.string().nullable().catch(null),
-    root_folder_id: z.string().catch(""),
-    root_title: z.string().catch(""),
+    // Null in files mode (CONTRACT A2); a malformed value reads as absent.
+    root_folder_id: z.string().nullable().catch(null),
+    root_title: z.string().nullable().catch(null),
     share_with_workspace: z.boolean().catch(false),
     folders: lenientArray(z.object({ path: z.string(), id: z.string().min(1) })),
     files: lenientArray(BatchFileSchema),
