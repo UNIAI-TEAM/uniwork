@@ -188,7 +188,7 @@ func (q *Queries) CountLiveDocumentShares(ctx context.Context, arg CountLiveDocu
 }
 
 const getDocumentShare = `-- name: GetDocumentShare :one
-SELECT id, organization_id, workspace_id, document_id, principal_type, principal_id, level, granted_by, granted_by_kind, revoked_at, revoked_by, created_at
+SELECT id, organization_id, workspace_id, document_id, principal_type, principal_id, level, granted_by, granted_by_kind, revoked_at, revoked_by, created_at, origin
 FROM document_shares
 WHERE organization_id = $1
   AND workspace_id = $2
@@ -229,6 +229,7 @@ func (q *Queries) GetDocumentShare(ctx context.Context, arg GetDocumentSharePara
 		&i.RevokedAt,
 		&i.RevokedBy,
 		&i.CreatedAt,
+		&i.Origin,
 	)
 	return i, err
 }
@@ -286,14 +287,16 @@ const insertDocumentShare = `-- name: InsertDocumentShare :one
 
 INSERT INTO document_shares (
   id, organization_id, workspace_id, document_id, principal_type,
-  principal_id, level, granted_by, granted_by_kind
+  principal_id, level, granted_by, granted_by_kind, origin
 ) VALUES (
   $1, $2, $3,
   $4, $5,
   $6, $7, $8,
-  $9
+  $9,
+  -- UNI-2039 S3: '' means direct (every caller but the chat path).
+  COALESCE(NULLIF($10::text, ''), 'direct')
 )
-RETURNING id, organization_id, workspace_id, document_id, principal_type, principal_id, level, granted_by, granted_by_kind, revoked_at, revoked_by, created_at
+RETURNING id, organization_id, workspace_id, document_id, principal_type, principal_id, level, granted_by, granted_by_kind, revoked_at, revoked_by, created_at, origin
 `
 
 type InsertDocumentShareParams struct {
@@ -306,6 +309,7 @@ type InsertDocumentShareParams struct {
 	Level          string `json:"level"`
 	GrantedBy      string `json:"granted_by"`
 	GrantedByKind  string `json:"granted_by_kind"`
+	Origin         string `json:"origin"`
 }
 
 // Document shares (C-01 §3.4; UNI-675). Basic CRUD for the share panel;
@@ -322,6 +326,7 @@ func (q *Queries) InsertDocumentShare(ctx context.Context, arg InsertDocumentSha
 		arg.Level,
 		arg.GrantedBy,
 		arg.GrantedByKind,
+		arg.Origin,
 	)
 	var i DocumentShare
 	err := row.Scan(
@@ -337,12 +342,13 @@ func (q *Queries) InsertDocumentShare(ctx context.Context, arg InsertDocumentSha
 		&i.RevokedAt,
 		&i.RevokedBy,
 		&i.CreatedAt,
+		&i.Origin,
 	)
 	return i, err
 }
 
 const listDocumentShares = `-- name: ListDocumentShares :many
-SELECT id, organization_id, workspace_id, document_id, principal_type, principal_id, level, granted_by, granted_by_kind, revoked_at, revoked_by, created_at
+SELECT id, organization_id, workspace_id, document_id, principal_type, principal_id, level, granted_by, granted_by_kind, revoked_at, revoked_by, created_at, origin
 FROM document_shares
 WHERE organization_id = $1
   AND workspace_id = $2
@@ -379,6 +385,7 @@ func (q *Queries) ListDocumentShares(ctx context.Context, arg ListDocumentShares
 			&i.RevokedAt,
 			&i.RevokedBy,
 			&i.CreatedAt,
+			&i.Origin,
 		); err != nil {
 			return nil, err
 		}

@@ -43,6 +43,7 @@ var tenantExportExcluded = map[string]string{
 	"document_change_snapshot_items": "Snapshot đồng bộ tạm (TTL vài phút), chỉ id và revision.",
 	"meeting_audit_logs":             "Nhật ký họp cũ, cùng lớp với audit.",
 	"meeting_summary_runs":           "Khóa tạm của lượt tạo tóm tắt AI (hết hạn sau vài phút), sổ kỹ thuật.",
+	"document_download_jobs":         "Job tải zip nhiều tài liệu (UNI-2045), trạng thái tạm sống một giờ; bản zip nằm trong kho tệp, không phải nội dung.",
 	"mcp_tokens":                     "Token của ứng dụng AI đã kết nối, chỉ lưu digest; là bí mật phiên.",
 }
 

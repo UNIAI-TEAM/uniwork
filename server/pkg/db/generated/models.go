@@ -792,6 +792,24 @@ type DocumentCommitIntent struct {
 	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
 }
 
+type DocumentDownloadJob struct {
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	WorkspaceID    string             `json:"workspace_id"`
+	CreatedBy      string             `json:"created_by"`
+	CreatedByKind  string             `json:"created_by_kind"`
+	Status         string             `json:"status"`
+	DocumentIds    []string           `json:"document_ids"`
+	Skipped        []byte             `json:"skipped"`
+	FileID         pgtype.Text        `json:"file_id"`
+	FileCount      pgtype.Int4        `json:"file_count"`
+	Error          pgtype.Text        `json:"error"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	StartedAt      pgtype.Timestamptz `json:"started_at"`
+	FinishedAt     pgtype.Timestamptz `json:"finished_at"`
+	ExpiresAt      pgtype.Timestamptz `json:"expires_at"`
+}
+
 type DocumentEditLock struct {
 	ID                  string             `json:"id"`
 	OrganizationID      string             `json:"organization_id"`
@@ -864,6 +882,7 @@ type DocumentShare struct {
 	RevokedAt      pgtype.Timestamptz `json:"revoked_at"`
 	RevokedBy      pgtype.Text        `json:"revoked_by"`
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	Origin         string             `json:"origin"`
 }
 
 type DocumentShareLink struct {

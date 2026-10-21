@@ -4,8 +4,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setAccessToken } from "../api/session";
 import { configureRuntime, resetRuntimeConfig } from "../runtime-config";
 import { FeatureFlagsProvider, FeatureFlagService, StaticProvider } from "../feature-flags";
-import { OFFICE_TXT_OPEN_FLAG } from "../office/format-flags";
-import { useOfficeDocsWebEnabled, useOfficeEnabled, useOfficeTxtOpenEnabled } from "./office-enabled";
+import * as formatFlags from "../office/format-flags";
+import * as officeEnabled from "./office-enabled";
+import { useOfficeDocsWebEnabled, useOfficeEnabled } from "./office-enabled";
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
@@ -155,80 +156,17 @@ describe("useOfficeDocsWebEnabled", () => {
   });
 });
 
-// UNI-1813: the flag defaults off on the server, so the organization-scoped
-// answer — not the boot-time global — decides, and only an explicit `true`
-// in a settled answer opens.
-describe("useOfficeTxtOpenEnabled", () => {
-  beforeEach(() => {
-    setAccessToken("tok");
-    vi.stubGlobal("fetch", vi.fn());
-    configureRuntime({ apiUrl: "http://api.test" });
-  });
-  afterEach(() => {
-    vi.unstubAllGlobals();
-    resetRuntimeConfig();
-    setAccessToken(null);
+// A .txt opens in the Markdown frame like a .md file: the office_txt_open flag
+// and its hook are gone (user 2026-10-21), so nothing here reads that key.
+describe("the retired office_txt_open flag", () => {
+  it("is exported by neither the flag table nor the hooks", () => {
+    expect(Object.keys(formatFlags)).not.toContain("OFFICE_TXT_OPEN_FLAG");
+    expect(Object.keys(officeEnabled)).not.toContain("useOfficeTxtOpenEnabled");
   });
 
-  /** QueryClient wrapper plus a flag service holding a global `office_txt_open` value. */
-  function setupWithGlobalFlag(globalOn: boolean) {
-    const { wrapper } = setup();
-    const service = new FeatureFlagService(new StaticProvider({ [OFFICE_TXT_OPEN_FLAG]: { default: globalOn } }));
-    return function FlaggedWrapper({ children }: { children: React.ReactNode }) {
-      return (
-        <FeatureFlagsProvider service={service}>
-          {wrapper({ children })}
-        </FeatureFlagsProvider>
-      );
-    };
-  }
-
-  it("reads loading until the organization's answer arrives, then on only when it sets the key on", async () => {
-    const { wrapper } = setup();
-    const pending = deferred<Response>();
-    vi.mocked(fetch).mockReturnValueOnce(pending.promise);
-    const { result } = renderHook(() => useOfficeTxtOpenEnabled("org1"), { wrapper });
-    expect(result.current).toBe("loading");
-    pending.resolve(answer({ office_engine: true, office_txt_open: true }));
-    await waitFor(() => expect(result.current).toBe("on"));
-  });
-
-  it("reads the organization answer, not the global flag: global off + answer on opens, global on + answer off closes", async () => {
-    // Global off (no provider, the hook's default); the organization says on.
-    const { wrapper } = setup();
-    vi.mocked(fetch).mockResolvedValueOnce(answer({ office_engine: true, office_txt_open: true }));
-    const { result: on } = renderHook(() => useOfficeTxtOpenEnabled("org1"), { wrapper });
-    await waitFor(() => expect(on.current).toBe("on"));
-
-    // Global on; the organization's answer says off and still wins.
-    vi.mocked(fetch).mockResolvedValueOnce(answer({ office_engine: true, office_txt_open: false }));
-    const { result: off } = renderHook(() => useOfficeTxtOpenEnabled("org2"), { wrapper: setupWithGlobalFlag(true) });
-    await waitFor(() => expect(off.current).toBe("off"));
-    expect(fetch).toHaveBeenCalledTimes(2);
-  });
-
-  it("reads off when the settled answer lacks the key, and unknown while the read is failing", async () => {
-    const { wrapper } = setup();
-    vi.mocked(fetch).mockResolvedValueOnce(answer({ office_engine: true }));
-    const { result: absent } = renderHook(() => useOfficeTxtOpenEnabled("org1"), { wrapper });
-    await waitFor(() => expect(absent.current).toBe("off"));
-    expect(fetch).toHaveBeenCalledTimes(1);
-
-    const failing = setup();
-    vi.mocked(fetch).mockImplementation(async () => json({ error: "boom" }, 500));
-    const { result: failed } = renderHook(() => useOfficeTxtOpenEnabled("org2"), { wrapper: failing.wrapper });
-    await waitFor(() => expect(failed.current).toBe("unknown"), SETTLE);
-    expect(vi.mocked(fetch).mock.calls.length).toBeGreaterThanOrEqual(2);
-  });
-
-  it("reads the host's global flag (default off) for a document without an organization", () => {
-    const { wrapper } = setup();
-    const { result } = renderHook(() => useOfficeTxtOpenEnabled(undefined), { wrapper });
-    expect(result.current).toBe("off");
-    expect(vi.mocked(fetch)).not.toHaveBeenCalled();
-
-    const { result: on } = renderHook(() => useOfficeTxtOpenEnabled(""), { wrapper: setupWithGlobalFlag(true) });
-    expect(on.current).toBe("on");
-    expect(vi.mocked(fetch)).not.toHaveBeenCalled();
+  it("gates a .txt like a .md: the md format flag, never a txt key", () => {
+    expect(formatFlags.officeFlagsAllow({ office_engine: true, office_txt_open: false }, "md")).toBe(true);
+    expect(formatFlags.officeFlagsAllow({ office_engine: true, office_markdown: false }, "md")).toBe(false);
+    expect(formatFlags.officeFlagsAllow({ office_engine: false }, "md")).toBe(false);
   });
 });

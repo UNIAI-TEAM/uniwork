@@ -73,11 +73,12 @@ WHERE id = sqlc.arg(id)
 -- as the tiebreak, and (after_created_at, after_id) is the keyset that
 -- continues the walk. The service still runs effectiveLevel on every row.
 -- name: ListDocumentShareCandidates :many
-SELECT sqlc.embed(d), c.created_at,
+SELECT sqlc.embed(d), c.created_at, c.granted_by, c.granted_by_kind,
        sk.name_key AS sort_name, sk.size_key AS sort_size,
-       sk.editor_key AS sort_editor, sk.editor_null AS sort_editor_null
+       sk.editor_key AS sort_editor, sk.editor_null AS sort_editor_null,
+       sk.ts_key AS sort_at
 FROM (
-  SELECT DISTINCT ON (s.document_id) s.document_id, s.workspace_id, s.created_at
+  SELECT DISTINCT ON (s.document_id) s.document_id, s.workspace_id, s.created_at, s.granted_by, s.granted_by_kind
   FROM document_shares s
   WHERE s.organization_id = sqlc.arg(organization_id)
     AND s.revoked_at IS NULL
@@ -113,12 +114,17 @@ CROSS JOIN LATERAL (SELECT
     (CASE WHEN sqlc.narg(sort_key)::text = 'name' THEN d.title ELSE '' END COLLATE "vi-x-icu")::text AS name_key,
     (CASE WHEN sqlc.narg(sort_key)::text = 'size' THEN COALESCE(cv.size_bytes, 0) ELSE 0 END)::bigint AS size_key,
     (CASE WHEN sqlc.narg(sort_key)::text = 'editor' THEN COALESCE(eu.display_name COLLATE "vi-x-icu", '') ELSE '' END)::text AS editor_key,
-    (CASE WHEN sqlc.narg(sort_key)::text = 'editor' THEN NULLIF(btrim(eu.display_name), '') IS NULL ELSE false END)::boolean AS editor_null
+    (CASE WHEN sqlc.narg(sort_key)::text = 'editor' THEN NULLIF(btrim(eu.display_name), '') IS NULL ELSE false END)::boolean AS editor_null,
+    (CASE WHEN sqlc.narg(sort_key)::text = 'shared' THEN c.created_at ELSE d.updated_at END)::timestamptz AS ts_key
 ) sk
 WHERE d.archived_at IS NULL
   -- ARCHIVE-01 (Q-AR3 = a): a shelved share leaves the shared-with-me list.
   AND d.shelved_at IS NULL
   AND d.owner_id IS NULL
+  -- UNI-2045 SV-8: the same last-editor and updated_at window the flat list takes.
+  AND (sqlc.narg(updated_by)::text IS NULL OR d.updated_by = sqlc.narg(updated_by))
+  AND (sqlc.narg(updated_from)::timestamptz IS NULL OR d.updated_at >= sqlc.narg(updated_from))
+  AND (sqlc.narg(updated_to)::timestamptz IS NULL OR d.updated_at < sqlc.narg(updated_to))
   AND (sqlc.narg(format)::text IS NULL
        OR d.kind = 'folder'
        OR (d.kind = 'file'
@@ -153,6 +159,9 @@ WHERE d.archived_at IS NULL
        WHEN 'updated' THEN CASE WHEN sqlc.arg(sort_desc)::boolean
             THEN (d.updated_at, d.id COLLATE "C") < (sqlc.narg(sort_cursor_at)::timestamptz, sqlc.narg(sort_cursor_id)::text COLLATE "C")
             ELSE (d.updated_at, d.id COLLATE "C") > (sqlc.narg(sort_cursor_at)::timestamptz, sqlc.narg(sort_cursor_id)::text COLLATE "C") END
+       WHEN 'shared' THEN CASE WHEN sqlc.arg(sort_desc)::boolean
+            THEN (sk.ts_key, d.id COLLATE "C") < (sqlc.narg(sort_cursor_at)::timestamptz, sqlc.narg(sort_cursor_id)::text COLLATE "C")
+            ELSE (sk.ts_key, d.id COLLATE "C") > (sqlc.narg(sort_cursor_at)::timestamptz, sqlc.narg(sort_cursor_id)::text COLLATE "C") END
        WHEN 'size' THEN CASE WHEN sqlc.arg(sort_desc)::boolean
             THEN (sk.size_key, d.id COLLATE "C") < (sqlc.narg(sort_cursor_num)::bigint, sqlc.narg(sort_cursor_id)::text COLLATE "C")
             ELSE (sk.size_key, d.id COLLATE "C") > (sqlc.narg(sort_cursor_num)::bigint, sqlc.narg(sort_cursor_id)::text COLLATE "C") END
@@ -181,6 +190,8 @@ ORDER BY
   (CASE WHEN sqlc.narg(sort_key)::text = 'size' AND sqlc.arg(sort_desc)::boolean THEN sk.size_key END) DESC,
   (CASE WHEN sqlc.narg(sort_key)::text = 'updated' AND NOT sqlc.arg(sort_desc)::boolean THEN d.updated_at END) ASC,
   (CASE WHEN sqlc.narg(sort_key)::text = 'updated' AND sqlc.arg(sort_desc)::boolean THEN d.updated_at END) DESC,
+  (CASE WHEN sqlc.narg(sort_key)::text = 'shared' AND NOT sqlc.arg(sort_desc)::boolean THEN sk.ts_key END) ASC,
+  (CASE WHEN sqlc.narg(sort_key)::text = 'shared' AND sqlc.arg(sort_desc)::boolean THEN sk.ts_key END) DESC,
   (CASE WHEN sqlc.narg(sort_key)::text IS NOT NULL AND NOT sqlc.arg(sort_desc)::boolean THEN d.id COLLATE "C" END) ASC,
   (CASE WHEN sqlc.narg(sort_key)::text IS NOT NULL AND sqlc.arg(sort_desc)::boolean THEN d.id COLLATE "C" END) DESC
 LIMIT sqlc.arg(max_rows);
@@ -321,3 +332,33 @@ WHERE organization_id = sqlc.arg(organization_id)
   )
 ORDER BY occurred_at DESC, id DESC
 LIMIT sqlc.arg(max_rows);
+
+-- UNI-2045 SV-4: how widely each document of a page is shared, for the Shared
+-- by me list. Only live grants count: a direct user share, a workspace share
+-- and a link that is neither revoked nor expired. An organization-wide share is
+-- the workspace-visibility leg of the list, not a grant to count. latest_at is
+-- the newest created_at among the counted grants.
+-- name: ListDocumentShareSummaries :many
+SELECT g.document_id,
+       count(*) FILTER (WHERE g.kind = 'user')::int AS people,
+       count(*) FILTER (WHERE g.kind = 'workspace')::int AS workspaces,
+       count(*) FILTER (WHERE g.kind = 'link')::int AS links,
+       max(g.created_at)::timestamptz AS latest_at
+FROM (
+  SELECT s.document_id, s.principal_type::text AS kind, s.created_at
+  FROM document_shares s
+  WHERE s.organization_id = sqlc.arg(organization_id)
+    AND s.workspace_id = sqlc.arg(workspace_id)
+    AND s.document_id = ANY(sqlc.arg(document_ids)::text[])
+    AND s.revoked_at IS NULL
+    AND s.principal_type IN ('user', 'workspace')
+  UNION ALL
+  SELECT l.document_id, 'link'::text, l.created_at
+  FROM document_share_links l
+  WHERE l.organization_id = sqlc.arg(organization_id)
+    AND l.workspace_id = sqlc.arg(workspace_id)
+    AND l.document_id = ANY(sqlc.arg(document_ids)::text[])
+    AND l.revoked_at IS NULL
+    AND l.expires_at > now()
+) g
+GROUP BY g.document_id;
