@@ -8099,7 +8099,10 @@
       "point3": "Participants, waiting room and host controls",
       "followUp": "After the meeting: summary and next steps",
       "followUpTitle": "End the meeting. Keep the work moving.",
-      "followUpDescription": "Recording, transcription and AI summaries when configured. Turn agreed decisions into suggested tasks for you to review."
+      "followUpDescription": "Recording, a transcript, and a summary UNI writes when the meeting ends, once your organization has AI turned on. Turn agreed decisions into suggested tasks for you to review.",
+      "autoSummary": "UNI summarizes the meeting when it ends",
+      "askQuestion": "What did we decide about the launch date?",
+      "askAnswer": "The team agreed the launch scope and set onboarding to be finished before Friday."
     },
     "updates": {
       "chatTitle": "One message.\nOne clear next step.",

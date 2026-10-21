@@ -8095,7 +8095,10 @@
       "point3": "Người tham gia, phòng chờ và quyền chủ trì",
       "followUp": "Sau cuộc họp: tóm tắt và việc cần làm",
       "followUpTitle": "Kết thúc buổi họp. Tiếp tục công việc.",
-      "followUpDescription": "Ghi hình, bản ghi lời nói và AI tóm tắt khi được cấu hình. Từ quyết định đã thống nhất đến đề xuất công việc để bạn xem lại."
+      "followUpDescription": "Ghi hình, bản ghi lời thoại, và tóm tắt UNI tự viết khi cuộc họp kết thúc, khi tổ chức đã bật AI. Từ quyết định đã thống nhất đến đề xuất công việc để bạn xem lại.",
+      "autoSummary": "UNI tự tóm tắt khi cuộc họp kết thúc",
+      "askQuestion": "Đã chốt gì về lịch ra mắt?",
+      "askAnswer": "Cả nhóm chốt phạm vi ra mắt và hoàn thiện onboarding trước thứ Sáu."
     },
     "updates": {
       "chatTitle": "Một tin nhắn.\nMột việc rõ ràng.",

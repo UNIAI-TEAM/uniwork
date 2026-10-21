@@ -3,10 +3,11 @@
 import { DEMO_MEMBERS } from "./product-demo-data";
 
 import { useId, useState } from "react";
-import { Send, Sparkles, X } from "lucide-react";
+import { Send, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Input } from "@uniwork/ui/components/ui/input";
+import { AskUniMessageTurn } from "@uniwork/views/ai/ask-uni-panel";
 import { MeetingPersonAvatar } from "@uniwork/views/meetings/meeting-person";
 import { MeetingUnderlineTabs } from "@uniwork/views/meetings/meeting-underline-tabs";
 import { MeetingCopilotHeader } from "@uniwork/views/meetings/meeting-copilot/meeting-copilot-header";
@@ -19,12 +20,11 @@ const COPILOT_SECTIONS = ["insights", "notes", "transcript", "actions"] as const
 /** Keep the draft and demo history while the dock or phone sheet is closed. */
 export function useDemoMeetingPanelState() {
   const [section, setSection] = useState<typeof COPILOT_SECTIONS[number]>("insights");
-  const [summary, setSummary] = useState(false);
   const [draft, setDraft] = useState("");
   const [messages, setMessages] = useState<string[]>([]);
   const [note, setNote] = useState("");
   const [notes, setNotes] = useState<string[]>([]);
-  return { section, setSection, summary, setSummary, draft, setDraft, messages, setMessages, note, setNote, notes, setNotes };
+  return { section, setSection, draft, setDraft, messages, setMessages, note, setNote, notes, setNotes };
 }
 
 export function ProductMeetingPanel({ tab, onTab, onClose, onTask, compact, state }: {
@@ -33,20 +33,21 @@ export function ProductMeetingPanel({ tab, onTab, onClose, onTask, compact, stat
 }) {
   const { t } = useTranslation();
   const id = useId();
-  const { section, setSection, summary, setSummary, draft, setDraft, messages, setMessages, note, setNote, notes, setNotes } = state;
+  const { section, setSection, draft, setDraft, messages, setMessages, note, setNote, notes, setNotes } = state;
   const label = (value: DemoMeetingTab) => t({ copilot: "meetings.aiCopilot", chat: "meetings.chat", participants: "meetings.people", motions: "meetings.governance.motionsTab", recordings: "meetings.recordingsTab" }[value]);
   const sectionLabel = (value: typeof section) => t({ insights: "meetings.insightsTab", notes: "meetings.notes", transcript: "meetings.transcriptTab", actions: "meetings.actionsTab" }[value]);
   return <aside className="product-meeting-panel" aria-label={t("meetings.roomPanel")}>
     <div className="product-meeting-panel-tabs"><MeetingUnderlineTabs tabs={MEETING_DEMO_TABS} value={tab} onChange={onTab} label={label} panelId={value => `${id}-${value}`} />{compact && <Button size="icon" variant="ghost" aria-label={t("common.close")} onClick={onClose}><X aria-hidden /></Button>}</div>
     <div className="product-meeting-panel-content" role="tabpanel" id={`${id}-${tab}`} aria-label={label(tab)}>
       {tab === "copilot" && <>
-        <MeetingCopilotHeader action={<Button type="button" size="sm" variant="brandSubtle" onClick={() => setSummary(true)}><Sparkles aria-hidden />{summary ? t("meetings.regenerateSummary") : t("meetings.generateSummary")}</Button>} />
+        <MeetingCopilotHeader />
         <MeetingUnderlineTabs tabs={COPILOT_SECTIONS} value={section} onChange={setSection} label={sectionLabel} />
         <div className="product-meeting-copilot-body">
-          {section === "insights" && (summary ? <><h3>{t("meetings.aiSummary")}</h3><p>{t("landing.playback.meetingGoal")}</p><ul>{["brief", "design", "launch"].map(key => <li key={key}>{t(`landing.playback.tasks.${key}`)}</li>)}</ul></> : <p>{t("meetings.summaryEmpty")}</p>)}
+          {/* As shipped: the summary arrives by itself, and Ask UNI answers from this meeting. */}
+          {section === "insights" && <><h3>{t("meetings.aiSummary")}</h3><small>{t("landing.meeting.autoSummary")}</small><p>{t("landing.playback.meetingGoal")}</p><ul>{["brief", "design", "launch"].map(key => <li key={key}>{t(`landing.playback.tasks.${key}`)}</li>)}</ul><div className="product-meeting-ask"><h3>{t("meetings.askUniTitle")}</h3><ul className="space-y-2"><AskUniMessageTurn message={{ id: "demo-meeting-question", role: "user", content: t("landing.meeting.askQuestion"), citations: [] }} /><AskUniMessageTurn message={{ id: "demo-meeting-answer", role: "assistant", content: t("landing.meeting.askAnswer"), citations: [] }} /></ul></div></>}
           {section === "transcript" && <><small>09:12 · An Nhiên</small><p>{t("landing.reference.meetingChat")}</p><small>09:15 · Khánh Vy</small><p>{t("landing.studio.message2")}</p></>}
           {section === "notes" && <><p>{t("landing.playback.meetingGoal")}</p>{notes.map((value, index) => <p key={index}>{value}</p>)}<form onSubmit={event => { event.preventDefault(); if (note.trim()) { setNotes(current => [...current, note.trim()].slice(-8)); setNote(""); } }}><Input value={note} onChange={event => setNote(event.target.value)} aria-label={t("meetings.notesInputLabel")} placeholder={t("meetings.notesPlaceholder")} maxLength={500} /><Button type="submit" variant="outline" size="icon" aria-label={t("meetings.addNote")} disabled={!note.trim()}><Send aria-hidden /></Button></form></>}
-          {section === "actions" && (summary ? <><p>{t("landing.studio.task_design")}</p><Button type="button" variant="brand" className="mt-3 w-full" disabled={!onTask} onClick={() => onTask?.(t("landing.studio.task_design"))}>{t("meetings.createTasksInUniwork", { count: 1 })}</Button></> : <p>{t("meetings.summaryEmpty")}</p>)}
+          {section === "actions" && <><p>{t("landing.studio.task_design")}</p><Button type="button" variant="brand" className="mt-3 w-full" disabled={!onTask} onClick={() => onTask?.(t("landing.studio.task_design"))}>{t("meetings.createTasksInUniwork", { count: 1 })}</Button></>}
         </div>
         <small className="product-meeting-sample">{t("landing.lovable.sample")}</small>
       </>}
