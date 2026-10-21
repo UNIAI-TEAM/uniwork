@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 import { initI18n } from "@uniwork/core/i18n";
+import { useMeeting } from "@uniwork/core/meetings";
 import type { Meeting } from "@uniwork/core/types";
 import { requestMock, wrap } from "../test/api-mock";
 import { MeetingRecordHeldButton } from "./meeting-record-held-dialog";
@@ -82,5 +83,54 @@ describe("MeetingRecordHeldButton", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Ghi nhận" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Chưa ghi nhận được cuộc họp.");
     expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+
+  it("lands focus on the transcript card once the meeting is ended and its opener is gone", async () => {
+    const held = meeting("2026-10-20T02:00:00Z", "2026-10-20T03:30:00Z");
+    let ended = false;
+    requestMock.mockImplementation(async (path: string) => {
+      if (path === HELD) ended = true;
+      return { meeting: { ...held, status: ended ? "ENDED" : "SCHEDULED" } };
+    });
+    function Page() {
+      const m = useMeeting("m1").data ?? held;
+      return (
+        <>
+          {m.status === "ENDED" ? null : <MeetingRecordHeldButton workspaceId="w1" meeting={m} />}
+          <button id="meeting-transcript-upload" type="button">
+            Tải tệp ghi âm
+          </button>
+        </>
+      );
+    }
+    render(wrap(<Page />));
+    fireEvent.click(await screen.findByRole("button", { name: "Ghi nhận đã họp" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Ghi nhận" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole("button", { name: "Tải tệp ghi âm" })).toHaveFocus());
+  });
+
+  it("names the meeting's zone under the times when it is not the viewer's", async () => {
+    render(
+      wrap(
+        <MeetingRecordHeldButton
+          workspaceId="w1"
+          meeting={{ ...meeting("2026-10-20T02:00:00Z", "2026-10-20T03:30:00Z"), timezone: "Asia/Tokyo" }}
+        />,
+      ),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Ghi nhận đã họp" }));
+    expect(await screen.findByText("Giờ theo múi giờ của cuộc họp: GMT+9 · Tokyo.")).toBeInTheDocument();
+  });
+
+  it("words the server's refusal of the times in the reader's language", async () => {
+    const { ApiError } = await import("@uniwork/core/api");
+    requestMock.mockRejectedValue(new ApiError("giờ kết thúc phải sau giờ bắt đầu", "invalid_held_times", 422));
+    render(wrap(<MeetingRecordHeldButton workspaceId="w1" meeting={meeting("2026-10-20T02:00:00Z", "2026-10-20T03:30:00Z")} />));
+    fireEvent.click(screen.getByRole("button", { name: "Ghi nhận đã họp" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Ghi nhận" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Chưa ghi nhận được cuộc họp. Giờ kết thúc phải sau giờ bắt đầu và không ở tương lai.",
+    );
   });
 });

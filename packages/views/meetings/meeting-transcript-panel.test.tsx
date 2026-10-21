@@ -41,6 +41,26 @@ describe("MeetingTranscriptPanel", () => {
     expect(screen.queryByRole("button", { name: /Xem lời thoại/ })).not.toBeInTheDocument();
   });
 
+  it("says the recordings did not load instead of hiding them, and why a recording failed", async () => {
+    requestMock.mockImplementation((path: unknown) => {
+      const p = String(path);
+      if (p.endsWith("/recordings")) return Promise.reject(new Error("Failed to fetch"));
+      if (p.endsWith("/transcript")) return Promise.resolve({ segments: [] });
+      return Promise.resolve({});
+    });
+    const { unmount } = render(wrapWithNav(<MeetingTranscriptPanel workspaceId="w1" meeting={meeting} canClerk={false} />));
+    expect(await screen.findByText("Không tải được bản ghi của cuộc họp.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Thử lại" })).toBeInTheDocument();
+    unmount();
+
+    respond({
+      "/transcript": { segments: [] },
+      "/recordings": { recordings: [{ id: "r1", meeting_id: "m1", status: "FAILED", started_at: "2026-09-22T02:00:00Z" }] },
+    });
+    render(wrapWithNav(<MeetingTranscriptPanel workspaceId="w1" meeting={meeting} canClerk={false} />));
+    expect(await screen.findByText("Không lưu được bản ghi này.")).toHaveClass("text-destructive");
+  });
+
   it("points a live meeting with no transcript at the captions", async () => {
     respond({ "/transcript": { segments: [] } });
     render(wrapWithNav(<MeetingTranscriptPanel workspaceId="w1" meeting={{ ...meeting, status: "IN_PROGRESS" }} canClerk />));

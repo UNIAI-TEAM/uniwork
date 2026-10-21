@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { ChevronDown, FileHeadphone, ScrollText, Upload } from "lucide-react";
+import { ChevronDown, CircleAlert, FileHeadphone, ScrollText, Upload } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useMeetingCapabilities, useOlderTranscript, useRecordings, useTranscript } from "@uniwork/core/meetings";
 import { useMeetingTranscriptions } from "@uniwork/core/meetings/transcriptions";
@@ -19,6 +19,10 @@ import { MeetingSectionError, MeetingTextSkeleton } from "./meeting-section-stat
 import { MeetingSpeakerLabelsButton } from "./meeting-speaker-labels-dialog";
 
 const RECORDING_STATUSES = new Set(["ACTIVE", "PROCESSING", "COMPLETE", "FAILED"]);
+
+/** Anchors other screens land focus on (deep link, "record as held"). */
+export const TRANSCRIPT_HEADING_ID = "transcript-heading";
+export const TRANSCRIPT_UPLOAD_ID = "meeting-transcript-upload";
 
 /**
  * The name a transcript line shows. A speaker nobody named yet is worded here,
@@ -51,7 +55,8 @@ export function MeetingTranscriptPanel({
   const meetingId = meeting.id;
   const transcriptQuery = useTranscript(meetingId);
   const older = useOlderTranscript(meetingId);
-  const { data: recordings } = useRecordings(meetingId);
+  const recordingsQuery = useRecordings(meetingId);
+  const recordings = recordingsQuery.data ?? [];
   const caps = useMeetingCapabilities(workspaceId);
   const canUpload = canClerk && meeting.status === "ENDED" && caps.data?.transcription === true;
   // A failed upload already says what did not happen and carries the retry:
@@ -71,12 +76,12 @@ export function MeetingTranscriptPanel({
 
   return (
     <PanelCard
-      id="transcript-heading"
+      id={TRANSCRIPT_HEADING_ID}
       icon={ScrollText}
       title={t("meetings.transcriptTitle")}
       action={
         canUpload && !uploadFailed ? (
-          <Button type="button" size="sm" variant="outline" onClick={() => setUploadOpen(true)}>
+          <Button id={TRANSCRIPT_UPLOAD_ID} type="button" size="sm" variant="outline" onClick={() => setUploadOpen(true)}>
             <Upload aria-hidden />
             {t("meetings.transcription.uploadButton")}
           </Button>
@@ -151,13 +156,16 @@ export function MeetingTranscriptPanel({
           </Collapsible>
         )}
 
-        {(recordings ?? []).length > 0 ? (
+        {recordings.length > 0 || (recordingsQuery.isError && !recordingsQuery.data) ? (
           <section aria-labelledby="meeting-recordings-heading">
             <h3 id="meeting-recordings-heading" className="mb-2 text-label font-medium text-foreground">
               {t("meetings.recordings")}
             </h3>
-            <ul className="space-y-1.5">
-              {(recordings ?? []).map((r) => (
+            {recordings.length === 0 ? (
+              <MeetingSectionError message={t("meetings.recordingsLoadFailed")} onRetry={() => void recordingsQuery.refetch()} />
+            ) : null}
+            <ul className="space-y-1.5 empty:hidden">
+              {recordings.map((r) => (
                 <li key={r.id} className="flex items-center gap-2 text-body text-foreground">
                   <FileHeadphone aria-hidden className="size-4 shrink-0 text-faint-foreground" />
                   <span className="text-caption tabular-nums text-muted-foreground">
@@ -167,6 +175,11 @@ export function MeetingTranscriptPanel({
                     <Button type="button" size="sm" variant="link" className="h-auto px-0" onClick={() => setPlaybackId(r.id)}>
                       {t("meetings.recording_play")}
                     </Button>
+                  ) : r.status === "FAILED" ? (
+                    <span className="flex items-center gap-1 text-caption text-destructive">
+                      <CircleAlert aria-hidden className="size-3.5 shrink-0" />
+                      {t("meetings.recordingFailed")}
+                    </span>
                   ) : RECORDING_STATUSES.has(r.status) ? (
                     <span className="text-caption text-muted-foreground">{t(`meetings.recordingStatus.${r.status}`)}</span>
                   ) : null}

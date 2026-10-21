@@ -3,21 +3,14 @@ import { useState } from "react";
 import { CircleAlert, UserPen } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { useAssignSpeakerLabel, useSpeakerLabels } from "@uniwork/core/meetings/speaker-labels";
+import { useAssignSpeakerLabels, useSpeakerLabels } from "@uniwork/core/meetings/speaker-labels";
 import type { SpeakerLabel } from "@uniwork/core/types";
 import { Button } from "@uniwork/ui/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@uniwork/ui/components/ui/dialog";
+import { Dialog } from "@uniwork/ui/components/ui/dialog";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
-import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { apiErrorCopy } from "../api-error-copy";
+import { FormDialogBody, FormDialogContent, FormDialogFooter, FormDialogHeader } from "../common/form-dialog";
 import { MeetingAssigneeSelect } from "./meeting-assignee-select";
 import { MeetingSectionError, MeetingSectionLoading } from "./meeting-section-state";
 
@@ -73,10 +66,10 @@ export function MeetingSpeakerLabelsDialog({
 }) {
   const { t } = useTranslation();
   const labels = useSpeakerLabels(meetingId, open);
-  const assign = useAssignSpeakerLabel(meetingId);
+  const assign = useAssignSpeakerLabels(meetingId);
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [saving, setSaving] = useState(false);
+  const saving = assign.isPending;
   const rows = labels.data ?? [];
   const draft = (l: SpeakerLabel) => drafts[l.id] ?? draftOf(l);
 
@@ -87,18 +80,17 @@ export function MeetingSpeakerLabelsDialog({
       onOpenChange(false);
       return;
     }
-    setSaving(true);
-    const failed: Record<string, string> = {};
-    for (const l of dirty) {
-      const d = draft(l);
-      try {
+    const refused = await assign.mutateAsync(
+      dirty.map((l) => {
+        const d = draft(l);
         // A member and a free name exclude each other, as the server requires.
-        await assign.mutateAsync({ labelId: l.id, user_id: d.userId, name: d.userId ? undefined : d.name.trim() || undefined });
-      } catch (err) {
-        failed[l.id] = apiErrorCopy(err) ?? t("meetings.scribe.speakerSaveFailed");
-      }
+        return { labelId: l.id, user_id: d.userId, name: d.userId ? undefined : d.name.trim() || undefined };
+      }),
+    );
+    const failed: Record<string, string> = {};
+    for (const [labelId, err] of Object.entries(refused)) {
+      failed[labelId] = apiErrorCopy(err) ?? t("meetings.scribe.speakerSaveFailed");
     }
-    setSaving(false);
     setErrors(failed);
     if (Object.keys(failed).length === 0) {
       toast.success(t("meetings.scribe.speakerSaved"));
@@ -108,80 +100,70 @@ export function MeetingSpeakerLabelsDialog({
 
   return (
     <Dialog open={open} onOpenChange={(next) => (saving ? undefined : onOpenChange(next))}>
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>{t("meetings.scribe.speakersTitle")}</DialogTitle>
-          <DialogDescription>{t("meetings.scribe.speakersDescription")}</DialogDescription>
-        </DialogHeader>
-        {labels.isPending ? (
-          <MeetingSectionLoading label={t("meetings.scribe.speakersLoading")} className="space-y-2">
-            <Skeleton className="h-4 w-40" />
-            <Skeleton className="h-8 w-full" />
-          </MeetingSectionLoading>
-        ) : labels.isError ? (
-          <MeetingSectionError message={t("meetings.scribe.speakersLoadFailed")} onRetry={() => void labels.refetch()} />
-        ) : rows.length === 0 ? (
-          <p className="text-label text-muted-foreground">{t("meetings.scribe.speakersEmpty")}</p>
-        ) : (
-          <ul className="max-h-[60vh] space-y-4 overflow-y-auto">
-            {rows.map((l) => {
-              const title = speakerTitle(l, t);
-              const d = draft(l);
-              const error = errors[l.id];
-              const set = (next: Draft) => setDrafts((all) => ({ ...all, [l.id]: next }));
-              return (
-                <li key={l.id} className="space-y-2">
-                  <div>
-                    <p className="text-body font-medium text-foreground">{l.assigned_name || title}</p>
-                    {l.assigned_name ? <p className="text-caption text-muted-foreground">{title}</p> : null}
-                    {l.sample ? <p className="line-clamp-2 text-caption text-muted-foreground">{`"${l.sample}"`}</p> : null}
-                  </div>
-                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                    <MeetingAssigneeSelect
-                      workspaceId={workspaceId}
-                      value={d.userId}
-                      unassignedLabel={t("meetings.scribe.speakerNotAssigned")}
-                      ariaLabel={`${title} · ${t("meetings.scribe.speakerMember")}`}
-                      className="w-full"
-                      onChange={(next) => set({ userId: next, name: next ? "" : d.name })}
-                    />
-                    <Input
-                      value={d.name}
-                      maxLength={120}
-                      placeholder={t("meetings.scribe.speakerFreeName")}
-                      aria-label={`${title} · ${t("meetings.scribe.speakerFreeName")}`}
-                      aria-invalid={error ? true : undefined}
-                      onChange={(e) => set({ userId: e.target.value ? undefined : d.userId, name: e.target.value })}
-                    />
-                  </div>
-                  {error ? (
-                    <p role="alert" className="flex items-center gap-1.5 text-caption text-destructive">
-                      <CircleAlert aria-hidden className="size-3.5 shrink-0" />
-                      {error}
-                    </p>
-                  ) : null}
-                </li>
-              );
-            })}
-          </ul>
-        )}
-        <DialogFooter>
-          <Button
-            type="button"
-            variant="ghost"
-            aria-disabled={saving || undefined}
-            onClick={() => {
-              if (!saving) onOpenChange(false);
-            }}
-          >
-            {t("common.cancel")}
-          </Button>
-          <Button type="button" aria-disabled={saving || undefined} aria-busy={saving || undefined} onClick={() => void save()}>
-            {saving ? <Spinner /> : null}
-            {t("meetings.scribe.speakerSave")}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
+      <FormDialogContent size="lg" showCloseButton={!saving}>
+        <FormDialogHeader title={t("meetings.scribe.speakersTitle")} description={t("meetings.scribe.speakersDescription")} />
+        <FormDialogBody>
+          {labels.isPending ? (
+            <MeetingSectionLoading label={t("meetings.scribe.speakersLoading")} className="space-y-2">
+              <Skeleton className="h-4 w-40" />
+              <Skeleton className="h-8 w-full" />
+            </MeetingSectionLoading>
+          ) : labels.isError ? (
+            <MeetingSectionError message={t("meetings.scribe.speakersLoadFailed")} onRetry={() => void labels.refetch()} />
+          ) : rows.length === 0 ? (
+            <p className="text-label text-muted-foreground">{t("meetings.scribe.speakersEmpty")}</p>
+          ) : (
+            <ul className="space-y-4">
+              {rows.map((l) => {
+                const title = speakerTitle(l, t);
+                const d = draft(l);
+                const error = errors[l.id];
+                const set = (next: Draft) => setDrafts((all) => ({ ...all, [l.id]: next }));
+                return (
+                  <li key={l.id} className="space-y-2">
+                    <div>
+                      <p className="text-body font-medium text-foreground">{l.assigned_name || title}</p>
+                      {l.assigned_name ? <p className="text-caption text-muted-foreground">{title}</p> : null}
+                      {l.sample ? <p className="line-clamp-2 text-caption text-muted-foreground">{`"${l.sample}"`}</p> : null}
+                    </div>
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                      <MeetingAssigneeSelect
+                        workspaceId={workspaceId}
+                        value={d.userId}
+                        unassignedLabel={t("meetings.scribe.speakerNotAssigned")}
+                        ariaLabel={`${title} · ${t("meetings.scribe.speakerMember")}`}
+                        className="w-full"
+                        onChange={(next) => set({ userId: next, name: next ? "" : d.name })}
+                      />
+                      <Input
+                        value={d.name}
+                        maxLength={120}
+                        placeholder={t("meetings.scribe.speakerFreeName")}
+                        aria-label={`${title} · ${t("meetings.scribe.speakerFreeName")}`}
+                        aria-invalid={error ? true : undefined}
+                        onChange={(e) => set({ userId: e.target.value ? undefined : d.userId, name: e.target.value })}
+                      />
+                    </div>
+                    {error ? (
+                      <p role="alert" className="flex items-center gap-1.5 text-caption text-destructive">
+                        <CircleAlert aria-hidden className="size-3.5 shrink-0" />
+                        {error}
+                      </p>
+                    ) : null}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </FormDialogBody>
+        <FormDialogFooter
+          onCancel={() => onOpenChange(false)}
+          submitLabel={t("meetings.scribe.speakerSave")}
+          submittingLabel={t("meetings.scribe.speakerSaving")}
+          submitting={saving}
+          onSubmit={() => void save()}
+        />
+      </FormDialogContent>
     </Dialog>
   );
 }

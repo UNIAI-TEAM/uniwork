@@ -1,25 +1,21 @@
 "use client";
-import { useId, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { CalendarCheck, CircleAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
+import { errorCode } from "@uniwork/core/api";
 import { useMeetingCapabilities } from "@uniwork/core/meetings";
 import { useRecordMeetingHeld } from "@uniwork/core/meetings/transcriptions";
 import type { Meeting } from "@uniwork/core/types";
 import { Button } from "@uniwork/ui/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@uniwork/ui/components/ui/dialog";
-import { Spinner } from "@uniwork/ui/components/ui/spinner";
+import { Dialog } from "@uniwork/ui/components/ui/dialog";
 import { apiErrorCopy } from "../api-error-copy";
+import { FormDialogBody, FormDialogContent, FormDialogFooter, FormDialogHeader } from "../common/form-dialog";
 import { Notice } from "../common/notice";
-import { scheduleWindowIso, splitIsoLocal } from "./meeting-datetime";
-import { MeetingScheduleFields, scheduleValid } from "./meeting-schedule-fields";
+import { sameUtcOffset, scheduleWindowIso, splitIsoLocal } from "./meeting-datetime";
+import { meetingTimeZoneLabel } from "./meeting-detail-format";
+import { browserTimeZone, MeetingScheduleFields, scheduleValid } from "./meeting-schedule-fields";
+import { TRANSCRIPT_HEADING_ID, TRANSCRIPT_UPLOAD_ID } from "./meeting-transcript-panel";
 import { useNow } from "./use-now";
 
 /**
@@ -51,6 +47,16 @@ export function MeetingRecordHeldButton({
   );
 }
 
+/** Where focus goes once the meeting is ended: the transcript card's upload, else its heading. */
+function transcriptFocusTarget(): HTMLElement | null {
+  const upload = document.getElementById(TRANSCRIPT_UPLOAD_ID);
+  if (upload) return upload;
+  const heading = document.getElementById(TRANSCRIPT_HEADING_ID);
+  // A heading takes programmatic focus only with a tabindex.
+  heading?.setAttribute("tabindex", "-1");
+  return heading;
+}
+
 function MeetingRecordHeldDialog({
   workspaceId,
   meeting,
@@ -60,11 +66,13 @@ function MeetingRecordHeldDialog({
   meeting: Meeting;
   onOpenChange: (open: boolean) => void;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const idPrefix = useId();
   const nowMs = useNow();
   const reasonId = useId();
   const zone = meeting.timezone?.trim() || undefined;
+  // Times are typed in the meeting's zone; say which one when it is not the viewer's.
+  const zoneLabel = zone && !sameUtcOffset(zone, browserTimeZone(), nowMs) ? meetingTimeZoneLabel(zone, i18n.language) : "";
   const caps = useMeetingCapabilities(workspaceId);
   const [date, setDate] = useState(() => splitIsoLocal(meeting.starts_at, zone).date);
   const [start, setStart] = useState(() => splitIsoLocal(meeting.starts_at, zone).time);
@@ -78,21 +86,24 @@ function MeetingRecordHeldDialog({
   const span = scheduleWindowIso(date, start, end, zone);
   const endInFuture = Date.parse(span.ends_at) > nowMs;
   const ready = Boolean(date) && scheduleValid(start, end) && !endInFuture;
-  const blocked = !ready || record.isPending;
+  // The opener unmounts once the meeting is ended: a success lands focus on the transcript card.
+  const succeeded = useRef(false);
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (blocked) return;
+    if (!ready || record.isPending) return;
     setFailure(null);
     record.mutate(
       { started_at: span.starts_at, ended_at: span.ends_at },
       {
         onSuccess: () => {
+          succeeded.current = true;
           toast.success(t("meetings.held.done"));
           onOpenChange(false);
         },
         onError: (err) => {
-          const detail = apiErrorCopy(err);
+          const detail =
+            errorCode(err) === "invalid_held_times" ? t("meetings.held.invalidTimes") : apiErrorCopy(err);
           setFailure(detail ? `${t("meetings.held.failed")} ${detail}` : t("meetings.held.failed"));
         },
       },
@@ -100,53 +111,54 @@ function MeetingRecordHeldDialog({
   };
 
   return (
-    <Dialog open onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
-        <form onSubmit={submit} className="space-y-4">
-          <DialogHeader>
-            <DialogTitle>{t("meetings.held.title")}</DialogTitle>
-            <DialogDescription>
-              {t(caps.data?.transcription ? "meetings.held.descriptionUpload" : "meetings.held.description")}
-            </DialogDescription>
-          </DialogHeader>
-          <MeetingScheduleFields
-            idPrefix={idPrefix}
-            date={date}
-            start={start}
-            end={end}
-            onDate={setDate}
-            onStart={setStart}
-            onEnd={setEnd}
-            minDate={null}
-            timeZone={zone}
-            checkPast={false}
+    <Dialog open onOpenChange={(next) => (record.isPending ? undefined : onOpenChange(next))}>
+      <FormDialogContent
+        showCloseButton={!record.isPending}
+        finalFocus={() => (succeeded.current ? transcriptFocusTarget() : true)}
+      >
+        <form onSubmit={submit}>
+          <FormDialogHeader
+            title={t("meetings.held.title")}
+            description={t(caps.data?.transcription ? "meetings.held.descriptionUpload" : "meetings.held.description")}
           />
-          {endInFuture ? (
-            <p id={reasonId} role="alert" className="text-caption text-destructive">
-              {t("meetings.held.endInFuture")}
-            </p>
-          ) : null}
-          {failure ? (
-            <Notice tone="destructive" icon={CircleAlert} layout="inline" live="assertive">
-              {failure}
-            </Notice>
-          ) : null}
-          <DialogFooter>
-            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
-              {t("common.cancel")}
-            </Button>
-            <Button
-              type="submit"
-              aria-disabled={blocked || undefined}
-              aria-busy={record.isPending || undefined}
-              aria-describedby={endInFuture ? reasonId : undefined}
-            >
-              {record.isPending ? <Spinner /> : null}
-              {t("meetings.held.submit")}
-            </Button>
-          </DialogFooter>
+          <FormDialogBody>
+            <MeetingScheduleFields
+              idPrefix={idPrefix}
+              date={date}
+              start={start}
+              end={end}
+              onDate={setDate}
+              onStart={setStart}
+              onEnd={setEnd}
+              minDate={null}
+              timeZone={zone}
+              checkPast={false}
+            />
+            {zoneLabel ? (
+              <p className="text-caption text-muted-foreground">{t("meetings.held.zoneHint", { zone: zoneLabel })}</p>
+            ) : null}
+            {endInFuture ? (
+              <p id={reasonId} role="alert" className="text-caption text-destructive">
+                {t("meetings.held.endInFuture")}
+              </p>
+            ) : null}
+            {failure ? (
+              <Notice tone="destructive" icon={CircleAlert} layout="inline" live="assertive">
+                {failure}
+              </Notice>
+            ) : null}
+          </FormDialogBody>
+          <FormDialogFooter
+            onCancel={() => onOpenChange(false)}
+            submitLabel={t("meetings.held.submit")}
+            submittingLabel={t("meetings.held.submitting")}
+            submitType="submit"
+            submitting={record.isPending}
+            submitDisabled={!ready}
+            reasonId={endInFuture ? reasonId : undefined}
+          />
         </form>
-      </DialogContent>
+      </FormDialogContent>
     </Dialog>
   );
 }

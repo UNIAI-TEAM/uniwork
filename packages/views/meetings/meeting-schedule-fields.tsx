@@ -128,11 +128,12 @@ export function MeetingScheduleFields({
   return (
     <>
       <Field>
-        <FieldLabel htmlFor={`${idPrefix}-date`}>
+        <FieldLabel id={`${idPrefix}-date-label`} htmlFor={`${idPrefix}-date`}>
           {t("meetings.date")}
         </FieldLabel>
         <DateField
           id={`${idPrefix}-date`}
+          labelId={`${idPrefix}-date-label`}
           min={floor ?? undefined}
           value={date}
           onChange={onDate}

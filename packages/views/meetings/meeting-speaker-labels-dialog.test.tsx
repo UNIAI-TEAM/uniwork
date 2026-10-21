@@ -67,6 +67,27 @@ describe("MeetingSpeakerLabelsDialog", () => {
     expect(requestMock).not.toHaveBeenCalledWith("/api/v1/meetings/m1/speaker-labels/l2", expect.anything());
   });
 
+  it("saves every changed row, then refetches once for the batch", async () => {
+    openDialog();
+    fireEvent.change(await screen.findByRole("textbox", { name: "Hội trường · Người nói 1 · Hoặc nhập tên" }), {
+      target: { value: "Chị Lan" },
+    });
+    fireEvent.change(screen.getByRole("textbox", { name: "Hội trường · Người nói 2 · Hoặc nhập tên" }), {
+      target: { value: "Anh Minh" },
+    });
+    const reads = () => requestMock.mock.calls.filter((c) => String(c[0]).endsWith("/speaker-labels")).length;
+    const before = reads();
+    fireEvent.click(screen.getByRole("button", { name: "Lưu" }));
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Đã lưu tên người nói"));
+    expect(requestMock.mock.calls.filter((c) => (c[1] as { method?: string } | undefined)?.method === "PUT")).toHaveLength(2);
+    await waitFor(() => expect(reads()).toBe(before + 1));
+  });
+
+  it("reads its close button in the UI language", async () => {
+    openDialog();
+    expect(await screen.findByRole("button", { name: "Đóng" })).toBeInTheDocument();
+  });
+
   it("names an uploaded recording's speaker without the room mic", async () => {
     labels = [{ ...unassigned, label_key: "upload:T1:A" }];
     openDialog();

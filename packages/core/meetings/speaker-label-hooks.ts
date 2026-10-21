@@ -12,12 +12,31 @@ export function useSpeakerLabels(meetingId: string, enabled = true) {
   });
 }
 
-/** Assigning renames transcript lines, so both refetch. */
-export function useAssignSpeakerLabel(meetingId: string) {
+interface SpeakerAssignment {
+  labelId: string;
+  user_id?: string;
+  name?: string;
+}
+
+/**
+ * Saves each assignment in turn and resolves with the refusals by label id
+ * (the others are saved). Assigning renames transcript lines, so both
+ * refetch, once for the whole batch.
+ */
+export function useAssignSpeakerLabels(meetingId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (v: { labelId: string; user_id?: string; name?: string }) =>
-      api.assignSpeakerLabel(meetingId, v.labelId, { user_id: v.user_id, name: v.name }),
+    mutationFn: async (rows: SpeakerAssignment[]) => {
+      const failed: Record<string, unknown> = {};
+      for (const v of rows) {
+        try {
+          await api.assignSpeakerLabel(meetingId, v.labelId, { user_id: v.user_id, name: v.name });
+        } catch (err) {
+          failed[v.labelId] = err;
+        }
+      }
+      return failed;
+    },
     onSettled: () => {
       void qc.invalidateQueries({ queryKey: meetingKeys.speakerLabels(meetingId) });
       void qc.invalidateQueries({ queryKey: meetingKeys.transcript(meetingId) });

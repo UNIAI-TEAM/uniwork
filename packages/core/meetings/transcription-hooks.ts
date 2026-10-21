@@ -1,8 +1,9 @@
 "use client";
+import { useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as api from "../api/endpoints/meeting-transcriptions";
-import { startChunkedUpload } from "../documents/chunked-upload";
-import { createSafeId } from "../utils";
+import { useChunkedDocumentUpload } from "../documents/use-chunked-document-upload";
+import { DocumentNotVerifiableError, type DocumentUpload } from "../types/document";
 import { meetingKeys } from "./hooks";
 
 // Meetings held without a room (UNI-2001): "record as held", and an uploaded
@@ -23,8 +24,9 @@ export function useRecordMeetingHeld(workspaceId: string, meetingId: string) {
     mutationFn: (v: { started_at: string; ended_at: string }) => api.recordMeetingHeld(meetingId, v),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: meetingKeys.list(workspaceId) });
-      void qc.invalidateQueries({ queryKey: meetingKeys.detail(meetingId) });
       void qc.invalidateQueries({ queryKey: meetingKeys.activity(meetingId) });
+      // Awaited: the caller then moves focus into the ended meeting's panels, which this refetch mounts.
+      return qc.invalidateQueries({ queryKey: meetingKeys.detail(meetingId) });
     },
   });
 }
@@ -35,25 +37,38 @@ interface UploadRecordingInput {
   consent: boolean;
   /** The length the browser read from the file; undefined when it could not. */
   durationSeconds?: number;
-  onProgress?: (sentBytes: number, totalBytes: number) => void;
 }
 
-/** Sends the file through the shared upload session, then queues it. */
+/**
+ * Sends the file through the shared upload session, then queues it. The
+ * session is remembered per file (StorageAdapter), so sending the same file
+ * again after a failure resumes it; `cancel` drops it (the attempt then
+ * rejects with `upload_canceled`); leaving the screen pauses it, so nothing
+ * is queued without the dialog that asked for it.
+ */
 export function useUploadMeetingRecording(meetingId: string) {
   const qc = useQueryClient();
-  return useMutation({
+  const chunked = useChunkedDocumentUpload({ kind: "meeting_audio", meetingId });
+  // The file already staged: a retry after the queue step failed sends no byte again.
+  const staged = useRef<{ file: File; upload: DocumentUpload } | null>(null);
+  const mutation = useMutation({
     mutationFn: async (v: UploadRecordingInput) => {
-      const upload = startChunkedUpload({
-        file: v.file,
-        filename: v.file.name,
-        target: { kind: "meeting_audio", meetingId, durationSeconds: v.durationSeconds },
-        idempotencyKey: createSafeId(),
-        onProgress: (p) => v.onProgress?.(p.sentBytes, p.totalBytes),
-      });
-      const done = await upload.result;
-      if (done.kind !== "upload") throw new Error("upload answered a document");
+      const kept = staged.current;
+      let upload: DocumentUpload;
+      if (kept?.file === v.file && Date.parse(kept.upload.claim_expires_at) > Date.now()) {
+        upload = kept.upload;
+      } else {
+        const done = await chunked.start({
+          file: v.file,
+          target: { kind: "meeting_audio", meetingId, durationSeconds: v.durationSeconds },
+        });
+        // A meeting_audio session completes into a staged upload, never a document.
+        if (done.kind !== "upload") throw new DocumentNotVerifiableError();
+        upload = done.upload;
+        staged.current = { file: v.file, upload };
+      }
       return api.requestMeetingTranscription(meetingId, {
-        upload_id: done.upload.upload_id,
+        upload_id: upload.upload_id,
         language: v.language,
         consent: v.consent,
         ...(v.durationSeconds ? { duration_seconds: v.durationSeconds } : {}),
@@ -63,4 +78,5 @@ export function useUploadMeetingRecording(meetingId: string) {
       void qc.invalidateQueries({ queryKey: meetingKeys.transcriptions(meetingId) });
     },
   });
+  return { ...mutation, phase: chunked.phase, percent: chunked.percentage ?? 0, cancel: chunked.cancel };
 }
