@@ -648,7 +648,7 @@
         "document_access_declined": "Yêu cầu truy cập bị từ chối",
         "document_shared": "Tài liệu được chia sẻ với bạn",
         "document_trashed_by_other": "Tài liệu của bạn bị chuyển vào thùng rác",
-        "document_changed": "Thay đổi trên tài liệu bạn truy cập được"
+        "document_changed": "Thay đổi trên tài liệu của bạn hoặc được chia sẻ với bạn"
       },
       "all_kinds": "Mọi loại",
       "channel_all": "{{channel}} cho mọi loại",
@@ -5615,6 +5615,23 @@
     "merged_other_other": "và {{count}} thay đổi khác",
     "trashed_more_one": "và {{count}} mục khác",
     "trashed_more_other": "và {{count}} mục khác",
+    "documents_more_one": "và {{count}} tài liệu khác",
+    "documents_more_other": "và {{count}} tài liệu khác",
+    "view_documents_one": "Xem {{count}} tài liệu",
+    "view_documents_other": "Xem {{count}} tài liệu",
+    "documents_dialog": {
+      "title": "Tài liệu thay đổi",
+      "loading": "Đang tải danh sách tài liệu",
+      "empty_title": "Không còn tài liệu nào bạn đọc được",
+      "empty_description": "Các tài liệu này đã bị xóa hoặc bạn không còn quyền xem.",
+      "error_title": "Không tải được danh sách tài liệu",
+      "error": "Có lỗi xảy ra, thử lại",
+      "load_more": "Xem thêm",
+      "loading_more": "Đang tải…",
+      "deleted": "Đã xóa vĩnh viễn",
+      "untitled": "Tài liệu chưa có tiêu đề",
+      "in_trash": "Đã chuyển vào thùng rác"
+    },
     "deleted": "đã xóa",
     "unread_dot": "Chưa đọc",
     "unread_elsewhere": "Có thông báo chưa đọc ở workspace khác",
@@ -5693,7 +5710,39 @@
       "document_trashed_by_other_untitled": "{{actor}} đã chuyển một tài liệu của bạn vào thùng rác, khôi phục trước {{date}}",
       "document_trashed_by_other_nodate": "{{actor}} đã chuyển tài liệu của bạn vào thùng rác",
       "document_trashed_by_other_untitled_nodate": "{{actor}} đã chuyển một tài liệu của bạn vào thùng rác",
-      "document_changed": "{{actor}} đã thay đổi {{document_count}} tài liệu"
+      "document_changed": "{{actor}} đã thay đổi {{document_count}} tài liệu",
+      "document_changed_renamed_many": "{{actor}} đã đổi tên {{document_count}} tài liệu",
+      "document_changed_renamed_one": "{{actor}} đã đổi tên tài liệu “{{document}}”",
+      "document_changed_renamed_untitled": "{{actor}} đã đổi tên một tài liệu",
+      "document_changed_moved_many": "{{actor}} đã di chuyển {{document_count}} tài liệu",
+      "document_changed_moved_one": "{{actor}} đã di chuyển tài liệu “{{document}}”",
+      "document_changed_moved_untitled": "{{actor}} đã di chuyển một tài liệu",
+      "document_changed_trashed_many": "{{actor}} đã chuyển {{document_count}} tài liệu vào thùng rác",
+      "document_changed_trashed_one": "{{actor}} đã chuyển tài liệu “{{document}}” vào thùng rác",
+      "document_changed_trashed_untitled": "{{actor}} đã chuyển một tài liệu vào thùng rác",
+      "document_changed_restored_many": "{{actor}} đã khôi phục {{document_count}} tài liệu",
+      "document_changed_restored_one": "{{actor}} đã khôi phục tài liệu “{{document}}”",
+      "document_changed_restored_untitled": "{{actor}} đã khôi phục một tài liệu",
+      "document_changed_deleted_many": "{{actor}} đã xóa vĩnh viễn {{document_count}} tài liệu",
+      "document_changed_deleted_one": "{{actor}} đã xóa vĩnh viễn tài liệu “{{document}}”",
+      "document_changed_deleted_untitled": "{{actor}} đã xóa vĩnh viễn một tài liệu",
+      "document_changed_shelved_many": "{{actor}} đã lưu trữ {{document_count}} tài liệu",
+      "document_changed_shelved_one": "{{actor}} đã lưu trữ tài liệu “{{document}}”",
+      "document_changed_shelved_untitled": "{{actor}} đã lưu trữ một tài liệu",
+      "document_changed_unshelved_many": "{{actor}} đã bỏ lưu trữ {{document_count}} tài liệu",
+      "document_changed_unshelved_one": "{{actor}} đã bỏ lưu trữ tài liệu “{{document}}”",
+      "document_changed_unshelved_untitled": "{{actor}} đã bỏ lưu trữ một tài liệu",
+      "document_changed_access_changed_many": "{{actor}} đã đổi quyền truy cập của {{document_count}} tài liệu",
+      "document_changed_access_changed_one": "{{actor}} đã đổi quyền truy cập của tài liệu “{{document}}”",
+      "document_changed_access_changed_untitled": "{{actor}} đã đổi quyền truy cập của một tài liệu",
+      "document_changed_version_created_many": "{{actor}} đã tạo phiên bản mới cho {{document_count}} tài liệu",
+      "document_changed_version_created_one": "{{actor}} đã tạo phiên bản mới cho tài liệu “{{document}}”",
+      "document_changed_version_created_untitled": "{{actor}} đã tạo phiên bản mới cho một tài liệu",
+      "document_changed_relocated_many": "{{actor}} đã chuyển thư mục chứa {{document_count}} tài liệu của bạn vào thùng rác; các tài liệu được đưa về gốc workspace",
+      "document_changed_relocated_one": "{{actor}} đã chuyển thư mục chứa tài liệu “{{document}}” của bạn vào thùng rác; tài liệu được đưa về gốc workspace",
+      "document_changed_relocated_untitled": "{{actor}} đã chuyển thư mục chứa một tài liệu của bạn vào thùng rác; tài liệu được đưa về gốc workspace",
+      "document_changed_generic_one": "{{actor}} đã thay đổi tài liệu “{{document}}”",
+      "document_changed_generic_untitled": "{{actor}} đã thay đổi một tài liệu"
     },
     "kindTitle": {
       "document_mentioned": "Bạn được nhắc tên trong bình luận",
@@ -10707,6 +10756,7 @@
       "delete_documents_one": "{{count}} tài liệu",
       "delete_documents_other": "{{count}} tài liệu",
       "delete_body": "{{subfolders}} và {{documents}} sẽ chuyển vào thùng rác, khôi phục được trong 30 ngày.",
+      "delete_relocated": "Tài liệu của người khác trong thư mục này sẽ được trả về cho chủ sở hữu, giữ nguyên quyền truy cập.",
       "delete_loading": "Đang đếm nội dung thư mục…",
       "delete_impact_error": "Không đếm được nội dung thư mục. Thử lại trước khi xóa.",
       "delete_too_large": "Thư mục có hơn {{max}} mục nên chưa chuyển vào thùng rác được một lần. Hãy xóa từng phần bên trong trước.",
@@ -10985,6 +11035,7 @@
         "name_empty": "Nhập tên thư mục.",
         "name_too_long": "Tên thư mục tối đa {{max}} ký tự.",
         "create_submit": "Tạo",
+        "create_workspace_note": "Tên thư mục sẽ hiện với mọi người trong workspace. Tài liệu bên trong vẫn chỉ mình bạn xem được cho tới khi bạn chia sẻ.",
         "rename_submit": "Lưu",
         "toast": {
           "created": "Đã tạo thư mục {{title}}",
@@ -11073,7 +11124,8 @@
         "menu": "Thao tác với thư mục"
       },
       "folder_card": {
-        "folders": "{{count}} thư mục"
+        "folders": "{{count}} thư mục",
+        "empty": "Trống"
       },
       "filters": {
         "editor": "Người sửa",
@@ -11236,6 +11288,12 @@
         "reason_current": "Vị trí hiện tại",
         "reason_self": "Nằm trong chính nó",
         "reason_too_deep": "Quá sâu: tối đa {{max}} cấp",
+        "reason_workspace_folder": "Không thể chuyển thư mục của workspace vào Thư mục của tôi",
+        "out_confirm": {
+          "title": "Chuyển thư mục ra workspace?",
+          "body": "Thư mục và tên sẽ hiện cho cả workspace; tài liệu bên trong vẫn giữ quyền như cũ",
+          "confirm": "Chuyển"
+        },
         "moved_to": "Đã chuyển tới {{folder}}",
         "moved_renamed": "Đã chuyển và đổi tên thành {{title}}"
       },
@@ -11306,6 +11364,7 @@
       "level_not_allowed": "Workspace của tài liệu chỉ nhận tối đa {{max}}. Hãy chọn mức thấp hơn.",
       "access_batch_invalid": "Không áp dụng được thay đổi quyền truy cập này. Đóng hộp thoại chia sẻ, mở lại rồi thử lại.",
       "file_too_large": "Tệp vượt giới hạn {{max}}. Giảm dung lượng ảnh hoặc chia nhỏ tệp rồi tải lên lại.",
+      "folder_into_my_folder": "Thư mục của workspace không thể chuyển vào Thư mục của tôi. Hãy tải lại danh sách rồi thử lại.",
       "my_folder_locked": "Thư mục của tôi là thư mục hệ thống cá nhân — không thể đổi tên, chia sẻ, di chuyển hoặc chuyển vào thùng rác.",
       "unsupported_media_type": "Định dạng tệp này chưa được hỗ trợ.",
       "upload_sessions_exhausted": "Bạn đang có quá nhiều phiên tải lên cùng lúc. Hãy hoàn tất hoặc hủy bớt rồi thử lại.",

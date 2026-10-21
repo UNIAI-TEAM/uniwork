@@ -24,6 +24,7 @@ import {
   moveTooDeep,
   nodeLevel,
   subtreeIds,
+  workspaceFolderIntoMyFolder,
 } from "./document-tree-model";
 
 const ROOT_KEY = "__root__";
@@ -89,6 +90,8 @@ export interface FolderPickerDialogProps {
   currentFolderId?: string | null;
   /** Id of the document or folder being moved. Marks itself/its subtree with `reason_self` and too-deep targets with `reason_too_deep`. */
   movingId?: string | null;
+  /** A batch being moved (bulk move). Only the My Folder guard reads it: the batch has no single self/subtree. */
+  movingIds?: readonly string[];
   pending: boolean;
   error: string | null;
   onSubmit: (folderId: string | null) => void;
@@ -99,7 +102,9 @@ export interface FolderPickerDialogProps {
  * "Tài liệu (gốc)" root as a target. Current location, the moved item's own
  * subtree, and targets past `TREE_MAX_LEVEL` are shown with `aria-disabled`
  * (still focusable and keyboard-reachable) and a visible text reason below the
- * name; selecting them does nothing.
+ * name; selecting them does nothing. A workspace folder being moved (alone or
+ * in a batch) cannot go into My Folder or under it (UNI-2055 W2): those rows get
+ * the same disabled treatment with their own reason.
  */
 export function FolderPickerDialog({
   open,
@@ -113,6 +118,7 @@ export function FolderPickerDialog({
   initialFolderId,
   currentFolderId,
   movingId,
+  movingIds,
   pending,
   error,
   onSubmit,
@@ -123,6 +129,9 @@ export function FolderPickerDialog({
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => allFolderIds(folders));
   const rowRefs = useRef(new Map<string, HTMLDivElement>());
 
+  // A string key keeps `disabledReason` (an effect dependency) stable when a caller builds the array on every render.
+  const movingKey = movingIds ? movingIds.join(",") : null;
+
   const disabledReason = useCallback(
     (targetId: string | null): string | null => {
       if (currentFolderId !== undefined && targetId === currentFolderId) {
@@ -131,6 +140,10 @@ export function FolderPickerDialog({
       if (targetId !== null) {
         if (movingId && moveRefused(tree, movingId, targetId)) {
           return t("documents.home.move.reason_self");
+        }
+        const moving = movingKey !== null ? movingKey.split(",") : movingId ? [movingId] : [];
+        if (workspaceFolderIntoMyFolder(tree, moving, targetId)) {
+          return t("documents.home.move.reason_workspace_folder");
         }
         if (movingId && findTreeNode(tree, movingId)) {
           if (moveTooDeep(tree, movingId, targetId)) {
@@ -145,7 +158,7 @@ export function FolderPickerDialog({
       }
       return null;
     },
-    [currentFolderId, movingId, t, tree],
+    [currentFolderId, movingId, movingKey, t, tree],
   );
 
   const initialReason = disabledReason(initialFolderId);

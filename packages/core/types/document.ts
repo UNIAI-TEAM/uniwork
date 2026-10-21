@@ -171,6 +171,17 @@ export function isMyFolder(
   }
 }
 
+/**
+ * True for a workspace folder (UNI-2055 W1): a folder outside the My Folder
+ * subtree, which carries `visibility: "workspace"` and no `system_kind`. My
+ * Folder and everything under it stay `restricted`.
+ */
+export function isWorkspaceFolder(
+  doc: { kind?: string | null; visibility?: string | null; system_kind?: string | null } | null | undefined,
+): boolean {
+  return doc?.kind === "folder" && doc.visibility === "workspace" && !doc.system_kind;
+}
+
 /** True when the caller manages a trashed row (RESTORE-01): views use this to
  *  enable Restore / Delete forever and disable them for view/edit/unknown.
  *  A workspace admin on a restricted row arrives with no my_level and
@@ -394,6 +405,9 @@ export const DocumentSummarySchema = z.object({
   via: z.string().nullable().optional(),
   admin_scope: z.boolean().optional().catch(undefined),
   share_scope: DocumentShareScopeSchema.nullable().optional().catch(undefined),
+  // UNI-2055 W6: a folder with nothing the caller can see in it, computed for
+  // this viewer; absent or drifted reads as unknown (never as a count).
+  is_empty: z.boolean().optional().catch(undefined),
   owner_kind: z.string().nullable().optional(),
   owner_id: z.string().nullable().optional(),
   archived_at: z.string().nullable().optional().catch(undefined),
@@ -485,9 +499,13 @@ export type DocumentArchive = Omit<z.infer<typeof DocumentArchiveSchema>, "docum
  * Past the cap the server does not count: only `too_large` and `max_nodes`.
  * A count that is missing, negative or fractional fails the parse, so a
  * drifted answer can never read as "0 items" in the delete dialog.
+ * `relocated_count` (UNI-2055 W5) is the documents of the folder the actor
+ * cannot manage: the trash moves them to their owner's workspace root. It only
+ * words one sentence and is never shown as a number, so an unreadable value
+ * reads as 0 instead of failing the impact.
  */
 export type DocumentArchiveImpact =
-  | { too_large: false; folders: number; documents: number; total: number; max_nodes: number }
+  | { too_large: false; folders: number; documents: number; total: number; max_nodes: number; relocated_count: number }
   | { too_large: true; max_nodes: number };
 
 const count = z.number().int().nonnegative();
@@ -499,6 +517,7 @@ export const DocumentArchiveImpactSchema = z
     total: count.optional(),
     max_nodes: count,
     too_large: z.boolean().optional().default(false),
+    relocated_count: count.optional().catch(0),
   })
   .transform((raw, ctx): DocumentArchiveImpact => {
     if (raw.too_large) return { too_large: true, max_nodes: raw.max_nodes };
@@ -512,6 +531,7 @@ export const DocumentArchiveImpactSchema = z
       documents: raw.documents,
       total: raw.total,
       max_nodes: raw.max_nodes,
+      relocated_count: raw.relocated_count ?? 0,
     };
   });
 
@@ -526,6 +546,8 @@ export interface DocumentTreeNode {
   system_kind?: DocumentSystemKind | null;
   visibility?: DocumentVisibility;
   share_scope?: DocumentShareScope | null;
+  /** UNI-2055 W6: no document in the folder is visible to this viewer; absent = unknown. */
+  is_empty?: boolean;
   position: number;
   children: DocumentTreeNode[];
 }
@@ -540,6 +562,7 @@ export const DocumentTreeNodeSchema: z.ZodType<DocumentTreeNode> = z.lazy(() =>
     system_kind: z.string().nullable().optional().catch(undefined),
     visibility: z.string().optional().catch(undefined),
     share_scope: DocumentShareScopeSchema.nullable().optional().catch(undefined),
+    is_empty: z.boolean().optional().catch(undefined),
     position: z.number().optional().default(0),
     children: z.array(DocumentTreeNodeSchema).optional().default([]),
   }),

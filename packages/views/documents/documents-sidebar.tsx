@@ -244,6 +244,7 @@ export function DocumentsSidebar({
         onOpenChange={setCreateOpen}
         mode="create"
         root
+        workspaceNote
         wsId={wsId}
         initialName={t("documents.home.folders.default_name")}
         pending={newFolderPending}

@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@uniwork/core/api";
-import { initI18n } from "@uniwork/core/i18n";
+import { initI18n, setLocale } from "@uniwork/core/i18n";
 import { useChatDeviceNotificationStore } from "@uniwork/core/chat/device-notification-store";
 import { registerPushAdapter } from "@uniwork/core/platform";
 import { NOTIFICATION_KINDS } from "@uniwork/core/types/notification";
@@ -279,6 +279,42 @@ describe("NotificationsTab", () => {
         }),
       ),
     );
+  });
+
+  // UNI-2056: one switch row for every verb of the folded document-change notification.
+  it("labels the document-change row and fills in-app on, push off and email off when the server omitted it", async () => {
+    mockApi(true);
+    registerPushAdapter({
+      permission: () => "default",
+      requestPermission: () => Promise.resolve("granted"),
+      current: () => Promise.resolve(null),
+      subscribe: () => Promise.reject(new Error("unreachable")),
+      unsubscribe: () => Promise.resolve(null),
+    });
+    render(wrap(<NotificationsTab />));
+    const label = t("settings.notifications.kinds.document_changed");
+    expect(label).toBe("Thay đổi trên tài liệu của bạn hoặc được chia sẻ với bạn");
+    const sw = (channel: string) => screen.findByRole("switch", { name: `${label} · ${channel}` });
+    expect(await sw("Hộp việc")).toHaveAttribute("aria-checked", "true");
+    expect(await sw("Đẩy")).toHaveAttribute("aria-checked", "false");
+    expect(await sw("Email")).toHaveAttribute("aria-checked", "false");
+    // Turning in-app off writes the effective row back, email still off.
+    fireEvent.click(await sw("Hộp việc"));
+    await waitFor(() =>
+      expect(requestMock).toHaveBeenCalledWith(
+        "/api/v1/me/notification-preferences",
+        expect.objectContaining({
+          method: "PUT",
+          body: { preferences: [{ kind: "document_changed", in_app: false, push: false, email: false }] },
+        }),
+      ),
+    );
+  });
+
+  it("words the document-change row in English", async () => {
+    await setLocale("en");
+    expect(t("settings.notifications.kinds.document_changed")).toBe("Changes to your documents and documents shared with you");
+    await setLocale("vi");
   });
 
   it("shows a load error with retry instead of a guessed matrix, and writes nothing", async () => {

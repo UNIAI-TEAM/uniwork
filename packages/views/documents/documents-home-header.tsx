@@ -41,7 +41,7 @@ export interface DocumentsHomeHeaderProps {
   onRoot: () => void;
   onFolder: (folderId: string) => void;
   /** The commands the open folder's ⋯ menu may offer (its own level gates them). */
-  folderHandlers: Pick<LibraryRowHandlers, "onNewSubfolder" | "onRename" | "onMove" | "onShelve" | "onArchive" | "onToggleStar" | "isStarred">;
+  folderHandlers: Pick<LibraryRowHandlers, "onNewSubfolder" | "canCreateInside" | "onRename" | "onMove" | "onShelve" | "onArchive" | "onToggleStar" | "isStarred">;
   /** Opens the access report scoped to the open folder; offered in its ⋯ menu to a manager. */
   onAccessReport?: (folderId: string) => void;
   search: UseDocumentsSearchResult;

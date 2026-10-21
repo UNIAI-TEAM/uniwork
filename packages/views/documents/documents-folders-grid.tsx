@@ -34,7 +34,7 @@ export interface DocumentsFoldersGridProps {
   /** The table row handlers; a handler absent for the viewer hides its menu item too. */
   handlers: Pick<
     LibraryRowHandlers,
-    "onNewSubfolder" | "onRename" | "onMove" | "onShelve" | "onArchive" | "onToggleStar" | "isStarred" | "personName"
+    "onNewSubfolder" | "canCreateInside" | "onRename" | "onMove" | "onShelve" | "onArchive" | "onToggleStar" | "isStarred" | "personName"
   >;
   onOpenFolder: (folderId: string) => void;
 }
@@ -51,8 +51,11 @@ export function DocumentsFoldersGrid({ folders, docById, handlers, onOpenFolder 
         // document of a folder, so the card never counts documents. The editor
         // and the last update show only when the folder's own row is loaded.
         const sub = node.children.filter((child) => child.kind === "folder").length;
+        // UNI-2055 W6: `is_empty` is computed for this viewer, so it never says more than they can see;
+        // absent means unknown and the card says nothing about it.
+        const empty = (node.is_empty ?? doc?.is_empty) === true;
         const meta = [
-          sub > 0 ? t("documents.home.folder_card.folders", { count: sub }) : "",
+          empty ? t("documents.home.folder_card.empty") : sub > 0 ? t("documents.home.folder_card.folders", { count: sub }) : "",
           doc?.updated_by ? handlers.personName(doc.updated_by, doc.updated_by_kind) : "",
           doc?.updated_at ? formatListDate(doc.updated_at, new Date(), i18n.language, { yesterday: t("documents.list.date.yesterday") }) : "",
         ]
@@ -143,7 +146,7 @@ interface FolderMenuItem {
 /** The commands a folder already offers (the table row's vocabulary), gated by the same levels. */
 export function folderMenuItems(
   doc: DocumentSummaryRow,
-  handlers: Pick<LibraryRowHandlers, "onNewSubfolder" | "onRename" | "onMove" | "onShelve" | "onArchive">,
+  handlers: Pick<LibraryRowHandlers, "onNewSubfolder" | "canCreateInside" | "onRename" | "onMove" | "onShelve" | "onArchive">,
   t: (key: string) => string,
   /** The open folder's header offers its access report; the cards do not pass this. */
   onAccessReport?: (doc: DocumentSummaryRow) => void,
@@ -152,7 +155,7 @@ export function folderMenuItems(
   const level = rowLevel(doc);
   const myFolder = isMyFolder(doc);
   const items: FolderMenuItem[] = [];
-  if (handlers.onNewSubfolder && canMoveRow(level)) {
+  if (handlers.onNewSubfolder && (handlers.canCreateInside?.(doc) ?? canMoveRow(level))) {
     items.push({ id: "new-subfolder", label: t("documents.home.row.new_subfolder"), icon: FolderPlus, run: () => handlers.onNewSubfolder?.(doc) });
   }
   if (!myFolder && handlers.onRename && canMoveRow(level)) {

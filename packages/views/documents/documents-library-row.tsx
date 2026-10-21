@@ -91,6 +91,13 @@ export interface LibraryRowHandlers
   onMove?: (doc: DocumentSummaryRow) => void;
   onArchive?: (doc: DocumentSummaryRow) => void;
   /**
+   * Whether the viewer may create inside this folder (UNI-2055 W3): a workspace
+   * folder takes new content from every human member, whatever their level on
+   * it. Absent, the edit level decides, as for any other folder. Rename, move
+   * and trash never read it.
+   */
+  canCreateInside?: (doc: DocumentSummaryRow) => boolean;
+  /**
    * Opens the Share dialog without opening the document (UNI-2009): the row's
    * Share action and its Access cell. Every reader gets it where canShareRow
    * allows; the dialog shows a manager the controls and anyone else their own

@@ -102,6 +102,30 @@ describe("documentErrorMessage", () => {
     }
   });
 
+  it("words a server refusal of a workspace folder moved into My Folder (UNI-2055 W2)", () => {
+    const i18n = initI18n();
+    for (const locale of ["vi", "en"] as const) {
+      const t = i18n.getFixedT(locale);
+      const err = new ApiError("server fallback", "folder_into_my_folder", 422);
+      const message = documentErrorMessage(err, t, "documents.tree.move_failed", { locale });
+      expect(message).toBe(t("documents.errors.folder_into_my_folder"));
+      expect(message).not.toBe("server fallback");
+      expect(message).not.toBe("documents.errors.folder_into_my_folder");
+    }
+  });
+
+  it("calls it a workspace folder, never a shared folder (UNI-2055)", () => {
+    const i18n = initI18n();
+    const en = i18n.getFixedT("en");
+    const vi = i18n.getFixedT("vi");
+    for (const key of ["documents.errors.folder_into_my_folder", "documents.home.move.reason_workspace_folder"]) {
+      expect(en(key)).toContain("A workspace folder can't be moved into My Folder");
+      expect(en(key)).not.toMatch(/shared folder/i);
+      expect(vi(key)).toMatch(/hư mục của workspace/);
+      expect(vi(key)).not.toMatch(/hư mục chung/);
+    }
+  });
+
   it("maps 415 unsupported_media_type with and without file context", () => {
     const t = fakeT();
     const err = new ApiError("unsupported", "unsupported_media_type", 415);

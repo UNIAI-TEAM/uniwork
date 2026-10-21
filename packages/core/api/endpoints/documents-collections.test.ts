@@ -232,6 +232,39 @@ describe("documents-collections endpoints", () => {
     expect(out.documents[1]?.admin_scope).toBeUndefined();
   });
 
+  // UNI-2055 W6: is_empty is computed for this viewer; absent or garbage reads as unknown, never a failure.
+  it("list rows and tree nodes keep is_empty true/false and read garbage as unknown", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json(
+        listBody({
+          documents: [
+            summary({ id: "f1", kind: "folder", is_empty: true }),
+            summary({ id: "f2", kind: "folder", is_empty: false }),
+            summary({ id: "f3", kind: "folder", is_empty: "yes" }),
+            summary({ id: "f4", kind: "folder", is_empty: null }),
+            summary({ id: "f5", kind: "folder" }),
+          ],
+        }),
+      ),
+    );
+    const list = await listDocuments("w1");
+    expect(list.documents.map((row) => row.is_empty)).toEqual([true, false, undefined, undefined, undefined]);
+
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        documents: [
+          treeNode({ id: "f1", kind: "folder", is_empty: true }),
+          treeNode({ id: "f2", kind: "folder", is_empty: false }),
+          treeNode({ id: "f3", kind: "folder", is_empty: 1 }),
+          treeNode({ id: "f4", kind: "folder" }),
+        ],
+      }),
+    );
+    const tree = await getDocumentTree("w1");
+    expect(tree.documents.map((node) => node.is_empty)).toEqual([true, false, undefined, undefined]);
+    expect(tree.documents.map((node) => node.id)).toEqual(["f1", "f2", "f3", "f4"]);
+  });
+
   it("listDocuments omits parent_id when the flat list is wanted", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json(listBody({ next_cursor: "n1" })));
     await listDocuments("w1");
@@ -655,7 +688,29 @@ describe("documents-collections endpoints", () => {
     const [url, init] = vi.mocked(fetch).mock.calls[0]!;
     expect(String(url)).toBe("http://api.test/api/v1/documents/d%2F1/archive-impact");
     expect(init?.method ?? "GET").toBe("GET");
-    expect(out).toEqual({ folders: 3, documents: 12, total: 16, max_nodes: 1000, too_large: false });
+    expect(out).toEqual({ folders: 3, documents: 12, total: 16, max_nodes: 1000, too_large: false, relocated_count: 0 });
+  });
+
+  it("getDocumentArchiveImpact reads relocated_count, the documents the actor cannot manage (UNI-2055 W5)", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({ folders: 1, documents: 4, total: 6, max_nodes: 1000, too_large: false, relocated_count: 2 }),
+    );
+    await expect(getDocumentArchiveImpact("d1")).resolves.toEqual({
+      folders: 1,
+      documents: 4,
+      total: 6,
+      max_nodes: 1000,
+      too_large: false,
+      relocated_count: 2,
+    });
+  });
+
+  // relocated_count only words a sentence: a value that cannot be read never fails the impact, it reads as 0.
+  it.each([undefined, null, -1, 1.5, "2", {}])("getDocumentArchiveImpact reads relocated_count %j as 0", async (bad) => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({ folders: 1, documents: 4, total: 6, max_nodes: 1000, too_large: false, relocated_count: bad }),
+    );
+    await expect(getDocumentArchiveImpact("d1")).resolves.toMatchObject({ documents: 4, relocated_count: 0 });
   });
 
   it("getDocumentArchiveImpact reads a subtree past the cap without counts", async () => {
@@ -671,6 +726,7 @@ describe("documents-collections endpoints", () => {
       total: 1,
       max_nodes: 1000,
       too_large: false,
+      relocated_count: 0,
     });
   });
 

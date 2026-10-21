@@ -274,7 +274,7 @@ describe("documents collection hooks", () => {
     expect(String(vi.mocked(fetch).mock.calls[0]![0])).toBe(
       "http://api.test/api/v1/documents/d1/archive-impact",
     );
-    expect(result.current.data).toEqual({ folders: 2, documents: 5, total: 8, max_nodes: 1000, too_large: false });
+    expect(result.current.data).toEqual({ folders: 2, documents: 5, total: 8, max_nodes: 1000, too_large: false, relocated_count: 0 });
     expect(qc.getQueryData(documentKeys.archiveImpact("w1", "d1"))).toEqual(result.current.data);
     // staleTime 0: the counts are stale the moment they land, so reopening
     // the dialog always asks again.
