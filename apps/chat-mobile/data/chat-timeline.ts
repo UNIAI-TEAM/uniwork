@@ -243,7 +243,7 @@ export function catchUpOnChatSubscribeAck(
   qc: QueryClient,
   wsId: string,
   type: string,
-  payload: Record<string, string>,
+  payload: { scope: string; id: string },
 ): boolean {
   if (type !== "subscribe_ack" || payload.scope !== WS_SCOPE_CHAT || !payload.id) return false;
   void catchUpRoomTimeline(qc, wsId, payload.id);

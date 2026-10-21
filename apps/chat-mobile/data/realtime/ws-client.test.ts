@@ -276,6 +276,25 @@ describe("WSClient frame validation", () => {
     client.disconnect();
   });
 
+  it("drops a catalogued event whose payload is malformed before any handler sees it (frames.ts)", () => {
+    const { client, socket } = connectAuthenticatedClient();
+    const onAny = vi.fn();
+    const onInvite = vi.fn();
+    client.onAny(onAny);
+    client.on("chat.voice.invite", onInvite);
+
+    socket.receive({ type: "chat.voice.invite", payload: { room_id: "room-1", call_id: 7, caller_id: "u2" } });
+    socket.receive({ type: "chat.voice.invite" });
+    expect(onInvite).not.toHaveBeenCalled();
+    expect(onAny).not.toHaveBeenCalled();
+
+    const payload = { room_id: "room-1", call_id: "call-1", caller_id: "u2" };
+    socket.receive({ type: "chat.voice.invite", payload });
+    expect(onInvite).toHaveBeenCalledExactlyOnceWith(payload, undefined, undefined);
+    expect(onAny).toHaveBeenCalledOnce();
+    client.disconnect();
+  });
+
   it("passes subscribe_error and too_many_scopes frames to onAny untouched", () => {
     const { client, socket } = connectAuthenticatedClient();
     const onAny = vi.fn();

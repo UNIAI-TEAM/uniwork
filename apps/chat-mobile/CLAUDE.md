@@ -68,7 +68,12 @@ một dòng thì ghi lý do ở dòng trên.
   Realtime ba tầng: `ws-client` (socket, auth frame, scope/replay, 4001 →
   refresh → reconnect), `realtime-provider` (mount theo auth + workspace,
   AppState/NetInfo), `use-<feature>-realtime` (hook theo feature, patch rồi
-  invalidate hẹp). Luật socket: frame `subscribe`/`unsubscribe` chỉ đi sau
+  invalidate hẹp). Mọi frame đi qua `realtime/frames.ts` trước khi tới handler: mỗi event điện thoại xử lý (và
+  `subscribe_ack`/`subscribe_error`) có một decoder zod (object loose, chỉ key của `docs/events/CATALOGUE.md`,
+  id cần thì bắt buộc và khác rỗng); payload sai thì frame bị bỏ kèm breadcrumb (tên event + key hỏng, không giá
+  trị), type chưa liệt kê đi qua nguyên vẹn. `ws.on(type)` nhận payload đã có kiểu, `onAny` dùng `isKnownFrame`
+  để thu hẹp; không ép kiểu payload ở đâu cả (cả `call-engine.ts`). `frames.test.ts` đọc CATALOGUE.md: decoder
+  chỉ được đọc key mà catalogue liệt kê. Luật socket: frame `subscribe`/`unsubscribe` chỉ đi sau
   `auth_ack` (server đòi auth là frame đầu; replay lo phần còn lại); frame
   `{error}` trước auth là kết thúc của socket đó — `onSessionEnded(error)`, client
   không tự redial; provider giao cho `realtime/socket-recovery.ts` (thuần): 4001 và

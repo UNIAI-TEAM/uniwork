@@ -8,6 +8,7 @@ vi.mock("../api", () => ({ api: { request: vi.fn() } }));
 import { chatApi } from "../chat-api";
 import { flattenRoomTimeline, type RoomTimeline } from "../chat-timeline";
 import { chatKeys } from "../queries/chat-keys";
+import { decodeFrame, type RealtimeFrame } from "./frames";
 import { BURST_CATCH_UP_MIN, createChatRealtime, ROOM_ACTIVITY_DEBOUNCE_MS, type ChatRealtimeDeps } from "./chat-realtime";
 
 const msg = (id: string, minute: number, extra: Partial<ChatMessageRecord> = {}): ChatMessageRecord => ({
@@ -49,7 +50,8 @@ const ids = (qc: QueryClient) => flattenRoomTimeline(qc.getQueryData<RoomTimelin
 
 let qc: QueryClient;
 let deps: ChatRealtimeDeps;
-const frame = (type: string, payload: Record<string, string> = {}) => ({ type, payload });
+/** What ws-client hands on: the decoded frame, or (dropped there) a frame of a type nothing acts on. */
+const frame = (type: string, payload: unknown = {}): RealtimeFrame => decodeFrame({ type, payload }) ?? { type: "dropped.by_decoder", payload };
 
 beforeEach(() => {
   qc = new QueryClient();
@@ -96,7 +98,11 @@ describe("message frames on an open room", () => {
     for (const type of ["chat.message.created", "chat.message.deleted", "chat.mention.created", "chat.room.read", "chat.typing", "user.presence", "user.offline", "task.updated"]) {
       realtime.handle(frame(type));
     }
-    realtime.handle({ type: "chat.message.created", payload: null });
+    realtime.handle(frame("chat.message.created", null));
+    // Decoded frames this table does not act on: the call engine's, the subscription errors, the workspace's.
+    realtime.handle(frame("chat.voice.invite", { room_id: "r1", call_id: "c1", caller_id: "u2" }));
+    realtime.handle(frame("subscribe_error", { scope: "chat", id: "r1", error: "forbidden" }));
+    realtime.handle(frame("workspace.updated", { workspace_id: "w1" }));
     expect(get).not.toHaveBeenCalled();
     expect(deps.typing.bump).not.toHaveBeenCalled();
     expect(deps.presence.markOffline).not.toHaveBeenCalled();
@@ -213,7 +219,7 @@ describe("socket lifecycle", () => {
   it("refetches the call logs once a call hangs up (the server wrote the log before the frame)", async () => {
     vi.useFakeTimers();
     const invalidate = vi.spyOn(qc, "invalidateQueries");
-    createChatRealtime(qc, deps).handle({ type: "chat.voice.hangup", payload: { room_id: "r1", call_id: "c1", user_id: "u2" } });
+    createChatRealtime(qc, deps).handle(frame("chat.voice.hangup", { room_id: "r1", call_id: "c1", user_id: "u2" }));
     await vi.advanceTimersByTimeAsync(ROOM_ACTIVITY_DEBOUNCE_MS);
     expect(invalidate.mock.calls.map(([filters]) => filters?.queryKey)).toEqual([chatKeys.callLogs("w1")]);
   });

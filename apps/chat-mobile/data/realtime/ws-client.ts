@@ -17,6 +17,8 @@
  *   - Close 4001 (session ended) is handed to `onSessionEnded` and NOT
  *     redialled by the client: the token is dead, so the host refreshes it
  *     and calls forceReconnect(), or disconnect() when it cannot.
+ *   - Every frame is decoded before dispatch (./frames.ts): a listed event
+ *     with a malformed payload is dropped, so handlers get typed payloads.
  *
  * Server compatibility: same protocol as web/desktop. Sends
  *   {type:"auth", payload:{token}} as first frame; expects {type:"auth_ack"}
@@ -26,7 +28,8 @@
  *   WebSocket cannot set headers).
  */
 import { DEFAULT_CHAT_SCOPE_LIMIT } from "@uniwork/core/chat/lazy-chat-scopes";
-import type { WSEventType, WSMessage } from "./ws-types";
+import { decodeFrame, type FramePayload, type KnownFrameType, type RealtimeFrame } from "./frames";
+import type { WSMessage } from "./ws-types";
 
 type EventHandler = (payload: unknown, actorId?: string, actorType?: string) => void;
 
@@ -38,7 +41,7 @@ type EventHandler = (payload: unknown, actorId?: string, actorType?: string) => 
  *   offline    — not trying: never connected, paused (background) or disconnected
  */
 export type ConnectionState = "connecting" | "online" | "waiting" | "offline";
-type AnyHandler = (msg: WSMessage) => void;
+type AnyHandler = (frame: RealtimeFrame) => void;
 
 export interface Logger {
   info: (...args: unknown[]) => void;
@@ -105,7 +108,7 @@ export class WSClient {
   private hasConnectedBefore = false;
   private authenticated = false;
 
-  private readonly handlers = new Map<WSEventType, Set<EventHandler>>();
+  private readonly handlers = new Map<string, Set<EventHandler>>();
   private readonly anyHandlers = new Set<AnyHandler>();
   private readonly onReconnectCallbacks = new Set<() => void>();
   private readonly connectionListeners = new Set<(state: ConnectionState) => void>();
@@ -191,15 +194,16 @@ export class WSClient {
 
   // ── public subscription ─────────────────────────────────────────────
 
-  on(event: WSEventType, handler: EventHandler) {
+  /** A handler for one decoded event (frames.ts): its payload has the decoder's type. */
+  on<T extends KnownFrameType>(event: T, handler: (payload: FramePayload<T>, actorId?: string, actorType?: string) => void) {
     let set = this.handlers.get(event);
     if (!set) {
       set = new Set();
       this.handlers.set(event, set);
     }
-    set.add(handler);
+    set.add(handler as EventHandler);
     return () => {
-      this.handlers.get(event)?.delete(handler);
+      this.handlers.get(event)?.delete(handler as EventHandler);
     };
   }
 
@@ -321,11 +325,13 @@ export class WSClient {
         return;
       }
       this.logger.debug("[ws] event", type);
-      const set = this.handlers.get(type as WSEventType);
+      const frame = decodeFrame(msg);
+      if (!frame) return;
+      const set = this.handlers.get(type);
       if (set) {
-        for (const handler of set) handler(msg.payload, msg.actor_id, msg.actor_type);
+        for (const handler of set) handler(frame.payload, frame.actor_id, frame.actor_type);
       }
-      for (const handler of this.anyHandlers) handler(msg);
+      for (const handler of this.anyHandlers) handler(frame);
     };
 
     ws.onerror = () => {

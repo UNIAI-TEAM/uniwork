@@ -282,19 +282,18 @@ export function createCallEngine(deps: CallEngineDeps) {
       const ringing = liveWith(state.callId, "incoming");
       if (ringing && !invites.some((i) => i.call_id === ringing.callId && i.room_id === ringing.roomId)) closeLocal(ringing, { reason: "missed" });
     },
-    onInvite(payload: unknown) {
-      applyIncomingInvite(payload as VoiceInvitePayload);
+    /** A chat.voice.* frame, already decoded (data/realtime/frames.ts): the ids it names are non-empty strings. */
+    onInvite(data: VoiceInvitePayload) {
+      applyIncomingInvite(data);
     },
-    onAccept(payload: unknown) {
-      const data = payload as VoiceInvitePayload;
+    onAccept(data: VoiceInvitePayload) {
       // A group call has no ringing caller to connect; there only our own answer elsewhere counts.
       if (!relevant(data) || isMultiPartyVoiceCall(data.call_kind)) return;
       const ringing = liveWith(data.call_id, "ringing");
       // connectCall owns its failures (hang up + reason on the panel).
       if (ringing?.roomId === data.room_id) void connectCall(ringing.roomId, ringing.callId, ringing.peerName, true, "dm", undefined, ringing.withCamera);
     },
-    onHangup(payload: unknown) {
-      const data = payload as VoiceInvitePayload;
+    onHangup(data: VoiceInvitePayload) {
       if (!relevant(data)) return;
       closed.add(data.call_id);
       const state = liveWith(data.call_id);

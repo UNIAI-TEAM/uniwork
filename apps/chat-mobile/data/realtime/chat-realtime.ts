@@ -13,7 +13,7 @@ import {
 } from "../chat-cache";
 import { catchUpOnChatSubscribeAck, catchUpRoomTimeline, refreshLoadedRoomTimelines } from "../chat-timeline";
 import { chatKeys } from "../queries/chat-keys";
-import type { WSMessage } from "./ws-types";
+import { isKnownFrame, type RealtimeFrame } from "./frames";
 
 export interface ChatRealtimeDeps {
   wsId: string;
@@ -114,35 +114,34 @@ export function createChatRealtime(qc: QueryClient, deps: ChatRealtimeDeps) {
     void drain(frame.roomId, queue);
   }
 
-  function handle(msg: WSMessage): void {
-    const payload = (msg.payload ?? {}) as Record<string, string | undefined>;
-    if (catchUpOnChatSubscribeAck(qc, wsId, msg.type, payload as Record<string, string>)) return;
+  /** One decoded frame (frames.ts: a malformed one never gets here, so every id below is a non-empty string). */
+  function handle(msg: RealtimeFrame): void {
+    if (!isKnownFrame(msg)) return;
     const viewer = deps.viewer();
-    const roomId = payload.room_id;
-    const messageId = payload.message_id;
     switch (msg.type) {
+      case "subscribe_ack":
+        catchUpOnChatSubscribeAck(qc, wsId, msg.type, msg.payload);
+        return;
       case "chat.message.created":
       case "chat.message.updated":
-      case "chat.thread.replied":
-        if (!roomId || !messageId) return;
+      case "chat.thread.replied": {
+        const { room_id: roomId, message_id: messageId } = msg.payload;
+        const senderId = msg.type === "chat.message.created" ? msg.payload.sender_id : undefined;
+        const threadRootId = msg.type === "chat.message.updated" ? undefined : msg.payload.thread_root_id;
         // A thread reply is not unread on the main timeline.
-        enqueueFrame({
-          roomId,
-          messageId,
-          created: msg.type === "chat.message.created" && !payload.thread_root_id,
-          senderId: payload.sender_id,
-          threadRootId: payload.thread_root_id,
-        });
+        enqueueFrame({ roomId, messageId, created: msg.type === "chat.message.created" && !threadRootId, senderId, threadRootId });
         if (msg.type === "chat.message.created") schedule(chatKeys.unreadSummary());
         return;
+      }
       case "chat.message.deleted":
-        if (roomId && messageId) patchChatMessageDeleted(qc, wsId, roomId, messageId);
+        patchChatMessageDeleted(qc, wsId, msg.payload.room_id, msg.payload.message_id);
         return;
-      case "chat.mention.created":
-        if (!roomId) return;
-        if (!payload.thread_root_id) patchChatMentionCreated(qc, wsId, viewer, roomId, payload.sender_id ?? "");
-        if (messageId) enqueueFrame({ roomId, messageId, created: false, threadRootId: payload.thread_root_id });
+      case "chat.mention.created": {
+        const { room_id: roomId, message_id: messageId, thread_root_id: threadRootId } = msg.payload;
+        if (!threadRootId) patchChatMentionCreated(qc, wsId, viewer, roomId, msg.payload.sender_id ?? "");
+        if (messageId) enqueueFrame({ roomId, messageId, created: false, threadRootId });
         return;
+      }
       case "chat.room.activity":
         schedule(chatKeys.rooms(wsId), chatKeys.unreadSummary());
         return;
@@ -150,9 +149,11 @@ export function createChatRealtime(qc: QueryClient, deps: ChatRealtimeDeps) {
       case "chat.room.updated":
       case "chat.room.member_added":
       case "chat.room.members_added":
-      case "chat.room.member_removed":
+      case "chat.room.member_removed": {
+        const roomId = msg.payload.room_id;
         schedule(chatKeys.rooms(wsId), ...(roomId ? [chatKeys.roomMembers(wsId, roomId)] : []));
         return;
+      }
       case "chat.channel.created":
       case "chat.channel.updated":
       case "chat.channel.archived":
@@ -164,23 +165,25 @@ export function createChatRealtime(qc: QueryClient, deps: ChatRealtimeDeps) {
       case "chat.follow_up.deleted":
         schedule(chatKeys.followUps(wsId));
         return;
-      case "chat.room.read":
-        if (roomId && payload.user_id && viewer.userId) patchChatRoomRead(qc, wsId, viewer.userId, roomId, payload.user_id);
+      case "chat.room.read": {
+        const { room_id: roomId, user_id: userId } = msg.payload;
+        if (viewer.userId) patchChatRoomRead(qc, wsId, viewer.userId, roomId, userId);
         // The reader's own pointer moved: the per-workspace counts follow.
-        if (payload.user_id && payload.user_id === viewer.userId) schedule(chatKeys.unreadSummary());
+        if (userId === viewer.userId) schedule(chatKeys.unreadSummary());
         return;
+      }
       case "chat.voice.hangup":
         // The hangup is published after the server wrote the call's log (SignalVoiceHangup).
         schedule(chatKeys.callLogs(wsId));
         return;
       case "chat.typing":
-        if (roomId && payload.user_id && viewer.userId) deps.typing.bump(roomId, payload.user_id, viewer.userId);
+        if (viewer.userId) deps.typing.bump(msg.payload.room_id, msg.payload.user_id, viewer.userId);
         return;
       case "user.presence":
-        if (payload.user_id && viewer.userId) deps.presence.bump(payload.user_id, viewer.userId);
+        if (viewer.userId) deps.presence.bump(msg.payload.user_id, viewer.userId);
         return;
       case "user.offline":
-        if (payload.user_id) deps.presence.markOffline(payload.user_id);
+        deps.presence.markOffline(msg.payload.user_id);
         return;
       default:
         return;
