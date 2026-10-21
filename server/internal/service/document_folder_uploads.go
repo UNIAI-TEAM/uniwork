@@ -1045,6 +1045,8 @@ func (s *DocumentService) openFolderUploadMultipart(ctx context.Context, fs *Fil
 		ID: batch.ID, OrganizationID: batch.OrganizationID, WorkspaceID: batch.WorkspaceID,
 	})
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		// Release the batch lock before the storage round trip.
+		_ = tx.Rollback(ctx)
 		return "", errors.Join(err, abort())
 	}
 	if err != nil || status != folderUploadStatusOpen {
@@ -1068,12 +1070,14 @@ func (s *DocumentService) openFolderUploadMultipart(ctx context.Context, fs *Fil
 		CdOffset: cdOffset, CdSize: cdSize,
 		ExpiresAt: batch.ExpiresAt, CreatedAt: fileTime(now),
 	}); err != nil {
+		_ = tx.Rollback(ctx)
 		return "", errors.Join(err, abort())
 	}
 	n, err := q.SetDocumentFolderUploadFileRef(ctx, db.SetDocumentFolderUploadFileRefParams{
 		UploadRef: nullText(sessionID), ID: f.ID, OrganizationID: f.OrganizationID, WorkspaceID: f.WorkspaceID,
 	})
 	if err != nil {
+		_ = tx.Rollback(ctx)
 		return "", errors.Join(err, abort())
 	}
 	if n == 0 {
