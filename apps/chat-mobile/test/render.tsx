@@ -11,13 +11,14 @@ import { i18n } from "@/lib/i18n/singleton";
 export async function render(ui: ReactElement, options?: RenderOptions & { queryClient?: QueryClient }) {
   // gcTime Infinity: an unmounted query, or a finished mutation (a send), would otherwise arm a
   // five-minute garbage-collection timer that keeps Jest from exiting after the run.
-  const queryClient = options?.queryClient ?? new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity }, mutations: { gcTime: Infinity } } });
+  const { queryClient: provided, ...rtlOptions } = options ?? {};
+  const queryClient = provided ?? new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity }, mutations: { gcTime: Infinity } } });
   const wrapper = ({ children }: { children: ReactNode }) => (
     <QueryClientProvider client={queryClient}>
       <I18nextProvider i18n={i18n}>{children}</I18nextProvider>
     </QueryClientProvider>
   );
-  return { queryClient, ...(await rtlRender(ui, { ...options, wrapper })) };
+  return { queryClient, ...(await rtlRender(ui, { ...rtlOptions, wrapper })) };
 }
 
 /** The Vietnamese string a key renders, so a test names the copy a person hears. */

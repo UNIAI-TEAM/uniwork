@@ -43,13 +43,9 @@ class IncomingCall : Record {
   @Field
   var video: Boolean = false
 
-  /** The app link a tap (and the full-screen intent) opens: the ringing screen. */
+  /** The app link a tap, the full-screen intent and Answer open: the ringing screen (Answer's carries CallLaunchTokens.EXTRA_ANSWER). */
   @Field
   var openUrl: String = ""
-
-  /** The app link Answer opens: the same screen, answering. */
-  @Field
-  var answerUrl: String = ""
 
   /** How much longer the call may ring; the notification goes away then. */
   @Field

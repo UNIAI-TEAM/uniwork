@@ -88,12 +88,18 @@ internal object CallNotifications {
 
   private fun notificationId(callId: String): Int = callId.hashCode()
 
-  /** An app link to open in the app's own activity, marked as a call launch (CallLockScreen). */
-  private fun linkIntent(context: Context, url: String, callId: String): Intent =
+  /**
+   * An app link to open in the app's own activity, marked as a call launch (CallLockScreen) with the ring's
+   * token (CallLaunchTokens) so no other app can pass for it; Answer's also says so. The link is the same
+   * ringing link for both: what answers is the token-checked extra, never the URL.
+   */
+  private fun linkIntent(context: Context, url: String, callId: String, token: String, answer: Boolean): Intent =
     Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
       setPackage(context.packageName)
       addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
       putExtra(CallLockScreen.EXTRA_CALL_LAUNCH, callId)
+      putExtra(CallLaunchTokens.EXTRA_TOKEN, token)
+      if (answer) putExtra(CallLaunchTokens.EXTRA_ANSWER, true)
     }
 
   private fun launchIntent(context: Context): Intent? =
@@ -106,13 +112,9 @@ internal object CallNotifications {
     ensureChannelsExist(context)
     val person = Person.Builder().setName(call.callerName).setImportant(true).build()
     val requestCode = notificationId(call.callId)
-    val open = PendingIntent.getActivity(context, requestCode, linkIntent(context, call.openUrl, call.callId), pendingFlags)
-    val answer = PendingIntent.getActivity(
-      context,
-      requestCode + 1,
-      linkIntent(context, call.answerUrl.ifEmpty { call.openUrl }, call.callId),
-      pendingFlags
-    )
+    val token = CallLaunchTokens.issue(context, call.callId, System.currentTimeMillis())
+    val open = PendingIntent.getActivity(context, requestCode, linkIntent(context, call.openUrl, call.callId, token, false), pendingFlags)
+    val answer = PendingIntent.getActivity(context, requestCode + 1, linkIntent(context, call.openUrl, call.callId, token, true), pendingFlags)
     val decline = CallActionReceiver.pendingIntent(context, CallActionReceiver.ACTION_DECLINE, call.callId, call.roomId, call.workspaceId, call.callKind)
     val builder = NotificationCompat.Builder(context, CHANNEL_CALLS)
       .setSmallIcon(smallIcon(context))
@@ -169,6 +171,7 @@ internal object CallNotifications {
   fun cancelIncoming(context: Context, callId: String) {
     if (callId.isEmpty()) return
     NotificationManagerCompat.from(context).cancel(TAG_INCOMING, notificationId(callId))
+    CallLaunchTokens.revoke(context, callId)
   }
 
   /** The foreground service's notification: who, how long, and Hang up. */

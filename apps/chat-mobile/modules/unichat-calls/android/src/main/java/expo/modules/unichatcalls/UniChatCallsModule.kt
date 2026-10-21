@@ -69,5 +69,9 @@ class UniChatCallsModule : Module() {
     Function("takePendingActions") {
       PendingActions.take(context)
     }
+
+    Function("takeAnsweredCall") { callId: String ->
+      CallLaunchTokens.takeAnswered(context, callId, System.currentTimeMillis())
+    }
   }
 }

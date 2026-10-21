@@ -30,13 +30,16 @@ describe("parseDeepLink", () => {
     expect(deepLinkHref({ orgSlug: "acme", wsSlug: "hq", roomId: "r1", callId: "c-1" })).toBe("/acme/hq/chat?room=r1&call=c-1");
   });
 
-  it("keeps the Answer button's answer=1 for a call, and only for a call", () => {
-    const link = parseDeepLink(`${APP_URL}/acme/hq/chat?room=r1&call=c-1&answer=1`, APP_URL, SCHEME);
-    expect(link).toEqual({ orgSlug: "acme", wsSlug: "hq", roomId: "r1", callId: "c-1", answer: true });
-    expect(deepLinkHref(link!)).toBe("/acme/hq/chat?room=r1&call=c-1&answer=1");
-    expect(parseDeepLink(`${APP_URL}/acme/hq/chat?room=r1&answer=1`, APP_URL, SCHEME)).toEqual({ orgSlug: "acme", wsSlug: "hq", roomId: "r1" });
-    expect(parseDeepLink(`${APP_URL}/acme/hq/chat?room=r1&call=c-1&answer=yes`, APP_URL, SCHEME)?.answer).toBeUndefined();
-    expect(deepLinkHref({ orgSlug: "acme", wsSlug: "hq", roomId: "r1", answer: true })).toBe("/acme/hq/chat?room=r1");
+  // Audit (Security & privacy, deeplink-auto-answer): a link from a web page, a message or another app on the
+  // phone must never pick up a ringing call. A URL can only make it ring; Answer reaches the app from the
+  // notification's own PendingIntent (modules/unichat-calls › CallLaunchTokens), which no URL carries.
+  it("never answers a call from a URL: answer=1, on a universal link or the scheme wrapper, only rings", () => {
+    const ring = { orgSlug: "acme", wsSlug: "hq", roomId: "r1", callId: "c-1" };
+    const answer = `${APP_URL}/acme/hq/chat?room=r1&call=c-1&answer=1`;
+    expect(parseDeepLink(answer, APP_URL, SCHEME)).toEqual(ring);
+    expect(parseDeepLink(`${SCHEME}://open?url=${encodeURIComponent(answer)}`, APP_URL, SCHEME)).toEqual(ring);
+    expect(systemPathToRoute(answer, APP_URL, SCHEME)).toBe("/acme/hq/chat?room=r1&call=c-1");
+    expect(incomingUrlAction(answer, { appUrl: APP_URL, scheme: SCHEME, signedIn: true, navigate: true })).toEqual({ kind: "open", href: "/acme/hq/chat?room=r1&call=c-1" });
   });
 
   it("unwraps <scheme>://open?url=<percent-encoded path>, scheme case-insensitively", () => {

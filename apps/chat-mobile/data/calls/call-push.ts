@@ -7,7 +7,7 @@
 // the end of a ring and a missed call take that notification down. A ring the
 // native notification could not show falls back to a plain one. The calls
 // switch (data/remote-config.ts) off means no ring.
-import { CALL_RING_WINDOW_MS, appLink, callLink, ringRemainingMs, type CallPush } from "@/lib/call-push";
+import { CALL_RING_WINDOW_MS, appLink, ringRemainingMs, type CallPush } from "@/lib/call-push";
 import type { VoiceCallOverlayState } from "@uniwork/core/chat/voice-call-types";
 import type { NativeCalls, NativeIncomingCall } from "./native-calls";
 import { bestEffort } from "../report";
@@ -46,7 +46,7 @@ function liveCallId(state: VoiceCallOverlayState): string | null {
   return state.status === "idle" || state.status === "ended" ? null : state.callId;
 }
 
-/** The incoming-call notification for a ring: who, what kind of call, and where Answer and a tap lead. */
+/** The incoming-call notification for a ring: who, what kind of call, and where a tap (and Answer) leads. */
 export function incomingCallSpec(push: Invite, env: Pick<CallPushEnv, "t" | "scheme" | "now">): NativeIncomingCall {
   const text =
     push.callKind === "dm"
@@ -60,8 +60,9 @@ export function incomingCallSpec(push: Invite, env: Pick<CallPushEnv, "t" | "sch
     callKind: push.callKind,
     text,
     video: push.video,
-    openUrl: appLink(env.scheme, callLink(push.url, false)),
-    answerUrl: appLink(env.scheme, callLink(push.url, true)),
+    // Answer opens this same link: what makes it answer is a token only the notification's own
+    // PendingIntent carries (modules/unichat-calls › CallLaunchTokens), never something in the URL.
+    openUrl: appLink(env.scheme, push.url),
     timeoutMs: ringRemainingMs(push, env.now()),
     answerLabel: env.t("chat.voice_call_accept"),
     declineLabel: env.t("chat.voice_call_decline"),
@@ -122,7 +123,7 @@ export async function handleCallPush(push: CallPush, env: CallPushEnv): Promise<
   if (env.native.showIncomingCall(spec)) return "shown";
   // A data-only ring is never dropped without a trace: no ringtone loop or
   // full screen, but the person sees who is calling and a tap opens the call.
-  return env.fallback.show(spec, callLink(push.url, false)).then(
+  return env.fallback.show(spec, push.url).then(
     () => "fallback" as const,
     () => "ignored" as const,
   );

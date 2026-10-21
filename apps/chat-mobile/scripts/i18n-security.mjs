@@ -1,0 +1,63 @@
+// Security and privacy (audit "Security & privacy"): a link that asks to open
+// a direct message, the privacy cover over the app switcher, the app lock, the
+// screen-capture block and whether a notification shows the message's words.
+// Merged into `mobile.security` by sync-i18n.mjs; keep vi and en aligned
+// (lib/i18n.test.ts compares the keys).
+export const SECURITY_ONLY = {
+  vi: {
+    security: {
+      dm_confirm_title: "Mở cuộc trò chuyện riêng?",
+      dm_confirm_body: "Một liên kết muốn mở cuộc trò chuyện riêng với {{name}}.",
+      dm_confirm_body_unknown: "Một liên kết muốn mở cuộc trò chuyện riêng với một thành viên của workspace này.",
+      dm_confirm_open: "Mở",
+      section: "Quyền riêng tư và bảo mật",
+      previews: "Hiện nội dung tin trong thông báo",
+      previews_hint: "Tắt thì thông báo chỉ nói có tin mới và ai gửi, không hiện chữ trong tin.",
+      previews_org_hidden: "Tổ chức của bạn đã ẩn nội dung tin trong thông báo.",
+      previews_failed: "Không lưu được lựa chọn. Thử lại sau.",
+      app_lock: "Khoá UniChat",
+      app_lock_hint: "Mở UniChat bằng Face ID, vân tay hoặc mã khoá của máy.",
+      app_lock_unavailable: "Đặt khoá màn hình cho máy trước để bật khoá UniChat.",
+      app_lock_after: "Khoá lại sau khi rời app",
+      app_lock_after_now: "Ngay lập tức",
+      app_lock_after_1m: "1 phút",
+      app_lock_after_5m: "5 phút",
+      app_lock_after_15m: "15 phút",
+      screen_security: "Chặn chụp màn hình",
+      screen_security_hint: "Không cho chụp hay quay màn hình UniChat, và che nội dung trong trình chuyển ứng dụng.",
+      locked_title: "UniChat đang khoá",
+      locked_body: "Mở khoá để xem tin nhắn của bạn.",
+      unlock: "Mở khoá",
+      unlock_prompt: "Mở khoá UniChat",
+      privacy_cover: "UniChat",
+    },
+  },
+  en: {
+    security: {
+      dm_confirm_title: "Open a direct message?",
+      dm_confirm_body: "A link wants to open a direct message with {{name}}.",
+      dm_confirm_body_unknown: "A link wants to open a direct message with a member of this workspace.",
+      dm_confirm_open: "Open",
+      section: "Privacy & security",
+      previews: "Show message text in notifications",
+      previews_hint: "When off, a notification only says that a message arrived and who sent it, never its words.",
+      previews_org_hidden: "Your organization hides message text in notifications.",
+      previews_failed: "Your choice was not saved. Try again later.",
+      app_lock: "Lock UniChat",
+      app_lock_hint: "Open UniChat with Face ID, your fingerprint or the phone's passcode.",
+      app_lock_unavailable: "Set a screen lock on this phone first to lock UniChat.",
+      app_lock_after: "Lock again after leaving the app",
+      app_lock_after_now: "Immediately",
+      app_lock_after_1m: "1 minute",
+      app_lock_after_5m: "5 minutes",
+      app_lock_after_15m: "15 minutes",
+      screen_security: "Block screenshots",
+      screen_security_hint: "Stops screenshots and screen recording of UniChat, and hides its content in the app switcher.",
+      locked_title: "UniChat is locked",
+      locked_body: "Unlock to see your messages.",
+      unlock: "Unlock",
+      unlock_prompt: "Unlock UniChat",
+      privacy_cover: "UniChat",
+    },
+  },
+};

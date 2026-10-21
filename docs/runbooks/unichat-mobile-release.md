@@ -347,6 +347,13 @@ khi nào dịch vụ chạy, ai được báo) với module native giả; chỉ 
   "Lượt nhắc đến bạn", "Tin nhắn", "Thông báo khác" theo ngôn ngữ app; không còn kênh "Chat"; biểu tượng app có số
   tin chưa đọc (launcher hỗ trợ).
 - [ ] `FF_UNICHAT_MOBILE_CALLS=false`: không máy nào reo, cuộc gọi đang diễn ra vẫn tiếp tục với thông báo của nó.
+- [ ] Không gì ngoài nút Nghe nhận cuộc gọi (audit bảo mật, `CallLaunchTokens.kt`). Trong lúc A đang gọi B, trên máy B:
+  `adb shell am start -a android.intent.action.VIEW -d 'uniworkchat://open?url=<link chat của cuộc gọi>%26answer%3D1'`
+  và cùng lệnh với `--es expo.modules.unichatcalls.CALL_LAUNCH <callId> --es expo.modules.unichatcalls.LAUNCH_TOKEN x
+  --ez expo.modules.unichatcalls.ANSWER true`: app chỉ hiện màn đổ chuông, micro không mở; máy đang khoá thì app không
+  hiện trên màn khoá. Bấm Nghe trên thông báo thì nghe như thường.
+- [ ] Mở một link `https://app.uniworkos.com/<org>/<ws>/chat?dm=<userId>` từ trình duyệt: app hỏi "Mở cuộc trò chuyện
+  riêng?" kèm tên người; Hủy thì không tạo phòng nào.
 
 ## Triệu chứng
 

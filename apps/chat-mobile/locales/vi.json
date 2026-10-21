@@ -1642,6 +1642,32 @@
       "notifications_title": "Bật thông báo",
       "notifications_body": "Nhận tin nhắn, lượt nhắc tên và cuộc gọi đến cả khi UniChat đang đóng. Bạn chọn loại thông báo trong Cài đặt của ứng dụng.",
       "notifications_denied": "Thông báo đang bị tắt cho UniChat trong cài đặt của máy. Mở Cài đặt và bật Thông báo để nhận tin và cuộc gọi."
+    },
+    "security": {
+      "dm_confirm_title": "Mở cuộc trò chuyện riêng?",
+      "dm_confirm_body": "Một liên kết muốn mở cuộc trò chuyện riêng với {{name}}.",
+      "dm_confirm_body_unknown": "Một liên kết muốn mở cuộc trò chuyện riêng với một thành viên của workspace này.",
+      "dm_confirm_open": "Mở",
+      "section": "Quyền riêng tư và bảo mật",
+      "previews": "Hiện nội dung tin trong thông báo",
+      "previews_hint": "Tắt thì thông báo chỉ nói có tin mới và ai gửi, không hiện chữ trong tin.",
+      "previews_org_hidden": "Tổ chức của bạn đã ẩn nội dung tin trong thông báo.",
+      "previews_failed": "Không lưu được lựa chọn. Thử lại sau.",
+      "app_lock": "Khoá UniChat",
+      "app_lock_hint": "Mở UniChat bằng Face ID, vân tay hoặc mã khoá của máy.",
+      "app_lock_unavailable": "Đặt khoá màn hình cho máy trước để bật khoá UniChat.",
+      "app_lock_after": "Khoá lại sau khi rời app",
+      "app_lock_after_now": "Ngay lập tức",
+      "app_lock_after_1m": "1 phút",
+      "app_lock_after_5m": "5 phút",
+      "app_lock_after_15m": "15 phút",
+      "screen_security": "Chặn chụp màn hình",
+      "screen_security_hint": "Không cho chụp hay quay màn hình UniChat, và che nội dung trong trình chuyển ứng dụng.",
+      "locked_title": "UniChat đang khoá",
+      "locked_body": "Mở khoá để xem tin nhắn của bạn.",
+      "unlock": "Mở khoá",
+      "unlock_prompt": "Mở khoá UniChat",
+      "privacy_cover": "UniChat"
     }
   }
 }

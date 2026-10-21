@@ -18,10 +18,11 @@ function fakeModule(): UniChatCallsModule {
     openFullScreenIntentSettings: vi.fn(),
     releaseLockScreen: vi.fn(),
     takePendingActions: vi.fn(() => [{ action: "decline", callId: "c", roomId: "r", workspaceId: "w", callKind: "dm", at: 1 }]),
+    takeAnsweredCall: vi.fn((callId: string) => callId === "c"),
   };
 }
 
-const INCOMING = { callId: "c", roomId: "r", workspaceId: "w", callerName: "Minh", callKind: "dm", text: "", video: false, openUrl: "x://", answerUrl: "x://", timeoutMs: 1, answerLabel: "", declineLabel: "" };
+const INCOMING = { callId: "c", roomId: "r", workspaceId: "w", callerName: "Minh", callKind: "dm", text: "", video: false, openUrl: "x://", timeoutMs: 1, answerLabel: "", declineLabel: "" };
 const ONGOING = { callId: "c", roomId: "r", workspaceId: "w", peerName: "Minh", text: "", video: false, startedAt: 0 };
 
 describe("nativeCalls", () => {
@@ -38,6 +39,7 @@ describe("nativeCalls", () => {
     nativeCalls.openFullScreenIntentSettings();
     nativeCalls.releaseLockScreen();
     expect(nativeCalls.takePendingActions()).toEqual([]);
+    expect(nativeCalls.takeAnsweredCall("c")).toBe(false);
   });
 
   it("hands every call to the module itself, as its `this`", () => {
@@ -56,6 +58,8 @@ describe("nativeCalls", () => {
     calls.openFullScreenIntentSettings();
     calls.releaseLockScreen();
     expect(calls.takePendingActions()).toHaveLength(1);
+    expect(calls.takeAnsweredCall("c")).toBe(true);
+    expect(calls.takeAnsweredCall("other")).toBe(false);
     expect(module.ensureChannels).toHaveBeenCalledWith(names);
     expect(module.showIncomingCall).toHaveBeenCalledWith(INCOMING);
     expect(module.cancelIncomingCall).toHaveBeenCalledWith("c");

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CALL_RING_WINDOW_MS, appLink, callLink, callPushFromData, ringRemainingMs, taskPayloadData, type CallPush } from "./call-push";
+import { CALL_RING_WINDOW_MS, appLink, callPushFromData, ringRemainingMs, taskPayloadData, type CallPush } from "./call-push";
 import { parseDeepLink } from "./deep-link";
 
 // What server notification/push_expo.go › callData sends (every value a string).
@@ -111,16 +111,10 @@ describe("ringRemainingMs", () => {
   });
 });
 
-describe("callLink and appLink", () => {
-  it("adds or drops answer=1 on the call's web link", () => {
-    expect(callLink(INVITE.url, true)).toBe(`${INVITE.url}&answer=1`);
-    expect(callLink(`${INVITE.url}&answer=1`, false)).toBe(INVITE.url);
-    expect(callLink("not a url", true)).toBe("not a url");
-  });
-
-  it("wraps it in the scheme link lib/deep-link.ts opens, answer and all", () => {
-    const link = appLink("uniworkchat", callLink(INVITE.url, true));
+describe("appLink", () => {
+  it("wraps the call's web link in the scheme link lib/deep-link.ts opens", () => {
+    const link = appLink("uniworkchat", INVITE.url);
     expect(link.startsWith("uniworkchat://open?url=https%3A%2F%2Fapp.uniworkos.com%2F")).toBe(true);
-    expect(parseDeepLink(link, "https://app.uniworkos.com", "uniworkchat")).toEqual({ orgSlug: "acme", wsSlug: "hq", roomId: "r-1", callId: "c-1", answer: true });
+    expect(parseDeepLink(link, "https://app.uniworkos.com", "uniworkchat")).toEqual({ orgSlug: "acme", wsSlug: "hq", roomId: "r-1", callId: "c-1" });
   });
 });

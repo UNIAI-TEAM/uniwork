@@ -21,6 +21,7 @@ const NONE: UniChatCallsModule = {
   openFullScreenIntentSettings: () => undefined,
   releaseLockScreen: () => undefined,
   takePendingActions: (): NativeCallAction[] => [],
+  takeAnsweredCall: () => false,
 };
 
 /** Each call goes to the module itself: a native module's functions expect it as `this`. */
@@ -39,6 +40,7 @@ export function nativeCallsFrom(module: UniChatCallsModule | null): NativeCalls 
     openFullScreenIntentSettings: () => module.openFullScreenIntentSettings(),
     releaseLockScreen: () => module.releaseLockScreen(),
     takePendingActions: () => module.takePendingActions(),
+    takeAnsweredCall: (callId) => module.takeAnsweredCall(callId),
   };
 }
 

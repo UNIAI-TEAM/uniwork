@@ -22,10 +22,11 @@ export interface NativeIncomingCall {
   callKind: string;
   text: string;
   video: boolean;
-  /** The app link a tap and the full-screen intent open: the ringing screen. */
+  /**
+   * The app link a tap, the full-screen intent and Answer open: the ringing screen. Answer adds a token of its
+   * own to its PendingIntent (CallLaunchTokens.kt), so only that button answers; the link itself never does.
+   */
   openUrl: string;
-  /** The app link Answer opens: the same screen, answering. */
-  answerUrl: string;
   timeoutMs: number;
   answerLabel: string;
   declineLabel: string;
@@ -66,6 +67,11 @@ export interface UniChatCallsModule {
   openFullScreenIntentSettings(): void;
   releaseLockScreen(): void;
   takePendingActions(): NativeCallAction[];
+  /**
+   * True once when this call's notification Answer button opened the app (its PendingIntent's token checked,
+   * so no link or other app can forge it), false otherwise. Taking it clears it.
+   */
+  takeAnsweredCall(callId: string): boolean;
 }
 
 export const UniChatCalls = requireOptionalNativeModule<UniChatCallsModule>("UniChatCalls");

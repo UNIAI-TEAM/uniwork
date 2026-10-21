@@ -15,13 +15,18 @@ import expo.modules.core.interfaces.ReactActivityLifecycleListener
 /**
  * Applies CallLockScreen to the app's activity: a launch from the ringing
  * notification (full-screen intent, tap, Answer) shows it over the lock
- * screen, on create and on a new intent to the running activity.
+ * screen, on create and on a new intent to the running activity, and Answer's
+ * launch is recorded for JavaScript. Both only for a launch whose token
+ * matches its ring's (CallLaunchTokens): the activity is exported, so any app
+ * can start it with a call's extras, and that must neither unlock the app's
+ * screens nor pick up the call.
  */
 class CallActivityListener : ReactActivityLifecycleListener {
   override fun onCreate(activity: Activity?, savedInstanceState: Bundle?) {
     val created = activity ?: return
     CallLockScreen.track(created)
-    if (CallLockScreen.isCallLaunch(created.intent)) CallLockScreen.showOver(created)
+    // A recreated activity (rotation, process restore) carries the same intent: Answer counts once.
+    handleLaunch(created, created.intent, recordAnswer = savedInstanceState == null)
   }
 
   override fun onResume(activity: Activity?) {
@@ -29,9 +34,17 @@ class CallActivityListener : ReactActivityLifecycleListener {
   }
 
   override fun onNewIntent(intent: Intent?): Boolean {
-    if (CallLockScreen.isCallLaunch(intent)) CallLockScreen.current()?.let { CallLockScreen.showOver(it) }
+    CallLockScreen.current()?.let { handleLaunch(it, intent, recordAnswer = true) }
     // Not consumed: expo-linking and the router still read the link.
     return false
+  }
+
+  private fun handleLaunch(activity: Activity, intent: Intent?, recordAnswer: Boolean) {
+    if (!CallLockScreen.isCallLaunch(intent)) return
+    val context = activity.applicationContext
+    if (CallLaunchTokens.verifiedCall(context, intent) == null) return
+    if (recordAnswer) CallLaunchTokens.recordAnswer(context, intent, System.currentTimeMillis())
+    CallLockScreen.showOver(activity)
   }
 }
 

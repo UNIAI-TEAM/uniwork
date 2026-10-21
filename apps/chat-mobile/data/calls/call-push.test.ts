@@ -62,7 +62,6 @@ describe("incomingCallSpec", () => {
       text: "mobile.call_notify.incoming_voice",
       video: false,
       openUrl: `uniworkchat://open?url=${encodeURIComponent(URL)}`,
-      answerUrl: `uniworkchat://open?url=${encodeURIComponent(`${URL}&answer=1`)}`,
       timeoutMs: 40_000,
       answerLabel: "chat.voice_call_accept",
       declineLabel: "chat.voice_call_decline",
@@ -109,7 +108,7 @@ describe("handleCallPush", () => {
     // data-only ring must never be dropped without a trace.
     const e = env();
     vi.mocked(e.native.showIncomingCall).mockReturnValue(false);
-    expect(await handleCallPush(invite({ url: `${URL}&answer=1` }), e)).toBe("fallback");
+    expect(await handleCallPush(invite(), e)).toBe("fallback");
     expect(e.fallback.show).toHaveBeenCalledWith(expect.objectContaining({ callId: "c-1", callerName: "Minh", text: "mobile.call_notify.incoming_voice" }), URL);
   });
 

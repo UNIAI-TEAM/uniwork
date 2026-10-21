@@ -1,11 +1,16 @@
 // The two shapes a link into the app takes: the web's chat URL
 // (`https://<appUrl>/{org}/{ws}/chat?room=&message=&dm=`, plus `call=` on a
-// ringing call's push (server notification.ResourceURL) and `answer=1` on the
-// Answer button of the phone's own ringing notification (lib/call-push.ts), the same params
+// ringing call's push (server notification.ResourceURL), the same params
 // packages/views/chat/use-chat-room-url.ts, use-chat-message-deep-link.ts and
 // use-chat-dm-deep-link.ts read) and the custom scheme wrapper
 // `<scheme>://open?url=<percent-encoded path>` for builds without verified
 // universal links. Expo installs a WHATWG URL on Hermes, so `new URL` is safe.
+//
+// A URL can be fired by anyone: a web page, a message, any app on the phone
+// (an implicit VIEW intent). So no link acts on its own: `call=` only shows the
+// ringing screen, never answers (the notification's Answer reaches the app
+// through its own PendingIntent, modules/unichat-calls › CallLaunchTokens), and
+// `dm=` asks before it opens a conversation (components/chat/use-deep-link-target.ts).
 
 import { isAuthCallbackUrl } from "./auth-callback-url";
 
@@ -16,8 +21,6 @@ export interface DeepLink {
   messageId?: string;
   dmUserId?: string;
   callId?: string;
-  /** Answer the call at once (the notification's Answer button), not just show it ringing. */
-  answer?: boolean;
 }
 
 const CHAT_PATH = /^\/([^/]+)\/([^/]+)\/chat\/?$/;
@@ -51,7 +54,6 @@ export function parseDeepLink(url: string, appUrl: string, scheme: string): Deep
   if (messageId) link.messageId = messageId;
   if (dmUserId) link.dmUserId = dmUserId;
   if (callId) link.callId = callId;
-  if (callId && target.searchParams.get("answer") === "1") link.answer = true;
   return link;
 }
 
@@ -62,7 +64,6 @@ export function deepLinkHref(link: DeepLink): string {
   if (link.messageId) query.set("message", link.messageId);
   if (link.dmUserId) query.set("dm", link.dmUserId);
   if (link.callId) query.set("call", link.callId);
-  if (link.callId && link.answer) query.set("answer", "1");
   const search = query.toString();
   return `/${link.orgSlug}/${link.wsSlug}/chat${search ? `?${search}` : ""}`;
 }

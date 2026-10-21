@@ -9,6 +9,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { CALLS_NATIVE_ONLY } from "./i18n-calls.mjs";
 import { COMPLIANCE_ONLY } from "./i18n-compliance.mjs";
+import { SECURITY_ONLY } from "./i18n-security.mjs";
 import { UX_ONLY } from "./i18n-ux.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -388,7 +389,7 @@ function build(locale) {
   const mobile = MOBILE_ONLY[locale].mobile;
   return {
     ...out,
-    mobile: { ...mobile, ...RELEASE_ONLY[locale], ...COMPLIANCE_ONLY[locale], ...CALLS_NATIVE_ONLY[locale], ...UX_ONLY[locale], calls: { ...mobile.calls, ...RELEASE_ONLY[locale].calls } },
+    mobile: { ...mobile, ...RELEASE_ONLY[locale], ...COMPLIANCE_ONLY[locale], ...CALLS_NATIVE_ONLY[locale], ...UX_ONLY[locale], ...SECURITY_ONLY[locale], calls: { ...mobile.calls, ...RELEASE_ONLY[locale].calls } },
   };
 }
 

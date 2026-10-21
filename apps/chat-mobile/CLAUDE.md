@@ -369,7 +369,12 @@ một dòng thì ghi lý do ở dòng trên.
   (`components/calls/audio-output-button.tsx`, `lib/audio-outputs.ts`): Android liệt kê Bluetooth/tai nghe/loa
   trong/loa ngoài khi có tai nghe, iOS mở route picker; gọi thoại bắt đầu ở loa trong, video ở loa ngoài.
   Push "X đang gọi" mang `?call=`; tab Chat gọi `callEngine.ringFromPush` (màn đổ chuông, không tự trả lời);
-  `&answer=1` (nút Nghe của thông báo native) gọi `joinFromPush`. Cần dev client (EAS), không chạy Expo Go.
+  không URL nào nhận cuộc gọi: `answer=` bị bỏ qua (`lib/deep-link.test.ts`), vì link từ trang web, tin nhắn hay app khác
+  trên máy (intent VIEW ngầm) đều mở được app. Nút Nghe của thông báo native mở cùng link đổ chuông, kèm token ngẫu
+  nhiên của lần đổ chuông đó trong PendingIntent (`CallLaunchTokens.kt`: chỉ hệ thống và app đọc được extra của
+  PendingIntent); listener kiểm token rồi ghi "đã bấm Nghe", tab Chat hỏi `nativeCalls.takeAnsweredCall(callId)` rồi mới
+  `joinFromPush`. Launch không có token đúng (app khác giả extra của cuộc gọi) không hiện trên màn khoá và không nghe.
+  Link `dm=` hỏi trước khi mở/tạo DM (`Alert`, nêu tên nếu cache thành viên có). Cần dev client (EAS), không chạy Expo Go.
 - Cuộc gọi native trên Android (UNI-2053 S4; `docs/adr/drafts/0038-cuoc-goi-native-android-va-ke-hoach-callkit-ios.md`).
   `modules/unichat-calls` là Expo module cục bộ (Kotlin, tự autolink từ `modules/`; `index.ts` trả `null` ngoài
   Android) — chỉ là cầu nối, không chính sách: thông báo cuộc gọi đến `CallStyle.forIncomingCall` + full-screen intent

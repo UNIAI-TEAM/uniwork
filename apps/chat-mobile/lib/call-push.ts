@@ -115,18 +115,6 @@ export function ringRemainingMs(push: Extract<CallPush, { type: "call_invite" }>
   return Math.max(0, Math.min(CALL_RING_WINDOW_MS, push.expiresAt - now));
 }
 
-/** The call's web link with or without `answer=1` (lib/deep-link.ts reads it). */
-export function callLink(url: string, answer: boolean): string {
-  try {
-    const target = new URL(url);
-    if (answer) target.searchParams.set("answer", "1");
-    else target.searchParams.delete("answer");
-    return target.toString();
-  } catch {
-    return url;
-  }
-}
-
 /** The custom-scheme wrapper every build opens, verified app links or not (lib/deep-link.ts › parseDeepLink). */
 export function appLink(scheme: string, webUrl: string): string {
   return `${scheme}://open?url=${encodeURIComponent(webUrl)}`;
