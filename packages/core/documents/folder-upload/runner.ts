@@ -368,7 +368,16 @@ export function runFolderUpload(opts: RunFolderUploadOptions): FolderUploadHandl
     while (!batch) {
       if (stopped()) return finish();
       try {
-        batch = await transport.plan(body, { idempotencyKey, signal: controller.signal });
+        // No abort signal on purpose (R2-4): the server may commit the plan after
+        // cancel() was clicked, and an aborted request would lose the batch id we
+        // need to cancel it. The answer is awaited; cancel() is applied right after.
+        batch = await transport.plan(body, { idempotencyKey });
+        if (stopped()) {
+          batchId = batch.id;
+          if (plan.rootTitle !== null) root = { id: batch.root_folder_id, title: batch.root_title || plan.rootTitle };
+          cancelCall = transport.cancel(batch.id).catch(() => undefined);
+          return finish();
+        }
       } catch (err) {
         if (stopped()) return finish();
         const refusal = asFolderUploadRefusal(err);

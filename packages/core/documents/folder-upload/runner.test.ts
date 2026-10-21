@@ -137,6 +137,43 @@ describe("runFolderUpload plan", () => {
     expect(report).toMatchObject({ batchId: null, canceled: true, canRetry: false, root: { id: null, title: "R" } });
     expect(transport.calls.map((c) => c.method)).toEqual(["plan"]);
   });
+
+  it("R2-4: cancel while the plan is in flight lets the answer land, then cancels that batch and sends no PUT", async () => {
+    const { transport, handle } = setup(files(2), { latencyMs: 500 });
+    await vi.advanceTimersByTimeAsync(100);
+    handle.cancel();
+    const report = await settle(handle.done);
+    expect(transport.calls.map((c) => c.method)).toEqual(["plan", "cancel"]);
+    expect(transport.calls.filter((c) => c.method === "cancel")).toEqual([{ method: "cancel", batchId: "batch-1" }]);
+    expect(transport.batch?.status).toBe("canceled");
+    expect(report).toMatchObject({
+      batchId: "batch-1",
+      canceled: true,
+      canRetry: false,
+      done: 0,
+      root: { id: "folder-root", title: "R" },
+    });
+  });
+
+  it("R2-4: cancel while the plan is in flight, plan refused -> nothing to cancel", async () => {
+    const { transport, handle } = setup(files(1), {
+      latencyMs: 500,
+      errors: { plan: [folderUploadApiError(422, "folder_upload_too_many_files", { max: 500, count: 612 })] },
+    });
+    await vi.advanceTimersByTimeAsync(100);
+    handle.cancel();
+    const report = await settle(handle.done);
+    expect(transport.calls.map((c) => c.method)).toEqual(["plan"]);
+    expect(report).toMatchObject({ batchId: null, canceled: true, done: 0 });
+  });
+
+  it("R2-4: a failing cancel after a late plan answer is ignored", async () => {
+    const { transport, handle } = setup(files(1), { latencyMs: 500, errors: { cancel: [new TypeError("offline")] } });
+    await vi.advanceTimersByTimeAsync(100);
+    handle.cancel();
+    await expect(settle(handle.done)).resolves.toMatchObject({ batchId: "batch-1", canceled: true });
+    expect(transport.calls.filter((c) => c.method === "put")).toHaveLength(0);
+  });
 });
 
 describe("runFolderUpload upload", () => {
