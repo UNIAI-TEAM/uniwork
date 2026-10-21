@@ -1,5 +1,6 @@
 import { act, screen } from "@testing-library/react-native";
 import { AccessibilityInfo, Text } from "react-native";
+import { setAppLockEngaged } from "@/components/app/app-lock-state";
 import { callEngine } from "@/data/calls/call-store";
 import type { VoiceCallOverlayState } from "@uniwork/core/chat/voice-call-types";
 import { render } from "@/test/render";
@@ -8,8 +9,11 @@ import { CallAwareModal } from "./call-aware-modal";
 const ringing: VoiceCallOverlayState = { status: "incoming", callId: "c-1", roomId: "r-1", peerName: "Bình", callKind: "dm" };
 const setCall = (call: VoiceCallOverlayState) => act(() => callEngine.store.setState({ call }));
 
+const setLock = (engaged: boolean) => act(() => setAppLockEngaged(engaged));
+
 afterEach(async () => {
   await setCall({ status: "idle" });
+  await setLock(false);
 });
 
 describe("CallAwareModal (audit C2)", () => {
@@ -61,6 +65,51 @@ describe("CallAwareModal (audit C2)", () => {
     await setCall({ status: "idle" });
     await setCall({ ...ringing, callId: "c-2" });
     expect(close).toHaveBeenCalledTimes(1);
+  });
+
+  it("closes an open sheet when the app lock engages, once, so nothing stays readable over the lock screen", async () => {
+    const close = jest.fn();
+    const closed = jest.fn();
+    await render(
+      <>
+        <CallAwareModal visible transparent onRequestClose={close}>
+          <Text>photo</Text>
+        </CallAwareModal>
+        <CallAwareModal visible={false} onRequestClose={closed}>
+          <Text>hidden</Text>
+        </CallAwareModal>
+      </>,
+    );
+    await setLock(true);
+    expect(close).toHaveBeenCalledTimes(1);
+    expect(closed).not.toHaveBeenCalled();
+    // Still engaged: not again; opened and engaged once more: again.
+    await setLock(true);
+    expect(close).toHaveBeenCalledTimes(1);
+    await setLock(false);
+    expect(close).toHaveBeenCalledTimes(1);
+    await setLock(true);
+    expect(close).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps a sheet of the call that is on when the lock engages, and closes one of a call that is over", async () => {
+    const close = jest.fn();
+    await render(
+      <CallAwareModal visible keepOpenForCall="c-1" onRequestClose={close}>
+        <Text>primer</Text>
+      </CallAwareModal>,
+    );
+    await setCall(ringing);
+    await setLock(true);
+    expect(close).not.toHaveBeenCalled();
+    await setLock(false);
+    await setCall({ status: "ringing", callId: "c-2", roomId: "r-1", peerName: "Bình", outgoing: true, callKind: "dm" });
+    await setLock(true);
+    expect(close).toHaveBeenCalledTimes(1);
+    await setLock(false);
+    await setCall({ status: "idle" });
+    await setLock(true);
+    expect(close).toHaveBeenCalledTimes(2);
   });
 
   it("does not need a close handler", async () => {

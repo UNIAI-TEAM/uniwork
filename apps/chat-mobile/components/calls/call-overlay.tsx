@@ -5,7 +5,10 @@
 // LiveKit room (call-room.tsx). Ended: why, then close or call again, as the
 // web's voice-call-ended-panel.tsx. Mounted once in (app)/_layout.tsx. A plain
 // view, not a Modal: iOS will not present a modal over one already open (an
-// action sheet, the picker), and a call must show whatever is open.
+// action sheet, the picker), and a call must show whatever is open. A live
+// call lifts the app lock's screen (components/app/privacy-guard.tsx), so
+// while the lock is engaged the call cannot shrink: shrunk, it would leave
+// every chat usable past the lock; already shrunk, it takes the screen again.
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
 import { StatusBar } from "expo-status-bar";
@@ -13,6 +16,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { BackHandler, Pressable, StyleSheet, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { useAppLockEngaged } from "@/components/app/app-lock-state";
 import { haptics } from "@/components/ui/haptics";
 import { ensureCallPermissions } from "@/components/ui/permission-gate";
 import { Text } from "@/components/ui/text";
@@ -58,7 +62,7 @@ const CALL_BACK_REASONS = new Set(["no_answer", "missed", "declined"]);
 /** How often a live call asks whether it is being recorded ("Đang ghi"). */
 const RECORDING_POLL_MS = 15_000;
 
-function CallBody({ call, recording, onMinimize, seed }: { call: Exclude<VoiceCallOverlayState, { status: "idle" }>; recording: boolean; onMinimize: () => void; seed?: string }) {
+function CallBody({ call, recording, onMinimize, seed }: { call: Exclude<VoiceCallOverlayState, { status: "idle" }>; recording: boolean; onMinimize?: () => void; seed?: string }) {
   const { t } = useTranslation();
   switch (call.status) {
     case "incoming":
@@ -139,6 +143,7 @@ export function CallOverlay() {
   const shown = call.status !== "idle";
   useCallRingtone(ringtoneFor(call.status));
   const [minimized, setMinimized] = useState(false);
+  const lockEngaged = useAppLockEngaged();
   const insets = useSafeAreaInsets();
   const live = call.status === "active";
   const wsId = useWorkspaceStore((s) => s.current?.wsId ?? "");
@@ -171,7 +176,7 @@ export function CallOverlay() {
   }, [shown]);
 
   if (call.status === "idle") return null;
-  const small = minimized && live;
+  const small = minimized && live && !lockEngaged;
   return (
     <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
       {/* Shrunk, the room stays mounted (unmounting would hang up) but takes no room and no touches. */}
@@ -185,7 +190,7 @@ export function CallOverlay() {
       >
         {/* Light status-bar glyphs over the dark call, whatever the app theme; unmounting hands back the root's. */}
         {small ? null : <StatusBar style="light" />}
-        <CallBody call={call} recording={recording} onMinimize={() => setMinimized(true)} seed={faceSeed} />
+        <CallBody call={call} recording={recording} onMinimize={lockEngaged ? undefined : () => setMinimized(true)} seed={faceSeed} />
       </SafeAreaView>
       {small ? (
         // Just under a screen's 48 pt header, so its back button and title stay reachable; the status bar takes no touches.

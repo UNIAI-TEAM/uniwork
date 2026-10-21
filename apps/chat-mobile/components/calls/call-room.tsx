@@ -48,7 +48,7 @@ function useElapsed(running: boolean) {
   return seconds;
 }
 
-function RoomStage({ peerName, connected, recording, onMinimize, seed, room, video }: { peerName: string; connected: boolean; recording: boolean; onMinimize: () => void; seed?: string; room?: boolean; video: boolean }) {
+function RoomStage({ peerName, connected, recording, onMinimize, seed, room, video }: { peerName: string; connected: boolean; recording: boolean; onMinimize?: () => void; seed?: string; room?: boolean; video: boolean }) {
   const { t } = useTranslation();
   const { localParticipant, isMicrophoneEnabled, isCameraEnabled } = useLocalParticipant();
   const tracks = useTracks([Track.Source.Camera]);
@@ -72,18 +72,22 @@ function RoomStage({ peerName, connected, recording, onMinimize, seed, room, vid
           <View pointerEvents="none" className="absolute inset-x-0 bottom-0 h-48" style={{ backgroundColor: CALL.scrim, opacity: 0.8 }} />
         </>
       ) : null}
-      {/* The top bar (MobileCall board): shrink the call to a pill, and say when it is being recorded. */}
+      {/* The top bar (MobileCall board): shrink the call to a pill (not while the app lock is engaged), and say when it is being recorded. */}
       <View className="absolute left-0 right-0 top-1 z-10 min-h-11 flex-row items-center px-4">
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={t("chat.mobile.call_minimize")}
-          testID="call-minimize"
-          onPress={onMinimize}
-          className="h-11 w-11 items-center justify-center rounded-full active:opacity-70"
-          style={{ backgroundColor: CALL.fill }}
-        >
-          <Ionicons name="chevron-down" size={24} color={CALL.text} />
-        </Pressable>
+        {onMinimize ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t("chat.mobile.call_minimize")}
+            testID="call-minimize"
+            onPress={onMinimize}
+            className="h-11 w-11 items-center justify-center rounded-full active:opacity-70"
+            style={{ backgroundColor: CALL.fill }}
+          >
+            <Ionicons name="chevron-down" size={24} color={CALL.text} />
+          </Pressable>
+        ) : (
+          <View className="w-11" />
+        )}
         <View className="flex-1 items-center">
           {recording ? (
             <View className="min-h-7 flex-row items-center gap-1.5 rounded-full px-2.5" style={{ backgroundColor: CALL.fill }} accessibilityRole="text">
@@ -172,7 +176,8 @@ export function CallRoom({
   peerName: string;
   withCamera: boolean;
   recording: boolean;
-  onMinimize: () => void;
+  /** Shrinks the call to a pill; absent while the app lock is engaged (only the call may show past the lock). */
+  onMinimize?: () => void;
   seed?: string;
   /** A group or channel call: the face shows the room's letters. */
   roomFace?: boolean;

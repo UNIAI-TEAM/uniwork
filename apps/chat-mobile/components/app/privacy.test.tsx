@@ -5,6 +5,7 @@ import * as LocalAuthentication from "expo-local-authentication";
 import * as ScreenCapture from "expo-screen-capture";
 import { Platform } from "react-native";
 import { readDevicePreference, writeDevicePreference } from "@/data/device-preferences";
+import { ownerPromptOpen } from "./app-lock-state";
 import { authenticateOwner, deviceCanLock, loadPrivacySettings, updatePrivacySettings, usePrivacySettings } from "./privacy";
 
 jest.mock("@/data/device-preferences", () => ({
@@ -23,7 +24,7 @@ describe("privacy settings on the phone", () => {
     await act(() => loadPrivacySettings());
     expect(readDevicePreference).toHaveBeenCalledWith("privacy");
     const { result } = await renderHook(() => usePrivacySettings());
-    expect(result.current).toEqual({ settings: { appLock: false, relockAfterMs: 0, screenSecurity: true }, loaded: true });
+    expect(result.current).toEqual({ settings: { appLock: false, relockAfterMs: 0, screenSecurity: true }, loaded: true, restored: true });
     await act(async () => undefined);
     expect(capture.preventScreenCaptureAsync).toHaveBeenCalledWith("unichat-screen-security");
     expect(capture.enableAppSwitcherProtectionAsync).toHaveBeenCalledTimes(1);
@@ -65,5 +66,18 @@ describe("privacy settings on the phone", () => {
     expect(await authenticateOwner("p", "c")).toBe(false);
     auth.authenticateAsync.mockRejectedValueOnce(new Error("busy"));
     expect(await authenticateOwner("p", "c")).toBe(false);
+  });
+
+  it("marks the prompt open while it is up, so the guard does not count its activity as leaving the app", async () => {
+    let answer: (value: { success: true }) => void = () => undefined;
+    auth.authenticateAsync.mockImplementationOnce(() => new Promise((resolve) => (answer = resolve)));
+    const proving = authenticateOwner("p", "c");
+    expect(ownerPromptOpen()).toBe(true);
+    answer({ success: true });
+    expect(await proving).toBe(true);
+    expect(ownerPromptOpen()).toBe(false);
+    auth.authenticateAsync.mockRejectedValueOnce(new Error("busy"));
+    await authenticateOwner("p", "c");
+    expect(ownerPromptOpen()).toBe(false);
   });
 });

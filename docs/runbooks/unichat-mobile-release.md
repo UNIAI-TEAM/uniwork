@@ -368,8 +368,11 @@ khi nào dịch vụ chạy, ai được báo) với module native giả; chỉ 
 - [ ] Android 9–12 (quyền bộ nhớ đã bị gỡ): gửi ảnh từ thư viện, chụp ảnh từ composer, gửi một tệp PDF — không lỗi quyền.
 - [ ] Cài đặt › Quyền riêng tư và bảo mật › Khoá UniChat: bật đòi Face ID/vân tay trước; kill app, mở lại: màn khoá và
   hộp thoại sinh trắc hiện ngay, Huỷ thì ở lại màn khoá, "Mở khoá" hỏi lại; về Home 30 s rồi quay lại với "1 phút":
-  không khoá, quá 1 phút: khoá. Máy khoá + có cuộc gọi đến: nghe được ngay, không qua màn khoá của UniChat; gác máy thì
-  màn khoá UniChat hiện. Máy không đặt khoá màn hình: công tắc nói cần đặt khoá trước.
+  không khoá, quá 1 phút: khoá. Máy khoá + có cuộc gọi đến: nghe được ngay, không qua màn khoá của UniChat; trong cuộc
+  gọi không có nút thu nhỏ (khoá đang bật); gác máy thì màn khoá UniChat hiện. Mở một ảnh (trình xem ảnh) hay menu của
+  tin, về Home quá thời gian khoá rồi quay lại: ảnh/menu đã đóng, chỉ màn khoá hiện. Android, "Ngay", mở khoá bằng mã
+  PIN của máy (không vân tay): mở xong vào app, không khoá lại và hỏi lần nữa. Tắt Khoá UniChat cũng đòi Face ID/mã
+  khoá; Huỷ thì công tắc vẫn bật. Máy không đặt khoá màn hình: công tắc nói cần đặt khoá trước.
 - [ ] Bật "Chặn chụp màn hình": Android chụp màn hình báo bị chặn, màn đa nhiệm của UniChat trơn; iOS ảnh chụp và
   quay màn hình của UniChat đen, trình chuyển app thấy lớp phủ. Tắt: chụp lại được.
 - [ ] Gỡ app trên iPhone khi đang đăng nhập rồi cài lại: mở app vào màn đăng nhập (không vào thẳng inbox cũ); web ›

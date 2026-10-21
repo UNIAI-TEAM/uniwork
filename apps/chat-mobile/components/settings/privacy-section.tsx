@@ -3,7 +3,8 @@
 // and block screenshots and screen recording (audit "Security & privacy",
 // no-app-switcher-privacy-or-lock). Turning the lock on asks for the owner's
 // proof first, so nobody turns on a lock they cannot open; a phone with no
-// screen lock at all says so instead. The choices are this phone's
+// screen lock at all says so instead. Turning it off asks too: whoever holds
+// an unlocked phone must not switch the lock off for later. The choices are this phone's
 // (components/app/privacy.ts), applied at once; the guard
 // (components/app/privacy-guard.tsx) carries them out.
 import { useState, type ReactNode } from "react";
@@ -26,12 +27,12 @@ export function PrivacySection({ children }: { children?: ReactNode }) {
 
   const onAppLock = async (next: boolean) => {
     setNotice(null);
-    if (!next) {
-      updatePrivacySettings({ appLock: false });
-      return;
-    }
     setBusy(true);
     try {
+      if (!next) {
+        if (await authenticateOwner(t("mobile.security.unlock_prompt"), t("common.cancel"))) updatePrivacySettings({ appLock: false });
+        return;
+      }
       if (!(await deviceCanLock())) {
         setNotice("mobile.security.app_lock_unavailable");
         return;

@@ -13,6 +13,7 @@ import { useStore } from "zustand";
 import { readDevicePreference, writeDevicePreference } from "@/data/device-preferences";
 import { createPrivacySettings, type PrivacyState } from "@/data/privacy-settings";
 import { coversWhenAway, type PrivacySettings } from "@/lib/app-lock";
+import { whileOwnerPrompt } from "./app-lock-state";
 
 /** expo-screen-capture counts holders by key: this one is the setting's. */
 const CAPTURE_KEY = "unichat-screen-security";
@@ -50,12 +51,15 @@ export async function deviceCanLock(): Promise<boolean> {
   }
 }
 
-/** Face ID, a fingerprint or the passcode; true once the person proved they own the phone. */
-export async function authenticateOwner(prompt: string, cancelLabel: string): Promise<boolean> {
-  try {
-    const result = await LocalAuthentication.authenticateAsync({ promptMessage: prompt, cancelLabel, disableDeviceFallback: false });
-    return result.success;
-  } catch {
-    return false;
-  }
+/** Face ID, a fingerprint or the passcode; true once the person proved they own the phone. Marked open while it
+ *  runs (app-lock-state.ts), so the guard does not count the prompt's own activity as leaving the app. */
+export function authenticateOwner(prompt: string, cancelLabel: string): Promise<boolean> {
+  return whileOwnerPrompt(async () => {
+    try {
+      const result = await LocalAuthentication.authenticateAsync({ promptMessage: prompt, cancelLabel, disableDeviceFallback: false });
+      return result.success;
+    } catch {
+      return false;
+    }
+  });
 }

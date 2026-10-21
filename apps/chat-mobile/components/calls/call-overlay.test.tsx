@@ -2,6 +2,7 @@ import { act, fireEvent, screen } from "@testing-library/react-native";
 import { createAudioPlayer } from "expo-audio";
 import type { ReactNode } from "react";
 import { BackHandler, Vibration } from "react-native";
+import { setAppLockEngaged } from "@/components/app/app-lock-state";
 import { ensureCallPermissions } from "@/components/ui/permission-gate";
 import { callEngine } from "@/data/calls/call-store";
 import { chatApi } from "@/data/chat-api";
@@ -12,12 +13,15 @@ import { CallOverlay } from "./call-overlay";
 
 // The LiveKit room needs WebRTC; a stand-in exposes what the overlay hands it.
 jest.mock("./call-room", () => ({
-  CallRoom: (props: { peerName: string; recording: boolean; onMinimize: () => void }): ReactNode => {
+  CallRoom: (props: { peerName: string; recording: boolean; onMinimize?: () => void }): ReactNode => {
     const { Pressable: P, Text: T } = jest.requireActual<typeof import("react-native")>("react-native");
-    return (
+    const label = <T>{`room:${props.peerName}:${props.recording ? "recording" : "quiet"}`}</T>;
+    return props.onMinimize ? (
       <P accessibilityRole="button" accessibilityLabel="minimize" onPress={props.onMinimize}>
-        <T>{`room:${props.peerName}:${props.recording ? "recording" : "quiet"}`}</T>
+        {label}
       </P>
+    ) : (
+      label
     );
   },
 }));
@@ -32,6 +36,7 @@ beforeEach(() => {
 });
 afterEach(async () => {
   await setCall({ status: "idle" });
+  await act(() => setAppLockEngaged(false));
   jest.restoreAllMocks();
 });
 
@@ -98,6 +103,22 @@ describe("CallOverlay", () => {
     const pill = screen.getByRole("button", { name: `${viText("chat.mobile.call_back_to")}, Bình` });
     await fireEvent.press(pill);
     expect(screen.queryByRole("button", { name: `${viText("chat.mobile.call_back_to")}, Bình` })).toBeNull();
+  });
+
+  it("cannot shrink while the app lock is engaged, and a shrunk call takes the screen again when it engages", async () => {
+    await render(<CallOverlay />);
+    await setCall({ status: "active", ...base, outgoing: true, token: "t", url: "wss://lk" });
+    await fireEvent.press(await screen.findByRole("button", { name: "minimize" }));
+    const pill = () => screen.queryByRole("button", { name: `${viText("chat.mobile.call_back_to")}, Bình` });
+    expect(pill()).toBeOnTheScreen();
+    // The lock comes back (the relock time passed in the background): the call covers the app again, nothing past it.
+    await act(() => setAppLockEngaged(true));
+    expect(pill()).toBeNull();
+    expect(screen.getByText("room:Bình:quiet")).toBeOnTheScreen();
+    expect(screen.queryByRole("button", { name: "minimize" })).toBeNull();
+    // Opened again: the call is where the person left it.
+    await act(() => setAppLockEngaged(false));
+    expect(pill()).toBeOnTheScreen();
   });
 
   it("takes the whole screen again when a shrunk call ends", async () => {

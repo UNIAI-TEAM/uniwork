@@ -12,8 +12,14 @@
 //   while someone is signed in: the sign-in screen has nothing to hide.
 //   A ringing or live call is never held behind the lock (a call answered
 //   from the lock screen must connect); the lock comes back once it ends.
+//   Only the call shows meanwhile: the guard says the lock is engaged
+//   (app-lock-state.ts), the call screen will not shrink then, and every open
+//   sheet closes (a Modal is a window of its own, above this view).
 // Until the saved choices are known the app is covered, so a locked app never
-// shows the inbox for a frame first (the read is capped, data/privacy-settings.ts).
+// shows the inbox for a frame first. The read is capped (data/privacy-settings.ts);
+// choices that arrive after the cap count as the cold start, so a slow Keychain
+// still locks. Face ID's or the passcode's own screen is not time away
+// (app-lock-state.ts › ownerPromptOpen): on Android it pauses the app.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AppState, StyleSheet, View, type AppStateStatus } from "react-native";
@@ -24,33 +30,37 @@ import { useAuthStore } from "@/data/auth/store";
 import { callEngine } from "@/data/calls/call-store";
 import { coversWhenAway, shouldLock } from "@/lib/app-lock";
 import { callHoldsSocket } from "@/lib/call-socket";
+import { ownerPromptOpen, setAppLockEngaged } from "./app-lock-state";
 import { authenticateOwner, usePrivacySettings } from "./privacy";
 
 export function PrivacyGuard({ now = Date.now }: { now?: () => number }) {
   const { t } = useTranslation();
-  const { settings, loaded } = usePrivacySettings();
+  const { settings, loaded, restored } = usePrivacySettings();
   const signedIn = useAuthStore((s) => s.user !== null);
   const callLive = useStore(callEngine.store, (s) => callHoldsSocket(s.call));
   const [appState, setAppState] = useState<AppStateStatus>(AppState.currentState);
   const [locked, setLocked] = useState(false);
   const leftAt = useRef<number | null>(null);
-  const coldStartChecked = useRef(false);
+  // "defaults" while the read is past its cap: its late answer is checked as the cold start once more.
+  const coldStart = useRef<"pending" | "defaults" | "done">("pending");
   const prompting = useRef(false);
   // Asked once each time the lock shows in front: a cancelled Face ID makes the app active again, which must not ask again.
   const autoPrompted = useRef(false);
   const latest = useRef(settings);
   latest.current = settings;
 
-  // A cold start locks once the saved choices are known.
+  // A cold start locks once the saved choices are known, and again when they arrive after the read's cap.
   useEffect(() => {
-    if (!loaded || coldStartChecked.current) return;
-    coldStartChecked.current = true;
+    if (!loaded || coldStart.current === "done" || (coldStart.current === "defaults" && !restored)) return;
+    coldStart.current = restored ? "done" : "defaults";
     if (shouldLock(latest.current, null, now())) setLocked(true);
-  }, [loaded, now]);
+  }, [loaded, restored, now]);
 
   useEffect(() => {
     const subscription = AppState.addEventListener("change", (next) => {
       setAppState(next);
+      // The owner's proof is not leaving the app, even where its screen pauses the app (Android's passcode).
+      if (prompting.current || ownerPromptOpen()) return;
       // Only the background counts as away: Face ID's own prompt, the notification shade and a call banner make the app inactive.
       if (next === "background") {
         leftAt.current = now();
@@ -69,7 +79,13 @@ export function PrivacyGuard({ now = Date.now }: { now?: () => number }) {
     if (!settings.appLock) setLocked(false);
   }, [settings.appLock]);
 
-  const lockShown = locked && signedIn && !callLive;
+  const engaged = locked && signedIn;
+  const lockShown = engaged && !callLive;
+
+  useEffect(() => {
+    setAppLockEngaged(engaged);
+    return () => setAppLockEngaged(false);
+  }, [engaged]);
 
   const unlock = useCallback(async () => {
     if (prompting.current) return;
