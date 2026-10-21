@@ -1604,6 +1604,15 @@ type MeetingAuditLog struct {
 	OrganizationID string             `json:"organization_id"`
 }
 
+type MeetingAutoSummary struct {
+	MeetingID      string             `json:"meeting_id"`
+	OrganizationID string             `json:"organization_id"`
+	DueAt          pgtype.Timestamptz `json:"due_at"`
+	Attempts       int32              `json:"attempts"`
+	LeaseUntil     pgtype.Timestamptz `json:"lease_until"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+}
+
 type MeetingChatMessage struct {
 	ID             string             `json:"id"`
 	MeetingID      string             `json:"meeting_id"`
@@ -1808,6 +1817,15 @@ type MeetingScribeRun struct {
 	AgentParticipantSid    string             `json:"agent_participant_sid"`
 }
 
+type MeetingSetting struct {
+	OrganizationID     string             `json:"organization_id"`
+	AutoSummaryEnabled bool               `json:"auto_summary_enabled"`
+	UpdatedBy          string             `json:"updated_by"`
+	UpdatedByKind      string             `json:"updated_by_kind"`
+	CreatedAt          pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
+}
+
 type MeetingSpeakerLabel struct {
 	ID             string             `json:"id"`
 	OrganizationID string             `json:"organization_id"`
@@ -1834,6 +1852,7 @@ type MeetingSummary struct {
 	UsageEventID   pgtype.Text        `json:"usage_event_id"`
 	OrganizationID string             `json:"organization_id"`
 	Partial        bool               `json:"partial"`
+	CreatedByKind  string             `json:"created_by_kind"`
 }
 
 type MeetingSummaryRun struct {

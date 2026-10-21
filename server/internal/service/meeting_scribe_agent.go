@@ -262,6 +262,8 @@ func (s *MeetingService) AgentFinished(ctx context.Context, c meetings.AgentClai
 	if err != nil {
 		return err
 	}
+	// The agent flushed its last lines: an ended meeting's summary may run.
+	s.hurryAutoSummary(ctx, m)
 	closed, err := s.finishScribeRun(ctx, run.ID, sttSessionMs)
 	if err != nil || !closed {
 		return err

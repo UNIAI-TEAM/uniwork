@@ -242,6 +242,7 @@ func (s *MeetingService) RunWorkers(ctx context.Context) {
 	loop("webhook_inbox", tick, s.drainWebhookInbox)
 	loop("attendance_metering", attendanceMeterTick, s.drainAttendanceMetering)
 	loop("scribe", scribeSweepInterval, s.sweepScribes)
+	loop("auto_summary", autoSummaryTick, s.drainAutoSummaries)
 	loop("reconcile", reconcileInterval, func(ctx context.Context) error {
 		return errors.Join(s.ReconcileStaleAttendance(ctx, 50), s.ReconcileProviderDesync(ctx, 50))
 	})

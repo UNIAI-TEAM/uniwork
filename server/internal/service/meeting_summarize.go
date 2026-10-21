@@ -218,7 +218,7 @@ func (s *MeetingService) claimSummaryRun(ctx context.Context, m db.Meeting, leas
 // live items stay; a new item whose title matches one that stays (or an
 // earlier one of the same answer) is skipped, so a dismissed item does not
 // come back.
-func (s *MeetingService) storeSummary(ctx context.Context, m db.Meeting, userID string, res ai.MeetingSummary, resp ai.Response, labels *summaryLabels, partial bool) (db.MeetingSummary, error) {
+func (s *MeetingService) storeSummary(ctx context.Context, m db.Meeting, actor Actor, res ai.MeetingSummary, resp ai.Response, labels *summaryLabels, partial bool) (db.MeetingSummary, error) {
 	stored := make([]SummaryDecision, len(res.Decisions))
 	dropped := 0
 	for i, d := range res.Decisions {
@@ -246,8 +246,8 @@ func (s *MeetingService) storeSummary(ctx context.Context, m db.Meeting, userID 
 	}
 	row, err := q.InsertMeetingSummary(ctx, db.InsertMeetingSummaryParams{
 		ID: util.NewID(), MeetingID: m.ID, OrganizationID: m.OrganizationID, Summary: res.Summary,
-		Decisions: string(decisions), ActionItems: string(rawItems), Model: resp.Model, CreatedBy: userID,
-		UsageEventID: strText(resp.UsageEventID), Partial: partial,
+		Decisions: string(decisions), ActionItems: string(rawItems), Model: resp.Model, CreatedBy: actor.ID,
+		UsageEventID: strText(resp.UsageEventID), Partial: partial, CreatedByKind: string(actor.Kind),
 	})
 	if err != nil {
 		return db.MeetingSummary{}, err
@@ -256,13 +256,18 @@ func (s *MeetingService) storeSummary(ctx context.Context, m db.Meeting, userID 
 	if err != nil {
 		return db.MeetingSummary{}, err
 	}
-	// The meeting's own activity timeline still reads meeting_audit_logs.
-	if err := s.writeAudit(ctx, q, m, "SUMMARY_CREATED", userID, "", row.ID, "{}"); err != nil {
+	// The meeting's own activity timeline still reads meeting_audit_logs; it
+	// names a system run the way it names an auto-end.
+	timelineActor := actor.ID
+	if actor.Kind == audit.KindSystem {
+		timelineActor = systemActorID
+	}
+	if err := s.writeAudit(ctx, q, m, "SUMMARY_CREATED", timelineActor, "", row.ID, "{}"); err != nil {
 		return db.MeetingSummary{}, err
 	}
 	if err := auditRecorder.Record(ctx, q, audit.Entry{
 		OrganizationID: m.OrganizationID, WorkspaceID: m.WorkspaceID,
-		Actor:        audit.User(userID),
+		Actor:        actor,
 		Action:       audit.ActionMeetingSummaryCreated,
 		ResourceType: "meeting", ResourceID: m.ID,
 		Metadata: map[string]any{

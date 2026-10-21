@@ -199,7 +199,7 @@ func TestLiveItemsSurviveSummaryRegeneration(t *testing.T) {
 		t.Fatal(err)
 	}
 	for range 2 {
-		if _, err := s.storeSummary(ctx, m, ua.ID, ai.MeetingSummary{
+		if _, err := s.storeSummary(ctx, m, Human(ua.ID), ai.MeetingSummary{
 			Summary: "Đã chốt.", Decisions: []ai.Decision{}, ActionItems: []ai.ActionItem{{Title: "Gửi báo giá"}, {Title: "Đặt phòng"}},
 		}, ai.Response{Model: "fake"}, newSummaryLabels(), false); err != nil {
 			t.Fatal(err)

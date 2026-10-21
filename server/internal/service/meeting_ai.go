@@ -209,6 +209,14 @@ func (s *MeetingService) Summarize(ctx context.Context, userID, meetingID, local
 	if err != nil {
 		return db.MeetingSummary{}, err
 	}
+	return s.summarize(ctx, m, Human(userID), locale)
+}
+
+// summarize is the body Summarize and SummarizeAuto share: the plan and model
+// gates, the run lease, the sources, the model call and the store, all on
+// behalf of actor.
+func (s *MeetingService) summarize(ctx context.Context, m db.Meeting, actor Actor, locale string) (db.MeetingSummary, error) {
+	meetingID := m.ID
 	if err := s.requireFeature(ctx, m, FeatureMeetingAISummary); err != nil {
 		return db.MeetingSummary{}, err
 	}
@@ -320,7 +328,7 @@ func (s *MeetingService) Summarize(ctx context.Context, userID, meetingID, local
 		chatLines[i].Label = labels.label(EvidenceChat, chatLines[i].Label)
 	}
 	resp, err := s.AI.Complete(runCtx, ai.Request{
-		Actor: Human(userID), OrganizationID: orgID, WorkspaceID: m.WorkspaceID,
+		Actor: actor, OrganizationID: orgID, WorkspaceID: m.WorkspaceID,
 		Capability: ai.CapMeetingSummarization, PromptID: ai.PromptMeetingSummary,
 		Vars: map[string]any{
 			"title": m.Title, "agenda": m.Description, "locale": locale,
@@ -345,7 +353,7 @@ func (s *MeetingService) Summarize(ctx context.Context, userID, meetingID, local
 	// way the gateway still settles its usage row.
 	storeCtx, cancelStore := context.WithTimeout(context.WithoutCancel(ctx), summaryStoreTimeout)
 	defer cancelStore()
-	row, err := s.storeSummary(storeCtx, m, userID, res, resp, labels, partial)
+	row, err := s.storeSummary(storeCtx, m, actor, res, resp, labels, partial)
 	if err != nil {
 		return db.MeetingSummary{}, s.summaryFailure(m.ID, resp.UsageEventID, summaryStepError{reason: summaryReasonStore, err: err})
 	}

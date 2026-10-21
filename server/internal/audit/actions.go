@@ -324,11 +324,18 @@ const (
 	ActionMeetingMinutesFinalized = "meeting.minutes_finalized"
 	ActionMeetingMinutesReopened  = "meeting.minutes_reopened"
 
-	// A clerk generated the meeting's AI summary (MeetingService.Summarize);
+	// A clerk generated the meeting's AI summary (MeetingService.Summarize),
+	// or the system did when the meeting ended (SummarizeAuto, actor
+	// system:meeting_auto_summary);
 	// metadata names the summary, the usage row that paid for it, and what
 	// became of the meeting's action items: replaced_pending, kept,
 	// skipped_duplicates.
 	ActionMeetingSummaryCreated = "meeting.summary_created"
+
+	// An organization owner/admin switched the summary the system makes when a
+	// meeting ends off or back on (MeetingService.SetMeetingAutoSummary,
+	// UNI-2026); changes carry auto_summary_enabled.
+	ActionMeetingSettingsChanged = "meeting.settings_changed"
 
 	// A host or admin switched the AI scribe off or back on for one meeting
 	// (MeetingService.SetScribe, UNI-2023).

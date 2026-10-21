@@ -236,6 +236,11 @@ func (s *MeetingService) endMeeting(ctx context.Context, m db.Meeting, actorID, 
 		})
 		_ = s.writeAudit(ctx, q, m, "CONFERENCE_SESSION_ENDED", actorID, sess.Status, "ENDED", "{}")
 	}
+	// The summary the system makes once the meeting is over (A5) is queued
+	// with the end itself, so a restart between the two cannot lose it.
+	if err := s.queueAutoSummary(ctx, q, ended); err != nil {
+		return db.Meeting{}, err
+	}
 	s.record(ctx, q, ended, actor, "meeting.ended", nil,
 		audit.Diff(map[string]any{"status": MeetingInProgress}, map[string]any{"status": MeetingEnded}))
 	if err := tx.Commit(ctx); err != nil {

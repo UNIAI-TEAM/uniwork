@@ -99,7 +99,7 @@ func (q *Queries) GetActiveMeetingRecording(ctx context.Context, meetingID strin
 }
 
 const getLatestMeetingSummary = `-- name: GetLatestMeetingSummary :one
-SELECT id, meeting_id, summary, decisions, action_items, model, created_by, created_at, usage_event_id, organization_id, partial FROM meeting_summaries WHERE meeting_id = $1 ORDER BY created_at DESC, id DESC LIMIT 1
+SELECT id, meeting_id, summary, decisions, action_items, model, created_by, created_at, usage_event_id, organization_id, partial, created_by_kind FROM meeting_summaries WHERE meeting_id = $1 ORDER BY created_at DESC, id DESC LIMIT 1
 `
 
 // tenant: parent meeting_id
@@ -118,6 +118,7 @@ func (q *Queries) GetLatestMeetingSummary(ctx context.Context, meetingID string)
 		&i.UsageEventID,
 		&i.OrganizationID,
 		&i.Partial,
+		&i.CreatedByKind,
 	)
 	return i, err
 }
@@ -233,9 +234,9 @@ func (q *Queries) InsertMeetingRecording(ctx context.Context, arg InsertMeetingR
 }
 
 const insertMeetingSummary = `-- name: InsertMeetingSummary :one
-INSERT INTO meeting_summaries (id, meeting_id, summary, decisions, action_items, model, created_by, usage_event_id, organization_id, partial)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-RETURNING id, meeting_id, summary, decisions, action_items, model, created_by, created_at, usage_event_id, organization_id, partial
+INSERT INTO meeting_summaries (id, meeting_id, summary, decisions, action_items, model, created_by, usage_event_id, organization_id, partial, created_by_kind)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+RETURNING id, meeting_id, summary, decisions, action_items, model, created_by, created_at, usage_event_id, organization_id, partial, created_by_kind
 `
 
 type InsertMeetingSummaryParams struct {
@@ -249,6 +250,7 @@ type InsertMeetingSummaryParams struct {
 	UsageEventID   pgtype.Text `json:"usage_event_id"`
 	OrganizationID string      `json:"organization_id"`
 	Partial        bool        `json:"partial"`
+	CreatedByKind  string      `json:"created_by_kind"`
 }
 
 func (q *Queries) InsertMeetingSummary(ctx context.Context, arg InsertMeetingSummaryParams) (MeetingSummary, error) {
@@ -263,6 +265,7 @@ func (q *Queries) InsertMeetingSummary(ctx context.Context, arg InsertMeetingSum
 		arg.UsageEventID,
 		arg.OrganizationID,
 		arg.Partial,
+		arg.CreatedByKind,
 	)
 	var i MeetingSummary
 	err := row.Scan(
@@ -277,6 +280,7 @@ func (q *Queries) InsertMeetingSummary(ctx context.Context, arg InsertMeetingSum
 		&i.UsageEventID,
 		&i.OrganizationID,
 		&i.Partial,
+		&i.CreatedByKind,
 	)
 	return i, err
 }

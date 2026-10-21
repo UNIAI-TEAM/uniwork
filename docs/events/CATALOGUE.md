@@ -129,6 +129,7 @@ khai nó, hoặc khi tập trường đổi. Mở thêm trường hay topic cầ
 | `minutes.created` | 1 | `meeting_id`, `document_id`, `workspace_id` | — | workspace | outbox |
 | `minutes.finalized` | 1 | `meeting_id`, `document_id`, `workspace_id` | — | workspace | outbox |
 | `minutes.reopened` | 1 | `meeting_id`, `document_id`, `workspace_id` | — | workspace | outbox |
+| `meeting.auto_summary_failed` | 1 | `meeting_id`, `workspace_id` | — | - | outbox |
 | `meeting.canceled` | 1 | `meeting_id`, `version` | — | workspace | outbox |
 | `meeting.created` | 1 | `meeting_id`, `version` | — | workspace | outbox |
 | `meeting.deleted` | 1 | `meeting_id`, `version` | — | workspace | outbox |

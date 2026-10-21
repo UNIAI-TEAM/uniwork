@@ -1745,6 +1745,14 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				t.Fatal(err)
 			}
 		},
+		// UNI-2026: the owner switches auto summaries off for the organization.
+		audit.ActionMeetingSettingsChanged: func(t *testing.T, f *auditFixture) {
+			f.build(t)
+			s := NewMeetingService(f.pool, f.q, f.ws, NopPublisher{}, &meetings.FakeProvider{}, MeetingRuntime{TokenTTL: time.Minute, HMACKey: []byte("t")})
+			if _, err := s.SetMeetingAutoSummary(f.ctx, Human(f.owner.ID), f.orgID, false); err != nil {
+				t.Fatal(err)
+			}
+		},
 		// UNI-2023: the host switches the AI scribe off for one meeting.
 		audit.ActionMeetingScribeToggled: func(t *testing.T, f *auditFixture) {
 			w := f.build(t)
@@ -2058,6 +2066,7 @@ func auditActions() []string {
 		audit.ActionMeetingMinutesFinalized,
 		audit.ActionMeetingMinutesReopened,
 		audit.ActionMeetingSummaryCreated,
+		audit.ActionMeetingSettingsChanged,
 		audit.ActionMeetingScribeToggled,
 		audit.ActionMeetingSharedMicToggled,
 		audit.ActionMeetingSpeakerLabelAssigned,

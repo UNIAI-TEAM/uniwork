@@ -265,6 +265,9 @@ var catalogue = []EventDef{
 	// The AI summary is written with its audit row in one transaction and
 	// announced from the outbox (UNI-1853): a host who missed the frame would
 	// otherwise keep a stale summary (and, since UNI-1998, stale action items).
+	// UNI-2026: the auto summary of an ended meeting made no summary; the
+	// notification consumer sends the summary reminder instead. No client.
+	{Topic: "meeting.auto_summary_failed", Version: 1, Payload: []string{"meeting_id", "workspace_id"}, Scope: ScopeNone, Delivery: DeliveryOutbox},
 	{Topic: "summary.created", Version: 1, Payload: []string{"meeting_id", "summary_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	// The meeting's action items (UNI-1998): a clerk added, dismissed or
 	// restored one, or turned a batch into tasks (one event per batch), so
