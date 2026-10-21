@@ -1,0 +1,4 @@
+$ for i in $(seq 1 14); do test -f /tmp/pr7r5-e2e.exit && break; sleep 30; done; echo "DONE_FILE=$(test -f /tmp/pr7r5-e2e.exit && echo yes || echo no)"; tail -2 /tmp/pr7r5-e2e.log
+DONE_FILE=no
+  ✓  42 documents-folders.spec.ts:632:1 › FD-A04 rename folder from tree menu, table row menu, and breadcrumb keeps ID/parent/children and updates title and search (4.5s)
+  ✓  43 documents-folders.spec.ts:743:1 › FD-A05 move folder by drag-and-drop and Move-to keeps descendants, enforces depth<=20, renames on collision, and updates a second session live (9.2s)
