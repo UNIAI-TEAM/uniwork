@@ -194,6 +194,12 @@ export const ChatMessageSchema = z.object({
         .transform((value) => value ?? undefined),
     })
     .optional(),
+  poll_vote: z
+    .object({
+      poll_message_id: z.string(),
+      question: z.string(),
+    })
+    .optional(),
   reminder: z
     .object({
       body: z.string(),
