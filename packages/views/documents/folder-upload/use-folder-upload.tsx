@@ -256,8 +256,9 @@ export function useFolderUpload({
     const title = report.root?.title ?? name;
     const openId = report.root?.id ?? (channel.mode === "files" ? channel.destinationId : null);
     channel.failuresLeft = report.failed.length > 0 && !report.canceled && !report.expired;
-    // Unmounted: nobody can open the report or retry, so the batch closes now.
-    const closed = channel.failuresLeft && !mounted.current;
+    // Unmounted: nobody can open the report or retry, so the batch closes now. An expired run has no batch left to
+    // close, but its toast is closed all the same: "Xem" would open nothing and the toast must not stay forever.
+    const closed = !mounted.current && (channel.failuresLeft || report.expired) && report.failed.length > 0;
     if (channel.failuresLeft && (!report.canRetry || closed)) abandon(channel);
     channel.shownToast = target;
     target.settle({
@@ -364,15 +365,9 @@ export function useFolderUpload({
     running.done.then(
       (report) => {
         channel.settled = true;
-        if (report.canceled && !uploadToast) {
-          // Canceled from the dialog before the plan was answered: nothing to report. The dialog is
-          // already gone when the user left; otherwise (a 429 wait) it closes now.
-          if (!channel.left) {
-            dialogRun.current = null;
-            dismissHead();
-          }
-          return;
-        }
+        // Canceled from the dialog before the plan was answered (the 429 wait included): the user left, so the
+        // dialog is already gone (`cancelPending`) and there is nothing to report.
+        if (report.canceled && !uploadToast) return;
         settleToast(begin(), name, report, channel);
       },
       (failure: unknown) => {

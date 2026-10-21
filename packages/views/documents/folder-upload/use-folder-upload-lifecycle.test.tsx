@@ -276,6 +276,28 @@ describe("useFolderUpload after the page unmounts (R2-2)", () => {
     expect(toast.warning.mock.calls.at(-1)?.[1].description).toBe(closedSentence());
   });
 
+  it("shows no Xem and expires the toast when a run settles expired after the page unmounted (R4-1)", async () => {
+    // One file at a time, one complete per file: a lands, b fails for good, c's complete meets the 410.
+    const { transport, unmount } = setup(
+      { limits: { ...WITH_FOLDERS, folder_upload: { ...WITH_FOLDERS.folder_upload!, parallel: 1, complete_batch: 1 } } },
+      {
+        fileErrors: { "b.pdf": { code: "storage_quota_exceeded", message: "" } },
+        errors: { complete: [undefined, undefined, folderUploadApiError(410, "folder_upload_expired")] as unknown as Error[] },
+      },
+    );
+    const release = transport.holdPuts();
+    stage(entries("Mới", ["a.pdf", "b.pdf", "c.pdf"]));
+    upload();
+    await waitFor(() => expect(toast.loading).toHaveBeenCalled());
+    unmount();
+    release();
+    await waitFor(() => expect(toast.warning).toHaveBeenCalled());
+    const [message, options] = toast.warning.mock.calls.at(-1) ?? [];
+    expect(message).toContain("đã hết hạn");
+    expect(options.action).toBeUndefined();
+    expect(Number.isFinite(options.duration)).toBe(true);
+  });
+
   it("leaves a clean success alone on unmount", async () => {
     const { transport, unmount } = setup();
     stage(entries("Mới", ["a.pdf"]));

@@ -301,6 +301,31 @@ describe("useFolderUpload", () => {
     );
   });
 
+  it("leaves no trace of a plan the server refuses after the user walked away (R4-3)", async () => {
+    const { transport } = setup({}, { latencyMs: PLAN_MS });
+    transport.failNext("plan", folderUploadApiError(422, "folder_upload_too_many_files", { max: 500, count: 612 }));
+    stage(entries("Mới", ["a.pdf"]));
+    upload();
+    await waitFor(() => expect(transport.calls.some((c) => c.method === "plan")).toBe(true));
+    fireEvent.click(screen.getByRole("button", { name: t("documents.folder_upload.dialog.cancel") }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull(), { timeout: 600 });
+    stage(entries("Hai", ["b.pdf"]));
+    expect(await screen.findByTestId("folder-upload-root")).toHaveTextContent("Hai");
+
+    // Let the held plan answer with its refusal: the next folder's dialog is the one on screen.
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, PLAN_MS + 400));
+    });
+    expect(transport.calls.filter((c) => c.method === "plan")).toHaveLength(1);
+    expect(screen.queryByText("612 tệp — tối đa 500.")).toBeNull();
+    expect(screen.getByTestId("folder-upload-root")).toHaveTextContent("Hai");
+    expect(screen.getByRole("button", { name: t("documents.folder_upload.dialog.submit") })).not.toHaveAttribute("aria-busy");
+    for (const fn of Object.values(toast)) expect(fn).not.toHaveBeenCalled();
+    // The next folder still runs on its own plan.
+    upload();
+    await waitFor(() => expect(transport.calls.filter((c) => c.method === "plan")).toHaveLength(2));
+  });
+
   it("refuses an empty dropped folder with a toast instead of a dialog", () => {
     setup();
     stage([]);
