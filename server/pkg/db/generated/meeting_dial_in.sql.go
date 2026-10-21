@@ -31,13 +31,21 @@ func (q *Queries) ClearMeetingDialInRule(ctx context.Context, arg ClearMeetingDi
 }
 
 const dialInCallerAdmitted = `-- name: DialInCallerAdmitted :one
-SELECT EXISTS (
-  SELECT 1 FROM meeting_attendance_sessions a
-  JOIN meeting_participants p ON p.id = a.participant_id
-  WHERE a.meeting_id = $1 AND p.meeting_id = $1
-    AND p.principal_type = 'GUEST' AND p.guest_id = $2 AND a.left_at IS NULL
-    AND a.provider_participant_sid = $3::text
-)
+SELECT
+  EXISTS (
+    SELECT 1 FROM meeting_attendance_sessions a
+    JOIN meeting_participants p ON p.id = a.participant_id
+    WHERE a.meeting_id = $1 AND p.meeting_id = $1
+      AND p.principal_type = 'GUEST' AND p.guest_id = $2 AND a.left_at IS NULL
+      AND a.provider_participant_sid = $3::text
+  ) AS in_session,
+  EXISTS (
+    SELECT 1 FROM meeting_join_requests r
+    JOIN meeting_participants p ON p.meeting_id = r.meeting_id AND p.guest_id = r.requester_guest_id
+    WHERE r.meeting_id = $1 AND r.requester_guest_id = $2
+      AND r.status = 'APPROVED' AND r.provider_participant_sid = $3::text
+      AND p.principal_type = 'GUEST' AND p.status = 'ACTIVE'
+  ) AS approved
 `
 
 type DialInCallerAdmittedParams struct {
@@ -46,15 +54,23 @@ type DialInCallerAdmittedParams struct {
 	ParticipantSid string      `json:"participant_sid"`
 }
 
+type DialInCallerAdmittedRow struct {
+	InSession bool `json:"in_session"`
+	Approved  bool `json:"approved"`
+}
+
 // tenant: parent meeting_id
 // One connection of a caller is in the meeting proper (not held) while it
-// has an open room session: admission opens it for that connection's SID,
-// its hang-up closes it. A redial is another connection and knocks again.
-func (q *Queries) DialInCallerAdmitted(ctx context.Context, arg DialInCallerAdmittedParams) (bool, error) {
+// has an open room session (in_session): admission opens it for that
+// connection's SID, its hang-up closes it. A redial is another connection
+// and knocks again. approved: the host approved this connection's knock and
+// the caller is not removed, so it counts as admitted even before (or
+// without) its session — the approval commits first, then the provider call.
+func (q *Queries) DialInCallerAdmitted(ctx context.Context, arg DialInCallerAdmittedParams) (DialInCallerAdmittedRow, error) {
 	row := q.db.QueryRow(ctx, dialInCallerAdmitted, arg.MeetingID, arg.GuestID, arg.ParticipantSid)
-	var exists bool
-	err := row.Scan(&exists)
-	return exists, err
+	var i DialInCallerAdmittedRow
+	err := row.Scan(&i.InSession, &i.Approved)
+	return i, err
 }
 
 const dialInPinTaken = `-- name: DialInPinTaken :one
@@ -157,6 +173,18 @@ func (q *Queries) ListMeetingDialInRuleIDs(ctx context.Context) ([]string, error
 		return nil, err
 	}
 	return items, nil
+}
+
+const lockMeetingDialIn = `-- name: LockMeetingDialIn :exec
+SELECT pg_advisory_xact_lock(hashtextextended('meeting_dial_in:' || $1::text, 0))
+`
+
+// Serializes ensures of one meeting's rule across replicas (Start's inline
+// ensure and a sweep): otherwise the second sees no rule, makes one for the
+// same PIN, is refused by the first's rule and rotates the PIN people hold.
+func (q *Queries) LockMeetingDialIn(ctx context.Context, meetingID string) error {
+	_, err := q.db.Exec(ctx, lockMeetingDialIn, meetingID)
+	return err
 }
 
 const openDialInSessionSid = `-- name: OpenDialInSessionSid :one

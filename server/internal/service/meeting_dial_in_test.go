@@ -190,6 +190,48 @@ func TestDialInSweepRepairsWhatStartAndEndMissed(t *testing.T) {
 	}
 }
 
+// Start's inline ensure and a sweep on another replica run at once: one rule
+// is made, the PIN people were given stays, and nobody rotates it against
+// the other's rule.
+func TestDialInParallelEnsureKeepsOneRuleAndThePIN(t *testing.T) {
+	s, fake, ua, _, a := dialInFixture(t)
+	ctx := context.Background()
+	fake.DialInRuleErr = errors.New("sip down")
+	m, err := s.CreateInstant(ctx, ua.ID, a.WorkspaceID, "Song song")
+	if err != nil {
+		t.Fatal(err)
+	}
+	fake.DialInRuleErr = nil
+	pin := reloadMeeting(t, s, m.ID).DialInPin.String
+	// Warm the pool, or dialing new connections staggers the ensures.
+	warm := make(chan error, 4)
+	for range 4 {
+		go func() { _, err := s.pool.Exec(ctx, `SELECT pg_sleep(0.05)`); warm <- err }()
+	}
+	for range 4 {
+		if err := <-warm; err != nil {
+			t.Fatal(err)
+		}
+	}
+	errs := make(chan error, 4)
+	for range 4 {
+		go func() { errs <- s.ensureDialIn(ctx, m.ID) }()
+	}
+	for range 4 {
+		if err := <-errs; err != nil {
+			t.Errorf("ensure: %v", err)
+		}
+	}
+	m = reloadMeeting(t, s, m.ID)
+	rule, ok := fake.LiveDialInRules()[m.SipDispatchRuleID.String]
+	if !ok || rule.Pin != pin || m.DialInPin.String != pin {
+		t.Fatalf("pin %q -> %q, rule %+v ok=%v", pin, m.DialInPin.String, rule, ok)
+	}
+	if n := dialInAuditCount(t, s, m.ID, "meeting.dial_in_pin_rotated", "system"); n != 0 {
+		t.Fatalf("parallel ensures rotated the PIN %d times", n)
+	}
+}
+
 func dialInAuditCount(t *testing.T, s *MeetingService, meetingID, action, kind string) int {
 	t.Helper()
 	var n int
@@ -259,8 +301,45 @@ func pendingKnockOf(t *testing.T, s *MeetingService, m db.Meeting, guestID strin
 	return jr, err == nil
 }
 
+// admitted: the connection's room session is open.
 func admitted(s *MeetingService, m db.Meeting, guestID, sid string) bool {
-	return s.connectionAdmitted(context.Background(), m.ID, guestID, sid)
+	return s.dialInCallerState(context.Background(), s.q, m.ID, guestID, sid).InSession
+}
+
+// The approval commits before the provider call that lets the caller in: a
+// sweep in that gap (or after the call failed) finishes the admission
+// instead of filing a new knock and holding the admitted caller again.
+func TestDialInSweepFinishesAnApprovedAdmission(t *testing.T) {
+	s, fake, ua, _, m := dialInFixture(t)
+	ctx := context.Background()
+	m = reloadMeeting(t, s, m.ID)
+	const caller = "sip_gap"
+	ev := dialIn(t, s, fake, m, caller, "PA_1")
+	jr, _ := pendingKnockOf(t, s, m, ev.Identity)
+	// No provider while approving: the approval commits, the admission never runs.
+	s.provider = nil
+	if err := s.ApproveJoinRequest(ctx, ua.ID, jr.ID); err != nil {
+		t.Fatal(err)
+	}
+	s.provider = fake
+	if !s.connectionAdmitted(ctx, m.ID, ev.Identity, "PA_1") {
+		t.Fatal("an approved connection reads as not admitted")
+	}
+	if err := s.sweepDialIn(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if knock, ok := pendingKnockOf(t, s, m, ev.Identity); ok {
+		t.Fatalf("the sweep filed a new knock for an approved caller: %+v", knock)
+	}
+	if in := lastUpdateFor(t, fake, caller); !in.Permissions.CanPublish || in.Attributes[dialInStateAttr] != "admitted" {
+		t.Fatalf("last update %+v", in)
+	}
+	if !admitted(s, m, ev.Identity, "PA_1") {
+		t.Fatal("the sweep opened no room session")
+	}
+	if _, removed := fake.Snapshot(); len(removed) != 0 {
+		t.Fatalf("the approved caller was hung up: %v", removed)
+	}
 }
 
 func TestDialInCallerWaitsInTheLobbyUntilAdmitted(t *testing.T) {

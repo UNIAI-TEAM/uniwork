@@ -114,7 +114,7 @@ func (s *MeetingService) dialInInfo(ctx context.Context, m db.Meeting) (DialInIn
 	if !dialInOpen(m) || !s.dialInOn(ctx, m.OrganizationID) {
 		return DialInInfo{}, nil
 	}
-	pin, err := s.meetingDialInPin(ctx, m)
+	pin, err := s.meetingDialInPin(ctx, s.q, m)
 	if err != nil {
 		return DialInInfo{}, err
 	}
@@ -123,14 +123,14 @@ func (s *MeetingService) dialInInfo(ctx context.Context, m db.Meeting) (DialInIn
 
 // meetingDialInPin is the meeting's PIN, drawn now for a meeting that has
 // none (created before the column, or restored).
-func (s *MeetingService) meetingDialInPin(ctx context.Context, m db.Meeting) (string, error) {
+func (s *MeetingService) meetingDialInPin(ctx context.Context, q *db.Queries, m db.Meeting) (string, error) {
 	if m.DialInPin.Valid {
 		return m.DialInPin.String, nil
 	}
-	pin, err := s.q.FillMeetingDialInPin(ctx, m.ID)
+	pin, err := q.FillMeetingDialInPin(ctx, m.ID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		// Filled by a concurrent caller.
-		fresh, err := s.q.GetMeeting(ctx, m.ID)
+		fresh, err := q.GetMeeting(ctx, m.ID)
 		return fresh.DialInPin.String, err
 	}
 	return pin.String, err
@@ -168,12 +168,10 @@ func (s *MeetingService) rotateDialInPin(ctx context.Context, m db.Meeting, acto
 		return "", err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
-	q := s.q.WithTx(tx)
-	row, err := q.RotateMeetingDialInPin(ctx, m.ID)
+	row, err := s.rotateDialInPinTx(ctx, s.q.WithTx(tx), m, actor)
 	if err != nil {
 		return "", err
 	}
-	s.recordAction(ctx, q, m, actor, audit.ActionMeetingDialInPinRotated, "meeting.updated", nil, nil, "meeting", m.ID)
 	if err := tx.Commit(ctx); err != nil {
 		return "", err
 	}
@@ -181,6 +179,15 @@ func (s *MeetingService) rotateDialInPin(ctx context.Context, m db.Meeting, acto
 		s.deleteDialInRule(ctx, m.ID, row.OldRuleID.String)
 	}
 	return row.DialInPin.String, nil
+}
+
+func (s *MeetingService) rotateDialInPinTx(ctx context.Context, q *db.Queries, m db.Meeting, actor audit.Actor) (db.RotateMeetingDialInPinRow, error) {
+	row, err := q.RotateMeetingDialInPin(ctx, m.ID)
+	if err != nil {
+		return row, err
+	}
+	s.recordAction(ctx, q, m, actor, audit.ActionMeetingDialInPinRotated, "meeting.updated", nil, nil, "meeting", m.ID)
+	return row, nil
 }
 
 // ensureDialInNow runs ensureDialIn for a request that must not wait on or
@@ -198,7 +205,9 @@ func (s *MeetingService) ensureDialInNow(ctx context.Context, meetingID string) 
 
 // ensureDialIn is the one owner of a meeting's SIP rule: a meeting in
 // progress with dial-in on holds exactly one, for its current PIN; any other
-// meeting holds none.
+// meeting holds none. Ensures of one meeting take turns (LockMeetingDialIn)
+// and do all their reads and writes on the lock's transaction, so a waiting
+// ensure holds one connection and the holder needs no second one.
 func (s *MeetingService) ensureDialIn(ctx context.Context, meetingID string) error {
 	m, err := s.q.GetMeeting(ctx, meetingID)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -207,29 +216,54 @@ func (s *MeetingService) ensureDialIn(ctx context.Context, meetingID string) err
 	if err != nil {
 		return err
 	}
-	want := m.Status == MeetingInProgress && s.dialInOn(ctx, m.OrganizationID)
+	// The flag is read before the lock: its store may need a connection of
+	// its own. The organization never changes.
+	on := s.dialInOn(ctx, m.OrganizationID)
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	q := s.q.WithTx(tx)
+	if err := q.LockMeetingDialIn(ctx, meetingID); err != nil {
+		return err
+	}
+	// Re-read under the lock: the ensure that held it may have made the rule.
+	if m, err = q.GetMeeting(ctx, meetingID); err != nil {
+		return err
+	}
+	err = s.ensureDialInLocked(ctx, q, m, m.Status == MeetingInProgress && on)
+	// Commit even on error: a rotation after a PIN conflict must stick.
+	return errors.Join(err, tx.Commit(ctx))
+}
+
+func (s *MeetingService) ensureDialInLocked(ctx context.Context, q *db.Queries, m db.Meeting, want bool) error {
 	if m.SipDispatchRuleID.Valid {
 		if want {
 			return nil
 		}
-		return s.dropDialInRule(ctx, m.ID, m.SipDispatchRuleID.String)
+		return s.dropDialInRule(ctx, q, m.ID, m.SipDispatchRuleID.String)
 	}
 	if !want {
 		return nil
 	}
-	pin, err := s.meetingDialInPin(ctx, m)
+	pin, err := s.meetingDialInPin(ctx, q, m)
 	if err != nil {
 		return err
 	}
-	taken, err := s.q.DialInPinTaken(ctx, db.DialInPinTakenParams{Pin: strText(pin), ID: m.ID})
+	taken, err := q.DialInPinTaken(ctx, db.DialInPinTakenParams{Pin: strText(pin), ID: m.ID})
 	if err != nil {
 		return err
 	}
+	// The rotations below drop no old rule: under the lock the meeting holds
+	// none, and only an ensure sets one.
 	if taken {
 		// Another meeting in progress routes this PIN; this one takes a new one.
-		if pin, err = s.rotateDialInPin(ctx, m, dialInActor); err != nil {
+		row, err := s.rotateDialInPinTx(ctx, q, m, dialInActor)
+		if err != nil {
 			return err
 		}
+		pin = row.DialInPin.String
 	}
 	ruleID, err := s.provider.CreateDialInRule(ctx, meetings.DialInRuleRequest{
 		RoomName: meetings.RoomNameForMeeting(m.ID), Pin: pin, TrunkID: s.rt.SIPTrunkID, Name: dialInRulePrefix + m.ID,
@@ -238,7 +272,7 @@ func (s *MeetingService) ensureDialIn(ctx context.Context, meetingID string) err
 		// A rule this deployment does not know of (a stray one, or another
 		// tenant of the trunk) holds the PIN: draw a new one, try next sweep.
 		s.count("dial_in_rule_conflict")
-		if _, rerr := s.rotateDialInPin(ctx, m, dialInActor); rerr != nil {
+		if _, rerr := s.rotateDialInPinTx(ctx, q, m, dialInActor); rerr != nil {
 			return errors.Join(err, rerr)
 		}
 		return err
@@ -247,10 +281,10 @@ func (s *MeetingService) ensureDialIn(ctx context.Context, meetingID string) err
 		s.count("dial_in_rule_failed")
 		return err
 	}
-	n, err := s.q.SetMeetingDialInRule(ctx, db.SetMeetingDialInRuleParams{RuleID: strText(ruleID), ID: m.ID, Pin: strText(pin)})
+	n, err := q.SetMeetingDialInRule(ctx, db.SetMeetingDialInRuleParams{RuleID: strText(ruleID), ID: m.ID, Pin: strText(pin)})
 	if err != nil || n == 0 {
-		// Lost a race (another ensure, the end, a rotation, or a PIN another
-		// meeting claimed first): the rule just made is nobody's.
+		// Lost a race (the end, a rotation, or a PIN another meeting claimed
+		// first): the rule just made is nobody's.
 		s.deleteDialInRule(ctx, m.ID, ruleID)
 		return err
 	}
@@ -260,11 +294,11 @@ func (s *MeetingService) ensureDialIn(ctx context.Context, meetingID string) err
 
 // dropDialInRule deletes the provider's rule, then forgets it; a failed
 // delete keeps the column so the sweep tries again.
-func (s *MeetingService) dropDialInRule(ctx context.Context, meetingID, ruleID string) error {
+func (s *MeetingService) dropDialInRule(ctx context.Context, q *db.Queries, meetingID, ruleID string) error {
 	if err := s.provider.DeleteDialInRule(ctx, ruleID); err != nil {
 		return err
 	}
-	_, err := s.q.ClearMeetingDialInRule(ctx, db.ClearMeetingDialInRuleParams{ID: meetingID, RuleID: strText(ruleID)})
+	_, err := q.ClearMeetingDialInRule(ctx, db.ClearMeetingDialInRuleParams{ID: meetingID, RuleID: strText(ruleID)})
 	return err
 }
 
@@ -351,9 +385,19 @@ func (s *MeetingService) HoldDialInCaller(ctx context.Context, ev ProviderNeutra
 	s.holdDialInCaller(ctx, ev.RoomName, identity, ev.ParticipantName)
 }
 
+// connectionAdmitted: the connection has its room session, or its knock was
+// approved (the session may not be open yet). Unknown reads as not admitted.
 func (s *MeetingService) connectionAdmitted(ctx context.Context, meetingID, guestID, sid string) bool {
-	admitted, err := s.q.DialInCallerAdmitted(ctx, db.DialInCallerAdmittedParams{MeetingID: meetingID, GuestID: strText(guestID), ParticipantSid: sid})
-	return err == nil && admitted
+	st := s.dialInCallerState(ctx, s.q, meetingID, guestID, sid)
+	return st.InSession || st.Approved
+}
+
+func (s *MeetingService) dialInCallerState(ctx context.Context, q *db.Queries, meetingID, guestID, sid string) db.DialInCallerAdmittedRow {
+	st, err := q.DialInCallerAdmitted(ctx, db.DialInCallerAdmittedParams{MeetingID: meetingID, GuestID: strText(guestID), ParticipantSid: sid})
+	if err != nil {
+		return db.DialInCallerAdmittedRow{}
+	}
+	return st
 }
 
 func (s *MeetingService) holdDialInCaller(ctx context.Context, room, identity, name string) {
@@ -409,6 +453,11 @@ func (s *MeetingService) dialInCallerJoined(ctx context.Context, q *db.Queries, 
 		return err
 	}
 	if m.Status != MeetingInProgress || !m.SipDispatchRuleID.Valid || ev.SIPRuleID != m.SipDispatchRuleID.String {
+		return nil
+	}
+	// A join that arrives after the sweep filed this connection's knock and
+	// the host approved it: no second knock to refuse the admitted caller by.
+	if st := s.dialInCallerState(ctx, q, m.ID, ev.Identity, ev.ParticipantSID); st.InSession || st.Approved {
 		return nil
 	}
 	p, err := q.GetGuestParticipantAnyStatus(ctx, db.GetGuestParticipantAnyStatusParams{MeetingID: m.ID, GuestID: strText(ev.Identity)})
@@ -496,7 +545,16 @@ func (s *MeetingService) sweepDialInCallers(ctx context.Context, meetingID strin
 			ParticipantSID: p.SID, ParticipantKind: ParticipantKindSIP, ParticipantName: p.Name,
 			SIPRuleID: p.Attributes[livekitSIPRuleAttr], OccurredAt: time.Now().UTC(),
 		})
-		if s.connectionAdmitted(ctx, m.ID, ev.Identity, ev.ParticipantSID) {
+		st := s.dialInCallerState(ctx, s.q, m.ID, ev.Identity, ev.ParticipantSID)
+		if st.Approved && !st.InSession {
+			// Approved, but the admission that follows the approval's commit
+			// did not finish (a crash, a failed provider call): finish it.
+			if gp, err := s.q.GetGuestParticipantAnyStatus(ctx, db.GetGuestParticipantAnyStatusParams{MeetingID: m.ID, GuestID: strText(ev.Identity)}); err == nil {
+				s.admitDialInCaller(ctx, m, gp, ev.ParticipantSID)
+			}
+			continue
+		}
+		if st.InSession {
 			continue
 		}
 		if err := s.inTx(ctx, func(q *db.Queries) error { return s.dialInCallerJoined(ctx, q, sess, ev) }); err != nil {
@@ -551,7 +609,7 @@ func (s *MeetingService) cancelDialInRequest(ctx context.Context, q *db.Queries,
 // admitDialInCaller gives the approved connection its voice and ears and
 // opens its room session, keyed by that connection's SID. A caller who hung
 // up meanwhile gets neither.
-func (s *MeetingService) admitDialInCaller(ctx context.Context, m db.Meeting, p db.MeetingParticipant, jr db.MeetingJoinRequest) {
+func (s *MeetingService) admitDialInCaller(ctx context.Context, m db.Meeting, p db.MeetingParticipant, sid string) {
 	if s.provider == nil {
 		return
 	}
@@ -559,7 +617,6 @@ func (s *MeetingService) admitDialInCaller(ctx context.Context, m db.Meeting, p 
 	if err != nil {
 		return
 	}
-	sid := jr.ProviderParticipantSid.String
 	conn, ok := s.liveConnection(ctx, sess.ProviderRoomName, sid)
 	if !ok {
 		return
