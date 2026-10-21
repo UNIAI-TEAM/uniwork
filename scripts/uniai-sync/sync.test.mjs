@@ -84,13 +84,27 @@ test("assignee note names the UniAI person or agent", () => {
 test("mapAssignee applies the three email pairs and leaves agents unassigned", () => {
   const people = new Map([
     ["user-hien", { name: "Hiền", email: "tranthihien.attt@gmail.com" }],
+    ["user-long", { name: "Long", email: "12345mmmin@gmail.com" }],
+    ["user-vinh", { name: "Vinh", email: "bavinh2803@gmail.com" }],
     ["user-stranger", { name: "Lạ", email: "la@example.com" }],
   ]);
   const agents = new Map([["agent-1", { name: "LEVI" }]]);
-  const uniwork = new Map([["hien.tran.vietants@gmail.com", { user_id: "uw-hien" }]]);
+  const uniwork = new Map([
+    ["hien.tran.vietants@gmail.com", { user_id: "uw-hien" }],
+    ["longthldz@gmail.com", { user_id: "uw-long" }],
+    ["vinhnba2803.work@gmail.com", { user_id: "uw-vinh" }],
+  ]);
   assert.deepEqual(
     mapAssignee({ assignee_id: "user-hien", assignee_type: "member" }, people, agents, uniwork),
     { assigneeId: "uw-hien", note: null },
+  );
+  assert.deepEqual(
+    mapAssignee({ assignee_id: "user-long", assignee_type: "member" }, people, agents, uniwork),
+    { assigneeId: "uw-long", note: null },
+  );
+  assert.deepEqual(
+    mapAssignee({ assignee_id: "user-vinh", assignee_type: "member" }, people, agents, uniwork),
+    { assigneeId: "uw-vinh", note: null },
   );
   const stranger = mapAssignee(
     { assignee_id: "user-stranger", assignee_type: "member" },
@@ -438,4 +452,105 @@ test("a held lock exits 0 and does not list issues", async () => {
   assert.equal(result.code, 0);
   assert.equal(listed, 0);
   assert.match(result.lines.join("\n"), /already running/);
+});
+
+test("a missing label is created once and shared by the next issue", async () => {
+  const box = world([
+    issue({ id: "l1", identifier: "UNI-30", title: "Một", labels: [{ name: "uw-backend" }] }),
+    issue({ id: "l2", identifier: "UNI-31", title: "Hai", labels: [{ name: "uw-backend" }] }),
+  ]);
+  let creates = 0;
+  const createLabel = box.deps.uniwork.createLabel;
+  box.deps.uniwork.createLabel = async (name) => {
+    creates += 1;
+    return createLabel(name);
+  };
+  const result = await syncRun(box.deps);
+  assert.equal(result.code, 0);
+  assert.equal(creates, 1);
+  const made = box.mcp.filter((call) => call[0] === "create_task");
+  assert.equal(made.length, 2);
+  assert.deepEqual(made[0][1].label_ids, ["label-uw-backend"]);
+  assert.deepEqual(made[1][1].label_ids, ["label-uw-backend"]);
+});
+
+test("two labels with one name fail only the issue that needs it", async () => {
+  const box = world([
+    issue({ id: "dup", identifier: "UNI-32", title: "Trùng", labels: [{ name: "uw-backend" }] }),
+    issue({ id: "plain", identifier: "UNI-33", title: "Thường" }),
+  ]);
+  box.deps.uniwork.listLabels = async () => [
+    { id: "x1", name: "uw-backend" },
+    { id: "x2", name: "uw-backend" },
+  ];
+  let creates = 0;
+  box.deps.uniwork.createLabel = async () => {
+    creates += 1;
+    return { id: "never", name: "uw-backend" };
+  };
+  const result = await syncRun(box.deps);
+  assert.equal(result.code, 1);
+  assert.equal(creates, 0);
+  assert.match(result.lines.join("\n"), /duplicate label uw-backend/);
+  const made = box.mcp.filter((call) => call[0] === "create_task");
+  assert.equal(made.length, 1);
+  assert.equal(made[0][1].title, "UNI-33: Thường");
+  assert.equal(box.metadata.has("dup"), false);
+});
+
+test("a reply to a deleted UniAI comment is posted without reply_to", async () => {
+  const box = world(
+    [issue({ id: "thread", identifier: "UNI-34", title: "Luồng" })],
+    {
+      thread: [
+        { id: "gone", author_id: "user-hien", author_type: "member", content: "cũ", created_at: "2026-01-01T00:00:00Z", deleted_at: "2026-01-02T00:00:00Z" },
+        { id: "kid", parent_id: "gone", author_id: "user-hien", author_type: "member", content: "trả lời", created_at: "2026-01-03T00:00:00Z" },
+      ],
+    },
+  );
+  const result = await syncRun(box.deps);
+  assert.equal(result.code, 0);
+  const adds = box.mcp.filter((call) => call[0] === "add_comment");
+  assert.equal(adds.length, 1);
+  assert.ok(String(adds[0][1].body).includes("uniai-comment:kid"));
+  assert.equal("reply_to" in adds[0][1], false);
+  assert.ok(box.metadata.get("thread").uniwork_sync);
+});
+
+test("a reply whose live parent cannot be copied yet does not write the hash", async () => {
+  const box = world(
+    [issue({ id: "loop", identifier: "UNI-35", title: "Vòng" })],
+    {
+      loop: [
+        { id: "p", parent_id: "q", author_id: "user-hien", author_type: "member", content: "một", created_at: "2026-01-01T00:00:00Z" },
+        { id: "q", parent_id: "p", author_id: "user-hien", author_type: "member", content: "hai", created_at: "2026-01-02T00:00:00Z" },
+      ],
+    },
+  );
+  const result = await syncRun(box.deps);
+  assert.equal(result.code, 0);
+  assert.match(result.lines.join("\n"), /waiting comment loop/);
+  assert.equal(box.mcp.filter((call) => call[0] === "add_comment").length, 0);
+  assert.equal(box.metadata.get("loop")?.uniwork_sync, undefined);
+});
+
+test("a reply listed before its live parent is posted after it with reply_to", async () => {
+  const box = world(
+    [issue({ id: "order", identifier: "UNI-36", title: "Thứ tự" })],
+    {
+      order: [
+        { id: "a-child", parent_id: "z-parent", author_id: "user-hien", author_type: "member", content: "con", created_at: "2026-01-01T00:00:00Z" },
+        { id: "z-parent", author_id: "user-hien", author_type: "member", content: "cha", created_at: "2026-01-01T00:00:00Z" },
+      ],
+    },
+  );
+  const result = await syncRun(box.deps);
+  assert.equal(result.code, 0);
+  const adds = box.mcp.filter((call) => call[0] === "add_comment");
+  assert.equal(adds.length, 2);
+  assert.ok(String(adds[0][1].body).includes("uniai-comment:z-parent"));
+  assert.ok(String(adds[1][1].body).includes("uniai-comment:a-child"));
+  // world() numbers ids from one counter: task-1, then the parent comment c-2.
+  assert.equal(adds[1][1].reply_to, "c-2");
+  assert.ok(box.metadata.get("order").uniwork_sync);
 });
