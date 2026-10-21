@@ -8,7 +8,7 @@ vi.mock("../api", () => ({ api: { request: vi.fn() } }));
 import { chatApi } from "../chat-api";
 import { flattenRoomTimeline, type RoomTimeline } from "../chat-timeline";
 import { chatKeys } from "../queries/chat-keys";
-import { createChatRealtime, ROOM_ACTIVITY_DEBOUNCE_MS, type ChatRealtimeDeps } from "./chat-realtime";
+import { BURST_CATCH_UP_MIN, createChatRealtime, ROOM_ACTIVITY_DEBOUNCE_MS, type ChatRealtimeDeps } from "./chat-realtime";
 
 const msg = (id: string, minute: number, extra: Partial<ChatMessageRecord> = {}): ChatMessageRecord => ({
   id,
@@ -200,5 +200,63 @@ describe("socket lifecycle", () => {
     expect(keys).toEqual(
       expect.arrayContaining([chatKeys.rooms("w1"), chatKeys.nicknames("w1"), ["chat", "w1", "thread-messages"], timelineKey]),
     );
+  });
+
+  it("does not drop a frame whose GET failed (audit R4): a new message is read by a catch-up, the list follows", async () => {
+    vi.spyOn(chatApi, "getMessage").mockRejectedValue(new TypeError("Network request failed"));
+    const list = vi.spyOn(chatApi, "listMessages").mockResolvedValue([msg("m2", 2)]);
+    show(qc, timelineKey, { pages: [[msg("m1", 1)]], pageParams: [null] });
+    const invalidate = vi.spyOn(qc, "invalidateQueries");
+    createChatRealtime(qc, deps).handle(frame("chat.message.created", { room_id: "r1", message_id: "m2", sender_id: "u2" }));
+    await vi.waitFor(() => expect(ids(qc)).toEqual(["m1", "m2"]));
+    expect(list).toHaveBeenCalledTimes(1);
+    await vi.waitFor(() => expect(invalidate).toHaveBeenCalledWith({ queryKey: chatKeys.rooms("w1") }));
+  });
+
+  it("an edit or a thread reply whose GET failed refetches the room and the thread", async () => {
+    vi.spyOn(chatApi, "getMessage").mockRejectedValue(new Error("500"));
+    show(qc, timelineKey, { pages: [[msg("m1", 1)]], pageParams: [null] });
+    const invalidate = vi.spyOn(qc, "invalidateQueries");
+    const realtime = createChatRealtime(qc, deps);
+    realtime.handle(frame("chat.message.updated", { room_id: "r1", message_id: "m1" }));
+    realtime.handle(frame("chat.thread.replied", { room_id: "r2", message_id: "t1", thread_root_id: "root" }));
+    show(qc, chatKeys.threadMessages("w1", "r2", "root"), { pages: [[msg("root", 0)]], pageParams: [null] });
+    await vi.waitFor(() => expect(invalidate).toHaveBeenCalledWith({ queryKey: chatKeys.threadMessages("w1", "r2", "root") }));
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: timelineKey });
+  });
+
+  it("reads a burst of new messages behind a GET as one catch-up, and still GETs an edit in it once", async () => {
+    let answer: (m: ChatMessageRecord) => void = () => undefined;
+    const get = vi
+      .spyOn(chatApi, "getMessage")
+      .mockReturnValueOnce(new Promise((resolve) => (answer = resolve)))
+      .mockResolvedValue({ ...msg("m1", 1), body: "đã sửa" });
+    const list = vi.spyOn(chatApi, "listMessages").mockResolvedValue([msg("m3", 3), msg("m4", 4), msg("m5", 5)]);
+    show(qc, timelineKey, { pages: [[msg("m1", 1)]], pageParams: [null] });
+    const invalidate = vi.spyOn(qc, "invalidateQueries");
+    const realtime = createChatRealtime(qc, deps);
+    realtime.handle(frame("chat.message.created", { room_id: "r1", message_id: "m2", sender_id: "u2" }));
+    for (const id of ["m3", "m4", "m5", "m5"]) realtime.handle(frame("chat.message.created", { room_id: "r1", message_id: id, sender_id: "u2" }));
+    realtime.handle(frame("chat.message.updated", { room_id: "r1", message_id: "m1" }));
+    realtime.handle(frame("chat.message.updated", { room_id: "r1", message_id: "m1" }));
+    expect(BURST_CATCH_UP_MIN).toBe(2);
+    answer(msg("m2", 2));
+    await vi.waitFor(() => expect(ids(qc)).toEqual(["m1", "m2", "m3", "m4", "m5"]));
+    await vi.waitFor(() => expect(get).toHaveBeenCalledTimes(2));
+    expect(get.mock.calls.map((call) => call[2])).toEqual(["m2", "m1"]);
+    expect(list).toHaveBeenCalledTimes(1);
+    await vi.waitFor(() => expect(flattenRoomTimeline(qc.getQueryData<RoomTimeline>(timelineKey)!)[0]?.body).toBe("đã sửa"));
+    await vi.waitFor(() => expect(invalidate).toHaveBeenCalledWith({ queryKey: chatKeys.rooms("w1") }));
+  });
+
+  it("a burst in a room nobody shows is counted frame by frame, without a catch-up", async () => {
+    const list = vi.spyOn(chatApi, "listMessages");
+    const get = vi.spyOn(chatApi, "getMessage");
+    qc.setQueryData(chatKeys.rooms("w1"), [room("r9")]);
+    const realtime = createChatRealtime(qc, deps);
+    for (const id of ["a", "b", "c"]) realtime.handle(frame("chat.message.created", { room_id: "r9", message_id: id, sender_id: "u2" }));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(list).not.toHaveBeenCalled();
+    expect(get).not.toHaveBeenCalled();
   });
 });

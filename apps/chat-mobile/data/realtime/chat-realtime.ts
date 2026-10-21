@@ -11,7 +11,7 @@ import {
   patchChatRoomRead,
   type ChatViewer,
 } from "../chat-cache";
-import { catchUpOnChatSubscribeAck, refreshLoadedRoomTimelines } from "../chat-timeline";
+import { catchUpOnChatSubscribeAck, catchUpRoomTimeline, refreshLoadedRoomTimelines } from "../chat-timeline";
 import { chatKeys } from "../queries/chat-keys";
 import type { WSMessage } from "./ws-types";
 
@@ -27,6 +27,23 @@ export interface ChatRealtimeDeps {
  * rooms list refetches once per burst instead of once per frame.
  */
 export const ROOM_ACTIVITY_DEBOUNCE_MS = 300;
+
+/**
+ * A busy room sends a frame per message and the phone used to GET each one
+ * (audit P2: no sequence events). One GET per room runs at a time; the frames
+ * that pile up behind it are read together: this many new messages or more,
+ * on a timeline someone shows, is one catch-up read instead of a GET each.
+ */
+export const BURST_CATCH_UP_MIN = 2;
+
+interface MessageFrame {
+  roomId: string;
+  messageId: string;
+  /** A new main-timeline message (counts as unread, can be read by a catch-up). */
+  created: boolean;
+  senderId?: string;
+  threadRootId?: string;
+}
 
 export function createChatRealtime(qc: QueryClient, deps: ChatRealtimeDeps) {
   const { wsId } = deps;
@@ -44,6 +61,59 @@ export function createChatRealtime(qc: QueryClient, deps: ChatRealtimeDeps) {
     }, ROOM_ACTIVITY_DEBOUNCE_MS);
   }
 
+  const isShown = (roomId: string) =>
+    (qc.getQueryCache().find({ queryKey: chatKeys.roomMessages(wsId, roomId), exact: true })?.getObserversCount() ?? 0) > 0;
+
+  /**
+   * A frame whose GET failed is not dropped (audit R4): a new message is read
+   * by a catch-up, anything else refetches the room (and its thread), and the
+   * list follows, so the message shows without reopening the room.
+   */
+  function recover(frame: MessageFrame): void {
+    const roomKey = chatKeys.roomMessages(wsId, frame.roomId);
+    if (frame.created) void catchUpRoomTimeline(qc, wsId, frame.roomId).catch(() => qc.invalidateQueries({ queryKey: roomKey }));
+    else void qc.invalidateQueries({ queryKey: roomKey });
+    if (frame.threadRootId) void qc.invalidateQueries({ queryKey: chatKeys.threadMessages(wsId, frame.roomId, frame.threadRootId) });
+    schedule(chatKeys.rooms(wsId), chatKeys.unreadSummary());
+  }
+
+  function patchOne(frame: MessageFrame): Promise<void> {
+    const { roomId, messageId, created, senderId } = frame;
+    return fetchAndPatchChatMessage(qc, wsId, deps.viewer(), { roomId, messageId, created, senderId }).catch(() => recover(frame));
+  }
+
+  // One line of frames per room: the frames that arrive while it reads are merged by message and read next.
+  const lines = new Map<string, Map<string, MessageFrame>>();
+
+  async function drain(roomId: string, queue: Map<string, MessageFrame>): Promise<void> {
+    try {
+      while (queue.size > 0) {
+        const frames = [...queue.values()];
+        queue.clear();
+        const fresh = frames.filter((frame) => frame.created && !frame.threadRootId);
+        const burst = fresh.length >= BURST_CATCH_UP_MIN && isShown(roomId);
+        if (burst) {
+          await catchUpRoomTimeline(qc, wsId, roomId).catch(() => recover(fresh[0]!));
+          // The previews and counts come from the list, not from each message.
+          schedule(chatKeys.rooms(wsId), chatKeys.unreadSummary());
+        }
+        for (const frame of burst ? frames.filter((f) => !fresh.includes(f)) : frames) await patchOne(frame);
+      }
+    } finally {
+      lines.delete(roomId);
+    }
+  }
+
+  function enqueueFrame(frame: MessageFrame): void {
+    const running = lines.get(frame.roomId);
+    const queue = running ?? new Map<string, MessageFrame>();
+    const prior = queue.get(frame.messageId);
+    queue.set(frame.messageId, prior ? { ...frame, created: prior.created || frame.created, senderId: frame.senderId ?? prior.senderId } : frame);
+    if (running) return;
+    lines.set(frame.roomId, queue);
+    void drain(frame.roomId, queue);
+  }
+
   function handle(msg: WSMessage): void {
     const payload = (msg.payload ?? {}) as Record<string, string | undefined>;
     if (catchUpOnChatSubscribeAck(qc, wsId, msg.type, payload as Record<string, string>)) return;
@@ -56,11 +126,12 @@ export function createChatRealtime(qc: QueryClient, deps: ChatRealtimeDeps) {
       case "chat.thread.replied":
         if (!roomId || !messageId) return;
         // A thread reply is not unread on the main timeline.
-        void fetchAndPatchChatMessage(qc, wsId, viewer, {
+        enqueueFrame({
           roomId,
           messageId,
           created: msg.type === "chat.message.created" && !payload.thread_root_id,
           senderId: payload.sender_id,
+          threadRootId: payload.thread_root_id,
         });
         if (msg.type === "chat.message.created") schedule(chatKeys.unreadSummary());
         return;
@@ -70,7 +141,7 @@ export function createChatRealtime(qc: QueryClient, deps: ChatRealtimeDeps) {
       case "chat.mention.created":
         if (!roomId) return;
         if (!payload.thread_root_id) patchChatMentionCreated(qc, wsId, viewer, roomId, payload.sender_id ?? "");
-        if (messageId) void fetchAndPatchChatMessage(qc, wsId, viewer, { roomId, messageId });
+        if (messageId) enqueueFrame({ roomId, messageId, created: false, threadRootId: payload.thread_root_id });
         return;
       case "chat.room.activity":
         schedule(chatKeys.rooms(wsId), chatKeys.unreadSummary());
