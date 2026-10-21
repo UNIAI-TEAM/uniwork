@@ -1,0 +1,11 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin advisor/pr7-rehearsal; git rev-parse HEAD FETCH_HEAD; git log --oneline -6; test "$(git rev-parse HEAD)" = "$(git rev-parse FETCH_HEAD)"; rc=$?; echo; echo "SYNCED_EXIT=$rc"
+8ad83e8801eadab56103d594a1dbc05868920feb
+17e24582560323187e3a2c235452a3c05e8d266b
+8ad83e880 chore: rehearse merge feature/UNI-2045-doclist-unified (6dfc790fc) into the PR7 rehearsal
+b0365bd97 chore: rehearse merge feature/UNI-2011-shortcut-parity (25995d78a) into the PR7 rehearsal
+78a122595 chore: rehearse merge feature/UNI-2012-chat-file-doc-rights (b64d291dc) into the PR7 rehearsal
+8be093cdb feat(views): draw the UniNote mark as the UniWork page tile (option J)
+25995d78a chore: merge the G5-G7 root (760723c61) into UNI-2011 shortcut parity
+b64d291dc fix(chat): read the version-line guards and the replay lookup off the save's own connection (UNI-2012 R3-FIX)
+
+SYNCED_EXIT=1
