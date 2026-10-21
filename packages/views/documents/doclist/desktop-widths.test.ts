@@ -26,7 +26,8 @@ describe("desktop widths of the shared columns", () => {
   it("pins the widths the cells need (padding included) and the Name floor", () => {
     for (const screen of DOC_LIST_SCREENS) {
       expect(width(screen, "select"), screen).toBe(32);
-      expect(width(screen, "access"), screen).toBe(120);
+      // 128: the "Được chia sẻ" pill is ~104px and the cell keeps 16px of padding (F6 truncated it at 120).
+      expect(width(screen, "access"), screen).toBe(128);
       expect(width(screen, "editor"), screen).toBe(130);
       expect(width(screen, "updated"), screen).toBe(118);
       expect(width(screen, "size"), screen).toBe(84);
@@ -36,10 +37,19 @@ describe("desktop widths of the shared columns", () => {
       // Lần mở gần nhất and its sort arrow need 128px; every other screen column is 118px.
       if (own) expect(width(screen, own), screen).toBe(own === "activity" ? 128 : 118);
     }
-    expect(NAME_FLOOR).toBe(184);
+    // Access took 8px from the floor (184 -> 176): the Size rung stays at 54rem (47 on workspace); only the table rung of the screen-column screens moves from 34 to 33rem.
+    expect(NAME_FLOOR).toBe(176);
     // Recent's extra 10px come out of the floor, so its rungs (and the other screens') stay where they were.
-    expect(nameFloor(docListSpec("recent"))).toBe(174);
-    for (const screen of DOC_LIST_SCREENS.filter((s) => s !== "recent")) expect(nameFloor(docListSpec(screen)), screen).toBe(184);
+    expect(nameFloor(docListSpec("recent"))).toBe(166);
+    for (const screen of DOC_LIST_SCREENS.filter((s) => s !== "recent")) expect(nameFloor(docListSpec(screen)), screen).toBe(176);
+  });
+
+  it("leaves the Access content box room for the full Được chia sẻ pill, on every screen (F6)", () => {
+    // Badge: 6px left padding + 12px icon + 4px gap + ~72px of 12px text + 8px right padding + 2px border (measured in the
+    // browser look); the cell keeps 8px of padding each side. At 120px the word was cut at 1440 ("Được chia ...").
+    const PILL = 104;
+    const CELL_PADDING = 16;
+    for (const screen of DOC_LIST_SCREENS) expect(width(screen, "access")! - CELL_PADDING, screen).toBeGreaterThanOrEqual(PILL);
   });
 
   it("shows every column of every screen at a 870px container (1440 viewport)", () => {
@@ -69,7 +79,7 @@ describe("desktop widths of the shared columns", () => {
       return [table, access, editor, size];
     };
     expect(rungs("workspace")).toEqual([26, 34, 42, 47]);
-    for (const screen of DOC_LIST_SCREENS.filter((s) => s !== "workspace")) expect(rungs(screen), screen).toEqual([34, 41, 49, 54]);
+    for (const screen of DOC_LIST_SCREENS.filter((s) => s !== "workspace")) expect(rungs(screen), screen).toEqual([33, 41, 49, 54]);
   });
 
   it("keeps the stacked layout below the table rung and the Name floor at every rung", () => {

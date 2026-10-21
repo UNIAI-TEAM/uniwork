@@ -32,7 +32,7 @@ export interface DocListColumn {
    * widest content needs plus the 8px side padding the optional columns carry:
    * "Hôm qua, 16:30" at the 12px mono caption size is ~101px, "Người sửa gần
    * nhất" and "Dung lượng" are the longest headers (~113px and ~70px), the
-   * "Được chia sẻ" pill fits Access, and Editor keeps a 24px avatar plus a
+   * "Được chia sẻ" pill (~104px, icon and padding included) fits Access's 112px content box, and Editor keeps a 24px avatar plus a
    * truncating name.
    */
   width: number;
@@ -67,7 +67,7 @@ const SCREEN_COLUMN_SORT: Record<DocListScreenColumnId, DocListSortKey> = {
 };
 
 /** The room Name keeps before a column joins: it never drops under this. */
-export const NAME_FLOOR = 184;
+export const NAME_FLOOR = 176;
 /** The width of a screen column; Recent's Lần mở gần nhất takes 10px more (its label and sort arrow). */
 const SCREEN_COLUMN_WIDTH = 118;
 const ACTIVITY_WIDTH = 128;
@@ -109,7 +109,7 @@ export function docListSpec(screen: DocListScreen): DocListSpec {
       column("select", null, 32),
       column("name", "name", 0),
       ...(own ? [screenColumn(own)] : []),
-      column("access", null, 120),
+      column("access", null, 128),
       column("editor", "editor", 130),
       column("updated", "updated", 118),
       column("size", "size", 84, "right"),
@@ -147,7 +147,7 @@ const rem = (px: number) => Math.ceil(px / 16);
 
 /**
  * The room Name keeps on a screen. Recent's wider activity column takes its 10px
- * from the floor (174), so its rungs sit exactly where the 118px column put them
+ * from the floor (166), so its rungs sit exactly where the 118px column put them
  * and no other screen moves a rung.
  */
 export function nameFloor(spec: DocListSpec): number {

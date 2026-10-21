@@ -508,7 +508,7 @@ describe("the default sort of each screen (UNI-2045 W12)", () => {
     expect(listCalls().every((path) => !queryOf(path).get("sort"))).toBe(true);
   });
 
-  it("Thùng rác: always deleted ascending, the headers are plain, the groups stay", async () => {
+  it("Thùng rác: always deleted ascending, no header is a button, Đã xóa shows the order, the groups stay", async () => {
     route({
       list: () => [
         summary({ id: "t1", title: "Sắp xóa", archived_at: "2026-10-01T00:00:00Z", purge_after: new Date(Date.now() + 2 * 86_400_000).toISOString() }),
@@ -521,7 +521,9 @@ describe("the default sort of each screen (UNI-2045 W12)", () => {
     expect(lastQuery(listCalls()).get("sort")).toBe("deleted");
     expect(lastQuery(listCalls()).get("order")).toBe("asc");
     expect(screen.queryAllByRole("button", { name: /^Sắp xếp theo|^Sort by/ })).toHaveLength(0);
-    expect(sortedHeaders()).toHaveLength(0);
+    // The one sorted header is the static Đã xóa (F1): aria-sort + arrow, no button.
+    expect(sortedHeaders().map((th) => th.textContent)).toEqual(["Đã xóa"]);
+    expect(sortedHeaders()[0]).toHaveAttribute("aria-sort", "ascending");
     expect(groupHeaders()).toHaveLength(2);
   });
 

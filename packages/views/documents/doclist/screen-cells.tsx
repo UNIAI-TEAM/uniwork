@@ -183,7 +183,7 @@ const SCREEN_CELLS: Partial<Record<DocListScreenColumnId, ScreenCellRenderer>> =
     },
     line: (fields, ctx) => (fields.shareSummary ? joinLine([shareSummaryText(fields, ctx), date(fields.shareSummary.latestAt, ctx)]) : null),
   },
-  // Thùng rác: who deleted · (date · "Còn N ngày").
+  // Thùng rác: who deleted, then the date, then "Còn N ngày" (each on its own line).
   deleted: {
     cell: (fields, ctx) => {
       if (!fields.trashed) return null;
@@ -193,11 +193,11 @@ const SCREEN_CELLS: Partial<Record<DocListScreenColumnId, ScreenCellRenderer>> =
       return (
         <span className="flex min-w-0 flex-col gap-0.5">
           <span className="truncate text-body text-foreground">{who?.name ?? EMPTY_CELL}</span>
+          {/* Two lines, not "date · Còn N ngày" in one: the column is 118px and the countdown is the part that must stay whole. */}
           {at || left ? (
-            <span className={cn("flex min-w-0 items-center gap-1 text-muted-foreground", SUB_LINE)}>
-              {at ? <span className="shrink-0">{at}</span> : null}
-              {at && left ? <span aria-hidden>·</span> : null}
-              {left ? <span className={cn("truncate", left.urgent && "text-destructive")}>{left.text}</span> : null}
+            <span className="flex min-w-0 flex-col gap-0.5">
+              {at ? <span className={cn("truncate text-muted-foreground", SUB_LINE)}>{at}</span> : null}
+              {left ? <span className={cn("truncate", SUB_LINE, left.urgent ? "text-destructive" : "text-muted-foreground")}>{left.text}</span> : null}
             </span>
           ) : null}
         </span>

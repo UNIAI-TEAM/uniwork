@@ -15,7 +15,7 @@ import { documentRow, type DocumentSummaryRow } from "./library-rows";
 
 initI18n();
 
-const NAME_MIN = 184;
+const NAME_MIN = 176;
 /** Below this container width nothing optional is left to drop: Name = width - border - actions. */
 const FLOOR = 320;
 /** The actions column of the shared spec on a fine pointer. */
@@ -194,7 +194,7 @@ describe("column ladder", () => {
     renderList();
     for (let c = FLOOR; c <= LIST_MAX; c += 1) {
       const { name } = layoutAt(c);
-      // The rungs hold Name above the 184px floor except in the narrowest
+      // The rungs hold Name above the 176px floor except in the narrowest
       // containers, where only Name and the 76px actions column exist.
       const min = c - BORDER - ACTIONS < NAME_MIN ? c - BORDER - ACTIONS : NAME_MIN;
       expect(name, `Name at ${c}`).toBeGreaterThanOrEqual(min);
@@ -209,8 +209,8 @@ describe("column ladder", () => {
 
   it("opens the same order on Shared by me, its screen column with the table (UNI-2045 replaces the SW-V1 swap)", () => {
     renderList({ screen: "shared-by-me" });
-    // 34rem table (screen column + Updated), 41rem Access, 49rem editor, 54rem Size: all of them inside the ~870px a 1440 viewport leaves.
-    expect(joinSteps(IDS_SHARED_BY_ME).slice(1)).toEqual(["544:shared_with+updated", "656:access", "784:editor", "864:size"]);
+    // 33rem table (screen column + Updated), 41rem Access, 49rem editor, 54rem Size: all of them inside the ~870px a 1440 viewport leaves.
+    expect(joinSteps(IDS_SHARED_BY_ME).slice(1)).toEqual(["528:shared_with+updated", "656:access", "784:editor", "864:size"]);
     const row = document.querySelector('[data-library-row="a"]') as HTMLElement;
     const accessLine = row.querySelector("[data-library-access-line]") as HTMLElement;
     expect(rungOf(accessLine.querySelector("[data-library-access-group]")!, /^hidden$/)).toBe(656);

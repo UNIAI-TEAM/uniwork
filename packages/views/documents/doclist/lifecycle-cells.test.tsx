@@ -67,6 +67,16 @@ describe("deleted screen column", () => {
     expect(screen.getByText("Còn 30 ngày")).toBeInTheDocument();
   });
 
+  it("puts the countdown on its own line under the date, so a 118px column cannot cut it (F3)", () => {
+    renderCell("deleted", trashed());
+    const date = screen.getByText("08:00");
+    const left = screen.getByText("Còn 30 ngày");
+    // Two sibling lines of the cell; no dot between them and no truncation of the countdown.
+    expect(left.parentElement).toBe(date.parentElement);
+    expect(date.parentElement).toHaveClass("flex-col");
+    expect(date.parentElement?.textContent).not.toContain("·");
+  });
+
   it("speaks English with the shared date words", async () => {
     await setLocale("en");
     try {
