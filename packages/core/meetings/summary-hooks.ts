@@ -6,6 +6,7 @@ import { invalidateTaskCollections } from "../tasks/invalidate";
 import { meetingKeys } from "./hooks";
 
 export type {
+  MeetingCatchUp,
   MeetingSummaryTaskInput,
   MeetingSummaryTasksBody,
   MeetingSummaryTasksResult,
@@ -39,6 +40,11 @@ export function useCreateMeetingSummary(meetingId: string) {
       void qc.invalidateQueries({ queryKey: meetingKeys.activity(meetingId) });
     },
   });
+}
+
+/** Asks for the late joiner's brief; nothing is cached client-side (the server shares it for two minutes). */
+export function useMeetingCatchUp(meetingId: string) {
+  return useMutation({ mutationFn: (locale: string) => api.createMeetingCatchUp(meetingId, locale) });
 }
 
 /**
