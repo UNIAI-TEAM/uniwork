@@ -101,7 +101,7 @@ sản phẩm đã chốt ngày 2026-10-20 (§13).
 | D17 | **Tóm tắt phần đã lỡ và Hỏi UNI chỉ cho thành viên workspace**, không cho khách. Khách vẫn thấy phụ đề trực tiếp. |
 | D18 | **Một cuộc họp có thể có nhiều lần chạy agent.** LiveKit kết thúc job khi phòng không còn ai; phòng mở lại thì gọi agent lần mới. Hết phòng là kết thúc bình thường, không tính là lỗi. |
 | D12 | **Lỗi agent không làm hỏng cuộc họp:** không có agent trong phòng thì client quay về Web Speech như hiện nay. |
-| D13 | Nhà cung cấp STT trực tiếp: **AssemblyAI Universal-3.5 Pro Streaming** (có tiếng Việt, tự chuyển Việt–Anh, tách người nói, từ khóa, plugin Python và Node), **đo thử ở S0** trước khi làm S1. Agent chọn qua `SCRIBE_STT_PROVIDER`, nên đổi nhà cung cấp không phải sửa code. Ghi lời file tải lên cũng dùng AssemblyAI (API file ghi sẵn, spec cha D14, thay BytePlus ngày 2026-10-21): một nhà cung cấp STT duy nhất. |
+| D13 | Nhà cung cấp STT trực tiếp: **AssemblyAI Universal-3.6 Pro Streaming** (`universal-3-6-pro`, chọn ở S0) (có tiếng Việt, tự chuyển Việt–Anh, tách người nói, từ khóa, plugin Python và Node), **đo thử ở S0** trước khi làm S1. Agent chọn qua `SCRIBE_STT_PROVIDER`, nên đổi nhà cung cấp không phải sửa code. Ghi lời file tải lên cũng dùng AssemblyAI (API file ghi sẵn, spec cha D14, thay BytePlus ngày 2026-10-21): một nhà cung cấp STT duy nhất. |
 | D14 | **Mặc định bật** cho tổ chức có quyền gói; phòng luôn hiện báo hiệu; chủ trì/admin tắt hoặc bật lại cho từng cuộc họp, kể cả giữa chừng. |
 | D15 | **Việc đề xuất trong lúc họp** nằm trong nhóm A (A4). |
 | D16 | **Tóm tắt tự tạo** khi họp xong, nếu có lời hoặc ghi chú (A5); tổ chức tắt được. |

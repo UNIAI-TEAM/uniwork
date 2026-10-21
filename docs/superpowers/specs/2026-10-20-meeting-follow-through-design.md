@@ -455,14 +455,21 @@ thuật làm người phụ trách.
   cung cấp tải file qua URL ký sẵn (đọc, hạn 6 giờ); server không giữ file trong bộ nhớ.
 - **AssemblyAI (D14).** Bản cài đặt duy nhất của interface trên, trong
   `internal/ai/provider` (API ghi lời file ghi sẵn của AssemblyAI).
-  - `POST {base}/v2/transcript`, header `authorization: <key>`. Body: `audio_url`,
-    `speech_models: ["universal-3-5-pro"]`, `language_codes: ["vi","en"]` (ngôn ngữ
-    của yêu cầu đứng đầu; model tự chuyển Việt–Anh giữa các ngôn ngữ đã nêu, như thư ký
-    AI), `speaker_labels: true`. Trả `id` của nhà cung cấp, là `provider_job_id`.
+  - `POST {base}/v2/transcript`, header `authorization: <key>`. Body đúng bốn trường:
+    `audio_url`, `speech_models: ["universal-3-5-pro","universal-2"]` (Universal-2 thay
+    khi 3.5 Pro không làm được), `language_codes: ["vi","en"]` (tự chuyển Việt–Anh như
+    thư ký AI; Universal-2 nhận tối đa hai mã, một mã là `en`), `speaker_labels: true`.
+    Trả `id` của nhà cung cấp, là `provider_job_id`. Model đã dùng (`speech_model_used`)
+    ghi vào cột `model`, nên thấy được khi rơi về Universal-2.
+  - Gửi bị từ chối 400/401/403/422: lỗi vĩnh viễn, việc `FAILED` ngay sau một lần thử,
+    ghi log mức error (id và mã HTTP). 429: chờ `Retry-After` (tối đa 10 phút), không
+    tính lần thử. 5xx và lỗi mạng: thử lại như cũ (3 lần, có giãn cách).
   - `GET {base}/v2/transcript/{id}`: `status` `queued`/`processing` đang xử lý,
-    `completed` xong, `error` là lỗi của việc. HTTP 400/404 (nhà cung cấp không biết
-    việc) cũng là lỗi của việc; 429, 5xx và lỗi mạng thì hỏi lại lượt sau. Câu báo lỗi
-    của nhà cung cấp không được lưu vì có thể chứa URL file.
+    `completed` xong. `error`: nhà cung cấp không tải được file thì thử lại (URL được ký
+    lại), lỗi khác là vĩnh viễn (`FAILED` ngay). HTTP 400/404 (nhà cung cấp không biết
+    việc) thì thử lại bằng việc mới; 401, 429, 5xx và lỗi mạng thì hỏi lại lượt sau tới
+    hạn chót. Câu báo lỗi của nhà cung cấp chỉ vào log (URL thay bằng `<url>`), không
+    lưu vào DB.
   - Kết quả: `utterances[] {speaker ("A", "B", …), start, end (ms), text}` → segment,
     nhãn người nói là chữ cái. Không có `utterances` mà có chữ thì thành một segment
     không nhãn. Thời lượng tính phí lấy từ `audio_duration` (giây), không có thì ước như
@@ -475,6 +482,10 @@ thuật làm người phụ trách.
     `AI_MEETING_TRANSCRIBE_PROVIDER=assemblyai` (hoặc `fake`), `ASSEMBLYAI_API_KEY`
     (cùng tên biến agent thư ký AI đọc), `AI_MEETING_TRANSCRIBE_BASE_URL` (rỗng là
     `https://api.assemblyai.com`, Mỹ; `https://api.eu.assemblyai.com` giữ dữ liệu ở EU).
+  - Ước trước cho hạn mức: hộp thoại tải lên đọc thời lượng từ metadata của tệp trên
+    trình duyệt và gửi `duration_seconds`; server kẹp vào [dung lượng ÷ 4 MB/s,
+    dung lượng ÷ 16 kB/s]. Không có thì ước theo dung lượng như cũ. Phút tính phí vẫn
+    lấy từ `audio_duration`.
   - Định dạng: AssemblyAI nhận cả âm thanh và video (mp3, m4a, wav, ogg, webm, mp4, …),
     tối đa 5 GB và 10 giờ mỗi file, nên `meeting_audio` nhận thêm `video/mp4`. Hạn 2 GiB
     của ta vẫn giữ. Không chuyển mã trên server.
@@ -510,6 +521,9 @@ hồ sơ chuyển dữ liệu ra nước ngoài**. **Trước khi bật cờ `me
 xác nhận vùng xử lý và thời gian AssemblyAI giữ file và bản ghi lời, và hoàn tất nghĩa vụ
 chuyển dữ liệu cá nhân ra nước ngoài theo quy định hiện hành (hồ sơ đánh giá tác động theo
 Nghị định 13/2023/NĐ-CP). Việc này không chặn code; nó chặn việc bật cờ ngoài nội bộ.
+
+Bản ghi lời file tải lên bị xóa ở AssemblyAI (`DELETE /v2/transcript/{id}`) ngay sau khi
+server lấy về và lưu xong; xóa hỏng thì ghi log, việc vẫn xong.
 
 ### 7.6 Dựng biên bản (đợt 7)
 
