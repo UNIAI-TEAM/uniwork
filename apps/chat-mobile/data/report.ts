@@ -19,7 +19,7 @@ export interface ReportContext {
   handledCodes?: readonly string[];
 }
 
-export interface CaptureContext {
+interface CaptureContext {
   tags: Record<string, string>;
   extra?: Record<string, unknown>;
   level: ReportLevel;

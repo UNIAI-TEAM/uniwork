@@ -38,6 +38,10 @@ test("mobile-verify can be called and builds the release only through its jobs",
   assert.match(envPin(wf, "MAESTRO_VERSION") ?? "", EXACT, "MAESTRO_VERSION is an exact version");
   assert.match(wf, /scripts\/mobile-workflows\.test\.mjs/, "the contract step runs this test");
   assert.match(wf, /scripts\/mobile-knip\.test\.mjs/, "the contract step runs the knip exception test");
+  // Dead code and dependency drift block on every PR, not only in a local make check.
+  assert.match(wf, /run: pnpm knip --workspace apps\/chat-mobile$/m, "knip runs over the app");
+  assert.match(wf, /EXPO_OFFLINE: "1"\n\s+run: pnpm exec expo install --check$/m, "native module versions are checked against the installed SDK");
+  assert.match(wf, /scripts\/mobile-lockfiles\.test\.mjs/, "the contract step rejects a foreign lockfile");
   assert.doesNotMatch(wf, /secrets\./, "the PR checks read no secret");
 });
 

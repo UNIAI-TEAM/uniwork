@@ -148,8 +148,21 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Typecheck, lint, unit and component tests
         run: pnpm exec turbo typecheck lint test --filter=@uniwork/chat-mobile
+      # Unused files, exports and dependencies, and imports of packages the app
+      # does not declare: the drift the first EAS production build met (PR #387).
+      - name: Dead code and dependencies (knip)
+        run: pnpm knip --workspace apps/chat-mobile
+      # Native modules against the versions the installed Expo SDK ships with
+      # (its bundledNativeModules.json). Offline on purpose: online, the check
+      # also asks for the newest patch Expo published today, which would turn
+      # every PR red the day Expo releases one, whatever the PR changed.
+      - name: Native module versions match the Expo SDK
+        working-directory: apps/chat-mobile
+        env:
+          EXPO_OFFLINE: "1"
+        run: pnpm exec expo install --check
       - name: Mobile repo contracts
-        run: node --test scripts/mobile-core-allowlist.test.mjs scripts/mobile-native-scope.test.mjs scripts/mobile-bundle-budget.test.mjs scripts/mobile-workflows.test.mjs scripts/mobile-knip.test.mjs scripts/mobile-web-copies.test.mjs
+        run: node --test scripts/mobile-core-allowlist.test.mjs scripts/mobile-native-scope.test.mjs scripts/mobile-bundle-budget.test.mjs scripts/mobile-workflows.test.mjs scripts/mobile-knip.test.mjs scripts/mobile-web-copies.test.mjs scripts/mobile-lockfiles.test.mjs
 
   doctor-bundle:
     name: expo-doctor and JS bundle budget

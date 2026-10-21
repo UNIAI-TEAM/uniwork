@@ -449,7 +449,8 @@ có push và associated domains: build tay với file entitlements rỗng.
 
 Root `typecheck`/`test`/`lint` và CI chính lọc `!@uniwork/chat-mobile`;
 app kiểm ở `.github/workflows/mobile-verify.yml`: job `mobile` (typecheck, lint,
-hai lớp test, `scripts/mobile-*.test.mjs`), `doctor-bundle` (`expo-doctor` rồi
+hai lớp test, `pnpm knip --workspace apps/chat-mobile`, `expo install --check` offline — version gói native theo SDK
+đã cài —, `scripts/mobile-*.test.mjs`, trong đó `mobile-lockfiles.test.mjs` cấm lockfile ngoài `pnpm-lock.yaml`), `doctor-bundle` (`expo-doctor` rồi
 `expo export --platform android` giữ trong `bundle-budget.json` bởi
 `scripts/mobile-bundle-budget.mjs`) và `android-release` (`expo prebuild` +
 `./gradlew :app:assembleRelease` x86_64, chỉ khi `scripts/mobile-native-scope.mjs`

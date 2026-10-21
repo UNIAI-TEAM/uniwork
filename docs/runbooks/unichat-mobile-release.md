@@ -26,7 +26,11 @@ của bản store trên kênh đó (`staging` cho `internal`/`preview`, `product
 **Cổng trước khi phát hành (CI, ADR 0037 — chặn ở mọi `GATE_LEVEL`)**
 
 - `mobile-verify.yml`, mỗi PR/push chạm app hoặc thứ app import: job `mobile` (typecheck, lint, test vitest sàn
-  100% và test component jest-expo, các test hợp đồng `scripts/mobile-*.test.mjs`); `doctor-bundle` (`expo-doctor`
+  100% và test component jest-expo, `knip --workspace apps/chat-mobile` (file, export, dependency thừa hay thiếu
+  khai), `expo install --check` với `EXPO_OFFLINE=1` (gói native đúng version SDK đã cài đòi; offline để một bản vá
+  Expo mới ra không làm đỏ mọi PR), các test hợp đồng `scripts/mobile-*.test.mjs` — trong đó
+  `mobile-lockfiles.test.mjs` đỏ khi app hay thư mục trên nó có lockfile khác `pnpm-lock.yaml`, thứ làm EAS cài bằng
+  npm); `doctor-bundle` (`expo-doctor`
   ghim `EXPO_DOCTOR_VERSION`, rồi `expo export --platform android` cấu hình production, đo bằng
   `scripts/mobile-bundle-budget.mjs` theo `apps/chat-mobile/bundle-budget.json`: bytecode Hermes, gzip, số module);
   `android-release` (`expo prebuild` + `./gradlew :app:assembleRelease`, x86_64) rồi `android-smoke` (APK đó trên
