@@ -49,7 +49,7 @@ export function RecentContinue({ cards, onOpen }: RecentContinueProps) {
       <h2 id={headingId} className="text-body-lg font-semibold">
         {t("documents.recent.continue_title")}
       </h2>
-      <div className="grid grid-cols-1 gap-3 min-[30rem]:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {cards.map((card) => (
           <button
             key={card.id}
@@ -58,7 +58,8 @@ export function RecentContinue({ cards, onOpen }: RecentContinueProps) {
             onClick={() => onOpen(card.id)}
             className="flex min-w-0 flex-col overflow-hidden rounded-xl border border-border bg-background text-left transition-colors hover:bg-accent"
           >
-            <span aria-hidden className="flex h-24 w-full justify-center bg-muted px-4 pt-4">
+            {/* The page preview is decoration: a phone keeps the cards to two compact rows. */}
+            <span aria-hidden className="hidden h-24 w-full justify-center bg-muted px-4 pt-4 sm:flex">
               <span className="flex w-[70%] flex-col gap-1.5 rounded-t-md bg-background p-3 shadow-sm">
                 <span className="h-1.5 w-1/2 rounded-full bg-muted-foreground/40" />
                 <span className="h-1 w-[88%] rounded-full bg-border" />
@@ -66,7 +67,7 @@ export function RecentContinue({ cards, onOpen }: RecentContinueProps) {
                 <span className="h-1 w-[80%] rounded-full bg-border" />
               </span>
             </span>
-            <span className="flex min-w-0 items-center gap-2.5 px-3.5 py-3">
+            <span className="flex min-w-0 items-center gap-2.5 px-3 py-2.5 sm:px-3.5 sm:py-3">
               <DocumentTypeIcon format={card.format} decorative className="size-7 shrink-0" />
               <span className="flex min-w-0 flex-col gap-0.5">
                 <span className="truncate text-body font-medium text-foreground">{card.title}</span>
