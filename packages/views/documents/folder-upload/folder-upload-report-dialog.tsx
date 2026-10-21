@@ -10,7 +10,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@uniwork/ui/components/ui/dialog";
-import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { failureReasonMessage } from "./folder-upload-copy";
 
 export interface FolderUploadFailure {
@@ -24,14 +23,13 @@ export interface FolderUploadReportDialogProps {
   /** The folder's real title, as the server answered. */
   name: string;
   failures: readonly FolderUploadFailure[];
-  retrying?: boolean;
   /** False after a 410 (the batch expired): the folder has to be uploaded again, so no retry is offered. */
   canRetry?: boolean;
   onRetry: () => void;
 }
 
 /** The files that did not go up, each with its reason, and the one action that retries only them. */
-export function FolderUploadReportDialog({ open, onOpenChange, name, failures, retrying = false, canRetry = true, onRetry }: FolderUploadReportDialogProps) {
+export function FolderUploadReportDialog({ open, onOpenChange, name, failures, canRetry = true, onRetry }: FolderUploadReportDialogProps) {
   const { t } = useTranslation();
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -63,21 +61,13 @@ export function FolderUploadReportDialog({ open, onOpenChange, name, failures, r
           {canRetry ? (
             <Button
               type="button"
-              aria-disabled={failures.length === 0 || retrying || undefined}
-              aria-busy={retrying || undefined}
+              aria-disabled={failures.length === 0 || undefined}
               onClick={() => {
-                if (failures.length === 0 || retrying) return;
+                if (failures.length === 0) return;
                 onRetry();
               }}
             >
-              {retrying ? (
-                <>
-                  <Spinner aria-hidden role="presentation" />
-                  {t("documents.folder_upload.report.retrying")}
-                </>
-              ) : (
-                t("documents.folder_upload.report.retry")
-              )}
+              {t("documents.folder_upload.report.retry")}
             </Button>
           ) : null}
         </DialogFooter>

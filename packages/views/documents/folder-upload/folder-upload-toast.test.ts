@@ -100,6 +100,22 @@ describe("createFolderUploadToast", () => {
     expect(toast.success.mock.calls[0]?.[0]).toBe("Đã tải lên 40 tệp vào «Báo cáo (1)»");
   });
 
+  it("says a cancel kept nothing without a zero count", () => {
+    const { handle } = make();
+    handle.settle(settled({ done: 0, canceled: true }));
+    expect(toast.info.mock.calls[0]?.[0]).toBe("Đã hủy tải lên");
+  });
+
+  it("names a retry as such, with a Cancel that stops only the retry", () => {
+    const onCancelAll = vi.fn();
+    createFolderUploadToast({ t, name: "Báo cáo", total: 40, onCancelAll, retry: true });
+    const [message, options] = toast.loading.mock.calls[0] ?? [];
+    expect(message).toBe("Đang thử lại «Báo cáo» — 0/40 tệp");
+    expect(options.action.label).toBe("Hủy thử lại");
+    options.action.onClick();
+    expect(onCancelAll).toHaveBeenCalledTimes(1);
+  });
+
   it("dismisses its own toast", () => {
     const { handle } = make();
     handle.dismiss();

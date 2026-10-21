@@ -10075,6 +10075,7 @@
         "view_failures": "View",
         "canceled_one": "Canceled — the {{count}} file already uploaded was kept",
         "canceled_other": "Canceled — the {{count}} files already uploaded were kept",
+        "canceled_none": "Upload canceled",
         "failed": "Couldn’t upload “{{name}}”",
         "folders_unavailable": "Folder upload isn’t available here. Drop the files one by one.",
         "read_failed": "Couldn’t read the folder you chose.",
@@ -10099,7 +10100,12 @@
           "missing_etag": "Couldn’t confirm the file reached storage.",
           "unknown": "This file couldn’t be uploaded."
         },
-        "expired_note": "The upload expired, so it can’t be retried. Upload the folder again."
+        "expired_note": "The upload expired, so it can’t be retried. Upload the folder again.",
+        "final_hint": "Fix the file, then upload the folder again."
+      },
+      "retry_toast": {
+        "progress": "Retrying “{{name}}” — {{done}}/{{total}} files",
+        "cancel": "Cancel retry"
       },
       "error": {
         "folder_upload_too_many_files": "{{actual}} files — {{max}} at most.",

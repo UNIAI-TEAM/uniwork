@@ -10069,6 +10069,7 @@
         "view_failures": "Xem",
         "canceled_one": "Đã hủy — {{count}} tệp đã tải lên được giữ lại",
         "canceled_other": "Đã hủy — {{count}} tệp đã tải lên được giữ lại",
+        "canceled_none": "Đã hủy tải lên",
         "failed": "Không tải lên được «{{name}}»",
         "folders_unavailable": "Chưa tải lên thư mục được ở đây. Hãy kéo thả từng tệp.",
         "read_failed": "Không đọc được thư mục vừa chọn.",
@@ -10092,7 +10093,12 @@
           "missing_etag": "Không xác nhận được tệp đã lên kho lưu trữ.",
           "unknown": "Không tải lên được tệp này."
         },
-        "expired_note": "Lượt tải lên đã hết hạn nên không thử lại được. Hãy tải lại thư mục."
+        "expired_note": "Lượt tải lên đã hết hạn nên không thử lại được. Hãy tải lại thư mục.",
+        "final_hint": "Sửa tệp rồi tải lại thư mục."
+      },
+      "retry_toast": {
+        "progress": "Đang thử lại «{{name}}» — {{done}}/{{total}} tệp",
+        "cancel": "Hủy thử lại"
       },
       "error": {
         "folder_upload_too_many_files": "{{actual}} tệp — tối đa {{max}}.",

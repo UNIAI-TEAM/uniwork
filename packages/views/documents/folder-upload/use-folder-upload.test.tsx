@@ -247,6 +247,78 @@ describe("useFolderUpload", () => {
     expect(transport.calls.some((c) => c.method === "cancel")).toBe(true);
   });
 
+  it("gives a retry its own toast, never revives the settled one, and ends in the success toast", async () => {
+    const { transport } = setup({}, { fileErrors: { "b.pdf": { code: "upload_missing", message: "" } } });
+    stage(entries("Mới", ["a.pdf", "b.pdf"]));
+    upload();
+    await waitFor(() => expect(toast.warning).toHaveBeenCalled());
+    const settled = toast.warning.mock.calls[0]?.[1];
+    const loadingBefore = toast.loading.mock.calls.length;
+    act(() => {
+      settled.action.onClick();
+    });
+    fireEvent.click(await screen.findByRole("button", { name: t("documents.folder_upload.report.retry") }));
+
+    await waitFor(() => expect(toast.success).toHaveBeenCalled());
+    const retryLoading = toast.loading.mock.calls.slice(loadingBefore);
+    expect(retryLoading.length).toBeGreaterThan(0);
+    expect(retryLoading.every((call) => call[1].id !== settled.id)).toBe(true);
+    expect(retryLoading[0]?.[1].action.label).toBe(t("documents.folder_upload.retry_toast.cancel"));
+    const [message, options] = toast.success.mock.calls[0] ?? [];
+    expect(message).toBe("Đã tải lên 2 tệp vào «Mới»");
+    expect(options.id).toBe(retryLoading[0]?.[1].id);
+    expect(options.action.label).toBe(t("documents.folder_upload.toast.open_folder"));
+    // The report gave way to the retry's toast; a retry is not an abandon.
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(transport.calls.some((c) => c.method === "cancel")).toBe(false);
+  });
+
+  it("cancels only the retry from the retry's toast", async () => {
+    const { transport } = setup({}, { fileErrors: { "b.pdf": { code: "upload_missing", message: "" } } });
+    stage(entries("Mới", ["a.pdf", "b.pdf"]));
+    upload();
+    await waitFor(() => expect(toast.warning).toHaveBeenCalled());
+    const settled = toast.warning.mock.calls[0]?.[1];
+    const loadingBefore = toast.loading.mock.calls.length;
+    const release = transport.holdPuts();
+    act(() => {
+      settled.action.onClick();
+    });
+    fireEvent.click(await screen.findByRole("button", { name: t("documents.folder_upload.report.retry") }));
+    await waitFor(() => expect(transport.calls.filter((c) => c.method === "put").length).toBeGreaterThan(2));
+    const retryToast = toast.loading.mock.calls.at(-1)?.[1];
+    expect(toast.loading.mock.calls.length).toBeGreaterThan(loadingBefore);
+    expect(retryToast.id).not.toBe(settled.id);
+    act(() => {
+      retryToast.action.onClick();
+    });
+
+    await waitFor(() => expect(toast.info).toHaveBeenCalled());
+    release();
+    const [message, options] = toast.info.mock.calls[0] ?? [];
+    expect(message).toBe("Đã hủy — 1 tệp đã tải lên được giữ lại");
+    expect(options.id).toBe(retryToast.id);
+    expect(transport.calls.filter((c) => c.method === "cancel")).toHaveLength(1);
+    expect(toast.warning).toHaveBeenCalledTimes(1);
+    expect(toast.loading.mock.calls.slice(loadingBefore).every((call) => call[1].id !== settled.id)).toBe(true);
+  });
+
+  it("counts stored files in the progress and keeps them when the run is canceled", async () => {
+    // b keeps failing on the network and waits out its backoff; a sits in the complete buffer.
+    const { transport } = setup({}, { putFailures: { "b.pdf": ["network", "network", "network"] } });
+    stage(entries("Mới", ["a.pdf", "b.pdf"]));
+    upload();
+    await waitFor(() => expect(toast.loading.mock.calls.some((call) => call[0] === "Đang tải lên «Mới» — 1/2 tệp")).toBe(true));
+    expect(transport.calls.some((c) => c.method === "complete")).toBe(false);
+    act(() => {
+      toast.loading.mock.calls.at(-1)?.[1].action.onClick();
+    });
+
+    await waitFor(() => expect(toast.info).toHaveBeenCalled());
+    expect(toast.info.mock.calls[0]?.[0]).toBe("Đã hủy — 1 tệp đã tải lên được giữ lại");
+    expect(transport.calls.map((c) => c.method).filter((m) => m === "complete" || m === "cancel")).toEqual(["complete", "cancel"]);
+  });
+
   it("says the batch expired and hides the retry in the report", async () => {
     const { transport } = setup();
     transport.failNext("complete", folderUploadApiError(410, "folder_upload_expired"));

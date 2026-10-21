@@ -25,7 +25,7 @@ describe("FolderUploadReportDialog", () => {
     expect(screen.getAllByText("Không tải lên được tệp này.")).toHaveLength(2);
   });
 
-  it("retries only on request and blocks a second press while retrying", () => {
+  it("retries only on request", () => {
     const { onRetry } = renderReport();
     fireEvent.click(screen.getByRole("button", { name: "Thử lại các tệp lỗi" }));
     expect(onRetry).toHaveBeenCalledTimes(1);
@@ -35,13 +35,5 @@ describe("FolderUploadReportDialog", () => {
     renderReport({ canRetry: false });
     expect(screen.queryByRole("button", { name: "Thử lại các tệp lỗi" })).toBeNull();
     expect(screen.getByText("Lượt tải lên đã hết hạn nên không thử lại được. Hãy tải lại thư mục.")).toBeInTheDocument();
-  });
-
-  it("keeps the retry button aria-disabled while a retry runs", () => {
-    const { onRetry } = renderReport({ retrying: true });
-    const button = screen.getByRole("button", { name: "Đang thử lại…" });
-    expect(button).toHaveAttribute("aria-disabled", "true");
-    fireEvent.click(button);
-    expect(onRetry).not.toHaveBeenCalled();
   });
 });

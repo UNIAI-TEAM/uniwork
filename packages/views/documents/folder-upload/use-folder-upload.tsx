@@ -22,7 +22,7 @@ import { nodeLevel, siblingsOf } from "../document-tree-model";
 import { runErrorMessage } from "./folder-upload-copy";
 import { FolderUploadDialog } from "./folder-upload-dialog";
 import { FolderUploadReportDialog } from "./folder-upload-report-dialog";
-import { createFolderUploadToast } from "./folder-upload-toast";
+import { createFolderUploadToast, type FolderUploadToast } from "./folder-upload-toast";
 
 /** Where a staged folder lands, captured when it is picked or dropped so navigating away does not retarget it. */
 interface Destination {
@@ -40,10 +40,19 @@ interface StagedFolder {
   destination: Destination;
 }
 
+/** One run's link from the runner's progress to the toast that shows it. */
+interface RunChannel {
+  handle: FolderUploadHandle | null;
+  /** The first run's toast has its end state: later progress belongs to a retry. */
+  settled: boolean;
+  /** The toast of the retry under way, if any. */
+  retryToast: FolderUploadToast | null;
+}
+
 interface ReportView {
   name: string;
   report: FolderUploadReport;
-  handle: FolderUploadHandle;
+  channel: RunChannel;
 }
 
 export interface UseFolderUploadOptions {
@@ -96,7 +105,6 @@ export function useFolderUpload({
   const [waiting, setWaiting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [reportView, setReportView] = useState<ReportView | null>(null);
-  const [retrying, setRetrying] = useState(false);
   const latest = useRef({ onOpenFolder, resolveRootParent, myFolderId, t, locale: i18n.language });
   latest.current = { onOpenFolder, resolveRootParent, myFolderId, t, locale: i18n.language };
 
@@ -151,12 +159,30 @@ export function useFolderUpload({
     void queryClient.invalidateQueries({ queryKey: documentKeys.treeRoot(wsId) });
   };
 
-  const showReport = (name: string, report: FolderUploadReport, handle: FolderUploadHandle) =>
-    setReportView({ name, report, handle });
+  const showReport = (name: string, report: FolderUploadReport, channel: RunChannel) =>
+    setReportView({ name, report, channel });
+
+  /** Turn a run's (or a retry's) toast into its end state; "Xem" opens the report. */
+  const settleToast = (target: FolderUploadToast, name: string, report: FolderUploadReport, channel: RunChannel) => {
+    const title = report.root?.title ?? name;
+    target.settle({
+      title,
+      total: report.total,
+      done: report.done,
+      failed: report.failed.length,
+      canceled: report.canceled,
+      expired: report.expired,
+      onOpenFolder: () => {
+        if (report.root?.id) latest.current.onOpenFolder(report.root.id);
+      },
+      onViewFailures: () => showReport(title, report, channel),
+    });
+  };
 
   const confirm = async ({ shareWithWorkspace }: { shareWithWorkspace: boolean }) => {
     if (!head || !plan || !runLimits || pending) return;
     const { entries, destination } = head;
+    const name = plan.rootTitle ?? destination.name;
     setPending(true);
     setError(null);
     let parentId: string;
@@ -167,20 +193,19 @@ export function useFolderUpload({
       setPending(false);
       return;
     }
-    const uploadToast = { current: null as ReturnType<typeof createFolderUploadToast> | null };
-    const run: { handle: FolderUploadHandle | null } = { handle: null };
-    let began = false;
+    const channel: RunChannel = { handle: null, settled: false, retryToast: null };
+    let uploadToast: FolderUploadToast | null = null;
     // The plan was answered: the dialog's job is done, the toast takes over.
-    const begin = () => {
-      if (began) return;
-      began = true;
+    const begin = (): FolderUploadToast => {
+      if (uploadToast) return uploadToast;
       dismissHead();
-      uploadToast.current = createFolderUploadToast({
+      uploadToast = createFolderUploadToast({
         t: latest.current.t,
-        name: plan.rootTitle ?? destination.name,
+        name,
         total: plan.totals.files,
-        onCancelAll: () => run.handle?.cancel(),
+        onCancelAll: () => channel.handle?.cancel(),
       });
+      return uploadToast;
     };
     const running = runFolderUpload({
       transport: transport ?? createFolderUploadTransport(wsId),
@@ -195,64 +220,73 @@ export function useFolderUpload({
       },
       onInvalidate: invalidate,
       onProgress: (progress) => {
+        // Files in storage count as up: their completes are batched.
+        const counts = { done: progress.done + progress.stored, total: progress.total };
+        if (progress.phase === "retrying") {
+          channel.retryToast?.progress(counts);
+          return;
+        }
+        // The first run's toast keeps its end state; whatever follows is not its to show.
+        if (channel.settled) return;
         // Before the plan is answered the dialog stays; a refusal is reported by `done`.
         if (progress.phase === "planning" || progress.phase === "refused") return;
         if (progress.phase === "waiting") {
           setWaiting(true);
           return;
         }
-        begin();
+        const runToast = begin();
         // The end states are the settle step's to show; progress only counts while files go up.
-        if (progress.phase === "uploading") uploadToast.current?.progress({ done: progress.done, total: progress.total });
+        if (progress.phase === "uploading") runToast.progress(counts);
       },
     });
-    run.handle = running;
-    const settle = (report: FolderUploadReport) => {
-      begin();
-      const title = report.root?.title ?? plan.rootTitle ?? destination.name;
-      uploadToast.current?.settle({
-        title,
-        total: report.total,
-        done: report.done,
-        failed: report.failed.length,
-        canceled: report.canceled,
-        expired: report.expired,
-        onOpenFolder: () => {
-          if (report.root?.id) latest.current.onOpenFolder(report.root.id);
-        },
-        onViewFailures: () => showReport(title, report, running),
-      });
-    };
-    running.done.then(settle, (failure: unknown) => {
-      if (began) {
-        uploadToast.current?.dismiss();
-        toast.error(runErrorMessage(latest.current.t, failure, latest.current.locale));
-        return;
-      }
-      // Refused before anything was written: the dialog stays open and says why.
-      setError(runErrorMessage(latest.current.t, failure, latest.current.locale));
-      setPending(false);
-      setWaiting(false);
-    });
+    channel.handle = running;
+    running.done.then(
+      (report) => {
+        channel.settled = true;
+        settleToast(begin(), name, report, channel);
+      },
+      (failure: unknown) => {
+        channel.settled = true;
+        if (uploadToast) {
+          uploadToast.dismiss();
+          toast.error(runErrorMessage(latest.current.t, failure, latest.current.locale));
+          return;
+        }
+        // Refused before anything was written: the dialog stays open and says why.
+        setError(runErrorMessage(latest.current.t, failure, latest.current.locale));
+        setPending(false);
+        setWaiting(false);
+      },
+    );
   };
 
-  const retryFailed = async () => {
-    if (!reportView || retrying) return;
-    const { handle, name } = reportView;
-    setRetrying(true);
-    try {
-      const report = await handle.retryFailed();
-      if (report.failed.length === 0) {
-        setReportView(null);
-        toast.success(t("documents.folder_upload.toast.success", { count: report.done, name: report.root?.title ?? name }));
-      } else {
-        setReportView({ name, report, handle });
-      }
-    } catch (failure: unknown) {
-      toast.error(runErrorMessage(t, failure, i18n.language));
-    } finally {
-      setRetrying(false);
-    }
+  /** Retry from the report: the report gives way to the retry's own toast. */
+  const retryFailed = () => {
+    if (!reportView) return;
+    const { name, report: last, channel } = reportView;
+    const handle = channel.handle;
+    if (!handle || channel.retryToast) return;
+    setReportView(null);
+    const retryToast = createFolderUploadToast({
+      t,
+      name,
+      total: last.total,
+      done: last.done,
+      onCancelAll: () => handle.cancel(),
+      retry: true,
+    });
+    channel.retryToast = retryToast;
+    handle.retryFailed().then(
+      (report) => {
+        channel.retryToast = null;
+        settleToast(retryToast, name, report, channel);
+      },
+      (failure: unknown) => {
+        channel.retryToast = null;
+        retryToast.dismiss();
+        toast.error(runErrorMessage(latest.current.t, failure, latest.current.locale));
+      },
+    );
   };
 
   const dialogs: ReactNode = available ? (
@@ -297,9 +331,8 @@ export function useFolderUpload({
         }}
         name={reportView?.name ?? ""}
         failures={reportView?.report.failed ?? []}
-        canRetry={reportView?.report.canRetry ?? true}
-        retrying={retrying}
-        onRetry={() => void retryFailed()}
+        canRetry={reportView?.report.canRetry ?? false}
+        onRetry={retryFailed}
       />
     </>
   ) : null;
