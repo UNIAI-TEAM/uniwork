@@ -200,8 +200,8 @@ type ListDocumentsSDI struct {
 	Archived    *bool   `query:"archived" description:"1 = thùng rác (chỉ manage); bỏ trống = tài liệu sống. Trên thùng rác chỉ nhận access=restricted: access=manage/edit -> 400 invalid_filter" example:"false"`
 	Shelved     *bool   `query:"shelved" description:"1 = kho lưu trữ (mọi người xem được đều thấy mục mình được xem, sắp shelved_at mới nhất trước); kết hợp format/access được; cùng archived=1 -> 400 invalid_filter; mục vừa lưu trữ vừa vào thùng rác chỉ hiện ở thùng rác" example:"true"`
 	UpdatedBy   *string `query:"updated_by" description:"Lọc theo ULID người sửa gần nhất" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
-	UpdatedFrom *string `query:"updated_from" description:"Mốc updated_at từ (RFC3339)" example:"2026-09-01T00:00:00Z"`
-	UpdatedTo   *string `query:"updated_to" description:"Mốc updated_at đến (RFC3339)" example:"2026-09-30T23:59:59Z"`
+	UpdatedFrom *string `query:"updated_from" description:"Mốc updated_at từ (RFC3339); với archived=1 / shelved=1 mốc là archived_at / shelved_at" example:"2026-09-01T00:00:00Z"`
+	UpdatedTo   *string `query:"updated_to" description:"Mốc updated_at đến (RFC3339); với archived=1 / shelved=1 mốc là archived_at / shelved_at" example:"2026-09-30T23:59:59Z"`
 	SharedByMe  *bool   `query:"shared_by_me" description:"true = chỉ tài liệu sống do người gọi làm ACL owner và đang chia sẻ (share người dùng/nhóm còn hiệu lực hoặc visibility=workspace); dùng cùng parent_id -> 400 invalid_filter" example:"true"`
 	Cursor      *string `query:"cursor" description:"next_cursor của trang trước; bỏ trống = trang đầu" example:"eyJ0IjoiMjAyNi0wOS0yN1QwOTowMDowMFoiLCJpZCI6IjAxSjhYNERPQzBOMVAyUTNSNFM1VDZVNyJ9"`
 	Limit       *int32  `query:"limit" description:"Kích thước trang, mặc định 50, tối đa 100" example:"50"`
