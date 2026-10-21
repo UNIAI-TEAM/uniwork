@@ -13,6 +13,7 @@ import {
 import { orderIssues } from "./order.mjs";
 import { createLock } from "./lock.mjs";
 import { loadConfig } from "./config.mjs";
+import { syncRun } from "./sync.mjs";
 
 test("taskTitle prefixes the key once and cuts at 500 runes", () => {
   assert.equal(taskTitle("UNI-423", "Sửa cổng"), "UNI-423: Sửa cổng");
@@ -159,4 +160,263 @@ test("createLock refuses a live pid and replaces a dead one", () => {
   assert.equal(disk.get("scripts/uniai-sync/.sync.lock"), "33");
   third.release();
   assert.equal(disk.has("scripts/uniai-sync/.sync.lock"), false);
+});
+
+function world(issues, comments = {}) {
+  const mcp = [];
+  const metadata = new Map();
+  const tasks = [];
+  const commentsByTask = new Map();
+  let seq = 0;
+  const uniworkMembers = [
+    { user_id: "uw-hien", email: "hien.tran.vietants@gmail.com" },
+  ];
+  const labels = [];
+  return {
+    mcp,
+    metadata,
+    tasks,
+    deps: {
+      config: {
+        uniaiProjectId: "57602a20-04e8-4c08-abd5-415ccd882e05",
+        origin: "https://uniwork.example",
+        workspaceId: "ws",
+        projectId: "prj",
+        mcpToken: "uwm_at_x",
+        sessionToken: "sess",
+      },
+      lock: { tryAcquire: () => true, release: () => {} },
+      uniai: {
+        listIssues: async () => issues.map((row) => ({
+          ...row,
+          metadata: { ...(row.metadata ?? {}), ...(metadata.get(row.id) ?? {}) },
+        })),
+        listComments: async (id) => comments[id] ?? [],
+        listMembers: async () => [
+          { user_id: "user-hien", email: "tranthihien.attt@gmail.com", name: "Hiền" },
+        ],
+        listAgents: async () => [{ id: "agent-1", name: "LEVI" }],
+        setMetadata: async (id, key, value) => {
+          const row = metadata.get(id) ?? {};
+          row[key] = value;
+          metadata.set(id, row);
+        },
+      },
+      uniwork: {
+        listMembers: async () => uniworkMembers,
+        listLabels: async () => labels,
+        createLabel: async (name) => {
+          const row = { id: `label-${name}`, name };
+          labels.push(row);
+          return row;
+        },
+        queryTasks: async () => tasks.map((task) => ({ id: task.id, title: task.title })),
+        getTask: async (id) => tasks.find((task) => task.id === id),
+        createTask: async (args) => {
+          mcp.push(["create_task", args]);
+          const task = { id: `task-${++seq}`, revision: 1, labels: [], description_truncated: false, ...args };
+          tasks.push(task);
+          commentsByTask.set(task.id, []);
+          return { id: task.id };
+        },
+        updateTask: async (args) => {
+          mcp.push(["update_task", args]);
+          const task = tasks.find((item) => item.id === args.task_id);
+          if (task.failRevision) {
+            task.failRevision = false;
+            const error = new Error("revision_conflict");
+            error.code = "revision_conflict";
+            throw error;
+          }
+          Object.assign(task, args, { revision: task.revision + 1 });
+          return { id: task.id };
+        },
+        listTaskComments: async (id) => commentsByTask.get(id) ?? [],
+        addComment: async (args) => {
+          mcp.push(["add_comment", args]);
+          const row = { id: `c-${++seq}`, body: args.body };
+          commentsByTask.get(args.task_id).push(row);
+          return { id: row.id };
+        },
+      },
+    },
+  };
+}
+
+function issue(partial) {
+  return {
+    title: "Việc",
+    description: "",
+    status: "todo",
+    priority: "none",
+    start_date: null,
+    due_date: null,
+    assignee_id: "",
+    assignee_type: "",
+    labels: [],
+    parent_issue_id: null,
+    metadata: {},
+    ...partial,
+  };
+}
+
+test("sync creates a parent before a child and stores metadata before comments", async () => {
+  const box = world(
+    [
+      issue({ id: "child", identifier: "UNI-2", parent_issue_id: "parent" }),
+      issue({ id: "parent", identifier: "UNI-1", title: "Cha" }),
+    ],
+    { parent: [{ id: "note-1", author_id: "user-hien", author_type: "member", content: "đã xem", created_at: "2026-01-01T00:00:00Z" }] },
+  );
+  const order = [];
+  const create = box.deps.uniwork.createTask;
+  box.deps.uniwork.createTask = async (args) => {
+    order.push(args.title);
+    return create(args);
+  };
+  const setMetadata = box.deps.uniai.setMetadata;
+  box.deps.uniai.setMetadata = async (id, key, value) => {
+    if (key === "uniwork_task") order.push(`meta:${id}`);
+    return setMetadata(id, key, value);
+  };
+  const add = box.deps.uniwork.addComment;
+  box.deps.uniwork.addComment = async (args) => {
+    order.push("comment");
+    return add(args);
+  };
+  const result = await syncRun(box.deps);
+  assert.equal(result.code, 0);
+  assert.ok(order.indexOf("UNI-1: Cha") < order.indexOf("meta:parent"));
+  assert.ok(order.indexOf("meta:parent") < order.indexOf("comment"));
+  assert.ok(order.indexOf("UNI-1: Cha") < order.indexOf("UNI-2: Việc"));
+  assert.ok(box.mcp.some((call) => call[0] === "add_comment" && String(call[1].body).includes("uniai-comment:note-1")));
+  assert.ok(box.mcp.some((call) => call[0] === "add_comment" && String(call[1].body).includes("Hiền (hien.tran.vietants@gmail.com)")));
+});
+
+test("a second run with the same hash does not call update_task", async () => {
+  const box = world([issue({ id: "only", identifier: "UNI-10", title: "Một" })]);
+  await syncRun(box.deps);
+  box.mcp.length = 0;
+  box.deps.uniai.listIssues = async () => [
+    issue({ id: "only", identifier: "UNI-10", title: "Một", metadata: box.metadata.get("only"), updated_at: "2099-01-01T00:00:00Z" }),
+  ];
+  const result = await syncRun(box.deps);
+  assert.equal(result.code, 0);
+  assert.deepEqual(box.mcp, []);
+});
+
+test("an agent assignee is empty and commented once", async () => {
+  const box = world([
+    issue({ id: "ag", identifier: "UNI-11", assignee_id: "agent-1", assignee_type: "agent" }),
+  ]);
+  await syncRun(box.deps);
+  await syncRun(box.deps);
+  const notes = box.mcp.filter((call) => call[0] === "add_comment" && String(call[1].body).includes("uniai-assignee:"));
+  assert.equal(notes.length, 1);
+  assert.match(notes[0][1].body, /UniWork giao issue này cho LEVI\./);
+  assert.equal(box.tasks[0].assignee_id, undefined);
+});
+
+test("a child waits until the parent has a task id", async () => {
+  const box = world([issue({ id: "child", identifier: "UNI-2", parent_issue_id: "missing-parent" })]);
+  const result = await syncRun(box.deps);
+  assert.equal(result.code, 1);
+  assert.equal(box.tasks.length, 0);
+  assert.match(result.lines.join("\n"), /missing-parent/);
+});
+
+test("an unknown status fails that issue and continues", async () => {
+  const box = world([
+    issue({ id: "bad", identifier: "UNI-3", status: "triage" }),
+    issue({ id: "good", identifier: "UNI-4", title: "Được" }),
+  ]);
+  const result = await syncRun(box.deps);
+  assert.equal(result.code, 1);
+  assert.equal(box.tasks.length, 1);
+  assert.equal(box.tasks[0].title, "UNI-4: Được");
+});
+
+test("title recovery attaches the only exact title and refuses two", async () => {
+  const box = world([issue({ id: "one", identifier: "UNI-5", title: "Lạc" })]);
+  box.tasks.push({ id: "already", title: "UNI-5: Lạc", revision: 4, labels: [], description: "", status: "todo", priority: "none" });
+  box.deps.uniwork.queryTasks = async () => box.tasks.map((task) => ({ id: task.id, title: task.title }));
+  await syncRun(box.deps);
+  assert.equal(box.metadata.get("one").uniwork_task, "already");
+  assert.equal(box.mcp.filter((call) => call[0] === "create_task").length, 0);
+
+  const two = world([issue({ id: "two", identifier: "UNI-6", title: "Đôi" })]);
+  two.tasks.push(
+    { id: "a", title: "UNI-6: Đôi", revision: 1, labels: [] },
+    { id: "b", title: "UNI-6: Đôi", revision: 1, labels: [] },
+  );
+  const result = await syncRun(two.deps);
+  assert.equal(result.code, 1);
+  assert.equal(two.mcp.filter((call) => call[0] === "create_task").length, 0);
+  assert.equal(two.metadata.has("two"), false);
+});
+
+test("revision_conflict retries once", async () => {
+  const box = world([issue({ id: "rev", identifier: "UNI-7", title: "Cũ" })]);
+  await syncRun(box.deps);
+  box.tasks[0].failRevision = true;
+  box.mcp.length = 0;
+  box.deps.uniai.listIssues = async () => [
+    issue({ id: "rev", identifier: "UNI-7", title: "Mới", metadata: box.metadata.get("rev") }),
+  ];
+  const result = await syncRun(box.deps);
+  assert.equal(result.code, 0);
+  assert.equal(box.mcp.filter((call) => call[0] === "update_task").length, 2);
+  assert.equal(box.tasks[0].title, "UNI-7: Mới");
+});
+
+test("401 stops the run and does not write the hash", async () => {
+  const box = world([
+    issue({ id: "first", identifier: "UNI-8", title: "Trước" }),
+    issue({ id: "second", identifier: "UNI-9", title: "Sau" }),
+  ]);
+  box.deps.uniwork.createTask = async () => {
+    const error = new Error("unauthorized");
+    error.code = "unauthorized";
+    throw error;
+  };
+  const result = await syncRun(box.deps);
+  assert.equal(result.code, 1);
+  assert.equal(box.metadata.has("first"), false);
+  assert.equal(box.metadata.has("second"), false);
+});
+
+test("a cycle is reported and creates nothing in the cycle", async () => {
+  const box = world([
+    issue({ id: "a", identifier: "UNI-20", parent_issue_id: "b" }),
+    issue({ id: "b", identifier: "UNI-21", parent_issue_id: "a" }),
+  ]);
+  const result = await syncRun(box.deps);
+  assert.equal(result.code, 1);
+  assert.equal(box.tasks.length, 0);
+  assert.match(result.lines.join("\n"), /cycle/);
+});
+
+test("description overflow is commented once", async () => {
+  const box = world([
+    issue({ id: "long", identifier: "UNI-22", description: "à".repeat(16005) }),
+  ]);
+  await syncRun(box.deps);
+  await syncRun(box.deps);
+  const overflows = box.mcp.filter((call) => call[0] === "add_comment" && String(call[1].body).includes("uniai-description-overflow"));
+  assert.equal(overflows.length, 1);
+  assert.equal([...box.tasks[0].description].length, 16000);
+});
+
+test("a held lock exits 0 and does not list issues", async () => {
+  const box = world([issue({ id: "x", identifier: "UNI-23" })]);
+  let listed = 0;
+  box.deps.uniai.listIssues = async () => {
+    listed += 1;
+    return [];
+  };
+  box.deps.lock = { tryAcquire: () => false, release: () => {} };
+  const result = await syncRun(box.deps);
+  assert.equal(result.code, 0);
+  assert.equal(listed, 0);
+  assert.match(result.lines.join("\n"), /already running/);
 });
