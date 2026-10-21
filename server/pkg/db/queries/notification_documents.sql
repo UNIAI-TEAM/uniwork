@@ -3,7 +3,6 @@
 -- they own.
 
 -- name: InsertNotificationDocument :execrows
--- tenant: system
 -- Insert-ignore: a document already listed (renamed twice inside the fold
 -- window, or a redelivered event) keeps its first row and is not counted
 -- again. 0 rows means it was already there.

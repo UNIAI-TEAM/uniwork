@@ -42,7 +42,6 @@ type InsertNotificationDocumentParams struct {
 // The documents of a document_changed notification (UNI-2056). Written by
 // the notification consumer; read by the recipient through the notification
 // they own.
-// tenant: system
 // Insert-ignore: a document already listed (renamed twice inside the fold
 // window, or a redelivered event) keeps its first row and is not counted
 // again. 0 rows means it was already there.

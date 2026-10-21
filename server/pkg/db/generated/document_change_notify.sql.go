@@ -208,7 +208,6 @@ type InsertNotificationParams struct {
 	CorrelationID  pgtype.Text `json:"correlation_id"`
 }
 
-// tenant: system
 // A plain insert for a kind that folds by its own rule: the caller found no
 // open row of the group under its claim, so the open-group index cannot
 // collide.
