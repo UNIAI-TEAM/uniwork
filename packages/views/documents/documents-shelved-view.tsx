@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import type { Member } from "@uniwork/core/types/workspace";
 import { DocumentsLibraryList } from "./documents-library-list";
 import type { LibraryRowHandlers } from "./documents-library-row";
+import type { DocListBulk } from "./doclist/bulk-actions";
 import { ShelvedToolbar, SHELVED_BY_SYSTEM, type ShelvedByOption } from "./documents-shelved-toolbar";
 import { groupRows, type DocumentSummaryRow, type TypeChip } from "./library-rows";
 import type { useDocumentsLibrary } from "./use-documents-library";
@@ -30,6 +31,10 @@ export interface DocumentsShelvedViewProps {
   actions: ShelvedRowActions;
   /** The "open the navigation" button below `xl`. */
   navButton: ReactNode;
+  /** The bulk bar's commands (W9): Bỏ lưu trữ · Tải xuống · Chuyển vào thùng rác; absent, no Select column. */
+  bulk?: DocListBulk;
+  /** A new value clears the selection. */
+  selectionKey?: string;
 }
 
 /**
@@ -40,7 +45,7 @@ export interface DocumentsShelvedViewProps {
  * trữ` · `Tải xuống` │ `Chuyển vào thùng rác`, flat in the server's
  * shelved_at-newest order (F1).
  */
-export function DocumentsShelvedView({ library, chip, onChip, members, handlers, actions, navButton }: DocumentsShelvedViewProps) {
+export function DocumentsShelvedView({ library, chip, onChip, members, handlers, actions, navButton, bulk, selectionKey }: DocumentsShelvedViewProps) {
   const { t } = useTranslation();
   const state = library.state;
   // The "Lưu trữ bởi" options (U-2/Q-UI2): the workspace members plus the
@@ -82,6 +87,9 @@ export function DocumentsShelvedView({ library, chip, onChip, members, handlers,
           description: t("documents.shelved_list.no_matches_description"),
         }}
         screen="shelved"
+        selectable={Boolean(bulk)}
+        bulk={bulk}
+        selectionKey={selectionKey}
         hasMore={state.hasMore}
         loadingMore={state.loadingMore}
         onLoadMore={state.loadMore}

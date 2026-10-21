@@ -182,6 +182,7 @@ describe("trash list", () => {
     await rowOf("Kế hoạch Q4");
     const headers = screen.getAllByRole("columnheader").map((th) => th.textContent?.trim());
     expect(headers).toEqual([
+      t("documents.list.column.select"),
       t("documents.list.column.name"),
       t("documents.list.screen_column.deleted"),
       t("documents.list.column.access"),

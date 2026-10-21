@@ -1,14 +1,18 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { FolderOpen, Search, ShieldAlert, type LucideIcon } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
+import { Checkbox } from "@uniwork/ui/components/ui/checkbox";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { cn } from "@uniwork/ui/lib/utils";
 import { CollectionPageState } from "../layout/collection-page";
 import { LibraryRowView, type LibraryRowHandlers } from "./documents-library-row";
+import { DocListBulkBar } from "./doclist/bulk-bar";
+import { bulkPlans, rowBulkActions, type BulkActionId, type DocListBulk } from "./doclist/bulk-actions";
 import { docListSpec, type DocListScreen } from "./doclist/columns";
+import { useDocListSelection } from "./doclist/selection";
 import { libraryGroupSpans, specLadder } from "./library-columns";
 import type { RowGroup } from "./library-rows";
 import { isSortableColumn, type LibrarySort, type LibrarySortColumn } from "./library-sort";
@@ -48,8 +52,12 @@ export interface DocumentsLibraryListProps {
   sort?: { value: LibrarySort; onSort: (column: LibrarySortColumn) => void };
   /** The screen the table shows (doclist/columns.ts): its column order, its screen column and its narrow ladder. */
   screen?: DocListScreen;
-  /** The Select column of the spec (bulk selection, W9); off on every screen today. */
+  /** The Select column of the spec (bulk selection, W9): checkboxes and the bulk bar when `bulk` is given too. */
   selectable?: boolean;
+  /** What the bulk bar runs (W9); absent, the Select column stays empty. */
+  bulk?: DocListBulk;
+  /** The folder, workspace and filters the rows were read with: a new value clears the selection (the screen is part of it already). */
+  selectionKey?: string;
   /** The table's accessible name when it is not the Documents page's (Thùng rác names its own). */
   label?: string;
   /** The row a notification pointed at: ringed apart from hover (LibraryRowView `highlighted`). */
@@ -83,11 +91,38 @@ export function DocumentsLibraryList({
   sort,
   screen = "workspace",
   selectable = false,
+  bulk,
+  selectionKey = "",
   label,
   highlightId = null,
   empty,
 }: DocumentsLibraryListProps) {
   const { t } = useTranslation();
+  const boxRef = useRef<HTMLDivElement>(null);
+  // Bulk selection (W9): a row is selectable when the bar has an action for it,
+  // i.e. when its own row menu offers one the host supports.
+  const bulkOn = selectable && Boolean(bulk);
+  const rows = groups.flatMap((group) => group.rows);
+  const actionsByRow = new Map<string, ReadonlySet<BulkActionId>>(
+    bulkOn && bulk
+      ? rows.map((row) => [row.id, new Set([...rowBulkActions(row, handlers, screen)].filter(bulk.supports))])
+      : [],
+  );
+  const selectableIds = rows.filter((row) => (actionsByRow.get(row.id)?.size ?? 0) > 0).map((row) => row.id);
+  const selection = useDocListSelection(selectableIds, `${screen}|${selectionKey}`);
+  const selectedCount = selection.ids.length;
+  const clearSelection = selection.clear;
+  useEffect(() => {
+    // Esc clears the selection from anywhere in the list; a native listener on
+    // the box, so the portalled menus and dialogs keep their own Esc.
+    const box = boxRef.current;
+    if (!box || selectedCount === 0) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") clearSelection();
+    };
+    box.addEventListener("keydown", onKey);
+    return () => box.removeEventListener("keydown", onKey);
+  }, [selectedCount, clearSelection]);
 
   if (loading) {
     return (
@@ -182,8 +217,19 @@ export function DocumentsLibraryList({
   // The group title spans the columns that are on at every width (Select, Name, Actions).
   const alwaysOn = ladder.columns.filter((column) => !column.cell).length;
 
+  const selectedRows = rows.filter(
+    (row): row is Extract<typeof row, { type: "document" }> => row.type === "document" && selection.isSelected(row.id),
+  );
+  const plans =
+    bulk && selectedRows.length > 0
+      ? bulkPlans(selectedRows, (row) => actionsByRow.get(row.id) ?? new Set(), screen, bulk.supports, (doc) => doc.title || t("documents.detail.untitled"))
+      : [];
+
   return (
-    <div className="@container/library flex flex-col">
+    <div ref={boxRef} className="@container/library flex flex-col">
+      {bulk && selectedRows.length > 0 ? (
+        <DocListBulkBar count={selectedRows.length} plans={plans} onRun={(plan) => bulk.run(plan, clearSelection)} onClear={clearSelection} />
+      ) : null}
       <div className="overflow-hidden rounded-lg border border-border">
         {/* tabIndex -1: a host may move focus onto the table itself (Thùng rác after Load more). */}
         <table tabIndex={-1} className="w-full table-fixed border-collapse text-left" aria-label={label ?? t("documents.page.title")}>
@@ -216,6 +262,17 @@ export function DocumentsLibraryList({
                   >
                     {sortable && sort ? (
                       <LibrarySortHeader column={sortable} label={t(columnLabel(column.id))} sort={sort.value} onSort={sort.onSort} />
+                    ) : column.id === "select" && bulkOn && selectableIds.length > 0 ? (
+                      // Select all: every selectable row loaded so far; mixed on a partial selection.
+                      <>
+                        <span className="sr-only">{t(columnLabel(column.id))}</span>
+                        <Checkbox
+                          checked={selection.all === true}
+                          indeterminate={selection.all === "mixed"}
+                          onCheckedChange={() => selection.setAll(selection.all !== true)}
+                          aria-label={t("documents.list.bulk.select_all")}
+                        />
+                      </>
                     ) : column.id === "actions" || column.id === "select" ? (
                       <span className="sr-only">{t(columnLabel(column.id))}</span>
                     ) : (
@@ -240,7 +297,22 @@ export function DocumentsLibraryList({
                 </tr>
               ) : null}
               {group.rows.map((row) => (
-                <LibraryRowView key={row.id} row={row} handlers={handlers} ladder={ladder} screen={screen} highlighted={row.id === highlightId} />
+                <LibraryRowView
+                  key={row.id}
+                  row={row}
+                  handlers={handlers}
+                  ladder={ladder}
+                  screen={screen}
+                  highlighted={row.id === highlightId}
+                  selection={
+                    bulkOn
+                      ? {
+                          selected: selection.isSelected(row.id),
+                          onToggle: actionsByRow.get(row.id)?.size ? (range) => selection.toggle(row.id, range) : undefined,
+                        }
+                      : undefined
+                  }
+                />
               ))}
             </tbody>
           ))}

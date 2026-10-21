@@ -95,7 +95,7 @@ describe("useDocListBulkCommands", () => {
     const { invalidate, onDone } = setup(plan);
     expect(requestMock).not.toHaveBeenCalled();
     const dialog = await screen.findByRole("alertdialog");
-    expect(dialog).toHaveTextContent(t("documents.list.bulk.confirm.trash_title", { count: 5 }));
+    expect(dialog).toHaveTextContent(t("documents.list.bulk.confirm.trash_title", { count: 4 }));
     fireEvent.click(screen.getByRole("button", { name: t("documents.list.bulk.confirm.trash_action") }));
 
     await waitFor(() => expect(toast.success).toHaveBeenCalledTimes(1));
@@ -123,7 +123,7 @@ describe("useDocListBulkCommands", () => {
     const { onDone } = setup(plan);
     const dialog = await screen.findByRole("alertdialog");
     expect(dialog).toHaveTextContent(t("documents.list.bulk.confirm.purge_title", { count: 2 }));
-    fireEvent.click(screen.getByRole("button", { name: t("documents.list.bulk.confirm.cancel") }));
+    fireEvent.click(screen.getByRole("button", { name: t("common.cancel") }));
     await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
     expect(requestMock).not.toHaveBeenCalled();
     expect(onDone).not.toHaveBeenCalled();

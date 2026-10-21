@@ -53,9 +53,10 @@ const liveHandlers: LibraryRowHandlers = {
 const shelvedHandlers: LibraryRowHandlers = { ...liveHandlers, onUnshelve: noop };
 const trashHandlers: LibraryRowHandlers = { ...liveHandlers, onRestore: noop, onPurge: noop, onViewDetails: noop };
 
-function bulkSpy(): DocListBulk & { run: ReturnType<typeof vi.fn> } {
+function bulkSpy() {
   // Share needs a dialog for several documents that does not exist yet: the host says it does not support it.
-  return { supports: (action) => action !== "share", run: vi.fn() };
+  const supports: DocListBulk["supports"] = (action) => action !== "share";
+  return { supports, run: vi.fn<DocListBulk["run"]>() };
 }
 
 function list(rows: DocumentSummaryRow[], opts: { screen?: DocListScreen; handlers?: LibraryRowHandlers; bulk?: DocListBulk; selectionKey?: string } = {}) {
