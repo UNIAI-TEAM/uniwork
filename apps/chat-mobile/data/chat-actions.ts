@@ -4,8 +4,6 @@
 // rejection is the screen's to show.
 import type { QueryClient } from "@tanstack/react-query";
 import type { ChatRoomRecord } from "@uniwork/core/api/endpoints/chat-schemas";
-import { newChatClientMsgId } from "@uniwork/core/chat/client-msg-id";
-import type { ReminderRepeat } from "@uniwork/core/chat/reminder-utils";
 import { applyChatMessageResponse, patchChatMessageDeleted } from "./chat-cache";
 import { chatApi, type ChatTask } from "./chat-api";
 import { chatKeys } from "./queries/chat-keys";
@@ -82,47 +80,10 @@ export async function joinChannel(qc: QueryClient, wsId: string, roomId: string)
   return room;
 }
 
-// M3: the rich kinds.
+// M3: the rich kinds. A voice clip and a reminder are sends: they go through the outbox (chat-send.ts).
 
 export async function votePoll(qc: QueryClient, wsId: string, roomId: string, messageId: string, optionId: string): Promise<void> {
   applyChatMessageResponse(qc, wsId, roomId, await chatApi.votePoll(wsId, roomId, messageId, optionId), false);
-}
-
-/** The server's bounds on a clip (chat_voice_message.go): 1 ms to 2 minutes. */
-const MAX_VOICE_MS = 120_000;
-
-/** A recorded clip: it lands in the timeline like a sent message; nothing back is a failure to show. */
-export async function sendVoiceMessage(
-  qc: QueryClient,
-  wsId: string,
-  roomId: string,
-  input: { uri: string; durationMs: number; replyToMessageId?: string },
-): Promise<void> {
-  const message = await chatApi.sendVoiceMessage(wsId, roomId, {
-    uri: input.uri,
-    duration_ms: Math.min(MAX_VOICE_MS, Math.max(1, Math.round(input.durationMs))),
-    client_msg_id: newChatClientMsgId(),
-    reply_to_message_id: input.replyToMessageId,
-  });
-  if (!message) throw new Error("chat_voice_send_failed");
-  applyChatMessageResponse(qc, wsId, roomId, message, true);
-  void qc.invalidateQueries({ queryKey: chatKeys.rooms(wsId) });
-}
-
-/** A reminder message, as chat-create-reminder-dialog.tsx sends it: no body, the reminder beside it. */
-export async function sendReminder(
-  qc: QueryClient,
-  wsId: string,
-  roomId: string,
-  input: { body: string; remindAt: Date; repeat: ReminderRepeat },
-): Promise<void> {
-  const message = await chatApi.sendMessage(wsId, roomId, {
-    client_msg_id: newChatClientMsgId(),
-    reminder: { body: input.body.trim(), remind_at: input.remindAt.toISOString(), repeat: input.repeat },
-  });
-  if (!message) throw new Error("chat_reminder_send_failed");
-  applyChatMessageResponse(qc, wsId, roomId, message, true);
-  void qc.invalidateQueries({ queryKey: chatKeys.rooms(wsId) });
 }
 
 export const FOLLOW_UP_HOURS = 2;

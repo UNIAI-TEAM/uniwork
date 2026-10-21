@@ -1,18 +1,29 @@
 // Ported from usf apps/mobile/data/auth-store.ts: the Zustand half of auth
 // (user + loading) over the native session. The token lifecycle, the epoch
 // and the Keychain are the session's; the store only asks it and loads /me.
+//
+// A cold start is offline-first (audit P0-3): the stored credential, the last
+// signed-in person, the workspace and the unsent messages are read together;
+// with a credential and a stored person the inbox opens at once, on the cached
+// rooms, and /me revalidates behind it. Only a server verdict signs out (the
+// session's onChange(null), the api layer's onUnauthorized): offline, a 5xx or
+// a timeout keep the person in.
 import type { User } from "@uniwork/core/types/user";
 import { create } from "zustand";
 import { ApiError, api } from "../api";
+import { chatSendDeps, clearChatOutbox } from "../chat-send";
 import { wipeDeviceTraces } from "../local-wipe";
 import { forgetPushToken, unregisterPushToken } from "../push";
 import { workspaceListOptions } from "../queries/workspaces";
 import { queryClient } from "../query-client";
+import { dropAccountCache, restoreAccountCache } from "../query-persister";
 import { clearAccountCache } from "../remote-config";
 import { setReportUser } from "../report";
-import { useChatSendStore } from "../stores/chat-send-store";
+import { currentSessionEpoch } from "../session-epoch";
+import { hydrateChatSendStore } from "../stores/chat-send-store";
 import { useWorkspaceStore } from "../stores/workspace-store";
 import { session } from "./flow";
+import { forgetLastUser, readLastUser, rememberUser } from "./last-user";
 
 interface AuthState {
   user: User | null;
@@ -71,8 +82,13 @@ function adoptUser(user: User | null): User | null {
  * unreachable, a network blip or a 5xx keep it for the next attempt.
  */
 function loadUser(): Promise<User | null> {
+  const epoch = currentSessionEpoch();
   inflight ??= api
     .getMe()
+    .then((user) => {
+      if (user) void rememberUser(user, epoch);
+      return user;
+    })
     .catch(async (error: unknown) => {
       if (error instanceof ApiError && error.status === 401 && session.status() === "signed-out") await session.logout();
       return null;
@@ -92,9 +108,21 @@ function loadUser(): Promise<User | null> {
  */
 async function endAccountSession(): Promise<void> {
   await session.logout();
-  await useWorkspaceStore.getState().clear();
+  await Promise.all([useWorkspaceStore.getState().clear(), forgetLastUser(), dropAccountCache()]);
   clearAccountCache(queryClient);
-  useChatSendStore.getState().clear();
+  clearChatOutbox(chatSendDeps);
+}
+
+/** What the device kept across the last run: the unsent messages (the queued reads and reactions join them). */
+function hydrateDeviceState(): Promise<void> {
+  return hydrateChatSendStore();
+}
+
+/** A sign-in's /me, and that person's cached rooms before the first screen. */
+async function adoptLoadedUser(set: (partial: Partial<AuthState>) => void): Promise<void> {
+  const user = await loadUser();
+  if (user) await restoreAccountCache(user.id);
+  set({ user: adoptUser(user) });
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
@@ -102,23 +130,41 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   isLoading: true,
 
   initialize: async () => {
-    await session.restore();
-    if (!(await session.getAccessToken())) {
+    const [hasCredential, lastUser] = await Promise.all([
+      session.restore({ awaitRefresh: false }),
+      readLastUser(),
+      useWorkspaceStore.getState().restore(),
+      hydrateDeviceState(),
+    ]);
+    if (!hasCredential) {
+      if (lastUser) void forgetLastUser();
       set({ isLoading: false });
       return;
     }
-    set({ user: adoptUser(await loadUser()), isLoading: false });
+    if (lastUser) {
+      await restoreAccountCache(lastUser.id);
+      set({ user: adoptUser(lastUser), isLoading: false });
+      // Behind the inbox: a fresh profile replaces the stored one; no answer keeps it.
+      void loadUser().then((user) => {
+        if (user && get().user?.id === user.id) set({ user: adoptUser(user) });
+      });
+      return;
+    }
+    // No stored person yet (the first start of this build): /me decides, as before.
+    const user = await loadUser();
+    if (user) await restoreAccountCache(user.id);
+    set({ user: adoptUser(user), isLoading: false });
   },
 
   login: async () => {
     await session.login();
     if (session.status() !== "signed-in") return;
-    set({ user: adoptUser(await loadUser()) });
+    await adoptLoadedUser(set);
   },
 
   adoptSession: async () => {
     if (get().user) return;
-    set({ user: adoptUser(await loadUser()) });
+    await adoptLoadedUser(set);
   },
 
   logout: async () => {
@@ -138,5 +184,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     await wipeDeviceTraces(workspaceIds);
   },
 
-  setUser: (user) => set({ user }),
+  setUser: (user) => {
+    set({ user });
+    void rememberUser(user, currentSessionEpoch());
+  },
 }));

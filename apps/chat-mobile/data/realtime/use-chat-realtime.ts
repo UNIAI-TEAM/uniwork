@@ -94,15 +94,25 @@ export function useChatRealtime(wsId: string) {
     [qc, wsId, userId],
   );
 
-  // NetInfo's offline → online edge: queued sends go without waiting for the socket.
+  // The outbox goes when the workspace opens (messages kept from the last run), on NetInfo's
+  // offline → online edge without waiting for the socket, and on each return to the foreground.
   useEffect(() => {
     if (!userId) return;
+    const flush = () => void flushQueuedSends(qc, wsId, userId, chatSendDeps);
+    flush();
     let wasOnline = onlineManager.isOnline();
-    return NetInfo.addEventListener((state) => {
+    const unsubscribeNet = NetInfo.addEventListener((state) => {
       const online = state.isConnected === true;
-      if (online && !wasOnline) void flushQueuedSends(qc, wsId, userId, chatSendDeps);
+      if (online && !wasOnline) flush();
       wasOnline = online;
     });
+    const appState = AppState.addEventListener("change", (state) => {
+      if (state === "active") flush();
+    });
+    return () => {
+      unsubscribeNet();
+      appState.remove();
+    };
   }, [qc, wsId, userId]);
 
   // A sign-out drops the queued sends: they are the signed-in person's.

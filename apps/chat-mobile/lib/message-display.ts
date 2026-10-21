@@ -8,7 +8,9 @@ import type { ChatMessageRecord } from "@uniwork/core/api/endpoints/chat-schemas
 import { isPollExpired } from "@uniwork/core/chat/poll-utils";
 import { isChatImageContentType, resolveChatFileContentType } from "./file-accept";
 import { parseChatMediaMessageBody } from "./media-body";
+import { deserializeMessageBodyToComposerDraft } from "./mentions";
 import { formatChatSidebarPreviewText } from "./rooms-display";
+import type { PendingSend } from "./send-pipeline";
 
 /** Every `chat_messages.kind` the server writes (migration 181's check). */
 export const KNOWN_MESSAGE_KINDS = ["text", "system", "voice_call_log", "poll", "reminder", "note", "voice", "file", "post"] as const;
@@ -159,4 +161,15 @@ export function messagePreviewText(
       mediaLabels: { sticker: t("chat.media_sticker"), gif: t("chat.media_gif"), image: t("chat.media_image") },
     }) ?? ""
   );
+}
+
+/**
+ * A message still on its way, in its bubble and its sheet: the text with
+ * mentions as names, its file's name, "Voice message", or the reminder's text.
+ */
+export function pendingPreviewText(pending: Pick<PendingSend, "body" | "file" | "voiceDurationMs" | "reminder">, t: TranslateFn): string {
+  if (pending.voiceDurationMs !== undefined) return t("chat.sidebar_voice_message_preview");
+  if (pending.file) return pending.file.name;
+  if (pending.reminder) return pending.reminder.body;
+  return deserializeMessageBodyToComposerDraft(pending.body);
 }

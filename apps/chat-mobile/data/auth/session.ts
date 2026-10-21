@@ -109,28 +109,36 @@ export class MobileSession {
     return () => this.listeners.delete(cb);
   }
 
-  /** Startup: the stored session of this deployment is adopted; a token near expiry is refreshed first. */
-  async restore(): Promise<void> {
+  /**
+   * Startup: the stored session of this deployment is adopted; a token near
+   * expiry is refreshed. Resolves to whether a credential is held. A cold
+   * start passes `awaitRefresh: false`: it routes on the stored credential at
+   * once (offline, a 5xx) and lets the refresh land in the background; the
+   * credential goes only on a server verdict (onChange(null)).
+   */
+  async restore(options: { awaitRefresh?: boolean } = {}): Promise<boolean> {
     let stored: StoredSession | null;
     try {
       stored = await this.deps.storage.load();
     } catch {
       log.warn("stored session unreadable");
-      return;
+      return false;
     }
-    if (!stored) return;
+    if (!stored) return false;
     if (stored.deployment_id !== this.deps.config.deploymentId) {
       // a session issued by another deployment is never sent to this one
       log.warn("stored session belongs to another deployment");
-      return;
+      return false;
     }
     this.live = stored;
     if (this.isFresh(stored)) {
       this.adopt(stored);
-      return;
+      return true;
     }
     this.state = "refreshing";
-    await this.refresh();
+    const refreshing = this.refresh();
+    if (options.awaitRefresh !== false) await refreshing;
+    return this.live !== null;
   }
 
   /**

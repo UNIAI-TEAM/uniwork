@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const sessionMock = vi.hoisted(() => ({
-  restore: vi.fn(async () => undefined),
+  restore: vi.fn<(options?: { awaitRefresh?: boolean }) => Promise<boolean>>(async () => true),
   getAccessToken: vi.fn<() => Promise<string | null>>(async () => null),
   login: vi.fn(async () => undefined),
   logout: vi.fn(async () => undefined),
@@ -10,7 +10,23 @@ const sessionMock = vi.hoisted(() => ({
 vi.mock("./flow", () => ({ session: sessionMock }));
 
 const workspaceClear = vi.hoisted(() => vi.fn(async () => undefined));
-vi.mock("../stores/workspace-store", () => ({ useWorkspaceStore: { getState: () => ({ clear: workspaceClear }) } }));
+const workspaceRestore = vi.hoisted(() => vi.fn<() => Promise<void>>(async () => undefined));
+vi.mock("../stores/workspace-store", () => ({ useWorkspaceStore: { getState: () => ({ clear: workspaceClear, restore: workspaceRestore }) } }));
+
+const lastUserMock = vi.hoisted(() => ({
+  readLastUser: vi.fn<() => Promise<unknown>>(async () => null),
+  rememberUser: vi.fn(async () => undefined),
+  forgetLastUser: vi.fn(async () => undefined),
+}));
+vi.mock("./last-user", () => lastUserMock);
+
+const cacheMock = vi.hoisted(() => ({
+  restoreAccountCache: vi.fn<(userId: string) => Promise<void>>(async () => undefined),
+  dropAccountCache: vi.fn(async () => undefined),
+}));
+vi.mock("../query-persister", () => cacheMock);
+// The outbox directory is native (outbox-files.test.ts covers it).
+vi.mock("expo-file-system", () => ({ Directory: class {}, File: class {}, Paths: {} }));
 
 const queryClientMock = vi.hoisted(() => ({ name: "the app's query client", getQueryData: vi.fn<(key: unknown) => unknown>(() => undefined) }));
 vi.mock("../query-client", () => ({ queryClient: queryClientMock }));
@@ -64,17 +80,81 @@ beforeEach(() => {
 });
 
 describe("auth store", () => {
-  it("initialize: no stored session -> loading ends without /me", async () => {
-    sessionMock.getAccessToken.mockResolvedValue(null);
+  it("initialize: no stored session -> loading ends without /me, and a stored person from before is forgotten", async () => {
+    sessionMock.restore.mockResolvedValueOnce(false);
+    lastUserMock.readLastUser.mockResolvedValueOnce(user);
     await useAuthStore.getState().initialize();
-    expect(sessionMock.restore).toHaveBeenCalledTimes(1);
+    expect(sessionMock.restore).toHaveBeenCalledExactlyOnceWith({ awaitRefresh: false });
     expect(apiMock.getMe).not.toHaveBeenCalled();
+    expect(lastUserMock.forgetLastUser).toHaveBeenCalledTimes(1);
     expect(useAuthStore.getState()).toMatchObject({ user: null, isLoading: false });
+
+    sessionMock.restore.mockResolvedValueOnce(false);
+    await useAuthStore.getState().initialize();
+    expect(lastUserMock.forgetLastUser).toHaveBeenCalledTimes(1);
   });
 
-  it("initialize: a restored session loads /me", async () => {
+  it("initialize reads the session, the stored person, the workspace and the unsent messages together", async () => {
+    const started: string[] = [];
+    const hold = (name: string) => async () => {
+      started.push(name);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    };
+    sessionMock.restore.mockImplementationOnce(async () => {
+      await hold("session")();
+      return false;
+    });
+    lastUserMock.readLastUser.mockImplementationOnce(async () => {
+      await hold("user")();
+      return null;
+    });
+    workspaceRestore.mockImplementationOnce(hold("workspace"));
+    const done = useAuthStore.getState().initialize();
+    expect(started).toEqual(["session", "user", "workspace"]);
+    await done;
+  });
+
+  it("initialize: a restored session without a stored person loads /me, remembers it and restores its cached rooms", async () => {
     await useAuthStore.getState().initialize();
     expect(useAuthStore.getState()).toMatchObject({ user, isLoading: false });
+    expect(lastUserMock.rememberUser).toHaveBeenCalledWith(user, expect.any(Number));
+    expect(cacheMock.restoreAccountCache).toHaveBeenCalledExactlyOnceWith("u1");
+  });
+
+  it("initialize offline or on a 5xx (audit P0-3): the stored person opens the app at once and keeps it", async () => {
+    const stored = { ...user, display_name: "Stored" };
+    lastUserMock.readLastUser.mockResolvedValue(stored);
+    // Offline: /me has not answered (it times out later); the app does not wait for it.
+    let timeOut: (error: unknown) => void = () => undefined;
+    apiMock.getMe.mockReturnValueOnce(new Promise((_, reject) => (timeOut = reject)));
+    await useAuthStore.getState().initialize();
+    expect(useAuthStore.getState()).toMatchObject({ user: stored, isLoading: false });
+    expect(cacheMock.restoreAccountCache).toHaveBeenCalledWith("u1");
+    timeOut(new ApiError("timeout", 0));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(useAuthStore.getState().user).toEqual(stored);
+
+    // A 5xx behind the inbox keeps the stored person and the session.
+    apiMock.getMe.mockRejectedValueOnce(new ApiError("unavailable", 503));
+    await useAuthStore.getState().initialize();
+    await vi.waitFor(() => expect(apiMock.getMe).toHaveBeenCalledTimes(2));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(useAuthStore.getState().user).toEqual(stored);
+    expect(sessionMock.logout).not.toHaveBeenCalled();
+
+    // A good answer replaces the stored profile.
+    await useAuthStore.getState().initialize();
+    await vi.waitFor(() => expect(useAuthStore.getState().user).toEqual(user));
+
+    // An answer about someone else (the person signed out and another came in meanwhile) is not adopted.
+    let answer: (u: typeof user) => void = () => undefined;
+    apiMock.getMe.mockReturnValueOnce(new Promise((resolve) => (answer = resolve)));
+    await useAuthStore.getState().initialize();
+    useAuthStore.setState({ user: { ...user, id: "u2" } });
+    answer(user);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(useAuthStore.getState().user?.id).toBe("u2");
+    lastUserMock.readLastUser.mockResolvedValue(null);
   });
 
   it("initialize: a 401 ends the session only once the session itself is signed out; a blip keeps it", async () => {
@@ -89,6 +169,14 @@ describe("auth store", () => {
     await useAuthStore.getState().initialize();
     expect(sessionMock.logout).toHaveBeenCalledTimes(1);
     expect(useAuthStore.getState()).toMatchObject({ user: null, isLoading: false });
+    expect(cacheMock.restoreAccountCache).not.toHaveBeenCalled();
+  });
+
+  it("a /me that answers nothing usable remembers nobody", async () => {
+    apiMock.getMe.mockResolvedValueOnce(null);
+    await useAuthStore.getState().initialize();
+    expect(useAuthStore.getState().user).toBeNull();
+    expect(lastUserMock.rememberUser).not.toHaveBeenCalled();
   });
 
   it("initialize: a 401 while the session is only unreachable (refresh 5xx) keeps it for the next attempt", async () => {
@@ -121,10 +209,18 @@ describe("auth store", () => {
     expect(useAuthStore.getState().user).toEqual(user);
   });
 
-  it("login: runs the browser sign-in and loads /me when it ends signed in", async () => {
+  it("login: runs the browser sign-in and loads /me when it ends signed in, with that person's cached rooms", async () => {
     await useAuthStore.getState().login();
     expect(sessionMock.login).toHaveBeenCalledTimes(1);
     expect(useAuthStore.getState().user).toEqual(user);
+    expect(cacheMock.restoreAccountCache).toHaveBeenCalledExactlyOnceWith("u1");
+
+    // A /me that does not answer leaves nobody in and restores nothing.
+    apiMock.getMe.mockRejectedValueOnce(new TypeError("fetch failed"));
+    useAuthStore.setState({ user: null });
+    await useAuthStore.getState().login();
+    expect(useAuthStore.getState().user).toBeNull();
+    expect(cacheMock.restoreAccountCache).toHaveBeenCalledTimes(1);
   });
 
   it("login: a dismissed browser leaves the store signed out without /me", async () => {
@@ -134,12 +230,15 @@ describe("auth store", () => {
     expect(useAuthStore.getState().user).toBeNull();
   });
 
-  it("logout clears the user and the workspace, and hands the rest to the session; setUser overwrites", async () => {
+  it("logout clears the user, the workspace, the stored person and the cached rooms, and hands the rest to the session; setUser overwrites and remembers", async () => {
     useAuthStore.getState().setUser(user);
     expect(useAuthStore.getState().user).toEqual(user);
+    expect(lastUserMock.rememberUser).toHaveBeenCalledWith(user, expect.any(Number));
     await useAuthStore.getState().logout();
     expect(sessionMock.logout).toHaveBeenCalledTimes(1);
     expect(workspaceClear).toHaveBeenCalledTimes(1);
+    expect(lastUserMock.forgetLastUser).toHaveBeenCalledTimes(1);
+    expect(cacheMock.dropAccountCache).toHaveBeenCalledTimes(1);
     expect(useAuthStore.getState().user).toBeNull();
   });
 

@@ -1,10 +1,11 @@
 // The send side of a conversation, copied from packages/core/chat/
 // {merge-optimistic-chat-messages,send-retry}.ts (both reach the web transport
 // or zustand, so neither is on the mobile allowlist). The web keeps two lists
-// (pending sends and a persisted outbox); the phone keeps one in-session list
-// whose entries carry their own status. send-pipeline.test.ts runs the web
-// tests' cases on that shape.
+// (pending sends and a persisted outbox); the phone keeps one persisted list
+// (data/stores/chat-send-store.ts) whose entries carry their own status.
+// send-pipeline.test.ts runs the web tests' cases on that shape.
 import { pendingChatMessageId } from "@uniwork/core/chat/pending-message-id";
+import type { ReminderRepeat } from "@uniwork/core/chat/reminder-utils";
 
 export type SendStatus = "sending" | "queued" | "failed";
 
@@ -26,7 +27,12 @@ export interface PendingSend {
   replyToMessageId?: string;
   /** Set for a thread reply; it then belongs to the thread, not the room. */
   threadRootId?: string;
+  /** A photo or document, or the clip of a voice message; in the outbox directory once queued (data/outbox-files.ts). */
   file?: PendingFile;
+  /** Set for a voice message: `file` is the recorded clip, this its length. */
+  voiceDurationMs?: number;
+  /** Set for a reminder message: no body, the reminder beside it (chat-create-reminder-dialog.tsx). */
+  reminder?: { body: string; remindAt: string; repeat: ReminderRepeat };
   createdAt: number;
   status: SendStatus;
 }

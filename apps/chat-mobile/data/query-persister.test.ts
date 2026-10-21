@@ -1,0 +1,216 @@
+// Audit R5: a cold start opens on the cached inbox, and only on the person's own.
+import { QueryClient, dehydrate } from "@tanstack/react-query";
+import type { PersistedClient, Persister } from "@tanstack/query-persist-client-core";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { chatKeys } from "./queries/chat-keys";
+import {
+  PERSIST_THROTTLE_MS,
+  createDevicePersister,
+  dropAccountCache,
+  installAccountCache,
+  restoreAccountCache,
+  shapePersistedClient,
+  shouldPersistQuery,
+} from "./query-persister";
+import { installReportSink } from "./report";
+import { memoryDeviceStore, type DeviceStore } from "./storage/device-store";
+
+const room = (id: string, last: string | null) => ({ id, last_message_at: last });
+const page = (id: string) => [{ id }];
+
+function seeded(): QueryClient {
+  const qc = new QueryClient();
+  qc.setQueryData(["workspaces"], [{ id: "w1" }]);
+  qc.setQueryData(chatKeys.rooms("w1"), [room("old", "2026-10-01T00:00:00Z"), room("new", "2026-10-20T00:00:00Z"), room("never", null)]);
+  qc.setQueryData(chatKeys.unreadSummary(), { direct: 1 });
+  qc.setQueryData(chatKeys.nicknames("w1"), {});
+  qc.setQueryData(chatKeys.members("w1"), []);
+  qc.setQueryData(chatKeys.roomMembers("w1", "new"), []);
+  qc.setQueryData(chatKeys.roomMessages("w1", "new"), { pages: [page("n2"), page("n1")], pageParams: [null, { cursor: "c" }] });
+  qc.setQueryData(chatKeys.roomMessages("w1", "old"), { pages: [page("o1")], pageParams: [null] });
+  // Never kept: search, threads, tasks, the remote config.
+  qc.setQueryData(chatKeys.roomSearch("w1", "new", "hi"), []);
+  qc.setQueryData(chatKeys.threadMessages("w1", "new", "root"), { pages: [], pageParams: [] });
+  qc.setQueryData(chatKeys.task("w1", "t1"), {});
+  qc.setQueryData(["remote-config"], {});
+  return qc;
+}
+
+const keysOf = (client: PersistedClient) => client.clientState.queries.map((q) => JSON.stringify(q.queryKey)).sort();
+
+afterEach(() => {
+  installAccountCache(null);
+  vi.useRealTimers();
+});
+
+describe("what is kept", () => {
+  it("keeps only the inbox a cold start opens on, and only answers the server gave", () => {
+    const qc = seeded();
+    const kept = qc.getQueryCache().getAll().filter(shouldPersistQuery).map((q) => JSON.stringify(q.queryKey)).sort();
+    expect(kept).toEqual(
+      [
+        ["workspaces"],
+        chatKeys.rooms("w1"),
+        chatKeys.unreadSummary(),
+        chatKeys.nicknames("w1"),
+        chatKeys.members("w1"),
+        chatKeys.roomMembers("w1", "new"),
+        chatKeys.roomMessages("w1", "new"),
+        chatKeys.roomMessages("w1", "old"),
+      ]
+        .map((k) => JSON.stringify(k))
+        .sort(),
+    );
+    const failed = { queryKey: chatKeys.rooms("w1"), state: { status: "error" } } as never;
+    expect(shouldPersistQuery(failed)).toBe(false);
+    for (const queryKey of [["workspaces", "x"], ["chat", "unread-summary", "x"], ["chat", "w1", "follow-ups"], ["chat", "w1", "room-members", "r", "x"]]) {
+      expect(shouldPersistQuery({ queryKey, state: { status: "success" } } as never)).toBe(false);
+    }
+  });
+
+  it("writes the newest page of the most recently active rooms only", () => {
+    const qc = seeded();
+    const client: PersistedClient = { buster: "b", timestamp: 1, clientState: dehydrate(qc, { shouldDehydrateQuery: shouldPersistQuery }) };
+    const shaped = shapePersistedClient(client, 1);
+    expect(keysOf(shaped)).not.toContain(JSON.stringify(chatKeys.roomMessages("w1", "old")));
+    const timeline = shaped.clientState.queries.find((q) => JSON.stringify(q.queryKey) === JSON.stringify(chatKeys.roomMessages("w1", "new")));
+    expect(timeline?.state.data).toEqual({ pages: [page("n2")], pageParams: [null] });
+    expect(shapePersistedClient(client, 3).clientState.queries).toHaveLength(client.clientState.queries.length);
+
+    // A timeline without its pageParams, and a workspace whose rooms list is not kept, read safely.
+    const odd: PersistedClient = {
+      ...client,
+      clientState: {
+        mutations: [],
+        queries: [
+          { ...client.clientState.queries[0]!, queryKey: chatKeys.rooms("w2"), state: { ...client.clientState.queries[0]!.state, data: "drift" } },
+          { ...client.clientState.queries[0]!, queryKey: chatKeys.roomMessages("w2", "r"), state: { ...client.clientState.queries[0]!.state, data: { pages: [1, 2] } } },
+        ],
+      },
+    };
+    expect(shapePersistedClient(odd).clientState.queries).toHaveLength(1);
+    const withRooms: PersistedClient = {
+      ...odd,
+      clientState: {
+        mutations: [],
+        queries: [
+          { ...odd.clientState.queries[0]!, state: { ...odd.clientState.queries[0]!.state, data: [room("r", null)] } },
+          odd.clientState.queries[1]!,
+        ],
+      },
+    };
+    expect(shapePersistedClient(withRooms).clientState.queries[1]?.state.data).toEqual({ pages: [1], pageParams: [] });
+  });
+});
+
+describe("the device persister", () => {
+  it("writes JSON under one key and drops a copy that does not read", async () => {
+    const store = memoryDeviceStore();
+    const persister = createDevicePersister(async () => store);
+    expect(await persister.restoreClient()).toBeUndefined();
+    const client: PersistedClient = { buster: "b", timestamp: 1, clientState: { mutations: [], queries: [] } };
+    await persister.persistClient(client);
+    expect(await persister.restoreClient()).toEqual(client);
+    store.set("query-cache", "{broken");
+    expect(await persister.restoreClient()).toBeUndefined();
+    await persister.removeClient();
+    expect(store.getString("query-cache")).toBeUndefined();
+  });
+});
+
+describe("the account's cache", () => {
+  let store: DeviceStore;
+  let persister: Persister;
+  const warnings: string[] = [];
+
+  beforeEach(() => {
+    store = memoryDeviceStore();
+    persister = createDevicePersister(async () => store);
+    warnings.length = 0;
+    installReportSink({ captureException: vi.fn(), addBreadcrumb: (b) => void warnings.push(b.message ?? ""), setUser: vi.fn(), setTag: vi.fn() });
+  });
+  afterEach(() => installReportSink(null));
+
+  it("does nothing until the app installs it", async () => {
+    await restoreAccountCache("u1");
+    await dropAccountCache();
+    expect(store.getString("query-cache")).toBeUndefined();
+  });
+
+  it("saves the person's inbox a second after the last change, and opens the next start on it", async () => {
+    vi.useFakeTimers();
+    const first = seeded();
+    installAccountCache({ queryClient: first, persister, version: "0.3.0" });
+    await restoreAccountCache("u1");
+    first.setQueryData(chatKeys.rooms("w1"), [room("new", "2026-10-21T00:00:00Z")]);
+    first.setQueryData(chatKeys.unreadSummary(), { direct: 2 });
+    expect(store.getString("query-cache")).toBeUndefined();
+    await vi.advanceTimersByTimeAsync(PERSIST_THROTTLE_MS);
+    const saved = JSON.parse(store.getString("query-cache")!) as PersistedClient;
+    expect(saved.buster).toBe("0.3.0:u1");
+    expect(keysOf(saved)).toContain(JSON.stringify(chatKeys.rooms("w1")));
+    expect(keysOf(saved)).not.toContain(JSON.stringify(["remote-config"]));
+
+    // The next cold start, same person, same build.
+    const next = new QueryClient();
+    installAccountCache({ queryClient: next, persister, version: "0.3.0" });
+    await restoreAccountCache("u1");
+    expect(next.getQueryData(chatKeys.rooms("w1"))).toEqual([room("new", "2026-10-21T00:00:00Z")]);
+    expect(next.getQueryData(chatKeys.unreadSummary())).toEqual({ direct: 2 });
+  });
+
+  it("another person or another build reads nothing of it, and the copy goes", async () => {
+    store.set("query-cache", JSON.stringify({ buster: "0.3.0:u1", timestamp: Date.now(), clientState: dehydrate(seeded()) }));
+    const qc = new QueryClient();
+    installAccountCache({ queryClient: qc, persister, version: "0.3.0" });
+    await restoreAccountCache("u2");
+    expect(qc.getQueryData(chatKeys.rooms("w1"))).toBeUndefined();
+    expect(store.getString("query-cache")).toBeUndefined();
+  });
+
+  it("sign-out stops the writes and removes the copy; a reinstall stops the last subscription", async () => {
+    vi.useFakeTimers();
+    const qc = new QueryClient();
+    installAccountCache({ queryClient: qc, persister, version: "0.3.0" });
+    await restoreAccountCache("u1");
+    qc.setQueryData(chatKeys.rooms("w1"), []);
+    await dropAccountCache();
+    await vi.advanceTimersByTimeAsync(PERSIST_THROTTLE_MS);
+    expect(store.getString("query-cache")).toBeUndefined();
+
+    await restoreAccountCache("u1");
+    // Observer churn alone is not a change worth a write.
+    qc.getQueryCache().notify({ type: "observerAdded" } as never);
+    await vi.advanceTimersByTimeAsync(PERSIST_THROTTLE_MS);
+    expect(store.getString("query-cache")).toBeUndefined();
+    installAccountCache(null);
+    qc.setQueryData(chatKeys.rooms("w1"), [room("x", null)]);
+    await vi.advanceTimersByTimeAsync(PERSIST_THROTTLE_MS);
+    expect(store.getString("query-cache")).toBeUndefined();
+    await dropAccountCache();
+  });
+
+  it("a copy that will not read, or a write that fails, is logged and never stops the app", async () => {
+    vi.useFakeTimers();
+    const qc = new QueryClient();
+    const broken: Persister = {
+      persistClient: () => Promise.reject(new Error("full")),
+      restoreClient: () => Promise.reject("locked"),
+      removeClient: async () => undefined,
+    };
+    installAccountCache({ queryClient: qc, persister: broken, version: "0.3.0" });
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    await restoreAccountCache("u1");
+    qc.setQueryData(chatKeys.rooms("w1"), []);
+    await vi.advanceTimersByTimeAsync(PERSIST_THROTTLE_MS);
+    expect(warnings).toEqual(["cached rooms not restored", "cached rooms not saved"]);
+
+    const odd: Persister = { ...broken, restoreClient: () => Promise.reject(new Error("locked")), persistClient: () => Promise.reject("full") };
+    installAccountCache({ queryClient: qc, persister: odd, version: "0.3.0" });
+    await restoreAccountCache("u1");
+    qc.setQueryData(chatKeys.rooms("w1"), [room("y", null)]);
+    await vi.advanceTimersByTimeAsync(PERSIST_THROTTLE_MS);
+    expect(warnings).toHaveLength(4);
+  });
+});

@@ -10,6 +10,7 @@ import {
   isReminderDue,
   messagePreviewText,
   messageView,
+  pendingPreviewText,
   pollResults,
   voiceCallLogLabel,
 } from "./message-display";
@@ -131,5 +132,15 @@ describe("labels", () => {
     expect(isReminderDue("2026-10-17T11:00:00Z", Date.parse("2026-10-17T11:00:00Z"))).toBe(true);
     expect(isReminderDue("2026-10-17T11:00:00Z", Date.parse("2026-10-17T10:00:00Z"))).toBe(false);
     expect(isReminderDue("garbage")).toBe(false);
+  });
+});
+
+describe("pendingPreviewText", () => {
+  it("says what a message still on its way is: its text with names, its file, a voice message or the reminder", () => {
+    const tVi = i18n.getFixedT("vi");
+    expect(pendingPreviewText({ body: "chào [@An](mention://member/u1)" }, tVi)).toBe("chào @An");
+    expect(pendingPreviewText({ body: "", file: { uri: "file:///a", name: "báo giá.pdf" } }, tVi)).toBe("báo giá.pdf");
+    expect(pendingPreviewText({ body: "", file: { uri: "file:///v", name: "voice.m4a" }, voiceDurationMs: 3_000 }, tVi)).toBe("Tin nhắn thoại");
+    expect(pendingPreviewText({ body: "", reminder: { body: "Gửi báo giá", remindAt: "2026-10-18T02:00:00.000Z", repeat: "none" } }, tVi)).toBe("Gửi báo giá");
   });
 });

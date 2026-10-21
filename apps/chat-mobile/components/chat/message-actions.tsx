@@ -16,8 +16,7 @@ import { useAfterDismiss } from "@/components/ui/action-sheet";
 import { Text } from "@/components/ui/text";
 import { FOLLOW_UP_HOURS } from "@/data/chat-actions";
 import type { ChatFollowUp } from "@/data/chat-api";
-import { deserializeMessageBodyToComposerDraft } from "@/lib/mentions";
-import { messagePreviewText, messageView } from "@/lib/message-display";
+import { messagePreviewText, messageView, pendingPreviewText } from "@/lib/message-display";
 import { senderNameClass } from "@/lib/sender-colors";
 import { THEME } from "@/lib/theme";
 import { formatMessageTime, type TimelineMessage } from "@/lib/timeline-display";
@@ -112,13 +111,7 @@ export function MessageActionsSheet(props: Props) {
   }
   const mine = new Set(record?.my_reactions ?? []);
   const pending = message?.pending;
-  const preview = record
-    ? messagePreviewText(record, t)
-    : pending
-      ? pending.file
-        ? pending.file.name
-        : deserializeMessageBodyToComposerDraft(pending.body)
-      : "";
+  const preview = record ? messagePreviewText(record, t) : pending ? pendingPreviewText(pending, t) : "";
 
   return (
     <Modal visible={message !== null} transparent animationType="fade" statusBarTranslucent onRequestClose={onClose} onDismiss={onDismiss}>

@@ -16,8 +16,6 @@ import {
   markThreadRead,
   refreshMessageMedia,
   resolveDMRoom,
-  sendReminder,
-  sendVoiceMessage,
   setRoomMuted,
   togglePin,
   toggleReaction,
@@ -156,23 +154,6 @@ describe("chat actions", () => {
     await votePoll(qc, "w1", "r1", "m1", "o1");
     expect(vote).toHaveBeenCalledWith("w1", "r1", "m1", "o1");
     expect(flattenRoomTimeline(qc.getQueryData<RoomTimeline>(timelineKey)!)[0]?.poll?.viewer_option_ids).toEqual(["o1"]);
-  });
-
-  it("sends a voice clip and a reminder like the web, inside the server's bounds, and reports nothing back", async () => {
-    const qc = new QueryClient();
-    withTimeline(qc, []);
-    const voice = vi.spyOn(chatApi, "sendVoiceMessage").mockResolvedValueOnce(msg("v1", { kind: "voice" })).mockResolvedValueOnce(null);
-    await sendVoiceMessage(qc, "w1", "r1", { uri: "file:///a.m4a", durationMs: 130_400.6, replyToMessageId: "m0" });
-    expect(voice).toHaveBeenCalledWith("w1", "r1", expect.objectContaining({ uri: "file:///a.m4a", duration_ms: 120_000, reply_to_message_id: "m0", client_msg_id: expect.any(String) }));
-    await expect(sendVoiceMessage(qc, "w1", "r1", { uri: "file:///b.m4a", durationMs: 0 })).rejects.toThrow("chat_voice_send_failed");
-    expect(voice.mock.calls[1]?.[2].duration_ms).toBe(1);
-
-    const send = vi.spyOn(chatApi, "sendMessage").mockResolvedValueOnce(msg("rm", { kind: "reminder", created_at: "2026-10-17T10:01:00Z" })).mockResolvedValueOnce(null);
-    const at = new Date("2026-10-18T02:00:00Z");
-    await sendReminder(qc, "w1", "r1", { body: "  Gửi báo giá ", remindAt: at, repeat: "daily" });
-    expect(send).toHaveBeenCalledWith("w1", "r1", { client_msg_id: expect.any(String), reminder: { body: "Gửi báo giá", remind_at: "2026-10-18T02:00:00.000Z", repeat: "daily" } });
-    await expect(sendReminder(qc, "w1", "r1", { body: "x", remindAt: at, repeat: "none" })).rejects.toThrow("chat_reminder_send_failed");
-    expect(flattenRoomTimeline(qc.getQueryData<RoomTimeline>(timelineKey)!).map((m) => m.id)).toEqual(["v1", "rm"]);
   });
 
   it("creates, completes and removes a follow-up, refetching the list each time, and reports a refusal", async () => {

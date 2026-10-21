@@ -64,6 +64,9 @@ function serverUrl(name: "UNICHAT_API_URL" | "UNICHAT_APP_URL", env: AppEnv, dev
   throw new Error(`${name} is required when UNICHAT_ENV=${env}`);
 }
 
+// lib/theme.ts › background: hsl(0 0% 100%) and hsl(0 0% 6.7%).
+const SPLASH_BACKGROUND = { light: "#ffffff", dark: "#111111" } as const;
+
 const INTER = [400, 500, 600, 700, 800] as const;
 const JAKARTA = [400, 500, 600, 700, 800] as const;
 const WEIGHT_NAME: Record<number, string> = { 400: "Regular", 500: "Medium", 600: "SemiBold", 700: "Bold", 800: "ExtraBold" };
@@ -156,6 +159,18 @@ export default ({ config, projectRoot }: ConfigContext): ExpoConfig => {
     locales: { en: { ios: USAGE_EN } },
     plugins: [
       "expo-router",
+      // The splash stays up while a cold start reads the session, the workspace and the cached rooms
+      // (app/_layout.tsx › useSplashUntilReady): the mark on the app's background, light and dark.
+      [
+        "expo-splash-screen",
+        {
+          image: "./assets/adaptive-icon.png",
+          imageWidth: 240,
+          resizeMode: "contain",
+          backgroundColor: SPLASH_BACKGROUND.light,
+          dark: { image: "./assets/adaptive-icon.png", backgroundColor: SPLASH_BACKGROUND.dark },
+        },
+      ],
       "expo-secure-store",
       "expo-localization",
       "expo-web-browser",

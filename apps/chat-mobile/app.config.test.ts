@@ -70,6 +70,11 @@ describe("app.config per UNICHAT_ENV", () => {
     expect(config.plugins).toEqual(
       expect.arrayContaining([
         "expo-router",
+        // The splash is held until the first screen knows where it goes (audit P0-3).
+        [
+          "expo-splash-screen",
+          expect.objectContaining({ image: "./assets/adaptive-icon.png", backgroundColor: "#ffffff", dark: expect.objectContaining({ backgroundColor: "#111111" }) }),
+        ],
         "expo-secure-store",
         "expo-notifications",
         ["expo-build-properties", { ios: { enableSceneSupport: true } }],

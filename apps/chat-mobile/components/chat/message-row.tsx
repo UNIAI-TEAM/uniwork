@@ -15,7 +15,7 @@ import { Text } from "@/components/ui/text";
 import { bubbleCorners } from "@/lib/conversation-display";
 import { senderNameClass } from "@/lib/sender-colors";
 import { deserializeMessageBodyToComposerDraft } from "@/lib/mentions";
-import { messagePreviewText, messageView } from "@/lib/message-display";
+import { messagePreviewText, messageView, pendingPreviewText } from "@/lib/message-display";
 import { THEME } from "@/lib/theme";
 import { formatMessageTime, type TimelineMessage } from "@/lib/timeline-display";
 import { cn } from "@/lib/utils";
@@ -110,11 +110,7 @@ export const MessageRow = memo(function MessageRow(props: MessageRowProps) {
   const interactive = album ? true : record ? INTERACTIVE_VIEWS.has(messageView(record)) : false;
   const footTs = album?.at(-1)?.ts ?? message.ts;
   // A pending message has no record yet: its own text, with mentions as names, or its file's name.
-  const preview = record
-    ? messagePreviewText(record, t)
-    : message.pending!.file
-      ? message.pending!.file.name
-      : deserializeMessageBodyToComposerDraft(message.pending!.body);
+  const preview = record ? messagePreviewText(record, t) : pendingPreviewText(message.pending!, t);
   // The bubble is one accessible element, so what its foot shows must be in its label too.
   const state = message.pending ? pendingStatusText(message.pending.status, t) : record?.edited_at ? t("chat.edited_label") : null;
   const longPress = () => props.onLongPress(message);

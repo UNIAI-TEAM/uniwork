@@ -411,6 +411,31 @@ describe("restore", () => {
     expect(warn).toHaveBeenCalledWith(expect.stringContaining("unreadable"));
   });
 
+  it("resolves to whether a credential is held: a cold start routes on it without waiting for the network", async () => {
+    const fresh = setup(vi, { storage: createMemoryStorage(vi, stored()) });
+    expect(await fresh.session.restore({ awaitRefresh: false })).toBe(true);
+
+    // The refresh hangs (a dead spot): the credential is still held, and the refresh goes on in the background.
+    const hung = setup(vi, { storage: createMemoryStorage(vi, stored({ expires_at: 0 })) });
+    hung.transport.refresh.mockImplementationOnce(() => new Promise(() => undefined));
+    expect(await hung.session.restore({ awaitRefresh: false })).toBe(true);
+    expect(hung.session.status()).toBe("refreshing");
+
+    // Offline: the refresh fails transiently, the session keeps the credential and recovers on its own.
+    const offline = setup(vi, { storage: createMemoryStorage(vi, stored({ expires_at: 0 })) });
+    offline.transport.refresh.mockImplementationOnce(fail("network"));
+    expect(await offline.session.restore()).toBe(true);
+    expect(offline.session.status()).toBe("server-unreachable");
+
+    // A server verdict on the refresh ends it.
+    const revoked = setup(vi, { storage: createMemoryStorage(vi, stored({ expires_at: 0 })) });
+    revoked.transport.refresh.mockImplementationOnce(fail("device_revoked"));
+    expect(await revoked.session.restore()).toBe(false);
+    expect(revoked.tokens).toEqual([null]);
+
+    expect(await setup(vi).session.restore({ awaitRefresh: false })).toBe(false);
+  });
+
   it("an expired refresh token is cleared without a network call", async () => {
     const ctx = setup(vi, { storage: createMemoryStorage(vi, stored({ expires_at: 0, refresh_expires_at: Date.now() - 1 })) });
     await ctx.session.restore();

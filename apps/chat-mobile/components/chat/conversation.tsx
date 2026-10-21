@@ -23,14 +23,12 @@ import {
   deleteMessage,
   editMessage,
   followUpCommand,
-  sendReminder,
-  sendVoiceMessage,
   togglePin,
   toggleReaction,
   votePoll,
 } from "@/data/chat-actions";
 import { chatApi } from "@/data/chat-api";
-import { chatSendDeps, deliverPendingSend, discardPendingSend, sendChatMessage } from "@/data/chat-send";
+import { chatSendDeps, discardPendingSend, retryPendingSend, sendChatMessage, type ChatSendInput } from "@/data/chat-send";
 import { followUpsOptions, roomLinksOptions } from "@/data/queries/chat";
 import { chatRoutes } from "@/lib/chat-routes";
 import { continuedRunKeys } from "@/lib/conversation-display";
@@ -156,10 +154,11 @@ export function Conversation(props: Props) {
     props.onSend?.();
     return replyToMessageId;
   };
-  const send = (body: string) =>
-    void sendChatMessage(qc, { workspaceId: wsId, roomId, senderId: userId, body, replyToMessageId: takeReply(), threadRootId }, chatSendDeps);
-  const sendFile = (file: PendingFile) =>
-    void sendChatMessage(qc, { workspaceId: wsId, roomId, senderId: userId, body: "", file, replyToMessageId: takeReply() }, chatSendDeps);
+  // Every send goes through the outbox (data/chat-send.ts): on screen at once, kept across a restart, sent in order.
+  const enqueue = (input: Omit<ChatSendInput, "workspaceId" | "roomId" | "senderId">) =>
+    void sendChatMessage(qc, { workspaceId: wsId, roomId, senderId: userId, ...input }, chatSendDeps);
+  const send = (body: string) => enqueue({ body, replyToMessageId: takeReply(), threadRootId });
+  const sendFile = (file: PendingFile) => enqueue({ body: "", file, replyToMessageId: takeReply() });
   const quoteOf = (message: TimelineMessage) => ({ id: message.id, sender: room.senderName(message), text: message.record ? messagePreviewText(message.record, t) : message.body });
 
   const renderMessage = (row: Extract<TimelineRow, { type: "message" }>) => {
@@ -275,14 +274,9 @@ export function Conversation(props: Props) {
           void editMessage(qc, wsId, roomId, messageId, body).catch(() => toast.error(t("chat.message_list.edit_failed")));
         }}
         onTyping={() => void chatApi.signalTyping(wsId, roomId).catch(() => undefined)}
-        onSendVoice={(clip) => {
-          const quote = reply;
-          // A clip is not queued like text: a failed send says so and gives the quote back.
-          void sendVoiceMessage(qc, wsId, roomId, { ...clip, replyToMessageId: takeReply() }).catch(() => {
-            setReply((current) => current ?? quote);
-            toast.error(t("chat.voice_record_failed"));
-          });
-        }}
+        onSendVoice={(clip) =>
+          enqueue({ body: "", file: { uri: clip.uri, name: "voice.m4a", mimeType: "audio/mp4" }, voiceDurationMs: clip.durationMs, replyToMessageId: takeReply() })
+        }
         onOpenExpressions={() => setSheet("expressions")}
         onOpenReminder={() => setSheet("reminder")}
       />
@@ -290,7 +284,7 @@ export function Conversation(props: Props) {
       <ReminderSheet
         visible={sheet === "reminder"}
         onClose={() => setSheet(null)}
-        onCreate={(input) => void sendReminder(qc, wsId, roomId, input).catch(() => toast.error(t("chat.reminder_create_failed")))}
+        onCreate={(input) => enqueue({ body: "", reminder: { body: input.body.trim(), remindAt: input.remindAt.toISOString(), repeat: input.repeat } })}
       />
       <MessageActionsSheet
         message={actionMessage}
@@ -339,8 +333,8 @@ export function Conversation(props: Props) {
             toast.error(t("chat.link.create_error")),
           )
         }
-        onRetry={(m) => m.pending && void deliverPendingSend(qc, m.pending, chatSendDeps)}
-        onDiscard={(m) => m.pending && discardPendingSend(m.pending.clientMsgId)}
+        onRetry={(m) => m.pending && void retryPendingSend(qc, m.pending, chatSendDeps)}
+        onDiscard={(m) => m.pending && discardPendingSend(m.pending.clientMsgId, chatSendDeps)}
         onMoreReactions={setEmojiFor}
         onPin={(m) => void togglePin(qc, wsId, roomId, m.id).catch(failed)}
         onForward={(m) => setForwardId(m.id)}

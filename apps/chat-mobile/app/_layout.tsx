@@ -2,7 +2,9 @@
 // session-activity: the root providers, the 401 teardown, deep links and the
 // notification tap, all above the Stack. UNI-2053 adds crash reporting (the
 // SDK first, the boundary below), the build's identity on every request, the
-// "Update required" gate above everything, and the toasts.
+// "Update required" gate above everything, and the toasts; S3 the encrypted
+// device store (unsent messages, cached rooms) and the splash held until the
+// first screen knows where it is going.
 import "../global.css";
 
 import { registerGlobals } from "@livekit/react-native";
@@ -14,6 +16,7 @@ import Constants from "expo-constants";
 import * as Linking from "expo-linking";
 import * as Notifications from "expo-notifications";
 import { Stack, ThemeProvider, router, useNavigationContainerRef, type ErrorBoundaryProps } from "expo-router";
+import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useRef, type ReactNode } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -27,8 +30,10 @@ import { authConfig, session } from "@/data/auth/flow";
 import { useAuthStore } from "@/data/auth/store";
 import { buildInfo } from "@/data/build-info";
 import { queryClient } from "@/data/query-client";
+import { createDevicePersister, installAccountCache } from "@/data/query-persister";
 import { initSentry, sentryNavigation } from "@/data/sentry";
-import { useWorkspaceStore } from "@/data/stores/workspace-store";
+import { installDeviceStore, openDeviceStore } from "@/data/storage/device-store";
+import { openNativeDeviceStore } from "@/data/storage/native-device-store";
 import { clientHeaders } from "@/lib/build-info";
 import { deepLinkHref, parseDeepLink, setPendingDeepLink } from "@/lib/deep-link";
 import { I18nProvider } from "@/lib/i18n/provider";
@@ -45,6 +50,13 @@ configureRuntime(runtimeFromExtra(extra));
 api.setClientIdentity(clientHeaders(buildInfo()));
 // WebRTC globals for LiveKit, once, before any call (M3).
 registerGlobals();
+// The encrypted store the outbox and the cached rooms live in, before the session is restored.
+installDeviceStore(openNativeDeviceStore);
+installAccountCache({ queryClient, persister: createDevicePersister(openDeviceStore), version: buildInfo().version });
+// The splash stays until the session, the workspace and the cache are read (audit P0-3): no spinner, no flash of /login.
+void SplashScreen.preventAutoHideAsync().catch(() => undefined);
+/** A boot that hangs (a Keychain that never answers) must not hold the splash for ever. */
+const SPLASH_CAP_MS = 8_000;
 
 /** A render crash anywhere: a retry screen instead of a white one, reported (components/ui/error-fallback.tsx). */
 export function ErrorBoundary(props: ErrorBoundaryProps) {
@@ -89,11 +101,8 @@ function AuthInitializer({ children }: { children: ReactNode }) {
       // so the sign-out the app asked for never comes back here.
       else if (useAuthStore.getState().user) signOut();
     });
-    // The workspace first, so index.tsx sees it the moment isLoading drops.
-    void useWorkspaceStore
-      .getState()
-      .restore()
-      .then(() => useAuthStore.getState().initialize());
+    // The session, the stored person, the workspace and the outbox are read together (data/auth/store.ts).
+    void useAuthStore.getState().initialize();
 
     void Linking.getInitialURL().then((url) => {
       if (url) openUrl(url);
@@ -114,8 +123,24 @@ function AuthInitializer({ children }: { children: ReactNode }) {
   return children;
 }
 
+/** The splash goes once the first screen knows where it is going, or after SPLASH_CAP_MS whatever happens. */
+function useSplashUntilReady() {
+  const isLoading = useAuthStore((s) => s.isLoading);
+  useEffect(() => {
+    const cap = setTimeout(() => SplashScreen.hide(), SPLASH_CAP_MS);
+    return () => clearTimeout(cap);
+  }, []);
+  useEffect(() => {
+    if (isLoading) return;
+    // One frame for the redirect's screen to draw under it.
+    const frame = requestAnimationFrame(() => SplashScreen.hide());
+    return () => cancelAnimationFrame(frame);
+  }, [isLoading]);
+}
+
 function RootLayout() {
   const { colorScheme, isDarkColorScheme } = useColorScheme();
+  useSplashUntilReady();
   // Screen loads and app start as Sentry spans (no-op without a DSN).
   const navigationRef = useNavigationContainerRef();
   useEffect(() => {
