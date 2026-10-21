@@ -1,0 +1,29 @@
+# Performance, step 2: a reader flings back through the room's history and
+# down again, loading older pages on the way (the room should hold 500+
+# messages; runbook › Đo hiệu năng trên thiết bị). The workflow reads
+# `dumpsys gfxinfo` and `dumpsys meminfo` after it (scripts/mobile-perf.mjs
+# frames). No launch: it scrolls the room perf-open-room.yaml left open.
+appId: com.uniworkos.chat.staging
+name: Scroll back through a long room
+tags:
+  - perf
+---
+- assertVisible:
+    id: message-list
+# The list is inverted: a finger moving down reveals older messages.
+- repeat:
+    times: 20
+    commands:
+      - swipe:
+          start: 50%, 30%
+          end: 50%, 85%
+          duration: 250
+- repeat:
+    times: 20
+    commands:
+      - swipe:
+          start: 50%, 85%
+          end: 50%, 30%
+          duration: 250
+- assertVisible:
+    id: message-list

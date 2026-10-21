@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { appEnvironment, easProjectId, runtimeFromExtra, sentryDsn } from "./runtime-extra";
+import { appEnvironment, easProjectId, runtimeFromExtra, sentryDsn, perfMarksOn } from "./runtime-extra";
 
 describe("easProjectId", () => {
   it("reads extra.eas.projectId and nothing else", () => {
@@ -38,6 +38,14 @@ describe("sentryDsn", () => {
     expect(sentryDsn({ sentryDsn: "https://host/1" })).toBeUndefined();
     expect(sentryDsn({ sentryDsn: 7 })).toBeUndefined();
     expect(sentryDsn(undefined)).toBeUndefined();
+  });
+});
+
+describe("perfMarksOn", () => {
+  it("is on only when the build set it", () => {
+    expect(perfMarksOn({ perfMarks: true })).toBe(true);
+    expect(perfMarksOn({ perfMarks: "true" })).toBe(false);
+    expect(perfMarksOn(undefined)).toBe(false);
   });
 });
 

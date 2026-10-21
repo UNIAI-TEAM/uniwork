@@ -40,6 +40,18 @@ Mỗi dòng trỏ tới bằng chứng (bình luận UNI-1838, run CI, ảnh). M
 | Phàn nàn "không nhận push khi desktop mở" | — | … (dự phòng idle timer: bật / không) |
 | Phản hồi trong `#unichat-feedback` | — | … tin, … chủ đề chính |
 
+**Hiệu năng** (Android; iOS khi có bản build). Emulator: step summary của `android-smoke` và nightly
+(`apps/chat-mobile/perf-budget.json`); máy thật: Sentry › Performance của release đang rollout, p75.
+
+| Số | Trần / mục tiêu | Thực tế |
+| --- | --- | --- |
+| Mở lạnh tới màn đầu, emulator (trung vị 5 lần) | `perf-budget.json` | … ms |
+| Mở lạnh tới inbox đã đăng nhập, emulator | `perf-budget.json` | … ms |
+| Khung giật / khung p90 khi cuộn phòng 500+ tin, emulator | `perf-budget.json` | … % / … ms |
+| `app.start.cold` p75, production | ≤ 3 s | … s |
+| TTFD tab Chat / phòng p75, production | ≤ 2,5 s / ≤ 2 s | … s / … s |
+| Khung đơ, production | ≤ 1 % | … % |
+
 ## 3. Rủi ro còn lại
 
 Điền rủi ro đã biết lúc lập mẫu, thêm rủi ro mới từ pilot; mỗi dòng có chủ và hướng xử lý.

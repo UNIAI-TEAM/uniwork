@@ -70,3 +70,21 @@ export function argsLogger(scope: string): ArgsLogger {
     },
   };
 }
+
+// Startup marks for on-device measurement (scripts/mobile-perf.mjs): only a build made with
+// UNICHAT_PERF_MARKS=1 logs them, to the device log (logcat's ReactNativeJS tag), where CI reads each mark's
+// time against the launch's. Each mark once per process: a mark is a moment of this start, not an event.
+let perfMarks = false;
+const marked = new Set<string>();
+
+/** Boot (data/boot.ts): whether this build logs its startup marks. */
+export function enablePerfMarks(on: boolean): void {
+  perfMarks = on;
+}
+
+/** The first time this process reaches `name` ("first-screen", "inbox"), in a build that measures itself. */
+export function perfMark(name: string): void {
+  if (!perfMarks || marked.has(name)) return;
+  marked.add(name);
+  console.info(`UniChatPerf mark=${name}`);
+}

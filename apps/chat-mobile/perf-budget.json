@@ -1,0 +1,12 @@
+{
+  "_": "Ceilings for UniChat on the CI emulator (scripts/mobile-perf.mjs): API 35, google_apis, x86_64 with KVM, the release APK of the production config built with UNICHAT_PERF_MARKS=1. Every PR that reaches the binary measures apkMB, coldStartTtidMs and coldStartFirstScreenMs (mobile-verify.yml › android-smoke); the nightly measures coldStartInboxMs, scrollJankyPercent, scrollP90FrameMs and memoryPssMB with the staging account (chat-mobile-verify.yml › android). Set 2026-10-22 as provisional ceilings, before any run measured this app: they catch a gross regression (a doubled start, a frozen scroll), not a small one. After the first five green runs of each job, set each ceiling to the worst of them + 15 % (the emulator is noisy) in one commit that quotes the runs; then they only go down, and one goes up only in the commit that adds the weight, saying why. The emulator renders without a GPU: frame numbers are for comparison between builds, not a claim about a phone.",
+  "android": {
+    "apkMB": 90,
+    "coldStartTtidMs": 3000,
+    "coldStartFirstScreenMs": 6000,
+    "coldStartInboxMs": 8000,
+    "scrollJankyPercent": 30,
+    "scrollP90FrameMs": 48,
+    "memoryPssMB": 500
+  }
+}

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { argsLogger, createLogger } from "./logger";
+import { argsLogger, createLogger, enablePerfMarks, perfMark } from "./logger";
 import { installReportSink, type ReportSink } from "./report";
 
 const sink = {
@@ -86,5 +86,18 @@ describe("argsLogger", () => {
     ws.debug("[ws] event", "chat.message.created");
     expect(console.debug).toHaveBeenCalledWith("[ws] event", "chat.message.created");
     expect(sink.addBreadcrumb).not.toHaveBeenCalled();
+  });
+});
+
+describe("perfMark", () => {
+  it("logs each startup mark once, and only in a build that measures itself", () => {
+    perfMark("first-screen");
+    expect(console.info).not.toHaveBeenCalled();
+    enablePerfMarks(true);
+    perfMark("first-screen");
+    perfMark("first-screen");
+    perfMark("inbox");
+    expect(vi.mocked(console.info).mock.calls).toEqual([["UniChatPerf mark=first-screen"], ["UniChatPerf mark=inbox"]]);
+    enablePerfMarks(false);
   });
 });

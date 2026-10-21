@@ -265,3 +265,30 @@ test("a production store release is staged and promoted on crash-free sessions",
   assert.match(section, /"releaseStatus": "inProgress", "rollout": 0\.05/, "the switch to a submitted first stage once Play is live");
   assert.match(section, /Phased release/, "the iOS counterpart");
 });
+
+// Audit P1 Perf: the app is measured on a device, and the measured build is the only one that logs its marks.
+test("the smoke and the nightly time the app on the emulator against perf-budget.json; no store build logs the marks", () => {
+  const verify = jobsOf(read("mobile-verify.yml")).jobs;
+  assert.match(verify.get("android-release") ?? "", /^\s+UNICHAT_PERF_MARKS: "1"$/m, "the PR's release APK logs its startup marks");
+  const smoke = verify.get("android-smoke") ?? "";
+  assert.match(smoke, /mobile-perf\.mjs apk /, "the smoke measures the APK");
+  assert.match(smoke, /mobile-perf\.mjs startup --package com\.uniworkos\.chat --mark first-screen --runs 5/, "and five cold starts to the first screen");
+  assert.match(smoke, /mobile-perf\.mjs check /, "and holds them to the budget");
+
+  const nightly = jobsOf(read("chat-mobile-verify.yml")).jobs.get("android") ?? "";
+  assert.match(nightly, /^\s+UNICHAT_PERF_MARKS: "1"$/m, "the nightly's APK logs its startup marks");
+  assert.match(nightly, /mobile-perf\.mjs startup --package "\$APP_ID" --mark inbox/, "cold starts to the inbox, signed in");
+  assert.match(nightly, /dumpsys gfxinfo "\$APP_ID" reset\n[^\n]*perf-scroll-room\.yaml\n[^\n]*mobile-perf\.mjs frames/, "frames counted over the scroll alone");
+  assert.match(nightly, /mobile-perf\.mjs check "\$RUNNER_TEMP\/perf-inbox\.json" "\$RUNNER_TEMP\/perf-scroll\.json"/);
+
+  // Store binaries and OTA updates never carry the flag.
+  const production = jobsOf(read("chat-mobile-verify.yml")).jobs.get("android-production") ?? "";
+  for (const [where, text] of [
+    ["chat-mobile-release.yml", read("chat-mobile-release.yml")],
+    ["chat-mobile-update.yml", read("chat-mobile-update.yml")],
+    ["chat-mobile-verify.yml › android-production", production],
+    ["eas.json", fs.readFileSync(path.join(root, "apps/chat-mobile/eas.json"), "utf8")],
+  ]) {
+    assert.doesNotMatch(text, /UNICHAT_PERF_MARKS/, `${where} must not log the startup marks`);
+  }
+});

@@ -9,7 +9,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
 import { router } from "expo-router";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable, RefreshControl, View } from "react-native";
 import { CatchUpBanner, CatchUpSheet, type CatchUpTarget } from "@/components/chat/catch-up-sheet";
@@ -36,6 +36,7 @@ import { buildRoomList, filterRoomList, quickCatchUp, roomListTypingLines, type 
 import { THEME } from "@/lib/theme";
 import { useColorScheme } from "@/components/ui/use-color-scheme";
 import { unreadInOtherWorkspaces } from "@/lib/workspace-unread";
+import { perfMark } from "@/data/logger";
 import { ScreenFullyDrawn } from "@/data/sentry";
 import { toast } from "@/data/stores/toast-store";
 
@@ -50,6 +51,11 @@ export default function ChatTab() {
   useDeepLinkTarget(chat);
 
   const rooms = useQuery({ ...roomsOptions(wsId), enabled: Boolean(chat) });
+  // The inbox is drawn (as ScreenFullyDrawn below says to Sentry): the startup mark CI measures cold starts to.
+  const inboxDrawn = Boolean(chat) && !rooms.isPending;
+  useEffect(() => {
+    if (inboxDrawn) perfMark("inbox");
+  }, [inboxDrawn]);
   const nicknames = useQuery({ ...nicknamesOptions(wsId), enabled: Boolean(chat) });
   const members = useQuery({ ...workspaceMembersOptions(wsId), enabled: Boolean(chat) });
   const workspace = useQuery(workspaceListOptions()).data?.find((w) => w.id === wsId);
@@ -234,7 +240,7 @@ export default function ChatTab() {
         actions={menuActions}
       />
       {/* The tab's load span ends when its rooms are drawn (Sentry performance; no-op without a DSN). */}
-      <ScreenFullyDrawn record={Boolean(chat) && !rooms.isPending} />
+      <ScreenFullyDrawn record={inboxDrawn} />
       <WorkspaceSwitchSheet visible={switchOpen} onClose={() => setSwitchOpen(false)} currentWsId={wsId} />
       {chat ? (
         <CatchUpSheet

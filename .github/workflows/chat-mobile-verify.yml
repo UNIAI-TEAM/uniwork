@@ -8,7 +8,10 @@ name: UniChat mobile verify
 # apps/chat-mobile/maestro/flows: sign in → read/send, a push opens its room,
 # join a call, and on Android (Maestro toggles airplane mode there only)
 # offline sends that survive a kill and land once and in order (what each
-# proves is written at its top).
+# proves is written at its top). On Android the signed-in app is measured too
+# (scripts/mobile-perf.mjs against apps/chat-mobile/perf-budget.json): five
+# cold starts to the inbox, then frames and memory while scrolling back
+# through MAESTRO_ROOM_ID's history (seed it with 500+ messages: runbook).
 # Typecheck, lint, unit and component tests, the bundle budget and an arm64
 # release build stay in mobile-verify.yml on every PR that reaches the app.
 # Here, besides Maestro, `android-production` builds the store artifact (an
@@ -222,6 +225,9 @@ jobs:
       - run: pnpm install --frozen-lockfile --filter "@uniwork/chat-mobile..."
       - name: Build the release APK for the emulator
         working-directory: apps/chat-mobile
+        env:
+          # The startup marks the perf steps time (data/logger.ts › perfMark); never in a store build.
+          UNICHAT_PERF_MARKS: "1"
         run: |
           set -euo pipefail
           pnpm exec expo prebuild -p android
@@ -257,6 +263,12 @@ jobs:
             adb shell am set-debug-app --persistent com.android.chrome
             adb shell 'echo "chrome --disable-fre --no-default-browser-check --no-first-run" > /data/local/tmp/chrome-command-line'
             cd apps/chat-mobile/maestro && maestro test flows/chat-read-send.yaml
+            node scripts/mobile-perf.mjs startup --package "$APP_ID" --mark inbox --runs 5 --out "$RUNNER_TEMP/perf-inbox.json"
+            cd apps/chat-mobile/maestro && maestro test flows/perf-open-room.yaml
+            adb shell dumpsys gfxinfo "$APP_ID" reset
+            cd apps/chat-mobile/maestro && maestro test flows/perf-scroll-room.yaml
+            node scripts/mobile-perf.mjs frames --package "$APP_ID" --out "$RUNNER_TEMP/perf-scroll.json"
+            node scripts/mobile-perf.mjs check "$RUNNER_TEMP/perf-inbox.json" "$RUNNER_TEMP/perf-scroll.json"
             cd apps/chat-mobile/maestro && maestro test flows/push-open-room.yaml
             cd apps/chat-mobile/maestro && maestro test flows/call-join.yaml
             cd apps/chat-mobile/maestro && maestro test flows/offline-send-relaunch.yaml

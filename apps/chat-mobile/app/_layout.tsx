@@ -35,6 +35,7 @@ import { api } from "@/data/api";
 import { authConfig, session } from "@/data/auth/flow";
 import { useAuthStore } from "@/data/auth/store";
 import { bootRuntime } from "@/data/boot";
+import { perfMark } from "@/data/logger";
 import { startNativeCalls } from "@/data/calls/call-wiring";
 import { nativeCalls } from "@/data/calls/native-calls";
 import { ensureNotificationChannels } from "@/data/notification-channels";
@@ -157,7 +158,10 @@ function useSplashUntilReady() {
   useEffect(() => {
     if (isLoading) return;
     // One frame for the redirect's screen to draw under it.
-    const frame = requestAnimationFrame(() => SplashScreen.hide());
+    const frame = requestAnimationFrame(() => {
+      SplashScreen.hide();
+      perfMark("first-screen");
+    });
     return () => cancelAnimationFrame(frame);
   }, [isLoading]);
 }

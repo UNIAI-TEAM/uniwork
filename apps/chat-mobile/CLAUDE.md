@@ -558,7 +558,11 @@ hai lớp test, `pnpm knip --workspace apps/chat-mobile`, `expo install --check`
 `scripts/mobile-bundle-budget.mjs`) và `android-release` (`expo prebuild` +
 `./gradlew :app:assembleRelease` x86_64, chỉ khi `scripts/mobile-native-scope.mjs`
 nói thay đổi chạm binary) rồi `android-smoke` (cài APK đó lên emulator, chạy
-`maestro/flows/smoke-launch.yaml`: mở lạnh tới màn đăng nhập, không cần server). Thêm gói làm bundle nặng hơn trần thì nâng trần cùng
+`maestro/flows/smoke-launch.yaml`: mở lạnh tới màn đăng nhập, không cần server; rồi `scripts/mobile-perf.mjs` đo kích
+thước APK và 5 lần mở lạnh — tới khung đầu và tới mốc `first-screen` — theo `perf-budget.json`; nightly đo thêm mở lạnh
+tới `inbox` và khung/bộ nhớ khi cuộn phòng dài, runbook › Đo hiệu năng trên thiết bị). Mốc là `perfMark(name)` của
+`data/logger.ts` (một dòng `UniChatPerf mark=<tên>` trong log máy, mỗi tên một lần mỗi tiến trình), chỉ bản build với
+`UNICHAT_PERF_MARKS=1` (`extra.perfMarks`) mới ghi; mốc mới thì thêm vào `scripts/mobile-perf.mjs`. Thêm gói làm bundle nặng hơn trần thì nâng trần cùng
 commit, ghi lý do; bundle nhỏ đi thì hạ trần. Không có script `build`.
 Thêm gói native bằng `pnpm --filter @uniwork/chat-mobile exec expo install <pkg>`;
 nếu Metro kẹt vì layout isolated của pnpm thì dừng và báo, không thêm

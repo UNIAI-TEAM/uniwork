@@ -20,7 +20,9 @@ name: Mobile Verify
 #                   caller passes force_native (the release does).
 #   android-smoke   installs that APK on an emulator and runs
 #                   apps/chat-mobile/maestro/flows/smoke-launch.yaml: the app
-#                   cold-starts to its sign-in screen and stays up.
+#                   cold-starts to its sign-in screen and stays up; then times
+#                   five cold starts and weighs the APK against
+#                   apps/chat-mobile/perf-budget.json (scripts/mobile-perf.mjs).
 #
 # Every check here blocks at every GATE_LEVEL (ADR 0037). No secret is read:
 # the server URLs are placeholders (the app is built, never run), and EAS, the
@@ -162,7 +164,7 @@ jobs:
           EXPO_OFFLINE: "1"
         run: pnpm exec expo install --check
       - name: Mobile repo contracts
-        run: node --test scripts/mobile-core-allowlist.test.mjs scripts/mobile-native-scope.test.mjs scripts/mobile-bundle-budget.test.mjs scripts/mobile-workflows.test.mjs scripts/mobile-knip.test.mjs scripts/mobile-web-copies.test.mjs scripts/mobile-lockfiles.test.mjs scripts/mobile-coverage-floor.test.mjs
+        run: node --test scripts/mobile-core-allowlist.test.mjs scripts/mobile-native-scope.test.mjs scripts/mobile-bundle-budget.test.mjs scripts/mobile-perf.test.mjs scripts/mobile-workflows.test.mjs scripts/mobile-knip.test.mjs scripts/mobile-web-copies.test.mjs scripts/mobile-lockfiles.test.mjs scripts/mobile-coverage-floor.test.mjs
 
   doctor-bundle:
     name: expo-doctor and JS bundle budget
@@ -210,6 +212,8 @@ jobs:
       UNICHAT_API_URL: https://api.example.invalid
       UNICHAT_APP_URL: https://app.example.invalid
       SENTRY_DISABLE_AUTO_UPLOAD: "true"
+      # The startup marks android-smoke times (data/logger.ts › perfMark); outside the fingerprint, never in a store build.
+      UNICHAT_PERF_MARKS: "1"
     steps:
       - uses: actions/checkout@v4
         with:
@@ -254,6 +258,10 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+      # scripts/mobile-perf.mjs times the cold starts against apps/chat-mobile/perf-budget.json.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
       - uses: actions/download-artifact@v4
         with:
           name: unichat-release-apk
@@ -281,9 +289,14 @@ jobs:
           target: google_apis
           arch: x86_64
           disable-animations: true
+          # Then on the device (audit P1 Perf): the APK's size, and five cold starts timed to Android's first
+          # frame and to the sign-in screen drawn under the lifted splash, each held to its ceiling.
           script: |
             adb install "${{ runner.temp }}/apk/app-release.apk"
             cd apps/chat-mobile/maestro && maestro test flows/smoke-launch.yaml
+            node scripts/mobile-perf.mjs apk "${{ runner.temp }}/apk/app-release.apk" --out "${{ runner.temp }}/perf-apk.json"
+            node scripts/mobile-perf.mjs startup --package com.uniworkos.chat --mark first-screen --runs 5 --out "${{ runner.temp }}/perf-startup.json"
+            node scripts/mobile-perf.mjs check "${{ runner.temp }}/perf-apk.json" "${{ runner.temp }}/perf-startup.json"
       - uses: actions/upload-artifact@v4
         if: failure()
         with:

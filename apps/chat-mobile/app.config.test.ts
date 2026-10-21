@@ -193,6 +193,15 @@ describe("EAS project and release servers", () => {
     expect(build().extra).not.toHaveProperty("sentryDsn");
   });
 
+  it("asks for startup marks only in a build CI measures (UNICHAT_PERF_MARKS=1)", () => {
+    vi.stubEnv("UNICHAT_PERF_MARKS", "1");
+    expect(build().extra?.perfMarks).toBe(true);
+    vi.stubEnv("UNICHAT_PERF_MARKS", "true");
+    expect(build().extra).not.toHaveProperty("perfMarks");
+    vi.stubEnv("UNICHAT_PERF_MARKS", undefined);
+    expect(build().extra).not.toHaveProperty("perfMarks");
+  });
+
   it("hands the Firebase file of the EAS environment to Android, which needs it for an Expo push token", () => {
     vi.stubEnv("GOOGLE_SERVICES_JSON", "/eas/tmp/google-services.json");
     expect(build().android?.googleServicesFile).toBe("/eas/tmp/google-services.json");

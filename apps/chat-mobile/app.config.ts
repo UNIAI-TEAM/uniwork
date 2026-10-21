@@ -92,6 +92,9 @@ export default ({ config, projectRoot }: ConfigContext): ExpoConfig => {
   const easProjectId = (process.env.UNICHAT_EAS_PROJECT_ID ?? EAS_PROJECT_ID) || undefined;
   // Crash reporting stays off without it (data/sentry.ts); a DSN is not a secret, it only routes events.
   const sentryDsn = process.env.SENTRY_DSN?.trim() || undefined;
+  // CI's measured builds only (mobile-verify.yml, chat-mobile-verify.yml): the app logs its startup marks for
+  // scripts/mobile-perf.mjs. Off in every store build; `extra` is outside the fingerprint, so no new runtime.
+  const perfMarks = process.env.UNICHAT_PERF_MARKS === "1";
 
   return {
     ...config,
@@ -227,6 +230,7 @@ export default ({ config, projectRoot }: ConfigContext): ExpoConfig => {
       ...(easProjectId ? { eas: { projectId: easProjectId } } : {}),
       // Absent without SENTRY_DSN: data/sentry.ts then starts nothing.
       ...(sentryDsn ? { sentryDsn } : {}),
+      ...(perfMarks ? { perfMarks: true } : {}),
     },
   };
 };

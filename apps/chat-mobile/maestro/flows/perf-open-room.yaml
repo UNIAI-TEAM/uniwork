@@ -1,0 +1,21 @@
+# Performance, step 1 (chat-mobile-verify.yml › android, nightly): the
+# signed-in app opens the test room and waits on its newest page, so the frame
+# counters the workflow resets next count the scroll alone
+# (flows/perf-scroll-room.yaml). Runs after chat-read-send, which signed in.
+appId: com.uniworkos.chat.staging
+name: Open the room the scroll is measured in
+tags:
+  - perf
+---
+- launchApp
+- openLink: uniworkchat://open?url=${encodeURIComponent('/' + MAESTRO_ORG_SLUG + '/' + MAESTRO_WS_SLUG + '/chat?room=' + MAESTRO_ROOM_ID)}
+- extendedWaitUntil:
+    visible:
+      id: conversation-${MAESTRO_ROOM_ID}
+    timeout: 30000
+- extendedWaitUntil:
+    visible:
+      id: message-list
+    timeout: 30000
+- waitForAnimationToEnd:
+    timeout: 5000

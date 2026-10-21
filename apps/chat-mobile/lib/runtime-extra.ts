@@ -22,6 +22,11 @@ export function sentryDsn(extra: Record<string, unknown> | undefined): string | 
   return typeof dsn === "string" && /^https:\/\/\S+@\S+$/.test(dsn) ? dsn : undefined;
 }
 
+/** extra.perfMarks (UNICHAT_PERF_MARKS=1 at build time): log the startup marks CI measures (data/logger.ts › perfMark). */
+export function perfMarksOn(extra: Record<string, unknown> | undefined): boolean {
+  return extra?.perfMarks === true;
+}
+
 /** extra.APP_ENV: Sentry's environment, and what the Update-required screen says it runs on. */
 export function appEnvironment(extra: Record<string, unknown> | undefined): "dev" | "staging" | "production" {
   const env = extra?.APP_ENV;

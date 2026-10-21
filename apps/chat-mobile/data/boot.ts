@@ -7,9 +7,10 @@
 import { configureRuntime } from "@uniwork/core/runtime-config";
 import Constants from "expo-constants";
 import { clientHeaders } from "@/lib/build-info";
-import { appEnvironment, runtimeFromExtra, sentryDsn } from "@/lib/runtime-extra";
+import { appEnvironment, perfMarksOn, runtimeFromExtra, sentryDsn } from "@/lib/runtime-extra";
 import { api } from "./api";
 import { buildInfo } from "./build-info";
+import { enablePerfMarks } from "./logger";
 import { initSentry } from "./sentry";
 
 let booted = false;
@@ -19,6 +20,7 @@ export function bootRuntime(): void {
   booted = true;
   const extra = Constants.expoConfig?.extra;
   initSentry({ dsn: sentryDsn(extra), environment: appEnvironment(extra), info: buildInfo() });
+  enablePerfMarks(perfMarksOn(extra));
   configureRuntime(runtimeFromExtra(extra));
   api.setClientIdentity(clientHeaders(buildInfo()));
 }

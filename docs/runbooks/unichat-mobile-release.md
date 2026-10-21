@@ -48,6 +48,26 @@ của bản store trên kênh đó (`staging` cho `internal`/`preview`, `product
   **đỏ**, không xanh. `background-resume.yaml` (người khác viết lúc app ở nền, trong và quá cửa sổ ân hạn 25 s của
   socket) chạy tay: cần tài khoản thứ hai (`MAESTRO_CALLER_TOKEN`, `MAESTRO_CALLER_WS_ID`, `MAESTRO_DM_ROOM_ID`,
   `MAESTRO_API_URL`) như `call-answer-incoming.yaml`.
+- **Đo hiệu năng trên thiết bị** (`scripts/mobile-perf.mjs`, trần ở `apps/chat-mobile/perf-budget.json`; chặn ở mọi
+  `GATE_LEVEL`). `android-smoke` mỗi PR chạm binary: kích thước APK x86_64, rồi 5 lần mở lạnh (`am force-stop` →
+  `am start -W`), trung vị của `TotalTime` (Android tới khung đầu — splash) và của thời gian từ lúc khởi chạy tới
+  mốc `first-screen` (màn đầu vẽ xong dưới splash vừa nhấc). Nightly Android (`chat-mobile-verify.yml`, tài khoản
+  staging): 5 lần mở lạnh tới mốc `inbox` (danh sách phòng đã vẽ, đã đăng nhập), rồi `perf-open-room.yaml` mở
+  `MAESTRO_ROOM_ID`, reset `dumpsys gfxinfo`, `perf-scroll-room.yaml` cuộn lùi 20 lần rồi xuống lại; đo % khung giật,
+  khung p90 và PSS. Mốc là một dòng `UniChatPerf mark=<tên>` trong logcat (`ReactNativeJS`), chỉ bản build với
+  `UNICHAT_PERF_MARKS=1` mới ghi (`data/logger.ts › perfMark`; `extra` nằm ngoài fingerprint) — không bản store hay OTA
+  nào đặt nó (`scripts/mobile-workflows.test.mjs`). Emulator không có GPU: số khung để so giữa các bản, không phải lời
+  hứa về một điện thoại; cảm nhận trên máy thật là việc của Sentry (mục Kiểm tra 8).
+  Trần đặt 2026-10-22 là **tạm**: chưa run nào đo app này, nên chúng chỉ bắt hồi quy thô. Sau 5 run xanh đầu tiên của
+  mỗi job, đặt mỗi trần = số tệ nhất trong 5 run + 15 % trong một commit trích các run; từ đó trần chỉ hạ, và chỉ nâng
+  trong commit thêm sức nặng, ghi lý do. Phòng `MAESTRO_ROOM_ID` cần ≥ 500 tin để lần cuộn tải nhiều trang: gieo một lần
+  bằng một access token của tài khoản thử (`TOKEN`), id workspace (`WS_ID`) và URL API staging (`API`):
+  `for i in $(seq 1 500); do curl -fsS -X POST "$API/api/v1/workspaces/$WS_ID/chat/rooms/$MAESTRO_ROOM_ID/messages"
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json'
+  -d "{\"body\":\"Seed $i\",\"client_msg_id\":\"perf-seed-$i\"}" >/dev/null; done` (`client_msg_id` cố định nên
+  chạy lại không nhân đôi). Đỏ ở đây:
+  xem bảng trong step summary — số nào vượt, so với run xanh trước để tìm commit; trên máy dev, render của hàng xem bằng
+  các test đếm render (mục Kiểm tra 8), chi phí dựng timeline bằng `lib/timeline-perf.test.ts`.
 - Phiên bản công cụ ghim trong workflow: `EAS_CLI_VERSION` (release và OTA, cùng một số), `MAESTRO_VERSION` (nightly, tải zip release
   thay vì script cài), `EXPO_DOCTOR_VERSION`. Nâng trong một PR riêng.
 - Ngân sách bundle: hạ trần khi bundle nhỏ đi; chỉ nâng trong commit thêm sức nặng đó, ghi lý do trong body. Đo tại
@@ -358,7 +378,11 @@ khi nào dịch vụ chạy, ai được báo) với module native giả; chỉ 
    `app.start.warm` cho thời gian mở app; mỗi màn là một transaction điều hướng với `ui.load.initial_display` (TTID) và,
    ở tab Chat và một phòng, `ui.load.full_display` (TTFD: danh sách phòng / trang tin mới nhất đã vẽ); khung chậm/đơ và
    JS stall nằm trong measurements của chúng. Mẫu 10 % phiên production, mọi phiên dev/staging. So sánh TTFD p75 giữa
-   hai release trước khi mở rộng rollout. Trên máy dev, số render của hàng khi gõ/hiện diện/tin mới:
+   hai release trước khi mở rộng rollout. Alert hiệu năng của Sentry (thiết lập một lần, khi có dự án Sentry —
+   Alerts › Create › Performance/Metric, môi trường `production`, mỗi release): `app.start.cold` p75 > 3 s trong 1 giờ;
+   TTFD (`ui.load.full_display`) p75 của transaction tab Chat > 2,5 s và của phòng > 2 s; tỷ lệ khung đơ
+   (`frames_frozen_rate`) > 1 % — gửi tới kênh on-call mobile. Số p75 của release đang rollout đi vào báo cáo go/no-go
+   (`docs/evidence/unichat/go-no-go-template.md` › Hiệu năng). Trên máy dev, số render của hàng khi gõ/hiện diện/tin mới:
    `pnpm --filter @uniwork/chat-mobile exec jest components/chat/conversation-renders.test.tsx components/chat/chat-tab-renders.test.tsx`.
 
 ## Khắc phục
