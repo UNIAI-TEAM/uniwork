@@ -1,6 +1,6 @@
 # unichat-mobile-release — phát hành, OTA và rollback bản mobile UniChat
 
-> **Trạng thái:** shipped · **Sev:** 3 · **Rule:** không có alert — runbook vận hành của UniChat M4 (UNI-1836) · **Workflow:** `.github/workflows/chat-mobile-release.yml`, `.github/workflows/mobile-verify.yml`, `.github/workflows/chat-mobile-verify.yml`
+> **Trạng thái:** shipped · **Sev:** 3 · **Rule:** không có alert — runbook vận hành của UniChat M4 (UNI-1836) · **Workflow:** `.github/workflows/chat-mobile-release.yml`, `.github/workflows/chat-mobile-update.yml`, `.github/workflows/mobile-verify.yml`, `.github/workflows/chat-mobile-verify.yml`
 
 App `apps/chat-mobile` build trên EAS theo `apps/chat-mobile/eas.json`. Bốn profile:
 
@@ -11,10 +11,14 @@ App `apps/chat-mobile` build trên EAS theo `apps/chat-mobile/eas.json`. Bốn p
 | `internal` | `staging` | store → Play internal (TestFlight khi có tài khoản Apple) | `internal` | `preview` | Mỗi tag `chat-mobile-v*` |
 | `production` | `production` | store (Play: bản nháp) | `production` | `production` | Sau quyết định Q1; phát hành public bấm tay |
 
-`version` trong `apps/chat-mobile/app.config.ts` là version duy nhất và là `runtimeVersion` (`policy: appVersion`):
-một bản OTA chỉ tới các bản cài cùng version. Build number (`ios.buildNumber`, `android.versionCode`) do EAS giữ và tự
-tăng (`appVersionSource: remote`), không commit. Đổi native (gói có mã native, plugin hay quyền trong `app.config.ts`,
-nâng SDK Expo) → bump `version` và cắt tag mới; chỉ đổi JS/asset → OTA, không bump.
+`version` trong `apps/chat-mobile/app.config.ts` là version store (0.3.0 từ UNI-2053). `runtimeVersion` là
+`policy: fingerprint`: hash của phần native (gói có mã native, plugin, cấu hình trong `app.config.ts` trừ `extra`,
+xem `apps/chat-mobile/fingerprint.config.js`). Một bản OTA chỉ tới các bản cài cùng fingerprint, nên một thay đổi
+native quên bump `version` không còn lọt qua OTA: nó đơn giản không khớp máy nào. Build number (`ios.buildNumber`,
+`android.versionCode`) do EAS giữ và tự tăng (`appVersionSource: remote`), không commit. Đổi native → bump `version`
+và cắt tag mới; chỉ đổi JS/asset → OTA (dưới đây), không bump. Xem fingerprint của cây hiện tại:
+`cd apps/chat-mobile && UNICHAT_ENV=production npx expo-updates runtimeversion:resolve --platform android`
+(`runtimeVersion` trong JSON; giá trị biến môi trường không đổi nó).
 
 **Cổng trước khi phát hành (CI, ADR 0037 — chặn ở mọi `GATE_LEVEL`)**
 
@@ -28,11 +32,11 @@ nâng SDK Expo) → bump `version` và cắt tag mới; chỉ đổi JS/asset �
   lúc chạy). Không đọc secret: URL máy chủ là placeholder, `SENTRY_DISABLE_AUTO_UPLOAD=true`.
 - `chat-mobile-release.yml` gọi đúng workflow đó trên SHA của tag (job `verify`, `force_native: true`) trước khi đụng
   EAS: `android-release` và `android-smoke` luôn chạy cho bản phát hành, kể cả tag bị đẩy lại (`git push -f`) mà diff
-  không chạm binary. Sửa một trong ba workflow cũng chạy `mobile-verify.yml`, để
+  không chạm binary. Sửa một trong bốn workflow (cả `chat-mobile-update.yml`) cũng chạy `mobile-verify.yml`, để
   `scripts/mobile-workflows.test.mjs` kiểm lời hứa của chúng.
 - `chat-mobile-verify.yml` hằng đêm: job `android-production` build AAB release mọi ABI từ profile production
   (không cần tài khoản) và ba luồng Maestro; thiếu biến `MAESTRO_*` thì run theo lịch **đỏ**, không xanh.
-- Phiên bản công cụ ghim trong workflow: `EAS_CLI_VERSION` (release), `MAESTRO_VERSION` (nightly, tải zip release
+- Phiên bản công cụ ghim trong workflow: `EAS_CLI_VERSION` (release và OTA, cùng một số), `MAESTRO_VERSION` (nightly, tải zip release
   thay vì script cài), `EXPO_DOCTOR_VERSION`. Nâng trong một PR riêng.
 - Ngân sách bundle: hạ trần khi bundle nhỏ đi; chỉ nâng trong commit thêm sức nặng đó, ghi lý do trong body. Đo tại
   máy: `UNICHAT_ENV=production UNICHAT_API_URL=https://api.example.invalid UNICHAT_APP_URL=https://app.example.invalid
@@ -64,7 +68,23 @@ nâng SDK Expo) → bump `version` và cắt tag mới; chỉ đổi JS/asset �
    `uniwork-chat-mobile=uniworkchat://auth/callback|uniworkchat-dev://auth/callback` (`.env.example`). Universal link
    (`applinks:app.uniworkos.com`) cần Team ID của Apple trong AASA và SHA-256 của khoá Play App Signing trong
    `assetlinks.json` (web, lát N3).
-7. Nightly (`chat-mobile-verify.yml`): trên staging, một org thử có một workspace, một **phòng nhóm** (group, không
+8. **Sentry (báo crash, UNI-2053).** Tạo project React Native trong tổ chức Sentry. Trong EAS, cho `preview` và
+   `production`: `SENTRY_DSN` (plaintext — DSN không phải bí mật, và `eas update` trong CI phải đọc được nó),
+   `SENTRY_ORG`, `SENTRY_PROJECT` (plaintext) và `SENTRY_AUTH_TOKEN` (secret, token tổ chức quyền
+   `project:releases` + `org:read`). Bản build có token thì Gradle/Xcode tải source map và symbol native lên Sentry;
+   thiếu token thì build vẫn xanh (`SENTRY_ALLOW_FAILURE=true` trong `eas.json`) và crash hiện stack chưa giải.
+   Thiếu `SENTRY_DSN` thì app không khởi động Sentry. GitHub Environment `chat-mobile-release`: secret
+   `SENTRY_AUTH_TOKEN`, variables `SENTRY_ORG`, `SENTRY_PROJECT` cho source map của OTA. Đặt alert crash-free
+   sessions < 99.5 % (`docs/evidence/unichat/go-no-go-template.md`) trong Sentry.
+9. **Ký OTA (EAS Update code signing).** Một lần, trên máy người giữ khoá:
+   `cd apps/chat-mobile && npx expo-updates codesigning:generate --key-output-directory ../../.secrets/unichat-keys
+   --certificate-output-directory certs --certificate-validity-duration-years 10 --certificate-common-name "UniChat"`,
+   đổi tên chứng chỉ thành `certs/eas-update-certificate.pem` và commit nó qua PR (chứng chỉ công khai; `app.config.ts`
+   tự bật `codeSigningCertificate` khi file có mặt). Khoá riêng **không bao giờ** vào repo: lưu vào kho bí mật của tổ
+   chức và secret `EAS_UPDATE_PRIVATE_KEY` của Environment `chat-mobile-release` (nội dung PEM). Từ binary đầu tiên có
+   chứng chỉ, máy từ chối mọi bản OTA không ký; chứng chỉ thêm vào là thay đổi native (fingerprint mới, cần bản store).
+   Mất khoá = không phát OTA được cho các binary đó tới bản store kế tiếp.
+10. Nightly (`chat-mobile-verify.yml`): trên staging, một org thử có một workspace, một **phòng nhóm** (group, không
    phải kênh mặc định của workspace) và một tài khoản thành viên của phòng đó, đăng nhập bằng email/mật khẩu (không
    MFA, không chỉ Google). Phòng nhóm vì cuộc gọi nhóm vào thẳng phòng LiveKit mà không cần người thứ hai; mỗi đêm
    gửi một tin `Maestro <số>` vào phòng. Repository variables `MAESTRO_API_URL`, `MAESTRO_APP_URL`,
@@ -85,8 +105,27 @@ nâng SDK Expo) → bump `version` và cắt tag mới; chỉ đổi JS/asset �
 **Bản cài trực tiếp (chưa có store)**: `eas build -p android --profile preview` cho link tải APK. iOS ad hoc cần Apple
 Developer và đăng ký máy (`eas device:create`) trước `eas build -p ios --profile preview`.
 
-**OTA (chỉ JS)**: `cd apps/chat-mobile && eas update --channel internal --environment preview --message "UNI-nnn: …"`
-(production: `--channel production --environment production`). App tải bản mới lúc mở và áp dụng ở lần mở sau.
+**Phát OTA (chỉ JS, từ CI)**: GitHub → Actions → "UniChat mobile OTA update" → Run workflow trên `develop`/`main`,
+chọn `channel` (`internal` | `preview` | `production`), `rollout_percentage` (mặc định 10) và `message`
+(`UNI-nnn: …`). Workflow `chat-mobile-update.yml`: `verify` (mọi kiểm tra của PR trên SHA, kể cả build Android) →
+thiếu `EXPO_TOKEN` thì **đỏ** → commit trên `main`/`develop` → cấu hình của môi trường EAS có URL máy chủ →
+ký bằng `EAS_UPDATE_PRIVATE_KEY` khi app có chứng chỉ (có chứng chỉ mà thiếu khoá thì đỏ) →
+`eas update --platform android --channel <kênh> --environment <env> --rollout-percentage <n>` → tải source map lên
+Sentry (thiếu token thì notice). App tải bản mới lúc mở và áp dụng ở lần mở sau. Theo dõi crash của bản đó trong
+Sentry (tag `update_id`, `channel`) khoảng một ngày rồi mở rộng: `eas update:edit --branch <kênh>` và chọn tỷ lệ mới
+(hoặc `--rollout-percentage 100`). Phát tay từ máy chỉ khi CI không chạy được, và phải ký giống CI:
+`cd apps/chat-mobile && eas update --channel internal --environment preview --message "UNI-nnn: …"
+--rollout-percentage 10 --private-key-path <khoá>` rồi `pnpm exec sentry-expo-upload-sourcemaps dist`.
+
+**Chặn bản cũ và tắt tính năng từ server (UNI-2053)**: `GET /api/v1/config` trả `min_supported_mobile_version` và
+`mobile_flags`; app đọc lúc mở và mỗi lần quay lại foreground.
+
+- Bắt cập nhật: đặt `UNICHAT_MOBILE_MIN_SUPPORTED_VERSION=<MAJOR.MINOR.PATCH>` trên server (sai dạng thì server không
+  khởi động) và khởi động lại. Máy dưới mức đó chỉ còn màn "Cần cập nhật UniChat" với link store (`UNICHAT_STORE_*`,
+  hoặc link thử nghiệm khi store chưa có). Chỉ đặt sau khi bản mới đã có trên store/track mà người dùng thấy.
+- Tắt gọi: `FF_UNICHAT_MOBILE_CALLS=false` (cả hệ thống) hoặc override theo tổ chức/người dùng ở console admin
+  (flag `unichat_mobile_calls`). Máy ẩn nút gọi, không đổ chuông, push cuộc gọi mở phòng; cuộc gọi đang diễn ra không bị
+  cắt. Bật lại: xoá biến/override.
 
 ## Triệu chứng
 
@@ -108,11 +147,16 @@ Developer và đăng ký máy (`eas device:create`) trước `eas build -p ios -
    trong run của workflow.
 2. Version: `pnpm --filter @uniwork/chat-mobile exec expo config --type public --json | jq .version` bằng phần sau
    `chat-mobile-v` của tag.
-3. OTA: `eas update:list --branch internal` — cột runtime version phải bằng version của bản cài đang lỗi/đang chờ;
-   `eas channel:view internal` cho biết kênh trỏ nhánh nào.
-4. Cấu hình một biến thể: `UNICHAT_ENV=staging UNICHAT_API_URL=… UNICHAT_APP_URL=… pnpm --filter
+3. OTA: `eas update:list --branch internal` — cột runtime version (fingerprint) phải bằng runtime của bản cài đang
+   lỗi/đang chờ; `eas channel:view internal` cho biết kênh trỏ nhánh nào. Trên máy: Cài đặt › Giới thiệu hiện phiên
+   bản, bản dựng, kênh và 8 ký tự đầu của id bản cập nhật ("Bản cài sẵn trong ứng dụng" khi chưa nhận OTA); nút
+   "Sao chép thông tin phiên bản" cho chuỗi đầy đủ kèm runtime.
+4. Crash: Sentry, lọc `release` (`<bundle id>@<version>+<build>`) và tag `update_id`/`channel`; crash-free sessions
+   theo release. Server: header `X-Client-Version`/`X-Client-OS`/`X-Client-Update-Id` của mỗi request và
+   `client_version` của socket cho biết bản nào đang gọi.
+5. Cấu hình một biến thể: `UNICHAT_ENV=staging UNICHAT_API_URL=… UNICHAT_APP_URL=… pnpm --filter
    @uniwork/chat-mobile exec expo config --type public` (tên, bundle id, scheme, `updates`, `extra`).
-5. Nightly: artifact `maestro-ios` / `maestro-android` của run chỉ có ảnh chụp màn hình (log lệnh của Maestro ghi mật
+6. Nightly: artifact `maestro-ios` / `maestro-android` của run chỉ có ảnh chụp màn hình (log lệnh của Maestro ghi mật
    khẩu đã gõ và repo công khai, nên không tải lên); log từng bước nằm trong log của job. Bước đầu đỏ là nguyên nhân,
    các bước sau thường là hệ quả.
 
@@ -127,8 +171,10 @@ Developer và đăng ký máy (`eas device:create`) trước `eas build -p ios -
 5. **Rollback OTA** (nhanh nhất, cho lỗi chỉ ở JS):
    - Phát lại bản tốt trước: `eas update:list --branch internal` lấy group id của bản tốt, rồi
      `eas update:republish --group <group-id> --message "rollback"`.
-   - Hoặc quay về bản nhúng trong binary: `eas update:roll-back-to-embedded --branch internal --runtime-version <version>`.
-   Máy nhận ở lần mở tiếp theo. Sau đó sửa và phát OTA mới.
+   - Hoặc quay về bản nhúng trong binary: `eas update:roll-back-to-embedded --branch internal --runtime-version <fingerprint>`
+     (fingerprint lấy ở cột runtime version của `eas update:list`).
+   - Bản đang rollout dở (dưới 100 %): `eas update:edit --branch internal` đặt tỷ lệ về 0, hoặc republish bản trước.
+   Máy nhận ở lần mở tiếp theo. Sau đó sửa và phát OTA mới. Bản OTA rollback cũng phải ký nếu app có chứng chỉ.
 6. **Rollback bản store** (lỗi native, hoặc OTA không cứu được): store không cho hạ build number, nên đi tới. Revert
    trên `develop`, bump `version` (patch), tag. Trong lúc chờ: TestFlight → build lỗi → Expire build; Play Console →
    Internal testing → tạm dừng/thay release bằng bản mới. OTA cũ không áp vào bản mới vì runtime version khác.
@@ -143,10 +189,17 @@ Developer và đăng ký máy (`eas device:create`) trước `eas build -p ios -
    tái hiện bằng `expo prebuild -p android` + `./gradlew :app:assembleRelease` trên máy có Android SDK.
    `Android cold-start smoke` đỏ: tải artifact `unichat-release-apk`, cài lên emulator/máy, `adb logcat` lúc mở
    (thường là module native thiếu hoặc lỗi JS lúc boot); `maestro test apps/chat-mobile/maestro/flows/smoke-launch.yaml`.
-10. Nightly đỏ ở `gate`: đặt các biến/secrets `MAESTRO_*` (Thiết lập lần đầu, bước 7); chưa có server staging thì
+10. Nightly đỏ ở `gate`: đặt các biến/secrets `MAESTRO_*` (Thiết lập lần đầu, bước 10); chưa có server staging thì
    chạy tay với `maestro` bỏ chọn — run theo lịch sẽ đỏ mỗi đêm cho tới khi có, có chủ đích.
-11. Khoá Apple/Google hết hạn hoặc lộ: thu hồi ở Apple/Google, tạo khoá mới, tải lại bằng `eas credentials`; `EXPO_TOKEN`
-   lộ: thu hồi robot token trên expo.dev, tạo token mới vào Environment.
+11. Lỗi chỉ ở một tính năng (gọi) mà OTA chưa sửa kịp: tắt bằng `FF_UNICHAT_MOBILE_CALLS=false` (mục "Chặn bản cũ
+   và tắt tính năng từ server"). Bản cũ có lỗi mà bản mới đã lên store: đặt `UNICHAT_MOBILE_MIN_SUPPORTED_VERSION`.
+12. OTA không tới máy: runtime (fingerprint) của bản OTA khác bản cài (thay đổi chạm native → cần bản store); hoặc app
+   có chứng chỉ mà bản OTA không ký/ký sai khoá (log của expo-updates trên máy: `code signing`). Run OTA đỏ ở "The update
+   carries the channel's servers": thêm `UNICHAT_API_URL`/`UNICHAT_APP_URL` vào môi trường EAS của kênh.
+13. Khoá Apple/Google hết hạn hoặc lộ: thu hồi ở Apple/Google, tạo khoá mới, tải lại bằng `eas credentials`; `EXPO_TOKEN`
+   lộ: thu hồi robot token trên expo.dev, tạo token mới vào Environment. Khoá ký OTA lộ: tạo cặp khoá/chứng chỉ mới,
+   commit chứng chỉ mới, cắt bản store (binary cũ vẫn tin chứng chỉ cũ cho tới khi người dùng cập nhật; đặt
+   `UNICHAT_MOBILE_MIN_SUPPORTED_VERSION` khi bản mới đủ phổ biến).
 
 ## Leo thang
 

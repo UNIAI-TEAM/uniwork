@@ -43,9 +43,10 @@ thành viên một tổ chức).
 
 ## Quyền riêng tư
 
-App gửi về server UniWork và qua Expo Push Service (bên thứ ba, rồi APNs/FCM) những dữ liệu sau. Không có quảng cáo,
-không theo dõi giữa app (App Tracking Transparency: không), không bán dữ liệu. Ghi Expo vào chính sách riêng tư
-(spec §11).
+App gửi về server UniWork, qua Expo Push Service (bên thứ ba, rồi APNs/FCM) và tới Sentry (bên thứ ba, báo cáo
+crash; UNI-2053) những dữ liệu sau. Không có quảng cáo, không theo dõi giữa app (App Tracking Transparency: không),
+không bán dữ liệu. Ghi Expo và Sentry vào chính sách riêng tư (spec §11). Báo cáo crash không chứa nội dung tin, email,
+tên, token hay query của URL (`lib/redact.ts` lọc trước khi gửi), không chụp màn hình, không ghi lại phiên.
 
 | Dữ liệu | Khi nào | Apple App Privacy | Google Data safety |
 | --- | --- | --- | --- |
@@ -53,7 +54,8 @@ không theo dõi giữa app (App Tracking Transparency: không), không bán d�
 | Nội dung tin, ảnh, tệp, tin thoại | Người dùng gửi | User Content → Emails or Text Messages, Photos or Videos, Audio Data, Other User Content; App Functionality; Linked | Messages → Other in-app messages; Photos and videos; Audio; Files and docs |
 | Nội dung xem trước trong push | Mỗi thông báo tin mới | (như dòng trên; đi qua Expo/APNs/FCM) | Shared → Messages (với nhà cung cấp dịch vụ push) |
 | Push token Expo, tên máy, nền tảng | Đăng ký push, đăng nhập (danh sách thiết bị) | Identifiers → Device ID; App Functionality; Linked | Device or other IDs; App functionality |
-| Chẩn đoán | Hiện app không gửi báo cáo crash hay hiệu năng | Không khai, cho tới khi thêm công cụ crash | Không khai, cùng điều kiện |
+| Chẩn đoán: báo cáo crash và hiệu năng (Sentry, bên thứ ba) | Khi app crash hay một thao tác lỗi phía server; mẫu 10 % phiên cho thời gian mở app và màn hình. Chỉ khi bản build có `SENTRY_DSN` | Diagnostics → Crash Data, Performance Data; App Functionality; Linked (id người dùng dạng mã, không email/tên); không Tracking | Collected → App info and performance → Crash logs, Diagnostics; App functionality; Shared: không (Sentry là nhà cung cấp dịch vụ xử lý thay); không tuỳ chọn |
+| Mã định danh trong báo cáo crash | Cùng báo cáo trên: id người dùng UniWork (mã ULID), phiên bản, bản dựng, kênh và id bản cập nhật | Identifiers → User ID; App Functionality; Linked | Personal info → User IDs; App functionality |
 
 Mọi dữ liệu mã hoá khi truyền (HTTPS/WSS). Người dùng xoá tài khoản theo quy trình của UniWork; điền URL chính sách
 riêng tư và URL xoá tài khoản của `uniworkos.com` lúc nộp.

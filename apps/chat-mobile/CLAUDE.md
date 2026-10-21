@@ -22,13 +22,14 @@ nhau; test đó đi theo import bắc cầu của từng mục nên mục không
 tách file ở core, không nới lint. Fixture: `lib/lint-boundary.test.ts`.
 Logic khác của web: **copy, ghi nguồn**, test parity — không import.
 
-Cùng file lint còn giữ ba luật chất lượng (fixture: `lib/lint-quality.test.ts`):
+Cùng file lint còn giữ bốn luật chất lượng (fixture: `lib/lint-quality.test.ts`):
 `@typescript-eslint/no-explicit-any` bật (base tắt cho web); bộ `all` của
 `eslint-plugin-react-native-a11y` (role, state, value, action, live region,
 `importantForAccessibility` hợp lệ; không touchable trong phần tử `accessible`)
 trừ `has-accessibility-hint` — tắt có lý do ghi trong config: hint chỉ dùng khi
-nhãn không nói rõ kết quả; và `i18next/no-literal-string` (`jsx-text-only`)
-như `packages/views`. Tắt một luật ở một dòng thì ghi lý do ở dòng trên.
+nhãn không nói rõ kết quả; `i18next/no-literal-string` (`jsx-text-only`)
+như `packages/views`; và `no-console` ngoài `data/logger.ts`. Tắt một luật ở
+một dòng thì ghi lý do ở dòng trên.
 
 ## Cấu trúc
 
@@ -39,10 +40,14 @@ như `packages/views`. Tắt một luật ở một dòng thì ghi lý do ở d�
   `localhost`; ngoài đó đọc là chuỗi rỗng, vì eas-cli đọc config một lần để lấy
   project id trước khi nạp môi trường EAS chứa URL), `UNICHAT_EAS_PROJECT_ID`
   (ghi đè hằng `EAS_PROJECT_ID`), `GOOGLE_SERVICES_JSON` (biến EAS kiểu file →
-  `android.googleServicesFile`; thiếu thì Android không lấy được push token);
+  `android.googleServicesFile`; thiếu thì Android không lấy được push token),
+  `SENTRY_DSN` (→ `extra.sentryDsn`; thiếu thì không khởi động Sentry);
   kết quả nằm ở `extra` (`apiUrl`,
   `appUrl`, `authClientId=uniwork-chat-mobile`, `deploymentId`, `eas.projectId`
-  khi có dự án EAS) và app gọi `configureRuntime()` lúc boot. Bundle id
+  khi có dự án EAS, `sentryDsn`) và app gọi `configureRuntime()` lúc boot.
+  `SENTRY_ORG`/`SENTRY_PROJECT`/`SENTRY_AUTH_TOKEN` chỉ là biến môi trường của
+  build (plugin `@sentry/react-native/expo` không nhận tham số nào ngoài `url`),
+  để fingerprint không đổi theo chúng. Bundle id
   `com.uniworkos.chat{.dev,.staging}`, scheme `uniworkchat-dev` (dev) / `uniworkchat`; universal link chỉ xác minh
   với id prod.
 - `lib/` — helper thuần + test vitest (env node). `theme.ts`/`global.css`/
@@ -66,6 +71,34 @@ như `packages/views`. Tắt một luật ở một dòng thì ghi lý do ở d�
   `background` hoặc khi socket chưa auth. Reader token cho provider là
   `realtime/refresh-for-socket.ts` (thuần): thử token hiện tại trước, refresh
   khi vẫn là token đã chết, thất bại tạm thời thì reject để giữ phiên.
+- Quan sát và phát hành (UNI-2053). `data/report.ts` là cửa duy nhất tới báo
+  crash (no-op khi chưa có sink; 4xx và mất mạng không báo; `force` cho
+  boundary); `data/sentry.ts` cài Sentry làm sink khi có DSN (release
+  `<appId>@<version>+<build>`, tag `channel`/`update_id`/`runtime_version`,
+  không ảnh màn hình, không replay, `beforeSend` qua `lib/redact.ts`: email,
+  token, query URL, push token, callback PKCE). Log qua `data/logger.ts`
+  (`createLogger(scope)`: breadcrumb luôn, console chỉ ở dev; `argsLogger` cho
+  `ws-client`, chỉ giữ số và boolean) — `no-console` đỏ trong `app/`,
+  `components/`, `data/`, `lib/` trừ chính logger (fixture
+  `lib/lint-quality.test.ts`). Lỗi query/mutation báo qua `data/query-errors.ts`.
+  `ErrorBoundary` export ở `app/_layout.tsx` (root) và `[org]/[ws]/_layout.tsx`
+  (workspace), cả hai vẽ `components/ui/error-fallback.tsx`. Danh tính build:
+  `lib/build-info.ts` (thuần) ← `data/build-info.ts` (expo-application,
+  expo-updates) → header `X-Client-Version`/`-OS`/`-Update-Id`
+  (`api.setClientIdentity` lúc boot), `client_version` của socket, Cài đặt ›
+  Giới thiệu (`components/settings/about-section.tsx`). Cấu hình từ xa:
+  `data/remote-config.ts` đọc `GET /api/v1/config` lúc mở và mỗi lần
+  foreground (`min_supported_mobile_version`, `mobile_flags`, link store);
+  `components/app/update-gate.tsx` chặn cả app (cả màn đăng nhập) khi version
+  dưới mức tối thiểu; `useMobileFlag(name)` / `readMobileFlag(qc, name)` cho
+  công tắc (`unichat_mobile_calls`: tắt thì ẩn nút gọi, không đổ chuông, push
+  cuộc gọi mở phòng). Chưa có câu trả lời hay server không tới được thì không
+  chặn gì và mọi công tắc ở mặc định. Lỗi một thao tác → `toast.error(...)`
+  (`data/stores/toast-store.ts`, `components/ui/toast-host.tsx`); `Alert.alert`
+  chỉ cho xác nhận thật (xoá, rời, thu hồi) và trong sheet là `Modal` (toast vẽ
+  dưới cửa sổ Modal). Đăng xuất: `useAuthStore.logout()` tự gỡ push
+  subscription trước (tối đa 3 s); phiên đã bị server kết thúc thì chỉ quên
+  token, server bỏ qua thiết bị đó.
 - `app/+native-intent.ts` — expo-router tự route mọi URL từ OS; file này map
   `<scheme>://open?url=` và callback PKCE qua `lib/deep-link.ts ›
   systemPathToRoute` (thuần, có test). `openUrl` ở `app/_layout.tsx` chỉ
@@ -171,12 +204,19 @@ Runbook: `docs/runbooks/unichat-mobile-release.md`; plan:
   store), `internal` (TestFlight + Play internal, staging), `production`. Mỗi
   profile ghim `UNICHAT_ENV`, kênh OTA cùng tên và môi trường EAS chứa URL
   server. Build number do EAS giữ (`appVersionSource: remote`), không commit.
-- `version` trong `app.config.ts` là `runtimeVersion` (`policy: appVersion`):
-  đổi native (gói native, plugin, quyền, SDK) thì bump nó; chỉ đổi JS thì phát
-  OTA. Chưa có `EAS_PROJECT_ID` thì `updates.enabled: false` và push bỏ qua.
+- `version` trong `app.config.ts` là version store (0.3.0); `runtimeVersion` là
+  `policy: fingerprint` (hash phần native; `fingerprint.config.js` bỏ `extra`
+  ra khỏi hash để URL, DSN không tách runtime): đổi native (gói native, plugin,
+  quyền, SDK) thì bump `version` và cắt bản store — quên bump thì OTA cũng
+  không khớp máy nào; chỉ đổi JS thì phát OTA. Chưa có `EAS_PROJECT_ID` thì
+  `updates.enabled: false` và push bỏ qua. Ký OTA: có
+  `certs/eas-update-certificate.pem` thì `updates.codeSigningCertificate` tự
+  bật (khoá riêng không bao giờ vào repo; runbook › Ký OTA).
+  `eas.json` đặt `SENTRY_ALLOW_FAILURE=true` cho mọi profile: build thiếu token
+  Sentry vẫn xanh.
   `knip.json` bỏ qua `@babel/plugin-transform-react-jsx` (preset
   `react-native-css-interop/babel` gọi nó theo tên mà không khai; thiếu thì
-  bước `createReleaseUpdatesResources` của build release đỏ), `expo-updates` vì knip đọc config dev, và hai gói
+  bước `createReleaseUpdatesResources` của build release đỏ), và hai gói
   `@expo-google-fonts/*` vì `app.config.ts` chỉ trỏ tới file `.ttf` của chúng,
   và `react-native-css-interop` vì đó là phụ thuộc của `nativewind` mà
   `metro.config.js` trỏ tới bản của nativewind (một bản duy nhất trong bundle),
@@ -189,9 +229,16 @@ Runbook: `docs/runbooks/unichat-mobile-release.md`; plan:
   auto-submit **chỉ Android** (Play internal) tới khi có tài khoản Apple
   (UNI-1838), `eas-cli` ghim ở `EAS_CLI_VERSION`. Environment
   `chat-mobile-release`, chỉ `EXPO_TOKEN`; thiếu thì notice và xanh.
-  `scripts/mobile-workflows.test.mjs` giữ các lời hứa của ba workflow (verify
-  trước EAS, chỉ Android, phiên bản ghim, nightly đỏ khi thiếu cấu hình); sửa
-  workflow nào trong ba cũng kích `mobile-verify.yml` nên test đó luôn chạy.
+- OTA: `.github/workflows/chat-mobile-update.yml` (chạy tay: kênh, tỷ lệ
+  rollout, message) → `verify` trên SHA → `eas update --platform android
+  --rollout-percentage` với môi trường EAS của kênh, ký bằng
+  `EAS_UPDATE_PRIVATE_KEY` khi app có chứng chỉ, rồi tải source map lên Sentry;
+  thiếu `EXPO_TOKEN` thì **đỏ** (người bấm cần biết). Không phát OTA từ laptop
+  trừ khi CI hỏng (runbook).
+  `scripts/mobile-workflows.test.mjs` giữ các lời hứa của bốn workflow (verify
+  trước EAS, chỉ Android, phiên bản ghim, nightly đỏ khi thiếu cấu hình, OTA
+  staged và ký); sửa workflow nào trong bốn cũng kích `mobile-verify.yml` nên
+  test đó luôn chạy.
 - `maestro/`: `subflows/sign-in.yaml` đăng nhập qua sheet trình duyệt thật (không
   có lối tắt phiên thử nghiệm trong bản nào), ba luồng vàng
   `flows/{chat-read-send,push-open-room,call-join}.yaml` chạy hằng đêm bởi
@@ -203,4 +250,5 @@ Runbook: `docs/runbooks/unichat-mobile-release.md`; plan:
   `composer-send`, `room-call-*`, `call-*`) — đổi tên một id thì sửa flow cùng
   PR; trang web trong sheet đăng nhập thì theo chữ vi|en.
 - `store/listing.md`: mô tả vi/en, privacy labels, lý do từng quyền, tài khoản
-  demo cho review. Thêm quyền native thì cập nhật bảng quyền ở đó.
+  demo cho review. Thêm quyền native thì cập nhật bảng quyền ở đó; thêm dịch vụ
+  nhận dữ liệu (như Sentry) thì cập nhật bảng Quyền riêng tư.
