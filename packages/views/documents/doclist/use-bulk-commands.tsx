@@ -23,11 +23,12 @@ import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { FolderPickerDialog } from "../folder-picker-dialog";
 import type { DocumentSummaryRow } from "../library-rows";
 import type { BulkActionId, BulkPlan, DocListBulk } from "./bulk-actions";
+import { BulkShareDialog } from "./bulk-share-dialog";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
 /** The reasons the error list words; any other code reads "did not go through". */
-const REASONS = new Set(["forbidden", "not_found", "conflict", "rate_limited", "not_verifiable", "not_a_file", "too_large", "folder_too_large"]);
+const REASONS = new Set(["forbidden", "not_found", "conflict", "rate_limited", "not_verifiable", "not_a_file", "not_shareable", "too_large", "folder_too_large"]);
 /** The error list shows this many lines, then "and N more". */
 const LISTED = 5;
 
@@ -70,8 +71,8 @@ type Pending = { plan: BulkPlan; done: () => void };
  * single-document routes (core `useBulkDocumentCommand`, at most four at a
  * time, one invalidation at the end) and one toast says "Đã … 3/5 tài liệu"
  * with the documents it could not act on. Several files download as one SV-9
- * zip job, one file through the row's own download. Share is not offered: the
- * share dialog takes one document (reported in W9).
+ * zip job, one file through the row's own download. Share opens one dialog
+ * for the whole batch (W13) and fans out the same way.
  */
 export function useDocListBulkCommands({
   wsId,
@@ -92,6 +93,7 @@ export function useDocListBulkCommands({
   const zip = useDocumentDownloadJob(wsId, { pollMs: zipPollMs });
   const [confirming, setConfirming] = useState<Pending | null>(null);
   const [moving, setMoving] = useState<Pending | null>(null);
+  const [sharing, setSharing] = useState<Pending | null>(null);
 
   const report = (plan: BulkPlan, ok: number, failures: BulkFailure[], id?: string | number) => {
     const title = t(`documents.list.bulk.done.${plan.action}`, { ok, total: plan.total });
@@ -151,6 +153,9 @@ export function useDocListBulkCommands({
         return;
       case "move":
         setMoving(pending);
+        return;
+      case "share":
+        setSharing(pending);
         return;
       case "download":
         void download(pending);
@@ -216,9 +221,21 @@ export function useDocListBulkCommands({
           void execute(moving, target).finally(() => setMoving(null));
         }}
       />
+      <BulkShareDialog
+        wsId={wsId}
+        plan={sharing?.plan ?? null}
+        onOpenChange={(next) => {
+          if (!next) setSharing(null);
+        }}
+        onApplied={(result) => {
+          if (!sharing) return;
+          report(sharing.plan, result.ok.length, [...result.failed, ...sharing.plan.skipped]);
+          sharing.done();
+        }}
+      />
     </>
   );
 
-  const supported: ReadonlySet<BulkActionId> = new Set<BulkActionId>(["move", "download", "shelve", "trash", "unshelve", "restore", "purge"]);
+  const supported: ReadonlySet<BulkActionId> = new Set<BulkActionId>(["share", "move", "download", "shelve", "trash", "unshelve", "restore", "purge"]);
   return { bulk: { supports: (action) => supported.has(action), run }, dialogs };
 }

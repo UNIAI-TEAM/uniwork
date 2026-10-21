@@ -27,7 +27,7 @@ export function bulkActionsOf(screen: DocListScreen): readonly BulkActionId[] {
 export interface BulkPlan {
   action: BulkActionId;
   docs: DocumentSummaryRow[];
-  /** `not_a_file` for a download of a page or folder, `forbidden` for anything else the row's menu does not offer. */
+  /** `not_a_file` for a download of a page or folder, `not_shareable` for a share of a folder, `forbidden` for anything else the row does not allow. */
   skipped: BulkFailure[];
   /** Every selected row, the "/5" of "3/5". */
   total: number;
@@ -37,7 +37,7 @@ export interface BulkPlan {
 
 /** What the host gives the list to act on a selection. */
 export interface DocListBulk {
-  /** Whether the host can run the action at all (Share waits for a several-document dialog). */
+  /** Whether the host can run the action at all. */
   supports: (action: BulkActionId) => boolean;
   /** Runs the plan (after its own confirmation, where it asks one); `done` clears the selection. */
   run: (plan: BulkPlan, done: () => void) => void;
@@ -45,11 +45,27 @@ export interface DocListBulk {
 
 const noop = () => {};
 
+/**
+ * Whether the share dialog would let the viewer change this row's access: the
+ * row menu opens the dialog for any reader, but only a manager (or an admin
+ * scope) gets its write half (`canAdministerDocument`), and a shelved document
+ * gives access away only. Anyone else's row is skipped, unsent.
+ */
+function canShareWrite(doc: DocumentSummaryRow): boolean {
+  return (doc.my_level === "manage" || doc.admin_scope === true) && !doc.shelved_at;
+}
+
 /** The bar actions of one row on a screen: the ones its row menu offers. A source row has none. */
 export function rowBulkActions(row: LibraryRow, handlers: RowMenuHandlers, screen: DocListScreen): ReadonlySet<BulkActionId> {
   if (row.type !== "document") return new Set();
   const offered = new Set<string>(docRowMenu(row, { handlers, starred: false, open: noop, screen }).flat().map((item) => item.id));
-  return new Set(bulkActionsOf(screen).filter((action) => offered.has(action)));
+  return new Set(bulkActionsOf(screen).filter((action) => offered.has(action) && (action !== "share" || canShareWrite(row.doc))));
+}
+
+function skipCode(action: BulkActionId, doc: DocumentSummaryRow): string {
+  if (action === "download" && doc.kind !== "file") return "not_a_file";
+  if (action === "share" && doc.kind === "folder") return "not_shareable";
+  return "forbidden";
 }
 
 /**
@@ -74,7 +90,7 @@ export function bulkPlans(
       const skipped: BulkFailure[] = [];
       for (const row of selected) {
         if (actionsOf(row).has(action)) docs.push(row.doc);
-        else skipped.push({ id: row.id, code: action === "download" && row.doc.kind !== "file" ? "not_a_file" : "forbidden" });
+        else skipped.push({ id: row.id, code: skipCode(action, row.doc) });
       }
       return { action, docs, skipped, total: selected.length, titles };
     })
