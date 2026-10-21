@@ -122,7 +122,7 @@ func (s *DocumentService) unmanagedInSubtree(ctx context.Context, q *db.Queries,
 			if !lvl.Level.AtLeast(DocumentLevelView) {
 				return nil, ErrForbidden
 			}
-			if err := s.requireManageOn(ctx, q, actor, node); err != nil {
+			if err := manageDecision(node, lvl); err != nil {
 				return nil, err
 			}
 			continue
