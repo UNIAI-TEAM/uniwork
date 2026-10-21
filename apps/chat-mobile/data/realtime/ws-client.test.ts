@@ -3,7 +3,8 @@
 import fs from "node:fs";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { WSClient, type WSClientOptions } from "./ws-client";
+import { WSClient } from "./ws-client";
+import { reconnectDelayMs, type WSClientOptions } from "./ws-types";
 
 class MockWebSocket {
   static readonly CONNECTING = 0;
@@ -698,5 +699,15 @@ describe("WSClient connection state (audit R3)", () => {
     client.connect();
     expect(seen).toHaveLength(11);
     client.disconnect();
+  });
+});
+
+describe("reconnectDelayMs", () => {
+  it("waits a random point below a ceiling that doubles from 1 s and stops at 30 s", () => {
+    expect(reconnectDelayMs(1, 0.999)).toBe(1_998);
+    expect(reconnectDelayMs(4, 0.5)).toBe(8_000);
+    expect(reconnectDelayMs(5, 0.999)).toBe(29_970);
+    expect(reconnectDelayMs(50, 0.999)).toBe(29_970);
+    expect(reconnectDelayMs(3, 0)).toBe(0);
   });
 });

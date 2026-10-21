@@ -40,7 +40,8 @@ import { AppState, type AppStateStatus, Platform } from "react-native";
 import { buildInfo } from "../build-info";
 import { argsLogger, createLogger } from "../logger";
 import { createSocketRecovery } from "./socket-recovery";
-import { WSClient, type ConnectionState } from "./ws-client";
+import { WSClient } from "./ws-client";
+import type { ConnectionState } from "./ws-types";
 
 const log = createLogger("realtime");
 

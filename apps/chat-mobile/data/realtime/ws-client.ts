@@ -29,25 +29,11 @@
  */
 import { DEFAULT_CHAT_SCOPE_LIMIT } from "@uniwork/core/chat/lazy-chat-scopes";
 import { decodeFrame, type FramePayload, type KnownFrameType, type RealtimeFrame } from "./frames";
-import type { WSMessage } from "./ws-types";
+import { reconnectDelayMs, type ConnectionState, type Logger, type WSClientOptions, type WSMessage } from "./ws-types";
 
 type EventHandler = (payload: unknown, actorId?: string, actorType?: string) => void;
 
-/**
- * What the person is told about the socket (audit R3):
- *   connecting — dialing, or open and waiting for auth_ack
- *   online     — authenticated
- *   waiting    — down, a redial or the host's session refresh is pending
- *   offline    — not trying: never connected, paused (background) or disconnected
- */
-export type ConnectionState = "connecting" | "online" | "waiting" | "offline";
 type AnyHandler = (frame: RealtimeFrame) => void;
-
-export interface Logger {
-  info: (...args: unknown[]) => void;
-  warn: (...args: unknown[]) => void;
-  debug: (...args: unknown[]) => void;
-}
 
 const noopLogger: Logger = {
   info: () => {},
@@ -55,29 +41,6 @@ const noopLogger: Logger = {
   debug: () => {},
 };
 
-export interface WSClientOptions {
-  /** wss://host/api/v1/ws — no query params; the client appends them. */
-  url: string;
-  /** Reads the CURRENT access token each time a socket opens. */
-  getToken: () => Promise<string | null> | string | null;
-  /** `org/ws` pair — the server resolves it and gates membership. */
-  workspaceSlug: string;
-  /** App version, surfaced to server logs. */
-  clientVersion?: string;
-  /** `Platform.OS` — passed in so this module never imports react-native. */
-  clientOs: string;
-  /** Defaults to "mobile". */
-  clientPlatform?: string;
-  logger?: Logger;
-  /** The server ended this socket: close 4001 (no reason) or a pre-auth
-   *  `{error}` refusal (its text: invalid token, not a member, too many
-   *  connections). The client does not redial either; the host decides. */
-  onSessionEnded?: (error?: string) => void;
-}
-
-const RECONNECT_BASE_MS = 1_000;
-const RECONNECT_CAP_MS = 30_000;
-const RECONNECT_MAX_EXPONENT = 6; // 1s → 64s ceiling, capped at 30s
 const CLOSE_SESSION_ENDED = 4001;
 
 // React Native does not surface WebSocket control Ping/Pong frames to
@@ -405,9 +368,7 @@ export class WSClient {
     // many clients reconnect simultaneously (post-server-restart, post-
     // network-flap). AWS Builders' Library "Timeouts, retries, and backoff
     // with jitter" is the canonical reference.
-    const exp = Math.min(this.reconnectAttempt, RECONNECT_MAX_EXPONENT);
-    const ceiling = Math.min(RECONNECT_BASE_MS * 2 ** exp, RECONNECT_CAP_MS);
-    const delay = Math.floor(Math.random() * ceiling);
+    const delay = reconnectDelayMs(this.reconnectAttempt, Math.random());
     this.logger.info(`[ws] reconnecting in ${delay}ms (attempt ${this.reconnectAttempt})`);
     this.reconnectTimer = setTimeout(() => this.openSocket(), delay);
     this.setConnection("waiting");
