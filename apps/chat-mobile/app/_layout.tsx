@@ -7,7 +7,8 @@
 // first screen knows where it is going; S4 the native calls (the in-call
 // service, a Decline that waited, the push handler while open) and the
 // localized notification channels; S5 the theme read once at boot (LiveKit's
-// WebRTC globals moved to the call UI, which loads on the first call).
+// WebRTC globals moved to the call UI, which loads on the first call); S6 the
+// app's language sent to the server.
 import "../global.css";
 
 import { PortalHost } from "@rn-primitives/portal";
@@ -27,6 +28,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { UpdateGate } from "@/components/app/update-gate";
 import { ErrorFallback } from "@/components/ui/error-fallback";
 import { ToastHost } from "@/components/ui/toast-host";
+import { accountApi } from "@/data/account-api";
 import { api } from "@/data/api";
 import { isAuthCallbackUrl } from "@/data/auth/callback";
 import { authConfig, session } from "@/data/auth/flow";
@@ -37,12 +39,14 @@ import { startNativeCalls } from "@/data/calls/call-wiring";
 import { nativeCalls } from "@/data/calls/native-calls";
 import { ensureNotificationChannels } from "@/data/notification-channels";
 import { queryClient } from "@/data/query-client";
+import { startLocaleSync } from "@/data/locale-sync";
 import { createDevicePersister, installAccountCache } from "@/data/query-persister";
 import { sentryNavigation } from "@/data/sentry";
 import { installDeviceStore, openDeviceStore } from "@/data/storage/device-store";
 import { openNativeDeviceStore } from "@/data/storage/native-device-store";
 import { deepLinkHref, parseDeepLink, setPendingDeepLink } from "@/lib/deep-link";
 import { I18nProvider } from "@/lib/i18n/provider";
+import { i18n } from "@/lib/i18n/singleton";
 import { NAV_THEME } from "@/lib/theme";
 import { loadThemePreference, useColorScheme } from "@/lib/use-color-scheme";
 
@@ -57,6 +61,19 @@ startNativeCalls();
 // The encrypted store the outbox and the cached rooms live in, before the session is restored.
 installDeviceStore(openNativeDeviceStore);
 installAccountCache({ queryClient, persister: createDevicePersister(openDeviceStore), version: buildInfo().version });
+// The app's language reaches the server, which writes pushes and emails in it (data/locale-sync.ts).
+startLocaleSync({
+  getUser: () => useAuthStore.getState().user,
+  subscribeUser: (listener) => useAuthStore.subscribe((state, previous) => state.user !== previous.user && listener()),
+  getLocale: () => (i18n.language === "en" ? "en" : "vi"),
+  subscribeLocale: (listener) => {
+    i18n.on("languageChanged", listener);
+    return () => i18n.off("languageChanged", listener);
+  },
+  patchLocale: (locale) => accountApi.setLocale(locale),
+  setUser: (user) => useAuthStore.getState().setUser(user),
+  openStore: openDeviceStore,
+});
 // The splash stays until the session, the workspace and the cache are read (audit P0-3): no spinner, no flash of /login.
 void SplashScreen.preventAutoHideAsync().catch(() => undefined);
 /** A boot that hangs (a Keychain that never answers) must not hold the splash for ever. */

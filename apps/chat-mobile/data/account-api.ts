@@ -1,7 +1,8 @@
 // The account endpoints Settings calls: erasing the account (POST
-// /api/v1/me/delete, as packages/core/api/endpoints/auth.ts › deleteAccount)
-// and the answer to the AI processing notice (PUT / DELETE
-// /api/v1/me/ai-consent). account-api.test.ts holds a malformed-response case
+// /api/v1/me/delete, as packages/core/api/endpoints/auth.ts › deleteAccount),
+// the answer to the AI processing notice (PUT / DELETE
+// /api/v1/me/ai-consent) and the person's language (PATCH /api/v1/me, as
+// core's patchMe; data/locale-sync.ts). account-api.test.ts holds a malformed-response case
 // for each (CLAUDE.md › API Compatibility).
 import { parseWithFallback } from "@uniwork/core/api/schema";
 import type { User } from "@uniwork/core/types/user";
@@ -34,6 +35,10 @@ export function createAccountApi(request: Request) {
     },
     withdrawAiConsent(): Promise<User | null> {
       return userOf(request("/api/v1/me/ai-consent", { method: "DELETE" }), "DELETE /api/v1/me/ai-consent");
+    },
+    /** The language the server writes pushes and emails in (users.locale); null when the answer drifted. */
+    setLocale(locale: "vi" | "en"): Promise<User | null> {
+      return userOf(request("/api/v1/me", { method: "PATCH", body: JSON.stringify({ locale }) }), "PATCH /api/v1/me");
     },
   };
 }

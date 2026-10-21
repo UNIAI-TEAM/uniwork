@@ -40,10 +40,17 @@ describe("account endpoints", () => {
     expect(request).toHaveBeenCalledWith("/api/v1/me/ai-consent", { method: "DELETE" });
   });
 
-  it.each([null, [], { user: null }, { user: { id: 7 } }])("a malformed consent answer (%j) degrades to null", async (raw) => {
+  it("setLocale patches the person's language and reads the user back", async () => {
+    request.mockResolvedValueOnce({ user: { ...user, locale: "vi" } });
+    await expect(account.setLocale("vi")).resolves.toMatchObject({ id: "u1", locale: "vi" });
+    expect(request).toHaveBeenCalledWith("/api/v1/me", { method: "PATCH", body: JSON.stringify({ locale: "vi" }) });
+  });
+
+  it.each([null, [], { user: null }, { user: { id: 7 } }])("a malformed user answer (%j) degrades to null", async (raw) => {
     request.mockResolvedValue(raw);
     await expect(account.setAiConsent("v1")).resolves.toBeNull();
     await expect(account.withdrawAiConsent()).resolves.toBeNull();
+    await expect(account.setLocale("en")).resolves.toBeNull();
   });
 
   it("the app's instance goes through the shared transport", async () => {
