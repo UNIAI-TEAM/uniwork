@@ -228,7 +228,7 @@ func TestRuleTaskCreatedPointsAMeetingBatchAtTheMeeting(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := "https://app.test/notif-org/notif-ws/meetings/" + m.ID + "?section=summary"; url != want {
+	if want := "https://app.test/notif-org/notif-ws/meetings/" + m.ID + "?section=action-items"; url != want {
 		t.Fatalf("url = %q, want %q", url, want)
 	}
 }
