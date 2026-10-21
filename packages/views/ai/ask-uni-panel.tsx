@@ -12,6 +12,7 @@ import {
   useDeleteAiConversation,
 } from "@uniwork/core/ai";
 import { errorCode } from "@uniwork/core/api/http";
+import { useMeeting } from "@uniwork/core/meetings";
 import type { AiCitation, AiMessage } from "@uniwork/core/types";
 import {
   AlertDialog,
@@ -23,13 +24,15 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@uniwork/ui/components/ui/alert-dialog";
-import { IconTile } from "@uniwork/ui/components/common/icon-tile";
+import { IconTile, tintForegroundClass } from "@uniwork/ui/components/common/icon-tile";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Kbd } from "@uniwork/ui/components/ui/kbd";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@uniwork/ui/components/ui/sheet";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { Textarea } from "@uniwork/ui/components/ui/textarea";
 import { cn } from "@uniwork/ui/lib/utils";
+import { MODULE_ICONS } from "../layout/module-icons";
+import { moduleTone } from "../layout/module-tones";
 import { useWorkspace } from "../layout/workspace-context";
 import { AppLink } from "../navigation";
 
@@ -45,6 +48,31 @@ const KNOWN_ERRORS = new Set([
 ]);
 
 const SUGGESTIONS = ["suggestion_overdue", "suggestion_meetings", "suggestion_chat"] as const;
+
+type AskFocus = NonNullable<ReturnType<typeof useAiPanelStore.getState>["pendingFocus"]>;
+
+const MeetingIcon = MODULE_ICONS.meetings;
+
+/** What the conversation is about, when it is about one meeting: "Cuộc họp: <title>". */
+function MeetingContextChip({ meetingId }: { meetingId: string }) {
+  const { t } = useTranslation(undefined, { keyPrefix: "ai" });
+  const meeting = useMeeting(meetingId);
+  if (!meeting.data) return null;
+  return (
+    <p className="mb-1.5 inline-flex max-w-full items-center gap-1.5 rounded-full border border-border bg-surface px-2.5 py-1 text-caption text-foreground">
+      <MeetingIcon aria-hidden className={cn("size-3.5 shrink-0", tintForegroundClass[moduleTone("meetings")])} />
+      <span className="truncate">{t("context_meeting", { title: meeting.data.title })}</span>
+    </p>
+  );
+}
+
+/** A source's label; the server prefixes a transcript with English "Transcript: ", the reader's language replaces it. */
+function citationTitle(c: AiCitation, t: (key: string, opts?: Record<string, string>) => string): string {
+  const title = c.title || c.kind;
+  if (c.kind !== "transcript") return title;
+  // shortcut: strips the server's English prefix; drop once askuni_transcript.go sends the bare title.
+  return t("source_transcript", { title: title.replace(/^Transcript:\s*/, "") });
+}
 
 /** The ai.errors.* key for a failed ask; the meeting copilot's Ask UNI box reads it too. */
 export function resolveErrorKey(err: unknown): string {
@@ -67,8 +95,10 @@ function Citations({ citations }: { citations: AiCitation[] }) {
             href={c.href}
             className="inline-flex max-w-full items-center gap-1 rounded-full border border-border bg-background px-2.5 py-1 text-caption text-foreground hover:bg-surface-hover pointer-coarse:min-h-11"
           >
-            <span className="font-mono text-muted-foreground">[{c.source_id}]</span>
-            <span className="truncate">{c.title || c.kind}</span>
+            <span className="rounded-sm bg-muted px-1 text-micro leading-4 font-medium tabular-nums text-muted-foreground">
+              {c.source_id}
+            </span>
+            <span className="truncate">{citationTitle(c, t)}</span>
           </AppLink>
         </li>
       ))}
@@ -125,6 +155,9 @@ export function AskUniPanel() {
   const [question, setQuestion] = useState("");
   const [pendingQuestion, setPendingQuestion] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  // The focus each conversation was started with: the server does not return it, so the chip
+  // holds for conversations asked from this panel in this session.
+  const [focusByConversation, setFocusByConversation] = useState<Record<string, AskFocus>>({});
   const askReset = ask.reset;
   const answeredConversation = ask.data?.conversation_id;
   useEffect(() => {
@@ -152,7 +185,10 @@ export function AskUniPanel() {
           // A late answer from the workspace we left must not open its conversation here.
           if (useAiPanelStore.getState().workspaceId !== workspace.id) return;
           select(res.conversation_id);
-          if (focus) clearPendingFocus();
+          if (focus) {
+            setFocusByConversation((cur) => ({ ...cur, [res.conversation_id]: focus }));
+            clearPendingFocus();
+          }
         },
         onSettled: () => setPendingQuestion(null),
         onError: () => setQuestion(q),
@@ -174,6 +210,8 @@ export function AskUniPanel() {
   const turns: Pick<AiMessage, "id" | "role" | "content" | "notice" | "citations">[] = [...(messages.data ?? [])];
   if (pendingQuestion) turns.push({ id: "pending", role: "user", content: pendingQuestion, notice: "", citations: [] });
   const showHome = !activeConversationId && !pendingQuestion;
+  const focus = pendingFocus ?? (activeConversationId ? focusByConversation[activeConversationId] : undefined);
+  const meetingFocusId = focus?.kind === "meeting" ? focus.id : null;
   const recent = conversations.data ?? [];
 
   return (
@@ -218,8 +256,10 @@ export function AskUniPanel() {
                   size="icon-sm"
                   className="size-8"
                   aria-label={t("delete_conversation")}
-                  disabled={remove.isPending}
-                  onClick={() => setConfirmDelete(true)}
+                  aria-disabled={remove.isPending || undefined}
+                  onClick={() => {
+                    if (!remove.isPending) setConfirmDelete(true);
+                  }}
                 >
                   <Trash2 aria-hidden className="size-4" />
                 </Button>
@@ -233,11 +273,11 @@ export function AskUniPanel() {
                 <AlertDialogDescription>{t("delete_confirm_description")}</AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
-                <AlertDialogCancel disabled={remove.isPending}>{t("delete_cancel")}</AlertDialogCancel>
+                <AlertDialogCancel>{t("delete_cancel")}</AlertDialogCancel>
                 <AlertDialogAction
-                  disabled={remove.isPending}
+                  aria-disabled={remove.isPending || undefined}
                   onClick={() => {
-                    if (!activeConversationId) return;
+                    if (!activeConversationId || remove.isPending) return;
                     remove.mutate(activeConversationId, {
                       onSuccess: () => {
                         setConfirmDelete(false);
@@ -270,7 +310,7 @@ export function AskUniPanel() {
                     type="button"
                     variant="outline"
                     size="sm"
-                    disabled={ask.isPending}
+                    aria-disabled={ask.isPending || undefined}
                     onClick={() => askQuestion(t(key))}
                   >
                     {t(key)}
@@ -326,8 +366,9 @@ export function AskUniPanel() {
 
         <form onSubmit={submit} className="border-t border-border bg-surface/60 p-3">
           <div className="rounded-lg border border-border bg-background p-2 shadow-sm focus-within:ring-2 focus-within:ring-ring/40">
+            {meetingFocusId ? <MeetingContextChip meetingId={meetingFocusId} /> : null}
             <Textarea
-              aria-label={t("placeholder")}
+              aria-label={t("input_label")}
               aria-describedby="ask-uni-hint"
               placeholder={t("placeholder")}
               value={question}
@@ -338,10 +379,16 @@ export function AskUniPanel() {
               className="min-h-[3.25rem] flex-1 resize-none border-0 bg-transparent px-2 py-1.5 shadow-none focus-visible:ring-0"
             />
             <div className="flex items-center justify-between gap-2 px-1 pb-0.5 pt-1">
-              <p id="ask-uni-hint" className="text-caption text-muted-foreground">
+              {/* A touch keyboard has no Enter to read about; the hint stays as the field's description. */}
+              <p id="ask-uni-hint" className="text-caption text-muted-foreground pointer-coarse:hidden">
                 <Kbd>{t("key_enter")}</Kbd> {t("hint_send")}
               </p>
-              <Button type="submit" size="sm" className="px-4" disabled={!question.trim() || ask.isPending}>
+              <Button
+                type="submit"
+                size="sm"
+                className="ml-auto px-4"
+                aria-disabled={!question.trim() || ask.isPending || undefined}
+              >
                 {ask.isPending ? <Spinner className="size-3.5" /> : null}
                 {t("ask")}
               </Button>
