@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { useAiConversations, useAiPanelStore } from "@uniwork/core/ai";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@uniwork/ui/components/ui/tooltip";
+import { useIsMobile } from "@uniwork/ui/hooks/use-mobile";
 import { useWorkspace } from "../layout/workspace-context";
 import { AskUniHistory } from "./ask-uni-history";
 
@@ -26,6 +27,7 @@ function HeaderAction({ label, onClick, children }: { label: string; onClick: ()
 /** One line: UNI mark, the conversation title (opens the history), new, full page, close. */
 export function AskUniHeader() {
   const { t } = useTranslation(undefined, { keyPrefix: "ai" });
+  const isMobile = useIsMobile();
   const { workspace } = useWorkspace();
   const conversations = useAiConversations(workspace.id);
   const { conversationId, fullPage, select, setFullPage, setOpen } = useAiPanelStore();
@@ -41,9 +43,12 @@ export function AskUniHeader() {
       <HeaderAction label={t("new_conversation")} onClick={() => select(null)}>
         <MessageSquarePlus aria-hidden />
       </HeaderAction>
-      <HeaderAction label={fullLabel} onClick={() => setFullPage(!fullPage)}>
-        <FullIcon aria-hidden />
-      </HeaderAction>
+      {/* The phone sheet is already full screen. */}
+      {isMobile ? null : (
+        <HeaderAction label={fullLabel} onClick={() => setFullPage(!fullPage)}>
+          <FullIcon aria-hidden />
+        </HeaderAction>
+      )}
       <HeaderAction label={t("close")} onClick={() => setOpen(false)}>
         <X aria-hidden />
       </HeaderAction>

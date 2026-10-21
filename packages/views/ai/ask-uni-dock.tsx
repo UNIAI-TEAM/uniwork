@@ -16,17 +16,21 @@ import { AskUniPanel } from "./ask-uni-panel";
 /**
  * Wraps the main content so Ask UNI docks beside it (R10). The content sits in
  * the same panel whether the dock is open, full page or a phone sheet, so the
- * user's page is never remounted by it.
+ * user's page is never remounted by it. `docked` is the ask_uni_stream flag:
+ * off, the group is the same single panel and nothing else renders, so a flag
+ * that flips after the shell mounted (config arrives late) only adds siblings.
  */
-export function AskUniDock({ children }: { children: ReactNode }) {
+export function AskUniDock({ docked: enabledByFlag, children }: { docked: boolean; children: ReactNode }) {
   const { t } = useTranslation();
   const isMobile = useIsMobile();
   const { workspace } = useWorkspace();
   const enabled = !!useAiCapabilities(workspace.id).data?.enabled;
   const { open, fullPage, workspaceId, bindWorkspace, setOpen } = useAiPanelStore();
-  useEffect(() => bindWorkspace(workspace.id), [workspace.id, bindWorkspace]);
+  useEffect(() => {
+    if (enabledByFlag) bindWorkspace(workspace.id);
+  }, [enabledByFlag, workspace.id, bindWorkspace]);
   // Until bindWorkspace runs, `open` may belong to the previous workspace.
-  const show = open && enabled && workspaceId === workspace.id;
+  const show = enabledByFlag && open && enabled && workspaceId === workspace.id;
   const docked = show && !isMobile;
   return (
     <>
@@ -56,9 +60,9 @@ export function AskUniDock({ children }: { children: ReactNode }) {
           </>
         ) : null}
       </ResizablePanelGroup>
-      {isMobile ? (
+      {enabledByFlag && isMobile ? (
         <Sheet open={show} onOpenChange={setOpen}>
-          <SheetContent side="right" closeLabel={t("ai.close")} className="flex flex-col gap-0 p-0 data-[side=right]:w-full data-[side=right]:sm:max-w-full">
+          <SheetContent side="right" showCloseButton={false} closeLabel={t("ai.close")} className="flex flex-col gap-0 p-0 data-[side=right]:w-full data-[side=right]:sm:max-w-full">
             <SheetTitle className="sr-only">{t("ai.title")}</SheetTitle>
             <AskUniPanel />
           </SheetContent>

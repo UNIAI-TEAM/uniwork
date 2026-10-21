@@ -38,7 +38,7 @@ function mount() {
   return render(
     wrapWithNav(
       <WorkspaceProvider workspace={workspace} user={user}>
-        <AskUniDock>
+        <AskUniDock docked>
           <p>trang chính</p>
         </AskUniDock>
       </WorkspaceProvider>,
@@ -77,6 +77,26 @@ describe("AskUniDock", () => {
     expect(await screen.findByRole("dialog", { name: "Hỏi UNI" })).toBeInTheDocument();
     expect(screen.queryByRole("complementary")).toBeNull();
     expect(screen.getByText("trang chính")).toBeInTheDocument();
+    // The header owns close: the sheet adds none of its own.
+    expect(screen.getAllByRole("button", { name: "Đóng" })).toHaveLength(1);
+    expect(screen.queryByRole("button", { name: "Mở rộng toàn trang" })).toBeNull();
+  });
+
+  it("renders nothing but the content while the flag is off", async () => {
+    useAiPanelStore.setState({ open: true });
+    render(
+      wrapWithNav(
+        <WorkspaceProvider workspace={workspace} user={user}>
+          <AskUniDock docked={false}>
+            <p>trang chính</p>
+          </AskUniDock>
+        </WorkspaceProvider>,
+      ),
+    );
+    expect(screen.getByText("trang chính")).toBeVisible();
+    await waitFor(() => expect(requestMock).toHaveBeenCalled());
+    expect(screen.queryByRole("complementary")).toBeNull();
+    expect(screen.queryByRole("dialog")).toBeNull();
   });
 });
 

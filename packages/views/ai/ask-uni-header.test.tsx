@@ -47,6 +47,37 @@ async function openHistory() {
 }
 
 describe("AskUniHeader", () => {
+  it("offers no full-page button on a phone", async () => {
+    const width = window.innerWidth;
+    window.innerWidth = 500;
+    try {
+      mount();
+      await screen.findByRole("button", { name: "Task quá hạn" });
+      await waitFor(() => expect(screen.queryByRole("button", { name: "Mở rộng toàn trang" })).toBeNull());
+    } finally {
+      window.innerWidth = width;
+    }
+  });
+
+  it("sends one rename for a double Enter", async () => {
+    let resolve: (v: unknown) => void = () => {};
+    requestMock.mockImplementation((path: string, init?: { method?: string }) => {
+      if (path === "/api/v1/workspaces/ws1/ai/conversations") return Promise.resolve({ conversations });
+      if (init?.method === "PATCH") return new Promise((r) => (resolve = r));
+      return Promise.resolve({});
+    });
+    mount();
+    await openHistory();
+    fireEvent.click(screen.getAllByRole("button", { name: "Đổi tên hội thoại" })[1]!);
+    const input = screen.getByRole("textbox", { name: "Đổi tên hội thoại" });
+    fireEvent.change(input, { target: { value: "Họp quý" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    await waitFor(() => expect(requestMock.mock.calls.filter(([, o]) => (o as { method?: string } | undefined)?.method === "PATCH")).toHaveLength(1));
+    fireEvent.keyDown(input, { key: "Enter" });
+    resolve({});
+    expect(requestMock.mock.calls.filter(([, o]) => (o as { method?: string } | undefined)?.method === "PATCH")).toHaveLength(1);
+  });
+
   it("lists the history and selects a conversation", async () => {
     mount();
     fireEvent.click(await openHistory());

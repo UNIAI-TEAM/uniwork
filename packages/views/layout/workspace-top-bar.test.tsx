@@ -221,6 +221,22 @@ describe("WorkspaceTopBar", () => {
 });
 
 describe("WorkspaceChrome Ask UNI", () => {
+  function tree(service: FeatureFlagService, page: React.ReactNode, bare = false) {
+    return wrapWithNav(
+      <ThemeProvider>
+        <LocaleAdapterProvider adapter={localeAdapter}>
+          <FeatureFlagsProvider service={service}>
+            <WorkspaceProvider workspace={workspace} user={user}>
+              <SidebarProvider hasExternalTrigger>
+                <WorkspaceChrome bare={bare}>{page}</WorkspaceChrome>
+              </SidebarProvider>
+            </WorkspaceProvider>
+          </FeatureFlagsProvider>
+        </LocaleAdapterProvider>
+      </ThemeProvider>,
+    );
+  }
+
   function renderChrome(flagOn: boolean, bare = false) {
     requestMock.mockReset();
     requestMock.mockImplementation((path: string) =>
@@ -262,6 +278,25 @@ describe("WorkspaceChrome Ask UNI", () => {
     expect(await screen.findByRole("complementary", { name: "Hỏi UNI" })).toBeInTheDocument();
     expect(screen.queryByRole("dialog", { name: /Hỏi UNI/ })).toBeNull();
     expect(screen.getByText("page")).toBeVisible();
+  });
+
+  it("does not remount the page when the flag arrives after the shell mounted", async () => {
+    let mounts = 0;
+    function Page() {
+      useEffect(() => {
+        mounts += 1;
+      }, []);
+      return <p>page</p>;
+    }
+    const off = new FeatureFlagService(new StaticProvider({ ask_uni_stream: { default: false } }));
+    const on = new FeatureFlagService(new StaticProvider({ ask_uni_stream: { default: true } }));
+    const view = renderChrome(false);
+    view.unmount();
+    const r = render(tree(off, <Page />));
+    await screen.findByText("page");
+    r.rerender(tree(on, <Page />));
+    expect(await screen.findByRole("complementary", { name: "Hỏi UNI" })).toBeInTheDocument();
+    expect(mounts).toBe(1);
   });
 
   it("keeps the overlay panel in the bare UniChat shell even with the flag on", async () => {

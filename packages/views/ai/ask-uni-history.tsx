@@ -42,6 +42,7 @@ function RenameField({ conversation, onDone }: { conversation: AiConversation; o
       onDone();
     } else if (e.key === "Enter") {
       e.preventDefault();
+      if (rename.isPending) return;
       const title = value.trim();
       if (!title || title === conversation.title) return onDone();
       rename.mutate({ conversationId: conversation.id, title }, { onSettled: onDone });
@@ -74,7 +75,13 @@ export function AskUniHistory({ title }: { title: string }) {
   const items = conversations.data ?? [];
   return (
     <>
-      <Popover open={open} onOpenChange={setOpen}>
+      <Popover
+        open={open}
+        onOpenChange={(next) => {
+          setOpen(next);
+          if (!next) setRenamingId(null);
+        }}
+      >
         <PopoverTrigger
           render={
             <Button type="button" variant="ghost" size="sm" className="min-w-0 max-w-full justify-start gap-1 px-2 text-title" />
