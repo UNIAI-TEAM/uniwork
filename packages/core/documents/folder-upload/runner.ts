@@ -174,6 +174,8 @@ export function runFolderUpload(opts: RunFolderUploadOptions): FolderUploadHandl
     refreshing ??= withRetry(() => transport.status(batchId as string, { signal }), signal)
       .then((batch) => {
         absorb(batch);
+        // A batch closed meanwhile answers its files without targets: end the run, never PUT blind.
+        if (batch.status === "canceled" || batch.status === "expired") end(batch.status);
         return true;
       })
       .catch((err: unknown) => {
@@ -457,6 +459,10 @@ export function runFolderUpload(opts: RunFolderUploadOptions): FolderUploadHandl
       phase = "finished";
       emit();
       throw err;
+    }
+    if (batch.status === "canceled" || batch.status === "expired") {
+      end(batch.status);
+      return finish();
     }
     const queue: FileState[] = [];
     for (const sf of batch.files) {

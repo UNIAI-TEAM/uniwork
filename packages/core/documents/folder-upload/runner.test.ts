@@ -736,4 +736,16 @@ describe("runFolderUpload server AMENDMENT 6", () => {
     expect(report.done).toBe(1);
     expect(report.failed).toEqual([{ path: `R/${nfc}`, filename: nfc, code: "unsupported_media", retryable: false }]);
   });
+
+  it("a status answer for a batch closed elsewhere (no targets) ends the run as canceled, with no further PUT", async () => {
+    const { transport, handle } = setup(files(1), { putFailures: { "f000.pdf": ["403"] } });
+    const release = transport.holdPuts();
+    await vi.advanceTimersByTimeAsync(0);
+    // Closed while the PUT is in flight: the refusal makes the runner ask status(), which answers no target.
+    await transport.cancel("batch-1");
+    release();
+    const report = await settle(handle.done);
+    expect(puts(transport.calls)).toHaveLength(1);
+    expect(report).toMatchObject({ canceled: true, canRetry: false });
+  });
 });
