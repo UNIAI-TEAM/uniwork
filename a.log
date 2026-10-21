@@ -1,0 +1,6 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -3
+f98e9a03717977cf17b167e4aaada99a441a7890
+760723c61d0d0e5e1e3dfd588da4f0117dbdca17
+f98e9a037 fix(documents): refuse a folder trash over a legacy folder the actor cannot read
+410fec9f3 test(documents): keep restore, purge and shelve mechanics under the 0037 folder trash
+0ce46c18b chore(db): drop the tenant reason from ListFolderUnitCandidates
