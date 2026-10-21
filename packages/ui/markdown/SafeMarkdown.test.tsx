@@ -65,4 +65,48 @@ describe("SafeMarkdown", () => {
     expect(container.querySelector("table")).not.toBeNull();
     expect(container.querySelectorAll("li")).toHaveLength(2);
   });
+
+  describe("adversarial input with a permissive isLinkAllowed", () => {
+    const allow = { isLinkAllowed: () => true };
+    it.each([
+      ["javascript scheme", "[y](javascript:alert(1))"],
+      ["mixed-case scheme", "[y](JaVaScRiPt:alert(1))"],
+      ["data scheme", "[y](data:text/html,x)"],
+      ["reference-style link", "[x][1]\n\n[1]: javascript:alert(1)"],
+      ["autolink", "<javascript:alert(1)>"],
+    ])("emits no unsafe anchor for %s", (_n, md) => {
+      const { container } = setup(md, allow);
+      for (const a of Array.from(container.querySelectorAll("a"))) {
+        expect(a.getAttribute("href") ?? "").not.toMatch(/^\s*(javascript|data):/i);
+      }
+      expect(container.querySelector("img")).toBeNull();
+    });
+
+    it("drops the image inside a link but keeps the link", () => {
+      const { container } = setup("[![a](https://x/i.png)](/ok)", allow);
+      expect(container.querySelector("img")).toBeNull();
+      expect(container.querySelector("a")?.getAttribute("href")).toBe("/ok");
+      expect(container.textContent).toContain("a");
+    });
+  });
+
+  it("passes capture groups to the inline token renderer", () => {
+    setup("x [S7] y", {
+      inlineToken: { pattern: /\[S(\d+)\]/g, render: (m, k) => <b key={k} data-testid="g">{m[1]}</b> },
+    });
+    expect(screen.getByTestId("g").textContent).toBe("7");
+  });
+
+  it("survives a pattern that can match the empty string", () => {
+    const { container } = setup("keep me", {
+      inlineToken: { pattern: /x*/, render: (_m, k) => <b key={k} data-testid="e" /> },
+    });
+    expect(container.textContent).toContain("keep me");
+    expect(screen.queryAllByTestId("e")).toHaveLength(0);
+  });
+
+  it("shows an html comment as text, not nothing", () => {
+    const { container } = setup("a\n\n<!-- x -->\n\nb");
+    expect(container.textContent).toContain("<!-- x -->");
+  });
 });

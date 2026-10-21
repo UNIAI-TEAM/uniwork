@@ -23,6 +23,8 @@ interface MdNode {
   data?: { hName?: string; hProperties?: Record<string, unknown> }
 }
 
+type Kids = { children?: React.ReactNode }
+
 const TOKEN_ELEMENT = 'safe-token'
 
 /**
@@ -78,6 +80,31 @@ export function SafeMarkdown({
     img: ({ alt }: { alt?: string }) => <>{alt ?? ''}</>,
     a: ({ href, children: kids }: { href?: string; children?: React.ReactNode }) =>
       href && isLinkAllowed(href) ? <>{renderLink({ href, children: kids })}</> : <>{kids}</>,
+    p: ({ children: kids }: Kids) => <p className="my-3 leading-relaxed">{kids}</p>,
+    ul: ({ children: kids }: Kids) => (
+      <ul className="my-3 space-y-1.5 ps-4 pe-2 list-disc marker:text-muted-foreground">{kids}</ul>
+    ),
+    ol: ({ children: kids }: Kids) => <ol className="my-3 space-y-1.5 pl-6 list-decimal">{kids}</ol>,
+    li: ({ children: kids }: Kids) => <li className="leading-relaxed">{kids}</li>,
+    table: ({ children: kids }: Kids) => (
+      <div className="my-4 overflow-x-auto rounded-md border">
+        <table className="min-w-full divide-y divide-border">{kids}</table>
+      </div>
+    ),
+    thead: ({ children: kids }: Kids) => <thead className="bg-muted/50">{kids}</thead>,
+    tbody: ({ children: kids }: Kids) => <tbody className="divide-y divide-border">{kids}</tbody>,
+    th: ({ children: kids }: Kids) => <th className="text-left py-3 px-4 font-semibold text-body">{kids}</th>,
+    td: ({ children: kids }: Kids) => <td className="py-3 px-4 text-body">{kids}</td>,
+    h1: ({ children: kids }: Kids) => <h1 className="font-sans text-title-sm font-bold mt-7 mb-4">{kids}</h1>,
+    h2: ({ children: kids }: Kids) => <h2 className="font-sans text-title-sm font-semibold mt-6 mb-3">{kids}</h2>,
+    h3: ({ children: kids }: Kids) => <h3 className="font-sans text-body font-semibold mt-5 mb-3">{kids}</h3>,
+    h4: ({ children: kids }: Kids) => <h4 className="text-body font-semibold mt-3 mb-1">{kids}</h4>,
+    blockquote: ({ children: kids }: Kids) => (
+      <blockquote className="border-l-4 border-foreground/30 bg-muted/30 pl-4 pr-3 py-2 my-3 rounded-r-md">
+        {kids}
+      </blockquote>
+    ),
+    hr: () => <hr className="my-6 border-border" />,
     pre: ({ children: kids }: { children?: React.ReactNode }) => (
       <pre className="my-2 overflow-x-auto rounded-md border border-border bg-muted p-3 font-mono text-body text-foreground">
         {kids}
