@@ -59,6 +59,7 @@ describe("MeetingsSettings (UNI-2026)", () => {
     renderTab();
     const toggle = await screen.findByRole("switch", { name: t("settings.meetings.auto_summary_label") });
     await waitFor(() => expect(toggle).toHaveAttribute("aria-checked", "true"));
+    expect(toggle).toHaveAccessibleDescription(t("settings.meetings.auto_summary_description"));
     fireEvent.click(toggle);
     await waitFor(() => expect(puts).toEqual([{ auto_summary_enabled: false }]));
     await waitFor(() => expect(toggle).toHaveAttribute("aria-checked", "false"));
@@ -70,7 +71,6 @@ describe("MeetingsSettings (UNI-2026)", () => {
     renderTab();
     await waitFor(() => expect(requestMock.mock.calls.some(([p]) => String(p).endsWith("/meetings/settings"))).toBe(true));
     expect(screen.queryByRole("switch")).toBeNull();
-    expect(screen.queryByText(t("settings.meetings.state_unknown"), { exact: false })).toBeNull();
   });
 
   it("names a failed read and reads again on retry", async () => {
@@ -78,6 +78,8 @@ describe("MeetingsSettings (UNI-2026)", () => {
     serve("owner", [], () => (++reads === 1 ? Promise.reject(new Error("offline")) : Promise.resolve({ organization_id: ORG, auto_summary_enabled: true })));
     renderTab();
     expect(await screen.findByText(t("settings.meetings.read_failed"), { exact: false })).toBeInTheDocument();
+    // Only the failure: no switch drawn "off" when the real default is on.
+    expect(screen.queryByRole("switch")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: t("settings.state.retry") }));
     const toggle = await screen.findByRole("switch", { name: t("settings.meetings.auto_summary_label") });
     await waitFor(() => expect(toggle).toHaveAttribute("aria-checked", "true"));

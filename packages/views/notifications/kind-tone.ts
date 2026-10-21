@@ -7,8 +7,9 @@ import { moduleTone } from "../layout/module-tones";
  * read from the same table the sidebar uses — so a task notification carries
  * the tasks green the person already knows from the nav, a meeting one the
  * meetings violet. A kind from a newer server, or one with no module, takes
- * the neutral grey. A failure is the exception: it carries the danger red, so
- * it never reads as one more notice from its module.
+ * the neutral grey. A failure keeps its module tint here (the settings matrix
+ * names the module); its mark carries the destructive signal instead, see
+ * `kindSignal`.
  */
 const KIND_TONES: Record<NotificationKind, Tint> = {
   task_assigned: moduleTone("tasks"),
@@ -23,7 +24,7 @@ const KIND_TONES: Record<NotificationKind, Tint> = {
   meeting_summary_reminder: moduleTone("meetings"),
   meeting_summary_ready: moduleTone("meetings"),
   meeting_transcript_ready: moduleTone("meetings"),
-  meeting_transcript_failed: "red",
+  meeting_transcript_failed: moduleTone("meetings"),
   member_added: moduleTone("people"),
   role_changed: moduleTone("people"),
   audit_export_ready: "gray",
@@ -52,4 +53,11 @@ const KIND_TONES: Record<NotificationKind, Tint> = {
 
 export function kindTone(kind: string): Tint {
   return (KIND_TONES as Record<string, Tint>)[kind] ?? "gray";
+}
+
+/** Kinds that report a failure: their mark takes the destructive signal, not a tint. */
+const FAILURE_KINDS: ReadonlySet<string> = new Set<NotificationKind>(["meeting_transcript_failed"]);
+
+export function kindSignal(kind: string): "destructive" | null {
+  return FAILURE_KINDS.has(kind) ? "destructive" : null;
 }

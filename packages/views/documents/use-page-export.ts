@@ -1,11 +1,11 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { ApiError, errorClassOf, errorCode, errorFields } from "@uniwork/core/api";
 import type { PageExportFormat } from "@uniwork/core/api/endpoints/documents-page-export";
-import { useExportDocumentPage } from "@uniwork/core/documents/hooks";
+import { useExportDocumentPage, usePageExportUnavailable } from "@uniwork/core/documents/hooks";
 import type { Document } from "@uniwork/core/types/document";
 import { downloadBlob } from "../editor/utils/mermaid-export";
 
@@ -55,7 +55,9 @@ export function usePageExport(doc: Document): {
   const mutation = useExportDocumentPage(doc.id);
   // The state flag lags a render; the ref stops a second click in the same tick.
   const running = useRef(false);
-  const [unavailable, setUnavailable] = useState<ReadonlySet<PageExportFormat>>(new Set());
+  const formats = usePageExportUnavailable((s) => s.formats);
+  const markUnavailable = usePageExportUnavailable((s) => s.markUnavailable);
+  const unavailable = useMemo<ReadonlySet<PageExportFormat>>(() => new Set(formats), [formats]);
   const exportPage = (format: PageExportFormat) => {
     if (running.current) return;
     running.current = true;
@@ -71,8 +73,7 @@ export function usePageExport(doc: Document): {
         (error: unknown) => {
           const code = errorCode(error) ?? "";
           if (UNAVAILABLE.has(code)) {
-            const gone: PageExportFormat[] = NO_ENGINE.has(code) ? ["docx", "pdf"] : [format];
-            setUnavailable((cur) => new Set([...cur, ...gone]));
+            markUnavailable(NO_ENGINE.has(code) ? ["docx", "pdf"] : [format]);
           }
           toast.error(t(exportErrorKey(error), { format: label }), { id: toastId });
         },

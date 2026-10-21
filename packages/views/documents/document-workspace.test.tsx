@@ -164,6 +164,12 @@ describe("DocumentWorkspace note page UI", () => {
     expect(screen.getAllByText(t("documents.save.readonly"))).toHaveLength(1);
     expect(screen.queryByText(t("documents.detail.readonly_title"))).toBeNull();
   });
+
+  it("lets a keyboard reach and scroll the page's scroller", async () => {
+    renderWorkspace({ my_level: "view" });
+    await findEditor();
+    expect(screen.getByRole("region", { name: t("documents.page_ui.scroll_region") })).toHaveAttribute("tabindex", "0");
+  });
 });
 
 describe("DocumentWorkspace read-only level label (UNI-1994)", () => {

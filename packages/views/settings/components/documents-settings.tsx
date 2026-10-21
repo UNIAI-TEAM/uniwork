@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useId, useMemo } from "react";
 import { FileText, ShieldCheck } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useSubscription } from "@uniwork/core/billing";
@@ -57,6 +57,7 @@ export function DocumentsSettings() {
   const subscription = useSubscription(workspace.organization_id);
   const settings = useDocumentSettings(workspace.organization_id, { enabled: isAdmin });
   const setLinks = useSetDocumentPublicLinks(workspace.organization_id);
+  const linksHintId = useId();
 
   const entitlements = useMemo(() => subscription.data?.entitlements ?? [], [subscription.data]);
   const linksEntitlement = useMemo(
@@ -131,9 +132,12 @@ export function DocumentsSettings() {
         }
       >
         <SettingsCard>
-          {/* While the read runs the row keeps its shape instead of a guessed off switch. */}
+          {/* While the read runs the row keeps its shape, and a failed read shows
+              only the failure, never a guessed off switch. */}
           {settings.isPending ? (
             <SettingsRowSkeleton />
+          ) : settings.isError ? (
+            <SettingsLoadError onRetry={() => void settings.refetch()}>{t("links_read_failed")}</SettingsLoadError>
           ) : (
             <SettingsRow
               label={
@@ -143,27 +147,23 @@ export function DocumentsSettings() {
                 </span>
               }
               description={t("links_toggle_description")}
+              descriptionId={linksHintId}
             >
               <Switch
                 aria-label={t("links_toggle_label")}
+                aria-describedby={linksHintId}
                 checked={linksEnabled}
                 aria-busy={busy || undefined}
                 aria-disabled={busy || undefined}
                 className="aria-busy:opacity-60 pointer-coarse:after:-inset-y-3.25"
                 onCheckedChange={(next) => {
-                  // One write at a time, and never before the read settles; a
-                  // failed read stays writable on purpose (links_state_unknown).
+                  // One write at a time.
                   if (busy) return;
                   void setLinks.mutateAsync(next === true).catch(() => undefined);
                 }}
               />
             </SettingsRow>
           )}
-          {settings.isError ? (
-            <SettingsLoadError onRetry={() => void settings.refetch()}>
-              {`${t("links_read_failed")} ${t("links_state_unknown")}`}
-            </SettingsLoadError>
-          ) : null}
         </SettingsCard>
       </SettingsSection>
     </SettingsTab>

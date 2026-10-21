@@ -204,6 +204,11 @@ describe("InboxView", () => {
     renderInbox();
     await screen.findByRole("link", { name: /Việc n1/ });
     const list = screen.getByRole("list", { name: "Hộp việc" });
+    // Every list holds only list items: a group is an item with its heading and its own list of rows.
+    for (const ul of [list, ...within(list).getAllByRole("list")]) {
+      for (const child of Array.from(ul.children)) expect(child.tagName).toBe("LI");
+      for (const child of Array.from(ul.children)) expect(child).not.toHaveAttribute("role");
+    }
     // Plain list semantics: a link and two buttons per row, all in the tab order.
     expect(screen.queryByRole("listbox")).toBeNull();
     expect(within(list).getByRole("button", { name: "Đánh dấu đã đọc" })).toBeInTheDocument();
@@ -374,6 +379,18 @@ describe("InboxView", () => {
       };
       expect(await clampOf(/truy cập khẩn cấp/)).toHaveClass("line-clamp-3");
       expect(await clampOf(/bình luận trong/)).toHaveClass("line-clamp-2");
+    });
+
+    // At 390px two lines cut a failed transcript before its next step, and a ready summary before "Xem và giao việc".
+    it("gives the meeting summary and transcript-failure sentences the lines their ending needs", async () => {
+      const meeting = (id: string, kind: string) =>
+        row(id, { kind, title_key: `notifications.kind.${kind}`, resource_type: "meeting", resource_id: "m-" + id, actor_kind: "system", params: { meeting: "Họp quý" } });
+      mockApi([meeting("n1", "meeting_transcript_failed"), meeting("n2", "meeting_summary_ready")]);
+      renderInbox();
+      const clampOf = async (name: RegExp) =>
+        (await screen.findByRole("link", { name })).querySelector("[class*=line-clamp]:not([data-notification-snippet])");
+      expect(await clampOf(/tải lại tệp/)).toHaveClass("line-clamp-5");
+      expect(await clampOf(/giao việc/)).toHaveClass("line-clamp-3");
     });
 
     it("never quotes a snippet for a lost document even if one arrives", async () => {

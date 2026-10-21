@@ -177,14 +177,13 @@ describe("DocumentsSettings", () => {
     expect(screen.queryByRole("progressbar")).toBeNull();
   });
 
-  it("shows the unknown state instead of a fabricated switch when the read fails", async () => {
+  it("shows only the failure, never a fabricated switch, when the read fails", async () => {
     serve({ settingsFails: true });
     renderTab();
 
-    expect(await screen.findByText(t("settings.documents.links_state_unknown"), { exact: false })).toBeInTheDocument();
-    expect(screen.getByRole("switch")).toBeInTheDocument();
     // The failure is named, not swallowed, and can be read again.
-    expect(screen.getByText(t("settings.documents.links_read_failed"), { exact: false })).toBeInTheDocument();
+    expect(await screen.findByText(t("settings.documents.links_read_failed"), { exact: false })).toBeInTheDocument();
+    expect(screen.queryByRole("switch")).toBeNull();
     expect(screen.getByRole("button", { name: t("settings.state.retry") })).toBeInTheDocument();
   });
 
@@ -193,6 +192,5 @@ describe("DocumentsSettings", () => {
     renderTab();
     expect(await screen.findByText(t("settings.documents.entitlement_enabled"))).toBeInTheDocument();
     expect(screen.queryByRole("switch")).toBeNull();
-    expect(screen.queryByText(t("settings.documents.links_state_unknown"), { exact: false })).toBeNull();
   });
 });

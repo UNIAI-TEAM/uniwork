@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@uniwork/core/api";
+import { usePageExportUnavailable } from "@uniwork/core/documents/hooks";
 import { initI18n } from "@uniwork/core/i18n";
 import { DocumentSchema, type Document } from "@uniwork/core/types/document";
 import type { User, Workspace } from "@uniwork/core/types";
@@ -102,6 +103,7 @@ async function openMenu() {
 beforeEach(() => {
   requestMock.mockReset();
   requestMock.mockImplementation(() => Promise.resolve({}));
+  usePageExportUnavailable.setState({ formats: [] });
 });
 
 afterEach(() => {
@@ -548,7 +550,7 @@ describe("DocumentActionsMenu page export (UNI-2004)", () => {
       ),
     );
     stubSave();
-    renderWithFlags(page(), { page_export: { default: true } });
+    const { unmount } = renderWithFlags(page(), { page_export: { default: true } });
     await openMenu();
     fireEvent.click(screen.getByRole("menuitem", { name: t("documents.actions.export_pdf") }));
     await waitFor(() =>
@@ -558,6 +560,11 @@ describe("DocumentActionsMenu page export (UNI-2004)", () => {
     await openMenu();
     expect(screen.queryByRole("menuitem", { name: t("documents.actions.export_pdf") })).toBeNull();
     expect(screen.getByRole("menuitem", { name: t("documents.actions.export_docx") })).toBeInTheDocument();
+    // For the rest of the session: a menu mounted again, on any page, still leaves it out.
+    unmount();
+    renderWithFlags(page(), { page_export: { default: true } });
+    await openMenu();
+    expect(screen.queryByRole("menuitem", { name: t("documents.actions.export_pdf") })).toBeNull();
   });
 
   it("offers no export when page_export is off, or on a file document", async () => {

@@ -571,7 +571,8 @@ export function DocumentWorkspace({
 
       {doc.kind === "page" && editable ? <div ref={setToolbarHost} className="sticky top-0 z-10 shrink-0 empty:hidden" /> : null}
 
-      <div
+      <div {...(doc.kind === "page" ? { role: "region", tabIndex: 0, "aria-label": t("documents.page_ui.scroll_region") } : {})}
+        // The page scroller takes focus so a keyboard can scroll it (axe scrollable-region-focusable).
         className={
           doc.kind === "page"
             ? `min-h-0 min-w-0 flex-1 overflow-y-auto bg-background pt-12 pb-32 md:pt-16 ${PAGE_GUTTER}`

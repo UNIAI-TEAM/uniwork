@@ -1,5 +1,6 @@
 "use client";
 
+import { useId } from "react";
 import { ShieldCheck, Sparkles } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useMeetingSettings, useSetMeetingAutoSummary } from "@uniwork/core/meetings/settings";
@@ -44,6 +45,7 @@ export function MeetingsSettings() {
   const isAdmin = !!membership.data && ADMIN_ROLES.has(membership.data.role);
   const settings = useMeetingSettings(workspace.organization_id, { enabled: isAdmin });
   const setAuto = useSetMeetingAutoSummary(workspace.organization_id);
+  const hintId = useId();
 
   if (membership.isLoading) return <SettingsTabSkeleton />;
 
@@ -72,10 +74,13 @@ export function MeetingsSettings() {
         }
       >
         <SettingsCard>
-          {/* While the read runs the row keeps its shape: an off switch here
-              would be a guess, and the real default is on. */}
+          {/* While the read runs the row keeps its shape, and a failed read
+              shows only the failure: an off switch would be a guess, and the
+              real default is on. */}
           {settings.isPending ? (
             <SettingsRowSkeleton />
+          ) : settings.isError || !settings.data ? (
+            <SettingsLoadError onRetry={() => void settings.refetch()}>{t("read_failed")}</SettingsLoadError>
           ) : (
             <SettingsRow
               label={
@@ -85,27 +90,23 @@ export function MeetingsSettings() {
                 </span>
               }
               description={t("auto_summary_description")}
+              descriptionId={hintId}
             >
               <Switch
                 aria-label={t("auto_summary_label")}
-                checked={settings.data?.auto_summary_enabled ?? false}
+                aria-describedby={hintId}
+                checked={settings.data.auto_summary_enabled}
                 aria-busy={busy || undefined}
                 aria-disabled={busy || undefined}
                 className="aria-busy:opacity-60 pointer-coarse:after:-inset-y-3.25"
                 onCheckedChange={(next) => {
-                  // One write at a time, and never before the read settles; a
-                  // failed read stays writable on purpose (state_unknown).
+                  // One write at a time.
                   if (busy) return;
                   void setAuto.mutateAsync(next === true).catch(() => undefined);
                 }}
               />
             </SettingsRow>
           )}
-          {settings.isError ? (
-            <SettingsLoadError onRetry={() => void settings.refetch()}>
-              {`${t("read_failed")} ${t("state_unknown")}`}
-            </SettingsLoadError>
-          ) : null}
         </SettingsCard>
       </SettingsSection>
     </SettingsTab>

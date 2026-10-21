@@ -312,17 +312,16 @@ export function InboxView() {
 }
 
 /**
- * A group's label and its rows. The label's `li` is presentational so the
- * list stays one flat list for j/k and its item count is the rows'; the label
- * inside is a real heading, so a screen reader can jump group to group and
- * hears what each holds. It sticks while its rows scroll under it, on the
- * page's own solid fill.
+ * A group: an item of the inbox list holding a real heading and its own list
+ * of rows, so a screen reader can jump group to group and hears what each
+ * holds, and every list holds only list items. The heading sticks while its
+ * rows scroll under it, on the page's own solid fill.
  */
 function GroupSection({ group, count, children }: { group: InboxGroupKey; count: number; children: ReactNode }) {
   const { t } = useTranslation();
   return (
-    <>
-      <li role="presentation" className="sticky top-0 z-10 bg-background px-3 pt-4 pb-1.5">
+    <li>
+      <div className="sticky top-0 z-10 bg-background px-3 pt-4 pb-1.5">
         <h2 className="flex items-baseline gap-2 text-overline text-muted-foreground">
           <span>{t(`notifications.group_${group}`)}</span>
           <span aria-hidden className="tabular-nums">
@@ -330,9 +329,11 @@ function GroupSection({ group, count, children }: { group: InboxGroupKey; count:
           </span>
           <span className="sr-only">{`, ${t("notifications.group_count", { count })}`}</span>
         </h2>
-      </li>
-      <AnimatePresence initial={false}>{children}</AnimatePresence>
-    </>
+      </div>
+      <ul>
+        <AnimatePresence initial={false}>{children}</AnimatePresence>
+      </ul>
+    </li>
   );
 }
 

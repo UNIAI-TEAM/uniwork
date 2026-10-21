@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { NOTIFICATION_KINDS } from "@uniwork/core/types";
 import { moduleTone } from "../layout/module-tones";
 import { kindIcon } from "./kind-icon";
-import { kindTone } from "./kind-tone";
+import { kindSignal, kindTone } from "./kind-tone";
 import { inboxCategory } from "./notification-category";
 
 describe("kindTone", () => {
@@ -25,10 +25,11 @@ describe("kindTone", () => {
     expect(kindIcon("document_break_glass")).toBe(ShieldAlert);
   });
 
-  // A failure is a signal, not a module colour: it must not read as one more meeting notice.
-  it("marks a failed transcript in red", () => {
-    expect(kindTone("meeting_transcript_failed")).toBe("red");
-    expect(kindTone("meeting_transcript_ready")).toBe(moduleTone("meetings"));
+  // A failure is a signal, not a tint: its mark is destructive, its module tint stays the meetings one.
+  it("marks a failed transcript with the destructive signal", () => {
+    expect(kindSignal("meeting_transcript_failed")).toBe("destructive");
+    expect(kindTone("meeting_transcript_failed")).toBe(moduleTone("meetings"));
+    expect(kindSignal("meeting_transcript_ready")).toBeNull();
   });
 
   it("draws the summary reminder apart from the summary the system made", () => {

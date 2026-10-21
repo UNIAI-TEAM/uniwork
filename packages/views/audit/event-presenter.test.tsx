@@ -25,7 +25,16 @@ describe("event presenter", () => {
     expect(screen.getByText("Không có")).toBeInTheDocument();
   });
 
-  it("shortens a ULID but leaves a short id alone", () => {
+  it("reads a stored instant and a calendar day in the reader's locale and zone, not as ISO", () => {
+    const { result } = renderHook(() => useAuditLabels());
+    const at = "2026-10-22T02:30:00Z";
+    expect(result.current.value("due_at", at)).toBe(new Date(at).toLocaleString("vi", { dateStyle: "medium", timeStyle: "short" }));
+    expect(result.current.value("start_date", "2026-10-22")).toBe(new Date(2026, 9, 22).toLocaleDateString("vi", { dateStyle: "medium" }));
+    expect(result.current.value("title", "2026-10-22")).toBe("2026-10-22");
+    expect(result.current.value("due_at", "soon")).toBe("soon");
+  });
+
+    it("shortens a ULID but leaves a short id alone", () => {
     expect(shortId("01J8Z0M3K9Q2V4X6Y8A0B2C4D6")).toBe("01J8…C4D6");
     expect(shortId("u1")).toBe("u1");
   });

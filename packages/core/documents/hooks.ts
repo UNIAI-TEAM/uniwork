@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { create } from "zustand";
 import {
   createDocument,
   createDocumentFile,
@@ -274,6 +275,19 @@ export function useExportDocumentPage(documentId: string) {
     mutationFn: (format: PageExportFormat) => exportDocumentPage(documentId, format),
   });
 }
+
+/**
+ * Export formats this deployment refused to render (no engine, no PDF
+ * renderer): every export menu leaves them out until the page reloads,
+ * whichever document or menu mount learned it.
+ */
+export const usePageExportUnavailable = create<{
+  formats: readonly PageExportFormat[];
+  markUnavailable: (formats: readonly PageExportFormat[]) => void;
+}>((set) => ({
+  formats: [],
+  markUnavailable: (formats) => set((s) => ({ formats: [...new Set([...s.formats, ...formats])] })),
+}));
 
 /**
  * The page autosave loop as a hook: one DocumentSaveMachine per document,

@@ -212,7 +212,9 @@ describe("NotificationsTab", () => {
     mockApi(false);
     render(wrap(<NotificationsTab />));
     await screen.findByRole("switch", { name: `${t("settings.notifications.kinds.meeting_summary_ready")} · ${t("settings.notifications.channel_in_app")}` });
-    expect(screen.getAllByText(t("settings.notifications.hint_meeting_role"))).toHaveLength(2);
+    expect(screen.getAllByText(t("settings.notifications.hint_meeting_role"))).toHaveLength(1);
+    // The reminder says its condition: only when the organization turned the automatic summary off.
+    expect(screen.getAllByText(t("settings.notifications.hint_meeting_reminder"))).toHaveLength(1);
     expect(screen.getAllByText(t("settings.notifications.hint_meeting_upload"))).toHaveLength(2);
   });
 

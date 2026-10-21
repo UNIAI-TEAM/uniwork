@@ -9,7 +9,7 @@ import { cn } from "@uniwork/ui/lib/utils";
 import { initials } from "../people/actor-chip";
 import { useWorkspace } from "../layout/workspace-context";
 import { kindIcon } from "./kind-icon";
-import { kindTone } from "./kind-tone";
+import { kindSignal, kindTone } from "./kind-tone";
 
 /**
  * Who caused the row, with what kind of thing it is pinned to the corner.
@@ -25,6 +25,7 @@ export function NotificationMark({ notification: n, dimmed }: { notification: No
   const { workspace } = useWorkspace();
   const members = useMembers(workspace.id);
   const tone = kindTone(n.kind);
+  const signal = kindSignal(n.kind);
   const Icon = kindIcon(n.kind, n.params);
   const name = n.params.actor ?? "";
 
@@ -35,7 +36,7 @@ export function NotificationMark({ notification: n, dimmed }: { notification: No
         icon={Icon}
         shape="circle"
         size="sm"
-        tone={tone}
+        tone={signal ?? tone}
         className={cn("size-9 [&_svg]:size-4", dimmed && "opacity-70")}
       />
     );
@@ -62,7 +63,7 @@ export function NotificationMark({ notification: n, dimmed }: { notification: No
           // it: the row sets --row-fill for its hover and focus fills, and a
           // host list on another surface (a card, a popover) sets its own.
           "absolute -right-1 -bottom-1 flex size-4.5 items-center justify-center rounded-full ring-2 ring-[var(--row-fill,var(--background))] [&_svg]:size-2.5",
-          tintSolidClass[tone],
+          signal ? "bg-destructive-solid text-on-solid" : tintSolidClass[tone],
         )}
       >
         <Icon strokeWidth={2.5} />
