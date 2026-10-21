@@ -303,6 +303,18 @@ describe("starred rows without a loaded copy (m1)", () => {
     expect(screen.getByRole("menuitem", { name: t("documents.home.row.open_app") })).toBeInTheDocument();
   });
 
+  it("keeps the launch flow mounted for the menu item in a host that is out of the tab order and the accessibility tree (N6)", () => {
+    renderRow({ id: "f1", organization_id: "org1", current_version: 2 });
+    // The menu item runs the launch (and its install prompt) through this component, so it stays; its button is not drawn.
+    const host = document.querySelector<HTMLElement>("[data-app-open-host]")!;
+    expect(host).toHaveAttribute("hidden");
+    const button = host.querySelector<HTMLElement>("[data-office-desktop-action]")!;
+    expect(button).not.toBeVisible();
+    expect(screen.queryByRole("button", { name: t("office.desktop.row_action") })).toBeNull();
+    // Nothing else of the row's actions cell is a hidden duplicate of the menu: the host is the only one.
+    expect(document.querySelectorAll("[data-office-desktop-action]")).toHaveLength(1);
+  });
+
   it("shows a star marker next to the title on a starred row and none on an unstarred row", () => {
     const { unmount } = render(
       <table>

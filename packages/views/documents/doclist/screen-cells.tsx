@@ -50,6 +50,8 @@ interface ScreenCellRenderer {
   cell: (fields: DocListRowFields, ctx: ScreenCellContext) => ReactNode;
   /** The same content as one line of text for the narrow row, or null. */
   line: (fields: DocListRowFields, ctx: ScreenCellContext) => string | null;
+  /** The narrow row's line as parts the row lays out itself (Thùng rác, whose line wraps); answers null like `line`. */
+  lineParts?: (fields: DocListRowFields, ctx: ScreenCellContext) => ReactNode;
 }
 
 const date = (at: string | null | undefined, ctx: ScreenCellContext): string | null => {
@@ -209,6 +211,27 @@ const SCREEN_CELLS: Partial<Record<DocListScreenColumnId, ScreenCellRenderer>> =
       const line = parts.filter((part): part is string => Boolean(part));
       return line.length > 0 ? line.join(" · ") : null;
     },
+    // who · date on one row (the name truncates, the date stays whole) and the countdown on its own row: a separator
+    // sits only between two parts that are both on its row, so a wrap can never strand one at a line end (N5).
+    lineParts: (fields, ctx) => {
+      if (!fields.trashed) return null;
+      const who = actor(fields.trashed.by, ctx, DELETED_BY)?.name;
+      const at = date(fields.trashed.at, ctx);
+      const left = purgeLeft(fields, ctx)?.text;
+      if (!who && !at && !left) return null;
+      return (
+        <>
+          {who || at ? (
+            <span className="flex min-w-0 items-baseline gap-x-1.5">
+              {who ? <span className="min-w-0 truncate">{who}</span> : null}
+              {who && at ? <span aria-hidden className="shrink-0">·</span> : null}
+              {at ? <span className="shrink-0 whitespace-nowrap">{at}</span> : null}
+            </span>
+          ) : null}
+          {left ? <span className="block">{left}</span> : null}
+        </>
+      );
+    },
   },
   // Lưu trữ: avatar + who shelved · date.
   shelved: {
@@ -254,11 +277,20 @@ export function DocScreenCell({ column, fields, member }: ScreenCellProps) {
 /** The narrow row's screen line under Name; nothing when the row has no value for the column. */
 export function DocScreenLine({ column, fields, member, className }: ScreenCellProps & { className?: string }) {
   const ctx = useScreenCellContext(member);
-  const line = SCREEN_CELLS[column]?.line(fields, ctx) ?? null;
+  const renderer = SCREEN_CELLS[column];
+  const parts = renderer?.lineParts?.(fields, ctx) ?? null;
+  if (parts) {
+    // Thùng rác: its line is the longest (who · date and Còn N ngày), so it keeps the countdown whole on a row of its own.
+    return (
+      <span data-doclist-screen-line className={cn("block text-caption text-muted-foreground", className)}>
+        {parts}
+      </span>
+    );
+  }
+  const line = renderer?.line(fields, ctx) ?? null;
   if (!line) return null;
   return (
-    // Thùng rác wraps: its line is the longest (who · date · Còn N ngày) and the countdown must not be the part that is cut.
-    <span data-doclist-screen-line className={cn("block text-caption text-muted-foreground", column !== "deleted" && "truncate", className)}>
+    <span data-doclist-screen-line className={cn("block truncate text-caption text-muted-foreground", className)}>
       {line}
     </span>
   );

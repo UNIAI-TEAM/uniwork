@@ -100,11 +100,11 @@ describe("phone row layout (finding 1)", () => {
     const spanners = Array.from(group!.parentElement!.children).slice(1);
     expect(spanners.map((el) => el.getAttribute("colspan"))).toEqual(["1", "1", "1", "1"]);
     expect(spanners.map((el) => Array.from(el.classList).find((c) => c.startsWith("@min-"))?.split(":")[0])).toEqual([
-      // UNI-2045 rungs of the workspace screen: Access 34, Editor 42, the table (Updated) 27, Size 47.
-      "@min-[34rem]/library",
-      "@min-[42rem]/library",
-      "@min-[26rem]/library",
-      "@min-[47rem]/library",
+      // UNI-2045 rungs of the workspace screen: Access 39, Editor 48, the table (Updated) 31, Size 54.
+      "@min-[39rem]/library",
+      "@min-[48rem]/library",
+      "@min-[31rem]/library",
+      "@min-[54rem]/library",
     ]);
     // One header and the rows share one column template.
     expect(document.querySelectorAll("colgroup col")).toHaveLength(6);

@@ -223,7 +223,8 @@ export function LibraryRowView({
   const inert = trashed && !menu.some((group) => group.some((item) => item.id === "view-details"));
   // The row's actions are Star and the menu (Rules: "live: hàng = Sao · ⋯"); the app command is the menu's
   // Mở bằng UniWork Office. DesktopOpenAction still owns the launch flow and its install prompt, so it stays
-  // mounted, hidden, and the menu item runs it through `appRequest`.
+  // mounted and the menu item runs it through `appRequest`. Its host is `hidden` (display: none), so its button is
+  // neither drawn, focusable nor in the accessibility tree.
   const appHost = desktop ? (
     <div hidden data-app-open-host>
       <DesktopOpenAction
@@ -268,7 +269,8 @@ export function LibraryRowView({
       location={doc && screen !== "workspace" ? (handlers.locationName?.(doc) ?? null) : null}
       badges={
         <>
-          {starred ? (
+          {/* The Star action carries a starred row's state; the marker stays only where no Star action is drawn (N4). */}
+          {starred && !menu.flat().some((item) => item.id === "star") ? (
             <Star role="img" aria-label={t("documents.home.row.starred")} className="size-3.5 shrink-0 fill-current text-brand" />
           ) : null}
           {trashed && screen !== "trash" ? (
@@ -307,9 +309,12 @@ export function LibraryRowView({
                 editor ? ladder.metaHides : ladder.metaTailHides,
               )}
             >
-              {editor ? <span className={cn("min-w-0 truncate", ladder.metaHides)}>{editor}</span> : null}
-              {editor && metaTail ? <span aria-hidden className={cn("shrink-0", ladder.metaTailHides)}>·</span> : null}
-              {metaTail ? <span className={cn("shrink-0", ladder.metaTailHides)}>{metaTail}</span> : null}
+              {/* Below 34rem the editor and date · size stand on their own rows (the editor truncates, the date and size never split), so no separator can end a wrapped line (N5). */}
+              {editor ? <span className={cn("min-w-0 basis-full truncate @min-[34rem]/library:basis-auto", ladder.metaHides)}>{editor}</span> : null}
+              {editor && metaTail ? (
+                <span aria-hidden className={cn("hidden shrink-0 @min-[34rem]/library:inline", ladder.metaTailDotHides)}>·</span>
+              ) : null}
+              {metaTail ? <span className={cn("shrink-0 whitespace-nowrap", ladder.metaTailHides)}>{metaTail}</span> : null}
             </span>
           ) : null}
           {editor && (levelLabel || showNarrowScope) ? (
@@ -318,7 +323,7 @@ export function LibraryRowView({
           {levelLabel || showNarrowScope ? (
             <span data-library-access-group className={cn("flex max-w-full shrink-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 @min-[34rem]/library:max-w-none @min-[34rem]/library:flex-nowrap", ladder.accessGroupHides)}>
               {levelLabel ? <span className="shrink-0">{levelLabel}</span> : null}
-              {levelLabel && showNarrowScope ? <span aria-hidden className="shrink-0">·</span> : null}
+              {levelLabel && showNarrowScope ? <span aria-hidden className="hidden shrink-0 @min-[34rem]/library:inline">·</span> : null}
               {showNarrowScope ? (
                 <DocumentShareScopeBadge
                   shareScope={doc?.share_scope}
@@ -418,8 +423,8 @@ export function LibraryRowView({
           <div className="flex items-center justify-end gap-1">
             {appHost}
             {sourceLink ? (
-              // Every width, not the quick rung: hover/focus reveals it on a
-              // fine pointer, a coarse pointer shows it always (no hover there).
+              // Every width: hover/focus reveals it on a fine pointer, a
+              // coarse pointer shows it always (no hover there).
               <div className="opacity-0 transition-opacity group-hover/row:opacity-100 focus-within:opacity-100 pointer-coarse:opacity-100">
                 {sourceLink}
               </div>
