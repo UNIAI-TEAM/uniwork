@@ -44,6 +44,8 @@ var tenantExportExcluded = map[string]string{
 	"meeting_audit_logs":             "Nhật ký họp cũ, cùng lớp với audit.",
 	"meeting_summary_runs":           "Khóa tạm của lượt tạo tóm tắt AI (hết hạn sau vài phút), sổ kỹ thuật.",
 	"document_download_jobs":         "Job tải zip nhiều tài liệu (UNI-2045), trạng thái tạm sống một giờ; bản zip nằm trong kho tệp, không phải nội dung.",
+	"document_folder_uploads":        "Lô tải thư mục (UNI-2052), trạng thái tạm sống 24 giờ, xóa sau 7 ngày; thư mục và tài liệu nó tạo nằm trong documents.",
+	"document_folder_upload_files":   "Từng tệp của lô tải thư mục (UNI-2052), trạng thái tạm; tài liệu tạo ra nằm trong documents.",
 	"mcp_tokens":                     "Token của ứng dụng AI đã kết nối, chỉ lưu digest; là bí mật phiên.",
 }
 
