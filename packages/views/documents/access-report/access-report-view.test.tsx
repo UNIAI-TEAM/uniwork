@@ -235,7 +235,7 @@ describe("AccessReportView - tabs", () => {
     renderView(`${BASE_URL}?view=person`);
     expect(await screen.findByText(at("principals_line", { principals: 2, count: 11 }))).toBeInTheDocument();
     expect(screen.getByRole("searchbox", { name: at("search_people") })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: new RegExp(at("filter_kind")) })).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: new RegExp(at("filter_kind")) })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: new RegExp(at("tile_public_link")) })).toBeNull();
   });
 

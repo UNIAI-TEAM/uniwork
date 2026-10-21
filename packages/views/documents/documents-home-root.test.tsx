@@ -305,10 +305,8 @@ describe("home root empty states", () => {
     renderView();
     await screen.findByText("Kế hoạch Q4");
 
-    fireEvent.click(await screen.findByRole("combobox", { name: new RegExp(`^${t("documents.home.filters.type")}`) }));
-    const option = within(await screen.findByRole("listbox")).getByText(t("documents.home.chips.pdf"));
-    fireEvent.pointerDown(option);
-    fireEvent.click(option);
+    const chips = await screen.findByRole("group", { name: t("documents.home.chips_label") });
+    fireEvent.click(within(chips).getByRole("button", { name: t("documents.home.chips.pdf") }));
 
     expect(await screen.findByText(t("documents.library.no_matches_title"))).toBeInTheDocument();
     expect(screen.queryByText(t("documents.home.empty.outside_folders_title"))).toBeNull();

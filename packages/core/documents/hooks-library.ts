@@ -6,7 +6,7 @@ import {
   type BlankDocumentFormat,
   type CreateBlankDocumentBody,
 } from "../api/endpoints/documents-blank";
-import { createDocument, type CreateDocumentBody } from "../api/endpoints/documents";
+import { createDocument, downloadDocumentFile, type CreateDocumentBody } from "../api/endpoints/documents";
 import {
   downloadDocumentSource,
   listDocumentSources,
@@ -170,5 +170,17 @@ export function useDownloadDocumentSource(wsId: string) {
   return useMutation({
     mutationFn: (input: { sourceId: string }): Promise<Blob> =>
       downloadDocumentSource(wsId, input.sourceId),
+  });
+}
+
+/**
+ * The bytes of a document file named at call time, for a list row: the list
+ * shows many documents, so the id cannot be fixed when the hook mounts the way
+ * `useDocumentDownload` fixes it for a document page.
+ */
+export function useDownloadDocumentFile() {
+  return useMutation({
+    mutationFn: (input: { documentId: string; version?: number }): Promise<Blob> =>
+      downloadDocumentFile(input.documentId, input.version),
   });
 }

@@ -4,13 +4,14 @@ import { documentRow, sourceRow, type DocumentSummaryRow } from "./library-rows"
 import {
   compareRows,
   DEFAULT_LIBRARY_SORT,
+  defaultSortOf,
   mergeSorted,
   nextSort,
-  readLibrarySort,
+  readLibrarySorts,
   SORT_STORAGE_KEY,
   sortRows,
   sortStorageKey,
-  writeLibrarySort,
+  writeLibrarySorts,
   type LibrarySort,
 } from "./library-sort";
 
@@ -63,6 +64,37 @@ describe("nextSort", () => {
     expect(nextSort(by("name", "asc"), "size")).toEqual(by("size", "desc"));
     expect(nextSort(by("name", "asc"), "editor")).toEqual(by("editor", "asc"));
     expect(nextSort(DEFAULT_LIBRARY_SORT, "updated")).toEqual(by("updated", "asc"));
+  });
+
+  it("a screen column starts descending and flips once picked (W12)", () => {
+    for (const key of ["activity", "starred", "shared", "shelved"] as const) {
+      expect(nextSort(by("name", "asc"), key)).toEqual(by(key, "desc"));
+      expect(nextSort(by(key, "desc"), key)).toEqual(by(key, "asc"));
+      expect(nextSort(by(key, "asc"), key)).toEqual(by(key, "desc"));
+    }
+  });
+});
+
+describe("defaultSortOf (W12)", () => {
+  it("is the screen column descending, Cập nhật descending on the workspace, and Đã xóa ascending in the trash", () => {
+    expect(defaultSortOf("workspace")).toEqual(by("updated", "desc"));
+    expect(DEFAULT_LIBRARY_SORT).toEqual(defaultSortOf("workspace"));
+    expect(defaultSortOf("recent")).toEqual(by("activity", "desc"));
+    expect(defaultSortOf("starred")).toEqual(by("starred", "desc"));
+    expect(defaultSortOf("shared")).toEqual(by("shared", "desc"));
+    expect(defaultSortOf("shared-by-me")).toEqual(by("shared", "desc"));
+    expect(defaultSortOf("shelved")).toEqual(by("shelved", "desc"));
+    expect(defaultSortOf("trash")).toEqual(by("deleted", "asc"));
+  });
+});
+
+describe("compareRows by the starred date (W12)", () => {
+  it("orders the starred rows by favorited_at, rows without one last in both orders", () => {
+    const a = documentRow(doc({ id: "a", favorited_at: "2026-10-01T00:00:00Z" }));
+    const b = documentRow(doc({ id: "b", favorited_at: "2026-10-03T00:00:00Z" }));
+    const none = documentRow(doc({ id: "n" }));
+    expect(ids(sortRows([a, none, b], by("starred", "desc"), NO_NAMES))).toEqual(["b", "a", "n"]);
+    expect(ids(sortRows([b, none, a], by("starred", "asc"), NO_NAMES))).toEqual(["a", "b", "n"]);
   });
 });
 
@@ -173,7 +205,7 @@ describe("compareRows", () => {
   });
 });
 
-describe("the remembered sort", () => {
+describe("the remembered sort, one entry per screen (W12)", () => {
   function adapter(initial: Record<string, string> = {}) {
     const map = new Map(Object.entries(initial));
     return {
@@ -183,49 +215,79 @@ describe("the remembered sort", () => {
       removeItem: (k: string) => void map.delete(k),
     };
   }
+  const stored = (store: ReturnType<typeof adapter>) => JSON.parse(store.map.get("uniwork_documents_sort:u1")!) as unknown;
 
-  it("persists per viewer under uniwork_documents_sort:<userId> and neither reads nor writes without a user", () => {
+  it("persists a map per screen under uniwork_documents_sort:<userId> and neither reads nor writes without a user", () => {
     const store = adapter();
     expect(sortStorageKey("u1")).toBe(`${SORT_STORAGE_KEY}:u1`);
     expect(SORT_STORAGE_KEY).toBe("uniwork_documents_sort");
-    expect(readLibrarySort("u1", store)).toEqual(DEFAULT_LIBRARY_SORT);
-    writeLibrarySort("u1", by("size", "asc"), store);
-    expect(JSON.parse(store.map.get("uniwork_documents_sort:u1")!)).toEqual(by("size", "asc"));
-    expect(readLibrarySort("u1", store)).toEqual(by("size", "asc"));
+    expect(readLibrarySorts("u1", store)).toEqual({});
+    writeLibrarySorts("u1", { workspace: by("size", "asc"), recent: by("activity", "asc") }, store);
+    expect(stored(store)).toEqual({ workspace: by("size", "asc"), recent: by("activity", "asc") });
+    expect(readLibrarySorts("u1", store)).toEqual({ workspace: by("size", "asc"), recent: by("activity", "asc") });
     // A second viewer on the same browser does not share u1's choice.
-    expect(readLibrarySort("u2", store)).toEqual(DEFAULT_LIBRARY_SORT);
+    expect(readLibrarySorts("u2", store)).toEqual({});
 
     const before = store.map.size;
     for (const none of [null, undefined, ""]) {
-      expect(readLibrarySort(none, store)).toEqual(DEFAULT_LIBRARY_SORT);
-      writeLibrarySort(none, by("name", "asc"), store);
+      expect(readLibrarySorts(none, store)).toEqual({});
+      writeLibrarySorts(none, { workspace: by("name", "asc") }, store);
     }
     expect(store.map.size).toBe(before);
   });
 
-  it("reads the old folder choice once into the new key and drops the old one", () => {
+  it("reads the old single value once as the workspace entry and rewrites the key as a map", () => {
+    const store = adapter({ "uniwork_documents_sort:u1": JSON.stringify(by("name", "desc")) });
+    expect(readLibrarySorts("u1", store)).toEqual({ workspace: by("name", "desc") });
+    expect(stored(store)).toEqual({ workspace: by("name", "desc") });
+    // The second read finds the map, nothing is migrated twice.
+    expect(readLibrarySorts("u1", store)).toEqual({ workspace: by("name", "desc") });
+  });
+
+  it("reads the old folder choice once into the workspace entry and drops the old key", () => {
     const store = adapter({ "uniwork_documents_folder_sort:u1": "name" });
-    expect(readLibrarySort("u1", store)).toEqual(by("name", "asc"));
+    expect(readLibrarySorts("u1", store)).toEqual({ workspace: by("name", "asc") });
     expect(store.map.has("uniwork_documents_folder_sort:u1")).toBe(false);
-    expect(JSON.parse(store.map.get("uniwork_documents_sort:u1")!)).toEqual(by("name", "asc"));
+    expect(stored(store)).toEqual({ workspace: by("name", "asc") });
 
     const updated = adapter({ "uniwork_documents_folder_sort:u1": "updated" });
-    expect(readLibrarySort("u1", updated)).toEqual(DEFAULT_LIBRARY_SORT);
+    expect(readLibrarySorts("u1", updated)).toEqual({ workspace: DEFAULT_LIBRARY_SORT });
     expect(updated.map.has("uniwork_documents_folder_sort:u1")).toBe(false);
 
     // The new key wins and the legacy one is left alone when both exist (nothing to migrate).
     const both = adapter({
-      "uniwork_documents_sort:u1": JSON.stringify(by("editor", "desc")),
+      "uniwork_documents_sort:u1": JSON.stringify({ shelved: by("editor", "desc") }),
       "uniwork_documents_folder_sort:u1": "name",
     });
-    expect(readLibrarySort("u1", both)).toEqual(by("editor", "desc"));
+    expect(readLibrarySorts("u1", both)).toEqual({ shelved: by("editor", "desc") });
   });
 
-  it("falls back to the default for a malformed value or storage that throws", () => {
-    expect(readLibrarySort("u1", adapter({ "uniwork_documents_sort:u1": "{nope" }))).toEqual(DEFAULT_LIBRARY_SORT);
-    expect(readLibrarySort("u1", adapter({ "uniwork_documents_sort:u1": JSON.stringify({ column: "access", order: "asc" }) }))).toEqual(
-      DEFAULT_LIBRARY_SORT,
-    );
+  it("keeps only what each screen can sort by: its own column and the four S3 columns, never the trash", () => {
+    const store = adapter({
+      "uniwork_documents_sort:u1": JSON.stringify({
+        workspace: by("activity", "desc"), // a screen key on the workspace
+        recent: by("shared", "asc"), // another screen's key
+        starred: by("starred", "asc"),
+        shared: by("shared", "desc"),
+        "shared-by-me": by("access" as never, "asc"),
+        shelved: by("size", "asc"),
+        trash: by("name", "asc"), // the trash order is fixed
+        nowhere: by("name", "asc"),
+        // Neither a screen key nor a sort pair.
+        bogus: "x",
+      }),
+    });
+    expect(readLibrarySorts("u1", store)).toEqual({
+      starred: by("starred", "asc"),
+      shared: by("shared", "desc"),
+      shelved: by("size", "asc"),
+    });
+  });
+
+  it("falls back to no entries for a malformed value or storage that throws", () => {
+    expect(readLibrarySorts("u1", adapter({ "uniwork_documents_sort:u1": "{nope" }))).toEqual({});
+    expect(readLibrarySorts("u1", adapter({ "uniwork_documents_sort:u1": JSON.stringify({ column: "access", order: "asc" }) }))).toEqual({});
+    expect(readLibrarySorts("u1", adapter({ "uniwork_documents_sort:u1": "[1,2]" }))).toEqual({});
     const throwing = {
       getItem: (): string | null => {
         throw new Error("SecurityError");
@@ -237,9 +299,9 @@ describe("the remembered sort", () => {
         throw new Error("SecurityError");
       },
     };
-    expect(readLibrarySort("u1", throwing)).toEqual(DEFAULT_LIBRARY_SORT);
-    expect(readLibrarySort("u1", null)).toEqual(DEFAULT_LIBRARY_SORT);
-    expect(() => writeLibrarySort("u1", by("name", "asc"), throwing)).not.toThrow();
-    expect(() => writeLibrarySort("u1", by("name", "asc"), null)).not.toThrow();
+    expect(readLibrarySorts("u1", throwing)).toEqual({});
+    expect(readLibrarySorts("u1", null)).toEqual({});
+    expect(() => writeLibrarySorts("u1", { workspace: by("name", "asc") }, throwing)).not.toThrow();
+    expect(() => writeLibrarySorts("u1", { workspace: by("name", "asc") }, null)).not.toThrow();
   });
 });

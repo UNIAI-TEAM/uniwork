@@ -85,7 +85,7 @@ export function AccessReportHeader({
   const exporting = exporter.busy !== null;
 
   return (
-    <header className="flex flex-wrap items-start justify-between gap-4 px-4 pt-4 pb-3">
+    <header className="flex flex-wrap items-start justify-between gap-3">
       <div className="flex min-w-0 flex-col gap-1.5">
         <Breadcrumb>
           <BreadcrumbList className="text-caption">

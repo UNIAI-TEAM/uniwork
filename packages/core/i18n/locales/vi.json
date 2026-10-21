@@ -9558,6 +9558,155 @@
       "clear_filters": "Bỏ bộ lọc",
       "archived_badge": "Trong thùng rác"
     },
+    "list": {
+      "column": {
+        "select": "Chọn",
+        "name": "Tên",
+        "access": "Truy cập",
+        "editor": "Người sửa gần nhất",
+        "updated": "Cập nhật",
+        "size": "Dung lượng",
+        "actions": "Thao tác"
+      },
+      "screen_column": {
+        "activity": "Lần mở gần nhất",
+        "starred": "Ngày gắn sao",
+        "shared": "Người chia sẻ",
+        "shared_with": "Chia sẻ với",
+        "shelved": "Lưu trữ",
+        "deleted": "Đã xóa"
+      },
+      "date": {
+        "yesterday": "Hôm qua"
+      },
+      "access": {
+        "restricted": "Riêng tư",
+        "workspace": "Workspace",
+        "shared": "Được chia sẻ",
+        "owner": "Chủ sở hữu",
+        "you": "Bạn: {{level}}",
+        "level": {
+          "view": "Xem",
+          "comment": "Bình luận",
+          "edit": "Sửa",
+          "manage": "Quản lý"
+        }
+      },
+      "group": {
+        "today": "Hôm nay",
+        "yesterday": "Hôm qua",
+        "this_week": "Tuần này",
+        "earlier": "Trước đó",
+        "deleting_soon": "Sắp xóa vĩnh viễn",
+        "more_than_7_days": "Còn trên 7 ngày"
+      },
+      "days_left_one": "Còn {{count}} ngày",
+      "days_left_other": "Còn {{count}} ngày",
+      "menu": {
+        "copy_link": "Sao chép link",
+        "link_copied": "Đã sao chép link",
+        "link_copy_failed": "Không sao chép được link. Thử lại."
+      },
+      "activity": {
+        "edited": "Bạn đã sửa",
+        "opened": "Bạn đã mở",
+        "commented": "Bạn đã bình luận"
+      },
+      "starred_by_you": "Bạn gắn sao",
+      "share_summary": {
+        "people_one": "{{count}} người",
+        "people_other": "{{count}} người",
+        "workspaces_one": "{{count}} workspace",
+        "workspaces_other": "{{count}} workspace",
+        "links_one": "{{count}} link",
+        "links_other": "{{count}} link"
+      },
+      "bulk": {
+        "toolbar": "Thao tác hàng loạt",
+        "selected": "{{count}} đã chọn",
+        "select_all": "Chọn tất cả",
+        "select_row": "Chọn {{title}}",
+        "clear": "Bỏ chọn",
+        "action": {
+          "share": "Chia sẻ",
+          "move": "Di chuyển",
+          "download": "Tải xuống",
+          "shelve": "Lưu trữ",
+          "trash": "Chuyển vào thùng rác",
+          "unshelve": "Bỏ lưu trữ",
+          "restore": "Khôi phục",
+          "purge": "Xóa vĩnh viễn"
+        },
+        "done": {
+          "move": "Đã di chuyển {{ok}}/{{total}} tài liệu",
+          "download": "Đã tải xuống {{ok}}/{{total}} tài liệu",
+          "shelve": "Đã lưu trữ {{ok}}/{{total}} tài liệu",
+          "trash": "Đã chuyển {{ok}}/{{total}} tài liệu vào thùng rác",
+          "unshelve": "Đã bỏ lưu trữ {{ok}}/{{total}} tài liệu",
+          "restore": "Đã khôi phục {{ok}}/{{total}} tài liệu",
+          "purge": "Đã xóa vĩnh viễn {{ok}}/{{total}} tài liệu",
+          "share": "Đã chia sẻ {{ok}}/{{total}} tài liệu"
+        },
+        "error": {
+          "forbidden": "bạn không có quyền",
+          "not_found": "không còn tìm thấy",
+          "conflict": "vừa bị thay đổi, hãy thử lại",
+          "rate_limited": "máy chủ đang bận, hãy thử lại sau",
+          "not_verifiable": "chưa xác nhận được kết quả",
+          "not_a_file": "không tải được (không phải tệp)",
+          "not_shareable": "thư mục không chia sẻ được",
+          "too_large": "tệp quá lớn để tải",
+          "folder_too_large": "thư mục quá lớn",
+          "zip_limit": "quá 100 tệp của một tệp nén, hãy tải ở lượt khác",
+          "failed": "không thực hiện được"
+        },
+        "error_line": "{{title}}: {{reason}}",
+        "more_one": "và {{count}} tài liệu khác",
+        "more_other": "và {{count}} tài liệu khác",
+        "confirm": {
+          "trash_title_one": "Chuyển {{count}} tài liệu vào thùng rác?",
+          "trash_title_other": "Chuyển {{count}} tài liệu vào thùng rác?",
+          "trash_description": "Các mục sẽ nằm trong thùng rác 30 ngày rồi bị xóa vĩnh viễn. Mục bạn không có quyền sẽ được bỏ qua.",
+          "trash_action": "Chuyển vào thùng rác",
+          "purge_title_one": "Xóa vĩnh viễn {{count}} tài liệu?",
+          "purge_title_other": "Xóa vĩnh viễn {{count}} tài liệu?",
+          "purge_description": "Không thể hoàn tác. Mục bạn không có quyền sẽ được bỏ qua.",
+          "purge_action": "Xóa vĩnh viễn"
+        },
+        "move": {
+          "title_one": "Di chuyển {{count}} tài liệu",
+          "title_other": "Di chuyển {{count}} tài liệu",
+          "description": "Chọn thư mục đích cho các tài liệu đã chọn."
+        },
+        "zip": {
+          "preparing": "Đang chuẩn bị tệp nén…",
+          "too_large": "Các tệp đã chọn vượt quá 1 GB. Hãy chọn ít tệp hơn.",
+          "failed": "Không tạo được tệp nén. Hãy thử lại.",
+          "expired": "Liên kết tải đã hết hạn. Hãy thử lại.",
+          "timeout": "Tệp nén chưa sẵn sàng. Hãy thử lại sau."
+        },
+        "share": {
+          "title_one": "Chia sẻ {{count}} tài liệu",
+          "title_other": "Chia sẻ {{count}} tài liệu",
+          "applies_to_one": "Áp dụng giống nhau cho {{count}} tài liệu bạn quản lý.",
+          "applies_to_other": "Áp dụng giống nhau cho {{count}} tài liệu bạn quản lý.",
+          "skipped_note_one": "Bỏ qua {{count}} tài liệu bạn không chia sẻ được.",
+          "skipped_note_other": "Bỏ qua {{count}} tài liệu bạn không chia sẻ được.",
+          "update_existing": "Đổi quyền của người đã có quyền",
+          "workspace_label": "Workspace chứa tài liệu",
+          "workspace_level": "Mọi thành viên: {{level}}",
+          "workspace_none": "Chỉ người được chia sẻ",
+          "keep": "Giữ nguyên",
+          "link_label": "Liên kết công khai",
+          "link_keep": "Giữ nguyên",
+          "link_create": "Tạo liên kết mới cho mỗi tài liệu",
+          "link_revoke": "Tắt mọi liên kết hiện có",
+          "links_created": "Liên kết đã tạo",
+          "copy_all": "Sao chép tất cả",
+          "close": "Xong"
+        }
+      }
+    },
     "tree": {
       "aria_label": "Cây tài liệu",
       "sheet_title": "Cây tài liệu",
@@ -10082,7 +10231,6 @@
       "members_error_limit": "Danh sách quá dài nên chỉ hiển thị một phần thành viên.",
       "people_already_shared": "Đã có quyền",
       "people_chosen": "Người đã chọn",
-      "people_limit": "Tối đa {{max}} người mỗi lần chia sẻ. Bỏ bớt để thêm người khác.",
       "people_remove": "Bỏ chọn {{name}}",
       "people_removed": "Đã bỏ chọn {{name}}",
       "people_toggle": "Mở danh sách thành viên",
@@ -10296,7 +10444,8 @@
       "expand_person": "Xem tài liệu của {{name}}",
       "collapse": "Thu gọn {{name}}",
       "kind_member": "Thành viên",
-      "kind_home_workspace": "Cả workspace · {{count}} thành viên",
+      "kind_home_workspace_one": "Cả workspace · {{count}} thành viên",
+      "kind_home_workspace_other": "Cả workspace · {{count}} thành viên",
       "kind_other_workspace": "Workspace khác",
       "kind_organization": "Tổ chức",
       "kind_link": "Link công khai",
@@ -10362,6 +10511,7 @@
       "purge": "Xóa vĩnh viễn",
       "restore_item": "Khôi phục {{title}}",
       "purge_item": "Xóa vĩnh viễn {{title}}",
+      "view_details": "Xem chi tiết",
       "purge_title": "Xóa vĩnh viễn {{title}}?",
       "purge_description": "Mục này sẽ bị xóa vĩnh viễn và không thể hoàn tác.",
       "purge_folder_description": "Thư mục này sẽ bị xóa vĩnh viễn và không thể hoàn tác. Mục con bạn không quản lý vẫn ở lại thùng rác.",
@@ -10402,7 +10552,6 @@
       "filter_loaded_only": "Chỉ lọc trong phần đã tải — tải thêm để lọc rộng hơn.",
       "shelved_by_former": "Cựu thành viên",
       "shelved_by_system": "Hệ thống",
-      "sort_shelved_desc": "Lưu trữ gần nhất",
       "columns": {
         "name": "Tên",
         "access": "Truy cập",
@@ -10706,7 +10855,6 @@
         "folders": "{{count}} thư mục"
       },
       "filters": {
-        "type": "Loại",
         "editor": "Người sửa",
         "updated": "Cập nhật",
         "editor_any": "Bất kỳ",
@@ -10714,7 +10862,11 @@
         "updated_any": "Bất kỳ lúc nào",
         "updated_today": "Hôm nay",
         "updated_7d": "7 ngày qua",
-        "updated_30d": "30 ngày qua"
+        "updated_30d": "30 ngày qua",
+        "activity_label": "Lọc theo hoạt động",
+        "activity_all": "Tất cả",
+        "activity_opened": "Đã mở",
+        "activity_edited": "Đã sửa"
       },
       "sidebar": {
         "label": "Điều hướng tài liệu",
@@ -10753,22 +10905,15 @@
       },
       "chips_label": "Lọc theo loại",
       "chips": {
-        "all": "Tất cả",
+        "all": "Mọi loại",
         "page": "UniNote",
-        "docx": "Docs",
-        "xlsx": "Sheets",
-        "pptx": "Slides",
-        "pdf": "PDF",
-        "md": "MD",
-        "html": "HTML"
-      },
-      "access_filter_label": "Lọc theo quyền truy cập",
-      "access_group_caption": "Quyền",
-      "access_filters": {
-        "all": "Tất cả",
-        "manage": "Tôi quản lý",
-        "edit": "Tôi sửa được",
-        "restricted": "Riêng tư"
+        "docx": ".docx",
+        "xlsx": ".xlsx",
+        "pptx": ".pptx",
+        "pdf": ".pdf",
+        "md": ".md",
+        "html": ".html",
+        "txt": ".txt"
       },
       "access": {
         "view": "Chỉ xem",
@@ -10779,27 +10924,6 @@
         "you_prefix": "Bạn: {{level}}",
         "manage_for": "Quản lý quyền truy cập của {{title}}",
         "view_for": "Xem quyền truy cập của {{title}}"
-      },
-      "group_by": {
-        "label": "Nhóm theo",
-        "folder": "Thư mục",
-        "source": "Nguồn",
-        "type": "Loại file",
-        "none": "Không nhóm"
-      },
-      "groups": {
-        "unfiled": "Chưa xếp thư mục",
-        "type": {
-          "page": "UniNote",
-          "folder": "Thư mục",
-          "docx": "Docs",
-          "xlsx": "Sheets",
-          "pptx": "Slides",
-          "pdf": "PDF",
-          "md": "Markdown",
-          "html": "HTML",
-          "other": "File khác"
-        }
       },
       "columns": {
         "name": "Tên",
@@ -10820,6 +10944,8 @@
         "star": "Gắn sao",
         "starred": "Đã gắn sao",
         "unstar": "Bỏ gắn sao",
+        "star_item": "Gắn sao {{title}}",
+        "unstar_item": "Bỏ gắn sao {{title}}",
         "go_to_source": "Xem nơi đính kèm",
         "go_to_source_named": "Xem nơi đính kèm: {{title}}",
         "preview_failed": "Không xem được file. Thử lại.",
@@ -10860,8 +10986,6 @@
       "no_matches_description": "Không có file loại này. Tạo mới ở hàng thẻ phía trên hoặc bỏ lọc.",
       "no_matches_plain_description": "Không có file loại này. Bỏ lọc để xem tất cả.",
       "no_matches_more_description": "Chưa thấy file loại này trong phần đã tải. Tải thêm để tìm tiếp hoặc bỏ lọc.",
-      "no_matches_access_description": "Không có tài liệu nào khớp quyền truy cập này. Bỏ lọc để xem tất cả.",
-      "no_matches_access_more_description": "Chưa thấy tài liệu nào khớp quyền truy cập này trong phần đã tải. Tải thêm để tìm tiếp hoặc bỏ lọc.",
       "no_matches_filters_description": "Không có tài liệu nào khớp bộ lọc. Bỏ lọc để xem tất cả.",
       "no_matches_filters_more_description": "Chưa thấy tài liệu nào khớp bộ lọc trong phần đã tải. Tải thêm để tìm tiếp hoặc bỏ lọc.",
       "drop_hint": "Kéo thả file vào bảng để tải lên.",
@@ -10922,7 +11046,18 @@
         "empty_description": "Thử tên khác hoặc đổi bộ lọc. Xóa ô tìm để quay lại thư mục.",
         "error_title": "Không tìm được",
         "error_description": "Kiểm tra kết nối rồi thử lại."
+      },
+      "view_subtitle": {
+        "recent": "Tài liệu bạn đã mở hoặc sửa trong 30 ngày qua",
+        "starred": "Tài liệu bạn đánh dấu để mở nhanh",
+        "shared": "Tài liệu người khác chia sẻ trực tiếp cho bạn",
+        "shared_by_me": "Tài liệu của bạn đang chia sẻ cho người khác",
+        "sources": "Tệp được gửi trong Trò chuyện, Cuộc họp, Email và Công việc của workspace này"
       }
+    },
+    "recent": {
+      "continue_title": "Mở tiếp",
+      "continue_when": "{{activity}} lúc {{when}}"
     },
     "scope": {
       "private": "Riêng tư",

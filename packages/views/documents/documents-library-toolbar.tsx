@@ -1,7 +1,7 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { Label } from "@uniwork/ui/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -10,155 +10,142 @@ import {
   SelectValue,
 } from "@uniwork/ui/components/ui/select";
 import { cn } from "@uniwork/ui/lib/utils";
-import { ACCESS_FILTERS, GROUP_BY, TYPE_CHIPS, type AccessFilter, type GroupBy, type TypeChip } from "./library-rows";
-import { UPDATED_FILTERS, type EditorFilter, type UpdatedFilter } from "./use-documents-library";
+import { DocumentTypeIcon } from "./document-type-icon";
+import { ACTIVITY_FILTERS, UPDATED_FILTERS, type ActivityFilter, type EditorFilter, type UpdatedFilter } from "./doclist/filters";
+import { TYPE_CHIPS, type TypeChip } from "./library-rows";
 
 export interface LibraryToolbarProps {
-  /**
-   * Which of the boards' toolbars this is: `home` — the filter bar
-   * (Main.dc: Loại / Người sửa / Cập nhật), `list` — the table toolbar of the
-   * Recent / Starred / Shared / Elsewhere views (type chips + access pills +
-   * Group by; the old scope tabs are gone with TRASH-A3, the sidebar
-   * navigates). An open folder has no toolbar: sorting moved to the table
-   * headers (UNI-2038).
-   */
-  variant: "home" | "list";
   chip: TypeChip;
   onChip: (chip: TypeChip) => void;
-  access: AccessFilter;
-  onAccess: (access: AccessFilter) => void;
-  /** The options the current scope may send: the trash (archived) accepts only
-   *  `all` and `restricted` — the server 400s manage/edit there — so it shows
-   *  exactly those two. Absent means every filter. */
-  accessOptions?: readonly AccessFilter[];
-  groupBy: GroupBy;
-  onGroupBy: (groupBy: GroupBy) => void;
-  /** `home` variant only: the "Người sửa" filter and the workspace members behind it. */
+  /** "Người sửa" and the workspace members behind it. */
   editor?: EditorFilter;
   onEditor?: (editor: EditorFilter) => void;
   members?: { user_id: string; display_name: string }[];
-  /** `home` variant only: the "Cập nhật" filter. */
+  /** "Cập nhật". */
   updated?: UpdatedFilter;
   onUpdated?: (updated: UpdatedFilter) => void;
+  /** Gần đây only: the Tất cả / Đã mở / Đã sửa segment; absent, no segment. */
+  activity?: ActivityFilter;
+  onActivity?: (activity: ActivityFilter) => void;
+  /** What a screen adds after Cập nhật (Lưu trữ's "Lưu trữ bởi" and its sort note). */
+  children?: ReactNode;
+  className?: string;
 }
 
-const FILTER_SELECT =
+export const FILTER_SELECT =
   "h-8 gap-1.5 rounded-md border border-border bg-background px-3 text-caption text-foreground pointer-coarse:h-11";
 
-/** The toolbar row above the library; the variant decides which controls it shows. */
+export const PILL =
+  "inline-flex h-7 shrink-0 items-center gap-1.5 rounded-full border px-3 text-caption transition-colors pointer-coarse:h-11 pointer-coarse:min-h-11 pointer-coarse:min-w-11";
+// Both boards: the pressed chip takes the primary tint, never a filled black pill.
+export const PILL_ON = "border-primary bg-primary/10 font-medium text-primary";
+const PILL_OFF = "border-border bg-background text-foreground hover:bg-accent";
+
+/**
+ * The one filter bar of the document list screens (UNI-2045 W10), the same
+ * controls in the same order everywhere but Thùng rác, which has none: the
+ * type chips (Mọi loại · UniNote · .docx … .txt), then Người sửa, then Cập
+ * nhật; Gần đây leads with its Tất cả / Đã mở / Đã sửa segment. There is no
+ * access filter and no Group by (Q6): Gần đây, Được chia sẻ với tôi and Thùng
+ * rác group by date on their own. Sorting lives in the table headers.
+ */
 export function LibraryToolbar({
-  variant,
   chip,
   onChip,
-  access,
-  onAccess,
-  accessOptions,
-  groupBy,
-  onGroupBy,
   editor = "any",
   onEditor,
   members,
   updated = "any",
   onUpdated,
+  activity,
+  onActivity,
+  children,
+  className,
 }: LibraryToolbarProps) {
   const { t } = useTranslation();
-  const groupItems = GROUP_BY.map((value) => ({ value, label: t(`documents.home.group_by.${value}`) }));
-
-  if (variant === "home") {
-    const typeItems = TYPE_CHIPS.map((value) => ({ value, label: t(`documents.home.chips.${value}`) }));
-    const editorItems = [
-      { value: "any", label: t("documents.home.filters.editor_any") },
-      { value: "me", label: t("documents.home.filters.editor_me") },
-      ...(members ?? []).map((member) => ({ value: member.user_id, label: member.display_name })),
-    ];
-    const updatedItems = UPDATED_FILTERS.map((value) => ({ value, label: t(`documents.home.filters.updated_${value}`) }));
-    return (
-      <div className="flex flex-wrap items-center gap-2 border-t border-border pt-4">
-        <FilterSelect
-          label={t("documents.home.filters.type")}
-          value={chip}
-          items={typeItems}
-          onPick={(next) => onChip(next as TypeChip)}
-        />
-        <FilterSelect
-          label={t("documents.home.filters.editor")}
-          value={editor}
-          items={editorItems}
-          onPick={(next) => onEditor?.(next)}
-        />
-        <FilterSelect
-          label={t("documents.home.filters.updated")}
-          value={updated}
-          items={updatedItems}
-          onPick={(next) => onUpdated?.(next as UpdatedFilter)}
-        />
-        {/* The boards also sketch a list/grid toggle at the home root; it is
-            unspecified for a merged, paged list, so it does not render. Sorting
-            lives in the table headers (UNI-2038). */}
-      </div>
-    );
-  }
-
+  const editorItems = [
+    { value: "any", label: t("documents.home.filters.editor_any") },
+    { value: "me", label: t("documents.home.filters.editor_me") },
+    ...(members ?? []).map((member) => ({ value: member.user_id, label: member.display_name })),
+  ];
+  const updatedItems = UPDATED_FILTERS.map((value) => ({ value, label: t(`documents.home.filters.updated_${value}`) }));
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <div className={cn("flex flex-wrap items-center gap-2", className)}>
+      {activity !== undefined ? <ActivitySegment activity={activity} onActivity={onActivity} /> : null}
       <TypeChipRow chip={chip} onChip={onChip} />
-      {/* The caption keeps the second "All" from reading as a repeat of the type chips, wherever the groups wrap. */}
-      {/* ml-3 on top of the row gap: with only two options (archive) the group fits beside the chips and must still read as its own group. */}
-      <div className="ml-3 flex max-w-full items-center gap-1.5">
-        <span className="shrink-0 text-caption text-muted-foreground">{t("documents.home.access_group_caption")}</span>
-        <div role="group" aria-label={t("documents.home.access_filter_label")} className="-mx-1 flex min-w-0 gap-1.5 overflow-x-auto px-1 py-0.5">
-          {(accessOptions ?? ACCESS_FILTERS).map((value) => (
-            <button
-              key={value}
-              type="button"
-              aria-pressed={access === value}
-              onClick={() => onAccess(value)}
-              className={cn(
-                "h-7 shrink-0 rounded-full border px-3 text-caption transition-colors pointer-coarse:h-11 pointer-coarse:min-h-11 pointer-coarse:min-w-11",
-                access === value
-                  ? "border-foreground bg-foreground text-background"
-                  : "border-border bg-background text-foreground hover:bg-accent",
-              )}
-            >
-              {t(`documents.home.access_filters.${value}`)}
-            </button>
-          ))}
-        </div>
-      </div>
-      <div className="ml-auto flex items-center gap-2">
-        <Label htmlFor="documents-group-by" className="text-caption text-muted-foreground">
-          {t("documents.home.group_by.label")}
-        </Label>
-        <Select
-          value={groupBy}
-          onValueChange={(next) => {
-            if (next && next !== groupBy) onGroupBy(next as GroupBy);
-          }}
-          items={groupItems}
-        >
-          <SelectTrigger id="documents-group-by" size="sm" variant="subtle" className="w-36">
-            <SelectValue>{groupItems.find((item) => item.value === groupBy)?.label}</SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            {groupItems.map((item) => (
-              <SelectItem key={item.value} value={item.value}>
-                {item.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+      <FilterSelect
+        label={t("documents.home.filters.editor")}
+        value={editor}
+        items={editorItems}
+        onPick={(next) => onEditor?.(next)}
+      />
+      <FilterSelect
+        label={t("documents.home.filters.updated")}
+        value={updated}
+        items={updatedItems}
+        onPick={(next) => onUpdated?.(next as UpdatedFilter)}
+      />
+      {children}
     </div>
   );
 }
 
-export interface TypeChipRowProps {
+const SEGMENT =
+  "h-7 shrink-0 rounded-md px-3 text-caption transition-colors pointer-coarse:h-11 pointer-coarse:min-h-11 pointer-coarse:min-w-11";
+
+/**
+ * Gần đây's Tất cả / Đã mở / Đã sửa (both boards): a segmented radio group.
+ * One radio sits in the tab order; the arrow keys move the choice, as a radio group does.
+ */
+function ActivitySegment({ activity, onActivity }: { activity: ActivityFilter; onActivity?: (activity: ActivityFilter) => void }) {
+  const { t } = useTranslation();
+  const pick = (value: ActivityFilter) => {
+    if (value !== activity) onActivity?.(value);
+  };
+  const onKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>) => {
+    const step = event.key === "ArrowRight" || event.key === "ArrowDown" ? 1 : event.key === "ArrowLeft" || event.key === "ArrowUp" ? -1 : 0;
+    if (!step) return;
+    event.preventDefault();
+    const index = ACTIVITY_FILTERS.indexOf(activity);
+    const next = ACTIVITY_FILTERS[(index + step + ACTIVITY_FILTERS.length) % ACTIVITY_FILTERS.length]!;
+    pick(next);
+    event.currentTarget.parentElement?.querySelector<HTMLButtonElement>(`[data-value="${next}"]`)?.focus();
+  };
+  return (
+    <div
+      role="radiogroup"
+      aria-label={t("documents.home.filters.activity_label")}
+      className="flex shrink-0 gap-0.5 rounded-lg bg-muted p-0.5"
+    >
+      {ACTIVITY_FILTERS.map((value) => (
+        <button
+          key={value}
+          type="button"
+          role="radio"
+          data-value={value}
+          aria-checked={activity === value}
+          tabIndex={activity === value ? 0 : -1}
+          onClick={() => pick(value)}
+          onKeyDown={onKeyDown}
+          className={cn(
+            SEGMENT,
+            activity === value ? "bg-background font-medium text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
+          )}
+        >
+          {t(`documents.home.filters.activity_${value}`)}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+interface TypeChipRowProps {
   chip: TypeChip;
   onChip: (chip: TypeChip) => void;
 }
 
-/** The Loại chips of the list toolbar, which the shelved toolbar reuses as-is. */
-export function TypeChipRow({ chip, onChip }: TypeChipRowProps) {
+/** The Loại chips: one pressed-state button per type. */
+function TypeChipRow({ chip, onChip }: TypeChipRowProps) {
   const { t } = useTranslation();
   return (
     <div role="group" aria-label={t("documents.home.chips_label")} className="no-scrollbar -mx-1 flex max-w-full gap-1.5 overflow-x-auto overflow-y-hidden px-1 py-1">
@@ -168,13 +155,9 @@ export function TypeChipRow({ chip, onChip }: TypeChipRowProps) {
           type="button"
           aria-pressed={chip === value}
           onClick={() => onChip(value)}
-          className={cn(
-            "h-7 shrink-0 rounded-full border px-3 text-caption transition-colors pointer-coarse:h-11 pointer-coarse:min-h-11 pointer-coarse:min-w-11",
-            chip === value
-              ? "border-foreground bg-foreground text-background"
-              : "border-border bg-background text-foreground hover:bg-accent",
-          )}
+          className={cn(PILL, value !== "all" && "pl-1.5", chip === value ? PILL_ON : PILL_OFF)}
         >
+          {value !== "all" ? <DocumentTypeIcon format={value} decorative className="size-4" /> : null}
           {t(`documents.home.chips.${value}`)}
         </button>
       ))}
@@ -183,15 +166,15 @@ export function TypeChipRow({ chip, onChip }: TypeChipRowProps) {
 }
 
 interface FilterSelectProps {
-  /** The visible prefix ("Loại: …"), also the control's accessible name. */
+  /** The visible prefix ("Người sửa: …"), also the control's accessible name. */
   label: string;
   value: string;
   items: { value: string; label: string }[];
   onPick: (value: string) => void;
 }
 
-/** One labelled dropdown of the home filter bar, "Loại: Tất cả" style. */
-function FilterSelect({ label, value, items, onPick }: FilterSelectProps) {
+/** One labelled dropdown of the filter bar, "Người sửa: Bất kỳ" style. */
+export function FilterSelect({ label, value, items, onPick }: FilterSelectProps) {
   return (
     <Select
       value={value}
