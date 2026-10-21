@@ -4,8 +4,7 @@ import { useEffect, useRef, useState, type DragEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { ChunkedUploadError } from "@uniwork/core/documents/chunked-upload";
-import { readDroppedFolders } from "@uniwork/core/documents/folder-upload";
-import type { FolderUploadEntry } from "@uniwork/core/documents/folder-upload/types";
+import { readDroppedFolders, type FolderUploadEntry } from "@uniwork/core/documents/folder-upload";
 import { DEFAULT_DOCUMENT_MAX_BYTES } from "@uniwork/core/documents/limits";
 import { documentErrorMessage, documentUploadValidationMessage } from "./document-error-message";
 
