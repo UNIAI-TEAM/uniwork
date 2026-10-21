@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { createFolder, folderCard, getDocument, grantDocumentShare, listDocuments } from "./documents-folders-fixtures";
+import { createFolder, folderCard, getDocument, listDocuments } from "./documents-folders-fixtures";
 import {
   dropFolder,
   EXPECTED_FILES,
@@ -263,19 +263,19 @@ test("FU-05b exactly one picked file keeps the single-file dialog and opens the 
   expect(detail.data?.parent_id).toBe(scene.target.id);
 });
 
-test("FU-06 a viewer of the folder has no upload entry, folder or file", async ({ page }) => {
-  const scene = await seedUploadScene(page, "fu-viewer", { withMemberB: true });
+// UNI-2055 (workspace-public folders) will give a real "can view, cannot edit" folder; until then no
+// read-only folder can be seeded (grantDocumentShare on a folder answers 422 folder_not_shareable,
+// UNI-1974), so this holds the nearest case: a folder the member cannot reach at all.
+test("FU-06 a member without access to the folder gets no upload entry, folder or file", async ({ page }) => {
+  const scene = await seedUploadScene(page, "fu-noaccess", { withMemberB: true });
   const member = scene.member!;
-  // The owner's folders are private; the member may edit one and only view the other.
-  const editable = await createFolder(page, scene.owner.token, scene.wsId, "Được sửa");
-  const viewOnly = await createFolder(page, scene.owner.token, scene.wsId, "Chỉ xem");
-  await grantDocumentShare(page, scene.owner.token, editable.id, member.id, "edit");
-  await grantDocumentShare(page, scene.owner.token, viewOnly.id, member.id, "view");
+  // The owner's target folder is private. The member's own folder is the positive control.
+  const own = await createFolder(page, member.token, scene.wsId, "Của thành viên");
   const sceneOf = (folder: { id: string; title: string }): UploadScene => ({ ...scene, target: { id: folder.id, title: folder.title } });
 
-  // Positive control: the same drop, as the same member, on the folder they may edit opens the
-  // pre-flight. It proves dropFolder reaches the flow and how long the dialog takes to appear.
-  await openTarget(page, sceneOf(editable), member.email);
+  // Control: the same drop, as the same member, on their own folder opens the pre-flight. It proves
+  // dropFolder reaches the flow and how long the dialog takes to appear.
+  await openTarget(page, sceneOf(own), member.email);
   const dropped = Date.now();
   await dropFolder(page, readTree());
   await expect(preflightDialog(page)).toBeVisible({ timeout: 30_000 });
@@ -283,22 +283,25 @@ test("FU-06 a viewer of the folder has no upload entry, folder or file", async (
   await preflightDialog(page).getByRole("button", { name: "Hủy" }).click();
   await expect(preflightDialog(page)).toBeHidden();
 
-  await gotoTarget(page, sceneOf(viewOnly));
-  // The folder is open (breadcrumb) and the library rendered, yet neither the Upload menu nor New is on the toolbar.
+  // The owner's folder: the page cannot read it (folderInvalid), so it shows the "cannot open" state
+  // instead of the library, and neither the Upload menu nor "Tạo mới" is on the page.
+  await page.goto(`/${scene.orgSlug}/${scene.wsSlug}/documents?folder=${scene.target.id}`);
+  await expect(page.getByRole("alert").filter({ hasText: "Không mở được thư mục này" })).toBeVisible({ timeout: 60_000 });
+  // The drop zone is still mounted (dropFolder targets it), so a no-op drop below is a real result.
   await expect(page.getByRole("region", { name: "Tài liệu", exact: true })).toBeVisible();
   await expect(uploadMenuButton(page)).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Tạo mới", exact: true })).toHaveCount(0);
   await expect(page.getByRole("menuitem", { name: "Tải lên thư mục" })).toHaveCount(0);
   await expect(page.getByRole("menuitem", { name: "Tải lên tệp" })).toHaveCount(0);
 
-  // A dropped folder does nothing for a viewer: no pre-flight for at least twice as long as the
-  // control needed, and nothing created in the folder.
+  // A dropped folder does nothing here: no pre-flight for at least twice as long as the control
+  // needed, and nothing created in the owner's folder.
   await dropFolder(page, readTree());
   const until = Date.now() + Math.max(2 * controlMs, 3_000);
   while (Date.now() < until) {
     await expect(preflightDialog(page)).toHaveCount(0);
     await page.waitForTimeout(200);
   }
-  const { documents } = await listDocuments(page, scene.owner.token, scene.wsId, { parent_id: viewOnly.id });
+  const { documents } = await listDocuments(page, scene.owner.token, scene.wsId, { parent_id: scene.target.id });
   expect(documents).toEqual([]);
 });
