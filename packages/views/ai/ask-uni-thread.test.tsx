@@ -1,4 +1,5 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { QueryClient } from "@tanstack/react-query";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useAiPanelStore } from "@uniwork/core/ai";
 import type { AskStreamState } from "@uniwork/core/ai/stream";
@@ -8,20 +9,23 @@ import { AskUniThread, type AskUniStream } from "./ask-uni-thread";
 
 initI18n();
 
-const IDLE: AskStreamState = { status: "idle", question: "", draft: "", counts: {}, citations: [], message: null, errorCode: null };
+const IDLE: AskStreamState = { status: "idle", question: "", conversationId: null, draft: "", counts: {}, citations: [], message: null, errorCode: null };
 const history = [
   { id: "u1", role: "user", content: "Task nào quá hạn?", notice: "", citations: [], created_at: "" },
   { id: "a1", role: "assistant", content: "Có 3 task quá hạn.", notice: "", citations: [], created_at: "" },
 ];
 
 function stream(state: Partial<AskStreamState> = {}): AskUniStream {
-  return { state: { ...IDLE, ...state }, ask: vi.fn(), stop: vi.fn() };
+  return { state: { ...IDLE, conversationId: "c1", ...state }, ask: vi.fn(), stop: vi.fn() };
 }
 
 function mount(s: AskUniStream, conversationId: string | null = "c1") {
-  const ui = (st: AskUniStream) => wrapWithNav(<AskUniThread conversationId={conversationId} stream={st} />);
-  const r = render(ui(s));
-  return { ...r, update: (st: AskUniStream) => r.rerender(ui(st)) };
+  // One client across rerenders: a fresh one per render would drop the cache the thread is testing.
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const ui = (st: AskUniStream, conv: string | null) =>
+    wrapWithNav(<AskUniThread conversationId={conv} stream={st} />, undefined, client);
+  const r = render(ui(s, conversationId));
+  return { ...r, update: (st: AskUniStream, conv: string | null = conversationId) => r.rerender(ui(st, conv)) };
 }
 
 beforeEach(() => {
@@ -96,13 +100,33 @@ describe("AskUniThread", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("Không hỏi được lúc này");
   });
 
-  it("does not show another conversation's live turn", async () => {
-    const s = stream({ status: "streaming", question: "Câu của hội thoại khác", draft: "x" });
-    const m = mount(s);
-    await screen.findByText("Câu của hội thoại khác");
-    useAiPanelStore.setState({ conversationId: "c2" });
-    m.unmount();
-    mount(s, "c2");
-    await waitFor(() => expect(screen.getByText("Câu của hội thoại khác")).toBeInTheDocument());
+  it("a new conversation's turn is not adopted by whichever conversation opens before run", async () => {
+    const fresh = stream({ status: "streaming", question: "Câu mới", draft: "x", conversationId: null });
+    const m = mount(fresh, null);
+    expect(await screen.findByText("Câu mới")).toBeInTheDocument();
+    m.update(fresh, "c5");
+    expect(screen.queryByText("Câu mới")).toBeNull();
+    m.update(stream({ status: "streaming", question: "Câu mới", draft: "x", conversationId: "c9" }), "c9");
+    expect(await screen.findByText("Câu mới")).toBeInTheDocument();
+  });
+
+  it("does not hide a stopped turn because the history loaded after it", async () => {
+    let resolve: (v: unknown) => void = () => undefined;
+    requestMock.mockImplementation((path: string) =>
+      path === "/api/v1/ai/conversations/c1/messages" ? new Promise((r) => (resolve = r)) : Promise.resolve({}),
+    );
+    const m = mount(stream({ status: "streaming", question: "Hỏi", draft: "một phần" }));
+    m.update(stream({ status: "stopped", question: "Hỏi", draft: "một phần" }));
+    await waitFor(() => expect(requestMock.mock.calls.some((c) => c[0] === "/api/v1/ai/conversations/c1/messages")).toBe(true));
+    resolve({ messages: history });
+    await act(async () => { await new Promise((r) => setTimeout(r, 20)); });
+    expect(await screen.findByText("Có 3 task quá hạn.")).toBeInTheDocument();
+    expect(screen.getByText("một phần")).toBeInTheDocument();
+  });
+
+  it("marks the list busy while streaming", async () => {
+    mount(stream({ status: "streaming", question: "Hỏi", draft: "x" }));
+    await screen.findByText("Hỏi");
+    expect(screen.getByRole("list")).toHaveAttribute("aria-busy", "true");
   });
 });

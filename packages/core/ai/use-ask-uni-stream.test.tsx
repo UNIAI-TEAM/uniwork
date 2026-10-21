@@ -71,6 +71,16 @@ describe("useAskUniStream", () => {
     expect(useAiPanelStore.getState().conversationId).toBe("c9");
   });
 
+  it("state names the conversation the turn was asked in", () => {
+    const { result } = setup();
+    act(() => result.current.ask({ question: "q" }));
+    expect(result.current.state.conversationId).toBeNull();
+    emit({ type: "run", runId: "r", conversationId: "c9" });
+    expect(result.current.state.conversationId).toBe("c9");
+    act(() => result.current.ask({ question: "again", conversation_id: "c3" }));
+    expect(result.current.state.conversationId).toBe("c3");
+  });
+
   it("done writes the turn into the messages cache and refreshes the rest", () => {
     const { result, qc } = setup();
     const invalidate = vi.spyOn(qc, "invalidateQueries");

@@ -5697,7 +5697,6 @@
     },
     "steps": {
       "seen": "Đã xem {{list}}",
-      "working": "Đang tìm dữ liệu…",
       "task_other": "{{count}} task",
       "meeting_other": "{{count}} cuộc họp",
       "document_other": "{{count}} tài liệu",

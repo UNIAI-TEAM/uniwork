@@ -5701,7 +5701,6 @@
     },
     "steps": {
       "seen": "Looked at {{list}}",
-      "working": "Looking up data…",
       "task_one": "{{count}} task",
       "task_other": "{{count}} tasks",
       "meeting_one": "{{count}} meeting",

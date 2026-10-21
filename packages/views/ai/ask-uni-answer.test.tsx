@@ -4,6 +4,7 @@ import { initI18n } from "@uniwork/core/i18n";
 import type { AiMessage } from "@uniwork/core/types";
 import { requestMock, wrapWithNav } from "../test/api-mock";
 import { AskUniMessageTurn } from "./ask-uni-answer";
+import { isInAppHref } from "./ask-uni-links";
 
 initI18n();
 
@@ -59,6 +60,45 @@ describe("AskUniMessageTurn", () => {
     expect(screen.queryByRole("link", { name: "ngoài" })).toBeNull();
   });
 
+  it.each([
+    ["backslash", "[x](/\\evil.com)"],
+    ["entity tab", "[x](/&#9;/evil.com)"],
+    ["protocol relative", "[x](//evil.com)"],
+    ["absolute", "[x](https://evil.com)"],
+  ])("never links an escaping href (%s)", (_n, md) => {
+    mount(msg({ content: md }));
+    // The markdown layer may percent-encode the href; whatever is rendered must still resolve inside the app.
+    const a = screen.queryByRole("link", { name: "x" });
+    if (a) expect(new URL(a.getAttribute("href") ?? "", "https://app.invalid").origin).toBe("https://app.invalid");
+  });
+
+  it.each(["/\\evil.com", "/\t/evil.com", "//evil.com", "https://evil.com", "/a b", "/a\u0000b", ""])(
+    "isInAppHref rejects %j",
+    (href) => expect(isInAppHref(href)).toBe(false),
+  );
+  it("isInAppHref accepts an in-app path", () => expect(isInAppHref("/o/w/tasks/1?x=1#y")).toBe(true));
+
+  it("does not link a cited href that leaves the app", () => {
+    const bad = { ...cite, href: "//evil.com" };
+    mount(msg({ content: "Xem [x](//evil.com) [S1]", citations: [bad] }));
+    expect(screen.queryByRole("link", { name: "x" })).toBeNull();
+    expect(screen.queryByRole("link", { name: /Thiết kế trang chủ/ })).toBeNull();
+    expect(screen.getByText("Thiết kế trang chủ")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Nguồn 1" }));
+    expect(screen.queryByRole("link", { name: "Mở" })).toBeNull();
+  });
+
+  it("links an in-app path", () => {
+    mount(msg({ content: "[x](/o/w/tasks/1)" }));
+    expect(screen.getByRole("link", { name: "x" })).toHaveAttribute("href", "/o/w/tasks/1");
+  });
+
+  it("a marker inside a link opens its card without following the link", () => {
+    mount(msg({ content: "[xem [S1]](/o/w/tasks/1)", citations: [cite] }));
+    const marker = screen.getByRole("button", { name: "Nguồn 1" });
+    expect(fireEvent.click(marker)).toBe(false);
+  });
+
   it("keeps the row of source chips", () => {
     mount(msg({ content: "ok", citations: [cite] }));
     expect(within(screen.getByRole("list", { name: "Nguồn" })).getByRole("link", { name: /Thiết kế trang chủ/ })).toBeInTheDocument();
@@ -99,6 +139,14 @@ describe("AskUniMessageTurn", () => {
     fireEvent.click(screen.getByRole("button", { name: "Sao chép" }));
     expect(writeText).toHaveBeenCalledWith("Nội dung chép");
     expect(await screen.findByRole("button", { name: "Đã sao chép" })).toBeInTheDocument();
+  });
+
+  it("copy without a clipboard does not throw", async () => {
+    Object.defineProperty(navigator, "clipboard", { value: undefined, configurable: true });
+    mount(msg({ content: "x" }));
+    fireEvent.click(screen.getByRole("button", { name: "Sao chép" }));
+    await Promise.resolve();
+    expect(screen.getByRole("button", { name: "Sao chép" })).toBeInTheDocument();
   });
 
   it("regenerate shows only when asked for and calls back", () => {

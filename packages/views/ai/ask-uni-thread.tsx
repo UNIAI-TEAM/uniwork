@@ -15,10 +15,9 @@ export type AskUniStream = ReturnType<typeof useAskUniStream>;
 const NEAR_BOTTOM_PX = 80;
 const SAFE_CODE = /^[a-z_]+$/;
 
-/** Where the live turn started: its conversation (null = a new one) and how many turns the cache held. */
+/** How many turns the cache held when the live turn started; null until the history has loaded. */
 interface Anchor {
-  conversationId: string | null;
-  base: number;
+  base: number | null;
 }
 
 function StreamError({ code }: { code: string | null }) {
@@ -44,21 +43,22 @@ export function AskUniThread({ conversationId, stream }: { conversationId: strin
   const pinned = useRef(true);
 
   const streaming = state.status === "streaming";
-  // A new turn starts: remember its conversation and how long the cache was.
+  // A new turn starts. A new conversation has nothing stored yet; otherwise the base waits for the history, never an empty loading list.
   useEffect(() => {
-    if (streaming) setAnchor({ conversationId, base: stored.length });
+    if (streaming) setAnchor({ base: conversationId === null ? 0 : cached ? cached.length : null });
     // Only a new question starts a turn; later cache or conversation changes must not move the anchor.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [streaming, state.question]);
-  // A new conversation gets its id from the run event while the turn streams.
   useEffect(() => {
-    if (streaming && anchor && anchor.conversationId === null && conversationId) setAnchor({ ...anchor, conversationId });
-  }, [streaming, anchor, conversationId]);
+    if (anchor && anchor.base === null && cached) setAnchor({ base: cached.length });
+  }, [anchor, cached]);
 
   const inStore = state.message ? stored.some((m) => m.id === state.message?.id) : false;
-  const sameConversation = !anchor || anchor.conversationId === conversationId;
+  // The turn belongs to the conversation it was asked in; a new one (null) shows only until `run` names it.
+  const sameConversation = state.conversationId === conversationId;
   // A stopped turn has no message of its own: it is stored once the cache grew by its question and its partial answer.
-  const storedStopped = state.status === "stopped" && !state.message && !!anchor && stored.length >= anchor.base + 2;
+  const storedStopped =
+    state.status === "stopped" && !state.message && anchor?.base != null && stored.length >= anchor.base + 2;
   const live = state.status !== "idle" && sameConversation && !inStore && !storedStopped;
 
   const lastAssistant = [...stored].reverse().find((m) => m.role === "assistant" && !m.id.startsWith("pending-"));
@@ -89,7 +89,7 @@ export function AskUniThread({ conversationId, stream }: { conversationId: strin
 
   return (
     <div ref={scroller} onScroll={onScroll} className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
-      <ul className="flex flex-col gap-4" aria-live="polite">
+      <ul className="flex flex-col gap-4" aria-live="polite" aria-busy={streaming}>
         {stored.map((m) => (
           <AskUniMessageTurn
             key={m.id}

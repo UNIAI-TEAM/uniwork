@@ -13,6 +13,8 @@ type AskStreamStatus = "idle" | "streaming" | "done" | "stopped" | "error";
 export interface AskStreamState {
   status: AskStreamStatus;
   question: string;
+  /** The conversation the turn was asked in; null until `run` names a new one. */
+  conversationId: string | null;
   /** Text of the current model call; cleared on every step. */
   draft: string;
   /** Summed step counts by tool kind. */
@@ -25,6 +27,7 @@ export interface AskStreamState {
 const IDLE: AskStreamState = {
   status: "idle",
   question: "",
+  conversationId: null,
   draft: "",
   counts: {},
   citations: [],
@@ -71,7 +74,7 @@ export function useAskUniStream(wsId: string) {
       const controller = new AbortController();
       ctrl.current = controller;
       turnConversation.current = input.conversation_id ?? null;
-      setState({ ...IDLE, status: "streaming", question: input.question });
+      setState({ ...IDLE, status: "streaming", question: input.question, conversationId: input.conversation_id ?? null });
       let finished = false;
       const current = () => seq.current === mySeq && !controller.signal.aborted;
 
@@ -80,6 +83,7 @@ export function useAskUniStream(wsId: string) {
         switch (e.type) {
           case "run":
             turnConversation.current = e.conversationId;
+            setState((s) => ({ ...s, conversationId: e.conversationId }));
             if (useAiPanelStore.getState().conversationId === null) useAiPanelStore.getState().select(e.conversationId);
             break;
           case "step":

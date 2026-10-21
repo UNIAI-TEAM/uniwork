@@ -108,16 +108,16 @@ export function AskUniActions({ conversationId, messageId, content, onRegenerate
   const clear = useClearAiFeedback();
   useEffect(() => () => void (timer.current && clearTimeout(timer.current)), []);
 
-  const copy = () => {
-    // A denied clipboard (insecure context, permission) just leaves the button unchanged.
-    navigator.clipboard.writeText(content).then(
-      () => {
-        setCopied(true);
-        if (timer.current) clearTimeout(timer.current);
-        timer.current = setTimeout(() => setCopied(false), 1500);
-      },
-      () => undefined,
-    );
+  const copy = async () => {
+    try {
+      // No clipboard (insecure context) throws here, a denied one rejects; either leaves the button unchanged.
+      await navigator.clipboard.writeText(content);
+    } catch {
+      return;
+    }
+    setCopied(true);
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => setCopied(false), 1500);
   };
   const up = () => {
     const before = rating;
@@ -140,7 +140,7 @@ export function AskUniActions({ conversationId, messageId, content, onRegenerate
 
   return (
     <div className="mt-1 flex items-center gap-0.5">
-      <ActionButton label={copied ? t("copied") : t("copy")} onClick={copy}>
+      <ActionButton label={copied ? t("copied") : t("copy")} onClick={() => void copy()}>
         {copied ? <Check aria-hidden /> : <Copy aria-hidden />}
       </ActionButton>
       {onRegenerate ? (

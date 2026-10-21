@@ -7,6 +7,7 @@ import { SafeMarkdown } from "@uniwork/ui/markdown";
 import { cn } from "@uniwork/ui/lib/utils";
 import { AppLink } from "../navigation";
 import { AskUniActions } from "./ask-uni-actions";
+import { isInAppHref } from "./ask-uni-links";
 import { CitationMarker, SourceChips } from "./ask-uni-citation";
 import { AskUniSteps } from "./ask-uni-steps";
 
@@ -20,8 +21,8 @@ export type AskUniTurnMessage = Pick<AiMessage, "id" | "role" | "content" | "cit
 /** The model-written answer as markdown: raw html inert, no images, links only in-app or to a cited source, `[S#]` as hoverable sources. */
 function AnswerBody({ content, citations }: { content: string; citations: AiCitation[] }) {
   const byId = useMemo(() => new Map(citations.map((c) => [c.source_id, c])), [citations]);
-  const isLinkAllowed = (href: string) =>
-    (href.startsWith("/") && !href.startsWith("//")) || citations.some((c) => c.href === href);
+  // A cited href is held to the same rule as any other: only in-app paths become links.
+  const isLinkAllowed = isInAppHref;
   return (
     <SafeMarkdown
       isLinkAllowed={isLinkAllowed}
