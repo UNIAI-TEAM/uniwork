@@ -90,6 +90,33 @@ describe("accessible names stay chord-free, the chord rides on aria-keyshortcuts
         });
       }
 
+      // The reader's one-key shortcuts (use-email-hub-shortcuts.ts match event.key:
+      // Escape, e, #, U). '#' is written as is, not as Shift+3: the handler matches
+      // the character the layout produces, and Shift+3 is not '#' on every layout.
+      const NAMES = {
+        vi: { back: "Quay lại danh sách", archive: "Lưu trữ", trash: "Xóa", unread: "Đánh dấu chưa đọc" },
+        en: { back: "Back to list", archive: "Archive", trash: "Delete", unread: "Mark as unread" },
+      }[locale];
+      const SIBLINGS: Array<[string, string, string]> = [
+        ["back to list", NAMES.back, "Escape"],
+        ["archive", NAMES.archive, "E"],
+        ["delete", NAMES.trash, "#"],
+        ["mark as unread", NAMES.unread, "Shift+U"],
+      ];
+      for (const [what, name, keys] of SIBLINGS) {
+        it(`Email Hub ${what} button`, () => {
+          render(
+            wrapWithNav(
+              <EmailHubThreadToolbar thread={thread} browserFolder="INBOX" actions={actions} pending={pending} aiOpen={false} />,
+            ),
+          );
+          const button = screen.getByRole("button", { name: new RegExp(`^${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`) });
+          expect(button.getAttribute("aria-label")).not.toMatch(CHORD_IN_NAME);
+          expect(button).toHaveAttribute("aria-label", name);
+          expect(button).toHaveAttribute("aria-keyshortcuts", keys);
+        });
+      }
+
       it("Email Hub star button", () => {
         render(
           wrapWithNav(
