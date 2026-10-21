@@ -53,9 +53,9 @@ test('mail can be searched, filtered, starred, archived and composed locally', a
   await manual.getByRole('navigation', { name: vi.email_hub.folders_nav }).getByRole('button', { name: vi.email_hub.folders.starred, exact: true }).click();
   await expect(list.locator('[data-thread-row]')).toHaveCount(1);
   await list.locator('[data-thread-row]').click();
-  await manual.getByRole('button', { name: vi.email_hub.archive_shortcut, exact: true }).click();
+  await manual.getByRole('button', { name: vi.email_hub.archive, exact: true }).click();
   await manual.getByRole('button', { name: vi.email_hub.folders.more, exact: true }).click();
-  await manual.getByRole('button', { name: vi.email_hub.folders.archive, exact: true }).click();
+  await manual.getByRole('navigation', { name: vi.email_hub.folders_nav }).getByRole('button', { name: vi.email_hub.folders.archive, exact: true }).click();
   await expect(list.locator('[data-thread-row="demo-mail-0"]')).toBeVisible();
   await manual.getByRole('button', { name: new RegExp(`^${vi.email_hub.compose_label}`) }).click();
   let dialog = page.getByRole('dialog');
@@ -84,7 +84,7 @@ test('phone folder navigation and reading actions remain usable', async ({ page 
   const manual = page.locator('.manual-preview:not([hidden]) .product-email-workspace');
   await manual.locator('[data-thread-row="demo-mail-0"]').click();
   await manual.getByRole('button', { name: vi.email_hub.star, exact: true }).click();
-  await manual.getByRole('button', { name: vi.email_hub.back_to_list_shortcut, exact: true }).click();
+  await manual.getByRole('button', { name: vi.email_hub.back_to_list, exact: true }).click();
   await manual.getByRole('button', { name: vi.email_hub.folder_menu.replace('{{folder}}', vi.email_hub.folders.inbox), exact: true }).click();
   await page.getByRole('menuitem', { name: vi.email_hub.folders.starred, exact: true }).click();
   await expect(manual.locator('[data-thread-row]')).toHaveCount(1);

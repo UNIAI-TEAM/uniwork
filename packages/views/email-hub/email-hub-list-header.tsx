@@ -19,13 +19,20 @@ import { emailHubFilterChipClass } from "./email-hub-ui";
 export function EmailHubIconAction({
   icon: Icon,
   label,
+  tooltip,
+  keyShortcuts,
   onClick,
   disabled,
   spinning,
   className,
 }: {
   icon: typeof Mail;
+  /** Accessible name: the plain command. */
   label: string;
+  /** Visible hint when it differs from the name (e.g. with the chord). */
+  tooltip?: string;
+  /** ARIA syntax chord for aria-keyshortcuts. */
+  keyShortcuts?: string;
   onClick: () => void;
   disabled?: boolean;
   spinning?: boolean;
@@ -41,6 +48,7 @@ export function EmailHubIconAction({
             size="icon-lg"
             className={cn("text-muted-foreground hover:text-foreground", className)}
             aria-label={label}
+            aria-keyshortcuts={keyShortcuts}
             disabled={disabled}
             onClick={onClick}
           />
@@ -48,7 +56,7 @@ export function EmailHubIconAction({
       >
         <Icon className={cn("size-4.5", spinning && "animate-spin")} aria-hidden />
       </TooltipTrigger>
-      <TooltipContent>{label}</TooltipContent>
+      <TooltipContent>{tooltip ?? label}</TooltipContent>
     </Tooltip>
   );
 }

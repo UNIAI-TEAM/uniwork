@@ -18,7 +18,7 @@ initI18n();
 
 // An accessible name is the plain command name. The chord belongs in
 // aria-keyshortcuts (ARIA syntax), so a screen reader announces it once.
-const CHORD_IN_NAME = /⌘|⌃|⌥|⇧|\b(?:Ctrl|Control|Cmd|Meta|Alt|Shift)\b|\(\s*[A-Za-z]\s*\)|\bK\)|\bJ\)/i;
+const CHORD_IN_NAME = /⌘|⌃|⌥|⇧|\b(?:Ctrl|Control|Cmd|Meta|Alt|Shift)\b|\([^()]{1,12}\)/i;
 
 const user: User = {
   id: "u1", email: "a@b.c", display_name: "An", onboarded_at: "2026-08-25T00:00:00Z",
