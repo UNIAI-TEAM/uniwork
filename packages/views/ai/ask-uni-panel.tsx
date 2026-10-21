@@ -63,11 +63,12 @@ function Citations({ citations }: { citations: AiCitation[] }) {
     <ul className="mt-2 flex flex-wrap gap-1.5" aria-label={t("sources")}>
       {linkable.map((c) => (
         <li key={c.source_id}>
+          {/* A link, styled as one: "[S1]" ties it to the answer's marker, in the text face, not as code. */}
           <AppLink
             href={c.href}
-            className="inline-flex max-w-full items-center gap-1 rounded-full border border-border bg-background px-2.5 py-1 text-caption text-foreground hover:bg-surface-hover pointer-coarse:min-h-11"
+            className="inline-flex max-w-full items-center gap-1 text-caption text-primary underline-offset-2 hover:underline pointer-coarse:min-h-11"
           >
-            <span className="font-mono text-muted-foreground">[{c.source_id}]</span>
+            <span className="tabular-nums">[{c.source_id}]</span>
             <span className="truncate">{c.title || c.kind}</span>
           </AppLink>
         </li>
