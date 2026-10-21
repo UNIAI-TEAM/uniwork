@@ -49,7 +49,9 @@ export function formatMeetingDayTime(iso: string | null | undefined, locale: str
   const ms = iso ? Date.parse(iso) : NaN;
   if (!Number.isFinite(ms)) return "";
   // Two formatters: vi-VN would put the clock first ("lúc 15:59 Thứ Tư, …").
-  const day = new Intl.DateTimeFormat(locale, { weekday: "long", day: "numeric", month: "long" }).format(ms);
+  // A moment from another year says which one; this year's reads like the hero.
+  const year = new Date(ms).getFullYear() === new Date().getFullYear() ? {} : { year: "numeric" as const };
+  const day = new Intl.DateTimeFormat(locale, { weekday: "long", day: "numeric", month: "long", ...year }).format(ms);
   const clock = new Intl.DateTimeFormat(locale, { hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(ms);
   return `${day}, ${clock}`;
 }

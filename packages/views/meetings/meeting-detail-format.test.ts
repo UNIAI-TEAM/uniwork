@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { formatMeetingDayTime, meetingTimeZoneLabel } from "./meeting-detail-format";
 
 describe("meetingTimeZoneLabel", () => {
@@ -21,8 +21,20 @@ describe("meetingTimeZoneLabel", () => {
 });
 
 describe("formatMeetingDayTime", () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-11-02T03:00:00Z"));
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("reads like the hero's date, then the clock", () => {
     expect(formatMeetingDayTime("2026-10-21T08:59:00Z", "vi-VN")).toMatch(/^Thứ .+, \d{1,2} tháng 10, \d{2}:\d{2}$/);
+  });
+
+  it("names the year of a moment from another year", () => {
+    expect(formatMeetingDayTime("2025-10-21T08:59:00Z", "vi-VN")).toMatch(/2025/);
   });
 
   it("is empty for a bad timestamp", () => {
