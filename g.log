@@ -1,0 +1,3 @@
+$ grep -E "^\s*--- FAIL|^(FAIL|panic)|WARNING: DATA RACE|not formatted|^staticcheck|vet:" /tmp/pr7r4-go-service-a.log | cut -c1-250 | head -80
+--- FAIL: TestFileGCDefaultIsDryRunAndWritesNothing (0.24s)
+--- FAIL: TestFileGCExpiresUnclaimedUploads (0.25s)

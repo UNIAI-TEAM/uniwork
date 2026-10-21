@@ -1,0 +1,8 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin advisor/pr7-rehearsal; git rev-parse HEAD FETCH_HEAD; git log --oneline -3; test "$(git rev-parse HEAD)" = "$(git rev-parse FETCH_HEAD)"; rc=$?; echo; echo "SYNCED_EXIT=$rc"
+6314496367875d2fe1e882aa6d29017a0159a303
+6314496367875d2fe1e882aa6d29017a0159a303
+631449636 chore: rehearse merge feature/UNI-2045-doclist-unified (a0dcef176) into the PR7 rehearsal
+2bf0a7ec3 chore: rehearse merge feature/UNI-2012-chat-file-doc-rights (65e917359) into the PR7 rehearsal
+65e917359 fix(chat): give the document card's title room at 390 touch (UNI-2012 V2-N1 V2-N2)
+
+SYNCED_EXIT=0

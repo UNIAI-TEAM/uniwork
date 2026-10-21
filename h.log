@@ -1,0 +1,1 @@
+$ grep -E "^(ok|FAIL|\?)\s" /tmp/pr7r4-go-service-a.log | cut -c1-200 | head -150
