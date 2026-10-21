@@ -1,0 +1,13 @@
+$ node --test scripts/governance.test.mjs scripts/events-catalogue.test.mjs scripts/env-example.test.mjs scripts/alerts-runbooks.test.mjs scripts/no-pii-log.test.mjs 2>&1 | tail -10; rc=${PIPESTATUS[0]}; echo; echo "SCRIPTS_EXIT=$rc"
+  ...
+1..33
+# tests 36
+# suites 1
+# pass 34
+# fail 2
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 633.106523
+
+SCRIPTS_EXIT=1
