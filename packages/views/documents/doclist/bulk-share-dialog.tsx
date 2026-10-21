@@ -19,8 +19,6 @@ import { allowedLevelsForPrincipal, type SelectedShareCandidate } from "../share
 import { ShareCandidatePicker } from "../share-candidate-picker";
 import type { BulkPlan } from "./bulk-actions";
 
-/** The single dialog's cap on one batch of people. */
-const SHARE_PEOPLE_MAX = 50;
 const WORKSPACE_CHOICES: readonly BulkShareWorkspace[] = ["keep", "view", "comment", "edit", "none"];
 const LINK_CHOICES: readonly BulkShareLink[] = ["keep", "create", "revoke"];
 
@@ -186,11 +184,11 @@ export function BulkShareDialog({
                 hasMore={Boolean(candidatesQuery.hasNextPage)} loadingMore={candidatesQuery.isFetchingNextPage}
                 loadMoreError={candidatesQuery.isFetchNextPageError} loadError={candidatesQuery.isError && !candidatesQuery.data}
                 onRetry={() => void candidatesQuery.refetch()} onLoadMore={() => void candidatesQuery.fetchNextPage()}
-                isLoading={candidatesQuery.isLoading} disabled={busy} atLimit={selected.length >= SHARE_PEOPLE_MAX}
+                isLoading={candidatesQuery.isLoading} disabled={busy}
                 rejectedByKey={{} as Record<string, DocumentAccessRejectedCode>}
                 onSelectCandidate={(candidate) => {
                   const key = `${candidate.principal_type}:${candidate.principal_id}`;
-                  if (selectedKeys.has(key) || selected.length >= SHARE_PEOPLE_MAX) return;
+                  if (selectedKeys.has(key)) return;
                   setSelected((prev) => [...prev, { key, candidate, onExisting: "keep" }]);
                   setQuery("");
                 }}
