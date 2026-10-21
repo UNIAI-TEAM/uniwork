@@ -141,6 +141,14 @@ describe("AskUniMessageTurn", () => {
     expect(await screen.findByRole("button", { name: "Đã sao chép" })).toBeInTheDocument();
   });
 
+  it("copy leaves out the source markers", () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+    mount(msg({ content: "Đóng băng 5 ngày [S1]. QA kiểm thử [S2][S3]." }));
+    fireEvent.click(screen.getByRole("button", { name: "Sao chép" }));
+    expect(writeText).toHaveBeenCalledWith("Đóng băng 5 ngày. QA kiểm thử.");
+  });
+
   it("copy without a clipboard does not throw", async () => {
     Object.defineProperty(navigator, "clipboard", { value: undefined, configurable: true });
     mount(msg({ content: "x" }));

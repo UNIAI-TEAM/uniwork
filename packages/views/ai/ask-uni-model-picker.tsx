@@ -76,7 +76,8 @@ export function AskUniModelPicker() {
   const setModel = useAskModelChoice((s) => s.setModel);
   const setEffort = useAskModelChoice((s) => s.setEffort);
   const name = (key: string) => t(`models.${key}.name`, { defaultValue: key });
-  const current = model ? name(model) : t("model.auto");
+  const chosen = model ? name(model) : t("model.auto");
+  const current = effort ? `${chosen} · ${t(`model.effort_${effort}`)}` : chosen;
   return (
     <>
       <DropdownMenu>

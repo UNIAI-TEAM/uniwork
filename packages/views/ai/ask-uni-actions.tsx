@@ -111,7 +111,8 @@ export function AskUniActions({ conversationId, messageId, content, onRegenerate
   const copy = async () => {
     try {
       // No clipboard (insecure context) throws here, a denied one rejects; either leaves the button unchanged.
-      await navigator.clipboard.writeText(content);
+      // [S#] markers mean nothing outside the panel.
+      await navigator.clipboard.writeText(content.replace(/ ?\[S\d+\]/g, ""));
     } catch {
       return;
     }

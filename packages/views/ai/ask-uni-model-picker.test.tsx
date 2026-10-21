@@ -84,6 +84,13 @@ describe("AskUniModelPicker", () => {
     expect(await screen.findByRole("button", { name: "Chọn model: Opus 5.5" })).toBeInTheDocument();
   });
 
+  it("shows a chosen effort on the trigger", async () => {
+    useAskModelChoice.setState({ model: "haiku", effort: "low" });
+    mount();
+    const trigger = await screen.findByRole("button", { name: "Chọn model: Haiku 5.5 · Thấp" });
+    expect(trigger).toHaveTextContent("Haiku 5.5 · Thấp");
+  });
+
   it("falls back to Auto when the remembered model is not enabled", async () => {
     useAskModelChoice.setState({ model: "fable" });
     mount();
