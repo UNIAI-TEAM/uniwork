@@ -226,6 +226,7 @@ describe("create-folder note per caller (UNI-2055 W1)", () => {
           view={{ kind: "home" }}
           folderId={null}
           canCreate
+          starredCount={0}
           sourcesAvailable={false}
           onView={vi.fn()}
           onFolder={vi.fn()}

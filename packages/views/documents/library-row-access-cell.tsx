@@ -44,7 +44,9 @@ export function LibraryRowAccessCell({
   // The pill names the kind only; who exactly can reach the document (people,
   // workspaces, a link) is the badge tooltip's text, kept as the description.
   const described = scopeInfo && scopeInfo.tooltipText !== scopeInfo.label;
-  const content = doc ? (
+  // A folder is never shared and carries no access pill (UNI-2055 W1): a workspace folder is
+  // visibility "workspace" without being "shared", so its cell stays empty.
+  const content = doc?.kind === "folder" ? null : doc ? (
     <DocAccessCell visibility={doc.visibility} shareScope={scope} myLevel={doc.my_level} adminScope={doc.admin_scope} isOwner={isOwner} />
   ) : (
     <span className="text-muted-foreground">—</span>
@@ -52,7 +54,7 @@ export function LibraryRowAccessCell({
   const manage = doc?.my_level === "manage" || doc?.admin_scope === true;
   return (
     <td data-column="access" className={cn("py-2 text-caption", libraryPad(ladder, "access"), libraryCell(ladder, "access"))}>
-      {onShare && doc ? (
+      {onShare && doc && doc.kind !== "folder" ? (
         // The badge is not focusable here (it would nest a control inside the
         // button); its composition reaches the button as the description. The
         // name is the command plus the visible text (WCAG 2.5.3 label in name),

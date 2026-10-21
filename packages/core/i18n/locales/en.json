@@ -10811,6 +10811,7 @@
         "name_empty": "Enter a folder name.",
         "name_too_long": "A folder name is at most {{max}} characters.",
         "create_submit": "Create",
+        "create_workspace_note": "The folder name will show to everyone in the workspace. Documents inside stay visible only to you until you share them.",
         "rename_submit": "Save",
         "toast": {
           "created": "Created folder {{title}}",
@@ -10900,7 +10901,8 @@
       },
       "folder_card": {
         "folders_one": "{{count}} folder",
-        "folders_other": "{{count}} folders"
+        "folders_other": "{{count}} folders",
+        "empty": "Empty"
       },
       "filters": {
         "editor": "Edited by",

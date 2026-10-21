@@ -10,7 +10,7 @@ import { useDocument, useDocumentLimits } from "@uniwork/core/documents/hooks";
 import { useFavoriteDocument, useUnfavoriteDocument } from "@uniwork/core/documents/hooks-favorites";
 import { useDownloadDocumentSource, useEnsureMyFolder } from "@uniwork/core/documents/hooks-library";
 import { paths } from "@uniwork/core/paths";
-import { canEditDocument } from "@uniwork/core/permissions";
+import { canCreateInsideFolder, canEditDocument, useCurrentMember } from "@uniwork/core/permissions";
 import { isMyFolder } from "@uniwork/core/types/document";
 import { useMembers } from "@uniwork/core/workspaces";
 import { Button, buttonVariants } from "@uniwork/ui/components/ui/button";
@@ -174,10 +174,11 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
   );
   const openFolderTitle = folderDoc ? (isMyFolder(folderDoc) ? myFolderLabel : folderDoc.title) : undefined;
   const userId = useAuthStore((s) => s.user?.id ?? null);
-  const canCreate =
-    !folderId ||
-    (folderDoc !== null &&
-      canEditDocument(folderDoc, { userId: context?.user.id ?? userId, orgRole: null, wsRole: null }).allowed);
+  const permissionCtx = { userId: context?.user.id ?? userId, orgRole: null, wsRole: useCurrentMember(enabled ? wsId : "").role };
+  // Rename, move and trash of the open folder keep the edit rule; creating inside it is wider on a
+  // workspace folder (UNI-2055 W3/W4), so the two are asked apart.
+  const canEditFolder = !folderId || (folderDoc !== null && canEditDocument(folderDoc, permissionCtx).allowed);
+  const canCreate = !folderId || (folderDoc !== null && canCreateInsideFolder(folderDoc, permissionCtx).allowed);
   const parentForCreate = view.kind === "home" ? folderId : null;
   const parentShared = parentForCreate !== null && isParentWorkspaceShared(folderDoc, library.docById.get(parentForCreate));
 
@@ -263,6 +264,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
     onDownloadSource: downloadFile,
     onSaveSource: rowDialogs.onSaveSource,
     onNewSubfolder: rowCommands ? rowDialogs.onNewSubfolder : undefined,
+    canCreateInside: (doc) => canCreateInsideFolder(doc, permissionCtx).allowed,
     onRename: rowCommands ? rowDialogs.onRename : undefined,
     onMove: rowCommands ? rowDialogs.onMove : undefined,
     onArchive: rowCommands ? rowDialogs.onArchive : undefined,
@@ -424,7 +426,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
                 <DocumentsHomeHeader
                   wsId={wsId}
                   folderDoc={folderDoc}
-                  canRename={canCreate}
+                  canRename={canEditFolder}
                   myFolderId={myFolderId}
                   onRoot={() => goHome({ kind: "home" })}
                   onFolder={(id) => goHome({ kind: "home" }, id)}

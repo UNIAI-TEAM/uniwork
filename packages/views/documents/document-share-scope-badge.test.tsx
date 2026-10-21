@@ -307,16 +307,28 @@ describe("DocumentShareScopeBadge (UNI-1785)", () => {
     const treeNodes: DocumentTreeNode[] = [
       {
         id: "t1",
+        title: "Kế hoạch chung",
+        kind: "page",
+        position: 0,
+        share_scope: scope({ home_workspace: true, users: 2 }),
+        children: [],
+      },
+      // A folder is never shared (UNI-1974, UNI-2055 W1): it carries no badge whatever scope it arrives with.
+      {
+        id: "t2",
         title: "Thư mục Chung",
         kind: "folder",
-        position: 0,
+        position: 1,
         share_scope: scope({ home_workspace: true, users: 2 }),
         children: [],
       },
     ];
     requestMock.mockResolvedValue({ documents: treeNodes });
     render(wrap(<DocumentTree wsId="ws1" />));
-    const treeItem = await screen.findByRole("treeitem", { name: /Thư mục Chung/ });
+    const treeItem = await screen.findByRole("treeitem", { name: /Kế hoạch chung/ });
     expect(within(treeItem).getByText("Nhiều phạm vi")).toBeInTheDocument();
+    const folderItem = await screen.findByRole("treeitem", { name: /Thư mục Chung/ });
+    expect(within(folderItem).queryByTestId("document-share-scope-badge")).toBeNull();
+    expect(within(folderItem).queryByText("Nhiều phạm vi")).toBeNull();
   });
 });

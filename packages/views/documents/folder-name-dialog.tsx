@@ -54,6 +54,8 @@ export interface FolderNameDialogProps {
   onSubmit?: (title: string) => Promise<boolean | void> | boolean | void;
   pending?: boolean;
   error?: string | null;
+  /** Create mode: the new folder's name will show to everyone in the workspace (UNI-2055 W1); adds a muted note under the name field. */
+  workspaceNote?: boolean;
   /** Secondary line under the title (the first-save hint; folders keep their own wording). */
   description?: string;
   /** Submit button label; defaults to the shared create/rename copy. */
@@ -88,6 +90,7 @@ export function FolderNameDialog({
   onSubmit,
   pending: externalPending = false,
   error: externalError = null,
+  workspaceNote = false,
   description,
   submitLabel,
   selectAllOnOpen = mode === "rename",
@@ -218,6 +221,8 @@ export function FolderNameDialog({
   const baseId = useId();
   const inputId = `${baseId}-folder-name-input`;
   const errorId = `${baseId}-folder-name-error`;
+  const noteId = `${baseId}-folder-name-note`;
+  const showNote = mode === "create" && workspaceNote;
 
   return (
     <Dialog open={open} onOpenChange={(next) => (isPending ? undefined : onOpenChange(next))}>
@@ -247,7 +252,7 @@ export function FolderNameDialog({
                 isDocumentRename ? "documents.home.rename.name_placeholder" : "documents.home.folders.name_placeholder",
               )}
               aria-invalid={displayError ? true : undefined}
-              aria-describedby={displayError ? errorId : undefined}
+              aria-describedby={[displayError ? errorId : null, showNote ? noteId : null].filter(Boolean).join(" ") || undefined}
               onChange={(event) => {
                 setDraft(event.target.value);
                 if (fieldError) setFieldError(null);
@@ -256,6 +261,11 @@ export function FolderNameDialog({
             {displayError ? (
               <p id={errorId} role="alert" className="text-caption text-destructive">
                 {displayError}
+              </p>
+            ) : null}
+            {showNote ? (
+              <p id={noteId} className="text-caption text-muted-foreground">
+                {t("documents.home.folders.create_workspace_note")}
               </p>
             ) : null}
           </div>

@@ -52,6 +52,8 @@ export interface RowMenuHandlers {
   onToggleStar?: (documentId: string, starred: boolean) => void;
   onShare?: (doc: DocumentSummaryRow) => void;
   onNewSubfolder?: (doc: DocumentSummaryRow) => void;
+  /** UNI-2055 W3: may the viewer create inside this folder (a workspace folder takes every member); absent = the edit level. */
+  canCreateInside?: (doc: DocumentSummaryRow) => boolean;
   onRename?: (doc: DocumentSummaryRow) => void;
   onMove?: (doc: DocumentSummaryRow) => void;
   onShelve?: (doc: DocumentSummaryRow) => void;
@@ -204,7 +206,7 @@ function documentGroups(doc: DocumentSummaryRow, { handlers, starred, open, open
       run: () => onToggleStar(doc.id, starred),
     });
   }
-  if (folder && handlers.onNewSubfolder && canMoveRow(level)) {
+  if (folder && handlers.onNewSubfolder && (handlers.canCreateInside?.(doc) ?? canMoveRow(level))) {
     const { onNewSubfolder } = handlers;
     managing.push({ id: "new-subfolder", labelKey: "documents.home.row.new_subfolder", run: () => onNewSubfolder(doc) });
   }

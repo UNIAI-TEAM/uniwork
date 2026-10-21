@@ -149,7 +149,7 @@ export function TreeRowItem({
         <Star role="img" aria-label={t("documents.home.row.starred")} className="ml-1 size-3.5 shrink-0 fill-current text-brand" />
       ) : null}
       <DocumentShareScopeBadge
-        shareScope={shareScope ?? row.node.share_scope}
+        shareScope={row.node.kind === "folder" ? null : (shareScope ?? row.node.share_scope)}
         compact
         focusable={false}
         className="ml-1"

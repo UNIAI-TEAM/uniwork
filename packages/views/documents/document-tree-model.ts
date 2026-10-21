@@ -124,6 +124,18 @@ export function findTreeNode(nodes: DocumentTreeNode[], id: string): DocumentTre
   return null;
 }
 
+/**
+ * UNI-2055 W1: whether a folder created under `parentId` is a workspace folder
+ * (its name shows to everyone in the workspace): the workspace root, or a
+ * parent outside the My Folder subtree. My Folder and its sub-folders are
+ * restricted. A parent the loaded forest does not hold is not judged (false).
+ */
+export function newFolderIsWorkspaceVisible(nodes: DocumentTreeNode[], parentId: string | null): boolean {
+  if (parentId === null) return true;
+  const parent = findTreeNode(nodes, parentId);
+  return parent !== null && !isMyFolder(parent) && parent.visibility === "workspace";
+}
+
 /** How many levels hang below this node (0 for a leaf). */
 export function subtreeHeight(node: DocumentTreeNode): number {
   let height = 0;

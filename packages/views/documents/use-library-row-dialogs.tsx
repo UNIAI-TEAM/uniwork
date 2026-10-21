@@ -11,7 +11,7 @@ import { isMyFolder, type DocumentTreeNode } from "@uniwork/core/types/document"
 import { createSafeId } from "@uniwork/core/utils";
 import { DocumentArchiveDialog } from "./document-archive-dialog";
 import { documentErrorMessage } from "./document-error-message";
-import { findTreeNode, folderLeavesMyFolder, loadMoveRevision } from "./document-tree-model";
+import { findTreeNode, folderLeavesMyFolder, loadMoveRevision, newFolderIsWorkspaceVisible } from "./document-tree-model";
 import { FolderNameDialog } from "./folder-name-dialog";
 import { FolderPickerDialog } from "./folder-picker-dialog";
 import type { DocumentSummaryRow } from "./library-rows";
@@ -115,6 +115,7 @@ export function useLibraryRowDialogs({
         mode={naming?.mode ?? "create"}
         parentId={naming?.mode === "create" ? naming.parentId : null}
         parentTitle={naming?.mode === "create" ? naming.parentTitle : undefined}
+        workspaceNote={naming?.mode === "create" && newFolderIsWorkspaceVisible(tree, naming.parentId)}
         folderId={naming?.mode === "rename" ? naming.doc.id : ""}
         initialName={naming?.mode === "rename" ? naming.doc.title : ""}
         kind={naming?.mode === "rename" ? naming.doc.kind : "folder"}

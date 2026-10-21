@@ -222,8 +222,39 @@ describe("workspace folder cards (UNI-2055 W2/W4)", () => {
   });
 });
 
+describe("create note from a card's New sub-folder (UNI-2055 W1)", () => {
+  const note = () => t("documents.home.folders.create_workspace_note");
+
+  it("notes a workspace folder card and nothing on My Folder's", async () => {
+    route({
+      tree: () => [
+        treeFolder(),
+        treeFolder({ id: "mf", title: "Thư mục của tôi", system_kind: "my_folder", visibility: "restricted" }),
+      ],
+      list: () => [
+        folderRow({ my_level: "view" }),
+        folderRow({ id: "mf", title: "Thư mục của tôi", system_kind: "my_folder", visibility: "restricted", my_level: "manage" }),
+      ],
+    });
+    renderView();
+
+    fireEvent.click(await cardTrigger("Báo cáo"));
+    fireEvent.click(await screen.findByRole("menuitem", { name: t("documents.home.row.new_subfolder") }));
+    const first = await screen.findByRole("dialog");
+    expect(within(first).getByText(note())).toBeInTheDocument();
+    fireEvent.click(within(first).getByRole("button", { name: t("common.cancel") }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+
+    fireEvent.click(await cardTrigger(t("documents.home.my_folder.label")));
+    fireEvent.click(await screen.findByRole("menuitem", { name: t("documents.home.row.new_subfolder") }));
+    const second = await screen.findByRole("dialog");
+    expect(within(second).queryByText(note())).toBeNull();
+  });
+});
+
 describe("folder card empty hint (UNI-2055 W6)", () => {
-  const hint = () => t("documents.home.folder_card.empty");
+  // The hint leads the card's meta line ("Trống · 28/09"), so it is matched as the start of that line.
+  const hint = () => new RegExp(`^${t("documents.home.folder_card.empty")}`);
 
   it("says the folder is empty when is_empty is true on the tree node or the list row", async () => {
     route({ tree: () => [treeFolder({ is_empty: true })], list: () => [folderRow()] });

@@ -10801,6 +10801,7 @@
         "name_empty": "Nhập tên thư mục.",
         "name_too_long": "Tên thư mục tối đa {{max}} ký tự.",
         "create_submit": "Tạo",
+        "create_workspace_note": "Tên thư mục sẽ hiện với mọi người trong workspace. Tài liệu bên trong vẫn chỉ mình bạn xem được cho tới khi bạn chia sẻ.",
         "rename_submit": "Lưu",
         "toast": {
           "created": "Đã tạo thư mục {{title}}",
@@ -10889,7 +10890,8 @@
         "menu": "Thao tác với thư mục"
       },
       "folder_card": {
-        "folders": "{{count}} thư mục"
+        "folders": "{{count}} thư mục",
+        "empty": "Trống"
       },
       "filters": {
         "editor": "Người sửa",
