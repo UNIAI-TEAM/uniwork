@@ -103,8 +103,13 @@ function renderCard(
 /** A live row: the message menu (and the document entries in it) needs reply and react. */
 const LIVE = { onReply: vi.fn(), onReact: vi.fn() } satisfies Partial<RowProps>;
 
+/** The hover bar's "…" (last in the DOM; the card's touch "…" comes first and is css-hidden on a fine pointer). */
+function barMore(): HTMLElement {
+  return screen.getAllByRole("button", { name: "Thêm" }).at(-1)!;
+}
+
 async function openMenu() {
-  await userEvent.click(screen.getByRole("button", { name: "Thêm" }));
+  await userEvent.click(barMore());
   return screen.findByRole("menu");
 }
 
@@ -316,6 +321,47 @@ describe("ChatDocumentMessageRow", () => {
     renderCard(documentMessage({ ...DOC, viewer_level: undefined }));
     expect(screen.queryByText("Nhận xét")).not.toBeInTheDocument();
     expect(screen.queryByText("Chỉ xem")).not.toBeInTheDocument();
+  });
+
+  describe("the touch \"…\" (UNI-2012 V1-F9)", () => {
+    it("sits inside the card, shown only on a coarse pointer, and opens the same menu", async () => {
+      renderCard(documentMessage(FULL), { ...LIVE, desktopOpen: desktopFactory() });
+      const touchMore = screen.getAllByRole("button", { name: "Thêm" })[0]!;
+      expect(touchMore).not.toBe(barMore());
+      expect(touchMore.closest("[data-message-actions]")).toBeNull();
+      // Hidden by default (a fine pointer has the hover bar), shown under a coarse one.
+      expect(touchMore).toHaveClass("hidden", "pointer-coarse:inline-flex");
+      await userEvent.click(touchMore);
+      const labels = menuLabels(await screen.findByRole("menu"));
+      expect(labels.slice(0, 5)).toEqual([
+        "Chỉnh sửa trong UniWork Office",
+        "Chỉnh sửa trên web",
+        "Tải lên phiên bản mới",
+        "Lịch sử phiên bản",
+        "Chia sẻ",
+      ]);
+    });
+
+    it("is absent from the locked card, the neutral card and a row with no live handlers", () => {
+      // The hover bar's "…" is the one that remains on a live row; no touch "…" joins it.
+      const locked = render(wrapWithNav(row(documentMessage({ ...DOC, viewer_has_access: false }), LIVE), fakeNav()));
+      expect(screen.getAllByRole("button", { name: "Thêm" })).toHaveLength(1);
+      locked.unmount();
+      const neutral = render(wrapWithNav(row(documentMessage(undefined), LIVE), fakeNav()));
+      expect(screen.getAllByRole("button", { name: "Thêm" })).toHaveLength(1);
+      neutral.unmount();
+      renderCard(documentMessage(DOC));
+      expect(screen.queryByRole("button", { name: "Thêm" })).not.toBeInTheDocument();
+    });
+  });
+
+  describe("keyboard focus rings (UNI-2012 V1-F7)", () => {
+    it("draws the title's ring inset in its own padding, so truncate never clips it", () => {
+      renderCard(documentMessage(DOC));
+      const title = screen.getByRole("button", { name: /Báo cáo Q3/ });
+      expect(title).toHaveClass("truncate", "focus-visible:-outline-offset-2");
+      expect(title).not.toHaveClass("outline-none");
+    });
   });
 
   describe("the role menu (UNI-2012 S7, contract D3)", () => {

@@ -220,7 +220,7 @@ describe("NativeChatMessagePanel", () => {
       // The document card navigates, so it needs the adapter the text rows do not.
       render(wrapWithNav(panel()));
       const article = documentArticle();
-      await user.click(within(article).getByRole("button", { name: "Thêm" }));
+      await user.click(within(article).getAllByRole("button", { name: "Thêm" }).at(-1)!);
       await user.click(await screen.findByRole("menuitem", { name: "Xóa" }));
       return { user, dialog: await screen.findByRole("alertdialog") };
     }
