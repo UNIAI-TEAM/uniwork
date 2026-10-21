@@ -2221,6 +2221,7 @@
     "error_title": "Không tải được danh sách công việc",
     "error_description": "Kết nối tới máy chủ đang có vấn đề. Thử lại sau giây lát.",
     "taskTitle": "Tiêu đề",
+    "summary_title_required": "Nhập tên việc để tạo việc.",
     "description": "Mô tả",
     "status": "Trạng thái",
     "priority": "Độ ưu tiên",

@@ -2222,6 +2222,7 @@
     "error_title": "Could not load tasks",
     "error_description": "The connection to the server is having trouble. Try again in a moment.",
     "taskTitle": "Title",
+    "summary_title_required": "Enter a title to create the task.",
     "description": "Description",
     "status": "Status",
     "priority": "Priority",

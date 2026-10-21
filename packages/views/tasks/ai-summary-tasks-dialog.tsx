@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { CalendarDays, CircleAlert, Flag, FolderKanban, ListChecks, Sparkles, UserRound } from "lucide-react";
+import { CalendarDays, CircleAlert, Flag, FolderKanban, ListChecks, PenLine, Sparkles, UserRound } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { TaskPriority } from "@uniwork/core/types";
 import { Dialog } from "@uniwork/ui/components/ui/dialog";
@@ -14,14 +14,16 @@ import { MeetingAssigneeSelect } from "../meetings/meeting-assignee-select";
 import { ProjectSelect } from "../projects/components/project-select";
 import { PriorityPicker } from "./pickers/priority-picker";
 
-const FIELD_CLASS = "h-9 w-full max-w-none";
+// Every control keeps the 32px of Input and DateField; the small select
+// trigger (data-[size=sm], 28px) is raised to match.
+const FIELD_CLASS = "w-full max-w-none data-[size=sm]:h-8";
 
 /** What the person confirms for one AI action item. null is "nobody" / "no due date", a choice. */
 export interface AiSummaryTaskDraft {
   assigneeId: string | null;
   priority: TaskPriority;
   dueDate: string | null;
-  /** The task's title when the screen lets it be edited (copy.titleLabel); blank keeps the seed's. */
+  /** The task's title when the screen lets it be edited (copy.titleLabel); unset keeps the seed's, blank is refused. */
   title?: string;
 }
 
@@ -99,6 +101,9 @@ function TaskEditorCard({
 }) {
   const { t } = useTranslation();
   const dueId = `${idPrefix}-due-${seed.index}`;
+  const titleId = `${idPrefix}-title-${seed.index}`;
+  const titleErrorId = `${titleId}-error`;
+  const titleBlank = draft.title !== undefined && draft.title.trim() === "";
   const owner = seed.owner?.trim();
   const due = seed.due?.trim();
 
@@ -120,12 +125,22 @@ function TaskEditorCard({
           )}
           <div className="min-w-0 flex-1 space-y-1.5">
             {copy.titleLabel ? (
-              <Input
-                aria-label={copy.titleLabel}
-                className="h-9 font-semibold"
-                value={draft.title ?? seed.title}
-                onChange={(e) => onChange({ title: e.target.value })}
-              />
+              <FieldBlock icon={PenLine} label={copy.titleLabel} htmlFor={titleId}>
+                <Input
+                  id={titleId}
+                  className="font-semibold"
+                  value={draft.title ?? seed.title}
+                  aria-invalid={titleBlank || undefined}
+                  aria-describedby={titleBlank ? titleErrorId : undefined}
+                  onChange={(e) => onChange({ title: e.target.value })}
+                />
+                {titleBlank ? (
+                  <p id={titleErrorId} className="flex items-center gap-1 text-caption text-destructive">
+                    <CircleAlert className="size-3.5 shrink-0" aria-hidden />
+                    {t("tasks.summary_title_required")}
+                  </p>
+                ) : null}
+              </FieldBlock>
             ) : (
               <p className="text-body font-semibold leading-snug text-foreground">{seed.title}</p>
             )}
@@ -218,6 +233,8 @@ function AiSummaryTasksForm({
   const [drafts, setDrafts] = useState<Record<number, AiSummaryTaskDraft>>(() =>
     Object.fromEntries(seeds.map((s) => [s.index, s.draft])),
   );
+  // A cleared title is refused on its field; it never falls back to the AI's wording unseen.
+  const blankTitle = !!copy.titleLabel && seeds.some((s) => (drafts[s.index] ?? s.draft).title?.trim() === "");
 
   return (
     <>
@@ -263,8 +280,11 @@ function AiSummaryTasksForm({
         submitLabel={copy.submit}
         submittingLabel={copy.submitting}
         submitting={pending}
-        submitDisabled={seeds.length === 0}
-        onSubmit={() => onConfirm({ projectId, drafts })}
+        submitDisabled={seeds.length === 0 || blankTitle}
+        onSubmit={() => {
+          if (blankTitle) return;
+          onConfirm({ projectId, drafts });
+        }}
       />
     </>
   );
