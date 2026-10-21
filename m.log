@@ -1,0 +1,35 @@
+$ rc=$(cat /tmp/pr7r8-e2e.exit 2>/dev/null || echo 99); grep -vE "^\s+at " /tmp/pr7r8-e2e.log | grep -E "✘|failed|flaky|passed|skipped|did not run|Error:" | head -80; tail -n 30 /tmp/pr7r8-e2e.log; for f in e2e/test-results/*/error-context.md; do [ -f "$f" ] && { echo "===== $f"; head -c 3000 "$f"; }; done; grep -qE "[0-9]+ passed" /tmp/pr7r8-e2e.log || { echo "no passing test"; [ "$rc" = 0 ] && rc=1; }; echo; echo "E2E_EXIT=$rc"; [ $rc -eq 0 ]
+  1 skipped
+  63 passed (9.3m)
+  ✓  39 documents-folder-upload.spec.ts:136:1 › FU-03 a run over the file limit is refused in the pre-flight with the numbers and sends nothing (4.7s)
+  ✓  40 documents-folder-upload.spec.ts:175:1 › FU-04 a dropped folder reads through the entry API, skips hidden and unsupported files, and uploads as 3 levels (2.8s)
+  ✓  41 documents-folder-upload.spec.ts:206:1 › FU-05 several files go through the files-mode pre-flight straight into the open folder, same names both kept (2.5s)
+  ✓  42 documents-folder-upload.spec.ts:249:1 › FU-05b exactly one picked file keeps the single-file dialog and opens the document (2.7s)
+  ✓  43 documents-folder-upload.spec.ts:275:1 › FU-06 a member without access to the folder gets no upload entry, folder or file (6.9s)
+  ✓  44 documents-folders.spec.ts:36:1 › FD-A01 create folder from sidebar +, Mới menu, and tree row menu down to depth 20; rejects blank, >255 chars, and depth 21 (6.4s)
+  ✓  45 documents-folders.spec.ts:200:1 › FD-A02 sidebar folder tree expands/collapses independently, reveals active ?folder= ancestors, and stays collapsed across a refetch (6.2s)
+  ✓  46 documents-folders.spec.ts:349:1 › FD-A03 open folder content view lists only direct children, folders first, sorted by name or updated per viewer (2.9s)
+  ✓  47 documents-folders.spec.ts:454:1 › FD-A03 folder content sorts by the Vietnamese collator (Đ after D, Ă after A) or by last update, folders first, and the choice is remembered (15.2s)
+  ✓  48 documents-folders.spec.ts:572:1 › FD-A03 upload into the open folder places the uploaded file under the open folder (not at root) (3.0s)
+  ✓  49 documents-folders.spec.ts:633:1 › FD-A04 rename folder from tree menu, table row menu, and breadcrumb keeps ID/parent/children and updates title and search (5.0s)
+  ✓  50 documents-folders.spec.ts:744:1 › FD-A05 move folder by drag-and-drop and Move-to keeps descendants, enforces depth<=20, renames on collision, and updates a second session live (10.3s)
+  ✓  51 documents-folders.spec.ts:985:1 › FD-A05 (FD-09 UI) tree Move-to picker marks a too-deep target aria-disabled with its reason, refuses it, and moves to a valid one with a toast (5.0s)
+  ✓  52 documents-folders.spec.ts:1071:1 › FD-A06 moving folder into itself or a descendant is rejected with 422 document_cycle and blocked in tree drag-and-drop (2.4s)
+  ✓  53 documents-folders.spec.ts:1173:1 › FD-A06 (FD-09 UI) Move-to picker lists self and descendants as focusable aria-disabled rows with the reason Nằm trong chính nó and refuses to select them (3.1s)
+  ✓  54 documents-folders.spec.ts:1249:1 › FD-A07 moving a document between folders keeps ID, versions, and comments with no second row and renames Name (n).ext on collision (4.4s)
+  ✓  55 documents-folders.spec.ts:1342:1 › FD-A07 (FD-09 UI) Move-to picker marks the current location aria-disabled with Vị trí hiện tại, refuses to select it, and a colliding move toasts Đã chuyển và đổi tên thành (3.3s)
+  ✓  56 documents-folders.spec.ts:1398:1 › FD-A08 breadcrumb navigates segments, follows browser Back/Forward, omits unreadable ancestors, and shows error state on invalid/archived/forbidden ?folder= (6.0s)
+  ✓  57 documents-folders.spec.ts:1542:1 › FD-A08 (FD-09 UI) deep breadcrumb shows root, …, parent and leaf, and the … menu Các cấp ẩn opens and navigates by keyboard (2.7s)
+  ✓  58 documents-folders.spec.ts:1601:1 › FD-A09 unified search and ⌘K find folders and documents by title, filter by kind, show paths, omit unreadable ancestors, and exclude body-only matches (5.4s)
+  ✓  59 documents-folders.spec.ts:1750:1 › FD-A10 moving a document or its folder preserves ID, versions, comments, shares, task/meeting/chat links, and Từ nơi khác listing (3.2s)
+  -  60 documents-folders.spec.ts:2007:1 › FD-A10 (entity/email link API) structured graph DOCUMENT links and email-hub thread links resolve after move
+  ✓  61 documents-folders.spec.ts:2015:1 › FD-A11 prevents duplicate sibling folder names (case-insensitive, accent-sensitive NFC, concurrent race, restricted leak check) while allowing same-name documents (4.0s)
+  ✓  62 documents-folders.spec.ts:2198:1 › FD-A12 a second session archiving and restoring a folder subtree is seen live by the first session, counts items and renames on restore collision (10.1s)
+FD-A12 seeded 1000 pages in 185515 ms
+  ✓  63 documents-folders.spec.ts:2358:1 › FD-A12 tree over 1000 nodes reports too_large on archive-impact, blocks archive with 422 folder_too_large, and the delete dialog replaces its confirm button (3.1m)
+  ✓  64 documents-folders.spec.ts:2424:1 › FD-A12 (FD-09 UI) delete folder dialog shows the server subfolder and document counts, then trash and restore toasts (2.8s)
+
+  1 skipped
+  63 passed (9.3m)
+
+E2E_EXIT=0
