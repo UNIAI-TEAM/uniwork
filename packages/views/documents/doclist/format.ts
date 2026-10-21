@@ -70,6 +70,17 @@ export function formatBytes(bytes: number | null | undefined, locale: string): s
     value /= 1024;
     unit += 1;
   }
-  const digits = unit === 0 || value >= 10 ? 0 : 1;
+  let digits = unit === 0 || value >= 10 ? 0 : 1;
+  // Rounding can carry into 1024 (1023.999 KB): show it in the next unit.
+  if (unit < UNITS.length - 1 && roundTo(value, digits) >= 1024) {
+    value /= 1024;
+    unit += 1;
+    digits = value >= 10 ? 0 : 1;
+  }
   return `${new Intl.NumberFormat(locale || undefined, { maximumFractionDigits: digits }).format(value)} ${UNITS[unit]}`;
+}
+
+function roundTo(value: number, digits: number): number {
+  const factor = 10 ** digits;
+  return Math.round(value * factor) / factor;
 }
