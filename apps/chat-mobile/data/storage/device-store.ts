@@ -7,18 +7,24 @@
 // in those tests) the store lives in memory and nothing persists.
 
 export interface DeviceStore {
+  /** False for a store that keeps nothing past this launch: what is queued on it is lost on a kill. */
+  readonly durable: boolean;
   getString(key: string): string | undefined;
   set(key: string, value: string): void;
   remove(key: string): boolean;
+  /** Every key the store holds (the query cache sweeps the timelines it no longer keeps). */
+  keys(): string[];
 }
 
 /** A store that keeps nothing past this launch. */
 export function memoryDeviceStore(): DeviceStore {
   const values = new Map<string, string>();
   return {
+    durable: false,
     getString: (key) => values.get(key),
     set: (key, value) => void values.set(key, value),
     remove: (key) => values.delete(key),
+    keys: () => [...values.keys()],
   };
 }
 

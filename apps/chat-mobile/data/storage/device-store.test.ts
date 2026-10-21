@@ -8,6 +8,8 @@ describe("device store", () => {
     expect(memory.getString("k")).toBe("v");
     expect(memory.remove("k")).toBe(true);
     expect(memory.getString("k")).toBeUndefined();
+    // Nothing outlives the launch: the outbox on it is not durable.
+    expect(memory.durable).toBe(false);
 
     const opener = vi.fn(async () => memory);
     installDeviceStore(opener);
