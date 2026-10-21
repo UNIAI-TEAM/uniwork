@@ -93,6 +93,16 @@ describe("the background grace", () => {
     holdOpen.value = false;
   });
 
+  it("a call that starts inside the grace is not paused when the grace runs out", () => {
+    const { socket, grace, advance, holdOpen } = setup();
+    grace.onAppState("background");
+    // A call rings over the socket the grace kept alive.
+    holdOpen.value = true;
+    advance(BACKGROUND_GRACE_MS);
+    expect(socket.pause).not.toHaveBeenCalled();
+    holdOpen.value = false;
+  });
+
   it("dispose cancels a pending pause", () => {
     const { socket, grace, advance } = setup();
     grace.onAppState("background");

@@ -59,6 +59,8 @@ export function createBackgroundGrace(socket: GraceSocket, env: GraceEnv, graceM
         backgroundedAt = env.now();
         timer = env.setTimer(() => {
           timer = null;
+          // A call that started inside the grace rings over this socket; the provider pauses it once the call ends.
+          if (env.holdOpen()) return;
           socket.pause();
         }, graceMs);
         return;
