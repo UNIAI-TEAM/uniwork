@@ -152,7 +152,7 @@ export function ReportSheet({ wsId, target, blockUserId, onClose, onReported }: 
                 accessibilityState={{ busy, disabled: busy || !reason }}
                 testID="report-submit"
                 onPress={() => void submit()}
-                className={cn("h-12 flex-row items-center justify-center gap-2 rounded-full bg-destructive-solid", busy || !reason ? "opacity-60" : "active:opacity-90")}
+                className={cn("min-h-12 flex-row items-center justify-center gap-2 rounded-full bg-destructive-solid py-3", busy || !reason ? "opacity-60" : "active:opacity-90")}
               >
                 {busy ? <ActivityIndicator color={THEME.light.primaryForeground} /> : null}
                 <Text className="text-body font-semibold text-on-solid">{t("mobile.report.submit")}</Text>

@@ -34,7 +34,7 @@ export function WorkspacePill(props: { name: string; seed?: string; iconUrl?: st
       accessibilityRole="button"
       accessibilityLabel={other > 0 ? t("chat.mobile.workspace_pill_aria", { name: props.name, count: other }) : t("chat.mobile.workspace_pill_aria_quiet", { name: props.name })}
       onPress={props.onPress}
-      className="h-11 max-w-[70%] flex-row items-center gap-2 rounded-full bg-muted pl-1.5 pr-2 active:opacity-80"
+      className="min-h-11 max-w-[70%] flex-row items-center gap-2 rounded-full bg-muted py-1 pl-1.5 pr-2 active:opacity-80"
     >
       <WorkspaceAvatar name={props.name} iconUrl={props.iconUrl} iconEmoji={props.iconEmoji} size={30} seed={props.seed} />
       <Text className="shrink text-subhead font-semibold text-foreground" numberOfLines={1}>
@@ -150,7 +150,7 @@ export function ScopeSwitch(props: {
             // The lift is a style, not `shadow-sm`: a shadow class appearing on a mounted
             // Pressable makes NativeWind remount it, and in dev that crashes on the router's context.
             style={on ? SEGMENT_LIFT : undefined}
-            className={cn("h-11 flex-1 flex-row items-center justify-center gap-2 rounded-[11px] active:opacity-80", on ? "bg-background" : "bg-transparent")}
+            className={cn("min-h-11 flex-1 flex-row items-center justify-center gap-2 rounded-[11px] py-1.5 active:opacity-80", on ? "bg-background" : "bg-transparent")}
           >
             {side.scope === "messages" ? (
               <Ionicons name="chatbubbles-outline" size={18} color={on ? theme.primary : theme.mutedForeground} />
@@ -240,7 +240,7 @@ function PillButton({ icon, label, primary = false, onPress }: { icon: IconName;
     <Pressable
       accessibilityRole="button"
       onPress={onPress}
-      className={cn("h-12 flex-row items-center justify-center gap-2 rounded-full px-6 active:opacity-80", primary ? "bg-primary" : "bg-muted")}
+      className={cn("min-h-12 flex-row items-center justify-center gap-2 rounded-full px-6 py-3 active:opacity-80", primary ? "bg-primary" : "bg-muted")}
     >
       <Ionicons name={icon} size={20} color={primary ? theme.primaryForeground : theme.foreground} />
       <Text className={cn("text-body font-semibold", primary ? "text-primary-foreground" : "text-foreground")}>{label}</Text>

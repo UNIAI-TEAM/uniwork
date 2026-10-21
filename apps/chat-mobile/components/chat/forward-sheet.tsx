@@ -53,7 +53,7 @@ export function ForwardSheet({ chat, messageId, onClose }: { chat: ChatWorkspace
           {t("chat.mobile.forward_pick_room")}
         </Text>
         <View className="px-4 pb-2">
-          <SearchField value={query} onChangeText={setQuery} placeholder={t("chat.mobile.search_placeholder")} accessibilityLabel={t("chat.search_conversations_label")} className="h-10" />
+          <SearchField value={query} onChangeText={setQuery} placeholder={t("chat.mobile.search_placeholder")} accessibilityLabel={t("chat.search_conversations_label")} />
         </View>
         <ScrollView keyboardShouldPersistTaps="handled">
           {rows.map(({ room, title }) => (

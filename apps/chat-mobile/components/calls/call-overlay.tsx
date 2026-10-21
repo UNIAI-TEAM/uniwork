@@ -199,7 +199,7 @@ export function CallOverlay() {
             testID="call-restore"
             hitSlop={{ top: 8, bottom: 8 }}
             onPress={() => setMinimized(false)}
-            className="h-8 flex-row items-center gap-1.5 self-center rounded-full bg-success-solid px-3.5 shadow-lg active:opacity-80"
+            className="min-h-8 flex-row items-center gap-1.5 self-center rounded-full bg-success-solid px-3.5 py-1 shadow-lg active:opacity-80"
           >
             <Ionicons name="call" size={13} color={CALL.text} />
             <Text className="text-caption font-semibold" style={{ color: CALL.text }} numberOfLines={1}>

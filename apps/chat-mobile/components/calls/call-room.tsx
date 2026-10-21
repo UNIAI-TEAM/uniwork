@@ -72,7 +72,7 @@ function RoomStage({ peerName, connected, recording, onMinimize, seed, room, vid
         </>
       ) : null}
       {/* The top bar (MobileCall board): shrink the call to a pill, and say when it is being recorded. */}
-      <View className="absolute left-0 right-0 top-1 z-10 h-11 flex-row items-center px-4">
+      <View className="absolute left-0 right-0 top-1 z-10 min-h-11 flex-row items-center px-4">
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={t("chat.mobile.call_minimize")}

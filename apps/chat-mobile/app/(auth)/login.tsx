@@ -59,7 +59,7 @@ export default function Login() {
         {/* The wall fades into the page, as the board's mask does. */}
         <Image source={WALL_FADE[colorScheme]} resizeMode="stretch" className="absolute inset-x-0 bottom-0 h-[220px] w-full" />
         <SafeAreaView edges={["top"]} className="flex-1">
-          <View className="absolute right-10 top-[26px] h-7 flex-row items-center gap-1.5 rounded-full bg-chat-bubble-other/90 px-2.5">
+          <View className="absolute right-10 top-[26px] min-h-7 flex-row items-center gap-1.5 rounded-full bg-chat-bubble-other/90 px-2.5 py-1">
             <Ionicons name="videocam-outline" size={14} color={THEME[colorScheme].successSolid} />
             <Text className="text-footnote font-semibold text-muted-foreground">{t("chat.video_call_log_completed", { duration: "3:05" })}</Text>
           </View>
@@ -94,7 +94,7 @@ export default function Login() {
             <Text className="shrink text-center text-callout text-destructive">{t("auth.desktop.unichat_login_failed")}</Text>
           </View>
         ) : null}
-        <Button disabled={busy} className="h-auto min-h-12 rounded-full py-3 sm:h-auto" onPress={() => void onPress()}>
+        <Button disabled={busy} className="min-h-12 rounded-full py-3" onPress={() => void onPress()}>
           <Text className="text-body font-semibold">{t("auth.desktop.unichat_login_button")}</Text>
         </Button>
         <View className="flex-row items-center justify-center gap-1.5">

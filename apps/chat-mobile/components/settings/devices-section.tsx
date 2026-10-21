@@ -39,7 +39,7 @@ function DeviceRow({ device, onRevoke }: { device: Device; onRevoke: (name: stri
         </Text>
       </View>
       {device.current ? null : (
-        <Button variant="ghost" size="sm" className="h-auto min-h-11 rounded-full px-3 py-2 sm:h-auto" onPress={() => onRevoke(name)} accessibilityLabel={`${t("settings.security.sessions.revoke")} ${name}`}>
+        <Button variant="ghost" size="sm" className="min-h-11 rounded-full px-3 py-2" onPress={() => onRevoke(name)} accessibilityLabel={`${t("settings.security.sessions.revoke")} ${name}`}>
           <Text className="font-semibold text-destructive">{t("settings.security.sessions.revoke")}</Text>
         </Button>
       )}

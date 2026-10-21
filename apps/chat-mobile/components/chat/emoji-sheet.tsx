@@ -32,7 +32,7 @@ export function EmojiSheet({ visible, onClose, onPick }: { visible: boolean; onC
               accessibilityRole="button"
               accessibilityLabel={emoji}
               onPress={() => onPick(emoji)}
-              className="h-14 w-1/6 items-center justify-center rounded-2xl active:bg-secondary"
+              className="min-h-14 w-1/6 items-center justify-center rounded-2xl py-1 active:bg-secondary"
             >
               <Text className="text-emoji-lg leading-[36px]">{emoji}</Text>
             </Pressable>

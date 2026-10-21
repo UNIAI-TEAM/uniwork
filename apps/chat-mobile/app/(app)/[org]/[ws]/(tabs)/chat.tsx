@@ -245,7 +245,7 @@ export default function ChatTab() {
             scope === "workspace" && chat ? t("chat.scope.search_channels", { name: chat.workspaceName }) : t("chat.mobile.search_placeholder")
           }
           accessibilityLabel={t("chat.search_conversations_label")}
-          className="mt-2.5 h-10"
+          className="mt-2.5"
         />
       </Header>
       <ConnectionBanner />

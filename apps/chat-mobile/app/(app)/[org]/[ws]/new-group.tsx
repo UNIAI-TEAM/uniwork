@@ -94,7 +94,7 @@ function NewGroup({ chat, roomId }: { chat: ChatWorkspace; roomId: string | null
             placeholderTextColor={theme.mutedForeground}
             accessibilityLabel={t("chat.group_name_label")}
             maxLength={80}
-            className="h-11 rounded-xl border border-border bg-background px-3 text-body text-foreground"
+            className="min-h-11 rounded-xl border border-border bg-background px-3 py-2.5 text-body text-foreground"
           />
         </View>
       )}
@@ -143,7 +143,7 @@ function NewGroup({ chat, roomId }: { chat: ChatWorkspace; roomId: string | null
           accessibilityRole="button"
           accessibilityState={{ disabled: !ready, busy }}
           onPress={submit}
-          className={cn("mb-2 h-12 flex-row items-center justify-center gap-2 rounded-full", ready ? "bg-primary active:opacity-80" : "bg-muted")}
+          className={cn("mb-2 min-h-12 flex-row items-center justify-center gap-2 rounded-full py-3", ready ? "bg-primary active:opacity-80" : "bg-muted")}
         >
           {busy ? <ActivityIndicator color={theme.primaryForeground} /> : null}
           <Text className={cn("text-body font-semibold", ready ? "text-primary-foreground" : "text-muted-foreground")}>

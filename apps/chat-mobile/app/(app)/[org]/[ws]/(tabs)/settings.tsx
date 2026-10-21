@@ -156,7 +156,7 @@ export default function SettingsTab() {
         <View className="gap-3.5 pt-1">
           <Button
             variant="destructive"
-            className="h-auto min-h-12 rounded-full bg-destructive-solid py-3 active:opacity-90 sm:h-auto dark:bg-destructive-solid"
+            className="min-h-12 rounded-full bg-destructive-solid py-3 active:opacity-90 dark:bg-destructive-solid"
             // logout() drops this phone's push subscription first (data/auth/store.ts).
             onPress={() => void logout()}
           >

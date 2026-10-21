@@ -101,7 +101,7 @@ export default function SelectWorkspace() {
           </View>
         )}
         <View className="border-t border-border pt-5">
-          <Button variant="outline" className="h-auto min-h-12 rounded-full py-3 sm:h-auto" onPress={() => void logout()}>
+          <Button variant="outline" className="min-h-12 rounded-full py-3" onPress={() => void logout()}>
             <Ionicons name="log-out-outline" size={18} color={THEME[colorScheme].foreground} />
             <Text className="text-subhead font-semibold">{t("auth.logout")}</Text>
           </Button>

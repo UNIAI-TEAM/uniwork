@@ -48,3 +48,58 @@ describe("text roles", () => {
     expect(offenders).toEqual([]);
   });
 });
+
+/**
+ * Boxes that keep a fixed height on purpose, by file and class string: none holds text that grows with the
+ * system text size. Anything else that holds text takes `min-h-*` and vertical padding (S6 dynamic type).
+ */
+const FIXED_HEIGHT_OK: Record<string, string[]> = {
+  // The decorative illustration (hidden from screen readers) is a fixed stage; its text bubbles are placed on it.
+  // The wall's fade at its foot is an image.
+  "app/(auth)/login.tsx": ["relative h-[440px]", "absolute inset-x-0 bottom-0 h-[220px] w-full"],
+  // Scrims over the video: shading, no text.
+  "components/calls/call-room.tsx": ["absolute inset-x-0 top-0 h-36", "absolute inset-x-0 bottom-0 h-48"],
+  // A sheet's share of the screen, not a text box.
+  "components/chat/expression-sheet.tsx": ["h-[70%] rounded-t-[24px] bg-card"],
+  // The voice note's waveform: bars, no text.
+  "components/chat/message-cards.tsx": ["h-[26px] flex-row items-center gap-0.5"],
+  "components/chat/voice-wave.tsx": ["h-6 flex-1 flex-row items-center gap-[2px] overflow-hidden"],
+  // The loading skeleton: grey shapes standing in for text, which never hold any.
+  "components/chat/room-list-parts.tsx": ["h-[34px] rounded-full bg-muted", "h-[76px] flex-row items-center gap-3 px-4", "h-3.5 rounded-full bg-muted", "h-3 max-w-full rounded-full bg-muted"],
+  // Three animated dots, no text.
+  "components/chat/typing-bubble.tsx": ["h-9 flex-row items-center gap-1 bg-chat-bubble-other px-3.5"],
+};
+
+/** Not a fixed box: a rule, divider or progress bar at most 2 (8 px) high, or a height that follows content or parent. */
+const NOT_FIXED = /^h-(px|0\.5|1|1\.5|2|\[[1-8]px\]|auto|full)$/;
+
+describe("text containers", () => {
+  it("grow with the system text size: no fixed h-* outside icon/avatar boxes, thin rules and the list above", () => {
+    const offenders = ["app", "components"].flatMap(sources).flatMap((file) =>
+      fs
+        .readFileSync(path.join(appRoot, file), "utf8")
+        .split("\n")
+        .flatMap((line, i) =>
+          [...line.matchAll(/"([^"]*)"|`([^`]*)`/g)].flatMap((match) => {
+            const literal = match[1] ?? match[2] ?? "";
+            const tokens = literal.split(/\s+/);
+            const height = tokens.find((token) => /^h-\S+$/.test(token));
+            if (!height || NOT_FIXED.test(height)) return [];
+            // An icon, avatar or tile box: a fixed width beside the height (w-full or a fraction is a row, not a box).
+            if (tokens.some((token) => /^(w|size)-(\d+(\.\d+)?|\[\d+px\]|px)$/.test(token))) return [];
+            if (FIXED_HEIGHT_OK[file]?.includes(literal)) return [];
+            return [`${file}:${i + 1} "${literal}"`];
+          }),
+        ),
+    );
+    expect(offenders).toEqual([]);
+  });
+
+  it("allows nothing it does not need: every allowed fixed height is still in its file", () => {
+    const stale = Object.entries(FIXED_HEIGHT_OK).flatMap(([file, literals]) => {
+      const text = fs.readFileSync(path.join(appRoot, file), "utf8");
+      return literals.filter((literal) => !text.includes(literal)).map((literal) => `${file} "${literal}"`);
+    });
+    expect(stale).toEqual([]);
+  });
+});

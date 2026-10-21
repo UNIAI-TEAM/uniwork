@@ -328,7 +328,9 @@ một dòng thì ghi lý do ở dòng trên.
   dọc ở 1x để đóng; toán ở `lib/zoom.ts`; Modal có `GestureHandlerRootView` riêng). **Cỡ chữ**: vai trò ở
   `lib/type-scale.json` (`text-meta` … `text-display-xl`, `text-emoji*`; tailwind và `cn()` đọc cùng file — thiếu
   `extendTailwindMerge` thì `text-footnote` bị coi là màu); `lib/type-scale.test.ts` đỏ khi `app/`/`components/` dùng
-  `text-sm`… hay `text-[13px]`. Phần tử chứa chữ dùng `min-h-*` + padding dọc, không `h-*` cố định; chỉ huy hiệu chặn
+  `text-sm`… hay `text-[13px]`. Phần tử chứa chữ dùng `min-h-*` + padding dọc, không `h-*` cố định (cả `Button`, ô tìm kiếm, ô nhập); cùng test đỏ
+  khi một chuỗi class có `h-*` cố định mà không có chiều rộng cố định (ô icon/avatar), không phải đường kẻ ≤ 2 và không
+  nằm trong `FIXED_HEIGHT_OK` (scrim, skeleton, sóng âm, minh hoạ — ghi lý do); chỉ huy hiệu chặn
   cỡ chữ (`BADGE_MAX_FONT_SCALE` 1.4). **Quyền**: `data/permissions.ts` (màn giải thích `components/ui/permission-primer.tsx`
   qua `stores/permission-primer-store.ts`, instance native `components/ui/permission-gate.ts`): đã cấp thì đi tiếp, hệ
   thống còn hỏi được thì giải thích rồi mới hỏi, không hỏi được nữa thì mở `Linking.openSettings`; `once` (thông báo lúc

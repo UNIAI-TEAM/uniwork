@@ -110,7 +110,7 @@ function SharedSection({ shared, onOpenMessage }: { shared: ChatSharedSummary; o
               accessibilityRole="tab"
               accessibilityState={{ selected: active }}
               onPress={() => setTab(item.key)}
-              className={cn("h-8 justify-center rounded-full px-3", active ? "bg-tint-blue" : "active:bg-secondary")}
+              className={cn("min-h-8 justify-center rounded-full px-3 py-1", active ? "bg-tint-blue" : "active:bg-secondary")}
             >
               <Text className={cn("text-footnote font-semibold", active ? "text-primary" : "text-muted-foreground")} style={{ fontVariant: ["tabular-nums"] }}>
                 {item.label}
@@ -237,7 +237,6 @@ function RoomInfo({ chat, roomId }: { chat: ChatWorkspace; roomId: string }) {
             onChangeText={setQ}
             placeholder={t("chat.search_messages")}
             accessibilityLabel={t("chat.search_messages")}
-            className="h-10"
           />
         </View>
         {search.isFetching ? <ActivityIndicator className="py-3" accessibilityLabel={t("chat.search_loading")} /> : null}

@@ -29,7 +29,7 @@ function Chip({ label, selected, onPress }: { label: string; selected: boolean; 
       accessibilityRole="radio"
       accessibilityState={{ selected }}
       onPress={onPress}
-      className={cn("h-11 justify-center rounded-full border px-3.5", selected ? "border-primary bg-primary/10" : "border-border bg-card")}
+      className={cn("min-h-11 justify-center rounded-full border px-3.5 py-2", selected ? "border-primary bg-primary/10" : "border-border bg-card")}
     >
       <Text className={cn("text-callout", selected ? "font-semibold text-primary" : "font-medium text-foreground")}>{label}</Text>
     </Pressable>
@@ -101,7 +101,7 @@ export function ReminderSheet({
             <Chip key={value} label={t(`chat.reminder_repeat_${value}`)} selected={repeat === value} onPress={() => setRepeat(value)} />
           ))}
         </View>
-        <Button disabled={!ready} accessibilityState={{ disabled: !ready }} onPress={create} className="mb-3 mt-5 h-auto min-h-12 rounded-full py-3 sm:h-auto" testID="reminder-create">
+        <Button disabled={!ready} accessibilityState={{ disabled: !ready }} onPress={create} className="mb-3 mt-5 min-h-12 rounded-full py-3" testID="reminder-create">
           <Text className="text-body font-semibold">{t("chat.reminder_create_submit")}</Text>
         </Button>
       </SafeAreaView>

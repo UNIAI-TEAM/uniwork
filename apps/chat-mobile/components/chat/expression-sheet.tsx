@@ -57,7 +57,7 @@ export function ExpressionSheet({ wsId, visible, onClose, onPick }: { wsId: stri
               onPress={() => setKind(value)}
               // 36 pt pill, 44 pt target.
               hitSlop={{ top: 4, bottom: 4 }}
-              className={cn("h-9 justify-center rounded-full px-[18px]", kind === value ? "bg-primary" : "bg-muted")}
+              className={cn("min-h-9 justify-center rounded-full px-[18px] py-1.5", kind === value ? "bg-primary" : "bg-muted")}
             >
               <Text className={cn("text-callout font-semibold", kind === value ? "text-primary-foreground" : "text-foreground")}>{label}</Text>
             </Pressable>

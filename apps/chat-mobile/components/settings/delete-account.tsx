@@ -188,7 +188,7 @@ function DeleteAccountSheet({ visible, onClose, orgSlug, wsSlug }: SheetProps) {
                   returnKeyType="done"
                   onSubmitEditing={() => void submit()}
                   testID="delete-account-proof"
-                  className={cn("h-12 rounded-xl border bg-muted px-3.5 text-body text-foreground", error ? "border-destructive" : "border-border")}
+                  className={cn("min-h-12 rounded-xl border bg-muted px-3.5 py-3 text-body text-foreground", error ? "border-destructive" : "border-border")}
                 />
                 {error ? (
                   <Text accessibilityRole="alert" className="text-subhead text-destructive">
@@ -206,7 +206,7 @@ function DeleteAccountSheet({ visible, onClose, orgSlug, wsSlug }: SheetProps) {
                   accessibilityState={{ busy, disabled: busy }}
                   testID="delete-account-confirm"
                   onPress={() => void submit()}
-                  className={cn("h-12 flex-row items-center justify-center gap-2 rounded-full bg-destructive-solid", busy ? "opacity-70" : "active:opacity-90")}
+                  className={cn("min-h-12 flex-row items-center justify-center gap-2 rounded-full bg-destructive-solid py-3", busy ? "opacity-70" : "active:opacity-90")}
                 >
                   {busy ? <ActivityIndicator color={THEME.light.primaryForeground} /> : null}
                   <Text className="text-body font-semibold text-on-solid">{busy ? t("mobile.account.deleting") : t("settings.security.delete.confirm")}</Text>
