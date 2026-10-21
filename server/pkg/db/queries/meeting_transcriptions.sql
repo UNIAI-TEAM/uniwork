@@ -39,12 +39,19 @@ SELECT
   (SELECT t.starts_at FROM meeting_transcriptions t
     WHERE t.meeting_id = sqlc.arg('meeting_id') AND t.file_id = sqlc.arg('file_id')
     ORDER BY t.created_at, t.id LIMIT 1)::timestamptz AS previous_start,
+  -- FAILED is filtered before the pick: a file whose re-run failed still
+  -- shows its earlier COMPLETE run, so it still takes its time.
   COALESCE((SELECT sum(COALESCE(p.audio_seconds, p.estimated_seconds)) FROM (
-    SELECT DISTINCT ON (t.file_id) t.audio_seconds, t.estimated_seconds, t.status
+    SELECT DISTINCT ON (t.file_id) t.audio_seconds, t.estimated_seconds
     FROM meeting_transcriptions t
-    WHERE t.meeting_id = sqlc.arg('meeting_id') AND t.file_id <> sqlc.arg('file_id')
+    WHERE t.meeting_id = sqlc.arg('meeting_id') AND t.file_id <> sqlc.arg('file_id') AND t.status <> 'FAILED'
     ORDER BY t.file_id, t.created_at DESC, t.id DESC
-  ) p WHERE p.status <> 'FAILED'), 0)::bigint AS earlier_seconds;
+  ) p), 0)::bigint AS earlier_seconds;
+
+-- name: LockTranscriptionQuota :exec
+-- Serializes one organization's requests: otherwise two at once each sum the
+-- open jobs without the other's row and both pass the quota check.
+SELECT pg_advisory_xact_lock(hashtextextended('meeting_transcription_quota:' || sqlc.arg(organization_id)::text, 0));
 
 -- name: OpenTranscriptionMinutes :one
 -- Minutes the organization's queued and running jobs were estimated at:

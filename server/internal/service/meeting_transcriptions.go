@@ -248,6 +248,9 @@ func (s *MeetingService) RequestTranscription(ctx context.Context, userID, meeti
 	}
 	f := claimed[0]
 	estimate := estimateSeconds(f.SizeBytes, f.ContentType, head, in.DurationSeconds)
+	if err := q.LockTranscriptionQuota(ctx, m.OrganizationID); err != nil {
+		return db.MeetingTranscription{}, err
+	}
 	if err := s.checkTranscriptionQuota(ctx, q, m.OrganizationID, estimate); err != nil {
 		return db.MeetingTranscription{}, err
 	}

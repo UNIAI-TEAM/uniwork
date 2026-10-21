@@ -975,3 +975,30 @@ func TestTranscriptionDeletesAbandonedVendorJobs(t *testing.T) {
 		})
 	}
 }
+
+// A file whose re-run failed still shows its earlier COMPLETE run, so the
+// next file still starts after it.
+func TestTranscriptionFileStartCountsAFileWhoseReRunFailed(t *testing.T) {
+	e := transcriptionFixture(t)
+	ctx := context.Background()
+	s, m := e.s, e.m
+	run := func(fileID, status string, seconds, age int) {
+		t.Helper()
+		if _, err := s.pool.Exec(ctx, `INSERT INTO meeting_transcriptions (id, organization_id, workspace_id, meeting_id, file_id, content_type, size_bytes,
+			estimated_seconds, audio_seconds, starts_at, language, status, created_by, created_by_kind, created_at)
+			VALUES ($1, $2, $3, $4, $5, 'audio/mpeg', 1, $6, $6, $7, 'vi', $8, $9, 'human', now() - make_interval(secs => $10))`,
+			util.NewID(), m.OrganizationID, m.WorkspaceID, m.ID, fileID, seconds, m.ActualStartAt, status, e.host.ID, age); err != nil {
+			t.Fatal(err)
+		}
+	}
+	run("file-a", TranscriptionComplete, 3600, 20)
+	run("file-a", TranscriptionFailed, 3600, 10)
+	run("file-gone", TranscriptionFailed, 900, 5)
+	start, err := s.q.MeetingTranscriptionFileStart(ctx, db.MeetingTranscriptionFileStartParams{MeetingID: m.ID, FileID: "file-b"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if start.PreviousStart.Valid || start.EarlierSeconds != 3600 {
+		t.Fatalf("start = %+v, want no previous start and 3600 s earlier", start)
+	}
+}
