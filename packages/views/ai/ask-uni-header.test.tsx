@@ -42,7 +42,7 @@ function mount() {
 }
 
 async function openHistory() {
-  fireEvent.click(await screen.findByRole("button", { name: "Task quá hạn" }));
+  fireEvent.click(await screen.findByRole("button", { name: "Lịch sử hội thoại: Task quá hạn" }));
   return screen.findByText("Họp tuần");
 }
 
@@ -52,7 +52,7 @@ describe("AskUniHeader", () => {
     window.innerWidth = 500;
     try {
       mount();
-      await screen.findByRole("button", { name: "Task quá hạn" });
+      await screen.findByRole("button", { name: "Lịch sử hội thoại: Task quá hạn" });
       await waitFor(() => expect(screen.queryByRole("button", { name: "Mở rộng toàn trang" })).toBeNull());
     } finally {
       window.innerWidth = width;
@@ -80,9 +80,11 @@ describe("AskUniHeader", () => {
     expect(requestMock.mock.calls.filter(([, o]) => (o as { method?: string } | undefined)?.method === "PATCH")).toHaveLength(1);
   });
 
-  it("lists the history and selects a conversation", async () => {
+  it("lists the history in a named popover and selects a conversation", async () => {
     mount();
-    fireEvent.click(await openHistory());
+    const item = await openHistory();
+    expect(screen.getByRole("dialog", { name: "Lịch sử hội thoại" })).toBeInTheDocument();
+    fireEvent.click(item);
     expect(useAiPanelStore.getState().conversationId).toBe("c2");
   });
 
@@ -102,7 +104,9 @@ describe("AskUniHeader", () => {
     mount();
     await openHistory();
     fireEvent.click(screen.getAllByRole("button", { name: "Đổi tên hội thoại" })[1]!);
-    const input = screen.getByRole("textbox", { name: "Đổi tên hội thoại" });
+    const input = screen.getByRole<HTMLInputElement>("textbox", { name: "Đổi tên hội thoại" });
+    // The old name is selected, so typing replaces it.
+    await waitFor(() => expect([input.selectionStart, input.selectionEnd]).toEqual([0, "Họp tuần".length]));
     fireEvent.change(input, { target: { value: "Họp quý" } });
     fireEvent.keyDown(input, { key: "Enter" });
     await waitFor(() =>

@@ -57,6 +57,7 @@ describe("AskUniDock", () => {
     expect(panel).toBeInTheDocument();
     expect(screen.getByText("trang chính")).toBeVisible();
     expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.getByRole("separator", { name: "Đổi độ rộng Hỏi UNI" })).toBeInTheDocument();
   });
 
   it("hides the content panel in full page and keeps it mounted", async () => {

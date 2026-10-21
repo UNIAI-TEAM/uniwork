@@ -51,6 +51,7 @@ function RenameField({ conversation, onDone }: { conversation: AiConversation; o
   return (
     <Input
       autoFocus
+      onFocus={(e) => e.currentTarget.select()}
       aria-label={t("rename_conversation")}
       value={value}
       maxLength={TITLE_MAX}
@@ -84,13 +85,19 @@ export function AskUniHistory({ title }: { title: string }) {
       >
         <PopoverTrigger
           render={
-            <Button type="button" variant="ghost" size="sm" className="min-w-0 max-w-full justify-start gap-1 px-2 text-title" />
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="min-w-0 max-w-full justify-start gap-1 px-2 text-title"
+              aria-label={t("history_with", { title })}
+            />
           }
         >
           <span className="truncate">{title}</span>
           <ChevronDown aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
         </PopoverTrigger>
-        <PopoverContent align="start" className="w-72 gap-1 p-1">
+        <PopoverContent align="start" aria-label={t("history")} className="w-72 gap-1 p-1">
           {items.length === 0 ? (
             <p className="px-2 py-3 text-caption text-muted-foreground">{t("history_empty")}</p>
           ) : (

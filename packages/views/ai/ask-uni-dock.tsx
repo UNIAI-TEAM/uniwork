@@ -50,7 +50,7 @@ export function AskUniDock({ enabled: enabledByFlag, children }: { enabled: bool
         </ResizablePanel>
         {docked ? (
           <>
-            {!fullPage ? <ResizableHandle withHandle /> : null}
+            {!fullPage ? <ResizableHandle withHandle aria-label={t("ai.resize")} /> : null}
             <ResizablePanel
               id="ask-uni"
               minSize="400px"
