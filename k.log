@@ -1,0 +1,2 @@
+$ set +e; files=$(git grep -I -l --all-match -e '^<<<<<<< ' -e '^=======$' -e '^>>>>>>> '); rc=$?; set -e; if [ "$rc" -eq 0 ]; then echo "Unresolved merge-conflict markers committed in:"; echo "$files"; exit 1; fi; if [ "$rc" -gt 1 ]; then exit "$rc"; fi; rc=$?; echo TEST_L11=$rc; [ $rc -eq 0 ]
+TEST_L11=0
