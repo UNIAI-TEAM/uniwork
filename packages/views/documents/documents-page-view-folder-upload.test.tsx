@@ -35,13 +35,23 @@ const workspace: Workspace = {
 };
 const FOLDER_LIMITS = { max_files: 500, max_folders: 500, max_total_bytes: 2 * 1024 ** 3, max_depth: 20, parallel: 4, complete_batch: 50 };
 
-function route({ folderUpload, folder }: { folderUpload: boolean; folder?: Record<string, unknown> }) {
+function route({
+  folderUpload,
+  folder,
+  configGate,
+}: {
+  folderUpload: boolean;
+  folder?: Record<string, unknown>;
+  /** Holds the answer of GET /config until it resolves. */
+  configGate?: Promise<void>;
+}) {
   requestMock.mockImplementation((path: string) => {
     if (path.startsWith("/api/v1/config")) {
-      return Promise.resolve({
+      const answer = {
         flags: { office_engine: true },
         documents: { limits: { upload_max_bytes: 200 * 1024 * 1024, ...(folderUpload ? { folder_upload: FOLDER_LIMITS } : {}) } },
-      });
+      };
+      return configGate ? configGate.then(() => answer) : Promise.resolve(answer);
     }
     if (folder && path.startsWith(`${BASE}/${folder.id as string}`)) return Promise.resolve(folder);
     if (path.startsWith(`${BASE}/tree`)) return Promise.resolve({ documents: folder ? [{ ...folder, position: 0, children: [] }] : [] });
@@ -102,7 +112,7 @@ function dirEntry(name: string, children: FileSystemEntry[]): FileSystemDirector
   } as unknown as FileSystemDirectoryEntry;
 }
 
-/** The toolbar Upload once the config has turned it into a menu (it is a plain button until then). */
+/** The toolbar Upload once the config has turned it into a menu (it acts as a plain button until then). */
 const screenWithFolderUpload = () =>
   waitFor(() => {
     const trigger = screen.getByRole("button", { name: t("documents.folder_upload.menu_label") });
@@ -182,5 +192,35 @@ describe("Documents home folder upload entries (UNI-2052)", () => {
     await configLoaded();
     expect(screen.queryByTestId("folder-upload-input")).toBeNull();
     expect(screen.queryByRole("button", { name: t("documents.home.create.upload.button") })).toBeNull();
+  });
+
+  it("keeps the same toolbar Upload element when the config resolves with folder upload (RF15)", async () => {
+    let release: () => void = () => {};
+    route({ folderUpload: true, configGate: new Promise<void>((resolve) => (release = resolve)) });
+    renderView();
+    const before = await screen.findByRole("button", { name: t("documents.home.create.upload.button") });
+    expect(before).not.toHaveAttribute("aria-haspopup");
+    release();
+    const after = await screenWithFolderUpload();
+    expect(after).toBe(before);
+  });
+
+  it("waits for the config before judging a dropped folder instead of calling folder upload unavailable (RF15)", async () => {
+    let release: () => void = () => {};
+    route({ folderUpload: true, configGate: new Promise<void>((resolve) => (release = resolve)) });
+    renderView();
+    await screen.findByRole("button", { name: t("documents.home.create.upload.button") });
+    const zone = screen.getByRole("region", { name: t("documents.page.title") });
+    const items = [{ kind: "file", webkitGetAsEntry: () => dirEntry("Báo cáo", [fileEntry("a.pdf")]), getAsFile: () => null }];
+    await act(async () => {
+      fireEvent.drop(zone, { dataTransfer: { types: ["Files"], files: [], items, dropEffect: "none" } });
+    });
+    expect(toast.info).not.toHaveBeenCalled();
+    expect(screen.queryByRole("dialog")).toBeNull();
+
+    release();
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByTestId("folder-upload-root")).toHaveTextContent("Báo cáo");
+    expect(toast.info).not.toHaveBeenCalled();
   });
 });
