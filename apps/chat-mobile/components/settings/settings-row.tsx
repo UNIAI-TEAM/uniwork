@@ -34,11 +34,11 @@ export function SettingsRow({ icon, label, value, external, destructive, first, 
       <View className={cn("h-8 w-8 items-center justify-center rounded-[9px]", destructive ? "bg-destructive/10" : "bg-muted")}>
         <Ionicons name={icon} size={18} color={destructive ? theme.destructive : theme.mutedForeground} />
       </View>
-      <Text numberOfLines={1} className={cn("flex-1 text-base", destructive ? "font-semibold text-destructive" : "text-foreground")}>
+      <Text numberOfLines={1} className={cn("flex-1 text-body", destructive ? "font-semibold text-destructive" : "text-foreground")}>
         {label}
       </Text>
       {value ? (
-        <Text numberOfLines={1} className="max-w-[45%] text-right text-[15px] text-muted-foreground">
+        <Text numberOfLines={1} className="max-w-[45%] text-right text-subhead text-muted-foreground">
           {value}
         </Text>
       ) : null}

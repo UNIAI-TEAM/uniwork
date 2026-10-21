@@ -200,7 +200,7 @@ export function CallOverlay() {
             className="h-8 flex-row items-center gap-1.5 self-center rounded-full bg-success-solid px-3.5 shadow-lg active:opacity-80"
           >
             <Ionicons name="call" size={13} color={CALL.text} />
-            <Text className="text-xs font-semibold" style={{ color: CALL.text }} numberOfLines={1}>
+            <Text className="text-caption font-semibold" style={{ color: CALL.text }} numberOfLines={1}>
               {t("chat.mobile.call_back_to")}
             </Text>
           </Pressable>

@@ -40,7 +40,7 @@ const DayRow = memo(function DayRow({ ts }: { ts: number }) {
   return (
     <View className="items-center py-2.5" accessibilityRole="header">
       <View className="rounded-full bg-chat-chip px-3 py-[3px]">
-        <Text className="text-[13px] font-semibold text-chat-chip-foreground">{label}</Text>
+        <Text className="text-footnote font-semibold text-chat-chip-foreground">{label}</Text>
       </View>
     </View>
   );
@@ -80,7 +80,7 @@ export function MessageList({ rows, renderMessage, onLoadOlder, loadingOlder, bo
     return (
       <View className="flex-1 items-center justify-center px-8">
         <View className="rounded-2xl bg-chat-chip px-4 py-2.5">
-          <Text className="text-center text-sm text-chat-chip-foreground">{empty}</Text>
+          <Text className="text-center text-callout text-chat-chip-foreground">{empty}</Text>
         </View>
         {bottom}
       </View>

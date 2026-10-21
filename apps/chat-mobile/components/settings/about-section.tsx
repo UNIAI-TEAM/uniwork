@@ -33,8 +33,8 @@ export function AboutSection() {
         <Fragment key={label}>
           {index > 0 ? <Separator className="ml-4 w-auto" /> : null}
           <View accessible accessibilityLabel={`${label}: ${value}`} className="min-h-[48px] flex-row items-center justify-between gap-3 px-4 py-2.5">
-            <Text className="text-base text-foreground">{label}</Text>
-            <Text selectable numberOfLines={1} className="shrink text-right text-base text-muted-foreground">
+            <Text className="text-body text-foreground">{label}</Text>
+            <Text selectable numberOfLines={1} className="shrink text-right text-body text-muted-foreground">
               {value}
             </Text>
           </View>
@@ -42,7 +42,7 @@ export function AboutSection() {
       ))}
       <Separator className="ml-4 w-auto" />
       <Pressable onPress={() => void copy()} accessibilityRole="button" testID="about-copy" className="min-h-[48px] justify-center px-4 py-2.5 active:bg-secondary">
-        <Text className="text-base font-medium text-primary">{t("mobile.about.copy")}</Text>
+        <Text className="text-body font-medium text-primary">{t("mobile.about.copy")}</Text>
       </Pressable>
     </SettingsSection>
   );

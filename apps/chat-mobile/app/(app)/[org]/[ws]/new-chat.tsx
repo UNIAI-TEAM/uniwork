@@ -83,7 +83,7 @@ function NewChat({ chat }: { chat: ChatWorkspace }) {
               <View className="h-11 w-11 items-center justify-center rounded-full bg-tint-blue">
                 <Ionicons name="people-outline" size={22} color={theme.tintBlueForeground} />
               </View>
-              <Text className="flex-1 text-base font-semibold text-primary">{t("chat.create_group")}</Text>
+              <Text className="flex-1 text-body font-semibold text-primary">{t("chat.create_group")}</Text>
             </Pressable>
             <Pressable
               accessibilityRole="button"
@@ -93,10 +93,10 @@ function NewChat({ chat }: { chat: ChatWorkspace }) {
               <View className="h-11 w-11 items-center justify-center rounded-full bg-tint-blue">
                 <Ionicons name="globe-outline" size={22} color={theme.tintBlueForeground} />
               </View>
-              <Text className="flex-1 text-base font-semibold text-primary">{t("chat.channel.directory_title")}</Text>
+              <Text className="flex-1 text-body font-semibold text-primary">{t("chat.channel.directory_title")}</Text>
             </Pressable>
             <View className="mt-1 h-2 bg-muted" />
-            <Text accessibilityRole="header" className="px-4 pb-1.5 pt-3.5 text-[13px] font-semibold text-muted-foreground">
+            <Text accessibilityRole="header" className="px-4 pb-1.5 pt-3.5 text-footnote font-semibold text-muted-foreground">
               {t("chat.workspace_members")}
             </Text>
           </View>
@@ -105,7 +105,7 @@ function NewChat({ chat }: { chat: ChatWorkspace }) {
           members.isPending ? (
             <ActivityIndicator className="py-8" accessibilityLabel={t("chat.loading_members")} />
           ) : (
-            <Text className="px-4 py-8 text-center text-sm text-muted-foreground">
+            <Text className="px-4 py-8 text-center text-callout text-muted-foreground">
               {q.trim() ? t("chat.workspace_members_no_match", { query: q.trim() }) : t("chat.workspace_members_none")}
             </Text>
           )

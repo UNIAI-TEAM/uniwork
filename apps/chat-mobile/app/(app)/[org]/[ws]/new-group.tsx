@@ -86,7 +86,7 @@ function NewGroup({ chat, roomId }: { chat: ChatWorkspace; roomId: string | null
       <ChatHeader title={t(roomId ? "chat.add_group_members_title" : "chat.create_group_title")} flat />
       {roomId ? null : (
         <View className="gap-1.5 px-4 pb-2 pt-1">
-          <Text className="text-[13px] font-semibold text-muted-foreground">{t("chat.group_name_label")}</Text>
+          <Text className="text-footnote font-semibold text-muted-foreground">{t("chat.group_name_label")}</Text>
           <TextInput
             value={name}
             onChangeText={setName}
@@ -94,7 +94,7 @@ function NewGroup({ chat, roomId }: { chat: ChatWorkspace; roomId: string | null
             placeholderTextColor={theme.mutedForeground}
             accessibilityLabel={t("chat.group_name_label")}
             maxLength={80}
-            className="h-11 rounded-xl border border-border bg-background px-3 text-base text-foreground"
+            className="h-11 rounded-xl border border-border bg-background px-3 text-body text-foreground"
           />
         </View>
       )}
@@ -111,7 +111,7 @@ function NewGroup({ chat, roomId }: { chat: ChatWorkspace; roomId: string | null
                   <Ionicons name="close" size={11} color={theme.background} />
                 </View>
               </View>
-              <Text className="text-[11px] text-foreground" numberOfLines={1}>
+              <Text className="text-meta text-foreground" numberOfLines={1}>
                 {labelOf(userId)}
               </Text>
             </Pressable>
@@ -126,7 +126,7 @@ function NewGroup({ chat, roomId }: { chat: ChatWorkspace; roomId: string | null
         keyExtractor={(m) => m.user_id}
         keyboardShouldPersistTaps="handled"
         ListHeaderComponent={
-          <Text accessibilityRole="header" className="px-4 pb-1.5 pt-3.5 text-[13px] font-semibold text-muted-foreground">
+          <Text accessibilityRole="header" className="px-4 pb-1.5 pt-3.5 text-footnote font-semibold text-muted-foreground">
             {t("chat.group_members_label")}
           </Text>
         }
@@ -136,7 +136,7 @@ function NewGroup({ chat, roomId }: { chat: ChatWorkspace; roomId: string | null
         )}
       />
       <SafeAreaView edges={["bottom"]} className="border-t border-border bg-background px-4 pt-2.5">
-        <Text className="pb-2 text-center text-[13px] text-muted-foreground">
+        <Text className="pb-2 text-center text-footnote text-muted-foreground">
           {picked.length > 0 ? t("chat.mobile.group_selected", { count: picked.length }) : t(roomId ? "chat.add_group_members_hint" : "chat.mobile.group_members_hint")}
         </Text>
         <Pressable
@@ -146,7 +146,7 @@ function NewGroup({ chat, roomId }: { chat: ChatWorkspace; roomId: string | null
           className={cn("mb-2 h-12 flex-row items-center justify-center gap-2 rounded-full", ready ? "bg-primary active:opacity-80" : "bg-muted")}
         >
           {busy ? <ActivityIndicator color={theme.primaryForeground} /> : null}
-          <Text className={cn("text-base font-semibold", ready ? "text-primary-foreground" : "text-muted-foreground")}>
+          <Text className={cn("text-body font-semibold", ready ? "text-primary-foreground" : "text-muted-foreground")}>
             {busy ? t(roomId ? "chat.inviting_members" : "chat.creating_group") : t(roomId ? "chat.invite_members" : "chat.start_group")}
           </Text>
         </Pressable>

@@ -78,7 +78,7 @@ function useLongPressProps(onLongPress: () => void) {
 /** Text with @mentions set apart; a mention of the reader stands out more. */
 function MessageText({ body, own, userId }: { body: string; own: boolean; userId: string }) {
   return (
-    <Text className={cn("text-base", ink(own).text)}>
+    <Text className={cn("text-body", ink(own).text)}>
       {mentionSegments(body).map((segment, index) =>
         segment.mention ? (
           <Text
@@ -106,9 +106,9 @@ function MessageText({ body, own, userId }: { body: string; own: boolean; userId
 function Pill({ label, tint, icon }: { label: string; tint?: Tint; icon?: keyof typeof Ionicons.glyphMap }) {
   const theme = useTheme();
   return (
-    <View className={cn("h-[22px] flex-row items-center gap-1 rounded-full px-2", tint ? TINTS[tint].bg : "bg-muted")}>
+    <View className={cn("min-h-[22px] flex-row items-center gap-1 rounded-full px-2", tint ? TINTS[tint].bg : "bg-muted")}>
       {icon && tint ? <Ionicons name={icon} size={12} color={theme[TINTS[tint].ink]} /> : null}
-      <Text className={cn("text-[11px] font-semibold", tint ? TINTS[tint].text : "text-muted-foreground")}>{label}</Text>
+      <Text className={cn("text-meta font-semibold", tint ? TINTS[tint].text : "text-muted-foreground")}>{label}</Text>
     </View>
   );
 }
@@ -119,7 +119,7 @@ function Card({ own, tint, icon, kind, badge, children }: { own: boolean; tint: 
     <View className="min-w-[230px] gap-1">
       <View className="mb-1 flex-row items-center gap-2.5">
         <TintTile tint={tint} icon={icon} size={28} iconSize={16} />
-        <Text className={cn("flex-1 text-[11px] font-semibold uppercase tracking-wider", ink(own).meta)} numberOfLines={1}>
+        <Text className={cn("flex-1 text-meta font-semibold uppercase tracking-wider", ink(own).meta)} numberOfLines={1}>
           {kind}
         </Text>
         {badge}
@@ -147,7 +147,7 @@ function ImageCard({ record, ctx, onLongPress }: { record: ChatMessageRecord; ct
         <Image source={chatMediaSource(src, record.id, "thumb")} cachePolicy={IMAGE_CACHE_POLICY} contentFit="cover" style={{ ...box, borderRadius: 14 }} />
       ) : (
         <View className="items-center justify-center rounded-[14px] bg-muted" style={box}>
-          <Text className="text-xs text-muted-foreground">{t("chat.message_list.image_preview_loading")}</Text>
+          <Text className="text-caption text-muted-foreground">{t("chat.message_list.image_preview_loading")}</Text>
         </View>
       )}
     </Pressable>
@@ -171,16 +171,16 @@ function FileCard({ record, ctx, own, onLongPress }: { record: ChatMessageRecord
     <Pressable {...longPress} onPress={open} accessibilityRole="button" accessibilityLabel={t("chat.message_list.file_open_named", { name })} className="min-w-[240px] flex-row items-center gap-3">
       <View className={cn("h-12 w-12 items-center justify-center rounded-lg", TINTS[badge.tint].bg)}>
         {badge.label ? (
-          <Text className={cn("text-[11px] font-display font-extrabold", TINTS[badge.tint].text)}>{badge.label}</Text>
+          <Text className={cn("text-meta font-display font-extrabold", TINTS[badge.tint].text)}>{badge.label}</Text>
         ) : (
           <Ionicons name="document-outline" size={22} color={theme[TINTS[badge.tint].ink]} />
         )}
       </View>
       <View className="flex-1">
-        <Text className={cn("text-sm font-semibold", ink(own).text)} numberOfLines={1}>
+        <Text className={cn("text-callout font-semibold", ink(own).text)} numberOfLines={1}>
           {name}
         </Text>
-        <Text className={cn("text-xs", ink(own).meta)}>
+        <Text className={cn("text-caption", ink(own).meta)}>
           {formatFileSize(file.size_bytes)} · {t("chat.file_open")}
         </Text>
       </View>
@@ -238,7 +238,7 @@ function VoiceCard({ record, ctx, own, onLongPress }: { record: ChatMessageRecor
             />
           ))}
         </View>
-        <Text className={cn("text-xs", ink(own).meta)}>{status.playing || status.currentTime > 0 ? `${formatVoiceCallDuration(status.currentTime)} / ${total}` : total}</Text>
+        <Text className={cn("text-caption", ink(own).meta)}>{status.playing || status.currentTime > 0 ? `${formatVoiceCallDuration(status.currentTime)} / ${total}` : total}</Text>
       </View>
     </Pressable>
   );
@@ -255,8 +255,8 @@ function PollCard({ record, own, ctx, onLongPress }: { record: ChatMessageRecord
   const footer = [results.closed ? t("chat.poll_closed") : null, results.hideCounts ? null : t("chat.poll_vote_hint", { count: results.total })].filter(Boolean).join(" · ");
   return (
     <Card own={own} tint="blue" icon="stats-chart-outline" kind={t("chat.poll_message_badge")} badge={results.closed ? <Pill label={t("chat.poll_closed_status")} /> : null}>
-      <Text className={cn("text-[15px] font-display font-bold", ink(own).text)}>{poll.question}</Text>
-      <Text className={cn("mb-1 text-xs", ink(own).meta)}>{t(many ? "chat.message_list.poll_pick_many" : "chat.message_list.poll_pick_one")}</Text>
+      <Text className={cn("text-subhead font-display font-bold", ink(own).text)}>{poll.question}</Text>
+      <Text className={cn("mb-1 text-caption", ink(own).meta)}>{t(many ? "chat.message_list.poll_pick_many" : "chat.message_list.poll_pick_one")}</Text>
       {results.options.map((option) => (
         <Pressable
           key={option.id}
@@ -284,8 +284,8 @@ function PollCard({ record, own, ctx, onLongPress }: { record: ChatMessageRecord
             >
               {option.mine ? <Ionicons name="checkmark" size={13} color={own ? theme.chatBubbleOwn : theme.primaryForeground} /> : null}
             </View>
-            <Text className={cn("flex-1 text-sm", ink(own).text, option.mine && "font-semibold")}>{option.label}</Text>
-            {results.hideCounts ? null : <Text className={cn("text-[13px] font-semibold", ink(own).meta)}>{option.percent}%</Text>}
+            <Text className={cn("flex-1 text-callout", ink(own).text, option.mine && "font-semibold")}>{option.label}</Text>
+            {results.hideCounts ? null : <Text className={cn("text-footnote font-semibold", ink(own).meta)}>{option.percent}%</Text>}
           </View>
           {results.hideCounts ? null : (
             <View className={cn("ml-[30px] h-[5px] overflow-hidden rounded-full", own ? "bg-chat-bubble-own-foreground/25" : "bg-muted-foreground/20")}>
@@ -299,7 +299,7 @@ function PollCard({ record, own, ctx, onLongPress }: { record: ChatMessageRecord
       ))}
       {footer ? (
         <View className={cn("mt-1 border-t pt-2", own ? "border-chat-bubble-own-foreground/20" : "border-border")}>
-          <Text className={cn("text-xs", ink(own).meta)}>{footer}</Text>
+          <Text className={cn("text-caption", ink(own).meta)}>{footer}</Text>
         </View>
       ) : null}
     </Card>
@@ -322,10 +322,10 @@ function ReminderCard({ record, own }: { record: ChatMessageRecord; own: boolean
       kind={t("chat.reminder_message_badge")}
       badge={due ? <Pill tint="yellow" icon="alarm-outline" label={t("chat.reminder_due_status")} /> : null}
     >
-      <Text className={cn("text-[15px] font-medium", ink(own).text)}>{reminder.body}</Text>
+      <Text className={cn("text-subhead font-medium", ink(own).text)}>{reminder.body}</Text>
       <View className="flex-row items-center gap-1.5">
         <Ionicons name="time-outline" size={14} color={own ? theme.chatBubbleOwnMeta : theme.mutedForeground} />
-        <Text className={cn("flex-1 text-[13px]", ink(own).meta)}>
+        <Text className={cn("flex-1 text-footnote", ink(own).meta)}>
           {[due ? when : `${t("chat.reminder_scheduled_label")} ${when}`, repeat].filter(Boolean).join(" · ")}
         </Text>
       </View>
@@ -343,8 +343,8 @@ function CallLogChip({ record, ctx }: { record: ChatMessageRecord; ctx: MessageC
   return (
     <View className={cn("min-h-8 flex-row items-center gap-1.5 self-center rounded-full px-3", missed ? "bg-tint-red" : "bg-chat-chip")}>
       <Ionicons name={call?.video ? "videocam-outline" : "call-outline"} size={15} color={missed ? theme.tintRedForeground : theme.chatChipForeground} />
-      <Text className={cn("text-[13px]", missed ? "font-semibold text-tint-red-foreground" : "font-medium text-chat-chip-foreground")}>{voiceCallLogLabel(call, ctx.userId, t)}</Text>
-      {Number.isFinite(at) ? <Text className={cn("text-[13px]", missed ? "text-tint-red-foreground" : "text-muted-foreground")}>· {formatMessageTime(at, i18n.language)}</Text> : null}
+      <Text className={cn("text-footnote", missed ? "font-semibold text-tint-red-foreground" : "font-medium text-chat-chip-foreground")}>{voiceCallLogLabel(call, ctx.userId, t)}</Text>
+      {Number.isFinite(at) ? <Text className={cn("text-footnote", missed ? "text-tint-red-foreground" : "text-muted-foreground")}>· {formatMessageTime(at, i18n.language)}</Text> : null}
     </View>
   );
 }
@@ -353,15 +353,15 @@ function CallLogChip({ record, ctx }: { record: ChatMessageRecord; ctx: MessageC
 function CallSummaryCard({ record, own }: { record: ChatMessageRecord; own: boolean }) {
   const { t } = useTranslation();
   const summary = record.voice_call_summary!;
-  const heading = cn("mt-2 text-[11px] font-semibold uppercase tracking-wider", ink(own).meta);
+  const heading = cn("mt-2 text-meta font-semibold uppercase tracking-wider", ink(own).meta);
   return (
     <Card own={own} tint="blue" icon="sparkles-outline" kind={t("chat.voice_call_summary_badge")}>
-      <Text className={cn("text-[15px]", ink(own).text)}>{summary.summary || t("chat.voice_call_summary_empty")}</Text>
+      <Text className={cn("text-subhead", ink(own).text)}>{summary.summary || t("chat.voice_call_summary_empty")}</Text>
       {summary.highlights.length > 0 ? <Text className={heading}>{t("chat.ai.highlights")}</Text> : null}
       {summary.highlights.map((line, index) => (
         <View key={index} className="flex-row gap-2">
           <View className={cn("mt-2 h-1.5 w-1.5 rounded-full", own ? "bg-chat-bubble-own-meta" : "bg-muted-foreground")} />
-          <Text className={cn("flex-1 text-[15px]", ink(own).text)}>{line}</Text>
+          <Text className={cn("flex-1 text-subhead", ink(own).text)}>{line}</Text>
         </View>
       ))}
       {summary.action_items.length > 0 ? <Text className={heading}>{t("chat.ai.action_items")}</Text> : null}
@@ -369,8 +369,8 @@ function CallSummaryCard({ record, own }: { record: ChatMessageRecord; own: bool
         const meta = [item.owner, item.due].filter(Boolean).join(" · ");
         return (
           <View key={index} className={cn("rounded-xl px-3 py-2", own ? "bg-chat-bubble-own-foreground/15" : "bg-muted")}>
-            <Text className={cn("text-sm font-semibold", ink(own).text)}>{item.title}</Text>
-            {meta ? <Text className={cn("text-xs", ink(own).meta)}>{meta}</Text> : null}
+            <Text className={cn("text-callout font-semibold", ink(own).text)}>{item.title}</Text>
+            {meta ? <Text className={cn("text-caption", ink(own).meta)}>{meta}</Text> : null}
           </View>
         );
       })}
@@ -386,7 +386,7 @@ function UnsupportedCard({ record, ctx, own, onLongPress }: { record: Pick<ChatM
   const href = deepLinkHref({ orgSlug: ctx.orgSlug, wsSlug: ctx.wsSlug, roomId: ctx.roomId, messageId: record.id });
   return (
     <View className="gap-1">
-      <Text className={cn("text-sm italic", ink(own).meta)}>{t("chat.mobile.unsupported_message")}</Text>
+      <Text className={cn("text-callout italic", ink(own).meta)}>{t("chat.mobile.unsupported_message")}</Text>
       <Pressable
         {...longPress}
         accessibilityRole="link"
@@ -395,7 +395,7 @@ function UnsupportedCard({ record, ctx, own, onLongPress }: { record: Pick<ChatM
         onPress={() => void WebBrowser.openBrowserAsync(`${runtimeConfig().appUrl}${href}`)}
       >
         <Ionicons name="open-outline" size={16} color={own ? theme.chatBubbleOwnForeground : theme.primary} />
-        <Text className={cn("text-sm font-semibold", own ? "text-chat-bubble-own-foreground underline" : "text-primary")}>{t("chat.mobile.open_on_web")}</Text>
+        <Text className={cn("text-callout font-semibold", own ? "text-chat-bubble-own-foreground underline" : "text-primary")}>{t("chat.mobile.open_on_web")}</Text>
       </Pressable>
     </View>
   );
@@ -408,7 +408,7 @@ function UnsupportedCard({ record, ctx, own, onLongPress }: { record: Pick<ChatM
  */
 export function MessageContent({ record, own, ctx, onLongPress }: { record: ChatMessageRecord; own: boolean; ctx: MessageCardContext; onLongPress: () => void }) {
   const { t } = useTranslation();
-  const body = cn("text-[15px]", ink(own).text);
+  const body = cn("text-subhead", ink(own).text);
   switch (messageView(record)) {
     case "text":
       return <MessageText body={record.body} own={own} userId={ctx.userId} />;
@@ -439,7 +439,7 @@ export function MessageContent({ record, own, ctx, onLongPress }: { record: Chat
     case "post":
       return (
         <Card own={own} tint="orange" icon="newspaper-outline" kind={t("chat.post_message_badge")}>
-          <Text className={cn("text-[17px] font-display font-bold", ink(own).text)}>{record.post!.title}</Text>
+          <Text className={cn("text-headline font-display font-bold", ink(own).text)}>{record.post!.title}</Text>
           <Text className={body}>{record.post!.body}</Text>
         </Card>
       );

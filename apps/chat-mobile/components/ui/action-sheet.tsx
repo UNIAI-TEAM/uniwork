@@ -76,7 +76,7 @@ export function ActionSheet({ visible, onClose, title, label, above, actions, la
       <SafeAreaView edges={["bottom"]} className="rounded-t-[24px] bg-card pb-2" style={continuousCorners} accessibilityLabel={label}>
         <SheetGrabber />
         {title ? (
-          <Text className="px-5 pb-3 text-lg font-display font-bold text-foreground" numberOfLines={2} accessibilityRole="header">
+          <Text className="px-5 pb-3 text-title3 font-display font-bold text-foreground" numberOfLines={2} accessibilityRole="header">
             {title}
           </Text>
         ) : null}
@@ -92,7 +92,7 @@ export function ActionSheet({ visible, onClose, title, label, above, actions, la
                 onPress={() => choose(action.onPress)}
               >
                 <TintTile tint={action.tint ?? "blue"} icon={action.icon ?? "ellipsis-horizontal"} size={60} iconSize={26} className="rounded-full" />
-                <Text className="px-1 text-center text-[13px] font-medium text-foreground" numberOfLines={2}>
+                <Text className="px-1 text-center text-footnote font-medium text-foreground" numberOfLines={2}>
                   {action.label}
                 </Text>
               </Pressable>
@@ -110,14 +110,14 @@ export function ActionSheet({ visible, onClose, title, label, above, actions, la
                 onPress={() => choose(action.onPress)}
               >
                 {action.icon ? <Ionicons name={action.icon} size={20} color={action.destructive ? theme.destructive : theme.mutedForeground} /> : null}
-                <Text className={cn("flex-1 text-base", action.destructive ? "text-destructive" : "text-foreground")}>{action.label}</Text>
+                <Text className={cn("flex-1 text-body", action.destructive ? "text-destructive" : "text-foreground")}>{action.label}</Text>
               </Pressable>
             ))}
           </View>
         )}
         <View className="px-4 pt-3">
-          <Pressable accessibilityRole="button" className="h-12 items-center justify-center rounded-full bg-muted active:opacity-70" onPress={onClose}>
-            <Text className="text-base font-semibold text-foreground">{t("common.cancel")}</Text>
+          <Pressable accessibilityRole="button" className="min-h-12 items-center justify-center rounded-full bg-muted px-4 py-3 active:opacity-70" onPress={onClose}>
+            <Text className="text-body font-semibold text-foreground">{t("common.cancel")}</Text>
           </Pressable>
         </View>
       </SafeAreaView>

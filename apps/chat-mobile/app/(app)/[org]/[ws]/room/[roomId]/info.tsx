@@ -68,7 +68,7 @@ function QuickAction(props: { icon: ComponentProps<typeof Ionicons>["name"]; lab
       <View className="h-12 w-12 items-center justify-center rounded-full bg-muted">
         <Ionicons name={props.icon} size={22} color={THEME[colorScheme].primary} />
       </View>
-      <Text className="text-center text-xs font-semibold text-foreground" numberOfLines={1}>
+      <Text className="text-center text-caption font-semibold text-foreground" numberOfLines={1}>
         {props.label}
       </Text>
     </Pressable>
@@ -98,7 +98,7 @@ function SharedSection({ shared, onOpenMessage }: { shared: ChatSharedSummary; o
   const more = counts.photo - (photos.length - 1);
   return (
     <View className="pb-3.5 pt-3.5" accessibilityLabel={t("chat.mobile.shared_title")}>
-      <Text className="mb-2 px-5 text-[13px] font-semibold text-muted-foreground" accessibilityRole="header">
+      <Text className="mb-2 px-5 text-footnote font-semibold text-muted-foreground" accessibilityRole="header">
         {t("chat.mobile.shared_title")}
       </Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} className="grow-0" contentContainerClassName="gap-1.5 px-5 pb-2.5" accessibilityRole="tablist" accessibilityLabel={t("chat.mobile.shared_kinds_aria")}>
@@ -112,7 +112,7 @@ function SharedSection({ shared, onOpenMessage }: { shared: ChatSharedSummary; o
               onPress={() => setTab(item.key)}
               className={cn("h-8 justify-center rounded-full px-3", active ? "bg-tint-blue" : "active:bg-secondary")}
             >
-              <Text className={cn("text-[13px] font-semibold", active ? "text-primary" : "text-muted-foreground")} style={{ fontVariant: ["tabular-nums"] }}>
+              <Text className={cn("text-footnote font-semibold", active ? "text-primary" : "text-muted-foreground")} style={{ fontVariant: ["tabular-nums"] }}>
                 {item.label}
               </Text>
             </Pressable>
@@ -137,7 +137,7 @@ function SharedSection({ shared, onOpenMessage }: { shared: ChatSharedSummary; o
                 ) : null}
                 {last ? (
                   <View className="absolute inset-0 items-center justify-center bg-black/45">
-                    <Text className="text-lg font-display font-bold text-on-solid">+{more}</Text>
+                    <Text className="text-title3 font-display font-bold text-on-solid">+{more}</Text>
                   </View>
                 ) : null}
               </Pressable>
@@ -145,7 +145,7 @@ function SharedSection({ shared, onOpenMessage }: { shared: ChatSharedSummary; o
           })}
         </View>
       ) : (
-        <Text className="px-5 py-2 text-sm text-muted-foreground">{t("chat.mobile.shared_tab_hint", { count: counts[tab] })}</Text>
+        <Text className="px-5 py-2 text-callout text-muted-foreground">{t("chat.mobile.shared_tab_hint", { count: counts[tab] })}</Text>
       )}
     </View>
   );
@@ -204,10 +204,10 @@ function RoomInfo({ chat, roomId }: { chat: ChatWorkspace; roomId: string }) {
       <ScrollView keyboardShouldPersistTaps="handled" contentContainerClassName="pb-10">
         <View className="items-center px-5 pb-5 pt-3">
           <RoomAvatar mark={markFor(room.room, room.title, room.peerOnline)} size={84} seed={roomId} />
-          <Text className="mt-3 text-center text-[22px] font-display font-extrabold leading-7 text-foreground" accessibilityRole="header">
+          <Text className="mt-3 text-center text-title1 font-display font-extrabold leading-7 text-foreground" accessibilityRole="header">
             {room.title}
           </Text>
-          {heroLine ? <Text className="mt-0.5 text-sm text-muted-foreground">{heroLine}</Text> : null}
+          {heroLine ? <Text className="mt-0.5 text-callout text-muted-foreground">{heroLine}</Text> : null}
         </View>
 
         {room.room ? (
@@ -241,7 +241,7 @@ function RoomInfo({ chat, roomId }: { chat: ChatWorkspace; roomId: string }) {
           />
         </View>
         {search.isFetching ? <ActivityIndicator className="py-3" accessibilityLabel={t("chat.search_loading")} /> : null}
-        {q.trim().length >= 2 && search.data?.length === 0 ? <Text className="px-5 pb-3 text-sm text-muted-foreground">{t("chat.search_messages_no_results")}</Text> : null}
+        {q.trim().length >= 2 && search.data?.length === 0 ? <Text className="px-5 pb-3 text-callout text-muted-foreground">{t("chat.search_messages_no_results")}</Text> : null}
         {(search.data ?? []).map((record) => {
           const message = toTimelineMessage(record);
           return (
@@ -251,10 +251,10 @@ function RoomInfo({ chat, roomId }: { chat: ChatWorkspace; roomId: string }) {
               onPress={() => router.dismissTo(chatRoutes.room(chat, roomId, record.id))}
               className="min-h-14 justify-center gap-0.5 px-5 py-2 active:bg-secondary"
             >
-              <Text className="text-xs text-muted-foreground">
+              <Text className="text-caption text-muted-foreground">
                 {room.senderName(message)} · {formatMessageDay(message.ts, i18n.language, { today: t("chat.day_today"), yesterday: t("chat.sidebar_yesterday") })}
               </Text>
-              <Text className="text-sm text-foreground" numberOfLines={2}>
+              <Text className="text-callout text-foreground" numberOfLines={2}>
                 {messagePreviewText(record, t)}
               </Text>
             </Pressable>
@@ -272,8 +272,8 @@ function RoomInfo({ chat, roomId }: { chat: ChatWorkspace; roomId: string }) {
             <Ionicons name="pin-outline" size={20} color={theme.tintYellowForeground} />
           </View>
           <View className="flex-1">
-            <Text className="text-[15px] font-semibold text-foreground">{t("chat.mobile.shared_notes_row")}</Text>
-            <Text className="text-[13px] text-muted-foreground">{t("chat.mobile.shared_notes_counts", kept)}</Text>
+            <Text className="text-subhead font-semibold text-foreground">{t("chat.mobile.shared_notes_row")}</Text>
+            <Text className="text-footnote text-muted-foreground">{t("chat.mobile.shared_notes_counts", kept)}</Text>
           </View>
           <Ionicons name="chevron-forward" size={18} color={theme.mutedForeground} />
         </Pressable>
@@ -281,12 +281,12 @@ function RoomInfo({ chat, roomId }: { chat: ChatWorkspace; roomId: string }) {
         <Divider />
         <View className="px-5 pb-2 pt-3.5">
           <View className="mb-1 flex-row items-center">
-            <Text className="flex-1 text-[13px] font-semibold text-muted-foreground" accessibilityRole="header">
+            <Text className="flex-1 text-footnote font-semibold text-muted-foreground" accessibilityRole="header">
               {room.members.length > 0 ? `${t("chat.members_title")} · ${room.members.length}` : t("chat.members_title")}
             </Text>
             {room.members.length > MEMBERS_PREVIEW && !allMembers ? (
               <Pressable accessibilityRole="button" onPress={() => setAllMembers(true)} hitSlop={10} className="min-h-11 justify-center">
-                <Text className="text-[13px] font-semibold text-primary">{t("chat.mobile.see_all")}</Text>
+                <Text className="text-footnote font-semibold text-primary">{t("chat.mobile.see_all")}</Text>
               </Pressable>
             ) : null}
           </View>
@@ -315,7 +315,7 @@ function RoomInfo({ chat, roomId }: { chat: ChatWorkspace; roomId: string }) {
             <Divider />
             <Pressable accessibilityRole="button" onPress={leave} className="min-h-14 flex-row items-center gap-3 px-5 active:bg-secondary">
               <Ionicons name="exit-outline" size={22} color={theme.destructive} />
-              <Text className="text-base font-semibold text-destructive">{t("chat.leave_conversation")}</Text>
+              <Text className="text-body font-semibold text-destructive">{t("chat.leave_conversation")}</Text>
             </Pressable>
           </>
         ) : null}

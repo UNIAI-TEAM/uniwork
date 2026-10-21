@@ -138,7 +138,7 @@ export function MessageActionsSheet(props: Props) {
                 }}
                 className={cn("h-11 w-11 items-center justify-center rounded-full", mine.has(emoji) ? "bg-primary/15" : "active:bg-secondary")}
               >
-                <Text className="text-[26px] leading-[32px]">{emoji}</Text>
+                <Text className="text-emoji leading-[32px]">{emoji}</Text>
               </Pressable>
             ))}
             <Pressable
@@ -156,14 +156,14 @@ export function MessageActionsSheet(props: Props) {
           {props.avatar}
           <View className={cn("max-w-[85%] rounded-[18px] px-3 pb-1.5 pt-1.5 shadow-lg", own ? "rounded-br-[4px] bg-chat-bubble-own" : "rounded-bl-[4px] bg-chat-bubble-other")}>
             {!own && props.senderName ? (
-              <Text className={cn("text-[13px] font-semibold", senderNameClass(message.sender))} numberOfLines={1}>
+              <Text className={cn("text-footnote font-semibold", senderNameClass(message.sender))} numberOfLines={1}>
                 {props.senderName}
               </Text>
             ) : null}
-            <Text className={cn("text-base", own ? "text-chat-bubble-own-foreground" : "text-foreground")} numberOfLines={6}>
+            <Text className={cn("text-body", own ? "text-chat-bubble-own-foreground" : "text-foreground")} numberOfLines={6}>
               {preview}
             </Text>
-            <Text className={cn("self-end text-[11px]", own ? "text-chat-bubble-own-meta" : "text-muted-foreground")}>{formatMessageTime(message.ts, i18n.language)}</Text>
+            <Text className={cn("self-end text-meta", own ? "text-chat-bubble-own-meta" : "text-muted-foreground")}>{formatMessageTime(message.ts, i18n.language)}</Text>
           </View>
           </View>
         ) : null}
@@ -172,7 +172,7 @@ export function MessageActionsSheet(props: Props) {
             {props.seenBy && props.seenBy.length > 0 ? (
               <View className="min-h-12 flex-row items-center gap-2.5 px-3.5" accessible accessibilityLabel={t("chat.seen_by_count", { count: props.seenBy.length })}>
                 <Ionicons name="checkmark-done" size={20} color={theme.primary} />
-                <Text className="flex-1 text-[15px] text-foreground">{t("chat.seen_by_count", { count: props.seenBy.length })}</Text>
+                <Text className="flex-1 text-subhead text-foreground">{t("chat.seen_by_count", { count: props.seenBy.length })}</Text>
                 <View className="flex-row">
                   {props.seenBy.slice(0, 3).map((member, index) => (
                     <View key={member.user_id} className={cn("rounded-full border-2 border-card", index > 0 && "-ml-2")}>
@@ -195,8 +195,8 @@ export function MessageActionsSheet(props: Props) {
                     className={cn("min-h-[46px] flex-row items-center gap-3 px-3.5 active:bg-secondary", index > 0 && !divider && "border-t border-border")}
                   >
                     <Ionicons name={item.icon} size={20} color={item.destructive ? theme.destructive : theme.mutedForeground} />
-                    <Text className={cn("flex-1 text-[15px]", item.destructive ? "text-destructive" : "text-foreground")}>{item.label}</Text>
-                    {item.hint ? <Text className="text-xs text-muted-foreground">{item.hint}</Text> : null}
+                    <Text className={cn("flex-1 text-subhead", item.destructive ? "text-destructive" : "text-foreground")}>{item.label}</Text>
+                    {item.hint ? <Text className="text-caption text-muted-foreground">{item.hint}</Text> : null}
                   </Pressable>
                 </View>
               );

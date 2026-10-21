@@ -40,8 +40,8 @@ export function CatchUpBanner({ total, rooms, onPress }: { total: number; rooms:
     >
       <TintTile tint="blue" icon="sparkles" size={34} iconSize={17} />
       <View className="flex-1">
-        <Text className="text-sm font-display font-bold text-foreground">{t("chat.sidebar_catch_up_title")}</Text>
-        <Text className="text-[13px] text-muted-foreground" numberOfLines={1}>
+        <Text className="text-callout font-display font-bold text-foreground">{t("chat.sidebar_catch_up_title")}</Text>
+        <Text className="text-footnote text-muted-foreground" numberOfLines={1}>
           {t("chat.mobile.catch_up_banner", { count: total })}
         </Text>
       </View>
@@ -53,7 +53,7 @@ export function CatchUpBanner({ total, rooms, onPress }: { total: number; rooms:
 function Section({ label, children }: { label: string; children: ReactNode }) {
   return (
     <View className="gap-1.5">
-      <Text className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</Text>
+      <Text className="text-caption font-semibold uppercase tracking-wide text-muted-foreground">{label}</Text>
       {children}
     </View>
   );
@@ -83,11 +83,11 @@ export function CatchUpSheet({ wsId, target, onClose, onOpenRoom }: { wsId: stri
         <View className="flex-row items-center gap-3 px-5 pb-3">
           <TintTile tint="blue" icon="sparkles" size={40} iconSize={20} />
           <View className="flex-1">
-            <Text accessibilityRole="header" className="text-lg font-display font-bold text-foreground" numberOfLines={1}>
+            <Text accessibilityRole="header" className="text-title3 font-display font-bold text-foreground" numberOfLines={1}>
               {t("chat.sidebar_catch_up_title")}
             </Text>
             {target ? (
-              <Text className="text-[13px] text-muted-foreground" numberOfLines={1}>
+              <Text className="text-footnote text-muted-foreground" numberOfLines={1}>
                 {t("chat.unread_count_chip", { count: target.unread })} · {target.title}
               </Text>
             ) : null}
@@ -100,29 +100,29 @@ export function CatchUpSheet({ wsId, target, onClose, onOpenRoom }: { wsId: stri
               <AiConsentActions onDecline={onClose} />
             </>
           ) : failed ? (
-            <Text accessibilityRole="alert" className="text-base text-destructive">
+            <Text accessibilityRole="alert" className="text-body text-destructive">
               {t("chat.ai.catch_up_failed")}
             </Text>
           ) : !result ? (
             <View accessibilityRole="progressbar" className="flex-row items-center gap-2 py-2">
               <ActivityIndicator />
-              <Text className="text-base text-foreground">{t("chat.ai.catch_up_loading")}</Text>
+              <Text className="text-body text-foreground">{t("chat.ai.catch_up_loading")}</Text>
             </View>
           ) : empty ? (
-            <Text className="text-base text-muted-foreground">{t("chat.ai.catch_up_empty")}</Text>
+            <Text className="text-body text-muted-foreground">{t("chat.ai.catch_up_empty")}</Text>
           ) : (
             <>
               {result.summary ? (
                 <Section label={t("chat.mobile.catch_up_summary")}>
-                  <Text className="text-base leading-6 text-foreground">{result.summary}</Text>
+                  <Text className="text-body leading-6 text-foreground">{result.summary}</Text>
                 </Section>
               ) : null}
               {highlights.length > 0 ? (
                 <Section label={t("chat.mobile.catch_up_highlights")}>
                   {highlights.map((line, index) => (
                     <View key={index} className="flex-row gap-2">
-                      <Text className="text-base text-muted-foreground">•</Text>
-                      <Text className="flex-1 text-base leading-6 text-foreground">{line}</Text>
+                      <Text className="text-body text-muted-foreground">•</Text>
+                      <Text className="flex-1 text-body leading-6 text-foreground">{line}</Text>
                     </View>
                   ))}
                 </Section>
@@ -133,8 +133,8 @@ export function CatchUpSheet({ wsId, target, onClose, onOpenRoom }: { wsId: stri
                     <View key={index} className="flex-row items-start gap-2 rounded-xl border border-border px-3 py-2.5">
                       <Ionicons name="checkmark-circle-outline" size={18} color={THEME[colorScheme].primary} />
                       <View className="flex-1">
-                        <Text className="text-[15px] text-foreground">{item.title}</Text>
-                        {item.owner || item.due ? <Text className="text-[13px] text-muted-foreground">{[item.owner, item.due].filter(Boolean).join(" · ")}</Text> : null}
+                        <Text className="text-subhead text-foreground">{item.title}</Text>
+                        {item.owner || item.due ? <Text className="text-footnote text-muted-foreground">{[item.owner, item.due].filter(Boolean).join(" · ")}</Text> : null}
                       </View>
                     </View>
                   ))}
@@ -145,8 +145,8 @@ export function CatchUpSheet({ wsId, target, onClose, onOpenRoom }: { wsId: stri
         </ScrollView>
         {target && consented ? (
           <View className="px-4 pb-2 pt-1">
-            <Pressable accessibilityRole="button" className="h-12 flex-row items-center justify-center gap-2 rounded-full bg-primary active:opacity-80" onPress={() => onOpenRoom(target.roomId)}>
-              <Text className="text-base font-semibold text-primary-foreground">{t("chat.mobile.catch_up_open", { name: target.title })}</Text>
+            <Pressable accessibilityRole="button" className="min-h-12 flex-row items-center justify-center gap-2 rounded-full bg-primary px-4 py-3 active:opacity-80" onPress={() => onOpenRoom(target.roomId)}>
+              <Text className="text-body font-semibold text-primary-foreground">{t("chat.mobile.catch_up_open", { name: target.title })}</Text>
             </Pressable>
           </View>
         ) : null}

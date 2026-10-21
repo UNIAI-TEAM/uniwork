@@ -16,6 +16,7 @@ import type { RoomListRow } from "@/lib/room-list";
 import { senderNameClass } from "@/lib/sender-colors";
 import { cn } from "@/lib/utils";
 import { RoomAvatar } from "./room-avatar";
+import { BADGE_MAX_FONT_SCALE } from "@/lib/type-scale";
 
 const PREVIEW_MESSAGES = 4;
 
@@ -34,19 +35,19 @@ export function RoomPreview({ wsId, row, userId }: { wsId: string; row: RoomList
     <View className="mx-4 overflow-hidden rounded-[22px] bg-background shadow-xl" style={continuousCorners} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
       <View className="min-h-[68px] flex-row items-center gap-3 px-3.5">
         <RoomAvatar mark={row.mark} seed={row.roomId ?? row.key} size={46} />
-        <Text className="flex-1 text-base font-display font-bold text-foreground" numberOfLines={1}>
+        <Text className="flex-1 text-body font-display font-bold text-foreground" numberOfLines={1}>
           {row.title}
         </Text>
         {row.unread > 0 ? (
-          <View className="h-[22px] min-w-[22px] items-center justify-center rounded-full bg-primary px-[7px]">
-            <Text className="text-xs font-semibold text-primary-foreground">{row.unread > 99 ? "99+" : String(row.unread)}</Text>
+          <View className="min-h-[22px] min-w-[22px] items-center justify-center rounded-full bg-primary px-[7px]">
+            <Text className="text-caption font-semibold text-primary-foreground" maxFontSizeMultiplier={BADGE_MAX_FONT_SCALE}>{row.unread > 99 ? "99+" : String(row.unread)}</Text>
           </View>
         ) : null}
       </View>
       <View className="max-h-[300px] gap-2 bg-chat-wall px-2.5 py-3">
         {row.unread > 0 ? (
           <View className="self-center rounded-xl bg-chat-chip px-3 py-[3px]">
-            <Text className="text-[13px] font-semibold text-chat-chip-foreground">{t("chat.unread_count_chip", { count: row.unread })}</Text>
+            <Text className="text-footnote font-semibold text-chat-chip-foreground">{t("chat.unread_count_chip", { count: row.unread })}</Text>
           </View>
         ) : null}
         {messages.map((message: ChatMessageRecord, index) => {
@@ -60,11 +61,11 @@ export function RoomPreview({ wsId, row, userId }: { wsId: string; row: RoomList
               style={bubbleCorners(own, true, true)}
             >
               {named ? (
-                <Text className={cn("text-[13px] font-semibold", senderNameClass(message.sender_id))} numberOfLines={1}>
+                <Text className={cn("text-footnote font-semibold", senderNameClass(message.sender_id))} numberOfLines={1}>
                   {message.sender_display_name}
                 </Text>
               ) : null}
-              <Text className={cn("text-[15px] leading-[21px]", own ? "text-chat-bubble-own-foreground" : "text-foreground")} numberOfLines={3}>
+              <Text className={cn("text-subhead leading-[21px]", own ? "text-chat-bubble-own-foreground" : "text-foreground")} numberOfLines={3}>
                 {messagePreviewText(message, t)}
               </Text>
             </View>

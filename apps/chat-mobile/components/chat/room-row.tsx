@@ -13,6 +13,7 @@ import { useColorScheme } from "@/lib/use-color-scheme";
 import { cn } from "@/lib/utils";
 import type { RoomMark } from "@/lib/room-list";
 import { RoomAvatar } from "./room-avatar";
+import { BADGE_MAX_FONT_SCALE } from "@/lib/type-scale";
 
 const TABULAR = { fontVariant: ["tabular-nums" as const] };
 
@@ -72,13 +73,13 @@ export const RoomRow = memo(function RoomRow(props: RoomRowProps) {
       <RoomAvatar mark={mark} seed={seed} />
       <View className="min-w-0 flex-1 self-stretch justify-center gap-[3px] border-b-hairline border-border py-2.5 pr-4">
         <View className="flex-row items-center gap-1.5">
-          <Text className="flex-1 text-base font-display font-bold text-foreground" numberOfLines={1}>
+          <Text className="flex-1 text-body font-display font-bold text-foreground" numberOfLines={1}>
             {title}
           </Text>
           {muted ? <Ionicons name="notifications-off" size={14} color={theme.mutedForeground} /> : null}
           {seen ? <Ionicons name="checkmark-done" size={16} color={theme.primary} /> : null}
           {time ? (
-            <Text className={cn("text-[13px]", hasUnread && !muted ? "font-semibold text-primary" : "text-muted-foreground")} style={TABULAR}>
+            <Text className={cn("text-footnote", hasUnread && !muted ? "font-semibold text-primary" : "text-muted-foreground")} style={TABULAR}>
               {time}
             </Text>
           ) : null}
@@ -87,32 +88,32 @@ export const RoomRow = memo(function RoomRow(props: RoomRowProps) {
           {queued ? (
             <View className="flex-1 flex-row items-center gap-1.5">
               <Ionicons name="time-outline" size={14} color={theme.tintOrangeForeground} />
-              <Text className="flex-1 text-[15px] leading-5 text-tint-orange-foreground" numberOfLines={1}>
+              <Text className="flex-1 text-subhead leading-5 text-tint-orange-foreground" numberOfLines={1}>
                 {t("chat.mobile.send_queued")}
               </Text>
             </View>
           ) : (
             <Text
-              className={cn("flex-1 text-[15px] leading-5", typing ? "font-medium text-primary" : missed ? "text-destructive" : "text-muted-foreground")}
+              className={cn("flex-1 text-subhead leading-5", typing ? "font-medium text-primary" : missed ? "text-destructive" : "text-muted-foreground")}
               numberOfLines={1}
             >
-              {prefix ? <Text className="text-[15px] font-medium text-foreground">{prefix}</Text> : null}
+              {prefix ? <Text className="text-subhead font-medium text-foreground">{prefix}</Text> : null}
               {subtitle ?? " "}
             </Text>
           )}
           {mentionUnread > 0 ? (
-            <View className="h-[22px] w-[22px] items-center justify-center rounded-full bg-primary">
-              <Text className="text-[13px] font-display font-bold text-primary-foreground">@</Text>
+            <View className="min-h-[22px] min-w-[22px] items-center justify-center rounded-full bg-primary">
+              <Text className="text-footnote font-display font-bold text-primary-foreground" maxFontSizeMultiplier={BADGE_MAX_FONT_SCALE}>@</Text>
             </View>
           ) : null}
           {unread > 0 ? (
             <View
               className={cn(
-                "h-[22px] min-w-[22px] items-center justify-center rounded-full px-[7px]",
+                "min-h-[22px] min-w-[22px] items-center justify-center rounded-full px-[7px]",
                 muted ? "bg-muted-foreground" : "bg-primary",
               )}
             >
-              <Text className={cn("text-xs font-semibold", muted ? "text-background" : "text-primary-foreground")} style={TABULAR}>
+              <Text className={cn("text-caption font-semibold", muted ? "text-background" : "text-primary-foreground")} style={TABULAR} maxFontSizeMultiplier={BADGE_MAX_FONT_SCALE}>
                 {unread > 99 ? "99+" : String(unread)}
               </Text>
             </View>

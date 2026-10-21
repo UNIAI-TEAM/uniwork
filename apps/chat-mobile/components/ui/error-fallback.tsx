@@ -30,17 +30,17 @@ function Fallback({ error, retry, boundary }: ErrorFallbackProps) {
   return (
     <View className="flex-1 items-center justify-center gap-4 bg-background px-8 py-16">
       <Ionicons name="warning-outline" size={44} color={THEME[colorScheme].mutedForeground} />
-      <Text accessibilityRole="header" className="text-center text-xl font-display font-bold text-foreground">
+      <Text accessibilityRole="header" className="text-center text-title2 font-display font-bold text-foreground">
         {t("mobile.app.error_title")}
       </Text>
-      <Text className="text-center text-[15px] leading-[22px] text-muted-foreground">{t("mobile.app.error_body")}</Text>
+      <Text className="text-center text-subhead leading-[22px] text-muted-foreground">{t("mobile.app.error_body")}</Text>
       <Pressable
         onPress={() => void retry()}
         accessibilityRole="button"
         testID="error-retry"
-        className="mt-2 h-12 min-w-[160px] items-center justify-center rounded-full bg-primary px-6 active:opacity-90"
+        className="mt-2 min-h-12 min-w-[160px] items-center justify-center rounded-full bg-primary px-6 py-3 active:opacity-90"
       >
-        <Text className="text-base font-semibold text-primary-foreground">{t("mobile.app.error_retry")}</Text>
+        <Text className="text-body font-semibold text-primary-foreground">{t("mobile.app.error_retry")}</Text>
       </Pressable>
     </View>
   );

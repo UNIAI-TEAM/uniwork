@@ -3,7 +3,7 @@
 // typing frame, a presence change and a new message each redraw the one row
 // they change; a regression that redraws the list shows up here as a count.
 import { ChatRoomSchema, type ChatRoomRecord } from "@uniwork/core/api/endpoints/chat-schemas";
-import { act, screen } from "@testing-library/react-native";
+import { act, screen, waitFor } from "@testing-library/react-native";
 import type { ReactNode } from "react";
 import ChatTab from "@/app/(app)/[org]/[ws]/(tabs)/chat";
 import { api } from "@/data/api";
@@ -69,6 +69,12 @@ async function settle() {
   });
 }
 
+/** The tab's first draw: every room's row, however long a loaded runner takes, then a quiet moment. */
+async function drawn() {
+  await waitFor(() => expect(mockRenders.size).toBe(rooms.length));
+  await settle();
+}
+
 beforeEach(() => {
   mockRenders.clear();
   // The tab bar opens the tab without params: the workspace pair comes from the URL.
@@ -92,7 +98,7 @@ afterEach(async () => {
 describe("Chat tab render counts", () => {
   it("a typing frame redraws the room typed in; a presence change the row of that person", async () => {
     await render(<ChatTab />);
-    await settle();
+    await drawn();
     expect(Object.keys(take())).toHaveLength(rooms.length);
     // The load span ends once the rooms are drawn, not before.
     expect(mockFullyDrawn[0]).toBe(false);
@@ -108,7 +114,7 @@ describe("Chat tab render counts", () => {
 
   it("a new message redraws its room only, moved to the top", async () => {
     const { queryClient } = await render(<ChatTab />);
-    await settle();
+    await drawn();
     take();
 
     await act(async () =>

@@ -180,7 +180,7 @@ export function Composer(props: Props) {
   if (!canSend) {
     return (
       <View className="border-t border-border bg-background px-4 pt-3" style={{ paddingBottom: 12 + insets.bottom }}>
-        <Text className="text-sm text-muted-foreground text-center">{t("chat.mute_composer_placeholder")}</Text>
+        <Text className="text-callout text-muted-foreground text-center">{t("chat.mute_composer_placeholder")}</Text>
       </View>
     );
   }
@@ -215,21 +215,21 @@ export function Composer(props: Props) {
               {/* MobStates board: a face with its presence dot, the name and "@all" with its hint on two lines. */}
               {candidate.kind === "all" ? (
                 <View className="h-7 w-7 items-center justify-center rounded-full bg-tint-blue">
-                  <Text className="text-xs font-display font-bold text-tint-blue-foreground">@</Text>
+                  <Text className="text-caption font-display font-bold text-tint-blue-foreground">@</Text>
                 </View>
               ) : (
                 <LivePersonAvatar name={candidate.label} size={28} userId={candidate.userId} />
               )}
               <View className="flex-1">
-                <Text className="text-sm font-medium text-foreground" numberOfLines={1}>
+                <Text className="text-callout font-medium text-foreground" numberOfLines={1}>
                   {candidate.kind === "all" ? `@${allLabel}` : candidate.label}
                 </Text>
                 {candidate.kind === "all" ? (
-                  <Text className="text-xs text-muted-foreground" numberOfLines={1}>
+                  <Text className="text-caption text-muted-foreground" numberOfLines={1}>
                     {t("chat.mention_all_hint")}
                   </Text>
                 ) : candidate.email ? (
-                  <Text className="text-xs text-muted-foreground" numberOfLines={1}>
+                  <Text className="text-caption text-muted-foreground" numberOfLines={1}>
                     {candidate.email}
                   </Text>
                 ) : null}
@@ -242,10 +242,10 @@ export function Composer(props: Props) {
         <View className="mx-3 mt-2 flex-row items-center gap-2.5 rounded-r-[10px] border-l-[3px] border-primary bg-muted pl-3">
           <Ionicons name={edit ? "create-outline" : "arrow-undo-outline"} size={18} color={theme.primary} />
           <View className="flex-1 py-1.5">
-            <Text className="text-[13px] font-semibold text-primary" numberOfLines={1}>
+            <Text className="text-footnote font-semibold text-primary" numberOfLines={1}>
               {banner.title}
             </Text>
-            <Text className="text-[13px] text-muted-foreground" numberOfLines={1}>
+            <Text className="text-footnote text-muted-foreground" numberOfLines={1}>
               {banner.text}
             </Text>
           </View>
@@ -266,9 +266,9 @@ export function Composer(props: Props) {
           </Pressable>
         ) : null}
         {voice.active ? (
-          <View className="h-11 flex-1 flex-row items-center gap-2.5 rounded-[22px] bg-tint-red px-3.5" accessible accessibilityLabel={t("chat.voice_recording_aria")}>
+          <View className="min-h-11 flex-1 flex-row items-center gap-2.5 rounded-[22px] bg-tint-red px-3.5" accessible accessibilityLabel={t("chat.voice_recording_aria")}>
             <View className="h-2.5 w-2.5 rounded-full bg-destructive-solid" />
-            <Text className="text-base font-semibold text-foreground">
+            <Text className="text-body font-semibold text-foreground">
               {formatVoiceCallDuration(voice.elapsedMs / 1000)}{" "}
               <Text className="font-normal text-muted-foreground">/ {formatVoiceCallDuration(VOICE_MAX_MS / 1000)}</Text>
             </Text>
@@ -285,7 +285,7 @@ export function Composer(props: Props) {
               accessibilityLabel={t("chat.message_placeholder")}
               testID="composer-input"
               multiline
-              className="max-h-32 min-h-12 flex-1 py-2.5 text-base text-foreground"
+              className="max-h-32 min-h-12 flex-1 py-2.5 text-body text-foreground"
             />
             {attach ? (
               <Pressable
@@ -329,7 +329,7 @@ export function Composer(props: Props) {
         )}
       </View>
       {tooLong ? (
-        <Text className="px-4 pb-2 text-xs text-destructive">
+        <Text className="px-4 pb-2 text-caption text-destructive">
           {/* Without Intl.PluralRules (Hermes) i18next still picks "one" for 1 and "other" otherwise: English's rule. */}
           {t("chat.composer_state.chars_over", { count: trimmed.length - CHAT_MESSAGE_BODY_MAX_LENGTH })}
         </Text>

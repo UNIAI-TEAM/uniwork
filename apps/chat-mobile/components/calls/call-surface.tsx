@@ -65,7 +65,7 @@ export function CallButton(props: {
           <Ionicons name={props.icon} size={28} color={tone === "default" && active ? CALL.onFill : CALL.text} style={tone === "danger" ? HANG_UP : undefined} />
         </View>
       </View>
-      <Text className="text-[13px]" style={[{ color: CALL.label }, SHADOW]} numberOfLines={1}>
+      <Text className="text-footnote" style={[{ color: CALL.label }, SHADOW]} numberOfLines={1}>
         {props.label}
       </Text>
     </Pressable>
@@ -167,11 +167,11 @@ export function CallerHero({
           </View>
         ) : null}
       </View>
-      <Text className="mt-4 text-center text-[28px] font-display font-bold leading-[34px]" style={{ color: CALL.text }} numberOfLines={2}>
+      <Text className="mt-4 text-center text-display font-display font-bold leading-[34px]" style={{ color: CALL.text }} numberOfLines={2}>
         {name}
       </Text>
       <Text
-        className="text-center text-base"
+        className="text-center text-body"
         style={{ color: CALL.soft, fontVariant: ["tabular-nums"] }}
         accessibilityRole={live ? "timer" : undefined}
         // A status that changes (calling, connecting, ended) is said once as it changes; a clock is not.

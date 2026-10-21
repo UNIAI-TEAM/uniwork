@@ -38,7 +38,7 @@ function ToastRow({ toast, onDismiss }: { toast: Toast; onDismiss: () => void })
       style={continuousCorners}
     >
       <Ionicons name={tone.icon} size={20} color={ink} />
-      <Text className="flex-1 text-[15px] font-medium leading-5" style={{ color: ink }}>
+      <Text className="flex-1 text-subhead font-medium leading-5" style={{ color: ink }}>
         {toast.message}
       </Text>
     </Pressable>

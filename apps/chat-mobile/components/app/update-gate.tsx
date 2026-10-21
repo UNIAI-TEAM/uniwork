@@ -24,11 +24,11 @@ function UpdateRequired({ version, minimum, storeUrl, onCheckAgain }: { version:
     <SafeAreaView className="flex-1 bg-background">
       <View className="flex-1 items-center justify-center gap-5 px-8">
         <UniChatLogo size={72} />
-        <Text accessibilityRole="header" className="text-center text-2xl font-display font-extrabold tracking-tight text-foreground">
+        <Text accessibilityRole="header" className="text-center text-display-sm font-display font-extrabold tracking-tight text-foreground">
           {t("mobile.update.title")}
         </Text>
-        <Text className="text-center text-[15px] leading-[22px] text-muted-foreground">{t("mobile.update.body", { version, min: minimum })}</Text>
-        {storeUrl ? null : <Text className="text-center text-sm leading-5 text-muted-foreground">{t("mobile.update.no_store")}</Text>}
+        <Text className="text-center text-subhead leading-[22px] text-muted-foreground">{t("mobile.update.body", { version, min: minimum })}</Text>
+        {storeUrl ? null : <Text className="text-center text-callout leading-5 text-muted-foreground">{t("mobile.update.no_store")}</Text>}
       </View>
       <View className="gap-3 px-6 pb-6">
         {storeUrl ? (
@@ -37,19 +37,19 @@ function UpdateRequired({ version, minimum, storeUrl, onCheckAgain }: { version:
             accessibilityRole="link"
             accessibilityLabel={t("mobile.update.open_store")}
             testID="update-open-store"
-            className="h-12 flex-row items-center justify-center gap-2 rounded-full bg-primary active:opacity-90"
+            className="min-h-12 flex-row items-center justify-center gap-2 rounded-full bg-primary px-4 py-3 active:opacity-90"
           >
             <Ionicons name="arrow-down-circle-outline" size={20} color={THEME[colorScheme].primaryForeground} />
-            <Text className="text-base font-semibold text-primary-foreground">{t("mobile.update.open_store")}</Text>
+            <Text className="text-body font-semibold text-primary-foreground">{t("mobile.update.open_store")}</Text>
           </Pressable>
         ) : null}
         <Pressable
           onPress={onCheckAgain}
           accessibilityRole="button"
           testID="update-check-again"
-          className="h-12 items-center justify-center rounded-full border border-border active:bg-secondary"
+          className="min-h-12 items-center justify-center rounded-full border border-border px-4 py-3 active:bg-secondary"
         >
-          <Text className="text-base font-semibold text-foreground">{t("mobile.update.check_again")}</Text>
+          <Text className="text-body font-semibold text-foreground">{t("mobile.update.check_again")}</Text>
         </Pressable>
       </View>
     </SafeAreaView>

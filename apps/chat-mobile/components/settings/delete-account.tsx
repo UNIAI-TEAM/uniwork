@@ -129,18 +129,18 @@ function DeleteAccountSheet({ visible, onClose, orgSlug, wsSlug }: SheetProps) {
         <SafeAreaView edges={["bottom"]} className="rounded-t-[24px] bg-card" style={continuousCorners} accessibilityViewIsModal>
           <SheetGrabber />
           <ScrollView keyboardShouldPersistTaps="handled" contentContainerClassName="gap-4 px-5 pb-4">
-            <Text accessibilityRole="header" className="text-xl font-display font-bold text-foreground">
+            <Text accessibilityRole="header" className="text-title2 font-display font-bold text-foreground">
               {t("settings.security.delete.title")}
             </Text>
-            <Text className="text-base leading-[22px] text-foreground">{t("settings.security.delete.body")}</Text>
+            <Text className="text-body leading-[22px] text-foreground">{t("settings.security.delete.body")}</Text>
             <View className="gap-2.5 rounded-xl bg-muted p-3.5" style={continuousCorners}>
-              <Text accessibilityRole="header" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              <Text accessibilityRole="header" className="text-caption font-semibold uppercase tracking-wider text-muted-foreground">
                 {t("mobile.account.what_happens")}
               </Text>
               {CONSEQUENCES.map(([icon, key]) => (
                 <View key={key} className="flex-row items-start gap-2.5">
                   <Ionicons name={icon} size={18} color={theme.mutedForeground} style={{ marginTop: 2 }} />
-                  <Text className="flex-1 text-[15px] leading-[21px] text-foreground">{t(key)}</Text>
+                  <Text className="flex-1 text-subhead leading-[21px] text-foreground">{t(key)}</Text>
                 </View>
               ))}
               <Pressable
@@ -148,28 +148,28 @@ function DeleteAccountSheet({ visible, onClose, orgSlug, wsSlug }: SheetProps) {
                 onPress={() => openWebPage(legalLinks(appUrl, legalLocale(i18n.language), "").deleteAccount)}
                 className="min-h-11 justify-center self-start"
               >
-                <Text className="text-[15px] font-semibold text-primary">{t("mobile.account.policy_link")}</Text>
+                <Text className="text-subhead font-semibold text-primary">{t("mobile.account.policy_link")}</Text>
               </Pressable>
             </View>
 
             {owner ? (
               <View accessibilityRole="alert" className="gap-2.5 rounded-xl border border-destructive/40 p-3.5" style={continuousCorners}>
-                <Text className="text-base font-semibold text-foreground">{t("mobile.account.owner_title")}</Text>
-                <Text className="text-[15px] leading-[21px] text-foreground">{t("mobile.account.owner_body")}</Text>
+                <Text className="text-body font-semibold text-foreground">{t("mobile.account.owner_title")}</Text>
+                <Text className="text-subhead leading-[21px] text-foreground">{t("mobile.account.owner_body")}</Text>
                 <Pressable
                   accessibilityRole="link"
                   // The label, not the children: the icon's glyph is a character a screen reader would spell.
                   accessibilityLabel={t("mobile.account.owner_open_web")}
                   onPress={() => openWebPage(`${appUrl}${paths.workspace(orgSlug, wsSlug).settings()}`)}
-                  className="h-11 flex-row items-center justify-center gap-2 rounded-full bg-muted active:opacity-70"
+                  className="min-h-11 flex-row items-center justify-center gap-2 rounded-full bg-muted px-4 py-2.5 active:opacity-70"
                 >
-                  <Text className="text-[15px] font-semibold text-foreground">{t("mobile.account.owner_open_web")}</Text>
+                  <Text className="text-subhead font-semibold text-foreground">{t("mobile.account.owner_open_web")}</Text>
                   <Ionicons name="open-outline" size={16} color={theme.foreground} />
                 </Pressable>
               </View>
             ) : (
               <View className="gap-1.5">
-                <Text className="text-[15px] font-semibold text-foreground">{t(`settings.security.delete.proof.${mode}`)}</Text>
+                <Text className="text-subhead font-semibold text-foreground">{t(`settings.security.delete.proof.${mode}`)}</Text>
                 <TextInput
                   ref={input}
                   value={proof}
@@ -188,14 +188,14 @@ function DeleteAccountSheet({ visible, onClose, orgSlug, wsSlug }: SheetProps) {
                   returnKeyType="done"
                   onSubmitEditing={() => void submit()}
                   testID="delete-account-proof"
-                  className={cn("h-12 rounded-xl border bg-muted px-3.5 text-base text-foreground", error ? "border-destructive" : "border-border")}
+                  className={cn("h-12 rounded-xl border bg-muted px-3.5 text-body text-foreground", error ? "border-destructive" : "border-border")}
                 />
                 {error ? (
-                  <Text accessibilityRole="alert" className="text-[15px] text-destructive">
+                  <Text accessibilityRole="alert" className="text-subhead text-destructive">
                     {error}
                   </Text>
                 ) : null}
-                <Text className="text-[13px] leading-[18px] text-muted-foreground">{t("settings.security.delete.ownerHint")}</Text>
+                <Text className="text-footnote leading-[18px] text-muted-foreground">{t("settings.security.delete.ownerHint")}</Text>
               </View>
             )}
 
@@ -209,11 +209,11 @@ function DeleteAccountSheet({ visible, onClose, orgSlug, wsSlug }: SheetProps) {
                   className={cn("h-12 flex-row items-center justify-center gap-2 rounded-full bg-destructive-solid", busy ? "opacity-70" : "active:opacity-90")}
                 >
                   {busy ? <ActivityIndicator color={THEME.light.primaryForeground} /> : null}
-                  <Text className="text-base font-semibold text-on-solid">{busy ? t("mobile.account.deleting") : t("settings.security.delete.confirm")}</Text>
+                  <Text className="text-body font-semibold text-on-solid">{busy ? t("mobile.account.deleting") : t("settings.security.delete.confirm")}</Text>
                 </Pressable>
               )}
-              <Pressable accessibilityRole="button" onPress={close} className="h-12 items-center justify-center rounded-full bg-muted active:opacity-70">
-                <Text className="text-base font-semibold text-foreground">{t("settings.security.delete.cancel")}</Text>
+              <Pressable accessibilityRole="button" onPress={close} className="min-h-12 items-center justify-center rounded-full bg-muted px-4 py-3 active:opacity-70">
+                <Text className="text-body font-semibold text-foreground">{t("settings.security.delete.cancel")}</Text>
               </Pressable>
             </View>
           </ScrollView>

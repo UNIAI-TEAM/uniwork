@@ -34,7 +34,7 @@ export function FullScreenCallsRow() {
         testID="settings-full-screen-calls"
         onPress={() => nativeCalls.openFullScreenIntentSettings()}
       />
-      <Text className="px-4 pb-3 text-sm text-muted-foreground">{t("mobile.notify.full_screen_calls_hint")}</Text>
+      <Text className="px-4 pb-3 text-callout text-muted-foreground">{t("mobile.notify.full_screen_calls_hint")}</Text>
     </>
   );
 }

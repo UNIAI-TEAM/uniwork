@@ -61,45 +61,45 @@ export default function Login() {
         <SafeAreaView edges={["top"]} className="flex-1">
           <View className="absolute right-10 top-[26px] h-7 flex-row items-center gap-1.5 rounded-full bg-chat-bubble-other/90 px-2.5">
             <Ionicons name="videocam-outline" size={14} color={THEME[colorScheme].successSolid} />
-            <Text className="text-[13px] font-semibold text-muted-foreground">{t("chat.video_call_log_completed", { duration: "3:05" })}</Text>
+            <Text className="text-footnote font-semibold text-muted-foreground">{t("chat.video_call_log_completed", { duration: "3:05" })}</Text>
           </View>
           <View className="absolute left-6 top-[72px] flex-row items-end gap-1.5">
             <PersonAvatar name={SAMPLE_PEER} size={30} />
             <View className="max-w-[230px] bg-chat-bubble-other px-[11px] pb-[7px] pt-1.5" style={bubbleCorners(false, true, false)}>
-              <Text className="text-xs font-semibold text-chat-sender-8">{SAMPLE_PEER}</Text>
-              <Text className="text-[15px] leading-[21px] text-foreground">{t("chat.mobile.login_sample_in")}</Text>
+              <Text className="text-caption font-semibold text-chat-sender-8">{SAMPLE_PEER}</Text>
+              <Text className="text-subhead leading-[21px] text-foreground">{t("chat.mobile.login_sample_in")}</Text>
             </View>
           </View>
           <View className="absolute left-0 right-0 top-[168px] items-center">
             <UniChatLogo size={96} />
           </View>
           <View className="absolute right-6 top-[300px] flex-row items-end gap-1 bg-chat-bubble-own px-[11px] pb-[7px] pt-1.5" style={bubbleCorners(true, true, false)}>
-            <Text className="text-[15px] leading-[21px] text-chat-bubble-own-foreground">{t("chat.mobile.login_sample_out")}</Text>
-            <Text className="pl-2 text-[11px] text-chat-bubble-own-meta">10:31</Text>
+            <Text className="text-subhead leading-[21px] text-chat-bubble-own-foreground">{t("chat.mobile.login_sample_out")}</Text>
+            <Text className="pl-2 text-meta text-chat-bubble-own-meta">10:31</Text>
             <Ionicons name="checkmark-done" size={15} color={THEME[colorScheme].chatBubbleOwnMeta} />
           </View>
         </SafeAreaView>
       </View>
       <View className="items-center gap-2.5 px-8">
-        <Text accessibilityRole="header" className="text-center text-[28px] font-display font-extrabold leading-[34px] tracking-tight text-foreground">
+        <Text accessibilityRole="header" className="text-center text-display font-display font-extrabold leading-[34px] tracking-tight text-foreground">
           {t("auth.desktop.unichat_login_title")}
         </Text>
-        <Text className="max-w-[300px] text-center text-base leading-6 text-muted-foreground">{t("mobile.login_hint")}</Text>
+        <Text className="max-w-[300px] text-center text-body leading-6 text-muted-foreground">{t("mobile.login_hint")}</Text>
       </View>
       <View className="flex-1" />
       <View className="gap-3.5 px-6 pb-6">
         {failed ? (
           <View accessibilityRole="alert" accessibilityLiveRegion="polite" className="flex-row items-center justify-center gap-1.5">
             <Ionicons name="alert-circle-outline" size={16} color={THEME[colorScheme].destructive} />
-            <Text className="shrink text-center text-sm text-destructive">{t("auth.desktop.unichat_login_failed")}</Text>
+            <Text className="shrink text-center text-callout text-destructive">{t("auth.desktop.unichat_login_failed")}</Text>
           </View>
         ) : null}
-        <Button disabled={busy} className="h-12 rounded-full sm:h-12" onPress={() => void onPress()}>
-          <Text className="text-base font-semibold">{t("auth.desktop.unichat_login_button")}</Text>
+        <Button disabled={busy} className="h-auto min-h-12 rounded-full py-3 sm:h-auto" onPress={() => void onPress()}>
+          <Text className="text-body font-semibold">{t("auth.desktop.unichat_login_button")}</Text>
         </Button>
         <View className="flex-row items-center justify-center gap-1.5">
           <Ionicons name="globe-outline" size={14} color={THEME[colorScheme].mutedForeground} />
-          <Text className="text-[13px] text-muted-foreground">{t("chat.mobile.login_browser_hint")}</Text>
+          <Text className="text-footnote text-muted-foreground">{t("chat.mobile.login_browser_hint")}</Text>
         </View>
       </View>
       <SafeAreaView edges={["bottom"]} />

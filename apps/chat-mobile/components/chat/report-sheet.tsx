@@ -92,10 +92,10 @@ export function ReportSheet({ wsId, target, blockUserId, onClose, onReported }: 
           <SheetGrabber />
           <ScrollView keyboardShouldPersistTaps="handled" contentContainerClassName="gap-4 px-5 pb-4">
             <View className="gap-1.5">
-              <Text accessibilityRole="header" className="text-xl font-display font-bold text-foreground">
+              <Text accessibilityRole="header" className="text-title2 font-display font-bold text-foreground">
                 {target?.kind === "message" ? t("mobile.report.title_message") : t("mobile.report.title_user", { name })}
               </Text>
-              <Text className="text-[15px] leading-[21px] text-muted-foreground">{t("mobile.report.body", { name })}</Text>
+              <Text className="text-subhead leading-[21px] text-muted-foreground">{t("mobile.report.body", { name })}</Text>
             </View>
             <View accessibilityRole="radiogroup" accessibilityLabel={t("mobile.report.reason_label")} className="overflow-hidden rounded-xl border border-border" style={continuousCorners}>
               {REPORT_REASONS.map((value, index) => {
@@ -115,13 +115,13 @@ export function ReportSheet({ wsId, target, blockUserId, onClose, onReported }: 
                     <View className={cn("h-5 w-5 items-center justify-center rounded-full border-2", selected ? "border-primary" : "border-muted-foreground/50")}>
                       {selected ? <View className="h-2.5 w-2.5 rounded-full bg-primary" /> : null}
                     </View>
-                    <Text className="flex-1 text-base text-foreground">{t(`mobile.report.reason_${value}`)}</Text>
+                    <Text className="flex-1 text-body text-foreground">{t(`mobile.report.reason_${value}`)}</Text>
                   </Pressable>
                 );
               })}
             </View>
             <View className="gap-1.5">
-              <Text className="text-[15px] font-semibold text-foreground">{t("mobile.report.details_label")}</Text>
+              <Text className="text-subhead font-semibold text-foreground">{t("mobile.report.details_label")}</Text>
               <TextInput
                 value={details}
                 onChangeText={setDetails}
@@ -132,17 +132,17 @@ export function ReportSheet({ wsId, target, blockUserId, onClose, onReported }: 
                 placeholderTextColor={theme.mutedForeground}
                 accessibilityLabel={t("mobile.report.details_label")}
                 editable={!busy}
-                className="h-[88px] rounded-xl border border-border bg-muted px-3.5 py-2.5 text-base text-foreground"
+                className="min-h-[88px] rounded-xl border border-border bg-muted px-3.5 py-2.5 text-body text-foreground"
               />
             </View>
             {blockUserId ? (
               <View className="min-h-12 flex-row items-center gap-3">
-                <Text className="flex-1 text-base text-foreground">{t("mobile.report.also_block", { name })}</Text>
+                <Text className="flex-1 text-body text-foreground">{t("mobile.report.also_block", { name })}</Text>
                 <Switch value={alsoBlock} onValueChange={setAlsoBlock} accessibilityLabel={t("mobile.report.also_block", { name })} trackColor={{ true: theme.destructive }} />
               </View>
             ) : null}
             {error ? (
-              <Text accessibilityRole="alert" className="text-[15px] text-destructive">
+              <Text accessibilityRole="alert" className="text-subhead text-destructive">
                 {error}
               </Text>
             ) : null}
@@ -155,10 +155,10 @@ export function ReportSheet({ wsId, target, blockUserId, onClose, onReported }: 
                 className={cn("h-12 flex-row items-center justify-center gap-2 rounded-full bg-destructive-solid", busy || !reason ? "opacity-60" : "active:opacity-90")}
               >
                 {busy ? <ActivityIndicator color={THEME.light.primaryForeground} /> : null}
-                <Text className="text-base font-semibold text-on-solid">{t("mobile.report.submit")}</Text>
+                <Text className="text-body font-semibold text-on-solid">{t("mobile.report.submit")}</Text>
               </Pressable>
-              <Pressable accessibilityRole="button" onPress={close} className="h-12 items-center justify-center rounded-full bg-muted active:opacity-70">
-                <Text className="text-base font-semibold text-foreground">{t("common.cancel")}</Text>
+              <Pressable accessibilityRole="button" onPress={close} className="min-h-12 items-center justify-center rounded-full bg-muted px-4 py-3 active:opacity-70">
+                <Text className="text-body font-semibold text-foreground">{t("common.cancel")}</Text>
               </Pressable>
             </View>
           </ScrollView>

@@ -68,7 +68,7 @@ export function PushSection() {
     <SettingsSection title={t("settings.notifications.push_section")} hint={t("mobile.settings.push_hint")}>
       <View className="min-h-[60px] flex-row items-center gap-3 py-2 pl-4 pr-3.5">
         <TintTile tint="blue" icon="notifications-outline" size={36} iconSize={19} className="rounded-[10px]" />
-        <Text className="flex-1 text-base text-foreground">{t("mobile.settings.push_this_device")}</Text>
+        <Text className="flex-1 text-body text-foreground">{t("mobile.settings.push_this_device")}</Text>
         <Switch
           value={enabled ?? false}
           disabled={enabled === null || busy}
@@ -78,7 +78,7 @@ export function PushSection() {
         />
       </View>
       {notice ? (
-        <Text accessibilityLiveRegion="polite" className="px-4 pb-3 text-sm text-destructive">
+        <Text accessibilityLiveRegion="polite" className="px-4 pb-3 text-callout text-destructive">
           {t(notice)}
         </Text>
       ) : null}

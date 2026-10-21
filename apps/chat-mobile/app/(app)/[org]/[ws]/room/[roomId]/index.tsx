@@ -110,9 +110,9 @@ function RoomConversation({ chat, roomId, linkedMessageId }: { chat: ChatWorkspa
         banner={
           anchorRows ? (
             <View className="flex-row items-center justify-between gap-2 border-b border-border bg-secondary px-4 py-1">
-              <Text className="flex-1 text-xs text-muted-foreground">{t("chat.search_jump_banner")}</Text>
+              <Text className="flex-1 text-caption text-muted-foreground">{t("chat.search_jump_banner")}</Text>
               <Pressable accessibilityRole="button" onPress={backToLatest} className="min-h-11 justify-center">
-                <Text className="text-sm font-semibold text-primary">{t("chat.search_back_to_latest")}</Text>
+                <Text className="text-callout font-semibold text-primary">{t("chat.search_back_to_latest")}</Text>
               </Pressable>
             </View>
           ) : room.room?.kind === "dm" && room.room.peer_user_id ? (

@@ -84,9 +84,9 @@ function RoomStage({ peerName, connected, recording, onMinimize, seed, room, vid
         </Pressable>
         <View className="flex-1 items-center">
           {recording ? (
-            <View className="h-7 flex-row items-center gap-1.5 rounded-full px-2.5" style={{ backgroundColor: CALL.fill }} accessibilityRole="text">
+            <View className="min-h-7 flex-row items-center gap-1.5 rounded-full px-2.5" style={{ backgroundColor: CALL.fill }} accessibilityRole="text">
               <View className="h-2 w-2 rounded-full bg-destructive-solid" />
-              <Text className="text-[13px] font-semibold" style={{ color: CALL.text }}>
+              <Text className="text-footnote font-semibold" style={{ color: CALL.text }}>
                 {t("chat.mobile.call_recording")}
               </Text>
             </View>
@@ -98,12 +98,12 @@ function RoomStage({ peerName, connected, recording, onMinimize, seed, room, vid
       {remote ? <View className="flex-1" /> : <CallerHero name={peerName} line={status} live={connected} seed={seed} room={room} />}
       {remote ? (
         <View className="absolute left-5 right-[140px] top-14 gap-0.5">
-          <Text className="text-lg font-display font-bold" style={[{ color: CALL.text }, SHADOW]} numberOfLines={1}>
+          <Text className="text-title3 font-display font-bold" style={[{ color: CALL.text }, SHADOW]} numberOfLines={1}>
             {peerName}
           </Text>
           <View className="flex-row items-center gap-1.5">
             {connected ? <View className="h-2 w-2 rounded-full" style={{ backgroundColor: CALL.live }} /> : null}
-            <Text className="text-sm" style={[{ color: CALL.soft, fontVariant: ["tabular-nums"] }, SHADOW]} accessibilityRole="timer">
+            <Text className="text-callout" style={[{ color: CALL.soft, fontVariant: ["tabular-nums"] }, SHADOW]} accessibilityRole="timer">
               {status}
             </Text>
           </View>
@@ -112,7 +112,7 @@ function RoomStage({ peerName, connected, recording, onMinimize, seed, room, vid
       {recording ? (
         <View className="mb-4 flex-row items-center gap-1.5 self-center rounded-full px-3 py-1.5" style={{ backgroundColor: CALL.fill }}>
           <Ionicons name="sparkles" size={14} color={CALL.text} />
-          <Text className="text-[13px]" style={{ color: CALL.soft }}>
+          <Text className="text-footnote" style={{ color: CALL.soft }}>
             {t("chat.mobile.call_summary_hint")}
           </Text>
         </View>
@@ -121,7 +121,7 @@ function RoomStage({ peerName, connected, recording, onMinimize, seed, room, vid
         <View className="absolute right-4 top-16 overflow-hidden rounded-[14px] border" style={{ width: 110, height: 160, borderColor: CALL.fill, shadowColor: "#000", shadowOpacity: 0.35, shadowRadius: 12, shadowOffset: { width: 0, height: 6 } }}>
           <VideoTrack trackRef={local} style={{ width: 110, height: 160 }} objectFit="cover" mirror />
           <View className="absolute bottom-1.5 left-1.5 rounded-full px-2 py-0.5" style={{ backgroundColor: CALL.scrim }}>
-            <Text className="text-xs font-semibold" style={{ color: CALL.text }}>
+            <Text className="text-caption font-semibold" style={{ color: CALL.text }}>
               {t("chat.you")}
             </Text>
           </View>

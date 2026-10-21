@@ -38,7 +38,7 @@ const buttonVariants = cva(
   },
 );
 
-const buttonTextVariants = cva(cn("text-foreground text-sm font-medium", Platform.select({ web: "pointer-events-none transition-colors" })), {
+const buttonTextVariants = cva(cn("text-foreground text-callout font-medium", Platform.select({ web: "pointer-events-none transition-colors" })), {
   variants: {
     variant: {
       default: "text-primary-foreground",

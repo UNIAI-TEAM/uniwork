@@ -20,6 +20,7 @@ import { THEME } from "@/lib/theme";
 import { useColorScheme } from "@/lib/use-color-scheme";
 import { badgeText, unreadOfWorkspace } from "@/lib/workspace-unread";
 import { cn } from "@/lib/utils";
+import { BADGE_MAX_FONT_SCALE } from "@/lib/type-scale";
 
 export default function SelectWorkspace() {
   const { t } = useTranslation();
@@ -40,14 +41,14 @@ export default function SelectWorkspace() {
     <SafeAreaView className="flex-1 bg-background">
       <ScrollView contentContainerClassName="gap-6 px-5 pb-6 pt-3">
         <View className="gap-2.5">
-          <Text accessibilityRole="header" className="text-[30px] font-display font-extrabold leading-9 tracking-tight text-foreground">
+          <Text accessibilityRole="header" className="text-display-lg font-display font-extrabold leading-9 tracking-tight text-foreground">
             {t("workspace.pickTitle")}
           </Text>
           {organization ? (
             <View className="flex-row items-center gap-2">
               <WorkspaceAvatar name={organization} size={24} seed={data?.[0]?.organization_id} />
-              <Text numberOfLines={1} className="flex-1 text-[15px] text-muted-foreground">
-                <Text className="text-[15px] font-semibold text-foreground">{organization}</Text>
+              <Text numberOfLines={1} className="flex-1 text-subhead text-muted-foreground">
+                <Text className="text-subhead font-semibold text-foreground">{organization}</Text>
                 {` · ${t("chat.mobile.workspace_count_only", { count: data?.length ?? 0 })}`}
               </Text>
             </View>
@@ -59,13 +60,13 @@ export default function SelectWorkspace() {
           </View>
         ) : error ? (
           <View className="gap-3">
-            <Text className="text-sm text-destructive">{t("common.error")}</Text>
+            <Text className="text-callout text-destructive">{t("common.error")}</Text>
             <Button variant="outline" onPress={() => void refetch()}>
               <Text>{t("common.retry")}</Text>
             </Button>
           </View>
         ) : !data || data.length === 0 ? (
-          <Text className="text-sm text-muted-foreground">{t("common.empty")}</Text>
+          <Text className="text-callout text-muted-foreground">{t("common.empty")}</Text>
         ) : (
           <View className="gap-3">
             {data.map((ws) => {
@@ -81,16 +82,16 @@ export default function SelectWorkspace() {
               >
                 <WorkspaceAvatar name={ws.name} iconUrl={ws.icon_url} iconEmoji={ws.icon_emoji} size={48} seed={ws.id} />
                 <View className="flex-1 gap-0.5">
-                  <Text numberOfLines={1} className="text-base font-display font-bold text-foreground">
+                  <Text numberOfLines={1} className="text-body font-display font-bold text-foreground">
                     {ws.name}
                   </Text>
-                  <Text numberOfLines={1} className="text-[13px] text-muted-foreground">
+                  <Text numberOfLines={1} className="text-footnote text-muted-foreground">
                     {ws.organization_name}
                   </Text>
                 </View>
                 {badge ? (
-                  <View className={cn("h-6 min-w-6 items-center justify-center rounded-full px-2", counts.mentions > 0 ? "bg-destructive-solid" : "bg-primary")}>
-                    <Text className="text-xs font-display font-bold text-primary-foreground">{badge}</Text>
+                  <View className={cn("min-h-6 min-w-6 items-center justify-center rounded-full px-2", counts.mentions > 0 ? "bg-destructive-solid" : "bg-primary")}>
+                    <Text className="text-caption font-display font-bold text-primary-foreground" maxFontSizeMultiplier={BADGE_MAX_FONT_SCALE}>{badge}</Text>
                   </View>
                 ) : null}
                 <Ionicons name="chevron-forward" size={18} color={THEME[colorScheme].mutedForeground} />
@@ -100,9 +101,9 @@ export default function SelectWorkspace() {
           </View>
         )}
         <View className="border-t border-border pt-5">
-          <Button variant="outline" className="h-12 rounded-full sm:h-12" onPress={() => void logout()}>
+          <Button variant="outline" className="h-auto min-h-12 rounded-full py-3 sm:h-auto" onPress={() => void logout()}>
             <Ionicons name="log-out-outline" size={18} color={THEME[colorScheme].foreground} />
-            <Text className="text-[15px] font-semibold">{t("auth.logout")}</Text>
+            <Text className="text-subhead font-semibold">{t("auth.logout")}</Text>
           </Button>
         </View>
       </ScrollView>

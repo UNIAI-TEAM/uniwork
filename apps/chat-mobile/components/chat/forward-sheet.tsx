@@ -49,7 +49,7 @@ export function ForwardSheet({ chat, messageId, onClose }: { chat: ChatWorkspace
       <Pressable className="flex-1 bg-black/40" onPress={onClose} accessibilityRole="button" accessibilityLabel={t("common.close")} />
       <SafeAreaView edges={["bottom"]} className="max-h-[80%] rounded-t-[24px] bg-card pb-2" style={continuousCorners} accessibilityViewIsModal>
         <SheetGrabber />
-        <Text accessibilityRole="header" className="px-5 pb-2 text-lg font-display font-bold text-foreground">
+        <Text accessibilityRole="header" className="px-5 pb-2 text-title3 font-display font-bold text-foreground">
           {t("chat.mobile.forward_pick_room")}
         </Text>
         <View className="px-4 pb-2">
@@ -65,7 +65,7 @@ export function ForwardSheet({ chat, messageId, onClose }: { chat: ChatWorkspace
               className="min-h-14 flex-row items-center gap-3 px-5 active:bg-secondary"
             >
               <RoomAvatar mark={roomHeaderMark(room, title, false)} size={40} seed={room.id} />
-              <Text className="flex-1 text-base text-foreground" numberOfLines={1}>
+              <Text className="flex-1 text-body text-foreground" numberOfLines={1}>
                 {title}
               </Text>
             </Pressable>

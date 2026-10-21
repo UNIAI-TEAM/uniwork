@@ -29,6 +29,7 @@ import { THEME } from "@/lib/theme";
 import { useColorScheme } from "@/lib/use-color-scheme";
 import { cn } from "@/lib/utils";
 import { voiceCallKindFromServer } from "@/lib/voice-call";
+import { BADGE_MAX_FONT_SCALE } from "@/lib/type-scale";
 
 // shortcut: "missed" reuses the call-log label (en "Missed voice call"); mobile.calls.filter_missed is requested.
 const FILTERS: { value: CallLogFilter; label: string }[] = [
@@ -64,7 +65,7 @@ function CallRow({ log, userId, nicknames, onPress }: { log: CallLog; userId: st
     >
       <PersonAvatar name={title} size={44} squircle={log.room_kind !== "dm"} seed={log.room_kind === "dm" ? (log.peer_user_id ?? log.room_id) : log.room_id} />
       <View className="flex-1 gap-0.5">
-        <Text numberOfLines={1} className={cn("text-base font-semibold", view.missed ? "text-destructive" : "text-foreground")}>
+        <Text numberOfLines={1} className={cn("text-body font-semibold", view.missed ? "text-destructive" : "text-foreground")}>
           {title}
         </Text>
         <View className="flex-row items-center gap-1">
@@ -75,12 +76,12 @@ function CallRow({ log, userId, nicknames, onPress }: { log: CallLog; userId: st
             style={{ transform: [{ rotate: "45deg" }] }}
           />
           <Ionicons name={log.video ? "videocam-outline" : "call-outline"} size={14} color={tone} />
-          <Text numberOfLines={1} className={cn("flex-1 text-sm", view.missed ? "text-destructive" : "text-muted-foreground")}>
+          <Text numberOfLines={1} className={cn("flex-1 text-callout", view.missed ? "text-destructive" : "text-muted-foreground")}>
             {label}
           </Text>
         </View>
       </View>
-      <Text className="text-[13px] text-muted-foreground">{time}</Text>
+      <Text className="text-footnote text-muted-foreground">{time}</Text>
       {callsOn ? (
         <Pressable
           accessibilityRole="button"
@@ -140,13 +141,13 @@ export default function CallsTab() {
     </View>
   ) : logs.isError ? (
     <View className="items-center gap-3 px-8 py-12">
-      <Text className="text-center text-sm text-destructive">{t("common.error")}</Text>
+      <Text className="text-center text-callout text-destructive">{t("common.error")}</Text>
       <Button variant="outline" onPress={() => void refetch()}>
         <Text>{t("common.retry")}</Text>
       </Button>
     </View>
   ) : (
-    <Text className="px-8 py-12 text-center text-sm text-muted-foreground">{t(filter === "missed" ? "mobile.calls.no_missed" : "mobile.calls.empty")}</Text>
+    <Text className="px-8 py-12 text-center text-callout text-muted-foreground">{t(filter === "missed" ? "mobile.calls.no_missed" : "mobile.calls.empty")}</Text>
   );
 
   return (
@@ -163,12 +164,12 @@ export default function CallsTab() {
                 accessibilityLabel={option.value === "missed" && missedCount > 0 ? `${t(option.label)}, ${missedCount}` : t(option.label)}
                 accessibilityState={{ selected }}
                 hitSlop={{ top: 5, bottom: 5 }}
-                className={cn("h-[34px] flex-row items-center gap-1.5 rounded-full px-3.5", selected ? "bg-primary" : "bg-muted active:bg-secondary")}
+                className={cn("min-h-[34px] flex-row items-center gap-1.5 rounded-full px-3.5 py-1", selected ? "bg-primary" : "bg-muted active:bg-secondary")}
               >
-                <Text className={cn("text-sm font-semibold", selected ? "text-primary-foreground" : "text-foreground")}>{t(option.label)}</Text>
+                <Text className={cn("text-callout font-semibold", selected ? "text-primary-foreground" : "text-foreground")}>{t(option.label)}</Text>
                 {option.value === "missed" && missedCount > 0 ? (
-                  <View className={cn("h-[18px] min-w-[18px] items-center justify-center rounded-full px-[5px]", selected ? "bg-primary-foreground" : "bg-destructive-solid")}>
-                    <Text className={cn("text-[11px] font-semibold", selected ? "text-primary" : "text-on-solid")}>{missedCount > 99 ? "99+" : String(missedCount)}</Text>
+                  <View className={cn("min-h-[18px] min-w-[18px] items-center justify-center rounded-full px-[5px]", selected ? "bg-primary-foreground" : "bg-destructive-solid")}>
+                    <Text className={cn("text-meta font-semibold", selected ? "text-primary" : "text-on-solid")} maxFontSizeMultiplier={BADGE_MAX_FONT_SCALE}>{missedCount > 99 ? "99+" : String(missedCount)}</Text>
                   </View>
                 ) : null}
               </Pressable>
@@ -182,7 +183,7 @@ export default function CallsTab() {
         stickySectionHeadersEnabled
         renderSectionHeader={({ section }) =>
           section.title ? (
-            <Text accessibilityRole="header" className="bg-background px-4 pb-1.5 pt-3.5 text-[13px] font-semibold text-muted-foreground">
+            <Text accessibilityRole="header" className="bg-background px-4 pb-1.5 pt-3.5 text-footnote font-semibold text-muted-foreground">
               {section.title}
             </Text>
           ) : null

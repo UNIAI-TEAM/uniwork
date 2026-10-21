@@ -59,11 +59,11 @@ export function ExpressionSheet({ wsId, visible, onClose, onPick }: { wsId: stri
               hitSlop={{ top: 4, bottom: 4 }}
               className={cn("h-9 justify-center rounded-full px-[18px]", kind === value ? "bg-primary" : "bg-muted")}
             >
-              <Text className={cn("text-sm font-semibold", kind === value ? "text-primary-foreground" : "text-foreground")}>{label}</Text>
+              <Text className={cn("text-callout font-semibold", kind === value ? "text-primary-foreground" : "text-foreground")}>{label}</Text>
             </Pressable>
           ))}
         </View>
-        <View className="mx-4 my-3 h-11 flex-row items-center gap-2 rounded-xl bg-muted px-3">
+        <View className="mx-4 my-3 min-h-11 flex-row items-center gap-2 rounded-xl bg-muted px-3">
           <Ionicons name="search" size={18} color={THEME[colorScheme].mutedForeground} />
           <TextInput
             value={q}
@@ -71,7 +71,7 @@ export function ExpressionSheet({ wsId, visible, onClose, onPick }: { wsId: stri
             placeholder={searchLabel}
             placeholderTextColor={THEME[colorScheme].mutedForeground}
             accessibilityLabel={searchLabel}
-            className="h-11 flex-1 text-base text-foreground"
+            className="min-h-11 flex-1 text-body text-foreground"
           />
         </View>
         <FlatList
@@ -103,7 +103,7 @@ export function ExpressionSheet({ wsId, visible, onClose, onPick }: { wsId: stri
             items.isPending ? (
               <ActivityIndicator className="py-10" accessibilityLabel={t("common.loading")} />
             ) : (
-              <Text className="px-6 py-10 text-center text-sm text-muted-foreground">
+              <Text className="px-6 py-10 text-center text-callout text-muted-foreground">
                 {t(kind === "stickers" ? "chat.expression_stickers_empty" : "chat.expression_gifs_empty")}
               </Text>
             )

@@ -57,7 +57,7 @@ function Tile({ message, ctx, width, height, more, corners, lead, onLongPress }:
       {src ? <Image source={chatMediaSource(src, message.id, "thumb")} cachePolicy={IMAGE_CACHE_POLICY} contentFit="cover" style={{ width, height }} /> : null}
       {more > 0 ? (
         <View className="absolute inset-0 items-center justify-center bg-black/45">
-          <Text className="text-xl font-display font-bold text-on-solid">+{more}</Text>
+          <Text className="text-title2 font-display font-bold text-on-solid">+{more}</Text>
         </View>
       ) : null}
     </Pressable>

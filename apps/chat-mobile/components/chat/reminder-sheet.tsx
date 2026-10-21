@@ -31,7 +31,7 @@ function Chip({ label, selected, onPress }: { label: string; selected: boolean; 
       onPress={onPress}
       className={cn("h-11 justify-center rounded-full border px-3.5", selected ? "border-primary bg-primary/10" : "border-border bg-card")}
     >
-      <Text className={cn("text-sm", selected ? "font-semibold text-primary" : "font-medium text-foreground")}>{label}</Text>
+      <Text className={cn("text-callout", selected ? "font-semibold text-primary" : "font-medium text-foreground")}>{label}</Text>
     </Pressable>
   );
 }
@@ -67,7 +67,7 @@ export function ReminderSheet({
         <SheetGrabber />
         <View className="mb-3 flex-row items-center gap-3">
           <TintTile tint="teal" icon="alarm-outline" size={36} iconSize={19} className="rounded-control" />
-          <Text className="flex-1 text-lg font-display font-bold text-foreground" accessibilityRole="header">
+          <Text className="flex-1 text-title3 font-display font-bold text-foreground" accessibilityRole="header">
             {t("chat.reminder_create_title")}
           </Text>
           <Pressable
@@ -87,22 +87,22 @@ export function ReminderSheet({
           accessibilityLabel={t("chat.reminder_body_label")}
           multiline
           textAlignVertical="top"
-          className="h-[88px] rounded-xl border border-border bg-muted px-3.5 py-2.5 text-base text-foreground"
+          className="min-h-[88px] rounded-xl border border-border bg-muted px-3.5 py-2.5 text-body text-foreground"
         />
-        <Text className="mb-2 mt-4 text-[13px] font-semibold text-muted-foreground">{t("chat.reminder_quick_time_label")}</Text>
+        <Text className="mb-2 mt-4 text-footnote font-semibold text-muted-foreground">{t("chat.reminder_quick_time_label")}</Text>
         <View className="flex-row flex-wrap gap-2" accessibilityRole="radiogroup">
           {PRESETS.map((value) => (
             <Chip key={value} label={t(`chat.reminder_preset_${value}`)} selected={preset === value} onPress={() => setPreset(value)} />
           ))}
         </View>
-        <Text className="mb-2 mt-4 text-[13px] font-semibold text-muted-foreground">{t("chat.reminder_repeat_label")}</Text>
+        <Text className="mb-2 mt-4 text-footnote font-semibold text-muted-foreground">{t("chat.reminder_repeat_label")}</Text>
         <View className="flex-row flex-wrap gap-2" accessibilityRole="radiogroup">
           {REMINDER_REPEAT_OPTIONS.map((value) => (
             <Chip key={value} label={t(`chat.reminder_repeat_${value}`)} selected={repeat === value} onPress={() => setRepeat(value)} />
           ))}
         </View>
-        <Button disabled={!ready} accessibilityState={{ disabled: !ready }} onPress={create} className="mb-3 mt-5 h-12 rounded-full" testID="reminder-create">
-          <Text className="text-base font-semibold">{t("chat.reminder_create_submit")}</Text>
+        <Button disabled={!ready} accessibilityState={{ disabled: !ready }} onPress={create} className="mb-3 mt-5 h-auto min-h-12 rounded-full py-3 sm:h-auto" testID="reminder-create">
+          <Text className="text-body font-semibold">{t("chat.reminder_create_submit")}</Text>
         </Button>
       </SafeAreaView>
     </CallAwareModal>

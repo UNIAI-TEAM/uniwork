@@ -60,7 +60,7 @@ function OptionGroup<T extends string>({
   const { colorScheme } = useColorScheme();
   return (
     <View className="gap-2">
-      <Text accessibilityRole="header" className="px-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+      <Text accessibilityRole="header" className="px-1 text-caption font-semibold uppercase tracking-wider text-muted-foreground">
         {title}
       </Text>
       <View accessibilityRole="radiogroup" accessibilityLabel={title} className="flex-row gap-1.5 rounded-xl bg-card p-1.5" style={continuousCorners}>
@@ -74,7 +74,7 @@ function OptionGroup<T extends string>({
               accessibilityState={{ checked: selected }}
               className={cn(
                 "flex-1 items-center justify-center gap-1.5 rounded-lg",
-                option.icon ? "h-[68px]" : "h-11",
+                option.icon ? "min-h-[68px] py-2" : "min-h-11 py-2",
                 selected ? "bg-primary" : "bg-muted active:bg-secondary",
               )}
             >
@@ -83,7 +83,7 @@ function OptionGroup<T extends string>({
               ) : null}
               <Text
                 numberOfLines={1}
-                className={cn("font-semibold", option.icon ? "text-[13px]" : "text-[15px]", selected ? "text-primary-foreground" : "text-foreground")}
+                className={cn("font-semibold", option.icon ? "text-footnote" : "text-subhead", selected ? "text-primary-foreground" : "text-foreground")}
               >
                 {t(option.label)}
               </Text>
@@ -120,10 +120,10 @@ export default function SettingsTab() {
         >
           <PersonAvatar name={name} avatarUrl={user?.avatar_url} size={56} seed={user?.id} />
           <View className="flex-1 gap-0.5">
-            <Text numberOfLines={1} className="text-lg font-display font-bold text-foreground">
+            <Text numberOfLines={1} className="text-title3 font-display font-bold text-foreground">
               {name}
             </Text>
-            <Text numberOfLines={1} className="text-sm text-muted-foreground">
+            <Text numberOfLines={1} className="text-callout text-muted-foreground">
               {user?.email}
             </Text>
           </View>
@@ -138,10 +138,10 @@ export default function SettingsTab() {
           >
             <WorkspaceAvatar name={workspace?.name ?? ws} iconUrl={workspace?.icon_url} iconEmoji={workspace?.icon_emoji} size={40} seed={workspace?.id} />
             <View className="flex-1">
-              <Text numberOfLines={1} className="text-base font-semibold text-foreground">
+              <Text numberOfLines={1} className="text-body font-semibold text-foreground">
                 {workspace?.name ?? ws}
               </Text>
-              <Text className="text-sm font-medium text-primary">{t("mobile.settings.switch_workspace")}</Text>
+              <Text className="text-callout font-medium text-primary">{t("mobile.settings.switch_workspace")}</Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color={THEME[colorScheme].mutedForeground} />
           </Pressable>
@@ -156,12 +156,12 @@ export default function SettingsTab() {
         <View className="gap-3.5 pt-1">
           <Button
             variant="destructive"
-            className="h-12 rounded-full bg-destructive-solid active:opacity-90 sm:h-12 dark:bg-destructive-solid"
+            className="h-auto min-h-12 rounded-full bg-destructive-solid py-3 active:opacity-90 sm:h-auto dark:bg-destructive-solid"
             // logout() drops this phone's push subscription first (data/auth/store.ts).
             onPress={() => void logout()}
           >
             <Ionicons name="log-out-outline" size={18} color={THEME.light.primaryForeground} />
-            <Text className="text-base font-semibold">{t("auth.logout")}</Text>
+            <Text className="text-body font-semibold">{t("auth.logout")}</Text>
           </Button>
         </View>
         <DeleteAccountSection orgSlug={org} wsSlug={ws} />

@@ -85,7 +85,7 @@ function PendingMeta({ message, scheme }: { message: TimelineMessage; scheme: "l
   return (
     <>
       <Ionicons name={failed ? "alert-circle" : "time-outline"} size={13} color={failed ? theme.chatBubbleOwnForeground : theme.chatBubbleOwnMeta} />
-      <Text className={cn("text-[11px]", failed ? "font-semibold text-chat-bubble-own-foreground" : "text-chat-bubble-own-meta")}>{status}</Text>
+      <Text className={cn("text-meta", failed ? "font-semibold text-chat-bubble-own-foreground" : "text-chat-bubble-own-meta")}>{status}</Text>
     </>
   );
 }
@@ -101,7 +101,7 @@ export const MessageRow = memo(function MessageRow(props: MessageRowProps) {
     return (
       <View className="items-center px-6 py-1.5" accessible accessibilityLabel={record.body}>
         <View className="rounded-xl bg-chat-chip px-3 py-1">
-          <Text className="text-center text-[13px] text-chat-chip-foreground">{deserializeMessageBodyToComposerDraft(record.body)}</Text>
+          <Text className="text-center text-footnote text-chat-chip-foreground">{deserializeMessageBodyToComposerDraft(record.body)}</Text>
         </View>
       </View>
     );
@@ -162,7 +162,7 @@ export const MessageRow = memo(function MessageRow(props: MessageRowProps) {
         style={[bubbleCorners(own, !compactTop, !continued), lift]}
       >
         {showSender ? (
-          <Text className={cn("text-[13px] font-semibold", senderNameClass(message.sender), album && "px-2 pt-0.5")} numberOfLines={1}>
+          <Text className={cn("text-footnote font-semibold", senderNameClass(message.sender), album && "px-2 pt-0.5")} numberOfLines={1}>
             {senderName}
           </Text>
         ) : null}
@@ -177,10 +177,10 @@ export const MessageRow = memo(function MessageRow(props: MessageRowProps) {
             onPress={() => props.onPressQuote(quote.id)}
             className={cn("rounded-[10px] border-l-[3px] px-2 py-1", own ? "border-chat-bubble-own-foreground bg-chat-bubble-own-foreground/15" : "border-primary bg-tint-blue")}
           >
-            <Text className={cn("text-[13px] font-semibold", own ? "text-chat-bubble-own-foreground" : "text-primary")} numberOfLines={1}>
+            <Text className={cn("text-footnote font-semibold", own ? "text-chat-bubble-own-foreground" : "text-primary")} numberOfLines={1}>
               {quote.sender}
             </Text>
-            <Text className={cn("text-[13px]", own ? "text-chat-bubble-own-foreground" : "text-muted-foreground")} numberOfLines={2}>
+            <Text className={cn("text-footnote", own ? "text-chat-bubble-own-foreground" : "text-muted-foreground")} numberOfLines={2}>
               {quote.text}
             </Text>
           </Pressable>
@@ -190,12 +190,12 @@ export const MessageRow = memo(function MessageRow(props: MessageRowProps) {
         ) : record ? (
           <MessageContent record={record} own={own} ctx={ctx} onLongPress={longPress} />
         ) : (
-          <Text className="text-base text-chat-bubble-own-foreground">{preview}</Text>
+          <Text className="text-body text-chat-bubble-own-foreground">{preview}</Text>
         )}
         <View className={cn("flex-row items-center gap-1 self-end", album && "px-2 pb-1")} accessible={interactive} accessibilityLabel={footLabel}>
           {record ? (
             <>
-              <Text className={cn("text-[11px]", meta)} style={{ fontVariant: ["tabular-nums"] }}>
+              <Text className={cn("text-meta", meta)} style={{ fontVariant: ["tabular-nums"] }}>
                 {[record.edited_at ? t("chat.edited_label") : null, album ? formatMessageTime(footTs, i18n.language) : time].filter(Boolean).join(" · ")}
               </Text>
               {receipt === "seen" ? <Ionicons name="checkmark-done" size={15} color={theme.chatBubbleOwnForeground} /> : null}
@@ -219,10 +219,10 @@ export const MessageRow = memo(function MessageRow(props: MessageRowProps) {
               // 30 pt pill, 44 pt target.
               hitSlop={7}
               onPress={() => props.onToggleReaction(message, emoji)}
-              className={cn("h-[30px] flex-row items-center gap-1 rounded-full border px-2.5", mine.has(emoji) ? "border-primary bg-tint-blue" : "border-border bg-chat-bubble-other")}
+              className={cn("min-h-[30px] flex-row items-center gap-1 rounded-full border px-2.5", mine.has(emoji) ? "border-primary bg-tint-blue" : "border-border bg-chat-bubble-other")}
             >
-              <Text className="text-sm">{emoji}</Text>
-              <Text className={cn("text-[13px] font-semibold", mine.has(emoji) ? "text-primary" : "text-muted-foreground")}>{count}</Text>
+              <Text className="text-callout">{emoji}</Text>
+              <Text className={cn("text-footnote font-semibold", mine.has(emoji) ? "text-primary" : "text-muted-foreground")}>{count}</Text>
             </Pressable>
             </Animated.View>
           ))}
@@ -244,7 +244,7 @@ export const MessageRow = memo(function MessageRow(props: MessageRowProps) {
           className={cn("mt-1 min-h-8 flex-row items-center gap-1.5 rounded-full bg-chat-chip px-3", avatar && "ml-9")}
         >
           <Ionicons name="chatbubbles-outline" size={15} color={theme.primary} />
-          <Text className="text-[13px] font-semibold text-primary">
+          <Text className="text-footnote font-semibold text-primary">
             {t(record.thread_unread ? "chat.thread_replies_unread" : "chat.thread_replies", { count: record.reply_count })}
           </Text>
         </Pressable>

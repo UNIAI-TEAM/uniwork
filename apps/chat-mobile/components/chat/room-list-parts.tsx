@@ -12,6 +12,7 @@ import { ROOM_LIST_FILTERS, type RoomListFilter } from "@/lib/room-list";
 import { THEME } from "@/lib/theme";
 import { useColorScheme } from "@/lib/use-color-scheme";
 import { cn } from "@/lib/utils";
+import { BADGE_MAX_FONT_SCALE } from "@/lib/type-scale";
 
 type IconName = ComponentProps<typeof Ionicons>["name"];
 
@@ -36,14 +37,14 @@ export function WorkspacePill(props: { name: string; seed?: string; iconUrl?: st
       className="h-11 max-w-[70%] flex-row items-center gap-2 rounded-full bg-muted pl-1.5 pr-2 active:opacity-80"
     >
       <WorkspaceAvatar name={props.name} iconUrl={props.iconUrl} iconEmoji={props.iconEmoji} size={30} seed={props.seed} />
-      <Text className="shrink text-[15px] font-semibold text-foreground" numberOfLines={1}>
+      <Text className="shrink text-subhead font-semibold text-foreground" numberOfLines={1}>
         {props.name}
       </Text>
       <Ionicons name="chevron-down" size={16} color={THEME[colorScheme].mutedForeground} />
       {/* Unread elsewhere in the organization: red, the way the MobileList board draws it. */}
       {other > 0 ? (
-        <View className="h-[22px] min-w-[22px] items-center justify-center rounded-full bg-destructive-solid px-1.5">
-          <Text className="text-xs font-display font-bold text-primary-foreground">{other > 99 ? "99+" : String(other)}</Text>
+        <View className="min-h-[22px] min-w-[22px] items-center justify-center rounded-full bg-destructive-solid px-1.5">
+          <Text className="text-caption font-display font-bold text-primary-foreground" maxFontSizeMultiplier={BADGE_MAX_FONT_SCALE}>{other > 99 ? "99+" : String(other)}</Text>
         </View>
       ) : null}
     </Pressable>
@@ -85,15 +86,15 @@ export function FilterChips({
             accessibilityState={{ selected: active }}
             hitSlop={{ top: 5, bottom: 5 }}
             onPress={() => onChange(filter)}
-            className={cn("h-[34px] flex-row items-center gap-1.5 rounded-full px-3.5", active ? "bg-primary" : "bg-muted active:opacity-80")}
+            className={cn("min-h-[34px] flex-row items-center gap-1.5 rounded-full px-3.5 py-1", active ? "bg-primary" : "bg-muted active:opacity-80")}
           >
-            <Text className={cn("text-sm font-semibold", active ? "text-primary-foreground" : "text-foreground")}>{t(FILTER_LABEL[filter])}</Text>
+            <Text className={cn("text-callout font-semibold", active ? "text-primary-foreground" : "text-foreground")}>{t(FILTER_LABEL[filter])}</Text>
             {filter === "all" && total > 0 ? (
-              <Text className={cn("text-xs", active ? "text-primary-foreground/90" : "text-muted-foreground")}>{String(total)}</Text>
+              <Text className={cn("text-caption", active ? "text-primary-foreground/90" : "text-muted-foreground")}>{String(total)}</Text>
             ) : null}
             {count > 0 ? (
-              <View className={cn("h-[18px] min-w-[18px] items-center justify-center rounded-full px-[5px]", active ? "bg-primary-foreground" : "bg-primary")}>
-                <Text className={cn("text-[11px] font-semibold", active ? "text-primary" : "text-primary-foreground")}>{count > 99 ? "99+" : String(count)}</Text>
+              <View className={cn("min-h-[18px] min-w-[18px] items-center justify-center rounded-full px-[5px]", active ? "bg-primary-foreground" : "bg-primary")}>
+                <Text className={cn("text-meta font-semibold", active ? "text-primary" : "text-primary-foreground")} maxFontSizeMultiplier={BADGE_MAX_FONT_SCALE}>{count > 99 ? "99+" : String(count)}</Text>
               </View>
             ) : null}
           </Pressable>
@@ -156,10 +157,10 @@ export function ScopeSwitch(props: {
             ) : (
               <WorkspaceAvatar name={props.workspaceName} iconUrl={props.workspaceIconUrl} iconEmoji={props.workspaceIconEmoji} size={18} seed={props.workspaceSeed} />
             )}
-            <Text className={cn("text-[15px]", on ? "font-semibold text-foreground" : "font-medium text-muted-foreground")}>{side.label}</Text>
+            <Text className={cn("text-subhead", on ? "font-semibold text-foreground" : "font-medium text-muted-foreground")}>{side.label}</Text>
             {unread > 0 ? (
-              <View className={cn("h-5 min-w-5 items-center justify-center rounded-full px-1.5", (side.totals?.mentions ?? 0) > 0 ? "bg-destructive-solid" : "bg-primary")}>
-                <Text className="text-xs font-bold text-primary-foreground">{unread > 99 ? "99+" : String(unread)}</Text>
+              <View className={cn("min-h-5 min-w-5 items-center justify-center rounded-full px-1.5", (side.totals?.mentions ?? 0) > 0 ? "bg-destructive-solid" : "bg-primary")}>
+                <Text className="text-caption font-bold text-primary-foreground" maxFontSizeMultiplier={BADGE_MAX_FONT_SCALE}>{unread > 99 ? "99+" : String(unread)}</Text>
               </View>
             ) : null}
           </Pressable>
@@ -179,9 +180,9 @@ export function ScopeHint({ scope }: { scope: ChatScope }) {
       {scope === "messages" ? (
         <Ionicons name="business-outline" size={14} color={THEME[colorScheme].mutedForeground} />
       ) : (
-        <Text className="text-[13px] font-bold text-muted-foreground">#</Text>
+        <Text className="text-footnote font-bold text-muted-foreground">#</Text>
       )}
-      <Text className="text-[13px] text-muted-foreground">{scope === "messages" ? t("chat.scope.messages_hint") : t("chat.scope.channels_hint")}</Text>
+      <Text className="text-footnote text-muted-foreground">{scope === "messages" ? t("chat.scope.messages_hint") : t("chat.scope.channels_hint")}</Text>
     </View>
   );
 }
@@ -242,7 +243,7 @@ function PillButton({ icon, label, primary = false, onPress }: { icon: IconName;
       className={cn("h-12 flex-row items-center justify-center gap-2 rounded-full px-6 active:opacity-80", primary ? "bg-primary" : "bg-muted")}
     >
       <Ionicons name={icon} size={20} color={primary ? theme.primaryForeground : theme.foreground} />
-      <Text className={cn("text-base font-semibold", primary ? "text-primary-foreground" : "text-foreground")}>{label}</Text>
+      <Text className={cn("text-body font-semibold", primary ? "text-primary-foreground" : "text-foreground")}>{label}</Text>
     </Pressable>
   );
 }
@@ -261,7 +262,7 @@ export function RoomListEmpty(props: { searching: boolean; filter: RoomListFilte
     return (
       <View className="items-center px-8 pt-24">
         <StateTile icon="search" tone="blue" />
-        <Text className="mt-5 text-center text-lg font-display font-bold text-foreground">{t("chat.search_no_results")}</Text>
+        <Text className="mt-5 text-center text-title3 font-display font-bold text-foreground">{t("chat.search_no_results")}</Text>
       </View>
     );
   }
@@ -270,10 +271,10 @@ export function RoomListEmpty(props: { searching: boolean; filter: RoomListFilte
   return (
     <View className="items-center px-8 pt-24">
       <StateTile icon={filter === "channel" ? "compass-outline" : "chatbubbles-outline"} tone="blue" />
-      <Text className="mt-5 text-center text-lg font-display font-bold text-foreground">
+      <Text className="mt-5 text-center text-title3 font-display font-bold text-foreground">
         {filtered ? t("chat.sidebar_filter_empty_title") : t("chat.sidebar_empty_title")}
       </Text>
-      {hint ? <Text className="mt-1.5 max-w-[320px] text-center text-sm leading-5 text-muted-foreground">{t(hint)}</Text> : null}
+      {hint ? <Text className="mt-1.5 max-w-[320px] text-center text-callout leading-5 text-muted-foreground">{t(hint)}</Text> : null}
       {!filtered || filter === "channel" ? (
         <View className="mt-6 w-full max-w-[280px] gap-2.5">
           {filtered ? null : <PillButton primary icon="create-outline" label={t("chat.start_dm_title")} onPress={props.onStartDm} />}
@@ -290,14 +291,14 @@ export function RoomListError({ onRetry }: { onRetry: () => void }) {
   return (
     <View accessibilityRole="alert" className="flex-1 items-center px-8 pt-28">
       <StateTile icon="alert-circle-outline" tone="red" />
-      <Text className="mt-5 max-w-[300px] text-center text-[17px] font-display font-bold leading-6 text-foreground">{t("chat.sidebar_load_failed")}</Text>
+      <Text className="mt-5 max-w-[300px] text-center text-headline font-display font-bold leading-6 text-foreground">{t("chat.sidebar_load_failed")}</Text>
       <Pressable
         accessibilityRole="button"
         onPress={onRetry}
-        className="mt-5 h-11 flex-row items-center gap-2 rounded-full bg-muted px-[22px] active:opacity-80"
+        className="mt-5 min-h-11 flex-row items-center gap-2 rounded-full bg-muted px-[22px] py-2.5 active:opacity-80"
       >
         <Ionicons name="refresh" size={18} color={THEME[colorScheme].foreground} />
-        <Text className="text-[15px] font-semibold text-foreground">{t("common.retry")}</Text>
+        <Text className="text-subhead font-semibold text-foreground">{t("common.retry")}</Text>
       </Pressable>
     </View>
   );

@@ -21,6 +21,7 @@ import { THEME } from "@/lib/theme";
 import { useColorScheme } from "@/lib/use-color-scheme";
 import { badgeText, unreadOfWorkspace, workspaceMetaKind, type WorkspaceMetaKind } from "@/lib/workspace-unread";
 import { cn } from "@/lib/utils";
+import { BADGE_MAX_FONT_SCALE } from "@/lib/type-scale";
 
 const META_KEY: Record<WorkspaceMetaKind, string> = {
   open: "chat.mobile.workspace_open",
@@ -52,11 +53,11 @@ export function WorkspaceSwitchSheet({ visible, onClose, currentWsId }: { visibl
       <SafeAreaView edges={["bottom"]} className="max-h-[80%] rounded-t-[24px] bg-card pb-2" style={continuousCorners} accessibilityViewIsModal accessibilityLabel={t("mobile.settings.switch_workspace")}>
         <SheetGrabber />
         <View className="px-5 pb-2.5">
-          <Text accessibilityRole="header" className="text-[22px] font-display font-extrabold leading-7 text-foreground">
+          <Text accessibilityRole="header" className="text-title1 font-display font-extrabold leading-7 text-foreground">
             {t("chat.mobile.workspace_sheet_title")}
           </Text>
           {organization ? (
-            <Text className="mt-0.5 text-sm text-muted-foreground">{t("chat.mobile.workspace_count", { org: organization, count: list.length })}</Text>
+            <Text className="mt-0.5 text-callout text-muted-foreground">{t("chat.mobile.workspace_count", { org: organization, count: list.length })}</Text>
           ) : null}
         </View>
         <ScrollView bounces={false}>
@@ -77,17 +78,17 @@ export function WorkspaceSwitchSheet({ visible, onClose, currentWsId }: { visibl
               >
                 <WorkspaceAvatar name={ws.name} iconUrl={ws.icon_url} iconEmoji={ws.icon_emoji} size={46} seed={ws.id} />
                 <View className="flex-1 gap-0.5">
-                  <Text numberOfLines={1} className="text-base font-display font-bold text-foreground">
+                  <Text numberOfLines={1} className="text-body font-display font-bold text-foreground">
                     {ws.name}
                   </Text>
-                  <Text numberOfLines={1} className={cn("text-[13px]", kind === "unread_mentions" ? "text-destructive" : "text-muted-foreground")}>
+                  <Text numberOfLines={1} className={cn("text-footnote", kind === "unread_mentions" ? "text-destructive" : "text-muted-foreground")}>
                     {meta}
                   </Text>
                 </View>
                 {current ? <Ionicons name="checkmark" size={22} color={theme.primary} accessibilityLabel={t("chat.mobile.workspace_open")} /> : null}
                 {badge ? (
-                  <View className={cn("h-6 min-w-6 items-center justify-center rounded-full px-2", counts.mentions > 0 ? "bg-destructive-solid" : "bg-primary")}>
-                    <Text className="text-xs font-display font-bold text-primary-foreground">{badge}</Text>
+                  <View className={cn("min-h-6 min-w-6 items-center justify-center rounded-full px-2", counts.mentions > 0 ? "bg-destructive-solid" : "bg-primary")}>
+                    <Text className="text-caption font-display font-bold text-primary-foreground" maxFontSizeMultiplier={BADGE_MAX_FONT_SCALE}>{badge}</Text>
                   </View>
                 ) : null}
               </Pressable>

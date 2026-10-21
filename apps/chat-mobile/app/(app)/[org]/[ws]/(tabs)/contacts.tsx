@@ -44,7 +44,7 @@ function OnlineStrip({ people, onPress }: { people: ContactRow[]; onPress: (row:
     <View className="pb-3 pt-2">
       <View className="flex-row items-center gap-1.5 px-4">
         <View className="h-2 w-2 rounded-full bg-success-solid" />
-        <Text accessibilityRole="header" className="text-[13px] font-semibold text-muted-foreground">
+        <Text accessibilityRole="header" className="text-footnote font-semibold text-muted-foreground">
           {`${t("chat.presence_online")} · ${rows.length}`}
         </Text>
       </View>
@@ -58,7 +58,7 @@ function OnlineStrip({ people, onPress }: { people: ContactRow[]; onPress: (row:
             className="w-16 items-center gap-1 rounded-lg active:bg-secondary"
           >
             <PersonAvatar name={row.label} avatarUrl={row.avatar_url} size={52} online seed={row.user_id} />
-            <Text numberOfLines={1} className="max-w-16 text-xs text-muted-foreground">
+            <Text numberOfLines={1} className="max-w-16 text-caption text-muted-foreground">
               {shortNameOf(row.label)}
             </Text>
           </Pressable>
@@ -83,11 +83,11 @@ const ContactItem = memo(function ContactItem({ row, onPress }: { row: ContactRo
     >
       <PersonAvatar name={row.label} avatarUrl={row.avatar_url} size={44} online={online} seed={row.user_id} />
       <View className="flex-1">
-        <Text numberOfLines={1} className="text-base font-semibold text-foreground">
+        <Text numberOfLines={1} className="text-body font-semibold text-foreground">
           {row.label}
         </Text>
         {subtitle ? (
-          <Text numberOfLines={1} className="text-sm text-muted-foreground">
+          <Text numberOfLines={1} className="text-callout text-muted-foreground">
             {subtitle}
           </Text>
         ) : null}
@@ -127,13 +127,13 @@ export default function ContactsTab() {
     </View>
   ) : members.isError ? (
     <View className="items-center gap-3 px-8 py-12">
-      <Text className="text-center text-sm text-destructive">{t("common.error")}</Text>
+      <Text className="text-center text-callout text-destructive">{t("common.error")}</Text>
       <Button variant="outline" onPress={() => void members.refetch()}>
         <Text>{t("common.retry")}</Text>
       </Button>
     </View>
   ) : (
-    <Text className="px-8 py-12 text-center text-sm text-muted-foreground">
+    <Text className="px-8 py-12 text-center text-callout text-muted-foreground">
       {t(query.trim() ? "mobile.contacts.no_match" : "mobile.contacts.empty")}
     </Text>
   );
@@ -159,7 +159,7 @@ export default function ContactsTab() {
         stickySectionHeadersEnabled
         ListHeaderComponent={everyone.length > 0 ? <OnlineStrip people={everyone} onPress={openDm} /> : null}
         renderSectionHeader={({ section }) => (
-          <Text accessibilityRole="header" className="bg-background px-4 py-1.5 text-[13px] font-display font-bold text-muted-foreground">
+          <Text accessibilityRole="header" className="bg-background px-4 py-1.5 text-footnote font-display font-bold text-muted-foreground">
             {section.title}
           </Text>
         )}
@@ -184,7 +184,7 @@ export default function ContactsTab() {
               onPress={() => list.current?.scrollToLocation({ sectionIndex: index, itemIndex: 0, viewOffset: 0, animated: true })}
               className="w-6 items-center py-[1px]"
             >
-              <Text className="text-[11px] font-semibold text-primary">{section.title}</Text>
+              <Text className="text-meta font-semibold text-primary">{section.title}</Text>
             </Pressable>
           ))}
         </View>

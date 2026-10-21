@@ -31,15 +31,15 @@ function DeviceRow({ device, onRevoke }: { device: Device; onRevoke: (name: stri
         <Ionicons name={phone ? "phone-portrait-outline" : "laptop-outline"} size={19} color={THEME[colorScheme].mutedForeground} />
       </View>
       <View className="flex-1">
-        <Text numberOfLines={1} className="text-base text-foreground">
+        <Text numberOfLines={1} className="text-body text-foreground">
           {name}
         </Text>
-        <Text numberOfLines={1} className={device.current ? "text-sm font-semibold text-primary" : "text-sm text-muted-foreground"}>
+        <Text numberOfLines={1} className={device.current ? "text-callout font-semibold text-primary" : "text-callout text-muted-foreground"}>
           {detail}
         </Text>
       </View>
       {device.current ? null : (
-        <Button variant="ghost" size="sm" className="h-11 rounded-full px-3 sm:h-11" onPress={() => onRevoke(name)} accessibilityLabel={`${t("settings.security.sessions.revoke")} ${name}`}>
+        <Button variant="ghost" size="sm" className="h-auto min-h-11 rounded-full px-3 py-2 sm:h-auto" onPress={() => onRevoke(name)} accessibilityLabel={`${t("settings.security.sessions.revoke")} ${name}`}>
           <Text className="font-semibold text-destructive">{t("settings.security.sessions.revoke")}</Text>
         </Button>
       )}
@@ -68,7 +68,7 @@ export function DevicesSection() {
       {devices.isPending ? (
         <ActivityIndicator className="py-4" />
       ) : devices.isError ? (
-        <Text className="px-4 py-3 text-sm text-destructive">{t("common.error")}</Text>
+        <Text className="px-4 py-3 text-callout text-destructive">{t("common.error")}</Text>
       ) : (
         devices.data.map((device, index) => (
           <View key={device.id}>

@@ -61,7 +61,7 @@ function SafetyRow({ icon, label, destructive, onPress }: { icon: "ban-outline" 
     // The label, not the children: the icon's glyph is a character a screen reader would spell.
     <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} className="min-h-14 flex-row items-center gap-3 px-5 active:bg-secondary">
       <Ionicons name={icon} size={22} color={destructive ? theme.destructive : theme.mutedForeground} />
-      <Text className={destructive ? "text-base font-semibold text-destructive" : "text-base font-semibold text-foreground"}>{label}</Text>
+      <Text className={destructive ? "text-body font-semibold text-destructive" : "text-body font-semibold text-foreground"}>{label}</Text>
     </Pressable>
   );
 }
@@ -77,13 +77,13 @@ export function DmSafetyRows({ wsId, person }: { wsId: string; person: SafetyPer
   const leave = () => router.dismissAll();
   return (
     <View>
-      <Text className="px-5 pb-1 pt-3.5 text-[13px] font-semibold text-muted-foreground" accessibilityRole="header">
+      <Text className="px-5 pb-1 pt-3.5 text-footnote font-semibold text-muted-foreground" accessibilityRole="header">
         {t("mobile.safety.section")}
       </Text>
-      {status?.blocked_me ? <Text className="px-5 pb-1 text-[13px] text-muted-foreground">{t("chat.blocked_me_hint")}</Text> : null}
+      {status?.blocked_me ? <Text className="px-5 pb-1 text-footnote text-muted-foreground">{t("chat.blocked_me_hint")}</Text> : null}
       <SafetyRow icon="ban-outline" label={blockedByMe ? t("chat.unblock_user") : t("chat.block_user")} destructive={!blockedByMe} onPress={() => toggle(person, blockedByMe, leave)} />
       <SafetyRow icon="flag-outline" label={t("mobile.report.action_user", { name: person.name })} destructive onPress={() => setReport({ kind: "user", userId: person.userId, name: person.name })} />
-      <Text className="px-5 pb-3 pt-1 text-[13px] leading-[18px] text-muted-foreground">{blockedByMe ? t("chat.block_active_hint") : t("chat.block_dm_hint")}</Text>
+      <Text className="px-5 pb-3 pt-1 text-footnote leading-[18px] text-muted-foreground">{blockedByMe ? t("chat.block_active_hint") : t("chat.block_dm_hint")}</Text>
       <ReportSheet wsId={wsId} target={report} blockUserId={blockedByMe ? undefined : person.userId} onClose={() => setReport(null)} onReported={(blocked) => blocked && leave()} />
     </View>
   );
@@ -118,7 +118,7 @@ export function DmBlockBanner({ wsId, peerUserId }: { wsId: string; peerUserId: 
   if (!status?.blocked_by_me && !status?.blocked_me) return null;
   return (
     <View accessibilityRole="alert" className="border-b border-border bg-secondary px-4 py-2">
-      <Text className="text-[13px] text-muted-foreground">{status.blocked_by_me ? t("chat.block_active_banner") : t("chat.blocked_me_banner")}</Text>
+      <Text className="text-footnote text-muted-foreground">{status.blocked_by_me ? t("chat.block_active_banner") : t("chat.blocked_me_banner")}</Text>
     </View>
   );
 }

@@ -78,7 +78,7 @@ export const MessageCell = memo(function MessageCell({ model, ctx, scheme, handl
         <View className="flex-row items-center gap-2.5 px-3 pb-1.5 pt-3.5" accessible accessibilityRole="header" accessibilityLabel={label}>
           <View className="h-px flex-1 bg-border" />
           <View className="rounded-full bg-chat-chip px-3 py-[3px]">
-            <Text className="text-[13px] font-semibold text-chat-chip-foreground">{label}</Text>
+            <Text className="text-footnote font-semibold text-chat-chip-foreground">{label}</Text>
           </View>
           <View className="h-px flex-1 bg-border" />
         </View>

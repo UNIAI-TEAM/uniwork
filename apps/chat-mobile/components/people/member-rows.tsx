@@ -41,11 +41,11 @@ export const DmPickRow = memo(function DmPickRow(props: { person: PickPerson; la
       <PersonAvatar name={person.label} size={44} online={online} seed={person.user_id} />
       <View className={cn(ROW_BODY, !props.last && "border-b-hairline border-border")}>
         <View className="min-w-0 flex-1 gap-px">
-          <Text className="text-base font-display font-bold text-foreground" numberOfLines={1}>
+          <Text className="text-body font-display font-bold text-foreground" numberOfLines={1}>
             {person.label}
           </Text>
           {person.email ? (
-            <Text className="text-sm text-muted-foreground" numberOfLines={1}>
+            <Text className="text-callout text-muted-foreground" numberOfLines={1}>
               {person.email}
             </Text>
           ) : null}
@@ -75,10 +75,10 @@ export const GroupPickRow = memo(function GroupPickRow(props: { person: PickPers
       <PersonAvatar name={person.label} size={44} online={online} seed={person.user_id} />
       <View className={cn(ROW_BODY, !props.last && "border-b-hairline border-border")}>
         <View className="min-w-0 flex-1 gap-px">
-          <Text className="text-base font-display font-bold text-foreground" numberOfLines={1}>
+          <Text className="text-body font-display font-bold text-foreground" numberOfLines={1}>
             {person.label}
           </Text>
-          <Text className="text-sm text-muted-foreground" numberOfLines={1}>
+          <Text className="text-callout text-muted-foreground" numberOfLines={1}>
             {isIn ? t("chat.already_in_group") : person.email}
           </Text>
         </View>
@@ -126,18 +126,18 @@ export const RoomMemberRow = memo(function RoomMemberRow(props: {
       <PersonAvatar name={name} size={40} online={online} seed={userId} />
       <View className={cn("min-w-0 flex-1 flex-row items-center gap-2 self-stretch py-1.5", !props.last && "border-b-hairline border-border")}>
         <View className="min-w-0 flex-1">
-          <Text className="text-[15px] font-semibold text-foreground" numberOfLines={1}>
+          <Text className="text-subhead font-semibold text-foreground" numberOfLines={1}>
             {name}
           </Text>
           {status ? (
-            <Text className={cn("text-[13px]", online ? "text-success-solid" : "text-muted-foreground")} numberOfLines={1}>
+            <Text className={cn("text-footnote", online ? "text-success-solid" : "text-muted-foreground")} numberOfLines={1}>
               {status}
             </Text>
           ) : null}
         </View>
         {role ? (
-          <View className="h-6 justify-center rounded-full bg-tint-blue px-2.5">
-            <Text className="text-xs font-semibold text-primary">{role}</Text>
+          <View className="min-h-6 justify-center rounded-full bg-tint-blue px-2.5">
+            <Text className="text-caption font-semibold text-primary">{role}</Text>
           </View>
         ) : null}
       </View>

@@ -35,7 +35,7 @@ function Point({ icon, text }: { icon: keyof typeof Ionicons.glyphMap; text: str
   return (
     <View className="flex-row items-start gap-2.5">
       <Ionicons name={icon} size={18} color={THEME[colorScheme].primary} style={{ marginTop: 2 }} />
-      <Text className="flex-1 text-[15px] leading-[21px] text-foreground">{text}</Text>
+      <Text className="flex-1 text-subhead leading-[21px] text-foreground">{text}</Text>
     </View>
   );
 }
@@ -49,18 +49,18 @@ export function AiConsentText() {
     <View className="gap-3.5">
       <View className="flex-row items-center gap-3">
         <TintTile tint="blue" icon="sparkles" size={40} iconSize={20} />
-        <Text accessibilityRole="header" className="flex-1 text-lg font-display font-bold text-foreground">
+        <Text accessibilityRole="header" className="flex-1 text-title3 font-display font-bold text-foreground">
           {t("mobile.ai_consent.title")}
         </Text>
       </View>
-      <Text className="text-base leading-[22px] text-foreground">{t("mobile.ai_consent.body", { provider: AI_PROVIDER })}</Text>
+      <Text className="text-body leading-[22px] text-foreground">{t("mobile.ai_consent.body", { provider: AI_PROVIDER })}</Text>
       <View className="gap-2.5">
         <Point icon="hand-left-outline" text={t("mobile.ai_consent.point_on_request")} />
         <Point icon="shield-checkmark-outline" text={t("mobile.ai_consent.point_no_training")} />
         <Point icon="settings-outline" text={t("mobile.ai_consent.point_withdraw")} />
       </View>
       <Pressable accessibilityRole="link" onPress={() => openWebPage(privacy)} className="min-h-11 justify-center self-start">
-        <Text className="text-[15px] font-semibold text-primary">{t("mobile.ai_consent.learn_more")}</Text>
+        <Text className="text-subhead font-semibold text-primary">{t("mobile.ai_consent.learn_more")}</Text>
       </Pressable>
     </View>
   );
@@ -89,7 +89,7 @@ export function AiConsentActions({ onDecline, onAgreed }: { onDecline: () => voi
   return (
     <View className="gap-2.5">
       {failed ? (
-        <Text accessibilityRole="alert" className="text-[15px] text-destructive">
+        <Text accessibilityRole="alert" className="text-subhead text-destructive">
           {t("mobile.ai_consent.failed")}
         </Text>
       ) : null}
@@ -101,10 +101,10 @@ export function AiConsentActions({ onDecline, onAgreed }: { onDecline: () => voi
         className={cn("h-12 flex-row items-center justify-center gap-2 rounded-full bg-primary", busy ? "opacity-70" : "active:opacity-80")}
       >
         {busy ? <ActivityIndicator color={THEME[colorScheme].primaryForeground} /> : null}
-        <Text className="text-base font-semibold text-primary-foreground">{t("mobile.ai_consent.agree")}</Text>
+        <Text className="text-body font-semibold text-primary-foreground">{t("mobile.ai_consent.agree")}</Text>
       </Pressable>
-      <Pressable accessibilityRole="button" onPress={onDecline} className="h-12 items-center justify-center rounded-full bg-muted active:opacity-70">
-        <Text className="text-base font-semibold text-foreground">{t("mobile.ai_consent.decline")}</Text>
+      <Pressable accessibilityRole="button" onPress={onDecline} className="min-h-12 items-center justify-center rounded-full bg-muted px-4 py-3 active:opacity-70">
+        <Text className="text-body font-semibold text-foreground">{t("mobile.ai_consent.decline")}</Text>
       </Pressable>
     </View>
   );
@@ -143,12 +143,12 @@ export function AiConsentSheet({ visible, onClose }: { visible: boolean; onClose
           {granted ? (
             <View className="gap-2.5">
               {date && !Number.isNaN(date.getTime()) ? (
-                <Text className="text-[15px] text-muted-foreground">
+                <Text className="text-subhead text-muted-foreground">
                   {t("mobile.ai_consent.agreed_on", { date: date.toLocaleDateString(i18n.language === "en" ? "en-GB" : "vi-VN") })}
                 </Text>
               ) : null}
               {failed ? (
-                <Text accessibilityRole="alert" className="text-[15px] text-destructive">
+                <Text accessibilityRole="alert" className="text-subhead text-destructive">
                   {t("mobile.ai_consent.failed")}
                 </Text>
               ) : null}
@@ -159,7 +159,7 @@ export function AiConsentSheet({ visible, onClose }: { visible: boolean; onClose
                 className={cn("h-12 flex-row items-center justify-center gap-2 rounded-full bg-muted", busy ? "opacity-70" : "active:opacity-80")}
               >
                 {busy ? <ActivityIndicator /> : null}
-                <Text className="text-base font-semibold text-destructive">{t("mobile.ai_consent.withdraw")}</Text>
+                <Text className="text-body font-semibold text-destructive">{t("mobile.ai_consent.withdraw")}</Text>
               </Pressable>
             </View>
           ) : (

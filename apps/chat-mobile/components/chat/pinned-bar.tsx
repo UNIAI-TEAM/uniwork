@@ -50,8 +50,8 @@ export function PinnedBar({ messages, onJump }: { messages: readonly TimelineMes
     >
       <TintTile tint="blue" icon="pin" size={30} iconSize={15} />
       <View className="flex-1">
-        <Text className="text-xs font-semibold text-primary">{t("chat.mobile.pinned_bar", { index: position + 1, total: pinned.length })}</Text>
-        <Text className="text-[13px] text-foreground" numberOfLines={1}>
+        <Text className="text-caption font-semibold text-primary">{t("chat.mobile.pinned_bar", { index: position + 1, total: pinned.length })}</Text>
+        <Text className="text-footnote text-foreground" numberOfLines={1}>
           {item.preview}
         </Text>
       </View>

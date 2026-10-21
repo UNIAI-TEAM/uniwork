@@ -145,13 +145,13 @@ export function ImageViewer({
               <Ionicons name="close" size={24} color={WHITE} />
             </Pressable>
             <View className="flex-1">
-              <Text className="text-[15px] font-semibold text-white" numberOfLines={1}>
+              <Text className="text-subhead font-semibold text-white" numberOfLines={1}>
                 {current?.sender || opened?.name}
               </Text>
-              {when ? <Text className="text-[13px] text-white/70">{when}</Text> : null}
+              {when ? <Text className="text-footnote text-white/70">{when}</Text> : null}
             </View>
             {pages.length > 1 ? (
-              <Text className="text-[13px] font-semibold text-white/80" style={{ fontVariant: ["tabular-nums"] }}>
+              <Text className="text-footnote font-semibold text-white/80" style={{ fontVariant: ["tabular-nums"] }}>
                 {t("chat.image_viewer_position", { current: index + 1, total: pages.length })}
               </Text>
             ) : null}
@@ -194,9 +194,9 @@ export function ImageViewer({
                 ? pages.map((p, i) => <View key={p.id} className={cn("h-1.5 rounded-full", i === index ? "w-4 bg-white" : "w-1.5 bg-white/40")} />)
                 : null}
             </View>
-            <Pressable accessibilityRole="button" accessibilityLabel={t("chat.mobile.image_share")} onPress={share} className="h-11 flex-row items-center gap-2 rounded-full bg-white/15 px-4 active:bg-white/25">
+            <Pressable accessibilityRole="button" accessibilityLabel={t("chat.mobile.image_share")} onPress={share} className="min-h-11 flex-row items-center gap-2 rounded-full bg-white/15 px-4 py-2.5 active:bg-white/25">
               <Ionicons name="share-outline" size={20} color={WHITE} />
-              <Text className="text-sm font-semibold text-white">{t("chat.mobile.image_share")}</Text>
+              <Text className="text-callout font-semibold text-white">{t("chat.mobile.image_share")}</Text>
             </Pressable>
           </View>
         </SafeAreaView>

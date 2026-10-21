@@ -22,7 +22,7 @@ export function EmojiSheet({ visible, onClose, onPick }: { visible: boolean; onC
       <Pressable className="flex-1 bg-black/40" onPress={onClose} accessibilityRole="button" accessibilityLabel={t("common.close")} />
       <SafeAreaView edges={["bottom"]} className="max-h-[60%] rounded-t-[24px] bg-card pb-2" style={continuousCorners} accessibilityViewIsModal>
         <SheetGrabber />
-        <Text accessibilityRole="header" className="px-5 pb-2 text-lg font-display font-bold text-foreground">
+        <Text accessibilityRole="header" className="px-5 pb-2 text-title3 font-display font-bold text-foreground">
           {t("chat.action_react_more")}
         </Text>
         <ScrollView contentContainerClassName="flex-row flex-wrap px-3 pb-3">
@@ -34,7 +34,7 @@ export function EmojiSheet({ visible, onClose, onPick }: { visible: boolean; onC
               onPress={() => onPick(emoji)}
               className="h-14 w-1/6 items-center justify-center rounded-2xl active:bg-secondary"
             >
-              <Text className="text-[30px] leading-[36px]">{emoji}</Text>
+              <Text className="text-emoji-lg leading-[36px]">{emoji}</Text>
             </Pressable>
           ))}
         </ScrollView>

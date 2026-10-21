@@ -45,10 +45,10 @@ export function PermissionPrimerHost() {
         <SheetGrabber />
         <View className="items-center gap-3 pb-5 pt-2">
           <TintTile tint="blue" icon={ICON[request.kind]} size={64} iconSize={30} className="rounded-full" />
-          <Text className="text-center text-xl font-display font-bold text-foreground" accessibilityRole="header">
+          <Text className="text-center text-title2 font-display font-bold text-foreground" accessibilityRole="header">
             {t(`mobile.permissions.${request.kind}_title`)}
           </Text>
-          <Text className="text-center text-base leading-6 text-muted-foreground">{t(bodyKey(request))}</Text>
+          <Text className="text-center text-body leading-6 text-muted-foreground">{t(bodyKey(request))}</Text>
         </View>
         <View className="gap-2.5">
           <Pressable
@@ -57,10 +57,10 @@ export function PermissionPrimerHost() {
             onPress={() => choose(() => answerPrimer(true))}
             className="min-h-12 items-center justify-center rounded-full bg-primary px-4 py-3 active:opacity-90"
           >
-            <Text className="text-base font-semibold text-primary-foreground">{t(settings ? "mobile.permissions.open_settings" : "mobile.permissions.continue")}</Text>
+            <Text className="text-body font-semibold text-primary-foreground">{t(settings ? "mobile.permissions.open_settings" : "mobile.permissions.continue")}</Text>
           </Pressable>
           <Pressable accessibilityRole="button" testID="permission-primer-later" onPress={decline} className="min-h-12 items-center justify-center rounded-full bg-muted px-4 py-3 active:opacity-70">
-            <Text className="text-base font-semibold text-foreground">{t("mobile.permissions.not_now")}</Text>
+            <Text className="text-body font-semibold text-foreground">{t("mobile.permissions.not_now")}</Text>
           </Pressable>
         </View>
       </SafeAreaView>
