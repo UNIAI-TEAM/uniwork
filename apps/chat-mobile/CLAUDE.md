@@ -662,7 +662,10 @@ Server dev phải bật `DESKTOP_AUTH_CLIENTS` (`.env.example`) với client
 có push và associated domains: build tay với file entitlements rỗng.
 
 Root `typecheck`/`test`/`lint` và CI chính lọc `!@uniwork/chat-mobile`;
-app kiểm ở `.github/workflows/mobile-verify.yml`: job `mobile` (typecheck, lint,
+app kiểm ở `.github/workflows/mobile-verify.yml`, chạy ở mọi PR (job `scope` quyết `mobile`/`native` theo
+`scripts/mobile-native-scope.mjs`, kể cả khi PR server đổi `docs/events/CATALOGUE.md` hay `dto/sdo/**`), kết thúc ở job
+`gate` — check bắt buộc duy nhất của mobile (`scripts/branch-protection.json`), đỏ khi một job thay đổi cần mà không
+xanh (`scripts/mobile-verify-gate.mjs`; thêm job thì thêm vào `JOBS` ở đó): job `mobile` (typecheck, lint,
 hai lớp test, `pnpm knip --workspace apps/chat-mobile`, `expo install --check` offline — version gói native theo SDK
 đã cài —, `scripts/mobile-*.test.mjs`, trong đó `mobile-lockfiles.test.mjs` cấm lockfile ngoài `pnpm-lock.yaml`), `doctor-bundle` (`expo-doctor` rồi
 `expo export --platform android --platform ios` giữ trong `bundle-budget.json` bởi

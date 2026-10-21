@@ -4,6 +4,8 @@ import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { MOBILE_PATHS } from "./mobile-native-scope.mjs";
+import { JOBS as GATE_JOBS } from "./mobile-verify-gate.mjs";
 
 // The release path of UniChat mobile (docs/runbooks/unichat-mobile-release.md,
 // ADR 0037): what the four workflows promise, held so an edit cannot quietly
@@ -30,7 +32,7 @@ test("the release runs every PR check on the tagged SHA before EAS, Android only
 test("mobile-verify can be called and builds the release only through its jobs", () => {
   const wf = read("mobile-verify.yml");
   assert.match(wf, /^ {2}workflow_call:$/m);
-  for (const job of ["scope", "checks", "doctor-bundle", "android-release", "android-smoke"]) assert.match(wf, new RegExp(`^ {2}${job}:$`, "m"), `job ${job}`);
+  for (const job of ["scope", "checks", "doctor-bundle", "android-release", "android-smoke", "gate"]) assert.match(wf, new RegExp(`^ {2}${job}:$`, "m"), `job ${job}`);
   assert.match(envPin(wf, "EXPO_DOCTOR_VERSION") ?? "", EXACT, "EXPO_DOCTOR_VERSION is an exact version");
   assert.match(wf, /node scripts\/mobile-bundle-budget\.mjs/);
   assert.match(wf, /\.\/gradlew :app:assembleRelease/);
@@ -50,6 +52,8 @@ test("mobile-verify can be called and builds the release only through its jobs",
   assert.match(wf, /EXPO_OFFLINE: "1"\n\s+run: pnpm exec expo install --check$/m, "native module versions are checked against the installed SDK");
   assert.match(wf, /scripts\/mobile-lockfiles\.test\.mjs/, "the contract step rejects a foreign lockfile");
   assert.match(wf, /scripts\/mobile-easignore\.test\.mjs/, "the contract step holds .easignore to the .gitignore files");
+  assert.match(wf, /scripts\/mobile-verify-gate\.test\.mjs/, "the contract step runs the gate's own test");
+  assert.match(wf, /scripts\/branch-protection\.test\.mjs/, "the contract step holds the required checks to the workflows");
   assert.match(wf, /scripts\/mobile-coverage-floor\.test\.mjs/, "the contract step holds the component coverage floor");
   assert.doesNotMatch(wf, /secrets\./, "the PR checks read no secret");
 });
@@ -94,16 +98,41 @@ test("an OTA update is verified first, staged, signed when the app carries a cer
   assert.match(wf, /sentry-expo-upload-sourcemaps dist/);
 });
 
-// Both triggers must fire when any of the four workflows changes, or an edit to
-// the release, the nightly or the OTA path merges without this test having run.
-test("mobile-verify runs on an edit to any of the four workflows, on push and on pull_request", () => {
+// The push filter is the scope script's list, and a pull request is never
+// filtered: the gate job is a required check, and a workflow a path filter keeps
+// from starting leaves its required check pending for ever. An edit to any of
+// the four workflows (or to knip.json, which scripts/mobile-knip.test.mjs reads)
+// must reach this test.
+test("mobile-verify runs on every pull request, and on a push that touches what the app reads", () => {
   const wf = read("mobile-verify.yml");
-  for (const event of ["push", "pull_request"]) {
-    const block = wf.match(new RegExp(`^ {2}${event}:\\n([\\s\\S]*?)(?=^ {2}\\S)`, "m"))?.[1] ?? "";
-    for (const file of ["mobile-verify.yml", "chat-mobile-release.yml", "chat-mobile-verify.yml", "chat-mobile-update.yml"]) {
-      assert.ok(block.includes(`- ".github/workflows/${file}"`), `${event} paths list ${file}`);
-    }
-    assert.ok(block.includes('- "knip.json"'), `${event} paths list knip.json (scripts/mobile-knip.test.mjs reads it)`);
+  const block = (event) => wf.match(new RegExp(`^ {2}${event}:\\n([\\s\\S]*?)(?=^ {2}\\S)`, "m"))?.[1] ?? "";
+  assert.doesNotMatch(block("pull_request"), /paths/, "no path filter on pull_request");
+  const pushPaths = [...block("push").matchAll(/^ {6}- "([^"]+)"$/gm)].map((m) => m[1]);
+  assert.deepEqual(pushPaths, MOBILE_PATHS, "the push filter is scripts/mobile-native-scope.mjs › MOBILE_PATHS");
+  for (const file of ["mobile-verify.yml", "chat-mobile-release.yml", "chat-mobile-verify.yml", "chat-mobile-update.yml"]) {
+    assert.ok(MOBILE_PATHS.includes(`.github/workflows/${file}`), `MOBILE_PATHS lists ${file}`);
+  }
+  assert.ok(MOBILE_PATHS.includes("knip.json"), "MOBILE_PATHS lists knip.json");
+});
+
+// Audit P0 "no-branch-protection": a skipped job reports success to branch
+// protection, so the gate (the one required check) must see every job, run
+// whatever they did, and know when each one is needed.
+test("the gate needs every job, always runs, and each job runs exactly when the gate expects it", () => {
+  const { jobs } = jobsOf(read("mobile-verify.yml"));
+  const gate = jobs.get("gate") ?? "";
+  assert.match(gate, /^ {4}name: UniChat mobile gate$/m);
+  assert.match(gate, /^ {4}if: always\(\)$/m);
+  const needs = gate.match(/^ {4}needs: \[([^\]]+)\]$/m)?.[1].split(",").map((j) => j.trim()) ?? [];
+  assert.deepEqual(needs.sort(), [...jobs.keys()].filter((j) => j !== "gate").sort(), "the gate needs every other job");
+  assert.deepEqual(Object.keys(GATE_JOBS).sort(), needs.sort(), "scripts/mobile-verify-gate.mjs knows every job");
+  assert.match(gate, /NEEDS: \$\{\{ toJSON\(needs\) \}\}\n\s+run: node scripts\/mobile-verify-gate\.mjs$/m);
+  for (const [job, when] of Object.entries(GATE_JOBS)) {
+    const text = jobs.get(job) ?? "";
+    const condition = text.match(/^ {4}if: (.+)$/m)?.[1];
+    if (when === "always") assert.equal(condition, undefined, `${job} always runs`);
+    else if (job === "android-smoke") assert.match(text, /^ {4}needs: android-release$/m, "the smoke runs when the APK was built");
+    else assert.equal(condition, `needs.scope.outputs.${when} == 'true'`, `${job} runs when the change is ${when}`);
   }
 });
 
@@ -139,10 +168,11 @@ function decide(env) {
 test("the scope job builds natively when the release calls it, even for a re-pushed tag with a known base", () => {
   // A plain push with a known base defers to the diff.
   assert.equal(decide({ EVENT: "push" }), "");
-  assert.equal(decide({ EVENT: "push", FORCE_NATIVE: "true" }), "native=true");
-  assert.equal(decide({ EVENT: "push", REF: "refs/tags/chat-mobile-v1.2.3" }), "native=true");
+  const all = "mobile=true\nnative=true";
+  assert.equal(decide({ EVENT: "push", FORCE_NATIVE: "true" }), all);
+  assert.equal(decide({ EVENT: "push", REF: "refs/tags/chat-mobile-v1.2.3" }), all);
   assert.equal(decide({ EVENT: "push", FORCE_NATIVE: "false" }), "");
-  assert.equal(decide({ EVENT: "workflow_dispatch" }), "native=true");
+  assert.equal(decide({ EVENT: "workflow_dispatch" }), all);
 });
 
 const WORKFLOWS = ["mobile-verify.yml", "chat-mobile-release.yml", "chat-mobile-verify.yml", "chat-mobile-update.yml"];

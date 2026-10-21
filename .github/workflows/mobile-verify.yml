@@ -3,9 +3,12 @@ name: Mobile Verify
 # Adapted from usf .github/workflows/mobile-verify.yml. Everything UniChat
 # mobile (apps/chat-mobile) must pass before it merges or ships, beside the
 # main CI workflow, which filters the app out (ADR 0011: mobile never blocks a
-# web/backend PR). Path-filtered so a PR that touches neither the app nor what
-# it imports pays nothing.
+# web/backend PR that does not touch what the app reads). Runs on every PR;
+# the scope job decides what the change needs (scripts/mobile-native-scope.mjs).
 #
+#   scope           mobile=true when the change touches the app, what it
+#                   imports or a contract its tests read (event catalogue,
+#                   response SDOs); native=true when it reaches the binary
 #   checks          typecheck, lint, the vitest unit suite (100% floor) and
 #                   the jest-expo component suite, the mobile repo contracts
 #   doctor-bundle   expo-doctor, then `expo export` of the Android and iOS
@@ -24,8 +27,14 @@ name: Mobile Verify
 #                   cold-starts to its sign-in screen and stays up; then times
 #                   five cold starts and weighs the APK against
 #                   apps/chat-mobile/perf-budget.json (scripts/mobile-perf.mjs).
+#   gate            always runs last and fails unless every job the change
+#                   needed succeeded (scripts/mobile-verify-gate.mjs): the one
+#                   required status check (scripts/branch-protection.json), so
+#                   a skipped or crashed job can never pass for a green one.
 #
-# Every check here blocks at every GATE_LEVEL (ADR 0037). No secret is read:
+# Every check here blocks at every GATE_LEVEL (ADR 0037) once branch protection
+# requires the gate (scripts/branch-protection.mjs --apply; until then a red
+# run is advisory: runbook › Branch protection). No secret is read:
 # the server URLs are placeholders (the app is built, never run), and EAS, the
 # stores and Sentry are not reached. chat-mobile-release.yml calls this
 # workflow on the SHA it releases, chat-mobile-update.yml on the SHA it
@@ -34,42 +43,35 @@ name: Mobile Verify
 on:
   push:
     branches: [main, develop]
+    # scripts/mobile-native-scope.mjs › MOBILE_PATHS, the same list (scripts/mobile-workflows.test.mjs).
     paths:
       - "apps/chat-mobile/**"
       - "packages/core/**"
       - "packages/eslint-config/**"
       - "packages/tsconfig/**"
       - "scripts/**"
+      - "patches/**"
       - "package.json"
       - "pnpm-lock.yaml"
       - "pnpm-workspace.yaml"
       - "turbo.json"
+      - "knip.json"
+      - ".easignore"
+      - ".gitignore"
+      - "**/.gitignore"
       - ".github/workflows/mobile-verify.yml"
-      # Not native scope: listed so scripts/mobile-workflows.test.mjs and
-      # scripts/mobile-knip.test.mjs run when these change.
       - ".github/workflows/chat-mobile-release.yml"
       - ".github/workflows/chat-mobile-verify.yml"
       - ".github/workflows/chat-mobile-update.yml"
-      - "knip.json"
+      - "docs/runbooks/unichat-mobile-release.md"
+      - "docs/events/CATALOGUE.md"
+      - "server/internal/handler/dto/sdo/**"
+  # Every pull request, no path filter: the gate job is a required status
+  # check, and a workflow a filter keeps from starting leaves it pending for
+  # ever. The scope job decides what the change needs; a PR outside the app
+  # pays for two small jobs.
   pull_request:
     branches: [main, develop]
-    paths:
-      - "apps/chat-mobile/**"
-      - "packages/core/**"
-      - "packages/eslint-config/**"
-      - "packages/tsconfig/**"
-      - "scripts/**"
-      - "package.json"
-      - "pnpm-lock.yaml"
-      - "pnpm-workspace.yaml"
-      - "turbo.json"
-      - ".github/workflows/mobile-verify.yml"
-      # Not native scope: listed so scripts/mobile-workflows.test.mjs and
-      # scripts/mobile-knip.test.mjs run when these change.
-      - ".github/workflows/chat-mobile-release.yml"
-      - ".github/workflows/chat-mobile-verify.yml"
-      - ".github/workflows/chat-mobile-update.yml"
-      - "knip.json"
   workflow_call:
     inputs:
       # Inside a called workflow the github context is the caller's, so "called"
@@ -102,6 +104,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
+      mobile: ${{ steps.decide.outputs.mobile }}
       native: ${{ steps.decide.outputs.native }}
     steps:
       - uses: actions/checkout@v4
@@ -124,19 +127,21 @@ jobs:
           set -euo pipefail
           if [ "$FORCE_NATIVE" = "true" ] || [[ "$REF" == refs/tags/* ]]; then
             # Called by the release (or any tag push): the shipped SHA is always built.
-            echo "native=true" | tee -a "$GITHUB_OUTPUT"
+            printf 'mobile=true\nnative=true\n' | tee -a "$GITHUB_OUTPUT"
           elif [ "$EVENT" = "pull_request" ]; then
             node scripts/mobile-native-scope.mjs --base "$PR_BASE" --head "$GITHUB_SHA"
           elif [ "$EVENT" = "push" ] && [ -n "$PUSH_BEFORE" ] && ! [[ "$PUSH_BEFORE" =~ ^0+$ ]] && git cat-file -e "$PUSH_BEFORE^{commit}" 2>/dev/null; then
             node scripts/mobile-native-scope.mjs --base "$PUSH_BEFORE" --head "$GITHUB_SHA"
           else
             # Dispatched, or a push with no known base: build.
-            echo "native=true" | tee -a "$GITHUB_OUTPUT"
+            printf 'mobile=true\nnative=true\n' | tee -a "$GITHUB_OUTPUT"
           fi
 
   checks:
-    # The job id branch protection already names; it was `mobile` before this split.
+    # Its display name before the split; branch protection requires the gate job, not this one.
     name: mobile
+    needs: scope
+    if: needs.scope.outputs.mobile == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -165,10 +170,12 @@ jobs:
           EXPO_OFFLINE: "1"
         run: pnpm exec expo install --check
       - name: Mobile repo contracts
-        run: node --test scripts/mobile-core-allowlist.test.mjs scripts/mobile-native-scope.test.mjs scripts/mobile-bundle-budget.test.mjs scripts/mobile-perf.test.mjs scripts/mobile-a11y-audit.test.mjs scripts/mobile-workflows.test.mjs scripts/mobile-knip.test.mjs scripts/mobile-web-copies.test.mjs scripts/mobile-lockfiles.test.mjs scripts/mobile-easignore.test.mjs scripts/mobile-coverage-floor.test.mjs
+        run: node --test scripts/mobile-core-allowlist.test.mjs scripts/mobile-native-scope.test.mjs scripts/mobile-bundle-budget.test.mjs scripts/mobile-perf.test.mjs scripts/mobile-a11y-audit.test.mjs scripts/mobile-workflows.test.mjs scripts/mobile-knip.test.mjs scripts/mobile-web-copies.test.mjs scripts/mobile-lockfiles.test.mjs scripts/mobile-easignore.test.mjs scripts/mobile-verify-gate.test.mjs scripts/branch-protection.test.mjs scripts/mobile-coverage-floor.test.mjs
 
   doctor-bundle:
     name: expo-doctor and JS bundle budget
+    needs: scope
+    if: needs.scope.outputs.mobile == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
@@ -314,3 +321,24 @@ jobs:
           path: ~/.maestro/tests/**
           if-no-files-found: ignore
           retention-days: 7
+
+  gate:
+    # The required status check (scripts/branch-protection.json): keep the name.
+    name: UniChat mobile gate
+    needs: [scope, checks, doctor-bundle, android-release, android-smoke]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          sparse-checkout: scripts/mobile-verify-gate.mjs
+          sparse-checkout-cone-mode: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: Every job this change needed passed
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: node scripts/mobile-verify-gate.mjs

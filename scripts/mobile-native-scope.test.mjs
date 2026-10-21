@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { runtimeClosure } from "./mobile-core-graph.mjs";
-import { nativePaths } from "./mobile-native-scope.mjs";
+import { nativePaths, touchesMobile } from "./mobile-native-scope.mjs";
 
 test("the app's own code, config and assets need the native build; its docs, flows, store copy and tests do not", () => {
   const changed = [
@@ -39,4 +39,28 @@ test("a core file needs it only when the app reaches it at runtime", () => {
     nativePaths(["packages/core/chat/client-msg-id.ts", "packages/core/api/http.ts", "apps/web/app/page.tsx", "server/main.go", "docs/x.md"], closure),
     ["packages/core/chat/client-msg-id.ts"],
   );
+});
+
+test("the mobile checks run for the app, what it reads and the server contracts it holds, and for nothing else", () => {
+  const none = new Set();
+  for (const file of [
+    "apps/chat-mobile/CLAUDE.md",
+    "packages/core/api/http.ts",
+    "scripts/mobile-perf.mjs",
+    "patches/expo.patch",
+    ".gitignore",
+    "packages/office-upstream/upstream/packages/pdf2docx/.gitignore",
+    ".easignore",
+    "knip.json",
+    ".github/workflows/chat-mobile-update.yml",
+    "docs/events/CATALOGUE.md",
+    "docs/runbooks/unichat-mobile-release.md",
+    "server/internal/handler/dto/sdo/chat.go",
+  ]) {
+    assert.equal(touchesMobile([file], none), true, file);
+  }
+  for (const file of ["apps/web/app/page.tsx", "server/internal/service/chat.go", "docs/adr/README.md", ".github/workflows/ci.yml", "packages/views/chat/x.tsx", "apps/chat-desktop/package.json"]) {
+    assert.equal(touchesMobile([file], none), false, file);
+  }
+  assert.equal(touchesMobile([], none), false);
 });

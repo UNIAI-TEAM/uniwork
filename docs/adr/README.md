@@ -73,5 +73,10 @@ cuộc gọi native trên Android (CallStyle, full-screen intent, foreground ser
 `chat.voice.ring_closed`) đã xây cùng bản nháp; iOS PushKit + CallKit là kế hoạch chờ tài khoản Apple.
 Xem lại quyết định "không CallKit" của spec M3.
 
+`drafts/0040-cong-mobile-la-check-bat-buoc-va-hop-dong-server.md` (UNI-2053, 2026-10-22, `proposed`): job `gate` của
+`mobile-verify.yml` là check bắt buộc duy nhất của mobile (`scripts/branch-protection.json`, owner áp bằng
+`scripts/branch-protection.mjs --apply`), và PR đổi `docs/events/CATALOGUE.md` hay `dto/sdo/**` chạy test mobile — thu
+hẹp §6 của 0011.
+
 [0025](0025-mot-process-cho-api-va-worker.md) chưa có guard test (test chạy hai bản của mỗi
 job, land cùng việc làm worker an toàn đa replica); đến lúc đó 0025 không thêm luật vào `CLAUDE.md`.

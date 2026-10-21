@@ -25,7 +25,20 @@ của bản store trên kênh đó (`staging` cho `internal`/`preview`, `product
 
 **Cổng trước khi phát hành (CI, ADR 0037 — chặn ở mọi `GATE_LEVEL`)**
 
-- `mobile-verify.yml`, mỗi PR/push chạm app hoặc thứ app import: job `mobile` (typecheck, lint, test vitest sàn
+- **Branch protection (owner, một lần — audit P0).** Chưa bật thì mọi cổng dưới đây chỉ là tư vấn: một run đỏ vẫn
+  merge được. Check bắt buộc của `main` và `develop` nằm ở `scripts/branch-protection.json` (CI chính, `link` của UniAI
+  và `UniChat mobile gate`); `scripts/branch-protection.test.mjs` giữ để mỗi tên là một job thật, chạy ở mọi PR, không
+  bị path filter (thiếu thì check treo `pending` mãi). Bật bằng tài khoản admin: `gh auth login` rồi
+  `node scripts/branch-protection.mjs --apply` (nhánh chưa bảo vệ thì đặt mới, `enforce_admins`; đã có thì chỉ thay
+  danh sách check, giữ luật review); kiểm lại bằng `--check` (thoát 1 và in tên còn thiếu). Đổi tên một job trong danh
+  sách thì sửa file JSON cùng PR rồi `--apply` lại sau khi merge.
+- `mobile-verify.yml` chạy ở **mọi** PR vào `main`/`develop` (không path filter: job `gate` là check bắt buộc), push
+  thì theo `MOBILE_PATHS` của `scripts/mobile-native-scope.mjs`. Job `scope` quyết `mobile` (thay đổi chạm app, thứ app
+  import, đồ thị cài đặt, bốn workflow mobile, runbook này, và hợp đồng phía server mà test app đọc:
+  `docs/events/CATALOGUE.md`, `server/internal/handler/dto/sdo/**`) và `native`. Job `gate` (`UniChat mobile gate`)
+  chạy cuối dù các job khác ra sao và đỏ khi một job thay đổi cần mà không `success` — bị skip vì `scope` hỏng cũng đỏ
+  (`scripts/mobile-verify-gate.mjs`; GitHub coi job skip là xanh nên không require từng job). Thêm job vào workflow thì
+  thêm vào `JOBS` của script đó (`scripts/mobile-workflows.test.mjs` đỏ nếu quên). Với PR có `mobile`: job `mobile` (typecheck, lint, test vitest sàn
   100% và test component jest-expo, `knip --workspace apps/chat-mobile` (file, export, dependency thừa hay thiếu
   khai), `expo install --check` với `EXPO_OFFLINE=1` (gói native đúng version SDK đã cài đòi; offline để một bản vá
   Expo mới ra không làm đỏ mọi PR), các test hợp đồng `scripts/mobile-*.test.mjs` — trong đó
