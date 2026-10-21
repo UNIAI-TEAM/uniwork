@@ -35,7 +35,6 @@ import { api } from "@/data/api";
 import { authConfig, session } from "@/data/auth/flow";
 import { useAuthStore } from "@/data/auth/store";
 import { bootRuntime } from "@/data/boot";
-import { buildInfo } from "@/data/build-info";
 import { startNativeCalls } from "@/data/calls/call-wiring";
 import { nativeCalls } from "@/data/calls/native-calls";
 import { ensureNotificationChannels } from "@/data/notification-channels";
@@ -62,7 +61,7 @@ void loadThemePreference();
 startNativeCalls();
 // The encrypted store the outbox and the cached rooms live in, before the session is restored.
 installDeviceStore(openNativeDeviceStore);
-installAccountCache({ queryClient, persister: createDevicePersister(openDeviceStore), version: buildInfo().version });
+installAccountCache({ queryClient, persister: createDevicePersister(openDeviceStore) });
 // The app's language reaches the server, which writes pushes and emails in it (data/locale-sync.ts).
 startLocaleSync({
   getUser: () => useAuthStore.getState().user,

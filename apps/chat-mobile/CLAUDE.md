@@ -137,8 +137,11 @@ một dòng thì ghi lý do ở dòng trên.
   Splash (`expo-splash-screen`, plugin trong `app.config.ts`) giữ tới khi `isLoading` tắt, tối đa 8 s
   (`app/_layout.tsx`). **Kho trên máy**: `data/storage/device-store.ts` (thuần, mặc định bộ nhớ — test node không
   cần mock) ← `native-device-store.ts` cài lúc boot: MMKV (`react-native-mmkv` + `react-native-nitro-modules`)
-  mã hoá AES-256, khoá ngẫu nhiên trong Keychain/Keystore (`AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY`); mở lỗi thì chạy
-  bằng bộ nhớ và log. Store zustand persist trên đó dùng `skipHydration` + hydrate trong `initialize()` và bỏ mọi
+  mã hoá AES-256, khoá ngẫu nhiên trong Keychain/Keystore (`AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY`). Không mất dữ liệu
+  im lặng: đọc khoá lỗi (máy chưa mở khoá lần đầu từ lúc bật) thì thử lại 3 lần (0.5 s, 1 s) trước khi bỏ đĩa; khoá mất
+  mà tệp còn (khôi phục sang máy khác, Keystore bị xoá) thì xoá tệp có chủ ý và báo Sentry (`device_store_key_lost`),
+  không mở khoá mới trên dữ liệu không đọc được; không mở được thì chạy bằng bộ nhớ (`durable: false`) và báo Sentry
+  (tag `outcome: memory`), không chỉ log. Store zustand persist trên đó dùng `skipHydration` + hydrate trong `initialize()` và bỏ mọi
   lần ghi trước khi hydrate (không ghi đè hàng đợi trên đĩa bằng mảng rỗng). **Outbox**: `data/chat-send.ts` —
   mọi lần gửi (chữ, ảnh/tệp, tin thoại, nhắc hẹn) vào `stores/chat-send-store.ts` (persist; `sending` → `queued`
   khi đọc lại, `client_msg_id` làm replay an toàn), tệp chép vào `documents/outbox/<clientMsgId>/`
@@ -153,8 +156,13 @@ một dòng thì ghi lý do ở dòng trên.
   khởi động lại) và mọi phiếu bầu đều GET tin trước rồi chỉ chạm phần còn khác; từ chối hẳn thì bỏ, refetch phòng
   và reject cho màn hình báo (lượt đọc thì báo Sentry, không toast). Sửa và xoá tin vẫn chỉ online. **Cache đĩa**:
   `data/query-persister.ts` — allowlist `["workspaces"]`, rooms, unread-summary, nicknames, members, room-members và
-  trang mới nhất của 12 phòng hoạt động gần nhất; ghi sau 1 s yên; buster `<CACHE_SCHEMA_VERSION>:<version>:<userId>`;
-  khôi phục trước màn đầu (`restoreAccountCache` trong auth store), xoá khi đăng xuất (`dropAccountCache`). Bản trên
+  trang mới nhất của 24 phòng hoạt động gần nhất; chỉ ghi khi một query được giữ có data mới (câu trả lời fetch, patch
+  — không phải fetch bắt đầu, observer hay bộ nhớ bỏ query), sau 1 s yên; mỗi timeline một key MMKV
+  (`query-cache/timeline/<queryHash>`), chỉ ghi lại khi đổi, vỏ nhỏ ở `query-cache`; buster
+  `<CACHE_SCHEMA_VERSION>:<userId>` (bản store mới và OTA đều giữ cache, đọc qua schema). Đĩa không phải gương của bộ
+  nhớ: `gcTime` 10 phút bỏ query không ai xem, nên query được giữ mà bộ nhớ đã bỏ được mang từ bản trước
+  (`withEvicted`) tới khi quá 7 ngày hay phòng rời nhóm gần nhất / danh sách. Khôi phục trước màn đầu
+  (`restoreAccountCache` trong auth store), xoá khi đăng xuất (`dropAccountCache`, cả các key timeline). Bản trên
   đĩa là dữ liệu không tin được như câu trả lời mạng (OTA giữ buster mà đổi code đọc): `data/persisted-cache.ts`
   kiểm vỏ rồi đọc lại data của từng query qua đúng schema đã dựng nó từ mạng (`data/chat-api-schemas.ts`,
   `data/schemas.ts`, schema của core như `ChatUnreadSummarySchema`), query không đọc được bị bỏ riêng (refetch như lần mở đầu), không chỗ nào cast từ đĩa. Outbox và

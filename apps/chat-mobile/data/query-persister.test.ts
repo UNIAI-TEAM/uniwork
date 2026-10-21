@@ -6,6 +6,7 @@ import { ChatMessagesListSchema, ChatRoomsListSchema } from "@uniwork/core/api/e
 import { CACHE_SCHEMA_VERSION } from "./persisted-cache";
 import { chatKeys } from "./queries/chat-keys";
 import {
+  PERSISTED_CACHE_MAX_AGE_MS,
   PERSIST_THROTTLE_MS,
   createDevicePersister,
   dropAccountCache,
@@ -13,6 +14,7 @@ import {
   restoreAccountCache,
   shapePersistedClient,
   shouldPersistQuery,
+  withEvicted,
 } from "./query-persister";
 import { installReportSink } from "./report";
 import { memoryDeviceStore, type DeviceStore } from "./storage/device-store";
@@ -149,31 +151,32 @@ describe("the account's cache", () => {
   it("saves the person's inbox a second after the last change, and opens the next start on it", async () => {
     vi.useFakeTimers();
     const first = seeded();
-    installAccountCache({ queryClient: first, persister, version: "0.3.0" });
+    installAccountCache({ queryClient: first, persister });
     await restoreAccountCache("u1");
     first.setQueryData(chatKeys.rooms("w1"), room("new", "2026-10-21T00:00:00Z"));
     first.setQueryData(chatKeys.unreadSummary(), unread(2));
     expect(store.getString("query-cache")).toBeUndefined();
     await vi.advanceTimersByTimeAsync(PERSIST_THROTTLE_MS);
     const saved = JSON.parse(store.getString("query-cache")!) as PersistedClient;
-    expect(saved.buster).toBe(buster("0.3.0:u1"));
+    expect(saved.buster).toBe(buster("u1"));
     expect(keysOf(saved)).toContain(JSON.stringify(chatKeys.rooms("w1")));
     expect(keysOf(saved)).not.toContain(JSON.stringify(["remote-config"]));
 
     // The next cold start, same person, same build.
     const next = new QueryClient();
-    installAccountCache({ queryClient: next, persister, version: "0.3.0" });
+    installAccountCache({ queryClient: next, persister });
     await restoreAccountCache("u1");
     expect(next.getQueryData(chatKeys.rooms("w1"))).toEqual(room("new", "2026-10-21T00:00:00Z"));
     expect(next.getQueryData(chatKeys.unreadSummary())).toEqual(unread(2));
     expect(next.getQueryData(chatKeys.roomMessages("w1", "new"))).toEqual({ pages: [page("n2")], pageParams: [null] });
   });
 
-  it("another person, another build or another cache schema reads nothing of it, and the copy goes", async () => {
-    for (const [written, reader] of [[buster("0.3.0:u1"), "u2"], [buster("0.2.0:u1"), "u1"], ["0:0.3.0:u1", "u1"]] as const) {
+  it("another person or another cache schema reads nothing of it, and the copy goes", async () => {
+    // The last one is a copy from before the store version left the buster: read as another schema.
+    for (const [written, reader] of [[buster("u2"), "u1"], ["0:u1", "u1"], [`${CACHE_SCHEMA_VERSION}:0.3.0:u1`, "u1"]] as const) {
       store.set("query-cache", JSON.stringify({ buster: written, timestamp: Date.now(), clientState: dehydrate(seeded()) }));
       const qc = new QueryClient();
-      installAccountCache({ queryClient: qc, persister, version: "0.3.0" });
+      installAccountCache({ queryClient: qc, persister });
       await restoreAccountCache(reader);
       expect(qc.getQueryData(chatKeys.rooms("w1"))).toBeUndefined();
       expect(store.getString("query-cache")).toBeUndefined();
@@ -184,17 +187,17 @@ describe("the account's cache", () => {
   it("a kept record that no longer reads is dropped alone, and the rest of the inbox opens", async () => {
     const clientState = dehydrate(seeded(), { shouldDehydrateQuery: shouldPersistQuery });
     const drifted = clientState.queries.map((q) => (JSON.stringify(q.queryKey) === JSON.stringify(chatKeys.unreadSummary()) ? { ...q, state: { ...q.state, data: "drift" } } : q));
-    store.set("query-cache", JSON.stringify({ buster: buster("0.3.0:u1"), timestamp: Date.now(), clientState: { ...clientState, queries: drifted } }));
+    store.set("query-cache", JSON.stringify({ buster: buster("u1"), timestamp: Date.now(), clientState: { ...clientState, queries: drifted } }));
     const qc = new QueryClient();
-    installAccountCache({ queryClient: qc, persister, version: "0.3.0" });
+    installAccountCache({ queryClient: qc, persister });
     await restoreAccountCache("u1");
     expect(qc.getQueryData(chatKeys.unreadSummary())).toBeUndefined();
     expect(qc.getQueryData(chatKeys.rooms("w1"))).toHaveLength(3);
     expect(warnings).toContain("cached queries dropped");
 
-    store.set("query-cache", JSON.stringify({ buster: buster("0.3.0:u1"), timestamp: "yesterday" }));
+    store.set("query-cache", JSON.stringify({ buster: buster("u1"), timestamp: "yesterday" }));
     const fresh = new QueryClient();
-    installAccountCache({ queryClient: fresh, persister, version: "0.3.0" });
+    installAccountCache({ queryClient: fresh, persister });
     await restoreAccountCache("u1");
     expect(fresh.getQueryCache().getAll()).toHaveLength(0);
     expect(warnings).toContain("cached rooms unreadable");
@@ -203,7 +206,7 @@ describe("the account's cache", () => {
   it("sign-out stops the writes and removes the copy; a reinstall stops the last subscription", async () => {
     vi.useFakeTimers();
     const qc = new QueryClient();
-    installAccountCache({ queryClient: qc, persister, version: "0.3.0" });
+    installAccountCache({ queryClient: qc, persister });
     await restoreAccountCache("u1");
     qc.setQueryData(chatKeys.rooms("w1"), []);
     await dropAccountCache();
@@ -227,7 +230,7 @@ describe("the account's cache", () => {
   it("two restores at once share one subscription, and a sign-out after them stops every write", async () => {
     vi.useFakeTimers();
     const qc = new QueryClient();
-    installAccountCache({ queryClient: qc, persister, version: "0.3.0" });
+    installAccountCache({ queryClient: qc, persister });
     const [a, b] = [restoreAccountCache("A"), restoreAccountCache("A")];
     expect(a).toBe(b);
     await Promise.all([a, b]);
@@ -240,14 +243,14 @@ describe("the account's cache", () => {
     await restoreAccountCache("A");
     qc.setQueryData(chatKeys.rooms("w1"), room("a-room", null));
     await vi.advanceTimersByTimeAsync(PERSIST_THROTTLE_MS);
-    expect((JSON.parse(store.getString("query-cache")!) as PersistedClient).buster).toBe(buster("0.3.0:A"));
+    expect((JSON.parse(store.getString("query-cache")!) as PersistedClient).buster).toBe(buster("A"));
   });
 
   it("a restore overtaken by another person's, or by a sign-out, neither hydrates nor subscribes", async () => {
     vi.useFakeTimers();
-    store.set("query-cache", JSON.stringify({ buster: buster("0.3.0:A"), timestamp: Date.now(), clientState: dehydrate(seeded()) }));
+    store.set("query-cache", JSON.stringify({ buster: buster("A"), timestamp: Date.now(), clientState: dehydrate(seeded()) }));
     const qc = new QueryClient();
-    installAccountCache({ queryClient: qc, persister, version: "0.3.0" });
+    installAccountCache({ queryClient: qc, persister });
     const first = restoreAccountCache("A");
     await dropAccountCache();
     await first;
@@ -258,7 +261,7 @@ describe("the account's cache", () => {
     await Promise.all([a, b]);
     qc.setQueryData(chatKeys.rooms("w1"), room("b-room", null));
     await vi.advanceTimersByTimeAsync(PERSIST_THROTTLE_MS);
-    expect((JSON.parse(store.getString("query-cache")!) as PersistedClient).buster).toBe(buster("0.3.0:B"));
+    expect((JSON.parse(store.getString("query-cache")!) as PersistedClient).buster).toBe(buster("B"));
     await dropAccountCache();
   });
 
@@ -270,7 +273,7 @@ describe("the account's cache", () => {
       restoreClient: () => Promise.reject("locked"),
       removeClient: async () => undefined,
     };
-    installAccountCache({ queryClient: qc, persister: broken, version: "0.3.0" });
+    installAccountCache({ queryClient: qc, persister: broken });
     vi.spyOn(console, "error").mockImplementation(() => undefined);
     vi.spyOn(console, "warn").mockImplementation(() => undefined);
     await restoreAccountCache("u1");
@@ -279,10 +282,115 @@ describe("the account's cache", () => {
     expect(warnings).toEqual(["cached rooms not restored", "cached rooms not saved"]);
 
     const odd: Persister = { ...broken, restoreClient: () => Promise.reject(new Error("locked")), persistClient: () => Promise.reject("full") };
-    installAccountCache({ queryClient: qc, persister: odd, version: "0.3.0" });
+    installAccountCache({ queryClient: qc, persister: odd });
     await restoreAccountCache("u1");
     qc.setQueryData(chatKeys.rooms("w1"), room("y", null));
     await vi.advanceTimersByTimeAsync(PERSIST_THROTTLE_MS);
     expect(warnings).toHaveLength(4);
+  });
+});
+
+// Audit "gc-time-evicts-persisted-timelines": memory lets an unobserved query go after its gcTime; the disk does not.
+describe("the disk outlives memory", () => {
+  let store: DeviceStore;
+  let persister: Persister;
+
+  beforeEach(() => {
+    store = memoryDeviceStore();
+    persister = createDevicePersister(async () => store);
+  });
+
+  const savedTimelines = () => store.keys().filter((key) => key.startsWith("query-cache/timeline/")).sort();
+  const timelineKey = (roomId: string) => `query-cache/timeline/${JSON.stringify(chatKeys.roomMessages("w1", roomId))}`;
+
+  it("a restored timeline nobody opened stays on disk after memory collects it", async () => {
+    vi.useFakeTimers();
+    const first = seeded();
+    installAccountCache({ queryClient: first, persister });
+    await restoreAccountCache("u1");
+    first.setQueryData(chatKeys.unreadSummary(), unread(3));
+    await vi.advanceTimersByTimeAsync(PERSIST_THROTTLE_MS);
+    expect(savedTimelines()).toEqual([timelineKey("new"), timelineKey("old")]);
+
+    // The next start restores both timelines; nobody opens them, and gcTime (10 minutes in the app) passes.
+    const next = new QueryClient({ defaultOptions: { queries: { gcTime: 10 * 60_000 } } });
+    installAccountCache({ queryClient: next, persister });
+    await restoreAccountCache("u1");
+    await vi.advanceTimersByTimeAsync(10 * 60_000 + 1);
+    expect(next.getQueryData(chatKeys.roomMessages("w1", "new"))).toBeUndefined();
+
+    // A rooms refetch saves: the collected timelines are still written.
+    next.setQueryData(chatKeys.rooms("w1"), [...room("old", "2026-10-01T00:00:00Z"), ...room("new", "2026-10-21T00:00:00Z")]);
+    await vi.advanceTimersByTimeAsync(PERSIST_THROTTLE_MS);
+    expect(savedTimelines()).toEqual([timelineKey("new"), timelineKey("old")]);
+
+    const third = new QueryClient();
+    installAccountCache({ queryClient: third, persister });
+    await restoreAccountCache("u1");
+    expect(third.getQueryData(chatKeys.roomMessages("w1", "new"))).toEqual({ pages: [page("n2")], pageParams: [null] });
+    expect(third.getQueryData(chatKeys.roomMessages("w1", "old"))).toEqual({ pages: [page("o1")], pageParams: [null] });
+
+    // A room left (the list without it) takes its timeline off the disk, carried or not.
+    third.setQueryData(chatKeys.rooms("w1"), room("new", "2026-10-21T00:00:00Z"));
+    await vi.advanceTimersByTimeAsync(PERSIST_THROTTLE_MS);
+    expect(savedTimelines()).toEqual([timelineKey("new")]);
+    await dropAccountCache();
+    expect(store.keys()).toEqual([]);
+  });
+
+  it("a carried query older than the copy's limit is let go", () => {
+    const qc = seeded();
+    const client: PersistedClient = { buster: "b", timestamp: 1, clientState: dehydrate(qc, { shouldDehydrateQuery: shouldPersistQuery }) };
+    const [rooms, ...rest] = client.clientState.queries;
+    const fresh = { ...rest[0]!, queryHash: "fresh" };
+    const stale = { ...rest[0]!, queryHash: "stale", state: { ...rest[0]!.state, dataUpdatedAt: 0 } };
+    const now = rest[0]!.state.dataUpdatedAt + PERSISTED_CACHE_MAX_AGE_MS;
+    const carried = withEvicted({ ...client, clientState: { mutations: [], queries: [rooms!] } }, [rooms!, fresh, stale], now);
+    expect(carried.clientState.queries.map((q) => q.queryHash)).toEqual([rooms!.queryHash, "fresh"]);
+    // Nothing memory let go: the save is memory's as it is.
+    expect(withEvicted(client, client.clientState.queries, now)).toBe(client);
+  });
+
+  it("writes only the timelines that changed, and still reads a copy from before timelines had their own keys", async () => {
+    vi.useFakeTimers();
+    const qc = seeded();
+    installAccountCache({ queryClient: qc, persister });
+    await restoreAccountCache("u1");
+    qc.setQueryData(chatKeys.unreadSummary(), unread(1));
+    await vi.advanceTimersByTimeAsync(PERSIST_THROTTLE_MS);
+    const set = vi.spyOn(store, "set");
+    qc.setQueryData(chatKeys.roomMessages("w1", "new"), { pages: [page("n3")], pageParams: [null] });
+    await vi.advanceTimersByTimeAsync(PERSIST_THROTTLE_MS);
+    expect(set.mock.calls.map(([key]) => key)).toEqual([timelineKey("new"), "query-cache"]);
+    await dropAccountCache();
+
+    // The old layout: every query, timelines included, inside the envelope.
+    store.set("query-cache", JSON.stringify({ buster: buster("u1"), timestamp: Date.now(), clientState: dehydrate(seeded(), { shouldDehydrateQuery: shouldPersistQuery }) }));
+    // A listed key that is gone, or holds no JSON, or is not a timeline key, is skipped; the rest opens.
+    const envelope = JSON.parse(store.getString("query-cache")!) as Record<string, unknown>;
+    store.set("query-cache", JSON.stringify({ ...envelope, timelines: [timelineKey("gone"), timelineKey("broken"), "elsewhere"] }));
+    store.set(timelineKey("broken"), "{");
+    store.set("elsewhere", "{}");
+    const next = new QueryClient();
+    installAccountCache({ queryClient: next, persister });
+    await restoreAccountCache("u1");
+    expect(next.getQueryData(chatKeys.roomMessages("w1", "old"))).toEqual({ pages: [page("o1")], pageParams: [null] });
+    // An envelope that is no client at all reads as none, its timeline keys or not.
+    store.set("query-cache", JSON.stringify({ timelines: [] }));
+    expect(await persister.restoreClient()).toBeUndefined();
+  });
+
+  it("only new data in a kept query is worth a write: a fetch starting, an invalidation or an eviction is not", async () => {
+    vi.useFakeTimers();
+    const qc = new QueryClient();
+    installAccountCache({ queryClient: qc, persister });
+    await restoreAccountCache("u1");
+    qc.setQueryData(chatKeys.task("w1", "t1"), {});
+    await qc.invalidateQueries({ queryKey: chatKeys.rooms("w1") });
+    void qc.prefetchQuery({ queryKey: chatKeys.rooms("w1"), queryFn: () => new Promise<never>(() => undefined) });
+    qc.removeQueries({ queryKey: chatKeys.task("w1", "t1") });
+    await vi.advanceTimersByTimeAsync(PERSIST_THROTTLE_MS);
+    expect(store.getString("query-cache")).toBeUndefined();
+    await dropAccountCache();
   });
 });

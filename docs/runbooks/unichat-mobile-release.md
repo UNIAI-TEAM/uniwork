@@ -402,9 +402,14 @@ khi nào dịch vụ chạy, ai được báo) với module native giả; chỉ 
    đọc manifest của từng thư viện) và gỡ bằng `tools:node="remove"` trong `plugins/with-removed-android-services.js`.
 16. Tin kẹt trong hàng đợi hay cache trên máy hỏng: sửa nguyên nhân ở server (tin chờ tự đi khi server nhận lại, mỗi
    tin một lần nhờ `client_msg_id`). Một máy cụ thể: đăng xuất rồi đăng nhập lại xoá hàng đợi, tệp chờ và cache trên
-   máy đó (tin chưa gửi mất — báo người dùng). Cache trên máy tự bỏ khi lên phiên bản mới (buster là version + user).
-   Kho mã hoá không mở được trên nhiều máy (breadcrumb ở Kiểm tra 6): lỗi native của `react-native-mmkv`/
-   `react-native-nitro-modules`, cần bản store; app vẫn chạy, chỉ không giữ gì offline.
+   máy đó (tin chưa gửi mất — báo người dùng). Cache trên máy giữ qua bản store mới và OTA (buster là
+   `CACHE_SCHEMA_VERSION` + user; bản ghi đọc lại qua schema): cache sai nghĩa sau một bản thì bump
+   `CACHE_SCHEMA_VERSION` trong `data/persisted-cache.ts` và phát OTA — mọi máy bỏ bản cũ ở lần mở sau.
+   Kho mã hoá không mở được: Sentry có issue `source:device-store` — tag `outcome:memory` (lần mở đó chạy bằng bộ
+   nhớ, tin xếp hàng mất nếu app bị kill; nhiều máy cùng lúc là lỗi native của `react-native-mmkv`/
+   `react-native-nitro-modules`, cần bản store) hoặc `device_store_key_lost` / `outcome:file_deleted` (khoá trong
+   Keychain/Keystore mất mà tệp còn — khôi phục sang máy mới, Keystore bị xoá —, tệp bị xoá có chủ ý, hàng đợi và cache
+   của máy đó mất; tăng đột biến sau một bản thì nghi lỗi đọc khoá, xem breadcrumb `device store key not read`).
 17. Khoá Apple/Google hết hạn hoặc lộ: thu hồi ở Apple/Google, tạo khoá mới, tải lại bằng `eas credentials`; `EXPO_TOKEN`
    lộ: thu hồi robot token trên expo.dev, tạo token mới vào Environment. Khoá ký OTA lộ: tạo cặp khoá/chứng chỉ mới,
    commit chứng chỉ mới, cắt bản store (binary cũ vẫn tin chứng chỉ cũ cho tới khi người dùng cập nhật; đặt
