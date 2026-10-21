@@ -85,6 +85,8 @@ export function NotificationRow({
   const list = onOpenList && opensDocumentList(n) ? onOpenList : null;
   // The row's resource flags are about the first document only; a change row decides by its verb and count.
   const gone = changed ? !documentChangedHasPage(n) && !list : n.resource_deleted;
+  // "Deleted" is said only of a document that is really gone; one in the trash is restorable and stays dimmed, untagged.
+  const deletedTag = changed ? n.resource_deleted || documentChangedFacts(n).verb === "deleted" : gone;
   const actions = !compact && onToggleRead && onArchive ? { onToggleRead, onArchive } : null;
   const snippet = notificationSnippet(n);
 
@@ -148,8 +150,8 @@ export function NotificationRow({
           </time>
           {merged ? <span aria-hidden>·</span> : null}
           {merged ? <span>{merged}</span> : null}
-          {gone ? <span aria-hidden>·</span> : null}
-          {gone ? <span className="italic">{t("notifications.deleted")}</span> : null}
+          {deletedTag ? <span aria-hidden>·</span> : null}
+          {deletedTag ? <span className="italic">{t("notifications.deleted")}</span> : null}
         </span>
       </span>
     </>
@@ -192,7 +194,15 @@ export function NotificationRow({
       )}
     >
       {gone ? (
-        <div className={rowClass}>{body}</div>
+        unread ? (
+          // No page to go to, but the notice was seen: a click only marks it read, or it would stay "new" on Home
+          // and in the badge forever. The keyboard path to the same is the Inbox's mark-read action.
+          <button type="button" className={cn(rowClass, "w-full cursor-default")} onClick={() => onOpen(n)}>
+            {body}
+          </button>
+        ) : (
+          <div className={rowClass}>{body}</div>
+        )
       ) : (
         <AppLink
           href={href}
