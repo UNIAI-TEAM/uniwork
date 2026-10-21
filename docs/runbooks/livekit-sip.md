@@ -66,6 +66,8 @@ Giới hạn đã biết (chủ sản phẩm đã được báo):
 - Lời nhắc nhập PIN là giọng tiếng Anh mặc định của `livekit-sip`.
 - Người gọi chờ duyệt nghe im lặng (không có nhạc chờ hay lời báo).
 - Mỗi cuộc gọi là một lần gõ cửa: gọi lại sau khi rớt máy phải được duyệt lại.
+- Người gọi ẩn số (không có caller ID) dùng chung một danh tính trong cuộc họp: chủ trì gỡ một người như vậy là chặn mọi
+  người gọi ẩn số khác vào cuộc họp đó cho đến khi họp xong.
 - Đổi `JWT_SECRET` đổi luôn khoá HMAC của id người gọi (`uw_sip_…`, khoá `JWT_SECRET` + tiền tố `dial-in:`): cuộc gọi đang
   diễn ra mất liên tục điểm danh (phiên cũ không khớp id mới); đổi khoá ngoài giờ họp.
 
