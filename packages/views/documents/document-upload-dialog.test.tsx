@@ -52,6 +52,31 @@ describe("DocumentUploadDialog", () => {
     clickSpy.mockRestore();
   });
 
+  it("picks one file at a time when nobody takes several", () => {
+    renderDialog();
+    expect(screen.getByLabelText(t("documents.upload.pick"))).not.toHaveAttribute("multiple");
+  });
+
+  it("hands two or more picked files to onPickMany and keeps one file in this dialog (ADDENDUM 2)", () => {
+    const onPickMany = vi.fn();
+    const onPickFile = vi.fn();
+    renderDialog({ onPickMany, onPickFile });
+    const input = screen.getByLabelText(t("documents.upload.pick")) as HTMLInputElement;
+    expect(input).toHaveAttribute("multiple");
+    const a = new File(["x"], "a.pdf", { type: "application/pdf" });
+    const b = new File(["y"], "b.pdf", { type: "application/pdf" });
+    fireEvent.change(input, { target: { files: [a, b] } });
+    expect(onPickMany).toHaveBeenCalledWith([a, b]);
+    expect(onPickFile).not.toHaveBeenCalled();
+    expect(screen.getByTestId("document-upload-selected")).toHaveTextContent(t("documents.upload.no_file"));
+
+    const input2 = screen.getByLabelText(t("documents.upload.pick")) as HTMLInputElement;
+    fireEvent.change(input2, { target: { files: [a] } });
+    expect(onPickMany).toHaveBeenCalledTimes(1);
+    expect(onPickFile).toHaveBeenCalledWith(a);
+    expect(screen.getByTestId("document-upload-selected")).toHaveTextContent("a.pdf");
+  });
+
   it("reads 100% on the label and the indicator together, with no final-step transition (D-4)", () => {
     renderDialog({
       chunkedProgress: { phase: "uploading", sentBytes: 100, totalBytes: 100 },

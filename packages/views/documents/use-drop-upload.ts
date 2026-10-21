@@ -7,6 +7,7 @@ import { ChunkedUploadError } from "@uniwork/core/documents/chunked-upload";
 import { readDroppedFolders, type FolderUploadEntry } from "@uniwork/core/documents/folder-upload";
 import { DEFAULT_DOCUMENT_MAX_BYTES } from "@uniwork/core/documents/limits";
 import { documentErrorMessage, documentUploadValidationMessage } from "./document-error-message";
+import { refusalMessage } from "./folder-upload/folder-upload-copy";
 
 function hasFiles(event: DragEvent): boolean {
   return Array.from(event.dataTransfer?.types ?? []).includes("Files");
@@ -41,17 +42,39 @@ interface QueuedUploadEntry {
  *
  * Dropped folders go to `onFolders` (one entry list per folder, UNI-2052);
  * without it they are skipped with one toast and the loose files still upload.
+ * While `foldersReady` is false (the config that says whether the server takes
+ * folder uploads has not answered) a dropped folder is read at once but waits
+ * for the answer before it is handed over or explained. A folder cut at the
+ * read bound (more than `maxFolderFiles * 4` uploadable files) is refused here, with the lower-bound
+ * count, rather than staged half-read.
+ *
+ * Two or more loose files in one drop go to `onFiles` as ONE multi-file run
+ * (ADDENDUM 2), after the drop's folders; a single loose file, or any files
+ * when `onFiles` is absent (no folder upload on the server), take the old
+ * one-file-at-a-time queue. Until `foldersReady`, several files wait too.
  */
 export function useDropUpload({
   enabled,
   upload,
   maxBytes = DEFAULT_DOCUMENT_MAX_BYTES,
   onFolders,
+  onFiles,
+  foldersReady = true,
+  maxFolderFiles,
+  uploadExtensions,
 }: {
   enabled: boolean;
   upload: (file: File) => Promise<void>;
   maxBytes?: number;
   onFolders?: (folders: FolderUploadEntry<File>[][]) => void;
+  /** Takes two or more loose files of one drop as one multi-file run; gated like `onFolders`. */
+  onFiles?: (files: File[]) => void;
+  /** False while the config that decides `onFolders` is still loading. */
+  foldersReady?: boolean;
+  /** `max_files` of the folder-upload limits, for the read bound of a dropped folder. */
+  maxFolderFiles?: number;
+  /** `upload_extensions` of the document limits, the list the planner gets; only files it allows count toward the read bound. */
+  uploadExtensions?: readonly string[];
 }) {
   const { t, i18n } = useTranslation();
   const [active, setActive] = useState(false);
@@ -64,6 +87,17 @@ export function useDropUpload({
   // one to settle — and every file waiting in line gets its own toast (I-1).
   const chainRef = useRef<Promise<void>>(Promise.resolve());
   const jobsRef = useRef<QueuedUploadEntry[][]>([]);
+  const folderGate = useRef({ onFolders, onFiles, ready: foldersReady, maxFolderFiles, waiters: [] as (() => void)[] });
+  folderGate.current.onFolders = onFolders;
+  folderGate.current.onFiles = onFiles;
+  folderGate.current.ready = foldersReady;
+  folderGate.current.maxFolderFiles = maxFolderFiles;
+  useEffect(() => {
+    if (!foldersReady) return;
+    const { waiters } = folderGate.current;
+    folderGate.current.waiters = [];
+    for (const wake of waiters) wake();
+  }, [foldersReady]);
 
   // Queued toasts do not outlive the zone that owns them.
   useEffect(
@@ -141,6 +175,47 @@ export function useDropUpload({
     return next;
   };
 
+  const whenFoldersReady = (): Promise<void> =>
+    folderGate.current.ready ? Promise.resolve() : new Promise<void>((resolve) => folderGate.current.waiters.push(resolve));
+
+  /** Hands a read drop to `onFolders` once the config has answered; says so when there is nothing to hand it to. */
+  const stageDroppedFolders = async (reading: Promise<Awaited<ReturnType<typeof readDroppedFolders>>>) => {
+    let read: Awaited<typeof reading>;
+    try {
+      read = await reading;
+    } catch {
+      toast.error(t("documents.folder_upload.toast.read_failed"));
+      return;
+    }
+    await whenFoldersReady();
+    const { onFolders: handler, maxFolderFiles: limit } = folderGate.current;
+    if (!handler) {
+      toast.info(t("documents.folder_upload.toast.folders_unavailable"));
+      return;
+    }
+    const staged = read.folders.filter((entries, index) => {
+      if (!read.truncated[index]) return true;
+      toast.error(t("documents.folder_upload.toast.refused", { name: entries[0]?.path.split("/")[0] ?? "" }), {
+        description: refusalMessage(
+          t,
+          { code: "too_many_files", limit: limit ?? 0, actual: entries.length - 1 },
+          i18n.language,
+          { lowerBound: true },
+        ),
+      });
+      return false;
+    });
+    if (staged.length > 0) handler(staged);
+  };
+
+  /** Several loose files: one multi-file run once the config allows it, else the old queue. */
+  const stageLooseFiles = async (files: File[]) => {
+    if (!folderGate.current.ready) await whenFoldersReady();
+    const handler = folderGate.current.onFiles;
+    if (handler) handler(files);
+    else void enqueueUpload(files);
+  };
+
   const zoneProps = enabled
     ? {
         onDragEnter: (event: DragEvent) => {
@@ -169,21 +244,19 @@ export function useDropUpload({
             // The browser empties the item list when this tick ends, so the
             // loose files and the folder walk both start before any await.
             const loose = looseFilesOf(items);
-            const reading = onFolders ? readDroppedFolders(items) : null;
-            if (!reading) toast.info(t("documents.folder_upload.toast.folders_unavailable"));
-            if (loose.length > 0) void enqueueUpload(loose);
-            reading?.then(
-              ({ folders }) => {
-                if (folders.length > 0) onFolders?.(folders);
-              },
-              () => {
-                toast.error(t("documents.folder_upload.toast.read_failed"));
-              },
-            );
+            const { onFolders: handler, ready } = folderGate.current;
+            const unavailable = ready && !handler;
+            const reading = unavailable ? null : readDroppedFolders(items, { maxFiles: maxFolderFiles, uploadExtensions });
+            if (unavailable) toast.info(t("documents.folder_upload.toast.folders_unavailable"));
+            const several = loose.length >= 2 && !unavailable;
+            if (loose.length > 0 && !several) void enqueueUpload(loose);
+            // The loose files' run queues behind the drop's folders.
+            if (reading) void stageDroppedFolders(reading).then(() => (several ? stageLooseFiles(loose) : undefined));
             return;
           }
           const files = Array.from(event.dataTransfer.files);
-          if (files.length > 0) void enqueueUpload(files);
+          if (files.length >= 2) void stageLooseFiles(files);
+          else if (files.length > 0) void enqueueUpload(files);
         },
       }
     : {};

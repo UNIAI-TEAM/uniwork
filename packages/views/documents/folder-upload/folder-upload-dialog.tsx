@@ -16,7 +16,7 @@ import {
 } from "@uniwork/ui/components/ui/dialog";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { Switch } from "@uniwork/ui/components/ui/switch";
-import { groupSkipped, refusalMessage, skipReasonLabel } from "./folder-upload-copy";
+import { groupSkipped, modeContext, refusalMessage, skipReasonLabel } from "./folder-upload-copy";
 
 export interface FolderUploadDialogProps {
   open: boolean;
@@ -28,6 +28,7 @@ export interface FolderUploadDialogProps {
   parentShared?: boolean;
   /** Folders still waiting behind this one (several dropped at once). */
   queued?: number;
+  /** The plan is on its way; closing (Cancel, Esc, ×) still works and means "cancel the run". */
   pending?: boolean;
   /** The server said it is busy and the run is waiting out Retry-After once. */
   waiting?: boolean;
@@ -64,12 +65,15 @@ export function FolderUploadDialog({
   }, [plan]);
 
   const refusal = plan?.refusal ?? null;
-  const renamed = plan !== null && plan.rootTitle !== plan.rootName;
+  // A plan with no root is a files-mode run (ADDENDUM 2): the files land in the destination itself.
+  const mode = plan !== null && plan.rootName === null ? "files" : "folder";
+  const ctx = modeContext(mode);
+  const renamed = mode === "folder" && plan !== null && plan.rootTitle !== plan.rootName;
   const groups = plan ? groupSkipped(plan.skipped) : [];
   const effectiveShare = parentShared || share;
   const hintText = parentShared
     ? t("documents.folder_upload.dialog.share_inherited")
-    : t("documents.folder_upload.dialog.share_hint");
+    : t("documents.folder_upload.dialog.share_hint", ctx);
 
   const toggleGroup = (reason: string) =>
     setExpanded((prev) => {
@@ -80,10 +84,10 @@ export function FolderUploadDialog({
     });
 
   return (
-    <Dialog open={open} onOpenChange={(next) => (pending && !next ? undefined : onOpenChange(next))}>
-      <DialogContent className="sm:max-w-lg" showCloseButton={!pending} closeLabel={t("common.close")}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-lg" closeLabel={t("common.close")} data-testid="folder-upload-dialog" data-mode={mode}>
         <DialogHeader>
-          <DialogTitle>{t("documents.folder_upload.dialog.title")}</DialogTitle>
+          <DialogTitle>{t("documents.folder_upload.dialog.title", ctx)}</DialogTitle>
           <DialogDescription>{t("documents.folder_upload.dialog.description")}</DialogDescription>
         </DialogHeader>
         {plan ? (
@@ -96,11 +100,15 @@ export function FolderUploadDialog({
             }}
           >
             <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-body">
-              <dt className="text-muted-foreground">{t("documents.folder_upload.dialog.root_label")}</dt>
-              <dd className="flex min-w-0 items-center gap-1.5 font-medium text-foreground" data-testid="folder-upload-root">
-                <FolderUp aria-hidden className="size-4 shrink-0" />
-                <span className="truncate">{plan.rootTitle}</span>
-              </dd>
+              {mode === "folder" ? (
+                <>
+                  <dt className="text-muted-foreground">{t("documents.folder_upload.dialog.root_label")}</dt>
+                  <dd className="flex min-w-0 items-center gap-1.5 font-medium text-foreground" data-testid="folder-upload-root">
+                    <FolderUp aria-hidden className="size-4 shrink-0" />
+                    <span className="truncate">{plan.rootTitle}</span>
+                  </dd>
+                </>
+              ) : null}
               <dt className="text-muted-foreground">{t("documents.folder_upload.dialog.destination_label")}</dt>
               <dd className="truncate text-foreground" data-testid="folder-upload-destination">
                 {destinationName}
@@ -119,8 +127,8 @@ export function FolderUploadDialog({
               >
                 <CircleAlert aria-hidden className="mt-0.5 size-4 shrink-0" />
                 <div className="flex flex-col gap-0.5">
-                  <p className="text-body font-medium">{t("documents.folder_upload.dialog.refusal_title")}</p>
-                  <p className="text-caption">{refusalMessage(t, refusal, i18n.language)}</p>
+                  <p className="text-body font-medium">{t("documents.folder_upload.dialog.refusal_title", ctx)}</p>
+                  <p className="text-caption">{refusalMessage(t, refusal, i18n.language, { mode })}</p>
                 </div>
               </div>
             ) : (
@@ -209,7 +217,7 @@ export function FolderUploadDialog({
               </p>
             ) : null}
             <DialogFooter className="px-0 pb-0">
-              <Button type="button" variant="outline" disabled={pending} onClick={() => onOpenChange(false)}>
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                 {t("documents.folder_upload.dialog.cancel")}
               </Button>
               <Button type="submit" aria-disabled={refusal !== null || pending || undefined} aria-busy={pending || undefined}>

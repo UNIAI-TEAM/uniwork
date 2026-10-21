@@ -35,6 +35,43 @@ const settled = (over: Partial<Parameters<ReturnType<typeof make>["handle"]["set
   ...over,
 });
 
+describe("createFolderUploadToast in files mode (ADDENDUM 2 A7)", () => {
+  function makeFiles(retry = false) {
+    return createFolderUploadToast({ t, name: "Hợp đồng", total: 40, onCancelAll: vi.fn(), mode: "files", retry });
+  }
+
+  it("shows progress with no folder name and Hủy tất cả", () => {
+    makeFiles().progress({ done: 12, total: 40 });
+    const call = toast.loading.mock.calls.at(-1);
+    expect(call?.[0]).toBe("Đang tải lên — 12/40 tệp");
+    expect(call?.[1].action.label).toBe("Hủy tất cả");
+  });
+
+  it("names the destination on success and opens it", () => {
+    const onOpenFolder = vi.fn();
+    makeFiles().settle(settled({ title: "Hợp đồng", onOpenFolder }));
+    const [message, options] = toast.success.mock.calls[0] ?? [];
+    expect(message).toBe("Đã tải lên 40 tệp vào \"Hợp đồng\"");
+    expect(options.action.label).toBe("Mở thư mục");
+    options.action.onClick();
+    expect(onOpenFolder).toHaveBeenCalledTimes(1);
+  });
+
+  it("says to upload the files again when the batch expired", () => {
+    makeFiles().settle(settled({ title: "Hợp đồng", done: 10, failed: 3, expired: true }));
+    expect(toast.warning.mock.calls[0]?.[0]).toBe("Lượt tải lên đã hết hạn — 10/40 tệp đã lên. Hãy tải lại tệp.");
+  });
+
+  it("keeps partial and canceled as for folders, and a retry has its own line", () => {
+    makeFiles().settle(settled({ done: 37, failed: 3 }));
+    expect(toast.warning.mock.calls[0]?.[0]).toBe("37/40 tệp đã tải lên · 3 lỗi");
+    makeFiles().settle(settled({ done: 0, canceled: true }));
+    expect(toast.info.mock.calls[0]?.[0]).toBe("Đã hủy tải lên");
+    makeFiles(true).progress({ done: 38, total: 40 });
+    expect(toast.loading.mock.calls.at(-1)?.[0]).toBe("Đang thử lại — 38/40 tệp");
+  });
+});
+
 describe("createFolderUploadToast", () => {
   it("opens ONE progress toast with Hủy tất cả and updates the same id", () => {
     const { handle, onCancelAll } = make();
@@ -42,8 +79,8 @@ describe("createFolderUploadToast", () => {
 
     expect(toast.loading).toHaveBeenCalledTimes(2);
     const [first, second] = toast.loading.mock.calls;
-    expect(first?.[0]).toBe("Đang tải lên «Báo cáo» — 0/40 tệp");
-    expect(second?.[0]).toBe("Đang tải lên «Báo cáo» — 12/40 tệp");
+    expect(first?.[0]).toBe("Đang tải lên \"Báo cáo\" — 0/40 tệp");
+    expect(second?.[0]).toBe("Đang tải lên \"Báo cáo\" — 12/40 tệp");
     expect(second?.[1].id).toBe(first?.[1].id);
     expect(second?.[1].action.label).toBe("Hủy tất cả");
     second?.[1].action.onClick();
@@ -56,7 +93,7 @@ describe("createFolderUploadToast", () => {
     const result = settled();
     handle.settle(result);
     const [message, options] = toast.success.mock.calls[0] ?? [];
-    expect(message).toBe("Đã tải lên 40 tệp vào «Báo cáo»");
+    expect(message).toBe("Đã tải lên 40 tệp vào \"Báo cáo\"");
     expect(options.id).toBe(toast.loading.mock.calls[0]?.[1].id);
     expect(options.action.label).toBe("Mở thư mục");
     options.action.onClick();
@@ -87,22 +124,60 @@ describe("createFolderUploadToast", () => {
     const { handle } = make();
     handle.settle(settled({ done: 12, failed: 3, expired: true }));
     const [message, options] = toast.warning.mock.calls[0] ?? [];
-    expect(message).toBe("Lượt tải lên «Báo cáo» đã hết hạn — 12/40 tệp đã lên. Hãy tải lại thư mục.");
+    expect(message).toBe("Lượt tải lên \"Báo cáo\" đã hết hạn — 12/40 tệp đã lên. Hãy tải lại thư mục.");
     expect(options.action.label).toBe("Xem");
 
     handle.settle(settled({ done: 12, failed: 0, expired: true }));
     expect(toast.warning.mock.calls[1]?.[1].action).toBeUndefined();
+    // R5-1: no action means no decision to wait for, so this form expires instead of sticking.
+    expect(Number.isFinite(toast.warning.mock.calls[1]?.[1].duration)).toBe(true);
+    expect(toast.warning.mock.calls[0]?.[1].duration).toBe(Number.POSITIVE_INFINITY);
   });
 
   it("uses the server's title for the end state, not the preview name", () => {
     const { handle } = make();
     handle.settle(settled({ title: "Báo cáo (1)" }));
-    expect(toast.success.mock.calls[0]?.[0]).toBe("Đã tải lên 40 tệp vào «Báo cáo (1)»");
+    expect(toast.success.mock.calls[0]?.[0]).toBe("Đã tải lên 40 tệp vào \"Báo cáo (1)\"");
+  });
+
+  it("says a cancel kept nothing without a zero count", () => {
+    const { handle } = make();
+    handle.settle(settled({ done: 0, canceled: true }));
+    expect(toast.info.mock.calls[0]?.[0]).toBe("Đã hủy tải lên");
+  });
+
+  it("names a retry as such, with a Cancel that stops only the retry", () => {
+    const onCancelAll = vi.fn();
+    createFolderUploadToast({ t, name: "Báo cáo", total: 40, onCancelAll, retry: true });
+    const [message, options] = toast.loading.mock.calls[0] ?? [];
+    expect(message).toBe("Đang thử lại \"Báo cáo\" — 0/40 tệp");
+    expect(options.action.label).toBe("Hủy thử lại");
+    options.action.onClick();
+    expect(onCancelAll).toHaveBeenCalledTimes(1);
   });
 
   it("dismisses its own toast", () => {
     const { handle } = make();
     handle.dismiss();
     expect(toast.dismiss).toHaveBeenCalledWith(toast.loading.mock.calls[0]?.[1].id);
+  });
+});
+
+// review-fe-r3 R3-2: the closed form has no action and asks for no decision, so it expires.
+describe("the closed toast (R3-2)", () => {
+  it("has a finite duration, while the Xem form stays until the person acts", () => {
+    const { handle } = make();
+    handle.settle(settled({ done: 38, failed: 2 }));
+    expect(toast.warning.mock.calls[0]?.[1].duration).toBe(Number.POSITIVE_INFINITY);
+    handle.close();
+    const closed = toast.warning.mock.calls[1]?.[1];
+    expect(closed.action).toBeUndefined();
+    expect(Number.isFinite(closed.duration)).toBe(true);
+  });
+
+  it("has a finite duration for an expired run settled after the page is gone", () => {
+    const { handle } = make();
+    handle.settle(settled({ done: 10, failed: 30, expired: true, closed: true }));
+    expect(Number.isFinite(toast.warning.mock.calls[0]?.[1].duration)).toBe(true);
   });
 });

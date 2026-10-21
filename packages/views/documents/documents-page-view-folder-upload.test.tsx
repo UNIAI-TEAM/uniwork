@@ -35,13 +35,26 @@ const workspace: Workspace = {
 };
 const FOLDER_LIMITS = { max_files: 500, max_folders: 500, max_total_bytes: 2 * 1024 ** 3, max_depth: 20, parallel: 4, complete_batch: 50 };
 
-function route({ folderUpload, folder }: { folderUpload: boolean; folder?: Record<string, unknown> }) {
+function route({
+  folderUpload,
+  folder,
+  configGate,
+  limits,
+}: {
+  folderUpload: boolean;
+  /** Overrides of the document limits the config carries. */
+  limits?: Record<string, unknown>;
+  folder?: Record<string, unknown>;
+  /** Holds the answer of GET /config until it resolves. */
+  configGate?: Promise<void>;
+}) {
   requestMock.mockImplementation((path: string) => {
     if (path.startsWith("/api/v1/config")) {
-      return Promise.resolve({
+      const answer = {
         flags: { office_engine: true },
-        documents: { limits: { upload_max_bytes: 200 * 1024 * 1024, ...(folderUpload ? { folder_upload: FOLDER_LIMITS } : {}) } },
-      });
+        documents: { limits: { upload_max_bytes: 200 * 1024 * 1024, ...(folderUpload ? { folder_upload: FOLDER_LIMITS } : {}), ...limits } },
+      };
+      return configGate ? configGate.then(() => answer) : Promise.resolve(answer);
     }
     if (folder && path.startsWith(`${BASE}/${folder.id as string}`)) return Promise.resolve(folder);
     if (path.startsWith(`${BASE}/tree`)) return Promise.resolve({ documents: folder ? [{ ...folder, position: 0, children: [] }] : [] });
@@ -102,7 +115,7 @@ function dirEntry(name: string, children: FileSystemEntry[]): FileSystemDirector
   } as unknown as FileSystemDirectoryEntry;
 }
 
-/** The toolbar Upload once the config has turned it into a menu (it is a plain button until then). */
+/** The toolbar Upload once the config has turned it into a menu (it acts as a plain button until then). */
 const screenWithFolderUpload = () =>
   waitFor(() => {
     const trigger = screen.getByRole("button", { name: t("documents.folder_upload.menu_label") });
@@ -142,6 +155,60 @@ describe("Documents home folder upload entries (UNI-2052)", () => {
     expect(screen.queryByTestId("folder-upload-input")).toBeNull();
   });
 
+  it("sends two or more files picked in Tải lên tệp to the files-mode pre-flight, one file to the single-file dialog (A5)", async () => {
+    route({ folderUpload: true });
+    renderView();
+    fireEvent.click(await screenWithFolderUpload());
+    fireEvent.click(await screen.findByRole("menuitem", { name: t("documents.folder_upload.menu_file") }));
+    const input = (await screen.findByLabelText(t("documents.upload.pick"))) as HTMLInputElement;
+    expect(input).toHaveAttribute("multiple");
+    const a = new File(["x"], "a.pdf", { type: "application/pdf" });
+    const b = new File(["y"], "b.pdf", { type: "application/pdf" });
+    fireEvent.change(input, { target: { files: [a, b] } });
+    const dialog = await screen.findByTestId("folder-upload-dialog");
+    expect(dialog).toHaveAttribute("data-mode", "files");
+    expect(within(dialog).queryByTestId("folder-upload-root")).toBeNull();
+    expect(within(dialog).getByTestId("folder-upload-summary")).toHaveTextContent("2 tệp");
+    expect(within(dialog).getByTestId("folder-upload-destination")).toHaveTextContent(t("documents.home.my_folder.label"));
+    expect(screen.queryByLabelText(t("documents.upload.pick"))).toBeNull();
+    fireEvent.click(within(dialog).getByRole("button", { name: t("documents.folder_upload.dialog.cancel") }));
+    await waitFor(() => expect(screen.queryByTestId("folder-upload-dialog")).toBeNull());
+
+    fireEvent.click(await screenWithFolderUpload());
+    fireEvent.click(await screen.findByRole("menuitem", { name: t("documents.folder_upload.menu_file") }));
+    const again = (await screen.findByLabelText(t("documents.upload.pick"))) as HTMLInputElement;
+    fireEvent.change(again, { target: { files: [a] } });
+    expect(screen.getByTestId("document-upload-selected")).toHaveTextContent("a.pdf");
+    expect(screen.queryByTestId("folder-upload-dialog")).toBeNull();
+  });
+
+  it("keeps the Tải lên tệp picker single-file when the config has no folder_upload block (A8)", async () => {
+    route({ folderUpload: false });
+    renderView();
+    const upload = await screen.findByRole("button", { name: t("documents.home.create.upload.button") });
+    await configLoaded();
+    fireEvent.click(upload);
+    const input = (await screen.findByLabelText(t("documents.upload.pick"))) as HTMLInputElement;
+    expect(input).not.toHaveAttribute("multiple");
+  });
+
+  it("queues two dropped files one by one, with no multi-file run, when the config has no folder_upload block (A8)", async () => {
+    route({ folderUpload: false });
+    renderView();
+    await screen.findByRole("button", { name: t("documents.home.create.upload.button") });
+    await configLoaded();
+    const zone = screen.getByRole("region", { name: t("documents.page.title") });
+    const a = new File(["x"], "a.pdf", { type: "application/pdf" });
+    const b = new File(["y"], "b.pdf", { type: "application/pdf" });
+    await act(async () => {
+      fireEvent.drop(zone, { dataTransfer: { types: ["Files"], files: [a, b], items: [], dropEffect: "none" } });
+    });
+    await waitFor(() =>
+      expect(toast.loading).toHaveBeenCalledWith(t("documents.upload.drop_queued", { name: "b.pdf" }), expect.anything()),
+    );
+    expect(screen.queryByTestId("folder-upload-dialog")).toBeNull();
+  });
+
   it("opens the pre-flight dialog for a folder dropped on the library, destination My Folder at the root", async () => {
     route({ folderUpload: true });
     renderView();
@@ -156,6 +223,49 @@ describe("Documents home folder upload entries (UNI-2052)", () => {
     expect(within(dialog).getByTestId("folder-upload-root")).toHaveTextContent("Báo cáo");
     expect(within(dialog).getByTestId("folder-upload-destination")).toHaveTextContent(t("documents.home.my_folder.label"));
     expect(within(dialog).getByTestId("folder-upload-summary")).toHaveTextContent("1 tệp");
+  });
+
+  it("reads a dropped folder with the server's extension list, so skipped files do not trip the read bound", async () => {
+    route({
+      folderUpload: true,
+      limits: { upload_extensions: ["docx"], folder_upload: { ...FOLDER_LIMITS, max_files: 1 } },
+    });
+    renderView();
+    await screenWithFolderUpload();
+    const zone = screen.getByRole("region", { name: t("documents.page.title") });
+    // Six files are over the bound of 4 (1 x 4) by the client's own list; by the server's (.docx only) one counts.
+    const children = [...["1", "2", "3", "4", "5"].map((n) => fileEntry(`${n}.pdf`)), fileEntry("6.docx")];
+    const items = [{ kind: "file", webkitGetAsEntry: () => dirEntry("Kho", children), getAsFile: () => null }];
+    await act(async () => {
+      fireEvent.drop(zone, { dataTransfer: { types: ["Files"], files: [], items, dropEffect: "none" } });
+    });
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByTestId("folder-upload-root")).toHaveTextContent("Kho");
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it("opens one files-mode pre-flight for a folder's sibling files dropped with it, after the folder's (A6)", async () => {
+    route({ folderUpload: true });
+    renderView();
+    await screenWithFolderUpload();
+    const zone = screen.getByRole("region", { name: t("documents.page.title") });
+    const a = new File(["x"], "a.pdf", { type: "application/pdf" });
+    const b = new File(["y"], "b.pdf", { type: "application/pdf" });
+    const items = [
+      { kind: "file", webkitGetAsEntry: () => dirEntry("Báo cáo", [fileEntry("x.pdf")]), getAsFile: () => null },
+      { kind: "file", webkitGetAsEntry: () => fileEntry("a.pdf"), getAsFile: () => a },
+      { kind: "file", webkitGetAsEntry: () => fileEntry("b.pdf"), getAsFile: () => b },
+    ];
+    await act(async () => {
+      fireEvent.drop(zone, { dataTransfer: { types: ["Files"], files: [], items, dropEffect: "none" } });
+    });
+    const dialog = await screen.findByTestId("folder-upload-dialog");
+    expect(dialog).toHaveAttribute("data-mode", "folder");
+    expect(within(dialog).getByText(t("documents.folder_upload.dialog.queue_more", { count: 1 }))).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: t("documents.folder_upload.dialog.cancel") }));
+    await waitFor(() => expect(screen.getByTestId("folder-upload-dialog")).toHaveAttribute("data-mode", "files"));
+    expect(screen.getByTestId("folder-upload-summary")).toHaveTextContent("2 tệp");
+    expect(screen.queryByTestId("folder-upload-root")).toBeNull();
   });
 
   it("skips a dropped folder with one toast when the server has no folder uploads", async () => {
@@ -182,5 +292,35 @@ describe("Documents home folder upload entries (UNI-2052)", () => {
     await configLoaded();
     expect(screen.queryByTestId("folder-upload-input")).toBeNull();
     expect(screen.queryByRole("button", { name: t("documents.home.create.upload.button") })).toBeNull();
+  });
+
+  it("keeps the same toolbar Upload element when the config resolves with folder upload (RF15)", async () => {
+    let release: () => void = () => {};
+    route({ folderUpload: true, configGate: new Promise<void>((resolve) => (release = resolve)) });
+    renderView();
+    const before = await screen.findByRole("button", { name: t("documents.home.create.upload.button") });
+    expect(before).not.toHaveAttribute("aria-haspopup");
+    release();
+    const after = await screenWithFolderUpload();
+    expect(after).toBe(before);
+  });
+
+  it("waits for the config before judging a dropped folder instead of calling folder upload unavailable (RF15)", async () => {
+    let release: () => void = () => {};
+    route({ folderUpload: true, configGate: new Promise<void>((resolve) => (release = resolve)) });
+    renderView();
+    await screen.findByRole("button", { name: t("documents.home.create.upload.button") });
+    const zone = screen.getByRole("region", { name: t("documents.page.title") });
+    const items = [{ kind: "file", webkitGetAsEntry: () => dirEntry("Báo cáo", [fileEntry("a.pdf")]), getAsFile: () => null }];
+    await act(async () => {
+      fireEvent.drop(zone, { dataTransfer: { types: ["Files"], files: [], items, dropEffect: "none" } });
+    });
+    expect(toast.info).not.toHaveBeenCalled();
+    expect(screen.queryByRole("dialog")).toBeNull();
+
+    release();
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByTestId("folder-upload-root")).toHaveTextContent("Báo cáo");
+    expect(toast.info).not.toHaveBeenCalled();
   });
 });

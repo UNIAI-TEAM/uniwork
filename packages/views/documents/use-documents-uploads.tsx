@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { DocumentLimits } from "@uniwork/core/api/endpoints/config";
 import type { FolderUploadTransport } from "@uniwork/core/documents/folder-upload";
+import { usePublicConfig } from "@uniwork/core/feature-flags";
 import { isMyFolder, type DocumentTreeNode } from "@uniwork/core/types/document";
 import { DocumentUploadDialog } from "./document-upload-dialog";
 import { useFolderUpload } from "./folder-upload/use-folder-upload";
@@ -80,11 +81,18 @@ export function useDocumentsUploads({
     onOpenFolder,
     transport: folderTransport,
   });
+  // The limits above are the defaults until GET /config answers; a folder
+  // dropped meanwhile waits for it rather than being called unavailable.
+  const configLoading = usePublicConfig({ enabled: canUpload }).isLoading;
   const drop = useDropUpload({
     enabled: canUpload,
     maxBytes: limits.upload_max_bytes,
     upload: fileUpload.uploadDroppedFile,
     onFolders: folderUpload.available ? folderUpload.addFolders : undefined,
+    onFiles: folderUpload.available ? folderUpload.addFiles : undefined,
+    foldersReady: !configLoading,
+    maxFolderFiles: limits.folder_upload?.max_files,
+    uploadExtensions: limits.upload_extensions,
   });
 
   return {
@@ -94,7 +102,19 @@ export function useDocumentsUploads({
     dropActive: drop.active,
     dialogs: (
       <>
-        <DocumentUploadDialog {...fileUpload.dialogProps} />
+        <DocumentUploadDialog
+          {...fileUpload.dialogProps}
+          // Two or more files go through the folder-upload fast path as one files-mode run (ADDENDUM 2);
+          // without folder upload on the server the picker stays single-file.
+          onPickMany={
+            folderUpload.available
+              ? (files) => {
+                  fileUpload.dialogProps.onOpenChange(false);
+                  folderUpload.addFiles(files);
+                }
+              : undefined
+          }
+        />
         {folderUpload.dialogs}
       </>
     ),

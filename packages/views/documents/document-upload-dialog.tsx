@@ -43,6 +43,11 @@ export interface DocumentUploadDialogProps {
   onCancelUpload?: (file: File | null) => void;
   hasResumable?: (file: File) => boolean;
   onPickFile?: (file: File | null) => void;
+  /**
+   * Takes two or more picked files as one multi-file upload (ADDENDUM 2); the
+   * input accepts several files only when it is set. One file stays here.
+   */
+  onPickMany?: (files: File[]) => void;
 }
 
 /**
@@ -68,6 +73,7 @@ export function DocumentUploadDialog({
   onCancelUpload,
   hasResumable,
   onPickFile,
+  onPickMany,
 }: DocumentUploadDialogProps) {
   const { t } = useTranslation();
   const [file, setFile] = useState<File | null>(null);
@@ -163,13 +169,21 @@ export function DocumentUploadDialog({
               ref={inputRef}
               type="file"
               accept={accept}
+              multiple={onPickMany !== undefined}
               aria-label={t("documents.upload.pick")}
               className="sr-only"
               aria-hidden="true"
               tabIndex={-1}
               disabled={isBusy}
               onChange={(event) => {
-                const picked = event.target.files?.[0] ?? null;
+                const files = event.target.files;
+                if (onPickMany && files && files.length >= 2) {
+                  onPickMany(Array.from(files));
+                  // Remount so the same files picked again still fire a change.
+                  setInputKey((key) => key + 1);
+                  return;
+                }
+                const picked = files?.[0] ?? null;
                 setFile(picked);
                 onPickFile?.(picked);
               }}

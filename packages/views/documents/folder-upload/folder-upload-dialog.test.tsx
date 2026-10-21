@@ -36,7 +36,43 @@ function renderDialog(over: Partial<FolderUploadDialogProps> = {}) {
 
 const submit = () => screen.getByRole("button", { name: "Tải lên" });
 
+const filesPlan = (over: Partial<FolderUploadPlan> = {}) =>
+  plan({ rootName: null, rootTitle: null, folders: [], totals: { files: 12, bytes: 3 * MIB }, ...over });
+
 describe("FolderUploadDialog", () => {
+  it("marks the folder mode on the dialog", () => {
+    renderDialog();
+    expect(screen.getByTestId("folder-upload-dialog")).toHaveAttribute("data-mode", "folder");
+    expect(screen.getByRole("heading", { name: "Tải lên thư mục" })).toBeInTheDocument();
+  });
+
+  it("in files mode shows no root line, only the destination, the count and the size", () => {
+    renderDialog({ plan: filesPlan() });
+    expect(screen.getByTestId("folder-upload-dialog")).toHaveAttribute("data-mode", "files");
+    expect(screen.getByRole("heading", { name: "Tải lên tệp" })).toBeInTheDocument();
+    expect(screen.queryByTestId("folder-upload-root")).toBeNull();
+    expect(screen.queryByTestId("folder-upload-renamed")).toBeNull();
+    expect(screen.getByTestId("folder-upload-destination")).toHaveTextContent("Thư mục của tôi");
+    expect(screen.getByTestId("folder-upload-summary")).toHaveTextContent("12 tệp · 3 MB");
+    expect(screen.getByText("Áp dụng cho mọi tệp trong lần tải lên này.")).toBeInTheDocument();
+    expect(screen.getByRole("switch")).not.toBeChecked();
+  });
+
+  it("in files mode names the refusal for the files, not a folder", () => {
+    renderDialog({ plan: filesPlan({ files: [], totals: { files: 0, bytes: 0 }, refusal: { code: "nothing_to_upload" } }) });
+    const refusal = screen.getByTestId("folder-upload-refusal");
+    expect(refusal).toHaveTextContent("Chưa tải lên được các tệp này");
+    expect(refusal).toHaveTextContent("Không có tệp nào tải lên được.");
+    expect(refusal).not.toHaveTextContent("thư mục");
+  });
+
+  it("in files mode sends the share switch for every file of the run", () => {
+    const { onSubmit } = renderDialog({ plan: filesPlan() });
+    fireEvent.click(screen.getByRole("switch"));
+    fireEvent.click(submit());
+    expect(onSubmit).toHaveBeenCalledWith({ shareWithWorkspace: true });
+  });
+
   it("shows the root, the destination and the file count with the size", () => {
     renderDialog();
     expect(screen.getByTestId("folder-upload-root")).toHaveTextContent("Báo cáo");
@@ -48,8 +84,8 @@ describe("FolderUploadDialog", () => {
   it("names the (n) title when the root name is taken", () => {
     renderDialog({ plan: plan({ rootTitle: "Báo cáo (1)" }) });
     expect(screen.getByTestId("folder-upload-root")).toHaveTextContent("Báo cáo (1)");
-    expect(screen.getByTestId("folder-upload-renamed")).toHaveTextContent("Đã có «Báo cáo» ở đây");
-    expect(screen.getByTestId("folder-upload-renamed")).toHaveTextContent("«Báo cáo (1)»");
+    expect(screen.getByTestId("folder-upload-renamed")).toHaveTextContent("Đã có \"Báo cáo\" ở đây");
+    expect(screen.getByTestId("folder-upload-renamed")).toHaveTextContent("\"Báo cáo (1)\"");
   });
 
   it("groups skipped files by reason and expands the paths of one group", () => {
@@ -138,21 +174,29 @@ describe("FolderUploadDialog", () => {
     expect(onSubmit).toHaveBeenCalledWith({ shareWithWorkspace: false });
   });
 
-  it("cancels without submitting and blocks closing while the run is being prepared", () => {
+  it("cancels without submitting", () => {
     const { onSubmit, onOpenChange } = renderDialog();
     fireEvent.click(screen.getByRole("button", { name: "Hủy" }));
     expect(onOpenChange).toHaveBeenCalledWith(false);
     expect(onSubmit).not.toHaveBeenCalled();
   });
 
-  it("tells how many folders still wait behind this one", () => {
+  it("tells how many uploads still wait behind this one, folders and files alike", () => {
     renderDialog({ queued: 2 });
-    expect(screen.getByText("Còn 2 thư mục đang chờ.")).toBeInTheDocument();
+    expect(screen.getByText("Còn 2 lượt tải lên đang chờ.")).toBeInTheDocument();
   });
 
   it("says the server is busy while the run waits out Retry-After", () => {
     renderDialog({ pending: true, waiting: true });
     expect(screen.getByRole("status")).toHaveTextContent("Máy chủ đang bận, sẽ tự thử lại sau ít giây…");
+  });
+
+  it("keeps Hủy live while the run waits, so the run can be canceled", () => {
+    const { onOpenChange } = renderDialog({ pending: true, waiting: true });
+    const cancel = screen.getByRole("button", { name: "Hủy" });
+    expect(cancel).not.toBeDisabled();
+    fireEvent.click(cancel);
+    expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
   it("names the folder count of a too_many_folders refusal", () => {

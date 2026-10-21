@@ -10,6 +10,17 @@ type TFunction = ReturnType<typeof useTranslation>["t"];
 
 const GIB = 1024 ** 3;
 
+/** A run of one picked or dropped folder, or of loose files straight into the destination (ADDENDUM 2). */
+export type FolderUploadMode = "folder" | "files";
+
+/**
+ * Files mode reads the `_files` variant of a key when it has one (i18next
+ * context): a sentence that says "the folder" there says "the files" instead.
+ */
+export function modeContext(mode: FolderUploadMode = "folder"): { context?: string } {
+  return mode === "files" ? { context: "files" } : {};
+}
+
 function localeTag(locale: string): string {
   return locale.toLowerCase().startsWith("en") ? "en-US" : "vi-VN";
 }
@@ -35,23 +46,30 @@ export function formatUploadBytes(bytes: number, locale: string, rounding: "up" 
   return `${formatted} GB`;
 }
 
-/** The numbers-bearing sentence of a whole-run refusal, e.g. "612 tệp — tối đa 500". */
+/**
+ * The numbers-bearing sentence of a whole-run refusal, e.g. "612 tệp — tối đa 500".
+ * `lowerBound` marks an `actual` the read stopped at (a dropped folder cut at
+ * the read bound): the file count then reads "Hơn 2.000 tệp — tối đa 500".
+ */
 export function refusalMessage(
   t: TFunction,
   refusal: NonNullable<FolderUploadPlan["refusal"]>,
   locale: string,
+  opts: { lowerBound?: boolean; mode?: FolderUploadMode } = {},
 ): string {
   const { limit, actual } = refusal;
+  const ctx = modeContext(opts.mode);
   // The planner's code union gains too_many_folders with the v0.2 config; read it as a string so either side may land first.
   const code: string = refusal.code;
   switch (code) {
     case "too_many_files":
     case "too_many_folders":
     case "too_deep":
-      return t(`documents.folder_upload.refusal.${code}`, {
+      return t(`documents.folder_upload.refusal.${code === "too_many_files" && opts.lowerBound ? "too_many_files_over" : code}`, {
         actual: formatCount(actual ?? 0, locale),
         limit: formatCount(limit ?? 0, locale),
         count: actual ?? 0,
+        ...ctx,
       });
     case "too_large_total":
       return t("documents.folder_upload.refusal.too_large_total", {
@@ -61,9 +79,9 @@ export function refusalMessage(
     case "nothing_to_upload":
     case "segment_too_long":
     case "multiple_roots":
-      return t(`documents.folder_upload.refusal.${code}`);
+      return t(`documents.folder_upload.refusal.${code}`, ctx);
     default:
-      return t("documents.folder_upload.refusal.unknown");
+      return t("documents.folder_upload.refusal.unknown", ctx);
   }
 }
 
@@ -81,8 +99,8 @@ export function skipReasonLabel(t: TFunction, reason: string): string {
     : t("documents.folder_upload.skip_reason.invalid_path");
 }
 
-// Per-file codes of the server's complete step (contract v0.2 §3) plus the
-// client's own `missing_etag`.
+// Per-file codes: the server's complete step (contract v0.2 §3) plus the
+// client's own PUT failures (`FolderUploadFailedFile.code`).
 const FAILURE_CODES = [
   "upload_missing",
   "size_mismatch",
@@ -90,38 +108,109 @@ const FAILURE_CODES = [
   "storage_quota_exceeded",
   "not_found",
   "parts_invalid",
+  "network",
+  "target_expired",
+  "http_5xx",
   "missing_etag",
+  "missing_part_url",
+  "untrusted_target",
+  "aborted",
+  "folder_upload_file_settled",
+  "folder_upload_target_signed",
+  "upload_session_busy",
 ] as const;
 
-/** One sentence per failure code; a code the client does not know reads as the generic one. */
-export function failureReasonMessage(t: TFunction, code: string | undefined): string {
-  return (FAILURE_CODES as readonly string[]).includes(code ?? "")
-    ? t(`documents.folder_upload.report.reason.${code}`)
-    : t("documents.folder_upload.report.reason.unknown");
+// Sentences that end in "Thử lại các tệp lỗi": a report that cannot retry reads their `reason_no_retry` form (R2-3).
+const RETRY_POINTING = new Set([
+  "network",
+  "target_expired",
+  "http_5xx",
+  "missing_part_url",
+  "aborted",
+  "parts_invalid",
+  "upload_session_busy",
+  "folder_upload_file_settled",
+  "folder_upload_target_signed",
+]);
+
+// Reasons the server gives beside `unsupported_media`; one it has not told us about reads as the plain sentence.
+const UNSUPPORTED_MEDIA_REASONS = ["zip_unreadable"] as const;
+
+// Sentences that already tell the person what to do once retrying cannot help
+// (fix the file, free space, upload again): the report adds no hint under them.
+const SELF_HINTED_FINAL = new Set([
+  "unsupported_media",
+  "unsupported_media_zip_unreadable",
+  "storage_quota_exceeded",
+  "not_found",
+  "untrusted_target",
+]);
+
+/** The `report.reason.*` key of a failure; a code the client does not know is `unknown`, any `http_5nn` is `http_5xx`. */
+function failureSentenceKey(code: string | undefined, reason?: string): string {
+  const known = /^http_5\d\d$/.test(code ?? "") ? "http_5xx" : code ?? "";
+  if (known === "unsupported_media" && (UNSUPPORTED_MEDIA_REASONS as readonly string[]).includes(reason ?? "")) {
+    return `unsupported_media_${reason}`;
+  }
+  return (FAILURE_CODES as readonly string[]).includes(known) ? known : "unknown";
 }
 
-// Whole-run answers: the plan refusals, 429 busy, and the batch states.
+/**
+ * One sentence per failure code (and `unsupported_media` reason); a code the
+ * client does not know reads as the generic one, which points at the retry
+ * button only when the runner marked the file `retryable` (a server 5xx code
+ * such as storage_unavailable). `canRetry` false (the report has no retry
+ * button) drops the "retry the failed files" advice.
+ */
+export function failureReasonMessage(
+  t: TFunction,
+  code: string | undefined,
+  reason?: string,
+  mode: FolderUploadMode = "folder",
+  canRetry = true,
+  retryable = false,
+): string {
+  const key = failureSentenceKey(code, reason);
+  if (key === "unknown" && canRetry && retryable) return t("documents.folder_upload.report.reason.unknown_retry");
+  if (!canRetry && RETRY_POINTING.has(key)) return t(`documents.folder_upload.report.reason_no_retry.${key}`);
+  return t(`documents.folder_upload.report.reason.${key}`, modeContext(mode));
+}
+
+/** True when the failure's own sentence already says what to do after a final failure. */
+export function failureSentenceHasHint(code: string | undefined, reason?: string): boolean {
+  return SELF_HINTED_FINAL.has(failureSentenceKey(code, reason));
+}
+
+// Whole-run answers with a fixed sentence (the ones with numbers or a file name are cased in runErrorMessage).
 const RUN_ERROR_CODES = [
-  "folder_upload_file_too_large",
-  "folder_upload_unsupported_type",
   "document_parent_kind",
-  "invalid_request",
+  "folder_upload_file_settled",
+  "folder_upload_target_signed",
   "folder_uploads_busy",
   "idempotency_payload_mismatch",
-  "folder_upload_expired",
-  "folder_upload_canceled",
   "http_403",
   "http_404",
 ] as const;
 
+/** The file a refusal names: its path when the server sent one, else its file name. */
+function fileOf(fields: Record<string, unknown>): string | null {
+  for (const key of ["path", "filename"]) {
+    const value = fields[key];
+    if (typeof value === "string" && value !== "") return value;
+  }
+  return null;
+}
+
 /**
  * The sentence for a run that failed as a whole: a refused plan (with its
- * numbers from `fields`), 429 busy, 410 expired or 409 canceled. Anything the
- * client has no sentence for reads as the generic one.
+ * numbers from `fields`) or 429 busy. A 410 expired or 409 canceled batch never
+ * gets here: the runner turns it into an `expired` / `canceled` report.
+ * Anything the client has no sentence for reads as the generic one.
  */
-export function runErrorMessage(t: TFunction, error: unknown, locale: string): string {
+export function runErrorMessage(t: TFunction, error: unknown, locale: string, mode: FolderUploadMode = "folder"): string {
+  const ctx = modeContext(mode);
   const refusal = asFolderUploadRefusal(error);
-  if (!refusal) return t("documents.folder_upload.error.unknown");
+  if (!refusal) return t("documents.folder_upload.error.unknown", ctx);
   const { code, fields } = refusal;
   const num = (key: string): number => (typeof fields[key] === "number" ? (fields[key] as number) : 0);
   switch (code) {
@@ -130,18 +219,37 @@ export function runErrorMessage(t: TFunction, error: unknown, locale: string): s
       return t(`documents.folder_upload.error.${code}`, {
         max: formatCount(num("max"), locale),
         actual: formatCount(num("count"), locale),
+        ...ctx,
       });
     case "folder_upload_too_large":
       return t("documents.folder_upload.error.folder_upload_too_large", {
         max: formatUploadBytes(num("max_bytes"), locale),
         total: formatUploadBytes(num("total_bytes"), locale, "up"),
+        ...ctx,
       });
     case "document_too_deep":
-      return t("documents.folder_upload.error.document_too_deep", { max: formatCount(num("max_depth"), locale) });
+      return t("documents.folder_upload.error.document_too_deep", { max: formatCount(num("max_depth"), locale), ...ctx });
+    case "invalid_request":
+    case "folder_upload_unsupported_type": {
+      const file = fileOf(fields);
+      return file
+        ? t(`documents.folder_upload.error.${code}_named`, { file, ...ctx })
+        : t(`documents.folder_upload.error.${code}`, ctx);
+    }
+    case "folder_upload_file_too_large": {
+      const file = fileOf(fields);
+      return file
+        ? t("documents.folder_upload.error.folder_upload_file_too_large_named", {
+            file,
+            max: formatUploadBytes(num("max_bytes"), locale),
+            ...ctx,
+          })
+        : t("documents.folder_upload.error.folder_upload_file_too_large", ctx);
+    }
     default:
       return (RUN_ERROR_CODES as readonly string[]).includes(code)
-        ? t(`documents.folder_upload.error.${code}`)
-        : t("documents.folder_upload.error.unknown");
+        ? t(`documents.folder_upload.error.${code}`, ctx)
+        : t("documents.folder_upload.error.unknown", ctx);
   }
 }
 

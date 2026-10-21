@@ -1,6 +1,6 @@
 import { QueryClient } from "@tanstack/react-query";
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { act, configure, fireEvent, getConfig, render, screen, waitFor } from "@testing-library/react";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_DOCUMENT_LIMITS, type DocumentLimits } from "@uniwork/core/api/endpoints/config";
 import {
   createFakeFolderUploadTransport,
@@ -82,6 +82,15 @@ function setup(over: Partial<UseFolderUploadOptions> = {}, fake: FakeFolderUploa
 const stage = (...lists: FolderUploadEntry<File>[][]) => act(() => hook.addFolders(lists));
 const upload = () => fireEvent.click(screen.getByRole("button", { name: t("documents.folder_upload.dialog.submit") }));
 
+// Every waitFor/findBy here rides the fake transport (14-file runs, retries, backoffs); on a loaded box the
+// 1 s default is shorter than the work, so the budget is set well above it. A failure still fails, just later.
+let asyncUtilTimeout = 0;
+beforeAll(() => {
+  asyncUtilTimeout = getConfig().asyncUtilTimeout;
+  configure({ asyncUtilTimeout: 8_000 });
+});
+afterAll(() => configure({ asyncUtilTimeout }));
+
 beforeEach(() => {
   for (const fn of Object.values(toast)) fn.mockReset();
 });
@@ -144,7 +153,7 @@ describe("useFolderUpload", () => {
     const ids = new Set([...toast.loading.mock.calls, ...toast.success.mock.calls].map((call) => call[1].id));
     expect(ids.size).toBe(1);
     const [message, options] = toast.success.mock.calls[0] ?? [];
-    expect(message).toBe("Đã tải lên 2 tệp vào «Mới»");
+    expect(message).toBe("Đã tải lên 2 tệp vào \"Mới\"");
     options.action.onClick();
     expect(onOpenFolder).toHaveBeenCalledWith("folder-root");
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
@@ -183,6 +192,57 @@ describe("useFolderUpload", () => {
     expect(plan?.method === "plan" && plan.body.parent_id).toBe("my-folder");
   });
 
+  it("plans picked files as one files-mode run into the open folder, with no root folder", async () => {
+    const { transport, onOpenFolder } = setup();
+    act(() => hook.addFiles([pdf("a.pdf"), pdf("b.pdf")]));
+    const dialog = await screen.findByTestId("folder-upload-dialog");
+    expect(dialog).toHaveAttribute("data-mode", "files");
+    expect(screen.queryByTestId("folder-upload-root")).toBeNull();
+    expect(screen.getByTestId("folder-upload-summary")).toHaveTextContent("2 tệp");
+    expect(screen.getByTestId("folder-upload-destination")).toHaveTextContent("Hợp đồng");
+    upload();
+    await waitFor(() => expect(toast.success).toHaveBeenCalled());
+    const plan = transport.calls.find((c) => c.method === "plan");
+    expect(plan?.method === "plan" && plan.body).toMatchObject({ parent_id: "folder-open", share_with_workspace: false });
+    expect(plan?.method === "plan" && "root_name" in plan.body && plan.body.root_name !== undefined).toBe(false);
+    expect(plan?.method === "plan" && plan.body.files.map((f) => f.path)).toEqual(["", ""]);
+    expect(toast.loading.mock.calls[0]?.[0]).toMatch(/^Đang tải lên — \d+\/2 tệp$/);
+    const [message, options] = toast.success.mock.calls[0] ?? [];
+    expect(message).toBe("Đã tải lên 2 tệp vào \"Hợp đồng\"");
+    // "Mở thư mục" opens the destination: there is no root folder in files mode.
+    options.action.onClick();
+    expect(onOpenFolder).toHaveBeenCalledWith("folder-open");
+  });
+
+  it("says a refused files-mode plan in files words, in the dialog", async () => {
+    const { transport } = setup();
+    transport.failNext("plan", folderUploadApiError(409, "idempotency_payload_mismatch", {}));
+    act(() => hook.addFiles([pdf("a.pdf"), pdf("b.pdf")]));
+    await screen.findByTestId("folder-upload-dialog");
+    upload();
+    expect(await screen.findByText("Lượt tải này không khớp với lần trước. Hãy chọn lại tệp.")).toBeInTheDocument();
+  });
+
+  it("counts a queued files run as an upload, not a folder", async () => {
+    setup();
+    stage(entries("Một", ["a.pdf"]));
+    act(() => hook.addFiles([pdf("a.pdf"), pdf("b.pdf")]));
+    expect(await screen.findByText("Còn 1 lượt tải lên đang chờ.")).toBeInTheDocument();
+  });
+
+  it("refuses files that would sit deeper than the depth limit, in the dialog", async () => {
+    setup({ limits: { ...WITH_FOLDERS, folder_upload: { ...WITH_FOLDERS.folder_upload!, max_depth: 2 } } });
+    act(() => hook.addFiles([pdf("a.pdf"), pdf("b.pdf")]));
+    // The open folder sits at level 2: its files would be at level 3.
+    expect(await screen.findByTestId("folder-upload-refusal")).toBeInTheDocument();
+  });
+
+  it("does not stage picked files when folder upload is not available", () => {
+    setup({ limits: DEFAULT_DOCUMENT_LIMITS });
+    act(() => hook.addFiles([pdf("a.pdf"), pdf("b.pdf")]));
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
   it("opens one dialog per dropped folder, one after the other", async () => {
     setup();
     stage(entries("Một", ["a.pdf"]), entries("Hai", ["b.pdf"]));
@@ -191,6 +251,101 @@ describe("useFolderUpload", () => {
     upload();
     await waitFor(() => expect(screen.getByTestId("folder-upload-root")).toHaveTextContent("Hai"));
     expect(screen.queryByText(t("documents.folder_upload.dialog.queue_more", { count: 1 }))).toBeNull();
+  });
+
+  it("cancels the run from the dialog while it waits out the server's Retry-After", async () => {
+    const { transport } = setup();
+    transport.failNext("plan", folderUploadApiError(429, "folder_uploads_busy", { retry_after: 30 }));
+    stage(entries("Mới", ["a.pdf"]));
+    upload();
+    expect(await screen.findByText(t("documents.folder_upload.dialog.waiting"))).toBeInTheDocument();
+    const cancel = screen.getByRole("button", { name: t("documents.folder_upload.dialog.cancel") });
+    expect(cancel).not.toBeDisabled();
+    fireEvent.click(cancel);
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(transport.calls.filter((c) => c.method === "plan")).toHaveLength(1);
+    expect(toast.loading).not.toHaveBeenCalled();
+    expect(toast.info).not.toHaveBeenCalled();
+  });
+
+  /**
+   * The plan is held for `PLAN_MS` on a fake clock, so "out at once" is about ordering, not about how
+   * fast a loaded machine renders: nothing advances until the test says so.
+   */
+  const PLAN_MS = 1_200;
+  const tick = (ms: number) => act(() => vi.advanceTimersByTimeAsync(ms));
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+  const leaveWhilePlanning = async (leave: () => void) => {
+    vi.useFakeTimers();
+    const { transport } = setup({}, { latencyMs: PLAN_MS });
+    stage(entries("Mới", ["a.pdf"]));
+    upload();
+    await tick(0);
+    expect(transport.calls.some((c) => c.method === "plan")).toBe(true);
+    leave();
+
+    // The user is out at once: the plan has not answered, so the batch is not canceled yet (d74e1d7c8 waits for it).
+    await tick(0);
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(transport.calls.some((c) => c.method === "cancel")).toBe(false);
+    // The next folder opens its dialog while the old run is still cleaning up.
+    stage(entries("Hai", ["b.pdf"]));
+    await tick(0);
+    expect(screen.getByTestId("folder-upload-root")).toHaveTextContent("Hai");
+
+    // The plan answers: the run cancels that batch in the background (its own PLAN_MS latency) and settles without a trace.
+    await tick(PLAN_MS * 3);
+    expect(transport.calls.filter((c) => c.method === "cancel")).toEqual([{ method: "cancel", batchId: "batch-1" }]);
+    expect(transport.batch?.status).toBe("canceled");
+    expect(transport.calls.some((c) => c.method === "put")).toBe(false);
+    expect(toast.loading).not.toHaveBeenCalled();
+    expect(toast.info).not.toHaveBeenCalled();
+    expect(toast.warning).not.toHaveBeenCalled();
+    expect(toast.error).not.toHaveBeenCalled();
+    // The canceled settle neither closed nor disturbed the dialog of the next folder.
+    expect(screen.getByTestId("folder-upload-root")).toHaveTextContent("Hai");
+    expect(screen.getByRole("button", { name: t("documents.folder_upload.dialog.submit") })).not.toHaveAttribute("aria-busy");
+  };
+
+  it("closes the dialog at once on Esc while the plan is still pending, and cancels the batch when the plan answers", async () => {
+    await leaveWhilePlanning(() => fireEvent.keyDown(document.activeElement ?? screen.getByRole("dialog"), { key: "Escape" }));
+  });
+
+  it("closes the dialog at once on Hủy while the plan is still pending, and cancels the batch when the plan answers", async () => {
+    await leaveWhilePlanning(() =>
+      fireEvent.click(screen.getByRole("button", { name: t("documents.folder_upload.dialog.cancel") })),
+    );
+  });
+
+  it("leaves no trace of a plan the server refuses after the user walked away (R4-3)", async () => {
+    vi.useFakeTimers();
+    const { transport } = setup({}, { latencyMs: PLAN_MS });
+    transport.failNext("plan", folderUploadApiError(422, "folder_upload_too_many_files", { max: 500, count: 612 }));
+    stage(entries("Mới", ["a.pdf"]));
+    upload();
+    await tick(0);
+    expect(transport.calls.some((c) => c.method === "plan")).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: t("documents.folder_upload.dialog.cancel") }));
+    await tick(0);
+    expect(screen.queryByRole("dialog")).toBeNull();
+    stage(entries("Hai", ["b.pdf"]));
+    await tick(0);
+    expect(screen.getByTestId("folder-upload-root")).toHaveTextContent("Hai");
+
+    // Let the held plan answer with its refusal: the next folder's dialog is the one on screen.
+    await tick(PLAN_MS + 400);
+    expect(transport.calls.filter((c) => c.method === "plan")).toHaveLength(1);
+    expect(screen.queryByText("612 tệp — tối đa 500.")).toBeNull();
+    expect(screen.getByTestId("folder-upload-root")).toHaveTextContent("Hai");
+    expect(screen.getByRole("button", { name: t("documents.folder_upload.dialog.submit") })).not.toHaveAttribute("aria-busy");
+    for (const fn of Object.values(toast)) expect(fn).not.toHaveBeenCalled();
+    // The next folder still runs on its own plan.
+    upload();
+    await tick(0);
+    expect(transport.calls.filter((c) => c.method === "plan")).toHaveLength(2);
   });
 
   it("refuses an empty dropped folder with a toast instead of a dialog", () => {
@@ -210,10 +365,42 @@ describe("useFolderUpload", () => {
     expect(toast.loading).not.toHaveBeenCalled();
   });
 
+  const planKeys = (transport: ReturnType<typeof setup>["transport"]) =>
+    transport.calls.flatMap((c) => (c.method === "plan" ? [c.idempotencyKey] : []));
+
+  it("sends the same Idempotency-Key again after a plan lost on the network", async () => {
+    const { transport } = setup();
+    transport.failNext("plan", new TypeError("Failed to fetch"));
+    stage(entries("Mới", ["a.pdf"]));
+    upload();
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    upload();
+    await waitFor(() => expect(toast.success).toHaveBeenCalled());
+    const keys = planKeys(transport);
+    expect(keys).toHaveLength(2);
+    expect(keys[0]).toBeTruthy();
+    expect(keys[1]).toBe(keys[0]);
+  });
+
+  it("mints a new Idempotency-Key when the share switch changed the payload", async () => {
+    const { transport } = setup();
+    transport.failNext("plan", new TypeError("Failed to fetch"));
+    stage(entries("Mới", ["a.pdf"]));
+    upload();
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("switch"));
+    upload();
+    await waitFor(() => expect(toast.success).toHaveBeenCalled());
+    const keys = planKeys(transport);
+    expect(keys).toHaveLength(2);
+    expect(keys[1]).not.toBe(keys[0]);
+  });
+
   it("shows the partial result, the report with the reason per file, and retries only on request", async () => {
     const { transport } = setup(
       {},
-      { fileErrors: { "b.pdf": { code: "storage_quota_exceeded", message: "" } } },
+      // upload_missing keeps the file pending at the server, so it can be retried.
+      { fileErrors: { "b.pdf": { code: "upload_missing", message: "" } } },
     );
     stage(entries("Mới", ["a.pdf", "b.pdf"]));
     upload();
@@ -225,10 +412,53 @@ describe("useFolderUpload", () => {
     });
 
     expect(await screen.findByText("Mới/b.pdf")).toBeInTheDocument();
-    expect(screen.getByText(t("documents.folder_upload.report.reason.storage_quota_exceeded"))).toBeInTheDocument();
+    expect(screen.getByText(t("documents.folder_upload.report.reason.upload_missing"))).toBeInTheDocument();
     expect(transport.calls.filter((c) => c.method === "status")).toHaveLength(0);
     fireEvent.click(screen.getByRole("button", { name: t("documents.folder_upload.report.retry") }));
     await waitFor(() => expect(transport.calls.some((c) => c.method === "status")).toBe(true));
+  });
+
+  const cancels = (transport: ReturnType<typeof setup>["transport"]) => transport.calls.filter((c) => c.method === "cancel").length;
+  const closeReport = () => fireEvent.click(screen.getAllByRole("button", { name: t("documents.folder_upload.report.close") })[0] as HTMLElement);
+
+  it("closes the batch once when the report is dismissed without a retry", async () => {
+    const { transport } = setup({}, { fileErrors: { "b.pdf": { code: "upload_missing", message: "" } } });
+    stage(entries("Mới", ["a.pdf", "b.pdf"]));
+    upload();
+    await waitFor(() => expect(toast.warning).toHaveBeenCalled());
+    const viewFailures = toast.warning.mock.calls[0]?.[1].action.onClick;
+    expect(cancels(transport)).toBe(0);
+    act(() => {
+      viewFailures();
+    });
+    await screen.findByText("Mới/b.pdf");
+    closeReport();
+    await waitFor(() => expect(cancels(transport)).toBe(1));
+
+    // Seen again from the toast, the abandoned batch offers no retry and is not canceled twice.
+    act(() => {
+      viewFailures();
+    });
+    await screen.findByText("Mới/b.pdf");
+    expect(screen.queryByRole("button", { name: t("documents.folder_upload.report.retry") })).toBeNull();
+    closeReport();
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(cancels(transport)).toBe(1);
+  });
+
+  it("closes the batch once when a run settles with nothing left to retry", async () => {
+    const { transport } = setup({}, { fileErrors: { "b.pdf": { code: "storage_quota_exceeded", message: "" } } });
+    stage(entries("Mới", ["a.pdf", "b.pdf"]));
+    upload();
+    await waitFor(() => expect(toast.warning).toHaveBeenCalled());
+    await waitFor(() => expect(cancels(transport)).toBe(1));
+    act(() => {
+      toast.warning.mock.calls[0]?.[1].action.onClick();
+    });
+    await screen.findByText("Mới/b.pdf");
+    closeReport();
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(cancels(transport)).toBe(1);
   });
 
   it("cancels the whole run from the toast and keeps what landed", async () => {
@@ -246,20 +476,100 @@ describe("useFolderUpload", () => {
     expect(transport.calls.some((c) => c.method === "cancel")).toBe(true);
   });
 
-  it("says the batch expired and hides the retry in the report", async () => {
-    const { transport } = setup();
-    transport.failNext("complete", folderUploadApiError(410, "folder_upload_expired"));
+  it("gives a retry its own toast, never revives the settled one, and ends in the success toast", async () => {
+    const { transport } = setup({}, { fileErrors: { "b.pdf": { code: "upload_missing", message: "" } } });
     stage(entries("Mới", ["a.pdf", "b.pdf"]));
     upload();
     await waitFor(() => expect(toast.warning).toHaveBeenCalled());
-    expect(toast.warning.mock.calls[0]?.[0]).toContain("đã hết hạn");
-    const action = toast.warning.mock.calls[0]?.[1].action;
-    if (action) {
-      act(() => {
-        action.onClick();
-      });
-      await screen.findByRole("dialog");
-      expect(screen.queryByRole("button", { name: t("documents.folder_upload.report.retry") })).toBeNull();
-    }
+    const settled = toast.warning.mock.calls[0]?.[1];
+    const loadingBefore = toast.loading.mock.calls.length;
+    act(() => {
+      settled.action.onClick();
+    });
+    fireEvent.click(await screen.findByRole("button", { name: t("documents.folder_upload.report.retry") }));
+
+    await waitFor(() => expect(toast.success).toHaveBeenCalled());
+    const retryLoading = toast.loading.mock.calls.slice(loadingBefore);
+    expect(retryLoading.length).toBeGreaterThan(0);
+    expect(retryLoading.every((call) => call[1].id !== settled.id)).toBe(true);
+    expect(retryLoading[0]?.[1].action.label).toBe(t("documents.folder_upload.retry_toast.cancel"));
+    const [message, options] = toast.success.mock.calls[0] ?? [];
+    expect(message).toBe("Đã tải lên 2 tệp vào \"Mới\"");
+    expect(options.id).toBe(retryLoading[0]?.[1].id);
+    expect(options.action.label).toBe(t("documents.folder_upload.toast.open_folder"));
+    // The report gave way to the retry's toast; a retry is not an abandon.
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(transport.calls.some((c) => c.method === "cancel")).toBe(false);
+  });
+
+  it("cancels only the retry from the retry's toast", async () => {
+    const { transport } = setup({}, { fileErrors: { "b.pdf": { code: "upload_missing", message: "" } } });
+    stage(entries("Mới", ["a.pdf", "b.pdf"]));
+    upload();
+    await waitFor(() => expect(toast.warning).toHaveBeenCalled());
+    const settled = toast.warning.mock.calls[0]?.[1];
+    const loadingBefore = toast.loading.mock.calls.length;
+    const release = transport.holdPuts();
+    act(() => {
+      settled.action.onClick();
+    });
+    fireEvent.click(await screen.findByRole("button", { name: t("documents.folder_upload.report.retry") }));
+    await waitFor(() => expect(transport.calls.filter((c) => c.method === "put").length).toBeGreaterThan(2));
+    const retryToast = toast.loading.mock.calls.at(-1)?.[1];
+    expect(toast.loading.mock.calls.length).toBeGreaterThan(loadingBefore);
+    expect(retryToast.id).not.toBe(settled.id);
+    act(() => {
+      retryToast.action.onClick();
+    });
+
+    await waitFor(() => expect(toast.info).toHaveBeenCalled());
+    release();
+    const [message, options] = toast.info.mock.calls[0] ?? [];
+    expect(message).toBe("Đã hủy — 1 tệp đã tải lên được giữ lại");
+    expect(options.id).toBe(retryToast.id);
+    expect(transport.calls.filter((c) => c.method === "cancel")).toHaveLength(1);
+    expect(toast.warning).toHaveBeenCalledTimes(1);
+    expect(toast.loading.mock.calls.slice(loadingBefore).every((call) => call[1].id !== settled.id)).toBe(true);
+  });
+
+  it("counts stored files in the progress and keeps them when the run is canceled", async () => {
+    // b keeps failing on the network and waits out its backoff; a sits in the complete buffer.
+    const { transport } = setup({}, { putFailures: { "b.pdf": ["network", "network", "network"] } });
+    stage(entries("Mới", ["a.pdf", "b.pdf"]));
+    upload();
+    await waitFor(() => expect(toast.loading.mock.calls.some((call) => call[0] === "Đang tải lên \"Mới\" — 1/2 tệp")).toBe(true));
+    expect(transport.calls.some((c) => c.method === "complete")).toBe(false);
+    act(() => {
+      toast.loading.mock.calls.at(-1)?.[1].action.onClick();
+    });
+
+    await waitFor(() => expect(toast.info).toHaveBeenCalled());
+    expect(toast.info.mock.calls[0]?.[0]).toBe("Đã hủy — 1 tệp đã tải lên được giữ lại");
+    expect(transport.calls.map((c) => c.method).filter((m) => m === "complete" || m === "cancel")).toEqual(["complete", "cancel"]);
+  });
+
+  it("says the batch expired, opens the report from Xem, and offers no retry", async () => {
+    // One file at a time, one complete per file: a lands, b fails for good, c's complete meets the 410.
+    // An undefined entry lets that call through; the fake throws only a defined error.
+    const { transport } = setup(
+      { limits: { ...WITH_FOLDERS, folder_upload: { ...WITH_FOLDERS.folder_upload!, parallel: 1, complete_batch: 1 } } },
+      {
+        fileErrors: { "b.pdf": { code: "storage_quota_exceeded", message: "" } },
+        errors: { complete: [undefined, undefined, folderUploadApiError(410, "folder_upload_expired")] as unknown as Error[] },
+      },
+    );
+    stage(entries("Mới", ["a.pdf", "b.pdf", "c.pdf"]));
+    upload();
+    await waitFor(() => expect(toast.warning).toHaveBeenCalled());
+    const [message, options] = toast.warning.mock.calls[0] ?? [];
+    expect(message).toBe("Lượt tải lên \"Mới\" đã hết hạn — 1/3 tệp đã lên. Hãy tải lại thư mục.");
+    expect(options.action.label).toBe(t("documents.folder_upload.toast.view_failures"));
+    act(() => {
+      options.action.onClick();
+    });
+
+    expect(await screen.findByText("Mới/b.pdf")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: t("documents.folder_upload.report.retry") })).toBeNull();
+    expect(screen.getByText(t("documents.folder_upload.report.expired_note"))).toBeInTheDocument();
   });
 });
