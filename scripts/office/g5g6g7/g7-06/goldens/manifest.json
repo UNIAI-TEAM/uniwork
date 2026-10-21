@@ -1,8 +1,8 @@
 {
   "schema": 1,
-  "pinVersion": "0.1.0-929f0ca",
-  "forkSha": "929f0ca",
-  "capturedOn": "2026-10-21T04:06:12.451Z",
+  "pinVersion": "0.1.0-51e1da4",
+  "forkSha": "51e1da4",
+  "capturedOn": "2026-10-21T17:21:18.830Z",
   "viewport": {
     "desktop": {
       "w": 1440,
@@ -52,19 +52,19 @@
       "masks": []
     },
     "web/fx-docx-report-vi": {
-      "sha256": "4632aaa4950726577a63425bb791d03960424406537da3c253f2b805aec919f5",
+      "sha256": "19a08596a965c563c16ba1663d6fed162a2a3e929acb698b306ac1962bfe38cf",
       "masks": []
     },
     "web/fx-pptx-deck-vi": {
-      "sha256": "2a5accf427ba10c3f48d033d9c7546dd2444020a961f571a975ff9029f8ff44e",
+      "sha256": "9780b8c59cabb741286793c458011d90b47903790123dd6909b27f12a2c227e0",
       "masks": []
     },
     "web/fx-pdf-invoice-vi": {
-      "sha256": "9d862d39a5ab3a21771fcb25e782c780cbf31ab8389bd00528bbafdd8ffcbe8e",
+      "sha256": "b4e9c806161c537800a33c591df51bc2222c3ed4afc4ddd09c73243bbb2de919",
       "masks": []
     },
     "web/fx-md-notes-vi": {
-      "sha256": "76d5ebda6544fea4c992b2a39522060087f72ba5137fb38dd42dce07b1f73535",
+      "sha256": "e0805178dd88052661fb30a9537b168e0def7a9ce00927b07dea5352374e2562",
       "masks": []
     },
     "web/fx-html-page-vi": {
