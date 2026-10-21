@@ -580,9 +580,13 @@ func TestDialInGuestIDIsKeyedAndStable(t *testing.T) {
 	if s.dialInGuestID("sip_c15a31c71649a522") != id || s.dialInGuestID("sip_other") == id {
 		t.Fatal("guest id is not a stable function of the identity")
 	}
-	other := *s
-	other.rt.HMACKey = []byte("another secret")
-	if other.dialInGuestID("sip_c15a31c71649a522") == id {
+	// The service holds a mutex (caption spacing), so swap the key in place
+	// rather than copying the struct.
+	key := s.rt.HMACKey
+	s.rt.HMACKey = []byte("another secret")
+	other := s.dialInGuestID("sip_c15a31c71649a522")
+	s.rt.HMACKey = key
+	if other == id {
 		t.Fatal("guest id does not depend on the server secret")
 	}
 	if !isDialInParticipant(db.MeetingParticipant{PrincipalType: PrincipalGuest, GuestID: strText(id)}) ||
