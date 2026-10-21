@@ -26,11 +26,21 @@ interface DocumentWebOpenLimits {
   xlsx: DocumentWebOpenLimit;
 }
 
+interface DocumentFolderUploadLimits {
+  max_files: number;
+  max_total_bytes: number;
+  max_depth: number;
+  parallel: number;
+  complete_batch: number;
+}
+
 export interface DocumentLimits {
   upload_max_bytes: number;
   save_warn_ratio: number;
   web_open: DocumentWebOpenLimits;
   chunked_upload_threshold_bytes?: number;
+  /** Absent when the server has no folder uploads (UNI-2052): the entry point hides. */
+  folder_upload?: DocumentFolderUploadLimits;
 }
 
 const DEFAULT_DOCUMENT_WEB_OPEN_LIMITS: DocumentWebOpenLimits = {
@@ -70,12 +80,45 @@ const DocumentWebOpenSchema = z
   .catch(undefined)
   .transform((webOpen): DocumentWebOpenLimits => webOpen ?? DEFAULT_DOCUMENT_WEB_OPEN_LIMITS);
 
+const DEFAULT_FOLDER_UPLOAD_LIMITS: DocumentFolderUploadLimits = {
+  max_files: 500,
+  max_total_bytes: 2 * 1024 * 1024 * 1024,
+  max_depth: 20,
+  parallel: 4,
+  complete_batch: 50,
+};
+
+// A drifted field takes its default; a block that is missing or not an object
+// stays absent, because only the server knows whether folder uploads exist.
+const DocumentFolderUploadSchema = z
+  .object({
+    max_files: positiveIntField,
+    max_total_bytes: positiveIntField,
+    max_depth: positiveIntField,
+    parallel: positiveIntField,
+    complete_batch: positiveIntField,
+  })
+  .optional()
+  .catch(undefined)
+  .transform((block): DocumentFolderUploadLimits | undefined =>
+    block
+      ? {
+          max_files: block.max_files ?? DEFAULT_FOLDER_UPLOAD_LIMITS.max_files,
+          max_total_bytes: block.max_total_bytes ?? DEFAULT_FOLDER_UPLOAD_LIMITS.max_total_bytes,
+          max_depth: block.max_depth ?? DEFAULT_FOLDER_UPLOAD_LIMITS.max_depth,
+          parallel: block.parallel ?? DEFAULT_FOLDER_UPLOAD_LIMITS.parallel,
+          complete_batch: block.complete_batch ?? DEFAULT_FOLDER_UPLOAD_LIMITS.complete_batch,
+        }
+      : undefined,
+  );
+
 const DocumentLimitsSchema = z
   .object({
     upload_max_bytes: positiveIntField,
     save_warn_ratio: warnRatioField,
     chunked_upload_threshold_bytes: positiveIntField,
     web_open: DocumentWebOpenSchema,
+    folder_upload: DocumentFolderUploadSchema,
   })
   .optional()
   .catch(undefined)
@@ -86,6 +129,7 @@ const DocumentLimitsSchema = z
       ? { chunked_upload_threshold_bytes: limits.chunked_upload_threshold_bytes }
       : {}),
     web_open: limits?.web_open ?? DEFAULT_DOCUMENT_WEB_OPEN_LIMITS,
+    ...(limits?.folder_upload !== undefined ? { folder_upload: limits.folder_upload } : {}),
   }));
 
 const DocumentsConfigSchema = z
