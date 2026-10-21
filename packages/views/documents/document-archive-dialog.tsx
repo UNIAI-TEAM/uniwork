@@ -195,17 +195,26 @@ export function DocumentArchiveDialog({
         </AlertDialogDescription>
       );
     }
+    const relocated = impact.data.relocated_count > 0;
+    const nothingTrashed = impact.data.folders === 0 && impact.data.documents === 0;
     return (
       <div className="space-y-2">
-        <AlertDialogDescription className="text-body text-muted-foreground">
-          {t("documents.archive.delete_body", {
-            subfolders: t("documents.archive.delete_subfolders", { count: impact.data.folders }),
-            documents: t("documents.archive.delete_documents", { count: impact.data.documents }),
-          })}
-        </AlertDialogDescription>
+        {/* Nothing of the actor's goes to trash (0 and 0): the relocation sentence alone says what happens. */}
+        {nothingTrashed && relocated ? null : (
+          <AlertDialogDescription className="text-body text-muted-foreground">
+            {t("documents.archive.delete_body", {
+              subfolders: t("documents.archive.delete_subfolders", { count: impact.data.folders }),
+              documents: t("documents.archive.delete_documents", { count: impact.data.documents }),
+            })}
+          </AlertDialogDescription>
+        )}
         {/* One sentence, never a number: how many items the viewer cannot see is not theirs to learn (UNI-2055 W5). */}
-        {impact.data.relocated_count > 0 ? (
-          <p className="text-body text-muted-foreground">{t("documents.archive.delete_relocated")}</p>
+        {relocated ? (
+          nothingTrashed ? (
+            <AlertDialogDescription className="text-body text-muted-foreground">{t("documents.archive.delete_relocated")}</AlertDialogDescription>
+          ) : (
+            <p className="text-body text-muted-foreground">{t("documents.archive.delete_relocated")}</p>
+          )
         ) : null}
       </div>
     );

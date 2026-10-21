@@ -194,7 +194,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
     parentShared,
   });
 
-  const rowDialogs = useLibraryRowDialogs({ wsId, tree: library.tree, folderId, folderTitle: openFolderTitle });
+  const rowDialogs = useLibraryRowDialogs({ wsId, tree: library.tree, folderId, folderTitle: openFolderTitle, folderRow: folderDoc });
   const fileCommands = useLibraryRowFileCommands({ wsId, documentHref: wsPaths.document });
   const trashActions = useTrashActions({ wsId, rows: library.state.rows });
   const shelvedActions = useShelvedActions({ wsId, rows: library.state.rows });

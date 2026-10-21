@@ -127,9 +127,11 @@ export function findTreeNode(nodes: DocumentTreeNode[], id: string): DocumentTre
 /**
  * UNI-2055 W1: whether a folder created under `parentId` is a workspace folder
  * (its name shows to everyone in the workspace): the workspace root, or a
- * parent outside the My Folder subtree. My Folder and its sub-folders are
- * restricted. A parent the loaded forest does not hold is judged from
- * `parentRow`, the row the caller opened the dialog from; without either, false.
+ * folder outside the My Folder subtree. A parent the loaded forest does not
+ * hold is judged from `parentRow`, the row the caller opened the dialog from;
+ * without either, false. An explicit `visibility` wins; the real tree carries
+ * none (only `system_kind` on My Folder), so then neither the folder nor any
+ * ancestor in the forest may be My Folder.
  */
 export function newFolderIsWorkspaceVisible(
   nodes: DocumentTreeNode[],
@@ -137,8 +139,11 @@ export function newFolderIsWorkspaceVisible(
   parentRow?: { kind: string; visibility?: string; system_kind?: string | null },
 ): boolean {
   if (parentId === null) return true;
-  const parent = findTreeNode(nodes, parentId) ?? parentRow;
-  return parent !== undefined && parent.kind === "folder" && !isMyFolder(parent) && parent.visibility === "workspace";
+  const inForest = findTreeNode(nodes, parentId);
+  const parent = inForest ?? parentRow;
+  if (parent === undefined || parent.kind !== "folder" || isMyFolder(parent)) return false;
+  if (parent.visibility !== undefined) return parent.visibility === "workspace";
+  return inForest !== null && !myFolderSubtreeIds(nodes).has(parentId);
 }
 
 /** How many levels hang below this node (0 for a leaf). */

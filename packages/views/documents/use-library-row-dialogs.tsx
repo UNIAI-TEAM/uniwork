@@ -53,6 +53,7 @@ export function useLibraryRowDialogs({
   tree,
   folderId,
   folderTitle,
+  folderRow,
 }: {
   wsId: string;
   tree: DocumentTreeNode[];
@@ -60,6 +61,8 @@ export function useLibraryRowDialogs({
   folderId: string | null;
   /** Title of the open folder for the "New -> Folder" dialog header. */
   folderTitle?: string;
+  /** The open folder's own row, so the create note does not wait for the tree to hold the folder. */
+  folderRow?: DocumentSummaryRow | null;
 }): LibraryRowDialogs {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
@@ -224,7 +227,7 @@ export function useLibraryRowDialogs({
       setError(null);
       setSaving(row);
     },
-    onCreateFolder: () => setNaming({ mode: "create", parentId: folderId, parentTitle: folderTitle }),
+    onCreateFolder: () => setNaming({ mode: "create", parentId: folderId, parentTitle: folderTitle, parentRow: folderRow ?? undefined }),
     onNewSubfolder: (doc) =>
       setNaming({
         mode: "create",

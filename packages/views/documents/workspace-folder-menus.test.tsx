@@ -331,8 +331,8 @@ describe("create-folder note per caller (UNI-2055 W1)", () => {
     it("notes the create under a workspace sub-folder and under none of My Folder's (tree menu)", async () => {
       answer({ tree: real });
       render(wrap(<DocumentTree wsId={WS} />));
-      fireEvent.keyDown(await screen.findByRole("treeitem", { name: /^mf/ }), { key: "ArrowRight" });
-      fireEvent.keyDown(await screen.findByRole("treeitem", { name: /^wf$/ }), { key: "ArrowRight" });
+      fireEvent.keyDown(await screen.findByRole("treeitem", { name: /Thư mục của tôi/ }), { key: "ArrowRight" });
+      fireEvent.keyDown(await screen.findByRole("treeitem", { name: /^wf(\s|$)/ }), { key: "ArrowRight" });
       const create = async (name: RegExp) => {
         fireEvent.contextMenu(await screen.findByRole("treeitem", { name }));
         fireEvent.click(await screen.findByRole("menuitem", { name: t("documents.tree.menu.new_subfolder") }));
