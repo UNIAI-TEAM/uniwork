@@ -376,6 +376,20 @@ type PendingVoiceInviteSDO struct {
 	InvitedAt  string `json:"invited_at" description:"RFC3339 timestamp when the invite was sent" example:"2026-03-26T10:00:00Z"`
 }
 
+// PendingVoiceInvitesSDO is GET .../chat/voice/pending: the rings waiting for
+// the caller, and the calls the caller started that are still live.
+type PendingVoiceInvitesSDO struct {
+	Invites  []PendingVoiceInviteSDO `json:"invites" description:"Cuộc gọi đang đổ chuông cho người gọi API"`
+	Outgoing []OutgoingVoiceCallSDO  `json:"outgoing" description:"Cuộc gọi do người gọi API bắt đầu mà server còn giữ (đang đổ chuông hoặc đã được nghe); không có ở đây không có nghĩa là đã kết thúc"`
+}
+
+// OutgoingVoiceCallSDO is a call the caller started that is still live.
+type OutgoingVoiceCallSDO struct {
+	RoomID   string `json:"room_id" description:"Chat room id" example:"01J8X4ROOM0N1P2Q3R4S5T6U7V8"`
+	CallID   string `json:"call_id" description:"Voice call id" example:"550e8400-e29b-41d4-a716-446655440000"`
+	Accepted bool   `json:"accepted" description:"Người nhận đã nghe máy" example:"true"`
+}
+
 // ChatRoomMemberDTO is a member row for chat room moderation.
 type ChatRoomMemberDTO struct {
 	UserID         string `json:"user_id" description:"Member user id" example:"01J8X4USR0N1P2Q3R4S5T6U7V8"`

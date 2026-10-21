@@ -130,9 +130,9 @@ func registerChat(r api, h Routes, chatWriteLimit, chatReactLimit, chatRoomLimit
 	})
 	r.Get("/workspaces/{workspaceID}/chat/voice/pending", h.ListPendingChatVoiceInvites, apiOp{
 		summary:     "List pending chat voice invites",
-		description: "Cuộc gọi đang đổ chuông mà callee có thể bỏ lỡ khi offline.",
+		description: "Cuộc gọi đang đổ chuông mà callee có thể bỏ lỡ khi offline, và cuộc gọi do chính người gọi API bắt đầu còn sống (đã được nghe hay chưa) để người gọi lỡ frame accept vẫn nối được.",
 		tags:        []string{"chat"},
-		sdo:         sdo.PendingVoiceInviteSDO{},
+		sdo:         sdo.PendingVoiceInvitesSDO{},
 		auth:        true,
 	})
 	r.Get("/workspaces/{workspaceID}/chat/call-logs", h.ListChatCallLogs, apiOp{

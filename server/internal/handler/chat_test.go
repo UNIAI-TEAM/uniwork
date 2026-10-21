@@ -733,6 +733,19 @@ func TestChatSignals(t *testing.T) {
 		t.Fatalf("voice accept: %d %v", res.StatusCode, out)
 	}
 
+	// The caller's own live call, answered: what a phone that missed the accept frame reads.
+	res, out = doJSON(t, srv, "GET", "/api/v1/workspaces/"+f.wsID+"/chat/voice/pending", tokA, nil)
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("caller pending: %d %v", res.StatusCode, out)
+	}
+	outgoing, _ := out["outgoing"].([]any)
+	if len(outgoing) != 1 {
+		t.Fatalf("caller outgoing: %v", out)
+	}
+	if call, _ := outgoing[0].(map[string]any); call["call_id"] != callID || call["room_id"] != f.groupRoomID || call["accepted"] != true {
+		t.Fatalf("caller outgoing call: %v", outgoing[0])
+	}
+
 	dur := 60
 	res, out = doJSON(t, srv, "POST", voiceBase+"/hangup", tokA, map[string]any{"call_id": callID, "duration_seconds": &dur})
 	if res.StatusCode != http.StatusOK {

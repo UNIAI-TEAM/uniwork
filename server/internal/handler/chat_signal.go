@@ -69,16 +69,31 @@ func (h *handlers) listPendingChatVoiceInvites(w http.ResponseWriter, r *http.Re
 		h.mapServiceError(w, err)
 		return
 	}
-	out := make([]sdo.PendingVoiceInviteSDO, 0, len(invites))
+	outgoing, err := h.Chat.ListOutgoingVoiceCalls(
+		r.Context(),
+		middleware.UserID(r.Context()),
+		chi.URLParam(r, "workspaceID"),
+	)
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	out := sdo.PendingVoiceInvitesSDO{
+		Invites:  make([]sdo.PendingVoiceInviteSDO, 0, len(invites)),
+		Outgoing: make([]sdo.OutgoingVoiceCallSDO, 0, len(outgoing)),
+	}
 	for _, inv := range invites {
-		out = append(out, sdo.PendingVoiceInviteSDO{
+		out.Invites = append(out.Invites, sdo.PendingVoiceInviteSDO{
 			RoomID: inv.RoomID, CallID: inv.CallID,
 			CallerID: inv.CallerID, CallerName: inv.CallerName,
 			CallKind: inv.CallKind, RoomName: inv.RoomName,
 			InvitedAt: inv.InvitedAt.Format(time.RFC3339),
 		})
 	}
-	respondJSON(w, http.StatusOK, map[string]any{"invites": out})
+	for _, call := range outgoing {
+		out.Outgoing = append(out.Outgoing, sdo.OutgoingVoiceCallSDO{RoomID: call.RoomID, CallID: call.CallID, Accepted: call.Accepted})
+	}
+	respondJSON(w, http.StatusOK, out)
 }
 
 func (h *handlers) signalChatTyping(w http.ResponseWriter, r *http.Request) {

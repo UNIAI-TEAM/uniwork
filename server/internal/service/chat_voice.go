@@ -476,6 +476,49 @@ func (s *ChatService) ListPendingVoiceInvites(
 	return out, nil
 }
 
+// OutgoingVoiceCall is a call the person started that the server still
+// holds: ringing, or answered (Accepted).
+type OutgoingVoiceCall struct {
+	RoomID   string
+	CallID   string
+	Accepted bool
+}
+
+// ListOutgoingVoiceCalls returns the live calls userID started in the
+// workspace's organization, so a caller whose socket missed
+// chat.voice.accept (a reconnect, a phone back from the background) learns
+// that the callee answered. Sessions are held in memory, like the pending
+// invites: a call this node does not hold is simply not listed, which a
+// client must not read as "ended".
+func (s *ChatService) ListOutgoingVoiceCalls(ctx context.Context, userID, workspaceID string) ([]OutgoingVoiceCall, error) {
+	w, err := s.workspaceForChat(ctx, userID, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]OutgoingVoiceCall, 0)
+	for _, sess := range outgoingVoiceCallSessions(userID, time.Now()) {
+		room, err := s.q.GetChatRoomByID(ctx, sess.roomID)
+		if err != nil || room.OrganizationID != w.OrganizationID {
+			continue
+		}
+		out = append(out, OutgoingVoiceCall{RoomID: sess.roomID, CallID: sess.callID, Accepted: sess.acceptedAt != nil})
+	}
+	return out, nil
+}
+
+// outgoingVoiceCallSessions are the unexpired sessions userID started, oldest first.
+func outgoingVoiceCallSessions(userID string, now time.Time) []voiceCallSession {
+	out := make([]voiceCallSession, 0)
+	voiceCallSessions.Range(func(_ any, value any) bool {
+		if sess, ok := value.(voiceCallSession); ok && sess.callerID == userID && !sess.expired(now) {
+			out = append(out, sess)
+		}
+		return true
+	})
+	slices.SortFunc(out, func(a, b voiceCallSession) int { return a.invitedAt.Compare(b.invitedAt) })
+	return out
+}
+
 func (s *ChatService) userIsVoiceInviteRecipient(
 	ctx context.Context, room db.ChatRoom, userID, callerID string,
 ) bool {

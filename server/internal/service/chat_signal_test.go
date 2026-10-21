@@ -270,6 +270,14 @@ func TestListPendingVoiceInviteWhileOffline(t *testing.T) {
 	if err != nil || len(callerPending) != 0 {
 		t.Fatalf("caller should not see own invite: err=%v pending=%+v", err, callerPending)
 	}
+	// The caller sees its own call, still ringing; the callee started none.
+	outgoing, err := s.ListOutgoingVoiceCalls(ctx, ua.ID, w.ID)
+	if err != nil || len(outgoing) != 1 || outgoing[0].CallID != "offline-call-1" || outgoing[0].RoomID != dm.ID || outgoing[0].Accepted {
+		t.Fatalf("caller outgoing while ringing: err=%v %+v", err, outgoing)
+	}
+	if calleeOutgoing, err := s.ListOutgoingVoiceCalls(ctx, ub.ID, w.ID); err != nil || len(calleeOutgoing) != 0 {
+		t.Fatalf("callee outgoing: err=%v %+v", err, calleeOutgoing)
+	}
 
 	if err := s.SignalVoiceAccept(ctx, ub.ID, w.ID, dm.ID, "offline-call-1"); err != nil {
 		t.Fatalf("accept: %v", err)
@@ -278,8 +286,16 @@ func TestListPendingVoiceInviteWhileOffline(t *testing.T) {
 	if err != nil || len(pending) != 0 {
 		t.Fatalf("pending after accept: err=%v len=%d", err, len(pending))
 	}
+	// A caller that missed the accept frame learns it here (audit C1).
+	outgoing, err = s.ListOutgoingVoiceCalls(ctx, ua.ID, w.ID)
+	if err != nil || len(outgoing) != 1 || !outgoing[0].Accepted {
+		t.Fatalf("caller outgoing after accept: err=%v %+v", err, outgoing)
+	}
 	if err := s.SignalVoiceHangup(ctx, ua.ID, w.ID, dm.ID, "offline-call-1"); err != nil {
 		t.Fatalf("hangup: %v", err)
+	}
+	if outgoing, err = s.ListOutgoingVoiceCalls(ctx, ua.ID, w.ID); err != nil || len(outgoing) != 0 {
+		t.Fatalf("caller outgoing after hangup: err=%v %+v", err, outgoing)
 	}
 
 	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, dm.ID, "offline-call-2", false); err != nil {
