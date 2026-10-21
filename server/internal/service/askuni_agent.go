@@ -94,6 +94,19 @@ func (s *AskUNIService) SetAgentMetrics(m AskAgentMetrics) { s.agentMetrics = m 
 // sourceRef is an inline citation in an answer.
 var sourceRef = regexp.MustCompile(`\[(S\d+)\]`)
 
+// mdMarks are Markdown heading, emphasis and code marks; mdEscape is a
+// backslash escape. A quote shows neither.
+var (
+	mdMarks  = regexp.MustCompile("(?m)^#{1,6}[ \t]+|\\*\\*|__|[*`]")
+	mdEscape = regexp.MustCompile(`\\([\\*_{}\[\]()#+\-.!|>~])`)
+)
+
+// quoteText is a source's body as one line of plain text for the hover card.
+func quoteText(body string) string {
+	s := mdEscape.ReplaceAllString(mdMarks.ReplaceAllString(body, ""), "$1")
+	return strings.Join(strings.Fields(s), " ")
+}
+
 // agentOn reports whether this turn runs as the agent: the flag on for the
 // asker and their organization, the read tools wired, and a copilot_agent
 // model on the provider (Ollama has none: no tool-result turn), so a
@@ -115,13 +128,15 @@ type sourceBook struct {
 	next  int
 	byKey map[string]string
 	byID  map[string]AskCitation
+	// counted holds the keys this run's steps already counted.
+	counted map[string]bool
 }
 
 // newSourceBook rebuilds the numbers from the citations the conversation's
 // answers stored, oldest first. A P0 turn numbered from S1 again, so a number
 // that names another object later is that later object's.
 func newSourceBook(cited [][]AskCitation) *sourceBook {
-	b := &sourceBook{next: 1, byKey: map[string]string{}, byID: map[string]AskCitation{}}
+	b := &sourceBook{next: 1, byKey: map[string]string{}, byID: map[string]AskCitation{}, counted: map[string]bool{}}
 	for _, cs := range cited {
 		for _, c := range cs {
 			n := sourceNum(c.SourceID)
@@ -163,7 +178,7 @@ func (b *sourceBook) source(it agentItem) {
 		b.next++
 		b.byKey[it.Key] = id
 	}
-	quote := strings.TrimSpace(it.Text)
+	quote := quoteText(it.Body)
 	if quote == "" {
 		quote = it.Title
 	}
@@ -547,7 +562,8 @@ func (s *AskUNIService) agentToolCall(ctx context.Context, tools []agentTool, tc
 			content, status = b.toolResult(items, limit)
 		}
 		for _, it := range items {
-			if it.Key != "" {
+			if it.Key != "" && !b.counted[it.Key] {
+				b.counted[it.Key] = true
 				step.Counts[it.Kind]++
 			}
 		}

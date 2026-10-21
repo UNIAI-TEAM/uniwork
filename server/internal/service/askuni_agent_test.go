@@ -564,6 +564,45 @@ func TestAskAgentCapsToolResult(t *testing.T) {
 	}
 }
 
+// A citation's quote is the source's own text: the field lines the model
+// reads (ids, status) and Markdown syntax never reach the hover card.
+func TestSourceBookQuotesTheBodyAsPlainText(t *testing.T) {
+	b := newSourceBook(nil)
+	b.source(agentItem{Kind: "document", Key: "/d/1", Title: "Quy trình", Href: "/d/1",
+		Text: "ID: 01M5\nType: page\n# Quy trình\n\n1\\. Đóng băng *tính năng*",
+		Body: "# Quy trình\n\n1\\. Đóng băng *tính năng*"})
+	b.source(agentItem{Kind: "member", Key: "/people", Title: "Lan Anh", Href: "/people", Text: "ID: u1\nRole: admin"})
+	if got := b.byID["S1"].Quote; got != "Quy trình 1. Đóng băng tính năng" {
+		t.Fatalf("document quote = %q", got)
+	}
+	if got := b.byID["S2"].Quote; got != "Lan Anh" {
+		t.Fatalf("a source without text quotes its title, got %q", got)
+	}
+}
+
+// The steps line sums the counts of every step, so a source two tools found
+// counts once in a run.
+func TestAgentToolCallCountsASourceOncePerRun(t *testing.T) {
+	s := &AskUNIService{now: time.Now}
+	item := agentItem{Kind: "task", Key: "/t/1", Title: "Việc", Href: "/t/1", Text: "Ref: A-1"}
+	tools := []agentTool{{Tool: ai.Tool{Name: "find"}, run: func(context.Context, ai.ToolContext, json.RawMessage) ([]agentItem, error) {
+		return []agentItem{item}, nil
+	}}}
+	b := newSourceBook(nil)
+	call := provider.ToolCall{ID: "c", Name: "find", Input: json.RawMessage(`{}`)}
+	_, first, err := s.agentToolCall(context.Background(), tools, ai.ToolContext{}, call, b, 0, askAgentToolResultMax)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, second, err := s.agentToolCall(context.Background(), tools, ai.ToolContext{}, call, b, 0, askAgentToolResultMax)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first.Counts["task"] != 1 || second.Counts["task"] != 0 {
+		t.Fatalf("counts = %v then %v, want the task once", first.Counts, second.Counts)
+	}
+}
+
 // One round's results share what is left of the input budget, 3 bytes a
 // token (ruling P18): later results keep only [truncated], and every call
 // still gets its tool message.
