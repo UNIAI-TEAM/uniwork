@@ -904,6 +904,7 @@ describe("Lưu trữ on the shared list (UNI-2045 W3)", () => {
     await openShelved();
     await rowOf("Kế hoạch Q4");
     expect(screen.getAllByRole("columnheader").map((th) => th.textContent?.trim())).toEqual([
+      t("documents.list.column.select"),
       t("documents.list.column.name"),
       t("documents.list.screen_column.shelved"),
       t("documents.list.column.access"),

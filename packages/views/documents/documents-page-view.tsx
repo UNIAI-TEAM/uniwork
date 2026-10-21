@@ -25,6 +25,7 @@ import { DocumentsCollectionHeader, DocumentsHomeHeader, DocumentsHomeNote } fro
 import { DocumentsLibraryList } from "./documents-library-list";
 import { docListScreenOfView, folderNameLookup } from "./doclist/live-screen";
 import { docMemberLookup } from "./doclist/screen-cells";
+import { useDocListBulkCommands } from "./doclist/use-bulk-commands";
 import type { LibraryDesktopOpen, LibraryRowHandlers } from "./documents-library-row";
 import { LibraryToolbar } from "./documents-library-toolbar";
 import { DocumentsSections, nonFolderRows, subfoldersOf } from "./documents-folders-grid";
@@ -194,6 +195,10 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
   const fileCommands = useLibraryRowFileCommands({ wsId, documentHref: wsPaths.document });
   const trashActions = useTrashActions({ wsId, rows: library.state.rows });
   const shelvedActions = useShelvedActions({ wsId, rows: library.state.rows });
+  // The bulk bar (UNI-2045 W9) on every list screen but the sources view; a
+  // new folder, view or filter starts a fresh selection.
+  const bulkCommands = useDocListBulkCommands({ wsId, tree: library.tree, onDownloadOne: fileCommands.onDownload });
+  const selectionKey = [wsId, view.kind, view.kind === "sources" ? (view.source ?? "") : "", folderId ?? "", chip, library.access, library.editor, library.updated, library.shelvedBy ?? ""].join("|");
   // Move and archive sit on the rows of this workspace's own lists for
   // people who may change the open folder; the server decides per document.
   // Lưu trữ joins the same set (U-4: manage-only at the menu item itself).
@@ -372,6 +377,9 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
       handlers={handlers}
       sort={{ value: library.sort, onSort: (column) => library.setSort(nextSort(library.sort, column)) }}
       screen={docListScreenOfView(view)}
+      selectable={view.kind !== "sources"}
+      bulk={bulkCommands.bulk}
+      selectionKey={selectionKey}
       empty={emptyCopy}
     />
   );
@@ -472,6 +480,8 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
                   onRetry={state.refetch}
                   actions={trashActions}
                   handlers={handlers}
+                  bulk={bulkCommands.bulk}
+                  selectionKey={selectionKey}
                   focusId={focusId}
                   claimFocus={claimFocus}
                   hasMore={state.hasMore}
@@ -489,6 +499,8 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
                 onChip={setChip}
                 members={members.data}
                 handlers={handlers}
+                bulk={bulkCommands.bulk}
+                selectionKey={selectionKey}
                 actions={{
                   onUnshelve: shelvedActions.onUnshelve,
                   onTrash: (doc) => rowDialogs.onArchive(doc),
@@ -546,6 +558,8 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
       {trashActions.dialog}
 
       {shelvedActions.dialog}
+
+      {bulkCommands.dialogs}
 
       {rowDialogs.dialogs}
       {fileCommands.dialogs}

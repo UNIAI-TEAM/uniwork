@@ -5,6 +5,7 @@ import { Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { DocumentsLibraryList } from "./documents-library-list";
 import type { LibraryRowHandlers } from "./documents-library-row";
+import type { DocListBulk } from "./doclist/bulk-actions";
 import type { LibraryRow } from "./library-rows";
 import type { TrashActions } from "./use-trash-actions";
 
@@ -25,6 +26,10 @@ export interface DocumentsTrashViewProps {
   hasMore?: boolean;
   loadingMore?: boolean;
   onLoadMore?: () => void;
+  /** The bulk bar's commands (W9): Khôi phục · Xóa vĩnh viễn over the selection; absent, no Select column. */
+  bulk?: DocListBulk;
+  /** A new value clears the selection. */
+  selectionKey?: string;
 }
 
 /**
@@ -48,6 +53,8 @@ export function DocumentsTrashView({
   hasMore = false,
   loadingMore = false,
   onLoadMore,
+  bulk,
+  selectionKey,
 }: DocumentsTrashViewProps) {
   const { t } = useTranslation();
   const boxRef = useRef<HTMLDivElement>(null);
@@ -109,6 +116,9 @@ export function DocumentsTrashView({
           onViewDetails: (doc) => handlers.onOpen(doc.id),
         }}
         screen="trash"
+        selectable={Boolean(bulk)}
+        bulk={bulk}
+        selectionKey={selectionKey}
         label={t("documents.trash.title")}
         highlightId={focusId}
         empty={{ icon: Trash2, title: t("documents.home.empty.archived_title"), description: t("documents.home.empty.archived_description") }}

@@ -6,6 +6,7 @@ import { useTranslation } from "react-i18next";
 import { isMyFolder, isShelved } from "@uniwork/core/types/document";
 import { Badge } from "@uniwork/ui/components/ui/badge";
 import { Button } from "@uniwork/ui/components/ui/button";
+import { Checkbox } from "@uniwork/ui/components/ui/checkbox";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -118,6 +119,7 @@ export function LibraryRowView({
   ladder,
   screen = "workspace",
   highlighted = false,
+  selection,
 }: {
   row: LibraryRow;
   handlers: LibraryRowHandlers;
@@ -127,6 +129,8 @@ export function LibraryRowView({
   screen?: DocListScreen;
   /** The row a notification pointed at (`?focus=` on Thùng rác): ringed apart from hover. */
   highlighted?: boolean;
+  /** Bulk selection (W9): the row's state, and its toggle when the bar has an action for it (`range` = shift). */
+  selection?: { selected: boolean; onToggle?: (range: boolean) => void };
 }) {
   const { t, i18n } = useTranslation();
   const appRequest = useRef<(() => Promise<DesktopOpenOutcome>) | null>(null);
@@ -330,7 +334,17 @@ export function LibraryRowView({
 
   // Every column but Actions, in the ladder's order (doclist/columns.ts); the actions cell follows them below.
   const cells: Record<string, ReactNode> = {
-    select: <td data-column="select" className={cn("py-2", libraryPad(ladder, "select"))} />,
+    select: (
+      <td data-column="select" className={cn("py-2", libraryPad(ladder, "select"))}>
+        {selection?.onToggle ? (
+          <Checkbox
+            checked={selection.selected}
+            onCheckedChange={(_checked, details) => selection.onToggle?.("shiftKey" in details.event && details.event.shiftKey === true)}
+            aria-label={t("documents.list.bulk.select_row", { title })}
+          />
+        ) : null}
+      </td>
+    ),
     name: (
       <td data-column="name" className="px-3 py-2">
         {inert ? (
@@ -389,6 +403,7 @@ export function LibraryRowView({
         render={<tr />}
         data-library-row={row.id}
         data-focused={highlighted || undefined}
+        aria-selected={selection ? selection.selected : undefined}
         className={cn(
           "group/row border-b border-border transition-colors last:border-b-0 hover:bg-accent/40",
           highlighted && "bg-accent/60 ring-2 ring-inset ring-ring",

@@ -9624,6 +9624,68 @@
         "workspaces_other": "{{count}} workspaces",
         "links_one": "{{count}} link",
         "links_other": "{{count}} links"
+      },
+      "bulk": {
+        "toolbar": "Bulk actions",
+        "selected": "{{count}} selected",
+        "select_all": "Select all",
+        "select_row": "Select {{title}}",
+        "clear": "Clear selection",
+        "action": {
+          "share": "Share",
+          "move": "Move",
+          "download": "Download",
+          "shelve": "Archive",
+          "trash": "Move to trash",
+          "unshelve": "Unarchive",
+          "restore": "Restore",
+          "purge": "Delete forever"
+        },
+        "done": {
+          "move": "Moved {{ok}}/{{total}} documents",
+          "download": "Downloaded {{ok}}/{{total}} documents",
+          "shelve": "Archived {{ok}}/{{total}} documents",
+          "trash": "Moved {{ok}}/{{total}} documents to the trash",
+          "unshelve": "Unarchived {{ok}}/{{total}} documents",
+          "restore": "Restored {{ok}}/{{total}} documents",
+          "purge": "Deleted {{ok}}/{{total}} documents forever"
+        },
+        "error": {
+          "forbidden": "you do not have permission",
+          "not_found": "no longer found",
+          "conflict": "it just changed, try again",
+          "rate_limited": "the server is busy, try again later",
+          "not_verifiable": "the result could not be confirmed",
+          "not_a_file": "cannot be downloaded (not a file)",
+          "too_large": "too large to download",
+          "folder_too_large": "the folder is too large",
+          "failed": "it did not go through"
+        },
+        "error_line": "{{title}}: {{reason}}",
+        "more_one": "and {{count}} more document",
+        "more_other": "and {{count}} more documents",
+        "confirm": {
+          "trash_title_one": "Move {{count}} document to the trash?",
+          "trash_title_other": "Move {{count}} documents to the trash?",
+          "trash_description": "Items stay in the trash for 30 days, then are deleted forever. Items you cannot manage are skipped.",
+          "trash_action": "Move to trash",
+          "purge_title_one": "Delete {{count}} document forever?",
+          "purge_title_other": "Delete {{count}} documents forever?",
+          "purge_description": "This cannot be undone. Items you cannot manage are skipped.",
+          "purge_action": "Delete forever"
+        },
+        "move": {
+          "title_one": "Move {{count}} document",
+          "title_other": "Move {{count}} documents",
+          "description": "Choose the folder the selected documents move to."
+        },
+        "zip": {
+          "preparing": "Preparing the zip file…",
+          "too_large": "The selected files add up to more than 1 GB. Choose fewer files.",
+          "failed": "The zip file could not be made. Try again.",
+          "expired": "The download link has expired. Try again.",
+          "timeout": "The zip file is not ready yet. Try again later."
+        }
       }
     },
     "tree": {

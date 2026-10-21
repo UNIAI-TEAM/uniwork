@@ -9619,6 +9619,68 @@
         "workspaces_other": "{{count}} workspace",
         "links_one": "{{count}} link",
         "links_other": "{{count}} link"
+      },
+      "bulk": {
+        "toolbar": "Thao tác hàng loạt",
+        "selected": "{{count}} đã chọn",
+        "select_all": "Chọn tất cả",
+        "select_row": "Chọn {{title}}",
+        "clear": "Bỏ chọn",
+        "action": {
+          "share": "Chia sẻ",
+          "move": "Di chuyển",
+          "download": "Tải xuống",
+          "shelve": "Lưu trữ",
+          "trash": "Chuyển vào thùng rác",
+          "unshelve": "Bỏ lưu trữ",
+          "restore": "Khôi phục",
+          "purge": "Xóa vĩnh viễn"
+        },
+        "done": {
+          "move": "Đã di chuyển {{ok}}/{{total}} tài liệu",
+          "download": "Đã tải xuống {{ok}}/{{total}} tài liệu",
+          "shelve": "Đã lưu trữ {{ok}}/{{total}} tài liệu",
+          "trash": "Đã chuyển {{ok}}/{{total}} tài liệu vào thùng rác",
+          "unshelve": "Đã bỏ lưu trữ {{ok}}/{{total}} tài liệu",
+          "restore": "Đã khôi phục {{ok}}/{{total}} tài liệu",
+          "purge": "Đã xóa vĩnh viễn {{ok}}/{{total}} tài liệu"
+        },
+        "error": {
+          "forbidden": "bạn không có quyền",
+          "not_found": "không còn tìm thấy",
+          "conflict": "vừa bị thay đổi, hãy thử lại",
+          "rate_limited": "máy chủ đang bận, hãy thử lại sau",
+          "not_verifiable": "chưa xác nhận được kết quả",
+          "not_a_file": "không tải được (không phải tệp)",
+          "too_large": "tệp quá lớn để tải",
+          "folder_too_large": "thư mục quá lớn",
+          "failed": "không thực hiện được"
+        },
+        "error_line": "{{title}}: {{reason}}",
+        "more_one": "và {{count}} tài liệu khác",
+        "more_other": "và {{count}} tài liệu khác",
+        "confirm": {
+          "trash_title_one": "Chuyển {{count}} tài liệu vào thùng rác?",
+          "trash_title_other": "Chuyển {{count}} tài liệu vào thùng rác?",
+          "trash_description": "Các mục sẽ nằm trong thùng rác 30 ngày rồi bị xóa vĩnh viễn. Mục bạn không có quyền sẽ được bỏ qua.",
+          "trash_action": "Chuyển vào thùng rác",
+          "purge_title_one": "Xóa vĩnh viễn {{count}} tài liệu?",
+          "purge_title_other": "Xóa vĩnh viễn {{count}} tài liệu?",
+          "purge_description": "Không thể hoàn tác. Mục bạn không có quyền sẽ được bỏ qua.",
+          "purge_action": "Xóa vĩnh viễn"
+        },
+        "move": {
+          "title_one": "Di chuyển {{count}} tài liệu",
+          "title_other": "Di chuyển {{count}} tài liệu",
+          "description": "Chọn thư mục đích cho các tài liệu đã chọn."
+        },
+        "zip": {
+          "preparing": "Đang chuẩn bị tệp nén…",
+          "too_large": "Các tệp đã chọn vượt quá 1 GB. Hãy chọn ít tệp hơn.",
+          "failed": "Không tạo được tệp nén. Hãy thử lại.",
+          "expired": "Liên kết tải đã hết hạn. Hãy thử lại.",
+          "timeout": "Tệp nén chưa sẵn sàng. Hãy thử lại sau."
+        }
       }
     },
     "tree": {

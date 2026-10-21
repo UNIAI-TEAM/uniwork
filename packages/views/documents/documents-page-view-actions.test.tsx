@@ -164,7 +164,7 @@ beforeEach(() => {
 });
 
 describe("file from another module", () => {
-  const sourceNameButton = (row: HTMLElement) => row.querySelector("td:first-child button")! as HTMLElement;
+  const sourceNameButton = (row: HTMLElement) => row.querySelector("td[data-column='name'] button")! as HTMLElement;
 
   /** Stubs the object-URL API and the click that saves the blob; returns the clicks. */
   const stubDownload = () => {
@@ -863,7 +863,7 @@ describe("FD-09 fix r2: trashed folder restore and one menu vocabulary", () => {
   }
 
   /** The name button of the row's first cell (the row's primary action), or null when the cell is inert. */
-  const primaryOf = (row: HTMLElement) => row.querySelector<HTMLElement>("td:first-child button");
+  const primaryOf = (row: HTMLElement) => row.querySelector<HTMLElement>("td[data-column='name'] button");
   const restoreOf = (row: HTMLElement) => within(row).queryByRole("button", { name: t("documents.trash.restore_item", { title: "Dự án CCB" }) });
 
   it("offers Restore and Xóa vĩnh viễn, never Open folder, on a trashed folder in the Trash view (UNI-2045 W2 menu)", async () => {
