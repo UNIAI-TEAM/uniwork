@@ -14,7 +14,7 @@ export const user: User = {
   email_verified_at: "2026-08-25T00:00:00Z", onboarding_questionnaire: {}, locale: "vi",
 };
 export const workspace: Workspace = {
-  id: "ws1", slug: "team", name: "Team", organization_id: "o1", organization_slug: "acme", organization_name: "Acme",
+  id: "ws1", slug: "team", name: "Team", organization_id: "o1", organization_slug: "acme", organization_name: "Acme", // plan-literal-ok: a workspace slug, not a plan
 };
 
 export const MODELS = [
