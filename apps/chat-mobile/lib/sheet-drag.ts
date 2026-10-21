@@ -6,7 +6,7 @@
 
 /** The farthest a drag needs to go to close a tall sheet; a short sheet closes at 40 % of its height. */
 export const SHEET_CLOSE_DISTANCE = 140;
-export const SHEET_CLOSE_SHARE = 0.4;
+const SHEET_CLOSE_SHARE = 0.4;
 /** A downward flick this fast (pt/s) closes the sheet from any distance. */
 export const SHEET_CLOSE_VELOCITY = 900;
 

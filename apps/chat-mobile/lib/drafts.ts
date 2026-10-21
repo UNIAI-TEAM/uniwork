@@ -24,7 +24,7 @@ export interface Draft {
 
 const id = z.string().min(1);
 
-export const DraftSchema = z.object({
+const DraftSchema = z.object({
   text: z.string(),
   reply: z.object({ id, sender: z.string(), text: z.string() }).optional(),
   updatedAt: z.number().finite(),

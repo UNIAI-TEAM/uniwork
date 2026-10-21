@@ -55,10 +55,10 @@
       "lines": 0
     },
     "components/calls/call-surface.tsx": {
-      "statements": 97,
-      "branches": 84,
-      "functions": 92,
-      "lines": 96
+      "statements": 100,
+      "branches": 86,
+      "functions": 100,
+      "lines": 100
     },
     "components/calls/toggle-camera.ts": {
       "statements": 100,
@@ -91,13 +91,13 @@
       "lines": 100
     },
     "components/chat/chat-header.tsx": {
-      "statements": 77,
-      "branches": 38,
-      "functions": 66,
-      "lines": 75
+      "statements": 100,
+      "branches": 76,
+      "functions": 100,
+      "lines": 100
     },
     "components/chat/composer.tsx": {
-      "statements": 96,
+      "statements": 97,
       "branches": 95,
       "functions": 100,
       "lines": 100
@@ -108,11 +108,17 @@
       "functions": 100,
       "lines": 100
     },
+    "components/chat/conversation-states.tsx": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
     "components/chat/conversation.tsx": {
-      "statements": 66,
-      "branches": 56,
-      "functions": 39,
-      "lines": 68
+      "statements": 70,
+      "branches": 72,
+      "functions": 45,
+      "lines": 72
     },
     "components/chat/emoji-sheet.tsx": {
       "statements": 80,
@@ -133,12 +139,18 @@
       "lines": 81
     },
     "components/chat/image-viewer.tsx": {
-      "statements": 50,
-      "branches": 31,
-      "functions": 23,
-      "lines": 55
+      "statements": 83,
+      "branches": 81,
+      "functions": 70,
+      "lines": 82
     },
     "components/chat/jump-to-latest.tsx": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
+    "components/chat/link-sheet.tsx": {
       "statements": 100,
       "branches": 100,
       "functions": 100,
@@ -151,10 +163,10 @@
       "lines": 75
     },
     "components/chat/message-cards.tsx": {
-      "statements": 27,
-      "branches": 11,
-      "functions": 23,
-      "lines": 28
+      "statements": 44,
+      "branches": 22,
+      "functions": 41,
+      "lines": 44
     },
     "components/chat/message-cell.tsx": {
       "statements": 100,
@@ -170,9 +182,9 @@
     },
     "components/chat/message-row.tsx": {
       "statements": 98,
-      "branches": 88,
+      "branches": 89,
       "functions": 92,
-      "lines": 97
+      "lines": 98
     },
     "components/chat/pinned-bar.tsx": {
       "statements": 68,
@@ -194,7 +206,7 @@
     },
     "components/chat/room-avatar.tsx": {
       "statements": 100,
-      "branches": 75,
+      "branches": 80,
       "functions": 100,
       "lines": 100
     },
@@ -277,10 +289,10 @@
       "lines": 100
     },
     "components/chat/swipe-to-reply.tsx": {
-      "statements": 0,
-      "branches": 0,
-      "functions": 0,
-      "lines": 0
+      "statements": 76,
+      "branches": 83,
+      "functions": 71,
+      "lines": 73
     },
     "components/chat/task-card.tsx": {
       "statements": 88,
@@ -296,7 +308,7 @@
     },
     "components/chat/use-arrival-announcements.ts": {
       "statements": 100,
-      "branches": 66,
+      "branches": 83,
       "functions": 100,
       "lines": 100
     },
@@ -318,6 +330,12 @@
       "functions": 100,
       "lines": 100
     },
+    "components/chat/use-drafts.ts": {
+      "statements": 100,
+      "branches": 95,
+      "functions": 100,
+      "lines": 100
+    },
     "components/chat/use-read-marking.ts": {
       "statements": 0,
       "branches": 0,
@@ -330,7 +348,19 @@
       "functions": 100,
       "lines": 100
     },
+    "components/chat/use-send-failure-feedback.ts": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
     "components/chat/use-stable-handlers.ts": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
+    "components/chat/use-timeline-window.ts": {
       "statements": 100,
       "branches": 100,
       "functions": 100,
@@ -342,10 +372,16 @@
       "functions": 0,
       "lines": 0
     },
-    "components/chat/voice-wave.tsx": {
-      "statements": 90,
+    "components/chat/voice-card.tsx": {
+      "statements": 100,
       "branches": 100,
-      "functions": 77,
+      "functions": 100,
+      "lines": 100
+    },
+    "components/chat/voice-wave.tsx": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
       "lines": 100
     },
     "components/chat/zoomable-image.tsx": {
@@ -463,8 +499,8 @@
       "lines": 100
     },
     "components/ui/a11y.ts": {
-      "statements": 95,
-      "branches": 87,
+      "statements": 96,
+      "branches": 90,
       "functions": 100,
       "lines": 100
     },
@@ -474,11 +510,17 @@
       "functions": 100,
       "lines": 100
     },
+    "components/ui/bottom-sheet.tsx": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
     "components/ui/button.tsx": {
-      "statements": 66,
-      "branches": 0,
-      "functions": 0,
-      "lines": 66
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
     },
     "components/ui/call-aware-modal.tsx": {
       "statements": 100,
@@ -523,6 +565,12 @@
       "lines": 66
     },
     "components/ui/permission-primer.tsx": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
+    "components/ui/ripple.ts": {
       "statements": 100,
       "branches": 100,
       "functions": 100,

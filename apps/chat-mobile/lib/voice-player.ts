@@ -4,7 +4,7 @@
 // decrement), a seek to where a tap landed on the bars, and how many bars the
 // played part fills. Seconds throughout, as expo-audio reports them. Pure.
 
-export const VOICE_RATES = [1, 1.5, 2] as const;
+const VOICE_RATES = [1, 1.5, 2] as const;
 export type VoiceRate = (typeof VOICE_RATES)[number];
 /** How far one increment or decrement of the player moves, in seconds. */
 export const VOICE_SEEK_STEP_S = 5;

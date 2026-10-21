@@ -105,6 +105,27 @@ describe("Composer drafts", () => {
     expect(kept()).toBe("nháp của tôi");
   });
 
+  it("keeps a picked mention in the draft, but not one picked while editing", async () => {
+    const candidates = [{ kind: "member" as const, userId: "u2", label: "Bình" }];
+    const p = props({ candidates });
+    const { rerender } = await render(<Composer {...p} />);
+    await fireEvent.changeText(input(), "@Bì");
+    await fireEvent(input(), "selectionChange", { nativeEvent: { selection: { start: 3, end: 3 } } });
+    await fireEvent.press(screen.getByRole("button", { name: "@Bình" }));
+    await act(async () => {
+      await jest.advanceTimersByTimeAsync(DRAFT_SAVE_MS);
+    });
+    expect(kept()).toBe("@Bình ");
+    await rerender(<Composer {...p} edit={{ id: "m1", body: "cũ" }} />);
+    await fireEvent.changeText(input(), "cũ @Bì");
+    await fireEvent(input(), "selectionChange", { nativeEvent: { selection: { start: 6, end: 6 } } });
+    await fireEvent.press(screen.getByRole("button", { name: "@Bình" }));
+    await act(async () => {
+      await jest.advanceTimersByTimeAsync(DRAFT_SAVE_MS);
+    });
+    expect(kept()).toBe("@Bình ");
+  });
+
   it("keeps nothing without a key", async () => {
     await render(<Composer {...props({ draftKey: undefined })} />);
     await fireEvent.changeText(input(), "không giữ");
