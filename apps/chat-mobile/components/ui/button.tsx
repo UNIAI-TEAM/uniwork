@@ -1,7 +1,12 @@
 // Ported from usf apps/mobile/components/ui/button.tsx (React Native Reusables).
+// Sized for touch (audit UX P2): every size reaches 44 pt on iOS and 48 dp on
+// Android, the small one through hit slop so it keeps its look; Android
+// answers a press with a ripple (components/ui/ripple.ts).
 import { cva, type VariantProps } from "class-variance-authority";
 import { Platform, Pressable } from "react-native";
+import { useRipple } from "@/components/ui/ripple";
 import { TextClassContext } from "@/components/ui/text";
+import { hitSlopFor } from "@/lib/platform-ui";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
@@ -28,10 +33,10 @@ const buttonVariants = cva(
         link: "",
       },
       size: {
-        default: cn("min-h-10 px-4 py-2", Platform.select({ web: "has-[>svg]:px-3" })),
+        default: cn("min-h-11 px-4 py-2", Platform.select({ web: "has-[>svg]:px-3" })),
         sm: cn("min-h-9 gap-1.5 rounded-md px-3 py-1.5", Platform.select({ web: "has-[>svg]:px-2.5" })),
-        lg: cn("min-h-11 rounded-md px-6 py-2", Platform.select({ web: "has-[>svg]:px-4" })),
-        icon: "h-10 w-10 sm:h-9 sm:w-9",
+        lg: cn("min-h-12 rounded-md px-6 py-2", Platform.select({ web: "has-[>svg]:px-4" })),
+        icon: "h-11 w-11",
       },
     },
     defaultVariants: { variant: "default", size: "default" },
@@ -55,10 +60,20 @@ const buttonTextVariants = cva(cn("text-foreground text-callout font-medium", Pl
 
 type ButtonProps = React.ComponentProps<typeof Pressable> & React.RefAttributes<typeof Pressable> & VariantProps<typeof buttonVariants>;
 
+/** How tall each size is drawn at least, in points: the hit slop makes up the rest of the platform's target. */
+const DRAWN: Record<NonNullable<ButtonProps["size"]>, number> = { default: 44, sm: 36, lg: 48, icon: 44 };
+
 function Button({ className, variant, size, ...props }: ButtonProps) {
+  const ripple = useRipple(size === "icon");
   return (
     <TextClassContext.Provider value={buttonTextVariants({ variant, size })}>
-      <Pressable className={cn(props.disabled && "opacity-50", buttonVariants({ variant, size }), className)} role="button" {...props} />
+      <Pressable
+        className={cn(props.disabled && "opacity-50", buttonVariants({ variant, size }), className)}
+        role="button"
+        hitSlop={hitSlopFor(DRAWN[size ?? "default"], Platform.OS)}
+        android_ripple={ripple}
+        {...props}
+      />
     </TextClassContext.Provider>
   );
 }

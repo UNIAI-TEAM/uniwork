@@ -9,6 +9,7 @@ import { useRef, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Platform, Pressable, View } from "react-native";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
+import { useRipple } from "@/components/ui/ripple";
 import { Text } from "@/components/ui/text";
 import { TintTile } from "@/components/ui/tint-tile";
 import { THEME } from "@/lib/theme";
@@ -63,6 +64,7 @@ export function ActionSheet({ visible, onClose, title, label, above, actions, la
   const { colorScheme } = useColorScheme();
   const theme = THEME[colorScheme];
   const { choose, onDismiss } = useAfterDismiss(onClose);
+  const ripple = useRipple();
   return (
     <BottomSheet visible={visible} onClose={onClose} onDismiss={onDismiss} above={above} className="pb-2" accessibilityLabel={label}>
       {title ? (
@@ -78,6 +80,7 @@ export function ActionSheet({ visible, onClose, title, label, above, actions, la
               accessibilityRole="button"
               // The label, not the children: the icon's glyph is a character a screen reader would spell.
               accessibilityLabel={action.label}
+              android_ripple={ripple}
               className="w-1/4 items-center gap-2 rounded-2xl py-2 active:bg-secondary"
               onPress={() => choose(action.onPress)}
             >
@@ -96,6 +99,7 @@ export function ActionSheet({ visible, onClose, title, label, above, actions, la
               accessibilityRole="button"
               // The label, not the children: the icon's glyph is a character a screen reader would spell.
               accessibilityLabel={action.label}
+              android_ripple={ripple}
               className={cn("min-h-[52px] flex-row items-center gap-3.5 px-5 active:bg-secondary", index > 0 && "border-t border-border")}
               onPress={() => choose(action.onPress)}
             >

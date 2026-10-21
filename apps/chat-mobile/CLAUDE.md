@@ -511,7 +511,10 @@ một dòng thì ghi lý do ở dòng trên.
   vì vẽ sai chỗ; nút về tin mới nhất `components/chat/jump-to-latest.tsx` khi cuộn lên hoặc đang
   xem trang cũ (`onJumpToLatest`), đếm tin người khác gửi từ lúc rời đáy (`countNewSince`, như web), tự gửi thì cuộn
   xuống (`latestSignal` của `MessageList`); ảnh xem lớn `zoomable-image.tsx` (chụm, chạm hai lần, kéo khi phóng to, vuốt
-  dọc ở 1x để đóng; toán ở `lib/zoom.ts`; Modal có `GestureHandlerRootView` riêng). **Cỡ chữ**: vai trò ở
+  dọc ở 1x để đóng; toán ở `lib/zoom.ts`; Modal có `GestureHandlerRootView` riêng). **Quy ước Android** (`lib/platform-ui.ts`, `components/ui/ripple.ts`): nút back
+  là mũi tên trên Android, chevron trên iOS; vùng chạm tối thiểu 44 pt (iOS) / 48 dp (Android) — `Button` (mọi size,
+  size nhỏ qua `hitSlop`) và `HeaderIconButton` tự tính `hitSlopFor`; `Button`, nút header, dòng của sheet, dòng phòng,
+  dòng Cài đặt có `android_ripple` theo mực của theme. **Cỡ chữ**: vai trò ở
   `lib/type-scale.json` (`text-meta` … `text-display-xl`, `text-emoji*`; tailwind và `cn()` đọc cùng file — thiếu
   `extendTailwindMerge` thì `text-footnote` bị coi là màu); `lib/type-scale.test.ts` đỏ khi `app/`/`components/` dùng
   `text-sm`… hay `text-[13px]`. Phần tử chứa chữ dùng `min-h-*` + padding dọc, không `h-*` cố định (cả `Button`, ô tìm kiếm, ô nhập); cùng test đỏ

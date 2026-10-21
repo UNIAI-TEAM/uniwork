@@ -3,6 +3,7 @@
 // page in the browser, an email). Rows after the first sit under a hairline.
 import { Ionicons } from "@expo/vector-icons";
 import { Pressable, View } from "react-native";
+import { useRipple } from "@/components/ui/ripple";
 import { Text } from "@/components/ui/text";
 import { THEME } from "@/lib/theme";
 import { useColorScheme } from "@/components/ui/use-color-scheme";
@@ -23,8 +24,10 @@ interface Props {
 export function SettingsRow({ icon, label, value, external, destructive, first, testID, onPress }: Props) {
   const { colorScheme } = useColorScheme();
   const theme = THEME[colorScheme];
+  const ripple = useRipple();
   return (
     <Pressable
+      android_ripple={ripple}
       accessibilityRole={external ? "link" : "button"}
       accessibilityLabel={value ? `${label}, ${value}` : label}
       testID={testID}
