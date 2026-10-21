@@ -110,7 +110,7 @@ describe("ai hooks", () => {
     useAiPanelStore.getState().setOpen(false);
     expect(useAiPanelStore.getState().open).toBe(false);
   });
-  it("useAskModels is keyed by org; useSetAskModels refreshes it and capabilities", async () => {
+  it("useAskModels is keyed by org; useSetAskModels writes the answer into it and refreshes capabilities", async () => {
     const { qc, wrapper } = setup();
     vi.mocked(fetch).mockResolvedValueOnce(json({ models: ["a"] }));
     const q = renderHook(() => useAskModels("o1"), { wrapper });
@@ -123,7 +123,8 @@ describe("ai hooks", () => {
       await m.result.current.mutateAsync(["a", "b"]);
     });
     const keys = invalidate.mock.calls.map((c) => JSON.stringify(c[0]?.queryKey));
-    expect(keys).toEqual(expect.arrayContaining([JSON.stringify(aiKeys.askModels("o1")), JSON.stringify(["ai", "capabilities"])]));
+    expect(qc.getQueryData(aiKeys.askModels("o1"))).toEqual(["a", "b"]);
+    expect(keys).toEqual(expect.arrayContaining([JSON.stringify(["ai", "capabilities"])]));
   });
 
   it("feedback hooks call the endpoints without touching the cache", async () => {

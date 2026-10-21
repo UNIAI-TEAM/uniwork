@@ -48,4 +48,27 @@ describe("AiAskModelsSection", () => {
     expect(screen.getAllByRole("switch")).toHaveLength(3);
     expect(screen.getByText("Tự động")).toBeInTheDocument();
   });
+
+  it("a second toggle before any refetch carries both changes", async () => {
+    // GET never changes: only the PUT answer can tell the section the first change landed.
+    requestMock.mockImplementation((path: string, init?: { method?: string; body?: { models: string[] } }) =>
+      Promise.resolve(
+        path === "/api/v1/orgs/acme/ai/ask-models"
+          ? { models: init?.method === "PUT" ? init.body?.models : ["haiku", "sonnet"] }
+          : {},
+      ),
+    );
+    mount();
+    await waitFor(() => expect(screen.getByRole("switch", { name: "Haiku 5.5" })).toBeChecked());
+    fireEvent.click(screen.getByRole("switch", { name: "Opus 5.5" }));
+    await waitFor(() => expect(screen.getByRole("switch", { name: "Opus 5.5" })).toBeChecked());
+    await waitFor(() => expect(screen.getByRole("switch", { name: "Opus 5.5" })).not.toHaveAttribute("aria-disabled"));
+    fireEvent.click(screen.getByRole("switch", { name: "Haiku 5.5" }));
+    await waitFor(() =>
+      expect(requestMock).toHaveBeenLastCalledWith("/api/v1/orgs/acme/ai/ask-models", {
+        method: "PUT",
+        body: { models: ["sonnet", "opus"] },
+      }),
+    );
+  });
 });

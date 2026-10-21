@@ -13,6 +13,7 @@ import { DropdownMenuItem } from "@uniwork/ui/components/ui/dropdown-menu";
 import { HeaderActionsFill, HeaderActionsSlot, HeaderActionsSlotProvider } from "../layout/header-actions-slot";
 import { DocumentActionsMenu } from "./document-actions-menu";
 import { DocumentFileMenuItems, type DocumentFileActions } from "./document-file-actions";
+import { DocumentHeaderActions } from "./document-header-actions";
 import { DocumentCommentsHeaderActions, DocumentCommentsProvider, documentCommentsTitleKey } from "./document-comments-context";
 
 const { t } = initI18n();
@@ -148,29 +149,38 @@ describe("DocumentActionsMenu with an embedded editor", () => {
   });
 });
 
-describe("DocumentCommentsHeaderActions", () => {
-  it("opens Ask UNI focused on this document", async () => {
+describe("DocumentHeaderActions", () => {
+  function mount(flags: Record<string, { default: boolean }>) {
     requestMock.mockImplementation((path: unknown) =>
       Promise.resolve(String(path).endsWith("/ai/capabilities") ? capabilities() : {}),
     );
     useAiPanelStore.setState({ open: false, pendingFocus: null });
     const doc = documentFixture();
-    const service = new FeatureFlagService(
-      new StaticProvider({ documents: { default: true }, ask_uni_stream: { default: true } }),
-    );
+    const service = new FeatureFlagService(new StaticProvider({ ask_uni_stream: { default: true }, ...flags }));
     render(
       wrapWithNav(
         <FeatureFlagsProvider service={service}>
           <WorkspaceProvider workspace={workspace} user={user}>
             <DocumentCommentsProvider wsId={WS} doc={doc}>
-              <DocumentCommentsHeaderActions />
+              <DocumentHeaderActions />
             </DocumentCommentsProvider>
           </WorkspaceProvider>
         </FeatureFlagsProvider>,
       ),
     );
+    return doc;
+  }
+
+  it("opens Ask UNI focused on this document", async () => {
+    const doc = mount({ documents: { default: true } });
     fireEvent.click(await screen.findByRole("button", { name: "Hỏi UNI về tài liệu này" }));
     expect(useAiPanelStore.getState().pendingFocus).toEqual({ kind: "document", id: doc.id });
+  });
+
+  it("still shows Ask UNI when comments are disabled", async () => {
+    const doc = mount({ documents: { default: false } });
+    expect(await screen.findByRole("button", { name: "Hỏi UNI về tài liệu này" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: t(documentCommentsTitleKey(doc)) })).toBeNull();
   });
 });
 

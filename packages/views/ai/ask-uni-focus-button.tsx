@@ -8,7 +8,7 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@uniwork/ui/components/ui/tooltip";
 import { useOptionalWorkspace } from "../layout/workspace-context";
 
-export type AskUniFocus = Parameters<ReturnType<typeof useAiPanelStore.getState>["openWithFocus"]>[0];
+type AskUniFocus = Parameters<ReturnType<typeof useAiPanelStore.getState>["openWithFocus"]>[0];
 type FocusKind = "task" | "meeting" | "document" | "project" | "room";
 
 /**

@@ -12,7 +12,7 @@ initI18n();
 
 function mount(flagOn: boolean) {
   const service = new FeatureFlagService(new StaticProvider({ ask_uni_stream: { default: flagOn } }));
-  render(
+  return render(
     wrapWithNav(
       <FeatureFlagsProvider service={service}>
         <WorkspaceProvider workspace={workspace} user={user}>
@@ -37,17 +37,19 @@ describe("AskUniFocusButton", () => {
     expect(useAiPanelStore.getState().pendingFocus).toEqual({ kind: "task", id: "t1" });
   });
 
-  it("hidden when AI is off or the flag is off", async () => {
-    mount(false);
-    await new Promise((r) => setTimeout(r, 20));
-    expect(screen.queryByRole("button")).toBeNull();
-    document.body.innerHTML = "";
+  it("hidden when the flag is off", async () => {
+    const view = mount(false);
+    await waitFor(() => expect(screen.queryByRole("button")).toBeNull());
+    view.unmount();
+  });
+
+  it("hidden when AI is off", async () => {
     requestMock.mockImplementation((path: string) =>
       Promise.resolve(path.endsWith("/ai/capabilities") ? { ...capabilities(), enabled: false } : {}),
     );
     mount(true);
-    await waitFor(() => expect(requestMock).toHaveBeenCalled());
-    await new Promise((r) => setTimeout(r, 20));
+    await waitFor(() => expect(requestMock.mock.calls.some(([p]) => String(p).endsWith("/ai/capabilities"))).toBe(true));
+    await waitFor(() => expect(screen.queryByRole("button")).toBeNull());
     expect(screen.queryByRole("button")).toBeNull();
   });
 });

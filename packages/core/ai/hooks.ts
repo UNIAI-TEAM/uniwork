@@ -109,8 +109,9 @@ export function useSetAskModels(orgId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (models: string[]) => api.putAskModels(orgId, models),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: aiKeys.askModels(orgId) });
+    onSuccess: (models) => {
+      // The answer is the enabled list: write it now so a quick second toggle builds on it, not on the stale read.
+      qc.setQueryData(aiKeys.askModels(orgId), models);
       void qc.invalidateQueries({ queryKey: ["ai", "capabilities"] });
     },
   });

@@ -161,7 +161,7 @@ export function AiAccessTab() {
         </SettingsSection>
       ) : null}
 
-      {state ? <AiAskModelsSection orgSlug={org} /> : null}
+      <AiAskModelsSection orgSlug={org} />
 
       <SettingsSection title={t("grantsTitle")}>
         {grants.isPending ? (

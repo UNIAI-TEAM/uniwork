@@ -19,7 +19,7 @@ import { PAGE_GUTTER, PAGE_LEADING_ICON } from "../layout/page-header";
 import { Notice } from "../common/notice";
 import { leaveGuardAllows, registerLeaveGuard, useNavigation } from "../navigation";
 import type { DocumentAssetUploader } from "./document-asset-upload";
-import { DocumentCommentsHeaderActions } from "./document-comments-context";
+import { DocumentHeaderActions } from "./document-header-actions";
 import { DocumentConflictDialog, DocumentLockLostDialog } from "./conflict-dialog";
 import { DocumentEditLockBanner } from "./document-edit-lock-banner";
 import { DocumentLeaveDialog } from "./document-leave-dialog";
@@ -548,7 +548,7 @@ export function DocumentWorkspace({
             {!canEdit && !shelved && doc.kind === "page" ? (
               <DocumentReadonlyChip canComment={canComment} />
             ) : null}
-            <DocumentCommentsHeaderActions />
+            <DocumentHeaderActions />
             {headerActions}
           </>
         }
