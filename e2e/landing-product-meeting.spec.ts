@@ -80,6 +80,7 @@ test("the source-backed manual room supports devices, sharing, recording, chat a
   await expect(panel.getByRole('log')).toContainText('Gửi ghi chú trong phòng họp demo');
   await panel.getByRole('tab', { name: vi.meetings.aiCopilot, exact: true }).click();
   await expect(panel.getByTestId('meeting-copilot-ask-locked')).toHaveCount(0);
+  await expect(panel.locator('.product-meeting-sample')).toHaveText(vi.landing.lovable.sample);
   await panel.getByRole('button', { name: vi.meetings.generateSummary, exact: true }).click();
   await panel.getByRole('tab', { name: vi.meetings.notes, exact: true }).click();
   await panel.getByRole('textbox', { name: vi.meetings.notesInputLabel }).fill('Chốt lịch triển khai vào thứ Sáu');
