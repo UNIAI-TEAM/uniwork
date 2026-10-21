@@ -11,6 +11,7 @@
 //	uniwork-admin revoke-desktop-device --user-id U --device-id D --reason "..."
 //	uniwork-admin revoke-offline-leases --org-id O --reason "..."
 //	uniwork-admin folders-unshare [--dry-run] [--batch-size N]
+//	uniwork-admin folders-into-my-folder [--dry-run] [--batch-size N] [--organization ID]
 package main
 
 import (
@@ -124,13 +125,36 @@ func main() {
 			mode = "would unshare"
 		}
 		fmt.Printf("%s %d folder(s): %d workspace-visible, %d live share(s) revoked\n", mode, res.Folders, res.HomeRows, res.Shares)
+	case "folders-into-my-folder":
+		// UNI-2055 (ADR 0037 point 8): moves every private folder that sits
+		// outside My Folder into its owner's My Folder through the audited
+		// move write (one transaction per folder, idempotent). Documents
+		// inside keep their own access. docs/runbooks/folders-into-my-folder.md.
+		fs := flag.NewFlagSet(os.Args[1], flag.ExitOnError)
+		dryRun := fs.Bool("dry-run", false, "count the folders and documents, write nothing")
+		batch := fs.Int("batch-size", 200, "folders read per page")
+		org := fs.String("organization", "", "limit the pass to one organization id (default: all)")
+		_ = fs.Parse(os.Args[2:])
+		res, err := service.NewDocumentService(pool, q, nil, nil).MoveFoldersIntoMyFolder(ctx, *dryRun, *batch, *org)
+		if err != nil {
+			fail(err.Error())
+		}
+		mode := "moved"
+		if res.DryRun {
+			mode = "would move"
+		}
+		fmt.Printf("%s %d folder(s) into My Folder (%d unit(s)), relocated %d document(s) and %d public folder(s) to the workspace root, %d skipped\n",
+			mode, res.MovedFolders, res.Units, res.RelocatedDocuments, res.RelocatedPublicFolders, len(res.Skipped))
+		for _, sk := range res.Skipped {
+			fmt.Printf("skipped %s: %s\n", sk.FolderID, sk.Reason)
+		}
 	default:
 		usage()
 	}
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: uniwork-admin grant-platform-role|revoke-platform-role --email E [--role admin|support] --reason R\n       uniwork-admin list-platform-roles\n       uniwork-admin revoke-desktop-device --user-id U --device-id D --reason R\n       uniwork-admin revoke-offline-leases --org-id O --reason R\n       uniwork-admin folders-unshare [--dry-run] [--batch-size N]")
+	fmt.Fprintln(os.Stderr, "usage: uniwork-admin grant-platform-role|revoke-platform-role --email E [--role admin|support] --reason R\n       uniwork-admin list-platform-roles\n       uniwork-admin revoke-desktop-device --user-id U --device-id D --reason R\n       uniwork-admin revoke-offline-leases --org-id O --reason R\n       uniwork-admin folders-unshare [--dry-run] [--batch-size N]\n       uniwork-admin folders-into-my-folder [--dry-run] [--batch-size N] [--organization ID]")
 	os.Exit(2)
 }
 

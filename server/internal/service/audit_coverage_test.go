@@ -1399,6 +1399,19 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 			if _, err := svc.MoveDocument(f.ctx, Human(f.owner.ID), docID, MoveDocumentInput{ParentID: "", Revision: 1}); err != nil {
 				t.Fatal(err)
 			}
+			// UNI-2055 S3: the folders-into-my-folder pass moves a private
+			// folder into its owner's My Folder as the system actor.
+			folder := f.privateRootFolder(t)
+			rep, err := svc.MoveFoldersIntoMyFolder(f.ctx, false, 0, f.orgID)
+			if err != nil || rep.MovedFolders != 1 {
+				t.Fatalf("MoveFoldersIntoMyFolder = %+v, err = %v", rep, err)
+			}
+			var n int
+			if err := f.pool.QueryRow(f.ctx,
+				`SELECT count(*) FROM audit_events WHERE action = $1 AND resource_id = $2 AND actor_kind = 'system' AND actor_id = 'folder-ws-public' AND metadata::jsonb->>'reason' = 'folders_into_my_folder'`,
+				audit.ActionDocumentMoved, folder).Scan(&n); err != nil || n != 1 {
+				t.Fatalf("MoveFoldersIntoMyFolder wrote %d document.moved rows (%v), want 1", n, err)
+			}
 		},
 		audit.ActionDocumentArchived: func(t *testing.T, f *auditFixture) {
 			svc, docID := f.document(t)
@@ -2367,6 +2380,19 @@ func (f *auditFixture) legacySharedFolder(t *testing.T) string {
 	}); err != nil {
 		t.Fatal(err)
 	}
+	return id
+}
+
+// privateRootFolder inserts a private folder at the workspace root, the shape
+// the folders-into-my-folder pass moves.
+func (f *auditFixture) privateRootFolder(t *testing.T) string {
+	t.Helper()
+	id := util.NewID()
+	insertRow(t, f.ctx, f.pool, "documents", baseDoc(map[string]any{
+		"id": id, "organization_id": f.orgID, "workspace_id": f.workspace.ID, "kind": "folder",
+		"visibility": "restricted", "title": "Thư mục riêng",
+		"acl_owner_id": f.owner.ID, "created_by": f.owner.ID, "updated_by": f.owner.ID,
+	}))
 	return id
 }
 
