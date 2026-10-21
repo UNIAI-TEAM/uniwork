@@ -5744,7 +5744,70 @@
     "hint_send": "gửi",
     "hint_newline": "xuống dòng",
     "key_enter": "Enter",
-    "key_shift": "Shift"
+    "key_shift": "Shift",
+    "composer_label": "Câu hỏi cho UNI",
+    "stop": "Dừng",
+    "mention": {
+      "people": "Người",
+      "tasks": "Task",
+      "documents": "Tài liệu",
+      "meetings": "Cuộc họp",
+      "projects": "Dự án",
+      "empty": "Không có kết quả",
+      "list": "Gợi ý nhắc tới",
+      "remove": "Bỏ {{name}}",
+      "limit": "Chỉ nhắc được tối đa {{max}} đối tượng trong một câu hỏi."
+    },
+    "scope": {
+      "add": "Thêm phạm vi",
+      "title": "Giới hạn câu hỏi vào",
+      "search": "Tìm dự án, cuộc họp, tài liệu, phòng chat",
+      "projects": "Dự án",
+      "meetings": "Cuộc họp",
+      "documents": "Tài liệu",
+      "rooms": "Phòng chat",
+      "empty": "Không có kết quả",
+      "remove": "Bỏ phạm vi {{name}}",
+      "kind": {
+        "task": "Task",
+        "meeting": "Cuộc họp",
+        "document": "Tài liệu",
+        "project": "Dự án",
+        "room": "Phòng chat",
+        "email_thread": "Email",
+        "thread": "Luồng chat",
+        "message": "Tin nhắn"
+      }
+    },
+    "model": {
+      "label": "Chọn model",
+      "auto": "Tự động",
+      "auto_current": "Tự động · Hiện tại: {{model}}",
+      "effort": "Mức nỗ lực",
+      "effort_auto": "Tự động",
+      "effort_low": "Thấp",
+      "effort_medium": "Vừa",
+      "effort_high": "Cao",
+      "speed": "Tốc độ",
+      "intelligence": "Trí tuệ",
+      "cost": "Chi phí",
+      "bar": "{{label}} {{value}}/5",
+      "opus_note": "Opus dùng nhiều hạn mức token hơn các model khác."
+    },
+    "models": {
+      "haiku": {
+        "name": "Haiku 5.5",
+        "description": "Nhanh và nhẹ nhất, hợp câu hỏi ngắn và tra cứu nhanh."
+      },
+      "sonnet": {
+        "name": "Sonnet 5.5",
+        "description": "Cân bằng giữa tốc độ và chất lượng; đây là lựa chọn của Tự động."
+      },
+      "opus": {
+        "name": "Opus 5.5",
+        "description": "Suy luận sâu nhất, hợp câu hỏi phức tạp nhưng chậm và tốn hạn mức hơn."
+      }
+    }
   },
   "admin": {
     "title": "Quản trị nền tảng",

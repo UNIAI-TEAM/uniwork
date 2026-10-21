@@ -5753,7 +5753,70 @@
     "hint_send": "send",
     "hint_newline": "new line",
     "key_enter": "Enter",
-    "key_shift": "Shift"
+    "key_shift": "Shift",
+    "composer_label": "Question for UNI",
+    "stop": "Stop",
+    "mention": {
+      "people": "People",
+      "tasks": "Tasks",
+      "documents": "Documents",
+      "meetings": "Meetings",
+      "projects": "Projects",
+      "empty": "No results",
+      "list": "Mention suggestions",
+      "remove": "Remove {{name}}",
+      "limit": "A question can mention at most {{max}} items."
+    },
+    "scope": {
+      "add": "Add scope",
+      "title": "Limit the question to",
+      "search": "Search projects, meetings, documents, chat rooms",
+      "projects": "Projects",
+      "meetings": "Meetings",
+      "documents": "Documents",
+      "rooms": "Chat rooms",
+      "empty": "No results",
+      "remove": "Remove scope {{name}}",
+      "kind": {
+        "task": "Task",
+        "meeting": "Meeting",
+        "document": "Document",
+        "project": "Project",
+        "room": "Chat room",
+        "email_thread": "Email",
+        "thread": "Chat thread",
+        "message": "Message"
+      }
+    },
+    "model": {
+      "label": "Choose a model",
+      "auto": "Auto",
+      "auto_current": "Auto · Currently: {{model}}",
+      "effort": "Effort",
+      "effort_auto": "Auto",
+      "effort_low": "Low",
+      "effort_medium": "Medium",
+      "effort_high": "High",
+      "speed": "Speed",
+      "intelligence": "Intelligence",
+      "cost": "Cost",
+      "bar": "{{label}} {{value}}/5",
+      "opus_note": "Opus uses more of your token quota than the other models."
+    },
+    "models": {
+      "haiku": {
+        "name": "Haiku 5.5",
+        "description": "The fastest and lightest, good for short questions and quick lookups."
+      },
+      "sonnet": {
+        "name": "Sonnet 5.5",
+        "description": "A balance of speed and quality; this is what Auto uses."
+      },
+      "opus": {
+        "name": "Opus 5.5",
+        "description": "The deepest reasoning, good for complex questions but slower and heavier on quota."
+      }
+    }
   },
   "admin": {
     "title": "Platform admin",

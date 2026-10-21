@@ -19,11 +19,11 @@ function stream(state: Partial<AskStreamState> = {}): AskUniStream {
   return { state: { ...IDLE, conversationId: "c1", ...state }, ask: vi.fn(), stop: vi.fn() };
 }
 
-function mount(s: AskUniStream, conversationId: string | null = "c1") {
+function mount(s: AskUniStream, conversationId: string | null = "c1", askDefaults?: { model: string; effort: string; locale: string }) {
   // One client across rerenders: a fresh one per render would drop the cache the thread is testing.
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const ui = (st: AskUniStream, conv: string | null) =>
-    wrapWithNav(<AskUniThread conversationId={conv} stream={st} />, undefined, client);
+    wrapWithNav(<AskUniThread conversationId={conv} stream={st} askDefaults={askDefaults} />, undefined, client);
   const r = render(ui(s, conversationId));
   return { ...r, update: (st: AskUniStream, conv: string | null = conversationId) => r.rerender(ui(st, conv)) };
 }
@@ -81,6 +81,15 @@ describe("AskUniThread", () => {
     mount(s);
     fireEvent.click(await screen.findByRole("button", { name: "Trả lời lại" }));
     expect(s.ask).toHaveBeenCalledWith(expect.objectContaining({ conversation_id: "c1", question: "Task nào quá hạn?" }));
+  });
+
+  it("regenerate sends the composer's model, effort and language", async () => {
+    const s = stream();
+    mount(s, "c1", { model: "opus", effort: "high", locale: "vi" });
+    fireEvent.click(await screen.findByRole("button", { name: "Trả lời lại" }));
+    expect(s.ask).toHaveBeenCalledWith({
+      conversation_id: "c1", question: "Task nào quá hạn?", model: "opus", effort: "high", locale: "vi",
+    });
   });
 
   it("offers regenerate on the last answer only, and not while streaming", async () => {

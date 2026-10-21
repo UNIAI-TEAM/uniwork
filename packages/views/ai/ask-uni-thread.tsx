@@ -5,7 +5,7 @@ import { CircleAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useAiMessages } from "@uniwork/core/ai";
 import type { useAskUniStream } from "@uniwork/core/ai/stream";
-import type { AiMessage } from "@uniwork/core/types";
+import type { AiMessage, AskUniInput } from "@uniwork/core/types";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { AskUniMessageTurn, type AskUniTurnMessage } from "./ask-uni-answer";
 
@@ -33,7 +33,16 @@ function StreamError({ code }: { code: string | null }) {
 }
 
 /** The docked panel's conversation: stored turns, then the live question and answer until the cache holds them. */
-export function AskUniThread({ conversationId, stream }: { conversationId: string | null; stream: AskUniStream }) {
+export function AskUniThread({
+  conversationId,
+  stream,
+  askDefaults,
+}: {
+  conversationId: string | null;
+  stream: AskUniStream;
+  /** The composer's model, effort and language, so a regenerated turn runs the way a typed one would. */
+  askDefaults?: Pick<AskUniInput, "model" | "effort" | "locale">;
+}) {
   const { t } = useTranslation(undefined, { keyPrefix: "ai" });
   const { state, ask } = stream;
   const cached = useAiMessages(conversationId).data;
@@ -64,8 +73,8 @@ export function AskUniThread({ conversationId, stream }: { conversationId: strin
   const lastAssistant = [...stored].reverse().find((m) => m.role === "assistant" && !m.id.startsWith("pending-"));
   const lastQuestion = [...stored].reverse().find((m) => m.role === "user")?.content ?? "";
   const regenerate = () => {
-    // Model, effort and mentions are the composer's to add (Task 13); a regenerated turn asks the same question again.
-    if (lastQuestion) ask({ conversation_id: conversationId ?? undefined, question: lastQuestion });
+    // A stored turn keeps no focus or mentions, so a regenerated one asks the same question in the same conversation only.
+    if (lastQuestion) ask({ ...askDefaults, conversation_id: conversationId ?? undefined, question: lastQuestion });
   };
 
   const liveAnswer: AskUniTurnMessage = {
