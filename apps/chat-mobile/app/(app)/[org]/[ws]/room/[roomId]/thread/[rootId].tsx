@@ -64,8 +64,10 @@ function ThreadConversation({ chat, roomId, rootId }: { chat: ChatWorkspace; roo
       }
       messages={messages}
       loading={thread.isPending}
+      onRetryLoad={thread.isError && !thread.data ? () => void thread.refetch() : undefined}
       loadingOlder={thread.isFetchingNextPage}
       onLoadOlder={!thread.hasNextPage || thread.isFetchingNextPage ? undefined : () => void thread.fetchNextPage()}
+      onRetryOlder={thread.isFetchNextPageError ? () => void thread.fetchNextPage() : undefined}
       jumpTo={null}
       onQuoteJump={() => undefined}
       onAtLatestChange={() => undefined}

@@ -56,7 +56,7 @@ export default function SelectWorkspace() {
         </View>
         {isLoading ? (
           <View className="py-8 items-center">
-            <ActivityIndicator />
+            <ActivityIndicator accessibilityLabel={t("common.loading")} />
           </View>
         ) : error ? (
           <View className="gap-3">

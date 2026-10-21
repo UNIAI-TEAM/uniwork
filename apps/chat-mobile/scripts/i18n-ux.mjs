@@ -7,6 +7,12 @@
 // one a single key.
 export const UX_ONLY = {
   vi: {
+    conversation: {
+      load_failed: "Không tải được tin nhắn",
+      thread_load_failed: "Không tải được chủ đề này",
+      load_failed_hint: "Lịch sử trò chuyện vẫn còn trên máy chủ. Kiểm tra kết nối rồi thử lại.",
+      older_load_failed: "Không tải được tin cũ hơn",
+    },
     a11y: {
       bubble_quote: "Trả lời {{sender}}: {{text}}",
       bubble_retry_hint: "Mở tùy chọn gửi lại hoặc xóa tin này",
@@ -32,6 +38,12 @@ export const UX_ONLY = {
     },
   },
   en: {
+    conversation: {
+      load_failed: "Couldn't load messages",
+      thread_load_failed: "Couldn't load this thread",
+      load_failed_hint: "Your conversation history is still on the server. Check your connection and try again.",
+      older_load_failed: "Couldn't load older messages",
+    },
     a11y: {
       bubble_quote: "Replying to {{sender}}: {{text}}",
       bubble_retry_hint: "Opens options to send it again or delete it",

@@ -1598,6 +1598,12 @@
       "in_use": "{{output}} · đang dùng",
       "failed": "Không chuyển được âm thanh. Thử lại."
     },
+    "conversation": {
+      "load_failed": "Không tải được tin nhắn",
+      "thread_load_failed": "Không tải được chủ đề này",
+      "load_failed_hint": "Lịch sử trò chuyện vẫn còn trên máy chủ. Kiểm tra kết nối rồi thử lại.",
+      "older_load_failed": "Không tải được tin cũ hơn"
+    },
     "a11y": {
       "bubble_quote": "Trả lời {{sender}}: {{text}}",
       "bubble_retry_hint": "Mở tùy chọn gửi lại hoặc xóa tin này",

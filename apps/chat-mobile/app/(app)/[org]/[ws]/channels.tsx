@@ -111,7 +111,7 @@ function ChannelDirectory({ chat }: { chat: ChatWorkspace }) {
                 </View>
               ) : joining === item.id ? (
                 <View className="h-[34px] w-[88px] items-center justify-center rounded-full bg-muted">
-                  <ActivityIndicator color={theme.primary} />
+                  <ActivityIndicator accessibilityLabel={t("common.loading")} color={theme.primary} />
                 </View>
               ) : (
                 <View className="min-h-[34px] justify-center rounded-full bg-tint-blue px-3.5 py-1">

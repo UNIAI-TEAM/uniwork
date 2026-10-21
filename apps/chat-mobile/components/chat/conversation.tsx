@@ -19,7 +19,7 @@ import * as Clipboard from "expo-clipboard";
 import { router } from "expo-router";
 import { useCallback, useMemo, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { ActivityIndicator, Alert, ImageBackground, View } from "react-native";
+import { Alert, ImageBackground, View } from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { haptics } from "@/components/ui/haptics";
 import { PersonAvatar } from "@/components/people/person-avatar";
@@ -52,6 +52,7 @@ import { layoutTimeline } from "@/lib/timeline-layout";
 import { useColorScheme } from "@/components/ui/use-color-scheme";
 import { Composer, type ComposerEdit, type ComposerReply } from "./composer";
 import { ConnectionBanner } from "./connection-banner";
+import { ConversationLoadError, ConversationSkeleton } from "./conversation-states";
 import { EmojiSheet } from "./emoji-sheet";
 import { ExpressionSheet } from "./expression-sheet";
 import { ForwardSheet } from "./forward-sheet";
@@ -90,8 +91,12 @@ interface Props {
   banner?: ReactNode;
   messages: TimelineMessage[];
   loading: boolean;
+  /** Set when the first page failed and nothing is cached: the wall says so and retries, never "start chatting". */
+  onRetryLoad?: () => void;
   loadingOlder: boolean;
   onLoadOlder?: () => void;
+  /** Set when the last older page failed: the top of the list offers to try it again. */
+  onRetryOlder?: () => void;
   jumpTo: { id: string; seq: number } | null;
   onQuoteJump: (messageId: string) => void;
   onAtLatestChange: (atLatest: boolean) => void;
@@ -294,9 +299,9 @@ export function Conversation(props: Props) {
       {props.header}
       <ConnectionBanner />
       {props.banner}
-      {props.loading ? (
-        <View className="flex-1 items-center justify-center bg-chat-wall">
-          <ActivityIndicator accessibilityLabel={t("common.loading")} />
+      {props.loading || props.onRetryLoad ? (
+        <View className="flex-1 bg-chat-wall">
+          {props.onRetryLoad ? <ConversationLoadError thread={Boolean(threadRootId)} onRetry={props.onRetryLoad} /> : <ConversationSkeleton />}
         </View>
       ) : (
         <View className="flex-1 bg-chat-wall">
@@ -307,6 +312,7 @@ export function Conversation(props: Props) {
               renderMessage={renderMessage}
               onLoadOlder={props.onLoadOlder}
               loadingOlder={props.loadingOlder}
+              onRetryOlder={props.onRetryOlder}
               jumpTo={props.jumpTo}
               onAtLatestChange={atLatestChange}
               empty={threadRootId || !room.room ? null : t(room.room.kind === "dm" ? "chat.dm_empty" : "chat.group_empty", { name: room.title })}

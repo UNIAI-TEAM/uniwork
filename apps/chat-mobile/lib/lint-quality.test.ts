@@ -3,7 +3,8 @@
 // console call outside data/logger.ts, no react-native Modal outside
 // components/ui/call-aware-modal.tsx, and no endpoint or command called from
 // a screen or a component (the mutation layer, data/mutations/command.ts), and
-// no failure swallowed by a `.catch(() => undefined)` (data/report.ts › bestEffort). A
+// no failure swallowed by a `.catch(() => undefined)` (data/report.ts › bestEffort), and no
+// spinner without a label. A
 // rule that silently drops out of the config turns its case green here.
 import path from "node:path";
 import { ESLint } from "eslint";
@@ -59,6 +60,11 @@ describe("mobile quality lint", { timeout: 60_000 }, () => {
     ["a failure swallowed by an empty block", "export const f = (p: Promise<void>) => p.catch(() => {});", "no-restricted-syntax"],
     ["a failure swallowed as an empty list", "export const f = (p: Promise<number[]>) => p.catch(() => []);", "no-restricted-syntax"],
     [
+      "a spinner that does not say what it waits for",
+      'import { ActivityIndicator } from "react-native";\nexport const A = () => <ActivityIndicator />;',
+      "no-restricted-syntax",
+    ],
+    [
       "react-native's Modal (a sheet must close for a ringing call: CallAwareModal)",
       'import { Modal } from "react-native";\nexport const A = () => <Modal visible />;',
       "@typescript-eslint/no-restricted-imports",
@@ -94,6 +100,11 @@ describe("mobile quality lint", { timeout: 60_000 }, () => {
   it("a labelled, translated control with a valid role and state is green", async () => {
     const code =
       'export const A = () => { const { t } = useTranslation(); return <Pressable accessibilityRole="button" accessibilityState={{ disabled: true }} accessibilityLabel={t("chat.send")}><Text>{t("chat.send")}</Text></Pressable>; };';
+    expect(await ruleIds(head + code)).toEqual([]);
+  });
+
+  it("a labelled spinner is green", async () => {
+    const code = 'import { ActivityIndicator } from "react-native";\nexport const A = () => { const { t } = useTranslation(); return <ActivityIndicator accessibilityLabel={t("common.loading")} />; };';
     expect(await ruleIds(head + code)).toEqual([]);
   });
 

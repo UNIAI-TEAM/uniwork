@@ -127,7 +127,7 @@ function NewGroup({ chat, roomId }: { chat: ChatWorkspace; roomId: string | null
           onPress={submit}
           className={cn("mb-2 min-h-12 flex-row items-center justify-center gap-2 rounded-full py-3", ready ? "bg-primary active:opacity-80" : "bg-muted")}
         >
-          {busy ? <ActivityIndicator color={theme.primaryForeground} /> : null}
+          {busy ? <ActivityIndicator accessibilityLabel={t("common.loading")} color={theme.primaryForeground} /> : null}
           <Text className={cn("text-body font-semibold", ready ? "text-primary-foreground" : "text-muted-foreground")}>
             {busy ? t(roomId ? "chat.inviting_members" : "chat.creating_group") : t(roomId ? "chat.invite_members" : "chat.start_group")}
           </Text>

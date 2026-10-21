@@ -66,6 +66,12 @@ const restrictedSyntax = [
       "CallExpression[callee.property.name='catch'] > ArrowFunctionExpression[params.length=0]:matches([body.type='Identifier'][body.name='undefined'], [body.type='Literal'][body.raw='null'], [body.type='BlockStatement'][body.body.length=0], [body.type='ArrayExpression'][body.elements.length=0])",
     message: "Do not swallow a failure: .catch(bestEffort(scope, what, \"report\" | \"breadcrumb\")) from data/report.ts, or settled() from lib/settled.ts to only wait.",
   },
+  {
+    // A spinner says what it waits for (audit UX "no-device-a11y-verification"): TalkBack and VoiceOver
+    // otherwise read a bare "in progress", or nothing at all inside a list footer.
+    selector: "JSXOpeningElement[name.name='ActivityIndicator']:not(:has(JSXAttribute[name.name='accessibilityLabel']))",
+    message: "Label the spinner: accessibilityLabel={t(\"common.loading\")}, or what is loading.",
+  },
 ];
 
 // The mutation layer (data/mutations/command.ts): screens and components

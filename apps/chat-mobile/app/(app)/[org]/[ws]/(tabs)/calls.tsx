@@ -58,7 +58,7 @@ export default function CallsTab() {
 
   const empty = logs.isPending ? (
     <View className="items-center py-12">
-      <ActivityIndicator />
+      <ActivityIndicator accessibilityLabel={t("common.loading")} />
     </View>
   ) : logs.isError ? (
     <View className="items-center gap-3 px-8 py-12">
@@ -97,7 +97,7 @@ export default function CallsTab() {
         )}
         ItemSeparatorComponent={CallLogSeparator}
         ListEmptyComponent={empty}
-        ListFooterComponent={isFetchingNextPage ? <ActivityIndicator className="py-4" /> : null}
+        ListFooterComponent={isFetchingNextPage ? <ActivityIndicator accessibilityLabel={t("common.loading")} className="py-4" /> : null}
         onEndReachedThreshold={0.5}
         // A short "missed" list reaches its end again after each page, so older pages load until it fills.
         onEndReached={() => {

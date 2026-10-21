@@ -55,7 +55,7 @@ export default function ContactsTab() {
 
   const empty = members.isPending ? (
     <View className="items-center py-12">
-      <ActivityIndicator />
+      <ActivityIndicator accessibilityLabel={t("common.loading")} />
     </View>
   ) : members.isError ? (
     <View className="items-center gap-3 px-8 py-12">

@@ -105,7 +105,7 @@ export function CatchUpSheet({ wsId, target, onClose, onOpenRoom }: { wsId: stri
             </Text>
           ) : !result ? (
             <View accessibilityRole="progressbar" className="flex-row items-center gap-2 py-2">
-              <ActivityIndicator />
+              <ActivityIndicator accessibilityLabel={t("common.loading")} />
               <Text className="text-body text-foreground">{t("chat.ai.catch_up_loading")}</Text>
             </View>
           ) : empty ? (

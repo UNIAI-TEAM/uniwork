@@ -1654,6 +1654,12 @@
       "in_use": "{{output}} · in use",
       "failed": "Could not switch the audio. Try again."
     },
+    "conversation": {
+      "load_failed": "Couldn't load messages",
+      "thread_load_failed": "Couldn't load this thread",
+      "load_failed_hint": "Your conversation history is still on the server. Check your connection and try again.",
+      "older_load_failed": "Couldn't load older messages"
+    },
     "a11y": {
       "bubble_quote": "Replying to {{sender}}: {{text}}",
       "bubble_retry_hint": "Opens options to send it again or delete it",

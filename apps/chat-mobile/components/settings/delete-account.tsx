@@ -209,7 +209,7 @@ function DeleteAccountSheet({ visible, onClose, orgSlug, wsSlug }: SheetProps) {
                   onPress={() => void submit()}
                   className={cn("min-h-12 flex-row items-center justify-center gap-2 rounded-full bg-destructive-solid py-3", busy ? "opacity-70" : "active:opacity-90")}
                 >
-                  {busy ? <ActivityIndicator color={THEME.light.primaryForeground} /> : null}
+                  {busy ? <ActivityIndicator accessibilityLabel={t("common.loading")} color={THEME.light.primaryForeground} /> : null}
                   <Text className="text-body font-semibold text-on-solid">{busy ? t("mobile.account.deleting") : t("settings.security.delete.confirm")}</Text>
                 </Pressable>
               )}

@@ -24,9 +24,10 @@
 // loaded pages is the room's to load (roomAroundOptions), not this list's.
 import { memo, useCallback, useEffect, useRef, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { ActivityIndicator, FlatList, View, type ListRenderItem } from "react-native";
+import { FlatList, View, type ListRenderItem } from "react-native";
 import { Text } from "@/components/ui/text";
 import { formatMessageDay, type TimelineRow } from "@/lib/timeline-display";
+import { OlderPagesFooter } from "./conversation-states";
 
 /** How close to the newest message still counts as "at the latest" (read marking). */
 const AT_LATEST_PX = 120;
@@ -42,6 +43,8 @@ interface Props {
   renderMessage: (row: Extract<TimelineRow, { type: "message" }>) => ReactNode;
   onLoadOlder?: () => void;
   loadingOlder: boolean;
+  /** The last older page failed: its retry, at the top of the list. */
+  onRetryOlder?: () => void;
   /** Under the newest message: who is typing. */
   bottom?: ReactNode;
   /** Scroll this message into view once it is in the list; a new `seq` asks again. */
@@ -67,7 +70,7 @@ const DayRow = memo(function DayRow({ ts }: { ts: number }) {
   );
 });
 
-export function MessageList({ rows, renderMessage, onLoadOlder, loadingOlder, bottom, jumpTo, onAtLatestChange, empty, latestSignal = 0 }: Props) {
+export function MessageList({ rows, renderMessage, onLoadOlder, loadingOlder, onRetryOlder, bottom, jumpTo, onAtLatestChange, empty, latestSignal = 0 }: Props) {
   const list = useRef<FlatList<TimelineRow>>(null);
   const jumped = useRef<number | null>(null);
   const atLatest = useRef(true);
@@ -139,7 +142,7 @@ export function MessageList({ rows, renderMessage, onLoadOlder, loadingOlder, bo
       keyboardDismissMode="interactive"
       keyboardShouldPersistTaps="handled"
       ListHeaderComponent={<View className="pb-2">{bottom}</View>}
-      ListFooterComponent={loadingOlder ? <ActivityIndicator className="py-4" /> : null}
+      ListFooterComponent={<OlderPagesFooter loading={loadingOlder} onRetry={onRetryOlder} />}
       scrollEventThrottle={100}
       onScroll={(event) => {
         const next = event.nativeEvent.contentOffset.y < AT_LATEST_PX;

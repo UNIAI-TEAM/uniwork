@@ -102,7 +102,7 @@ export function AiConsentActions({ onDecline, onAgreed }: { onDecline: () => voi
         onPress={() => void agree()}
         className={cn("min-h-12 flex-row items-center justify-center gap-2 rounded-full bg-primary py-3", busy ? "opacity-70" : "active:opacity-80")}
       >
-        {busy ? <ActivityIndicator color={THEME[colorScheme].primaryForeground} /> : null}
+        {busy ? <ActivityIndicator accessibilityLabel={t("common.loading")} color={THEME[colorScheme].primaryForeground} /> : null}
         <Text className="text-body font-semibold text-primary-foreground">{t("mobile.ai_consent.agree")}</Text>
       </Pressable>
       <Pressable accessibilityRole="button" onPress={onDecline} className="min-h-12 items-center justify-center rounded-full bg-muted px-4 py-3 active:opacity-70">
@@ -161,7 +161,7 @@ export function AiConsentSheet({ visible, onClose }: { visible: boolean; onClose
                 onPress={() => void withdraw()}
                 className={cn("min-h-12 flex-row items-center justify-center gap-2 rounded-full bg-muted py-3", busy ? "opacity-70" : "active:opacity-80")}
               >
-                {busy ? <ActivityIndicator /> : null}
+                {busy ? <ActivityIndicator accessibilityLabel={t("common.loading")} /> : null}
                 <Text className="text-body font-semibold text-destructive">{t("mobile.ai_consent.withdraw")}</Text>
               </Pressable>
             </View>

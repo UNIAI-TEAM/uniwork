@@ -50,7 +50,7 @@ export const DmPickRow = memo(function DmPickRow(props: { person: PickPerson; la
             </Text>
           ) : null}
         </View>
-        {busy ? <ActivityIndicator color={THEME[colorScheme].primary} /> : null}
+        {busy ? <ActivityIndicator accessibilityLabel={t("common.loading")} color={THEME[colorScheme].primary} /> : null}
       </View>
     </Pressable>
   );

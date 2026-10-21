@@ -124,8 +124,11 @@ function RoomConversation({ chat, roomId, linkedMessageId }: { chat: ChatWorkspa
         }
         messages={messages}
         loading={timeline.isPending || (!anchorLoaded && around.isPending)}
+        // Nothing cached and the newest page failed: an error with a retry, not an empty room.
+        onRetryLoad={timeline.isError && !timeline.data ? () => void timeline.refetch() : undefined}
         loadingOlder={timeline.isFetchingNextPage}
         onLoadOlder={anchorRows || !timeline.hasNextPage || timeline.isFetchingNextPage ? undefined : () => void timeline.fetchNextPage()}
+        onRetryOlder={!anchorRows && timeline.isFetchNextPageError ? () => void timeline.fetchNextPage() : undefined}
         jumpTo={jump}
         onQuoteJump={(messageId) => {
           if (!messages.some((m) => m.id === messageId)) setAnchorId(messageId);

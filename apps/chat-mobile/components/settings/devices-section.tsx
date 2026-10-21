@@ -62,7 +62,7 @@ export function DevicesSection() {
   return (
     <SettingsSection title={t("mobile.settings.devices")} hint={t("mobile.settings.devices_hint")}>
       {devices.isPending ? (
-        <ActivityIndicator className="py-4" />
+        <ActivityIndicator accessibilityLabel={t("common.loading")} className="py-4" />
       ) : devices.isError ? (
         <Text className="px-4 py-3 text-callout text-destructive">{t("common.error")}</Text>
       ) : (
