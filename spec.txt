@@ -1,0 +1,9 @@
+git rev-parse HEAD
+. scripts/local-env.sh; unset OPENAI_API_KEY OPENAI_BASE_URL; export REDIS_TEST_URL=redis://localhost:6379/1 AI_PROVIDER=fake CGO_ENABLED=1; bash scripts/ensure-postgres.sh >/dev/null 2>&1; mkdir -p /tmp/cov; cd server && go test -race -count=1 -v -timeout 150m -coverprofile=/tmp/cov/cover.out $(go list ./... | grep -vE '/pkg/db/generated$|/cmd/(migrate|seed|uniwork-admin)$|/internal/testutil$') > /tmp/uni2012r2b-full.log 2>&1; echo "TEST_GO_EXIT=$?"
+ls -la /tmp/cov; grep -cE "^\s*--- PASS" /tmp/uni2012r2b-full.log | sed 's/^/GO_PASS_COUNT=/'; grep -cE "^\s*--- FAIL" /tmp/uni2012r2b-full.log | sed 's/^/GO_FAIL_COUNT=/'; grep -cE "^\s*--- SKIP" /tmp/uni2012r2b-full.log | sed 's/^/GO_SKIP_COUNT=/'; grep -E "^\s*--- FAIL|^FAIL|^panic" /tmp/uni2012r2b-full.log | head -40
+grep -nE "^(ok|FAIL)\s.*internal/service\s" /tmp/uni2012r2b-full.log | cut -c1-200
+awk '/WARNING: DATA RACE/{f=1;n=0} f{print substr($0,1,300);n++} n>70{f=0}' /tmp/uni2012r2b-full.log | head -300
+grep -nE "testing.go.*race detected|race detected during execution" /tmp/uni2012r2b-full.log | cut -c1-300 | head
+awk '/^=== RUN +(TestDeleteLinkDocumentMessageRacingReconcileAndLinkSend|TestChatGrantLeaveAfterCommitIsReconciled)( |$)/{f=1} f{print substr($0,1,400);n++} n>120{f=0;n=0}' /tmp/uni2012r2b-full.log | head -260
+bash scripts/go-cover-floor.sh /tmp/cov/cover.out; echo "COVER_FLOOR_EXIT=$?"; cat server/coverage.floor
+tail -30 /tmp/uni2012r2b-full.log | cut -c1-300
