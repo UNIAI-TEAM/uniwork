@@ -4,11 +4,28 @@ import { useEffect, useRef, useState, type DragEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { ChunkedUploadError } from "@uniwork/core/documents/chunked-upload";
+import { readDroppedFolders } from "@uniwork/core/documents/folder-upload";
+import type { FolderUploadEntry } from "@uniwork/core/documents/folder-upload/types";
 import { DEFAULT_DOCUMENT_MAX_BYTES } from "@uniwork/core/documents/limits";
 import { documentErrorMessage, documentUploadValidationMessage } from "./document-error-message";
 
 function hasFiles(event: DragEvent): boolean {
   return Array.from(event.dataTransfer?.types ?? []).includes("Files");
+}
+
+function isDirectoryItem(item: DataTransferItem): boolean {
+  return item.kind === "file" && Boolean(item.webkitGetAsEntry?.()?.isDirectory);
+}
+
+/** The loose files of a drop that also holds folders; `dataTransfer.files` lists a folder as a bogus File, so it cannot be used there. */
+function looseFilesOf(items: ArrayLike<DataTransferItem>): File[] {
+  const files: File[] = [];
+  for (const item of Array.from(items)) {
+    if (item.kind !== "file" || isDirectoryItem(item)) continue;
+    const file = item.getAsFile();
+    if (file) files.push(file);
+  }
+  return files;
 }
 
 interface QueuedUploadEntry {
@@ -22,15 +39,20 @@ interface QueuedUploadEntry {
  * Drag files from the desktop onto the library to upload them into the open
  * folder. Each file is its own create (awaited, one after another); the list
  * refreshes from the server when each lands. Nothing happens for a viewer.
+ *
+ * Dropped folders go to `onFolders` (one entry list per folder, UNI-2052);
+ * without it they are skipped with one toast and the loose files still upload.
  */
 export function useDropUpload({
   enabled,
   upload,
   maxBytes = DEFAULT_DOCUMENT_MAX_BYTES,
+  onFolders,
 }: {
   enabled: boolean;
   upload: (file: File) => Promise<void>;
   maxBytes?: number;
+  onFolders?: (folders: FolderUploadEntry<File>[][]) => void;
 }) {
   const { t, i18n } = useTranslation();
   const [active, setActive] = useState(false);
@@ -143,6 +165,24 @@ export function useDropUpload({
           event.preventDefault();
           depth.current = 0;
           setActive(false);
+          const items = event.dataTransfer.items;
+          if (items && Array.from(items).some(isDirectoryItem)) {
+            // The browser empties the item list when this tick ends, so the
+            // loose files and the folder walk both start before any await.
+            const loose = looseFilesOf(items);
+            const reading = onFolders ? readDroppedFolders(items) : null;
+            if (!reading) toast.info(t("documents.folder_upload.toast.folders_unavailable"));
+            if (loose.length > 0) void enqueueUpload(loose);
+            reading?.then(
+              ({ folders }) => {
+                if (folders.length > 0) onFolders?.(folders);
+              },
+              () => {
+                toast.error(t("documents.folder_upload.toast.read_failed"));
+              },
+            );
+            return;
+          }
           const files = Array.from(event.dataTransfer.files);
           if (files.length > 0) void enqueueUpload(files);
         },
