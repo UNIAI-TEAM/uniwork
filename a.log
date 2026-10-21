@@ -1,0 +1,4 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin main; git rev-parse HEAD origin/main; rc=$?; echo TEST_L1=$rc; [ $rc -eq 0 ]
+19094286494edf7ae83007f65219816ae3055784
+4b2e6babcd75e1bb6ebfadbc7aa1abc2e196c4cc
+TEST_L1=0

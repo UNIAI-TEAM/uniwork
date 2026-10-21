@@ -1,0 +1,7 @@
+$ npm run licenses; rc=$?; echo TEST_L3=$rc; [ $rc -eq 0 ]
+
+> genoffice@0.1.0 licenses
+> node tools/check-licenses.mjs
+
+All production npm dependency licenses are within the allowlist.
+TEST_L3=0

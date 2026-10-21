@@ -1,0 +1,3 @@
+$ if [ "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)" ]; then FORMAT_BASE_REF=$(git rev-parse HEAD^1); else FORMAT_BASE_REF=$(git merge-base HEAD origin/main); fi; export FORMAT_BASE_REF; if [ -f tools/check-public-hygiene.mjs ]; then node tools/check-public-hygiene.mjs; else echo "public-hygiene gate not present in this checkout; skipped"; fi; rc=$?; echo TEST_L13=$rc; [ $rc -eq 0 ]
+public-hygiene gate not present in this checkout; skipped
+TEST_L13=0
