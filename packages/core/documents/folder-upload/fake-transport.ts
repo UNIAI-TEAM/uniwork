@@ -90,6 +90,14 @@ function wait(ms: number, signal?: AbortSignal): Promise<void> {
   });
 }
 
+/** Never resolves; rejects when the signal aborts (a timer would be clamped by Node above 2^31-1 ms). */
+function rejectOnAbort(signal?: AbortSignal): Promise<never> {
+  if (signal?.aborted) return Promise.reject(abortError());
+  return new Promise((_, reject) => {
+    signal?.addEventListener("abort", () => reject(abortError()), { once: true });
+  });
+}
+
 export function createFakeFolderUploadTransport(options: FakeFolderUploadOptions = {}): FakeFolderUploadTransport {
   const calls: FakeFolderUploadCall[] = [];
   const errors = new Map(Object.entries(options.errors ?? {}).map(([k, v]) => [k, [...v]]));
@@ -224,7 +232,7 @@ export function createFakeFolderUploadTransport(options: FakeFolderUploadOptions
       peakPuts = Math.max(peakPuts, inFlight);
       try {
         await wait(options.latencyMs ?? 0, opts.signal);
-        if (hold) await Promise.race([hold, wait(Number.MAX_SAFE_INTEGER, opts.signal)]);
+        if (hold) await Promise.race([hold, rejectOnAbort(opts.signal)]);
         if (opts.signal?.aborted) throw abortError();
         const failure = file ? putFailures.get(file.filename)?.shift() : undefined;
         if (failure === "network") throw new TypeError("Failed to fetch");
