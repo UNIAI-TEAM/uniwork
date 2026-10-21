@@ -1,0 +1,2 @@
+$ grep -E "^(ok|FAIL|\?)\s" /tmp/pr7r6-go-service-a.log | cut -c1-200 | head -150
+ok  	github.com/unicomhub/uniwork/server/internal/service	128.100s	coverage: 48.6% of statements
