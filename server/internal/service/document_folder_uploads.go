@@ -623,9 +623,15 @@ func (s *DocumentService) planFolderUpload(ctx context.Context, actor Actor, org
 	if filesMode {
 		baseDepth = 0
 	}
+	// The plan's folders take the pair of their location (ADR 0037): the
+	// parent decides once for the whole tree.
+	inMyFolder := false
 	if parentID != "" {
 		parent, err := s.lockPageParent(ctx, q, actor, parentID, orgID, workspaceID, DocumentKindFolder)
 		if err != nil {
+			return "", err
+		}
+		if inMyFolder, err = folderInMyFolderTree(ctx, q, parent); err != nil {
 			return "", err
 		}
 		d, err := documentDepth(ctx, q, parent)
@@ -645,7 +651,7 @@ func (s *DocumentService) planFolderUpload(ctx context.Context, actor Actor, org
 	var rootID, rootTitle string
 	if !filesMode {
 		var err error
-		rootTitle, err = s.folderUploadRootTitle(ctx, q, documentNameScope{
+		rootTitle, err = s.availableFolderCreateTitle(ctx, q, documentNameScope{
 			OrganizationID: orgID, WorkspaceID: workspaceID, ParentID: parentID, Kind: DocumentKindFolder,
 		}, plan.rootTitle)
 		if err != nil {
@@ -657,7 +663,7 @@ func (s *DocumentService) planFolderUpload(ctx context.Context, actor Actor, org
 		if err != nil {
 			return "", err
 		}
-		rootID, err = s.insertFolderUploadFolder(ctx, q, actor, orgID, workspaceID, parentID, rootTitle, rootPosition, batchID)
+		rootID, err = s.insertFolderUploadFolder(ctx, q, actor, orgID, workspaceID, parentID, rootTitle, rootPosition, batchID, inMyFolder)
 		if err != nil {
 			return "", documentTitleWriteError(DocumentKindFolder, err)
 		}
@@ -671,7 +677,7 @@ func (s *DocumentService) planFolderUpload(ctx context.Context, actor Actor, org
 		if i := strings.LastIndex(p, "/"); i >= 0 {
 			parentPath = p[:i]
 		}
-		id, err := s.insertFolderUploadFolder(ctx, q, actor, orgID, workspaceID, ids[parentPath], plan.titles[p], next[parentPath], batchID)
+		id, err := s.insertFolderUploadFolder(ctx, q, actor, orgID, workspaceID, ids[parentPath], plan.titles[p], next[parentPath], batchID, inMyFolder)
 		if err != nil {
 			if isUniqueViolation(err) {
 				// Two sibling folders whose names differ only in case collide
@@ -778,40 +784,19 @@ func (s *DocumentService) planFolderUpload(ctx context.Context, actor Actor, org
 	return batchID, nil
 }
 
-// folderUploadRootTitle is the root folder's name: the chosen name when no
-// live sibling folder holds it, else the smallest free "<name> (n)" from 1
-// (§4). The tree lock the caller holds serializes two plans of one name.
-func (s *DocumentService) folderUploadRootTitle(ctx context.Context, q *db.Queries, scope documentNameScope, title string) (string, error) {
-	rows, err := s.nameKeys(ctx, q, scope, []string{title})
+// insertFolderUploadFolder writes one folder of the plan, with the pair of its
+// location (folderHomeRowAt), and its document.created audit row. No
+// document.created event: the batch's one document.batch_uploaded event
+// stands for the whole tree.
+func (s *DocumentService) insertFolderUploadFolder(ctx context.Context, q *db.Queries, actor Actor, orgID, workspaceID, parentID, title string, position float64, batchID string, inMyFolder bool) (string, error) {
+	// The plan normalized every segment and the root name was only suffixed
+	// since; normalizing again here is idempotent and keeps the write path
+	// self-evidently normalized for the title-write guard.
+	title, err := normalizeDocumentTitle(DocumentKindFolder, title)
 	if err != nil {
 		return "", err
 	}
-	if len(rows) == 1 && !rows[0].Taken {
-		return title, nil
-	}
-	for start := 1; start <= maxTitleSuffix; start += titleSuffixWindow {
-		titles := make([]string, 0, titleSuffixWindow)
-		for n := start; n < start+titleSuffixWindow && n <= maxTitleSuffix; n++ {
-			titles = append(titles, suffixedTitle(DocumentKindFolder, title, n))
-		}
-		rows, err := s.nameKeys(ctx, q, scope, titles)
-		if err != nil {
-			return "", err
-		}
-		for i, row := range rows {
-			if !row.Taken {
-				return titles[i], nil
-			}
-		}
-	}
-	return "", errDocumentNameExhausted(DocumentKindFolder)
-}
-
-// insertFolderUploadFolder writes one private folder of the plan and its
-// document.created audit row. No document.created event: the batch's one
-// document.batch_uploaded event stands for the whole tree.
-func (s *DocumentService) insertFolderUploadFolder(ctx context.Context, q *db.Queries, actor Actor, orgID, workspaceID, parentID, title string, position float64, batchID string) (string, error) {
-	visibility, level := createHomeRow("", nil)
+	visibility, level := folderHomeRowAt(inMyFolder)
 	doc, err := q.InsertDocument(ctx, db.InsertDocumentParams{
 		ID:             util.NewID(),
 		OrganizationID: orgID,

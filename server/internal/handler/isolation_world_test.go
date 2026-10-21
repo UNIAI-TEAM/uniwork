@@ -718,6 +718,13 @@ func (w *isoWorld) buildDocuments(t *testing.T, tn *isoTenant) {
 		"title": m + " Folder", "kind": "folder",
 	})
 	tn.ids["folder"] = isoID(t, out, "document")
+	// UNI-2055 (ADR 0037): that folder sits outside every My Folder, so it is a
+	// workspace folder every member of the tenant reads; a page inside it keeps
+	// its own access (restricted), and the other tenant still gets a refusal.
+	out = w.call(t, "POST", "/api/v1/workspaces/"+tn.wsID+"/documents", tn.token, map[string]any{
+		"title": m + " Folder page", "kind": "page", "parent_id": tn.ids["folder"],
+	})
+	tn.ids["folderChild"] = isoID(t, out, "document")
 	out = w.call(t, "POST", "/api/v1/workspaces/"+tn.wsID+"/documents", tn.token, map[string]any{
 		"title": m + " Trash folder", "kind": "folder",
 	})

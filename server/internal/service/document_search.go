@@ -223,6 +223,9 @@ type DocumentListItem struct {
 	ShareSummary *DocumentShareSummary
 	// IsOwner is whether the caller is the document's ACL owner (UNI-2045 SV-5).
 	IsOwner bool
+	// IsEmpty is set on folder rows of the list screens only: whether the
+	// caller can read nothing directly inside it (ADR 0037, per viewer).
+	IsEmpty *bool
 	// UpdatedByUser is the last editor when a person of the caller's
 	// organization; nil for an agent, the system or a stranger (SV-6).
 	UpdatedByUser *DocumentPerson
@@ -453,6 +456,9 @@ func (s *DocumentService) ListFavoriteDocuments(ctx context.Context, actor Actor
 func (s *DocumentService) ListDocuments(ctx context.Context, actor Actor, workspaceID string, in ListDocumentsInput) (DocumentListPage, error) {
 	page, err := s.listDocumentsPage(ctx, actor, workspaceID, in)
 	if err != nil {
+		return DocumentListPage{}, err
+	}
+	if err := s.attachFolderEmptiness(ctx, actor, workspaceID, page.Items); err != nil {
 		return DocumentListPage{}, err
 	}
 	if err := s.attachListFacts(ctx, page.Items); err != nil {

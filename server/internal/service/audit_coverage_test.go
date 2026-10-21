@@ -1270,9 +1270,17 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 			}); err != nil {
 				t.Fatal(err)
 			}
-			// UNI-1974: the folders-unshare clean-up closes a legacy workspace
-			// folder through the same writer, as the system actor.
+			// UNI-1974: the folders-unshare clean-up closes a workspace-visible
+			// folder through the same writer, as the system actor - since ADR
+			// 0037 only one its location says is restricted (in a My Folder).
+			mf, _, err := svc.EnsureMyFolder(f.ctx, Human(f.owner.ID), f.workspace.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
 			folder := f.legacySharedFolder(t)
+			if _, err := f.pool.Exec(f.ctx, `UPDATE documents SET parent_id = $1 WHERE id = $2`, mf.Document.ID, folder); err != nil {
+				t.Fatal(err)
+			}
 			if _, err := svc.UnshareFolders(f.ctx, false, 0); err != nil {
 				t.Fatal(err)
 			}
@@ -1391,6 +1399,38 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 			svc, docID := f.document(t)
 			if _, err := svc.MoveDocument(f.ctx, Human(f.owner.ID), docID, MoveDocumentInput{ParentID: "", Revision: 1}); err != nil {
 				t.Fatal(err)
+			}
+			// UNI-2055 S3: the folders-into-my-folder pass moves a private
+			// folder into its owner's My Folder as the system actor.
+			folder := f.privateRootFolder(t)
+			rep, err := svc.MoveFoldersIntoMyFolder(f.ctx, false, 0, f.orgID)
+			if err != nil || rep.MovedFolders != 1 {
+				t.Fatalf("MoveFoldersIntoMyFolder = %+v, err = %v", rep, err)
+			}
+			var n int
+			if err := f.pool.QueryRow(f.ctx,
+				`SELECT count(*) FROM audit_events WHERE action = $1 AND resource_id = $2 AND actor_kind = 'system' AND actor_id = 'folder-ws-public' AND metadata::jsonb->>'reason' = 'folders_into_my_folder'`,
+				audit.ActionDocumentMoved, folder).Scan(&n); err != nil || n != 1 {
+				t.Fatalf("MoveFoldersIntoMyFolder wrote %d document.moved rows (%v), want 1", n, err)
+			}
+			// UNI-2055 S2: trashing a workspace folder moves a document the
+			// actor cannot manage to the workspace root (reason folder_trashed).
+			f.addMember(t)
+			wsFolder, err := svc.CreatePage(f.ctx, Human(f.member.ID), f.workspace.ID, CreatePageInput{Kind: DocumentKindFolder, Title: "Thư mục chung"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			owners, err := svc.CreatePage(f.ctx, Human(f.owner.ID), f.workspace.ID, CreatePageInput{ParentID: wsFolder.Document.ID, Title: "Trang riêng"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := svc.ArchiveDocument(f.ctx, Human(f.member.ID), wsFolder.Document.ID, ArchiveDocumentInput{}); err != nil {
+				t.Fatal(err)
+			}
+			if err := f.pool.QueryRow(f.ctx,
+				`SELECT count(*) FROM audit_events WHERE action = $1 AND resource_id = $2 AND metadata::jsonb->>'reason' = $3 AND metadata::jsonb->>'from_folder_id' = $4`,
+				audit.ActionDocumentMoved, owners.Document.ID, audit.ReasonFolderTrashed, wsFolder.Document.ID).Scan(&n); err != nil || n != 1 {
+				t.Fatalf("folder trash wrote %d folder_trashed document.moved rows (%v), want 1", n, err)
 			}
 		},
 		audit.ActionDocumentArchived: func(t *testing.T, f *auditFixture) {
@@ -2361,6 +2401,19 @@ func (f *auditFixture) legacySharedFolder(t *testing.T) string {
 	}); err != nil {
 		t.Fatal(err)
 	}
+	return id
+}
+
+// privateRootFolder inserts a private folder at the workspace root, the shape
+// the folders-into-my-folder pass moves.
+func (f *auditFixture) privateRootFolder(t *testing.T) string {
+	t.Helper()
+	id := util.NewID()
+	insertRow(t, f.ctx, f.pool, "documents", baseDoc(map[string]any{
+		"id": id, "organization_id": f.orgID, "workspace_id": f.workspace.ID, "kind": "folder",
+		"visibility": "restricted", "title": "Thư mục riêng",
+		"acl_owner_id": f.owner.ID, "created_by": f.owner.ID, "updated_by": f.owner.ID,
+	}))
 	return id
 }
 

@@ -87,12 +87,13 @@ func TestFolderUploadPlanCreatesTreeBatchAuditAndOneEvent(t *testing.T) {
 		t.Fatalf("files out of plan order: %+v", b.Files)
 	}
 
-	// The folders are private, nested as planned.
+	// The folders are workspace folders by their location (ADR 0037 §1),
+	// nested as planned.
 	byPath := map[string]string{}
 	for _, f := range b.Folders {
 		byPath[f.Path] = f.ID
 		d := env.doc(t, f.ID)
-		if d.Kind != DocumentKindFolder || d.Visibility != documentVisibilityRestricted || d.CreatedBy != member.ID {
+		if d.Kind != DocumentKindFolder || d.Visibility != documentVisibilityWorkspace || d.WorkspaceLevel != string(DocumentLevelView) || d.CreatedBy != member.ID {
 			t.Fatalf("folder %q = %+v", f.Path, d)
 		}
 	}
@@ -297,7 +298,9 @@ func TestFolderUploadParentGates(t *testing.T) {
 	ctx := context.Background()
 	owner := human(env.tn.aclOwner)
 	member := human(env.tn.member)
-	private, err := env.svc.CreatePage(ctx, owner, env.tn.wsA, CreatePageInput{Kind: DocumentKindFolder, Title: "Riêng", IdempotencyKey: "p-" + util.NewID()})
+	// A folder the member cannot create in is one inside another member's
+	// My Folder: a workspace folder takes every member's children (ADR 0037).
+	private, err := env.svc.CreatePage(ctx, owner, env.tn.wsA, CreatePageInput{Kind: DocumentKindFolder, Title: "Riêng", Destination: DocumentSystemKindMyFolder, IdempotencyKey: "p-" + util.NewID()})
 	if err != nil {
 		t.Fatal(err)
 	}

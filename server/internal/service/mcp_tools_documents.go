@@ -324,8 +324,10 @@ type mcpCreateDocumentIn struct {
 
 // CreateDocument creates a page from Markdown. DocumentService decides who may
 // put it where: at the root of a workspace the person belongs to (private by
-// default, SH-S1), or under a folder or page they may edit, whose visibility
-// it takes (CreatePage). A parent the person cannot use reads as not found.
+// default, SH-S1), under a folder outside My Folder (any human member may,
+// the page stays private: ADR 0037) or under a page they may edit, whose
+// visibility it takes (CreatePage). A parent the person cannot use reads as
+// not found.
 // Nobody is notified: document.created has no notification rule, and a page
 // body mention notifies only from a content save (UpdateDocument, UNI-1968),
 // which a create is not.
@@ -592,7 +594,7 @@ func mcpDocumentTools(s *McpToolService) []ai.Tool {
 			func(ctx context.Context, p McpPrincipal, in mcpDocumentRef) (any, error) {
 				return s.GetDocument(ctx, p, in)
 			}),
-		mcpWriteTool("create_document", "Create document", "Creates a page from Markdown as the user, at the top level of the workspace or inside a folder or page (parent_id, one the user may edit; any other reads as not found). title is 1-"+strconv.Itoa(mcpMaxDocumentTitleRunes)+" characters. content is Markdown (headings, lists, task lists, tables, code, quotes, https links, [@Name](uniwork://user/<user_id>) mentions) of at most "+strconv.Itoa(document.MaxMarkdownRunes)+" characters: for a longer page create it with the first part and append the rest in parts with update_document. Only https, mailto: and UniWork-relative (/…) links stay links; any other keeps its text and loses the link, and an image becomes a link. A page at the top level or inside a folder is private (restricted, visible only to the user, workspace admins and the people it is shared with; a folder is never shared, so it passes nothing on); a page inside another page takes that page's visibility, and the parent's own shares are not copied. No one is notified, a mention in the page included. There is no duplicate guard: sending the same call again creates a second page, so if you are not sure a call went through, look with list_documents or search before sending it again. It comes back with its doc_kind, revision and url.", "the user moves it to the trash in UniWork, where it can be restored", false, mcpSchemaCreateDocument,
+		mcpWriteTool("create_document", "Create document", "Creates a page from Markdown as the user, at the top level of the workspace or inside a folder or page (parent_id: a folder outside anyone's My Folder that the user may add to (members who can edit in the workspace), a folder in the user's own My Folder, or a page the user may edit; any other reads as not found). title is 1-"+strconv.Itoa(mcpMaxDocumentTitleRunes)+" characters. content is Markdown (headings, lists, task lists, tables, code, quotes, https links, [@Name](uniwork://user/<user_id>) mentions) of at most "+strconv.Itoa(document.MaxMarkdownRunes)+" characters: for a longer page create it with the first part and append the rest in parts with update_document. Only https, mailto: and UniWork-relative (/…) links stay links; any other keeps its text and loses the link, and an image becomes a link. A page at the top level or inside a folder is private (restricted, visible only to the user, workspace admins and the people it is shared with): a folder outside My Folder is visible to the whole workspace, but a folder is never shared and passes no access on, so every page keeps its own access; a page inside another page takes that page's visibility, and the parent's own shares are not copied. No one is notified, a mention in the page included. There is no duplicate guard: sending the same call again creates a second page, so if you are not sure a call went through, look with list_documents or search before sending it again. It comes back with its doc_kind, revision and url.", "the user moves it to the trash in UniWork, where it can be restored", false, mcpSchemaCreateDocument,
 			func(ctx context.Context, p McpPrincipal, in mcpCreateDocumentIn) (any, error) {
 				return s.CreateDocument(ctx, p, in)
 			}),

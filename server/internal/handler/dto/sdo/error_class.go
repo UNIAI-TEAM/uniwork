@@ -153,6 +153,10 @@ var errorClassByCode = map[string]string{
 //     not permission (the caller may administer the folder) and not conflict
 //     (nothing to reload); the dialogs that could send it are gone, so the
 //     client only shows the message.
+//   folder_into_my_folder (422) a move would put a workspace folder (or a
+//     folder below it) into a My Folder tree (ADR 0037 §6, UNI-2055). A
+//     refusal of the request like folder_not_shareable: the caller may move
+//     the folder, just not there, and nothing needs a reload.
 //   access_report_too_large (422, fields.max_rows) an access report export
 //     over 10,000 rows or folder nodes (UNI-1643), refused before any byte.
 //     A count limit like document_link_limit, unclassified for the same

@@ -224,6 +224,7 @@ type DocumentSummaryDTO struct {
 	// UNI-2045 DOCLIST-UNIFIED: the columns of the unified documents table.
 	// Every field below is additive and optional; a client that does not know
 	// one ignores it.
+	IsEmpty       *bool                    `json:"is_empty,omitempty" description:"Chỉ có trên dòng thư mục của danh sách tài liệu: true = người gọi không đọc được mục nào nằm trực tiếp trong thư mục (đếm theo người xem); vắng mặt = không biết" example:"false"`
 	IsOwner       *bool                    `json:"is_owner,omitempty" description:"true = người gọi là chủ ACL của tài liệu (cùng khái niệm acl_owner của báo cáo quyền truy cập); có trên mọi dòng của danh sách tài liệu" example:"true"`
 	UpdatedByUser *DocumentEditorSDO       `json:"updated_by_user,omitempty" description:"Người sửa gần nhất khi là người dùng trong tổ chức của người gọi; vắng mặt khi người sửa là agent/hệ thống hoặc ngoài tổ chức (không lộ tên qua tổ chức khác)"`
 	LastActivity  *DocumentLastActivitySDO `json:"last_activity,omitempty" description:"Chỉ có trên /documents/recent: hoạt động gần nhất của người gọi trên dòng (opened, edited, commented hoặc owned) và thời điểm"`
@@ -291,6 +292,7 @@ type DocumentTreeNodeDTO struct {
 	SystemKind *string               `json:"system_kind,omitempty" description:"my_folder khi là Thư mục của tôi; vắng mặt với tài liệu thường" example:"my_folder"`
 	Position   float64               `json:"position" description:"Thứ tự giữa các sibling" example:"0"`
 	Children   []DocumentTreeNodeDTO `json:"children" description:"Con đã sắp theo position; rỗng khi hết cấp 5"`
+	IsEmpty    *bool                 `json:"is_empty,omitempty" description:"Chỉ có trên thư mục: true = người gọi không đọc được mục nào nằm trực tiếp trong thư mục (đếm theo người xem, kể cả khi chỉ lấy cây thư mục)" example:"false"`
 	// EditLock is who is editing this node's document right now (UNI-1645
 	// §3.2); absent when nobody holds the lock. Never carries lock_id.
 	EditLock *DocumentEditLockSummarySDO `json:"edit_lock,omitempty" description:"Người đang sửa tài liệu (tóm tắt, không có lock_id); vắng mặt khi không ai giữ" example:"{\"holder_id\":\"01J8X4USR0N1P2Q3R4S5T6U7\",\"holder_name\":\"Nguyễn Văn A\",\"since\":\"2026-10-15T03:12:00Z\",\"expires_at\":\"2026-10-15T03:14:00Z\",\"reserved\":false,\"held_by_me\":false}"`
@@ -320,6 +322,9 @@ type DocumentArchiveImpactSDO struct {
 	Total     int  `json:"total" description:"Tổng số dòng lệnh lưu trữ sẽ ghi, gồm chính gốc; chỉ chính xác khi too_large = false" example:"8"`
 	MaxNodes  int  `json:"max_nodes" description:"Trần số nút một lần lưu trữ nhận" example:"1000"`
 	TooLarge  bool `json:"too_large" description:"true = cây con vượt trần: không có số đếm, nút xác nhận bị khóa và thông báo folder_too_large" example:"false"`
+	// RelocatedCount is ADR 0037 point 5: documents the caller cannot manage
+	// leave a trashed workspace folder for the workspace root. A number only.
+	RelocatedCount int `json:"relocated_count" description:"Số tài liệu người gọi không quản lý được sẽ chuyển về gốc workspace thay vì vào thùng rác khi bỏ thư mục chung (giữ nguyên quyền); chỉ là con số, không lộ tài liệu nào; 0 với mọi gốc khác" example:"0"`
 }
 
 // DocumentAccessSourceDTO is one source entry on a user share row or in my_sources
