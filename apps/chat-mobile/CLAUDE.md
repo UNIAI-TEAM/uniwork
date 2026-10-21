@@ -103,6 +103,30 @@ một dòng thì ghi lý do ở dòng trên.
   `clearAccountCache` (`data/remote-config.ts`), không `queryClient.clear()`:
   query cấu hình từ xa được giữ (update gate quan sát nó suốt đời app; xoá thì
   gate đứng ở câu trả lời cũ) và hỏi lại không kèm tổ chức.
+- Tuân thủ store (UNI-2053 S2; Apple 5.1.1(v), 1.2, 5.1.2(i), Play account deletion/UGC/FGS). **Xóa tài khoản**:
+  Cài đặt › Xóa tài khoản (`components/settings/delete-account.tsx`, port dialog web) nêu hệ quả, xin một bằng chứng
+  theo `lib/account-deletion.ts` (mật khẩu, else mã hai lớp, else gõ lại email), gọi `POST /me/delete`
+  (`data/account-api.ts`), `owner_must_transfer` → hướng dẫn chuyển quyền trên web; thành công thì
+  `useAuthStore.accountDeleted()` (không gọi server: phiên và push đã bị thu hồi) + `data/local-wipe.ts` (cache ảnh,
+  thông báo, badge, lựa chọn push, ghim từng workspace; theme và ngôn ngữ giữ vì là của máy). **Quyền riêng tư và pháp
+  lý** (`components/settings/legal-section.tsx`, link ở `lib/legal-links.ts`: `/privacy` và `/vi/privacy`, neo
+  `#delete-account`, terms ẩn tới khi có URL, `mailto:` hỗ trợ — không có app mail thì chép địa chỉ), mở trang qua
+  `components/settings/use-open-web-page.ts`. **Giấy phép**: route `licenses.tsx` đọc `assets/licenses.json`, sinh bởi
+  `scripts/generate-licenses.mjs` (đi cây `dependencies` production qua node_modules của pnpm, bỏ `@uniwork/*` và gói
+  ghim OS/CPU; `lib/licenses.test.ts` chạy `--check` — đổi dependency thì chạy lại script). **Đồng ý xử lý AI**:
+  `lib/ai-consent.ts` (`AI_CONSENT_VERSION`, nhà cung cấp Anthropic; đổi nhà cung cấp hay dữ liệu gửi đi thì đổi
+  version để hỏi lại mọi người, và sửa mục AI của `privacy-content.ts` cùng PR), câu trả lời lưu ở server
+  (`PUT/DELETE /me/ai-consent`, `user.ai_consent_version`) qua `data/ai-consent.ts`; `catch-up-sheet.tsx` không gọi AI
+  khi chưa đồng ý mà vẽ `components/chat/ai-consent-notice.tsx`; tính năng AI mới trên điện thoại dùng cùng
+  `useAiConsent()`. **Báo cáo và chặn**: `data/safety-api.ts` (route chặn của web + `POST …/chat/reports`), key
+  `chatKeys.blockStatus`, `data/queries/safety.ts`; `components/chat/report-sheet.tsx` (lý do đóng theo
+  `lib/report.ts` = CHECK của server, mô tả, "chặn luôn"), `room-safety.tsx` (DM: chặn/bỏ chặn + báo cáo trong chi
+  tiết, banner trong cuộc trò chuyện; nhóm: chạm thành viên → nhắn riêng/báo cáo/chặn), nhấn giữ tin của người khác ›
+  Báo cáo. **Android FGS**: `expo-audio` tắt phát/ghi nền tường minh, `plugins/with-removed-android-services.js` gỡ
+  `MediaProjectionService` (`tools:node="remove"`); `android-manifest.test.ts` giữ danh sách quyền và dịch vụ cuối của
+  bản release (`scripts/android-manifest.mjs`: introspect của `expo config` với biến thể production + manifest của
+  từng thư viện được link). Thêm quyền/dịch vụ thì sửa test đó, bảng quyền của `store/listing.md` và checklist Play
+  App content của runbook cùng PR.
 - `app/+native-intent.ts` — expo-router tự route mọi URL từ OS; file này map
   `<scheme>://open?url=` và callback PKCE qua `lib/deep-link.ts ›
   systemPathToRoute` (thuần, có test). `openUrl` ở `app/_layout.tsx` chỉ
@@ -157,7 +181,7 @@ pnpm --filter @uniwork/chat-mobile dev        # Metro; UNICHAT_ENV=dev mặc đ�
 pnpm --filter @uniwork/chat-mobile ios        # scripts/native-run.sh ios (prebuild rồi run)
 pnpm --filter @uniwork/chat-mobile android
 pnpm --filter @uniwork/chat-mobile test | typecheck | lint
-pnpm --filter @uniwork/chat-mobile test:unit         # vitest, node: lib/ data/ app.config
+pnpm --filter @uniwork/chat-mobile test:unit         # vitest, node: lib/ data/ app.config android-manifest
 pnpm --filter @uniwork/chat-mobile test:components   # jest-expo + RNTL: components/**/*.test.tsx, data/**/*.test.tsx
 ```
 
@@ -171,8 +195,9 @@ Hai lớp test, không chung file (ADR 0037 — cả hai chặn ở mọi `GATE_
   cuộc gọi không được cắt cuộc gọi), preset `jest-expo` với
   `@testing-library/react-native` 14 (mọi `render`/`fireEvent` đều `await`), truy
   vấn theo role và label như người dùng VoiceOver/TalkBack. Render qua
-  `test/render.tsx` (i18n tiếng Việt, `QueryClient` mới), `viText(key)` là chuỗi
-  người nghe. `test/jest-setup.ts` mock `expo-router`, `expo-audio`, safe area,
+  `test/render.tsx` (i18n tiếng Việt, `QueryClient` mới với `gcTime: Infinity` — query
+  đã unmount không để lại timer giữ Jest không thoát), `viText(key)` là chuỗi
+  người nghe. `Switch` của Android không truy được theo role trong renderer: truy theo label. `test/jest-setup.ts` mock `expo-router`, `expo-audio`, safe area,
   Reanimated và làm đỏ test nào log `console.error` (update ngoài `act`…).
   `test/jest-resolver.js` thay resolver của worklets (bản gốc khớp mọi đường dẫn
   pnpm có chữ `react-native-worklets`, làm mất mock native của Expo). Sàn coverage
@@ -262,6 +287,7 @@ Runbook: `docs/runbooks/unichat-mobile-release.md`; plan:
   (`room-row-<roomId>`, `conversation-<roomId>`, `composer-input`,
   `composer-send`, `room-call-*`, `call-*`) — đổi tên một id thì sửa flow cùng
   PR; trang web trong sheet đăng nhập thì theo chữ vi|en.
-- `store/listing.md`: mô tả vi/en, privacy labels, lý do từng quyền, tài khoản
+- `store/listing.md`: mô tả vi/en, độ tuổi 18+ (khớp chính sách), privacy labels (có dòng xử lý AI và báo cáo),
+  xoá tài khoản, nội dung do người dùng tạo, lý do từng quyền và dịch vụ nền, tài khoản
   demo cho review. Thêm quyền native thì cập nhật bảng quyền ở đó; thêm dịch vụ
   nhận dữ liệu (như Sentry) thì cập nhật bảng Quyền riêng tư.

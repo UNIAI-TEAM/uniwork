@@ -12,7 +12,7 @@ import type { GuideContent } from "./guide-content";
  */
 const vi: GuideContent = {
   introduction: "Chính sách này giải thích UniWork, UniOffice và ứng dụng UniChat (web, máy tính, Android, iPhone) thu thập dữ liệu cá nhân nào, dùng để làm gì, lưu ở đâu, chia sẻ với ai và bạn yêu cầu xem hoặc xóa dữ liệu bằng cách nào.",
-  effective: { dateTime: "2026-10-20", text: "20/10/2026" },
+  effective: { dateTime: "2026-10-21", text: "21/10/2026" },
   sections: [
     { title: "Ai chịu trách nhiệm về dữ liệu", paragraphs: [
       `UniWork, UniOffice và UniChat do ${legalEntity.nameVi} (mã số doanh nghiệp ${legalEntity.enterpriseCode}, trụ sở: ${legalEntity.addressVi}) vận hành. Liên hệ về dữ liệu cá nhân: ${legalEntity.email}.`,
@@ -36,15 +36,16 @@ const vi: GuideContent = {
       "Micro: gọi điện và ghi tin thoại.",
       "Ảnh: chỉ những ảnh bạn chọn để gửi vào cuộc trò chuyện.",
       "Thông báo: báo tin nhắn mới, lượt nhắc tên và cuộc gọi.",
-      "Phát âm thanh nền: giữ tiếng cuộc gọi và tin thoại khi bạn rời màn hình ứng dụng.",
+      "Âm thanh nền (iPhone): giữ tiếng cuộc gọi khi bạn rời màn hình ứng dụng hoặc khóa máy. Tin thoại dừng phát khi bạn rời ứng dụng.",
     ] },
     { title: "Chúng tôi dùng dữ liệu để làm gì", paragraphs: [
       "Để cung cấp và bảo vệ dịch vụ: đăng nhập, đồng bộ nội dung giữa các thiết bị, gửi thông báo, chống lạm dụng và khắc phục sự cố.",
       "Chúng tôi không bán dữ liệu cá nhân, không dùng dữ liệu để quảng cáo và không cài công cụ quảng cáo hay phân tích của bên thứ ba trong ứng dụng UniChat và UniOffice. Chúng tôi không dùng nội dung của bạn để huấn luyện mô hình AI.",
       "Thông báo đẩy có thể hiện tên người gửi, tên phòng và tối đa 120 ký tự đầu của tin nhắn văn bản (tin thoại, ảnh, tệp chỉ hiện nhãn). Nếu không muốn nội dung xuất hiện trên màn hình khóa, hãy tắt xem trước thông báo trong cài đặt của thiết bị.",
+      "Báo cáo và chặn: khi bạn báo cáo một tin nhắn hoặc một người trong UniChat, chúng tôi lưu lý do, mô tả bạn viết và tin nhắn hoặc người liên quan; chủ sở hữu và quản trị viên tổ chức của bạn xem được báo cáo để xử lý, người bị báo cáo không biết ai đã báo cáo. Khi bạn chặn một người, hai bên không nhắn tin riêng được cho tới khi bạn bỏ chặn.",
     ] },
     { title: "Tính năng AI", paragraphs: [
-      "Khi bạn dùng một tính năng AI — hỏi Hỏi UNI, tóm tắt các tin chưa đọc, tóm tắt cuộc gọi, AI trong UniOffice — nội dung liên quan (tin nhắn kèm tên người gửi và thời gian, hoặc tài liệu và tệp bạn chọn) được máy chủ UniWork gửi tới nhà cung cấp mô hình AI, hiện là Anthropic, để tạo câu trả lời. AI chỉ chạy khi bạn yêu cầu; nội dung không được gửi tới AI ở chế độ nền.",
+      "Khi bạn dùng một tính năng AI — hỏi Hỏi UNI, tóm tắt các tin chưa đọc, tóm tắt cuộc gọi, AI trong UniOffice — nội dung liên quan (tin nhắn kèm tên người gửi và thời gian, hoặc tài liệu và tệp bạn chọn) được máy chủ UniWork gửi tới nhà cung cấp mô hình AI, hiện là Anthropic, để tạo câu trả lời. AI chỉ chạy khi bạn yêu cầu; nội dung không được gửi tới AI ở chế độ nền. Trong ứng dụng UniChat, trước lần đầu dùng AI bạn được hỏi đồng ý (thông báo nêu tên nhà cung cấp và dữ liệu gửi đi); bạn rút lại đồng ý được bất cứ lúc nào trong Cài đặt → Quyền riêng tư và pháp lý.",
       "Lịch sử hội thoại AI được mã hóa khi lưu. Cuộc hội thoại AI trong UniOffice tự hết hạn sau 30 phút không dùng và tối đa 24 giờ.",
     ] },
     { title: "UniOffice", paragraphs: [
@@ -66,7 +67,7 @@ const vi: GuideContent = {
     ], layout: "wide-middle" } },
     { id: "delete-account", title: "Lưu giữ và xóa dữ liệu", paragraphs: [
       "Nội dung được giữ khi tổ chức còn dùng dịch vụ. Tin nhắn bạn xóa bị ẩn với mọi người ngay; tài liệu bị xóa nằm trong thùng rác 30 ngày rồi bị xóa vĩnh viễn; mỗi tài liệu giữ tối đa 500 phiên bản; tệp không còn được dùng ở đâu bị xóa khỏi kho lưu trữ trong lần dọn dẹp hằng ngày.",
-      "Xóa tài khoản: đăng nhập UniWork trên web, vào Cài đặt → Bảo mật → Xóa tài khoản và xác nhận lại danh tính. Email, tên, ảnh đại diện, mật khẩu, liên kết Google, số điện thoại và thông tin hồ sơ bị xóa; mọi phiên đăng nhập và mã nhận thông báo bị thu hồi. Nội dung bạn đã gửi trong tổ chức vẫn thuộc tổ chức đó và hiển thị dưới tên \"Người dùng đã xóa\". Nếu bạn đang là chủ một tổ chức, hãy chuyển quyền sở hữu trước.",
+      "Xóa tài khoản: trong ứng dụng UniChat vào Cài đặt → Xóa tài khoản, hoặc đăng nhập UniWork trên web và vào Cài đặt → Bảo mật → Xóa tài khoản; sau đó xác nhận lại danh tính. Email, tên, ảnh đại diện, mật khẩu, liên kết Google, số điện thoại và thông tin hồ sơ bị xóa; mọi phiên đăng nhập và mã nhận thông báo bị thu hồi. Nội dung bạn đã gửi trong tổ chức vẫn thuộc tổ chức đó và hiển thị dưới tên \"Người dùng đã xóa\". Nếu bạn đang là chủ một tổ chức, hãy chuyển quyền sở hữu trước.",
       "Xóa tổ chức: chủ tổ chức vào Cài đặt → Dữ liệu tổ chức để tải bản xuất dữ liệu hoặc yêu cầu xóa. Nội dung của tổ chức bị xóa vĩnh viễn sau 5 ngày và có thể hủy trong thời gian đó. Hóa đơn, chứng từ thanh toán và nhật ký hoạt động được giữ lại theo nghĩa vụ kế toán và bảo mật.",
       `Nếu không đăng nhập được, gửi yêu cầu xóa tới ${legalEntity.email} từ email của tài khoản.`,
     ] },
@@ -89,7 +90,7 @@ const vi: GuideContent = {
 
 const en: GuideContent = {
   introduction: "This policy explains what personal data UniWork, UniOffice and the UniChat apps (web, desktop, Android, iPhone) collect, why, where it is kept, who it is shared with and how to ask to see or delete it.",
-  effective: { dateTime: "2026-10-20", text: "20 October 2026" },
+  effective: { dateTime: "2026-10-21", text: "21 October 2026" },
   sections: [
     { title: "Who is responsible for your data", paragraphs: [
       `UniWork, UniOffice and UniChat are operated by ${legalEntity.nameEn} (enterprise code ${legalEntity.enterpriseCode}, registered office: ${legalEntity.addressEn}). Personal data contact: ${legalEntity.email}.`,
@@ -113,15 +114,16 @@ const en: GuideContent = {
       "Microphone: calls and voice messages.",
       "Photos: only the photos you pick to send to a conversation.",
       "Notifications: new messages, mentions and calls.",
-      "Background audio: keeping call and voice message audio playing when you leave the app.",
+      "Background audio (iPhone): keeping a call audible when you leave the app or lock the phone. Voice messages stop playing when you leave the app.",
     ] },
     { title: "How we use data", paragraphs: [
       "To provide and protect the service: sign-in, syncing content across devices, notifications, abuse prevention and troubleshooting.",
       "We do not sell personal data, do not use it for advertising and do not include third-party advertising or analytics tools in the UniChat and UniOffice apps. We do not use your content to train AI models.",
       "Push notifications may show the sender's name, the room name and up to the first 120 characters of a text message (voice messages, photos and files show only a label). To keep content off your lock screen, turn off notification previews in your device settings.",
+      "Reports and blocking: when you report a message or a person in UniChat, we store the reason, the words you add and the message or person concerned; your organization's owners and admins can read the report to act on it, and the person reported does not learn who reported them. When you block someone, neither of you can message the other directly until you unblock them.",
     ] },
     { title: "AI features", paragraphs: [
-      "When you use an AI feature — asking Ask UNI, summarizing unread messages, summarizing a call, AI in UniOffice — the relevant content (messages with sender names and times, or the documents and files you choose) is sent by the UniWork server to the AI model provider, currently Anthropic, to produce the answer. AI runs only when you ask; content is not sent to AI in the background.",
+      "When you use an AI feature — asking Ask UNI, summarizing unread messages, summarizing a call, AI in UniOffice — the relevant content (messages with sender names and times, or the documents and files you choose) is sent by the UniWork server to the AI model provider, currently Anthropic, to produce the answer. AI runs only when you ask; content is not sent to AI in the background. In the UniChat app you are asked to agree before you first use AI (the notice names the provider and what is sent); you can withdraw at any time in Settings → Privacy & legal.",
       "AI conversation history is encrypted at rest. A UniOffice AI conversation expires after 30 minutes of inactivity and after 24 hours at most.",
     ] },
     { title: "UniOffice", paragraphs: [
@@ -143,7 +145,7 @@ const en: GuideContent = {
     ], layout: "wide-middle" } },
     { id: "delete-account", title: "Retention and deletion", paragraphs: [
       "Content is kept while the organization uses the service. A message you delete is hidden from everyone immediately; a deleted document stays in the trash for 30 days and is then permanently deleted; each document keeps up to 500 versions; files no longer used anywhere are removed from storage by a daily clean-up.",
-      "Deleting your account: sign in to UniWork on the web, open Settings → Security → Delete account and confirm your identity. Your email, name, profile photo, password, Google link, phone number and profile details are removed, and every session and notification token is revoked. Content you posted in an organization stays with that organization and is shown as \"Deleted user\". If you own an organization, transfer ownership first.",
+      "Deleting your account: in the UniChat app open Settings → Delete account, or sign in to UniWork on the web and open Settings → Security → Delete account; then confirm your identity. Your email, name, profile photo, password, Google link, phone number and profile details are removed, and every session and notification token is revoked. Content you posted in an organization stays with that organization and is shown as \"Deleted user\". If you own an organization, transfer ownership first.",
       "Deleting an organization: the owner opens Settings → Organization data to download a data export or request deletion. The organization's content is permanently deleted after 5 days and the request can be cancelled until then. Invoices, payment records and the activity log are kept for accounting and security obligations.",
       `If you cannot sign in, email a deletion request to ${legalEntity.email} from the account's email address.`,
     ] },

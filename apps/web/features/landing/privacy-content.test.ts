@@ -16,12 +16,14 @@ describe("privacy policy", () => {
     for (const locale of ["en", "vi"] as const) {
       const section = guideContent("privacy", locale).sections.find(candidate => candidate.id === "delete-account");
       expect(section?.paragraphs.join(" ")).toContain(locale === "vi" ? "Cài đặt → Bảo mật → Xóa tài khoản" : "Settings → Security → Delete account");
+      // UniChat erases the account in the app too (store account deletion policy).
+      expect(section?.paragraphs.join(" ")).toContain(locale === "vi" ? "ứng dụng UniChat vào Cài đặt → Xóa tài khoản" : "UniChat app open Settings → Delete account");
     }
   });
 
   it("carries a machine-readable effective date", () => {
-    expect(guideContent("privacy", "en").effective?.dateTime).toBe("2026-10-20");
-    expect(guideContent("privacy", "vi").effective?.dateTime).toBe("2026-10-20");
+    expect(guideContent("privacy", "en").effective?.dateTime).toBe("2026-10-21");
+    expect(guideContent("privacy", "vi").effective?.dateTime).toBe("2026-10-21");
   });
 
   // Long provider names and descriptions overflowed the Office table's narrow middle column.

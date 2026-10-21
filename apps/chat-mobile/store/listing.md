@@ -38,13 +38,19 @@ Nguồn cho App Store Connect và Google Play Console khi có tài khoản (UNI-
 > Requires a UniWork account. You sign in securely in the browser; the app never stores your password.
 
 **Từ khoá (≤ 100 ký tự):** `uniwork,chat,nhắn tin,gọi video,nhóm,công việc,team,messaging`
-**Danh mục:** Business (chính), Productivity (phụ). **Độ tuổi:** 4+ / Everyone (không nội dung do app tạo; chat giữa
-thành viên một tổ chức).
+**Danh mục:** Business (chính), Productivity (phụ).
+
+**Độ tuổi: 18+**, khớp chính sách quyền riêng tư ("dành cho người từ 18 tuổi", `apps/web/features/landing/privacy-content.ts`).
+App Store: Age Rating 18+ (không nội dung phản cảm; có nhắn tin giữa người dùng). Google Play: Target audience chỉ nhóm
+18+; bảng hỏi IARC — không bạo lực, tình dục, cờ bạc hay mua trong app; Interactive elements: **Users interact** (nhắn
+tin, gọi giữa thành viên một tổ chức), không chia sẻ vị trí. Nội dung do người dùng tạo có báo cáo và chặn (mục
+"Nội dung do người dùng tạo" dưới đây).
 
 ## Quyền riêng tư
 
-App gửi về server UniWork, qua Expo Push Service (bên thứ ba, rồi APNs/FCM) và tới Sentry (bên thứ ba, báo cáo
-crash; UNI-2053) những dữ liệu sau. Không có quảng cáo, không theo dõi giữa app (App Tracking Transparency: không),
+App gửi về server UniWork, qua Expo Push Service (bên thứ ba, rồi APNs/FCM), tới Sentry (bên thứ ba, báo cáo
+crash; UNI-2053) và — chỉ khi người dùng yêu cầu tóm tắt và đã đồng ý — qua server UniWork tới Anthropic (nhà cung cấp
+mô hình AI) những dữ liệu sau. Không có quảng cáo, không theo dõi giữa app (App Tracking Transparency: không),
 không bán dữ liệu. Ghi Expo và Sentry vào chính sách riêng tư (spec §11). Báo cáo crash không chứa nội dung tin, email,
 tên, token hay query của URL (`lib/redact.ts` lọc trước khi gửi), không chụp màn hình, không ghi lại phiên.
 
@@ -56,9 +62,29 @@ tên, token hay query của URL (`lib/redact.ts` lọc trước khi gửi), khô
 | Push token Expo, tên máy, nền tảng | Đăng ký push, đăng nhập (danh sách thiết bị) | Identifiers → Device ID; App Functionality; Linked | Device or other IDs; App functionality |
 | Chẩn đoán: báo cáo crash và hiệu năng (Sentry, bên thứ ba) | Khi app crash hay một thao tác lỗi phía server; mẫu 10 % phiên cho thời gian mở app và màn hình. Chỉ khi bản build có `SENTRY_DSN` | Diagnostics → Crash Data, Performance Data; App Functionality; Linked (id người dùng dạng mã, không email/tên); không Tracking | Collected → App info and performance → Crash logs, Diagnostics; App functionality; Shared: không (Sentry là nhà cung cấp dịch vụ xử lý thay); không tuỳ chọn |
 | Mã định danh trong báo cáo crash | Cùng báo cáo trên: id người dùng UniWork (mã ULID), phiên bản, bản dựng, kênh và id bản cập nhật | Identifiers → User ID; App Functionality; Linked | Personal info → User IDs; App functionality |
+| Xử lý AI (Anthropic, bên thứ ba) | Chỉ khi người dùng bấm "Bắt kịp nhanh" và đã đồng ý ở màn thông báo xử lý AI (nêu tên Anthropic, dữ liệu gửi đi, không dùng để huấn luyện, rút lại ở Cài đặt › Quyền riêng tư và pháp lý; câu trả lời lưu trên server, `PUT /me/ai-consent`). Gửi tin nhắn của cuộc trò chuyện được chọn kèm tên người gửi và thời gian; server UniWork gửi đi, app không gọi thẳng Anthropic | User Content → Emails or Text Messages; App Functionality; Linked; Apple 5.1.2(i): có màn đồng ý trước lần đầu | Messages → Other in-app messages; App functionality; **Shared** với nhà cung cấp dịch vụ (Anthropic, Hoa Kỳ); chỉ theo yêu cầu người dùng |
+| Báo cáo vi phạm | Người dùng báo cáo một tin nhắn hay một người: lý do, lời mô tả (tuỳ chọn), id tin và người | User Content → Other User Content; App Functionality; Linked | Messages → Other in-app messages; App functionality |
 
-Mọi dữ liệu mã hoá khi truyền (HTTPS/WSS). Người dùng xoá tài khoản theo quy trình của UniWork; điền URL chính sách
-riêng tư và URL xoá tài khoản của `uniworkos.com` lúc nộp.
+Mọi dữ liệu mã hoá khi truyền (HTTPS/WSS).
+
+**Xoá tài khoản.** Trong app: Cài đặt › Xóa tài khoản — nêu hệ quả, xác nhận lại bằng mật khẩu (hoặc mã hai lớp, hoặc
+gõ lại email với tài khoản chỉ Google), gọi `POST /api/v1/me/delete`, rồi đăng xuất mọi thiết bị và xoá dữ liệu của tài
+khoản trên máy (cache, ảnh đã lưu, thông báo, ghim). Chủ sở hữu tổ chức được hướng dẫn chuyển quyền trên web trước. URL
+chính sách riêng tư: `https://app.uniworkos.com/privacy`; URL xoá tài khoản cho Play:
+`https://app.uniworkos.com/privacy#delete-account`. Cài đặt › Quyền riêng tư và pháp lý mở cả hai, liên hệ hỗ trợ
+(`contact@unicomhub.com`) và danh sách giấy phép mã nguồn mở.
+
+## Nội dung do người dùng tạo (Apple 1.2, Play UGC)
+
+Tin nhắn chỉ đi giữa thành viên một tổ chức. Báo cáo: nhấn giữ một tin › Báo cáo; chi tiết cuộc trò chuyện riêng ›
+Báo cáo; chạm một thành viên trong chi tiết nhóm › Báo cáo — chọn lý do (spam, quấy rối, thù ghét, khiêu dâm, bạo lực,
+tự gây hại, khác), mô tả tuỳ chọn, và có thể chặn luôn. Báo cáo lưu ở server (`chat_reports`) và ghi nhật ký
+`chat.report.created` mà chủ sở hữu và quản trị viên tổ chức xem được. Chặn: chi tiết cuộc trò chuyện riêng hoặc thành
+viên nhóm › Chặn nhắn tin (hai bên không nhắn riêng được; cuộc trò chuyện biến khỏi danh sách người chặn); cuộc trò
+chuyện hiện người nào đã chặn. Ghi chú cho reviewer (en):
+
+> Long-press any message from another person and choose "Report". In a direct conversation, open its details (tap the
+> name at the top) for "Block" and "Report". Reports go to the organization's admins.
 
 ## Quyền và chuỗi xin quyền
 
@@ -72,8 +98,14 @@ review. Chuỗi iOS hiện chỉ có tiếng Việt; muốn bản tiếng Anh th
 | Micro | iOS `NSMicrophoneUsageDescription`, Android `RECORD_AUDIO` | M3 | Gọi thoại/video và ghi tin thoại; chỉ bật khi người dùng vào cuộc gọi hay bấm ghi | UniChat dùng micro cho cuộc gọi và tin nhắn thoại. / UniChat uses the microphone for calls and voice messages. |
 | Camera | iOS `NSCameraUsageDescription`, Android `CAMERA` | M3 | Gọi video; chỉ bật khi người dùng bật camera trong cuộc gọi | UniChat dùng camera khi bạn bật video trong cuộc gọi. / UniChat uses the camera when you turn on video in a call. |
 
-Không CallKit/VoIP push (spec §12 Q7), nên không có background mode `voip`. Nếu M3 cần âm thanh khi app ở nền thì
-background mode `audio` phải kèm lý do riêng cho review.
+Không CallKit/VoIP push (spec §12 Q7), nên không có background mode `voip`. iOS có background mode `audio` để cuộc gọi
+giữ tiếng khi người dùng rời app hoặc khoá máy (lý do cho review: "keeps an ongoing voice/video call audible").
+
+**Android, dịch vụ chạy nền (foreground service): hiện không có loại nào.** `expo-audio` tắt phát/ghi nền
+(`enableBackgroundPlayback: false`; tin thoại dừng khi rời app), `MediaProjectionService` của WebRTC (chia sẻ màn hình,
+app không dùng) bị gỡ khỏi manifest. Danh sách quyền và dịch vụ cuối cùng của bản release do
+`android-manifest.test.ts` giữ; thêm loại FGS (như dịch vụ cuộc gọi) thì thêm dòng ở bảng trên và khai báo trên Play
+kèm video (runbook › Play Console App content).
 
 ## Tài khoản demo cho review
 

@@ -160,6 +160,37 @@ biến thể và ký giống CI (thiếu `UNICHAT_ENV` là cấu hình dev: khô
   tổ chức của cuộc gọi, như máy đọc nó; dòng inbox vẫn còn, `uniwork_push_suppressed_total{kind="chat_call_incoming"}`
   đếm), nên máy không reo kể cả khi app chưa đọc cấu hình. Bật lại: xoá biến/override.
 
+**Play Console App content và App Store Connect (trước bản production đầu tiên; làm lại khi quyền, dịch vụ hay dữ liệu
+đổi).** Nguồn chữ là `apps/chat-mobile/store/listing.md`; danh sách quyền và dịch vụ của bản release là
+`apps/chat-mobile/android-manifest.test.ts` (in lại bằng `node apps/chat-mobile/scripts/android-manifest.mjs`). Đánh dấu
+từng mục khi đã nộp:
+
+- [ ] **Privacy policy**: `https://app.uniworkos.com/privacy` (tiếng Việt `/vi/privacy`). Trang phải nói đúng những gì
+  app làm: AI (Anthropic, chỉ khi người dùng yêu cầu, có màn đồng ý), báo cáo vi phạm, xoá tài khoản trong app, 18+.
+- [ ] **Data safety** (Play) / **App Privacy** (Apple): điền theo bảng "Quyền riêng tư" của `store/listing.md`, gồm
+  dòng "Xử lý AI" (chia sẻ với nhà cung cấp dịch vụ Anthropic, chỉ khi người dùng yêu cầu) và "Báo cáo vi phạm". Mã hoá
+  khi truyền: có. Người dùng yêu cầu xoá dữ liệu được: có.
+- [ ] **Account deletion** (Play bắt buộc với app cho tạo tài khoản; Apple 5.1.1(v)): trong app ở Cài đặt › Xóa tài
+  khoản (đăng xuất mọi thiết bị, xoá dữ liệu trên máy). URL xoá cho Play:
+  `https://app.uniworkos.com/privacy#delete-account` (mục "Lưu giữ và xóa dữ liệu", neo cố định). Ghi chú cho reviewer
+  Apple: "Settings › Delete account".
+- [ ] **Foreground service permissions**: bản hiện tại **không khai báo loại FGS nào** — test kia giữ
+  `FOREGROUND_SERVICE_*` rỗng (expo-audio tắt phát nền, `MediaProjectionService` của WebRTC bị gỡ bằng
+  `plugins/with-removed-android-services.js`). Khi lát gọi native thêm dịch vụ cuộc gọi (`phoneCall`/`microphone`/
+  `camera`), mỗi loại cần trong Play Console › App content › Foreground service permissions: mô tả tác vụ người dùng
+  thấy được ("cuộc gọi thoại/video đang diễn ra, có thông báo cuộc gọi"), hệ quả nếu bị hoãn, và **một video ngắn**
+  (quay màn hình: nhận cuộc gọi → khoá máy → cuộc gọi vẫn tiếp tục, thông báo cuộc gọi hiện). Thiếu video là bị từ chối.
+- [ ] **Target audience and content**: nhóm tuổi **chỉ 18+**; không nhắm tới trẻ em; không quảng cáo (Ads: No).
+- [ ] **Content rating** (IARC): app nhắn tin công việc; không bạo lực/tình dục/cờ bạc; Interactive elements:
+  **Users interact** (nhắn tin, gọi giữa thành viên tổ chức); không chia sẻ vị trí, không mua trong app. Apple: Age
+  Rating **18+**, khớp chính sách (dịch vụ dành cho người từ 18 tuổi).
+- [ ] **User-generated content** (Play UGC, Apple 1.2): khai báo app có nội dung do người dùng tạo; cơ chế: báo cáo tin
+  nhắn hoặc người (nhấn giữ tin › Báo cáo; chi tiết cuộc trò chuyện › Báo cáo/Chặn), chặn nhắn tin riêng, quản trị viên
+  tổ chức xem báo cáo trong nhật ký hoạt động (`chat.report.created`) và xử lý theo chính sách của tổ chức; liên hệ
+  `contact@unicomhub.com`.
+- [ ] **App access**: tài khoản demo (mục "Tài khoản demo cho review" của `store/listing.md`).
+- [ ] **Government apps / Financial features / Health**: không.
+
 ## Triệu chứng
 
 - Run release xanh với notice `EXPO_TOKEN is not set` — đúng khi chưa thiết lập; sau thiết lập là thiếu secret.
@@ -173,6 +204,10 @@ biến thể và ký giống CI (thiếu `UNICHAT_ENV` là cấu hình dev: khô
 - OTA không tới máy, tới nhầm bản native, hoặc bản OTA làm app lỗi/crash.
 - Nightly: đỏ ở `gate` với `The Maestro flows cannot run, not set: …`; đỏ ở `android-production`; đỏ ở bước build;
   đỏ ở bước Maestro (`Sign in`, `Push opens the room`).
+- Play/App Review từ chối: "Foreground service permissions" (loại FGS chưa khai báo hoặc thiếu video), "Account
+  deletion" (không tìm thấy lối xoá trong app hoặc URL), "User generated content" (thiếu báo cáo/chặn), "Data safety"
+  lệch với hành vi, hoặc Apple 5.1.2(i) (gửi dữ liệu cho AI không hỏi).
+- PR đỏ ở `android-manifest.test.ts`: một gói native, plugin hay tuỳ chọn plugin đổi quyền hoặc dịch vụ Android.
 
 ## Kiểm tra
 
@@ -234,7 +269,15 @@ biến thể và ký giống CI (thiếu `UNICHAT_ENV` là cấu hình dev: khô
    Warning `runtime … differs`: bản OTA không tới bản store mới nhất của kênh; đổi native thì cắt bản store trước.
    Run OTA dừng trước bước đầu với lỗi deployment protection: Environment `chat-mobile-update` chưa cho nhánh đang
    chạy (Thiết lập lần đầu, bước 5).
-13. Khoá Apple/Google hết hạn hoặc lộ: thu hồi ở Apple/Google, tạo khoá mới, tải lại bằng `eas credentials`; `EXPO_TOKEN`
+13. Bị store từ chối vì App content: đối chiếu checklist "Play Console App content và App Store Connect" ở trên với lý
+   do trong thư từ chối; sửa khai báo trên Console (không cần build mới) nếu app đã đúng. FGS: so danh sách
+   `node apps/chat-mobile/scripts/android-manifest.mjs` với khai báo; loại thừa thì gỡ bằng plugin/tuỳ chọn, loại thật
+   thì khai báo kèm video. Xoá tài khoản: kiểm tra Cài đặt › Xóa tài khoản trên bản đã nộp và URL `#delete-account`
+   còn trỏ đúng mục.
+14. `android-manifest.test.ts` đỏ: quyền/dịch vụ mới có chủ đích thì cập nhật danh sách trong test, bảng quyền của
+   `store/listing.md` và khai báo Play cùng PR; không chủ đích thì tìm gói kéo nó vào (`scripts/android-manifest.mjs`
+   đọc manifest của từng thư viện) và gỡ bằng `tools:node="remove"` trong `plugins/with-removed-android-services.js`.
+15. Khoá Apple/Google hết hạn hoặc lộ: thu hồi ở Apple/Google, tạo khoá mới, tải lại bằng `eas credentials`; `EXPO_TOKEN`
    lộ: thu hồi robot token trên expo.dev, tạo token mới vào Environment. Khoá ký OTA lộ: tạo cặp khoá/chứng chỉ mới,
    commit chứng chỉ mới, cắt bản store (binary cũ vẫn tin chứng chỉ cũ cho tới khi người dùng cập nhật; đặt
    `UNICHAT_MOBILE_MIN_SUPPORTED_VERSION` khi bản mới đủ phổ biến).
