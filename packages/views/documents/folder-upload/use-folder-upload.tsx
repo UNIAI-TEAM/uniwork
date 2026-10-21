@@ -57,6 +57,19 @@ interface RunChannel {
   settled: boolean;
   /** The toast of the retry under way, if any. */
   retryToast: FolderUploadToast | null;
+  /** The batch was given up (report dismissed, or nothing left to retry) and canceled once. */
+  abandoned: boolean;
+}
+
+/**
+ * Give up a batch that is done with: a batch with pending files stays open,
+ * and counts against the user's 2 open batches, until it is canceled or
+ * expires (24 h). The landed files stay.
+ */
+function abandon(channel: RunChannel): void {
+  if (channel.abandoned) return;
+  channel.abandoned = true;
+  channel.handle?.cancel();
 }
 
 interface ReportView {
@@ -172,11 +185,12 @@ export function useFolderUpload({
   };
 
   const showReport = (name: string, report: FolderUploadReport, channel: RunChannel) =>
-    setReportView({ name, report, channel });
+    setReportView({ name, report: channel.abandoned ? { ...report, canRetry: false } : report, channel });
 
   /** Turn a run's (or a retry's) toast into its end state; "Xem" opens the report. */
   const settleToast = (target: FolderUploadToast, name: string, report: FolderUploadReport, channel: RunChannel) => {
     const title = report.root?.title ?? name;
+    if (report.failed.length > 0 && !report.canRetry && !report.canceled && !report.expired) abandon(channel);
     target.settle({
       title,
       total: report.total,
@@ -209,7 +223,7 @@ export function useFolderUpload({
       setPending(false);
       return;
     }
-    const channel: RunChannel = { handle: null, settled: false, retryToast: null };
+    const channel: RunChannel = { handle: null, settled: false, retryToast: null, abandoned: false };
     let uploadToast: FolderUploadToast | null = null;
     // The plan was answered: the dialog's job is done, the toast takes over.
     const begin = (): FolderUploadToast => {
@@ -344,7 +358,10 @@ export function useFolderUpload({
       <FolderUploadReportDialog
         open={reportView !== null}
         onOpenChange={(open) => {
-          if (!open) setReportView(null);
+          if (open || !reportView) return;
+          // Closed without a retry: nothing more will happen in this batch.
+          abandon(reportView.channel);
+          setReportView(null);
         }}
         name={reportView?.name ?? ""}
         failures={reportView?.report.failed ?? []}

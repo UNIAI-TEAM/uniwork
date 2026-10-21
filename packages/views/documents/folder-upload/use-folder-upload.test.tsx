@@ -263,6 +263,49 @@ describe("useFolderUpload", () => {
     await waitFor(() => expect(transport.calls.some((c) => c.method === "status")).toBe(true));
   });
 
+  const cancels = (transport: ReturnType<typeof setup>["transport"]) => transport.calls.filter((c) => c.method === "cancel").length;
+  const closeReport = () => fireEvent.click(screen.getAllByRole("button", { name: t("documents.folder_upload.report.close") })[0] as HTMLElement);
+
+  it("closes the batch once when the report is dismissed without a retry", async () => {
+    const { transport } = setup({}, { fileErrors: { "b.pdf": { code: "upload_missing", message: "" } } });
+    stage(entries("Mới", ["a.pdf", "b.pdf"]));
+    upload();
+    await waitFor(() => expect(toast.warning).toHaveBeenCalled());
+    const viewFailures = toast.warning.mock.calls[0]?.[1].action.onClick;
+    expect(cancels(transport)).toBe(0);
+    act(() => {
+      viewFailures();
+    });
+    await screen.findByText("Mới/b.pdf");
+    closeReport();
+    await waitFor(() => expect(cancels(transport)).toBe(1));
+
+    // Seen again from the toast, the abandoned batch offers no retry and is not canceled twice.
+    act(() => {
+      viewFailures();
+    });
+    await screen.findByText("Mới/b.pdf");
+    expect(screen.queryByRole("button", { name: t("documents.folder_upload.report.retry") })).toBeNull();
+    closeReport();
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(cancels(transport)).toBe(1);
+  });
+
+  it("closes the batch once when a run settles with nothing left to retry", async () => {
+    const { transport } = setup({}, { fileErrors: { "b.pdf": { code: "storage_quota_exceeded", message: "" } } });
+    stage(entries("Mới", ["a.pdf", "b.pdf"]));
+    upload();
+    await waitFor(() => expect(toast.warning).toHaveBeenCalled());
+    await waitFor(() => expect(cancels(transport)).toBe(1));
+    act(() => {
+      toast.warning.mock.calls[0]?.[1].action.onClick();
+    });
+    await screen.findByText("Mới/b.pdf");
+    closeReport();
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(cancels(transport)).toBe(1);
+  });
+
   it("cancels the whole run from the toast and keeps what landed", async () => {
     // Latency keeps the PUTs in flight while the toast's action is pressed.
     const { transport } = setup({}, { latencyMs: 150 });
