@@ -1,0 +1,4 @@
+$ for i in $(seq 1 14); do test -f /tmp/pr7r5-e2e.exit && break; sleep 30; done; echo "DONE_FILE=$(test -f /tmp/pr7r5-e2e.exit && echo yes || echo no)"; tail -2 /tmp/pr7r5-e2e.log
+DONE_FILE=no
+  ✓  45 office-docs-web.spec.ts:329:3 › open, edit, save › PDF export: a real PDF when the engine renders, otherwise the in-frame print fallback (5.2s)
+  ✓  46 office-docs-web.spec.ts:356:3 › open, edit, save › a token mint the server refuses with feature_disabled shows the unavailable notice (3.0s)
