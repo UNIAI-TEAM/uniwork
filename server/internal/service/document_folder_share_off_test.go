@@ -430,9 +430,12 @@ func TestSharedDocumentIsNotAttachedToTheOwnersFolder(t *testing.T) {
 	})
 }
 
+// ADR 0037: a workspace folder is visible to everyone by its location, not
+// shared, so it is never a Shared by me or a Shared with me row either.
 func TestSharedByMeNeverListsFolders(t *testing.T) {
 	x := newFolderOffFixture(t, "fso4")
 	f, ctx := x.f, x.f.ctx
+	wsFolder := x.folder(t, "Thư mục chung của chủ", "")
 	legacy := x.folder(t, "Cũ đã chia sẻ", "")
 	x.legacyWorkspace(t, legacy.ID)
 	x.legacyShare(t, legacy.ID, DocumentPrincipalUser, x.viewer.ID)
@@ -445,6 +448,9 @@ func TestSharedByMeNeverListsFolders(t *testing.T) {
 	got := fsoByID(page)
 	if _, ok := got[legacy.ID]; ok {
 		t.Fatal("Shared by me lists a (legacy) shared folder")
+	}
+	if _, ok := got[wsFolder.ID]; ok {
+		t.Fatal("Shared by me lists a workspace folder")
 	}
 	if _, ok := got[doc.ID]; !ok {
 		t.Fatal("Shared by me lost the shared document")
@@ -460,6 +466,9 @@ func TestSharedByMeNeverListsFolders(t *testing.T) {
 	for _, it := range sw.Items {
 		if it.Document.ID == legacy.ID {
 			t.Fatal("Shared with me lists a legacy folder share")
+		}
+		if it.Document.ID == wsFolder.ID {
+			t.Fatal("Shared with me lists a workspace folder")
 		}
 	}
 }
