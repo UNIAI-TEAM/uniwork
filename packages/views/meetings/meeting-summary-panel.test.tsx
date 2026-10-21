@@ -386,16 +386,18 @@ describe("MeetingSummaryPanel › generating", () => {
     const busy = await screen.findByRole("button", { name: "Đang tóm tắt…" });
     expect(busy).toHaveAttribute("aria-busy", "true");
     expect(busy).toHaveAttribute("aria-disabled", "true");
-    expect(screen.getByTestId("summary-live-region")).toHaveTextContent("Đang tạo tóm tắt. Có thể mất tới một phút.");
+    await waitFor(() =>
+      expect(screen.getByTestId("summary-live-region")).toHaveTextContent("Đang tạo tóm tắt. Có thể mất tới một phút."),
+    );
   });
 
   it.each([
-    ["ai_quota_exceeded", 402, "Tổ chức đã dùng hết hạn mức AI của tháng."],
-    ["entitlement_required", 403, "Gói hiện tại chưa có tóm tắt AI."],
-    ["summary_in_progress", 409, "Tóm tắt của cuộc họp này đang được tạo."],
-    ["ai_timeout", 504, "AI trả lời quá lâu"],
-    ["internal", 500, "Chưa tạo được tóm tắt. Thử lại."],
-  ])("says what to do for %s, never the server's own message", async (code, status, copy) => {
+    ["ai_quota_exceeded", 402, "Tổ chức đã dùng hết hạn mức AI của tháng.", false],
+    ["entitlement_required", 403, "Gói hiện tại chưa có tóm tắt AI.", false],
+    ["summary_in_progress", 409, "Tóm tắt của cuộc họp này đang được tạo.", true],
+    ["ai_timeout", 504, "AI trả lời quá lâu", true],
+    ["internal", 500, "Chưa tạo được tóm tắt. Thử lại.", true],
+  ])("keeps what to do for %s on the card, never the server's own message", async (code, status, copy, retryable) => {
     vi.mocked(toast.error).mockClear();
     respondGenerate(() => Promise.reject(new ApiError("pgx: raw internal detail", code, status)));
     render(wrapWithNav(<MeetingSummaryPanel workspaceId="w1" meeting={meeting} canClerk />));
@@ -403,21 +405,55 @@ describe("MeetingSummaryPanel › generating", () => {
     await waitFor(() => expect(button).not.toHaveAttribute("aria-disabled"));
 
     fireEvent.click(button);
-    await waitFor(() => expect(toast.error).toHaveBeenCalledWith(expect.stringContaining(copy)));
-    expect(String(vi.mocked(toast.error).mock.calls[0]![0])).not.toContain("pgx");
-    expect(screen.getByTestId("summary-live-region")).toHaveTextContent(copy);
+    const panel = screen.getByTestId("meeting-summary-panel");
+    await waitFor(() => expect(panel).toHaveTextContent(copy));
+    expect(panel).not.toHaveTextContent("pgx");
+    // One channel: the live region says it once, no toast on top.
+    await waitFor(() => expect(screen.getByTestId("summary-live-region")).toHaveTextContent(copy));
+    expect(toast.error).not.toHaveBeenCalled();
+    expect(within(panel).queryByRole("button", { name: "Thử lại" }) !== null).toBe(retryable);
   });
 
-  it("names the wait a rate limit asks for", async () => {
-    vi.mocked(toast.error).mockClear();
-    respondGenerate(() =>
-      Promise.reject(new ApiError("x", "ai_rate_limited", 429, undefined, { retry_after: 42 })),
-    );
+  it("names the wait a rate limit asks for, and retries from the notice", async () => {
+    let calls = 0;
+    respondGenerate(() => {
+      calls += 1;
+      return Promise.reject(new ApiError("x", "ai_rate_limited", 429, undefined, { retry_after: 42 }));
+    });
     render(wrapWithNav(<MeetingSummaryPanel workspaceId="w1" meeting={meeting} canClerk />));
     const button = await screen.findByRole("button", { name: "Tạo tóm tắt" });
     await waitFor(() => expect(button).not.toHaveAttribute("aria-disabled"));
 
     fireEvent.click(button);
-    await waitFor(() => expect(toast.error).toHaveBeenCalledWith(expect.stringContaining("42 giây")));
+    const panel = screen.getByTestId("meeting-summary-panel");
+    await waitFor(() => expect(panel).toHaveTextContent("42 giây"));
+    fireEvent.click(within(panel).getByRole("button", { name: "Thử lại" }));
+    await waitFor(() => expect(calls).toBe(2));
+  });
+
+  it("announces the same failure again on the next try", async () => {
+    respondGenerate(() => Promise.reject(new ApiError("x", "internal", 500)));
+    render(wrapWithNav(<MeetingSummaryPanel workspaceId="w1" meeting={meeting} canClerk />));
+    const button = await screen.findByRole("button", { name: "Tạo tóm tắt" });
+    await waitFor(() => expect(button).not.toHaveAttribute("aria-disabled"));
+    const region = screen.getByTestId("summary-live-region");
+    const copy = "Chưa tạo được tóm tắt. Thử lại.";
+
+    fireEvent.click(button);
+    await waitFor(() => expect(region).toHaveTextContent(copy));
+    const texts: string[] = [];
+    const seen = new MutationObserver(() => texts.push(region.textContent ?? ""));
+    seen.observe(region, { childList: true, characterData: true, subtree: true });
+    fireEvent.click(within(screen.getByTestId("meeting-summary-panel")).getByRole("button", { name: "Thử lại" }));
+    await waitFor(() => expect(texts.at(-1)).toBe(copy));
+    seen.disconnect();
+    // Emptied, then the same words again: a change a screen reader hears.
+    expect(texts).toContain("");
+  });
+
+  it("is a neutral card like its siblings, marked AI by its badge", async () => {
+    render(wrapWithNav(<MeetingSummaryPanel workspaceId="w1" meeting={meeting} canClerk />));
+    const card = (await screen.findByRole("region", { name: "Tóm tắt" })) as HTMLElement;
+    expect(card.className).not.toMatch(/border-brand/);
   });
 });

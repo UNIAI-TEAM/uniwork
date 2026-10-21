@@ -1,12 +1,12 @@
 "use client";
 
-import { Copy, Sparkles } from "lucide-react";
+import { Copy } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { Badge } from "@uniwork/ui/components/ui/badge";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { PanelCard } from "../../common/panel-card";
+import { AiBadge } from "../meeting-summary/ai-badge";
 
 function summaryLines(text: string): string[] {
   return text
@@ -15,7 +15,11 @@ function summaryLines(text: string): string[] {
     .filter(Boolean);
 }
 
-/** AI output says it is AI, what it read and when (PRODUCT.md, Agent Principles). */
+/**
+ * AI output says it is AI, what it read and when (PRODUCT.md, Agent Principles).
+ * The model is provenance for whoever asks (the tooltip), as on the detail page.
+ * A summary with a model was asked for; one without is the automatic catch-up.
+ */
 export function MeetingSummaryAttribution({
   model,
   time,
@@ -29,18 +33,16 @@ export function MeetingSummaryAttribution({
   const { t } = useTranslation();
   return (
     <p
+      title={model || undefined}
       className="flex flex-wrap items-center gap-1.5 text-caption text-muted-foreground"
       data-testid="meeting-summary-attribution"
     >
-      <Badge className="h-4 gap-0.5 border-transparent bg-brand-subtle px-1.5 text-micro text-brand-subtle-foreground">
-        <Sparkles aria-hidden />
-        {t("meetings.aiLabel")}
-      </Badge>
+      <AiBadge />
       <span className="min-w-0">
         {model && sources
-          ? t("meetings.summaryAttributionModelFrom", { model, time, sources })
+          ? t("meetings.summaryAttributionMadeFrom", { time, sources })
           : model
-            ? t("meetings.summaryAttributionModel", { model, time })
+            ? time
             : sources
               ? t("meetings.summaryAttributionFrom", { time, sources })
               : t("meetings.summaryAttribution", { time })}

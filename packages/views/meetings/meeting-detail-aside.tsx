@@ -93,7 +93,8 @@ export function MeetingDetailAside({
             <DetailRow label={t("meetings.project")}>
               <AppLink
                 href={paths.workspace(workspace.organization_slug, workspace.slug).project(project.id)}
-                className="text-foreground underline-offset-4 hover:underline"
+                // Underlined at rest and 44px tall on touch, like the dial-in number.
+                className="text-foreground underline underline-offset-4 hover:decoration-2 pointer-coarse:inline-flex pointer-coarse:min-h-11 pointer-coarse:items-center"
               >
                 {project.title}
               </AppLink>

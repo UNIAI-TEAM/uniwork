@@ -1,6 +1,6 @@
 "use client";
 import { useState, type ReactNode } from "react";
-import { Ban, CalendarX2, Pencil, PhoneOff, RotateCcw, Sparkles } from "lucide-react";
+import { Ban, CalendarX2, CircleAlert, Pencil, PhoneOff, RotateCcw, Sparkles } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import {
   displayMeetingStatus,
@@ -26,7 +26,9 @@ import { ApiError } from "@uniwork/core/api";
 import { toast } from "sonner";
 import { Button, buttonVariants } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
+import { apiErrorCopy } from "../api-error-copy";
 import { ConfirmDialog } from "../common/form-dialog";
+import { Notice } from "../common/notice";
 import { PanelCard } from "../common/panel-card";
 import { toastApiError } from "../toast-api-error";
 import { AppLink } from "../navigation";
@@ -49,13 +51,13 @@ import { MeetingMinutesSection } from "./meeting-minutes-section";
 import { MeetingSummaryPanel } from "./meeting-summary-panel";
 import { MeetingTranscriptPanel } from "./meeting-transcript-panel";
 import { useMemberIndex } from "./use-member-index";
-import { useMeetingSectionDeepLink } from "./use-meeting-section-deep-link";
+import { scrollSectionIntoView, useMeetingSectionDeepLink } from "./use-meeting-section-deep-link";
 import { useNow } from "./use-now";
 
 /** The hero's next step: bring a section into view and put focus on its first control. */
 function goToSection(headingId: string): void {
   const heading = document.getElementById(headingId);
-  heading?.scrollIntoView({ block: "start", behavior: "smooth" });
+  if (heading) scrollSectionIntoView(heading);
   heading
     ?.closest("section")
     ?.querySelector<HTMLElement>('[role="checkbox"], button:not([aria-disabled="true"]), a[href]')
@@ -105,6 +107,8 @@ export function MeetingDetailView({
   const restore = useRestoreMeeting(workspaceId);
   const extend = useExtendMeeting(workspaceId);
   const [confirm, setConfirm] = useState<"cancel" | "end" | null>(null);
+  // Why the last end/cancel failed, said at the top of the page until the next try.
+  const [closeError, setCloseError] = useState<string | null>(null);
   // The summary reminder opens here (C-11 §9.1 V1); the panel exists only
   // once the meeting is loaded and has started.
   useMeetingSectionDeepLink({
@@ -238,6 +242,11 @@ export function MeetingDetailView({
             layout === "panel" ? "max-w-none gap-3 p-3" : "max-w-7xl gap-4 p-4 sm:p-6",
           )}
         >
+          {closeError ? (
+            <Notice tone="destructive" icon={CircleAlert} layout="inline" live="assertive">
+              {closeError}
+            </Notice>
+          ) : null}
           <MeetingDetailHero
             workspaceId={workspaceId}
             meeting={meeting}
@@ -378,15 +387,20 @@ export function MeetingDetailView({
         confirmLabel={confirm === "end" ? t("meetings.confirmEnd") : t("meetings.confirmCancel")}
         pending={end.isPending || cancel.isPending}
         onConfirm={() => {
-          // Close once the server agrees: a failed end/cancel keeps the
-          // question on screen next to its error.
+          // Either way the question closes: on failure its answer is the
+          // notice above the hero, not a toast behind the dialog.
+          const onCloseError = (err: unknown) => {
+            setConfirm(null);
+            setCloseError(apiErrorCopy(err) ?? t("common.error"));
+          };
+          setCloseError(null);
           if (confirm === "end") {
             end.mutate(meetingId, {
               onSuccess: () => {
                 setConfirm(null);
                 toast.success(t("meetings.meetingEndedToast"));
               },
-              onError,
+              onError: onCloseError,
             });
           } else {
             cancel.mutate(meetingId, {
@@ -395,7 +409,7 @@ export function MeetingDetailView({
                 toast.success(t("meetings.meetingCanceledToast"));
                 onDeleted();
               },
-              onError,
+              onError: onCloseError,
             });
           }
         }}

@@ -1,15 +1,16 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   combineLocalIso,
   defaultScheduleDraft,
   formatMeetingDate,
   formatMeetingDay,
-  formatMeetingRange,
   formatMeetingTimes,
+  formatMeetingWindow,
   formatRemaining,
   meetingDayKey,
   meetingLocale,
   meetingShownWindow,
+  meetingWindowParts,
   sameUtcOffset,
   scheduleWindowIso,
   splitIsoLocal,
@@ -31,16 +32,46 @@ describe("formatRemaining", () => {
   });
 });
 
-describe("formatMeetingRange", () => {
-  it("prints the date once when both ends fall on the same day", () => {
-    const s = formatMeetingRange("2026-08-28T02:00:00Z", "2026-08-28T02:30:00Z", "vi-VN");
-    expect(s).toMatch(/\d{2}:\d{2}\s*[–-]\s*\d{2}:\d{2}/);
-    expect(s.match(/2026/g)?.length ?? 0).toBe(1);
+/** A wall-clock moment in the test runner's own zone, as the ISO the API sends. */
+const local = (y: number, mo: number, d: number, h: number, mi: number) => new Date(y, mo - 1, d, h, mi).toISOString();
+const t = ((key: string, o?: Record<string, unknown>) =>
+  key === "meetings.timesNextDay" ? `${String(o?.times)} (hôm sau)` : `${String(o?.day)} · ${String(o?.times)}`) as never;
+
+describe("meetingWindowParts and formatMeetingWindow", () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(2026, 9, 22, 9, 0));
+  });
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
-  it("returns an empty string for unparseable stamps", () => {
-    expect(formatMeetingRange("x", "y")).toBe("");
-    expect(formatMeetingRange("2026-08-28T02:00:00Z", "not-a-date")).toBe("");
+  it("tells a same-day window as the hero does: the day, then the clock span", () => {
+    const parts = meetingWindowParts(local(2026, 10, 21, 16, 0), local(2026, 10, 21, 16, 30), "vi-VN");
+    expect(parts).toMatchObject({ dayKey: "2026-10-21", day: "Thứ Tư, 21 tháng 10", nextDay: false });
+    expect(parts?.times).toMatch(/^16:00\s*[–-]\s*16:30$/);
+  });
+
+  it("marks a window past midnight as ending the next day, never with two dated stamps", () => {
+    const s = formatMeetingWindow(local(2026, 10, 21, 23, 57), local(2026, 10, 22, 0, 57), "vi-VN", t);
+    expect(s).toBe("Thứ Tư, 21 tháng 10 · 23:57 – 00:57 (hôm sau)");
+  });
+
+  it("names the end's day when the window runs longer than a night", () => {
+    const parts = meetingWindowParts(local(2026, 10, 21, 9, 0), local(2026, 10, 23, 17, 0), "vi-VN");
+    expect(parts?.times).toBe("09:00 – Thứ Sáu, 23 tháng 10, 17:00");
+    expect(parts?.nextDay).toBe(false);
+  });
+
+  it("says the year of a window in another year", () => {
+    expect(meetingWindowParts(local(2025, 10, 21, 9, 0), local(2025, 10, 21, 10, 0), "vi-VN")?.day).toBe(
+      "Thứ Ba, 21 tháng 10, 2025",
+    );
+  });
+
+  it("is empty for unparseable stamps", () => {
+    expect(meetingWindowParts("x", "y")).toBeNull();
+    expect(formatMeetingWindow("2026-08-28T02:00:00Z", "not-a-date", "vi-VN", t)).toBe("");
   });
 });
 
@@ -80,6 +111,18 @@ describe("meetingDayKey and formatMeetingDay", () => {
     expect(meetingDayKey("2026-08-28T23:30:00Z")).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     expect(formatMeetingDay("2026-08-28", "vi-VN")).toContain("28");
     expect(formatMeetingDay("not-a-day")).toBe("not-a-day");
+  });
+
+  it("adds the year only to a day outside the current one", () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      vi.setSystemTime(new Date(2026, 9, 22, 9, 0));
+      expect(formatMeetingDay("2026-10-21", "vi-VN")).toBe("Thứ Tư, 21 tháng 10");
+      expect(formatMeetingDay("2025-10-21", "vi-VN")).toBe("Thứ Ba, 21 tháng 10, 2025");
+      expect(formatMeetingDay("2025-10-21", "en-GB")).toMatch(/^Tuesday,? 21 October 2025$/);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

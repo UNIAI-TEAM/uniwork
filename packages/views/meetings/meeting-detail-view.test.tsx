@@ -275,19 +275,6 @@ describe("MeetingDetailView", () => {
     );
   });
 
-  it("keeps the cancel confirmation open when cancelling fails", async () => {
-    rosterMock((p, method) =>
-      p === "/api/v1/meetings/m1/cancel" && method === "POST" ? Promise.reject(new ApiError("không huỷ được", "invalid_meeting_state", 409)) : undefined,
-    );
-    render(shell(<MeetingDetailView workspaceId="w1" meetingId="m1" onJoin={() => {}} onDeleted={() => {}} />));
-
-    fireEvent.click(await screen.findByRole("button", { name: "Hủy cuộc họp" }));
-    const dialog = await screen.findByRole("alertdialog");
-    fireEvent.click(within(dialog).getByRole("button", { name: /Hủy cuộc họp|Hủy cuộc họp/ }));
-    await waitFor(() => expect(requestMock).toHaveBeenCalledWith("/api/v1/meetings/m1/cancel", expect.anything()));
-    expect(screen.getByRole("alertdialog")).toBeInTheDocument();
-  });
-
   it("hides start and join after the scheduled window ends", async () => {
     const expired = {
       ...meeting,
@@ -369,6 +356,27 @@ describe("MeetingDetailView", () => {
     await waitFor(() => expect(onDeleted).toHaveBeenCalled());
     expect(success).toHaveBeenCalledWith("Đã hủy cuộc họp");
     success.mockRestore();
+  });
+
+  it("says a failed cancel above the hero, once, instead of a toast behind the dialog", async () => {
+    const failure = vi.spyOn(toast, "error");
+    const onDeleted = vi.fn();
+    rosterMock((p, method) =>
+      p === "/api/v1/meetings/m1/cancel" && method === "POST"
+        ? Promise.reject(new ApiError("x", "invalid_meeting_state", 409))
+        : undefined,
+    );
+    render(shell(<MeetingDetailView workspaceId="w1" meetingId="m1" onJoin={() => {}} onDeleted={onDeleted} />));
+
+    fireEvent.click(await screen.findByRole("button", { name: "Hủy cuộc họp" }));
+    const dialog = await screen.findByRole("alertdialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: /Hủy cuộc họp/ }));
+    const alert = await screen.findByRole("alert");
+    expect(alert).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
+    expect(failure).not.toHaveBeenCalled();
+    expect(onDeleted).not.toHaveBeenCalled();
+    failure.mockRestore();
   });
 
   it("lets the host restore a cancelled meeting whose time is still ahead", async () => {

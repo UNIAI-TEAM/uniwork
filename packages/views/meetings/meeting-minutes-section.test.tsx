@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeAll, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@uniwork/core/api/http";
 import { initI18n } from "@uniwork/core/i18n";
 import type { User, Workspace } from "@uniwork/core/types";
@@ -71,6 +71,29 @@ function posted(): string[] {
 }
 
 describe("MeetingMinutesSection", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("says a failed make under its button, where it stays, not in a toast", async () => {
+    respond(null);
+    const base = requestMock.getMockImplementation()!;
+    requestMock.mockImplementation((path: unknown, init?: { method?: string }) =>
+      init?.method === "POST" ? Promise.reject(new ApiError("x", "minutes_exist", 409)) : base(path, init),
+    );
+    renderSection();
+    await userEvent.click(await screen.findByRole("button", { name: "Lập biên bản" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Cuộc họp đã có biên bản. Mở biên bản để sửa.");
+  });
+
+  it("names the year of minutes finalized in another year", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2027-01-05T03:00:00Z"));
+    respond(finalized);
+    renderSection();
+    expect(await screen.findByText(/^Chốt ngày Thứ Ba, 20 tháng 10, 2026 · Mai Anh$/)).toBeInTheDocument();
+  });
+
   it("lets a clerk make the minutes in the reader's language, then opens the page", async () => {
     respond(null, { create: draft });
     const nav = fakeNav();
@@ -106,6 +129,8 @@ describe("MeetingMinutesSection", () => {
   });
 
   it("shows the date alone, not a former member, while members load", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-22T03:00:00Z"));
     respond(finalized);
     const base = requestMock.getMockImplementation()!;
     requestMock.mockImplementation((path: unknown, init?: { method?: string }) =>

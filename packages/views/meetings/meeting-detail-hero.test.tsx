@@ -120,7 +120,8 @@ describe("MeetingDetailHero", () => {
     const hero = screen.getByRole("region", { name: "Standup" });
     expect(hero.className).not.toMatch(/opacity-/);
     expect(screen.getByText("Đã hủy")).toHaveAttribute("data-tone", "destructive");
-    expect(screen.getByText(/^Đã hủy lúc /)).toBeInTheDocument();
+    // The badge says it was cancelled; the line beside it only says when.
+    expect(screen.getAllByText(/Đã hủy/)).toHaveLength(1);
   });
 
   it("counts waiting join requests without gluing a number onto the label", () => {
@@ -210,5 +211,84 @@ describe("MeetingDetailHero", () => {
   it("uses the solid destructive fill for ending an overtime meeting", () => {
     renderHero({ status: "IN_PROGRESS", ...windowFromNow(-60 * 60_000) });
     expect(screen.getByRole("button", { name: "Kết thúc họp" })).toHaveClass("bg-destructive-solid");
+  });
+
+  it("says only when an ended meeting ended: the badge already says it did", () => {
+    const now = Date.now();
+    const iso = (offsetMs: number) => new Date(now + offsetMs).toISOString();
+    renderHero({ status: "ENDED", starts_at: iso(-40 * 60_000), ends_at: iso(-6 * 60_000) });
+    expect(screen.getByText("6 phút trước")).toBeInTheDocument();
+    expect(screen.queryByText(/^Kết thúc /)).not.toBeInTheDocument();
+  });
+
+  it("reads under a minute as \"vừa xong\", never Intl's \"bây giờ\" that sounds like an order", () => {
+    const now = Date.now();
+    const iso = (offsetMs: number) => new Date(now + offsetMs).toISOString();
+    renderHero({ status: "ENDED", starts_at: iso(-30 * 60_000), ends_at: iso(-20_000) });
+    expect(screen.getByText("vừa xong")).toBeInTheDocument();
+    expect(screen.queryByText(/bây giờ/)).not.toBeInTheDocument();
+  });
+
+  it("words the minute around a start, never \"Bắt đầu bây giờ\"", () => {
+    const now = Date.now();
+    const iso = (offsetMs: number) => new Date(now + offsetMs).toISOString();
+    renderHero({ starts_at: iso(20_000), ends_at: iso(30 * 60_000) });
+    expect(screen.getByText("Sắp bắt đầu")).toBeInTheDocument();
+    expect(screen.queryByText(/bây giờ/)).not.toBeInTheDocument();
+  });
+
+  it("says a meeting that started under a minute ago just started", () => {
+    const now = Date.now();
+    const iso = (offsetMs: number) => new Date(now + offsetMs).toISOString();
+    renderHero({ status: "IN_PROGRESS", starts_at: iso(-20_000), ends_at: iso(30 * 60_000), actual_start_at: iso(-20_000) });
+    expect(screen.getByText("Vừa bắt đầu")).toBeInTheDocument();
+    expect(screen.queryByText(/bây giờ/)).not.toBeInTheDocument();
+  });
+
+  describe("on a pinned clock", () => {
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(new Date(2026, 9, 22, 9, 0));
+    });
+    const at = (y: number, mo: number, d: number, h: number, mi: number) => new Date(y, mo - 1, d, h, mi).toISOString();
+
+    it("tells a cancel on the meeting's own day by its clock alone", () => {
+      renderHero({ status: "CANCELED", starts_at: at(2026, 10, 23, 14, 0), ends_at: at(2026, 10, 23, 15, 0) }, {
+        canceledAt: at(2026, 10, 23, 8, 5),
+      });
+      expect(screen.getByText("08:05")).toBeInTheDocument();
+    });
+
+    it("names the day of a cancel on another one, in the hero's style", () => {
+      renderHero({ status: "CANCELED", starts_at: at(2026, 10, 23, 14, 0), ends_at: at(2026, 10, 23, 15, 0) }, {
+        canceledAt: at(2026, 10, 21, 16, 59),
+      });
+      expect(screen.getByText("Thứ Tư, 21 tháng 10, 16:59")).toBeInTheDocument();
+    });
+
+    it("says an overtime window's end by its clock on the same day", () => {
+      renderHero({ status: "IN_PROGRESS", starts_at: at(2026, 10, 22, 8, 0), ends_at: at(2026, 10, 22, 8, 30) });
+      expect(screen.getByText(/đã qua khung giờ lúc 08:30 nên/)).toBeInTheDocument();
+    });
+
+    it("marks a window that runs past midnight as ending the next day", () => {
+      renderHero({ starts_at: at(2026, 10, 23, 23, 30), ends_at: at(2026, 10, 24, 0, 30) });
+      expect(screen.getByText("23:30 – 00:30 (hôm sau)")).toBeInTheDocument();
+      expect(screen.getByText("Thứ Sáu, 23 tháng 10")).toBeInTheDocument();
+    });
+
+    it("names the year of a meeting from another year", () => {
+      renderHero({ status: "ENDED", starts_at: at(2025, 10, 21, 9, 0), ends_at: at(2025, 10, 21, 10, 0) });
+      expect(screen.getByText("Thứ Ba, 21 tháng 10, 2025")).toBeInTheDocument();
+    });
+
+    it("lets the other zone's line wrap on a phone instead of cutting it", () => {
+      const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      const other = zone === "Asia/Tokyo" ? "America/New_York" : "Asia/Tokyo";
+      renderHero({ timezone: other, starts_at: at(2026, 10, 23, 9, 0), ends_at: at(2026, 10, 23, 9, 30) });
+      const line = screen.getAllByText(/\(GMT[+-]\d+ · /).at(-1)!.closest("span.min-w-0")!;
+      expect(line.className).not.toMatch(/truncate/);
+      expect(line.className).toMatch(/overflow-wrap:anywhere/);
+    });
   });
 });

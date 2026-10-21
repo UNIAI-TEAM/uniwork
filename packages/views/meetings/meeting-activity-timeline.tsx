@@ -39,7 +39,8 @@ import {
   visibleActivity,
   type ActivityKind,
 } from "./meeting-activity-display";
-import { formatMeetingStart, meetingLocale } from "./meeting-datetime";
+import { meetingLocale } from "./meeting-datetime";
+import { formatMeetingDayTime } from "./meeting-detail-format";
 import { initials, personAvatarSrc } from "./meeting-person";
 import { formatRelativeTime } from "./meeting-relative-time";
 import { MeetingRowsSkeleton, MeetingSectionError } from "./meeting-section-state";
@@ -163,8 +164,8 @@ export function MeetingActivityTimeline({
                           </p>
                         ) : null}
                         <p className="mt-0.5 flex flex-wrap gap-x-2 text-caption tabular-nums text-muted-foreground">
-                          <time dateTime={item.occurred_at} title={formatMeetingStart(item.occurred_at, locale)}>
-                            {formatRelativeTime(item.occurred_at, locale)}
+                          <time dateTime={item.occurred_at} title={formatMeetingDayTime(item.occurred_at, locale)}>
+                            {formatRelativeTime(item.occurred_at, locale, undefined, t("meetings.justNow"))}
                           </time>
                           {change ? <span>{`${t(change.fromKey)} → ${t(change.toKey)}`}</span> : null}
                         </p>

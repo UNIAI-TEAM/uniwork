@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { formatMeetingDayTime, meetingTimeZoneLabel } from "./meeting-detail-format";
+import { formatMeetingDayTime, formatMeetingMoment, meetingTimeZoneLabel } from "./meeting-detail-format";
 
 describe("meetingTimeZoneLabel", () => {
   it("reads an IANA id as offset and city", () => {
@@ -39,5 +39,30 @@ describe("formatMeetingDayTime", () => {
 
   it("is empty for a bad timestamp", () => {
     expect(formatMeetingDayTime("nope", "vi-VN")).toBe("");
+  });
+});
+
+describe("formatMeetingMoment", () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(2026, 9, 22, 9, 0));
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+  const at = (d: number, h: number, mi: number) => new Date(2026, 9, d, h, mi).toISOString();
+
+  it("is the clock alone on the day the screen shows", () => {
+    expect(formatMeetingMoment(at(21, 16, 59), "vi-VN", "2026-10-21")).toBe("16:59");
+  });
+
+  it("names the day for a moment on another one", () => {
+    expect(formatMeetingMoment(at(22, 0, 12), "vi-VN", "2026-10-21")).toBe("Thứ Năm, 22 tháng 10, 00:12");
+  });
+
+  it("measures against today when no day is shown", () => {
+    expect(formatMeetingMoment(at(22, 8, 30), "vi-VN")).toBe("08:30");
+    expect(formatMeetingMoment(at(21, 16, 30), "vi-VN")).toBe("Thứ Tư, 21 tháng 10, 16:30");
+    expect(formatMeetingMoment("nope", "vi-VN")).toBe("");
   });
 });

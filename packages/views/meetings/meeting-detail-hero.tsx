@@ -12,17 +12,8 @@ import { cn } from "@uniwork/ui/lib/utils";
 import { Notice } from "../common/notice";
 import { MODULE_ICONS } from "../layout/module-icons";
 import { MeetingCalendarButton } from "./meeting-calendar-button";
-import {
-  formatMeetingDay,
-  formatMeetingRange,
-  formatMeetingStart,
-  formatMeetingTimes,
-  meetingDayKey,
-  meetingLocale,
-  meetingShownWindow,
-  sameUtcOffset,
-} from "./meeting-datetime";
-import { meetingTimeZoneLabel } from "./meeting-detail-format";
+import { meetingLocale, meetingShownWindow, meetingWindowParts, sameUtcOffset } from "./meeting-datetime";
+import { formatMeetingMoment, meetingTimeZoneLabel } from "./meeting-detail-format";
 import { MeetingEditDialog } from "./meeting-edit-dialog";
 import { MeetingPersonAvatar } from "./meeting-person";
 import { MeetingRecordHeldButton } from "./meeting-record-held-dialog";
@@ -45,10 +36,11 @@ function NoticeActions({ children }: { children: React.ReactNode }) {
 }
 
 function MetaItem({ icon: Icon, children, className }: { icon: typeof Clock; children: React.ReactNode; className?: string }) {
+  // Wraps instead of truncating: a phone must still read the other zone's whole line.
   return (
-    <div className={cn("flex min-w-0 items-center gap-2 text-body text-muted-foreground", className)}>
-      <Icon aria-hidden className="size-4 shrink-0 text-faint-foreground" />
-      <span className="min-w-0 truncate">{children}</span>
+    <div className={cn("flex min-w-0 items-start gap-2 text-body text-muted-foreground", className)}>
+      <Icon aria-hidden className="mt-0.5 size-4 shrink-0 text-faint-foreground" />
+      <span className="min-w-0 text-pretty [overflow-wrap:anywhere]">{children}</span>
     </div>
   );
 }
@@ -114,6 +106,9 @@ export function MeetingDetailHero({
   const open = scheduled || live;
 
   const shown = meetingShownWindow(meeting, ended);
+  const when = meetingWindowParts(shown.startsAt, shown.endsAt, locale);
+  // A moment on the shown day reads as its clock alone; any other names its day.
+  const moment = (iso: string) => formatMeetingMoment(iso, locale, when?.dayKey);
   const duration = meetingDurationParts(shown.startsAt, shown.endsAt);
   const durationLabel = duration
     ? [
@@ -124,25 +119,31 @@ export function MeetingDetailHero({
         .join(" ")
     : "";
 
+  // Under a minute Intl says "bây giờ", which after a verb reads as an order
+  // ("Bắt đầu bây giờ"), so those moments get their own words.
+  const startAt = meeting.actual_start_at ?? meeting.starts_at;
+  const withinMinute = (iso: string) => Math.abs(Date.parse(iso) - nowMs) < 60_000;
   const relative = scheduled
-    ? t("meetings.startsRelative", { when: formatRelativeTime(meeting.starts_at, locale, nowMs) })
+    ? withinMinute(meeting.starts_at)
+      ? t("meetings.startsNow")
+      : t("meetings.startsRelative", { when: formatRelativeTime(meeting.starts_at, locale, nowMs) })
     : live || overtime
-      ? t("meetings.startedRelative", {
-          when: formatRelativeTime(meeting.actual_start_at ?? meeting.starts_at, locale, nowMs),
-        })
+      ? withinMinute(startAt)
+        ? t("meetings.justStarted")
+        : t("meetings.startedRelative", { when: formatRelativeTime(startAt, locale, nowMs) })
       : ended
-        ? t("meetings.endedRelative", {
-            when: formatRelativeTime(meeting.actual_end_at ?? meeting.ends_at, locale, nowMs),
-          })
+        ? // The badge already says it ended; this only says when.
+          formatRelativeTime(meeting.actual_end_at ?? meeting.ends_at, locale, nowMs, t("meetings.justNow"))
         : canceled && canceledAt
-          ? t("meetings.canceledAt", { time: formatMeetingStart(canceledAt, locale) })
+          ? // Likewise the "Đã hủy" badge: only the moment.
+            moment(canceledAt)
           : null;
 
   const shownPeople = people.slice(0, AVATAR_STACK_LIMIT);
   const morePeople = people.length - shownPeople.length;
   // Nothing left to do from here once the meeting is over or called off.
   const showActions = open;
-  const scheduledEnd = formatMeetingStart(meeting.ends_at, locale);
+  const scheduledEnd = moment(meeting.ends_at);
 
   // Times read in the viewer's clock. When the meeting was set in another
   // zone, both clocks are named so "09:00" is never ambiguous.
@@ -150,7 +151,10 @@ export function MeetingDetailHero({
   const startDate = new Date(shown.startsAt);
   const meetingZone = meeting.timezone?.trim() || "";
   const otherZone = meetingZone !== "" && !sameUtcOffset(meetingZone, viewerZone, startDate.getTime());
-  const times = formatMeetingTimes(shown.startsAt, shown.endsAt, locale);
+  const times = when?.nextDay ? t("meetings.timesNextDay", { times: when.times }) : (when?.times ?? "");
+  // The meeting's own clock names its day only when that differs from the viewer's.
+  const zoneWhen = otherZone ? meetingWindowParts(shown.startsAt, shown.endsAt, locale, meetingZone) : null;
+  const zoneTimes = zoneWhen?.nextDay ? t("meetings.timesNextDay", { times: zoneWhen.times }) : (zoneWhen?.times ?? "");
 
   return (
     <section aria-labelledby={headingId} className="rounded-xl border border-surface-border bg-surface shadow-surface">
@@ -177,7 +181,7 @@ export function MeetingDetailHero({
         </h1>
 
         <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2">
-          <MetaItem icon={CalendarDays}>{formatMeetingDay(meetingDayKey(shown.startsAt), locale)}</MetaItem>
+          <MetaItem icon={CalendarDays}>{when?.day}</MetaItem>
           <MetaItem icon={Clock}>
             <span className="tabular-nums">
               {otherZone
@@ -191,7 +195,10 @@ export function MeetingDetailHero({
             <MetaItem icon={Globe}>
               <span className="tabular-nums">
                 {t("meetings.timesInZone", {
-                  times: formatMeetingRange(shown.startsAt, shown.endsAt, locale, meetingZone),
+                  times:
+                    zoneWhen && zoneWhen.dayKey !== when?.dayKey
+                      ? t("meetings.windowOnDay", { day: zoneWhen.day, times: zoneTimes })
+                      : zoneTimes,
                   zone: meetingTimeZoneLabel(meetingZone, i18n.language, startDate),
                 })}
               </span>

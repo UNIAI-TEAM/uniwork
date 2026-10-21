@@ -11,7 +11,7 @@ import {
   MeetingCameraPreview,
   type CameraPreviewStatus,
 } from "./meeting-camera-preview";
-import { formatMeetingRange, meetingLocale } from "./meeting-datetime";
+import { formatMeetingWindow, meetingLocale } from "./meeting-datetime";
 import { MeetingCanvas } from "./meeting-canvas";
 import { MeetingDeviceField } from "./meeting-device-field";
 import { MeetingMediaControlBar, useMediaDevices } from "./meeting-media-controls";
@@ -130,11 +130,7 @@ export function MeetingPreJoin({
             )}
             {meeting ? (
               <p className="mt-1 text-label tabular-nums text-muted-foreground">
-                {formatMeetingRange(
-                  meeting.starts_at,
-                  meeting.ends_at,
-                  meetingLocale(i18n.language),
-                )}
+                {formatMeetingWindow(meeting.starts_at, meeting.ends_at, meetingLocale(i18n.language), t)}
               </p>
             ) : null}
           </div>

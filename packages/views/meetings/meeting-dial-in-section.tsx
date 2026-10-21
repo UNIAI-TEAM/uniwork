@@ -1,14 +1,15 @@
 "use client";
-import { Copy, Phone } from "lucide-react";
+import { CircleAlert, Copy, Phone } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { useMeetingDialIn, useRotateMeetingDialInPin } from "@uniwork/core/meetings/dial-in";
 import { Button } from "@uniwork/ui/components/ui/button";
+import { apiErrorCopy } from "../api-error-copy";
 import { ConfirmDialog } from "../common/form-dialog";
+import { Notice } from "../common/notice";
 import { PanelCard } from "../common/panel-card";
 import { moduleTone } from "../layout/module-tones";
-import { toastApiError } from "../toast-api-error";
 
 /**
  * How to call into the meeting by phone (spec 2026-10-20-meeting-scribe-agent-design
@@ -41,6 +42,8 @@ export function MeetingDialInSection({ meetingId, canHost }: { meetingId: string
   const { data } = useMeetingDialIn(meetingId);
   const rotate = useRotateMeetingDialInPin(meetingId);
   const [confirming, setConfirming] = useState(false);
+  // A PIN that did not change is said on the card, where the PIN is read.
+  const [rotateError, setRotateError] = useState<string | null>(null);
   if (!data?.enabled || !data.number || !data.pin) return null;
 
   return (
@@ -65,9 +68,10 @@ export function MeetingDialInSection({ meetingId, canHost }: { meetingId: string
             <dt className="shrink-0 text-label text-muted-foreground">{t("meetings.dialIn.number")}</dt>
             <dd className="flex min-w-0 items-center gap-1">
               {/* tel: dials on a phone; the spaces are for reading, not dialling. */}
+              {/* Underlined at rest and 44px tall on touch: it must read as tappable. */}
               <a
                 href={`tel:${data.number.replace(/[^\d+]/g, "")}`}
-                className="min-w-0 text-right text-body tabular-nums text-foreground underline-offset-4 hover:underline"
+                className="min-w-0 text-right text-body tabular-nums text-foreground underline underline-offset-4 hover:decoration-2 pointer-coarse:inline-flex pointer-coarse:min-h-11 pointer-coarse:items-center"
               >
                 {data.number}
               </a>
@@ -82,6 +86,11 @@ export function MeetingDialInSection({ meetingId, canHost }: { meetingId: string
             </dd>
           </div>
         </dl>
+        {rotateError ? (
+          <Notice tone="destructive" icon={CircleAlert} layout="inline" live="assertive" className="mt-3">
+            {rotateError}
+          </Notice>
+        ) : null}
       </PanelCard>
       <ConfirmDialog
         open={confirming}
@@ -90,15 +99,20 @@ export function MeetingDialInSection({ meetingId, canHost }: { meetingId: string
         description={t("meetings.dialIn.rotateHint")}
         confirmLabel={t("meetings.dialIn.rotate")}
         pending={rotate.isPending}
-        onConfirm={() =>
+        onConfirm={() => {
+          setRotateError(null);
           rotate.mutate(undefined, {
             onSuccess: () => {
               setConfirming(false);
               toast.success(t("meetings.dialIn.rotated"));
             },
-            onError: (err) => toastApiError(err, t("common.error")),
-          })
-        }
+            // Close the question so its answer shows on the card, behind no overlay.
+            onError: (err) => {
+              setConfirming(false);
+              setRotateError(apiErrorCopy(err) ?? t("common.error"));
+            },
+          });
+        }}
       />
     </>
   );

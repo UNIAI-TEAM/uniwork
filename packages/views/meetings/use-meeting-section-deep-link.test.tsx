@@ -1,5 +1,5 @@
 import { render } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { NavigationAdapter } from "../navigation";
 import { wrapWithNav } from "../test/api-mock";
 import { useMeetingSectionDeepLink } from "./use-meeting-section-deep-link";
@@ -28,6 +28,26 @@ function Probe({ ready }: { ready: boolean }) {
 describe("useMeetingSectionDeepLink", () => {
   beforeEach(() => {
     Element.prototype.scrollIntoView = vi.fn();
+  });
+  afterEach(() => {
+    Reflect.deleteProperty(window, "matchMedia");
+  });
+
+  it("moves focus to the heading it scrolled to, without putting it in the tab order", () => {
+    const nav = adapter("section=summary");
+    const { getByText } = render(wrapWithNav(<Probe ready />, nav));
+    const heading = getByText("Tóm tắt");
+    expect(document.activeElement).toBe(heading);
+    expect(heading).toHaveAttribute("tabindex", "-1");
+  });
+
+  it("scrolls smoothly, or at once for a reader who asked for less motion", () => {
+    render(wrapWithNav(<Probe ready />, adapter("section=summary")));
+    expect(Element.prototype.scrollIntoView).toHaveBeenCalledWith({ block: "start", behavior: "smooth" });
+
+    window.matchMedia = vi.fn((query: string) => ({ matches: query.includes("reduce") }) as MediaQueryList);
+    render(wrapWithNav(<Probe ready />, adapter("section=action-items")));
+    expect(Element.prototype.scrollIntoView).toHaveBeenLastCalledWith({ block: "start", behavior: "auto" });
   });
 
   it("scrolls to the summary once the page is ready, then drops the param", () => {

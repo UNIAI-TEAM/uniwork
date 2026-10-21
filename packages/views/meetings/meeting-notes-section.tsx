@@ -9,7 +9,8 @@ import { useCoarsePointer } from "@uniwork/ui/hooks/use-pointer";
 import { PanelCard } from "../common/panel-card";
 import { moduleTone } from "../layout/module-tones";
 import { toastApiError } from "../toast-api-error";
-import { formatMeetingStart, meetingLocale } from "./meeting-datetime";
+import { meetingLocale } from "./meeting-datetime";
+import { formatMeetingDayTime } from "./meeting-detail-format";
 import { MeetingPersonAvatar } from "./meeting-person";
 import { formatRelativeTime } from "./meeting-relative-time";
 import { MeetingRowsSkeleton, MeetingSectionError } from "./meeting-section-state";
@@ -101,10 +102,10 @@ export function MeetingNotesSection({ meetingId, locked = false }: { meetingId: 
                     {n.created_at ? (
                       <time
                         dateTime={n.created_at}
-                        title={formatMeetingStart(n.created_at, locale)}
+                        title={formatMeetingDayTime(n.created_at, locale)}
                         className="shrink-0 text-caption tabular-nums text-muted-foreground"
                       >
-                        {formatRelativeTime(n.created_at, locale)}
+                        {formatRelativeTime(n.created_at, locale, undefined, t("meetings.justNow"))}
                       </time>
                     ) : null}
                   </div>

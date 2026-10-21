@@ -1,11 +1,11 @@
 "use client";
 import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { toast } from "sonner";
 import { useMeetingCapabilities, useMeetingChat, useNotes, useTranscript } from "@uniwork/core/meetings";
 import { useMeetingMotions } from "@uniwork/core/meetings/motions";
 import { useCreateMeetingSummary, useMeetingSummary } from "@uniwork/core/meetings/summary";
-import { summaryErrorText } from "./summary-error-copy";
+import { useAnnouncement } from "./summary-generate-controls";
+import { summaryErrorRetryable, summaryErrorText } from "./summary-error-copy";
 import { hasSummarySource, type SummarySourceTimes } from "./summary-sources";
 
 /**
@@ -14,7 +14,7 @@ import { hasSummarySource, type SummarySourceTimes } from "./summary-sources";
  * would read (transcript, notes, chat and closed votes, the server's own
  * test), and the generate flow: confirm before replacing a summary people
  * may have read, a polite announcement while the model works (up to a
- * minute), and an actionable error.
+ * minute), and an actionable error that stays on the card until the next run.
  */
 export function useSummaryGeneration({
   workspaceId,
@@ -35,7 +35,9 @@ export function useSummaryGeneration({
   const { data: motions } = useMeetingMotions(meetingId);
   const generate = useCreateMeetingSummary(meetingId);
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const [announcement, setAnnouncement] = useState("");
+  const [announcement, announce] = useAnnouncement();
+  // The last run's failure, said in place: a quota or plan refusal must not fade with a toast.
+  const [failure, setFailure] = useState<{ text: string; retryable: boolean } | null>(null);
 
   // Recorded results, not AI: summarisable whether or not a summary exists.
   const voted = useMemo(() => (motions ?? []).filter((m) => m.status === "CLOSED"), [motions]);
@@ -72,16 +74,18 @@ export function useSummaryGeneration({
 
   const run = useCallback(() => {
     setConfirmOpen(false);
-    setAnnouncement(t("meetings.summaryAi.generatingStatus"));
+    setFailure(null);
+    announce(t("meetings.summaryAi.generatingStatus"));
     generate.mutate(i18n.language.startsWith("en") ? "en" : "vi", {
-      onSuccess: () => setAnnouncement(t("meetings.summaryAi.generatedStatus")),
+      onSuccess: () => announce(t("meetings.summaryAi.generatedStatus")),
       onError: (err) => {
+        // One channel: the live region says it, the card shows it; no toast on top.
         const text = summaryErrorText(err, t, "generate");
-        setAnnouncement(text);
-        toast.error(text);
+        setFailure({ text, retryable: summaryErrorRetryable(err) });
+        announce(text);
       },
     });
-  }, [generate, i18n.language, t]);
+  }, [announce, generate, i18n.language, t]);
 
   /** Generate now, or ask first when it would replace an existing summary. */
   const requestGenerate = useCallback(() => {
@@ -109,8 +113,9 @@ export function useSummaryGeneration({
     confirmOpen,
     setConfirmOpen,
     confirmGenerate: run,
-    announcement,
-    announce: setAnnouncement,
+    failure,
+    announcement: announcement.text,
+    announcementSeq: announcement.seq,
   };
 }
 

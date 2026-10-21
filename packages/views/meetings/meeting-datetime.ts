@@ -1,3 +1,7 @@
+import type { useTranslation } from "react-i18next";
+
+type TFunction = ReturnType<typeof useTranslation>["t"];
+
 export const MEETING_TIMEZONES = [
   "Asia/Ho_Chi_Minh",
   "Asia/Bangkok",
@@ -173,15 +177,6 @@ function safeRange(
   }
 }
 
-/**
- * Date + time span in the viewer's clock, e.g. "28 thg 8, 2026, 09:00 – 09:30".
- * Every screen formats in the viewer's zone so list, detail and pre-join agree;
- * `timeZone` is for the one place that also shows the meeting's own clock.
- */
-export function formatMeetingRange(startsAt: string, endsAt: string, locale = "vi-VN", timeZone?: string): string {
-  return safeRange(startsAt, endsAt, locale, { dateStyle: "medium", timeStyle: "short" }, timeZone);
-}
-
 /** Single start timestamp for invite and lobby screens: "7 thg 9, 2026, 13:30". */
 export function formatMeetingStart(startsAt: string, locale = "vi-VN"): string {
   const start = new Date(startsAt);
@@ -213,11 +208,57 @@ export function formatMeetingDate(iso: string | null | undefined, locale: string
 /** The one way a meetings screen writes a day: "Thứ Năm, 28 tháng 8". */
 export const MEETING_DAY_FORMAT: Intl.DateTimeFormatOptions = { weekday: "long", day: "numeric", month: "long" };
 
-/** Day heading for a group of meetings: "Thứ Năm, 28 tháng 8". */
+/**
+ * Day heading for a group of meetings: "Thứ Năm, 28 tháng 8". A day from
+ * another year says which one, so last October never reads as this one.
+ */
 export function formatMeetingDay(dayKey: string, locale = "vi-VN"): string {
   const d = new Date(`${dayKey}T12:00:00`);
   if (Number.isNaN(d.getTime())) return dayKey;
-  return new Intl.DateTimeFormat(locale, MEETING_DAY_FORMAT).format(d);
+  const year = d.getFullYear() === new Date().getFullYear() ? {} : { year: "numeric" as const };
+  return new Intl.DateTimeFormat(locale, { ...MEETING_DAY_FORMAT, ...year }).format(d);
+}
+
+/** "16:59" in the viewer's clock, or in `timeZone` when given. */
+export function formatMeetingClock(ms: number, locale: string, timeZone?: string): string {
+  const opts: Intl.DateTimeFormatOptions = { hour: "2-digit", minute: "2-digit", hourCycle: "h23" };
+  try {
+    return new Intl.DateTimeFormat(locale, { ...opts, timeZone }).format(ms);
+  } catch {
+    return new Intl.DateTimeFormat(locale, opts).format(ms);
+  }
+}
+
+/**
+ * A window in the hero's words: its day and the clock span, in the viewer's
+ * zone or `timeZone`. `nextDay` marks one that ends the following day (the
+ * schedule form's "ends the next day"); a longer one names the end's day too.
+ */
+export function meetingWindowParts(
+  startsAt: string,
+  endsAt: string,
+  locale = "vi-VN",
+  timeZone?: string,
+): { dayKey: string; day: string; times: string; nextDay: boolean } | null {
+  const start = Date.parse(startsAt);
+  const end = Date.parse(endsAt);
+  if (!Number.isFinite(start) || !Number.isFinite(end)) return null;
+  const dayKey = splitIsoLocal(startsAt, timeZone).date;
+  const endKey = splitIsoLocal(endsAt, timeZone).date;
+  const day = formatMeetingDay(dayKey, locale);
+  if (endKey <= dayKey) return { dayKey, day, times: formatMeetingTimes(startsAt, endsAt, locale, timeZone), nextDay: false };
+  const from = formatMeetingClock(start, locale, timeZone);
+  const to = formatMeetingClock(end, locale, timeZone);
+  if (endKey === nextDayKey(dayKey)) return { dayKey, day, times: `${from} – ${to}`, nextDay: true };
+  return { dayKey, day, times: `${from} – ${formatMeetingDay(endKey, locale)}, ${to}`, nextDay: false };
+}
+
+/** "Thứ Tư, 21 tháng 10 · 23:57 – 00:57 (hôm sau)": a window on one line (room header, pre-join). */
+export function formatMeetingWindow(startsAt: string, endsAt: string, locale: string, t: TFunction): string {
+  const parts = meetingWindowParts(startsAt, endsAt, locale);
+  if (!parts) return "";
+  const times = parts.nextDay ? t("meetings.timesNextDay", { times: parts.times }) : parts.times;
+  return t("meetings.windowOnDay", { day: parts.day, times });
 }
 
 /**

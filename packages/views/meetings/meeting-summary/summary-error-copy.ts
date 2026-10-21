@@ -81,6 +81,27 @@ function duplicateText(err: unknown, t: TFunction, context?: SummaryErrorContext
     : t("meetings.summaryErrors.active_duplicate");
 }
 
+/** Refusals a second try cannot change: setup, plan, quota, permission or a missing source. */
+const FINAL_CODES = new Set([
+  "ai_not_configured",
+  "summary_no_source",
+  "entitlement_required",
+  "subscription_inactive",
+  "quota_exceeded",
+  "ai_quota_exceeded",
+  "not_meeting_clerk",
+  "not_meeting_host",
+  "forbidden",
+  "not_found",
+  "invalid_request",
+]);
+
+/** Whether "Thử lại" could help a failed summary run: a timeout or a busy model, not a plan refusal. */
+export function summaryErrorRetryable(err: unknown): boolean {
+  const raw = errorCode(err) ?? "";
+  return !FINAL_CODES.has(ALIASES[raw] ?? raw);
+}
+
 /**
  * The sentence both meeting screens (detail panel, in-room Copilot) show for
  * a failed summary run or task batch: in the reader's language, saying what

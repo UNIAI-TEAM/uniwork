@@ -20,7 +20,7 @@ import { PanelCard } from "../common/panel-card";
 import { MODULE_ICONS } from "../layout/module-icons";
 import { useOptionalWorkspace } from "../layout/workspace-context";
 import { AppLink, useNavigation } from "../navigation";
-import { toastApiError } from "../toast-api-error";
+import { apiErrorCopy } from "../api-error-copy";
 import { formatMeetingDay, meetingDayKey, meetingLocale } from "./meeting-datetime";
 import { MeetingSectionError, MeetingSectionLoading } from "./meeting-section-state";
 import { ToneBadge } from "./meeting-status-badge";
@@ -90,7 +90,9 @@ export function MeetingMinutesSection({
   const previewDoc = useDocument(workspaceId, previewOpen ? (minutes?.document_id ?? "") : "", { retry: false });
   const previewLoading = previewOpen && previewDoc.isPending;
   const busy = create.isPending || finalize.isPending || reopen.isPending;
-  const onError = (err: unknown) => toastApiError(err, t("common.error"));
+  // A failed make/finalize/reopen is said under its buttons until the next try, not in a toast that fades.
+  const [actionError, setActionError] = useState<string | null>(null);
+  const onError = (err: unknown) => setActionError(apiErrorCopy(err) ?? t("common.error"));
 
   let body;
   if (isPending) {
@@ -114,6 +116,7 @@ export function MeetingMinutesSection({
             aria-disabled={busy || undefined}
             onClick={() => {
               if (busy) return;
+              setActionError(null);
               create.mutate(i18n.language?.startsWith("en") ? "en" : "vi", {
                 onSuccess: (made) => {
                   toast.success(t("meetings.minutes.createdToast"));
@@ -179,6 +182,7 @@ export function MeetingMinutesSection({
               aria-disabled={busy || undefined}
               onClick={() => {
                 if (busy) return;
+                setActionError(null);
                 finalize.mutate(undefined, {
                   onSuccess: () => toast.success(t("meetings.minutes.finalizedToast")),
                   onError,
@@ -212,6 +216,7 @@ export function MeetingMinutesSection({
               aria-disabled={busy || undefined}
               onClick={() => {
                 if (busy) return;
+                setActionError(null);
                 reopen.mutate(undefined, {
                   onSuccess: () => toast.success(t("meetings.minutes.reopenedToast")),
                   onError,
@@ -250,7 +255,14 @@ export function MeetingMinutesSection({
       title={t("meetings.minutes.title")}
       description={t("meetings.minutes.description")}
     >
-      {body}
+      <div className="flex flex-col gap-3">
+        {body}
+        {actionError ? (
+          <Notice tone="destructive" icon={CircleAlert} layout="inline" live="assertive">
+            {actionError}
+          </Notice>
+        ) : null}
+      </div>
     </PanelCard>
   );
 }

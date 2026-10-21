@@ -2,15 +2,17 @@
 import { useId } from "react";
 import { Info, Sparkles } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { formatMeetingStart, meetingLocale } from "./meeting-datetime";
+import { meetingDayKey, meetingLocale, meetingShownWindow } from "./meeting-datetime";
+import { formatMeetingMoment } from "./meeting-detail-format";
 import { formatRelativeTime } from "./meeting-relative-time";
 import type { Meeting } from "@uniwork/core/types";
 import type { MeetingSummary } from "@uniwork/core/types/meeting";
-import { Badge } from "@uniwork/ui/components/ui/badge";
 import { MeetingDecisionsBlock } from "./meeting-decisions-block";
 import { PanelCard } from "../common/panel-card";
 import { MeetingSectionError, MeetingTextSkeleton } from "./meeting-section-state";
+import { AiBadge } from "./meeting-summary/ai-badge";
 import {
+  SummaryFailureNotice,
   SummaryGenerateButton,
   SummaryLiveRegion,
   SummaryRegenerateConfirm,
@@ -60,11 +62,10 @@ export function MeetingSummaryPanel({
         : t("meetings.summaryEmptyReadOnly");
 
   return (
+    // A neutral card like its siblings: a brand edge read as selected. The AI badge says what made it.
     <PanelCard
       id="summary-heading"
       icon={Sparkles}
-      iconTone="brand"
-      tone="brand"
       title={t("meetings.summaryTitle")}
       action={
         <SummaryGenerateButton
@@ -74,11 +75,12 @@ export function MeetingSummaryPanel({
         />
       }
     >
-      <SummaryLiveRegion message={gen.announcement} />
+      <SummaryLiveRegion message={gen.announcement} seq={gen.announcementSeq} />
       <div className="space-y-4" data-testid="meeting-summary-panel">
+        <SummaryFailureNotice gen={gen} />
         {summary ? (
           <div className="space-y-4">
-            <SummaryAttribution summary={summary} times={gen.sourceTimes} />
+            <SummaryAttribution summary={summary} times={gen.sourceTimes} meeting={meeting} />
             <p className="max-w-prose whitespace-pre-wrap text-pretty text-body text-foreground">{summary.summary}</p>
             <MeetingDecisionsBlock meetingId={meetingId} voted={gen.voted} aiDecisions={decisions} />
           </div>
@@ -102,9 +104,19 @@ export function MeetingSummaryPanel({
  * The AI label every generated output carries (PRODUCT.md › Agent Principles):
  * that it is AI, what it was made from, when, and by which model.
  */
-function SummaryAttribution({ summary, times }: { summary: MeetingSummary; times: SummarySourceTimes }) {
+function SummaryAttribution({
+  summary,
+  times,
+  meeting,
+}: {
+  summary: MeetingSummary;
+  times: SummarySourceTimes;
+  meeting: Meeting;
+}) {
   const { t, i18n } = useTranslation();
   const locale = meetingLocale(i18n.language);
+  // The tooltip is the clock alone on the day the hero shows, the day too otherwise.
+  const shownDay = meetingDayKey(meetingShownWindow(meeting, meeting.status === "ENDED").startsAt);
   const facts = summarySourceFacts(summary.created_at, times);
   const list = summarySourceList(facts.sources, t, locale);
   // "Made automatically" folds into the source sentence: one AI badge, one line.
@@ -123,10 +135,7 @@ function SummaryAttribution({ summary, times }: { summary: MeetingSummary; times
         title={summary.model || undefined}
         className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 text-caption text-muted-foreground"
       >
-        <Badge className="gap-1 bg-brand-subtle text-brand-subtle-foreground">
-          <Sparkles aria-hidden />
-          {t("meetings.aiLabel")}
-        </Badge>
+        <AiBadge />
         {source ? (
           <span data-testid={auto ? "ai-summary-auto" : undefined}>
             {source}
@@ -135,8 +144,12 @@ function SummaryAttribution({ summary, times }: { summary: MeetingSummary; times
           </span>
         ) : null}
         {summary.created_at ? (
-          <time dateTime={summary.created_at} title={formatMeetingStart(summary.created_at, locale)} className="tabular-nums">
-            {formatRelativeTime(summary.created_at, locale)}
+          <time
+            dateTime={summary.created_at}
+            title={formatMeetingMoment(summary.created_at, locale, shownDay)}
+            className="tabular-nums"
+          >
+            {formatRelativeTime(summary.created_at, locale, undefined, t("meetings.justNow"))}
           </time>
         ) : null}
       </p>
