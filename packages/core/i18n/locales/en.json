@@ -3969,9 +3969,9 @@
       "reopenedToast": "Minutes reopened",
       "errors": {
         "minutes_exist": "This meeting already has minutes. Open them to edit.",
-        "minutes_missing": "This meeting's minutes are gone: the UniNote was deleted. Make them again.",
+        "minutes_missing": "The minutes UniNote can't be found. If it's in the trash, restore it and try again; otherwise make the minutes again.",
         "minutes_edit_required": "You need edit access to the minutes UniNote to finalize or reopen it.",
-        "minutes_unavailable": "Documents aren't enabled on this server, so minutes can't be made. Tell your administrator."
+        "minutes_unavailable": "Minutes can't be made: UniNote isn't turned on for this UniWork installation. Tell an admin."
       }
     },
     "carriedOver": {
