@@ -95,6 +95,23 @@ func EvaluateMobileFlags(ctx context.Context, flags *featureflag.Service) map[st
 	return out
 }
 
+// ForPerson returns a check of one catalogue flag for a person in an
+// organization, evaluated the way GET /api/v1/config evaluates it for that
+// person's client (user > organization > global overrides, then FF_* env and
+// the flag file). It is for server-side work done on someone's behalf with no
+// request behind it, such as a push. A key missing from the catalogue reads
+// false; a nil service reads the catalogue default.
+func ForPerson(flags *featureflag.Service, key string) func(ctx context.Context, userID, organizationID string) bool {
+	def := false
+	if f, ok := Lookup(key); ok {
+		def = f.Default
+	}
+	return func(ctx context.Context, userID, organizationID string) bool {
+		ctx = featureflag.WithEvalContext(ctx, featureflag.EvalContext{UserID: userID, OrganizationID: organizationID})
+		return flags.IsEnabled(ctx, key, def)
+	}
+}
+
 // Catalogue returns a copy of the declared flags.
 func Catalogue() []Flag {
 	out := make([]Flag, len(catalogue))

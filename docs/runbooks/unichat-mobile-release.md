@@ -139,8 +139,10 @@ biến thể và ký giống CI (thiếu `UNICHAT_ENV` là cấu hình dev: khô
   khởi động) và khởi động lại. Máy dưới mức đó chỉ còn màn "Cần cập nhật UniChat" với link store (`UNICHAT_STORE_*`,
   hoặc link thử nghiệm khi store chưa có). Chỉ đặt sau khi bản mới đã có trên store/track mà người dùng thấy.
 - Tắt gọi: `FF_UNICHAT_MOBILE_CALLS=false` (cả hệ thống) hoặc override theo tổ chức/người dùng ở console admin
-  (flag `unichat_mobile_calls`). Máy ẩn nút gọi, không đổ chuông, push cuộc gọi mở phòng; cuộc gọi đang diễn ra không bị
-  cắt. Bật lại: xoá biến/override.
+  (flag `unichat_mobile_calls`). Máy ẩn nút gọi, không đổ chuông, push cuộc gọi cũ (đã tới máy) mở phòng; cuộc gọi đang
+  diễn ra không bị cắt. Server cũng ngừng gửi push "X đang gọi" cho người mà công tắc tắt (đánh giá theo người nhận và
+  tổ chức của cuộc gọi, như máy đọc nó; dòng inbox vẫn còn, `uniwork_push_suppressed_total{kind="chat_call_incoming"}`
+  đếm), nên máy không reo kể cả khi app chưa đọc cấu hình. Bật lại: xoá biến/override.
 
 ## Triệu chứng
 

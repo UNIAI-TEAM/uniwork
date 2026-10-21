@@ -92,7 +92,8 @@ một dòng thì ghi lý do ở dòng trên.
   `components/app/update-gate.tsx` chặn cả app (cả màn đăng nhập) khi version
   dưới mức tối thiểu; `useMobileFlag(name)` / `readMobileFlag(qc, name)` cho
   công tắc (`unichat_mobile_calls`: tắt thì ẩn nút gọi, không đổ chuông, push
-  cuộc gọi mở phòng). Chưa có câu trả lời hay server không tới được thì không
+  cuộc gọi mở phòng; server cũng không gửi push cuộc gọi cho người đó —
+  `PushConsumer.SetMobileCalls`; cuộc gọi đang diễn ra không bị cắt). Chưa có câu trả lời hay server không tới được thì không
   chặn gì và mọi công tắc ở mặc định. Lỗi một thao tác → `toast.error(...)`
   (`data/stores/toast-store.ts`, `components/ui/toast-host.tsx`); `Alert.alert`
   chỉ cho xác nhận thật (xoá, rời, thu hồi) và trong sheet là `Modal` (toast vẽ

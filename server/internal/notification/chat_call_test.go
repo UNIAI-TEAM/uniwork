@@ -1,6 +1,7 @@
 package notification
 
 import (
+	"context"
 	"encoding/json"
 	"testing"
 	"time"
@@ -8,10 +9,12 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 
 	authpkg "github.com/unicomhub/uniwork/server/internal/auth"
+	"github.com/unicomhub/uniwork/server/internal/featureflags"
 	"github.com/unicomhub/uniwork/server/internal/outbox"
 	"github.com/unicomhub/uniwork/server/internal/service"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
+	"github.com/unicomhub/uniwork/server/pkg/featureflag"
 )
 
 func payloadOf(t *testing.T, ev outbox.Row) map[string]string {
@@ -222,6 +225,76 @@ func TestCallPushSkipsAPhoneWhoseDeviceWasRevoked(t *testing.T) {
 		t.Fatalf("call pushed to %v, want the phone that is still signed in only", spy.endpoints)
 	}
 	if err := chat.SignalVoiceHangup(f.ctx, f.owner.ID, f.wsID, dm.ID, "call-revoked"); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// The UniChat mobile calls kill switch (UNI-2053) stops the call push itself:
+// with FF_UNICHAT_MOBILE_CALLS=false no phone rings for a feature its own
+// config has turned off. The row is marked pushed, not retried, and stays in
+// the inbox; a chat message still pushes.
+func TestCallPushStopsWhenTheMobileCallsSwitchIsOff(t *testing.T) {
+	f := newFixture(t)
+	chat := service.NewChatService(f.pool, f.q, f.ws, service.NopPublisher{})
+	f.consumer.SetCallRinging(chat)
+	dm, err := chat.ResolveDM(f.ctx, f.owner.ID, f.wsID, f.member.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.subscribe(t, f.member.ID, "ExponentPushToken[member]")
+	t.Setenv("FF_UNICHAT_MOBILE_CALLS", "false")
+	flags, err := featureflag.NewServiceFromEnv()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var asked [][2]string
+	spy := &spySender{}
+	pc := NewPushConsumer(f.q, spy, "http://app.test")
+	pc.SetCallRinging(chat)
+	check := featureflags.ForPerson(flags, "unichat_mobile_calls")
+	pc.SetMobileCalls(func(ctx context.Context, userID, organizationID string) bool {
+		asked = append(asked, [2]string{userID, organizationID})
+		return check(ctx, userID, organizationID)
+	})
+	m := &countingMetrics{suppressed: map[string]int{}, sent: map[string]int{}}
+	pc.SetMetrics(m)
+
+	if err := chat.SignalVoiceInvite(f.ctx, f.owner.ID, f.wsID, dm.ID, "call-switch-off", true); err != nil {
+		t.Fatal(err)
+	}
+	f.handleLast(t, "chat.voice.invite_received")
+	if err := pc.Handle(f.ctx, f.lastEvent(t, TopicPush)); err != nil {
+		t.Fatal(err)
+	}
+	if len(spy.sent) != 0 {
+		t.Fatalf("a call pushed %+v to %v with the switch off", spy.sent, spy.endpoints)
+	}
+	if len(asked) != 1 || asked[0] != [2]string{f.member.ID, f.orgID} {
+		t.Fatalf("switch evaluated for %v, want the callee in the call's organization", asked)
+	}
+	if n := f.notificationOf(t, f.lastEvent(t, TopicPush)); !n.PushedAt.Valid || n.ReadAt.Valid {
+		t.Fatalf("row = %+v, want marked pushed (no retry) and still unread in the inbox", n)
+	}
+	if m.suppressed[KindChatCallIncoming] != 1 {
+		t.Fatalf("suppressed = %v, want the call counted once", m.suppressed)
+	}
+	if err := chat.SignalVoiceHangup(f.ctx, f.owner.ID, f.wsID, dm.ID, "call-switch-off"); err != nil {
+		t.Fatal(err)
+	}
+
+	// Back on: the next call rings the phone again.
+	t.Setenv("FF_UNICHAT_MOBILE_CALLS", "true")
+	if err := chat.SignalVoiceInvite(f.ctx, f.owner.ID, f.wsID, dm.ID, "call-switch-on", true); err != nil {
+		t.Fatal(err)
+	}
+	f.handleLast(t, "chat.voice.invite_received")
+	if err := pc.Handle(f.ctx, f.lastEvent(t, TopicPush)); err != nil {
+		t.Fatal(err)
+	}
+	if len(spy.endpoints) != 1 || spy.endpoints[0] != "ExponentPushToken[member]" {
+		t.Fatalf("switch back on: pushed to %v, want the phone", spy.endpoints)
+	}
+	if err := chat.SignalVoiceHangup(f.ctx, f.owner.ID, f.wsID, dm.ID, "call-switch-on"); err != nil {
 		t.Fatal(err)
 	}
 }

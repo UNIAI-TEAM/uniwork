@@ -25,7 +25,10 @@ type PushConsumer struct {
 	metrics  Metrics
 	presence PresenceChecker
 	calls    CallRingChecker
-	now      func() time.Time
+	// mobileCalls is the unichat_mobile_calls kill switch for a recipient;
+	// nil means calls ring.
+	mobileCalls func(ctx context.Context, userID, organizationID string) bool
+	now         func() time.Time
 }
 
 // PresenceChecker says when a user last had a chat presence heartbeat
@@ -52,6 +55,15 @@ func (c *PushConsumer) SetPresence(p PresenceChecker) { c.presence = p }
 // rule checked it, but the call may have been answered or ended between that
 // check and this lane. Without it, the ring window alone decides.
 func (c *PushConsumer) SetCallRinging(r CallRingChecker) { c.calls = r }
+
+// SetMobileCalls wires the calls kill switch (featureflags
+// unichat_mobile_calls, evaluated for the recipient and the notification's
+// organization). Off, an incoming call pushes nothing: the phone would ring
+// for a feature its own config has turned off, and the call push goes to
+// phones only, so nothing else loses it. The inbox row stays.
+func (c *PushConsumer) SetMobileCalls(on func(ctx context.Context, userID, organizationID string) bool) {
+	c.mobileCalls = on
+}
 
 // SetMetrics attaches counters.
 func (c *PushConsumer) SetMetrics(m Metrics) { c.metrics = m }
@@ -86,6 +98,12 @@ func (c *PushConsumer) Handle(ctx context.Context, ev outbox.Row) error {
 	// call, and its row is closed so the inbox does not keep "đang gọi".
 	if n.Kind == KindChatCallIncoming && !c.stillRinging(n) {
 		return c.q.MarkNotificationGroupsRead(ctx, db.MarkNotificationGroupsReadParams{UserID: n.UserID, GroupKeys: []string{n.GroupKey}})
+	}
+	if n.Kind == KindChatCallIncoming && c.mobileCalls != nil && !c.mobileCalls(ctx, n.UserID, n.OrganizationID) {
+		if m := c.metrics; m != nil {
+			m.IncPushSuppressed(n.Kind)
+		}
+		return c.q.MarkNotificationPushed(ctx, n.ID)
 	}
 	subs, err := c.q.ListDeliverablePushSubscriptions(ctx, n.UserID)
 	if err != nil {

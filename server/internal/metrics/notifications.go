@@ -9,7 +9,8 @@ type Notifications struct {
 	Merged  prometheus.Counter
 	Push    *prometheus.CounterVec
 	Digest  prometheus.Counter
-	// PushSuppressed counts chat pushes dropped because the recipient was active.
+	// PushSuppressed counts pushes dropped on purpose: a chat push to an active
+	// recipient, a call push with the mobile calls switch off.
 	PushSuppressed *prometheus.CounterVec
 }
 
@@ -33,7 +34,7 @@ func NewNotifications() *Notifications {
 		}),
 		PushSuppressed: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name: "uniwork_push_suppressed_total",
-			Help: "Chat pushes dropped because the recipient had a presence beat within two minutes, by kind.",
+			Help: "Pushes dropped before sending, by kind: a chat push to a recipient with a presence beat within two minutes, or an incoming-call push while the unichat_mobile_calls switch is off for them.",
 		}, []string{"kind"}),
 	}
 }

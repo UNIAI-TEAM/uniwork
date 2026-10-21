@@ -117,3 +117,28 @@ func TestMobileCallsKillSwitchTurnsOffByEnv(t *testing.T) {
 		t.Fatal("FF_UNICHAT_MOBILE_CALLS=false must turn the calls switch off")
 	}
 }
+
+// The calls kill switch reaches the server's own work too (UNI-2053): the
+// push consumer reads it per recipient through ForPerson, the same answer
+// the phone gets from GET /api/v1/config.
+func TestForPersonReadsTheMobileCallsSwitch(t *testing.T) {
+	ctx := context.Background()
+	if !ForPerson(nil, "unichat_mobile_calls")(ctx, "u1", "o1") {
+		t.Fatal("no flag service: want the catalogue default (on)")
+	}
+	if ForPerson(nil, "no_such_flag")(ctx, "u1", "o1") {
+		t.Fatal("an undeclared key must read false")
+	}
+	t.Setenv("FF_UNICHAT_MOBILE_CALLS", "false")
+	svc, err := featureflag.NewServiceFromEnv()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ForPerson(svc, "unichat_mobile_calls")(ctx, "u1", "o1") {
+		t.Fatal("FF_UNICHAT_MOBILE_CALLS=false: want off")
+	}
+	t.Setenv("FF_UNICHAT_MOBILE_CALLS", "true")
+	if !ForPerson(svc, "unichat_mobile_calls")(ctx, "u1", "o1") {
+		t.Fatal("FF_UNICHAT_MOBILE_CALLS=true: want on")
+	}
+}
