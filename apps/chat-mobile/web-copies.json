@@ -8,6 +8,9 @@
       "packages/core/chat/use-mark-chat-room-read-at-latest.ts": "8b3bae781dac465919c08e5d2e828b41acf31032e6988d57909e274ac95623f1",
       "packages/views/chat/use-chat-catch-up-ui.ts": "d8a2c65d4cec17533b6f995f8d03096022f3b4334ff0e0b6529a7da162cd6837"
     },
+    "apps/chat-mobile/components/settings/delete-account.tsx": {
+      "packages/views/settings/components/delete-account-dialog.tsx": "2cc14fea7b44dfd08ce9c488a43b33949bd6fcbdec13bd9ed9bc4f8f210d34e2"
+    },
     "apps/chat-mobile/data/auth/callback.ts": {
       "apps/chat-desktop/src/main/auth/callback.ts": "ff9cac0a3d91baca82588ea436442798ad234b2cd28813359ec3a5abf08ff0bc"
     },
@@ -61,6 +64,9 @@
     "apps/chat-mobile/data/realtime/use-chat-scopes.ts": {
       "packages/core/realtime/use-chat-room-scopes.ts": "877a7d7c7a8600e70460626be873ba771668627c7243beddf340c613ba9dfb18"
     },
+    "apps/chat-mobile/data/safety-api.ts": {
+      "packages/core/api/endpoints/chat-users.ts": "57e5182cd5d3740f66f7e5a0905f14acec108b86f2faf617bcc648c830aad9da"
+    },
     "apps/chat-mobile/data/stores/chat-presence-store.ts": {
       "packages/core/chat/presence-store.ts": "62ede20ddd23062c1f2dd0e9ac18fcbc7cb0f68bfd6d77a391c1578ab26c05a0"
     },
@@ -68,7 +74,11 @@
       "packages/core/chat/sidebar-typing-store.ts": "f1ac2f8deeced5f25c3cff51eb6fabe923505290f4ddb4c2eda4519c5aaee262"
     },
     "apps/chat-mobile/lib/account-deletion.ts": {
-      "packages/core/auth/errors.ts": "bbd6a653c4285358fc337fae13c90fe7c80ded613811b8d36f5466ebbd5427ca"
+      "packages/core/auth/errors.ts": "bbd6a653c4285358fc337fae13c90fe7c80ded613811b8d36f5466ebbd5427ca",
+      "packages/views/settings/components/delete-account-dialog.tsx": "2cc14fea7b44dfd08ce9c488a43b33949bd6fcbdec13bd9ed9bc4f8f210d34e2"
+    },
+    "apps/chat-mobile/lib/ai-consent.ts": {
+      "apps/web/features/landing/privacy-content.ts": "1df320b9f3b6c1998731fb12572c89d0505ba90a7f04a3de78a5307f183c8501"
     },
     "apps/chat-mobile/lib/album.ts": {
       "packages/views/chat/native-chat-message-grouping.ts": "1e784e27b31710190a89031d43875d9af3ac15f7d11c3b4610a34cd5099beb2f"
@@ -90,6 +100,10 @@
     },
     "apps/chat-mobile/lib/file-accept.ts": {
       "packages/views/chat/chat-file-accept.ts": "36eade4e1d09ea6598d5b3d12f12818e3497905402d690f098ef64880cd6bf29"
+    },
+    "apps/chat-mobile/lib/legal-links.ts": {
+      "apps/web/features/landing/privacy-content.ts": "1df320b9f3b6c1998731fb12572c89d0505ba90a7f04a3de78a5307f183c8501",
+      "apps/web/platform/site-information.ts": "d8e8f9a5e534374edd4dbd834c8699ef0449fcfe6205a0dfc90355fce2ed3c88"
     },
     "apps/chat-mobile/lib/media-body.ts": {
       "packages/views/chat/chat-expression-utils.ts": "f5f0a0f88762b9aaadcab0e8df3186fd8ff09e03b4687360dc8c7fda8018ca95"
@@ -115,6 +129,10 @@
       "packages/views/chat/chat-sidebar-unified-row.tsx": "7b471da9a3fb5eb9609620fa09dfdc51ef3202a867926de76df726a842033061",
       "packages/views/chat/chat-sidebar-unified.ts": "b271ef83330d4ec0c03771e369319544bede91d0f1086586d451d1981c3c2942",
       "packages/views/chat/use-resolved-room-permissions.ts": "d61fc450e7306dd5adbac71608fd50dd5c47c368caf4def1acf6799b95aa5b32"
+    },
+    "apps/chat-mobile/lib/send-pipeline.ts": {
+      "packages/core/chat/merge-optimistic-chat-messages.ts": "cfc02073ca6e1b291fe247da01ba1e222faa7213b3e9af98aa6a40361a0dd0eb",
+      "packages/core/chat/send-retry.ts": "52b3a188a4394ab989b3bc519d99ef1fc9cf78739f4cc7912102adcd21250394"
     },
     "apps/chat-mobile/lib/sender-colors.ts": {
       "packages/views/chat/sender-colors.ts": "87719e741179ea77c6ab6e1daf25056bd7ab7a5dde98b89156aaf8713f9073a3"

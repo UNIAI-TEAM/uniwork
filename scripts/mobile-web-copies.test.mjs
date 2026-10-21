@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { drift, headerOf, MANIFEST, readManifest, scanCopies, sourcesIn } from "./mobile-web-copies.mjs";
+import { appFiles, COPY_MARK, copyHeaderOf, drift, headerOf, MANIFEST, pathsNamedIn, readManifest, scanCopies, sourcesIn } from "./mobile-web-copies.mjs";
 
 // ADR 0011 keeps views and the stateful core modules out of the phone, so some
 // web logic is copied into apps/chat-mobile. A copy names its source in its
@@ -44,6 +44,33 @@ test("a header's sources are read with braces expanded and only existing repo fi
     "packages/views/chat/chat-room-moderation-utils.ts",
     "packages/views/chat/use-resolved-room-permissions.ts",
   ]);
+});
+
+test("a copy whose header names a web path is a copy: the path resolves to a file", () => {
+  // S7 review: a path wrapped over two comment lines, or a "port of" header, used to slip past the scan.
+  const scanned = scanCopies();
+  const unread = [];
+  for (const file of appFiles()) {
+    const header = copyHeaderOf(file);
+    if (!COPY_MARK.test(header) || pathsNamedIn(header).length === 0) continue;
+    if (!scanned[file]) unread.push(`${file}: ${pathsNamedIn(header).join(", ")}`);
+  }
+  assert.deepEqual(unread, [], "A copy names a web path that resolves to no file: fix the header so the path reads whole:\n" + unread.join("\n"));
+});
+
+test("a path wrapped after a slash, and a \"port of\" header, are read", () => {
+  const wrapped = headerOf(
+    [
+      "// The send side, copied from packages/core/chat/",
+      "// {search-fold,initials}.ts; the routes are packages/core/api/endpoints/",
+      "// chat-users.ts, copied: ADR 0011.",
+    ].join("\n"),
+  );
+  assert.deepEqual(sourcesIn(wrapped), ["packages/core/api/endpoints/chat-users.ts", "packages/core/chat/initials.ts", "packages/core/chat/search-fold.ts"]);
+  const port = headerOf("// Settings, the phone's port of packages/views/settings/components/\n// delete-account-dialog.tsx: what erasure does.\n");
+  assert.ok(COPY_MARK.test(port));
+  assert.deepEqual(sourcesIn(port), ["packages/views/settings/components/delete-account-dialog.tsx"]);
+  assert.deepEqual(pathsNamedIn("// See apps/chat-mobile/lib/a.ts and packages/core/chat/{a,b}.ts."), ["packages/core/chat/{a,b}.ts"]);
 });
 
 test("drift names a changed source, a new copy, a dropped source and a stale entry", () => {

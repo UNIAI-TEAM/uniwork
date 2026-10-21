@@ -2,7 +2,8 @@
 // views and the stateful core modules are off-limits to the phone). What is
 // pure moved to packages/core and is imported (core-allowlist.json); what had
 // to stay a copy names its source in the file's header comment ("Copied from
-// …", "Ported from …", "← packages/…"). This script reads those headers and
+// …", "Ported from …", "the phone's port of …", "← packages/…"; a path may wrap
+// after a "/"). This script reads those headers and
 // keeps apps/chat-mobile/web-copies.json: for every copy, the sha256 of each
 // web source it names, as of the last time someone reviewed the copy against
 // it. scripts/mobile-web-copies.test.mjs fails when a source changed since
@@ -19,7 +20,7 @@ export const root = path.resolve(import.meta.dirname, "..");
 export const APP = "apps/chat-mobile";
 export const MANIFEST = `${APP}/web-copies.json`;
 const SCAN = ["lib", "data", "components"];
-const COPY_MARK = /\b(copied from|ported from|copy of|copies)\b|←\s*(?:packages|apps)\b|\bmirror(?:s|ing)?\b|\bin parity\b/i;
+export const COPY_MARK = /\b(copied|ported from|port of|copy of|copies)\b|←\s*(?:packages|apps)\b|\bmirror(?:s|ing)?\b|\bin parity\b/i;
 
 /** The leading comment of a file (line or block comments), as one line of prose. */
 export function headerOf(source) {
@@ -36,10 +37,25 @@ export function headerOf(source) {
   return lines.join(" ");
 }
 
+/**
+ * A header as one line with its paths whole again: headerOf joins comment lines
+ * with a space, so a path wrapped after a "/" ("packages/core/chat/
+ * {a,b}.ts", "packages/core/api/endpoints/ chat-users.ts") reads as two
+ * fragments until the space after the slash goes.
+ */
+function joinedPaths(header) {
+  return header.replace(/\s*,\s*/g, ",").replace(/((?:packages|apps)\/[\w./{},-]*\/)\s+(?=[\w{])/g, "$1");
+}
+
+/** Every web path-like token a header names (packages/… or apps/… outside this app), whether or not it resolves. */
+export function pathsNamedIn(header) {
+  return [...joinedPaths(header).matchAll(/(?:packages|apps)\/[\w./{},-]*[\w}]/g)].map((m) => m[0]).filter((p) => !p.startsWith(`${APP}/`));
+}
+
 /** Repo paths a header names, braces expanded ("chat/{a.ts, b.ts}"), that exist as files. */
 export function sourcesIn(header) {
   const found = new Set();
-  const text = header.replace(/\s*,\s*/g, ",");
+  const text = joinedPaths(header);
   for (const m of text.matchAll(/((?:packages|apps)\/[\w./-]*?)\{([^}]*)\}(\.[a-z]+)?/g)) {
     for (const part of m[2].split(",")) found.add(`${m[1]}${part.trim()}${m[3] ?? ""}`);
   }
@@ -50,6 +66,9 @@ export function sourcesIn(header) {
     .sort();
 }
 
+/** A file's header minus what is about the usf repo (a mirror of usf is not a copy of this repo's web code). */
+export const copyHeaderOf = (file) => headerOf(fs.readFileSync(path.join(root, file), "utf8")).replace(/Ported from usf \S+/g, "");
+
 function walk(dir, out) {
   for (const entry of fs.readdirSync(path.join(root, dir), { withFileTypes: true })) {
     const rel = `${dir}/${entry.name}`;
@@ -59,17 +78,17 @@ function walk(dir, out) {
   return out;
 }
 
+/** The app's source files a copy may live in. */
+export const appFiles = () => SCAN.flatMap((dir) => walk(`${APP}/${dir}`, []));
+
 /** Every copy in the app and the web sources its header names. */
 export function scanCopies() {
   const copies = {};
-  for (const dir of SCAN) {
-    for (const file of walk(`${APP}/${dir}`, [])) {
-      // A file mirrored from the usf repo is not a copy of this one's web code; only what it says besides that counts.
-      const header = headerOf(fs.readFileSync(path.join(root, file), "utf8")).replace(/Ported from usf \S+/g, "");
-      if (!COPY_MARK.test(header)) continue;
-      const sources = sourcesIn(header);
-      if (sources.length > 0) copies[file] = sources;
-    }
+  for (const file of appFiles()) {
+    const header = copyHeaderOf(file);
+    if (!COPY_MARK.test(header)) continue;
+    const sources = sourcesIn(header);
+    if (sources.length > 0) copies[file] = sources;
   }
   return copies;
 }
