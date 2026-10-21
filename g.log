@@ -1,0 +1,9 @@
+$ ls scripts/*.test.mjs scripts/office/*.test.mjs scripts/office/g5g6g7/*.test.mjs scripts/office/g5g6g7/*/*.test.mjs 2>/dev/null | sort -u > /tmp/pr7r6-scripts.txt; wc -l < /tmp/pr7r6-scripts.txt; node --test $(cat /tmp/pr7r6-scripts.txt) > /tmp/pr7r6-scripts.log 2>&1; rc=$?; grep -E "^# (tests|pass|fail|skipped)|^not ok|✖" /tmp/pr7r6-scripts.log | head -60; echo; echo "SCRIPTS_EXIT=$rc"
+123
+not ok 772 - importing tools.mjs, oracles.mjs, and rows.mjs does not perform fixture filesystem I/O (G708-R1-10)
+# tests 2200
+# pass 2181
+# fail 1
+# skipped 18
+
+SCRIPTS_EXIT=1

@@ -1,0 +1,32 @@
+$ node --test --test-reporter=spec scripts/office/g5g6g7/g7-08/rows.test.mjs > /tmp/pr7r6-g708.log 2>&1; rc=$?; grep -vE "^\s+at " /tmp/pr7r6-g708.log | tail -60; echo; echo "G708_VERBOSE_EXIT=$rc"
+✔ row table defines all 13 capability rows and 1 hitl row from proposal §2 (1.037133ms)
+✔ every row carries format, operation, verified fixture sha256, Vietnamese prompt, tools, missingByHost and ACs (14.230068ms)
+✔ verifyRowFixtures passes on the canonical table and rejects unknown fixtures or wrong sha256 (2.690737ms)
+✔ expandMatrixRuns produces 52 automated row-runs + 2 hitl Word runs with web runs ordered first (1.711376ms)
+✖ importing tools.mjs, oracles.mjs, and rows.mjs does not perform fixture filesystem I/O (G708-R1-10) (6.696692ms)
+ℹ tests 5
+ℹ suites 0
+ℹ pass 4
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 77.423216
+
+✖ failing tests:
+
+test at scripts/office/g5g6g7/g7-08/rows.test.mjs:155:1
+✖ importing tools.mjs, oracles.mjs, and rows.mjs does not perform fixture filesystem I/O (G708-R1-10) (6.696692ms)
+  AssertionError [ERR_ASSERTION]: module import must not call fs.readFileSync
+  
+  7 !== 0
+  
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 7,
+    expected: 0,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+G708_VERBOSE_EXIT=1

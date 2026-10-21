@@ -1,0 +1,11 @@
+$ pnpm knip 2>&1 | tail -40; rc=${PIPESTATUS[0]}; echo; echo "KNIP_EXIT=$rc"
+
+> uniwork@ knip /workspace
+> knip
+
+Your Expo app does not have a 'userInterfaceStyle' setting which can to confusing color scheme behavior. Please set a 'userInterfaceStyle' to remove this warning (recommended 'automatic'). https://docs.expo.dev/develop/user-interface/color-themes
+Configuration hints (2)
+esbuild                         knip.json  Remove from ignoreDependencies
+expo-updates  apps/chat-mobile  knip.json  Remove from ignoreDependencies
+
+KNIP_EXIT=0
