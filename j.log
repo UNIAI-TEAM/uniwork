@@ -1,0 +1,4 @@
+$ for i in $(seq 1 14); do test -f /tmp/pr7r6-e2e.exit && break; sleep 30; done; echo "DONE_FILE=$(test -f /tmp/pr7r6-e2e.exit && echo yes || echo no)"; tail -2 /tmp/pr7r6-e2e.log
+DONE_FILE=no
+  ✓  45 landing-scenes.spec.ts:103:1 › missing original artwork leaves the shared mark without removed controls (1.3s)
+  ✓  46 landing-scenes.spec.ts:116:1 › shirt mark and artwork share coordinates before and after resize (3.1s)
