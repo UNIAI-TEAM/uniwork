@@ -42,12 +42,13 @@ export type PickerNavigationDirection = "next" | "prev";
  * Resolves a key press to a suggestion-list move, or `null` when the key is not
  * navigation.
  *
- * Arrow keys are the canonical bindings. `Ctrl+N`/`Ctrl+J` (down) and
- * `Ctrl+P`/`Ctrl+K` (up) are additive Emacs/readline aliases that the command
- * bar already accepts for free: it is built on cmdk, whose `vimBindings` option
- * (on by default) maps exactly this set. Mirroring it here means the pickers
- * stop being the one place in the product where that muscle memory dies
- * (UNI-5495).
+ * Arrow keys are the canonical bindings. `Ctrl+J` (down) and `Ctrl+K` (up) are
+ * additive readline aliases that the command bar already accepts for free: it
+ * is built on cmdk, whose `vimBindings` option (on by default) maps them
+ * (UNI-5495). `Ctrl+N`/`Ctrl+P` are deliberately not aliases here although
+ * cmdk binds them: Chromium reserves `Ctrl+N` (new window), so on web the page
+ * never receives it, and the views code cannot tell desktop from web without a
+ * platform import, so neither is aliased anywhere.
  *
  * `Cmd`-based aliases are deliberately absent. cmdk does not bind them either,
  * so the command bar never supported them, and `Cmd+P`/`Cmd+N` are browser and
@@ -73,10 +74,8 @@ export function pickerNavigationDirection(
   }
   // Lowercase because Caps Lock reports "N" without setting shiftKey.
   switch (event.key.toLowerCase()) {
-    case "n":
     case "j":
       return "next";
-    case "p":
     case "k":
       return "prev";
     default:

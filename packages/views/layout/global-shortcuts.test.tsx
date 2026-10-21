@@ -101,7 +101,7 @@ beforeEach(() => {
   configureShortcutPlatform("macos");
   requestMock.mockReset();
   mockCapabilities(true);
-  useSearchStore.setState({ open: false, toggle: originalSearchToggle });
+  useSearchStore.setState({ open: false, focusTarget: null, toggle: originalSearchToggle });
   useAiPanelStore.setState({ open: false, conversationId: null, toggle: originalAiToggle });
   useShortcutStore.getState().resetAll();
 });
@@ -205,6 +205,46 @@ describe("GlobalShortcuts: search palette", () => {
     field.focus();
     press(field, "k", { metaKey: true });
     await waitFor(() => expect(useSearchStore.getState().open).toBe(false));
+  });
+
+  it("hands ⌘K to a registered local search instead of the palette", () => {
+    const toggle = countSearchToggles();
+    const focusTarget = vi.fn(() => true);
+    const unregister = useSearchStore.getState().registerFocusTarget(focusTarget);
+    mount(<input aria-label="name" />);
+    const event = press(screen.getByRole("textbox", { name: "name" }), "k", { metaKey: true });
+    expect(focusTarget).toHaveBeenCalledTimes(1);
+    expect(toggle).not.toHaveBeenCalled();
+    expect(event).toBe(false);
+    unregister();
+  });
+
+  it("falls back to the palette when the local search declines the chord", () => {
+    const toggle = countSearchToggles();
+    const unregister = useSearchStore.getState().registerFocusTarget(() => false);
+    mount(null);
+    press(document.body, "k", { metaKey: true });
+    expect(toggle).toHaveBeenCalledTimes(1);
+    unregister();
+  });
+
+  it("keeps ⌘K on the palette under a modal layer even with a local search registered", async () => {
+    const toggle = countSearchToggles();
+    const focusTarget = vi.fn(() => true);
+    const unregister = useSearchStore.getState().registerFocusTarget(focusTarget);
+    mount(
+      <Dialog open>
+        <DialogContent>
+          <DialogTitle>modal</DialogTitle>
+          <input aria-label="inside" />
+        </DialogContent>
+      </Dialog>,
+    );
+    await waitFor(() => expect(document.querySelector("[data-base-ui-inert]")).not.toBeNull());
+    press(screen.getByRole("textbox", { name: "inside" }), "k", { metaKey: true });
+    expect(focusTarget).not.toHaveBeenCalled();
+    expect(toggle).toHaveBeenCalledTimes(1);
+    unregister();
   });
 
   it("still opens search under a modal layer, while C stays blocked there", async () => {

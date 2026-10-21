@@ -86,7 +86,7 @@ export const SlashCommandList = forwardRef<
   useImperativeHandle(ref, () => ({
     onKeyDown: ({ event }) => {
       if (isImeComposing(event)) return false;
-      // Arrow keys plus the Ctrl+N/J/P/K aliases the command bar accepts —
+      // Arrow keys plus the Ctrl+J/K aliases the command bar accepts —
       // see pickerNavigationDirection.
       const direction = pickerNavigationDirection(event);
       if (direction !== null) {
