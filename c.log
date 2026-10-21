@@ -1,0 +1,3 @@
+$ git fetch -q origin c5598b5cb 2>/dev/null || git fetch -q origin feature/UNI-923-office-g5-g6-g7; git checkout -q c5598b5cb; rc=$?; git rev-parse --short HEAD; echo "ROOT_CHECKOUT_EXIT=$rc"
+c5598b5cb
+ROOT_CHECKOUT_EXIT=0

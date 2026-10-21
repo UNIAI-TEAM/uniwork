@@ -1,0 +1,24 @@
+$ . scripts/local-env.sh; unset OPENAI_API_KEY OPENAI_BASE_URL; export REDIS_TEST_URL=redis://localhost:6379/1 AI_PROVIDER=fake CGO_ENABLED=1; bash scripts/ensure-postgres.sh >/dev/null 2>&1; cd server; go test -count=1 -timeout 15m -v -run '^(TestFileGCDefaultIsDryRunAndWritesNothing|TestFileGCExpiresUnclaimedUploads|TestDocumentAccessBatchMatchesThePerItemPath|TestDocumentReferences|TestFileGCCancelDoesNotResetAge|TestFileGCLastReferenceGone|TestFileGCUnderKeyRoot|TestFileThumbnailIsCollectedAfterItsSource|TestUploadSessionFailureRecordsAssembledVersionForCleanup)$' ./internal/service > /tmp/svcfail-root.log 2>&1; rc=$?; grep -E '^\s*--- (FAIL|PASS)|_test.go:[0-9]+' /tmp/svcfail-root.log | cut -c1-300 | head -80; echo; echo "ROOT_TEST_EXIT=$rc"
+warning: STORAGE_BACKEND is unset and MINIO_* is empty; the server will refuse to start.
+         set STORAGE_BACKEND=local with LOCAL_UPLOAD_DIR, or configure MinIO (see .env.example).
+    document_files_test.go:506: reference coverage with Documents open: files: reference providers do not cover every file id column: document_download_jobs.file_id has no provider "documents.download_jobs"; purpose document_download has no provider
+    document_storage_harness_test.go:143: MINIO_* is not set; start MinIO with `docker compose -f docker-compose.minio.yml up -d minio`
+--- FAIL: TestDocumentReferences (0.46s)
+    --- PASS: TestDocumentReferences/fake (0.23s)
+    --- FAIL: TestDocumentReferences/local (0.23s)
+    document_upload_sessions_test.go:2288: deleted versions = [], want exactly [ver-assembled-1]
+--- FAIL: TestUploadSessionFailureRecordsAssembledVersionForCleanup (0.29s)
+    file_derivative_test.go:202: file 01M5EHJ8GCQ9S2SYXAM54B3ESS status = ready, want deleted
+--- FAIL: TestFileThumbnailIsCollectedAfterItsSource (0.25s)
+    file_gc_key_root_test.go:129: report has no cleanup entry for 01M5EHJ8Q76C7CTZA9TSXT1JTA: []
+--- FAIL: TestFileGCUnderKeyRoot (0.18s)
+    file_gc_test.go:32: report has no cleanup entry for 01M5EHJ8W5D2YK5VNX62A1F0T6: []
+--- FAIL: TestFileGCDefaultIsDryRunAndWritesNothing (0.15s)
+    file_gc_test.go:73: report has no cleanup entry for 01M5EHJ93ENVWGWTX0ATKX157G: []
+--- FAIL: TestFileGCCancelDoesNotResetAge (0.24s)
+    file_gc_test.go:100: file 01M5EHJ98DA8XNC8T2ZJ9N3A5T status = ready, want deleted
+--- FAIL: TestFileGCExpiresUnclaimedUploads (0.16s)
+    file_gc_test.go:110: report has no cleanup entry for 01M5EHJ9DAJ9XPJBZD7TGYPZ3K: []
+--- FAIL: TestFileGCLastReferenceGone (0.16s)
+
+ROOT_TEST_EXIT=1
