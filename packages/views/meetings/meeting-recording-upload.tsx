@@ -25,7 +25,7 @@ import { toastApiError } from "../toast-api-error";
 
 /** The meeting_audio cap on the server (parent spec §5.5). */
 const MAX_BYTES = 2 * 1024 ** 3;
-const ACCEPT = "audio/mpeg,audio/mp4,audio/x-m4a,audio/wav,audio/ogg,audio/webm,.mp3,.m4a,.wav,.ogg,.oga,.opus,.webm";
+const ACCEPT = "audio/mpeg,audio/mp4,audio/x-m4a,audio/wav,audio/ogg,audio/webm,video/mp4,.mp3,.m4a,.wav,.ogg,.oga,.opus,.webm,.mp4";
 
 /**
  * "Upload recording" (parent spec §9.2 item 3): a clerk sends the recording of

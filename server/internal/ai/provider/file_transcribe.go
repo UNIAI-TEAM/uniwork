@@ -3,12 +3,13 @@ package provider
 import (
 	"bytes"
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -21,12 +22,8 @@ import (
 // call.
 
 type FileTranscribeRequest struct {
-	// RequestID is the caller's id for this job, stable across a retry of
-	// the same attempt so the vendor sees one request; "" mints a random one.
-	RequestID string
 	// AudioURL is a presigned read URL the vendor downloads from.
 	AudioURL string
-	MIME     string
 	// Language is "vi" or "en".
 	Language string
 	Diarize  bool
@@ -34,7 +31,8 @@ type FileTranscribeRequest struct {
 
 type FileSegment struct {
 	StartMs, EndMs int
-	// SpeakerLabel is the vendor's diarization label, "" when it gave none.
+	// SpeakerLabel is the vendor's diarization label ("A", "B", …), "" when
+	// it gave none.
 	SpeakerLabel string
 	Text         string
 }
@@ -62,156 +60,161 @@ type FileJobError struct{ Code string }
 
 func (e *FileJobError) Error() string { return "provider: transcription job failed (" + e.Code + ")" }
 
-// ---- BytePlus ----
+// ---- AssemblyAI ----
 
-// BytePlus status codes, carried in the X-Api-Status-Code response header.
-const (
-	byteplusOK         = "20000000"
-	byteplusProcessing = "20000001"
-	byteplusQueued     = "20000002"
-	byteplusSilence    = "20000003" // nothing was said: done, no utterances
-)
+// assemblyModel is the pre-recorded model that lists Vietnamese (Universal-3.5
+// Pro, 18 languages, code switching among the ones the request names).
+const assemblyModel = "universal-3-5-pro"
 
-// byteplusFormats is what the bigmodel file API is asked to decode, by the
-// verified upload type. The documented formats are raw/wav/mp3/ogg; m4a and
-// webm are what the reference integration (smart-commune-hub) sends in
-// production. video/mp4 is not documented, so it is refused (§7.4).
-var byteplusFormats = map[string]string{
-	"audio/mpeg": "mp3", "audio/wav": "wav", "audio/ogg": "ogg", "audio/mp4": "m4a", "audio/webm": "webm",
+type AssemblyAIFileTranscriber struct {
+	baseURL, apiKey string
+	http            *http.Client
 }
 
-var byteplusLanguages = map[string]string{"vi": "vi-VN", "en": "en-US"}
-
-type BytePlusFileTranscriber struct {
-	baseURL, apiKey, resourceID string
-	http                        *http.Client
+// NewAssemblyAIFileTranscriber talks to {baseURL}/v2/transcript; "" is the US
+// host, https://api.eu.assemblyai.com keeps the audio in the EU.
+func NewAssemblyAIFileTranscriber(baseURL, apiKey string) *AssemblyAIFileTranscriber {
+	if baseURL = strings.TrimSuffix(strings.TrimSpace(baseURL), "/"); baseURL == "" {
+		baseURL = "https://api.assemblyai.com"
+	}
+	return &AssemblyAIFileTranscriber{baseURL: baseURL, apiKey: apiKey, http: &http.Client{Timeout: time.Minute}}
 }
 
-// NewBytePlusFileTranscriber talks to {baseURL}/submit and {baseURL}/query.
-func NewBytePlusFileTranscriber(baseURL, apiKey, resourceID string) *BytePlusFileTranscriber {
-	return &BytePlusFileTranscriber{
-		baseURL: strings.TrimSuffix(baseURL, "/"), apiKey: apiKey, resourceID: resourceID,
-		http: &http.Client{Timeout: time.Minute},
-	}
+func (a *AssemblyAIFileTranscriber) Name() string  { return "assemblyai" }
+func (a *AssemblyAIFileTranscriber) Model() string { return assemblyModel }
+
+// assemblyTranscript is the part of the Transcript object the worker reads.
+// The vendor's own error text is never kept: it can quote the audio URL.
+type assemblyTranscript struct {
+	ID            string   `json:"id"`
+	Status        string   `json:"status"`
+	AudioDuration *float64 `json:"audio_duration"` // seconds
+	Utterances    []struct {
+		Speaker string `json:"speaker"`
+		Start   int    `json:"start"` // ms
+		End     int    `json:"end"`
+		Text    string `json:"text"`
+	} `json:"utterances"`
+	Words []struct {
+		Start int `json:"start"`
+		End   int `json:"end"`
+	} `json:"words"`
+	Text string `json:"text"`
 }
 
-func (b *BytePlusFileTranscriber) Name() string  { return "byteplus" }
-func (b *BytePlusFileTranscriber) Model() string { return "bigmodel" }
-
-func (b *BytePlusFileTranscriber) Submit(ctx context.Context, req FileTranscribeRequest) (string, error) {
-	format, ok := byteplusFormats[req.MIME]
-	if !ok {
-		return "", fmt.Errorf("byteplus: unsupported audio type %q", req.MIME)
-	}
-	lang := byteplusLanguages[req.Language]
-	if lang == "" {
-		lang = byteplusLanguages["vi"]
-	}
-	jobID := req.RequestID
-	if jobID == "" {
-		var id [16]byte
-		if _, err := rand.Read(id[:]); err != nil {
-			return "", err
-		}
-		jobID = hex.EncodeToString(id[:])
+// Submit sends one job. AssemblyAI takes no idempotency key: the caller
+// stores the returned id and never resubmits a row that has one. The type is
+// not checked here: the meeting_audio allowlist is a subset of the vendor's
+// documented audio and video types.
+func (a *AssemblyAIFileTranscriber) Submit(ctx context.Context, req FileTranscribeRequest) (string, error) {
+	// Vietnamese meetings switch to English mid-sentence; the request's
+	// language goes first, the other is allowed (as the live scribe does).
+	langs := []string{"vi", "en"}
+	if req.Language == "en" {
+		langs = []string{"en", "vi"}
 	}
 	body := map[string]any{
-		"audio": map[string]any{"url": req.AudioURL, "format": format, "language": lang},
-		"request": map[string]any{
-			"model_name": "bigmodel", "enable_itn": true, "enable_punc": true,
-			"enable_speaker_info": req.Diarize, "show_utterances": true,
-		},
+		"audio_url": req.AudioURL, "speech_models": []string{assemblyModel},
+		"language_codes": langs, "speaker_labels": req.Diarize,
 	}
-	status, _, err := b.call(ctx, "/submit", jobID, body)
-	if err != nil {
+	var out assemblyTranscript
+	code, err := a.call(ctx, http.MethodPost, "/v2/transcript", body, &out)
+	switch {
+	case err != nil:
 		return "", err
+	case code < 200 || code > 299:
+		return "", fmt.Errorf("assemblyai submit → %d", code)
+	case out.Status == "error":
+		return "", &FileJobError{Code: "error"}
+	case out.ID == "":
+		return "", errors.New("assemblyai submit: answer without an id")
 	}
-	if status != byteplusOK {
-		return "", &FileJobError{Code: status}
-	}
-	return jobID, nil
+	return out.ID, nil
 }
 
-func (b *BytePlusFileTranscriber) Poll(ctx context.Context, jobID string) (FileTranscribeResult, error) {
-	status, data, err := b.call(ctx, "/query", jobID, map[string]any{})
-	if err != nil {
+func (a *AssemblyAIFileTranscriber) Poll(ctx context.Context, jobID string) (FileTranscribeResult, error) {
+	var out assemblyTranscript
+	code, err := a.call(ctx, http.MethodGet, "/v2/transcript/"+url.PathEscape(jobID), nil, &out)
+	switch {
+	case code == http.StatusBadRequest || code == http.StatusNotFound:
+		// The vendor does not know this job: waiting will not bring it back.
+		return FileTranscribeResult{}, &FileJobError{Code: strconv.Itoa(code)}
+	case err != nil:
 		return FileTranscribeResult{}, err
+	case code < 200 || code > 299:
+		return FileTranscribeResult{}, fmt.Errorf("assemblyai poll → %d", code)
 	}
-	switch status {
-	case byteplusProcessing, byteplusQueued:
-		return FileTranscribeResult{Model: b.Model()}, nil
-	case byteplusSilence:
-		return FileTranscribeResult{Done: true, Silent: true, Model: b.Model()}, nil
-	case byteplusOK:
+	switch out.Status {
+	case "queued", "processing":
+		return FileTranscribeResult{Model: assemblyModel}, nil
+	case "error":
+		return FileTranscribeResult{}, &FileJobError{Code: "error"}
+	case "completed":
 	default:
-		return FileTranscribeResult{}, &FileJobError{Code: status}
+		return FileTranscribeResult{}, fmt.Errorf("assemblyai poll: unknown status %q", out.Status)
 	}
-	var out struct {
-		AudioInfo struct {
-			Duration float64 `json:"duration"` // ms
-		} `json:"audio_info"`
-		Result struct {
-			Utterances []struct {
-				Text      string `json:"text"`
-				StartTime int    `json:"start_time"`
-				EndTime   int    `json:"end_time"`
-				Additions struct {
-					Speaker string `json:"speaker"`
-				} `json:"additions"`
-			} `json:"utterances"`
-		} `json:"result"`
+	res := FileTranscribeResult{Done: true, Model: assemblyModel}
+	if out.AudioDuration != nil {
+		res.Seconds = *out.AudioDuration
 	}
-	if err := json.Unmarshal(data, &out); err != nil {
-		return FileTranscribeResult{}, fmt.Errorf("byteplus: unreadable query answer")
-	}
-	res := FileTranscribeResult{Done: true, Seconds: out.AudioInfo.Duration / 1000, Model: b.Model()}
-	for _, u := range out.Result.Utterances {
-		text := strings.TrimSpace(u.Text)
-		if text == "" {
-			continue
+	for _, u := range out.Utterances {
+		if text := strings.TrimSpace(u.Text); text != "" {
+			res.Segments = append(res.Segments, FileSegment{StartMs: u.Start, EndMs: u.End, SpeakerLabel: strings.TrimSpace(u.Speaker), Text: text})
 		}
-		res.Segments = append(res.Segments, FileSegment{
-			StartMs: u.StartTime, EndMs: u.EndTime, SpeakerLabel: strings.TrimSpace(u.Additions.Speaker), Text: text,
-		})
 	}
+	// Diarization left out (utterances null) still keeps the words, as one
+	// unlabelled segment rather than an empty transcript.
+	if text := strings.TrimSpace(out.Text); len(res.Segments) == 0 && text != "" {
+		seg := FileSegment{Text: text}
+		if n := len(out.Words); n > 0 {
+			seg.StartMs, seg.EndMs = out.Words[0].Start, out.Words[n-1].End
+		}
+		res.Segments = []FileSegment{seg}
+	}
+	res.Silent = len(res.Segments) == 0
 	return res, nil
 }
 
-// call posts one request and returns the X-Api-Status-Code header and the
-// body. A missing header is an error: the reference integration read an
-// empty one as success, which turned vendor faults into empty transcripts.
-// Errors carry the path and the status only, never the key or the URL.
-func (b *BytePlusFileTranscriber) call(ctx context.Context, path, jobID string, body any) (string, []byte, error) {
-	raw, err := json.Marshal(body)
-	if err != nil {
-		return "", nil, err
+// call sends one request and decodes a 2xx body into out. It returns the
+// HTTP status; errors carry the path and the status only, never the key or
+// the audio URL.
+func (a *AssemblyAIFileTranscriber) call(ctx context.Context, method, path string, body, out any) (int, error) {
+	var rd io.Reader
+	if body != nil {
+		raw, err := json.Marshal(body)
+		if err != nil {
+			return 0, err
+		}
+		rd = bytes.NewReader(raw)
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, b.baseURL+path, bytes.NewReader(raw))
+	req, err := http.NewRequestWithContext(ctx, method, a.baseURL+path, rd)
 	if err != nil {
-		return "", nil, err
+		return 0, err
 	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-Api-Key", b.apiKey)
-	req.Header.Set("X-Api-Resource-Id", b.resourceID)
-	req.Header.Set("X-Api-Request-Id", jobID)
-	req.Header.Set("X-Api-Sequence", "-1")
-	res, err := b.http.Do(req)
+	req.Header.Set("Authorization", a.apiKey)
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	op := "submit"
+	if method == http.MethodGet {
+		op = "poll"
+	}
+	res, err := a.http.Do(req)
 	if err != nil {
-		return "", nil, fmt.Errorf("byteplus %s: %s", path, transportReason(err))
+		return 0, fmt.Errorf("assemblyai %s: %s", op, transportReason(err))
 	}
 	defer res.Body.Close()
 	data, err := io.ReadAll(io.LimitReader(res.Body, 64<<20))
 	if err != nil {
-		return "", nil, fmt.Errorf("byteplus %s: %s", path, transportReason(err))
+		return res.StatusCode, fmt.Errorf("assemblyai %s: %s", op, transportReason(err))
 	}
 	if res.StatusCode < 200 || res.StatusCode > 299 {
-		return "", nil, fmt.Errorf("byteplus %s → %d", path, res.StatusCode)
+		return res.StatusCode, nil
 	}
-	status := strings.TrimSpace(res.Header.Get("X-Api-Status-Code"))
-	if status == "" {
-		return "", nil, fmt.Errorf("byteplus %s: answer without X-Api-Status-Code", path)
+	if err := json.Unmarshal(data, out); err != nil {
+		return res.StatusCode, fmt.Errorf("assemblyai %s: unreadable answer", op)
 	}
-	return status, data, nil
+	return res.StatusCode, nil
 }
 
 // ---- Fake ----
@@ -267,8 +270,8 @@ func (f *FakeFileTranscriber) Poll(_ context.Context, _ string) (FileTranscribeR
 	segs := f.Segments
 	if segs == nil {
 		segs = []FileSegment{
-			{StartMs: 0, EndMs: 2000, SpeakerLabel: "1", Text: "Bản ghi thử nghiệm."},
-			{StartMs: 2500, EndMs: 4000, SpeakerLabel: "2", Text: "Đã rõ."},
+			{StartMs: 0, EndMs: 2000, SpeakerLabel: "A", Text: "Bản ghi thử nghiệm."},
+			{StartMs: 2500, EndMs: 4000, SpeakerLabel: "B", Text: "Đã rõ."},
 		}
 	}
 	return FileTranscribeResult{Done: true, Segments: segs, Seconds: f.Seconds, Model: f.Model()}, nil

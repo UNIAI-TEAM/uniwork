@@ -714,18 +714,15 @@ func TestCloudFromEnv(t *testing.T) {
 	if empty := CloudFromEnv(func(string) string { return "" }); empty.Search != nil || empty.Images != nil || empty.Transcriber != nil || empty.MeetingTranscriber != nil {
 		t.Fatalf("empty env: %+v", empty)
 	}
-	// Uploaded meeting recordings: byteplus needs its base URL, key and
-	// resource id; any one missing leaves the capability unavailable.
-	bp := map[string]string{
-		"AI_MEETING_TRANSCRIBE_PROVIDER": "byteplus", "AI_MEETING_TRANSCRIBE_BASE_URL": "https://asr.example/api",
-		"AI_MEETING_TRANSCRIBE_API_KEY": "k", "AI_MEETING_TRANSCRIBE_RESOURCE_ID": "r",
+	// Uploaded meeting recordings: assemblyai needs only its key; the base
+	// URL is optional (US host when empty, the EU host for EU residency).
+	aai := map[string]string{"AI_MEETING_TRANSCRIBE_PROVIDER": "assemblyai", "ASSEMBLYAI_API_KEY": "k"}
+	if c := CloudFromEnv(func(k string) string { return aai[k] }); c.MeetingTranscriber == nil || c.MeetingTranscriber.Name() != "assemblyai" {
+		t.Fatalf("assemblyai: %+v", c.MeetingTranscriber)
 	}
-	if c := CloudFromEnv(func(k string) string { return bp[k] }); c.MeetingTranscriber == nil || c.MeetingTranscriber.Name() != "byteplus" {
-		t.Fatalf("byteplus: %+v", c.MeetingTranscriber)
-	}
-	delete(bp, "AI_MEETING_TRANSCRIBE_RESOURCE_ID")
-	if c := CloudFromEnv(func(k string) string { return bp[k] }); c.MeetingTranscriber != nil {
-		t.Fatal("byteplus without a resource id is configured")
+	delete(aai, "ASSEMBLYAI_API_KEY")
+	if c := CloudFromEnv(func(k string) string { return aai[k] }); c.MeetingTranscriber != nil {
+		t.Fatal("assemblyai without a key is configured")
 	}
 	if NewGateway(nil, nil, nil, nil, Options{Cloud: CloudFromEnv(func(k string) string {
 		return map[string]string{"AI_MEETING_TRANSCRIBE_PROVIDER": "fake"}[k]

@@ -275,7 +275,7 @@ func TestTranscriptionWorkerCompletesAJob(t *testing.T) {
 	if got.Status != TranscriptionRunning || got.Attempts != 1 || got.ProviderJobID == "" || got.Provider != "fake" || !got.UsageEventID.Valid || got.LeaseUntil.Valid {
 		t.Fatalf("after submit = %+v", got)
 	}
-	if len(e.vendor.Submits) != 1 || e.vendor.Submits[0].AudioURL == "" || e.vendor.Submits[0].MIME != "audio/mpeg" || !e.vendor.Submits[0].Diarize {
+	if len(e.vendor.Submits) != 1 || e.vendor.Submits[0].AudioURL == "" || e.vendor.Submits[0].Language != "vi" || !e.vendor.Submits[0].Diarize {
 		t.Fatalf("submits = %+v", e.vendor.Submits)
 	}
 	if !got.DeadlineAt.Time.After(time.Now().Add(transcriptionMinJob - time.Minute)) {
@@ -319,7 +319,7 @@ func TestTranscriptionWorkerCompletesAJob(t *testing.T) {
 		t.Fatalf("segments = %d %v", len(segs), err)
 	}
 	second := segs[0] // newest first
-	if second.Source != "TRANSCRIPTION" || second.SpeakerLabel != "upload:"+tr.ID+":2" || second.StartMs.Int32 != 2500 ||
+	if second.Source != "TRANSCRIPTION" || second.SpeakerLabel != "upload:"+tr.ID+":B" || second.StartMs.Int32 != 2500 ||
 		!second.SpokenAt.Time.Equal(tr.StartsAt.Time.Add(2500*time.Millisecond)) {
 		t.Fatalf("segment = %+v", second)
 	}
@@ -516,15 +516,12 @@ func TestTranscriptionWorkersRacingSubmitOnce(t *testing.T) {
 	if len(e.vendor.Submits) != 1 || got.Status != TranscriptionRunning || got.Attempts != 1 {
 		t.Fatalf("submits = %d, row = %s attempt %d", len(e.vendor.Submits), got.Status, got.Attempts)
 	}
-	if e.vendor.Submits[0].RequestID != tr.ID+"-1" {
-		t.Fatalf("request id = %q", e.vendor.Submits[0].RequestID)
-	}
 }
 
 // A holder that lost its lease while the vendor answered records nothing,
-// settles that submit's usage row, and the next holder sends the same
-// request id again.
-func TestTranscriptionLostLeaseResubmitsTheSameRequest(t *testing.T) {
+// settles that submit's usage row, and the next holder submits again (the
+// vendor has no idempotency key: a second vendor job, the residual risk).
+func TestTranscriptionLostLeaseSubmitsAgain(t *testing.T) {
 	e := transcriptionFixture(t)
 	ctx := context.Background()
 	tr, err := e.s.RequestTranscription(ctx, e.host.ID, e.m.ID, TranscriptionRequest{UploadID: e.upload(t, "hop.mp3", mp3(60, "lost")), Consent: true})
@@ -552,7 +549,7 @@ func TestTranscriptionLostLeaseResubmitsTheSameRequest(t *testing.T) {
 	if err := e.s.runTranscriptions(ctx); err != nil {
 		t.Fatal(err)
 	}
-	if len(e.vendor.Submits) != 2 || e.vendor.Submits[1].RequestID != e.vendor.Submits[0].RequestID {
+	if len(e.vendor.Submits) != 2 {
 		t.Fatalf("submits = %+v", e.vendor.Submits)
 	}
 	if got := transcription(t, e.s, tr.ID); got.Status != TranscriptionRunning || got.Attempts != 1 {

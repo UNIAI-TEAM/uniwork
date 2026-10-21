@@ -7,7 +7,6 @@ import (
 	"log/slog"
 	"math"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 
@@ -423,12 +422,11 @@ func (s *MeetingService) submitTranscription(ctx context.Context, t db.MeetingTr
 	}
 	jobID, usageID, err := s.AI.MeetingTranscribeSubmit(ctx,
 		ai.CloudCall{Actor: audit.Actor{Kind: audit.Kind(t.CreatedByKind), ID: t.CreatedBy}, OrganizationID: t.OrganizationID},
-		provider.FileTranscribeRequest{
-			// One id per (row, attempt): a submit repeated after a lost
-			// answer is the same vendor request, not a second job.
-			RequestID: t.ID + "-" + strconv.Itoa(int(t.Attempts)+1),
-			AudioURL:  resolved[0].URL, MIME: t.ContentType, Language: t.Language, Diarize: true,
-		})
+		// The vendor takes no idempotency key: a submit whose answer is lost
+		// is a second vendor job (billed by the vendor, never to the
+		// customer, who pays on completion only). The stored job id below is
+		// the guard: a row that has one is only ever polled.
+		provider.FileTranscribeRequest{AudioURL: resolved[0].URL, Language: t.Language, Diarize: true})
 	if err != nil {
 		return s.failTranscriptionAttempt(ctx, t, transcriptionErrProvider, t.Attempts+1)
 	}
@@ -440,7 +438,7 @@ func (s *MeetingService) submitTranscription(ctx context.Context, t db.MeetingTr
 	})
 	if err == nil && n == 0 {
 		// The lease moved on while the vendor answered: the row is not ours to
-		// record. Its next holder resubmits under the same request id; this
+		// record. Its next holder submits again (a second vendor job); this
 		// job's usage row is settled so it does not stay pending.
 		s.AI.MeetingTranscribeAbandon(ctx, usageID)
 		slog.Warn("meeting transcription: lease lost during submit", "transcription", t.ID, "usage_event_id", usageID)
