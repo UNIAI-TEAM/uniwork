@@ -6,6 +6,7 @@ import type { LibraryRowHandlers } from "../documents-library-row";
 import { documentRow, type DocumentSummaryRow } from "../library-rows";
 import type { BulkPlan, DocListBulk } from "./bulk-actions";
 import type { DocListScreen } from "./columns";
+import type { GroupCollapse } from "./group-state";
 
 // UNI-2045 W9: the Select column, the header select-all, shift ranges, Esc and
 // the bulk bar of each screen. The list stays presentational: it hands the bar
@@ -60,9 +61,17 @@ function bulkSpy() {
 }
 
 function list(rows: DocumentSummaryRow[], opts: { screen?: DocListScreen; handlers?: LibraryRowHandlers; bulk?: DocListBulk; selectionKey?: string } = {}) {
+  return grouped([{ key: "all", rows }], opts);
+}
+
+function grouped(
+  groups: { key: string; rows: DocumentSummaryRow[] }[],
+  opts: { screen?: DocListScreen; handlers?: LibraryRowHandlers; bulk?: DocListBulk; selectionKey?: string; collapse?: GroupCollapse } = {},
+) {
   return (
     <DocumentsLibraryList
-      groups={[{ key: "all", rows: rows.map(documentRow) }]}
+      groups={groups.map((group) => ({ key: group.key, rows: group.rows.map(documentRow) }))}
+      collapse={opts.collapse}
       loading={false}
       failure={null}
       hasMore={false}
@@ -192,5 +201,34 @@ describe("bulk selection", () => {
       t("documents.list.bulk.action.trash"),
       t("documents.list.bulk.clear"),
     ]);
+  });
+
+  it("selects only the rows of groups that are open: a collapsed group is not part of select-all, the count or the plan", () => {
+    const bulk = bulkSpy();
+    const groups = [
+      { key: "this_week", rows: [doc("a"), doc("b")] },
+      { key: "earlier", rows: [doc("c"), doc("d"), doc("e")] },
+    ];
+    const collapsedEarlier: GroupCollapse = { isCollapsed: (id) => id === "earlier", onToggle: noop };
+    render(grouped(groups, { screen: "recent", bulk, collapse: collapsedEarlier }));
+    fireEvent.click(allBox());
+    expect(within(bar()).getByText(t("documents.list.bulk.selected", { count: 2 }))).toBeInTheDocument();
+    fireEvent.click(within(bar()).getByRole("button", { name: t("documents.list.bulk.action.trash") }));
+    expect((bulk.run.mock.calls[0]![0] as BulkPlan).docs.map((d) => d.id)).toEqual(["a", "b"]);
+  });
+
+  it("drops a group's rows from the selection when it collapses, and a shift range never spans a hidden row", () => {
+    const groups = [
+      { key: "this_week", rows: [doc("a"), doc("b")] },
+      { key: "earlier", rows: [doc("c"), doc("d")] },
+    ];
+    let collapsed = false;
+    const collapse = (): GroupCollapse => ({ isCollapsed: (id) => collapsed && id === "this_week", onToggle: noop });
+    const { rerender } = render(grouped(groups, { screen: "recent", collapse: collapse() }));
+    fireEvent.click(allBox());
+    expect(within(bar()).getByText(t("documents.list.bulk.selected", { count: 4 }))).toBeInTheDocument();
+    collapsed = true;
+    rerender(grouped(groups, { screen: "recent", collapse: collapse() }));
+    expect(within(bar()).getByText(t("documents.list.bulk.selected", { count: 2 }))).toBeInTheDocument();
   });
 });

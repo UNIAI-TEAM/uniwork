@@ -102,7 +102,11 @@ export function DocumentsLibraryList({
   // Bulk selection (W9): a row is selectable when the bar has an action for it,
   // i.e. when its own row menu offers one the host supports.
   const bulkOn = selectable && Boolean(bulk);
-  const rows = groups.flatMap((group) => group.rows);
+  // The date groups of Gần đây, Được chia sẻ với tôi and Thùng rác (W11); "all" is a flat list.
+  const showGroups = !(groups.length === 1 && groups[0]?.key === "all");
+  // Only the rows a person can see take part in a selection: a collapsed group has none on screen, so select-all,
+  // shift ranges, the count and the plans never reach them, and collapsing a group drops its rows from the selection.
+  const rows = groups.filter((group) => !(showGroups && collapse?.isCollapsed(group.key))).flatMap((group) => group.rows);
   const actionsByRow = new Map<string, ReadonlySet<BulkActionId>>(
     bulkOn && bulk
       ? rows.map((row) => [row.id, new Set([...rowBulkActions(row, handlers, screen)].filter(bulk.supports))])
@@ -195,9 +199,6 @@ export function DocumentsLibraryList({
     }
     return <CollectionPageState icon={empty.icon ?? FolderOpen} title={empty.title} description={empty.description} role="status" actions={empty.actions} />;
   }
-
-  // The date groups of Gần đây, Được chia sẻ với tôi and Thùng rác (W11); "all" is a flat list.
-  const showGroups = !(groups.length === 1 && groups[0]?.key === "all");
 
   const ladder = specLadder(screen, { selectable });
   const groupSpans = libraryGroupSpans(ladder);
