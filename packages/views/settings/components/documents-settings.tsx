@@ -132,11 +132,12 @@ export function DocumentsSettings() {
         }
       >
         <SettingsCard>
-          {/* While the read runs the row keeps its shape, and a failed read shows
-              only the failure, never a guessed off switch. */}
+          {/* While the read runs the row keeps its shape, and a failed or
+              unreadable read (a drifted answer parses to null) shows only the
+              failure, never a guessed off switch. */}
           {settings.isPending ? (
             <SettingsRowSkeleton />
-          ) : settings.isError ? (
+          ) : settings.isError || !settings.data ? (
             <SettingsLoadError onRetry={() => void settings.refetch()}>{t("links_read_failed")}</SettingsLoadError>
           ) : (
             <SettingsRow

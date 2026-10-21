@@ -42,7 +42,12 @@ const API_ERROR_KEYS: Readonly<Record<string, string>> = {
  */
 export function apiErrorCopy(err: unknown): string | undefined {
   const i18n = getI18n();
-  const key = API_ERROR_KEYS[errorCode(err) ?? ""];
+  const code = errorCode(err) ?? "";
+  // "internal" is also what an answer without a JSON body carries (a proxy's 403
+  // or 413 page, a file route's 404): only a 5xx is UniWork's own trouble; the
+  // rest is the caller's to word, never with the HTTP status text.
+  if (code === "internal" && err instanceof ApiError && err.status < 500) return undefined;
+  const key = API_ERROR_KEYS[code];
   if (key && i18n?.exists(key)) return i18n.t(key);
   // fetch() rejects with a TypeError ("Failed to fetch", "Load failed") when the request never left.
   if (err instanceof TypeError) return i18n?.t("errors.api.network");

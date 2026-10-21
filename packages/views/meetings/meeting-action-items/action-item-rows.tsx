@@ -141,8 +141,8 @@ export function PendingRow({
         {selectable ? (
           <Checkbox
             id={checkboxId}
-            // 16px box, 44px target on touch (the primitive's ::after is 40×32).
-            className="mt-0.5 pointer-coarse:after:-inset-3.5"
+            // 16px box; the primitive grows its target to 44px on touch.
+            className="mt-0.5"
             checked={checked}
             onCheckedChange={(v) => onCheckedChange(v === true)}
           />

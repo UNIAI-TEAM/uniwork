@@ -33,8 +33,8 @@ const CELL = "w-18 px-2 py-2 text-center sm:w-24 pointer-coarse:py-0";
  */
 const SWITCH_ROW = "pointer-coarse:h-11";
 const SWITCH_HIT = "aria-busy:opacity-60 pointer-coarse:after:-inset-y-3.75";
-/** The "every kind" checkbox: 16px, its hit area grown to 44px under a finger. */
-const CHECK_HIT = "mx-auto aria-busy:opacity-60 pointer-coarse:after:-inset-y-3.5";
+/** The "every kind" checkbox: 16px; the primitive grows its hit area to 44px under a finger. */
+const CHECK_HIT = "mx-auto aria-busy:opacity-60";
 
 /**
  * The server fills every kind it knows with defaults; a kind it did not send
@@ -78,7 +78,8 @@ const NO_EMAIL: Partial<Record<Kind, true>> = { document_trashed_by_other: true 
  * person who uploaded the recording. Every member sees the row, so it says when.
  */
 const KIND_HINT: Partial<Record<Kind, "hint_meeting_role" | "hint_meeting_reminder" | "hint_meeting_upload">> = {
-  // Sent to the host only, and only where the organization turned the automatic summary off.
+  // Sent to the host when an ended meeting has no summary: the organization turned the
+  // automatic one off, or it failed (meeting.auto_summary_failed runs the same rule).
   meeting_summary_reminder: "hint_meeting_reminder",
   meeting_summary_ready: "hint_meeting_role",
   meeting_transcript_ready: "hint_meeting_upload",

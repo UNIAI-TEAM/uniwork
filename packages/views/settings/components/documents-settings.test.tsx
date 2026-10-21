@@ -187,6 +187,14 @@ describe("DocumentsSettings", () => {
     expect(screen.getByRole("button", { name: t("settings.state.retry") })).toBeInTheDocument();
   });
 
+  it("treats an answer it cannot read like a failed read, never a guessed off switch", async () => {
+    serve({ settings: { public_links_enabled: "yes" } });
+    renderTab();
+
+    expect(await screen.findByText(t("settings.documents.links_read_failed"), { exact: false })).toBeInTheDocument();
+    expect(screen.queryByRole("switch")).toBeNull();
+  });
+
   it("holds the links row's shape while the read runs, never a guessed off switch", async () => {
     serve({ settingsHang: true });
     renderTab();

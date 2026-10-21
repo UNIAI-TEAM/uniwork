@@ -48,13 +48,16 @@ describe("Checkbox", () => {
   });
 });
 
-describe("RadioGroupItem on a coarse pointer", () => {
-  it("grows its hit area to 44px", () => {
+describe("RadioGroupItem", () => {
+  it("leaves focus to the global outline and grows its hit area to 44px on a coarse pointer", () => {
     render(
       <RadioGroup>
         <RadioGroupItem value="a" aria-label="A" />
       </RadioGroup>,
     );
-    expect(screen.getByRole("radio", { name: "A" })).toHaveClass("pointer-coarse:after:-inset-3.5");
+    const radio = screen.getByRole("radio", { name: "A" });
+    // The 50% ring it drew read under 3:1, as the checkbox's did.
+    expect(radio.className).not.toMatch(/outline-none|focus-visible:ring/);
+    expect(radio).toHaveClass("pointer-coarse:after:-inset-3.5");
   });
 });

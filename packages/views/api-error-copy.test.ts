@@ -31,6 +31,13 @@ describe("apiErrorCopy", () => {
     expect(apiErrorCopy(err)).toBeUndefined();
   });
 
+  it("leaves an answer without a JSON body below 500 to the caller, not an outage sentence", () => {
+    // A proxy's HTML 403/413 or a file route's 404 carries the transport's default code.
+    expect(apiErrorCopy(new ApiError("Forbidden", "internal", 403))).toBeUndefined();
+    expect(apiErrorCopy(new ApiError("", "internal", 404))).toBeUndefined();
+    expect(apiErrorCopy(new ApiError("Bad Gateway", "internal", 502))).toBe("UniWork đang gặp sự cố. Thử lại sau vài phút.");
+  });
+
   it("never shows the text of an unmapped server failure", () => {
     expect(apiErrorCopy(new ApiError("pq: connection reset", "db_down", 503))).toBeUndefined();
   });

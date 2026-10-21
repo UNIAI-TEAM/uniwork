@@ -676,7 +676,7 @@
       "channel_all": "{{channel}} for every kind",
       "email_all": "Email for every eligible kind",
       "hint_meeting_role": "When you host or are the secretary",
-      "hint_meeting_reminder": "When you host and your organization turned off automatic summaries",
+      "hint_meeting_reminder": "When you host and the meeting has no summary yet",
       "hint_meeting_upload": "When you upload a recording",
       "push_unavailable_server": "This server has not set up push, so notifications arrive in the inbox and by email.",
       "push_unavailable_browser": "This browser cannot receive push, so notifications arrive in the inbox and by email.",
