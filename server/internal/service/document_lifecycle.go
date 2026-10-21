@@ -1300,7 +1300,7 @@ func (s *DocumentService) hardDeleteDocumentTx(ctx context.Context, q *db.Querie
 	// readers and title now, before the orbit goes. A sweep notifies nobody.
 	var noticeReaders []string
 	if actor.Kind != audit.KindSystem {
-		readers, err := s.documentChangeReadersQ(ctx, q, doc)
+		readers, err := s.documentChangeReadersQ(ctx, q, doc, actor.ID)
 		if err != nil {
 			return false, 0, err
 		}
@@ -1446,7 +1446,9 @@ func (s *DocumentService) hardDeleteDocumentTx(ctx context.Context, q *db.Querie
 	if actor.Kind == audit.KindHuman {
 		meta["manual_purge"] = true
 	}
-	if noticeReaders != nil {
+	// Title and readers only when somebody besides the actor will hear of
+	// it: an owner purging their own private document leaves neither behind.
+	if len(noticeReaders) > 0 {
 		meta["title"], meta["notify_user_ids"] = doc.Title, noticeReaders
 	}
 	if err := auditRecorder.Record(ctx, q, audit.Entry{
