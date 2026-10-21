@@ -21,10 +21,10 @@ const SEARCH_DEBOUNCE_MS = 250;
 const MAX_READ_AHEAD_PAGES = 5;
 
 /**
- * The data of the "Đính kèm từ Tài liệu" picker: the recent documents while
- * the box is empty, a title search once something is typed, both cut down to
- * the rows the sender may share. Nothing is fetched while the dialog is
- * closed, and the term is dropped when it closes.
+ * The data of the "Đính kèm từ Tài liệu" picker: the recent documents (plus
+ * the ones the sender owns) while the box is empty, a title search once
+ * something is typed, both cut down to the rows the sender may share. Nothing
+ * is fetched while the dialog is closed, and the term is dropped when it closes.
  */
 export function useChatDocumentPicker(workspaceId: string, open: boolean) {
   const [query, setQuery] = useState("");
@@ -38,7 +38,9 @@ export function useChatDocumentPicker(workspaceId: string, open: boolean) {
   // Typed but not yet settled: the old answer must not stand for the new term.
   const settling = trimmed !== settled;
 
-  const recent = useRecentDocuments(workspaceId, { enabled: open && !searching });
+  // includeOwned: a document the sender owns stays in the list after somebody
+  // else edits it, which ends their own open/edit on it.
+  const recent = useRecentDocuments(workspaceId, { enabled: open && !searching, includeOwned: true });
   const search = useDocumentList(
     workspaceId,
     { q: settled || undefined, match: "title", kind: "document" },

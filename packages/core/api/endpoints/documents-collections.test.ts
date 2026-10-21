@@ -147,6 +147,23 @@ describe("documents-collections endpoints", () => {
     );
   });
 
+  it("recent asks for the owned rows only when told to (UNI-2012 F5)", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json(listBody()));
+    await listRecentDocuments("w1", { includeOwned: true, limit: 5 });
+    expect(String(vi.mocked(fetch).mock.calls[0]![0])).toBe(
+      "http://api.test/api/v1/workspaces/w1/documents/recent?include_owned=true&limit=5",
+    );
+
+    vi.mocked(fetch).mockResolvedValueOnce(json(listBody()));
+    await listRecentDocuments("w1", { includeOwned: false, limit: 5 });
+    expect(String(vi.mocked(fetch).mock.calls[1]![0])).toBe(
+      "http://api.test/api/v1/workspaces/w1/documents/recent?limit=5",
+    );
+
+    vi.mocked(fetch).mockResolvedValueOnce(json({ documents: "nope" }));
+    await expect(listRecentDocuments("w1", { includeOwned: true })).rejects.toThrow("document_list_invalid");
+  });
+
   it("a sorted list that answers malformed still degrades instead of rendering rows", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ documents: "nope" }));
     await expect(listDocuments("w1", { sort: "name", order: "asc" })).rejects.toThrow("document_list_invalid");

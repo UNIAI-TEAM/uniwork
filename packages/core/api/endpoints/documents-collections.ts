@@ -67,6 +67,9 @@ export interface ListDocumentsBaseOpts {
   updatedTo?: string;
   cursor?: string;
   limit?: number;
+  /** `/documents/recent` only: also list the documents the caller owns (at their
+   *  last change) after somebody else edits them. Other lists ignore it. */
+  includeOwned?: boolean;
 }
 
 export type ListDocumentsOpts = ListDocumentsBaseOpts &
@@ -87,6 +90,7 @@ function listQuery(opts?: ListDocumentsOpts & { shelved?: boolean }): string {
   if (opts.sort) p.set("sort", opts.sort);
   if (opts.order) p.set("order", opts.order);
   if (opts.match) p.set("match", opts.match);
+  if (opts.includeOwned) p.set("include_owned", "true");
   if (opts.archived !== undefined) p.set("archived", opts.archived ? "1" : "0");
   if (opts.shelved === true) p.set("shelved", "true");
   if (opts.updatedBy) p.set("updated_by", opts.updatedBy);
@@ -117,11 +121,12 @@ export async function listDocuments(
 }
 
 /** GET /api/v1/workspaces/{workspaceID}/documents/recent — what the person
- *  opened or last edited. Humans only; an agent token answers 403. Takes the
- *  same `format`/`access` filters as the flat list. */
+ *  opened or last edited; `includeOwned` adds what they own. Humans only; an
+ *  agent token answers 403. Takes the same `format`/`access` filters as the
+ *  flat list. */
 export async function listRecentDocuments(
   wsId: string,
-  opts?: Pick<ListDocumentsBaseOpts, "cursor" | "limit" | "format" | "access" | "sort" | "order">,
+  opts?: Pick<ListDocumentsBaseOpts, "cursor" | "limit" | "format" | "access" | "sort" | "order" | "includeOwned">,
   signal?: AbortSignal,
 ): Promise<DocumentList> {
   const raw = await request(`/api/v1/workspaces/${enc(wsId)}/documents/recent${listQuery(opts)}`, { signal });

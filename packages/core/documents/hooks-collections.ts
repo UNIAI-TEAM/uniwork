@@ -55,9 +55,15 @@ export type DocumentListSort = Pick<ListDocumentsBaseOpts, "sort" | "order">;
 /** The key fragment of the chip filters and the sort: "" when none is set, so
  *  an unfiltered, unsorted list keeps the key it had before the chips became
  *  query params. */
-function documentListFilterKey(filters?: DocumentListFilters & DocumentListSort): string {
-  if (!filters?.format && !filters?.access && !filters?.sort && !filters?.order) return "";
-  return documentFilterKey({ format: filters.format, access: filters.access, sort: filters.sort, order: filters.order });
+function documentListFilterKey(filters?: DocumentListFilters & DocumentListSort & { includeOwned?: boolean }): string {
+  if (!filters?.format && !filters?.access && !filters?.sort && !filters?.order && !filters?.includeOwned) return "";
+  return documentFilterKey({
+    format: filters.format,
+    access: filters.access,
+    sort: filters.sort,
+    order: filters.order,
+    includeOwned: filters.includeOwned || undefined,
+  });
 }
 
 /**
@@ -117,8 +123,13 @@ export function useDocumentArchiveImpact(wsId: string, documentId: string, opts?
 }
 
 /** Recently opened/edited documents (humans only; agents get 403). The
- *  format/access chips filter it server-side and key it like the flat list. */
-export function useRecentDocuments(wsId: string, opts?: DocumentListFilters & DocumentListSort & { enabled?: boolean }) {
+ *  format/access chips filter it server-side and key it like the flat list.
+ *  `includeOwned` also lists what the caller owns once somebody else edits it
+ *  (the chat picker); it is part of the key. */
+export function useRecentDocuments(
+  wsId: string,
+  opts?: DocumentListFilters & DocumentListSort & { enabled?: boolean; includeOwned?: boolean },
+) {
   return useInfiniteQuery({
     queryKey: documentKeys.recent(wsId, documentListFilterKey(opts)),
     placeholderData: keepWhileSorting(documentKeys.recent(wsId, documentListFilterKey(opts))),
@@ -132,6 +143,7 @@ export function useRecentDocuments(wsId: string, opts?: DocumentListFilters & Do
           access: opts?.access,
           sort: opts?.sort,
           order: opts?.order,
+          includeOwned: opts?.includeOwned,
         },
         signal,
       ),
