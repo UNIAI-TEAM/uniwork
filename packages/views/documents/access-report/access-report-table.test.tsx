@@ -6,7 +6,7 @@ import { DocumentAccessReportSchema } from "@uniwork/core/types/document-access-
 import type { User, Workspace } from "@uniwork/core/types";
 import { WorkspaceProvider } from "../../layout/workspace-context";
 import { fakeNav, requestMock, wrapWithNav } from "../../test/api-mock";
-import { formatWhen } from "../document-format";
+import { formatListDate } from "../doclist/format";
 import { AccessReportTable } from "./access-report-table";
 
 // The By document table (UNI-2039 F3): one row per document, one header, the
@@ -333,13 +333,13 @@ describe("AccessReportTable", () => {
     expect(within(row).getAllByRole("cell")[2]).toHaveTextContent(`${at("who_people", { count: 2 })} · ${at("who_links", { count: 1 })}`);
     expect(within(row).getByText(at("flag_public_link"))).toBeInTheDocument();
     expect(within(row).getByText(at("flag_direct_manage"))).toBeInTheDocument();
-    expect(within(row).getAllByRole("cell").at(-2)!.textContent).toBe(formatWhen("2026-10-20T14:41:00Z", i18n.language));
+    expect(within(row).getAllByRole("cell").at(-2)!.textContent).toBe(formatListDate("2026-10-20T14:41:00Z", new Date(), i18n.language));
 
     const other = docRow("Theo dõi chi phí.xlsx");
     expect(within(other).getByText(at("scope_workspace_level", { level: at("level_view") }))).toBeInTheDocument();
     expect(within(other).getAllByRole("cell")[2]).toHaveTextContent(`${at("who_workspace")}${at("who_people", { count: 1 })}`);
     // No access_changed_at: the content's updated_at stands in.
-    expect(within(other).getAllByRole("cell").at(-2)!.textContent).toBe(formatWhen("2026-09-05T03:00:00Z", i18n.language));
+    expect(within(other).getAllByRole("cell").at(-2)!.textContent).toBe(formatListDate("2026-09-05T03:00:00Z", new Date(), i18n.language));
   });
 
   it("sorts on the server: the arrow on the sorted column, a click asks for the new order", () => {

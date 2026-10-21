@@ -63,7 +63,7 @@ export function DocNameCell({
 const ACCESS_ICON = { restricted: Lock, workspace: Users, shared: Share2 } as const;
 
 /** Rules.dc.html section 1: Riêng tư grey, Workspace blue, Được chia sẻ amber. Semantic tokens, so light and dark follow. */
-const ACCESS_PILL = {
+export const ACCESS_PILL = {
   restricted: "bg-muted text-muted-foreground",
   workspace: "bg-primary/10 text-primary",
   shared: "bg-warning-soft text-warning-soft-foreground",

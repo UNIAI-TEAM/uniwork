@@ -5,6 +5,7 @@ import { ArrowDown, ArrowUp } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { AccessReportSort } from "@uniwork/core/types/document-access-report";
 import { cn } from "@uniwork/ui/lib/utils";
+import { SORT_HEADER_BUTTON } from "../library-sort-header";
 
 export type ReportSortKey = NonNullable<AccessReportSort["sort"]>;
 export type ReportSortOrder = NonNullable<AccessReportSort["order"]>;
@@ -39,7 +40,7 @@ export interface AccessReportSortHeaderProps {
 }
 
 /**
- * A sortable column header (the UNI-2038 pattern, until it ships a shared one):
+ * A sortable column header, worn like the shared list's (`LibrarySortHeader`):
  * `aria-sort` on the `th`, a button named "Sort by {column}", and the arrow
  * only on the sorted column. The server sorts; this only asks for an order.
  */
@@ -75,7 +76,7 @@ export function AccessReportSortHeader({ column, label, sort, order, onSortChang
     <th
       scope="col"
       aria-sort={active ? (order === "asc" ? "ascending" : "descending") : "none"}
-      className={cn("px-3 py-1 text-left text-caption font-medium whitespace-nowrap text-muted-foreground", className)}
+      className={cn("px-3 py-2 font-medium whitespace-nowrap", className)}
     >
       <button
         ref={ref}
@@ -85,13 +86,10 @@ export function AccessReportSortHeader({ column, label, sort, order, onSortChang
           pendingFocus.current = { column, from: `${sort}:${order}`, at: Date.now() };
           onSortChange({ sort: column, order: active ? (order === "asc" ? "desc" : "asc") : DEFAULT_ORDER[column] });
         }}
-        className={cn(
-          "inline-flex min-h-8 items-center gap-1 rounded-sm hover:text-foreground pointer-coarse:min-h-11",
-          active && "text-foreground",
-        )}
+        className={cn(SORT_HEADER_BUTTON, active && "text-foreground")}
       >
-        {label}
-        {active ? <Arrow aria-hidden className="size-3.5" /> : null}
+        <span className="truncate">{label}</span>
+        {active ? <Arrow aria-hidden className="size-3.5 shrink-0" /> : null}
       </button>
     </th>
   );

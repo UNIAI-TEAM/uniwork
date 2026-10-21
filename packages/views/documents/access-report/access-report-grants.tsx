@@ -25,7 +25,8 @@ import { cn } from "@uniwork/ui/lib/utils";
 import { initialOf } from "../../chat/chat-initials";
 import { useOptionalWorkspace } from "../../layout/workspace-context";
 import { AppLink } from "../../navigation";
-import { formatWhen } from "../document-format";
+import { DocPersonCell } from "../doclist/cells";
+import { formatListDate } from "../doclist/format";
 import { ShareDialog, type ShareDialogTarget } from "../share-dialog";
 import { accessLevelLabel, accessSourceLabel, grantKindNote, principalTypeLabel, revokeText } from "./access-report-labels";
 
@@ -185,11 +186,11 @@ export function AccessReportGrants({ wsId, entry, title, documentHref }: AccessR
                 </td>
                 <td className={cn(TD, TD_STACKED, "text-muted-foreground max-sm:order-2 max-sm:text-caption")}>
                   <Caption>{t("documents.accessReport.col_granted_by")}</Caption>
-                  {row.granted_by_name || NONE}
+                  {row.granted_by_name ? <DocPersonCell name={row.granted_by_name} kind={row.granted_by_kind ?? undefined} /> : NONE}
                 </td>
                 <td className={cn(TD, TD_STACKED, "whitespace-nowrap text-muted-foreground max-sm:order-2 max-sm:text-caption")}>
                   <Caption>{t("documents.accessReport.col_granted_at")}</Caption>
-                  {row.granted_at ? formatWhen(row.granted_at, i18n.language) || NONE : NONE}
+                  {formatListDate(row.granted_at, new Date(), i18n.language)}
                 </td>
                 <td className={cn(TD, TD_STACKED, "text-right max-sm:order-1 max-sm:ml-auto")}>
                   {row.revoke_target ? (
