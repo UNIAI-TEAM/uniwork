@@ -6,6 +6,7 @@ import {
   getPreferences,
   getPushConfig,
   getUnreadCount,
+  listNotificationDocuments,
   listNotifications,
   markAllRead,
   markRead,
@@ -140,5 +141,22 @@ describe("notification endpoints", () => {
     expect(sub?.method).toBe("POST");
     expect(JSON.parse(String(sub?.body))).toEqual({ endpoint: "https://p/x", keys: { p256dh: "p", auth: "a" } });
     expect(vi.mocked(fetch).mock.calls[3]![1]?.method).toBe("DELETE");
+  });
+
+  it("listNotificationDocuments builds the cursor query and degrades to an empty list on a malformed answer", async () => {
+    const item = { id: "d1", title: "Plan", kind: "page", workspace_id: "ws1", archived: false, deleted: false };
+    vi.mocked(fetch).mockResolvedValueOnce(json({ items: [item, { id: "d2" }], next_cursor: "c2" }));
+    const page = await listNotificationDocuments("n 1", { cursor: "c1", limit: 20 });
+    expect(page.items[0]).toEqual(item);
+    // An older or lenient answer fills the missing fields instead of failing the page.
+    expect(page.items[1]).toEqual({ id: "d2", title: "", kind: "", workspace_id: "", archived: false, deleted: false });
+    expect(page.next_cursor).toBe("c2");
+    expect(vi.mocked(fetch).mock.calls[0]![0]).toBe("http://api.test/api/v1/me/notifications/n%201/documents?cursor=c1&limit=20");
+    vi.mocked(fetch).mockResolvedValueOnce(json({ items: "none" }));
+    await expect(listNotificationDocuments("n1")).resolves.toEqual({ items: [], next_cursor: null });
+    vi.mocked(fetch).mockResolvedValueOnce(json({ items: [{ id: 7 }] }));
+    await expect(listNotificationDocuments("n1")).resolves.toEqual({ items: [], next_cursor: null });
+    vi.mocked(fetch).mockResolvedValueOnce(json({ items: [item] }));
+    expect((await listNotificationDocuments("n1")).next_cursor).toBeNull();
   });
 });

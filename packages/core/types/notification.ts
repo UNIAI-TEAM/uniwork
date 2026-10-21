@@ -35,6 +35,7 @@ export const NOTIFICATION_KINDS = [
   "document_access_declined",
   "document_shared",
   "document_trashed_by_other",
+  "document_changed",
 ] as const;
 export type NotificationKind = (typeof NOTIFICATION_KINDS)[number];
 
@@ -63,6 +64,23 @@ export const NotificationSchema = z.object({
   updated_at: z.string().optional(),
 });
 export type Notification = Omit<z.infer<typeof NotificationSchema>, "kind"> & { kind: NotificationKind | (string & {}) };
+
+/** One document a folded `document_changed` notification covers; `title` is "" when it is deleted and has no snapshot. */
+export const NotificationDocumentSchema = z.object({
+  id: z.string(),
+  title: z.string().optional().default(""),
+  kind: z.string().optional().default(""),
+  workspace_id: z.string().optional().default(""),
+  archived: z.boolean().optional().default(false),
+  deleted: z.boolean().optional().default(false),
+});
+export type NotificationDocument = z.infer<typeof NotificationDocumentSchema>;
+
+export const NotificationDocumentListSchema = z.object({
+  items: z.array(NotificationDocumentSchema),
+  next_cursor: z.string().nullable().optional().default(null),
+});
+export type NotificationDocumentList = z.infer<typeof NotificationDocumentListSchema>;
 
 export const UnreadCountSchema = z.object({
   total: z.number(),

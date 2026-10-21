@@ -23,6 +23,8 @@ export const notificationKeys = {
   /** The first page read for one document's notice; under `lists()`, so a mutation patches it too. */
   documentNotice: (workspaceId: string | undefined, documentId: string, pageSize = 50) =>
     ["notifications", "list", workspaceId ?? "", false, pageSize, "document-notice", documentId] as const,
+  /** The documents of one folded `document_changed` row; under `lists()`, so `notification.created` refreshes an open list. */
+  documents: (notificationId: string) => [...notificationKeys.lists(), "documents", notificationId] as const,
   unreadCount: () => ["notifications", "unread-count"] as const,
   prefs: () => ["notifications", "prefs"] as const,
   pushConfig: () => ["notifications", "push-config"] as const,
@@ -80,6 +82,18 @@ export function useDocumentNoticePage({
     enabled,
     gcTime: 0,
     retry: false,
+  });
+}
+
+/** The affected documents of one folded `document_changed` notification, cursor-paged. */
+export function useNotificationDocuments(notificationId: string, { enabled = true }: { enabled?: boolean } = {}) {
+  return useInfiniteQuery({
+    queryKey: notificationKeys.documents(notificationId),
+    queryFn: ({ pageParam, signal }) =>
+      api.listNotificationDocuments(notificationId, { cursor: pageParam || undefined }, signal),
+    initialPageParam: "",
+    getNextPageParam: (last) => last.next_cursor ?? undefined,
+    enabled,
   });
 }
 

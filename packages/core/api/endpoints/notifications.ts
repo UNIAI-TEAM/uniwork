@@ -1,10 +1,12 @@
 import { z } from "zod";
 import {
+  NotificationDocumentListSchema,
   NotificationPreferenceSchema,
   NotificationSchema,
   PushConfigSchema,
   UnreadCountSchema,
   type Notification,
+  type NotificationDocumentList,
   type NotificationPreference,
   type PushConfig,
   type PushSubscriptionBody,
@@ -45,6 +47,27 @@ export async function listNotifications(q: ListNotificationsQuery = {}): Promise
   const raw = await request(`/api/v1/me/notifications${qs ? `?${qs}` : ""}`);
   return parseWithFallback<NotificationPage>(raw, ListResponse, EMPTY_PAGE, {
     endpoint: "GET /api/v1/me/notifications",
+  });
+}
+
+const EMPTY_DOCUMENTS: NotificationDocumentList = { items: [], next_cursor: null };
+
+/** The documents a folded `document_changed` notification covers, those the reader can still read, paged by a sealed cursor. */
+export async function listNotificationDocuments(
+  notificationId: string,
+  opts: { cursor?: string; limit?: number } = {},
+  signal?: AbortSignal,
+): Promise<NotificationDocumentList> {
+  const params = new URLSearchParams();
+  if (opts.cursor) params.set("cursor", opts.cursor);
+  if (opts.limit) params.set("limit", String(opts.limit));
+  const qs = params.toString();
+  const raw = await request(
+    `/api/v1/me/notifications/${encodeURIComponent(notificationId)}/documents${qs ? `?${qs}` : ""}`,
+    { signal },
+  );
+  return parseWithFallback<NotificationDocumentList>(raw, NotificationDocumentListSchema, EMPTY_DOCUMENTS, {
+    endpoint: "listNotificationDocuments",
   });
 }
 
