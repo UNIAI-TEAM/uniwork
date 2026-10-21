@@ -1,0 +1,6 @@
+$ pnpm --filter @uniwork/e2e exec playwright install --with-deps chromium > /tmp/pr7-pw-install.log 2>&1; rc=$?; tail -3 /tmp/pr7-pw-install.log; echo; echo "PW_INSTALL_EXIT=$rc"
+  libwayland-server0
+Use 'sudo apt autoremove' to remove it.
+0 upgraded, 0 newly installed, 0 to remove and 41 not upgraded.
+
+PW_INSTALL_EXIT=0
