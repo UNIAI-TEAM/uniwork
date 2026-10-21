@@ -1,16 +1,21 @@
 name: UniChat mobile release
 
-# Builds UniChat mobile (apps/chat-mobile) for iOS and Android on EAS from a tag
-# and submits both builds to TestFlight and the Play internal track (UNI-1836).
-# Runbook: docs/runbooks/unichat-mobile-release.md.
+# Builds UniChat mobile (apps/chat-mobile) for Android on EAS from a tag and
+# submits it to the Play internal track (UNI-1836). Android only until the
+# Apple developer account exists (UNI-1838): then add ios to --platform and
+# TestFlight follows from the same profile. Runbook:
+# docs/runbooks/unichat-mobile-release.md.
 #
 #   chat-mobile-v<version>   <version> must equal `version` in
 #                            apps/chat-mobile/app.config.ts: it is also the
 #                            runtimeVersion EAS Update matches updates against
 #
-# The binaries are built on EAS, not here: this job checks the tag, then runs
-# `eas build --profile internal --auto-submit` and waits for it. The store
-# credentials (App Store Connect API key, Google Play service account) are kept
+# First `verify` runs every PR check (mobile-verify.yml: typecheck, lint, unit
+# and component tests, expo-doctor, the bundle budget, an Android release
+# build) on the tagged SHA itself; nothing is built on EAS unless it is green.
+# The binaries are built on EAS, not here: the build job checks the tag, then
+# runs `eas build --profile internal --auto-submit` and waits for it. The store
+# credentials (the Google Play service account; the App Store Connect key once iOS ships) are kept
 # by EAS and the server URLs by the EAS `preview` environment, so the
 # chat-mobile-release environment holds one secret: EXPO_TOKEN. Without it the
 # job ends green with a notice, which keeps tags harmless until the accounts
@@ -30,10 +35,16 @@ concurrency:
 
 env:
   NODE_VERSION: "22"
+  # Pinned: `latest` would let an eas-cli release change a store build between two tags.
+  EAS_CLI_VERSION: "24.12.0"
   EXPO_NO_TELEMETRY: "1"
 
 jobs:
+  verify:
+    uses: ./.github/workflows/mobile-verify.yml
+
   build:
+    needs: verify
     runs-on: ubuntu-latest
     timeout-minutes: 120
     environment: chat-mobile-release
@@ -90,9 +101,9 @@ jobs:
       - uses: expo/expo-github-action@v8
         if: steps.gate.outputs.ready == 'true'
         with:
-          eas-version: latest
+          eas-version: ${{ env.EAS_CLI_VERSION }}
           token: ${{ secrets.EXPO_TOKEN }}
-      - name: Build on EAS and submit to TestFlight and Play internal
+      - name: Build on EAS and submit to Play internal
         if: steps.gate.outputs.ready == 'true'
         working-directory: apps/chat-mobile
-        run: eas build --platform all --profile internal --non-interactive --auto-submit
+        run: eas build --platform android --profile internal --non-interactive --auto-submit

@@ -1,0 +1,8 @@
+{
+  "_": "Ceilings for the Android JS bundle (scripts/mobile-bundle-budget.mjs, mobile-verify.yml). Measured 2026-10-21 on `expo export --platform android` with UNICHAT_ENV=production: 6517 KB Hermes bytecode, 2783 KB gzip, 2394 modules; each ceiling is that + 5 %. Lower one when the bundle shrinks; raise one only in the commit that adds the weight, saying why in its body.",
+  "android": {
+    "bundleKB": 6843,
+    "gzipKB": 2922,
+    "modules": 2514
+  }
+}

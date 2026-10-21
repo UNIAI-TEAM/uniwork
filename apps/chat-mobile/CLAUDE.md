@@ -150,7 +150,13 @@ Server dev phải bật `DESKTOP_AUTH_CLIENTS` (`.env.example`) với client
 có push và associated domains: build tay với file entitlements rỗng.
 
 Root `typecheck`/`test`/`lint` và CI chính lọc `!@uniwork/chat-mobile`;
-app kiểm ở `.github/workflows/mobile-verify.yml`. Không có script `build`.
+app kiểm ở `.github/workflows/mobile-verify.yml`: job `mobile` (typecheck, lint,
+hai lớp test, `scripts/mobile-*.test.mjs`), `doctor-bundle` (`expo-doctor` rồi
+`expo export --platform android` giữ trong `bundle-budget.json` bởi
+`scripts/mobile-bundle-budget.mjs`) và `android-release` (`expo prebuild` +
+`./gradlew :app:assembleRelease`, chỉ khi `scripts/mobile-native-scope.mjs` nói
+thay đổi chạm binary). Thêm gói làm bundle nặng hơn trần thì nâng trần cùng
+commit, ghi lý do; bundle nhỏ đi thì hạ trần. Không có script `build`.
 Thêm gói native bằng `pnpm --filter @uniwork/chat-mobile exec expo install <pkg>`;
 nếu Metro kẹt vì layout isolated của pnpm thì dừng và báo, không thêm
 `.npmrc` hoist.
@@ -171,14 +177,20 @@ Runbook: `docs/runbooks/unichat-mobile-release.md`; plan:
   `react-native-css-interop/babel` gọi nó theo tên mà không khai; thiếu thì
   bước `createReleaseUpdatesResources` của build release đỏ), `expo-updates` vì knip đọc config dev, và hai gói
   `@expo-google-fonts/*` vì `app.config.ts` chỉ trỏ tới file `.ttf` của chúng.
-- Tag `chat-mobile-v<version>` → `.github/workflows/chat-mobile-release.yml`
-  (EAS build + auto-submit, Environment `chat-mobile-release`, chỉ
-  `EXPO_TOKEN`; thiếu thì notice và xanh).
+- Tag `chat-mobile-v<version>` → `.github/workflows/chat-mobile-release.yml`:
+  job `verify` gọi `mobile-verify.yml` trên SHA của tag, rồi EAS build +
+  auto-submit **chỉ Android** (Play internal) tới khi có tài khoản Apple
+  (UNI-1838), `eas-cli` ghim ở `EAS_CLI_VERSION`. Environment
+  `chat-mobile-release`, chỉ `EXPO_TOKEN`; thiếu thì notice và xanh.
+  `scripts/mobile-workflows.test.mjs` giữ các lời hứa của ba workflow (verify
+  trước EAS, chỉ Android, phiên bản ghim, nightly đỏ khi thiếu cấu hình).
 - `maestro/`: `subflows/sign-in.yaml` đăng nhập qua sheet trình duyệt thật (không
   có lối tắt phiên thử nghiệm trong bản nào), ba luồng vàng
   `flows/{chat-read-send,push-open-room,call-join}.yaml` chạy hằng đêm bởi
   `.github/workflows/chat-mobile-verify.yml` với server staging (biến
-  `MAESTRO_*`; thiếu thì notice và xanh). Trong app flow chọn theo `testID`
+  `MAESTRO_*`; thiếu thì run theo lịch **đỏ**, chạy tay bỏ chọn `maestro` để chỉ
+  build), Maestro ghim `MAESTRO_VERSION`; cùng đêm đó job `android-production`
+  build AAB release từ profile production, không cần secret. Trong app flow chọn theo `testID`
   (`room-row-<roomId>`, `conversation-<roomId>`, `composer-input`,
   `composer-send`, `room-call-*`, `call-*`) — đổi tên một id thì sửa flow cùng
   PR; trang web trong sheet đăng nhập thì theo chữ vi|en.

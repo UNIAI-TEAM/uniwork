@@ -7,7 +7,11 @@ name: UniChat mobile verify
 # account on the staging server and runs the three golden flows in
 # apps/chat-mobile/maestro/flows: sign in → read/send, a push opens its room,
 # join a call (what each proves is written at its top).
-# Typecheck, lint and unit tests stay in mobile-verify.yml on every PR.
+# Typecheck, lint, unit and component tests, the bundle budget and an arm64
+# release build stay in mobile-verify.yml on every PR that reaches the app.
+# Here, besides Maestro, `android-production` builds the store artifact (an
+# AAB, every ABI) from the production profile each night: no account or
+# secret needed, so it always runs.
 #
 # Repository settings it reads (names only; Maestro picks up every MAESTRO_*
 # variable of its environment):
@@ -16,8 +20,10 @@ name: UniChat mobile verify
 #            MAESTRO_ROOM_ID                      a group room the account is in (a
 #                                                 group calls without a second party)
 #   secrets  MAESTRO_TEST_EMAIL, MAESTRO_TEST_PASSWORD
-# Without all of them the run ends green with a notice. The staging server must
-# list uniworkchat://auth/callback for uniwork-chat-mobile in
+# Without all of them the scheduled run fails, naming what is missing: a
+# night that tested nothing must not look like a night that passed. A manual
+# run can skip Maestro (input `maestro: false`) to build only. The staging
+# server must list uniworkchat://auth/callback for uniwork-chat-mobile in
 # DESKTOP_AUTH_CLIENTS. Runbook: docs/runbooks/unichat-mobile-release.md.
 #
 # GitHub reads a scheduled workflow from the default branch only, so the
@@ -28,6 +34,11 @@ on:
   schedule:
     - cron: "0 20 * * *" # 03:00 Asia/Ho_Chi_Minh
   workflow_dispatch:
+    inputs:
+      maestro:
+        description: Run the Maestro flows (needs the MAESTRO_* settings)
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -38,6 +49,9 @@ concurrency:
 
 env:
   NODE_VERSION: "22"
+  JAVA_VERSION: "17"
+  # Pinned: a new Maestro changes how flows run; bump it in its own PR.
+  MAESTRO_VERSION: "2.11.0"
   EXPO_NO_TELEMETRY: "1"
   UNICHAT_ENV: staging
   UNICHAT_API_URL: ${{ vars.MAESTRO_API_URL }}
@@ -52,8 +66,9 @@ jobs:
       ready: ${{ steps.check.outputs.ready }}
     steps:
       - id: check
-        name: Skip without a staging server and test account
+        name: Need a staging server and test account
         env:
+          WANTED: ${{ github.event_name == 'schedule' || inputs.maestro }}
           MAESTRO_API_URL: ${{ vars.MAESTRO_API_URL }}
           MAESTRO_APP_URL: ${{ vars.MAESTRO_APP_URL }}
           MAESTRO_ORG_SLUG: ${{ vars.MAESTRO_ORG_SLUG }}
@@ -62,16 +77,20 @@ jobs:
           MAESTRO_TEST_EMAIL: ${{ secrets.MAESTRO_TEST_EMAIL }}
           MAESTRO_TEST_PASSWORD: ${{ secrets.MAESTRO_TEST_PASSWORD }}
         run: |
+          if [ "$WANTED" != "true" ]; then
+            echo "::notice::Maestro not requested for this run."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           missing=""
           for name in MAESTRO_API_URL MAESTRO_APP_URL MAESTRO_ORG_SLUG MAESTRO_WS_SLUG MAESTRO_ROOM_ID MAESTRO_TEST_EMAIL MAESTRO_TEST_PASSWORD; do
             [ -n "${!name}" ] || missing="$missing $name"
           done
           if [ -n "$missing" ]; then
-            echo "::notice::Maestro skipped, not set:$missing. Setup: docs/runbooks/unichat-mobile-release.md"
-            echo "ready=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "ready=true" >> "$GITHUB_OUTPUT"
+            echo "::error::The Maestro flows cannot run, not set:$missing. Setup: docs/runbooks/unichat-mobile-release.md"
+            exit 1
           fi
+          echo "ready=true" >> "$GITHUB_OUTPUT"
 
   ios:
     needs: gate
@@ -95,7 +114,7 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "17"
+          java-version: ${{ env.JAVA_VERSION }}
       - run: pnpm install --frozen-lockfile --filter "@uniwork/chat-mobile..."
       # SDK 57 needs Xcode 27; take the newest the image has.
       - name: Select Xcode
@@ -123,11 +142,15 @@ jobs:
           xcrun simctl bootstatus "$udid" -b
           xcrun simctl install "$udid" build/Build/Products/Release-iphonesimulator/*.app
           echo "UDID=$udid" >> "$GITHUB_ENV"
-      - name: Install Maestro
-        # shortcut: latest Maestro; pin MAESTRO_VERSION once a night is green on Xcode 27.
+      - name: Install Maestro ${{ env.MAESTRO_VERSION }}
+        # The release zip itself, not the get.maestro.mobile.dev script: the
+        # script is unversioned and its default is whatever shipped last.
         run: |
-          curl -fsSL "https://get.maestro.mobile.dev" | bash
-          echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
+          set -euo pipefail
+          curl -fsSL -o "$RUNNER_TEMP/maestro.zip" "https://github.com/mobile-dev-inc/maestro/releases/download/cli-$MAESTRO_VERSION/maestro.zip"
+          unzip -q "$RUNNER_TEMP/maestro.zip" -d "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/maestro/bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/maestro/bin/maestro" --version
       - name: Sign in, read and send
         working-directory: apps/chat-mobile/maestro
         env:
@@ -189,7 +212,7 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "17"
+          java-version: ${{ env.JAVA_VERSION }}
       - run: pnpm install --frozen-lockfile --filter "@uniwork/chat-mobile..."
       - name: Build the release APK for the emulator
         working-directory: apps/chat-mobile
@@ -203,11 +226,15 @@ jobs:
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
-      - name: Install Maestro
-        # shortcut: latest Maestro; pin MAESTRO_VERSION once a night is green.
+      - name: Install Maestro ${{ env.MAESTRO_VERSION }}
+        # The release zip itself, not the get.maestro.mobile.dev script: the
+        # script is unversioned and its default is whatever shipped last.
         run: |
-          curl -fsSL "https://get.maestro.mobile.dev" | bash
-          echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
+          set -euo pipefail
+          curl -fsSL -o "$RUNNER_TEMP/maestro.zip" "https://github.com/mobile-dev-inc/maestro/releases/download/cli-$MAESTRO_VERSION/maestro.zip"
+          unzip -q "$RUNNER_TEMP/maestro.zip" -d "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/maestro/bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/maestro/bin/maestro" --version
       - name: Run the flows on an emulator
         uses: reactivecircus/android-emulator-runner@v2
         env:
@@ -234,3 +261,42 @@ jobs:
           path: ~/.maestro/tests/**/*.png
           if-no-files-found: ignore
           retention-days: 14
+
+  android-production:
+    # The store artifact from the production profile, every ABI, each night:
+    # catches what only the full release build hits (R8, resource shrinking,
+    # the four native ABIs) before a release tag does.
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      UNICHAT_ENV: production
+      # Placeholders: the bundle is built, never run.
+      UNICHAT_API_URL: https://api.example.invalid
+      UNICHAT_APP_URL: https://app.example.invalid
+      SENTRY_DISABLE_AUTO_UPLOAD: "true"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+      - uses: gradle/actions/setup-gradle@v4
+      - run: pnpm install --frozen-lockfile --filter "@uniwork/chat-mobile..."
+      - name: Prebuild the native project
+        working-directory: apps/chat-mobile
+        run: pnpm exec expo prebuild -p android --no-install --clean
+      - name: Bundle the release AAB
+        working-directory: apps/chat-mobile/android
+        run: ./gradlew :app:bundleRelease --no-daemon
+      - name: AAB size
+        working-directory: apps/chat-mobile/android/app/build/outputs/bundle/release
+        run: |
+          set -euo pipefail
+          { echo "### UniChat Android production AAB"; echo; ls -l *.aab | awk '{printf "- `%s`: %.1f MB\n", $9, $5/1048576}'; } | tee -a "$GITHUB_STEP_SUMMARY"

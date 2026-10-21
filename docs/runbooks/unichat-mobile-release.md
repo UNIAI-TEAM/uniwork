@@ -1,6 +1,6 @@
 # unichat-mobile-release — phát hành, OTA và rollback bản mobile UniChat
 
-> **Trạng thái:** shipped · **Sev:** 3 · **Rule:** không có alert — runbook vận hành của UniChat M4 (UNI-1836) · **Workflow:** `.github/workflows/chat-mobile-release.yml`, `.github/workflows/chat-mobile-verify.yml`
+> **Trạng thái:** shipped · **Sev:** 3 · **Rule:** không có alert — runbook vận hành của UniChat M4 (UNI-1836) · **Workflow:** `.github/workflows/chat-mobile-release.yml`, `.github/workflows/mobile-verify.yml`, `.github/workflows/chat-mobile-verify.yml`
 
 App `apps/chat-mobile` build trên EAS theo `apps/chat-mobile/eas.json`. Bốn profile:
 
@@ -8,13 +8,32 @@ App `apps/chat-mobile` build trên EAS theo `apps/chat-mobile/eas.json`. Bốn p
 | --- | --- | --- | --- | --- | --- |
 | `development` | `dev` | internal (dev client) | `development` | `development` | Dev trên máy thật, JS từ Metro |
 | `preview` | `staging` | internal (APK / ad hoc, link cài) | `preview` | `preview` | Pilot trước khi có store, QA một nhánh |
-| `internal` | `staging` | store → TestFlight, Play internal | `internal` | `preview` | Mỗi tag `chat-mobile-v*` |
+| `internal` | `staging` | store → Play internal (TestFlight khi có tài khoản Apple) | `internal` | `preview` | Mỗi tag `chat-mobile-v*` |
 | `production` | `production` | store (Play: bản nháp) | `production` | `production` | Sau quyết định Q1; phát hành public bấm tay |
 
 `version` trong `apps/chat-mobile/app.config.ts` là version duy nhất và là `runtimeVersion` (`policy: appVersion`):
 một bản OTA chỉ tới các bản cài cùng version. Build number (`ios.buildNumber`, `android.versionCode`) do EAS giữ và tự
 tăng (`appVersionSource: remote`), không commit. Đổi native (gói có mã native, plugin hay quyền trong `app.config.ts`,
 nâng SDK Expo) → bump `version` và cắt tag mới; chỉ đổi JS/asset → OTA, không bump.
+
+**Cổng trước khi phát hành (CI, ADR 0037 — chặn ở mọi `GATE_LEVEL`)**
+
+- `mobile-verify.yml`, mỗi PR/push chạm app hoặc thứ app import: job `mobile` (typecheck, lint, test vitest sàn
+  100% và test component jest-expo, các test hợp đồng `scripts/mobile-*.test.mjs`); `doctor-bundle` (`expo-doctor`
+  ghim `EXPO_DOCTOR_VERSION`, rồi `expo export --platform android` cấu hình production, đo bằng
+  `scripts/mobile-bundle-budget.mjs` theo `apps/chat-mobile/bundle-budget.json`: bytecode Hermes, gzip, số module);
+  `android-release` (`expo prebuild` + `./gradlew :app:assembleRelease`, arm64) chỉ khi thay đổi chạm binary
+  (`scripts/mobile-native-scope.mjs`: code/cấu hình/asset của app, đồ thị cài đặt, file `packages/core` app import
+  lúc chạy). Không đọc secret: URL máy chủ là placeholder, `SENTRY_DISABLE_AUTO_UPLOAD=true`.
+- `chat-mobile-release.yml` gọi đúng workflow đó trên SHA của tag (job `verify`) trước khi đụng EAS.
+- `chat-mobile-verify.yml` hằng đêm: job `android-production` build AAB release mọi ABI từ profile production
+  (không cần tài khoản) và ba luồng Maestro; thiếu biến `MAESTRO_*` thì run theo lịch **đỏ**, không xanh.
+- Phiên bản công cụ ghim trong workflow: `EAS_CLI_VERSION` (release), `MAESTRO_VERSION` (nightly, tải zip release
+  thay vì script cài), `EXPO_DOCTOR_VERSION`. Nâng trong một PR riêng.
+- Ngân sách bundle: hạ trần khi bundle nhỏ đi; chỉ nâng trong commit thêm sức nặng đó, ghi lý do trong body. Đo tại
+  máy: `UNICHAT_ENV=production UNICHAT_API_URL=https://api.example.invalid UNICHAT_APP_URL=https://app.example.invalid
+  pnpm --filter @uniwork/chat-mobile exec expo export --platform android --output-dir /tmp/uc --dump-sourcemap` rồi
+  `node scripts/mobile-bundle-budget.mjs /tmp/uc`.
 
 **Thiết lập lần đầu (khi có tài khoản, UNI-1838)**
 
@@ -46,15 +65,18 @@ nâng SDK Expo) → bump `version` và cắt tag mới; chỉ đổi JS/asset �
    MFA, không chỉ Google). Phòng nhóm vì cuộc gọi nhóm vào thẳng phòng LiveKit mà không cần người thứ hai; mỗi đêm
    gửi một tin `Maestro <số>` vào phòng. Repository variables `MAESTRO_API_URL`, `MAESTRO_APP_URL`,
    `MAESTRO_ORG_SLUG`, `MAESTRO_WS_SLUG`, `MAESTRO_ROOM_ID`; secrets `MAESTRO_TEST_EMAIL`, `MAESTRO_TEST_PASSWORD`.
-   Lịch chạy chỉ có hiệu lực khi workflow nằm trên `main`; trước đó chạy tay bằng "Run workflow".
+   Lịch chạy chỉ có hiệu lực khi workflow nằm trên `main`; trước đó chạy tay bằng "Run workflow" (bỏ chọn
+   `maestro` để chỉ build). Thiếu một biến thì run theo lịch đỏ với tên biến thiếu.
 
 **Cắt một bản store**
 
 1. Trên `develop`/`main`, `version` trong `app.config.ts` là version mới nếu có đổi native từ tag trước.
 2. `git tag chat-mobile-v<version> <sha>` rồi `git push origin chat-mobile-v<version>`.
-3. Workflow: gate `EXPO_TOKEN` → commit trên `main`/`develop` → tag khớp `version` → `eas build --platform all
-   --profile internal --non-interactive --auto-submit`. Apple xử lý bản build 15–30 phút trước khi hiện ở TestFlight;
-   Play internal hiện ngay sau submit. Người thử cài qua lời mời TestFlight và link opt-in của Play internal.
+3. Workflow: `verify` (mọi kiểm tra của PR trên SHA của tag) → gate `EXPO_TOKEN` → commit trên `main`/`develop` →
+   tag khớp `version` → `eas build --platform android --profile internal --non-interactive --auto-submit`. Play
+   internal hiện ngay sau submit; người thử cài qua link opt-in. iOS: khi có tài khoản Apple (bước 3 của thiết lập),
+   đổi `--platform android` thành `--platform all` trong `chat-mobile-release.yml`; Apple xử lý bản build 15–30 phút
+   trước khi hiện ở TestFlight.
 
 **Bản cài trực tiếp (chưa có store)**: `eas build -p android --profile preview` cho link tải APK. iOS ad hoc cần Apple
 Developer và đăng ký máy (`eas device:create`) trước `eas build -p ios --profile preview`.
@@ -65,12 +87,15 @@ Developer và đăng ký máy (`eas device:create`) trước `eas build -p ios -
 ## Triệu chứng
 
 - Run release xanh với notice `EXPO_TOKEN is not set` — đúng khi chưa thiết lập; sau thiết lập là thiếu secret.
+- Run release đỏ ở job `verify`: một kiểm tra của PR không qua trên SHA của tag (thường là commit chưa qua PR).
+- PR đỏ ở `Bundle budget` (`… is over the ceiling …`), ở `expo-doctor`, hoặc ở `Android release build`.
 - Run release đỏ: `… is on neither main nor develop`, `… does not match app.config.ts version`, `eas build` (cấu hình,
   cài gói, biên dịch native) hoặc submit (khoá ASC/Play, `ascAppId`, bản Play đầu chưa tải tay,
   `Only releases with status draft may be created on draft app`).
 - Bản mới không hiện ở TestFlight/Play internal sau 1 giờ.
 - OTA không tới máy, tới nhầm bản native, hoặc bản OTA làm app lỗi/crash.
-- Nightly: notice `Maestro skipped, not set: …`; đỏ ở bước build; đỏ ở bước Maestro (`Sign in`, `Push opens the room`).
+- Nightly: đỏ ở `gate` với `The Maestro flows cannot run, not set: …`; đỏ ở `android-production`; đỏ ở bước build;
+  đỏ ở bước Maestro (`Sign in`, `Push opens the room`).
 
 ## Kiểm tra
 
@@ -106,7 +131,14 @@ Developer và đăng ký máy (`eas device:create`) trước `eas build -p ios -
    nó từ web bằng tài khoản thử rồi "Re-run failed jobs".
 8. Nightly đỏ ở sheet đăng nhập nhiều đêm liền mà app không đổi: chụp màn từ artifact, đối chiếu nút/nhãn của trang
    login/consent web với `apps/chat-mobile/maestro/subflows/sign-in.yaml`; web đổi chữ thì sửa subflow cùng PR đó.
-9. Khoá Apple/Google hết hạn hoặc lộ: thu hồi ở Apple/Google, tạo khoá mới, tải lại bằng `eas credentials`; `EXPO_TOKEN`
+9. PR vượt ngân sách bundle: bảng trong job summary cho biết số nào; tìm gói mới kéo vào cây (số module tăng) và bỏ
+   hoặc nạp lười. Nếu sức nặng là có chủ đích, nâng trần trong `apps/chat-mobile/bundle-budget.json` cùng commit đó,
+   ghi lý do trong body. `expo-doctor` đỏ: làm theo lời khuyên của nó (lệch phiên bản gói thì
+   `pnpm --filter @uniwork/chat-mobile exec expo install --check`). `Android release build` đỏ mà EAS chưa đụng tới:
+   tái hiện bằng `expo prebuild -p android` + `./gradlew :app:assembleRelease` trên máy có Android SDK.
+10. Nightly đỏ ở `gate`: đặt các biến/secrets `MAESTRO_*` (Thiết lập lần đầu, bước 7); chưa có server staging thì
+   chạy tay với `maestro` bỏ chọn — run theo lịch sẽ đỏ mỗi đêm cho tới khi có, có chủ đích.
+11. Khoá Apple/Google hết hạn hoặc lộ: thu hồi ở Apple/Google, tạo khoá mới, tải lại bằng `eas credentials`; `EXPO_TOKEN`
    lộ: thu hồi robot token trên expo.dev, tạo token mới vào Environment.
 
 ## Leo thang

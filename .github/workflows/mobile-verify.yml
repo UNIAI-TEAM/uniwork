@@ -1,12 +1,27 @@
 name: Mobile Verify
 
-# Adapted from usf .github/workflows/mobile-verify.yml. Typecheck, lint and the
-# Node vitest suite for apps/chat-mobile alone, beside the main CI workflow,
-# which filters the app out (ADR 0011: mobile never blocks a web/backend PR).
-# Path-filtered so a PR that touches neither the app nor what it imports pays
-# nothing: packages/core/** because the app imports types and pure functions
-# from it; the install graph, catalog and turbo pipeline because they decide
-# what the app resolves. No IPA/APK is built and nothing renders natively here.
+# Adapted from usf .github/workflows/mobile-verify.yml. Everything UniChat
+# mobile (apps/chat-mobile) must pass before it merges or ships, beside the
+# main CI workflow, which filters the app out (ADR 0011: mobile never blocks a
+# web/backend PR). Path-filtered so a PR that touches neither the app nor what
+# it imports pays nothing.
+#
+#   checks          typecheck, lint, the vitest unit suite (100% floor) and
+#                   the jest-expo component suite, the mobile repo contracts
+#   doctor-bundle   expo-doctor, then `expo export --platform android` with the
+#                   production config, held to apps/chat-mobile/bundle-budget.json
+#   android-release `expo prebuild` + `./gradlew :app:assembleRelease` on the
+#                   production config: proves the native project still builds.
+#                   Only when the change reaches the binary
+#                   (scripts/mobile-native-scope.mjs): the app's code, config
+#                   or assets, the install graph, or a packages/core file the
+#                   app imports at runtime. Always on push to main/develop
+#                   without a known base and when called.
+#
+# Every check here blocks at every GATE_LEVEL (ADR 0037). No secret is read:
+# the server URLs are placeholders (the app is built, never run), and EAS, the
+# stores and Sentry are not reached. chat-mobile-release.yml calls this
+# workflow on the SHA it releases.
 
 on:
   push:
@@ -35,24 +50,144 @@ on:
       - "pnpm-workspace.yaml"
       - "turbo.json"
       - ".github/workflows/mobile-verify.yml"
+  workflow_call:
+  workflow_dispatch:
 
+permissions:
+  contents: read
+
+# A literal group: inside a called workflow `github.workflow` names the caller.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  group: mobile-verify-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
+  NODE_VERSION: "22"
+  JAVA_VERSION: "17"
+  EXPO_DOCTOR_VERSION: "1.21.4"
   EXPO_NO_TELEMETRY: "1"
 
 jobs:
-  mobile:
+  scope:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      native: ${{ steps.decide.outputs.native }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - id: decide
+        name: Does the change reach the native binary?
+        env:
+          EVENT: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT" = "pull_request" ]; then
+            node scripts/mobile-native-scope.mjs --base "$PR_BASE" --head "$GITHUB_SHA"
+          elif [ "$EVENT" = "push" ] && [ -n "$PUSH_BEFORE" ] && ! [[ "$PUSH_BEFORE" =~ ^0+$ ]] && git cat-file -e "$PUSH_BEFORE^{commit}" 2>/dev/null; then
+            node scripts/mobile-native-scope.mjs --base "$PUSH_BEFORE" --head "$GITHUB_SHA"
+          else
+            # Called by the release, dispatched, or a push with no known base: build.
+            echo "native=true" | tee -a "$GITHUB_OUTPUT"
+          fi
+
+  checks:
+    # The job id branch protection already names; it was `mobile` before this split.
+    name: mobile
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - name: Typecheck, lint, test
+      - name: Typecheck, lint, unit and component tests
         run: pnpm exec turbo typecheck lint test --filter=@uniwork/chat-mobile
+      - name: Mobile repo contracts
+        run: node --test scripts/mobile-core-allowlist.test.mjs scripts/mobile-native-scope.test.mjs scripts/mobile-bundle-budget.test.mjs scripts/mobile-workflows.test.mjs
+
+  doctor-bundle:
+    name: expo-doctor and JS bundle budget
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      # The release configuration, with placeholder servers: the binary is built,
+      # never run, so it needs URLs of the right shape, not real ones. Not on
+      # the checks job, whose tests pin their own env.
+      UNICHAT_ENV: production
+      UNICHAT_API_URL: https://api.example.invalid
+      UNICHAT_APP_URL: https://app.example.invalid
+      # No Sentry credentials here: a release build must not try to upload source maps.
+      SENTRY_DISABLE_AUTO_UPLOAD: "true"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      # The app and what it imports only: other workspaces' prepare scripts
+      # (the Office engine build) have no business on this runner.
+      - run: pnpm install --frozen-lockfile --filter "@uniwork/chat-mobile..."
+      - name: expo-doctor
+        working-directory: apps/chat-mobile
+        run: pnpm dlx "expo-doctor@${EXPO_DOCTOR_VERSION}"
+      - name: Export the Android bundle
+        working-directory: apps/chat-mobile
+        run: pnpm exec expo export --platform android --output-dir "$RUNNER_TEMP/export" --dump-sourcemap
+      - name: Bundle budget
+        run: node scripts/mobile-bundle-budget.mjs "$RUNNER_TEMP/export"
+
+  android-release:
+    name: Android release build
+    needs: scope
+    if: needs.scope.outputs.native == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    env:
+      # Same release configuration as doctor-bundle.
+      UNICHAT_ENV: production
+      UNICHAT_API_URL: https://api.example.invalid
+      UNICHAT_APP_URL: https://app.example.invalid
+      SENTRY_DISABLE_AUTO_UPLOAD: "true"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+      - uses: gradle/actions/setup-gradle@v4
+      - run: pnpm install --frozen-lockfile --filter "@uniwork/chat-mobile..."
+      - name: Prebuild the native project
+        working-directory: apps/chat-mobile
+        run: pnpm exec expo prebuild -p android --no-install --clean
+      - name: Assemble the release APK
+        working-directory: apps/chat-mobile/android
+        # One ABI: what can break is shared by all four, and it halves the build.
+        run: ./gradlew :app:assembleRelease --no-daemon -PreactNativeArchitectures=arm64-v8a
+      - name: APK size
+        working-directory: apps/chat-mobile/android/app/build/outputs/apk/release
+        run: |
+          set -euo pipefail
+          { echo "### UniChat Android release APK (arm64-v8a)"; echo; ls -l *.apk | awk '{printf "- `%s`: %.1f MB\n", $9, $5/1048576}'; } | tee -a "$GITHUB_STEP_SUMMARY"
