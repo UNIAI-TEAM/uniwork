@@ -1,6 +1,6 @@
 import { QueryClient } from "@tanstack/react-query";
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { act, configure, fireEvent, getConfig, render, screen, waitFor } from "@testing-library/react";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_DOCUMENT_LIMITS, type DocumentLimits } from "@uniwork/core/api/endpoints/config";
 import {
   createFakeFolderUploadTransport,
@@ -83,6 +83,15 @@ function setup(over: Partial<UseFolderUploadOptions> = {}, fake: FakeFolderUploa
 
 const stage = (...lists: FolderUploadEntry<File>[][]) => act(() => hook.addFolders(lists));
 const upload = () => fireEvent.click(screen.getByRole("button", { name: t("documents.folder_upload.dialog.submit") }));
+
+// Every waitFor/findBy here rides the fake transport (14-file runs, retries, backoffs); on a loaded box the
+// 1 s default is shorter than the work, so the budget is set well above it. A failure still fails, just later.
+let asyncUtilTimeout = 0;
+beforeAll(() => {
+  asyncUtilTimeout = getConfig().asyncUtilTimeout;
+  configure({ asyncUtilTimeout: 8_000 });
+});
+afterAll(() => configure({ asyncUtilTimeout }));
 
 beforeEach(() => {
   for (const fn of Object.values(toast)) fn.mockReset();

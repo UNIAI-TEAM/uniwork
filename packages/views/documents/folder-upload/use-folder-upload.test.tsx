@@ -1,6 +1,6 @@
 import { QueryClient } from "@tanstack/react-query";
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { act, configure, fireEvent, getConfig, render, screen, waitFor } from "@testing-library/react";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_DOCUMENT_LIMITS, type DocumentLimits } from "@uniwork/core/api/endpoints/config";
 import {
   createFakeFolderUploadTransport,
@@ -81,6 +81,15 @@ function setup(over: Partial<UseFolderUploadOptions> = {}, fake: FakeFolderUploa
 
 const stage = (...lists: FolderUploadEntry<File>[][]) => act(() => hook.addFolders(lists));
 const upload = () => fireEvent.click(screen.getByRole("button", { name: t("documents.folder_upload.dialog.submit") }));
+
+// Every waitFor/findBy here rides the fake transport (14-file runs, retries, backoffs); on a loaded box the
+// 1 s default is shorter than the work, so the budget is set well above it. A failure still fails, just later.
+let asyncUtilTimeout = 0;
+beforeAll(() => {
+  asyncUtilTimeout = getConfig().asyncUtilTimeout;
+  configure({ asyncUtilTimeout: 8_000 });
+});
+afterAll(() => configure({ asyncUtilTimeout }));
 
 beforeEach(() => {
   for (const fn of Object.values(toast)) fn.mockReset();
@@ -260,27 +269,37 @@ describe("useFolderUpload", () => {
     expect(toast.info).not.toHaveBeenCalled();
   });
 
-  /** The plan is held for `PLAN_MS`: the dialog must close, and the next one open, well inside that. */
+  /**
+   * The plan is held for `PLAN_MS` on a fake clock, so "out at once" is about ordering, not about how
+   * fast a loaded machine renders: nothing advances until the test says so.
+   */
   const PLAN_MS = 1_200;
+  const tick = (ms: number) => act(() => vi.advanceTimersByTimeAsync(ms));
+  afterEach(() => {
+    vi.useRealTimers();
+  });
   const leaveWhilePlanning = async (leave: () => void) => {
+    vi.useFakeTimers();
     const { transport } = setup({}, { latencyMs: PLAN_MS });
     stage(entries("Mới", ["a.pdf"]));
     upload();
-    await waitFor(() => expect(transport.calls.some((c) => c.method === "plan")).toBe(true));
+    await tick(0);
+    expect(transport.calls.some((c) => c.method === "plan")).toBe(true);
     leave();
 
     // The user is out at once: the plan has not answered, so the batch is not canceled yet (d74e1d7c8 waits for it).
-    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull(), { timeout: 600 });
+    await tick(0);
+    expect(screen.queryByRole("dialog")).toBeNull();
     expect(transport.calls.some((c) => c.method === "cancel")).toBe(false);
     // The next folder opens its dialog while the old run is still cleaning up.
     stage(entries("Hai", ["b.pdf"]));
-    expect(await screen.findByTestId("folder-upload-root")).toHaveTextContent("Hai");
+    await tick(0);
+    expect(screen.getByTestId("folder-upload-root")).toHaveTextContent("Hai");
 
-    // The plan answers: the run cancels that batch in the background and settles without a trace.
-    await waitFor(() => expect(transport.calls.filter((c) => c.method === "cancel")).toEqual([{ method: "cancel", batchId: "batch-1" }]), {
-      timeout: 3_000,
-    });
-    await waitFor(() => expect(transport.batch?.status).toBe("canceled"), { timeout: 3_000 });
+    // The plan answers: the run cancels that batch in the background (its own PLAN_MS latency) and settles without a trace.
+    await tick(PLAN_MS * 3);
+    expect(transport.calls.filter((c) => c.method === "cancel")).toEqual([{ method: "cancel", batchId: "batch-1" }]);
+    expect(transport.batch?.status).toBe("canceled");
     expect(transport.calls.some((c) => c.method === "put")).toBe(false);
     expect(toast.loading).not.toHaveBeenCalled();
     expect(toast.info).not.toHaveBeenCalled();
@@ -302,20 +321,22 @@ describe("useFolderUpload", () => {
   });
 
   it("leaves no trace of a plan the server refuses after the user walked away (R4-3)", async () => {
+    vi.useFakeTimers();
     const { transport } = setup({}, { latencyMs: PLAN_MS });
     transport.failNext("plan", folderUploadApiError(422, "folder_upload_too_many_files", { max: 500, count: 612 }));
     stage(entries("Mới", ["a.pdf"]));
     upload();
-    await waitFor(() => expect(transport.calls.some((c) => c.method === "plan")).toBe(true));
+    await tick(0);
+    expect(transport.calls.some((c) => c.method === "plan")).toBe(true);
     fireEvent.click(screen.getByRole("button", { name: t("documents.folder_upload.dialog.cancel") }));
-    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull(), { timeout: 600 });
+    await tick(0);
+    expect(screen.queryByRole("dialog")).toBeNull();
     stage(entries("Hai", ["b.pdf"]));
-    expect(await screen.findByTestId("folder-upload-root")).toHaveTextContent("Hai");
+    await tick(0);
+    expect(screen.getByTestId("folder-upload-root")).toHaveTextContent("Hai");
 
     // Let the held plan answer with its refusal: the next folder's dialog is the one on screen.
-    await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, PLAN_MS + 400));
-    });
+    await tick(PLAN_MS + 400);
     expect(transport.calls.filter((c) => c.method === "plan")).toHaveLength(1);
     expect(screen.queryByText("612 tệp — tối đa 500.")).toBeNull();
     expect(screen.getByTestId("folder-upload-root")).toHaveTextContent("Hai");
@@ -323,7 +344,8 @@ describe("useFolderUpload", () => {
     for (const fn of Object.values(toast)) expect(fn).not.toHaveBeenCalled();
     // The next folder still runs on its own plan.
     upload();
-    await waitFor(() => expect(transport.calls.filter((c) => c.method === "plan")).toHaveLength(2));
+    await tick(0);
+    expect(transport.calls.filter((c) => c.method === "plan")).toHaveLength(2);
   });
 
   it("refuses an empty dropped folder with a toast instead of a dialog", () => {
