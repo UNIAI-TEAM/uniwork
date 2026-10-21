@@ -1,0 +1,30 @@
+$ (. scripts/local-env.sh && cd server && unset OPENAI_API_KEY; AI_PROVIDER=fake go test ./internal/handler -run "TestIsolationMatrix$|TestEveryBodyIDFieldHasAReferenceCase|TestIsolationRealtime|TestIsolationMCP" -count=1 -timeout 70m -v > /tmp/iso.log 2>&1); rc=$?; grep -E "^\s*--- (FAIL|SKIP)|^(ok|FAIL)|DATA RACE" /tmp/iso.log | tail -20; grep -E "^--- (PASS|FAIL|SKIP): " /tmp/iso.log; grep -E "folder-uploads" /tmp/iso.log | head -20; echo; echo "TEST_ISO_EXIT=$rc"
+warning: STORAGE_BACKEND is unset and MINIO_* is empty; the server will refuse to start.
+         set STORAGE_BACKEND=local with LOCAL_UPLOAD_DIR, or configure MinIO (see .env.example).
+ok  	github.com/unicomhub/uniwork/server/internal/handler	677.003s
+--- PASS: TestIsolationMatrix (670.02s)
+--- PASS: TestIsolationMCP (2.74s)
+--- PASS: TestIsolationRealtime (4.21s)
+--- PASS: TestEveryBodyIDFieldHasAReferenceCase (0.00s)
+2026/10/21 07:21:47 INFO http request method=GET path=/api/v1/workspaces/01M5ENCS1JQVPMDK40C8EQ4KGX/documents/folder-uploads/01M5ENCS5ZSYK5SNPG5FBZ3768 status=200 duration=735µs request_id=cursor/lRO9e90oW8-000559 correlation_id=01M5ENCTTNAFKFTY25KGE3Q77S
+2026/10/21 07:21:47 INFO http request method=GET path=/api/v1/workspaces/01M5ENCSV3CXE6RB9ZX1F0HY7M/documents/folder-uploads/01M5ENCSZ1MRPN8WZ9M5YY8TQZ status=200 duration=604µs request_id=cursor/lRO9e90oW8-000560 correlation_id=01M5ENCTTPSWYNXQDFMJA59AJD
+2026/10/21 07:24:21 WARN http request method=POST path=/api/v1/workspaces/01M5ENCS1JQVPMDK40C8EQ4KGX/documents/folder-uploads status=403 duration=1.33ms request_id=cursor/lRO9e90oW8-001104 correlation_id=01M5ENHHAF8ZHYWT1QENK9C8DN
+2026/10/21 07:24:21 WARN http request method=DELETE path=/api/v1/workspaces/01M5ENCS1JQVPMDK40C8EQ4KGX/documents/folder-uploads/01M5ENCS5ZSYK5SNPG5FBZ3768 status=404 duration=1.341ms request_id=cursor/lRO9e90oW8-001105 correlation_id=01M5ENHHN6NNNYPJ6NY9XXAJ5T
+2026/10/21 07:24:21 WARN http request method=GET path=/api/v1/workspaces/01M5ENCS1JQVPMDK40C8EQ4KGX/documents/folder-uploads/01M5ENCS5ZSYK5SNPG5FBZ3768 status=404 duration=713µs request_id=cursor/lRO9e90oW8-001106 correlation_id=01M5ENHJ00ZCV44T1RG6V4XZD7
+2026/10/21 07:24:22 WARN http request method=POST path=/api/v1/workspaces/01M5ENCS1JQVPMDK40C8EQ4KGX/documents/folder-uploads/01M5ENCS5ZSYK5SNPG5FBZ3768/complete status=403 duration=682µs request_id=cursor/lRO9e90oW8-001107 correlation_id=01M5ENHJAN7BGSGJFWRZE8DEKF
+2026/10/21 07:24:22 WARN http request method=PUT path=/api/v1/workspaces/01M5ENCS1JQVPMDK40C8EQ4KGX/documents/folder-uploads/01M5ENCS5ZSYK5SNPG5FBZ3768/files/iso-file-alpha/content status=403 duration=1.416ms request_id=cursor/lRO9e90oW8-001108 correlation_id=01M5ENHJNFGCT28G1VT0N9SRRA
+2026/10/21 07:27:33 WARN http request method=POST path=/api/v1/workspaces/01M5ENCS1JQVPMDK40C8EQ4KGX/documents/folder-uploads status=401 duration=36µs request_id=cursor/lRO9e90oW8-001664 correlation_id=01M5ENQD594TKV9HAGS20ZKYCV
+2026/10/21 07:27:33 WARN http request method=DELETE path=/api/v1/workspaces/01M5ENCS1JQVPMDK40C8EQ4KGX/documents/folder-uploads/01M5ENCS5ZSYK5SNPG5FBZ3768 status=401 duration=42µs request_id=cursor/lRO9e90oW8-001665 correlation_id=01M5ENQDFZSPS8FMM3MD41HQ4K
+2026/10/21 07:27:34 WARN http request method=GET path=/api/v1/workspaces/01M5ENCS1JQVPMDK40C8EQ4KGX/documents/folder-uploads/01M5ENCS5ZSYK5SNPG5FBZ3768 status=401 duration=40µs request_id=cursor/lRO9e90oW8-001666 correlation_id=01M5ENQDTE0XZYJC1WH0R4TM7J
+2026/10/21 07:27:34 WARN http request method=POST path=/api/v1/workspaces/01M5ENCS1JQVPMDK40C8EQ4KGX/documents/folder-uploads/01M5ENCS5ZSYK5SNPG5FBZ3768/complete status=401 duration=36µs request_id=cursor/lRO9e90oW8-001667 correlation_id=01M5ENQE50716BMQ2PEQNR3NQ3
+2026/10/21 07:27:34 WARN http request method=PUT path=/api/v1/workspaces/01M5ENCS1JQVPMDK40C8EQ4KGX/documents/folder-uploads/01M5ENCS5ZSYK5SNPG5FBZ3768/files/iso-file-alpha/content status=401 duration=55µs request_id=cursor/lRO9e90oW8-001668 correlation_id=01M5ENQEFPZXKZZC31XHQ232AB
+2026/10/21 07:29:05 WARN http request method=DELETE path=/api/v1/workspaces/01M5ENCSV3CXE6RB9ZX1F0HY7M/documents/folder-uploads/01M5ENCS5ZSYK5SNPG5FBZ3768 status=404 duration=1ms request_id=cursor/lRO9e90oW8-001930 correlation_id=01M5ENT6QS8FQEFGTK3RYG7G6S
+2026/10/21 07:29:05 WARN http request method=GET path=/api/v1/workspaces/01M5ENCSV3CXE6RB9ZX1F0HY7M/documents/folder-uploads/01M5ENCS5ZSYK5SNPG5FBZ3768 status=404 duration=1.089ms request_id=cursor/lRO9e90oW8-001931 correlation_id=01M5ENT72CP9KW6K202V5TFFGF
+2026/10/21 07:29:05 WARN http request method=POST path=/api/v1/workspaces/01M5ENCSV3CXE6RB9ZX1F0HY7M/documents/folder-uploads/01M5ENCS5ZSYK5SNPG5FBZ3768/complete status=404 duration=826µs request_id=cursor/lRO9e90oW8-001932 correlation_id=01M5ENT7D0AJT7BH7T4EPR5EPK
+2026/10/21 07:29:06 WARN http request method=PUT path=/api/v1/workspaces/01M5ENCSV3CXE6RB9ZX1F0HY7M/documents/folder-uploads/01M5ENCS5ZSYK5SNPG5FBZ3768/files/iso-file-alpha/content status=404 duration=1.182ms request_id=cursor/lRO9e90oW8-001933 correlation_id=01M5ENT7QQM2Y4FKD3Q935BBKE
+2026/10/21 07:29:21 INFO http request method=POST path=/api/v1/workspaces/01M5ENCSV3CXE6RB9ZX1F0HY7M/documents/folder-uploads status=201 duration=6.175ms request_id=cursor/lRO9e90oW8-002066 correlation_id=01M5ENTQ0KWFSDQXVE28DY9CNM
+2026/10/21 07:29:21 INFO http request method=POST path=/api/v1/workspaces/01M5ENCSV3CXE6RB9ZX1F0HY7M/documents/folder-uploads/01M5ENCSZ1MRPN8WZ9M5YY8TQZ/complete status=200 duration=1.011ms request_id=cursor/lRO9e90oW8-002067 correlation_id=01M5ENTQ0SNYJPJCGZCYM4N5F0
+2026/10/21 07:29:51 WARN http request method=POST path=/api/v1/workspaces/01M5ENCSV3CXE6RB9ZX1F0HY7M/documents/folder-uploads status=404 duration=1.976ms request_id=cursor/lRO9e90oW8-002160 correlation_id=01M5ENVKY7XXWM07HE2KW8ZYTH
+2026/10/21 07:29:52 INFO http request method=POST path=/api/v1/workspaces/01M5ENCSV3CXE6RB9ZX1F0HY7M/documents/folder-uploads/01M5ENCSZ1MRPN8WZ9M5YY8TQZ/complete status=200 duration=2.115ms request_id=cursor/lRO9e90oW8-002161 correlation_id=01M5ENVMEC6QBBBFW8NE444M4K
+
+TEST_ISO_EXIT=0
