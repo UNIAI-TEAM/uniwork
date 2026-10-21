@@ -7,10 +7,13 @@ const ARIA_KEYS: Record<string, string> = {
   Down: "ArrowDown",
   Left: "ArrowLeft",
   Right: "ArrowRight",
-  Plus: "+",
+  // `Plus` and `Space` stay words: "+" is the chord separator and a space
+  // would split the space-separated attribute list.
+  Plus: "Plus",
   Minus: "-",
   Equals: "=",
-  Space: " ",
+  Underscore: "_",
+  Space: "Space",
 };
 
 /**
