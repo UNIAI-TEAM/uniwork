@@ -458,6 +458,9 @@ func (s *DocumentService) ListDocuments(ctx context.Context, actor Actor, worksp
 	if err != nil {
 		return DocumentListPage{}, err
 	}
+	if err := s.attachFolderEmptiness(ctx, actor, workspaceID, page.Items); err != nil {
+		return DocumentListPage{}, err
+	}
 	if err := s.attachListFacts(ctx, page.Items); err != nil {
 		return DocumentListPage{}, err
 	}

@@ -1430,6 +1430,94 @@ func (q *Queries) ListDocumentsPage(ctx context.Context, arg ListDocumentsPagePa
 	return items, nil
 }
 
+const listFoldersHoldingReadableDocuments = `-- name: ListFoldersHoldingReadableDocuments :many
+SELECT DISTINCT d.parent_id::text AS folder_id
+FROM documents d
+WHERE d.organization_id = $1
+  AND d.workspace_id = $2
+  AND d.parent_id = ANY($3::text[])
+  AND d.owner_id IS NULL
+  AND d.archived_at IS NULL
+  AND d.shelved_at IS NULL
+  AND (($4
+        AND (d.system_kind IS NULL OR d.system_kind <> 'my_folder' OR d.acl_owner_id = $5)
+        -- MYFOLDER-01 (UNI-1891): exclude a foreign My Folder row the see_all
+        -- (admin) leg would otherwise add. The row stays when the actor is
+        -- its ACL owner, it is workspace-visible at share_levels (what the
+        -- member predicate would admit), or it is not in the foreign set; a
+        -- live share is the OR below. Removes only what admin scope ADDS.
+        -- Set: uw_my_folder_foreign_ids (migration 9991792289293597).
+        AND (d.acl_owner_id = $5
+             OR (d.visibility = 'workspace' AND d.workspace_level = ANY($6::text[]))
+             OR NOT EXISTS (
+                  SELECT 1 FROM uw_my_folder_foreign_ids(
+                    $5, $1, $2, $7::int
+                  ) mfs WHERE mfs.document_id = d.id)))
+       OR ($8 AND d.visibility = 'workspace'
+           AND d.workspace_level = ANY($6::text[]))
+       OR ($9 AND d.acl_owner_id = $5)
+       OR ($10 AND EXISTS (
+            SELECT 1 FROM document_shares s
+            WHERE s.organization_id = d.organization_id
+              AND s.workspace_id = d.workspace_id
+              AND s.document_id = d.id
+              AND s.revoked_at IS NULL
+              AND ((s.principal_type = 'user' AND s.principal_id = $5)
+                   OR (s.principal_type = 'organization' AND s.principal_id = d.organization_id)
+                   OR (s.principal_type = 'workspace'
+                       AND s.principal_id = ANY($11::text[]))))))
+`
+
+type ListFoldersHoldingReadableDocumentsParams struct {
+	OrganizationID  string      `json:"organization_id"`
+	WorkspaceID     string      `json:"workspace_id"`
+	FolderIds       []string    `json:"folder_ids"`
+	SeeAll          interface{} `json:"see_all"`
+	ActorID         pgtype.Text `json:"actor_id"`
+	ShareLevels     []string    `json:"share_levels"`
+	MaxLevel        int32       `json:"max_level"`
+	MemberVisible   interface{} `json:"member_visible"`
+	AclOwner        interface{} `json:"acl_owner"`
+	AllowShares     interface{} `json:"allow_shares"`
+	ShareWorkspaces []string    `json:"share_workspaces"`
+}
+
+// ADR 0037 (UNI-2055): which of the given folders hold at least one live,
+// unshelved row the caller may list directly inside them - the per-viewer
+// is_empty of a folder row. The reader predicate is ListTreeDocuments' own,
+// so a list row and a tree node can never disagree.
+func (q *Queries) ListFoldersHoldingReadableDocuments(ctx context.Context, arg ListFoldersHoldingReadableDocumentsParams) ([]string, error) {
+	rows, err := q.db.Query(ctx, listFoldersHoldingReadableDocuments,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.FolderIds,
+		arg.SeeAll,
+		arg.ActorID,
+		arg.ShareLevels,
+		arg.MaxLevel,
+		arg.MemberVisible,
+		arg.AclOwner,
+		arg.AllowShares,
+		arg.ShareWorkspaces,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var folder_id string
+		if err := rows.Scan(&folder_id); err != nil {
+			return nil, err
+		}
+		items = append(items, folder_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listRecentDocumentsPage = `-- name: ListRecentDocumentsPage :many
 SELECT d.id, d.organization_id, d.workspace_id, d.parent_id, d.kind, d.title, d.icon, d.visibility, d.content, d.content_text, d.search_text, d.content_bytes, d.current_version, d.file_version_id, d.revision, d.position, d.owner_kind, d.owner_id, d.acl_owner_id, d.source_document_id, d.source_version_id, d.source_revision, d.source_format, d.source_engine, d.target_format, d.source_checksum_sha256, d.conversion_reason, d.created_by, d.created_by_kind, d.updated_by, d.updated_by_kind, d.content_saved_at, d.last_version_at, d.archived_at, d.archived_by, d.purge_after, d.created_at, d.updated_at, d.archive_batch_id, d.content_revision, d.workspace_level, d.system_kind, d.shelved_at, d.shelved_by, d.shelved_by_kind, d.shelve_batch_id,
        sk.name_key AS sort_name, sk.size_key AS sort_size,

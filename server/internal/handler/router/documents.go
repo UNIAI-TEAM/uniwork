@@ -691,30 +691,30 @@ func registerDocuments(r, callerDocs api, h Routes, flags *featureflag.Service, 
 	})
 	d.Post("/documents/{documentID}/archive", h.ArchiveDocument, apiOp{
 		summary:     "Archive a document subtree",
-		description: "Đưa tài liệu (hoặc thư mục) và cả cây con vào thùng rác trong một transaction sau khi kiểm manage trên từng node sống; node restricted không manage được sẽ chặn cả lệnh; quá 1000 node sống -> 422 folder_too_large (hãy lưu trữ từng phần). Idempotency-Key replay trả kết quả đã lưu.",
+		description: "Đưa tài liệu (hoặc thư mục) và cả cây con vào thùng rác trong một transaction sau khi kiểm manage trên từng node sống; node restricted không manage được sẽ chặn cả lệnh — trừ thư mục chung của workspace (ADR 0037): chỉ người tạo và admin workspace/tổ chức bỏ được, mọi thư mục con vào thùng rác cùng lô, còn trang/tệp người gọi không manage được (không thấy, hoặc thấy mà không quản lý) chuyển về gốc workspace kèm cây con, giữ nguyên quyền và tên, mỗi tài liệu một audit document.moved (metadata.reason=folder_trashed); quá 1000 node sống -> 422 folder_too_large (hãy lưu trữ từng phần). Idempotency-Key replay trả kết quả đã lưu.",
 		tags:        []string{"documents"},
 		sdo:         sdo.DocumentArchiveSDO{},
 		auth:        true,
 	})
 	d.Get("/documents/{documentID}/archive-impact", h.ArchiveImpact, apiOp{
 		summary: "Read the archive impact of a subtree",
-		description: "Số đếm cho hộp thoại xóa (FD-04): {folders, documents, total, max_nodes, too_large}, đọc trong một transaction RepeatableRead read-only nên id, quyền và số đến từ một snapshot. " +
+		description: "Số đếm cho hộp thoại xóa (FD-04): {folders, documents, total, max_nodes, too_large, relocated_count}, đọc trong một transaction RepeatableRead read-only nên id, quyền và số đến từ một snapshot. " +
 			"Cùng thứ tự kiểm với lệnh lưu trữ: manage trên gốc (không đủ -> cùng 403/404), cây con sống giới hạn 1000 nút, manage trên từng nút của đúng tập id đó. " +
-			"folders/documents không gồm gốc (trang con trong trang tính là documents); total gồm gốc = số dòng lệnh lưu trữ sẽ ghi. Vượt trần -> {too_large: true, max_nodes: 1000}, không có số đếm. Không ghi audit.",
+			"folders/documents không gồm gốc (trang con trong trang tính là documents); total gồm gốc = số dòng lệnh lưu trữ sẽ ghi. Thư mục chung của workspace: relocated_count = số tài liệu sẽ chuyển về gốc workspace thay vì vào thùng rác (chỉ con số), folders/documents/total chỉ đếm phần vào thùng rác. Vượt trần -> {too_large: true, max_nodes: 1000}, không có số đếm. Không ghi audit.",
 		tags: []string{"documents"},
 		sdo:  sdo.DocumentArchiveImpactSDO{},
 		auth: true,
 	})
 	d.Post("/documents/{documentID}/restore", h.RestoreDocument, apiOp{
 		summary:     "Restore an archived document",
-		description: "Khôi phục mục trong thùng rác và các hậu duệ cùng batch còn trong thùng rác mà người gọi quản lý (RESTORE-01 §1); hậu duệ không quản lý ở lại thùng rác. Idempotency-Key replay trả kết quả đã lưu.",
+		description: "Khôi phục mục trong thùng rác và các hậu duệ cùng batch còn trong thùng rác mà người gọi quản lý (RESTORE-01 §1); hậu duệ không quản lý ở lại thùng rác. Thư mục chung của workspace: mọi thư mục con cùng batch về theo; tài liệu đã chuyển về gốc khi bỏ thư mục ở lại gốc; thành viên chỉ đọc thư mục -> 403. Idempotency-Key replay trả kết quả đã lưu.",
 		tags:        []string{"documents"},
 		sdo:         sdo.DocumentArchiveSDO{},
 		auth:        true,
 	})
 	d.Post("/documents/{documentID}/purge", h.PurgeDocument, apiOp{
 		summary:     "Permanently delete an archived document",
-		description: "Xóa vĩnh viễn một mục đang trong thùng rác và các hậu duệ cùng batch còn trong thùng rác mà người gọi quản lý (RESTORE-01 §2): dọn mọi bảng phụ thuộc, nhả blob qua FileService và ghi audit/outbox document.deleted (metadata manual_purge=true) trong một transaction. Mục đang sống -> 400 document_not_in_trash; dưới manage -> 403; không thấy -> 404; quá 1000 nút -> 400 folder_too_large.",
+		description: "Xóa vĩnh viễn một mục đang trong thùng rác và các hậu duệ cùng batch còn trong thùng rác mà người gọi quản lý (RESTORE-01 §2): dọn mọi bảng phụ thuộc, nhả blob qua FileService và ghi audit/outbox document.deleted (metadata manual_purge=true) trong một transaction. Mục đang sống -> 400 document_not_in_trash; dưới manage -> 403 (thư mục chung của workspace: thành viên chỉ đọc cũng 403, không phải 404); không thấy -> 404; quá 1000 nút -> 400 folder_too_large.",
 		tags:        []string{"documents"},
 		status:      http.StatusNoContent,
 		auth:        true,

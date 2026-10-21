@@ -1028,6 +1028,47 @@ WHERE d.organization_id = sqlc.arg(organization_id)
                        AND s.principal_id = ANY(sqlc.arg(share_workspaces)::text[]))))))
 ORDER BY d.position, d.id;
 
+-- ADR 0037 (UNI-2055): which of the given folders hold at least one live,
+-- unshelved row the caller may list directly inside them - the per-viewer
+-- is_empty of a folder row. The reader predicate is ListTreeDocuments' own,
+-- so a list row and a tree node can never disagree.
+-- name: ListFoldersHoldingReadableDocuments :many
+SELECT DISTINCT d.parent_id::text AS folder_id
+FROM documents d
+WHERE d.organization_id = sqlc.arg(organization_id)
+  AND d.workspace_id = sqlc.arg(workspace_id)
+  AND d.parent_id = ANY(sqlc.arg(folder_ids)::text[])
+  AND d.owner_id IS NULL
+  AND d.archived_at IS NULL
+  AND d.shelved_at IS NULL
+  AND ((sqlc.arg(see_all)
+        AND (d.system_kind IS NULL OR d.system_kind <> 'my_folder' OR d.acl_owner_id = sqlc.arg(actor_id))
+        -- MYFOLDER-01 (UNI-1891): exclude a foreign My Folder row the see_all
+        -- (admin) leg would otherwise add. The row stays when the actor is
+        -- its ACL owner, it is workspace-visible at share_levels (what the
+        -- member predicate would admit), or it is not in the foreign set; a
+        -- live share is the OR below. Removes only what admin scope ADDS.
+        -- Set: uw_my_folder_foreign_ids (migration 9991792289293597).
+        AND (d.acl_owner_id = sqlc.arg(actor_id)
+             OR (d.visibility = 'workspace' AND d.workspace_level = ANY(sqlc.arg(share_levels)::text[]))
+             OR NOT EXISTS (
+                  SELECT 1 FROM uw_my_folder_foreign_ids(
+                    sqlc.arg(actor_id), sqlc.arg(organization_id), sqlc.arg(workspace_id), sqlc.arg(max_level)::int
+                  ) mfs WHERE mfs.document_id = d.id)))
+       OR (sqlc.arg(member_visible) AND d.visibility = 'workspace'
+           AND d.workspace_level = ANY(sqlc.arg(share_levels)::text[]))
+       OR (sqlc.arg(acl_owner) AND d.acl_owner_id = sqlc.arg(actor_id))
+       OR (sqlc.arg(allow_shares) AND EXISTS (
+            SELECT 1 FROM document_shares s
+            WHERE s.organization_id = d.organization_id
+              AND s.workspace_id = d.workspace_id
+              AND s.document_id = d.id
+              AND s.revoked_at IS NULL
+              AND ((s.principal_type = 'user' AND s.principal_id = sqlc.arg(actor_id))
+                   OR (s.principal_type = 'organization' AND s.principal_id = d.organization_id)
+                   OR (s.principal_type = 'workspace'
+                       AND s.principal_id = ANY(sqlc.arg(share_workspaces)::text[]))))));
+
 -- "Recent": documents the actor touched - opened (an access-log row of theirs),
 -- edited (updated_by) or commented (a comment of theirs) - permission-filtered.
 -- UNI-2045 SV-1: every row carries the caller's last activity (kind + time, the

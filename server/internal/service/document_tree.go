@@ -414,6 +414,15 @@ func (s *DocumentService) DocumentTree(ctx context.Context, actor Actor, workspa
 	}
 	byID := make(map[string]db.Document, len(rows))
 	children := make(map[string][]db.Document, len(rows))
+	// A folder is empty for this caller when no row they may list sits
+	// directly in it (ADR 0037): counted before the folder cut, so the
+	// FOLDERS sidebar still knows a folder holds pages.
+	holds := make(map[string]bool, len(rows))
+	for _, d := range rows {
+		if d.ParentID.Valid {
+			holds[d.ParentID.String] = true
+		}
+	}
 	for _, d := range rows {
 		// The folder cut drops the row before any edge is built, so a page
 		// never drags its children into the folder forest.
@@ -449,7 +458,7 @@ func (s *DocumentService) DocumentTree(ctx context.Context, actor Actor, workspa
 				roots = append(roots, d)
 			}
 		}
-		nodes = buildTreeNodes(roots, children, 1)
+		nodes = buildTreeNodes(roots, children, holds, 1)
 		for i := range nodes {
 			if promoted[nodes[i].ID] {
 				// Shown on its own: the owner's folder is not named.
@@ -460,12 +469,12 @@ func (s *DocumentService) DocumentTree(ctx context.Context, actor Actor, workspa
 		if _, ok := byID[rootID]; !ok {
 			return nil, ErrNotFound
 		}
-		nodes = buildTreeNodes(children[rootID], children, 1)
+		nodes = buildTreeNodes(children[rootID], children, holds, 1)
 	}
 	return nodes, s.attachTreeEditLocks(ctx, actor, scope.organizationID, nodes)
 }
 
-func buildTreeNodes(docs []db.Document, children map[string][]db.Document, depth int) []DocumentTreeNode {
+func buildTreeNodes(docs []db.Document, children map[string][]db.Document, holds map[string]bool, depth int) []DocumentTreeNode {
 	nodes := make([]DocumentTreeNode, 0, len(docs))
 	for _, d := range docs {
 		node := DocumentTreeNode{
@@ -478,8 +487,12 @@ func buildTreeNodes(docs []db.Document, children map[string][]db.Document, depth
 			Position:   d.Position,
 			Children:   []DocumentTreeNode{},
 		}
+		if d.Kind == DocumentKindFolder {
+			empty := !holds[d.ID]
+			node.IsEmpty = &empty
+		}
 		if depth < maxDocumentDepth {
-			node.Children = buildTreeNodes(children[d.ID], children, depth+1)
+			node.Children = buildTreeNodes(children[d.ID], children, holds, depth+1)
 		}
 		nodes = append(nodes, node)
 	}

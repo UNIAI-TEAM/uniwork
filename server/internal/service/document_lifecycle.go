@@ -26,7 +26,9 @@ import (
 // Archive stamps the whole subtree in one transaction after a manage check
 // on EVERY affected node - a restricted child the caller cannot manage makes
 // the whole command fail rather than leaving a live orphan behind an
-// archived parent. One archive_batch_id groups the operation's rows; restore
+// archived parent. A workspace folder is the exception (ADR 0037 point 5,
+// document_folder_trash.go): what its caller cannot manage moves to the
+// workspace root instead. One archive_batch_id groups the operation's rows; restore
 // brings back exactly that batch and re-roots a node whose own parent stayed
 // in the trash.
 //
@@ -166,6 +168,7 @@ func (s *DocumentService) managedArchivedSubtree(ctx context.Context, q *db.Quer
 			return nil, err
 		}
 	}
+	workspaceRoot := isWorkspaceFolder(rootRow)
 	members := make([]db.Document, 0, len(subtree))
 	for _, m := range subtree {
 		if !m.ArchivedAt.Valid {
@@ -176,6 +179,14 @@ func (s *DocumentService) managedArchivedSubtree(ctx context.Context, q *db.Quer
 			continue
 		}
 		if m.OwnerKind.Valid || isMyFolder(m) {
+			continue
+		}
+		// The trash of a workspace folder took every workspace folder below
+		// it whoever made it (ADR 0037 point 5): the caller who may restore or
+		// purge the root takes them back the same way. A legacy private
+		// folder keeps the manage rule.
+		if workspaceRoot && isWorkspaceFolder(m) {
+			members = append(members, m)
 			continue
 		}
 		if isAdmin || (isMember && m.AclOwnerID.Valid && m.AclOwnerID.String == actor.ID) {
@@ -339,19 +350,36 @@ func (s *DocumentService) archiveLockedSubtree(ctx context.Context, q *db.Querie
 	// command sorts the ids it did read: the refusal order and the log
 	// stay stable however the planner returns them.
 	sort.Strings(live)
-	// Never archive a restricted child the caller cannot manage: refuse the
-	// whole command, never leave the child orphaned live. A root-only gate
-	// covers a file with nothing under it; anything else takes the full check.
-	if !rootOnly || len(live) != 1 || live[0] != doc.ID {
+	trash := live
+	var relocate []db.Document
+	if isWorkspaceFolder(doc) {
+		// ADR 0037 point 5: a workspace folder is trashed whatever it holds;
+		// what the caller cannot manage leaves for the workspace root.
+		if trash, relocate, err = s.planFolderTrash(ctx, q, actor, doc, live); err != nil {
+			return nil, "", nil, err
+		}
+	} else if !rootOnly || len(live) != 1 || live[0] != doc.ID {
+		// Never archive a restricted child the caller cannot manage: refuse
+		// the whole command, never leave the child orphaned live. A root-only
+		// gate covers a file with nothing under it; anything else takes the
+		// full check.
 		if err := s.requireManageOnSubtree(ctx, q, actor, doc, live); err != nil {
 			return nil, "", nil, err
 		}
 	}
 	batch := util.NewID()
+	if err := s.relocateOutOfTrashedFolder(ctx, q, actor, doc, batch, relocate); err != nil {
+		return nil, "", nil, err
+	}
+	if folderTrashAfterRelocate != nil {
+		if err := folderTrashAfterRelocate(ctx); err != nil {
+			return nil, "", nil, err
+		}
+	}
 	stamped, err := q.ArchiveDocumentBatch(ctx, db.ArchiveDocumentBatchParams{
 		OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID,
 		ArchivedBy: nullText(actor.ID), PurgeAfter: pgtype.Timestamptz{Time: s.now().Add(documentRetentionDays * 24 * time.Hour), Valid: true},
-		ArchiveBatchID: pgtype.Text{String: batch, Valid: true}, Ids: live,
+		ArchiveBatchID: pgtype.Text{String: batch, Valid: true}, Ids: trash,
 	})
 	if err != nil {
 		return nil, "", nil, err
@@ -483,17 +511,26 @@ func (s *DocumentService) ArchiveImpact(ctx context.Context, actor Actor, docume
 	sort.Strings(live)
 	// (3) the archive command's own gate on exactly this id set: one node the
 	// caller cannot manage refuses the whole read, and the body never carries
-	// a number.
+	// a number. A workspace folder takes the command's plan instead: what
+	// would relocate is counted, never named.
 	// The pristine-copy root holds nothing under it (the command's own skip).
-	if !pristine || len(live) != 1 || live[0] != doc.ID {
+	trash := live
+	if isWorkspaceFolder(doc) {
+		var relocate []db.Document
+		if trash, relocate, err = s.planFolderTrash(ctx, q, actor, doc, live); err != nil {
+			return DocumentArchiveImpact{}, err
+		}
+		out.Relocated = len(relocate)
+	} else if !pristine || len(live) != 1 || live[0] != doc.ID {
 		if err := s.requireManageOnSubtree(ctx, q, actor, doc, live); err != nil {
 			return DocumentArchiveImpact{}, err
 		}
 	}
-	// (4) count on exactly that id set. page and file are both "documents" to
-	// the dialog; the root is counted only in the total.
+	// (4) count on exactly the id set the archive would stamp. page and file
+	// are both "documents" to the dialog; the root is counted only in the
+	// total.
 	rows, err := q.CountLiveDocumentSubtreeByKind(ctx, db.CountLiveDocumentSubtreeByKindParams{
-		OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID, Ids: live, RootID: doc.ID,
+		OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID, Ids: trash, RootID: doc.ID,
 	})
 	if err != nil {
 		return DocumentArchiveImpact{}, err
@@ -765,7 +802,13 @@ func (s *DocumentService) restoreNames(ctx context.Context, q *db.Queries, root 
 func decideArchiveRootAccess(doc db.Document, access DocumentAccess) error {
 	if doc.ArchivedAt.Valid && !access.Level.AtLeast(DocumentLevelEdit) && !access.AdminScope {
 		// Below edit a trashed item is hidden, restore/purge included: an
-		// agent or a view holder gets not found, never a confirmation.
+		// agent or a view holder gets not found, never a confirmation. A
+		// workspace folder is the exception (ADR 0037 point 4): its name was
+		// the whole workspace's, so a member who reads it is refused, not
+		// told it does not exist.
+		if isWorkspaceFolder(doc) && access.Level != DocumentLevelNone {
+			return ErrForbidden
+		}
 		return ErrNotFound
 	}
 	if access.Level == DocumentLevelNone && !access.AdminScope {

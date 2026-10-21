@@ -1412,6 +1412,25 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				audit.ActionDocumentMoved, folder).Scan(&n); err != nil || n != 1 {
 				t.Fatalf("MoveFoldersIntoMyFolder wrote %d document.moved rows (%v), want 1", n, err)
 			}
+			// UNI-2055 S2: trashing a workspace folder moves a document the
+			// actor cannot manage to the workspace root (reason folder_trashed).
+			f.addMember(t)
+			wsFolder, err := svc.CreatePage(f.ctx, Human(f.member.ID), f.workspace.ID, CreatePageInput{Kind: DocumentKindFolder, Title: "Thư mục chung"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			owners, err := svc.CreatePage(f.ctx, Human(f.owner.ID), f.workspace.ID, CreatePageInput{ParentID: wsFolder.Document.ID, Title: "Trang riêng"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := svc.ArchiveDocument(f.ctx, Human(f.member.ID), wsFolder.Document.ID, ArchiveDocumentInput{}); err != nil {
+				t.Fatal(err)
+			}
+			if err := f.pool.QueryRow(f.ctx,
+				`SELECT count(*) FROM audit_events WHERE action = $1 AND resource_id = $2 AND metadata::jsonb->>'reason' = $3 AND metadata::jsonb->>'from_folder_id' = $4`,
+				audit.ActionDocumentMoved, owners.Document.ID, audit.ReasonFolderTrashed, wsFolder.Document.ID).Scan(&n); err != nil || n != 1 {
+				t.Fatalf("folder trash wrote %d folder_trashed document.moved rows (%v), want 1", n, err)
+			}
 		},
 		audit.ActionDocumentArchived: func(t *testing.T, f *auditFixture) {
 			svc, docID := f.document(t)

@@ -486,6 +486,7 @@ func toDocumentSummaryDTO(item service.DocumentListItem) sdo.DocumentSummaryDTO 
 	dto.EditLock = documentRowEditLockSDO(item.EditLock)
 	dto.ShareScope = documentRowShareScopeSDO(item.ShareScope)
 	dto.IsOwner = &item.IsOwner
+	dto.IsEmpty = item.IsEmpty
 	dto.UpdatedByUser = editorSDO(item.UpdatedByUser)
 	if item.FavoritedAt != nil {
 		at := item.FavoritedAt.UTC().Format(time.RFC3339)
@@ -639,6 +640,7 @@ func documentTreeDTOs(nodes []service.DocumentTreeNode) []sdo.DocumentTreeNodeDT
 			ID: n.ID, Title: n.Title, Kind: n.Kind, Position: n.Position,
 			Children: documentTreeDTOs(n.Children),
 			EditLock: documentRowEditLockSDO(n.EditLock),
+			IsEmpty:  n.IsEmpty,
 		}
 		if n.ParentID != "" {
 			parent := n.ParentID
@@ -680,6 +682,8 @@ func documentArchiveImpactSDO(impact service.DocumentArchiveImpact) sdo.Document
 		Total:     impact.Total,
 		MaxNodes:  impact.MaxNodes,
 		TooLarge:  impact.TooLarge,
+
+		RelocatedCount: impact.Relocated,
 	}
 }
 

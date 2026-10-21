@@ -211,7 +211,7 @@ func TestFolderTrashRelocationAuditHook(t *testing.T) {
 
 	countMoved := func() (auditRows, outboxRows int) {
 		auditRows = e.count(t, `SELECT count(*) FROM audit_events WHERE action = 'document.moved' AND resource_id = $1
-			AND metadata->>'reason' = $2`, hidden.ID, audit.ReasonFolderTrashed)
+			AND metadata::jsonb->>'reason' = $2`, hidden.ID, audit.ReasonFolderTrashed)
 		outboxRows = e.count(t, `SELECT count(*) FROM outbox_events WHERE topic = 'document.moved'
 			AND payload::jsonb->>'document_id' = $1 AND correlation_id = $2`, hidden.ID, corr)
 		return
@@ -239,8 +239,8 @@ func TestFolderTrashRelocationAuditHook(t *testing.T) {
 		t.Fatalf("after commit: %d audit, %d outbox rows, want one each", a, o)
 	}
 	var resourceType, reason, from, batch, auditCorr string
-	if err := e.f.pool.QueryRow(e.f.ctx, `SELECT resource_type, metadata->>'reason', metadata->>'from_folder_id',
-		metadata->>'batch_id', correlation_id FROM audit_events WHERE action = 'document.moved' AND resource_id = $1`,
+	if err := e.f.pool.QueryRow(e.f.ctx, `SELECT resource_type, metadata::jsonb->>'reason', metadata::jsonb->>'from_folder_id',
+		metadata::jsonb->>'batch_id', correlation_id FROM audit_events WHERE action = 'document.moved' AND resource_id = $1`,
 		hidden.ID).Scan(&resourceType, &reason, &from, &batch, &auditCorr); err != nil {
 		t.Fatal(err)
 	}
