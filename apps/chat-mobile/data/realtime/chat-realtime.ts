@@ -190,7 +190,11 @@ export function createChatRealtime(qc: QueryClient, deps: ChatRealtimeDeps) {
     }
   }
 
-  /** Frames sent while the socket was down are gone: each cache refreshes its own keys (ADR 0011 §5). */
+  /**
+   * Frames sent while the socket was down are gone: each cache refreshes its own keys (ADR 0011 §5).
+   * A change log with GET /chat/sync?since=<seq> would make this one request; it waits on its ADR
+   * (docs/adr/drafts/0039-dong-bo-chat-theo-nhat-ky-thay-doi.md, UNI-2071) and is effort L.
+   */
   function reconnect(): void {
     schedule(chatKeys.rooms(wsId), chatKeys.nicknames(wsId), chatKeys.members(wsId), chatKeys.callLogs(wsId), chatKeys.unreadSummary());
     void qc.invalidateQueries({ queryKey: chatKeys.threadsRoot(wsId) });
