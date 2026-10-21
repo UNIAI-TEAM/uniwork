@@ -1,0 +1,6 @@
+$ ls -la /tmp/pr7r6-cover-go-rest.out; b=$(git hash-object -w /tmp/pr7r6-cover-go-rest.out); echo "COVER_BLOB=go-rest=$b"; git push origin "$b:refs/test-artifacts/pr7-rehearsal-r6/go-rest-7abf4622d" > /tmp/pr7r6-push-go-rest.log 2>&1; rc=$?; tail -2 /tmp/pr7r6-push-go-rest.log; echo "COVER_PUSH_EXIT=$rc"
+-rw-r--r-- 1 ubuntu ubuntu 981274 Oct 21 10:36 /tmp/pr7r6-cover-go-rest.out
+COVER_BLOB=go-rest=0499a7646dcab6dbeb81470381e566c8a0f8e3e3
+To https://github.com/UNIAI-TEAM/uniwork
+ * [new reference]       0499a7646dcab6dbeb81470381e566c8a0f8e3e3 -> refs/test-artifacts/pr7-rehearsal-r6/go-rest-7abf4622d
+COVER_PUSH_EXIT=0

@@ -1,0 +1,6 @@
+$ . scripts/local-env.sh; unset OPENAI_API_KEY OPENAI_BASE_URL; export REDIS_TEST_URL=redis://localhost:6379/1 AI_PROVIDER=fake CGO_ENABLED=1; bash scripts/ensure-postgres.sh >/dev/null 2>&1; export GOFLAGS=-v UNIWORK_GO_COVER_OUT=/tmp/pr7r6-cover-go-rest.out; nohup bash -c "bash scripts/test-go.sh --race --shard=rest  --skip-floor > /tmp/pr7r6-go-rest.log 2>&1; echo \$? > /tmp/pr7r6-go-rest.exit" >/dev/null 2>&1 & echo "STARTED_PID=$!"; sleep 5; tail -3 /tmp/pr7r6-go-rest.log
+warning: STORAGE_BACKEND is unset and MINIO_* is empty; the server will refuse to start.
+         set STORAGE_BACKEND=local with LOCAL_UPLOAD_DIR, or configure MinIO (see .env.example).
+STARTED_PID=17348
+warning: STORAGE_BACKEND is unset and MINIO_* is empty; the server will refuse to start.
+         set STORAGE_BACKEND=local with LOCAL_UPLOAD_DIR, or configure MinIO (see .env.example).
