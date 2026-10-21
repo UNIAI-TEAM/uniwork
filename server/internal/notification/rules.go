@@ -164,6 +164,10 @@ var rules = map[string]rule{
 	"chat.reminder.due":      ruleChatReminderDue,
 	"email_hub.new_mail":     ruleEmailHubNewMail,
 	"meeting.ended":          ruleMeetingEnded,
+	// UNI-2026: the auto summary made none, so the reminder comes after all;
+	// a summary the system made tells the host and the secretaries.
+	"meeting.auto_summary_failed": ruleMeetingEnded,
+	"summary.created":             ruleSummaryCreated,
 
 	"chat.message.mentioned":     chatMessageRule(KindChatMentioned),
 	"chat.dm.received":           chatMessageRule(KindChatDM),
@@ -1463,6 +1467,10 @@ func ruleChatReminderDue(ctx context.Context, e env, ev outbox.Row, p map[string
 
 // ruleMeetingEnded nudges the host to summarize a meeting that has something
 // to summarize and no summary yet (C-11 §9.1 V1). It never calls a model.
+// While the meeting waits in the auto summary queue (UNI-2026) it stays
+// quiet: the worker settles the row and, when no summary came of it, emits
+// meeting.auto_summary_failed, which runs this rule again. Once per group,
+// so the two topics never remind twice.
 // Personal reminder: the host is the recipient even when they ended the
 // meeting themselves, so the draft is built here rather than through
 // recipients.add, which drops the actor.
@@ -1500,6 +1508,9 @@ func ruleMeetingEnded(ctx context.Context, e env, ev outbox.Row, p map[string]st
 	if !has {
 		return nil, nil
 	}
+	if queued, err := e.q.MeetingAutoSummaryQueued(ctx, m.ID); err != nil || queued {
+		return nil, err
+	}
 	if _, err := e.members.RequireMember(ctx, m.WorkspaceID, m.HostUserID); err != nil {
 		if refused(err) {
 			return nil, nil
@@ -1511,6 +1522,52 @@ func ruleMeetingEnded(ctx context.Context, e env, ev outbox.Row, p map[string]st
 		Kind: KindMeetingSummaryReminder, GroupKey: "meeting:" + m.ID + ":summary_reminder",
 		ResourceType: "meeting", ResourceID: m.ID,
 		ActorKind: string(audit.KindSystem), ActorID: "meeting_summary_reminder",
-		Params: map[string]string{"meeting": m.Title},
+		Params: map[string]string{"meeting": m.Title}, OncePerGroup: true,
 	}}, nil
+}
+
+// ruleSummaryCreated tells the host and the secretaries that the system
+// summarized their ended meeting (UNI-2026, scribe spec §4.5, §9): review it
+// and turn its items into tasks. A summary a person made tells nobody - they
+// are looking at it. Only the meeting's newest summary counts.
+func ruleSummaryCreated(ctx context.Context, e env, ev outbox.Row, p map[string]string) ([]Draft, error) {
+	m, err := e.q.GetMeeting(ctx, p["meeting_id"])
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	// GetMeeting is by-id: the row must belong to the event's tenant.
+	if (ev.OrganizationID.Valid && m.OrganizationID != ev.OrganizationID.String) ||
+		(ev.WorkspaceID.Valid && m.WorkspaceID != ev.WorkspaceID.String) {
+		return nil, nil
+	}
+	sum, err := e.q.GetLatestMeetingSummary(ctx, m.ID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	if sum.ID != p["summary_id"] || sum.CreatedByKind != string(audit.KindSystem) {
+		return nil, nil
+	}
+	ps, err := e.q.ListMeetingParticipants(ctx, m.ID)
+	if err != nil {
+		return nil, err
+	}
+	r := newRecipients(ctx, e, ev, m.WorkspaceID)
+	r.add(m.HostUserID)
+	for _, pt := range ps {
+		if pt.IsSecretary && pt.UserID.Valid {
+			r.add(pt.UserID.String)
+		}
+	}
+	ds, err := r.drafts(m.OrganizationID, KindMeetingSummaryReady, "meeting:"+m.ID+":summary_ready",
+		"meeting", m.ID, map[string]string{"meeting": m.Title})
+	for i := range ds {
+		ds[i].OncePerGroup = true
+	}
+	return ds, err
 }

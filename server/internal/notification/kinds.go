@@ -19,10 +19,13 @@ const (
 	KindMeetingStarting   = "meeting_starting"
 	// Nudge after a meeting ends with something to summarize (C-11 §9.1 V1).
 	KindMeetingSummaryReminder = "meeting_summary_reminder"
-	KindMemberAdded            = "member_added"
-	KindRoleChanged            = "role_changed"
-	KindAuditExportReady       = "audit_export_ready"
-	KindChatFollowUp           = "chat_follow_up"
+	// The system summarized an ended meeting (UNI-2026, scribe spec §4.5): it
+	// replaces the reminder for that meeting.
+	KindMeetingSummaryReady = "meeting_summary_ready"
+	KindMemberAdded         = "member_added"
+	KindRoleChanged         = "role_changed"
+	KindAuditExportReady    = "audit_export_ready"
+	KindChatFollowUp        = "chat_follow_up"
 	// A chat reminder came due (H16), fired by the server's reminder worker.
 	KindChatReminder    = "chat_reminder"
 	KindEmailHubNewMail = "email_hub_new_mail"
@@ -76,7 +79,7 @@ const (
 // Kinds is the list in display order.
 var Kinds = []string{
 	KindTaskAssigned, KindTasksAssigned, KindTaskStatusChanged, KindTaskCommented, KindMentioned,
-	KindMeetingInvited, KindMeetingStarting, KindMeetingSummaryReminder,
+	KindMeetingInvited, KindMeetingStarting, KindMeetingSummaryReminder, KindMeetingSummaryReady,
 	KindMemberAdded, KindRoleChanged, KindAuditExportReady, KindChatFollowUp, KindChatReminder, KindEmailHubNewMail,
 	KindDocumentCommented, KindDocumentMentioned, KindDocumentBodyMentioned,
 	KindDocumentCommentReplied, KindDocumentDiscussionMentioned, KindDocumentDiscussionReplied, KindDocumentCommentResolved,
