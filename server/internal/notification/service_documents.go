@@ -107,6 +107,10 @@ type trashedPageChecker interface {
 	FilterReadableDocumentsIgnoringTrash(ctx context.Context, userID string, documentIDs []string) (map[string]service.DocumentReadState, error)
 }
 
+// A renamed or wrapped FilterReadableDocumentsIgnoringTrash must fail to
+// compile, not silently fall back to the manager-only gate (BE-R3-3).
+var _ trashedPageChecker = (*service.DocumentService)(nil)
+
 // documentCard is what the documents table says about one id.
 type documentCard struct {
 	db.ListDocumentCardsByIDsRow
