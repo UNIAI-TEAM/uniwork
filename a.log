@@ -1,0 +1,8 @@
+$ git rev-parse HEAD; git log --oneline -3; free -m | head -2; nproc
+1ffea6702eb49b44be1f31b32fd54d023ea30264
+1ffea6702 chore: merge root 1b9b3c59c (UNI-2039 access report + share origin, UNI-2045 doclist, UNI-2033/2046) into UNI-2012
+a75796d97 test(chat): pin the document sends to one connection, drop the TEMP diagnostic (UNI-2012 RACE-FIX)
+b1fa6ba3c fix(chat): re-check the send gate on the commit transaction's connection (UNI-2012 RACE-FIX)
+               total        used        free      shared  buff/cache   available
+Mem:           16003       11441        1317          56        3630        4561
+4
