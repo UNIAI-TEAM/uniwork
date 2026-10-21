@@ -18,6 +18,7 @@ import {
   type RoomTimeline,
 } from "./chat-timeline";
 import { chatKeys } from "./queries/chat-keys";
+import { sameUser } from "@/lib/user-id";
 
 /** Who is looking: the signed-in user and the room open on screen. */
 export interface ChatViewer {
@@ -292,7 +293,7 @@ function withPeerRead(room: ChatRoomRecord): ChatRoomRecord {
  * peer's read moves a DM's "Seen" locally instead of refetching the list (C3).
  */
 export function patchChatRoomRead(qc: QueryClient, wsId: string, viewerId: string, roomId: string, userId: string): void {
-  const isSelf = userId.toUpperCase() === viewerId.toUpperCase();
+  const isSelf = sameUser(userId, viewerId);
   qc.setQueryData<ChatRoomRecord[]>(chatKeys.rooms(wsId), (old) =>
     old?.map((room) => {
       if (room.id !== roomId) return room;

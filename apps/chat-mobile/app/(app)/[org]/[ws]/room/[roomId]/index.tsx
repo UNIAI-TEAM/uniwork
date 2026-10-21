@@ -10,10 +10,11 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable, View } from "react-native";
 import { useShallow } from "zustand/react/shallow";
-import { ChatHeader, HeaderIconButton } from "@/components/chat/chat-header";
+import { HeaderIconButton } from "@/components/chat/chat-header";
 import { Conversation } from "@/components/chat/conversation";
 import { RoomAvatar } from "@/components/chat/room-avatar";
 import { DmBlockBanner } from "@/components/chat/room-safety";
+import { RoomChatHeader } from "@/components/chat/room-typing";
 import { useChatWorkspace, type ChatWorkspace } from "@/components/chat/use-chat-workspace";
 import { useRoomReadMarking } from "@/components/chat/use-read-marking";
 import { useRoomContext } from "@/components/chat/use-room-context";
@@ -80,13 +81,14 @@ function RoomConversation({ chat, roomId, linkedMessageId }: { chat: ChatWorkspa
       roomId={roomId}
       room={room}
       header={
-        <ChatHeader
+        <RoomChatHeader
+          roomId={roomId}
+          nameContext={room.nameContext}
+          online={room.peerOnline}
           title={room.title}
           backBadge={otherUnread}
           onPressTitle={() => router.push(chatRoutes.info(chat, roomId))}
           titleActionLabel={t("chat.mobile.room_info")}
-          subtitle={room.typingLabel ?? (room.peerOnline ? t("chat.presence_online") : null)}
-          typing={Boolean(room.typingLabel)}
           avatar={room.room ? <RoomAvatar mark={roomHeaderMark(room.room, room.title, room.peerOnline)} size={40} seed={roomId} /> : null}
           right={
             <View className="flex-row">

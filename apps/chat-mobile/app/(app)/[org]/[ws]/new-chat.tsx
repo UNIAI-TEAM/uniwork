@@ -22,6 +22,7 @@ import { THEME } from "@/lib/theme";
 import { useColorScheme } from "@/lib/use-color-scheme";
 import { cn } from "@/lib/utils";
 import { toast } from "@/data/stores/toast-store";
+import { sameUser, userKey } from "@/lib/user-id";
 
 function NewChat({ chat }: { chat: ChatWorkspace }) {
   const { t } = useTranslation();
@@ -37,7 +38,7 @@ function NewChat({ chat }: { chat: ChatWorkspace }) {
   const people = useMemo(
     () =>
       (members.data ?? [])
-        .filter((m) => m.user_id.toUpperCase() !== chat.userId.toUpperCase())
+        .filter((m) => !sameUser(m.user_id, chat.userId))
         .map((m) => ({ ...m, label: displayLabelForChatContact(m, nicknames) }))
         .filter((m) => foldedIncludes(m.label, q) || foldedIncludes(m.email, q))
         .sort((a, b) => a.label.localeCompare(b.label)),
@@ -109,7 +110,7 @@ function NewChat({ chat }: { chat: ChatWorkspace }) {
           )
         }
         renderItem={({ item, index }) => {
-          const isOnline = Boolean(online[item.user_id.trim().toUpperCase()]);
+          const isOnline = Boolean(online[userKey(item.user_id)]);
           const busy = opening === item.user_id;
           return (
             <Pressable

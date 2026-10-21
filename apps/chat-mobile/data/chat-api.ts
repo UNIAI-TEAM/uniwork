@@ -29,6 +29,7 @@ import {
 import { z } from "zod";
 import { api } from "./api";
 import type { PendingFile } from "@/lib/send-pipeline";
+import { userKey } from "@/lib/user-id";
 
 type Request = (path: string, init?: RequestInit) => Promise<unknown>;
 
@@ -307,7 +308,7 @@ export function createChatApi(request: Request) {
       const parsed = parseWithFallback<ChatNicknameMap>(raw, ChatNicknameMapSchema, { nicknames: {} }, { endpoint: "GET /api/v1/workspaces/{ws}/chat/nicknames" });
       const out: Record<string, string> = {};
       for (const [userId, nickname] of Object.entries(parsed.nicknames)) {
-        const key = userId.trim().toUpperCase();
+        const key = userKey(userId);
         if (key) out[key] = nickname;
       }
       return out;

@@ -27,6 +27,7 @@ import { THEME } from "@/lib/theme";
 import { useColorScheme } from "@/lib/use-color-scheme";
 import { cn } from "@/lib/utils";
 import { toast } from "@/data/stores/toast-store";
+import { sameUser, userKey } from "@/lib/user-id";
 
 /** The fewest others a new group takes (chat.create_group_description). */
 const GROUP_MIN_OTHERS = 2;
@@ -44,11 +45,11 @@ function NewGroup({ chat, roomId }: { chat: ChatWorkspace; roomId: string | null
   const [q, setQ] = useState("");
   const [picked, setPicked] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
-  const already = useMemo(() => new Set((inRoom.data ?? []).map((m) => m.user_id.toUpperCase())), [inRoom.data]);
+  const already = useMemo(() => new Set((inRoom.data ?? []).map((m) => userKey(m.user_id))), [inRoom.data]);
   const people = useMemo(
     () =>
       (members.data ?? [])
-        .filter((m) => m.user_id.toUpperCase() !== chat.userId.toUpperCase())
+        .filter((m) => !sameUser(m.user_id, chat.userId))
         .map((m) => ({ ...m, label: displayLabelForChatContact(m, nicknames) }))
         .filter((m) => foldedIncludes(m.label, q) || foldedIncludes(m.email, q))
         .sort((a, b) => a.label.localeCompare(b.label)),
@@ -127,9 +128,9 @@ function NewGroup({ chat, roomId }: { chat: ChatWorkspace; roomId: string | null
         }
         ListEmptyComponent={members.isPending ? <ActivityIndicator className="py-8" accessibilityLabel={t("chat.loading_members")} /> : null}
         renderItem={({ item, index }) => {
-          const isIn = already.has(item.user_id.toUpperCase());
+          const isIn = already.has(userKey(item.user_id));
           const selected = picked.includes(item.user_id);
-          const isOnline = Boolean(online[item.user_id.trim().toUpperCase()]);
+          const isOnline = Boolean(online[userKey(item.user_id)]);
           return (
             <Pressable
               accessibilityRole="checkbox"

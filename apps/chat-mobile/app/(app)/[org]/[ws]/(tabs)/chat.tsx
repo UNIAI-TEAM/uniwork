@@ -10,12 +10,12 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { router, useLocalSearchParams } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { FlatList, Pressable, RefreshControl, View } from "react-native";
+import { Pressable, RefreshControl, View } from "react-native";
 import { CatchUpBanner, CatchUpSheet, type CatchUpTarget } from "@/components/chat/catch-up-sheet";
 import { ConnectionBanner } from "@/components/chat/connection-banner";
 import { FilterChips, RoomListEmpty, RoomListError, RoomListSkeleton, ScopeHint, ScopeSwitch, WorkspacePill } from "@/components/chat/room-list-parts";
+import { RoomListView } from "@/components/chat/room-list-view";
 import { RoomPreview } from "@/components/chat/room-preview";
-import { RoomRow } from "@/components/chat/room-row";
 import { useChatWorkspace, type ChatWorkspace } from "@/components/chat/use-chat-workspace";
 import { ActionSheet, type SheetAction } from "@/components/ui/action-sheet";
 import { Header } from "@/components/ui/header";
@@ -29,11 +29,10 @@ import { nicknamesOptions, roomsOptions, unreadSummaryOptions, workspaceMembersO
 import { workspaceListOptions } from "@/data/queries/workspaces";
 import { useChatPinsStore } from "@/data/stores/chat-pins-store";
 import { useChatSendStore } from "@/data/stores/chat-send-store";
-import { usePresenceStore } from "@/data/stores/chat-presence-store";
 import { useSidebarTypingStore } from "@/data/stores/chat-typing-store";
 import { chatRoutes } from "@/lib/chat-routes";
 import { ROOM_LIST_FILTERS_BY_SCOPE, scopeRows, type ChatScope } from "@/lib/chat-scope";
-import { buildRoomList, filterRoomList, type RoomListFilter, type RoomListRow } from "@/lib/room-list";
+import { buildRoomList, filterRoomList, roomListTypingLines, type RoomListFilter, type RoomListRow } from "@/lib/room-list";
 import { THEME } from "@/lib/theme";
 import { useColorScheme } from "@/lib/use-color-scheme";
 import { unreadInOtherWorkspaces } from "@/lib/workspace-unread";
@@ -112,7 +111,6 @@ export default function ChatTab() {
   const [catchUp, setCatchUp] = useState<CatchUpTarget | null>(null);
   const pinnedByRoomId = useChatPinsStore((s) => s.byRoomId);
   const typingByRoomId = useSidebarTypingStore((s) => s.byRoomId);
-  const online = usePresenceStore((s) => s.onlineUserIds);
   const [filterText, setFilterText] = useState("");
   const [chosenFilter, setFilter] = useState<RoomListFilter>("all");
   // DMs and groups are the organization's, channels the workspace's: one list at a time (lib/chat-scope.ts).
@@ -122,6 +120,7 @@ export default function ChatTab() {
   const [menuRow, setMenuRow] = useState<RoomListRow | null>(null);
   const [pulling, setPulling] = useState(false);
 
+  // Built without typing or presence, which change by the second (components/chat/room-list-view.tsx).
   const rows = useMemo(
     () =>
       chat && rooms.data
@@ -133,13 +132,23 @@ export default function ChatTab() {
             nicknamesByUserId: nicknames.data ?? {},
             workspaceMembers: members.data ?? [],
             pinnedByRoomId,
-            typingByRoomId,
-            isOnline: (userId) => Boolean(online[userId.trim().toUpperCase()]),
             t,
             locale: i18n.language,
           })
         : [],
-    [chat, rooms.data, filterText, nicknames.data, members.data, pinnedByRoomId, typingByRoomId, online, t, i18n.language],
+    [chat, rooms.data, filterText, nicknames.data, members.data, pinnedByRoomId, t, i18n.language],
+  );
+  const typingLines = useMemo(
+    () =>
+      roomListTypingLines({
+        rooms: rooms.data ?? [],
+        nicknamesByUserId: nicknames.data ?? {},
+        workspaceMembers: members.data ?? [],
+        typingByRoomId,
+        t,
+        locale: i18n.language,
+      }),
+    [rooms.data, nicknames.data, members.data, typingByRoomId, t, i18n.language],
   );
   const scoped = useMemo(() => scopeRows(scope, rows), [rows, scope]);
   const shown = useMemo(() => filterRoomList(scoped, filter), [scoped, filter]);
@@ -243,10 +252,12 @@ export default function ChatTab() {
       ) : (
         <>
           <FilterChips value={filter} onChange={setFilter} mentionRooms={mentionRooms} total={scoped.length} filters={filters} />
-          <FlatList
-            data={shown}
-            keyExtractor={(row) => row.key}
-            keyboardShouldPersistTaps="handled"
+          <RoomListView
+            rows={shown}
+            typingLines={typingLines}
+            queuedRooms={queuedRooms}
+            onOpen={open}
+            onMenu={setMenuRow}
             ListHeaderComponent={
               quickCatchUp.top && filter === "all" && filterText.trim() === "" ? (
                 <CatchUpBanner
@@ -273,27 +284,6 @@ export default function ChatTab() {
                 onBrowseChannels={() => router.push(chatRoutes.channels(chat))}
               />
             }
-            renderItem={({ item }) => (
-              <RoomRow
-                title={item.title}
-                mark={item.mark}
-                seed={item.roomId ?? item.key}
-                prefix={item.prefix}
-                subtitle={item.subtitle}
-                typing={item.typing}
-                missed={item.missed}
-                seen={item.seen}
-                queued={item.roomId ? queuedRooms.has(item.roomId) : false}
-                time={item.time}
-                unread={item.unread}
-                mentionUnread={item.mentionUnread}
-                muted={item.muted}
-                pinned={item.pinned}
-                onPress={() => open(item)}
-                onLongPress={() => setMenuRow(item)}
-                testID={item.roomId ? `room-row-${item.roomId}` : undefined}
-              />
-            )}
           />
         </>
       )}

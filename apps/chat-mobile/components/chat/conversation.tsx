@@ -5,7 +5,7 @@
 // sends; and the long-press sheet with what each action does to the server
 // and the cache (send queue, reactions, edit, delete, copy, thread, poll vote,
 // follow-up, task).
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueries, useQuery, useQueryClient, type UseQueryResult } from "@tanstack/react-query";
 import wallDotsDark from "@/assets/chat-wall-dots-dark.png";
 import wallDotsLight from "@/assets/chat-wall-dots-light.png";
 import { titleFromMessageBody } from "@uniwork/core/chat/message-links";
@@ -13,11 +13,10 @@ import { isDefaultWorkspaceChannel } from "@uniwork/core/chat/chat-room-helpers"
 import { deliveredToAllAt, furthestReadAt, isMessageSeenByPeer, seenByMembers } from "@uniwork/core/chat/read-receipt-utils";
 import * as Clipboard from "expo-clipboard";
 import { router } from "expo-router";
-import { useCallback, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useMemo, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { ActivityIndicator, Alert, ImageBackground, KeyboardAvoidingView, View } from "react-native";
 import { PersonAvatar } from "@/components/people/person-avatar";
-import { Text } from "@/components/ui/text";
 import {
   createTaskFromMessage,
   deleteMessage,
@@ -31,8 +30,10 @@ import { toggleReaction, votePoll } from "@/data/pending-ops";
 import { followUpsOptions, roomLinksOptions } from "@/data/queries/chat";
 import { chatRoutes } from "@/lib/chat-routes";
 import { continuedRunKeys } from "@/lib/conversation-display";
+import { linkWindows } from "@/lib/link-windows";
 import { deserializeMessageBodyToComposerDraft } from "@/lib/mentions";
 import { messagePreviewText } from "@/lib/message-display";
+import { buildMessageRowModels, type MessageRowModel, type Receipt } from "@/lib/message-row-model";
 import type { PendingFile } from "@/lib/send-pipeline";
 import { albumsOf } from "@/lib/album";
 import { messageView } from "@/lib/message-display";
@@ -46,19 +47,24 @@ import { ForwardSheet } from "./forward-sheet";
 import { ImageViewer, type ViewerPhoto } from "./image-viewer";
 import { MessageActionsSheet } from "./message-actions";
 import type { MessageCardContext } from "./message-cards";
+import { MessageCell, type MessageHandlers } from "./message-cell";
 import { MessageList } from "./message-list";
-import { MessageRow, type Receipt } from "./message-row";
 import { PinnedBar } from "./pinned-bar";
 import { ReportSheet } from "./report-sheet";
 import { ReminderSheet } from "./reminder-sheet";
-import { SwipeToReply } from "./swipe-to-reply";
-import { TypingBubble } from "./typing-bubble";
-
-// The MobileChat wall: a dot every 22 pt, one tile per scheme, repeated.
-const WALL_DOTS = { light: wallDotsLight, dark: wallDotsDark };
+import { ConversationTyping } from "./room-typing";
+import { useStableHandlers } from "./use-stable-handlers";
 import type { ChatWorkspace } from "./use-chat-workspace";
 import type { useRoomContext } from "./use-room-context";
 import { toast } from "@/data/stores/toast-store";
+
+// The MobileChat wall: a dot every 22 pt, one tile per scheme, repeated.
+const WALL_DOTS = { light: wallDotsLight, dark: wallDotsDark };
+
+type ChatMessageLink = Awaited<ReturnType<typeof chatApi.listRoomMessageLinks>>[number];
+
+/** Every window's links as one list; TanStack keeps it the same array while no answer changed. */
+const allLinks = (results: UseQueryResult<ChatMessageLink[]>[]): ChatMessageLink[] => results.flatMap((result) => result.data ?? []);
 
 interface Props {
   chat: ChatWorkspace;
@@ -96,7 +102,6 @@ export function Conversation(props: Props) {
 
   const rows = useMemo(() => buildTimelineRows(messages), [messages]);
   const continued = useMemo(() => continuedRunKeys(rows), [rows]);
-  const byId = useMemo(() => new Map(messages.map((m) => [m.id, m])), [messages]);
   const albums = useMemo(() => albumsOf(messages), [messages]);
   // The viewer pages through every photo on screen, oldest first.
   const photos: ViewerPhoto[] = useMemo(
@@ -113,13 +118,17 @@ export function Conversation(props: Props) {
     if (receiptsOn) return { readAt: furthestReadAt(room.members, userId), deliveredAt: deliveredToAllAt(room.members, userId) };
     return { readAt: null, deliveredAt: null };
   }, [room.room, room.members, receiptsOn, userId]);
-  const receiptOf = (message: TimelineMessage, own: boolean): Receipt | null => {
-    if (!own || !message.record || !room.room) return null;
-    if (room.room.kind !== "dm" && !receiptsOn) return null;
-    if (isMessageSeenByPeer(message.ts, cursors.readAt)) return "seen";
-    if (isMessageSeenByPeer(message.ts, cursors.deliveredAt)) return "delivered";
-    return "sent";
-  };
+  const roomKind = room.room?.kind;
+  const receiptOf = useCallback(
+    (message: TimelineMessage, own: boolean): Receipt | null => {
+      if (!own || !message.record || !roomKind) return null;
+      if (roomKind !== "dm" && !receiptsOn) return null;
+      if (isMessageSeenByPeer(message.ts, cursors.readAt)) return "seen";
+      if (isMessageSeenByPeer(message.ts, cursors.deliveredAt)) return "delivered";
+      return "sent";
+    },
+    [roomKind, receiptsOn, cursors],
+  );
   const seenByOf = (message: TimelineMessage | null) => (message?.record && receiptsOn ? seenByMembers(message.record, room.members, message.sender) : []);
 
   const failed = useCallback(() => toast.error(t("common.error")), [t]);
@@ -137,12 +146,13 @@ export function Conversation(props: Props) {
     [wsId, chat.orgSlug, chat.wsSlug, roomId, userId, qc, t],
   );
 
-  // The tasks made from the messages on screen, one request per window (the web's chat-message-links-context).
-  const serverIds = useMemo(() => messages.flatMap((m) => (m.record ? [m.id] : [])), [messages]);
-  const links = useQuery(roomLinksOptions(wsId, roomId, serverIds)).data;
+  // The tasks made from the messages on screen, one request per window of lib/link-windows.ts (the web's
+  // chat-message-links-context): a new message refetches the newest window, not everything shown.
+  const windows = useMemo(() => linkWindows(messages.flatMap((m) => (m.record ? [m.id] : []))), [messages]);
+  const links = useQueries({ queries: windows.map((ids) => roomLinksOptions(wsId, roomId, ids)), combine: allLinks });
   const taskIdsByMessage = useMemo(() => {
     const map = new Map<string, string[]>();
-    for (const link of links ?? []) if (link.target_type === "task") map.set(link.message_id, [...(map.get(link.message_id) ?? []), link.target_id]);
+    for (const link of links) if (link.target_type === "task") map.set(link.message_id, [...(map.get(link.message_id) ?? []), link.target_id]);
     return map;
   }, [links]);
   const followUps = useQuery(followUpsOptions(wsId)).data;
@@ -159,75 +169,56 @@ export function Conversation(props: Props) {
     void sendChatMessage(qc, { workspaceId: wsId, roomId, senderId: userId, ...input }, chatSendDeps);
   const send = (body: string) => enqueue({ body, replyToMessageId: takeReply(), threadRootId });
   const sendFile = (file: PendingFile) => enqueue({ body: "", file, replyToMessageId: takeReply() });
-  const quoteOf = (message: TimelineMessage) => ({ id: message.id, sender: room.senderName(message), text: message.record ? messagePreviewText(message.record, t) : message.body });
+  const quoteText = useCallback((message: TimelineMessage) => (message.record ? messagePreviewText(message.record, t) : message.body), [t]);
+  const quoteOf = (message: TimelineMessage) => ({ id: message.id, sender: room.senderName(message), text: quoteText(message) });
 
-  const renderMessage = (row: Extract<TimelineRow, { type: "message" }>) => {
-    const { message } = row;
-    // A photo folded into the album its run starts.
-    if (albums.folded.has(message.id)) return null;
-    const own = message.sender === userId;
-    const quotedId = message.replyToEventId;
-    const quoted = quotedId ? byId.get(quotedId) : undefined;
-    const isContinued = continued.has(row.key);
-    // A group's avatar sits on the last bubble of a run (the canvas aligns it to the bottom); the others keep its width.
-    const avatar = room.isGroup && !own && message.id !== threadRootId ? (isContinued ? <View style={{ width: 30 }} /> : <PersonAvatar name={room.senderName(message)} size={30} seed={message.sender} />) : undefined;
-    const bubble = (
-      <MessageRow
-        message={message}
-        own={own}
-        compactTop={row.compactTop}
-        continued={isContinued}
-        senderName={room.senderName(message)}
-        showSender={room.isGroup && !own && row.showAvatar}
-        // In a thread every reply answers the root above it: no quote of the root on each one.
-        quote={quotedId && quotedId !== threadRootId ? (quoted ? quoteOf(quoted) : { id: quotedId, sender: t("chat.action_reply"), text: "…" }) : null}
-        receipt={receiptOf(message, own)}
-        avatar={avatar}
-        album={albums.byFirstId.get(message.id)}
-        ringed={message.id === threadRootId}
-        highlighted={message.id === props.jumpTo?.id}
-        showThread={!threadRootId}
-        ctx={ctx}
-        scheme={colorScheme}
-        taskIds={taskIdsByMessage.get(message.id)}
-        onLongPress={setActionMessage}
-        onPressQuote={props.onQuoteJump}
-        onPressThread={(m) => router.push(chatRoutes.thread(chat, roomId, m.id))}
-        onPressPending={setActionMessage}
-        onToggleReaction={(m, emoji) => void toggleReaction(qc, wsId, roomId, m.id, emoji, userId).catch(() => toast.error(t("chat.message_list.react_failed")))}
-      />
+  // Each row worked out once per change and kept as the same object while it draws the same (audit H1).
+  const previousModels = useRef<ReadonlyMap<string, MessageRowModel>>(new Map());
+  const models = useMemo(() => {
+    const next = buildMessageRowModels(
+      {
+        rows,
+        messages,
+        userId,
+        threadRootId,
+        isGroup: room.isGroup,
+        continued,
+        albums,
+        senderName: room.senderName,
+        quoteText,
+        unknownQuoteSender: t("chat.action_reply"),
+        receiptOf,
+        highlightedId: props.jumpTo?.id,
+        taskIdsByMessage,
+      },
+      previousModels.current,
     );
-    if (message.id !== threadRootId)
-      return (
-        <SwipeToReply
-          enabled={!threadRootId && Boolean(message.record)}
-          onReply={() => {
-            setEdit(null);
-            setReply(quoteOf(message));
-          }}
-        >
-          {bubble}
-        </SwipeToReply>
-      );
-    // The server's count covers replies on pages not loaded yet; the loaded ones cover a count not refreshed yet.
-    const replies = Math.max(message.record?.reply_count ?? 0, messages.length - 1);
-    const label = t("chat.thread_replies", { count: replies });
-    // One view, so the root and its divider stay in order inside the inverted list's cell.
-    return (
-      <View>
-        <View className="border-b border-primary/20 bg-primary/10 pb-3">{bubble}</View>
-        {replies > 0 ? (
-          <View className="flex-row items-center gap-2.5 px-3 pb-1.5 pt-3.5" accessible accessibilityRole="header" accessibilityLabel={label}>
-            <View className="h-px flex-1 bg-border" />
-            <View className="rounded-full bg-chat-chip px-3 py-[3px]">
-              <Text className="text-[13px] font-semibold text-chat-chip-foreground">{label}</Text>
-            </View>
-            <View className="h-px flex-1 bg-border" />
-          </View>
-        ) : null}
-      </View>
-    );
-  };
+    previousModels.current = next;
+    return next;
+  }, [rows, messages, userId, threadRootId, room.isGroup, continued, albums, room.senderName, quoteText, t, receiptOf, props.jumpTo?.id, taskIdsByMessage]);
+
+  // One object of handlers for every cell, always running the latest closures.
+  const handlers: MessageHandlers = useStableHandlers({
+    onLongPress: (message: TimelineMessage) => setActionMessage(message),
+    onPressQuote: (messageId: string) => props.onQuoteJump(messageId),
+    onPressThread: (message: TimelineMessage) => router.push(chatRoutes.thread(chat, roomId, message.id)),
+    onPressPending: (message: TimelineMessage) => setActionMessage(message),
+    onToggleReaction: (message: TimelineMessage, emoji: string) =>
+      void toggleReaction(qc, wsId, roomId, message.id, emoji, userId).catch(() => toast.error(t("chat.message_list.react_failed"))),
+    onReply: (message: TimelineMessage) => {
+      setEdit(null);
+      setReply(quoteOf(message));
+    },
+  });
+
+  const renderMessage = useCallback(
+    (row: Extract<TimelineRow, { type: "message" }>) => {
+      const model = models.get(row.key);
+      // A photo folded into the album its run starts has no row of its own.
+      return model ? <MessageCell model={model} ctx={ctx} scheme={colorScheme} handlers={handlers} /> : null;
+    },
+    [models, ctx, colorScheme, handlers],
+  );
 
   return (
     <KeyboardAvoidingView behavior="padding" className="flex-1 bg-background" testID={`conversation-${roomId}`}>
@@ -250,11 +241,7 @@ export function Conversation(props: Props) {
               jumpTo={props.jumpTo}
               onAtLatestChange={props.onAtLatestChange}
               empty={threadRootId || !room.room ? null : t(room.room.kind === "dm" ? "chat.dm_empty" : "chat.group_empty", { name: room.title })}
-              bottom={
-                room.typingLabel ? (
-                  <TypingBubble label={room.typingLabel} avatar={room.isGroup && room.typingNames[0] ? <PersonAvatar name={room.typingNames[0]} size={30} seed={room.typingIds[0]} /> : undefined} />
-                ) : null
-              }
+              bottom={<ConversationTyping roomId={roomId} nameContext={room.nameContext} isGroup={room.isGroup} />}
             />
           </ImageBackground>
         </View>

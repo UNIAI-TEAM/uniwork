@@ -10,6 +10,7 @@ import { parseWithFallback } from "@uniwork/core/api/schema";
 import { z } from "zod";
 import type { ContactMember } from "@/lib/contacts-display";
 import { api } from "../api";
+import { userKey } from "@/lib/user-id";
 
 const enc = encodeURIComponent;
 
@@ -68,7 +69,7 @@ export async function fetchChatNicknames(wsId: string, signal?: AbortSignal): Pr
   });
   const out: Record<string, string> = {};
   for (const [userId, nickname] of Object.entries(parsed.nicknames)) {
-    const key = userId.trim().toUpperCase();
+    const key = userKey(userId);
     if (key && typeof nickname === "string") out[key] = nickname;
   }
   return out;

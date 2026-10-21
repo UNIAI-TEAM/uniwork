@@ -4,7 +4,7 @@
 import { ChatRoomSchema, type ChatRoomRecord } from "@uniwork/core/api/endpoints/chat-schemas";
 import { describe, expect, it } from "vitest";
 import { i18n } from "./i18n/singleton";
-import { buildRoomList, filterRoomList, roomTitle, workspaceRoomTitle, type RoomListFilter } from "./room-list";
+import { buildRoomList, filterRoomList, newestRow, roomListTypingLines, roomTitle, sameRoomListRow, workspaceRoomTitle, type RoomListFilter, type RoomListRow } from "./room-list";
 
 const room = (raw: Record<string, unknown>): ChatRoomRecord =>
   ChatRoomSchema.parse({ workspace_id: "w1", name: "", member_count: 0, ...raw });
@@ -139,5 +139,65 @@ describe("workspaceRoomTitle", () => {
     expect(workspaceRoomTitle(" ", "Acme", "Chung")).toBe("Chung");
     expect(workspaceRoomTitle(undefined, undefined, "Chung")).toBe("Chung");
     expect(workspaceRoomTitle("Phòng lớn", "Acme", "Chung")).toBe("Phòng lớn");
+  });
+});
+
+describe("buildRoomList without typing or presence (the Chat tab)", () => {
+  it("builds every row offline and quiet; the tab lays the rest over them", () => {
+    const { typingByRoomId: _typing, isOnline: _online, ...quiet } = base;
+    const rows = buildRoomList(quiet);
+    expect(rows.find((row) => row.key === "dm:u2")?.mark).toMatchObject({ kind: "dm", online: false });
+    expect(rows.every((row) => !row.typing)).toBe(true);
+  });
+});
+
+describe("roomListTypingLines", () => {
+  const words = { rooms, nicknamesByUserId: {}, workspaceMembers: base.workspaceMembers, t: base.t, locale: "vi" };
+
+  it("words each room someone types in as its row would, and nothing while nobody types", () => {
+    expect(roomListTypingLines({ ...words, typingByRoomId: {} })).toEqual({});
+    expect(roomListTypingLines({ ...words, typingByRoomId: { g1: [] } })).toEqual({});
+    const lines = roomListTypingLines({ ...words, typingByRoomId: { g1: ["U3"], dm1: ["U2"] } });
+    const rows = buildRoomList({ ...base, typingByRoomId: { g1: ["U3"], dm1: ["U2"] } });
+    expect(lines).toEqual({ g1: "Chi đang nhập…", dm1: rows.find((row) => row.key === "dm:u2")?.subtitle });
+  });
+});
+
+describe("sameRoomListRow", () => {
+  const row = (): RoomListRow => buildRoomList(base).find((r) => r.key === "dm:u2")!;
+
+  it("holds a rebuilt row that draws the same equal, whatever its record", () => {
+    expect(sameRoomListRow(row(), { ...row(), room: null })).toBe(true);
+  });
+
+  it.each<[string, Partial<RoomListRow>]>([
+    ["key", { key: "dm:u3" }],
+    ["roomId", { roomId: "dm9" }],
+    ["title", { title: "Bình 2" }],
+    ["prefix", { prefix: "Bạn: " }],
+    ["subtitle", { subtitle: "mới" }],
+    ["typing", { typing: true }],
+    ["missed", { missed: true }],
+    ["seen", { seen: true }],
+    ["time", { time: "08:00" }],
+    ["unread", { unread: 9 }],
+    ["mentions", { mentionUnread: 0 }],
+    ["muted", { muted: false }],
+    ["pinned", { pinned: true }],
+    ["mark kind", { mark: { kind: "group", label: "Bình" } }],
+    ["mark label", { mark: { kind: "dm", label: "Ân", online: true, userId: "u2" } }],
+    ["presence", { mark: { kind: "dm", label: "Bình", online: false, userId: "u2" } }],
+    ["person", { mark: { kind: "dm", label: "Bình", online: true, userId: "u9" } }],
+  ])("tells a change of %s apart", (_name, change) => {
+    expect(sameRoomListRow(row(), { ...row(), ...change })).toBe(false);
+  });
+});
+
+describe("newestRow", () => {
+  it("hands a tap the newest row with the key, or the held one once it left the list", () => {
+    const [held, other] = buildRoomList(base);
+    const newer = { ...held!, unread: 9 };
+    expect(newestRow(new Map([[newer.key, newer]]), held!)).toBe(newer);
+    expect(newestRow(new Map([[other!.key, other!]]), held!)).toBe(held);
   });
 });

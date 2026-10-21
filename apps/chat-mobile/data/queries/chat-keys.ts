@@ -29,7 +29,7 @@ export const chatKeys = {
   // M3 rich kinds.
   /** This person's follow-ups in the workspace, done ones included. */
   followUps: (wsId: string) => ["chat", wsId, "follow-ups"] as const,
-  /** The task links of the messages one room shows. */
+  /** The task links of one window of the messages a room shows (lib/link-windows.ts). */
   roomLinks: (wsId: string, roomId: string, messageIds: readonly string[]) => ["chat", wsId, "message-links", roomId, messageIds.join(",")] as const,
   /** Prefix: every link list of one room. */
   roomLinksRoot: (wsId: string, roomId: string) => ["chat", wsId, "message-links", roomId] as const,

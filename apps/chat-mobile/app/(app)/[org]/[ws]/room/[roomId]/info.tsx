@@ -40,6 +40,7 @@ import { useColorScheme } from "@/lib/use-color-scheme";
 import { cn } from "@/lib/utils";
 import { voiceCallKindFromServer } from "@/lib/voice-call";
 import { toast } from "@/data/stores/toast-store";
+import { userKey } from "@/lib/user-id";
 
 /** Members shown before "Xem tất cả" (the board lists four). */
 const MEMBERS_PREVIEW = 5;
@@ -183,7 +184,7 @@ function RoomInfo({ chat, roomId }: { chat: ChatWorkspace; roomId: string }) {
   const callsOn = useMobileFlag("unichat_mobile_calls");
   const callable = callsOn && room.room !== null && ["dm", "group", "channel"].includes(room.room.kind) && !isDefaultWorkspaceChannel(room.room);
   const isGroup = room.room?.kind === "group";
-  const isOnline = (userId: string) => Boolean(online[userId.trim().toUpperCase()]);
+  const isOnline = (userId: string) => Boolean(online[userKey(userId)]);
   const memberCount = room.members.length || (room.room?.member_count ?? 0);
   const heroLine =
     room.room?.kind === "dm"

@@ -33,6 +33,7 @@ import { useColorScheme } from "@/lib/use-color-scheme";
 import { cn } from "@/lib/utils";
 import { useChatMediaSrc, useFreshChatMediaUrl } from "./use-chat-media";
 import { toast } from "@/data/stores/toast-store";
+import { sameUser } from "@/lib/user-id";
 
 export interface MessageCardContext {
   wsId: string;
@@ -85,7 +86,7 @@ function MessageText({ body, own, userId }: { body: string; own: boolean; userId
               "font-semibold",
               own
                 ? "text-chat-bubble-own-foreground underline"
-                : segment.userId?.toUpperCase() === userId.toUpperCase() || segment.mention === "all"
+                : (segment.userId !== undefined && sameUser(segment.userId, userId)) || segment.mention === "all"
                   ? "text-primary"
                   : "text-foreground",
             )}

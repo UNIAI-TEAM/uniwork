@@ -16,14 +16,13 @@ import { bubbleCorners } from "@/lib/conversation-display";
 import { senderNameClass } from "@/lib/sender-colors";
 import { deserializeMessageBodyToComposerDraft } from "@/lib/mentions";
 import { messagePreviewText, messageView, pendingPreviewText } from "@/lib/message-display";
+import type { Receipt } from "@/lib/message-row-model";
 import { THEME } from "@/lib/theme";
 import { formatMessageTime, type TimelineMessage } from "@/lib/timeline-display";
 import { cn } from "@/lib/utils";
 import { AlbumGrid } from "./album-grid";
 import { INTERACTIVE_VIEWS, MessageContent, type MessageCardContext } from "./message-cards";
 import { TaskCards } from "./task-card";
-
-export type Receipt = "sent" | "delivered" | "seen";
 
 /** bảng Ngôn ngữ: a sent message appears in 180 ms; a reaction pops on a spring. */
 const SEND_IN = FadeIn.duration(180);

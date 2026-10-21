@@ -10,6 +10,7 @@ import { Text } from "@/components/ui/text";
 import { identityTint, SOLID_TINT_BG } from "@/lib/identity-tint";
 import { initialsOf, roomInitialsOf } from "@/lib/initials";
 import { continuousCorners } from "@/lib/radius";
+import { useIsOnline } from "./use-is-online";
 
 /** The letters' size and a line to match: Text's base class carries a 24 pt line that would clip larger letters. */
 export function letterStyle(size: number, ratio: number) {
@@ -53,4 +54,10 @@ export function PersonAvatar({ name, avatarUrl, size = 40, online = false, squir
       ) : null}
     </View>
   );
+}
+
+/** A person's avatar whose online dot it reads for that person alone: a list of them never re-renders as a whole on presence. */
+export function LivePersonAvatar({ userId, ...props }: Omit<Props, "online" | "seed"> & { userId?: string }) {
+  const online = useIsOnline(userId);
+  return <PersonAvatar {...props} seed={userId} online={online} />;
 }

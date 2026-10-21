@@ -1,6 +1,8 @@
 // Copied from packages/core/chat/presence-store.ts (zustand is off the mobile
 // allowlist), without the selector the phone does not use;
-// chat-presence-store.test.ts runs the core cases.
+// chat-presence-store.test.ts runs the core cases. selectIsOnline is the
+// phone's own: one person's presence, so a row redraws when that person comes
+// or goes, not on every change of the whole set (audit P2 Perf).
 import { create } from "zustand";
 import { normalizeTypingUserId } from "@uniwork/core/chat/typing-user-id";
 
@@ -29,6 +31,12 @@ interface PresenceState {
   prune: (now?: number) => void;
   clearAll: () => void;
 }
+
+/** One person's presence, for `usePresenceStore(selectIsOnline(id))` (components/people/use-is-online.ts). */
+export const selectIsOnline =
+  (userId: string | null | undefined) =>
+  (state: { onlineUserIds: Record<string, true> }): boolean =>
+    userId ? state.onlineUserIds[normalizeTypingUserId(userId)] === true : false;
 
 /** Last presence bump per user — kept outside zustand so heartbeats do not re-render. */
 const lastSeenAt = new Map<string, number>();

@@ -3,10 +3,11 @@
 // while older pages load above and new messages arrive below
 // (maintainVisibleContentPosition), with day separators as chips on the chat
 // wall, the typing line at the bottom, and a scroll to the message a deep link
-// or a quote points at.
-import { useEffect, useMemo, useRef, type ReactNode } from "react";
+// or a quote points at. The cell callback keeps its identity while the rows'
+// renderer does (audit H1): the list re-renders cells only when a row changed.
+import { memo, useCallback, useEffect, useMemo, useRef, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { ActivityIndicator, FlatList, View } from "react-native";
+import { ActivityIndicator, FlatList, View, type ListRenderItem } from "react-native";
 import { Text } from "@/components/ui/text";
 import { formatMessageDay, type TimelineRow } from "@/lib/timeline-display";
 
@@ -27,7 +28,9 @@ interface Props {
   empty?: string | null;
 }
 
-function DayRow({ ts }: { ts: number }) {
+const keyOf = (row: TimelineRow) => row.key;
+
+const DayRow = memo(function DayRow({ ts }: { ts: number }) {
   const { t, i18n } = useTranslation();
   const label = formatMessageDay(ts, i18n.language, { today: t("chat.day_today"), yesterday: t("chat.sidebar_yesterday") });
   return (
@@ -37,13 +40,17 @@ function DayRow({ ts }: { ts: number }) {
       </View>
     </View>
   );
-}
+});
 
 export function MessageList({ rows, renderMessage, onLoadOlder, loadingOlder, bottom, jumpTo, onAtLatestChange, empty }: Props) {
   const list = useRef<FlatList<TimelineRow>>(null);
   const data = useMemo(() => [...rows].reverse(), [rows]);
   const jumped = useRef<number | null>(null);
   const atLatest = useRef(true);
+  const renderItem: ListRenderItem<TimelineRow> = useCallback(
+    ({ item }) => (item.type === "day" ? <DayRow ts={item.ts} /> : <>{renderMessage(item)}</>),
+    [renderMessage],
+  );
 
   useEffect(() => {
     if (!jumpTo || jumped.current === jumpTo.seq) return;
@@ -73,8 +80,8 @@ export function MessageList({ rows, renderMessage, onLoadOlder, loadingOlder, bo
       ref={list}
       data={data}
       inverted
-      keyExtractor={(row) => row.key}
-      renderItem={({ item }) => (item.type === "day" ? <DayRow ts={item.ts} /> : <>{renderMessage(item)}</>)}
+      keyExtractor={keyOf}
+      renderItem={renderItem}
       maintainVisibleContentPosition={{ minIndexForVisible: 1, autoscrollToTopThreshold: AT_LATEST_PX }}
       onEndReached={onLoadOlder}
       onEndReachedThreshold={0.5}

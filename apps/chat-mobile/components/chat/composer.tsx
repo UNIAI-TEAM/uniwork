@@ -16,10 +16,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Keyboard, Pressable, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { PersonAvatar } from "@/components/people/person-avatar";
+import { LivePersonAvatar } from "@/components/people/person-avatar";
 import { ActionSheet } from "@/components/ui/action-sheet";
 import { Text } from "@/components/ui/text";
-import { usePresenceStore } from "@/data/stores/chat-presence-store";
 import { CHAT_FILE_MAX_LABEL, CHAT_FILE_PICKER_TYPES, isChatAcceptedFile, isChatFileTooLarge } from "@/lib/file-accept";
 import { formatVoiceCallDuration } from "@/lib/message-display";
 import {
@@ -75,7 +74,6 @@ interface Props {
 export function Composer(props: Props) {
   const { candidates, canSend, allowAttachments, reply, edit } = props;
   const { t } = useTranslation();
-  const online = usePresenceStore((state) => state.onlineUserIds);
   const { colorScheme } = useColorScheme();
   const theme = THEME[colorScheme];
   const [draft, setDraft] = useState("");
@@ -229,7 +227,7 @@ export function Composer(props: Props) {
                   <Text className="text-xs font-display font-bold text-tint-blue-foreground">@</Text>
                 </View>
               ) : (
-                <PersonAvatar name={candidate.label} size={28} seed={candidate.userId} online={Boolean(candidate.userId && online[candidate.userId.trim().toUpperCase()])} />
+                <LivePersonAvatar name={candidate.label} size={28} userId={candidate.userId} />
               )}
               <View className="flex-1">
                 <Text className="text-sm font-medium text-foreground" numberOfLines={1}>

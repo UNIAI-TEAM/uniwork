@@ -81,14 +81,17 @@ export const nicknamesOptions = (wsId: string) =>
 export const followUpsOptions = (wsId: string) =>
   queryOptions({ queryKey: chatKeys.followUps(wsId), queryFn: () => chatApi.listFollowUps(wsId, true), staleTime: 30_000 });
 
-/** M3: which of the messages on screen carry a task, one request per window (chat-message-links-context). */
+/**
+ * M3: which messages of one window carry a task (chat-message-links-context). The screen asks once per
+ * window of lib/link-windows.ts, so a new message refetches the newest window only.
+ */
 export const roomLinksOptions = (wsId: string, roomId: string, messageIds: readonly string[]) =>
   queryOptions({
     queryKey: chatKeys.roomLinks(wsId, roomId, messageIds),
     queryFn: () => chatApi.listRoomMessageLinks(wsId, roomId, [...messageIds]),
     enabled: messageIds.length > 0,
     staleTime: 30_000,
-    // A new message changes the key; the cards stay while the next answer comes.
+    // A new message changes the newest window's key; its cards stay while the next answer comes.
     placeholderData: keepPreviousData,
   });
 
