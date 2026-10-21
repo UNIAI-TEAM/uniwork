@@ -11,13 +11,13 @@ import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from "@uniwork/ui/components/ui/dropdown-menu";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@uniwork/ui/components/ui/popover";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
+import { cn } from "@uniwork/ui/lib/utils";
+import { FILTER_SELECT, FilterSelect, PILL, PILL_ON } from "../documents-library-toolbar";
 import { accessLevelLabel, accessSourceLabel, flagLabel, principalTypeLabel, REPORT_LEVELS } from "./access-report-labels";
 import { principalParam } from "./access-report-person-docs";
 import { PRINCIPAL_KINDS, REPORT_SCOPES, REPORT_SOURCES, type ReportView } from "./access-report-query";
@@ -156,17 +156,15 @@ export function AccessReportFiltersBar({
               onChange={(next) => set({ sources: next.length ? next : undefined })}
             />
             {filters.flag ? (
-              <Button
+              <button
                 type="button"
-                size="sm"
-                variant="secondary"
-                className="gap-1"
                 aria-label={t("documents.accessReport.clear_chip", { name: flagChipLabel(t, filters.flag) })}
                 onClick={() => set({ flag: undefined })}
+                className={cn(PILL, PILL_ON, "inline-flex items-center gap-1")}
               >
                 {flagChipLabel(t, filters.flag)}
                 <X aria-hidden className="size-3.5" />
-              </Button>
+              </button>
             ) : null}
           </>
         ) : null}
@@ -241,7 +239,8 @@ interface Option {
   label: string;
 }
 
-const trigger = <Button type="button" variant="toolbar" size="sm" className="gap-1" />;
+// The menu filters wear the shared filter bar's Select trigger.
+const trigger = <Button type="button" variant="toolbar" size="sm" className={FILTER_SELECT} />;
 
 function CheckFilter({ label, values, options, onChange }: { label: string; values: string[]; options: Option[]; onChange: (next: string[]) => void }) {
   const picked = options.filter((o) => values.includes(o.value));
@@ -283,23 +282,7 @@ function RadioFilter({
 }) {
   const { t } = useTranslation();
   const items = [{ value: ALL, label: t("documents.accessReport.filter_all") }, ...options];
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger render={trigger}>
-        {`${label}: ${items.find((item) => item.value === (value || ALL))?.label ?? ""}`}
-        <ChevronDown aria-hidden className="size-3.5" />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="min-w-44">
-        <DropdownMenuRadioGroup value={value || ALL} onValueChange={(next) => onChange(next === ALL ? undefined : String(next))}>
-          {items.map((item) => (
-            <DropdownMenuRadioItem key={item.value} value={item.value} className={ITEM}>
-              {item.label}
-            </DropdownMenuRadioItem>
-          ))}
-        </DropdownMenuRadioGroup>
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
+  return <FilterSelect label={label} value={value || ALL} items={items} onPick={(next) => onChange(next === ALL ? undefined : next)} />;
 }
 
 /**

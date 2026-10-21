@@ -9582,6 +9582,155 @@
       "clear_filters": "Clear filters",
       "archived_badge": "In trash"
     },
+    "list": {
+      "column": {
+        "select": "Select",
+        "name": "Name",
+        "access": "Access",
+        "editor": "Last edited by",
+        "updated": "Updated",
+        "size": "Size",
+        "actions": "Actions"
+      },
+      "screen_column": {
+        "activity": "Last opened",
+        "starred": "Starred on",
+        "shared": "Shared by",
+        "shared_with": "Shared with",
+        "shelved": "Archived",
+        "deleted": "Deleted"
+      },
+      "date": {
+        "yesterday": "Yesterday"
+      },
+      "access": {
+        "restricted": "Private",
+        "workspace": "Workspace",
+        "shared": "Shared",
+        "owner": "Owner",
+        "you": "You: {{level}}",
+        "level": {
+          "view": "View",
+          "comment": "Comment",
+          "edit": "Edit",
+          "manage": "Manage"
+        }
+      },
+      "group": {
+        "today": "Today",
+        "yesterday": "Yesterday",
+        "this_week": "This week",
+        "earlier": "Earlier",
+        "deleting_soon": "Deleting soon",
+        "more_than_7_days": "More than 7 days left"
+      },
+      "days_left_one": "{{count}} day left",
+      "days_left_other": "{{count}} days left",
+      "menu": {
+        "copy_link": "Copy link",
+        "link_copied": "Link copied",
+        "link_copy_failed": "Could not copy the link. Try again."
+      },
+      "activity": {
+        "edited": "You edited",
+        "opened": "You opened",
+        "commented": "You commented"
+      },
+      "starred_by_you": "You starred",
+      "share_summary": {
+        "people_one": "{{count}} person",
+        "people_other": "{{count}} people",
+        "workspaces_one": "{{count}} workspace",
+        "workspaces_other": "{{count}} workspaces",
+        "links_one": "{{count}} link",
+        "links_other": "{{count}} links"
+      },
+      "bulk": {
+        "toolbar": "Bulk actions",
+        "selected": "{{count}} selected",
+        "select_all": "Select all",
+        "select_row": "Select {{title}}",
+        "clear": "Clear selection",
+        "action": {
+          "share": "Share",
+          "move": "Move",
+          "download": "Download",
+          "shelve": "Archive",
+          "trash": "Move to trash",
+          "unshelve": "Unarchive",
+          "restore": "Restore",
+          "purge": "Delete forever"
+        },
+        "done": {
+          "move": "Moved {{ok}}/{{total}} documents",
+          "download": "Downloaded {{ok}}/{{total}} documents",
+          "shelve": "Archived {{ok}}/{{total}} documents",
+          "trash": "Moved {{ok}}/{{total}} documents to the trash",
+          "unshelve": "Unarchived {{ok}}/{{total}} documents",
+          "restore": "Restored {{ok}}/{{total}} documents",
+          "purge": "Deleted {{ok}}/{{total}} documents forever",
+          "share": "Shared {{ok}}/{{total}} documents"
+        },
+        "error": {
+          "forbidden": "you do not have permission",
+          "not_found": "no longer found",
+          "conflict": "it just changed, try again",
+          "rate_limited": "the server is busy, try again later",
+          "not_verifiable": "the result could not be confirmed",
+          "not_a_file": "cannot be downloaded (not a file)",
+          "not_shareable": "folders cannot be shared",
+          "too_large": "too large to download",
+          "folder_too_large": "the folder is too large",
+          "zip_limit": "over the 100 files one zip holds, download it in another batch",
+          "failed": "it did not go through"
+        },
+        "error_line": "{{title}}: {{reason}}",
+        "more_one": "and {{count}} more document",
+        "more_other": "and {{count}} more documents",
+        "confirm": {
+          "trash_title_one": "Move {{count}} document to the trash?",
+          "trash_title_other": "Move {{count}} documents to the trash?",
+          "trash_description": "Items stay in the trash for 30 days, then are deleted forever. Items you cannot manage are skipped.",
+          "trash_action": "Move to trash",
+          "purge_title_one": "Delete {{count}} document forever?",
+          "purge_title_other": "Delete {{count}} documents forever?",
+          "purge_description": "This cannot be undone. Items you cannot manage are skipped.",
+          "purge_action": "Delete forever"
+        },
+        "move": {
+          "title_one": "Move {{count}} document",
+          "title_other": "Move {{count}} documents",
+          "description": "Choose the folder the selected documents move to."
+        },
+        "zip": {
+          "preparing": "Preparing the zip file…",
+          "too_large": "The selected files add up to more than 1 GB. Choose fewer files.",
+          "failed": "The zip file could not be made. Try again.",
+          "expired": "The download link has expired. Try again.",
+          "timeout": "The zip file is not ready yet. Try again later."
+        },
+        "share": {
+          "title_one": "Share {{count}} document",
+          "title_other": "Share {{count}} documents",
+          "applies_to_one": "Applied the same way to {{count}} document you manage.",
+          "applies_to_other": "Applied the same way to {{count}} documents you manage.",
+          "skipped_note_one": "{{count}} document you cannot share is skipped.",
+          "skipped_note_other": "{{count}} documents you cannot share are skipped.",
+          "update_existing": "Change the level of people who already have access",
+          "workspace_label": "Workspace the documents are in",
+          "workspace_level": "All members: {{level}}",
+          "workspace_none": "Only people it is shared with",
+          "keep": "No change",
+          "link_label": "Public links",
+          "link_keep": "No change",
+          "link_create": "Create a new link for each document",
+          "link_revoke": "Turn off every existing link",
+          "links_created": "Links created",
+          "copy_all": "Copy all",
+          "close": "Done"
+        }
+      }
+    },
     "tree": {
       "aria_label": "Document tree",
       "sheet_title": "Document tree",
@@ -10118,7 +10267,6 @@
       "members_error_limit": "Only part of a very large member list is shown.",
       "people_already_shared": "Has access",
       "people_chosen": "Selected people",
-      "people_limit": "Up to {{max}} people per share. Remove someone to add another.",
       "people_remove": "Remove {{name}}",
       "people_removed": "Removed {{name}}",
       "people_toggle": "Show members",
@@ -10337,7 +10485,8 @@
       "expand_person": "Show documents for {{name}}",
       "collapse": "Collapse {{name}}",
       "kind_member": "Member",
-      "kind_home_workspace": "Whole workspace · {{count}} members",
+      "kind_home_workspace_one": "Whole workspace · {{count}} member",
+      "kind_home_workspace_other": "Whole workspace · {{count}} members",
       "kind_other_workspace": "Other workspace",
       "kind_organization": "Organization",
       "kind_link": "Public link",
@@ -10403,6 +10552,7 @@
       "purge": "Delete forever",
       "restore_item": "Restore {{title}}",
       "purge_item": "Delete {{title}} forever",
+      "view_details": "View details",
       "purge_title": "Delete {{title}} forever?",
       "purge_description": "This item will be permanently deleted and cannot be undone.",
       "purge_folder_description": "This folder will be permanently deleted and cannot be undone. Items inside it that you do not manage stay in the trash.",
@@ -10443,7 +10593,6 @@
       "filter_loaded_only": "Filters what is loaded — load more to widen it.",
       "shelved_by_former": "Former member",
       "shelved_by_system": "System",
-      "sort_shelved_desc": "Archived most recently",
       "columns": {
         "name": "Name",
         "access": "Access",
@@ -10748,7 +10897,6 @@
         "folders_other": "{{count}} folders"
       },
       "filters": {
-        "type": "Type",
         "editor": "Edited by",
         "updated": "Updated",
         "editor_any": "Any",
@@ -10756,7 +10904,11 @@
         "updated_any": "Any time",
         "updated_today": "Today",
         "updated_7d": "Past 7 days",
-        "updated_30d": "Past 30 days"
+        "updated_30d": "Past 30 days",
+        "activity_label": "Filter by activity",
+        "activity_all": "All",
+        "activity_opened": "Opened",
+        "activity_edited": "Edited"
       },
       "sidebar": {
         "label": "Documents navigation",
@@ -10795,22 +10947,15 @@
       },
       "chips_label": "Filter by type",
       "chips": {
-        "all": "All",
+        "all": "All types",
         "page": "UniNote",
-        "docx": "Docs",
-        "xlsx": "Sheets",
-        "pptx": "Slides",
-        "pdf": "PDF",
-        "md": "MD",
-        "html": "HTML"
-      },
-      "access_filter_label": "Filter by access",
-      "access_group_caption": "Access",
-      "access_filters": {
-        "all": "All",
-        "manage": "I manage",
-        "edit": "I can edit",
-        "restricted": "Private"
+        "docx": ".docx",
+        "xlsx": ".xlsx",
+        "pptx": ".pptx",
+        "pdf": ".pdf",
+        "md": ".md",
+        "html": ".html",
+        "txt": ".txt"
       },
       "access": {
         "view": "View only",
@@ -10821,27 +10966,6 @@
         "you_prefix": "You: {{level}}",
         "manage_for": "Manage access for {{title}}",
         "view_for": "View access for {{title}}"
-      },
-      "group_by": {
-        "label": "Group by",
-        "folder": "Folder",
-        "source": "Source",
-        "type": "File type",
-        "none": "No grouping"
-      },
-      "groups": {
-        "unfiled": "Not in a folder",
-        "type": {
-          "page": "UniNote",
-          "folder": "Folders",
-          "docx": "Docs",
-          "xlsx": "Sheets",
-          "pptx": "Slides",
-          "pdf": "PDF",
-          "md": "Markdown",
-          "html": "HTML",
-          "other": "Other files"
-        }
       },
       "columns": {
         "name": "Name",
@@ -10862,6 +10986,8 @@
         "star": "Star",
         "starred": "Starred",
         "unstar": "Remove star",
+        "star_item": "Star {{title}}",
+        "unstar_item": "Remove star from {{title}}",
         "go_to_source": "View where attached",
         "go_to_source_named": "View where attached: {{title}}",
         "preview_failed": "Could not open the file. Try again.",
@@ -10902,8 +11028,6 @@
       "no_matches_description": "No files of this type. Create one above or clear the filter.",
       "no_matches_plain_description": "No files of this type. Clear the filter to see everything.",
       "no_matches_more_description": "No files of this type in what has loaded so far. Load more to keep looking, or clear the filter.",
-      "no_matches_access_description": "No documents match this access. Clear the filter to see everything.",
-      "no_matches_access_more_description": "No documents match this access in what has loaded so far. Load more to keep looking, or clear the filter.",
       "no_matches_filters_description": "No documents match these filters. Clear the filters to see everything.",
       "no_matches_filters_more_description": "No documents match these filters in what has loaded so far. Load more to keep looking, or clear the filters.",
       "drop_hint": "Drop files on the list to upload them.",
@@ -10964,7 +11088,18 @@
         "empty_description": "Try another name or change the filter. Clear the search to go back to the folder.",
         "error_title": "Couldn't search",
         "error_description": "Check your connection and try again."
+      },
+      "view_subtitle": {
+        "recent": "Documents you opened or edited in the last 30 days",
+        "starred": "Documents you marked to open quickly",
+        "shared": "Documents other people shared directly with you",
+        "shared_by_me": "Your documents shared with other people",
+        "sources": "Files sent in Chat, Meetings, Email and Tasks of this workspace"
       }
+    },
+    "recent": {
+      "continue_title": "Pick up where you left off",
+      "continue_when": "{{activity}} at {{when}}"
     },
     "scope": {
       "private": "Private",

@@ -1,40 +1,23 @@
-import { DOCUMENT_FILE_FORMATS, isMyFolder, type DocumentList, type DocumentTreeNode } from "@uniwork/core/types/document";
+import { DOCUMENT_FILE_FORMATS, type DocumentList } from "@uniwork/core/types/document";
 import type { DocumentSourceFile } from "@uniwork/core/documents/sources-schema";
 import { documentIconFormat, fileExtension } from "./document-type-icon";
 
 // The library table's rows as one model: a workspace document or a file that
 // lives in another module (chat, task, meeting, email) and is listed here as
-// a link. Grouping is a pure function of the rows the server returned
-// (sorting lives in library-sort.ts); nothing here invents a row or a count.
-// The type chip and the access filter went server-side with UNI-1868 (the document lists take
-// `format`/`access`/`kind` and key them), so `matchesChip`/`matchesAccess`
-// remain only for what the server cannot filter: merged source rows, the
-// starred view (favorites + cache) and the sources view.
+// a link (sorting lives in library-sort.ts, the date groups in
+// doclist/date-groups.ts); nothing here invents a row or a count. The type
+// chip went server-side with UNI-1868 (the document lists take
+// `format`/`kind` and key them), so `matchesChip` remains only for what the
+// server cannot filter: merged source rows and the lists loaded in full.
 export type DocumentSummaryRow = DocumentList["documents"][number];
 
 export type LibraryRow =
   | { type: "document"; id: string; doc: DocumentSummaryRow }
   | { type: "source"; id: string; source: DocumentSourceFile };
 
-export const TYPE_CHIPS = ["all", "page", "docx", "xlsx", "pptx", "pdf", "md", "html"] as const;
+/** The filter bar's type chips, in their order on every screen (UNI-2045 W10; `txt` is SV-7). */
+export const TYPE_CHIPS = ["all", "page", "docx", "xlsx", "pptx", "pdf", "md", "html", "txt"] as const;
 export type TypeChip = (typeof TYPE_CHIPS)[number];
-
-/**
- * The access filter beside the type chips: every row, the rows the viewer
- * manages, the rows the viewer can edit (edit or manage), or restricted rows.
- */
-export const ACCESS_FILTERS = ["all", "manage", "edit", "restricted"] as const;
-export type AccessFilter = (typeof ACCESS_FILTERS)[number];
-
-export const GROUP_BY = ["folder", "source", "type", "none"] as const;
-export type GroupBy = (typeof GROUP_BY)[number];
-
-/**
- * Where a row came from, for the Source column and "group by source". A
- * document is uploaded or created here; "documents" is a server that does
- * not say which.
- */
-export type RowOrigin = "upload" | "created" | "documents" | "chat" | "task" | "meeting" | "email" | "other";
 
 export function documentRow(doc: DocumentSummaryRow): LibraryRow {
   return { type: "document", id: doc.id, doc };
@@ -60,27 +43,6 @@ export function rowFormat(row: LibraryRow): string {
     return fileExtension(row.doc.title) || "file";
   }
   return row.source.extension?.toLowerCase() || fileExtension(row.source.name) || "file";
-}
-
-export function rowOrigin(row: LibraryRow): RowOrigin {
-  if (row.type === "document") {
-    switch (row.doc.origin) {
-      case "upload":
-      case "created":
-        return row.doc.origin;
-      default:
-        return "documents";
-    }
-  }
-  switch (row.source.source) {
-    case "chat":
-    case "task":
-    case "meeting":
-    case "email":
-      return row.source.source;
-    default:
-      return "other";
-  }
 }
 
 /** A file document's or a source file's size; pages, folders and unknown sizes say nothing. */
@@ -131,34 +93,13 @@ export function rowTypeKey(row: LibraryRow): string {
  * The type chip keeps folders visible (they are how one gets to the files)
  * except under "UniNote", which lists pages only. Document lists send the chip
  * to the server (`format`/`kind`); this predicate remains only for the rows
- * the server cannot filter: merged source files and the starred view.
+ * the server cannot filter: merged source files, an open folder and the
+ * starred view (both loaded in full).
  */
 export function matchesChip(row: LibraryRow, chip: TypeChip): boolean {
   if (chip === "all") return true;
   if (isFolderRow(row)) return chip !== "page";
   return rowFormat(row) === chip;
-}
-
-/**
- * The translation key for the viewer's level on a row (the "My access"
- * column), or null when the row carries none (a source row, an older server, a
- * level this client does not know). A display mapping, not `rowLevel()`, which
- * reads an unknown level as view to keep commands hidden. The words match
- * `documents.share.level_*`; "comment" is mapped ahead of the server sending it.
- */
-export function rowAccessLabelKey(row: LibraryRow): string | null {
-  if (row.type !== "document") return null;
-  // Widened: the server may send levels this client's type does not list yet.
-  const level: string | null | undefined = row.doc.my_level;
-  switch (level) {
-    case "view":
-    case "comment":
-    case "edit":
-    case "manage":
-      return `documents.home.access.${level}`;
-    default:
-      return null;
-  }
 }
 
 /** The translation key for a row's visibility, or null when it carries none this client knows. */
@@ -175,121 +116,8 @@ export function rowVisibilityLabelKey(row: LibraryRow): string | null {
   }
 }
 
-/**
- * The access filter over rows the server did not narrow, AND-ed with the
- * type chip: document lists send `access` to the server (the trash only ever
- * `restricted`); this predicate remains for merged source rows, the starred
- * view and the sources view. An unknown level never matches "I manage" / "I
- * can edit"; a source row has neither a level nor a visibility, so only
- * "all" keeps it.
- */
-export function matchesAccess(row: LibraryRow, filter: AccessFilter): boolean {
-  if (filter === "all") return true;
-  if (row.type !== "document") return false;
-  switch (filter) {
-    case "manage":
-      return row.doc.my_level === "manage";
-    case "edit":
-      return row.doc.my_level === "edit" || row.doc.my_level === "manage";
-    case "restricted":
-      return row.doc.visibility === "restricted";
-    default:
-      return true;
-  }
-}
-
-export interface FolderInfo {
-  id: string;
-  title: string;
-  parentId: string | null;
-  kind: string;
-  systemKind?: string | null;
-}
-
-/** Every tree node by id, so a row's folder path is a walk up parent ids. */
-export function indexTree(nodes: DocumentTreeNode[], into = new Map<string, FolderInfo>()): Map<string, FolderInfo> {
-  for (const node of nodes) {
-    into.set(node.id, { id: node.id, title: node.title, parentId: node.parent_id ?? null, kind: node.kind, systemKind: node.system_kind ?? null });
-    indexTree(node.children, into);
-  }
-  return into;
-}
-
-/** The folders above a document, outermost first (pages in between are skipped). */
-export function folderPath(index: Map<string, FolderInfo>, parentId: string | null | undefined): FolderInfo[] {
-  const path: FolderInfo[] = [];
-  const seen = new Set<string>();
-  let id = parentId ?? null;
-  while (id && !seen.has(id)) {
-    seen.add(id);
-    const node = index.get(id);
-    if (!node) break;
-    if (node.kind === "folder") path.unshift(node);
-    id = node.parentId;
-  }
-  return path;
-}
-
 export interface RowGroup {
-  /** Stable id; also the translation hint for the built-in groups. */
+  /** "all" for a flat list, else the date group's id (doclist/groups.ts). */
   key: string;
-  /** A user-visible title the server sent (a folder path); built-in groups leave it empty. */
-  title: string;
   rows: LibraryRow[];
-}
-
-/**
- * Groups in first-seen order of the (already sorted) rows, with `folders`
- * first under "group by folder". Built-in keys are `folders`, `unfiled` (no
- * folder), `origin:<origin>` and `type:<format>`; the view translates them. A
- * source row has no folder in the workspace tree, so under "group by folder"
- * it joins the group of its module.
- */
-export function groupRows(rows: LibraryRow[], groupBy: GroupBy, index: Map<string, FolderInfo>, myFolderLabel?: string): RowGroup[] {
-  if (groupBy === "none") return [{ key: "all", title: "", rows }];
-  const groups = new Map<string, RowGroup>();
-  const add = (key: string, title: string, row: LibraryRow) => {
-    const group = groups.get(key) ?? { key, title, rows: [] };
-    group.rows.push(row);
-    groups.set(key, group);
-  };
-  for (const row of rows) {
-    if (groupBy === "source") add(`origin:${rowOrigin(row)}`, "", row);
-    else if (groupBy === "type") add(`type:${isFolderRow(row) ? "folder" : rowFormat(row)}`, "", row);
-    else if (row.type === "source") add(`origin:${rowOrigin(row)}`, "", row);
-    else {
-      const path = folderPath(index, row.doc.parent_id);
-      const last = path.at(-1);
-      if (last) {
-        add(
-          `folder:${last.id}`,
-          path.map((node) => (isMyFolder({ system_kind: node.systemKind }) && myFolderLabel ? myFolderLabel : node.title)).join(" / "),
-          row,
-        );
-      } else if (isFolderRow(row)) add("folders", "", row);
-      else add("unfiled", "", row);
-    }
-  }
-  // A lone "Not in a folder" header says nothing (a recipient whose shares sit in
-  // no folder of theirs): the list reads as one flat group instead.
-  const only = groups.size === 1 ? groups.get("unfiled") : undefined;
-  if (only) return [{ ...only, key: "all" }];
-  const folders = groups.get("folders");
-  if (!folders) return [...groups.values()];
-  groups.delete("folders");
-  return [folders, ...groups.values()];
-}
-
-/** Human-readable size: "318 KB", "1.2 MB" (locale decimal mark). */
-export function formatBytes(bytes: number | null | undefined, locale: string): string {
-  if (bytes === null || bytes === undefined || !Number.isFinite(bytes) || bytes < 0) return "";
-  const units = ["B", "KB", "MB", "GB"];
-  let value = bytes;
-  let unit = 0;
-  while (value >= 1024 && unit < units.length - 1) {
-    value /= 1024;
-    unit += 1;
-  }
-  const digits = unit === 0 || value >= 10 ? 0 : 1;
-  return `${new Intl.NumberFormat(locale || undefined, { maximumFractionDigits: digits }).format(value)} ${units[unit]}`;
 }

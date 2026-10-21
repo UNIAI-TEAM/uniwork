@@ -1,5 +1,7 @@
+import { docListRungs, docListSpec, type DocListColumnId, type DocListScreen } from "./doclist/columns";
+
 /**
- * The width ladder of the Documents library table.
+ * The width ladders of the Documents library table.
  *
  * The table is `table-fixed` inside a `max-w-6xl` list (<= 1104px), beside the
  * docs aside and the app sidebar, so the viewport says nothing about the room
@@ -7,165 +9,54 @@
  * viewport and ~872px at 1440. Every optional column therefore joins by the
  * width of the list's own container (`@container/library`), in a ladder that
  * keeps Name readable: a rung opens at `the fixed columns up to and including
- * it + 2px border + a 220px name floor`, rounded up to the next rem. Name
- * never drops under ~220px: a lower-priority column drops before that can
- * happen, Truy cập first (no longer reachable at the 1440 shell — it needs a
- * ~968px container, i.e. a ~1536px viewport) and Dung lượng next. Header,
- * colgroup, cells and the group spanner all read the one class below, so none
- * can drift out of step.
+ * it + 2px border + the Name floor (nameFloor, 288 / 260)`, rounded up to the next rem. Header,
+ * colgroup, cells and the group spanner all read the one class per column, so
+ * none can drift out of step. Tailwind finds the classes as literals, so each
+ * rung is written out in full.
  *
- * Below the first rung only Name and the actions column exist (Name = the
- * container - 82px, and -110px on a coarse pointer). Tailwind finds the
- * classes as literals, so each rung is written out in full;
- * `documents-library-ladder.test.tsx` re-derives every threshold from the
- * column widths.
- *
- * The six board columns (Main.dc.html / Folder.dc.html — the same at Home and
- * inside a folder) and their fixed widths: Truy cập 190px, Người sửa gần nhất
- * 200px, Cập nhật 140px, Dung lượng 90px (right-aligned), Thao tác 80px.
- * Thao tác is 80 and not 48 so a source row's icon button (28) can sit next
- * to the ⋯ menu (28) with the gap and cell padding; on a coarse pointer both
- * grow to the 44px touch target and the column grows to 108 with them. On a
- * fine pointer it widens to 96px from the first rung, where the app quick
- * command joins it.
- *
- * | container | columns on screen                    |
- * | --------- | ------------------------------------ |
- * | < 29rem   | Name, actions                        |
- * | 29rem     | + Cập nhật, Thao tác 96px, quick     |
- * | 42rem     | + Người sửa gần nhất                 |
- * | 47rem     | + Dung lượng                         |
- * | 59rem     | + Truy cập                           |
- *
- * Shared by me swaps the 42rem and 59rem rungs (SW-V1): Truy cập joins where
- * the editor would, because the reader of this view is the sharer checking
- * who can reach their documents — the scope matters more than who edited.
+ * The ladder is `specLadder` (the unified list, contract UNI-2045, driven
+ * from doclist/columns.ts), one for every screen.
  */
 
-export type LibraryColumnId =
-  | "name"
-  | "access"
-  | "editor"
-  | "updated"
-  | "size"
-  | "actions"
-  // Shelved-only columns (ARCHIVE-01 U-2): who archived it and when.
-  | "shelved_by"
-  | "shelved_at";
-
 interface LibraryColumn {
-  id: LibraryColumnId;
+  id: DocListColumnId;
   /** Classes of the `<col>`. */
   col: string;
   /** Visibility (and alignment) classes shared by the `<th>` and every `<td>` of the column. */
   cell: string;
+  /** Horizontal padding of the `<th>` and every `<td>`; absent reads `px-3`. */
+  pad?: string;
 }
 
-export interface LibraryLadder {
-  /** DOM order, Name first and actions last. */
-  columns: LibraryColumn[];
+/** What a library row reads from the ladder: its columns and the classes of its narrow secondary line. */
+export interface RowLadder {
+  /** DOM order, Name first (after Select) and actions last. */
+  columns: readonly LibraryColumn[];
   /** The header row: hidden while only Name and actions exist. */
   head: string;
-  /** The app command in the actions cell: shown once the actions column has room for it. */
-  quick: string;
   /** The editor part of the secondary line: hidden once its column exists. */
   metaHides: string;
   /** The updated · size part of the secondary line: hidden once those columns exist. */
   metaTailHides: string;
+  /** The separator between the editor and the updated · size part: `metaTailHides` with `!`, as it also carries its own 34rem `inline`. */
+  metaTailDotHides: string;
   /** The whole secondary line (level + Restricted mark): hidden once Truy cập exists. */
   accessLineHides: string;
   /** The level · scope part of the secondary line: hidden once the access column exists. */
   accessGroupHides: string;
   /** The separator between the meta group and the access group: hidden when either neighbour leaves. */
   metaDotHides: string;
+  /** The screen column's content under Name: hidden once the screen column exists (the unified ladder only). */
+  screenLineHides?: string;
 }
 
-const NAME: LibraryColumn = { id: "name", col: "", cell: "" };
-const ACTIONS: LibraryColumn = { id: "actions", col: "w-20 pointer-coarse:w-27 pointer-fine:@min-[29rem]/library:w-24", cell: "" };
-
-// The board's fixed widths written as px so the mock columns land where the
-// design put them; the rungs derive from those widths plus a 220px Name floor
-// (29rem = updated 140 + actions 96 + border 2 + floor 220 rounded up, 42rem =
-// + editor 200, 47rem = + size 90, 59rem = + access 190 — Truy cập needs a
-// ~968px container, so it drops out at the 1440 shell first, Dung lượng next).
-const ACCESS: LibraryColumn = { id: "access", col: "hidden w-[190px] @min-[59rem]/library:table-column", cell: "hidden @min-[59rem]/library:table-cell" };
-const EDITOR: LibraryColumn = { id: "editor", col: "hidden w-[200px] @min-[42rem]/library:table-column", cell: "hidden @min-[42rem]/library:table-cell" };
-const UPDATED: LibraryColumn = { id: "updated", col: "hidden w-[140px] @min-[29rem]/library:table-column", cell: "hidden @min-[29rem]/library:table-cell" };
-const SIZE: LibraryColumn = { id: "size", col: "hidden w-[90px] @min-[47rem]/library:table-column", cell: "hidden text-right @min-[47rem]/library:table-cell" };
-// Shared by me (SW-V1): Truy cập takes the editor's rung so the scope column
-// joins at 42rem instead of 59rem; the editor column moves to 59rem. The DOM
-// order (… Truy cập · Người sửa gần nhất …) is unchanged.
-const ACCESS_SHARED: LibraryColumn = { id: "access", col: "hidden w-[190px] @min-[42rem]/library:table-column", cell: "hidden @min-[42rem]/library:table-cell" };
-const EDITOR_SHARED: LibraryColumn = { id: "editor", col: "hidden w-[200px] @min-[59rem]/library:table-column", cell: "hidden @min-[59rem]/library:table-cell" };
-
-const HEAD = "hidden bg-muted/50 @min-[29rem]/library:table-header-group";
-const QUICK = "hidden @min-[29rem]/library:block";
-
-const LADDER: LibraryLadder = {
-  columns: [NAME, ACCESS, EDITOR, UPDATED, SIZE, ACTIONS],
-  head: HEAD,
-  quick: QUICK,
-  metaHides: "@min-[42rem]/library:hidden",
-  metaTailHides: "@min-[29rem]/library:hidden",
-  accessLineHides: "@min-[59rem]/library:hidden",
-  accessGroupHides: "@min-[59rem]/library:hidden",
-  metaDotHides: "@min-[42rem]/library:hidden",
-};
-
-const LADDER_SHARED_BY_ME: LibraryLadder = {
-  columns: [NAME, ACCESS_SHARED, EDITOR_SHARED, UPDATED, SIZE, ACTIONS],
-  head: HEAD,
-  quick: QUICK,
-  metaHides: "@min-[59rem]/library:hidden",
-  metaTailHides: "@min-[29rem]/library:hidden",
-  // The scope group leaves the narrow line when its column joins (42rem); the
-  // line itself stays until the editor column takes the meta group (59rem).
-  accessLineHides: "@min-[59rem]/library:hidden",
-  accessGroupHides: "@min-[42rem]/library:hidden",
-  metaDotHides: "@min-[42rem]/library:hidden",
-};
-
-export function libraryLadder(opts: { sharedByMe?: boolean } = {}): LibraryLadder {
-  return opts.sharedByMe ? LADDER_SHARED_BY_ME : LADDER;
-}
-
-// Shelved ladder (Archive.dc, ARCHIVE-01 U-2): Name (with the folder path as
-// its secondary line) / Truy cập / Lưu trữ bởi / Lưu trữ lúc / Actions. Below
-// 46rem only Name and the actions exist; the member name lands last because
-// its 160px are the widest single addition.
-//
-// | container | shelved                          |
-// | --------- | -------------------------------- |
-// | < 46rem   | Name, actions                    |
-// | 46rem     | + Truy cập, Lưu trữ lúc          |
-// | 56rem     | + Lưu trữ bởi                    |
-const SHELVED: LibraryLadder = {
-  columns: [
-    NAME,
-    { id: "access", col: "hidden w-24 @min-[46rem]/library:table-column", cell: "hidden @min-[46rem]/library:table-cell" },
-    { id: "shelved_by", col: "hidden w-40 @min-[56rem]/library:table-column", cell: "hidden @min-[56rem]/library:table-cell" },
-    { id: "shelved_at", col: "hidden w-28 @min-[46rem]/library:table-column", cell: "hidden @min-[46rem]/library:table-cell" },
-    // Two labelled commands (restore from Lưu trữ, move to trash) plus the ⋯ menu.
-    { id: "actions", col: "w-24 pointer-coarse:w-28 @min-[46rem]/library:w-48", cell: "" },
-  ],
-  head: "hidden bg-muted/50 @min-[46rem]/library:table-header-group",
-  quick: "",
-  metaHides: "@min-[46rem]/library:hidden",
-  metaTailHides: "@min-[46rem]/library:hidden",
-  accessLineHides: "@min-[56rem]/library:hidden",
-  // The shelved row draws its own secondary line (documents-shelved-row.tsx);
-  // these two only serve the library row, so they mirror the rungs above.
-  accessGroupHides: "@min-[56rem]/library:hidden",
-  metaDotHides: "@min-[46rem]/library:hidden",
-};
-
-/** The Lưu trữ table's ladder: the access column plus the shelved pair. */
-export function shelvedLadder(): LibraryLadder {
-  return SHELVED;
+/** The horizontal padding of one column's header and cells: the spec ladder tightens the optional ones to `px-2`. */
+export function libraryPad(ladder: { columns: readonly LibraryColumn[] }, id: DocListColumnId): string {
+  return ladder.columns.find((column) => column.id === id)?.pad ?? "px-3";
 }
 
 /** The visibility class of one column's cells, or null when this ladder has no such column. */
-export function libraryCell(ladder: LibraryLadder, id: LibraryColumnId): string | null {
+export function libraryCell(ladder: { columns: readonly LibraryColumn[] }, id: DocListColumnId): string | null {
   return ladder.columns.find((column) => column.id === id)?.cell ?? null;
 }
 
@@ -175,7 +66,7 @@ export function libraryCell(ladder: LibraryLadder, id: LibraryColumnId): string 
  * so the spanner covers exactly the visible columns at every width (a wider
  * colSpan would add implicit columns that squeeze Name).
  */
-export function libraryGroupSpans(ladder: LibraryLadder): { cell: string; span: number }[] {
+export function libraryGroupSpans(ladder: { columns: readonly LibraryColumn[] }): { cell: string; span: number }[] {
   const spans: { cell: string; span: number }[] = [];
   for (const column of ladder.columns) {
     if (!column.cell) continue;
@@ -184,4 +75,118 @@ export function libraryGroupSpans(ladder: LibraryLadder): { cell: string; span: 
     else spans.push({ cell: column.cell, span: 1 });
   }
   return spans;
+}
+
+// The ladder of the unified list (contract UNI-2045): driven from the column
+// spec in doclist/columns.ts, which owns the widths and derives the rungs. Name,
+// Select and Actions are always on; below the table rung the header, Updated and
+// the screen column are off and the row stacks under Name. Above it Truy cập,
+// Người sửa gần nhất and Dung lượng join in that order (they hide in the
+// reverse). Tailwind finds a class only as a literal, so every rung the specs
+// can produce is written out here; `doclist/ladder.test.ts` fails when a spec
+// derives a rung that has no entry.
+// `hideNow` is `hide` with `!`: it wins over a display class of the same rung
+// (the row's own 34rem `inline`).
+type RungClasses = { col: string; cell: string; head: string; hide: string; hideNow: string };
+
+// `w-[Npx]` of each column, written out for the same reason: Tailwind cannot see a class built from a number.
+const WIDTH_CLASSES: Record<number, string> = {
+  32: "w-[32px]",
+  76: "w-[76px]",
+  102: "w-[102px]",
+  118: "w-[118px]",
+  128: "w-[128px]",
+  132: "w-[132px]",
+  146: "w-[146px]",
+};
+
+/** The width class of a spec column; a spec width without an entry throws (the ladder test names it). */
+function widthClass(px: number): string {
+  const cls = WIDTH_CLASSES[px];
+  if (!cls) throw new Error(`library-columns: no width class for ${px}px`);
+  return cls;
+}
+
+const RUNG_CLASSES: Record<number, RungClasses> = {
+  31: { col: "hidden @min-[31rem]/library:table-column", cell: "hidden @min-[31rem]/library:table-cell", head: "hidden bg-muted/50 @min-[31rem]/library:table-header-group", hide: "@min-[31rem]/library:hidden", hideNow: "@min-[31rem]/library:hidden!" },
+  39: { col: "hidden @min-[39rem]/library:table-column", cell: "hidden @min-[39rem]/library:table-cell", head: "hidden bg-muted/50 @min-[39rem]/library:table-header-group", hide: "@min-[39rem]/library:hidden", hideNow: "@min-[39rem]/library:hidden!" },
+  40: { col: "hidden @min-[40rem]/library:table-column", cell: "hidden @min-[40rem]/library:table-cell", head: "hidden bg-muted/50 @min-[40rem]/library:table-header-group", hide: "@min-[40rem]/library:hidden", hideNow: "@min-[40rem]/library:hidden!" },
+  41: { col: "hidden @min-[41rem]/library:table-column", cell: "hidden @min-[41rem]/library:table-cell", head: "hidden bg-muted/50 @min-[41rem]/library:table-header-group", hide: "@min-[41rem]/library:hidden", hideNow: "@min-[41rem]/library:hidden!" },
+  48: { col: "hidden @min-[48rem]/library:table-column", cell: "hidden @min-[48rem]/library:table-cell", head: "hidden bg-muted/50 @min-[48rem]/library:table-header-group", hide: "@min-[48rem]/library:hidden", hideNow: "@min-[48rem]/library:hidden!" },
+  49: { col: "hidden @min-[49rem]/library:table-column", cell: "hidden @min-[49rem]/library:table-cell", head: "hidden bg-muted/50 @min-[49rem]/library:table-header-group", hide: "@min-[49rem]/library:hidden", hideNow: "@min-[49rem]/library:hidden!" },
+  54: { col: "hidden @min-[54rem]/library:table-column", cell: "hidden @min-[54rem]/library:table-cell", head: "hidden bg-muted/50 @min-[54rem]/library:table-header-group", hide: "@min-[54rem]/library:hidden", hideNow: "@min-[54rem]/library:hidden!" },
+  57: { col: "hidden @min-[57rem]/library:table-column", cell: "hidden @min-[57rem]/library:table-cell", head: "hidden bg-muted/50 @min-[57rem]/library:table-header-group", hide: "@min-[57rem]/library:hidden", hideNow: "@min-[57rem]/library:hidden!" },
+  58: { col: "hidden @min-[58rem]/library:table-column", cell: "hidden @min-[58rem]/library:table-cell", head: "hidden bg-muted/50 @min-[58rem]/library:table-header-group", hide: "@min-[58rem]/library:hidden", hideNow: "@min-[58rem]/library:hidden!" },
+  64: { col: "hidden @min-[64rem]/library:table-column", cell: "hidden @min-[64rem]/library:table-cell", head: "hidden bg-muted/50 @min-[64rem]/library:table-header-group", hide: "@min-[64rem]/library:hidden", hideNow: "@min-[64rem]/library:hidden!" },
+};
+
+/** The rung's literal classes; a spec that derives a rung without an entry throws (the ladder test names it). */
+function atRung(rung: number): RungClasses {
+  const classes = RUNG_CLASSES[rung];
+  if (!classes) throw new Error(`library-columns: no container-query classes for the ${rung}rem rung`);
+  return classes;
+}
+
+/** The unified list's ladder: the spec's columns, the header class and the classes of the row's narrow line. */
+export interface SpecLadder extends RowLadder {
+  columns: LibraryColumn[];
+  screenLineHides: string;
+  /** Hidden from the rung where the column joins up: what the Name header's sort caption uses for the two columns that can be sorted and off. */
+  sortHintHides: { editor: string; size: string };
+}
+
+/**
+ * The unified list's column ladder for one screen, in DOM order. The Select
+ * column is the spec's and stays unless the caller passes `selectable: false`
+ * (the live screens until bulk selection lands, W9); the rungs count it either
+ * way, so turning it on moves no other column.
+ *
+ * The row's narrow line stands in for the columns that are off: below the
+ * table rung it carries the screen column's content and the updated · size
+ * part; the level · scope part leaves when Truy cập joins, the editor (and so
+ * the whole line) when Người sửa gần nhất joins.
+ */
+export function specLadder(screen: DocListScreen, opts: { selectable?: boolean } = {}): SpecLadder {
+  const spec = docListSpec(screen);
+  const rungs = docListRungs(spec);
+  const at = (column: keyof typeof rungs) => atRung(rungs[column]);
+  // Every `<col>` takes the spec's width; Name has none. The optional columns carry px-2, Name keeps px-3.
+  const PAD = "px-2";
+  // Select: 16px box + 14px of hit area each side is 44px on a coarse pointer (pointer-coarse:after:-inset-3.5 on the
+  // Checkbox), so the column grows to 44px and the box sits 14px in, clear of the Name button.
+  const SELECT_PAD = "px-2 pointer-coarse:px-3.5";
+  const columns: LibraryColumn[] = spec.columns.flatMap((column): LibraryColumn[] => {
+    const w = column.id === "name" ? "" : widthClass(column.width);
+    switch (column.id) {
+      case "select":
+        return opts.selectable === false ? [] : [{ id: column.id, col: `${w} pointer-coarse:w-11`, cell: "", pad: SELECT_PAD }];
+      case "name":
+        return [{ id: column.id, col: "", cell: "" }];
+      case "access":
+        return [{ id: column.id, col: `${w} ${at("access").col}`, cell: at("access").cell, pad: PAD }];
+      case "editor":
+        return [{ id: column.id, col: `${w} ${at("editor").col}`, cell: at("editor").cell, pad: PAD }];
+      case "updated":
+        return [{ id: column.id, col: `${w} ${at("table").col}`, cell: at("table").cell, pad: PAD }];
+      case "size":
+        return [{ id: column.id, col: `${w} ${at("size").col}`, cell: `${at("size").cell} text-right`, pad: PAD }];
+      case "actions":
+        return [{ id: column.id, col: `${w} pointer-coarse:w-27`, cell: "" }];
+      default:
+        // The screen column: it holds the table layout's second slot, so it joins with Updated at the table rung.
+        return [{ id: column.id, col: `${w} ${at("table").col}`, cell: at("table").cell, pad: PAD }];
+    }
+  });
+  return {
+    columns,
+    head: at("table").head,
+    metaHides: at("editor").hide,
+    metaTailHides: at("table").hide,
+    metaTailDotHides: at("table").hideNow,
+    accessLineHides: at("editor").hide,
+    accessGroupHides: at("access").hide,
+    metaDotHides: at("access").hideNow,
+    screenLineHides: at("table").hide,
+    sortHintHides: { editor: at("editor").hide, size: at("size").hide },
+  };
 }

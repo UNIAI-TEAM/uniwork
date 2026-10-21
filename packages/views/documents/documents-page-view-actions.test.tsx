@@ -73,6 +73,8 @@ interface Routes {
   recentCursor?: (path: string) => string | null;
   shared?: () => unknown[];
   favorites?: () => unknown[];
+  /** GET /workspaces/{ws}/documents/favorites (SV-2): the Starred screen's rows. */
+  starred?: (path: string) => unknown[];
   sources?: (path: string) => unknown[];
   sourcesCursor?: (path: string) => string | null;
   post?: (path: string) => unknown;
@@ -91,6 +93,7 @@ function route(routes: Routes) {
     };
     // The module switch reads the organization's office flags (UNI-1869 viewer).
     if (path.startsWith("/api/v1/config")) return Promise.resolve({ flags: { office_engine: true } });
+    if (path.startsWith(`${LIST_BASE}/favorites`)) return run(() => ({ documents: routes.starred?.(path) ?? [], next_cursor: null }));
     if (path.includes("/documents/favorites")) return run(() => ({ favorites: routes.favorites?.() ?? [] }));
     if (path.startsWith(`${LIST_BASE}/tree`)) return Promise.resolve({ documents: routes.tree?.() ?? [] });
     if (path.startsWith(`${LIST_BASE}/sources`) && method === "GET") {
@@ -161,7 +164,7 @@ beforeEach(() => {
 });
 
 describe("file from another module", () => {
-  const sourceNameButton = (row: HTMLElement) => row.querySelector("td:first-child button")! as HTMLElement;
+  const sourceNameButton = (row: HTMLElement) => row.querySelector("td[data-column='name'] button")! as HTMLElement;
 
   /** Stubs the object-URL API and the click that saves the blob; returns the clicks. */
   const stubDownload = () => {
@@ -629,6 +632,7 @@ describe("starring a document", () => {
     route({
       list: () => [summary()],
       favorites: () => [{ document_id: "d1", workspace_id: WS, title: "Kế hoạch Q4", kind: "page" }, { document_id: "d9", workspace_id: "other", title: "Khác", kind: "page" }],
+      starred: () => [summary({ favorited_at: "2026-10-09T03:00:00Z" })],
     });
     renderView();
     await screen.findByText("Kế hoạch Q4");
@@ -636,12 +640,36 @@ describe("starring a document", () => {
     await waitFor(() => expect(within(sidebarItem(t("documents.home.sidebar.starred"))).getByText("1")).toBeInTheDocument());
 
     fireEvent.click(sidebarItem(t("documents.home.sidebar.starred")));
-    expect(await screen.findByRole("heading", { level: 2, name: t("documents.home.views.starred") })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { level: 1, name: t("documents.home.views.starred") })).toBeInTheDocument();
     expect(await rowOf("Kế hoạch Q4")).toBeInTheDocument();
     expect(screen.queryByText("Khác")).toBeNull();
   });
 
-  it("shows the star marker on the row after starring and removes it after unstarring", async () => {
+  it("lists Starred from the workspace favorites route with the star date, and joins no other list (SV-2)", async () => {
+    route({
+      list: () => [summary({ id: "d2", title: "Chỉ ở gốc" })],
+      favorites: () => [{ document_id: "d1", workspace_id: WS, title: "Tên cũ", kind: "page" }],
+      starred: () => [
+        summary({ title: "Kế hoạch Q4", favorited_at: "2025-03-18T03:00:00Z", updated_by_user: { name: "Nguyễn Văn An", avatar_url: null } }),
+      ],
+    });
+    renderView();
+    fireEvent.click(await screen.findByRole("button", { name: new RegExp(t("documents.home.sidebar.starred")) }));
+    const row = await rowOf("Kế hoạch Q4");
+    // The row is the server's (its own title and editor), with the star date and "Bạn gắn sao".
+    expect(screen.queryByText("Tên cũ")).toBeNull();
+    expect(within(row).getAllByText("Nguyễn Văn An").length).toBeGreaterThan(0);
+    expect(within(row).getAllByText(t("documents.list.starred_by_you")).length).toBeGreaterThan(0);
+    expect(within(row).getAllByText(/18\/03\/2025/).length).toBeGreaterThan(0);
+    const gets = requestMock.mock.calls.map(([path]) => String(path));
+    expect(gets.some((path) => path.startsWith(`${LIST_BASE}/favorites`))).toBe(true);
+    // No params but the page: the screen's filters and sort stay on the client (W10/W12 move them).
+    expect(gets.filter((path) => path.startsWith(`${LIST_BASE}/favorites`)).every((path) => !/[?&](sort|order|format|kind|access)=/.test(path))).toBe(true);
+    // The flat workspace list is no longer read to fill starred rows.
+    expect(gets.some((path) => path === `${LIST_BASE}?limit=50`)).toBe(false);
+  });
+
+  it("shows the starred state on the row's Star action after starring and clears it after unstarring", async () => {
     let starred = false;
     const fav = { document_id: "d1", workspace_id: WS, title: "Kế hoạch Q4", kind: "page" };
     route({
@@ -658,13 +686,15 @@ describe("starring a document", () => {
     });
     renderView();
     const row = await rowOf("Kế hoạch Q4");
-    expect(within(row).queryByRole("img", { name: t("documents.home.row.starred") })).toBeNull();
+    expect(within(row).getByRole("button", { name: t("documents.home.row.star_item", { title: "Kế hoạch Q4" }) })).toHaveAttribute("aria-pressed", "false");
 
     await pickFromMenu("Kế hoạch Q4", t("documents.home.row.star"));
-    expect(await within(row).findByRole("img", { name: t("documents.home.row.starred") })).toBeInTheDocument();
+    expect(await within(row).findByRole("button", { name: t("documents.home.row.unstar_item", { title: "Kế hoạch Q4" }) })).toHaveAttribute("aria-pressed", "true");
+    // One star, not two: the inline marker is gone while the action is there.
+    expect(within(row).queryByRole("img", { name: t("documents.home.row.starred") })).toBeNull();
 
     await pickFromMenu("Kế hoạch Q4", t("documents.home.row.unstar"));
-    await waitFor(() => expect(within(row).queryByRole("img", { name: t("documents.home.row.starred") })).toBeNull());
+    await waitFor(() => expect(within(row).getByRole("button", { name: t("documents.home.row.star_item", { title: "Kế hoạch Q4" }) })).toHaveAttribute("aria-pressed", "false"));
   });
 });
 
@@ -721,10 +751,10 @@ describe("library views", () => {
   it("retries the starred list when it could not be read", async () => {
     let attempts = 0;
     route({
-      favorites: () => {
+      starred: () => {
         attempts += 1;
         if (attempts === 1) throw new ApiError("boom", "internal", 500);
-        return [{ document_id: "d1", workspace_id: WS, title: "Kế hoạch Q4", kind: "page" }];
+        return [summary()];
       },
     });
     renderView();
@@ -742,14 +772,19 @@ describe("library views", () => {
     expect(screen.queryByText(t("documents.library.error_title"))).toBeNull();
   });
 
-  it("lists archived documents with the trash actions and no live row menu", async () => {
+  it("lists archived documents with the trash actions and only the trash menu (UNI-2045 W2)", async () => {
     route({ list: (path) => (new URLSearchParams(path.split("?")[1] ?? "").get("archived") === "1" ? [summary({ id: "a1", title: "Cũ", archived_at: "2026-09-01T00:00:00Z", archived_by: "u2", purge_after: "2026-10-01T00:00:00Z" })] : []) });
     renderView();
     fireEvent.click(await screen.findByRole("button", { name: new RegExp(t("documents.home.sidebar.trash")) }));
     const row = await rowOf("Cũ");
     expect(within(row).getByRole("button", { name: t("documents.trash.restore_item", { title: "Cũ" }) })).toBeInTheDocument();
-    expect(within(row).getByRole("button", { name: t("documents.trash.purge_item", { title: "Cũ" }) })).toBeInTheDocument();
-    expect(within(row).queryByRole("button", { name: t("documents.home.row.menu", { title: "Cũ" }) })).toBeNull();
+    fireEvent.click(within(row).getByRole("button", { name: t("documents.home.row.menu", { title: "Cũ" }) }));
+    const menu = await screen.findByRole("menu");
+    expect(within(menu).getAllByRole("menuitem").map((item) => item.textContent?.trim())).toEqual([
+      t("documents.trash.restore"),
+      t("documents.trash.view_details"),
+      t("documents.trash.purge"),
+    ]);
   });
 
   it("lists one module's files from the sidebar and names the view after it", async () => {
@@ -764,7 +799,7 @@ describe("library views", () => {
     renderView();
     await screen.findByText("Kế hoạch Q4");
     fireEvent.click(await screen.findByRole("button", { name: t("documents.home.origin.chat") }));
-    expect(await screen.findByRole("heading", { level: 2, name: t("documents.home.views.chat") })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { level: 1, name: t("documents.home.views.chat") })).toBeInTheDocument();
     expect(filters.some((path) => new URLSearchParams(path.split("?")[1] ?? "").get("source") === "chat")).toBe(true);
     expect(screen.queryByText("Kế hoạch Q4")).toBeNull();
     expect(await rowOf("Đề xuất ngân sách.pdf")).toBeInTheDocument();
@@ -830,17 +865,18 @@ describe("FD-09 fix r2: trashed folder restore and one menu vocabulary", () => {
   }
 
   /** The name button of the row's first cell (the row's primary action), or null when the cell is inert. */
-  const primaryOf = (row: HTMLElement) => row.querySelector<HTMLElement>("td:first-child button");
+  const primaryOf = (row: HTMLElement) => row.querySelector<HTMLElement>("td[data-column='name'] button");
   const restoreOf = (row: HTMLElement) => within(row).queryByRole("button", { name: t("documents.trash.restore_item", { title: "Dự án CCB" }) });
 
-  it("offers Restore and Xóa vĩnh viễn, not Open folder or a row menu, on a trashed folder in the Trash view", async () => {
+  it("offers Restore and Xóa vĩnh viễn, never Open folder, on a trashed folder in the Trash view (UNI-2045 W2 menu)", async () => {
     route({ list: archivedList([archivedFolder()]) });
     renderView();
     await openArchiveScope();
     const row = await rowOf("Dự án CCB");
     expect(restoreOf(row)).not.toBeNull();
-    expect(within(row).queryByRole("button", { name: t("documents.trash.purge_item", { title: "Dự án CCB" }) })).not.toBeNull();
-    expect(within(row).queryByRole("button", { name: t("documents.home.row.menu", { title: "Dự án CCB" }) })).toBeNull();
+    fireEvent.click(within(row).getByRole("button", { name: t("documents.home.row.menu", { title: "Dự án CCB" }) }));
+    const menu = await screen.findByRole("menu");
+    expect(within(menu).getAllByRole("menuitem").map((item) => item.textContent?.trim())).toEqual([t("documents.trash.restore"), t("documents.trash.purge")]);
     expect(screen.queryByRole("menuitem", { name: t("documents.home.row.open_folder") })).toBeNull();
   });
 
@@ -850,7 +886,7 @@ describe("FD-09 fix r2: trashed folder restore and one menu vocabulary", () => {
     await openArchiveScope();
     const row = await rowOf("Dự án CCB");
     expect(restoreOf(row)).toBeNull();
-    expect(within(row).queryByRole("button", { name: t("documents.trash.purge_item", { title: "Dự án CCB" }) })).toBeNull();
+    expect(within(row).queryByRole("button", { name: t("documents.home.row.menu", { title: "Dự án CCB" }) })).toBeNull();
     expect(within(row).getByText(t("documents.trash.read_only"))).toBeInTheDocument();
   });
 
@@ -910,13 +946,13 @@ describe("FD-09 fix r2: trashed folder restore and one menu vocabulary", () => {
     expect(screen.queryByRole("menuitem", { name: t("documents.home.row.move") })).toBeNull();
   });
 
-  it("uses Move to… on a document row too and keeps Archive for it", async () => {
+  it("says Move (the row-menu contract name) on a document row and keeps Archive for it", async () => {
     route({ list: () => [summary()] });
     renderView();
     await openMenu("Kế hoạch Q4");
-    expect(await screen.findByRole("menuitem", { name: t("documents.tree.menu.move_to") })).toBeInTheDocument();
+    expect(await screen.findByRole("menuitem", { name: t("documents.home.row.move") })).toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: t("documents.home.row.archive") })).toBeInTheDocument();
-    expect(screen.queryByRole("menuitem", { name: t("documents.home.row.move") })).toBeNull();
+    expect(screen.queryByRole("menuitem", { name: t("documents.tree.menu.move_to") })).toBeNull();
   });
 
   it("carries the same words in English: Move to… and Delete", () => {

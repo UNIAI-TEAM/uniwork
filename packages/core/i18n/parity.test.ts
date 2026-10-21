@@ -113,8 +113,8 @@ describe("vi/en parity", () => {
   });
 
   it("trạng thái tài liệu riêng tư đọc là \"Riêng tư\"/\"Private\" ở mọi bề mặt, không còn \"Hạn chế\"/\"Restricted\"", () => {
-    expect(VI["documents.home.access_filters.restricted"]).toBe("Riêng tư");
-    expect(EN["documents.home.access_filters.restricted"]).toBe("Private");
+    expect(VI["documents.list.access.restricted"]).toBe("Riêng tư");
+    expect(EN["documents.list.access.restricted"]).toBe("Private");
     expect(VI["documents.share.visibility_restricted"]).toBe("Riêng tư");
     expect(EN["documents.share.visibility_restricted"]).toBe("Private");
     expect(VI["org.members.transfer_docs.skipped_self_other"]).toBe(

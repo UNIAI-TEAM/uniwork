@@ -39,8 +39,9 @@ export type DocumentSystemKind = (typeof DOCUMENT_SYSTEM_KINDS)[number];
  * `?format=` list, which is also the value it reports per file row. The
  * server answers with the MIME the current version was verified as, else the
  * title's extension, so a row's `format` here is the server's own reading.
+ * `txt` joined with UNI-2045 SV-7 (MIME text/plain, else the extension).
  */
-export const DOCUMENT_FILE_FORMATS = ["docx", "xlsx", "pptx", "pdf", "md", "html"] as const;
+export const DOCUMENT_FILE_FORMATS = ["docx", "xlsx", "pptx", "pdf", "md", "html", "txt"] as const;
 export type DocumentFileFormat = (typeof DOCUMENT_FILE_FORMATS)[number];
 
 /**
@@ -337,6 +338,31 @@ export const DocumentShareScopeSchema = z.object({
 });
 export type DocumentShareScope = z.infer<typeof DocumentShareScopeSchema>;
 
+/** The caller's last activity on a Recent row (SV-1); `kind` is a server enum (opened, edited, commented). */
+const DocumentLastActivitySchema = z.object({ kind: z.string(), at: z.string() });
+
+/** Who shared a Shared-with-me row and when (SV-3); `by_name` is null when the sharer is outside the caller's organization. */
+const DocumentSharedBySchema = z.object({
+  by: z.string(),
+  by_kind: z.string().optional().catch(undefined),
+  by_name: z.string().nullable().optional().catch(null),
+  at: z.string(),
+});
+
+/** The live grants of a Shared-by-me row (SV-4); `latest_at` is null when only the workspace visibility shares it. */
+const DocumentShareSummarySchema = z.object({
+  people: z.number().int().nonnegative(),
+  workspaces: z.number().int().nonnegative(),
+  links: z.number().int().nonnegative(),
+  latest_at: z.string().nullable().optional(),
+});
+
+/** The last editor as a person of the caller's organization (SV-6); no `avatar_url` draws the initial. */
+const DocumentEditorSchema = z.object({
+  name: z.string(),
+  avatar_url: z.string().nullable().optional().catch(undefined),
+});
+
 export const DocumentSummarySchema = z.object({
   id: z.string(),
   organization_id: z.string().optional().default(""),
@@ -377,6 +403,15 @@ export const DocumentSummarySchema = z.object({
   shelved_at: z.string().nullable().optional().catch(undefined),
   shelved_by: z.string().nullable().optional().catch(undefined),
   purge_after: z.string().nullable().optional().catch(undefined),
+  // UNI-2045 (SV-1..SV-6): what each list screen's own column says. All newer
+  // fields: a drifted block reads as absent and the column writes "—".
+  last_activity: DocumentLastActivitySchema.nullable().optional().catch(undefined),
+  favorited_at: z.string().nullable().optional().catch(undefined),
+  shared: DocumentSharedBySchema.nullable().optional().catch(undefined),
+  share_summary: DocumentShareSummarySchema.nullable().optional().catch(undefined),
+  is_owner: z.boolean().optional().catch(undefined),
+  // null: the editor is outside the caller's organization or not a person.
+  updated_by_user: DocumentEditorSchema.nullable().optional().catch(undefined),
   created_by: z.string().optional().default(""),
   created_by_kind: z.string().optional().default("human"),
   updated_by: z.string().optional().default(""),

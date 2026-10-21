@@ -11,7 +11,7 @@ import {
   grantAccess,
   groupTargets,
   levelOf,
-  libraryBadge,
+  libraryAccessPill,
   openShareDialog,
   ownerDoc,
   pickCandidate,
@@ -199,7 +199,9 @@ test("AC04 the workspace at View goes through the home row, not a share row", as
 
   await page.keyboard.press("Escape");
   await page.goto(`/${s.m.aOwner.orgSlug}/${s.m.aOwner.wsSlug}/documents`);
-  await expect(libraryBadge(contentRow(page, title))).toHaveAttribute("data-scope-kind", "workspace", { timeout: 60_000 });
+  const pill = libraryAccessPill(contentRow(page, title));
+  await expect(pill).toHaveAttribute("data-access-kind", "workspace", { timeout: 60_000 });
+  await expect(pill).toHaveText("Workspace");
 });
 
 test("AC05 + Q-S1 the organization at Edit asks to confirm; Manage is refused for the organization and the home row", async ({ page, request }) => {
@@ -349,7 +351,7 @@ test("AC08 revoking every source leaves the document private; an admin keeps adm
 
   await signInOwner(page, s);
   await page.goto(`/${s.m.aOwner.orgSlug}/${s.m.aOwner.wsSlug}/documents`);
-  const badge = libraryBadge(contentRow(page, title));
-  await expect(badge).toHaveAttribute("data-scope-kind", "private", { timeout: 60_000 });
-  await expect(badge).toContainText("Riêng tư");
+  const pill = libraryAccessPill(contentRow(page, title));
+  await expect(pill).toHaveAttribute("data-access-kind", "restricted", { timeout: 60_000 });
+  await expect(pill).toHaveText("Riêng tư");
 });

@@ -1059,7 +1059,7 @@ test("FD-A05 (FD-09 UI) tree Move-to picker marks a too-deep target aria-disable
     .getByRole("table", { name: "Tài liệu" })
     .getByRole("button", { name: "Thao tác cho Trang Chuyển", exact: true })
     .click();
-  await page.getByRole("menuitem", { name: "Di chuyển tới…" }).click();
+  await page.getByRole("menuitem", { name: "Di chuyển", exact: true }).click();
   await picker.getByRole("treeitem", { name: "Thư mục Đích", exact: true }).click();
   await picker.getByRole("button", { name: "Di chuyển", exact: true }).click();
   await expect(page.getByText("Đã chuyển tới Thư mục Đích")).toBeVisible();
@@ -1274,7 +1274,7 @@ test("FD-A07 moving a document between folders keeps ID, versions, and comments 
   await page.goto(`/${ws.orgSlug}/${ws.wsSlug}/documents?folder=${folderB.id}`);
   const table = page.getByRole("table", { name: "Tài liệu" });
   await table.getByRole("button", { name: "Thao tác cho report.docx", exact: true }).click();
-  await page.getByRole("menuitem", { name: "Di chuyển tới…" }).click();
+  await page.getByRole("menuitem", { name: "Di chuyển", exact: true }).click();
   const moveDialog = page.getByRole("dialog", { name: "Di chuyển tới" });
   await moveDialog.getByRole("treeitem", { name: "Phòng A", exact: true }).click();
   await moveDialog.getByRole("button", { name: "Di chuyển", exact: true }).click();
@@ -1359,7 +1359,7 @@ test("FD-A07 (FD-09 UI) Move-to picker marks the current location aria-disabled 
     .getByRole("table", { name: "Tài liệu" })
     .getByRole("button", { name: "Thao tác cho Bản thảo", exact: true })
     .click();
-  await page.getByRole("menuitem", { name: "Di chuyển tới…" }).click();
+  await page.getByRole("menuitem", { name: "Di chuyển", exact: true }).click();
   const picker = page.getByRole("dialog", { name: "Di chuyển tới" });
   const submit = picker.getByRole("button", { name: "Di chuyển", exact: true });
 
@@ -2460,10 +2460,10 @@ test("FD-A12 (FD-09 UI) delete folder dialog shows the server subfolder and docu
 
   // Restore from the Trash view: the trashed folder's row carries its own
   // Khôi phục button (named after the item) and restores at once — no dialog
-  // (RESTORE-01), and the dedicated table has no row menu (TRASH-A3).
+  // (RESTORE-01). The trash is the shared list (UNI-2045 W2), its rows the library rows.
   await page.getByRole("button", { name: "Thùng rác", exact: true }).first().click();
   await expect(page.getByRole("heading", { level: 1, name: "Thùng rác" })).toBeVisible();
-  const trashRow = page.locator("tr[data-trash-row]").filter({ has: page.getByText("Xóa Thử", { exact: true }) });
+  const trashRow = page.locator("tr[data-library-row]").filter({ has: page.getByText("Xóa Thử", { exact: true }) });
   await expect(trashRow).toBeVisible();
   await trashRow.getByRole("button", { name: "Khôi phục Xóa Thử", exact: true })
     .click();
