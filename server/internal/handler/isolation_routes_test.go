@@ -576,14 +576,16 @@ var isoRoutes = map[string]isoSpec{
 	"GET /api/v1/workspaces/{workspaceID}/projects/search":           {query: "?q=Project"},
 	// The access report (UNI-1643) over the tenant's folder: the mixed pass
 	// sends B's workspace with A's folder.
-	"GET /api/v1/workspaces/{workspaceID}/documents/access-report": {query: "?folder_id={folderID}"},
+	"GET /api/v1/workspaces/{workspaceID}/documents/access-report":            {query: "?folder_id={folderID}"},
+	"GET /api/v1/workspaces/{workspaceID}/documents/access-report/export":     {query: "?folder_id={folderID}&format=csv"},
+	"GET /api/v1/workspaces/{workspaceID}/documents/access-report/summary":    {query: "?folder_id={folderID}"},
+	"GET /api/v1/workspaces/{workspaceID}/documents/access-report/principals": {query: "?folder_id={folderID}"},
 	// The zip download job (UNI-2045): the request names the tenant's own file;
 	// the job row is queued and has no file, so its download answers 404 to its
 	// own creator too. In the mixed pass B's workspace carries A's ids: the job
 	// is accepted and skips them as not_found (nothing of A's in the answer).
 	"POST /api/v1/workspaces/{workspaceID}/documents/download-jobs":                 {body: isoDownloadJobBody, mixedOK: "an id of another tenant is skipped as not_found like an unknown one; the job answer carries no id or text of A's"},
 	"GET /api/v1/workspaces/{workspaceID}/documents/download-jobs/{jobID}/download": {control: []int{http.StatusNotFound}},
-	"GET /api/v1/workspaces/{workspaceID}/documents/access-report/export":           {query: "?folder_id={folderID}&format=csv"},
 	"GET /api/v1/workspaces/{workspaceID}/task-view-preferences":                    {query: "?scope_type=workspace"},
 	"GET /api/v1/workspaces/{workspaceID}/task-views":                               {query: "?scope_type=workspace"},
 	"GET /api/v1/workspaces/{workspaceID}/calendar/connections/{provider}/start":    {skipControl: "no OAuth client is configured in tests; the owner gets 503"},

@@ -882,6 +882,7 @@ type DocumentShare struct {
 	RevokedAt      pgtype.Timestamptz `json:"revoked_at"`
 	RevokedBy      pgtype.Text        `json:"revoked_by"`
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	Origin         string             `json:"origin"`
 }
 
 type DocumentShareLink struct {

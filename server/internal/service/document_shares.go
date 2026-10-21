@@ -17,10 +17,20 @@ import (
 
 // DocumentShareInput is one grant (C-01 §5.3): a principal of the
 // document's organization and the level it receives.
+// Share origins (UNI-2039 S3), stored in document_shares.origin.
+const (
+	DocumentShareOriginDirect = "direct"
+	DocumentShareOriginChat   = "chat"
+)
+
 type DocumentShareInput struct {
 	PrincipalType string
 	PrincipalID   string
 	Level         DocumentLevel
+	// Origin is where the grant came from (UNI-2039 S3): "" or "direct" for
+	// the share panel and every API caller, "chat" for a document sent in a
+	// chat message.
+	Origin string
 }
 
 // errDocumentOwned is the §13.4 refusal: sharing, links, visibility, moving
@@ -259,6 +269,7 @@ func (s *DocumentService) applyDocumentShareWithBatch(ctx context.Context, q *db
 		Level:          string(in.Level),
 		GrantedBy:      actor.ID,
 		GrantedByKind:  string(actor.Kind),
+		Origin:         in.Origin,
 	})
 	if err != nil {
 		return db.DocumentShare{}, err
@@ -267,6 +278,7 @@ func (s *DocumentService) applyDocumentShareWithBatch(ctx context.Context, q *db
 		"share_id":       sh.ID,
 		"principal_type": sh.PrincipalType,
 		"principal_id":   sh.PrincipalID,
+		"origin":         sh.Origin,
 	}
 	if batchID != "" {
 		meta["batch_id"] = batchID

@@ -594,6 +594,22 @@ func registerDocuments(r, callerDocs api, h Routes, flags *featureflag.Service, 
 		produces:    "application/zip",
 		auth:        true,
 	})
+	d.Get("/workspaces/{workspaceID}/documents/access-report/summary", h.DocumentAccessReportSummary, apiOp{
+		summary:     "Read the document access report summary",
+		description: "Số liệu toàn phạm vi của báo cáo quyền truy cập (UNI-2039): quét cả workspace hoặc folder_id (gồm thư mục con) trong một snapshot, mỗi lô 500, trần 10.000 tài liệu (quá thì truncated=true). tiles chỉ theo phạm vi, không theo bộ lọc (public_link, outside_workspace, direct_manage, documents, restricted, workspace, organization); matching_documents theo cùng bộ lọc như trang; skipped là tài liệu người gọi chỉ xem. Không phải thành viên workspace hoặc agent -> 403; folder_id không dùng được -> 404; bộ lọc lạ -> 400. Đọc không ghi audit.",
+		tags:        []string{"documents"},
+		sdi:         sdi.DocumentAccessReportSummaryQuerySDI{},
+		sdo:         sdo.DocumentAccessReportSummaryResultSDO{},
+		auth:        true,
+	})
+	d.Get("/workspaces/{workspaceID}/documents/access-report/principals", h.DocumentAccessReportPrincipals, apiOp{
+		summary:     "Read the document access report by principal",
+		description: "Bảng theo người của báo cáo quyền truy cập (UNI-2039): mỗi principal (thành viên, workspace nhà, workspace khác, tổ chức, ai có link) một dòng với số tài liệu người gọi quản lý, phân bố mức cao nhất và nguồn chính. Không phân trang, tối đa 500 principal (quá thì truncated=true). q lọc theo tên principal, kind theo loại, level theo mức dòng, sort=count|name. Mở một dòng: gọi trang báo cáo với principal=<type>:<id>. Chỉ tên, không email.",
+		tags:        []string{"documents"},
+		sdi:         sdi.DocumentAccessReportPrincipalsSDI{},
+		sdo:         sdo.DocumentAccessReportPrincipalsSDO{},
+		auth:        true,
+	})
 	d.Get("/workspaces/{workspaceID}/documents/tree", h.DocumentTree, apiOp{
 		summary:     "Read the document tree",
 		description: "Cây sidebar tối đa 20 cấp, chỉ metadata {id,title,icon,kind,position,children}; root chọn một nhánh, folders_only=1 chỉ trả thư mục. Node dưới tổ tiên không đọc được sẽ rời cây cùng tổ tiên; root không đọc được (hoặc không phải thư mục khi folders_only) -> 404.",

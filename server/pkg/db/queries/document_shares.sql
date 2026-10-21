@@ -5,12 +5,14 @@
 -- name: InsertDocumentShare :one
 INSERT INTO document_shares (
   id, organization_id, workspace_id, document_id, principal_type,
-  principal_id, level, granted_by, granted_by_kind
+  principal_id, level, granted_by, granted_by_kind, origin
 ) VALUES (
   sqlc.arg(id), sqlc.arg(organization_id), sqlc.arg(workspace_id),
   sqlc.arg(document_id), sqlc.arg(principal_type),
   sqlc.arg(principal_id), sqlc.arg(level), sqlc.arg(granted_by),
-  sqlc.arg(granted_by_kind)
+  sqlc.arg(granted_by_kind),
+  -- UNI-2039 S3: '' means direct (every caller but the chat path).
+  COALESCE(NULLIF(sqlc.arg(origin)::text, ''), 'direct')
 )
 RETURNING *;
 

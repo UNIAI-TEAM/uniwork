@@ -639,15 +639,17 @@ type Routes struct {
 	AnswerDocumentEditRequest http.HandlerFunc
 	CancelDocumentEditRequest http.HandlerFunc
 
-	ListSharedWithMe           http.HandlerFunc
-	DocumentAccessReport       http.HandlerFunc
-	ExportDocumentAccessReport http.HandlerFunc
-	DocumentTree               http.HandlerFunc
-	MoveDocument               http.HandlerFunc
-	ArchiveDocument            http.HandlerFunc
-	ArchiveImpact              http.HandlerFunc
-	RestoreDocument            http.HandlerFunc
-	PurgeDocument              http.HandlerFunc
+	ListSharedWithMe               http.HandlerFunc
+	DocumentAccessReport           http.HandlerFunc
+	ExportDocumentAccessReport     http.HandlerFunc
+	DocumentAccessReportSummary    http.HandlerFunc
+	DocumentAccessReportPrincipals http.HandlerFunc
+	DocumentTree                   http.HandlerFunc
+	MoveDocument                   http.HandlerFunc
+	ArchiveDocument                http.HandlerFunc
+	ArchiveImpact                  http.HandlerFunc
+	RestoreDocument                http.HandlerFunc
+	PurgeDocument                  http.HandlerFunc
 	// Shelved state (ARCHIVE-01, UNI-1845): the real archive, read-only and
 	// kept forever - "archive" is the trash.
 	ShelveDocument              http.HandlerFunc

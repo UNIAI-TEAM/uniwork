@@ -105,24 +105,22 @@ func (s *DocumentService) ExportDocumentAccessReport(ctx context.Context, actor 
 		out.FolderTitle = run.folder.Title
 	}
 	var items []DocumentAccessReportItem
-	after := ""
-	for {
-		res, err := run.page(ctx, after, accessReportExportPage)
-		if err != nil {
-			return out, err
-		}
-		items = append(items, res.items...)
-		out.Skipped += res.skipped
-		for _, it := range res.items {
-			out.Rows += len(it.Rows)
+	if _, err := run.scan(ctx, accessReportExportPage, 0, func(results []arResult) error {
+		for _, res := range results {
+			if res.skipped {
+				out.Skipped++
+			}
+			if res.item != nil {
+				items = append(items, *res.item)
+				out.Rows += len(res.item.Rows)
+			}
 		}
 		if out.Rows > accessReportExportMaxRows {
-			return out, errAccessReportTooLarge()
+			return errAccessReportTooLarge()
 		}
-		if res.nextAfterID == "" {
-			break
-		}
-		after = res.nextAfterID
+		return nil
+	}); err != nil {
+		return out, err
 	}
 	out.Documents = len(items)
 	ws, err := q.GetWorkspaceByID(ctx, workspaceID)
@@ -177,6 +175,8 @@ func (s *DocumentService) ExportDocumentAccessReport(ctx context.Context, actor 
 			"workspace_id": workspaceID, "folder_id": in.FolderID, "person_id": in.PersonID,
 			"level": in.Levels, "visibility": in.Visibility, "format": format,
 			"row_count": out.Rows, "document_count": out.Documents, "skipped": out.Skipped,
+			"q": in.Q, "principal": in.PrincipalRef(), "scope": in.Scope, "source": in.Sources,
+			"flag": in.Flag, "non_default": in.NonDefault,
 		},
 	}); err != nil {
 		return out, err
@@ -194,12 +194,17 @@ type accessReportMeta struct {
 
 // filter is the compact key=value form of the CSV report_filter column.
 func (m accessReportMeta) filter() string {
-	return "folder_id=" + m.in.FolderID + ";person_id=" + m.in.PersonID +
+	out := "folder_id=" + m.in.FolderID + ";person_id=" + m.in.PersonID +
 		";level=" + strings.Join(m.in.Levels, ",") + ";visibility=" + m.in.Visibility
+	// UNI-2039 S5: the new filters ride after the old ones, only when set.
+	for _, p := range m.in.s5Pairs() {
+		out += ";" + p[0] + "=" + p[1]
+	}
+	return out
 }
 
 func (m accessReportMeta) pairs() [][]string {
-	return [][]string{
+	return append([][]string{
 		{"generated_at", m.generatedAt},
 		{"workspace_id", m.workspaceID},
 		{"folder_id", m.in.FolderID},
@@ -210,7 +215,7 @@ func (m accessReportMeta) pairs() [][]string {
 		{"visibility", m.in.Visibility},
 		{"row_count", strconv.Itoa(m.rows)},
 		{"skipped", strconv.Itoa(m.skipped)},
-	}
+	}, m.in.s5Pairs()...)
 }
 
 // accessReportLines flattens the items into one line per row, in the
@@ -224,6 +229,8 @@ func accessReportLines(items []DocumentAccessReportItem, withPerson bool) ([]str
 	if withPerson {
 		header = append(header, "person_level")
 	}
+	// UNI-2039 S2: the last column, so every older column keeps its place.
+	header = append(header, "expires_at")
 	var lines [][]string
 	for _, it := range items {
 		doc := it.Item.Document
@@ -244,7 +251,11 @@ func accessReportLines(items []DocumentAccessReportItem, withPerson bool) ([]str
 			if withPerson {
 				line = append(line, accessReportLevel(it.PersonLevel))
 			}
-			lines = append(lines, line)
+			expires := ""
+			if row.ExpiresAt != nil {
+				expires = row.ExpiresAt.UTC().Format(time.RFC3339)
+			}
+			lines = append(lines, append(line, expires))
 		}
 	}
 	return header, lines
@@ -261,11 +272,18 @@ func writeAccessReportCSV(w io.Writer, header []string, lines [][]string, meta a
 	cw := csv.NewWriter(w)
 	cw.UseCRLF = true
 	filter := meta.filter()
-	if err := cw.Write(csvSafeCells(append(append([]string(nil), header...), "report_generated_at", "report_filter"))); err != nil {
+	// The two report columns keep the place they always had (right after the
+	// row's own columns); the trailing expires_at (S2) goes after them.
+	withReport := func(cells []string, generatedAt, filter string) []string {
+		n := len(cells) - 1
+		out := append([]string(nil), cells[:n]...)
+		return append(append(out, generatedAt, filter), cells[n])
+	}
+	if err := cw.Write(csvSafeCells(withReport(header, "report_generated_at", "report_filter"))); err != nil {
 		return err
 	}
 	for _, line := range lines {
-		if err := cw.Write(csvSafeCells(append(append([]string(nil), line...), meta.generatedAt, filter))); err != nil {
+		if err := cw.Write(csvSafeCells(withReport(line, meta.generatedAt, filter))); err != nil {
 			return err
 		}
 	}
