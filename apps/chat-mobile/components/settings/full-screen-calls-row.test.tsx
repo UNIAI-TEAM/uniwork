@@ -1,6 +1,8 @@
+import { QueryClient } from "@tanstack/react-query";
 import { act, fireEvent, screen } from "@testing-library/react-native";
 import { AppState, type AppStateStatus } from "react-native";
 import { nativeCalls } from "@/data/calls/native-calls";
+import { REMOTE_CONFIG_FALLBACK, remoteConfigKey } from "@/data/remote-config";
 import { render, viText } from "@/test/render";
 import { FullScreenCallsRow } from "./full-screen-calls-row";
 
@@ -38,6 +40,13 @@ describe("FullScreenCallsRow", () => {
     expect(screen.queryByRole("link", { name: viText("mobile.notify.full_screen_calls") })).toBeNull();
     await view.unmount();
     expect(remove).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows nothing while the calls switch has calling off", async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity, staleTime: Infinity } } });
+    queryClient.setQueryData(remoteConfigKey, { ...REMOTE_CONFIG_FALLBACK, flags: { unichat_mobile_calls: false } });
+    await render(<FullScreenCallsRow />, { queryClient });
+    expect(screen.toJSON()).toBeNull();
   });
 
   it("shows nothing where the permission is there (or not a thing)", async () => {
