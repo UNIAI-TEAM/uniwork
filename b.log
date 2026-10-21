@@ -1,0 +1,5 @@
+$ npm ci > /tmp/f3e2e-ci.log 2>&1; rc=$?; tail -3 /tmp/f3e2e-ci.log; echo "INSTALL_EXIT=$rc"; [ $rc -eq 0 ]
+a different dependency.
+
+Run `npm audit` for details.
+INSTALL_EXIT=0
