@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, type ReactNode } from "react";
-import { FolderOpen, Search, ShieldAlert, type LucideIcon } from "lucide-react";
+import { ChevronRight, FolderOpen, Search, ShieldAlert, type LucideIcon } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Checkbox } from "@uniwork/ui/components/ui/checkbox";
@@ -12,6 +12,7 @@ import { LibraryRowView, type LibraryRowHandlers } from "./documents-library-row
 import { DocListBulkBar } from "./doclist/bulk-bar";
 import { bulkPlans, rowBulkActions, type BulkActionId, type DocListBulk } from "./doclist/bulk-actions";
 import { docListSpec, type DocListScreen } from "./doclist/columns";
+import type { GroupCollapse } from "./doclist/group-state";
 import { docListGroupLabelKey, type DocListGroupId } from "./doclist/groups";
 import { useDocListSelection } from "./doclist/selection";
 import { libraryGroupSpans, specLadder } from "./library-columns";
@@ -59,6 +60,8 @@ export interface DocumentsLibraryListProps {
   label?: string;
   /** The row a notification pointed at: ringed apart from hover (LibraryRowView `highlighted`). */
   highlightId?: string | null;
+  /** The date groups' collapse state (W11); absent, the group headers do not collapse. */
+  collapse?: GroupCollapse;
   /** The empty state's copy and actions, which depend on the open view. */
   empty: { title: string; description: string; actions?: ReactNode; icon?: LucideIcon };
 }
@@ -90,6 +93,7 @@ export function DocumentsLibraryList({
   selectionKey = "",
   label,
   highlightId = null,
+  collapse,
   empty,
 }: DocumentsLibraryListProps) {
   const { t } = useTranslation();
@@ -191,7 +195,7 @@ export function DocumentsLibraryList({
     return <CollectionPageState icon={empty.icon ?? FolderOpen} title={empty.title} description={empty.description} role="status" actions={empty.actions} />;
   }
 
-  // "all" is a flat list; any other key is a date group (doclist/groups.ts).
+  // The date groups of Gần đây, Được chia sẻ với tôi and Thùng rác (W11); "all" is a flat list.
   const showGroups = !(groups.length === 1 && groups[0]?.key === "all");
 
   const ladder = specLadder(screen, { selectable });
@@ -268,21 +272,38 @@ export function DocumentsLibraryList({
             </tr>
           </thead>
           {groups.map((group) => {
+            const collapsed = showGroups && Boolean(collapse?.isCollapsed(group.key));
             const title = t(docListGroupLabelKey(group.key as DocListGroupId));
             return (
-              <tbody key={group.key}>
+              // A grouped row is indented 28px under its header (the shared format rules).
+              <tbody key={group.key} className={showGroups ? "[&_td[data-column=name]]:pl-10" : undefined}>
                 {showGroups ? (
                   <tr className="border-b border-border bg-muted/40">
                     <th scope="rowgroup" colSpan={alwaysOn} data-library-group className="whitespace-nowrap px-3 py-1.5 text-left text-caption font-medium text-foreground">
-                      {title}
-                      <span className="ml-1.5 font-mono tabular-nums text-muted-foreground">{group.rows.length}</span>
+                      {collapse ? (
+                        <button
+                          type="button"
+                          aria-expanded={!collapsed}
+                          onClick={() => collapse.onToggle(group.key)}
+                          className="-mx-1 inline-flex items-center gap-1.5 rounded-sm px-1 font-medium transition-colors hover:text-foreground pointer-coarse:min-h-11"
+                        >
+                          <ChevronRight aria-hidden className={cn("size-3.5 shrink-0 text-muted-foreground transition-transform", !collapsed && "rotate-90")} />
+                          {title}
+                          <span className="font-mono tabular-nums text-muted-foreground">{group.rows.length}</span>
+                        </button>
+                      ) : (
+                        <>
+                          {title}
+                          <span className="ml-1.5 font-mono tabular-nums text-muted-foreground">{group.rows.length}</span>
+                        </>
+                      )}
                     </th>
                     {groupSpans.map((spanner) => (
                       <th key={spanner.cell} aria-hidden colSpan={spanner.span} className={spanner.cell} />
                     ))}
                   </tr>
                 ) : null}
-                {group.rows.map((row) => (
+                {collapsed ? null : group.rows.map((row) => (
                   <LibraryRowView
                     key={row.id}
                     row={row}

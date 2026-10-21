@@ -23,6 +23,8 @@ import { isParentWorkspaceShared, useCreateOfType } from "./documents-create";
 import { CreateMenu } from "./documents-home-create";
 import { DocumentsCollectionHeader, DocumentsHomeHeader, DocumentsHomeNote } from "./documents-home-header";
 import { DocumentsLibraryList } from "./documents-library-list";
+import { docListGroupScreen, groupRowsByDate } from "./doclist/date-groups";
+import { useCollapsedGroups } from "./doclist/group-state";
 import { docListScreenOfView, folderNameLookup } from "./doclist/live-screen";
 import { docMemberLookup } from "./doclist/screen-cells";
 import { useDocListBulkCommands } from "./doclist/use-bulk-commands";
@@ -293,8 +295,11 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
   const state = library.state;
   // At home and in a folder the folders are cards above the table.
   const tableRows = homeView ? nonFolderRows(state.rows) : state.rows;
+  // The date groups (W11) while the rows sit in their screen's own order; a flat list otherwise.
   const listScreen = docListScreenOfView(view);
-  const groups = [{ key: "all", rows: tableRows }];
+  const groupScreen = docListGroupScreen(listScreen);
+  const collapse = useCollapsedGroups(groupScreen);
+  const groups = groupScreen && library.ownOrderShown ? groupRowsByDate(tableRows, groupScreen, new Date()) : [{ key: "all", rows: tableRows }];
   const subfolders = subfoldersOf(library.tree, folderId);
   // The root's folders come from the tree query: until it answers, an empty root
   // list cannot tell "no folders" from "folders not here yet".
@@ -370,6 +375,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
       handlers={handlers}
       sort={{ value: library.sort, onSort: (column) => library.setSort(nextSort(library.sort, column)) }}
       screen={listScreen}
+      collapse={collapse}
       selectable={view.kind !== "sources"}
       bulk={bulkCommands.bulk}
       selectionKey={selectionKey}

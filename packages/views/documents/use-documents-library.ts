@@ -28,6 +28,7 @@ import {
 } from "./doclist/filters";
 import { documentRow, matchesChip, sourceRow, type LibraryRow, type TypeChip } from "./library-rows";
 import {
+  DEFAULT_LIBRARY_SORT,
   mergeSorted,
   readLibrarySort,
   sortRows,
@@ -170,6 +171,14 @@ export function useDocumentsLibrary({ wsId, orgId, enabled, view, folderId, chip
     () => (sortedOnServer ? { sort: sort.column, order: sort.order } : {}),
     [sortedOnServer, sort.column, sort.order],
   );
+  // Gần đây and Được chia sẻ với tôi group by date while in their own order
+  // (UNI-2045 W11, rule §8): until the viewer picks a column they ask the
+  // server for it — last activity (SV-1) and share date (SV-3), newest first,
+  // the screens' default in doclist/columns.ts — and any picked column shows
+  // a flat list in the S3 order. The per-screen sort memory is W12.
+  const ownOrder = sort.column === DEFAULT_LIBRARY_SORT.column && sort.order === DEFAULT_LIBRARY_SORT.order;
+  const recentSort = ownOrder ? ({ sort: "activity", order: "desc" } as const) : serverSort;
+  const sharedSort = ownOrder ? ({ sort: "shared", order: "desc" } as const) : serverSort;
 
   // The server-side pair of the type chips (UNI-1868): the file chips become
   // `format` and "UniNote" keeps `kind=page`. The trash has no filter bar.
@@ -233,13 +242,13 @@ export function useDocumentsLibrary({ wsId, orgId, enabled, view, folderId, chip
     format: serverFormat,
     ...serverMeta,
     activity: activity === "all" ? undefined : activity,
-    ...serverSort,
+    ...recentSort,
   });
   const sharedQuery = useSharedWithMe(wsId, {
     enabled: enabled && view.kind === "shared",
     format: serverFormat,
     ...serverMeta,
-    ...serverSort,
+    ...sharedSort,
   });
   const sharedByMeQuery = useSharedByMe(wsId, {
     enabled: enabled && view.kind === "sharedByMe",
@@ -367,6 +376,14 @@ export function useDocumentsLibrary({ wsId, orgId, enabled, view, folderId, chip
     ? [...new Set(state.rows.flatMap((row) => (row.type === "document" && row.doc.shelved_by ? [row.doc.shelved_by] : [])))].sort()
     : [];
   const shelvedHasSystem = shelvedView && state.rows.some((row) => row.type === "document" && row.doc.shelved_by === null);
+  // The rows sit in their screen's own order, so the page may draw the date
+  // groups: Thùng rác always (`deleted` ascending, Q2), Gần đây and Được chia
+  // sẻ với tôi while no column is picked and the pages on screen are not the
+  // previous order's placeholder.
+  const ownOrderShown =
+    archived ||
+    (ownOrder &&
+      ((view.kind === "recent" && !recentQuery.isPlaceholderData) || (view.kind === "shared" && !sharedQuery.isPlaceholderData)));
   const clearFilters = () => {
     setEditor("any");
     setUpdated("any");
@@ -375,6 +392,7 @@ export function useDocumentsLibrary({ wsId, orgId, enabled, view, folderId, chip
   };
   return {
     state: { ...state, rows },
+    ownOrderShown,
     /** Whether the filter bar ran on the client here — decides which
      *  empty-state copy the list shows ("no matches" server-side vs "no
      *  matches in what is loaded" client-side). */

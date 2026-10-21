@@ -6,6 +6,8 @@ import { useTranslation } from "react-i18next";
 import { DocumentsLibraryList } from "./documents-library-list";
 import type { LibraryRowHandlers } from "./documents-library-row";
 import type { DocListBulk } from "./doclist/bulk-actions";
+import { groupRowsByDate } from "./doclist/date-groups";
+import { useCollapsedGroups } from "./doclist/group-state";
 import type { LibraryRow } from "./library-rows";
 import type { TrashActions } from "./use-trash-actions";
 
@@ -37,7 +39,8 @@ export interface DocumentsTrashViewProps {
  * list with `screen="trash"` (the Đã xóa column, `Khôi phục` · ⋯ on the row,
  * the menu `Khôi phục` · `Xem chi tiết` │ `Xóa vĩnh viễn`; UNI-2045 W2) and the
  * restore note. The order is the server's `deleted` ascending, so no header
- * sorts. Presentational: the page owns the queries, the restore mutation and
+ * sorts, and the rows always sit in the date groups Sắp xóa vĩnh viễn / Còn
+ * trên 7 ngày (W11), collapsible and remembered per viewer. Presentational: the page owns the queries, the restore mutation and
  * the purge dialog (use-trash-actions); every command needs manage
  * (`canManageTrashed`, RESTORE-01).
  */
@@ -57,6 +60,7 @@ export function DocumentsTrashView({
   selectionKey,
 }: DocumentsTrashViewProps) {
   const { t } = useTranslation();
+  const collapse = useCollapsedGroups("trash");
   const boxRef = useRef<HTMLDivElement>(null);
   const pagedFromCount = useRef<number | null>(null);
   useEffect(() => {
@@ -96,7 +100,8 @@ export function DocumentsTrashView({
         <p className="text-caption text-muted-foreground">{t("documents.trash.subtitle")}</p>
       </div>
       <DocumentsLibraryList
-        groups={[{ key: "all", rows }]}
+        groups={groupRowsByDate(rows, "trash", new Date())}
+        collapse={collapse}
         loading={loading}
         failure={failure}
         hasMore={hasMore}
