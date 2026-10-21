@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ConfigContext } from "expo/config";
-import createConfig from "./app.config";
+import createConfig, { ANDROID_KEEP_RULES } from "./app.config";
 
 const build = (projectRoot?: string) => createConfig({ config: {}, projectRoot } as ConfigContext);
 
@@ -77,7 +77,13 @@ describe("app.config per UNICHAT_ENV", () => {
         ],
         "expo-secure-store",
         "expo-notifications",
-        ["expo-build-properties", { ios: { enableSceneSupport: true } }],
+        [
+          "expo-build-properties",
+          {
+            ios: { enableSceneSupport: true },
+            android: { enableMinifyInReleaseBuilds: true, enableShrinkResourcesInReleaseBuilds: true, extraProguardRules: ANDROID_KEEP_RULES },
+          },
+        ],
         "@livekit/react-native-expo-plugin",
         // org, project and token stay in the build env: they must not move the fingerprint
         ["@sentry/react-native/expo", { url: "https://sentry.io/" }],

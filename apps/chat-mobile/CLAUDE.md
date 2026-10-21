@@ -459,7 +459,13 @@ một dòng thì ghi lý do ở dòng trên.
   khoá số render của hàng khi gõ, hiện diện, tin mới, biểu cảm; ngân sách bundle như cũ. `inlineRequires` của Metro
   **không** bật: Metro 0.84 coi import đã bị inline là `require` (nhận diện import ESM theo vị trí khai báo), nên gói
   hai định dạng vào bundle hai lần (đo được: `@sentry/core` và `clsx` ESM + CJS, +176 module, +397 KB) — nạp lười thì
-  `require` tường minh như `call-overlay.tsx`.
+  `require` tường minh như `call-overlay.tsx`. Route không cần nạp lười bằng tay: expo-router chỉ đánh giá module
+  của một màn khi màn đó dựng (`getComponent`), layout thì lúc khởi động; sheet ẩn trong phòng không fetch gì
+  (`enabled` theo `visible`). `metro.config.js` đặt `includeWebReplay: false` của Sentry: gói session replay cho web
+  (`@sentry-internal/replay*`) thành module rỗng (−182 KB bytecode; app không bao giờ ghi replay). Bản release
+  Android qua R8 và thu gọn tài nguyên (`expo-build-properties` trong `app.config.ts`, luật giữ `ANDROID_KEEP_RULES`
+  cho Nitro/MMKV và module cuộc gọi — các thư viện khác mang luật riêng): đường code nào R8 làm hỏng chỉ máy thấy —
+  `android-smoke` mở lạnh bản đã minify, nightly đăng nhập, nhắn và vào cuộc gọi trên nó.
 - UX, trợ năng và ngôn ngữ (UNI-2053 S6; audit U1–U3, P2 UX/i18n). **Trình đọc màn hình**: live region chỉ chạy trên
   Android, nên chỗ nào có `accessibilityLiveRegion` thì gọi `useAnnounce` (`components/ui/a11y.ts`, chỉ iOS, một lần
   mỗi lần đổi) — banner kết nối, lỗi đăng nhập, bong bóng gõ, thông báo push ở Cài đặt, dòng trạng thái cuộc gọi
@@ -554,8 +560,8 @@ Root `typecheck`/`test`/`lint` và CI chính lọc `!@uniwork/chat-mobile`;
 app kiểm ở `.github/workflows/mobile-verify.yml`: job `mobile` (typecheck, lint,
 hai lớp test, `pnpm knip --workspace apps/chat-mobile`, `expo install --check` offline — version gói native theo SDK
 đã cài —, `scripts/mobile-*.test.mjs`, trong đó `mobile-lockfiles.test.mjs` cấm lockfile ngoài `pnpm-lock.yaml`), `doctor-bundle` (`expo-doctor` rồi
-`expo export --platform android` giữ trong `bundle-budget.json` bởi
-`scripts/mobile-bundle-budget.mjs`) và `android-release` (`expo prebuild` +
+`expo export --platform android --platform ios` giữ trong `bundle-budget.json` bởi
+`scripts/mobile-bundle-budget.mjs`, trần cho từng nền tảng — iOS có ngân sách trước khi có bản build) và `android-release` (`expo prebuild` +
 `./gradlew :app:assembleRelease` x86_64, chỉ khi `scripts/mobile-native-scope.mjs`
 nói thay đổi chạm binary) rồi `android-smoke` (cài APK đó lên emulator, chạy
 `maestro/flows/smoke-launch.yaml`: mở lạnh tới màn đăng nhập, không cần server; rồi `scripts/mobile-perf.mjs` đo kích

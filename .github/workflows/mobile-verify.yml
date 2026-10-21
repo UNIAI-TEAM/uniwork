@@ -8,8 +8,9 @@ name: Mobile Verify
 #
 #   checks          typecheck, lint, the vitest unit suite (100% floor) and
 #                   the jest-expo component suite, the mobile repo contracts
-#   doctor-bundle   expo-doctor, then `expo export --platform android` with the
-#                   production config, held to apps/chat-mobile/bundle-budget.json
+#   doctor-bundle   expo-doctor, then `expo export` of the Android and iOS
+#                   bundles with the production config, held to
+#                   apps/chat-mobile/bundle-budget.json
 #   android-release `expo prebuild` + `./gradlew :app:assembleRelease` on the
 #                   production config: proves the native project still builds.
 #                   Only when the change reaches the binary
@@ -194,9 +195,10 @@ jobs:
       - name: expo-doctor
         working-directory: apps/chat-mobile
         run: pnpm dlx "expo-doctor@${EXPO_DOCTOR_VERSION}"
-      - name: Export the Android bundle
+      # Both platforms: Metro builds the iOS bundle on Linux, so iOS has a budget before it has a build.
+      - name: Export the Android and iOS bundles
         working-directory: apps/chat-mobile
-        run: pnpm exec expo export --platform android --output-dir "$RUNNER_TEMP/export" --dump-sourcemap
+        run: pnpm exec expo export --platform android --platform ios --output-dir "$RUNNER_TEMP/export" --dump-sourcemap
       - name: Bundle budget
         run: node scripts/mobile-bundle-budget.mjs "$RUNNER_TEMP/export"
 

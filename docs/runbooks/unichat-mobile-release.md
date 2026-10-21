@@ -72,8 +72,12 @@ của bản store trên kênh đó (`staging` cho `internal`/`preview`, `product
   thay vì script cài), `EXPO_DOCTOR_VERSION`. Nâng trong một PR riêng.
 - Ngân sách bundle: hạ trần khi bundle nhỏ đi; chỉ nâng trong commit thêm sức nặng đó, ghi lý do trong body. Đo tại
   máy: `UNICHAT_ENV=production UNICHAT_API_URL=https://api.example.invalid UNICHAT_APP_URL=https://app.example.invalid
-  pnpm --filter @uniwork/chat-mobile exec expo export --platform android --output-dir /tmp/uc --dump-sourcemap` rồi
-  `node scripts/mobile-bundle-budget.mjs /tmp/uc`.
+  pnpm --filter @uniwork/chat-mobile exec expo export --platform android --platform ios --output-dir /tmp/uc
+  --dump-sourcemap` rồi `node scripts/mobile-bundle-budget.mjs /tmp/uc` (trần riêng cho Android và iOS).
+- Bản release Android chạy R8 và thu gọn tài nguyên (`app.config.ts` › `expo-build-properties`). Crash chỉ có ở bản
+  release (`ClassNotFoundException`, `NoSuchMethodError` trong một module native) thường là một lớp R8 đã bỏ: thêm luật
+  `-keep` vào `ANDROID_KEEP_RULES` (đổi fingerprint: bản store mới), xác nhận bằng `android-smoke` và nightly. Bật R8
+  đổi fingerprint của bản đầu tiên mang nó: bump `version` trước bản store kế tiếp.
 
 **Thiết lập lần đầu (khi có tài khoản, UNI-1838)**
 

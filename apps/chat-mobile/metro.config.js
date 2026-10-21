@@ -13,7 +13,11 @@ const path = require("path");
 const projectRoot = __dirname;
 const monorepoRoot = path.resolve(projectRoot, "../..");
 
-const config = getSentryExpoConfig(projectRoot);
+// includeWebReplay false: Sentry's own switch that resolves the browser session-replay packages
+// (@sentry-internal/replay, replay-canvas: ~340 KB of source) to empty modules. The app never records
+// replay (data/sentry.ts: a chat screen is private), and on a phone those packages are dead weight in
+// the bytecode every start loads.
+const config = getSentryExpoConfig(projectRoot, { includeWebReplay: false });
 
 config.watchFolders = [monorepoRoot];
 config.resolver.nodeModulesPaths = [

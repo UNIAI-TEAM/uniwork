@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { check, measure, table } from "./mobile-bundle-budget.mjs";
+import { PLATFORMS, check, measure, table } from "./mobile-bundle-budget.mjs";
 
 function fakeExport({ withMap = true } = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "mobile-export-"));
@@ -23,10 +23,11 @@ test("measures the bytecode, its gzip and the source map's modules from an expor
   assert.equal(measure(fakeExport({ withMap: false })).modules, null);
 });
 
-test("an export without an android bundle is an error, not a pass", () => {
+test("an export without the platform's bundle is an error, not a pass", () => {
   const dir = fakeExport();
   fs.writeFileSync(path.join(dir, "metadata.json"), JSON.stringify({ fileMetadata: { ios: { bundle: "x" } } }));
   assert.throws(() => measure(dir), /names no android bundle/);
+  assert.throws(() => measure(fakeExport(), "ios"), /names no ios bundle/);
 });
 
 test("fails each number over its ceiling and only those", () => {
@@ -36,7 +37,15 @@ test("fails each number over its ceiling and only those", () => {
   assert.deepEqual(check({ bundleKB: 6843, gzipKB: 2922, modules: null }, { bundleKB: 6843, gzipKB: 2922, modules: 2514 }).over, []);
 });
 
-test("the committed budget names all three ceilings", () => {
-  const budget = JSON.parse(fs.readFileSync(path.join(import.meta.dirname, "../apps/chat-mobile/bundle-budget.json"), "utf8")).android;
-  for (const key of ["bundleKB", "gzipKB", "modules"]) assert.equal(typeof budget[key], "number", `bundle-budget.json android.${key}`);
+test("the committed budget names all three ceilings for each platform", () => {
+  const budgets = JSON.parse(fs.readFileSync(path.join(import.meta.dirname, "../apps/chat-mobile/bundle-budget.json"), "utf8"));
+  assert.deepEqual(PLATFORMS, ["android", "ios"]);
+  for (const platform of PLATFORMS) {
+    for (const key of ["bundleKB", "gzipKB", "modules"]) assert.equal(typeof budgets[platform]?.[key], "number", `bundle-budget.json ${platform}.${key}`);
+  }
+});
+
+test("the PR export builds both platforms' bundles", () => {
+  const wf = fs.readFileSync(path.join(import.meta.dirname, "../.github/workflows/mobile-verify.yml"), "utf8");
+  assert.match(wf, /expo export --platform android --platform ios /);
 });

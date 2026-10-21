@@ -17,6 +17,9 @@ type AppEnv = "dev" | "staging" | "production";
 // assetlinks web serves name it); dev and staging rely on the custom scheme.
 const APP_LINK_HOST = "app.uniworkos.com";
 
+/** R8 keep rules for what no library rule covers (expo-build-properties › extraProguardRules). */
+export const ANDROID_KEEP_RULES = ["-keep class com.margelo.nitro.** { *; }", "-keep class expo.modules.unichatcalls.** { *; }"].join("\n");
+
 // The EAS project (not a secret), written here by the first-time setup in
 // docs/runbooks/unichat-mobile-release.md once the account exists (UNI-1838).
 // Empty means no EAS: no update server, no push token, the embedded bundle is
@@ -185,8 +188,23 @@ export default ({ config, projectRoot }: ConfigContext): ExpoConfig => {
       // (titles, names). Embedded natively so `fontFamily` + `fontWeight`
       // resolve on both platforms without a runtime load.
       ["expo-font", { ios: { fonts: FONT_FILES }, android: { fonts: FONT_FAMILIES } }],
-      // SDK 57's scene runtime is required for Xcode 27 builds.
-      ["expo-build-properties", { ios: { enableSceneSupport: true } }],
+      // SDK 57's scene runtime is required for Xcode 27 builds. Android release builds go through R8 and
+      // resource shrinking (audit P3 Perf: less dex to load at a cold start, a smaller download): the
+      // libraries bring their own keep rules (React Native's @DoNotStrip, LiveKit/WebRTC's consumer-rules,
+      // Reanimated's); the two bound by JNI or by name without any are kept here (Nitro, which MMKV runs on,
+      // and the app's call module). Only a device proves a code path R8 broke: android-smoke boots the
+      // minified APK, the nightly signs in, chats and joins a call on it.
+      [
+        "expo-build-properties",
+        {
+          ios: { enableSceneSupport: true },
+          android: {
+            enableMinifyInReleaseBuilds: true,
+            enableShrinkResourcesInReleaseBuilds: true,
+            extraProguardRules: ANDROID_KEEP_RULES,
+          },
+        },
+      ],
       // Every plugin that writes a usage string gets the same one: the last to
       // run wins. A `false` here would also block the Android permission the
       // video call needs.
