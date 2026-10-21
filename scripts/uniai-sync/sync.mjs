@@ -93,12 +93,23 @@ async function run(config, uniai, uniwork) {
   let updated = 0;
   let skipped = 0;
 
-  const [uniaiMembers, agentRows, uniworkMembers, labelRows] = await Promise.all([
-    uniai.listMembers(),
-    uniai.listAgents(),
-    uniwork.listMembers(),
-    uniwork.listLabels(),
-  ]);
+  let uniaiMembers;
+  let agentRows;
+  let uniworkMembers;
+  let labelRows;
+  try {
+    [uniaiMembers, agentRows, uniworkMembers, labelRows] = await Promise.all([
+      uniai.listMembers(),
+      uniai.listAgents(),
+      uniwork.listMembers(),
+      uniwork.listLabels(),
+    ]);
+  } catch (error) {
+    if (error.code === "unauthorized") {
+      return { code: 1, lines: ["unauthorized"] };
+    }
+    throw error;
+  }
   const people = new Map(uniaiMembers.map((row) => [row.user_id, row]));
   const agents = new Map(agentRows.map((row) => [row.id, row]));
   const uniworkByEmail = new Map(

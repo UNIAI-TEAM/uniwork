@@ -369,6 +369,25 @@ test("revision_conflict retries once", async () => {
   assert.equal(box.tasks[0].title, "UNI-7: Mới");
 });
 
+test("401 during startup stops the run before listing issues", async () => {
+  const box = world([issue({ id: "only", identifier: "UNI-401", title: "Chưa chạy" })]);
+  let listed = 0;
+  box.deps.uniai.listIssues = async () => {
+    listed += 1;
+    return [];
+  };
+  box.deps.uniwork.listMembers = async () => {
+    const error = new Error("unauthorized");
+    error.code = "unauthorized";
+    throw error;
+  };
+  const result = await syncRun(box.deps);
+  assert.equal(result.code, 1);
+  assert.match(result.lines.join("\n"), /unauthorized/);
+  assert.equal(listed, 0);
+  assert.equal(box.metadata.size, 0);
+});
+
 test("401 stops the run and does not write the hash", async () => {
   const box = world([
     issue({ id: "first", identifier: "UNI-8", title: "Trước" }),
