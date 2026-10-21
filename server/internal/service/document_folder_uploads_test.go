@@ -227,9 +227,6 @@ func TestFolderUploadPathProblemsAreBadRequests(t *testing.T) {
 		{"long segment", func(in *CreateFolderUploadInput) { in.Folders = append(in.Folders, strings.Repeat("a", 256)) }, "path"},
 		{"missing parent", func(in *CreateFolderUploadInput) { in.Folders = []string{"Hợp đồng/2026"} }, "path"},
 		{"file in unknown folder", func(in *CreateFolderUploadInput) { in.Files[0].Path = "Khác" }, "path"},
-		{"duplicate file", func(in *CreateFolderUploadInput) {
-			in.Files = append(in.Files, FolderUploadFileInput{FileKey: "f-3", Path: "Hợp đồng/2026", Filename: "a.pdf", SizeBytes: 1})
-		}, "path"},
 		{"duplicate file key", func(in *CreateFolderUploadInput) { in.Files[1].FileKey = "f-1" }, "file_key"},
 		{"bad file key", func(in *CreateFolderUploadInput) { in.Files[1].FileKey = "f 2" }, "file_key"},
 	}

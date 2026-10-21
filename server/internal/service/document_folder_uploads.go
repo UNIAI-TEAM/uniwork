@@ -56,6 +56,8 @@ const (
 	folderUploadTargetPut    = "put"
 	folderUploadTargetMulti  = "multipart"
 	folderUploadStatusOpen   = "open"
+	folderUploadModeFolder   = "folder"
+	folderUploadModeFiles    = "files"
 	folderUploadFilePending  = "pending"
 	folderUploadOpenedVia    = "folder"
 	folderUploadResourceType = "folder_upload_batch"
@@ -120,6 +122,9 @@ type FolderUploadFileInput struct {
 }
 
 // CreateFolderUploadInput is the PLAN body plus its Idempotency-Key.
+//
+// A plan without RootName and without Folders is the files mode: no folder is
+// created and the files land directly in ParentID (nil = the workspace root).
 type CreateFolderUploadInput struct {
 	ParentID           *string
 	RootName           string
@@ -177,6 +182,7 @@ type FolderUploadCounts struct {
 // FolderUploadBatch is the creator's view of one batch.
 type FolderUploadBatch struct {
 	ID                 string
+	Mode               string
 	Status             string
 	ParentID           string
 	RootFolderID       string
@@ -272,14 +278,24 @@ type folderPlanFile struct {
 // folderPlan is a validated PLAN: folders ordered parents first ("" is not
 // listed), each with its title; files in the order sent.
 type folderPlan struct {
+	// mode is folderUploadModeFolder or folderUploadModeFiles; a files plan has
+	// no root title and no folders.
+	mode       string
 	rootTitle  string
 	folders    []string
 	titles     map[string]string
 	files      []folderPlanFile
 	totalBytes int64
 	// depth is the deepest level below the root folder: a folder at "a/b" is
-	// 2, a file inside it 3, the root folder itself 0.
+	// 2, a file inside it 3, the root folder itself 0. In files mode a file
+	// sits one level below the parent, so it is 1 and the parent is the base.
 	depth int
+}
+
+// folderUploadFilesMode is the plain multi-file upload: no root name and no
+// folders (absent, null and [] all mean none).
+func folderUploadFilesMode(in CreateFolderUploadInput) bool {
+	return strings.TrimSpace(in.RootName) == "" && len(in.Folders) == 0
 }
 
 // splitFolderPath checks one relative path ("" is the root) and answers its
@@ -314,15 +330,23 @@ func (s *DocumentService) validateFolderPlan(in CreateFolderUploadInput, limits 
 	if len(in.Files) > limits.MaxFiles {
 		return folderPlan{}, errFolderUploadTooManyFiles(limits.MaxFiles, len(in.Files))
 	}
-	// The root folder counts: a plan creates 1 + len(folders) folders.
-	if created := 1 + len(in.Folders); created > limits.MaxFolders {
-		return folderPlan{}, errFolderUploadTooManyFolders(limits.MaxFolders, created)
+	filesMode := folderUploadFilesMode(in)
+	if !filesMode && strings.TrimSpace(in.RootName) == "" && len(in.Folders) > 0 {
+		return folderPlan{}, errFolderUploadPath("path", in.Folders[0], "thiếu root_name: kế hoạch có thư mục phải đặt tên thư mục gốc")
 	}
-	rootTitle, err := normalizeDocumentTitle(DocumentKindFolder, in.RootName)
-	if err != nil {
-		return folderPlan{}, err
+	plan := folderPlan{mode: folderUploadModeFiles, titles: map[string]string{}}
+	if !filesMode {
+		plan.mode = folderUploadModeFolder
+		// The root folder counts: a plan creates 1 + len(folders) folders.
+		if created := 1 + len(in.Folders); created > limits.MaxFolders {
+			return folderPlan{}, errFolderUploadTooManyFolders(limits.MaxFolders, created)
+		}
+		rootTitle, err := normalizeDocumentTitle(DocumentKindFolder, in.RootName)
+		if err != nil {
+			return folderPlan{}, err
+		}
+		plan.rootTitle = rootTitle
 	}
-	plan := folderPlan{rootTitle: rootTitle, titles: map[string]string{}}
 	known := map[string]bool{"": true}
 	segsOf := map[string][]string{}
 	for _, raw := range in.Folders {
@@ -362,7 +386,6 @@ func (s *DocumentService) validateFolderPlan(in CreateFolderUploadInput, limits 
 	maxBytes := s.documentFileMaxBytes()
 	chunked := s.SupportsChunkedUpload()
 	keys := make(map[string]bool, len(in.Files))
-	names := make(map[string]bool, len(in.Files))
 	for _, f := range in.Files {
 		if !folderUploadFileKeyPattern.MatchString(f.FileKey) {
 			return folderPlan{}, errFolderUploadPath("file_key", f.FileKey, "file_key gồm 1-64 ký tự A-Z, a-z, 0-9, '_' hoặc '-'")
@@ -376,6 +399,9 @@ func (s *DocumentService) validateFolderPlan(in CreateFolderUploadInput, limits 
 			return folderPlan{}, err
 		}
 		p := strings.Join(segs, "/")
+		if filesMode && p != "" {
+			return folderPlan{}, errFolderUploadPath("path", f.Path, "kế hoạch không có thư mục: path của mọi tệp phải rỗng")
+		}
 		if !known[p] {
 			return folderPlan{}, errFolderUploadPath("path", f.Path, "thư mục của tệp phải có trong folders")
 		}
@@ -384,16 +410,17 @@ func (s *DocumentService) validateFolderPlan(in CreateFolderUploadInput, limits 
 			len([]rune(name)) > folderUploadMaxFilename {
 			return folderPlan{}, errFolderUploadPath("path", f.Path, "tên tệp không hợp lệ")
 		}
-		if names[p+"/"+name] {
-			return folderPlan{}, errFolderUploadPath("path", f.Path, "hai tệp cùng tên trong một thư mục")
-		}
-		names[p+"/"+name] = true
+		// Two files of one name in one folder are accepted: a created file is
+		// never renamed or refused for its name (FD-D10), as two single uploads.
 		if f.SizeBytes < 0 {
 			return folderPlan{}, errFolderUploadPath("path", f.Path, "size_bytes không hợp lệ")
 		}
 		pf := folderPlanFile{in: f, path: p, filename: name}
 		plan.files = append(plan.files, pf)
 		plan.depth = max(plan.depth, len(segs)+1)
+	}
+	if filesMode && len(plan.files) == 0 {
+		return folderPlan{}, errFolderUploadPath("files", "", "cần ít nhất một tệp")
 	}
 	for i := range plan.files {
 		pf := &plan.files[i]
@@ -588,7 +615,14 @@ func (s *DocumentService) planFolderUpload(ctx context.Context, actor Actor, org
 	if err := q.LockDocumentTree(ctx, workspaceID); err != nil {
 		return "", err
 	}
-	rootDepth := 1
+	// baseDepth is the level the plan's tree hangs from: the root folder in
+	// folder mode (one below the parent), the parent itself in files mode,
+	// where a file sits one level below it.
+	filesMode := plan.mode == folderUploadModeFiles
+	baseDepth := 1
+	if filesMode {
+		baseDepth = 0
+	}
 	if parentID != "" {
 		parent, err := s.lockPageParent(ctx, q, actor, parentID, orgID, workspaceID, DocumentKindFolder)
 		if err != nil {
@@ -598,30 +632,37 @@ func (s *DocumentService) planFolderUpload(ctx context.Context, actor Actor, org
 		if err != nil {
 			return "", err
 		}
-		rootDepth = d + 1
+		baseDepth = d
+		if !filesMode {
+			baseDepth = d + 1
+		}
 	}
-	if rootDepth+plan.depth > maxDocumentDepth {
+	if baseDepth+plan.depth > maxDocumentDepth {
 		return "", errFolderUploadTooDeep()
 	}
-	rootTitle, err := s.folderUploadRootTitle(ctx, q, documentNameScope{
-		OrganizationID: orgID, WorkspaceID: workspaceID, ParentID: parentID, Kind: DocumentKindFolder,
-	}, plan.rootTitle)
-	if err != nil {
-		return "", err
-	}
 	batchID := util.NewID()
-	rootPosition, err := q.NextDocumentPosition(ctx, db.NextDocumentPositionParams{
-		OrganizationID: orgID, WorkspaceID: workspaceID, ParentID: nullText(parentID),
-	})
-	if err != nil {
-		return "", err
-	}
 	ids := map[string]string{}
-	rootID, err := s.insertFolderUploadFolder(ctx, q, actor, orgID, workspaceID, parentID, rootTitle, rootPosition, batchID)
-	if err != nil {
-		return "", documentTitleWriteError(DocumentKindFolder, err)
+	var rootID, rootTitle string
+	if !filesMode {
+		var err error
+		rootTitle, err = s.folderUploadRootTitle(ctx, q, documentNameScope{
+			OrganizationID: orgID, WorkspaceID: workspaceID, ParentID: parentID, Kind: DocumentKindFolder,
+		}, plan.rootTitle)
+		if err != nil {
+			return "", err
+		}
+		rootPosition, err := q.NextDocumentPosition(ctx, db.NextDocumentPositionParams{
+			OrganizationID: orgID, WorkspaceID: workspaceID, ParentID: nullText(parentID),
+		})
+		if err != nil {
+			return "", err
+		}
+		rootID, err = s.insertFolderUploadFolder(ctx, q, actor, orgID, workspaceID, parentID, rootTitle, rootPosition, batchID)
+		if err != nil {
+			return "", documentTitleWriteError(DocumentKindFolder, err)
+		}
+		ids[""] = rootID
 	}
-	ids[""] = rootID
 	// A new folder has no children yet, so its children sit at 0, 1, 2... in
 	// the order the plan sent them.
 	next := map[string]float64{}
@@ -650,7 +691,7 @@ func (s *DocumentService) planFolderUpload(ctx context.Context, actor Actor, org
 	if _, err := q.InsertDocumentFolderUpload(ctx, db.InsertDocumentFolderUploadParams{
 		ID: batchID, OrganizationID: orgID, WorkspaceID: workspaceID,
 		CreatedBy: actor.ID, CreatedByKind: string(actor.Kind), ParentID: nullText(parentID),
-		RootFolderID: rootID, RootTitle: rootTitle, ShareWithWorkspace: share,
+		Mode: plan.mode, RootFolderID: rootID, RootTitle: rootTitle, ShareWithWorkspace: share,
 		FileCount: int32(len(plan.files)), TotalBytes: plan.totalBytes, Folders: foldersJSON,
 		ExpiresAt: fileTime(expires),
 	}); err != nil {
@@ -669,7 +710,12 @@ func (s *DocumentService) planFolderUpload(ctx context.Context, actor Actor, org
 			}
 			params.Ids = append(params.Ids, util.NewID())
 			params.FileKeys = append(params.FileKeys, f.in.FileKey)
-			params.FolderIds = append(params.FolderIds, ids[f.path])
+			// A files-mode file lands in the batch's parent ("" = the root).
+			folderID := ids[f.path]
+			if filesMode {
+				folderID = parentID
+			}
+			params.FolderIds = append(params.FolderIds, folderID)
 			params.Paths = append(params.Paths, f.path)
 			params.Filenames = append(params.Filenames, f.filename)
 			params.Sizes = append(params.Sizes, f.in.SizeBytes)
@@ -684,24 +730,33 @@ func (s *DocumentService) planFolderUpload(ctx context.Context, actor Actor, org
 		}
 	}
 	folderIDs := make([]string, 0, len(ids))
-	folderIDs = append(folderIDs, rootID)
+	if !filesMode {
+		folderIDs = append(folderIDs, rootID)
+	}
 	for _, p := range plan.folders {
 		folderIDs = append(folderIDs, ids[p])
 	}
 	meta := map[string]any{
-		"root_folder_id": rootID, "folder_ids": folderIDs, "file_count": len(plan.files),
+		"mode": plan.mode, "root_folder_id": rootID, "folder_ids": folderIDs, "file_count": len(plan.files),
 		"total_bytes": plan.totalBytes, "share_with_workspace": share, "parent_id": nil,
 	}
 	if parentID != "" {
 		meta["parent_id"] = parentID
 	}
-	if err := auditRecorder.Record(ctx, q, audit.Entry{
+	entry := audit.Entry{
 		OrganizationID: orgID, WorkspaceID: workspaceID, Actor: actor,
 		Action: audit.ActionDocumentsFolderUploadPlanned, ResourceType: folderUploadResourceType, ResourceID: batchID,
 		Metadata: meta,
-	}, audit.Event{Topic: DocumentBatchUploadedTopic, Payload: map[string]string{
-		"batch_id": batchID, "workspace_id": workspaceID, "root_folder_id": rootID,
-	}}); err != nil {
+	}
+	// A files-mode plan creates no document yet, so it announces nothing: each
+	// COMPLETE that lands a file writes the one batch_uploaded event.
+	var emit []audit.Event
+	if !filesMode {
+		emit = append(emit, audit.Event{Topic: DocumentBatchUploadedTopic, Payload: map[string]string{
+			"batch_id": batchID, "workspace_id": workspaceID, "root_folder_id": rootID,
+		}})
+	}
+	if err := auditRecorder.Record(ctx, q, entry, emit...); err != nil {
 		return "", err
 	}
 	body, err := json.Marshal(folderUploadLedger{BatchID: batchID})
@@ -813,7 +868,7 @@ func (s *DocumentService) folderUploadView(ctx context.Context, actor Actor, org
 		return FolderUploadBatch{}, err
 	}
 	out := FolderUploadBatch{
-		ID: row.ID, Status: row.Status, ParentID: row.ParentID.String,
+		ID: row.ID, Mode: row.Mode, Status: row.Status, ParentID: row.ParentID.String,
 		RootFolderID: row.RootFolderID, RootTitle: row.RootTitle, ShareWithWorkspace: row.ShareWithWorkspace,
 		TotalBytes: row.TotalBytes, ExpiresAt: row.ExpiresAt.Time.UTC(), CreatedAt: row.CreatedAt.Time.UTC(),
 		Folders: []FolderUploadFolder{}, Files: make([]FolderUploadFile, 0, len(fileRows)),

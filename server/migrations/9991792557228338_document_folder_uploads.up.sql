@@ -3,10 +3,15 @@
 -- until COMPLETE turns it into a document (or a per-file failure).
 --
 -- document_folder_uploads.status is open | completed | canceled | expired.
+-- mode is folder (the plan created a root folder and its tree) or files (a
+-- plain multi-file upload: no folder is created, the files land directly in
+-- parent_id, and root_folder_id / root_title stay empty).
 -- folders is the {path: document id} map of the folders the plan created
 -- ("" is the root folder). expires_at is created_at + 24 h; the sweep expires
 -- open batches past it and deletes settled rows after a week.
 --
+-- document_folder_upload_files.folder_id is the folder the document lands in:
+-- the batch's parent_id in files mode (NULL = the workspace root).
 -- document_folder_upload_files.file_key is the client's own key (1-64
 -- [A-Za-z0-9_-]), unique in its batch; id is the server's ULID. upload_ref is
 -- the FileService file id of a presigned PUT, or the file_multipart_uploads id
@@ -23,8 +28,9 @@ CREATE TABLE document_folder_uploads (
   created_by            TEXT NOT NULL,
   created_by_kind       TEXT NOT NULL DEFAULT 'human',
   parent_id             TEXT,
-  root_folder_id        TEXT NOT NULL,
-  root_title            TEXT NOT NULL,
+  mode                  TEXT NOT NULL DEFAULT 'folder',
+  root_folder_id        TEXT NOT NULL DEFAULT '',
+  root_title            TEXT NOT NULL DEFAULT '',
   share_with_workspace  BOOLEAN NOT NULL DEFAULT false,
   status                TEXT NOT NULL DEFAULT 'open',
   file_count            INTEGER NOT NULL,
@@ -37,12 +43,14 @@ CREATE TABLE document_folder_uploads (
 
   CONSTRAINT document_folder_uploads_status_check
     CHECK (status IN ('open', 'completed', 'canceled', 'expired')),
+  CONSTRAINT document_folder_uploads_mode_check
+    CHECK (mode IN ('folder', 'files') AND (mode = 'files' OR (root_folder_id <> '' AND root_title <> ''))),
   CONSTRAINT document_folder_uploads_created_by_kind_check
     CHECK (created_by_kind IN ('human', 'agent', 'system')),
   CONSTRAINT document_folder_uploads_counts_check
     CHECK (file_count >= 0 AND total_bytes >= 0),
   CONSTRAINT document_folder_uploads_ids_nonempty
-    CHECK (id <> '' AND organization_id <> '' AND workspace_id <> '' AND created_by <> '' AND root_folder_id <> '')
+    CHECK (id <> '' AND organization_id <> '' AND workspace_id <> '' AND created_by <> '')
 );
 
 CREATE TABLE document_folder_upload_files (
@@ -51,7 +59,7 @@ CREATE TABLE document_folder_upload_files (
   organization_id    TEXT NOT NULL,
   workspace_id       TEXT NOT NULL,
   batch_id           TEXT NOT NULL,
-  folder_id          TEXT NOT NULL,
+  folder_id          TEXT,
   path               TEXT NOT NULL,
   filename           TEXT NOT NULL,
   size_bytes         BIGINT NOT NULL,
@@ -78,5 +86,5 @@ CREATE TABLE document_folder_upload_files (
   CONSTRAINT document_folder_upload_files_cd_pair_check
     CHECK ((cd_offset IS NULL) = (cd_size IS NULL)),
   CONSTRAINT document_folder_upload_files_ids_nonempty
-    CHECK (id <> '' AND organization_id <> '' AND workspace_id <> '' AND batch_id <> '' AND folder_id <> '')
+    CHECK (id <> '' AND organization_id <> '' AND workspace_id <> '' AND batch_id <> '' AND (folder_id IS NULL OR folder_id <> ''))
 );

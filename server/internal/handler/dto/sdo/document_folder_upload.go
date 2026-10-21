@@ -54,12 +54,13 @@ type FolderUploadCountsSDO struct {
 // (the set is open: read it with a default).
 type FolderUploadBatchSDO struct {
 	ID                 string                  `json:"id" example:"01J8X4FUB0N1P2Q3R4S5T6U7"`
+	Mode               string                  `json:"mode" description:"folder = tải cả thư mục (có thư mục gốc); files = tải nhiều tệp, không tạo thư mục (tệp nằm thẳng trong parent_id)" example:"folder"`
 	Status             string                  `json:"status" description:"open | completed | canceled | expired" example:"open"`
-	ParentID           *string                 `json:"parent_id" description:"Thư mục cha của thư mục gốc; null = gốc workspace" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
-	RootFolderID       string                  `json:"root_folder_id" example:"01J8X4DOC0N1P2Q3R4S5T6U8"`
-	RootTitle          string                  `json:"root_title" description:"Tên cuối cùng của thư mục gốc, sau khi thêm ' (n)' nếu trùng" example:"Hồ sơ 2026 (1)"`
+	ParentID           *string                 `json:"parent_id" description:"Thư mục cha của thư mục gốc (mode=files: nơi tệp nằm); null = gốc workspace" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
+	RootFolderID       *string                 `json:"root_folder_id" description:"Thư mục gốc đã tạo; null khi mode=files" example:"01J8X4DOC0N1P2Q3R4S5T6U8"`
+	RootTitle          *string                 `json:"root_title" description:"Tên cuối cùng của thư mục gốc, sau khi thêm ' (n)' nếu trùng; null khi mode=files" example:"Hồ sơ 2026 (1)"`
 	ShareWithWorkspace bool                    `json:"share_with_workspace" example:"false"`
-	Folders            []FolderUploadFolderSDO `json:"folders" description:"Mọi thư mục đã tạo, gốc có path rỗng"`
+	Folders            []FolderUploadFolderSDO `json:"folders" description:"Mọi thư mục đã tạo, gốc có path rỗng; mảng rỗng khi mode=files"`
 	Files              []FolderUploadFileSDO   `json:"files"`
 	Counts             FolderUploadCountsSDO   `json:"counts"`
 	TotalBytes         int64                   `json:"total_bytes" example:"123456"`

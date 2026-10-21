@@ -3,11 +3,11 @@
 -- name: InsertDocumentFolderUpload :one
 INSERT INTO document_folder_uploads (
   id, organization_id, workspace_id, created_by, created_by_kind, parent_id,
-  root_folder_id, root_title, share_with_workspace, file_count, total_bytes,
+  mode, root_folder_id, root_title, share_with_workspace, file_count, total_bytes,
   folders, expires_at
 ) VALUES (
   sqlc.arg(id), sqlc.arg(organization_id), sqlc.arg(workspace_id), sqlc.arg(created_by),
-  sqlc.arg(created_by_kind), sqlc.narg(parent_id), sqlc.arg(root_folder_id), sqlc.arg(root_title),
+  sqlc.arg(created_by_kind), sqlc.narg(parent_id), sqlc.arg(mode), sqlc.arg(root_folder_id), sqlc.arg(root_title),
   sqlc.arg(share_with_workspace), sqlc.arg(file_count), sqlc.arg(total_bytes),
   sqlc.arg(folders), sqlc.arg(expires_at)
 )
@@ -17,13 +17,14 @@ RETURNING *;
 -- tenant: parent batch_id
 -- One statement for every file of a plan; the unnests advance together, so
 -- ids[i] goes with file_keys[i] and the rest. An empty probe string and a -1
--- offset stand for "no probe" (small files send none).
+-- offset stand for "no probe" (small files send none); an empty folder id is
+-- the workspace root (a files-mode plan with no parent).
 INSERT INTO document_folder_upload_files (
   id, file_key, organization_id, workspace_id, batch_id, folder_id, path, filename,
   size_bytes, target_kind, probe_head_sha256, probe_tail_sha256, cd_offset, cd_size
 )
 SELECT f.id, f.file_key, sqlc.arg(organization_id)::text, sqlc.arg(workspace_id)::text,
-       sqlc.arg(batch_id)::text, f.folder_id, f.path, f.filename, f.size_bytes, f.target_kind,
+       sqlc.arg(batch_id)::text, NULLIF(f.folder_id, ''), f.path, f.filename, f.size_bytes, f.target_kind,
        NULLIF(f.probe_head, ''), NULLIF(f.probe_tail, ''),
        NULLIF(f.cd_offset, -1), NULLIF(f.cd_size, -1)
 FROM (

@@ -69,7 +69,7 @@ const expireOpenFolderUploads = `-- name: ExpireOpenFolderUploads :many
 UPDATE document_folder_uploads
 SET status = 'expired', updated_at = now(), finished_at = now()
 WHERE status = 'open' AND expires_at <= now()
-RETURNING id, organization_id, workspace_id, created_by, created_by_kind, parent_id, root_folder_id, root_title, share_with_workspace, status, file_count, total_bytes, folders, created_at, updated_at, expires_at, finished_at
+RETURNING id, organization_id, workspace_id, created_by, created_by_kind, parent_id, mode, root_folder_id, root_title, share_with_workspace, status, file_count, total_bytes, folders, created_at, updated_at, expires_at, finished_at
 `
 
 // tenant: system
@@ -91,6 +91,7 @@ func (q *Queries) ExpireOpenFolderUploads(ctx context.Context) ([]DocumentFolder
 			&i.CreatedBy,
 			&i.CreatedByKind,
 			&i.ParentID,
+			&i.Mode,
 			&i.RootFolderID,
 			&i.RootTitle,
 			&i.ShareWithWorkspace,
@@ -114,7 +115,7 @@ func (q *Queries) ExpireOpenFolderUploads(ctx context.Context) ([]DocumentFolder
 }
 
 const getDocumentFolderUpload = `-- name: GetDocumentFolderUpload :one
-SELECT id, organization_id, workspace_id, created_by, created_by_kind, parent_id, root_folder_id, root_title, share_with_workspace, status, file_count, total_bytes, folders, created_at, updated_at, expires_at, finished_at FROM document_folder_uploads
+SELECT id, organization_id, workspace_id, created_by, created_by_kind, parent_id, mode, root_folder_id, root_title, share_with_workspace, status, file_count, total_bytes, folders, created_at, updated_at, expires_at, finished_at FROM document_folder_uploads
 WHERE id = $1 AND organization_id = $2 AND workspace_id = $3
   AND created_by = $4 AND created_by_kind = $5
 `
@@ -144,6 +145,7 @@ func (q *Queries) GetDocumentFolderUpload(ctx context.Context, arg GetDocumentFo
 		&i.CreatedBy,
 		&i.CreatedByKind,
 		&i.ParentID,
+		&i.Mode,
 		&i.RootFolderID,
 		&i.RootTitle,
 		&i.ShareWithWorkspace,
@@ -208,15 +210,15 @@ const insertDocumentFolderUpload = `-- name: InsertDocumentFolderUpload :one
 
 INSERT INTO document_folder_uploads (
   id, organization_id, workspace_id, created_by, created_by_kind, parent_id,
-  root_folder_id, root_title, share_with_workspace, file_count, total_bytes,
+  mode, root_folder_id, root_title, share_with_workspace, file_count, total_bytes,
   folders, expires_at
 ) VALUES (
   $1, $2, $3, $4,
-  $5, $6, $7, $8,
-  $9, $10, $11,
-  $12, $13
+  $5, $6, $7, $8, $9,
+  $10, $11, $12,
+  $13, $14
 )
-RETURNING id, organization_id, workspace_id, created_by, created_by_kind, parent_id, root_folder_id, root_title, share_with_workspace, status, file_count, total_bytes, folders, created_at, updated_at, expires_at, finished_at
+RETURNING id, organization_id, workspace_id, created_by, created_by_kind, parent_id, mode, root_folder_id, root_title, share_with_workspace, status, file_count, total_bytes, folders, created_at, updated_at, expires_at, finished_at
 `
 
 type InsertDocumentFolderUploadParams struct {
@@ -226,6 +228,7 @@ type InsertDocumentFolderUploadParams struct {
 	CreatedBy          string             `json:"created_by"`
 	CreatedByKind      string             `json:"created_by_kind"`
 	ParentID           pgtype.Text        `json:"parent_id"`
+	Mode               string             `json:"mode"`
 	RootFolderID       string             `json:"root_folder_id"`
 	RootTitle          string             `json:"root_title"`
 	ShareWithWorkspace bool               `json:"share_with_workspace"`
@@ -244,6 +247,7 @@ func (q *Queries) InsertDocumentFolderUpload(ctx context.Context, arg InsertDocu
 		arg.CreatedBy,
 		arg.CreatedByKind,
 		arg.ParentID,
+		arg.Mode,
 		arg.RootFolderID,
 		arg.RootTitle,
 		arg.ShareWithWorkspace,
@@ -260,6 +264,7 @@ func (q *Queries) InsertDocumentFolderUpload(ctx context.Context, arg InsertDocu
 		&i.CreatedBy,
 		&i.CreatedByKind,
 		&i.ParentID,
+		&i.Mode,
 		&i.RootFolderID,
 		&i.RootTitle,
 		&i.ShareWithWorkspace,
@@ -281,7 +286,7 @@ INSERT INTO document_folder_upload_files (
   size_bytes, target_kind, probe_head_sha256, probe_tail_sha256, cd_offset, cd_size
 )
 SELECT f.id, f.file_key, $1::text, $2::text,
-       $3::text, f.folder_id, f.path, f.filename, f.size_bytes, f.target_kind,
+       $3::text, NULLIF(f.folder_id, ''), f.path, f.filename, f.size_bytes, f.target_kind,
        NULLIF(f.probe_head, ''), NULLIF(f.probe_tail, ''),
        NULLIF(f.cd_offset, -1), NULLIF(f.cd_size, -1)
 FROM (
@@ -320,7 +325,8 @@ type InsertDocumentFolderUploadFilesParams struct {
 // tenant: parent batch_id
 // One statement for every file of a plan; the unnests advance together, so
 // ids[i] goes with file_keys[i] and the rest. An empty probe string and a -1
-// offset stand for "no probe" (small files send none).
+// offset stand for "no probe" (small files send none); an empty folder id is
+// the workspace root (a files-mode plan with no parent).
 func (q *Queries) InsertDocumentFolderUploadFiles(ctx context.Context, arg InsertDocumentFolderUploadFilesParams) (int64, error) {
 	result, err := q.db.Exec(ctx, insertDocumentFolderUploadFiles,
 		arg.OrganizationID,
@@ -398,7 +404,7 @@ func (q *Queries) ListDocumentFolderUploadFiles(ctx context.Context, arg ListDoc
 }
 
 const lockDocumentFolderUpload = `-- name: LockDocumentFolderUpload :one
-SELECT id, organization_id, workspace_id, created_by, created_by_kind, parent_id, root_folder_id, root_title, share_with_workspace, status, file_count, total_bytes, folders, created_at, updated_at, expires_at, finished_at FROM document_folder_uploads
+SELECT id, organization_id, workspace_id, created_by, created_by_kind, parent_id, mode, root_folder_id, root_title, share_with_workspace, status, file_count, total_bytes, folders, created_at, updated_at, expires_at, finished_at FROM document_folder_uploads
 WHERE id = $1 AND organization_id = $2 AND workspace_id = $3
   AND created_by = $4 AND created_by_kind = $5
 FOR UPDATE
@@ -430,6 +436,7 @@ func (q *Queries) LockDocumentFolderUpload(ctx context.Context, arg LockDocument
 		&i.CreatedBy,
 		&i.CreatedByKind,
 		&i.ParentID,
+		&i.Mode,
 		&i.RootFolderID,
 		&i.RootTitle,
 		&i.ShareWithWorkspace,

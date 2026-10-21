@@ -867,6 +867,7 @@ type DocumentFolderUpload struct {
 	CreatedBy          string             `json:"created_by"`
 	CreatedByKind      string             `json:"created_by_kind"`
 	ParentID           pgtype.Text        `json:"parent_id"`
+	Mode               string             `json:"mode"`
 	RootFolderID       string             `json:"root_folder_id"`
 	RootTitle          string             `json:"root_title"`
 	ShareWithWorkspace bool               `json:"share_with_workspace"`
@@ -886,7 +887,7 @@ type DocumentFolderUploadFile struct {
 	OrganizationID  string             `json:"organization_id"`
 	WorkspaceID     string             `json:"workspace_id"`
 	BatchID         string             `json:"batch_id"`
-	FolderID        string             `json:"folder_id"`
+	FolderID        pgtype.Text        `json:"folder_id"`
 	Path            string             `json:"path"`
 	Filename        string             `json:"filename"`
 	SizeBytes       int64              `json:"size_bytes"`

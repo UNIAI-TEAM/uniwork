@@ -63,7 +63,7 @@ var folderUploadErrorMessages = map[string]string{
 
 func folderUploadBatchSDO(b service.FolderUploadBatch) sdo.FolderUploadBatchSDO {
 	out := sdo.FolderUploadBatchSDO{
-		ID: b.ID, Status: b.Status, RootFolderID: b.RootFolderID, RootTitle: b.RootTitle,
+		ID: b.ID, Mode: b.Mode, Status: b.Status,
 		ShareWithWorkspace: b.ShareWithWorkspace, TotalBytes: b.TotalBytes,
 		Folders: make([]sdo.FolderUploadFolderSDO, 0, len(b.Folders)),
 		Files:   make([]sdo.FolderUploadFileSDO, 0, len(b.Files)),
@@ -75,6 +75,9 @@ func folderUploadBatchSDO(b service.FolderUploadBatch) sdo.FolderUploadBatchSDO 
 	}
 	if b.ParentID != "" {
 		out.ParentID = &b.ParentID
+	}
+	if b.Mode != "files" {
+		out.RootFolderID, out.RootTitle = &b.RootFolderID, &b.RootTitle
 	}
 	for _, f := range b.Folders {
 		out.Folders = append(out.Folders, sdo.FolderUploadFolderSDO{Path: f.Path, ID: f.ID})
