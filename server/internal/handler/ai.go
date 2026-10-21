@@ -88,6 +88,9 @@ func (h *handlers) askUni(w http.ResponseWriter, r *http.Request) {
 	if in.Focus != nil {
 		askIn.Focus = &ai.Focus{Kind: in.Focus.Kind, ID: in.Focus.ID}
 	}
+	for _, m := range in.Mentions {
+		askIn.Mentions = append(askIn.Mentions, ai.Focus{Kind: m.Kind, ID: m.ID})
+	}
 	res, err := h.AskUNI.Ask(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "workspaceID"), askIn)
 	if err != nil {
 		// The agent's busy and organization limits carry the seconds to wait

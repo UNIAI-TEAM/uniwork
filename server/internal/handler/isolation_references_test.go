@@ -205,6 +205,8 @@ var isoReferences = []isoReference{
 		body: map[string]any{"rooms": []any{map[string]any{"room_id": isoRef("room"), "up_to": isoAt(0)}}}, covers: []string{"ChatDeliveredRoomSDI.room_id"}},
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/ai/ask", what: "conversation", body: map[string]any{
 		"question": "ref", "conversation_id": isoRef("conversation")}, covers: []string{"AskUniSDI.conversation_id"}},
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/ai/ask", what: "mention", body: map[string]any{
+		"question": "ref", "mentions": []any{map[string]any{"kind": "task", "id": isoRef("task")}}}},
 
 	// Meetings.
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/meetings", what: "attendee", body: map[string]any{

@@ -93,7 +93,10 @@ type AskInput struct {
 	ConversationID string
 	Question       string
 	Focus          *ai.Focus
-	Locale         string
+	// Mentions are up to five more objects the asker named; each is a source
+	// they must be able to read (R9).
+	Mentions []ai.Focus
+	Locale   string
 	// Model is "" (Auto) or a key of askModels; Effort is "low", "medium" or
 	// "high". Both only count behind ask_uni_agent; an unusable value falls back.
 	Model, Effort string
@@ -209,6 +212,10 @@ func (s *AskUNIService) AskStream(ctx context.Context, userID, workspaceID strin
 	if len([]rune(question)) > 2000 {
 		return AskResult{}, Invalid("câu hỏi tối đa 2000 ký tự")
 	}
+	mentions, err := askMentions(in.Focus, in.Mentions)
+	if err != nil {
+		return AskResult{}, err
+	}
 	w, err := s.requireMember(ctx, userID, workspaceID)
 	if err != nil {
 		return AskResult{}, err
@@ -223,10 +230,17 @@ func (s *AskUNIService) AskStream(ctx context.Context, userID, workspaceID strin
 	if err != nil {
 		return AskResult{}, err
 	}
+	// The focus and mentions must be readable by the asker on both paths,
+	// before anything streams (R9).
+	tc := ai.ToolContext{ActorID: userID, OrganizationID: w.OrganizationID, WorkspaceID: workspaceID}
+	ctxItems, err := s.askContext(ctx, tc, in.Focus, mentions)
+	if err != nil {
+		return AskResult{}, err
+	}
 	// Behind ask_uni_agent the model looks its sources up itself; P0's
 	// lookup below does not run.
-	if s.agentOn(ctx, ai.ToolContext{ActorID: userID, OrganizationID: w.OrganizationID, WorkspaceID: workspaceID}) {
-		return s.askAgent(ctx, userID, w, conv, question, in, emit)
+	if s.agentOn(ctx, tc) {
+		return s.askAgent(ctx, userID, w, conv, question, in, ctxItems, emit)
 	}
 	sources, err := s.Sources(ctx, ai.SourceQuery{UserID: userID, OrganizationID: w.OrganizationID, WorkspaceID: workspaceID, Question: question, Focus: in.Focus})
 	if err != nil {

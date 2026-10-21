@@ -2,18 +2,19 @@ package sdi
 
 // AskUniFocusSDI names the object the question is about (optional).
 type AskUniFocusSDI struct {
-	Kind string `json:"kind" description:"task, meeting, email_thread, room, thread hoặc message" example:"room"`
+	Kind string `json:"kind" description:"Focus: task, meeting, email_thread, document, project hoặc room. Mention: task, meeting, document, project hoặc member" example:"room"`
 	ID   string `json:"id" example:"01J8X4K2M0N1P2Q3R4S5T6U7VA"`
 }
 
 // AskUniSDI is POST /api/v1/workspaces/{workspaceID}/ai/ask.
 type AskUniSDI struct {
-	ConversationID string          `json:"conversation_id" description:"Tiếp tục hội thoại của chính người gọi; rỗng = hội thoại mới" example:"01K4AICONV000000000000001"`
-	Question       string          `json:"question" minLength:"1" maxLength:"2000" description:"Câu hỏi; UNI chỉ trả lời từ dữ liệu người gọi được xem" example:"task nào quá hạn?"`
-	Focus          *AskUniFocusSDI `json:"focus,omitempty"`
-	Locale         string          `json:"locale" description:"vi hoặc en; mặc định en" example:"vi"`
-	Model          string          `json:"model,omitempty" maxLength:"20" description:"Rỗng = Tự động; haiku, sonnet hoặc opus. Giá trị không dùng được (tắt, chưa có giá, lạ) thì server dùng Tự động, không báo lỗi. Chỉ có tác dụng khi agent bật" example:"sonnet"`
-	Effort         string          `json:"effort,omitempty" maxLength:"20" description:"low, medium hoặc high; rỗng hoặc giá trị lạ = medium. Chỉ có tác dụng khi agent bật" example:"medium"`
+	ConversationID string           `json:"conversation_id" description:"Tiếp tục hội thoại của chính người gọi; rỗng = hội thoại mới" example:"01K4AICONV000000000000001"`
+	Question       string           `json:"question" minLength:"1" maxLength:"2000" description:"Câu hỏi; UNI chỉ trả lời từ dữ liệu người gọi được xem" example:"task nào quá hạn?"`
+	Focus          *AskUniFocusSDI  `json:"focus,omitempty"`
+	Mentions       []AskUniFocusSDI `json:"mentions,omitempty" maxItems:"5" description:"Tối đa 5 đối tượng người hỏi nhắc tới (task, meeting, document, project, member); mỗi đối tượng phải đọc được bằng quyền người hỏi, nếu không trả ai_context_forbidden" example:"[{\"kind\":\"document\",\"id\":\"01J8X4K2M0N1P2Q3R4S5T6U7VA\"}]"`
+	Locale         string           `json:"locale" description:"vi hoặc en; mặc định en" example:"vi"`
+	Model          string           `json:"model,omitempty" maxLength:"20" description:"Rỗng = Tự động; haiku, sonnet hoặc opus. Giá trị không dùng được (tắt, chưa có giá, lạ) thì server dùng Tự động, không báo lỗi. Chỉ có tác dụng khi agent bật" example:"sonnet"`
+	Effort         string           `json:"effort,omitempty" maxLength:"20" description:"low, medium hoặc high; rỗng hoặc giá trị lạ = medium. Chỉ có tác dụng khi agent bật" example:"medium"`
 }
 
 // AskModelsSDI is PUT /api/v1/orgs/{org}/ai/ask-models.

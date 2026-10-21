@@ -262,7 +262,7 @@ func (s *AskUNIService) agentCallOver(ctx context.Context, orgID string) bool {
 // asker and inside the asked workspace, until it answers or a bound of R10
 // makes the next call the answer round; the answer and its citations are
 // stored like P0's.
-func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWorkspaceWithOrgRow, conv db.AiConversation, question string, in AskInput, emit AskSink) (out AskResult, err error) {
+func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWorkspaceWithOrgRow, conv db.AiConversation, question string, in AskInput, ctxItems []agentItem, emit AskSink) (out AskResult, err error) {
 	res := AskResult{ConversationID: conv.ID, RunID: util.NewID()}
 	tc := ai.ToolContext{ActorID: userID, OrganizationID: w.OrganizationID, WorkspaceID: w.ID}
 	started := s.now()
@@ -327,10 +327,10 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 		cited = append(cited, cs)
 	}
 	book := newSourceBook(cited)
-	focus, err := s.agentFocus(runCtx, tc, in.Focus, book)
-	if err != nil {
-		return AskResult{}, err
-	}
+	// The focus and mentions were read before the run, in AskStream; here they
+	// are numbered and rendered for the prompt's focus block, capped like a
+	// tool result (ruling P11).
+	focus, _ := book.render(ctxItems, askAgentToolResultMax)
 
 	// The first call's organization budget is counted here, before run, so a
 	// refusal comes before any event (R5); the loop reuses the count.
@@ -561,37 +561,4 @@ func (s *AskUNIService) agentToolCall(ctx context.Context, tools []agentTool, tc
 		s.agentMetrics.ObserveAskTool(name, status, s.now().Sub(started).Seconds())
 	}
 	return content, step, err
-}
-
-// agentFocus reads the object the asker is looking at, numbers it, and
-// renders it for the prompt's focus block, capped like a tool result (ruling
-// P11); "" without one.
-func (s *AskUNIService) agentFocus(ctx context.Context, tc ai.ToolContext, focus *ai.Focus, b *sourceBook) (string, error) {
-	if focus == nil {
-		return "", nil
-	}
-	var read func(context.Context, ai.ToolContext, string) ([]ai.Source, error)
-	switch focus.Kind {
-	case "task":
-		read = s.taskContext
-	case "meeting":
-		read = s.meetingContext
-	case "email_thread":
-		read = s.emailThreadContext
-	default:
-		return "", nil
-	}
-	found, err := read(ctx, tc, focus.ID)
-	if errors.Is(err, ErrForbidden) {
-		return "", ai.ErrContextForbidden
-	}
-	if err != nil {
-		return "", err
-	}
-	items := make([]agentItem, 0, len(found))
-	for _, src := range found {
-		items = append(items, sourceItem(src))
-	}
-	out, _ := b.render(items, askAgentToolResultMax)
-	return out, nil
 }
