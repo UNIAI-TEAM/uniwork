@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { initI18n, setLocale } from "@uniwork/core/i18n";
 import { DocumentsLibraryList } from "./documents-library-list";
@@ -301,6 +301,32 @@ describe("shared by me scope line (SW-V2, SW-V4)", () => {
 });
 
 describe("narrow secondary line at 390 (< 34rem, UNI-1902)", () => {
+  it("draws the separators inside a wrapping line only from 34rem, so a wrapped line never ends in one (N5)", () => {
+    renderList([
+      doc("a", "Hợp đồng mẫu.docx", {
+        my_level: "manage",
+        via: "owner" as DocumentSummaryRow["via"],
+        visibility: "restricted",
+        share_scope: SCOPE_PRIVATE,
+        updated_at: "2026-10-17T03:00:00Z",
+        size_bytes: 2500,
+      }),
+    ]);
+    const line = document.querySelector('[data-library-row="a"] [data-library-access-line]') as HTMLElement;
+    const metaGroup = line.querySelector("[data-library-meta-line]") as HTMLElement;
+    const accessGroup = line.querySelector("[data-library-access-group]") as HTMLElement;
+    // Editor and date · size are two rows below 34rem (no separator between rows); from 34rem they share one.
+    const [editorEl, dateDot, dateSize] = Array.from(metaGroup.children) as HTMLElement[];
+    expect(editorEl).toHaveClass("truncate", "basis-full", "@min-[34rem]/library:basis-auto");
+    expect(dateDot).toHaveTextContent("·");
+    expect(dateDot).toHaveClass("hidden", "@min-[34rem]/library:inline", "@min-[31rem]/library:hidden!");
+    // The date and size never split from each other.
+    expect(dateSize).toHaveClass("shrink-0", "whitespace-nowrap");
+    // The level and the scope badge: the dot between them leaves with the wrap.
+    const levelDot = Array.from(accessGroup.children).find((el) => el.textContent === "·") as HTMLElement;
+    expect(levelDot).toHaveClass("hidden", "@min-[34rem]/library:inline");
+  });
+
   it("wraps meta (editor · date · size) above level · share scope below 34rem with a non-truncating date and no orphan separator", () => {
     renderList([
       doc("a", "Hợp đồng mẫu.docx", {
@@ -326,8 +352,8 @@ describe("narrow secondary line at 390 (< 34rem, UNI-1902)", () => {
     const accessGroup = line.querySelector("[data-library-access-group]") as HTMLElement;
     expect(metaGroup).toBeTruthy();
     expect(accessGroup).toBeTruthy();
-    // UNI-2045: the editor part leaves when Người sửa gần nhất joins (42rem on the workspace screen).
-    expect(metaGroup).toHaveClass("basis-full", "min-w-0", "@min-[34rem]/library:basis-auto", "@min-[42rem]/library:hidden");
+    // UNI-2045: the editor part leaves when Người sửa gần nhất joins (48rem on the workspace screen).
+    expect(metaGroup).toHaveClass("basis-full", "min-w-0", "@min-[34rem]/library:basis-auto", "@min-[48rem]/library:hidden");
     expect(accessGroup).toHaveClass("shrink-0");
 
     const editorEl = within(metaGroup).getByText("An");
@@ -350,14 +376,14 @@ describe("narrow secondary line at 390 (< 34rem, UNI-1902)", () => {
 
     const interDot = Array.from(line.children).find((el) => el.textContent === "·") as HTMLElement;
     expect(interDot).toBeTruthy();
-    // UNI-2045: the dot leaves with the access group, at the access rung (34rem on the workspace screen, where it equals the dot's own 34rem: `!` settles the tie).
-    expect(interDot).toHaveClass("hidden", "@min-[34rem]/library:inline", "@min-[34rem]/library:hidden!");
+    // UNI-2045: the dot leaves with the access group, at the access rung (39rem on the workspace screen; the `!` wins over the dot's own 34rem `inline`).
+    expect(interDot).toHaveClass("hidden", "@min-[34rem]/library:inline", "@min-[39rem]/library:hidden!");
 
     const lineB = document.querySelector('[data-library-row="b"] [data-library-access-line]') as HTMLElement;
     const metaB = lineB.querySelector("[data-library-meta-line]") as HTMLElement;
     const accessB = lineB.querySelector("[data-library-access-group]") as HTMLElement;
-    // UNI-2045: without an editor the meta group is updated · size, gone at the table rung (26rem).
-    expect(metaB).toHaveClass("@min-[26rem]/library:hidden");
+    // UNI-2045: without an editor the meta group is updated · size, gone at the table rung (31rem).
+    expect(metaB).toHaveClass("@min-[31rem]/library:hidden");
     expect(metaB.firstElementChild?.textContent).not.toBe("·");
     expect(metaB.lastElementChild?.textContent).not.toBe("·");
     expect(accessB.firstElementChild?.textContent).not.toBe("·");
@@ -391,7 +417,9 @@ describe("folder star menu (SV-4)", () => {
     const onToggleStar = vi.fn();
     renderList([doc("fo1", "Hợp đồng", { kind: "folder" })], { onToggleStar, isStarred: (id) => id === "fo1" });
     const row = await openMenu("fo1", "Hợp đồng");
-    expect(within(row).getByRole("img", { name: t("documents.home.row.starred") })).toBeInTheDocument();
+    // The Star action carries the state, so the inline marker is not drawn a second time (N4).
+    expect(within(row).queryByRole("img", { name: t("documents.home.row.starred") })).toBeNull();
+    expect(within(row).getByRole("button", { name: t("documents.home.row.unstar_item", { title: "Hợp đồng" }) })).toHaveAttribute("aria-pressed", "true");
     fireEvent.click(screen.getByRole("menuitem", { name: t("documents.home.row.unstar") }));
     expect(onToggleStar).toHaveBeenCalledWith("fo1", true);
   });
@@ -422,6 +450,57 @@ describe("trash vs archive icons", () => {
     const shelve = screen.getByRole("menuitem", { name: t("documents.shelved_list.shelve") });
     expect(trash.querySelector("svg.lucide-trash-2")).not.toBeNull();
     expect(shelve.querySelector("svg.lucide-archive")).not.toBeNull();
+  });
+});
+
+describe("quick star button on a live row (RFD-04)", () => {
+  const starButton = (title: string, starred: boolean) =>
+    screen.queryByRole("button", { name: t(starred ? "documents.home.row.unstar_item" : "documents.home.row.star_item", { title }) });
+
+  it("toggles the star from the row, before the ⋯ menu, with the state in aria-pressed and a 44px coarse target", () => {
+    const onToggleStar = vi.fn();
+    renderList([doc("a", "A.docx")], { onToggleStar });
+    const button = starButton("A.docx", false)!;
+    expect(button).toHaveAttribute("aria-pressed", "false");
+    expect(button.className).toContain("pointer-coarse:size-11");
+    expect(button.compareDocumentPosition(screen.getByRole("button", { name: t("documents.home.row.menu", { title: "A.docx" }) })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    fireEvent.click(button);
+    expect(onToggleStar).toHaveBeenCalledWith("a", false);
+  });
+
+  it("reads pressed on a starred row and unstars it", () => {
+    const onToggleStar = vi.fn();
+    renderList([doc("a", "A.docx")], { onToggleStar, isStarred: () => true });
+    const button = starButton("A.docx", true)!;
+    expect(button).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(button);
+    expect(onToggleStar).toHaveBeenCalledWith("a", true);
+  });
+
+  it("draws a starred row's star once: the action, not an inline marker beside the title (N4)", () => {
+    renderList([doc("a", "A.docx")], { onToggleStar: vi.fn(), isStarred: () => true });
+    expect(starButton("A.docx", true)).toBeInTheDocument();
+    expect(screen.queryByRole("img", { name: t("documents.home.row.starred") })).toBeNull();
+  });
+
+  it("keeps the inline marker where the row has no Star action", () => {
+    // A starred row the host cannot toggle (no handler) and a shelved or trashed one still say it is starred.
+    renderList([doc("a", "A.docx")], { onToggleStar: undefined, isStarred: () => true });
+    expect(screen.getByRole("img", { name: t("documents.home.row.starred") })).toBeInTheDocument();
+    cleanup();
+    renderList([doc("c", "C.docx", { archived_at: "2026-10-20T01:00:00Z" })], { onToggleStar: vi.fn(), onRestore: vi.fn(), onPurge: vi.fn(), onViewDetails: vi.fn(), isStarred: () => true }, { screen: "trash" });
+    expect(screen.getByRole("img", { name: t("documents.home.row.starred") })).toBeInTheDocument();
+  });
+
+  it("is absent where the row menu has no star: no host handler, a shelved row, a trashed row", () => {
+    renderList([doc("a", "A.docx")], { onToggleStar: undefined });
+    expect(starButton("A.docx", false)).toBeNull();
+    cleanup();
+    renderList([doc("b", "B.docx", { shelved_at: "2026-10-20T01:00:00Z" })], { onToggleStar: vi.fn(), onUnshelve: vi.fn() }, { screen: "shelved" });
+    expect(starButton("B.docx", false)).toBeNull();
+    cleanup();
+    renderList([doc("c", "C.docx", { archived_at: "2026-10-20T01:00:00Z" })], { onToggleStar: vi.fn(), onRestore: vi.fn(), onPurge: vi.fn(), onViewDetails: vi.fn() }, { screen: "trash" });
+    expect(starButton("C.docx", false)).toBeNull();
   });
 });
 

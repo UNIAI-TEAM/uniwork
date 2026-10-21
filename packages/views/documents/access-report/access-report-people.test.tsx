@@ -322,16 +322,18 @@ describe("AccessReportPeople - open row", () => {
     );
   });
 
-  it("drops the split bar and the main source below sm, and sizes an open row to the scroll box", async () => {
+  it("drops the split bar below sm and the main source below lg, keeps no width floor below lg, and sizes an open row to the scroll box", async () => {
     serve();
     renderPeople();
     const table = await screen.findByRole("table", { name: at("tab_people") });
-    expect(table.className).toContain("sm:min-w-[56rem]");
-    for (const col of ["col_split", "col_main_source"]) {
-      expect(within(table).getByRole("columnheader", { name: at(col) })).toHaveClass("max-sm:hidden");
-    }
+    // A floor below lg clipped the main source and the expand column at 768; it starts at lg now.
+    expect(table.className).toContain("lg:min-w-[56rem]");
+    expect(table.className).not.toMatch(/(^|\s)(sm:)?min-w-\[56rem\]/);
+    expect(within(table).getByRole("columnheader", { name: at("col_split") })).toHaveClass("max-sm:hidden");
+    expect(within(table).getByRole("columnheader", { name: at("col_main_source") })).toHaveClass("max-lg:hidden");
     const hung = personRow("Hưng Nguyễn Duy");
-    expect(within(hung).getAllByRole("cell").filter((c) => c.classList.contains("max-sm:hidden"))).toHaveLength(2);
+    expect(within(hung).getAllByRole("cell").filter((c) => c.classList.contains("max-sm:hidden"))).toHaveLength(1);
+    expect(within(hung).getAllByRole("cell").filter((c) => c.classList.contains("max-lg:hidden"))).toHaveLength(1);
     expect(table.parentElement).toHaveClass("overflow-x-auto", "[container-type:inline-size]");
 
     fireEvent.click(screen.getByRole("button", { name: expandLabel("Hưng Nguyễn Duy") }));

@@ -9,7 +9,7 @@ import { docListRungs, docListSpec, type DocListColumnId, type DocListScreen } f
  * viewport and ~872px at 1440. Every optional column therefore joins by the
  * width of the list's own container (`@container/library`), in a ladder that
  * keeps Name readable: a rung opens at `the fixed columns up to and including
- * it + 2px border + a 220px name floor`, rounded up to the next rem. Header,
+ * it + 2px border + the Name floor (nameFloor, 288 / 260)`, rounded up to the next rem. Header,
  * colgroup, cells and the group spanner all read the one class per column, so
  * none can drift out of step. Tailwind finds the classes as literals, so each
  * rung is written out in full.
@@ -34,12 +34,12 @@ export interface RowLadder {
   columns: readonly LibraryColumn[];
   /** The header row: hidden while only Name and actions exist. */
   head: string;
-  /** The app command in the actions cell: shown once the actions column has room for it. */
-  quick: string;
   /** The editor part of the secondary line: hidden once its column exists. */
   metaHides: string;
   /** The updated · size part of the secondary line: hidden once those columns exist. */
   metaTailHides: string;
+  /** The separator between the editor and the updated · size part: `metaTailHides` with `!`, as it also carries its own 34rem `inline`. */
+  metaTailDotHides: string;
   /** The whole secondary line (level + Restricted mark): hidden once Truy cập exists. */
   accessLineHides: string;
   /** The level · scope part of the secondary line: hidden once the access column exists. */
@@ -86,17 +86,18 @@ export function libraryGroupSpans(ladder: { columns: readonly LibraryColumn[] })
 // can produce is written out here; `doclist/ladder.test.ts` fails when a spec
 // derives a rung that has no entry.
 // `hideNow` is `hide` with `!`: it wins over a display class of the same rung
-// (the row's own 34rem `inline`, which the workspace Access rung can equal).
-type RungClasses = { col: string; cell: string; head: string; hide: string; hideNow: string; show: string };
+// (the row's own 34rem `inline`).
+type RungClasses = { col: string; cell: string; head: string; hide: string; hideNow: string };
 
 // `w-[Npx]` of each column, written out for the same reason: Tailwind cannot see a class built from a number.
 const WIDTH_CLASSES: Record<number, string> = {
   32: "w-[32px]",
   76: "w-[76px]",
-  84: "w-[84px]",
+  102: "w-[102px]",
   118: "w-[118px]",
-  120: "w-[120px]",
-  130: "w-[130px]",
+  128: "w-[128px]",
+  132: "w-[132px]",
+  146: "w-[146px]",
 };
 
 /** The width class of a spec column; a spec width without an entry throws (the ladder test names it). */
@@ -107,13 +108,16 @@ function widthClass(px: number): string {
 }
 
 const RUNG_CLASSES: Record<number, RungClasses> = {
-  26: { col: "hidden @min-[26rem]/library:table-column", cell: "hidden @min-[26rem]/library:table-cell", head: "hidden bg-muted/50 @min-[26rem]/library:table-header-group", hide: "@min-[26rem]/library:hidden", hideNow: "@min-[26rem]/library:hidden!", show: "hidden @min-[26rem]/library:block" },
-  34: { col: "hidden @min-[34rem]/library:table-column", cell: "hidden @min-[34rem]/library:table-cell", head: "hidden bg-muted/50 @min-[34rem]/library:table-header-group", hide: "@min-[34rem]/library:hidden", hideNow: "@min-[34rem]/library:hidden!", show: "hidden @min-[34rem]/library:block" },
-  41: { col: "hidden @min-[41rem]/library:table-column", cell: "hidden @min-[41rem]/library:table-cell", head: "hidden bg-muted/50 @min-[41rem]/library:table-header-group", hide: "@min-[41rem]/library:hidden", hideNow: "@min-[41rem]/library:hidden!", show: "hidden @min-[41rem]/library:block" },
-  42: { col: "hidden @min-[42rem]/library:table-column", cell: "hidden @min-[42rem]/library:table-cell", head: "hidden bg-muted/50 @min-[42rem]/library:table-header-group", hide: "@min-[42rem]/library:hidden", hideNow: "@min-[42rem]/library:hidden!", show: "hidden @min-[42rem]/library:block" },
-  47: { col: "hidden @min-[47rem]/library:table-column", cell: "hidden @min-[47rem]/library:table-cell", head: "hidden bg-muted/50 @min-[47rem]/library:table-header-group", hide: "@min-[47rem]/library:hidden", hideNow: "@min-[47rem]/library:hidden!", show: "hidden @min-[47rem]/library:block" },
-  49: { col: "hidden @min-[49rem]/library:table-column", cell: "hidden @min-[49rem]/library:table-cell", head: "hidden bg-muted/50 @min-[49rem]/library:table-header-group", hide: "@min-[49rem]/library:hidden", hideNow: "@min-[49rem]/library:hidden!", show: "hidden @min-[49rem]/library:block" },
-  54: { col: "hidden @min-[54rem]/library:table-column", cell: "hidden @min-[54rem]/library:table-cell", head: "hidden bg-muted/50 @min-[54rem]/library:table-header-group", hide: "@min-[54rem]/library:hidden", hideNow: "@min-[54rem]/library:hidden!", show: "hidden @min-[54rem]/library:block" },
+  31: { col: "hidden @min-[31rem]/library:table-column", cell: "hidden @min-[31rem]/library:table-cell", head: "hidden bg-muted/50 @min-[31rem]/library:table-header-group", hide: "@min-[31rem]/library:hidden", hideNow: "@min-[31rem]/library:hidden!" },
+  39: { col: "hidden @min-[39rem]/library:table-column", cell: "hidden @min-[39rem]/library:table-cell", head: "hidden bg-muted/50 @min-[39rem]/library:table-header-group", hide: "@min-[39rem]/library:hidden", hideNow: "@min-[39rem]/library:hidden!" },
+  40: { col: "hidden @min-[40rem]/library:table-column", cell: "hidden @min-[40rem]/library:table-cell", head: "hidden bg-muted/50 @min-[40rem]/library:table-header-group", hide: "@min-[40rem]/library:hidden", hideNow: "@min-[40rem]/library:hidden!" },
+  41: { col: "hidden @min-[41rem]/library:table-column", cell: "hidden @min-[41rem]/library:table-cell", head: "hidden bg-muted/50 @min-[41rem]/library:table-header-group", hide: "@min-[41rem]/library:hidden", hideNow: "@min-[41rem]/library:hidden!" },
+  48: { col: "hidden @min-[48rem]/library:table-column", cell: "hidden @min-[48rem]/library:table-cell", head: "hidden bg-muted/50 @min-[48rem]/library:table-header-group", hide: "@min-[48rem]/library:hidden", hideNow: "@min-[48rem]/library:hidden!" },
+  49: { col: "hidden @min-[49rem]/library:table-column", cell: "hidden @min-[49rem]/library:table-cell", head: "hidden bg-muted/50 @min-[49rem]/library:table-header-group", hide: "@min-[49rem]/library:hidden", hideNow: "@min-[49rem]/library:hidden!" },
+  54: { col: "hidden @min-[54rem]/library:table-column", cell: "hidden @min-[54rem]/library:table-cell", head: "hidden bg-muted/50 @min-[54rem]/library:table-header-group", hide: "@min-[54rem]/library:hidden", hideNow: "@min-[54rem]/library:hidden!" },
+  57: { col: "hidden @min-[57rem]/library:table-column", cell: "hidden @min-[57rem]/library:table-cell", head: "hidden bg-muted/50 @min-[57rem]/library:table-header-group", hide: "@min-[57rem]/library:hidden", hideNow: "@min-[57rem]/library:hidden!" },
+  58: { col: "hidden @min-[58rem]/library:table-column", cell: "hidden @min-[58rem]/library:table-cell", head: "hidden bg-muted/50 @min-[58rem]/library:table-header-group", hide: "@min-[58rem]/library:hidden", hideNow: "@min-[58rem]/library:hidden!" },
+  64: { col: "hidden @min-[64rem]/library:table-column", cell: "hidden @min-[64rem]/library:table-cell", head: "hidden bg-muted/50 @min-[64rem]/library:table-header-group", hide: "@min-[64rem]/library:hidden", hideNow: "@min-[64rem]/library:hidden!" },
 };
 
 /** The rung's literal classes; a spec that derives a rung without an entry throws (the ladder test names it). */
@@ -127,6 +131,8 @@ function atRung(rung: number): RungClasses {
 export interface SpecLadder extends RowLadder {
   columns: LibraryColumn[];
   screenLineHides: string;
+  /** Hidden from the rung where the column joins up: what the Name header's sort caption uses for the two columns that can be sorted and off. */
+  sortHintHides: { editor: string; size: string };
 }
 
 /**
@@ -146,11 +152,14 @@ export function specLadder(screen: DocListScreen, opts: { selectable?: boolean }
   const at = (column: keyof typeof rungs) => atRung(rungs[column]);
   // Every `<col>` takes the spec's width; Name has none. The optional columns carry px-2, Name keeps px-3.
   const PAD = "px-2";
+  // Select: 16px box + 14px of hit area each side is 44px on a coarse pointer (pointer-coarse:after:-inset-3.5 on the
+  // Checkbox), so the column grows to 44px and the box sits 14px in, clear of the Name button.
+  const SELECT_PAD = "px-2 pointer-coarse:px-3.5";
   const columns: LibraryColumn[] = spec.columns.flatMap((column): LibraryColumn[] => {
     const w = column.id === "name" ? "" : widthClass(column.width);
     switch (column.id) {
       case "select":
-        return opts.selectable === false ? [] : [{ id: column.id, col: w, cell: "", pad: PAD }];
+        return opts.selectable === false ? [] : [{ id: column.id, col: `${w} pointer-coarse:w-11`, cell: "", pad: SELECT_PAD }];
       case "name":
         return [{ id: column.id, col: "", cell: "" }];
       case "access":
@@ -171,12 +180,13 @@ export function specLadder(screen: DocListScreen, opts: { selectable?: boolean }
   return {
     columns,
     head: at("table").head,
-    quick: at("table").show,
     metaHides: at("editor").hide,
     metaTailHides: at("table").hide,
+    metaTailDotHides: at("table").hideNow,
     accessLineHides: at("editor").hide,
     accessGroupHides: at("access").hide,
     metaDotHides: at("access").hideNow,
     screenLineHides: at("table").hide,
+    sortHintHides: { editor: at("editor").hide, size: at("size").hide },
   };
 }

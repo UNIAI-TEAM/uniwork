@@ -171,6 +171,30 @@ describe("Recent on the approved recent-canvas layout (UNI-2045 W14)", () => {
     expect(onOpen).toHaveBeenCalledWith("r2");
   });
 
+  it("draws a folder card with the folder glyph instead of the page skeleton; a file keeps the skeleton (F8)", async () => {
+    const folder = summary({ id: "f1", title: "Hợp đồng 2026", kind: "folder", last_activity: { kind: "opened", at: ago(2) } });
+    route({ list: () => [folder, ...rows] });
+    renderView("/?view=recent");
+    const section = await screen.findByRole("region", { name: t("documents.recent.continue_title") });
+    const cards = within(section).getAllByRole("button");
+    const folderCard = cards.find((card) => card.getAttribute("data-document-id") === "f1")!;
+    const fileCard = cards.find((card) => card.getAttribute("data-document-id") === "r1")!;
+    expect(folderCard.querySelector("[data-card-preview='folder']")).not.toBeNull();
+    expect(folderCard.querySelector("[data-card-preview='page']")).toBeNull();
+    expect(fileCard.querySelector("[data-card-preview='page']")).not.toBeNull();
+    expect(fileCard.querySelector("[data-card-preview='folder']")).toBeNull();
+  });
+
+  it("shows the Mở tiếp cards only while Recent is in its own order: sorted by name there are none", async () => {
+    route({ list: () => rows });
+    renderView("/?view=recent");
+    await screen.findByRole("region", { name: t("documents.recent.continue_title") });
+    fireEvent.click(
+      await screen.findByRole("button", { name: new RegExp(`^${t("documents.home.sort.column", { column: t("documents.home.columns.name") })}`) }),
+    );
+    await waitFor(() => expect(screen.queryByRole("region", { name: t("documents.recent.continue_title") })).toBeNull());
+  });
+
   it("hides the Mở tiếp row on an empty list and while a filter is on", async () => {
     route({ list: (path) => (new URLSearchParams(path.split("?")[1] ?? "").get("format") === "pdf" ? [] : rows) });
     renderView("/?view=recent");

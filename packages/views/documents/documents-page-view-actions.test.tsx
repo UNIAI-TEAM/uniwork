@@ -669,7 +669,7 @@ describe("starring a document", () => {
     expect(gets.some((path) => path === `${LIST_BASE}?limit=50`)).toBe(false);
   });
 
-  it("shows the star marker on the row after starring and removes it after unstarring", async () => {
+  it("shows the starred state on the row's Star action after starring and clears it after unstarring", async () => {
     let starred = false;
     const fav = { document_id: "d1", workspace_id: WS, title: "Kế hoạch Q4", kind: "page" };
     route({
@@ -686,13 +686,15 @@ describe("starring a document", () => {
     });
     renderView();
     const row = await rowOf("Kế hoạch Q4");
-    expect(within(row).queryByRole("img", { name: t("documents.home.row.starred") })).toBeNull();
+    expect(within(row).getByRole("button", { name: t("documents.home.row.star_item", { title: "Kế hoạch Q4" }) })).toHaveAttribute("aria-pressed", "false");
 
     await pickFromMenu("Kế hoạch Q4", t("documents.home.row.star"));
-    expect(await within(row).findByRole("img", { name: t("documents.home.row.starred") })).toBeInTheDocument();
+    expect(await within(row).findByRole("button", { name: t("documents.home.row.unstar_item", { title: "Kế hoạch Q4" }) })).toHaveAttribute("aria-pressed", "true");
+    // One star, not two: the inline marker is gone while the action is there.
+    expect(within(row).queryByRole("img", { name: t("documents.home.row.starred") })).toBeNull();
 
     await pickFromMenu("Kế hoạch Q4", t("documents.home.row.unstar"));
-    await waitFor(() => expect(within(row).queryByRole("img", { name: t("documents.home.row.starred") })).toBeNull());
+    await waitFor(() => expect(within(row).getByRole("button", { name: t("documents.home.row.star_item", { title: "Kế hoạch Q4" }) })).toHaveAttribute("aria-pressed", "false"));
   });
 });
 

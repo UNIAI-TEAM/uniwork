@@ -3,6 +3,7 @@
 import { useEffect, useId, useMemo, useState } from "react";
 import { Check, Copy } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import type { DocumentAccessRejectedCode, DocumentShareCandidate } from "@uniwork/core/api/endpoints/documents-sharing";
 import { useBulkShareDocuments, type BulkShareLink, type BulkShareResult, type BulkShareWorkspace } from "@uniwork/core/documents/hooks-bulk-share";
 import { useDocumentShareCandidates } from "@uniwork/core/documents/hooks-sharing";
@@ -15,12 +16,11 @@ import { Input } from "@uniwork/ui/components/ui/input";
 import { Label } from "@uniwork/ui/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@uniwork/ui/components/ui/select";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
+import { copyText } from "@uniwork/ui/lib/clipboard";
 import { allowedLevelsForPrincipal, type SelectedShareCandidate } from "../share-add-section";
 import { ShareCandidatePicker } from "../share-candidate-picker";
 import type { BulkPlan } from "./bulk-actions";
 
-/** The single dialog's cap on one batch of people. */
-const SHARE_PEOPLE_MAX = 50;
 const WORKSPACE_CHOICES: readonly BulkShareWorkspace[] = ["keep", "view", "comment", "edit", "none"];
 const LINK_CHOICES: readonly BulkShareLink[] = ["keep", "create", "revoke"];
 
@@ -39,10 +39,11 @@ function CreatedLinks({ links, titles }: { links: BulkShareResult["links"]; titl
   const label = t("documents.list.bulk.share.links_created");
   const lines = links.map((link) => ({ ...link, title: titles.get(link.id) || t("documents.detail.untitled"), url: absoluteUrl(link.url) }));
   const copyAll = () => {
-    void navigator.clipboard?.writeText(lines.map((line) => `${line.title}\t${line.url}`).join("\n")).then(
-      () => setCopied(true),
-      () => setCopied(false),
-    );
+    // The row menu's helper: it falls back where the async clipboard is absent, and a failure says so.
+    void copyText(lines.map((line) => `${line.title}\t${line.url}`).join("\n")).then((ok) => {
+      setCopied(ok);
+      if (!ok) toast.error(t("documents.list.menu.link_copy_failed"));
+    });
   };
   return (
     <div className="flex min-w-0 flex-col gap-2 rounded-lg border border-primary/40 bg-primary/5 p-3">
@@ -186,11 +187,11 @@ export function BulkShareDialog({
                 hasMore={Boolean(candidatesQuery.hasNextPage)} loadingMore={candidatesQuery.isFetchingNextPage}
                 loadMoreError={candidatesQuery.isFetchNextPageError} loadError={candidatesQuery.isError && !candidatesQuery.data}
                 onRetry={() => void candidatesQuery.refetch()} onLoadMore={() => void candidatesQuery.fetchNextPage()}
-                isLoading={candidatesQuery.isLoading} disabled={busy} atLimit={selected.length >= SHARE_PEOPLE_MAX}
+                isLoading={candidatesQuery.isLoading} disabled={busy}
                 rejectedByKey={{} as Record<string, DocumentAccessRejectedCode>}
                 onSelectCandidate={(candidate) => {
                   const key = `${candidate.principal_type}:${candidate.principal_id}`;
-                  if (selectedKeys.has(key) || selected.length >= SHARE_PEOPLE_MAX) return;
+                  if (selectedKeys.has(key)) return;
                   setSelected((prev) => [...prev, { key, candidate, onExisting: "keep" }]);
                   setQuery("");
                 }}

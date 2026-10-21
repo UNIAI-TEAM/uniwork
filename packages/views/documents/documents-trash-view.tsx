@@ -7,9 +7,13 @@ import { DocumentsLibraryList } from "./documents-library-list";
 import type { LibraryRowHandlers } from "./documents-library-row";
 import type { DocListBulk } from "./doclist/bulk-actions";
 import { groupRowsByDate } from "./doclist/date-groups";
-import { useCollapsedGroups } from "./doclist/group-state";
+import type { GroupCollapse } from "./doclist/group-state";
 import type { LibraryRow } from "./library-rows";
+import type { LibrarySort } from "./library-sort";
 import type { TrashActions } from "./use-trash-actions";
+
+/** The server's order (Q2), shown on the Đã xóa header; no header sorts. */
+const TRASH_ORDER: LibrarySort = { column: "deleted", order: "asc" };
 
 export interface DocumentsTrashViewProps {
   /** The archived list the page already fetches, `deleted` ascending (Q2). */
@@ -32,6 +36,8 @@ export interface DocumentsTrashViewProps {
   bulk?: DocListBulk;
   /** A new value clears the selection. */
   selectionKey?: string;
+  /** The page's own collapse state of the trash groups: one instance per page, so two screens never overwrite each other's stored choice. */
+  collapse: GroupCollapse;
 }
 
 /**
@@ -39,7 +45,7 @@ export interface DocumentsTrashViewProps {
  * list with `screen="trash"` (the Đã xóa column, `Khôi phục` · ⋯ on the row,
  * the menu `Khôi phục` · `Xem chi tiết` │ `Xóa vĩnh viễn`; UNI-2045 W2) and the
  * restore note. The order is the server's `deleted` ascending, so no header
- * sorts, and the rows always sit in the date groups Sắp xóa vĩnh viễn / Còn
+ * sorts (Đã xóa shows the fixed order), and the rows always sit in the date groups Sắp xóa vĩnh viễn / Còn
  * trên 7 ngày (W11), collapsible and remembered per viewer. Presentational: the page owns the queries, the restore mutation and
  * the purge dialog (use-trash-actions); every command needs manage
  * (`canManageTrashed`, RESTORE-01).
@@ -58,9 +64,19 @@ export function DocumentsTrashView({
   onLoadMore,
   bulk,
   selectionKey,
+  collapse,
 }: DocumentsTrashViewProps) {
   const { t } = useTranslation();
-  const collapse = useCollapsedGroups("trash");
+  const groups = groupRowsByDate(rows, "trash", new Date());
+  // A notification's row inside a collapsed group is revealed first (once per target: a later manual collapse stays).
+  const hiddenGroup = focusId ? groups.find((group) => collapse.isCollapsed(group.key) && group.rows.some((each) => each.id === focusId))?.key : undefined;
+  const revealed = useRef<string | null>(null);
+  const { onToggle } = collapse;
+  useEffect(() => {
+    if (!focusId || !hiddenGroup || revealed.current === focusId) return;
+    revealed.current = focusId;
+    onToggle(hiddenGroup);
+  }, [focusId, hiddenGroup, onToggle]);
   const boxRef = useRef<HTMLDivElement>(null);
   const pagedFromCount = useRef<number | null>(null);
   useEffect(() => {
@@ -91,7 +107,7 @@ export function DocumentsTrashView({
       const target = firstNew?.querySelector<HTMLElement>("[data-trash-restore]") ?? box?.querySelector<HTMLElement>("table");
       target?.focus({ focusVisible: true } as FocusOptions);
     }
-  }, [focusId, claimFocus, rows, hasMore, loadingMore]);
+  }, [focusId, claimFocus, rows, hasMore, loadingMore, hiddenGroup]);
 
   return (
     <div ref={boxRef} className="flex flex-col gap-5">
@@ -100,7 +116,7 @@ export function DocumentsTrashView({
         <p className="text-caption text-muted-foreground">{t("documents.trash.subtitle")}</p>
       </div>
       <DocumentsLibraryList
-        groups={groupRowsByDate(rows, "trash", new Date())}
+        groups={groups}
         collapse={collapse}
         loading={loading}
         failure={failure}
@@ -121,6 +137,7 @@ export function DocumentsTrashView({
           onViewDetails: (doc) => handlers.onOpen(doc.id),
         }}
         screen="trash"
+        fixedSort={TRASH_ORDER}
         selectable={Boolean(bulk)}
         bulk={bulk}
         selectionKey={selectionKey}

@@ -2,6 +2,7 @@
 
 import { useId } from "react";
 import { useTranslation } from "react-i18next";
+import { isMyFolder } from "@uniwork/core/types/document";
 import { documentIconFormat, DocumentTypeIcon } from "./document-type-icon";
 import { formatListDate } from "./doclist/format";
 import type { LibraryRow } from "./library-rows";
@@ -13,6 +14,8 @@ const KNOWN_ACTIVITY = new Set(["edited", "opened", "commented"]);
 interface ContinueCard {
   id: string;
   title: string;
+  /** The system My Folder is stored as "My Folder": the card shows the localized label, as the rows do. */
+  myFolder: boolean;
   format: string;
   kind: string;
   at: string;
@@ -29,7 +32,7 @@ export function continueCards(rows: readonly LibraryRow[]): ContinueCard[] {
     if (row.type !== "document") continue;
     const activity = row.doc.last_activity;
     if (!activity?.at || !KNOWN_ACTIVITY.has(activity.kind) || Number.isNaN(Date.parse(activity.at))) continue;
-    cards.push({ id: row.doc.id, title: row.doc.title, format: documentIconFormat(row.doc.kind, row.doc.title), kind: activity.kind, at: activity.at });
+    cards.push({ id: row.doc.id, title: row.doc.title, myFolder: isMyFolder(row.doc), format: documentIconFormat(row.doc.kind, row.doc.title), kind: activity.kind, at: activity.at });
   }
   return cards.sort((a, b) => Date.parse(b.at) - Date.parse(a.at)).slice(0, CONTINUE_CARDS);
 }
@@ -58,19 +61,27 @@ export function RecentContinue({ cards, onOpen }: RecentContinueProps) {
             onClick={() => onOpen(card.id)}
             className="flex min-w-0 flex-col overflow-hidden rounded-xl border border-border bg-background text-left transition-colors hover:bg-accent"
           >
-            {/* The page preview is decoration: a phone keeps the cards to two compact rows. */}
-            <span aria-hidden className="hidden h-24 w-full justify-center bg-muted px-4 pt-4 sm:flex">
-              <span className="flex w-[70%] flex-col gap-1.5 rounded-t-md bg-background p-3 shadow-sm">
-                <span className="h-1.5 w-1/2 rounded-full bg-muted-foreground/40" />
-                <span className="h-1 w-[88%] rounded-full bg-border" />
-                <span className="h-1 w-[72%] rounded-full bg-border" />
-                <span className="h-1 w-[80%] rounded-full bg-border" />
+            {/* The preview is decoration: a phone keeps the cards to two compact rows. A folder shows its glyph, not a page. */}
+            {card.format === "folder" ? (
+              <span aria-hidden data-card-preview="folder" className="hidden h-24 w-full items-center justify-center bg-muted sm:flex">
+                <DocumentTypeIcon format="folder" decorative className="size-10 text-muted-foreground" />
               </span>
-            </span>
+            ) : (
+              <span aria-hidden data-card-preview="page" className="hidden h-24 w-full justify-center bg-muted px-4 pt-4 sm:flex">
+                <span className="flex w-[70%] flex-col gap-1.5 rounded-t-md bg-background p-3 shadow-sm">
+                  <span className="h-1.5 w-1/2 rounded-full bg-muted-foreground/40" />
+                  <span className="h-1 w-[88%] rounded-full bg-border" />
+                  <span className="h-1 w-[72%] rounded-full bg-border" />
+                  <span className="h-1 w-[80%] rounded-full bg-border" />
+                </span>
+              </span>
+            )}
             <span className="flex min-w-0 items-center gap-2.5 px-3 py-2.5 sm:px-3.5 sm:py-3">
               <DocumentTypeIcon format={card.format} decorative className="size-7 shrink-0" />
               <span className="flex min-w-0 flex-col gap-0.5">
-                <span className="truncate text-body font-medium text-foreground">{card.title}</span>
+                <span className="truncate text-body font-medium text-foreground">
+                  {(card.myFolder ? t("documents.home.my_folder.label") : card.title) || t("documents.detail.untitled")}
+                </span>
                 <span className="truncate text-caption text-muted-foreground">
                   {t("documents.recent.continue_when", {
                     activity: t(`documents.list.activity.${card.kind}`),

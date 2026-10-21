@@ -954,6 +954,7 @@
     "documents.list.bulk.error.not_verifiable",
     "documents.list.bulk.error.rate_limited",
     "documents.list.bulk.error.too_large",
+    "documents.list.bulk.error.zip_limit",
     "documents.list.bulk.error_line",
     "documents.list.bulk.more_one",
     "documents.list.bulk.more_other",

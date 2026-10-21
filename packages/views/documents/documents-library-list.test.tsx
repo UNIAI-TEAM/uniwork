@@ -66,7 +66,8 @@ function renderList(sort: LibrarySort | null, onSort = vi.fn(), extra: { screen?
   return onSort;
 }
 
-const head = (key: string) => screen.getByRole("columnheader", { name: new RegExp(t(`documents.home.columns.${key}`)) });
+// A sort by a hidden column also names it inside the Name header (RFD-23), which comes first: the column's own header is the last match.
+const head = (key: string) => screen.getAllByRole("columnheader", { name: new RegExp(t(`documents.home.columns.${key}`)) }).at(-1)!;
 const sortButton = (label: string) => screen.getByRole("button", { name: new RegExp(`^${t("documents.home.sort.column", { column: label })}`) });
 
 describe("DocumentsLibraryList sortable headers", () => {
@@ -150,5 +151,47 @@ describe("DocumentsLibraryList sortable headers", () => {
     for (const th of screen.getAllByRole("columnheader", { hidden: true })) {
       expect(th).not.toHaveAttribute("aria-sort");
     }
+  });
+});
+
+// RFD-23: a stored sort by a column the ladder has hidden still shows in the Name header.
+describe("DocumentsLibraryList sort hint for a hidden sorted column", () => {
+  const caption = (key: string, order: "ascending" | "descending") => {
+    const label = t(`documents.list.column.${key}`);
+    const text = `${t("documents.home.sort.column", { column: label })}, ${t(`documents.home.sort.${order}`)}`;
+    return screen.queryByText(text);
+  };
+  const nameHead = () => screen.getAllByRole("columnheader", { hidden: true }).find((th) => th.textContent?.includes(t("documents.list.column.name")))!;
+
+  it("adds a caption with the column and the arrow to the Name header, hidden from the column's own rung up", () => {
+    renderList({ column: "size", order: "desc" }, vi.fn(), { screen: "recent" });
+    const sr = caption("size", "descending");
+    expect(sr).toHaveClass("sr-only");
+    const hint = sr!.parentElement!;
+    expect(hint).toHaveClass("@min-[64rem]/library:hidden");
+    expect(nameHead()).toContainElement(hint);
+    expect(hint).toHaveTextContent(t("documents.list.column.size"));
+    expect(hint.querySelector("svg")).toHaveClass("lucide-arrow-down");
+    expect(hint.querySelector("svg")).toHaveAttribute("aria-hidden", "true");
+  });
+
+  it("uses the editor's rung and an up arrow for an ascending editor sort", () => {
+    renderList({ column: "editor", order: "asc" }, vi.fn(), { screen: "recent" });
+    const hint = caption("editor", "ascending")!.parentElement!;
+    expect(hint).toHaveClass("@min-[58rem]/library:hidden");
+    expect(hint.querySelector("svg")).toHaveClass("lucide-arrow-up");
+  });
+
+  it.each(["name", "updated"] as const)("adds nothing for a sort by %s", (column) => {
+    renderList({ column, order: "desc" }, vi.fn(), { screen: "recent" });
+    expect(caption("size", "descending")).toBeNull();
+    expect(caption("editor", "descending")).toBeNull();
+    expect(nameHead().querySelector(".sr-only")).toBeNull();
+  });
+
+  it("keeps the Name button sorting by name", () => {
+    const onSort = renderList({ column: "size", order: "desc" }, vi.fn(), { screen: "recent" });
+    fireEvent.click(sortButton(t("documents.list.column.name")));
+    expect(onSort).toHaveBeenCalledWith("name");
   });
 });

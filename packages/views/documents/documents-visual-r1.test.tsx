@@ -86,10 +86,8 @@ describe("phone row layout (finding 1)", () => {
     const button = name.closest("button");
     expect(button).toHaveClass("w-full", "min-w-0");
     expect(button?.querySelector("span.min-w-0")).toHaveClass("flex-1");
-    // The icon-only app button does not take width from the name until the actions column widens (container, not viewport).
-    const quick = document.querySelector("[data-office-desktop-action]");
-    // UNI-2045: that is the table rung of the shared ladder (26rem on the workspace screen).
-    expect(quick?.parentElement).toHaveClass("hidden", "@min-[26rem]/library:block");
+    // RFD-16: no app button in the Actions cell at any width (the command lives in the menu), so nothing takes width from the name.
+    expect(screen.queryByRole("button", { name: t("office.desktop.row_action") })).toBeNull();
     // TV-12: the truncating name keeps the full title on hover (native title).
     expect(name).toHaveAttribute("title", "Báo giá tháng 10.docx");
   });
@@ -102,11 +100,11 @@ describe("phone row layout (finding 1)", () => {
     const spanners = Array.from(group!.parentElement!.children).slice(1);
     expect(spanners.map((el) => el.getAttribute("colspan"))).toEqual(["1", "1", "1", "1"]);
     expect(spanners.map((el) => Array.from(el.classList).find((c) => c.startsWith("@min-"))?.split(":")[0])).toEqual([
-      // UNI-2045 rungs of the workspace screen: Access 34, Editor 42, the table (Updated) 27, Size 47.
-      "@min-[34rem]/library",
-      "@min-[42rem]/library",
-      "@min-[26rem]/library",
-      "@min-[47rem]/library",
+      // UNI-2045 rungs of the workspace screen: Access 39, Editor 48, the table (Updated) 31, Size 54.
+      "@min-[39rem]/library",
+      "@min-[48rem]/library",
+      "@min-[31rem]/library",
+      "@min-[54rem]/library",
     ]);
     // One header and the rows share one column template.
     expect(document.querySelectorAll("colgroup col")).toHaveLength(6);
@@ -121,7 +119,9 @@ describe("row accessible names", () => {
     expect(screen.getByRole("button", { name: new RegExp(`^${t("documents.file_types.page")} Kế hoạch Q4`) })).toBeInTheDocument();
     // The menu trigger keeps its own descriptive name, one per row.
     expect(screen.getByRole("button", { name: t("documents.home.row.menu", { title: "Báo giá tháng 10.docx" }) })).toBeInTheDocument();
-    expect(screen.getAllByRole("button", { name: /Kế hoạch Q4/ })).toHaveLength(2);
+    // Name button, quick star and the menu trigger: three controls, three distinct names.
+    expect(screen.getByRole("button", { name: t("documents.home.row.star_item", { title: "Kế hoạch Q4" }) })).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: /Kế hoạch Q4/ })).toHaveLength(3);
   });
 });
 

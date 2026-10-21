@@ -1060,7 +1060,7 @@ test("FD-A05 (FD-09 UI) tree Move-to picker marks a too-deep target aria-disable
     .getByRole("table", { name: "Tài liệu" })
     .getByRole("button", { name: "Thao tác cho Trang Chuyển", exact: true })
     .click();
-  await page.getByRole("menuitem", { name: "Di chuyển tới…" }).click();
+  await page.getByRole("menuitem", { name: "Di chuyển", exact: true }).click();
   await picker.getByRole("treeitem", { name: "Thư mục Đích", exact: true }).click();
   await picker.getByRole("button", { name: "Di chuyển", exact: true }).click();
   await expect(page.getByText("Đã chuyển tới Thư mục Đích")).toBeVisible();
@@ -1275,7 +1275,7 @@ test("FD-A07 moving a document between folders keeps ID, versions, and comments 
   await page.goto(`/${ws.orgSlug}/${ws.wsSlug}/documents?folder=${folderB.id}`);
   const table = page.getByRole("table", { name: "Tài liệu" });
   await table.getByRole("button", { name: "Thao tác cho report.docx", exact: true }).click();
-  await page.getByRole("menuitem", { name: "Di chuyển tới…" }).click();
+  await page.getByRole("menuitem", { name: "Di chuyển", exact: true }).click();
   const moveDialog = page.getByRole("dialog", { name: "Di chuyển tới" });
   await moveDialog.getByRole("treeitem", { name: "Phòng A", exact: true }).click();
   await moveDialog.getByRole("button", { name: "Di chuyển", exact: true }).click();
@@ -1360,7 +1360,7 @@ test("FD-A07 (FD-09 UI) Move-to picker marks the current location aria-disabled 
     .getByRole("table", { name: "Tài liệu" })
     .getByRole("button", { name: "Thao tác cho Bản thảo", exact: true })
     .click();
-  await page.getByRole("menuitem", { name: "Di chuyển tới…" }).click();
+  await page.getByRole("menuitem", { name: "Di chuyển", exact: true }).click();
   const picker = page.getByRole("dialog", { name: "Di chuyển tới" });
   const submit = picker.getByRole("button", { name: "Di chuyển", exact: true });
 

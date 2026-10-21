@@ -44,6 +44,7 @@ import { EMPTY_CELL, formatBytes, formatListDate } from "./doclist/format";
 import { docListRowFields } from "./doclist/row-fields";
 import { DocLifecycleAction, type DocLifecycleHandlers } from "./doclist/lifecycle-action";
 import type { RowMenuHandlers } from "./doclist/row-menu";
+import { DocStarAction } from "./doclist/star-action";
 import { DocScreenCell, DocScreenLine, type DocListMemberLookup } from "./doclist/screen-cells";
 import { libraryCell, libraryPad, type RowLadder } from "./library-columns";
 import { LibraryRowAccessCell } from "./library-row-access-cell";
@@ -220,17 +221,20 @@ export function LibraryRowView({
   });
   // The title opens a trashed row only where its menu offers Xem chi tiết (manage, never a folder).
   const inert = trashed && !menu.some((group) => group.some((item) => item.id === "view-details"));
-  // The app command joins the actions cell only when its column is wide
-  // enough (the ladder's quick rung); the source's own link button below
-  // is icon-sized and rendered at every width.
-  const quick = desktop ? (
-    <DesktopOpenAction
-      {...desktop}
-      documentId={doc!.id}
-      placement="row"
-      operation={rowAppOperation(level)}
-      requestRef={appRequest}
-    />
+  // The row's actions are Star and the menu (Rules: "live: hàng = Sao · ⋯"); the app command is the menu's
+  // Mở bằng UniWork Office. DesktopOpenAction still owns the launch flow and its install prompt, so it stays
+  // mounted and the menu item runs it through `appRequest`. Its host is `hidden` (display: none), so its button is
+  // neither drawn, focusable nor in the accessibility tree.
+  const appHost = desktop ? (
+    <div hidden data-app-open-host>
+      <DesktopOpenAction
+        {...desktop}
+        documentId={doc!.id}
+        placement="row"
+        operation={rowAppOperation(level)}
+        requestRef={appRequest}
+      />
+    </div>
   ) : null;
 
   // S2V-2/3: "Xem nơi đính kèm" / "Mở Email" as an icon button, so it fits the
@@ -265,7 +269,8 @@ export function LibraryRowView({
       location={doc && screen !== "workspace" ? (handlers.locationName?.(doc) ?? null) : null}
       badges={
         <>
-          {starred ? (
+          {/* The Star action carries a starred row's state; the marker stays only where no Star action is drawn (N4). */}
+          {starred && !menu.flat().some((item) => item.id === "star") ? (
             <Star role="img" aria-label={t("documents.home.row.starred")} className="size-3.5 shrink-0 fill-current text-brand" />
           ) : null}
           {trashed && screen !== "trash" ? (
@@ -300,22 +305,25 @@ export function LibraryRowView({
             <span
               data-library-meta-line
               className={cn(
-                "flex basis-full min-w-0 items-center gap-1.5 overflow-hidden @min-[34rem]/library:basis-auto",
+                "flex basis-full min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 overflow-hidden @min-[34rem]/library:basis-auto @min-[34rem]/library:flex-nowrap",
                 editor ? ladder.metaHides : ladder.metaTailHides,
               )}
             >
-              {editor ? <span className={cn("min-w-0 truncate", ladder.metaHides)}>{editor}</span> : null}
-              {editor && metaTail ? <span aria-hidden className={cn("shrink-0", ladder.metaTailHides)}>·</span> : null}
-              {metaTail ? <span className={cn("shrink-0", ladder.metaTailHides)}>{metaTail}</span> : null}
+              {/* Below 34rem the editor and date · size stand on their own rows (the editor truncates, the date and size never split), so no separator can end a wrapped line (N5). */}
+              {editor ? <span className={cn("min-w-0 basis-full truncate @min-[34rem]/library:basis-auto", ladder.metaHides)}>{editor}</span> : null}
+              {editor && metaTail ? (
+                <span aria-hidden className={cn("hidden shrink-0 @min-[34rem]/library:inline", ladder.metaTailDotHides)}>·</span>
+              ) : null}
+              {metaTail ? <span className={cn("shrink-0 whitespace-nowrap", ladder.metaTailHides)}>{metaTail}</span> : null}
             </span>
           ) : null}
           {editor && (levelLabel || showNarrowScope) ? (
             <span aria-hidden className={cn("hidden shrink-0 @min-[34rem]/library:inline", ladder.metaDotHides)}>·</span>
           ) : null}
           {levelLabel || showNarrowScope ? (
-            <span data-library-access-group className={cn("flex shrink-0 items-center gap-1.5", ladder.accessGroupHides)}>
+            <span data-library-access-group className={cn("flex max-w-full shrink-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 @min-[34rem]/library:max-w-none @min-[34rem]/library:flex-nowrap", ladder.accessGroupHides)}>
               {levelLabel ? <span className="shrink-0">{levelLabel}</span> : null}
-              {levelLabel && showNarrowScope ? <span aria-hidden className="shrink-0">·</span> : null}
+              {levelLabel && showNarrowScope ? <span aria-hidden className="hidden shrink-0 @min-[34rem]/library:inline">·</span> : null}
               {showNarrowScope ? (
                 <DocumentShareScopeBadge
                   shareScope={doc?.share_scope}
@@ -339,6 +347,7 @@ export function LibraryRowView({
         {selection?.onToggle ? (
           <Checkbox
             checked={selection.selected}
+            className="pointer-coarse:after:-inset-3.5"
             onCheckedChange={(_checked, details) => selection.onToggle?.("shiftKey" in details.event && details.event.shiftKey === true)}
             aria-label={t("documents.list.bulk.select_row", { title })}
           />
@@ -412,19 +421,15 @@ export function LibraryRowView({
         {ladder.columns.map((column) => (column.id === "actions" ? null : <Fragment key={column.id}>{cells[column.id]}</Fragment>))}
         <td data-column="actions" className="px-2 py-2">
           <div className="flex items-center justify-end gap-1">
-            {quick ? (
-              // Until the actions column widens (first ladder rung) the app command lives in the ⋯ menu so the name keeps the row.
-              <div className={cn("opacity-0 transition-opacity group-hover/row:opacity-100 focus-within:opacity-100 pointer-coarse:opacity-100", ladder.quick)}>
-                {quick}
-              </div>
-            ) : null}
+            {appHost}
             {sourceLink ? (
-              // Every width, not the quick rung: hover/focus reveals it on a
-              // fine pointer, a coarse pointer shows it always (no hover there).
+              // Every width: hover/focus reveals it on a fine pointer, a
+              // coarse pointer shows it always (no hover there).
               <div className="opacity-0 transition-opacity group-hover/row:opacity-100 focus-within:opacity-100 pointer-coarse:opacity-100">
                 {sourceLink}
               </div>
             ) : null}
+            {doc ? <DocStarAction menu={menu} title={title} starred={starred} /> : null}
             {doc ? <DocLifecycleAction screen={screen} doc={doc} title={title} handlers={handlers} /> : null}
             {menu.length > 0 ? (
               <DropdownMenu>

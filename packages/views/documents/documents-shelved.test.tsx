@@ -223,10 +223,22 @@ describe("shelved nav + list", () => {
     await openShelved();
 
     expect(vi.mocked(adapter.push)).toHaveBeenCalledWith(expect.stringContaining("view=shelved"));
-    expect(await screen.findByRole("heading", { level: 2, name: t("documents.shelved_list.title") })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { level: 1, name: t("documents.shelved_list.title") })).toBeInTheDocument();
     await waitFor(() => expect(shelvedRequests().length).toBeGreaterThan(0));
     expect(shelvedRequests().every((path) => query(path).get("archived") === null)).toBe(true);
     expect(await screen.findByText("Kế hoạch Q4")).toBeInTheDocument();
+  });
+
+  it("wears the same screen head as the other list screens: no Tạo mới, a search box", async () => {
+    route({ list: () => [shelved()] });
+    renderView();
+    // Home keeps the create menu; Lưu trữ, like Gần đây, does not.
+    const create = () => screen.queryByRole("button", { name: new RegExp(t("documents.home.create.menu")) });
+    expect(await screen.findByRole("button", { name: new RegExp(t("documents.home.create.menu")) })).toBeInTheDocument();
+    await openShelved();
+    expect(await screen.findByRole("heading", { level: 1, name: t("documents.shelved_list.title") })).toBeInTheDocument();
+    expect(create()).toBeNull();
+    expect(screen.getByRole("searchbox")).toBeInTheDocument();
   });
 
   it("names the member who shelved the row, the access and the shelved stamp", async () => {

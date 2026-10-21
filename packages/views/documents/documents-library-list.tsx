@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, type ReactNode } from "react";
-import { ChevronRight, FolderOpen, Search, ShieldAlert, type LucideIcon } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronRight, FolderOpen, Search, ShieldAlert, type LucideIcon } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Checkbox } from "@uniwork/ui/components/ui/checkbox";
@@ -49,6 +49,9 @@ export interface DocumentsLibraryListProps {
    *  Người sửa, Cập nhật, Dung lượng) become buttons, and the one in `value` carries the arrow; absent, every header
    *  stays plain text (Thùng rác, whose order is fixed: Q2). The rows arrive in this order already. */
   sort?: { value: LibrarySort; onSort: (column: LibrarySortColumn) => void };
+  /** The order of a screen that cannot sort (Thùng rac: `deleted` ascending, Q2): its column carries `aria-sort` and the
+   *  same arrow as a sorted header, but no button, so every list shows exactly one sorted header. */
+  fixedSort?: LibrarySort;
   /** The screen the table shows (doclist/columns.ts): its column order, its screen column and its narrow ladder. */
   screen?: DocListScreen;
   /** The Select column of the spec (bulk selection, W9): checkboxes and the bulk bar when `bulk` is given too. */
@@ -88,6 +91,7 @@ export function DocumentsLibraryList({
   onClearFilters,
   handlers,
   sort,
+  fixedSort,
   screen = "workspace",
   selectable = false,
   bulk,
@@ -102,7 +106,11 @@ export function DocumentsLibraryList({
   // Bulk selection (W9): a row is selectable when the bar has an action for it,
   // i.e. when its own row menu offers one the host supports.
   const bulkOn = selectable && Boolean(bulk);
-  const rows = groups.flatMap((group) => group.rows);
+  // The date groups of Gần đây, Được chia sẻ với tôi and Thùng rác (W11); "all" is a flat list.
+  const showGroups = !(groups.length === 1 && groups[0]?.key === "all");
+  // Only the rows a person can see take part in a selection: a collapsed group has none on screen, so select-all,
+  // shift ranges, the count and the plans never reach them, and collapsing a group drops its rows from the selection.
+  const rows = groups.filter((group) => !(showGroups && collapse?.isCollapsed(group.key))).flatMap((group) => group.rows);
   const actionsByRow = new Map<string, ReadonlySet<BulkActionId>>(
     bulkOn && bulk
       ? rows.map((row) => [row.id, new Set([...rowBulkActions(row, handlers, screen)].filter(bulk.supports))])
@@ -196,15 +204,23 @@ export function DocumentsLibraryList({
     return <CollectionPageState icon={empty.icon ?? FolderOpen} title={empty.title} description={empty.description} role="status" actions={empty.actions} />;
   }
 
-  // The date groups of Gần đây, Được chia sẻ với tôi and Thùng rác (W11); "all" is a flat list.
-  const showGroups = !(groups.length === 1 && groups[0]?.key === "all");
-
   const ladder = specLadder(screen, { selectable });
   const groupSpans = libraryGroupSpans(ladder);
   const specColumns = docListSpec(screen).columns;
   const specLabels = new Map(specColumns.map((column) => [column.id as string, column.labelKey]));
   const columnLabel = (id: string): string => specLabels.get(id) ?? "";
   const sortKeys = new Map(specColumns.map((column) => [column.id as string, column.sortKey]));
+  // The Name header's caption for a sort by a column the ladder can hide (Người sửa gần nhất, Dung lượng).
+  const hintColumn = sort && (sort.value.column === "editor" || sort.value.column === "size") ? sort.value.column : null;
+  const hintLabel = hintColumn ? t(columnLabel(hintColumn)) : "";
+  const hint = sort && hintColumn
+    ? {
+        label: hintLabel,
+        hides: ladder.sortHintHides[hintColumn],
+        sr: `${t("documents.home.sort.column", { column: hintLabel })}, ${t(sort.value.order === "asc" ? "documents.home.sort.ascending" : "documents.home.sort.descending")}`,
+      }
+    : null;
+  const HintArrow = sort?.value.order === "asc" ? ArrowUp : ArrowDown;
   // The group title spans the columns that are on at every width (Select, Name, Actions).
   const alwaysOn = ladder.columns.filter((column) => !column.cell).length;
 
@@ -219,7 +235,7 @@ export function DocumentsLibraryList({
   return (
     <div ref={boxRef} className="@container/library flex flex-col">
       {bulk && selectedRows.length > 0 ? (
-        <DocListBulkBar count={selectedRows.length} plans={plans} onRun={(plan) => bulk.run(plan, clearSelection)} onClear={clearSelection} />
+        <DocListBulkBar count={selectedRows.length} plans={plans} busy={bulk.busy} onRun={(plan) => bulk.run(plan, clearSelection)} onClear={clearSelection} />
       ) : null}
       <div className="overflow-hidden rounded-lg border border-border">
         {/* tabIndex -1: a host may move focus onto the table itself (Thùng rác after Load more). */}
@@ -228,7 +244,8 @@ export function DocumentsLibraryList({
             Every column but Name and Actions joins by the width of this list
             (`@container/library`, see library-columns.ts), never the
             viewport: the docs aside and the sidebar take ~500px of it. Name
-            takes what the fixed columns leave and never drops below 280px.
+            takes what the fixed columns leave and never drops below its floor
+            (nameFloor, 288 / 260).
             The group header spans exactly the columns on screen (a colSpan
             wider than the visible columns would add implicit columns that
             squeeze Name to nothing).
@@ -243,20 +260,52 @@ export function DocumentsLibraryList({
               {ladder.columns.map((column) => {
                 // The spec names the key each column sorts by; Truy cập and Thao tác have none.
                 const sortable = sort ? (sortKeys.get(column.id) ?? null) : null;
+                const fixed = !sort && fixedSort && sortKeys.get(column.id) === fixedSort.column ? fixedSort : null;
+                const FixedArrow = fixed?.order === "desc" ? ArrowDown : ArrowUp;
                 return (
                   <th
                     key={column.id}
                     scope="col"
-                    aria-sort={sortable && sort ? (sort.value.column !== sortable ? "none" : sort.value.order === "asc" ? "ascending" : "descending") : undefined}
+                    aria-sort={
+                      sortable && sort
+                        ? sort.value.column !== sortable
+                          ? "none"
+                          : sort.value.order === "asc"
+                            ? "ascending"
+                            : "descending"
+                        : fixed
+                          ? fixed.order === "asc"
+                            ? "ascending"
+                            : "descending"
+                          : undefined
+                    }
                     className={cn("py-2 font-medium", column.pad ?? "px-3", column.cell)}
                   >
                     {sortable && sort ? (
-                      <LibrarySortHeader column={sortable} label={t(columnLabel(column.id))} sort={sort.value} onSort={sort.onSort} />
+                      hint && column.id === "name" ? (
+                        <div className="flex min-w-0 items-center gap-1">
+                          <LibrarySortHeader column={sortable} label={t(columnLabel(column.id))} sort={sort.value} onSort={sort.onSort} />
+                          {/* RFD-23: the sorted column is off at this width, so Name carries its sort (own rung's hide class). */}
+                          <span className={cn("inline-flex min-w-0 shrink-0 items-center gap-1 whitespace-nowrap text-foreground", hint.hides)}>
+                            <span aria-hidden>· {hint.label}</span>
+                            <HintArrow aria-hidden className="size-3.5 shrink-0" />
+                            <span className="sr-only">{hint.sr}</span>
+                          </span>
+                        </div>
+                      ) : (
+                        <LibrarySortHeader column={sortable} label={t(columnLabel(column.id))} sort={sort.value} onSort={sort.onSort} />
+                      )
+                    ) : fixed ? (
+                      <span className="inline-flex max-w-full items-center gap-1 text-foreground">
+                        <span className="truncate">{t(columnLabel(column.id))}</span>
+                        <FixedArrow aria-hidden className="size-3.5 shrink-0" />
+                      </span>
                     ) : column.id === "select" && bulkOn && selectableIds.length > 0 ? (
                       // Select all: every selectable row loaded so far; mixed on a partial selection.
                       <>
                         <span className="sr-only">{t(columnLabel(column.id))}</span>
                         <Checkbox
+                          className="pointer-coarse:after:-inset-3.5"
                           checked={selection.all === true}
                           indeterminate={selection.all === "mixed"}
                           onCheckedChange={() => selection.setAll(selection.all !== true)}

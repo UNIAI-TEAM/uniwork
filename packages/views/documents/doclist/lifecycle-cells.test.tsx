@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n, setLocale } from "@uniwork/core/i18n";
 import type { DocumentSummaryRow } from "../library-rows";
@@ -67,6 +67,16 @@ describe("deleted screen column", () => {
     expect(screen.getByText("Còn 30 ngày")).toBeInTheDocument();
   });
 
+  it("puts the countdown on its own line under the date, so a 118px column cannot cut it (F3)", () => {
+    renderCell("deleted", trashed());
+    const date = screen.getByText("08:00");
+    const left = screen.getByText("Còn 30 ngày");
+    // Two sibling lines of the cell; no dot between them and no truncation of the countdown.
+    expect(left.parentElement).toBe(date.parentElement);
+    expect(date.parentElement).toHaveClass("flex-col");
+    expect(date.parentElement?.textContent).not.toContain("·");
+  });
+
   it("speaks English with the shared date words", async () => {
     await setLocale("en");
     try {
@@ -106,9 +116,44 @@ describe("deleted screen column", () => {
     expect(screen.queryByText("Thành viên cũ")).not.toBeInTheDocument();
   });
 
-  it("stacks the same words on one narrow line under Name", () => {
-    render(<DocScreenLine column="deleted" fields={docListRowFields(trashed())} member={members} />);
-    expect(screen.getByText("Mai Trường · 08:00 · Còn 30 ngày")).toBeInTheDocument();
+  const narrow = (row: DocumentSummaryRow, member: DocListMemberLookup = members) =>
+    render(<DocScreenLine column="deleted" fields={docListRowFields(row)} member={member} />).container.querySelector("[data-doclist-screen-line]") as HTMLElement;
+
+  it("stacks who · date over the countdown on the narrow line under Name", () => {
+    const line = narrow(trashed());
+    expect(screen.getByText("Mai Trường")).toBeInTheDocument();
+    expect(screen.getByText("08:00")).toBeInTheDocument();
+    const left = screen.getByText("Còn 30 ngày");
+    // The countdown is its own line: it never shares a row with a separator, so a wrap cannot strand one at a line end (N5).
+    expect(left.parentElement).toBe(line);
+    expect(left).not.toHaveClass("truncate");
+    expect(line.textContent).toContain("Mai Trường·08:00");
+  });
+
+  it("draws a separator only between two present parts, never at the end of a line (N5)", () => {
+    const dots = (line: HTMLElement) => Array.from(line.querySelectorAll("span")).filter((el) => el.textContent === "·");
+    let line = narrow(trashed());
+    expect(dots(line)).toHaveLength(1);
+    expect(dots(line)[0]?.nextElementSibling).toHaveTextContent("08:00");
+    expect(dots(line)[0]?.previousElementSibling).toHaveTextContent("Mai Trường");
+    cleanup();
+    // No name while the member list loads: the date stands alone, no leading dot.
+    line = narrow(trashed(), () => null);
+    expect(dots(line)).toHaveLength(0);
+    expect(line.textContent).toBe("08:00Còn 30 ngày");
+    cleanup();
+    // No purge date: no countdown row, no trailing dot.
+    line = narrow(trashed({ purge_after: null }));
+    expect(dots(line)).toHaveLength(1);
+    expect(line.textContent).toBe("Mai Trường·08:00");
+  });
+
+  it("lets the long name truncate instead of wrapping, so its row stays one line at 390", () => {
+    const line = narrow(trashed());
+    const who = screen.getByText("Mai Trường");
+    expect(who).toHaveClass("truncate");
+    expect(who.parentElement).toHaveClass("flex");
+    expect(line).not.toHaveClass("truncate");
   });
 });
 

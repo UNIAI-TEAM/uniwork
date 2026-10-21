@@ -1,5 +1,10 @@
+import { useState } from "react";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { resetAuthStoreForTests, setSessionUser } from "@uniwork/core/auth";
+import type { User } from "@uniwork/core/types";
+import { DocumentsLibraryList } from "./documents-library-list";
+import { groupsStorageKey, useCollapsedGroups, type GroupCollapse } from "./doclist/group-state";
 import { DocumentsTrashView, type DocumentsTrashViewProps } from "./documents-trash-view";
 import type { LibraryRowHandlers } from "./documents-library-row";
 import type { TrashActions } from "./use-trash-actions";
@@ -51,6 +56,17 @@ function handlers(over: Partial<LibraryRowHandlers> = {}): LibraryRowHandlers {
   };
 }
 
+function baseProps(): Omit<DocumentsTrashViewProps, "collapse"> {
+  return {
+    rows: [documentRow(row("a")), documentRow(row("b", { purge_after: "2026-10-18T00:00:00Z" }))],
+    loading: false,
+    failure: null,
+    onRetry: vi.fn(),
+    actions: { onRestore: vi.fn(), onPurge: vi.fn(), isRestoring: () => false, dialog: null },
+    handlers: handlers(),
+  };
+}
+
 function renderView(over: Partial<DocumentsTrashViewProps> = {}, actions: Partial<TrashActions> = {}) {
   const props: DocumentsTrashViewProps = {
     rows: [documentRow(row("a"))],
@@ -59,6 +75,7 @@ function renderView(over: Partial<DocumentsTrashViewProps> = {}, actions: Partia
     onRetry: vi.fn(),
     actions: { onRestore: vi.fn(), onPurge: vi.fn(), isRestoring: () => false, dialog: null, ...actions },
     handlers: handlers(),
+    collapse: { isCollapsed: () => false, onToggle: vi.fn() },
     ...over,
   };
   return { props, ...render(<DocumentsTrashView {...props} />) };
@@ -87,6 +104,25 @@ describe("DocumentsTrashView", () => {
     const headers = within(table).getAllByRole("columnheader");
     expect(headers.map((h) => h.textContent)).toEqual(["Tên", "Đã xóa", "Truy cập", "Người sửa gần nhất", "Cập nhật", "Dung lượng", "Thao tác"]);
     expect(within(headers[6]!).getByText("Thao tác")).toHaveClass("sr-only");
+  });
+
+  it("shows the fixed order on the Đã xóa header: aria-sort ascending and the up arrow, no button, nothing else sorted", () => {
+    renderView();
+    const headers = within(screen.getByRole("table", { name: "Thùng rác" })).getAllByRole("columnheader");
+    const sorted = headers.filter((th) => th.hasAttribute("aria-sort"));
+    expect(sorted.map((th) => th.textContent)).toEqual(["Đã xóa"]);
+    expect(sorted[0]).toHaveAttribute("aria-sort", "ascending");
+    expect(sorted[0]!.querySelector("svg")).not.toBeNull();
+    expect(within(sorted[0]!).queryByRole("button")).toBeNull();
+  });
+
+  it("lets the narrow editor · date · size line wrap below 34rem, so the editor is not cut by the size (F7)", () => {
+    renderView();
+    const meta = document.querySelector<HTMLElement>("[data-library-row='a'] [data-library-meta-line]")!;
+    expect(meta).toHaveClass("flex-wrap", "@min-[34rem]/library:flex-nowrap");
+    // The level · scope pill wraps below it rather than being clipped at the row edge ("Riê").
+    const access = document.querySelector<HTMLElement>("[data-library-row='a'] [data-library-access-group]")!;
+    expect(access).toHaveClass("max-w-full", "flex-wrap", "@min-[34rem]/library:flex-nowrap");
   });
 
   it("puts Khôi phục on the row for a manager and calls the action with the row", () => {
@@ -142,5 +178,63 @@ describe("DocumentsTrashView", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("Không tải được danh sách tài liệu");
     fireEvent.click(screen.getByRole("button", { name: "Thử lại" }));
     expect(props.onRetry).toHaveBeenCalled();
+  });
+
+  it("takes its group collapse from the page, so Thùng rác and Gần đây share one stored choice (RFD-07)", () => {
+    const user: User = { id: "u1", email: "an@acme.vn", display_name: "An", onboarded_at: "2026-08-25T00:00:00Z", email_verified_at: "2026-08-25T00:00:00Z", onboarding_questionnaire: {}, locale: "vi" };
+    resetAuthStoreForTests();
+    setSessionUser(user);
+    window.localStorage.removeItem(groupsStorageKey("u1"));
+    // The page's one instance follows the screen it shows, as `useCollapsedGroups(groupScreen)` does.
+    function Page() {
+      const [screen, setScreen] = useState<"trash" | "recent">("trash");
+      const collapse = useCollapsedGroups(screen);
+      return screen === "trash" ? (
+        <>
+          <DocumentsTrashView {...baseProps()} collapse={collapse} />
+          <button type="button" onClick={() => setScreen("recent")}>to-recent</button>
+        </>
+      ) : (
+        <DocumentsLibraryList
+          groups={[{ key: "today", rows: [documentRow(row("r1"))] }]}
+          loading={false}
+          failure={null}
+          hasMore={false}
+          loadingMore={false}
+          onLoadMore={vi.fn()}
+          onRetry={vi.fn()}
+          onClearFilters={vi.fn()}
+          handlers={handlers()}
+          screen="recent"
+          collapse={collapse}
+          empty={{ title: "empty", description: "empty" }}
+        />
+      );
+    }
+    render(<Page />);
+    fireEvent.click(screen.getByRole("button", { name: /Còn trên 7 ngày/ }));
+    fireEvent.click(screen.getByRole("button", { name: "to-recent" }));
+    fireEvent.click(screen.getByRole("button", { name: /Hôm nay/ }));
+    expect(JSON.parse(window.localStorage.getItem(groupsStorageKey("u1")) ?? "{}")).toEqual({ trash: ["more_than_7_days"], recent: ["today"] });
+  });
+
+  it("expands the collapsed group that holds the notification's row, then focuses its Khôi phục (RFD-14)", () => {
+    // The page's collapse state, held here: the later group starts collapsed.
+    let collapsed = ["more_than_7_days"];
+    const collapse = (): GroupCollapse => ({
+      isCollapsed: (id) => collapsed.includes(id),
+      onToggle: (id) => {
+        collapsed = collapsed.includes(id) ? collapsed.filter((each) => each !== id) : [...collapsed, id];
+      },
+    });
+    const claimFocus = vi.fn<NonNullable<DocumentsTrashViewProps["claimFocus"]>>(() => "focus");
+    const rows = [documentRow(row("soon", { purge_after: "2026-10-18T00:00:00Z" })), documentRow(row("later"))];
+    const props = { ...baseProps(), rows, focusId: "later", claimFocus };
+    const view = render(<DocumentsTrashView {...props} collapse={collapse()} />);
+    // The effect asked the page to expand it; the page re-renders with the new state.
+    expect(collapsed).toEqual([]);
+    view.rerender(<DocumentsTrashView {...props} collapse={collapse()} />);
+    expect(screen.getByRole("button", { name: "Khôi phục later.docx" })).toHaveFocus();
+    expect(claimFocus).toHaveBeenCalledWith("later");
   });
 });

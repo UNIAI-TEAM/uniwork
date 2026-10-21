@@ -1,13 +1,13 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { apiErrorMessage } from "@uniwork/core/api";
 import { isDownloadTooLargeError } from "@uniwork/core/api/endpoints/documents-download-jobs";
 import type { BulkFailure } from "@uniwork/core/documents/bulk";
-import { useBulkDocumentCommand, useDocumentDownloadJob, type BulkDocumentCommand } from "@uniwork/core/documents/hooks-bulk";
+import { isAbortError, useBulkDocumentCommand, useDocumentDownloadJob, type BulkDocumentCommand } from "@uniwork/core/documents/hooks-bulk";
 import type { DocumentTreeNode } from "@uniwork/core/types/document";
 import {
   AlertDialog,
@@ -28,7 +28,9 @@ import { BulkShareDialog } from "./bulk-share-dialog";
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
 /** The reasons the error list words; any other code reads "did not go through". */
-const REASONS = new Set(["forbidden", "not_found", "conflict", "rate_limited", "not_verifiable", "not_a_file", "not_shareable", "too_large", "folder_too_large"]);
+const REASONS = new Set(["forbidden", "not_found", "conflict", "rate_limited", "not_verifiable", "not_a_file", "not_shareable", "too_large", "folder_too_large", "zip_limit"]);
+/** One zip job holds at most this many documents (the server's `download-jobs` limit); the rest are skipped with their own reason. */
+const ZIP_MAX = 100;
 /** The error list shows this many lines, then "and N more". */
 const LISTED = 5;
 
@@ -94,6 +96,18 @@ export function useDocListBulkCommands({
   const [confirming, setConfirming] = useState<Pending | null>(null);
   const [moving, setMoving] = useState<Pending | null>(null);
   const [sharing, setSharing] = useState<Pending | null>(null);
+  // A batch or a zip in flight: the bar's buttons wait for it and a second press runs nothing.
+  const busy = command.isPending || zip.isPending;
+  const inFlight = useRef(false);
+  const once = async (work: () => Promise<void>) => {
+    if (inFlight.current) return;
+    inFlight.current = true;
+    try {
+      await work();
+    } finally {
+      inFlight.current = false;
+    }
+  };
 
   const report = (plan: BulkPlan, ok: number, failures: BulkFailure[], id?: string | number) => {
     const title = t(`documents.list.bulk.done.${plan.action}`, { ok, total: plan.total });
@@ -101,13 +115,16 @@ export function useDocListBulkCommands({
     (ok > 0 ? toast.success : toast.error)(title, { description, id });
   };
 
-  const execute = async ({ plan, done }: Pending, parentId: string | null = null) => {
-    const result = await command.mutateAsync({ command: plan.action as BulkDocumentCommand, ids: plan.docs.map((doc) => doc.id), parentId });
-    report(plan, result.ok.length, [...result.failed, ...plan.skipped]);
-    done();
-  };
+  const execute = ({ plan, done }: Pending, parentId: string | null = null) =>
+    once(async () => {
+      const result = await command.mutateAsync({ command: plan.action as BulkDocumentCommand, ids: plan.docs.map((doc) => doc.id), parentId });
+      report(plan, result.ok.length, [...result.failed, ...plan.skipped]);
+      done();
+    });
 
-  const download = async ({ plan, done }: Pending) => {
+  const download = ({ plan, done }: Pending) => once(() => zipOf(plan, done));
+
+  const zipOf = async (plan: BulkPlan, done: () => void) => {
     if (plan.docs.length === 1) {
       onDownloadOne(plan.docs[0]!);
       if (plan.skipped.length > 0) report(plan, 1, plan.skipped);
@@ -115,8 +132,10 @@ export function useDocListBulkCommands({
       return;
     }
     const id = toast.loading(t("documents.list.bulk.zip.preparing"));
+    // The first 100 go into the job; the rest wait for another batch and are named as skipped.
+    const beyond: BulkFailure[] = plan.docs.slice(ZIP_MAX).map((doc) => ({ id: doc.id, code: "zip_limit" }));
     try {
-      const job = await zip.mutateAsync(plan.docs.map((doc) => doc.id));
+      const job = await zip.mutateAsync(plan.docs.slice(0, ZIP_MAX).map((doc) => doc.id));
       switch (job.status) {
         case "ready": {
           if (!job.download_url) {
@@ -125,7 +144,7 @@ export function useDocListBulkCommands({
           }
           saveLink(job.download_url);
           const skipped = job.skipped.map((skip) => ({ id: skip.document_id, code: skip.reason }));
-          report(plan, job.file_count ?? plan.docs.length - skipped.length, [...skipped, ...plan.skipped], id);
+          report(plan, job.file_count ?? plan.docs.length - beyond.length - skipped.length, [...skipped, ...beyond, ...plan.skipped], id);
           break;
         }
         case "expired":
@@ -139,12 +158,18 @@ export function useDocListBulkCommands({
           toast.error(t("documents.list.bulk.zip.timeout"), { id });
       }
     } catch (error) {
+      if (isAbortError(error)) {
+        // The screen was left: nothing to say and no selection left to clear.
+        toast.dismiss(id);
+        return;
+      }
       toast.error(isDownloadTooLargeError(error) ? t("documents.list.bulk.zip.too_large") : (apiErrorMessage(error) ?? t("documents.list.bulk.zip.failed")), { id });
     }
     done();
   };
 
   const run = (plan: BulkPlan, done: () => void) => {
+    if (busy || inFlight.current) return;
     const pending = { plan, done };
     switch (plan.action) {
       case "trash":
@@ -171,7 +196,6 @@ export function useDocListBulkCommands({
   };
 
   const purge = confirming?.plan.action === "purge";
-  const busy = command.isPending;
   const dialogs = (
     <>
       <AlertDialog open={confirming !== null} onOpenChange={(next) => (!next && !busy ? setConfirming(null) : undefined)}>
@@ -237,5 +261,5 @@ export function useDocListBulkCommands({
   );
 
   const supported: ReadonlySet<BulkActionId> = new Set<BulkActionId>(["share", "move", "download", "shelve", "trash", "unshelve", "restore", "purge"]);
-  return { bulk: { supports: (action) => supported.has(action), run }, dialogs };
+  return { bulk: { supports: (action) => supported.has(action), run, busy }, dialogs };
 }

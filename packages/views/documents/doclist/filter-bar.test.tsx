@@ -280,6 +280,24 @@ describe("date groups (W11)", () => {
     expect(inTable().getByText("today-doc")).toBeInTheDocument();
   });
 
+  it("draws no group header on Gần đây under Dung lượng, either direction, and again once Gần đây's own column is picked (F5)", async () => {
+    route({ list: () => recentRows() });
+    renderView("/?view=recent");
+    await screen.findAllByText("today-doc");
+    expect(await groupButton("Hôm nay")).toBeInTheDocument();
+    const recent = (path: string) => path.startsWith(`${LIST_BASE}/recent`);
+    const size = () => screen.getByRole("button", { name: new RegExp(t("documents.list.column.size")) });
+    for (const order of ["desc", "asc"]) {
+      fireEvent.click(size());
+      await waitFor(() => expect(queryOf(lastCall(recent)).get("sort")).toBe("size"));
+      await waitFor(() => expect(queryOf(lastCall(recent)).get("order")).toBe(order));
+      await waitFor(() => expect(document.querySelectorAll("[data-library-group]")).toHaveLength(0));
+      expect(screen.queryByRole("button", { name: /^(Hôm nay|Trước đó)/ })).toBeNull();
+    }
+    fireEvent.click(screen.getByRole("button", { name: new RegExp(t("documents.list.screen_column.activity")) }));
+    expect(await groupButton("Hôm nay")).toBeInTheDocument();
+  });
+
   it("groups Được chia sẻ với tôi by the share date, asking for sort=shared", async () => {
     route({ list: () => [summary("new-share", { shared: { by: "u2", by_kind: "human", by_name: "Bình", at: ago(5) } }), summary("old-share", { shared: { by: "u2", by_kind: "human", by_name: "Bình", at: ago(60 * 24 * 40) } })] });
     renderView("/?view=shared");
