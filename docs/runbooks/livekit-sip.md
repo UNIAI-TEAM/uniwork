@@ -43,7 +43,8 @@ Server UniWork **không** dựng hạ tầng. Việc của ops (UNI-2030), theo 
 5. **Bật trên server UniWork** (secret của `uniwork-be`, không commit):
    - `MEETING_SIP_ENABLED=true`
    - `MEETING_DIAL_IN_NUMBER=+84 28 XXXX XXXX` (đúng cách hiển thị cho người dùng: trang chi tiết, file .ics)
-   - `MEETING_SIP_TRUNK_ID=ST_…` (bắt buộc trên môi trường thật: không có nó rule áp cho mọi trunk của LiveKit dùng chung)
+   - `MEETING_SIP_TRUNK_ID=ST_…` (bắt buộc trên môi trường thật: không có nó rule áp cho mọi trunk của LiveKit dùng chung,
+     và vòng quét không dọn rule thừa vì không phân biệt được rule của triển khai khác dùng chung LiveKit)
    - webhook LiveKit → UniWork giữ nguyên (`deploy/livekit/README.md`); người gọi SIP đi chung webhook đó.
    Rolling restart `uniwork-be`.
 6. **Bật cờ** `meeting_dial_in` cho tổ chức thử (override theo tổ chức trong `/admin`), rồi E2E bằng softphone trên
@@ -65,6 +66,8 @@ Giới hạn đã biết (chủ sản phẩm đã được báo):
 - Lời nhắc nhập PIN là giọng tiếng Anh mặc định của `livekit-sip`.
 - Người gọi chờ duyệt nghe im lặng (không có nhạc chờ hay lời báo).
 - Mỗi cuộc gọi là một lần gõ cửa: gọi lại sau khi rớt máy phải được duyệt lại.
+- Đổi `JWT_SECRET` đổi luôn khoá HMAC của id người gọi (`uw_sip_…`, khoá `JWT_SECRET` + tiền tố `dial-in:`): cuộc gọi đang
+  diễn ra mất liên tục điểm danh (phiên cũ không khớp id mới); đổi khoá ngoài giờ họp.
 
 ## Triệu chứng
 
