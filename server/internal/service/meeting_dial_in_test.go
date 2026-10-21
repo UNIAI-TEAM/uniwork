@@ -232,6 +232,27 @@ func TestDialInParallelEnsureKeepsOneRuleAndThePIN(t *testing.T) {
 	}
 }
 
+// The sweep batch takes rule holders first: meetings in progress without a
+// rule (most in organizations without the flag) never push a rule holder
+// (whose rule may have to be dropped) out of the batch.
+func TestDialInSweepBatchTakesRuleHoldersFirst(t *testing.T) {
+	s, fake, ua, _, m := dialInFixture(t)
+	ctx := context.Background()
+	fake.DialInRuleErr = errors.New("sip down")
+	old, err := s.CreateInstant(ctx, ua.ID, m.WorkspaceID, "Không quay số")
+	if err != nil {
+		t.Fatal(err)
+	}
+	fake.DialInRuleErr = nil
+	if _, err := s.pool.Exec(ctx, `UPDATE meetings SET actual_start_at = now() - interval '1 day' WHERE id = $1`, old.ID); err != nil {
+		t.Fatal(err)
+	}
+	ids, err := s.q.ListDialInSweepMeetings(ctx, db.ListDialInSweepMeetingsParams{WithEnsure: true, RowLimit: 1})
+	if err != nil || len(ids) != 1 || ids[0] != m.ID {
+		t.Fatalf("batch %v err=%v, want the rule holder %s", ids, err, m.ID)
+	}
+}
+
 func dialInAuditCount(t *testing.T, s *MeetingService, meetingID, action, kind string) int {
 	t.Helper()
 	var n int

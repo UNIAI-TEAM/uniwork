@@ -115,7 +115,7 @@ const listDialInSweepMeetings = `-- name: ListDialInSweepMeetings :many
 SELECT id FROM meetings
 WHERE sip_dispatch_rule_id IS NOT NULL
    OR ($1::bool AND status = 'IN_PROGRESS' AND sip_dispatch_rule_id IS NULL)
-ORDER BY actual_start_at ASC NULLS LAST, id
+ORDER BY (sip_dispatch_rule_id IS NULL), actual_start_at ASC NULLS LAST, id
 LIMIT $2
 `
 
@@ -127,7 +127,8 @@ type ListDialInSweepMeetingsParams struct {
 // tenant: system
 // The dial-in sweep: every meeting holding a rule (it may have ended or lost
 // the flag), and with dial-in on (with_ensure) every meeting in progress
-// without one. Oldest start first, like the scribe sweep.
+// without one. Rule holders first, so meetings of organizations without the
+// flag never crowd them out of the batch; then oldest start first.
 func (q *Queries) ListDialInSweepMeetings(ctx context.Context, arg ListDialInSweepMeetingsParams) ([]string, error) {
 	rows, err := q.db.Query(ctx, listDialInSweepMeetings, arg.WithEnsure, arg.RowLimit)
 	if err != nil {

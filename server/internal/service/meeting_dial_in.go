@@ -316,9 +316,9 @@ func (s *MeetingService) deleteDialInRule(ctx context.Context, meetingID, ruleID
 // missed). It repairs a Start or End whose provider call failed, and deletes
 // stray uniwork rules.
 //
-// shortcut: the batch is the oldest 200 meetings, flag off or not; past 200
-// meetings in progress at once, newer ones wait for an inline ensure. Page
-// by start time when that day comes.
+// shortcut: the batch is every rule holder, then the oldest meetings in
+// progress without a rule, flag off or not, 200 in all; past that, newer
+// ones wait for an inline ensure. Page by start time when that day comes.
 func (s *MeetingService) sweepDialIn(ctx context.Context) error {
 	if s.provider == nil {
 		return nil
