@@ -9643,7 +9643,8 @@
           "trash": "Đã chuyển {{ok}}/{{total}} tài liệu vào thùng rác",
           "unshelve": "Đã bỏ lưu trữ {{ok}}/{{total}} tài liệu",
           "restore": "Đã khôi phục {{ok}}/{{total}} tài liệu",
-          "purge": "Đã xóa vĩnh viễn {{ok}}/{{total}} tài liệu"
+          "purge": "Đã xóa vĩnh viễn {{ok}}/{{total}} tài liệu",
+          "share": "Đã chia sẻ {{ok}}/{{total}} tài liệu"
         },
         "error": {
           "forbidden": "bạn không có quyền",
@@ -9652,6 +9653,7 @@
           "rate_limited": "máy chủ đang bận, hãy thử lại sau",
           "not_verifiable": "chưa xác nhận được kết quả",
           "not_a_file": "không tải được (không phải tệp)",
+          "not_shareable": "thư mục không chia sẻ được",
           "too_large": "tệp quá lớn để tải",
           "folder_too_large": "thư mục quá lớn",
           "failed": "không thực hiện được"
@@ -9680,6 +9682,26 @@
           "failed": "Không tạo được tệp nén. Hãy thử lại.",
           "expired": "Liên kết tải đã hết hạn. Hãy thử lại.",
           "timeout": "Tệp nén chưa sẵn sàng. Hãy thử lại sau."
+        },
+        "share": {
+          "title_one": "Chia sẻ {{count}} tài liệu",
+          "title_other": "Chia sẻ {{count}} tài liệu",
+          "applies_to_one": "Áp dụng giống nhau cho {{count}} tài liệu bạn quản lý.",
+          "applies_to_other": "Áp dụng giống nhau cho {{count}} tài liệu bạn quản lý.",
+          "skipped_note_one": "Bỏ qua {{count}} tài liệu bạn không chia sẻ được.",
+          "skipped_note_other": "Bỏ qua {{count}} tài liệu bạn không chia sẻ được.",
+          "update_existing": "Đổi quyền của người đã có quyền",
+          "workspace_label": "Workspace chứa tài liệu",
+          "workspace_level": "Mọi thành viên: {{level}}",
+          "workspace_none": "Chỉ người được chia sẻ",
+          "keep": "Giữ nguyên",
+          "link_label": "Liên kết công khai",
+          "link_keep": "Giữ nguyên",
+          "link_create": "Tạo liên kết mới cho mỗi tài liệu",
+          "link_revoke": "Tắt mọi liên kết hiện có",
+          "links_created": "Liên kết đã tạo",
+          "copy_all": "Sao chép tất cả",
+          "close": "Xong"
         }
       }
     },

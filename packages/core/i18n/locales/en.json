@@ -9648,7 +9648,8 @@
           "trash": "Moved {{ok}}/{{total}} documents to the trash",
           "unshelve": "Unarchived {{ok}}/{{total}} documents",
           "restore": "Restored {{ok}}/{{total}} documents",
-          "purge": "Deleted {{ok}}/{{total}} documents forever"
+          "purge": "Deleted {{ok}}/{{total}} documents forever",
+          "share": "Shared {{ok}}/{{total}} documents"
         },
         "error": {
           "forbidden": "you do not have permission",
@@ -9657,6 +9658,7 @@
           "rate_limited": "the server is busy, try again later",
           "not_verifiable": "the result could not be confirmed",
           "not_a_file": "cannot be downloaded (not a file)",
+          "not_shareable": "folders cannot be shared",
           "too_large": "too large to download",
           "folder_too_large": "the folder is too large",
           "failed": "it did not go through"
@@ -9685,6 +9687,26 @@
           "failed": "The zip file could not be made. Try again.",
           "expired": "The download link has expired. Try again.",
           "timeout": "The zip file is not ready yet. Try again later."
+        },
+        "share": {
+          "title_one": "Share {{count}} document",
+          "title_other": "Share {{count}} documents",
+          "applies_to_one": "Applied the same way to {{count}} document you manage.",
+          "applies_to_other": "Applied the same way to {{count}} documents you manage.",
+          "skipped_note_one": "{{count}} document you cannot share is skipped.",
+          "skipped_note_other": "{{count}} documents you cannot share are skipped.",
+          "update_existing": "Change the level of people who already have access",
+          "workspace_label": "Workspace the documents are in",
+          "workspace_level": "All members: {{level}}",
+          "workspace_none": "Only people it is shared with",
+          "keep": "No change",
+          "link_label": "Public links",
+          "link_keep": "No change",
+          "link_create": "Create a new link for each document",
+          "link_revoke": "Turn off every existing link",
+          "links_created": "Links created",
+          "copy_all": "Copy all",
+          "close": "Done"
         }
       }
     },
