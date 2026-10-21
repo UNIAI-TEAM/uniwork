@@ -40,7 +40,7 @@ describe("New menu order (UNI-1994 nit, UNI-2038 Q2: the share switch is gone)",
 
 describe("New menu: plain text entry (UNI-2046)", () => {
   it.each([
-    ["vi", "Văn bản"],
+    ["vi", "Văn bản thuần"],
     ["en", "Plain text"],
   ] as const)("puts the %s entry right under Markdown, with the .txt hint", async (locale, label) => {
     await setLocale(locale);
