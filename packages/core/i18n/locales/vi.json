@@ -9657,6 +9657,7 @@
           "not_shareable": "thư mục không chia sẻ được",
           "too_large": "tệp quá lớn để tải",
           "folder_too_large": "thư mục quá lớn",
+          "zip_limit": "quá 100 tệp của một tệp nén, hãy tải ở lượt khác",
           "failed": "không thực hiện được"
         },
         "error_line": "{{title}}: {{reason}}",

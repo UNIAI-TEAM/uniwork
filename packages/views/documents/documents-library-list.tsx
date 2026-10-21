@@ -220,7 +220,7 @@ export function DocumentsLibraryList({
   return (
     <div ref={boxRef} className="@container/library flex flex-col">
       {bulk && selectedRows.length > 0 ? (
-        <DocListBulkBar count={selectedRows.length} plans={plans} onRun={(plan) => bulk.run(plan, clearSelection)} onClear={clearSelection} />
+        <DocListBulkBar count={selectedRows.length} plans={plans} busy={bulk.busy} onRun={(plan) => bulk.run(plan, clearSelection)} onClear={clearSelection} />
       ) : null}
       <div className="overflow-hidden rounded-lg border border-border">
         {/* tabIndex -1: a host may move focus onto the table itself (Thùng rác after Load more). */}

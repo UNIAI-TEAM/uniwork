@@ -49,7 +49,7 @@ function Harness({ plan, onDone, onDownloadOne }: { plan: BulkPlan; onDone: () =
   const { bulk, dialogs } = useDocListBulkCommands({ wsId: WS, tree: [], onDownloadOne, zipPollMs: 1 });
   return (
     <>
-      <button type="button" onClick={() => bulk.run(plan, onDone)}>
+      <button type="button" data-busy={bulk.busy ? "true" : undefined} onClick={() => bulk.run(plan, onDone)}>
         go
       </button>
       {dialogs}
@@ -62,9 +62,9 @@ function setup(plan: BulkPlan) {
   const invalidate = vi.spyOn(client, "invalidateQueries");
   const onDone = vi.fn();
   const onDownloadOne = vi.fn();
-  render(wrap(<Harness plan={plan} onDone={onDone} onDownloadOne={onDownloadOne} />, client));
+  const view = render(wrap(<Harness plan={plan} onDone={onDone} onDownloadOne={onDownloadOne} />, client));
   fireEvent.click(screen.getByRole("button", { name: "go" }));
-  return { invalidate, onDone, onDownloadOne };
+  return { invalidate, onDone, onDownloadOne, unmount: view.unmount };
 }
 
 /** The text of the description a toast carried. */
@@ -188,5 +188,62 @@ describe("useDocListBulkCommands", () => {
     setup(plan);
     await waitFor(() => expect(toast.error).toHaveBeenCalledTimes(1));
     expect(toast.error.mock.calls[0]![0]).toBe(t("documents.list.bulk.zip.too_large"));
+  });
+
+  it("sends a zip of at most 100 files and counts the rest as skipped with their own reason", async () => {
+    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+    const job = (over: Record<string, unknown>) => ({ id: "job1", status: "ready", created_at: "", expires_at: null, download_url: "https://files.test/z", file_count: 100, skipped: [], error: null, ...over });
+    requestMock.mockImplementation(() => Promise.resolve(job({})));
+    const many = Array.from({ length: 101 }, (_, index) => doc(`d${index}`));
+    const plan: BulkPlan = { action: "download", docs: many, skipped: [], total: 101, titles: new Map(many.map((d) => [d.id, d.title])) };
+    setup(plan);
+    await waitFor(() => expect(toast.success).toHaveBeenCalledTimes(1));
+    const post = requestMock.mock.calls.find(([, opts]) => (opts as { method?: string } | undefined)?.method === "POST")!;
+    const sent = (post[1] as { body: { document_ids: string[] } }).body.document_ids;
+    expect(sent).toHaveLength(100);
+    expect(sent).not.toContain("d100");
+    const [title, options] = toast.success.mock.calls[0]!;
+    expect(title).toBe(t("documents.list.bulk.done.download", { ok: 100, total: 101 }));
+    const text = descriptionText(options);
+    expect(text).toContain("Tệp d100");
+    expect(text).toContain(t("documents.list.bulk.error.zip_limit"));
+  });
+
+  it("stops the zip when the screen is left: no further read, no link opened, no toast of failure", async () => {
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+    const job = (status: string) => ({ id: "job1", status, created_at: "", expires_at: null, download_url: status === "ready" ? "https://files.test/z" : null, file_count: 2, skipped: [], error: null });
+    let ready = false;
+    requestMock.mockImplementation((_path: string, opts?: { method?: string }) => Promise.resolve(job(opts?.method === "POST" ? "queued" : ready ? "ready" : "running")));
+    const plan: BulkPlan = { action: "download", docs: five.slice(0, 2), skipped: [], total: 2, titles: new Map() };
+    const { unmount, onDone } = setup(plan);
+    const reads = () => requestMock.mock.calls.filter(([, opts]) => (opts as { method?: string } | undefined)?.method !== "POST").length;
+    await waitFor(() => expect(reads()).toBeGreaterThanOrEqual(1));
+    unmount();
+    ready = true;
+    const after = reads();
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    expect(reads()).toBe(after);
+    expect(click).not.toHaveBeenCalled();
+    expect(toast.error).not.toHaveBeenCalled();
+    expect(toast.success).not.toHaveBeenCalled();
+    expect(onDone).not.toHaveBeenCalled();
+  });
+
+  it("runs a batch once when the bar button is pressed twice, and says it is busy meanwhile", async () => {
+    let release: (() => void) | undefined;
+    requestMock.mockImplementation(
+      (path: string) =>
+        new Promise((resolve) => {
+          release = () => resolve(archived(path.split("/")[4]!));
+        }),
+    );
+    const plan: BulkPlan = { action: "restore", docs: five.slice(0, 1), skipped: [], total: 1, titles: new Map() };
+    setup(plan);
+    fireEvent.click(screen.getByRole("button", { name: "go" }));
+    await waitFor(() => expect(requestMock).toHaveBeenCalledTimes(1));
+    expect(screen.getByRole("button", { name: "go" })).toHaveAttribute("data-busy", "true");
+    release?.();
+    await waitFor(() => expect(toast.success).toHaveBeenCalledTimes(1));
+    expect(requestMock).toHaveBeenCalledTimes(1);
   });
 });

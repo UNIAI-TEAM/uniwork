@@ -231,4 +231,13 @@ describe("bulk selection", () => {
     rerender(grouped(groups, { screen: "recent", collapse: collapse() }));
     expect(within(bar()).getByText(t("documents.list.bulk.selected", { count: 2 }))).toBeInTheDocument();
   });
+
+  it("disables the bar's actions while a batch is in flight", () => {
+    render(list([doc("a"), doc("b")], { bulk: { ...bulkSpy(), busy: true } }));
+    fireEvent.click(allBox());
+    for (const name of ["move", "download", "shelve", "trash"]) {
+      expect(within(bar()).getByRole("button", { name: t(`documents.list.bulk.action.${name}`) })).toBeDisabled();
+    }
+    expect(within(bar()).getByRole("button", { name: t("documents.list.bulk.clear") })).toBeEnabled();
+  });
 });

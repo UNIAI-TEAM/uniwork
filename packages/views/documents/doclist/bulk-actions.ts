@@ -41,6 +41,8 @@ export interface DocListBulk {
   supports: (action: BulkActionId) => boolean;
   /** Runs the plan (after its own confirmation, where it asks one); `done` clears the selection. */
   run: (plan: BulkPlan, done: () => void) => void;
+  /** A batch or a zip is under way: the bar's buttons wait for it. */
+  busy?: boolean;
 }
 
 const noop = () => {};
