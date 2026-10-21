@@ -1,0 +1,2 @@
+$ grep -E "^(ok|FAIL|\?)\s" /tmp/pr7r5d-a.log | cut -c1-200 | head -150
+ok  	github.com/unicomhub/uniwork/server/internal/service	140.436s	coverage: 47.4% of statements
