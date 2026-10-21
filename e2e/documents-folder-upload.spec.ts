@@ -104,7 +104,7 @@ test("FU-01 a picked 3-level folder shows its pre-flight, uploads private, lands
   await gotoTarget(page, scene);
   await pickFolder(page);
   const again = folderDialog(page);
-  await expect(again.getByTestId("folder-upload-renamed")).toContainText(`«${TREE_NAME} (1)»`);
+  await expect(again.getByTestId("folder-upload-renamed")).toContainText(`"${TREE_NAME} (1)"`);
   await runPickedFolder(page, `${TREE_NAME} (1)`);
 
   const folders = await targetFolders(page, scene);
