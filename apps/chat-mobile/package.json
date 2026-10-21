@@ -88,6 +88,8 @@
     "@uniwork/tsconfig": "workspace:*",
     "@vitest/coverage-v8": "catalog:",
     "eslint": "^9.32.0",
+    "eslint-plugin-i18next": "catalog:",
+    "eslint-plugin-react-native-a11y": "3.5.1",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }

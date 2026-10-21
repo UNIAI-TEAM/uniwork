@@ -549,6 +549,12 @@ importers:
       eslint:
         specifier: ^9.32.0
         version: 9.39.5(jiti@1.21.7)
+      eslint-plugin-i18next:
+        specifier: 'catalog:'
+        version: 6.1.5
+      eslint-plugin-react-native-a11y:
+        specifier: 3.5.1
+        version: 3.5.1(eslint@9.39.5(jiti@1.21.7))
       typescript:
         specifier: 'catalog:'
         version: 5.9.3
@@ -4836,6 +4842,9 @@ packages:
     resolution: {integrity: sha512-Izi8RQcffqCeNVgFigKli1ssklIbpHnCYc6AknXGYoB6grJqyeby7jv12JUQgmTAnIDnbck1uxksT4dzN3PWBA==}
     engines: {node: '>=12'}
 
+  ast-types-flow@0.0.7:
+    resolution: {integrity: sha512-eBvWn1lvIApYMhzQMsu9ciLfkBY499mFZlNqG+/9WR7PVlroQw0vG30cOQQbaKz3sCEc44TAOu2ykzqXSNnwag==}
+
   ast-types-flow@0.0.8:
     resolution: {integrity: sha512-OH/2E5Fg20h2aPrbe+QL8JZQFko0YZaF+j4mnQ7BGhfavO7OpSLa8a0y9sBwomHdSbkhTS8TQNayBfnW5DwbvQ==}
 
@@ -5854,6 +5863,12 @@ packages:
     engines: {node: '>=10'}
     peerDependencies:
       eslint: ^3.0.0 || ^4.0.0 || ^5.0.0 || ^6.0.0 || ^7.0.0 || ^8.0.0-0 || ^9.0.0
+
+  eslint-plugin-react-native-a11y@3.5.1:
+    resolution: {integrity: sha512-vqnXZpAiov0lxYNfEYgwABpkiBYRrt0dbtOafPkw6QaFeA0uZ+s3w9opeEMoFmV36WFxLiCxHb9fvOJ+EUc2xQ==}
+    engines: {node: '>=12.0'}
+    peerDependencies:
+      eslint: ^3 || ^4 || ^5 || ^6 || ^7 || ^8
 
   eslint-plugin-react@7.37.5:
     resolution: {integrity: sha512-Qteup0SqU15kdocexFNAJMvCJEfa2xUKNV4CC1xsVMrIIqEy3SQ/rqyxCWNzfrd3/ldy6HMlD2e0JDVpDg2qIA==}
@@ -12313,7 +12328,9 @@ snapshots:
       metro-runtime: 0.84.6
     transitivePeerDependencies:
       - '@babel/core'
+      - bufferutil
       - supports-color
+      - utf-8-validate
 
   '@react-native/normalize-colors@0.74.89': {}
 
@@ -13608,6 +13625,8 @@ snapshots:
 
   assertion-error@2.0.1: {}
 
+  ast-types-flow@0.0.7: {}
+
   ast-types-flow@0.0.8: {}
 
   ast-v8-to-istanbul@1.0.5:
@@ -14846,6 +14865,13 @@ snapshots:
   eslint-plugin-react-hooks@5.2.0(eslint@9.39.5(jiti@2.7.0)):
     dependencies:
       eslint: 9.39.5(jiti@2.7.0)
+
+  eslint-plugin-react-native-a11y@3.5.1(eslint@9.39.5(jiti@1.21.7)):
+    dependencies:
+      '@babel/runtime': 7.29.7
+      ast-types-flow: 0.0.7
+      eslint: 9.39.5(jiti@1.21.7)
+      jsx-ast-utils: 3.3.5
 
   eslint-plugin-react@7.37.5(eslint@9.39.5(jiti@2.7.0)):
     dependencies:

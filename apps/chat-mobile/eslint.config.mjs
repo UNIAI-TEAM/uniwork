@@ -1,5 +1,7 @@
 import reactConfig from "@uniwork/eslint-config/react";
 import { lucideAliasPaths } from "@uniwork/eslint-config/base";
+import i18next from "eslint-plugin-i18next";
+import reactNativeA11y from "eslint-plugin-react-native-a11y";
 
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -20,6 +22,33 @@ export default [
   },
   // Node scripts (scripts/sync-i18n.mjs) run outside the bundle.
   { files: ["scripts/*.mjs"], languageOptions: { globals: { process: "readonly", console: "readonly" } } },
+  // The base config turns this off for the web packages; the app's types are
+  // strict end to end, so `any` stays out (unknown + a schema instead).
+  { files: ["**/*.{ts,tsx}"], rules: { "@typescript-eslint/no-explicit-any": "error" } },
+  // jsx-a11y (from the react config) knows DOM elements only. These are the
+  // React Native ones: valid roles, states, values, actions, live regions and
+  // importantForAccessibility, and no touchable inside a touchable. The `all`
+  // preset is basic + iOS + Android, the two platforms the app ships.
+  {
+    files: ["**/*.tsx"],
+    plugins: { "react-native-a11y": reactNativeA11y },
+    rules: {
+      ...reactNativeA11y.configs.all.rules,
+      // Off on purpose: it demands an accessibilityHint on every labelled
+      // element. Apple's and Google's guidance is that a hint is optional and
+      // only for an outcome the label does not make obvious; a hint on every
+      // control doubles what VoiceOver/TalkBack read and buries the label.
+      "react-native-a11y/has-accessibility-hint": "off",
+    },
+  },
+  // Every JSX text node goes through t(), as in packages/views: copy lives in
+  // locales/ (scripts/sync-i18n.mjs), in Vietnamese and English.
+  {
+    files: ["**/*.tsx"],
+    ignores: ["**/*.test.tsx", "test/**"],
+    plugins: { i18next },
+    rules: { "i18next/no-literal-string": ["error", { mode: "jsx-text-only" }] },
+  },
   {
     files: ["**/*.{ts,tsx,js,mjs}"],
     rules: {

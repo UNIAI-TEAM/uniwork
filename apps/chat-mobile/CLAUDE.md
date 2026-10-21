@@ -22,6 +22,14 @@ nhau; test đó đi theo import bắc cầu của từng mục nên mục không
 tách file ở core, không nới lint. Fixture: `lib/lint-boundary.test.ts`.
 Logic khác của web: **copy, ghi nguồn**, test parity — không import.
 
+Cùng file lint còn giữ ba luật chất lượng (fixture: `lib/lint-quality.test.ts`):
+`@typescript-eslint/no-explicit-any` bật (base tắt cho web); bộ `all` của
+`eslint-plugin-react-native-a11y` (role, state, value, action, live region,
+`importantForAccessibility` hợp lệ; không touchable trong phần tử `accessible`)
+trừ `has-accessibility-hint` — tắt có lý do ghi trong config: hint chỉ dùng khi
+nhãn không nói rõ kết quả; và `i18next/no-literal-string` (`jsx-text-only`)
+như `packages/views`. Tắt một luật ở một dòng thì ghi lý do ở dòng trên.
+
 ## Cấu trúc
 
 - `app.config.ts` — cấu hình duy nhất, không `app.json`, **không `.env`**
