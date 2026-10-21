@@ -39,10 +39,12 @@ func stoppedTokens(b int) int { return (b + 2) / 3 }
 // end that way and the usual failure path applies.
 func (g *Gateway) settleCancelled(sctx, ctx context.Context, req Request, creq provider.CompletionRequest, row db.AiUsageEvent,
 	model string, resp provider.CompletionResponse, perr error, latency time.Duration) (error, bool) {
-	if req.OnDelta == nil {
+	timedOut := errors.Is(perr, context.DeadlineExceeded) || errors.Is(ctx.Err(), context.DeadlineExceeded)
+	// A deadline on a non-streamed call stays a provider failure; a caller stop
+	// is a stop whether or not the call streamed (R6).
+	if req.OnDelta == nil && (timedOut || !errors.Is(perr, context.Canceled)) {
 		return nil, false
 	}
-	timedOut := errors.Is(perr, context.DeadlineExceeded) || errors.Is(ctx.Err(), context.DeadlineExceeded)
 	if !timedOut && !errors.Is(perr, context.Canceled) {
 		return nil, false
 	}

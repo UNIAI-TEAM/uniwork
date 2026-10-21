@@ -336,6 +336,37 @@ func TestAskStreamP0StopStoresAnEmptyStoppedTurn(t *testing.T) {
 	}
 }
 
+// A Stop while the P0 call is running is booked as a stop, never as a provider
+// outage (R6): the row is cancelled/ai_cancelled, not failed/ai_provider_error.
+func TestAskStreamP0StopDuringCallBooksACancelledRow(t *testing.T) {
+	s, fake, ua, _, w := askFixture(t)
+	if _, err := s.tasks.Create(context.Background(), Human(ua.ID), w.ID, CreateTaskInput{Title: "Viết spec F-09"}); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	fake.Err = context.Canceled
+	fake.Reply = func(provider.CompletionRequest) provider.CompletionResponse {
+		cancel() // the asker leaves while the model is working
+		return provider.CompletionResponse{}
+	}
+	res, err := s.AskStream(ctx, ua.ID, w.ID, AskInput{Question: "spec F-09", Locale: "vi"}, func(AskEvent) {})
+	if err != nil {
+		t.Fatalf("err %v, want the stopped turn stored", err)
+	}
+	if res.Message.Notice.String != ai.NoticeStopped {
+		t.Fatalf("stored %+v", res.Message)
+	}
+	var status, reason string
+	if err := s.pool.QueryRow(context.Background(), `SELECT status, coalesce(reason_code, '') FROM ai_usage_events
+		WHERE organization_id = $1 ORDER BY created_at DESC LIMIT 1`, w.OrganizationID).Scan(&status, &reason); err != nil {
+		t.Fatal(err)
+	}
+	if status != "cancelled" || reason != "ai_cancelled" {
+		t.Fatalf("usage row %q %q, want cancelled ai_cancelled", status, reason)
+	}
+}
+
 // Untrusted tags are stripped before a delta leaves, even when one spans two
 // deltas: only a tail that may still grow into a tag is held back (ruling
 // PF1b), and a call whose stripped text stops extending what was sent sends
