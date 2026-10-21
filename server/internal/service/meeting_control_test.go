@@ -192,6 +192,37 @@ func TestJoinRequestApproveReject(t *testing.T) {
 	}
 }
 
+// A member who knocks and is then invited by the host is let in by the
+// invitation; the knock must not stay at the door (UNI-1995 step 1: the host
+// kept "1 người đang chờ" with the guest already on stage).
+func TestInviteSettlesTheInviteesKnock(t *testing.T) {
+	s, ua, ub, w := meetingFixture(t)
+	addMember(t, s, w.ID, ub.ID)
+	ctx := context.Background()
+	m, err := s.CreateInstant(ctx, ua.ID, w.ID, "Knock")
+	if err != nil {
+		t.Fatal(err)
+	}
+	jr, err := s.RequestJoin(ctx, AdmissionContext{MeetingID: m.ID, UserID: ub.ID, DisplayName: "B"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Invite(ctx, ua.ID, m.ID, ub.ID); err != nil {
+		t.Fatal(err)
+	}
+	got, err := s.q.GetJoinRequest(ctx, jr.ID)
+	if err != nil || got.Status != JoinApproved || got.ReviewedBy.String != ua.ID {
+		t.Fatalf("knock after invite: %+v %v", got, err)
+	}
+	var events int
+	if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM outbox_events WHERE topic = 'join_request.approved' AND payload::jsonb->>'join_request_id' = $1`, jr.ID).Scan(&events); err != nil || events != 1 {
+		t.Fatalf("join_request.approved rows: %d %v", events, err)
+	}
+	if err := s.ApproveJoinRequest(ctx, ua.ID, jr.ID); err == nil {
+		t.Fatal("the settled knock can still be approved")
+	}
+}
+
 func TestGuestJoinRequestApproveWithExistingParticipant(t *testing.T) {
 	s, ua, _, w := meetingFixture(t)
 	ctx := context.Background()
