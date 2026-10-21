@@ -87,6 +87,10 @@ export function AskUniMessageTurn({
     switch (code) {
       case "no_sources":
         return t("notice.no_sources");
+      case "stopped":
+        return t("notice.stopped");
+      case "interrupted":
+        return t("notice.interrupted");
       default:
         return t("notice.unavailable");
     }

@@ -215,6 +215,18 @@ describe("AskUniLegacyPanel", () => {
       expect(await screen.findByText("UNI couldn't answer this one.")).toBeInTheDocument();
     });
 
+    it("renders the stopped and interrupted notices a stream turn leaves behind", async () => {
+      await i18n.changeLanguage("en");
+      openWith({ content: "", notice: "stopped" });
+      expect(await screen.findByText(i18n.t("ai.notice.stopped"))).toBeInTheDocument();
+    });
+
+    it("renders the interrupted notice", async () => {
+      await i18n.changeLanguage("en");
+      openWith({ content: "", notice: "interrupted" });
+      expect(await screen.findByText(i18n.t("ai.notice.interrupted"))).toBeInTheDocument();
+    });
+
     it("renders old answers without notice as plain text", async () => {
       openWith({ content: "Chưa đủ dữ liệu trong workspace để trả lời." });
       expect(await screen.findByText("Chưa đủ dữ liệu trong workspace để trả lời.")).toBeInTheDocument();
