@@ -703,6 +703,17 @@ func TestFakeReplyCitesEverySource(t *testing.T) {
 	}
 }
 
+// Under AI_PROVIDER=fake caption translation answers every [T#] line, so the
+// live-caption path can be driven locally and in E2E.
+func TestFakeReplyTranslatesCaptions(t *testing.T) {
+	p, _ := LookupPrompt(PromptCaptionTranslate)
+	user := p.Render(map[string]any{"target": "en", "captions": []CaptionLine{{Label: "T1", Text: "Xin chào"}, {Label: "T2", Text: "Ngân sách quý IV"}}})
+	got, err := ParseCaptionTranslateJSON(FakeReply(provider.CompletionRequest{System: p.System, Messages: []provider.Message{{Role: "user", Content: user}}}).Text)
+	if err != nil || len(got) != 2 || got[0].ID != "T1" || got[1].ID != "T2" || !strings.Contains(got[1].Text, "Ngân sách quý IV") {
+		t.Fatalf("%+v %v", got, err)
+	}
+}
+
 // TestFakeReplyReportsUsage pins BE-4: under AI_PROVIDER=fake the gateway
 // builds &provider.Fake{Reply: FakeReply} (config.go), so this response is
 // what every fake turn returns. It must report usage like the scripted

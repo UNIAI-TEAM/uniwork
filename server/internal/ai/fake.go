@@ -8,7 +8,11 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/ai/provider"
 )
 
-var sourceTag = regexp.MustCompile(`<untrusted source="(S\d+)">\n([^\n]+)`)
+var (
+	sourceTag   = regexp.MustCompile(`<untrusted source="(S\d+)">\n([^\n]+)`)
+	captionLine = regexp.MustCompile(`(?m)^\[(T\d+)\] (.*)$`)
+	targetLine  = regexp.MustCompile(`(?m)^Target language: (.*)$`)
+)
 
 // FakeReply is the AI_PROVIDER=fake behaviour for development and E2E: a
 // deterministic, well-formed answer for every prompt. For copilot_answer it
@@ -67,6 +71,20 @@ func FakeReply(req provider.CompletionRequest) provider.CompletionResponse {
 			ActionItems: []CatchUpActionItem{{Title: "Theo dõi việc đã thống nhất", Owner: "", Due: "", SourceID: ""}},
 		}
 		b, _ := json.Marshal(cu)
+		text = string(b)
+	case strings.Contains(req.System, "You translate the live captions"):
+		// Echo each line under its label, tagged with the target language.
+		target := ""
+		if m := targetLine.FindStringSubmatch(last); m != nil {
+			target = "[" + m[1] + "] "
+		}
+		out := struct {
+			Translations []CaptionTranslation `json:"translations"`
+		}{Translations: []CaptionTranslation{}}
+		for _, m := range captionLine.FindAllStringSubmatch(last, -1) {
+			out.Translations = append(out.Translations, CaptionTranslation{ID: m[1], Text: target + m[2]})
+		}
+		b, _ := json.Marshal(out)
 		text = string(b)
 	case strings.Contains(req.System, "You analyze media files"):
 		parts := 0
