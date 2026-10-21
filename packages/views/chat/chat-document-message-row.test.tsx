@@ -342,6 +342,36 @@ describe("ChatDocumentMessageRow", () => {
       ]);
     });
 
+    it("wears the own-bubble control look on my bubble and the neutral one on theirs (visible focus ring)", () => {
+      const touchMore = (isOwn: boolean) => {
+        const view = render(wrapWithNav(row(documentMessage(FULL), { ...LIVE, isOwn, desktopOpen: desktopFactory() })));
+        const button = screen.getAllByRole("button", { name: "Thêm" })[0]!;
+        const classes = button.className.split(/\s+/);
+        view.unmount();
+        return classes;
+      };
+      // Same classes as the card's other controls (bubbleControlClass): on the brand fill the
+      // global ring vanishes, so the outline takes the bubble's foreground colour.
+      expect(touchMore(true)).toEqual(
+        expect.arrayContaining([
+          "bg-chat-bubble-own-foreground/15",
+          "text-chat-bubble-own-foreground",
+          "hover:bg-chat-bubble-own-foreground",
+          "hover:text-chat-bubble-own",
+          "focus-visible:outline-chat-bubble-own-foreground",
+        ]),
+      );
+      const theirs = touchMore(false);
+      expect(theirs).toContain("text-foreground");
+      expect(theirs).not.toContain("focus-visible:outline-chat-bubble-own-foreground");
+    });
+
+    it("leaves the bar's own \"…\" to a fine pointer: the same row hides it under a coarse one", () => {
+      renderCard(documentMessage(FULL), { ...LIVE, desktopOpen: desktopFactory() });
+      expect(barMore()).toHaveClass("pointer-coarse:hidden");
+      expect(screen.getAllByRole("button", { name: "Thêm" })[0]).not.toHaveClass("pointer-coarse:hidden");
+    });
+
     it("is absent from the locked card, the neutral card and a row with no live handlers", () => {
       // The hover bar's "…" is the one that remains on a live row; no touch "…" joins it.
       const locked = render(wrapWithNav(row(documentMessage({ ...DOC, viewer_has_access: false }), LIVE), fakeNav()));

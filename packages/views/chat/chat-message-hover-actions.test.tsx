@@ -286,6 +286,31 @@ describe("the documentItems slot (UNI-2012 S7)", () => {
     expect(more(undefined).more).toContain("size-0");
   });
 
+  it("hides the bar's more button on a coarse pointer for a document row only (its card has its own)", () => {
+    const more = (documentItems?: (parts: ChatMenuParts) => ReactNode[]) => {
+      const view = render(wrap(<Frame onReact={vi.fn()} documentItems={documentItems} />));
+      const classes = screen.getByRole("button", { name: "Thêm" }).className.split(/\s+/);
+      view.unmount();
+      return classes;
+    };
+    expect(more(items)).toContain("pointer-coarse:hidden");
+    expect(more(undefined)).not.toContain("pointer-coarse:hidden");
+  });
+
+  it("skips a css-hidden button in the arrow walk, so a coarse pointer's keyboard does not stall on it", async () => {
+    const user = userEvent.setup();
+    render(wrap(<Frame onReact={vi.fn()} documentItems={items} />));
+    const reply = screen.getByRole("button", { name: "Trả lời" });
+    screen.getByRole("button", { name: "Thêm" }).style.display = "none";
+    reply.focus();
+    await user.keyboard("{End}");
+    expect(document.activeElement).toBe(reply);
+    await user.keyboard("{ArrowRight}");
+    expect(document.activeElement).not.toBe(reply);
+    expect(document.activeElement).toBeInstanceOf(HTMLButtonElement);
+    expect((document.activeElement as HTMLElement).style.display).not.toBe("none");
+  });
+
   it("keeps the frame's rule: no menu at all without reply and react", () => {
     render(wrap(<Frame documentItems={items} />));
     fireEvent.contextMenu(screen.getByText("Báo cáo Q3"));
