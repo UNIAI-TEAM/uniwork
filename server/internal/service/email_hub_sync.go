@@ -164,14 +164,22 @@ func (s *EmailHubService) syncAccount(ctx context.Context, acc db.EmailHubAccoun
 	}
 	s.scheduleBodyPrefetch(acc, emailHubFolderInbox)
 	s.scheduleBodyPrefetch(acc, emailHubFolderSent)
+	if _, _, starErr := s.syncStarred(ctx, acc, force); starErr != nil {
+		s.log.Warn("email hub starred sync after account sync failed",
+			"account_id", acc.ID, "code", emailHubErrCode(starErr))
+	}
 	return true, newUnread, nil
 }
 
-// reconcileAccount refreshes INBOX only. Full multi-folder reconcile is reserved for
-// explicit user refresh — background workers must not scan SENT/TRASH on every tick.
+// reconcileAccount refreshes INBOX, then best-effort Trash/Spam so provider-side
+// moves are not stuck until the user opens those folders.
 func (s *EmailHubService) reconcileAccount(ctx context.Context, acc db.EmailHubAccount) error {
 	_, _, err := s.syncSingleFolder(ctx, acc, emailHubFolderInbox, true, false, false, true)
-	return err
+	if err != nil {
+		return err
+	}
+	s.syncTrashAndSpamBestEffort(ctx, acc)
+	return nil
 }
 
 func (s *EmailHubService) syncAccountFolderSession(
