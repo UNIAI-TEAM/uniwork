@@ -68,6 +68,7 @@ var tenantExportIncludedTables = []string{
 	"chat_message_links",
 	"chat_messages",
 	"chat_reminders",
+	"chat_reports",
 	"chat_room_members",
 	"chat_rooms",
 	"chat_thread_followers",

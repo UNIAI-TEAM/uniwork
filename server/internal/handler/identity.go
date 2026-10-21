@@ -2,6 +2,7 @@ package handler
 
 import (
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -132,6 +133,31 @@ func (h *handlers) revokeOtherSessions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	respondJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+func (h *handlers) setAIConsent(w http.ResponseWriter, r *http.Request) {
+	var in sdi.SetAIConsentSDI
+	if !decode(w, r, &in, maxJSONBody) {
+		return
+	}
+	if strings.TrimSpace(in.Version) == "" {
+		respondError(w, http.StatusBadRequest, "invalid_request", "version is required")
+		return
+	}
+	h.answerAIConsent(w, r, in.Version)
+}
+
+func (h *handlers) withdrawAIConsent(w http.ResponseWriter, r *http.Request) {
+	h.answerAIConsent(w, r, "")
+}
+
+func (h *handlers) answerAIConsent(w http.ResponseWriter, r *http.Request, version string) {
+	u, err := h.Auth.SetAIConsent(r.Context(), middleware.UserID(r.Context()), version)
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	respondJSON(w, http.StatusOK, map[string]any{"user": toUserDTO(u)})
 }
 
 func (h *handlers) deleteAccount(w http.ResponseWriter, r *http.Request) {

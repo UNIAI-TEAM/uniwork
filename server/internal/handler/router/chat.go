@@ -10,6 +10,7 @@ import (
 // tag: chat — user lookup, rooms, messages, and LiveKit voice tokens.
 //
 //	GET  /api/v1/workspaces/{workspaceID}/chat/users/lookup
+//	POST /api/v1/workspaces/{workspaceID}/chat/reports
 //	POST /api/v1/chat/voice/token
 //	GET  /api/v1/workspaces/{workspaceID}/chat/call-logs
 //	GET  /api/v1/workspaces/{workspaceID}/chat/room
@@ -58,6 +59,16 @@ func registerChat(r api, h Routes, chatWriteLimit, chatReactLimit, chatRoomLimit
 		tags:        []string{"chat"},
 		sdo:         sdo.StatusSDO{},
 		auth:        true,
+	})
+	r.With(chatWriteLimit).Post("/workspaces/{workspaceID}/chat/reports", h.ReportChat, apiOp{
+		summary: "Report chat message or user",
+		description: "Báo cáo một tin nhắn (người gửi bị báo cáo) hoặc một thành viên, kèm lý do. " +
+			"Cần đúng một trong message_id hoặc user_id; tin nhắn phải đọc được, người phải cùng tổ chức (404 nếu không). " +
+			"Ghi chat_reports và audit chat.report.created cho chủ sở hữu và quản trị tổ chức xem.",
+		tags: []string{"chat"},
+		sdi:  sdi.ReportChatSDI{},
+		sdo:  sdo.ChatReportSDO{},
+		auth: true,
 	})
 	r.Get("/workspaces/{workspaceID}/chat/nicknames", h.ListChatNicknames, apiOp{
 		summary:     "List chat nicknames",

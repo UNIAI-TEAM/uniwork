@@ -90,6 +90,8 @@ type Routes struct {
 	RevokeSession       http.HandlerFunc
 	RevokeOtherSessions http.HandlerFunc
 	DeleteAccount       http.HandlerFunc
+	SetAIConsent        http.HandlerFunc
+	WithdrawAIConsent   http.HandlerFunc
 	PatchOnboarding     http.HandlerFunc
 	CompleteOnboarding  http.HandlerFunc
 	MyInvitations       http.HandlerFunc
@@ -413,6 +415,7 @@ type Routes struct {
 	LookupChatUser                   http.HandlerFunc
 	GetChatBlockStatus               http.HandlerFunc
 	BlockChatUser                    http.HandlerFunc
+	ReportChat                       http.HandlerFunc
 	UnblockChatUser                  http.HandlerFunc
 	ListChatNicknames                http.HandlerFunc
 	SetChatNickname                  http.HandlerFunc

@@ -24,6 +24,8 @@ import (
 //	DELETE /api/v1/me/sessions/{sessionId}
 //	POST  /api/v1/me/sessions/revoke-others
 //	POST  /api/v1/me/delete         (credential rate limit)
+//	PUT   /api/v1/me/ai-consent
+//	DELETE /api/v1/me/ai-consent
 func registerMe(r api, h Routes, credentialLimit func(http.Handler) http.Handler) {
 	r.Get("/me", h.Me, apiOp{
 		summary:     "Current user",
@@ -140,5 +142,21 @@ func registerMe(r api, h Routes, credentialLimit func(http.Handler) http.Handler
 		sdi:  sdi.DeleteAccountSDI{},
 		sdo:  sdo.StatusSDO{},
 		auth: true,
+	})
+	r.Put("/me/ai-consent", h.SetAIConsent, apiOp{
+		summary: "Agree to AI processing",
+		description: "Ghi lại người dùng đã đồng ý thông báo xử lý AI (Apple 5.1.2(i)): tên nhà cung cấp và dữ liệu được gửi. " +
+			"version là phiên bản thông báo; đồng ý lại cùng phiên bản không đổi gì. Ghi audit user.ai_consent_granted.",
+		tags: []string{"me"},
+		sdi:  sdi.SetAIConsentSDI{},
+		sdo:  sdo.UserSDO{},
+		auth: true,
+	})
+	r.Delete("/me/ai-consent", h.WithdrawAIConsent, apiOp{
+		summary:     "Withdraw AI processing consent",
+		description: "Rút lại đồng ý xử lý AI; lần dùng AI tiếp theo trên UniChat mobile hỏi lại. Ghi audit user.ai_consent_withdrawn.",
+		tags:        []string{"me"},
+		sdo:         sdo.UserSDO{},
+		auth:        true,
 	})
 }

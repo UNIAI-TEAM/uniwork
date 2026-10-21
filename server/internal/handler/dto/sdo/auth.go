@@ -26,6 +26,8 @@ type UserDTO struct {
 	MFAEnabledAt            *string         `json:"mfa_enabled_at" description:"Thời điểm bật xác thực hai lớp (RFC3339); null khi tắt" example:"2026-09-07T08:00:00Z"`
 	HasPassword             bool            `json:"has_password" description:"true khi tài khoản có mật khẩu (không phải chỉ Google); quyết định cách xác thực lại khi xóa" example:"true"`
 	PlatformRole            string          `json:"platform_role,omitempty" description:"admin hoặc support khi là nhân sự nền tảng; nền tảng bắt buộc MFA" example:"support"`
+	AIConsentVersion        *string         `json:"ai_consent_version" description:"Phiên bản thông báo xử lý AI người dùng đã đồng ý; null khi chưa đồng ý hoặc đã rút lại" example:"2026-10-anthropic"`
+	AIConsentAt             *string         `json:"ai_consent_at" description:"Thời điểm đồng ý xử lý AI (RFC3339); null khi chưa đồng ý" example:"2026-10-21T08:00:00Z"`
 }
 
 // AuthProvidersSDO is GET /api/v1/auth/providers.

@@ -336,6 +336,12 @@ type ChatBlockStatusSDO struct {
 	BlockedMe   bool `json:"blocked_me" description:"Peer blocked the caller" example:"false"`
 }
 
+// ChatReportSDO is POST .../chat/reports.
+type ChatReportSDO struct {
+	ID     string `json:"id" description:"ULID của báo cáo" example:"01J8X4K2M0N1P2Q3R4S5T6U7VA"`
+	Status string `json:"status" description:"Trạng thái báo cáo: open khi vừa gửi" example:"open"`
+}
+
 // ChatNicknameMapSDO is GET .../chat/nicknames.
 type ChatNicknameMapSDO struct {
 	Nicknames map[string]string `json:"nicknames" description:"Target user id to personal nickname"`

@@ -110,6 +110,10 @@ const (
 	// The person asked for their account to be erased (Nghị định 13); the
 	// row is anonymised and this is the last event that names it (F-01).
 	ActionUserDeleted = "user.deleted"
+	// The person's answer to the AI processing notice UniChat mobile shows
+	// before its first AI request (Apple 5.1.2(i)); withdrawing asks again.
+	ActionUserAIConsentGranted   = "user.ai_consent_granted"
+	ActionUserAIConsentWithdrawn = "user.ai_consent_withdrawn"
 
 	ActionChatRoomCreated         = "chat.room.created"
 	ActionChatRoomMemberAdded     = "chat.room.member_added"
@@ -130,6 +134,9 @@ const (
 	ActionChatVoiceCallLogged     = "chat.voice_call.logged"
 	ActionChatVoiceTranscribed    = "chat.voice_message.transcribed"
 	ActionChatMessageForwarded    = "chat.message.forwarded"
+	// A member reported a message or a person (store UGC policy); the
+	// organization's owners and admins read it in the audit trail.
+	ActionChatReportCreated = "chat.report.created"
 
 	ActionSubscriptionChanged    = "subscription.changed"
 	ActionBillingInvoiceRefunded = "billing.invoice_refunded"

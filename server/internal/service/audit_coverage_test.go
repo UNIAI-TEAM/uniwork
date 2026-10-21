@@ -722,6 +722,27 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				t.Fatal(err)
 			}
 		},
+		audit.ActionUserAIConsentGranted: func(t *testing.T, f *auditFixture) {
+			f.build(t)
+			if _, err := f.auth.SetAIConsent(f.ctx, f.member.ID, "2026-10-anthropic"); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionUserAIConsentWithdrawn: func(t *testing.T, f *auditFixture) {
+			f.build(t)
+			if _, err := f.auth.SetAIConsent(f.ctx, f.member.ID, "2026-10-anthropic"); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := f.auth.SetAIConsent(f.ctx, f.member.ID, ""); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionChatReportCreated: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			if _, err := f.chat.ReportChat(f.ctx, f.owner.ID, w.ID, ReportChatInput{UserID: f.member.ID, Reason: "spam"}); err != nil {
+				t.Fatal(err)
+			}
+		},
 		audit.ActionChatRoomCreated: func(t *testing.T, f *auditFixture) { f.newDM(t) },
 		audit.ActionChatRoomMemberAdded: func(t *testing.T, f *auditFixture) {
 			// A group needs three organization members; inviting the third is
@@ -1856,6 +1877,8 @@ func auditActions() []string {
 		audit.ActionAuthMFAEnabled,
 		audit.ActionAuthMFADisabled,
 		audit.ActionUserDeleted,
+		audit.ActionUserAIConsentGranted,
+		audit.ActionUserAIConsentWithdrawn,
 		audit.ActionChatRoomCreated,
 		audit.ActionChatRoomMemberAdded,
 		audit.ActionChatRoomMemberRemoved,
@@ -1875,6 +1898,7 @@ func auditActions() []string {
 		audit.ActionChatVoiceCallLogged,
 		audit.ActionChatVoiceTranscribed,
 		audit.ActionChatMessageForwarded,
+		audit.ActionChatReportCreated,
 		audit.ActionAuditExportRequested,
 		audit.ActionAuditExported,
 		audit.ActionAuditRetentionSet,

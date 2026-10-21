@@ -217,6 +217,14 @@ type ForwardChatMessageSDI struct {
 	Comment       string   `json:"comment,omitempty" description:"Optional text sent by the caller just before the forwarded copy in each room" example:"Mọi người xem giúp"`
 }
 
+// ReportChatSDI is POST .../chat/reports: exactly one of message_id or user_id.
+type ReportChatSDI struct {
+	MessageID string `json:"message_id,omitempty" description:"Tin nhắn bị báo cáo; người gửi là người bị báo cáo" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
+	UserID    string `json:"user_id,omitempty" description:"Người bị báo cáo khi không gắn với một tin nhắn" example:"01J8X4K2M0N1P2Q3R4S5T6U7V9"`
+	Reason    string `json:"reason" description:"spam, harassment, hate, sexual, violence, self_harm hoặc other" example:"harassment"`
+	Details   string `json:"details,omitempty" description:"Mô tả thêm của người báo cáo, tối đa 1000 ký tự" example:"Nhắn tin quấy rối nhiều lần"`
+}
+
 // SetChatNicknameSDI is PUT .../users/{userID}/nickname.
 type SetChatNicknameSDI struct {
 	Nickname string `json:"nickname" description:"Personal nickname visible only to caller; empty removes it" example:"Long đẹp trai"`

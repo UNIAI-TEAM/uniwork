@@ -1359,7 +1359,7 @@ func (q *Queries) ListPlatformRoleUsers(ctx context.Context) ([]ListPlatformRole
 const setUserPlatformRole = `-- name: SetUserPlatformRole :one
 UPDATE users SET platform_role = $2, platform_role_granted_by = $3, platform_role_granted_at = CASE WHEN $2::text IS NULL THEN NULL ELSE now() END
 WHERE id = $1
-RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone, platform_role_granted_by, platform_role_granted_at, totp_secret, mfa_enabled_at, mfa_recovery_codes, deleted_at, avatar_file_id
+RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone, platform_role_granted_by, platform_role_granted_at, totp_secret, mfa_enabled_at, mfa_recovery_codes, deleted_at, avatar_file_id, ai_consent_version, ai_consent_at
 `
 
 type SetUserPlatformRoleParams struct {
@@ -1394,6 +1394,8 @@ func (q *Queries) SetUserPlatformRole(ctx context.Context, arg SetUserPlatformRo
 		&i.MfaRecoveryCodes,
 		&i.DeletedAt,
 		&i.AvatarFileID,
+		&i.AiConsentVersion,
+		&i.AiConsentAt,
 	)
 	return i, err
 }

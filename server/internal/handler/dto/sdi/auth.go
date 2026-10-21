@@ -73,3 +73,8 @@ type DeleteAccountSDI struct {
 	Code              string `json:"code" description:"Mã TOTP hoặc mã khôi phục (tài khoản chỉ Google, có MFA)" example:"123456"`
 	EmailConfirmation string `json:"email_confirmation" description:"Gõ lại email (tài khoản chỉ Google, không MFA)" example:"an@acme.vn"`
 }
+
+// SetAIConsentSDI is PUT /api/v1/me/ai-consent.
+type SetAIConsentSDI struct {
+	Version string `json:"version" description:"Phiên bản thông báo xử lý AI người dùng vừa đồng ý (tối đa 64 ký tự, không khoảng trắng)" example:"2026-10-anthropic"`
+}

@@ -89,6 +89,16 @@ UPDATE users SET
 WHERE id = sqlc.arg('id')
 RETURNING *;
 
+-- The person's answer to the AI processing notice (Apple 5.1.2(i)). A NULL
+-- version withdraws consent and clears the time with it.
+-- name: SetUserAIConsent :one
+UPDATE users SET
+  ai_consent_version = sqlc.narg('version'),
+  ai_consent_at      = CASE WHEN sqlc.narg('version')::text IS NULL THEN NULL ELSE now() END,
+  updated_at         = now()
+WHERE id = sqlc.arg('id') AND deleted_at IS NULL
+RETURNING *;
+
 -- name: UpdateUserPassword :one
 UPDATE users SET password_hash = $2, updated_at = now()
 WHERE id = $1
@@ -139,6 +149,7 @@ UPDATE users SET
   google_id = NULL,
   totp_secret = NULL, mfa_enabled_at = NULL, mfa_recovery_codes = '{}',
   platform_role = NULL, matrix_user_id = NULL, onboarding_questionnaire = '{}'::jsonb,
+  ai_consent_version = NULL, ai_consent_at = NULL,
   deleted_at = now(), updated_at = now()
 WHERE id = $1 AND deleted_at IS NULL
 RETURNING *;

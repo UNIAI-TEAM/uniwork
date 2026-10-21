@@ -374,6 +374,21 @@ type ChatReminder struct {
 	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
 }
 
+type ChatReport struct {
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	WorkspaceID    string             `json:"workspace_id"`
+	RoomID         pgtype.Text        `json:"room_id"`
+	MessageID      pgtype.Text        `json:"message_id"`
+	TargetUserID   string             `json:"target_user_id"`
+	Reason         string             `json:"reason"`
+	Details        string             `json:"details"`
+	Status         string             `json:"status"`
+	CreatedBy      string             `json:"created_by"`
+	CreatedByKind  string             `json:"created_by_kind"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+}
+
 type ChatRoom struct {
 	ID                string             `json:"id"`
 	Kind              string             `json:"kind"`
@@ -2372,7 +2387,9 @@ type User struct {
 	MfaRecoveryCodes        []string           `json:"mfa_recovery_codes"`
 	DeletedAt               pgtype.Timestamptz `json:"deleted_at"`
 	// FileService file id of the account avatar; NULL = avatar_url (legacy or external) is the source.
-	AvatarFileID pgtype.Text `json:"avatar_file_id"`
+	AvatarFileID     pgtype.Text        `json:"avatar_file_id"`
+	AiConsentVersion pgtype.Text        `json:"ai_consent_version"`
+	AiConsentAt      pgtype.Timestamptz `json:"ai_consent_at"`
 }
 
 type WebhookInbox struct {
