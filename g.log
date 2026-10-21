@@ -1,0 +1,5 @@
+$ grep -E "^\s*--- FAIL|^(FAIL|panic)|WARNING: DATA RACE" /tmp/uni2012r3c-go.log | cut -c1-250 | head -80
+--- FAIL: TestDocumentChangesFeedVisibilityDemotionIsRemoval (0.36s)
+FAIL
+FAIL	github.com/unicomhub/uniwork/server/internal/service	1624.872s
+FAIL
