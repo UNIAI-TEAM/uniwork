@@ -2096,7 +2096,7 @@
   },
   {
     "group": "files_mode",
-    "name": "files mode: too_large_total reports limit and actual bytes; depth and folders never apply",
+    "name": "files mode: too_large_total reports limit and actual bytes; folders never apply",
     "input": {
       "entries": [
         {
@@ -2111,7 +2111,7 @@
       "limits": {
         "maxFiles": 500,
         "maxTotalBytes": 100,
-        "maxDepth": 0,
+        "maxDepth": 20,
         "perFileMaxBytes": 209715200,
         "maxFolders": 0
       }
@@ -2173,6 +2173,126 @@
       "skipped": [
         {
           "path": "a.exe",
+          "reason": "unsupported_format"
+        }
+      ],
+      "totals": {
+        "files": 0,
+        "bytes": 0
+      },
+      "refusal": {
+        "code": "nothing_to_upload"
+      }
+    }
+  },
+  {
+    "group": "files_mode",
+    "name": "files mode: too_deep when the destination level + 1 is over maxDepth (parentLevel)",
+    "input": {
+      "entries": [
+        {
+          "path": "a.docx",
+          "size": 10
+        }
+      ],
+      "limits": {
+        "maxFiles": 500,
+        "maxTotalBytes": 2147483648,
+        "maxDepth": 20,
+        "perFileMaxBytes": 209715200
+      },
+      "parentLevel": 20
+    },
+    "expected": {
+      "rootName": null,
+      "rootTitle": null,
+      "folders": [],
+      "files": [
+        {
+          "path": "a.docx",
+          "filename": "a.docx",
+          "folderPath": "",
+          "size": 10,
+          "index": 0
+        }
+      ],
+      "skipped": [],
+      "totals": {
+        "files": 1,
+        "bytes": 10
+      },
+      "refusal": {
+        "code": "too_deep",
+        "limit": 20,
+        "actual": 21
+      }
+    }
+  },
+  {
+    "group": "files_mode",
+    "name": "files mode: parentLevel + 1 equal to maxDepth is allowed",
+    "input": {
+      "entries": [
+        {
+          "path": "a.docx",
+          "size": 10
+        }
+      ],
+      "limits": {
+        "maxFiles": 500,
+        "maxTotalBytes": 2147483648,
+        "maxDepth": 20,
+        "perFileMaxBytes": 209715200
+      },
+      "parentLevel": 19
+    },
+    "expected": {
+      "rootName": null,
+      "rootTitle": null,
+      "folders": [],
+      "files": [
+        {
+          "path": "a.docx",
+          "filename": "a.docx",
+          "folderPath": "",
+          "size": 10,
+          "index": 0
+        }
+      ],
+      "skipped": [],
+      "totals": {
+        "files": 1,
+        "bytes": 10
+      },
+      "refusal": null
+    }
+  },
+  {
+    "group": "files_mode",
+    "name": "files mode: nothing_to_upload wins over too_deep",
+    "input": {
+      "entries": [
+        {
+          "path": "x.exe",
+          "size": 1
+        }
+      ],
+      "limits": {
+        "maxFiles": 500,
+        "maxTotalBytes": 2147483648,
+        "maxDepth": 20,
+        "perFileMaxBytes": 209715200
+      },
+      "parentLevel": 30
+    },
+    "expected": {
+      "rootName": null,
+      "rootTitle": null,
+      "folders": [],
+      "files": [],
+      "skipped": [
+        {
+          "path": "x.exe",
           "reason": "unsupported_format"
         }
       ],

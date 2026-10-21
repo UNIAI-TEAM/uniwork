@@ -218,6 +218,7 @@ export function createFakeFolderUploadTransport(options: FakeFolderUploadOptions
         id: "batch-1",
         status: "open",
         parent_id: body.parent_id,
+        mode: filesMode ? "files" : "folder",
         root_folder_id: filesMode ? null : "folder-root",
         root_title: filesMode ? null : (options.rootTitle ?? body.root_name ?? null),
         share_with_workspace: body.share_with_workspace,

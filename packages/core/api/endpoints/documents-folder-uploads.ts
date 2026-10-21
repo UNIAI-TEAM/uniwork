@@ -127,6 +127,8 @@ const BatchSchema = z
     id: z.string().min(1),
     status: z.string().catch("open").transform(batchStatus),
     parent_id: z.string().nullable().catch(null),
+    // Missing or unknown reads as absent; the transform derives it from the root.
+    mode: z.string().optional().catch(undefined),
     // Null in files mode (CONTRACT A2); a malformed value reads as absent.
     root_folder_id: z.string().nullable().catch(null),
     root_title: z.string().nullable().catch(null),
@@ -138,7 +140,12 @@ const BatchSchema = z
     expires_at: z.string().catch(""),
     created_at: z.string().catch(""),
   })
-  .transform((b): FolderUploadBatch => b);
+  .transform(
+    (b): FolderUploadBatch => ({
+      ...b,
+      mode: b.mode === "files" || b.mode === "folder" ? b.mode : b.root_folder_id === null ? "files" : "folder",
+    }),
+  );
 
 const CompleteSchema = z
   .object({

@@ -14,7 +14,7 @@ interface Vector {
 interface FilesVector {
   group: "files_mode";
   name: string;
-  input: { entries: FolderUploadEntry[]; limits: FolderUploadLimits };
+  input: { entries: FolderUploadEntry[]; limits: FolderUploadLimits; parentLevel?: number };
   expected: FolderUploadPlan;
 }
 
@@ -51,7 +51,7 @@ describe("planFileUpload vectors (files_mode, shared with the desktop app)", () 
     const names = filesVectors.map((v) => v.name).join("\n");
     for (const rule of [
       "no root", "same name", "hidden", "unsupported_format", "per-file cap", "500 characters", "NFC", "invalid_path",
-      "too_many_files", "too_large_total", "nothing_to_upload",
+      "too_many_files", "too_large_total", "nothing_to_upload", "too_deep",
     ]) {
       expect(names).toContain(rule);
     }
@@ -59,6 +59,19 @@ describe("planFileUpload vectors (files_mode, shared with the desktop app)", () 
 
   it.each(filesVectors)("$name", ({ input, expected }) => {
     expect(planFileUpload(input.entries, input)).toEqual(expected);
+  });
+});
+
+describe("planFileUpload depth", () => {
+  it("defaults parentLevel to the workspace root (0)", () => {
+    const plan = planFileUpload([{ path: "a.pdf", size: 1 }], { limits: { ...LIMITS, maxDepth: 1 } });
+    expect(plan.refusal).toBeNull();
+  });
+
+  it("refuses too_deep before too_many_files", () => {
+    const entries = [{ path: "a.pdf", size: 1 }, { path: "b.pdf", size: 1 }];
+    const plan = planFileUpload(entries, { limits: { ...LIMITS, maxFiles: 1 }, parentLevel: 20 });
+    expect(plan.refusal).toEqual({ code: "too_deep", limit: 20, actual: 21 });
   });
 });
 

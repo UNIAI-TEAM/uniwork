@@ -66,6 +66,8 @@ export interface FolderUploadBatch {
   id: string;
   status: FolderUploadBatchStatus;
   parent_id: string | null;
+  /** "files": loose files straight into parent_id; "folder": a new root folder (CONTRACT A2). */
+  mode: "files" | "folder";
   /** Null in files mode (CONTRACT A2): the files go straight into parent_id. */
   root_folder_id: string | null;
   /** The root title after the server's "(n)" decision; null in files mode. */
