@@ -1,0 +1,5 @@
+$ mkdir -p /tmp/test-results && cp .go-tmp/cover-rest.out /tmp/test-results/cover-rest.out; rc=$?; ls -la /tmp/test-results/cover-rest.out; head -1 .go-tmp/cover-rest.out; echo; echo "COVER_COPY_EXIT=$rc"
+-rw-r--r-- 1 ubuntu ubuntu 978682 Oct 21 03:58 /tmp/test-results/cover-rest.out
+mode: atomic
+
+COVER_COPY_EXIT=0
