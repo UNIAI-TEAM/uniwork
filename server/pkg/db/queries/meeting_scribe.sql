@@ -129,23 +129,34 @@ RETURNING *;
 -- tenant: parent meeting_id
 -- The last segment the live-items extraction read (UNI-2025, §4.4), across
 -- the meeting's runs: a new run (D18) carries on where the last one stopped.
-SELECT COALESCE(max(extract_cursor_segment_id), '')::text AS cursor
-FROM meeting_scribe_runs WHERE meeting_id = $1;
+-- Latest by (created_at, id), the order ListSegmentsAfterExtractCursor reads.
+SELECT COALESCE((
+  SELECT s.id FROM meeting_scribe_runs r
+  JOIN meeting_transcript_segments s ON s.id = r.extract_cursor_segment_id AND s.meeting_id = r.meeting_id
+  WHERE r.meeting_id = $1
+  ORDER BY s.created_at DESC, s.id DESC LIMIT 1), '')::text AS cursor;
 
 -- name: ListSegmentsAfterExtractCursor :many
 -- tenant: parent meeting_id
--- Segments the extraction has not read, in id order: ULIDs from util.NewID
--- grow with insertion, so a segment never lands behind the cursor.
-SELECT * FROM meeting_transcript_segments
-WHERE meeting_id = sqlc.arg('meeting_id') AND id > sqlc.arg('cursor')::text
-ORDER BY id
+-- Segments the extraction has not read, in (created_at, id) order on the DB
+-- clock. Ids come from each replica's clock and created_at is the inserting
+-- transaction's start, so a line can commit after a later one was read: only
+-- lines older than 5 s are read, by then every such transaction has
+-- committed. An empty or unknown cursor reads from the start.
+SELECT s.* FROM meeting_transcript_segments s
+LEFT JOIN meeting_transcript_segments c ON c.id = sqlc.arg('cursor')::text AND c.meeting_id = s.meeting_id
+WHERE s.meeting_id = sqlc.arg('meeting_id')
+  AND s.created_at < now() - interval '5 seconds'
+  AND (c.id IS NULL OR (s.created_at, s.id) > (c.created_at, c.id))
+ORDER BY s.created_at, s.id
 LIMIT sqlc.arg('row_limit');
 
 -- name: AdvanceScribeExtractCursor :execrows
 -- tenant: by-id
 -- Guarded by the extract count the caller read: of two extractions that read
--- the same segments only one stores its items.
+-- the same segments only one stores its items. The cursor read starts at the
+-- meeting's cursor, so the new one is always later.
 UPDATE meeting_scribe_runs SET
-  extract_cursor_segment_id = GREATEST(extract_cursor_segment_id, sqlc.arg('cursor')::text),
+  extract_cursor_segment_id = sqlc.arg('cursor')::text,
   extracts = extracts + 1, last_extract_at = now(), updated_at = now()
 WHERE id = sqlc.arg('id') AND extracts = sqlc.arg('extracts')::int;

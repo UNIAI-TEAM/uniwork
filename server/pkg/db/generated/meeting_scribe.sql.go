@@ -75,7 +75,7 @@ func (q *Queries) AddScribeRunSpeech(ctx context.Context, arg AddScribeRunSpeech
 
 const advanceScribeExtractCursor = `-- name: AdvanceScribeExtractCursor :execrows
 UPDATE meeting_scribe_runs SET
-  extract_cursor_segment_id = GREATEST(extract_cursor_segment_id, $1::text),
+  extract_cursor_segment_id = $1::text,
   extracts = extracts + 1, last_extract_at = now(), updated_at = now()
 WHERE id = $2 AND extracts = $3::int
 `
@@ -88,7 +88,8 @@ type AdvanceScribeExtractCursorParams struct {
 
 // tenant: by-id
 // Guarded by the extract count the caller read: of two extractions that read
-// the same segments only one stores its items.
+// the same segments only one stores its items. The cursor read starts at the
+// meeting's cursor, so the new one is always later.
 func (q *Queries) AdvanceScribeExtractCursor(ctx context.Context, arg AdvanceScribeExtractCursorParams) (int64, error) {
 	result, err := q.db.Exec(ctx, advanceScribeExtractCursor, arg.Cursor, arg.ID, arg.Extracts)
 	if err != nil {
@@ -438,23 +439,29 @@ func (q *Queries) ListScribeSweepMeetings(ctx context.Context, arg ListScribeSwe
 }
 
 const listSegmentsAfterExtractCursor = `-- name: ListSegmentsAfterExtractCursor :many
-SELECT id, meeting_id, participant_id, speaker_name, text, spoken_at, created_at, organization_id, source, transcription_id, start_ms, end_ms, speaker_label, client_segment_id, language FROM meeting_transcript_segments
-WHERE meeting_id = $1 AND id > $2::text
-ORDER BY id
+SELECT s.id, s.meeting_id, s.participant_id, s.speaker_name, s.text, s.spoken_at, s.created_at, s.organization_id, s.source, s.transcription_id, s.start_ms, s.end_ms, s.speaker_label, s.client_segment_id, s.language FROM meeting_transcript_segments s
+LEFT JOIN meeting_transcript_segments c ON c.id = $1::text AND c.meeting_id = s.meeting_id
+WHERE s.meeting_id = $2
+  AND s.created_at < now() - interval '5 seconds'
+  AND (c.id IS NULL OR (s.created_at, s.id) > (c.created_at, c.id))
+ORDER BY s.created_at, s.id
 LIMIT $3
 `
 
 type ListSegmentsAfterExtractCursorParams struct {
-	MeetingID string `json:"meeting_id"`
 	Cursor    string `json:"cursor"`
+	MeetingID string `json:"meeting_id"`
 	RowLimit  int32  `json:"row_limit"`
 }
 
 // tenant: parent meeting_id
-// Segments the extraction has not read, in id order: ULIDs from util.NewID
-// grow with insertion, so a segment never lands behind the cursor.
+// Segments the extraction has not read, in (created_at, id) order on the DB
+// clock. Ids come from each replica's clock and created_at is the inserting
+// transaction's start, so a line can commit after a later one was read: only
+// lines older than 5 s are read, by then every such transaction has
+// committed. An empty or unknown cursor reads from the start.
 func (q *Queries) ListSegmentsAfterExtractCursor(ctx context.Context, arg ListSegmentsAfterExtractCursorParams) ([]MeetingTranscriptSegment, error) {
-	rows, err := q.db.Query(ctx, listSegmentsAfterExtractCursor, arg.MeetingID, arg.Cursor, arg.RowLimit)
+	rows, err := q.db.Query(ctx, listSegmentsAfterExtractCursor, arg.Cursor, arg.MeetingID, arg.RowLimit)
 	if err != nil {
 		return nil, err
 	}
@@ -512,13 +519,17 @@ func (q *Queries) MarkScribeRunMetered(ctx context.Context, arg MarkScribeRunMet
 }
 
 const meetingExtractCursor = `-- name: MeetingExtractCursor :one
-SELECT COALESCE(max(extract_cursor_segment_id), '')::text AS cursor
-FROM meeting_scribe_runs WHERE meeting_id = $1
+SELECT COALESCE((
+  SELECT s.id FROM meeting_scribe_runs r
+  JOIN meeting_transcript_segments s ON s.id = r.extract_cursor_segment_id AND s.meeting_id = r.meeting_id
+  WHERE r.meeting_id = $1
+  ORDER BY s.created_at DESC, s.id DESC LIMIT 1), '')::text AS cursor
 `
 
 // tenant: parent meeting_id
 // The last segment the live-items extraction read (UNI-2025, §4.4), across
 // the meeting's runs: a new run (D18) carries on where the last one stopped.
+// Latest by (created_at, id), the order ListSegmentsAfterExtractCursor reads.
 func (q *Queries) MeetingExtractCursor(ctx context.Context, meetingID string) (string, error) {
 	row := q.db.QueryRow(ctx, meetingExtractCursor, meetingID)
 	var cursor string

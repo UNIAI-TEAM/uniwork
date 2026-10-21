@@ -47,8 +47,48 @@ func liveFixture(t *testing.T, answer string) (*MeetingService, *provider.Fake, 
 		if _, _, err := s.AppendAgentSegments(ctx, c, batch); err != nil {
 			t.Fatal(err)
 		}
+		settleSegments(t, s, m)
 	}
 	return s, llm, ua, m, c, add
+}
+
+// settleSegments ages the meeting's segments past the extraction's settle lag.
+func settleSegments(t *testing.T, s *MeetingService, m db.Meeting) {
+	t.Helper()
+	if _, err := s.pool.Exec(context.Background(),
+		`UPDATE meeting_transcript_segments SET created_at = created_at - interval '10 seconds' WHERE meeting_id = $1`, m.ID); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// Review R2 S3: segment ids come from each replica's clock, so a line one
+// replica stores after the cursor moved can sort before it. The cursor
+// follows (created_at, id) on the DB clock and reads only lines older than
+// the settle lag, so a line committed late is still read once.
+func TestAgentExtractCursorFollowsTheDBClock(t *testing.T) {
+	s, llm, _, m, c, add := liveFixture(t, `{"action_items":[]}`)
+	ctx := context.Background()
+	add("Dòng một")
+	if _, err := s.AgentExtract(ctx, c); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.q.InsertAgentTranscriptSegment(ctx, db.InsertAgentTranscriptSegmentParams{
+		ID: "00000000000000000000000LATE", MeetingID: m.ID, OrganizationID: m.OrganizationID,
+		SpeakerName: "A", Text: "Dòng trễ", SpokenAt: m.ActualStartAt, ClientSegmentID: strText("TR-late"),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	calls := llm.Calls
+	if _, err := s.AgentExtract(ctx, c); err != nil || llm.Calls != calls {
+		t.Fatalf("a line inside the settle lag was read: %v, calls %d→%d", err, calls, llm.Calls)
+	}
+	settleSegments(t, s, m)
+	if _, err := s.AgentExtract(ctx, c); err != nil {
+		t.Fatal(err)
+	}
+	if p := lastPrompt(llm.Last); llm.Calls != calls+1 || !strings.Contains(p, "Dòng trễ") || strings.Contains(p, "Dòng một") {
+		t.Fatalf("calls %d→%d, prompt:\n%s", calls, llm.Calls, p)
+	}
 }
 
 func liveItems(t *testing.T, s *MeetingService, m db.Meeting) []db.MeetingActionItem {
@@ -228,6 +268,7 @@ func TestAgentExtractNamesSharedMicSpeakers(t *testing.T) {
 	if _, _, err := s.AppendAgentSegments(ctx, c, []AgentSegmentInput{g}); err != nil {
 		t.Fatal(err)
 	}
+	settleSegments(t, s, m)
 	if _, err := s.pool.Exec(ctx, `UPDATE meeting_speaker_labels SET name = 'Chị Lan' WHERE meeting_id = $1`, m.ID); err != nil {
 		t.Fatal(err)
 	}
