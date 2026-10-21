@@ -5756,7 +5756,8 @@
       "empty": "Không có kết quả",
       "list": "Gợi ý nhắc tới",
       "remove": "Bỏ {{name}}",
-      "limit": "Chỉ nhắc được tối đa {{max}} đối tượng trong một câu hỏi."
+      "limit": "Chỉ nhắc được tối đa {{max}} đối tượng trong một câu hỏi.",
+      "count": "{{count}} gợi ý"
     },
     "scope": {
       "add": "Thêm phạm vi",
@@ -5792,7 +5793,8 @@
       "intelligence": "Trí tuệ",
       "cost": "Chi phí",
       "bar": "{{label}} {{value}}/5",
-      "opus_note": "Opus dùng nhiều hạn mức token hơn các model khác."
+      "opus_note": "Opus dùng nhiều hạn mức token hơn các model khác.",
+      "label_with": "Chọn model: {{model}}"
     },
     "models": {
       "haiku": {

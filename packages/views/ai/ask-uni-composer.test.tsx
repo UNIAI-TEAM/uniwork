@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { Sheet, SheetContent, SheetTitle } from "@uniwork/ui/components/ui/sheet";
 import { useAiPanelStore } from "@uniwork/core/ai";
 import { useAskModelChoice } from "@uniwork/core/ai/model-choice";
 import { FeatureFlagService, FeatureFlagsProvider, StaticProvider } from "@uniwork/core/feature-flags";
@@ -23,8 +24,8 @@ function mount(props: { streaming?: boolean; documents?: boolean } = {}) {
         </WorkspaceProvider>
       </FeatureFlagsProvider>,
     );
-  render(ui(props.streaming ?? false));
-  return { onSend, onStop, box: () => screen.getByRole("textbox", { name: "Câu hỏi cho UNI" }) as HTMLTextAreaElement };
+  const r = render(ui(props.streaming ?? false));
+  return { rerender: (streaming: boolean) => r.rerender(ui(streaming)), onSend, onStop, box: () => screen.getByLabelText("Câu hỏi cho UNI") as HTMLTextAreaElement };
 }
 
 function type(box: HTMLTextAreaElement, value: string) {
@@ -164,6 +165,125 @@ describe("AskUniComposer", () => {
     type(box(), "Hai");
     fireEvent.keyDown(box(), { key: "Enter" });
     expect(onSend.mock.calls[1]![0].model).toBe("");
+  });
+
+  it("takes the caret back when a turn ends only if nobody is typing elsewhere", () => {
+    const outside = document.createElement("input");
+    document.body.append(outside);
+    const { rerender, box } = mount({ streaming: true });
+    outside.focus();
+    rerender(false);
+    expect(outside).toHaveFocus();
+    rerender(true);
+    screen.getByRole("button", { name: /^Chọn model/ }).focus();
+    rerender(false);
+    expect(box()).toHaveFocus();
+    rerender(true);
+    outside.blur();
+    rerender(false);
+    expect(box()).toHaveFocus();
+    outside.remove();
+  });
+
+  it("keeps + while a focus exists and a pick replaces it", async () => {
+    const { box } = mount();
+    act(() => useAiPanelStore.getState().openWithFocus({ kind: "meeting", id: "m9" }));
+    await screen.findByRole("button", { name: "Bỏ phạm vi Cuộc họp" });
+    fireEvent.click(screen.getByRole("button", { name: "Thêm phạm vi" }));
+    fireEvent.click(await screen.findByRole("button", { name: /Website/ }));
+    expect(screen.queryByRole("button", { name: "Bỏ phạm vi Cuộc họp" })).toBeNull();
+    expect(screen.getByText("Dự án: Website")).toBeInTheDocument();
+    await waitFor(() => expect(box()).toHaveFocus());
+  });
+
+  it("tells assistive tech about the picker and its result count", async () => {
+    const { box } = mount();
+    type(box(), "@La");
+    const list = await screen.findByRole("listbox", { name: "Gợi ý nhắc tới" });
+    await within(list).findByText("Lập kế hoạch");
+    expect(box()).toHaveAttribute("role", "combobox");
+    expect(box()).toHaveAttribute("aria-expanded", "true");
+    expect(box()).toHaveAttribute("aria-autocomplete", "list");
+    expect(box().getAttribute("aria-controls")).toBe(list.id);
+    expect(document.getElementById(box().getAttribute("aria-activedescendant") ?? "")).toBe(within(list).getAllByRole("option")[0]);
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("4 gợi ý"));
+    fireEvent.keyDown(box(), { key: "Escape" });
+    expect(box()).not.toHaveAttribute("role");
+  });
+
+  it("keeps the empty text out of the listbox", async () => {
+    const { box } = mount();
+    type(box(), "@zz");
+    expect(await screen.findAllByText("Không có kết quả")).toHaveLength(2);
+    expect(screen.queryByRole("listbox")).toBeNull();
+  });
+
+  it("gives the chip remove button the coarse-pointer target and returns focus to the box", async () => {
+    const { box } = mount();
+    type(box(), "@La");
+    fireEvent.click(await screen.findByRole("option", { name: /Lan Anh/ }));
+    const remove = screen.getByRole("button", { name: "Bỏ Lan Anh" });
+    expect(remove.className).toContain("pointer-coarse:min-h-11");
+    fireEvent.click(remove);
+    expect(box()).toHaveFocus();
+  });
+
+  it("opens the picker again for an @ in the next question after Escape dismissed one", async () => {
+    const { onSend, box } = mount();
+    type(box(), "@La");
+    await screen.findByRole("listbox", { name: "Gợi ý nhắc tới" });
+    fireEvent.keyDown(box(), { key: "Escape" });
+    expect(screen.queryByRole("listbox")).toBeNull();
+    fireEvent.keyDown(box(), { key: "Enter" });
+    expect(onSend).toHaveBeenCalledTimes(1);
+    type(box(), "@La");
+    expect(await screen.findByRole("listbox", { name: "Gợi ý nhắc tới" })).toBeInTheDocument();
+  });
+
+  it("does nothing on Enter while results load, and sends when the open picker has none", async () => {
+    requestMock.mockImplementation((path: string, init?: never) =>
+      path.endsWith("/tasks/table/rows") ? new Promise(() => {}) : composerRoutes(path, init),
+    );
+    const { onSend, box } = mount();
+    type(box(), "@La");
+    await screen.findByRole("listbox", { name: "Gợi ý nhắc tới" });
+    fireEvent.keyDown(box(), { key: "Enter" });
+    expect(onSend).not.toHaveBeenCalled();
+    expect(box().value).toBe("@La");
+    requestMock.mockImplementation(composerRoutes);
+  });
+
+  it("sends on Enter when the open picker settled with no results", async () => {
+    const { onSend, box } = mount();
+    type(box(), "@zz");
+    await screen.findAllByText("Không có kết quả");
+    fireEvent.keyDown(box(), { key: "Enter" });
+    expect(onSend).toHaveBeenCalledTimes(1);
+  });
+
+  it("Escape that closes the picker does not close a Sheet around the panel", async () => {
+    const onOpenChange = vi.fn();
+    const service = new FeatureFlagService(new StaticProvider({}));
+    render(
+      wrapWithNav(
+        <FeatureFlagsProvider service={service}>
+          <WorkspaceProvider workspace={workspace} user={user}>
+            <Sheet open onOpenChange={onOpenChange}>
+              <SheetContent side="right">
+                <SheetTitle>UNI</SheetTitle>
+                <AskUniComposer onSend={vi.fn()} onStop={vi.fn()} streaming={false} />
+              </SheetContent>
+            </Sheet>
+          </WorkspaceProvider>
+        </FeatureFlagsProvider>,
+      ),
+    );
+    const box = (await screen.findByLabelText("Câu hỏi cho UNI")) as HTMLTextAreaElement;
+    type(box, "@La");
+    await screen.findByRole("listbox", { name: "Gợi ý nhắc tới" });
+    fireEvent.keyDown(box, { key: "Escape" });
+    expect(screen.queryByRole("listbox")).toBeNull();
+    expect(onOpenChange).not.toHaveBeenCalled();
   });
 
   it("focuses the box on mount", () => {

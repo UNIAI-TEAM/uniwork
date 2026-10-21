@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { ArrowUp, Square, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useAiPanelStore } from "@uniwork/core/ai";
@@ -25,16 +25,12 @@ function findTrigger(text: string, caret: number) {
 
 function Chip({ label, remove, onRemove }: { label: string; remove: string; onRemove: () => void }) {
   return (
-    <span className="inline-flex max-w-full items-center gap-1 rounded-full bg-muted py-0.5 pr-1 pl-2.5 text-caption text-foreground">
+    <span className="inline-flex max-w-full items-center gap-1 rounded-full bg-muted pl-2.5 text-caption text-foreground">
       <span className="truncate">{label}</span>
-      <button
-        type="button"
-        aria-label={remove}
-        onClick={onRemove}
-        className="grid size-4 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-      >
-        <X aria-hidden className="size-3" />
-      </button>
+      {/* The primitive carries the 44px coarse-pointer target. */}
+      <Button type="button" variant="ghost" size="icon-xs" aria-label={remove} className="rounded-full text-muted-foreground" onClick={onRemove}>
+        <X aria-hidden />
+      </Button>
     </span>
   );
 }
@@ -57,6 +53,9 @@ export function AskUniComposer({
   const { model, effort } = useAskModelSelection(workspace.id);
 
   const box = useRef<HTMLTextAreaElement>(null);
+  const root = useRef<HTMLDivElement>(null);
+  const listId = useId();
+  const wasStreaming = useRef(streaming);
   const nextCaret = useRef<number | null>(null);
   const [value, setValue] = useState("");
   const [caret, setCaret] = useState(0);
@@ -69,10 +68,21 @@ export function AskUniComposer({
   const pickerOpen = trigger !== null && trigger.start !== dismissedAt;
   const kindLabel = (kind: string) => t(`scope.kind.${kind}`, { defaultValue: kind });
 
-  // Typing starts at once: when the panel opens, a conversation is chosen, and after a turn ends.
+  // Typing starts at once when the panel opens and when a conversation is chosen.
   useEffect(() => {
-    if (!streaming) box.current?.focus();
-  }, [conversationId, streaming]);
+    box.current?.focus();
+  }, [conversationId]);
+
+  // A turn ends: bring the caret back only if the reader is not typing somewhere else in the app.
+  useEffect(() => {
+    const ended = wasStreaming.current && !streaming;
+    wasStreaming.current = streaming;
+    if (!ended) return;
+    const active = document.activeElement;
+    if (!active || active === document.body || root.current?.closest('[data-slot="ask-uni-panel"]')?.contains(active) || root.current?.contains(active)) {
+      box.current?.focus();
+    }
+  }, [streaming]);
 
   // An entry point's focus becomes the chip once.
   useEffect(() => {
@@ -123,17 +133,20 @@ export function AskUniComposer({
     });
     setValue("");
     setCaret(0);
+    // The next question may start with an @ again.
+    setDismissedAt(null);
     setMentions([]);
     setNotice("");
   };
 
   const canSend = value.trim() !== "";
   return (
-    <div className="relative flex flex-col gap-2 border-t border-border bg-background p-3" data-slot="ask-uni-composer">
+    <div ref={root} className="relative flex flex-col gap-2 border-t border-border bg-background p-3" data-slot="ask-uni-composer">
       {pickerOpen && trigger ? (
         <AskUniMentionPicker
           wsId={workspace.id}
           query={trigger.query}
+          listId={listId}
           inputRef={box}
           onPick={pick}
           onDismiss={() => setDismissedAt(trigger.start)}
@@ -145,7 +158,10 @@ export function AskUniComposer({
             <Chip
               label={focus.label}
               remove={t("scope.remove", { name: focus.label })}
-              onRemove={() => setFocus(null)}
+              onRemove={() => {
+                setFocus(null);
+                box.current?.focus();
+              }}
             />
           ) : null}
           {mentions.map((m) => (
@@ -153,7 +169,10 @@ export function AskUniComposer({
               key={`${m.kind}:${m.id}`}
               label={m.label}
               remove={t("mention.remove", { name: m.label })}
-              onRemove={() => setMentions((all) => all.filter((x) => x !== m))}
+              onRemove={() => {
+                setMentions((all) => all.filter((x) => x !== m));
+                box.current?.focus();
+              }}
             />
           ))}
         </div>
@@ -168,6 +187,9 @@ export function AskUniComposer({
         rows={1}
         value={value}
         aria-label={t("composer_label")}
+        {...(pickerOpen
+          ? { role: "combobox", "aria-expanded": true, "aria-haspopup": "listbox", "aria-controls": listId, "aria-autocomplete": "list" }
+          : {})}
         placeholder={t("placeholder")}
         className="max-h-[8lh] min-h-0 resize-none overflow-y-auto"
         onChange={(e) => {
@@ -185,7 +207,10 @@ export function AskUniComposer({
         }}
       />
       <div className="flex flex-wrap items-center gap-1">
-        {focus ? null : <AskUniScopePicker onPick={(p) => setFocus({ kind: p.kind, id: p.id, label: `${kindLabel(p.kind)}: ${p.title}` })} />}
+        <AskUniScopePicker
+          finalFocus={box}
+          onPick={(p) => setFocus({ kind: p.kind, id: p.id, label: `${kindLabel(p.kind)}: ${p.title}` })}
+        />
         <div className="ml-auto flex flex-wrap items-center justify-end gap-1">
           <AskUniModelPicker />
           {streaming ? (

@@ -18,7 +18,7 @@ export function AskUniPanel() {
   const stream = useAskUniStream(workspace.id);
   const { model, effort } = useAskModelSelection(workspace.id);
   return (
-    <div className="flex h-full min-h-0 flex-col bg-background">
+    <div className="flex h-full min-h-0 flex-col bg-background" data-slot="ask-uni-panel">
       <AskUniHeader />
       <div className="flex min-h-0 flex-1 flex-col" data-slot="ask-uni-body">
         <AskUniThread

@@ -20,7 +20,7 @@ function mount() {
 }
 
 async function openMenu() {
-  fireEvent.click(await screen.findByRole("button", { name: "Chọn model" }));
+  fireEvent.click(await screen.findByRole("button", { name: /^Chọn model/ }));
   return screen.findByRole("menu");
 }
 
@@ -73,14 +73,20 @@ describe("AskUniModelPicker", () => {
     fireEvent.click(within(menu).getByRole("menuitemradio", { name: /Opus 5.5/ }));
     expect(useAskModelChoice.getState().model).toBe("opus");
     expect(await screen.findByText("Opus dùng nhiều hạn mức token hơn các model khác.")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Chọn model" })).toHaveTextContent("Opus 5.5");
+    expect(screen.getByRole("button", { name: /^Chọn model/ })).toHaveTextContent("Opus 5.5");
     await act(async () => {});
     expect(JSON.stringify(Object.values(localStorage))).toContain("opus");
+  });
+
+  it("names the trigger with the visible model text (label in name)", async () => {
+    useAskModelChoice.setState({ model: "opus" });
+    mount();
+    expect(await screen.findByRole("button", { name: "Chọn model: Opus 5.5" })).toBeInTheDocument();
   });
 
   it("falls back to Auto when the remembered model is not enabled", async () => {
     useAskModelChoice.setState({ model: "fable" });
     mount();
-    await waitFor(() => expect(screen.getByRole("button", { name: "Chọn model" })).toHaveTextContent("Tự động"));
+    await waitFor(() => expect(screen.getByRole("button", { name: /^Chọn model/ })).toHaveTextContent("Tự động"));
   });
 });

@@ -5765,7 +5765,8 @@
       "empty": "No results",
       "list": "Mention suggestions",
       "remove": "Remove {{name}}",
-      "limit": "A question can mention at most {{max}} items."
+      "limit": "A question can mention at most {{max}} items.",
+      "count": "{{count}} suggestions"
     },
     "scope": {
       "add": "Add scope",
@@ -5801,7 +5802,8 @@
       "intelligence": "Intelligence",
       "cost": "Cost",
       "bar": "{{label}} {{value}}/5",
-      "opus_note": "Opus uses more of your token quota than the other models."
+      "opus_note": "Opus uses more of your token quota than the other models.",
+      "label_with": "Choose a model: {{model}}"
     },
     "models": {
       "haiku": {

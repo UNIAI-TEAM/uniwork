@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type RefObject } from "react";
 import { Plus } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useFlag } from "@uniwork/core/feature-flags";
@@ -24,9 +24,9 @@ function ScopeList({ onPick }: { onPick: (pick: ScopePick) => void }) {
   const documentsOn = useFlag("documents", false);
   const [q, setQ] = useState("");
   const all: { kind: ScopeKind; title: string; items: LookupItem[] }[] = [
-    { kind: "project", title: t("projects"), items: useProjectMatches(workspace.id, q, true) },
-    { kind: "meeting", title: t("meetings"), items: useMeetingMatches(workspace.id, q, true) },
-    { kind: "document", title: t("documents"), items: useDocumentMatches(workspace.id, q, documentsOn) },
+    { kind: "project", title: t("projects"), items: useProjectMatches(workspace.id, q, true).items },
+    { kind: "meeting", title: t("meetings"), items: useMeetingMatches(workspace.id, q, true).items },
+    { kind: "document", title: t("documents"), items: useDocumentMatches(workspace.id, q, documentsOn).items },
     { kind: "room", title: t("rooms"), items: useRoomMatches(workspace.id, q, true) },
   ];
   const groups = all.filter((g) => g.items.length > 0);
@@ -56,7 +56,7 @@ function ScopeList({ onPick }: { onPick: (pick: ScopePick) => void }) {
 }
 
 /** The "+" button: one project, meeting, document or chat room becomes the question's focus. */
-export function AskUniScopePicker({ onPick }: { onPick: (pick: ScopePick) => void }) {
+export function AskUniScopePicker({ onPick, finalFocus }: { onPick: (pick: ScopePick) => void; finalFocus: RefObject<HTMLElement | null> }) {
   const { t } = useTranslation(undefined, { keyPrefix: "ai.scope" });
   const [open, setOpen] = useState(false);
   return (
@@ -66,7 +66,7 @@ export function AskUniScopePicker({ onPick }: { onPick: (pick: ScopePick) => voi
       >
         <Plus aria-hidden />
       </PopoverTrigger>
-      <PopoverContent side="top" align="start" className="w-72" aria-label={t("title")}>
+      <PopoverContent side="top" align="start" className="w-72" aria-label={t("title")} finalFocus={finalFocus}>
         <ScopeList
           onPick={(pick) => {
             onPick(pick);

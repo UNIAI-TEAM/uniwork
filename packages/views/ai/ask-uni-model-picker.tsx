@@ -81,7 +81,7 @@ export function AskUniModelPicker() {
     <>
       <DropdownMenu>
         <DropdownMenuTrigger
-          render={<Button type="button" variant="ghost" size="sm" className="text-muted-foreground" aria-label={t("model.label")} />}
+          render={<Button type="button" variant="ghost" size="sm" className="text-muted-foreground" aria-label={t("model.label_with", { model: current })} />}
         >
           {current}
           <ChevronDown aria-hidden />

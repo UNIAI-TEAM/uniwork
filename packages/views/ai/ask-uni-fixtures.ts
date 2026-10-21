@@ -42,9 +42,11 @@ export function composerRoutes(path: string, init?: { body?: { query?: { search?
     const rows = q.startsWith("la") ? [{ task: task("t1", "Lập kế hoạch"), direct_child_count: 0, labels: [] }] : [];
     return Promise.resolve({ query_fingerprint: "f", group_key: null, parent_id: null, total: rows.length, rows, next_cursor: null });
   }
-  if (path.includes("/projects")) return Promise.resolve({ projects: [project], total: 1 });
-  if (path.includes("/meetings")) return Promise.resolve({ meetings: [meeting], total: 1 });
-  if (path.includes("/documents")) return Promise.resolve({ documents: [doc], next_cursor: null });
+  // A query nothing matches ("zz") finds nothing anywhere.
+  const none = /[?&]q=zz/.test(path);
+  if (path.includes("/projects")) return none ? Promise.resolve({ projects: [], total: 0 }) : Promise.resolve({ projects: [project], total: 1 });
+  if (path.includes("/meetings")) return none ? Promise.resolve({ meetings: [], total: 0 }) : Promise.resolve({ meetings: [meeting], total: 1 });
+  if (path.includes("/documents")) return none ? Promise.resolve({ documents: [], next_cursor: null }) : Promise.resolve({ documents: [doc], next_cursor: null });
   if (path.includes("/chat/rooms")) {
     return Promise.resolve({ rooms: [{ id: "r1", kind: "channel", name: "general", workspace_id: "ws1", member_count: 3 }] });
   }

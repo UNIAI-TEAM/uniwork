@@ -15,6 +15,12 @@ export interface LookupItem {
   title: string;
 }
 
+/** A search answer and whether a fresher one is still on its way (typing settling or a request in flight). */
+interface Matches {
+  items: LookupItem[];
+  loading: boolean;
+}
+
 const LIMIT = 5;
 const SEARCH_DEBOUNCE_MS = 200;
 
@@ -30,7 +36,7 @@ export function useMemberMatches(wsId: string, q: string): LookupItem[] {
 }
 
 /** Tasks are searched on the server after the typing settles; an empty query asks nothing. */
-export function useTaskMatches(wsId: string, q: string, enabled: boolean): LookupItem[] {
+export function useTaskMatches(wsId: string, q: string, enabled: boolean): Matches {
   const search = useDebouncedValue(q.trim(), SEARCH_DEBOUNCE_MS);
   const body = tableRowsPageBody({
     query: { search },
@@ -42,28 +48,40 @@ export function useTaskMatches(wsId: string, q: string, enabled: boolean): Looku
     limit: LIMIT,
   });
   const rows = useQuery({ ...tableRowsPageQuery(wsId, body), enabled: enabled && !!wsId && search !== "" });
-  return search === "" ? [] : (rows.data?.rows ?? []).map((r) => ({ id: r.task.id, title: r.task.title }));
+  return {
+    items: search === "" ? [] : (rows.data?.rows ?? []).map((r) => ({ id: r.task.id, title: r.task.title })),
+    loading: enabled && q.trim() !== "" && (q.trim() !== search || rows.isFetching),
+  };
 }
 
-export function useDocumentMatches(wsId: string, q: string, enabled: boolean): LookupItem[] {
+export function useDocumentMatches(wsId: string, q: string, enabled: boolean): Matches {
   const search = useDebouncedValue(q.trim(), SEARCH_DEBOUNCE_MS);
   const list = useDocumentList(wsId, { q: search || undefined, kind: "document", limit: LIMIT }, { enabled });
-  return enabled ? (list.data?.pages[0]?.documents ?? []).slice(0, LIMIT).map((d) => ({ id: d.id, title: d.title })) : [];
+  return {
+    items: enabled ? (list.data?.pages[0]?.documents ?? []).slice(0, LIMIT).map((d) => ({ id: d.id, title: d.title })) : [],
+    loading: enabled && (q.trim() !== search || list.isFetching),
+  };
 }
 
-export function useMeetingMatches(wsId: string, q: string, enabled: boolean): LookupItem[] {
+export function useMeetingMatches(wsId: string, q: string, enabled: boolean): Matches {
   const search = useDebouncedValue(q.trim(), SEARCH_DEBOUNCE_MS);
   // An empty workspace id keeps the list query idle.
   const list = useMeetings(enabled ? wsId : "", { q: search || undefined, limit: LIMIT });
-  return enabled ? (list.data?.meetings ?? []).slice(0, LIMIT).map((m) => ({ id: m.id, title: m.title })) : [];
+  return {
+    items: enabled ? (list.data?.meetings ?? []).slice(0, LIMIT).map((m) => ({ id: m.id, title: m.title })) : [],
+    loading: enabled && (q.trim() !== search || list.isFetching),
+  };
 }
 
-export function useProjectMatches(wsId: string, q: string, enabled: boolean): LookupItem[] {
+export function useProjectMatches(wsId: string, q: string, enabled: boolean): Matches {
   const search = useDebouncedValue(q.trim(), SEARCH_DEBOUNCE_MS);
   const found = useSearchProjects(enabled ? wsId : "", { q: search, limit: LIMIT });
   const all = useProjects(enabled && search === "" ? wsId : "");
   const projects = search ? (found.data?.projects ?? []) : (all.data?.projects ?? []);
-  return enabled ? projects.slice(0, LIMIT).map((p) => ({ id: p.id, title: p.title })) : [];
+  return {
+    items: enabled ? projects.slice(0, LIMIT).map((p) => ({ id: p.id, title: p.title })) : [],
+    loading: enabled && (q.trim() !== search || found.isFetching || all.isFetching),
+  };
 }
 
 export function useRoomMatches(wsId: string, q: string, enabled: boolean): LookupItem[] {
