@@ -1,0 +1,4 @@
+$ npm run test -w @genoffice/pdf > /tmp/s8-pdf.log 2>&1; rc=$?; grep -E "Test Files|Tests |FAIL|AssertionError|Error:" /tmp/s8-pdf.log | head -60; echo "PDF_TEST_EXIT=$rc"
+ Test Files  110 passed (110)
+      Tests  1519 passed | 2 skipped (1521)
+PDF_TEST_EXIT=0

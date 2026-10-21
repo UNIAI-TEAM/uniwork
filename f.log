@@ -1,0 +1,7 @@
+$ npm run check:theme-colors > /tmp/s8-theme.log 2>&1; rc=$?; tail -15 /tmp/s8-theme.log; echo "THEME_EXIT=$rc"
+
+> genoffice@0.1.0 check:theme-colors
+> node tools/check-theme-colors.mjs
+
+No new raw colors in renderer CSS.
+THEME_EXIT=0

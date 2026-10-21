@@ -1,0 +1,14 @@
+$ npm run test:web > /tmp/s8-web.log 2>&1; rc=$?; grep -E "Test Files|Tests |FAIL|AssertionError|Error:" /tmp/s8-web.log | head -60; echo "TEST_WEB_EXIT=$rc"
+ Test Files  5 passed (5)
+      Tests  206 passed (206)
+ Test Files  17 passed (17)
+      Tests  311 passed (311)
+ Test Files  6 passed (6)
+      Tests  56 passed (56)
+ Test Files  33 passed | 1 skipped (34)
+      Tests  874 passed | 25 skipped (899)
+ Test Files  5 passed (5)
+      Tests  100 passed (100)
+ Test Files  5 passed (5)
+      Tests  64 passed (64)
+TEST_WEB_EXIT=0
