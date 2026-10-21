@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Field, FieldDescription, FieldError, FieldLabel } from "@uniwork/ui/components/ui/field";
 import { TimeInput } from "@uniwork/ui/components/ui/time-input";
 import { DateField } from "../common/date-field";
-import { scheduleWindowIso, splitIsoLocal } from "./meeting-datetime";
+import { MEETING_DAY_FORMAT, scheduleWindowIso, splitIsoLocal } from "./meeting-datetime";
 import { useNow } from "./use-now";
 
 /**
@@ -133,6 +133,7 @@ export function MeetingScheduleFields({
           min={floor ?? undefined}
           value={date}
           onChange={onDate}
+          formatOptions={MEETING_DAY_FORMAT}
         />
       </Field>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">

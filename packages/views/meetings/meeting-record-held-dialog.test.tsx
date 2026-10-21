@@ -44,6 +44,13 @@ describe("MeetingRecordHeldButton", () => {
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Đã ghi nhận cuộc họp đã diễn ra."));
   });
 
+  it("writes the day the way the meeting hero does", async () => {
+    render(wrap(<MeetingRecordHeldButton workspaceId="w1" meeting={meeting("2026-10-20T02:00:00Z", "2026-10-20T03:30:00Z")} />));
+    fireEvent.click(screen.getByRole("button", { name: "Ghi nhận đã họp" }));
+    expect(await screen.findByText("Thứ Ba, 20 tháng 10")).toBeInTheDocument();
+    expect(screen.queryByText(/thg 10, 2026/)).not.toBeInTheDocument();
+  });
+
   it("opens inside the meeting window ending now, without an error", async () => {
     // Scheduled 09:00–12:00 UTC, now 10:00: the end defaults to now, not the schedule.
     render(wrap(<MeetingRecordHeldButton workspaceId="w1" meeting={meeting("2026-10-20T09:00:00Z", "2026-10-20T12:00:00Z")} />));
