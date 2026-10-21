@@ -39,7 +39,7 @@ type Consumer struct {
 
 // NewConsumer wires the consumer. members is WorkspaceService in production.
 func NewConsumer(pool *pgxpool.Pool, q *db.Queries, members MemberChecker) *Consumer {
-	return &Consumer{pool: pool, q: q, env: env{q: q, members: members}, recorder: audit.NewRecorder(), log: slog.Default()}
+	return &Consumer{pool: pool, q: q, env: env{q: q, members: members, docMemo: newDocCommandMemo()}, recorder: audit.NewRecorder(), log: slog.Default()}
 }
 
 // SetMetrics attaches counters; called once from main.

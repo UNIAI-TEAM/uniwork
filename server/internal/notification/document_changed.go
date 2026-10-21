@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -33,6 +34,10 @@ const (
 // docChangeSamples bounds sample_document_ids: the inbox names a few titles
 // and counts the rest.
 const docChangeSamples = 3
+
+// docChangeSignalGap is how long a folded row must have sat still before a
+// fold sends notification.created again (BE-R1-5).
+const docChangeSignalGap = 2 * time.Second
 
 // DocChange is the part of a document_changed draft the fold write path
 // needs: the group prefix it searches under (same actor and verb), the one
@@ -132,9 +137,11 @@ func ruleDocumentTrashedChange(ctx context.Context, e env, ev outbox.Row, p map[
 	}
 	o := docChangeOpts{ignoreTrash: true}
 	if batchID, wsID := p["archive_batch_id"], p["workspace_id"]; batchID != "" && wsID != "" && ev.OrganizationID.Valid {
-		owners, err := e.q.ListArchiveBatchOwners(ctx, db.ListArchiveBatchOwnersParams{
-			OrganizationID: ev.OrganizationID.String, WorkspaceID: wsID,
-			ArchiveBatchID: pgtype.Text{String: batchID, Valid: true},
+		owners, err := e.docMemo.ids("batch_owners|"+ev.OrganizationID.String+"|"+wsID+"|"+batchID, func() ([]string, error) {
+			return e.q.ListArchiveBatchOwners(ctx, db.ListArchiveBatchOwnersParams{
+				OrganizationID: ev.OrganizationID.String, WorkspaceID: wsID,
+				ArchiveBatchID: pgtype.Text{String: batchID, Valid: true},
+			})
 		})
 		if err != nil {
 			return nil, err
@@ -247,8 +254,10 @@ func commandExclusions(ctx context.Context, e env, ev outbox.Row, extra []string
 		out[id] = true
 	}
 	if ev.CorrelationID.Valid && ev.OrganizationID.Valid {
-		grantees, err := e.q.ListCommandUserShareGrantees(ctx, db.ListCommandUserShareGranteesParams{
-			OrganizationID: ev.OrganizationID.String, CorrelationID: ev.CorrelationID.String,
+		grantees, err := e.docMemo.ids("share_grantees|"+ev.OrganizationID.String+"|"+ev.CorrelationID.String, func() ([]string, error) {
+			return e.q.ListCommandUserShareGrantees(ctx, db.ListCommandUserShareGranteesParams{
+				OrganizationID: ev.OrganizationID.String, CorrelationID: ev.CorrelationID.String,
+			})
 		})
 		if err != nil {
 			return nil, err

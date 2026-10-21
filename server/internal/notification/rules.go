@@ -123,6 +123,8 @@ type env struct {
 	docAdmins DocumentAdministerChecker
 	summaries SummaryChecker
 	calls     CallRingChecker
+	// docMemo keeps the per-command lookups of the document_changed rules.
+	docMemo *docCommandMemo
 }
 
 // rule turns one outbox row into drafts. Rules are pure apart from reads; the

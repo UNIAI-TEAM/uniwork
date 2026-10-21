@@ -6,6 +6,7 @@ import (
 	"errors"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -56,14 +57,18 @@ func (c *Consumer) writeDocChange(ctx context.Context, tx pgx.Tx, q *db.Queries,
 	}); err != nil {
 		return err
 	}
+	// A fold signals the inbox only when the row sat still for a while: a
+	// wide command then sends a recipient its first frame and about one per
+	// docChangeSignalGap of delivery, not one per document. The trade-off: the
+	// last folds of a burst may send no frame, and the count they add shows
+	// on the inbox's next read (BE-R1-5).
+	signal := !merged || !open.UpdatedAt.Valid || time.Since(open.UpdatedAt.Time) >= docChangeSignalGap
 	if merged {
 		count, err := q.CountNotificationDocuments(ctx, open.ID)
 		if err != nil {
 			return err
 		}
-		samples, err := q.ListNotificationDocumentSamples(ctx, db.ListNotificationDocumentSamplesParams{
-			NotificationID: open.ID, LimitN: docChangeSamples,
-		})
+		samples, err := docChangeSampleIDs(ctx, q, open, count)
 		if err != nil {
 			return err
 		}
@@ -78,18 +83,23 @@ func (c *Consumer) writeDocChange(ctx context.Context, tx pgx.Tx, q *db.Queries,
 			return err
 		}
 	}
-	events := []audit.Event{{
-		Topic: TopicCreated, Payload: map[string]string{"notification_id": open.ID, "user_id": d.UserID},
-		OrganizationID: d.OrganizationID, WorkspaceID: d.WorkspaceID,
-	}}
+	var events []audit.Event
+	if signal {
+		events = append(events, audit.Event{
+			Topic: TopicCreated, Payload: map[string]string{"notification_id": open.ID, "user_id": d.UserID},
+			OrganizationID: d.OrganizationID, WorkspaceID: d.WorkspaceID,
+		})
+	}
 	if prefs.Push && !merged {
 		events = append(events, audit.Event{
 			Topic: TopicPush, Payload: map[string]string{"notification_id": open.ID, "user_id": d.UserID},
 			OrganizationID: d.OrganizationID, WorkspaceID: d.WorkspaceID,
 		})
 	}
-	if err := c.recorder.Emit(ctx, q, audit.System("notification"), events...); err != nil {
-		return err
+	if len(events) > 0 {
+		if err := c.recorder.Emit(ctx, q, audit.System("notification"), events...); err != nil {
+			return err
+		}
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return err
@@ -102,6 +112,24 @@ func (c *Consumer) writeDocChange(ctx context.Context, tx pgx.Tx, q *db.Queries,
 		}
 	}
 	return nil
+}
+
+// docChangeSampleIDs is the sample after a fold: the first documents in
+// arrival order. Once the row holds more than docChangeSamples the first ones
+// no longer move, so the sample is kept from the row's params instead of
+// re-sorting every document of the notification on each fold.
+func docChangeSampleIDs(ctx context.Context, q *db.Queries, open db.Notification, count int64) ([]string, error) {
+	if count > docChangeSamples {
+		var prev map[string]string
+		if err := json.Unmarshal([]byte(open.Params), &prev); err == nil && prev["sample_document_ids"] != "" {
+			if ids := strings.Split(prev["sample_document_ids"], ","); len(ids) == docChangeSamples {
+				return ids, nil
+			}
+		}
+	}
+	return q.ListNotificationDocumentSamples(ctx, db.ListNotificationDocumentSamplesParams{
+		NotificationID: open.ID, LimitN: docChangeSamples,
+	})
 }
 
 // docChangeParams is the draft's params (actor, verb) plus the document
