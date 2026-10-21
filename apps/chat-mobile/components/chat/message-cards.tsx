@@ -128,7 +128,7 @@ function Card({ own, tint, icon, kind, badge, children }: { own: boolean; tint: 
   );
 }
 
-function ImageCard({ record, ctx, onLongPress }: { record: ChatMessageRecord; ctx: MessageCardContext; onLongPress: () => void }) {
+function ImageCard({ record, ctx, onLongPress, flush = false }: { record: ChatMessageRecord; ctx: MessageCardContext; onLongPress: () => void; flush?: boolean }) {
   const { t } = useTranslation();
   const longPress = useLongPressProps(onLongPress);
   const file = record.file!;
@@ -141,9 +141,9 @@ function ImageCard({ record, ctx, onLongPress }: { record: ChatMessageRecord; ct
   return (
     <Pressable {...longPress} onPress={open} accessibilityRole="imagebutton" accessibilityLabel={t("chat.message_list.file_open_named", { name: file.filename || t("chat.media_image") })}>
       {src ? (
-        <Image source={{ uri: src }} contentFit="cover" style={{ width: 230, height: 230, borderRadius: 14 }} />
+        <Image source={{ uri: src }} contentFit="cover" style={{ width: 230, height: 230, borderRadius: flush ? 0 : 14 }} />
       ) : (
-        <View className="items-center justify-center rounded-[14px] bg-muted" style={{ width: 230, height: 230 }}>
+        <View className={cn("items-center justify-center bg-muted", !flush && "rounded-[14px]")} style={{ width: 230, height: 230 }}>
           <Text className="text-xs text-muted-foreground">{t("chat.message_list.image_preview_loading")}</Text>
         </View>
       )}
@@ -449,12 +449,15 @@ export function MessageContent({
   ctx,
   onLongPress,
   senderLabel,
+  flushMedia = false,
 }: {
   record: ChatMessageRecord;
   own: boolean;
   ctx: MessageCardContext;
   onLongPress: () => void;
   senderLabel?: string;
+  /** Photo fills the bubble run with no coloured rim (canvas bare media). */
+  flushMedia?: boolean;
 }) {
   const { t } = useTranslation();
   const body = cn("text-[15px]", ink(own).text);
@@ -466,7 +469,7 @@ export function MessageContent({
       return <Image source={{ uri: media.url }} contentFit="contain" style={{ width: 160, height: 160 }} accessibilityLabel={media.alt} />;
     }
     case "image":
-      return <ImageCard record={record} ctx={ctx} onLongPress={onLongPress} />;
+      return <ImageCard record={record} ctx={ctx} onLongPress={onLongPress} flush={flushMedia} />;
     case "file":
       return <FileCard record={record} ctx={ctx} own={own} onLongPress={onLongPress} />;
     case "voice":

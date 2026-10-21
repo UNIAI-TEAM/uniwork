@@ -115,7 +115,9 @@ export const MessageRow = memo(function MessageRow(props: MessageRowProps) {
     );
   }
 
-  const interactive = album ? true : record ? INTERACTIVE_VIEWS.has(messageView(record)) : false;
+  const view = record ? messageView(record) : null;
+  const bareImage = view === "image" && !quote && !album;
+  const interactive = album ? true : record ? INTERACTIVE_VIEWS.has(view!) : false;
   const footTs = album?.at(-1)?.ts ?? message.ts;
   const preview = record ? messagePreviewText(record, t) : message.body;
   const longPress = () => props.onLongPress(message);
@@ -139,7 +141,12 @@ export const MessageRow = memo(function MessageRow(props: MessageRowProps) {
         onLongPress={longPress}
         onPress={message.pending ? () => props.onPressPending(message) : undefined}
         delayLongPress={200}
-        className={cn(album ? "gap-1 p-[3px]" : "gap-1 px-3 pb-2 pt-1.5", album ? null : "max-w-[72%]", own ? "bg-chat-bubble-own" : "bg-chat-bubble-other", ringed && "border-2 border-primary/25")}
+        className={cn(
+          album ? "gap-1 p-[3px]" : bareImage ? "overflow-hidden p-0" : "gap-1 px-3 pb-2 pt-1.5",
+          album || bareImage ? null : "max-w-[72%]",
+          !bareImage && (own ? "bg-chat-bubble-own" : "bg-chat-bubble-other"),
+          ringed && "border-2 border-primary/25",
+        )}
         style={[bubbleCorners(own, !compactTop, !continued), lift]}
       >
         {showSender ? (
@@ -166,21 +173,29 @@ export const MessageRow = memo(function MessageRow(props: MessageRowProps) {
         {album ? (
           <AlbumGrid photos={album} ctx={ctx} onLongPress={longPress} />
         ) : record ? (
-          <MessageContent record={record} own={own} ctx={ctx} onLongPress={longPress} />
+          <MessageContent record={record} own={own} ctx={ctx} onLongPress={longPress} flushMedia={bareImage} />
         ) : (
           <Text className="text-base text-chat-bubble-own-foreground">
             {message.pending!.file ? message.pending!.file.name : deserializeMessageBodyToComposerDraft(message.pending!.body)}
           </Text>
         )}
-        <View className={cn("flex-row items-center gap-1 self-end", album && "px-2 pb-1")}>
+        <View
+          className={cn(
+            "flex-row items-center gap-1",
+            bareImage ? "absolute bottom-2 right-2 rounded-md bg-black/55 px-1.5 py-0.5" : "self-end",
+            album && !bareImage && "px-2 pb-1",
+          )}
+        >
           {record ? (
             <>
-              <Text className={cn("text-[11px]", meta)} style={{ fontVariant: ["tabular-nums"] }}>
+              <Text className={cn("text-[11px]", bareImage ? "text-white/90" : meta)} style={{ fontVariant: ["tabular-nums"] }}>
                 {[record.edited_at ? t("chat.edited_label") : null, album ? formatMessageTime(footTs, i18n.language) : time].filter(Boolean).join(" · ")}
               </Text>
-              {receipt === "seen" ? <Ionicons name="checkmark-done" size={15} color={theme.chatBubbleOwnForeground} accessibilityLabel={t("chat.read_receipt")} /> : null}
-              {receipt === "delivered" ? <Ionicons name="checkmark-done" size={15} color={theme.chatBubbleOwnMeta} /> : null}
-              {receipt === "sent" ? <Ionicons name="checkmark" size={15} color={theme.chatBubbleOwnMeta} /> : null}
+              {receipt === "seen" ? (
+                <Ionicons name="checkmark-done" size={15} color={bareImage ? "#fff" : theme.chatBubbleOwnForeground} accessibilityLabel={t("chat.read_receipt")} />
+              ) : null}
+              {receipt === "delivered" ? <Ionicons name="checkmark-done" size={15} color={bareImage ? "rgba(255,255,255,0.75)" : theme.chatBubbleOwnMeta} /> : null}
+              {receipt === "sent" ? <Ionicons name="checkmark" size={15} color={bareImage ? "rgba(255,255,255,0.75)" : theme.chatBubbleOwnMeta} /> : null}
             </>
           ) : (
             <PendingMeta message={message} scheme={scheme} />
