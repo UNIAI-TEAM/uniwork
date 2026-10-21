@@ -4,6 +4,8 @@ import { initI18n, setLocale } from "@uniwork/core/i18n";
 import { NOTIFICATION_KINDS, type Notification, type User, type Workspace } from "@uniwork/core/types";
 import { MODULE_ICONS } from "../layout/module-icons";
 import { moduleTone } from "../layout/module-tones";
+import type { HomeSummary } from "@uniwork/core/types/home";
+import { HomeInbox } from "../home/home-inbox";
 import { WorkspaceProvider } from "../layout/workspace-context";
 import { requestMock, wrapWithNav } from "../test/api-mock";
 import { InboxView } from "./inbox-view";
@@ -268,8 +270,31 @@ describe("document_changed click target (item 4)", () => {
     expect(resourceHref(changed({}, { workspace_id: "ws2" }), workspace, [workspace, other])).toBe("/acme/sales/documents/d1");
   });
 
-  it("opens the Thùng rác with the document focused for the trashed verb, like document_trashed_by_other", () => {
-    expect(resourceHref(changed({ verb: "trashed" }), workspace, [workspace])).toBe("/acme/team/documents?view=archived&focus=d1");
+  it("is no link at all for one trashed document: the trash view is manage-only, most recipients are not managers", async () => {
+    const onOpenList = vi.fn();
+    const n = changed({ verb: "trashed" });
+    const { container, nav } = row(n, { onOpenList });
+    expect(screen.queryByRole("link")).toBeNull();
+    expect(container.querySelector("[data-row-focus]")).toBeNull();
+    expect(container).toHaveTextContent("An đã chuyển tài liệu “Kế hoạch Q4” vào thùng rác");
+    expect(container).toHaveTextContent("đã xóa");
+    fireEvent.click(container.querySelector("li")!);
+    expect(nav.push).not.toHaveBeenCalled();
+    expect(onOpenList).not.toHaveBeenCalled();
+    expect(resourceHref(n, workspace, [workspace])).not.toContain("view=archived");
+  });
+
+  it("renders a one-document change whose document was purged as the dimmed, inert gone row", () => {
+    const { container } = row(changed({ verb: "renamed" }, { resource_deleted: true }));
+    expect(screen.queryByRole("link")).toBeNull();
+    expect(container.querySelector("[data-row-focus]")).toBeNull();
+    expect(container).toHaveTextContent("An đã đổi tên tài liệu “Kế hoạch Q4”");
+    expect(container.querySelector("em, .italic")).toHaveTextContent("đã xóa");
+  });
+
+  it("keeps a several-document row with resource_deleted clickable: the list decides what is left", () => {
+    row(changed({ verb: "renamed", document_count: "3" }, { count: 3, resource_deleted: true }), { onOpenList: vi.fn() });
+    expect(screen.getByRole("link")).toBeInTheDocument();
   });
 
   it("is no link at all for one permanently deleted document", () => {
@@ -315,7 +340,13 @@ describe("document_changed click target (item 4)", () => {
     const many = changed({ verb: "moved", document_count: "50" }, { count: 50 });
     row(many);
     expect(screen.queryByRole("button")).toBeNull();
-    expect(screen.getByRole("link")).toHaveAttribute("href", "/acme/team/inbox");
+    expect(screen.getByRole("link")).toHaveAttribute("href", "/acme/team/inbox?notification=n1");
+  });
+
+  it("deep-links a several-document row to the Inbox with the notification id, in the row's own workspace", () => {
+    const other = { id: "ws2", slug: "sales", organization_id: "o1", organization_slug: "acme" } as Workspace;
+    const many = changed({ verb: "moved", document_count: "50" }, { count: 50, workspace_id: "ws2" });
+    expect(resourceHref(many, workspace, [workspace, other])).toBe("/acme/sales/inbox?notification=n1");
   });
 });
 
@@ -337,10 +368,10 @@ describe("document_changed list dialog in the Inbox (item 4)", () => {
     });
   }
 
-  function renderInbox() {
+  function renderInbox(search = "") {
     const nav = {
       push: vi.fn(), replace: vi.fn(), back: vi.fn(),
-      pathname: "/acme/team/inbox", searchParams: new URLSearchParams(), getShareableUrl: (p: string) => p,
+      pathname: "/acme/team/inbox", searchParams: new URLSearchParams(search), getShareableUrl: (p: string) => p,
     };
     render(
       wrapWithNav(
@@ -358,7 +389,7 @@ describe("document_changed list dialog in the Inbox (item 4)", () => {
     return screen.findByRole("dialog", { name: "Tài liệu thay đổi" });
   };
 
-  it("lists the affected documents: each links to its document, an archived one to its trash view, a deleted one is muted text", async () => {
+  it("lists the affected documents: each links to its document, a trashed and a deleted one are muted text", async () => {
     mockApi(() => ({
       documents: [
         doc("d1"),
@@ -379,14 +410,15 @@ describe("document_changed list dialog in the Inbox (item 4)", () => {
     const items = await within(dialog).findAllByRole("listitem");
     expect(items).toHaveLength(4);
     expect(within(dialog).getByRole("link", { name: /Tài liệu d1/ })).toHaveAttribute("href", "/acme/team/documents/d1");
-    const archived = within(dialog).getByRole("link", { name: /Tài liệu d2/ });
-    expect(archived).toHaveAttribute("href", "/acme/team/documents?view=archived&focus=d2");
-    expect(archived).toHaveTextContent("Trong thùng rác");
+    // A trashed document is muted text: the trash view is manage-only on the server.
+    expect(items[1]).toHaveTextContent("Tài liệu d2");
+    expect(items[1]).toHaveTextContent("Đã chuyển vào thùng rác");
+    expect(within(items[1]!).queryByRole("link")).toBeNull();
     // A shelved document opens as itself; the list links with the notification row's workspace.
     expect(within(dialog).getByRole("link", { name: /Tài liệu d4/ })).toHaveAttribute("href", "/acme/team/documents/d4");
     expect(items[2]).toHaveTextContent("Đã xóa vĩnh viễn");
     expect(within(items[2]!).queryByRole("link")).toBeNull();
-    expect(within(dialog).getAllByRole("link")).toHaveLength(3);
+    expect(within(dialog).getAllByRole("link")).toHaveLength(2);
   });
 
   it("pages with 'Xem thêm' until there is no next cursor", async () => {
@@ -438,5 +470,80 @@ describe("document_changed list dialog in the Inbox (item 4)", () => {
     fireEvent.click(within(dialog).getByRole("button", { name: "Đóng" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     expect(await openList()).toBeInTheDocument();
+  });
+});
+
+describe("document_changed list from the bell and Home (RFW-01)", () => {
+  const doc = (id: string) => ({ id, title: `Tài liệu ${id}`, kind: "page", trashed: false, shelved: false, deleted: false });
+  const many = changed({ verb: "moved", document_count: "50" }, { count: 50 });
+
+  function serve(notifications: Notification[]) {
+    requestMock.mockImplementation((path: string) => {
+      if (path.startsWith("/api/v1/me/notifications/unread-count")) return Promise.resolve({ total: 1, by_workspace: { ws1: 1 } });
+      if (path.includes("/documents")) return Promise.resolve({ documents: [doc("d1"), doc("d2")], next_cursor: null });
+      if (path.startsWith("/api/v1/me/notifications?")) return Promise.resolve({ notifications, next_before: "" });
+      return Promise.resolve({ status: "ok" });
+    });
+  }
+
+  function inbox(search: string, notifications: Notification[]) {
+    serve(notifications);
+    const nav = {
+      push: vi.fn(), replace: vi.fn(), back: vi.fn(),
+      pathname: "/acme/team/inbox", searchParams: new URLSearchParams(search), getShareableUrl: (p: string) => p,
+    };
+    render(
+      wrapWithNav(
+        <WorkspaceProvider workspace={workspace} user={user}>
+          <InboxView />
+        </WorkspaceProvider>,
+        nav,
+      ),
+    );
+    return nav;
+  }
+
+  it("opens the Inbox dialog for ?notification=<id> once the row is on the page, then clears the param", async () => {
+    const nav = inbox("notification=n1", [many]);
+    const dialog = await screen.findByRole("dialog", { name: "Tài liệu thay đổi" });
+    expect(await within(dialog).findByRole("link", { name: /Tài liệu d1/ })).toHaveAttribute("href", "/acme/team/documents/d1");
+    expect(requestMock).toHaveBeenCalledWith("/api/v1/me/notifications/n1/documents");
+    expect(nav.replace).toHaveBeenCalledWith("/acme/team/inbox");
+  });
+
+  it("opens it as well when the row is not on the first page, linking in the open workspace, and keeps other params", async () => {
+    const nav = inbox("notification=n9&category=updates", []);
+    const dialog = await screen.findByRole("dialog", { name: "Tài liệu thay đổi" });
+    expect(await within(dialog).findByRole("link", { name: /Tài liệu d2/ })).toHaveAttribute("href", "/acme/team/documents/d2");
+    expect(requestMock).toHaveBeenCalledWith("/api/v1/me/notifications/n9/documents");
+    expect(nav.replace).toHaveBeenCalledWith("/acme/team/inbox?category=updates");
+  });
+
+  it("opens nothing without the param", async () => {
+    inbox("", [many]);
+    await screen.findByRole("link", { name: /đã di chuyển 50 tài liệu/ });
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("opens the list from a Home row, marking it read and not navigating", async () => {
+    serve([]);
+    const nav = {
+      push: vi.fn(), replace: vi.fn(), back: vi.fn(),
+      pathname: "/acme/team", searchParams: new URLSearchParams(), getShareableUrl: (p: string) => p,
+    };
+    const summary = { inbox: [many], partial: [] } as unknown as HomeSummary;
+    render(
+      wrapWithNav(
+        <WorkspaceProvider workspace={workspace} user={user}>
+          <HomeInbox summary={summary} loading={false} retrying={false} onRetry={() => undefined} />
+        </WorkspaceProvider>,
+        nav,
+      ),
+    );
+    fireEvent.click(await screen.findByRole("link", { name: /đã di chuyển 50 tài liệu/ }));
+    const dialog = await screen.findByRole("dialog", { name: "Tài liệu thay đổi" });
+    expect(await within(dialog).findByRole("link", { name: /Tài liệu d1/ })).toBeInTheDocument();
+    expect(nav.push).not.toHaveBeenCalled();
+    expect(requestMock).toHaveBeenCalledWith("/api/v1/me/notifications/n1/documents");
   });
 });

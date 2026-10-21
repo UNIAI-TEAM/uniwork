@@ -631,7 +631,7 @@
         "document_access_declined": "Document access request declined",
         "document_shared": "Documents shared with you",
         "document_trashed_by_other": "Your document moved to the trash",
-        "document_changed": "Changes to documents you follow"
+        "document_changed": "Changes to your documents and documents shared with you"
       },
       "all_kinds": "All kinds",
       "channel_all": "{{channel}} for every kind",
@@ -5614,7 +5614,7 @@
       "loading_more": "Loading…",
       "deleted": "Permanently deleted",
       "untitled": "Untitled document",
-      "in_trash": "In trash"
+      "in_trash": "Moved to trash"
     },
     "deleted": "deleted",
     "unread_dot": "Unread",

@@ -630,7 +630,7 @@
         "document_access_declined": "Yêu cầu truy cập bị từ chối",
         "document_shared": "Tài liệu được chia sẻ với bạn",
         "document_trashed_by_other": "Tài liệu của bạn bị chuyển vào thùng rác",
-        "document_changed": "Thay đổi trên tài liệu bạn theo dõi"
+        "document_changed": "Thay đổi trên tài liệu của bạn hoặc được chia sẻ với bạn"
       },
       "all_kinds": "Mọi loại",
       "channel_all": "{{channel}} cho mọi loại",
@@ -5610,7 +5610,7 @@
       "loading_more": "Đang tải…",
       "deleted": "Đã xóa vĩnh viễn",
       "untitled": "Tài liệu chưa có tiêu đề",
-      "in_trash": "Trong thùng rác"
+      "in_trash": "Đã chuyển vào thùng rác"
     },
     "deleted": "đã xóa",
     "unread_dot": "Chưa đọc",

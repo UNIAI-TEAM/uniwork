@@ -13,6 +13,7 @@ import { MODULE_ICONS } from "../layout/module-icons";
 import { moduleTone } from "../layout/module-tones";
 import { useWorkspace } from "../layout/workspace-context";
 import { AppLink } from "../navigation";
+import { useDocumentListDialog } from "../notifications/document-changed-dialog";
 import { NotificationRow } from "../notifications/notification-row";
 import { resourceHref } from "../notifications/resource-href";
 import { HomePartialNotice } from "./home-partial-notice";
@@ -41,6 +42,7 @@ export function HomeInbox({
   const workspaces = useWorkspaces().data;
   const ws = paths.workspace(workspace.organization_slug, workspace.slug);
   const read = useReadHomeNotification(workspace.id);
+  const { openList, dialog: documentsDialog } = useDocumentListDialog();
   const items = summary?.inbox ?? [];
   const failed = summary?.partial.includes("notifications") ?? false;
 
@@ -74,6 +76,7 @@ export function HomeInbox({
               compact
               // Every row here is unread, so the unread bar would mark them all.
               unreadBar={false}
+              onOpenList={openList}
               onOpen={(row) => {
                 if (!row.read_at) read(row.id);
               }}
@@ -81,6 +84,7 @@ export function HomeInbox({
           ))}
         </ul>
       )}
+      {documentsDialog}
     </PanelCard>
   );
 }
