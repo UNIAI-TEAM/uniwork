@@ -2,6 +2,7 @@ package handler
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -335,5 +336,19 @@ func TestAskUniStreamErrorCodeMatchesMapServiceError(t *testing.T) {
 		if got := h.askErrorCode(err); got != body.Error.Code {
 			t.Errorf("%v: stream code %q, JSON code %q", err, got, body.Error.Code)
 		}
+	}
+}
+
+// A cancelled run (Stop, shutdown) keeps its code but logs no unexpected error.
+func TestAskUniStreamCancelledRunLogsNothing(t *testing.T) {
+	var buf bytes.Buffer
+	h := &handlers{Deps: Deps{Log: slog.New(slog.NewTextHandler(&buf, nil))}}
+	h.askErrorCode(context.Canceled)
+	if buf.Len() != 0 {
+		t.Fatalf("logged %q for a cancelled run", buf.String())
+	}
+	h.askErrorCode(errors.New("boom"))
+	if buf.Len() == 0 {
+		t.Fatal("a real failure must still log")
 	}
 }

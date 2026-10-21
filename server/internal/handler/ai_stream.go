@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"errors"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -81,7 +82,8 @@ func writeAskEvent(sw *sseWriter, ev service.AskEvent) {
 // that arrives once the status is already sent. Never the message text.
 func (h *handlers) askErrorCode(err error) string {
 	f := classifyServiceError(err)
-	if f.unexpected {
+	// A stop or shutdown cancelling the run is not an unexpected failure.
+	if f.unexpected && !errors.Is(err, context.Canceled) {
 		h.Log.Error("internal", "err", err)
 	}
 	return f.code
