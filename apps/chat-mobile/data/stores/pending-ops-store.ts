@@ -20,6 +20,12 @@ interface OpBase {
   rev: number;
   /** The last delivery may or may not have reached the server: read its state before toggling. */
   verify: boolean;
+  /**
+   * A delivery of this wish was tried, so the server may no longer be at
+   * `base`: tapping back to `base` must still be delivered (read, then tap
+   * what differs). Set before every attempt and on every entry read back.
+   */
+  attempted?: boolean;
 }
 
 export type PendingOp = OpBase &
@@ -32,7 +38,7 @@ export type PendingOp = OpBase &
 interface PendingOpsState {
   ops: PendingOp[];
   put: (op: PendingOp) => void;
-  update: (key: string, patch: Partial<Pick<OpBase, "verify">>) => void;
+  update: (key: string, patch: Partial<Pick<OpBase, "verify" | "attempted">>) => void;
   remove: (key: string) => void;
   clear: () => void;
 }
@@ -50,7 +56,8 @@ export function rehydratedOps(value: unknown): PendingOp[] {
       op.kind === "read" ||
       (op.kind === "reaction" && isString(op.messageId) && isString(op.emoji) && typeof op.on === "boolean") ||
       (op.kind === "vote" && isString(op.messageId) && Array.isArray(op.optionIds));
-    return ok ? [{ ...op, rev: 0, verify: op.kind !== "read" }] : [];
+    // A restart may have cut a delivery short whose request landed: every reaction and vote counts as tried.
+    return ok ? [{ ...op, rev: 0, verify: op.kind !== "read", attempted: op.kind !== "read" }] : [];
   });
 }
 

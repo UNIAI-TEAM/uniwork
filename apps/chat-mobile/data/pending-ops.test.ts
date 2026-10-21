@@ -175,6 +175,26 @@ describe("reactions", () => {
     expect(ops()).toEqual([]);
   });
 
+  // Review P2: the tap back dropped the queued wish although the 503 came after the server applied it.
+  it("tapped back after a delivery that may have landed: the wish stays, is read and undone on the server", async () => {
+    const qc = seeded();
+    api.toggleReaction.mockRejectedValueOnce(apiError(503));
+    await toggleReaction(qc, "w1", "r1", "m1", "👍", "u1", deps);
+    expect(ops()[0]).toMatchObject({ verify: true, attempted: true, on: true });
+    online = false;
+    await toggleReaction(qc, "w1", "r1", "m1", "👍", "u1", deps);
+    expect(shown(qc).my_reactions).toEqual([]);
+    expect(ops()).toEqual([expect.objectContaining({ on: false, base: false, verify: true, attempted: true })]);
+    online = true;
+    // The first request did land: the server has the reaction, the screen does not.
+    api.getMessage.mockResolvedValueOnce(msg("m1", { reactions: { "👍": 2 }, my_reactions: ["👍"] }));
+    api.toggleReaction.mockResolvedValueOnce(msg("m1", { reactions: { "👍": 1 }, my_reactions: [] }));
+    await fire();
+    expect(api.toggleReaction).toHaveBeenCalledTimes(2);
+    expect(shown(qc).my_reactions).toEqual([]);
+    expect(ops()).toEqual([]);
+  });
+
   it("a message gone or unreadable on the retry is not toggled blind: the room refetches", async () => {
     const qc = seeded();
     const invalidate = vi.spyOn(qc, "invalidateQueries");
@@ -258,6 +278,26 @@ describe("poll votes", () => {
     api.getMessage.mockResolvedValueOnce(msg("p1"));
     await flushPendingOps(qc, "w1", "u1", deps);
     expect(api.votePoll).not.toHaveBeenCalled();
+    expect(ops()).toEqual([]);
+  });
+
+  it("tapped back after a delivery that may have landed: the poll is read and brought back", async () => {
+    const qc = seeded([pollMsg([])]);
+    api.getMessage.mockResolvedValueOnce(pollMsg([]));
+    api.votePoll.mockRejectedValueOnce(new TypeError("Network request failed"));
+    await votePoll(qc, "w1", "r1", "p1", "a", "u1", deps);
+    expect(ops()[0]).toMatchObject({ attempted: true, optionIds: ["a"] });
+    online = false;
+    await votePoll(qc, "w1", "r1", "p1", "a", "u1", deps);
+    expect(shown(qc, "p1").poll?.viewer_option_ids).toEqual([]);
+    expect(ops()).toEqual([expect.objectContaining({ optionIds: [], base: [] })]);
+    online = true;
+    // The vote reached the server before the connection dropped.
+    api.getMessage.mockResolvedValueOnce(pollMsg(["a"]));
+    api.votePoll.mockResolvedValueOnce(pollMsg([]));
+    await fire();
+    expect(api.votePoll).toHaveBeenLastCalledWith("w1", "r1", "p1", "a");
+    expect(api.votePoll).toHaveBeenCalledTimes(2);
     expect(ops()).toEqual([]);
   });
 

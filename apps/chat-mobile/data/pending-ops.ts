@@ -63,8 +63,6 @@ type Outcome = "done" | "transient" | "refused";
 
 /** Delivered ops whose caller waits for a refusal to show: `<key>#<rev>`. */
 const refused = new Set<string>();
-// One delivery per thing at a time: a new wish for it meanwhile bumps its rev instead of starting another.
-const inFlight = new Set<string>();
 
 /** Writes the server's copy unless a newer wish for the same thing came in meanwhile. */
 function applyIfCurrent(qc: QueryClient, op: PendingOp, record: ChatMessageRecord | null): void {
@@ -96,7 +94,8 @@ async function deliver(qc: QueryClient, op: PendingOp, deps: PendingOpsDeps): Pr
 }
 
 async function attempt(qc: QueryClient, op: PendingOp, deps: PendingOpsDeps): Promise<Outcome> {
-  inFlight.add(op.key);
+  // From here the server may have it, whatever the answer: tapping back can no longer be dropped locally.
+  usePendingOpsStore.getState().update(op.key, { attempted: true });
   try {
     await deliver(qc, op, deps);
     const now = find(op.key);
@@ -115,8 +114,6 @@ async function attempt(qc: QueryClient, op: PendingOp, deps: PendingOpsDeps): Pr
     void qc.invalidateQueries({ queryKey: chatKeys.roomMessages(op.workspaceId, op.roomId) });
     void qc.invalidateQueries({ queryKey: chatKeys.roomThreads(op.workspaceId, op.roomId) });
     return "refused";
-  } finally {
-    inFlight.delete(op.key);
   }
 }
 
@@ -184,11 +181,26 @@ export function toggleReaction(qc: QueryClient, wsId: string, roomId: string, me
   const on = !current;
   const base = existing?.kind === "reaction" ? existing.base : current;
   if (record) applyChatMessageResponse(qc, wsId, roomId, withReaction(record, emoji, on), false);
-  // Tapped back to what the server has, before anything went: nothing to send.
-  const nothingToSend = existing !== undefined && on === base && !inFlight.has(key);
+  // Tapped back to what the server has, before any delivery was tried: nothing to send. Once one was
+  // (it may have landed: a 503 after commit, a lost answer, a restart), the wish stays and is verified.
+  const nothingToSend = existing !== undefined && !existing.attempted && on === base;
   const op: PendingOp | null = nothingToSend
     ? null
-    : { kind: "reaction", key, workspaceId: wsId, roomId, userId, messageId, emoji, on, base, createdAt: existing?.createdAt ?? Date.now(), rev: (existing?.rev ?? 0) + 1, verify: existing?.verify ?? false };
+    : {
+        kind: "reaction",
+        key,
+        workspaceId: wsId,
+        roomId,
+        userId,
+        messageId,
+        emoji,
+        on,
+        base,
+        createdAt: existing?.createdAt ?? Date.now(),
+        rev: (existing?.rev ?? 0) + 1,
+        verify: existing?.verify ?? false,
+        attempted: existing?.attempted ?? false,
+      };
   return enqueue(qc, op, key, deps);
 }
 
@@ -205,10 +217,24 @@ export async function votePoll(qc: QueryClient, wsId: string, roomId: string, me
   const choice = toggledPollChoice(record.poll, optionId);
   const base = existing?.kind === "vote" ? existing.base : record.poll.viewer_option_ids;
   applyChatMessageResponse(qc, wsId, roomId, withPollChoice(record, userId, choice), false);
-  const nothingToSend = existing !== undefined && sameChoice(choice, base) && !inFlight.has(key);
+  // As for reactions: only a wish no delivery was tried for may be dropped (some taps may have landed).
+  const nothingToSend = existing !== undefined && !existing.attempted && sameChoice(choice, base);
   const op: PendingOp | null = nothingToSend
     ? null
-    : { kind: "vote", key, workspaceId: wsId, roomId, userId, messageId, optionIds: choice, base, createdAt: existing?.createdAt ?? Date.now(), rev: (existing?.rev ?? 0) + 1, verify: true };
+    : {
+        kind: "vote",
+        key,
+        workspaceId: wsId,
+        roomId,
+        userId,
+        messageId,
+        optionIds: choice,
+        base,
+        createdAt: existing?.createdAt ?? Date.now(),
+        rev: (existing?.rev ?? 0) + 1,
+        verify: true,
+        attempted: existing?.attempted ?? false,
+      };
   return enqueue(qc, op, key, deps);
 }
 
