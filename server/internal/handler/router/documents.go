@@ -95,7 +95,7 @@ import (
 //	GET    /api/v1/orgs/{orgID}/documents/favorites
 //	PUT    /api/v1/orgs/{orgID}/documents/settings                (G1-05b)
 //	GET    /api/v1/orgs/{orgID}/documents/settings                (G1-08)
-func registerDocuments(r, callerDocs api, h Routes, flags *featureflag.Service, editRequestLimit, accessRequestLimit, folderUploadPlanLimit, folderUploadLimit func(http.Handler) http.Handler) {
+func registerDocuments(r, callerDocs api, h Routes, flags *featureflag.Service, editRequestLimit, accessRequestLimit, folderUploadPlanLimit, folderUploadLimit, folderUploadContentLimit func(http.Handler) http.Handler) {
 	d := r.With(mw.RequireFeatureFlag(flags, "documents"))
 	registerDocumentEditLock(d, h, editRequestLimit)
 
@@ -618,6 +618,28 @@ func registerDocuments(r, callerDocs api, h Routes, flags *featureflag.Service, 
 		tags: []string{"documents"},
 		sdo:  sdo.FolderUploadBatchSDO{},
 		auth: true,
+	})
+	d.With(folderUploadContentLimit).Put("/workspaces/{workspaceID}/documents/folder-uploads/{batchID}/files/{fileKey}/content", h.PutFolderUploadContent, apiOp{
+		summary: "Upload one file of a folder upload through the server",
+		description: "Đích dự phòng của một tệp trong lô tải thư mục (UNI-2052) khi kho lưu trữ không ký được URL (target.auth=session, url tương đối): body là byte thô của tệp, gửi kèm phiên đăng nhập. Chỉ người tạo lô; người khác (kể cả cùng workspace) hoặc file_key lạ -> 404. " +
+			"Body lớn hơn size_bytes đã khai báo hoặc upload_max_bytes -> 413 file_too_large (fields.max_bytes), không ghi gì; lô đã hủy -> 409 folder_upload_canceled; lô hết hạn -> 410 folder_upload_expired; tệp không còn pending -> 409 folder_upload_file_settled; tệp có đích đã ký -> 409 folder_upload_target_signed; kho không dùng được -> 503 storage_unavailable. " +
+			"PUT lại khi tệp còn pending thay bản trước. Thành công: 200 {etag} và header ETag cùng giá trị (SHA-256 có ngoặc kép); gửi lại đúng chuỗi đó ở COMPLETE. Nội dung được kiểm ở COMPLETE. Bucket folder-upload-content 600 lượt/phút/người, ngoài giới hạn chung 300/phút.",
+		tags:   []string{"documents"},
+		sdo:    sdo.FolderUploadContentSDO{},
+		status: http.StatusOK,
+		auth:   true,
+	})
+	d.With(folderUploadLimit).Post("/workspaces/{workspaceID}/documents/folder-uploads/{batchID}/complete", h.CompleteFolderUpload, apiOp{
+		summary: "Complete files of a folder upload",
+		description: "Hoàn tất tối đa complete_batch (50) tệp của lô (UNI-2052): mỗi tệp {file_key, etag} (đích put) hoặc {file_key, parts[]} (multipart). Quá 50 -> 400 invalid_request (fields.max=50); file_key trùng trong body -> 400 invalid_request (fields.file_key). Chỉ người tạo lô; người khác -> 404; lô đã hủy -> 409 folder_upload_canceled; lô hết hạn -> 410 folder_upload_expired. " +
+			"Thành công từng phần, luôn 200: mỗi tệp một kết quả done (document_id) hoặc failed với error.code và retryable: upload_missing, parts_invalid, size_mismatch -> tệp vẫn pending, retryable=true (size_mismatch bỏ bản đã tải; GET trả đích mới); unsupported_media (+ reason), storage_quota_exceeded -> tệp failed hẳn, retryable=false; not_found (file_key không thuộc lô) không đổi gì. " +
+			"Gọi lại với file_key đã done trả cùng document_id. Tệp tạo dưới thư mục của nó, visibility workspace (mức xem) khi share_with_workspace, ngược lại riêng tư; mỗi tài liệu một dòng audit document.created (metadata batch_id), không có event document.created riêng. " +
+			"Một event document.batch_uploaded cho mỗi lần gọi có ít nhất một tệp done; không có khi mọi tệp failed. Khi không còn tệp pending, lô thành completed. Bucket folder-upload 120 lượt/phút/người (chung với GET/DELETE lô).",
+		tags:   []string{"documents"},
+		sdi:    sdi.CompleteFolderUploadSDI{},
+		sdo:    sdo.FolderUploadCompleteSDO{},
+		status: http.StatusOK,
+		auth:   true,
 	})
 	d.Get("/workspaces/{workspaceID}/documents/download-jobs/{jobID}", h.GetDocumentDownloadJob, apiOp{
 		summary:     "Get a document zip download job",

@@ -902,6 +902,8 @@ type DocumentFolderUploadFile struct {
 	ErrorCode       pgtype.Text        `json:"error_code"`
 	CreatedAt       pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
+	ContentEtag     pgtype.Text        `json:"content_etag"`
+	UploadAttempt   int32              `json:"upload_attempt"`
 }
 
 type DocumentSetting struct {

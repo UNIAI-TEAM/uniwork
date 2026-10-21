@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"net/http"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -20,17 +19,8 @@ import (
 // The batch routes after the PLAN (UNI-2052 w3): the creator's read (GET),
 // the cancel (DELETE) and the sweep that closes batches nobody finished.
 
-const (
-	folderUploadStatusCanceled = "canceled"
-	folderUploadStatusExpired  = "expired"
-
-	// folderUploadGCJob is the audit actor of the expiry sweep.
-	folderUploadGCJob = "documents.folder_upload_gc"
-)
-
-func errFolderUploadExpired() error {
-	return coded(http.StatusGone, "folder_upload_expired", "lượt tải thư mục đã hết hạn: hãy tải lại từ đầu")
-}
+// folderUploadGCJob is the audit actor of the expiry sweep.
+const folderUploadGCJob = "documents.folder_upload_gc"
 
 // folderUploadGate is the one gate of the batch routes: the caller is a
 // signed-in person who is still a member of the workspace. Any refusal reads

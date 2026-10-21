@@ -302,6 +302,13 @@ var isoReferences = []isoReference{
 		"parent_id": isoRef("folder"), "root_name": "Iso ref upload", "share_with_workspace": false,
 		"folders": []string{}, "files": []map[string]any{{"file_key": "k1", "path": "", "filename": "iso-ref.md", "size_bytes": 3}}},
 		covers: []string{"CreateFolderUploadSDI.parent_id"}},
+	// UNI-2052 w2: B's owner completes B's own batch naming A's file_key. A
+	// file_key is looked up inside the batch the path names, so A's key is
+	// not_found like any unknown one: 200, nothing of A's in the answer (the
+	// key itself is what B sent) and no row of A's changes. file_key does not
+	// end in _id, so it carries no covers entry.
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/documents/folder-uploads/{batchID}/complete", what: "file_key of another tenant's batch", allow2xx: true,
+		body: map[string]any{"files": []map[string]any{{"file_key": isoRef("folderUploadFileKey"), "etag": `"iso"`}}}},
 	{method: "POST", pattern: "/api/v1/documents/{documentID}/copies", what: "parent page", idempotent: true, body: map[string]any{
 		"consent": "copy", "parent_id": isoRef("document")}, covers: []string{"CopyDocumentSDI.parent_id"}},
 	{method: "POST", pattern: "/api/v1/documents/{documentID}/copies", what: "convert job", idempotent: true, body: map[string]any{

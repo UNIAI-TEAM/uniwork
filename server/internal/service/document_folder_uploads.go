@@ -915,6 +915,16 @@ func FolderUploadContentPath(workspaceID, batchID, fileKey string) string {
 	return "/api/v1/workspaces/" + workspaceID + "/documents/folder-uploads/" + batchID + "/files/" + fileKey + "/content"
 }
 
+// folderUploadOperationID is the FileService operation id of a file's
+// presigned target. After COMPLETE dropped an upload (upload_attempt > 0) the
+// id changes, so the next intent never finds the dropped one.
+func folderUploadOperationID(f db.DocumentFolderUploadFile) string {
+	if f.UploadAttempt == 0 {
+		return "folder-upload:" + f.ID
+	}
+	return "folder-upload:" + f.ID + ":" + strconv.Itoa(int(f.UploadAttempt))
+}
+
 // mintFolderUploadTarget answers the target of one pending file, opening its
 // FileService intent the first time and re-signing it after that.
 func (s *DocumentService) mintFolderUploadTarget(ctx context.Context, actor Actor, batch db.DocumentFolderUpload, f db.DocumentFolderUploadFile) (FolderUploadTarget, error) {
@@ -927,7 +937,7 @@ func (s *DocumentService) mintFolderUploadTarget(ctx context.Context, actor Acto
 	po, err := s.files.RegisterProviderOutput(ctx, files.ProviderOutputInput{
 		Actor: actor, Purpose: files.DocumentFile,
 		Scope:       documentScope(batch.OrganizationID, batch.WorkspaceID),
-		OperationID: "folder-upload:" + f.ID, Deadline: batch.ExpiresAt.Time,
+		OperationID: folderUploadOperationID(f), Deadline: batch.ExpiresAt.Time,
 	})
 	if errors.Is(err, storage.ErrCapabilityUnsupported) {
 		// The store cannot presign (local, CI): the bytes go through the

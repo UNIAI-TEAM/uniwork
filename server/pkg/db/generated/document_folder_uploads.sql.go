@@ -11,6 +11,32 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const completeSettledDocumentFolderUpload = `-- name: CompleteSettledDocumentFolderUpload :execrows
+UPDATE document_folder_uploads b
+SET status = 'completed', updated_at = now(), finished_at = now()
+WHERE b.id = $1 AND b.organization_id = $2
+  AND b.workspace_id = $3 AND b.status = 'open'
+  AND NOT EXISTS (
+    SELECT 1 FROM document_folder_upload_files f
+    WHERE f.batch_id = b.id AND f.organization_id = b.organization_id AND f.status = 'pending'
+  )
+`
+
+type CompleteSettledDocumentFolderUploadParams struct {
+	ID             string `json:"id"`
+	OrganizationID string `json:"organization_id"`
+	WorkspaceID    string `json:"workspace_id"`
+}
+
+// An open batch whose files are all done or failed becomes completed.
+func (q *Queries) CompleteSettledDocumentFolderUpload(ctx context.Context, arg CompleteSettledDocumentFolderUploadParams) (int64, error) {
+	result, err := q.db.Exec(ctx, completeSettledDocumentFolderUpload, arg.ID, arg.OrganizationID, arg.WorkspaceID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const countOpenFolderUploadsByCreator = `-- name: CountOpenFolderUploadsByCreator :one
 SELECT count(*) FROM document_folder_uploads
 WHERE organization_id = $1
@@ -162,7 +188,7 @@ func (q *Queries) GetDocumentFolderUpload(ctx context.Context, arg GetDocumentFo
 }
 
 const getDocumentFolderUploadFileByKey = `-- name: GetDocumentFolderUploadFileByKey :one
-SELECT id, file_key, organization_id, workspace_id, batch_id, folder_id, path, filename, size_bytes, status, target_kind, upload_ref, probe_head_sha256, probe_tail_sha256, cd_offset, cd_size, document_id, error_code, created_at, updated_at FROM document_folder_upload_files
+SELECT id, file_key, organization_id, workspace_id, batch_id, folder_id, path, filename, size_bytes, status, target_kind, upload_ref, probe_head_sha256, probe_tail_sha256, cd_offset, cd_size, document_id, error_code, created_at, updated_at, content_etag, upload_attempt FROM document_folder_upload_files
 WHERE batch_id = $1 AND file_key = $2 AND organization_id = $3 AND workspace_id = $4
 `
 
@@ -202,6 +228,8 @@ func (q *Queries) GetDocumentFolderUploadFileByKey(ctx context.Context, arg GetD
 		&i.ErrorCode,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ContentEtag,
+		&i.UploadAttempt,
 	)
 	return i, err
 }
@@ -351,7 +379,7 @@ func (q *Queries) InsertDocumentFolderUploadFiles(ctx context.Context, arg Inser
 }
 
 const listDocumentFolderUploadFiles = `-- name: ListDocumentFolderUploadFiles :many
-SELECT id, file_key, organization_id, workspace_id, batch_id, folder_id, path, filename, size_bytes, status, target_kind, upload_ref, probe_head_sha256, probe_tail_sha256, cd_offset, cd_size, document_id, error_code, created_at, updated_at FROM document_folder_upload_files
+SELECT id, file_key, organization_id, workspace_id, batch_id, folder_id, path, filename, size_bytes, status, target_kind, upload_ref, probe_head_sha256, probe_tail_sha256, cd_offset, cd_size, document_id, error_code, created_at, updated_at, content_etag, upload_attempt FROM document_folder_upload_files
 WHERE batch_id = $1 AND organization_id = $2 AND workspace_id = $3
 ORDER BY id
 `
@@ -392,6 +420,8 @@ func (q *Queries) ListDocumentFolderUploadFiles(ctx context.Context, arg ListDoc
 			&i.ErrorCode,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.ContentEtag,
+			&i.UploadAttempt,
 		); err != nil {
 			return nil, err
 		}
@@ -507,6 +537,71 @@ type MarkDocumentFolderUploadFileFailedParams struct {
 func (q *Queries) MarkDocumentFolderUploadFileFailed(ctx context.Context, arg MarkDocumentFolderUploadFileFailedParams) (int64, error) {
 	result, err := q.db.Exec(ctx, markDocumentFolderUploadFileFailed,
 		arg.ErrorCode,
+		arg.ID,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const resetDocumentFolderUploadFileRef = `-- name: ResetDocumentFolderUploadFileRef :execrows
+UPDATE document_folder_upload_files
+SET upload_ref = NULL, content_etag = NULL, upload_attempt = upload_attempt + 1, updated_at = now()
+WHERE id = $1 AND organization_id = $2
+  AND workspace_id = $3 AND status = 'pending'
+  AND upload_ref = $4
+`
+
+type ResetDocumentFolderUploadFileRefParams struct {
+	ID             string      `json:"id"`
+	OrganizationID string      `json:"organization_id"`
+	WorkspaceID    string      `json:"workspace_id"`
+	UploadRef      pgtype.Text `json:"upload_ref"`
+}
+
+// COMPLETE drops the upload of a pending file whose bytes did not match the
+// plan or are gone: the file stays pending, the next GET mints a fresh target
+// and upload_attempt keeps the next presigned intent apart from this one.
+func (q *Queries) ResetDocumentFolderUploadFileRef(ctx context.Context, arg ResetDocumentFolderUploadFileRefParams) (int64, error) {
+	result, err := q.db.Exec(ctx, resetDocumentFolderUploadFileRef,
+		arg.ID,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.UploadRef,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const setDocumentFolderUploadFileContent = `-- name: SetDocumentFolderUploadFileContent :execrows
+UPDATE document_folder_upload_files
+SET upload_ref = $1, content_etag = $2, updated_at = now()
+WHERE id = $3 AND organization_id = $4
+  AND workspace_id = $5 AND status = 'pending'
+  AND target_kind = 'put' AND (upload_ref IS NULL OR content_etag IS NOT NULL)
+`
+
+type SetDocumentFolderUploadFileContentParams struct {
+	UploadRef      pgtype.Text `json:"upload_ref"`
+	ContentEtag    pgtype.Text `json:"content_etag"`
+	ID             string      `json:"id"`
+	OrganizationID string      `json:"organization_id"`
+	WorkspaceID    string      `json:"workspace_id"`
+}
+
+// The server content route records the upload its PUT stored and the ETag it
+// answered. A later PUT of the same pending file replaces both (the caller
+// cancels the upload it replaced); a file whose target is a presigned PUT or
+// a multipart session (a ref without an ETag) is never taken over.
+func (q *Queries) SetDocumentFolderUploadFileContent(ctx context.Context, arg SetDocumentFolderUploadFileContentParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setDocumentFolderUploadFileContent,
+		arg.UploadRef,
+		arg.ContentEtag,
 		arg.ID,
 		arg.OrganizationID,
 		arg.WorkspaceID,
