@@ -1,0 +1,11 @@
+$ node --test scripts/events-catalogue.test.mjs scripts/governance.test.mjs scripts/env-example.test.mjs scripts/alerts-runbooks.test.mjs 2>&1 | tail -8; rc=${PIPESTATUS[0]}; echo; echo "SCRIPTS_EXIT=$rc"
+# tests 35
+# suites 1
+# pass 35
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 440.390471
+
+SCRIPTS_EXIT=0

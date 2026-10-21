@@ -1,0 +1,14 @@
+$ (. scripts/local-env.sh && cd server && unset OPENAI_API_KEY; AI_PROVIDER=fake go test ./internal/handler/router ./migrations ./internal/config/... ./internal/document/... ./internal/files/... ./internal/outbox/... ./cmd/server ./internal -race -count=1 -timeout 40m > /tmp/r.log 2>&1); rc=$?; grep -E "^\s*--- FAIL|^(ok|FAIL)|DATA RACE" /tmp/r.log | tail -25; echo; echo "TEST_PKG_EXIT=$rc"
+warning: STORAGE_BACKEND is unset and MINIO_* is empty; the server will refuse to start.
+         set STORAGE_BACKEND=local with LOCAL_UPLOAD_DIR, or configure MinIO (see .env.example).
+ok  	github.com/unicomhub/uniwork/server/internal/handler/router	32.040s
+ok  	github.com/unicomhub/uniwork/server/migrations	14.474s
+ok  	github.com/unicomhub/uniwork/server/internal/config	1.056s
+ok  	github.com/unicomhub/uniwork/server/internal/document	9.388s
+ok  	github.com/unicomhub/uniwork/server/internal/files	1.256s
+ok  	github.com/unicomhub/uniwork/server/internal/files/filesfake	1.331s
+ok  	github.com/unicomhub/uniwork/server/internal/outbox	5.635s
+ok  	github.com/unicomhub/uniwork/server/cmd/server	1.081s
+ok  	github.com/unicomhub/uniwork/server/internal	9.288s
+
+TEST_PKG_EXIT=0
