@@ -1440,7 +1440,10 @@ func TestMcpUpdateDocumentUndoRestoresThePageAsItWas(t *testing.T) {
 // A refusal of the document tree reaches the model in English and names no
 // row: the service's own Vietnamese text is for its screens.
 func TestMcpMapErrorGivesDocumentTreeRefusalsInEnglish(t *testing.T) {
-	for code, err := range map[string]error{"document_parent_kind": errDocumentParentKind(), "document_too_deep": errDocumentTooDeep()} {
+	for code, err := range map[string]error{
+		"document_parent_kind": errDocumentParentKind(), "document_too_deep": errDocumentTooDeep(),
+		"document_name_unavailable": errDocumentNameExhausted(DocumentKindPage),
+	} {
 		var te McpToolError
 		got := mcpMapError(err)
 		if !errors.As(got, &te) || te.Code != code || te.Msg == "" || te.Msg == mcpToolMessages["conflict"] {

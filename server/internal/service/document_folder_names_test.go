@@ -412,15 +412,15 @@ func TestDocumentMoveAutoRename(t *testing.T) {
 		}
 	})
 
-	t.Run("a destination holding every number answers a coded conflict", func(t *testing.T) {
+	t.Run("a destination holding every number answers document_name_unavailable", func(t *testing.T) {
 		dst := env.folder(t, "", "Đích đầy số")
 		// The bare name and every number the allocator can try are taken.
 		seedNumberedPages(t, env, dst.ID, "Tên", 1, maxTitleSuffix)
 		moving := env.page(t, "", "Tên")
 		_, err := env.svc.MoveDocument(env.ctx, env.member, moving.ID, MoveDocumentInput{ParentID: dst.ID, Revision: moving.Revision})
 		// A page never carries folder_name_taken (FD-D10); the exhausted
-		// allocator answers a coded conflict, never an uncoded 500.
-		ce := wantCode(t, err, "conflict")
+		// allocator answers its own code, never the generic conflict or a 500.
+		ce := wantCode(t, err, "document_name_unavailable")
 		if ce.Status != 409 {
 			t.Fatalf("status = %d, want 409", ce.Status)
 		}
@@ -554,7 +554,7 @@ func TestDocumentTitleRetrySavepoint(t *testing.T) {
 		}
 	})
 
-	t.Run("a page out of attempts answers a coded conflict, not a 500", func(t *testing.T) {
+	t.Run("a page out of attempts answers document_name_unavailable, not a 500", func(t *testing.T) {
 		dst := env.folder(t, "", "Đích trang hết lượt")
 		env.page(t, dst.ID, "Trang cứng")
 		moving := env.page(t, "", "Trang cứng")
@@ -563,7 +563,7 @@ func TestDocumentTitleRetrySavepoint(t *testing.T) {
 		}
 		defer func() { env.svc.titleWriteErr = nil }()
 		_, err := env.svc.MoveDocument(env.ctx, env.member, moving.ID, MoveDocumentInput{ParentID: dst.ID, Revision: moving.Revision})
-		ce := wantCode(t, err, "conflict")
+		ce := wantCode(t, err, "document_name_unavailable")
 		if ce.Status != 409 {
 			t.Fatalf("status = %d, want 409", ce.Status)
 		}

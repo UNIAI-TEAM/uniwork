@@ -47,14 +47,14 @@ func errFolderNameTaken() error {
 // for a document - the destination holds every number to maxTitleSuffix, or
 // the savepoint retry ran out of attempts. A folder keeps folder_name_taken
 // (FD-D5 assigns it to a move or a restore that runs out of attempts); a page
-// or a file never carries that code (FD-D10) and answers the generic conflict
-// the error mapper already knows instead of an uncoded 500 - no code of its
-// own classifies that case yet, which the FD-02 report names as a question.
+// or a file never carries that code (FD-D10) and answers
+// document_name_unavailable instead of an uncoded 500. It is not the generic
+// conflict: reloading and retrying finds the same full destination.
 func errDocumentNameExhausted(kind string) error {
 	if kind == DocumentKindFolder {
 		return errFolderNameTaken()
 	}
-	return coded(http.StatusConflict, "conflict", "không còn tên trống cho tài liệu trong thư mục đích")
+	return coded(http.StatusConflict, "document_name_unavailable", "không còn tên trống cho tài liệu trong thư mục đích")
 }
 
 // documentTitleLimit is the FD-D3 cap by kind.
@@ -228,7 +228,7 @@ func (s *DocumentService) allocateDocumentTitle(ctx context.Context, q *db.Queri
 	}
 	// Unreachable short of a parent holding every number to maxTitleSuffix, but
 	// never an uncoded 500: a folder keeps the contract's answer, a page or a
-	// file the generic conflict (see errDocumentNameExhausted).
+	// file document_name_unavailable (see errDocumentNameExhausted).
 	return titleDecision{}, errDocumentNameExhausted(scope.Kind)
 }
 
