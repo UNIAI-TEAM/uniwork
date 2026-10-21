@@ -583,7 +583,7 @@ describe("useFrameComments: frame avatars (UNI-1986)", () => {
   const AGENT = "01J8X4AGE0N1P2Q3R4S5T6V7W8";
   const ROUTE = `/api/v1/office-frame/documents/${DOC}/avatars/${USER}`;
   const PICTURE = "https://storage.example.test/avatars/an.png?X-Amz-Signature=abc";
-  const AVATAR_BUILD = "0.1.0-avatars";
+  const AVATAR_BUILD = "0.1.0-929f0ca";
   const OLD_BUILD = "0.1.0-b1cbd5d";
   const wire = (over: Record<string, unknown> = {}) => ({
     ...WIRE, id: "c1", document_id: DOC, author_id: USER, author_kind: "human", display_name: "An", avatar_url: PICTURE,
@@ -591,10 +591,10 @@ describe("useFrameComments: frame avatars (UNI-1986)", () => {
   });
   const mention = { user_id: USER, display_name: "An", avatar_url: PICTURE, state: "ok" };
 
-  // The pins know no avatar build yet (frame-avatar-url.ts); stand one in for the tests that need it.
-  const knownBuilds = AVATAR_ROUTE_FRAME_VERSIONS as string[];
-  beforeEach(() => { knownBuilds.push(AVATAR_BUILD); });
-  afterEach(() => { knownBuilds.length = 0; });
+  it("the avatar build these tests use is the one frame-avatar-url.ts lists", () => {
+    expect(AVATAR_ROUTE_FRAME_VERSIONS).toContain(AVATAR_BUILD);
+    expect(AVATAR_ROUTE_FRAME_VERSIONS).not.toContain(OLD_BUILD);
+  });
 
   const open = async (props: Props = {}) => {
     const frame = setup({ myLevel: "edit", documentId: DOC, frameVersion: AVATAR_BUILD, ...props });
