@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, type ReactNode } from "react";
-import { ChevronRight, FolderOpen, Search, ShieldAlert, type LucideIcon } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronRight, FolderOpen, Search, ShieldAlert, type LucideIcon } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Checkbox } from "@uniwork/ui/components/ui/checkbox";
@@ -49,6 +49,9 @@ export interface DocumentsLibraryListProps {
    *  Người sửa, Cập nhật, Dung lượng) become buttons, and the one in `value` carries the arrow; absent, every header
    *  stays plain text (Thùng rác, whose order is fixed: Q2). The rows arrive in this order already. */
   sort?: { value: LibrarySort; onSort: (column: LibrarySortColumn) => void };
+  /** The order of a screen that cannot sort (Thùng rac: `deleted` ascending, Q2): its column carries `aria-sort` and the
+   *  same arrow as a sorted header, but no button, so every list shows exactly one sorted header. */
+  fixedSort?: LibrarySort;
   /** The screen the table shows (doclist/columns.ts): its column order, its screen column and its narrow ladder. */
   screen?: DocListScreen;
   /** The Select column of the spec (bulk selection, W9): checkboxes and the bulk bar when `bulk` is given too. */
@@ -88,6 +91,7 @@ export function DocumentsLibraryList({
   onClearFilters,
   handlers,
   sort,
+  fixedSort,
   screen = "workspace",
   selectable = false,
   bulk,
@@ -244,15 +248,34 @@ export function DocumentsLibraryList({
               {ladder.columns.map((column) => {
                 // The spec names the key each column sorts by; Truy cập and Thao tác have none.
                 const sortable = sort ? (sortKeys.get(column.id) ?? null) : null;
+                const fixed = !sort && fixedSort && sortKeys.get(column.id) === fixedSort.column ? fixedSort : null;
+                const FixedArrow = fixed?.order === "desc" ? ArrowDown : ArrowUp;
                 return (
                   <th
                     key={column.id}
                     scope="col"
-                    aria-sort={sortable && sort ? (sort.value.column !== sortable ? "none" : sort.value.order === "asc" ? "ascending" : "descending") : undefined}
+                    aria-sort={
+                      sortable && sort
+                        ? sort.value.column !== sortable
+                          ? "none"
+                          : sort.value.order === "asc"
+                            ? "ascending"
+                            : "descending"
+                        : fixed
+                          ? fixed.order === "asc"
+                            ? "ascending"
+                            : "descending"
+                          : undefined
+                    }
                     className={cn("py-2 font-medium", column.pad ?? "px-3", column.cell)}
                   >
                     {sortable && sort ? (
                       <LibrarySortHeader column={sortable} label={t(columnLabel(column.id))} sort={sort.value} onSort={sort.onSort} />
+                    ) : fixed ? (
+                      <span className="inline-flex max-w-full items-center gap-1 text-foreground">
+                        <span className="truncate">{t(columnLabel(column.id))}</span>
+                        <FixedArrow aria-hidden className="size-3.5 shrink-0" />
+                      </span>
                     ) : column.id === "select" && bulkOn && selectableIds.length > 0 ? (
                       // Select all: every selectable row loaded so far; mixed on a partial selection.
                       <>

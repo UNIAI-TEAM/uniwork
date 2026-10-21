@@ -106,6 +106,16 @@ describe("DocumentsTrashView", () => {
     expect(within(headers[6]!).getByText("Thao tác")).toHaveClass("sr-only");
   });
 
+  it("shows the fixed order on the Đã xóa header: aria-sort ascending and the up arrow, no button, nothing else sorted", () => {
+    renderView();
+    const headers = within(screen.getByRole("table", { name: "Thùng rác" })).getAllByRole("columnheader");
+    const sorted = headers.filter((th) => th.hasAttribute("aria-sort"));
+    expect(sorted.map((th) => th.textContent)).toEqual(["Đã xóa"]);
+    expect(sorted[0]).toHaveAttribute("aria-sort", "ascending");
+    expect(sorted[0]!.querySelector("svg")).not.toBeNull();
+    expect(within(sorted[0]!).queryByRole("button")).toBeNull();
+  });
+
   it("puts Khôi phục on the row for a manager and calls the action with the row", () => {
     const { props } = renderView();
     fireEvent.click(screen.getByRole("button", { name: "Khôi phục a.docx" }));

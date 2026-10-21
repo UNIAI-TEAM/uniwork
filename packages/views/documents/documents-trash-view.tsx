@@ -9,7 +9,11 @@ import type { DocListBulk } from "./doclist/bulk-actions";
 import { groupRowsByDate } from "./doclist/date-groups";
 import type { GroupCollapse } from "./doclist/group-state";
 import type { LibraryRow } from "./library-rows";
+import type { LibrarySort } from "./library-sort";
 import type { TrashActions } from "./use-trash-actions";
+
+/** The server's order (Q2), shown on the Đã xóa header; no header sorts. */
+const TRASH_ORDER: LibrarySort = { column: "deleted", order: "asc" };
 
 export interface DocumentsTrashViewProps {
   /** The archived list the page already fetches, `deleted` ascending (Q2). */
@@ -41,7 +45,7 @@ export interface DocumentsTrashViewProps {
  * list with `screen="trash"` (the Đã xóa column, `Khôi phục` · ⋯ on the row,
  * the menu `Khôi phục` · `Xem chi tiết` │ `Xóa vĩnh viễn`; UNI-2045 W2) and the
  * restore note. The order is the server's `deleted` ascending, so no header
- * sorts, and the rows always sit in the date groups Sắp xóa vĩnh viễn / Còn
+ * sorts (Đã xóa shows the fixed order), and the rows always sit in the date groups Sắp xóa vĩnh viễn / Còn
  * trên 7 ngày (W11), collapsible and remembered per viewer. Presentational: the page owns the queries, the restore mutation and
  * the purge dialog (use-trash-actions); every command needs manage
  * (`canManageTrashed`, RESTORE-01).
@@ -133,6 +137,7 @@ export function DocumentsTrashView({
           onViewDetails: (doc) => handlers.onOpen(doc.id),
         }}
         screen="trash"
+        fixedSort={TRASH_ORDER}
         selectable={Boolean(bulk)}
         bulk={bulk}
         selectionKey={selectionKey}

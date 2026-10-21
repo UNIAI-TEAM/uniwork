@@ -906,7 +906,7 @@ describe("focused trash row", () => {
 // UNI-2045 W2: Thùng rác is the shared list with screen="trash" (Q2: always
 // deleted ascending, no header sort; menu Khôi phục · Xem chi tiết | Xóa vĩnh viễn).
 describe("trash on the shared list (UNI-2045 W2)", () => {
-  it("always asks for archived=1&sort=deleted&order=asc and draws no sort header", async () => {
+  it("always asks for archived=1&sort=deleted&order=asc and shows its fixed order on Đã xóa and draws no sort button", async () => {
     route({ list: () => [trashed()] });
     renderView();
     await openTrash();
@@ -920,8 +920,10 @@ describe("trash on the shared list (UNI-2045 W2)", () => {
       expect(params.get("sort")).toBe("deleted");
       expect(params.get("order")).toBe("asc");
     }
+    // The order is fixed: Đã xóa shows it (aria-sort + arrow), no header is a button.
     for (const th of screen.getAllByRole("columnheader")) {
-      expect(th).not.toHaveAttribute("aria-sort");
+      if (th.textContent === "Đã xóa") expect(th).toHaveAttribute("aria-sort", "ascending");
+      else expect(th).not.toHaveAttribute("aria-sort");
       expect(within(th).queryByRole("button")).toBeNull();
     }
   });
