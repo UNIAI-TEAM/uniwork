@@ -1,0 +1,5 @@
+$ export ELECTRON_SKIP_BINARY_DOWNLOAD=1; npm ci > /tmp/web1-ci.log 2>&1; rc=$?; tail -3 /tmp/web1-ci.log; echo "INSTALL_EXIT=$rc"; [ $rc -eq 0 ]
+a different dependency.
+
+Run `npm audit` for details.
+INSTALL_EXIT=0
