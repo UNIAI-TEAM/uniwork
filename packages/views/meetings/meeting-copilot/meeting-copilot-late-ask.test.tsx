@@ -1,8 +1,9 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { toast } from "sonner";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { requestMock, wrapWithNav } from "../../test/api-mock";
 import { MeetingRoomCopilotTab } from "../meeting-room-copilot-tab";
-import { lateJoinMinutes } from "./meeting-catch-up-card";
+import { catchUpLateMinutes, firstJoinedAt, lateJoinMinutes } from "./meeting-catch-up-card";
 
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() } }));
 
@@ -31,6 +32,7 @@ const answer = {
 const calls = (suffix: string) => requestMock.mock.calls.filter(([p]) => String(p).endsWith(suffix));
 
 beforeEach(() => {
+  vi.mocked(toast.success).mockClear();
   requestMock.mockReset();
   requestMock.mockImplementation((path: unknown) => {
     const p = String(path);
@@ -58,21 +60,72 @@ describe("lateJoinMinutes", () => {
   });
 });
 
+describe("catchUpLateMinutes", () => {
+  const meeting = { status: "IN_PROGRESS", actual_start_at: "2026-10-21T02:00:00Z", host_user_id: "host" };
+  const joinedAt = Date.parse("2026-10-21T02:20:00Z");
+  it("offers a late member the brief, never the host coming back, a guest or a meeting not running", () => {
+    expect(catchUpLateMinutes({ meeting, joinedAt, viewerId: "lan" })).toBe(20);
+    expect(catchUpLateMinutes({ meeting, joinedAt, viewerId: "host" })).toBeNull();
+    expect(catchUpLateMinutes({ meeting, joinedAt, viewerId: "lan", guest: true })).toBeNull();
+    expect(catchUpLateMinutes({ meeting: { ...meeting, status: "ENDED" }, joinedAt, viewerId: "lan" })).toBeNull();
+    expect(catchUpLateMinutes({ meeting: undefined, joinedAt, viewerId: "lan" })).toBeNull();
+  });
+});
+
+describe("firstJoinedAt", () => {
+  afterEach(() => sessionStorage.clear());
+
+  it("keeps the first entry of a meeting for the tab's session, so coming back is not coming late", () => {
+    expect(firstJoinedAt("m1", 1_000)).toBe(1_000);
+    expect(firstJoinedAt("m1", 900_000)).toBe(1_000);
+    expect(firstJoinedAt("m2", 900_000)).toBe(900_000);
+  });
+});
+
 describe("catch-up card (B7)", () => {
-  it("costs nothing until clicked, then shows each point with its time", async () => {
+  it("costs nothing until clicked, then shows each point as one sentence with its local time", async () => {
     render(wrapWithNav(<MeetingRoomCopilotTab workspaceId="w1" meetingId="m1" canClerk={false} lateMinutes={23} />));
-    const button = await screen.findByRole("button", { name: "Bạn vào sau 23 phút — xem tóm tắt phần đã lỡ" });
+    const card = await screen.findByTestId("meeting-catch-up-card");
+    expect(within(card).getByText(/Bạn vào sau 23 phút/)).toBeInTheDocument();
+    const button = within(card).getByRole("button", { name: "Xem tóm tắt" });
     expect(calls("/catch-up")).toHaveLength(0);
 
     fireEvent.click(button);
     expect(await screen.findByText("Nhóm đã chốt lịch demo.")).toBeInTheDocument();
     expect(calls("/catch-up")).toHaveLength(1);
-    expect(screen.getByText("Demo vào thứ Sáu").previousSibling).toHaveAttribute("datetime", "2026-10-21T02:05:00Z");
-    const fromNotes = screen.getByText("Ngân sách theo ghi chú").previousSibling as HTMLElement;
-    expect(fromNotes).toHaveTextContent("Ghi chú");
-    expect(fromNotes.tagName).toBe("SPAN"); // no <time> without a datetime
+    const spoken = screen.getByText("Demo vào thứ Sáu", { exact: false }).closest("li") as HTMLElement;
+    const time = spoken.querySelector("time");
+    expect(time).toHaveAttribute("datetime", "2026-10-21T02:05:00Z");
+    expect(time).toHaveClass("tabular-nums");
+    expect(time).not.toHaveClass("font-mono");
+    // A point from the notes has no time and no label column ("Ghi chú Ghi chú").
+    expect(screen.getByText("Ngân sách theo ghi chú").closest("li")).toHaveTextContent(/^Ngân sách theo ghi chú$/);
     expect(screen.getByText(/Gửi bản demo · An/)).toBeInTheDocument();
     expect(screen.getByText("Chỉ bạn thấy tóm tắt này.")).toBeInTheDocument();
+    // AI output says it is AI, what it read and when.
+    const attribution = within(card).getByTestId("meeting-summary-attribution");
+    expect(attribution).toHaveTextContent("AI");
+    expect(attribution).toHaveTextContent(/bản ghi lời thoại và ghi chú/);
+  });
+
+  it("folds away and can be dismissed for the rest of the meeting", async () => {
+    const onDismiss = vi.fn();
+    render(
+      wrapWithNav(
+        <MeetingRoomCopilotTab workspaceId="w1" meetingId="m1" canClerk={false} lateMinutes={23} onDismissCatchUp={onDismiss} />,
+      ),
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "Xem tóm tắt" }));
+    await screen.findByText("Nhóm đã chốt lịch demo.");
+
+    const fold = screen.getByRole("button", { name: "Phần bạn đã lỡ" });
+    expect(fold).toHaveAttribute("aria-expanded", "true");
+    fireEvent.click(fold);
+    expect(fold).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByText("Nhóm đã chốt lịch demo.")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Đóng phần bạn đã lỡ" }));
+    expect(onDismiss).toHaveBeenCalledTimes(1);
   });
 
   it("is not offered to a member who came on time, nor without a workspace (a guest)", async () => {
@@ -87,19 +140,24 @@ describe("catch-up card (B7)", () => {
     expect(screen.queryByTestId("meeting-ask-uni")).not.toBeInTheDocument();
   });
 
-  it("says so when the brief cannot be made", async () => {
+  it("says so when the brief cannot be made, and the button says it tries again now", async () => {
     requestMock.mockImplementation((path: unknown) =>
       String(path).endsWith("/catch-up") ? Promise.reject(new Error("boom")) : Promise.resolve({}),
     );
     render(wrapWithNav(<MeetingRoomCopilotTab workspaceId="w1" meetingId="m1" canClerk={false} lateMinutes={15} />));
-    fireEvent.click(await screen.findByRole("button", { name: /Bạn vào sau 15 phút/ }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("Chưa tóm tắt được phần đã lỡ");
+    fireEvent.click(await screen.findByRole("button", { name: "Xem tóm tắt" }));
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Chưa tóm tắt được phần bạn đã lỡ");
+    expect(alert).not.toHaveTextContent(/sau ít phút/);
+    fireEvent.click(screen.getByRole("button", { name: "Thử lại" }));
+    await waitFor(() => expect(calls("/catch-up")).toHaveLength(2));
   });
 });
 
 describe("Hỏi UNI box (B8)", () => {
   it("asks Ask UNI about this meeting and shares the answer as the asker's chat message", async () => {
     render(wrapWithNav(<MeetingRoomCopilotTab workspaceId="w1" meetingId="m1" canClerk={false} />));
+    expect(await screen.findByRole("heading", { name: "Hỏi UNI" })).toBeInTheDocument();
     const input = await screen.findByRole("textbox", { name: "Câu hỏi cho UNI về cuộc họp này" });
     fireEvent.change(input, { target: { value: "Đã chốt gì về demo?" } });
     fireEvent.click(screen.getByRole("button", { name: "Hỏi" }));
@@ -116,6 +174,31 @@ describe("Hỏi UNI box (B8)", () => {
     const posts = () => calls("/meetings/m1/chat").filter(([, init]) => (init as { method?: string } | undefined)?.method === "POST");
     await waitFor(() => expect(posts()).toHaveLength(1));
     expect((posts()[0]![1] as { body: unknown }).body).toEqual({ message: "Lúc 09:05 An chốt demo thứ Sáu." });
+    // One success signal, in place: no toast on top of it.
+    const box = screen.getByTestId("meeting-ask-uni");
+    expect(await within(box).findByRole("status")).toHaveTextContent("Đã chia sẻ vào chat cuộc họp");
+    expect(toast.success).not.toHaveBeenCalled();
+  });
+
+  it("keeps the question on screen while UNI is answering", async () => {
+    const base = requestMock.getMockImplementation();
+    requestMock.mockImplementation((path: unknown, init?: unknown) =>
+      String(path).endsWith("/ai/ask") ? new Promise(() => {}) : base?.(path, init),
+    );
+    render(wrapWithNav(<MeetingRoomCopilotTab workspaceId="w1" meetingId="m1" canClerk={false} />));
+    const input = await screen.findByRole("textbox", { name: "Câu hỏi cho UNI về cuộc họp này" });
+    fireEvent.change(input, { target: { value: "Ai trình bày?" } });
+    fireEvent.click(screen.getByRole("button", { name: "Hỏi" }));
+    expect(await screen.findByText("UNI đang tra lời thoại…")).toBeInTheDocument();
+    expect(screen.getByText("Ai trình bày?")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Hỏi" })).toHaveAttribute("aria-disabled", "true");
+  });
+
+  it("is not offered under the note field: the notes section has its own input", async () => {
+    render(wrapWithNav(<MeetingRoomCopilotTab workspaceId="w1" meetingId="m1" canClerk={false} />));
+    await screen.findByTestId("meeting-ask-uni");
+    fireEvent.click(screen.getByRole("tab", { name: "Ghi chú" }));
+    expect(screen.queryByTestId("meeting-ask-uni")).not.toBeInTheDocument();
   });
 
   it("stays hidden when Ask UNI is off for the workspace", async () => {

@@ -66,6 +66,7 @@ export const MeetingControlBar = memo(function MeetingControlBar({
   onToggleCaptions,
   onToggleCopilot,
   copilotActive = false,
+  copilotBadge = false,
 }: {
   className?: string;
   onLeave: () => void;
@@ -79,6 +80,8 @@ export const MeetingControlBar = memo(function MeetingControlBar({
   /** Opens the AI Copilot panel, or closes it when it is the one on screen. */
   onToggleCopilot?: () => void;
   copilotActive?: boolean;
+  /** Something waits in the UNI panel for this viewer (a late joiner's catch-up). */
+  copilotBadge?: boolean;
 }) {
   const { t } = useTranslation();
   const mobile = useIsMobile();
@@ -284,15 +287,24 @@ export const MeetingControlBar = memo(function MeetingControlBar({
                 </>
               ) : null}
               {onToggleCopilot ? (
-                <IconControl
-                  label={t("meetings.aiCopilot")}
-                  tooltip={copilotActive ? t("meetings.aiCopilotClose") : t("meetings.aiCopilotToggle")}
-                  pressed={copilotActive}
-                  tone={copilotActive ? "active" : undefined}
-                  onClick={onToggleCopilot}
-                >
-                  <Sparkles aria-hidden />
-                </IconControl>
+                <span className="relative inline-flex">
+                  <IconControl
+                    label={copilotBadge ? t("meetings.aiCopilotCatchUp") : t("meetings.aiCopilot")}
+                    tooltip={copilotActive ? t("meetings.aiCopilotClose") : t("meetings.aiCopilotToggle")}
+                    pressed={copilotActive}
+                    tone={copilotActive ? "active" : undefined}
+                    onClick={onToggleCopilot}
+                  >
+                    <Sparkles aria-hidden />
+                  </IconControl>
+                  {copilotBadge ? (
+                    <span
+                      aria-hidden
+                      data-slot="copilot-badge"
+                      className="pointer-events-none absolute top-1 right-1 size-2.5 rounded-full bg-brand ring-2 ring-meeting-bar-bg"
+                    />
+                  ) : null}
+                </span>
               ) : null}
               {!secondaryInMenu ? (
                 <>

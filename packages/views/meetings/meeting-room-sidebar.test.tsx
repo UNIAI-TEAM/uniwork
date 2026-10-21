@@ -36,7 +36,8 @@ let motions: unknown[] = [];
 
 /** The visible label of each tab, without its badge (button > span > span). */
 function tabLabels(): (string | null | undefined)[] {
-  return screen.getAllByRole("tab").map((el) => el.firstElementChild?.firstElementChild?.textContent);
+  // The label is the first span: an icon (an svg) may lead it, a badge may follow it.
+  return screen.getAllByRole("tab").map((el) => el.firstElementChild?.querySelector("span")?.textContent);
 }
 
 beforeAll(() => {
@@ -180,7 +181,7 @@ describe("MeetingRoomSidebar", () => {
       ),
     );
     const tab = await screen.findByRole("tab", { name: "Biểu quyết" });
-    expect(tabLabels()).toEqual(["AI Copilot", "Trò chuyện", "Mọi người", "Biểu quyết", "Bản ghi"]);
+    expect(tabLabels()).toEqual(["UNI", "Trò chuyện", "Mọi người", "Biểu quyết", "Bản ghi"]);
     fireEvent.click(tab);
     expect(onTabChange).toHaveBeenCalledWith("motions");
   });

@@ -241,13 +241,25 @@ describe("MeetingControlBar", () => {
         <MeetingControlBar onLeave={() => {}} onToggleCopilot={onToggleCopilot} copilotActive={false} />,
       ),
     );
-    fireEvent.click(screen.getByRole("button", { name: "AI Copilot", pressed: false }));
+    fireEvent.click(screen.getByRole("button", { name: "UNI", pressed: false }));
     expect(onToggleCopilot).toHaveBeenCalledOnce();
     rerender(
       wrapWithNav(<MeetingControlBar onLeave={() => {}} onToggleCopilot={onToggleCopilot} copilotActive />),
     );
-    fireEvent.click(screen.getByRole("button", { name: "AI Copilot", pressed: true }));
+    fireEvent.click(screen.getByRole("button", { name: "UNI", pressed: true }));
     expect(onToggleCopilot).toHaveBeenCalledTimes(2);
+  });
+
+  it("marks the UNI button while a late joiner's catch-up waits behind it", () => {
+    mobile = true;
+    handRaised = false;
+    const { rerender } = render(
+      wrapWithNav(<MeetingControlBar onLeave={() => {}} onToggleCopilot={() => {}} copilotBadge />),
+    );
+    const button = screen.getByRole("button", { name: "UNI · có tóm tắt phần bạn đã lỡ" });
+    expect(button.parentElement?.querySelector("[data-slot=copilot-badge]")).not.toBeNull();
+    rerender(wrapWithNav(<MeetingControlBar onLeave={() => {}} onToggleCopilot={() => {}} />));
+    expect(screen.getByRole("button", { name: "UNI" }).parentElement?.querySelector("[data-slot=copilot-badge]")).toBeNull();
   });
 
   it("toggles mic with Ctrl+D and camera with Ctrl+E, but not while typing", () => {

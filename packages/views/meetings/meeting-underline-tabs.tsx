@@ -8,6 +8,7 @@ export function MeetingUnderlineTabs<T extends string>({
   value,
   onChange,
   label,
+  icon,
   badge,
   panelId,
   className,
@@ -16,6 +17,8 @@ export function MeetingUnderlineTabs<T extends string>({
   value: T;
   onChange: (tab: T) => void;
   label: (tab: T) => string;
+  /** A glyph before the label, e.g. Sparkles on the UNI tab. */
+  icon?: (tab: T) => ReactNode;
   badge?: (tab: T) => ReactNode;
   /**
    * DOM id of the panel a tab controls; wires `aria-controls` on the active
@@ -88,6 +91,7 @@ export function MeetingUnderlineTabs<T extends string>({
             onKeyDown={(event) => onKeyDown(event, index)}
           >
             <span className="inline-flex items-center gap-1">
+              {icon?.(tab) ?? null}
               <span>{text}</span>
               {badge?.(tab) ?? null}
             </span>
