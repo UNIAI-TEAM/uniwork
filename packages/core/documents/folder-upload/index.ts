@@ -27,3 +27,13 @@ export {
   type FolderUploadRefusalWireCode,
   type FolderUploadTransport,
 } from "./transport";
+export { folderUploadLimits, type FolderUploadRunLimits } from "./limits";
+export { runFolderUpload } from "./runner";
+export {
+  createFakeFolderUploadTransport,
+  folderUploadApiError,
+  type FakeFolderUploadCall,
+  type FakeFolderUploadOptions,
+  type FakeFolderUploadTransport,
+  type FakePutFailure,
+} from "./fake-transport";
