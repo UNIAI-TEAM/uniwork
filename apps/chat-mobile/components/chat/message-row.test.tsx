@@ -114,6 +114,8 @@ describe("MessageRow", () => {
   ] as const)("reads a %s receipt as part of the bubble", async (receipt, key) => {
     await render(<MessageRow {...props(sent({ sender_id: "u1" }), { own: true, senderName: viText("chat.you"), receipt })} />);
     expect(screen.getByLabelText(bubbleLabel(viText("chat.you"), "Mai họp lúc 9 giờ nhé", viText(key)))).toBeOnTheScreen();
+    // Seen is told apart by shape, not by a near-white shift of delivered's colour.
+    expect(screen.queryByTestId("receipt-seen") !== null).toBe(receipt === "seen");
   });
 
   it("reads a card's foot as one line, its time and receipt, while the card keeps its own button", async () => {

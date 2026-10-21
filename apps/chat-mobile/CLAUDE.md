@@ -95,7 +95,10 @@ một dòng thì ghi lý do ở dòng trên.
   đổi sang HSL, đổi một nơi thì đổi cả ba. `radius-tokens.json` là thang
   `--radius-*` của tokens.css. Ngoại lệ có chủ ý (R4b, UNI-1916): các slot
   `chat-*` của chế độ tối và `call-surface` lấy giá trị của canvas, ghi trong
-  comment. Mặt người / phòng / workspace là `--tint-*-solid` (`lib/identity-tint.ts › SOLID_TINT_BG`) theo
+  comment — trừ `chat-bubble-own` tối, tối hơn canvas để dòng meta (giờ, dấu tick) đạt AA. Tương phản là test, không
+  phải đo tay: `lib/theme-contrast.test.ts` giữ mọi cặp chữ/nền của cả hai chế độ ≥ 4.5:1 (`lib/contrast.ts`, WCAG 2.x;
+  thêm bề mặt hay slot chữ thì thêm vào `PAIRS`), `lib/theme.test.ts` đỏ khi `theme.ts` và `global.css` lệch nhau. "Đã
+  xem" khác "đã tới" bằng hình (huy hiệu hai tick đặc), không chỉ bằng màu. Mặt người / phòng / workspace là `--tint-*-solid` (`lib/identity-tint.ts › SOLID_TINT_BG`) theo
   `identityTint` của core (`@uniwork/core/chat/identity-tint`, bảy tint, cùng bản với web) với chữ cái của
   `@uniwork/core/chat/initials`. Font: Inter (thân) và Plus Jakarta Sans (`font-display`:
   tiêu đề, tên) nhúng bằng plugin `expo-font` trong `app.config.ts`.

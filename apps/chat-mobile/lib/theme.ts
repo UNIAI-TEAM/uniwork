@@ -92,7 +92,8 @@ export const THEME = {
     successSolid: "hsl(149.4 71.1% 29.8%)",
     callSurface: "hsl(220 48.9% 8.4%)",
     chatWall: "hsl(219.1 46.9% 9.6%)",
-    chatBubbleOwn: "hsl(221.3 86.6% 56.3%)",
+    // Darker than the canvas's 56.3 % lightness (R4b): its meta line (time, ticks) read 3.7:1 there, under AA.
+    chatBubbleOwn: "hsl(221.3 80% 47%)",
     chatBubbleOwnForeground: "hsl(0 0% 100%)",
     chatBubbleOwnMeta: "hsl(220 80.5% 92%)",
     chatBubbleOther: "hsl(219 25% 15.7%)",

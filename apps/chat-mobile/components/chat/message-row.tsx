@@ -47,7 +47,7 @@ export interface MessageRowProps {
   /** Print the name in the bubble (a group's first bubble of a run). */
   showSender: boolean;
   quote: { sender: string; text: string; id: string } | null;
-  /** A sent message's receipt at its foot: one tick, two grey, two white once read (bảng Ngôn ngữ). */
+  /** A sent message's receipt at its foot: one tick, two ticks, then a filled double-tick badge once read. */
   receipt: Receipt | null;
   /** Beside someone else's bubble in a group: their avatar on the last of a run, a spacer on the others. */
   avatar?: ReactNode;
@@ -212,7 +212,8 @@ export const MessageRow = memo(function MessageRow(props: MessageRowProps) {
               <Text className={cn("text-meta", meta)} style={{ fontVariant: ["tabular-nums"] }}>
                 {[record.edited_at ? t("chat.edited_label") : null, album ? formatMessageTime(footTs, i18n.language) : time].filter(Boolean).join(" · ")}
               </Text>
-              {receipt === "seen" ? <Ionicons name="checkmark-done" size={15} color={theme.chatBubbleOwnForeground} /> : null}
+              {/* Seen is a filled badge in the bubble's ink, not only a lighter tint of delivered's two ticks (audit UX P2). */}
+              {receipt === "seen" ? <Ionicons name="checkmark-done-circle" size={16} color={theme.chatBubbleOwnForeground} testID="receipt-seen" /> : null}
               {receipt === "delivered" ? <Ionicons name="checkmark-done" size={15} color={theme.chatBubbleOwnMeta} /> : null}
               {receipt === "sent" ? <Ionicons name="checkmark" size={15} color={theme.chatBubbleOwnMeta} /> : null}
             </>
