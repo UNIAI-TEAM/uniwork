@@ -210,6 +210,37 @@ describe("useFolderUpload", () => {
     expect(toast.loading).not.toHaveBeenCalled();
   });
 
+  const planKeys = (transport: ReturnType<typeof setup>["transport"]) =>
+    transport.calls.flatMap((c) => (c.method === "plan" ? [c.idempotencyKey] : []));
+
+  it("sends the same Idempotency-Key again after a plan lost on the network", async () => {
+    const { transport } = setup();
+    transport.failNext("plan", new TypeError("Failed to fetch"));
+    stage(entries("Mới", ["a.pdf"]));
+    upload();
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    upload();
+    await waitFor(() => expect(toast.success).toHaveBeenCalled());
+    const keys = planKeys(transport);
+    expect(keys).toHaveLength(2);
+    expect(keys[0]).toBeTruthy();
+    expect(keys[1]).toBe(keys[0]);
+  });
+
+  it("mints a new Idempotency-Key when the share switch changed the payload", async () => {
+    const { transport } = setup();
+    transport.failNext("plan", new TypeError("Failed to fetch"));
+    stage(entries("Mới", ["a.pdf"]));
+    upload();
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("switch"));
+    upload();
+    await waitFor(() => expect(toast.success).toHaveBeenCalled());
+    const keys = planKeys(transport);
+    expect(keys).toHaveLength(2);
+    expect(keys[1]).not.toBe(keys[0]);
+  });
+
   it("shows the partial result, the report with the reason per file, and retries only on request", async () => {
     const { transport } = setup(
       {},

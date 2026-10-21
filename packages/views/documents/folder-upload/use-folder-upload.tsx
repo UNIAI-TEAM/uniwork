@@ -38,6 +38,16 @@ interface Destination {
 interface StagedFolder {
   entries: FolderUploadEntry<File>[];
   destination: Destination;
+  /**
+   * Minted when the folder is staged, so a plan lost on the network is sent
+   * again under the same key (no second tree, no second open batch). Mutable:
+   * `share` is the flag the key was last sent with, null before the first try.
+   */
+  idempotency: { key: string; share: boolean | null };
+}
+
+function newIdempotencyKey(): string {
+  return globalThis.crypto?.randomUUID?.() ?? `fu-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
 }
 
 /** One run's link from the runner's progress to the toast that shows it. */
@@ -137,7 +147,9 @@ export function useFolderUpload({
     (lists: FolderUploadEntry<File>[][]) => {
       if (!available) return;
       const destination = destinationNow();
-      const staged = lists.filter((entries) => entries.length > 0).map((entries) => ({ entries, destination }));
+      const staged = lists
+        .filter((entries) => entries.length > 0)
+        .map((entries) => ({ entries, destination, idempotency: { key: newIdempotencyKey(), share: null } }));
       // An empty folder has nothing to plan: say so instead of opening a dialog with no name.
       if (staged.length < lists.length) toast.error(t("documents.folder_upload.refusal.nothing_to_upload"));
       if (staged.length > 0) setQueue((q) => [...q, ...staged]);
@@ -181,8 +193,12 @@ export function useFolderUpload({
 
   const confirm = async ({ shareWithWorkspace }: { shareWithWorkspace: boolean }) => {
     if (!head || !plan || !runLimits || pending) return;
-    const { entries, destination } = head;
+    const { entries, destination, idempotency } = head;
     const name = plan.rootTitle ?? destination.name;
+    const share = !destination.shared && shareWithWorkspace;
+    // The flag is part of the plan body, and the server answers 409 to one key sent with two bodies.
+    if (idempotency.share !== null && idempotency.share !== share) idempotency.key = newIdempotencyKey();
+    idempotency.share = share;
     setPending(true);
     setError(null);
     let parentId: string;
@@ -212,7 +228,8 @@ export function useFolderUpload({
       plan,
       file: (index) => entries[index]?.file as File,
       parentId,
-      shareWithWorkspace: !destination.shared && shareWithWorkspace,
+      shareWithWorkspace: share,
+      idempotencyKey: idempotency.key,
       limits: {
         parallel: runLimits.parallel,
         completeBatch: runLimits.completeBatch,
