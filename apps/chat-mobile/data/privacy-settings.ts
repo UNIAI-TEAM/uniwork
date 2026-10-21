@@ -7,7 +7,10 @@
 // The read is capped: the privacy guard covers the app until the choices are
 // known (an app lock must not show the inbox for a frame first), so a Keychain
 // that never answers must not leave the app covered for ever. Past the cap, or
-// on a failed read, both protections read as off, as before any choice.
+// on a failed read, both protections read as off, as before any choice — but
+// only until a slow read answers: its choices then replace the defaults
+// (`restored`), and the guard treats that answer as the cold start, so a busy
+// Keychain cannot turn the lock off for the whole launch.
 import { createStore } from "zustand/vanilla";
 import { DEFAULT_PRIVACY_SETTINGS, parsePrivacySettings, serializePrivacySettings, type PrivacySettings } from "@/lib/app-lock";
 import { bestEffort } from "./report";
@@ -26,12 +29,14 @@ export interface PrivacyState {
   settings: PrivacySettings;
   /** False until the saved choices are known (or the read gave up). */
   loaded: boolean;
+  /** True once the saved choices were read from the phone, on time or after the cap; a choice made first wins. */
+  restored: boolean;
 }
 
 const defaultWait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 export function createPrivacySettings(deps: PrivacyDeps) {
-  const store = createStore<PrivacyState>(() => ({ settings: DEFAULT_PRIVACY_SETTINGS, loaded: false }));
+  const store = createStore<PrivacyState>(() => ({ settings: DEFAULT_PRIVACY_SETTINGS, loaded: false, restored: false }));
   const wait = deps.wait ?? defaultWait;
   let loading: Promise<void> | null = null;
   // A choice made while the saved one was still being read wins over it.
@@ -43,20 +48,24 @@ export function createPrivacySettings(deps: PrivacyDeps) {
     store,
     /** Reads the saved choices and applies them; once per launch, however often it is called. */
     load(): Promise<void> {
-      loading ??= Promise.race([
-        deps.read().then(parsePrivacySettings),
+      if (loading) return loading;
+      let restored = false;
+      const restore = (saved: PrivacySettings) => {
+        if (restored || chosen) return;
+        restored = true;
+        store.setState({ settings: saved, restored: true });
+        apply(saved);
+      };
+      const saved = deps.read().then(parsePrivacySettings);
+      // Past the cap the read still counts when it answers (a failure there was reported as the timeout).
+      saved.then(restore, () => undefined);
+      loading = Promise.race([
+        saved,
         wait(PRIVACY_READ_CAP_MS).then(() => {
           throw new Error("privacy_read_timeout");
         }),
       ])
-        .then(
-          (saved) => {
-            if (chosen) return;
-            store.setState({ settings: saved });
-            apply(saved);
-          },
-          bestEffort("privacy", "saved privacy choices not read", "report"),
-        )
+        .then(restore, bestEffort("privacy", "saved privacy choices not read", "report"))
         .finally(() => store.setState({ loaded: true }));
       return loading;
     },

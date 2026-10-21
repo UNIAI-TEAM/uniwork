@@ -18,10 +18,10 @@ describe("createPrivacySettings", () => {
   it("reads the saved choices once per launch, applies them and says they are known", async () => {
     const d = deps(Promise.resolve(JSON.stringify(ON)));
     const privacy = createPrivacySettings(d);
-    expect(privacy.store.getState()).toEqual({ settings: OFF, loaded: false });
+    expect(privacy.store.getState()).toEqual({ settings: OFF, loaded: false, restored: false });
     await Promise.all([privacy.load(), privacy.load()]);
     expect(d.read).toHaveBeenCalledTimes(1);
-    expect(privacy.store.getState()).toEqual({ settings: ON, loaded: true });
+    expect(privacy.store.getState()).toEqual({ settings: ON, loaded: true, restored: true });
     expect(d.apply).toHaveBeenCalledExactlyOnceWith(ON);
   });
 
@@ -31,11 +31,11 @@ describe("createPrivacySettings", () => {
     try {
       const none = createPrivacySettings(deps(Promise.resolve(null)));
       await none.load();
-      expect(none.store.getState()).toEqual({ settings: OFF, loaded: true });
+      expect(none.store.getState()).toEqual({ settings: OFF, loaded: true, restored: true });
 
       const failed = createPrivacySettings(deps(Promise.reject(new Error("keychain"))));
       await failed.load();
-      expect(failed.store.getState()).toEqual({ settings: OFF, loaded: true });
+      expect(failed.store.getState()).toEqual({ settings: OFF, loaded: true, restored: false });
 
       const hung = deps(new Promise(() => undefined));
       hung.wait.mockImplementation(async (ms: number) => {
@@ -43,7 +43,7 @@ describe("createPrivacySettings", () => {
       });
       const stuck = createPrivacySettings(hung);
       await stuck.load();
-      expect(stuck.store.getState()).toEqual({ settings: OFF, loaded: true });
+      expect(stuck.store.getState()).toEqual({ settings: OFF, loaded: true, restored: false });
       expect(breadcrumbs.filter((m) => m.includes("not read"))).toHaveLength(2);
     } finally {
       installReportSink(null);
@@ -57,13 +57,38 @@ describe("createPrivacySettings", () => {
     const loaded = privacy.load();
     privacy.update({ screenSecurity: true });
     const expected = { ...OFF, screenSecurity: true };
-    expect(privacy.store.getState()).toEqual({ settings: expected, loaded: true });
+    expect(privacy.store.getState()).toEqual({ settings: expected, loaded: true, restored: false });
     expect(d.apply).toHaveBeenLastCalledWith(expected);
     expect(d.write).toHaveBeenCalledWith(JSON.stringify(expected));
     answer(JSON.stringify(ON));
     await loaded;
-    expect(privacy.store.getState().settings).toEqual(expected);
+    expect(privacy.store.getState()).toEqual({ settings: expected, loaded: true, restored: false });
     expect(d.apply).toHaveBeenCalledTimes(1);
+  });
+
+  it("a read that answers after the cap still lands: a slow Keychain does not turn the lock off for the launch", async () => {
+    let answer: (value: string) => void = () => undefined;
+    const d = deps(new Promise((resolve) => (answer = resolve)));
+    d.wait.mockImplementation(async () => undefined);
+    const privacy = createPrivacySettings(d);
+    await privacy.load();
+    expect(privacy.store.getState()).toEqual({ settings: OFF, loaded: true, restored: false });
+    expect(d.apply).not.toHaveBeenCalled();
+    answer(JSON.stringify(ON));
+    await vi.waitFor(() => expect(privacy.store.getState()).toEqual({ settings: ON, loaded: true, restored: true }));
+    expect(d.apply).toHaveBeenCalledExactlyOnceWith(ON);
+  });
+
+  it("a choice made after the cap wins over a read that answers later", async () => {
+    let answer: (value: string) => void = () => undefined;
+    const d = deps(new Promise((resolve) => (answer = resolve)));
+    d.wait.mockImplementation(async () => undefined);
+    const privacy = createPrivacySettings(d);
+    await privacy.load();
+    privacy.update({ screenSecurity: true });
+    answer(JSON.stringify(ON));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(privacy.store.getState()).toEqual({ settings: { ...OFF, screenSecurity: true }, loaded: true, restored: false });
   });
 
   it("a platform that refuses, or a write that fails, keeps the choice for this launch and is reported", async () => {
