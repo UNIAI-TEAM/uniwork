@@ -14,9 +14,10 @@ const CORE_ALLOWLIST = JSON.parse(readFileSync(fileURLToPath(new globalThis.URL(
 export default [
   ...reactConfig,
   { ignores: [".expo/", "dist/", "coverage/", "android/", "ios/"] },
-  // Expo and Jest load these as CommonJS (the jest resolver and asset stub too).
+  // Expo and Jest load these as CommonJS (the jest resolver and asset stub too,
+  // and the config plugins app.config.ts names by path).
   {
-    files: ["*.config.js", "test/*.js"],
+    files: ["*.config.js", "test/*.js", "plugins/*.js"],
     languageOptions: { sourceType: "commonjs", globals: { require: "readonly", module: "writable", __dirname: "readonly" } },
     rules: { "@typescript-eslint/no-require-imports": "off" },
   },

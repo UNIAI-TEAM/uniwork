@@ -56,7 +56,9 @@
       ],
       "entry": [
         "scripts/sync-i18n.mjs",
-        "scripts/generate-licenses.mjs"
+        "scripts/generate-licenses.mjs",
+        "scripts/android-manifest.mjs",
+        "plugins/*.js"
       ]
     },
     "packages/*": {},

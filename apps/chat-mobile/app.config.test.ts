@@ -91,7 +91,10 @@ describe("app.config per UNICHAT_ENV", () => {
     const microphone = "UniChat dùng micro khi bạn gọi điện và ghi tin thoại.";
     expect(options("@config-plugins/react-native-webrtc")).toEqual({ cameraPermission: camera, microphonePermission: microphone });
     expect(options("expo-image-picker")).toMatchObject({ photosPermission: expect.any(String), cameraPermission: camera, microphonePermission: microphone });
-    expect(options("expo-audio")).toEqual({ microphonePermission: microphone });
+    // Background playback and recording off explicitly (store compliance S2): no
+    // mediaPlayback or microphone foreground service from expo-audio to declare.
+    expect(options("expo-audio")).toEqual({ microphonePermission: microphone, enableBackgroundPlayback: false, enableBackgroundRecording: false });
+    expect(options("./plugins/with-removed-android-services")).toEqual({ services: ["com.oney.WebRTCModule.MediaProjectionService"] });
     expect(config.locales?.en).toEqual({ ios: expect.any(Object) });
     expect((config.locales?.en as { ios: Record<string, string> }).ios).toMatchObject({
       NSCameraUsageDescription: expect.stringContaining("camera"),

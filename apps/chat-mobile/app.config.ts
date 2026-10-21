@@ -173,15 +173,21 @@ export default ({ config, projectRoot }: ConfigContext): ExpoConfig => {
         "expo-image-picker",
         { photosPermission: USAGE_VI.NSPhotoLibraryUsageDescription, cameraPermission: USAGE_VI.NSCameraUsageDescription, microphonePermission: USAGE_VI.NSMicrophoneUsageDescription },
       ],
-      // Voice messages (M3); background playback adds UIBackgroundModes: audio,
-      // which also keeps a call's audio going when the app leaves the screen.
-      ["expo-audio", { microphonePermission: USAGE_VI.NSMicrophoneUsageDescription }],
+      // Voice messages (M3). Background playback and recording are off on
+      // purpose (store compliance S2): a voice note stops when the app leaves
+      // the screen, so Android gets no mediaPlayback / microphone foreground
+      // service from expo-audio and Play has nothing of it to declare. A call
+      // keeps its audio through UIBackgroundModes: audio (ios.infoPlist above)
+      // and the calls' own service, not through expo-audio.
+      ["expo-audio", { microphonePermission: USAGE_VI.NSMicrophoneUsageDescription, enableBackgroundPlayback: false, enableBackgroundRecording: false }],
       // Calls (M3): LiveKit's native setup, then WebRTC's permissions.
       "@livekit/react-native-expo-plugin",
       [
         "@config-plugins/react-native-webrtc",
         { cameraPermission: USAGE_VI.NSCameraUsageDescription, microphonePermission: USAGE_VI.NSMicrophoneUsageDescription },
       ],
+      // WebRTC's screen-sharing service: UniChat shares no screen (store compliance S2).
+      ["./plugins/with-removed-android-services", { services: ["com.oney.WebRTCModule.MediaProjectionService"] }],
       // Crash reporting: uploads source maps and native symbols from the EAS
       // build. Organization, project and token come from the build's
       // environment (SENTRY_ORG, SENTRY_PROJECT, SENTRY_AUTH_TOKEN), never from
