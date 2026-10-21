@@ -519,6 +519,11 @@ func main() {
 	// Expo receipts (the delivery outcome behind an accepted ticket): a gone
 	// phone's subscription is revoked, every result is counted. Read by a
 	// worker that stops with runCancel and is awaited below.
+	if cfg.UnauthenticatedMobilePush() {
+		// Not a boot error (cmd/migrate and the nightly perf jobs load the same config); loud, so a rollout
+		// without the Secret is seen before the Expo project turns enhanced push security on.
+		log.Error("EXPO_ACCESS_TOKEN is not set in production: mobile pushes are sent unauthenticated and Expo refuses them once enhanced push security is on (docs/runbooks/unichat-mobile-release.md)")
+	}
 	pushReceipts := notification.NewExpoReceipts(cfg.ExpoAccessToken, q.RevokePushSubscription, log)
 	pushSender := notification.NewPrefixSender(notification.ExpoPushSender{AccessToken: cfg.ExpoAccessToken, Receipts: pushReceipts}, webSender)
 	pushConsumer := notification.NewPushConsumer(q, pushSender, cfg.FrontendOrigin)

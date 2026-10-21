@@ -570,26 +570,32 @@ func TestDefaultDocumentMaxBytesMatchesFilesRegistry(t *testing.T) {
 	}
 }
 
-// Audit "Security & privacy", push-preview-plaintext: production never sends
-// mobile pushes unauthenticated.
-func TestProductionRequiresAnExpoAccessToken(t *testing.T) {
+// Audit "Security & privacy", push-preview-plaintext: a production server
+// without an Expo access token says so, but still loads. A boot error here
+// stopped every CLI that calls Load (cmd/migrate in the rollout and the
+// nightly perf jobs) over a push setting they never use.
+func TestProductionWithoutAnExpoAccessTokenLoadsAndReportsIt(t *testing.T) {
 	setRequired(t)
 	t.Setenv("APP_ENV", "production")
-	if _, err := Load(); err == nil || !strings.Contains(err.Error(), "EXPO_ACCESS_TOKEN") {
-		t.Fatalf("production without a token: %v, want an EXPO_ACCESS_TOKEN error", err)
+	c, err := Load()
+	if err != nil {
+		t.Fatalf("production without a token must still load (migrate, perf jobs): %v", err)
+	}
+	if !c.UnauthenticatedMobilePush() {
+		t.Fatal("production without a token must report unauthenticated mobile push")
 	}
 	t.Setenv("EXPO_ACCESS_TOKEN", "  ")
-	if _, err := Load(); err == nil {
-		t.Fatal("a blank token must not count")
+	if c, err = Load(); err != nil || !c.UnauthenticatedMobilePush() {
+		t.Fatalf("a blank token must not count: %v", err)
 	}
 	t.Setenv("EXPO_ACCESS_TOKEN", "expo-test-token")
-	c, err := Load()
-	if err != nil || c.ExpoAccessToken != "expo-test-token" {
+	c, err = Load()
+	if err != nil || c.ExpoAccessToken != "expo-test-token" || c.UnauthenticatedMobilePush() {
 		t.Fatalf("production with a token: %+v %v", c.ExpoAccessToken, err)
 	}
 	t.Setenv("APP_ENV", "development")
 	t.Setenv("EXPO_ACCESS_TOKEN", "")
-	if _, err := Load(); err != nil {
+	if c, err = Load(); err != nil || c.UnauthenticatedMobilePush() {
 		t.Fatalf("development without a token: %v", err)
 	}
 }

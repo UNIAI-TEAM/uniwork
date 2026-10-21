@@ -99,7 +99,8 @@ của bản store trên kênh đó (`staging` cho `internal`/`preview`, `product
    `development`, `preview`, `production` — `app.config.ts` chuyển nó vào `android.googleServicesFile`. Danh sách đầy
    đủ tài khoản và tên khoá: `docs/evidence/unichat/release-accounts.md`. **Push có xác thực** (audit bảo mật
    "push-preview-plaintext"): expo.dev › Project settings › Access tokens tạo token, đặt `EXPO_ACCESS_TOKEN` cho server
-   production (server production không khởi động khi thiếu nó) rồi bật **Enhanced Security for Push Notifications** ở
+   production (Secret Kubernetes `uniwork-expo`, key `EXPO_ACCESS_TOKEN`, chart đọc qua `be.secrets.expo`, tuỳ chọn;
+   thiếu thì server vẫn chạy nhưng log lỗi lúc khởi động và push đi không xác thực) rồi bật **Enhanced Security for Push Notifications** ở
    cùng trang — theo thứ tự đó, bật trước thì mọi push không token bị Expo từ chối. Kiểm: gửi một tin DM tới máy thật,
    `push_receipts` không có lỗi `InvalidCredentials`.
 5. GitHub → Settings → Environments, hai environment (bản store chạy từ tag, OTA chạy tay trên nhánh; một environment

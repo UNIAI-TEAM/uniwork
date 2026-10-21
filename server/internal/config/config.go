@@ -158,8 +158,11 @@ type Config struct {
 	VAPIDPrivateKey string
 	VAPIDSubject    string
 	// ExpoAccessToken authenticates mobile push to Expo Push Service when the
-	// Expo project enables enhanced push security; empty sends unauthenticated,
-	// which Load refuses when APP_ENV=production.
+	// Expo project enables enhanced push security; empty sends unauthenticated.
+	// Production should carry one (UnauthenticatedMobilePush), but its absence
+	// is a loud log line at server start, never a boot error: every CLI that
+	// calls Load (cmd/migrate among them) would refuse to run over a push
+	// setting it never uses.
 	ExpoAccessToken string
 	// RUMSampleRate is the share of web sessions that report web-vitals to
 	// POST /api/v1/rum (F-11 §2.8); 0 turns reporting off client-side.
@@ -197,6 +200,14 @@ type Config struct {
 	// destructive (default) deletes unreferenced files, dry_run only reports,
 	// off skips the sweep. Load rejects any other value.
 	FileGCMode string
+}
+
+// UnauthenticatedMobilePush reports a production server with no Expo access
+// token (audit "Security & privacy", push-preview-plaintext): its mobile pushes
+// go out unauthenticated, and once the Expo project turns on enhanced push
+// security Expo refuses every one of them. The server logs it at start.
+func (c Config) UnauthenticatedMobilePush() bool {
+	return strings.EqualFold(c.AppEnv, "production") && strings.TrimSpace(c.ExpoAccessToken) == ""
 }
 
 // PushEnabled: both VAPID keys present.
@@ -462,12 +473,6 @@ func Load() (Config, error) {
 	}
 	if c.DatabaseURL == "" {
 		return c, fmt.Errorf("DATABASE_URL is required")
-	}
-	// Production mobile pushes are authenticated (audit "Security & privacy", push-preview-plaintext): with
-	// enhanced push security on in the Expo project, a leaked push token cannot be used to send banners in
-	// UniChat's name. An unauthenticated sender there would be refused by Expo, so it is a boot error here.
-	if strings.EqualFold(c.AppEnv, "production") && strings.TrimSpace(c.ExpoAccessToken) == "" {
-		return c, fmt.Errorf("EXPO_ACCESS_TOKEN is required when APP_ENV=production (Expo enhanced push security; docs/runbooks/unichat-mobile-release.md)")
 	}
 	if c.JWTSecret == "" {
 		return c, fmt.Errorf("JWT_SECRET is required")
