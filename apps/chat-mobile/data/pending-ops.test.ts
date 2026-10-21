@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("./api", () => ({ api: { request: vi.fn() } }));
 
 import { flattenRoomTimeline, type RoomTimeline } from "@uniwork/core/chat/room-timeline-pages";
-import { clearPendingOps, flushPendingOps, markRoomRead, pendingOpsDeps, toggleReaction, votePoll, type PendingOpsDeps } from "./pending-ops";
+import { clearPendingOps, flushAllPendingOps, flushPendingOps, markRoomRead, pendingOpsDeps, toggleReaction, votePoll, type PendingOpsDeps } from "./pending-ops";
 import { chatKeys } from "./queries/chat-keys";
 import { installReportSink } from "./report";
 import type { RetryTimers } from "./retry-timers";
@@ -337,6 +337,18 @@ describe("the line", () => {
     expect(flushPendingOps(qc, "w1", "u1", deps)).toBe(run);
     await run;
     expect(api.markRoomRead).toHaveBeenCalledTimes(1);
+  });
+
+  it("flushes every workspace the person owes something in, whichever is open, and nobody else's", async () => {
+    const qc = seeded();
+    online = false;
+    await markRoomRead(qc, "w1", "r1", "u1", deps);
+    await markRoomRead(qc, "w2", "r9", "u1", deps);
+    await markRoomRead(qc, "w3", "r9", "someone-else", deps);
+    online = true;
+    await flushAllPendingOps(qc, "u1", deps);
+    expect(api.markRoomRead.mock.calls.map(([ws]) => ws).sort()).toEqual(["w1", "w2"]);
+    expect(ops().map((op) => op.workspaceId)).toEqual(["w3"]);
   });
 
   it("sign-out drops the wishes and their timers; the app's wiring reads TanStack's online flag", async () => {

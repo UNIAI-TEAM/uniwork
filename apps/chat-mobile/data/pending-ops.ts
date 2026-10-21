@@ -152,6 +152,17 @@ export function flushPendingOps(qc: QueryClient, wsId: string, userId: string, d
   return run;
 }
 
+/** Every workspace this person owes reads, reactions or votes in, whichever one is open (or none). */
+export function flushAllPendingOps(qc: QueryClient, userId: string, deps: PendingOpsDeps): Promise<void> {
+  const workspaceIds = new Set(
+    usePendingOpsStore
+      .getState()
+      .ops.filter((op) => op.userId === userId)
+      .map((op) => op.workspaceId),
+  );
+  return Promise.all([...workspaceIds].map((wsId) => flushPendingOps(qc, wsId, userId, deps))).then(() => undefined);
+}
+
 /** Queues `op` (or, when it now asks for nothing, drops it) and delivers; rejects when the server refused it for good. */
 async function enqueue(qc: QueryClient, op: PendingOp | null, dropKey: string, deps: PendingOpsDeps): Promise<void> {
   if (!op) {

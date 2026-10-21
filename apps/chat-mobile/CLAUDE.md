@@ -147,10 +147,15 @@ một dòng thì ghi lý do ở dòng trên.
   khi đọc lại, `client_msg_id` làm replay an toàn), tệp chép vào `documents/outbox/<clientMsgId>/`
   (`data/outbox-files.ts`) trước khi xếp hàng, xoá khi server nhận, khi bỏ hoặc khi đăng xuất; lúc giao tìm lại bản
   chép theo `<clientMsgId>/<tên>` dưới thư mục documents hiện tại (iOS có thể dời container khi cập nhật), tệp đã mất
-  thì tin thành `failed` ngay (không tải lên, hàng của phòng đi tiếp); một hàng FIFO nghiêm
-  ngặt cho mỗi (workspace, phòng, người gửi), một lần gửi một tin; guard flush theo workspace + người gửi; lỗi tạm
-  thời giữ hàng của phòng và thử lại theo backoff; flush khi mở workspace, NetInfo online, socket reconnect và mỗi
-  lần về foreground (`use-chat-realtime.ts`). **Đọc, biểu cảm, bình chọn offline**: `data/pending-ops.ts` +
+  thì tin thành `failed` ngay (không tải lên, hàng của phòng đi tiếp); mỗi (workspace, phòng, người gửi) có hai hàng
+  FIFO nghiêm ngặt, một lần gửi một tin: chữ (chữ, trả lời chủ đề, nhắc hẹn) và media (ảnh, tệp, tin thoại). Chữ viết
+  sau một media chờ nó (phòng đọc đúng thứ tự viết), trừ khi lần tải lên đó đã ở trên dây `MEDIA_OVERTAKE_MS` (4 s)
+  hay đang chờ backoff: khi đó chữ đi trước, ảnh tới khi tới (như Telegram/WhatsApp) — tải lên chậm không giữ chữ của
+  cả phòng. Guard flush theo workspace + người gửi; lỗi tạm thời giữ hàng đó và thử lại theo backoff; tin bị từ chối
+  hẳn mà không ai thử lại sau `FAILED_SEND_TTL_MS` (14 ngày — workspace đã rời) bị bỏ cùng tệp. Outbox là của tài
+  khoản, không của màn đang mở: `data/owed.ts › flushOwed` đẩy tin chờ và lượt chờ của **mọi** workspace của người
+  đó, khi phiên sẵn sàng, NetInfo online và mỗi lần về foreground (`data/use-owed-flush.ts`, gắn ở
+  `app/(app)/_layout.tsx` — cả màn chọn workspace) và khi socket reconnect (`use-chat-realtime.ts`). **Đọc, biểu cảm, bình chọn offline**: `data/pending-ops.ts` +
   `stores/pending-ops-store.ts` — cache hiện lựa chọn ngay (`lib/optimistic-message.ts`, luật toggle của server),
   mỗi thứ một mục giữ mong muốn cuối; endpoint của server là toggle nên lần giao có thể đã tới (mất câu trả lời,
   khởi động lại) và mọi phiếu bầu đều GET tin trước rồi chỉ chạm phần còn khác; từ chối hẳn thì bỏ, refetch phòng

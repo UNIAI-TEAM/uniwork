@@ -19,6 +19,7 @@ import { createLogger } from "@/data/logger";
 import { ensureNotificationChannels } from "@/data/notification-channels";
 import { registerPushToken } from "@/data/push";
 import { unreadSummaryOptions } from "@/data/queries/chat";
+import { useOwedFlush } from "@/data/use-owed-flush";
 import { easProjectId } from "@/lib/runtime-extra";
 import { appBadgeCount } from "@/lib/workspace-unread";
 
@@ -30,6 +31,8 @@ export default function AppLayout() {
   const isLoading = useAuthStore((s) => s.isLoading);
   const unread = useQuery({ ...unreadSummaryOptions(), enabled: userId !== null }).data;
   const badge = userId ? appBadgeCount(unread) : 0;
+  // The outbox and the queued reads of every workspace, from any screen of the signed-in app.
+  useOwedFlush(isLoading ? null : userId);
 
   useEffect(() => {
     if (!userId) return;

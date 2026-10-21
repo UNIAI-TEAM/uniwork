@@ -31,6 +31,7 @@ export default defineConfig({
         // React hooks: rendered and measured by the jest-expo layer (jest.config.js).
         "data/realtime/use-call-realtime.ts",
         "data/realtime/use-workspace-realtime.ts",
+        "data/use-owed-flush.ts",
         // The mutation layer's hooks (useMutation over the commands tested here): rendered and measured by
         // the jest-expo layer (data/mutations/mutations.test.tsx).
         "data/mutations/**",

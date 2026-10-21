@@ -30,7 +30,7 @@ import { CACHE_SCHEMA_VERSION, persistedRooms, readPersistedClient } from "./per
 import type { DeviceStore } from "./storage/device-store";
 
 /** The rooms whose newest page is kept: the most recently active ones. */
-export const PERSISTED_ROOM_TIMELINES = 24;
+const PERSISTED_ROOM_TIMELINES = 24;
 /** A copy, or a carried query, older than this is not worth showing. */
 export const PERSISTED_CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 export const PERSIST_THROTTLE_MS = 1_000;
@@ -41,7 +41,7 @@ const TIMELINE_PREFIX = `${STORE_KEY}/timeline/`;
 const log = createLogger("query-cache");
 
 /** The keys a cold start opens on (the allowlist), whatever their state. */
-export function isPersistedKey(queryKey: readonly unknown[]): boolean {
+function isPersistedKey(queryKey: readonly unknown[]): boolean {
   const [root, second, third] = queryKey;
   if (root === "workspaces") return queryKey.length === 1;
   if (root !== "chat") return false;

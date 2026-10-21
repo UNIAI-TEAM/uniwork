@@ -12,9 +12,12 @@ vi.mock("expo-file-system", () => ({ Directory: class {}, File: class {}, Paths:
 
 import { flattenRoomTimeline, type RoomTimeline } from "@uniwork/core/chat/room-timeline-pages";
 import {
+  FAILED_SEND_TTL_MS,
+  MEDIA_OVERTAKE_MS,
   chatSendDeps,
   clearChatOutbox,
   discardPendingSend,
+  flushAllQueuedSends,
   flushQueuedSends,
   retryPendingSend,
   sendChatMessage,
@@ -71,12 +74,24 @@ const fire = () => {
   waiting = null;
   run?.();
 };
+let clock = 0;
+/** The text line's wait behind an upload, ended by hand: `elapse()` moves the clock and ends every wait. */
+let sleepers: (() => void)[] = [];
+const sleep = vi.fn((_ms: number) => new Promise<void>((resolve) => sleepers.push(resolve)));
+const elapse = (ms: number) => {
+  clock += ms;
+  const woken = sleepers;
+  sleepers = [];
+  for (const wake of woken) wake();
+};
 const deps: ChatSendDeps = {
   api: { sendMessage, sendThreadMessage, sendFileMessage, sendVoiceMessage },
   isOnline: () => online,
   retry: (fn) => fn(),
   files,
   timers,
+  now: () => clock,
+  sleep,
 };
 
 /** The server's idempotency: one message per client_msg_id, whatever the number of posts. */
@@ -107,6 +122,9 @@ beforeEach(() => {
   online = true;
   server = new Map();
   waiting = null;
+  clock = 0;
+  sleepers = [];
+  sleep.mockClear();
   useChatSendStore.getState().clear();
   sendMessage.mockReset().mockImplementation(idempotentServer());
   sendThreadMessage.mockReset();
@@ -412,5 +430,157 @@ describe("what goes where", () => {
       { ...input, senderId: "someone-else", clientMsgId: "d", createdAt: 1, status: "failed" as const },
     ];
     expect(selectRoomSends(entries, "w1", "r1", input.senderId).map((e) => e.clientMsgId)).toEqual(["a"]);
+  });
+});
+
+// Audit "outbox-foreground-and-workspace-bound": a large upload held every word of its room behind it.
+describe("text and media lines", () => {
+  const photo = { uri: "file:///cache/big.jpg", name: "big.jpg", mimeType: "image/jpeg" };
+  /** An upload that lands when `land()` is called. */
+  function slowUpload() {
+    let land: () => void = () => undefined;
+    sendFileMessage.mockImplementationOnce(async (_ws, _room, { client_msg_id }) => {
+      await new Promise<void>((resolve) => (land = resolve));
+      return echo(client_msg_id, { kind: "file" });
+    });
+    return () => land();
+  }
+
+  it("text written after a photo waits for a quick upload: the room reads as it was written", async () => {
+    const qc = new QueryClient();
+    const land = slowUpload();
+    const sent = sendChatMessage(qc, { ...input, body: "", file: photo }, deps);
+    await settle();
+    const after = sendChatMessage(qc, { ...input, body: "see above" }, deps);
+    await settle();
+    expect(sendMessage).not.toHaveBeenCalled();
+    expect(sleep).toHaveBeenCalledWith(MEDIA_OVERTAKE_MS);
+    elapse(1_000);
+    await settle();
+    // A second look: still within the window, it waits what is left.
+    expect(sleep).toHaveBeenLastCalledWith(MEDIA_OVERTAKE_MS - 1_000);
+    land();
+    await Promise.all([sent, after]);
+    expect(bodies()).toEqual(["see above"]);
+    expect(statuses()).toEqual([]);
+  });
+
+  it("text passes an upload that has been on the wire long enough; the photo lands when it lands", async () => {
+    const qc = new QueryClient();
+    const land = slowUpload();
+    const sent = sendChatMessage(qc, { ...input, body: "", file: photo }, deps);
+    await settle();
+    const after = sendChatMessage(qc, { ...input, body: "words first" }, deps);
+    await settle();
+    elapse(MEDIA_OVERTAKE_MS);
+    await after;
+    expect(bodies()).toEqual(["words first"]);
+    expect(statuses()).toEqual(["sending"]);
+    land();
+    await sent;
+    expect(statuses()).toEqual([]);
+  });
+
+  it("text passes a photo waiting for its retry, and a photo not yet on the wire is started before it is weighed", async () => {
+    const qc = new QueryClient();
+    online = false;
+    await sendChatMessage(qc, { ...input, body: "", file: photo }, deps);
+    await sendChatMessage(qc, { ...input, body: "", file: { ...photo, name: "second.jpg" } }, deps);
+    await sendChatMessage(qc, { ...input, body: "after the photos" }, deps);
+    expect(sendFileMessage).not.toHaveBeenCalled();
+    online = true;
+    sendFileMessage.mockRejectedValueOnce(apiError(503));
+    await flushQueuedSends(qc, "w1", "u1", deps);
+    expect(sendFileMessage).toHaveBeenCalledTimes(1);
+    expect(bodies()).toEqual(["after the photos"]);
+    expect(statuses()).toEqual(["queued", "queued"]);
+
+    // The retry runs the media line again: the photos go, in order.
+    sendFileMessage.mockImplementation(async (_ws, _room, { client_msg_id }) => echo(client_msg_id, { kind: "file" }));
+    fire();
+    await settle();
+    expect(sendFileMessage.mock.calls.map(([, , { file }]) => file.name)).toEqual(["big.jpg", "big.jpg", "second.jpg"]);
+    expect(statuses()).toEqual([]);
+  });
+
+  it("a photo queued offline is started by the text written after it, which then waits for it", async () => {
+    const qc = new QueryClient();
+    online = false;
+    await sendChatMessage(qc, { ...input, body: "", file: photo }, deps);
+    online = true;
+    sendFileMessage.mockImplementationOnce(async (_ws, _room, { client_msg_id }) => echo(client_msg_id, { kind: "file" }));
+    // No flush ran since the network came back: the new message's line starts the photo's.
+    await sendChatMessage(qc, { ...input, body: "now" }, deps);
+    expect(sleep).toHaveBeenCalledWith(MEDIA_OVERTAKE_MS);
+    expect(sendFileMessage).toHaveBeenCalledTimes(1);
+    expect(bodies()).toEqual(["now"]);
+    expect(statuses()).toEqual([]);
+  });
+
+  it("a text line that finds the network gone while it waits stops, and goes on the next flush", async () => {
+    const qc = new QueryClient();
+    const land = slowUpload();
+    const sent = sendChatMessage(qc, { ...input, body: "", file: photo }, deps);
+    await settle();
+    const after = sendChatMessage(qc, { ...input, body: "later" }, deps);
+    await settle();
+    online = false;
+    land();
+    await Promise.all([sent, after]);
+    expect(bodies()).toEqual([]);
+    online = true;
+    await flushQueuedSends(qc, "w1", "u1", deps);
+    expect(bodies()).toEqual(["later"]);
+  });
+
+  it("waits on the real clock by default", async () => {
+    vi.useFakeTimers();
+    try {
+      const qc = new QueryClient();
+      const land = slowUpload();
+      const real: ChatSendDeps = { ...deps, now: undefined, sleep: undefined };
+      const sent = sendChatMessage(qc, { ...input, body: "", file: photo }, real);
+      await vi.advanceTimersByTimeAsync(0);
+      const after = sendChatMessage(qc, { ...input, body: "on time" }, real);
+      await vi.advanceTimersByTimeAsync(MEDIA_OVERTAKE_MS);
+      await after;
+      expect(bodies()).toEqual(["on time"]);
+      land();
+      await sent;
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe("every workspace", () => {
+  it("flushes the sender's messages of every workspace, whichever is open, and nobody else's", async () => {
+    const qc = new QueryClient();
+    online = false;
+    await sendChatMessage(qc, { ...input, body: "w1" }, deps);
+    await sendChatMessage(qc, { ...input, workspaceId: "w2", body: "w2" }, deps);
+    await sendChatMessage(qc, { ...input, senderId: "u9", body: "not mine" }, deps);
+    online = true;
+    await flushAllQueuedSends(qc, "u1", deps);
+    expect(bodies().sort()).toEqual(["w1", "w2"]);
+    expect(statuses()).toEqual(["queued"]);
+  });
+
+  it("drops a refusal nobody retried for two weeks, with its file; a newer one stays for the person to see", async () => {
+    const qc = new QueryClient();
+    sendMessage.mockRejectedValueOnce(apiError(403)).mockRejectedValueOnce(apiError(403));
+    clock = 0;
+    vi.spyOn(Date, "now").mockReturnValue(1_000);
+    await sendChatMessage(qc, { ...input, body: "old" }, deps);
+    vi.spyOn(Date, "now").mockReturnValue(FAILED_SEND_TTL_MS);
+    await sendChatMessage(qc, { ...input, roomId: "r2", body: "new" }, deps);
+    const [old] = useChatSendStore.getState().entries;
+    clock = FAILED_SEND_TTL_MS + 1_001;
+    await flushAllQueuedSends(qc, "u1", deps);
+    expect(useChatSendStore.getState().entries.map((e) => e.body)).toEqual(["new"]);
+    expect(files.release).toHaveBeenCalledWith(old!.clientMsgId);
+    // The app's own clock by default.
+    await flushAllQueuedSends(qc, "u1", { ...deps, now: undefined });
+    expect(statuses()).toEqual(["failed"]);
   });
 });

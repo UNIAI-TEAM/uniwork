@@ -2,19 +2,18 @@
 // the workspace's socket subscriptions in [org]/[ws]/_layout.tsx. The frames
 // themselves are chat-realtime.ts's; this hook only wires them, picks the
 // chat scopes (the open room, then unread, then recent — at most 25, the
-// web's selectLazyChatScopeRoomIds), flushes the outbox and the queued reads,
-// reactions and votes when the workspace opens, the network or the socket
-// comes back, or the app returns to the front, and keeps presence beating
-// while the app is in front.
-import NetInfo from "@react-native-community/netinfo";
-import { onlineManager, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
+// web's selectLazyChatScopeRoomIds), flushes what the phone owes (the outbox
+// and the queued reads, reactions and votes of every workspace, owed.ts) when
+// the socket comes back — the network edge and the return to the front are
+// use-owed-flush.ts's, for the whole signed-in app — and keeps presence
+// beating while the app is in front.
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { selectLazyChatScopeRoomIds } from "@uniwork/core/chat/lazy-chat-scopes";
 import { useEffect, useMemo } from "react";
 import { AppState } from "react-native";
 import { useAuthStore } from "@/data/auth/store";
 import { chatApi } from "@/data/chat-api";
-import { chatSendDeps, flushQueuedSends } from "@/data/chat-send";
-import { flushPendingOps, pendingOpsDeps } from "@/data/pending-ops";
+import { flushOwed } from "@/data/owed";
 import { roomsOptions } from "@/data/queries/chat";
 import { bestEffort } from "@/data/report";
 import { useActiveChatRoomStore } from "@/data/stores/chat-active-room-store";
@@ -68,12 +67,6 @@ function useChatPresenceHeartbeat(wsId: string, userId: string | null) {
   }, [wsId, userId]);
 }
 
-/** What the phone owes the server: the unsent messages, then the queued reads, reactions and votes. */
-function flushOwed(qc: QueryClient, wsId: string, userId: string): void {
-  void flushQueuedSends(qc, wsId, userId, chatSendDeps);
-  void flushPendingOps(qc, wsId, userId, pendingOpsDeps);
-}
-
 export function useChatRealtime(wsId: string) {
   const qc = useQueryClient();
   const userId = useAuthStore((s) => s.user?.id ?? null);
@@ -94,7 +87,7 @@ export function useChatRealtime(wsId: string) {
         ws.onAny((message) => realtime.handle(message)),
         ws.onReconnect(() => {
           realtime.reconnect();
-          if (userId) flushOwed(qc, wsId, userId);
+          if (userId) void flushOwed(qc, userId);
         }),
         realtime.dispose,
         () => useSidebarTypingStore.getState().clearAll(),
@@ -103,27 +96,6 @@ export function useChatRealtime(wsId: string) {
     },
     [qc, wsId, userId],
   );
-
-  // The outbox goes when the workspace opens (messages kept from the last run), on NetInfo's
-  // offline → online edge without waiting for the socket, and on each return to the foreground.
-  useEffect(() => {
-    if (!userId) return;
-    const flush = () => flushOwed(qc, wsId, userId);
-    flush();
-    let wasOnline = onlineManager.isOnline();
-    const unsubscribeNet = NetInfo.addEventListener((state) => {
-      const online = state.isConnected === true;
-      if (online && !wasOnline) flush();
-      wasOnline = online;
-    });
-    const appState = AppState.addEventListener("change", (state) => {
-      if (state === "active") flush();
-    });
-    return () => {
-      unsubscribeNet();
-      appState.remove();
-    };
-  }, [qc, wsId, userId]);
 
   // A sign-out drops the queued sends: they are the signed-in person's.
   useEffect(
