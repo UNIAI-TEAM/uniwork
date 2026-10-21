@@ -31,7 +31,8 @@ tags:
 - evalScript: ${output.stamp = 'Offline ' + Date.now()}
 - setAirplaneMode: enabled
 - extendedWaitUntil:
-    visible: "Đang chờ mạng…|Waiting for network…"
+    visible:
+      id: connection-banner-offline
     timeout: 15000
 - repeat:
     times: 3
@@ -79,7 +80,8 @@ tags:
 - extendedWaitUntil:
     visible: .*${output.stamp} #3.*
     timeout: 30000
-- assertNotVisible: "Đang chờ mạng…|Waiting for network…"
+- assertNotVisible:
+    id: connection-banner-offline
 # In the order written…
 - assertVisible:
     text: .*${output.stamp} #2.*

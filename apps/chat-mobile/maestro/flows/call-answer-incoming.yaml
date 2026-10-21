@@ -27,10 +27,12 @@ tags:
 # Background the app: the ring must come from the push, not the socket.
 - pressKey: Home
 - runScript: ../scripts/ring-from-caller.js
+# Android 12+ draws its own CallStyle buttons (Answer / Trả lời); a build
+# that refuses CallStyle posts ours (chat.voice_call_accept: Accept / Nghe máy).
 - extendedWaitUntil:
-    visible: "(Answer|Trả lời|Nghe)"
+    visible: "(Answer|Trả lời|Accept|Nghe máy)"
     timeout: 30000
-- tapOn: "(Answer|Trả lời|Nghe)"
+- tapOn: "(Answer|Trả lời|Accept|Nghe máy)"
 - extendedWaitUntil:
     visible:
       id: call-active

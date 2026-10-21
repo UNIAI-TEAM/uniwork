@@ -590,8 +590,10 @@ Runbook: `docs/runbooks/unichat-mobile-release.md`; plan:
   build), Maestro ghim `MAESTRO_VERSION`; cùng đêm đó job `android-production`
   build AAB release từ profile production, không cần secret. Trong app flow chọn theo `testID`
   (`room-row-<roomId>`, `conversation-<roomId>`, `composer-input`,
-  `composer-send`, `room-call-*`, `call-*`) — đổi tên một id thì sửa flow cùng
-  PR; trang web trong sheet đăng nhập thì theo chữ vi|en.
+  `composer-send`, `room-call-*`, `call-*`, `connection-banner-{offline,connecting}`) — đổi tên một id thì sửa flow cùng
+  PR; trang web trong sheet đăng nhập thì theo chữ vi|en. `lib/maestro-flows.test.ts` đỏ khi một chữ trong ngoặc kép của
+  flow không khớp (regex, cả chuỗi) chuỗi nào của `locales/` hay locale web ở cả vi lẫn en, hay một `id:` không có
+  testID nào trong `app/`/`components/` (giá trị không phải chữ của app ghi ở `NOT_COPY` kèm lý do).
 - `store/listing.md`: mô tả vi/en, độ tuổi 18+ (khớp chính sách), privacy labels (có dòng xử lý AI và báo cáo),
   xoá tài khoản, nội dung do người dùng tạo, lý do từng quyền và dịch vụ nền, tài khoản
   demo cho review. Thêm quyền native thì cập nhật bảng quyền ở đó; thêm dịch vụ

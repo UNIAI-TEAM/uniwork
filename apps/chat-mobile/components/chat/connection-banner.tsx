@@ -42,7 +42,14 @@ export function ConnectionBanner() {
   useAnnounce(line);
   if (!line) return null;
   return (
-    <View accessible accessibilityRole="alert" accessibilityLiveRegion="polite" className="flex-row items-center gap-2 bg-tint-yellow px-4 py-2">
+    <View
+      accessible
+      accessibilityRole="alert"
+      accessibilityLiveRegion="polite"
+      // For the Maestro flows, whatever language the device reads.
+      testID={offline ? "connection-banner-offline" : "connection-banner-connecting"}
+      className="flex-row items-center gap-2 bg-tint-yellow px-4 py-2"
+    >
       <Ionicons name={offline ? "cloud-offline-outline" : "sync-outline"} size={16} color={theme.tintYellowForeground} />
       <Text className="text-footnote font-medium text-tint-yellow-foreground">{line}</Text>
     </View>

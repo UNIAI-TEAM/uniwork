@@ -28,6 +28,7 @@ describe("ConnectionBanner", () => {
     mockSocket.state = "waiting";
     await render(<ConnectionBanner />);
     expect(screen.getByRole("alert")).toHaveTextContent(viText("chat.mobile.offline_banner"), { exact: false });
+    expect(screen.getByTestId("connection-banner-offline")).toBeTruthy();
   });
 
   it("says Connecting… once the socket has been down past the grace, and goes when it is back", async () => {
@@ -36,6 +37,7 @@ describe("ConnectionBanner", () => {
     expect(screen.queryByRole("alert")).toBeNull();
     await act(async () => jest.advanceTimersByTime(RECONNECT_GRACE_MS));
     expect(screen.getByRole("alert")).toHaveTextContent(viText("chat.mobile.connecting_banner"), { exact: false });
+    expect(screen.getByTestId("connection-banner-connecting")).toBeTruthy();
     mockSocket.state = "waiting";
     await rerender(<ConnectionBanner />);
     await act(async () => jest.advanceTimersByTime(RECONNECT_GRACE_MS));
