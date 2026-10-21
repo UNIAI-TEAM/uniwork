@@ -140,7 +140,8 @@ describe("MeetingConference render scoping", () => {
     ]);
     expect(options).toEqual({
       onlySubscribed: true,
-      updateOnlyOn: [RoomEvent.TrackMuted, RoomEvent.TrackUnmuted],
+      // An attribute change admits a held phone caller onto the stage.
+      updateOnlyOn: [RoomEvent.TrackMuted, RoomEvent.TrackUnmuted, RoomEvent.ParticipantAttributesChanged],
     });
   });
 

@@ -16,7 +16,7 @@ import { cn } from "@uniwork/ui/lib/utils";
 import { resolveConferenceStage, speakerSlots, trackTileKey } from "./conference-layout";
 import { MeetingParticipantTile } from "./meeting-participant-tile";
 import { useRoomAvatarOf } from "./meeting-room-avatars";
-import { participantRole } from "./meeting-signals";
+import { inMeeting, participantRole } from "./meeting-signals";
 import { useShareOrder } from "./use-share-order";
 import { useSpeakerOrder } from "./use-speaker-order";
 import { useStripPlacement } from "./use-strip-placement";
@@ -31,7 +31,8 @@ const STAGE_SOURCES = [
  * metadata events are read by each tile for itself, so the stage does not
  * rebuild every tile list on them.
  */
-const STAGE_TRACK_EVENTS = [RoomEvent.TrackMuted, RoomEvent.TrackUnmuted];
+// An attribute change is how a held phone caller is admitted onto the stage.
+const STAGE_TRACK_EVENTS = [RoomEvent.TrackMuted, RoomEvent.TrackUnmuted, RoomEvent.ParticipantAttributesChanged];
 
 /** The "+N" tile at the end of a strip; its count is read out as words. */
 function OverflowTile({ count, className }: { count: number; className?: string }) {
@@ -117,8 +118,8 @@ export const MeetingStageTiles = memo(function MeetingStageTiles({
   const hiddenIdentities = useMeetingViewSessionStore((s) => s.hiddenIdentities);
   const avatarOf = useRoomAvatarOf();
   const roomTracks = useTracks(STAGE_SOURCES, { onlySubscribed: true, updateOnlyOn: STAGE_TRACK_EVENTS });
-  // The AI scribe has a camera placeholder like anyone else; it gets no tile (D8).
-  const tracks = useMemo(() => roomTracks.filter((tr) => !tr.participant.isAgent), [roomTracks]);
+  // The AI scribe and held phone callers have a camera placeholder like anyone else; they get no tile.
+  const tracks = useMemo(() => roomTracks.filter((tr) => inMeeting(tr.participant)), [roomTracks]);
   const filters = {
     layout: viewLayout,
     maxTiles,

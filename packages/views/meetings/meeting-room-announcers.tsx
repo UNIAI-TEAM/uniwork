@@ -9,13 +9,14 @@ import {
   ConnectionState,
   RoomEvent,
   Track,
+  type Participant,
   type RemoteParticipant,
   type TrackPublication,
 } from "livekit-client";
 import { useTranslation } from "react-i18next";
 import { useMeetingChat } from "@uniwork/core/meetings";
 import { chatWatermark, unreadChatSince, type ChatWatermark } from "./meeting-chat";
-import { reactionLabelKey } from "./meeting-signals";
+import { DIAL_IN_STATE_ATTRIBUTE, inMeeting, reactionLabelKey } from "./meeting-signals";
 import { useMeetingSignals } from "./use-meeting-signals";
 
 /** People already in the room when we connect are not news; only later arrivals are. */
@@ -76,8 +77,8 @@ export function ParticipantPresenceAnnouncer() {
       left = [];
       if (parts.length > 0) setText(parts.join(". "));
     };
-    const queue = (list: string[], p: RemoteParticipant) => {
-      if (Date.now() < readyAt || p.isAgent) return;
+    const queue = (list: string[], p: Participant) => {
+      if (Date.now() < readyAt || !inMeeting(p)) return;
       list.push(p.name || p.identity);
       clearTimeout(timer);
       timer = setTimeout(flush, PRESENCE_BATCH_MS);
@@ -96,13 +97,18 @@ export function ParticipantPresenceAnnouncer() {
     };
     const onJoin = (p: RemoteParticipant) => queue(joined, p);
     const onLeave = (p: RemoteParticipant) => queue(left, p);
+    // A phone caller joins held and enters the meeting when the host admits them.
+    const onAttributes = (changed: Record<string, string>, p: Participant) => {
+      if (changed[DIAL_IN_STATE_ATTRIBUTE] === "admitted") queue(joined, p);
+    };
 
     room
       .on(RoomEvent.Connected, onSettle)
       .on(RoomEvent.Reconnecting, onReconnecting)
       .on(RoomEvent.Reconnected, onSettle)
       .on(RoomEvent.ParticipantConnected, onJoin)
-      .on(RoomEvent.ParticipantDisconnected, onLeave);
+      .on(RoomEvent.ParticipantDisconnected, onLeave)
+      .on(RoomEvent.ParticipantAttributesChanged, onAttributes);
     return () => {
       clearTimeout(timer);
       room
@@ -110,7 +116,8 @@ export function ParticipantPresenceAnnouncer() {
         .off(RoomEvent.Reconnecting, onReconnecting)
         .off(RoomEvent.Reconnected, onSettle)
         .off(RoomEvent.ParticipantConnected, onJoin)
-        .off(RoomEvent.ParticipantDisconnected, onLeave);
+        .off(RoomEvent.ParticipantDisconnected, onLeave)
+        .off(RoomEvent.ParticipantAttributesChanged, onAttributes);
     };
   }, [room, t]);
 

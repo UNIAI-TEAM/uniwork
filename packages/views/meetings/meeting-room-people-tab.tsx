@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useParticipants as useLiveKitParticipants } from "@livekit/components-react";
-import { RoomEvent, type Participant } from "livekit-client";
+import type { Participant } from "livekit-client";
 import { ChevronDown, Hand, Plus, Search } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { Meeting, MeetingParticipant } from "@uniwork/core/types";
@@ -27,19 +27,19 @@ import { MeetingMuteAllButton } from "./meeting-moderation";
 import { MeetingParticipantRow } from "./meeting-participant-row";
 import { MeetingSharedMicMenuItem } from "./meeting-shared-mic-menu-item";
 import { useRoomAvatarOf } from "./meeting-room-avatars";
-import { guestIdentities, humanParticipants, PARTICIPANT_IDENTITY_PREFIX, participantRole } from "./meeting-signals";
+import {
+  guestIdentities,
+  humanParticipants,
+  PARTICIPANT_IDENTITY_PREFIX,
+  participantRole,
+  ROSTER_EVENTS,
+} from "./meeting-signals";
 import { useMeetingSignals } from "./use-meeting-signals";
 import { MEETING_TOGGLE_CHIP } from "./meeting-toggle-chip";
 import { useWindowedList } from "./use-windowed-list";
 
 /** The pressed view lifts out of the track: the meeting list's filter chip, stretched to half the track. */
 const SEGMENT = `${MEETING_TOGGLE_CHIP} w-full rounded-lg hover:bg-transparent`;
-
-/**
- * Joins and leaves are always followed; a rename is the one other change the
- * list shows. Each row follows its own mic, speaking and lock state.
- */
-const ROSTER_EVENTS = [RoomEvent.ParticipantNameChanged];
 
 function displayName(participant: Participant): string {
   return participant.name || participant.identity;

@@ -1,6 +1,6 @@
 import { act, render, screen } from "@testing-library/react";
 import { EventEmitter } from "events";
-import { ConnectionState, RoomEvent, Track } from "livekit-client";
+import { ConnectionState, ParticipantKind, RoomEvent, Track } from "livekit-client";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import { wrapWithNav } from "../test/api-mock";
@@ -78,6 +78,30 @@ describe("ParticipantPresenceAnnouncer", () => {
       vi.advanceTimersByTime(1500);
     });
     expect(live).toHaveTextContent("");
+  });
+
+  it("announces a phone caller once the host admits them, never while held", () => {
+    render(<ParticipantPresenceAnnouncer />);
+    const room = lk.room as FakeRoom;
+    const live = screen.getByTestId("meeting-presence-announcer");
+    act(() => {
+      vi.advanceTimersByTime(2500);
+    });
+    // Held callers join with no attribute, then "waiting"; neither is news.
+    const caller = { identity: "sip_1", name: "0912 345 678", kind: ParticipantKind.SIP, attributes: {} };
+    act(() => {
+      room.emit(RoomEvent.ParticipantConnected, caller);
+      caller.attributes = { "uw.dial_in": "waiting" };
+      room.emit(RoomEvent.ParticipantAttributesChanged, { "uw.dial_in": "waiting" }, caller);
+      vi.advanceTimersByTime(1500);
+    });
+    expect(live).toHaveTextContent("");
+    act(() => {
+      caller.attributes = { "uw.dial_in": "admitted" };
+      room.emit(RoomEvent.ParticipantAttributesChanged, { "uw.dial_in": "admitted" }, caller);
+      vi.advanceTimersByTime(1500);
+    });
+    expect(live).toHaveTextContent("0912 345 678 đã vào phòng");
   });
 
   it("reads a burst of arrivals as one count", () => {
