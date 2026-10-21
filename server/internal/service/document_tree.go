@@ -385,6 +385,9 @@ type DocumentTreeNode struct {
 	// tenure exists (UNI-1645 §3.2); nil when nobody holds it. It never
 	// carries the tenure id.
 	EditLock *DocumentEditLockSummary `json:"edit_lock,omitempty"`
+	// IsEmpty is set on folders only: whether the caller can read nothing
+	// directly inside it (ADR 0037, counted per viewer).
+	IsEmpty *bool `json:"is_empty,omitempty"`
 }
 
 // DocumentTree returns the visible subtree under rootID ("" = the roots) as

@@ -395,6 +395,12 @@ func (s *DocumentService) archiveLockedSubtree(ctx context.Context, q *db.Querie
 // one snapshot the walk opened. Never set in production.
 var documentArchiveImpactTx func(ctx context.Context, tx pgx.Tx)
 
+// folderTrashAfterRelocate is the UNI-2055 test seam: it runs inside the
+// archive transaction right after a workspace folder's relocations are
+// written, and an error it returns aborts the command. Never set in
+// production.
+var folderTrashAfterRelocate func(ctx context.Context) error
+
 // DocumentArchiveImpact is what one ArchiveDocument of a subtree would move
 // (FD-04, addendum §3.4): the shape the delete dialog warns with.
 type DocumentArchiveImpact struct {
@@ -409,6 +415,10 @@ type DocumentArchiveImpact struct {
 	// TooLarge replaces the counts when the subtree passes the bound; the
 	// walk stopped after the bound, so no count is known and none is claimed.
 	TooLarge bool
+	// Relocated is how many documents the archive would move to the
+	// workspace root instead of the trash (ADR 0037 point 5): a number only,
+	// never which ones - the caller may not be able to read them.
+	Relocated int
 }
 
 // ArchiveImpact answers what ArchiveDocument would do to a subtree without
