@@ -240,4 +240,14 @@ describe("bulk selection", () => {
     }
     expect(within(bar()).getByRole("button", { name: t("documents.list.bulk.clear") })).toBeEnabled();
   });
+
+  it("gives the row and header checkboxes a 44px target on coarse pointers inside a wider Select column", () => {
+    const { container } = render(list([doc("a"), doc("b")]));
+    // 16px box + 14px of hit area each side = 44px, and the column leaves room for it beside the Name button.
+    expect(allBox().className).toContain("pointer-coarse:after:-inset-3.5");
+    expect(rowBox("Tệp a").className).toContain("pointer-coarse:after:-inset-3.5");
+    expect(container.querySelector("col")?.className).toContain("pointer-coarse:w-11");
+    expect(container.querySelector("td[data-column=select]")?.className).toContain("pointer-coarse:px-3.5");
+    expect(container.querySelector("th")?.className).toContain("pointer-coarse:px-3.5");
+  });
 });

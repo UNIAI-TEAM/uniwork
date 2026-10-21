@@ -146,11 +146,14 @@ export function specLadder(screen: DocListScreen, opts: { selectable?: boolean }
   const at = (column: keyof typeof rungs) => atRung(rungs[column]);
   // Every `<col>` takes the spec's width; Name has none. The optional columns carry px-2, Name keeps px-3.
   const PAD = "px-2";
+  // Select: 16px box + 14px of hit area each side is 44px on a coarse pointer (pointer-coarse:after:-inset-3.5 on the
+  // Checkbox), so the column grows to 44px and the box sits 14px in, clear of the Name button.
+  const SELECT_PAD = "px-2 pointer-coarse:px-3.5";
   const columns: LibraryColumn[] = spec.columns.flatMap((column): LibraryColumn[] => {
     const w = column.id === "name" ? "" : widthClass(column.width);
     switch (column.id) {
       case "select":
-        return opts.selectable === false ? [] : [{ id: column.id, col: w, cell: "", pad: PAD }];
+        return opts.selectable === false ? [] : [{ id: column.id, col: `${w} pointer-coarse:w-11`, cell: "", pad: SELECT_PAD }];
       case "name":
         return [{ id: column.id, col: "", cell: "" }];
       case "access":

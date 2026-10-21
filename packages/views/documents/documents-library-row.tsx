@@ -340,6 +340,7 @@ export function LibraryRowView({
         {selection?.onToggle ? (
           <Checkbox
             checked={selection.selected}
+            className="pointer-coarse:after:-inset-3.5"
             onCheckedChange={(_checked, details) => selection.onToggle?.("shiftKey" in details.event && details.event.shiftKey === true)}
             aria-label={t("documents.list.bulk.select_row", { title })}
           />

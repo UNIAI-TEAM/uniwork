@@ -258,6 +258,7 @@ export function DocumentsLibraryList({
                       <>
                         <span className="sr-only">{t(columnLabel(column.id))}</span>
                         <Checkbox
+                          className="pointer-coarse:after:-inset-3.5"
                           checked={selection.all === true}
                           indeterminate={selection.all === "mixed"}
                           onCheckedChange={() => selection.setAll(selection.all !== true)}
