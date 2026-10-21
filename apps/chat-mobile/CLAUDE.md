@@ -424,7 +424,10 @@ một dòng thì ghi lý do ở dòng trên.
   cái dính, chữ cái bên phải nhảy bằng `scrollToIndex` — `scrollToLocation` của SectionList không có `getItemLayout`
   ném invariant khi chữ cái nằm ngoài phần đã đo, crash cả app ở workspace lớn) và dải "đang hoạt động" (ngang).
   Ô tái chế không giữ state riêng (hiện diện đọc theo người của hàng), `getItemType` theo loại ô, avatar có
-  `recyclingKey` (ô dùng lại không loé mặt người trước). Ô tìm danh bạ lọc sau phím gõ (`useDeferredValue`).
+  `recyclingKey` (ô dùng lại không loé mặt người trước). FlashList 2 mặc định giữ hàng đầu đang thấy tại chỗ khi data
+  đổi (`maintainVisibleContentPosition`, khác FlatList): danh sách phòng và danh bạ tắt nó (`{ disabled: true }`) —
+  phòng có tin mới lên đầu phải hiện ở đầu, kết quả tìm bắt đầu từ kết quả đầu; `test/list-anchoring.ts` đọc cây host
+  và test đỏ khi ScrollView nhận prop đó hay có `ScrollAnchor`. Ô tìm danh bạ lọc sau phím gõ (`useDeferredValue`).
   Jest: `test/jest-setup.ts` mock đo layout của FlashList (cửa sổ 400 × 900, ô 100) — `jestSetup.js` của gói trỏ
   tới export không có ở bản 2.0; danh sách dài trong test chỉ mount khoảng một màn như trên máy.
   Timeline tin nhắn vẫn là FlatList đảo ngược (lý do ở `message-list.tsx`: neo cuộn của danh sách đảo ngược chỉ kiểm

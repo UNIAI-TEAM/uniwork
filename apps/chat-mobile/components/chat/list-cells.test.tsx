@@ -10,6 +10,7 @@ import { useSidebarTypingStore } from "@/data/stores/chat-typing-store";
 import type { MessageRowModel } from "@/lib/message-row-model";
 import type { RoomListRow } from "@/lib/room-list";
 import { toTimelineMessage } from "@/lib/timeline-display";
+import { listAnchoring } from "@/test/list-anchoring";
 import { render, viText } from "@/test/render";
 import { MessageCell, type MessageHandlers } from "./message-cell";
 import { RoomListView } from "./room-list-view";
@@ -149,6 +150,19 @@ describe("RoomListView", () => {
     expect(onOpen).toHaveBeenCalledWith(newer[0]);
     await fireEvent(rowLabel("Chi"), "longPress");
     expect(onMenu).toHaveBeenCalledWith(newer[3]);
+  });
+
+  it("stays pinned to its top when a room moves up: no row is held in place above a new first row", async () => {
+    // The inbox sorts by latest activity: a new message in the last room moves it to the top. FlashList 2 keeps the
+    // old top row where it was by default, scrolling the list by a row so the room that moved sits above the screen.
+    const five = ["a", "b", "c", "d", "e"].map((id) => row({ key: `group:${id}`, roomId: id, title: id.toUpperCase(), mark: { kind: "group", label: id } }));
+    const props = { typingLines: {}, queuedRooms: new Set<string>(), onOpen: jest.fn(), onMenu: jest.fn() };
+    const { rerender } = await render(<RoomListView rows={five} {...props} />);
+    expect(listAnchoring(screen.toJSON())).toEqual({ maintained: [], anchors: [] });
+    const bumped = five.at(-1);
+    await rerender(<RoomListView rows={[...(bumped ? [bumped] : []), ...five.slice(0, -1)]} {...props} />);
+    expect(listAnchoring(screen.toJSON())).toEqual({ maintained: [], anchors: [] });
+    expect(screen.getByTestId("room-row-e")).toBeOnTheScreen();
   });
 });
 

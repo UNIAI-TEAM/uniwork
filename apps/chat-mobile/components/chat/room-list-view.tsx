@@ -7,6 +7,8 @@
 // list recycles its cells (FlashList, audit P2 Perf): a cell keeps no state of
 // its own (presence is read per row, by the row's person), so a reused one
 // draws its new room, and avatars clear on reuse (PersonAvatar's recyclingKey).
+// Unlike FlashList 2's default, it never holds a row in place across a change
+// of data: a room bumped to the top shows at the top (PINNED_TO_TOP).
 import { memo, useCallback, useMemo, useRef, type ComponentProps } from "react";
 import { FlashList, type ListRenderItem } from "@shopify/flash-list";
 import { useIsOnline } from "@/components/people/use-is-online";
@@ -74,6 +76,10 @@ interface Props extends ListProps {
 }
 
 const keyOf = (row: RoomListRow) => row.key;
+// FlashList 2 keeps the first visible row where it was across a data change unless this is disabled. The inbox sorts
+// by latest activity, so a new message moves its room to index 0 and the list would scroll by a row to keep the old
+// top row in place: a reader at the top would never see the room arrive. This list stays pinned to its top.
+const PINNED_TO_TOP = { disabled: true } as const;
 // A DM row and a group or channel row are laid out alike but carry different avatars: recycled within their kind.
 const typeOf = (row: RoomListRow) => row.mark.kind;
 
@@ -96,5 +102,15 @@ export function RoomListView({ rows, typingLines, queuedRooms, onOpen, onMenu, .
     ),
     [typingLines, queuedRooms, handlers],
   );
-  return <FlashList data={rows} keyExtractor={keyOf} getItemType={typeOf} keyboardShouldPersistTaps="handled" renderItem={renderItem} {...list} />;
+  return (
+    <FlashList
+      data={rows}
+      keyExtractor={keyOf}
+      getItemType={typeOf}
+      maintainVisibleContentPosition={PINNED_TO_TOP}
+      keyboardShouldPersistTaps="handled"
+      renderItem={renderItem}
+      {...list}
+    />
+  );
 }

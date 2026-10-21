@@ -28,6 +28,9 @@ interface Props {
 
 const keyOf = (item: ContactListItem) => item.key;
 const typeOf = (item: ContactListItem) => item.kind;
+// FlashList 2 keeps the first visible row where it was across a data change unless this is disabled: a search that
+// still matches the person on top would scroll every match above them out of view. The list starts at its first row.
+const PINNED_TO_TOP = { disabled: true } as const;
 
 export function ContactList({ sections, onPress, showIndex, header, empty, refreshing, onRefresh }: Props) {
   const list = useRef<FlashListRef<ContactListItem>>(null);
@@ -60,6 +63,7 @@ export function ContactList({ sections, onPress, showIndex, header, empty, refre
         getItemType={typeOf}
         renderItem={renderItem}
         stickyHeaderIndices={headerIndices}
+        maintainVisibleContentPosition={PINNED_TO_TOP}
         keyboardShouldPersistTaps="handled"
         ListHeaderComponent={header}
         ListEmptyComponent={empty}

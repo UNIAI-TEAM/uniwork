@@ -6,6 +6,7 @@ import { usePresenceStore } from "@/data/stores/chat-presence-store";
 import type { ContactRow } from "@/lib/contacts-display";
 import { userKey } from "@/lib/user-id";
 import { Text } from "@/components/ui/text";
+import { listAnchoring } from "@/test/list-anchoring";
 import { render, viText } from "@/test/render";
 import { contactSections, type ContactSection } from "@/lib/contacts-display";
 import { ContactItem } from "./contact-item";
@@ -118,6 +119,19 @@ describe("ContactList", () => {
     expect(screen.queryByLabelText(viText("chat.mobile.alphabet_index"))).toBeNull();
     await rerender(list(two));
     expect(screen.getByLabelText(viText("chat.mobile.alphabet_index"))).toBeOnTheScreen();
+  });
+
+  it("starts a narrowed list at its first match, not at the row that was on top before", async () => {
+    // FlashList 2 keeps the old first visible row in place across a data change unless told not to: a search that
+    // still matches the person on top would open with every match above them scrolled out of view.
+    const everyone = contactSections([person("u1", "An"), person("u2", "Bình"), person("u3", "Chi"), person("u4", "Dũng")], { currentUserId: "me", hiddenUserIds: new Set(), query: "" });
+    const { rerender } = await render(list(everyone));
+    expect(listAnchoring(screen.toJSON())).toEqual({ maintained: [], anchors: [] });
+    const narrowed = contactSections([person("u0", "Anh"), person("u1", "An"), person("u4", "Dũng")], { currentUserId: "me", hiddenUserIds: new Set(), query: "" });
+    await rerender(list(narrowed, { showIndex: false }));
+    expect(listAnchoring(screen.toJSON())).toEqual({ maintained: [], anchors: [] });
+    expect(screen.getByRole("button", { name: "An, u1@uni.vn" })).toBeOnTheScreen();
+    expect(screen.getByRole("button", { name: "Anh, u0@uni.vn" })).toBeOnTheScreen();
   });
 
   it("shows what it is given while there is no one", async () => {
