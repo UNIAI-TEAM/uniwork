@@ -1,0 +1,24 @@
+$ rc=$(cat /tmp/pr7r5b-e2e.exit 2>/dev/null || echo 99); grep -vE "^\s+at " /tmp/pr7r5b-e2e.log | grep -E "✘|failed|flaky|passed|skipped|did not run|Error:" | head -80; tail -n 30 /tmp/pr7r5b-e2e.log; for f in e2e/test-results/*/error-context.md; do [ -f "$f" ] && { echo "===== $f"; head -c 3000 "$f"; }; done; grep -qE "[0-9]+ passed" /tmp/pr7r5b-e2e.log || { echo "no passing test"; [ "$rc" = 0 ] && rc=1; }; echo; echo "E2E_EXIT=$rc"
+  9 passed (1.4m)
+
+> @uniwork/e2e@0.0.0 test /workspace/e2e
+> playwright test --reporter=list chat-document-share.spec.ts:182 chat-document-share.spec.ts:57 documents.spec.ts:181 documents-first-save-share.spec.ts:31 documents-folders.spec.ts:1248 documents-folders.spec.ts:1341 documents-folders.spec.ts:984 documents-home.spec.ts:312 documents-home.spec.ts:326 documents-home.spec.ts:54 documents-share.spec.ts:178
+
+
+Running 9 tests using 1 worker
+
+(node:18629) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  1 documents-first-save-share.spec.ts:31:1 › the first-save share switch makes the new document shared with the workspace (7.5s)
+  ✓  2 documents-folders.spec.ts:984:1 › FD-A05 (FD-09 UI) tree Move-to picker marks a too-deep target aria-disabled with its reason, refuses it, and moves to a valid one with a toast (5.0s)
+  ✓  3 documents-folders.spec.ts:1248:1 › FD-A07 moving a document between folders keeps ID, versions, and comments with no second row and renames Name (n).ext on collision (4.5s)
+  ✓  4 documents-folders.spec.ts:1341:1 › FD-A07 (FD-09 UI) Move-to picker marks the current location aria-disabled with Vị trí hiện tại, refuses to select it, and a colliding move toasts Đã chuyển và đổi tên thành (3.6s)
+  ✓  5 documents-home.spec.ts:54:1 › quick create, folder, move and the other-modules section on the owner's home (8.9s)
+  ✓  6 documents-home.spec.ts:312:3 › a view-only member › gets no Move, Archive or Move to trash on a row shared at view level (2.5s)
+  ✓  7 documents-home.spec.ts:326:3 › a view-only member › lists shared documents under the owner's Tôi đã chia sẻ, excludes private ones, and keeps them out of the recipient's Tôi đã chia sẻ (5.0s)
+  ✓  8 documents-share.spec.ts:178:1 › AC04 the workspace at View goes through the home row, not a share row (3.7s)
+  ✓  9 documents.spec.ts:181:1 › the library lists pages across its views and the tree opens one (6.0s)
+
+  9 passed (1.4m)
+
+E2E_EXIT=0
