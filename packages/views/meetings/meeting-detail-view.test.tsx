@@ -5,6 +5,8 @@ import { ApiError } from "@uniwork/core/api/http";
 import { initI18n } from "@uniwork/core/i18n";
 import { toast } from "sonner";
 import type { User, Workspace } from "@uniwork/core/types";
+import { useAiPanelStore } from "@uniwork/core/ai";
+import { capabilities, withAskUniDock } from "../ai/ask-uni-fixtures";
 import { WorkspaceProvider } from "../layout/workspace-context";
 import { requestMock, wrapWithNav } from "../test/api-mock";
 import { MeetingDetailView } from "./meeting-detail-view";
@@ -129,6 +131,19 @@ describe("MeetingDetailView", () => {
     // Nobody else is on the roster, so there is nobody to hand the host role to.
     expect(screen.queryByRole("menuitem", { name: "Chuyển chủ trì…" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Chuyển chủ trì/ })).not.toBeInTheDocument();
+  });
+
+  it("opens Ask UNI focused on this meeting", async () => {
+    requestMock.mockImplementation((path: unknown) => {
+      const p = String(path);
+      if (p.endsWith("/ai/capabilities")) return Promise.resolve(capabilities());
+      if (p === "/api/v1/meetings/m1") return Promise.resolve({ meeting });
+      return Promise.resolve({});
+    });
+    useAiPanelStore.setState({ open: false, pendingFocus: null });
+    render(shell(withAskUniDock(<MeetingDetailView workspaceId="w1" meetingId="m1" onJoin={() => {}} onDeleted={() => {}} />)));
+    fireEvent.click(await screen.findByRole("button", { name: "Hỏi UNI về cuộc họp này" }));
+    expect(useAiPanelStore.getState().pendingFocus).toEqual({ kind: "meeting", id: "m1" });
   });
 
   it("uses a single-column detail layout inside a contextual panel", async () => {

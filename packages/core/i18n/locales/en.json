@@ -1632,7 +1632,12 @@
       "revokeTitle": "Revoke {{client}}?",
       "revokeBody": "{{user}}'s app loses access to the organization's data at once.",
       "revoked": "Revoked {{client}}",
-      "revokeFailed": "Could not revoke. Try again."
+      "revokeFailed": "Could not revoke. Try again.",
+      "askModelsTitle": "Ask UNI models",
+      "askModelsDescription": "Choose which models members may use when asking UNI. A model that is off does not appear in the model picker.",
+      "askModelsAuto": "Auto",
+      "askModelsAutoNote": "Always on: UNI picks a suitable model.",
+      "askModelsSaveFailed": "Could not save the change. Try again."
     },
     "state": {
       "load_error": "Couldn't load this section.",
@@ -5789,6 +5794,11 @@
         "message": "Message"
       }
     },
+    "ask_about_task": "Ask UNI about this task",
+    "ask_about_meeting": "Ask UNI about this meeting",
+    "ask_about_document": "Ask UNI about this document",
+    "ask_about_project": "Ask UNI about this project",
+    "ask_about_room": "Ask UNI about this chat",
     "model": {
       "label": "Choose a model",
       "auto": "Auto",

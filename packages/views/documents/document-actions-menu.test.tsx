@@ -4,6 +4,8 @@ import { ApiError } from "@uniwork/core/api";
 import { initI18n } from "@uniwork/core/i18n";
 import { DocumentSchema, type Document } from "@uniwork/core/types/document";
 import type { User, Workspace } from "@uniwork/core/types";
+import { useAiPanelStore } from "@uniwork/core/ai";
+import { capabilities } from "../ai/ask-uni-fixtures";
 import { WorkspaceProvider } from "../layout/workspace-context";
 import { fakeNav, requestMock, wrapWithNav } from "../test/api-mock";
 import { FeatureFlagService, FeatureFlagsProvider, StaticProvider } from "@uniwork/core/feature-flags";
@@ -143,6 +145,32 @@ describe("DocumentActionsMenu with an embedded editor", () => {
     expect(comments).toHaveClass("sm:hidden");
     fireEvent.click(comments);
     await waitFor(() => expect(trigger).toHaveAttribute("aria-expanded", "true"));
+  });
+});
+
+describe("DocumentCommentsHeaderActions", () => {
+  it("opens Ask UNI focused on this document", async () => {
+    requestMock.mockImplementation((path: unknown) =>
+      Promise.resolve(String(path).endsWith("/ai/capabilities") ? capabilities() : {}),
+    );
+    useAiPanelStore.setState({ open: false, pendingFocus: null });
+    const doc = documentFixture();
+    const service = new FeatureFlagService(
+      new StaticProvider({ documents: { default: true }, ask_uni_stream: { default: true } }),
+    );
+    render(
+      wrapWithNav(
+        <FeatureFlagsProvider service={service}>
+          <WorkspaceProvider workspace={workspace} user={user}>
+            <DocumentCommentsProvider wsId={WS} doc={doc}>
+              <DocumentCommentsHeaderActions />
+            </DocumentCommentsProvider>
+          </WorkspaceProvider>
+        </FeatureFlagsProvider>,
+      ),
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "Hỏi UNI về tài liệu này" }));
+    expect(useAiPanelStore.getState().pendingFocus).toEqual({ kind: "document", id: doc.id });
   });
 });
 

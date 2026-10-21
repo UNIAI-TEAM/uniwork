@@ -6,6 +6,7 @@ import { useTranslation } from "react-i18next";
 import { useFlag } from "@uniwork/core/feature-flags";
 import type { Document } from "@uniwork/core/types/document";
 import { Button } from "@uniwork/ui/components/ui/button";
+import { AskUniFocusButton } from "../ai/ask-uni-focus-button";
 import { useHeaderActionsSlotFilled } from "../layout/header-actions-slot";
 import { useOptionalNavigation } from "../navigation";
 import { useOptionalWorkspace } from "../layout/workspace-context";
@@ -129,6 +130,7 @@ export function DocumentCommentsHeaderActions() {
   const label = t(documentCommentsTitleKey(chrome.doc));
   return (
     <div className={folded ? "hidden shrink-0 items-center gap-1 sm:flex" : "contents"} data-document-comments-actions>
+      <AskUniFocusButton kind="document" id={chrome.doc.id} workspaceId={chrome.wsId} />
       <DocumentFavoriteToggle documentId={chrome.doc.id} orgId={orgId} />
       <Button
         ref={chrome.triggerRef}

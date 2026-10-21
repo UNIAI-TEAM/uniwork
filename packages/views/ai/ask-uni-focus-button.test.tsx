@@ -1,0 +1,53 @@
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { beforeEach, describe, expect, it } from "vitest";
+import { useAiPanelStore } from "@uniwork/core/ai";
+import { FeatureFlagService, FeatureFlagsProvider, StaticProvider } from "@uniwork/core/feature-flags";
+import { initI18n } from "@uniwork/core/i18n";
+import { requestMock, wrapWithNav } from "../test/api-mock";
+import { WorkspaceProvider } from "../layout/workspace-context";
+import { AskUniFocusButton } from "./ask-uni-focus-button";
+import { capabilities, composerRoutes, user, workspace } from "./ask-uni-fixtures";
+
+initI18n();
+
+function mount(flagOn: boolean) {
+  const service = new FeatureFlagService(new StaticProvider({ ask_uni_stream: { default: flagOn } }));
+  render(
+    wrapWithNav(
+      <FeatureFlagsProvider service={service}>
+        <WorkspaceProvider workspace={workspace} user={user}>
+          <AskUniFocusButton kind="task" id="t1" />
+        </WorkspaceProvider>
+      </FeatureFlagsProvider>,
+    ),
+  );
+}
+
+beforeEach(() => {
+  requestMock.mockReset();
+  requestMock.mockImplementation(composerRoutes);
+  useAiPanelStore.setState({ open: false, pendingFocus: null, conversationId: null });
+});
+
+describe("AskUniFocusButton", () => {
+  it("opens the dock with the focus", async () => {
+    mount(true);
+    fireEvent.click(await screen.findByRole("button", { name: "Hỏi UNI về task này" }));
+    expect(useAiPanelStore.getState().open).toBe(true);
+    expect(useAiPanelStore.getState().pendingFocus).toEqual({ kind: "task", id: "t1" });
+  });
+
+  it("hidden when AI is off or the flag is off", async () => {
+    mount(false);
+    await new Promise((r) => setTimeout(r, 20));
+    expect(screen.queryByRole("button")).toBeNull();
+    document.body.innerHTML = "";
+    requestMock.mockImplementation((path: string) =>
+      Promise.resolve(path.endsWith("/ai/capabilities") ? { ...capabilities(), enabled: false } : {}),
+    );
+    mount(true);
+    await waitFor(() => expect(requestMock).toHaveBeenCalled());
+    await new Promise((r) => setTimeout(r, 20));
+    expect(screen.queryByRole("button")).toBeNull();
+  });
+});

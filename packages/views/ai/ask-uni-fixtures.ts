@@ -1,5 +1,13 @@
 // Test fixtures shared by the Ask UNI composer suites (not exported to the app).
+import { createElement, type ReactElement } from "react";
+import { FeatureFlagService, FeatureFlagsProvider, StaticProvider } from "@uniwork/core/feature-flags";
 import type { User, Workspace } from "@uniwork/core/types";
+
+/** Wraps a screen so the `ask_uni_stream` flag reads on. */
+export function withAskUniDock(ui: ReactElement): ReactElement {
+  const service = new FeatureFlagService(new StaticProvider({ ask_uni_stream: { default: true } }));
+  return createElement(FeatureFlagsProvider, { service, children: ui });
+}
 
 export const user: User = {
   id: "u1", email: "a@b.c", display_name: "An", onboarded_at: "2026-08-25T00:00:00Z",

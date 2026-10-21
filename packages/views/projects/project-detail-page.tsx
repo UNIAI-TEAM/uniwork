@@ -6,6 +6,7 @@ import { useProjectPermissions } from "@uniwork/core/permissions";
 import { useProject } from "@uniwork/core/tasks";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
+import { AskUniFocusButton } from "../ai/ask-uni-focus-button";
 import { PinToggleButton } from "../common/pin-toggle-button";
 import { BreadcrumbHeader } from "../layout/breadcrumb-header";
 import {
@@ -128,6 +129,7 @@ export function ProjectDetailPage({
               }
               actions={
                 <>
+                  <AskUniFocusButton kind="project" id={projectId} workspaceId={workspaceId} />
                   <PinToggleButton
                     workspaceId={workspaceId}
                     itemType="project"

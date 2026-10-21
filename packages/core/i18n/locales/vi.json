@@ -1631,7 +1631,12 @@
       "revokeTitle": "Thu hồi {{client}}?",
       "revokeBody": "Ứng dụng của {{user}} mất quyền đọc dữ liệu tổ chức ngay.",
       "revoked": "Đã thu hồi {{client}}",
-      "revokeFailed": "Không thu hồi được. Thử lại."
+      "revokeFailed": "Không thu hồi được. Thử lại.",
+      "askModelsTitle": "Model của Hỏi UNI",
+      "askModelsDescription": "Chọn model mà thành viên được dùng khi hỏi UNI. Model tắt sẽ không hiện trong menu chọn model.",
+      "askModelsAuto": "Tự động",
+      "askModelsAutoNote": "Luôn bật: UNI tự chọn model phù hợp.",
+      "askModelsSaveFailed": "Không lưu được thay đổi. Thử lại."
     },
     "state": {
       "load_error": "Không tải được phần này.",
@@ -5780,6 +5785,11 @@
         "message": "Tin nhắn"
       }
     },
+    "ask_about_task": "Hỏi UNI về task này",
+    "ask_about_meeting": "Hỏi UNI về cuộc họp này",
+    "ask_about_document": "Hỏi UNI về tài liệu này",
+    "ask_about_project": "Hỏi UNI về dự án này",
+    "ask_about_room": "Hỏi UNI về cuộc trò chuyện này",
     "model": {
       "label": "Chọn model",
       "auto": "Tự động",

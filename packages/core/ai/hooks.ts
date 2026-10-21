@@ -18,11 +18,12 @@ export const aiKeys = {
 };
 
 /** Cheap and rarely changing: the topbar button reads it on every screen. */
-export function useAiCapabilities(wsId: string) {
+export function useAiCapabilities(wsId: string, enabled = true) {
   return useQuery({
     queryKey: aiKeys.capabilities(wsId),
     queryFn: () => api.getAiCapabilities(wsId),
     staleTime: 5 * 60_000,
+    enabled,
   });
 }
 
