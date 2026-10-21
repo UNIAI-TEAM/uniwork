@@ -50,7 +50,7 @@ export function MeetingAssigneeSelect({
         else onChange(next);
       }}
     >
-      <SelectTrigger size="sm" className={className} aria-label={t("meetings.assignTaskTo")}>
+      <SelectTrigger className={className} aria-label={t("meetings.assignTaskTo")}>
         <SelectValue placeholder={suggestedOwner || t("meetings.assignTaskTo")}>
           {active?.label ?? suggestedOwner}
         </SelectValue>

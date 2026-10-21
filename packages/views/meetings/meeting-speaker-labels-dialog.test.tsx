@@ -45,7 +45,7 @@ describe("MeetingSpeakerLabelsDialog", () => {
   it("lists each speaker with a line they said, and the name already given", async () => {
     openDialog();
     expect(await screen.findByText("Hội trường · Người nói 1")).toBeInTheDocument();
-    expect(screen.getAllByText("“Chốt ship thứ Sáu”")).toHaveLength(2);
+    expect(screen.getAllByText('"Chốt ship thứ Sáu"')).toHaveLength(2);
     // An assigned speaker leads with the name, the label under it.
     expect(screen.getByText("An", { selector: "p" })).toBeInTheDocument();
     expect(screen.getByText("Hội trường · Người nói 2")).toBeInTheDocument();
@@ -55,7 +55,8 @@ describe("MeetingSpeakerLabelsDialog", () => {
     openDialog();
     const input = await screen.findByRole("textbox", { name: "Hội trường · Người nói 1 · Hoặc nhập tên" });
     fireEvent.change(input, { target: { value: " Chị Lan " } });
-    fireEvent.click(screen.getAllByRole("button", { name: "Lưu" })[0]!);
+    // One save for the dialog; only the row that changed is sent.
+    fireEvent.click(screen.getByRole("button", { name: "Lưu" }));
     await waitFor(() =>
       expect(requestMock).toHaveBeenCalledWith("/api/v1/meetings/m1/speaker-labels/l1", {
         method: "PUT",
@@ -63,9 +64,16 @@ describe("MeetingSpeakerLabelsDialog", () => {
       }),
     );
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Đã lưu tên người nói"));
+    expect(requestMock).not.toHaveBeenCalledWith("/api/v1/meetings/m1/speaker-labels/l2", expect.anything());
   });
 
-  it("keeps the member when a member is assigned, and says why the server refused", async () => {
+  it("names an uploaded recording's speaker without the room mic", async () => {
+    labels = [{ ...unassigned, label_key: "upload:T1:A" }];
+    openDialog();
+    expect(await screen.findByText("Người nói 1")).toBeInTheDocument();
+  });
+
+  it("keeps the draft on its row and says why the server refused", async () => {
     requestMock.mockImplementation((path: unknown, init?: { method?: string }) => {
       const p = String(path);
       if (p.endsWith("/speaker-labels")) return Promise.resolve({ labels });
@@ -74,23 +82,25 @@ describe("MeetingSpeakerLabelsDialog", () => {
       return Promise.resolve({});
     });
     openDialog();
-    await screen.findByText("Hội trường · Người nói 2");
-    fireEvent.click(screen.getAllByRole("button", { name: "Lưu" })[1]!);
+    const input = await screen.findByRole("textbox", { name: "Hội trường · Người nói 1 · Hoặc nhập tên" });
+    fireEvent.change(input, { target: { value: "Chị Lan" } });
+    fireEvent.click(screen.getByRole("button", { name: "Lưu" }));
     await waitFor(() =>
-      expect(requestMock).toHaveBeenCalledWith("/api/v1/meetings/m1/speaker-labels/l2", {
+      expect(requestMock).toHaveBeenCalledWith("/api/v1/meetings/m1/speaker-labels/l1", {
         method: "PUT",
-        body: { user_id: "u1" },
+        body: { name: "Chị Lan" },
       }),
     );
-    await waitFor(() =>
-      expect(toast.error).toHaveBeenCalledWith("người được gán không phải thành viên workspace"),
-    );
+    // The refusal stays on its row, the dialog stays open with the draft.
+    expect(await screen.findByRole("alert")).toHaveTextContent("người được gán không phải thành viên workspace");
+    expect(input).toHaveValue("Chị Lan");
+    expect(toast.success).not.toHaveBeenCalled();
   });
 
   it("says when there is nobody to name yet", async () => {
     labels = [];
     openDialog();
-    expect(await screen.findByText("Chưa có người nói nào từ micro hội trường.")).toBeInTheDocument();
+    expect(await screen.findByText("Chưa có người nói nào cần gán tên.")).toBeInTheDocument();
   });
 });
 

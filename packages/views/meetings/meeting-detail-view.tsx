@@ -47,6 +47,7 @@ import { MeetingActionItemsSection } from "./meeting-action-items/meeting-action
 import { MeetingCarriedOverSection } from "./meeting-action-items/carried-over-section";
 import { MeetingMinutesSection } from "./meeting-minutes-section";
 import { MeetingSummaryPanel } from "./meeting-summary-panel";
+import { MeetingTranscriptPanel } from "./meeting-transcript-panel";
 import { useMemberIndex } from "./use-member-index";
 import { useMeetingSectionDeepLink } from "./use-meeting-section-deep-link";
 import { useNow } from "./use-now";
@@ -294,6 +295,11 @@ export function MeetingDetailView({
               {showSummary ? (
                 <div className="order-3 min-w-0">
                   <MeetingSummaryPanel workspaceId={workspaceId} meeting={meeting} canClerk={isClerk} />
+                </div>
+              ) : null}
+              {showSummary ? (
+                <div className="order-3 min-w-0">
+                  <MeetingTranscriptPanel workspaceId={workspaceId} meeting={meeting} canClerk={isClerk} />
                 </div>
               ) : null}
               {showSummary ? (
