@@ -281,6 +281,103 @@ describe("runFolderUpload cancel and batch end", () => {
   });
 });
 
+describe("runFolderUpload content PUT refusals (contract AMENDMENT 4)", () => {
+  const refusal = (status: number, code: string, settle?: "done" | { code: string; message: string }) => ({
+    status,
+    code,
+    ...(settle ? { settle } : {}),
+  });
+  const puts = (calls: FakeFolderUploadCall[]) => calls.filter((c) => c.method === "put");
+
+  it("415 unsupported_media: fails the file for good, no PUT retry, no complete for it, not re-run by retryFailed", async () => {
+    const { transport, handle } = setup(files(3), {
+      sessionTargets: true,
+      putFailures: { "f001.pdf": [refusal(415, "unsupported_media"), "network", "network"], "f002.pdf": ["network", "network", "network"] },
+    });
+    const report = await settle(handle.done);
+    expect(report.done).toBe(1);
+    expect(report.failed).toContainEqual({ path: "R/f001.pdf", filename: "f001.pdf", code: "unsupported_media", retryable: false });
+    expect(puts(transport.calls).filter((c) => c.method === "put" && c.fileKey === "f-0002")).toHaveLength(1);
+    const completed = transport.calls.flatMap((c) => (c.method === "complete" ? c.items.map((i) => i.file_key) : []));
+    expect(completed).not.toContain("f-0002");
+
+    // f002 is a retryable network failure, so a retry runs; f001 must stay out of it.
+    const before = transport.calls.length;
+    const retried = await settle(handle.retryFailed());
+    const rerun = transport.calls.slice(before).flatMap((c) => (c.method === "put" ? [c.fileKey] : []));
+    expect(rerun).toEqual(["f-0003"]);
+    expect(retried.failed).toEqual([{ path: "R/f001.pdf", filename: "f001.pdf", code: "unsupported_media", retryable: false }]);
+    expect(retried.canRetry).toBe(false);
+  });
+
+  it("409 folder_upload_file_settled (done at the server): takes the server's answer, no failure, no complete", async () => {
+    const { transport, handle } = setup(files(2), {
+      sessionTargets: true,
+      putFailures: { "f000.pdf": [refusal(409, "folder_upload_file_settled", "done")] },
+    });
+    const report = await settle(handle.done);
+    expect(report).toMatchObject({ done: 2, failed: [], canRetry: false });
+    expect(transport.calls.filter((c) => c.method === "status")).toHaveLength(1);
+    const completed = transport.calls.flatMap((c) => (c.method === "complete" ? c.items.map((i) => i.file_key) : []));
+    expect(completed).toEqual(["f-0002"]);
+  });
+
+  it("409 folder_upload_file_settled (failed at the server): reports the server's code, not retryable", async () => {
+    const { handle } = setup(files(1), {
+      sessionTargets: true,
+      putFailures: { "f000.pdf": [refusal(409, "folder_upload_file_settled", { code: "unsupported_media", message: "m" })] },
+    });
+    const report = await settle(handle.done);
+    expect(report.done).toBe(0);
+    expect(report.failed).toEqual([{ path: "R/f000.pdf", filename: "f000.pdf", code: "unsupported_media", retryable: false }]);
+    expect(report.canRetry).toBe(false);
+  });
+
+  it("409 folder_upload_target_signed: one status() for a fresh target, then PUTs again and finishes", async () => {
+    const { transport, handle } = setup(files(1), {
+      sessionTargets: true,
+      putFailures: { "f000.pdf": [refusal(409, "folder_upload_target_signed")] },
+    });
+    const report = await settle(handle.done);
+    expect(transport.calls.map((c) => c.method)).toEqual(["plan", "put", "status", "put", "complete"]);
+    expect(report).toMatchObject({ done: 1, failed: [] });
+  });
+
+  it("409 folder_upload_target_signed twice: fails the file as retryable", async () => {
+    const { transport, handle } = setup(files(1), {
+      sessionTargets: true,
+      putFailures: { "f000.pdf": [refusal(409, "folder_upload_target_signed"), refusal(409, "folder_upload_target_signed")] },
+    });
+    const report = await settle(handle.done);
+    expect(transport.calls.map((c) => c.method)).toEqual(["plan", "put", "status", "put"]);
+    expect(report.failed).toEqual([
+      { path: "R/f000.pdf", filename: "f000.pdf", code: "folder_upload_target_signed", retryable: true },
+    ]);
+    expect(report.canRetry).toBe(true);
+  });
+
+  it("409 folder_upload_canceled at the PUT ends the run as canceled, without a cancel call", async () => {
+    const { transport, handle, progress } = setup(files(2), {
+      sessionTargets: true,
+      putFailures: { "f000.pdf": [refusal(409, "folder_upload_canceled")] },
+    });
+    const report = await settle(handle.done);
+    expect(report).toMatchObject({ canceled: true, canRetry: false });
+    expect(progress.at(-1)?.phase).toBe("canceled");
+    expect(transport.calls.some((c) => c.method === "cancel")).toBe(false);
+  });
+
+  it("410 folder_upload_expired at the PUT ends the run as expired", async () => {
+    const { handle, progress } = setup(files(2), {
+      sessionTargets: true,
+      putFailures: { "f000.pdf": [refusal(410, "folder_upload_expired")] },
+    });
+    const report = await settle(handle.done);
+    expect(report).toMatchObject({ expired: true, canRetry: false });
+    expect(progress.at(-1)?.phase).toBe("expired");
+  });
+});
+
 describe("runFolderUpload invalidation", () => {
   it("invalidates at most once per 2 s during the run and once at the end", async () => {
     const { handle, invalidations } = setup(files(12), { latencyMs: 300 }, { limits: { parallel: 1, completeBatch: 1 } });

@@ -154,6 +154,9 @@ export function runFolderUpload(opts: RunFolderUploadOptions): FolderUploadHandl
       if (!f) continue;
       if (sf.status === "done") {
         f.status = "done";
+      } else if (sf.status === "failed" && f.status === "queued") {
+        // Settled at the server while this client still holds it as queued.
+        fail(f, sf.error?.code ?? "unknown", sf.error?.reason, false);
       } else if (sf.status === "pending" && sf.target && f.status === "queued") {
         setTarget(f, sf.target);
       }
@@ -250,6 +253,21 @@ export function runFolderUpload(opts: RunFolderUploadOptions): FolderUploadHandl
     enqueue(f);
   }
 
+  /**
+   * 409 folder_upload_file_settled: the server already decided on this file
+   * (done or failed), so the PUT is moot. The bytes are not sent again and the
+   * file never enters the complete buffer (a complete needs an etag we do not
+   * have): one status() refresh takes the server's verdict instead.
+   */
+  async function settleFromServer(f: FileState): Promise<void> {
+    await refresh();
+    if (stopped()) return;
+    if (f.status === "done") invalidator.request();
+    // The refresh applies the server's done/failed; a file it still calls pending was not settled after all.
+    else if (f.status === "queued") fail(f, "folder_upload_file_settled", undefined, true);
+    emit();
+  }
+
   async function uploadOne(f: FileState): Promise<void> {
     const blob = opts.file(f.planned.index);
     let retries = 0;
@@ -274,8 +292,16 @@ export function runFolderUpload(opts: RunFolderUploadOptions): FolderUploadHandl
         if (stopped()) return;
         const kind = batchEnd(err);
         if (kind) return end(kind);
-        if (err instanceof ApiError && err.status === 403 && !refreshed) {
-          // A refused signature reads as expired: one fresh target.
+        if (err instanceof ApiError && err.status === 409 && err.code === "folder_upload_file_settled") {
+          return settleFromServer(f);
+        }
+        // 415 unsupported_media: the server keeps the file pending, but the same
+        // bytes never pass: a final failure, no PUT retry, and retryFailed skips it.
+        if (err instanceof ApiError && err.status === 415) return fail(f, failureCode(err), undefined, false);
+        const signedTarget = err instanceof ApiError && err.status === 409 && err.code === "folder_upload_target_signed";
+        if ((signedTarget || (err instanceof ApiError && err.status === 403)) && !refreshed) {
+          // A refused signature reads as expired, and a content PUT to a target the
+          // server signed meanwhile is the same: one fresh target from status().
           f.target = null;
           continue;
         }
@@ -400,6 +426,8 @@ export function runFolderUpload(opts: RunFolderUploadOptions): FolderUploadHandl
     for (const sf of batch.files) {
       const f = files.get(sf.file_key);
       if (!f || f.status !== "failed") continue;
+      // A final failure the server never decided on (415 at the PUT) stays failed.
+      if (sf.status === "pending" && !f.retryable) continue;
       if (sf.status === "done") {
         f.status = "done";
       } else if (sf.status === "pending" && (f.object || sf.target)) {

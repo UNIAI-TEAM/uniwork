@@ -64,7 +64,7 @@ export function failureCode(err: unknown): string {
   return "unknown";
 }
 
-const CLIENT_RETRYABLE = new Set(["network", "target_expired", "missing_etag", "missing_part_url", "aborted"]);
+const CLIENT_RETRYABLE = new Set(["network", "target_expired", "missing_etag", "missing_part_url", "aborted", "folder_upload_target_signed"]);
 
 /**
  * A client-side failure the server never decided on: the file is still

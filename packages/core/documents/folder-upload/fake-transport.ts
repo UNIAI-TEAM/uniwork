@@ -28,7 +28,25 @@ export type FakeFolderUploadCall =
  * What one PUT attempt does instead of storing: a network error, a 5xx, or a
  * 403 refusal. The `partial-` forms store part 1 of a multipart file first.
  */
-export type FakePutFailure = "network" | "5xx" | "403" | "partial-network" | "partial-403";
+export type FakePutFailure =
+  | "network"
+  | "5xx"
+  | "403"
+  | "partial-network"
+  | "partial-403"
+  | FakePutRefusal;
+
+/**
+ * The server's own answer at the content PUT (contract AMENDMENT 4): any
+ * status and code, e.g. 415 unsupported_media or 409 folder_upload_file_settled.
+ * `settle` also settles the file at the server before answering, the way a
+ * file already done/failed there is when the PUT arrives.
+ */
+export interface FakePutRefusal {
+  status: number;
+  code: string;
+  settle?: "done" | FolderUploadFileError;
+}
 
 export interface FakeFolderUploadOptions {
   /** The server's "(n)" decision; defaults to the plan's root_name. */
@@ -258,8 +276,18 @@ export function createFakeFolderUploadTransport(options: FakeFolderUploadOptions
         if (hold) await Promise.race([hold, rejectOnAbort(opts.signal)]);
         if (opts.signal?.aborted) throw abortError();
         const failure = file ? putFailures.get(file.filename)?.shift() : undefined;
-        if (failure?.startsWith("partial-") && target.kind === "multipart") {
+        if (typeof failure === "string" && failure.startsWith("partial-") && target.kind === "multipart") {
           opts.storedParts?.set(1, `"etag-${fileKey}-1"`);
+        }
+        if (typeof failure === "object") {
+          if (file && failure.settle) {
+            file.status = failure.settle === "done" ? "done" : "failed";
+            file.document_id = failure.settle === "done" ? `doc-${file.file_key}` : null;
+            file.error = failure.settle === "done" ? null : failure.settle;
+            file.target = null;
+            if (batch) recount(batch);
+          }
+          throw folderUploadApiError(failure.status, failure.code);
         }
         if (failure === "network" || failure === "partial-network") throw new TypeError("Failed to fetch");
         if (failure === "5xx") throw folderUploadApiError(503, "internal");
