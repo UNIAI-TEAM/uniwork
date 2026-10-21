@@ -131,14 +131,14 @@ describe("MeetingRoomPeopleTab", () => {
       );
     }
 
-    it("offers the room microphone only while the AI scribe is in the room", async () => {
+    it("offers the room mic only while the AI scribe is in the room", async () => {
       renderAsAdmin();
       fireEvent.click(await screen.findByRole("button", { name: "Thao tác với Chủ trì" }));
       expect(await screen.findByRole("menuitem", { name: "Chuyển sang dự thính" })).toBeInTheDocument();
-      expect(screen.queryByRole("menuitem", { name: "Đặt làm micro hội trường" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("menuitem", { name: "Đặt làm mic hội trường" })).not.toBeInTheDocument();
     });
 
-    it("offers the room microphone to a clerk when the AI scribe listens", async () => {
+    it("offers the room mic to a clerk when the AI scribe listens", async () => {
       setSessionUser({ ...me, id: "u-admin", display_name: "Admin" });
       live.participants = [hostInRoom, { ...hostInRoom, identity: "uw_agent_scribe", name: "UniWork AI", isAgent: true }];
       render(
@@ -149,10 +149,10 @@ describe("MeetingRoomPeopleTab", () => {
         ),
       );
       fireEvent.click(await screen.findByRole("button", { name: "Thao tác với Chủ trì" }));
-      expect(await screen.findByRole("menuitem", { name: "Đặt làm micro hội trường" })).toBeInTheDocument();
+      expect(await screen.findByRole("menuitem", { name: "Đặt làm mic hội trường" })).toBeInTheDocument();
     });
 
-    it("never offers the room microphone for a phone caller", async () => {
+    it("never offers the room mic for a phone caller", async () => {
       // A phone row matched to its record (today a SIP identity never is):
       // the scribe would have to diarize the phone line under the caller's id.
       // Admitted, so the roster lists it: a held caller is not listed at all.
@@ -174,7 +174,43 @@ describe("MeetingRoomPeopleTab", () => {
       );
       fireEvent.click(await screen.findByRole("button", { name: "Thao tác với Điện thoại ••• 1234" }));
       expect(await screen.findByRole("menuitem", { name: "Chuyển sang dự thính" })).toBeInTheDocument();
-      expect(screen.queryByRole("menuitem", { name: "Đặt làm micro hội trường" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("menuitem", { name: "Đặt làm mic hội trường" })).not.toBeInTheDocument();
+    });
+
+    it("says on the row whose mic is the room mic", async () => {
+      const base = requestMock.getMockImplementation();
+      requestMock.mockImplementation((path: unknown, init?: unknown) =>
+        String(path).endsWith("/participants")
+          ? Promise.resolve({
+              participants: [
+                { id: "p-host", meeting_id: "m1", principal_type: "USER", user_id: "u-host", role: "MODERATOR", status: "ACTIVE", standing: "MEMBER", shared_mic: true },
+              ],
+            })
+          : base?.(path, init),
+      );
+      renderAsAdmin();
+      expect(await screen.findByText(/Mic hội trường/)).toBeInTheDocument();
+    });
+
+    it("names a phone caller once: the server's name already says phone", async () => {
+      const phone = {
+        ...hostInRoom,
+        identity: "uw_participant_p-phone",
+        name: "Điện thoại ••• 1234",
+        kind: ParticipantKind.SIP,
+        attributes: { "uw.dial_in": "admitted" },
+      };
+      setSessionUser({ ...me, id: "u-admin", display_name: "Admin" });
+      live.participants = [phone];
+      render(
+        wrapWithNav(
+          <MeetingModerationProvider meetingId="m1" canHost>
+            <MeetingRoomPeopleTab meetingId="m1" meeting={meeting} workspaceId="w1" canHost />
+          </MeetingModerationProvider>,
+        ),
+      );
+      expect(await screen.findByText("Điện thoại ••• 1234")).toBeInTheDocument();
+      expect(screen.queryByText("Điện thoại", { exact: true })).not.toBeInTheDocument();
     });
 
     it("offers its standing but never removing the host", async () => {

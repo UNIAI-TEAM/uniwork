@@ -6,6 +6,7 @@ import { useTranslation } from "react-i18next";
 import type { Meeting } from "@uniwork/core/types";
 import { useMeetingCapabilities, useParticipants, useRecordings } from "@uniwork/core/meetings";
 import { useMeetingViewSessionScope } from "@uniwork/core/meetings/view-session";
+import { useAuthStore } from "@uniwork/core/auth";
 import { useMeetingPermissions } from "@uniwork/core/permissions";
 import { Button, buttonVariants } from "@uniwork/ui/components/ui/button";
 import {
@@ -19,6 +20,7 @@ import { useIsCompact } from "@uniwork/ui/hooks/use-mobile";
 import { cn } from "@uniwork/ui/lib/utils";
 import { Notice } from "../common/notice";
 import { copilotPanelShown } from "./conference-layout";
+import { catchUpLateMinutes, firstJoinedAt } from "./meeting-copilot/meeting-catch-up-card";
 import {
   captionsErrorKey,
   captionsSupported,
@@ -41,6 +43,7 @@ import {
   ParticipantPresenceAnnouncer,
   ReactionAnnouncer,
   ScreenShareAnnouncer,
+  ScribeAnnouncer,
   useMeetingChatUnread,
 } from "./meeting-room-announcers";
 import { MeetingRoomAvatarsProvider } from "./meeting-room-avatars";
@@ -127,8 +130,6 @@ function ConferenceStage({
   const [sidebarPinned, setSidebarPinned] = useState(sidebarRoomy);
   const [sidebarTab, setSidebarTab] = useState<MeetingSidebarTab>(guestMode ? "chat" : "copilot");
   const [captionsOn, setCaptionsOn] = useState(false);
-  // When this viewer entered the room: the late joiner's catch-up card counts from it.
-  const [joinedAt] = useState(Date.now);
   const [captionsError, setCaptionsError] = useState<string | null>(null);
   const [footerReserve, setFooterReserve] = useState(96);
   const stageContentRef = useRef<HTMLDivElement>(null);
@@ -140,6 +141,14 @@ function ConferenceStage({
     setCaptionsOn(false);
   }, []);
   const resolvedMeetingId = meetingId ?? meeting?.id ?? "";
+  // The late joiner's catch-up counts from their first entry this session, not this mount.
+  const joinedAt = useMemo(() => firstJoinedAt(resolvedMeetingId), [resolvedMeetingId]);
+  const viewerId = useAuthStore((s) => s.user?.id);
+  const [catchUpDismissed, setCatchUpDismissed] = useState(false);
+  const dismissCatchUp = useCallback(() => setCatchUpDismissed(true), []);
+  const lateMinutes = catchUpDismissed
+    ? null
+    : catchUpLateMinutes({ meeting, joinedAt, viewerId, guest: guestMode });
   const { canHost } = useMeetingPermissions(meeting ?? null, workspaceId ?? "");
   const { data: caps } = useMeetingCapabilities(workspaceId ?? "");
   const { data: recordings } = useRecordings(resolvedMeetingId);
@@ -186,6 +195,10 @@ function ConferenceStage({
     if (compact) setSidebarSheetOpen(false);
     else setSidebarPinned(false);
   }, [compact, copilotActive, openSidebarTab]);
+  // Once the UNI panel has been on screen, the catch-up is no longer news.
+  const [catchUpSeen, setCatchUpSeen] = useState(false);
+  if (copilotActive && lateMinutes !== null && !catchUpSeen) setCatchUpSeen(true);
+  const copilotBadge = lateMinutes !== null && !catchUpSeen;
   const chatVisible = sidebarTab === "chat" && panelShown;
   const chatUnread = useMeetingChatUnread(resolvedMeetingId || undefined, chatVisible);
 
@@ -208,7 +221,8 @@ function ConferenceStage({
       tab={sidebarTab}
       onTabChange={setSidebarTab}
       chatUnread={chatUnread.unread}
-      joinedAt={joinedAt}
+      lateMinutes={lateMinutes}
+      onDismissCatchUp={dismissCatchUp}
       className="h-full w-full"
       tabsEnd={tabsEnd}
     />
@@ -248,9 +262,10 @@ function ConferenceStage({
         onToggleCaptions={toggleCaptions}
         onToggleCopilot={toggleCopilot}
         copilotActive={copilotActive}
+        copilotBadge={copilotBadge}
       />
     ),
-    [leave, resolvedMeetingId, canHost.allowed, recordingEnabled, recording, scribeInRoom, captionsOn, toggleCaptions, toggleCopilot, copilotActive],
+    [leave, resolvedMeetingId, canHost.allowed, recordingEnabled, recording, scribeInRoom, captionsOn, toggleCaptions, toggleCopilot, copilotActive, copilotBadge],
   );
 
   return (
@@ -351,7 +366,8 @@ function ConferenceStage({
 
       {compact ? (
         <Sheet open={sidebarSheetOpen} onOpenChange={setSidebarSheetOpen}>
-          <SheetContent side="right" className="p-0 data-[side=right]:w-[min(100%,24rem)]" showCloseButton={false}>
+          {/* Full width on a phone (the sheet's own max-w-sm caps it from sm up): 24rem left a sliver of stage. */}
+          <SheetContent side="right" className="p-0 data-[side=right]:w-full" showCloseButton={false}>
             <SheetHeader className="sr-only">
               <SheetTitle>{t("meetings.roomPanel")}</SheetTitle>
             </SheetHeader>
@@ -365,6 +381,7 @@ function ConferenceStage({
       <ReactionAnnouncer />
       <ParticipantPresenceAnnouncer />
       <ScreenShareAnnouncer />
+      <ScribeAnnouncer />
       <ChatMessageAnnouncer latest={chatUnread.latest} visible={chatVisible} />
     </div>
   );

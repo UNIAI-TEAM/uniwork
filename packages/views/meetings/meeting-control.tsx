@@ -13,7 +13,7 @@ export function IconControl({ label, tooltip, pressed, tone, onClick, disabled, 
 }) {
   return <Tooltip>
     <TooltipTrigger render={<Button type="button" size="icon-lg" variant={tone === "off" ? "destructiveSolid" : tone === "active" ? "brand" : "meetingChip"} aria-label={label} aria-pressed={pressed} disabled={disabled} onClick={onClick} className={MEETING_CHIP} />}>{children}</TooltipTrigger>
-    <TooltipContent side="top">{tooltip ?? label}</TooltipContent>
+    <TooltipContent side="top" className="dark">{tooltip ?? label}</TooltipContent>
   </Tooltip>;
 }
 

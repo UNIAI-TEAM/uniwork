@@ -101,6 +101,11 @@ describe("MeetingScribeCaptions", () => {
     expect(screen.queryByText("Giả mạo")).not.toBeInTheDocument();
   });
 
+  it("keeps the language switch in the stage's dark scope, whatever the app theme", () => {
+    render(wrap(<MeetingScribeCaptions enabled meetingId="m1" />));
+    expect(screen.getByRole("button", { name: "Bản gốc" }).closest(".dark")).not.toBeNull();
+  });
+
   it("listens only while on", () => {
     const { rerender } = render(wrap(<MeetingScribeCaptions enabled={false} />));
     expect(lk.handlers.has(SCRIBE_CAPTION_TOPIC)).toBe(false);
@@ -120,7 +125,10 @@ describe("MeetingScribeCaptions translation (B9)", () => {
   it("asks the server for the language, reads its topic and shows the original until a translation arrives", async () => {
     render(wrap(<MeetingScribeCaptions enabled meetingId="m1" />));
     expect(lk.handlers.has(scribeTranslationTopic("en"))).toBe(false);
+    expect(screen.queryByText("Đang dịch…")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "English" }));
+    // Until the first English line lands, the bar says it is on its way.
+    expect(screen.getByText("Đang dịch…")).toBeInTheDocument();
     await waitFor(() =>
       expect(requestMock).toHaveBeenCalledWith("/api/v1/meetings/m1/caption-language", { method: "PUT", body: { lang: "en" } }),
     );
@@ -132,9 +140,10 @@ describe("MeetingScribeCaptions translation (B9)", () => {
     expect(screen.queryByText("Forged")).not.toBeInTheDocument();
     await caption("uw_agent_scribe", { "uw.segment_id": "TR1-1" }, "Send the quote", scribeTranslationTopic("en"));
     expect(screen.getByText("Send the quote")).toBeInTheDocument();
+    expect(screen.queryByText("Đang dịch…")).not.toBeInTheDocument();
     expect(screen.queryByText("Gửi báo giá")).not.toBeInTheDocument();
     // Back to the original.
-    fireEvent.click(screen.getByRole("button", { name: "Gốc" }));
+    fireEvent.click(screen.getByRole("button", { name: "Bản gốc" }));
     await waitFor(() => expect(lk.handlers.has(scribeTranslationTopic("en"))).toBe(false));
     expect(screen.getByText("Gửi báo giá")).toBeInTheDocument();
     expect(requestMock).toHaveBeenLastCalledWith("/api/v1/meetings/m1/caption-language", { method: "PUT", body: { lang: "" } });
@@ -146,7 +155,7 @@ describe("MeetingScribeCaptions translation (B9)", () => {
     render(wrap(<MeetingScribeCaptions enabled meetingId="m1" />));
     fireEvent.click(screen.getByRole("button", { name: "Tiếng Việt" }));
     await waitFor(() => expect(error).toHaveBeenCalled());
-    expect(screen.getByRole("button", { name: "Gốc" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Bản gốc" })).toHaveAttribute("aria-pressed", "true");
     expect(lk.handlers.has(scribeTranslationTopic("vi"))).toBe(false);
     error.mockRestore();
   });
@@ -179,14 +188,14 @@ describe("MeetingScribeCaptions translation (B9)", () => {
     requestMock.mockReturnValueOnce(new Promise((res) => (finishEnglish = res)));
     render(wrap(<MeetingScribeCaptions enabled meetingId="m1" />));
     fireEvent.click(screen.getByRole("button", { name: "English" }));
-    fireEvent.click(screen.getByRole("button", { name: "Gốc" }));
+    fireEvent.click(screen.getByRole("button", { name: "Bản gốc" }));
     await waitFor(() => expect(requestMock).toHaveBeenCalledTimes(1));
     // Gốc waits for English: sent together they could land in the other order.
     expect(requestMock).toHaveBeenCalledTimes(1);
     await act(async () => finishEnglish({ status: "ok" }));
     await waitFor(() => expect(requestMock).toHaveBeenCalledTimes(2));
     expect(requestMock.mock.calls.map((c) => (c[1] as { body: unknown }).body)).toEqual([{ lang: "en" }, { lang: "" }]);
-    expect(screen.getByRole("button", { name: "Gốc" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Bản gốc" })).toHaveAttribute("aria-pressed", "true");
   });
 
   it("a late refusal of an older pick leaves the newer one alone", async () => {

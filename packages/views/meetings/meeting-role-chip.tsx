@@ -10,9 +10,10 @@ const CHIP = "h-4 px-1.5 text-micro";
 
 /**
  * Who a participant is, beside their name: an agent carries the product's one
- * agent badge (ADR 0007), a guest from an invite link carries "Guest", a
- * caller who dialled in carries "Phone", and a formal meeting marks its
- * secretary and its observers.
+ * agent badge (ADR 0007), a guest from an invite link carries "Guest", and a
+ * formal meeting marks its secretary and its observers. A caller who dialled
+ * in carries nothing: the server already names them "Điện thoại ••• 1234"
+ * (dialInName), and a "Phone" chip beside that said it twice.
  */
 export function MeetingRoleChip({
   role,
@@ -23,14 +24,13 @@ export function MeetingRoleChip({
 }) {
   const { t } = useTranslation();
   if (role === "agent") return <AgentBadge className={cn(CHIP, className)} />;
+  if (role === "phone") return null;
   const label =
     role === "secretary"
       ? t("meetings.governance.secretary")
       : role === "observer"
         ? t("meetings.governance.standing_OBSERVER")
-        : role === "phone"
-          ? t("meetings.dialIn.phoneChip")
-          : t("meetings.guest");
+        : t("meetings.guest");
   // The secretary holds a duty, so it is filled; standing and guest stay outlined.
   return (
     <Badge

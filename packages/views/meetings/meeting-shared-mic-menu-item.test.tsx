@@ -33,10 +33,10 @@ function open(participant: MeetingParticipant) {
 }
 
 describe("MeetingSharedMicMenuItem", () => {
-  it("makes the participant the room microphone and says what that does", async () => {
+  it("makes the participant the room mic and says what that does", async () => {
     requestMock.mockResolvedValue({ participant: { ...base, shared_mic: true } });
     open(base);
-    fireEvent.click(screen.getByRole("menuitem", { name: "Đặt làm micro hội trường" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Đặt làm mic hội trường" }));
     await waitFor(() =>
       expect(requestMock).toHaveBeenCalledWith("/api/v1/meetings/m1/participants/p1/shared-mic", {
         method: "PUT",
@@ -44,14 +44,14 @@ describe("MeetingSharedMicMenuItem", () => {
       }),
     );
     await waitFor(() =>
-      expect(toast.success).toHaveBeenCalledWith("Mic của Phòng họp lớn là micro hội trường: AI tách từng người nói"),
+      expect(toast.success).toHaveBeenCalledWith("Mic của Phòng họp lớn là mic hội trường: Thư ký AI tách từng người nói"),
     );
   });
 
   it("lifts it again", async () => {
     requestMock.mockResolvedValue({ participant: base });
     open({ ...base, shared_mic: true });
-    fireEvent.click(screen.getByRole("menuitem", { name: "Bỏ micro hội trường" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Bỏ mic hội trường" }));
     await waitFor(() =>
       expect(requestMock).toHaveBeenCalledWith("/api/v1/meetings/m1/participants/p1/shared-mic", {
         method: "PUT",

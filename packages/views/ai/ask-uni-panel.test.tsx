@@ -87,7 +87,7 @@ describe("AskUniPanel", () => {
     fireEvent.change(screen.getByRole("textbox", { name: "Câu hỏi cho UNI" }), { target: { value: "task nào quá hạn?" } });
     fireEvent.click(screen.getByRole("button", { name: "Hỏi" }));
     expect(await screen.findByText("Có 1 việc quá hạn: [S1] Viết spec.")).toBeInTheDocument();
-    const link = screen.getByRole("link", { name: /S1\s*Viết spec/ });
+    const link = screen.getByRole("link", { name: /\[S1\]\s*Viết spec/ });
     expect(link).toHaveAttribute("href", "/acme/team/tasks/t1");
     expect(screen.getByText("812 vào · 96 ra")).toBeInTheDocument();
     expect(useAiPanelStore.getState().conversationId).toBe("c1");

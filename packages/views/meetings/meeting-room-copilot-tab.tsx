@@ -25,7 +25,8 @@ import { MeetingRowsSkeleton, MeetingSectionError, MeetingTextSkeleton } from ".
 
 type CopilotSection = "notes" | "transcript" | "insights" | "actions";
 
-const SECTIONS: CopilotSection[] = ["notes", "transcript", "insights", "actions"];
+// The overview opens first, so it leads the row.
+const SECTIONS: CopilotSection[] = ["insights", "notes", "transcript", "actions"];
 
 export function MeetingRoomCopilotTab({
   workspaceId,
@@ -33,6 +34,7 @@ export function MeetingRoomCopilotTab({
   projectId,
   canClerk,
   lateMinutes,
+  onDismissCatchUp,
 }: {
   workspaceId?: string;
   meetingId: string;
@@ -42,6 +44,8 @@ export function MeetingRoomCopilotTab({
   canClerk: boolean;
   /** How late this member joined, when late enough for the catch-up card (B7); guests never get one. */
   lateMinutes?: number | null;
+  /** The viewer closed the catch-up card: it stays closed for the meeting, across tab switches. */
+  onDismissCatchUp?: () => void;
 }) {
   const { t, i18n } = useTranslation();
   const [section, setSection] = useState<CopilotSection>("insights");
@@ -126,154 +130,153 @@ export function MeetingRoomCopilotTab({
       ) : null}
       <SummaryLiveRegion message={gen.announcement} />
 
-      {!gen.aiOn && gen.capsLoaded ? (
-        <p className="shrink-0 pb-2 text-label text-muted-foreground">{t("meetings.aiUnavailable")}</p>
-      ) : null}
-
-      {workspaceId && lateMinutes ? (
-        <div className="shrink-0 pb-2">
-          <MeetingCatchUpCard meetingId={meetingId} lateMinutes={lateMinutes} />
-        </div>
-      ) : null}
-
-      <MeetingUnderlineTabs
-        tabs={SECTIONS}
-        value={section}
-        onChange={setSection}
-        label={sectionLabel}
-        panelId={sectionPanelId}
-        className="mb-2"
-      />
-
-      <div
-        role="tabpanel"
-        id={sectionPanelId(section)}
-        aria-label={sectionLabel(section)}
-        className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-0.5"
-      >
-        {section === "insights" && !summary && insightsLoading ? (
-          <MeetingTextSkeleton className="rounded-xl border border-border p-4" />
-        ) : section === "insights" && !summary && insightsFailed ? (
-          <MeetingSectionError message={t("meetings.summaryLoadFailed")} onRetry={retryInsights} />
-        ) : section === "insights" ? (
-          <MeetingNotesCard
-            summary={summary?.summary}
-            decisions={decisions}
-            summaryUpdatedAt={summaryUpdatedAt}
-            summaryModel={summary?.model}
-            summarySources={summarySources}
-            summarizing={gen.generating}
-            emptyHint={gen.hasSource ? t("meetings.summaryEmpty") : t("meetings.transcriptEmpty")}
-          />
+      {/* One scroll area: the catch-up, the sections and the Ask box move together, so the box
+          sits right under what it answers instead of across an empty band, and nothing is cut off. */}
+      <div className="min-h-0 flex-1 overflow-y-auto pr-0.5" data-testid="meeting-copilot-scroll">
+        {!gen.aiOn && gen.capsLoaded ? (
+          <p className="pb-2 text-label text-muted-foreground">{t("meetings.aiUnavailable")}</p>
         ) : null}
 
-        {section === "notes" ? (
-          <section className="flex min-h-0 flex-col gap-3">
-            {notesQuery.isPending ? (
-              <MeetingRowsSkeleton rows={2} rowClassName="px-0" />
-            ) : notesFailed ? (
-              <MeetingSectionError message={t("meetings.notesLoadFailed")} onRetry={() => void notesQuery.refetch()} />
-            ) : null}
-            <ul className="min-h-0 space-y-2">
-              {notesQuery.isPending || notesFailed ? null : (notes ?? []).length === 0 ? (
-                <li className="text-label text-muted-foreground">{t("meetings.notesEmpty")}</li>
-              ) : (
-                (notes ?? []).map((n) => (
-                  <li
-                    key={n.id}
-                    className="rounded-xl border border-border bg-surface-hover p-3"
-                  >
-                    <div className="mb-1 text-caption text-muted-foreground">
-                      {n.display_name ?? n.author_id}
-                    </div>
-                    <div className="whitespace-pre-wrap break-words text-body text-foreground">{n.body}</div>
-                  </li>
-                ))
-              )}
-            </ul>
-            <form
-              className="flex shrink-0 gap-2"
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (!note.trim()) return;
-                addNote.mutate(note, {
-                  onSuccess: () => setNote(""),
-                  onError: (err) => toastApiError(err, t("meetings.noteAddFailed")),
-                });
-              }}
-            >
-              <Input
-                className="min-w-0 flex-1"
-                value={note}
-                onChange={(e) => setNote(e.target.value)}
-                placeholder={t("meetings.notesPlaceholder")}
-                aria-label={t("meetings.notesInputLabel")}
-              />
-              <Button type="submit" size="sm" disabled={addNote.isPending}>
-                {t("common.save")}
-              </Button>
-            </form>
-          </section>
+        {workspaceId && lateMinutes ? (
+          <div className="pb-2">
+            <MeetingCatchUpCard meetingId={meetingId} lateMinutes={lateMinutes} onDismiss={onDismissCatchUp} />
+          </div>
         ) : null}
 
-        {section === "transcript" ? (
-          <section>
-            {transcriptQuery.isPending ? (
-              <MeetingTextSkeleton />
-            ) : transcriptFailed ? (
-              <MeetingSectionError
-                message={t("meetings.transcriptLoadFailed")}
-                onRetry={() => void transcriptQuery.refetch()}
-              />
-            ) : null}
-            <ol className="space-y-2">
-              {(transcript ?? []).map((s) => (
-                <li key={s.id} className="rounded-lg bg-surface-hover px-2.5 py-2 text-body text-foreground">
-                  <span className="text-caption font-medium text-brand">{s.speaker_name || "—"}</span>
-                  <span className="text-muted-foreground"> · </span>
-                  {s.text}
-                </li>
-              ))}
-              {(transcript ?? []).length === 0 && !transcriptQuery.isPending && !transcriptFailed ? (
-                <li className="text-label text-muted-foreground">{t("meetings.transcriptEmpty")}</li>
+        <MeetingUnderlineTabs
+          tabs={SECTIONS}
+          value={section}
+          onChange={setSection}
+          label={sectionLabel}
+          panelId={sectionPanelId}
+          className="sticky top-0 z-10 mb-2 bg-surface"
+        />
+
+        <div role="tabpanel" id={sectionPanelId(section)} aria-label={sectionLabel(section)} className="space-y-4">
+          {section === "insights" && !summary && insightsLoading ? (
+            <MeetingTextSkeleton className="rounded-xl border border-border p-4" />
+          ) : section === "insights" && !summary && insightsFailed ? (
+            <MeetingSectionError message={t("meetings.summaryLoadFailed")} onRetry={retryInsights} />
+          ) : section === "insights" ? (
+            <MeetingNotesCard
+              summary={summary?.summary}
+              decisions={decisions}
+              summaryUpdatedAt={summaryUpdatedAt}
+              summaryModel={summary?.model}
+              summarySources={summarySources}
+              summarizing={gen.generating}
+              emptyHint={gen.hasSource ? t("meetings.summaryEmpty") : t("meetings.transcriptEmpty")}
+            />
+          ) : null}
+
+          {section === "notes" ? (
+            <section className="flex flex-col gap-3">
+              {notesQuery.isPending ? (
+                <MeetingRowsSkeleton rows={2} rowClassName="px-0" />
+              ) : notesFailed ? (
+                <MeetingSectionError message={t("meetings.notesLoadFailed")} onRetry={() => void notesQuery.refetch()} />
               ) : null}
-            </ol>
-          </section>
-        ) : null}
-
-        {section === "actions" ? (
-          <section className="space-y-3">
-            <h3 className="text-caption font-medium text-foreground">{t("meetings.actionItems")}</h3>
-            {workspaceId ? (
-              <>
-                <MeetingActionItemsSection
-                  workspaceId={workspaceId}
-                  meetingId={meetingId}
-                  projectId={projectId}
-                  canClerk={canClerk}
-                  variant="compact"
-                  selection={actionSelection}
+              <ul className="space-y-2">
+                {notesQuery.isPending || notesFailed ? null : (notes ?? []).length === 0 ? (
+                  <li className="text-label text-muted-foreground">{t("meetings.notesEmpty")}</li>
+                ) : (
+                  (notes ?? []).map((n) => (
+                    <li key={n.id} className="rounded-xl border border-border bg-surface-hover p-3">
+                      <div className="mb-1 text-caption text-muted-foreground">{n.display_name ?? n.author_id}</div>
+                      <div className="whitespace-pre-wrap break-words text-body text-foreground">{n.body}</div>
+                    </li>
+                  ))
+                )}
+              </ul>
+              <form
+                className="flex gap-2"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (!note.trim() || addNote.isPending) return;
+                  addNote.mutate(note, {
+                    onSuccess: () => setNote(""),
+                    onError: (err) => toastApiError(err, t("meetings.noteAddFailed")),
+                  });
+                }}
+              >
+                <Input
+                  className="min-w-0 flex-1"
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                  placeholder={t("meetings.notesPlaceholder")}
+                  aria-label={t("meetings.notesInputLabel")}
                 />
-                {projectId ? (
-                  <MeetingCarriedOverSection workspaceId={workspaceId} meetingId={meetingId} variant="compact" />
-                ) : null}
-              </>
-            ) : (
-              <p className="text-label text-muted-foreground">{t("meetings.actionItemsEmpty")}</p>
-            )}
-          </section>
-        ) : null}
+                {/* Default size: the same height as the field beside it. */}
+                <Button type="submit" aria-disabled={addNote.isPending}>
+                  {t("common.save")}
+                </Button>
+              </form>
+            </section>
+          ) : null}
 
-        {completedRecording ? (
-          <section className="space-y-2">
-            <Button type="button" variant="secondary" className="w-full" onClick={() => setPlaybackId(completedRecording.id)}>
-              {t("meetings.recording_play")}
-            </Button>
-          </section>
+          {section === "transcript" ? (
+            <section>
+              {transcriptQuery.isPending ? (
+                <MeetingTextSkeleton />
+              ) : transcriptFailed ? (
+                <MeetingSectionError
+                  message={t("meetings.transcriptLoadFailed")}
+                  onRetry={() => void transcriptQuery.refetch()}
+                />
+              ) : null}
+              <ol className="space-y-2">
+                {(transcript ?? []).map((s) => (
+                  <li key={s.id} className="rounded-lg bg-surface-hover px-2.5 py-2 text-body text-foreground">
+                    <span className="text-caption font-medium text-foreground">{s.speaker_name || "—"}</span>
+                    <span className="text-muted-foreground"> · </span>
+                    {s.text}
+                  </li>
+                ))}
+                {(transcript ?? []).length === 0 && !transcriptQuery.isPending && !transcriptFailed ? (
+                  <li className="text-label text-muted-foreground">{t("meetings.transcriptEmpty")}</li>
+                ) : null}
+              </ol>
+            </section>
+          ) : null}
+
+          {/* The tab already names this section; no heading repeats it. */}
+          {section === "actions" ? (
+            <section className="space-y-3">
+              {workspaceId ? (
+                <>
+                  <MeetingActionItemsSection
+                    workspaceId={workspaceId}
+                    meetingId={meetingId}
+                    projectId={projectId}
+                    canClerk={canClerk}
+                    variant="compact"
+                    selection={actionSelection}
+                  />
+                  {projectId ? (
+                    <MeetingCarriedOverSection workspaceId={workspaceId} meetingId={meetingId} variant="compact" />
+                  ) : null}
+                </>
+              ) : (
+                <p className="text-label text-muted-foreground">{t("meetings.actionItemsEmpty")}</p>
+              )}
+            </section>
+          ) : null}
+
+          {completedRecording ? (
+            <section className="space-y-2">
+              <Button type="button" variant="secondary" className="w-full" onClick={() => setPlaybackId(completedRecording.id)}>
+                {t("meetings.recording_play")}
+              </Button>
+            </section>
+          ) : null}
+        </div>
+
+        {/* Not under the notes: that section has its own field, and two inputs read as one form. */}
+        {workspaceId && section !== "notes" ? (
+          <MeetingAskBox workspaceId={workspaceId} meetingId={meetingId} canShare heading />
         ) : null}
       </div>
 
-      {workspaceId ? <MeetingAskBox workspaceId={workspaceId} meetingId={meetingId} canShare /> : null}
       <SummaryRegenerateConfirm gen={gen} />
       {playbackId ? (
         <MeetingRecordingDialog

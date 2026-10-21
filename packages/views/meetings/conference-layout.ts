@@ -33,10 +33,14 @@ export function tileGridClass(count: number): string {
   return "grid-cols-3";
 }
 
-/** Primary video grid: up to six tiles in a 3×2 layout on large screens. */
+/**
+ * Primary video grid: up to six tiles in a 3×2 layout on large screens. Two
+ * people stack on a phone: side by side, each got a column a third of the
+ * stage tall and the stage was mostly empty bands.
+ */
 export function primaryGridClass(count: number): string {
   if (count <= 1) return "grid-cols-1";
-  if (count === 2) return "grid-cols-2";
+  if (count === 2) return "grid-cols-1 sm:grid-cols-2";
   return "grid-cols-2 lg:grid-cols-3";
 }
 
