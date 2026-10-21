@@ -36,7 +36,43 @@ function renderDialog(over: Partial<FolderUploadDialogProps> = {}) {
 
 const submit = () => screen.getByRole("button", { name: "Tải lên" });
 
+const filesPlan = (over: Partial<FolderUploadPlan> = {}) =>
+  plan({ rootName: null, rootTitle: null, folders: [], totals: { files: 12, bytes: 3 * MIB }, ...over });
+
 describe("FolderUploadDialog", () => {
+  it("marks the folder mode on the dialog", () => {
+    renderDialog();
+    expect(screen.getByTestId("folder-upload-dialog")).toHaveAttribute("data-mode", "folder");
+    expect(screen.getByRole("heading", { name: "Tải lên thư mục" })).toBeInTheDocument();
+  });
+
+  it("in files mode shows no root line, only the destination, the count and the size", () => {
+    renderDialog({ plan: filesPlan() });
+    expect(screen.getByTestId("folder-upload-dialog")).toHaveAttribute("data-mode", "files");
+    expect(screen.getByRole("heading", { name: "Tải lên tệp" })).toBeInTheDocument();
+    expect(screen.queryByTestId("folder-upload-root")).toBeNull();
+    expect(screen.queryByTestId("folder-upload-renamed")).toBeNull();
+    expect(screen.getByTestId("folder-upload-destination")).toHaveTextContent("Thư mục của tôi");
+    expect(screen.getByTestId("folder-upload-summary")).toHaveTextContent("12 tệp · 3 MB");
+    expect(screen.getByText("Áp dụng cho mọi tệp trong lần tải lên này.")).toBeInTheDocument();
+    expect(screen.getByRole("switch")).not.toBeChecked();
+  });
+
+  it("in files mode names the refusal for the files, not a folder", () => {
+    renderDialog({ plan: filesPlan({ files: [], totals: { files: 0, bytes: 0 }, refusal: { code: "nothing_to_upload" } }) });
+    const refusal = screen.getByTestId("folder-upload-refusal");
+    expect(refusal).toHaveTextContent("Chưa tải lên được các tệp này");
+    expect(refusal).toHaveTextContent("Không có tệp nào tải lên được.");
+    expect(refusal).not.toHaveTextContent("thư mục");
+  });
+
+  it("in files mode sends the share switch for every file of the run", () => {
+    const { onSubmit } = renderDialog({ plan: filesPlan() });
+    fireEvent.click(screen.getByRole("switch"));
+    fireEvent.click(submit());
+    expect(onSubmit).toHaveBeenCalledWith({ shareWithWorkspace: true });
+  });
+
   it("shows the root, the destination and the file count with the size", () => {
     renderDialog();
     expect(screen.getByTestId("folder-upload-root")).toHaveTextContent("Báo cáo");

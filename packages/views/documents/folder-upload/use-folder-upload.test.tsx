@@ -183,6 +183,40 @@ describe("useFolderUpload", () => {
     expect(plan?.method === "plan" && plan.body.parent_id).toBe("my-folder");
   });
 
+  it("plans picked files as one files-mode run into the open folder, with no root folder", async () => {
+    const { transport, onOpenFolder } = setup();
+    act(() => hook.addFiles([pdf("a.pdf"), pdf("b.pdf")]));
+    const dialog = await screen.findByTestId("folder-upload-dialog");
+    expect(dialog).toHaveAttribute("data-mode", "files");
+    expect(screen.queryByTestId("folder-upload-root")).toBeNull();
+    expect(screen.getByTestId("folder-upload-summary")).toHaveTextContent("2 tệp");
+    expect(screen.getByTestId("folder-upload-destination")).toHaveTextContent("Hợp đồng");
+    upload();
+    await waitFor(() => expect(toast.success).toHaveBeenCalled());
+    const plan = transport.calls.find((c) => c.method === "plan");
+    expect(plan?.method === "plan" && plan.body).toMatchObject({ parent_id: "folder-open", share_with_workspace: false });
+    expect(plan?.method === "plan" && "root_name" in plan.body && plan.body.root_name !== undefined).toBe(false);
+    expect(plan?.method === "plan" && plan.body.files.map((f) => f.path)).toEqual(["", ""]);
+    const [message, options] = toast.success.mock.calls[0] ?? [];
+    expect(message).toBe("Đã tải lên 2 tệp vào «Hợp đồng»");
+    // "Mở thư mục" opens the destination: there is no root folder in files mode.
+    options.action.onClick();
+    expect(onOpenFolder).toHaveBeenCalledWith("folder-open");
+  });
+
+  it("refuses files that would sit deeper than the depth limit, in the dialog", async () => {
+    setup({ limits: { ...WITH_FOLDERS, folder_upload: { ...WITH_FOLDERS.folder_upload!, max_depth: 2 } } });
+    act(() => hook.addFiles([pdf("a.pdf"), pdf("b.pdf")]));
+    // The open folder sits at level 2: its files would be at level 3.
+    expect(await screen.findByTestId("folder-upload-refusal")).toBeInTheDocument();
+  });
+
+  it("does not stage picked files when folder upload is not available", () => {
+    setup({ limits: DEFAULT_DOCUMENT_LIMITS });
+    act(() => hook.addFiles([pdf("a.pdf"), pdf("b.pdf")]));
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
   it("opens one dialog per dropped folder, one after the other", async () => {
     setup();
     stage(entries("Một", ["a.pdf"]), entries("Hai", ["b.pdf"]));

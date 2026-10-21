@@ -10,6 +10,17 @@ type TFunction = ReturnType<typeof useTranslation>["t"];
 
 const GIB = 1024 ** 3;
 
+/** A run of one picked or dropped folder, or of loose files straight into the destination (ADDENDUM 2). */
+export type FolderUploadMode = "folder" | "files";
+
+/**
+ * Files mode reads the `_files` variant of a key when it has one (i18next
+ * context): a sentence that says "the folder" there says "the files" instead.
+ */
+export function modeContext(mode: FolderUploadMode = "folder"): { context?: string } {
+  return mode === "files" ? { context: "files" } : {};
+}
+
 function localeTag(locale: string): string {
   return locale.toLowerCase().startsWith("en") ? "en-US" : "vi-VN";
 }
@@ -44,9 +55,10 @@ export function refusalMessage(
   t: TFunction,
   refusal: NonNullable<FolderUploadPlan["refusal"]>,
   locale: string,
-  opts: { lowerBound?: boolean } = {},
+  opts: { lowerBound?: boolean; mode?: FolderUploadMode } = {},
 ): string {
   const { limit, actual } = refusal;
+  const ctx = modeContext(opts.mode);
   // The planner's code union gains too_many_folders with the v0.2 config; read it as a string so either side may land first.
   const code: string = refusal.code;
   switch (code) {
@@ -57,6 +69,7 @@ export function refusalMessage(
         actual: formatCount(actual ?? 0, locale),
         limit: formatCount(limit ?? 0, locale),
         count: actual ?? 0,
+        ...ctx,
       });
     case "too_large_total":
       return t("documents.folder_upload.refusal.too_large_total", {
@@ -66,9 +79,9 @@ export function refusalMessage(
     case "nothing_to_upload":
     case "segment_too_long":
     case "multiple_roots":
-      return t(`documents.folder_upload.refusal.${code}`);
+      return t(`documents.folder_upload.refusal.${code}`, ctx);
     default:
-      return t("documents.folder_upload.refusal.unknown");
+      return t("documents.folder_upload.refusal.unknown", ctx);
   }
 }
 

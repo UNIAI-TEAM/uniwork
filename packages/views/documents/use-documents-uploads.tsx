@@ -100,7 +100,19 @@ export function useDocumentsUploads({
     dropActive: drop.active,
     dialogs: (
       <>
-        <DocumentUploadDialog {...fileUpload.dialogProps} />
+        <DocumentUploadDialog
+          {...fileUpload.dialogProps}
+          // Two or more files go through the folder-upload fast path as one files-mode run (ADDENDUM 2);
+          // without folder upload on the server the picker stays single-file.
+          onPickMany={
+            folderUpload.available
+              ? (files) => {
+                  fileUpload.dialogProps.onOpenChange(false);
+                  folderUpload.addFiles(files);
+                }
+              : undefined
+          }
+        />
         {folderUpload.dialogs}
       </>
     ),

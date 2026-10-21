@@ -152,6 +152,43 @@ describe("Documents home folder upload entries (UNI-2052)", () => {
     expect(screen.queryByTestId("folder-upload-input")).toBeNull();
   });
 
+  it("sends two or more files picked in Tải lên tệp to the files-mode pre-flight, one file to the single-file dialog (A5)", async () => {
+    route({ folderUpload: true });
+    renderView();
+    fireEvent.click(await screenWithFolderUpload());
+    fireEvent.click(await screen.findByRole("menuitem", { name: t("documents.folder_upload.menu_file") }));
+    const input = (await screen.findByLabelText(t("documents.upload.pick"))) as HTMLInputElement;
+    expect(input).toHaveAttribute("multiple");
+    const a = new File(["x"], "a.pdf", { type: "application/pdf" });
+    const b = new File(["y"], "b.pdf", { type: "application/pdf" });
+    fireEvent.change(input, { target: { files: [a, b] } });
+    const dialog = await screen.findByTestId("folder-upload-dialog");
+    expect(dialog).toHaveAttribute("data-mode", "files");
+    expect(within(dialog).queryByTestId("folder-upload-root")).toBeNull();
+    expect(within(dialog).getByTestId("folder-upload-summary")).toHaveTextContent("2 tệp");
+    expect(within(dialog).getByTestId("folder-upload-destination")).toHaveTextContent(t("documents.home.my_folder.label"));
+    expect(screen.queryByLabelText(t("documents.upload.pick"))).toBeNull();
+    fireEvent.click(within(dialog).getByRole("button", { name: t("documents.folder_upload.dialog.cancel") }));
+    await waitFor(() => expect(screen.queryByTestId("folder-upload-dialog")).toBeNull());
+
+    fireEvent.click(await screenWithFolderUpload());
+    fireEvent.click(await screen.findByRole("menuitem", { name: t("documents.folder_upload.menu_file") }));
+    const again = (await screen.findByLabelText(t("documents.upload.pick"))) as HTMLInputElement;
+    fireEvent.change(again, { target: { files: [a] } });
+    expect(screen.getByTestId("document-upload-selected")).toHaveTextContent("a.pdf");
+    expect(screen.queryByTestId("folder-upload-dialog")).toBeNull();
+  });
+
+  it("keeps the Tải lên tệp picker single-file when the config has no folder_upload block (A8)", async () => {
+    route({ folderUpload: false });
+    renderView();
+    const upload = await screen.findByRole("button", { name: t("documents.home.create.upload.button") });
+    await configLoaded();
+    fireEvent.click(upload);
+    const input = (await screen.findByLabelText(t("documents.upload.pick"))) as HTMLInputElement;
+    expect(input).not.toHaveAttribute("multiple");
+  });
+
   it("opens the pre-flight dialog for a folder dropped on the library, destination My Folder at the root", async () => {
     route({ folderUpload: true });
     renderView();

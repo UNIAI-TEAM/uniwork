@@ -10,6 +10,7 @@ import { documentKeys } from "@uniwork/core/documents/keys";
 import {
   entriesFromInputFiles,
   folderUploadLimits,
+  planFileUpload,
   planFolderUpload,
   runFolderUpload,
   type FolderUploadEntry,
@@ -19,7 +20,7 @@ import {
 } from "@uniwork/core/documents/folder-upload";
 import type { DocumentTreeNode } from "@uniwork/core/types/document";
 import { nodeLevel, siblingsOf } from "../document-tree-model";
-import { runErrorMessage } from "./folder-upload-copy";
+import { runErrorMessage, type FolderUploadMode } from "./folder-upload-copy";
 import { FolderUploadDialog } from "./folder-upload-dialog";
 import { FolderUploadReportDialog } from "./folder-upload-report-dialog";
 import { createFolderUploadToast, type FolderUploadToast } from "./folder-upload-toast";
@@ -36,6 +37,8 @@ interface Destination {
 }
 
 interface StagedFolder {
+  /** One folder, or loose files that go straight into the destination (ADDENDUM 2). */
+  mode: FolderUploadMode;
   entries: FolderUploadEntry<File>[];
   destination: Destination;
   /**
@@ -53,6 +56,9 @@ function newIdempotencyKey(): string {
 /** One run's link from the runner's progress to the toast that shows it. */
 interface RunChannel {
   handle: FolderUploadHandle | null;
+  mode: FolderUploadMode;
+  /** The folder "Mở thư mục" opens in files mode: the destination, once resolved. Folder mode opens the root. */
+  destinationId: string | null;
   /** The first run's toast has its end state: later progress belongs to a retry. */
   settled: boolean;
   /** The toast of the retry under way, if any. */
@@ -134,17 +140,13 @@ export function useFolderUpload({
   latest.current = { onOpenFolder, resolveRootParent, myFolderId, t, locale: i18n.language };
 
   const head = queue[0] ?? null;
-  const plan = useMemo(
-    () =>
-      head && runLimits
-        ? planFolderUpload(head.entries, {
-            limits: runLimits,
-            parentLevel: head.destination.level,
-            siblingNames: head.destination.siblingNames,
-          })
-        : null,
-    [head, runLimits],
-  );
+  const plan = useMemo(() => {
+    if (!head || !runLimits) return null;
+    const parentLevel = head.destination.level;
+    return head.mode === "files"
+      ? planFileUpload(head.entries, { limits: runLimits, parentLevel })
+      : planFolderUpload(head.entries, { limits: runLimits, parentLevel, siblingNames: head.destination.siblingNames });
+  }, [head, runLimits]);
 
   const destinationNow = useCallback((): Destination => {
     const parentId = folderId ?? myFolderId;
@@ -164,12 +166,32 @@ export function useFolderUpload({
       const destination = destinationNow();
       const staged = lists
         .filter((entries) => entries.length > 0)
-        .map((entries) => ({ entries, destination, idempotency: { key: newIdempotencyKey(), share: null } }));
+        .map((entries) => ({
+          mode: "folder" as const,
+          entries,
+          destination,
+          idempotency: { key: newIdempotencyKey(), share: null },
+        }));
       // An empty folder has nothing to plan: say so instead of opening a dialog with no name.
       if (staged.length < lists.length) toast.error(t("documents.folder_upload.refusal.nothing_to_upload"));
       if (staged.length > 0) setQueue((q) => [...q, ...staged]);
     },
     [available, destinationNow, t],
+  );
+
+  /** Stage several picked or dropped files as ONE files-mode run into the destination (ADDENDUM 2). */
+  const addFiles = useCallback(
+    (files: readonly File[]) => {
+      if (!available || files.length === 0) return;
+      const run: StagedFolder = {
+        mode: "files",
+        entries: entriesFromInputFiles(files),
+        destination: destinationNow(),
+        idempotency: { key: newIdempotencyKey(), share: null },
+      };
+      setQueue((q) => [...q, run]);
+    },
+    [available, destinationNow],
   );
 
   const openPicker = useCallback(() => inputRef.current?.click(), []);
@@ -204,6 +226,7 @@ export function useFolderUpload({
   /** Turn a run's (or a retry's) toast into its end state; "Xem" opens the report. */
   const settleToast = (target: FolderUploadToast, name: string, report: FolderUploadReport, channel: RunChannel) => {
     const title = report.root?.title ?? name;
+    const openId = report.root?.id ?? (channel.mode === "files" ? channel.destinationId : null);
     if (report.failed.length > 0 && !report.canRetry && !report.canceled && !report.expired) abandon(channel);
     target.settle({
       title,
@@ -213,7 +236,7 @@ export function useFolderUpload({
       canceled: report.canceled,
       expired: report.expired,
       onOpenFolder: () => {
-        if (report.root?.id) latest.current.onOpenFolder(report.root.id);
+        if (openId) latest.current.onOpenFolder(openId);
       },
       onViewFailures: () => showReport(title, report, channel),
     });
@@ -221,7 +244,8 @@ export function useFolderUpload({
 
   const confirm = async ({ shareWithWorkspace }: { shareWithWorkspace: boolean }) => {
     if (!head || !plan || !runLimits || pending) return;
-    const { entries, destination, idempotency } = head;
+    const { mode, entries, destination, idempotency } = head;
+    // Files mode has no root: the run is named after its destination.
     const name = plan.rootTitle ?? destination.name;
     const share = !destination.shared && shareWithWorkspace;
     // The flag is part of the plan body, and the server answers 409 to one key sent with two bodies.
@@ -229,7 +253,7 @@ export function useFolderUpload({
     idempotency.share = share;
     setPending(true);
     setError(null);
-    const channel: RunChannel = { handle: null, settled: false, retryToast: null, abandoned: false };
+    const channel: RunChannel = { handle: null, mode, destinationId: null, settled: false, retryToast: null, abandoned: false };
     dialogRun.current = channel;
     let parentId: string;
     try {
@@ -242,6 +266,7 @@ export function useFolderUpload({
       return;
     }
     if (dialogRun.current !== channel) return;
+    channel.destinationId = parentId;
     let uploadToast: FolderUploadToast | null = null;
     // The plan was answered: the dialog's job is done, the toast takes over.
     const begin = (): FolderUploadToast => {
@@ -398,5 +423,5 @@ export function useFolderUpload({
     </>
   ) : null;
 
-  return { available, openPicker, addFolders, dialogs };
+  return { available, openPicker, addFolders, addFiles, dialogs };
 }
