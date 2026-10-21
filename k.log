@@ -1,0 +1,12 @@
+$ grep -E "^\s*--- (PASS|FAIL|SKIP): .*OpenAPI" /tmp/uni2012r5-go.log | cut -c1-200 | head -60
+--- PASS: TestDocumentChangesOpenAPI (5.51s)
+--- PASS: TestDocumentCommentsOpenAPICatalog (5.85s)
+--- PASS: TestDocumentDownloadJobOpenAPI (5.72s)
+--- PASS: TestDocumentEditLockOpenAPI (5.42s)
+--- PASS: TestDocumentSortParamsInOpenAPI (5.58s)
+--- PASS: TestDoclistParamsInOpenAPI (5.57s)
+--- PASS: TestDocuments05bOpenAPI (5.43s)
+--- PASS: TestOfficeAppCapabilitiesOpenAPI (5.42s)
+--- PASS: TestOfficeDesktopDownloadOpenAPI (5.54s)
+--- PASS: TestOfficeLeaseOpenAPI (5.29s)
+--- PASS: TestUploadSessionOpenAPISpec (5.70s)

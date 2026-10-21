@@ -1,0 +1,1 @@
+$ grep -E "^\s*--- FAIL|^(FAIL|panic)|WARNING: DATA RACE" /tmp/uni2012r5-go.log | cut -c1-250 | head -80

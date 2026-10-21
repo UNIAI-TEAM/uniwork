@@ -1,0 +1,4 @@
+$ git rev-parse HEAD; nproc; git diff --quiet HEAD; echo "TREE_CLEAN_EXIT=$?"
+5bb149fd85a321879de97dd09a268c14c8cc77a7
+4
+TREE_CLEAN_EXIT=0

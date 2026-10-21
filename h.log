@@ -1,0 +1,7 @@
+$ grep -E "^(ok|FAIL|\?)\s" /tmp/uni2012r5-go.log | cut -c1-200 | head -50
+ok  	github.com/unicomhub/uniwork/server/internal/handler	766.932s
+?   	github.com/unicomhub/uniwork/server/internal/handler/dto/sdi	[no test files]
+ok  	github.com/unicomhub/uniwork/server/internal/handler/dto/sdo	1.021s [no tests to run]
+ok  	github.com/unicomhub/uniwork/server/internal/handler/router	6.774s
+ok  	github.com/unicomhub/uniwork/server/internal/service	2.565s
+ok  	github.com/unicomhub/uniwork/server/migrations	2.356s
