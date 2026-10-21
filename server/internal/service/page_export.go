@@ -109,7 +109,9 @@ func (s *DocumentOfficeService) pageExportBytes(ctx context.Context, doc db.Docu
 		if err != nil {
 			return nil, err
 		}
-		budget := int64(pageExportMaxInput)
+		// Images ride as base64 (4 bytes per 3), so the raw budget is 3/4 of
+		// the input cap: an image set that cannot fit is refused unread.
+		budget := int64(pageExportMaxInput / 4 * 3)
 		for _, a := range assets {
 			// The writer embeds png/jpeg/gif only and prints any other image
 			// as its alt text, so its bytes would only spend the budget.

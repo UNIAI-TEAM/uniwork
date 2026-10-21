@@ -199,6 +199,32 @@ func TestPageExport(t *testing.T) {
 		}
 	})
 
+	t.Run("images whose base64 would pass the input cap are refused before any is read", func(t *testing.T) {
+		f := newOfficeFixture(t, "unused\n")
+		page, err := f.docs.CreatePage(ctx, f.actor, f.ws, CreatePageInput{Title: "Ảnh lớn", Visibility: documentVisibilityWorkspace})
+		if err != nil {
+			t.Fatal(err)
+		}
+		// 60 MiB of PNG is 80 MiB of base64, past the 64 MiB input; its file
+		// does not exist, so reading it would fail with another error.
+		png := util.NewID()
+		if _, err := f.q.InsertDocumentAsset(ctx, db.InsertDocumentAssetParams{
+			ID: png, OrganizationID: f.org, WorkspaceID: f.ws, DocumentID: page.Document.ID, FileID: util.NewID(),
+			MimeType: "image/png", SizeBytes: 60 << 20, CreatedBy: f.actor.ID, CreatedByKind: string(f.actor.Kind),
+		}); err != nil {
+			t.Fatal(err)
+		}
+		content := fmt.Sprintf(`{"type":"doc","content":[{"type":"paragraph","content":[{"type":"image","attrs":{"src":"asset://%s","alt":"png"}}]}]}`, png)
+		if _, err := f.docs.UpdateDocument(ctx, f.actor, page.Document.ID, UpdateDocumentInput{Revision: page.Document.Revision, Content: json.RawMessage(content)}); err != nil {
+			t.Fatal(err)
+		}
+		_, err = f.service(newPageExportEngine(t)).ExportPage(ctx, f.actor, page.Document.ID, "docx")
+		var ee *office.EngineError
+		if !errors.As(err, &ee) || ee.Reason != "input_too_large" {
+			t.Fatalf("err = %v, want input_too_large", err)
+		}
+	})
+
 	t.Run("pdf: the same job with a pdf target", func(t *testing.T) {
 		f := newOfficeFixture(t, "unused\n")
 		pageID, _, _ := seedPage(t, f)
