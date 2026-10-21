@@ -140,6 +140,11 @@ một dòng thì ghi lý do ở dòng trên.
   dùng cuối (`data/auth/last-user.ts`, Keychain cạnh phiên, ghi sau mỗi `/me`/`setUser`, bỏ qua khi epoch đổi),
   workspace và các hàng đợi; có credential + người dùng đã lưu thì vào inbox ngay và `/me` revalidate phía sau.
   Chỉ phán quyết của server (onChange(null), `onUnauthorized`) mới đăng xuất; offline/5xx/timeout giữ người dùng.
+  Lần mở đầu của một bản cài mới (`data/install-marker.ts`: chưa có dấu `install/marker` trong kho MMKV — tệp của
+  container, mất khi gỡ app — và kho chưa có key nào; bản nâng cấp từ trước dấu đã có key nên không bị nhầm, kho chỉ
+  trong bộ nhớ thì không kết luận gì) bỏ phiên và người dùng cuối mà bản cài trước để lại trong Keychain (iOS giữ
+  Keychain khi xoá app) qua `session.discardStored()` — xoá, không adopt, thu hồi thiết bị ở nền — trước khi đọc chúng:
+  xoá app là đăng xuất.
   Server đã kết thúc phiên trước khi ai được vào (refresh hết hạn, thiết bị bị thu hồi) mà máy còn người dùng đã lưu
   hay hàng đợi thì xoá như đăng xuất (outbox và tệp, lượt chờ, cache đĩa, workspace); màn chat chỉ hiện và thử lại
   tin chờ của chính người đang đăng nhập (`selectRoomSends` lọc theo người gửi). `login()` và `adoptSession()`

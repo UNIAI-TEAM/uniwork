@@ -5,6 +5,7 @@ const sessionMock = vi.hoisted(() => ({
   getAccessToken: vi.fn<() => Promise<string | null>>(async () => null),
   login: vi.fn(async () => undefined),
   logout: vi.fn(async () => undefined),
+  discardStored: vi.fn(async () => undefined),
   status: vi.fn(() => "signed-out"),
 }));
 vi.mock("./flow", () => ({ session: sessionMock }));
@@ -19,6 +20,9 @@ const lastUserMock = vi.hoisted(() => ({
   forgetLastUser: vi.fn(async () => undefined),
 }));
 vi.mock("./last-user", () => lastUserMock);
+
+const firstLaunchOfInstall = vi.hoisted(() => vi.fn<() => Promise<boolean>>(async () => false));
+vi.mock("../install-marker", () => ({ firstLaunchOfInstall }));
 
 const cacheMock = vi.hoisted(() => ({
   restoreAccountCache: vi.fn<(userId: string) => Promise<void>>(async () => undefined),
@@ -83,6 +87,29 @@ beforeEach(() => {
 });
 
 describe("auth store", () => {
+  // Audit (Security & privacy, keychain-survives-reinstall).
+  it("initialize on the first launch of a new install discards the previous install's session and person before reading them", async () => {
+    const order: string[] = [];
+    firstLaunchOfInstall.mockResolvedValueOnce(true);
+    sessionMock.discardStored.mockImplementationOnce(async () => {
+      order.push("discard");
+    });
+    lastUserMock.forgetLastUser.mockImplementationOnce(async () => {
+      order.push("forget");
+    });
+    sessionMock.restore.mockImplementationOnce(async () => {
+      order.push("restore");
+      return false;
+    });
+    await useAuthStore.getState().initialize();
+    expect(order).toEqual(["discard", "forget", "restore"]);
+    expect(useAuthStore.getState()).toMatchObject({ user: null, isLoading: false });
+
+    // Any later launch resumes what it finds.
+    await useAuthStore.getState().initialize();
+    expect(sessionMock.discardStored).toHaveBeenCalledTimes(1);
+  });
+
   it("initialize: no stored session -> loading ends without /me, and a stored person from before is forgotten", async () => {
     sessionMock.restore.mockResolvedValueOnce(false);
     lastUserMock.readLastUser.mockResolvedValueOnce(user);
@@ -164,6 +191,7 @@ describe("auth store", () => {
     const hold = (name: string) => async () => {
       started.push(name);
       await new Promise((resolve) => setTimeout(resolve, 0));
+      started.push(`end:${name}`);
     };
     sessionMock.restore.mockImplementationOnce(async () => {
       await hold("session")();
@@ -174,9 +202,9 @@ describe("auth store", () => {
       return null;
     });
     workspaceRestore.mockImplementationOnce(hold("workspace"));
-    const done = useAuthStore.getState().initialize();
-    expect(started).toEqual(["session", "user", "workspace"]);
-    await done;
+    await useAuthStore.getState().initialize();
+    // All three start before any of them ends.
+    expect(started.slice(0, 3)).toEqual(["session", "user", "workspace"]);
   });
 
   it("initialize: a restored session without a stored person loads /me, remembers it and restores its cached rooms", async () => {

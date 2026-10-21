@@ -81,7 +81,8 @@ sao lưu và không chuyển máy, nên bản sao lưu hay máy khác không đ�
 điều hành bảo vệ, không mã hoá thêm) và xoá ngay khi server nhận. Tất cả bị xoá khi đăng xuất hay xoá tài khoản; mọi
 lần đăng xuất, kể cả khi thiết bị bị thu hồi từ máy khác, còn xoá ảnh đã lưu trong bộ nhớ đệm, thông báo trong khay và số
 trên biểu tượng. Android không sao lưu dữ liệu của app lên đám mây và không chép nó sang máy mới
-(`allowBackup: false` và luật data extraction loại mọi vùng lưu trữ).
+(`allowBackup: false` và luật data extraction loại mọi vùng lưu trữ). Gỡ app rồi cài lại là đăng xuất: iOS giữ
+Keychain qua lần gỡ, nên lần mở đầu của bản cài mới bỏ phiên cũ và thu hồi thiết bị đó.
 Dữ liệu này không rời máy nên không là dữ liệu "thu thập" trong Apple App Privacy hay Google Data safety; câu hỏi
 "Data is encrypted in transit" của Play: có.
 

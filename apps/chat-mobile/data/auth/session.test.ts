@@ -354,6 +354,52 @@ describe("sign-in", () => {
   });
 });
 
+// Audit (Security & privacy, keychain-survives-reinstall): iOS keeps Keychain items after the app is deleted, so a
+// reinstall used to sign the previous account straight back in.
+describe("discardStored (the first launch of a fresh install)", () => {
+  it("clears the stored session without adopting it, and revokes its device in the background", async () => {
+    const ctx = setup(vi, { storage: createMemoryStorage(vi, stored()) });
+    const epoch = currentSessionEpoch();
+    await ctx.session.discardStored();
+    expect(ctx.storage.current()).toBeNull();
+    expect(ctx.tokens).toEqual([]);
+    expect(ctx.session.status()).toBe("signed-out");
+    expect(currentSessionEpoch()).not.toBe(epoch);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(ctx.transport.logout).toHaveBeenCalledWith({ deviceSessionId: "dev_1" }, "at_stored");
+    // Nothing left: the restore that follows finds no credential.
+    expect(await ctx.session.restore()).toBe(false);
+  });
+
+  it("revokes a stale one with a refreshed token, and a refusal or an offline phone still clears it", async () => {
+    const stale = setup(vi, { storage: createMemoryStorage(vi, stored({ expires_at: 0 })) });
+    await stale.session.discardStored();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(stale.transport.refresh).toHaveBeenCalledWith({ deviceSessionId: "dev_1", refreshToken: "rt_stored" });
+    expect(stale.transport.logout).toHaveBeenCalledWith({ deviceSessionId: "dev_1" }, "at_1");
+
+    const offline = setup(vi, { storage: createMemoryStorage(vi, stored({ expires_at: 0 })) });
+    offline.transport.refresh.mockImplementationOnce(fail("network"));
+    await offline.session.discardStored();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(offline.storage.current()).toBeNull();
+    expect(offline.transport.logout).not.toHaveBeenCalled();
+  });
+
+  it("does nothing more without a stored session, or with one it cannot read", async () => {
+    const none = setup(vi);
+    await none.session.discardStored();
+    expect(none.storage.clear).toHaveBeenCalledTimes(1);
+    expect(none.transport.logout).not.toHaveBeenCalled();
+    const locked = setup(vi, { storage: createMemoryStorage(vi, stored()) });
+    locked.storage.load.mockRejectedValueOnce(new Error("locked"));
+    locked.storage.clear.mockRejectedValueOnce(new Error("locked"));
+    await expect(locked.session.discardStored()).resolves.toBeUndefined();
+    expect(locked.transport.logout).not.toHaveBeenCalled();
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("stored session not cleared"));
+  });
+});
+
 describe("restore", () => {
   it("adopts a stored session whose access token is still fresh without a network call", async () => {
     const ctx = setup(vi, { storage: createMemoryStorage(vi, stored()) });

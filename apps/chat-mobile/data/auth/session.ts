@@ -280,6 +280,28 @@ export class MobileSession {
     }
   }
 
+  /**
+   * The first launch of a fresh install (data/install-marker.ts): iOS keeps Keychain items after the app is
+   * deleted, so a session stored by the previous install is still there. It is never adopted: storage is cleared
+   * and its device revoked in the background, so deleting the app also signs it out. Nothing is emitted, since no
+   * one was signed in on this install.
+   */
+  async discardStored(): Promise<void> {
+    invalidateSessionEpoch();
+    let previous: StoredSession | null = null;
+    try {
+      previous = await this.deps.storage.load();
+    } catch {
+      // unreadable: cleared below all the same
+    }
+    try {
+      await this.deps.storage.clear();
+    } catch {
+      log.warn("stored session not cleared");
+    }
+    if (previous) void this.revoke(previous);
+  }
+
   private async runRefresh(): Promise<string | null> {
     const live = this.live;
     if (!live) return null;

@@ -14,6 +14,7 @@ import { ApiError, api } from "../api";
 import { chatSendDeps, clearChatOutbox } from "../chat-send";
 import { clearPendingOps, pendingOpsDeps } from "../pending-ops";
 import { wipeDeviceTraces, wipeSessionTraces } from "../local-wipe";
+import { firstLaunchOfInstall } from "../install-marker";
 import { forgetPushToken, unregisterPushToken } from "../push";
 import { workspaceListOptions } from "../queries/workspaces";
 import { queryClient } from "../query-client";
@@ -164,6 +165,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   isLoading: true,
 
   initialize: async () => {
+    // iOS keeps Keychain items when the app is deleted: on the first launch of a new install, the previous install's
+    // session and person are discarded (its device revoked in the background), never resumed.
+    if (await firstLaunchOfInstall()) await Promise.all([session.discardStored(), forgetLastUser()]);
     const [hasCredential, lastUser] = await Promise.all([
       session.restore({ awaitRefresh: false }),
       readLastUser(),
