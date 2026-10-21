@@ -94,10 +94,14 @@ const (
 	DocumentActivityOpened    = "opened"
 	DocumentActivityEdited    = "edited"
 	DocumentActivityCommented = "commented"
+	// DocumentActivityOwned is a kind last_activity reports only, never a
+	// filter: with IncludeOwned, a row the caller owns whose latest change is
+	// somebody else's, dated at its updated_at (the SQL names the literal).
+	DocumentActivityOwned = "owned"
 )
 
 // DocumentLastActivity is the caller's latest activity on a recent row: the
-// kind (opened, edited, commented) and when it happened.
+// kind (opened, edited, commented, owned) and when it happened.
 type DocumentLastActivity struct {
 	Kind string
 	At   time.Time
