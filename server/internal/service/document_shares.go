@@ -15,18 +15,29 @@ import (
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
-// DocumentShareInput is one grant (C-01 §5.3): a principal of the
-// document's organization and the level it receives.
-// Share origins (UNI-2039 S3), stored in document_shares.origin.
+// DocumentShareSourceKindChat marks a document_shares row granted by a chat
+// document message (UNI-2012 D2a). Manual grants and pre-existing chat grants
+// have an empty/NULL source_kind and are never auto-revoked when a member
+// leaves a chat room.
+const DocumentShareSourceKindChat = "chat"
+
+// Share origins (UNI-2039 S3), stored in document_shares.origin. A chat
+// grant (SourceKind chat) is always origin chat.
 const (
 	DocumentShareOriginDirect = "direct"
 	DocumentShareOriginChat   = "chat"
 )
 
+// DocumentShareInput is one grant (C-01 §5.3): a principal of the
+// document's organization and the level it receives. SourceKind, SourceRoomID
+// and SourceMessageID are set only on the chat document send/share paths.
 type DocumentShareInput struct {
-	PrincipalType string
-	PrincipalID   string
-	Level         DocumentLevel
+	PrincipalType   string
+	PrincipalID     string
+	Level           DocumentLevel
+	SourceKind      string
+	SourceRoomID    string
+	SourceMessageID string
 	// Origin is where the grant came from (UNI-2039 S3): "" or "direct" for
 	// the share panel and every API caller, "chat" for a document sent in a
 	// chat message.
@@ -155,7 +166,7 @@ func (s *DocumentService) shareDocumentInTx(ctx context.Context, q *db.Queries, 
 	}
 	notifyUserID := ""
 	if in.PrincipalType == DocumentPrincipalUser {
-		uid, err := s.notifyOnUserShare(ctx, q, actor, doc, nil, in.PrincipalID, in.Level)
+		uid, err := s.notifyOnUserShare(ctx, q, actor, doc, in.PrincipalID, in.Level)
 		if err != nil {
 			return db.DocumentShare{}, err
 		}
@@ -169,24 +180,17 @@ func (s *DocumentService) shareDocumentInTx(ctx context.Context, q *db.Queries, 
 // effective level on the document compared to before it, and never for the
 // actor's own grant (SH-S3; addendum §8, §10 Q-S2).
 //
-// It runs against the COMMAND-START document and shares, once per recipient
-// and before any write, so the decision can never depend on the order items
-// are applied nor be taken against partially applied ones (R1-01/R1-02/
-// R1-13). sharesBefore is the live share set read before the first write; a
-// nil slice means "not loaded yet" and the level is resolved with a fresh
-// read instead (the single ShareDocument path). A recipient who is refused
-// by the tenant gate is not notified: the same answer the grant would get.
-func (s *DocumentService) notifyOnUserShare(ctx context.Context, q *db.Queries, actor Actor, doc db.Document, sharesBefore []db.DocumentShare, userID string, level DocumentLevel) (string, error) {
+// It runs against the COMMAND-START document and shares, before any write, so
+// the decision can never depend on the order items are applied nor be taken
+// against partially applied ones (R1-01/R1-02/R1-13). The level is resolved
+// with a fresh read; a batch decides for all its recipients at once with
+// notifyOnUsersShare. A recipient who is refused by the tenant gate is not
+// notified: the same answer the grant would get.
+func (s *DocumentService) notifyOnUserShare(ctx context.Context, q *db.Queries, actor Actor, doc db.Document, userID string, level DocumentLevel) (string, error) {
 	if actor.Kind == audit.KindHuman && userID == actor.ID {
 		return "", nil
 	}
-	var acc DocumentAccess
-	var err error
-	if sharesBefore != nil {
-		acc, err = s.resolveLevelInTenantWithShares(ctx, q, Human(userID), doc, sharesBefore)
-	} else {
-		acc, err = s.effectiveLevel(ctx, q, Human(userID), doc)
-	}
+	acc, err := s.effectiveLevel(ctx, q, Human(userID), doc)
 	if err != nil {
 		if isGateRefusal(err) {
 			return "", nil
@@ -212,7 +216,8 @@ func validShareLevel(level DocumentLevel) error {
 
 // applyDocumentShare writes one grant inside the caller's transaction, after
 // the caller has gated the actor and validated the principal: the same live
-// level is returned unchanged with no audit row, another live level is
+// level is returned unchanged with no audit row (unless a manual grant takes
+// over a chat-origin row, keepsLiveShare), another live level is
 // revoked and replaced, and a new grant is inserted with its audit row and
 // document.shared event. A share naming the document's own workspace is not a
 // grant of its own (BR-04, SH-S1 item 2): it merges into the home row.
@@ -239,7 +244,8 @@ func (s *DocumentService) applyDocumentShareWithBatch(ctx context.Context, q *db
 		PrincipalType:  in.PrincipalType,
 		PrincipalID:    in.PrincipalID,
 	})
-	if err == nil && prev.Level == string(in.Level) {
+	hasPrev := err == nil
+	if hasPrev && keepsLiveShare(prev, in.Level, in.SourceKind) {
 		return prev, nil
 	}
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
@@ -250,7 +256,7 @@ func (s *DocumentService) applyDocumentShareWithBatch(ctx context.Context, q *db
 		notifyUserID = ""
 	}
 	var before map[string]any
-	if err == nil {
+	if hasPrev {
 		if err := q.RevokeDocumentShare(ctx, db.RevokeDocumentShareParams{
 			ID: prev.ID, OrganizationID: prev.OrganizationID, WorkspaceID: prev.WorkspaceID,
 			DocumentID: prev.DocumentID, RevokedBy: nullText(actor.ID),
@@ -259,17 +265,30 @@ func (s *DocumentService) applyDocumentShareWithBatch(ctx context.Context, q *db
 		}
 		before = map[string]any{"level": prev.Level}
 	}
+	origin := in.Origin
+	var sourceKind, sourceRoomID, sourceMessageID pgtype.Text
+	if in.SourceKind == DocumentShareSourceKindChat {
+		origin = DocumentShareOriginChat
+		sourceKind = nullText(in.SourceKind)
+		sourceRoomID = nullText(in.SourceRoomID)
+		sourceMessageID = nullText(in.SourceMessageID)
+	}
+	priorManualLevel := priorManualLevelForChatGrant(hasPrev, prev, in.SourceKind)
 	sh, err := q.InsertDocumentShare(ctx, db.InsertDocumentShareParams{
-		ID:             util.NewID(),
-		OrganizationID: doc.OrganizationID,
-		WorkspaceID:    doc.WorkspaceID,
-		DocumentID:     doc.ID,
-		PrincipalType:  in.PrincipalType,
-		PrincipalID:    in.PrincipalID,
-		Level:          string(in.Level),
-		GrantedBy:      actor.ID,
-		GrantedByKind:  string(actor.Kind),
-		Origin:         in.Origin,
+		ID:               util.NewID(),
+		OrganizationID:   doc.OrganizationID,
+		WorkspaceID:      doc.WorkspaceID,
+		DocumentID:       doc.ID,
+		PrincipalType:    in.PrincipalType,
+		PrincipalID:      in.PrincipalID,
+		Level:            string(in.Level),
+		GrantedBy:        actor.ID,
+		GrantedByKind:    string(actor.Kind),
+		Origin:           origin,
+		SourceKind:       sourceKind,
+		SourceRoomID:     sourceRoomID,
+		SourceMessageID:  sourceMessageID,
+		PriorManualLevel: priorManualLevel,
 	})
 	if err != nil {
 		return db.DocumentShare{}, err
@@ -304,6 +323,35 @@ func (s *DocumentService) applyDocumentShareWithBatch(ctx context.Context, q *db
 		return db.DocumentShare{}, err
 	}
 	return sh, nil
+}
+
+// keepsLiveShare reports whether a grant at level from sourceKind leaves the
+// live share prev as it is: the same level is not written again, except when
+// a manual grant meets a chat-origin row (UNI-2012 S1-fix B4). The manual
+// grant then takes the row over (revoke and insert with no source), so leaving
+// the room no longer revokes what the manager granted. A chat grant never
+// takes over a manual row, and a chat replay keeps its own row.
+func keepsLiveShare(prev db.DocumentShare, level DocumentLevel, sourceKind string) bool {
+	if prev.Level != string(level) {
+		return false
+	}
+	return sourceKind == DocumentShareSourceKindChat || !prev.SourceKind.Valid
+}
+
+// priorManualLevelForChatGrant decides the prior_manual_level column of a new
+// document_shares row (UNI-2012 D2a): a manual grant (sourceKind == "") is a
+// manual share itself so it carries NULL; a chat grant that raises a live
+// manual share records that manual share's level so leaving the room restores
+// it instead of deleting access; and a chat grant that raises an earlier chat
+// grant preserves whatever prior_manual_level the earlier row remembered.
+func priorManualLevelForChatGrant(hasPrev bool, prev db.DocumentShare, sourceKind string) pgtype.Text {
+	if sourceKind != DocumentShareSourceKindChat || !hasPrev {
+		return pgtype.Text{}
+	}
+	if !prev.SourceKind.Valid {
+		return nullText(prev.Level)
+	}
+	return prev.PriorManualLevel
 }
 
 // mergeDocumentShareIntoHomeRow is a share whose principal is the document's
@@ -419,33 +467,8 @@ func revokeDocumentShareRowWithBatch(ctx context.Context, q *db.Queries, actor A
 	}); err != nil {
 		return err
 	}
-	meta := map[string]any{
-		"share_id":       sh.ID,
-		"principal_type": sh.PrincipalType,
-		"principal_id":   sh.PrincipalID,
-		// The prior level is replicated into the metadata the change
-		// feed reads (BE-G1-2): a removal is decided from the audit
-		// row alone, so the revoked principal and the level it held
-		// must sit together in one durable row.
-		"level": sh.Level,
-	}
-	if batchID != "" {
-		meta["batch_id"] = batchID
-	}
-	return auditRecorder.Record(ctx, q, audit.Entry{
-		OrganizationID: doc.OrganizationID,
-		WorkspaceID:    doc.WorkspaceID,
-		Actor:          actor,
-		Action:         audit.ActionDocumentShareRevoked,
-		ResourceType:   "document",
-		ResourceID:     doc.ID,
-		Changes:        audit.Diff(map[string]any{"level": sh.Level}, nil),
-		Metadata:       meta,
-	}, audit.Event{Topic: "document.share_revoked", Payload: map[string]string{
-		"document_id":  doc.ID,
-		"workspace_id": doc.WorkspaceID,
-		"share_id":     sh.ID,
-	}})
+	rec := documentShareRevokeRecord(actor, doc, sh, batchID)
+	return auditRecorder.Record(ctx, q, rec.Entry, rec.Events...)
 }
 
 // DocumentAccessSource via values on GET /api/v1/documents/{documentID}/shares (SH-S2, UNI-1781).

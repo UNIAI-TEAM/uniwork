@@ -156,6 +156,13 @@ func toChatMessageDTO(m service.ChatMessageRow) sdo.ChatMessageDTO {
 			count := m.Document.RecipientCount
 			block.RecipientCount = &count
 		}
+		// The origin is the message's own and carries no document data, so it
+		// is set with or without access; the editors count is the sender's.
+		block.Origin = m.Document.Origin
+		if m.Document.HasOtherEditorsCount {
+			count := m.Document.OtherEditorsCount
+			block.OtherEditorsCount = &count
+		}
 		out.Document = block
 	}
 	if m.Poll != nil {

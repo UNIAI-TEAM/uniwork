@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
-	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
@@ -425,16 +424,12 @@ func TestDocumentAccessBatch(t *testing.T) {
 			t.Fatalf("AdminScope self-grant rejected = %+v", rej)
 		}
 
-		// 400 validation: empty items, >100 items, agent principal_type (D1), invalid item on_existing, invalid level (including "none").
-		over100 := make([]DocumentAccessBatchItem, 101)
-		for i := range over100 {
-			over100[i] = DocumentAccessBatchItem{PrincipalType: DocumentPrincipalUser, PrincipalID: util.NewID(), Level: docLevelPtr(DocumentLevelView)}
-		}
+		// 400 validation: empty items, agent principal_type (D1), invalid item on_existing, invalid level (including "none").
+		// There is no upper bound on items (UNI-2012 S1e, document_access_batch_large_test.go).
 		badLevel := DocumentLevel("owner")
 		noneLevel := DocumentLevel("none")
 		for name, bad := range map[string]UpdateDocumentAccessInput{
 			"empty items":        {},
-			"over 100 items":     {Items: over100},
 			"agent principal":    {Items: []DocumentAccessBatchItem{{PrincipalType: "agent", PrincipalID: tn.agent, Level: docLevelPtr(DocumentLevelView)}}},
 			"empty principal_id": {Items: []DocumentAccessBatchItem{{PrincipalType: DocumentPrincipalUser, PrincipalID: "  ", Level: docLevelPtr(DocumentLevelView)}}},
 			"bad on_existing":    {Items: []DocumentAccessBatchItem{{PrincipalType: DocumentPrincipalUser, PrincipalID: tn.bMember.ID, Level: docLevelPtr(DocumentLevelView), OnExisting: "replace"}}},

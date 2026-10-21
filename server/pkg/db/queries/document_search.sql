@@ -1070,11 +1070,18 @@ LEFT JOIN (
     AND c.deleted_at IS NULL
   GROUP BY c.document_id
 ) cm ON cm.document_id = d.id
+-- UNI-2012 F5: with include_owned the caller's ownership counts as activity at
+-- the row's updated_at, so a document they own stays listed after someone else
+-- edits it (the chat picker's empty-query list). Off, it adds nothing.
 CROSS JOIN LATERAL (SELECT
-    GREATEST(op.seen_at, (CASE WHEN d.updated_by = sqlc.arg(actor_id)::text THEN d.updated_at END), cm.said_at)::timestamptz AS last_at,
+    (CASE WHEN sqlc.arg(include_owned)::boolean AND d.acl_owner_id = sqlc.arg(actor_id)::text THEN d.updated_at END)::timestamptz AS at
+) own
+CROSS JOIN LATERAL (SELECT
+    GREATEST(op.seen_at, (CASE WHEN d.updated_by = sqlc.arg(actor_id)::text THEN d.updated_at END), cm.said_at, own.at)::timestamptz AS last_at,
     (CASE WHEN d.updated_by = sqlc.arg(actor_id)::text
                AND d.updated_at = GREATEST(op.seen_at, d.updated_at, cm.said_at) THEN 'edited'
-          WHEN cm.said_at IS NOT NULL AND cm.said_at = GREATEST(op.seen_at, (CASE WHEN d.updated_by = sqlc.arg(actor_id)::text THEN d.updated_at END), cm.said_at) THEN 'commented'
+          WHEN cm.said_at IS NOT NULL AND cm.said_at = GREATEST(op.seen_at, (CASE WHEN d.updated_by = sqlc.arg(actor_id)::text THEN d.updated_at END), cm.said_at, own.at) THEN 'commented'
+          WHEN own.at IS NOT NULL AND (op.seen_at IS NULL OR op.seen_at < own.at) THEN 'owned'
           ELSE 'opened' END)::text AS kind
 ) act
 -- UNI-2038 S3: the sort keys of a row, computed once. The name key is the

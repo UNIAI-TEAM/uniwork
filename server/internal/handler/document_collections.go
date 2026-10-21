@@ -49,6 +49,9 @@ func documentListInputFor(w http.ResponseWriter, r *http.Request, recent bool) (
 		Activity:    strings.TrimSpace(q.Get("activity")),
 		WithEditors: true,
 	}
+	if recent {
+		in.IncludeOwned = strings.TrimSpace(q.Get("include_owned")) == "true"
+	}
 	if q.Has("parent_id") {
 		parent := strings.TrimSpace(q.Get("parent_id"))
 		in.ParentID = &parent
