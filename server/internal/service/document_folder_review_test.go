@@ -6,7 +6,6 @@ package service
 
 import (
 	"context"
-	"errors"
 	"testing"
 
 	"github.com/unicomhub/uniwork/server/internal/util"
@@ -82,8 +81,10 @@ func TestDocumentFolderArchiveBound(t *testing.T) {
 	})
 }
 
-// The set-based access check keeps the old rule: every live node of the
-// subtree must be manageable, whichever path gives the manage.
+// The set-based access check decides which node is managed, whichever path
+// gives the manage. ADR 0037 point 5 (UNI-2055): these folders are workspace
+// folders, so a child the caller does not manage no longer refuses the
+// archive - it moves to the workspace root and the folder goes to the trash.
 func TestDocumentFolderArchiveAccess(t *testing.T) {
 	env := newFakeDocStorageEnv(t)
 	ctx := context.Background()
@@ -105,43 +106,44 @@ func TestDocumentFolderArchiveAccess(t *testing.T) {
 			createdBy: tn.aclOwner.ID, parent: parent.ID})
 	}
 
-	t.Run("a restricted child the caller does not manage refuses the whole archive", func(t *testing.T) {
+	// relocated: the archive went through, the root is in the trash and the
+	// child the caller does not manage sits live at the workspace root.
+	relocated := func(t *testing.T, root, child db.Document, res DocumentArchiveResult, err error) {
+		t.Helper()
+		if err != nil || len(res.Affected) != 1 || res.Affected[0] != root.ID {
+			t.Fatalf("archive = %v, %v, want only the folder stamped", res.Affected, err)
+		}
+		d, err := f.q.GetDocumentByID(ctx, child.ID)
+		if err != nil || d.ArchivedAt.Valid || d.ParentID.Valid {
+			t.Fatalf("unmanaged child = parent %q archived %v (%v), want live at the workspace root", d.ParentID.String, d.ArchivedAt.Valid, err)
+		}
+	}
+
+	t.Run("a restricted child the caller does not manage moves to the workspace root", func(t *testing.T) {
 		root := newFolder(t)
 		child := foreignChild(t, root)
-		_, err := env.svc.ArchiveDocument(ctx, member, root.ID, ArchiveDocumentInput{})
-		if !errors.Is(err, ErrForbidden) {
-			t.Fatalf("archive over an unmanageable child = %v, want forbidden", err)
-		}
-		f.live(t, root.ID)
-		f.live(t, child.ID)
+		res, err := env.svc.ArchiveDocument(ctx, member, root.ID, ArchiveDocumentInput{})
+		relocated(t, root, child, res, err)
 	})
 
 	// acl_owner_id is NULL for agent/system-created documents. The set-based
 	// query must keep such a node in the check set (NULL = actor is not true),
 	// so the answer equals effectiveLevel's: a restricted node is unreadable,
-	// an edit-only one is not manage.
-	t.Run("a restricted child with no ACL owner refuses a folder manager", func(t *testing.T) {
+	// an edit-only one is not manage - both relocate.
+	t.Run("a restricted child with no ACL owner is not managed by a folder manager", func(t *testing.T) {
 		root := newFolder(t)
 		child := f.treeDoc(t, tn, treeDocSpec{ws: tn.wsA, visibility: "restricted",
 			createdBy: tn.aclOwner.ID, parent: root.ID})
-		_, err := env.svc.ArchiveDocument(ctx, member, root.ID, ArchiveDocumentInput{})
-		if !errors.Is(err, ErrForbidden) {
-			t.Fatalf("archive over a restricted child with a NULL ACL owner = %v, want forbidden", err)
-		}
-		f.live(t, root.ID)
-		f.live(t, child.ID)
+		res, err := env.svc.ArchiveDocument(ctx, member, root.ID, ArchiveDocumentInput{})
+		relocated(t, root, child, res, err)
 	})
 
-	t.Run("an edit-only workspace child with no ACL owner refuses a folder manager", func(t *testing.T) {
+	t.Run("an edit-only workspace child with no ACL owner is not managed by a folder manager", func(t *testing.T) {
 		root := newFolder(t)
 		child := f.treeDoc(t, tn, treeDocSpec{ws: tn.wsA, visibility: "workspace",
 			createdBy: tn.aclOwner.ID, parent: root.ID})
-		_, err := env.svc.ArchiveDocument(ctx, member, root.ID, ArchiveDocumentInput{})
-		if !errors.Is(err, ErrForbidden) {
-			t.Fatalf("archive over an edit-only child with a NULL ACL owner = %v, want forbidden", err)
-		}
-		f.live(t, root.ID)
-		f.live(t, child.ID)
+		res, err := env.svc.ArchiveDocument(ctx, member, root.ID, ArchiveDocumentInput{})
+		relocated(t, root, child, res, err)
 	})
 
 	t.Run("a workspace admin archives a child with no ACL owner", func(t *testing.T) {
@@ -162,10 +164,8 @@ func TestDocumentFolderArchiveAccess(t *testing.T) {
 		root := newFolder(t)
 		child := foreignChild(t, root)
 		f.share(t, child, DocumentPrincipalUser, tn.member.ID, DocumentLevelEdit, tn.aclOwner.ID)
-		_, err := env.svc.ArchiveDocument(ctx, member, root.ID, ArchiveDocumentInput{})
-		if !errors.Is(err, ErrForbidden) {
-			t.Fatalf("archive with an edit share = %v, want forbidden", err)
-		}
+		res, err := env.svc.ArchiveDocument(ctx, member, root.ID, ArchiveDocumentInput{})
+		relocated(t, root, child, res, err)
 	})
 
 	t.Run("a manage share on the child lets the archive through", func(t *testing.T) {
