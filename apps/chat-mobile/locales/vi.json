@@ -1597,6 +1597,29 @@
       "earpiece": "Loa trong",
       "in_use": "{{output}} · đang dùng",
       "failed": "Không chuyển được âm thanh. Thử lại."
+    },
+    "a11y": {
+      "bubble_quote": "Trả lời {{sender}}: {{text}}",
+      "bubble_retry_hint": "Mở tùy chọn gửi lại hoặc xóa tin này",
+      "bubble_sending_hint": "Mở tùy chọn xóa tin đang gửi",
+      "new_messages": "{{count}} tin nhắn mới",
+      "image_viewer_hint": "Chụm hai ngón để phóng to, chạm hai lần để phóng to hoặc thu nhỏ, vuốt xuống để đóng",
+      "image_zoomed": "Đang phóng to"
+    },
+    "permissions": {
+      "continue": "Tiếp tục",
+      "not_now": "Để sau",
+      "open_settings": "Mở Cài đặt",
+      "microphone_title": "Cho phép dùng micro",
+      "microphone_voice_body": "UniChat dùng micro để ghi tin thoại bạn gửi. Micro chỉ bật khi bạn đang ghi.",
+      "microphone_call_body": "UniChat dùng micro để mọi người nghe được bạn trong cuộc gọi. Micro chỉ bật khi bạn đang ở trong cuộc gọi.",
+      "microphone_denied": "Micro đang bị tắt cho UniChat trong cài đặt của máy. Mở Cài đặt và bật Micro để tiếp tục.",
+      "camera_title": "Cho phép dùng camera",
+      "camera_body": "UniChat dùng camera khi bạn gọi video. Bạn tắt camera được bất cứ lúc nào trong cuộc gọi.",
+      "camera_denied": "Camera đang bị tắt cho UniChat trong cài đặt của máy. Mở Cài đặt và bật Camera để gọi video.",
+      "notifications_title": "Bật thông báo",
+      "notifications_body": "Nhận tin nhắn, lượt nhắc tên và cuộc gọi đến cả khi UniChat đang đóng. Bạn chọn loại thông báo trong Cài đặt của ứng dụng.",
+      "notifications_denied": "Thông báo đang bị tắt cho UniChat trong cài đặt của máy. Mở Cài đặt và bật Thông báo để nhận tin và cuộc gọi."
     }
   }
 }

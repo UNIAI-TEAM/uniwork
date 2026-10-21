@@ -13,6 +13,7 @@ import { useShallow } from "zustand/react/shallow";
 import { HeaderIconButton } from "@/components/chat/chat-header";
 import { Conversation } from "@/components/chat/conversation";
 import { RoomAvatar } from "@/components/chat/room-avatar";
+import { ensureCallPermissions } from "@/components/ui/permission-gate";
 import { DmBlockBanner } from "@/components/chat/room-safety";
 import { RoomChatHeader } from "@/components/chat/room-typing";
 import { useChatWorkspace, type ChatWorkspace } from "@/components/chat/use-chat-workspace";
@@ -68,7 +69,9 @@ function RoomConversation({ chat, roomId, linkedMessageId }: { chat: ChatWorkspa
   // ...and only while the server's calls switch is on (data/remote-config.ts).
   const callsOn = useMobileFlag("unichat_mobile_calls");
   const callable = callsOn && room.room && ["dm", "group", "channel"].includes(room.room.kind) && !isDefaultWorkspaceChannel(room.room);
-  const call = (withCamera: boolean) => void callEngine.startCall(roomId, room.title, voiceCallKindFromServer(room.room?.kind), { withCamera });
+  // The microphone (and the camera) is explained and asked before the call starts.
+  const call = (withCamera: boolean) =>
+    void ensureCallPermissions(withCamera).then(() => callEngine.startCall(roomId, room.title, voiceCallKindFromServer(room.room?.kind), { withCamera }));
 
   const backToLatest = () => {
     setAnchorId(null);
@@ -128,6 +131,7 @@ function RoomConversation({ chat, roomId, linkedMessageId }: { chat: ChatWorkspa
         }}
         onAtLatestChange={setAtLatest}
         onSend={anchorRows ? backToLatest : undefined}
+        onJumpToLatest={anchorRows ? backToLatest : undefined}
       />
       {/* The room's load span ends when its newest page is drawn (Sentry performance; no-op without a DSN). */}
       <ScreenFullyDrawn record={!timeline.isPending} />

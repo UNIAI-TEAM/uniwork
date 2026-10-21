@@ -21,6 +21,7 @@ import { useChatWorkspace, type ChatWorkspace } from "@/components/chat/use-chat
 import { useRoomContext } from "@/components/chat/use-room-context";
 import { RoomMemberRow } from "@/components/people/member-rows";
 import { SearchField } from "@/components/ui/search-field";
+import { ensureCallPermissions } from "@/components/ui/permission-gate";
 import { Text } from "@/components/ui/text";
 import { useMobileFlag } from "@/data/remote-config";
 import { callEngine } from "@/data/calls/call-store";
@@ -222,7 +223,7 @@ function RoomInfo({ chat, roomId }: { chat: ChatWorkspace; roomId: string }) {
                 icon="call-outline"
                 label={t("chat.mobile.call_short")}
                 accessibilityLabel={t("chat.voice_call_start")}
-                onPress={() => void callEngine.startCall(roomId, room.title, voiceCallKindFromServer(room.room?.kind), { withCamera: false })}
+                onPress={() => void ensureCallPermissions(false).then(() => callEngine.startCall(roomId, room.title, voiceCallKindFromServer(room.room?.kind), { withCamera: false }))}
               />
             ) : null}
             {isGroup ? <QuickAction icon="person-add-outline" label={t("chat.add_to_group")} accessibilityLabel={t("chat.add_group_members")} onPress={() => router.push(chatRoutes.newGroup(chat, roomId))} /> : null}

@@ -5,6 +5,8 @@
 // wall, the typing line at the bottom, and a scroll to the message a deep link
 // or a quote points at. The cell callback keeps its identity while the rows'
 // renderer does (audit H1): the list re-renders cells only when a row changed.
+// A new `latestSignal` scrolls to the newest message (the jump-to-latest
+// button, and every send of one's own: it lands at the bottom, in view).
 import { memo, useCallback, useEffect, useMemo, useRef, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { ActivityIndicator, FlatList, View, type ListRenderItem } from "react-native";
@@ -26,6 +28,8 @@ interface Props {
   onAtLatestChange: (atLatest: boolean) => void;
   /** Said in the middle of the wall while the conversation has no message yet. */
   empty?: string | null;
+  /** A new value scrolls to the newest message. */
+  latestSignal?: number;
 }
 
 const keyOf = (row: TimelineRow) => row.key;
@@ -42,7 +46,7 @@ const DayRow = memo(function DayRow({ ts }: { ts: number }) {
   );
 });
 
-export function MessageList({ rows, renderMessage, onLoadOlder, loadingOlder, bottom, jumpTo, onAtLatestChange, empty }: Props) {
+export function MessageList({ rows, renderMessage, onLoadOlder, loadingOlder, bottom, jumpTo, onAtLatestChange, empty, latestSignal = 0 }: Props) {
   const list = useRef<FlatList<TimelineRow>>(null);
   const data = useMemo(() => [...rows].reverse(), [rows]);
   const jumped = useRef<number | null>(null);
@@ -64,6 +68,14 @@ export function MessageList({ rows, renderMessage, onLoadOlder, loadingOlder, bo
     return () => clearTimeout(timer);
   }, [data, jumpTo]);
 
+  // The inverted list's offset 0 is its newest message.
+  const scrolledFor = useRef(latestSignal);
+  useEffect(() => {
+    if (scrolledFor.current === latestSignal) return;
+    scrolledFor.current = latestSignal;
+    list.current?.scrollToOffset({ offset: 0, animated: true });
+  }, [latestSignal]);
+
   if (rows.length === 0 && empty) {
     return (
       <View className="flex-1 items-center justify-center px-8">
@@ -78,6 +90,7 @@ export function MessageList({ rows, renderMessage, onLoadOlder, loadingOlder, bo
   return (
     <FlatList
       ref={list}
+      testID="message-list"
       data={data}
       inverted
       keyExtractor={keyOf}

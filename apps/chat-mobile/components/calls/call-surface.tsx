@@ -4,6 +4,7 @@
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useEffect, useRef, useState } from "react";
 import { AccessibilityInfo, Animated, Easing, Pressable, View } from "react-native";
+import { useAnnounce } from "@/components/ui/a11y";
 import { Text } from "@/components/ui/text";
 import { identityTint, SOLID_TINT_BG } from "@/lib/identity-tint";
 import { initialsOf, roomInitialsOf } from "@/lib/initials";
@@ -139,13 +140,14 @@ export function CallerHero({
   rings?: string;
   ringCount?: 1 | 2;
   ended?: boolean;
-  /** The line is a running clock: read out politely as it changes. */
+  /** The line is a running clock: a timer read when focused, never announced each second. */
   live?: boolean;
   /** The person or room the face's colour is hashed from. */
   seed?: string;
   /** A group or channel call: the room's letters ("RM"), not a person's. */
   room?: boolean;
 }) {
+  useAnnounce(live ? null : line);
   return (
     <View className="flex-1 items-center justify-center gap-2 px-6 pb-10 pt-11">
       <View className="items-center justify-center" style={{ width: 148, height: 148 }} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
@@ -172,7 +174,8 @@ export function CallerHero({
         className="text-center text-base"
         style={{ color: CALL.soft, fontVariant: ["tabular-nums"] }}
         accessibilityRole={live ? "timer" : undefined}
-        accessibilityLiveRegion={live ? "polite" : undefined}
+        // A status that changes (calling, connecting, ended) is said once as it changes; a clock is not.
+        accessibilityLiveRegion={live ? "none" : "polite"}
       >
         {line}
       </Text>

@@ -89,6 +89,16 @@ describe("registerPushToken", () => {
     expect(await registerPushToken({ api, projectId: "p1", platform: "android" })).toBe("ExponentPushToken[abc]");
   });
 
+  it("asks through the primer when given one, which decides instead of the bare system prompt", async () => {
+    const { registerPushToken } = await load();
+    const ask = vi.fn(async () => true);
+    expect(await registerPushToken({ api, projectId: "p1", platform: "ios", ask })).toBe("ExponentPushToken[abc]");
+    expect(ask).toHaveBeenCalledTimes(1);
+    expect(notifications.requestPermissionsAsync).not.toHaveBeenCalled();
+    ask.mockResolvedValueOnce(false);
+    expect(await registerPushToken({ api, projectId: "p1", platform: "ios", ask })).toBeNull();
+  });
+
   it("stops at a denied permission", async () => {
     notifications.requestPermissionsAsync.mockResolvedValueOnce({ granted: false });
     const { registerPushToken } = await load();

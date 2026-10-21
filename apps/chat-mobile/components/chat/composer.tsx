@@ -8,13 +8,18 @@
 // brand button sends or records; the reply/edit banner is a card above it.
 // Mentions are typed as "@Tên" and stored as tokens on send
 // (lib/mentions.ts › serializeComposerDraftToMessageBody), as on the web.
+// S6: the home-indicator inset under the composer shrinks with the keyboard's
+// own progress, frame by frame (react-native-keyboard-controller), instead of
+// jumping after the keyboard finished moving.
 import { Ionicons } from "@expo/vector-icons";
 import { CHAT_MESSAGE_BODY_MAX_LENGTH } from "@uniwork/core/chat/client-msg-id";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Keyboard, Pressable, TextInput, View } from "react-native";
+import { Pressable, TextInput, View } from "react-native";
+import { useReanimatedKeyboardAnimation } from "react-native-keyboard-controller";
+import Animated, { useAnimatedStyle } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LivePersonAvatar } from "@/components/people/person-avatar";
 import { ActionSheet } from "@/components/ui/action-sheet";
@@ -82,26 +87,12 @@ export function Composer(props: Props) {
   const typingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const allLabel = t("chat.mention_all");
   const insets = useSafeAreaInsets();
-  const [keyboardOpen, setKeyboardOpen] = useState(false);
+  // 0 while the keyboard is down, 1 once it is up; the keyboard-avoiding view above lifts the rest.
+  const { progress } = useReanimatedKeyboardAnimation();
+  const insetStyle = useAnimatedStyle(() => ({ paddingBottom: insets.bottom * (1 - progress.value) }), [insets.bottom]);
   const voice = useVoiceRecorder(props.onSendVoice);
-  const startVoice = () =>
-    void voice
-      .start()
-      .then((started) => {
-        if (!started) toast.error(t("chat.voice_record_failed"));
-      })
-      .catch(() => toast.error(t("chat.voice_record_failed")));
-
-  // Above the home indicator while the keyboard is down; the keyboard-avoiding view takes over when it is up.
-  useEffect(() => {
-    const show = Keyboard.addListener("keyboardDidShow", () => setKeyboardOpen(true));
-    const hide = Keyboard.addListener("keyboardDidHide", () => setKeyboardOpen(false));
-    return () => {
-      show.remove();
-      hide.remove();
-    };
-  }, []);
-  const bottomInset = keyboardOpen ? 0 : insets.bottom;
+  // A refused microphone resolves false: the permission primer already said why, so only a recorder error toasts.
+  const startVoice = () => void voice.start().catch(() => toast.error(t("chat.voice_record_failed")));
 
   // Editing starts from the message's own text, with its mentions as "@Tên".
   useEffect(() => {
@@ -210,7 +201,7 @@ export function Composer(props: Props) {
   const attach = allowAttachments && !edit;
 
   return (
-    <View className="border-t border-border bg-background" style={{ paddingBottom: bottomInset }}>
+    <Animated.View className="border-t border-border bg-background" style={insetStyle}>
       {suggestions.length > 0 ? (
         <View className="border-b border-border" accessibilityLabel={t("chat.mention_picker_label")}>
           {suggestions.map((candidate) => (
@@ -355,6 +346,6 @@ export function Composer(props: Props) {
           { key: "reminder", label: t("chat.composer_create_reminder"), icon: "alarm-outline", tint: "teal", onPress: props.onOpenReminder },
         ]}
       />
-    </View>
+    </Animated.View>
   );
 }

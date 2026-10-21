@@ -78,6 +78,13 @@ module.exports = {
     "components/people/use-is-online.ts",
     // S5 review: the people rows of new-chat, new-group and room info (member-rows.test).
     "components/people/member-rows.tsx",
+    // UNI-2053 S6 UX and accessibility: VoiceOver's announcements, new messages read
+    // out, the jump-to-latest button, touch feedback and the permission primer.
+    "components/ui/a11y.ts",
+    "components/ui/haptics.ts",
+    "components/ui/permission-primer.tsx",
+    "components/chat/jump-to-latest.tsx",
+    "components/chat/use-arrival-announcements.ts",
   ],
   coverageReporters: ["text-summary"],
   // Measured on the files above; only ever raised (CLAUDE.md › Coverage only

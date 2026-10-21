@@ -43,11 +43,36 @@ jest.mock("expo-audio", () => {
     useAudioPlayer: jest.fn(() => player),
     useAudioPlayerStatus: jest.fn(() => ({ playing: false, currentTime: 0, duration: 0, didJustFinish: false, isLoaded: true })),
     RecordingPresets: { HIGH_QUALITY: {} },
-    requestRecordingPermissionsAsync: jest.fn(async () => ({ granted: true })),
+    requestRecordingPermissionsAsync: jest.fn(async () => ({ granted: true, canAskAgain: true })),
+    getRecordingPermissionsAsync: jest.fn(async () => ({ granted: true, canAskAgain: true })),
     useAudioRecorder: jest.fn(() => recorder),
     useAudioRecorderState: jest.fn(() => ({ isRecording: false, durationMillis: 0 })),
   };
 });
+
+// The keyboard follows the composer through react-native-keyboard-controller's
+// native module; its own Jest mock holds the keyboard closed.
+jest.mock("react-native-keyboard-controller", () => jest.requireActual("react-native-keyboard-controller/jest"));
+
+// Touch feedback (data/haptics.ts) is native; a test asserts the calls here.
+jest.mock("expo-haptics", () => ({
+  impactAsync: jest.fn(async () => undefined),
+  notificationAsync: jest.fn(async () => undefined),
+  selectionAsync: jest.fn(async () => undefined),
+  performAndroidHapticsAsync: jest.fn(async () => undefined),
+  ImpactFeedbackStyle: { Light: "light", Medium: "medium", Heavy: "heavy", Soft: "soft", Rigid: "rigid" },
+  NotificationFeedbackType: { Success: "success", Warning: "warning", Error: "error" },
+  AndroidHaptics: { Confirm: "confirm", Reject: "reject", Long_Press: "long-press", Context_Click: "context-click" },
+}));
+
+// The permission gate (data/permissions.ts on expo-audio / expo-image-picker /
+// expo-notifications) grants everything: a component test is about the
+// component. The primer's own sheet is tested through its store
+// (components/ui/permission-primer.test.tsx).
+jest.mock("@/components/ui/permission-gate", () => ({
+  permissionGate: { ensure: jest.fn(async () => true) },
+  ensureCallPermissions: jest.fn(async () => undefined),
+}));
 
 // A component test that logs an error (an update outside act, a failed prop
 // type, a key warning) fails: the log is the only place those bugs show.

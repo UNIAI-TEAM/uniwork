@@ -56,8 +56,8 @@ const props = (message: TimelineMessage, extra: Partial<MessageRowProps> = {}): 
   ...extra,
 });
 
-const bubbleLabel = (sender: string, preview: string, state?: string) =>
-  [`${viText("chat.message_list.label", { sender, time: TIME })}. ${preview}`, state].filter(Boolean).join(". ");
+const bubbleLabel = (sender: string, preview: string, ...rest: (string | undefined)[]) =>
+  [viText("chat.message_list.label", { sender, time: TIME }), preview, ...rest].filter(Boolean).join(". ");
 
 describe("MessageRow", () => {
   it("reads a received message as its sender, time and text, and opens its actions on a long press", async () => {
@@ -88,6 +88,8 @@ describe("MessageRow", () => {
     expect(screen.getByText("@Bình xem giúp")).toBeOnTheScreen();
     expect(screen.getByText(viText(key))).toBeOnTheScreen();
     const bubble = screen.getByLabelText(bubbleLabel(viText("chat.you"), "@Bình xem giúp", viText(key)));
+    // What the tap does, said as a hint: a sending one can only be deleted, the others sent again too.
+    expect(bubble.props.accessibilityHint).toBe(viText(status === "sending" ? "mobile.a11y.bubble_sending_hint" : "mobile.a11y.bubble_retry_hint"));
     await fireEvent.press(bubble);
     expect(p.onPressPending).toHaveBeenCalledWith(p.message);
   });
@@ -105,9 +107,22 @@ describe("MessageRow", () => {
     expect(p.onPressPending).not.toHaveBeenCalled();
   });
 
-  it("marks a seen message with a labelled receipt", async () => {
-    await render(<MessageRow {...props(sent({ sender_id: "u1" }), { own: true, senderName: viText("chat.you"), receipt: "seen" })} />);
-    expect(screen.getByLabelText(viText("chat.read_receipt"))).toBeOnTheScreen();
+  it.each([
+    ["seen", "chat.read_receipt"],
+    ["delivered", "chat.receipt_delivered"],
+    ["sent", "chat.receipt_sent"],
+  ] as const)("reads a %s receipt as part of the bubble", async (receipt, key) => {
+    await render(<MessageRow {...props(sent({ sender_id: "u1" }), { own: true, senderName: viText("chat.you"), receipt })} />);
+    expect(screen.getByLabelText(bubbleLabel(viText("chat.you"), "Mai họp lúc 9 giờ nhé", viText(key)))).toBeOnTheScreen();
+  });
+
+  it("reads a card's foot as one line, its time and receipt, while the card keeps its own button", async () => {
+    // A kind this phone cannot draw is a card with an "Open on the web" button, like a photo or a poll.
+    const card = sent({ sender_id: "u1", kind: "hologram", body: "", edited_at: new Date(TS + 60_000).toISOString() });
+    await render(<MessageRow {...props(card, { own: true, senderName: viText("chat.you"), receipt: "seen" })} />);
+    expect(screen.getByLabelText(`${viText("chat.edited_label")}, ${TIME}, ${viText("chat.read_receipt")}`)).toBeOnTheScreen();
+    expect(screen.getByLabelText(new RegExp(`^${viText("chat.message_list.label", { sender: viText("chat.you"), time: TIME })}`)).props.accessible).toBe(false);
+    expect(screen.getByText(viText("chat.mobile.open_on_web"))).toBeOnTheScreen();
   });
 
   it("toggles a reaction from its pill, which says whether it is mine", async () => {
@@ -123,11 +138,30 @@ describe("MessageRow", () => {
     expect(p.onToggleReaction).toHaveBeenCalledWith(message, "❤️");
   });
 
-  it("jumps to the quoted message from its quote", async () => {
+  it("reads a reply as one bubble that names its quote, and jumps to the quote by touch or by its action", async () => {
     const p = props(sent(), { quote: { sender: "An", text: "Ai đi họp?", id: "m0" }, showSender: true });
     await render(<MessageRow {...p} />);
-    expect(screen.getAllByText("Bình")).not.toHaveLength(0);
-    await fireEvent.press(screen.getByRole("button", { name: viText("chat.reply_quote_jump", { preview: "Ai đi họp?" }) }));
+    const bubble = screen.getByLabelText(bubbleLabel("Bình", viText("mobile.a11y.bubble_quote", { sender: "An", text: "Ai đi họp?" }), "Mai họp lúc 9 giờ nhé"));
+    // One stop for VoiceOver/TalkBack: the quote is an action of the bubble, not a second button.
+    expect(screen.queryByRole("button", { name: viText("chat.reply_quote_jump", { preview: "Ai đi họp?" }) })).toBeNull();
+    expect(bubble.props.accessibilityActions).toEqual([
+      { name: "longpress", label: viText("chat.message_actions_aria") },
+      { name: "open_quote", label: viText("chat.reply_quote_jump", { preview: "Ai đi họp?" }) },
+    ]);
+    await fireEvent(bubble, "accessibilityAction", { nativeEvent: { actionName: "open_quote" } });
+    expect(p.onPressQuote).toHaveBeenCalledWith("m0");
+    await fireEvent(bubble, "accessibilityAction", { nativeEvent: { actionName: "longpress" } });
+    expect(p.onLongPress).toHaveBeenCalledWith(p.message);
+    // A sighted tap on the quote still jumps.
+    await fireEvent.press(screen.getByText("Ai đi họp?", { includeHiddenElements: true }));
+    expect(p.onPressQuote).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps a quote over a card with its own button a button of its own", async () => {
+    const card = sent({ kind: "hologram", body: "" });
+    const p = props(card, { quote: { sender: "An", text: "Ảnh hôm qua?", id: "m0" } });
+    await render(<MessageRow {...p} />);
+    await fireEvent.press(screen.getByRole("button", { name: viText("chat.reply_quote_jump", { preview: "Ảnh hôm qua?" }) }));
     expect(p.onPressQuote).toHaveBeenCalledWith("m0");
   });
 

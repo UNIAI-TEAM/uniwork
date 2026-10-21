@@ -1,7 +1,10 @@
 // An album bubble's photos (canvas MobileChat): a 2-column grid inside a 3 pt
 // frame; with an odd count the first photo spans the row, the rest go in
 // pairs; past four the last tile says how many more. A tap opens that photo in
-// the viewer, which pages through the conversation's photos.
+// the viewer, which pages through the conversation's photos. Each tile is a
+// button a screen reader reaches, with the message menu as an action (audit
+// U3); the first one says it starts an album of N photos, the last one how
+// many more it hides.
 import { Image } from "expo-image";
 import { useTranslation } from "react-i18next";
 import { Pressable, View } from "react-native";
@@ -16,7 +19,19 @@ const GRID_WIDTH = 262;
 const GAP = 3;
 const VISIBLE = 4;
 
-function Tile({ message, ctx, width, height, more, corners, onLongPress }: { message: TimelineMessage; ctx: MessageCardContext; width: number; height: number; more: number; corners: object; onLongPress: () => void }) {
+interface TileProps {
+  message: TimelineMessage;
+  ctx: MessageCardContext;
+  width: number;
+  height: number;
+  more: number;
+  corners: object;
+  /** Said before the tile's own label: "Album of 5 photos" on the first tile. */
+  lead?: string;
+  onLongPress: () => void;
+}
+
+function Tile({ message, ctx, width, height, more, corners, lead, onLongPress }: TileProps) {
   const { t } = useTranslation();
   const file = message.record!.file!;
   const src = useChatMediaSrc(ctx.wsId, ctx.roomId, message.id, file.thumb_url || file.url, file.url_expires_at);
@@ -28,7 +43,11 @@ function Tile({ message, ctx, width, height, more, corners, onLongPress }: { mes
   return (
     <Pressable
       accessibilityRole="imagebutton"
-      accessibilityLabel={t("chat.message_list.file_open_named", { name: file.filename || t("chat.media_image") })}
+      accessibilityLabel={[lead, t("chat.message_list.file_open_named", { name: file.filename || t("chat.media_image") }), more > 0 ? t("chat.info_panel.more_photos", { count: more }) : null]
+        .filter(Boolean)
+        .join(", ")}
+      accessibilityActions={[{ name: "longpress", label: t("chat.message_actions_aria") }]}
+      onAccessibilityAction={onLongPress}
       onPress={open}
       onLongPress={onLongPress}
       delayLongPress={200}
@@ -53,10 +72,20 @@ export function AlbumGrid({ photos, ctx, onLongPress }: { photos: readonly Timel
   const lead = shown.length % 2 === 1 ? shown[0] : null;
   const pairs = lead ? shown.slice(1) : shown;
   const rowHeight = lead ? 86 : shown.length > 2 ? 110 : 132;
+  const albumLabel = t("chat.album_aria", { count: photos.length });
   return (
-    <View accessibilityLabel={t("chat.album_aria", { count: photos.length })} style={{ width: GRID_WIDTH, gap: GAP }}>
+    <View style={{ width: GRID_WIDTH, gap: GAP }}>
       {lead ? (
-        <Tile message={lead} ctx={ctx} width={GRID_WIDTH} height={132} more={0} corners={{ borderTopLeftRadius: 15, borderTopRightRadius: 15, borderRadius: 4 }} onLongPress={onLongPress} />
+        <Tile
+          message={lead}
+          ctx={ctx}
+          width={GRID_WIDTH}
+          height={132}
+          more={0}
+          corners={{ borderTopLeftRadius: 15, borderTopRightRadius: 15, borderRadius: 4 }}
+          lead={albumLabel}
+          onLongPress={onLongPress}
+        />
       ) : null}
       <View className="flex-row flex-wrap" style={{ gap: GAP }}>
         {pairs.map((photo, index) => {
@@ -70,6 +99,7 @@ export function AlbumGrid({ photos, ctx, onLongPress }: { photos: readonly Timel
               height={rowHeight}
               more={index === pairs.length - 1 ? more : 0}
               corners={{ borderRadius: 4, ...(top ? (index === 0 ? { borderTopLeftRadius: 15 } : { borderTopRightRadius: 15 }) : {}) }}
+              lead={!lead && index === 0 ? albumLabel : undefined}
               onLongPress={onLongPress}
             />
           );

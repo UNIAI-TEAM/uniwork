@@ -4,6 +4,7 @@
 // accessibility label, as the old text line read them out.
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { AccessibilityInfo, Animated, Easing, View } from "react-native";
+import { useAnnounce } from "@/components/ui/a11y";
 import { bubbleCorners } from "@/lib/conversation-display";
 import { THEME } from "@/lib/theme";
 import { useColorScheme } from "@/lib/use-color-scheme";
@@ -46,6 +47,8 @@ function Dot({ delay, reduced, color }: { delay: number; reduced: boolean; color
 export function TypingBubble({ label, avatar }: { label: string; avatar?: ReactNode }) {
   const reduced = useReduceMotion();
   const { colorScheme } = useColorScheme();
+  // TalkBack reads the live region; VoiceOver hears who started typing (audit U1).
+  useAnnounce(label);
   return (
     <View className="flex-row items-end gap-1.5 px-2.5 pt-2" accessible accessibilityLabel={label} accessibilityLiveRegion="polite">
       {avatar}

@@ -8,6 +8,7 @@ import { useNetInfo } from "@react-native-community/netinfo";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { View } from "react-native";
+import { useAnnounce } from "@/components/ui/a11y";
 import { Text } from "@/components/ui/text";
 import { useConnectionState } from "@/data/realtime/realtime-provider";
 import { THEME } from "@/lib/theme";
@@ -36,11 +37,14 @@ export function ConnectionBanner() {
   const offline = useNetInfo().isConnected === false;
   const connection = useConnectionState();
   const reconnecting = useHeldFor(!offline && (connection === "connecting" || connection === "waiting"), RECONNECT_GRACE_MS);
-  if (!offline && !reconnecting) return null;
+  const line = offline ? t("chat.mobile.offline_banner") : reconnecting ? t("chat.mobile.connecting_banner") : null;
+  // VoiceOver has no live regions (audit U1): it hears the line when it appears or changes.
+  useAnnounce(line);
+  if (!line) return null;
   return (
     <View accessible accessibilityRole="alert" accessibilityLiveRegion="polite" className="flex-row items-center gap-2 bg-tint-yellow px-4 py-2">
       <Ionicons name={offline ? "cloud-offline-outline" : "sync-outline"} size={16} color={theme.tintYellowForeground} />
-      <Text className="text-[13px] font-medium text-tint-yellow-foreground">{t(offline ? "chat.mobile.offline_banner" : "chat.mobile.connecting_banner")}</Text>
+      <Text className="text-[13px] font-medium text-tint-yellow-foreground">{line}</Text>
     </View>
   );
 }

@@ -14,6 +14,7 @@ import { Image, ImageBackground, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { UniChatLogo } from "@/components/brand/unichat-logo";
 import { PersonAvatar } from "@/components/people/person-avatar";
+import { useAnnounce } from "@/components/ui/a11y";
 import { Button } from "@/components/ui/button";
 import { Text } from "@/components/ui/text";
 import { useAuthStore } from "@/data/auth/store";
@@ -33,6 +34,8 @@ export default function Login() {
   const login = useAuthStore((s) => s.login);
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
+  // The error line's live region is TalkBack's; VoiceOver hears it through an announcement (audit U1).
+  useAnnounce(failed ? t("auth.desktop.unichat_login_failed") : null);
 
   if (user) return <Redirect href="/" />;
 

@@ -1653,6 +1653,30 @@
       "earpiece": "Phone",
       "in_use": "{{output}} · in use",
       "failed": "Could not switch the audio. Try again."
+    },
+    "a11y": {
+      "bubble_quote": "Replying to {{sender}}: {{text}}",
+      "bubble_retry_hint": "Opens options to send it again or delete it",
+      "bubble_sending_hint": "Opens the option to delete it while it sends",
+      "new_messages_one": "{{count}} new message",
+      "new_messages_other": "{{count}} new messages",
+      "image_viewer_hint": "Pinch to zoom, double-tap to zoom in or out, swipe down to close",
+      "image_zoomed": "Zoomed in"
+    },
+    "permissions": {
+      "continue": "Continue",
+      "not_now": "Not now",
+      "open_settings": "Open Settings",
+      "microphone_title": "Allow the microphone",
+      "microphone_voice_body": "UniChat uses the microphone to record the voice messages you send. It is only on while you record.",
+      "microphone_call_body": "UniChat uses the microphone so people can hear you on a call. It is only on while you are in a call.",
+      "microphone_denied": "The microphone is off for UniChat in system settings. Open Settings and turn on Microphone to continue.",
+      "camera_title": "Allow the camera",
+      "camera_body": "UniChat uses the camera for video calls. You can turn it off at any time during the call.",
+      "camera_denied": "The camera is off for UniChat in system settings. Open Settings and turn on Camera for video calls.",
+      "notifications_title": "Turn on notifications",
+      "notifications_body": "Get messages, mentions and incoming calls even when UniChat is closed. You choose which ones in the app's Settings.",
+      "notifications_denied": "Notifications are off for UniChat in system settings. Open Settings and turn on Notifications to get messages and calls."
     }
   }
 }

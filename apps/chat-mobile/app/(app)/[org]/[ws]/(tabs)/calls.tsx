@@ -14,6 +14,7 @@ import { useWorkspaceSlugs } from "@/components/chat/use-chat-workspace";
 import { PersonAvatar } from "@/components/people/person-avatar";
 import { Button } from "@/components/ui/button";
 import { Header } from "@/components/ui/header";
+import { ensureCallPermissions } from "@/components/ui/permission-gate";
 import { Separator } from "@/components/ui/separator";
 import { Text } from "@/components/ui/text";
 import { useAuthStore } from "@/data/auth/store";
@@ -86,7 +87,7 @@ function CallRow({ log, userId, nicknames, onPress }: { log: CallLog; userId: st
           accessibilityLabel={`${t("chat.voice_call_call_back")} ${title}`}
           testID="calls-row-callback"
           hitSlop={4}
-          onPress={() => void callEngine.startCall(log.room_id, title, voiceCallKindFromServer(log.room_kind), { withCamera: log.video })}
+          onPress={() => void ensureCallPermissions(log.video).then(() => callEngine.startCall(log.room_id, title, voiceCallKindFromServer(log.room_kind), { withCamera: log.video }))}
           className="h-11 w-11 items-center justify-center rounded-full active:bg-secondary"
         >
           <Ionicons name={log.video ? "videocam-outline" : "call-outline"} size={22} color={theme.primary} />

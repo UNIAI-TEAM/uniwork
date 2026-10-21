@@ -2,8 +2,9 @@
 // on expo-audio: AAC in MPEG-4 (.m4a, which the server takes as audio/mp4), at
 // most two minutes (the clip goes when the cap is reached), and the clock the
 // composer shows while it runs.
-import { RecordingPresets, requestRecordingPermissionsAsync, setAudioModeAsync, useAudioRecorder, useAudioRecorderState } from "expo-audio";
+import { RecordingPresets, setAudioModeAsync, useAudioRecorder, useAudioRecorderState } from "expo-audio";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { permissionGate } from "@/components/ui/permission-gate";
 
 /** The server's cap (chat_voice_message.go) and the web recorder's. */
 export const VOICE_MAX_MS = 120_000;
@@ -25,9 +26,9 @@ export function useVoiceRecorder(onClip: (clip: VoiceClip) => void) {
   const onClipRef = useRef(onClip);
   onClipRef.current = onClip;
 
-  /** Resolves false when the person refused the microphone; rejects when the recorder would not start. */
+  /** Resolves false when the person kept the microphone off (after its primer); rejects when the recorder would not start. */
   const start = useCallback(async () => {
-    if (!(await requestRecordingPermissionsAsync()).granted) return false;
+    if (!(await permissionGate.ensure("microphone", "voice"))) return false;
     try {
       await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
       await recorder.prepareToRecordAsync();

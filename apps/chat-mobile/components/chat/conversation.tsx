@@ -4,7 +4,11 @@
 // root stands out above an "N trả lời" divider; the composer with its voice, sticker/GIF and reminder
 // sends; and the long-press sheet with what each action does to the server
 // and the cache (send queue, reactions, edit, delete, copy, thread, poll vote,
-// follow-up, task).
+// follow-up, task). S6 (audit U2, P2 UX): the composer rides the keyboard
+// frame by frame (react-native-keyboard-controller), a send, a long press and a
+// reaction are felt (data/haptics.ts), new messages are read to a screen
+// reader, and a conversation scrolled up shows "N new" to jump back down —
+// where one's own send always lands too.
 import { useQueries, useQuery, useQueryClient, type UseQueryResult } from "@tanstack/react-query";
 import wallDotsDark from "@/assets/chat-wall-dots-dark.png";
 import wallDotsLight from "@/assets/chat-wall-dots-light.png";
@@ -15,7 +19,9 @@ import * as Clipboard from "expo-clipboard";
 import { router } from "expo-router";
 import { useCallback, useMemo, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { ActivityIndicator, Alert, ImageBackground, KeyboardAvoidingView, View } from "react-native";
+import { ActivityIndicator, Alert, ImageBackground, View } from "react-native";
+import { KeyboardAvoidingView } from "react-native-keyboard-controller";
+import { haptics } from "@/components/ui/haptics";
 import { PersonAvatar } from "@/components/people/person-avatar";
 import {
   createTaskFromMessage,
@@ -28,6 +34,7 @@ import { chatApi } from "@/data/chat-api";
 import { chatSendDeps, discardPendingSend, retryPendingSend, sendChatMessage, type ChatSendInput } from "@/data/chat-send";
 import { toggleReaction, votePoll } from "@/data/pending-ops";
 import { followUpsOptions, roomLinksOptions } from "@/data/queries/chat";
+import { countNewSince } from "@/lib/arrivals";
 import { chatRoutes } from "@/lib/chat-routes";
 import { continuedRunKeys } from "@/lib/conversation-display";
 import { linkWindows, taskIdsByMessage as readTaskIds } from "@/lib/link-windows";
@@ -45,6 +52,7 @@ import { EmojiSheet } from "./emoji-sheet";
 import { ExpressionSheet } from "./expression-sheet";
 import { ForwardSheet } from "./forward-sheet";
 import { ImageViewer, type ViewerPhoto } from "./image-viewer";
+import { JumpToLatest } from "./jump-to-latest";
 import { MessageActionsSheet } from "./message-actions";
 import type { MessageCardContext } from "./message-cards";
 import { MessageCell, type MessageHandlers } from "./message-cell";
@@ -53,6 +61,7 @@ import { PinnedBar } from "./pinned-bar";
 import { ReportSheet } from "./report-sheet";
 import { ReminderSheet } from "./reminder-sheet";
 import { ConversationTyping } from "./room-typing";
+import { useArrivalAnnouncements } from "./use-arrival-announcements";
 import { useStableHandlers } from "./use-stable-handlers";
 import type { ChatWorkspace } from "./use-chat-workspace";
 import type { useRoomContext } from "./use-room-context";
@@ -83,6 +92,8 @@ interface Props {
   onAtLatestChange: (atLatest: boolean) => void;
   /** Before a send: the room leaves a jumped-to page for the latest, where the message lands. */
   onSend?: () => void;
+  /** Set while the room shows a page around an older message: the jump button goes back to the latest page. */
+  onJumpToLatest?: () => void;
 }
 
 export function Conversation(props: Props) {
@@ -133,6 +144,27 @@ export function Conversation(props: Props) {
 
   const failed = useCallback(() => toast.error(t("common.error")), [t]);
 
+  // Scrolled up: the newest message when the reader left, so the jump button counts what came after (the web's awaySinceId).
+  const [atLatest, setAtLatest] = useState(true);
+  const [awaySinceId, setAwaySinceId] = useState<string | null>(null);
+  const [latestSignal, setLatestSignal] = useState(0);
+  const newestId = useRef<string | null>(null);
+  newestId.current = messages.at(-1)?.id ?? null;
+  const { onAtLatestChange } = props;
+  const atLatestChange = useCallback(
+    (next: boolean) => {
+      setAtLatest(next);
+      setAwaySinceId(next ? null : newestId.current);
+      onAtLatestChange(next);
+    },
+    [onAtLatestChange],
+  );
+  const jumpToLatest = () => {
+    props.onJumpToLatest?.();
+    setLatestSignal((n) => n + 1);
+  };
+  const newCount = countNewSince(messages, awaySinceId, userId);
+
   const ctx: MessageCardContext = useMemo(
     () => ({
       wsId,
@@ -163,16 +195,26 @@ export function Conversation(props: Props) {
   const takeReply = () => {
     const replyToMessageId = reply?.id;
     setReply(null);
-    props.onSend?.();
     return replyToMessageId;
   };
-  // Every send goes through the outbox (data/chat-send.ts): on screen at once, kept across a restart, sent in order.
-  const enqueue = (input: Omit<ChatSendInput, "workspaceId" | "roomId" | "senderId">) =>
+  // Every send goes through the outbox (data/chat-send.ts): on screen at once, kept across a restart, sent in order,
+  // felt, and scrolled to wherever the reader was.
+  const enqueue = (input: Omit<ChatSendInput, "workspaceId" | "roomId" | "senderId">) => {
+    haptics.send();
+    props.onSend?.();
+    setLatestSignal((n) => n + 1);
     void sendChatMessage(qc, { workspaceId: wsId, roomId, senderId: userId, ...input }, chatSendDeps);
+  };
   const send = (body: string) => enqueue({ body, replyToMessageId: takeReply(), threadRootId });
   const sendFile = (file: PendingFile) => enqueue({ body: "", file, replyToMessageId: takeReply() });
   const quoteText = useCallback((message: TimelineMessage) => (message.record ? messagePreviewText(message.record, t) : message.body), [t]);
   const quoteOf = (message: TimelineMessage) => ({ id: message.id, sender: room.senderName(message), text: quoteText(message) });
+  const react = (messageId: string, emoji: string) => {
+    haptics.reaction();
+    void toggleReaction(qc, wsId, roomId, messageId, emoji, userId).catch(() => toast.error(t("chat.message_list.react_failed")));
+  };
+  // What VoiceOver / TalkBack hear when someone else's message arrives at the bottom (audit U2).
+  useArrivalAnnouncements(roomId, messages, userId, (message) => ({ sender: room.senderName(message), preview: quoteText(message) }));
 
   // Each row worked out once per change and kept as the same object while it draws the same (audit H1).
   const previousModels = useRef<ReadonlyMap<string, MessageRowModel>>(new Map());
@@ -201,12 +243,14 @@ export function Conversation(props: Props) {
 
   // One object of handlers for every cell, always running the latest closures.
   const handlers: MessageHandlers = useStableHandlers({
-    onLongPress: (message: TimelineMessage) => setActionMessage(message),
+    onLongPress: (message: TimelineMessage) => {
+      haptics.longPress();
+      setActionMessage(message);
+    },
     onPressQuote: (messageId: string) => props.onQuoteJump(messageId),
     onPressThread: (message: TimelineMessage) => router.push(chatRoutes.thread(chat, roomId, message.id)),
     onPressPending: (message: TimelineMessage) => setActionMessage(message),
-    onToggleReaction: (message: TimelineMessage, emoji: string) =>
-      void toggleReaction(qc, wsId, roomId, message.id, emoji, userId).catch(() => toast.error(t("chat.message_list.react_failed"))),
+    onToggleReaction: (message: TimelineMessage, emoji: string) => react(message.id, emoji),
     onReply: (message: TimelineMessage) => {
       setEdit(null);
       setReply(quoteOf(message));
@@ -241,10 +285,12 @@ export function Conversation(props: Props) {
               onLoadOlder={props.onLoadOlder}
               loadingOlder={props.loadingOlder}
               jumpTo={props.jumpTo}
-              onAtLatestChange={props.onAtLatestChange}
+              onAtLatestChange={atLatestChange}
               empty={threadRootId || !room.room ? null : t(room.room.kind === "dm" ? "chat.dm_empty" : "chat.group_empty", { name: room.title })}
               bottom={<ConversationTyping roomId={roomId} nameContext={room.nameContext} isGroup={room.isGroup} />}
+              latestSignal={latestSignal}
             />
+            {!atLatest || props.onJumpToLatest ? <JumpToLatest count={newCount} onPress={jumpToLatest} /> : null}
           </ImageBackground>
         </View>
       )}
@@ -285,7 +331,7 @@ export function Conversation(props: Props) {
         inThread={Boolean(threadRootId)}
         followUp={actionMessage ? openFollowUp(actionMessage.id) : null}
         onClose={() => setActionMessage(null)}
-        onReact={(m, emoji) => void toggleReaction(qc, wsId, roomId, m.id, emoji, userId).catch(() => toast.error(t("chat.message_list.react_failed")))}
+        onReact={(m, emoji) => react(m.id, emoji)}
         onReply={(m) => {
           setEdit(null);
           setReply(quoteOf(m));
@@ -344,7 +390,7 @@ export function Conversation(props: Props) {
         onPick={(emoji) => {
           const target = emojiFor;
           setEmojiFor(null);
-          if (target) void toggleReaction(qc, wsId, roomId, target.id, emoji, userId).catch(() => toast.error(t("chat.message_list.react_failed")));
+          if (target) react(target.id, emoji);
         }}
       />
       <ForwardSheet chat={chat} messageId={forwardId} onClose={() => setForwardId(null)} />

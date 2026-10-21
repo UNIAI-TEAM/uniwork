@@ -3,7 +3,7 @@
 // room's details. Each row reads its own person's presence (useIsOnline), so a
 // presence change redraws the row of the person who came or went, not the whole
 // screen. Rows are counted through PersonAvatar, which only a drawn row reaches.
-import { act, fireEvent, screen } from "@testing-library/react-native";
+import { act, fireEvent, screen, waitFor } from "@testing-library/react-native";
 import type { ReactNode } from "react";
 import NewChatScreen from "@/app/(app)/[org]/[ws]/new-chat";
 import NewGroupScreen from "@/app/(app)/[org]/[ws]/new-group";
@@ -117,6 +117,8 @@ describe("people rows read their own presence", () => {
 
   it("room details: a presence change redraws that member's row, which reads them as online", async () => {
     await render(<RoomInfoScreen />);
+    // The member list comes after the room's queries: wait for it, not for a fixed time (slow under a loaded runner).
+    await waitFor(() => expect(screen.getByText("Người 4")).toBeOnTheScreen());
     await settle();
     expect(take()).toEqual({ ME: 1, U1: 1, U2: 1, U3: 1, U4: 1 });
 

@@ -22,6 +22,7 @@ import { DisconnectReason, Room, RoomEvent, Track } from "livekit-client";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable, View } from "react-native";
+import { haptics } from "@/components/ui/haptics";
 import { Text } from "@/components/ui/text";
 import { nativeCallSync } from "@/data/calls/call-wiring";
 import { callEngine } from "@/data/calls/call-store";
@@ -143,7 +144,12 @@ function RoomStage({ peerName, connected, recording, onMinimize, seed, room, vid
           testID="call-mute"
           onPress={() => void localParticipant.setMicrophoneEnabled(!isMicrophoneEnabled)}
         />
-        <CallButton icon="call" label={t("chat.voice_call_end")} tone="danger" testID="call-hangup" onPress={() => void callEngine.hangUp()} />
+        <CallButton icon="call" label={t("chat.voice_call_end")} tone="danger" testID="call-hangup"
+          onPress={() => {
+            haptics.callEnd();
+            void callEngine.hangUp();
+          }}
+        />
       </View>
     </View>
   );

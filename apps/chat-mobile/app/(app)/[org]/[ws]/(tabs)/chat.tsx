@@ -19,6 +19,7 @@ import { RoomPreview } from "@/components/chat/room-preview";
 import { useChatWorkspace, type ChatWorkspace } from "@/components/chat/use-chat-workspace";
 import { ActionSheet, type SheetAction } from "@/components/ui/action-sheet";
 import { Header } from "@/components/ui/header";
+import { ensureCallPermissions } from "@/components/ui/permission-gate";
 import { SearchField } from "@/components/ui/search-field";
 import { Text } from "@/components/ui/text";
 import { WorkspaceSwitchSheet } from "@/components/workspace/workspace-switch-sheet";
@@ -67,7 +68,8 @@ function useDeepLinkTarget(chat: ChatWorkspace | null) {
         router.push(chatRoutes.room(chat, room));
         return;
       }
-      const open = answer === "1" ? callEngine.joinFromPush(room, call) : callEngine.ringFromPush(room, call);
+      // Answer on the notification: the microphone is explained and asked before the call connects.
+      const open = answer === "1" ? ensureCallPermissions(false).then(() => callEngine.joinFromPush(room, call)) : callEngine.ringFromPush(room, call);
       void open.then((ringing) => {
         if (ringing) return;
         // Over (its end push not here yet): the phone's own ringing notification goes too.

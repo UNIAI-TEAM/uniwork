@@ -10,6 +10,7 @@ import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { Platform, View } from "react-native";
 import { CallOverlay } from "@/components/calls/call-overlay";
+import { permissionGate } from "@/components/ui/permission-gate";
 import { api } from "@/data/api";
 import { useAuthStore } from "@/data/auth/store";
 import { setAppBadge } from "@/data/badge";
@@ -33,7 +34,9 @@ export default function AppLayout() {
   useEffect(() => {
     if (!userId) return;
     const channels = () => ensureNotificationChannels((key) => i18n.t(key), { platform: Platform.OS, native: nativeCalls });
-    registerPushToken({ api, projectId: easProjectId(Constants.expoConfig?.extra), platform: Platform.OS, channels, callUI: nativeCalls.available }).catch(
+    // The notifications primer explains first and asks unprompted once per phone (data/permissions.ts).
+    const ask = () => permissionGate.ensure("notifications", "notifications", { once: true });
+    registerPushToken({ api, projectId: easProjectId(Constants.expoConfig?.extra), platform: Platform.OS, channels, callUI: nativeCalls.available, ask }).catch(
       // A simulator has no push token; the app works without one.
       (err: unknown) => log.warn("registration failed", { error: err instanceof Error ? err.name : typeof err }),
     );

@@ -171,16 +171,19 @@ describe("Composer", () => {
     expect(voice.send).toHaveBeenCalled();
   });
 
-  it("tells the person when the microphone will not record", async () => {
+  it("tells the person when the recorder will not start, but not when they kept the microphone off", async () => {
+    // A refused microphone was already explained by the permission primer: no error on top of it.
     const start = jest.fn(async () => false);
     mockVoice({ start });
-    await render(<Composer {...props()} />);
+    const { unmount } = await render(<Composer {...props()} />);
     await fireEvent.press(screen.getByRole("button", { name: viText("chat.voice_message") }));
     expect(start).toHaveBeenCalled();
-    expect(toast.error).toHaveBeenCalledWith(viText("chat.voice_record_failed"));
+    expect(toast.error).not.toHaveBeenCalled();
+    await unmount();
     mockVoice({ start: jest.fn(async () => Promise.reject(new Error("busy"))) });
+    await render(<Composer {...props()} />);
     await fireEvent.press(screen.getByRole("button", { name: viText("chat.voice_message") }));
-    expect(toast.error).toHaveBeenCalledTimes(2);
+    expect(toast.error).toHaveBeenCalledWith(viText("chat.voice_record_failed"));
   });
 
   it("opens stickers from the field and the attach sheet's other entries", async () => {

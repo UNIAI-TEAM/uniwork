@@ -33,6 +33,12 @@ interface RegisterPushOptions {
    * with no call UI can still show.
    */
   callUI?: boolean;
+  /**
+   * Asks for the notification permission (the primer of data/permissions.ts:
+   * it explains first, and asks unprompted only once per phone); resolves
+   * whether it is granted. Without it, the system prompt is shown directly.
+   */
+  ask?: () => Promise<boolean>;
 }
 
 const log = createLogger("push");
@@ -50,7 +56,7 @@ export async function isPushEnabled(): Promise<boolean> {
 }
 
 /** Resolves to the registered Expo push token, or null when nothing was registered. */
-export async function registerPushToken({ api, projectId, platform, channels, callUI }: RegisterPushOptions): Promise<string | null> {
+export async function registerPushToken({ api, projectId, platform, channels, callUI, ask }: RegisterPushOptions): Promise<string | null> {
   if (!(await isPushEnabled())) return null;
   if (!projectId) {
     if (!skipLogged) {
@@ -60,8 +66,8 @@ export async function registerPushToken({ api, projectId, platform, channels, ca
     return null;
   }
   if (platform === "android") await channels?.();
-  const permission = await Notifications.requestPermissionsAsync();
-  if (!permission.granted) return null;
+  const granted = ask ? await ask() : (await Notifications.requestPermissionsAsync()).granted;
+  if (!granted) return null;
   const { data: token } = await Notifications.getExpoPushTokenAsync({ projectId });
   await api.subscribePush({ endpoint: token, keys: { p256dh: "", auth: "" }, platform, ...(platform === "android" && callUI ? { call_ui: true } : {}) });
   registeredToken = token;

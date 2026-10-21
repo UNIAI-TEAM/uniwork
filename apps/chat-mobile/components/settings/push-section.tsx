@@ -8,6 +8,8 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Platform, Switch, View } from "react-native";
 import { Text } from "@/components/ui/text";
+import { useAnnounce } from "@/components/ui/a11y";
+import { permissionGate } from "@/components/ui/permission-gate";
 import { TintTile } from "@/components/ui/tint-tile";
 import { api } from "@/data/api";
 import { nativeCalls } from "@/data/calls/native-calls";
@@ -36,7 +38,9 @@ export function PushSection() {
   }, []);
 
   const onChange = async (next: boolean) => {
-    const options = { api, projectId: easProjectId(Constants.expoConfig?.extra), platform: Platform.OS, callUI: nativeCalls.available };
+    // Turning it on here asks again, even after a "not now" at launch; a permission off for good offers Settings.
+    const ask = () => permissionGate.ensure("notifications", "notifications");
+    const options = { api, projectId: easProjectId(Constants.expoConfig?.extra), platform: Platform.OS, callUI: nativeCalls.available, ask };
     setBusy(true);
     setNotice(null);
     try {
@@ -56,6 +60,9 @@ export function PushSection() {
       setBusy(false);
     }
   };
+
+  // The notice's live region is TalkBack's; VoiceOver hears it through an announcement (audit U1).
+  useAnnounce(notice ? t(notice) : null);
 
   return (
     <SettingsSection title={t("settings.notifications.push_section")} hint={t("mobile.settings.push_hint")}>

@@ -13,6 +13,8 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { BackHandler, Pressable, StyleSheet, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { haptics } from "@/components/ui/haptics";
+import { ensureCallPermissions } from "@/components/ui/permission-gate";
 import { Text } from "@/components/ui/text";
 import { callEngine, useVoiceCall } from "@/data/calls/call-store";
 import { chatApi } from "@/data/chat-api";
@@ -41,6 +43,12 @@ function CallRoom(props: Parameters<typeof CallRoomComponent>[0]) {
   return <Room {...props} />;
 }
 
+
+/** Declining or ending a call: felt, then sent. */
+function hangUp(): void {
+  haptics.callEnd();
+  void callEngine.hangUp();
+}
 const HIDDEN = { position: "absolute", width: 1, height: 1, opacity: 0, overflow: "hidden" } as const;
 
 const RETRY_REASONS = new Set(["connect_failed", "start_failed"]);
@@ -62,8 +70,19 @@ function CallBody({ call, recording, onMinimize, seed }: { call: Exclude<VoiceCa
             seed={seed} room={isMultiPartyVoiceCall(call.callKind)}
           />
           <View className="flex-row justify-evenly px-6 pb-14">
-            <CallButton icon="call" label={t("chat.voice_call_decline")} tone="danger" testID="call-decline" onPress={() => void callEngine.hangUp()} />
-            <CallButton icon="call" label={t("chat.voice_call_accept")} tone="accept" ring={CALL.live} testID="call-accept" onPress={() => void callEngine.acceptCall()} />
+            <CallButton icon="call" label={t("chat.voice_call_decline")} tone="danger" testID="call-decline" onPress={() => hangUp()} />
+            <CallButton
+              icon="call"
+              label={t("chat.voice_call_accept")}
+              tone="accept"
+              ring={CALL.live}
+              testID="call-accept"
+              onPress={() => {
+                haptics.callAccept();
+                // The microphone is explained and asked before the call connects (an answered call starts with the camera off).
+                void ensureCallPermissions(false).then(() => callEngine.acceptCall());
+              }}
+            />
           </View>
         </View>
       );
@@ -79,7 +98,7 @@ function CallBody({ call, recording, onMinimize, seed }: { call: Exclude<VoiceCa
             seed={seed} room={isMultiPartyVoiceCall(call.callKind)}
           />
           <View className="items-center px-6 pb-14">
-            <CallButton icon="call" label={t("chat.voice_call_end")} tone="danger" testID="call-hangup" onPress={() => void callEngine.hangUp()} />
+            <CallButton icon="call" label={t("chat.voice_call_end")} tone="danger" testID="call-hangup" onPress={() => hangUp()} />
           </View>
         </View>
       );
@@ -100,7 +119,7 @@ function CallBody({ call, recording, onMinimize, seed }: { call: Exclude<VoiceCa
                 testID="call-again"
                 onPress={() => {
                   callEngine.dismissEnded();
-                  void callEngine.startCall(call.roomId, call.peerName, call.callKind, { withCamera: call.withCamera });
+                  void ensureCallPermissions(call.withCamera ?? false).then(() => callEngine.startCall(call.roomId, call.peerName, call.callKind, { withCamera: call.withCamera }));
                 }}
               />
             ) : null}

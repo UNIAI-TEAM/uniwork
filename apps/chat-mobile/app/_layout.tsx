@@ -24,9 +24,11 @@ import { useEffect, useRef, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Platform } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { UpdateGate } from "@/components/app/update-gate";
 import { ErrorFallback } from "@/components/ui/error-fallback";
+import { PermissionPrimerHost } from "@/components/ui/permission-primer";
 import { ToastHost } from "@/components/ui/toast-host";
 import { accountApi } from "@/data/account-api";
 import { api } from "@/data/api";
@@ -175,6 +177,8 @@ function RootLayout() {
   }, [navigationRef]);
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
+      {/* The keyboard's frame-by-frame position for the composer (components/chat/composer.tsx). */}
+      <KeyboardProvider>
       <I18nProvider>
         <SafeAreaProvider>
           <QueryClientProvider client={queryClient}>
@@ -191,10 +195,12 @@ function RootLayout() {
                 </AuthInitializer>
               </UpdateGate>
               <ToastHost />
+              <PermissionPrimerHost />
             </ThemeProvider>
           </QueryClientProvider>
         </SafeAreaProvider>
       </I18nProvider>
+      </KeyboardProvider>
     </GestureHandlerRootView>
   );
 }
