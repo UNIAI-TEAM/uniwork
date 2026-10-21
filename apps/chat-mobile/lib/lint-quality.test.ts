@@ -65,6 +65,11 @@ describe("mobile quality lint", { timeout: 60_000 }, () => {
       "no-restricted-syntax",
     ],
     [
+      "a sliding CallAwareModal (a sheet is a draggable BottomSheet)",
+      'import { CallAwareModal } from "@/components/ui/call-aware-modal";\nexport const A = () => <CallAwareModal visible animationType="slide" />;',
+      "no-restricted-syntax",
+    ],
+    [
       "react-native's Modal (a sheet must close for a ringing call: CallAwareModal)",
       'import { Modal } from "react-native";\nexport const A = () => <Modal visible />;',
       "@typescript-eslint/no-restricted-imports",

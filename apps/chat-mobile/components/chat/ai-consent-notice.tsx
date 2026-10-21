@@ -10,10 +10,8 @@ import { runtimeConfig } from "@uniwork/core/runtime-config";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ActivityIndicator, AccessibilityInfo, Pressable, ScrollView, View } from "react-native";
-import { CallAwareModal } from "@/components/ui/call-aware-modal";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { useOpenWebPage } from "@/components/settings/use-open-web-page";
-import { SheetGrabber } from "@/components/ui/action-sheet";
 import { Text } from "@/components/ui/text";
 import { TintTile } from "@/components/ui/tint-tile";
 import { useAuthStore } from "@/data/auth/store";
@@ -21,7 +19,6 @@ import { useAnswerAiConsent } from "@/data/mutations/account";
 import { toast } from "@/data/stores/toast-store";
 import { AI_PROVIDER, hasAiConsent } from "@/lib/ai-consent";
 import { legalLinks, legalLocale } from "@/lib/legal-links";
-import { continuousCorners } from "@/lib/radius";
 import { THEME } from "@/lib/theme";
 import { useColorScheme } from "@/components/ui/use-color-scheme";
 import { cn } from "@/lib/utils";
@@ -137,39 +134,35 @@ export function AiConsentSheet({ visible, onClose }: { visible: boolean; onClose
   };
   const date = agreedAt ? new Date(agreedAt) : null;
   return (
-    <CallAwareModal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable className="flex-1 bg-black/40" onPress={onClose} accessibilityRole="button" accessibilityLabel={t("common.close")} />
-      <SafeAreaView edges={["bottom"]} className="max-h-[90%] rounded-t-[24px] bg-card" style={continuousCorners} accessibilityViewIsModal>
-        <SheetGrabber />
-        <ScrollView contentContainerClassName="gap-5 px-5 pb-4">
-          <AiConsentText />
-          {granted ? (
-            <View className="gap-2.5">
-              {date && !Number.isNaN(date.getTime()) ? (
-                <Text className="text-subhead text-muted-foreground">
-                  {t("mobile.ai_consent.agreed_on", { date: date.toLocaleDateString(i18n.language === "en" ? "en-GB" : "vi-VN") })}
-                </Text>
-              ) : null}
-              {failed ? (
-                <Text accessibilityRole="alert" className="text-subhead text-destructive">
-                  {t("mobile.ai_consent.failed")}
-                </Text>
-              ) : null}
-              <Pressable
-                accessibilityRole="button"
-                accessibilityState={{ busy, disabled: busy }}
-                onPress={() => void withdraw()}
-                className={cn("min-h-12 flex-row items-center justify-center gap-2 rounded-full bg-muted py-3", busy ? "opacity-70" : "active:opacity-80")}
-              >
-                {busy ? <ActivityIndicator accessibilityLabel={t("common.loading")} /> : null}
-                <Text className="text-body font-semibold text-destructive">{t("mobile.ai_consent.withdraw")}</Text>
-              </Pressable>
-            </View>
-          ) : (
-            <AiConsentActions onDecline={onClose} onAgreed={onClose} />
-          )}
-        </ScrollView>
-      </SafeAreaView>
-    </CallAwareModal>
+    <BottomSheet visible={visible} onClose={onClose} dragFrom="handle" sizeClassName="max-h-[90%]">
+      <ScrollView contentContainerClassName="gap-5 px-5 pb-4">
+        <AiConsentText />
+        {granted ? (
+          <View className="gap-2.5">
+            {date && !Number.isNaN(date.getTime()) ? (
+              <Text className="text-subhead text-muted-foreground">
+                {t("mobile.ai_consent.agreed_on", { date: date.toLocaleDateString(i18n.language === "en" ? "en-GB" : "vi-VN") })}
+              </Text>
+            ) : null}
+            {failed ? (
+              <Text accessibilityRole="alert" className="text-subhead text-destructive">
+                {t("mobile.ai_consent.failed")}
+              </Text>
+            ) : null}
+            <Pressable
+              accessibilityRole="button"
+              accessibilityState={{ busy, disabled: busy }}
+              onPress={() => void withdraw()}
+              className={cn("min-h-12 flex-row items-center justify-center gap-2 rounded-full bg-muted py-3", busy ? "opacity-70" : "active:opacity-80")}
+            >
+              {busy ? <ActivityIndicator accessibilityLabel={t("common.loading")} /> : null}
+              <Text className="text-body font-semibold text-destructive">{t("mobile.ai_consent.withdraw")}</Text>
+            </Pressable>
+          </View>
+        ) : (
+          <AiConsentActions onDecline={onClose} onAgreed={onClose} />
+        )}
+      </ScrollView>
+    </BottomSheet>
   );
 }

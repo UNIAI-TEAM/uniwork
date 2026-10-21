@@ -167,6 +167,23 @@ export default [
       "@typescript-eslint/no-restricted-imports": ["error", { paths: restrictedPaths, patterns: restrictedPatterns }],
     },
   },
+  // A sheet that slides up is a BottomSheet (components/ui/bottom-sheet.tsx): its grabber drags it closed,
+  // VoiceOver's escape closes it, reduce motion fades it. A raw CallAwareModal slide would bring back a
+  // grabber that does nothing. Replaces the rule's options for app/ and components/, so it restates them.
+  {
+    files: ["app/**/*.tsx", "components/**/*.tsx"],
+    ignores: ["components/ui/bottom-sheet.tsx", "**/*.test.tsx"],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        ...restrictedSyntax,
+        {
+          selector: "JSXOpeningElement[name.name='CallAwareModal']:has(JSXAttribute[name.name='animationType'][value.value='slide'])",
+          message: "A sliding sheet is a <BottomSheet> (components/ui/bottom-sheet.tsx): draggable, escapable, reduce-motion aware.",
+        },
+      ],
+    },
+  },
   // lib/ is the pure layer (CLAUDE.md › Cấu trúc): logic node can run, tested by vitest at a
   // 100% floor. No React, no platform or native module, no Sentry, and nothing from the layers
   // above it (data/, components/, app/); a type from them is fine. Replaces the rule's options

@@ -60,7 +60,7 @@ const FIXED_HEIGHT_OK: Record<string, string[]> = {
   // Scrims over the video: shading, no text.
   "components/calls/call-room.tsx": ["absolute inset-x-0 top-0 h-36", "absolute inset-x-0 bottom-0 h-48"],
   // A sheet's share of the screen, not a text box.
-  "components/chat/expression-sheet.tsx": ["h-[70%] rounded-t-[24px] bg-card"],
+  "components/chat/expression-sheet.tsx": ["h-[70%]"],
   // The voice note's waveform: bars, no text.
   "components/chat/message-cards.tsx": ["h-[26px] flex-row items-center gap-0.5"],
   "components/chat/voice-wave.tsx": ["h-6 flex-1 flex-row items-center gap-[2px] overflow-hidden"],

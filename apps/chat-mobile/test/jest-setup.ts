@@ -1,5 +1,8 @@
 // Shared setup for the jest-expo component layer (jest.config.js).
 import { setUpTests } from "react-native-reanimated";
+// The gesture runtime's own Jest mocks: every bottom sheet mounts a GestureHandlerRootView and a pan
+// (components/ui/bottom-sheet.tsx), so every screen with a sheet needs them, not only the gesture tests.
+import "react-native-gesture-handler/jestSetup";
 
 // Reanimated's test mode: animations jump to their end, layout animations are no-ops.
 setUpTests();

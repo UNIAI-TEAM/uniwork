@@ -352,7 +352,10 @@ một dòng thì ghi lý do ở dòng trên.
   `registerGlobals()` chạy khi module này nạp lần đầu: `call-overlay.tsx` `require` nó khi một cuộc gọi hiện, không
   import tĩnh, nên lần mở app không gọi ai không chạy LiveKit/WebRTC). Mọi sheet/dialog là `components/ui/call-aware-modal.tsx`
   (lint cấm `Modal` của react-native ở nơi khác): cuộc gọi bắt đầu đổ chuông thì sheet đang mở đóng qua
-  `onRequestClose` của nó (audit C2). Nhạc chuông: `lib/call-ringtone.ts`
+  `onRequestClose` của nó (audit C2). Mọi sheet trượt lên là `components/ui/bottom-sheet.tsx` (lint cấm `CallAwareModal`
+  với `animationType="slide"` ở nơi khác, fixture `lib/lint-quality.test.ts`): kéo xuống quá một phần chiều cao
+  hay vuốt nhanh thì đóng, kéo ngắn thì bật lại (`lib/sheet-drag.ts`), cử chỉ "escape" của VoiceOver đóng, sheet có
+  danh sách cuộn chỉ kéo từ dải grabber (`dragFrom="handle"`), sheet có ô nhập đi theo bàn phím (`avoidKeyboard`). Nhạc chuông: `lib/call-ringtone.ts`
   render `assets/sounds/ring-*.wav` (test so byte; sinh lại bằng
   `UPDATE_RINGTONES=1`); trên Android cuộc gọi đến reo trong app bằng nhạc chuông của máy trên luồng chuông
   (`CallRinger` native), WAV chỉ còn cho iOS và nhạc chờ của người gọi. Nút âm thanh
@@ -551,8 +554,8 @@ Hai lớp test, không chung file (ADR 0037 — cả hai chặn ở mọi `GATE_
   Reanimated, `react-native-keyboard-controller` (mock của chính nó), `expo-haptics` và cổng quyền
   (`components/ui/permission-gate`, cấp mọi quyền; màn giải thích test qua store) và làm đỏ test nào log
   `console.error` (update ngoài `act`…). Cử chỉ test bằng `react-native-gesture-handler/jest-utils` (`withTestId` +
-  `fireGestureHandler`, file test import `react-native-gesture-handler/jestSetup`); `onUpdate` chỉ chạy từ sự kiện
-  ACTIVE thứ hai. Test đếm render chờ hàng xuất hiện (`waitFor`), không chờ một khoảng cố định.
+  `fireGestureHandler`; `react-native-gesture-handler/jestSetup` nạp sẵn ở `test/jest-setup.ts` vì mọi sheet có
+  `GestureHandlerRootView`); `onUpdate` chỉ chạy từ sự kiện ACTIVE thứ hai. Test đếm render chờ hàng xuất hiện (`waitFor`), không chờ một khoảng cố định.
   `test/jest-resolver.js` thay resolver của worklets (bản gốc khớp mọi đường dẫn
   pnpm có chữ `react-native-worklets`, làm mất mock native của Expo). Coverage đo **cả cây** `components/**` và các
   hook React của `data/` mà vitest bỏ ra (mỗi file đúng một lớp đo; chỉ `app/` không đo — file route chỉ ghép, không

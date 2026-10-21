@@ -6,15 +6,13 @@ import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Alert, Pressable, ScrollView, View } from "react-native";
-import { CallAwareModal } from "@/components/ui/call-aware-modal";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { SheetGrabber, useAfterDismiss } from "@/components/ui/action-sheet";
+import { BottomSheet } from "@/components/ui/bottom-sheet";
+import { useAfterDismiss } from "@/components/ui/action-sheet";
 import { SearchField } from "@/components/ui/search-field";
 import { Text } from "@/components/ui/text";
 import { useForwardMessage } from "@/data/mutations/messages";
 import { nicknamesOptions, roomsOptions } from "@/data/queries/chat";
 import { roomHeaderMark } from "@/lib/conversation-display";
-import { continuousCorners } from "@/lib/radius";
 import { roomTitle } from "@/lib/room-list";
 import { foldedIncludes } from "@uniwork/core/chat/search-fold";
 import { RoomAvatar } from "./room-avatar";
@@ -41,33 +39,29 @@ export function ForwardSheet({ chat, messageId, onClose }: { chat: ChatWorkspace
   };
 
   return (
-    <CallAwareModal visible={messageId !== null} transparent animationType="slide" onRequestClose={onClose} onDismiss={onDismiss}>
-      <Pressable className="flex-1 bg-black/40" onPress={onClose} accessibilityRole="button" accessibilityLabel={t("common.close")} />
-      <SafeAreaView edges={["bottom"]} className="max-h-[80%] rounded-t-[24px] bg-card pb-2" style={continuousCorners} accessibilityViewIsModal>
-        <SheetGrabber />
-        <Text accessibilityRole="header" className="px-5 pb-2 text-title3 font-display font-bold text-foreground">
-          {t("chat.mobile.forward_pick_room")}
-        </Text>
-        <View className="px-4 pb-2">
-          <SearchField value={query} onChangeText={setQuery} placeholder={t("chat.mobile.search_placeholder")} accessibilityLabel={t("chat.search_conversations_label")} />
-        </View>
-        <ScrollView keyboardShouldPersistTaps="handled">
-          {rows.map(({ room, title }) => (
-            <Pressable
-              key={room.id}
-              accessibilityRole="button"
-              accessibilityLabel={title}
-              onPress={() => choose(() => forward(room.id))}
-              className="min-h-14 flex-row items-center gap-3 px-5 active:bg-secondary"
-            >
-              <RoomAvatar mark={roomHeaderMark(room, title, false)} size={40} seed={room.id} />
-              <Text className="flex-1 text-body text-foreground" numberOfLines={1}>
-                {title}
-              </Text>
-            </Pressable>
-          ))}
-        </ScrollView>
-      </SafeAreaView>
-    </CallAwareModal>
+    <BottomSheet visible={messageId !== null} onClose={onClose} onDismiss={onDismiss} dragFrom="handle" sizeClassName="max-h-[80%]" className="pb-2">
+      <Text accessibilityRole="header" className="px-5 pb-2 text-title3 font-display font-bold text-foreground">
+        {t("chat.mobile.forward_pick_room")}
+      </Text>
+      <View className="px-4 pb-2">
+        <SearchField value={query} onChangeText={setQuery} placeholder={t("chat.mobile.search_placeholder")} accessibilityLabel={t("chat.search_conversations_label")} />
+      </View>
+      <ScrollView keyboardShouldPersistTaps="handled">
+        {rows.map(({ room, title }) => (
+          <Pressable
+            key={room.id}
+            accessibilityRole="button"
+            accessibilityLabel={title}
+            onPress={() => choose(() => forward(room.id))}
+            className="min-h-14 flex-row items-center gap-3 px-5 active:bg-secondary"
+          >
+            <RoomAvatar mark={roomHeaderMark(room, title, false)} size={40} seed={room.id} />
+            <Text className="flex-1 text-body text-foreground" numberOfLines={1}>
+              {title}
+            </Text>
+          </Pressable>
+        ))}
+      </ScrollView>
+    </BottomSheet>
   );
 }

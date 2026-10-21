@@ -8,14 +8,12 @@ import type { Ionicons } from "@expo/vector-icons";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { SheetGrabber, useAfterDismiss } from "@/components/ui/action-sheet";
-import { CallAwareModal } from "@/components/ui/call-aware-modal";
+import { BottomSheet } from "@/components/ui/bottom-sheet";
+import { useAfterDismiss } from "@/components/ui/action-sheet";
 import { Text } from "@/components/ui/text";
 import { TintTile } from "@/components/ui/tint-tile";
 import type { PermissionKind, PrimerRequest } from "@/data/permissions";
 import { answerPrimer, usePrimerStore } from "@/data/stores/permission-primer-store";
-import { continuousCorners } from "@/lib/radius";
 
 const ICON: Record<PermissionKind, keyof typeof Ionicons.glyphMap> = {
   microphone: "mic-outline",
@@ -41,31 +39,27 @@ export function PermissionPrimerHost() {
   return (
     // An ask for a call stays over that call's ringing screen: answering from the notification brings the app to the
     // front, the call rings here meanwhile, and closing the primer then would answer without the microphone.
-    <CallAwareModal visible={!closing} transparent animationType="slide" onRequestClose={decline} onDismiss={onDismiss} keepOpenForCall={request.callId}>
-      <View className="flex-1 bg-black/40" />
-      <SafeAreaView edges={["bottom"]} className="rounded-t-[24px] bg-card px-5 pb-3" style={continuousCorners} accessibilityViewIsModal>
-        <SheetGrabber />
-        <View className="items-center gap-3 pb-5 pt-2">
-          <TintTile tint="blue" icon={ICON[request.kind]} size={64} iconSize={30} className="rounded-full" />
-          <Text className="text-center text-title2 font-display font-bold text-foreground" accessibilityRole="header">
-            {t(`mobile.permissions.${request.kind}_title`)}
-          </Text>
-          <Text className="text-center text-body leading-6 text-muted-foreground">{t(bodyKey(request))}</Text>
-        </View>
-        <View className="gap-2.5">
-          <Pressable
-            accessibilityRole="button"
-            testID="permission-primer-continue"
-            onPress={() => choose(() => answerPrimer(true))}
-            className="min-h-12 items-center justify-center rounded-full bg-primary px-4 py-3 active:opacity-90"
-          >
-            <Text className="text-body font-semibold text-primary-foreground">{t(settings ? "mobile.permissions.open_settings" : "mobile.permissions.continue")}</Text>
-          </Pressable>
-          <Pressable accessibilityRole="button" testID="permission-primer-later" onPress={decline} className="min-h-12 items-center justify-center rounded-full bg-muted px-4 py-3 active:opacity-70">
-            <Text className="text-body font-semibold text-foreground">{t("mobile.permissions.not_now")}</Text>
-          </Pressable>
-        </View>
-      </SafeAreaView>
-    </CallAwareModal>
+    <BottomSheet visible={!closing} onClose={decline} onDismiss={onDismiss} keepOpenForCall={request.callId} backdropCloses={false} className="px-5 pb-3">
+      <View className="items-center gap-3 pb-5 pt-2">
+        <TintTile tint="blue" icon={ICON[request.kind]} size={64} iconSize={30} className="rounded-full" />
+        <Text className="text-center text-title2 font-display font-bold text-foreground" accessibilityRole="header">
+          {t(`mobile.permissions.${request.kind}_title`)}
+        </Text>
+        <Text className="text-center text-body leading-6 text-muted-foreground">{t(bodyKey(request))}</Text>
+      </View>
+      <View className="gap-2.5">
+        <Pressable
+          accessibilityRole="button"
+          testID="permission-primer-continue"
+          onPress={() => choose(() => answerPrimer(true))}
+          className="min-h-12 items-center justify-center rounded-full bg-primary px-4 py-3 active:opacity-90"
+        >
+          <Text className="text-body font-semibold text-primary-foreground">{t(settings ? "mobile.permissions.open_settings" : "mobile.permissions.continue")}</Text>
+        </Pressable>
+        <Pressable accessibilityRole="button" testID="permission-primer-later" onPress={decline} className="min-h-12 items-center justify-center rounded-full bg-muted px-4 py-3 active:opacity-70">
+          <Text className="text-body font-semibold text-foreground">{t("mobile.permissions.not_now")}</Text>
+        </Pressable>
+      </View>
+    </BottomSheet>
   );
 }

@@ -11,10 +11,8 @@ import { paths } from "@uniwork/core/paths/paths";
 import { runtimeConfig } from "@uniwork/core/runtime-config";
 import { useRef, useState, type ComponentProps } from "react";
 import { useTranslation } from "react-i18next";
-import { AccessibilityInfo, ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, TextInput, View } from "react-native";
-import { CallAwareModal } from "@/components/ui/call-aware-modal";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { SheetGrabber } from "@/components/ui/action-sheet";
+import { AccessibilityInfo, ActivityIndicator, Pressable, ScrollView, TextInput, View } from "react-native";
+import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { Text } from "@/components/ui/text";
 import { useDeleteAccount } from "@/data/mutations/account";
 import { useAuthStore } from "@/data/auth/store";
@@ -124,103 +122,97 @@ function DeleteAccountSheet({ visible, onClose, orgSlug, wsSlug }: SheetProps) {
   };
 
   return (
-    <CallAwareModal visible={visible} transparent animationType="slide" onRequestClose={close}>
-      <Pressable className="flex-1 bg-black/40" onPress={close} accessibilityRole="button" accessibilityLabel={t("common.close")} />
-      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} className="max-h-[92%]">
-        <SafeAreaView edges={["bottom"]} className="rounded-t-[24px] bg-card" style={continuousCorners} accessibilityViewIsModal>
-          <SheetGrabber />
-          <ScrollView keyboardShouldPersistTaps="handled" contentContainerClassName="gap-4 px-5 pb-4">
-            <Text accessibilityRole="header" className="text-title2 font-display font-bold text-foreground">
-              {t("settings.security.delete.title")}
-            </Text>
-            <Text className="text-body leading-[22px] text-foreground">{t("settings.security.delete.body")}</Text>
-            <View className="gap-2.5 rounded-xl bg-muted p-3.5" style={continuousCorners}>
-              <Text accessibilityRole="header" className="text-caption font-semibold uppercase tracking-wider text-muted-foreground">
-                {t("mobile.account.what_happens")}
+    <BottomSheet visible={visible} onClose={close} dragFrom="handle" avoidKeyboard keyboardClassName="max-h-[92%]">
+      <ScrollView keyboardShouldPersistTaps="handled" contentContainerClassName="gap-4 px-5 pb-4">
+        <Text accessibilityRole="header" className="text-title2 font-display font-bold text-foreground">
+          {t("settings.security.delete.title")}
+        </Text>
+        <Text className="text-body leading-[22px] text-foreground">{t("settings.security.delete.body")}</Text>
+        <View className="gap-2.5 rounded-xl bg-muted p-3.5" style={continuousCorners}>
+          <Text accessibilityRole="header" className="text-caption font-semibold uppercase tracking-wider text-muted-foreground">
+            {t("mobile.account.what_happens")}
+          </Text>
+          {CONSEQUENCES.map(([icon, key]) => (
+            <View key={key} className="flex-row items-start gap-2.5">
+              <Ionicons name={icon} size={18} color={theme.mutedForeground} style={{ marginTop: 2 }} />
+              <Text className="flex-1 text-subhead leading-[21px] text-foreground">{t(key)}</Text>
+            </View>
+          ))}
+          <Pressable
+            accessibilityRole="link"
+            onPress={() => openWebPage(legalLinks(appUrl, legalLocale(i18n.language), "").deleteAccount)}
+            className="min-h-11 justify-center self-start"
+          >
+            <Text className="text-subhead font-semibold text-primary">{t("mobile.account.policy_link")}</Text>
+          </Pressable>
+        </View>
+
+        {owner ? (
+          <View accessibilityRole="alert" className="gap-2.5 rounded-xl border border-destructive/40 p-3.5" style={continuousCorners}>
+            <Text className="text-body font-semibold text-foreground">{t("mobile.account.owner_title")}</Text>
+            <Text className="text-subhead leading-[21px] text-foreground">{t("mobile.account.owner_body")}</Text>
+            <Pressable
+              accessibilityRole="link"
+              // The label, not the children: the icon's glyph is a character a screen reader would spell.
+              accessibilityLabel={t("mobile.account.owner_open_web")}
+              onPress={() => openWebPage(`${appUrl}${paths.workspace(orgSlug, wsSlug).settings()}`)}
+              className="min-h-11 flex-row items-center justify-center gap-2 rounded-full bg-muted px-4 py-2.5 active:opacity-70"
+            >
+              <Text className="text-subhead font-semibold text-foreground">{t("mobile.account.owner_open_web")}</Text>
+              <Ionicons name="open-outline" size={16} color={theme.foreground} />
+            </Pressable>
+          </View>
+        ) : (
+          <View className="gap-1.5">
+            <Text className="text-subhead font-semibold text-foreground">{t(`settings.security.delete.proof.${mode}`)}</Text>
+            <TextInput
+              ref={input}
+              value={proof}
+              onChangeText={(next) => {
+                setProof(next);
+                setError(null);
+              }}
+              {...INPUT[mode]}
+              autoCapitalize="none"
+              autoCorrect={false}
+              editable={!busy}
+              placeholder={mode === "email" ? (user?.email ?? "") : undefined}
+              placeholderTextColor={theme.mutedForeground}
+              accessibilityLabel={t(`settings.security.delete.proof.${mode}`)}
+              accessibilityHint={t("settings.security.delete.ownerHint")}
+              returnKeyType="done"
+              onSubmitEditing={() => void submit()}
+              testID="delete-account-proof"
+              className={cn("min-h-12 rounded-xl border bg-muted px-3.5 py-3 text-body text-foreground", error ? "border-destructive" : "border-border")}
+            />
+            {error ? (
+              <Text accessibilityRole="alert" className="text-subhead text-destructive">
+                {error}
               </Text>
-              {CONSEQUENCES.map(([icon, key]) => (
-                <View key={key} className="flex-row items-start gap-2.5">
-                  <Ionicons name={icon} size={18} color={theme.mutedForeground} style={{ marginTop: 2 }} />
-                  <Text className="flex-1 text-subhead leading-[21px] text-foreground">{t(key)}</Text>
-                </View>
-              ))}
-              <Pressable
-                accessibilityRole="link"
-                onPress={() => openWebPage(legalLinks(appUrl, legalLocale(i18n.language), "").deleteAccount)}
-                className="min-h-11 justify-center self-start"
-              >
-                <Text className="text-subhead font-semibold text-primary">{t("mobile.account.policy_link")}</Text>
-              </Pressable>
-            </View>
+            ) : null}
+            <Text className="text-footnote leading-[18px] text-muted-foreground">{t("settings.security.delete.ownerHint")}</Text>
+          </View>
+        )}
 
-            {owner ? (
-              <View accessibilityRole="alert" className="gap-2.5 rounded-xl border border-destructive/40 p-3.5" style={continuousCorners}>
-                <Text className="text-body font-semibold text-foreground">{t("mobile.account.owner_title")}</Text>
-                <Text className="text-subhead leading-[21px] text-foreground">{t("mobile.account.owner_body")}</Text>
-                <Pressable
-                  accessibilityRole="link"
-                  // The label, not the children: the icon's glyph is a character a screen reader would spell.
-                  accessibilityLabel={t("mobile.account.owner_open_web")}
-                  onPress={() => openWebPage(`${appUrl}${paths.workspace(orgSlug, wsSlug).settings()}`)}
-                  className="min-h-11 flex-row items-center justify-center gap-2 rounded-full bg-muted px-4 py-2.5 active:opacity-70"
-                >
-                  <Text className="text-subhead font-semibold text-foreground">{t("mobile.account.owner_open_web")}</Text>
-                  <Ionicons name="open-outline" size={16} color={theme.foreground} />
-                </Pressable>
-              </View>
-            ) : (
-              <View className="gap-1.5">
-                <Text className="text-subhead font-semibold text-foreground">{t(`settings.security.delete.proof.${mode}`)}</Text>
-                <TextInput
-                  ref={input}
-                  value={proof}
-                  onChangeText={(next) => {
-                    setProof(next);
-                    setError(null);
-                  }}
-                  {...INPUT[mode]}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  editable={!busy}
-                  placeholder={mode === "email" ? (user?.email ?? "") : undefined}
-                  placeholderTextColor={theme.mutedForeground}
-                  accessibilityLabel={t(`settings.security.delete.proof.${mode}`)}
-                  accessibilityHint={t("settings.security.delete.ownerHint")}
-                  returnKeyType="done"
-                  onSubmitEditing={() => void submit()}
-                  testID="delete-account-proof"
-                  className={cn("min-h-12 rounded-xl border bg-muted px-3.5 py-3 text-body text-foreground", error ? "border-destructive" : "border-border")}
-                />
-                {error ? (
-                  <Text accessibilityRole="alert" className="text-subhead text-destructive">
-                    {error}
-                  </Text>
-                ) : null}
-                <Text className="text-footnote leading-[18px] text-muted-foreground">{t("settings.security.delete.ownerHint")}</Text>
-              </View>
-            )}
-
-            <View className="gap-2.5 pt-1">
-              {owner ? null : (
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityState={{ busy, disabled: busy }}
-                  testID="delete-account-confirm"
-                  onPress={() => void submit()}
-                  className={cn("min-h-12 flex-row items-center justify-center gap-2 rounded-full bg-destructive-solid py-3", busy ? "opacity-70" : "active:opacity-90")}
-                >
-                  {busy ? <ActivityIndicator accessibilityLabel={t("common.loading")} color={THEME.light.primaryForeground} /> : null}
-                  <Text className="text-body font-semibold text-on-solid">{busy ? t("mobile.account.deleting") : t("settings.security.delete.confirm")}</Text>
-                </Pressable>
-              )}
-              <Pressable accessibilityRole="button" onPress={close} className="min-h-12 items-center justify-center rounded-full bg-muted px-4 py-3 active:opacity-70">
-                <Text className="text-body font-semibold text-foreground">{t("settings.security.delete.cancel")}</Text>
-              </Pressable>
-            </View>
-          </ScrollView>
-        </SafeAreaView>
-      </KeyboardAvoidingView>
-    </CallAwareModal>
+        <View className="gap-2.5 pt-1">
+          {owner ? null : (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityState={{ busy, disabled: busy }}
+              testID="delete-account-confirm"
+              onPress={() => void submit()}
+              className={cn("min-h-12 flex-row items-center justify-center gap-2 rounded-full bg-destructive-solid py-3", busy ? "opacity-70" : "active:opacity-90")}
+            >
+              {busy ? <ActivityIndicator accessibilityLabel={t("common.loading")} color={THEME.light.primaryForeground} /> : null}
+              <Text className="text-body font-semibold text-on-solid">{busy ? t("mobile.account.deleting") : t("settings.security.delete.confirm")}</Text>
+            </Pressable>
+          )}
+          <Pressable accessibilityRole="button" onPress={close} className="min-h-12 items-center justify-center rounded-full bg-muted px-4 py-3 active:opacity-70">
+            <Text className="text-body font-semibold text-foreground">{t("settings.security.delete.cancel")}</Text>
+          </Pressable>
+        </View>
+      </ScrollView>
+    </BottomSheet>
   );
 }
 

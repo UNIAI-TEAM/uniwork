@@ -9,13 +9,10 @@ import { canSubmitReminder, remindAtFromPreset, REMINDER_REPEAT_OPTIONS, type Re
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable, TextInput, View } from "react-native";
-import { CallAwareModal } from "@/components/ui/call-aware-modal";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { SheetGrabber } from "@/components/ui/action-sheet";
+import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { Button } from "@/components/ui/button";
 import { Text } from "@/components/ui/text";
 import { TintTile } from "@/components/ui/tint-tile";
-import { continuousCorners } from "@/lib/radius";
 import { THEME } from "@/lib/theme";
 import { useColorScheme } from "@/components/ui/use-color-scheme";
 import { cn } from "@/lib/utils";
@@ -61,50 +58,46 @@ export function ReminderSheet({
   };
 
   return (
-    <CallAwareModal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable className="flex-1 bg-black/40" onPress={onClose} accessibilityRole="button" accessibilityLabel={t("common.close")} />
-      <SafeAreaView edges={["bottom"]} className="rounded-t-[24px] bg-card px-4" style={continuousCorners} testID="reminder-sheet">
-        <SheetGrabber />
-        <View className="mb-3 flex-row items-center gap-3">
-          <TintTile tint="teal" icon="alarm-outline" size={36} iconSize={19} className="rounded-control" />
-          <Text className="flex-1 text-title3 font-display font-bold text-foreground" accessibilityRole="header">
-            {t("chat.reminder_create_title")}
-          </Text>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={t("common.close")}
-            onPress={onClose}
-            className="h-11 w-11 items-center justify-center rounded-full bg-muted active:opacity-70"
-          >
-            <Ionicons name="close" size={20} color={THEME[colorScheme].mutedForeground} />
-          </Pressable>
-        </View>
-        <TextInput
-          value={body}
-          onChangeText={setBody}
-          placeholder={t("chat.reminder_body_placeholder")}
-          placeholderTextColor={THEME[colorScheme].mutedForeground}
-          accessibilityLabel={t("chat.reminder_body_label")}
-          multiline
-          textAlignVertical="top"
-          className="min-h-[88px] rounded-xl border border-border bg-muted px-3.5 py-2.5 text-body text-foreground"
-        />
-        <Text className="mb-2 mt-4 text-footnote font-semibold text-muted-foreground">{t("chat.reminder_quick_time_label")}</Text>
-        <View className="flex-row flex-wrap gap-2" accessibilityRole="radiogroup">
-          {PRESETS.map((value) => (
-            <Chip key={value} label={t(`chat.reminder_preset_${value}`)} selected={preset === value} onPress={() => setPreset(value)} />
-          ))}
-        </View>
-        <Text className="mb-2 mt-4 text-footnote font-semibold text-muted-foreground">{t("chat.reminder_repeat_label")}</Text>
-        <View className="flex-row flex-wrap gap-2" accessibilityRole="radiogroup">
-          {REMINDER_REPEAT_OPTIONS.map((value) => (
-            <Chip key={value} label={t(`chat.reminder_repeat_${value}`)} selected={repeat === value} onPress={() => setRepeat(value)} />
-          ))}
-        </View>
-        <Button disabled={!ready} accessibilityState={{ disabled: !ready }} onPress={create} className="mb-3 mt-5 min-h-12 rounded-full py-3" testID="reminder-create">
-          <Text className="text-body font-semibold">{t("chat.reminder_create_submit")}</Text>
-        </Button>
-      </SafeAreaView>
-    </CallAwareModal>
+    <BottomSheet visible={visible} onClose={onClose} className="px-4" testID="reminder-sheet">
+      <View className="mb-3 flex-row items-center gap-3">
+        <TintTile tint="teal" icon="alarm-outline" size={36} iconSize={19} className="rounded-control" />
+        <Text className="flex-1 text-title3 font-display font-bold text-foreground" accessibilityRole="header">
+          {t("chat.reminder_create_title")}
+        </Text>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t("common.close")}
+          onPress={onClose}
+          className="h-11 w-11 items-center justify-center rounded-full bg-muted active:opacity-70"
+        >
+          <Ionicons name="close" size={20} color={THEME[colorScheme].mutedForeground} />
+        </Pressable>
+      </View>
+      <TextInput
+        value={body}
+        onChangeText={setBody}
+        placeholder={t("chat.reminder_body_placeholder")}
+        placeholderTextColor={THEME[colorScheme].mutedForeground}
+        accessibilityLabel={t("chat.reminder_body_label")}
+        multiline
+        textAlignVertical="top"
+        className="min-h-[88px] rounded-xl border border-border bg-muted px-3.5 py-2.5 text-body text-foreground"
+      />
+      <Text className="mb-2 mt-4 text-footnote font-semibold text-muted-foreground">{t("chat.reminder_quick_time_label")}</Text>
+      <View className="flex-row flex-wrap gap-2" accessibilityRole="radiogroup">
+        {PRESETS.map((value) => (
+          <Chip key={value} label={t(`chat.reminder_preset_${value}`)} selected={preset === value} onPress={() => setPreset(value)} />
+        ))}
+      </View>
+      <Text className="mb-2 mt-4 text-footnote font-semibold text-muted-foreground">{t("chat.reminder_repeat_label")}</Text>
+      <View className="flex-row flex-wrap gap-2" accessibilityRole="radiogroup">
+        {REMINDER_REPEAT_OPTIONS.map((value) => (
+          <Chip key={value} label={t(`chat.reminder_repeat_${value}`)} selected={repeat === value} onPress={() => setRepeat(value)} />
+        ))}
+      </View>
+      <Button disabled={!ready} accessibilityState={{ disabled: !ready }} onPress={create} className="mb-3 mt-5 min-h-12 rounded-full py-3" testID="reminder-create">
+        <Text className="text-body font-semibold">{t("chat.reminder_create_submit")}</Text>
+      </Button>
+    </BottomSheet>
   );
 }
