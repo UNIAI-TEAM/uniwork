@@ -59,7 +59,7 @@ func parseTranscriptTime(name, v string, empty time.Time) (time.Time, error) {
 }
 
 // meetingTranscript reads the asked stretch; more reports lines past
-// askTranscriptMax.
+// askTranscriptMax, or a keyword scan cut at its row limit.
 func (s *AskUNIService) meetingTranscript(ctx context.Context, tc ai.ToolContext, a transcriptArgs) (m db.Meeting, segs []db.MeetingTranscriptSegment, more bool, err error) {
 	from, err := parseTranscriptTime("from", a.From, time.Time{})
 	if err != nil {
@@ -94,13 +94,14 @@ func (s *AskUNIService) meetingTranscript(ctx context.Context, tc ai.ToolContext
 	if _, err := s.meetings.nameSpeakers(ctx, m.ID, rows, "vi"); err != nil {
 		return m, nil, false, err
 	}
+	cut := len(ts) > 0 && len(rows) == limit
 	if len(ts) > 0 {
 		rows = slices.DeleteFunc(rows, func(g db.MeetingTranscriptSegment) bool { return score(g.SpeakerName+" "+g.Text, ts) == 0 })
 	}
 	if len(rows) > askTranscriptMax {
 		return m, rows[:askTranscriptMax], true, nil
 	}
-	return m, rows, false, nil
+	return m, rows, cut, nil
 }
 
 // transcriptSource is the read as one source: "[15:04] Speaker: text" lines.
@@ -124,43 +125,21 @@ func (s *AskUNIService) agentMeetingTranscript(ctx context.Context, tc ai.ToolCo
 		return nil, err
 	}
 	m, segs, more, err := s.meetingTranscript(ctx, tc, a)
-	if err != nil || len(segs) == 0 {
-		return nil, err
-	}
-	src, err := s.transcriptSource(ctx, m, segs)
 	if err != nil {
 		return nil, err
 	}
-	items := []agentItem{sourceItem(src)}
+	var items []agentItem
+	if len(segs) > 0 {
+		src, err := s.transcriptSource(ctx, m, segs)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, sourceItem(src))
+	}
 	if more {
-		items = append(items, moreNote("More lines match: narrow from/to or the query."))
+		items = append(items, moreNote("More lines may match past this read: narrow from/to or the query."))
 	}
 	return items, nil
-}
-
-// transcriptTool is the P0 registry's entry beside get_meeting_context.
-func (s *AskUNIService) transcriptTool() ai.Tool {
-	return ai.Tool{
-		Name: askToolTranscript, Description: transcriptToolDesc, Kind: ai.ToolRead, Risk: ai.RiskLow, Schema: agentSchema(transcriptToolProps()),
-		Handle: func(ctx context.Context, tc ai.ToolContext, input json.RawMessage) (json.RawMessage, error) {
-			var a transcriptArgs
-			if err := json.Unmarshal(input, &a); err != nil {
-				return nil, McpInvalidArgs{Msg: "arguments must match the tool's schema"}
-			}
-			m, segs, _, err := s.meetingTranscript(ctx, tc, a)
-			if err != nil {
-				return nil, err
-			}
-			if len(segs) == 0 {
-				return json.Marshal([]ai.Source{})
-			}
-			src, err := s.transcriptSource(ctx, m, segs)
-			if err != nil {
-				return nil, err
-			}
-			return json.Marshal([]ai.Source{src})
-		},
-	}
 }
 
 // focusStopwords are question words too common in speech to say what a line

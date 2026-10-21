@@ -1292,14 +1292,23 @@ describe("useRealtimeSync › meeting summary", () => {
     expect(keysCalled(invalidate)).toEqual(expect.arrayContaining([JSON.stringify(["meeting-minutes", "m1"])]));
   });
 
-  it.each(["task.updated", "task.deleted"])("refreshes every open action item list on %s", (type) => {
+  it.each(["task.updated", "task.deleted"])("refreshes only the action item lists that hold the task on %s", (type) => {
     vi.useFakeTimers();
-    const { invalidate, client } = setup();
+    const { qc, invalidate, client } = setup();
+    const list = (taskId: string) => ({
+      items: [{ id: "a1", title: "x", status: "CONVERTED", evidence: [], task: { id: taskId } }],
+      counts: { pending: 0, converted: 1, dismissed: 0, tasks_done: 0, tasks_overdue: 0 },
+    });
+    qc.setQueryData(["meeting-action-items", "m1"], list("t1"));
+    qc.setQueryData(["meeting-action-items", "m2"], list("t2"));
     client.emit({ type, payload: { task_id: "t1", workspace_id: "ws1" } } as WSMessage);
     act(() => {
       vi.advanceTimersByTime(250);
     });
-    expect(keysCalled(invalidate)).toEqual(expect.arrayContaining([JSON.stringify(["meeting-action-items"])]));
+    const keys = keysCalled(invalidate);
+    expect(keys).toContain(JSON.stringify(["meeting-action-items", "m1"]));
+    expect(keys).not.toContain(JSON.stringify(["meeting-action-items", "m2"]));
+    expect(keys).not.toContain(JSON.stringify(["meeting-action-items"]));
   });
 
   // A conversion in another meeting creates the task; finishing or deleting

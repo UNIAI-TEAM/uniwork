@@ -152,8 +152,11 @@ describe("pageToDocx", () => {
     // "Đoạn tiếp" sits in the item without a second number.
     const cont = body.slice(0, body.indexOf("Đoạn tiếp của mục một"));
     expect(cont.slice(cont.lastIndexOf("<w:p>"))).not.toContain("<w:numPr>");
-    expect(body).toContain("☑ ");
-    expect(body).toContain("☐ ");
+    // Task boxes and nested bullets use characters Noto Sans (the PDF font) has.
+    expect(body).toContain("[x] ");
+    expect(body).toContain("[ ] ");
+    expect(body + numbering).not.toMatch(/[☐☑◦▪]/);
+    expect(numbering).toContain('<w:lvlText w:val="–"/>');
   });
 
   it("styles quotes, code and the rule", () => {

@@ -186,7 +186,8 @@ class PageWriter {
         return this.items(children, ctx, () => ({ numId: id }));
       }
       case "taskList":
-        return this.items(children, ctx, (item) => ({ task: item.attrs?.checked === true ? "☑ " : "☐ " }));
+        // ASCII boxes: Noto Sans, the font the PDF export embeds, has no ☐/☑.
+        return this.items(children, ctx, (item) => ({ task: item.attrs?.checked === true ? "[x] " : "[ ] " }));
       case "blockquote":
         return this.blocks(children, { ...ctx, style: "Quote" });
       case "codeBlock": {
@@ -360,7 +361,8 @@ class PageWriter {
     return (
       XML_DECL +
       '<w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">' +
-      abstractNum(0, (i) => ["bullet", ["•", "◦", "▪"][i % 3]!]) +
+      // Bullets Noto Sans has (no ◦/▪), so the PDF export draws every level.
+      abstractNum(0, (i) => ["bullet", ["•", "–", "·"][i % 3]!]) +
       abstractNum(1, (i) => [["decimal", "lowerLetter", "lowerRoman"][i % 3]!, `%${i + 1}.`]) +
       `<w:num w:numId="${BULLET_NUM}"><w:abstractNumId w:val="0"/></w:num>` +
       ordered +

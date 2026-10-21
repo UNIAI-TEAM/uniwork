@@ -185,7 +185,6 @@ func TestPromptSnapshots(t *testing.T) {
 		// are literal so moving a Prompt* constant cannot re-point a fixture.
 		"meeting_summary@2":  meetingWithFacts,
 		"meeting_summary@3":  meetingWithFacts,
-		"meeting_summary@4":  meetingWithExisting,
 		PromptMeetingSummary: meetingWithLabels,
 		PromptMeetingLiveItems: {
 			"title": "Giao ban", "locale": "vi",
@@ -700,6 +699,17 @@ func TestFakeReplyCitesEverySource(t *testing.T) {
 	}
 	if _, err := ParseSummaryJSON(FakeReply(provider.CompletionRequest{System: "meeting"}).Text); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// Under AI_PROVIDER=fake caption translation answers every [T#] line, so the
+// live-caption path can be driven locally and in E2E.
+func TestFakeReplyTranslatesCaptions(t *testing.T) {
+	p, _ := LookupPrompt(PromptCaptionTranslate)
+	user := p.Render(map[string]any{"target": "en", "captions": []CaptionLine{{Label: "T1", Text: "Xin chào"}, {Label: "T2", Text: "Ngân sách quý IV"}}})
+	got, err := ParseCaptionTranslateJSON(FakeReply(provider.CompletionRequest{System: p.System, Messages: []provider.Message{{Role: "user", Content: user}}}).Text)
+	if err != nil || len(got) != 2 || got[0].ID != "T1" || got[1].ID != "T2" || !strings.Contains(got[1].Text, "Ngân sách quý IV") {
+		t.Fatalf("%+v %v", got, err)
 	}
 }
 

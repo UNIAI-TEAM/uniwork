@@ -281,12 +281,6 @@ func init() {
 		Render:       func(vars map[string]any) string { return renderMeetingSummary(vars, 3) },
 	})
 	register(Prompt{
-		ID: "meeting_summary", Version: 4,
-		System:       meetingSummaryRulesV3 + meetingSummaryFactRules + meetingSummaryInputRules + meetingSummaryExistingRules + UntrustedFooter,
-		OutputSchema: json.RawMessage(meetingSummarySchema),
-		Render:       func(vars map[string]any) string { return renderMeetingSummary(vars, 4) },
-	})
-	register(Prompt{
 		ID: "meeting_summary", Version: 5,
 		System:       meetingSummaryRulesV5 + meetingSummaryFactRules + meetingSummaryInputRules + meetingSummaryExistingRules + UntrustedFooter,
 		OutputSchema: json.RawMessage(meetingSummarySchemaV5),

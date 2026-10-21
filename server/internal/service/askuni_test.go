@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -40,8 +39,8 @@ func TestAskUniToolsAreReadOnly(t *testing.T) {
 	if r.MutationCount() != 0 {
 		t.Fatalf("Ask UNI registry has %d write tools; V1 is read-only (spec F-09 §2 #8)", r.MutationCount())
 	}
-	if len(r) != 6 || !slices.Contains(r.Names(), askToolTranscript) {
-		t.Fatalf("expected 6 read tools with %s, got %v", askToolTranscript, r.Names())
+	if len(r) != 5 {
+		t.Fatalf("expected 5 read tools, got %v", r.Names())
 	}
 	for _, tool := range r {
 		if tool.Kind != ai.ToolRead || tool.Risk != ai.RiskLow || tool.Handle == nil || len(tool.Schema) == 0 {
