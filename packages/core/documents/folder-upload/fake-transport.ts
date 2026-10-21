@@ -70,6 +70,8 @@ export interface FakeFolderUploadOptions {
   multipartAboveBytes?: number;
   /** Part size of multipart targets (default 8 MiB). */
   partSize?: number;
+  /** Leading parts a `partial-` PUT failure stores before it fails (default 1). */
+  partialParts?: number;
   /** Put targets are the server's content route (auth "session"). */
   sessionTargets?: boolean;
   /** The client clock runs this far ahead: every target reads as expired, storage still takes it. */
@@ -152,6 +154,8 @@ export function createFakeFolderUploadTransport(options: FakeFolderUploadOptions
   let signCount = 0;
   let hold: Promise<void> | null = null;
   let stored = new Map<string, StoredObject>();
+  // Part numbers the storage holds per file; a refreshed multipart target lists only the others.
+  let heldParts = new Map<string, Set<number>>();
 
   const take = (method: string) => {
     const err = errors.get(method)?.shift();
@@ -168,13 +172,9 @@ export function createFakeFolderUploadTransport(options: FakeFolderUploadOptions
         kind: "multipart",
         session_id: `s-${file.file_key}`,
         part_size: partSize,
-        parts: Array.from({ length: count }, (_, i) => ({
-          part_number: i + 1,
-          method: "PUT",
-          url: `${url}&part=${i + 1}`,
-          headers: {},
-          expires_at,
-        })),
+        parts: Array.from({ length: count }, (_, i) => i + 1)
+          .filter((n) => !heldParts.get(file.file_key)?.has(n))
+          .map((n) => ({ part_number: n, method: "PUT", url: `${url}&part=${n}`, headers: {}, expires_at })),
         expires_at,
       };
     }
@@ -235,6 +235,7 @@ export function createFakeFolderUploadTransport(options: FakeFolderUploadOptions
       take("plan");
       if (batch) return snapshot();
       stored = new Map();
+      heldParts = new Map();
       const now = Date.now();
       const filesMode = body.root_name === undefined;
       batch = {
@@ -283,7 +284,10 @@ export function createFakeFolderUploadTransport(options: FakeFolderUploadOptions
         if (opts.signal?.aborted) throw abortError();
         const failure = file ? putFailures.get(file.filename)?.shift() : undefined;
         if (typeof failure === "string" && failure.startsWith("partial-") && target.kind === "multipart") {
-          opts.storedParts?.set(1, `"etag-${fileKey}-1"`);
+          for (const p of target.parts.slice(0, options.partialParts ?? 1)) {
+            opts.storedParts?.set(p.part_number, `"etag-${fileKey}-${p.part_number}"`);
+            heldParts.set(fileKey, (heldParts.get(fileKey) ?? new Set()).add(p.part_number));
+          }
         }
         if (typeof failure === "object") {
           if (file && failure.settle) {
@@ -306,6 +310,7 @@ export function createFakeFolderUploadTransport(options: FakeFolderUploadOptions
         } else {
           for (const p of target.parts) {
             if (!opts.storedParts?.has(p.part_number)) opts.storedParts?.set(p.part_number, `"etag-${fileKey}-${p.part_number}"`);
+            heldParts.set(fileKey, (heldParts.get(fileKey) ?? new Set()).add(p.part_number));
           }
           const count = Math.max(1, Math.ceil(blob.size / target.part_size));
           result = {
@@ -349,6 +354,7 @@ export function createFakeFolderUploadTransport(options: FakeFolderUploadOptions
           } else if (injected && SERVER_RETRYABLE.has(injected.code)) {
             fileErrors.delete(file.filename);
             stored.delete(file.file_key);
+            heldParts.delete(file.file_key);
             return { file_key: file.file_key, status: "failed", document_id: null, error: injected, retryable: true };
           } else if (injected) {
             file.status = "failed";

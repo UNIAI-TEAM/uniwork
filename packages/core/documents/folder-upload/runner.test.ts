@@ -607,7 +607,23 @@ describe("runFolderUpload review-fe-r1 fixes", () => {
     const refused = setup(big, { multipartAboveBytes: 5, partSize: 4, putFailures: { "big.pdf": ["partial-403"] } });
     expect(await settle(refused.handle.done)).toMatchObject({ done: 1 });
     // The fresh target lists every part again, so the server wants them all.
-    expect(seen(refused.transport)).toEqual([[], []]);
+    expect(seen(refused.transport)).toEqual([[], [1]]);
+  });
+
+  it("R2B-5: a refresh that lists only the missing parts sends parts 1-2 no more", async () => {
+    // 14 bytes in 4-byte parts = parts 1-4; the failed PUT stored parts 1-2, so the fresh target lists 3-4.
+    const { transport, handle } = setup([{ path: "R/big.pdf", size: 14 }], {
+      multipartAboveBytes: 5,
+      partSize: 4,
+      partialParts: 2,
+      putFailures: { "big.pdf": ["partial-403"] },
+    });
+    expect(await settle(handle.done)).toMatchObject({ done: 1, failed: [] });
+    const puts = transport.calls.flatMap((c) => (c.method === "put" ? [c] : []));
+    const listed = (i: number) => (puts[i]?.target.kind === "multipart" ? puts[i].target.parts.map((p) => p.part_number) : []);
+    expect(listed(0)).toEqual([1, 2, 3, 4]);
+    expect(listed(1)).toEqual([3, 4]);
+    expect(puts[1]?.storedParts).toEqual([1, 2]);
   });
 });
 
