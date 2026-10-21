@@ -12,6 +12,8 @@ import { LibraryRowView, type LibraryRowHandlers } from "./documents-library-row
 import { ShelvedRowView, type ShelvedRowActions } from "./documents-shelved-row";
 import { libraryGroupSpans, libraryLadder, shelvedLadder, type LibraryColumnId } from "./library-columns";
 import type { RowGroup } from "./library-rows";
+import { isSortableColumn, type LibrarySort, type LibrarySortColumn } from "./library-sort";
+import { LibrarySortHeader } from "./library-sort-header";
 
 const COLUMN_LABEL: Record<LibraryColumnId, string> = {
   name: "documents.home.columns.name",
@@ -71,6 +73,9 @@ export interface DocumentsLibraryListProps {
   onRetry: () => void;
   onClearFilters: () => void;
   handlers: LibraryRowHandlers;
+  /** The column sort of the table (UNI-2038): Tên, Người sửa, Cập nhật and Dung lượng headers become buttons;
+   *  absent, every header stays plain text (the Lưu trữ table). The rows arrive in this order already. */
+  sort?: { value: LibrarySort; onSort: (column: LibrarySortColumn) => void };
   /** "Shared by me" (SW-V1/V2): Truy cập joins at the editor's rung and the plain home-workspace scope stays on the narrow line. */
   sharedByMe?: boolean;
   /** The empty state's copy and actions, which depend on the open view. */
@@ -100,6 +105,7 @@ export function DocumentsLibraryList({
   onRetry,
   onClearFilters,
   handlers,
+  sort,
   sharedByMe = false,
   empty,
 }: DocumentsLibraryListProps) {
@@ -215,11 +221,25 @@ export function DocumentsLibraryList({
           </colgroup>
           <thead className={ladder.head}>
             <tr className="border-b border-border text-caption text-muted-foreground">
-              {ladder.columns.map((column) => (
-                <th key={column.id} scope="col" className={cn("px-3 py-2 font-medium", column.cell)}>
-                  {column.id === "actions" ? <span className="sr-only">{t(columnLabel[column.id])}</span> : t(columnLabel[column.id])}
-                </th>
-              ))}
+              {ladder.columns.map((column) => {
+                const sortable = sort && !shelved && isSortableColumn(column.id) ? column.id : null;
+                return (
+                  <th
+                    key={column.id}
+                    scope="col"
+                    aria-sort={sortable && sort ? (sort.value.column !== sortable ? "none" : sort.value.order === "asc" ? "ascending" : "descending") : undefined}
+                    className={cn("px-3 py-2 font-medium", column.cell)}
+                  >
+                    {sortable && sort ? (
+                      <LibrarySortHeader column={sortable} label={t(columnLabel[column.id])} sort={sort.value} onSort={sort.onSort} />
+                    ) : column.id === "actions" ? (
+                      <span className="sr-only">{t(columnLabel[column.id])}</span>
+                    ) : (
+                      t(columnLabel[column.id])
+                    )}
+                  </th>
+                );
+              })}
             </tr>
           </thead>
           {groups.map((group) => (

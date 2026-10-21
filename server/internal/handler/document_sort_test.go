@@ -146,10 +146,15 @@ func TestSharedWithMeCursorRefusesAnotherSort(t *testing.T) {
 	nameCursor := enc(map[string]any{"t": "2026-10-01T00:00:00Z", "id": "01J8X4DOC0N1P2Q3R4S5T6U7", "s": "name", "o": "asc", "x": "alpha"})
 	oldCursor := enc(map[string]any{"t": "2026-10-01T00:00:00Z", "id": "01J8X4DOC0N1P2Q3R4S5T6U7"})
 	brokenCursor := enc(map[string]any{"t": "2026-10-01T00:00:00Z", "id": "01J8X4DOC0N1P2Q3R4S5T6U7", "s": "size", "o": "asc"}) // no key
+	// a NUL rune in the id or the key text must be 400, not a database error.
+	nulKey := enc(map[string]any{"t": "2026-10-01T00:00:00Z", "id": "01J8X4DOC0N1P2Q3R4S5T6U7", "s": "name", "o": "asc", "x": "a\x00b"})
+	nulID := enc(map[string]any{"t": "2026-10-01T00:00:00Z", "id": "a\x00b", "s": "name", "o": "asc", "x": "alpha"})
 	for _, c := range []struct {
 		what, query string
 		status      int
 	}{
+		{"NUL in the key text", "?sort=name&cursor=" + nulKey, 400},
+		{"NUL in the cursor id", "?sort=name&cursor=" + nulID, 400},
 		{"name cursor under size", "?sort=size&cursor=" + nameCursor, 400},
 		{"name asc cursor under name desc", "?sort=name&order=desc&cursor=" + nameCursor, 400},
 		{"name cursor without sort", "?cursor=" + nameCursor, 400},

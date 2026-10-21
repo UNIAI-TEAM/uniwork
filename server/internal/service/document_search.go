@@ -280,7 +280,7 @@ func decodeDocumentCursor(s string) (documentCursor, error) {
 		return documentCursor{}, Invalid("cursor không hợp lệ")
 	}
 	var c documentCursor
-	if err := json.Unmarshal(raw, &c); err != nil || c.ID == "" {
+	if err := json.Unmarshal(raw, &c); err != nil || c.ID == "" || strings.ContainsRune(c.ID, 0) {
 		return documentCursor{}, Invalid("cursor không hợp lệ")
 	}
 	if c.Sorted() {
