@@ -178,7 +178,11 @@ một dòng thì ghi lý do ở dòng trên.
   (`query-cache/timeline/<queryHash>`), chỉ ghi lại khi đổi, vỏ nhỏ ở `query-cache`; buster
   `<CACHE_SCHEMA_VERSION>:<userId>` (bản store mới và OTA đều giữ cache, đọc qua schema). Đĩa không phải gương của bộ
   nhớ: `gcTime` 10 phút bỏ query không ai xem, nên query được giữ mà bộ nhớ đã bỏ được mang từ bản trước
-  (`withEvicted`) tới khi quá 7 ngày hay phòng rời nhóm gần nhất / danh sách. Khôi phục trước màn đầu
+  (`withEvicted`) tới khi quá 7 ngày hay phòng rời nhóm gần nhất / danh sách. Frame chỉ patch bộ nhớ nên không tới được
+  bản mang theo: sửa, biểu cảm, xoá tin của phòng mà bộ nhớ không còn timeline thì bỏ bản đó khỏi đĩa
+  (`dropCarriedTimeline`, gọi từ `chat-cache.ts`) — thiếu còn hơn sai. Query khôi phục từ đĩa sống trong bộ nhớ
+  bằng tuổi của bản đĩa (`hydrateOptions` `gcTime` = 7 ngày; TanStack giữ `gcTime` lớn nhất nên observer 10 phút
+  không rút ngắn): không gì đọc lại đĩa khi bộ nhớ thiếu, nên mở offline một giờ sau mở lạnh vẫn có trang. Khôi phục trước màn đầu
   (`restoreAccountCache` trong auth store), xoá khi đăng xuất (`dropAccountCache`, cả các key timeline). Bản trên
   đĩa là dữ liệu không tin được như câu trả lời mạng (OTA giữ buster mà đổi code đọc): `data/persisted-cache.ts`
   kiểm vỏ rồi đọc lại data của từng query qua đúng schema đã dựng nó từ mạng (`data/chat-api-schemas.ts`,

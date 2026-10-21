@@ -1,5 +1,5 @@
 // Audit R5: a cold start opens on the cached inbox, and only on the person's own.
-import { QueryClient, dehydrate } from "@tanstack/react-query";
+import { QueryClient, QueryObserver, dehydrate } from "@tanstack/react-query";
 import type { PersistedClient, Persister } from "@tanstack/query-persist-client-core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ChatMessagesListSchema, ChatRoomsListSchema } from "@uniwork/core/api/endpoints/chat-schemas";
@@ -10,6 +10,7 @@ import {
   PERSIST_THROTTLE_MS,
   createDevicePersister,
   dropAccountCache,
+  dropCarriedTimeline,
   installAccountCache,
   restoreAccountCache,
   shapePersistedClient,
@@ -27,8 +28,7 @@ const page = (id: string) =>
 const unread = (direct: number) => ({ direct: { unread: direct, mentions: 0 }, workspaces: [] });
 const buster = (rest: string) => `${CACHE_SCHEMA_VERSION}:${rest}`;
 
-function seeded(): QueryClient {
-  const qc = new QueryClient();
+function seeded(qc = new QueryClient()): QueryClient {
   qc.setQueryData(["workspaces"], [{ id: "w1", slug: "w", name: "W", organization_id: "o1", organization_slug: "o", organization_name: "O" }]);
   qc.setQueryData(chatKeys.rooms("w1"), [...room("old", "2026-10-01T00:00:00Z"), ...room("new", "2026-10-20T00:00:00Z"), ...room("never", null)]);
   qc.setQueryData(chatKeys.unreadSummary(), unread(1));
@@ -303,38 +303,74 @@ describe("the disk outlives memory", () => {
   const savedTimelines = () => store.keys().filter((key) => key.startsWith("query-cache/timeline/")).sort();
   const timelineKey = (roomId: string) => `query-cache/timeline/${JSON.stringify(chatKeys.roomMessages("w1", roomId))}`;
 
-  it("a restored timeline nobody opened stays on disk after memory collects it", async () => {
+  /** The app's QueryClient: a query nobody observes leaves memory after 10 minutes. */
+  const appClient = () => new QueryClient({ defaultOptions: { queries: { gcTime: 10 * 60_000 } } });
+
+  it("a timeline memory collects stays on disk, and a restored one stays in memory for the copy's whole life", async () => {
+    vi.useFakeTimers();
+    // A session that read both rooms and left them: gcTime passes.
+    const first = seeded(appClient());
+    installAccountCache({ queryClient: first, persister });
+    await restoreAccountCache("u1");
+    first.setQueryData(chatKeys.unreadSummary(), unread(3));
+    await vi.advanceTimersByTimeAsync(PERSIST_THROTTLE_MS);
+    expect(savedTimelines()).toEqual([timelineKey("new"), timelineKey("old")]);
+    await vi.advanceTimersByTimeAsync(10 * 60_000 + 1);
+    expect(first.getQueryData(chatKeys.roomMessages("w1", "new"))).toBeUndefined();
+
+    // A rooms refetch saves: the collected timelines are still written.
+    first.setQueryData(chatKeys.rooms("w1"), [...room("old", "2026-10-01T00:00:00Z"), ...room("new", "2026-10-21T00:00:00Z")]);
+    await vi.advanceTimersByTimeAsync(PERSIST_THROTTLE_MS);
+    expect(savedTimelines()).toEqual([timelineKey("new"), timelineKey("old")]);
+
+    // The next start restores both. Hours later, offline, a room opened and closed or never opened still opens on its page:
+    // nothing re-reads the disk on a memory miss, so a restored query lives as long as the copy may.
+    const next = appClient();
+    installAccountCache({ queryClient: next, persister });
+    await restoreAccountCache("u1");
+    const opened = new QueryObserver(next, { queryKey: chatKeys.roomMessages("w1", "new"), gcTime: 10 * 60_000, enabled: false }).subscribe(() => undefined);
+    opened();
+    await vi.advanceTimersByTimeAsync(60 * 60_000);
+    expect(next.getQueryData(chatKeys.roomMessages("w1", "new"))).toEqual({ pages: [page("n2")], pageParams: [null] });
+    expect(next.getQueryData(chatKeys.roomMessages("w1", "old"))).toEqual({ pages: [page("o1")], pageParams: [null] });
+    expect(next.getQueryData(chatKeys.rooms("w1"))).toBeDefined();
+
+    // A room left (the list without it) takes its timeline off the disk, carried or not.
+    next.setQueryData(chatKeys.rooms("w1"), room("new", "2026-10-21T00:00:00Z"));
+    await vi.advanceTimersByTimeAsync(PERSIST_THROTTLE_MS);
+    expect(savedTimelines()).toEqual([timelineKey("new")]);
+    await dropAccountCache();
+    expect(store.keys()).toEqual([]);
+  });
+
+  it("a frame for a room whose timeline only the disk still holds takes that copy off the disk: no frame can reach it", async () => {
     vi.useFakeTimers();
     const first = seeded();
     installAccountCache({ queryClient: first, persister });
     await restoreAccountCache("u1");
     first.setQueryData(chatKeys.unreadSummary(), unread(3));
     await vi.advanceTimersByTimeAsync(PERSIST_THROTTLE_MS);
-    expect(savedTimelines()).toEqual([timelineKey("new"), timelineKey("old")]);
 
-    // The next start restores both timelines; nobody opens them, and gcTime (10 minutes in the app) passes.
-    const next = new QueryClient({ defaultOptions: { queries: { gcTime: 10 * 60_000 } } });
+    const next = new QueryClient();
     installAccountCache({ queryClient: next, persister });
     await restoreAccountCache("u1");
-    await vi.advanceTimersByTimeAsync(10 * 60_000 + 1);
-    expect(next.getQueryData(chatKeys.roomMessages("w1", "new"))).toBeUndefined();
-
-    // A rooms refetch saves: the collected timelines are still written.
-    next.setQueryData(chatKeys.rooms("w1"), [...room("old", "2026-10-01T00:00:00Z"), ...room("new", "2026-10-21T00:00:00Z")]);
+    // Memory let "new" go; a delete or an edit arrives for it.
+    next.removeQueries({ queryKey: chatKeys.roomMessages("w1", "new"), exact: true });
+    dropCarriedTimeline("w1", "new");
     await vi.advanceTimersByTimeAsync(PERSIST_THROTTLE_MS);
-    expect(savedTimelines()).toEqual([timelineKey("new"), timelineKey("old")]);
+    expect(savedTimelines()).toEqual([timelineKey("old")]);
 
-    const third = new QueryClient();
-    installAccountCache({ queryClient: third, persister });
-    await restoreAccountCache("u1");
-    expect(third.getQueryData(chatKeys.roomMessages("w1", "new"))).toEqual({ pages: [page("n2")], pageParams: [null] });
-    expect(third.getQueryData(chatKeys.roomMessages("w1", "old"))).toEqual({ pages: [page("o1")], pageParams: [null] });
-
-    // A room left (the list without it) takes its timeline off the disk, carried or not.
-    third.setQueryData(chatKeys.rooms("w1"), room("new", "2026-10-21T00:00:00Z"));
+    // A timeline memory holds is the frame's own to patch, and one already gone is gone: nothing is written.
+    const set = vi.spyOn(store, "set");
+    dropCarriedTimeline("w1", "old");
+    dropCarriedTimeline("w1", "new");
     await vi.advanceTimersByTimeAsync(PERSIST_THROTTLE_MS);
-    expect(savedTimelines()).toEqual([timelineKey("new")]);
+    expect(set).not.toHaveBeenCalled();
+
+    // Signed out, nothing is carried and nothing is written.
     await dropAccountCache();
+    dropCarriedTimeline("w1", "old");
+    await vi.advanceTimersByTimeAsync(PERSIST_THROTTLE_MS);
     expect(store.keys()).toEqual([]);
   });
 

@@ -16,7 +16,13 @@
 // memory holds: a room read an hour ago would leave the disk on the next save.
 // A kept query memory let go is carried from the last copy instead, until it
 // is older than the copy's own limit or its room leaves the most recent ones
-// (withEvicted). Each kept timeline is its own key, written only when it
+// (withEvicted). A frame cannot reach a carried copy (it patches memory only),
+// so an edit, a reaction or a delete for such a room takes the copy off the
+// disk (dropCarriedTimeline): wrong is worse than missing, and the next open
+// or background refresh reads it afresh. A restored query lives in memory as
+// long as the copy may (PERSISTED_CACHE_MAX_AGE_MS), not the 10 minutes of
+// the rest: nothing re-reads the disk on a memory miss, so an offline open an
+// hour after a cold start would find nothing. Each kept timeline is its own key, written only when it
 // changed, so a frame in one room rewrites that room and the small envelope,
 // not every room. Saves follow only a change of kept data (a fetch's answer,
 // a patch) and wait a second after the last one, so a burst of realtime
@@ -27,6 +33,7 @@ import { persistQueryClientRestore, persistQueryClientSave, type PersistedClient
 import { z } from "zod";
 import { createLogger } from "./logger";
 import { CACHE_SCHEMA_VERSION, persistedRooms, readPersistedClient } from "./persisted-cache";
+import { chatKeys } from "./queries/chat-keys";
 import type { DeviceStore } from "./storage/device-store";
 
 /** The rooms whose newest page is kept: the most recently active ones. */
@@ -203,6 +210,18 @@ let generation = 0;
 // A second restore for the same person while one runs (a sign-in's login() and
 // the session's onChange both adopt the user) shares it instead of racing it.
 let pending: { userId: string; run: Promise<void> } | null = null;
+// The running subscription's drop of a carried timeline; none while nothing writes.
+let forgetCarried: ((wsId: string, roomId: string) => void) | null = null;
+
+/**
+ * A frame changed or removed a message of this room (chat-cache.ts). When
+ * memory no longer holds the room's timeline, the copy carried on disk can
+ * never get that change: it goes, with a save. A timeline memory holds is
+ * the frame's own to patch, and its save follows.
+ */
+export function dropCarriedTimeline(wsId: string, roomId: string): void {
+  forgetCarried?.(wsId, roomId);
+}
 
 function stopWrites(): void {
   generation += 1;
@@ -233,7 +252,14 @@ async function restoreAndSubscribe(userId: string, { queryClient, persister }: I
     },
   };
   try {
-    await persistQueryClientRestore({ queryClient, persister: guarded, buster, maxAge: PERSISTED_CACHE_MAX_AGE_MS });
+    await persistQueryClientRestore({
+      queryClient,
+      persister: guarded,
+      buster,
+      maxAge: PERSISTED_CACHE_MAX_AGE_MS,
+      // TanStack keeps the longest gcTime a query was given, so an observer's 10 minutes do not shorten it.
+      hydrateOptions: { defaultOptions: { queries: { gcTime: PERSISTED_CACHE_MAX_AGE_MS } } },
+    });
   } catch (error) {
     log.warn("cached rooms not restored", { error: errorName(error) });
   }
@@ -260,8 +286,15 @@ async function restoreAndSubscribe(userId: string, { queryClient, persister }: I
     if (event.type !== "updated" || event.action.type !== "success" || !isPersistedKey(event.query.queryKey)) return;
     timer ??= setTimeout(save, PERSIST_THROTTLE_MS);
   });
+  forgetCarried = (wsId, roomId) => {
+    const isRoom = (query: DehydratedQuery) => isTimeline(query) && query.queryKey[1] === wsId && query.queryKey[3] === roomId;
+    if (queryClient.getQueryData(chatKeys.roomMessages(wsId, roomId)) !== undefined || !kept.some(isRoom)) return;
+    kept = kept.filter((query) => !isRoom(query));
+    timer ??= setTimeout(save, PERSIST_THROTTLE_MS);
+  };
   stop = () => {
     unsubscribe();
+    forgetCarried = null;
     if (timer) clearTimeout(timer);
     timer = null;
   };

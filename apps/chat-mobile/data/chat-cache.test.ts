@@ -6,6 +6,8 @@ import type { ChatMessageRecord, ChatRoomRecord } from "@uniwork/core/api/endpoi
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("./api", () => ({ api: { request: vi.fn() } }));
+// The disk's carried timelines (query-persister.test.ts covers what a drop does).
+vi.mock("./query-persister", () => ({ dropCarriedTimeline: vi.fn() }));
 
 import { chatApi } from "./chat-api";
 import {
@@ -20,6 +22,7 @@ import {
 } from "./chat-cache";
 import { compareMessages, flattenRoomTimeline, type RoomMessagesPageParam, type RoomTimeline } from "@uniwork/core/chat/room-timeline-pages";
 import { chatKeys } from "./queries/chat-keys";
+import { dropCarriedTimeline } from "./query-persister";
 
 const viewer: ChatViewer = { userId: "u1", activeRoomId: null };
 
@@ -498,6 +501,18 @@ describe("fetchAndPatchChatMessage for a timeline nobody shows", () => {
 
     expect(get).not.toHaveBeenCalled();
     expect(qc.getQueryState(chatKeys.roomMessages("ws1", "room1"))?.isInvalidated).toBe(true);
+  });
+
+  it("an edit, reaction or delete for a room not in memory takes the disk's carried copy of it away; a new message does not", async () => {
+    vi.mocked(dropCarriedTimeline).mockClear();
+    const qc = new QueryClient();
+    await fetchAndPatchChatMessage(qc, "ws1", viewer, { roomId: "room1", messageId: "m1", created: true });
+    expect(dropCarriedTimeline).not.toHaveBeenCalled();
+    await fetchAndPatchChatMessage(qc, "ws1", viewer, { roomId: "room1", messageId: "m1", created: false });
+    expect(dropCarriedTimeline).toHaveBeenLastCalledWith("ws1", "room1");
+    patchChatMessageDeleted(qc, "ws1", "room2", "m2");
+    expect(dropCarriedTimeline).toHaveBeenLastCalledWith("ws1", "room2");
+    expect(dropCarriedTimeline).toHaveBeenCalledTimes(2);
   });
 });
 

@@ -10,6 +10,7 @@ import { chatApi } from "./chat-api";
 import { compareMessages, insertCreatedTimelineMessage, mapRoomTimeline, replaceTimelineMessage, roomTimelineHas, type RoomTimeline } from "@uniwork/core/chat/room-timeline-pages";
 import { markStaleUnlessObserved, roomTimelineFetchInFlight } from "./chat-timeline";
 import { chatKeys } from "./queries/chat-keys";
+import { dropCarriedTimeline } from "./query-persister";
 import { sameUser } from "@/lib/user-id";
 
 /** Who is looking: the signed-in user and the room open on screen. */
@@ -230,6 +231,8 @@ export async function fetchAndPatchChatMessage(
     // (another device) is not unread.
     if (created && !viewing && senderId !== viewer.userId) bumpUnreadLocally(qc, wsId, roomId);
     if (created) await refreshUnshownDefaultChannelPreview(qc, wsId, roomId, messageId);
+    // An edit or a reaction: a copy of this room only the disk holds would keep the old one.
+    else dropCarriedTimeline(wsId, roomId);
     return;
   }
   const message = await chatApi.getMessage(wsId, roomId, messageId);
@@ -251,6 +254,8 @@ export async function fetchAndPatchChatMessage(
 
 export function patchChatMessageDeleted(qc: QueryClient, wsId: string, roomId: string, messageId: string): void {
   refreshAroundPages(qc, wsId, roomId);
+  // A copy of this room only the disk holds would show the deleted message on the next offline start.
+  dropCarriedTimeline(wsId, roomId);
   patchRoomTimelineIfLoaded(qc, wsId, roomId, (existing) =>
     roomTimelineHas(existing, messageId) ? mapRoomTimeline(existing, (page) => removeMessageFromList(page, messageId)) : existing,
   );
