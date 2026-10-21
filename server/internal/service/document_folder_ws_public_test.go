@@ -15,6 +15,7 @@ import (
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgconn"
+	"golang.org/x/text/unicode/norm"
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/util"
@@ -494,4 +495,126 @@ func TestWorkspaceFolderCreateRetriesTheIndex(t *testing.T) {
 	if got.Title != "Lặp lại (1)" || calls < 2 {
 		t.Fatalf("title %q after %d attempts", got.Title, calls)
 	}
+}
+
+// legacyFolderRow rewrites a folder row to the pair an earlier binary stored.
+func (e *wsFolderEnv) legacyFolderRow(t *testing.T, id, visibility, level string) {
+	t.Helper()
+	if _, err := e.f.pool.Exec(e.f.ctx, `UPDATE documents SET visibility = $2, workspace_level = $3 WHERE id = $1`, id, visibility, level); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// S1-R1-2: only a folder that LEFT a My Folder tree opens. A legacy restricted
+// folder moved workspace -> workspace keeps its pair, and no access row is written.
+func TestLegacyRestrictedFolderMovedWithinWorkspaceStaysRestricted(t *testing.T) {
+	e := newWSFolderEnv(t)
+	ctx := e.f.ctx
+	legacy := e.mkFolder(t, e.a, "", "Cũ riêng")
+	child := e.mkFolder(t, e.a, legacy.ID, "Cũ riêng con")
+	dst := e.mkFolder(t, e.a, "", "Đích chung")
+	e.legacyFolderRow(t, legacy.ID, documentVisibilityRestricted, string(DocumentLevelView))
+	e.legacyFolderRow(t, child.ID, documentVisibilityRestricted, string(DocumentLevelView))
+
+	cur := e.f.live(t, legacy.ID)
+	if _, err := e.svc.MoveDocument(ctx, e.a, legacy.ID, MoveDocumentInput{ParentID: dst.ID, Revision: cur.Revision}); err != nil {
+		t.Fatalf("move a legacy restricted folder into a workspace folder: %v", err)
+	}
+	wantRestricted(t, e.f.live(t, legacy.ID), "moved legacy folder")
+	wantRestricted(t, e.f.live(t, child.ID), "its legacy sub-folder")
+	for _, id := range []string{legacy.ID, child.ID} {
+		if n := e.count(t, `SELECT count(*) FROM audit_events WHERE resource_id = $1 AND action = $2`, id, string(audit.ActionDocumentWorkspaceAccessChanged)); n != 0 {
+			t.Fatalf("workspace_access_changed rows for %s = %d, want 0", id, n)
+		}
+	}
+}
+
+// S1-R1-4: a legacy workspace-visible folder outside My Folder whose level is
+// not view gets the location pair from the admin pass, so a plain member loses
+// the edit the old level gave.
+func TestUnshareFoldersNormalisesLegacyWorkspaceEditFolder(t *testing.T) {
+	e := newWSFolderEnv(t)
+	ctx := e.f.ctx
+	folder := e.mkFolder(t, e.a, "", "Cũ sửa được")
+	e.legacyFolderRow(t, folder.ID, documentVisibilityWorkspace, string(DocumentLevelEdit))
+	title := "B đổi tên"
+	cur := e.f.live(t, folder.ID)
+	if _, err := e.svc.UpdateDocument(ctx, e.b, folder.ID, UpdateDocumentInput{Revision: cur.Revision, Title: &title}); err != nil {
+		t.Fatalf("precondition: workspace/edit lets a member rename: %v", err)
+	}
+	if _, err := e.svc.UnshareFolders(ctx, false, 0); err != nil {
+		t.Fatal(err)
+	}
+	wantWorkspaceFolder(t, e.f.live(t, folder.ID), "legacy workspace/edit folder after the pass")
+	if n := e.count(t, `SELECT count(*) FROM audit_events WHERE resource_id = $1 AND action = $2`, folder.ID, string(audit.ActionDocumentWorkspaceAccessChanged)); n != 1 {
+		t.Fatalf("workspace_access_changed rows = %d, want 1", n)
+	}
+	cur = e.f.live(t, folder.ID)
+	title = "B lại đổi"
+	if _, err := e.svc.UpdateDocument(ctx, e.b, folder.ID, UpdateDocumentInput{Revision: cur.Revision, Title: &title}); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("a member renames after the pass = %v, want forbidden", err)
+	}
+}
+
+// S1-R1-5: the preview of a revoke on a workspace folder answers like the real call.
+func TestWorkspaceFolderAccessRevokeDryRunMatchesRealCall(t *testing.T) {
+	e := newWSFolderEnv(t)
+	folder := e.mkFolder(t, e.a, "", "Xem trước")
+	for _, dry := range []bool{true, false} {
+		_, err := e.svc.UpdateDocumentAccess(e.f.ctx, e.a, folder.ID, UpdateDocumentAccessInput{DryRun: dry, Items: []DocumentAccessBatchItem{
+			{PrincipalType: DocumentPrincipalWorkspace, PrincipalID: e.tn.wsA},
+		}})
+		wantCode(t, err, "folder_not_shareable")
+	}
+	wantWorkspaceFolder(t, e.f.live(t, folder.ID), "folder after the previews")
+}
+
+// S1-R1-7a: an ARCHIVED restricted sub-folder of a My Folder subtree opens too,
+// so a restore never brings back a wrong pair.
+func TestMyFolderMovedOutOpensArchivedSubFolder(t *testing.T) {
+	e := newWSFolderEnv(t)
+	ctx := e.f.ctx
+	mf, _, err := e.svc.EnsureMyFolder(ctx, e.a, e.tn.wsA)
+	if err != nil {
+		t.Fatal(err)
+	}
+	top := e.mkFolder(t, e.a, mf.Document.ID, "Có thư mục lưu trữ")
+	sub := e.mkFolder(t, e.a, top.ID, "Đã lưu trữ")
+	if _, err := e.f.pool.Exec(ctx, `UPDATE documents SET archived_at = now(), purge_after = now() + interval '30 days' WHERE id = $1`, sub.ID); err != nil {
+		t.Fatal(err)
+	}
+	cur := e.f.live(t, top.ID)
+	if _, err := e.svc.MoveDocument(ctx, e.a, top.ID, MoveDocumentInput{ParentID: "", Revision: cur.Revision}); err != nil {
+		t.Fatalf("move out: %v", err)
+	}
+	wantWorkspaceFolder(t, e.f.live(t, top.ID), "moved folder")
+	var vis, level string
+	var archived bool
+	if err := e.f.pool.QueryRow(ctx, `SELECT visibility, workspace_level, archived_at IS NOT NULL FROM documents WHERE id = $1`, sub.ID).Scan(&vis, &level, &archived); err != nil {
+		t.Fatal(err)
+	}
+	if vis != documentVisibilityWorkspace || level != string(DocumentLevelView) {
+		t.Fatalf("archived sub-folder = %s/%s, want workspace/view", vis, level)
+	}
+	if !archived {
+		t.Fatal("the archived sub-folder stopped being archived")
+	}
+}
+
+// S1-R1-7b: a folder create whose name only differs by NFD/NFC spelling clashes
+// (the index compares composed text) and takes " (n)"; rename of the same
+// spelling is 409; an accent-different name is another name and stays free.
+func TestWorkspaceFolderCreateNameClashNormalisation(t *testing.T) {
+	e := newWSFolderEnv(t)
+	e.mkFolder(t, e.a, "", "Hợp đồng")
+	nfd := norm.NFD.String("Hợp đồng")
+	if got := e.mkFolder(t, e.b, "", nfd); got.Title != "Hợp đồng (1)" {
+		t.Fatalf("NFD create title = %q, want Hợp đồng (1)", got.Title)
+	}
+	if got := e.mkFolder(t, e.b, "", "Hop dong"); got.Title != "Hop dong" {
+		t.Fatalf("accent-different create title = %q, want no suffix", got.Title)
+	}
+	other := e.mkFolder(t, e.a, "", "Khác")
+	_, err := e.svc.UpdateDocument(e.f.ctx, e.a, other.ID, UpdateDocumentInput{Revision: other.Revision, Title: &nfd})
+	wantCode(t, err, "folder_name_taken")
 }
