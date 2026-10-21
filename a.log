@@ -1,0 +1,9 @@
+$ echo "VM_HEAD_SHA=$(git rev-parse HEAD)"; git rev-parse HEAD | grep -q "^49ce67ce0" || { echo "VM_SHA_EXIT=1"; exit 1; }; sed -i -e "s#page.locator('.product-demo-shell'))#page.locator('.product-demo-shell').first())#" -e "s#toggle-presentation\"]').click()#toggle-presentation\"]').first().click()#" -e "s#page.locator('.product-demo-content').evaluate#page.locator('.product-demo-content').first().evaluate#" e2e/landing-product-email.spec.ts; git diff --stat; grep -n "first()" e2e/landing-product-email.spec.ts; echo "PATCH_APPLIED=$(grep -cE "product-demo-shell'\)\.first|presentation\"]'\)\.first|product-demo-content'\)\.first" e2e/landing-product-email.spec.ts) (expect 3)"
+VM_HEAD_SHA=49ce67ce05298365dfb8e2cf0c4699610fcc02d7
+ e2e/landing-product-email.spec.ts | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+8:  await expect(page.locator('.product-demo-shell').first()).toHaveAttribute('data-demo-feature', 'email');
+9:  if (manual) await page.locator('[data-action="toggle-presentation"]').first().click();
+23:    expect(await page.locator('.product-demo-content').first().evaluate(node => node.scrollHeight - node.clientHeight)).toBeLessThanOrEqual(1);
+72:  await dialog.getByRole('button', { name: /^Gửi/ }).first().click();
+PATCH_APPLIED=3 (expect 3)
