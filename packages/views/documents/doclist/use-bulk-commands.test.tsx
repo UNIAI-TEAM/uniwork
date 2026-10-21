@@ -118,6 +118,21 @@ describe("useDocListBulkCommands", () => {
     expect(onDone).toHaveBeenCalledTimes(1);
   });
 
+  it("adds the relocation clause to the trash confirm only when the selection holds a folder (UNI-2055)", async () => {
+    const clause = t("documents.archive.delete_relocated");
+    const folder = doc("f", { kind: "folder", title: "Hợp đồng" });
+    const withFolder: BulkPlan = { action: "trash", docs: [folder, five[0]!], skipped: [], total: 2, titles: new Map() };
+    const first = setup(withFolder);
+    expect(await screen.findByRole("alertdialog")).toHaveTextContent(clause);
+    first.unmount();
+
+    const filesOnly: BulkPlan = { action: "trash", docs: five.slice(0, 2), skipped: [], total: 2, titles: new Map() };
+    setup(filesOnly);
+    const dialog = await screen.findByRole("alertdialog");
+    expect(dialog).toHaveTextContent(t("documents.list.bulk.confirm.trash_description"));
+    expect(dialog).not.toHaveTextContent(clause);
+  });
+
   it("asks before the purge and sends nothing on cancel", async () => {
     const plan: BulkPlan = { action: "purge", docs: five.slice(0, 2), skipped: [], total: 2, titles: new Map() };
     const { onDone } = setup(plan);

@@ -252,6 +252,34 @@ describe("create note from a card's New sub-folder (UNI-2055 W1)", () => {
   });
 });
 
+describe("create note when the parent is not in the loaded forest (UNI-2055 W1)", () => {
+  const note = () => t("documents.home.folders.create_workspace_note");
+
+  it("falls back to the card row: a workspace folder notes, My Folder does not", async () => {
+    // The tree answers with nothing, so only the row says what the parent is.
+    route({
+      tree: () => [],
+      list: () => [
+        folderRow({ my_level: "view" }),
+        folderRow({ id: "mf", title: "Thư mục của tôi", system_kind: "my_folder", visibility: "restricted", my_level: "manage" }),
+      ],
+    });
+    renderView();
+
+    fireEvent.click(await cardTrigger("Báo cáo"));
+    fireEvent.click(await screen.findByRole("menuitem", { name: t("documents.home.row.new_subfolder") }));
+    const first = await screen.findByRole("dialog");
+    expect(within(first).getByText(note())).toBeInTheDocument();
+    fireEvent.click(within(first).getByRole("button", { name: t("common.cancel") }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+
+    fireEvent.click(await cardTrigger(t("documents.home.my_folder.label")));
+    fireEvent.click(await screen.findByRole("menuitem", { name: t("documents.home.row.new_subfolder") }));
+    const second = await screen.findByRole("dialog");
+    expect(within(second).queryByText(note())).toBeNull();
+  });
+});
+
 describe("folder card empty hint (UNI-2055 W6)", () => {
   // The hint leads the card's meta line ("Trống · 28/09"), so it is matched as the start of that line.
   const hint = () => new RegExp(`^${t("documents.home.folder_card.empty")}`);

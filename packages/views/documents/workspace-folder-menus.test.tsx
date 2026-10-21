@@ -5,6 +5,7 @@ import { initI18n } from "@uniwork/core/i18n";
 import type { DocumentTreeNode } from "@uniwork/core/types/document";
 import { requestMock, wrap } from "../test/api-mock";
 import { DocumentTree } from "./document-tree";
+import { newFolderIsWorkspaceVisible } from "./document-tree-model";
 import { DocumentTreeRowMenu } from "./document-tree-row-menu";
 import { DocumentsSidebar } from "./documents-sidebar";
 import { FolderNameDialog } from "./folder-name-dialog";
@@ -203,6 +204,29 @@ describe("create-folder note per caller (UNI-2055 W1)", () => {
     await openTree();
     const dialog = await newSubfolderOf(/Hợp đồng/);
     expect(within(dialog).getByText(note())).toBeInTheDocument();
+  });
+
+  it("falls back to the row's own data when the parent is not in the forest (tree menu)", async () => {
+    answer();
+    const lost = node({ id: "lost", title: "Chưa tải", parent_id: null });
+    await openRowMenu(lost, "manage");
+    fireEvent.click(await screen.findByRole("menuitem", { name: t("documents.tree.menu.new_subfolder") }));
+    expect(within(await screen.findByRole("dialog")).getByText(note())).toBeInTheDocument();
+  });
+
+  it("notes nothing for a missing parent that is My Folder or not a folder (tree menu)", () => {
+    const parents: Array<Partial<DocumentTreeNode>> = [
+      { system_kind: "my_folder", visibility: "restricted" },
+      { visibility: "restricted" },
+      { kind: "page" },
+    ];
+    for (const over of parents) {
+      const row = node({ id: "lost", ...over });
+      expect(newFolderIsWorkspaceVisible([], "lost", row)).toBe(false);
+    }
+    expect(newFolderIsWorkspaceVisible([], "lost", node({ id: "lost" }))).toBe(true);
+    expect(newFolderIsWorkspaceVisible([], "lost")).toBe(false);
+    expect(newFolderIsWorkspaceVisible([], null)).toBe(true);
   });
 
   it("notes nothing under My Folder or under a folder inside it (tree menu)", async () => {
