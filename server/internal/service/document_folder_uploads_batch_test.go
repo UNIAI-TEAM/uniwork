@@ -10,6 +10,7 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/files"
 	"github.com/unicomhub/uniwork/server/internal/files/filesfake"
+	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
 // UNI-2052 w3: the batch read (GET), the cancel (DELETE) and the sweep.
@@ -486,5 +487,49 @@ func TestFolderUploadSweepAbortsTheMultipartUploadOfAnExpiredBatch(t *testing.T)
 	}
 	if used, _ := env.f.q.CountStorageBytesInOrganization(ctx, env.tn.orgID); used != 0 {
 		t.Fatalf("storage after sweep = %d, want 0", used)
+	}
+}
+
+// A GET that read the batch while it was open and mints after DELETE
+// committed must not open a multipart session or reserve storage for it.
+func TestFolderUploadMintAfterCancelOpensNoSession(t *testing.T) {
+	env := newMultipartDocEnv(t)
+	ctx := context.Background()
+	member := human(env.tn.member)
+	seedStoragePlan(t, env, 100<<20)
+	_, probe := buildLargePDF(25<<20, "folder-mint-race")
+	b, err := env.svc.CreateFolderUpload(ctx, member, env.tn.wsA, CreateFolderUploadInput{
+		RootName: "Lớn", IdempotencyKey: nextIDK(),
+		Files: []FolderUploadFileInput{{FileKey: "big", Path: "", Filename: "big.pdf", SizeBytes: 25 << 20, Probe: &probe}},
+	})
+	if err != nil {
+		t.Fatalf("plan: %v", err)
+	}
+	// The stale read: the batch row and the file as GET saw them, ref not yet written.
+	stale, err := env.svc.folderUploadRow(ctx, member, env.tn.orgID, env.tn.wsA, b.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := env.svc.CancelFolderUpload(ctx, member, env.tn.wsA, b.ID); err != nil {
+		t.Fatalf("cancel: %v", err)
+	}
+	env.execSQL(t, `UPDATE document_folder_upload_files SET upload_ref = NULL WHERE batch_id = $1`, b.ID)
+	file, err := env.f.q.GetDocumentFolderUploadFileByKey(ctx, db.GetDocumentFolderUploadFileByKeyParams{
+		BatchID: b.ID, FileKey: "big", OrganizationID: env.tn.orgID, WorkspaceID: env.tn.wsA,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := env.svc.mintFolderUploadTarget(ctx, member, stale, file); !errors.Is(err, errFolderUploadBatchClosed) {
+		t.Fatalf("mint on a canceled batch: %v, want errFolderUploadBatchClosed", err)
+	}
+	if used, _ := env.f.q.CountStorageBytesInOrganization(ctx, env.tn.orgID); used != 0 {
+		t.Fatalf("storage reserved for a canceled batch = %d", used)
+	}
+	if n := env.folderUploadCount(t, `SELECT count(*) FROM file_multipart_uploads WHERE organization_id = $1 AND status = 'open'`, env.tn.orgID); n != 0 {
+		t.Fatalf("open multipart sessions = %d, want 0", n)
+	}
+	if n := env.folderUploadCount(t, `SELECT count(*) FROM document_folder_upload_files WHERE batch_id = $1 AND upload_ref IS NOT NULL`, b.ID); n != 0 {
+		t.Fatalf("a canceled batch got a file ref")
 	}
 }

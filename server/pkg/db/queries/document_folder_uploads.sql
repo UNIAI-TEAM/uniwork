@@ -56,6 +56,14 @@ WHERE id = $1 AND organization_id = $2 AND workspace_id = $3
   AND created_by = $4 AND created_by_kind = $5
 FOR UPDATE;
 
+-- name: LockDocumentFolderUploadStatusShared :one
+-- The GET mint's shared lock on the batch row: it conflicts with the FOR UPDATE
+-- of cancel, COMPLETE and the content route, so a target is never recorded on a
+-- batch that a concurrent cancel already closed.
+SELECT status FROM document_folder_uploads
+WHERE id = $1 AND organization_id = $2 AND workspace_id = $3
+FOR SHARE;
+
 -- name: ListDocumentFolderUploadFiles :many
 SELECT * FROM document_folder_upload_files
 WHERE batch_id = $1 AND organization_id = $2 AND workspace_id = $3
