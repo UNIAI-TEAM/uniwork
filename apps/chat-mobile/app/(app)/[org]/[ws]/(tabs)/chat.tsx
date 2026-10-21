@@ -37,6 +37,7 @@ import { THEME } from "@/lib/theme";
 import { useColorScheme } from "@/lib/use-color-scheme";
 import { unreadInOtherWorkspaces } from "@/lib/workspace-unread";
 import { readMobileFlag } from "@/data/remote-config";
+import { ScreenFullyDrawn } from "@/data/sentry";
 import { toast } from "@/data/stores/toast-store";
 
 /** Opens the room a deep link names, once per link. */
@@ -294,6 +295,8 @@ export default function ChatTab() {
         above={menuRow && chat ? <RoomPreview wsId={wsId} row={menuRow} userId={chat.userId} /> : null}
         actions={menuActions}
       />
+      {/* The tab's load span ends when its rooms are drawn (Sentry performance; no-op without a DSN). */}
+      <ScreenFullyDrawn record={Boolean(chat) && !rooms.isPending} />
       <WorkspaceSwitchSheet visible={switchOpen} onClose={() => setSwitchOpen(false)} currentWsId={wsId} />
       {chat ? (
         <CatchUpSheet

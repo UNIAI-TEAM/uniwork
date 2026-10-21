@@ -20,6 +20,7 @@ import { useRoomReadMarking } from "@/components/chat/use-read-marking";
 import { useRoomContext } from "@/components/chat/use-room-context";
 import { Text } from "@/components/ui/text";
 import { useMobileFlag } from "@/data/remote-config";
+import { ScreenFullyDrawn } from "@/data/sentry";
 import { callEngine } from "@/data/calls/call-store";
 import { refreshRoomTimelineOnOpen } from "@/data/chat-timeline";
 import { roomAroundOptions, roomTimelineOptions, roomsOptions } from "@/data/queries/chat";
@@ -76,57 +77,61 @@ function RoomConversation({ chat, roomId, linkedMessageId }: { chat: ChatWorkspa
   };
 
   return (
-    <Conversation
-      chat={chat}
-      roomId={roomId}
-      room={room}
-      header={
-        <RoomChatHeader
-          roomId={roomId}
-          nameContext={room.nameContext}
-          online={room.peerOnline}
-          title={room.title}
-          backBadge={otherUnread}
-          onPressTitle={() => router.push(chatRoutes.info(chat, roomId))}
-          titleActionLabel={t("chat.mobile.room_info")}
-          avatar={room.room ? <RoomAvatar mark={roomHeaderMark(room.room, room.title, room.peerOnline)} size={40} seed={roomId} /> : null}
-          right={
-            <View className="flex-row">
-              {callable ? (
-                <>
-                  <HeaderIconButton icon="call-outline" label={t("chat.voice_call_start")} testID="room-call-voice" onPress={() => call(false)} />
-                  <HeaderIconButton icon="videocam-outline" label={t("chat.video_call_start")} testID="room-call-video" onPress={() => call(true)} />
-                </>
-              ) : null}
+    <>
+      <Conversation
+        chat={chat}
+        roomId={roomId}
+        room={room}
+        header={
+          <RoomChatHeader
+            roomId={roomId}
+            nameContext={room.nameContext}
+            online={room.peerOnline}
+            title={room.title}
+            backBadge={otherUnread}
+            onPressTitle={() => router.push(chatRoutes.info(chat, roomId))}
+            titleActionLabel={t("chat.mobile.room_info")}
+            avatar={room.room ? <RoomAvatar mark={roomHeaderMark(room.room, room.title, room.peerOnline)} size={40} seed={roomId} /> : null}
+            right={
+              <View className="flex-row">
+                {callable ? (
+                  <>
+                    <HeaderIconButton icon="call-outline" label={t("chat.voice_call_start")} testID="room-call-voice" onPress={() => call(false)} />
+                    <HeaderIconButton icon="videocam-outline" label={t("chat.video_call_start")} testID="room-call-video" onPress={() => call(true)} />
+                  </>
+                ) : null}
+              </View>
+            }
+          />
+        }
+        banner={
+          anchorRows ? (
+            <View className="flex-row items-center justify-between gap-2 border-b border-border bg-secondary px-4 py-1">
+              <Text className="flex-1 text-xs text-muted-foreground">{t("chat.search_jump_banner")}</Text>
+              <Pressable accessibilityRole="button" onPress={backToLatest} className="min-h-11 justify-center">
+                <Text className="text-sm font-semibold text-primary">{t("chat.search_back_to_latest")}</Text>
+              </Pressable>
             </View>
-          }
-        />
-      }
-      banner={
-        anchorRows ? (
-          <View className="flex-row items-center justify-between gap-2 border-b border-border bg-secondary px-4 py-1">
-            <Text className="flex-1 text-xs text-muted-foreground">{t("chat.search_jump_banner")}</Text>
-            <Pressable accessibilityRole="button" onPress={backToLatest} className="min-h-11 justify-center">
-              <Text className="text-sm font-semibold text-primary">{t("chat.search_back_to_latest")}</Text>
-            </Pressable>
-          </View>
-        ) : room.room?.kind === "dm" && room.room.peer_user_id ? (
-          // Which side blocked, so a refused send is not a mystery (room-safety.tsx).
-          <DmBlockBanner wsId={chat.wsId} peerUserId={room.room.peer_user_id} />
-        ) : null
-      }
-      messages={messages}
-      loading={timeline.isPending || (!anchorLoaded && around.isPending)}
-      loadingOlder={timeline.isFetchingNextPage}
-      onLoadOlder={anchorRows || !timeline.hasNextPage || timeline.isFetchingNextPage ? undefined : () => void timeline.fetchNextPage()}
-      jumpTo={jump}
-      onQuoteJump={(messageId) => {
-        if (!messages.some((m) => m.id === messageId)) setAnchorId(messageId);
-        setJump({ id: messageId, seq: Date.now() });
-      }}
-      onAtLatestChange={setAtLatest}
-      onSend={anchorRows ? backToLatest : undefined}
-    />
+          ) : room.room?.kind === "dm" && room.room.peer_user_id ? (
+            // Which side blocked, so a refused send is not a mystery (room-safety.tsx).
+            <DmBlockBanner wsId={chat.wsId} peerUserId={room.room.peer_user_id} />
+          ) : null
+        }
+        messages={messages}
+        loading={timeline.isPending || (!anchorLoaded && around.isPending)}
+        loadingOlder={timeline.isFetchingNextPage}
+        onLoadOlder={anchorRows || !timeline.hasNextPage || timeline.isFetchingNextPage ? undefined : () => void timeline.fetchNextPage()}
+        jumpTo={jump}
+        onQuoteJump={(messageId) => {
+          if (!messages.some((m) => m.id === messageId)) setAnchorId(messageId);
+          setJump({ id: messageId, seq: Date.now() });
+        }}
+        onAtLatestChange={setAtLatest}
+        onSend={anchorRows ? backToLatest : undefined}
+      />
+      {/* The room's load span ends when its newest page is drawn (Sentry performance; no-op without a DSN). */}
+      <ScreenFullyDrawn record={!timeline.isPending} />
+    </>
   );
 }
 

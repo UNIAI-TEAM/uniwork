@@ -18,11 +18,28 @@ import { callEngine, useVoiceCall } from "@/data/calls/call-store";
 import { chatApi } from "@/data/chat-api";
 import { roomsOptions } from "@/data/queries/chat";
 import { useWorkspaceStore } from "@/data/stores/workspace-store";
+import type { CallRoom as CallRoomComponent } from "./call-room";
 import { ringtoneFor } from "@/lib/call-ringtone";
 import { isMultiPartyVoiceCall, voiceCallEndedMessage, type VoiceCallState } from "@/lib/voice-call";
-import { CallRoom } from "./call-room";
 import { CALL, CallButton, CallerHero } from "./call-surface";
 import { useCallRingtone } from "./use-call-ringtone";
+
+/**
+ * The LiveKit room, WebRTC and their globals (call-room.tsx sets them when it loads) load the first time a
+ * call shows, not at app start (audit P2 Perf): a launch that never calls never evaluates them. Metro runs
+ * a module when it is first required; a ringing or connecting call requires it, so going live does not wait.
+ */
+function loadCallRoom(): typeof CallRoomComponent {
+  // A static import would run LiveKit with the app shell: this require is the lazy load (no dynamic import()
+  // on purpose, Jest's runtime cannot run one); Metro still bundles ./call-room from the literal path.
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  return (require("./call-room") as typeof import("./call-room")).CallRoom;
+}
+
+function CallRoom(props: Parameters<typeof CallRoomComponent>[0]) {
+  const Room = loadCallRoom();
+  return <Room {...props} />;
+}
 
 const HIDDEN = { position: "absolute", width: 1, height: 1, opacity: 0, overflow: "hidden" } as const;
 
@@ -114,6 +131,11 @@ export function CallOverlay() {
   const callRoomId = call.status === "idle" ? undefined : call.roomId;
   const callRoom = callRoomId ? rooms?.find((r) => r.id === callRoomId) : undefined;
   const faceSeed = callRoom?.kind === "dm" ? (callRoom.peer_user_id ?? callRoomId) : callRoomId;
+
+  // Any call on screen loads the room's code (LiveKit, WebRTC) while it rings or connects, so going live does not wait for it.
+  useEffect(() => {
+    if (shown) loadCallRoom();
+  }, [shown]);
 
   // Only a live call shrinks; ringing, connecting and ended always take the screen.
   useEffect(() => {

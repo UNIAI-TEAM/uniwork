@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { REDACTED, redactData, redactText, scrubBreadcrumb, scrubEvent } from "./redact";
+import { REDACTED, redactData, redactText, scrubBreadcrumb, scrubEvent, scrubTransaction } from "./redact";
 
 describe("redactText", () => {
   // The cases of packages/core/analytics/redact-exception.test.ts that apply to a phone.
@@ -74,5 +74,23 @@ describe("scrubEvent", () => {
   it("drops a user without an id and leaves absent sections absent", () => {
     expect(scrubEvent({ user: { email: "a@b.co" } })).toEqual({ message: undefined, user: {} });
     expect(scrubEvent({ exception: {} })).toEqual({ message: undefined, exception: {} });
+  });
+});
+
+describe("scrubTransaction", () => {
+  it("scrubs a transaction as an event, and each span's description and data", () => {
+    const out = scrubTransaction({
+      message: "for a@b.co",
+      spans: [
+        { description: "GET https://api.example.com/api/v1/rooms/r1/search?q=lương", data: { url: "https://api.example.com/x?token=abc", "http.response.status_code": 200 } },
+        { description: "ui.load" },
+      ],
+    });
+    expect(out.message).toBe(`for ${REDACTED}`);
+    expect(out.spans).toEqual([
+      { description: `GET https://api.example.com/api/v1/rooms/r1/search?${REDACTED}`, data: { url: `https://api.example.com/x?${REDACTED}`, "http.response.status_code": 200 } },
+      { description: "ui.load", data: undefined },
+    ]);
+    expect(scrubTransaction({})).toEqual({ message: undefined });
   });
 });

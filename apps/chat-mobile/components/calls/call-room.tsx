@@ -8,7 +8,16 @@
 // (lib/audio-outputs.ts); once connected, the call's foreground service is
 // started again so it carries the microphone LiveKit now holds.
 import { Ionicons } from "@expo/vector-icons";
-import { AndroidAudioTypePresets, AudioSession, LiveKitRoom, VideoTrack, isTrackReference, useLocalParticipant, useTracks } from "@livekit/react-native";
+import {
+  AndroidAudioTypePresets,
+  AudioSession,
+  LiveKitRoom,
+  VideoTrack,
+  isTrackReference,
+  registerGlobals,
+  useLocalParticipant,
+  useTracks,
+} from "@livekit/react-native";
 import { DisconnectReason, Room, RoomEvent, Track } from "livekit-client";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -20,6 +29,10 @@ import { preferredOutputs } from "@/lib/audio-outputs";
 import { formatVoiceCallDuration } from "@/lib/message-display";
 import { AudioOutputButton } from "./audio-output-button";
 import { CALL, CallButton, CallerHero, SHADOW } from "./call-surface";
+
+// WebRTC globals for LiveKit, once, when the call UI first loads (call-overlay.tsx loads this
+// module when a call shows), not at app start: a launch that never calls never pays for them.
+registerGlobals();
 
 function useElapsed(running: boolean) {
   const [seconds, setSeconds] = useState(0);

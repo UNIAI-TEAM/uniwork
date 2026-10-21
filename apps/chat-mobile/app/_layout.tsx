@@ -6,10 +6,10 @@
 // device store (unsent messages, cached rooms) and the splash held until the
 // first screen knows where it is going; S4 the native calls (the in-call
 // service, a Decline that waited, the push handler while open) and the
-// localized notification channels.
+// localized notification channels; S5 the theme read once at boot (LiveKit's
+// WebRTC globals moved to the call UI, which loads on the first call).
 import "../global.css";
 
-import { registerGlobals } from "@livekit/react-native";
 import { PortalHost } from "@rn-primitives/portal";
 import * as Sentry from "@sentry/react-native";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -44,14 +44,14 @@ import { openNativeDeviceStore } from "@/data/storage/native-device-store";
 import { deepLinkHref, parseDeepLink, setPendingDeepLink } from "@/lib/deep-link";
 import { I18nProvider } from "@/lib/i18n/provider";
 import { NAV_THEME } from "@/lib/theme";
-import { useColorScheme } from "@/lib/use-color-scheme";
+import { loadThemePreference, useColorScheme } from "@/lib/use-color-scheme";
 
 // Crash reporting first, so the rest of boot is covered (nothing starts without a DSN); then the
 // server URLs every data/* module reads per call and the build's identity on every REST call
 // (X-Client-Version / -OS / -Update-Id); the socket names it in realtime-provider.
 bootRuntime();
-// WebRTC globals for LiveKit, once, before any call (M3).
-registerGlobals();
+// The saved theme, read once for the whole app (data/theme-preference.ts), not by each component that draws a colour.
+void loadThemePreference();
 // The call's foreground service follows the call engine; Decline / Hang up taps that waited run now.
 startNativeCalls();
 // The encrypted store the outbox and the cached rooms live in, before the session is restored.

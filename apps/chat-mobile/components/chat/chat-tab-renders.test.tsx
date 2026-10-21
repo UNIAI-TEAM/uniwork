@@ -22,6 +22,14 @@ jest.mock("./room-avatar", () => ({
   },
 }));
 jest.mock("./connection-banner", () => ({ ConnectionBanner: () => null }));
+// Sentry's marker for the tab's full display; the SDK itself ships ESM Jest does not load.
+const mockFullyDrawn: boolean[] = [];
+jest.mock("@/data/sentry", () => ({
+  ScreenFullyDrawn: ({ record }: { record: boolean }) => {
+    mockFullyDrawn.push(record);
+    return null;
+  },
+}));
 // The query client wires NetInfo at load; its native module is not in Jest.
 jest.mock("@react-native-community/netinfo", () => {
   const netInfo = { addEventListener: () => () => undefined, fetch: async () => ({ isConnected: true, isInternetReachable: true }) };
@@ -86,6 +94,9 @@ describe("Chat tab render counts", () => {
     await render(<ChatTab />);
     await settle();
     expect(Object.keys(take())).toHaveLength(rooms.length);
+    // The load span ends once the rooms are drawn, not before.
+    expect(mockFullyDrawn[0]).toBe(false);
+    expect(mockFullyDrawn.at(-1)).toBe(true);
 
     await act(async () => useSidebarTypingStore.getState().bump("g6", "U1", "ME"));
     expect(screen.getByText(/đang nhập/)).toBeOnTheScreen();

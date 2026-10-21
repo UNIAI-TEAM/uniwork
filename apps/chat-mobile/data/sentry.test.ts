@@ -10,11 +10,12 @@ const sdk = vi.hoisted(() => ({
   captureException: vi.fn(),
   addBreadcrumb: vi.fn(),
   reactNavigationIntegration: vi.fn(() => ({ name: "ReactNavigation" })),
+  TimeToFullDisplay: () => null,
 }));
 vi.mock("@sentry/react-native", () => sdk);
 
 import { breadcrumb, installReportSink, isReporting, reportError, setReportTag, setReportUser } from "./report";
-import { initSentry, sentryNavigation } from "./sentry";
+import { initSentry, ScreenFullyDrawn, sentryNavigation } from "./sentry";
 
 const info = (over: Partial<BuildInfo> = {}): BuildInfo => ({
   version: "0.3.0",
@@ -29,7 +30,13 @@ const info = (over: Partial<BuildInfo> = {}): BuildInfo => ({
 
 afterEach(() => {
   installReportSink(null);
-  for (const fn of Object.values(sdk)) if (fn !== sdk.reactNavigationIntegration) fn.mockReset();
+  for (const [name, fn] of Object.entries(sdk)) if (name !== "reactNavigationIntegration" && name !== "TimeToFullDisplay") (fn as ReturnType<typeof vi.fn>).mockReset();
+});
+
+describe("ScreenFullyDrawn", () => {
+  it("is the SDK's full-display marker", () => {
+    expect(ScreenFullyDrawn).toBe(sdk.TimeToFullDisplay);
+  });
 });
 
 describe("initSentry", () => {
@@ -53,12 +60,20 @@ describe("initSentry", () => {
       attachViewHierarchy: false,
       tracesSampleRate: 0.1,
       integrations: [sentryNavigation],
+      enableAppStartTracking: true,
+      enableNativeFramesTracking: true,
+      enableStallTracking: true,
     });
     expect(sdk.reactNavigationIntegration).toHaveBeenCalledWith({ enableTimeToInitialDisplay: true });
     expect(sdk.setTags).toHaveBeenCalledWith({ channel: "production", update_id: "0193a1b2-c3d4", runtime_version: "fp1", os: "android" });
 
     const beforeSend = options.beforeSend as (e: object) => object;
     expect(beforeSend({ message: "for a@b.co", user: { id: "u1", email: "a@b.co" } })).toEqual({ message: `for ${REDACTED}`, user: { id: "u1" } });
+    const beforeSendTransaction = options.beforeSendTransaction as (e: object) => object;
+    expect(beforeSendTransaction({ spans: [{ description: "GET https://api.example.com/s?q=x" }] })).toEqual({
+      message: undefined,
+      spans: [{ description: `GET https://api.example.com/s?${REDACTED}`, data: undefined }],
+    });
     const beforeBreadcrumb = options.beforeBreadcrumb as (b: object) => object;
     expect(beforeBreadcrumb({ message: "Bearer x" })).toEqual({ message: `Bearer ${REDACTED}`, data: undefined });
   });

@@ -302,6 +302,12 @@ khi nào dịch vụ chạy, ai được báo) với module native giả; chỉ 
 7. Nightly: artifact `maestro-ios` / `maestro-android` của run chỉ có ảnh chụp màn hình (log lệnh của Maestro ghi mật
    khẩu đã gõ và repo công khai, nên không tải lên); log từng bước nằm trong log của job. Bước đầu đỏ là nguyên nhân,
    các bước sau thường là hệ quả.
+8. Hiệu năng (khi bản build có `SENTRY_DSN`): Sentry › Performance, lọc release đó. Transaction `app.start.cold`/
+   `app.start.warm` cho thời gian mở app; mỗi màn là một transaction điều hướng với `ui.load.initial_display` (TTID) và,
+   ở tab Chat và một phòng, `ui.load.full_display` (TTFD: danh sách phòng / trang tin mới nhất đã vẽ); khung chậm/đơ và
+   JS stall nằm trong measurements của chúng. Mẫu 10 % phiên production, mọi phiên dev/staging. So sánh TTFD p75 giữa
+   hai release trước khi mở rộng rollout. Trên máy dev, số render của hàng khi gõ/hiện diện/tin mới:
+   `pnpm --filter @uniwork/chat-mobile exec jest components/chat/conversation-renders.test.tsx components/chat/chat-tab-renders.test.tsx`.
 
 ## Khắc phục
 
@@ -332,11 +338,14 @@ khi nào dịch vụ chạy, ai được báo) với module native giả; chỉ 
    tái hiện bằng `expo prebuild -p android` + `./gradlew :app:assembleRelease` trên máy có Android SDK.
    `Android cold-start smoke` đỏ: tải artifact `unichat-release-apk`, cài lên emulator/máy, `adb logcat` lúc mở
    (thường là module native thiếu hoặc lỗi JS lúc boot); `maestro test apps/chat-mobile/maestro/flows/smoke-launch.yaml`.
-10. Nightly đỏ ở `gate`: đặt các biến/secrets `MAESTRO_*` (Thiết lập lần đầu, bước 10); chưa có server staging thì
+10. PR đỏ ở `conversation-renders` hoặc `chat-tab-renders` (số render của hàng tăng): một cell nhận closure mới, object
+    dựng trong render, hoặc màn hình đăng ký cả store (gõ, hiện diện) thay vì một selector theo phòng/người. Đọc mục
+    Hiệu năng của `apps/chat-mobile/CLAUDE.md`; đừng nới số trong test nếu không có lý do ghi trong body commit.
+11. Nightly đỏ ở `gate`: đặt các biến/secrets `MAESTRO_*` (Thiết lập lần đầu, bước 10); chưa có server staging thì
    chạy tay với `maestro` bỏ chọn — run theo lịch sẽ đỏ mỗi đêm cho tới khi có, có chủ đích.
-11. Lỗi chỉ ở một tính năng (gọi) mà OTA chưa sửa kịp: tắt bằng `FF_UNICHAT_MOBILE_CALLS=false` (mục "Chặn bản cũ
+12. Lỗi chỉ ở một tính năng (gọi) mà OTA chưa sửa kịp: tắt bằng `FF_UNICHAT_MOBILE_CALLS=false` (mục "Chặn bản cũ
    và tắt tính năng từ server"). Bản cũ có lỗi mà bản mới đã lên store: đặt `UNICHAT_MOBILE_MIN_SUPPORTED_VERSION`.
-12. OTA không tới máy: runtime (fingerprint) của bản OTA khác bản cài (thay đổi chạm native → cần bản store); hoặc app
+13. OTA không tới máy: runtime (fingerprint) của bản OTA khác bản cài (thay đổi chạm native → cần bản store); hoặc app
    có chứng chỉ mà bản OTA không ký/ký sai khoá (log của expo-updates trên máy: `code signing`); hoặc bản OTA build sai
    biến thể (bản phát trước khi workflow tự đặt `UNICHAT_ENV`: runtime khác mọi bản store, phát lại từ CI). Run OTA đỏ ở
    "The update is the channel's variant, with its servers": `… would be built as dev` là `UNICHAT_ENV` không tới bước
@@ -344,25 +353,25 @@ khi nào dịch vụ chạy, ai được báo) với module native giả; chỉ 
    Warning `runtime … differs`: bản OTA không tới bản store mới nhất của kênh; đổi native thì cắt bản store trước.
    Run OTA dừng trước bước đầu với lỗi deployment protection: Environment `chat-mobile-update` chưa cho nhánh đang
    chạy (Thiết lập lần đầu, bước 5).
-13. Bị store từ chối vì App content: đối chiếu checklist "Play Console App content và App Store Connect" ở trên với lý
+14. Bị store từ chối vì App content: đối chiếu checklist "Play Console App content và App Store Connect" ở trên với lý
    do trong thư từ chối; sửa khai báo trên Console (không cần build mới) nếu app đã đúng. FGS: so danh sách
    `node apps/chat-mobile/scripts/android-manifest.mjs` với khai báo; loại thừa thì gỡ bằng plugin/tuỳ chọn, loại thật
    thì khai báo kèm video. Xoá tài khoản: kiểm tra Cài đặt › Xóa tài khoản trên bản đã nộp và URL `#delete-account`
    còn trỏ đúng mục.
-14. `android-manifest.test.ts` đỏ: quyền/dịch vụ mới có chủ đích thì cập nhật danh sách trong test, bảng quyền của
+15. `android-manifest.test.ts` đỏ: quyền/dịch vụ mới có chủ đích thì cập nhật danh sách trong test, bảng quyền của
    `store/listing.md` và khai báo Play cùng PR; không chủ đích thì tìm gói kéo nó vào (`scripts/android-manifest.mjs`
    đọc manifest của từng thư viện) và gỡ bằng `tools:node="remove"` trong `plugins/with-removed-android-services.js`.
-15. Tin kẹt trong hàng đợi hay cache trên máy hỏng: sửa nguyên nhân ở server (tin chờ tự đi khi server nhận lại, mỗi
+16. Tin kẹt trong hàng đợi hay cache trên máy hỏng: sửa nguyên nhân ở server (tin chờ tự đi khi server nhận lại, mỗi
    tin một lần nhờ `client_msg_id`). Một máy cụ thể: đăng xuất rồi đăng nhập lại xoá hàng đợi, tệp chờ và cache trên
    máy đó (tin chưa gửi mất — báo người dùng). Cache trên máy tự bỏ khi lên phiên bản mới (buster là version + user).
    Kho mã hoá không mở được trên nhiều máy (breadcrumb ở Kiểm tra 6): lỗi native của `react-native-mmkv`/
    `react-native-nitro-modules`, cần bản store; app vẫn chạy, chỉ không giữ gì offline.
-16. Khoá Apple/Google hết hạn hoặc lộ: thu hồi ở Apple/Google, tạo khoá mới, tải lại bằng `eas credentials`; `EXPO_TOKEN`
+17. Khoá Apple/Google hết hạn hoặc lộ: thu hồi ở Apple/Google, tạo khoá mới, tải lại bằng `eas credentials`; `EXPO_TOKEN`
    lộ: thu hồi robot token trên expo.dev, tạo token mới vào Environment. Khoá ký OTA lộ: tạo cặp khoá/chứng chỉ mới,
    commit chứng chỉ mới, cắt bản store (binary cũ vẫn tin chứng chỉ cũ cho tới khi người dùng cập nhật; đặt
    `UNICHAT_MOBILE_MIN_SUPPORTED_VERSION` khi bản mới đủ phổ biến).
 
-17. Cuộc gọi native trên Android hỏng (triệu chứng ở trên). Không reo khi app đóng: push data-only không tới — thiếu
+18. Cuộc gọi native trên Android hỏng (triệu chứng ở trên). Không reo khi app đóng: push data-only không tới — thiếu
    `GOOGLE_SERVICES_JSON` của bản build, máy tắt thông báo hay đang tiết kiệm pin nặng (Doze vẫn nhận FCM ưu tiên cao;
    chế độ "hạn chế" của vài hãng thì không: hướng dẫn người dùng bỏ hạn chế pin cho UniChat), hoặc
    `uniwork_push_sent_total{result="failed"}` tăng ở server. Reo mà không toàn màn hình: Android 14 đã thu hồi
@@ -370,7 +379,7 @@ khi nào dịch vụ chạy, ai được báo) với module native giả; chỉ 
    người gọi khi app đã kill: Android từ chối khởi động task nền — hành động chờ tới lần mở app sau (người gọi vẫn hết
    giờ đổ chuông). Mất tiếng khi khoá máy: dịch vụ cuộc gọi không chạy (Sentry/breadcrumb của bản đó; quyền micro chưa
    cấp lúc bắt đầu thì dịch vụ chạy lại khi LiveKit nối). Lỗi trong Kotlin cần bản store; trong lúc chờ có thể tắt gọi
-   (mục 11).
+   (mục 12).
 
 ## Leo thang
 

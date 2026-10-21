@@ -12,11 +12,18 @@
 // a release of its own (docs/runbooks/unichat-mobile-release.md).
 import * as Sentry from "@sentry/react-native";
 import { sentryRelease, type BuildInfo } from "@/lib/build-info";
-import { scrubBreadcrumb, scrubEvent } from "@/lib/redact";
+import { scrubBreadcrumb, scrubEvent, scrubTransaction } from "@/lib/redact";
 import { installReportSink } from "./report";
 
 /** Screen loads and app start as spans; registered with expo-router's container in app/_layout.tsx. */
 export const sentryNavigation = Sentry.reactNavigationIntegration({ enableTimeToInitialDisplay: true });
+
+/**
+ * Ends a screen load's "full display" once its data is drawn (`record`): the Chat tab with its rooms, a
+ * conversation with its newest page (audit H3). A no-op without a DSN, outside a screen load, and in a
+ * build without Sentry's native view.
+ */
+export const ScreenFullyDrawn = Sentry.TimeToFullDisplay;
 
 interface SentryStart {
   dsn: string | undefined;
@@ -40,7 +47,13 @@ export function initSentry({ dsn, environment, info }: SentryStart): boolean {
     // A tenth of production sessions trace app start and screen loads; every dev and staging one.
     tracesSampleRate: environment === "production" ? 0.1 : 1,
     integrations: [sentryNavigation],
+    // App start (cold and warm), slow and frozen frames and JS stalls ride on those spans (the SDK's defaults, said here).
+    enableAppStartTracking: true,
+    enableNativeFramesTracking: true,
+    enableStallTracking: true,
     beforeSend: (event) => scrubEvent(event),
+    // A span's description and data carry request URLs: the same scrub as an error's.
+    beforeSendTransaction: (event) => scrubTransaction(event),
     beforeBreadcrumb: (breadcrumb) => scrubBreadcrumb(breadcrumb),
   });
   Sentry.setTags({

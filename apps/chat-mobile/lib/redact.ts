@@ -74,3 +74,18 @@ export function scrubEvent<E extends ScrubbableEvent>(event: E): E {
   if (event.extra) out.extra = redactData(event.extra);
   return out;
 }
+
+export interface ScrubbableTransaction extends ScrubbableEvent {
+  spans?: { description?: string; data?: Record<string, unknown> }[];
+}
+
+/**
+ * Sentry's beforeSendTransaction (app start, screen loads, requests as spans):
+ * what scrubEvent does, and each span's description and data, where a fetch
+ * span carries its URL (a search query, an id in the path).
+ */
+export function scrubTransaction<E extends ScrubbableTransaction>(event: E): E {
+  const out = scrubEvent(event);
+  if (event.spans) out.spans = event.spans.map((span) => ({ ...span, description: redactText(span.description), data: redactData(span.data) }));
+  return out;
+}

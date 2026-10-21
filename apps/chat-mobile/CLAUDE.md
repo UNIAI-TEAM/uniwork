@@ -127,7 +127,10 @@ một dòng thì ghi lý do ở dòng trên.
   `components/`, `data/`, `lib/` trừ chính logger (fixture
   `lib/lint-quality.test.ts`). Lỗi query/mutation báo qua `data/query-errors.ts`.
   `ErrorBoundary` export ở `app/_layout.tsx` (root) và `[org]/[ws]/_layout.tsx`
-  (workspace), cả hai vẽ `components/ui/error-fallback.tsx`. Danh tính build:
+  (workspace), cả hai vẽ `components/ui/error-fallback.tsx`. Hiệu năng khi có DSN (S5): mở app (lạnh/ấm), mỗi
+  lần tải màn (TTID tự động; TTFD bằng `ScreenFullyDrawn` của `data/sentry.ts` ở tab Chat khi có danh sách phòng
+  và ở phòng khi có trang mới nhất), khung chậm/đơ và JS stall, mẫu 10 % phiên production; transaction đi qua
+  `scrubTransaction` (`lib/redact.ts`: mô tả và data của span mang URL request). Danh tính build:
   `lib/build-info.ts` (thuần) ← `data/build-info.ts` (expo-application,
   expo-updates) → header `X-Client-Version`/`-OS`/`-Update-Id`
   (`api.setClientIdentity` lúc boot), `client_version` của socket, Cài đặt ›
@@ -217,7 +220,8 @@ một dòng thì ghi lý do ở dòng trên.
   `components/calls/call-overlay.tsx` (lớp toàn màn hình, không phải Modal,
   gắn một lần ở `(app)/_layout.tsx`, trên mọi màn workspace; mỗi layout
   workspace `attach` ngữ cảnh vào engine, cái trên cùng được dùng) + `call-room.tsx` (LiveKit RN;
-  `registerGlobals()` ở `app/_layout.tsx`). Mọi sheet/dialog là `components/ui/call-aware-modal.tsx`
+  `registerGlobals()` chạy khi module này nạp lần đầu: `call-overlay.tsx` `require` nó khi một cuộc gọi hiện, không
+  import tĩnh, nên lần mở app không gọi ai không chạy LiveKit/WebRTC). Mọi sheet/dialog là `components/ui/call-aware-modal.tsx`
   (lint cấm `Modal` của react-native ở nơi khác): cuộc gọi bắt đầu đổ chuông thì sheet đang mở đóng qua
   `onRequestClose` của nó (audit C2). Nhạc chuông: `lib/call-ringtone.ts`
   render `assets/sounds/ring-*.wav` (test so byte; sinh lại bằng
@@ -277,6 +281,23 @@ một dòng thì ghi lý do ở dòng trên.
   composer ghi âm (`components/chat/use-voice-recorder.ts`), mở
   `expression-sheet.tsx` và `reminder-sheet.tsx`; follow-up và "Tạo việc" ở
   sheet nhấn giữ; thẻ việc `task-card.tsx` dưới tin.
+- Hiệu năng (UNI-2053 S5; audit H1–H3, P2 Perf). **Danh sách tin**: `lib/message-row-model.ts` tính mỗi hàng một lần
+  cho mỗi lần timeline đổi (quote, receipt, ô avatar, album, gốc chủ đề, việc) và trả lại đúng object cũ khi hàng vẽ
+  như cũ; `components/chat/message-cell.tsx` (memo) nhận model, `ctx`, scheme và một object handler ổn định
+  (`use-stable-handlers.ts`); `renderItem` của `MessageList` là `useCallback`. Ai đang gõ không nằm trong
+  `useRoomContext`: bong bóng gõ và dòng trạng thái của header tự đọc (`room-typing.tsx`). **Danh sách phòng**:
+  `buildRoomList` dựng hàng không có gõ và hiện diện; `room-list-view.tsx` phủ dòng gõ (`roomListTypingLines`), mỗi
+  hàng DM đọc người kia bằng `useIsOnline` (selector theo từng người, `components/people/use-is-online.ts`; cũng
+  dùng ở composer và danh bạ, `LivePersonAvatar`), hàng so bằng `sameRoomListRow`, chạm vào hành động trên hàng mới
+  nhất cùng key. Đừng truyền closure mới hay object dựng trong render vào một cell: test đếm render đỏ.
+  `lib/user-id.ts` (`userKey`/`sameUser`) thay `trim().toUpperCase()` ngoài các file copy từ web. Link việc của tin
+  hỏi theo cửa sổ (`lib/link-windows.ts`, ranh giới theo hash id): tin mới chỉ refetch cửa sổ mới nhất. Theme: chọn
+  một lần lúc boot (`data/theme-preference.ts`, `loadThemePreference` trong `app/_layout.tsx`), `useColorScheme` chỉ đọc
+  store. **Đo**: `components/chat/conversation-renders.test.tsx` và `chat-tab-renders.test.tsx` (jest, job `mobile`)
+  khoá số render của hàng khi gõ, hiện diện, tin mới, biểu cảm; ngân sách bundle như cũ. `inlineRequires` của Metro
+  **không** bật: Metro 0.84 coi import đã bị inline là `require` (nhận diện import ESM theo vị trí khai báo), nên gói
+  hai định dạng vào bundle hai lần (đo được: `@sentry/core` và `clsx` ESM + CJS, +176 module, +397 KB) — nạp lười thì
+  `require` tường minh như `call-overlay.tsx`.
 - `assets/icon.png`, `assets/adaptive-icon*.png` — icon UniChat 1024², sinh
   bởi `pnpm brand:build` từ `packages/ui/brand/svg/unichat-icon*.svg`; không
   sửa tay (`assets.lock.json` khoá hash nguồn). `icon.png` không có kênh alpha.
