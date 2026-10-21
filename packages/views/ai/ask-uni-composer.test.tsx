@@ -240,17 +240,30 @@ describe("AskUniComposer", () => {
     expect(await screen.findByRole("listbox", { name: "Gợi ý nhắc tới" })).toBeInTheDocument();
   });
 
-  it("does nothing on Enter while results load, and sends when the open picker has none", async () => {
+  it("Enter picks a visible option while another group still loads", async () => {
     requestMock.mockImplementation((path: string, init?: never) =>
       path.endsWith("/tasks/table/rows") ? new Promise(() => {}) : composerRoutes(path, init),
     );
     const { onSend, box } = mount();
     type(box(), "@La");
-    await screen.findByRole("listbox", { name: "Gợi ý nhắc tới" });
+    await screen.findByRole("option", { name: "Lan Anh" });
     fireEvent.keyDown(box(), { key: "Enter" });
     expect(onSend).not.toHaveBeenCalled();
-    expect(box().value).toBe("@La");
-    requestMock.mockImplementation(composerRoutes);
+    expect(box().value).toBe("@Lan Anh ");
+  });
+
+  it("with nothing visible while loading, Enter does nothing and Tab is not prevented", async () => {
+    requestMock.mockImplementation((path: string, init?: never) =>
+      path.endsWith("/tasks/table/rows") ? new Promise(() => {}) : composerRoutes(path, init),
+    );
+    const { onSend, box } = mount();
+    type(box(), "@zz");
+    await waitFor(() => expect(requestMock).toHaveBeenCalled());
+    await new Promise((r) => setTimeout(r, 300));
+    expect(screen.queryByRole("option")).toBeNull();
+    fireEvent.keyDown(box(), { key: "Enter" });
+    expect(onSend).not.toHaveBeenCalled();
+    expect(fireEvent.keyDown(box(), { key: "Tab" })).toBe(true);
   });
 
   it("sends on Enter when the open picker settled with no results", async () => {

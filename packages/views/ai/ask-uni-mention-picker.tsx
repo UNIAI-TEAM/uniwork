@@ -83,8 +83,8 @@ export function AskUniMentionPicker({
       if (e.key === "Escape") {
         consume();
         onDismiss();
-      } else if (loading && (e.key === "Enter" || e.key === "Tab") && !e.shiftKey) {
-        // Results are still on their way: a pick now could land on a stale list.
+      } else if (loading && flat.length === 0 && e.key === "Enter" && !e.shiftKey) {
+        // Nothing to pick yet and results are on their way: a send now would race the list. Tab is never held.
         consume();
       } else if (flat.length > 0 && (e.key === "ArrowDown" || e.key === "ArrowUp")) {
         consume();
