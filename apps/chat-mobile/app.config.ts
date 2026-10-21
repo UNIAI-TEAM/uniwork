@@ -129,8 +129,9 @@ export default ({ config, projectRoot }: ConfigContext): ExpoConfig => {
       associatedDomains: [`applinks:${APP_LINK_HOST}`],
       // HTTPS, WSS and WebRTC only: exempt encryption, so TestFlight does not hold every build on the export question.
       config: { usesNonExemptEncryption: false },
-      // A call keeps its audio when the person switches app or locks the phone.
-      infoPlist: { UIBackgroundModes: ["audio"] },
+      // A call keeps its audio when the person switches app or locks the phone. Vietnamese is the
+      // base language (the usage strings below are written in it; `locales.en` translates them).
+      infoPlist: { UIBackgroundModes: ["audio"], CFBundleDevelopmentRegion: "vi" },
     },
     android: {
       package: appId,
@@ -172,7 +173,9 @@ export default ({ config, projectRoot }: ConfigContext): ExpoConfig => {
         },
       ],
       "expo-secure-store",
-      "expo-localization",
+      // The languages the app speaks: iOS's CFBundleLocalizations and Android 13's
+      // locales_config.xml, so each system's per-app language setting offers exactly these.
+      ["expo-localization", { supportedLocales: ["vi", "en"] }],
       "expo-web-browser",
       "expo-notifications",
       // R4b (UNI-1916): the canvas types in Inter (body) and Plus Jakarta Sans

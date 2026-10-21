@@ -85,6 +85,14 @@ describe("app.config per UNICHAT_ENV", () => {
     );
   });
 
+  // Audit P2 i18n: the system knows UniChat speaks Vietnamese and English (the
+  // per-app language picker of iOS and Android 13+), and Vietnamese is the base.
+  it("declares Vietnamese and English to the OS, with Vietnamese as the development region", () => {
+    const config = build();
+    expect(config.plugins).toContainEqual(["expo-localization", { supportedLocales: ["vi", "en"] }]);
+    expect(config.ios?.infoPlist?.CFBundleDevelopmentRegion).toBe("vi");
+  });
+
   // M3: calls and voice messages use the camera and the microphone. A plugin
   // given `false` would remove the Android permission and the iOS prompt the
   // call needs, so every plugin that writes one carries the same string.
