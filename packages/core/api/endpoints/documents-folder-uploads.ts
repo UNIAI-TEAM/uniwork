@@ -147,6 +147,7 @@ const CompleteSchema = z
         status: z.string(),
         document_id: z.string().nullable().catch(null),
         error: FileErrorSchema,
+        retryable: z.boolean().optional().catch(undefined),
       }),
     ),
     batch: z
@@ -155,8 +156,9 @@ const CompleteSchema = z
   })
   .transform(
     (c): FolderUploadCompleteResponse => ({
-      // Only "done" with a document counts as done; anything else is a failure
-      // the user can retry.
+      // Only "done" with a document counts as done; anything else is a
+      // failure. A "done" without a document is one the user can retry (the
+      // server answers done again).
       results: c.results.map((r) =>
         r.status === "done" && r.document_id
           ? { file_key: r.file_key, status: "done", document_id: r.document_id, error: null }
@@ -165,6 +167,7 @@ const CompleteSchema = z
               status: "failed",
               document_id: null,
               error: r.error ?? { code: "unknown", message: "" },
+              ...(r.status === "done" ? { retryable: true } : r.retryable !== undefined ? { retryable: r.retryable } : {}),
             },
       ),
       batch: c.batch as { status: FolderUploadBatchStatus; counts: FolderUploadCounts },
@@ -246,9 +249,12 @@ function forwardable(headers: Record<string, string> | undefined): Record<string
   return out;
 }
 
-/** The API path of a content-route URL, or null when it is not under the API origin. */
+/**
+ * The API path of a content-route URL, or null when it is not under the API
+ * origin. "//host" and "/\host" are another origin to a browser, not a path.
+ */
 function apiPathOf(url: string): string | null {
-  if (url.startsWith("/")) return url;
+  if (url.startsWith("/")) return url.startsWith("//") || url.startsWith("/\\") ? null : url;
   const api = runtimeConfig().apiUrl;
   return api && url.startsWith(`${api}/`) ? url.slice(api.length) : null;
 }
@@ -307,7 +313,8 @@ export interface PutToStorageOpts extends FolderUploadPutOpts {
  * Send one file's bytes to its target. Refusals reject as ApiError with the
  * HTTP status; a missing ETag as FolderUploadError("missing_etag"). Parts of
  * a multipart target go one after another (the runner parallelises across
- * files); parts already in `storedParts` are not sent again.
+ * files); parts already in `storedParts` are not sent again (the runner drops
+ * a part from it when a refreshed target lists that part again).
  */
 export async function putToStorage(target: FileTarget, blob: Blob, opts: PutToStorageOpts = {}): Promise<StoredObject> {
   const doFetch = opts.fetch ?? ((input: RequestInfo | URL, init?: RequestInit) => fetch(input, init));
@@ -322,7 +329,7 @@ export async function putToStorage(target: FileTarget, blob: Blob, opts: PutToSt
   const urls = new Map(target.parts.map((p) => [p.part_number, p]));
   const partCount = Math.max(1, Math.ceil(blob.size / target.part_size));
   for (let partNumber = 1; partNumber <= partCount; partNumber++) {
-    if (stored.has(partNumber) && !urls.has(partNumber)) continue;
+    if (stored.has(partNumber)) continue;
     const part = urls.get(partNumber);
     if (!part) throw new FolderUploadError("missing_part_url", `No URL for part ${partNumber}`);
     const start = (partNumber - 1) * target.part_size;

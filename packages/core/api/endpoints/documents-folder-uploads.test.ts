@@ -175,9 +175,11 @@ describe("documents folder-uploads endpoints", () => {
       json({
         results: [
           { file_key: "a", status: "done", document_id: "d1", error: null },
-          { file_key: "b", status: "failed", document_id: null, error: { code: "unsupported_media", message: "m", reason: "zip" } },
+          { file_key: "b", status: "failed", document_id: null, error: { code: "unsupported_media", message: "m", reason: "zip" }, retryable: false },
           { file_key: "c", status: "done", document_id: null, error: null },
           { file_key: "d", status: "odd" },
+          { file_key: "e", status: "failed", document_id: null, error: { code: "size_mismatch", message: "m" }, retryable: true },
+          { file_key: "f", status: "failed", document_id: null, error: { code: "upload_missing", message: "m" }, retryable: "yes" },
         ],
         batch: { status: "completed", counts: { total: 4, done: 1, failed: 3, pending: 0 } },
       }),
@@ -190,9 +192,12 @@ describe("documents folder-uploads endpoints", () => {
     expect(out).toEqual({
       results: [
         { file_key: "a", status: "done", document_id: "d1", error: null },
-        { file_key: "b", status: "failed", document_id: null, error: { code: "unsupported_media", message: "m", reason: "zip" } },
-        { file_key: "c", status: "failed", document_id: null, error: { code: "unknown", message: "" } },
+        { file_key: "b", status: "failed", document_id: null, error: { code: "unsupported_media", message: "m", reason: "zip" }, retryable: false },
+        { file_key: "c", status: "failed", document_id: null, error: { code: "unknown", message: "" }, retryable: true },
         { file_key: "d", status: "failed", document_id: null, error: { code: "unknown", message: "" } },
+        { file_key: "e", status: "failed", document_id: null, error: { code: "size_mismatch", message: "m" }, retryable: true },
+        // A malformed flag reads as absent: the runner's own rule decides.
+        { file_key: "f", status: "failed", document_id: null, error: { code: "upload_missing", message: "m" } },
       ],
       batch: { status: "completed", counts: { total: 4, done: 1, failed: 3, pending: 0 } },
     });
@@ -340,6 +345,15 @@ describe("putToStorage through the transport", () => {
     expect(fetch).not.toHaveBeenCalled();
   });
 
+  it.each(["//evil.test/api/v1/c", "/\\evil.test/api/v1/c"])(
+    "refuses a protocol-relative session target %s",
+    async (url) => {
+      const target: FileTarget = { kind: "put", method: "PUT", url, headers: {}, expires_at: FUTURE, auth: "session" };
+      await expect(put(target, new Blob(["x"]))).rejects.toMatchObject({ code: "untrusted_target" });
+      expect(fetch).not.toHaveBeenCalled();
+    },
+  );
+
   it("treats an API-looking URL without auth as presigned: no bearer", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(new Response(null, { status: 200, headers: { ETag: '"e"' } }));
     const target: FileTarget = { kind: "put", method: "PUT", url: "http://api.test/api/v1/c", headers: {}, expires_at: FUTURE };
@@ -380,6 +394,19 @@ describe("putToStorage through the transport", () => {
       ],
     });
     expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("skips parts already stored when the same target is tried again", async () => {
+    vi.mocked(fetch).mockImplementation(() => Promise.resolve(new Response(null, { status: 200, headers: { ETag: '"new"' } })));
+    const stored = new Map([[1, '"old1"']]);
+    await expect(put(multipart([1, 2, 3]), new Blob(["0123456789"]), stored)).resolves.toEqual({
+      parts: [
+        { part_number: 1, etag: '"old1"' },
+        { part_number: 2, etag: '"new"' },
+        { part_number: 3, etag: '"new"' },
+      ],
+    });
+    expect(vi.mocked(fetch).mock.calls.map(([url]) => url)).toEqual(["https://s3.test/part2", "https://s3.test/part3"]);
   });
 
   it("fails a multipart target that lacks the URL of a part", async () => {
