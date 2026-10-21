@@ -1,6 +1,7 @@
 import { ShieldAlert } from "lucide-react";
 import { describe, expect, it } from "vitest";
 import { NOTIFICATION_KINDS } from "@uniwork/core/types";
+import { MODULE_ICONS } from "../layout/module-icons";
 import { moduleTone } from "../layout/module-tones";
 import { kindIcon } from "./kind-icon";
 import { kindTone } from "./kind-tone";
@@ -22,6 +23,12 @@ describe("kindTone", () => {
   it("maps document_break_glass to workspace category and ShieldAlert icon", () => {
     expect(inboxCategory("document_break_glass")).toBe("workspace");
     expect(kindIcon("document_break_glass")).toBe(ShieldAlert);
+  });
+
+  it("maps document_changed to the documents tone, the documents glyph and the updates category (UNI-2056)", () => {
+    expect(kindTone("document_changed")).toBe(moduleTone("documents"));
+    expect(kindIcon("document_changed")).toBe(MODULE_ICONS.documents);
+    expect(inboxCategory("document_changed")).toBe("updates");
   });
 
   it("gives an unknown kind the neutral grey", () => {

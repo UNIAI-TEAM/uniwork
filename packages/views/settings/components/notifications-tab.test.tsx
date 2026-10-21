@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@uniwork/core/api";
-import { initI18n } from "@uniwork/core/i18n";
+import { initI18n, setLocale } from "@uniwork/core/i18n";
 import { useChatDeviceNotificationStore } from "@uniwork/core/chat/device-notification-store";
 import { registerPushAdapter } from "@uniwork/core/platform";
 import { NOTIFICATION_KINDS } from "@uniwork/core/types/notification";
@@ -34,7 +34,7 @@ function mockApi(pushEnabled: boolean) {
         return Promise.resolve({
           preferences: (init.body?.preferences ?? []).map((p) => ({
             ...p,
-            email: p.email && p.kind !== "document_trashed_by_other",
+            email: p.email && p.kind !== "document_trashed_by_other" && p.kind !== "document_changed",
           })),
         });
       }
@@ -151,9 +151,11 @@ describe("NotificationsTab", () => {
     fireEvent.click(screen.getByRole("checkbox", { name: "Email cho mọi loại phù hợp" }));
     await waitFor(() => expect(puts()).toHaveLength(2));
     const off = sentOf(puts()[1]);
-    expect(off).toHaveLength(NOTIFICATION_KINDS.length - 1);
+    // UNI-2056: the folded document-change row is in-app only too.
+    expect(off).toHaveLength(NOTIFICATION_KINDS.length - 2);
     expect(off.every((p) => !p.email)).toBe(true);
     expect(off.map((p) => p.kind)).not.toContain("document_trashed_by_other");
+    expect(off.map((p) => p.kind)).not.toContain("document_changed");
     expect(await screen.findByRole("checkbox", { name: "Email cho mọi loại phù hợp" })).toHaveAttribute("aria-checked", "false");
   });
 
@@ -255,6 +257,42 @@ describe("NotificationsTab", () => {
     expect(await sw("Hộp việc")).toHaveAttribute("aria-checked", "true");
     expect(await sw("Đẩy")).toHaveAttribute("aria-checked", "false");
     expect(await sw("Email")).toHaveAttribute("aria-checked", "false");
+  });
+
+  // UNI-2056: one switch row for every verb of the folded document-change notification.
+  it("fills the document-change row with in-app on, push off and email off when the server omitted it", async () => {
+    mockApi(true);
+    registerPushAdapter({
+      permission: () => "default",
+      requestPermission: () => Promise.resolve("granted"),
+      current: () => Promise.resolve(null),
+      subscribe: () => Promise.reject(new Error("unreachable")),
+      unsubscribe: () => Promise.resolve(null),
+    });
+    render(wrap(<NotificationsTab />));
+    const label = t("settings.notifications.kinds.document_changed");
+    expect(label).toBe("Thay đổi trên tài liệu bạn theo dõi");
+    const sw = (channel: string) => screen.findByRole("switch", { name: `${label} · ${channel}` });
+    expect(await sw("Hộp việc")).toHaveAttribute("aria-checked", "true");
+    expect(await sw("Đẩy")).toHaveAttribute("aria-checked", "false");
+    expect(await sw("Email")).toHaveAttribute("aria-checked", "false");
+    // Turning in-app off writes the effective row back, email still off.
+    fireEvent.click(await sw("Hộp việc"));
+    await waitFor(() =>
+      expect(requestMock).toHaveBeenCalledWith(
+        "/api/v1/me/notification-preferences",
+        expect.objectContaining({
+          method: "PUT",
+          body: { preferences: [{ kind: "document_changed", in_app: false, push: false, email: false }] },
+        }),
+      ),
+    );
+  });
+
+  it("words the document-change row in English", async () => {
+    await setLocale("en");
+    expect(t("settings.notifications.kinds.document_changed")).toBe("Changes to documents you follow");
+    await setLocale("vi");
   });
 
   it("shows a load error with retry instead of a guessed matrix, and writes nothing", async () => {
