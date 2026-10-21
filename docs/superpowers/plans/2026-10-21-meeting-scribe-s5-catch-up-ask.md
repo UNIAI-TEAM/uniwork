@@ -1,6 +1,6 @@
 # Thư ký AI S5 (UNI-2027): tóm tắt phần đã lỡ và Hỏi UNI về cuộc họp — kế hoạch triển khai
 
-> **Trạng thái:** in-progress — đang làm trên nhánh `feature/UNI-2027-meetings-thu-ky-ai-s5-tom-tat-phan-da-lo`.
+> **Trạng thái:** in-progress — đủ server (prompt `meeting_catch_up@1`, route catch-up gom 2 phút qua Redis hoặc bộ nhớ, tool `get_meeting_transcript` ở registry P0 và agent), core (endpoint, hook) và web (thẻ người vào muộn, ô Hỏi UNI trong phòng và trang chi tiết) trên nhánh `feature/UNI-2027-…`; chưa chạy với model thật, chờ review và merge.
 
 **Spec:** `docs/superpowers/specs/2026-10-20-meeting-scribe-agent-design.md` §1.1, D10, D17,
 §5.1 (B7), §5.2 (B8), §7.2 (catch-up), §8, §10, §12 dòng S5, §12.1. Spec cha
