@@ -367,6 +367,22 @@ const maxFilterReadableDocuments = 100
 // silently half-answered. Callers that never link into the trash treat
 // trashable as gone.
 func (s *DocumentService) FilterReadableDocuments(ctx context.Context, userID string, documentIDs []string) (map[string]DocumentReadState, error) {
+	return s.filterReadableDocuments(ctx, userID, documentIDs, false)
+}
+
+// FilterReadableDocumentsIgnoringTrash is FilterReadableDocuments for a notice
+// about a trash command (UNI-2056, the verb trashed): its readers are the
+// people who could read the document just before the command, so an archived
+// row is judged without the "a trashed row is found by managers only" step.
+// The organization gate, current shares, stars and visibility still apply, so
+// a person who lost access since is access_lost; a person who administers the
+// row is still trashable, and one who only reads it is readable. A missing row
+// is gone, as before.
+func (s *DocumentService) FilterReadableDocumentsIgnoringTrash(ctx context.Context, userID string, documentIDs []string) (map[string]DocumentReadState, error) {
+	return s.filterReadableDocuments(ctx, userID, documentIDs, true)
+}
+
+func (s *DocumentService) filterReadableDocuments(ctx context.Context, userID string, documentIDs []string, ignoreTrash bool) (map[string]DocumentReadState, error) {
 	out := make(map[string]DocumentReadState, len(documentIDs))
 	if userID == "" {
 		return out, nil
@@ -419,6 +435,14 @@ func (s *DocumentService) FilterReadableDocuments(ctx context.Context, userID st
 			// must not learn the row merely changed state.
 			if !member {
 				out[id] = DocumentGone
+				continue
+			}
+			if ignoreTrash {
+				state, err := s.documentTrashedReadState(ctx, userID, id)
+				if err != nil {
+					return nil, err
+				}
+				out[id] = state
 				continue
 			}
 			trashable, err := s.documentTrashLevel(ctx, userID, id)
@@ -551,6 +575,36 @@ func (s *DocumentService) documentTrashLevel(ctx context.Context, userID, docume
 		return false, err
 	}
 	return access.canAdminister(), nil
+}
+
+// documentTrashedReadState is documentTrashLevel for a notice that names the
+// batch to the people who could read it before the command: a person who
+// administers the trashed row is trashable, one who reads it through the
+// shares, stars and visibility it still has is readable, and one with no read
+// level now is access_lost. The caller has run the organization gate.
+func (s *DocumentService) documentTrashedReadState(ctx context.Context, userID, documentID string) (DocumentReadState, error) {
+	doc, err := s.q.GetDocumentByID(ctx, documentID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return DocumentGone, nil
+	}
+	if err != nil {
+		return "", err
+	}
+	access, err := s.resolveLevelInTenant(ctx, s.q, Human(userID), doc)
+	if err != nil {
+		if isGateRefusal(err) {
+			return DocumentAccessLost, nil
+		}
+		return "", err
+	}
+	switch {
+	case access.canAdminister():
+		return DocumentTrashable, nil
+	case access.Level != DocumentLevelNone:
+		return DocumentReadable, nil
+	default:
+		return DocumentAccessLost, nil
+	}
 }
 
 // FilterDocumentReadersIgnoringTrash keeps the people who could read the

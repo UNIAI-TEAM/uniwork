@@ -181,3 +181,28 @@ func TestTrashedReadDoesNotLoosenOtherVerbs(t *testing.T) {
 		t.Fatalf("owner documents = %+v, want the trashed document", rows)
 	}
 }
+
+func TestTrashedNoticeIsClosedToAFormerMemberWithARetainedShare(t *testing.T) {
+	f := newDocChangeFixture(t)
+	svc := f.readService()
+	doc := f.page(t, "Chia sẻ còn lại", f.owner.ID, nil)
+	f.restrict(t, doc)
+	f.userShare(t, doc, f.sharee.ID)
+	notices := f.trashedBatch(t, []string{doc}, f.sharee.ID)
+	// The share row outlives the leave; the organization gate still closes it.
+	if _, err := f.pool.Exec(f.ctx,
+		`DELETE FROM organization_members WHERE organization_id = $1 AND user_id = $2`, f.orgID, f.sharee.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.pool.Exec(f.ctx,
+		`DELETE FROM workspace_members WHERE workspace_id = $1 AND user_id = $2`, f.wsID, f.sharee.ID); err != nil {
+		t.Fatal(err)
+	}
+
+	if it := f.documentInboxItem(t, svc, f.sharee.ID, notices[f.sharee.ID]); len(it.SampleDocuments) != 0 || contains(it.Params, doc) {
+		t.Fatalf("a former member names a trashed document: %+v %s", it.SampleDocuments, it.Params)
+	}
+	if rows := f.documentRows(t, svc, f.sharee.ID, notices[f.sharee.ID]); len(rows) != 0 {
+		t.Fatalf("a former member lists a trashed document: %+v", rows)
+	}
+}

@@ -46,7 +46,7 @@ type NotificationDocumentDTO struct {
 	ID      string `json:"id" example:"01K4DOC000000000000000001"`
 	Title   string `json:"title,omitempty" description:"Tiêu đề hiện tại; vắng với tài liệu đã xóa hẳn (trừ khi động từ là deleted: ảnh chụp lúc xóa)" example:"Kế hoạch Q4"`
 	Kind    string `json:"kind,omitempty" description:"Loại tài liệu (page, docx, xlsx…); vắng với tài liệu đã xóa hẳn" example:"page"`
-	Trashed bool   `json:"trashed" description:"true khi tài liệu đang ở Thùng rác (người gọi quản lý được nên còn thấy)" example:"false"`
+	Trashed bool   `json:"trashed" description:"true khi tài liệu đang ở Thùng rác (với động từ trashed: người gọi đọc được trước lệnh và còn quyền đọc nên còn thấy; động từ khác: chỉ khi người gọi quản lý được)" example:"false"`
 	Shelved bool   `json:"shelved" description:"true khi tài liệu đang ở kho lưu trữ" example:"false"`
 	Deleted bool   `json:"deleted" description:"true khi tài liệu đã bị xóa hẳn" example:"false"`
 }

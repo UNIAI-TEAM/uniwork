@@ -98,6 +98,15 @@ func withSampleIDs(raw string, ids []string) string {
 	return string(b)
 }
 
+// trashedPageChecker is the trash half of the read port, found on the wired
+// DocumentPageChecker like documentPastReaders is on the consumer's: the
+// gate of a trashed notice, whose readers are the people who could read the
+// batch before the command (BE-R2-2). DocumentService implements it; unwired,
+// a trashed notice falls back to the plain gate and only managers see it.
+type trashedPageChecker interface {
+	FilterReadableDocumentsIgnoringTrash(ctx context.Context, userID string, documentIDs []string) (map[string]service.DocumentReadState, error)
+}
+
 // documentCard is what the documents table says about one id.
 type documentCard struct {
 	db.ListDocumentCardsByIDsRow
@@ -107,8 +116,10 @@ type documentCard struct {
 // cards answers the cards of ids in two reads: one for the rows that still
 // exist and the read gate for this person, chunked at the gate's cap. A
 // missing id has no entry (purged). Without a wired gate every existing
-// document is access_lost, so nothing is named (fail closed).
-func (s *Service) cards(ctx context.Context, userID string, ids []string) (map[string]documentCard, error) {
+// document is access_lost, so nothing is named (fail closed). ignoreTrash
+// reads the notice of a trash command: an archived document the caller could
+// read before the command is not dropped for being in the trash.
+func (s *Service) cards(ctx context.Context, userID string, ids []string, ignoreTrash bool) (map[string]documentCard, error) {
 	out := make(map[string]documentCard, len(ids))
 	uniq := make([]string, 0, len(ids))
 	seen := make(map[string]bool, len(ids))
@@ -131,9 +142,13 @@ func (s *Service) cards(ctx context.Context, userID string, ids []string) (map[s
 	if s.docs == nil {
 		return out, nil
 	}
+	filter := s.docs.FilterReadableDocuments
+	if past, ok := s.docs.(trashedPageChecker); ok && ignoreTrash {
+		filter = past.FilterReadableDocumentsIgnoringTrash
+	}
 	for start := 0; start < len(uniq); start += documentGateBatch {
 		end := min(start+documentGateBatch, len(uniq))
-		states, err := s.docs.FilterReadableDocuments(ctx, userID, uniq[start:end])
+		states, err := filter(ctx, userID, uniq[start:end])
 		if err != nil {
 			return nil, err
 		}
@@ -209,7 +224,7 @@ func (s *Service) Documents(ctx context.Context, userID, notificationID, after s
 		for _, r := range rows {
 			ids = append(ids, r.DocumentID)
 		}
-		cards, err := s.cards(ctx, userID, ids)
+		cards, err := s.cards(ctx, userID, ids, verb == docVerbTrashed)
 		if err != nil {
 			return DocumentsPage{}, err
 		}
@@ -245,14 +260,18 @@ func (s *Service) attachSampleDocuments(ctx context.Context, userID string, item
 		ids  []string
 	}
 	var rows []pending
-	var allIDs, deletedNotifications, deletedIDs []string
+	var plainIDs, trashedIDs, deletedNotifications, deletedIDs []string
 	for i := range items {
 		if items[i].Kind != KindDocumentChanged {
 			continue
 		}
 		verb, ids := docParams(items[i].Params)
 		rows = append(rows, pending{item: &items[i], verb: verb, ids: ids})
-		allIDs = append(allIDs, ids...)
+		if verb == docVerbTrashed {
+			trashedIDs = append(trashedIDs, ids...)
+		} else {
+			plainIDs = append(plainIDs, ids...)
+		}
 		if verb == docVerbDeleted {
 			for _, id := range ids {
 				deletedNotifications = append(deletedNotifications, items[i].ID)
@@ -263,7 +282,13 @@ func (s *Service) attachSampleDocuments(ctx context.Context, userID string, item
 	if len(rows) == 0 {
 		return nil
 	}
-	cards, err := s.cards(ctx, userID, allIDs)
+	cards, err := s.cards(ctx, userID, plainIDs, false)
+	if err != nil {
+		return err
+	}
+	// A trashed notice is read without the trash step, so its documents are
+	// judged apart from the other verbs' (the same id may sit in both).
+	trashedCards, err := s.cards(ctx, userID, trashedIDs, true)
 	if err != nil {
 		return err
 	}
@@ -282,8 +307,12 @@ func (s *Service) attachSampleDocuments(ctx context.Context, userID string, item
 	for _, p := range rows {
 		samples := make([]SampleDocument, 0, len(p.ids))
 		kept := make([]string, 0, len(p.ids))
+		pageCards := cards
+		if p.verb == docVerbTrashed {
+			pageCards = trashedCards
+		}
 		for _, id := range p.ids {
-			c, exists := cards[id]
+			c, exists := pageCards[id]
 			row, ok := visibleRow(id, p.verb, snapshots[[2]string{p.item.ID, id}], c, exists)
 			if !ok || (row.Deleted && row.Title == "") {
 				continue
