@@ -82,6 +82,30 @@ describe("MeetingRoomCopilotTab labels and errors", () => {
   });
 });
 
+describe("MeetingRoomCopilotTab summary errors", () => {
+  it("keeps a refused summary run on the panel, with no retry a plan refusal cannot use", async () => {
+    vi.mocked(toast.error).mockClear();
+    const base = requestMock.getMockImplementation();
+    requestMock.mockImplementation((path: unknown, init?: { method?: string }) => {
+      const p = String(path);
+      if (p.endsWith("/summary") && init?.method === "POST") return Promise.reject(new ApiError("x", "ai_quota_exceeded", 402));
+      if (p.endsWith("/summary")) return Promise.resolve({ summary: null });
+      if (p.endsWith("/transcript")) {
+        return Promise.resolve({ segments: [{ id: "t1", meeting_id: "m1", text: "Một", spoken_at: "2026-09-22T07:00:00Z" }] });
+      }
+      return base?.(path, init);
+    });
+    render(wrapWithNav(<MeetingRoomCopilotTab workspaceId="w1" meetingId="m1" canClerk />));
+    const button = await screen.findByRole("button", { name: "Tạo tóm tắt" });
+    await waitFor(() => expect(button).not.toHaveAttribute("aria-disabled"));
+    fireEvent.click(button);
+    const scroll = screen.getByTestId("meeting-copilot-scroll");
+    await waitFor(() => expect(scroll).toHaveTextContent("Tổ chức đã dùng hết hạn mức AI của tháng."));
+    expect(within(scroll).queryByRole("button", { name: "Thử lại" })).not.toBeInTheDocument();
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+});
+
 describe("MeetingRoomCopilotTab honesty", () => {
   it("no longer shows Q&A as a locked coming-soon row: Ask UNI about the meeting has shipped (B8)", async () => {
     render(wrapWithNav(<MeetingRoomCopilotTab workspaceId="w1" meetingId="m1" canClerk />));
@@ -103,7 +127,8 @@ describe("MeetingRoomCopilotTab honesty", () => {
     expect(attribution).toHaveTextContent("AI");
     await waitFor(() => expect(attribution).toHaveTextContent("Tạo tự động từ bản ghi lời thoại ·"));
     expect(attribution).not.toHaveTextContent(/ghi chú|tin nhắn/);
-    expect(attribution).toHaveTextContent(/22\/09\/2026|22\/9\/2026/);
+    // Not today's summary, so it names its day, in the detail page's style.
+    expect(attribution).toHaveTextContent(/22 tháng 9/);
   });
 
   it("leaves the recording state to the stage header badge", async () => {
@@ -388,5 +413,62 @@ describe("MeetingRoomCopilotTab › summary and tasks, as on the detail page", (
     expect(await screen.findByText("Viết ghi chú phát hành")).toBeInTheDocument();
     expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Giao/ })).not.toBeInTheDocument();
+  });
+});
+
+describe("MeetingRoomCopilotTab transcript and notes", () => {
+  const seg = (id: string, min: number) => ({
+    id,
+    meeting_id: "m1",
+    text: `câu ${id}`,
+    spoken_at: `2026-09-22T02:${String(min).padStart(2, "0")}:00Z`,
+    speaker_name: "Lan",
+  });
+
+  it("reads the earlier transcript on request, not only the newest page", async () => {
+    const base = requestMock.getMockImplementation();
+    requestMock.mockImplementation((path: unknown, init?: unknown) => {
+      const p = String(path);
+      if (p.endsWith("/transcript")) return Promise.resolve({ segments: [seg("t2", 20)], older_cursor: "o2", after_cursor: "x" });
+      if (p.endsWith("/transcript?before=o2")) return Promise.resolve({ segments: [seg("t1", 10)] });
+      return base?.(path, init);
+    });
+    render(wrapWithNav(<MeetingRoomCopilotTab workspaceId="w1" meetingId="m1" canClerk />));
+    fireEvent.click(await screen.findByRole("tab", { name: "Lời thoại" }));
+    const list = await screen.findByTestId("meeting-room-transcript");
+    expect(within(list).getByText("câu t2")).toBeInTheDocument();
+    fireEvent.click(within(list).getByRole("button", { name: "Tải lời thoại trước đó" }));
+    await waitFor(() => expect(within(list).getByText("câu t1")).toBeInTheDocument());
+    expect(within(list).queryByRole("button", { name: "Tải lời thoại trước đó" })).not.toBeInTheDocument();
+  });
+
+  it("does not ask for captions while the AI scribe is already transcribing", async () => {
+    const { unmount } = render(wrapWithNav(<MeetingRoomCopilotTab workspaceId="w1" meetingId="m1" canClerk scribeOn />));
+    fireEvent.click(await screen.findByRole("tab", { name: "Lời thoại" }));
+    expect(await screen.findByText(/Thư ký AI đang nghe/)).toBeInTheDocument();
+    expect(screen.queryByText(/Bật phụ đề/)).not.toBeInTheDocument();
+    unmount();
+    render(wrapWithNav(<MeetingRoomCopilotTab workspaceId="w1" meetingId="m1" canClerk />));
+    fireEvent.click(await screen.findByRole("tab", { name: "Lời thoại" }));
+    expect(await screen.findByText(/Bật phụ đề/)).toBeInTheDocument();
+  });
+
+  it("names a note's author in words, never by a raw id", async () => {
+    const base = requestMock.getMockImplementation();
+    requestMock.mockImplementation((path: unknown, init?: unknown) => {
+      if (String(path).endsWith("/notes")) {
+        return Promise.resolve({ notes: [{ id: "n1", meeting_id: "m1", author_id: "01JA0000000000000000000000", body: "Gửi lịch" }] });
+      }
+      return base?.(path, init);
+    });
+    render(wrapWithNav(<MeetingRoomCopilotTab workspaceId="w1" meetingId="m1" canClerk />));
+    fireEvent.click(await screen.findByRole("tab", { name: "Ghi chú" }));
+    expect(await screen.findByText("Không rõ người ghi")).toBeInTheDocument();
+    expect(screen.queryByText("01JA0000000000000000000000")).not.toBeInTheDocument();
+  });
+
+  it("names its section tabs as a list of their own", async () => {
+    render(wrapWithNav(<MeetingRoomCopilotTab workspaceId="w1" meetingId="m1" canClerk />));
+    expect(await screen.findByRole("tablist", { name: "Các mục của UNI" })).toBeInTheDocument();
   });
 });

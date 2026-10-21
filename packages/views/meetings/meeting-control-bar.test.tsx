@@ -14,7 +14,7 @@ const shareErrors = vi.hoisted(() => ({
   onDeviceError: null as null | ((error: Error) => void),
   captureOptions: undefined as unknown,
 }));
-const sharing = vi.hoisted(() => ({ enabled: true }));
+const sharing = vi.hoisted(() => ({ enabled: true, pending: false }));
 // The viewer's own publish permissions; `[1, 3]` (camera, share) is the host's mic lock.
 const local = vi.hoisted(() => ({
   participant: { permissions: { canPublish: true, canPublishSources: [] as number[] }, on: () => {}, off: () => {} },
@@ -38,7 +38,7 @@ vi.mock("@livekit/components-react", () => ({
       shareErrors.onDeviceError = onDeviceError ?? null;
       shareErrors.captureOptions = captureOptions;
     }
-    return { enabled: source === "screen_share" ? sharing.enabled : true, pending: false, toggle: toggles[source] };
+    return { enabled: source === "screen_share" ? sharing.enabled : true, pending: sharing.pending, toggle: toggles[source] };
   },
 }));
 vi.mock("@uniwork/core/meetings", () => ({
@@ -73,6 +73,26 @@ function namedError(name: string, message = ""): Error {
 }
 
 describe("MeetingControlBar", () => {
+  it("keeps a switching control focusable: aria-disabled and aria-busy, and the click is dropped", () => {
+    mobile = false;
+    handRaised = false;
+    sharing.pending = true;
+    toggles.microphone.mockClear();
+    try {
+      render(wrapWithNav(<MeetingControlBar onLeave={() => {}} meetingId="m1" />));
+      const mic = screen.getByRole("button", { name: "Mic" });
+      expect(mic).not.toBeDisabled();
+      expect(mic).toHaveAttribute("aria-disabled", "true");
+      expect(mic).toHaveAttribute("aria-busy", "true");
+      mic.focus();
+      fireEvent.click(mic);
+      expect(toggles.microphone).not.toHaveBeenCalled();
+      expect(mic).toHaveFocus();
+    } finally {
+      sharing.pending = false;
+    }
+  });
+
   it("names toggles by what they are and carries state in aria-pressed", () => {
     mobile = false;
     handRaised = false;

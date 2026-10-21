@@ -13,6 +13,7 @@ import { MeetingActionItemsSection } from "./meeting-action-items/meeting-action
 import { MeetingCarriedOverSection } from "./meeting-action-items/carried-over-section";
 import { MeetingNotesCard } from "./meeting-copilot/meeting-notes-card";
 import {
+  SummaryFailureNotice,
   SummaryGenerateButton,
   SummaryLiveRegion,
   SummaryRegenerateConfirm,
@@ -21,8 +22,9 @@ import { summarySourceFacts, summarySourceList } from "./meeting-summary/summary
 import { useSummaryGeneration } from "./meeting-summary/use-summary-generation";
 import { MeetingUnderlineTabs } from "./meeting-underline-tabs";
 import { meetingLocale } from "./meeting-datetime";
+import { formatMeetingMoment } from "./meeting-detail-format";
 import { MeetingRowsSkeleton, MeetingSectionError, MeetingTextSkeleton } from "./meeting-section-state";
-import { transcriptSpeaker } from "./meeting-transcript-panel";
+import { MeetingRoomTranscript } from "./meeting-room-transcript";
 
 type CopilotSection = "notes" | "transcript" | "insights" | "actions";
 
@@ -36,6 +38,7 @@ export function MeetingRoomCopilotTab({
   canClerk,
   lateMinutes,
   onDismissCatchUp,
+  scribeOn = false,
 }: {
   workspaceId?: string;
   meetingId: string;
@@ -47,6 +50,8 @@ export function MeetingRoomCopilotTab({
   lateMinutes?: number | null;
   /** The viewer closed the catch-up card: it stays closed for the meeting, across tab switches. */
   onDismissCatchUp?: () => void;
+  /** The AI scribe is in the room, so the transcript fills without anyone turning captions on. */
+  scribeOn?: boolean;
 }) {
   const { t, i18n } = useTranslation();
   const [section, setSection] = useState<CopilotSection>("insights");
@@ -87,6 +92,8 @@ export function MeetingRoomCopilotTab({
       )
     : null;
 
+  const transcriptEmpty = t(scribeOn ? "meetings.transcriptEmptyScribe" : "meetings.transcriptEmpty");
+
   const sectionLabel = (id: CopilotSection) => {
     switch (id) {
       case "notes":
@@ -100,17 +107,8 @@ export function MeetingRoomCopilotTab({
     }
   };
 
-  // Date and time: a summary made yesterday must not read as made today.
-  const summaryUpdatedAt = summary?.created_at
-    ? new Date(summary.created_at).toLocaleString(meetingLocale(i18n.language), {
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: false,
-      })
-    : null;
+  // The clock alone for today's summary; one made yesterday names its day, as on the detail page.
+  const summaryUpdatedAt = summary?.created_at ? formatMeetingMoment(summary.created_at, meetingLocale(i18n.language)) || null : null;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -129,7 +127,7 @@ export function MeetingRoomCopilotTab({
           {gen.blockedReason}
         </p>
       ) : null}
-      <SummaryLiveRegion message={gen.announcement} />
+      <SummaryLiveRegion message={gen.announcement} seq={gen.announcementSeq} />
 
       {/* One scroll area: the catch-up, the sections and the Ask box move together, so the box
           sits right under what it answers instead of across an empty band, and nothing is cut off. */}
@@ -137,6 +135,7 @@ export function MeetingRoomCopilotTab({
         {!gen.aiOn && gen.capsLoaded ? (
           <p className="pb-2 text-label text-muted-foreground">{t("meetings.aiUnavailable")}</p>
         ) : null}
+        <SummaryFailureNotice gen={gen} className="mb-2" />
 
         {workspaceId && lateMinutes ? (
           <div className="pb-2">
@@ -149,6 +148,7 @@ export function MeetingRoomCopilotTab({
           value={section}
           onChange={setSection}
           label={sectionLabel}
+          ariaLabel={t("meetings.copilotSections")}
           panelId={sectionPanelId}
           className="sticky top-0 z-10 mb-2 bg-surface"
         />
@@ -166,7 +166,7 @@ export function MeetingRoomCopilotTab({
               summaryModel={summary?.model}
               summarySources={summarySources}
               summarizing={gen.generating}
-              emptyHint={gen.hasSource ? t("meetings.summaryEmpty") : t("meetings.transcriptEmpty")}
+              emptyHint={gen.hasSource ? t("meetings.summaryEmpty") : transcriptEmpty}
             />
           ) : null}
 
@@ -183,7 +183,7 @@ export function MeetingRoomCopilotTab({
                 ) : (
                   (notes ?? []).map((n) => (
                     <li key={n.id} className="rounded-xl border border-border bg-surface-hover p-3">
-                      <div className="mb-1 text-caption text-muted-foreground">{n.display_name ?? n.author_id}</div>
+                      <div className="mb-1 text-caption text-muted-foreground">{n.display_name || t("meetings.noteAuthorUnknown")}</div>
                       <div className="whitespace-pre-wrap break-words text-body text-foreground">{n.body}</div>
                     </li>
                   ))
@@ -224,19 +224,9 @@ export function MeetingRoomCopilotTab({
                   message={t("meetings.transcriptLoadFailed")}
                   onRetry={() => void transcriptQuery.refetch()}
                 />
-              ) : null}
-              <ol className="space-y-2">
-                {(transcript ?? []).map((s) => (
-                  <li key={s.id} className="rounded-lg bg-surface-hover px-2.5 py-2 text-body text-foreground">
-                    <span className="text-caption font-medium text-foreground">{transcriptSpeaker(s, t)}</span>
-                    <span className="text-muted-foreground"> · </span>
-                    {s.text}
-                  </li>
-                ))}
-                {(transcript ?? []).length === 0 && !transcriptQuery.isPending && !transcriptFailed ? (
-                  <li className="text-label text-muted-foreground">{t("meetings.transcriptEmpty")}</li>
-                ) : null}
-              </ol>
+              ) : (
+                <MeetingRoomTranscript meetingId={meetingId} segments={transcript ?? []} emptyText={transcriptEmpty} />
+              )}
             </section>
           ) : null}
 

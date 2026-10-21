@@ -90,7 +90,7 @@ describe("MeetingScribeCaptions", () => {
     await caption("uw_agent_scribe", attrs("uw_participant_p1", "TR1-1", true), "Chốt ship thứ Sáu");
     expect(screen.queryByText("Chốt ship")).not.toBeInTheDocument();
     expect(screen.getByText("Chốt ship thứ Sáu").closest("[data-final]")).toHaveAttribute("data-final", "1");
-    expect(screen.getByRole("status")).toHaveTextContent("Lan: Chốt ship thứ Sáu");
+    expect(screen.getByTestId("meeting-caption-announcer")).toHaveTextContent("Lan: Chốt ship thứ Sáu");
     await caption("uw_agent_scribe", attrs("uw_participant_p2", "TR2-1", true), "Đồng ý");
     expect(screen.getAllByText("Minh:", { exact: false }).length).toBeGreaterThan(0);
   });
@@ -116,6 +116,9 @@ describe("MeetingScribeCaptions", () => {
   });
 });
 
+/** The bar's visible caption label, where the translation state shows. */
+const label = () => screen.getByTestId("meeting-caption-label");
+
 describe("MeetingScribeCaptions translation (B9)", () => {
   beforeEach(() => {
     requestMock.mockReset();
@@ -125,28 +128,78 @@ describe("MeetingScribeCaptions translation (B9)", () => {
   it("asks the server for the language, reads its topic and shows the original until a translation arrives", async () => {
     render(wrap(<MeetingScribeCaptions enabled meetingId="m1" />));
     expect(lk.handlers.has(scribeTranslationTopic("en"))).toBe(false);
-    expect(screen.queryByText("Đang dịch…")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "English" }));
-    // Until the first English line lands, the bar says it is on its way.
-    expect(screen.getByText("Đang dịch…")).toBeInTheDocument();
+    // Nothing waits for a translation yet: no promise of one.
+    expect(label()).not.toHaveTextContent("Đang dịch…");
     await waitFor(() =>
       expect(requestMock).toHaveBeenCalledWith("/api/v1/meetings/m1/caption-language", { method: "PUT", body: { lang: "en" } }),
     );
     expect(lk.handlers.has(scribeTranslationTopic("en"))).toBe(true);
     await caption("uw_agent_scribe", attrs("uw_participant_p1", "TR1-1", true), "Gửi báo giá");
     expect(screen.getByText("Gửi báo giá")).toBeInTheDocument();
+    // A Vietnamese final waits for its English: the bar says so, the screen reader hears it once.
+    expect(label()).toHaveTextContent("Đang dịch…");
+    expect(screen.getByTestId("meeting-caption-translation-notice")).toHaveTextContent("Đang dịch…");
+    // The line itself is held back from the screen reader until it is in the language it stays in.
+    expect(screen.getByTestId("meeting-caption-announcer")).toHaveTextContent("");
     // Only the agent's translation counts.
     await caption("uw_participant_p2", { "uw.segment_id": "TR1-1" }, "Forged", scribeTranslationTopic("en"));
     expect(screen.queryByText("Forged")).not.toBeInTheDocument();
     await caption("uw_agent_scribe", { "uw.segment_id": "TR1-1" }, "Send the quote", scribeTranslationTopic("en"));
     expect(screen.getByText("Send the quote")).toBeInTheDocument();
-    expect(screen.queryByText("Đang dịch…")).not.toBeInTheDocument();
+    expect(label()).not.toHaveTextContent("Đang dịch…");
     expect(screen.queryByText("Gửi báo giá")).not.toBeInTheDocument();
+    expect(screen.getByTestId("meeting-caption-announcer")).toHaveTextContent("Lan: Send the quote");
     // Back to the original.
     fireEvent.click(screen.getByRole("button", { name: "Bản gốc" }));
     await waitFor(() => expect(lk.handlers.has(scribeTranslationTopic("en"))).toBe(false));
     expect(screen.getByText("Gửi báo giá")).toBeInTheDocument();
     expect(requestMock).toHaveBeenLastCalledWith("/api/v1/meetings/m1/caption-language", { method: "PUT", body: { lang: "" } });
+  });
+
+  it("promises nothing when the line is already in the picked language", async () => {
+    render(wrap(<MeetingScribeCaptions enabled meetingId="m1" />));
+    fireEvent.click(screen.getByRole("button", { name: "Tiếng Việt" }));
+    await waitFor(() => expect(lk.handlers.has(scribeTranslationTopic("vi"))).toBe(true));
+    await caption("uw_agent_scribe", { ...attrs("uw_participant_p1", "TR1-1", true), "uw.language": "vi-VN" }, "Chốt lịch");
+    expect(label()).not.toHaveTextContent("Đang dịch…");
+    expect(screen.getByTestId("meeting-caption-translation-notice")).toHaveTextContent("");
+    expect(screen.getByTestId("meeting-caption-announcer")).toHaveTextContent("Lan: Chốt lịch");
+  });
+
+  it("says plainly that the original shows when no translation comes, and reads the line once", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
+    try {
+      render(wrap(<MeetingScribeCaptions enabled meetingId="m1" />));
+      fireEvent.click(screen.getByRole("button", { name: "English" }));
+      await act(async () => {});
+      expect(lk.handlers.has(scribeTranslationTopic("en"))).toBe(true);
+      await caption("uw_agent_scribe", attrs("uw_participant_p1", "TR1-1", true), "Gửi báo giá");
+      expect(label()).toHaveTextContent("Đang dịch…");
+      act(() => {
+        vi.advanceTimersByTime(5000);
+      });
+      expect(label()).not.toHaveTextContent("Đang dịch…");
+      expect(label()).toHaveTextContent("Chưa có bản dịch, đang hiện bản gốc");
+      expect(screen.getByTestId("meeting-caption-translation-notice")).toHaveTextContent("Chưa có bản dịch, đang hiện bản gốc");
+      expect(screen.getByTestId("meeting-caption-announcer")).toHaveTextContent("Lan: Gửi báo giá");
+      // A translation that turns up late changes the bar, never the line already read.
+      await caption("uw_agent_scribe", { "uw.segment_id": "TR1-1" }, "Send the quote", scribeTranslationTopic("en"));
+      expect(screen.getByText("Send the quote")).toBeInTheDocument();
+      expect(screen.getByTestId("meeting-caption-announcer")).toHaveTextContent("Lan: Gửi báo giá");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("marks the picked language with more than a grey: the brand fill and a tick", async () => {
+    render(wrap(<MeetingScribeCaptions enabled meetingId="m1" />));
+    const original = screen.getByRole("button", { name: "Bản gốc" });
+    expect(original).toHaveAttribute("aria-pressed", "true");
+    expect(original.className).toMatch(/aria-pressed:bg-brand\b/);
+    expect(original.className).toMatch(/aria-pressed:font-semibold/);
+    expect(original.querySelector("svg")).not.toBeNull();
+    expect(screen.getByRole("button", { name: "English" }).querySelector("svg")).toBeNull();
   });
 
   it("goes back to the original when the server refuses", async () => {

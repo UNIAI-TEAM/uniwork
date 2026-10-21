@@ -149,7 +149,7 @@ export const MeetingControlBar = memo(function MeetingControlBar({
 
   const shareControl = (inMenu: boolean) =>
     !screen.supported ? null : inMenu ? (
-      <MenuControl caption={screen.label} pressed={screen.enabled} disabled={screen.pending} onClick={screen.toggle}>
+      <MenuControl caption={screen.label} pressed={screen.enabled} busy={screen.pending} onClick={screen.toggle}>
         {screen.locked ? <Lock aria-hidden /> : <MonitorUp aria-hidden />}
       </MenuControl>
     ) : (
@@ -159,7 +159,7 @@ export const MeetingControlBar = memo(function MeetingControlBar({
         tooltip={screen.locked ? t("meetings.shareLockedYou") : undefined}
         pressed={screen.enabled}
         tone={screen.enabled ? "active" : undefined}
-        disabled={screen.pending}
+        busy={screen.pending}
         onClick={screen.toggle}
       >
         {screen.locked ? <Lock aria-hidden /> : <MonitorUp aria-hidden />}
@@ -203,14 +203,14 @@ export const MeetingControlBar = memo(function MeetingControlBar({
   const recordControl = (inMenu: boolean) =>
     showRecord ? (
       inMenu ? (
-        <MenuControl caption={recordLabel} disabled={recPending} onClick={toggleRecording}>
+        <MenuControl caption={recordLabel} busy={recPending} onClick={toggleRecording}>
           {recording ? <Square aria-hidden /> : <Circle aria-hidden />}
         </MenuControl>
       ) : (
         <IconControl
           label={recordLabel}
           tone={recording ? "off" : undefined}
-          disabled={recPending}
+          busy={recPending}
           onClick={toggleRecording}
         >
           {recording ? <Square aria-hidden /> : <Circle aria-hidden />}
@@ -258,7 +258,7 @@ export const MeetingControlBar = memo(function MeetingControlBar({
                 tooltip={micTooltip}
                 pressed={mic.enabled}
                 tone={mic.enabled ? "active" : "off"}
-                disabled={mic.pending}
+                busy={mic.pending}
                 onClick={() => {
                   // Locked: say why instead of a toggle LiveKit refuses.
                   if (micLock.locked) micLock.explain();
@@ -272,7 +272,7 @@ export const MeetingControlBar = memo(function MeetingControlBar({
                 tooltip={cameraTooltip}
                 pressed={camera.enabled}
                 tone={camera.enabled ? "active" : "off"}
-                disabled={camera.pending}
+                busy={camera.pending}
                 onClick={() => {
                   void camera.toggle();
                 }}

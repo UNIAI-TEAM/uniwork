@@ -1,8 +1,9 @@
 "use client";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { skipToken, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiError } from "../api/http";
 import * as api from "../api/endpoints/meeting-summary";
 import { getMeetingEvidence } from "../api/endpoints/meeting-evidence";
+import type { MeetingCatchUp } from "../api/endpoints/meeting-summary";
 import type { MeetingEvidenceRef } from "../types/meeting";
 import { meetingKeys } from "./hooks";
 
@@ -39,9 +40,29 @@ export function useCreateMeetingSummary(meetingId: string) {
   });
 }
 
-/** Asks for the late joiner's brief; nothing is cached client-side (the server shares it for two minutes). */
+/** Where the viewer's last catch-up brief for a meeting is kept; only a click writes it. */
+export const meetingCatchUpKey = (meetingId: string) => ["meeting-catch-up", meetingId] as const;
+
+/**
+ * Asks for the late joiner's brief on click (never on mount: each one is a
+ * model call). The last brief is kept per meeting for the session, so a tab
+ * switch or a closed panel brings it back instead of asking again.
+ */
 export function useMeetingCatchUp(meetingId: string) {
-  return useMutation({ mutationFn: (locale: string) => api.createMeetingCatchUp(meetingId, locale) });
+  const qc = useQueryClient();
+  const kept = useQuery<MeetingCatchUp>({
+    queryKey: meetingCatchUpKey(meetingId),
+    queryFn: skipToken,
+    staleTime: Infinity,
+    gcTime: Infinity,
+  });
+  const ask = useMutation({
+    mutationFn: (locale: string) => api.createMeetingCatchUp(meetingId, locale),
+    onSuccess: (brief) => {
+      if (brief) qc.setQueryData(meetingCatchUpKey(meetingId), brief);
+    },
+  });
+  return { ...ask, data: ask.data ?? kept.data };
 }
 
 

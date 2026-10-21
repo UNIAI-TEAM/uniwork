@@ -15,8 +15,10 @@ import {
 } from "livekit-client";
 import { useTranslation } from "react-i18next";
 import { useMeetingChat } from "@uniwork/core/meetings";
+import type { Meeting } from "@uniwork/core/types";
 import { chatWatermark, unreadChatSince, type ChatWatermark } from "./meeting-chat";
 import { useScribeInRoom } from "./meeting-scribe-captions";
+import { scribeChipState } from "./meeting-scribe-chip";
 import { DIAL_IN_STATE_ATTRIBUTE, inMeeting, reactionLabelKey } from "./meeting-signals";
 import { useMeetingSignals } from "./use-meeting-signals";
 
@@ -58,15 +60,23 @@ export function OnOffAnnouncer({
 }
 
 /** "The AI scribe is transcribing" / "stopped": its arrival and departure are the privacy signal (spec D14). */
-export function ScribeAnnouncer() {
+export function ScribeAnnouncer({ meeting }: { meeting?: Pick<Meeting, "scribe_enabled" | "scribe_status"> }) {
   const { t } = useTranslation();
+  const inRoom = useScribeInRoom();
+  // The status the server reports: a host must hear that transcription stopped, not only that the agent left.
+  const failed = meeting ? scribeChipState(meeting, inRoom) === "failed" : false;
+  const previous = useRef({ inRoom, failed });
+  const [text, setText] = useState("");
+  useEffect(() => {
+    const was = previous.current;
+    previous.current = { inRoom, failed };
+    if (failed && !was.failed) setText(t("meetings.scribe.announceFailed"));
+    else if (inRoom !== was.inRoom) setText(t(inRoom ? "meetings.scribe.announceOn" : "meetings.scribe.announceOff"));
+  }, [inRoom, failed, t]);
   return (
-    <OnOffAnnouncer
-      on={useScribeInRoom()}
-      onText={t("meetings.scribe.announceOn")}
-      offText={t("meetings.scribe.announceOff")}
-      testId="meeting-scribe-announcer"
-    />
+    <p role="status" aria-live="polite" className="sr-only" data-testid="meeting-scribe-announcer">
+      {text}
+    </p>
   );
 }
 

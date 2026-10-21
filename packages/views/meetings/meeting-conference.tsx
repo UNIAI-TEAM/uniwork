@@ -211,7 +211,10 @@ function ConferenceStage({
     ),
     [t],
   );
-  const renderSidebar = (tabsEnd?: ReactNode) => (
+  // The AI scribe in the room captions everyone; without it each viewer keeps
+  // their own Web Speech captions (spec D12).
+  const scribeInRoom = useScribeInRoom();
+  const renderSidebar = (tabsEnd?: ReactNode, open = true) => (
     <RoomSidebar
       meetingId={resolvedMeetingId || undefined}
       meeting={meeting}
@@ -225,6 +228,8 @@ function ConferenceStage({
       onDismissCatchUp={dismissCatchUp}
       className="h-full w-full"
       tabsEnd={tabsEnd}
+      open={open}
+      scribeOn={scribeInRoom}
     />
   );
 
@@ -232,9 +237,6 @@ function ConferenceStage({
     () => (resolvedMeetingId ? <MeetingVotePrompt meetingId={resolvedMeetingId} onOpenTab={openMotions} /> : null),
     [resolvedMeetingId, openMotions],
   );
-  // The AI scribe in the room captions everyone; without it each viewer keeps
-  // their own Web Speech captions (spec D12).
-  const scribeInRoom = useScribeInRoom();
   const captions = useMemo(
     () =>
       scribeInRoom ? (
@@ -355,7 +357,7 @@ function ConferenceStage({
             open={sidebarPinned}
             className="min-h-0 w-[22rem] shrink-0 overflow-hidden rounded-2xl bg-surface ring-1 ring-surface-border xl:w-[24rem]"
           >
-            {renderSidebar()}
+            {renderSidebar(undefined, sidebarPinned)}
           </MeetingSidebarDock>
         ) : null}
       </div>
@@ -381,7 +383,7 @@ function ConferenceStage({
       <ReactionAnnouncer />
       <ParticipantPresenceAnnouncer />
       <ScreenShareAnnouncer />
-      <ScribeAnnouncer />
+      <ScribeAnnouncer meeting={meeting} />
       <ChatMessageAnnouncer latest={chatUnread.latest} visible={chatVisible} />
     </div>
   );

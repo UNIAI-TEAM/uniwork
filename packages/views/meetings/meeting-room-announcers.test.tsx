@@ -316,4 +316,16 @@ describe("ScribeAnnouncer", () => {
     rerender(<ScribeAnnouncer />);
     expect(live).toHaveTextContent("Thư ký AI đã dừng ghi lời");
   });
+
+  it("tells the room once when the scribe's status turns FAILED", () => {
+    vi.useRealTimers();
+    const { rerender } = render(<ScribeAnnouncer meeting={{ scribe_enabled: true, scribe_status: "JOINING" }} />);
+    const live = screen.getByTestId("meeting-scribe-announcer");
+    expect(live).toHaveTextContent("");
+    rerender(<ScribeAnnouncer meeting={{ scribe_enabled: true, scribe_status: "FAILED" }} />);
+    expect(live).toHaveTextContent("Thư ký AI gặp sự cố nên không ghi lời thoại");
+    // Turned off by the host: no longer a failure, and nothing new to say.
+    rerender(<ScribeAnnouncer meeting={{ scribe_enabled: false, scribe_status: "FAILED" }} />);
+    expect(live).toHaveTextContent("Thư ký AI gặp sự cố nên không ghi lời thoại");
+  });
 });

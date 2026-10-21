@@ -71,6 +71,8 @@ export function MeetingRoomSidebar({
   tabsEnd,
   lateMinutes = null,
   onDismissCatchUp,
+  open = true,
+  scribeOn = false,
 }: {
   meetingId?: string;
   meeting?: Meeting;
@@ -87,6 +89,14 @@ export function MeetingRoomSidebar({
   /** How late this member is when late enough for the catch-up card (catchUpLateMinutes). */
   lateMinutes?: number | null;
   onDismissCatchUp?: () => void;
+  /**
+   * On screen. A closed dock keeps the sidebar mounted (the chat draft), but
+   * not the UNI tab: its queries need not run for a panel nobody sees, and
+   * what it showed comes back from the query cache.
+   */
+  open?: boolean;
+  /** The AI scribe is in the room. */
+  scribeOn?: boolean;
 }) {
   const { t } = useTranslation();
   const baseId = useId();
@@ -123,6 +133,7 @@ export function MeetingRoomSidebar({
   function panelContent(id: MeetingSidebarTab): ReactNode {
     switch (id) {
       case "copilot":
+        if (!open) return null;
         return meetingId ? (
           <MeetingRoomCopilotTab
             meetingId={meetingId}
@@ -131,6 +142,7 @@ export function MeetingRoomSidebar({
             canClerk={isClerk}
             lateMinutes={guestMode ? null : lateMinutes}
             onDismissCatchUp={onDismissCatchUp}
+            scribeOn={scribeOn}
           />
         ) : (
           <p className="text-label text-muted-foreground">{t("meetings.aiUnavailable")}</p>
@@ -179,22 +191,21 @@ export function MeetingRoomSidebar({
             value={activeTab}
             onChange={onTabChange}
             label={tabLabel}
+            ariaLabel={t("meetings.roomPanel")}
             icon={(id) => (id === "copilot" ? <Sparkles aria-hidden className="size-3.5 shrink-0" /> : null)}
             panelId={panelId}
             badge={(id) =>
               id === "participants" && pendingJoinCount > 0 ? (
-                <MeetingUnderlineTabBadge
-                  aria-label={t("meetings.joinRequestsPendingTitle", { count: pendingJoinCount })}
-                >
+                <MeetingUnderlineTabBadge srLabel={t("meetings.joinRequestsPendingTitle", { count: pendingJoinCount })}>
                   {pendingJoinCount > 9 ? "9+" : pendingJoinCount}
                 </MeetingUnderlineTabBadge>
               ) : id === "chat" && chatUnread > 0 ? (
-                <MeetingUnderlineTabBadge aria-label={t("meetings.chatUnread", { count: chatUnread })}>
+                <MeetingUnderlineTabBadge srLabel={t("meetings.chatUnread", { count: chatUnread })}>
                   {chatUnread > 9 ? "9+" : chatUnread}
                 </MeetingUnderlineTabBadge>
               ) : id === "motions" && motionsTab.pending ? (
                 // At most one item is open at a time, so the count is always one.
-                <MeetingUnderlineTabBadge aria-label={t("meetings.governance.votePending")}>{1}</MeetingUnderlineTabBadge>
+                <MeetingUnderlineTabBadge srLabel={t("meetings.governance.votePending")}>{1}</MeetingUnderlineTabBadge>
               ) : null
             }
           />

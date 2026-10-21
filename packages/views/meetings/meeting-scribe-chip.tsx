@@ -7,6 +7,7 @@ import type { Meeting } from "@uniwork/core/types";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@uniwork/ui/components/ui/popover";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
+import { cn } from "@uniwork/ui/lib/utils";
 import { toastApiError } from "../toast-api-error";
 import { useScribeInRoom } from "./meeting-scribe-captions";
 
@@ -58,7 +59,8 @@ export function MeetingScribeChip({
   const state = scribeChipState(meeting, inRoom);
   // A viewer who cannot switch it learns nothing from "joining" or "off".
   if (!canSwitch && (state === "joining" || state === "off")) return null;
-  const Icon = state === "failed" ? CircleAlert : Sparkles;
+  const failed = state === "failed";
+  const Icon = failed ? CircleAlert : Sparkles;
   const switchTo = (enabled: boolean) => {
     set.mutate(enabled, {
       onSuccess: () => setOpen(false),
@@ -68,14 +70,27 @@ export function MeetingScribeChip({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
-        render={<Button type="button" variant="meetingChip" size="sm" className="h-8 px-2 sm:px-2.5" data-testid="meeting-scribe-chip" />}
+        render={
+          <Button
+            type="button"
+            variant="meetingChip"
+            size="sm"
+            // Failed reads as a warning, not as the neutral "listening" chip.
+            className={cn(
+              "h-8 px-2 @4xl/stagehead:px-2.5",
+              failed && "border-warning/60 text-warning hover:text-warning aria-expanded:text-warning data-popup-open:text-warning",
+            )}
+            data-testid="meeting-scribe-chip"
+            data-state={state}
+          />
+        }
       >
         <Icon aria-hidden className="size-4" />
-        {/* A phone keeps a short name, so the privacy signal is never an icon alone. */}
-        <span aria-hidden className="sm:hidden">
-          {t("meetings.scribe.chipShort")}
+        {/* A narrow header keeps a short name, so the privacy signal is never an icon alone; a failure has its own. */}
+        <span aria-hidden className="@4xl/stagehead:hidden">
+          {t(failed ? "meetings.scribe.chipFailedShort" : "meetings.scribe.chipShort")}
         </span>
-        <span className="sr-only sm:not-sr-only">{t(LABEL_KEY[state])}</span>
+        <span className="sr-only @4xl/stagehead:not-sr-only">{t(LABEL_KEY[state])}</span>
       </PopoverTrigger>
       {/* `dark`: the popup portals to <body>, out of the dark stage it belongs to. */}
       <PopoverContent className="dark w-72 space-y-3">

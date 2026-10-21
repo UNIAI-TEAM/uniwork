@@ -90,6 +90,15 @@ describe("MeetingScribeChip", () => {
     );
   });
 
+  it("sets a failed scribe apart: warning tone and its own short label, never the listening one", () => {
+    render(wrap(<MeetingScribeChip meeting={{ ...meeting, scribe_status: "FAILED" }} available canSwitch />));
+    const chip = screen.getByTestId("meeting-scribe-chip");
+    expect(chip.className).toMatch(/\btext-warning\b/);
+    expect(chip).toHaveTextContent("Chưa ghi lời");
+    expect(chip).not.toHaveTextContent(/^Thư ký AI$/);
+    expect(chip).toHaveAccessibleName(/Thư ký AI chưa vào được phòng/);
+  });
+
   it("explains a scribe still joining as joining, not as listening", async () => {
     render(wrap(<MeetingScribeChip meeting={meeting} available canSwitch />));
     await userEvent.click(screen.getByTestId("meeting-scribe-chip"));

@@ -29,7 +29,7 @@ import { toastApiError } from "../toast-api-error";
 import { CreateInviteLinkDialog } from "./create-invite-link-dialog";
 import { MeetingAdmitGuestsButton } from "./meeting-admit-guests-button";
 import {
-  formatMeetingRange,
+  formatMeetingWindow,
   formatRemaining,
   meetingLocale,
 } from "./meeting-datetime";
@@ -175,7 +175,7 @@ export const MeetingStageHeader = memo(function MeetingStageHeader({
 
   const title = meeting?.title ?? meetingTitle ?? t("meetings.title");
   const scheduleRange = meeting
-    ? formatMeetingRange(meeting.starts_at, meeting.ends_at, meetingLocale(i18n.language))
+    ? formatMeetingWindow(meeting.starts_at, meeting.ends_at, meetingLocale(i18n.language), t)
     : "";
   const description = meeting?.description.trim() ?? "";
   const scheduled = meeting?.status === "SCHEDULED" || !meeting?.status;
@@ -189,8 +189,9 @@ export const MeetingStageHeader = memo(function MeetingStageHeader({
         className="@container/stagehead relative z-20 shrink-0 border-b border-meeting-bar-border bg-meeting-stage px-3 py-2 sm:px-4 sm:py-2.5 [@media(max-height:500px)]:py-1.5"
         data-testid="meeting-stage-header"
       >
-        {/* Title and actions share a row only when the header has room; it narrows with the docked panel, not the window. */}
-        <div className="grid gap-1.5 @2xl/stagehead:grid-cols-[minmax(0,1fr)_auto] @2xl/stagehead:items-center @2xl/stagehead:gap-x-3">
+        {/* Title and actions share a row only when the header has room; it narrows with the docked panel, not the window.
+            The title keeps 14rem of it: past that the actions wrap onto a second row instead of squeezing the h1 to a few letters. */}
+        <div className="grid gap-1.5 @2xl/stagehead:grid-cols-[minmax(14rem,1fr)_auto] @2xl/stagehead:items-center @2xl/stagehead:gap-x-3">
           <div className="min-w-0">
             {meetingsHref && !guestMode ? (
               <nav

@@ -119,7 +119,9 @@ describe("MeetingRoomSidebar", () => {
         <MeetingRoomSidebar meetingId="m1" tab="participants" onTabChange={() => {}} guestMode chatUnread={3} />,
       ),
     );
-    expect(screen.getByLabelText("3 tin nhắn chưa đọc")).toHaveTextContent("3");
+    // The count is part of the tab's own name, not a label on a bare span.
+    expect(screen.getByRole("tab", { name: /^Trò chuyện\W+3 tin nhắn chưa đọc$/ })).toBeInTheDocument();
+    expect(screen.getByRole("tablist")).toHaveAccessibleName("Bảng phụ cuộc họp");
   });
 
   it("names the recordings tab for what it lists", async () => {
@@ -152,7 +154,7 @@ describe("MeetingRoomSidebar", () => {
     motions = [openMotion];
     render(wrapWithNav(<MeetingRoomSidebar meetingId="m1" tab="chat" onTabChange={() => {}} guestMode />));
     const tab = await screen.findByRole("tab", { name: /^Biểu quyết/ });
-    expect(within(tab).getByLabelText(PENDING)).toHaveTextContent("1");
+    expect(tab).toHaveAccessibleName(new RegExp(PENDING));
     expect(tabLabels()).toEqual(["Trò chuyện", "Mọi người", "Biểu quyết", "Bản ghi"]);
   });
 
@@ -169,7 +171,7 @@ describe("MeetingRoomSidebar", () => {
     ];
     render(wrapWithNav(<MeetingRoomSidebar meetingId="m1" tab="chat" onTabChange={() => {}} guestMode />));
     await screen.findByRole("tab", { name: "Biểu quyết" });
-    expect(screen.queryByLabelText(PENDING)).not.toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Biểu quyết" })).not.toHaveAccessibleName(new RegExp(PENDING));
   });
 
   it("always shows the votes tab to a clerk, between people and recordings", async () => {
@@ -184,5 +186,23 @@ describe("MeetingRoomSidebar", () => {
     expect(tabLabels()).toEqual(["UNI", "Trò chuyện", "Mọi người", "Biểu quyết", "Bản ghi"]);
     fireEvent.click(tab);
     expect(onTabChange).toHaveBeenCalledWith("motions");
+  });
+
+  it("does not mount the UNI tab, or run its queries, while the dock is closed", async () => {
+    setSessionUser(me);
+    const { rerender } = render(
+      wrapWithNav(
+        <MeetingRoomSidebar meetingId="m1" meeting={meeting} workspaceId="w1" tab="copilot" onTabChange={() => {}} open={false} />,
+      ),
+    );
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(screen.getByRole("tabpanel")).toBeEmptyDOMElement();
+    expect(requestMock.mock.calls.some(([p]) => String(p).endsWith("/summary"))).toBe(false);
+    rerender(
+      wrapWithNav(<MeetingRoomSidebar meetingId="m1" meeting={meeting} workspaceId="w1" tab="copilot" onTabChange={() => {}} />),
+    );
+    await waitFor(() => expect(requestMock.mock.calls.some(([p]) => String(p).endsWith("/summary"))).toBe(true));
   });
 });

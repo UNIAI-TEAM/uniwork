@@ -73,7 +73,8 @@ function StagePager({
           variant="meetingChip"
           className="size-7 rounded-full border-transparent"
           aria-label={t("meetings.prevPage")}
-          disabled={page === 0}
+          // aria-disabled: reaching the first page must not drop keyboard focus to <body>.
+          aria-disabled={page === 0}
           onClick={() => onPage(page - 1)}
         >
           <ChevronLeft aria-hidden className="size-4" />
@@ -87,7 +88,7 @@ function StagePager({
           variant="meetingChip"
           className="size-7 rounded-full border-transparent"
           aria-label={t("meetings.nextPage")}
-          disabled={page >= pages - 1}
+          aria-disabled={page >= pages - 1}
           onClick={() => onPage(page + 1)}
         >
           <ChevronRight aria-hidden className="size-4" />
