@@ -5688,7 +5688,43 @@
     "usage_tokens": "{{in}} vào · {{out}} ra",
     "notice": {
       "no_sources": "Chưa có dữ liệu nào bạn được xem khớp với câu hỏi này.",
-      "unavailable": "UNI chưa trả lời được câu này."
+      "unavailable": "UNI chưa trả lời được câu này.",
+      "empty_answer": "UNI không có nội dung nào để trả lời. Hãy hỏi lại hoặc nêu cụ thể hơn.",
+      "agent_failed": "UNI gặp sự cố khi tìm dữ liệu. Hãy thử lại.",
+      "refused": "UNI không thể trả lời câu hỏi này.",
+      "stopped": "Đã dừng trước khi trả lời xong.",
+      "interrupted": "Câu trả lời bị gián đoạn nên chưa đầy đủ."
+    },
+    "steps": {
+      "seen": "Đã xem {{list}}",
+      "working": "Đang tìm dữ liệu…",
+      "task_other": "{{count}} task",
+      "meeting_other": "{{count}} cuộc họp",
+      "document_other": "{{count}} tài liệu",
+      "project_other": "{{count}} dự án",
+      "chat_other": "{{count}} đoạn chat"
+    },
+    "cite": {
+      "label": "Nguồn {{n}}",
+      "open": "Mở"
+    },
+    "actions": {
+      "copy": "Sao chép",
+      "copied": "Đã sao chép",
+      "regenerate": "Trả lời lại",
+      "helpful": "Hữu ích",
+      "not_helpful": "Chưa đúng",
+      "feedback_title": "Câu trả lời chưa đúng ở đâu?",
+      "reason": {
+        "wrong_facts": "Sai thông tin",
+        "missing_sources": "Thiếu nguồn",
+        "not_helpful": "Không giúp được",
+        "other": "Lý do khác"
+      },
+      "note_label": "Ghi chú (không bắt buộc)",
+      "note_placeholder": "Cho UNI biết thêm…",
+      "note_count": "{{count}}/{{max}}",
+      "send_feedback": "Gửi phản hồi"
     },
     "errors": {
       "ai_quota_exceeded": "Tổ chức đã hết hạn mức token AI của tháng.",
