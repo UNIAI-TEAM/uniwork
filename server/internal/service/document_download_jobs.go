@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"regexp"
 	"time"
@@ -359,20 +360,26 @@ func releaseExpiredDocumentDownloads(ctx context.Context, pool *pgxpool.Pool, q 
 	}
 	rows, err := q.ListExpiredDocumentDownloadFiles(ctx)
 	if err != nil {
+		slog.Warn("document download expiry: list", "err", err)
 		return
 	}
 	for _, row := range rows {
 		tx, err := pool.Begin(ctx)
 		if err != nil {
+			slog.Warn("document download expiry: begin", "err", err)
 			return
 		}
 		qq := q.WithTx(tx)
 		n, err := qq.ReleaseDocumentDownloadFile(ctx, db.ReleaseDocumentDownloadFileParams(row))
 		if err != nil || n == 0 {
+			if err != nil {
+				slog.Warn("document download expiry: clear file", "job", row.ID, "err", err)
+			}
 			_ = tx.Rollback(ctx)
 			continue
 		}
 		if err := releaseFilesInTx(ctx, fs, qq, []files.FileID{files.FileID(row.FileID.String)}); err != nil {
+			slog.Warn("document download expiry: release", "job", row.ID, "file", row.FileID.String, "err", err)
 			_ = tx.Rollback(ctx)
 			continue
 		}
