@@ -77,24 +77,24 @@ test("a meeting's items become tasks, survive a new summary and carry over to th
   await loginViaUi(page, host.email);
   const meetingURL = `/${host.orgSlug}/${host.wsSlug}/meetings/${first.id}`;
   await page.goto(meetingURL);
-  const section = page.getByRole("region", { name: "Việc sau họp" });
+  const section = page.getByRole("region", { name: "Việc cần làm", exact: true });
   await section.getByRole("checkbox", { name: "Gửi báo giá" }).check({ timeout: 20_000 });
   await section.getByRole("checkbox", { name: "Đặt phòng hội thảo" }).check();
   await section.getByRole("button", { name: "Giao 2 việc" }).click();
   const review = page.getByRole("dialog", { name: "Giao việc sau họp" });
   await review.getByRole("button", { name: "Giao 2 việc" }).click();
   await expect(review).toBeHidden({ timeout: 15_000 });
-  await expect(section.getByText("Đã giao 2", { exact: true })).toBeVisible();
+  await expect(section.getByRole("heading", { name: "Đã giao (2)" })).toBeVisible();
 
-  await section.getByRole("button", { name: "Bỏ qua “In tài liệu”" }).click();
+  await section.getByRole("button", { name: 'Bỏ qua "In tài liệu"' }).click();
   await page.getByLabel("Lý do (không bắt buộc)").fill("Đã có bản in");
   await page.getByRole("button", { name: "Bỏ qua việc" }).click();
-  await expect(section.getByText("Đã bỏ qua 1", { exact: true })).toBeVisible();
+  await expect(section.getByRole("button", { name: "Đã bỏ qua (1)" })).toBeVisible();
 
   await section.getByRole("button", { name: "Thêm việc" }).click();
-  await section.getByLabel("Việc cần làm").fill("Chốt ngân sách");
+  await section.getByLabel("Tên việc").fill("Chốt ngân sách");
   await section.getByRole("button", { name: "Thêm", exact: true }).click();
-  await expect(section.getByText("Chờ xử lý 2", { exact: true })).toBeVisible();
+  await expect(section.getByRole("heading", { name: "Chờ xử lý (2)" })).toBeVisible();
 
   const { items } = await ok<{ items: { title: string; status: string; task?: { id: string; assignee_id?: string } }[] }>(
     await page.request.get(`${api}/api/v1/meetings/${first.id}/action-items`, { headers: auth }),
@@ -118,9 +118,9 @@ test("a meeting's items become tasks, survive a new summary and carry over to th
   // Host: a new summary replaces only what nobody handled.
   await ok(await summarize(), "summarize again");
   await page.reload();
-  await expect(section.getByText("Chờ xử lý 2", { exact: true })).toBeVisible({ timeout: 20_000 });
-  await expect(section.getByText("Đã giao 2", { exact: true })).toBeVisible();
-  await expect(section.getByText("Đã bỏ qua 1", { exact: true })).toBeVisible();
+  await expect(section.getByRole("heading", { name: "Chờ xử lý (2)" })).toBeVisible({ timeout: 20_000 });
+  await expect(section.getByRole("heading", { name: "Đã giao (2)" })).toBeVisible();
+  await expect(section.getByRole("button", { name: "Đã bỏ qua (1)" })).toBeVisible();
   await expect(section.getByText("Gửi báo giá", { exact: true })).toHaveCount(1);
 
   // The next meeting of the project shows the two open tasks.
@@ -141,7 +141,7 @@ test("a meeting's items become tasks, survive a new summary and carry over to th
   await page.goto(`/${host.orgSlug}/${host.wsSlug}/meetings/${next.id}`);
   const carried = page.getByRole("region", { name: "Việc còn tồn từ các cuộc họp trước" });
   await expect(carried.getByRole("link", { name: title })).toBeVisible({ timeout: 20_000 });
-  await expect(carried.getByRole("link", { name: "Mở việc “Gửi báo giá”" })).toBeVisible();
-  await expect(carried.getByRole("link", { name: "Mở việc “Đặt phòng hội thảo”" })).toBeVisible();
+  await expect(carried.getByRole("link", { name: 'Mở việc "Gửi báo giá"' })).toBeVisible();
+  await expect(carried.getByRole("link", { name: 'Mở việc "Đặt phòng hội thảo"' })).toBeVisible();
   await expect(carried.getByText("In tài liệu")).toHaveCount(0);
 });
