@@ -169,8 +169,8 @@ func TestAccessReportExplain1000Docs(t *testing.T) {
 			})
 			return err
 		}},
-		{"Q4 CountLiveDocumentShareLinksForDocuments (page of 50)", func(q *db.Queries) error {
-			_, err := q.CountLiveDocumentShareLinksForDocuments(ctx, db.CountLiveDocumentShareLinksForDocumentsParams{
+		{"Q4 ListLiveDocumentShareLinksForReport (page of 50)", func(q *db.Queries) error {
+			_, err := q.ListLiveDocumentShareLinksForReport(ctx, db.ListLiveDocumentShareLinksForReportParams{
 				OrganizationID: tn.orgID, WorkspaceID: tn.wsA, DocumentIds: ids,
 			})
 			return err
@@ -207,9 +207,9 @@ func TestAccessReportExplain1000Docs(t *testing.T) {
 	}
 	walkStart := time.Now()
 	pages, listed, rows := 0, 0, 0
-	after := ""
+	var after *AccessReportKey
 	for {
-		p, err := f.svc.DocumentAccessReport(ctx, Human(tn.owner.ID), tn.wsA, DocumentAccessReportQuery{FolderID: root.ID, Limit: 100, AfterID: after})
+		p, err := f.svc.DocumentAccessReport(ctx, Human(tn.owner.ID), tn.wsA, DocumentAccessReportQuery{FolderID: root.ID, Limit: 100, After: after})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -218,10 +218,10 @@ func TestAccessReportExplain1000Docs(t *testing.T) {
 		for _, it := range p.Items {
 			rows += len(it.Rows)
 		}
-		if p.NextAfterID == "" {
+		if p.Next == nil {
 			break
 		}
-		after = p.NextAfterID
+		after = p.Next
 	}
 	walk := time.Since(walkStart)
 	if listed != 1000 {
