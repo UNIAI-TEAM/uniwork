@@ -272,9 +272,10 @@ func TestFolderUploadCompleteShareFlagOpensFilesToTheWorkspace(t *testing.T) {
 	if d.Visibility != documentVisibilityWorkspace || d.WorkspaceLevel != string(DocumentLevelView) {
 		t.Fatalf("shared file = %s/%s", d.Visibility, d.WorkspaceLevel)
 	}
-	// The folder holding it stays private, and the batch stays open.
-	if f := env.doc(t, d.ParentID.String); f.Visibility != documentVisibilityRestricted {
-		t.Fatalf("folder visibility = %s", f.Visibility)
+	// The folder holding it is a workspace folder by its location (ADR 0037
+	// §1), not by the share flag; the batch stays open.
+	if f := env.doc(t, d.ParentID.String); f.Visibility != documentVisibilityWorkspace || f.WorkspaceLevel != string(DocumentLevelView) {
+		t.Fatalf("folder = %s/%s", f.Visibility, f.WorkspaceLevel)
 	}
 	if res.Status != "open" || res.Counts != (FolderUploadCounts{Total: 2, Done: 1, Pending: 1}) {
 		t.Fatalf("batch = %s %+v", res.Status, res.Counts)

@@ -223,13 +223,14 @@ func TestDocumentMoveChecksAccessBeforeKind(t *testing.T) {
 
 // Visibility is inherited when a document is created and never on a move: a
 // restricted folder is not a boundary around what is moved into it. The FE
-// must not promise otherwise.
+// must not promise otherwise. A restricted folder lives in a My Folder since
+// ADR 0037 (its location decides), so the case builds it there.
 func TestDocumentMoveKeepsVisibility(t *testing.T) {
 	env := newFakeDocStorageEnv(t)
 	ctx := context.Background()
 	member := human(env.tn.member)
 
-	restricted, err := env.svc.CreatePage(ctx, member, env.tn.wsA, CreatePageInput{Kind: DocumentKindFolder, Title: "Hạn chế", Visibility: documentVisibilityRestricted})
+	restricted, err := env.svc.CreatePage(ctx, member, env.tn.wsA, CreatePageInput{Kind: DocumentKindFolder, Title: "Hạn chế", Destination: DocumentSystemKindMyFolder})
 	if err != nil {
 		t.Fatal(err)
 	}

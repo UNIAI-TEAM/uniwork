@@ -1269,9 +1269,17 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 			}); err != nil {
 				t.Fatal(err)
 			}
-			// UNI-1974: the folders-unshare clean-up closes a legacy workspace
-			// folder through the same writer, as the system actor.
+			// UNI-1974: the folders-unshare clean-up closes a workspace-visible
+			// folder through the same writer, as the system actor - since ADR
+			// 0037 only one its location says is restricted (in a My Folder).
+			mf, _, err := svc.EnsureMyFolder(f.ctx, Human(f.owner.ID), f.workspace.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
 			folder := f.legacySharedFolder(t)
+			if _, err := f.pool.Exec(f.ctx, `UPDATE documents SET parent_id = $1 WHERE id = $2`, mf.Document.ID, folder); err != nil {
+				t.Fatal(err)
+			}
 			if _, err := svc.UnshareFolders(f.ctx, false, 0); err != nil {
 				t.Fatal(err)
 			}

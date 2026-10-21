@@ -99,23 +99,19 @@ func TestFolderCannotBeSharedOrOpened(t *testing.T) {
 	f, ctx := x.f, x.f.ctx
 	folder := x.folder(t, "Thư mục riêng", "")
 
-	t.Run("create with workspace visibility is refused and writes nothing", func(t *testing.T) {
-		before := fsoCount(t, x, `SELECT count(*) FROM documents WHERE workspace_id = $1 AND kind = 'folder'`, x.tn.wsA)
-		_, err := f.svc.CreatePage(ctx, x.owner, x.tn.wsA, CreatePageInput{
-			Kind: DocumentKindFolder, Title: "Mở cho workspace", Visibility: documentVisibilityWorkspace,
-			IdempotencyKey: util.NewID(),
-		})
-		wantFolderNotShareable(t, err, "create")
-		if after := fsoCount(t, x, `SELECT count(*) FROM documents WHERE workspace_id = $1 AND kind = 'folder'`, x.tn.wsA); after != before {
-			t.Fatalf("folders %d -> %d, a refused create wrote a row", before, after)
-		}
-		if n := fsoCount(t, x, `SELECT count(*) FROM idempotency_keys WHERE workspace_id = $1 AND scope = $2`, x.tn.wsA, idempotencyScopeDocumentPageCreate); n != 0 {
-			t.Fatalf("idempotency claim rows = %d, the refusal must come before the claim", n)
-		}
-		if _, err := f.svc.CreatePage(ctx, x.owner, x.tn.wsA, CreatePageInput{
-			Kind: DocumentKindFolder, Title: "Riêng rõ ràng", Visibility: documentVisibilityRestricted,
-		}); err != nil {
-			t.Fatalf("an explicit restricted folder is fine: %v", err)
+	// ADR 0037 §1: a folder create's visibility is its location's; the
+	// request's value is ignored either way, never refused.
+	t.Run("create ignores the requested visibility", func(t *testing.T) {
+		for _, vis := range []string{documentVisibilityWorkspace, documentVisibilityRestricted} {
+			v, err := f.svc.CreatePage(ctx, x.owner, x.tn.wsA, CreatePageInput{
+				Kind: DocumentKindFolder, Title: "Yêu cầu " + vis, Visibility: vis, IdempotencyKey: util.NewID(),
+			})
+			if err != nil {
+				t.Fatalf("create asking %s: %v", vis, err)
+			}
+			if v.Document.Visibility != documentVisibilityWorkspace || v.Document.WorkspaceLevel != string(DocumentLevelView) {
+				t.Fatalf("create asking %s = %s/%s, want workspace/view", vis, v.Document.Visibility, v.Document.WorkspaceLevel)
+			}
 		}
 	})
 
@@ -126,7 +122,9 @@ func TestFolderCannotBeSharedOrOpened(t *testing.T) {
 		if err == nil || codedIs(err, "folder_not_shareable") {
 			t.Fatalf("a stranger must not learn the rule from the folder: %v", err)
 		}
-		if got := x.get(t, folder.ID); got.Visibility != documentVisibilityRestricted {
+		_, err = f.svc.UpdateDocument(ctx, x.owner, folder.ID, UpdateDocumentInput{Revision: folder.Revision, Visibility: strPtr(documentVisibilityRestricted)})
+		wantFolderNotShareable(t, err, "patch to restricted (ADR 0037: the location decides)")
+		if got := x.get(t, folder.ID); got.Visibility != documentVisibilityWorkspace {
 			t.Fatalf("visibility = %q after refused patches", got.Visibility)
 		}
 	})
@@ -178,31 +176,30 @@ func TestFolderCannotBeSharedOrOpened(t *testing.T) {
 		wantFolderNotShareable(t, err, "home row writer")
 	})
 
-	t.Run("a legacy folder can still be closed and its shares revoked", func(t *testing.T) {
+	// ADR 0037 §1-§2: a legacy share on a folder can still be revoked, but a
+	// workspace folder's home row is its location's and is never closed by
+	// hand (PUT /access or PATCH answer folder_not_shareable).
+	t.Run("a legacy share is revoked, the workspace folder stays open", func(t *testing.T) {
 		old := x.folder(t, "Cũ đã chia sẻ", "")
-		x.legacyWorkspace(t, old.ID)
 		x.legacyShare(t, old.ID, DocumentPrincipalUser, x.viewer.ID)
-		view := DocumentLevelView
-		_ = view
 		res, err := f.svc.UpdateDocumentAccess(ctx, x.owner, old.ID, UpdateDocumentAccessInput{Items: []DocumentAccessBatchItem{
 			{PrincipalType: DocumentPrincipalUser, PrincipalID: x.viewer.ID},
-			{PrincipalType: DocumentPrincipalWorkspace, PrincipalID: x.tn.wsA},
 		}})
 		if err != nil {
 			t.Fatalf("revoking on a folder: %v (%+v)", err, res)
 		}
-		if got := x.get(t, old.ID); got.Visibility != documentVisibilityRestricted {
-			t.Fatalf("legacy folder visibility = %q, want restricted", got.Visibility)
-		}
 		if n := fsoCount(t, x, `SELECT count(*) FROM document_shares WHERE document_id = $1 AND revoked_at IS NULL`, old.ID); n != 0 {
 			t.Fatalf("live shares left = %d", n)
 		}
-		// Closing through PATCH is the owner's self-service path too.
-		again := x.folder(t, "Cũ hai", "")
-		x.legacyWorkspace(t, again.ID)
-		cur := x.get(t, again.ID)
-		if _, err := f.svc.UpdateDocument(ctx, x.owner, again.ID, UpdateDocumentInput{Revision: cur.Revision, Visibility: strPtr(documentVisibilityRestricted)}); err != nil {
-			t.Fatalf("closing a legacy folder by PATCH: %v", err)
+		_, err = f.svc.UpdateDocumentAccess(ctx, x.owner, old.ID, UpdateDocumentAccessInput{Items: []DocumentAccessBatchItem{
+			{PrincipalType: DocumentPrincipalWorkspace, PrincipalID: x.tn.wsA},
+		}})
+		wantFolderNotShareable(t, err, "closing the workspace folder's home row")
+		cur := x.get(t, old.ID)
+		_, err = f.svc.UpdateDocument(ctx, x.owner, old.ID, UpdateDocumentInput{Revision: cur.Revision, Visibility: strPtr(documentVisibilityRestricted)})
+		wantFolderNotShareable(t, err, "closing a workspace folder by PATCH")
+		if got := x.get(t, old.ID); got.Visibility != documentVisibilityWorkspace {
+			t.Fatalf("workspace folder visibility = %q, want workspace", got.Visibility)
 		}
 	})
 }
@@ -216,9 +213,10 @@ func TestChildOfFolderNeverInheritsItsVisibility(t *testing.T) {
 	if child.Visibility != documentVisibilityRestricted {
 		t.Fatalf("child of a (legacy) workspace folder = %q, want restricted", child.Visibility)
 	}
+	// A sub-folder takes its location's pair (ADR 0037 §1), not its parent's.
 	sub := x.folder(t, "Thư mục con", legacy.ID)
-	if sub.Visibility != documentVisibilityRestricted {
-		t.Fatalf("subfolder = %q, want restricted", sub.Visibility)
+	if sub.Visibility != documentVisibilityWorkspace || sub.WorkspaceLevel != string(DocumentLevelView) {
+		t.Fatalf("subfolder = %s/%s, want workspace/view", sub.Visibility, sub.WorkspaceLevel)
 	}
 	open := x.page(t, "Mở", legacy.ID, documentVisibilityWorkspace)
 	if open.Visibility != documentVisibilityWorkspace || open.WorkspaceLevel != string(DocumentLevelView) {
@@ -485,12 +483,24 @@ func TestUnshareFoldersCleansLegacyAndKeepsDocuments(t *testing.T) {
 	childBefore, sharedBefore := x.get(t, child.ID), x.get(t, sharedChild.ID)
 	sharesBefore := fsoCount(t, x, `SELECT count(*) FROM document_shares WHERE document_id = $1 AND revoked_at IS NULL`, sharedChild.ID)
 
+	// ADR 0037: every folder here is at the workspace root, so workspace/view
+	// is its right state - the pass closes no home row there and removes the
+	// shares only (B's twin is a share like any other on an open folder). A
+	// workspace-visible folder inside a My Folder tree is the one home row it
+	// still closes.
+	mf, _, err := f.svc.EnsureMyFolder(ctx, x.owner, x.tn.wsA)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stray := x.folder(t, "Lạc trong My Folder", mf.Document.ID)
+	x.legacyWorkspace(t, stray.ID)
+
 	dry, err := f.svc.UnshareFolders(ctx, true, 2)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !dry.DryRun || dry.Folders != 3 || dry.HomeRows != 3 || dry.Shares != 2 {
-		t.Fatalf("dry run = %+v, want 3 folders, 3 home rows (A, B twin, C), 2 shares", dry)
+	if !dry.DryRun || dry.Folders != 3 || dry.HomeRows != 1 || dry.Shares != 3 {
+		t.Fatalf("dry run = %+v, want 3 folders (A, B, the stray), 1 home row (the stray), 3 shares", dry)
 	}
 	if got := x.get(t, a.ID); got.Visibility != documentVisibilityWorkspace {
 		t.Fatal("a dry run wrote")
@@ -498,17 +508,23 @@ func TestUnshareFoldersCleansLegacyAndKeepsDocuments(t *testing.T) {
 	if n := fsoCount(t, x, `SELECT count(*) FROM audit_events WHERE resource_id = $1`, a.ID); n != 1 {
 		t.Fatalf("audit rows on A after a dry run = %d, want only its create row", n)
 	}
+	if got := x.get(t, stray.ID); got.Visibility != documentVisibilityWorkspace {
+		t.Fatal("a dry run closed the stray folder")
+	}
 
 	res, err := f.svc.UnshareFolders(ctx, false, 2)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if res.DryRun || res.Folders != 3 || res.Shares != 2 {
+	if res.DryRun || res.Folders != 3 || res.HomeRows != 1 || res.Shares != 3 {
 		t.Fatalf("run = %+v", res)
 	}
+	if got := x.get(t, stray.ID); got.Visibility != documentVisibilityRestricted {
+		t.Fatalf("the stray folder in My Folder = %q, want restricted", got.Visibility)
+	}
 	for _, id := range []string{a.ID, b.ID, c.ID, clean.ID} {
-		if got := x.get(t, id); got.Visibility != documentVisibilityRestricted {
-			t.Fatalf("folder %s visibility = %q", id, got.Visibility)
+		if got := x.get(t, id); got.Visibility != documentVisibilityWorkspace {
+			t.Fatalf("folder %s visibility = %q, want workspace (its location)", id, got.Visibility)
 		}
 		if n := fsoCount(t, x, `SELECT count(*) FROM document_shares WHERE document_id = $1 AND revoked_at IS NULL`, id); n != 0 {
 			t.Fatalf("folder %s still has %d live shares", id, n)
@@ -517,16 +533,16 @@ func TestUnshareFoldersCleansLegacyAndKeepsDocuments(t *testing.T) {
 	if x.get(t, c.ID).ArchivedAt.Valid == false {
 		t.Fatal("the archived folder stopped being archived")
 	}
-	// Audit and frames: one home-row row per folder that was open, one revoke
-	// per share (B's twin goes through the home-row writer).
-	if n := fsoCount(t, x, `SELECT count(*) FROM audit_events WHERE action = 'document.workspace_access_changed' AND actor_id = 'folder-share-off'`); n != 3 {
-		t.Fatalf("workspace_access_changed rows = %d, want 3", n)
+	// Audit and frames: one home-row row for the stray folder, one revoke per
+	// share (B's twin revoked as a share).
+	if n := fsoCount(t, x, `SELECT count(*) FROM audit_events WHERE action = 'document.workspace_access_changed' AND actor_id = 'folder-share-off'`); n != 1 {
+		t.Fatalf("workspace_access_changed rows = %d, want 1", n)
 	}
 	if n := fsoCount(t, x, `SELECT count(*) FROM audit_events WHERE action = 'document.share_revoked' AND actor_id = 'folder-share-off'`); n != 3 {
 		t.Fatalf("share_revoked rows = %d, want 3 (A's user, B's org, B's twin)", n)
 	}
-	if n := fsoCount(t, x, `SELECT count(*) FROM outbox_events WHERE topic = 'document.workspace_access_changed'`); n < 3 {
-		t.Fatalf("outbox frames = %d", n)
+	if n := fsoCount(t, x, `SELECT count(*) FROM outbox_events WHERE topic = 'document.workspace_access_changed' AND payload::jsonb->>'document_id' = $1`, stray.ID); n != 1 {
+		t.Fatalf("outbox frames for the stray folder = %d", n)
 	}
 
 	// Documents keep their own access.
@@ -548,7 +564,7 @@ func TestUnshareFoldersCleansLegacyAndKeepsDocuments(t *testing.T) {
 	if again.Folders != 0 || again.Shares != 0 {
 		t.Fatalf("a second pass = %+v, want nothing", again)
 	}
-	if n := fsoCount(t, x, `SELECT count(*) FROM audit_events WHERE action = 'document.workspace_access_changed' AND actor_id = 'folder-share-off'`); n != 3 {
+	if n := fsoCount(t, x, `SELECT count(*) FROM audit_events WHERE action = 'document.workspace_access_changed' AND actor_id = 'folder-share-off'`); n != 1 {
 		t.Fatalf("a second pass wrote audit rows: %d", n)
 	}
 }
@@ -591,8 +607,9 @@ func TestMoveNeverChangesSharing(t *testing.T) {
 				before.Visibility, before.WorkspaceLevel, after.Visibility, after.WorkspaceLevel, sharesBefore, sharesOf(row.doc.ID))
 		}
 	}
-	// The folders the rows landed in did not pick anything up either.
-	if got := x.get(t, other.ID); got.Visibility != documentVisibilityRestricted {
-		t.Fatalf("the destination folder became %q", got.Visibility)
+	// The folders the rows landed in did not pick anything up either: a
+	// workspace folder stays workspace/view (ADR 0037 §1), whatever moved in.
+	if got := x.get(t, other.ID); got.Visibility != documentVisibilityWorkspace || got.WorkspaceLevel != string(DocumentLevelView) {
+		t.Fatalf("the destination folder became %s/%s", got.Visibility, got.WorkspaceLevel)
 	}
 }
