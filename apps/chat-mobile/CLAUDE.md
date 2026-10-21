@@ -337,7 +337,7 @@ một dòng thì ghi lý do ở dòng trên.
   (`use-voice-recorder.ts`) và trước gọi/nghe (`ensureCallPermissions(withCamera, callId)`; cuộc gọi vẫn đi tiếp khi bị
   từ chối; nút Nghe chỉ nghe đúng cuộc gọi đã bấm — `acceptCall(callId)` — và màn giải thích của cuộc gọi đang nghe không
   bị đóng khi chính cuộc gọi đó đổ chuông), camera
-  trước gọi video; ảnh không cần (trình chọn của hệ thống). **Ngôn ngữ**: chuỗi tiếng Anh có `{{count}}` là cặp
+  trước gọi video và trước khi bật camera giữa cuộc gọi (`components/calls/toggle-camera.ts`; tắt camera không hỏi); ảnh không cần (trình chọn của hệ thống). **Ngôn ngữ**: chuỗi tiếng Anh có `{{count}}` là cặp
   `_one`/`_other`, tiếng Việt một khoá (như core; `lib/i18n.test.ts` đỏ khi thiếu); i18next 26 không có
   `Intl.PluralRules` (Hermes) vẫn chọn one/other theo luật tiếng Anh. Ngôn ngữ app lên server (`users.locale`, push và
   email theo nó): `data/locale-sync.ts` gửi `PATCH /me` lần đăng nhập đầu của mỗi tài khoản trên máy và mỗi lần đổi

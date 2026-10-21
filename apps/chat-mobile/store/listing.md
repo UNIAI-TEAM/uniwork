@@ -109,7 +109,7 @@ review. Chuỗi iOS có tiếng Việt (ngôn ngữ gốc, `CFBundleDevelopmentR
 hai ngôn ngữ với hệ điều hành (`expo-localization` `supportedLocales`), nên trang ngôn ngữ theo app của iOS và
 Android 13+ chỉ có hai lựa chọn đó.
 
-Trước micro (tin thoại, cuộc gọi), camera (gọi video) và thông báo, app hiện màn giải thích của mình (UNI-2053 S6,
+Trước micro (tin thoại, cuộc gọi), camera (gọi video, bật camera giữa cuộc gọi thoại) và thông báo, app hiện màn giải thích của mình (UNI-2053 S6,
 `data/permissions.ts`): nói cần gì, để làm gì, khi nào dùng; chỉ khi người dùng bấm "Tiếp tục" hộp thoại hệ thống mới
 hiện, "Để sau" giữ hộp thoại cho lần sau. Quyền đã bị tắt hẳn thì màn nói quyền đang tắt và mở Cài đặt của máy. Lời
 mời bật thông báo lúc mở app chỉ hiện một lần mỗi máy (Apple 5.1.1(iv): không ép, nút hệ thống không bị thay thế).

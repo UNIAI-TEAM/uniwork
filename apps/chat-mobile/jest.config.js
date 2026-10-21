@@ -42,6 +42,8 @@ module.exports = {
     "components/chat/message-row.tsx",
     "components/chat/room-row.tsx",
     "components/calls/call-overlay.tsx",
+    // S6 review: the in-call camera button goes through the camera primer.
+    "components/calls/toggle-camera.ts",
     // UNI-2053: the crash screen, the toasts, the update gate and Settings › About.
     "components/ui/error-fallback.tsx",
     "components/ui/toast-host.tsx",

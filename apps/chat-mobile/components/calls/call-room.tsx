@@ -30,6 +30,7 @@ import { preferredOutputs } from "@/lib/audio-outputs";
 import { formatVoiceCallDuration } from "@/lib/message-display";
 import { AudioOutputButton } from "./audio-output-button";
 import { CALL, CallButton, CallerHero, SHADOW } from "./call-surface";
+import { toggleCamera } from "./toggle-camera";
 
 // WebRTC globals for LiveKit, once, when the call UI first loads (call-overlay.tsx loads this
 // module when a call shows), not at app start: a launch that never calls never pays for them.
@@ -135,7 +136,7 @@ function RoomStage({ peerName, connected, recording, onMinimize, seed, room, vid
           label={t("chat.voice_call_camera")}
           active={isCameraEnabled}
           testID="call-video"
-          onPress={() => void localParticipant.setCameraEnabled(!isCameraEnabled)}
+          onPress={() => void toggleCamera(isCameraEnabled, (on) => localParticipant.setCameraEnabled(on))}
         />
         <CallButton
           icon={isMicrophoneEnabled ? "mic" : "mic-off"}
