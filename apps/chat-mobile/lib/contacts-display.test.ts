@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { contactLabel, contactSections } from "./contacts-display";
+import { contactLabel, contactSections, pickerPeople } from "./contacts-display";
 import { resolveChatNicknameForUser } from "@uniwork/core/chat/contact-labels";
 
 const member = (user_id: string, display_name: string, email = `${user_id}@example.com`) => ({ user_id, display_name, email });
@@ -61,5 +61,14 @@ describe("contactSections", () => {
     expect(shape(contactSections(members, { ...base, query: "long@" }))).toEqual([["T", ["Trần Hoang Long"]]]);
     expect(shape(contactSections(members, { ...base, nicknames: { u1: "Bé Long" }, query: "tran" }))).toEqual([["B", ["Bé Long"]]]);
     expect(contactSections(members, { ...base, query: "nghi" })).toEqual([]);
+  });
+});
+
+describe("pickerPeople", () => {
+  it("leaves the reader out, labels and finds people as the chat names them, A–Z", () => {
+    const people = [member("ME", "Tôi"), member("u2", "Trần Bình"), member("u3", "An Nguyễn", "an@x.vn"), member("u4", "Cường")];
+    expect(pickerPeople(people, { currentUserId: "me", nicknames: { U4: "Anh Cả" }, query: "" }).map((p) => p.label)).toEqual(["An Nguyễn", "Anh Cả", "Trần Bình"]);
+    expect(pickerPeople(people, { currentUserId: "me", query: "binh" }).map((p) => p.user_id)).toEqual(["u2"]);
+    expect(pickerPeople(people, { currentUserId: "me", query: "an@x" }).map((p) => p.user_id)).toEqual(["u3"]);
   });
 });

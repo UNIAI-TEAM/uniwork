@@ -280,3 +280,22 @@ export function buildRoomList(input: {
     };
   });
 }
+
+/**
+ * "Bắt kịp nhanh" over the rows a scope shows: the unread they hold, how many
+ * rooms hold it, and the room holding the most (the first of a tie), which the
+ * banner opens (packages/views/chat/chat-sidebar-catch-up.tsx › pickQuickCatchUp,
+ * on the phone's rows). A row without a room (a DM not made yet) holds none.
+ */
+export function quickCatchUp(rows: readonly RoomListRow[]): { total: number; rooms: number; top: RoomListRow | null } {
+  let total = 0;
+  let rooms = 0;
+  let top: RoomListRow | null = null;
+  for (const row of rows) {
+    if (row.unread <= 0 || !row.roomId) continue;
+    total += row.unread;
+    rooms += 1;
+    if (!top || row.unread > top.unread) top = row;
+  }
+  return { total, rooms, top };
+}

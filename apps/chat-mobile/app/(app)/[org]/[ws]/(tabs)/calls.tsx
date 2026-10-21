@@ -23,7 +23,7 @@ import { nicknamesOptions } from "@/data/queries/chat";
 import { useMobileFlag } from "@/data/remote-config";
 import { callEngine } from "@/data/calls/call-store";
 import { useWorkspaceStore } from "@/data/stores/workspace-store";
-import { callLogSections, callLogTitle, callLogView, formatCallClock, formatCallTime, type CallLogFilter } from "@/lib/call-log-display";
+import { callLogSections, callLogTitle, callLogView, formatCallClock, formatCallTime, type CallLogFilter, missedCallCount } from "@/lib/call-log-display";
 import { deepLinkHref } from "@/lib/deep-link";
 import { THEME } from "@/lib/theme";
 import { useColorScheme } from "@/lib/use-color-scheme";
@@ -130,10 +130,7 @@ export default function CallsTab() {
   );
 
   // MobCalls board: the "Cuộc gọi nhỡ" chip counts the missed calls loaded so far.
-  const missedCount = useMemo(
-    () => (logs.data?.pages.flatMap((page) => page.call_logs) ?? []).filter((log) => callLogView(log, userId).missed).length,
-    [logs.data, userId],
-  );
+  const missedCount = useMemo(() => missedCallCount(logs.data?.pages.flatMap((page) => page.call_logs) ?? [], userId), [logs.data, userId]);
 
   const empty = logs.isPending ? (
     <View className="items-center py-12">

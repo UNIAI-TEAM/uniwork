@@ -7,7 +7,6 @@
 // and leaving it.
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import type { ChatRoomRecord } from "@uniwork/core/api/endpoints/chat-schemas";
 import { isDefaultWorkspaceChannel } from "@uniwork/core/chat/chat-room-helpers";
 import { Image } from "expo-image";
 import { router, Stack, useLocalSearchParams } from "expo-router";
@@ -33,7 +32,7 @@ import { chatRoutes } from "@/lib/chat-routes";
 import { deepLinkHref } from "@/lib/deep-link";
 import { messagePreviewText } from "@/lib/message-display";
 import { senderLabelFor } from "@/lib/people-display";
-import type { RoomMark } from "@/lib/room-list";
+import { canCallRoom, keptCounts, roomHeaderMark } from "@/lib/conversation-display";
 import { THEME } from "@/lib/theme";
 import { formatMessageDay, toTimelineMessage } from "@/lib/timeline-display";
 import { useColorScheme } from "@/lib/use-color-scheme";
@@ -48,13 +47,6 @@ const MEMBERS_PREVIEW = 5;
 const PHOTO_TILES = 6;
 
 type SharedTab = "photo" | "file" | "link" | "voice";
-
-function markFor(room: ChatRoomRecord | null, title: string, online: boolean): RoomMark {
-  if (room?.kind === "dm") return { kind: "dm", label: title, online, userId: room.peer_user_id };
-  if (room && (room.kind === "workspace" || isDefaultWorkspaceChannel(room))) return { kind: "workspace" };
-  if (room?.kind === "channel") return { kind: room.visibility === "private" ? "private-channel" : "channel" };
-  return { kind: "group", label: title };
-}
 
 function QuickAction(props: { icon: ComponentProps<typeof Ionicons>["name"]; label: string; accessibilityLabel?: string; onPress: () => void }) {
   const { colorScheme } = useColorScheme();
@@ -168,7 +160,7 @@ function RoomInfo({ chat, roomId }: { chat: ChatWorkspace; roomId: string }) {
   const muted = room.room?.notifications_muted === true;
   const canLeave = room.room !== null && !isDefaultWorkspaceChannel(room.room);
   const callsOn = useMobileFlag("unichat_mobile_calls");
-  const callable = callsOn && room.room !== null && ["dm", "group", "channel"].includes(room.room.kind) && !isDefaultWorkspaceChannel(room.room);
+  const callable = canCallRoom(room.room, callsOn);
   const isGroup = room.room?.kind === "group";
   const memberCount = room.members.length || (room.room?.member_count ?? 0);
   const heroLine =
@@ -181,10 +173,7 @@ function RoomInfo({ chat, roomId }: { chat: ChatWorkspace; roomId: string }) {
         : null;
   // Pins, notes and polls among the messages the room already loaded; the row opens the room, where the pinned bar is.
   const loaded = qc.getQueryData<RoomTimeline>(roomTimelineOptions(chat.wsId, roomId).queryKey);
-  const kept = useMemo(() => {
-    const rows = (loaded?.pages ?? []).flat();
-    return { pins: rows.filter((m) => m.pinned).length, notes: rows.filter((m) => m.kind === "note").length, polls: rows.filter((m) => m.kind === "poll").length };
-  }, [loaded]);
+  const kept = useMemo(() => keptCounts((loaded?.pages ?? []).flat()), [loaded]);
   const members = allMembers ? room.members : room.members.slice(0, MEMBERS_PREVIEW);
 
   const leave = () =>
@@ -205,7 +194,7 @@ function RoomInfo({ chat, roomId }: { chat: ChatWorkspace; roomId: string }) {
       <ChatHeader title={t("chat.mobile.room_info")} centered flat />
       <ScrollView keyboardShouldPersistTaps="handled" contentContainerClassName="pb-10">
         <View className="items-center px-5 pb-5 pt-3">
-          <RoomAvatar mark={markFor(room.room, room.title, room.peerOnline)} size={84} seed={roomId} />
+          <RoomAvatar mark={roomHeaderMark(room.room, room.title, room.peerOnline)} size={84} seed={roomId} />
           <Text className="mt-3 text-center text-title1 font-display font-extrabold leading-7 text-foreground" accessibilityRole="header">
             {room.title}
           </Text>

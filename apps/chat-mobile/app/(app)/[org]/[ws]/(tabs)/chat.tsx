@@ -4,11 +4,12 @@
 // the compose button for a new DM or the channel directory. It is also where a deep link
 // lands: `?room=` opens that room, with `&message=` jumping to the message,
 // and `?dm=` opens (or creates) the DM with that person — the params
-// lib/deep-link.ts › deepLinkHref writes.
+// lib/deep-link.ts › deepLinkHref writes, carried out by
+// components/chat/use-deep-link-target.ts.
 import { Ionicons } from "@expo/vector-icons";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { router, useLocalSearchParams } from "expo-router";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { router } from "expo-router";
+import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable, RefreshControl, View } from "react-native";
 import { CatchUpBanner, CatchUpSheet, type CatchUpTarget } from "@/components/chat/catch-up-sheet";
@@ -16,84 +17,27 @@ import { ConnectionBanner } from "@/components/chat/connection-banner";
 import { FilterChips, RoomListEmpty, RoomListError, RoomListSkeleton, ScopeHint, ScopeSwitch, WorkspacePill } from "@/components/chat/room-list-parts";
 import { RoomListView } from "@/components/chat/room-list-view";
 import { RoomPreview } from "@/components/chat/room-preview";
-import { useChatWorkspace, type ChatWorkspace } from "@/components/chat/use-chat-workspace";
+import { useChatWorkspace } from "@/components/chat/use-chat-workspace";
+import { useDeepLinkTarget } from "@/components/chat/use-deep-link-target";
 import { ActionSheet, type SheetAction } from "@/components/ui/action-sheet";
 import { Header } from "@/components/ui/header";
-import { ensureCallPermissions } from "@/components/ui/permission-gate";
 import { SearchField } from "@/components/ui/search-field";
 import { Text } from "@/components/ui/text";
 import { WorkspaceSwitchSheet } from "@/components/workspace/workspace-switch-sheet";
-import { callEngine } from "@/data/calls/call-store";
-import { nativeCalls } from "@/data/calls/native-calls";
 import { useResolveDM, useSetRoomMuted } from "@/data/mutations/rooms";
 import { nicknamesOptions, roomsOptions, unreadSummaryOptions, workspaceMembersOptions } from "@/data/queries/chat";
 import { workspaceListOptions } from "@/data/queries/workspaces";
 import { useChatPinsStore } from "@/data/stores/chat-pins-store";
-import { useChatSendStore } from "@/data/stores/chat-send-store";
+import { selectQueuedRoomIds, useChatSendStore } from "@/data/stores/chat-send-store";
 import { useSidebarTypingStore } from "@/data/stores/chat-typing-store";
 import { chatRoutes } from "@/lib/chat-routes";
 import { ROOM_LIST_FILTERS_BY_SCOPE, scopeRows, type ChatScope } from "@/lib/chat-scope";
-import { buildRoomList, filterRoomList, roomListTypingLines, type RoomListFilter, type RoomListRow } from "@/lib/room-list";
+import { buildRoomList, filterRoomList, quickCatchUp, roomListTypingLines, type RoomListFilter, type RoomListRow } from "@/lib/room-list";
 import { THEME } from "@/lib/theme";
 import { useColorScheme } from "@/lib/use-color-scheme";
 import { unreadInOtherWorkspaces } from "@/lib/workspace-unread";
-import { readMobileFlag } from "@/data/remote-config";
 import { ScreenFullyDrawn } from "@/data/sentry";
 import { toast } from "@/data/stores/toast-store";
-
-/** Opens the room a deep link names, once per link. */
-function useDeepLinkTarget(chat: ChatWorkspace | null) {
-  const { t } = useTranslation();
-  const qc = useQueryClient();
-  const resolveDM = useResolveDM(chat?.wsId ?? "").mutateAsync;
-  const params = useLocalSearchParams<{ room?: string; message?: string; dm?: string; call?: string; answer?: string }>();
-  const handled = useRef<string | null>(null);
-
-  useEffect(() => {
-    const key = [params.room, params.message, params.dm, params.call, params.answer].map((value) => value ?? "").join("|");
-    if (key === "||||") {
-      handled.current = null;
-      return;
-    }
-    if (!chat || handled.current === key) return;
-    handled.current = key;
-    const { room, message, dm, call, answer } = params;
-    router.setParams({ room: undefined, message: undefined, dm: undefined, call: undefined, answer: undefined });
-    // A ringing call's push or notification: its ringing screen while it rings (Answer
-    // on the notification answers at once), else the room, where the missed call is logged.
-    if (room && call) {
-      // With the server's calls switch off the push opens the room, where the call is logged.
-      if (!readMobileFlag(qc, "unichat_mobile_calls")) {
-        nativeCalls.cancelIncomingCall(call);
-        toast.info(t("mobile.calls.disabled"));
-        router.push(chatRoutes.room(chat, room));
-        return;
-      }
-      // Answer on the notification: the microphone is explained and asked before the call connects; the call
-      // ringing here meanwhile (the app reconciling as it comes to the front) leaves that primer open.
-      const open = answer === "1" ? ensureCallPermissions(false, call).then(() => callEngine.joinFromPush(room, call)) : callEngine.ringFromPush(room, call);
-      void open.then((ringing) => {
-        if (ringing) return;
-        // Over (its end push not here yet): the phone's own ringing notification goes too.
-        nativeCalls.cancelIncomingCall(call);
-        router.push(chatRoutes.room(chat, room));
-      });
-      return;
-    }
-    if (room) {
-      router.push(chatRoutes.room(chat, room, message));
-      return;
-    }
-    if (dm) {
-      resolveDM(dm)
-        .then((resolved) => {
-          if (resolved) router.push(chatRoutes.room(chat, resolved.id));
-          else toast.error(t("chat.dm_failed"));
-        })
-        .catch(() => toast.error(t("chat.dm_failed")));
-    }
-  }, [chat, params, qc, t, resolveDM]);
-}
 
 export default function ChatTab() {
   const { t, i18n } = useTranslation();
@@ -112,7 +56,7 @@ export default function ChatTab() {
   const summary = useQuery({ ...unreadSummaryOptions(), enabled: Boolean(chat) });
   const otherUnread = unreadInOtherWorkspaces(summary.data, wsId);
   const sends = useChatSendStore((s) => s.entries);
-  const queuedRooms = useMemo(() => new Set(sends.filter((entry) => entry.status === "queued" && entry.workspaceId === wsId).map((entry) => entry.roomId)), [sends, wsId]);
+  const queuedRooms = useMemo(() => selectQueuedRoomIds(sends, wsId, chat?.userId ?? ""), [sends, wsId, chat?.userId]);
   const [switchOpen, setSwitchOpen] = useState(false);
   const [catchUp, setCatchUp] = useState<CatchUpTarget | null>(null);
   const pinnedByRoomId = useChatPinsStore((s) => s.byRoomId);
@@ -159,19 +103,8 @@ export default function ChatTab() {
   const scoped = useMemo(() => scopeRows(scope, rows), [rows, scope]);
   const shown = useMemo(() => filterRoomList(scoped, filter), [scoped, filter]);
   const mentionRooms = useMemo(() => filterRoomList(scoped, "mentions").length, [scoped]);
-  // "Bắt kịp nhanh" sums the list's unread and opens the room holding the most of it (chat-sidebar-catch-up.tsx › pickQuickCatchUp).
-  const quickCatchUp = useMemo(() => {
-    let total = 0;
-    let withUnread = 0;
-    let top: RoomListRow | null = null;
-    for (const row of scoped) {
-      if (row.unread <= 0 || !row.roomId) continue;
-      total += row.unread;
-      withUnread += 1;
-      if (!top || row.unread > top.unread) top = row;
-    }
-    return { total, rooms: withUnread, top };
-  }, [scoped]);
+  // "Bắt kịp nhanh" sums the list's unread and opens the room holding the most of it.
+  const catchUpPick = useMemo(() => quickCatchUp(scoped), [scoped]);
 
   const open = useCallback(
     (row: RoomListRow) => {
@@ -265,11 +198,11 @@ export default function ChatTab() {
             onOpen={open}
             onMenu={setMenuRow}
             ListHeaderComponent={
-              quickCatchUp.top && filter === "all" && filterText.trim() === "" ? (
+              catchUpPick.top && filter === "all" && filterText.trim() === "" ? (
                 <CatchUpBanner
-                  total={quickCatchUp.total}
-                  rooms={quickCatchUp.rooms}
-                  onPress={() => quickCatchUp.top?.roomId && setCatchUp({ roomId: quickCatchUp.top.roomId, title: quickCatchUp.top.title, unread: quickCatchUp.top.unread })}
+                  total={catchUpPick.total}
+                  rooms={catchUpPick.rooms}
+                  onPress={() => catchUpPick.top?.roomId && setCatchUp({ roomId: catchUpPick.top.roomId, title: catchUpPick.top.title, unread: catchUpPick.top.unread })}
                 />
               ) : null
             }

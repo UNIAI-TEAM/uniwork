@@ -89,3 +89,8 @@ export function callLogSections<T extends SectionedLog>(
   }
   return sections;
 }
+
+/** MobCalls board: how many of the loaded calls rang for the reader and went unanswered (the "Cuộc gọi nhỡ" chip). */
+export function missedCallCount(logs: readonly Pick<CallLog, "outcome" | "video" | "caller_id" | "duration_seconds">[], currentUserId: string): number {
+  return logs.filter((log) => callLogView(log, currentUserId).missed).length;
+}

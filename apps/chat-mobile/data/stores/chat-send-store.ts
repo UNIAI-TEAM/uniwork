@@ -90,3 +90,8 @@ export async function hydrateChatSendStore(): Promise<void> {
 export function selectRoomSends(entries: readonly PendingSend[], workspaceId: string, roomId: string, senderId: string): PendingSend[] {
   return entries.filter((entry) => entry.workspaceId === workspaceId && entry.roomId === roomId && entry.senderId === senderId);
 }
+
+/** The rooms of a workspace with a message of this sender waiting for the network: their rows say so. */
+export function selectQueuedRoomIds(entries: readonly PendingSend[], workspaceId: string, senderId: string): Set<string> {
+  return new Set(entries.filter((entry) => entry.status === "queued" && entry.workspaceId === workspaceId && entry.senderId === senderId).map((entry) => entry.roomId));
+}

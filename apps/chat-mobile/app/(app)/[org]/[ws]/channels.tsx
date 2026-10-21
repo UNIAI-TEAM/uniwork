@@ -14,7 +14,7 @@ import { Text } from "@/components/ui/text";
 import { useJoinChannel } from "@/data/mutations/rooms";
 import { discoverableChannelsOptions, myChannelsOptions } from "@/data/queries/chat";
 import { chatRoutes } from "@/lib/chat-routes";
-import { foldedIncludes } from "@uniwork/core/chat/search-fold";
+import { channelDirectory } from "@/lib/channel-directory";
 import { THEME } from "@/lib/theme";
 import { useColorScheme } from "@/lib/use-color-scheme";
 import { cn } from "@/lib/utils";
@@ -32,11 +32,7 @@ function ChannelDirectory({ chat }: { chat: ChatWorkspace }) {
   const [pulling, setPulling] = useState(false);
   // MobChannels board: the channels already joined sit in the same list, marked "Đã tham gia", and open on a tap.
   const joined = useMemo(() => new Set((mine.data ?? []).map((c) => c.id)), [mine.data]);
-  const shown = useMemo(() => {
-    const all = [...(channels.data ?? []), ...(mine.data ?? []).filter((c) => c.kind === "channel" && c.visibility !== "private" && !c.is_default)];
-    const unique = all.filter((c, index) => all.findIndex((other) => other.id === c.id) === index);
-    return unique.filter((c) => foldedIncludes(c.name, q) || foldedIncludes(c.topic ?? "", q)).sort((a, b) => a.name.localeCompare(b.name));
-  }, [channels.data, mine.data, q]);
+  const shown = useMemo(() => channelDirectory(channels.data ?? [], mine.data ?? [], q), [channels.data, mine.data, q]);
 
   const join = (roomId: string, name: string) => {
     setJoining(roomId);

@@ -21,13 +21,12 @@ import { Text } from "@/components/ui/text";
 import { useCreateGroup, useInviteGroupMembers } from "@/data/mutations/rooms";
 import { nicknamesOptions, roomMembersOptions, workspaceMembersOptions } from "@/data/queries/chat";
 import { chatRoutes } from "@/lib/chat-routes";
-import { displayLabelForChatContact } from "@uniwork/core/chat/contact-labels";
-import { foldedIncludes } from "@uniwork/core/chat/search-fold";
 import { THEME } from "@/lib/theme";
 import { useColorScheme } from "@/lib/use-color-scheme";
 import { cn } from "@/lib/utils";
 import { toast } from "@/data/stores/toast-store";
-import { sameUser, userKey } from "@/lib/user-id";
+import { pickerPeople } from "@/lib/contacts-display";
+import { userKey } from "@/lib/user-id";
 
 /** The fewest others a new group takes (chat.create_group_description). */
 const GROUP_MIN_OTHERS = 2;
@@ -46,15 +45,7 @@ function NewGroup({ chat, roomId }: { chat: ChatWorkspace; roomId: string | null
   const [picked, setPicked] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const already = useMemo(() => new Set((inRoom.data ?? []).map((m) => userKey(m.user_id))), [inRoom.data]);
-  const people = useMemo(
-    () =>
-      (members.data ?? [])
-        .filter((m) => !sameUser(m.user_id, chat.userId))
-        .map((m) => ({ ...m, label: displayLabelForChatContact(m, nicknames) }))
-        .filter((m) => foldedIncludes(m.label, q) || foldedIncludes(m.email, q))
-        .sort((a, b) => a.label.localeCompare(b.label)),
-    [members.data, nicknames, chat.userId, q],
-  );
+  const people = useMemo(() => pickerPeople(members.data ?? [], { currentUserId: chat.userId, nicknames, query: q }), [members.data, nicknames, chat.userId, q]);
   const labelOf = (userId: string) => people.find((p) => p.user_id === userId)?.label ?? (members.data ?? []).find((m) => m.user_id === userId)?.display_name ?? "";
   // Stable, so a row redraws only for its own presence or selection (member-rows.tsx).
   const toggle = useCallback(

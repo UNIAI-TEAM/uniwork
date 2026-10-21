@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { callLogSections, callLogTitle, callLogView, formatCallClock, formatCallTime } from "./call-log-display";
+import { callLogSections, callLogTitle, callLogView, formatCallClock, formatCallTime, missedCallCount } from "./call-log-display";
 import { i18n } from "./i18n/singleton";
 
 const call = (outcome: string, caller: string, extra: { video?: boolean; duration_seconds?: number } = {}) => ({
@@ -107,5 +107,12 @@ describe("callLogSections", () => {
 
   it("an unreadable time joins an untitled group instead of a wrong day", () => {
     expect(shape(callLogSections([log("x", "")], { userId: "me", filter: "all", locale: "vi", labels, now }))).toEqual([["", "x"]]);
+  });
+});
+
+describe("missedCallCount", () => {
+  it("counts only the calls that rang for the reader and went unanswered", () => {
+    expect(missedCallCount([call("unanswered", "peer"), call("unanswered", "me"), call("completed", "peer"), call("unanswered", "other")], "me")).toBe(2);
+    expect(missedCallCount([], "me")).toBe(0);
   });
 });

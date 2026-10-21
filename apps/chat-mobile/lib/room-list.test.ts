@@ -4,7 +4,7 @@
 import { ChatRoomSchema, type ChatRoomRecord } from "@uniwork/core/api/endpoints/chat-schemas";
 import { describe, expect, it } from "vitest";
 import { i18n } from "./i18n/singleton";
-import { buildRoomList, filterRoomList, newestRow, roomListTypingLines, roomTitle, sameRoomListRow, workspaceRoomTitle, type RoomListFilter, type RoomListRow } from "./room-list";
+import { buildRoomList, filterRoomList, newestRow, quickCatchUp, roomListTypingLines, roomTitle, sameRoomListRow, workspaceRoomTitle, type RoomListFilter, type RoomListRow } from "./room-list";
 
 const room = (raw: Record<string, unknown>): ChatRoomRecord =>
   ChatRoomSchema.parse({ workspace_id: "w1", name: "", member_count: 0, ...raw });
@@ -199,5 +199,20 @@ describe("newestRow", () => {
     const newer = { ...held!, unread: 9 };
     expect(newestRow(new Map([[newer.key, newer]]), held!)).toBe(newer);
     expect(newestRow(new Map([[other!.key, other!]]), held!)).toBe(held);
+  });
+});
+
+describe("quickCatchUp", () => {
+  const row = (key: string, unread: number, roomId: string | null = key) => ({ key, roomId, unread }) as RoomListRow;
+
+  it("sums the unread of the rows with a room and opens the room holding the most (the first of a tie)", () => {
+    const rows = [row("a", 2), row("b", 5), row("c", 0), row("d", 5), row("dm-new", 9, null)];
+    const pick = quickCatchUp(rows);
+    expect(pick).toMatchObject({ total: 12, rooms: 3 });
+    expect(pick.top?.key).toBe("b");
+  });
+
+  it("has nothing to open when nothing is unread", () => {
+    expect(quickCatchUp([row("a", 0)])).toEqual({ total: 0, rooms: 0, top: null });
   });
 });

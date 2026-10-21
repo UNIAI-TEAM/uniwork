@@ -1,6 +1,6 @@
 import { ChatRoomSchema, type ChatRoomRecord } from "@uniwork/core/api/endpoints/chat-schemas";
 import { describe, expect, it } from "vitest";
-import { bubbleCorners, continuedRunKeys, roomHeaderMark } from "./conversation-display";
+import { bubbleCorners, canCallRoom, continuedRunKeys, keptCounts, roomHeaderMark } from "./conversation-display";
 import { buildTimelineRows, type TimelineMessage } from "./timeline-display";
 
 const corners = (own: boolean, first: boolean, last: boolean) => {
@@ -57,5 +57,35 @@ describe("roomHeaderMark", () => {
     expect(roomHeaderMark(room({ kind: "group" }), "", false)).toEqual({ kind: "group" });
     expect(roomHeaderMark(room({ kind: "dm", peer_user_id: "u2" }), "Bình", false)).toEqual({ kind: "dm", label: "Bình", online: false, userId: "u2" });
     expect(roomHeaderMark(room({ kind: "dm" }), "Bình", true)).toEqual({ kind: "dm", label: "Bình", online: true });
+  });
+});
+
+describe("roomHeaderMark before the room loads", () => {
+  it("reads as a group named by the title", () => {
+    expect(roomHeaderMark(null, "Thiết kế", false)).toEqual({ kind: "group", label: "Thiết kế" });
+    expect(roomHeaderMark(null, "", false)).toEqual({ kind: "group" });
+  });
+});
+
+describe("canCallRoom", () => {
+  const room = (raw: Record<string, unknown>): ChatRoomRecord => ChatRoomSchema.parse({ id: "r", workspace_id: "w1", name: "", member_count: 0, ...raw });
+
+  it("offers a call in a DM, a group or a channel, with calls switched on", () => {
+    for (const kind of ["dm", "group", "channel"]) expect(canCallRoom(room({ kind }), true), kind).toBe(true);
+    expect(canCallRoom(room({ kind: "dm" }), false)).toBe(false);
+  });
+
+  it("never in the workspace's own room, nor before the room loads", () => {
+    expect(canCallRoom(room({ kind: "channel", is_default: true }), true)).toBe(false);
+    expect(canCallRoom(room({ kind: "workspace" }), true)).toBe(false);
+    expect(canCallRoom(null, true)).toBe(false);
+  });
+});
+
+describe("keptCounts", () => {
+  it("counts the pinned messages, the notes and the polls loaded", () => {
+    const m = (kind: string, pinned = false) => ({ kind, pinned }) as Parameters<typeof keptCounts>[0][number];
+    expect(keptCounts([m("text", true), m("note"), m("note", true), m("poll"), m("text")])).toEqual({ pins: 2, notes: 2, polls: 1 });
+    expect(keptCounts([])).toEqual({ pins: 0, notes: 0, polls: 0 });
   });
 });

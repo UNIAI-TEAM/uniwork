@@ -230,7 +230,10 @@ một dòng thì ghi lý do ở dòng trên.
   `[org]/[ws]/_layout.tsx`, ≤ 25 scope qua `selectLazyChatScopeRoomIds`);
   màn hình ở `app/(app)/[org]/[ws]/{(tabs)/chat,room/[roomId]/{index,info,thread/[rootId]},new-chat,new-group,channels}.tsx`
   + `components/chat/*`. Route tab `/{org}/{ws}/chat` nhận `room`/`message`/`dm`
-  của `lib/deep-link.ts › deepLinkHref` (hợp đồng với push và tab khác).
+  của `lib/deep-link.ts › deepLinkHref` (hợp đồng với push và tab khác): `lib/deep-link-target.ts` (thuần) quyết
+  định, `components/chat/use-deep-link-target.ts` (jest) làm. File route chỉ ghép màn: logic có nhánh nằm ở `lib/`
+  (thuần, vitest — `quickCatchUp`, `pickerPeople`, `channelDirectory`, `canCallRoom`, `keptCounts`,
+  `missedCallCount`, `selectQueuedRoomIds`) hoặc ở hook của `components/` có test jest; không đặt test dưới `app/`.
   Chuỗi: cả subtree `chat` của core + `chat.mobile.*` trong
   `scripts/sync-i18n.mjs`. Kind lạ → `messageView` = `unsupported` → hàng
   "Mở trên web" (`expo-web-browser`, không kích hoạt universal link).

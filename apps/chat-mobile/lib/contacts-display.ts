@@ -3,8 +3,9 @@
 // and leaves out people the way the web's member picker does, with core's
 // search folding and nickname resolver. The A–Z grouping is the tab's own.
 import { isPlaceholderChatDisplayName } from "@uniwork/core/chat/chat-room-helpers";
-import { resolveChatNicknameForUser } from "@uniwork/core/chat/contact-labels";
+import { displayLabelForChatContact, resolveChatNicknameForUser } from "@uniwork/core/chat/contact-labels";
 import { foldVi, foldedIncludes } from "@uniwork/core/chat/search-fold";
+import { sameUser } from "./user-id";
 
 export interface ContactMember {
   user_id: string;
@@ -67,4 +68,21 @@ export function contactSections(
     else sections.push({ title, data: [row] });
   }
   return sections;
+}
+
+/**
+ * The people a new DM or a new group can pick (the web's workspace member
+ * picker): everyone but the reader, labelled as the chat names them
+ * (displayLabelForChatContact: a nickname, a real name, else the email), found
+ * by label or email with Vietnamese folding, A–Z by label.
+ */
+export function pickerPeople<T extends ContactMember>(
+  members: readonly T[],
+  options: { currentUserId: string; nicknames?: Readonly<Record<string, string>>; query: string },
+): (T & { label: string })[] {
+  return members
+    .filter((member) => !sameUser(member.user_id, options.currentUserId))
+    .map((member) => ({ ...member, label: displayLabelForChatContact(member, options.nicknames) }))
+    .filter((member) => foldedIncludes(member.label, options.query) || foldedIncludes(member.email, options.query))
+    .sort((a, b) => a.label.localeCompare(b.label));
 }

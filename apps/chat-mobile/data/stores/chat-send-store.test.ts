@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import type { PendingSend } from "@/lib/send-pipeline";
 import { installDeviceStore, memoryDeviceStore, openDeviceStore } from "../storage/device-store";
-import { hydrateChatSendStore, rehydratedEntries, useChatSendStore } from "./chat-send-store";
+import { hydrateChatSendStore, rehydratedEntries, selectQueuedRoomIds, useChatSendStore } from "./chat-send-store";
 
 const entry = (clientMsgId: string, extra: Partial<PendingSend> = {}): PendingSend => ({
   workspaceId: "w1",
@@ -83,5 +83,18 @@ describe("chat send store", () => {
       ["ok", "queued"],
       ["sending", "queued"],
     ]);
+  });
+});
+
+describe("selectQueuedRoomIds", () => {
+  it("names the rooms with a queued message of this sender in this workspace", () => {
+    const entries = [
+      entry("a"),
+      entry("b", { roomId: "r2", status: "sending" }),
+      entry("c", { roomId: "r3", workspaceId: "w2" }),
+      entry("d", { roomId: "r4", senderId: "someone-else" }),
+      entry("e", { roomId: "r5" }),
+    ];
+    expect([...selectQueuedRoomIds(entries, "w1", "u1")].sort()).toEqual(["r1", "r5"]);
   });
 });

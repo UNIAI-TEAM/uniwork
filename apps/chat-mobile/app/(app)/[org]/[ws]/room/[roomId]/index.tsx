@@ -4,7 +4,6 @@
 // around that message instead (listChatRoomMessagesAround), with a way back
 // to the latest. Local sends join the timeline until the server echoes them.
 import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
-import { isDefaultWorkspaceChannel } from "@uniwork/core/chat/chat-room-helpers";
 import { router, Stack, useLocalSearchParams } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -27,7 +26,7 @@ import { refreshRoomTimelineOnOpen } from "@/data/chat-timeline";
 import { roomAroundOptions, roomTimelineOptions, roomsOptions } from "@/data/queries/chat";
 import { selectRoomSends, useChatSendStore } from "@/data/stores/chat-send-store";
 import { chatRoutes } from "@/lib/chat-routes";
-import { roomHeaderMark } from "@/lib/conversation-display";
+import { canCallRoom, roomHeaderMark } from "@/lib/conversation-display";
 import { buildMainTimelineMessages } from "@/lib/timeline-display";
 import { voiceCallKindFromServer } from "@uniwork/core/chat/voice-call-kind";
 
@@ -68,7 +67,7 @@ function RoomConversation({ chat, roomId, linkedMessageId }: { chat: ChatWorkspa
   // The web's chat header calls from a DM, a group or a channel, never from the workspace room.
   // ...and only while the server's calls switch is on (data/remote-config.ts).
   const callsOn = useMobileFlag("unichat_mobile_calls");
-  const callable = callsOn && room.room && ["dm", "group", "channel"].includes(room.room.kind) && !isDefaultWorkspaceChannel(room.room);
+  const callable = canCallRoom(room.room, callsOn);
   // The microphone (and the camera) is explained and asked before the call starts.
   const call = (withCamera: boolean) =>
     void ensureCallPermissions(withCamera).then(() => callEngine.startCall(roomId, room.title, voiceCallKindFromServer(room.room?.kind), { withCamera }));
