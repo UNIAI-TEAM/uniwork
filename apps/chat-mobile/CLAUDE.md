@@ -156,8 +156,12 @@ một dòng thì ghi lý do ở dòng trên.
   cả phòng. Guard flush theo workspace + người gửi; lỗi tạm thời giữ hàng đó và thử lại theo backoff của riêng hàng đó (chữ gửi được không huỷ lượt thử lại của ảnh, phòng lỗi không kéo dài lượt chờ của phòng khác); tin bị từ chối
   hẳn mà không ai thử lại sau `FAILED_SEND_TTL_MS` (14 ngày — workspace đã rời) bị bỏ cùng tệp. Outbox là của tài
   khoản, không của màn đang mở: `data/owed.ts › flushOwed` đẩy tin chờ và lượt chờ của **mọi** workspace của người
-  đó, khi phiên sẵn sàng, NetInfo online và mỗi lần về foreground (`data/use-account-sync.ts`, gắn ở
-  `app/(app)/_layout.tsx` — cả màn chọn workspace) và khi socket reconnect (`use-chat-realtime.ts`). **Bản offline
+  đó, khi phiên sẵn sàng, NetInfo online, mỗi lần về foreground và lúc rời foreground (tin viết ngay trước khi chuyển
+  app đi trong lúc JS còn chạy) (`data/use-account-sync.ts`, gắn ở
+  `app/(app)/_layout.tsx` — cả màn chọn workspace) và khi socket reconnect (`use-chat-realtime.ts`). Không gì xả
+  outbox khi app ở nền lâu: iOS cần module riêng cho `beginBackgroundTask`, còn task định kỳ của OS
+  (`expo-background-task`) chạy ≥ 15 phút một lần và thêm manifest của WorkManager mà `scripts/android-manifest.mjs`
+  không thấy (chỉ đọc gói được link, không đọc thư viện Maven) — hoãn tới khi kiểm được bằng bản build EAS. **Bản offline
   luôn mới** (`data/timeline-refresh.ts`, cùng hook): frame của phòng không ai xem chỉ đánh dấu stale (UNI-1078), nên lúc
   app rời foreground (còn mạng) các phòng trong 24 phòng gần nhất có timeline đứng sau — bị đánh dấu stale, cũ hơn
   preview của danh sách, hay chưa tải mà còn chưa đọc — được đọc trang mới nhất một lần (cắt về trang đầu trước: một

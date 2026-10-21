@@ -1,5 +1,5 @@
 // The signed-in app keeps in step whatever screen is open: the outbox goes once the session is ready,
-// on the network's offline → online edge and on every return to the front; the stale rooms are read
+// on the network's offline → online edge, on every return to the front and as the app leaves it; the stale rooms are read
 // as the app leaves; a push about a room reads it into the cache.
 import { act, renderHook } from "@testing-library/react-native";
 import { QueryClient, QueryClientProvider, onlineManager } from "@tanstack/react-query";
@@ -93,6 +93,9 @@ it("flushes once ready, on the offline → online edge only, and on each return 
   expect(mockRefreshStale).not.toHaveBeenCalled();
   await act(async () => onAppState?.("active"));
   expect(mockFlushOwed).toHaveBeenCalledTimes(3);
+  // Leaving the front: what was written just before the switch goes while JS still runs (the socket's grace keeps the path warm).
+  await act(async () => onAppState?.("background"));
+  expect(mockFlushOwed).toHaveBeenCalledTimes(4);
 
   await unmount();
   expect(mockNet.unsubscribe).toHaveBeenCalledTimes(1);
