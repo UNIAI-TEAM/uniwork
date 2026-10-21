@@ -98,7 +98,7 @@ test("quick create, folder, move and the other-modules section on the owner's ho
   await myFolderRow(page).click();
   await expect(libraryRowButton(library(page), DOCX_TITLE)).toBeVisible({ timeout: 30_000 });
   await page.getByRole("button", { name: `Thao tác cho ${DOCX_TITLE}` }).click();
-  await page.getByRole("menuitem", { name: "Di chuyển tới…" }).click();
+  await page.getByRole("menuitem", { name: "Di chuyển", exact: true }).click();
   // FD-09: the Move-to picker is a tree (as documents-folders.spec.ts drives it); the pick is confirmed with "Di chuyển".
   const moveDialog = page.getByRole("dialog", { name: "Di chuyển tới" });
   await expect(moveDialog).toBeVisible();
@@ -317,7 +317,7 @@ test.describe("a view-only member", () => {
     // The row is on the home list (the share admits it) with the viewer's own level.
     await expect(libraryRowButton(library(page), sharedPageTitle)).toBeVisible({ timeout: 30_000 });
     await page.getByRole("button", { name: `Thao tác cho ${sharedPageTitle}` }).click();
-    await expect(page.getByRole("menuitem", { name: "Mở trên web" })).toBeVisible();
+    await expect(page.getByRole("menuitem", { name: "Mở", exact: true })).toBeVisible();
     await expect(page.getByRole("menuitem", { name: "Di chuyển" })).toHaveCount(0);
     await expect(page.getByRole("menuitem", { name: "Lưu trữ" })).toHaveCount(0);
     await expect(page.getByRole("menuitem", { name: "Chuyển vào thùng rác" })).toHaveCount(0);
@@ -335,7 +335,7 @@ test.describe("a view-only member", () => {
 
       await sidebar(ownerPage).getByRole("button", { name: "Tôi đã chia sẻ", exact: true }).click();
       await expect(ownerPage).toHaveURL(/\/documents\?view=shared-by-me$/);
-      await expect(ownerPage.getByRole("heading", { level: 2, name: "Tôi đã chia sẻ", exact: true })).toBeVisible({
+      await expect(ownerPage.getByRole("heading", { level: 1, name: "Tôi đã chia sẻ", exact: true })).toBeVisible({
         timeout: 30_000,
       });
       await expect(libraryRowButton(library(ownerPage), sharedPageTitle)).toBeVisible({ timeout: 30_000 });
