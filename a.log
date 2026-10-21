@@ -1,0 +1,2 @@
+$ echo "VM_HEAD_SHA=$(git rev-parse HEAD)"; git rev-parse HEAD | grep -q "^4f70fef0e" || { echo "VM_SHA_EXIT=1"; exit 1; }
+VM_HEAD_SHA=4f70fef0e99dd115fe37f4cab0b4cb3d180c8ba2
