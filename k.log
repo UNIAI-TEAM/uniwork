@@ -1,0 +1,4 @@
+$ for i in $(seq 1 14); do test -f /tmp/pr7r4-e2e.exit && break; sleep 30; done; echo "DONE_FILE=$(test -f /tmp/pr7r4-e2e.exit && echo yes || echo no)"; tail -2 /tmp/pr7r4-e2e.log
+DONE_FILE=no
+  ✓   54 documents-folders.spec.ts:2014:1 › FD-A11 prevents duplicate sibling folder names (case-insensitive, accent-sensitive NFC, concurrent race, restricted leak check) while allowing same-name documents (4.3s)
+  ✓   55 documents-folders.spec.ts:2197:1 › FD-A12 a second session archiving and restoring a folder subtree is seen live by the first session, counts items and renames on restore collision (10.3s)
