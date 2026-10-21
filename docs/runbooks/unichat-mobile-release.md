@@ -42,7 +42,12 @@ của bản store trên kênh đó (`staging` cho `internal`/`preview`, `product
   không chạm binary. Sửa một trong bốn workflow (cả `chat-mobile-update.yml`) cũng chạy `mobile-verify.yml`, để
   `scripts/mobile-workflows.test.mjs` kiểm lời hứa của chúng.
 - `chat-mobile-verify.yml` hằng đêm: job `android-production` build AAB release mọi ABI từ profile production
-  (không cần tài khoản) và ba luồng Maestro; thiếu biến `MAESTRO_*` thì run theo lịch **đỏ**, không xanh.
+  (không cần tài khoản) và các luồng Maestro — ba luồng vàng trên cả hai nền tảng, thêm
+  `offline-send-relaunch.yaml` trên Android (chế độ máy bay: ba tin viết offline sống qua kill, mở lạnh offline vào
+  inbox và phòng từ cache, bật mạng thì tới đúng thứ tự, mỗi tin một lần); thiếu biến `MAESTRO_*` thì run theo lịch
+  **đỏ**, không xanh. `background-resume.yaml` (người khác viết lúc app ở nền, trong và quá cửa sổ ân hạn 25 s của
+  socket) chạy tay: cần tài khoản thứ hai (`MAESTRO_CALLER_TOKEN`, `MAESTRO_CALLER_WS_ID`, `MAESTRO_DM_ROOM_ID`,
+  `MAESTRO_API_URL`) như `call-answer-incoming.yaml`.
 - Phiên bản công cụ ghim trong workflow: `EAS_CLI_VERSION` (release và OTA, cùng một số), `MAESTRO_VERSION` (nightly, tải zip release
   thay vì script cài), `EXPO_DOCTOR_VERSION`. Nâng trong một PR riêng.
 - Ngân sách bundle: hạ trần khi bundle nhỏ đi; chỉ nâng trong commit thêm sức nặng đó, ghi lý do trong body. Đo tại
@@ -218,6 +223,12 @@ từng mục khi đã nộp:
   khớp, ảnh không mất dù đã xoá cache của trình chọn ảnh.
 - [ ] Mạng chập chờn (Network Link Conditioner / `adb shell svc wifi disable` vài giây): banner "Đang kết nối…" chỉ
   hiện khi mất quá 1.5 s và tự tắt; tin mới vẫn hiện, không phải mở lại phòng.
+- [ ] Offline: sửa một tin và xoá một tin khác — hiện ngay; kill, mở lại vẫn thế; bật mạng: web thấy đúng bản sửa và
+  tin đã xoá. Gửi một ảnh lớn (video ≥ 50 MB) rồi gõ một tin chữ: chữ tới trước sau khoảng 4 s, ảnh tới sau.
+- [ ] Chuyển sang app khác dưới 25 s rồi quay lại: không có banner "Đang kết nối…", tin người khác gửi lúc đó đã có.
+  Ở nền hơn 25 s: quay lại thì nối lại trong vài giây và phòng có đủ tin. Push về một phòng của workspace khác, bấm vào:
+  phòng mở với tin mới nhất kể cả khi tắt mạng ngay sau khi chạm.
+- [ ] Hai workspace: viết tin offline ở workspace A, chuyển sang B (hoặc màn chọn workspace), bật mạng: tin ở A vẫn đi.
 - [ ] Gọi 1-1, bên gọi đưa app xuống nền khi đang đổ chuông, bên nghe bắt máy: bên gọi vào cuộc gọi (không hết giờ
   "không ai nghe"). Android là chính; iOS có thể bị hệ điều hành treo app nền giữa hai frame tới khi có CallKit.
 - [ ] Đăng xuất rồi đăng nhập tài khoản khác: không thấy phòng, tin hay hàng đợi của tài khoản trước.
@@ -300,7 +311,9 @@ khi nào dịch vụ chạy, ai được báo) với module native giả; chỉ 
 - Bản mới không hiện ở TestFlight/Play internal sau 1 giờ.
 - OTA không tới máy, tới nhầm bản native, hoặc bản OTA làm app lỗi/crash.
 - Nightly: đỏ ở `gate` với `The Maestro flows cannot run, not set: …`; đỏ ở `android-production`; đỏ ở bước build;
-  đỏ ở bước Maestro (`Sign in`, `Push opens the room`).
+  đỏ ở bước Maestro (`Sign in`, `Push opens the room`, `Offline sends survive a kill` — tin chờ không hiện lại sau
+  kill là outbox/kho mã hoá không giữ: xem issue `source:device-store` trên Sentry; tin không tới sau khi bật mạng là
+  luồng flush; tin hiện hai lần là `client_msg_id` không được server khử trùng).
 - Play/App Review từ chối: "Foreground service permissions" (loại FGS chưa khai báo hoặc thiếu video), "Account
   deletion" (không tìm thấy lối xoá trong app hoặc URL), "User generated content" (thiếu báo cáo/chặn), "Data safety"
   lệch với hành vi, hoặc Apple 5.1.2(i) (gửi dữ liệu cho AI không hỏi).

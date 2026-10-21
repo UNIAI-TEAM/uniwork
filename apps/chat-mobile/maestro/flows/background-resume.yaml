@@ -1,0 +1,40 @@
+# Manual flow (like call-answer-incoming.yaml: it needs a second account,
+# MAESTRO_CALLER_TOKEN, MAESTRO_CALLER_WS_ID, MAESTRO_DM_ROOM_ID and
+# MAESTRO_API_URL, which no workflow holds yet): what another person writes
+# while UniChat is in the background is on screen when it comes back, without
+# reopening the room.
+#
+# Twice: a short switch (inside the socket's 25 s grace,
+# data/realtime/background-grace.ts: the socket stayed, the frame lands on the
+# open timeline) and a long one (past the grace: the socket was paused, the
+# return redials and the reconnect refetches the shown timeline).
+appId: com.uniworkos.chat.staging
+name: Back from the background, the room has what was written meanwhile
+tags:
+  - manual
+---
+- launchApp
+- runFlow: ../subflows/sign-in.yaml
+- openLink: uniworkchat://open?url=${encodeURIComponent('/' + MAESTRO_ORG_SLUG + '/' + MAESTRO_WS_SLUG + '/chat?room=' + MAESTRO_DM_ROOM_ID)}
+- extendedWaitUntil:
+    visible:
+      id: composer-input
+    timeout: 30000
+# Inside the grace.
+- pressKey: Home
+- runScript: ../scripts/post-as-peer.js
+- launchApp
+- extendedWaitUntil:
+    visible: .*${output.peerBody}.*
+    timeout: 15000
+# Past it: 60 s away, then another message.
+- pressKey: Home
+- extendedWaitUntil:
+    visible: "UniChat never draws this text"
+    timeout: 60000
+    optional: true
+- runScript: ../scripts/post-as-peer.js
+- launchApp
+- extendedWaitUntil:
+    visible: .*${output.peerBody}.*
+    timeout: 30000

@@ -574,8 +574,11 @@ Runbook: `docs/runbooks/unichat-mobile-release.md`; plan:
   test đó luôn chạy.
 - `maestro/`: `subflows/sign-in.yaml` đăng nhập qua sheet trình duyệt thật (không
   có lối tắt phiên thử nghiệm trong bản nào); `flows/call-answer-incoming.yaml` (khung, chạy tay: cần tài khoản thứ
-  hai gọi qua `scripts/ring-from-caller.js` và máy có FCM thật; chưa nằm trong workflow nào); ba luồng vàng
-  `flows/{chat-read-send,push-open-room,call-join}.yaml` chạy hằng đêm bởi
+  hai gọi qua `scripts/ring-from-caller.js` và máy có FCM thật; chưa nằm trong workflow nào), cũng chạy tay
+  `flows/background-resume.yaml` (người kia viết qua `scripts/post-as-peer.js` khi app ở nền, trong và quá cửa sổ ân
+  hạn của socket); ba luồng vàng `flows/{chat-read-send,push-open-room,call-join}.yaml` và, chỉ Android (Maestro bật
+  chế độ máy bay ở đó), `flows/offline-send-relaunch.yaml` (tin viết offline sống qua kill, mở lạnh offline từ cache,
+  tới đúng thứ tự mỗi tin một lần) chạy hằng đêm bởi
   `.github/workflows/chat-mobile-verify.yml` với server staging (biến
   `MAESTRO_*`; thiếu thì run theo lịch **đỏ**, chạy tay bỏ chọn `maestro` để chỉ
   build), Maestro ghim `MAESTRO_VERSION`; cùng đêm đó job `android-production`

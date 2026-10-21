@@ -4,9 +4,11 @@ name: UniChat mobile verify
 # iOS simulator and an Android emulator (UNI-1836). Each job builds a Release
 # binary of the staging variant on the runner (JS embedded: no Metro, no EAS,
 # no account), signs in through the real system browser sheet with a test
-# account on the staging server and runs the three golden flows in
+# account on the staging server and runs the golden flows in
 # apps/chat-mobile/maestro/flows: sign in → read/send, a push opens its room,
-# join a call (what each proves is written at its top).
+# join a call, and on Android (Maestro toggles airplane mode there only)
+# offline sends that survive a kill and land once and in order (what each
+# proves is written at its top).
 # Typecheck, lint, unit and component tests, the bundle budget and an arm64
 # release build stay in mobile-verify.yml on every PR that reaches the app.
 # Here, besides Maestro, `android-production` builds the store artifact (an
@@ -257,6 +259,7 @@ jobs:
             cd apps/chat-mobile/maestro && maestro test flows/chat-read-send.yaml
             cd apps/chat-mobile/maestro && maestro test flows/push-open-room.yaml
             cd apps/chat-mobile/maestro && maestro test flows/call-join.yaml
+            cd apps/chat-mobile/maestro && maestro test flows/offline-send-relaunch.yaml
       - uses: actions/upload-artifact@v4
         if: always()
         with:
