@@ -195,6 +195,8 @@ func newIsolationServer(t *testing.T) *isoWorld {
 	docs.SetEditLockConfig(service.DocumentEditLockConfig{TTL: time.Hour})
 	docs.SetAccessRequestSources(d.Tasks, d.Meetings)
 	d.Documents = docs
+	// As main.go wires it: the inbox names a document only through the read gate.
+	d.Notifications.SetDocumentReaders(docs)
 	// The chat document send files its bytes into the same Documents service
 	// (UNI-1966): without it the route answers 501 and the isolation row
 	// proves nothing.

@@ -8,7 +8,10 @@ package handler
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"sort"
 	"strings"
@@ -16,6 +19,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/unicomhub/uniwork/server/internal/config"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -285,6 +289,67 @@ func TestNotificationListResolvesSampleDocumentsAtReadTime(t *testing.T) {
 		if n["kind"] == "member_added" {
 			if _, has := n["sample_documents"]; has {
 				t.Fatalf("a row of another kind names sample documents: %v", n)
+			}
+		}
+	}
+}
+
+// The route, its path and query parameters and every wire field of the page
+// and the row are on the spec, with the additive field of the inbox row; no
+// database needed.
+func TestNotificationDocumentsOpenAPI(t *testing.T) {
+	h := New(Deps{Cfg: config.Config{FrontendOrigin: "http://localhost:3000", EnableSwagger: true}})
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/swagger/doc.json", nil))
+	var spec struct {
+		Paths map[string]struct {
+			Get struct {
+				Parameters []struct {
+					Name        string `json:"name"`
+					In          string `json:"in"`
+					Description string `json:"description"`
+				} `json:"parameters"`
+			} `json:"get"`
+		} `json:"paths"`
+		Components struct {
+			Schemas map[string]struct {
+				Properties map[string]struct {
+					Description string `json:"description"`
+				} `json:"properties"`
+			} `json:"schemas"`
+		} `json:"components"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &spec); err != nil {
+		t.Fatal(err)
+	}
+	op, ok := spec.Paths["/api/v1/me/notifications/{notificationID}/documents"]
+	if !ok {
+		t.Fatal("the notification documents route is missing from the spec")
+	}
+	in := map[string]string{}
+	for _, p := range op.Get.Parameters {
+		in[p.Name] = p.In
+		if p.Description == "" {
+			t.Errorf("parameter %s has no description", p.Name)
+		}
+	}
+	if in["notificationID"] != "path" || in["cursor"] != "query" || in["limit"] != "query" {
+		t.Errorf("parameters = %v, want notificationID in path and cursor, limit in query", in)
+	}
+	for schemaName, fields := range map[string][]string{
+		"SdoNotificationDocumentsSDO":      {"documents", "next_cursor"},
+		"SdoNotificationDocumentDTO":       {"id", "title", "kind", "trashed", "shelved", "deleted"},
+		"SdoNotificationSampleDocumentDTO": {"id", "title"},
+		"SdoNotificationDTO":               {"sample_documents"},
+	} {
+		schema, ok := spec.Components.Schemas[schemaName]
+		if !ok {
+			t.Errorf("schema %s is missing from the spec", schemaName)
+			continue
+		}
+		for _, field := range fields {
+			if _, ok := schema.Properties[field]; !ok {
+				t.Errorf("%s is missing %s", schemaName, field)
 			}
 		}
 	}

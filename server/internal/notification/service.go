@@ -83,6 +83,10 @@ type Item struct {
 	// longer exists (hard-deleted or tombstoned). The document link still
 	// opens when the document is readable.
 	CommentDeleted bool
+	// SampleDocuments names the documents of a document_changed row the
+	// reader can read now, resolved at read time (UNI-2056); nil for every
+	// other kind.
+	SampleDocuments []SampleDocument
 }
 
 // snippetKeys are the params keys that carry content the recipient may not
@@ -261,6 +265,9 @@ func (s *Service) List(ctx context.Context, userID string, in ListInput) ([]Item
 			}
 		}
 		out = append(out, item)
+	}
+	if err := s.attachSampleDocuments(ctx, userID, out); err != nil {
+		return nil, err
 	}
 	return out, nil
 }

@@ -272,6 +272,7 @@ type Routes struct {
 	WorkManagementCapabilityStub http.HandlerFunc
 
 	ListNotifications          http.HandlerFunc
+	ListNotificationDocuments  http.HandlerFunc
 	UnreadNotificationCount    http.HandlerFunc
 	MarkNotificationsRead      http.HandlerFunc
 	MarkNotificationsUnread    http.HandlerFunc
