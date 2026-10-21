@@ -6,6 +6,9 @@ import { DateField } from "../common/date-field";
 import { MEETING_DAY_FORMAT, scheduleWindowIso, splitIsoLocal } from "./meeting-datetime";
 import { useNow } from "./use-now";
 
+// The hero's day format plus the year: a date being picked may be next year.
+const SCHEDULE_DAY_FORMAT: Intl.DateTimeFormatOptions = { ...MEETING_DAY_FORMAT, year: "numeric" };
+
 /**
  * "HH:MM" strings compare as times. An end before the start runs into the
  * next day (see `scheduleWindowIso`), so only a window with no length is
@@ -133,7 +136,7 @@ export function MeetingScheduleFields({
           min={floor ?? undefined}
           value={date}
           onChange={onDate}
-          formatOptions={MEETING_DAY_FORMAT}
+          formatOptions={SCHEDULE_DAY_FORMAT}
         />
       </Field>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
