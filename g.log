@@ -1,0 +1,6 @@
+$ grep -E "^\s*--- FAIL|^(FAIL|panic)|WARNING: DATA RACE|not formatted|^staticcheck|vet:" /tmp/pr7r4-go-service-b.log | cut -c1-250 | head -80
+--- FAIL: TestDocumentAccessBatchMatchesThePerItemPath (0.51s)
+    --- FAIL: TestDocumentAccessBatchMatchesThePerItemPath/apply (0.15s)
+--- FAIL: TestDocumentReferences (0.81s)
+    --- FAIL: TestDocumentReferences/local (0.41s)
+--- FAIL: TestFileGCCancelDoesNotResetAge (0.21s)
