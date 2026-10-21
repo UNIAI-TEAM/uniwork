@@ -1,6 +1,5 @@
 "use client";
 
-import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { Member } from "@uniwork/core/types/workspace";
 import { DocumentsLibraryList } from "./documents-library-list";
@@ -29,8 +28,6 @@ export interface DocumentsShelvedViewProps {
   members: Member[] | undefined;
   handlers: LibraryRowHandlers;
   actions: ShelvedRowActions;
-  /** The "open the navigation" button below `xl`. */
-  navButton: ReactNode;
   /** The bulk bar's commands (W9): Bỏ lưu trữ · Tải xuống · Chuyển vào thùng rác; absent, no Select column. */
   bulk?: DocListBulk;
   /** A new value clears the selection. */
@@ -38,14 +35,14 @@ export interface DocumentsShelvedViewProps {
 }
 
 /**
- * The Lưu trữ view (Archive.dc, ARCHIVE-01 U-2): its heading and intro, the
- * shelved toolbar (the shared filter bar + "Lưu trữ bởi") and the shared document list
+ * The Lưu trữ view (Archive.dc, ARCHIVE-01 U-2): under the shared screen head
+ * (its h1 and intro, documents-screen-head.tsx), the shelved toolbar (the shared filter bar + "Lưu trữ bởi") and the shared document list
  * with `screen="shelved"` (UNI-2045 W3): the Lưu trữ column (avatar + who
  * shelved · date), `Bỏ lưu trữ` · ⋯ on the row and the menu `Mở` · `Bỏ lưu
  * trữ` · `Tải xuống` │ `Chuyển vào thùng rác`, flat in the server's
  * shelved_at-newest order (F1).
  */
-export function DocumentsShelvedView({ library, chip, onChip, members, handlers, actions, navButton, bulk, selectionKey }: DocumentsShelvedViewProps) {
+export function DocumentsShelvedView({ library, chip, onChip, members, handlers, actions, bulk, selectionKey }: DocumentsShelvedViewProps) {
   const { t } = useTranslation();
   const state = library.state;
   // The "Lưu trữ bởi" options (U-2/Q-UI2): the workspace members plus the
@@ -62,13 +59,6 @@ export function DocumentsShelvedView({ library, chip, onChip, members, handlers,
   const filtered = chip !== "all" || library.shelvedBy !== null || library.editor !== "any" || library.updated !== "any";
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-5 sm:px-6">
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex min-w-0 flex-col gap-1">
-          <h2 className="text-title font-semibold">{t("documents.shelved_list.title")}</h2>
-          <p className="text-caption text-muted-foreground">{t("documents.shelved_list.intro")}</p>
-        </div>
-        {navButton}
-      </div>
       <ShelvedToolbar
         chip={chip}
         onChip={onChip}

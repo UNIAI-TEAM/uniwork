@@ -23,8 +23,10 @@ export interface DocumentsScreenHeadProps {
 export function DocumentsScreenHead({ view, search, actions }: DocumentsScreenHeadProps) {
   const { t } = useTranslation();
   const kind = view.kind === "sharedByMe" ? "shared_by_me" : view.kind;
-  const title = t(`documents.home.views.${view.kind === "sources" ? (view.source ?? "sources") : kind}`);
-  const subtitle = t(`documents.home.view_subtitle.${kind}`);
+  // Lưu trữ names itself in its own copy block (title and the intro of what shelving does).
+  const shelved = view.kind === "shelved";
+  const title = shelved ? t("documents.shelved_list.title") : t(`documents.home.views.${view.kind === "sources" ? (view.source ?? "sources") : kind}`);
+  const subtitle = shelved ? t("documents.shelved_list.intro") : t(`documents.home.view_subtitle.${kind}`);
   return (
     <div className="@container flex flex-wrap items-end justify-between gap-3">
       <div className="flex min-w-0 flex-1 basis-72 flex-col gap-1">

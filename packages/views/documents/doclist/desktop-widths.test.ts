@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { libraryCell, specLadder } from "../library-columns";
-import { DOC_LIST_SCREENS, NAME_FLOOR, docListRungs, docListSpec, type DocListColumnId } from "./columns";
+import { DOC_LIST_SCREENS, NAME_FLOOR, docListRungs, nameFloor, docListSpec, type DocListColumnId } from "./columns";
 
 // Desktop widths of the unified list (UNI-2045 W1b). The design board shows all
 // eight columns at 1440 (the list container is ~870px beside the two
@@ -33,9 +33,13 @@ describe("desktop widths of the shared columns", () => {
       expect(width(screen, "actions"), screen).toBe(76);
       expect(width(screen, "name"), screen).toBe(0);
       const own = docListSpec(screen).screenColumn;
-      if (own) expect(width(screen, own), screen).toBe(118);
+      // Lần mở gần nhất and its sort arrow need 128px; every other screen column is 118px.
+      if (own) expect(width(screen, own), screen).toBe(own === "activity" ? 128 : 118);
     }
     expect(NAME_FLOOR).toBe(184);
+    // Recent's extra 10px come out of the floor, so its rungs (and the other screens') stay where they were.
+    expect(nameFloor(docListSpec("recent"))).toBe(174);
+    for (const screen of DOC_LIST_SCREENS.filter((s) => s !== "recent")) expect(nameFloor(docListSpec(screen)), screen).toBe(184);
   });
 
   it("shows every column of every screen at a 870px container (1440 viewport)", () => {
@@ -74,7 +78,7 @@ describe("desktop widths of the shared columns", () => {
       const rungs = docListRungs(spec);
       const w = (id: DocListColumnId) => spec.columns.find((c) => c.id === id)?.width ?? 0;
       const fixed = w("select") + w("updated") + w("actions") + (spec.screenColumn ? w(spec.screenColumn) : 0) + 2;
-      expect(rungs.table * 16 - fixed, screen).toBeGreaterThanOrEqual(NAME_FLOOR);
+      expect(rungs.table * 16 - fixed, screen).toBeGreaterThanOrEqual(nameFloor(spec));
       const ladder = specLadder(screen);
       expect(rungOf(libraryCell(ladder, "updated")), screen).toBe(rungs.table);
     }

@@ -21,6 +21,8 @@ import { useDocListBulkCommands } from "./use-bulk-commands";
 
 const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn(), loading: vi.fn(), dismiss: vi.fn() }));
 vi.mock("sonner", () => ({ toast }));
+const clipboard = vi.hoisted(() => ({ copyText: vi.fn<(text: string) => Promise<boolean>>() }));
+vi.mock("@uniwork/ui/lib/clipboard", () => clipboard);
 
 const { t } = initI18n();
 const WS = "ws1";
@@ -219,6 +221,27 @@ describe("bulk share dialog", () => {
     expect(within(created).getAllByRole("listitem")).toHaveLength(2);
     expect(created).toHaveTextContent("Tệp a");
     expect(created).toHaveTextContent("/share/a");
+  });
+
+  it("copies every created link through the shared clipboard helper and says when the copy failed", async () => {
+    transport();
+    clipboard.copyText.mockReset();
+    clipboard.copyText.mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+    open(sharePlan(five.slice(0, 2)));
+    const user = userEvent.setup();
+    const dialog = await screen.findByRole("dialog");
+    await user.click(within(dialog).getByRole("combobox", { name: t("documents.list.bulk.share.link_label") }));
+    await user.click(await screen.findByRole("option", { name: t("documents.list.bulk.share.link_create") }));
+    await user.click(within(dialog).getByRole("button", { name: t("documents.share.submit") }));
+    await screen.findByRole("list", { name: t("documents.list.bulk.share.links_created") });
+    toast.error.mockClear();
+    const copyAll = () => screen.getByRole("button", { name: new RegExp(`${t("documents.list.bulk.share.copy_all")}|${t("documents.share.link_copied")}`) });
+    await user.click(copyAll());
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith(t("documents.list.menu.link_copy_failed")));
+    expect(clipboard.copyText.mock.calls[0]![0]).toMatch(/^Tệp a\t.*\/share\/a\nTệp b\t.*\/share\/b$/);
+    expect(copyAll()).toHaveTextContent(t("documents.list.bulk.share.copy_all"));
+    await user.click(copyAll());
+    await waitFor(() => expect(copyAll()).toHaveTextContent(t("documents.share.link_copied")));
   });
 
   it("cannot apply with nothing to change, and cancel sends nothing", async () => {

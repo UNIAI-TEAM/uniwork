@@ -9657,6 +9657,7 @@
           "not_shareable": "thư mục không chia sẻ được",
           "too_large": "tệp quá lớn để tải",
           "folder_too_large": "thư mục quá lớn",
+          "zip_limit": "quá 100 tệp của một tệp nén, hãy tải ở lượt khác",
           "failed": "không thực hiện được"
         },
         "error_line": "{{title}}: {{reason}}",
@@ -10943,6 +10944,8 @@
         "star": "Gắn sao",
         "starred": "Đã gắn sao",
         "unstar": "Bỏ gắn sao",
+        "star_item": "Gắn sao {{title}}",
+        "unstar_item": "Bỏ gắn sao {{title}}",
         "go_to_source": "Xem nơi đính kèm",
         "go_to_source_named": "Xem nơi đính kèm: {{title}}",
         "preview_failed": "Không xem được file. Thử lại.",

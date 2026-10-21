@@ -172,4 +172,21 @@ describe("useDocumentDownloadJob", () => {
     });
     expect(vi.mocked(fetch).mock.calls.filter(([, init]) => (init?.method ?? "GET") === "GET")).toHaveLength(3);
   });
+
+  it("stops polling when the screen unmounts: no further read, and the call ends instead of answering a link", async () => {
+    vi.mocked(fetch).mockImplementation(async (_input, init) => (init?.method === "POST" ? json(job("queued"), 202) : json(job("running"))));
+    const { wrapper } = setup();
+    const { result, unmount } = renderHook(() => useDocumentDownloadJob("w1", { pollMs: 5 }), { wrapper });
+    const settled = result.current.mutateAsync(["d1", "d2"]).then(
+      () => "answered",
+      () => "stopped",
+    );
+    const reads = () => vi.mocked(fetch).mock.calls.filter(([, init]) => (init?.method ?? "GET") === "GET").length;
+    await vi.waitFor(() => expect(reads()).toBeGreaterThanOrEqual(1));
+    unmount();
+    await expect(settled).resolves.toBe("stopped");
+    const after = reads();
+    await new Promise((resolve) => setTimeout(resolve, 40));
+    expect(reads()).toBe(after);
+  });
 });

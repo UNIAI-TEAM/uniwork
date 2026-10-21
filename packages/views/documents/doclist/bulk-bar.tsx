@@ -21,7 +21,20 @@ const ICONS: Record<BulkActionId, LucideIcon> = {
  * loạt", §3 "Thanh chọn hàng loạt"): "<n> đã chọn", the screen's actions the
  * selection allows, the destructive one last in red, and Bỏ chọn.
  */
-export function DocListBulkBar({ count, plans, onRun, onClear }: { count: number; plans: BulkPlan[]; onRun: (plan: BulkPlan) => void; onClear: () => void }) {
+export function DocListBulkBar({
+  count,
+  plans,
+  busy = false,
+  onRun,
+  onClear,
+}: {
+  count: number;
+  plans: BulkPlan[];
+  /** A batch or a zip is under way: the actions wait for it. */
+  busy?: boolean;
+  onRun: (plan: BulkPlan) => void;
+  onClear: () => void;
+}) {
   const { t } = useTranslation();
   return (
     <div
@@ -36,7 +49,7 @@ export function DocListBulkBar({ count, plans, onRun, onClear }: { count: number
         const Icon = ICONS[plan.action];
         const destructive = plan.action === "trash" || plan.action === "purge";
         return (
-          <Button key={plan.action} type="button" size="sm" variant={destructive ? "destructive" : "ghost"} onClick={() => onRun(plan)}>
+          <Button key={plan.action} type="button" size="sm" variant={destructive ? "destructive" : "ghost"} disabled={busy} onClick={() => onRun(plan)}>
             <Icon aria-hidden />
             {t(`documents.list.bulk.action.${plan.action}`)}
           </Button>

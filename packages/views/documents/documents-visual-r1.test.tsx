@@ -121,7 +121,9 @@ describe("row accessible names", () => {
     expect(screen.getByRole("button", { name: new RegExp(`^${t("documents.file_types.page")} Kế hoạch Q4`) })).toBeInTheDocument();
     // The menu trigger keeps its own descriptive name, one per row.
     expect(screen.getByRole("button", { name: t("documents.home.row.menu", { title: "Báo giá tháng 10.docx" }) })).toBeInTheDocument();
-    expect(screen.getAllByRole("button", { name: /Kế hoạch Q4/ })).toHaveLength(2);
+    // Name button, quick star and the menu trigger: three controls, three distinct names.
+    expect(screen.getByRole("button", { name: t("documents.home.row.star_item", { title: "Kế hoạch Q4" }) })).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: /Kế hoạch Q4/ })).toHaveLength(3);
   });
 });
 

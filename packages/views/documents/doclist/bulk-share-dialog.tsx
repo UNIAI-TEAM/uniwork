@@ -3,6 +3,7 @@
 import { useEffect, useId, useMemo, useState } from "react";
 import { Check, Copy } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import type { DocumentAccessRejectedCode, DocumentShareCandidate } from "@uniwork/core/api/endpoints/documents-sharing";
 import { useBulkShareDocuments, type BulkShareLink, type BulkShareResult, type BulkShareWorkspace } from "@uniwork/core/documents/hooks-bulk-share";
 import { useDocumentShareCandidates } from "@uniwork/core/documents/hooks-sharing";
@@ -15,6 +16,7 @@ import { Input } from "@uniwork/ui/components/ui/input";
 import { Label } from "@uniwork/ui/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@uniwork/ui/components/ui/select";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
+import { copyText } from "@uniwork/ui/lib/clipboard";
 import { allowedLevelsForPrincipal, type SelectedShareCandidate } from "../share-add-section";
 import { ShareCandidatePicker } from "../share-candidate-picker";
 import type { BulkPlan } from "./bulk-actions";
@@ -37,10 +39,11 @@ function CreatedLinks({ links, titles }: { links: BulkShareResult["links"]; titl
   const label = t("documents.list.bulk.share.links_created");
   const lines = links.map((link) => ({ ...link, title: titles.get(link.id) || t("documents.detail.untitled"), url: absoluteUrl(link.url) }));
   const copyAll = () => {
-    void navigator.clipboard?.writeText(lines.map((line) => `${line.title}\t${line.url}`).join("\n")).then(
-      () => setCopied(true),
-      () => setCopied(false),
-    );
+    // The row menu's helper: it falls back where the async clipboard is absent, and a failure says so.
+    void copyText(lines.map((line) => `${line.title}\t${line.url}`).join("\n")).then((ok) => {
+      setCopied(ok);
+      if (!ok) toast.error(t("documents.list.menu.link_copy_failed"));
+    });
   };
   return (
     <div className="flex min-w-0 flex-col gap-2 rounded-lg border border-primary/40 bg-primary/5 p-3">

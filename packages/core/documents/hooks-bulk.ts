@@ -1,4 +1,5 @@
 "use client";
+import { useEffect, useRef } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { getDocument } from "../api/endpoints/documents";
 import {
@@ -78,21 +79,42 @@ const TERMINAL = new Set<string>(["ready", "failed", "expired"]);
  * Creates the SV-9 zip job and polls it every `pollMs` (2 s) until it is
  * ready, failed or expired, or `maxPolls` runs out; it answers the last job
  * it read (still `queued`/`running` past the cap). A job without an id is not
- * verifiable; a 422 `download_too_large` rejects as the ApiError it is.
+ * verifiable; a 422 `download_too_large` rejects as the ApiError it is. When
+ * the screen that called it unmounts the poll stops and the call rejects with
+ * an AbortError (`isAbortError`): no further read, and no ready link to open
+ * from whatever page the person has moved to.
  */
 export function useDocumentDownloadJob(wsId: string, opts: { pollMs?: number; maxPolls?: number } = {}) {
   const { pollMs = 2000, maxPolls = 90 } = opts;
+  const leave = useRef<AbortController | null>(null);
+  useEffect(() => {
+    const controller = new AbortController();
+    leave.current = controller;
+    return () => controller.abort();
+  }, []);
   return useMutation({
     mutationFn: async (ids: readonly string[]): Promise<DocumentDownloadJob> => {
+      const signal = leave.current?.signal;
+      const stopIfLeft = () => {
+        if (signal?.aborted) throw new DOMException("The download was left", "AbortError");
+      };
       let job = await createDownloadJob(wsId, ids);
       if (!job) throw new DocumentNotVerifiableError();
       for (let polls = 0; !TERMINAL.has(job.status) && polls < maxPolls; polls += 1) {
+        stopIfLeft();
         await new Promise((resolve) => setTimeout(resolve, pollMs));
-        const next: DocumentDownloadJob | null = await getDownloadJob(wsId, job.id);
+        stopIfLeft();
+        const next: DocumentDownloadJob | null = await getDownloadJob(wsId, job.id, signal);
         if (!next) throw new DocumentNotVerifiableError();
         job = next;
       }
+      stopIfLeft();
       return job;
     },
   });
+}
+
+/** Whether an error is the stop of a left screen (the zip poll, or a request cancelled with it). */
+export function isAbortError(error: unknown): boolean {
+  return error instanceof DOMException && error.name === "AbortError";
 }
