@@ -762,6 +762,8 @@ func New(d Deps) http.Handler {
 		DownloadDocument:            h.downloadDocument,
 		CreateDocumentDownloadJob:   h.createDocumentDownloadJob,
 		CreateFolderUpload:          h.createFolderUpload,
+		PutFolderUploadContent:      h.putFolderUploadContent,
+		CompleteFolderUpload:        h.completeFolderUpload,
 		GetDocumentDownloadJob:      h.getDocumentDownloadJob,
 		DownloadDocumentDownloadJob: h.downloadDocumentDownloadJob,
 		CreatePreviewScope:          h.createPreviewScope,

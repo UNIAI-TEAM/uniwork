@@ -2,6 +2,7 @@ package handler
 
 import (
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -86,11 +87,7 @@ func folderUploadBatchSDO(b service.FolderUploadBatch) sdo.FolderUploadBatchSDO 
 			file.DocumentID = &id
 		}
 		if f.ErrorCode != "" {
-			msg, ok := folderUploadErrorMessages[f.ErrorCode]
-			if !ok {
-				msg = "không tải lên được tệp"
-			}
-			file.Error = &sdo.FolderUploadErrorSDO{Code: f.ErrorCode, Message: msg}
+			file.Error = folderUploadErrorSDO(service.SplitFolderUploadErrorCode(f.ErrorCode))
 		}
 		if f.Target != nil {
 			file.Target = folderUploadTargetSDO(*f.Target)
@@ -121,4 +118,77 @@ func folderUploadTargetSDO(t service.FolderUploadTarget) *sdo.FolderUploadTarget
 		})
 	}
 	return out
+}
+
+// putFolderUploadContent is PUT /workspaces/{workspaceID}/documents/folder-uploads/{batchID}/files/{fileKey}/content
+// (UNI-2052 §1 #2): the raw bytes of one pending file when the store cannot
+// presign. The service caps the body at the file's declared size; 200 with
+// the ETag in the header and the body.
+func (h *handlers) putFolderUploadContent(w http.ResponseWriter, r *http.Request) {
+	if h.Documents == nil {
+		respondError(w, http.StatusNotImplemented, "storage_unavailable", "documents are not configured")
+		return
+	}
+	etag, err := h.Documents.PutFolderUploadContent(r.Context(), service.Human(middleware.UserID(r.Context())),
+		chi.URLParam(r, "workspaceID"), chi.URLParam(r, "batchID"), chi.URLParam(r, "fileKey"), r.Body)
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	w.Header().Set("ETag", etag)
+	respondJSON(w, http.StatusOK, sdo.FolderUploadContentSDO{ETag: etag})
+}
+
+// completeFolderUpload is POST /workspaces/{workspaceID}/documents/folder-uploads/{batchID}/complete
+// (UNI-2052 COMPLETE): 200 with one result per file, whatever they are.
+func (h *handlers) completeFolderUpload(w http.ResponseWriter, r *http.Request) {
+	if h.Documents == nil {
+		respondError(w, http.StatusNotImplemented, "storage_unavailable", "documents are not configured")
+		return
+	}
+	var in sdi.CompleteFolderUploadSDI
+	if !decode(w, r, &in, maxJSONBody) {
+		return
+	}
+	files := make([]service.CompleteFolderUploadFileInput, 0, len(in.Files))
+	for _, f := range in.Files {
+		file := service.CompleteFolderUploadFileInput{FileKey: f.FileKey, ETag: strings.TrimSpace(f.ETag)}
+		for _, p := range f.Parts {
+			file.Parts = append(file.Parts, service.CompleteUploadPartInput{PartNumber: p.PartNumber, ETag: strings.TrimSpace(p.ETag)})
+		}
+		files = append(files, file)
+	}
+	res, err := h.Documents.CompleteFolderUpload(r.Context(), service.Human(middleware.UserID(r.Context())),
+		chi.URLParam(r, "workspaceID"), chi.URLParam(r, "batchID"), files)
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	out := sdo.FolderUploadCompleteSDO{
+		Results: make([]sdo.FolderUploadFileResultSDO, 0, len(res.Results)),
+		Batch: sdo.FolderUploadCompleteBatchSDO{Status: res.Status, Counts: sdo.FolderUploadCountsSDO{
+			Total: res.Counts.Total, Done: res.Counts.Done, Failed: res.Counts.Failed, Pending: res.Counts.Pending,
+		}},
+	}
+	for _, f := range res.Results {
+		item := sdo.FolderUploadFileResultSDO{FileKey: f.FileKey, Status: f.Status}
+		if f.DocumentID != "" {
+			id := f.DocumentID
+			item.DocumentID = &id
+		}
+		if f.ErrorCode != "" {
+			item.Error = folderUploadErrorSDO(f.ErrorCode, f.Reason)
+		}
+		out.Results = append(out.Results, item)
+	}
+	respondJSON(w, http.StatusOK, out)
+}
+
+// folderUploadErrorSDO is a failed file's error with its sentence.
+func folderUploadErrorSDO(code, reason string) *sdo.FolderUploadErrorSDO {
+	msg, ok := folderUploadErrorMessages[code]
+	if !ok {
+		msg = "không tải lên được tệp"
+	}
+	return &sdo.FolderUploadErrorSDO{Code: code, Message: msg, Reason: reason}
 }

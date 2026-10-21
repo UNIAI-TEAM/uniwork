@@ -342,6 +342,17 @@ func pathParamSDI(path string) any {
 			WorkspaceID string `path:"workspaceID" description:"ULID workspace" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
 			JobID       string `path:"jobID" description:"ULID job tải zip nhiều tài liệu" example:"01J8X4DLJ0N1P2Q3R4S5T6U7"`
 		}{}
+	case "workspaceID,batchID":
+		return struct {
+			WorkspaceID string `path:"workspaceID" description:"ULID workspace" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
+			BatchID     string `path:"batchID" description:"ULID lô tải thư mục (id của PLAN)" example:"01J8X4FUB0N1P2Q3R4S5T6U7"`
+		}{}
+	case "workspaceID,batchID,fileKey":
+		return struct {
+			WorkspaceID string `path:"workspaceID" description:"ULID workspace" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
+			BatchID     string `path:"batchID" description:"ULID lô tải thư mục (id của PLAN)" example:"01J8X4FUB0N1P2Q3R4S5T6U7"`
+			FileKey     string `path:"fileKey" description:"Khóa tệp do client đặt trong PLAN, 1-64 ký tự [A-Za-z0-9_-]" example:"f-0001"`
+		}{}
 	case "workspaceID,nodeType,nodeID":
 		return struct {
 			WorkspaceID string `path:"workspaceID" description:"ULID workspace" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`

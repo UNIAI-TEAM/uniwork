@@ -21,6 +21,7 @@ type FolderUploadTargetSDO struct {
 type FolderUploadErrorSDO struct {
 	Code    string `json:"code" description:"upload_missing | size_mismatch | unsupported_media | storage_quota_exceeded | not_found | parts_invalid (tập mở)" example:"upload_missing"`
 	Message string `json:"message" example:"chưa thấy tệp trên kho lưu trữ"`
+	Reason  string `json:"reason,omitempty" description:"Lý do kiểm định dạng khi code là unsupported_media" example:"pdf_trailer"`
 }
 
 // FolderUploadFileSDO is one file of a batch.
@@ -65,4 +66,31 @@ type FolderUploadBatchSDO struct {
 	TotalBytes         int64                   `json:"total_bytes" example:"123456"`
 	ExpiresAt          string                  `json:"expires_at" description:"Lô hết hạn tải lên sau 24 giờ" example:"2026-10-22T02:00:00Z"`
 	CreatedAt          string                  `json:"created_at" example:"2026-10-21T02:00:00Z"`
+}
+
+// FolderUploadContentSDO answers the server content route: the ETag of the
+// stored bytes, also sent as the ETag header; COMPLETE takes it back as is.
+type FolderUploadContentSDO struct {
+	ETag string `json:"etag" description:"ETag của nội dung đã lưu (có dấu ngoặc kép), trùng header ETag" example:"\"9b2cf535f27731c974343645a3985328\""`
+}
+
+// FolderUploadFileResultSDO is one file's result in a COMPLETE.
+type FolderUploadFileResultSDO struct {
+	FileKey    string                `json:"file_key" example:"f-0001"`
+	Status     string                `json:"status" description:"done | failed" example:"done"`
+	DocumentID *string               `json:"document_id" description:"Tài liệu đã tạo khi done" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
+	Error      *FolderUploadErrorSDO `json:"error" description:"Lỗi khi failed"`
+}
+
+// FolderUploadCompleteBatchSDO is the batch after a COMPLETE.
+type FolderUploadCompleteBatchSDO struct {
+	Status string                `json:"status" description:"open | completed | canceled | expired" example:"open"`
+	Counts FolderUploadCountsSDO `json:"counts"`
+}
+
+// FolderUploadCompleteSDO answers a COMPLETE: one result per file sent, in
+// the order sent, and the batch after the call.
+type FolderUploadCompleteSDO struct {
+	Results []FolderUploadFileResultSDO  `json:"results"`
+	Batch   FolderUploadCompleteBatchSDO `json:"batch"`
 }
