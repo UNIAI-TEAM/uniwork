@@ -84,18 +84,18 @@ export function libraryGroupSpans(ladder: { columns: readonly LibraryColumn[] })
 // can produce is written out here; `doclist/ladder.test.ts` fails when a spec
 // derives a rung that has no entry.
 // `hideNow` is `hide` with `!`: it wins over a display class of the same rung
-// (the row's own 34rem `inline`, which the workspace Access rung can equal).
+// (the row's own 34rem `inline`).
 type RungClasses = { col: string; cell: string; head: string; hide: string; hideNow: string };
 
 // `w-[Npx]` of each column, written out for the same reason: Tailwind cannot see a class built from a number.
 const WIDTH_CLASSES: Record<number, string> = {
   32: "w-[32px]",
   76: "w-[76px]",
-  84: "w-[84px]",
+  102: "w-[102px]",
   118: "w-[118px]",
-  120: "w-[120px]",
   128: "w-[128px]",
-  130: "w-[130px]",
+  132: "w-[132px]",
+  146: "w-[146px]",
 };
 
 /** The width class of a spec column; a spec width without an entry throws (the ladder test names it). */
@@ -106,14 +106,16 @@ function widthClass(px: number): string {
 }
 
 const RUNG_CLASSES: Record<number, RungClasses> = {
-  26: { col: "hidden @min-[26rem]/library:table-column", cell: "hidden @min-[26rem]/library:table-cell", head: "hidden bg-muted/50 @min-[26rem]/library:table-header-group", hide: "@min-[26rem]/library:hidden", hideNow: "@min-[26rem]/library:hidden!" },
-  33: { col: "hidden @min-[33rem]/library:table-column", cell: "hidden @min-[33rem]/library:table-cell", head: "hidden bg-muted/50 @min-[33rem]/library:table-header-group", hide: "@min-[33rem]/library:hidden", hideNow: "@min-[33rem]/library:hidden!" },
-  34: { col: "hidden @min-[34rem]/library:table-column", cell: "hidden @min-[34rem]/library:table-cell", head: "hidden bg-muted/50 @min-[34rem]/library:table-header-group", hide: "@min-[34rem]/library:hidden", hideNow: "@min-[34rem]/library:hidden!" },
+  31: { col: "hidden @min-[31rem]/library:table-column", cell: "hidden @min-[31rem]/library:table-cell", head: "hidden bg-muted/50 @min-[31rem]/library:table-header-group", hide: "@min-[31rem]/library:hidden", hideNow: "@min-[31rem]/library:hidden!" },
+  39: { col: "hidden @min-[39rem]/library:table-column", cell: "hidden @min-[39rem]/library:table-cell", head: "hidden bg-muted/50 @min-[39rem]/library:table-header-group", hide: "@min-[39rem]/library:hidden", hideNow: "@min-[39rem]/library:hidden!" },
+  40: { col: "hidden @min-[40rem]/library:table-column", cell: "hidden @min-[40rem]/library:table-cell", head: "hidden bg-muted/50 @min-[40rem]/library:table-header-group", hide: "@min-[40rem]/library:hidden", hideNow: "@min-[40rem]/library:hidden!" },
   41: { col: "hidden @min-[41rem]/library:table-column", cell: "hidden @min-[41rem]/library:table-cell", head: "hidden bg-muted/50 @min-[41rem]/library:table-header-group", hide: "@min-[41rem]/library:hidden", hideNow: "@min-[41rem]/library:hidden!" },
-  42: { col: "hidden @min-[42rem]/library:table-column", cell: "hidden @min-[42rem]/library:table-cell", head: "hidden bg-muted/50 @min-[42rem]/library:table-header-group", hide: "@min-[42rem]/library:hidden", hideNow: "@min-[42rem]/library:hidden!" },
-  47: { col: "hidden @min-[47rem]/library:table-column", cell: "hidden @min-[47rem]/library:table-cell", head: "hidden bg-muted/50 @min-[47rem]/library:table-header-group", hide: "@min-[47rem]/library:hidden", hideNow: "@min-[47rem]/library:hidden!" },
+  48: { col: "hidden @min-[48rem]/library:table-column", cell: "hidden @min-[48rem]/library:table-cell", head: "hidden bg-muted/50 @min-[48rem]/library:table-header-group", hide: "@min-[48rem]/library:hidden", hideNow: "@min-[48rem]/library:hidden!" },
   49: { col: "hidden @min-[49rem]/library:table-column", cell: "hidden @min-[49rem]/library:table-cell", head: "hidden bg-muted/50 @min-[49rem]/library:table-header-group", hide: "@min-[49rem]/library:hidden", hideNow: "@min-[49rem]/library:hidden!" },
   54: { col: "hidden @min-[54rem]/library:table-column", cell: "hidden @min-[54rem]/library:table-cell", head: "hidden bg-muted/50 @min-[54rem]/library:table-header-group", hide: "@min-[54rem]/library:hidden", hideNow: "@min-[54rem]/library:hidden!" },
+  57: { col: "hidden @min-[57rem]/library:table-column", cell: "hidden @min-[57rem]/library:table-cell", head: "hidden bg-muted/50 @min-[57rem]/library:table-header-group", hide: "@min-[57rem]/library:hidden", hideNow: "@min-[57rem]/library:hidden!" },
+  58: { col: "hidden @min-[58rem]/library:table-column", cell: "hidden @min-[58rem]/library:table-cell", head: "hidden bg-muted/50 @min-[58rem]/library:table-header-group", hide: "@min-[58rem]/library:hidden", hideNow: "@min-[58rem]/library:hidden!" },
+  64: { col: "hidden @min-[64rem]/library:table-column", cell: "hidden @min-[64rem]/library:table-cell", head: "hidden bg-muted/50 @min-[64rem]/library:table-header-group", hide: "@min-[64rem]/library:hidden", hideNow: "@min-[64rem]/library:hidden!" },
 };
 
 /** The rung's literal classes; a spec that derives a rung without an entry throws (the ladder test names it). */

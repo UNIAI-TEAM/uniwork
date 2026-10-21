@@ -15,7 +15,9 @@ import { documentRow, type DocumentSummaryRow } from "./library-rows";
 
 initI18n();
 
-const NAME_MIN = 176;
+/** The Name floor of the workspace screen and of a screen with a screen column (doclist/columns.ts). */
+const NAME_MIN = 260;
+const NAME_MIN_SCREEN_COLUMN = 288;
 /** Below this container width nothing optional is left to drop: Name = width - border - actions. */
 const FLOOR = 320;
 /** The actions column of the shared spec on a fine pointer. */
@@ -190,31 +192,35 @@ describe("column ladder", () => {
     }
   });
 
-  it("gives Name room at every container width the list can reach", () => {
-    renderList();
+  it.each([
+    ["workspace" as const, NAME_MIN],
+    ["shared-by-me" as const, NAME_MIN_SCREEN_COLUMN],
+  ])("gives Name room at every container width the list can reach on %s", (screen, floor) => {
+    renderList({ screen });
     for (let c = FLOOR; c <= LIST_MAX; c += 1) {
       const { name } = layoutAt(c);
-      // The rungs hold Name above the 176px floor except in the narrowest
+      // The rungs hold Name above the floor except in the narrowest
       // containers, where only Name and the 76px actions column exist.
-      const min = c - BORDER - ACTIONS < NAME_MIN ? c - BORDER - ACTIONS : NAME_MIN;
+      const min = c - BORDER - ACTIONS < floor ? c - BORDER - ACTIONS : floor;
       expect(name, `Name at ${c}`).toBeGreaterThanOrEqual(min);
     }
   });
 
   it("only adds columns as the container widens, in the documented order", () => {
     renderList();
-    // 26rem table (Updated), 34rem Access, 42rem editor, 47rem Size (UNI-2045 W1b: every column fits a 1440 viewport).
-    expect(joinSteps(IDS).slice(1)).toEqual(["416:updated", "544:access", "672:editor", "752:size"]);
+    // 31rem table (Updated), 39rem Access, 48rem editor, 54rem Size (every column fits the ~870px of a 1440 viewport).
+    expect(joinSteps(IDS).slice(1)).toEqual(["496:updated", "624:access", "768:editor", "864:size"]);
   });
 
   it("opens the same order on Shared by me, its screen column with the table (UNI-2045 replaces the SW-V1 swap)", () => {
     renderList({ screen: "shared-by-me" });
-    // 33rem table (screen column + Updated), 41rem Access, 49rem editor, 54rem Size: all of them inside the ~870px a 1440 viewport leaves.
-    expect(joinSteps(IDS_SHARED_BY_ME).slice(1)).toEqual(["528:shared_with+updated", "656:access", "784:editor", "864:size"]);
+    // 40rem table (screen column + Updated), 48rem Access, 57rem editor, 64rem Size: the ~870px a 1440 viewport leaves
+    // holds Access and gives Name the room of the editor and Size (FX6 N1).
+    expect(joinSteps(IDS_SHARED_BY_ME).slice(1)).toEqual(["640:shared_with+updated", "768:access", "912:editor", "1024:size"]);
     const row = document.querySelector('[data-library-row="a"]') as HTMLElement;
     const accessLine = row.querySelector("[data-library-access-line]") as HTMLElement;
-    expect(rungOf(accessLine.querySelector("[data-library-access-group]")!, /^hidden$/)).toBe(656);
-    expect(rungOf(accessLine, /^hidden$/)).toBe(784);
+    expect(rungOf(accessLine.querySelector("[data-library-access-group]")!, /^hidden$/)).toBe(768);
+    expect(rungOf(accessLine, /^hidden$/)).toBe(912);
   });
 
   it("swaps each part of the secondary line for its column once it fits", () => {
@@ -226,9 +232,9 @@ describe("column ladder", () => {
     // The level · scope group hides at the very width the access column appears,
     // so the info is never shown twice or lost; the line itself (the editor) at the editor's.
     const accessGroup = accessLine.querySelector("[data-library-access-group]")!;
-    expect(rungOf(accessGroup, /^hidden$/)).toBe(544);
-    expect(rungOf(accessLine, /^hidden$/)).toBe(672);
-    const access = Array.from(row.querySelectorAll("td")).filter((td) => rungOf(td, /^table-cell$/) === 544);
+    expect(rungOf(accessGroup, /^hidden$/)).toBe(624);
+    expect(rungOf(accessLine, /^hidden$/)).toBe(768);
+    const access = Array.from(row.querySelectorAll("td")).filter((td) => rungOf(td, /^table-cell$/) === 624);
     expect(access).toHaveLength(1);
     expect(row.querySelectorAll("td").length).toBe(6);
     expect(document.querySelectorAll("colgroup col").length).toBe(6);

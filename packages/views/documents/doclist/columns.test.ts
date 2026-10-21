@@ -117,7 +117,7 @@ describe("narrow hiding", () => {
       expect(rungs.editor, screen).toBeGreaterThan(rungs.access);
       expect(rungs.size, screen).toBeGreaterThan(rungs.editor);
 
-      // Each rung = every column on screen up to and including it + 2px border + the screen\'s Name floor (184px; 174px on Recent, whose activity column is 10px wider), rounded up to the rem.
+      // Each rung = every column on screen up to and including it + 2px border + the screen's Name floor (288px, 260px on the workspace screen), rounded up to the rem.
       const width = (id: DocListColumnId) => spec.columns.find((c) => c.id === id)?.width ?? 0;
       const base = width("select") + width("updated") + width("actions") + (spec.screenColumn ? width(spec.screenColumn) : 0) + 2 + nameFloor(spec);
       expect(rungs.table, screen).toBe(Math.ceil(base / 16));
