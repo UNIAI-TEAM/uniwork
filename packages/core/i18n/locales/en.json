@@ -4123,7 +4123,10 @@
         "quota": "Your organization has used all the transcription minutes in its plan. Ask an admin to upgrade.",
         "unavailable": "Recording transcription isn't turned on for this organization.",
         "inProgress": "This file is already being transcribed. Wait until it finishes before uploading again.",
-        "refused": "This file couldn't be uploaded. Choose another file and try again."
+        "refused": "This file couldn't be uploaded. Choose another file and try again.",
+        "plan": "Your organization's current plan doesn't allow recording transcription. Ask an admin.",
+        "tooManyUploads": "You have too many unfinished uploads. Wait until they finish or expire, then upload again.",
+        "expired": "The upload expired. Choose Retry to send the file again from the start."
       },
       "uploadAgain": "Upload again",
       "since": "since {{time}}",

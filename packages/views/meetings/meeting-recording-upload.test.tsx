@@ -332,6 +332,41 @@ describe("MeetingRecordingUploadDialog — stop, resume, leave", () => {
     expect(screen.getByRole("button", { name: "Thử lại" })).toBeInTheDocument();
   });
 
+  it("queues nothing when the dialog unmounts while the server still verifies the file", async () => {
+    let verified: (value: unknown) => void = () => {};
+    const base = requestMock.getMockImplementation()!;
+    requestMock.mockImplementation(async (path: string, init?: { method?: string }) => {
+      if (path === "/api/v1/upload-sessions/s1/complete") {
+        return new Promise((resolve) => (verified = resolve));
+      }
+      return base(path, init);
+    });
+    const { unmount, submit } = ready();
+    submit();
+    await waitFor(() => expect(requestMock).toHaveBeenCalledWith("/api/v1/upload-sessions/s1/complete", expect.anything()));
+    unmount();
+    await act(async () => {
+      verified({ upload_id: "up1", checksum_sha256: "a".repeat(64), size_bytes: 1000, claim_expires_at: "2099-01-01T00:00:00Z" });
+    });
+    expect(transcriptionPosts()).toHaveLength(0);
+  });
+
+  it.each([
+    ["an expired session, sent again from the start", new ApiError("x", "upload_session_expired", 410), "Lượt tải lên đã hết hạn.", true],
+    ["too many unfinished uploads, with no Retry", new ApiError("x", "upload_sessions_exhausted", 429), "quá nhiều lượt tải lên chưa xong", false],
+    ["a plan without transcription, not the file", new ApiError("x", "entitlement_required", 403), "Gói hiện tại của tổ chức", false],
+  ])("words %s", async (_name, err, copy, retry) => {
+    const base = requestMock.getMockImplementation()!;
+    requestMock.mockImplementation(async (path: string, init?: { method?: string }) => {
+      if (path === "/api/v1/meetings/m1/audio-upload-sessions") throw err;
+      return base(path, init);
+    });
+    ready().submit();
+    expect(await screen.findByRole("alert")).toHaveTextContent(copy);
+    expect(screen.queryByText(/Chọn tệp khác/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Thử lại" }) !== null).toBe(retry);
+  });
+
   it("says the file is being processed once every byte is sent, instead of sitting at 100%", async () => {
     const base = requestMock.getMockImplementation()!;
     requestMock.mockImplementation(async (path: string, init?: { method?: string }) => {

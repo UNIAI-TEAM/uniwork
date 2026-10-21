@@ -42,6 +42,11 @@ const REFUSALS: Readonly<Record<string, string>> = {
   quota_exceeded: "meetings.transcription.uploadError.quota",
   transcription_unavailable: "meetings.transcription.uploadError.unavailable",
   transcription_in_progress: "meetings.transcription.uploadError.inProgress",
+  // The plan, not the file: another file would be refused the same way.
+  entitlement_required: "meetings.transcription.uploadError.plan",
+  subscription_inactive: "meetings.transcription.uploadError.plan",
+  // Other uploads still open: Retry cannot help until they finish or expire.
+  upload_sessions_exhausted: "meetings.transcription.uploadError.tooManyUploads",
 };
 
 /**
@@ -51,6 +56,8 @@ const REFUSALS: Readonly<Record<string, string>> = {
  */
 function uploadFailure(err: unknown, t: Translate): { message: string; retry: boolean } | null {
   if (err instanceof ChunkedUploadError && err.code === "upload_canceled") return null;
+  // The session is gone (it expired, or another tab stopped it): the same file sends again, from the start.
+  if (errorCode(err) === "upload_session_expired") return { message: t("meetings.transcription.uploadError.expired"), retry: true };
   const refusal = REFUSALS[errorCode(err) ?? ""] ?? (errorClassOf(err) === "quota" ? REFUSALS.quota_exceeded : undefined);
   if (refusal) return { message: t(refusal), retry: false };
   // fetch rejects with a TypeError ("Failed to fetch") when the network drops.
@@ -72,9 +79,15 @@ function uploadFailure(err: unknown, t: Translate): { message: string; retry: bo
 export function MeetingRecordingUploadDialog({
   meetingId,
   onOpenChange,
+  focusAfterUpload,
 }: {
   meetingId: string;
   onOpenChange: (open: boolean) => void;
+  /**
+   * Where focus lands once the upload is queued: the button that opened the
+   * dialog (a failed run's "Tải lên lại") leaves when the list refetches.
+   */
+  focusAfterUpload?: () => HTMLElement | null;
 }) {
   const { t, i18n } = useTranslation();
   const id = useId();
@@ -86,6 +99,7 @@ export function MeetingRecordingUploadDialog({
   const [consent, setConsent] = useState(false);
   const [failure, setFailure] = useState<{ message: string; retry: boolean } | null>(null);
   const [askStop, setAskStop] = useState(false);
+  const queued = useRef(false);
   const upload = useUploadMeetingRecording(meetingId);
   const pending = upload.isPending;
   const tooLarge = (file?.size ?? 0) > MAX_BYTES;
@@ -101,6 +115,8 @@ export function MeetingRecordingUploadDialog({
           : null;
   // Every byte is sent once the engine verifies: the bar would sit at 100%.
   const processing = upload.phase === "verifying" || upload.phase === "done";
+  // The file is in and the transcription is being queued: too late to stop, so nothing offers to.
+  const queueing = pending && upload.phase === "done";
 
   // A tab closed mid-upload loses nothing (the session resumes), but the
   // transcription would never be queued: the browser asks first.
@@ -144,6 +160,7 @@ export function MeetingRecordingUploadDialog({
       {
         onSuccess: () => {
           toast.success(t("meetings.transcription.queued"));
+          queued.current = true;
           onOpenChange(false);
         },
         onError: (err) => setFailure(uploadFailure(err, t)),
@@ -158,8 +175,11 @@ export function MeetingRecordingUploadDialog({
 
   const hintId = `${id}-file-hint`;
   return (
-    <Dialog open onOpenChange={(next) => (next ? undefined : pending ? setAskStop(true) : onOpenChange(false))}>
-      <FormDialogContent showCloseButton={!pending}>
+    <Dialog open onOpenChange={(next) => (next || queueing ? undefined : pending ? setAskStop(true) : onOpenChange(false))}>
+      <FormDialogContent
+        showCloseButton={!pending}
+        finalFocus={() => (queued.current && focusAfterUpload ? focusAfterUpload() : true)}
+      >
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -289,6 +309,7 @@ export function MeetingRecordingUploadDialog({
             reasonId={reason ? `${id}-reason` : undefined}
             cancelLabel={pending ? t("meetings.transcription.stop") : undefined}
             onCancel={() => (pending ? stop() : onOpenChange(false))}
+            submitting={queueing}
             submitLabel={t("meetings.transcription.submit")}
             submitType="submit"
             submitDisabled={!ready}

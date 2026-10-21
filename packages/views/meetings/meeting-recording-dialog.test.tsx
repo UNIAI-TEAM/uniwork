@@ -81,6 +81,11 @@ describe("MeetingRecordingDialog", () => {
     });
     rerender(wrap(<MeetingRecordingDialog open={false} onOpenChange={() => {}} meetingId="m1" recordingId="r-remote" />));
     expect(URL.revokeObjectURL).toHaveBeenCalledWith(blob);
+
+    // Opened again (the list keeps the dialog mounted): the presigned URL first, not the whole file.
+    rerender(wrap(<MeetingRecordingDialog open onOpenChange={() => {}} meetingId="m1" recordingId="r-remote" />));
+    await waitFor(() => expect(document.querySelector("video")).toHaveAttribute("src", "https://s3.test/rec"));
+    expect(loadBlob).toHaveBeenCalledTimes(1);
   });
 
   it("captions the recording from the transcript lines spoken while it ran", async () => {

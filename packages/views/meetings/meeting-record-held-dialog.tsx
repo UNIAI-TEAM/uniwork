@@ -15,7 +15,7 @@ import { Notice } from "../common/notice";
 import { sameUtcOffset, scheduleWindowIso, splitIsoLocal } from "./meeting-datetime";
 import { meetingTimeZoneLabel } from "./meeting-detail-format";
 import { browserTimeZone, MeetingScheduleFields, scheduleValid } from "./meeting-schedule-fields";
-import { TRANSCRIPT_HEADING_ID, TRANSCRIPT_UPLOAD_ID } from "./meeting-transcript-panel";
+import { transcriptFocusTarget } from "./meeting-transcript-panel";
 import { useNow } from "./use-now";
 
 /**
@@ -45,16 +45,6 @@ export function MeetingRecordHeldButton({
       {open ? <MeetingRecordHeldDialog workspaceId={workspaceId} meeting={meeting} onOpenChange={setOpen} /> : null}
     </>
   );
-}
-
-/** Where focus goes once the meeting is ended: the transcript card's upload, else its heading. */
-function transcriptFocusTarget(): HTMLElement | null {
-  const upload = document.getElementById(TRANSCRIPT_UPLOAD_ID);
-  if (upload) return upload;
-  const heading = document.getElementById(TRANSCRIPT_HEADING_ID);
-  // A heading takes programmatic focus only with a tabindex.
-  heading?.setAttribute("tabindex", "-1");
-  return heading;
 }
 
 function MeetingRecordHeldDialog({

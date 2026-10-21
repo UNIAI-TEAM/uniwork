@@ -21,8 +21,22 @@ import { MeetingSpeakerLabelsButton } from "./meeting-speaker-labels-dialog";
 const RECORDING_STATUSES = new Set(["ACTIVE", "PROCESSING", "COMPLETE", "FAILED"]);
 
 /** Anchors other screens land focus on (deep link, "record as held"). */
-export const TRANSCRIPT_HEADING_ID = "transcript-heading";
-export const TRANSCRIPT_UPLOAD_ID = "meeting-transcript-upload";
+const TRANSCRIPT_HEADING_ID = "transcript-heading";
+const TRANSCRIPT_UPLOAD_ID = "meeting-transcript-upload";
+
+/**
+ * Where focus goes once the transcript card changes under a dialog (the
+ * meeting recorded as held, a recording queued): its upload button, else its
+ * heading.
+ */
+export function transcriptFocusTarget(): HTMLElement | null {
+  const upload = document.getElementById(TRANSCRIPT_UPLOAD_ID);
+  if (upload) return upload;
+  const heading = document.getElementById(TRANSCRIPT_HEADING_ID);
+  // A heading takes programmatic focus only with a tabindex.
+  heading?.setAttribute("tabindex", "-1");
+  return heading;
+}
 
 /**
  * The name a transcript line shows. A speaker nobody named yet is worded here,
@@ -189,7 +203,9 @@ export function MeetingTranscriptPanel({
           </section>
         ) : null}
       </div>
-      {uploadOpen ? <MeetingRecordingUploadDialog meetingId={meetingId} onOpenChange={setUploadOpen} /> : null}
+      {uploadOpen ? (
+        <MeetingRecordingUploadDialog meetingId={meetingId} onOpenChange={setUploadOpen} focusAfterUpload={transcriptFocusTarget} />
+      ) : null}
       {playbackId ? (
         <MeetingRecordingDialog
           open

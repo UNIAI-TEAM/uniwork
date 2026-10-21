@@ -117,6 +117,9 @@ export function MeetingRecordingDialog({
     if (!open) {
       setSource(null);
       setStatus("idle");
+      // The list keeps this dialog mounted: the next open tries the presigned URL again
+      // rather than downloading the whole file into memory because of one old error.
+      setProxy(false);
       return;
     }
 

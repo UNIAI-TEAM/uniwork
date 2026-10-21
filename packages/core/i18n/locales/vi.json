@@ -4122,7 +4122,10 @@
         "quota": "Tổ chức đã dùng hết số phút ghi lời của gói. Hỏi quản trị viên để nâng gói.",
         "unavailable": "Tổ chức này chưa bật ghi lời tệp ghi âm.",
         "inProgress": "Tệp này đang được ghi lời. Chờ xong rồi hãy tải lại.",
-        "refused": "Không tải được tệp này lên. Chọn tệp khác rồi thử lại."
+        "refused": "Không tải được tệp này lên. Chọn tệp khác rồi thử lại.",
+        "plan": "Gói hiện tại của tổ chức chưa cho ghi lời tệp ghi âm. Hỏi quản trị viên.",
+        "tooManyUploads": "Bạn đang có quá nhiều lượt tải lên chưa xong. Chờ các lượt đó xong hoặc hết hạn rồi tải lại.",
+        "expired": "Lượt tải lên đã hết hạn. Bấm Thử lại để gửi lại tệp từ đầu."
       },
       "uploadAgain": "Tải lại tệp",
       "since": "từ {{time}}",
