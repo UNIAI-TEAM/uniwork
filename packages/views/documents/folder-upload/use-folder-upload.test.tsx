@@ -350,20 +350,28 @@ describe("useFolderUpload", () => {
     expect(transport.calls.map((c) => c.method).filter((m) => m === "complete" || m === "cancel")).toEqual(["complete", "cancel"]);
   });
 
-  it("says the batch expired and hides the retry in the report", async () => {
-    const { transport } = setup();
-    transport.failNext("complete", folderUploadApiError(410, "folder_upload_expired"));
-    stage(entries("Mới", ["a.pdf", "b.pdf"]));
+  it("says the batch expired, opens the report from Xem, and offers no retry", async () => {
+    // One file at a time, one complete per file: a lands, b fails for good, c's complete meets the 410.
+    // An undefined entry lets that call through; the fake throws only a defined error.
+    const { transport } = setup(
+      { limits: { ...WITH_FOLDERS, folder_upload: { ...WITH_FOLDERS.folder_upload!, parallel: 1, complete_batch: 1 } } },
+      {
+        fileErrors: { "b.pdf": { code: "storage_quota_exceeded", message: "" } },
+        errors: { complete: [undefined, undefined, folderUploadApiError(410, "folder_upload_expired")] as unknown as Error[] },
+      },
+    );
+    stage(entries("Mới", ["a.pdf", "b.pdf", "c.pdf"]));
     upload();
     await waitFor(() => expect(toast.warning).toHaveBeenCalled());
-    expect(toast.warning.mock.calls[0]?.[0]).toContain("đã hết hạn");
-    const action = toast.warning.mock.calls[0]?.[1].action;
-    if (action) {
-      act(() => {
-        action.onClick();
-      });
-      await screen.findByRole("dialog");
-      expect(screen.queryByRole("button", { name: t("documents.folder_upload.report.retry") })).toBeNull();
-    }
+    const [message, options] = toast.warning.mock.calls[0] ?? [];
+    expect(message).toBe("Lượt tải lên «Mới» đã hết hạn — 1/3 tệp đã lên. Hãy tải lại thư mục.");
+    expect(options.action.label).toBe(t("documents.folder_upload.toast.view_failures"));
+    act(() => {
+      options.action.onClick();
+    });
+
+    expect(await screen.findByText("Mới/b.pdf")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: t("documents.folder_upload.report.retry") })).toBeNull();
+    expect(screen.getByText(t("documents.folder_upload.report.expired_note"))).toBeInTheDocument();
   });
 });

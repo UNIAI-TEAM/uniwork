@@ -349,6 +349,7 @@ export function useFolderUpload({
         name={reportView?.name ?? ""}
         failures={reportView?.report.failed ?? []}
         canRetry={reportView?.report.canRetry ?? false}
+        expired={reportView?.report.expired ?? false}
         onRetry={retryFailed}
       />
     </>
