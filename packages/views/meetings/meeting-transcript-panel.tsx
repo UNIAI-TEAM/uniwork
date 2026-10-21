@@ -3,6 +3,7 @@ import { useState } from "react";
 import { ChevronDown, FileHeadphone, ScrollText, Upload } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useMeetingCapabilities, useOlderTranscript, useRecordings, useTranscript } from "@uniwork/core/meetings";
+import { useMeetingTranscriptions } from "@uniwork/core/meetings/transcriptions";
 import type { Meeting } from "@uniwork/core/types";
 import type { MeetingTranscriptSegment } from "@uniwork/core/types/meeting";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -53,6 +54,9 @@ export function MeetingTranscriptPanel({
   const { data: recordings } = useRecordings(meetingId);
   const caps = useMeetingCapabilities(workspaceId);
   const canUpload = canClerk && meeting.status === "ENDED" && caps.data?.transcription === true;
+  // A failed upload already says what did not happen and carries the retry:
+  // the header button and the empty line would offer the same upload twice more.
+  const uploadFailed = useMeetingTranscriptions(meetingId).data?.[0]?.status === "FAILED";
   const [showTranscript, setShowTranscript] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [playbackId, setPlaybackId] = useState<string | null>(null);
@@ -71,7 +75,7 @@ export function MeetingTranscriptPanel({
       icon={ScrollText}
       title={t("meetings.transcriptTitle")}
       action={
-        canUpload ? (
+        canUpload && !uploadFailed ? (
           <Button type="button" size="sm" variant="outline" onClick={() => setUploadOpen(true)}>
             <Upload aria-hidden />
             {t("meetings.transcription.uploadButton")}
@@ -86,7 +90,7 @@ export function MeetingTranscriptPanel({
         ) : transcriptQuery.isError && transcript.length === 0 ? (
           <MeetingSectionError message={t("meetings.transcriptLoadFailed")} onRetry={() => void transcriptQuery.refetch()} />
         ) : transcript.length === 0 && !older.hasOlder ? (
-          <p className="text-label text-muted-foreground">{empty}</p>
+          uploadFailed ? null : <p className="text-label text-muted-foreground">{empty}</p>
         ) : (
           <Collapsible open={showTranscript} onOpenChange={setShowTranscript}>
             <div className="flex flex-wrap items-center gap-1">

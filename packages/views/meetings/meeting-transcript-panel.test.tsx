@@ -55,6 +55,24 @@ describe("MeetingTranscriptPanel", () => {
     expect(await screen.findByRole("dialog", { name: "Tải tệp ghi âm lên" })).toBeInTheDocument();
   });
 
+  it("after a failed upload, offers one way back: the retry in the error box", async () => {
+    respond({
+      "/transcript": { segments: [] },
+      "/meeting-capabilities": { transcription: true },
+      "/transcriptions": {
+        transcriptions: [
+          { id: "t1", meeting_id: "m1", filename: "hop.m4a", status: "FAILED", error_code: "decode_failed", created_at: "2026-09-22T03:00:00Z" },
+        ],
+      },
+    });
+    render(wrapWithNav(<MeetingTranscriptPanel workspaceId="w1" meeting={meeting} canClerk />));
+    expect(await screen.findByRole("button", { name: "Tải lại tệp" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Tải tệp ghi âm" })).not.toBeInTheDocument();
+    expect(screen.queryByText(/Tải tệp ghi âm lên để UNI ghi lời/)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Tải lại tệp" }));
+    expect(await screen.findByRole("dialog", { name: "Tải tệp ghi âm lên" })).toBeInTheDocument();
+  });
+
   it("offers no upload where the workspace cannot transcribe", async () => {
     respond({ "/transcript": { segments: [] }, "/meeting-capabilities": { transcription: false } });
     render(wrapWithNav(<MeetingTranscriptPanel workspaceId="w1" meeting={meeting} canClerk />));
