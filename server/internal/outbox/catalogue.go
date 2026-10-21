@@ -269,6 +269,11 @@ var catalogue = []EventDef{
 
 	// Documents (UNI-675): ids only; consumers refetch the page/file.
 	{Topic: "document.created", Version: 1, Payload: []string{"document_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	// Folder upload (UNI-2052): one event per PLAN (the folder tree appeared)
+	// and per COMPLETE that created at least one document, instead of one
+	// document.created each; the client invalidates the workspace's document
+	// keys once.
+	{Topic: "document.batch_uploaded", Version: 1, Payload: []string{"batch_id", "workspace_id", "root_folder_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	// G1-03 (UNI-677): a file version was committed or restored; the client
 	// refetches the document and its versions.
 	{Topic: "document.version_created", Version: 1, Payload: []string{"document_id", "version_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
