@@ -21,8 +21,8 @@ import { dropAccountCache, restoreAccountCache } from "../query-persister";
 import { clearAccountCache } from "../remote-config";
 import { setReportUser } from "../report";
 import { currentSessionEpoch } from "../session-epoch";
-import { hydrateChatSendStore } from "../stores/chat-send-store";
-import { hydratePendingOpsStore } from "../stores/pending-ops-store";
+import { hydrateChatSendStore, useChatSendStore } from "../stores/chat-send-store";
+import { hydratePendingOpsStore, usePendingOpsStore } from "../stores/pending-ops-store";
 import { useWorkspaceStore } from "../stores/workspace-store";
 import { session } from "./flow";
 import { forgetLastUser, readLastUser, rememberUser } from "./last-user";
@@ -110,10 +110,20 @@ function loadUser(): Promise<User | null> {
  */
 async function endAccountSession(): Promise<void> {
   await session.logout();
+  await forgetAccountLocally();
+}
+
+/** Everything an account left on this phone besides its session: workspace, stored person, cached rooms, queues and their files. */
+async function forgetAccountLocally(): Promise<void> {
   await Promise.all([useWorkspaceStore.getState().clear(), forgetLastUser(), dropAccountCache()]);
   clearAccountCache(queryClient);
   clearChatOutbox(chatSendDeps);
   clearPendingOps(pendingOpsDeps);
+}
+
+/** Something of the last person is still on this phone: who they were, or what they queued. */
+function leftTraces(lastUser: User | null): boolean {
+  return lastUser !== null || useChatSendStore.getState().entries.length > 0 || usePendingOpsStore.getState().ops.length > 0;
 }
 
 /** What the device kept across the last run: the unsent messages and the queued reads, reactions and votes. */
@@ -121,11 +131,22 @@ async function hydrateDeviceState(): Promise<void> {
   await Promise.all([hydrateChatSendStore(), hydratePendingOpsStore()]);
 }
 
-/** A sign-in's /me, and that person's cached rooms before the first screen. */
-async function adoptLoadedUser(set: (partial: Partial<AuthState>) => void): Promise<void> {
-  const user = await loadUser();
-  if (user) await restoreAccountCache(user.id);
-  set({ user: adoptUser(user) });
+let adopting: Promise<void> | null = null;
+
+/**
+ * A sign-in's /me, and that person's cached rooms before the first screen.
+ * login() and the session's onChange (adoptSession) both ask on every
+ * interactive sign-in: they share one adoption.
+ */
+function adoptLoadedUser(set: (partial: Partial<AuthState>) => void): Promise<void> {
+  adopting ??= (async () => {
+    const user = await loadUser();
+    if (user) await restoreAccountCache(user.id);
+    set({ user: adoptUser(user) });
+  })().finally(() => {
+    adopting = null;
+  });
+  return adopting;
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
@@ -139,9 +160,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       useWorkspaceStore.getState().restore(),
       hydrateDeviceState(),
     ]);
-    // A refresh that the server refused while the rest was read ended the session already (its onChange(null) found nobody to sign out).
+    // A refresh that the server refused while the rest was read ended the session already (its onChange(null)
+    // found nobody to sign out): what the last person left here goes as on a sign-out, so the next account
+    // never sees, or posts as itself, their unsent messages.
     if (!hasCredential || session.status() === "signed-out") {
-      if (lastUser) void forgetLastUser();
+      if (leftTraces(lastUser)) await forgetAccountLocally();
       set({ isLoading: false });
       return;
     }
@@ -157,6 +180,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     // No stored person yet (the first start of this build): /me decides, as before.
     const user = await loadUser();
     if (user) await restoreAccountCache(user.id);
+    else if (session.status() === "signed-out" && leftTraces(null)) await forgetAccountLocally();
     set({ user: adoptUser(user), isLoading: false });
   },
 

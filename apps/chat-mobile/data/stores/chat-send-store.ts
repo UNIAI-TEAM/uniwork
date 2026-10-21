@@ -86,7 +86,7 @@ export async function hydrateChatSendStore(): Promise<void> {
   await useChatSendStore.persist.rehydrate();
 }
 
-/** One room's (or one thread's) sends, for the timeline merge. */
-export function selectRoomSends(entries: readonly PendingSend[], workspaceId: string, roomId: string): PendingSend[] {
-  return entries.filter((entry) => entry.workspaceId === workspaceId && entry.roomId === roomId);
+/** One room's (or one thread's) sends by the signed-in person, for the timeline merge; nobody else's are theirs to see or retry. */
+export function selectRoomSends(entries: readonly PendingSend[], workspaceId: string, roomId: string, senderId: string): PendingSend[] {
+  return entries.filter((entry) => entry.workspaceId === workspaceId && entry.roomId === roomId && entry.senderId === senderId);
 }

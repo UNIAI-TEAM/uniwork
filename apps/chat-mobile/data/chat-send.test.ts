@@ -375,12 +375,14 @@ describe("what goes where", () => {
     expect(chatSendDeps.isOnline()).toBe(true);
   });
 
-  it("selects one room's sends for its timeline", () => {
+  it("selects one room's sends of the signed-in person for its timeline", () => {
     const entries = [
       { ...input, clientMsgId: "a", createdAt: 1, status: "queued" as const },
       { ...input, roomId: "r2", clientMsgId: "b", createdAt: 1, status: "queued" as const },
       { ...input, workspaceId: "w2", clientMsgId: "c", createdAt: 1, status: "queued" as const },
+      // Another account's unsent message is never shown, nor offered for retry, as this person's.
+      { ...input, senderId: "someone-else", clientMsgId: "d", createdAt: 1, status: "failed" as const },
     ];
-    expect(selectRoomSends(entries, "w1", "r1").map((e) => e.clientMsgId)).toEqual(["a"]);
+    expect(selectRoomSends(entries, "w1", "r1", input.senderId).map((e) => e.clientMsgId)).toEqual(["a"]);
   });
 });

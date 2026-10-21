@@ -59,6 +59,7 @@ vi.mock("../local-wipe", () => ({ wipeDeviceTraces }));
 import { ApiError } from "../api";
 import { installReportSink } from "../report";
 import { useChatSendStore } from "../stores/chat-send-store";
+import { usePendingOpsStore } from "../stores/pending-ops-store";
 import { PUSH_UNREGISTER_BUDGET_MS, useAuthStore } from "./store";
 
 const user = {
@@ -101,6 +102,51 @@ describe("auth store", () => {
     expect(useAuthStore.getState()).toMatchObject({ user: null, isLoading: false });
     expect(lastUserMock.forgetLastUser).toHaveBeenCalledTimes(1);
     expect(apiMock.getMe).not.toHaveBeenCalled();
+  });
+
+  // Review P2: refresh_expired or device_revoked before anyone was let in left the last person's
+  // unsent messages, queued reactions and cached rooms for the next account to see, retry and post as itself.
+  it("initialize: a session the server ended before anyone was let in wipes what the last person left, as a sign-out does", async () => {
+    lastUserMock.readLastUser.mockResolvedValueOnce(user);
+    sessionMock.status.mockReturnValue("signed-out");
+    useChatSendStore.setState({ entries: [{ clientMsgId: "c1", workspaceId: "w1", roomId: "r1", senderId: "u1", body: "hi", createdAt: 1, status: "queued" }] });
+    usePendingOpsStore.setState({ ops: [{ kind: "read", key: "read/w1/r1", workspaceId: "w1", roomId: "r1", userId: "u1", createdAt: 1, rev: 1, verify: false }] });
+    await useAuthStore.getState().initialize();
+    expect(useAuthStore.getState()).toMatchObject({ user: null, isLoading: false });
+    expect(useChatSendStore.getState().entries).toEqual([]);
+    expect(usePendingOpsStore.getState().ops).toEqual([]);
+    expect(cacheMock.dropAccountCache).toHaveBeenCalledTimes(1);
+    expect(workspaceClear).toHaveBeenCalledTimes(1);
+    expect(lastUserMock.forgetLastUser).toHaveBeenCalledTimes(1);
+    expect(clearAccountCache).toHaveBeenCalledExactlyOnceWith(queryClientMock);
+    expect(sessionMock.logout).not.toHaveBeenCalled();
+
+    // No stored person (the first start of this build) but a queue: it goes too.
+    sessionMock.restore.mockResolvedValueOnce(false);
+    useChatSendStore.setState({ entries: [{ clientMsgId: "c2", workspaceId: "w1", roomId: "r1", senderId: "u1", body: "hi", createdAt: 1, status: "failed" }] });
+    await useAuthStore.getState().initialize();
+    expect(useChatSendStore.getState().entries).toEqual([]);
+    expect(cacheMock.dropAccountCache).toHaveBeenCalledTimes(2);
+
+    // Nothing of anyone left: nothing to wipe.
+    sessionMock.restore.mockResolvedValueOnce(false);
+    await useAuthStore.getState().initialize();
+    expect(cacheMock.dropAccountCache).toHaveBeenCalledTimes(2);
+  });
+
+  it("initialize: a first start whose /me finds the session ended wipes the queue left behind", async () => {
+    sessionMock.status.mockReturnValueOnce("signed-in").mockReturnValue("signed-out");
+    apiMock.getMe.mockRejectedValueOnce(new ApiError("unauthorized", 401));
+    usePendingOpsStore.setState({ ops: [{ kind: "read", key: "read/w1/r1", workspaceId: "w1", roomId: "r1", userId: "u1", createdAt: 1, rev: 1, verify: false }] });
+    await useAuthStore.getState().initialize();
+    expect(usePendingOpsStore.getState().ops).toEqual([]);
+    expect(cacheMock.dropAccountCache).toHaveBeenCalledTimes(1);
+
+    // Signed out with nothing left: nothing to wipe.
+    sessionMock.status.mockReturnValueOnce("signed-in").mockReturnValue("signed-out");
+    apiMock.getMe.mockRejectedValueOnce(new ApiError("unauthorized", 401));
+    await useAuthStore.getState().initialize();
+    expect(cacheMock.dropAccountCache).toHaveBeenCalledTimes(1);
   });
 
   it("initialize reads the session, the stored person, the workspace and the unsent messages together", async () => {
@@ -217,6 +263,8 @@ describe("auth store", () => {
     await Promise.all([login, adopt]);
     expect(apiMock.getMe).toHaveBeenCalledTimes(1);
     expect(useAuthStore.getState().user).toEqual(user);
+    // Review P1: one adoption, so one cache restore (two leaked a disk writer past sign-out).
+    expect(cacheMock.restoreAccountCache).toHaveBeenCalledExactlyOnceWith("u1");
   });
 
   it("login: runs the browser sign-in and loads /me when it ends signed in, with that person's cached rooms", async () => {

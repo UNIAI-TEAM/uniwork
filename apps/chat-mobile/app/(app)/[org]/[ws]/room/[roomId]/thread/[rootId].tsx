@@ -25,7 +25,7 @@ function ThreadConversation({ chat, roomId, rootId }: { chat: ChatWorkspace; roo
   const { colorScheme } = useColorScheme();
   const room = useRoomContext(chat, roomId);
   const thread = useInfiniteQuery(threadTimelineOptions(chat.wsId, roomId, rootId));
-  const sends = useChatSendStore(useShallow((s) => selectRoomSends(s.entries, chat.wsId, roomId)));
+  const sends = useChatSendStore(useShallow((s) => selectRoomSends(s.entries, chat.wsId, roomId, chat.userId)));
   const rows = useMemo(() => thread.data ?? [], [thread.data]);
   const root = rows.find((m) => m.id === rootId);
   const messages = useMemo(

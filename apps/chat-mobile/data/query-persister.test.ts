@@ -190,6 +190,46 @@ describe("the account's cache", () => {
     await dropAccountCache();
   });
 
+  // Review P1: a sign-in adopts the user twice at once (login() and the session's onChange);
+  // the first subscription leaked past sign-out and saved the next account's rooms under this one's buster.
+  it("two restores at once share one subscription, and a sign-out after them stops every write", async () => {
+    vi.useFakeTimers();
+    const qc = new QueryClient();
+    installAccountCache({ queryClient: qc, persister, version: "0.3.0" });
+    const [a, b] = [restoreAccountCache("A"), restoreAccountCache("A")];
+    expect(a).toBe(b);
+    await Promise.all([a, b]);
+    await dropAccountCache();
+    qc.setQueryData(chatKeys.rooms("w1"), [room("b-room", null)]);
+    await vi.advanceTimersByTimeAsync(PERSIST_THROTTLE_MS);
+    expect(store.getString("query-cache")).toBeUndefined();
+
+    // Done, the next restore of the same person starts afresh and writes again.
+    await restoreAccountCache("A");
+    qc.setQueryData(chatKeys.rooms("w1"), [room("a-room", null)]);
+    await vi.advanceTimersByTimeAsync(PERSIST_THROTTLE_MS);
+    expect((JSON.parse(store.getString("query-cache")!) as PersistedClient).buster).toBe("0.3.0:A");
+  });
+
+  it("a restore overtaken by another person's, or by a sign-out, neither hydrates nor subscribes", async () => {
+    vi.useFakeTimers();
+    store.set("query-cache", JSON.stringify({ buster: "0.3.0:A", timestamp: Date.now(), clientState: dehydrate(seeded()) }));
+    const qc = new QueryClient();
+    installAccountCache({ queryClient: qc, persister, version: "0.3.0" });
+    const first = restoreAccountCache("A");
+    await dropAccountCache();
+    await first;
+    expect(qc.getQueryData(chatKeys.rooms("w1"))).toBeUndefined();
+
+    const a = restoreAccountCache("A");
+    const b = restoreAccountCache("B");
+    await Promise.all([a, b]);
+    qc.setQueryData(chatKeys.rooms("w1"), [room("b-room", null)]);
+    await vi.advanceTimersByTimeAsync(PERSIST_THROTTLE_MS);
+    expect((JSON.parse(store.getString("query-cache")!) as PersistedClient).buster).toBe("0.3.0:B");
+    await dropAccountCache();
+  });
+
   it("a copy that will not read, or a write that fails, is logged and never stops the app", async () => {
     vi.useFakeTimers();
     const qc = new QueryClient();

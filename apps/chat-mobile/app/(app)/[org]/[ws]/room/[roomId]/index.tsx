@@ -54,7 +54,7 @@ function RoomConversation({ chat, roomId, linkedMessageId }: { chat: ChatWorkspa
   const anchorLoaded = anchorId ? latestRows.some((m) => m.id === anchorId) : true;
   const around = useQuery({ ...roomAroundOptions(chat.wsId, roomId, anchorId ?? ""), enabled: !anchorLoaded && timeline.isSuccess });
   const anchorRows = anchorLoaded ? null : (around.data ?? null);
-  const sends = useChatSendStore(useShallow((s) => selectRoomSends(s.entries, chat.wsId, roomId)));
+  const sends = useChatSendStore(useShallow((s) => selectRoomSends(s.entries, chat.wsId, roomId, chat.userId)));
   const messages = useMemo(
     () => buildMainTimelineMessages({ anchorRows, latestRows, pending: sends, currentUserId: chat.userId }),
     [anchorRows, latestRows, sends, chat.userId],

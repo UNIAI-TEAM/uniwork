@@ -84,6 +84,11 @@ một dòng thì ghi lý do ở dòng trên.
   dùng cuối (`data/auth/last-user.ts`, Keychain cạnh phiên, ghi sau mỗi `/me`/`setUser`, bỏ qua khi epoch đổi),
   workspace và các hàng đợi; có credential + người dùng đã lưu thì vào inbox ngay và `/me` revalidate phía sau.
   Chỉ phán quyết của server (onChange(null), `onUnauthorized`) mới đăng xuất; offline/5xx/timeout giữ người dùng.
+  Server đã kết thúc phiên trước khi ai được vào (refresh hết hạn, thiết bị bị thu hồi) mà máy còn người dùng đã lưu
+  hay hàng đợi thì xoá như đăng xuất (outbox và tệp, lượt chờ, cache đĩa, workspace); màn chat chỉ hiện và thử lại
+  tin chờ của chính người đang đăng nhập (`selectRoomSends` lọc theo người gửi). `login()` và `adoptSession()`
+  dùng chung một lần nhận người dùng; `restoreAccountCache` gộp hai lần gọi cho cùng người và chỉ lần gọi cuối
+  được ghi đĩa (một lần dừng — đăng xuất, cài lại — làm lần khôi phục đang chạy không hydrate, không ghi).
   Splash (`expo-splash-screen`, plugin trong `app.config.ts`) giữ tới khi `isLoading` tắt, tối đa 8 s
   (`app/_layout.tsx`). **Kho trên máy**: `data/storage/device-store.ts` (thuần, mặc định bộ nhớ — test node không
   cần mock) ← `native-device-store.ts` cài lúc boot: MMKV (`react-native-mmkv` + `react-native-nitro-modules`)

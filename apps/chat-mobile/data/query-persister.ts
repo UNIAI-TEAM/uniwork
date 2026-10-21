@@ -94,29 +94,45 @@ interface Installed {
 
 let installed: Installed | null = null;
 let stop: (() => void) | null = null;
+// Every stop (a new restore, a reinstall, a sign-out) moves the generation on:
+// a restore that started before it neither hydrates nor subscribes.
+let generation = 0;
+// A second restore for the same person while one runs (a sign-in's login() and
+// the session's onChange both adopt the user) shares it instead of racing it.
+let pending: { userId: string; run: Promise<void> } | null = null;
+
+function stopWrites(): void {
+  generation += 1;
+  pending = null;
+  stop?.();
+  stop = null;
+}
 
 /** Boot (app/_layout.tsx): the app's client, the device store's persister and this build's version. */
 export function installAccountCache(next: Installed | null): void {
-  stop?.();
-  stop = null;
+  stopWrites();
   installed = next;
 }
 
-/**
- * The signed-in person's copy into the cache (before the first screen), then
- * every change back to disk. Another person's or another build's copy is
- * removed instead; a copy that does not read is dropped and logged.
- */
-export async function restoreAccountCache(userId: string): Promise<void> {
-  if (!installed) return;
-  const { queryClient, persister, version } = installed;
-  stop?.();
+async function restoreAndSubscribe(userId: string, { queryClient, persister, version }: Installed): Promise<void> {
+  stopWrites();
+  const mine = generation;
+  const current = () => generation === mine;
   const buster = `${version}:${userId}`;
+  // A copy read after a stop is not hydrated: the person it was for may have signed out meanwhile.
+  const guarded: Persister = {
+    ...persister,
+    restoreClient: async () => {
+      const client = await persister.restoreClient();
+      return current() ? client : undefined;
+    },
+  };
   try {
-    await persistQueryClientRestore({ queryClient, persister, buster, maxAge: PERSISTED_CACHE_MAX_AGE_MS });
+    await persistQueryClientRestore({ queryClient, persister: guarded, buster, maxAge: PERSISTED_CACHE_MAX_AGE_MS });
   } catch (error) {
     log.warn("cached rooms not restored", { error: error instanceof Error ? error.name : typeof error });
   }
+  if (!current()) return;
   let timer: ReturnType<typeof setTimeout> | null = null;
   const save = () => {
     timer = null;
@@ -135,9 +151,24 @@ export async function restoreAccountCache(userId: string): Promise<void> {
   };
 }
 
+/**
+ * The signed-in person's copy into the cache (before the first screen), then
+ * every change back to disk. Another person's or another build's copy is
+ * removed instead; a copy that does not read is dropped and logged. At most
+ * one subscription writes at a time, always the last restore's.
+ */
+export function restoreAccountCache(userId: string): Promise<void> {
+  if (!installed) return Promise.resolve();
+  if (pending?.userId === userId) return pending.run;
+  const run: Promise<void> = restoreAndSubscribe(userId, installed).finally(() => {
+    if (pending?.run === run) pending = null;
+  });
+  pending = { userId, run };
+  return run;
+}
+
 /** Sign-out: no more writes, and the copy goes. */
 export async function dropAccountCache(): Promise<void> {
-  stop?.();
-  stop = null;
+  stopWrites();
   await installed?.persister.removeClient();
 }
