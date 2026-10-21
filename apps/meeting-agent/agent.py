@@ -226,6 +226,7 @@ async def entrypoint(ctx: JobContext) -> None:
 
     disconnect: dict[str, str | None] = {"reason": None}
     extractor: dict[str, asyncio.Task | None] = {"task": None}
+    translating: dict[str, asyncio.Task | None] = {"task": None}
 
     def on_disconnected(reason: rtc.DisconnectReason.ValueType) -> None:
         disconnect["reason"] = rtc.DisconnectReason.Name(reason)
@@ -234,6 +235,11 @@ async def entrypoint(ctx: JobContext) -> None:
 
     async def shutdown() -> None:
         metrics.JOBS_RUNNING.dec()
+        # Stop the translate loop first, so no call starts after close() drops those in flight.
+        if (task := translating["task"]) is not None:
+            task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await task
         await translator.close()
         for t in list(transcribers.values()):
             await t.close()
@@ -282,8 +288,8 @@ async def entrypoint(ctx: JobContext) -> None:
             await asyncio.sleep(0.2)
             await translator.tick()
 
-    translating = asyncio.create_task(translate_ticks())
-    tasks.add(translating)
+    translating["task"] = asyncio.create_task(translate_ticks())
+    tasks.add(translating["task"])
     ctx.add_participant_entrypoint(on_participant)
     await ctx.connect(auto_subscribe=AutoSubscribe.AUDIO_ONLY)
     try:

@@ -254,7 +254,10 @@ class TrackTranscriber:
         language = alt.language or self._language
         if self._seg_started is None:
             self._seg_started = self._wall()
-        await self._publish(Caption(self._identity, seg_id, alt.text, final, language))
+        try:
+            await self._publish(Caption(self._identity, seg_id, alt.text, final, language))
+        except Exception as e:  # noqa: BLE001 - a lost caption (room closing, stream error) must not lose the final
+            log.warning("caption not published track=%s err=%s", self._sid, type(e).__name__)
         if not final:
             return
         self._seg += 1

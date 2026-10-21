@@ -102,6 +102,31 @@ async def test_close_mid_turn_still_delivers_the_final():
     assert captions[-1].final and captions[-1].segment_id == "AJ_1-TR_a-1"
 
 
+async def test_caption_publish_failure_still_delivers_the_final():
+    """Review R5 M3: at shutdown the room disconnects before the transcribers
+    close, so the caption of the cut turn cannot be sent; its final must still
+    reach the server, and the session must not count as failed."""
+    clock = Clock()
+    finals: list[Final] = []
+    disconnected = False
+
+    async def publish(c: Caption) -> None:
+        if disconnected:
+            raise RuntimeError("room disconnected")
+
+    t = TrackTranscriber(
+        segment_prefix="AJ-TR", identity="p", stt_impl=FakeSTT(), publish=publish, on_final=finals.append, clock=clock
+    )
+    t.on_vad_start([frame(True)])
+    for _ in range(120):
+        await t.push(frame(True))
+        clock.t += 0.01
+    disconnected = True
+    await t.close()
+    assert [f.text for f in finals] == ["từ1 từ2"]
+    assert t.failures == 0
+
+
 async def test_segment_ids_are_unique_across_jobs_on_the_same_track():
     """Review item 2: a later run's job on the same track must not reuse ids."""
     ids = []
