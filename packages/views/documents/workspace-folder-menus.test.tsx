@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { resetAuthStoreForTests, setSessionUser } from "@uniwork/core/auth";
 import { initI18n } from "@uniwork/core/i18n";
@@ -6,9 +6,11 @@ import type { DocumentTreeNode } from "@uniwork/core/types/document";
 import { requestMock, wrap } from "../test/api-mock";
 import { DocumentTree } from "./document-tree";
 import { newFolderIsWorkspaceVisible } from "./document-tree-model";
-import { DocumentTreeRowMenu } from "./document-tree-row-menu";
+import { DocumentTreeRowMenu, useTreeRowMenuDialogs } from "./document-tree-row-menu";
 import { DocumentsSidebar } from "./documents-sidebar";
 import { FolderNameDialog } from "./folder-name-dialog";
+import type { DocumentSummaryRow } from "./library-rows";
+import { useLibraryRowDialogs } from "./use-library-row-dialogs";
 
 // UNI-2055 A1: the tree row menu, the create-folder dialog note and the
 // sidebar create for workspace folders (W1-W5).
@@ -206,12 +208,74 @@ describe("create-folder note per caller (UNI-2055 W1)", () => {
     expect(within(dialog).getByText(note())).toBeInTheDocument();
   });
 
-  it("falls back to the row's own data when the parent is not in the forest (tree menu)", async () => {
+  it("falls back to the row's own data when the parent is not in the forest (tree menu hook)", async () => {
     answer();
-    const lost = node({ id: "lost", title: "Chưa tải", parent_id: null });
-    await openRowMenu(lost, "manage");
-    fireEvent.click(await screen.findByRole("menuitem", { name: t("documents.tree.menu.new_subfolder") }));
-    expect(within(await screen.findByRole("dialog")).getByText(note())).toBeInTheDocument();
+    function Harness({ parent }: { parent: DocumentTreeNode }) {
+      const { actions, dialogs } = useTreeRowMenuDialogs({ wsId: WS, tree: [], currentId: null });
+      return (
+        <>
+          <button type="button" onClick={() => actions.onNewSubfolder(parent)}>
+            go
+          </button>
+          {dialogs}
+        </>
+      );
+    }
+    const open = async (parent: DocumentTreeNode) => {
+      render(wrap(<Harness parent={parent} />));
+      fireEvent.click(screen.getByRole("button", { name: "go" }));
+      return screen.findByRole("dialog");
+    };
+
+    const first = await open(node({ id: "lost", title: "Chưa tải" }));
+    expect(within(first).getByText(note())).toBeInTheDocument();
+    cleanup();
+
+    const second = await open(node({ id: "lost-mf", title: "Thư mục của tôi", system_kind: "my_folder", visibility: "restricted" }));
+    expect(within(second).queryByText(note())).toBeNull();
+  });
+
+  it("falls back to the row's own data for a list row whose folder is not in the forest", async () => {
+    answer();
+    const row = (over: Partial<DocumentSummaryRow>): DocumentSummaryRow => ({
+      id: "lost-row",
+      organization_id: "org1",
+      workspace_id: WS,
+      kind: "folder",
+      title: "Chưa tải",
+      visibility: "workspace",
+      revision: "1",
+      current_version: 1,
+      position: 0,
+      my_level: "view",
+      created_by: "",
+      created_by_kind: "human",
+      updated_by: "u1",
+      updated_by_kind: "human",
+      created_at: "",
+      updated_at: "2026-09-28T03:00:00Z",
+      ...over,
+    });
+    function Harness({ parent }: { parent: DocumentSummaryRow }) {
+      const { onNewSubfolder, dialogs } = useLibraryRowDialogs({ wsId: WS, tree: [], folderId: null });
+      return (
+        <>
+          <button type="button" onClick={() => onNewSubfolder(parent)}>
+            go
+          </button>
+          {dialogs}
+        </>
+      );
+    }
+    const open = async (parent: DocumentSummaryRow) => {
+      render(wrap(<Harness parent={parent} />));
+      fireEvent.click(screen.getByRole("button", { name: "go" }));
+      return screen.findByRole("dialog");
+    };
+
+    expect(within(await open(row({}))).getByText(note())).toBeInTheDocument();
+    cleanup();
+    expect(within(await open(row({ system_kind: "my_folder", visibility: "restricted" }))).queryByText(note())).toBeNull();
   });
 
   it("notes nothing for a missing parent that is My Folder or not a folder (tree menu)", () => {

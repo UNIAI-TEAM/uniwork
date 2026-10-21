@@ -200,6 +200,8 @@ export function useDocListBulkCommands({
   };
 
   const purge = confirming?.plan.action === "purge";
+  // Trashing a folder hands other people's documents inside back to their owners (UNI-2055): one static clause, no count.
+  const relocates = !purge && (confirming?.plan.docs.some((doc) => doc.kind === "folder") ?? false);
   const dialogs = (
     <>
       <AlertDialog open={confirming !== null} onOpenChange={(next) => (!next && !busy ? setConfirming(null) : undefined)}>
@@ -210,6 +212,7 @@ export function useDocListBulkCommands({
             </AlertDialogTitle>
             <AlertDialogDescription>
               {t(purge ? "documents.list.bulk.confirm.purge_description" : "documents.list.bulk.confirm.trash_description")}
+              {relocates ? ` ${t("documents.archive.delete_relocated")}` : null}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

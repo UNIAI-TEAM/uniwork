@@ -303,7 +303,7 @@ export function useTreeRowMenuDialogs({
         mode="create"
         wsId={wsId}
         parentId={creatingUnder?.id ?? null}
-        workspaceNote={creatingUnder !== null && newFolderIsWorkspaceVisible(tree, creatingUnder.id)}
+        workspaceNote={creatingUnder !== null && newFolderIsWorkspaceVisible(tree, creatingUnder.id, creatingUnder)}
         parentTitle={(creatingUnder && isMyFolder(creatingUnder) ? t("documents.home.my_folder.label") : creatingUnder?.title) ?? ""}
         onSuccess={() => {
           if (creatingUnder) onCreatedSubfolder?.(creatingUnder.id);

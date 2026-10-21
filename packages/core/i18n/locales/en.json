@@ -11117,7 +11117,7 @@
         "reason_current": "Current location",
         "reason_self": "Inside itself",
         "reason_too_deep": "Too deep: at most {{max}} levels",
-        "reason_workspace_folder": "A shared folder can't be moved into My Folder",
+        "reason_workspace_folder": "A workspace folder can't be moved into My Folder",
         "out_confirm": {
           "title": "Move this folder out to the workspace?",
           "body": "The folder and its name will be visible to the whole workspace; documents inside keep their own access",
@@ -11193,7 +11193,7 @@
       "level_not_allowed": "The document's own workspace takes at most {{max}}. Choose a lower level.",
       "access_batch_invalid": "This access change could not be applied. Close the share dialog, open it again and retry.",
       "file_too_large": "The file is over the {{max}} limit. Reduce image sizes or split the file, then upload again.",
-      "folder_into_my_folder": "A shared folder can't be moved into My Folder. Refresh the list and try again.",
+      "folder_into_my_folder": "A workspace folder can't be moved into My Folder. Refresh the list and try again.",
       "my_folder_locked": "My Folder is a personal system folder — it can't be renamed, shared, moved or moved to the trash.",
       "unsupported_media_type": "This file format is not supported.",
       "upload_sessions_exhausted": "You have too many uploads open at once. Finish or cancel one, then try again.",

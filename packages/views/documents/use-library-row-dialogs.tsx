@@ -23,7 +23,7 @@ import { rowShareTarget } from "./share-dialog-target";
 type SourceRow = { type: "source"; id: string; source: DocumentSourceFile };
 
 type NameDialogState =
-  | { mode: "create"; parentId: string | null; parentTitle?: string }
+  | { mode: "create"; parentId: string | null; parentTitle?: string; parentRow?: DocumentSummaryRow }
   | { mode: "rename"; doc: DocumentSummaryRow };
 
 export interface LibraryRowDialogs {
@@ -115,7 +115,7 @@ export function useLibraryRowDialogs({
         mode={naming?.mode ?? "create"}
         parentId={naming?.mode === "create" ? naming.parentId : null}
         parentTitle={naming?.mode === "create" ? naming.parentTitle : undefined}
-        workspaceNote={naming?.mode === "create" && newFolderIsWorkspaceVisible(tree, naming.parentId)}
+        workspaceNote={naming?.mode === "create" && newFolderIsWorkspaceVisible(tree, naming.parentId, naming.parentRow)}
         folderId={naming?.mode === "rename" ? naming.doc.id : ""}
         initialName={naming?.mode === "rename" ? naming.doc.title : ""}
         kind={naming?.mode === "rename" ? naming.doc.kind : "folder"}
@@ -230,6 +230,7 @@ export function useLibraryRowDialogs({
         mode: "create",
         parentId: doc.id,
         parentTitle: isMyFolder(doc) ? t("documents.home.my_folder.label") : doc.title,
+        parentRow: doc,
       }),
     onRename: (doc) => {
       if (isMyFolder(doc)) return;

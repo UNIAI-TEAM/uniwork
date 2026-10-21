@@ -11106,7 +11106,7 @@
         "reason_current": "Vị trí hiện tại",
         "reason_self": "Nằm trong chính nó",
         "reason_too_deep": "Quá sâu: tối đa {{max}} cấp",
-        "reason_workspace_folder": "Không thể chuyển thư mục chung vào Thư mục của tôi",
+        "reason_workspace_folder": "Không thể chuyển thư mục của workspace vào Thư mục của tôi",
         "out_confirm": {
           "title": "Chuyển thư mục ra workspace?",
           "body": "Thư mục và tên sẽ hiện cho cả workspace; tài liệu bên trong vẫn giữ quyền như cũ",
@@ -11182,7 +11182,7 @@
       "level_not_allowed": "Workspace của tài liệu chỉ nhận tối đa {{max}}. Hãy chọn mức thấp hơn.",
       "access_batch_invalid": "Không áp dụng được thay đổi quyền truy cập này. Đóng hộp thoại chia sẻ, mở lại rồi thử lại.",
       "file_too_large": "Tệp vượt giới hạn {{max}}. Giảm dung lượng ảnh hoặc chia nhỏ tệp rồi tải lên lại.",
-      "folder_into_my_folder": "Thư mục chung không thể chuyển vào Thư mục của tôi. Hãy tải lại danh sách rồi thử lại.",
+      "folder_into_my_folder": "Thư mục của workspace không thể chuyển vào Thư mục của tôi. Hãy tải lại danh sách rồi thử lại.",
       "my_folder_locked": "Thư mục của tôi là thư mục hệ thống cá nhân — không thể đổi tên, chia sẻ, di chuyển hoặc chuyển vào thùng rác.",
       "unsupported_media_type": "Định dạng tệp này chưa được hỗ trợ.",
       "upload_sessions_exhausted": "Bạn đang có quá nhiều phiên tải lên cùng lúc. Hãy hoàn tất hoặc hủy bớt rồi thử lại.",
