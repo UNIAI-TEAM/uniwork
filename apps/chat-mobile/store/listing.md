@@ -18,7 +18,10 @@ Nguồn cho App Store Connect và Google Play Console khi có tài khoản (UNI-
 > - Gửi ảnh và tệp vào cuộc trò chuyện
 > - Gọi thoại và video cho hai người hoặc cả nhóm
 > - Danh bạ đồng nghiệp với trạng thái hoạt động
-> - Thông báo đẩy có xem trước nội dung; không làm phiền khi bạn đang dùng UniWork ở thiết bị khác
+> - Thông báo đẩy có xem trước nội dung, trả lời hoặc đánh dấu đã đọc ngay trên thông báo; không làm phiền khi bạn
+>   đang dùng UniWork ở thiết bị khác
+> - Bản nháp giữ nguyên khi rời cuộc trò chuyện, liên kết trong tin bấm được, mở lại phòng ở đúng tin chưa đọc đầu tiên
+> - Hỗ trợ VoiceOver và TalkBack, cỡ chữ lớn và chế độ tối
 >
 > Cần một tài khoản UniWork. Đăng nhập an toàn qua trình duyệt, ứng dụng không lưu mật khẩu.
 
@@ -33,7 +36,10 @@ Nguồn cho App Store Connect và Google Play Console khi có tài khoản (UNI-
 > - Share photos and files in a conversation
 > - Voice and video calls, one-to-one or with the whole group
 > - A directory of your colleagues with their presence
-> - Push notifications with message previews, held back while you are active in UniWork elsewhere
+> - Push notifications with message previews that you can reply to or mark as read in place, held back while you are
+>   active in UniWork elsewhere
+> - Drafts that wait for you, tappable links, and rooms that reopen at your first unread message
+> - Works with VoiceOver and TalkBack, large text and dark mode
 >
 > Requires a UniWork account. You sign in securely in the browser; the app never stores your password.
 
