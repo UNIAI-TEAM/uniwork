@@ -145,7 +145,7 @@ func (s *DocumentService) ShelveDocument(ctx context.Context, actor Actor, docum
 				},
 				Events: []audit.Event{{Topic: "document.shelved", Payload: map[string]string{
 					"document_id": id, "workspace_id": doc.WorkspaceID, "shelve_batch_id": batch,
-				}}},
+				}}, documentChangeNotice(id, doc.WorkspaceID, docNoticeShelved)},
 			})
 		}
 		if err := auditRecorder.RecordMany(ctx, q, recs); err != nil {
@@ -234,7 +234,7 @@ func (s *DocumentService) UnshelveDocument(ctx context.Context, actor Actor, doc
 				},
 				Events: []audit.Event{{Topic: "document.unshelved", Payload: map[string]string{
 					"document_id": id, "workspace_id": doc.WorkspaceID, "shelve_batch_id": batch,
-				}}},
+				}}, documentChangeNotice(id, doc.WorkspaceID, docNoticeUnshelved)},
 			})
 		}
 		if err := auditRecorder.RecordMany(ctx, q, recs); err != nil {

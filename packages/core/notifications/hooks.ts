@@ -23,12 +23,21 @@ export const notificationKeys = {
   /** The first page read for one document's notice; under `lists()`, so a mutation patches it too. */
   documentNotice: (workspaceId: string | undefined, documentId: string, pageSize = 50) =>
     ["notifications", "list", workspaceId ?? "", false, pageSize, "document-notice", documentId] as const,
-  /** The documents of one folded `document_changed` row; under `lists()`, so `notification.created` refreshes an open list. */
+  /**
+   * The documents of one document_changed notice, cursor-paged. Under `lists()`
+   * so a read, unread or archive refetches it with the rest, but it holds
+   * documents, not rows: the row patchers skip it (`isDocumentsKey`).
+   */
   documents: (notificationId: string) => [...notificationKeys.lists(), "documents", notificationId] as const,
   unreadCount: () => ["notifications", "unread-count"] as const,
   prefs: () => ["notifications", "prefs"] as const,
   pushConfig: () => ["notifications", "push-config"] as const,
 };
+
+/** A cached documents entry is not a page of rows: no row patcher may touch it. */
+function isDocumentsKey(key: readonly unknown[]): boolean {
+  return key[2] === "documents";
+}
 
 /** `enabled: false` keeps the query cold — the bell uses it until opened. */
 export function useNotifications({
@@ -61,6 +70,22 @@ export function useNotificationPages({
 }
 
 /**
+ * The documents of one document_changed notice the caller can read now, one
+ * page at a time: each next page continues from the server's sealed
+ * `next_cursor`. Stays cold until `enabled` (the row is expanded) and while
+ * the id is empty.
+ */
+export function useNotificationDocuments(notificationId: string, { enabled = true }: { enabled?: boolean } = {}) {
+  return useInfiniteQuery({
+    queryKey: notificationKeys.documents(notificationId),
+    queryFn: ({ pageParam }) => api.listNotificationDocuments(notificationId, { cursor: pageParam || undefined }),
+    initialPageParam: "",
+    getNextPageParam: (last) => last.next_cursor || undefined,
+    enabled: enabled && notificationId !== "",
+  });
+}
+
+/**
  * The Inbox's first page as the server answers it now, for a document page that
  * reached a 404 from a notice and must tell "deleted" from "access lost" by the
  * notice row (`resource_deleted` / `resource_access_lost`). Its own entry, so a
@@ -85,17 +110,6 @@ export function useDocumentNoticePage({
   });
 }
 
-/** The affected documents of one folded `document_changed` notification, cursor-paged. */
-export function useNotificationDocuments(notificationId: string, { enabled = true }: { enabled?: boolean } = {}) {
-  return useInfiniteQuery({
-    queryKey: notificationKeys.documents(notificationId),
-    queryFn: ({ pageParam }) => api.listNotificationDocuments(notificationId, { cursor: pageParam || undefined }),
-    initialPageParam: "",
-    getNextPageParam: (last) => last.next_cursor ?? undefined,
-    enabled,
-  });
-}
-
 /** The badge. 30 s stale; realtime invalidates on notification.created. */
 export function useUnreadCount() {
   return useQuery({
@@ -108,16 +122,6 @@ export function useUnreadCount() {
 type Page = api.NotificationPage;
 /** A list entry is one page (bell, home) or the inbox's pages. */
 type Cached = Page | InfiniteData<Page, string>;
-
-/**
- * Everything under `lists()` is invalidated together, but not everything there
- * is a list of notifications: the documents of a folded row (`documents(id)`)
- * share the prefix. Those entries are left alone by the row rewrites.
- */
-function isRowList(data: unknown): data is Cached {
-  const first = data && typeof data === "object" && "pages" in data ? (data as InfiniteData<unknown>).pages[0] : data;
-  return !!first && typeof first === "object" && Array.isArray((first as { notifications?: unknown }).notifications);
-}
 
 function mapRows(data: Cached, fn: (rows: Notification[]) => Notification[]): Cached {
   if ("pages" in data) return { ...data, pages: data.pages.map((p) => ({ ...p, notifications: fn(p.notifications) })) };
@@ -133,7 +137,7 @@ function rowsOf(data: Cached | undefined): Notification[] {
 function rewriteLists(qc: ReturnType<typeof useQueryClient>, fn: (rows: Notification[]) => Notification[]) {
   const snapshots = qc.getQueriesData<Cached>({ queryKey: notificationKeys.lists() });
   for (const [key, data] of snapshots) {
-    if (!isRowList(data)) continue;
+    if (!data || isDocumentsKey(key)) continue;
     qc.setQueryData<Cached>(key, mapRows(data, fn));
   }
   return snapshots;
@@ -168,8 +172,8 @@ function settle(qc: ReturnType<typeof useQueryClient>) {
 
 function cachedRows(qc: ReturnType<typeof useQueryClient>, ids: string[]): Notification[] {
   const seen = new Map<string, Notification>();
-  for (const [, data] of qc.getQueriesData<Cached>({ queryKey: notificationKeys.lists() })) {
-    if (!isRowList(data)) continue;
+  for (const [key, data] of qc.getQueriesData<Cached>({ queryKey: notificationKeys.lists() })) {
+    if (isDocumentsKey(key)) continue;
     for (const n of rowsOf(data)) if (ids.includes(n.id)) seen.set(n.id, n);
   }
   return [...seen.values()];

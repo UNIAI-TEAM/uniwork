@@ -101,6 +101,7 @@ type ChatMessageRow struct {
 	Voice             *VoiceMessageInfo
 	File              *FileMessageInfo
 	Poll              *ChatPollInfo
+	PollVote          *ChatPollVoteActivityPayload
 	Reminder          *ChatReminderInfo
 	Note              *ChatNoteInfo
 	Post              *ChatPostInfo

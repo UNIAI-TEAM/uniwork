@@ -1,0 +1,6 @@
+# Raw Microsoft help pages stay local: they embed public MS telemetry keys that
+# gitleaks flags. Refetch from the URLs in ms-fetch-log.tsv / ms-fetch-web-log.tsv.
+ms-html/
+ms-html-web/
+# Library sources checked out for the inventory (157 MB, nested .git).
+lib-src/

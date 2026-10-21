@@ -552,3 +552,74 @@ func (s *DocumentService) documentTrashLevel(ctx context.Context, userID, docume
 	}
 	return access.canAdminister(), nil
 }
+
+// FilterDocumentReadersIgnoringTrash keeps the people who could read the
+// document before it went to the trash (UNI-2056): the same level rule as
+// FilterDocumentReaders without the "a trashed row is found by managers
+// only" step. Archiving moves only archived_at, so the shares, stars and
+// visibility still answer as they did just before the command.
+func (s *DocumentService) FilterDocumentReadersIgnoringTrash(ctx context.Context, documentID string, userIDs []string) ([]string, error) {
+	out := make([]string, 0, len(userIDs))
+	for _, id := range userIDs {
+		_, _, err := s.authorizeDocumentGate(ctx, s.q, Human(id), documentID, func(_ db.Document, access DocumentAccess) error {
+			if access.Level == DocumentLevelNone {
+				return ErrNotFound
+			}
+			return nil
+		})
+		switch {
+		case err == nil:
+			out = append(out, id)
+		case isGateRefusal(err):
+		default:
+			return nil, err
+		}
+	}
+	return out, nil
+}
+
+// documentChangeNoticeCap bounds the people a purge records for its
+// document_changed notice. A document with more candidates than this sends
+// no deleted notice at all: the list would bloat an append-only audit row and
+// cost one read gate per person inside the purge's tree lock (BE-R1-4).
+const documentChangeNoticeCap = 200
+
+// documentChangeReadersQ is the audience of a document_changed notice
+// (UNI-2056 §2) read through q: the ACL owner, live user shares and stars
+// besides the actor, kept while they read the document now. The purge calls
+// it inside its own transaction, before the shares and stars are deleted, so
+// it stays cheap there: a private document (restricted, no live share, no
+// live link) has nobody to tell and returns before any gate, and more than
+// documentChangeNoticeCap candidates return none.
+func (s *DocumentService) documentChangeReadersQ(ctx context.Context, q *db.Queries, doc db.Document, actorID string) ([]string, error) {
+	if doc.Visibility != "workspace" {
+		facts, err := q.GetDocumentChangeFacts(ctx, doc.ID)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
+		if err != nil {
+			return nil, err
+		}
+		if !facts.HasLiveShare && !facts.HasLiveLink {
+			return nil, nil
+		}
+	}
+	audience, err := q.ListDocumentChangeAudience(ctx, db.ListDocumentChangeAudienceParams{
+		OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID, DocumentID: doc.ID,
+	})
+	if err != nil {
+		return nil, err
+	}
+	seen := map[string]bool{actorID: true}
+	candidates := make([]string, 0, len(audience)+1)
+	for _, id := range append([]string{doc.AclOwnerID.String}, audience...) {
+		if id != "" && !seen[id] {
+			seen[id] = true
+			candidates = append(candidates, id)
+		}
+	}
+	if len(candidates) == 0 || len(candidates) > documentChangeNoticeCap {
+		return nil, nil
+	}
+	return s.FilterDocumentReadersQ(ctx, q, doc.ID, candidates)
+}

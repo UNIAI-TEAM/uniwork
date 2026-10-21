@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
-import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import {
   resetChatRoomPreferencesForTests,
@@ -7,6 +7,7 @@ import {
 } from "@uniwork/core/chat/room-preferences-store";
 import { QueryClient } from "@tanstack/react-query";
 import { chatKeys } from "@uniwork/core/chat";
+import { useSearchStore } from "@uniwork/core/search";
 import { fakeNav, wrapWithNav } from "../test/api-mock";
 import { WorkspaceProvider } from "../layout/workspace-context";
 import { ChatSidebar } from "./chat-sidebar";
@@ -76,6 +77,46 @@ function renderSidebar(props: Partial<Parameters<typeof ChatSidebar>[0]> = {}) {
     ),
   );
 }
+
+describe("ChatSidebar search focus target", () => {
+  afterEach(() => {
+    delete (window as unknown as { desktopAPI?: unknown }).desktopAPI;
+    vi.restoreAllMocks();
+  });
+
+  // jsdom has no layout, so offsetParent is always null; a visible field has one.
+  function stubVisible(visible: boolean) {
+    vi.spyOn(HTMLElement.prototype, "offsetParent", "get").mockReturnValue(visible ? document.body : null);
+  }
+
+  it("on desktop, focuses and selects the field while mounted and releases it on unmount", () => {
+    (window as unknown as { desktopAPI?: unknown }).desktopAPI = { app: "unichat" };
+    stubVisible(true);
+    const { unmount } = renderSidebar();
+    const input = screen.getByRole("searchbox") as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "binh" } });
+    input.setSelectionRange(0, 0);
+    expect(useSearchStore.getState().focusLocalSearch()).toBe(true);
+    expect(input).toHaveFocus();
+    expect(input.selectionStart).toBe(0);
+    expect(input.selectionEnd).toBe(4);
+    unmount();
+    expect(useSearchStore.getState().focusLocalSearch()).toBe(false);
+  });
+
+  it("on desktop, declines while the field is hidden so the palette opens", () => {
+    (window as unknown as { desktopAPI?: unknown }).desktopAPI = { app: "unichat" };
+    stubVisible(false);
+    renderSidebar();
+    expect(useSearchStore.getState().focusLocalSearch()).toBe(false);
+  });
+
+  it("on web, registers nothing so the palette keeps the chord", () => {
+    stubVisible(true);
+    renderSidebar();
+    expect(useSearchStore.getState().focusLocalSearch()).toBe(false);
+  });
+});
 
 describe("ChatSidebar", () => {
   it("filters conversations and switches targets", () => {

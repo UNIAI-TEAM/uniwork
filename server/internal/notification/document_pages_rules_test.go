@@ -2,12 +2,13 @@ package notification
 
 import "testing"
 
-// create_document and update_document tell the model that no one is notified of
-// a page that is created, changed or versioned: only comments and a page-body
-// mention (document.body_mentioned) have document rules. A rule for one of
-// these topics makes that sentence false.
+// create_document tells the model that no one is notified of a page it
+// creates, and update_document that only a rename notifies (UNI-2056: the
+// document.updated rule answers a title move only, and the
+// document.version_created rule an uploaded file version, never a page
+// version). A rule for document.created makes the first sentence false.
 func TestDocumentPageEventsHaveNoNotificationRule(t *testing.T) {
-	for _, topic := range []string{"document.created", "document.updated", "document.version_created"} {
+	for _, topic := range []string{"document.created"} {
 		if _, ok := rules[topic]; ok {
 			t.Errorf("%s has a notification rule; update the descriptions of create_document and update_document in service/mcp_tools_documents.go", topic)
 		}

@@ -608,7 +608,7 @@ func (s *DocumentService) RestoreDocument(ctx context.Context, actor Actor, docu
 				},
 				Events: []audit.Event{{Topic: "document.restored", Payload: map[string]string{
 					"document_id": id, "workspace_id": doc.WorkspaceID, "archive_batch_id": batch,
-				}}},
+				}}, documentChangeNotice(id, doc.WorkspaceID, docNoticeRestored)},
 			})
 		}
 		if err := auditRecorder.RecordMany(ctx, q, recs); err != nil {
@@ -983,7 +983,7 @@ func (s *DocumentService) RestoreOwnedDocumentsInTx(ctx context.Context, q *db.Q
 			Metadata: map[string]any{"owner_id": ownerID, "archive_batch_id": batch},
 		}, audit.Event{Topic: "document.restored", Payload: map[string]string{
 			"document_id": id, "workspace_id": workspaceID, "archive_batch_id": batch,
-		}}); err != nil {
+		}}, documentChangeNotice(id, workspaceID, docNoticeRestored)); err != nil {
 			return nil, err
 		}
 	}
@@ -1065,7 +1065,7 @@ func (s *DocumentService) RestoreOwnedDocumentInTx(ctx context.Context, q *db.Qu
 		Actor: actor, Action: audit.ActionDocumentRestored,
 		ResourceType: "document", ResourceID: stamped,
 		Metadata: metadata,
-	}, audit.Event{Topic: "document.restored", Payload: payload}); err != nil {
+	}, audit.Event{Topic: "document.restored", Payload: payload}, documentChangeNotice(stamped, workspaceID, docNoticeRestored)); err != nil {
 		return false, err
 	}
 	return true, nil
@@ -1295,6 +1295,17 @@ func (s *DocumentService) purgeOneDocument(ctx context.Context, d db.ListDocumen
 // document.deleted audit and outbox rows inside the caller's transaction
 // (RESTORE-01 §2 P-4/P-6).
 func (s *DocumentService) hardDeleteDocumentTx(ctx context.Context, q *db.Queries, doc db.Document, actor Actor, deleting []string) (bool, int, error) {
+	// The purge removes the shares and stars a document_changed notice
+	// would be addressed from (UNI-2056), so a person's purge records its
+	// readers and title now, before the orbit goes. A sweep notifies nobody.
+	var noticeReaders []string
+	if actor.Kind != audit.KindSystem {
+		readers, err := s.documentChangeReadersQ(ctx, q, doc, actor.ID)
+		if err != nil {
+			return false, 0, err
+		}
+		noticeReaders = readers
+	}
 	fileIDs, err := q.ListDocumentFileIDs(ctx, db.ListDocumentFileIDsParams{
 		OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID, DocumentID: doc.ID,
 	})
@@ -1434,6 +1445,11 @@ func (s *DocumentService) hardDeleteDocumentTx(ctx context.Context, q *db.Querie
 	meta := map[string]any{"archived_by": textOrNil(doc.ArchivedBy), "file_ids": len(released)}
 	if actor.Kind == audit.KindHuman {
 		meta["manual_purge"] = true
+	}
+	// Title and readers only when somebody besides the actor will hear of
+	// it: an owner purging their own private document leaves neither behind.
+	if len(noticeReaders) > 0 {
+		meta["title"], meta["notify_user_ids"] = doc.Title, noticeReaders
 	}
 	if err := auditRecorder.Record(ctx, q, audit.Entry{
 		OrganizationID: doc.OrganizationID,

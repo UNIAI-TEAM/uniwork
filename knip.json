@@ -49,6 +49,7 @@
     },
     "apps/chat-mobile": {
       "ignoreDependencies": [
+        "@babel/plugin-transform-react-jsx",
         "@expo-google-fonts/inter",
         "@expo-google-fonts/plus-jakarta-sans",
         "@rn-primitives/avatar",

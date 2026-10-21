@@ -83,6 +83,49 @@ describe("notification endpoints", () => {
     await expect(listNotifications()).resolves.toEqual({ notifications: [], next_before: "" });
   });
 
+  it("listNotifications reads sample_documents, [] when absent, and a bad one never blanks the page", async () => {
+    const changed = {
+      ...row, kind: "document_changed", resource_type: "document", resource_id: "d1",
+      title_key: "notifications.kind.document_changed",
+      // The server sends the verb, a count and the first ids; only strings travel as params.
+      params: { actor: "An", verb: "trashed", document_count: 50, sample_document_ids: ["d1", "d2"] },
+      sample_documents: [{ id: "d1", title: "Kế hoạch" }, { id: "d2" }],
+    };
+    vi.mocked(fetch).mockResolvedValueOnce(json({ notifications: [changed, row] }));
+    const page = await listNotifications();
+    expect(page.notifications[0]!.sample_documents).toEqual([{ id: "d1", title: "Kế hoạch" }, { id: "d2", title: "" }]);
+    expect(page.notifications[0]!.params).toEqual({ actor: "An", verb: "trashed", document_count: "50" });
+    expect(page.notifications[1]!.sample_documents).toEqual([]);
+    vi.mocked(fetch).mockResolvedValueOnce(json({ notifications: [{ ...changed, sample_documents: "oops" }, row] }));
+    const degraded = await listNotifications();
+    expect(degraded.notifications).toHaveLength(2);
+    expect(degraded.notifications[0]!.sample_documents).toEqual([]);
+  });
+
+  it("listNotificationDocuments builds the path and cursor query, keeps the row states, and degrades to an empty page", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({
+      documents: [
+        { id: "d1", title: "Kế hoạch", kind: "page", trashed: false, shelved: false, deleted: false },
+        { id: "d2", deleted: true },
+      ],
+      next_cursor: "ndc1.abc",
+    }));
+    const page = await listNotificationDocuments("n 1", { cursor: "ndc1.x", limit: 20 });
+    expect(vi.mocked(fetch).mock.calls[0]![0]).toBe(
+      "http://api.test/api/v1/me/notifications/n%201/documents?cursor=ndc1.x&limit=20",
+    );
+    expect(page.next_cursor).toBe("ndc1.abc");
+    expect(page.documents[0]).toEqual({ id: "d1", title: "Kế hoạch", kind: "page", trashed: false, shelved: false, deleted: false });
+    expect(page.documents[1]).toEqual({ id: "d2", title: "", kind: "", trashed: false, shelved: false, deleted: true });
+    vi.mocked(fetch).mockResolvedValueOnce(json({ documents: [{ id: "d1" }], next_cursor: null }));
+    expect((await listNotificationDocuments("n1")).next_cursor).toBeNull();
+    expect(vi.mocked(fetch).mock.calls[1]![0]).toBe("http://api.test/api/v1/me/notifications/n1/documents");
+    vi.mocked(fetch).mockResolvedValueOnce(json({ documents: [{ id: 7 }], next_cursor: 3 }));
+    await expect(listNotificationDocuments("n1")).resolves.toEqual({ documents: [], next_cursor: null });
+    vi.mocked(fetch).mockResolvedValueOnce(json("nope"));
+    await expect(listNotificationDocuments("n1")).resolves.toEqual({ documents: [], next_cursor: null });
+  });
+
   it("getUnreadCount returns totals and zeros when malformed", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ total: 3, by_workspace: { ws1: 2 } }));
     expect(await getUnreadCount()).toEqual({ total: 3, by_workspace: { ws1: 2 } });
@@ -141,39 +184,5 @@ describe("notification endpoints", () => {
     expect(sub?.method).toBe("POST");
     expect(JSON.parse(String(sub?.body))).toEqual({ endpoint: "https://p/x", keys: { p256dh: "p", auth: "a" } });
     expect(vi.mocked(fetch).mock.calls[3]![1]?.method).toBe("DELETE");
-  });
-
-  it("listNotificationDocuments builds the cursor query and degrades to an empty page on a malformed answer", async () => {
-    const item = { id: "d1", title: "Plan", kind: "page", trashed: false, shelved: true, deleted: false };
-    vi.mocked(fetch).mockResolvedValueOnce(json({ documents: [item, { id: "d2" }], next_cursor: "c2" }));
-    const page = await listNotificationDocuments("n 1", { cursor: "c1", limit: 20 });
-    expect(page.documents[0]).toEqual(item);
-    // A lenient answer fills the missing fields instead of failing the page.
-    expect(page.documents[1]).toEqual({ id: "d2", title: "", kind: "", trashed: false, shelved: false, deleted: false });
-    expect(page.next_cursor).toBe("c2");
-    expect(vi.mocked(fetch).mock.calls[0]![0]).toBe("http://api.test/api/v1/me/notifications/n%201/documents?cursor=c1&limit=20");
-    vi.mocked(fetch).mockResolvedValueOnce(json({ documents: "none" }));
-    await expect(listNotificationDocuments("n1")).resolves.toEqual({ documents: [], next_cursor: null });
-    vi.mocked(fetch).mockResolvedValueOnce(json({ documents: [{ id: 7 }] }));
-    await expect(listNotificationDocuments("n1")).resolves.toEqual({ documents: [], next_cursor: null });
-    vi.mocked(fetch).mockResolvedValueOnce(json({ documents: [item] }));
-    expect((await listNotificationDocuments("n1")).next_cursor).toBeNull();
-  });
-
-  it("listNotifications reads sample_documents, [] when absent, and keeps the row when the field is malformed", async () => {
-    const folded = { ...row, kind: "document_changed", resource_type: "document", params: { actor: "An", verb: "moved", document_count: "5" } };
-    vi.mocked(fetch).mockResolvedValueOnce(
-      json({
-        notifications: [
-          { ...folded, id: "a", sample_documents: [{ id: "d1", title: "Plan" }] },
-          { ...folded, id: "b" },
-          { ...folded, id: "c", sample_documents: "oops" },
-          { ...folded, id: "d", sample_documents: [{ id: 1 }] },
-        ],
-      }),
-    );
-    const { notifications } = await listNotifications();
-    expect(notifications.map((n) => n.id)).toEqual(["a", "b", "c", "d"]);
-    expect(notifications.map((n) => n.sample_documents)).toEqual([[{ id: "d1", title: "Plan" }], [], [], []]);
   });
 });

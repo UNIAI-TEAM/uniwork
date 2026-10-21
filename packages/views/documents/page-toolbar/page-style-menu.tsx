@@ -7,6 +7,7 @@ import { Check, ChevronDown } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Popover, PopoverContent, PopoverTrigger } from "@uniwork/ui/components/ui/popover";
 import { cn } from "@uniwork/ui/lib/utils";
+import { pageShortcutChords } from "../../editor/extensions/page-shortcuts";
 import { ShortcutKeycaps } from "../../editor/shortcut-keycaps";
 import { focusOnKeyboardOpen, menuArrowKeys } from "./menu-keys";
 import { TOOLBAR_BUTTON_CLASS } from "./page-toolbar-button";
@@ -63,7 +64,7 @@ export function PageStyleMenu({ editor, tabIndex, onFocus }: { editor: Editor; t
               {current === style.id ? <Check aria-hidden className="size-4" /> : null}
             </span>
             <span className={cn("min-w-0 flex-1 truncate", style.previewClass)}>{label(style.id)}</span>
-            <ShortcutKeycaps shortcut={style.shortcut} decorative />
+            <ShortcutKeycaps shortcut={pageShortcutChords(style.shortcutId)[0]!} decorative />
           </button>
         ))}
       </PopoverContent>

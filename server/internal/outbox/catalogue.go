@@ -305,6 +305,16 @@ var catalogue = []EventDef{
 	{Topic: "document.shelved", Version: 1, Payload: []string{"document_id", "workspace_id", "shelve_batch_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "document.unshelved", Version: 1, Payload: []string{"document_id", "workspace_id", "shelve_batch_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "document.deleted", Version: 1, Payload: []string{"document_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	// DOC-CHANGE-NOTIFY (UNI-2056): the change people hear of, written by
+	// the same Record call as the frame topic of a rename, restore, shelve,
+	// unshelve, workspace access change, link create/revoke and uploaded
+	// version, and only when the command is in scope. Those eight frame topics
+	// keep no notify-lane consumer, so they stay on the realtime lane (a topic
+	// runs on its slowest consumer's lane; chat_document_card_refresh.go).
+	// Server only: no client subscribes, so the scope is none and the payload
+	// may carry the verb (renamed, restored, shelved, unshelved,
+	// access_changed, version_created) beside the ids.
+	{Topic: "document.change_noticed", Version: 1, Payload: []string{"document_id", "workspace_id", "verb"}, Scope: ScopeNone, Delivery: DeliveryOutbox},
 
 	// Document comments (UNI-681): ids only, workspace scope like the task
 	// rows. A reader reached only through a share is caught by the

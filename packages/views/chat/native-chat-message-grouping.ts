@@ -5,6 +5,7 @@ import { messageDayKey } from "./chat-message-time";
 function isBubbleMessage(message: ChatMessage): boolean {
   return (
     message.kind !== "voice_call_log" &&
+    message.kind !== "poll_vote" &&
     message.kind !== "poll" &&
     message.kind !== "reminder" &&
     message.kind !== "note" &&

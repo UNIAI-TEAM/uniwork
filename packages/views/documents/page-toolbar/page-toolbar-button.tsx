@@ -7,6 +7,7 @@ import { Toggle } from "@uniwork/ui/components/ui/toggle";
 import { Kbd } from "@uniwork/ui/components/ui/kbd";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@uniwork/ui/components/ui/tooltip";
 import { cn } from "@uniwork/ui/lib/utils";
+import { pageShortcutChords } from "../../editor/extensions/page-shortcuts";
 import { ShortcutKeycaps } from "../../editor/shortcut-keycaps";
 import type { ToolbarTool } from "./page-toolbar-model";
 
@@ -29,8 +30,10 @@ export function ToolbarButton({
   const { t } = useTranslation();
   const label = t(`documents.page_ui.toolbar.${tool.id}`);
   const Icon = tool.icon;
-  const hint: ReactNode = tool.shortcut
-    ? <ShortcutKeycaps shortcut={tool.shortcut} className="ml-1.5" />
+  // The first key that applies on this platform; the help popover lists the rest.
+  const shortcut = tool.shortcutId ? pageShortcutChords(tool.shortcutId)[0] : undefined;
+  const hint: ReactNode = shortcut
+    ? <ShortcutKeycaps shortcut={shortcut} className="ml-1.5" />
     : tool.alias ? <Kbd className="ml-1.5">{tool.alias}</Kbd> : null;
   // Only a tool with an on/off state is a toggle; undo, divider, table, image and
   // mention are plain actions and must not announce "not pressed".

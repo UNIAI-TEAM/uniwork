@@ -224,8 +224,14 @@ func TestDoclistTrashOldestFirstThreePages(t *testing.T) {
 // dlLog seeds one access-log row of a human at a time.
 func dlLog(t *testing.T, w *docsWorld, docID, actorID, action string, at time.Time) {
 	t.Helper()
+	dlLogVia(t, w, docID, actorID, action, "member", at)
+}
+
+// dlLogVia is dlLog with the access path the row records (member, share, ai_context...).
+func dlLogVia(t *testing.T, w *docsWorld, docID, actorID, action, via string, at time.Time) {
+	t.Helper()
 	dlExec(t, `INSERT INTO document_access_logs (id, organization_id, workspace_id, document_id, action, actor_kind, actor_id, via, correlation_id, occurred_at)
-		VALUES ($1, $2, $3, $4, $5, 'human', $6, 'member', 'dl-test', $7)`, newTestID(), w.orgID, w.wsID, docID, action, actorID, at)
+		VALUES ($1, $2, $3, $4, $5, 'human', $6, $7, 'dl-test', $8)`, newTestID(), w.orgID, w.wsID, docID, action, actorID, via, at)
 }
 
 // dlComment seeds one document comment of a person at a time.
@@ -251,6 +257,42 @@ func dlActivity(out map[string]any) map[string][2]string {
 		res[m["id"].(string)] = [2]string{la["kind"].(string), la["at"].(string)}
 	}
 	return res
+}
+
+// UNI-2045 F3: a read the AI context made on the caller's behalf (via =
+// ai_context) is not the caller opening the document: it neither makes the
+// row "opened" nor puts it in recent through the opened path.
+func TestDoclistRecentIgnoresAIContextReads(t *testing.T) {
+	w := newDocsWorld(t)
+	memberTok, memberID := docsJoinWorkspace(t, w, "dl-recent-ai@example.com")
+	base := dlBase(w) + "/recent"
+	now := time.Now().UTC().Truncate(time.Second)
+	at := func(h int) time.Time { return now.Add(time.Duration(-h) * time.Hour) }
+	ids := dlCreatePages(t, w, w.token, "ai-only", "ai-then-view")
+	aiOnly, aiThenView := ids[0], ids[1]
+	dlLogVia(t, w, aiOnly, memberID, "view", "ai_context", at(2))
+	dlLogVia(t, w, aiThenView, memberID, "view", "ai_context", at(1))
+
+	routes := []string{"", "?sort=activity", "?sort=activity&activity=opened"}
+	for _, q := range routes {
+		res, out := dlGet(t, w, memberTok, base+q)
+		if res.StatusCode != 200 || len(dlIDs(out)) != 0 {
+			t.Errorf("recent%s with only ai_context reads = %v (%d), want none", q, dlIDs(out), res.StatusCode)
+		}
+	}
+
+	// A real view of one of them makes it opened, at the time of the view and
+	// not of the later ai_context read.
+	dlLog(t, w, aiThenView, memberID, "view", at(3))
+	for _, q := range routes {
+		res, out := dlGet(t, w, memberTok, base+q)
+		if res.StatusCode != 200 || !reflect.DeepEqual(dlIDs(out), []string{aiThenView}) {
+			t.Fatalf("recent%s after a real view = %v (%d), want only %s", q, dlIDs(out), res.StatusCode, aiThenView)
+		}
+		if got, want := dlActivity(out)[aiThenView], [2]string{"opened", at(3).Format(time.RFC3339)}; got != want {
+			t.Errorf("recent%s last_activity = %v, want %v", q, got, want)
+		}
+	}
 }
 
 // SV-1: /documents/recent says what the caller did last on each row (the

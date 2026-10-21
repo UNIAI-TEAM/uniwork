@@ -89,7 +89,7 @@ func writeDocumentHomeRow(ctx context.Context, q *db.Queries, actor Actor, doc d
 		Payload: map[string]string{
 			"document_id": updated.ID, "workspace_id": updated.WorkspaceID,
 		},
-	}); err != nil {
+	}, documentChangeNotice(updated.ID, updated.WorkspaceID, docNoticeAccessChanged)); err != nil {
 		return db.Document{}, err
 	}
 	for _, sh := range legacy {

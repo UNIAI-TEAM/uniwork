@@ -16,12 +16,17 @@ func toNotificationDTO(it notification.Item) sdo.NotificationDTO {
 	if !json.Valid(params) {
 		params = json.RawMessage("{}")
 	}
+	var samples []sdo.NotificationSampleDocumentDTO
+	for _, d := range it.SampleDocuments {
+		samples = append(samples, sdo.NotificationSampleDocumentDTO{ID: d.ID, Title: d.Title})
+	}
 	return sdo.NotificationDTO{
 		ID: it.ID, Kind: it.Kind, WorkspaceID: it.WorkspaceID.String, OrganizationID: it.OrganizationID,
 		ResourceType: it.ResourceType, ResourceID: it.ResourceID, ResourceDeleted: it.ResourceDeleted, ResourceParentID: it.ResourceParentID,
 		ResourceAccessLost: it.ResourceAccessLost, CommentDeleted: it.CommentDeleted,
 		ActorKind: it.ActorKind, ActorID: it.ActorID, TitleKey: it.TitleKey, Params: params, Count: it.Count,
 		ReadAt: notification.OptTime(it.ReadAt), CreatedAt: notification.OptTime(it.CreatedAt), UpdatedAt: notification.OptTime(it.UpdatedAt),
+		SampleDocuments: samples,
 	}
 }
 

@@ -272,6 +272,7 @@ type Routes struct {
 	WorkManagementCapabilityStub http.HandlerFunc
 
 	ListNotifications          http.HandlerFunc
+	ListNotificationDocuments  http.HandlerFunc
 	UnreadNotificationCount    http.HandlerFunc
 	MarkNotificationsRead      http.HandlerFunc
 	MarkNotificationsUnread    http.HandlerFunc
@@ -284,6 +285,8 @@ type Routes struct {
 	UnsubscribePush            http.HandlerFunc
 
 	AiCapabilities       http.HandlerFunc
+	GetOrgAskModels      http.HandlerFunc
+	SetOrgAskModels      http.HandlerFunc
 	AskUni               http.HandlerFunc
 	ChatCatchUp          http.HandlerFunc
 	ListAiConversations  http.HandlerFunc

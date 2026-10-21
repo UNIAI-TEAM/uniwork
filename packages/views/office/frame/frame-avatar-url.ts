@@ -10,10 +10,10 @@
 /**
  * The pinned frame builds (`pinnedFrameVersion(module)`, the `version` of a `*.pin.json`) whose fork bundle
  * loads avatars through the route (fork commit 398c0dd0c, UNI-1986). A build that is not listed gets `""`
- * for every avatar, which also ends the CSP noise today's pins produce. The re-pin to a bundle with the
+ * for every avatar, which also ends the CSP noise older pins produce. The re-pin to a bundle with the
  * avatar loader adds that build's version string here, and nothing else changes.
  */
-export const AVATAR_ROUTE_FRAME_VERSIONS: readonly string[] = [];
+export const AVATAR_ROUTE_FRAME_VERSIONS: readonly string[] = ["0.1.0-929f0ca"];
 
 /** Whether the frame build `frameVersion` is one that knows the avatar route. */
 export function frameKnowsAvatarRoute(frameVersion: string, known: readonly string[] = AVATAR_ROUTE_FRAME_VERSIONS): boolean {

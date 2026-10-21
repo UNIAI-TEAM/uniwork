@@ -810,6 +810,15 @@ func (s *DocumentService) pointAtNewFileVersion(
 		action = audit.ActionDocumentVersionRestored
 		changes["restored_from"] = restoredFrom.Int32
 	}
+	events := []audit.Event{{Topic: "document.version_created", Payload: map[string]string{
+		"document_id": doc.ID, "version_id": version.ID, "workspace_id": doc.WorkspaceID,
+	}}}
+	// Only an uploaded version - a new file, a replacement, a desktop sync -
+	// is a change people hear of (UNI-2056): an Office editor save carries
+	// engine provenance and a restore its own reason.
+	if reason == "upload" && !version.EngineName.Valid {
+		events = append(events, documentChangeNotice(doc.ID, doc.WorkspaceID, docNoticeVersionCreated))
+	}
 	if err := auditRecorder.Record(ctx, q, audit.Entry{
 		OrganizationID: doc.OrganizationID,
 		WorkspaceID:    doc.WorkspaceID,
@@ -818,9 +827,7 @@ func (s *DocumentService) pointAtNewFileVersion(
 		ResourceType:   "document",
 		ResourceID:     doc.ID,
 		Changes:        audit.Diff(map[string]any{"revision": doc.Revision}, mergeMaps(changes, map[string]any{"revision": updated.Revision})),
-	}, audit.Event{Topic: "document.version_created", Payload: map[string]string{
-		"document_id": doc.ID, "version_id": version.ID, "workspace_id": doc.WorkspaceID,
-	}}); err != nil {
+	}, events...); err != nil {
 		return DocumentFileResult{}, err
 	}
 	return DocumentFileResult{Document: updated, Version: version, File: fileInfoOf(version, f.Filename), Access: access}, nil
