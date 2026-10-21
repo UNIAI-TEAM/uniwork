@@ -2831,8 +2831,9 @@ func TestUploadSessionMeetingAudio(t *testing.T) {
 	if ce := wantCode(t, err, document.ErrCodeUnsupportedMedia); ce.Status != http.StatusUnsupportedMediaType {
 		t.Fatalf("non-audio = %v", err)
 	}
-	if _, err := open("call.mp4", append([]byte("\x00\x00\x00\x18ftypisom\x00\x00\x00\x00isomavc1"), make([]byte, 4096)...)); err == nil {
-		t.Fatal("a video/mp4 opened a meeting audio session")
+	// AssemblyAI takes video: a phone's MP4 of the meeting opens a session.
+	if _, err := open("call.mp4", append([]byte("\x00\x00\x00\x18ftypisom\x00\x00\x00\x00isomavc1"), make([]byte, 4096)...)); err != nil {
+		t.Fatalf("a video/mp4 recording was refused: %v", err)
 	}
 	// Two parts of a 10 MiB recording, far under the documents' floor.
 	body := append([]byte("ID3\x04\x00\x00\x00\x00\x00\x00"), bytes.Repeat([]byte{0xff, 0xfb, 0x90, 0x64}, (10<<20)/4)...)

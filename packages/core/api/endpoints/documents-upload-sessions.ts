@@ -309,7 +309,7 @@ export async function createDocumentUploadSession(
 /** A meeting recording for transcription (UNI-2001): the same session, purpose meeting_audio. */
 export async function createMeetingAudioUploadSession(
   meetingId: string,
-  body: CreateDocumentUploadSessionBody,
+  body: CreateDocumentUploadSessionBody & { duration_seconds?: number },
   opts: UploadSessionCreateOpts,
 ): Promise<UploadSession | null> {
   const raw = await request(`/api/v1/meetings/${enc(meetingId)}/audio-upload-sessions`, {

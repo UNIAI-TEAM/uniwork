@@ -46,7 +46,7 @@ func (h *handlers) createMeetingAudioUploadSession(w http.ResponseWriter, r *htt
 		service.OpenUploadSessionInput{
 			Filename: in.Filename, SizeBytes: in.SizeBytes, IdempotencyKey: r.Header.Get("Idempotency-Key"),
 			Probe: service.UploadSessionProbeInput{HeadB64: in.Probe.HeadB64},
-		})
+		}, in.DurationSeconds)
 	if err != nil {
 		h.mapServiceError(w, err)
 		return
@@ -69,7 +69,7 @@ func (h *handlers) requestMeetingTranscription(w http.ResponseWriter, r *http.Re
 		return
 	}
 	t, err := h.Meetings.RequestTranscription(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "meetingID"),
-		service.TranscriptionRequest{UploadID: in.UploadID, Language: in.Language, Consent: in.Consent})
+		service.TranscriptionRequest{UploadID: in.UploadID, Language: in.Language, Consent: in.Consent, DurationSeconds: in.DurationSeconds})
 	if err != nil {
 		h.mapServiceError(w, err)
 		return

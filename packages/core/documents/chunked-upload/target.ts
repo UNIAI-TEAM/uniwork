@@ -7,7 +7,8 @@ export type UploadSessionTarget =
       visibility?: string | null;
     }
   | { kind: "version"; documentId: string }
-  | { kind: "meeting_audio"; meetingId: string }
+  /** durationSeconds: what the browser read from the file, for the quota estimate. */
+  | { kind: "meeting_audio"; meetingId: string; durationSeconds?: number }
   | { kind: "frame"; documentId: string; frameToken: string };
 
 export function uploadTargetKey(target: UploadSessionTarget): string {

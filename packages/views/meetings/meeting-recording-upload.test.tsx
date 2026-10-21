@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 import { initI18n } from "@uniwork/core/i18n";
@@ -83,6 +83,69 @@ describe("MeetingRecordingUploadDialog", () => {
     expect(open?.[1]).toMatchObject({ method: "POST", body: { filename: "hop-chi-bo.mp3", size_bytes: 1000 } });
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Đã nhận file. Ghi lời xong sẽ có thông báo."));
     expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it("reads the recording's length from its metadata and sends it for the quota estimate", async () => {
+    // jsdom loads no media: the element answers its metadata as a browser would.
+    const urls = { createObjectURL: URL.createObjectURL, revokeObjectURL: URL.revokeObjectURL };
+    Object.assign(URL, { createObjectURL: vi.fn(() => "blob:rec"), revokeObjectURL: vi.fn() });
+    const src = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, "src");
+    const duration = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, "duration");
+    Object.defineProperty(HTMLMediaElement.prototype, "duration", { configurable: true, get: () => 1080.5 });
+    Object.defineProperty(HTMLMediaElement.prototype, "src", {
+      configurable: true,
+      set(this: HTMLMediaElement) {
+        this.dispatchEvent(new Event("loadedmetadata"));
+      },
+    });
+    try {
+      render(wrap(<MeetingRecordingUploadDialog meetingId="m1" onOpenChange={() => {}} />));
+      fireEvent.change(screen.getByLabelText("File ghi âm"), { target: { files: [mp3(1000, "hop.mp4")] } });
+      await act(async () => {});
+      fireEvent.click(screen.getByRole("checkbox", { name: /Tôi đã thông báo/ }));
+      fireEvent.click(screen.getByRole("button", { name: "Tải lên và ghi lời" }));
+      await waitFor(() =>
+        expect(requestMock).toHaveBeenCalledWith("/api/v1/meetings/m1/transcriptions", {
+          method: "POST",
+          body: { upload_id: "up1", language: "vi", consent: true, duration_seconds: 1080.5 },
+        }),
+      );
+      const open = requestMock.mock.calls.find((c) => c[0] === "/api/v1/meetings/m1/audio-upload-sessions");
+      expect(open?.[1]).toMatchObject({ body: { size_bytes: 1000, duration_seconds: 1080.5 } });
+    } finally {
+      Object.assign(URL, urls);
+      if (src) Object.defineProperty(HTMLMediaElement.prototype, "src", src);
+      if (duration) Object.defineProperty(HTMLMediaElement.prototype, "duration", duration);
+    }
+  });
+
+  it("gives up on the length after 5 s and lets go of the file", async () => {
+    vi.useFakeTimers();
+    const revoke = vi.fn();
+    const urls = { createObjectURL: URL.createObjectURL, revokeObjectURL: URL.revokeObjectURL };
+    Object.assign(URL, { createObjectURL: vi.fn(() => "blob:stuck"), revokeObjectURL: revoke });
+    const src = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, "src");
+    const removeAttribute = vi.spyOn(HTMLMediaElement.prototype, "removeAttribute");
+    // A browser that never answers the metadata.
+    Object.defineProperty(HTMLMediaElement.prototype, "src", { configurable: true, set() {} });
+    try {
+      render(wrap(<MeetingRecordingUploadDialog meetingId="m1" onOpenChange={() => {}} />));
+      fireEvent.change(screen.getByLabelText("File ghi âm"), { target: { files: [mp3(1000, "hop.mp4")] } });
+      await act(async () => {
+        vi.advanceTimersByTime(4999);
+      });
+      expect(revoke).not.toHaveBeenCalled();
+      await act(async () => {
+        vi.advanceTimersByTime(1);
+      });
+      expect(revoke).toHaveBeenCalledWith("blob:stuck");
+      expect(removeAttribute).toHaveBeenCalledWith("src");
+    } finally {
+      vi.useRealTimers();
+      removeAttribute.mockRestore();
+      Object.assign(URL, urls);
+      if (src) Object.defineProperty(HTMLMediaElement.prototype, "src", src);
+    }
   });
 
   it("refuses a file over 2 GiB before sending anything", () => {
