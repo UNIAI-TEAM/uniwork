@@ -1,0 +1,4 @@
+git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin advisor/pr7-rehearsal; git rev-parse HEAD FETCH_HEAD; git log --oneline -6; test "$(git rev-parse HEAD)" = "$(git rev-parse FETCH_HEAD)"; rc=$?; echo; echo "SYNCED_EXIT=$rc"
+(cd server && go build ./...) > /tmp/pr7-go-prep.log 2>&1; rc=$?; tail -5 /tmp/pr7-go-prep.log; echo; echo "GO_PREP_EXIT=$rc"
+unset OPENAI_API_KEY; export UNIWORK_GO_COVER_OUT=$PWD/.go-tmp/cover-rest.out; AI_PROVIDER=fake bash scripts/test-go.sh --race --shard=rest  --skip-floor > /tmp/pr7-go-rest.log 2>&1; rc=$?; tail -30 /tmp/pr7-go-rest.log | cut -c1-300; grep -E "^(--- FAIL|FAIL|panic)|DATA RACE|^ok .*[0-9]s$" /tmp/pr7-go-rest.log | grep -vE "^ok" | head -60; echo; echo "TEST_GO_EXIT=$rc"
+mkdir -p /tmp/test-results && cp .go-tmp/cover-rest.out /tmp/test-results/cover-rest.out; rc=$?; ls -la /tmp/test-results/cover-rest.out; head -1 .go-tmp/cover-rest.out; echo; echo "COVER_COPY_EXIT=$rc"
