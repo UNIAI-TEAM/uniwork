@@ -182,8 +182,8 @@ export function DocumentActionsMenu({
                 // One export at a time: the items stay focusable and say they are waiting.
                 disabled={!!item.mark && pageExport.exporting}
                 onClick={() => {
-                  if (item.mark) {
-                    pageExport.exportPage(item.mark);
+                  if (item.id === "export_docx" || item.id === "export_pdf") {
+                    pageExport.exportPage(item.id === "export_docx" ? "docx" : "pdf");
                   } else if (item.id === "shelve") {
                     // A document shelves directly (undo toast); a folder opens the
                     // same cascade dialog the row menu uses (U-4).
