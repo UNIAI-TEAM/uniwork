@@ -215,6 +215,9 @@ fails on drift. One flat namespace, keys nested by section:
 | subfolder | **thư mục con** | Subfolder | luôn đủ cụm, không "mục con" |
 | new folder | **thư mục mới** | New folder | nút và tiêu đề hộp thoại; ở gốc: "Thư mục mới ở Tài liệu (gốc)" (tiêu đề hộp thoại từ (+) sidebar) |
 | rename | **đổi tên** | Rename | |
+| workspace folder (Documents, a folder every member sees) | **thư mục của workspace** | workspace folder | UNI-2055: tên thư mục hiện cho mọi người trong workspace, tài liệu bên trong giữ quyền riêng; không "thư mục chung", không "shared folder" (thư mục không có share, "shared" gợi đến chia sẻ) |
+| My Folder (Documents, `system_kind=my_folder`) | **Thư mục của tôi** | My Folder | thư mục riêng của từng người, viết hoa như tên riêng ở cả hai ngôn ngữ; `documents.home.my_folder.label` |
+| workspace root (Documents, no parent folder) | **gốc workspace** | workspace root | chỗ ngoài mọi thư mục; ở hộp thoại tạo thư mục: "Thư mục mới ở Tài liệu (gốc)" xem dòng new folder |
 | move to | **di chuyển tới** | Move to | mục menu "Di chuyển tới…"; toast "Đã chuyển tới {{folder}}" |
 | trash (Documents, archive restorable 30 days) | **thùng rác** | Trash | hành động ghi "Xóa" / "Chuyển vào thùng rác"; khác "Đã xóa" của email |
 | path (breadcrumb / search result) | **đường dẫn** | Path | đường dẫn từ Documents tới cha trực tiếp |
