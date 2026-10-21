@@ -322,12 +322,19 @@ khi nào dịch vụ chạy, ai được báo) với module native giả; chỉ 
    "Sao chép thông tin phiên bản" cho chuỗi đầy đủ kèm runtime.
 4. Crash: Sentry, lọc `release` (`<bundle id>@<version>+<build>`) và tag `update_id`/`channel`; crash-free sessions
    theo release. Server: header `X-Client-Version`/`X-Client-OS`/`X-Client-Update-Id` của mỗi request và
-   `client_version` của socket cho biết bản nào đang gọi.
+   `client_version` của socket cho biết bản nào đang gọi. Lệch hợp đồng app–server: issue mức `warning` có tag
+   `endpoint` (route, id thành `{id}`), `http_status` và `error_code`, mỗi tổ hợp một issue — 400/409/413/415/422 mà màn
+   hình không tự giải thích; tăng đột ngột sau một lần deploy server là dấu hiệu server đổi hợp đồng mà bản app chưa
+   theo. 401/403/404/408/410/429 và mất mạng không thành issue. Lỗi bị bỏ qua có chủ ý (gửi tín hiệu gác máy, beat hiện
+   diện, ghi lựa chọn trên máy…) để breadcrumb `warning` theo scope (`calls`, `presence`, `auth`, `theme`…), đi kèm
+   crash kế tiếp; `"report"` thì còn thành issue khi không phải lỗi mong đợi.
 5. Cấu hình một biến thể: `UNICHAT_ENV=staging UNICHAT_API_URL=… UNICHAT_APP_URL=… pnpm --filter
    @uniwork/chat-mobile exec expo config --type public` (tên, bundle id, scheme, `updates`, `extra`).
 6. Offline và realtime: Sentry, lọc release đó, tìm breadcrumb `device store unavailable` (kho mã hoá không mở được
    — Keychain/Keystore khoá, module native thiếu: app chạy bằng bộ nhớ, không giữ gì qua lần mở), `outbox copy failed`
-   (tệp gửi từ chỗ trình chọn để lại), `cached rooms not restored`/`not saved`, và lỗi tag `source:pending-op`
+   (tệp gửi từ chỗ trình chọn để lại), `cached rooms not restored`/`not saved`/`unreadable`, `cached queries dropped`
+   (bản cache đĩa của bản trước không còn đọc được qua schema hiện tại — một OTA đổi shape: các query đó chỉ refetch;
+   tăng mạnh sau một OTA mà dữ liệu không đổi shape thì xem `CACHE_SCHEMA_VERSION`), và lỗi tag `source:pending-op`
    (server từ chối hẳn một lượt đọc/biểu cảm/bình chọn). Tin kẹt "Chờ có mạng để gửi": máy thử lại sau 2, 5, 15 rồi mỗi
    60 s, và ngay khi có mạng, socket nối lại hay app về foreground — tin vẫn kẹt nghĩa là server trả lỗi tạm thời
    (5xx/429/timeout) cho `POST …/messages`; xem log server theo `X-Client-Version`. Socket: `client_version` trong log hub.
