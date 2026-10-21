@@ -120,6 +120,9 @@ describe("DocumentsTrashView", () => {
     renderView();
     const meta = document.querySelector<HTMLElement>("[data-library-row='a'] [data-library-meta-line]")!;
     expect(meta).toHaveClass("flex-wrap", "@min-[34rem]/library:flex-nowrap");
+    // The level · scope pill wraps below it rather than being clipped at the row edge ("Riê").
+    const access = document.querySelector<HTMLElement>("[data-library-row='a'] [data-library-access-group]")!;
+    expect(access).toHaveClass("max-w-full", "flex-wrap", "@min-[34rem]/library:flex-nowrap");
   });
 
   it("puts Khôi phục on the row for a manager and calls the action with the row", () => {

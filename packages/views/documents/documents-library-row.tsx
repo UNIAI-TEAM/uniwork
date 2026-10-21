@@ -316,7 +316,7 @@ export function LibraryRowView({
             <span aria-hidden className={cn("hidden shrink-0 @min-[34rem]/library:inline", ladder.metaDotHides)}>·</span>
           ) : null}
           {levelLabel || showNarrowScope ? (
-            <span data-library-access-group className={cn("flex shrink-0 items-center gap-1.5", ladder.accessGroupHides)}>
+            <span data-library-access-group className={cn("flex max-w-full shrink-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 @min-[34rem]/library:max-w-none @min-[34rem]/library:flex-nowrap", ladder.accessGroupHides)}>
               {levelLabel ? <span className="shrink-0">{levelLabel}</span> : null}
               {levelLabel && showNarrowScope ? <span aria-hidden className="shrink-0">·</span> : null}
               {showNarrowScope ? (
