@@ -83,7 +83,6 @@ describe("toChatMessage", () => {
           hide_voters: true,
         },
         viewer_option_ids: ["o1"],
-        votes_by_user: { u1: ["o1"] },
       },
       reminder: { body: "standup", remind_at: "2026-03-27T09:00:00Z", repeat: "none" },
       note: { body: "note", pin_to_top: true },
@@ -122,7 +121,6 @@ describe("toChatMessage", () => {
         options: [{ id: "o1", label: "A", votes: 0 }],
         settings: {} as NonNullable<ChatMessageRecord["poll"]>["settings"],
         viewer_option_ids: [],
-        votes_by_user: {},
       },
       note: { body: "n" } as NonNullable<ChatMessageRecord["note"]>,
       reminder: {

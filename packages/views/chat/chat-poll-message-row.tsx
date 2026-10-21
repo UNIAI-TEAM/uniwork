@@ -4,19 +4,16 @@ import { useEffect, useId, useMemo, useState, type KeyboardEvent, type ReactNode
 import { ChartColumn, Check, CircleCheck, EyeOff } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { useVoteChatPollMessage } from "@uniwork/core/chat";
-import { canViewPollVoters, groupPollVotersByOption, isPollExpired } from "@uniwork/core/chat/poll-utils";
-import { ActorAvatar } from "@uniwork/ui/components/common/actor-avatar";
+import { useAddChatPollOptionMessage, useVoteChatPollMessage } from "@uniwork/core/chat";
+import { canViewPollVoters, isPollExpired } from "@uniwork/core/chat/poll-utils";
 import { Button } from "@uniwork/ui/components/ui/button";
+import { Input } from "@uniwork/ui/components/ui/input";
 import { cn } from "@uniwork/ui/lib/utils";
 import type { ChatMessage } from "./chat-messages";
 import { ChatCard, ChatCardStatus } from "./chat-card";
 import { CHAT_ON_BUBBLE_FILL, CHAT_ON_BUBBLE_HOVER, CHAT_ON_BUBBLE_LINE } from "./chat-message-row";
 import type { ChatNameContextEntry } from "./chat-page-utils";
 import { ChatPollVotersDialog } from "./chat-poll-voters-dialog";
-import { resolveAvatarUrlFromNameContext } from "./chat-member-avatar";
-import { chatPersonFaceClass } from "./chat-person-card";
-import { initialsOf } from "./chat-initials";
 import { pollOptionPercents } from "./chat-poll-percent";
 import { toastChatError } from "./chat-error-message";
 
@@ -28,28 +25,6 @@ function PollOptionPercent({ percent, className }: { percent: number; className?
   return (
     <span className={cn("min-w-8.5 text-right text-label font-semibold tabular-nums", className)}>
       {t("chat.poll_option_percent", { percent })}
-    </span>
-  );
-}
-
-/** Up to three faces of who picked an option, overlapping (canvas). */
-function PollVoterFaces({ userIds, nameContext }: { userIds: string[]; nameContext: ChatNameContextEntry[] }) {
-  if (userIds.length === 0) return null;
-  return (
-    <span aria-hidden className="flex -space-x-1.75">
-      {userIds.slice(0, 3).map((userId) => {
-        const name = nameContext.find((entry) => entry.user_id === userId)?.display_name?.trim() || userId;
-        return (
-          <ActorAvatar
-            key={userId}
-            name={name}
-            initials={initialsOf(name)}
-            avatarUrl={resolveAvatarUrlFromNameContext(nameContext, userId)}
-            size="sm"
-            className={cn("ring-2 ring-chat-bubble-other", chatPersonFaceClass(userId))}
-          />
-        );
-      })}
     </span>
   );
 }
@@ -95,10 +70,13 @@ export function ChatPollMessageRow({
 }) {
   const { t, i18n } = useTranslation();
   const votePoll = useVoteChatPollMessage(workspaceId);
+  const addOption = useAddChatPollOptionMessage(workspaceId);
   const deadlineAt = poll.settings.deadline_at ?? null;
   const [expired, setExpired] = useState(() => isPollExpired(deadlineAt));
   const [votersOpen, setVotersOpen] = useState(false);
   const [focusedOptionId, setFocusedOptionId] = useState<string | null>(null);
+  const [newOptionLabel, setNewOptionLabel] = useState("");
+  const canAddOptions = poll.settings.allow_add_options && !expired;
 
   useEffect(() => {
     setExpired(isPollExpired(deadlineAt));
@@ -125,10 +103,6 @@ export function ChatPollMessageRow({
   const percents = pollOptionPercents(poll.options.map((option) => option.votes));
   const hideCounts = poll.settings.hide_results_until_vote && !hasVoted;
   const canViewVoters = useMemo(() => canViewPollVoters(poll), [poll]);
-  const votersByOption = useMemo(
-    () => groupPollVotersByOption(poll.votes_by_user, poll.options.map((option) => option.id)),
-    [poll.options, poll.votes_by_user],
-  );
   const topVotes = Math.max(0, ...poll.options.map((option) => option.votes));
 
   const handleVote = async (optionId: string) => {
@@ -137,6 +111,17 @@ export function ChatPollMessageRow({
       await votePoll.mutateAsync({ roomId, messageId, optionId });
     } catch (err) {
       toastChatError(err, t, t("chat.message_list.poll_vote_failed"));
+    }
+  };
+
+  const handleAddOption = async () => {
+    const label = newOptionLabel.trim();
+    if (!canAddOptions || !label || addOption.isPending) return;
+    try {
+      await addOption.mutateAsync({ roomId, messageId, label });
+      setNewOptionLabel("");
+    } catch (err) {
+      toastChatError(err, t, t("chat.message_list.poll_add_option_failed"));
     }
   };
 
@@ -261,7 +246,6 @@ export function ChatPollMessageRow({
                       onClick={() => openVoters(option.id)}
                       className={cn("flex h-8.5 shrink-0 items-center gap-2 rounded-[10px] pr-0.5 pl-1", CHAT_ON_BUBBLE_HOVER)}
                     >
-                      <PollVoterFaces userIds={votersByOption[option.id] ?? []} nameContext={nameContext} />
                       <PollOptionPercent percent={percent} className={percentClass} />
                     </button>
                   ) : (
@@ -285,6 +269,28 @@ export function ChatPollMessageRow({
             );
           })}
         </div>
+
+        {canAddOptions ? (
+          <form
+            className="mt-2 flex gap-2"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void handleAddOption();
+            }}
+          >
+            <Input
+              value={newOptionLabel}
+              onChange={(event) => setNewOptionLabel(event.target.value)}
+              placeholder={t("chat.poll_add_option_inline")}
+              aria-label={t("chat.poll_add_option")}
+              className="h-8 text-body"
+              disabled={addOption.isPending}
+            />
+            <Button type="submit" size="sm" variant="secondary" disabled={addOption.isPending || !newOptionLabel.trim()}>
+              {t("chat.poll_add_option")}
+            </Button>
+          </form>
+        ) : null}
 
         <div className={cn("mt-2.5 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t pt-2", CHAT_ON_BUBBLE_LINE)}>
           <p className="text-caption text-muted-foreground tabular-nums">
@@ -313,13 +319,15 @@ export function ChatPollMessageRow({
         ) : null}
       </ChatCard>
 
-      {canViewVoters && poll.votes_by_user ? (
+      {canViewVoters && totalVotes > 0 ? (
         <ChatPollVotersDialog
           open={votersOpen}
           onOpenChange={setVotersOpen}
+          workspaceId={workspaceId}
+          roomId={roomId}
+          messageId={messageId}
           question={poll.question}
           options={poll.options}
-          votesByUser={poll.votes_by_user}
           focusedOptionId={focusedOptionId}
           nameContext={nameContext}
           currentUserId={currentUserId}

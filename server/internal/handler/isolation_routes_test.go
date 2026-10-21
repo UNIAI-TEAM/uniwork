@@ -760,6 +760,7 @@ var isoRoutes = map[string]isoSpec{
 	"POST /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/avatar":                                 {body: isoFile("pixel.png", "image/png", docsPNG, nil)},
 	"PATCH /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/{messageID}":                  {body: isoJSON(map[string]any{"body": "edited"})},
 	"POST /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/{messageID}/poll/vote":         {body: isoWith(map[string]string{"option_id": "pollOption"}, nil)},
+	"POST /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/{messageID}/poll/options":      {body: isoJSON(map[string]any{"label": "new option"})},
 	"POST /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/{messageID}/share-as-document": {body: isoIdem(nil, map[string]any{"share_level": "comment", "client_msg_id": "iso-share-as-doc"})},
 	"POST /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/threads/{messageID}/messages":           {body: isoJSON(map[string]any{"body": "hello"})},
 	"POST /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/voice/accept":                           {body: isoWith(map[string]string{"call_id": "callID"}, nil)},

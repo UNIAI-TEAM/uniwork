@@ -3,10 +3,12 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 	"time"
 	"unicode/utf8"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -48,7 +50,6 @@ type ChatPollInfo struct {
 	Options         []ChatPollOption
 	Settings        ChatPollSettings
 	ViewerOptionIDs []string
-	VotesByUser     map[string][]string
 }
 
 type SendPollMessageInput struct {
@@ -76,21 +77,62 @@ func pollFromMetadata(kind string, meta chatMessageMetadata, viewerID string) *C
 			options[i] = ChatPollOption{ID: o.ID, Label: o.Label}
 		}
 	}
-	var votesByUser map[string][]string
-	if !meta.Poll.Settings.HideVoters && !resultsHidden {
-		votesByUser = meta.Poll.VotesByUser
-	}
 	return &ChatPollInfo{
 		Question:        meta.Poll.Question,
 		Options:         options,
 		Settings:        meta.Poll.Settings,
 		ViewerOptionIDs: viewerOptionIDs,
-		VotesByUser:     votesByUser,
 	}
 }
 
-func encodePollMetadata(payload ChatPollPayload) ([]byte, error) {
+// ChatPollVoters returns who chose what, under the poll's visibility rules.
+func (s *ChatService) ChatPollVoters(
+	ctx context.Context, userID, workspaceID, roomID, messageID string,
+) (map[string][]string, error) {
+	room, err := s.authorizeRoomRead(ctx, userID, workspaceID, roomID)
+	if err != nil {
+		return nil, err
+	}
+	anchorWS := roomAnchorWorkspaceID(room)
+	msg, err := s.q.GetChatMessageInRoom(ctx, db.GetChatMessageInRoomParams{
+		ID: messageID, RoomID: roomID, WorkspaceID: anchorWS,
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	if msg.Kind != chatMessageKindPoll {
+		return nil, ErrNotFound
+	}
+	meta := decodeChatMessageMetadata(msg.Metadata)
+	if meta.Poll == nil {
+		return nil, ErrNotFound
+	}
+	if meta.Poll.Settings.HideVoters {
+		return nil, ErrForbidden
+	}
+	viewerKey := strings.ToUpper(strings.TrimSpace(userID))
+	var viewerOptionIDs []string
+	if viewerKey != "" && meta.Poll.VotesByUser != nil {
+		viewerOptionIDs = meta.Poll.VotesByUser[viewerKey]
+	}
+	if meta.Poll.Settings.HideResultsUntilVote && len(viewerOptionIDs) == 0 {
+		return nil, ErrForbidden
+	}
+	out := meta.Poll.VotesByUser
+	if out == nil {
+		out = map[string][]string{}
+	}
+	return out, nil
+}
+
+func encodePollMetadata(payload ChatPollPayload, pinToTop bool) ([]byte, error) {
 	meta := chatMessageMetadata{Poll: &payload}
+	if pinToTop {
+		meta.Pinned = true
+	}
 	return json.Marshal(meta)
 }
 
@@ -190,7 +232,7 @@ func (s *ChatService) SendPollMessage(
 		Settings:    settings,
 		VotesByUser: map[string][]string{},
 	}
-	meta, err := encodePollMetadata(payload)
+	meta, err := encodePollMetadata(payload, settings.PinToTop)
 	if err != nil {
 		return ChatMessageRow{}, err
 	}
@@ -233,6 +275,68 @@ func (s *ChatService) VoteChatPollMessage(
 	}
 	s.publishChatMessageUpdated(ctx, room, updated.ID)
 	return chatMessageRowFromDBForViewer(updated, u.DisplayName, userID), nil
+}
+
+func (s *ChatService) AddChatPollOptionMessage(
+	ctx context.Context, userID, workspaceID, roomID, messageID, label string,
+) (ChatMessageRow, error) {
+	label = strings.TrimSpace(label)
+	if label == "" {
+		return ChatMessageRow{}, Invalid("lựa chọn không được để trống")
+	}
+	if utf8.RuneCountInString(label) > maxPollOptionRunes {
+		return ChatMessageRow{}, Invalid("lựa chọn bình chọn quá dài")
+	}
+	room, err := s.authorizeRoom(ctx, userID, workspaceID, roomID)
+	if err != nil {
+		return ChatMessageRow{}, err
+	}
+	if err := s.requireCanSendInRoom(ctx, userID, room.ID, room); err != nil {
+		return ChatMessageRow{}, err
+	}
+	updated, err := s.mutateChatMessageMetadata(ctx, messageID, room.ID, roomAnchorWorkspaceID(room),
+		func(msg db.ChatMessage) ([]byte, error) {
+			return applyPollAddOption(msg, label)
+		})
+	if err != nil {
+		return ChatMessageRow{}, err
+	}
+	u, err := s.q.GetUserByID(ctx, updated.SenderID)
+	if err != nil {
+		return ChatMessageRow{}, err
+	}
+	s.publishChatMessageUpdated(ctx, room, updated.ID)
+	return chatMessageRowFromDBForViewer(updated, u.DisplayName, userID), nil
+}
+
+func applyPollAddOption(msg db.ChatMessage, label string) ([]byte, error) {
+	if msg.Kind != chatMessageKindPoll {
+		return nil, Invalid("tin nhắn không phải bình chọn")
+	}
+	meta := decodeChatMessageMetadata(msg.Metadata)
+	if meta.Poll == nil {
+		return nil, Invalid("dữ liệu bình chọn không hợp lệ")
+	}
+	if !meta.Poll.Settings.AllowAddOptions {
+		return nil, Invalid("bình chọn không cho phép thêm lựa chọn")
+	}
+	if pollIsExpired(meta.Poll.Settings, time.Now()) {
+		return nil, Invalid("bình chọn đã kết thúc")
+	}
+	if len(meta.Poll.Options) >= maxPollOptions {
+		return nil, Invalid("bình chọn có tối đa 20 lựa chọn")
+	}
+	for _, option := range meta.Poll.Options {
+		if strings.EqualFold(strings.TrimSpace(option.Label), label) {
+			return nil, Invalid("lựa chọn đã tồn tại")
+		}
+	}
+	meta.Poll.Options = append(meta.Poll.Options, ChatPollOption{
+		ID:    util.NewID(),
+		Label: label,
+		Votes: 0,
+	})
+	return json.Marshal(meta)
 }
 
 // applyPollVote toggles userID's vote for optionID and returns the new metadata.

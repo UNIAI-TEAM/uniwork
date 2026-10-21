@@ -147,7 +147,11 @@ type ChatPollDTO struct {
 	Options         []ChatPollOptionDTO `json:"options" description:"Poll options"`
 	Settings        ChatPollSettingsDTO `json:"settings" description:"Poll settings"`
 	ViewerOptionIDs []string            `json:"viewer_option_ids,omitempty" description:"Option ids selected by the caller" example:"[\"01J8X4OPT0N1P2Q3R4S5T6U7V8\"]"`
-	VotesByUser     map[string][]string `json:"votes_by_user,omitempty" description:"User id to selected option ids when voter list is visible"`
+}
+
+// ChatPollVotersSDO is GET .../messages/{messageID}/poll/voters.
+type ChatPollVotersSDO struct {
+	VotesByUser map[string][]string `json:"votes_by_user" description:"User id to selected option ids" example:"{\"01J8X4USER0N1P2Q3R4S5T6U7V8\":[\"01J8X4OPT0N1P2Q3R4S5T6U7V8\"]}"`
 }
 
 // ChatReminderDTO is reminder metadata attached to a reminder message.

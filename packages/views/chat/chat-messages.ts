@@ -91,7 +91,6 @@ export interface ChatMessage {
       hide_voters: boolean;
     };
     viewer_option_ids?: string[];
-    votes_by_user?: Record<string, string[]>;
   };
   pollVote?: {
     pollMessageId: string;
