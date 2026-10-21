@@ -22,7 +22,7 @@ const repoRoot =
 
 /** The 3-level fixture: root files, "Hop dong/", "Hop dong/2026/", plus a hidden and an unsupported file. */
 export const TREE_NAME = "Ho so 2052";
-export const TREE_DIR = resolve(repoRoot, "e2e/fixtures/folder-upload", TREE_NAME);
+const TREE_DIR = resolve(repoRoot, "e2e/fixtures/folder-upload", TREE_NAME);
 
 /** What the planner uploads from the fixture: relative folder paths (root = "") and file stems by folder. */
 export const EXPECTED_FOLDERS = ["", "Hop dong", "Hop dong/2026"] as const;
@@ -33,14 +33,14 @@ export const EXPECTED_FILES = [
   "Hop dong/2026/ke-hoach",
 ] as const;
 
-export const TARGET_FOLDER = "Nhận tải lên";
+const TARGET_FOLDER = "Nhận tải lên";
 
 /** A title without its extension: whether the server keeps ".md" in a file's title is not what these specs pin. */
 export function stemOf(title: string): string {
   return title.replace(/\.[^./]+$/, "");
 }
 
-export function escapeRegExp(text: string): string {
+function escapeRegExp(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 

@@ -8,12 +8,12 @@ import type { FolderUploadPlan } from "./types";
 // classification, the plan body and the invalidation throttle.
 
 export const RETRY_DELAYS_MS = [1_000, 3_000];
-export const INVALIDATE_EVERY_MS = 2_000;
+const INVALIDATE_EVERY_MS = 2_000;
 export const BUSY_WAIT_DEFAULT_S = 30;
 /** A 429 on complete/status without Retry-After. */
 const RATE_LIMIT_WAIT_DEFAULT_S = 1;
 
-export function abortError(): DOMException {
+function abortError(): DOMException {
   return new DOMException("Aborted", "AbortError");
 }
 

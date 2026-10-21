@@ -42,7 +42,7 @@ export type FakePutFailure =
  * `settle` also settles the file at the server before answering, the way a
  * file already done/failed there is when the PUT arrives.
  */
-export interface FakePutRefusal {
+interface FakePutRefusal {
   status: number;
   code: string;
   /** Retry-After seconds the answer carries (a 429). */
