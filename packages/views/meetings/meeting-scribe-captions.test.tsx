@@ -149,6 +149,35 @@ describe("MeetingScribeCaptions translation (B9)", () => {
     );
   });
 
+  it("sends picks one at a time, so the server and the picker end on the last one", async () => {
+    let finishEnglish: (v: unknown) => void = () => {};
+    requestMock.mockReturnValueOnce(new Promise((res) => (finishEnglish = res)));
+    render(wrap(<MeetingScribeCaptions enabled meetingId="m1" />));
+    fireEvent.click(screen.getByRole("button", { name: "English" }));
+    fireEvent.click(screen.getByRole("button", { name: "Gốc" }));
+    await waitFor(() => expect(requestMock).toHaveBeenCalledTimes(1));
+    // Gốc waits for English: sent together they could land in the other order.
+    expect(requestMock).toHaveBeenCalledTimes(1);
+    await act(async () => finishEnglish({ status: "ok" }));
+    await waitFor(() => expect(requestMock).toHaveBeenCalledTimes(2));
+    expect(requestMock.mock.calls.map((c) => (c[1] as { body: unknown }).body)).toEqual([{ lang: "en" }, { lang: "" }]);
+    expect(screen.getByRole("button", { name: "Gốc" })).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("a late refusal of an older pick leaves the newer one alone", async () => {
+    const error = vi.spyOn(toast, "error").mockImplementation(() => "");
+    let refuseEnglish: (e: unknown) => void = () => {};
+    requestMock.mockReturnValueOnce(new Promise((_, rej) => (refuseEnglish = rej)));
+    render(wrap(<MeetingScribeCaptions enabled meetingId="m1" />));
+    fireEvent.click(screen.getByRole("button", { name: "English" }));
+    fireEvent.click(screen.getByRole("button", { name: "Tiếng Việt" }));
+    await act(async () => refuseEnglish(new Error("feature_disabled")));
+    await waitFor(() => expect(requestMock).toHaveBeenLastCalledWith("/api/v1/meetings/m1/caption-language", { method: "PUT", body: { lang: "vi" } }));
+    expect(screen.getByRole("button", { name: "Tiếng Việt" })).toHaveAttribute("aria-pressed", "true");
+    expect(error).not.toHaveBeenCalled();
+    error.mockRestore();
+  });
+
   it("has no language picker without a meeting", () => {
     render(wrap(<MeetingScribeCaptions enabled />));
     expect(screen.queryByRole("button", { name: "English" })).not.toBeInTheDocument();

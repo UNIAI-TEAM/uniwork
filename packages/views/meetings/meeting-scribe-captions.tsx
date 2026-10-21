@@ -91,29 +91,51 @@ function useScribeCaptions(enabled: boolean, lang: CaptionLanguage) {
  * The viewer's caption language (Gốc / Tiếng Việt / English). The server sets
  * it on their participant; a refusal goes back to the original. Leaving the
  * captions (unmount) clears it, so the agent stops translating for nobody.
+ * Picks go to the server one at a time and only the newest is sent next, so
+ * two quick clicks can never land in the wrong order.
  */
 function useCaptionLanguage(meetingId: string | undefined) {
   const { t } = useTranslation();
   const [lang, setLang] = useState<CaptionLanguage>("");
-  const { mutate } = useSetCaptionLanguage(meetingId ?? "");
-  const current = useRef<CaptionLanguage>("");
+  const { mutateAsync } = useSetCaptionLanguage(meetingId ?? "");
+  // wanted: the newest pick; held: what the server last took; sending: a PUT is in flight.
+  const wanted = useRef<CaptionLanguage>("");
+  const held = useRef<CaptionLanguage>("");
+  const sending = useRef(false);
+  const flush = useRef(async () => {
+    if (sending.current) return;
+    sending.current = true;
+    try {
+      while (held.current !== wanted.current) {
+        const next = wanted.current;
+        try {
+          await mutateAsync(next);
+          held.current = next;
+        } catch {
+          // Refused: the server kept what it held. Only a refusal of the newest pick shows.
+          if (wanted.current === next) {
+            wanted.current = held.current;
+            setLang(held.current);
+            toast.error(t("meetings.scribe.captionLanguageFailed"));
+          }
+        }
+      }
+    } finally {
+      sending.current = false;
+    }
+  });
   useEffect(
     () => () => {
-      if (current.current) mutate("");
+      wanted.current = "";
+      void flush.current();
     },
-    [mutate],
+    [],
   );
   const pick = (next: CaptionLanguage) => {
     if (!meetingId || next === lang) return;
     setLang(next);
-    current.current = next;
-    mutate(next, {
-      onError: () => {
-        setLang("");
-        current.current = "";
-        toast.error(t("meetings.scribe.captionLanguageFailed"));
-      },
-    });
+    wanted.current = next;
+    void flush.current();
   };
   return { lang, pick };
 }
