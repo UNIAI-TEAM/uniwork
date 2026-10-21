@@ -113,4 +113,4 @@ Spec lifecycle (không cần LiveKit): `e2e/meetings.spec.ts`.
 
 ## STT worker (developer)
 
-Xem [`deploy/meeting-stt-agent/README.md`](../../deploy/meeting-stt-agent/README.md): worker join room `uw_mtg_{meetingId}`, gửi segment tới `POST /api/v1/meetings/{id}/transcript/agent` với header `X-Meeting-Agent-Secret`.
+Xem [`apps/meeting-agent/CLAUDE.md`](../../apps/meeting-agent/CLAUDE.md): thư ký AI (ADR 0037) vào room `uw_mtg_{meetingId}` khi server dispatch, gửi đoạn transcript và mọi lời gọi khác qua `/api/v1/meetings/{id}/agent/*` bằng token `uwma_` trong job metadata.
