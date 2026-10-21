@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, type DragEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { ChunkedUploadError } from "@uniwork/core/documents/chunked-upload";
-import { readDroppedFolders, type FolderUploadEntry } from "@uniwork/core/documents/folder-upload";
+import { isUploadableName, readDroppedFolders, type FolderUploadEntry } from "@uniwork/core/documents/folder-upload";
 import { DEFAULT_DOCUMENT_MAX_BYTES } from "@uniwork/core/documents/limits";
 import { documentErrorMessage, documentUploadValidationMessage } from "./document-error-message";
 import { refusalMessage } from "./folder-upload/folder-upload-copy";
@@ -195,10 +195,12 @@ export function useDropUpload({
     }
     const staged = read.folders.filter((entries, index) => {
       if (!read.truncated[index]) return true;
+      // The read list also holds files the planner skips; only the uploadable ones were counted toward the bound.
+      const uploadable = entries.filter((entry) => isUploadableName(entry.path.split("/").at(-1) ?? "", uploadExtensions)).length;
       toast.error(t("documents.folder_upload.toast.refused", { name: entries[0]?.path.split("/")[0] ?? "" }), {
         description: refusalMessage(
           t,
-          { code: "too_many_files", limit: limit ?? 0, actual: entries.length - 1 },
+          { code: "too_many_files", limit: limit ?? 0, actual: uploadable - 1 },
           i18n.language,
           { lowerBound: true },
         ),

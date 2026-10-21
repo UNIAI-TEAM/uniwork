@@ -1,4 +1,5 @@
 export {
+  isUploadableName,
   planFileUpload,
   planFolderUpload,
   uniqueRootName,

@@ -160,6 +160,31 @@ describe("useDropUpload folders (UNI-2052)", () => {
     });
   });
 
+  it("quotes only the files the planner would upload when a truncated folder also holds skipped ones", async () => {
+    const onFolders = vi.fn();
+    // Bound is 4 (1 x 4): the fifth .pdf cuts the read; the .map and hidden files are listed but never counted.
+    const children = [
+      fileEntry("a.map"),
+      fileEntry("1.pdf"),
+      fileEntry("b.map"),
+      fileEntry("2.pdf"),
+      fileEntry(".DS_Store"),
+      fileEntry("3.pdf"),
+      fileEntry("4.pdf"),
+      fileEntry("c.map"),
+      fileEntry("5.pdf"),
+    ];
+    const { result } = renderHook(() =>
+      useDropUpload({ enabled: true, upload: vi.fn(), onFolders, maxFolderFiles: 1, uploadExtensions: ["pdf"] }),
+    );
+    act(() => result.current.zoneProps.onDrop?.(drop([{ entry: dirEntry("Kho", children) }])));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledTimes(1));
+    expect(toast.error).toHaveBeenCalledWith(t("documents.folder_upload.toast.refused", { name: "Kho" }), {
+      description: "Hơn 4 tệp — tối đa 1",
+    });
+    expect(onFolders).not.toHaveBeenCalled();
+  });
+
   it("reads a dropped folder with the server's extension list: files it would not upload do not count toward the bound", async () => {
     const onFolders = vi.fn();
     // Five .pdf files are over the bound of 4 (1 x 4), but the server only takes .docx, so none counts.

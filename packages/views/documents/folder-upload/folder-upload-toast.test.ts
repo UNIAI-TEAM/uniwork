@@ -197,3 +197,19 @@ describe("the closed toast (R3-2)", () => {
     expect(Number.isFinite(toast.warning.mock.calls[0]?.[1].duration)).toBe(true);
   });
 });
+
+describe("settled toasts clear the progress bar (R3-1)", () => {
+  // sonner merges a same-id update over the old toast, so a key that is absent keeps the loading toast's bar:
+  // each end state has to carry `description` as an own key set to undefined.
+  it.each([
+    ["success", "success", {}],
+    ["canceled", "info", { done: 12, canceled: true }],
+    ["expired", "warning", { done: 12, failed: 0, expired: true }],
+  ] as const)("the %s toast overrides the progress description with undefined", (_name, method, over) => {
+    const { handle } = make();
+    handle.settle(settled(over));
+    const options = toast[method].mock.calls[0]?.[1];
+    expect("description" in options).toBe(true);
+    expect(options.description).toBeUndefined();
+  });
+});

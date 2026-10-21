@@ -83,7 +83,8 @@ export function createFolderUploadToast({
     const viewFailures = failed > 0 && !closed ? { label: t("documents.folder_upload.toast.view_failures"), onClick: onViewFailures } : undefined;
     if (canceled) {
       const message = done > 0 ? t("documents.folder_upload.toast.canceled", { count: done }) : t("documents.folder_upload.toast.canceled_none");
-      toast.info(message, { id, duration: 6000, action: undefined });
+      // `description: undefined` on every end state: sonner merges a same-id update, so the loading bar would survive.
+      toast.info(message, { id, duration: 6000, action: undefined, description: undefined });
       return;
     }
     if (expired) {
@@ -92,6 +93,7 @@ export function createFolderUploadToast({
         // Without "Xem" there is no decision to wait for, so only the actionable form stays.
         duration: closed || failed === 0 ? CLOSED_TOAST_MS : Number.POSITIVE_INFINITY,
         action: viewFailures,
+        description: undefined,
       });
       return;
     }
@@ -109,6 +111,7 @@ export function createFolderUploadToast({
       id,
       duration: 10000,
       action: onOpenFolder ? { label: t("documents.folder_upload.toast.open_folder"), onClick: onOpenFolder } : undefined,
+      description: undefined,
     });
   };
   return {
