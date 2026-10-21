@@ -453,7 +453,10 @@ Hai lớp test, không chung file (ADR 0037 — cả hai chặn ở mọi `GATE_
   Sàn theo từng file ở `coverage-floor.json` (`scripts/mobile-coverage-floor.mjs --write` sau một lần
   `test:components`: lấy số cao hơn giữa sàn cũ và hôm nay, không bao giờ hạ; file đã xoá thì rời); file chưa ghi
   (component mới) gộp vào sàn `global` 90/80/90/90 — component mới không test thì đỏ
-  (`scripts/mobile-coverage-floor.test.mjs`). Thêm test thì chạy lại `--write` để nâng sàn.
+  (`scripts/mobile-coverage-floor.test.mjs`). Thêm test thì chạy lại `--write` để nâng sàn. `--write` chỉ ghi file mới
+  khi nó đã đạt sàn `global` (ghi theo số hiện có thì component chưa test rời nhóm global mãi) và đỏ khi một file đã
+  ghi mà còn tồn tại không có trong lần chạy (chạy cả `test:components`, không chạy một phần). File dưới sàn `global`
+  chỉ là nợ đã ghi lúc có sàn theo file (`BELOW_GLOBAL` trong test đó): danh sách chỉ co lại, không file nào được thêm.
   Không đặt test dưới `app/` (expo-router coi là route).
 
 Máy thật không thấy `localhost` của máy dev: đặt `UNICHAT_API_URL=http://<LAN IP>:8080`
