@@ -3,14 +3,17 @@
 // root. Metro follows pnpm's symlinks by default (resolver.unstable_enableSymlinks
 // has defaulted to true since Metro 0.79); setting it again is what expo-doctor's
 // Metro check flags, so it is left to the default.
-const { getDefaultConfig } = require("expo/metro-config");
+// getSentryExpoConfig is Expo's default config plus Sentry's serializer: every
+// bundle (the build's and each `eas update`) carries a debug id that ties it to
+// its source map, so a crash in an OTA symbolicates without a release of its own.
+const { getSentryExpoConfig } = require("@sentry/react-native/metro");
 const { withNativeWind } = require("nativewind/metro");
 const path = require("path");
 
 const projectRoot = __dirname;
 const monorepoRoot = path.resolve(projectRoot, "../..");
 
-const config = getDefaultConfig(projectRoot);
+const config = getSentryExpoConfig(projectRoot);
 
 config.watchFolders = [monorepoRoot];
 config.resolver.nodeModulesPaths = [

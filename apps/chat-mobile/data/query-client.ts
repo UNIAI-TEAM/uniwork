@@ -15,11 +15,15 @@
  * Web/desktop use a different QueryClient (packages/core/query-client.ts).
  * Mobile maintains its own to keep React Native deps out of shared code.
  */
-import { focusManager, onlineManager, QueryClient } from "@tanstack/react-query";
+import { focusManager, MutationCache, onlineManager, QueryCache, QueryClient } from "@tanstack/react-query";
 import { AppState, type AppStateStatus } from "react-native";
 import NetInfo from "@react-native-community/netinfo";
+import { reportMutationError, reportQueryError } from "./query-errors";
 
 export const queryClient = new QueryClient({
+  // Every failed query and mutation reaches crash reporting once (data/query-errors.ts).
+  queryCache: new QueryCache({ onError: reportQueryError }),
+  mutationCache: new MutationCache({ onError: reportMutationError }),
   defaultOptions: {
     queries: {
       staleTime: 60 * 1000, // 1 minute

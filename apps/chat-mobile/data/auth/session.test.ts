@@ -1,4 +1,5 @@
-import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from "vitest";
+import { installReportSink } from "../report";
 import { currentSessionEpoch } from "../session-epoch";
 import {
   callback,
@@ -15,15 +16,25 @@ import type { DesktopSession, TransportErrorCode } from "./transport";
 
 vi.mock("expo-crypto", async () => (await import("./expo-crypto-mock")).expoCryptoMock());
 
-let warn: MockInstance<typeof console.warn>;
+// The session logs through data/logger.ts: each warning is a breadcrumb, read
+// here as one line (message and data) so a test can say what was logged.
+let warn: Mock<(line: string) => void>;
 beforeEach(() => {
   resetFakeSessions();
   vi.useFakeTimers({ now: new Date("2026-10-01T00:00:00Z") });
-  warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+  warn = vi.fn();
+  installReportSink({
+    captureException: () => undefined,
+    addBreadcrumb: (b) => {
+      if (b.level === "warning") warn(`${b.message} ${JSON.stringify(b.data ?? {})}`);
+    },
+    setUser: () => undefined,
+    setTag: () => undefined,
+  });
 });
 afterEach(() => {
   vi.useRealTimers();
-  warn.mockRestore();
+  installReportSink(null);
 });
 
 describe("sign-in", () => {

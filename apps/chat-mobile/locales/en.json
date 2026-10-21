@@ -1404,7 +1404,8 @@
       "outgoing": "Outgoing",
       "incoming": "Incoming",
       "filter_missed": "Missed",
-      "no_missed": "No missed calls."
+      "no_missed": "No missed calls.",
+      "disabled": "Calling is turned off on phones for now."
     },
     "contacts": {
       "empty": "No one else is in this workspace yet.",
@@ -1426,8 +1427,33 @@
       "push_unavailable": "Notifications are not allowed on this device. Turn them on in system settings, then try again.",
       "push_failed": "Could not change notifications. Try again later.",
       "workspace": "Workspace",
-      "switch_workspace": "Switch workspace",
-      "version": "Version {{version}}"
+      "switch_workspace": "Switch workspace"
+    },
+    "app": {
+      "error_title": "This screen hit a problem",
+      "error_body": "UniChat could not open this screen. Try again; if it keeps happening, close the app fully and open it again.",
+      "error_retry": "Try again"
+    },
+    "toast": {
+      "dismiss": "Dismiss notice"
+    },
+    "update": {
+      "title": "Update UniChat to continue",
+      "body": "Version {{version}} is no longer supported. Update to {{min}} or later to keep messaging and calling.",
+      "open_store": "Update",
+      "no_store": "The new version is not in the app store yet. Ask your organization's admin how to install it.",
+      "check_again": "Check again"
+    },
+    "about": {
+      "title": "About",
+      "version": "Version",
+      "build": "Build",
+      "channel": "Update channel",
+      "update": "Update",
+      "embedded": "Built into the app",
+      "none": "None",
+      "copy": "Copy version details",
+      "copied": "Version details copied"
     }
   }
 }

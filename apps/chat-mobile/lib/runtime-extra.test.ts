@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { easProjectId, runtimeFromExtra } from "./runtime-extra";
+import { appEnvironment, easProjectId, runtimeFromExtra, sentryDsn } from "./runtime-extra";
 
 describe("easProjectId", () => {
   it("reads extra.eas.projectId and nothing else", () => {
@@ -27,5 +27,25 @@ describe("runtimeFromExtra", () => {
   it("falls back to the dev servers when extra is missing or malformed", () => {
     expect(runtimeFromExtra(undefined)).toMatchObject({ apiUrl: "http://localhost:8080", appUrl: "http://localhost:3000" });
     expect(runtimeFromExtra({ apiUrl: 42 })).toMatchObject({ apiUrl: "http://localhost:8080", wsUrl: "ws://localhost:8080" });
+  });
+});
+
+describe("sentryDsn", () => {
+  it("reads an https DSN with a key and nothing else", () => {
+    expect(sentryDsn({ sentryDsn: "https://abc123@o1.ingest.sentry.io/42" })).toBe("https://abc123@o1.ingest.sentry.io/42");
+    expect(sentryDsn({ sentryDsn: "" })).toBeUndefined();
+    expect(sentryDsn({ sentryDsn: "http://abc@host/1" })).toBeUndefined();
+    expect(sentryDsn({ sentryDsn: "https://host/1" })).toBeUndefined();
+    expect(sentryDsn({ sentryDsn: 7 })).toBeUndefined();
+    expect(sentryDsn(undefined)).toBeUndefined();
+  });
+});
+
+describe("appEnvironment", () => {
+  it("is staging or production when the build says so, dev otherwise", () => {
+    expect(appEnvironment({ APP_ENV: "production" })).toBe("production");
+    expect(appEnvironment({ APP_ENV: "staging" })).toBe("staging");
+    expect(appEnvironment({ APP_ENV: "qa" })).toBe("dev");
+    expect(appEnvironment(undefined)).toBe("dev");
   });
 });

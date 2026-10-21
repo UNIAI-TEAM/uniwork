@@ -33,7 +33,11 @@ import NetInfo from "@react-native-community/netinfo";
 import { runtimeConfig } from "@uniwork/core/runtime-config";
 import { createContext, use, useEffect, useRef, useState, type ReactNode } from "react";
 import { AppState, type AppStateStatus, Platform } from "react-native";
+import { buildInfo } from "../build-info";
+import { argsLogger, createLogger } from "../logger";
 import { WSClient } from "./ws-client";
+
+const log = createLogger("realtime");
 
 const RealtimeContext = createContext<WSClient | null>(null);
 
@@ -78,17 +82,19 @@ export function RealtimeProvider({ userId, workspaceSlug, getToken, refreshSessi
       getToken: () => sessionRef.current.getToken(),
       workspaceSlug,
       clientOs: Platform.OS,
-      logger: console,
+      // The same version the REST headers carry (audit R1): the hub logs and gates by it.
+      clientVersion: buildInfo().version,
+      logger: argsLogger("ws"),
       onSessionEnded: (error) => {
         if (error !== undefined && error !== "invalid token") {
-          console.warn("[realtime] socket refused, waiting for the next foreground return", error);
+          log.warn("socket refused, waiting for the next foreground return", { error });
           return;
         }
         sessionRef.current.refreshSession().then(
           (token) => (token ? ws.forceReconnect() : ws.disconnect()),
           // A transient failure keeps the session: the next foreground
           // return or network edge redials with whatever token is current.
-          (err: unknown) => console.warn("[realtime] refresh failed after 4001", err),
+          (err: unknown) => log.warn("refresh failed after 4001", { error: err instanceof Error ? err.name : typeof err }),
         );
       },
     });
@@ -117,7 +123,7 @@ export function RealtimeProvider({ userId, workspaceSlug, getToken, refreshSessi
       // Edge: false → true. First event (previous === null) is skipped —
       // connect()/resume() above already handle the initial state.
       if (previous === false && isConnected) {
-        console.info("[realtime] netinfo: back online → forceReconnect");
+        log.info("netinfo: back online, forceReconnect");
         ws.forceReconnect();
       }
     });

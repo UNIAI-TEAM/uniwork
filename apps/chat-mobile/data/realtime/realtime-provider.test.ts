@@ -33,6 +33,8 @@ vi.mock("@react-native-community/netinfo", () => ({
   },
 }));
 
+vi.mock("../build-info", () => ({ buildInfo: () => ({ version: "0.3.0" }) }));
+
 // Run the provider's effect and its actual WSClient, without rendering RN.
 class MockWebSocket {
   static readonly OPEN = 1;
@@ -88,6 +90,8 @@ describe("RealtimeProvider", () => {
     configureRuntime({ wsUrl: "wss://example.test" });
     vi.spyOn(console, "info").mockImplementation(() => {});
     vi.spyOn(console, "warn").mockImplementation(() => {});
+    // data/logger.ts writes to the console in a development build only.
+    (globalThis as { __DEV__?: boolean }).__DEV__ = true;
   });
 
   afterEach(() => {
@@ -96,6 +100,7 @@ describe("RealtimeProvider", () => {
     resetRuntimeConfig();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
+    delete (globalThis as { __DEV__?: boolean }).__DEV__;
   });
 
   it("dials runtimeConfig().wsUrl with the workspace pair and the device OS", async () => {
@@ -105,6 +110,7 @@ describe("RealtimeProvider", () => {
     expect(url.searchParams.get("workspace_slug")).toBe("org/ws");
     expect(url.searchParams.get("client_os")).toBe("android");
     expect(url.searchParams.get("client_platform")).toBe("mobile");
+    expect(url.searchParams.get("client_version")).toBe("0.3.0");
   });
 
   it("opens one socket per background return; an inactive blip keeps an authenticated socket", async () => {
@@ -164,7 +170,7 @@ describe("RealtimeProvider", () => {
     await flush();
     expect(mounted.refreshSession).not.toHaveBeenCalled();
     expect(MockWebSocket.instances).toHaveLength(1);
-    expect(console.warn).toHaveBeenCalledWith(expect.stringContaining("[realtime] socket refused"), "not a member of this workspace");
+    expect(console.warn).toHaveBeenCalledWith(expect.stringContaining("[realtime] socket refused"), { error: "not a member of this workspace" });
     lifecycle.onAppState!("background");
     lifecycle.onAppState!("active");
     expect(MockWebSocket.instances).toHaveLength(2);
@@ -197,7 +203,7 @@ describe("RealtimeProvider", () => {
     latest().onclose!({ code: 4001 });
     await flush();
     expect(MockWebSocket.instances).toHaveLength(1);
-    expect(console.warn).toHaveBeenCalledWith(expect.stringContaining("[realtime] refresh failed"), expect.any(Error));
+    expect(console.warn).toHaveBeenCalledWith(expect.stringContaining("[realtime] refresh failed"), { error: "Error" });
     lifecycle.onAppState!("active");
     expect(MockWebSocket.instances).toHaveLength(2);
   });

@@ -16,6 +16,18 @@ export function easProjectId(extra: Record<string, unknown> | undefined): string
   return typeof projectId === "string" && projectId.length > 0 ? projectId : undefined;
 }
 
+/** extra.sentryDsn (SENTRY_DSN at build time); undefined turns crash reporting off. */
+export function sentryDsn(extra: Record<string, unknown> | undefined): string | undefined {
+  const dsn = extra?.sentryDsn;
+  return typeof dsn === "string" && /^https:\/\/\S+@\S+$/.test(dsn) ? dsn : undefined;
+}
+
+/** extra.APP_ENV: Sentry's environment, and what the Update-required screen says it runs on. */
+export function appEnvironment(extra: Record<string, unknown> | undefined): "dev" | "staging" | "production" {
+  const env = extra?.APP_ENV;
+  return env === "staging" || env === "production" ? env : "dev";
+}
+
 export function runtimeFromExtra(extra: Record<string, unknown> | undefined): Partial<RuntimeConfig> {
   const apiUrl = stringOr(extra?.apiUrl, DEV_API_URL);
   return {

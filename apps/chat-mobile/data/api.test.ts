@@ -33,6 +33,21 @@ afterEach(() => {
 });
 
 describe("api client", () => {
+  it("names the running build on every request once the boot sets it", async () => {
+    const client = createApiClient({ session: sessionMock });
+    fetchMock.mockImplementation(async () => json(200, { workspaces: [] }));
+    await client.listWorkspaces();
+    expect(header(calls()[0]?.init, "X-Client-Version")).toBeNull();
+    client.setClientIdentity({ "X-Client-Version": "0.3.0", "X-Client-OS": "android", "X-Client-Update-Id": "embedded", "X-Client-Platform": "web" });
+    await client.listWorkspaces();
+    const { init } = calls()[1] as Call;
+    expect(header(init, "X-Client-Version")).toBe("0.3.0");
+    expect(header(init, "X-Client-OS")).toBe("android");
+    expect(header(init, "X-Client-Update-Id")).toBe("embedded");
+    // the platform is the client's own word, not the identity's
+    expect(header(init, "X-Client-Platform")).toBe("mobile");
+  });
+
   it("sends JSON with the bearer from the session, a request id and the client platform, and parses /me", async () => {
     fetchMock.mockResolvedValueOnce(json(200, { user: { id: "u1", email: "a@b.c", display_name: "A" } }));
     expect(await api.getMe()).toMatchObject({ id: "u1", email: "a@b.c", display_name: "A" });

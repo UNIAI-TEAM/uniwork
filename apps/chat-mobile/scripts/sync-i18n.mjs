@@ -233,7 +233,6 @@ const MOBILE_ONLY = {
         push_failed: "Không đổi được thông báo. Thử lại sau.",
         workspace: "Workspace",
         switch_workspace: "Chuyển workspace",
-        version: "Phiên bản {{version}}",
       },
     },
   },
@@ -269,8 +268,75 @@ const MOBILE_ONLY = {
         push_failed: "Could not change notifications. Try again later.",
         workspace: "Workspace",
         switch_workspace: "Switch workspace",
-        version: "Version {{version}}",
       },
+    },
+  },
+};
+
+// UNI-2053 (observability and release): the crash screen, toasts, the
+// update gate, Settings › About and the calls kill switch; merged into
+// `mobile` below. Keep vi and en aligned.
+const RELEASE_ONLY = {
+  vi: {
+    app: {
+      error_title: "Màn hình này gặp lỗi",
+      error_body: "UniChat không mở được màn hình này. Thử lại; nếu vẫn lỗi, hãy đóng hẳn ứng dụng rồi mở lại.",
+      error_retry: "Thử lại",
+    },
+    toast: {
+      dismiss: "Đóng thông báo",
+    },
+    update: {
+      title: "Cần cập nhật UniChat",
+      body: "Phiên bản {{version}} không còn được hỗ trợ. Cập nhật lên bản {{min}} trở lên để tiếp tục nhắn tin và gọi.",
+      open_store: "Cập nhật",
+      no_store: "Bản mới chưa có trên cửa hàng ứng dụng. Hãy hỏi quản trị viên của tổ chức cách cài bản mới.",
+      check_again: "Kiểm tra lại",
+    },
+    about: {
+      title: "Giới thiệu",
+      version: "Phiên bản",
+      build: "Bản dựng",
+      channel: "Kênh cập nhật",
+      update: "Bản cập nhật",
+      embedded: "Bản cài sẵn trong ứng dụng",
+      none: "Không có",
+      copy: "Sao chép thông tin phiên bản",
+      copied: "Đã sao chép thông tin phiên bản",
+    },
+    calls: {
+      disabled: "Tính năng gọi đang tạm tắt trên điện thoại.",
+    },
+  },
+  en: {
+    app: {
+      error_title: "This screen hit a problem",
+      error_body: "UniChat could not open this screen. Try again; if it keeps happening, close the app fully and open it again.",
+      error_retry: "Try again",
+    },
+    toast: {
+      dismiss: "Dismiss notice",
+    },
+    update: {
+      title: "Update UniChat to continue",
+      body: "Version {{version}} is no longer supported. Update to {{min}} or later to keep messaging and calling.",
+      open_store: "Update",
+      no_store: "The new version is not in the app store yet. Ask your organization's admin how to install it.",
+      check_again: "Check again",
+    },
+    about: {
+      title: "About",
+      version: "Version",
+      build: "Build",
+      channel: "Update channel",
+      update: "Update",
+      embedded: "Built into the app",
+      none: "None",
+      copy: "Copy version details",
+      copied: "Version details copied",
+    },
+    calls: {
+      disabled: "Calling is turned off on phones for now.",
     },
   },
 };
@@ -295,7 +361,8 @@ function build(locale) {
     set(out, dotted, value);
   }
   set(out, "chat.mobile", CHAT_MOBILE_ONLY[locale]);
-  return { ...out, ...MOBILE_ONLY[locale] };
+  const mobile = MOBILE_ONLY[locale].mobile;
+  return { ...out, mobile: { ...mobile, ...RELEASE_ONLY[locale], calls: { ...mobile.calls, ...RELEASE_ONLY[locale].calls } } };
 }
 
 const check = process.argv.includes("--check");

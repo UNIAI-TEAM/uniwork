@@ -1404,7 +1404,8 @@
       "outgoing": "Gọi đi",
       "incoming": "Gọi đến",
       "filter_missed": "Cuộc gọi nhỡ",
-      "no_missed": "Không có cuộc gọi nhỡ nào."
+      "no_missed": "Không có cuộc gọi nhỡ nào.",
+      "disabled": "Tính năng gọi đang tạm tắt trên điện thoại."
     },
     "contacts": {
       "empty": "Chưa có ai khác trong workspace này.",
@@ -1426,8 +1427,33 @@
       "push_unavailable": "Thiết bị chưa cho phép thông báo. Bật trong cài đặt của máy rồi thử lại.",
       "push_failed": "Không đổi được thông báo. Thử lại sau.",
       "workspace": "Workspace",
-      "switch_workspace": "Chuyển workspace",
-      "version": "Phiên bản {{version}}"
+      "switch_workspace": "Chuyển workspace"
+    },
+    "app": {
+      "error_title": "Màn hình này gặp lỗi",
+      "error_body": "UniChat không mở được màn hình này. Thử lại; nếu vẫn lỗi, hãy đóng hẳn ứng dụng rồi mở lại.",
+      "error_retry": "Thử lại"
+    },
+    "toast": {
+      "dismiss": "Đóng thông báo"
+    },
+    "update": {
+      "title": "Cần cập nhật UniChat",
+      "body": "Phiên bản {{version}} không còn được hỗ trợ. Cập nhật lên bản {{min}} trở lên để tiếp tục nhắn tin và gọi.",
+      "open_store": "Cập nhật",
+      "no_store": "Bản mới chưa có trên cửa hàng ứng dụng. Hãy hỏi quản trị viên của tổ chức cách cài bản mới.",
+      "check_again": "Kiểm tra lại"
+    },
+    "about": {
+      "title": "Giới thiệu",
+      "version": "Phiên bản",
+      "build": "Bản dựng",
+      "channel": "Kênh cập nhật",
+      "update": "Bản cập nhật",
+      "embedded": "Bản cài sẵn trong ứng dụng",
+      "none": "Không có",
+      "copy": "Sao chép thông tin phiên bản",
+      "copied": "Đã sao chép thông tin phiên bản"
     }
   }
 }

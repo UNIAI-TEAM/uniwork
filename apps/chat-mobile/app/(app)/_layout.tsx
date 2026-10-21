@@ -10,8 +10,11 @@ import { Platform, View } from "react-native";
 import { CallOverlay } from "@/components/calls/call-overlay";
 import { api } from "@/data/api";
 import { useAuthStore } from "@/data/auth/store";
+import { createLogger } from "@/data/logger";
 import { registerPushToken } from "@/data/push";
 import { easProjectId } from "@/lib/runtime-extra";
+
+const log = createLogger("push");
 
 export default function AppLayout() {
   const userId = useAuthStore((s) => s.user?.id ?? null);
@@ -21,7 +24,7 @@ export default function AppLayout() {
     if (!userId) return;
     registerPushToken({ api, projectId: easProjectId(Constants.expoConfig?.extra), platform: Platform.OS }).catch(
       // A simulator has no push token; the app works without one.
-      (err: unknown) => console.warn("[push] registration failed", err),
+      (err: unknown) => log.warn("registration failed", { error: err instanceof Error ? err.name : typeof err }),
     );
   }, [userId]);
 

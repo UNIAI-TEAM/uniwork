@@ -1,10 +1,13 @@
 // Ported from usf apps/mobile/app.config.test.ts, re-cut for the UniChat
 // variants: identity, scheme, links and `extra` per UNICHAT_ENV.
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ConfigContext } from "expo/config";
 import createConfig from "./app.config";
 
-const build = () => createConfig({ config: {} } as ConfigContext);
+const build = (projectRoot?: string) => createConfig({ config: {}, projectRoot } as ConfigContext);
 
 // A release variant refuses to build without its servers, so every case that
 // is not about that names them.
@@ -35,8 +38,9 @@ describe("app.config per UNICHAT_ENV", () => {
     expect(config.slug).toBe("uniwork-chat");
     // no EAS project: no update server to ask, the embedded bundle is the app
     expect(config.updates).toEqual({ enabled: false });
-    // an update reaches only binaries of the same app version (OTA never crosses a native change)
-    expect(config.runtimeVersion).toEqual({ policy: "appVersion" });
+    // an update reaches only binaries with the same native fingerprint (OTA never crosses a native change)
+    expect(config.runtimeVersion).toEqual({ policy: "fingerprint" });
+    expect(config.version).toBe("0.3.0");
     // knip's expo plugin and NativeWind both read it; "automatic" follows the OS.
     expect(config.userInterfaceStyle).toBe("automatic");
     // no EAS account yet: push registration is skipped until the id exists
@@ -70,6 +74,8 @@ describe("app.config per UNICHAT_ENV", () => {
         "expo-notifications",
         ["expo-build-properties", { ios: { enableSceneSupport: true } }],
         "@livekit/react-native-expo-plugin",
+        // org, project and token stay in the build env: they must not move the fingerprint
+        ["@sentry/react-native/expo", { url: "https://sentry.io/" }],
       ]),
     );
   });
@@ -138,8 +144,37 @@ describe("EAS project and release servers", () => {
 
     const config = build();
     expect(config.updates).toEqual({ url: "https://u.expo.dev/0f1e2d3c-4b5a-4968-8778-695a4b3c2d1e" });
-    expect(config.runtimeVersion).toEqual({ policy: "appVersion" });
+    expect(config.runtimeVersion).toEqual({ policy: "fingerprint" });
     expect(config.extra?.eas).toEqual({ projectId: "0f1e2d3c-4b5a-4968-8778-695a4b3c2d1e" });
+  });
+
+  // Owner action: generate the certificate (runbook › Ký OTA). Until the file
+  // exists updates are unsigned; from the first binary that embeds it, the
+  // phone accepts only updates signed with its key.
+  it("signs updates once the code-signing certificate is committed, and not before", () => {
+    vi.stubEnv("UNICHAT_EAS_PROJECT_ID", "0f1e2d3c-4b5a-4968-8778-695a4b3c2d1e");
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "unichat-config-"));
+    try {
+      expect(build(root).updates).not.toHaveProperty("codeSigningCertificate");
+      fs.mkdirSync(path.join(root, "certs"));
+      fs.writeFileSync(path.join(root, "certs/eas-update-certificate.pem"), "-----BEGIN CERTIFICATE-----\n");
+      expect(build(root).updates).toEqual({
+        url: "https://u.expo.dev/0f1e2d3c-4b5a-4968-8778-695a4b3c2d1e",
+        codeSigningCertificate: "./certs/eas-update-certificate.pem",
+        codeSigningMetadata: { keyid: "main", alg: "rsa-v1_5-sha256" },
+      });
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("carries the Sentry DSN of the build environment, and nothing without one", () => {
+    vi.stubEnv("SENTRY_DSN", " https://k@o1.ingest.sentry.io/1 ");
+    expect(build().extra?.sentryDsn).toBe("https://k@o1.ingest.sentry.io/1");
+    vi.stubEnv("SENTRY_DSN", "");
+    expect(build().extra).not.toHaveProperty("sentryDsn");
+    vi.stubEnv("SENTRY_DSN", undefined);
+    expect(build().extra).not.toHaveProperty("sentryDsn");
   });
 
   it("hands the Firebase file of the EAS environment to Android, which needs it for an Expo push token", () => {
@@ -177,5 +212,18 @@ describe("EAS project and release servers", () => {
     vi.stubEnv("UNICHAT_API_URL", undefined);
     vi.stubEnv("UNICHAT_APP_URL", undefined);
     expect(build().extra).toMatchObject({ apiUrl: "", appUrl: "", eas: { projectId: expect.any(String) } });
+  });
+});
+
+describe("fingerprint.config.js", () => {
+  // extra (URLs, DSN, project id) is read by JavaScript from the update's own
+  // manifest; hashing it would make an update published without one value
+  // match no phone. The default skip (package.json scripts) stays beside it.
+  it("leaves `extra` out of the runtime fingerprint and keeps the default skip", async () => {
+    const { SourceSkips } = await import("expo/fingerprint");
+    const { default: fingerprint } = (await import("./fingerprint.config.js")) as { default: { sourceSkips: number } };
+    expect(fingerprint.sourceSkips & SourceSkips.ExpoConfigExtraSection).toBe(SourceSkips.ExpoConfigExtraSection);
+    expect(fingerprint.sourceSkips & SourceSkips.PackageJsonAndroidAndIosScriptsIfNotContainRun).not.toBe(0);
+    expect(fingerprint.sourceSkips & SourceSkips.ExpoConfigVersions).toBe(0);
   });
 });

@@ -69,12 +69,16 @@ function messageOf(body: unknown, res: Response): string {
 export function createApiClient(deps: ApiClientDeps) {
   let onUnauthorized = deps.onUnauthorized;
   let unauthorizedReported = false;
+  // X-Client-Version / -OS / -Update-Id (lib/build-info.ts › clientHeaders),
+  // set once at boot: the server logs and gates by them (audit R1).
+  let identity: Record<string, string> = {};
 
   async function send(path: string, init: RequestInit, token: string | null): Promise<Response> {
     const headers: Record<string, string> = {
       // A FormData body (chat attachments) must let fetch write the multipart boundary.
       ...(init.body instanceof FormData ? {} : { "Content-Type": "application/json" }),
       Accept: "application/json",
+      ...identity,
       "X-Client-Platform": "mobile",
       "X-Request-ID": createRequestId(),
     };
@@ -142,6 +146,9 @@ export function createApiClient(deps: ApiClientDeps) {
     request,
     setOnUnauthorized(cb: () => void) {
       onUnauthorized = cb;
+    },
+    setClientIdentity(headers: Record<string, string>) {
+      identity = { ...headers };
     },
     async getMe(opts?: Opts): Promise<User | null> {
       const parsed = await fetchValidated<{ user: User } | null>("/api/v1/me", MeResponseSchema, null, {

@@ -13,14 +13,14 @@
       "distribution": "internal",
       "channel": "development",
       "environment": "development",
-      "env": { "UNICHAT_ENV": "dev" }
+      "env": { "UNICHAT_ENV": "dev", "SENTRY_ALLOW_FAILURE": "true" }
     },
     "preview": {
       "extends": "base",
       "distribution": "internal",
       "channel": "preview",
       "environment": "preview",
-      "env": { "UNICHAT_ENV": "staging" },
+      "env": { "UNICHAT_ENV": "staging", "SENTRY_ALLOW_FAILURE": "true" },
       "android": { "buildType": "apk" }
     },
     "internal": {
@@ -29,7 +29,7 @@
       "autoIncrement": true,
       "channel": "internal",
       "environment": "preview",
-      "env": { "UNICHAT_ENV": "staging" }
+      "env": { "UNICHAT_ENV": "staging", "SENTRY_ALLOW_FAILURE": "true" }
     },
     "production": {
       "extends": "base",
@@ -37,7 +37,7 @@
       "autoIncrement": true,
       "channel": "production",
       "environment": "production",
-      "env": { "UNICHAT_ENV": "production" }
+      "env": { "UNICHAT_ENV": "production", "SENTRY_ALLOW_FAILURE": "true" }
     }
   },
   "submit": {

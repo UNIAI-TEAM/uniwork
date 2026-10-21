@@ -3,10 +3,12 @@
 //
 // There is no .env (the pre-commit hook refuses one). The only build-time knobs
 // are UNICHAT_ENV (dev | staging | production), UNICHAT_API_URL,
-// UNICHAT_APP_URL and UNICHAT_EAS_PROJECT_ID; the app reads the result from
+// UNICHAT_APP_URL, UNICHAT_EAS_PROJECT_ID and SENTRY_DSN; the app reads the result from
 // `extra` via expo-constants and calls configureRuntime() at boot. Defaults are
 // the dev values; staging and production have none (eas.json, runbook
 // docs/runbooks/unichat-mobile-release.md).
+import fs from "node:fs";
+import path from "node:path";
 import type { ConfigContext, ExpoConfig } from "expo/config";
 
 type AppEnv = "dev" | "staging" | "production";
@@ -20,6 +22,17 @@ const APP_LINK_HOST = "app.uniworkos.com";
 // Empty means no EAS: no update server, no push token, the embedded bundle is
 // the app. UNICHAT_EAS_PROJECT_ID overrides it; "" turns EAS off for a build.
 const EAS_PROJECT_ID = "916177c9-255d-40c2-b93f-c39e85a73255";
+
+// EAS Update code signing (docs/runbooks/unichat-mobile-release.md › Ký OTA):
+// the public certificate is committed here once the owner generates it; the
+// private key never is (CI reads it from a secret). From the first binary that
+// embeds the certificate, every update must be signed or the phone refuses it.
+const CODE_SIGNING_CERTIFICATE = "./certs/eas-update-certificate.pem";
+
+function codeSigning(projectRoot: string): Pick<NonNullable<ExpoConfig["updates"]>, "codeSigningCertificate" | "codeSigningMetadata"> {
+  if (!fs.existsSync(path.resolve(projectRoot, CODE_SIGNING_CERTIFICATE))) return {};
+  return { codeSigningCertificate: CODE_SIGNING_CERTIFICATE, codeSigningMetadata: { keyid: "main", alg: "rsa-v1_5-sha256" } };
+}
 
 // What iOS shows when UniChat first asks for the photos, the camera and the microphone.
 const USAGE_VI = {
@@ -61,7 +74,7 @@ const FONT_FAMILIES = [
 ];
 const FONT_FILES = FONT_FAMILIES.flatMap((family) => family.fontDefinitions.map((definition) => definition.path));
 
-export default ({ config }: ConfigContext): ExpoConfig => {
+export default ({ config, projectRoot }: ConfigContext): ExpoConfig => {
   const env = appEnv();
   const isProd = env === "production";
   const isStaging = env === "staging";
@@ -74,6 +87,8 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       ? (process.env.EXPO_BUNDLE_IDENTIFIER_STAGING ?? "com.uniworkos.chat.staging")
       : (process.env.EXPO_BUNDLE_IDENTIFIER_DEV ?? "com.uniworkos.chat.dev");
   const easProjectId = (process.env.UNICHAT_EAS_PROJECT_ID ?? EAS_PROJECT_ID) || undefined;
+  // Crash reporting stays off without it (data/sentry.ts); a DSN is not a secret, it only routes events.
+  const sentryDsn = process.env.SENTRY_DSN?.trim() || undefined;
 
   return {
     ...config,
@@ -81,7 +96,9 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     // The EAS project belongs to the organization, not to whoever is signed in to eas-cli.
     owner: "uniai-team",
     slug: "uniwork-chat",
-    version: "0.2.0",
+    // The store version. 0.3.0: Sentry, expo-application and the native call
+    // work (UNI-2053) change the binary.
+    version: "0.3.0",
     orientation: "portrait",
     userInterfaceStyle: "automatic",
     // The server allowlists both redirects for client uniwork-chat-mobile
@@ -90,12 +107,16 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     scheme: env === "dev" ? "uniworkchat-dev" : "uniworkchat",
     // Built by `pnpm brand:build` from packages/ui/brand/svg/unichat-icon*.svg.
     icon: "./assets/icon.png",
-    // An update only reaches binaries of the same `version`: a native change
-    // bumps it, so an older OTA can never land on a newer native build.
-    runtimeVersion: { policy: "appVersion" },
+    // An update only reaches binaries with the same native fingerprint (native
+    // packages, plugins, this config; fingerprint.config.js says what is left
+    // out): a native change can no longer ship as an OTA because someone forgot
+    // to bump `version` (audit R2).
+    runtimeVersion: { policy: "fingerprint" },
     // Downloaded in the background at launch, applied on the next cold start.
     // knip.json ignores expo-updates: knip loads the dev config, where updates are off.
-    updates: easProjectId ? { url: `https://u.expo.dev/${easProjectId}` } : { enabled: false },
+    updates: easProjectId
+      ? { url: `https://u.expo.dev/${easProjectId}`, ...codeSigning(projectRoot ?? process.cwd()) }
+      : { enabled: false },
     ios: {
       supportsTablet: false,
       // Pins DEVELOPMENT_TEAM on every prebuild; unset, `expo run:ios` picks the
@@ -161,6 +182,12 @@ export default ({ config }: ConfigContext): ExpoConfig => {
         "@config-plugins/react-native-webrtc",
         { cameraPermission: USAGE_VI.NSCameraUsageDescription, microphonePermission: USAGE_VI.NSMicrophoneUsageDescription },
       ],
+      // Crash reporting: uploads source maps and native symbols from the EAS
+      // build. Organization, project and token come from the build's
+      // environment (SENTRY_ORG, SENTRY_PROJECT, SENTRY_AUTH_TOKEN), never from
+      // here, so the fingerprint does not change with them; eas.json sets
+      // SENTRY_ALLOW_FAILURE so a build without them still succeeds.
+      ["@sentry/react-native/expo", { url: "https://sentry.io/" }],
     ],
     extra: {
       APP_ENV: env,
@@ -170,6 +197,8 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       deploymentId: "default",
       // Absent without an EAS project: data/push.ts then skips registration.
       ...(easProjectId ? { eas: { projectId: easProjectId } } : {}),
+      // Absent without SENTRY_DSN: data/sentry.ts then starts nothing.
+      ...(sentryDsn ? { sentryDsn } : {}),
     },
   };
 };
