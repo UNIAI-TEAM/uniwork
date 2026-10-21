@@ -34,7 +34,7 @@ from scribe.job import (
     shared_mic,
     should_transcribe,
 )
-from scribe.keyterms import build_keyterms, refresh_keyterms
+from scribe.keyterms import KeytermRefresher, build_keyterms
 from scribe.stt import make_stt
 from scribe.tracing import setup_tracing
 from scribe.transcriber import Caption, Final, TrackTranscriber, start_once
@@ -176,6 +176,12 @@ async def entrypoint(ctx: JobContext) -> None:
             await t.close()
             await audio.aclose()
 
+    def apply_keyterms(terms: list[str]) -> None:
+        for t in transcribers.values():
+            t.update_keyterms(terms)
+
+    keyterm_refresh = KeytermRefresher(client.context, keyterms, apply_keyterms)
+
     async def on_participant(_: JobContext, p: rtc.RemoteParticipant) -> None:
         kind = p.kind
         if not should_transcribe(
@@ -184,10 +190,9 @@ async def entrypoint(ctx: JobContext) -> None:
             kind == rtc.ParticipantKind.PARTICIPANT_KIND_EGRESS,
         ):
             return
-        # Spec §4.2: the newcomer's name joins the keyterms before their streams open.
-        await refresh_keyterms(client.context, keyterms)
-        for t in transcribers.values():
-            t.update_keyterms(keyterms)
+        # Spec §4.2: the newcomer's name joins the keyterms; the read runs in
+        # the background so their streams open now, and reaches them when it lands.
+        keyterm_refresh.request()
 
         def maybe_start(track: rtc.Track, pub: rtc.RemoteTrackPublication) -> None:
             if track.kind == rtc.TrackKind.KIND_AUDIO and pub.source == rtc.TrackSource.SOURCE_MICROPHONE:
