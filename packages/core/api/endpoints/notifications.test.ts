@@ -6,6 +6,7 @@ import {
   getPreferences,
   getPushConfig,
   getUnreadCount,
+  listNotificationDocuments,
   listNotifications,
   markAllRead,
   markRead,
@@ -140,5 +141,39 @@ describe("notification endpoints", () => {
     expect(sub?.method).toBe("POST");
     expect(JSON.parse(String(sub?.body))).toEqual({ endpoint: "https://p/x", keys: { p256dh: "p", auth: "a" } });
     expect(vi.mocked(fetch).mock.calls[3]![1]?.method).toBe("DELETE");
+  });
+
+  it("listNotificationDocuments builds the cursor query and degrades to an empty page on a malformed answer", async () => {
+    const item = { id: "d1", title: "Plan", kind: "page", trashed: false, shelved: true, deleted: false };
+    vi.mocked(fetch).mockResolvedValueOnce(json({ documents: [item, { id: "d2" }], next_cursor: "c2" }));
+    const page = await listNotificationDocuments("n 1", { cursor: "c1", limit: 20 });
+    expect(page.documents[0]).toEqual(item);
+    // A lenient answer fills the missing fields instead of failing the page.
+    expect(page.documents[1]).toEqual({ id: "d2", title: "", kind: "", trashed: false, shelved: false, deleted: false });
+    expect(page.next_cursor).toBe("c2");
+    expect(vi.mocked(fetch).mock.calls[0]![0]).toBe("http://api.test/api/v1/me/notifications/n%201/documents?cursor=c1&limit=20");
+    vi.mocked(fetch).mockResolvedValueOnce(json({ documents: "none" }));
+    await expect(listNotificationDocuments("n1")).resolves.toEqual({ documents: [], next_cursor: null });
+    vi.mocked(fetch).mockResolvedValueOnce(json({ documents: [{ id: 7 }] }));
+    await expect(listNotificationDocuments("n1")).resolves.toEqual({ documents: [], next_cursor: null });
+    vi.mocked(fetch).mockResolvedValueOnce(json({ documents: [item] }));
+    expect((await listNotificationDocuments("n1")).next_cursor).toBeNull();
+  });
+
+  it("listNotifications reads sample_documents, [] when absent, and keeps the row when the field is malformed", async () => {
+    const folded = { ...row, kind: "document_changed", resource_type: "document", params: { actor: "An", verb: "moved", document_count: "5" } };
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        notifications: [
+          { ...folded, id: "a", sample_documents: [{ id: "d1", title: "Plan" }] },
+          { ...folded, id: "b" },
+          { ...folded, id: "c", sample_documents: "oops" },
+          { ...folded, id: "d", sample_documents: [{ id: 1 }] },
+        ],
+      }),
+    );
+    const { notifications } = await listNotifications();
+    expect(notifications.map((n) => n.id)).toEqual(["a", "b", "c", "d"]);
+    expect(notifications.map((n) => n.sample_documents)).toEqual([[{ id: "d1", title: "Plan" }], [], [], []]);
   });
 });

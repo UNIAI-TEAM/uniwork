@@ -35,6 +35,7 @@ export const NOTIFICATION_KINDS = [
   "document_access_declined",
   "document_shared",
   "document_trashed_by_other",
+  "document_changed",
 ] as const;
 export type NotificationKind = (typeof NOTIFICATION_KINDS)[number];
 
@@ -58,11 +59,37 @@ export const NotificationSchema = z.object({
   title_key: z.string(),
   params: z.record(z.string(), z.string()).optional().default({}),
   count: z.number().optional().default(1),
+  /** A folded `document_changed` row: up to three affected documents the reader can read now; [] on other kinds. */
+  sample_documents: z.array(z.object({ id: z.string(), title: z.string() })).catch([]),
   read_at: z.string().optional(),
   created_at: z.string(),
   updated_at: z.string().optional(),
 });
-export type Notification = Omit<z.infer<typeof NotificationSchema>, "kind"> & { kind: NotificationKind | (string & {}) };
+export type Notification = Omit<z.infer<typeof NotificationSchema>, "kind" | "sample_documents"> & {
+  kind: NotificationKind | (string & {});
+  /** Absent on every kind but `document_changed`. */
+  sample_documents?: { id: string; title: string }[];
+};
+
+/**
+ * One document a folded `document_changed` notification covers. A purged
+ * document has title "" and kind ""; the `deleted` verb keeps its snapshot title.
+ */
+export const NotificationDocumentSchema = z.object({
+  id: z.string(),
+  title: z.string().optional().default(""),
+  kind: z.string().optional().default(""),
+  trashed: z.boolean().optional().default(false),
+  shelved: z.boolean().optional().default(false),
+  deleted: z.boolean().optional().default(false),
+});
+export type NotificationDocument = z.infer<typeof NotificationDocumentSchema>;
+
+export const NotificationDocumentPageSchema = z.object({
+  documents: z.array(NotificationDocumentSchema),
+  next_cursor: z.string().nullable().optional().default(null),
+});
+export type NotificationDocumentPage = z.infer<typeof NotificationDocumentPageSchema>;
 
 export const UnreadCountSchema = z.object({
   total: z.number(),

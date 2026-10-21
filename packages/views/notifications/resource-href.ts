@@ -1,5 +1,6 @@
 import { paths } from "@uniwork/core/paths";
 import type { Notification, Workspace } from "@uniwork/core/types";
+import { documentChangedFacts, isDocumentChanged } from "./document-changed";
 
 /**
  * The workspace a document notification opens in: the notification's own
@@ -48,6 +49,14 @@ export function resourceHref(n: Notification, workspace: Workspace, workspaces: 
       // Somebody else trashed the reader's document: the reader restores it from the trash.
       if (n.kind === "document_trashed_by_other") {
         return paths.workspace(target.organization_slug, target.slug).documentsTrash(n.resource_id);
+      }
+      if (isDocumentChanged(n)) {
+        const { verb, count } = documentChangedFacts(n);
+        // Several documents open the Inbox's list; away from the Inbox (the bell, Home) the row lands there.
+        if (count > 1) return paths.workspace(target.organization_slug, target.slug).inbox();
+        // A document in the trash is restored from the trash, like document_trashed_by_other.
+        if (verb === "trashed") return paths.workspace(target.organization_slug, target.slug).documentsTrash(n.resource_id);
+        return href;
       }
       // A body mention (UNI-1968) opens the page on the reader's own mention,
       // which the document reveals itself (useMentionDeepLink); no comment id rides.
