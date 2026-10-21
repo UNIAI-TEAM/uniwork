@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/unicomhub/uniwork/server/internal/ai"
 )
@@ -116,5 +117,60 @@ func TestAskMeetingFocusReadsTheTranscript(t *testing.T) {
 	}
 	if !hit {
 		t.Fatalf("no transcript source: %+v", srcs)
+	}
+}
+
+// Fix round 1: on P0 the focus source ranks lines by how much of the
+// question they hold, newest first among equals, so a late line about the
+// subject beats a crowd of early lines that only share common words, and
+// survives the excerpt cut (ai.MaxExcerpt).
+func TestAskMeetingFocusRanksTheRelevantLateLine(t *testing.T) {
+	s, _, ua, _, w := askFixture(t)
+	m := liveCatchUpMeeting(t, s, ua.ID, w.ID)
+	for i := range 40 {
+		catchUpSegment(t, s, m, "AGENT", "An", fmt.Sprintf("Mọi người vừa nói về lịch nghỉ lần %d", i), time.Duration(40-i)*time.Minute+30*time.Second)
+	}
+	catchUpSegment(t, s, m, "AGENT", "Bình", "Ngân sách quý IV tăng mười phần trăm", time.Minute)
+	srcs, err := s.Sources(context.Background(), ai.SourceQuery{
+		UserID: ua.ID, OrganizationID: m.OrganizationID, WorkspaceID: w.ID,
+		Question: "vừa nói gì về ngân sách?", Focus: &ai.Focus{Kind: "meeting", ID: m.ID},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var excerpt string
+	for _, src := range srcs {
+		if src.Kind == "transcript" {
+			excerpt = src.Excerpt
+		}
+	}
+	head := []rune(excerpt)
+	if len(head) > ai.MaxExcerpt {
+		head = head[:ai.MaxExcerpt]
+	}
+	if !strings.Contains(string(head), "Ngân sách quý IV") {
+		t.Fatalf("the late line about the budget is not within the excerpt the model sees:\n%s", excerpt)
+	}
+	if n := strings.Count(excerpt, "\n") + 1; n > askTranscriptP0Lines {
+		t.Fatalf("focus source has %d lines, want at most %d", n, askTranscriptP0Lines)
+	}
+}
+
+// Without a stopword to lean on, ranking still wins: more of the question's
+// words beat fewer, and the kept lines fit one excerpt in time order.
+func TestAskMeetingFocusKeepsTheBestLinesWithinOneExcerpt(t *testing.T) {
+	s, _, ua, _, w := askFixture(t)
+	m := liveCatchUpMeeting(t, s, ua.ID, w.ID)
+	for i := range 40 {
+		catchUpSegment(t, s, m, "AGENT", "An", fmt.Sprintf("Kế hoạch tuyển dụng cho dự án mới, đợt thứ %d trong năm nay", i), time.Duration(40-i)*time.Minute+30*time.Second)
+	}
+	catchUpSegment(t, s, m, "AGENT", "Bình", "Kế hoạch ngân sách quý IV tăng mười phần trăm", time.Minute)
+	srcs, err := s.focusTranscript(context.Background(), ai.ToolContext{ActorID: ua.ID, OrganizationID: m.OrganizationID, WorkspaceID: w.ID}, m.ID, "kế hoạch ngân sách ra sao?")
+	if err != nil || len(srcs) != 1 {
+		t.Fatalf("focus: %v %+v", err, srcs)
+	}
+	ex := srcs[0].Excerpt
+	if utf8.RuneCountInString(ex) > ai.MaxExcerpt || !strings.Contains(ex, "Kế hoạch ngân sách quý IV") {
+		t.Fatalf("excerpt (%d runes) lacks the best line or exceeds one excerpt:\n%s", utf8.RuneCountInString(ex), ex)
 	}
 }

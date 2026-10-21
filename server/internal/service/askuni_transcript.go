@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/jackc/pgx/v5/pgtype"
 
@@ -21,11 +22,9 @@ const (
 	askToolTranscript = "get_meeting_transcript"
 	// askTranscriptMax is the most segments one call returns.
 	askTranscriptMax = 200
-	// askTranscriptP0Lines is what P0's focus keeps when no line matches the
-	// question: the newest ones of the last askTranscriptP0Window, about one
-	// excerpt's worth.
-	askTranscriptP0Lines  = 30
-	askTranscriptP0Window = 10 * time.Minute
+	// askTranscriptP0Lines is the most lines P0's meeting focus keeps; it
+	// also stops at one excerpt's worth (ai.MaxExcerpt).
+	askTranscriptP0Lines = 30
 )
 
 var transcriptEnd = time.Date(9999, 1, 1, 0, 0, 0, 0, time.UTC)
@@ -164,22 +163,71 @@ func (s *AskUNIService) transcriptTool() ai.Tool {
 	}
 }
 
-// focusTranscript is P0's meeting focus beyond get_meeting_context: the lines
-// that match the question, else the newest ones; nothing when there is no
-// transcript.
+// focusStopwords are question words too common in speech to say what a line
+// is about; the focus ranking ignores them (folded form).
+var focusStopwords = map[string]bool{
+	"vua": true, "noi": true, "nao": true, "the": true, "cua": true, "duoc": true, "khong": true, "nhung": true,
+	"cac": true, "nay": true, "voi": true, "cho": true, "trong": true, "mot": true, "nguoi": true, "cuoc": true,
+	"hop": true, "what": true, "was": true, "about": true, "and": true, "for": true, "with": true, "did": true,
+	"said": true, "that": true, "this": true,
+}
+
+// focusTranscript is P0's meeting focus beyond get_meeting_context: from the
+// newest summaryTranscriptRows lines, the askTranscriptP0Lines that hold the
+// most of the question's words (newest first among equals), else the newest
+// ones, in time order; nothing when there is no transcript.
 func (s *AskUNIService) focusTranscript(ctx context.Context, tc ai.ToolContext, meetingID, question string) ([]ai.Source, error) {
-	m, segs, _, err := s.meetingTranscript(ctx, tc, transcriptArgs{MeetingID: meetingID, Query: question})
-	if err == nil && len(segs) == 0 {
-		// shortcut: the window reads its oldest 201 lines; past ~20 lines a minute the newest are missed, then read newest-first.
-		m, segs, _, err = s.meetingTranscript(ctx, tc, transcriptArgs{MeetingID: meetingID, From: s.now().Add(-askTranscriptP0Window).Format(time.RFC3339)})
-		segs = segs[max(0, len(segs)-askTranscriptP0Lines):]
-	}
-	if err != nil || len(segs) == 0 {
-		return nil, err
-	}
-	src, err := s.transcriptSource(ctx, m, segs)
+	m, err := s.meetings.Get(ctx, tc.ActorID, meetingID)
 	if err != nil {
 		return nil, err
 	}
-	return []ai.Source{src}, nil
+	if m.WorkspaceID != tc.WorkspaceID {
+		return nil, ErrNotFound
+	}
+	src, err := s.q.TranscriptSources(ctx, m.ID)
+	if err != nil {
+		return nil, err
+	}
+	segs, err := s.q.ListTranscriptSegmentsLatest(ctx, db.ListTranscriptSegmentsLatestParams{
+		MeetingID: m.ID, RowLimit: summaryTranscriptRows,
+		Rich: src.HasAgent || len(src.TranscriptionIds) > 0, TranscriptionIds: src.TranscriptionIds,
+	}) // newest first
+	if err != nil || len(segs) == 0 {
+		return nil, err
+	}
+	if _, err := s.meetings.nameSpeakers(ctx, m.ID, segs, "vi"); err != nil {
+		return nil, err
+	}
+	ts := slices.DeleteFunc(searchTerms(question), func(t string) bool { return focusStopwords[foldForSearch(t)] })
+	scores := make(map[string]int, len(segs))
+	for _, g := range segs {
+		scores[g.ID] = score(g.SpeakerName+" "+g.Text, ts)
+	}
+	if hits := slices.DeleteFunc(slices.Clone(segs), func(g db.MeetingTranscriptSegment) bool { return scores[g.ID] == 0 }); len(hits) > 0 {
+		segs = hits
+	}
+	// Stable: equal scores keep newest first.
+	slices.SortStableFunc(segs, func(a, b db.MeetingTranscriptSegment) int { return scores[b.ID] - scores[a.ID] })
+	// Keep the best lines that fit one excerpt, so the time order below
+	// cannot push a relevant late line past ai.BuildContext's cut.
+	keep, runes := 0, 0
+	for keep < len(segs) && keep < askTranscriptP0Lines {
+		runes += utf8.RuneCountInString(segs[keep].SpeakerName+segs[keep].Text) + len("[00:00] : \n")
+		if runes > ai.MaxExcerpt && keep > 0 {
+			break
+		}
+		keep++
+	}
+	segs = segs[:keep]
+	slices.SortFunc(segs, func(a, b db.MeetingTranscriptSegment) int {
+		if c := a.SpokenAt.Time.Compare(b.SpokenAt.Time); c != 0 {
+			return c
+		}
+		return strings.Compare(a.ID, b.ID)
+	})
+	out, err := s.transcriptSource(ctx, m, segs)
+	if err != nil {
+		return nil, err
+	}
+	return []ai.Source{out}, nil
 }
