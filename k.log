@@ -1,0 +1,5 @@
+$ grep -E "^\s*--- (PASS|FAIL|SKIP): (TestIsolationMatrix|TestIsolationRealtime|TestIsolationMCP|TestEveryBodyIDFieldHasAReferenceCase|TestEveryAuditedCommandWritesItsRow|TestTenantColumnIsNotNull|TestEveryBusinessTableCarriesOrganizationID|TestNewTablesCarryOrganizationID|TestEveryQueryNamesItsTenant|TestActorConstructedOnlyInService|TestActorKindOnEveryCreatedBy)( |$)" /tmp/uni2012r6-handler.log | cut -c1-200 | head -40
+--- PASS: TestIsolationMatrix (660.05s)
+--- PASS: TestIsolationMCP (4.53s)
+--- PASS: TestIsolationRealtime (7.19s)
+--- PASS: TestEveryBodyIDFieldHasAReferenceCase (0.02s)

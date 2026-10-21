@@ -1,0 +1,6 @@
+$ git rev-parse HEAD; nproc; free -m | head -2; git diff --quiet HEAD; echo "TREE_CLEAN_EXIT=$?"
+65e917359dc78742d530315ea53da7ab27e79a5c
+4
+               total        used        free      shared  buff/cache   available
+Mem:           16003        9421        1567          56        5401        6582
+TREE_CLEAN_EXIT=0

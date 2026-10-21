@@ -1,0 +1,1 @@
+$ grep -E "^\s*--- FAIL|^(FAIL|panic)|WARNING: DATA RACE|not formatted|^staticcheck|vet:" /tmp/uni2012r6-handler.log | cut -c1-250 | head -80
