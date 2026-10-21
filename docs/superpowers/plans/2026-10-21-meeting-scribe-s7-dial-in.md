@@ -46,9 +46,12 @@ test.
 ## Quyết định
 
 - LiveKit tự host không cho đặt identity của người gọi vào (EvaluateDispatchRule cố định
-  `sip_<hash>`), nên identity trong phòng là `sip_<hash>` của LiveKit; UniWork dùng đúng
-  chuỗi đó làm `guest_id`, không thêm bảng.
+  `sip_<hash>`, một hash không muối của số máy). Webhook đổi nó thành `uw_sip_<HMAC khoá server>`
+  trước khi xếp hàng; mọi dòng (người tham gia, yêu cầu vào phòng, phiên, audit) chỉ mang id đó.
+  Kết nối sống được tìm lại theo SID qua `ListParticipants` (sửa vòng 1).
 - Phòng chờ cấp phòng không giữ được người gọi SIP (họ vào phòng ngay sau PIN; MoveParticipant
-  chỉ có trên Cloud): server rút quyền ngay khi nhận webhook. Khoảng hở còn lại là độ trễ
-  webhook + một RPC (~vài trăm ms).
+  chỉ có trên Cloud): server rút quyền ngay khi nhận webhook, sau khi đã xếp sự kiện vào hàng;
+  vòng quét 15 giây giữ mọi kết nối SIP chưa được duyệt mà webhook bỏ sót. Hở tệ nhất ~15 giây —
+  lệch spec, đã ghi cho chủ sản phẩm.
+- Duyệt theo kết nối (SID), không theo identity (sửa vòng 1).
 - Mỗi cuộc gọi là một lần gõ cửa mới (số ẩn danh dùng chung identity).
