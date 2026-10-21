@@ -17,8 +17,17 @@ name: UniChat mobile OTA update
 # (chat-mobile-release.yml). `verify` first runs every PR check on the SHA
 # (mobile-verify.yml); nothing is published unless it is green.
 #
-# The chat-mobile-release environment holds the secrets: EXPO_TOKEN (required:
-# a dispatched publish without it fails), EAS_UPDATE_PRIVATE_KEY (required once
+# `eas update` loads the EAS environment named by --environment but never a
+# build profile's `env`, so this workflow sets UNICHAT_ENV itself, from the
+# eas.json profile that builds the channel (internal and preview: staging;
+# production: production; scripts/mobile-workflows.test.mjs holds the two in
+# step). Without it the update is the dev config: another package, scheme and
+# fingerprint, matching no store binary.
+#
+# The chat-mobile-update environment (deployment branches main and develop:
+# an OTA is dispatched on a branch, the store release on a tag) holds the
+# secrets: EXPO_TOKEN (required: a dispatched publish without it fails),
+# EAS_UPDATE_PRIVATE_KEY (required once
 # apps/chat-mobile/certs/eas-update-certificate.pem is committed: phones built
 # with the certificate refuse an unsigned update) and SENTRY_AUTH_TOKEN with
 # the SENTRY_ORG / SENTRY_PROJECT variables (optional: without them the source
@@ -66,7 +75,7 @@ jobs:
     needs: verify
     runs-on: ubuntu-latest
     timeout-minutes: 45
-    environment: chat-mobile-release
+    environment: chat-mobile-update
     env:
       CHANNEL: ${{ inputs.channel }}
       ROLLOUT: ${{ inputs.rollout_percentage }}
@@ -78,7 +87,7 @@ jobs:
         run: |
           set -euo pipefail
           if [ -z "$EXPO_TOKEN" ]; then
-            echo "::error::EXPO_TOKEN is not set in the chat-mobile-release environment, so nothing can be published. First-time setup: docs/runbooks/unichat-mobile-release.md"
+            echo "::error::EXPO_TOKEN is not set in the chat-mobile-update environment, so nothing can be published. First-time setup: docs/runbooks/unichat-mobile-release.md"
             exit 1
           fi
           if ! [[ "$ROLLOUT" =~ ^[0-9]+$ ]] || [ "$ROLLOUT" -lt 1 ] || [ "$ROLLOUT" -gt 100 ]; then
@@ -108,29 +117,56 @@ jobs:
           eas-version: ${{ env.EAS_CLI_VERSION }}
           token: ${{ secrets.EXPO_TOKEN }}
       - id: target
-        name: The EAS environment of the channel (eas.json)
+        name: The EAS environment and variant of the channel (eas.json)
+        # The build profile that publishes each channel sets both; eas update
+        # reads neither from it.
         run: |
           set -euo pipefail
           case "$CHANNEL" in
-            internal|preview) echo "environment=preview" >> "$GITHUB_OUTPUT" ;;
-            production) echo "environment=production" >> "$GITHUB_OUTPUT" ;;
+            internal|preview) environment=preview; app_env=staging ;;
+            production) environment=production; app_env=production ;;
             *) echo "::error::unknown channel $CHANNEL"; exit 1 ;;
           esac
-      - name: The update carries the channel's servers
+          echo "environment=$environment" >> "$GITHUB_OUTPUT"
+          echo "app_env=$app_env" >> "$GITHUB_OUTPUT"
+      - name: The update is the channel's variant, with its servers
         working-directory: apps/chat-mobile
         env:
           EAS_ENVIRONMENT: ${{ steps.target.outputs.environment }}
-        # An update's manifest is its config: published without the URLs it
-        # would point every phone that takes it at nothing.
+          UNICHAT_ENV: ${{ steps.target.outputs.app_env }}
+        # An update's manifest is its config: built as another variant it has
+        # that variant's fingerprint and reaches no phone; published without
+        # the URLs it would point every phone that takes it at nothing.
         run: |
           set -euo pipefail
           eas env:exec "$EAS_ENVIRONMENT" "npx expo config --type public --json" > "$RUNNER_TEMP/config.json"
           node -e '
             const c = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8").replace(/^[^{]*/, ""));
+            const want = process.env.UNICHAT_ENV;
+            if (c.extra?.APP_ENV !== want) { console.error(`::error::the update would be built as ${c.extra?.APP_ENV}, the channel ships ${want}`); process.exit(1); }
             const missing = ["apiUrl", "appUrl"].filter((k) => !c.extra?.[k]);
             if (missing.length) { console.error(`::error::the ${process.env.EAS_ENVIRONMENT} EAS environment has no ${missing.join(", ")}`); process.exit(1); }
             if (!c.extra?.sentryDsn) console.log("::notice::no SENTRY_DSN in the EAS environment: phones on this update report no crashes");
           ' "$RUNNER_TEMP/config.json"
+      - id: runtime
+        name: A store build on the channel has this runtime
+        working-directory: apps/chat-mobile
+        env:
+          UNICHAT_ENV: ${{ steps.target.outputs.app_env }}
+        # Informational: an older binary on the channel may still match, so a
+        # difference warns instead of failing. It usually means a native change
+        # that has to ship as a store build first.
+        run: |
+          set -uo pipefail
+          runtime_of() { node -e 'let s="";process.stdin.on("data",(d)=>(s+=d)).on("end",()=>{const m=s.match(/"runtimeVersion"\s*:\s*"([^"]+)"/);process.stdout.write(m?m[1]:"")})'; }
+          runtime="$(npx expo-updates runtimeversion:resolve --platform android 2>/dev/null | runtime_of)"
+          latest="$(eas build:list --platform android --channel "$CHANNEL" --status finished --limit 1 --json --non-interactive 2>/dev/null | runtime_of)"
+          echo "runtime=$runtime" >> "$GITHUB_OUTPUT"
+          if [ -z "$runtime" ] || [ -z "$latest" ]; then
+            echo "::notice::could not compare runtimes (this update: ${runtime:-unknown}, latest $CHANNEL build: ${latest:-none})"
+          elif [ "$runtime" != "$latest" ]; then
+            echo "::warning::this update's runtime $runtime differs from the latest $CHANNEL store build's $latest: phones on that build will not take it"
+          fi
       - id: signing
         name: Code signing key (required once the certificate is committed)
         working-directory: apps/chat-mobile
@@ -154,6 +190,7 @@ jobs:
         working-directory: apps/chat-mobile
         env:
           EAS_ENVIRONMENT: ${{ steps.target.outputs.environment }}
+          UNICHAT_ENV: ${{ steps.target.outputs.app_env }}
           SIGNING_ARGS: ${{ steps.signing.outputs.args }}
         # Android only until the Apple account exists (UNI-1838), as the store release.
         run: |
@@ -178,11 +215,14 @@ jobs:
           pnpm exec sentry-expo-upload-sourcemaps dist
       - name: Summary
         if: always()
+        env:
+          RUNTIME: ${{ steps.runtime.outputs.runtime }}
         run: |
           {
             echo "### UniChat OTA update"
             echo
             echo "- channel: \`$CHANNEL\`, rollout: $ROLLOUT %"
+            echo "- runtime (fingerprint): \`${RUNTIME:-unknown}\`"
             echo "- commit: \`$GITHUB_SHA\`"
             echo "- widen or roll back: docs/runbooks/unichat-mobile-release.md › Phát OTA"
           } >> "$GITHUB_STEP_SUMMARY"

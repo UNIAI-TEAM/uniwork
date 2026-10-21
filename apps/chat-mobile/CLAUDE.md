@@ -234,15 +234,19 @@ Runbook: `docs/runbooks/unichat-mobile-release.md`; plan:
   auto-submit **chỉ Android** (Play internal) tới khi có tài khoản Apple
   (UNI-1838), `eas-cli` ghim ở `EAS_CLI_VERSION`. Environment
   `chat-mobile-release`, chỉ `EXPO_TOKEN`; thiếu thì notice và xanh.
-- OTA: `.github/workflows/chat-mobile-update.yml` (chạy tay: kênh, tỷ lệ
-  rollout, message) → `verify` trên SHA → `eas update --platform android
-  --rollout-percentage` với môi trường EAS của kênh, ký bằng
+- OTA: `.github/workflows/chat-mobile-update.yml` (chạy tay trên `main`/`develop`:
+  kênh, tỷ lệ rollout, message; Environment `chat-mobile-update`, giới hạn hai
+  nhánh đó) → `verify` trên SHA → `eas update --platform android
+  --rollout-percentage` với môi trường EAS **và `UNICHAT_ENV`** của profile build
+  kênh đó (`eas update` không đọc `env` của profile; thiếu là cấu hình dev,
+  fingerprint không khớp bản store nào — bước kiểm `extra.APP_ENV` đỏ), ký bằng
   `EAS_UPDATE_PRIVATE_KEY` khi app có chứng chỉ, rồi tải source map lên Sentry;
   thiếu `EXPO_TOKEN` thì **đỏ** (người bấm cần biết). Không phát OTA từ laptop
   trừ khi CI hỏng (runbook).
   `scripts/mobile-workflows.test.mjs` giữ các lời hứa của bốn workflow (verify
   trước EAS, chỉ Android, phiên bản ghim, nightly đỏ khi thiếu cấu hình, OTA
-  staged và ký); sửa workflow nào trong bốn cũng kích `mobile-verify.yml` nên
+  staged và ký, đúng biến thể của kênh, môi trường riêng; mọi job build Release
+  trên runner tắt upload Sentry); sửa workflow nào trong bốn cũng kích `mobile-verify.yml` nên
   test đó luôn chạy.
 - `maestro/`: `subflows/sign-in.yaml` đăng nhập qua sheet trình duyệt thật (không
   có lối tắt phiên thử nghiệm trong bản nào), ba luồng vàng

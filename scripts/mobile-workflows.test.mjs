@@ -126,3 +126,114 @@ test("the scope job builds natively when the release calls it, even for a re-pus
   assert.equal(decide({ EVENT: "push", FORCE_NATIVE: "false" }), "");
   assert.equal(decide({ EVENT: "workflow_dispatch" }), "native=true");
 });
+
+const WORKFLOWS = ["mobile-verify.yml", "chat-mobile-release.yml", "chat-mobile-verify.yml", "chat-mobile-update.yml"];
+
+/** The workflow-level env block and each job's text, by job id. */
+function jobsOf(wf) {
+  const env = wf.match(/^env:\n([\s\S]*?)(?=^\S)/m)?.[1] ?? "";
+  const body = wf.split(/^jobs:$/m)[1] ?? "";
+  const jobs = new Map();
+  const parts = body.split(/^ {2}([\w-]+):$/m);
+  for (let i = 1; i < parts.length; i += 2) jobs.set(parts[i], parts[i + 1]);
+  return { env, jobs };
+}
+
+// The @sentry/react-native/expo plugin wires sentry-cli into the Gradle release
+// build and the Xcode bundle phase; without org, project and token it exits
+// non-zero and fails the build. A Release build on a runner (no EAS profile,
+// so no SENTRY_ALLOW_FAILURE) must turn the upload off.
+test("every job that prebuilds and builds a Release binary on the runner turns the Sentry upload off", () => {
+  let checked = 0;
+  for (const file of WORKFLOWS) {
+    const { env, jobs } = jobsOf(read(file));
+    for (const [id, job] of jobs) {
+      if (!/expo prebuild/.test(job) || !/assembleRelease|bundleRelease|-configuration Release/.test(job)) continue;
+      checked += 1;
+      assert.match(`${env}\n${job}`, /^\s+SENTRY_DISABLE_AUTO_UPLOAD: "true"$/m, `${file} › ${id} builds a Release binary with the Sentry upload on`);
+    }
+  }
+  assert.ok(checked >= 4, `found ${checked} native Release jobs, expected the PR, nightly iOS/Android and production ones`);
+});
+
+/** Runs one `run: |` step of a workflow as written, with `extraPath` first on PATH. */
+function runStep(file, marker, env, extraPath) {
+  const wf = read(file);
+  const step = wf.split(marker)[1]?.split(/^ {6}- /m)[0] ?? "";
+  const script = step.split(/^ {8}run: \|\n/m)[1]?.split("\n").filter((l) => l === "" || l.startsWith("          ")).map((l) => l.slice(10)).join("\n");
+  assert.ok(script, `${file}: the step has a run block`);
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "mobile-step-"));
+  try {
+    const out = path.join(dir, "out");
+    fs.writeFileSync(out, "");
+    const result = { status: 0, stdout: "", stderr: "" };
+    try {
+      result.stdout = execFileSync("bash", ["-c", script], {
+        cwd: dir,
+        env: { PATH: `${extraPath ?? dir}:${process.env.PATH}`, GITHUB_OUTPUT: out, RUNNER_TEMP: dir, ...env },
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "pipe"],
+      });
+    } catch (error) {
+      Object.assign(result, { status: error.status, stdout: String(error.stdout), stderr: String(error.stderr) });
+    }
+    return { ...result, outputs: Object.fromEntries(fs.readFileSync(out, "utf8").trim().split("\n").filter(Boolean).map((l) => l.split("="))) };
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+// eas update does not apply a build profile's env (only --environment), so the
+// workflow itself must say which variant it builds: without UNICHAT_ENV the
+// update is the dev config (dev package, dev scheme, a fingerprint no store
+// binary has) and reaches no phone while the run stays green.
+test("an OTA update is built as the variant of the store binaries on its channel", () => {
+  const eas = JSON.parse(fs.readFileSync(path.join(root, "apps/chat-mobile/eas.json"), "utf8"));
+  const wf = read("chat-mobile-update.yml");
+  const channels = wf.match(/options: \[([^\]]+)\]/)?.[1].split(",").map((c) => c.trim()) ?? [];
+  assert.deepEqual(channels, ["internal", "preview", "production"]);
+  for (const channel of channels) {
+    const { status, outputs } = runStep("chat-mobile-update.yml", /^ {6}- id: target$/m, { CHANNEL: channel });
+    assert.equal(status, 0, `target step for ${channel}`);
+    const profiles = Object.values(eas.build).filter((p) => p.channel === channel);
+    assert.ok(profiles.length > 0, `an eas.json build profile publishes channel ${channel}`);
+    for (const profile of profiles) {
+      assert.equal(outputs.environment, profile.environment, `${channel}: the EAS environment of its build profile`);
+      assert.equal(outputs.app_env, profile.env.UNICHAT_ENV, `${channel}: the UNICHAT_ENV of its build profile`);
+    }
+  }
+  assert.notEqual(runStep("chat-mobile-update.yml", /^ {6}- id: target$/m, { CHANNEL: "nightly" }).status, 0, "an unknown channel fails");
+  // Every step that evaluates the app config gets the variant.
+  for (const step of ["- name: The update is the channel's variant, with its servers", "- id: runtime", "- name: Publish to the channel, staged"]) {
+    const block = wf.split(step)[1]?.split(/^ {6}- /m)[0] ?? "";
+    assert.match(block, /^ {10}UNICHAT_ENV: \$\{\{ steps\.target\.outputs\.app_env \}\}$/m, `${step} sets UNICHAT_ENV`);
+  }
+});
+
+test("the OTA config check fails an update built as the wrong variant or without servers", () => {
+  const marker = "- name: The update is the channel's variant, with its servers";
+  const bin = fs.mkdtempSync(path.join(os.tmpdir(), "mobile-eas-"));
+  try {
+    // A stand-in eas-cli: `eas env:exec <env> <cmd>` prints the config in $FAKE_CONFIG.
+    fs.writeFileSync(path.join(bin, "eas"), '#!/bin/sh\nprintf "%s" "$FAKE_CONFIG"\n', { mode: 0o755 });
+    const check = (extra) => runStep("chat-mobile-update.yml", marker, { EAS_ENVIRONMENT: "preview", UNICHAT_ENV: "staging", FAKE_CONFIG: `Loaded env\n${JSON.stringify({ extra })}` }, bin);
+    const servers = { apiUrl: "https://api.test", appUrl: "https://app.test" };
+    assert.equal(check({ APP_ENV: "staging", ...servers, sentryDsn: "https://k@sentry.test/1" }).status, 0, "the right variant passes");
+    const dev = check({ APP_ENV: "dev", ...servers });
+    assert.notEqual(dev.status, 0, "the dev config fails");
+    assert.match(dev.stderr + dev.stdout, /::error::.*dev.*staging/);
+    assert.notEqual(check({ APP_ENV: "staging", apiUrl: "https://api.test" }).status, 0, "a missing server URL fails");
+    assert.match(check({ APP_ENV: "staging", ...servers }).stdout, /::notice::no SENTRY_DSN/);
+  } finally {
+    fs.rmSync(bin, { recursive: true, force: true });
+  }
+});
+
+// The store release runs from a tag; an OTA is dispatched on main or develop. One
+// environment limited to chat-mobile-v* tags would refuse every OTA run.
+test("the OTA publishes from its own branch-limited environment, the store release from the tag one", () => {
+  assert.match(read("chat-mobile-update.yml"), /^ {4}environment: chat-mobile-update$/m);
+  assert.match(read("chat-mobile-release.yml"), /^ {4}environment: chat-mobile-release$/m);
+  const runbook = fs.readFileSync(path.join(root, "docs/runbooks/unichat-mobile-release.md"), "utf8");
+  assert.match(runbook, /`chat-mobile-update`[^\n]*`main`[^\n]*`develop`/, "the runbook limits chat-mobile-update to main and develop");
+});

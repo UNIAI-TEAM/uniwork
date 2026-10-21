@@ -57,6 +57,10 @@ env:
   UNICHAT_API_URL: ${{ vars.MAESTRO_API_URL }}
   UNICHAT_APP_URL: ${{ vars.MAESTRO_APP_URL }}
   APP_ID: com.uniworkos.chat.staging
+  # The @sentry/react-native/expo plugin runs sentry-cli in the Gradle release
+  # build and the Xcode bundle phase; with no org, project or token here it
+  # fails the build. These binaries are tested, never shipped: no upload.
+  SENTRY_DISABLE_AUTO_UPLOAD: "true"
 
 jobs:
   gate:

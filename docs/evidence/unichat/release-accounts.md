@@ -41,12 +41,14 @@ từ EAS `preview`, **iPhone không cài được bản nào** (TestFlight và a
 | 16 | Play internal testing | link opt-in | `UNICHAT_PLAY_INTERNAL_URL` | `deploy/app/env/uniwork-be.env` | trang `/apps/unichat` |
 | 17 | Chứng chỉ ký Windows OV/EV | workflow đang chờ `.pfx` + mật khẩu — **chứng chỉ mua mới không còn dạng này**, xem ghi chú cuối trang | `WIN_CSC_LINK` (base64 của `.pfx`), `WIN_CSC_KEY_PASSWORD` | GitHub Environment `chat-desktop-release` (secret) | workflow desktop (chỉ máy Windows) |
 | 18 | Expo tổ chức: `cd apps/chat-mobile && eas init` (dự án `unichat`) | project id (UUID) | hằng `EAS_PROJECT_ID` | `apps/chat-mobile/app.config.ts` qua PR (không bí mật); `UNICHAT_EAS_PROJECT_ID` chỉ để ghi đè | push (`extra.eas.projectId`), OTA (`updates.url`) |
-| 19 | Expo robot token | token | `EXPO_TOKEN` | GitHub Environment `chat-mobile-release` (secret) | `.github/workflows/chat-mobile-release.yml` |
+| 19 | Expo robot token | token | `EXPO_TOKEN` | GitHub Environment `chat-mobile-release` và `chat-mobile-update` (secret) | `.github/workflows/chat-mobile-release.yml`, `.github/workflows/chat-mobile-update.yml` |
 | 20 | Biến máy chủ của bản mobile | URL | `UNICHAT_API_URL`, `UNICHAT_APP_URL` | Môi trường EAS `preview` và `production` (plaintext) | `app.config.ts`; thiếu thì build staging/production đỏ |
 | 21 | Expo "Enhanced push security" (tùy chọn) | access token | `EXPO_ACCESS_TOKEN` | Kubernetes Secret của `uniwork-be` (không vào ConfigMap) | `server/internal/notification` Expo sender; rỗng = gửi không xác thực |
 | 22 | Nightly Maestro trên staging (sau M4 phase 2) | tài khoản thử email/mật khẩu, org/ws/phòng thử | vars `MAESTRO_API_URL`, `MAESTRO_APP_URL`, `MAESTRO_ORG_SLUG`, `MAESTRO_WS_SLUG`, `MAESTRO_ROOM_ID`; secrets `MAESTRO_TEST_EMAIL`, `MAESTRO_TEST_PASSWORD` | GitHub repository variables / secrets | `.github/workflows/chat-mobile-verify.yml` |
 | 23 | Trang tải desktop | `installer-urls.env` của mỗi release | `UNICHAT_INSTALLER_DEV_URLS`, `UNICHAT_INSTALLER_BETA_URLS`, `UNICHAT_INSTALLER_STABLE_URLS` | `deploy/app/env/uniwork-be.env` | trang `/apps/unichat` |
 | 24 | Khi lên store công khai (sau go) | link store | `UNICHAT_STORE_IOS_URL`, `UNICHAT_STORE_ANDROID_URL` | `deploy/app/env/uniwork-be.env` | trang `/apps/unichat` (ẩn TestFlight/Play internal) |
+| 25 | Sentry: project React Native trong tổ chức Sentry (UNI-2053) | DSN; token tổ chức (`project:releases`, `org:read`); slug tổ chức và project | `SENTRY_DSN`, `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, `SENTRY_PROJECT` | Môi trường EAS `preview` và `production` (DSN, org, project plaintext; token secret); GitHub Environment `chat-mobile-update` (token secret, org/project variables) | `app.config.ts` (`extra.sentryDsn`), Gradle/Xcode của bản EAS, source map của OTA |
+| 26 | Khoá ký OTA (EAS Update code signing) | khoá riêng PEM (chứng chỉ công khai commit vào `apps/chat-mobile/certs/`) | `EAS_UPDATE_PRIVATE_KEY` | GitHub Environment `chat-mobile-update` (secret) và kho bí mật của tổ chức | `.github/workflows/chat-mobile-update.yml` |
 
 Biến tùy chọn của repo: `UNICHAT_APP_URL`, `UNICHAT_API_URL` (repository variables) ghi đè URL production mặc định
 `https://uniworkos.com` của bản desktop (`chat-desktop-release.yml`, job `package`).
@@ -57,6 +59,8 @@ Biến tùy chọn của repo: `UNICHAT_APP_URL`, `UNICHAT_API_URL` (repository 
   Required reviewers (chủ sở hữu). Workflow đã chặn tag trỏ commit ngoài `main`/`develop`, nhưng quy tắc Environment
   là lớp chặn thứ hai cho người có quyền đẩy tag.
 - Environment `chat-mobile-release`: giới hạn tag `chat-mobile-v*`, cùng cách.
+- Environment `chat-mobile-update` (OTA, chạy tay trên nhánh): **Deployment branches → Selected → `main` và `develop`**
+  — không giới hạn tag, vì run OTA chạy trên nhánh và environment giới hạn tag sẽ từ chối nó trước bước đầu.
 - Không đặt khóa Apple/Google vào GitHub: chúng ở EAS.
 
 ## 4. Kiểm sau khi đặt
