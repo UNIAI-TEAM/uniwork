@@ -9,12 +9,21 @@ import { z } from "zod";
 const id = z.string().min(1);
 const finite = z.number().finite();
 
-const PendingFileSchema = z.object({
-  uri: id,
-  name: z.string(),
-  mimeType: z.string().optional(),
-  size: finite.nonnegative().optional(),
-});
+// Android's pickers hand JS `null`, not a missing key, for a type or size the
+// provider does not know, and an outbox written before the composer dropped
+// them holds that null: read as absent, never a reason to lose the message.
+const PendingFileSchema = z
+  .object({
+    uri: id,
+    name: z.string(),
+    mimeType: z.string().nullish(),
+    size: finite.nonnegative().nullish(),
+  })
+  .transform(({ mimeType, size, ...file }) => ({
+    ...file,
+    ...(mimeType == null ? {} : { mimeType }),
+    ...(size == null ? {} : { size }),
+  }));
 
 // packages/core/chat/reminder-utils.ts › ReminderRepeat.
 const ReminderSchema = z.object({

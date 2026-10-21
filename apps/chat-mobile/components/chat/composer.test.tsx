@@ -233,4 +233,28 @@ describe("Composer", () => {
     await fireEvent.press(screen.getByRole("button", { name: viText("chat.composer_attach_file") }));
     expect(p.onSendFile).toHaveBeenCalledWith({ uri: "file:///bao-gia.pdf", name: "bao-gia.pdf", mimeType: "application/pdf", size: 2_048 });
   });
+
+  // Android's pickers hand JS null, not a missing key, when the provider knows no type or size;
+  // a null written into the outbox would not read back after a restart (lib/persisted-records.ts).
+  it("sends a picked document or photo whose type and size Android does not know, without nulls", async () => {
+    const p = props();
+    jest.mocked(DocumentPicker.getDocumentAsync).mockResolvedValueOnce({
+      canceled: false,
+      assets: [{ uri: "content://x/bao-gia.pdf", name: "bao-gia.pdf", mimeType: null, size: null, lastModified: 0 }],
+    } as never);
+    jest.mocked(ImagePicker.launchImageLibraryAsync).mockResolvedValueOnce({
+      canceled: false,
+      assets: [{ uri: "file:///p.jpg", fileName: "p.jpg", mimeType: null, fileSize: null, width: 1, height: 1 }],
+    } as never);
+    await render(<Composer {...p} />);
+    await fireEvent.press(screen.getByRole("button", { name: viText("chat.composer_attach") }));
+    await fireEvent.press(screen.getByRole("button", { name: viText("chat.composer_attach_file") }));
+    await fireEvent.press(screen.getByRole("button", { name: viText("chat.composer_attach") }));
+    await fireEvent.press(screen.getByRole("button", { name: viText("chat.media_image") }));
+    const sent = jest.mocked(p.onSendFile).mock.calls.map(([file]) => file);
+    expect(sent).toEqual([
+      { uri: "content://x/bao-gia.pdf", name: "bao-gia.pdf" },
+      { uri: "file:///p.jpg", name: "p.jpg", mimeType: "image/jpeg" },
+    ]);
+  });
 });

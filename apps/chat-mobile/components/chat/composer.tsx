@@ -167,14 +167,16 @@ export function Composer(props: Props) {
     const asset = result.canceled ? null : result.assets[0];
     if (!asset) return;
     const name = asset.fileName || `photo-${Date.now()}.jpg`;
-    sendPicked({ uri: asset.uri, name, mimeType: asset.mimeType ?? "image/jpeg", size: asset.fileSize });
+    // Android hands JS null for an unknown size; the outbox keeps no nulls (lib/persisted-records.ts).
+    sendPicked({ uri: asset.uri, name, mimeType: asset.mimeType ?? "image/jpeg", size: asset.fileSize ?? undefined });
   };
 
   const pickFile = async () => {
     const result = await DocumentPicker.getDocumentAsync({ type: CHAT_FILE_PICKER_TYPES, copyToCacheDirectory: true });
     const asset = result.canceled ? null : result.assets[0];
     if (!asset) return;
-    sendPicked({ uri: asset.uri, name: asset.name, mimeType: asset.mimeType, size: asset.size });
+    // Android's provider may know no type or size and hands JS null for either, not a missing key.
+    sendPicked({ uri: asset.uri, name: asset.name, mimeType: asset.mimeType ?? undefined, size: asset.size ?? undefined });
   };
 
   if (!canSend) {

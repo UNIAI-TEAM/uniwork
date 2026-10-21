@@ -93,6 +93,21 @@ describe("chat send store", () => {
     ]);
   });
 
+  // Android's document picker hands JS `null` for a type or size the provider does not know, and an
+  // outbox written by an earlier build may hold it: the message must survive the restart, not vanish.
+  it("reads back a queued file whose type and size were written as null", async () => {
+    // Cleared first: a store already hydrated writes through, and would empty the disk.
+    useChatSendStore.getState().clear();
+    const disk = memoryDeviceStore();
+    const file = { uri: "file:///outbox/doc/bao-gia.pdf", name: "bao-gia.pdf", mimeType: null, size: null };
+    disk.set("chat-send-outbox", JSON.stringify({ state: { entries: [{ ...entry("doc"), file }] }, version: 1 }));
+    installDeviceStore(async () => disk);
+    await hydrateChatSendStore();
+    expect(useChatSendStore.getState().entries.map((e) => [e.clientMsgId, e.file])).toEqual([
+      ["doc", { uri: "file:///outbox/doc/bao-gia.pdf", name: "bao-gia.pdf" }],
+    ]);
+  });
+
   // zustand without a migrate drops the whole state when the stored version differs: unsent messages lost.
   it("a queue written by an older or a newer build (an OTA rolled back) still loads", async () => {
     for (const version of [0, 2]) {
