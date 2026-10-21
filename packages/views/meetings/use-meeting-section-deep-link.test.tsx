@@ -17,7 +17,12 @@ function adapter(search: string): NavigationAdapter {
 
 function Probe({ ready }: { ready: boolean }) {
   useMeetingSectionDeepLink({ ready });
-  return <h2 id="summary-heading">Tóm tắt</h2>;
+  return (
+    <>
+      <h2 id="summary-heading">Tóm tắt</h2>
+      <h2 id="action-items-heading">Việc cần làm</h2>
+    </>
+  );
 }
 
 describe("useMeetingSectionDeepLink", () => {
@@ -31,6 +36,17 @@ describe("useMeetingSectionDeepLink", () => {
     expect(Element.prototype.scrollIntoView).not.toHaveBeenCalled();
     rerender(wrapWithNav(<Probe ready />, nav));
     expect(Element.prototype.scrollIntoView).toHaveBeenCalledTimes(1);
+    expect(nav.replace).toHaveBeenCalledWith("/acme/team/meetings/m1");
+  });
+
+  it("scrolls to the action items, the section a batch of assigned tasks opens", () => {
+    const scrolled: string[] = [];
+    Element.prototype.scrollIntoView = vi.fn(function (this: Element) {
+      scrolled.push(this.id);
+    });
+    const nav = adapter("section=action-items");
+    render(wrapWithNav(<Probe ready />, nav));
+    expect(scrolled).toEqual(["action-items-heading"]);
     expect(nav.replace).toHaveBeenCalledWith("/acme/team/meetings/m1");
   });
 

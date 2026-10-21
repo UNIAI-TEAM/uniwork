@@ -6,6 +6,7 @@ import { errorCode } from "@uniwork/core/api";
 import type { PageExportFormat } from "@uniwork/core/api/endpoints/documents-page-export";
 import { useExportDocumentPage } from "@uniwork/core/documents/hooks";
 import type { Document } from "@uniwork/core/types/document";
+import { downloadBlob } from "../editor/utils/mermaid-export";
 
 // Refusals that mean "this deployment cannot render the format" rather than
 // "try again": no engine, no PDF renderer staged, an engine without export.
@@ -21,15 +22,7 @@ export function usePageExport(doc: Document): (format: PageExportFormat) => void
     void mutation.mutateAsync(format).then(
       ({ blob, filename }) => {
         toast.dismiss(toastId);
-        const url = URL.createObjectURL(blob);
-        const anchor = window.document.createElement("a");
-        anchor.href = url;
-        anchor.download = filename ?? `${doc.title.trim() || "UniNote"}.${format}`;
-        anchor.rel = "noopener";
-        window.document.body.append(anchor);
-        anchor.click();
-        anchor.remove();
-        window.setTimeout(() => URL.revokeObjectURL(url), 0);
+        downloadBlob(blob, filename ?? `${doc.title.trim() || "UniNote"}.${format}`);
       },
       (error: unknown) => {
         const key = UNAVAILABLE.has(errorCode(error) ?? "") ? "documents.actions.export_unavailable" : "documents.actions.export_failed";

@@ -29,7 +29,7 @@ import { MODULE_ICONS } from "../layout/module-icons";
 import { useOptionalWorkspace } from "../layout/workspace-context";
 import { AppLink, useNavigation } from "../navigation";
 import { toastApiError } from "../toast-api-error";
-import { meetingLocale } from "./meeting-datetime";
+import { formatMeetingDate, meetingLocale } from "./meeting-datetime";
 import { MeetingSectionLoading } from "./meeting-section-state";
 import { useMemberIndex } from "./use-member-index";
 
@@ -74,12 +74,6 @@ function FinalizedVersionPreview({
       />
     </Suspense>
   );
-}
-
-function formatDay(iso: string | null | undefined, locale: string): string {
-  const ms = iso ? Date.parse(iso) : NaN;
-  if (!Number.isFinite(ms)) return "";
-  return new Intl.DateTimeFormat(locale, { day: "2-digit", month: "2-digit", year: "numeric" }).format(ms);
 }
 
 /**
@@ -163,7 +157,7 @@ export function MeetingMinutesSection({
     const finalizerName = membersLoaded
       ? (memberOf(minutes.finalized_by)?.display_name ?? t("meetings.formerMember"))
       : null;
-    const finalizedDate = formatDay(minutes.finalized_at, meetingLocale(i18n.language));
+    const finalizedDate = formatMeetingDate(minutes.finalized_at, meetingLocale(i18n.language));
     const canChange = canClerk && minutes.can_edit && Boolean(documentId);
     body = (
       <div className="flex flex-col gap-3">

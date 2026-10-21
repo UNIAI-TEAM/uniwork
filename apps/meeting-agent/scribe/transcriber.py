@@ -8,9 +8,10 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Coroutine
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from typing import TypeVar
 
 from livekit import rtc
 from livekit.agents import stt
@@ -18,6 +19,7 @@ from livekit.agents import stt
 from scribe import metrics
 
 log = logging.getLogger("scribe.track")
+T = TypeVar("T")
 
 MAX_SPEECH_MS = 600_000
 # A failed STT session is retried on the next speech, waiting at least this
@@ -254,7 +256,10 @@ class TrackTranscriber:
         language = alt.language or self._language
         if self._seg_started is None:
             self._seg_started = self._wall()
-        await self._publish(Caption(self._identity, seg_id, alt.text, final, language))
+        try:
+            await self._publish(Caption(self._identity, seg_id, alt.text, final, language))
+        except Exception as e:  # noqa: BLE001 - a lost caption (room closing, stream error) must not lose the final
+            log.warning("caption not published track=%s err=%s", self._sid, type(e).__name__)
         if not final:
             return
         self._seg += 1
@@ -273,3 +278,21 @@ class TrackTranscriber:
         )
         self._seg_started, self._speech_ms = None, 0
         log.info("final seg=%s chars=%d", seg_id, len(alt.text))
+
+
+def start_once(
+    transcribers: dict[str, T],
+    tasks: set[asyncio.Task],
+    sid: str,
+    make: Callable[[], T],
+    run: Callable[[T], Coroutine[object, object, None]],
+) -> None:
+    """Starts one transcriber per track. It is registered before its task is
+    scheduled: a rejoin leaves the first join's track_subscribed listener
+    behind, so one track can be announced twice before any task runs."""
+    if sid in transcribers:
+        return
+    t = transcribers[sid] = make()
+    task = asyncio.create_task(run(t))
+    tasks.add(task)
+    task.add_done_callback(tasks.discard)

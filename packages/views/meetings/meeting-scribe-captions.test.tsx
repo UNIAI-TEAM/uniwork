@@ -3,7 +3,13 @@ import { toast } from "sonner";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import { requestMock, wrap } from "../test/api-mock";
-import { applyScribeCaption, MeetingScribeCaptions, SCRIBE_CAPTION_TOPIC, scribeTranslationTopic } from "./meeting-scribe-captions";
+import {
+  applyScribeCaption,
+  MeetingScribeCaptions,
+  SCRIBE_CAPTION_TOPIC,
+  scribeTranslationTopic,
+  useScribeInRoom,
+} from "./meeting-scribe-captions";
 import { humanParticipants } from "./meeting-signals";
 
 type Handler = (reader: { info: { attributes?: Record<string, string> }; readAll: () => Promise<string> }, from: { identity: string }) => void;
@@ -12,6 +18,7 @@ const lk = vi.hoisted(() => ({
   handlers: new Map<string, Handler>(),
   people: new Map<string, { identity: string; name: string; isAgent?: boolean }>(),
   remote: [] as { identity: string; isAgent?: boolean }[],
+  remoteOptions: [] as unknown[],
 }));
 
 const room = {
@@ -25,7 +32,10 @@ const room = {
 
 vi.mock("@livekit/components-react", () => ({
   useRoomContext: () => room,
-  useRemoteParticipants: () => lk.remote,
+  useRemoteParticipants: (options?: unknown) => {
+    lk.remoteOptions.push(options);
+    return lk.remote;
+  },
 }));
 
 beforeAll(() => {
@@ -33,6 +43,8 @@ beforeAll(() => {
 });
 
 beforeEach(() => {
+  lk.remote = [];
+  lk.remoteOptions = [];
   lk.handlers.clear();
   lk.people.clear();
   lk.people.set("uw_agent_scribe", { identity: "uw_agent_scribe", name: "UniWork AI", isAgent: true });
@@ -149,6 +161,19 @@ describe("MeetingScribeCaptions translation (B9)", () => {
     );
   });
 
+  it("says nothing when the reset on close is refused: the room is closing anyway", async () => {
+    const error = vi.spyOn(toast, "error").mockImplementation(() => "");
+    const { unmount } = render(wrap(<MeetingScribeCaptions enabled meetingId="m1" />));
+    fireEvent.click(screen.getByRole("button", { name: "English" }));
+    await waitFor(() => expect(requestMock).toHaveBeenCalledTimes(1));
+    requestMock.mockRejectedValueOnce(new Error("meeting_ended"));
+    unmount();
+    await waitFor(() => expect(requestMock).toHaveBeenCalledTimes(2));
+    await act(async () => {});
+    expect(error).not.toHaveBeenCalled();
+    error.mockRestore();
+  });
+
   it("sends picks one at a time, so the server and the picker end on the last one", async () => {
     let finishEnglish: (v: unknown) => void = () => {};
     requestMock.mockReturnValueOnce(new Promise((res) => (finishEnglish = res)));
@@ -181,6 +206,18 @@ describe("MeetingScribeCaptions translation (B9)", () => {
   it("has no language picker without a meeting", () => {
     render(wrap(<MeetingScribeCaptions enabled />));
     expect(screen.queryByRole("button", { name: "English" })).not.toBeInTheDocument();
+  });
+});
+
+describe("useScribeInRoom", () => {
+  it("follows joins and leaves only: a speaking change must not re-render the stage", () => {
+    function Probe() {
+      return <span data-testid="scribe">{String(useScribeInRoom())}</span>;
+    }
+    lk.remote = [{ identity: "uw_participant_p1" }, { identity: "uw_agent_scribe", isAgent: true }];
+    render(<Probe />);
+    expect(screen.getByTestId("scribe")).toHaveTextContent("true");
+    expect(lk.remoteOptions[0]).toEqual({ updateOnlyOn: [] });
   });
 });
 

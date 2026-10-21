@@ -9,7 +9,7 @@ import numpy as np
 from livekit import rtc
 
 from scribe.stt import FakeSTT
-from scribe.transcriber import Caption, Final, TrackTranscriber
+from scribe.transcriber import Caption, Final, TrackTranscriber, start_once
 
 RATE, FRAME = 16000, 160  # 10 ms frames
 
@@ -100,6 +100,52 @@ async def test_close_mid_turn_still_delivers_the_final():
     # end_input flushes the session, so the cut turn still comes out as a final (S0 boundary_check).
     assert [f.text for f in finals] == ["từ1 từ2"]
     assert captions[-1].final and captions[-1].segment_id == "AJ_1-TR_a-1"
+
+
+async def test_caption_publish_failure_still_delivers_the_final():
+    """Review R5 M3: at shutdown the room disconnects before the transcribers
+    close, so the caption of the cut turn cannot be sent; its final must still
+    reach the server, and the session must not count as failed."""
+    clock = Clock()
+    finals: list[Final] = []
+    disconnected = False
+
+    async def publish(c: Caption) -> None:
+        if disconnected:
+            raise RuntimeError("room disconnected")
+
+    t = TrackTranscriber(
+        segment_prefix="AJ-TR", identity="p", stt_impl=FakeSTT(), publish=publish, on_final=finals.append, clock=clock
+    )
+    t.on_vad_start([frame(True)])
+    for _ in range(120):
+        await t.push(frame(True))
+        clock.t += 0.01
+    disconnected = True
+    await t.close()
+    assert [f.text for f in finals] == ["từ1 từ2"]
+    assert t.failures == 0
+
+
+async def test_one_transcriber_per_track_when_the_track_is_announced_twice():
+    """Review R5 M1: a rejoin leaves the first join's track_subscribed listener
+    behind, so one track is announced twice in one dispatch, before any task runs."""
+    transcribers: dict[str, object] = {}
+    tasks: set[asyncio.Task] = set()
+    made: list[object] = []
+    ran: list[object] = []
+
+    def make_one() -> object:
+        made.append(object())
+        return made[-1]
+
+    async def run(t: object) -> None:
+        ran.append(t)
+
+    start_once(transcribers, tasks, "TR_a", make_one, run)
+    start_once(transcribers, tasks, "TR_a", make_one, run)
+    await asyncio.gather(*tasks)
+    assert len(made) == 1 and ran == made and transcribers == {"TR_a": made[0]}
 
 
 async def test_segment_ids_are_unique_across_jobs_on_the_same_track():

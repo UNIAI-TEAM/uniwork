@@ -18,13 +18,20 @@ export function resourceHref(n: Notification, workspace: Workspace, workspaces: 
     case "task":
       return ws.task(n.resource_id);
     case "meeting":
-      // The summary reminder and the auto summary's "ready" land on the summary
-      // panel (use-meeting-section-deep-link),
-      // and so does a meeting's batch of assigned tasks: its action items live
-      // there until UNI-1998 gives them a section.
-      return n.kind === "meeting_summary_reminder" || n.kind === "meeting_summary_ready" || n.kind === "tasks_assigned"
-        ? `${ws.meeting(n.resource_id)}?section=summary`
-        : ws.meeting(n.resource_id);
+      // A meeting's batch of assigned tasks lands on its action items; the
+      // summary and transcript kinds on the summary panel, which holds the
+      // transcript (use-meeting-section-deep-link).
+      switch (n.kind) {
+        case "tasks_assigned":
+          return `${ws.meeting(n.resource_id)}?section=action-items`;
+        case "meeting_summary_reminder":
+        case "meeting_summary_ready":
+        case "meeting_transcript_ready":
+        case "meeting_transcript_failed":
+          return `${ws.meeting(n.resource_id)}?section=summary`;
+        default:
+          return ws.meeting(n.resource_id);
+      }
     case "audit_export":
       return `${ws.settings()}?tab=audit`;
     case "chat_message": {

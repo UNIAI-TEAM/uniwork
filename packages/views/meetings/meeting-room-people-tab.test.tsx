@@ -209,10 +209,12 @@ describe("MeetingRoomPeopleTab", () => {
       identity, name, isLocal: false, permissions: null, getTrackPublication: () => undefined, on: vi.fn(), off: vi.fn(),
     });
 
-    it("follows the roster on joins, leaves and renames only", async () => {
+    it("follows the roster on joins, leaves, renames and attribute changes only", async () => {
       render(wrapWithNav(<MeetingRoomPeopleTab meetingId="m1" meeting={meeting} workspaceId="w1" />));
       expect(await screen.findByText("Trong cuộc họp")).toBeInTheDocument();
-      expect(live.options[0]).toEqual({ updateOnlyOn: [RoomEvent.ParticipantNameChanged] });
+      expect(live.options[0]).toEqual({
+        updateOnlyOn: [RoomEvent.ParticipantNameChanged, RoomEvent.ParticipantAttributesChanged],
+      });
     });
 
     it("sorts names the way the language reads them", async () => {

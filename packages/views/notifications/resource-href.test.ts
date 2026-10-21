@@ -37,9 +37,16 @@ describe("resourceHref", () => {
     expect(resourceHref(n, workspace, [workspace])).toBe("/acme/team/meetings/m1?section=summary");
   });
 
-  it("opens a meeting's summary panel for the tasks it assigned", () => {
+  it("opens a meeting's action items for the tasks it assigned", () => {
     const n = notification({ kind: "tasks_assigned", resource_type: "meeting", resource_id: "m1" });
-    expect(resourceHref(n, workspace, [workspace])).toBe("/acme/team/meetings/m1?section=summary");
+    expect(resourceHref(n, workspace, [workspace])).toBe("/acme/team/meetings/m1?section=action-items");
+  });
+
+  it("opens the summary panel, where the transcript is, when a transcript is ready or failed", () => {
+    for (const kind of ["meeting_transcript_ready", "meeting_transcript_failed"] as const) {
+      const n = notification({ kind, resource_type: "meeting", resource_id: "m1" });
+      expect(resourceHref(n, workspace, [workspace])).toBe("/acme/team/meetings/m1?section=summary");
+    }
   });
 
   it("opens other meeting notifications at the top of the page", () => {

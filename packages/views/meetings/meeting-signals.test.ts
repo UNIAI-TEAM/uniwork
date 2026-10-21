@@ -2,6 +2,7 @@ import { ParticipantKind } from "livekit-client";
 import { describe, expect, it } from "vitest";
 import {
   humanParticipants,
+  inMeeting,
   decodeSignal,
   encodeSignal,
   expireReactions,
@@ -102,14 +103,17 @@ describe("participant roles", () => {
 });
 
 describe("humanParticipants", () => {
-  it("leaves out the scribe and phone callers the host has not admitted yet", () => {
+  it("leaves out the scribe and every phone caller the host has not admitted", () => {
     const people = [
       { identity: "uw_participant_p1" },
       { identity: "uw_agent_scribe", isAgent: true },
-      { identity: "sip_waiting", attributes: { "uw.dial_in": "waiting" } },
-      { identity: "sip_in", attributes: { "uw.dial_in": "admitted" } },
+      // Before the server's hold attribute lands, a caller carries none.
+      { identity: "sip_new", kind: ParticipantKind.SIP },
+      { identity: "sip_waiting", kind: ParticipantKind.SIP, attributes: { "uw.dial_in": "waiting" } },
+      { identity: "sip_in", kind: ParticipantKind.SIP, attributes: { "uw.dial_in": "admitted" } },
     ];
     expect(humanParticipants(people).map((p) => p.identity)).toEqual(["uw_participant_p1", "sip_in"]);
+    expect(people.map(inMeeting)).toEqual([true, false, false, false, true]);
   });
 });
 

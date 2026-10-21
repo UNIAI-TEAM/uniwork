@@ -38,7 +38,8 @@ export function applyScribeCaption(lines: readonly ScribeCaption[], c: ScribeCap
 
 /** The AI scribe is in the room: LiveKit's AGENT kind, never an identity prefix (D8). */
 export function useScribeInRoom(): boolean {
-  return useRemoteParticipants().some((p) => p.isAgent);
+  // Joins and leaves only (LiveKit always follows those): a speaking change must not re-render the stage.
+  return useRemoteParticipants({ updateOnlyOn: [] }).some((p) => p.isAgent);
 }
 
 /**
@@ -102,6 +103,8 @@ function useCaptionLanguage(meetingId: string | undefined) {
   const wanted = useRef<CaptionLanguage>("");
   const held = useRef<CaptionLanguage>("");
   const sending = useRef(false);
+  // Unmounted: the reset may be refused because the room is closing; nobody is left to tell.
+  const leaving = useRef(false);
   const flush = useRef(async () => {
     if (sending.current) return;
     sending.current = true;
@@ -115,8 +118,10 @@ function useCaptionLanguage(meetingId: string | undefined) {
           // Refused: the server kept what it held. Only a refusal of the newest pick shows.
           if (wanted.current === next) {
             wanted.current = held.current;
-            setLang(held.current);
-            toast.error(t("meetings.scribe.captionLanguageFailed"));
+            if (!leaving.current) {
+              setLang(held.current);
+              toast.error(t("meetings.scribe.captionLanguageFailed"));
+            }
           }
         }
       }
@@ -124,13 +129,15 @@ function useCaptionLanguage(meetingId: string | undefined) {
       sending.current = false;
     }
   });
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    leaving.current = false; // StrictMode mounts again after the cleanup below
+    const send = flush.current;
+    return () => {
+      leaving.current = true;
       wanted.current = "";
-      void flush.current();
-    },
-    [],
-  );
+      void send();
+    };
+  }, []);
   const pick = (next: CaptionLanguage) => {
     if (!meetingId || next === lang) return;
     setLang(next);

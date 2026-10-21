@@ -34,10 +34,10 @@ from scribe.job import (
     shared_mic,
     should_transcribe,
 )
-from scribe.keyterms import build_keyterms, refresh_keyterms
+from scribe.keyterms import KeytermRefresher, build_keyterms
 from scribe.stt import make_stt
 from scribe.tracing import setup_tracing
-from scribe.transcriber import Caption, Final, TrackTranscriber
+from scribe.transcriber import Caption, Final, TrackTranscriber, start_once
 from scribe.translate import CaptionTranslator, wanted_languages
 
 CAPTION_TOPIC = "uw.caption"
@@ -62,8 +62,10 @@ server = AgentServer(
     setup_fnc=prewarm,
     port=SETTINGS.health_port,
     load_threshold=0.7,
-    num_idle_processes=SETTINGS.idle_processes,
     drain_timeout=SETTINGS.drain_timeout_s,
+    # The shutdown callbacks (flush, closing extract, /agent/finished) get the
+    # 120 s the chart leaves between drain_timeout and the pod's grace period.
+    shutdown_process_timeout=110,
     prometheus_port=SETTINGS.metrics_port,
     prometheus_multiproc_dir=SETTINGS.metrics_dir,
     # Spec §4.1: subscribe and publish data; no audio or video; visible in the room.
@@ -133,9 +135,9 @@ async def entrypoint(ctx: JobContext) -> None:
         cadence.on_final()
         translator.add(f)
 
-    async def transcribe(p: rtc.RemoteParticipant, track: rtc.Track) -> None:
+    def new_transcriber(p: rtc.RemoteParticipant, track: rtc.Track) -> TrackTranscriber:
         diarize = shared_mic(p.attributes)
-        t = TrackTranscriber(
+        return TrackTranscriber(
             # The job id keeps segment ids unique across the runs of one meeting.
             segment_prefix=f"{ctx.job.id}-{track.sid}",
             identity=p.identity,
@@ -146,7 +148,8 @@ async def entrypoint(ctx: JobContext) -> None:
             language=meta["locale"],
             diarize=diarize,
         )
-        transcribers[track.sid] = t
+
+    async def transcribe(t: TrackTranscriber, track: rtc.Track) -> None:
         audio = rtc.AudioStream(track, sample_rate=16000, num_channels=1)
         vad_stream = vad_model.stream()
 
@@ -175,6 +178,12 @@ async def entrypoint(ctx: JobContext) -> None:
             await t.close()
             await audio.aclose()
 
+    def apply_keyterms(terms: list[str]) -> None:
+        for t in transcribers.values():
+            t.update_keyterms(terms)
+
+    keyterm_refresh = KeytermRefresher(client.context, keyterms, apply_keyterms)
+
     async def on_participant(_: JobContext, p: rtc.RemoteParticipant) -> None:
         kind = p.kind
         if not should_transcribe(
@@ -183,20 +192,15 @@ async def entrypoint(ctx: JobContext) -> None:
             kind == rtc.ParticipantKind.PARTICIPANT_KIND_EGRESS,
         ):
             return
-        # Spec §4.2: the newcomer's name joins the keyterms before their streams open.
-        await refresh_keyterms(client.context, keyterms)
-        for t in transcribers.values():
-            t.update_keyterms(keyterms)
+        # Spec §4.2: the newcomer's name joins the keyterms; the read runs in
+        # the background so their streams open now, and reaches them when it lands.
+        keyterm_refresh.request()
 
         def maybe_start(track: rtc.Track, pub: rtc.RemoteTrackPublication) -> None:
-            if (
-                track.kind == rtc.TrackKind.KIND_AUDIO
-                and pub.source == rtc.TrackSource.SOURCE_MICROPHONE
-                and track.sid not in transcribers
-            ):
-                task = asyncio.create_task(transcribe(p, track))
-                tasks.add(task)
-                task.add_done_callback(tasks.discard)
+            if track.kind == rtc.TrackKind.KIND_AUDIO and pub.source == rtc.TrackSource.SOURCE_MICROPHONE:
+                start_once(
+                    transcribers, tasks, track.sid, lambda: new_transcriber(p, track), lambda t: transcribe(t, track)
+                )
 
         def on_sub(track: rtc.Track, pub: rtc.RemoteTrackPublication, who: rtc.RemoteParticipant) -> None:
             if who.identity == p.identity:
@@ -226,6 +230,7 @@ async def entrypoint(ctx: JobContext) -> None:
 
     disconnect: dict[str, str | None] = {"reason": None}
     extractor: dict[str, asyncio.Task | None] = {"task": None}
+    translating: dict[str, asyncio.Task | None] = {"task": None}
 
     def on_disconnected(reason: rtc.DisconnectReason.ValueType) -> None:
         disconnect["reason"] = rtc.DisconnectReason.Name(reason)
@@ -234,6 +239,11 @@ async def entrypoint(ctx: JobContext) -> None:
 
     async def shutdown() -> None:
         metrics.JOBS_RUNNING.dec()
+        # Stop the translate loop first, so no call starts after close() drops those in flight.
+        if (task := translating["task"]) is not None:
+            task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await task
         await translator.close()
         for t in list(transcribers.values()):
             await t.close()
@@ -282,8 +292,8 @@ async def entrypoint(ctx: JobContext) -> None:
             await asyncio.sleep(0.2)
             await translator.tick()
 
-    translating = asyncio.create_task(translate_ticks())
-    tasks.add(translating)
+    translating["task"] = asyncio.create_task(translate_ticks())
+    tasks.add(translating["task"])
     ctx.add_participant_entrypoint(on_participant)
     await ctx.connect(auto_subscribe=AutoSubscribe.AUDIO_ONLY)
     try:

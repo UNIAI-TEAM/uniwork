@@ -1,5 +1,10 @@
 {{- if .Values.meetingAgent.enabled }}
 {{- $ma := .Values.meetingAgent }}
+{{- /* The NetworkPolicy matches IPs, so the URL and the egress CIDRs are set
+       together; no default could name an address both agree on. */}}
+{{- if not $ma.egress.livekit.cidrs }}
+{{- fail "meetingAgent.egress.livekit.cidrs is required: every address meetingAgent.livekitUrl resolves to (runbook MeetingScribeCannotJoin)" }}
+{{- end }}
 # The AI scribe (apps/meeting-agent, ADR 0037): LiveKit Agents worker, one job
 # per meeting, explicit dispatch only. Spec 2026-10-20-meeting-scribe-agent-design §4.6.
 apiVersion: apps/v1
@@ -8,7 +13,7 @@ metadata:
   name: uniwork-meeting-agent
   namespace: {{ .Values.namespace }}
 spec:
-  replicas: {{ $ma.minReplicas }}
+  # No replicas: the HPA below owns the count, and helm upgrade must not reset it.
   selector:
     matchLabels:
       app.kubernetes.io/name: uniwork-meeting-agent
@@ -57,7 +62,7 @@ spec:
             # flushes its segments and reports /agent/finished before the kill.
             - { name: SCRIBE_DRAIN_TIMEOUT_S, value: {{ sub (int $ma.terminationGracePeriodSeconds) 120 | quote }} }
             - { name: UNIWORK_API_URL, value: "http://uniwork-be:{{ .Values.be.port }}" }
-            - { name: LIVEKIT_URL, value: {{ default .Values.public.livekitUrl $ma.livekitUrl | quote }} }
+            - { name: LIVEKIT_URL, value: {{ required "meetingAgent.livekitUrl is required, set with meetingAgent.egress.livekit.cidrs" $ma.livekitUrl | quote }} }
             {{- with $ma.otlpEndpoint }}
             - { name: OTEL_EXPORTER_OTLP_ENDPOINT, value: {{ . | quote }} }
             {{- end }}

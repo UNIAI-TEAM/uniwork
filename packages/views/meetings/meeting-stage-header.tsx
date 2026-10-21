@@ -8,7 +8,6 @@ import {
   UserPlus,
 } from "lucide-react";
 import { useParticipants } from "@livekit/components-react";
-import { RoomEvent } from "livekit-client";
 import { useTranslation } from "react-i18next";
 import { isPastScheduledEnd, useEndMeeting, useStartMeeting } from "@uniwork/core/meetings";
 import { useMeetingPermissions } from "@uniwork/core/permissions";
@@ -37,7 +36,7 @@ import {
 import { MeetingPersonAvatar } from "./meeting-person";
 import { useRoomAvatarOf } from "./meeting-room-avatars";
 import { MeetingScribeChip } from "./meeting-scribe-chip";
-import { humanParticipants } from "./meeting-signals";
+import { humanParticipants, ROSTER_EVENTS } from "./meeting-signals";
 
 const URGENT_MS = 5 * 60_000;
 const HEADER_AVATARS = 4;
@@ -100,9 +99,6 @@ function RecordingAnnouncer({ recording }: { recording: boolean }) {
     </p>
   );
 }
-
-/** Joins and leaves are always followed; a rename is the one other change the avatars show. */
-const ROSTER_EVENTS = [RoomEvent.ParticipantNameChanged];
 
 /**
  * Who is here, next to the clock; a click opens the full list. Its own leaf:

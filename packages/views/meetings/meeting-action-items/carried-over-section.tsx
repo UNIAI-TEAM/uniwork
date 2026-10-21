@@ -10,7 +10,7 @@ import { cn } from "@uniwork/ui/lib/utils";
 import { PanelCard } from "../../common/panel-card";
 import { useOptionalWorkspace } from "../../layout/workspace-context";
 import { AppLink } from "../../navigation";
-import { meetingLocale } from "../meeting-datetime";
+import { formatMeetingDate, meetingLocale } from "../meeting-datetime";
 import { useMemberIndex } from "../use-member-index";
 import { ConvertedRow, LIST_CLASS, type ActionItemsVariant } from "./action-item-rows";
 
@@ -28,12 +28,6 @@ function groupBySource(items: readonly MeetingCarriedOverItem[]): SourceGroup[] 
     groups.set(item.meeting.id, group);
   }
   return [...groups.values()];
-}
-
-function formatMeetingDate(iso: string | null | undefined, locale: string): string | null {
-  const ms = iso ? Date.parse(iso) : NaN;
-  if (!Number.isFinite(ms)) return null;
-  return new Intl.DateTimeFormat(locale, { day: "2-digit", month: "2-digit", year: "numeric" }).format(ms);
 }
 
 function CarriedOverGroups({

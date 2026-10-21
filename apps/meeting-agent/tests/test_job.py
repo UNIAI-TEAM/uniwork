@@ -1,7 +1,8 @@
+import asyncio
 import json
 
 from scribe.job import parse_metadata, reports_finished, shared_mic, should_transcribe
-from scribe.keyterms import build_keyterms, refresh_keyterms
+from scribe.keyterms import KeytermRefresher, build_keyterms, refresh_keyterms
 from scribe.stt import make_stt
 
 META = json.dumps({"meeting_id": "01M", "token": "uwma_abc.def", "locale": "vi"})
@@ -68,6 +69,31 @@ async def test_keyterms_refresh_in_place_and_survive_a_failed_read():
     assert same is terms and terms == ["Giao ban", "An", "Bình"]
     await refresh_keyterms(broken, terms)
     assert terms == ["Giao ban", "An", "Bình"]
+
+
+async def test_keyterm_refresh_runs_in_the_background_one_read_at_a_time():
+    """Review R5 S6: a join never waits for the context read, and joins during
+    a read cost one more read, not one each."""
+    terms: list[str] = []
+    gate = asyncio.Event()
+    reads: list[int] = []
+    applied: list[list[str]] = []
+
+    async def fetch() -> dict:
+        reads.append(len(reads))
+        await gate.wait()
+        return {"participant_names": [f"P{len(reads)}"]}
+
+    r = KeytermRefresher(fetch, terms, lambda t: applied.append(list(t)))
+    r.request()  # returns at once: the newcomer's tracks start now
+    await asyncio.sleep(0)
+    for _ in range(3):
+        r.request()  # three more joins while the first read is out
+    assert len(reads) == 1
+    gate.set()
+    await asyncio.sleep(0.05)  # both reads finish: no real I/O behind them
+    assert len(reads) == 2
+    assert terms == ["P2"] and applied == [["P1"], ["P2"]]
 
 
 def test_shared_mic_is_the_servers_attribute():
