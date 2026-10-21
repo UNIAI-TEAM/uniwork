@@ -1,6 +1,6 @@
 # Thư ký AI S4 (UNI-2026): tóm tắt tự tạo khi họp xong — kế hoạch triển khai
 
-> **Trạng thái:** in-progress — đang làm.
+> **Trạng thái:** in-progress — đã làm đủ S4: hàng đợi `meeting_auto_summaries` + worker `auto_summary`, `SummarizeAuto` (actor hệ thống, chung khóa thuê), `meeting_summaries.created_by_kind`, kind `meeting_summary_ready` thay nhắc khi tự tạo thành công, cài đặt tổ chức `GET/PUT /orgs/{orgID}/meetings/settings` + tab "Cuộc họp", chip "Tóm tắt tự tạo"; chưa chạy E2E với model và LiveKit thật, chờ review và merge.
 
 **Spec:** `docs/superpowers/specs/2026-10-20-meeting-scribe-agent-design.md` §1.3 D16, D18,
 §4.5 (A5), §6.2 (`meeting_summaries.created_by_kind`, cài đặt tổ chức `auto_summary`), §8
