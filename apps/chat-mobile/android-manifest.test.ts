@@ -10,8 +10,10 @@ import { createRequire } from "node:module";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 
-const report = () =>
-  JSON.parse(execFileSync(process.execPath, [path.join(__dirname, "scripts/android-manifest.mjs")], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] })) as {
+const report = (env: Record<string, string> = {}) =>
+  JSON.parse(
+    execFileSync(process.execPath, [path.join(__dirname, "scripts/android-manifest.mjs")], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], env: { ...process.env, ...env } }),
+  ) as {
     application: Record<string, string>;
     permissions: string[];
     removedPermissions: string[];
@@ -85,6 +87,18 @@ describe("the release build's Android manifest", () => {
       "android.permission.FOREGROUND_SERVICE_MICROPHONE",
       "android.permission.FOREGROUND_SERVICE_PHONE_CALL",
     ]);
+  });
+});
+
+describe("TLS pinning in the release manifest", () => {
+  // plugins/with-tls-pins.js, switched on by the build's environment (app.config.ts › tlsPinning).
+  it("points the app at its network security config once the pins are set", { timeout: 120_000 }, () => {
+    const manifest = report({
+      UNICHAT_TLS_PINS: "47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=,YLh1dUR9y6Kja30RrAn7JKnbQG/uEtLMkBgFF2Fuihg=",
+      UNICHAT_TLS_PIN_EXPIRES: "2099-01-01",
+    });
+    expect(manifest.application.networkSecurityConfig).toBe("@xml/unichat_network_security_config");
+    expect(manifest.application.allowBackup).toBe("false");
   });
 });
 

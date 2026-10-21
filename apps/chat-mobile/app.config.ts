@@ -81,6 +81,42 @@ function serverUrl(name: "UNICHAT_API_URL" | "UNICHAT_APP_URL", env: AppEnv, dev
   throw new Error(`${name} is required when UNICHAT_ENV=${env}`);
 }
 
+/** A base64 SHA-256 of a SubjectPublicKeyInfo: 32 bytes, 44 characters with padding. */
+const SPKI_PIN = /^[A-Za-z0-9+/]{43}=$/;
+
+/**
+ * TLS pinning of UniChat's own servers (plugins/with-tls-pins.js), from the build's environment:
+ * UNICHAT_TLS_PINS (comma-separated base64 SPKI SHA-256, at least two: the current CA key and a backup)
+ * and UNICHAT_TLS_PIN_EXPIRES (YYYY-MM-DD, after which Android stops enforcing them). Unset, nothing is
+ * pinned. Half a configuration, one pin, a malformed pin or a past date is a broken build, not a phone
+ * that cannot reach its server: the config refuses it. Never for dev, whose server is plain http on a LAN.
+ */
+export function tlsPinning(env: AppEnv, hosts: string[], now: Date = new Date()): { domains: string[]; pins: string[]; expiration: string } | null {
+  const pins: string[] = String(process.env.UNICHAT_TLS_PINS ?? "")
+    .split(",")
+    .map((pin: string) => pin.trim())
+    .filter(Boolean);
+  const expiration = String(process.env.UNICHAT_TLS_PIN_EXPIRES ?? "").trim();
+  if (pins.length === 0 && !expiration) return null;
+  if (env === "dev") throw new Error("UNICHAT_TLS_PINS is for staging and production builds only");
+  if (pins.length < 2) throw new Error("UNICHAT_TLS_PINS needs at least two pins: the current CA key and a backup");
+  const bad = pins.find((pin: string) => !SPKI_PIN.test(pin));
+  if (bad) throw new Error(`UNICHAT_TLS_PINS has a value that is not a base64 SHA-256: ${bad}`);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(expiration) || Number.isNaN(Date.parse(expiration))) throw new Error("UNICHAT_TLS_PIN_EXPIRES must be a date like 2027-10-01");
+  if (Date.parse(expiration) <= now.getTime()) throw new Error("UNICHAT_TLS_PIN_EXPIRES is in the past: Android would not enforce the pins");
+  const domains: string[] = [...new Set(hosts.filter(Boolean))];
+  if (domains.length === 0) throw new Error("UNICHAT_TLS_PINS needs UNICHAT_API_URL and UNICHAT_APP_URL to name the hosts to pin");
+  return { domains, pins: [...new Set(pins)], expiration };
+}
+
+const hostOf = (url: string): string => {
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return "";
+  }
+};
+
 // lib/theme.ts › background: hsl(0 0% 100%) and hsl(0 0% 6.7%).
 const SPLASH_BACKGROUND = { light: "#ffffff", dark: "#111111" } as const;
 
@@ -109,6 +145,7 @@ export default ({ config, projectRoot }: ConfigContext): ExpoConfig => {
   // Read first: a missing or cleartext server is the first thing a broken release build is told.
   const apiUrl = serverUrl("UNICHAT_API_URL", env, "http://localhost:8080");
   const appUrl = serverUrl("UNICHAT_APP_URL", env, "http://localhost:3000");
+  const pinning = tlsPinning(env, [hostOf(apiUrl), hostOf(appUrl)]);
   const easProjectId = (process.env.UNICHAT_EAS_PROJECT_ID ?? EAS_PROJECT_ID) || undefined;
   // Crash reporting stays off without it (data/sentry.ts); a DSN is not a secret, it only routes events.
   const sentryDsn = process.env.SENTRY_DSN?.trim() || undefined;
@@ -262,6 +299,8 @@ export default ({ config, projectRoot }: ConfigContext): ExpoConfig => {
       ["./plugins/with-removed-android-services", { services: ["com.oney.WebRTCModule.MediaProjectionService"] }],
       // Android 12+ copies app data to a new phone even with allowBackup off: nothing of UniChat's goes either way.
       "./plugins/with-android-backup-rules",
+      // TLS pinning of the API and web hosts, only when the build's environment names the pins (tlsPinning).
+      ...(pinning ? [["./plugins/with-tls-pins", pinning] as [string, typeof pinning]] : []),
       // Native calls on Android (docs/adr/drafts/0038, modules/unichat-calls): the
       // ringing screen's full-screen intent, the call's foreground service
       // (phoneCall, microphone, camera), Bluetooth audio and the Decline / Hang up actions.

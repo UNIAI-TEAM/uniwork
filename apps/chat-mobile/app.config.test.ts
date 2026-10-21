@@ -5,7 +5,8 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ConfigContext } from "expo/config";
-import createConfig, { ANDROID_KEEP_RULES } from "./app.config";
+import { createRequire } from "node:module";
+import createConfig, { ANDROID_KEEP_RULES, tlsPinning } from "./app.config";
 
 const build = (projectRoot?: string) => createConfig({ config: {}, projectRoot } as ConfigContext);
 
@@ -307,6 +308,74 @@ describe("EAS project and release servers", () => {
     vi.stubEnv("UNICHAT_API_URL", undefined);
     vi.stubEnv("UNICHAT_APP_URL", undefined);
     expect(build().extra).toMatchObject({ apiUrl: "", appUrl: "", eas: { projectId: expect.any(String) } });
+  });
+});
+
+// Audit (Security & privacy, no-pinning-or-attestation): pinning is ready for a release build to switch on from its
+// environment, and refuses any half of it that would leave phones unable to reach their server.
+describe("TLS pinning", () => {
+  const PIN_A = "47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=";
+  const PIN_B = "YLh1dUR9y6Kja30RrAn7JKnbQG/uEtLMkBgFF2Fuihg=";
+  const plugin = createRequire(__filename)("./plugins/with-tls-pins.js") as {
+    networkSecurityConfig: (o: { domains: string[]; pins: string[]; expiration: string }) => string;
+    pinnedDomains: (o: { domains: string[]; pins: string[] }) => Record<string, unknown>;
+    CONFIG_NAME: string;
+  };
+  const pinsPlugin = (config: ReturnType<typeof build>) =>
+    (config.plugins ?? []).find((p): p is [string, { domains: string[]; pins: string[]; expiration: string }] => Array.isArray(p) && p[0] === "./plugins/with-tls-pins")?.[1];
+
+  it("pins nothing unless the build's environment names the pins", () => {
+    vi.stubEnv("UNICHAT_ENV", "production");
+    stubServers();
+    vi.stubEnv("UNICHAT_TLS_PINS", undefined);
+    vi.stubEnv("UNICHAT_TLS_PIN_EXPIRES", undefined);
+    expect(pinsPlugin(build())).toBeUndefined();
+  });
+
+  it("pins the API and web hosts with every pin, and an expiry for Android", () => {
+    vi.stubEnv("UNICHAT_ENV", "production");
+    vi.stubEnv("UNICHAT_API_URL", "https://api.uniworkos.com");
+    vi.stubEnv("UNICHAT_APP_URL", "https://app.uniworkos.com");
+    vi.stubEnv("UNICHAT_TLS_PINS", ` ${PIN_A}, ${PIN_B} ,${PIN_A}`);
+    vi.stubEnv("UNICHAT_TLS_PIN_EXPIRES", "2099-01-01");
+    expect(pinsPlugin(build())).toEqual({ domains: ["api.uniworkos.com", "app.uniworkos.com"], pins: [PIN_A, PIN_B], expiration: "2099-01-01" });
+  });
+
+  it.each([
+    ["one pin, no backup", "47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=", "2099-01-01", "at least two pins"],
+    ["a value that is not a SHA-256", "47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=,not-a-pin", "2099-01-01", "not a base64 SHA-256"],
+    ["no expiry", "47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=,YLh1dUR9y6Kja30RrAn7JKnbQG/uEtLMkBgFF2Fuihg=", "", "must be a date"],
+    ["an expiry that is no date", "47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=,YLh1dUR9y6Kja30RrAn7JKnbQG/uEtLMkBgFF2Fuihg=", "2099-13-45", "must be a date"],
+    ["an expiry in the past", "47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=,YLh1dUR9y6Kja30RrAn7JKnbQG/uEtLMkBgFF2Fuihg=", "2020-01-01", "in the past"],
+    ["an expiry without pins", "", "2099-01-01", "at least two pins"],
+  ])("refuses %s", (_label, pins, expires, message) => {
+    vi.stubEnv("UNICHAT_ENV", "production");
+    stubServers();
+    vi.stubEnv("UNICHAT_TLS_PINS", pins);
+    vi.stubEnv("UNICHAT_TLS_PIN_EXPIRES", expires);
+    expect(build).toThrow(message);
+  });
+
+  it("never pins a dev build, and needs hosts to pin", () => {
+    vi.stubEnv("UNICHAT_TLS_PINS", `${PIN_A},${PIN_B}`);
+    vi.stubEnv("UNICHAT_TLS_PIN_EXPIRES", "2099-01-01");
+    expect(() => tlsPinning("dev", ["localhost"])).toThrow("staging and production");
+    expect(() => tlsPinning("production", ["", ""])).toThrow("name the hosts");
+    expect(tlsPinning("staging", ["api.example", "api.example"])?.domains).toEqual(["api.example"]);
+  });
+
+  it("writes an Android pin-set with its expiry and refuses cleartext, and iOS pinned CA identities", () => {
+    const options = { domains: ["api.uniworkos.com"], pins: [PIN_A, PIN_B], expiration: "2099-01-01" };
+    const xml = plugin.networkSecurityConfig(options);
+    expect(plugin.CONFIG_NAME).toBe("unichat_network_security_config");
+    expect(xml).toContain('<base-config cleartextTrafficPermitted="false" />');
+    expect(xml).toContain('<domain includeSubdomains="false">api.uniworkos.com</domain>');
+    expect(xml).toContain('<pin-set expiration="2099-01-01">');
+    expect([...xml.matchAll(/<pin digest="SHA-256">([^<]+)<\/pin>/g)].map((m) => m[1])).toEqual([PIN_A, PIN_B]);
+    expect(plugin.networkSecurityConfig({ ...options, domains: ['a"<b>&'] })).toContain("a&quot;&lt;b&gt;&amp;");
+    expect(plugin.pinnedDomains(options)).toEqual({
+      "api.uniworkos.com": { NSIncludesSubdomains: false, NSPinnedCAIdentities: [{ "SPKI-SHA256-BASE64": PIN_A }, { "SPKI-SHA256-BASE64": PIN_B }] },
+    });
   });
 });
 

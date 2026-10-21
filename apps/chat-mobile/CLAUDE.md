@@ -88,6 +88,12 @@ một dòng thì ghi lý do ở dòng trên.
   (binary không ký OTA không bao giờ được build lại). Android: `allowBackup: false` + `plugins/with-android-backup-rules.js`
   (data extraction rules loại mọi vùng khỏi sao lưu đám mây và chuyển máy, Android 12+), `READ_/WRITE_EXTERNAL_STORAGE`
   bị chặn; `android-manifest.test.ts` giữ thuộc tính `application` (không cleartext, không network security config).
+  Ghim khoá TLS sẵn sàng nhưng tắt: `UNICHAT_TLS_PINS` (≥ 2 SPKI SHA-256 base64: CA hiện tại + dự phòng) và
+  `UNICHAT_TLS_PIN_EXPIRES` (YYYY-MM-DD, tương lai) trong môi trường EAS bật `plugins/with-tls-pins.js` cho host của
+  API và web (Android `pin-set` có hạn, iOS `NSPinnedDomains` không hạn); thiếu một nửa, một pin, pin sai dạng hay ngày
+  đã qua thì config ném lỗi; không bao giờ cho dev (`app.config.ts › tlsPinning`, runbook › Khắc phục 19). Baseline
+  OWASP MASVS L1 và cái giữ từng kiểm soát: `docs/engineering/unichat-mobile-masvs.md` — đổi một kiểm soát thì sửa dòng
+  của nó cùng PR.
 - `lib/` — helper thuần + test vitest (env node), đo trọn ở sàn 100 %. Thuần là luật lint, không phải quy ước
   (khối `lib/**` của `eslint.config.mjs`, fixture `lib/lint-boundary.test.ts`): không import giá trị từ `react*`,
   `react-native*`, `expo*`, `@expo/*`, `@sentry/*`, `nativewind`, LiveKit, hay từ `data/`, `components/`, `app/`

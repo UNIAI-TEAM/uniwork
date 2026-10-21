@@ -514,6 +514,18 @@ khi nào dịch vụ chạy, ai được báo) với module native giả; chỉ 
    giờ đổ chuông). Mất tiếng khi khoá máy: dịch vụ cuộc gọi không chạy (Sentry/breadcrumb của bản đó; quyền micro chưa
    cấp lúc bắt đầu thì dịch vụ chạy lại khi LiveKit nối). Lỗi trong Kotlin cần bản store; trong lúc chờ có thể tắt gọi
    (mục 12).
+19. **Ghim khoá TLS** (`apps/chat-mobile/plugins/with-tls-pins.js`, tắt mặc định; audit bảo mật
+   "no-pinning-or-attestation"). Bật: lấy SPKI SHA-256 của khoá CA trung gian đang ký chứng chỉ của API và web, và của
+   ít nhất một CA dự phòng (CA khác, hoặc khoá kế tiếp của cùng CA):
+   `openssl s_client -connect api.uniworkos.com:443 -showcerts </dev/null | awk '/BEGIN/{n++} n==2' | openssl x509 -pubkey -noout | openssl pkey -pubin -outform der | openssl dgst -sha256 -binary | base64`
+   (`n==2` là chứng chỉ trung gian; dự phòng tính từ PEM của CA đó). Đặt trong môi trường EAS của bản build (`preview`
+   trước, `production` sau một tuần không lỗi): `UNICHAT_TLS_PINS=<pin1>,<pin2>` và `UNICHAT_TLS_PIN_EXPIRES=<ngày,
+   ~12 tháng sau>`; config từ chối một pin, pin sai dạng, thiếu hay quá ngày hết hạn. Đây là thay đổi native (bản store
+   mới). Xoay vòng: thêm pin của CA mới vào bản store trước khi server đổi CA, bỏ pin cũ ở bản sau; gia hạn ngày hết hạn
+   mỗi bản store. Sự cố (server đổi sang CA không có trong pin): Android tự bỏ ghim sau ngày hết hạn, trước đó cần bản
+   store mới; iOS không có hết hạn — chỉ bật pin trên bản iOS khi đã có quy trình phát bản khẩn. OTA vẫn tới được vì
+   `u.expo.dev` không bị ghim, nhưng OTA không đổi được cấu hình native. Kiểm sau khi bật: app vào được inbox trên mạng
+   thường; qua proxy chặn TLS (mitmproxy với CA người dùng tự cài) thì app báo mất kết nối, không lộ token.
 
 ## Leo thang
 
