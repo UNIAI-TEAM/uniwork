@@ -4,7 +4,7 @@ import { setSessionUser } from "@uniwork/core/auth";
 import { initI18n } from "@uniwork/core/i18n";
 import { useMeetingViewSessionStore } from "@uniwork/core/meetings/view-session";
 import type { Meeting, User } from "@uniwork/core/types";
-import { RoomEvent } from "livekit-client";
+import { ParticipantKind, RoomEvent } from "livekit-client";
 import { requestMock, wrapWithNav } from "../test/api-mock";
 import { MeetingModerationProvider } from "./meeting-moderation";
 import { MeetingRoomPeopleTab } from "./meeting-room-people-tab";
@@ -150,6 +150,24 @@ describe("MeetingRoomPeopleTab", () => {
       );
       fireEvent.click(await screen.findByRole("button", { name: "Thao tác với Chủ trì" }));
       expect(await screen.findByRole("menuitem", { name: "Đặt làm micro hội trường" })).toBeInTheDocument();
+    });
+
+    it("never offers the room microphone for a phone caller", async () => {
+      // A phone row matched to its record (today a SIP identity never is):
+      // the scribe would have to diarize the phone line under the caller's id.
+      const phone = { ...hostInRoom, identity: "uw_participant_p-host", name: "Điện thoại ••• 1234", kind: ParticipantKind.SIP };
+      setSessionUser({ ...me, id: "u-admin", display_name: "Admin" });
+      live.participants = [phone, { ...hostInRoom, identity: "uw_agent_scribe", name: "UniWork AI", isAgent: true }];
+      render(
+        wrapWithNav(
+          <MeetingModerationProvider meetingId="m1" canHost>
+            <MeetingRoomPeopleTab meetingId="m1" meeting={meeting} workspaceId="w1" canHost />
+          </MeetingModerationProvider>,
+        ),
+      );
+      fireEvent.click(await screen.findByRole("button", { name: "Thao tác với Điện thoại ••• 1234" }));
+      expect(await screen.findByRole("menuitem", { name: "Chuyển sang dự thính" })).toBeInTheDocument();
+      expect(screen.queryByRole("menuitem", { name: "Đặt làm micro hội trường" })).not.toBeInTheDocument();
     });
 
     it("offers its standing but never removing the host", async () => {

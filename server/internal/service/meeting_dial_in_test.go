@@ -289,6 +289,31 @@ func TestDialInSweepRunsOnOneReplicaAtATime(t *testing.T) {
 	}
 }
 
+// A phone caller is never the room's shared mic: the scribe would diarize
+// the phone line and file its speakers under the caller's identity.
+func TestDialInCallerIsNeverTheSharedMic(t *testing.T) {
+	s, fake, ua, _, m := dialInFixture(t)
+	ctx := context.Background()
+	m = reloadMeeting(t, s, m.ID)
+	ev := dialIn(t, s, fake, m, "sip_mic", "PA_1")
+	jr, _ := pendingKnockOf(t, s, m, ev.Identity)
+	if err := s.ApproveJoinRequest(ctx, ua.ID, jr.ID); err != nil {
+		t.Fatal(err)
+	}
+	p, err := s.q.GetGuestParticipantAnyStatus(ctx, db.GetGuestParticipantAnyStatusParams{MeetingID: m.ID, GuestID: strText(ev.Identity)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	attrs := len(fake.AttributeCalls())
+	_, err = s.SetSharedMic(ctx, ua.ID, m.ID, p.ID, true)
+	if code, status := codedOf(err); code != "shared_mic_dial_in" || status != 409 {
+		t.Fatalf("err = %v", err)
+	}
+	if reloaded, _ := s.q.GetMeetingParticipant(ctx, p.ID); reloaded.SharedMicAt.Valid || len(fake.AttributeCalls()) != attrs {
+		t.Fatal("a refused shared mic was stored or written to the room")
+	}
+}
+
 func dialInAuditCount(t *testing.T, s *MeetingService, meetingID, action, kind string) int {
 	t.Helper()
 	var n int

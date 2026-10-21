@@ -56,6 +56,11 @@ func (s *MeetingService) SetSharedMic(ctx context.Context, actorID, meetingID, p
 	if err != nil {
 		return db.MeetingParticipant{}, err
 	}
+	// The scribe would diarize the phone line and keep the caller's identity
+	// in its speaker labels. Clearing stays allowed.
+	if enabled && isDialInParticipant(p) {
+		return db.MeetingParticipant{}, coded(http.StatusConflict, "shared_mic_dial_in", "người gọi điện thoại không làm micro hội trường được")
+	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return db.MeetingParticipant{}, err
