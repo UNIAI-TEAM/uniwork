@@ -1,0 +1,5 @@
+$ npm run test -w @genoffice/markdown > /tmp/f2-md.log 2>&1; rc=$?; grep -E "Test Files|Tests |FAIL|AssertionError|Error:" /tmp/f2-md.log | head -60; echo; echo "MARKDOWN_TEST_EXIT=$rc"
+ Test Files  104 passed (104)
+      Tests  1275 passed (1275)
+
+MARKDOWN_TEST_EXIT=0

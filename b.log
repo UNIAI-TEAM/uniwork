@@ -1,0 +1,8 @@
+$ export ELECTRON_SKIP_BINARY_DOWNLOAD=1; npm ci > /tmp/f2-ci.log 2>&1; rc=$?; tail -5 /tmp/f2-ci.log; echo; echo "INSTALL_EXIT=$rc"
+
+Some issues need review, and may require choosing
+a different dependency.
+
+Run `npm audit` for details.
+
+INSTALL_EXIT=0
