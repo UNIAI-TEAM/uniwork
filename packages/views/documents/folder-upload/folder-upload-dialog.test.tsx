@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { FolderUploadPlan } from "@uniwork/core/documents/folder-upload";
 import { FolderUploadDialog, type FolderUploadDialogProps } from "./folder-upload-dialog";
@@ -40,6 +40,32 @@ const filesPlan = (over: Partial<FolderUploadPlan> = {}) =>
   plan({ rootName: null, rootTitle: null, folders: [], totals: { files: 12, bytes: 3 * MIB }, ...over });
 
 describe("FolderUploadDialog", () => {
+  // tester_visual r1 F2: a small tree read "3 tệp · 0 MB".
+  it("never reads 0 MB for a small tree: it shows KB under a megabyte (F2)", () => {
+    renderDialog({ plan: plan({ totals: { files: 3, bytes: 4.5 * 1024 } }) });
+    const summary = screen.getByTestId("folder-upload-summary");
+    expect(summary).toHaveTextContent("3 tệp · 4,5 KB");
+    expect(summary).not.toHaveTextContent("0 MB");
+  });
+
+  it("shows bytes for a few bytes and keeps MB from one megabyte up (F2)", () => {
+    renderDialog({ plan: plan({ totals: { files: 1, bytes: 300 } }) });
+    expect(screen.getByTestId("folder-upload-summary")).toHaveTextContent("1 tệp · 300 B");
+  });
+
+  // tester_visual r1 F3: focus landed on the first "Xem danh sách" link.
+  it("opens with the focus on the primary action when it is enabled (F3)", async () => {
+    renderDialog({
+      plan: plan({ skipped: [{ path: "a/.DS_Store", reason: "hidden" }] }),
+    });
+    await waitFor(() => expect(submit()).toHaveFocus());
+  });
+
+  it("opens with the focus on the dialog when the plan is refused (F3)", async () => {
+    renderDialog({ plan: plan({ refusal: { code: "nothing_to_upload" } }) });
+    await waitFor(() => expect(screen.getByRole("dialog")).toHaveFocus());
+  });
+
   it("marks the folder mode on the dialog", () => {
     renderDialog();
     expect(screen.getByTestId("folder-upload-dialog")).toHaveAttribute("data-mode", "folder");

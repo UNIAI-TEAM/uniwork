@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { CircleAlert, FolderUp } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { FolderUploadPlan } from "@uniwork/core/documents/folder-upload";
@@ -16,7 +16,16 @@ import {
 } from "@uniwork/ui/components/ui/dialog";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { Switch } from "@uniwork/ui/components/ui/switch";
+import { formatBytes } from "../doclist/format";
 import { groupSkipped, modeContext, refusalMessage, skipReasonLabel } from "./folder-upload-copy";
+
+const MIB = 1024 * 1024;
+
+/** A tree of a few KB must not read "0 MB": under a megabyte the size is in B / KB. */
+function formatPlanSize(bytes: number, locale: string): string {
+  if (bytes >= MIB) return formatDocumentSizeMB(bytes, locale);
+  return bytes > 0 ? formatBytes(bytes, locale) : "0 B";
+}
 
 export interface FolderUploadDialogProps {
   open: boolean;
@@ -57,6 +66,8 @@ export function FolderUploadDialog({
   const [share, setShare] = useState(false);
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
   const shareHintId = useId();
+  const popupRef = useRef<HTMLDivElement | null>(null);
+  const submitRef = useRef<HTMLButtonElement | null>(null);
 
   // Each staged folder starts from the safe defaults: private, lists collapsed.
   useEffect(() => {
@@ -85,7 +96,12 @@ export function FolderUploadDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg" closeLabel={t("common.close")} data-testid="folder-upload-dialog" data-mode={mode}>
+      <DialogContent
+        ref={popupRef}
+        // Start on the primary action; a refused plan has none, so the dialog itself takes the focus.
+        initialFocus={() => (refusal || pending ? popupRef.current : submitRef.current) ?? true}
+        className="sm:max-w-lg"
+        closeLabel={t("common.close")} data-testid="folder-upload-dialog" data-mode={mode}>
         <DialogHeader>
           <DialogTitle>{t("documents.folder_upload.dialog.title", ctx)}</DialogTitle>
           <DialogDescription>{t("documents.folder_upload.dialog.description")}</DialogDescription>
@@ -135,7 +151,7 @@ export function FolderUploadDialog({
               <p className="text-body text-foreground" data-testid="folder-upload-summary">
                 {t("documents.folder_upload.dialog.summary", {
                   count: plan.totals.files,
-                  size: formatDocumentSizeMB(plan.totals.bytes, i18n.language),
+                  size: formatPlanSize(plan.totals.bytes, i18n.language),
                 })}
               </p>
             )}
@@ -220,7 +236,7 @@ export function FolderUploadDialog({
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                 {t("documents.folder_upload.dialog.cancel")}
               </Button>
-              <Button type="submit" aria-disabled={refusal !== null || pending || undefined} aria-busy={pending || undefined}>
+              <Button ref={submitRef} type="submit" aria-disabled={refusal !== null || pending || undefined} aria-busy={pending || undefined}>
                 {pending ? (
                   <>
                     <Spinner aria-hidden role="presentation" />
