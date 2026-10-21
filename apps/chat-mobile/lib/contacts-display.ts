@@ -86,3 +86,29 @@ export function pickerPeople<T extends ContactMember>(
     .filter((member) => foldedIncludes(member.label, options.query) || foldedIncludes(member.email, options.query))
     .sort((a, b) => a.label.localeCompare(b.label));
 }
+
+/** One cell of the contacts list: a letter's header, or a person (`last` in its letter: no separator under it). */
+export type ContactListItem =
+  | { kind: "header"; key: string; title: string }
+  | { kind: "person"; key: string; row: ContactRow; last: boolean };
+
+export interface ContactList {
+  items: ContactListItem[];
+  /** Each section's header index, in section order: the sticky headers, and where a letter of the index jumps. */
+  headerIndices: number[];
+}
+
+/**
+ * The sections flattened for a recycling list (one cell kind per item type),
+ * with the header positions the sticky headers and the letter index need.
+ */
+export function contactListItems(sections: readonly ContactSection[]): ContactList {
+  const items: ContactListItem[] = [];
+  const headerIndices: number[] = [];
+  for (const section of sections) {
+    headerIndices.push(items.length);
+    items.push({ kind: "header", key: `header:${section.title}`, title: section.title });
+    section.data.forEach((row, index) => items.push({ kind: "person", key: row.user_id, row, last: index === section.data.length - 1 }));
+  }
+  return { items, headerIndices };
+}

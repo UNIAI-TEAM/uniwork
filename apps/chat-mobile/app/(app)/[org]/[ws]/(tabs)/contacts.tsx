@@ -3,15 +3,16 @@
 // and who is online — a strip of the online ones above the list — A–Z. A tap
 // opens the DM through the deep-link contract the chat tab (M2a) honours;
 // the DM says when either side blocked (room-safety.tsx › DmBlockBanner), and
-// its details block, unblock and report, as on the web.
+// its details block, unblock and report, as on the web. The list recycles its
+// cells (components/contacts/contact-list.tsx) and a search filters behind the
+// keystrokes (useDeferredValue): typing stays smooth in a 1,000-person workspace.
 import { useQuery } from "@tanstack/react-query";
 import { router } from "expo-router";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useDeferredValue, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ActivityIndicator, SectionList, View } from "react-native";
+import { ActivityIndicator, View } from "react-native";
 import { useWorkspaceSlugs } from "@/components/chat/use-chat-workspace";
-import { ContactItem, ContactSeparator } from "@/components/contacts/contact-item";
-import { LetterIndex } from "@/components/contacts/letter-index";
+import { ContactList } from "@/components/contacts/contact-list";
 import { OnlineStrip } from "@/components/contacts/online-strip";
 import { Button } from "@/components/ui/button";
 import { Header } from "@/components/ui/header";
@@ -33,8 +34,9 @@ export default function ContactsTab() {
   // The layout syncs the store after it validated the URL pair; until then there is no workspace to ask about.
   const wsId = current?.orgSlug === org && current.wsSlug === ws ? current.wsId : "";
   const userId = useAuthStore((s) => s.user?.id ?? "");
-  const [query, setQuery] = useState("");
-  const list = useRef<SectionList<ContactRow>>(null);
+  const [typed, setTyped] = useState("");
+  // The field shows every keystroke at once; the list catches up when the JS thread is free.
+  const query = useDeferredValue(typed);
 
   const members = useQuery({ ...workspaceMembersOptions(wsId), enabled: !!wsId });
   // Unreadable, it hides no one (the web's list), so it never blocks the tab.
@@ -72,8 +74,8 @@ export default function ContactsTab() {
     <View className="flex-1 bg-background">
       <Header large title={t("nav.people")} subtitle={members.data ? t("mobile.contacts.count", { count }) : undefined}>
         <SearchField
-          value={query}
-          onChangeText={setQuery}
+          value={typed}
+          onChangeText={setTyped}
           placeholder={t("mobile.contacts.search")}
           accessibilityLabel={t("mobile.contacts.search")}
           autoCapitalize="none"
@@ -81,34 +83,18 @@ export default function ContactsTab() {
           className="mb-2 mt-3"
         />
       </Header>
-      <SectionList
-        ref={list}
+      <ContactList
         sections={sections}
-        keyExtractor={(row) => row.user_id}
-        keyboardShouldPersistTaps="handled"
-        stickySectionHeadersEnabled
-        ListHeaderComponent={everyone.length > 0 ? <OnlineStrip people={everyone} onPress={openDm} /> : null}
-        renderSectionHeader={({ section }) => (
-          <Text accessibilityRole="header" className="bg-background px-4 py-1.5 text-footnote font-display font-bold text-muted-foreground">
-            {section.title}
-          </Text>
-        )}
-        renderItem={({ item }) => <ContactItem row={item} onPress={openDm} />}
-        ItemSeparatorComponent={ContactSeparator}
-        ListEmptyComponent={empty}
+        onPress={openDm}
+        showIndex={!query.trim()}
+        header={everyone.length > 0 ? <OnlineStrip people={everyone} onPress={openDm} /> : null}
+        empty={empty}
         refreshing={members.isRefetching}
         onRefresh={() => {
           // refetch() ignores `enabled`, so a pull waits for a workspace too.
           if (wsId) void Promise.all([members.refetch(), deactivated.refetch(), nicknames.refetch()]);
         }}
       />
-      {/* MobContacts board: the letters down the right edge jump to their section. */}
-      {sections.length > 1 && !query.trim() ? (
-        <LetterIndex
-          letters={sections.map((section) => section.title)}
-          onJump={(sectionIndex) => list.current?.scrollToLocation({ sectionIndex, itemIndex: 0, viewOffset: 0, animated: true })}
-        />
-      ) : null}
     </View>
   );
 }

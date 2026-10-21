@@ -196,6 +196,7 @@
 ["@sentry/react","10.37.0","MIT"],
 ["@sentry/react-native","7.11.0","MIT"],
 ["@sentry/types","10.37.0","MIT"],
+["@shopify/flash-list","2.0.2","MIT"],
 ["@sinclair/typebox","0.27.12","MIT"],
 ["@tanstack/query-core","5.102.3","MIT"],
 ["@tanstack/query-persist-client-core","5.102.3","MIT"],

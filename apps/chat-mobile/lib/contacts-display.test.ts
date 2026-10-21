@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { contactLabel, contactSections, pickerPeople } from "./contacts-display";
+import { contactLabel, contactListItems, contactSections, pickerPeople } from "./contacts-display";
 import { resolveChatNicknameForUser } from "@uniwork/core/chat/contact-labels";
 
 const member = (user_id: string, display_name: string, email = `${user_id}@example.com`) => ({ user_id, display_name, email });
@@ -61,6 +61,24 @@ describe("contactSections", () => {
     expect(shape(contactSections(members, { ...base, query: "long@" }))).toEqual([["T", ["Trần Hoang Long"]]]);
     expect(shape(contactSections(members, { ...base, nicknames: { u1: "Bé Long" }, query: "tran" }))).toEqual([["B", ["Bé Long"]]]);
     expect(contactSections(members, { ...base, query: "nghi" })).toEqual([]);
+  });
+});
+
+describe("contactListItems", () => {
+  const row = (id: string) => ({ user_id: id, email: `${id}@uni.vn`, display_name: id, label: id });
+
+  it("flattens each letter into its header then its people, the last of a letter marked, headers indexed", () => {
+    const list = contactListItems([
+      { title: "A", data: [row("a1"), row("a2")] },
+      { title: "B", data: [row("b1")] },
+    ]);
+    expect(list.items.map((item) => (item.kind === "header" ? item.title : `${item.row.user_id}${item.last ? "." : ""}`))).toEqual(["A", "a1", "a2.", "B", "b1."]);
+    expect(list.items.map((item) => item.key)).toEqual(["header:A", "a1", "a2", "header:B", "b1"]);
+    expect(list.headerIndices).toEqual([0, 3]);
+  });
+
+  it("has nothing for no one", () => {
+    expect(contactListItems([])).toEqual({ items: [], headerIndices: [] });
   });
 });
 

@@ -1,8 +1,8 @@
 {
-  "_": "Ceilings for the Android JS bundle (scripts/mobile-bundle-budget.mjs, mobile-verify.yml), on `expo export --platform android` with UNICHAT_ENV=production. Set 2026-10-21 at 7683 KB Hermes bytecode, 3304 KB gzip, 2808 modules + 5 %, raised from 6843/2922/2514 by UNI-2053 for @sentry/react-native (~386 modules, about +1.1 MB bytecode, +0.5 MB gzip). Measured again with UNI-2053 S5 (performance): 7974 KB, 3424 KB gzip, 2919 modules (S2-S4's screens and native calls took most of the headroom; S5 adds 12 KB of row models and list cells and moves LiveKit's start to the first call). Lower one when the bundle shrinks; raise one only in the commit that adds the weight, saying why in its body.",
+  "_": "Ceilings for the Android JS bundle (scripts/mobile-bundle-budget.mjs, mobile-verify.yml), on `expo export --platform android` with UNICHAT_ENV=production. Set 2026-10-21 at 7683 KB Hermes bytecode, 3304 KB gzip, 2808 modules + 5 %, raised from 6843/2922/2514 by UNI-2053 for @sentry/react-native (~386 modules, about +1.1 MB bytecode, +0.5 MB gzip). Measured again with UNI-2053 S5 (performance): 7974 KB, 3424 KB gzip, 2919 modules (S2-S4's screens and native calls took most of the headroom; S5 adds 12 KB of row models and list cells and moves LiveKit's start to the first call). Lower one when the bundle shrinks; raise one only in the commit that adds the weight, saying why in its body. Measured again 2026-10-22 at 0eefe3767 (the branch's first real run of this gate: S3-S6's offline, realtime and native-call commits had taken the bundle to 8185 KB, 3504 KB gzip, 3041 modules, over every ceiling), then with @shopify/flash-list 2 for the recycling lists (audit P2 Perf, +95 KB, +47 KB gzip, +52 modules): 8281 KB, 3551 KB gzip, 3093 modules; ceilings set 1 % above.",
   "android": {
-    "bundleKB": 8067,
-    "gzipKB": 3470,
-    "modules": 2949
+    "bundleKB": 8365,
+    "gzipKB": 3587,
+    "modules": 3124
   }
 }

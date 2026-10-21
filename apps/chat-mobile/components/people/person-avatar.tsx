@@ -35,13 +35,21 @@ interface Props {
 export function PersonAvatar({ name, avatarUrl, size = 40, online = false, squircle = false, seed }: Props) {
   // An image cannot load a server-relative path.
   const uri = avatarUrl ? (avatarUrl.startsWith("/") ? `${runtimeConfig().apiUrl}${avatarUrl}` : avatarUrl) : null;
+  const source = uri ? stableImageSource(uri) : null;
   const dot = Math.max(10, Math.round(size / 4));
   const borderRadius = squircle ? Math.round(size / 3) : size / 2;
   const letters = squircle ? roomInitialsOf(name) : initialsOf(name);
   return (
     <View style={{ width: size, height: size }} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-      {uri ? (
-        <Image source={stableImageSource(uri)} cachePolicy={IMAGE_CACHE_POLICY} contentFit="cover" style={{ width: size, height: size, borderRadius }} />
+      {source ? (
+        // recyclingKey: a list cell reused for another person (FlashList) clears the last face before the next draws.
+        <Image
+          source={source}
+          recyclingKey={source.cacheKey}
+          cachePolicy={IMAGE_CACHE_POLICY}
+          contentFit="cover"
+          style={{ width: size, height: size, borderRadius }}
+        />
       ) : (
         <View className={`items-center justify-center ${SOLID_TINT_BG[identityTint(seed || name || "")]}`} style={[squircle && continuousCorners, { width: size, height: size, borderRadius }]}>
           <Text className="font-display font-bold text-on-solid" style={letterStyle(size, letters.length > 1 ? 0.33 : 0.42)}>

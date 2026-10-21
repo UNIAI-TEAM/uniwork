@@ -50,6 +50,20 @@ jest.mock("expo-audio", () => {
   };
 });
 
+// FlashList (2.x, JS only) is the recycling list itself here, laid out in a 400 × 900 window with 100 pt
+// cells, since Jest has no layout: a long list mounts about a screenful of cells, as on a device. The
+// package's own jestSetup.js cannot be used: it maps FlashList to a RecyclerView export 2.0 does not have.
+jest.mock("@shopify/flash-list/dist/recyclerview/utils/measureLayout", () => {
+  const actual = jest.requireActual<object>("@shopify/flash-list/dist/recyclerview/utils/measureLayout");
+  const window = { x: 0, y: 0, width: 400, height: 900 };
+  return {
+    ...actual,
+    measureParentSize: jest.fn(() => window),
+    measureFirstChildLayout: jest.fn(() => window),
+    measureItemLayout: jest.fn(() => ({ x: 0, y: 0, width: 100, height: 100 })),
+  };
+});
+
 // The keyboard follows the composer through react-native-keyboard-controller's
 // native module; its own Jest mock holds the keyboard closed.
 jest.mock("react-native-keyboard-controller", () => jest.requireActual("react-native-keyboard-controller/jest"));

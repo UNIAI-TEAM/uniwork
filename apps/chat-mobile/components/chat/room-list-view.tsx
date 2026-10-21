@@ -3,9 +3,12 @@
 // them here and each DM row reads its peer's presence itself, so a typing frame
 // redraws the row that types and a presence change the row of that person.
 // Every cell gets the same handlers object and is skipped while its row draws
-// the same, so a new message redraws the rows it moved or changed only.
+// the same, so a new message redraws the rows it moved or changed only. The
+// list recycles its cells (FlashList, audit P2 Perf): a cell keeps no state of
+// its own (presence is read per row, by the row's person), so a reused one
+// draws its new room, and avatars clear on reuse (PersonAvatar's recyclingKey).
 import { memo, useCallback, useMemo, useRef, type ComponentProps } from "react";
-import { FlatList, type ListRenderItem } from "react-native";
+import { FlashList, type ListRenderItem } from "@shopify/flash-list";
 import { useIsOnline } from "@/components/people/use-is-online";
 import { newestRow, sameRoomListRow, type RoomListRow, type RoomMark } from "@/lib/room-list";
 import { RoomRow } from "./room-row";
@@ -59,7 +62,7 @@ const MemoRoomListItem = memo(
   (a, b) => a.typingLine === b.typingLine && a.queued === b.queued && a.handlers === b.handlers && sameRoomListRow(a.row, b.row),
 );
 
-type ListProps = Pick<ComponentProps<typeof FlatList<RoomListRow>>, "ListHeaderComponent" | "ListEmptyComponent" | "refreshControl">;
+type ListProps = Pick<ComponentProps<typeof FlashList<RoomListRow>>, "ListHeaderComponent" | "ListEmptyComponent" | "refreshControl">;
 
 interface Props extends ListProps {
   rows: RoomListRow[];
@@ -71,6 +74,8 @@ interface Props extends ListProps {
 }
 
 const keyOf = (row: RoomListRow) => row.key;
+// A DM row and a group or channel row are laid out alike but carry different avatars: recycled within their kind.
+const typeOf = (row: RoomListRow) => row.mark.kind;
 
 export function RoomListView({ rows, typingLines, queuedRooms, onOpen, onMenu, ...list }: Props) {
   // A skipped cell holds the row it last drew; a tap acts on the newest row with that key.
@@ -91,5 +96,5 @@ export function RoomListView({ rows, typingLines, queuedRooms, onOpen, onMenu, .
     ),
     [typingLines, queuedRooms, handlers],
   );
-  return <FlatList data={rows} keyExtractor={keyOf} keyboardShouldPersistTaps="handled" renderItem={renderItem} {...list} />;
+  return <FlashList data={rows} keyExtractor={keyOf} getItemType={typeOf} keyboardShouldPersistTaps="handled" renderItem={renderItem} {...list} />;
 }

@@ -34,6 +34,7 @@
     "@rn-primitives/separator": "^1.4.0",
     "@rn-primitives/slot": "^1.4.0",
     "@sentry/react-native": "~7.11.0",
+    "@shopify/flash-list": "2.0.2",
     "@tanstack/query-persist-client-core": "5.102.3",
     "@tanstack/react-query": "catalog:",
     "@uniwork/core": "workspace:*",

@@ -1,11 +1,15 @@
 // The contacts tab's parts, as a person hears them: the strip of people online,
-// each person of the A–Z list, and the letters that jump the list.
+// each person of the A–Z list, the letters that jump the list, and the list of
+// a thousand people (audit P1 Perf: a jump past what is drawn never throws).
 import { act, fireEvent, screen } from "@testing-library/react-native";
 import { usePresenceStore } from "@/data/stores/chat-presence-store";
 import type { ContactRow } from "@/lib/contacts-display";
 import { userKey } from "@/lib/user-id";
+import { Text } from "@/components/ui/text";
 import { render, viText } from "@/test/render";
-import { ContactItem, ContactSeparator } from "./contact-item";
+import { contactSections, type ContactSection } from "@/lib/contacts-display";
+import { ContactItem } from "./contact-item";
+import { ContactList } from "./contact-list";
 import { LetterIndex } from "./letter-index";
 import { OnlineStrip } from "./online-strip";
 
@@ -47,9 +51,12 @@ describe("ContactItem", () => {
     expect(screen.getAllByText("an@uni.vn")).toHaveLength(1);
   });
 
-  it("is separated past the avatar", async () => {
-    await render(<ContactSeparator />);
-    expect(screen.toJSON()).not.toBeNull();
+  it("draws the inset line under it only when separated", async () => {
+    const lines = () => JSON.stringify(screen.toJSON()).match(/ml-\[72px\]/g)?.length ?? 0;
+    const { rerender } = await render(<ContactItem row={person("u1", "An")} onPress={jest.fn()} />);
+    expect(lines()).toBe(0);
+    await rerender(<ContactItem row={person("u1", "An")} onPress={jest.fn()} separated />);
+    expect(lines()).toBe(1);
   });
 });
 
@@ -60,5 +67,61 @@ describe("LetterIndex", () => {
     expect(screen.getByLabelText(viText("chat.mobile.alphabet_index"))).toBeOnTheScreen();
     await fireEvent.press(screen.getByRole("button", { name: "Đ" }));
     expect(jump).toHaveBeenCalledWith(2);
+  });
+});
+
+describe("ContactList", () => {
+  // A thousand people, A to Z: "Người 0000" … sorted by their first letter, which cycles through the alphabet.
+  const ALPHABET = "ABCDEGHIKLMNOPQRSTUVXY";
+  const thousand = (): ContactSection[] =>
+    contactSections(
+      Array.from({ length: 1000 }, (_, n) => ({ user_id: `u${n}`, email: `u${n}@uni.vn`, display_name: `${ALPHABET[n % ALPHABET.length]}${String(n).padStart(4, "0")}` })),
+      { currentUserId: "me", hiddenUserIds: new Set(), query: "" },
+    );
+  const list = (sections: ContactSection[], extra: Partial<Parameters<typeof ContactList>[0]> = {}) => (
+    <ContactList sections={sections} onPress={jest.fn()} showIndex header={null} empty={<></>} refreshing={false} onRefresh={jest.fn()} {...extra} />
+  );
+
+  it("mounts about a screenful of a thousand people, not all of them", async () => {
+    await render(list(thousand()));
+    const drawn = screen.getAllByRole("button", { name: /@uni\.vn$/ }).length;
+    expect(drawn).toBeGreaterThan(0);
+    expect(drawn).toBeLessThan(100);
+    // The letter's cell, and the sticky copy over the list.
+    expect(screen.getAllByRole("header", { name: "A" }).length).toBeGreaterThan(0);
+  });
+
+  it("jumps to a letter far past what is drawn without throwing, and lands in its section", async () => {
+    await render(list(thousand()));
+    expect(screen.queryAllByRole("header", { name: "Y" })).toHaveLength(0);
+    expect(screen.queryByText(/^X05/)).toBeNull();
+    await act(async () => {
+      await fireEvent.press(screen.getByRole("button", { name: "Y" }));
+    });
+    // The list moved to the end: the last letters are drawn, and Y's header is the sticky one.
+    expect((await screen.findAllByRole("header", { name: "Y" })).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/^X05/).length).toBeGreaterThan(0);
+  });
+
+  it("opens the DM of the person tapped", async () => {
+    const open = jest.fn();
+    await render(list(contactSections([person("u1", "An"), person("u2", "Bình")], { currentUserId: "me", hiddenUserIds: new Set(), query: "" }), { onPress: open }));
+    await fireEvent.press(screen.getByRole("button", { name: "Bình, u2@uni.vn" }));
+    expect(open).toHaveBeenCalledWith(expect.objectContaining({ user_id: "u2" }));
+  });
+
+  it("hides the letters while a search narrows the list, or when there is one letter", async () => {
+    const two = contactSections([person("u1", "An"), person("u2", "Bình")], { currentUserId: "me", hiddenUserIds: new Set(), query: "" });
+    const { rerender } = await render(list(two, { showIndex: false }));
+    expect(screen.queryByLabelText(viText("chat.mobile.alphabet_index"))).toBeNull();
+    await rerender(list(two.slice(0, 1)));
+    expect(screen.queryByLabelText(viText("chat.mobile.alphabet_index"))).toBeNull();
+    await rerender(list(two));
+    expect(screen.getByLabelText(viText("chat.mobile.alphabet_index"))).toBeOnTheScreen();
+  });
+
+  it("shows what it is given while there is no one", async () => {
+    await render(list([], { empty: <Text>{"trống"}</Text> }));
+    expect(screen.getByText("trống")).toBeOnTheScreen();
   });
 });

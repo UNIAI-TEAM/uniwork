@@ -412,6 +412,15 @@ một dòng thì ghi lý do ở dòng trên.
   mới, tạo/thêm nhóm, chi tiết phòng; không màn nào đọc cả tập `onlineUserIds` trừ dải "đang hoạt động" của danh bạ),
   hàng so bằng `sameRoomListRow`, chạm vào hành động trên hàng mới
   nhất cùng key. Đừng truyền closure mới hay object dựng trong render vào một cell: test đếm render đỏ.
+  **Danh sách tái chế** (`@shopify/flash-list` 2, chỉ JS — không đổi fingerprint): danh sách phòng, danh bạ
+  (`components/contacts/contact-list.tsx`: section dàn phẳng thành ô chữ cái + ô người bằng `contactListItems`, chữ
+  cái dính, chữ cái bên phải nhảy bằng `scrollToIndex` — `scrollToLocation` của SectionList không có `getItemLayout`
+  ném invariant khi chữ cái nằm ngoài phần đã đo, crash cả app ở workspace lớn) và dải "đang hoạt động" (ngang).
+  Ô tái chế không giữ state riêng (hiện diện đọc theo người của hàng), `getItemType` theo loại ô, avatar có
+  `recyclingKey` (ô dùng lại không loé mặt người trước). Ô tìm danh bạ lọc sau phím gõ (`useDeferredValue`).
+  Jest: `test/jest-setup.ts` mock đo layout của FlashList (cửa sổ 400 × 900, ô 100) — `jestSetup.js` của gói trỏ
+  tới export không có ở bản 2.0; danh sách dài trong test chỉ mount khoảng một màn như trên máy.
+  Timeline tin nhắn vẫn là FlatList đảo ngược (lý do ở `message-list.tsx`).
   `lib/user-id.ts` (`userKey`/`sameUser`) thay `trim().toUpperCase()` ngoài các file copy từ web. Link việc của tin
   hỏi theo cửa sổ (`lib/link-windows.ts`, ranh giới theo hash id): tin mới chỉ refetch cửa sổ mới nhất; cửa sổ vừa
   đổi key giữ thẻ việc cũ của các tin trong nó tới khi có câu trả lời (`taskIdsByMessage`; `keepPreviousData` không áp
