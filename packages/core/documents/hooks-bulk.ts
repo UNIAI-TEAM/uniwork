@@ -9,6 +9,7 @@ import {
   shelveDocument,
   unshelveDocument,
 } from "../api/endpoints/documents-collections";
+import { createDownloadJob, getDownloadJob, type DocumentDownloadJob } from "../api/endpoints/documents-download-jobs";
 import { DocumentNotVerifiableError } from "../types/document";
 import { createSafeId } from "../utils";
 import { runBulk, type BulkResult } from "./bulk";
@@ -68,5 +69,30 @@ export function useBulkDocumentCommand(wsId: string) {
       return runBulk(ids, (id) => runOne(command, id, keys.get(id)!, parentId));
     },
     onSettled: () => qc.invalidateQueries({ queryKey: documentKeys.workspace(wsId) }),
+  });
+}
+
+const TERMINAL = new Set<string>(["ready", "failed", "expired"]);
+
+/**
+ * Creates the SV-9 zip job and polls it every `pollMs` (2 s) until it is
+ * ready, failed or expired, or `maxPolls` runs out; it answers the last job
+ * it read (still `queued`/`running` past the cap). A job without an id is not
+ * verifiable; a 422 `download_too_large` rejects as the ApiError it is.
+ */
+export function useDocumentDownloadJob(wsId: string, opts: { pollMs?: number; maxPolls?: number } = {}) {
+  const { pollMs = 2000, maxPolls = 90 } = opts;
+  return useMutation({
+    mutationFn: async (ids: readonly string[]): Promise<DocumentDownloadJob> => {
+      let job = await createDownloadJob(wsId, ids);
+      if (!job) throw new DocumentNotVerifiableError();
+      for (let polls = 0; !TERMINAL.has(job.status) && polls < maxPolls; polls += 1) {
+        await new Promise((resolve) => setTimeout(resolve, pollMs));
+        const next: DocumentDownloadJob | null = await getDownloadJob(wsId, job.id);
+        if (!next) throw new DocumentNotVerifiableError();
+        job = next;
+      }
+      return job;
+    },
   });
 }

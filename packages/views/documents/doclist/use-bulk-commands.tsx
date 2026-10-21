@@ -4,8 +4,10 @@ import { useState, type ReactNode } from "react";
 import { Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
+import { apiErrorMessage } from "@uniwork/core/api";
+import { isDownloadTooLargeError } from "@uniwork/core/api/endpoints/documents-download-jobs";
 import type { BulkFailure } from "@uniwork/core/documents/bulk";
-import { useBulkDocumentCommand, type BulkDocumentCommand } from "@uniwork/core/documents/hooks-bulk";
+import { useBulkDocumentCommand, useDocumentDownloadJob, type BulkDocumentCommand } from "@uniwork/core/documents/hooks-bulk";
 import type { DocumentTreeNode } from "@uniwork/core/types/document";
 import {
   AlertDialog,
@@ -19,6 +21,7 @@ import {
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { FolderPickerDialog } from "../folder-picker-dialog";
+import type { DocumentSummaryRow } from "../library-rows";
 import type { BulkActionId, BulkPlan, DocListBulk } from "./bulk-actions";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
@@ -48,6 +51,16 @@ function BulkErrorList({ failures, titles, t }: { failures: BulkFailure[]; title
   );
 }
 
+/** Opens the signed link of a ready zip job: the browser downloads it (the URL lives one hour). */
+function saveLink(url: string) {
+  const link = window.document.createElement("a");
+  link.href = url;
+  link.rel = "noopener";
+  window.document.body.append(link);
+  link.click();
+  link.remove();
+}
+
 type Pending = { plan: BulkPlan; done: () => void };
 
 /**
@@ -56,19 +69,27 @@ type Pending = { plan: BulkPlan; done: () => void };
  * the move asks for its target once; then the batch fans out over the
  * single-document routes (core `useBulkDocumentCommand`, at most four at a
  * time, one invalidation at the end) and one toast says "Đã … 3/5 tài liệu"
- * with the documents it could not act on. Tải xuống waits for the SV-9 zip job. Share is not offered: the
+ * with the documents it could not act on. Several files download as one SV-9
+ * zip job, one file through the row's own download. Share is not offered: the
  * share dialog takes one document (reported in W9).
  */
 export function useDocListBulkCommands({
   wsId,
   tree,
+  onDownloadOne,
+  zipPollMs,
 }: {
   wsId: string;
   /** The folder tree, for the move target picker. */
   tree: DocumentTreeNode[];
+  /** The row menu's single-file download. */
+  onDownloadOne: (doc: DocumentSummaryRow) => void;
+  /** How often the zip job is polled; 2 s unless a test says otherwise. */
+  zipPollMs?: number;
 }): { bulk: DocListBulk; dialogs: ReactNode } {
   const { t } = useTranslation();
   const command = useBulkDocumentCommand(wsId);
+  const zip = useDocumentDownloadJob(wsId, { pollMs: zipPollMs });
   const [confirming, setConfirming] = useState<Pending | null>(null);
   const [moving, setMoving] = useState<Pending | null>(null);
 
@@ -84,6 +105,43 @@ export function useDocListBulkCommands({
     done();
   };
 
+  const download = async ({ plan, done }: Pending) => {
+    if (plan.docs.length === 1) {
+      onDownloadOne(plan.docs[0]!);
+      if (plan.skipped.length > 0) report(plan, 1, plan.skipped);
+      done();
+      return;
+    }
+    const id = toast.loading(t("documents.list.bulk.zip.preparing"));
+    try {
+      const job = await zip.mutateAsync(plan.docs.map((doc) => doc.id));
+      switch (job.status) {
+        case "ready": {
+          if (!job.download_url) {
+            toast.error(t("documents.list.bulk.zip.failed"), { id });
+            break;
+          }
+          saveLink(job.download_url);
+          const skipped = job.skipped.map((skip) => ({ id: skip.document_id, code: skip.reason }));
+          report(plan, job.file_count ?? plan.docs.length - skipped.length, [...skipped, ...plan.skipped], id);
+          break;
+        }
+        case "expired":
+          toast.error(t("documents.list.bulk.zip.expired"), { id });
+          break;
+        case "failed":
+          toast.error(t("documents.list.bulk.zip.failed"), { id });
+          break;
+        default:
+          // Still queued or running when the poll cap ran out.
+          toast.error(t("documents.list.bulk.zip.timeout"), { id });
+      }
+    } catch (error) {
+      toast.error(isDownloadTooLargeError(error) ? t("documents.list.bulk.zip.too_large") : (apiErrorMessage(error) ?? t("documents.list.bulk.zip.failed")), { id });
+    }
+    done();
+  };
+
   const run = (plan: BulkPlan, done: () => void) => {
     const pending = { plan, done };
     switch (plan.action) {
@@ -93,6 +151,9 @@ export function useDocListBulkCommands({
         return;
       case "move":
         setMoving(pending);
+        return;
+      case "download":
+        void download(pending);
         return;
       case "shelve":
       case "unshelve":
@@ -158,6 +219,6 @@ export function useDocListBulkCommands({
     </>
   );
 
-  const supported: ReadonlySet<BulkActionId> = new Set<BulkActionId>(["move", "shelve", "trash", "unshelve", "restore", "purge"]);
+  const supported: ReadonlySet<BulkActionId> = new Set<BulkActionId>(["move", "download", "shelve", "trash", "unshelve", "restore", "purge"]);
   return { bulk: { supports: (action) => supported.has(action), run }, dialogs };
 }

@@ -197,7 +197,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
   const shelvedActions = useShelvedActions({ wsId, rows: library.state.rows });
   // The bulk bar (UNI-2045 W9) on every list screen but the sources view; a
   // new folder, view or filter starts a fresh selection.
-  const bulkCommands = useDocListBulkCommands({ wsId, tree: library.tree });
+  const bulkCommands = useDocListBulkCommands({ wsId, tree: library.tree, onDownloadOne: fileCommands.onDownload });
   const selectionKey = [wsId, view.kind, view.kind === "sources" ? (view.source ?? "") : "", folderId ?? "", chip, library.access, library.editor, library.updated, library.shelvedBy ?? ""].join("|");
   // Move and archive sit on the rows of this workspace's own lists for
   // people who may change the open folder; the server decides per document.
