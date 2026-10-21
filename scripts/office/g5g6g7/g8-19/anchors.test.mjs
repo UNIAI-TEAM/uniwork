@@ -954,3 +954,84 @@ test("G819-BE-8c: the ordering wait has its own bound - a clock that never advan
   assert.equal(fake.calls.api.filter((x) => x.key === "createDocumentComment" && x.args.pathParams.documentID === CLOSED_DOC).length, 0, "no comment without a strict order");
   assert.ok(sleeps <= 1_000 + 80, `waited ${sleeps} ticks`);
 });
+
+/**
+ * A pdf server whose prepare Save's version lands late (cloud row pdf, w3): the Save answers at once,
+ * but the head only moves to the prepare version on the `landAfterReads`-th getDocument read after it.
+ * The comment row follows the head (the server re-anchors it on every version), and the shift Save
+ * moves the head again right away.
+ */
+function scriptPdfLateHead(fake, { landAfterReads = 2, neverLands = false } = {}) {
+  const state = { head: "pv-1", reads: 0, pending: false, saves: 0, row: null, commentsCreated: 0 };
+  const PDF_PATH = "/wc/doc-3.pdf";
+  const docOf = (call) => call.args.pathParams?.documentID;
+  fake.script.respond("api.mintLaunch", { status: 201, body: { launch_url: "uniwork-office-dev://open?ticket=t1" } });
+  fake.script.respond("app.openByTicket", (call) => {
+    const id = call.args[1]?.documentId ?? "doc-1";
+    logEditorList(fake, id);
+    return { path: `/wc/${id}.pdf`, documentId: id, kind: "pdf" };
+  });
+  fake.script.respond("app.comments.context", () => ({ ok: true, value: { documentId: "doc-3", versionId: state.head } }));
+  fake.script.respond("api.createDocumentComment", (call) => {
+    const b = call.args.body;
+    state.commentsCreated += 1;
+    state.row = { id: "cc", body: b.body, anchor: b.anchor, anchor_state: "exact", anchor_version_id: state.head, deleted_at: null, parent_id: null };
+    return { status: 201, body: { comment: state.row } };
+  });
+  fake.script.respond("app.evalBounded", () => ({ status: "ok" }));
+  fake.script.respond("app.save", (call) => {
+    if (call.args[0] !== PDF_PATH) return { state: "saved" };
+    state.saves += 1;
+    if (state.saves === 1) {
+      state.pending = true;
+      return { state: "saved" };
+    }
+    state.head = `pv-${state.saves + 1}`;
+    if (state.row) state.row = { ...state.row, anchor: { ...state.row.anchor, page: 1 }, anchor_version_id: state.head };
+    return { state: "saved" };
+  });
+  fake.script.respond("api.getDocument", (call) => {
+    if (docOf(call) === "doc-3" && state.pending && !neverLands) {
+      state.reads += 1;
+      if (state.reads >= landAfterReads) {
+        state.pending = false;
+        state.head = "pv-2";
+        if (state.row) state.row = { ...state.row, anchor_version_id: state.head };
+      }
+    }
+    return { status: 200, body: { document: { id: docOf(call), file: { version_id: docOf(call) === "doc-3" ? state.head : "ver-x" } } } };
+  });
+  fake.script.respond("api.listDocumentComments", (call) => ({ status: 200, body: { comments: docOf(call) === "doc-3" && state.row ? [state.row] : [], list_token: `p-${state.saves}` } }));
+  fake.script.respond("api.putDocumentCommentAnchors", { status: 400, body: bodyInvalid });
+  return state;
+}
+
+test("G8-A02 closed panel (pdf): waits for the prepare Save's version, then judges the shift Save (not the prepare version)", async () => {
+  const fake = createFakeWorld();
+  const state = scriptPdfLateHead(fake);
+  const ctx = fakeCtx(fake, "fx-pdf-invoice-vi");
+  const record = await runG8A02Clocked(ctx, { connectApp: fake.app.connectApp, sleep: async () => {}, framePin: { gitSha: "05fd209" } });
+  const closed = record.details.closedPanel;
+  assert.equal(closed.prepareVersionId, "pv-2", JSON.stringify(closed));
+  assert.equal(closed.versionBefore, "pv-2", "versionBefore is taken after the prepare version landed");
+  assert.equal(closed.headVersionId, "pv-3", "the settle judged the shift Save's version, not the prepare version");
+  assert.equal(state.saves, 2, "the shift Save ran on the closed-panel document");
+  assert.equal(closed.row.anchor_version_id, "pv-3");
+  assert.equal(ctx.steps["closed-panel-save"].status, "PASS", JSON.stringify(closed));
+  // no desktop page count is exposed by the driver or the app control: null with the reason, never a guess
+  assert.equal(closed.pageCount.before, null);
+  assert.equal(closed.pageCount.after, null);
+  assert.match(closed.pageCount.reason, /no page count/);
+});
+
+test("G8-A02 closed panel (pdf): a prepare version that never lands fails scenario not established, no comment is made", async () => {
+  const fake = createFakeWorld();
+  const state = scriptPdfLateHead(fake, { neverLands: true });
+  const ctx = fakeCtx(fake, "fx-pdf-invoice-vi");
+  await runG8A02Clocked(ctx, { connectApp: fake.app.connectApp, sleep: async () => {}, framePin: { gitSha: "05fd209" } });
+  const c = ctx.steps["closed-panel-save"];
+  assert.equal(c.status, "FAIL");
+  assert.match(c.reason, /^scenario not established: the prepare Save's version did not land/);
+  assert.equal(state.commentsCreated, 0, "no comment before the prepare version is the head");
+  assert.equal(state.saves, 1, "no shift Save without the scenario");
+});

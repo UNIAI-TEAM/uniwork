@@ -350,10 +350,8 @@ var isoReferences = []isoReference{
 	// own document from B's device names a row that is not B's.
 	{method: "PUT", pattern: "/api/v1/documents/{documentID}/office/offline-lease", what: "another tenant's lease", body: map[string]any{
 		"lease": isoRef("offlineLease")}},
-	// The path names a file document, so the own-row control must name a
-	// comment of THAT document; the attack still names A's comment, refused
-	// by the tenant pair alone.
-	{method: "POST", pattern: "/api/v1/documents/{documentID}/office/sessions", what: "comment of another document", body: map[string]any{
+	// OQ-C6: an unknown comment id is dropped; the matrix still proves nothing of A's is read and no row of B's points at A (B's launch row stores NULL).
+	{method: "POST", pattern: "/api/v1/documents/{documentID}/office/sessions", what: "comment of another document", allow2xx: true, body: map[string]any{
 		"operation": "view", "client_id": isoOfficeClient, "deployment_id": isoOfficeDeployment, "comment_id": isoRef("fileDocComment")},
 		covers: []string{"CreateOfficeLaunchSessionSDI.comment_id"}},
 	{method: "POST", pattern: "/api/v1/office/sessions/exchange", what: "ticket and device", body: map[string]any{

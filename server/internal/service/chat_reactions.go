@@ -20,17 +20,18 @@ const (
 )
 
 type chatMessageMetadata struct {
-	Reactions        map[string][]string  `json:"reactions"`
-	Pinned           bool                 `json:"pinned,omitempty"`
-	PinnedAt         string               `json:"pinned_at,omitempty"`
-	MentionedUserIDs []string             `json:"mentioned_user_ids,omitempty"`
-	MentionsAll      bool                 `json:"mentions_all,omitempty"`
-	Poll             *ChatPollPayload     `json:"poll,omitempty"`
-	Reminder         *ChatReminderPayload `json:"reminder,omitempty"`
-	Note             *ChatNotePayload     `json:"note,omitempty"`
-	Post             *ChatPostPayload     `json:"post,omitempty"`
-	Priority         string               `json:"priority,omitempty"`
-	ForwardedFrom    *ChatForwardedFrom   `json:"forwarded_from,omitempty"`
+	Reactions        map[string][]string          `json:"reactions"`
+	Pinned           bool                         `json:"pinned,omitempty"`
+	PinnedAt         string                       `json:"pinned_at,omitempty"`
+	MentionedUserIDs []string                     `json:"mentioned_user_ids,omitempty"`
+	MentionsAll      bool                         `json:"mentions_all,omitempty"`
+	Poll             *ChatPollPayload             `json:"poll,omitempty"`
+	PollVote         *ChatPollVoteActivityPayload `json:"poll_vote,omitempty"`
+	Reminder         *ChatReminderPayload         `json:"reminder,omitempty"`
+	Note             *ChatNotePayload             `json:"note,omitempty"`
+	Post             *ChatPostPayload             `json:"post,omitempty"`
+	Priority         string                       `json:"priority,omitempty"`
+	ForwardedFrom    *ChatForwardedFrom           `json:"forwarded_from,omitempty"`
 }
 
 func reactionCountsFromMetadata(meta chatMessageMetadata) map[string]int {

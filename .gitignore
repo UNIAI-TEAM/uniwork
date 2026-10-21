@@ -74,3 +74,6 @@ server/internal/handler/data/
 
 # genoffice Docs web build synced by apps/web/scripts/office-frame-sync.mjs (the pin is checked in, the bundle is not)
 apps/web/public/office-frame/
+
+# Written by ci/Jenkinsfile.app-dev.groovy on the deploy host.
+deploy/app-dev/env/image.env

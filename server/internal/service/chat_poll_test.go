@@ -294,6 +294,60 @@ func TestChatPollVoteSingleChoiceToggle(t *testing.T) {
 	}
 }
 
+func TestChatPollVoteEmitsActivityMessage(t *testing.T) {
+	s, _, q, ua, ub, w := chatFixture(t)
+	ctx := context.Background()
+	addOrgMember(t, q, w.OrganizationID, ub.ID)
+	addWorkspaceMember(t, q, w.ID, ub.ID)
+	roomID := mustPollRoom(t, s, ctx, ua.ID, w.ID)
+
+	poll := mustSendPoll(t, s, ctx, ua.ID, w.ID, roomID, SendPollMessageInput{
+		Question: "Lunch spot?", Options: []string{"A", "B"},
+	})
+	optA := poll.Poll.Options[0].ID
+
+	if _, err := s.VoteChatPollMessage(ctx, ub.ID, w.ID, roomID, poll.ID, optA); err != nil {
+		t.Fatalf("vote: %v", err)
+	}
+	msgs, err := s.ListRoomMessages(ctx, ua.ID, w.ID, roomID, ListChatMessagesInput{})
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	var activities int
+	for _, msg := range msgs {
+		if msg.Kind != chatMessageKindPollVote {
+			continue
+		}
+		activities++
+		if msg.PollVote == nil || msg.PollVote.PollMessageID != poll.ID || msg.PollVote.Question != "Lunch spot?" {
+			t.Fatalf("activity payload: %+v", msg.PollVote)
+		}
+		if msg.SenderID != ub.ID {
+			t.Fatalf("activity sender: got %s want %s", msg.SenderID, ub.ID)
+		}
+	}
+	if activities != 1 {
+		t.Fatalf("poll_vote messages: got %d want 1", activities)
+	}
+
+	if _, err := s.VoteChatPollMessage(ctx, ub.ID, w.ID, roomID, poll.ID, optA); err != nil {
+		t.Fatalf("toggle off: %v", err)
+	}
+	msgs, err = s.ListRoomMessages(ctx, ua.ID, w.ID, roomID, ListChatMessagesInput{})
+	if err != nil {
+		t.Fatalf("list again: %v", err)
+	}
+	activities = 0
+	for _, msg := range msgs {
+		if msg.Kind == chatMessageKindPollVote {
+			activities++
+		}
+	}
+	if activities != 1 {
+		t.Fatalf("toggle off should not add activity: got %d", activities)
+	}
+}
+
 func optionVotes(row ChatMessageRow, optionID string) int {
 	if row.Poll == nil {
 		return -1

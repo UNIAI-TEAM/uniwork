@@ -33,6 +33,7 @@ export const K = {
   collabAnchorPage: `${C}.collabAnchorPage`,
   collabAnchorStale: `${C}.collabAnchorStale`,
   collabAnchorLost: `${C}.collabAnchorLost`,
+  collabAnchorViewVersion: `${C}.collabAnchorViewVersion`,
   collabResolved: `${D}.comment_resolved`,
   collabResolve: `${D}.comment_resolve`,
   collabReopen: `${D}.comment_unresolve`,

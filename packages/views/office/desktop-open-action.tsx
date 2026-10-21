@@ -104,6 +104,12 @@ export interface DesktopOpenActionProps {
   operation?: "edit" | "view";
   /** The comment a `?comment=` link named: the ticket carries it so the app reveals that thread. */
   commentId?: string;
+  /** Classes for an `inline` split button that sits on a coloured surface (a chat
+   * bubble): `primary` repaints the open button, `menu` the caret, which then
+   * drops the outline variant's own fill. */
+  surface?: { primary: string; menu: string };
+  /** A stored version the page shows read-only (UNI-2033): the ticket names it, so the app opens that version's copy. */
+  version?: number;
 }
 
 function isAccepted(outcome: unknown): outcome is OfficeSaveOutcome & { accepted: true } {
@@ -147,6 +153,8 @@ export function DesktopOpenAction({
   placement = "header",
   operation = "edit",
   commentId,
+  surface,
+  version: viewVersion,
 }: DesktopOpenActionProps) {
   const { t } = useTranslation(undefined, { keyPrefix: "office.desktop" });
   const [coordinatorState, setCoordinatorState] = useState(() => saveCoordinator?.getState() ?? null);
@@ -224,9 +232,11 @@ export function DesktopOpenAction({
       // `version` names a HISTORICAL version and makes the server force a
       // read-only session; the committed version being handed off is the
       // current one, so the body leaves it out. The check above only proves
-      // the editor knows what it is handing off.
+      // the editor knows what it is handing off. A page showing a stored version
+      // (`viewVersion`) is the one caller that names it.
       const session = await createSession(documentId, {
-        operation, deployment_id: deploymentId, client_id: clientId, return_hint: "office",
+        operation: viewVersion ? "view" : operation, deployment_id: deploymentId, client_id: clientId, return_hint: "office",
+        ...(viewVersion ? { version: viewVersion } : {}),
         ...(commentId ? { comment_id: commentId } : {}),
       });
       if (!session) {
@@ -348,12 +358,12 @@ export function DesktopOpenAction({
         </Button>
       ) : (
         <ButtonGroup className={cn(inPageHeader && "hidden sm:flex", className)} data-office-desktop-action>
-          <Button type="button" variant={inline ? "default" : "outline"} size="sm" onClick={onAction} aria-disabled={working || undefined} aria-label={label} title={label}>
+          <Button type="button" variant={inline ? "default" : "outline"} size="sm" className={surface?.primary} onClick={onAction} aria-disabled={working || undefined} aria-label={label} title={label}>
             <MonitorUp aria-hidden />
             <span className={inline ? undefined : "sr-only lg:not-sr-only"}>{working ? t("working") : label}</span>
           </Button>
           <DropdownMenu onOpenChange={requestHint}>
-            <DropdownMenuTrigger render={<Button type="button" variant="outline" size="icon-sm" aria-label={t("menu")} title={t("menu")} />}>
+            <DropdownMenuTrigger render={<Button type="button" variant={surface ? "toolbar" : "outline"} size="icon-sm" className={surface?.menu} aria-label={t("menu")} title={t("menu")} />}>
               <ChevronDown aria-hidden />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="min-w-56">
