@@ -1,0 +1,4 @@
+$ for i in $(seq 1 14); do test -f /tmp/pr7r5-e2e.exit && break; sleep 30; done; echo "DONE_FILE=$(test -f /tmp/pr7r5-e2e.exit && echo yes || echo no)"; tail -2 /tmp/pr7r5-e2e.log
+DONE_FILE=no
+  ✓  12 documents-isolation.spec.ts:159:1 › a create replay returns the same page; a changed payload under the same key is refused (15ms)
+  ✓  13 documents-isolation.spec.ts:175:1 › a plain member creates, types and reloads a page in the browser (6.9s)
