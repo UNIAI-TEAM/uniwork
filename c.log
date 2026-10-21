@@ -1,0 +1,18 @@
+$ grep -nE "^(=== RUN|\s*--- (PASS|FAIL)|FAIL|ok|panic)|DATA RACE" /tmp/uni2012r2b-a.log | cut -c1-300 | head -60
+1:=== RUN   TestDeleteLinkDocumentMessageRacingReconcileAndLinkSend
+2:=== RUN   TestDeleteLinkDocumentMessageRacingReconcileAndLinkSend/reconcile_holds_the_lock,_delete_waits
+3:=== RUN   TestDeleteLinkDocumentMessageRacingReconcileAndLinkSend/delete_holds_the_lock,_reconcile_waits
+4:=== RUN   TestDeleteLinkDocumentMessageRacingReconcileAndLinkSend/delete_holds_the_lock,_a_link_send_waits
+6:WARNING: DATA RACE
+54:WARNING: DATA RACE
+102:WARNING: DATA RACE
+150:WARNING: DATA RACE
+200:--- FAIL: TestDeleteLinkDocumentMessageRacingReconcileAndLinkSend (1.76s)
+201:    --- PASS: TestDeleteLinkDocumentMessageRacingReconcileAndLinkSend/reconcile_holds_the_lock,_delete_waits (1.01s)
+202:    --- PASS: TestDeleteLinkDocumentMessageRacingReconcileAndLinkSend/delete_holds_the_lock,_reconcile_waits (0.36s)
+203:    --- FAIL: TestDeleteLinkDocumentMessageRacingReconcileAndLinkSend/delete_holds_the_lock,_a_link_send_waits (0.39s)
+204:=== RUN   TestChatGrantLeaveAfterCommitIsReconciled
+206:--- FAIL: TestChatGrantLeaveAfterCommitIsReconciled (20.33s)
+207:FAIL
+208:FAIL	github.com/unicomhub/uniwork/server/internal/service	22.142s
+209:FAIL

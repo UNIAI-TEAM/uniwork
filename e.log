@@ -1,0 +1,28 @@
+$ grep -nE "_test.go:[0-9]+|Error|error|got|want|timeout|waiting" /tmp/uni2012r2b-a.log | grep -v "DATA RACE" | cut -c1-400 | head -60
+9:      /workspace/server/internal/service/task_test.go:37 +0x5d
+17:      /workspace/server/internal/service/chat_document_delete_fix2_test.go:405 +0x2a4
+21:      /workspace/server/internal/service/task_test.go:42 +0x2f9
+23:      /workspace/server/internal/service/task_test.go:51 +0x20d
+35:      /workspace/server/internal/service/chat_document_delete_fix2_test.go:399 +0x1c4
+39:      /workspace/server/internal/service/chat_document_delete_fix2_test.go:403 +0x7f6
+47:      /workspace/server/internal/service/chat_document_delete_fix2_test.go:399 +0x5fd
+57:      /workspace/server/internal/service/task_test.go:38 +0x20a
+65:      /workspace/server/internal/service/chat_document_delete_fix2_test.go:405 +0x2a4
+69:      /workspace/server/internal/service/task_test.go:43 +0x444
+71:      /workspace/server/internal/service/task_test.go:51 +0x20d
+83:      /workspace/server/internal/service/chat_document_delete_fix2_test.go:399 +0x1c4
+87:      /workspace/server/internal/service/chat_document_delete_fix2_test.go:403 +0x7f6
+95:      /workspace/server/internal/service/chat_document_delete_fix2_test.go:399 +0x5fd
+105:      /workspace/server/internal/service/task_test.go:49 +0x84
+115:      /workspace/server/internal/service/chat_document_delete_fix2_test.go:405 +0x2a4
+119:      /workspace/server/internal/service/task_test.go:49 +0x145
+131:      /workspace/server/internal/service/chat_document_delete_fix2_test.go:399 +0x1c4
+135:      /workspace/server/internal/service/chat_document_delete_fix2_test.go:403 +0x7f6
+143:      /workspace/server/internal/service/chat_document_delete_fix2_test.go:399 +0x5fd
+155:      /workspace/server/internal/service/task_test.go:49 +0xc4
+165:      /workspace/server/internal/service/chat_document_delete_fix2_test.go:405 +0x2a4
+169:      /workspace/server/internal/service/task_test.go:49 +0xf2
+181:      /workspace/server/internal/service/chat_document_delete_fix2_test.go:399 +0x1c4
+185:      /workspace/server/internal/service/chat_document_delete_fix2_test.go:403 +0x7f6
+193:      /workspace/server/internal/service/chat_document_delete_fix2_test.go:399 +0x5fd
+205:    chat_document_share_fix2_test.go:176: send while a leave was in flight: context deadline exceeded
