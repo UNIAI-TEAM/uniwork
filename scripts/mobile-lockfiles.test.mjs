@@ -13,7 +13,7 @@ import path from "node:path";
 const root = path.resolve(import.meta.dirname, "..");
 const APP = "apps/chat-mobile";
 const FOREIGN = new Set(["package-lock.json", "npm-shrinkwrap.json", "yarn.lock", "bun.lock", "bun.lockb"]);
-// Generated or installed trees, never uploaded as source (apps/chat-mobile/.easignore).
+// Generated or installed trees, never uploaded as source (the repo-root .easignore).
 const SKIP = new Set(["node_modules", ".expo", "android", "ios", "dist", "coverage", ".git"]);
 
 function foreignLockfiles(dir, out = []) {

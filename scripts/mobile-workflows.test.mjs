@@ -49,6 +49,7 @@ test("mobile-verify can be called and builds the release only through its jobs",
   assert.match(wf, /run: pnpm knip --workspace apps\/chat-mobile$/m, "knip runs over the app");
   assert.match(wf, /EXPO_OFFLINE: "1"\n\s+run: pnpm exec expo install --check$/m, "native module versions are checked against the installed SDK");
   assert.match(wf, /scripts\/mobile-lockfiles\.test\.mjs/, "the contract step rejects a foreign lockfile");
+  assert.match(wf, /scripts\/mobile-easignore\.test\.mjs/, "the contract step holds .easignore to the .gitignore files");
   assert.match(wf, /scripts\/mobile-coverage-floor\.test\.mjs/, "the contract step holds the component coverage floor");
   assert.doesNotMatch(wf, /secrets\./, "the PR checks read no secret");
 });
