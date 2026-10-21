@@ -22,6 +22,7 @@ export {
   type ShortcutChord,
   type ShortcutModifiers,
 } from "./definitions";
+export { ariaKeyShortcuts } from "./aria";
 export {
   configureShortcutPlatform,
   configureShortcutRuntime,
