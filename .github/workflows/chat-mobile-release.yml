@@ -42,6 +42,8 @@ env:
 jobs:
   verify:
     uses: ./.github/workflows/mobile-verify.yml
+    with:
+      force_native: true
 
   build:
     needs: verify

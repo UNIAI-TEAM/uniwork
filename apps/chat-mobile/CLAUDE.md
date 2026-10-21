@@ -179,12 +179,14 @@ Runbook: `docs/runbooks/unichat-mobile-release.md`; plan:
   bước `createReleaseUpdatesResources` của build release đỏ), `expo-updates` vì knip đọc config dev, và hai gói
   `@expo-google-fonts/*` vì `app.config.ts` chỉ trỏ tới file `.ttf` của chúng.
 - Tag `chat-mobile-v<version>` → `.github/workflows/chat-mobile-release.yml`:
-  job `verify` gọi `mobile-verify.yml` trên SHA của tag, rồi EAS build +
+  job `verify` gọi `mobile-verify.yml` trên SHA của tag với `force_native: true`
+  (luôn build Android native và chạy smoke, kể cả tag đẩy lại), rồi EAS build +
   auto-submit **chỉ Android** (Play internal) tới khi có tài khoản Apple
   (UNI-1838), `eas-cli` ghim ở `EAS_CLI_VERSION`. Environment
   `chat-mobile-release`, chỉ `EXPO_TOKEN`; thiếu thì notice và xanh.
   `scripts/mobile-workflows.test.mjs` giữ các lời hứa của ba workflow (verify
-  trước EAS, chỉ Android, phiên bản ghim, nightly đỏ khi thiếu cấu hình).
+  trước EAS, chỉ Android, phiên bản ghim, nightly đỏ khi thiếu cấu hình); sửa
+  workflow nào trong ba cũng kích `mobile-verify.yml` nên test đó luôn chạy.
 - `maestro/`: `subflows/sign-in.yaml` đăng nhập qua sheet trình duyệt thật (không
   có lối tắt phiên thử nghiệm trong bản nào), ba luồng vàng
   `flows/{chat-read-send,push-open-room,call-join}.yaml` chạy hằng đêm bởi

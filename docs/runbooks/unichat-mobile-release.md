@@ -26,7 +26,10 @@ nâng SDK Expo) → bump `version` và cắt tag mới; chỉ đổi JS/asset �
   emulator, `maestro/flows/smoke-launch.yaml`: mở lạnh tới màn đăng nhập) chỉ khi thay đổi chạm binary
   (`scripts/mobile-native-scope.mjs`: code/cấu hình/asset của app, đồ thị cài đặt, file `packages/core` app import
   lúc chạy). Không đọc secret: URL máy chủ là placeholder, `SENTRY_DISABLE_AUTO_UPLOAD=true`.
-- `chat-mobile-release.yml` gọi đúng workflow đó trên SHA của tag (job `verify`) trước khi đụng EAS.
+- `chat-mobile-release.yml` gọi đúng workflow đó trên SHA của tag (job `verify`, `force_native: true`) trước khi đụng
+  EAS: `android-release` và `android-smoke` luôn chạy cho bản phát hành, kể cả tag bị đẩy lại (`git push -f`) mà diff
+  không chạm binary. Sửa một trong ba workflow cũng chạy `mobile-verify.yml`, để
+  `scripts/mobile-workflows.test.mjs` kiểm lời hứa của chúng.
 - `chat-mobile-verify.yml` hằng đêm: job `android-production` build AAB release mọi ABI từ profile production
   (không cần tài khoản) và ba luồng Maestro; thiếu biến `MAESTRO_*` thì run theo lịch **đỏ**, không xanh.
 - Phiên bản công cụ ghim trong workflow: `EAS_CLI_VERSION` (release), `MAESTRO_VERSION` (nightly, tải zip release

@@ -15,8 +15,9 @@ name: Mobile Verify
 #                   Only when the change reaches the binary
 #                   (scripts/mobile-native-scope.mjs): the app's code, config
 #                   or assets, the install graph, or a packages/core file the
-#                   app imports at runtime. Always on push to main/develop
-#                   without a known base and when called.
+#                   app imports at runtime. Always on a tag, on dispatch, on
+#                   push to main/develop without a known base, and when the
+#                   caller passes force_native (the release does).
 #   android-smoke   installs that APK on an emulator and runs
 #                   apps/chat-mobile/maestro/flows/smoke-launch.yaml: the app
 #                   cold-starts to its sign-in screen and stays up.
@@ -40,6 +41,9 @@ on:
       - "pnpm-workspace.yaml"
       - "turbo.json"
       - ".github/workflows/mobile-verify.yml"
+      # Not native scope: listed so scripts/mobile-workflows.test.mjs runs when they change.
+      - ".github/workflows/chat-mobile-release.yml"
+      - ".github/workflows/chat-mobile-verify.yml"
   pull_request:
     branches: [main, develop]
     paths:
@@ -53,7 +57,18 @@ on:
       - "pnpm-workspace.yaml"
       - "turbo.json"
       - ".github/workflows/mobile-verify.yml"
+      # Not native scope: listed so scripts/mobile-workflows.test.mjs runs when they change.
+      - ".github/workflows/chat-mobile-release.yml"
+      - ".github/workflows/chat-mobile-verify.yml"
   workflow_call:
+    inputs:
+      # Inside a called workflow the github context is the caller's, so "called"
+      # cannot be detected: a re-pushed tag arrives as a push with a real
+      # `before` SHA. The release passes true so its SHA always gets the build.
+      force_native:
+        description: Run android-release and android-smoke whatever the diff says
+        type: boolean
+        default: true
   workflow_dispatch:
 
 permissions:
@@ -90,16 +105,22 @@ jobs:
         name: Does the change reach the native binary?
         env:
           EVENT: ${{ github.event_name }}
+          # Empty outside workflow_call.
+          FORCE_NATIVE: ${{ inputs.force_native }}
+          REF: ${{ github.ref }}
           PR_BASE: ${{ github.event.pull_request.base.sha }}
           PUSH_BEFORE: ${{ github.event.before }}
         run: |
           set -euo pipefail
-          if [ "$EVENT" = "pull_request" ]; then
+          if [ "$FORCE_NATIVE" = "true" ] || [[ "$REF" == refs/tags/* ]]; then
+            # Called by the release (or any tag push): the shipped SHA is always built.
+            echo "native=true" | tee -a "$GITHUB_OUTPUT"
+          elif [ "$EVENT" = "pull_request" ]; then
             node scripts/mobile-native-scope.mjs --base "$PR_BASE" --head "$GITHUB_SHA"
           elif [ "$EVENT" = "push" ] && [ -n "$PUSH_BEFORE" ] && ! [[ "$PUSH_BEFORE" =~ ^0+$ ]] && git cat-file -e "$PUSH_BEFORE^{commit}" 2>/dev/null; then
             node scripts/mobile-native-scope.mjs --base "$PUSH_BEFORE" --head "$GITHUB_SHA"
           else
-            # Called by the release, dispatched, or a push with no known base: build.
+            # Dispatched, or a push with no known base: build.
             echo "native=true" | tee -a "$GITHUB_OUTPUT"
           fi
 
