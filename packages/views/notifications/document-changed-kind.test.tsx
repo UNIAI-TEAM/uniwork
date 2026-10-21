@@ -365,7 +365,7 @@ describe("document_changed click target (item 4)", () => {
   });
 
   describe("a several-document row the reader can read none of (TV2-01)", () => {
-    // The server lists only the documents the recipient could read at send time: none listed = none readable.
+    // The server lists only the documents the recipient could read: none listed, with at most 3 documents = none readable.
     const unreadable = (over: Partial<Notification> = {}, shorthand: Record<string, string> = {}) =>
       changed({ verb: "moved", document_count: "3", ...shorthand }, { count: 3, sample_documents: [], ...over });
 

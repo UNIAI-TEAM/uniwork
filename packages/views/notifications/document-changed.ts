@@ -62,12 +62,17 @@ export function documentChangedFacts(n: Notification): DocumentChangedFacts {
   };
 }
 
+/** How many document ids the server keeps as samples on a row; mirrors `docChangeSamples` in server/internal/notification/document_changed.go. */
+const SERVER_SAMPLE_LIMIT = 3;
+
 /**
- * Whether the row lists any document the reader could read at send time. The server puts only those in
- * `sample_documents`, so none listed means none readable: the list dialog would open to an empty state.
+ * Whether the reader may read any document of the row. The server keeps only the first
+ * `SERVER_SAMPLE_LIMIT` ids as samples and filters them to the readable ones at read time, so an empty
+ * `sample_documents` means none readable only when the row covers no more documents than that; with more,
+ * the reader may read only later ones and the list must stay.
  */
 function hasReadableDocuments(n: Notification): boolean {
-  return (n.sample_documents ?? []).length > 0;
+  return (n.sample_documents ?? []).length > 0 || documentChangedFacts(n).count > SERVER_SAMPLE_LIMIT;
 }
 
 /** More than one document the reader can read: a click opens the list instead of a page. */
