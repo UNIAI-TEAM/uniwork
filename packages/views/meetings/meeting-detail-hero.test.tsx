@@ -73,9 +73,9 @@ describe("MeetingDetailHero", () => {
     const notice = screen.getByRole("status");
     expect(within(notice).getByText(/đã qua khung giờ/i)).toBeInTheDocument();
     expect(screen.queryByText(/Không thể vào phòng hoặc bắt đầu/)).not.toBeInTheDocument();
-    fireEvent.click(within(notice).getByRole("button", { name: "Gia hạn 15 phút" }));
+    fireEvent.click(screen.getByRole("button", { name: "Gia hạn 15 phút" }));
     expect(h.onExtend).toHaveBeenCalledTimes(1);
-    fireEvent.click(within(notice).getByRole("button", { name: "Kết thúc họp" }));
+    fireEvent.click(screen.getByRole("button", { name: "Kết thúc họp" }));
     expect(h.onEnd).toHaveBeenCalledTimes(1);
     expect(screen.queryByRole("button", { name: "Vào phòng họp" })).not.toBeInTheDocument();
   });
@@ -84,17 +84,34 @@ describe("MeetingDetailHero", () => {
     renderHero({ status: "IN_PROGRESS", ...windowFromNow(-60 * 60_000) }, { canHost: false, canCancel: false });
     const notice = screen.getByRole("status");
     expect(within(notice).getByText(/chủ trì có thể gia hạn/i)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Gia hạn 15 phút" })).not.toBeInTheDocument();
     expect(within(notice).queryByRole("button")).not.toBeInTheDocument();
   });
 
   it("offers the host a new time or a cancel when the window passed unstarted", () => {
     const h = renderHero({ status: "SCHEDULED", ...windowFromNow(-60 * 60_000) });
     const notice = screen.getByRole("status");
-    expect(within(notice).getByText(/chưa bắt đầu/i)).toBeInTheDocument();
-    expect(within(notice).getByRole("button", { name: "Sửa lịch" })).toBeInTheDocument();
-    fireEvent.click(within(notice).getByRole("button", { name: "Hủy cuộc họp" }));
+    expect(within(notice).getByText(/chưa mở phòng/i)).toBeInTheDocument();
+    // Its own row under the notice, so a phone wraps the three instead of overflowing.
+    expect(within(notice).queryByRole("button")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Ghi nhận đã họp" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Sửa lịch" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Hủy cuộc họp" }));
     expect(h.onCancel).toHaveBeenCalledTimes(1);
     expect(screen.queryByRole("button", { name: "Bắt đầu" })).not.toBeInTheDocument();
+  });
+
+  it("names the next step once the meeting has ended", () => {
+    const onGo = vi.fn();
+    renderHero({ status: "ENDED", ...windowFromNow(-2 * 60 * 60_000) }, { nextStep: { kind: "assign", pending: 3, onGo } });
+    expect(screen.getByText("3 việc đang chờ giao.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Giao việc" }));
+    expect(onGo).toHaveBeenCalledTimes(1);
+  });
+
+  it("offers the minutes as the next step when nothing waits to be assigned", () => {
+    renderHero({ status: "ENDED", ...windowFromNow(-2 * 60 * 60_000) }, { nextStep: { kind: "minutes", onGo: vi.fn() } });
+    expect(screen.getByRole("button", { name: "Lập biên bản" })).toBeInTheDocument();
   });
 
   it("keeps a cancelled meeting at full contrast and says when it was cancelled", () => {
@@ -166,6 +183,6 @@ describe("MeetingDetailHero", () => {
 
   it("uses the solid destructive fill for ending an overtime meeting", () => {
     renderHero({ status: "IN_PROGRESS", ...windowFromNow(-60 * 60_000) });
-    expect(within(screen.getByRole("status")).getByRole("button", { name: "Kết thúc họp" })).toHaveClass("bg-destructive-solid");
+    expect(screen.getByRole("button", { name: "Kết thúc họp" })).toHaveClass("bg-destructive-solid");
   });
 });
