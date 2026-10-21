@@ -598,12 +598,15 @@ func (s *DocumentService) documentTrashedReadState(ctx context.Context, userID, 
 		return "", err
 	}
 	switch {
+	case access.Level == DocumentLevelNone:
+		// A workspace admin of a restricted document administers it by role
+		// (AdminScope) but reads it only through a share: with the share gone
+		// the live gate answers access_lost, and so does this one.
+		return DocumentAccessLost, nil
 	case access.canAdminister():
 		return DocumentTrashable, nil
-	case access.Level != DocumentLevelNone:
-		return DocumentReadable, nil
 	default:
-		return DocumentAccessLost, nil
+		return DocumentReadable, nil
 	}
 }
 
