@@ -3,8 +3,12 @@
 // the composer may send, the @mention list and whether a DM's peer is online.
 // Shared by the room and the thread screens. Who is typing is not here: the
 // bubble and the header line read it themselves (room-typing.tsx), so a typing
-// frame does not redraw the conversation.
+// frame does not redraw the conversation. What names a sender stays the same
+// object while the people and nicknames do (audit P2 Perf): a new message
+// changes the room's record, not its DM peer, so the rows keep their names
+// without being read again (lib/message-row-model.ts).
 import { useQuery } from "@tanstack/react-query";
+import type { ChatRoomRecord } from "@uniwork/core/api/endpoints/chat-schemas";
 import { chatRoomToContact, isDefaultWorkspaceChannel } from "@uniwork/core/chat/chat-room-helpers";
 import { useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
@@ -25,16 +29,19 @@ export function useRoomContext(chat: ChatWorkspace, roomId: string) {
   const members = useQuery(roomMembersOptions(chat.wsId, roomId));
   const nicknames = useQuery(nicknamesOptions(chat.wsId)).data;
   const workspaceMembers = useQuery(workspaceMembersOptions(chat.wsId)).data;
+  // The DM's peer as a contact, kept the same object by the query's structural sharing while it reads the same.
+  const selectDmContact = useCallback(
+    (rooms: ChatRoomRecord[]) => {
+      const record = rooms.find((entry) => entry.id === roomId);
+      return record?.kind === "dm" ? chatRoomToContact(record) : null;
+    },
+    [roomId],
+  );
+  const dmContact = useQuery({ ...roomsOptions(chat.wsId), select: selectDmContact }).data ?? null;
 
   const nameContext = useMemo(
-    () =>
-      buildChatNameContext(
-        room?.kind === "dm" ? [chatRoomToContact(room)] : [],
-        members.data ?? [],
-        workspaceMembers ?? [],
-        nicknames ?? {},
-      ),
-    [room, members.data, workspaceMembers, nicknames],
+    () => buildChatNameContext(dmContact ? [dmContact] : [], members.data ?? [], workspaceMembers ?? [], nicknames ?? {}),
+    [dmContact, members.data, workspaceMembers, nicknames],
   );
 
   const candidates = useMemo(() => {

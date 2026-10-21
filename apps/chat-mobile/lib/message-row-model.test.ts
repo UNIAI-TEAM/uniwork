@@ -102,6 +102,39 @@ describe("buildMessageRowModels", () => {
     expect(third.get("a1")).toBe(first.get("a1"));
     expect(third.get("a2")).not.toBe(first.get("a2"));
   });
+  it("keeps the name and the quote of a row whose receipt or highlight moved, without reading them again", () => {
+    let reads = 0;
+    const senderName = (message: TimelineMessage) => {
+      reads += 1;
+      return message.sender.toUpperCase();
+    };
+    const quoteText = (message: TimelineMessage) => {
+      reads += 1;
+      return message.body;
+    };
+    const messages = [at("a1", "an", 0), at("m1", "me", 1, { replyToEventId: "a1" })];
+    const first = buildMessageRowModels(input(messages, { senderName, quoteText }));
+    reads = 0;
+    const seen = buildMessageRowModels(input(messages, { senderName, quoteText, receiptOf: (_m, own) => (own ? "seen" : null), highlightedId: "a1" }), first);
+    expect(reads).toBe(0);
+    expect(seen.get("m1")).toMatchObject({ receipt: "seen", senderName: "ME", quote: { id: "a1", sender: "AN", text: "body of a1" } });
+    expect(seen.get("m1")).not.toBe(first.get("m1"));
+    expect(seen.get("a1")?.highlighted).toBe(true);
+  });
+
+  it("reads again with new readers, and from a map it did not build", () => {
+    const messages = [at("a1", "an", 0)];
+    const first = buildMessageRowModels(input(messages));
+    expect(buildMessageRowModels(input(messages, { senderName: () => "Ân" }), first).get("a1")?.senderName).toBe("Ân");
+    expect(buildMessageRowModels(input(messages), new Map(first)).get("a1")).toBe(first.get("a1"));
+  });
+
+  it("works a thread's root out again each time: its count follows the loaded replies", () => {
+    const root = record("root", "an");
+    const first = buildMessageRowModels(input([root, record("r1", "binh")], { threadRootId: "root" }));
+    const more = buildMessageRowModels(input([root, record("r1", "binh"), record("r2", "binh")], { threadRootId: "root" }), first);
+    expect(more.get("root")?.threadReplies).toBe(2);
+  });
 });
 
 describe("sameRowModel", () => {

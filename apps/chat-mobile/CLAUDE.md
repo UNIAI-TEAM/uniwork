@@ -420,7 +420,18 @@ một dòng thì ghi lý do ở dòng trên.
   `recyclingKey` (ô dùng lại không loé mặt người trước). Ô tìm danh bạ lọc sau phím gõ (`useDeferredValue`).
   Jest: `test/jest-setup.ts` mock đo layout của FlashList (cửa sổ 400 × 900, ô 100) — `jestSetup.js` của gói trỏ
   tới export không có ở bản 2.0; danh sách dài trong test chỉ mount khoảng một màn như trên máy.
-  Timeline tin nhắn vẫn là FlatList đảo ngược (lý do ở `message-list.tsx`).
+  Timeline tin nhắn vẫn là FlatList đảo ngược (lý do ở `message-list.tsx`: neo cuộn của danh sách đảo ngược chỉ kiểm
+  được trên máy), chỉnh cửa sổ: 15 ô đầu, 10 ô một lượt, `windowSize` 11; nhảy tới tin xa hơn 30 hàng không animate,
+  đích chưa đo thì cuộn theo chiều cao trung bình rồi thử lại chỉ số tối đa 3 lần, không animate. **Timeline dài**
+  (`lib/timeline-perf.test.ts`, 2.000 tin): hàng có cùng tin, cùng tin được trích và cùng bộ đọc (`senderName`,
+  `quoteText`, người xem, chủ đề) giữ tên và trích dẫn của lần trước, không gọi lại bộ đọc, và được trả lại nguyên object
+  khi không gì nó vẽ đổi (`buildMessageRowModels` nhớ bộ đọc của mỗi map đã dựng); test đếm lời gọi bộ đọc khi có tin
+  mới (≤ 2) và một ngân sách thời gian thô chặn việc dựng lại thành bậc hai. Vì vậy bộ đọc phải giữ identity:
+  `useRoomContext` lấy người kia của DM qua `select` của query phòng (structural sharing — tin mới đổi record phòng,
+  không đổi người kia), `receiptOf` phụ thuộc hai chuỗi con trỏ, không phải object. `messageDayKey` nhớ ngày theo
+  timestamp (giới hạn 10.000, xoá khi múi giờ hiện tại đổi, xem tối đa mỗi phút): trước đó nó là phần lớn chi phí dựng.
+  Không đặt `maxPages` cho timeline: cache realtime (`room-timeline-pages`) coi trang đầu là trang mới nhất, và mở lại
+  phòng đã cắt về trang mới nhất.
   `lib/user-id.ts` (`userKey`/`sameUser`) thay `trim().toUpperCase()` ngoài các file copy từ web. Link việc của tin
   hỏi theo cửa sổ (`lib/link-windows.ts`, ranh giới theo hash id): tin mới chỉ refetch cửa sổ mới nhất; cửa sổ vừa
   đổi key giữ thẻ việc cũ của các tin trong nó tới khi có câu trả lời (`taskIdsByMessage`; `keepPreviousData` không áp

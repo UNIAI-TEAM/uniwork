@@ -92,15 +92,43 @@ export function sameRowModel(a: MessageRowModel, b: MessageRowModel): boolean {
   );
 }
 
+/** The inputs a row's name and quote are read with: unchanged, an unchanged message keeps last time's. */
+type Readers = Pick<MessageRowModelInput, "userId" | "threadRootId" | "isGroup" | "senderName" | "quoteText" | "unknownQuoteSender">;
+
+interface Workings {
+  readers: Readers;
+  /** The loaded message each row's quote was read from (undefined: none, or not loaded). */
+  quoted: ReadonlyMap<string, TimelineMessage | undefined>;
+}
+
+// What each map of models was built with, so the next build can tell which rows need no work at all.
+const workings = new WeakMap<ReadonlyMap<string, MessageRowModel>, Workings>();
+
+const sameReaders = (a: Readers, b: Readers): boolean =>
+  a.userId === b.userId &&
+  a.threadRootId === b.threadRootId &&
+  a.isGroup === b.isGroup &&
+  a.senderName === b.senderName &&
+  a.quoteText === b.quoteText &&
+  a.unknownQuoteSender === b.unknownQuoteSender;
+
 /**
  * One model per message row that draws something (a photo folded into its
  * album draws nothing), keyed by row key. A model equal to the one `previous`
- * holds for its key is returned as that very object.
+ * holds for its key is returned as that very object. Incremental (audit P2
+ * Perf, 2,000 loaded messages): a row whose message, quoted message and
+ * readers (the name and preview functions, viewer, thread) are those of last
+ * time keeps its name and quote without calling the readers, and is handed
+ * back without building a new object when nothing else it draws moved.
  */
 export function buildMessageRowModels(input: MessageRowModelInput, previous?: ReadonlyMap<string, MessageRowModel>): Map<string, MessageRowModel> {
   const { userId, threadRootId, isGroup } = input;
+  const readers: Readers = { userId, threadRootId, isGroup, senderName: input.senderName, quoteText: input.quoteText, unknownQuoteSender: input.unknownQuoteSender };
+  const last = previous ? workings.get(previous) : undefined;
+  const sameReadersAsLast = last !== undefined && sameReaders(last.readers, readers);
   const byId = new Map(input.messages.map((message) => [message.id, message]));
   const models = new Map<string, MessageRowModel>();
+  const quotedByKey = new Map<string, TimelineMessage | undefined>();
   for (const row of input.rows) {
     if (row.type !== "message") continue;
     const { message } = row;
@@ -110,9 +138,33 @@ export function buildMessageRowModels(input: MessageRowModelInput, previous?: Re
     const continued = input.continued.has(row.key);
     const quotedId = message.replyToEventId;
     const quoted = quotedId ? byId.get(quotedId) : undefined;
+    quotedByKey.set(row.key, quoted);
+    const before = previous?.get(row.key);
+    // Same message, same quoted message, same readers: the name and the quote are last time's.
+    const read = sameReadersAsLast && before?.message === message && last.quoted.get(row.key) === quoted ? before : undefined;
+    const showSender = isGroup && !own && row.showAvatar;
+    const receipt = input.receiptOf(message, own);
+    const album = input.albums.byFirstId.get(message.id);
+    const highlighted = message.id === input.highlightedId;
+    const taskIds = input.taskIdsByMessage.get(message.id);
+    if (
+      read &&
+      !root &&
+      read.compactTop === row.compactTop &&
+      read.continued === continued &&
+      read.showSender === showSender &&
+      read.receipt === receipt &&
+      read.highlighted === highlighted &&
+      sameList(read.album, album) &&
+      sameList(read.taskIds, taskIds)
+    ) {
+      models.set(row.key, read);
+      continue;
+    }
     // In a thread every reply answers the root above it: no quote of the root on each one.
-    const quote: QuoteModel | null =
-      quotedId && quotedId !== threadRootId
+    const quote: QuoteModel | null = read
+      ? read.quote
+      : quotedId && quotedId !== threadRootId
         ? quoted
           ? { id: quoted.id, sender: input.senderName(quoted), text: input.quoteText(quoted) }
           : { id: quotedId, sender: input.unknownQuoteSender, text: "…" }
@@ -123,22 +175,22 @@ export function buildMessageRowModels(input: MessageRowModelInput, previous?: Re
       own,
       compactTop: row.compactTop,
       continued,
-      senderName: input.senderName(message),
-      showSender: isGroup && !own && row.showAvatar,
+      senderName: read ? read.senderName : input.senderName(message),
+      showSender,
       quote,
-      receipt: input.receiptOf(message, own),
+      receipt,
       avatar: isGroup && !own && !root ? (continued ? "spacer" : "face") : "none",
-      album: input.albums.byFirstId.get(message.id),
+      album,
       root,
       // The server's count covers replies on pages not loaded yet; the loaded ones cover a count not refreshed yet.
       threadReplies: root ? Math.max(message.record?.reply_count ?? 0, input.messages.length - 1) : 0,
-      highlighted: message.id === input.highlightedId,
+      highlighted,
       showThread: !threadRootId,
       swipeToReply: !threadRootId && Boolean(message.record),
-      taskIds: input.taskIdsByMessage.get(message.id),
+      taskIds,
     };
-    const before = previous?.get(row.key);
     models.set(row.key, before && sameRowModel(before, next) ? before : next);
   }
+  workings.set(models, { readers, quoted: quotedByKey });
   return models;
 }

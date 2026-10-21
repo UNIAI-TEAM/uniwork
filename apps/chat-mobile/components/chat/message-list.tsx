@@ -7,6 +7,21 @@
 // renderer does (audit H1): the list re-renders cells only when a row changed.
 // A new `latestSignal` scrolls to the newest message (the jump-to-latest
 // button, and every send of one's own: it lands at the bottom, in view).
+//
+// Why not FlashList like the room and contact lists: this list's whole feel is
+// the inverted list's anchor (older pages arrive above without moving what is
+// read, new messages arrive below the keyboard-tracking composer), and only a
+// device can tell whether a new list keeps it; FlashList 2 lays chat out
+// bottom-up a different way (startRenderingFromBottom, onStartReached). Until
+// that is measured on hardware, the FlatList is tuned instead (audit P2 Perf):
+// one screenful first, ten cells a batch and a window of 11 screens rather
+// than 21, so a 2,000-message history keeps a few dozen bubbles mounted.
+//
+// A jump far up the loaded pages goes without animation (a long animated
+// scroll over cells never measured overshoots, then corrects: a visible double
+// scroll); a target never measured is reached by the average row height, then
+// retried a few times at its index, never animated. A target outside the
+// loaded pages is the room's to load (roomAroundOptions), not this list's.
 import { memo, useCallback, useEffect, useMemo, useRef, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { ActivityIndicator, FlatList, View, type ListRenderItem } from "react-native";
@@ -15,6 +30,11 @@ import { formatMessageDay, type TimelineRow } from "@/lib/timeline-display";
 
 /** How close to the newest message still counts as "at the latest" (read marking). */
 const AT_LATEST_PX = 120;
+/** Rows from the newest past which a jump is not animated. */
+const FAR_JUMP_ROWS = 30;
+/** Attempts at a jump target the list has not measured yet, after the first. */
+const JUMP_RETRIES = 3;
+const RETRY_MS = 60;
 
 interface Props {
   rows: TimelineRow[];
@@ -56,6 +76,15 @@ export function MessageList({ rows, renderMessage, onLoadOlder, loadingOlder, bo
     [renderMessage],
   );
 
+  const retries = useRef(0);
+  const retry = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (retry.current) clearTimeout(retry.current);
+    },
+    [],
+  );
+
   useEffect(() => {
     if (!jumpTo || jumped.current === jumpTo.seq) return;
     const index = data.findIndex((row) => row.type === "message" && row.message.id === jumpTo.id);
@@ -63,10 +92,19 @@ export function MessageList({ rows, renderMessage, onLoadOlder, loadingOlder, bo
     // After the first layout pass, or the list does not know the rows' heights yet.
     const timer = setTimeout(() => {
       jumped.current = jumpTo.seq;
-      list.current?.scrollToIndex({ index, viewPosition: 0.5, animated: true });
+      retries.current = 0;
+      list.current?.scrollToIndex({ index, viewPosition: 0.5, animated: index <= FAR_JUMP_ROWS });
     }, 50);
     return () => clearTimeout(timer);
   }, [data, jumpTo]);
+
+  const onScrollToIndexFailed = useCallback((info: { index: number; averageItemLength: number }) => {
+    list.current?.scrollToOffset({ offset: info.averageItemLength * info.index, animated: false });
+    if (retries.current >= JUMP_RETRIES) return;
+    retries.current += 1;
+    if (retry.current) clearTimeout(retry.current);
+    retry.current = setTimeout(() => list.current?.scrollToIndex({ index: info.index, viewPosition: 0.5, animated: false }), RETRY_MS);
+  }, []);
 
   // The inverted list's offset 0 is its newest message.
   const scrolledFor = useRef(latestSignal);
@@ -109,10 +147,10 @@ export function MessageList({ rows, renderMessage, onLoadOlder, loadingOlder, bo
         atLatest.current = next;
         onAtLatestChange(next);
       }}
-      onScrollToIndexFailed={(info) => {
-        list.current?.scrollToOffset({ offset: info.averageItemLength * info.index, animated: false });
-        setTimeout(() => list.current?.scrollToIndex({ index: info.index, viewPosition: 0.5, animated: true }), 100);
-      }}
+      onScrollToIndexFailed={onScrollToIndexFailed}
+      initialNumToRender={15}
+      maxToRenderPerBatch={10}
+      windowSize={11}
     />
   );
 }

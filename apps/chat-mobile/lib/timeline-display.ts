@@ -51,9 +51,35 @@ function startOfDay(value: Date): number {
   return new Date(value.getFullYear(), value.getMonth(), value.getDate()).getTime();
 }
 
+// A timeline asks for the day of each message several times per change (rows, runs, albums), and a local
+// day takes two Date objects and a time-zone lookup: on Hermes that was most of a 2,000-message rebuild
+// (lib/timeline-perf.test.ts). Each timestamp is worked out once. The memo is bounded, and starts over when
+// the device's current UTC offset moves (a trip, a DST change), looked at no more than once a minute.
+const DAY_KEYS_MAX = 10_000;
+const ZONE_CHECK_MS = 60_000;
+const dayKeys = new Map<number, number>();
+let zoneCheckedAt = Number.NEGATIVE_INFINITY;
+let zoneOffset = Number.NaN;
+
+function dropDayKeysOnZoneChange(): void {
+  const now = Date.now();
+  if (now - zoneCheckedAt < ZONE_CHECK_MS) return;
+  zoneCheckedAt = now;
+  const offset = new Date(now).getTimezoneOffset();
+  if (offset === zoneOffset) return;
+  zoneOffset = offset;
+  dayKeys.clear();
+}
+
 /** Local calendar day of a timestamp, as a comparable key. */
 export function messageDayKey(ts: number): number {
-  return startOfDay(new Date(ts));
+  dropDayKeysOnZoneChange();
+  const cached = dayKeys.get(ts);
+  if (cached !== undefined) return cached;
+  if (dayKeys.size >= DAY_KEYS_MAX) dayKeys.clear();
+  const key = startOfDay(new Date(ts));
+  dayKeys.set(ts, key);
+  return key;
 }
 
 const timeFormatters = new Map<string, Intl.DateTimeFormat>();

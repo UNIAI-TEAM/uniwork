@@ -131,9 +131,10 @@ export function Conversation(props: Props) {
   const continued = useMemo(() => continuedRunKeys(rows), [rows]);
   const albums = useMemo(() => albumsOf(messages), [messages]);
   // The viewer pages through every photo on screen, oldest first.
+  const { senderName } = room;
   const photos: ViewerPhoto[] = useMemo(
-    () => messages.filter((m) => m.record && !m.pending && messageView(m.record) === "image").map((m) => ({ id: m.id, record: m.record, sender: room.senderName(m), ts: m.ts })),
-    [messages, room],
+    () => messages.filter((m) => m.record && !m.pending && messageView(m.record) === "image").map((m) => ({ id: m.id, record: m.record, sender: senderName(m), ts: m.ts })),
+    [messages, senderName],
   );
   // Receipts per sent message (bảng Ngôn ngữ): a DM reads its peer's two cursors off the room,
   // a group or channel the furthest read and the earliest delivered among the others (chat-seen-by.tsx).
@@ -145,16 +146,18 @@ export function Conversation(props: Props) {
     if (receiptsOn) return { readAt: furthestReadAt(room.members, userId), deliveredAt: deliveredToAllAt(room.members, userId) };
     return { readAt: null, deliveredAt: null };
   }, [room.room, room.members, receiptsOn, userId]);
+  // Two strings: a new room record (every new message) that leaves the cursors where they were keeps receiptOf.
+  const { readAt, deliveredAt } = cursors;
   const roomKind = room.room?.kind;
   const receiptOf = useCallback(
     (message: TimelineMessage, own: boolean): Receipt | null => {
       if (!own || !message.record || !roomKind) return null;
       if (roomKind !== "dm" && !receiptsOn) return null;
-      if (isMessageSeenByPeer(message.ts, cursors.readAt)) return "seen";
-      if (isMessageSeenByPeer(message.ts, cursors.deliveredAt)) return "delivered";
+      if (isMessageSeenByPeer(message.ts, readAt)) return "seen";
+      if (isMessageSeenByPeer(message.ts, deliveredAt)) return "delivered";
       return "sent";
     },
-    [roomKind, receiptsOn, cursors],
+    [roomKind, receiptsOn, readAt, deliveredAt],
   );
   const seenByOf = (message: TimelineMessage | null) => (message?.record && receiptsOn ? seenByMembers(message.record, room.members, message.sender) : []);
 

@@ -2,7 +2,7 @@
 // native-chat-message-timeline.test.ts (queued entries are PendingSend here),
 // plus the grouping rule of native-chat-message-grouping.ts.
 import type { ChatMessageRecord } from "@uniwork/core/api/endpoints/chat-schemas";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { PendingSend } from "./send-pipeline";
 import {
   buildMainTimelineMessages,
@@ -192,5 +192,28 @@ describe("buildTimelineRows", () => {
       "day",
       "c:false",
     ]);
+  });
+});
+
+describe("messageDayKey's memo", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  it("answers the same day from memory, past its bound, and after the device's offset moves", () => {
+    const noon = new Date(2026, 9, 21, 12, 0).getTime();
+    const day = new Date(2026, 9, 21).getTime();
+    expect(messageDayKey(noon)).toBe(day);
+    // More timestamps than the memo holds: it starts over and still answers right.
+    for (let n = 0; n <= 10_000; n += 1) messageDayKey(noon + n);
+    expect(messageDayKey(noon)).toBe(day);
+    // A minute on, the offset is looked at again: unchanged, then moved (a trip, a DST change).
+    vi.useFakeTimers({ now: Date.now() + 61_000 });
+    expect(messageDayKey(noon)).toBe(day);
+    const offset = new Date().getTimezoneOffset();
+    vi.spyOn(Date.prototype, "getTimezoneOffset").mockReturnValue(offset + 60);
+    vi.setSystemTime(Date.now() + 61_000);
+    expect(messageDayKey(noon)).toBe(day);
   });
 });
