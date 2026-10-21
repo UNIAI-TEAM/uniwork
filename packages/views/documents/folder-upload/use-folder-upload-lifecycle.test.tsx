@@ -228,7 +228,7 @@ describe("useFolderUpload report outside the create gate (R3-1)", () => {
 
 // review-fe-r3 R3-5: the files-mode branches of the end state (report copy, openId from the destination).
 describe("useFolderUpload files mode end to end (R3-5)", () => {
-  it("runs partial -> Xem -> retry -> success in files words and opens the destination", async () => {
+  it("runs partial -> Xem -> retry -> success in files words and offers no Mở thư mục for the open folder", async () => {
     const { transport, onOpenFolder } = setup({}, partial);
     act(() => hook.addFiles([pdf("a.pdf"), pdf("b.pdf")]));
     upload();
@@ -244,8 +244,9 @@ describe("useFolderUpload files mode end to end (R3-5)", () => {
     await waitFor(() => expect(toast.success).toHaveBeenCalled());
     const [message, options] = toast.success.mock.calls[0] ?? [];
     expect(message).toBe("Đã tải lên 2 tệp vào \"Hợp đồng\"");
-    options.action.onClick();
-    expect(onOpenFolder).toHaveBeenCalledWith("folder-open");
+    // The destination is the folder on screen (F6): no "Mở thư mục".
+    expect(options.action).toBeUndefined();
+    expect(onOpenFolder).not.toHaveBeenCalled();
     expect(transport.calls.some((c) => c.method === "cancel")).toBe(false);
   });
 });

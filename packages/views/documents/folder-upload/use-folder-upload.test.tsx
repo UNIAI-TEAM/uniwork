@@ -209,9 +209,22 @@ describe("useFolderUpload", () => {
     expect(toast.loading.mock.calls[0]?.[0]).toMatch(/^Đang tải lên — \d+\/2 tệp$/);
     const [message, options] = toast.success.mock.calls[0] ?? [];
     expect(message).toBe("Đã tải lên 2 tệp vào \"Hợp đồng\"");
-    // "Mở thư mục" opens the destination: there is no root folder in files mode.
+    // F6: the destination IS the folder on screen, so "Mở thư mục" would open nothing new.
+    expect(options.action).toBeUndefined();
+    expect(onOpenFolder).not.toHaveBeenCalled();
+  });
+
+  it("offers Mở thư mục in files mode when the destination is not the folder on screen (F6)", async () => {
+    // Nothing open: the files land in My Folder, which is a different place from the library root.
+    const { onOpenFolder } = setup({ folderId: null, destinationName: "Thư mục của tôi" });
+    act(() => hook.addFiles([pdf("a.pdf"), pdf("b.pdf")]));
+    await screen.findByTestId("folder-upload-dialog");
+    upload();
+    await waitFor(() => expect(toast.success).toHaveBeenCalled());
+    const [, options] = toast.success.mock.calls[0] ?? [];
+    expect(options.action.label).toBe(t("documents.folder_upload.toast.open_folder"));
     options.action.onClick();
-    expect(onOpenFolder).toHaveBeenCalledWith("folder-open");
+    expect(onOpenFolder).toHaveBeenCalledWith("my-folder");
   });
 
   it("says a refused files-mode plan in files words, in the dialog", async () => {

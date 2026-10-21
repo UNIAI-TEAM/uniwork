@@ -160,8 +160,8 @@ export function useFolderUpload({
       }
     };
   }, []);
-  const latest = useRef({ onOpenFolder, resolveRootParent, myFolderId, t, locale: i18n.language });
-  latest.current = { onOpenFolder, resolveRootParent, myFolderId, t, locale: i18n.language };
+  const latest = useRef({ onOpenFolder, resolveRootParent, myFolderId, folderId, t, locale: i18n.language });
+  latest.current = { onOpenFolder, resolveRootParent, myFolderId, folderId, t, locale: i18n.language };
 
   const head = queue[0] ?? null;
   const plan = useMemo(() => {
@@ -268,9 +268,11 @@ export function useFolderUpload({
       failed: report.failed.length,
       canceled: report.canceled,
       expired: report.expired,
-      onOpenFolder: () => {
-        if (openId) latest.current.onOpenFolder(openId);
-      },
+      // The folder on screen when the run ends, not when it started: the user may have moved on meanwhile.
+      onOpenFolder:
+        openId && openId !== latest.current.folderId
+          ? () => latest.current.onOpenFolder(openId)
+          : undefined,
       onViewFailures: () => showReport(title, report, channel),
       closed,
     });

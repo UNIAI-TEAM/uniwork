@@ -35,6 +35,15 @@ const settled = (over: Partial<Parameters<ReturnType<typeof make>["handle"]["set
   ...over,
 });
 
+describe("createFolderUploadToast progress bar (F7)", () => {
+  it("carries a thin progress bar next to the text, at the share done", () => {
+    const { handle } = make();
+    handle.progress({ done: 10, total: 40 });
+    const options = toast.loading.mock.calls.at(-1)?.[1];
+    expect(options.description.props).toMatchObject({ value: 25, "aria-label": expect.stringContaining("10/40") });
+  });
+});
+
 describe("createFolderUploadToast in files mode (ADDENDUM 2 A7)", () => {
   function makeFiles(retry = false) {
     return createFolderUploadToast({ t, name: "Hợp đồng", total: 40, onCancelAll: vi.fn(), mode: "files", retry });
@@ -55,6 +64,13 @@ describe("createFolderUploadToast in files mode (ADDENDUM 2 A7)", () => {
     expect(options.action.label).toBe("Mở thư mục");
     options.action.onClick();
     expect(onOpenFolder).toHaveBeenCalledTimes(1);
+  });
+
+  it("offers no Mở thư mục when the destination is the folder already on screen (F6)", () => {
+    makeFiles().settle(settled({ title: "Hợp đồng", onOpenFolder: undefined }));
+    const [message, options] = toast.success.mock.calls[0] ?? [];
+    expect(message).toBe("Đã tải lên 40 tệp vào \"Hợp đồng\"");
+    expect(options.action).toBeUndefined();
   });
 
   it("says to upload the files again when the batch expired", () => {

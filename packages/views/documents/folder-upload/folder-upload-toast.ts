@@ -1,5 +1,7 @@
+import { createElement } from "react";
 import type { useTranslation } from "react-i18next";
 import { toast } from "sonner";
+import { Progress } from "@uniwork/ui/components/ui/progress";
 import { modeContext, type FolderUploadMode } from "./folder-upload-copy";
 
 type TFunction = ReturnType<typeof useTranslation>["t"];
@@ -13,7 +15,8 @@ export interface FolderUploadSettled {
   canceled: boolean;
   /** 410: the batch is gone; the folder has to be uploaded again, so there is nothing to retry. */
   expired?: boolean;
-  onOpenFolder: () => void;
+  /** Absent when the destination is the folder already on screen: "Mở thư mục" would open nothing new. */
+  onOpenFolder?: () => void;
   onViewFailures: () => void;
   /** The batch was closed with the page gone: no "Xem" (the report lives in the page), and the toast says so. */
   closed?: boolean;
@@ -59,10 +62,17 @@ export function createFolderUploadToast({
   const progressKey = retry ? "documents.folder_upload.retry_toast.progress" : "documents.folder_upload.toast.progress";
   const cancelKey = retry ? "documents.folder_upload.retry_toast.cancel" : "documents.folder_upload.toast.cancel_all";
   const progress = (counts: { done: number; total: number }) => {
-    toast.loading(t(progressKey, { name, done: counts.done, total: counts.total, ...ctx }), {
+    const message = t(progressKey, { name, done: counts.done, total: counts.total, ...ctx });
+    toast.loading(message, {
       id,
       duration: Number.POSITIVE_INFINITY,
       action: { label: t(cancelKey), onClick: onCancelAll },
+      // A thin bar under the text (F7); the text stays the accessible name of the progress.
+      description: createElement(Progress, {
+        value: counts.total > 0 ? Math.min(100, Math.round((counts.done / counts.total) * 100)) : 0,
+        "aria-label": message,
+        className: "mt-1 w-full",
+      }),
     });
   };
   progress({ done, total });
@@ -98,7 +108,7 @@ export function createFolderUploadToast({
     toast.success(t("documents.folder_upload.toast.success", { count: done, name: title }), {
       id,
       duration: 10000,
-      action: { label: t("documents.folder_upload.toast.open_folder"), onClick: onOpenFolder },
+      action: onOpenFolder ? { label: t("documents.folder_upload.toast.open_folder"), onClick: onOpenFolder } : undefined,
     });
   };
   return {
