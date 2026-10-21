@@ -73,6 +73,8 @@ interface Routes {
   recentCursor?: (path: string) => string | null;
   shared?: () => unknown[];
   favorites?: () => unknown[];
+  /** GET /workspaces/{ws}/documents/favorites (SV-2): the Starred screen's rows. */
+  starred?: (path: string) => unknown[];
   sources?: (path: string) => unknown[];
   sourcesCursor?: (path: string) => string | null;
   post?: (path: string) => unknown;
@@ -91,6 +93,7 @@ function route(routes: Routes) {
     };
     // The module switch reads the organization's office flags (UNI-1869 viewer).
     if (path.startsWith("/api/v1/config")) return Promise.resolve({ flags: { office_engine: true } });
+    if (path.startsWith(`${LIST_BASE}/favorites`)) return run(() => ({ documents: routes.starred?.(path) ?? [], next_cursor: null }));
     if (path.includes("/documents/favorites")) return run(() => ({ favorites: routes.favorites?.() ?? [] }));
     if (path.startsWith(`${LIST_BASE}/tree`)) return Promise.resolve({ documents: routes.tree?.() ?? [] });
     if (path.startsWith(`${LIST_BASE}/sources`) && method === "GET") {
@@ -629,6 +632,7 @@ describe("starring a document", () => {
     route({
       list: () => [summary()],
       favorites: () => [{ document_id: "d1", workspace_id: WS, title: "Kế hoạch Q4", kind: "page" }, { document_id: "d9", workspace_id: "other", title: "Khác", kind: "page" }],
+      starred: () => [summary({ favorited_at: "2026-10-09T03:00:00Z" })],
     });
     renderView();
     await screen.findByText("Kế hoạch Q4");
@@ -639,6 +643,30 @@ describe("starring a document", () => {
     expect(await screen.findByRole("heading", { level: 2, name: t("documents.home.views.starred") })).toBeInTheDocument();
     expect(await rowOf("Kế hoạch Q4")).toBeInTheDocument();
     expect(screen.queryByText("Khác")).toBeNull();
+  });
+
+  it("lists Starred from the workspace favorites route with the star date, and joins no other list (SV-2)", async () => {
+    route({
+      list: () => [summary({ id: "d2", title: "Chỉ ở gốc" })],
+      favorites: () => [{ document_id: "d1", workspace_id: WS, title: "Tên cũ", kind: "page" }],
+      starred: () => [
+        summary({ title: "Kế hoạch Q4", favorited_at: "2025-03-18T03:00:00Z", updated_by_user: { name: "Nguyễn Văn An", avatar_url: null } }),
+      ],
+    });
+    renderView();
+    fireEvent.click(await screen.findByRole("button", { name: new RegExp(t("documents.home.sidebar.starred")) }));
+    const row = await rowOf("Kế hoạch Q4");
+    // The row is the server's (its own title and editor), with the star date and "Bạn gắn sao".
+    expect(screen.queryByText("Tên cũ")).toBeNull();
+    expect(within(row).getAllByText("Nguyễn Văn An").length).toBeGreaterThan(0);
+    expect(within(row).getAllByText(t("documents.list.starred_by_you")).length).toBeGreaterThan(0);
+    expect(within(row).getAllByText(/18\/03\/2025/).length).toBeGreaterThan(0);
+    const gets = requestMock.mock.calls.map(([path]) => String(path));
+    expect(gets.some((path) => path.startsWith(`${LIST_BASE}/favorites`))).toBe(true);
+    // No params but the page: the screen's filters and sort stay on the client (W10/W12 move them).
+    expect(gets.filter((path) => path.startsWith(`${LIST_BASE}/favorites`)).every((path) => !/[?&](sort|order|format|kind|access)=/.test(path))).toBe(true);
+    // The flat workspace list is no longer read to fill starred rows.
+    expect(gets.some((path) => path === `${LIST_BASE}?limit=50`)).toBe(false);
   });
 
   it("shows the star marker on the row after starring and removes it after unstarring", async () => {
@@ -721,10 +749,10 @@ describe("library views", () => {
   it("retries the starred list when it could not be read", async () => {
     let attempts = 0;
     route({
-      favorites: () => {
+      starred: () => {
         attempts += 1;
         if (attempts === 1) throw new ApiError("boom", "internal", 500);
-        return [{ document_id: "d1", workspace_id: WS, title: "Kế hoạch Q4", kind: "page" }];
+        return [summary()];
       },
     });
     renderView();

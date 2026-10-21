@@ -150,6 +150,37 @@ describe("access column", () => {
     expect(within(access).queryByText("Bạn: Quản lý")).toBeNull();
   });
 
+  it("reads is_owner (SV-5) over via, both ways", () => {
+    renderList([
+      doc("a", "A.docx", { my_level: "manage", via: "share" as DocumentSummaryRow["via"], is_owner: true }),
+      doc("b", "B.docx", { my_level: "edit", via: "owner" as DocumentSummaryRow["via"], is_owner: false }),
+    ]);
+    expect(within(cellsOf("a")[1]!).getByText("Chủ sở hữu")).toBeTruthy();
+    expect(within(cellsOf("b")[1]!).getByText("Bạn: Sửa")).toBeTruthy();
+    expect(within(cellsOf("b")[1]!).queryByText("Chủ sở hữu")).toBeNull();
+  });
+
+  it("names the editor from updated_by_user (SV-6) with the photo, else from the member list", () => {
+    const member = (id: string) => (id === "u1" ? { name: "An", avatarUrl: "https://cdn.test/member-an.png" } : ("former" as const));
+    renderList(
+      [
+        doc("a", "A.docx", { updated_by_user: { name: "Nguyễn Văn An", avatar_url: "https://cdn.test/an.png" } }),
+        doc("b", "B.docx", { updated_by_user: { name: "Lê Bảo" } }),
+        doc("c", "C.docx"),
+      ],
+      { member },
+    );
+    const editor = (id: string) => cellsOf(id).find((td) => td.dataset.column === "editor")!;
+    expect(within(editor("a")).getByText("Nguyễn Văn An")).toBeTruthy();
+    expect(editor("a").querySelector("img")?.getAttribute("src")).toBe("https://cdn.test/an.png");
+    // A photo-less editor draws the initial, never another person's photo.
+    expect(within(editor("b")).getByText("Lê Bảo")).toBeTruthy();
+    expect(editor("b").querySelector("img")).toBeNull();
+    // Today's server: the member list names the editor and gives the photo.
+    expect(within(editor("c")).getByText("An")).toBeTruthy();
+    expect(editor("c").querySelector("img")?.getAttribute("src")).toBe("https://cdn.test/member-an.png");
+  });
+
   it("labels unshared restricted rows as 'Riêng tư'", () => {
     renderList([doc("a", "A.docx", { visibility: "restricted", share_scope: SCOPE_PRIVATE, via: "owner" as DocumentSummaryRow["via"] })]);
     expect(screen.getAllByText("Riêng tư").length).toBeGreaterThanOrEqual(1);
