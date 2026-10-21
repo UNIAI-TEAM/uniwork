@@ -71,4 +71,15 @@ describe("shareErrorMessage", () => {
       t("documents.errors.level_not_allowed", { max: t("documents.share.level_edit") }),
     );
   });
+
+  it("never shows the access-batch route's raw 400 sentence", () => {
+    // The access batch has no item cap any more (UNI-2012 S1e): a 400 is the
+    // generic malformed-batch refusal, never a sentence with a number in it.
+    const err = new ApiError("invalid request", "invalid_request", 400);
+    expect(shareErrorMessage(err, t)).toBe(t("documents.errors.access_batch_invalid"));
+    // The same code on another status keeps the generic path.
+    expect(shareErrorMessage(new ApiError("raw", "invalid_request", 422), t)).not.toBe(
+      t("documents.errors.access_batch_invalid"),
+    );
+  });
 });

@@ -5,14 +5,17 @@
 -- name: InsertDocumentShare :one
 INSERT INTO document_shares (
   id, organization_id, workspace_id, document_id, principal_type,
-  principal_id, level, granted_by, granted_by_kind, origin
+  principal_id, level, granted_by, granted_by_kind, origin,
+  source_kind, source_room_id, source_message_id, prior_manual_level
 ) VALUES (
   sqlc.arg(id), sqlc.arg(organization_id), sqlc.arg(workspace_id),
   sqlc.arg(document_id), sqlc.arg(principal_type),
   sqlc.arg(principal_id), sqlc.arg(level), sqlc.arg(granted_by),
   sqlc.arg(granted_by_kind),
   -- UNI-2039 S3: '' means direct (every caller but the chat path).
-  COALESCE(NULLIF(sqlc.arg(origin)::text, ''), 'direct')
+  COALESCE(NULLIF(sqlc.arg(origin)::text, ''), 'direct'),
+  sqlc.narg(source_kind), sqlc.narg(source_room_id),
+  sqlc.narg(source_message_id), sqlc.narg(prior_manual_level)
 )
 RETURNING *;
 
@@ -51,6 +54,47 @@ WHERE organization_id = sqlc.arg(organization_id)
 UPDATE document_shares
 SET revoked_at = now(), revoked_by = sqlc.arg(revoked_by)
 WHERE id = sqlc.arg(id)
+  AND organization_id = sqlc.arg(organization_id)
+  AND workspace_id = sqlc.arg(workspace_id)
+  AND document_id = sqlc.arg(document_id)
+  AND revoked_at IS NULL;
+
+-- The multi-row form of InsertDocumentShare for a command that grants one
+-- level to many users of one document at once (UNI-2012 S1c: a chat send to a
+-- large room, a Documents batch share). The service writes it in chunks inside
+-- its one transaction, so a 1,000-person grant is a handful of statements
+-- instead of a round trip per grantee. The tenant pair, document, level,
+-- grantor and chat source are one per call; ids, principals and the
+-- remembered manual level (empty = NULL) arrive as parallel arrays.
+-- name: InsertUserDocumentSharesBatch :many
+-- tenant: parent document_id
+-- The organization/workspace pair written is the authorized document's own.
+INSERT INTO document_shares (
+  id, organization_id, workspace_id, document_id, principal_type,
+  principal_id, level, granted_by, granted_by_kind, origin,
+  source_kind, source_room_id, source_message_id, prior_manual_level
+)
+SELECT r.id, sqlc.arg(organization_id)::text, sqlc.arg(workspace_id)::text,
+  sqlc.arg(document_id)::text, 'user',
+  r.principal_id, sqlc.arg(level)::text, sqlc.arg(granted_by)::text,
+  sqlc.arg(granted_by_kind)::text,
+  -- UNI-2039 S3: '' means direct (the Documents batch share).
+  COALESCE(NULLIF(sqlc.arg(origin)::text, ''), 'direct'),
+  sqlc.narg(source_kind)::text, sqlc.narg(source_room_id)::text,
+  sqlc.narg(source_message_id)::text, NULLIF(r.prior_manual_level, '')
+FROM (
+  SELECT unnest(sqlc.arg(ids)::text[]) AS id,
+    unnest(sqlc.arg(principal_ids)::text[]) AS principal_id,
+    unnest(sqlc.arg(prior_manual_levels)::text[]) AS prior_manual_level
+) AS r
+RETURNING *;
+
+-- The multi-row form of RevokeDocumentShare: the live rows a batch grant
+-- replaces at another level, ended in one statement per chunk.
+-- name: RevokeDocumentSharesByIDs :exec
+UPDATE document_shares
+SET revoked_at = now(), revoked_by = sqlc.arg(revoked_by)
+WHERE id = ANY(sqlc.arg(ids)::text[])
   AND organization_id = sqlc.arg(organization_id)
   AND workspace_id = sqlc.arg(workspace_id)
   AND document_id = sqlc.arg(document_id)
@@ -203,3 +247,145 @@ WHERE organization_id = sqlc.arg(organization_id)
   AND workspace_id = sqlc.arg(workspace_id)
   AND document_id = sqlc.arg(document_id)
   AND revoked_at IS NULL;
+
+-- The live chat-origin shares of one user in the organization that their own
+-- source no longer backs (UNI-2012 S1-fix). A chat grant is backed while the
+-- user is an invited or active member of the source room, the source message
+-- is a live document message of the same document, and that membership is
+-- the one the grant was made in: the message, or the grant itself, is not
+-- older than the membership row (a rejoin inserts a new row, so a grant from
+-- an earlier membership is stale). Every share returned is reconciled under
+-- the document lock, where FindChatDocumentShareAnchor decides again. A
+-- deactivated member is skipped: deactivation keeps what the person owns and
+-- reactivation restores their rooms. Manual shares and pre-existing chat
+-- grants have source_kind IS NULL and are never returned here.
+-- name: ListChatDocumentSharesToReconcile :many
+SELECT s.*
+FROM document_shares s
+WHERE s.organization_id = sqlc.arg(organization_id)
+  AND s.principal_type = 'user'
+  AND s.principal_id = sqlc.arg(user_id)
+  AND s.source_kind = 'chat'
+  AND s.revoked_at IS NULL
+  AND NOT EXISTS (
+    SELECT 1
+    FROM organization_members om
+    WHERE om.organization_id = s.organization_id
+      AND om.user_id = s.principal_id
+      AND om.deactivated_at IS NOT NULL
+  )
+  AND NOT EXISTS (
+    SELECT 1
+    FROM chat_room_members m
+    JOIN chat_messages msg
+      ON msg.room_id = m.room_id
+     AND msg.organization_id = m.organization_id
+    WHERE m.organization_id = s.organization_id
+      AND m.room_id = s.source_room_id
+      AND m.user_id = s.principal_id
+      AND m.status IN ('invited', 'active')
+      AND msg.id = s.source_message_id
+      AND msg.deleted_at IS NULL
+      AND msg.kind = 'document'
+      AND msg.metadata->>'document_id' = s.document_id
+      AND (msg.created_at >= m.created_at OR s.created_at >= m.created_at)
+  )
+ORDER BY s.created_at, s.id;
+
+-- The rooms and messages that back chat grants on one document now
+-- (UNI-2012 S1-fix, S1-fix-2 SF1/SF3), for many grants in one read. For each
+-- grant (share id, user, its own source message, when it was granted): every
+-- live document message of the document in a room the user is an invited or
+-- active member of, sent during that membership - or the grant's own source
+-- message, when the grant was made during it (a file message converted in
+-- place keeps its older created_at). share_level is the level the message
+-- granted ('' on a message written before it was recorded). A grant with no
+-- row is stale and is revoked; the service picks the level and the anchor.
+-- name: ListChatDocumentShareBackings :many
+SELECT g.share_id::text AS share_id, m.room_id, msg.id AS message_id,
+  COALESCE(msg.metadata->>'share_level', '')::text AS share_level,
+  (msg.id = g.source_message_id)::boolean AS is_source
+FROM (
+  SELECT unnest(sqlc.arg(share_ids)::text[]) AS share_id,
+    unnest(sqlc.arg(user_ids)::text[]) AS user_id,
+    unnest(sqlc.arg(source_message_ids)::text[]) AS source_message_id,
+    unnest(sqlc.arg(granted_ats)::timestamptz[]) AS granted_at
+) AS g
+JOIN chat_room_members m
+  ON m.organization_id = sqlc.arg(organization_id)
+ AND m.user_id = g.user_id
+ AND m.status IN ('invited', 'active')
+JOIN chat_messages msg
+  ON msg.room_id = m.room_id
+ AND msg.organization_id = m.organization_id
+WHERE msg.deleted_at IS NULL
+  AND msg.kind = 'document'
+  AND msg.metadata->>'document_id' = sqlc.arg(document_id)::text
+  AND (
+    msg.created_at >= m.created_at
+    OR (msg.id = g.source_message_id AND g.granted_at >= m.created_at)
+  )
+ORDER BY g.share_id, (msg.id = g.source_message_id) DESC, msg.created_at ASC, msg.id ASC;
+
+-- Re-points a live chat-origin share to the room and message that back it now
+-- (FindChatDocumentShareAnchor) when its own source no longer does
+-- (UNI-2012 D2a, S1-fix).
+-- name: RepointDocumentShareChatSource :one
+UPDATE document_shares
+SET source_room_id = sqlc.arg(source_room_id),
+    source_message_id = sqlc.narg(source_message_id)
+WHERE id = sqlc.arg(id)
+  AND organization_id = sqlc.arg(organization_id)
+  AND workspace_id = sqlc.arg(workspace_id)
+  AND document_id = sqlc.arg(document_id)
+  AND source_kind = 'chat'
+  AND revoked_at IS NULL
+RETURNING *;
+
+-- The multi-row form of RepointDocumentShareChatSource for a document-message
+-- delete that re-points many grants at once (UNI-2012 S1-fix-2 SF1): ids and
+-- their new sources arrive as parallel arrays.
+-- name: RepointDocumentSharesChatSources :exec
+UPDATE document_shares s
+SET source_room_id = r.source_room_id,
+    source_message_id = r.source_message_id
+FROM (
+  SELECT unnest(sqlc.arg(ids)::text[]) AS id,
+    unnest(sqlc.arg(source_room_ids)::text[]) AS source_room_id,
+    unnest(sqlc.arg(source_message_ids)::text[]) AS source_message_id
+) AS r
+WHERE s.id = r.id
+  AND s.organization_id = sqlc.arg(organization_id)
+  AND s.workspace_id = sqlc.arg(workspace_id)
+  AND s.document_id = sqlc.arg(document_id)
+  AND s.source_kind = 'chat'
+  AND s.revoked_at IS NULL;
+
+-- The live chat-origin shares of one document (UNI-2012 S1d, D8): every one
+-- when an upload-origin document message is deleted, or only those whose
+-- source is one message when a link-origin message is. Read under the
+-- document lock inside the delete transaction. With skip_deactivated (the
+-- link path) a deactivated member's grant is left alone, exactly as
+-- ListChatDocumentSharesToReconcile skips it (S1-fix-2 SF5): deactivation
+-- keeps what the person owns. Manual shares and pre-D2a chat grants have
+-- source_kind IS NULL and are never returned.
+-- name: ListLiveChatDocumentSharesOfDocument :many
+SELECT s.*
+FROM document_shares s
+WHERE s.organization_id = sqlc.arg(organization_id)
+  AND s.workspace_id = sqlc.arg(workspace_id)
+  AND s.document_id = sqlc.arg(document_id)
+  AND s.source_kind = 'chat'
+  AND s.revoked_at IS NULL
+  AND (sqlc.narg(source_message_id)::text IS NULL OR s.source_message_id = sqlc.narg(source_message_id)::text)
+  AND (
+    NOT sqlc.arg(skip_deactivated)::boolean
+    OR NOT EXISTS (
+      SELECT 1
+      FROM organization_members om
+      WHERE om.organization_id = s.organization_id
+        AND om.user_id = s.principal_id
+        AND om.deactivated_at IS NOT NULL
+    )
+  )
+ORDER BY s.created_at, s.id;

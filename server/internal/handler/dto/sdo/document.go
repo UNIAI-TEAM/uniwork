@@ -226,7 +226,7 @@ type DocumentSummaryDTO struct {
 	// one ignores it.
 	IsOwner       *bool                    `json:"is_owner,omitempty" description:"true = người gọi là chủ ACL của tài liệu (cùng khái niệm acl_owner của báo cáo quyền truy cập); có trên mọi dòng của danh sách tài liệu" example:"true"`
 	UpdatedByUser *DocumentEditorSDO       `json:"updated_by_user,omitempty" description:"Người sửa gần nhất khi là người dùng trong tổ chức của người gọi; vắng mặt khi người sửa là agent/hệ thống hoặc ngoài tổ chức (không lộ tên qua tổ chức khác)"`
-	LastActivity  *DocumentLastActivitySDO `json:"last_activity,omitempty" description:"Chỉ có trên /documents/recent: hoạt động gần nhất của người gọi trên dòng (opened, edited hoặc commented) và thời điểm"`
+	LastActivity  *DocumentLastActivitySDO `json:"last_activity,omitempty" description:"Chỉ có trên /documents/recent: hoạt động gần nhất của người gọi trên dòng (opened, edited, commented hoặc owned) và thời điểm"`
 	FavoritedAt   *string                  `json:"favorited_at,omitempty" description:"Chỉ có trên /documents/favorites: thời điểm người gọi gắn sao tài liệu (RFC3339)" example:"2026-10-20T08:00:00Z"`
 	Shared        *DocumentSharedSDO       `json:"shared,omitempty" description:"Chỉ có trên /documents/shared-with-me: ai chia sẻ và khi nào, theo chính share cấp quyền cho người gọi"`
 	ShareSummary  *DocumentShareSummarySDO `json:"share_summary,omitempty" description:"Chỉ có khi shared_by_me=true: tóm tắt các grant còn sống của tài liệu (người, workspace, liên kết) và lần chia sẻ mới nhất"`
@@ -241,7 +241,7 @@ type DocumentEditorSDO struct {
 
 // DocumentLastActivitySDO is the caller's last activity on a recent row.
 type DocumentLastActivitySDO struct {
-	Kind string `json:"kind" description:"opened (đã mở/xem), edited (người gọi là người sửa gần nhất) hoặc commented (người gọi bình luận)" example:"opened"`
+	Kind string `json:"kind" description:"opened (đã mở/xem), edited (người gọi là người sửa gần nhất), commented (người gọi bình luận) hoặc owned (người gọi là chủ ACL và người khác đã sửa sau hoạt động của người gọi, tính theo updated_at; chỉ có khi include_owned=true)" example:"opened"`
 	At   string `json:"at" description:"Thời điểm hoạt động (RFC3339)" example:"2026-10-20T08:00:00Z"`
 }
 

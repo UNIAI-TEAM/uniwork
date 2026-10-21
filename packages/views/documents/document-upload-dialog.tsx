@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { FilePlus, Paperclip } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { ChunkedUploadProgress } from "@uniwork/core/documents/chunked-upload";
@@ -31,6 +31,8 @@ export interface DocumentUploadDialogProps {
   pending?: boolean;
   /** A failed attempt, shown in place so the picked file is not lost. */
   error?: string | null;
+  /** A way out shown under the error (a chat card's "open the document page"). */
+  errorAction?: ReactNode;
   /** True when the open folder already shares with the home workspace. */
   parentShared?: boolean;
   /** False when staging a new version of an existing document. */
@@ -48,6 +50,8 @@ export interface DocumentUploadDialogProps {
    * input accepts several files only when it is set. One file stays here.
    */
   onPickMany?: (files: File[]) => void;
+  /** The host's dressing for the dialog (the chat card's UniChat look); joins the default width. */
+  className?: string;
 }
 
 /**
@@ -64,6 +68,7 @@ export function DocumentUploadDialog({
   hint,
   pending = false,
   error,
+  errorAction,
   parentShared = false,
   showShareToggle = true,
   onSubmit,
@@ -74,6 +79,7 @@ export function DocumentUploadDialog({
   hasResumable,
   onPickFile,
   onPickMany,
+  className,
 }: DocumentUploadDialogProps) {
   const { t } = useTranslation();
   const [file, setFile] = useState<File | null>(null);
@@ -143,7 +149,7 @@ export function DocumentUploadDialog({
       }}
     >
       <DialogContent
-        className="sm:max-w-md"
+        className={cn("sm:max-w-md", className)}
         showCloseButton={!pending && !isUploading && !isVerifying}
         closeLabel={t("common.close")}
       >
@@ -269,6 +275,7 @@ export function DocumentUploadDialog({
               {error}
             </p>
           ) : null}
+          {error && errorAction ? <div className="flex">{errorAction}</div> : null}
           <DialogFooter className="px-0 pb-0">
             <Button
               type="button"

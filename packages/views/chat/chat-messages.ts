@@ -75,6 +75,10 @@ export interface ChatMessage {
     can_open_in_app?: boolean;
     /** Sender only: the card prints "Đã chia sẻ với N người". */
     recipient_count?: number;
+    /** UNI-2012 D8: "link" cards only point at a document; absent reads as "upload". */
+    origin?: "upload" | "link";
+    /** Sender's own upload card only: people besides the sender who committed a version. */
+    other_editors_count?: number;
   };
   /** UNI-1966 (L6): the sender of a document-kind file message may convert
    *  it — the server decided (allowlisted type, live, unlinked). */

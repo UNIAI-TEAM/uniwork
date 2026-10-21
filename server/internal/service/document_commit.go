@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
@@ -861,14 +862,27 @@ func (s *DocumentService) chatForVersionLine() *ChatService {
 	return NewChatService(s.pool, s.q, s.ws, NopPublisher{})
 }
 
+// versionLineGuardError keeps the version-line guards' refusals out of the
+// save and passes a Postgres error through: it has aborted the transaction, so
+// the save must fail with it.
+func versionLineGuardError(err error) error {
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		return err
+	}
+	return nil
+}
+
 // insertChatDocumentVersionLineInTx writes one document_version message in
 // chatRoomID inside the commit transaction when the caller may send in that
 // room and the room holds a live document card for doc (UNI-1966 §4.4, L7). The
 // guard outcomes (unknown or foreign room, caller cannot send, no card) are
-// ignored so a card affordance never fails a save: they are pool reads and
-// cannot touch the transaction. A SQL error on the transaction is returned and
-// fails the save with its real cause, because Postgres has already aborted the
-// transaction by then and swallowing it would only move the failure to COMMIT.
+// ignored so a card affordance never fails a save: the guards read on q (the
+// save's own connection, never a second one from the pool) and a refusal is a
+// missing row, not a Postgres error, so it cannot abort the transaction. A SQL
+// error on the transaction is returned and fails the save with its real cause,
+// because Postgres has already aborted the transaction by then and swallowing
+// it would only move the failure to COMMIT.
 func (s *DocumentService) insertChatDocumentVersionLineInTx(
 	ctx context.Context, q *db.Queries, actor Actor, doc db.Document, version db.DocumentVersion, chatRoomID string,
 ) (db.ChatRoom, *db.ChatMessage, error) {
@@ -877,12 +891,12 @@ func (s *DocumentService) insertChatDocumentVersionLineInTx(
 		return db.ChatRoom{}, nil, nil
 	}
 	chat := s.chatForVersionLine()
-	room, err := chat.authorizeRoom(ctx, actor.ID, doc.WorkspaceID, roomID)
+	room, err := chat.authorizeRoomQ(ctx, q, actor.ID, doc.WorkspaceID, roomID)
 	if err != nil {
-		return db.ChatRoom{}, nil, nil
+		return db.ChatRoom{}, nil, versionLineGuardError(err)
 	}
-	if err := chat.requireCanSendInRoom(ctx, actor.ID, room.ID, room); err != nil {
-		return db.ChatRoom{}, nil, nil
+	if err := chat.requireCanSendInRoomQ(ctx, q, actor.ID, room.ID, room); err != nil {
+		return db.ChatRoom{}, nil, versionLineGuardError(err)
 	}
 	hasCard, err := q.ChatRoomHasDocumentMessage(ctx, db.ChatRoomHasDocumentMessageParams{
 		RoomID:      room.ID,

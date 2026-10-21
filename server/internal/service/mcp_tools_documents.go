@@ -550,7 +550,8 @@ type mcpAddDocumentCommentIn struct {
 // notification rule (ruleDocumentCommentAdded) tells the people the body
 // names as [@Name](mention://member/<user_id>) who can read the document, and
 // the author of the parent comment for a reply, which this tool cannot write:
-// a comment with no mention notifies nobody.
+// a comment with no mention notifies nobody, except the owner of a document
+// that still has a live chat card (UNI-2012 D6).
 func (s *McpToolService) AddDocumentComment(ctx context.Context, p McpPrincipal, in mcpAddDocumentCommentIn) (McpWriteResult, error) {
 	if n := utf8.RuneCountInString(strings.TrimSpace(in.Body)); n == 0 || n > mcpMaxBodyRunes {
 		return McpWriteResult{}, McpInvalidArgs{Msg: fmt.Sprintf("body must be 1-%d characters", mcpMaxBodyRunes)}

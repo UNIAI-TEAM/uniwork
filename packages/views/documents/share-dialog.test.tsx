@@ -1177,3 +1177,34 @@ describe("ShareDialog requests section (DOC7-W02)", () => {
     await waitFor(() => expect(heading).toHaveFocus());
   });
 });
+
+describe("ShareDialog organization settings read (UNI-2012 V1-F6)", () => {
+  const SETTINGS = `/api/v1/orgs/${ORG}/documents/settings`;
+  function serveRole(role: string) {
+    serve();
+    const base = requestMock.getMockImplementation()!;
+    requestMock.mockImplementation((path: string, opts?: { method?: string; body?: any }) => {
+      if (path === "/api/v1/orgs/acme/members/me") return Promise.resolve({ role });
+      if (path === SETTINGS) return Promise.resolve({ public_links_enabled: true });
+      return base(path, opts);
+    });
+  }
+  const settingsReads = () => requestMock.mock.calls.filter(([path]) => path === SETTINGS).length;
+
+  it("does not read the organization switch for a plain member who manages the document", async () => {
+    serveRole("member");
+    renderDialog();
+    await screen.findByText(t("documents.share.access_title"));
+    await waitFor(() =>
+      expect(requestMock.mock.calls.some(([path]) => path === "/api/v1/orgs/acme/members/me")).toBe(true),
+    );
+    expect(settingsReads()).toBe(0);
+  });
+
+  it("reads the organization switch for an organization admin", async () => {
+    serveRole("admin");
+    renderDialog();
+    await screen.findByText(t("documents.share.access_title"));
+    await waitFor(() => expect(settingsReads()).toBe(1));
+  });
+});

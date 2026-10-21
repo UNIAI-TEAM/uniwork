@@ -72,10 +72,11 @@ func TestBatchNotifyDecisionsPinsDirectLevelBoundaries(t *testing.T) {
 				t.Fatalf("effective after = %s, want edit", after.Level)
 			}
 
-			got, err := f.svc.batchNotifyDecisions(f.ctx, f.q, Human(tn.aclOwner.ID), doc, sharesBefore, docAfter, sharesAfter, items)
+			levels, err := f.svc.resolveAccessBatchUserLevels(f.ctx, f.q, doc, sharesBefore, docAfter, sharesAfter, items)
 			if err != nil {
 				t.Fatal(err)
 			}
+			got := batchNotifyDecisions(Human(tn.aclOwner.ID), sharesBefore, items, levels)
 			if len(got) != len(items) {
 				t.Fatalf("decisions = %d, want %d", len(got), len(items))
 			}

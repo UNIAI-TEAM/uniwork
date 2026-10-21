@@ -86,7 +86,9 @@ func (s *ChatService) EditChatMessage(
 // DeleteChatMessage soft-deletes the caller's own message (or, for a room
 // moderator, anyone's reminder) and releases the FileService reference in the
 // same transaction; the bytes stay with the garbage collector, which
-// re-checks every reference provider.
+// re-checks every reference provider. A document message also trashes its
+// upload or revokes the chat grants it gave, in that transaction
+// (applyDocumentMessageDelete, UNI-2012 S1d).
 func (s *ChatService) DeleteChatMessage(
 	ctx context.Context, userID, workspaceID, roomID, messageID string,
 ) error {
@@ -138,6 +140,12 @@ func (s *ChatService) DeleteChatMessage(
 	if err := deleteCommentCopiedFromMessage(ctx, q, userID, deleted.ID); err != nil {
 		return err
 	}
+	docOutcome, err := s.applyDocumentMessageDelete(ctx, q, Human(userID), room, deleted)
+	if err != nil {
+		return err
+	}
+	auditMeta := map[string]any{"room_id": room.ID}
+	docOutcome.metadata(auditMeta)
 	if err := auditRecorder.Record(ctx, q, audit.Entry{
 		OrganizationID: room.OrganizationID,
 		WorkspaceID:    anchorWS,
@@ -145,12 +153,15 @@ func (s *ChatService) DeleteChatMessage(
 		Action:         audit.ActionChatMessageDeleted,
 		ResourceType:   "chat_message",
 		ResourceID:     deleted.ID,
-		Metadata:       map[string]any{"room_id": room.ID},
+		Metadata:       auditMeta,
 	}); err != nil {
 		return err
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return err
+	}
+	if docOutcome.lockOps != nil {
+		s.docs.flushEditLockOps(docOutcome.lockOps)
 	}
 	s.publishChatMessageDeleted(ctx, room, deleted.ID)
 	if deleted.ThreadRootID.Valid {

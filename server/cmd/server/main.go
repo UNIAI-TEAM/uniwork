@@ -506,6 +506,11 @@ func main() {
 	// several tables, so it rides the notify lane, not realtime - and the
 	// expiry sweep is awaited in the shutdown sequence below.
 	dispatcher.RegisterLane(outbox.LaneNotify, service.NewDocumentEditLockReleaser(documentSvc))
+	dispatcher.RegisterLane(outbox.LaneNotify, service.NewChatDocumentShareRevoker(documentSvc))
+	// The card refresher stays on the realtime lane: one indexed read returns
+	// every card with its room and members, then only ephemeral publishes, so
+	// the document.* frames of the Documents UI are not slowed down.
+	dispatcher.Register(service.NewChatDocumentCardRefresher(q, chatSvc))
 	editLockSweep := service.NewDocumentEditLockSweeper(documentSvc, log)
 	if reg != nil {
 		service.SetOfficeLeaseMetrics(reg.OfficeLeases)

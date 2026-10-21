@@ -200,6 +200,13 @@ var isoReferences = []isoReference{
 			"share_level":         "comment",
 			"reply_to_message_id": isoRef("message"),
 		}},
+	// The link send (UNI-2012 D5) names a document by id: A's document sent into
+	// B's own room is not found, never shared, and B's room keeps no message
+	// naming it. No client_msg_id, so the attack can never replay the control.
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/document-link", what: "document", body: map[string]any{
+		"document_id": isoRef("document"), "share_level": "comment"}, covers: []string{"SendChatDocumentLinkSDI.document_id"}},
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/document-link", what: "reply to", body: map[string]any{
+		"document_id": isoOwn("document"), "share_level": "comment", "reply_to_message_id": isoRef("message")}, covers: []string{"SendChatDocumentLinkSDI.reply_to_message_id"}},
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/ai/chat/catch-up", what: "room", body: map[string]any{"room_id": isoRef("room")}, covers: []string{"ChatCatchUpSDI.room_id"}},
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/chat/delivered", what: "room", allow2xx: true,
 		body: map[string]any{"rooms": []any{map[string]any{"room_id": isoRef("room"), "up_to": isoAt(0)}}}, covers: []string{"ChatDeliveredRoomSDI.room_id"}},
@@ -536,6 +543,7 @@ var isoRefFieldExempt = map[string]string{
 	"CalendarSelectionSDI.calendar_ids":           "ids of the provider's calendars (Google, Microsoft), not UniWork rows",
 	"SendChatMessageSDI.client_msg_id":            "the client's idempotency key, not a row",
 	"ShareChatMessageAsDocumentSDI.client_msg_id": "the client's idempotency key, not a row",
+	"SendChatDocumentLinkSDI.client_msg_id":       "the client's idempotency key, not a row",
 	"MintChatVoiceTokenSDI.call_id":               "a client-generated call id, not a row",
 	"VoiceSignalSDI.call_id":                      "a client-generated call id, not a row",
 	"AiUniworkMessageSDI.tool_call_id":            "the model's tool call id, matched against the server's own transcript, not a row",

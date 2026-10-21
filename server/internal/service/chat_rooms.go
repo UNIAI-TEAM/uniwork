@@ -70,9 +70,9 @@ type ChatRoomSummary struct {
 	// AvatarURL is a group's uploaded avatar, signed; "" shows its members.
 	AvatarURL string
 	// CanSendDocument is set on the room DETAIL read only (UNI-1966 L5): the
-	// caller may send a document here and the grantable audience is within one
-	// share batch. The room list never computes it - that would be a member
-	// read per list row.
+	// caller may send a document here. Since UNI-2012 S1c removed the
+	// recipient cap it is send permission alone (chatDocumentCanSend); the
+	// field stays for deployed clients. The room list never computes it.
 	CanSendDocument bool
 }
 
@@ -616,6 +616,13 @@ func (s *ChatService) authorizeRoom(ctx context.Context, userID, workspaceID, ro
 	return s.authorizeRoomAccess(ctx, userID, workspaceID, roomID, true)
 }
 
+// authorizeRoomQ is authorizeRoom read through q: a caller that holds a
+// transaction passes its q so the gate reads on that connection instead of
+// borrowing a second one from the pool. Same decision, same errors.
+func (s *ChatService) authorizeRoomQ(ctx context.Context, q *db.Queries, userID, workspaceID, roomID string) (db.ChatRoom, error) {
+	return s.authorizeRoomAccessQ(ctx, q, userID, workspaceID, roomID, true)
+}
+
 // authorizeRoomRead allows reading a public channel without joining.
 func (s *ChatService) authorizeRoomRead(ctx context.Context, userID, workspaceID, roomID string) (db.ChatRoom, error) {
 	return s.authorizeRoomAccess(ctx, userID, workspaceID, roomID, false)
@@ -627,11 +634,15 @@ func (s *ChatService) authorizeRoomMember(ctx context.Context, userID, workspace
 }
 
 func (s *ChatService) authorizeRoomAccess(ctx context.Context, userID, workspaceID, roomID string, requireMember bool) (db.ChatRoom, error) {
-	wsMember, err := s.ws.RequireMember(ctx, workspaceID, userID)
+	return s.authorizeRoomAccessQ(ctx, s.q, userID, workspaceID, roomID, requireMember)
+}
+
+func (s *ChatService) authorizeRoomAccessQ(ctx context.Context, q *db.Queries, userID, workspaceID, roomID string, requireMember bool) (db.ChatRoom, error) {
+	wsMember, err := s.ws.RequireMemberQ(ctx, q, workspaceID, userID)
 	if err != nil {
 		return db.ChatRoom{}, err
 	}
-	room, err := s.q.GetChatRoomByID(ctx, roomID)
+	room, err := q.GetChatRoomByID(ctx, roomID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return db.ChatRoom{}, ErrNotFound
 	}
@@ -652,7 +663,7 @@ func (s *ChatService) authorizeRoomAccess(ctx context.Context, userID, workspace
 		}
 	}
 
-	_, memErr := s.q.GetActiveChatRoomMember(ctx, db.GetActiveChatRoomMemberParams{
+	_, memErr := q.GetActiveChatRoomMember(ctx, db.GetActiveChatRoomMemberParams{
 		RoomID: roomID, UserID: userID,
 	})
 	isMember := memErr == nil
@@ -789,7 +800,7 @@ func (s *ChatService) GetRoomSummary(ctx context.Context, userID, workspaceID, r
 	if err != nil {
 		return ChatRoomSummary{}, err
 	}
-	summary.CanSendDocument = s.chatDocumentShareBatchCap(ctx, userID, room)
+	summary.CanSendDocument = s.chatDocumentCanSend(ctx, userID, room)
 	return summary, nil
 }
 

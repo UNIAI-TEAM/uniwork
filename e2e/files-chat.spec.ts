@@ -37,8 +37,18 @@ let memberContext: BrowserContext;
 let owner: Page;
 let member: Page;
 
+// A real 1x1 PNG: the plain-file route sniffs the content type of the bytes
+// (a text body labelled image/png is refused), and since UNI-2012 D1c an
+// editor-format file (pdf, txt, docx, ...) never takes that route from the
+// composer, so an image is the one plain file left.
+const PNG_BYTES = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==",
+  "base64",
+);
+
 let fileBody = "";
 let fileName = "";
+let imageName = "";
 
 /** Invitee: the invitation already exists, so verification lands on the invite screen. */
 async function registerInvitee(page: Page, name: string, email: string) {
@@ -96,36 +106,32 @@ function watchRoomDetail(page: Page) {
   );
 }
 
+/** The article of a plain image message: its open button carries the file name (the name is not text). */
+function imageCard(page: Page, name: string) {
+  return page.locator('article[id^="chat-msg-"]').filter({ has: page.getByRole("button", { name: `Xem ${name}` }) });
+}
+
 /**
- * Sends one staged file through the composer (attach → send) as a plain file.
- * A text/plain file is in the document subset, so in a room that may send
- * documents the share-level picker shows and its default would send a shared
- * document (no download button); "Chỉ gửi tệp" keeps it a plain file.
+ * Sends one staged plain file through the composer (attach → send). Only an
+ * image takes the plain route: no level picker shows for it, whatever the
+ * room allows.
  */
-async function sendFile(page: Page, name: string, mimeType: string, body: string) {
-  await page.locator('input[type="file"]').setInputFiles({
-    name,
-    mimeType,
-    buffer: Buffer.from(body, "utf8"),
-  });
-  // The picker follows the room detail's can_send_document, which can land
-  // after the chip; wait on that read (watched since openChat) instead of a
-  // fixed timeout, so a slow VM never sends the default shared document.
+async function sendFile(page: Page, name: string, mimeType: string, buffer: Buffer) {
+  await page.locator('input[type="file"]').setInputFiles({ name, mimeType, buffer });
+  await page.getByRole("button", { name: "Gửi", exact: true }).click();
+}
+
+/**
+ * Sends one staged editor-format file as a document (UNI-2012 D1c): the level
+ * picker follows the room detail's can_send_document, which can land after the
+ * chip, so wait on that read (watched since openChat) before sending at the
+ * default level.
+ */
+async function sendDocument(page: Page, name: string, mimeType: string, body: string) {
+  await page.locator('input[type="file"]').setInputFiles({ name, mimeType, buffer: Buffer.from(body, "utf8") });
+  expect(await roomOffersDocuments.get(page), "the room allows documents").toBe(true);
   const picker = page.getByRole("button", { name: "Quyền cho mọi người trong cuộc trò chuyện" });
-  let offersDocuments = await roomOffersDocuments.get(page);
-  if (offersDocuments === undefined) {
-    // The read was not seen (not opened through openChat): keep a short probe.
-    offersDocuments = await picker.waitFor({ state: "visible", timeout: 5_000 }).then(
-      () => true,
-      () => false,
-    );
-  }
-  if (offersDocuments) {
-    await expect(picker).toBeVisible({ timeout: 15_000 });
-    await picker.click();
-    await page.getByRole("menuitemradio", { name: "Chỉ gửi tệp" }).click();
-    await expect(picker).toHaveText(/Chỉ gửi tệp/);
-  }
+  await expect(picker).toBeVisible({ timeout: 15_000 });
   await page.getByRole("button", { name: "Gửi", exact: true }).click();
 }
 
@@ -174,6 +180,7 @@ test.describe.serial("chat file and voice messages", () => {
 
     fileBody = `Bước 0 chat file ${stamp}\n`.repeat(20);
     fileName = `ghi-chu-${stamp}.txt`;
+    imageName = `anh-${stamp}.png`;
   });
 
   test.afterAll(async () => {
@@ -181,29 +188,46 @@ test.describe.serial("chat file and voice messages", () => {
     await memberContext?.close();
   });
 
-  test("a file sent in the room reaches the second member and downloads @files-smoke", async () => {
+  test("an image sent in the room reaches the second member and downloads @files-smoke", async () => {
     await openChat(owner);
     await openChat(member);
 
-    await sendFile(owner, fileName, "text/plain", fileBody);
+    await sendFile(owner, imageName, "image/png", PNG_BYTES);
 
-    // The sender sees the file card with the human name.
-    const ownerCard = owner.locator('article[id^="chat-msg-"]').filter({ hasText: fileName });
-    await expect(ownerCard).toBeVisible({ timeout: 20_000 });
+    // The sender sees the image message with the human name on its open button.
+    await expect(imageCard(owner, imageName)).toBeVisible({ timeout: 20_000 });
 
-    // The second member sees the same attachment and downloads exactly those
-    // bytes from the signed storage URL the message list handed it (UNI-1633).
-    const memberCard = member.locator('article[id^="chat-msg-"]').filter({ hasText: fileName });
+    // The second member sees the same attachment, opens it and downloads
+    // exactly those bytes from the signed storage URL the message list handed
+    // it (UNI-1633).
+    const memberCard = imageCard(member, imageName);
     await expect(memberCard).toBeVisible({ timeout: 20_000 });
+    await memberCard.getByRole("button", { name: `Xem ${imageName}` }).click();
     const [download] = await Promise.all([
       member.waitForEvent("download", { timeout: 20_000 }),
-      member.getByRole("button", { name: `Tải ${fileName} xuống` }).click(),
+      member.getByRole("dialog").getByRole("button", { name: "Tải xuống" }).click(),
     ]);
-    expect(download.suggestedFilename()).toBe(fileName);
+    expect(download.suggestedFilename()).toBe(imageName);
     const stream = await download.createReadStream();
     const chunks: Buffer[] = [];
     for await (const chunk of stream) chunks.push(Buffer.from(chunk));
-    expect(Buffer.concat(chunks).toString("utf8")).toBe(fileBody);
+    expect(Buffer.concat(chunks).equals(PNG_BYTES)).toBe(true);
+  });
+
+  test("a text file sent from the composer becomes a document card for both members", async () => {
+    await openChat(owner);
+    await openChat(member);
+
+    await sendDocument(owner, fileName, "text/plain", fileBody);
+
+    // No plain file card (no download button): the card opens the document in
+    // Tài liệu, and the title carries the file's name.
+    const titled = new RegExp(`^Mở trong Tài liệu:.*ghi-chu-${stamp}`);
+    for (const page of [owner, member]) {
+      const card = page.locator('article[id^="chat-msg-"]').filter({ has: page.getByRole("button", { name: titled }) });
+      await expect(card.last()).toBeVisible({ timeout: 60_000 });
+      await expect(card.last().getByRole("button", { name: `Tải ${fileName} xuống` })).toHaveCount(0);
+    }
   });
 
   test("a voice message plays for the second member with its duration", async () => {
@@ -235,7 +259,7 @@ test.describe.serial("chat file and voice messages", () => {
   test("a resend with the same client_msg_id does not duplicate the message", async () => {
     await openChat(owner);
 
-    const idempotentName = `gui-lai-${stamp}.txt`;
+    const idempotentName = `gui-lai-${stamp}.png`;
     const fileName2 = idempotentName;
     let firstID = "";
     let secondID = "";
@@ -256,8 +280,8 @@ test.describe.serial("chat file and voice messages", () => {
       await route.fulfill({ response: first });
     });
 
-    await sendFile(owner, fileName2, "text/plain", fileBody);
-    const card2 = owner.locator('article[id^="chat-msg-"]').filter({ hasText: fileName2 });
+    await sendFile(owner, fileName2, "image/png", PNG_BYTES);
+    const card2 = imageCard(owner, fileName2);
     await expect(card2).toBeVisible({ timeout: 20_000 });
     await expect.poll(() => uploads, { timeout: 20_000 }).toBe(1);
     expect(firstID).not.toBe("");
@@ -300,9 +324,7 @@ test.describe.serial("chat file and voice messages", () => {
     await openChat(owner);
     // The composer is visible before the message list finishes loading; wait
     // for a known earlier message so `before` counts a settled list.
-    await expect(
-      owner.locator('article[id^="chat-msg-"]').filter({ hasText: `gui-lai-${stamp}.txt` }),
-    ).toBeVisible({ timeout: 20_000 });
+    await expect(imageCard(owner, `gui-lai-${stamp}.png`)).toBeVisible({ timeout: 20_000 });
     const before = await owner.locator('article[id^="chat-msg-"]').count();
 
     await owner.locator('input[type="file"]').setInputFiles({

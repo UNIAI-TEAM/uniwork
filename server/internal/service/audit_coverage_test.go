@@ -1112,6 +1112,32 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 			if n != 2 {
 				t.Fatalf("document.shared rows after ShareDocument + ShareDocumentBatch = %d, want 2", n)
 			}
+			// SendDocumentLinkMessage (UNI-2012 D5) writes one row for the
+			// grants its message gives, on a restricted page the member
+			// cannot read yet.
+			linkDocID := util.NewID()
+			insertRow(t, f.ctx, f.pool, "documents", baseDoc(map[string]any{
+				"id": linkDocID, "organization_id": f.orgID, "workspace_id": f.workspace.ID, "visibility": "restricted",
+				"acl_owner_id": f.owner.ID, "created_by": f.owner.ID, "updated_by": f.owner.ID,
+			}))
+			chat := NewChatService(f.pool, f.q, f.ws, &capturePublisher{})
+			chat.SetDocuments(svc)
+			dm, err := chat.ResolveDM(f.ctx, f.owner.ID, f.workspace.ID, f.member.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := chat.SendDocumentLinkMessage(f.ctx, f.owner.ID, f.workspace.ID, dm.ID,
+				SendDocumentLinkInput{DocumentID: linkDocID, ShareLevel: "comment"}); err != nil {
+				t.Fatal(err)
+			}
+			if err := f.pool.QueryRow(f.ctx,
+				`SELECT count(*) FROM audit_events WHERE action = $1 AND resource_id = $2`, audit.ActionDocumentShared, linkDocID,
+			).Scan(&n); err != nil {
+				t.Fatal(err)
+			}
+			if n != 1 {
+				t.Fatalf("document.shared rows after SendDocumentLinkMessage = %d, want 1", n)
+			}
 		},
 		audit.ActionDocumentsAccessReportExported: func(t *testing.T, f *auditFixture) {
 			svc, docID := f.document(t)
