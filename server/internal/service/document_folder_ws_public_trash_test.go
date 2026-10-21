@@ -328,3 +328,107 @@ func TestWorkspaceFolderEmptinessIsPerViewer(t *testing.T) {
 		}
 	}
 }
+
+// S2-R1-1: only workspace folders ride along to the trash. A legacy restricted
+// folder of someone else's below the workspace folder is not the actor's to
+// trash, so the whole command refuses as before ADR 0037 - it is never put in
+// the relocate set (folders have a unique name index) and the impact read
+// refuses with it.
+func TestFolderTrashRefusesAForeignRestrictedFolder(t *testing.T) {
+	e := newWSFolderEnv(t)
+	ctx := e.f.ctx
+	folder := e.mkFolder(t, e.b, "", "Thư mục chung")
+	mine := e.mkPage(t, e.b, folder.ID, "Của B")
+	private := e.f.treeDoc(t, e.tn, treeDocSpec{ws: e.tn.wsA, kind: DocumentKindFolder, visibility: "restricted",
+		aclOwner: e.tn.member.ID, createdBy: e.tn.member.ID, parent: folder.ID, title: "Riêng của A"})
+	inside := e.f.treeDoc(t, e.tn, treeDocSpec{ws: e.tn.wsA, visibility: "restricted",
+		aclOwner: e.tn.member.ID, createdBy: e.tn.member.ID, parent: private.ID, title: "Trang riêng của A"})
+
+	ids := []string{folder.ID, mine.ID, private.ID, inside.ID}
+	snapshot := func() (rows []db.Document, audits int) {
+		for _, id := range ids {
+			rows = append(rows, e.doc(t, id))
+		}
+		return rows, e.count(t, `SELECT count(*) FROM audit_events WHERE workspace_id = $1`, e.tn.wsA)
+	}
+	before, auditsBefore := snapshot()
+
+	if _, err := e.svc.ArchiveDocument(ctx, e.b, folder.ID, ArchiveDocumentInput{}); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("trash over a foreign restricted folder = %v, want forbidden", err)
+	}
+	if _, err := e.svc.ArchiveImpact(ctx, e.b, folder.ID); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("impact over a foreign restricted folder = %v, want forbidden", err)
+	}
+	after, auditsAfter := snapshot()
+	for i := range ids {
+		if after[i].ArchivedAt.Valid != before[i].ArchivedAt.Valid || after[i].ParentID != before[i].ParentID ||
+			after[i].Revision != before[i].Revision || after[i].Position != before[i].Position {
+			t.Fatalf("%s changed by a refused trash: %+v -> %+v", ids[i], before[i], after[i])
+		}
+	}
+	if auditsAfter != auditsBefore {
+		t.Fatalf("audit rows %d -> %d, want none written by a refused trash", auditsBefore, auditsAfter)
+	}
+}
+
+// S2-R1-2: the 403 a trashed workspace folder gives readers is for people. An
+// agent, a person outside the workspace and a member of another workspace get
+// the same not found as anyone who cannot read it.
+func TestFolderTrashGateHidesTheFolderFromNonMembers(t *testing.T) {
+	e := newWSFolderEnv(t)
+	ctx := e.f.ctx
+	folder := e.mkFolder(t, e.b, "", "Cổng ẩn")
+	e.trash(t, e.b, folder.ID)
+
+	callers := []struct {
+		name  string
+		actor Actor
+	}{
+		{"agent in the workspace", agentActor(e.tn.agent)},
+		{"agent of the organization outside the workspace", agentActor(e.tn.agentOut)},
+		{"organization member in no workspace", human(e.tn.outsider)},
+		{"member of the other workspace", human(e.tn.bMember)},
+	}
+	for _, c := range callers {
+		if _, err := e.svc.RestoreDocument(ctx, c.actor, folder.ID, ArchiveDocumentInput{}); !errors.Is(err, ErrNotFound) {
+			t.Errorf("%s restores a trashed workspace folder = %v, want not found", c.name, err)
+		}
+		if _, err := e.svc.PurgeDocument(ctx, c.actor, folder.ID); !errors.Is(err, ErrNotFound) {
+			t.Errorf("%s purges a trashed workspace folder = %v, want not found", c.name, err)
+		}
+		if _, err := e.svc.ArchiveImpact(ctx, c.actor, folder.ID); !errors.Is(err, ErrNotFound) {
+			t.Errorf("%s previews a trashed workspace folder = %v, want not found", c.name, err)
+		}
+	}
+}
+
+// S2-R1-3: the bound is checked before anything is relocated. A workspace
+// folder over it, holding a page the actor cannot see, answers folder_too_large
+// and leaves the page where it was, with no document.moved row.
+func TestFolderTrashBoundBeatsRelocation(t *testing.T) {
+	e := newWSFolderEnv(t)
+	ctx := e.f.ctx
+	e.svc.archiveMaxNodes = 3
+	defer func() { e.svc.archiveMaxNodes = 0 }()
+	folder := e.mkFolder(t, e.b, "", "Quá trần")
+	e.mkPage(t, e.b, folder.ID, "Một")
+	e.mkPage(t, e.b, folder.ID, "Hai")
+	hidden := e.mkPage(t, e.a, folder.ID, "Ẩn của A")
+
+	_, err := e.svc.ArchiveDocument(ctx, e.b, folder.ID, ArchiveDocumentInput{})
+	if ce := wantCode(t, err, "folder_too_large"); ce.Status != 422 {
+		t.Fatalf("folder_too_large status = %d, want 422", ce.Status)
+	}
+	if d := e.doc(t, hidden.ID); d.ParentID.String != folder.ID || d.ArchivedAt.Valid {
+		t.Fatalf("A's page = parent %q archived %v, want still live under the folder", d.ParentID.String, d.ArchivedAt.Valid)
+	}
+	if d := e.doc(t, folder.ID); d.ArchivedAt.Valid {
+		t.Fatal("a refused archive stamped the folder")
+	}
+	if n := e.count(t, `SELECT count(*) FROM audit_events WHERE action = 'document.moved' AND workspace_id = $1`, e.tn.wsA); n != 0 {
+		t.Fatalf("%d document.moved rows after a refused archive, want 0", n)
+	}
+	if got, err := e.svc.ArchiveImpact(ctx, e.b, folder.ID); err != nil || !got.TooLarge {
+		t.Fatalf("impact over the bound = %+v, %v, want too_large", got, err)
+	}
+}
