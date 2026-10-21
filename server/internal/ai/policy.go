@@ -38,6 +38,9 @@ const (
 	// CapMeetingLiveItems is the scribe's in-meeting action items (scribe
 	// spec §4.4): up to 20 calls an hour per meeting, hence the fast model.
 	CapMeetingLiveItems Capability = "meeting_live_items"
+	// CapCaptionTranslate is the scribe's live caption translation (scribe
+	// spec §5.3 B9): up to one call a second per language, hence the fast model.
+	CapCaptionTranslate Capability = "caption_translate"
 )
 
 // ModelPolicy is the source-code constant behind a capability: the default
@@ -66,6 +69,7 @@ var (
 var policies = map[Capability]ModelPolicy{
 	CapMeetingSummarization: {Default: flagship, MaxTokens: 4096, Temperature: 0},
 	CapMeetingLiveItems:     {Default: fast, MaxTokens: 1024, Temperature: 0},
+	CapCaptionTranslate:     {Default: fast, MaxTokens: 2048, Temperature: 0},
 	CapCopilotAnswer:        {Default: flagship, MaxTokens: 1500, Temperature: 0},
 	CapCopilotAgent:         {Default: copilotAgent, MaxTokens: 4096, Temperature: 0},
 	CapChatCatchUp:          {Default: flagship, MaxTokens: 2048, Temperature: 0},

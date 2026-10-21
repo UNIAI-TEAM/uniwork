@@ -439,6 +439,18 @@ type MeetingAgentExtractSDO struct {
 	Skipped string `json:"skipped,omitempty" description:"Lý do không rút việc: unavailable (cờ, gói hoặc AI chưa bật), capped (quá 20 lần mỗi giờ), ai_quota_exceeded (hết tín dụng AI), concurrent (một lần rút khác đã đọc các đoạn này), closed (lần chạy không còn ACTIVE hay đã quá 10 phút xả, hoặc thư ký đã tắt cho cuộc họp)" example:"capped"`
 }
 
+// CaptionTranslationDTO is one translated caption.
+type CaptionTranslationDTO struct {
+	SegmentID string `json:"segment_id" description:"Id đoạn gốc" example:"AJ_66Gefpv7rYTq-TR_AM6EcLRdqMdvN6-12"`
+	Text      string `json:"text" example:"Send the quote to the client before Friday."`
+}
+
+// MeetingAgentTranslateSDO answers POST /agent/translate (scribe spec §5.3).
+type MeetingAgentTranslateSDO struct {
+	Translations []CaptionTranslationDTO `json:"translations" description:"Bản dịch theo segment_id; đoạn thiếu ở đây thì hiện bản gốc"`
+	Skipped      string                  `json:"skipped,omitempty" description:"Lý do không dịch: unavailable (cờ, gói hoặc AI chưa bật), capped (quá 1 lần mỗi giây cho ngôn ngữ này), ai_quota_exceeded (hết tín dụng AI), closed (cuộc họp không còn diễn ra, lần chạy không ACTIVE, hoặc thư ký đã tắt)" example:"capped"`
+}
+
 // MeetingAgentSegmentsSDO counts a batch: new rows and ones already stored.
 type MeetingAgentSegmentsSDO struct {
 	Accepted   int `json:"accepted" example:"18"`

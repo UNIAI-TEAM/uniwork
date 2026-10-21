@@ -355,6 +355,11 @@ func registerPublicMeetings(r api, h Routes, credentialLimit, joinLimit, lobbyWS
 		summary: "List persisted in-room chat messages (member or active guest; newest page first; ?before= older, ?after= delta)", tags: []string{"meetings"},
 		sdi: sdi.MeetingFeedSDI{}, sdo: sdo.MeetingChatListSDO{},
 	})
+	r.With(joinLimit).Put("/meetings/{meetingID}/caption-language", h.SetCaptionLanguage, apiOp{
+		summary: "Pick my caption language (member or active guest)", tags: []string{"meetings"},
+		description: "Người đang trong phòng, kể cả khách; cuộc họp IN_PROGRESS (khác -> 409 invalid_meeting_state). Server đặt attribute LiveKit uw.caption_lang cho đúng người gọi (người tham gia không tự đặt được); thư ký AI dịch phụ đề sang ngôn ngữ đó. lang rỗng = phụ đề gốc, luôn được. vi/en cần cờ meeting_caption_translate và AI (404 feature_disabled), gói có meeting.ai_summary (403 entitlement_required). 503 provider_unavailable khi không đặt được attribute.",
+		sdi:         sdi.SetCaptionLanguageSDI{}, sdo: sdo.StatusSDO{},
+	})
 	r.With(joinLimit).Post("/meetings/{meetingID}/chat", h.AppendChatMessage, apiOp{
 		summary: "Send an in-room chat message (member or active guest)", tags: []string{"meetings"},
 		sdi: sdi.AppendChatSDI{}, sdo: sdo.MeetingChatMessageSDO{},
@@ -429,6 +434,11 @@ func registerMeetingAgent(r api, h Routes, agentAuth, agentLimit func(http.Handl
 		summary:     "Live action items from the newest transcript",
 		description: "Token uwma_ của cuộc họp. Đọc các đoạn sau con trỏ, hỏi AI và thêm việc LIVE vào Việc sau họp (lọc trùng tiêu đề). Thiếu cờ, quyền gói hay tín dụng AI thì không thêm gì và trả skipped.",
 		tags:        []string{"meeting-agent"}, sdo: sdo.MeetingAgentExtractSDO{}, auth: true,
+	})
+	a.Post("/meetings/{meetingID}/agent/translate", h.MeetingAgentTranslate, apiOp{
+		summary:     "Translate live captions for the room",
+		description: "Token uwma_ của cuộc họp. Dịch 1–20 đoạn final sang target qua ai.Gateway (capability caption_translate, trừ tín dụng AI), giữ tên riêng và thuật ngữ của cuộc họp; không lưu bản dịch. Mỗi cuộc họp và ngôn ngữ tối đa 1 lần mỗi giây. Thiếu cờ meeting_caption_translate, quyền gói meeting.ai_summary, AI hay tín dụng thì trả skipped và không dịch.",
+		tags:        []string{"meeting-agent"}, sdi: sdi.AgentTranslateSDI{}, sdo: sdo.MeetingAgentTranslateSDO{}, auth: true,
 	})
 	a.Post("/meetings/{meetingID}/agent/finished", h.MeetingAgentFinished, apiOp{
 		summary:     "Scribe agent run finished",

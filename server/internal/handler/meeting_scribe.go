@@ -86,6 +86,45 @@ func (h *handlers) meetingAgentExtract(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, 200, sdo.MeetingAgentExtractSDO{Created: res.Created, Skipped: res.Skipped})
 }
 
+func (h *handlers) meetingAgentTranslate(w http.ResponseWriter, r *http.Request) {
+	var in sdi.AgentTranslateSDI
+	if !decode(w, r, &in, agentSegmentsBody) {
+		return
+	}
+	segs := make([]service.CaptionSegmentInput, len(in.Segments))
+	for i, g := range in.Segments {
+		segs[i] = service.CaptionSegmentInput{SegmentID: g.SegmentID, Text: g.Text}
+	}
+	res, err := h.Meetings.AgentTranslate(r.Context(), middleware.MeetingAgentClaims(r.Context()), in.Target, segs)
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	out := sdo.MeetingAgentTranslateSDO{Translations: make([]sdo.CaptionTranslationDTO, 0, len(res.Translations)), Skipped: res.Skipped}
+	for _, t := range res.Translations {
+		out.Translations = append(out.Translations, sdo.CaptionTranslationDTO{SegmentID: t.SegmentID, Text: t.Text})
+	}
+	respondJSON(w, 200, out)
+}
+
+// setCaptionLanguage is anyone in the room, guests included (§7.2).
+func (h *handlers) setCaptionLanguage(w http.ResponseWriter, r *http.Request) {
+	var in sdi.SetCaptionLanguageSDI
+	if !decode(w, r, &in, maxJSONBody) {
+		return
+	}
+	userID, guestID := h.meetingActor(r)
+	if userID == "" && guestID == "" {
+		respondError(w, http.StatusUnauthorized, "unauthorized", "cần đăng nhập hoặc phiên khách")
+		return
+	}
+	if err := h.Meetings.SetCaptionLanguage(r.Context(), userID, guestID, chi.URLParam(r, "meetingID"), in.Lang); err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	respondJSON(w, 200, sdo.StatusSDO{Status: "ok"})
+}
+
 func (h *handlers) setMeetingScribe(w http.ResponseWriter, r *http.Request) {
 	var in sdi.SetMeetingScribeSDI
 	if !decode(w, r, &in, maxJSONBody) {

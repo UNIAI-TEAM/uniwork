@@ -38,6 +38,11 @@ const ScribeIdentity = "uw_agent_scribe"
 // through SetParticipantAttributes and the join token (D11).
 const AttrSharedMic = "uw.shared_mic"
 
+// AttrCaptionLang is the caption language a participant picked (spec §5.3):
+// vi or en, absent for the original. Only the server sets it (D11); the
+// scribe translates for it.
+const AttrCaptionLang = "uw.caption_lang"
+
 type SetParticipantAttributesRequest struct {
 	RoomName   string
 	Identity   string

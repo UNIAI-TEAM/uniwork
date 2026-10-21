@@ -77,6 +77,17 @@ func TestMeetingAgentTokenGuardsTheRoutes(t *testing.T) {
 	if res.StatusCode != http.StatusOK || out["created"] != float64(0) || out["skipped"] != "unavailable" {
 		t.Fatalf("extract: %d %v", res.StatusCode, out)
 	}
+	res, out = doJSON(t, srv, "POST", "/api/v1/meetings/"+a.meetingID+"/agent/translate", ok, map[string]any{
+		"target": "en", "segments": []map[string]any{{"segment_id": "TR_1-1", "text": "Chốt ship thứ Sáu"}},
+	})
+	if tr, _ := out["translations"].([]any); res.StatusCode != http.StatusOK || out["skipped"] != "unavailable" || tr == nil || len(tr) != 0 {
+		t.Fatalf("translate: %d %v", res.StatusCode, out)
+	}
+	if res, out := doJSON(t, srv, "POST", "/api/v1/meetings/"+a.meetingID+"/agent/translate", ok, map[string]any{
+		"target": "fr", "segments": []map[string]any{{"segment_id": "TR_1-1", "text": "x"}},
+	}); res.StatusCode != http.StatusBadRequest {
+		t.Fatalf("translate to fr: %d %v", res.StatusCode, out)
+	}
 
 	forged := meetings.SignAgentToken([]byte("not the server key"), meetings.AgentClaims{
 		MeetingID: a.meetingID, OrganizationID: a.orgID, RunID: a.runID, ExpiresAt: now.Add(time.Hour),

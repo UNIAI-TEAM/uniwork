@@ -102,6 +102,12 @@ func (s *MeetingService) AgentContext(ctx context.Context, c meetings.AgentClaim
 	if err != nil {
 		return ScribeContext{}, err
 	}
+	return s.scribeContext(ctx, m)
+}
+
+// scribeContext is the meeting's names and titles: the agent's keyterms and
+// the caption translation glossary.
+func (s *MeetingService) scribeContext(ctx context.Context, m db.Meeting) (ScribeContext, error) {
 	out := ScribeContext{MeetingTitle: m.Title, Locale: scribeLocale, ParticipantNames: []string{}, SharedMicIdentities: []string{}}
 	if w, err := s.q.GetWorkspaceByID(ctx, m.WorkspaceID); err == nil {
 		out.WorkspaceName = w.Name

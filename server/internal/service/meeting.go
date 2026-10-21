@@ -114,6 +114,8 @@ type MeetingService struct {
 	// uploads opens the large upload sessions a meeting recording rides on
 	// (UNI-2001); nil = no upload.
 	uploads *DocumentService
+	// captions spaces caption translation calls (UNI-2028).
+	captions captionSpacing
 }
 
 // organizationOf resolves the tenant a meeting belongs to, for the gate.

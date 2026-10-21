@@ -633,6 +633,8 @@ func New(d Deps) http.Handler {
 		MeetingAgentSegments:           h.meetingAgentSegments,
 		MeetingAgentFinished:           h.meetingAgentFinished,
 		MeetingAgentExtract:            h.meetingAgentExtract,
+		MeetingAgentTranslate:          h.meetingAgentTranslate,
+		SetCaptionLanguage:             h.setCaptionLanguage,
 		ListTranscript:                 h.listTranscript,
 		AppendChatMessage:              h.appendChatMessage,
 		ListChatMessages:               h.listChatMessages,

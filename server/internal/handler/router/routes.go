@@ -408,6 +408,8 @@ type Routes struct {
 	MeetingAgentSegments           http.HandlerFunc
 	MeetingAgentFinished           http.HandlerFunc
 	MeetingAgentExtract            http.HandlerFunc
+	MeetingAgentTranslate          http.HandlerFunc
+	SetCaptionLanguage             http.HandlerFunc
 	ListTranscript                 http.HandlerFunc
 	AppendChatMessage              http.HandlerFunc
 	ListChatMessages               http.HandlerFunc

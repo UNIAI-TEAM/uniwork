@@ -94,3 +94,20 @@ func TestParseLiveItemsJSON(t *testing.T) {
 		t.Fatalf("not cleaned: %+v", got)
 	}
 }
+
+// TestParseCaptionTranslateJSON (UNI-2028): a missing list or garbage is
+// ErrOutputInvalid; entries without an id or a text are dropped.
+func TestParseCaptionTranslateJSON(t *testing.T) {
+	for _, in := range []string{"no json", `{}`, `{"translations":null}`, `{"translations":"x"}`} {
+		if _, err := ParseCaptionTranslateJSON(in); !errors.Is(err, ErrOutputInvalid) {
+			t.Errorf("ParseCaptionTranslateJSON(%q) = %v, want ErrOutputInvalid", in, err)
+		}
+	}
+	got, err := ParseCaptionTranslateJSON("```json\n" + `{"translations":[{"id":" T1 ","text":" Send the quote "},{"id":"T2","text":"  "},{"id":"","text":"x"}]}` + "\n```")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(got, []CaptionTranslation{{ID: "T1", Text: "Send the quote"}}) {
+		t.Fatalf("not cleaned: %+v", got)
+	}
+}
