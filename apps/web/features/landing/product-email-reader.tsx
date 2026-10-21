@@ -8,13 +8,13 @@ import { EmailHubAiSummaryDetail } from "@uniwork/views/email-hub/email-hub-ai-i
 import { EmailHubThreadToolbar, type EmailHubThreadActions } from "@uniwork/views/email-hub/email-hub-thread-toolbar";
 import { AttachmentList, EmailSenderAvatar } from "@uniwork/views/email-hub/email-hub-view-parts";
 
-export function ProductEmailReader({ thread, folder, actions, aiOpen }: {
-  thread: EmailHubThread; folder: string; actions: EmailHubThreadActions; aiOpen: boolean;
+export function ProductEmailReader({ thread, folder, actions, aiOpen, shortcutsOn }: {
+  thread: EmailHubThread; folder: string; actions: EmailHubThreadActions; aiOpen: boolean; shortcutsOn: boolean;
 }) {
   const { t, i18n } = useTranslation();
   const date = new Date(thread.sent_at).toLocaleString(i18n.language === "vi" ? "vi-VN" : "en-US", { dateStyle: "medium", timeStyle: "short" });
   return <article className="product-email-reader" aria-labelledby="demo-email-subject" data-demo-result={thread.is_starred ? "starred" : undefined}>
-    <EmailHubThreadToolbar thread={thread} browserFolder={folder} actions={actions} pending={{ star: false, move: false, markRead: false, snooze: false, download: false }} aiOpen={aiOpen} shortcutsOn />
+    <EmailHubThreadToolbar thread={thread} browserFolder={folder} actions={actions} pending={{ star: false, move: false, markRead: false, snooze: false, download: false }} aiOpen={aiOpen} shortcutsOn={shortcutsOn} />
     <div className="product-email-reading-body">
       <div className="product-email-message">
         <header className="space-y-4">
