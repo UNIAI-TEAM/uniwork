@@ -105,7 +105,17 @@ chuyện hiện người nào đã chặn. Ghi chú cho reviewer (en):
 ## Quyền và chuỗi xin quyền
 
 Lát thêm module native là lát đặt chuỗi trong `app.config.ts` (qua tuỳ chọn plugin); bảng này là lý do để trả lời
-review. Chuỗi iOS hiện chỉ có tiếng Việt; muốn bản tiếng Anh thì thêm `locales` trong `app.config.ts`.
+review. Chuỗi iOS có tiếng Việt (ngôn ngữ gốc, `CFBundleDevelopmentRegion: vi`) và tiếng Anh (`locales.en`); app khai
+hai ngôn ngữ với hệ điều hành (`expo-localization` `supportedLocales`), nên trang ngôn ngữ theo app của iOS và
+Android 13+ chỉ có hai lựa chọn đó.
+
+Trước micro (tin thoại, cuộc gọi), camera (gọi video) và thông báo, app hiện màn giải thích của mình (UNI-2053 S6,
+`data/permissions.ts`): nói cần gì, để làm gì, khi nào dùng; chỉ khi người dùng bấm "Tiếp tục" hộp thoại hệ thống mới
+hiện, "Để sau" giữ hộp thoại cho lần sau. Quyền đã bị tắt hẳn thì màn nói quyền đang tắt và mở Cài đặt của máy. Lời
+mời bật thông báo lúc mở app chỉ hiện một lần mỗi máy (Apple 5.1.1(iv): không ép, nút hệ thống không bị thay thế).
+Thư viện ảnh dùng trình chọn ảnh của hệ thống, không có màn giải thích riêng. Rung khi gửi tin, nhấn giữ, thả biểu cảm
+và nghe/gác máy dùng phản hồi chạm của hệ thống (Android `performHapticFeedback`, theo cài đặt "Phản hồi khi chạm";
+`VIBRATE` là quyền thường đã có từ `expo-notifications`), không xin quyền mới.
 
 | Quyền | Nền tảng | Lát | Lý do (dùng cho review) | Chuỗi đề xuất (vi / en) |
 | --- | --- | --- | --- | --- |

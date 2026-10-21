@@ -94,6 +94,7 @@ module.exports = {
   // four components (97.2 / 90.05 / 94.8 / 99.1), then with S2's store
   // compliance screens, each at 100 % (98.72 / 93.64 / 97.67 / 99.59), then
   // with S4's native-call components, each at 100 % (98.92 / 94.35 / 98.06 / 99.65),
-  // then with S5's list cells, each at 100 % (99.01 / 95.42 / 98.26 / 99.68).
-  coverageThreshold: { global: { statements: 99, branches: 95, functions: 98, lines: 99 } },
+  // then with S5's list cells, each at 100 % (99.01 / 95.42 / 98.26 / 99.68), then with S6's
+  // accessibility, primer, jump-to-latest and zoom files, each at 100 % (99.42 / 96.39 / 99.63 / 99.86).
+  coverageThreshold: { global: { statements: 99, branches: 96, functions: 99, lines: 99 } },
 };

@@ -218,6 +218,31 @@ từng mục khi đã nộp:
   "không ai nghe"). Android là chính; iOS có thể bị hệ điều hành treo app nền giữa hai frame tới khi có CallKit.
 - [ ] Đăng xuất rồi đăng nhập tài khoản khác: không thấy phòng, tin hay hàng đợi của tài khoản trước.
 
+**UX, trợ năng và ngôn ngữ (UNI-2053 S6).** Test node/jest giữ nhãn, hành động, thông báo cho trình đọc màn hình,
+cử chỉ ảnh (qua tiện ích test của react-native-gesture-handler) và màn giải thích quyền; chỉ máy thật xác nhận cảm giác
+và giọng đọc. Một iPhone (VoiceOver) và một máy Android (TalkBack):
+
+- [ ] VoiceOver và TalkBack: mỗi bong bóng là một điểm dừng đọc người gửi, giờ, trích dẫn, nội dung, trạng thái (đang
+  gửi, chờ mạng, gửi lỗi, đã sửa) và đã gửi/đã tới/đã xem; vuốt lên/xuống (Actions / rotor) có "Thao tác với tin nhắn"
+  và "Xem tin gốc"; tin gửi lỗi có gợi ý mở tùy chọn gửi lại. Ảnh trong album đọc "Album N ảnh" ở ảnh đầu.
+- [ ] Người khác gửi tin khi đang mở phòng: nghe "Bình: …"; năm tin liền nhau: một câu "N tin nhắn mới", không đọc
+  chồng. Tắt mạng: VoiceOver đọc "Đang chờ mạng…" (iOS không có live region). Đồng hồ cuộc gọi không đọc mỗi giây.
+- [ ] Bàn phím: composer bám theo bàn phím từng khung hình, không giật khoảng trống home indicator (iPhone có Face ID),
+  Android không trễ một nhịp; màn tạo nhóm cũng vậy.
+- [ ] Rung: gửi tin, nhấn giữ tin, thả biểu cảm, nghe/gác máy có phản hồi; Android tắt "Phản hồi khi chạm" thì không rung.
+- [ ] Cuộn lên trong phòng: nút tròn mũi tên xuống hiện; người khác gửi tin thì nút đếm số tin mới (99+); bấm thì về tin
+  mới nhất; tự gửi một tin khi đang cuộn lên thì danh sách cuộn xuống tin đó.
+- [ ] Ảnh xem lớn: chụm phóng to quanh ngón tay, chạm hai lần phóng to/thu nhỏ, kéo ảnh đang phóng to không đổi trang,
+  ở 1x vuốt ngang đổi ảnh, vuốt xuống (hoặc lên) đóng và nền mờ dần; Android trong Modal cũng chạy (GestureHandlerRootView).
+- [ ] Cỡ chữ hệ thống lớn nhất (iOS Larger Accessibility Sizes, Android Font size + Display size lớn nhất): danh sách
+  chat, phòng, composer, Cài đặt không cắt chữ; nút và chip cao lên theo chữ; số trên huy hiệu chỉ to tới 1.4×.
+- [ ] Màn giải thích quyền: lần đầu ghi tin thoại, gọi, gọi video, lần đầu vào app (thông báo) đều hiện màn của UniChat
+  trước hộp thoại hệ thống; "Để sau" không hiện hộp thoại; đã từ chối hẳn thì màn nói quyền đang tắt và "Mở Cài đặt"
+  mở đúng trang của UniChat. Lời nhắc thông báo lúc mở app chỉ hiện một lần mỗi máy; Cài đặt › Thông báo hỏi lại.
+- [ ] Ngôn ngữ: iOS Cài đặt › UniChat › Ngôn ngữ và Android 13+ Cài đặt › Ứng dụng › UniChat › Ngôn ngữ chỉ liệt kê
+  Tiếng Việt và English; đổi ngôn ngữ trong app rồi nhận một push: push nói đúng ngôn ngữ đó (`users.locale` đổi theo,
+  xem bằng `GET /api/v1/me`). Tiếng Anh: "1 reply", "2 replies".
+
 **Thứ tự phát hành cuộc gọi native (owner).** Server chỉ gửi push cuộc gọi data-only tới máy Android đã đăng ký token
 với `call_ui` (bản 0.3.0 trở lên có module native; app đăng ký lại mỗi lần mở); bản 0.2.x và iPhone vẫn nhận push "X
 đang gọi" hiển thị, nên deploy server trước hay sau bản store đều không làm máy cũ mất cuộc gọi. Push hiển thị giờ mang

@@ -48,7 +48,9 @@ một dòng thì ghi lý do ở dòng trên.
   khi có dự án EAS, `sentryDsn`) và app gọi `configureRuntime()` lúc boot.
   `SENTRY_ORG`/`SENTRY_PROJECT`/`SENTRY_AUTH_TOKEN` chỉ là biến môi trường của
   build (plugin `@sentry/react-native/expo` không nhận tham số nào ngoài `url`),
-  để fingerprint không đổi theo chúng. Bundle id
+  để fingerprint không đổi theo chúng. Ngôn ngữ: plugin `expo-localization` khai `supportedLocales: ["vi", "en"]`
+  (iOS `CFBundleLocalizations`, Android 13+ `locales_config.xml`) và `ios.infoPlist.CFBundleDevelopmentRegion: "vi"`
+  (chuỗi xin quyền gốc tiếng Việt, `locales.en` dịch). Bundle id
   `com.uniworkos.chat{.dev,.staging}`, scheme `uniworkchat-dev` (dev) / `uniworkchat`; universal link chỉ xác minh
   với id prod.
 - `lib/` — helper thuần + test vitest (env node). `theme.ts`/`global.css`/
@@ -307,6 +309,36 @@ một dòng thì ghi lý do ở dòng trên.
   **không** bật: Metro 0.84 coi import đã bị inline là `require` (nhận diện import ESM theo vị trí khai báo), nên gói
   hai định dạng vào bundle hai lần (đo được: `@sentry/core` và `clsx` ESM + CJS, +176 module, +397 KB) — nạp lười thì
   `require` tường minh như `call-overlay.tsx`.
+- UX, trợ năng và ngôn ngữ (UNI-2053 S6; audit U1–U3, P2 UX/i18n). **Trình đọc màn hình**: live region chỉ chạy trên
+  Android, nên chỗ nào có `accessibilityLiveRegion` thì gọi `useAnnounce` (`components/ui/a11y.ts`, chỉ iOS, một lần
+  mỗi lần đổi) — banner kết nối, lỗi đăng nhập, bong bóng gõ, thông báo push ở Cài đặt, dòng trạng thái cuộc gọi
+  (đồng hồ cuộc gọi là `timer`, không live region). Tin mới của người khác ở đáy phòng đang mở được đọc
+  (`lib/arrivals.ts` = luật live region của web; `use-arrival-announcements.ts`: một tin "Bình: …", nhiều tin "N tin
+  nhắn mới", tối đa một câu mỗi 4 s, chỉ khi trình đọc màn hình bật). Bong bóng là một phần tử: nhãn gồm trích dẫn, nội
+  dung, trạng thái (đang gửi/chờ mạng/lỗi/đã sửa) và đã gửi/đã tới/đã xem; tin chưa gửi có hint; hành động
+  `longpress` (menu) và `open_quote` (trích dẫn ẩn khỏi cây trợ năng khi bong bóng là một phần tử); card có nút riêng
+  (ảnh, tệp, bình chọn…) giữ nút và đọc chân tin là một dòng; ô album có `longpress` và ô đầu nói "Album N ảnh".
+  **Cảm giác**: `react-native-keyboard-controller` (`KeyboardProvider` ở root; `KeyboardAvoidingView` của nó cho phòng
+  và tạo nhóm; inset home indicator của composer co theo `progress` của bàn phím); rung `data/haptics.ts` (iOS
+  impact/selection/notification, Android hằng số phản hồi của hệ thống) cho gửi, nhấn giữ, biểu cảm, nghe/gác máy —
+  instance ở `components/ui/haptics.ts`; nút về tin mới nhất `components/chat/jump-to-latest.tsx` khi cuộn lên hoặc đang
+  xem trang cũ (`onJumpToLatest`), đếm tin người khác gửi từ lúc rời đáy (`countNewSince`, như web), tự gửi thì cuộn
+  xuống (`latestSignal` của `MessageList`); ảnh xem lớn `zoomable-image.tsx` (chụm, chạm hai lần, kéo khi phóng to, vuốt
+  dọc ở 1x để đóng; toán ở `lib/zoom.ts`; Modal có `GestureHandlerRootView` riêng). **Cỡ chữ**: vai trò ở
+  `lib/type-scale.json` (`text-meta` … `text-display-xl`, `text-emoji*`; tailwind và `cn()` đọc cùng file — thiếu
+  `extendTailwindMerge` thì `text-footnote` bị coi là màu); `lib/type-scale.test.ts` đỏ khi `app/`/`components/` dùng
+  `text-sm`… hay `text-[13px]`. Phần tử chứa chữ dùng `min-h-*` + padding dọc, không `h-*` cố định; chỉ huy hiệu chặn
+  cỡ chữ (`BADGE_MAX_FONT_SCALE` 1.4). **Quyền**: `data/permissions.ts` (màn giải thích `components/ui/permission-primer.tsx`
+  qua `stores/permission-primer-store.ts`, instance native `components/ui/permission-gate.ts`): đã cấp thì đi tiếp, hệ
+  thống còn hỏi được thì giải thích rồi mới hỏi, không hỏi được nữa thì mở `Linking.openSettings`; `once` (thông báo lúc
+  mở app) chỉ hỏi một lần mỗi máy và không tự đưa ra Cài đặt; Cài đặt › Thông báo hỏi lại. Micro trước tin thoại
+  (`use-voice-recorder.ts`) và trước gọi/nghe (`ensureCallPermissions`; cuộc gọi vẫn đi tiếp khi bị từ chối), camera
+  trước gọi video; ảnh không cần (trình chọn của hệ thống). **Ngôn ngữ**: chuỗi tiếng Anh có `{{count}}` là cặp
+  `_one`/`_other`, tiếng Việt một khoá (như core; `lib/i18n.test.ts` đỏ khi thiếu); i18next 26 không có
+  `Intl.PluralRules` (Hermes) vẫn chọn one/other theo luật tiếng Anh. Ngôn ngữ app lên server (`users.locale`, push và
+  email theo nó): `data/locale-sync.ts` gửi `PATCH /me` lần đăng nhập đầu của mỗi tài khoản trên máy và mỗi lần đổi
+  ngôn ngữ trong app (khoá `locale_synced:<userId>` trong kho trên máy); đổi trên web sau đó thì giữ tới khi máy đổi lại.
+  Chuỗi của lát này ở `scripts/i18n-ux.mjs`.
 - `assets/icon.png`, `assets/adaptive-icon*.png` — icon UniChat 1024², sinh
   bởi `pnpm brand:build` từ `packages/ui/brand/svg/unichat-icon*.svg`; không
   sửa tay (`assets.lock.json` khoá hash nguồn). `icon.png` không có kênh alpha.
@@ -335,7 +367,11 @@ Hai lớp test, không chung file (ADR 0037 — cả hai chặn ở mọi `GATE_
   `test/render.tsx` (i18n tiếng Việt, `QueryClient` mới với `gcTime: Infinity` — query
   đã unmount không để lại timer giữ Jest không thoát), `viText(key)` là chuỗi
   người nghe. `Switch` của Android không truy được theo role trong renderer: truy theo label. `test/jest-setup.ts` mock `expo-router`, `expo-audio`, safe area,
-  Reanimated và làm đỏ test nào log `console.error` (update ngoài `act`…).
+  Reanimated, `react-native-keyboard-controller` (mock của chính nó), `expo-haptics` và cổng quyền
+  (`components/ui/permission-gate`, cấp mọi quyền; màn giải thích test qua store) và làm đỏ test nào log
+  `console.error` (update ngoài `act`…). Cử chỉ test bằng `react-native-gesture-handler/jest-utils` (`withTestId` +
+  `fireGestureHandler`, file test import `react-native-gesture-handler/jestSetup`); `onUpdate` chỉ chạy từ sự kiện
+  ACTIVE thứ hai. Test đếm render chờ hàng xuất hiện (`waitFor`), không chờ một khoảng cố định.
   `test/jest-resolver.js` thay resolver của worklets (bản gốc khớp mọi đường dẫn
   pnpm có chữ `react-native-worklets`, làm mất mock native của Expo). Sàn coverage
   đo trên file trong `collectCoverageFrom`; thêm file thì thêm test và nâng sàn.
