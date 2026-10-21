@@ -39,7 +39,8 @@ FROM (
 LEFT JOIN users u ON u.id = l.user_id
 LEFT JOIN LATERAL (
   SELECT t.text, t.spoken_at FROM meeting_transcript_segments t
-  WHERE t.meeting_id = l.meeting_id AND t.speaker_label = l.label_key
+  -- The constant predicate lets the planner use the partial speaker index.
+  WHERE t.meeting_id = l.meeting_id AND t.speaker_label = l.label_key AND t.speaker_label <> ''
   ORDER BY t.spoken_at, t.id
   LIMIT 1
 ) s ON true
