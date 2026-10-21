@@ -13,7 +13,7 @@ import {
 import { orderIssues } from "./order.mjs";
 import { createLock } from "./lock.mjs";
 import { loadConfig } from "./config.mjs";
-import { syncRun } from "./sync.mjs";
+import { makeUniwork, syncRun } from "./sync.mjs";
 
 test("taskTitle prefixes the key once and cuts at 500 runes", () => {
   assert.equal(taskTitle("UNI-423", "Sửa cổng"), "UNI-423: Sửa cổng");
@@ -130,6 +130,8 @@ test("orderIssues puts parents first and reports only the cycle", () => {
   ];
   const got = orderIssues(issues);
   assert.deepEqual(got.cycles.sort(), ["a", "b"]);
+  assert.ok(got.order.includes("parent"));
+  assert.ok(got.order.includes("child"));
   assert.ok(got.order.indexOf("parent") < got.order.indexOf("child"));
   assert.ok(got.order.includes("tail"));
   assert.ok(!got.order.includes("a"));
@@ -140,7 +142,7 @@ test("loadConfig reads the example shape and the two tokens", () => {
   const files = new Map([
     ["scripts/uniai-sync/config.json", JSON.stringify({
       uniai_project_id: "57602a20-04e8-4c08-abd5-415ccd882e05",
-      uniwork_origin: "https://uniwork.example",
+      uniwork_origin: "https://uniwork.example/",
       uniwork_workspace_id: "ws",
       uniwork_project_id: "prj",
     })],
@@ -149,6 +151,8 @@ test("loadConfig reads the example shape and the two tokens", () => {
     { UNIWORK_MCP_TOKEN: "uwm_at_x", UNIWORK_SESSION_TOKEN: "sess" },
     (path) => files.get(path),
   );
+  assert.equal(cfg.uniaiProjectId, "57602a20-04e8-4c08-abd5-415ccd882e05");
+  assert.equal(cfg.projectId, "prj");
   assert.equal(cfg.workspaceId, "ws");
   assert.equal(cfg.mcpToken, "uwm_at_x");
   assert.equal(cfg.sessionToken, "sess");
@@ -544,13 +548,253 @@ test("a reply listed before its live parent is posted after it with reply_to", a
       ],
     },
   );
+  const parentRowIds = [];
+  const add = box.deps.uniwork.addComment;
+  box.deps.uniwork.addComment = async (args) => {
+    const row = await add(args);
+    if (String(args.body).includes("uniai-comment:z-parent")) parentRowIds.push(row.id);
+    return row;
+  };
   const result = await syncRun(box.deps);
   assert.equal(result.code, 0);
   const adds = box.mcp.filter((call) => call[0] === "add_comment");
   assert.equal(adds.length, 2);
   assert.ok(String(adds[0][1].body).includes("uniai-comment:z-parent"));
   assert.ok(String(adds[1][1].body).includes("uniai-comment:a-child"));
-  // world() numbers ids from one counter: task-1, then the parent comment c-2.
-  assert.equal(adds[1][1].reply_to, "c-2");
+  assert.equal(parentRowIds.length, 1);
+  assert.equal(adds[1][1].reply_to, parentRowIds[0]);
   assert.ok(box.metadata.get("order").uniwork_sync);
+});
+
+test("a parent that fails in the same run leaves the child waiting without a second failure", async () => {
+  const box = world([
+    issue({ id: "parent", identifier: "UNI-40", title: "Cha", status: "triage" }),
+    issue({ id: "child", identifier: "UNI-41", title: "Con", parent_issue_id: "parent" }),
+  ]);
+  const result = await syncRun(box.deps);
+  assert.equal(result.code, 1);
+  assert.equal(box.tasks.length, 0);
+  assert.ok(result.lines.includes("waiting child"));
+  assert.ok(result.lines.includes("bad status parent"));
+  const childLines = result.lines.filter((line) => line.includes("child"));
+  assert.deepEqual(childLines, ["waiting child"]);
+});
+
+test("a child of an issue inside a cycle is not created", async () => {
+  const box = world([
+    issue({ id: "a", identifier: "UNI-42", parent_issue_id: "b" }),
+    issue({ id: "b", identifier: "UNI-43", parent_issue_id: "a" }),
+    issue({ id: "kid", identifier: "UNI-44", title: "Con", parent_issue_id: "a" }),
+  ]);
+  const result = await syncRun(box.deps);
+  assert.equal(result.code, 1);
+  assert.equal(box.tasks.length, 0);
+  assert.match(result.lines.join("\n"), /cycle parent kid/);
+});
+
+test("a changed issue on the second run keeps one assignee note and one overflow comment", async () => {
+  const rows = [
+    issue({
+      id: "again",
+      identifier: "UNI-45",
+      title: "Lặp",
+      description: "à".repeat(16005),
+      assignee_id: "agent-1",
+      assignee_type: "agent",
+    }),
+  ];
+  const comments = { again: [] };
+  const box = world(rows, comments);
+  assert.equal((await syncRun(box.deps)).code, 0);
+  const firstHash = box.metadata.get("again").uniwork_sync;
+  assert.ok(firstHash);
+
+  rows[0].status = "done";
+  comments.again.push({
+    id: "late",
+    author_id: "user-hien",
+    author_type: "member",
+    content: "thêm",
+    created_at: "2026-02-01T00:00:00Z",
+  });
+  assert.equal((await syncRun(box.deps)).code, 0);
+  assert.notEqual(box.metadata.get("again").uniwork_sync, firstHash);
+  assert.equal(box.tasks[0].status, "done");
+  const adds = box.mcp.filter((call) => call[0] === "add_comment");
+  assert.equal(adds.filter((call) => String(call[1].body).includes("uniai-assignee:")).length, 1);
+  assert.equal(adds.filter((call) => String(call[1].body).includes("uniai-description-overflow")).length, 1);
+  assert.equal(adds.filter((call) => String(call[1].body).includes("uniai-comment:late")).length, 1);
+});
+
+test("a partial update note fails the issue and does not write the hash", async () => {
+  const box = world([issue({ id: "part", identifier: "UNI-46", title: "Dở" })]);
+  assert.equal((await syncRun(box.deps)).code, 0);
+  const firstHash = box.metadata.get("part").uniwork_sync;
+  box.deps.uniai.listIssues = async () => [
+    issue({ id: "part", identifier: "UNI-46", title: "Dở", status: "done", metadata: { uniwork_task: "task-1" } }),
+  ];
+  box.deps.uniwork.updateTask = async (args) => ({ id: args.task_id, note: "parent_task_id failed" });
+  const result = await syncRun(box.deps);
+  assert.equal(result.code, 1);
+  assert.match(result.lines.join("\n"), /partial part: parent_task_id failed/);
+  assert.equal(box.metadata.get("part").uniwork_sync, firstHash);
+});
+
+test("a partial create note keeps the task id but not the hash", async () => {
+  const box = world([issue({ id: "made", identifier: "UNI-47", title: "Mới" })]);
+  const create = box.deps.uniwork.createTask;
+  box.deps.uniwork.createTask = async (args) => ({ ...(await create(args)), note: "labels failed" });
+  const result = await syncRun(box.deps);
+  assert.equal(result.code, 1);
+  assert.equal(box.metadata.get("made").uniwork_task, "task-1");
+  assert.equal(box.metadata.get("made").uniwork_sync, undefined);
+});
+
+test("a comment list failure skips that issue and the run continues", async () => {
+  const box = world([
+    issue({ id: "bad", identifier: "UNI-48", title: "Hỏng" }),
+    issue({ id: "ok", identifier: "UNI-49", title: "Tốt" }),
+  ]);
+  box.deps.uniai.listComments = async (id) => {
+    if (id === "bad") throw new Error("boom");
+    return [];
+  };
+  const result = await syncRun(box.deps);
+  assert.equal(result.code, 1);
+  assert.match(result.lines.join("\n"), /error bad: boom/);
+  assert.equal(box.tasks.length, 1);
+  assert.equal(box.tasks[0].title, "UNI-49: Tốt");
+  assert.equal(box.metadata.has("bad"), false);
+});
+
+test("401 while listing comments stops the run with no metadata writes", async () => {
+  const box = world([
+    issue({ id: "one", identifier: "UNI-50", title: "Một" }),
+    issue({ id: "two", identifier: "UNI-51", title: "Hai" }),
+  ]);
+  box.deps.uniai.listComments = async () => {
+    throw Object.assign(new Error("unauthorized"), { code: "unauthorized" });
+  };
+  const result = await syncRun(box.deps);
+  assert.equal(result.code, 1);
+  assert.match(result.lines.join("\n"), /unauthorized/);
+  assert.equal(box.metadata.size, 0);
+  assert.equal(box.tasks.length, 0);
+});
+
+test("a listIssues failure returns code 1 with a reason", async () => {
+  const box = world([]);
+  box.deps.uniai.listIssues = async () => {
+    throw new Error("uniai down");
+  };
+  const result = await syncRun(box.deps);
+  assert.equal(result.code, 1);
+  assert.match(result.lines.join("\n"), /uniai down/);
+});
+
+for (const status of [403, 404]) {
+  test(`startup REST ${status} stops the run and names the status`, async () => {
+    const box = world([issue({ id: "x", identifier: "UNI-52" })]);
+    let listed = 0;
+    box.deps.uniai.listIssues = async () => {
+      listed += 1;
+      return [];
+    };
+    box.deps.uniwork.listLabels = async () => {
+      throw Object.assign(new Error(`HTTP ${status} nope`), { status });
+    };
+    const result = await syncRun(box.deps);
+    assert.equal(result.code, 1);
+    assert.match(result.lines.join("\n"), new RegExp(`HTTP ${status}`));
+    assert.equal(listed, 0);
+    assert.equal(box.metadata.size, 0);
+  });
+}
+
+test("an empty project with a 200 answer is a clean run", async () => {
+  const box = world([]);
+  const result = await syncRun(box.deps);
+  assert.equal(result.code, 0);
+});
+
+function mcpHarness(replies) {
+  const clock = { at: 0 };
+  const sleeps = [];
+  const seen = [];
+  const queue = [...replies];
+  const env = {
+    now: () => clock.at,
+    sleep: async (ms) => {
+      sleeps.push(ms);
+      clock.at += ms;
+    },
+    fetch: async (url, init) => {
+      seen.push({ url, init });
+      const text = queue.length > 1 ? queue.shift() : queue[0];
+      return { ok: true, status: 200, text: async () => text };
+    },
+  };
+  const config = { origin: "https://uniwork.example", workspaceId: "ws", mcpToken: "uwm_at_x", sessionToken: "s" };
+  return { uniwork: makeUniwork(config, env), clock, sleeps, seen };
+}
+
+function toolReply(payload, isError = false) {
+  const text = typeof payload === "string" ? payload : JSON.stringify(payload);
+  return JSON.stringify({ jsonrpc: "2.0", id: 1, result: { content: [{ type: "text", text }], isError } });
+}
+
+test("MCP calls accept both JSON and event-stream", async () => {
+  const h = mcpHarness([toolReply({ item: { id: "t1" } })]);
+  await h.uniwork.createTask({ title: "x" });
+  const accept = h.seen[0].init.headers.Accept;
+  assert.ok(accept.includes("application/json"));
+  assert.ok(accept.includes("text/event-stream"));
+});
+
+test("create_task and update_task thread the note out", async () => {
+  const h = mcpHarness([
+    toolReply({ item: { id: "t1" }, note: "labels failed" }),
+    toolReply({ item: { id: "t1" } }),
+  ]);
+  assert.deepEqual(await h.uniwork.createTask({ title: "x" }), { id: "t1", note: "labels failed" });
+  assert.deepEqual(await h.uniwork.updateTask({ task_id: "t1" }), { id: "t1", note: "" });
+});
+
+test("write_rate_limited waits and retries the same call", async () => {
+  const h = mcpHarness([
+    toolReply("write_rate_limited: slow down", true),
+    toolReply({ item: { id: "c1" } }),
+  ]);
+  const row = await h.uniwork.addComment({ task_id: "t", body: "b" });
+  assert.equal(row.id, "c1");
+  assert.equal(h.seen.length, 2);
+  assert.equal(h.seen[0].init.body, h.seen[1].init.body);
+  assert.deepEqual(h.sleeps, [60_000]);
+});
+
+test("a stuck write limiter fails the call after a few waits", async () => {
+  const h = mcpHarness([toolReply("write_rate_limited: slow down", true)]);
+  await assert.rejects(h.uniwork.addComment({ task_id: "t", body: "b" }), /write_rate_limited/);
+  assert.equal(h.seen.length, 4);
+  assert.equal(h.sleeps.filter((ms) => ms === 60_000).length, 3);
+});
+
+test("writes stay at 25 per minute and all calls at 100", async () => {
+  const stamps = [];
+  const h = mcpHarness([toolReply({ item: { id: "c" } })]);
+  const base = h.seen;
+  for (let i = 0; i < 60; i += 1) {
+    await h.uniwork.addComment({ task_id: "t", body: String(i) });
+    stamps.push(h.clock.at);
+  }
+  assert.equal(base.length, 60);
+  for (let i = 25; i < stamps.length; i += 1) assert.ok(stamps[i] - stamps[i - 25] >= 60_000);
+
+  const reads = mcpHarness([toolReply({ task: { id: "t" } })]);
+  const readStamps = [];
+  for (let i = 0; i < 230; i += 1) {
+    await reads.uniwork.getTask("t");
+    readStamps.push(reads.clock.at);
+  }
+  for (let i = 100; i < readStamps.length; i += 1) assert.ok(readStamps[i] - readStamps[i - 100] >= 60_000);
 });

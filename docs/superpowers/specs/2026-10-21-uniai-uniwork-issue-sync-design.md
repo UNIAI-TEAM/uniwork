@@ -50,11 +50,15 @@ MCP và API thường không nhận chung một token. Máy chạy giữ hai bi�
 | `UNIWORK_MCP_TOKEN` | Bearer token MCP, có quyền ghi |
 | `UNIWORK_SESSION_TOKEN` | Bearer phiên, chỉ để đọc thành viên, nhãn, comment và tìm task |
 
+Mỗi yêu cầu POST tới `/mcp` gửi `Accept: application/json, text/event-stream`. Server (go-sdk, streamable HTTP không trạng thái) trả HTTP 400 nếu thiếu một trong hai giá trị; phản hồi vẫn là JSON.
+
+Access token phiên sống 15 phút, access token MCP sống 1 giờ. Chương trình không làm mới token nào. Autopilot chạy không người trông mỗi 15 phút cần token còn hạn trước mỗi lượt; làm mới token không thuộc chương trình này.
+
 `scripts/uniai-sync/config.example.json` ghi các giá trị không bí mật: origin API, `workspace_id`, `project_id` của UniWork đích. File chạy là `scripts/uniai-sync/config.json`, được `.gitignore` bỏ qua. Đích không gắn cứng vào project UniAI.
 
 `uniai` trên máy đó đã đăng nhập workspace `uni2026`.
 
-Mỗi issue xong thì ghi metadata ngay. Lượt bị ngắt thì vòng sau tiếp phần chưa có hash. Lần đầu đi nhiều vòng lịch vì chương trình giữ dưới 100 lần gọi MCP mỗi phút. Cùng lệnh chạy tay khi cần đẩy ngay. Một file khóa chứa pid. Pid đó còn sống thì lần chạy mới in `already running` và thoát 0. Pid không còn thì lần mới giữ khóa.
+Mỗi issue xong thì ghi metadata ngay. Lượt bị ngắt thì vòng sau tiếp phần chưa có hash. Lần đầu đi nhiều vòng lịch vì chương trình giữ dưới 100 lần gọi MCP mỗi phút. Ghi (`create_task`, `update_task`, `add_comment`) giữ không quá 25 lần mỗi phút vì server cho 30 lần ghi mỗi phút mỗi grant; quá mức thì kết quả công cụ là lỗi bắt đầu bằng `write_rate_limited:`, chương trình chờ rồi gọi lại đúng lệnh đó. Cùng lệnh chạy tay khi cần đẩy ngay. Một file khóa chứa pid. Pid đó còn sống thì lần chạy mới in `already running` và thoát 0. Pid không còn thì lần mới giữ khóa.
 
 Chương trình không viết comment lên issue UniAI. Kết quả in ra stdout cho lượt autopilot: số tạo, số sửa, số bỏ qua, và từng issue lỗi.
 

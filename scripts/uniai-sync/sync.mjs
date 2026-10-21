@@ -27,10 +27,6 @@ function cut(value, limit) {
   return Array.from(value).slice(0, limit).join("");
 }
 
-function sameSet(a, b) {
-  return a.length === b.length && a.every((item) => b.includes(item));
-}
-
 function commentAuthor(comment, people, agents) {
   if (comment.author_type === "agent") {
     const agent = agents.get(comment.author_id);
@@ -108,7 +104,8 @@ async function run(config, uniai, uniwork) {
     if (error.code === "unauthorized") {
       return { code: 1, lines: ["unauthorized"] };
     }
-    throw error;
+    const status = error.status ? ` HTTP ${error.status}` : "";
+    return { code: 1, lines: [`startup failed${status}: ${error.message}`] };
   }
   const people = new Map(uniaiMembers.map((row) => [row.user_id, row]));
   const agents = new Map(agentRows.map((row) => [row.id, row]));
@@ -122,9 +119,25 @@ async function run(config, uniai, uniwork) {
     else labelIdsByName.set(label.name, label.id);
   }
 
-  const issues = await uniai.listIssues(config.uniaiProjectId);
+  let issues;
+  try {
+    issues = await uniai.listIssues(config.uniaiProjectId);
+  } catch (error) {
+    if (error.code === "unauthorized") return { code: 1, lines: ["unauthorized"] };
+    return { code: 1, lines: [`list issues failed: ${error.message}`] };
+  }
   const commentsByIssue = new Map();
-  for (const issue of issues) commentsByIssue.set(issue.id, await uniai.listComments(issue.id));
+  const unreadable = new Set();
+  for (const issue of issues) {
+    try {
+      commentsByIssue.set(issue.id, await uniai.listComments(issue.id));
+    } catch (error) {
+      if (error.code === "unauthorized") return { code: 1, lines: [...lines, "unauthorized"] };
+      failed = true;
+      unreadable.add(issue.id);
+      lines.push(`error ${issue.id}: ${error.message}`);
+    }
+  }
   const issueById = new Map(issues.map((issue) => [issue.id, issue]));
   const { order, cycles } = orderIssues(issues);
   const cycleIds = new Set(cycles);
@@ -159,9 +172,9 @@ async function run(config, uniai, uniwork) {
 
   async function updateOnce(taskId, want, labelIds, current) {
     const patch = diffTask(current, want, labelIds);
-    if (Object.keys(patch).length === 0) return false;
-    await uniwork.updateTask({ task_id: taskId, revision: current.revision, ...patch });
-    return true;
+    if (Object.keys(patch).length === 0) return { changed: false, note: "" };
+    const result = await uniwork.updateTask({ task_id: taskId, revision: current.revision, ...patch });
+    return { changed: true, note: String(result?.note ?? "") };
   }
 
   async function updateTask(taskId, want, labelIds) {
@@ -250,6 +263,7 @@ async function run(config, uniai, uniwork) {
 
     let taskId = taskIds.get(issue.id);
     let fresh = false;
+    let partial = "";
     if (!taskId) {
       const matches = await findByTitle(want.title);
       if (matches.length > 1) throw new IssueFailure(`duplicate title ${issue.identifier}`);
@@ -268,7 +282,9 @@ async function run(config, uniai, uniwork) {
         if (want.due_date) args.due_date = want.due_date;
         if (want.assignee_id) args.assignee_id = want.assignee_id;
         if (want.parent_task_id) args.parent_task_id = want.parent_task_id;
-        taskId = (await uniwork.createTask(args)).id;
+        const made = await uniwork.createTask(args);
+        taskId = made.id;
+        partial = String(made.note ?? "");
         fresh = true;
         created += 1;
       }
@@ -278,12 +294,16 @@ async function run(config, uniai, uniwork) {
 
     if (!fresh) {
       try {
-        if (await updateTask(taskId, want, labelIds)) updated += 1;
+        const result = await updateTask(taskId, want, labelIds);
+        if (result.changed) updated += 1;
+        partial = result.note;
       } catch (error) {
         if (error.code === "revision_conflict") throw new IssueFailure(`revision ${issue.id}`);
         throw error;
       }
     }
+
+    if (partial) throw new IssueFailure(`partial ${issue.id}: ${partial}`);
 
     const existing = fresh ? [] : await uniwork.listTaskComments(taskId);
     const waiting = await postComments(issue, taskId, existing, note, overflow, liveComments);
@@ -295,6 +315,7 @@ async function run(config, uniai, uniwork) {
   }
 
   for (const id of order) {
+    if (unreadable.has(id)) continue;
     const issue = issueById.get(id);
     try {
       await processIssue(issue);
@@ -315,7 +336,11 @@ async function run(config, uniai, uniwork) {
 const execFileAsync = promisify(execFile);
 const PAGE = 100;
 const MCP_PER_MINUTE = 100;
+// The server allows 30 writes a minute per grant (write_rate_limited); stay under it.
+const MCP_WRITES_PER_MINUTE = 25;
 const MCP_WINDOW_MS = 60_000;
+const MCP_RATE_RETRIES = 3;
+const WRITE_TOOLS = new Set(["create_task", "update_task", "add_comment"]);
 
 async function uniaiJson(args) {
   const { stdout } = await execFileAsync("uniai", args, { maxBuffer: 256 * 1024 * 1024 });
@@ -366,49 +391,75 @@ function httpError(response, text) {
   if (response.status === 401) {
     return Object.assign(new Error("unauthorized"), { code: "unauthorized" });
   }
-  return new Error(`HTTP ${response.status} ${text.slice(0, 200)}`);
+  return Object.assign(new Error(`HTTP ${response.status} ${text.slice(0, 200)}`), {
+    status: response.status,
+  });
 }
 
-function makeUniwork(config) {
+export function makeUniwork(config, env = {}) {
+  const doFetch = env.fetch ?? fetch;
+  const now = env.now ?? Date.now;
+  const pause = env.sleep ?? ((ms) => sleep(ms));
   const calls = [];
+  const writes = [];
 
-  async function throttle() {
+  function prune(list, at) {
+    while (list.length > 0 && at - list[0] >= MCP_WINDOW_MS) list.shift();
+  }
+
+  async function throttle(name) {
+    const isWrite = WRITE_TOOLS.has(name);
     for (;;) {
-      const now = Date.now();
-      while (calls.length > 0 && now - calls[0] >= MCP_WINDOW_MS) calls.shift();
-      if (calls.length < MCP_PER_MINUTE) break;
-      await sleep(MCP_WINDOW_MS - (now - calls[0]));
+      const at = now();
+      prune(calls, at);
+      prune(writes, at);
+      let wait = 0;
+      if (calls.length >= MCP_PER_MINUTE) wait = Math.max(wait, MCP_WINDOW_MS - (at - calls[0]));
+      if (isWrite && writes.length >= MCP_WRITES_PER_MINUTE) {
+        wait = Math.max(wait, MCP_WINDOW_MS - (at - writes[0]));
+      }
+      if (wait <= 0) break;
+      await pause(wait);
     }
-    calls.push(Date.now());
+    const at = now();
+    calls.push(at);
+    if (isWrite) writes.push(at);
   }
 
   async function mcp(name, args) {
-    await throttle();
-    const response = await fetch(`${config.origin}/mcp`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${config.mcpToken}`,
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      },
-      body: JSON.stringify({
-        jsonrpc: "2.0",
-        id: 1,
-        method: "tools/call",
-        params: { name, arguments: { workspace_id: config.workspaceId, ...args } },
-      }),
-    });
-    const raw = await response.text();
-    if (!response.ok) throw httpError(response, raw);
-    const json = JSON.parse(raw);
-    if (json.error) throw new Error(json.error.message ?? "mcp error");
-    const text = json.result?.content?.[0]?.text ?? "";
-    if (json.result?.isError) {
-      const error = new Error(text);
-      if (text.includes("revision_conflict")) error.code = "revision_conflict";
-      throw error;
+    for (let attempt = 0; ; attempt += 1) {
+      await throttle(name);
+      const response = await doFetch(`${config.origin}/mcp`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${config.mcpToken}`,
+          "Content-Type": "application/json",
+          Accept: "application/json, text/event-stream",
+        },
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id: 1,
+          method: "tools/call",
+          params: { name, arguments: { workspace_id: config.workspaceId, ...args } },
+        }),
+      });
+      const raw = await response.text();
+      if (!response.ok) throw httpError(response, raw);
+      const json = JSON.parse(raw);
+      if (json.error) throw new Error(json.error.message ?? "mcp error");
+      const text = json.result?.content?.[0]?.text ?? "";
+      if (json.result?.isError) {
+        if (text.startsWith("write_rate_limited:")) {
+          if (attempt >= MCP_RATE_RETRIES) throw new Error(text);
+          await pause(MCP_WINDOW_MS);
+          continue;
+        }
+        const error = new Error(text);
+        if (text.includes("revision_conflict")) error.code = "revision_conflict";
+        throw error;
+      }
+      return JSON.parse(text);
     }
-    return JSON.parse(text);
   }
 
   async function rest(method, path, body) {
@@ -461,11 +512,11 @@ function makeUniwork(config) {
     },
     async createTask(args) {
       const json = await mcp("create_task", args);
-      return { id: json.item.id };
+      return { id: json.item.id, note: String(json.note ?? json.item?.note ?? "") };
     },
     async updateTask(args) {
       const json = await mcp("update_task", args);
-      return { id: json.item?.id ?? args.task_id };
+      return { id: json.item?.id ?? args.task_id, note: String(json.note ?? json.item?.note ?? "") };
     },
     async listTaskComments(id) {
       return pickRows(await rest("GET", `/api/v1/tasks/${id}/comments`), "comments", "items", "data");
