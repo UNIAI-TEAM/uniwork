@@ -257,12 +257,23 @@ function forwardable(headers: Record<string, string> | undefined): Record<string
   return out;
 }
 
+/** A URL parser drops tab/newline/CR and reads a backslash as a slash, so neither may appear in a target. */
+function hasControlOrBackslash(url: string): boolean {
+  for (let i = 0; i < url.length; i += 1) {
+    const c = url.charCodeAt(i);
+    if (c <= 0x1f || c === 0x7f || c === 0x5c) return true;
+  }
+  return false;
+}
+
 /**
  * The API path of a content-route URL, or null when it is not under the API
- * origin. "//host" and "/\host" are another origin to a browser, not a path.
+ * origin. "//host" and "/\host" are another origin to a browser, not a path,
+ * and so is "/<tab>/host": any control character or backslash is refused.
  */
 function apiPathOf(url: string): string | null {
-  if (url.startsWith("/")) return url.startsWith("//") || url.startsWith("/\\") ? null : url;
+  if (hasControlOrBackslash(url)) return null;
+  if (url.startsWith("/")) return url.startsWith("//") ? null : url;
   const api = runtimeConfig().apiUrl;
   return api && url.startsWith(`${api}/`) ? url.slice(api.length) : null;
 }
