@@ -9,7 +9,7 @@ import { docListRungs, docListSpec, type DocListColumnId, type DocListScreen } f
  * viewport and ~872px at 1440. Every optional column therefore joins by the
  * width of the list's own container (`@container/library`), in a ladder that
  * keeps Name readable: a rung opens at `the fixed columns up to and including
- * it + 2px border + a 220px name floor`, rounded up to the next rem. Header,
+ * it + 2px border + the Name floor (nameFloor, 288 / 260)`, rounded up to the next rem. Header,
  * colgroup, cells and the group spanner all read the one class per column, so
  * none can drift out of step. Tailwind finds the classes as literals, so each
  * rung is written out in full.
@@ -131,6 +131,8 @@ function atRung(rung: number): RungClasses {
 export interface SpecLadder extends RowLadder {
   columns: LibraryColumn[];
   screenLineHides: string;
+  /** Hidden from the rung where the column joins up: what the Name header's sort caption uses for the two columns that can be sorted and off. */
+  sortHintHides: { editor: string; size: string };
 }
 
 /**
@@ -185,5 +187,6 @@ export function specLadder(screen: DocListScreen, opts: { selectable?: boolean }
     accessGroupHides: at("access").hide,
     metaDotHides: at("access").hideNow,
     screenLineHides: at("table").hide,
+    sortHintHides: { editor: at("editor").hide, size: at("size").hide },
   };
 }

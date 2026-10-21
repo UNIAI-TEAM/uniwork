@@ -210,6 +210,17 @@ export function DocumentsLibraryList({
   const specLabels = new Map(specColumns.map((column) => [column.id as string, column.labelKey]));
   const columnLabel = (id: string): string => specLabels.get(id) ?? "";
   const sortKeys = new Map(specColumns.map((column) => [column.id as string, column.sortKey]));
+  // The Name header's caption for a sort by a column the ladder can hide (Người sửa gần nhất, Dung lượng).
+  const hintColumn = sort && (sort.value.column === "editor" || sort.value.column === "size") ? sort.value.column : null;
+  const hintLabel = hintColumn ? t(columnLabel(hintColumn)) : "";
+  const hint = sort && hintColumn
+    ? {
+        label: hintLabel,
+        hides: ladder.sortHintHides[hintColumn],
+        sr: `${t("documents.home.sort.column", { column: hintLabel })}, ${t(sort.value.order === "asc" ? "documents.home.sort.ascending" : "documents.home.sort.descending")}`,
+      }
+    : null;
+  const HintArrow = sort?.value.order === "asc" ? ArrowUp : ArrowDown;
   // The group title spans the columns that are on at every width (Select, Name, Actions).
   const alwaysOn = ladder.columns.filter((column) => !column.cell).length;
 
@@ -233,7 +244,8 @@ export function DocumentsLibraryList({
             Every column but Name and Actions joins by the width of this list
             (`@container/library`, see library-columns.ts), never the
             viewport: the docs aside and the sidebar take ~500px of it. Name
-            takes what the fixed columns leave and never drops below 280px.
+            takes what the fixed columns leave and never drops below its floor
+            (nameFloor, 288 / 260).
             The group header spans exactly the columns on screen (a colSpan
             wider than the visible columns would add implicit columns that
             squeeze Name to nothing).
@@ -270,7 +282,19 @@ export function DocumentsLibraryList({
                     className={cn("py-2 font-medium", column.pad ?? "px-3", column.cell)}
                   >
                     {sortable && sort ? (
-                      <LibrarySortHeader column={sortable} label={t(columnLabel(column.id))} sort={sort.value} onSort={sort.onSort} />
+                      hint && column.id === "name" ? (
+                        <div className="flex min-w-0 items-center gap-1">
+                          <LibrarySortHeader column={sortable} label={t(columnLabel(column.id))} sort={sort.value} onSort={sort.onSort} />
+                          {/* RFD-23: the sorted column is off at this width, so Name carries its sort (own rung's hide class). */}
+                          <span className={cn("inline-flex min-w-0 shrink-0 items-center gap-1 whitespace-nowrap text-foreground", hint.hides)}>
+                            <span aria-hidden>· {hint.label}</span>
+                            <HintArrow aria-hidden className="size-3.5 shrink-0" />
+                            <span className="sr-only">{hint.sr}</span>
+                          </span>
+                        </div>
+                      ) : (
+                        <LibrarySortHeader column={sortable} label={t(columnLabel(column.id))} sort={sort.value} onSort={sort.onSort} />
+                      )
                     ) : fixed ? (
                       <span className="inline-flex max-w-full items-center gap-1 text-foreground">
                         <span className="truncate">{t(columnLabel(column.id))}</span>
