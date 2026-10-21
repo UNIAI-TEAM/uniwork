@@ -10205,9 +10205,11 @@
       "restore": "Restore",
       "export_docx": "Export as DOCX",
       "export_pdf": "Export as PDF",
-      "exporting": "Exporting the page…",
-      "export_failed": "Couldn't export the page. Try again later.",
-      "export_unavailable": "The server can't export this format yet."
+      "exporting": "Exporting the UniNote as {{format}}…",
+      "export_failed": "Couldn't export the UniNote as {{format}}. Try again in a few minutes.",
+      "export_failed_permanent": "Couldn't export the UniNote as {{format}}. Reload the page and export again; if it still fails, tell an admin.",
+      "export_too_large": "This UniNote is too large to export as {{format}}. Move some content to another UniNote, then export again.",
+      "export_unavailable": "This UniWork installation can't export {{format}} yet. Tell an admin."
     },
     "versions": {
       "title": "Version history",

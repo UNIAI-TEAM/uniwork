@@ -35,6 +35,9 @@ const KIND_KEYS = [
   "documents.home.chips.page",
   "documents.home.groups.type.page",
   "documents.errors.document_parent_kind",
+  "documents.actions.exporting",
+  "documents.actions.export_failed",
+  "documents.actions.export_too_large",
 ];
 
 /** Keys where "Trang" keeps its ordinary meaning (pagination, home page, print pages). */

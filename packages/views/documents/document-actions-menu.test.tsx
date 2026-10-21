@@ -154,7 +154,9 @@ describe("DocumentActionsMenu", () => {
     expect(screen.getByRole("menuitem", { name: t("documents.actions.share") })).toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: t("documents.actions.access_log") })).toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: t("documents.actions.copy") })).toBeInTheDocument();
-    expect(screen.getByRole("menuitem", { name: t("documents.actions.archive") })).toBeInTheDocument();
+    const archive = screen.getByRole("menuitem", { name: t("documents.actions.archive") });
+    // The destructive entry sits apart, after a separator.
+    expect(archive.previousElementSibling).toHaveAttribute("role", "separator");
     expect(screen.queryByRole("menuitem", { name: t("documents.actions.restore") })).toBeNull();
   });
 
@@ -481,7 +483,58 @@ describe("DocumentActionsMenu page export (UNI-2004)", () => {
     expect(init.method).toBe("POST");
     expect(JSON.parse(String(init.body))).toEqual({ format: "docx" });
     expect((click.mock.contexts[0] as HTMLAnchorElement).download).toBe("bien-ban.docx");
+    expect(toast.loading).toHaveBeenCalledWith(t("documents.actions.exporting", { format: "DOCX" }));
     expect(toast.dismiss).toHaveBeenCalledWith("toast-1");
+  });
+
+  it("names a file the server did not name after the title, without path characters", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("%PDF-", { status: 200 })));
+    const click = stubSave();
+    renderWithFlags(documentFixture({ kind: "page", file: null, title: 'Q4/2026: "Kế hoạch"', my_level: "view" }), {
+      page_export: { default: true },
+    });
+    await openMenu();
+    fireEvent.click(screen.getByRole("menuitem", { name: t("documents.actions.export_pdf") }));
+    await waitFor(() => expect(click).toHaveBeenCalled());
+    expect((click.mock.contexts[0] as HTMLAnchorElement).download).toBe("Q4-2026- -Kế hoạch-.pdf");
+  });
+
+  it("runs one export at a time: the items wait while one is under way", async () => {
+    const fetchMock = vi.fn(() => new Promise<Response>(() => {}));
+    vi.stubGlobal("fetch", fetchMock);
+    toast.loading.mockClear();
+    stubSave();
+    renderWithFlags(page(), { page_export: { default: true } });
+    await openMenu();
+    fireEvent.click(screen.getByRole("menuitem", { name: t("documents.actions.export_docx") }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    await openMenu();
+    const docx = screen.getByRole("menuitem", { name: t("documents.actions.export_docx") });
+    expect(docx).toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(docx);
+    fireEvent.click(screen.getByRole("menuitem", { name: t("documents.actions.export_pdf") }));
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(toast.loading).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ["a retryable engine failure says to try again", 503, { code: "engine_overloaded", fields: { retryable: true } }, "export_failed"],
+    ["a permanent failure gives a next step, not try-again", 409, { code: "invalid_transition", fields: { retryable: false } }, "export_failed_permanent"],
+    ["a page too large to render says so", 413, { code: "upload_bounds", error_class: "quota", fields: { retryable: false } }, "export_too_large"],
+  ])("%s", async (_name, status, error, key) => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ error: { message: "x", ...error } }), { status, headers: { "Content-Type": "application/json" } }),
+      ),
+    );
+    stubSave();
+    renderWithFlags(page(), { page_export: { default: true } });
+    await openMenu();
+    fireEvent.click(screen.getByRole("menuitem", { name: t("documents.actions.export_docx") }));
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(t(`documents.actions.${key}`, { format: "DOCX" }), { id: "toast-1" }),
+    );
   });
 
   it("says the server cannot export the format when the PDF renderer is missing", async () => {
@@ -498,7 +551,13 @@ describe("DocumentActionsMenu page export (UNI-2004)", () => {
     renderWithFlags(page(), { page_export: { default: true } });
     await openMenu();
     fireEvent.click(screen.getByRole("menuitem", { name: t("documents.actions.export_pdf") }));
-    await waitFor(() => expect(toast.error).toHaveBeenCalledWith(t("documents.actions.export_unavailable"), { id: "toast-1" }));
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(t("documents.actions.export_unavailable", { format: "PDF" }), { id: "toast-1" }),
+    );
+    // The deployment cannot render that format: the menu stops offering it, and keeps the other.
+    await openMenu();
+    expect(screen.queryByRole("menuitem", { name: t("documents.actions.export_pdf") })).toBeNull();
+    expect(screen.getByRole("menuitem", { name: t("documents.actions.export_docx") })).toBeInTheDocument();
   });
 
   it("offers no export when page_export is off, or on a file document", async () => {

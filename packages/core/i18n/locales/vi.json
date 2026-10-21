@@ -10200,9 +10200,11 @@
       "restore": "Khôi phục",
       "export_docx": "Xuất DOCX",
       "export_pdf": "Xuất PDF",
-      "exporting": "Đang xuất trang…",
-      "export_failed": "Không xuất được trang. Thử lại sau.",
-      "export_unavailable": "Máy chủ chưa sẵn sàng xuất định dạng này."
+      "exporting": "Đang xuất UniNote sang {{format}}…",
+      "export_failed": "Không xuất được UniNote sang {{format}}. Thử lại sau ít phút.",
+      "export_failed_permanent": "Không xuất được UniNote sang {{format}}. Tải lại trang rồi xuất lại; nếu vẫn lỗi, báo quản trị viên.",
+      "export_too_large": "UniNote quá lớn để xuất sang {{format}}. Tách bớt nội dung sang UniNote khác rồi xuất lại.",
+      "export_unavailable": "Bản cài đặt UniWork này chưa xuất được {{format}}. Báo quản trị viên."
     },
     "versions": {
       "title": "Lịch sử phiên bản",
