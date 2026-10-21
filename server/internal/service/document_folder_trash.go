@@ -35,20 +35,20 @@ func (s *DocumentService) planFolderTrash(ctx context.Context, q *db.Queries, ac
 	if err != nil {
 		return nil, nil, err
 	}
-	unmanaged, err := s.unmanagedInSubtree(ctx, q, actor, root, live)
+	byID := make(map[string]db.Document, len(rows))
+	for _, r := range rows {
+		byID[r.ID] = r
+	}
+	unmanaged, err := s.unmanagedInSubtree(ctx, q, actor, root, live, byID)
 	if err != nil {
 		return nil, nil, err
-	}
-	byID := make(map[string]bool, len(rows))
-	for _, r := range rows {
-		byID[r.ID] = true
 	}
 	children := make(map[string][]db.Document, len(rows))
 	var starts []db.Document
 	for _, r := range rows {
 		switch {
 		case r.ID == root.ID:
-		case r.ParentID.Valid && byID[r.ParentID.String]:
+		case r.ParentID.Valid && byID[r.ParentID.String].ID != "":
 			children[r.ParentID.String] = append(children[r.ParentID.String], r)
 		default:
 			starts = append(starts, r)
@@ -71,9 +71,13 @@ func (s *DocumentService) planFolderTrash(ctx context.Context, q *db.Queries, ac
 
 // unmanagedInSubtree names the pages and files of the live id set the actor
 // does not manage, on the same trivial-rule prefilter as
-// requireManageOnSubtree. Folders are not asked: they always go to the trash.
-// A work-product-owned node refuses (ErrForbidden), as the old check did.
-func (s *DocumentService) unmanagedInSubtree(ctx context.Context, q *db.Queries, actor Actor, root db.Document, live []string) (map[string]bool, error) {
+// requireManageOnSubtree, reading the nodes from the rows the plan already
+// loaded. Workspace folders are not asked: they always go to the trash. Any
+// other folder (a legacy private one, another person's) is asked like before
+// ADR 0037 and refuses the whole command when the actor does not manage it -
+// it is never relocated (folders have a unique name index). A
+// work-product-owned node refuses (ErrForbidden), as the old check did.
+func (s *DocumentService) unmanagedInSubtree(ctx context.Context, q *db.Queries, actor Actor, root db.Document, live []string, rows map[string]db.Document) (map[string]bool, error) {
 	check := live
 	if actor.Kind == audit.KindHuman {
 		isMember, isAdmin, err := s.workspaceManageHints(ctx, q, root.WorkspaceID, actor.ID)
@@ -93,20 +97,20 @@ func (s *DocumentService) unmanagedInSubtree(ctx context.Context, q *db.Queries,
 		if id == root.ID {
 			continue
 		}
-		node, err := q.GetDocument(ctx, db.GetDocumentParams{
-			ID: id, OrganizationID: root.OrganizationID, WorkspaceID: root.WorkspaceID,
-		})
-		if err != nil {
-			return nil, err
+		node, ok := rows[id]
+		if !ok {
+			continue
 		}
 		if node.OwnerKind.Valid {
 			return nil, ErrForbidden
 		}
-		if node.Kind == DocumentKindFolder {
+		if isWorkspaceFolder(node) {
 			continue
 		}
-		err = s.requireManageOn(ctx, q, actor, node)
+		err := s.requireManageOn(ctx, q, actor, node)
 		switch {
+		case errors.Is(err, ErrForbidden) && node.Kind == DocumentKindFolder:
+			return nil, ErrForbidden
 		case errors.Is(err, ErrForbidden):
 			out[id] = true
 		case err != nil:

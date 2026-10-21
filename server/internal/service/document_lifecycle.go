@@ -561,7 +561,7 @@ func (s *DocumentService) ArchiveImpact(ctx context.Context, actor Actor, docume
 // the trivial manage rules are read off the rows, and only a node whose
 // parent is outside the restored set costs a parent lookup.
 func (s *DocumentService) RestoreDocument(ctx context.Context, actor Actor, documentID string, in ArchiveDocumentInput) (DocumentArchiveResult, error) {
-	return s.documentBatchLifecycle(ctx, actor, documentID, in.IdempotencyKey, idempotencyScopeDocumentRestore, decideArchiveRootAccess, func(q *db.Queries, doc db.Document, access DocumentAccess) (DocumentArchiveResult, error) {
+	return s.documentBatchLifecycle(ctx, actor, documentID, in.IdempotencyKey, idempotencyScopeDocumentRestore, archiveRootDecider(actor), func(q *db.Queries, doc db.Document, access DocumentAccess) (DocumentArchiveResult, error) {
 		if !doc.ArchivedAt.Valid {
 			return DocumentArchiveResult{}, Invalid("tài liệu không nằm trong thùng rác")
 		}
@@ -799,14 +799,15 @@ func (s *DocumentService) restoreNames(ctx context.Context, q *db.Queries, root 
 //
 // DOC-05: an AdminScope caller (no read level) administers the document, so
 // they pass the same way manage does (decideDocumentAdminister).
-func decideArchiveRootAccess(doc db.Document, access DocumentAccess) error {
+func decideArchiveRootAccess(actor Actor, doc db.Document, access DocumentAccess) error {
 	if doc.ArchivedAt.Valid && !access.Level.AtLeast(DocumentLevelEdit) && !access.AdminScope {
 		// Below edit a trashed item is hidden, restore/purge included: an
 		// agent or a view holder gets not found, never a confirmation. A
 		// workspace folder is the exception (ADR 0037 point 4): its name was
 		// the whole workspace's, so a member who reads it is refused, not
-		// told it does not exist.
-		if isWorkspaceFolder(doc) && access.Level != DocumentLevelNone {
+		// told it does not exist. An agent is no such member: it gets the
+		// same not found as any non-reader.
+		if actor.Kind == audit.KindHuman && isWorkspaceFolder(doc) && access.Level != DocumentLevelNone {
 			return ErrForbidden
 		}
 		return ErrNotFound
@@ -826,6 +827,14 @@ func decideArchiveRootAccess(doc db.Document, access DocumentAccess) error {
 		return ErrForbidden
 	}
 	return nil
+}
+
+// archiveRootDecider binds the actor into decideArchiveRootAccess for the
+// batch envelope's rootGate parameter.
+func archiveRootDecider(actor Actor) func(doc db.Document, access DocumentAccess) error {
+	return func(doc db.Document, access DocumentAccess) error {
+		return decideArchiveRootAccess(actor, doc, access)
+	}
 }
 
 // pristineCopyCleanup is the one archive that does not need manage: the
@@ -856,7 +865,7 @@ func archiveRootGate(actor Actor, doc db.Document, access DocumentAccess) (prist
 	if pristineCopyCleanup(actor, doc, access) {
 		return true, nil
 	}
-	return false, decideArchiveRootAccess(doc, access)
+	return false, decideArchiveRootAccess(actor, doc, access)
 }
 
 // documentBatchLifecycle is the shared envelope of archive and restore: one
@@ -1159,7 +1168,7 @@ func (s *DocumentService) PurgeDocument(ctx context.Context, actor Actor, docume
 	if err != nil {
 		return nil, err
 	}
-	if err := decideArchiveRootAccess(doc, access); err != nil {
+	if err := decideArchiveRootAccess(actor, doc, access); err != nil {
 		return nil, err
 	}
 	if !doc.ArchivedAt.Valid {
