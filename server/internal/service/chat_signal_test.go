@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/unicomhub/uniwork/server/internal/outbox"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
@@ -416,4 +417,72 @@ func TestConcurrentVoiceHangupsWriteOneCallLog(t *testing.T) {
 	if seen != calls {
 		t.Fatalf("calls with a log = %d, want %d", seen, calls)
 	}
+}
+
+// Calls live per node: an answer that reaches a node without the call's
+// session still closes the person's ring row and tells their other phones to
+// stop, because the open ring row in the database says the call rang them.
+// Someone with no ring row and no session gets no ring_closed.
+func TestAcceptOnAnotherNodeStillClosesTheRing(t *testing.T) {
+	s, _, q, ua, ub, w, pool := chatFixtureWithPool(t)
+	ctx := context.Background()
+	addOrgMember(t, q, w.OrganizationID, ub.ID)
+	addWorkspaceMember(t, q, w.ID, ub.ID)
+	dm, err := s.ResolveDM(ctx, ua.ID, w.ID, ub.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	closedFor := func(callID string) []string {
+		var users []string
+		for _, p := range outboxPayloads(t, pool, "chat.voice.ring_closed") {
+			if p["call_id"] == callID {
+				users = append(users, p["user_id"])
+			}
+		}
+		return users
+	}
+
+	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, dm.ID, "call-other-node", false); err != nil {
+		t.Fatal(err)
+	}
+	// The notify lane wrote B's ring row from invite_received, as it does on the node holding the call.
+	ring, err := q.UpsertNotification(ctx, db.UpsertNotificationParams{
+		ID: util.NewID(), UserID: ub.ID, OrganizationID: w.OrganizationID, WorkspaceID: pgtype.Text{String: w.ID, Valid: true},
+		Kind: "chat_call_incoming", GroupKey: ChatCallNotifyGroup(dm.ID), ResourceType: "chat_room", ResourceID: dm.ID,
+		ActorKind: "human", ActorID: ua.ID, TitleKey: "notifications.kind.chat_call_incoming", Params: "{}",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The answer reaches another node: this one forgets the call.
+	dropVoiceCallInvite(dm.ID, "call-other-node")
+	if err := s.SignalVoiceAccept(ctx, ub.ID, w.ID, dm.ID, "call-other-node"); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := q.GetNotification(ctx, ring.ID); err != nil || !got.ReadAt.Valid {
+		t.Fatalf("ring row after an answer on another node = %+v (%v), want it closed", got, err)
+	}
+	if got := closedFor("call-other-node"); !slices.Equal(got, []string{ub.ID}) {
+		t.Fatalf("ring_closed for %v, want the callee once", got)
+	}
+
+	// The caller rejoining their own call was never rung: no row, no session entry, nothing to stop.
+	if err := s.SignalVoiceAccept(ctx, ua.ID, w.ID, dm.ID, "call-other-node"); err != nil {
+		t.Fatal(err)
+	}
+	if got := closedFor("call-other-node"); len(got) != 1 {
+		t.Fatalf("ring_closed for %v after the caller's accept, want still only the callee", got)
+	}
+
+	// On the node holding the call, the session alone is enough (the notify lane may not have run yet).
+	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, dm.ID, "call-same-node", false); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SignalVoiceAccept(ctx, ub.ID, w.ID, dm.ID, "call-same-node"); err != nil {
+		t.Fatal(err)
+	}
+	if got := closedFor("call-same-node"); !slices.Equal(got, []string{ub.ID}) {
+		t.Fatalf("ring_closed on the same node for %v, want the callee", got)
+	}
+	_ = s.SignalVoiceHangup(ctx, ua.ID, w.ID, dm.ID, "call-same-node")
 }

@@ -67,6 +67,27 @@ func (q *Queries) ClaimNotificationGroup(ctx context.Context, claimKey string) e
 	return err
 }
 
+const closeNotificationGroups = `-- name: CloseNotificationGroups :execrows
+UPDATE notifications SET read_at = now(), updated_at = now()
+WHERE user_id = $1 AND group_key = ANY($2::text[]) AND read_at IS NULL
+`
+
+type CloseNotificationGroupsParams struct {
+	UserID    string   `json:"user_id"`
+	GroupKeys []string `json:"group_keys"`
+}
+
+// tenant: self
+// MarkNotificationGroupsRead that counts the open rows it closed: an answered
+// call's open ring row is the durable sign that the call rang that person.
+func (q *Queries) CloseNotificationGroups(ctx context.Context, arg CloseNotificationGroupsParams) (int64, error) {
+	result, err := q.db.Exec(ctx, closeNotificationGroups, arg.UserID, arg.GroupKeys)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const countOwnedNotifications = `-- name: CountOwnedNotifications :one
 SELECT count(*)::bigint FROM notifications WHERE user_id = $1 AND id = ANY($2::text[])
 `

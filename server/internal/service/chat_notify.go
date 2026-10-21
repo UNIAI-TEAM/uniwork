@@ -229,14 +229,49 @@ func (s *ChatService) closeVoiceCallRingsTx(ctx context.Context, room db.ChatRoo
 		if err := qtx.MarkNotificationGroupsRead(ctx, db.MarkNotificationGroupsReadParams{UserID: id, GroupKeys: groups}); err != nil {
 			return err
 		}
-		events = append(events, audit.Event{
-			Topic: "chat.voice.ring_closed", Version: 1,
-			Payload:        map[string]string{"room_id": room.ID, "call_id": callID, "user_id": id},
-			OrganizationID: room.OrganizationID, WorkspaceID: roomAnchorWorkspaceID(room),
-		})
+		events = append(events, ringClosedEvent(room, callID, id))
 	}
 	if err := auditRecorder.Emit(ctx, qtx, Human(actorID), events...); err != nil {
 		return err
+	}
+	return tx.Commit(ctx)
+}
+
+func ringClosedEvent(room db.ChatRoom, callID, userID string) audit.Event {
+	return audit.Event{
+		Topic: "chat.voice.ring_closed", Version: 1,
+		Payload:        map[string]string{"room_id": room.ID, "call_id": callID, "user_id": userID},
+		OrganizationID: room.OrganizationID, WorkspaceID: roomAnchorWorkspaceID(room),
+	}
+}
+
+// closeAnsweredRing closes the ring row of someone who answered — always, so
+// a push still queued for them is dropped — and writes the ring_closed row
+// that stops their other phones only when the call rang them. Whether it did
+// is read from the database (an open ring row closed now) as well as from
+// this node's session (rungHere): calls live per node, and the answer may
+// reach a node that does not hold the call. Best effort, as closeVoiceCallRings.
+func (s *ChatService) closeAnsweredRing(ctx context.Context, room db.ChatRoom, callID, userID string, rungHere bool) {
+	if err := s.closeAnsweredRingTx(ctx, room, callID, userID, rungHere); err != nil {
+		slog.WarnContext(ctx, "chat: close answered ring", "room_id", room.ID, "call_id", callID, "error", err)
+	}
+}
+
+func (s *ChatService) closeAnsweredRingTx(ctx context.Context, room db.ChatRoom, callID, userID string, rungHere bool) error {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	qtx := s.q.WithTx(tx)
+	closed, err := qtx.CloseNotificationGroups(ctx, db.CloseNotificationGroupsParams{UserID: userID, GroupKeys: []string{ChatCallNotifyGroup(room.ID)}})
+	if err != nil {
+		return err
+	}
+	if closed > 0 || rungHere {
+		if err := auditRecorder.Emit(ctx, qtx, Human(userID), ringClosedEvent(room, callID, userID)); err != nil {
+			return err
+		}
 	}
 	return tx.Commit(ctx)
 }

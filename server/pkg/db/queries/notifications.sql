@@ -86,6 +86,13 @@ WHERE user_id = $1 AND id = ANY(sqlc.arg('ids')::text[]) AND read_at IS NULL;
 UPDATE notifications SET read_at = now(), updated_at = now()
 WHERE user_id = $1 AND group_key = ANY(sqlc.arg('group_keys')::text[]) AND read_at IS NULL;
 
+-- name: CloseNotificationGroups :execrows
+-- tenant: self
+-- MarkNotificationGroupsRead that counts the open rows it closed: an answered
+-- call's open ring row is the durable sign that the call rang that person.
+UPDATE notifications SET read_at = now(), updated_at = now()
+WHERE user_id = $1 AND group_key = ANY(sqlc.arg('group_keys')::text[]) AND read_at IS NULL;
+
 -- name: MarkAllNotificationsRead :many
 -- tenant: self
 UPDATE notifications SET read_at = now(), updated_at = now()
