@@ -473,7 +473,7 @@ func TestDocumentChangedRedeliveryIsIdempotent(t *testing.T) {
 	docID := f.sharedPage(t, "Lặp lại")
 	f.rename(t, f.command(), f.member.ID, docID, "Lặp lại 2")
 	f.deliver(t)
-	ev := f.lastEvent(t, "document.updated")
+	ev := f.lastEvent(t, docChangeTopic)
 	for i := 0; i < 2; i++ {
 		if err := f.consumer.Handle(f.ctx, ev); err != nil {
 			t.Fatal(err)
@@ -515,7 +515,7 @@ func TestDocumentChangedActors(t *testing.T) {
 		f.rename(t, f.command(), f.member.ID, docID, "Agent đã đổi tên")
 		if _, err := f.pool.Exec(f.ctx,
 			`UPDATE outbox_events SET actor_kind = 'agent', actor_id = $1 WHERE id = $2`,
-			agent.ID, f.lastEvent(t, "document.updated").ID); err != nil {
+			agent.ID, f.lastEvent(t, docChangeTopic).ID); err != nil {
 			t.Fatal(err)
 		}
 		f.deliver(t)
@@ -532,7 +532,7 @@ func TestDocumentChangedActors(t *testing.T) {
 		f.rename(t, f.command(), f.member.ID, docID, "Hệ thống 2")
 		if _, err := f.pool.Exec(f.ctx,
 			`UPDATE outbox_events SET actor_kind = 'system', actor_id = 'folder-ws-public' WHERE id = $1`,
-			f.lastEvent(t, "document.updated").ID); err != nil {
+			f.lastEvent(t, docChangeTopic).ID); err != nil {
 			t.Fatal(err)
 		}
 		f.deliver(t)
