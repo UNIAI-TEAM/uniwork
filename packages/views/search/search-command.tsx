@@ -38,7 +38,8 @@ const DOCUMENT_HITS_SHOWN = 8;
 const SEARCH_DEBOUNCE_MS = 250;
 
 export function SearchCommand({ onCreateTask }: { onCreateTask: () => void }) {
-  const { open, setOpen } = useSearchStore();
+  const open = useSearchStore((s) => s.open);
+  const setOpen = useSearchStore((s) => s.setOpen);
   const { workspace } = useWorkspace();
   const { push } = useNavigation();
   const { setTheme } = useTheme();

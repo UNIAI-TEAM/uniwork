@@ -1,9 +1,17 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { isPickerAcceptKey, pickerNavigationDirection } from "./picker-keys";
 
 function key(k: string, init: KeyboardEventInit = {}): KeyboardEvent {
   return new KeyboardEvent("keydown", { key: k, ...init });
 }
+
+function setDesktop(on: boolean): void {
+  const w = window as unknown as { desktopAPI?: unknown };
+  if (on) w.desktopAPI = { app: "unichat" };
+  else delete w.desktopAPI;
+}
+
+afterEach(() => setDesktop(false));
 
 describe("pickerNavigationDirection", () => {
   it("moves with the arrow keys", () => {
@@ -17,10 +25,19 @@ describe("pickerNavigationDirection", () => {
     expect(pickerNavigationDirection(key("J", { ctrlKey: true }))).toBe("next");
   });
 
-  it("leaves Ctrl+N and Ctrl+P to the browser (Chromium reserves Ctrl+N)", () => {
+  it("leaves Ctrl+N and Ctrl+P to the browser on web (Chromium reserves them)", () => {
     expect(pickerNavigationDirection(key("n", { ctrlKey: true }))).toBeNull();
     expect(pickerNavigationDirection(key("p", { ctrlKey: true }))).toBeNull();
     expect(pickerNavigationDirection(key("N", { ctrlKey: true }))).toBeNull();
+  });
+
+  it("keeps Ctrl+N / Ctrl+P as aliases in the UniChat desktop shell", () => {
+    setDesktop(true);
+    expect(pickerNavigationDirection(key("n", { ctrlKey: true }))).toBe("next");
+    expect(pickerNavigationDirection(key("p", { ctrlKey: true }))).toBe("prev");
+    expect(pickerNavigationDirection(key("P", { ctrlKey: true }))).toBe("prev");
+    expect(pickerNavigationDirection(key("n", { ctrlKey: true, shiftKey: true }))).toBeNull();
+    expect(pickerNavigationDirection(key("p", { metaKey: true }))).toBeNull();
   });
 
   it("ignores the letter aliases with another modifier", () => {

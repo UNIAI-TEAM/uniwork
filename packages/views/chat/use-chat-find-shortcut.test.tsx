@@ -77,4 +77,34 @@ describe("useChatFindShortcut", () => {
     fireEvent.keyDown(composer, { key: "g", ctrlKey: true });
     expect(onFind).toHaveBeenCalledTimes(1);
   });
+
+  it("ignores a repeated keydown", () => {
+    const onFind = vi.fn();
+    render(<Harness onFind={onFind} />);
+    fireEvent.keyDown(screen.getByLabelText("composer"), { key: "f", ctrlKey: true, repeat: true });
+    expect(onFind).not.toHaveBeenCalled();
+  });
+
+  it("ignores an event another handler already claimed", () => {
+    const onFind = vi.fn();
+    render(<Harness onFind={onFind} />);
+    const composer = screen.getByLabelText("composer");
+    const claim = (event: Event) => event.preventDefault();
+    // Registered before the hook's window listener sees the bubbling event.
+    composer.addEventListener("keydown", claim);
+    fireEvent.keyDown(composer, { key: "f", ctrlKey: true });
+    composer.removeEventListener("keydown", claim);
+    expect(onFind).not.toHaveBeenCalled();
+  });
+
+  it("uses Cmd+F on macOS and leaves Control+F to the text field", () => {
+    configureShortcutPlatform("macos");
+    const onFind = vi.fn();
+    render(<Harness onFind={onFind} />);
+    const composer = screen.getByLabelText("composer");
+    fireEvent.keyDown(composer, { key: "f", ctrlKey: true });
+    expect(onFind).not.toHaveBeenCalled();
+    fireEvent.keyDown(composer, { key: "f", metaKey: true });
+    expect(onFind).toHaveBeenCalledTimes(1);
+  });
 });
