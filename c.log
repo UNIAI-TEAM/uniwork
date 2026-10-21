@@ -1,0 +1,6 @@
+$ bash scripts/go-cover-floor.sh .go-tmp/shards/cover-service.out .go-tmp/shards/cover-handler.out .go-tmp/shards/cover-rest.out; rc=$?; echo; echo "FLOOR_EXIT=$rc"; (cd server && go tool cover -func="$OLDPWD/.go-tmp/cover-merged.out" | tail -1); cat server/coverage.floor
+missing coverage profile: .go-tmp/shards/cover-service.out
+
+FLOOR_EXIT=1
+cover: open /workspace/.go-tmp/cover-merged.out: no such file or directory
+74

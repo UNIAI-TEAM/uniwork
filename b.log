@@ -1,0 +1,8 @@
+$ h=$(git rev-parse HEAD); mkdir -p .go-tmp/shards; rc=0; for s in service handler rest; do ref=$(git ls-remote origin "refs/test-results/pr7-rehearsal-spec-go-$s/*" | awk -v h="$h" '$2 ~ h {print $2}' | head -1); [ -z "$ref" ] && ref=$(git ls-remote origin "refs/test-results/pr7-rehearsal-spec-go-$s/*" | awk '{print $2}' | grep "$(git rev-parse --short=8 HEAD)" | head -1); echo "$s -> ${ref:-MISSING}"; [ -z "$ref" ] && { rc=1; continue; }; git fetch -q origin "$ref" && git show "FETCH_HEAD:cover-$s.out" > .go-tmp/shards/cover-$s.out || rc=1; head -1 .go-tmp/shards/cover-$s.out; wc -l < .go-tmp/shards/cover-$s.out; done; echo; echo "FETCH_COVER_EXIT=$rc"
+service -> MISSING
+handler -> MISSING
+rest -> refs/test-results/pr7-rehearsal-spec-go-rest/59c7cb46
+mode: atomic
+11707
+
+FETCH_COVER_EXIT=1

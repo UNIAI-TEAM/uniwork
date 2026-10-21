@@ -1,0 +1,8 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin advisor/pr7-rehearsal; git rev-parse HEAD FETCH_HEAD; git log --oneline -3; test "$(git rev-parse HEAD)" = "$(git rev-parse FETCH_HEAD)"; rc=$?; echo; echo "SYNCED_EXIT=$rc"
+59c7cb46eb6dd4c2de3a8576ed1564ef85fc25a0
+59c7cb46eb6dd4c2de3a8576ed1564ef85fc25a0
+59c7cb46e chore: rehearse merge feature/UNI-2045-doclist-unified (1906c4a13) into the PR7 rehearsal
+73890a6de chore: rehearse merge feature/UNI-2012-chat-file-doc-rights (b64d291dc) into the PR7 rehearsal
+ce546485a test(scripts): pin develop's 30b6eb6b6 as a historical commit-msg exception
+
+SYNCED_EXIT=0
