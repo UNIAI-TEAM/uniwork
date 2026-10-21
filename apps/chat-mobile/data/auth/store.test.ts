@@ -54,7 +54,8 @@ const pushMock = vi.hoisted(() => ({
 vi.mock("../push", () => pushMock);
 
 const wipeDeviceTraces = vi.hoisted(() => vi.fn<(ids: readonly string[]) => Promise<void>>(async () => undefined));
-vi.mock("../local-wipe", () => ({ wipeDeviceTraces }));
+const wipeSessionTraces = vi.hoisted(() => vi.fn<() => Promise<void>>(async () => undefined));
+vi.mock("../local-wipe", () => ({ wipeDeviceTraces, wipeSessionTraces }));
 
 import { ApiError } from "../api";
 import { installReportSink } from "../report";
@@ -120,6 +121,7 @@ describe("auth store", () => {
     expect(workspaceClear).toHaveBeenCalledTimes(1);
     expect(lastUserMock.forgetLastUser).toHaveBeenCalledTimes(1);
     expect(clearAccountCache).toHaveBeenCalledExactlyOnceWith(queryClientMock);
+    expect(wipeSessionTraces).toHaveBeenCalledTimes(1);
     expect(sessionMock.logout).not.toHaveBeenCalled();
 
     // No stored person (the first start of this build) but a queue: it goes too.
@@ -306,6 +308,23 @@ describe("auth store", () => {
     expect(lastUserMock.forgetLastUser).toHaveBeenCalledTimes(1);
     expect(cacheMock.dropAccountCache).toHaveBeenCalledTimes(1);
     expect(useAuthStore.getState().user).toBeNull();
+  });
+
+  it("every sign-out, the person's or the server's, drops the cached photos, the tray and the badge after the session", async () => {
+    const order: string[] = [];
+    sessionMock.logout.mockImplementation(async () => {
+      order.push("session");
+    });
+    wipeSessionTraces.mockImplementation(async () => {
+      order.push("wipe");
+    });
+    await useAuthStore.getState().logout();
+    expect(order).toEqual(["session", "wipe"]);
+    // A revoked device or a reused refresh token ends in the same logout (app/_layout.tsx › onChange(null)).
+    sessionMock.status.mockReturnValue("signed-out");
+    await useAuthStore.getState().logout();
+    expect(wipeSessionTraces).toHaveBeenCalledTimes(2);
+    expect(wipeDeviceTraces).not.toHaveBeenCalled();
   });
 
   it("logout drops the cached rooms and messages and the unsent queue, so the next account on this phone sees none of them", async () => {

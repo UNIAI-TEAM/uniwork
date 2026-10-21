@@ -9,9 +9,29 @@ vi.mock("expo-secure-store", () => secureStore);
 const warn = vi.hoisted(() => vi.fn());
 vi.mock("./logger", () => ({ createLogger: () => ({ debug: vi.fn(), info: vi.fn(), warn, error: vi.fn() }) }));
 
-import { wipeDeviceTraces } from "./local-wipe";
+import { wipeDeviceTraces, wipeSessionTraces } from "./local-wipe";
 
 beforeEach(() => vi.clearAllMocks());
+
+describe("wipeSessionTraces", () => {
+  // Every sign-out and every session the server ends (revoked device, reused refresh token): the photos of the
+  // account's conversations and the banners of its messages do not outlive the session on a lost phone.
+  it("drops the image caches, the tray and the badge, and leaves the device's push choice and the pins", async () => {
+    await wipeSessionTraces();
+    expect(image.clearDiskCache).toHaveBeenCalledTimes(1);
+    expect(image.clearMemoryCache).toHaveBeenCalledTimes(1);
+    expect(notifications.dismissAllNotificationsAsync).toHaveBeenCalledTimes(1);
+    expect(notifications.setBadgeCountAsync).toHaveBeenCalledWith(0);
+    expect(secureStore.deleteItemAsync).not.toHaveBeenCalled();
+  });
+
+  it("a step that fails is logged by name and keeps the others", async () => {
+    notifications.dismissAllNotificationsAsync.mockRejectedValueOnce(new Error("io"));
+    await expect(wipeSessionTraces()).resolves.toBeUndefined();
+    expect(notifications.setBadgeCountAsync).toHaveBeenCalledWith(0);
+    expect(warn.mock.calls).toEqual([["wipe step failed", { step: "notifications" }]]);
+  });
+});
 
 describe("wipeDeviceTraces", () => {
   it("drops the image caches, the tray, the badge, the push choice and each workspace's pins", async () => {

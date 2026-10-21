@@ -13,7 +13,7 @@ import { create } from "zustand";
 import { ApiError, api } from "../api";
 import { chatSendDeps, clearChatOutbox } from "../chat-send";
 import { clearPendingOps, pendingOpsDeps } from "../pending-ops";
-import { wipeDeviceTraces } from "../local-wipe";
+import { wipeDeviceTraces, wipeSessionTraces } from "../local-wipe";
 import { forgetPushToken, unregisterPushToken } from "../push";
 import { workspaceListOptions } from "../queries/workspaces";
 import { queryClient } from "../query-client";
@@ -114,9 +114,12 @@ async function endAccountSession(): Promise<void> {
   await forgetAccountLocally();
 }
 
-/** Everything an account left on this phone besides its session: workspace, stored person, cached rooms, queues and their files, drafts. */
+/**
+ * Everything an account left on this phone besides its session: workspace, stored person, cached rooms, queues and
+ * their files, drafts, and the cached photos, tray notifications and badge (data/local-wipe.ts › wipeSessionTraces).
+ */
 async function forgetAccountLocally(): Promise<void> {
-  await Promise.all([useWorkspaceStore.getState().clear(), forgetLastUser(), dropAccountCache()]);
+  await Promise.all([useWorkspaceStore.getState().clear(), forgetLastUser(), dropAccountCache(), wipeSessionTraces()]);
   clearAccountCache(queryClient);
   clearChatOutbox(chatSendDeps);
   clearPendingOps(pendingOpsDeps);
