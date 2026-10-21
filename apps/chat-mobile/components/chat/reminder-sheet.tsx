@@ -8,7 +8,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { canSubmitReminder, remindAtFromPreset, REMINDER_REPEAT_OPTIONS, type ReminderRepeat } from "@uniwork/core/chat/reminder-utils";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Modal, Pressable, TextInput, View } from "react-native";
+import { Pressable, TextInput, View } from "react-native";
+import { CallAwareModal } from "@/components/ui/call-aware-modal";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { SheetGrabber } from "@/components/ui/action-sheet";
 import { Button } from "@/components/ui/button";
@@ -60,7 +61,7 @@ export function ReminderSheet({
   };
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+    <CallAwareModal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable className="flex-1 bg-black/40" onPress={onClose} accessibilityRole="button" accessibilityLabel={t("common.close")} />
       <SafeAreaView edges={["bottom"]} className="rounded-t-[24px] bg-card px-4" style={continuousCorners} testID="reminder-sheet">
         <SheetGrabber />
@@ -104,6 +105,6 @@ export function ReminderSheet({
           <Text className="text-base font-semibold">{t("chat.reminder_create_submit")}</Text>
         </Button>
       </SafeAreaView>
-    </Modal>
+    </CallAwareModal>
   );
 }

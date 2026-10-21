@@ -8,7 +8,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { useMutation } from "@tanstack/react-query";
 import { useEffect, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { ActivityIndicator, Modal, Pressable, ScrollView, View } from "react-native";
+import { ActivityIndicator, Pressable, ScrollView, View } from "react-native";
+import { CallAwareModal } from "@/components/ui/call-aware-modal";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { SheetGrabber } from "@/components/ui/action-sheet";
 import { Text } from "@/components/ui/text";
@@ -75,7 +76,7 @@ export function CatchUpSheet({ wsId, target, onClose, onOpenRoom }: { wsId: stri
   const failed = brief.isError || (brief.isSuccess && result === null);
 
   return (
-    <Modal visible={target !== null} transparent animationType="slide" onRequestClose={onClose}>
+    <CallAwareModal visible={target !== null} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable className="flex-1 bg-black/40" onPress={onClose} accessibilityRole="button" accessibilityLabel={t("common.close")} />
       <SafeAreaView edges={["bottom"]} className="max-h-[85%] rounded-t-[24px] bg-card" style={continuousCorners} accessibilityViewIsModal>
         <SheetGrabber />
@@ -150,6 +151,6 @@ export function CatchUpSheet({ wsId, target, onClose, onOpenRoom }: { wsId: stri
           </View>
         ) : null}
       </SafeAreaView>
-    </Modal>
+    </CallAwareModal>
   );
 }

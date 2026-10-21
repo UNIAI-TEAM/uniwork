@@ -1,7 +1,8 @@
 // Settings › notifications: push on or off for this device. Off revokes the
 // device's subscription on the server before the switch moves (data/push.ts ›
 // setPushEnabled); the hint states the server's rule that a person active
-// elsewhere gets no push here.
+// elsewhere gets no push here. Below it, on Android 14+, the full-screen
+// calls permission when it has been taken away (full-screen-calls-row.tsx).
 import Constants from "expo-constants";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -13,6 +14,7 @@ import { isPushEnabled, setPushEnabled } from "@/data/push";
 import { easProjectId } from "@/lib/runtime-extra";
 import { THEME } from "@/lib/theme";
 import { useColorScheme } from "@/lib/use-color-scheme";
+import { FullScreenCallsRow } from "./full-screen-calls-row";
 import { SettingsSection } from "./settings-section";
 
 export function PushSection() {
@@ -72,6 +74,7 @@ export function PushSection() {
           {t(notice)}
         </Text>
       ) : null}
+      <FullScreenCallsRow />
     </SettingsSection>
   );
 }

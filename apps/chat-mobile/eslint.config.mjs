@@ -85,7 +85,15 @@ export default [
         message: "No dynamic import of @uniwork/core on mobile; use a static import of an allowlisted subpath (ADR 0011).",
       }],
       "@typescript-eslint/no-restricted-imports": ["error", {
-        paths: lucideAliasPaths,
+        paths: [
+          ...lucideAliasPaths,
+          {
+            // Audit C2: a sheet left open sits over the ringing call's Answer button.
+            name: "react-native",
+            importNames: ["Modal"],
+            message: "Use CallAwareModal (components/ui/call-aware-modal.tsx): an incoming call closes it.",
+          },
+        ],
         patterns: [
           {
             group: ["@uniwork/views", "@uniwork/views/*", "@uniwork/ui", "@uniwork/ui/*", "next", "next/*"],

@@ -2,7 +2,8 @@
 // of the emoji people reach for, in a bottom sheet. No native picker on
 // either platform reaches the app, so the set is fixed.
 import { useTranslation } from "react-i18next";
-import { Modal, Pressable, ScrollView, View } from "react-native";
+import { Pressable, ScrollView, View } from "react-native";
+import { CallAwareModal } from "@/components/ui/call-aware-modal";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { SheetGrabber } from "@/components/ui/action-sheet";
 import { Text } from "@/components/ui/text";
@@ -17,7 +18,7 @@ const EMOJI = [
 export function EmojiSheet({ visible, onClose, onPick }: { visible: boolean; onClose: () => void; onPick: (emoji: string) => void }) {
   const { t } = useTranslation();
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+    <CallAwareModal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable className="flex-1 bg-black/40" onPress={onClose} accessibilityRole="button" accessibilityLabel={t("common.close")} />
       <SafeAreaView edges={["bottom"]} className="max-h-[60%] rounded-t-[24px] bg-card pb-2" style={continuousCorners} accessibilityViewIsModal>
         <SheetGrabber />
@@ -38,6 +39,6 @@ export function EmojiSheet({ visible, onClose, onPick }: { visible: boolean; onC
           ))}
         </ScrollView>
       </SafeAreaView>
-    </Modal>
+    </CallAwareModal>
   );
 }

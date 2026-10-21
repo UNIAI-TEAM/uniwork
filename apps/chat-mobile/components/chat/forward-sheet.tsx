@@ -5,7 +5,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Alert, Modal, Pressable, ScrollView, View } from "react-native";
+import { Alert, Pressable, ScrollView, View } from "react-native";
+import { CallAwareModal } from "@/components/ui/call-aware-modal";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { SheetGrabber, useAfterDismiss } from "@/components/ui/action-sheet";
 import { SearchField } from "@/components/ui/search-field";
@@ -44,7 +45,7 @@ export function ForwardSheet({ chat, messageId, onClose }: { chat: ChatWorkspace
   };
 
   return (
-    <Modal visible={messageId !== null} transparent animationType="slide" onRequestClose={onClose} onDismiss={onDismiss}>
+    <CallAwareModal visible={messageId !== null} transparent animationType="slide" onRequestClose={onClose} onDismiss={onDismiss}>
       <Pressable className="flex-1 bg-black/40" onPress={onClose} accessibilityRole="button" accessibilityLabel={t("common.close")} />
       <SafeAreaView edges={["bottom"]} className="max-h-[80%] rounded-t-[24px] bg-card pb-2" style={continuousCorners} accessibilityViewIsModal>
         <SheetGrabber />
@@ -71,6 +72,6 @@ export function ForwardSheet({ chat, messageId, onClose }: { chat: ChatWorkspace
           ))}
         </ScrollView>
       </SafeAreaView>
-    </Modal>
+    </CallAwareModal>
   );
 }

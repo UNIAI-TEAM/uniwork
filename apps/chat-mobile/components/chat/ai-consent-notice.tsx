@@ -8,7 +8,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { runtimeConfig } from "@uniwork/core/runtime-config";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ActivityIndicator, AccessibilityInfo, Modal, Pressable, ScrollView, View } from "react-native";
+import { ActivityIndicator, AccessibilityInfo, Pressable, ScrollView, View } from "react-native";
+import { CallAwareModal } from "@/components/ui/call-aware-modal";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useOpenWebPage } from "@/components/settings/use-open-web-page";
 import { SheetGrabber } from "@/components/ui/action-sheet";
@@ -133,7 +134,7 @@ export function AiConsentSheet({ visible, onClose }: { visible: boolean; onClose
   };
   const date = agreedAt ? new Date(agreedAt) : null;
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+    <CallAwareModal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable className="flex-1 bg-black/40" onPress={onClose} accessibilityRole="button" accessibilityLabel={t("common.close")} />
       <SafeAreaView edges={["bottom"]} className="max-h-[90%] rounded-t-[24px] bg-card" style={continuousCorners} accessibilityViewIsModal>
         <SheetGrabber />
@@ -166,6 +167,6 @@ export function AiConsentSheet({ visible, onClose }: { visible: boolean; onClose
           )}
         </ScrollView>
       </SafeAreaView>
-    </Modal>
+    </CallAwareModal>
   );
 }

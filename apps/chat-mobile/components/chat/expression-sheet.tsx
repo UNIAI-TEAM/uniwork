@@ -9,7 +9,8 @@ import { useQuery } from "@tanstack/react-query";
 import { Image } from "expo-image";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ActivityIndicator, FlatList, Modal, Pressable, TextInput, View } from "react-native";
+import { ActivityIndicator, FlatList, Pressable, TextInput, View } from "react-native";
+import { CallAwareModal } from "@/components/ui/call-aware-modal";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { SheetGrabber } from "@/components/ui/action-sheet";
 import { Text } from "@/components/ui/text";
@@ -42,7 +43,7 @@ export function ExpressionSheet({ wsId, visible, onClose, onPick }: { wsId: stri
   ];
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+    <CallAwareModal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable className="flex-1 bg-black/40" onPress={onClose} accessibilityRole="button" accessibilityLabel={t("common.close")} />
       <SafeAreaView edges={["bottom"]} className="h-[70%] rounded-t-[24px] bg-card" style={continuousCorners} testID="expression-sheet">
         <SheetGrabber />
@@ -108,6 +109,6 @@ export function ExpressionSheet({ wsId, visible, onClose, onPick }: { wsId: stri
           }
         />
       </SafeAreaView>
-    </Modal>
+    </CallAwareModal>
   );
 }

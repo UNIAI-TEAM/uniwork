@@ -62,11 +62,18 @@ module.exports = {
     "components/chat/room-safety.tsx",
     // UNI-2053 S3: the "Connecting…" banner.
     "components/chat/connection-banner.tsx",
+    // UNI-2053 S4 native calls: sheets that close for a ringing call, the call's
+    // audio output, the in-app ringer and the full-screen calls permission row.
+    "components/ui/call-aware-modal.tsx",
+    "components/calls/audio-output-button.tsx",
+    "components/calls/use-call-ringtone.ts",
+    "components/settings/full-screen-calls-row.tsx",
   ],
   coverageReporters: ["text-summary"],
   // Measured on the files above; only ever raised (CLAUDE.md › Coverage only
   // goes up). Blocks at every GATE_LEVEL (ADR 0037). Raised with UNI-2053's
   // four components (97.2 / 90.05 / 94.8 / 99.1), then with S2's store
-  // compliance screens, each at 100 % (98.72 / 93.64 / 97.67 / 99.59).
-  coverageThreshold: { global: { statements: 98, branches: 93, functions: 97, lines: 99 } },
+  // compliance screens, each at 100 % (98.72 / 93.64 / 97.67 / 99.59), then
+  // with S4's native-call components, each at 100 % (98.92 / 94.35 / 98.06 / 99.65).
+  coverageThreshold: { global: { statements: 98, branches: 94, functions: 98, lines: 99 } },
 };

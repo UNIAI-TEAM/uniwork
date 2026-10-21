@@ -6,7 +6,8 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRef, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { Modal, Platform, Pressable, View } from "react-native";
+import { Platform, Pressable, View } from "react-native";
+import { CallAwareModal } from "@/components/ui/call-aware-modal";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Text } from "@/components/ui/text";
 import { TintTile } from "@/components/ui/tint-tile";
@@ -68,7 +69,7 @@ export function ActionSheet({ visible, onClose, title, label, above, actions, la
   const theme = THEME[colorScheme];
   const { choose, onDismiss } = useAfterDismiss(onClose);
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose} onDismiss={onDismiss}>
+    <CallAwareModal visible={visible} transparent animationType="slide" onRequestClose={onClose} onDismiss={onDismiss}>
       <Pressable className="flex-1 justify-end bg-black/40 pb-4" onPress={onClose} accessibilityRole="button" accessibilityLabel={t("common.close")}>
         {above}
       </Pressable>
@@ -120,6 +121,6 @@ export function ActionSheet({ visible, onClose, title, label, above, actions, la
           </Pressable>
         </View>
       </SafeAreaView>
-    </Modal>
+    </CallAwareModal>
   );
 }

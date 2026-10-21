@@ -7,7 +7,8 @@ import { useQuery } from "@tanstack/react-query";
 import type { Workspace } from "@uniwork/core/types/workspace";
 import { router } from "expo-router";
 import { useTranslation } from "react-i18next";
-import { Modal, Pressable, ScrollView, View } from "react-native";
+import { Pressable, ScrollView, View } from "react-native";
+import { CallAwareModal } from "@/components/ui/call-aware-modal";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { SheetGrabber, useAfterDismiss } from "@/components/ui/action-sheet";
 import { Text } from "@/components/ui/text";
@@ -46,7 +47,7 @@ export function WorkspaceSwitchSheet({ visible, onClose, currentWsId }: { visibl
   };
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose} onDismiss={onDismiss}>
+    <CallAwareModal visible={visible} transparent animationType="slide" onRequestClose={onClose} onDismiss={onDismiss}>
       <Pressable className="flex-1 bg-black/40" onPress={onClose} accessibilityRole="button" accessibilityLabel={t("common.close")} />
       <SafeAreaView edges={["bottom"]} className="max-h-[80%] rounded-t-[24px] bg-card pb-2" style={continuousCorners} accessibilityViewIsModal accessibilityLabel={t("mobile.settings.switch_workspace")}>
         <SheetGrabber />
@@ -94,6 +95,6 @@ export function WorkspaceSwitchSheet({ visible, onClose, currentWsId }: { visibl
           })}
         </ScrollView>
       </SafeAreaView>
-    </Modal>
+    </CallAwareModal>
   );
 }

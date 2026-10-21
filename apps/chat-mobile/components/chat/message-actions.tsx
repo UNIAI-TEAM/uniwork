@@ -9,7 +9,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { Modal, Platform, Pressable, View } from "react-native";
+import { Platform, Pressable, View } from "react-native";
+import { CallAwareModal } from "@/components/ui/call-aware-modal";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { PersonAvatar } from "@/components/people/person-avatar";
 import { useAfterDismiss } from "@/components/ui/action-sheet";
@@ -114,7 +115,7 @@ export function MessageActionsSheet(props: Props) {
   const preview = record ? messagePreviewText(record, t) : pending ? pendingPreviewText(pending, t) : "";
 
   return (
-    <Modal visible={message !== null} transparent animationType="fade" statusBarTranslucent onRequestClose={onClose} onDismiss={onDismiss}>
+    <CallAwareModal visible={message !== null} transparent animationType="fade" statusBarTranslucent onRequestClose={onClose} onDismiss={onDismiss}>
       {/* The wall blurred and dimmed behind the sheet (MobileActions board); Android blurs only where the runtime can. */}
       <Pressable className="absolute inset-0" onPress={onClose} accessibilityRole="button" accessibilityLabel={t("common.close")}>
         <BlurView intensity={30} tint="dark" experimentalBlurMethod={Platform.OS === "android" ? "dimezisBlurView" : undefined} style={{ flex: 1 }}>
@@ -203,6 +204,6 @@ export function MessageActionsSheet(props: Props) {
           </View>
         ) : null}
       </SafeAreaView>
-    </Modal>
+    </CallAwareModal>
   );
 }

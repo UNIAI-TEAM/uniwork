@@ -8,7 +8,8 @@ import { Image } from "expo-image";
 import { StatusBar } from "expo-status-bar";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { FlatList, Modal, Pressable, Share, useWindowDimensions, View } from "react-native";
+import { FlatList, Pressable, Share, useWindowDimensions, View } from "react-native";
+import { CallAwareModal } from "@/components/ui/call-aware-modal";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { Text } from "@/components/ui/text";
 import { THEME } from "@/lib/theme";
@@ -82,7 +83,7 @@ export function ImageViewer({
   };
 
   return (
-    <Modal visible={opened !== null} animationType="fade" onRequestClose={onClose} statusBarTranslucent>
+    <CallAwareModal visible={opened !== null} animationType="fade" onRequestClose={onClose} statusBarTranslucent>
       {/* A modal measures its own insets: without its provider the top bar can slide under the clock. */}
       <SafeAreaProvider>
       <View className="flex-1 bg-black">
@@ -141,6 +142,6 @@ export function ImageViewer({
         </SafeAreaView>
       </View>
       </SafeAreaProvider>
-    </Modal>
+    </CallAwareModal>
   );
 }

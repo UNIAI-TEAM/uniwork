@@ -11,7 +11,8 @@ import { paths } from "@uniwork/core/paths/paths";
 import { runtimeConfig } from "@uniwork/core/runtime-config";
 import { useRef, useState, type ComponentProps } from "react";
 import { useTranslation } from "react-i18next";
-import { AccessibilityInfo, ActivityIndicator, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, TextInput, View } from "react-native";
+import { AccessibilityInfo, ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, TextInput, View } from "react-native";
+import { CallAwareModal } from "@/components/ui/call-aware-modal";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { SheetGrabber } from "@/components/ui/action-sheet";
 import { Text } from "@/components/ui/text";
@@ -122,7 +123,7 @@ function DeleteAccountSheet({ visible, onClose, orgSlug, wsSlug }: SheetProps) {
   };
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={close}>
+    <CallAwareModal visible={visible} transparent animationType="slide" onRequestClose={close}>
       <Pressable className="flex-1 bg-black/40" onPress={close} accessibilityRole="button" accessibilityLabel={t("common.close")} />
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} className="max-h-[92%]">
         <SafeAreaView edges={["bottom"]} className="rounded-t-[24px] bg-card" style={continuousCorners} accessibilityViewIsModal>
@@ -218,7 +219,7 @@ function DeleteAccountSheet({ visible, onClose, orgSlug, wsSlug }: SheetProps) {
           </ScrollView>
         </SafeAreaView>
       </KeyboardAvoidingView>
-    </Modal>
+    </CallAwareModal>
   );
 }
 

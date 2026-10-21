@@ -1,18 +1,24 @@
 // The media half of a call (spec M3 §2): LiveKit React Native in the room the
 // engine minted a token for, the phone's version of the web's
-// use-voice-call-room-connection.ts. Mic, camera, speaker and hang-up; the
-// other side's video fills the screen and ours sits in a corner. The room
+// use-voice-call-room-connection.ts. Mic, camera, audio output and hang-up;
+// the other side's video fills the screen and ours sits in a corner. The room
 // letting go of us goes back to the engine — moved to another device of ours
 // (DUPLICATE_IDENTITY) leaves the call alone there, anything else ends it here.
+// A voice call starts on the earpiece, a video call on the speaker
+// (lib/audio-outputs.ts); once connected, the call's foreground service is
+// started again so it carries the microphone LiveKit now holds.
 import { Ionicons } from "@expo/vector-icons";
-import { AudioSession, LiveKitRoom, VideoTrack, isTrackReference, useLocalParticipant, useTracks } from "@livekit/react-native";
+import { AndroidAudioTypePresets, AudioSession, LiveKitRoom, VideoTrack, isTrackReference, useLocalParticipant, useTracks } from "@livekit/react-native";
 import { DisconnectReason, Room, RoomEvent, Track } from "livekit-client";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Platform, Pressable, View } from "react-native";
+import { Pressable, View } from "react-native";
 import { Text } from "@/components/ui/text";
+import { nativeCallSync } from "@/data/calls/call-wiring";
 import { callEngine } from "@/data/calls/call-store";
+import { preferredOutputs } from "@/lib/audio-outputs";
 import { formatVoiceCallDuration } from "@/lib/message-display";
+import { AudioOutputButton } from "./audio-output-button";
 import { CALL, CallButton, CallerHero, SHADOW } from "./call-surface";
 
 function useElapsed(running: boolean) {
@@ -26,21 +32,13 @@ function useElapsed(running: boolean) {
   return seconds;
 }
 
-function RoomStage({ peerName, connected, recording, onMinimize, seed, room }: { peerName: string; connected: boolean; recording: boolean; onMinimize: () => void; seed?: string; room?: boolean }) {
+function RoomStage({ peerName, connected, recording, onMinimize, seed, room, video }: { peerName: string; connected: boolean; recording: boolean; onMinimize: () => void; seed?: string; room?: boolean; video: boolean }) {
   const { t } = useTranslation();
   const { localParticipant, isMicrophoneEnabled, isCameraEnabled } = useLocalParticipant();
   const tracks = useTracks([Track.Source.Camera]);
-  const [speaker, setSpeaker] = useState(false);
   const elapsed = useElapsed(connected);
   const remote = tracks.find((ref) => isTrackReference(ref) && !ref.participant.isLocal);
   const local = tracks.find((ref) => isTrackReference(ref) && ref.participant.isLocal);
-
-  const toggleSpeaker = () => {
-    const next = !speaker;
-    setSpeaker(next);
-    // Android names its outputs; iOS can only force the speaker or go back to its own routing.
-    void AudioSession.selectAudioOutput(Platform.OS === "ios" ? (next ? "force_speaker" : "default") : next ? "speaker" : "earpiece").catch(() => setSpeaker(!next));
-  };
 
   const clock = formatVoiceCallDuration(elapsed);
   // MobileCall board: "Cuộc gọi thoại · 04:12" under the face; over video the corner shows the clock alone.
@@ -117,7 +115,7 @@ function RoomStage({ peerName, connected, recording, onMinimize, seed, room }: {
       ) : null}
       {/* Loa · Camera · Micro · Kết thúc, as the MobileCall board orders them. */}
       <View className="flex-row items-start justify-evenly px-5 pb-[52px] pt-6">
-        <CallButton icon="volume-high" label={t("chat.mobile.call_speaker")} active={speaker} testID="call-speaker" onPress={toggleSpeaker} />
+        <AudioOutputButton video={video} connected={connected} />
         <CallButton
           icon={isCameraEnabled ? "videocam" : "videocam-off"}
           label={t("chat.voice_call_camera")}
@@ -163,7 +161,12 @@ export function CallRoom({
 
   useEffect(() => {
     // Phone audio routing for the length of the call; LiveKit's AudioSession owns it until then.
-    void AudioSession.startAudioSession();
+    void AudioSession.configureAudio({
+      android: { preferredOutputList: preferredOutputs(withCamera), audioTypeOptions: AndroidAudioTypePresets.communication },
+      ios: { defaultOutput: withCamera ? "speaker" : "earpiece" },
+    })
+      .catch(() => undefined)
+      .then(() => AudioSession.startAudioSession());
     const onDisconnected = (reason?: DisconnectReason) =>
       callEngine.finalizeCallOnDisconnect({ movedElsewhere: reason === DisconnectReason.DUPLICATE_IDENTITY });
     room.on(RoomEvent.Disconnected, onDisconnected);
@@ -172,6 +175,8 @@ export function CallRoom({
       void room.disconnect();
       void AudioSession.stopAudioSession();
     };
+    // The route is chosen once per call; the room, not the camera button, decides it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [room]);
 
   return (
@@ -185,9 +190,10 @@ export function CallRoom({
       onConnected={() => {
         setConnected(true);
         callEngine.markConnected();
+        nativeCallSync.refresh(callEngine.store.getState().call);
       }}
     >
-      <RoomStage peerName={peerName} connected={connected} recording={recording} onMinimize={onMinimize} seed={seed} room={roomFace} />
+      <RoomStage peerName={peerName} connected={connected} recording={recording} onMinimize={onMinimize} seed={seed} room={roomFace} video={withCamera} />
     </LiveKitRoom>
   );
 }
