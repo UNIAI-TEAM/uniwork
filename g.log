@@ -1,0 +1,3 @@
+$ git diff --quiet origin/main...HEAD -- web/docs/protocol; rc=$?; echo; echo "PROTOCOL_UNTOUCHED_EXIT=$rc"
+
+PROTOCOL_UNTOUCHED_EXIT=0

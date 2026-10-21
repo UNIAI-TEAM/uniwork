@@ -1,0 +1,12 @@
+$ npx vitest run --root web/modules shared/avatar shared/comments shared/discussion 2>&1 | tail -25; rc=${PIPESTATUS[0]}; echo; echo "AVATAR_VITEST_EXIT=$rc"
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/web/modules
+
+
+ Test Files  5 passed (5)
+      Tests  127 passed (127)
+   Start at  03:13:33
+   Duration  2.08s (transform 1.68s, setup 0ms, import 2.20s, tests 720ms, environment 2.31s)
+
+
+AVATAR_VITEST_EXIT=0

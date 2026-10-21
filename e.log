@@ -1,0 +1,12 @@
+$ (cd packages/ui && npx vitest run tests/collab-thread.test.ts tests/collab-picker.test.ts) 2>&1 | tail -15; rc=${PIPESTATUS[0]}; echo; echo "COLLAB_VITEST_EXIT=$rc"
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/packages/ui
+
+
+ Test Files  2 passed (2)
+      Tests  66 passed (66)
+   Start at  03:13:35
+   Duration  1.36s (transform 390ms, setup 0ms, import 613ms, tests 623ms, environment 716ms)
+
+
+COLLAB_VITEST_EXIT=0
