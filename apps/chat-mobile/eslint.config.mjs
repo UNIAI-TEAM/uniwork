@@ -41,6 +41,13 @@ export default [
       "react-native-a11y/has-accessibility-hint": "off",
     },
   },
+  // Logs go through data/logger.ts (UNI-2053): a breadcrumb for crash reports,
+  // the console in a development build only. data/logger.ts is the one writer.
+  {
+    files: ["app/**/*.{ts,tsx}", "components/**/*.{ts,tsx}", "data/**/*.{ts,tsx}", "lib/**/*.{ts,tsx}"],
+    ignores: ["**/*.test.{ts,tsx}", "data/logger.ts"],
+    rules: { "no-console": "error" },
+  },
   // Every JSX text node goes through t(), as in packages/views: copy lives in
   // locales/ (scripts/sync-i18n.mjs), in Vietnamese and English.
   {

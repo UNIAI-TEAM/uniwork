@@ -1,5 +1,6 @@
 // Fixture test for the app's quality rules in eslint.config.mjs (ADR 0037):
-// no `any`, the React Native accessibility rules, and no JSX literal text. A
+// no `any`, the React Native accessibility rules, no JSX literal text and no
+// console call outside data/logger.ts. A
 // rule that silently drops out of the config turns its case green here.
 import path from "node:path";
 import { ESLint } from "eslint";
@@ -48,6 +49,7 @@ describe("mobile quality lint", { timeout: 60_000 }, () => {
       "react-native-a11y/has-valid-accessibility-live-region",
     ],
     ["literal JSX text", "export function A() {\n  return <Text>Xin chào</Text>;\n}", "i18next/no-literal-string"],
+    ["a console call (logs go through data/logger.ts)", 'export const log = () => console.warn("x");', "no-console"],
   ])("%s is red", async (_name, code, rule) => {
     expect(await ruleIds(head + code)).toContain(rule);
   });
