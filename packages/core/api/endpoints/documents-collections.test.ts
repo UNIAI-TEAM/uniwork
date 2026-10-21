@@ -111,6 +111,47 @@ describe("documents-collections endpoints", () => {
     expect(String(url)).toBe("http://api.test/api/v1/workspaces/w1/documents");
   });
 
+  // ---- UNI-2038 S2: the column sort of the tables ---------------------------
+
+  it("listDocuments sends sort and order, and leaves both off when the caller names neither", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json(listBody()));
+    await listDocuments("w1", { parentId: "", sort: "name", order: "asc", limit: 50 });
+    expect(String(vi.mocked(fetch).mock.calls[0]![0])).toBe(
+      "http://api.test/api/v1/workspaces/w1/documents?parent_id=&sort=name&order=asc&limit=50",
+    );
+
+    vi.mocked(fetch).mockResolvedValueOnce(json(listBody()));
+    await listDocuments("w1", { parentId: "", limit: 50 });
+    const url = new URL(String(vi.mocked(fetch).mock.calls[1]![0]));
+    expect(url.searchParams.has("sort")).toBe(false);
+    expect(url.searchParams.has("order")).toBe(false);
+  });
+
+  it("the sibling lists carry sort and order next to the chip filters", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json(listBody()));
+    await listRecentDocuments("w1", { format: "pdf", sort: "size", order: "desc", limit: 5 });
+    expect(String(vi.mocked(fetch).mock.calls[0]![0])).toBe(
+      "http://api.test/api/v1/workspaces/w1/documents/recent?format=pdf&sort=size&order=desc&limit=5",
+    );
+
+    vi.mocked(fetch).mockResolvedValueOnce(json(listBody()));
+    await listSharedWithMe("w1", { sort: "editor", order: "asc", limit: 5 });
+    expect(String(vi.mocked(fetch).mock.calls[1]![0])).toBe(
+      "http://api.test/api/v1/workspaces/w1/documents/shared-with-me?sort=editor&order=asc&limit=5",
+    );
+
+    vi.mocked(fetch).mockResolvedValueOnce(json(listBody()));
+    await listSharedByMe("w1", { sort: "updated", order: "desc", limit: 5 });
+    expect(String(vi.mocked(fetch).mock.calls[2]![0])).toBe(
+      "http://api.test/api/v1/workspaces/w1/documents?shared_by_me=true&sort=updated&order=desc&limit=5",
+    );
+  });
+
+  it("a sorted list that answers malformed still degrades instead of rendering rows", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ documents: "nope" }));
+    await expect(listDocuments("w1", { sort: "name", order: "asc" })).rejects.toThrow("document_list_invalid");
+  });
+
   // ---- UNI-1868 (LISTFILTER-01): the type/access chips ----------------------
 
   it("the three sibling lists carry the same chip filters", async () => {
