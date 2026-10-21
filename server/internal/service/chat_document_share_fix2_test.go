@@ -5,11 +5,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
@@ -171,7 +173,47 @@ func TestChatGrantLeaveAfterCommitIsReconciled(t *testing.T) {
 	t.Cleanup(func() { chatGrantBeforeRecheck = nil })
 	sendCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
 	defer cancel()
+	// TEMP diagnostic (UNI-2012 RACE-FIX): dump what the send waits on.
+	sendDone := make(chan struct{})
+	go func() {
+		select {
+		case <-sendDone:
+			return
+		case <-time.After(6 * time.Second):
+		}
+		st := f.pool.Stat()
+		t.Logf("DIAG NumCPU=%d pool max=%d acquired=%d idle=%d total=%d emptyAcquire=%d",
+			runtime.NumCPU(), st.MaxConns(), st.AcquiredConns(), st.IdleConns(), st.TotalConns(), st.EmptyAcquireCount())
+		conn, err := pgx.ConnectConfig(context.Background(), f.pool.Config().ConnConfig.Copy())
+		if err != nil {
+			t.Logf("DIAG connect: %v", err)
+		} else {
+			rows, err := conn.Query(context.Background(), `SELECT pid, coalesce(state,''), coalesce(wait_event_type,''), coalesce(wait_event,''),
+				pg_blocking_pids(pid)::text, left(regexp_replace(query, '\s+', ' ', 'g'), 220)
+				FROM pg_stat_activity WHERE datname = current_database() AND pid <> pg_backend_pid() ORDER BY pid`)
+			if err != nil {
+				t.Logf("DIAG activity: %v", err)
+			} else {
+				for rows.Next() {
+					var pid int
+					var state, wt, we, blk, q string
+					_ = rows.Scan(&pid, &state, &wt, &we, &blk, &q)
+					t.Logf("DIAG pid=%d state=%s wait=%s/%s blockedBy=%s q=%s", pid, state, wt, we, blk, q)
+				}
+				rows.Close()
+			}
+			_ = conn.Close(context.Background())
+		}
+		buf := make([]byte, 1<<20)
+		n := runtime.Stack(buf, true)
+		for _, g := range strings.Split(string(buf[:n]), "\n\n") {
+			if strings.Contains(g, "uniwork/server/internal/service") {
+				t.Logf("DIAG goroutine:\n%s", g)
+			}
+		}
+	}()
 	sent, err := f.svc.SendDocumentMessage(sendCtx, f.ua.ID, f.ws.ID, room.ID, documentMessageInput("sf2-order-b-1"))
+	close(sendDone)
 	if err != nil {
 		t.Fatalf("send while a leave was in flight: %v", err)
 	}
