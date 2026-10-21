@@ -31,8 +31,15 @@ func TestAccessReportChatShareOriginAndAudit(t *testing.T) {
 		}
 		return origin
 	}
-	if got := auditOrigin(shares[0].ID); got != "chat" {
-		t.Fatalf("document.shared metadata.origin = %q, want chat", got)
+	// A chat send records one batch row for its grants (UNI-2012 S1c), keyed
+	// by the message rather than a share id.
+	var chatOrigin string
+	if err := f.pool.QueryRow(ctx, `SELECT metadata::jsonb->>'origin' FROM audit_events
+		WHERE action = 'document.shared' AND resource_id = $1 AND metadata::jsonb->>'source_message_id' = $2`, docID, msg.ID).Scan(&chatOrigin); err != nil {
+		t.Fatal(err)
+	}
+	if chatOrigin != "chat" {
+		t.Fatalf("document.shared metadata.origin = %q, want chat", chatOrigin)
 	}
 
 	// The report says so, and the source filter finds it.

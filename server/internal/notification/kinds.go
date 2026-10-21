@@ -37,7 +37,8 @@ const (
 	// The G8-05 kinds (contract-collab section 8.3): a mention in a
 	// Discussion, a reply in either flow, and resolving a Comment. The
 	// old document_commented stays registered for rows written before the
-	// UNI-1337 recipient table landed - the rules never emit it again.
+	// UNI-1337 recipient table landed; since UNI-2012 D6 the rules emit it
+	// again, only to the ACL owner of a document that has a live chat card.
 	KindDocumentCommentReplied      = "document_comment_replied"
 	KindDocumentDiscussionMentioned = "document_discussion_mentioned"
 	KindDocumentDiscussionReplied   = "document_discussion_replied"

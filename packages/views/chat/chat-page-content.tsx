@@ -79,6 +79,7 @@ export function ChatPageContent(props: ChatPageContentProps) {
   const [createReminderOpen, setCreateReminderOpen] = useState(false);
   const [createNoteOpen, setCreateNoteOpen] = useState(false);
   const [createPostOpen, setCreatePostOpen] = useState(false);
+  const [documentPickerOpen, setDocumentPickerOpen] = useState(false);
   const [recordingsOpen, setRecordingsOpen] = useState(false);
   const { startCall } = useChatVoiceCall();
   const { messagePerson, callPerson } = useChatPersonActions({
@@ -228,6 +229,11 @@ export function ChatPageContent(props: ChatPageContentProps) {
       setCreatePostOpen(true);
       return;
     }
+    if (action === "attach_document") {
+      if (!activeRoomId) return;
+      setDocumentPickerOpen(true);
+      return;
+    }
     if (action === "mark_important") {
       onComposerPriorityChange(toggleComposerPriority(composerPriority, "important"));
       return;
@@ -256,6 +262,8 @@ export function ChatPageContent(props: ChatPageContentProps) {
         onCreateNoteOpenChange={setCreateNoteOpen}
         createPostOpen={createPostOpen}
         onCreatePostOpenChange={setCreatePostOpen}
+        documentPickerOpen={documentPickerOpen}
+        onDocumentPickerOpenChange={setDocumentPickerOpen}
       />
 
       {/* Chat fills the content inset: the message list is the screen here, so

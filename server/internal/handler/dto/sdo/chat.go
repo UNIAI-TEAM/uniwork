@@ -182,6 +182,8 @@ type DocumentMessageDTO struct {
 	Revision               string `json:"revision,omitempty" description:"Current revision, the base for a version commit; omitted without access" example:"41"`
 	CanOpenInApp           bool   `json:"can_open_in_app,omitempty" description:"The document opens in UniWork Office for the caller; omitted without access" example:"true"`
 	RecipientCount         *int   `json:"recipient_count,omitempty" description:"Live share count, present only for the sender" example:"4"`
+	Origin                 string `json:"origin,omitempty" description:"How the document message was made: upload (created from chat; deleting the message moves the document to the trash for 30 days and revokes every chat grant) or link (an existing document attached; deleting the message revokes only the grants this message gave). Present on kind document only" example:"upload"`
+	OtherEditorsCount      *int   `json:"other_editors_count,omitempty" description:"People other than the sender who committed a version; present only for the sender on their own upload-origin message, for the delete confirmation" example:"2"`
 }
 
 // ChatMessageDTO is a stored chat message.
@@ -253,7 +255,7 @@ type ChatRoomDTO struct {
 	IsDefault              bool                          `json:"is_default,omitempty" description:"Default workspace channel"`
 	NotificationsMuted     bool                          `json:"notifications_muted" description:"The caller muted this room's chat notifications on every device" example:"false"`
 	AvatarURL              string                        `json:"avatar_url,omitempty" description:"Signed URL of a group's uploaded avatar; absent when the group shows its members" example:"https://storage.example.com/chat/avatars/01J8X4FILE?sig=abc"`
-	CanSendDocument        bool                          `json:"can_send_document,omitempty" description:"The caller may send a document here and the grantable recipients are within the share batch cap (L5); absent means false" example:"true"`
+	CanSendDocument        bool                          `json:"can_send_document,omitempty" description:"The caller may send a document here: the room's send permission (L5). There is no recipient cap since UNI-2012 S1c; absent means false" example:"true"`
 
 	PeerLastDeliveredAt string `json:"peer_last_delivered_at,omitempty" description:"RFC3339 (sub-second) DM peer delivered cursor: how far the peer's devices hold the room" example:"2026-03-26T10:00:00.123456Z"`
 }

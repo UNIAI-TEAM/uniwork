@@ -1,33 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Download, Upload } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { ApiError } from "@uniwork/core/api";
-import { getDocumentEditLock } from "@uniwork/core/api/endpoints/documents-edit-lock";
-import {
-  ChunkedUploadError,
-  chunkedUploadThreshold,
-} from "@uniwork/core/documents/chunked-upload";
-import { heldEditLockId } from "@uniwork/core/documents/edit-lock-registry";
-import {
-  useChunkedDocumentUpload,
-  useDocumentDownload,
-  useDocumentLimits,
-  useUploadDocumentFile,
-} from "@uniwork/core/documents/hooks";
-import { useCommitDocumentVersion } from "@uniwork/core/documents/hooks-versions";
-import { documentKeys } from "@uniwork/core/documents/keys";
-import { formatDocumentSizeMB } from "@uniwork/core/documents/limits";
+import { useDocumentDownload } from "@uniwork/core/documents/hooks";
 import type { Document } from "@uniwork/core/types/document";
-import { createSafeId } from "@uniwork/core/utils";
 import { DropdownMenuItem } from "@uniwork/ui/components/ui/dropdown-menu";
 import { documentDownloadName } from "./document-download-name";
-import { documentErrorMessage, documentUploadValidationMessage } from "./document-error-message";
-import { DocumentUploadDialog } from "./document-upload-dialog";
-import { reportWriteRefused } from "./edit-lock-refusal";
+import { useDocumentVersionUpload } from "./use-document-version-upload";
 
 export interface DocumentFileActions {
   /** Downloads the live bytes, or one version's bytes when given. */
@@ -46,25 +27,16 @@ export interface DocumentFileActions {
  * the Office editor replaces that view, so both run the same writes.
  */
 export function useDocumentFileActions(wsId: string, doc: Document): DocumentFileActions {
-  const { t, i18n } = useTranslation();
-  const queryClient = useQueryClient();
+  const { t } = useTranslation();
   const downloadFile = useDocumentDownload(wsId, doc.id);
-  const upload = useUploadDocumentFile(wsId, doc.id);
-  const commit = useCommitDocumentVersion(wsId, doc.id);
-  const chunkedTarget = useMemo(() => ({ kind: "version" as const, documentId: doc.id }), [doc.id]);
-  const chunked = useChunkedDocumentUpload(chunkedTarget);
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const limits = useDocumentLimits({ enabled: dialogOpen });
-  const threshold = chunkedUploadThreshold(limits);
-  const [error, setError] = useState<string | null>(null);
+  const versionUpload = useDocumentVersionUpload({
+    wsId,
+    documentId: doc.id,
+    revision: doc.revision,
+    versionIdBefore: doc.file?.version_id,
+  });
   const [downloading, setDownloading] = useState<string | null>(null);
   const mountedRef = useRef(true);
-  // One key per user intent: a retry of the same pick must replay the same
-  // write, not mint a second version of one upload.
-  const idempotencyKey = useRef<string | null>(null);
-  // The commit body carries edit_lock_id, so a key is only valid for the lock id it was minted under.
-  const keyLockId = useRef<string | undefined>(undefined);
-  const pending = upload.isPending || commit.isPending;
 
   useEffect(() => {
     mountedRef.current = true;
@@ -72,9 +44,6 @@ export function useDocumentFileActions(wsId: string, doc: Document): DocumentFil
       mountedRef.current = false;
     };
   }, []);
-
-  const isChunkedFile = (file: { size: number }): boolean =>
-    threshold !== null && file.size > threshold;
 
   const download = async (version?: number) => {
     const target = version === undefined ? "live" : String(version);
@@ -97,136 +66,7 @@ export function useDocumentFileActions(wsId: string, doc: Document): DocumentFil
     }
   };
 
-  const stageNewVersion = async (picked: File) => {
-    const invalid = documentUploadValidationMessage(picked, limits.upload_max_bytes, t, i18n.language);
-    if (invalid) {
-      setError(invalid);
-      return;
-    }
-    setError(null);
-    const lockId = heldEditLockId(doc.id);
-    if (idempotencyKey.current && keyLockId.current !== lockId) idempotencyKey.current = null;
-    if (!idempotencyKey.current) keyLockId.current = lockId;
-    idempotencyKey.current ??= createSafeId();
-    const useChunked = isChunkedFile(picked);
-    let staged = false;
-    try {
-      let uploadId: string;
-      if (useChunked) {
-        const lockState = await queryClient
-          .fetchQuery({
-            queryKey: documentKeys.editLock(wsId, doc.id),
-            queryFn: ({ signal }) => getDocumentEditLock(doc.id, signal),
-            staleTime: 0,
-          })
-          .catch(() => null);
-        const lock = lockState?.lock;
-        if (lock && (!lock.held_by_me || !heldEditLockId(doc.id))) {
-          // Same shape as a server 423 body: never the lock id, which a
-          // manage-level reader of the summary may see.
-          const fields: Record<string, unknown> = {};
-          for (const key of ["holder_id", "holder_name", "since", "expires_at", "held_by_me", "offline_hold_until"] as const) {
-            if (lock[key] != null) fields[key] = lock[key];
-          }
-          throw new ApiError("", "document_locked", 423, undefined, fields);
-        }
-        const res = await chunked.start({
-          file: picked,
-          filename: picked.name,
-          idempotencyKey: idempotencyKey.current,
-        });
-        if (res.kind !== "upload") {
-          throw new Error("Expected upload result from version upload session");
-        }
-        uploadId = res.upload.upload_id;
-      } else {
-        const upload0 = await upload.mutateAsync({
-          file: picked,
-          idempotencyKey: idempotencyKey.current,
-        });
-        uploadId = upload0.upload_id;
-      }
-      // The user left: the finished upload is deliberately NOT committed as a
-      // version (R2-5). Nothing tells them, and nothing should — they are gone,
-      // and the next attempt resumes or re-uploads.
-      if (!mountedRef.current) return;
-      staged = true;
-      // The version id this attempt must beat: identical bytes answer 200
-      // with the version the document already carries (UNI-1900), and that
-      // no-op deserves the quiet "no change" note instead of silence (D-2).
-      const versionIdBefore = doc.file?.version_id;
-      const committed = await commit.mutateAsync({
-        upload_id: uploadId,
-        base_revision: doc.revision,
-        // The mounted Office editor holds the lock; a new version replaces content (UNI-1645).
-        ...(lockId ? { edit_lock_id: lockId } : {}),
-        idempotencyKey: idempotencyKey.current,
-      });
-      idempotencyKey.current = null;
-      if (mountedRef.current) {
-        setDialogOpen(false);
-        if (versionIdBefore && committed.version.id === versionIdBefore) {
-          toast.message(t("documents.upload.no_change"));
-        }
-      }
-    } catch (err) {
-      if (!mountedRef.current) return;
-      if (err instanceof ChunkedUploadError && err.code === "upload_canceled") {
-        return;
-      }
-      if (err instanceof ApiError && (err.code === "document_locked" || err.status === 423)) {
-        // The page ends its hold when this was the lock it holds; a new lock id is a new write.
-        reportWriteRefused(doc.id, err.fields, lockId);
-        idempotencyKey.current = null;
-      }
-      setError(
-        documentErrorMessage(
-          err,
-          t,
-          staged ? "documents.file.commit_failed" : "documents.file.upload_failed",
-          {
-            locale: i18n.language,
-            file: picked,
-            maxBytes: limits.upload_max_bytes,
-            resumable: !staged && useChunked && chunked.hasResumable(picked),
-          },
-        ),
-      );
-    }
-  };
-
-  const uploadDialog = (
-    <DocumentUploadDialog
-      open={dialogOpen}
-      onOpenChange={(next) => {
-        if (!next) {
-          idempotencyKey.current = null;
-          setError(null);
-          chunked.reset();
-        }
-        setDialogOpen(next);
-      }}
-      title={t("documents.upload.version_title")}
-      description={t("documents.upload.version_description")}
-      hint={t("documents.upload.size_hint", { max: formatDocumentSizeMB(limits.upload_max_bytes, i18n.language) })}
-      pending={pending}
-      error={error}
-      showShareToggle={false}
-      onSubmit={(picked) => void stageNewVersion(picked)}
-      chunkedProgress={chunked.progress}
-      onPause={chunked.pause}
-      onResume={chunked.resume}
-      onCancelUpload={(file) => {
-        idempotencyKey.current = null;
-        setError(null);
-        void chunked.cancel(file ?? undefined);
-      }}
-      hasResumable={(file) => isChunkedFile(file) && chunked.hasResumable(file)}
-      onPickFile={() => setError(null)}
-    />
-  );
-
-  return { download, downloading, openUpload: () => setDialogOpen(true), uploadDialog };
+  return { download, downloading, openUpload: versionUpload.open, uploadDialog: versionUpload.dialog };
 }
 
 /** The file commands as page overflow-menu entries (Office editor mode). */

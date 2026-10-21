@@ -78,9 +78,9 @@ type ChatComposerProps = {
   onSendFile?: (file: File) => void | Promise<void>;
   /** UNI-1966: set when the staged files may go out as shared documents. */
   onSendDocument?: (file: File, shareLevel: ChatDocumentShareLevel) => void | Promise<void>;
-  /** The room detail's can_send_document: the server already folded in the
-      send permission and the share batch cap, so false/absent hides the
-      picker rather than offering a refused send. */
+  /** The room detail's can_send_document: whether the caller may send a
+      document in this room (a permission, never the room's size), so
+      false/absent hides the picker rather than offering a refused send. */
   canSendDocument?: boolean;
   showCreatePoll?: boolean;
   /** A host may provide its own voice capture flow. */
@@ -164,7 +164,7 @@ export function ChatComposer({
   const mentionEnabled = mentionCandidates !== undefined;
   const voiceRecorder = useChatVoiceRecorder();
   const voiceActive = voiceRecorder.state !== "idle" || Boolean(voiceRecorder.error);
-  const { shareChoice, setShareChoice, showSharePicker, sharePickerAllowsFile } =
+  const { shareChoice, setShareChoice, showSharePicker } =
     useComposerDocumentShare({ stagedFiles, canSendDocument, hasDocumentSender: Boolean(onSendDocument) });
 
   useImperativeHandle(ref, () => ({
@@ -367,6 +367,8 @@ export function ChatComposer({
                 onAction={handleAttachAction}
                 align="start"
                 showCreatePoll={showCreatePoll}
+                // A document picked from the library is sent with the same grant a staged one is.
+                showAttachDocument={canSendDocument}
               />
             )}
             {/* The bar is the field: no pill, a ring only to say over the limit or editing. */}
@@ -400,10 +402,7 @@ export function ChatComposer({
                           ))}
                         </div>
                         {showSharePicker ? (
-                          <ChatComposerShareLevelPicker
-                            value={shareChoice} onChange={setShareChoice} disabled={disabled}
-                            allowFileChoice={sharePickerAllowsFile}
-                          />
+                          <ChatComposerShareLevelPicker value={shareChoice} onChange={setShareChoice} disabled={disabled} />
                         ) : null}
                       </div>
                     ) : null}

@@ -870,19 +870,23 @@ type DocumentSetting struct {
 }
 
 type DocumentShare struct {
-	ID             string             `json:"id"`
-	OrganizationID string             `json:"organization_id"`
-	WorkspaceID    string             `json:"workspace_id"`
-	DocumentID     string             `json:"document_id"`
-	PrincipalType  string             `json:"principal_type"`
-	PrincipalID    string             `json:"principal_id"`
-	Level          string             `json:"level"`
-	GrantedBy      string             `json:"granted_by"`
-	GrantedByKind  string             `json:"granted_by_kind"`
-	RevokedAt      pgtype.Timestamptz `json:"revoked_at"`
-	RevokedBy      pgtype.Text        `json:"revoked_by"`
-	CreatedAt      pgtype.Timestamptz `json:"created_at"`
-	Origin         string             `json:"origin"`
+	ID               string             `json:"id"`
+	OrganizationID   string             `json:"organization_id"`
+	WorkspaceID      string             `json:"workspace_id"`
+	DocumentID       string             `json:"document_id"`
+	PrincipalType    string             `json:"principal_type"`
+	PrincipalID      string             `json:"principal_id"`
+	Level            string             `json:"level"`
+	GrantedBy        string             `json:"granted_by"`
+	GrantedByKind    string             `json:"granted_by_kind"`
+	RevokedAt        pgtype.Timestamptz `json:"revoked_at"`
+	RevokedBy        pgtype.Text        `json:"revoked_by"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+	SourceKind       pgtype.Text        `json:"source_kind"`
+	SourceRoomID     pgtype.Text        `json:"source_room_id"`
+	SourceMessageID  pgtype.Text        `json:"source_message_id"`
+	PriorManualLevel pgtype.Text        `json:"prior_manual_level"`
+	Origin           string             `json:"origin"`
 }
 
 type DocumentShareLink struct {

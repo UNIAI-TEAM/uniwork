@@ -166,8 +166,8 @@ describe("group avatar", () => {
 });
 
 // UNI-1966 (L5): the composer asks the room DETAIL read whether a document
-// send is allowed (the caller may send AND the grantable roster fits the
-// batch cap); the list read never carries the flag.
+// send is allowed (the caller may send; UNI-2012 lifted the roster cap); the
+// list read never carries the flag.
 describe("useChatRoom", () => {
   beforeEach(() => setSessionUser(user));
   afterEach(() => {

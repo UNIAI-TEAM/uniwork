@@ -705,6 +705,7 @@ func New(d Deps) http.Handler {
 		SendChatVoiceMessage:             h.sendChatVoiceMessage,
 		SendChatFileMessage:              h.sendChatFileMessage,
 		SendChatDocumentMessage:          h.sendChatDocumentMessage,
+		SendChatDocumentLink:             h.sendChatDocumentLink,
 		ShareChatMessageAsDocument:       h.shareChatMessageAsDocument,
 		GetChatRoomDetail:                h.getChatRoomDetail,
 		VoteChatPollMessage:              h.voteChatPollMessage,

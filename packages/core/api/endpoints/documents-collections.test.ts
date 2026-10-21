@@ -128,6 +128,14 @@ describe("documents-collections endpoints", () => {
     expect(url.searchParams.has("order")).toBe(false);
   });
 
+  it("listRecentDocuments sends the activity sort with include_owned", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json(listBody()));
+    await listRecentDocuments("w1", { sort: "activity", includeOwned: true, limit: 5 });
+    expect(String(vi.mocked(fetch).mock.calls[0]![0])).toBe(
+      "http://api.test/api/v1/workspaces/w1/documents/recent?sort=activity&include_owned=true&limit=5",
+    );
+  });
+
   it("the sibling lists carry sort and order next to the chip filters", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json(listBody()));
     await listRecentDocuments("w1", { format: "pdf", sort: "size", order: "desc", limit: 5 });
@@ -146,6 +154,23 @@ describe("documents-collections endpoints", () => {
     expect(String(vi.mocked(fetch).mock.calls[2]![0])).toBe(
       "http://api.test/api/v1/workspaces/w1/documents?shared_by_me=true&sort=updated&order=desc&limit=5",
     );
+  });
+
+  it("recent asks for the owned rows only when told to (UNI-2012 F5)", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json(listBody()));
+    await listRecentDocuments("w1", { includeOwned: true, limit: 5 });
+    expect(String(vi.mocked(fetch).mock.calls[0]![0])).toBe(
+      "http://api.test/api/v1/workspaces/w1/documents/recent?include_owned=true&limit=5",
+    );
+
+    vi.mocked(fetch).mockResolvedValueOnce(json(listBody()));
+    await listRecentDocuments("w1", { includeOwned: false, limit: 5 });
+    expect(String(vi.mocked(fetch).mock.calls[1]![0])).toBe(
+      "http://api.test/api/v1/workspaces/w1/documents/recent?limit=5",
+    );
+
+    vi.mocked(fetch).mockResolvedValueOnce(json({ documents: "nope" }));
+    await expect(listRecentDocuments("w1", { includeOwned: true })).rejects.toThrow("document_list_invalid");
   });
 
   it("a sorted list that answers malformed still degrades instead of rendering rows", async () => {
