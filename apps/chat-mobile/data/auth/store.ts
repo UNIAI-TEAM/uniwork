@@ -12,6 +12,7 @@ import type { User } from "@uniwork/core/types/user";
 import { create } from "zustand";
 import { ApiError, api } from "../api";
 import { chatSendDeps, clearChatOutbox } from "../chat-send";
+import { clearPendingOps, pendingOpsDeps } from "../pending-ops";
 import { wipeDeviceTraces } from "../local-wipe";
 import { forgetPushToken, unregisterPushToken } from "../push";
 import { workspaceListOptions } from "../queries/workspaces";
@@ -21,6 +22,7 @@ import { clearAccountCache } from "../remote-config";
 import { setReportUser } from "../report";
 import { currentSessionEpoch } from "../session-epoch";
 import { hydrateChatSendStore } from "../stores/chat-send-store";
+import { hydratePendingOpsStore } from "../stores/pending-ops-store";
 import { useWorkspaceStore } from "../stores/workspace-store";
 import { session } from "./flow";
 import { forgetLastUser, readLastUser, rememberUser } from "./last-user";
@@ -111,11 +113,12 @@ async function endAccountSession(): Promise<void> {
   await Promise.all([useWorkspaceStore.getState().clear(), forgetLastUser(), dropAccountCache()]);
   clearAccountCache(queryClient);
   clearChatOutbox(chatSendDeps);
+  clearPendingOps(pendingOpsDeps);
 }
 
-/** What the device kept across the last run: the unsent messages (the queued reads and reactions join them). */
-function hydrateDeviceState(): Promise<void> {
-  return hydrateChatSendStore();
+/** What the device kept across the last run: the unsent messages and the queued reads, reactions and votes. */
+async function hydrateDeviceState(): Promise<void> {
+  await Promise.all([hydrateChatSendStore(), hydratePendingOpsStore()]);
 }
 
 /** A sign-in's /me, and that person's cached rooms before the first screen. */

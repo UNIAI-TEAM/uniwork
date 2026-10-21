@@ -24,11 +24,10 @@ import {
   editMessage,
   followUpCommand,
   togglePin,
-  toggleReaction,
-  votePoll,
 } from "@/data/chat-actions";
 import { chatApi } from "@/data/chat-api";
 import { chatSendDeps, discardPendingSend, retryPendingSend, sendChatMessage, type ChatSendInput } from "@/data/chat-send";
+import { toggleReaction, votePoll } from "@/data/pending-ops";
 import { followUpsOptions, roomLinksOptions } from "@/data/queries/chat";
 import { chatRoutes } from "@/lib/chat-routes";
 import { continuedRunKeys } from "@/lib/conversation-display";
@@ -132,7 +131,7 @@ export function Conversation(props: Props) {
       roomId,
       userId,
       onOpenImage: (url, name, messageId) => setImage({ id: messageId ?? url, url, name }),
-      onVotePoll: (messageId, optionId) => void votePoll(qc, wsId, roomId, messageId, optionId).catch(() => toast.error(t("chat.message_list.poll_vote_failed"))),
+      onVotePoll: (messageId, optionId) => void votePoll(qc, wsId, roomId, messageId, optionId, userId).catch(() => toast.error(t("chat.message_list.poll_vote_failed"))),
     }),
     [wsId, chat.orgSlug, chat.wsSlug, roomId, userId, qc, t],
   );
@@ -194,7 +193,7 @@ export function Conversation(props: Props) {
         onPressQuote={props.onQuoteJump}
         onPressThread={(m) => router.push(chatRoutes.thread(chat, roomId, m.id))}
         onPressPending={setActionMessage}
-        onToggleReaction={(m, emoji) => void toggleReaction(qc, wsId, roomId, m.id, emoji).catch(() => toast.error(t("chat.message_list.react_failed")))}
+        onToggleReaction={(m, emoji) => void toggleReaction(qc, wsId, roomId, m.id, emoji, userId).catch(() => toast.error(t("chat.message_list.react_failed")))}
       />
     );
     if (message.id !== threadRootId)
@@ -295,7 +294,7 @@ export function Conversation(props: Props) {
         inThread={Boolean(threadRootId)}
         followUp={actionMessage ? openFollowUp(actionMessage.id) : null}
         onClose={() => setActionMessage(null)}
-        onReact={(m, emoji) => void toggleReaction(qc, wsId, roomId, m.id, emoji).catch(() => toast.error(t("chat.message_list.react_failed")))}
+        onReact={(m, emoji) => void toggleReaction(qc, wsId, roomId, m.id, emoji, userId).catch(() => toast.error(t("chat.message_list.react_failed")))}
         onReply={(m) => {
           setEdit(null);
           setReply(quoteOf(m));
@@ -354,7 +353,7 @@ export function Conversation(props: Props) {
         onPick={(emoji) => {
           const target = emojiFor;
           setEmojiFor(null);
-          if (target) void toggleReaction(qc, wsId, roomId, target.id, emoji).catch(() => toast.error(t("chat.message_list.react_failed")));
+          if (target) void toggleReaction(qc, wsId, roomId, target.id, emoji, userId).catch(() => toast.error(t("chat.message_list.react_failed")));
         }}
       />
       <ForwardSheet chat={chat} messageId={forwardId} onClose={() => setForwardId(null)} />

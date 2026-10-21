@@ -1,24 +1,13 @@
 // The chat tab's one-shot commands and what each does to the cache, mirroring
 // the mutations of packages/core/chat/{chat-hooks-rooms,chat-hooks-messages,
 // thread-hooks,chat-follow-up-hooks,chat-link-hooks}.ts. Screens await them; a
-// rejection is the screen's to show.
+// rejection is the screen's to show. Reads, reactions and votes queue offline
+// (pending-ops.ts); sends go through the outbox (chat-send.ts).
 import type { QueryClient } from "@tanstack/react-query";
 import type { ChatRoomRecord } from "@uniwork/core/api/endpoints/chat-schemas";
 import { applyChatMessageResponse, patchChatMessageDeleted } from "./chat-cache";
 import { chatApi, type ChatTask } from "./chat-api";
 import { chatKeys } from "./queries/chat-keys";
-
-function clearUnread(qc: QueryClient, wsId: string, roomId: string): void {
-  qc.setQueryData<ChatRoomRecord[]>(chatKeys.rooms(wsId), (old) =>
-    old?.map((room) => (room.id === roomId ? { ...room, unread_count: 0, mention_unread_count: 0 } : room)),
-  );
-}
-
-/** Opening a room, reaching its newest message, or leaving it: the badge clears now, the server follows. */
-export async function markRoomRead(qc: QueryClient, wsId: string, roomId: string): Promise<void> {
-  clearUnread(qc, wsId, roomId);
-  if (await chatApi.markRoomRead(wsId, roomId)) clearUnread(qc, wsId, roomId);
-}
 
 /** The read pointer of a thread; the server hands back the one it replaced. */
 export function markThreadRead(wsId: string, rootId: string): Promise<string | null> {
@@ -38,10 +27,6 @@ export async function setRoomMuted(qc: QueryClient, wsId: string, roomId: string
     qc.setQueryData(key, previous);
     throw new Error("chat_room_mute_failed");
   }
-}
-
-export async function toggleReaction(qc: QueryClient, wsId: string, roomId: string, messageId: string, emoji: string): Promise<void> {
-  applyChatMessageResponse(qc, wsId, roomId, await chatApi.toggleReaction(wsId, roomId, messageId, emoji), false);
 }
 
 export async function togglePin(qc: QueryClient, wsId: string, roomId: string, messageId: string): Promise<void> {
@@ -80,11 +65,8 @@ export async function joinChannel(qc: QueryClient, wsId: string, roomId: string)
   return room;
 }
 
-// M3: the rich kinds. A voice clip and a reminder are sends: they go through the outbox (chat-send.ts).
-
-export async function votePoll(qc: QueryClient, wsId: string, roomId: string, messageId: string, optionId: string): Promise<void> {
-  applyChatMessageResponse(qc, wsId, roomId, await chatApi.votePoll(wsId, roomId, messageId, optionId), false);
-}
+// M3: the rich kinds. A voice clip and a reminder are sends (chat-send.ts); a
+// read, a reaction and a poll vote work offline too (pending-ops.ts).
 
 export const FOLLOW_UP_HOURS = 2;
 const FOLLOW_UP_DUE_MS = FOLLOW_UP_HOURS * 60 * 60 * 1000;

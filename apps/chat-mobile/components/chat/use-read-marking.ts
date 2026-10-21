@@ -8,7 +8,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useFocusEffect, useIsFocused } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AppState } from "react-native";
-import { markRoomRead } from "@/data/chat-actions";
+import { useAuthStore } from "@/data/auth/store";
+import { markRoomRead } from "@/data/pending-ops";
 import { useActiveChatRoomStore } from "@/data/stores/chat-active-room-store";
 
 const CHAT_READ_DEBOUNCE_MS = 1500;
@@ -51,10 +52,13 @@ export function useRoomReadMarking(wsId: string, roomId: string, newestMessageId
   const appActive = useAppActive();
   const focused = useIsFocused();
   const active = appActive && focused;
+  const userId = useAuthStore((s) => s.user?.id ?? null);
+  // A read that cannot go now is queued and retried (data/pending-ops.ts); one the server refuses is reported there.
   const onFocus = useCallback(() => {
-    void markRoomRead(qc, wsId, roomId).catch(() => undefined);
-    return () => void markRoomRead(qc, wsId, roomId).catch(() => undefined);
-  }, [qc, wsId, roomId]);
+    if (!userId) return;
+    void markRoomRead(qc, wsId, roomId, userId);
+    return () => void markRoomRead(qc, wsId, roomId, userId);
+  }, [qc, wsId, roomId, userId]);
   useActiveRoom(roomId, onFocus);
 
   const marked = useRef<{ roomId: string; messageId: string } | null>(null);
@@ -66,11 +70,11 @@ export function useRoomReadMarking(wsId: string, roomId: string, newestMessageId
       marked.current = { roomId, messageId: newestMessageId };
       return;
     }
-    if (last.messageId === newestMessageId || !atLatest || !active) return;
+    if (last.messageId === newestMessageId || !atLatest || !active || !userId) return;
     const timer = setTimeout(() => {
       marked.current = { roomId, messageId: newestMessageId };
-      void markRoomRead(qc, wsId, roomId).catch(() => undefined);
+      void markRoomRead(qc, wsId, roomId, userId);
     }, CHAT_READ_DEBOUNCE_MS);
     return () => clearTimeout(timer);
-  }, [active, atLatest, newestMessageId, qc, roomId, wsId]);
+  }, [active, atLatest, newestMessageId, qc, roomId, wsId, userId]);
 }

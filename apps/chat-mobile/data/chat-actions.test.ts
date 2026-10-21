@@ -12,14 +12,11 @@ import {
   editMessage,
   joinChannel,
   leaveRoom,
-  markRoomRead,
   markThreadRead,
   refreshMessageMedia,
   resolveDMRoom,
   setRoomMuted,
   togglePin,
-  toggleReaction,
-  votePoll,
 } from "./chat-actions";
 import { flattenRoomTimeline, type RoomTimeline } from "./chat-timeline";
 import { chatKeys } from "./queries/chat-keys";
@@ -61,17 +58,6 @@ const withTimeline = (qc: QueryClient, rows: ChatMessageRecord[]) => {
 afterEach(() => vi.restoreAllMocks());
 
 describe("chat actions", () => {
-  it("marks a room read: the badge clears at once and stays cleared", async () => {
-    const qc = new QueryClient();
-    qc.setQueryData(chatKeys.rooms("w1"), [room("r1"), room("r2")]);
-    const mark = vi.spyOn(chatApi, "markRoomRead").mockResolvedValueOnce(true).mockResolvedValueOnce(false);
-    await markRoomRead(qc, "w1", "r1");
-    await markRoomRead(qc, "w1", "r1");
-    expect(mark).toHaveBeenCalledWith("w1", "r1");
-    expect(rooms(qc)?.map((r) => [r.unread_count, r.mention_unread_count])).toEqual([[0, 0], [3, 1]]);
-    await markRoomRead(new QueryClient(), "w1", "r1");
-  });
-
   it("marks a thread read and hands back the pointer it replaced", async () => {
     vi.spyOn(chatApi, "markThreadRead").mockResolvedValue("2026-10-01T00:00:00Z");
     expect(await markThreadRead("w1", "root")).toBe("2026-10-01T00:00:00Z");
@@ -90,12 +76,9 @@ describe("chat actions", () => {
     await setRoomMuted(new QueryClient(), "w1", "r1", true);
   });
 
-  it("puts a reaction's and an edit's answer in place", async () => {
+  it("puts an edit's answer in place", async () => {
     const qc = new QueryClient();
     withTimeline(qc, [msg("m1")]);
-    vi.spyOn(chatApi, "toggleReaction").mockResolvedValue(msg("m1", { reactions: { "👍": 1 }, my_reactions: ["👍"] }));
-    await toggleReaction(qc, "w1", "r1", "m1", "👍");
-    expect(flattenRoomTimeline(qc.getQueryData<RoomTimeline>(timelineKey)!)[0]?.reactions).toEqual({ "👍": 1 });
     vi.spyOn(chatApi, "editMessage").mockResolvedValue(msg("m1", { body: "sửa", edited_at: "2026-10-17T10:05:00Z" }));
     await editMessage(qc, "w1", "r1", "m1", "sửa");
     expect(flattenRoomTimeline(qc.getQueryData<RoomTimeline>(timelineKey)!)[0]).toMatchObject({
@@ -144,16 +127,6 @@ describe("chat actions", () => {
       chatKeys.rooms("w1"),
       chatKeys.discoverableChannels("w1"),
     ]);
-  });
-
-  it("puts a vote's answer in place (M3)", async () => {
-    const qc = new QueryClient();
-    withTimeline(qc, [msg("m1", { kind: "poll" })]);
-    const poll = { question: "Ăn gì?", options: [{ id: "o1", label: "Phở", votes: 1 }], settings: { deadline_at: null, pin_to_top: false, allow_multiple: true, allow_add_options: true, hide_results_until_vote: false, hide_voters: false }, viewer_option_ids: ["o1"] };
-    const vote = vi.spyOn(chatApi, "votePoll").mockResolvedValue(msg("m1", { kind: "poll", poll } as Partial<ChatMessageRecord>));
-    await votePoll(qc, "w1", "r1", "m1", "o1");
-    expect(vote).toHaveBeenCalledWith("w1", "r1", "m1", "o1");
-    expect(flattenRoomTimeline(qc.getQueryData<RoomTimeline>(timelineKey)!)[0]?.poll?.viewer_option_ids).toEqual(["o1"]);
   });
 
   it("creates, completes and removes a follow-up, refetching the list each time, and reports a refusal", async () => {

@@ -2,16 +2,19 @@
 // the workspace's socket subscriptions in [org]/[ws]/_layout.tsx. The frames
 // themselves are chat-realtime.ts's; this hook only wires them, picks the
 // chat scopes (the open room, then unread, then recent — at most 25, the
-// web's selectLazyChatScopeRoomIds), flushes queued sends when the network or
-// the socket comes back, and keeps presence beating while the app is in front.
+// web's selectLazyChatScopeRoomIds), flushes the outbox and the queued reads,
+// reactions and votes when the workspace opens, the network or the socket
+// comes back, or the app returns to the front, and keeps presence beating
+// while the app is in front.
 import NetInfo from "@react-native-community/netinfo";
-import { onlineManager, useQuery, useQueryClient } from "@tanstack/react-query";
+import { onlineManager, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { selectLazyChatScopeRoomIds } from "@uniwork/core/chat/lazy-chat-scopes";
 import { useEffect, useMemo } from "react";
 import { AppState } from "react-native";
 import { useAuthStore } from "@/data/auth/store";
 import { chatApi } from "@/data/chat-api";
 import { chatSendDeps, flushQueuedSends } from "@/data/chat-send";
+import { flushPendingOps, pendingOpsDeps } from "@/data/pending-ops";
 import { roomsOptions } from "@/data/queries/chat";
 import { useActiveChatRoomStore } from "@/data/stores/chat-active-room-store";
 import { useChatPinsStore } from "@/data/stores/chat-pins-store";
@@ -64,6 +67,12 @@ function useChatPresenceHeartbeat(wsId: string, userId: string | null) {
   }, [wsId, userId]);
 }
 
+/** What the phone owes the server: the unsent messages, then the queued reads, reactions and votes. */
+function flushOwed(qc: QueryClient, wsId: string, userId: string): void {
+  void flushQueuedSends(qc, wsId, userId, chatSendDeps);
+  void flushPendingOps(qc, wsId, userId, pendingOpsDeps);
+}
+
 export function useChatRealtime(wsId: string) {
   const qc = useQueryClient();
   const userId = useAuthStore((s) => s.user?.id ?? null);
@@ -84,7 +93,7 @@ export function useChatRealtime(wsId: string) {
         ws.onAny((message) => realtime.handle(message)),
         ws.onReconnect(() => {
           realtime.reconnect();
-          if (userId) void flushQueuedSends(qc, wsId, userId, chatSendDeps);
+          if (userId) flushOwed(qc, wsId, userId);
         }),
         realtime.dispose,
         () => useSidebarTypingStore.getState().clearAll(),
@@ -98,7 +107,7 @@ export function useChatRealtime(wsId: string) {
   // offline → online edge without waiting for the socket, and on each return to the foreground.
   useEffect(() => {
     if (!userId) return;
-    const flush = () => void flushQueuedSends(qc, wsId, userId, chatSendDeps);
+    const flush = () => flushOwed(qc, wsId, userId);
     flush();
     let wasOnline = onlineManager.isOnline();
     const unsubscribeNet = NetInfo.addEventListener((state) => {
