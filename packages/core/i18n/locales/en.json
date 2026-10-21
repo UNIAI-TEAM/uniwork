@@ -10019,6 +10019,84 @@
       "stay": "Stay",
       "beforeunload": "You still have unsaved changes in this document."
     },
+    "folder_upload": {
+      "menu_file": "Upload files",
+      "menu_folder": "Upload folder",
+      "menu_label": "Upload",
+      "dialog": {
+        "title": "Upload a folder",
+        "description": "Check it before it goes up. Nothing is written until you press Upload.",
+        "root_label": "Folder",
+        "destination_label": "Upload to",
+        "root_renamed": "“{{name}}” already exists here, so this folder will be named “{{title}}”.",
+        "summary_one": "{{count}} file · {{size}}",
+        "summary_other": "{{count}} files · {{size}}",
+        "skipped_title_one": "Skipping {{count}} file",
+        "skipped_title_other": "Skipping {{count}} files",
+        "skipped_reason_count": "{{reason}} · {{count}}",
+        "skipped_show": "Show list",
+        "skipped_hide": "Hide list",
+        "refusal_title": "This folder can’t be uploaded",
+        "share_toggle": "Share with workspace",
+        "share_hint": "Applies to every file in this upload. The folders stay private.",
+        "share_inherited": "The destination folder is shared with the workspace, so the files are too.",
+        "cancel": "Cancel",
+        "submit": "Upload",
+        "submitting": "Preparing…",
+        "queue_more_one": "{{count}} more folder is waiting.",
+        "queue_more_other": "{{count}} more folders are waiting.",
+        "failed": "Couldn’t start the upload. Try again in a few minutes."
+      },
+      "skip_reason": {
+        "hidden": "Hidden or system files",
+        "unsupported_format": "Unsupported format",
+        "too_large": "Over the per-file size limit",
+        "name_too_long": "File name too long",
+        "invalid_path": "Invalid path"
+      },
+      "refusal": {
+        "too_many_files": "{{actual}} files — {{limit}} at most",
+        "too_large_total": "{{actual}} — {{limit}} at most",
+        "too_deep": "{{actual}} levels deep — {{limit}} at most",
+        "nothing_to_upload": "This folder has no files that can be uploaded.",
+        "segment_too_long": "A folder name is longer than 255 characters.",
+        "multiple_roots": "Only one top-level folder can be uploaded at a time.",
+        "unknown": "This folder is over the upload limits."
+      },
+      "toast": {
+        "progress": "Uploading “{{name}}” — {{done}}/{{total}} files",
+        "cancel_all": "Cancel all",
+        "success_one": "Uploaded {{count}} file to “{{name}}”",
+        "success_other": "Uploaded {{count}} files to “{{name}}”",
+        "open_folder": "Open folder",
+        "partial": "{{done}}/{{total}} uploaded · {{failed}} failed",
+        "view_failures": "View",
+        "canceled_one": "Canceled — the {{count}} file already uploaded was kept",
+        "canceled_other": "Canceled — the {{count}} files already uploaded were kept",
+        "failed": "Couldn’t upload “{{name}}”",
+        "folders_unavailable": "Folder upload isn’t available here. Drop the files one by one.",
+        "read_failed": "Couldn’t read the folder you chose."
+      },
+      "report": {
+        "title": "Files that didn’t upload",
+        "description_one": "“{{name}}”: {{count}} file failed. The rest were kept.",
+        "description_other": "“{{name}}”: {{count}} files failed. The rest were kept.",
+        "retry": "Retry failed files",
+        "retrying": "Retrying…",
+        "close": "Close",
+        "list_label": "Failed files",
+        "reason": {
+          "folder_upload_too_many_files": "The folder has too many files.",
+          "folder_upload_too_large": "The folder is over the total size limit.",
+          "folder_upload_too_deep": "The folder is nested too deeply.",
+          "parent_forbidden": "You can no longer add to the destination folder.",
+          "unsupported_format": "Unsupported format.",
+          "quota_exceeded": "Storage is full.",
+          "missing_etag": "Couldn’t confirm the file reached storage.",
+          "unknown": "This file couldn’t be uploaded."
+        }
+      }
+    },
     "upload": {
       "title": "Upload a file",
       "description": "The file becomes a new document in My Folder (visible only to you).",

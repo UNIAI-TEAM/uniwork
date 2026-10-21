@@ -10014,6 +10014,82 @@
       "stay": "Ở lại",
       "beforeunload": "Bạn còn thay đổi chưa lưu trong tài liệu này."
     },
+    "folder_upload": {
+      "menu_file": "Tải lên tệp",
+      "menu_folder": "Tải lên thư mục",
+      "menu_label": "Tải lên",
+      "dialog": {
+        "title": "Tải lên thư mục",
+        "description": "Kiểm tra trước khi tải lên. Chưa có gì được ghi cho đến khi bạn bấm Tải lên.",
+        "root_label": "Thư mục",
+        "destination_label": "Tải vào",
+        "root_renamed": "Đã có «{{name}}» ở đây, nên thư mục này sẽ thành «{{title}}».",
+        "summary_one": "{{count}} tệp · {{size}}",
+        "summary_other": "{{count}} tệp · {{size}}",
+        "skipped_title_one": "Bỏ qua {{count}} tệp",
+        "skipped_title_other": "Bỏ qua {{count}} tệp",
+        "skipped_reason_count": "{{reason}} · {{count}}",
+        "skipped_show": "Xem danh sách",
+        "skipped_hide": "Ẩn danh sách",
+        "refusal_title": "Chưa tải lên được thư mục này",
+        "share_toggle": "Chia sẻ với workspace",
+        "share_hint": "Áp dụng cho mọi tệp trong lần tải lên này. Thư mục vẫn riêng tư.",
+        "share_inherited": "Thư mục đích đang chia sẻ với workspace nên các tệp cũng vậy.",
+        "cancel": "Hủy",
+        "submit": "Tải lên",
+        "submitting": "Đang chuẩn bị…",
+        "queue_more": "Còn {{count}} thư mục đang chờ.",
+        "failed": "Không bắt đầu tải lên được. Thử lại sau ít phút."
+      },
+      "skip_reason": {
+        "hidden": "Tệp ẩn hoặc tệp hệ thống",
+        "unsupported_format": "Định dạng chưa được hỗ trợ",
+        "too_large": "Vượt dung lượng tối đa của một tệp",
+        "name_too_long": "Tên tệp quá dài",
+        "invalid_path": "Đường dẫn không hợp lệ"
+      },
+      "refusal": {
+        "too_many_files": "{{actual}} tệp — tối đa {{limit}}",
+        "too_large_total": "{{actual}} — tối đa {{limit}}",
+        "too_deep": "Sâu {{actual}} cấp — tối đa {{limit}}",
+        "nothing_to_upload": "Thư mục này không có tệp nào tải lên được.",
+        "segment_too_long": "Có tên thư mục dài quá 255 ký tự.",
+        "multiple_roots": "Mỗi lần chỉ tải lên được một thư mục gốc.",
+        "unknown": "Thư mục này vượt giới hạn tải lên."
+      },
+      "toast": {
+        "progress": "Đang tải lên «{{name}}» — {{done}}/{{total}} tệp",
+        "cancel_all": "Hủy tất cả",
+        "success_one": "Đã tải lên {{count}} tệp vào «{{name}}»",
+        "success_other": "Đã tải lên {{count}} tệp vào «{{name}}»",
+        "open_folder": "Mở thư mục",
+        "partial": "{{done}}/{{total}} tệp đã tải lên · {{failed}} lỗi",
+        "view_failures": "Xem",
+        "canceled_one": "Đã hủy — {{count}} tệp đã tải lên được giữ lại",
+        "canceled_other": "Đã hủy — {{count}} tệp đã tải lên được giữ lại",
+        "failed": "Không tải lên được «{{name}}»",
+        "folders_unavailable": "Chưa tải lên thư mục được ở đây. Hãy kéo thả từng tệp.",
+        "read_failed": "Không đọc được thư mục vừa chọn."
+      },
+      "report": {
+        "title": "Tệp chưa tải lên được",
+        "description": "«{{name}}»: {{count}} tệp bị lỗi. Các tệp còn lại đã được giữ nguyên.",
+        "retry": "Thử lại các tệp lỗi",
+        "retrying": "Đang thử lại…",
+        "close": "Đóng",
+        "list_label": "Danh sách tệp lỗi",
+        "reason": {
+          "folder_upload_too_many_files": "Thư mục có quá nhiều tệp.",
+          "folder_upload_too_large": "Tổng dung lượng thư mục vượt giới hạn.",
+          "folder_upload_too_deep": "Thư mục lồng quá nhiều cấp.",
+          "parent_forbidden": "Bạn không còn quyền thêm vào thư mục đích.",
+          "unsupported_format": "Định dạng chưa được hỗ trợ.",
+          "quota_exceeded": "Đã hết dung lượng lưu trữ.",
+          "missing_etag": "Không xác nhận được tệp đã lên kho lưu trữ.",
+          "unknown": "Không tải lên được tệp này."
+        }
+      }
+    },
     "upload": {
       "title": "Tải tệp lên",
       "description": "Tệp trở thành tài liệu mới trong Thư mục của tôi (chỉ bạn thấy).",
