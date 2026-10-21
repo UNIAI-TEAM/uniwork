@@ -99,6 +99,14 @@ UPDATE users SET
 WHERE id = sqlc.arg('id') AND deleted_at IS NULL
 RETURNING *;
 
+-- name: SetUserPushPreviewsHidden :one
+-- Keeps the first time it was hidden, so turning it on twice changes nothing.
+UPDATE users SET
+  push_previews_hidden_at = CASE WHEN sqlc.arg('hidden')::bool THEN COALESCE(push_previews_hidden_at, now()) ELSE NULL END,
+  updated_at              = now()
+WHERE id = sqlc.arg('id') AND deleted_at IS NULL
+RETURNING *;
+
 -- name: UpdateUserPassword :one
 UPDATE users SET password_hash = $2, updated_at = now()
 WHERE id = $1

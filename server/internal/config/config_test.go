@@ -22,7 +22,7 @@ func setRequired(t *testing.T) {
 	t.Setenv("PREVIEW_ASSET_MAX_BYTES", "10485760")
 	// make check exports the app's .env; pin everything Load reads so a local
 	// value (API_PUBLIC_URL on another port, a dev code) cannot leak in.
-	for _, k := range []string{"APP_ENV", "DEV_VERIFICATION_CODE", "API_PUBLIC_URL", "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "SMTP_HOST", "SMTP_PORT", "MAIL_FROM", "DOCUMENT_COMMIT_INTENT_CLAIM_TTL", "DOCUMENT_COMMIT_INTENT_RETENTION", "DOCUMENT_COMMIT_INTENT_SWEEP_TICK"} {
+	for _, k := range []string{"APP_ENV", "EXPO_ACCESS_TOKEN", "DEV_VERIFICATION_CODE", "API_PUBLIC_URL", "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "SMTP_HOST", "SMTP_PORT", "MAIL_FROM", "DOCUMENT_COMMIT_INTENT_CLAIM_TTL", "DOCUMENT_COMMIT_INTENT_RETENTION", "DOCUMENT_COMMIT_INTENT_SWEEP_TICK"} {
 		t.Setenv(k, "")
 	}
 }
@@ -203,6 +203,7 @@ func TestDevVerificationCodeOnlyOutsideProduction(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			setRequired(t)
 			t.Setenv("APP_ENV", tc.env)
+			t.Setenv("EXPO_ACCESS_TOKEN", "expo-test-token")
 			t.Setenv("DEV_VERIFICATION_CODE", tc.code)
 			c, err := Load()
 			if err != nil {
@@ -566,5 +567,29 @@ func TestLoadDocumentMaxBytes(t *testing.T) {
 func TestDefaultDocumentMaxBytesMatchesFilesRegistry(t *testing.T) {
 	if DefaultDocumentMaxBytes != files.DefaultDocumentMaxBytes {
 		t.Fatalf("config.DefaultDocumentMaxBytes = %d, files.DefaultDocumentMaxBytes = %d", DefaultDocumentMaxBytes, files.DefaultDocumentMaxBytes)
+	}
+}
+
+// Audit "Security & privacy", push-preview-plaintext: production never sends
+// mobile pushes unauthenticated.
+func TestProductionRequiresAnExpoAccessToken(t *testing.T) {
+	setRequired(t)
+	t.Setenv("APP_ENV", "production")
+	if _, err := Load(); err == nil || !strings.Contains(err.Error(), "EXPO_ACCESS_TOKEN") {
+		t.Fatalf("production without a token: %v, want an EXPO_ACCESS_TOKEN error", err)
+	}
+	t.Setenv("EXPO_ACCESS_TOKEN", "  ")
+	if _, err := Load(); err == nil {
+		t.Fatal("a blank token must not count")
+	}
+	t.Setenv("EXPO_ACCESS_TOKEN", "expo-test-token")
+	c, err := Load()
+	if err != nil || c.ExpoAccessToken != "expo-test-token" {
+		t.Fatalf("production with a token: %+v %v", c.ExpoAccessToken, err)
+	}
+	t.Setenv("APP_ENV", "development")
+	t.Setenv("EXPO_ACCESS_TOKEN", "")
+	if _, err := Load(); err != nil {
+		t.Fatalf("development without a token: %v", err)
 	}
 }

@@ -50,6 +50,7 @@ func toUserDTO(u db.User) sdo.UserDTO {
 	if len(u.OnboardingQuestionnaire) > 0 {
 		out.OnboardingQuestionnaire = json.RawMessage(u.OnboardingQuestionnaire)
 	}
+	out.PushPreviews = !u.PushPreviewsHiddenAt.Valid
 	if u.AiConsentVersion.Valid && u.AiConsentAt.Valid {
 		v, at := u.AiConsentVersion.String, u.AiConsentAt.Time.Format(time.RFC3339)
 		out.AIConsentVersion, out.AIConsentAt = &v, &at

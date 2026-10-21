@@ -160,6 +160,23 @@ func (h *handlers) answerAIConsent(w http.ResponseWriter, r *http.Request, versi
 	respondJSON(w, http.StatusOK, map[string]any{"user": toUserDTO(u)})
 }
 
+func (h *handlers) setPushPreviews(w http.ResponseWriter, r *http.Request) {
+	var in sdi.SetPushPreviewsSDI
+	if !decode(w, r, &in, maxJSONBody) {
+		return
+	}
+	if in.Show == nil {
+		respondError(w, http.StatusBadRequest, "invalid_request", "show is required")
+		return
+	}
+	u, err := h.Auth.SetPushPreviews(r.Context(), middleware.UserID(r.Context()), *in.Show)
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	respondJSON(w, http.StatusOK, map[string]any{"user": toUserDTO(u)})
+}
+
 func (h *handlers) deleteAccount(w http.ResponseWriter, r *http.Request) {
 	var in sdi.DeleteAccountSDI
 	if !decode(w, r, &in, maxJSONBody) {

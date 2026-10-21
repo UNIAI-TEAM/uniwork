@@ -148,6 +148,17 @@ func (c *PushConsumer) Handle(ctx context.Context, ev outbox.Row) error {
 			return err
 		}
 		msg.Body = pushBody(user.Locale, chatMsg)
+		// The words pass through Expo, FCM and APNs and sit on a lock screen: hidden when the person or the
+		// organization asked (audit "Security & privacy", push-preview-plaintext). A missed call has no body.
+		if msg.Body != "" {
+			hidden, err := c.previewHidden(ctx, user, n.OrganizationID)
+			if err != nil {
+				return err
+			}
+			if hidden {
+				msg.Body = hiddenPushBody(user.Locale)
+			}
+		}
 		// Reply and Mark as read act on this message's room (and thread) from the notification.
 		msg.Chat = ChatPush{WorkspaceID: chatMsg.WorkspaceID, RoomID: chatMsg.RoomID, MessageID: chatMsg.ID, ThreadRootID: chatMsg.ThreadRootID.String}
 		if n.Kind == KindChatDM && chatMsg.Kind == "voice_call_log" {
@@ -206,6 +217,22 @@ func (c *PushConsumer) Handle(ctx context.Context, ev outbox.Row) error {
 		return failed
 	}
 	return c.q.MarkNotificationPushed(ctx, n.ID)
+}
+
+// previewHidden: the recipient hid message text in their pushes, or the
+// notification's organization did for everyone (it wins either way).
+func (c *PushConsumer) previewHidden(ctx context.Context, user db.User, organizationID string) (bool, error) {
+	if user.PushPreviewsHiddenAt.Valid {
+		return true, nil
+	}
+	policy, err := c.q.GetOrganizationPushPreviewPolicy(ctx, organizationID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return policy.PushPreviewsHiddenAt.Valid, nil
 }
 
 // missedCall turns the push of an unanswered DM call's log into "Cuộc gọi

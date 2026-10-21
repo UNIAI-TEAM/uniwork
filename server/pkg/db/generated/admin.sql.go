@@ -1128,7 +1128,7 @@ func (q *Queries) AdminRevertInvoiceRefundRequest(ctx context.Context, id string
 const adminSetOrganizationStatus = `-- name: AdminSetOrganizationStatus :one
 UPDATE organizations SET status = $2, suspended_at = $3, suspended_reason = $4, updated_at = now()
 WHERE id = $1 AND status IN ('active', 'suspended')
-RETURNING id, slug, name, created_by, created_at, updated_at, status, suspended_at, suspended_reason, mcp_enabled_at, mcp_enabled_by, deletion_scheduled_at, mcp_write_enabled_at, mcp_write_enabled_by, ask_uni_models, ask_uni_models_updated_by, ask_uni_models_updated_at
+RETURNING id, slug, name, created_by, created_at, updated_at, status, suspended_at, suspended_reason, mcp_enabled_at, mcp_enabled_by, deletion_scheduled_at, mcp_write_enabled_at, mcp_write_enabled_by, ask_uni_models, ask_uni_models_updated_by, ask_uni_models_updated_at, push_previews_hidden_at, push_previews_hidden_by
 `
 
 type AdminSetOrganizationStatusParams struct {
@@ -1166,6 +1166,8 @@ func (q *Queries) AdminSetOrganizationStatus(ctx context.Context, arg AdminSetOr
 		&i.AskUniModels,
 		&i.AskUniModelsUpdatedBy,
 		&i.AskUniModelsUpdatedAt,
+		&i.PushPreviewsHiddenAt,
+		&i.PushPreviewsHiddenBy,
 	)
 	return i, err
 }
@@ -1359,7 +1361,7 @@ func (q *Queries) ListPlatformRoleUsers(ctx context.Context) ([]ListPlatformRole
 const setUserPlatformRole = `-- name: SetUserPlatformRole :one
 UPDATE users SET platform_role = $2, platform_role_granted_by = $3, platform_role_granted_at = CASE WHEN $2::text IS NULL THEN NULL ELSE now() END
 WHERE id = $1
-RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone, platform_role_granted_by, platform_role_granted_at, totp_secret, mfa_enabled_at, mfa_recovery_codes, deleted_at, avatar_file_id, ai_consent_version, ai_consent_at
+RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone, platform_role_granted_by, platform_role_granted_at, totp_secret, mfa_enabled_at, mfa_recovery_codes, deleted_at, avatar_file_id, ai_consent_version, ai_consent_at, push_previews_hidden_at
 `
 
 type SetUserPlatformRoleParams struct {
@@ -1396,6 +1398,7 @@ func (q *Queries) SetUserPlatformRole(ctx context.Context, arg SetUserPlatformRo
 		&i.AvatarFileID,
 		&i.AiConsentVersion,
 		&i.AiConsentAt,
+		&i.PushPreviewsHiddenAt,
 	)
 	return i, err
 }

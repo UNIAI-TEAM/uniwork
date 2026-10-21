@@ -419,6 +419,11 @@ var isoRoutes = map[string]isoSpec{
 		body: func(w *isoWorld, tn *isoTenant) isoBody {
 			return isoBody{json: map[string]any{"enabled": tn != w.alpha}}
 		}},
+	"PUT /api/v1/orgs/{org}/push-preview-policy": {
+		reason: "the attack on A sends hidden true, which would hide the words of A's pushes, so A's tenant digest catches a breach; every other tenant's own call sends false, the default, which answers 200 and changes nothing",
+		body: func(w *isoWorld, tn *isoTenant) isoBody {
+			return isoBody{json: map[string]any{"hidden": tn == w.alpha}}
+		}},
 	"PUT /api/v1/orgs/{org}/mcp-policy/write": {
 		reason: "the attack on A sends enabled false, which would switch A's write access off, so A's tenant digest catches a breach; every other tenant's own call sends true, a repeated enable (buildMcp turns write on) that answers 200",
 		body: func(w *isoWorld, tn *isoTenant) isoBody {
@@ -450,6 +455,7 @@ var isoRoutes = map[string]isoSpec{
 	"POST /api/v1/me/avatar":                    {class: isoSelf, reason: reasonSelf},
 	"POST /api/v1/me/delete":                    {class: isoSelf, reason: reasonSelf},
 	"PUT /api/v1/me/ai-consent":                 {class: isoSelf, reason: reasonSelf},
+	"PUT /api/v1/me/push-previews":              {class: isoSelf, reason: reasonSelf},
 	"DELETE /api/v1/me/ai-consent":              {class: isoSelf, reason: reasonSelf},
 	"POST /api/v1/me/email/resend":              {class: isoSelf, reason: reasonSelf},
 	"POST /api/v1/me/email/verify":              {class: isoSelf, reason: reasonSelf},

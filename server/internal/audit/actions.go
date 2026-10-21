@@ -114,6 +114,9 @@ const (
 	// before its first AI request (Apple 5.1.2(i)); withdrawing asks again.
 	ActionUserAIConsentGranted   = "user.ai_consent_granted"
 	ActionUserAIConsentWithdrawn = "user.ai_consent_withdrawn"
+	// The person chose whether a chat push shows the message's words on their
+	// phones (audit "Security & privacy", push-preview-plaintext).
+	ActionUserPushPreviewsChanged = "user.push_previews_changed"
 
 	ActionChatRoomCreated         = "chat.room.created"
 	ActionChatRoomMemberAdded     = "chat.room.member_added"
@@ -304,6 +307,9 @@ const (
 	ActionMcpTokenFamilyRevoked             = "mcp_token.family_revoked"
 	ActionOrganizationMcpPolicyChanged      = "organization.mcp_policy_changed"
 	ActionOrganizationMcpWritePolicyChanged = "organization.mcp_write_policy_changed"
+	// An owner or admin hid (or showed again) the message's words in every
+	// chat push of the organization (OrganizationService.SetPushPreviewPolicy).
+	ActionOrganizationPushPreviewPolicyChanged = "organization.push_preview_policy_changed"
 
 	// An organization owner/admin chose which Claude models Ask UNI offers
 	// (AskUNIService.SetAskModels).

@@ -64,6 +64,21 @@ func registerOrganizations(r api, h Routes) {
 		status:      201,
 		auth:        true,
 	})
+	r.Get("/orgs/{org}/push-preview-policy", h.OrgPushPreviewPolicy, apiOp{
+		summary:     "Read whether chat pushes hide message text",
+		description: "Chính sách của tổ chức: push tin chat ẩn nội dung tin hay không. Mọi thành viên đọc được (điện thoại nói vì sao nội dung bị ẩn); can_manage cho owner/admin.",
+		tags:        []string{"organizations"},
+		sdo:         sdo.PushPreviewPolicySDO{},
+		auth:        true,
+	})
+	r.Put("/orgs/{org}/push-preview-policy", h.SetOrgPushPreviewPolicy, apiOp{
+		summary:     "Hide or show message text in every chat push of the organization",
+		description: "Owner/admin bật/tắt ẩn nội dung tin trong mọi push tin chat của tổ chức (hidden bắt buộc), thắng lựa chọn của từng người. Thành viên thường -> 403. Không đổi gì thì không ghi audit; có đổi thì ghi organization.push_preview_policy_changed.",
+		tags:        []string{"organizations"},
+		sdi:         sdi.PushPreviewPolicySDI{},
+		sdo:         sdo.PushPreviewPolicySDO{},
+		auth:        true,
+	})
 	r.Get("/orgs/{org}/members", h.ListOrgMembers, apiOp{
 		summary:     "List organization members",
 		description: "Danh sách thành viên tổ chức. Mọi thành viên đọc được; lọc theo status (active mặc định, deactivated, all) và phân trang bằng cursor.",

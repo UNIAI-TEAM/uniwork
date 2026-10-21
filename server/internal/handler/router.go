@@ -321,6 +321,7 @@ func New(d Deps) http.Handler {
 		DeleteAccount:       h.deleteAccount,
 		SetAIConsent:        h.setAIConsent,
 		WithdrawAIConsent:   h.withdrawAIConsent,
+		SetPushPreviews:     h.setPushPreviews,
 		PatchOnboarding:     h.patchOnboarding,
 		CompleteOnboarding:  h.completeOnboarding,
 		MyInvitations:       h.myInvitations,
@@ -330,6 +331,9 @@ func New(d Deps) http.Handler {
 		GetOrganization:    h.getOrganization,
 		ListOrgWorkspaces:  h.listOrgWorkspaces,
 		CreateOrgWorkspace: h.createOrgWorkspace,
+
+		OrgPushPreviewPolicy:    h.orgPushPreviewPolicy,
+		SetOrgPushPreviewPolicy: h.setOrgPushPreviewPolicy,
 
 		ListOrgMembers:      h.listOrgMembers,
 		GetOrgMembershipMe:  h.getOrgMembershipMe,

@@ -28,6 +28,14 @@ type UserDTO struct {
 	PlatformRole            string          `json:"platform_role,omitempty" description:"admin hoặc support khi là nhân sự nền tảng; nền tảng bắt buộc MFA" example:"support"`
 	AIConsentVersion        *string         `json:"ai_consent_version" description:"Phiên bản thông báo xử lý AI người dùng đã đồng ý; null khi chưa đồng ý hoặc đã rút lại" example:"2026-10-anthropic"`
 	AIConsentAt             *string         `json:"ai_consent_at" description:"Thời điểm đồng ý xử lý AI (RFC3339); null khi chưa đồng ý" example:"2026-10-21T08:00:00Z"`
+	PushPreviews            bool            `json:"push_previews" description:"true khi push tin chat được hiện nội dung tin; false khi người dùng ẩn (chính sách của tổ chức có thể ẩn dù đây là true)" example:"true"`
+}
+
+// PushPreviewPolicySDO is GET/PUT /api/v1/orgs/{org}/push-preview-policy.
+type PushPreviewPolicySDO struct {
+	Hidden    bool    `json:"hidden" description:"true khi mọi push tin chat của tổ chức ẩn nội dung tin, chỉ nói ai gửi và ở đâu" example:"false"`
+	HiddenAt  *string `json:"hidden_at" description:"Thời điểm bật ẩn (RFC3339); null khi đang hiện" example:"2026-10-22T08:00:00Z"`
+	CanManage bool    `json:"can_manage" description:"true khi người gọi là owner/admin và đổi được chính sách" example:"true"`
 }
 
 // AuthProvidersSDO is GET /api/v1/auth/providers.

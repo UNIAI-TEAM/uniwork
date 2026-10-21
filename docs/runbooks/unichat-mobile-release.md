@@ -97,7 +97,11 @@ của bản store trên kênh đó (`staging` cho `internal`/`preview`, `product
    Firebase (app `com.uniworkos.chat`, `.staging`, `.dev`) làm biến EAS kiểu file:
    `eas env:create --name GOOGLE_SERVICES_JSON --type file --value ./google-services.json --environment <env>` cho
    `development`, `preview`, `production` — `app.config.ts` chuyển nó vào `android.googleServicesFile`. Danh sách đầy
-   đủ tài khoản và tên khoá: `docs/evidence/unichat/release-accounts.md`.
+   đủ tài khoản và tên khoá: `docs/evidence/unichat/release-accounts.md`. **Push có xác thực** (audit bảo mật
+   "push-preview-plaintext"): expo.dev › Project settings › Access tokens tạo token, đặt `EXPO_ACCESS_TOKEN` cho server
+   production (server production không khởi động khi thiếu nó) rồi bật **Enhanced Security for Push Notifications** ở
+   cùng trang — theo thứ tự đó, bật trước thì mọi push không token bị Expo từ chối. Kiểm: gửi một tin DM tới máy thật,
+   `push_receipts` không có lỗi `InvalidCredentials`.
 5. GitHub → Settings → Environments, hai environment (bản store chạy từ tag, OTA chạy tay trên nhánh; một environment
    giới hạn tag sẽ từ chối mọi run OTA trước bước đầu):
    - `chat-mobile-release` (`chat-mobile-release.yml`): Deployment branches and tags → Selected → tag `chat-mobile-v*`;

@@ -74,6 +74,16 @@ type DeleteAccountSDI struct {
 	EmailConfirmation string `json:"email_confirmation" description:"Gõ lại email (tài khoản chỉ Google, không MFA)" example:"an@acme.vn"`
 }
 
+// SetPushPreviewsSDI is PUT /api/v1/me/push-previews.
+type SetPushPreviewsSDI struct {
+	Show *bool `json:"show" description:"true hiện nội dung tin trong push tin chat, false chỉ nói có tin mới và ai gửi; bắt buộc" example:"false"`
+}
+
+// PushPreviewPolicySDI is PUT /api/v1/orgs/{org}/push-preview-policy.
+type PushPreviewPolicySDI struct {
+	Hidden *bool `json:"hidden" description:"true ẩn nội dung tin trong mọi push tin chat của tổ chức; bắt buộc" example:"true"`
+}
+
 // SetAIConsentSDI is PUT /api/v1/me/ai-consent.
 type SetAIConsentSDI struct {
 	Version string `json:"version" description:"Phiên bản thông báo xử lý AI người dùng vừa đồng ý (tối đa 64 ký tự, không khoảng trắng)" example:"2026-10-anthropic"`

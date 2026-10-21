@@ -92,6 +92,7 @@ type Routes struct {
 	DeleteAccount       http.HandlerFunc
 	SetAIConsent        http.HandlerFunc
 	WithdrawAIConsent   http.HandlerFunc
+	SetPushPreviews     http.HandlerFunc
 	PatchOnboarding     http.HandlerFunc
 	CompleteOnboarding  http.HandlerFunc
 	MyInvitations       http.HandlerFunc
@@ -101,6 +102,9 @@ type Routes struct {
 	GetOrganization    http.HandlerFunc
 	ListOrgWorkspaces  http.HandlerFunc
 	CreateOrgWorkspace http.HandlerFunc
+
+	OrgPushPreviewPolicy    http.HandlerFunc
+	SetOrgPushPreviewPolicy http.HandlerFunc
 
 	ListOrgMembers      http.HandlerFunc
 	GetOrgMembershipMe  http.HandlerFunc

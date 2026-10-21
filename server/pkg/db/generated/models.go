@@ -1950,6 +1950,8 @@ type Organization struct {
 	AskUniModels          []string           `json:"ask_uni_models"`
 	AskUniModelsUpdatedBy pgtype.Text        `json:"ask_uni_models_updated_by"`
 	AskUniModelsUpdatedAt pgtype.Timestamptz `json:"ask_uni_models_updated_at"`
+	PushPreviewsHiddenAt  pgtype.Timestamptz `json:"push_previews_hidden_at"`
+	PushPreviewsHiddenBy  pgtype.Text        `json:"push_previews_hidden_by"`
 }
 
 type OrganizationMember struct {
@@ -2387,9 +2389,10 @@ type User struct {
 	MfaRecoveryCodes        []string           `json:"mfa_recovery_codes"`
 	DeletedAt               pgtype.Timestamptz `json:"deleted_at"`
 	// FileService file id of the account avatar; NULL = avatar_url (legacy or external) is the source.
-	AvatarFileID     pgtype.Text        `json:"avatar_file_id"`
-	AiConsentVersion pgtype.Text        `json:"ai_consent_version"`
-	AiConsentAt      pgtype.Timestamptz `json:"ai_consent_at"`
+	AvatarFileID         pgtype.Text        `json:"avatar_file_id"`
+	AiConsentVersion     pgtype.Text        `json:"ai_consent_version"`
+	AiConsentAt          pgtype.Timestamptz `json:"ai_consent_at"`
+	PushPreviewsHiddenAt pgtype.Timestamptz `json:"push_previews_hidden_at"`
 }
 
 type WebhookInbox struct {

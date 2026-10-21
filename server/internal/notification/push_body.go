@@ -15,8 +15,19 @@ func isChatPushKind(kind string) bool {
 }
 
 var pushBodyLabels = map[string]map[string]string{
-	"vi": {"file": "[Tệp]", "image": "[Ảnh]", "voice": "[Tin thoại]"},
-	"en": {"file": "[File]", "image": "[Image]", "voice": "[Voice message]"},
+	"vi": {"file": "[Tệp]", "image": "[Ảnh]", "voice": "[Tin thoại]", "hidden": "Tin nhắn mới"},
+	"en": {"file": "[File]", "image": "[Image]", "voice": "[Voice message]", "hidden": "New message"},
+}
+
+// hiddenPushBody stands in for the preview when the recipient or their
+// organization hides message text in pushes (service.SetPushPreviews,
+// SetPushPreviewPolicy): it says a message arrived, never what or what kind.
+func hiddenPushBody(locale string) string {
+	labels, ok := pushBodyLabels[locale]
+	if !ok {
+		labels = pushBodyLabels["en"]
+	}
+	return labels["hidden"]
 }
 
 var (

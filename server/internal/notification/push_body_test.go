@@ -27,3 +27,11 @@ func TestPushBody(t *testing.T) {
 		}
 	}
 }
+
+func TestHiddenPushBodySaysOnlyThatAMessageArrived(t *testing.T) {
+	for locale, want := range map[string]string{"vi": "Tin nhắn mới", "en": "New message", "fr": "New message"} {
+		if got := hiddenPushBody(locale); got != want {
+			t.Errorf("%s: %q, want %q", locale, got, want)
+		}
+	}
+}

@@ -737,6 +737,18 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				t.Fatal(err)
 			}
 		},
+		audit.ActionUserPushPreviewsChanged: func(t *testing.T, f *auditFixture) {
+			f.build(t)
+			if _, err := f.auth.SetPushPreviews(f.ctx, f.member.ID, false); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionOrganizationPushPreviewPolicyChanged: func(t *testing.T, f *auditFixture) {
+			f.build(t)
+			if _, err := f.orgs.SetPushPreviewPolicy(f.ctx, f.owner.ID, f.orgID, true); err != nil {
+				t.Fatal(err)
+			}
+		},
 		audit.ActionChatReportCreated: func(t *testing.T, f *auditFixture) {
 			w := f.build(t)
 			if _, err := f.chat.ReportChat(f.ctx, f.owner.ID, w.ID, ReportChatInput{UserID: f.member.ID, Reason: "spam"}); err != nil {
@@ -1879,6 +1891,7 @@ func auditActions() []string {
 		audit.ActionUserDeleted,
 		audit.ActionUserAIConsentGranted,
 		audit.ActionUserAIConsentWithdrawn,
+		audit.ActionUserPushPreviewsChanged,
 		audit.ActionChatRoomCreated,
 		audit.ActionChatRoomMemberAdded,
 		audit.ActionChatRoomMemberRemoved,
@@ -1984,6 +1997,7 @@ func auditActions() []string {
 		audit.ActionMeetingSummaryCreated,
 		audit.ActionOrganizationMcpPolicyChanged,
 		audit.ActionOrganizationMcpWritePolicyChanged,
+		audit.ActionOrganizationPushPreviewPolicyChanged,
 		audit.ActionOrganizationAskModelsChanged,
 	}
 }

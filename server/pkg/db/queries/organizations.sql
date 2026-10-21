@@ -175,3 +175,21 @@ UPDATE organizations SET
   suspended_reason = 'organization_closed',
   updated_at = now()
 WHERE id = $1 AND status = 'active';
+
+-- name: GetOrganizationPushPreviewPolicy :one
+-- Read by every member (Settings shows why previews are off) and by the push
+-- lane for the notification's organization.
+SELECT id, push_previews_hidden_at, push_previews_hidden_by FROM organizations WHERE id = $1;
+
+-- name: GetOrganizationPushPreviewPolicyForUpdate :one
+-- SetPushPreviewPolicy reads the value it is about to change under the row
+-- lock, so the audit row's before/after is true and a repeat writes no row.
+SELECT id, push_previews_hidden_at, push_previews_hidden_by FROM organizations WHERE id = $1 FOR UPDATE;
+
+-- name: SetOrganizationPushPreviewPolicy :one
+UPDATE organizations SET
+  push_previews_hidden_at = CASE WHEN sqlc.arg(hidden)::bool THEN COALESCE(push_previews_hidden_at, now()) ELSE NULL END,
+  push_previews_hidden_by = CASE WHEN sqlc.arg(hidden)::bool THEN sqlc.arg(actor_id)::text ELSE NULL END,
+  updated_at = now()
+WHERE id = sqlc.arg(id)
+RETURNING id, push_previews_hidden_at, push_previews_hidden_by;

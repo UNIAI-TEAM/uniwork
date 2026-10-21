@@ -121,7 +121,7 @@ func (q *Queries) CountActiveOtherMembers(ctx context.Context, arg CountActiveOt
 const createOrganization = `-- name: CreateOrganization :one
 INSERT INTO organizations (id, slug, name, created_by)
 VALUES ($1, $2, $3, $4)
-RETURNING id, slug, name, created_by, created_at, updated_at, status, suspended_at, suspended_reason, mcp_enabled_at, mcp_enabled_by, deletion_scheduled_at, mcp_write_enabled_at, mcp_write_enabled_by, ask_uni_models, ask_uni_models_updated_by, ask_uni_models_updated_at
+RETURNING id, slug, name, created_by, created_at, updated_at, status, suspended_at, suspended_reason, mcp_enabled_at, mcp_enabled_by, deletion_scheduled_at, mcp_write_enabled_at, mcp_write_enabled_by, ask_uni_models, ask_uni_models_updated_by, ask_uni_models_updated_at, push_previews_hidden_at, push_previews_hidden_by
 `
 
 type CreateOrganizationParams struct {
@@ -157,6 +157,8 @@ func (q *Queries) CreateOrganization(ctx context.Context, arg CreateOrganization
 		&i.AskUniModels,
 		&i.AskUniModelsUpdatedBy,
 		&i.AskUniModelsUpdatedAt,
+		&i.PushPreviewsHiddenAt,
+		&i.PushPreviewsHiddenBy,
 	)
 	return i, err
 }
@@ -229,7 +231,7 @@ func (q *Queries) FilterActiveOrganizationMemberUserIDs(ctx context.Context, arg
 }
 
 const getOrganizationByID = `-- name: GetOrganizationByID :one
-SELECT id, slug, name, created_by, created_at, updated_at, status, suspended_at, suspended_reason, mcp_enabled_at, mcp_enabled_by, deletion_scheduled_at, mcp_write_enabled_at, mcp_write_enabled_by, ask_uni_models, ask_uni_models_updated_by, ask_uni_models_updated_at FROM organizations WHERE id = $1
+SELECT id, slug, name, created_by, created_at, updated_at, status, suspended_at, suspended_reason, mcp_enabled_at, mcp_enabled_by, deletion_scheduled_at, mcp_write_enabled_at, mcp_write_enabled_by, ask_uni_models, ask_uni_models_updated_by, ask_uni_models_updated_at, push_previews_hidden_at, push_previews_hidden_by FROM organizations WHERE id = $1
 `
 
 func (q *Queries) GetOrganizationByID(ctx context.Context, id string) (Organization, error) {
@@ -253,12 +255,14 @@ func (q *Queries) GetOrganizationByID(ctx context.Context, id string) (Organizat
 		&i.AskUniModels,
 		&i.AskUniModelsUpdatedBy,
 		&i.AskUniModelsUpdatedAt,
+		&i.PushPreviewsHiddenAt,
+		&i.PushPreviewsHiddenBy,
 	)
 	return i, err
 }
 
 const getOrganizationBySlug = `-- name: GetOrganizationBySlug :one
-SELECT id, slug, name, created_by, created_at, updated_at, status, suspended_at, suspended_reason, mcp_enabled_at, mcp_enabled_by, deletion_scheduled_at, mcp_write_enabled_at, mcp_write_enabled_by, ask_uni_models, ask_uni_models_updated_by, ask_uni_models_updated_at FROM organizations WHERE slug = $1
+SELECT id, slug, name, created_by, created_at, updated_at, status, suspended_at, suspended_reason, mcp_enabled_at, mcp_enabled_by, deletion_scheduled_at, mcp_write_enabled_at, mcp_write_enabled_by, ask_uni_models, ask_uni_models_updated_by, ask_uni_models_updated_at, push_previews_hidden_at, push_previews_hidden_by FROM organizations WHERE slug = $1
 `
 
 func (q *Queries) GetOrganizationBySlug(ctx context.Context, slug string) (Organization, error) {
@@ -282,6 +286,8 @@ func (q *Queries) GetOrganizationBySlug(ctx context.Context, slug string) (Organ
 		&i.AskUniModels,
 		&i.AskUniModelsUpdatedBy,
 		&i.AskUniModelsUpdatedAt,
+		&i.PushPreviewsHiddenAt,
+		&i.PushPreviewsHiddenBy,
 	)
 	return i, err
 }
@@ -327,6 +333,44 @@ func (q *Queries) GetOrganizationMember(ctx context.Context, arg GetOrganization
 		&i.OrganizationStatus,
 		&i.DeletionScheduledAt,
 	)
+	return i, err
+}
+
+const getOrganizationPushPreviewPolicy = `-- name: GetOrganizationPushPreviewPolicy :one
+SELECT id, push_previews_hidden_at, push_previews_hidden_by FROM organizations WHERE id = $1
+`
+
+type GetOrganizationPushPreviewPolicyRow struct {
+	ID                   string             `json:"id"`
+	PushPreviewsHiddenAt pgtype.Timestamptz `json:"push_previews_hidden_at"`
+	PushPreviewsHiddenBy pgtype.Text        `json:"push_previews_hidden_by"`
+}
+
+// Read by every member (Settings shows why previews are off) and by the push
+// lane for the notification's organization.
+func (q *Queries) GetOrganizationPushPreviewPolicy(ctx context.Context, id string) (GetOrganizationPushPreviewPolicyRow, error) {
+	row := q.db.QueryRow(ctx, getOrganizationPushPreviewPolicy, id)
+	var i GetOrganizationPushPreviewPolicyRow
+	err := row.Scan(&i.ID, &i.PushPreviewsHiddenAt, &i.PushPreviewsHiddenBy)
+	return i, err
+}
+
+const getOrganizationPushPreviewPolicyForUpdate = `-- name: GetOrganizationPushPreviewPolicyForUpdate :one
+SELECT id, push_previews_hidden_at, push_previews_hidden_by FROM organizations WHERE id = $1 FOR UPDATE
+`
+
+type GetOrganizationPushPreviewPolicyForUpdateRow struct {
+	ID                   string             `json:"id"`
+	PushPreviewsHiddenAt pgtype.Timestamptz `json:"push_previews_hidden_at"`
+	PushPreviewsHiddenBy pgtype.Text        `json:"push_previews_hidden_by"`
+}
+
+// SetPushPreviewPolicy reads the value it is about to change under the row
+// lock, so the audit row's before/after is true and a repeat writes no row.
+func (q *Queries) GetOrganizationPushPreviewPolicyForUpdate(ctx context.Context, id string) (GetOrganizationPushPreviewPolicyForUpdateRow, error) {
+	row := q.db.QueryRow(ctx, getOrganizationPushPreviewPolicyForUpdate, id)
+	var i GetOrganizationPushPreviewPolicyForUpdateRow
+	err := row.Scan(&i.ID, &i.PushPreviewsHiddenAt, &i.PushPreviewsHiddenBy)
 	return i, err
 }
 
@@ -588,7 +632,7 @@ func (q *Queries) ListOrganizationMembershipsForUser(ctx context.Context, userID
 }
 
 const listOrganizationsForUser = `-- name: ListOrganizationsForUser :many
-SELECT o.id, o.slug, o.name, o.created_by, o.created_at, o.updated_at, o.status, o.suspended_at, o.suspended_reason, o.mcp_enabled_at, o.mcp_enabled_by, o.deletion_scheduled_at, o.mcp_write_enabled_at, o.mcp_write_enabled_by, o.ask_uni_models, o.ask_uni_models_updated_by, o.ask_uni_models_updated_at, m.role, m.deactivated_at
+SELECT o.id, o.slug, o.name, o.created_by, o.created_at, o.updated_at, o.status, o.suspended_at, o.suspended_reason, o.mcp_enabled_at, o.mcp_enabled_by, o.deletion_scheduled_at, o.mcp_write_enabled_at, o.mcp_write_enabled_by, o.ask_uni_models, o.ask_uni_models_updated_by, o.ask_uni_models_updated_at, o.push_previews_hidden_at, o.push_previews_hidden_by, m.role, m.deactivated_at
 FROM organizations o
 JOIN organization_members m ON m.organization_id = o.id
 WHERE m.user_id = $1 AND o.status <> 'archived'
@@ -613,6 +657,8 @@ type ListOrganizationsForUserRow struct {
 	AskUniModels          []string           `json:"ask_uni_models"`
 	AskUniModelsUpdatedBy pgtype.Text        `json:"ask_uni_models_updated_by"`
 	AskUniModelsUpdatedAt pgtype.Timestamptz `json:"ask_uni_models_updated_at"`
+	PushPreviewsHiddenAt  pgtype.Timestamptz `json:"push_previews_hidden_at"`
+	PushPreviewsHiddenBy  pgtype.Text        `json:"push_previews_hidden_by"`
 	Role                  string             `json:"role"`
 	DeactivatedAt         pgtype.Timestamptz `json:"deactivated_at"`
 }
@@ -649,6 +695,8 @@ func (q *Queries) ListOrganizationsForUser(ctx context.Context, userID string) (
 			&i.AskUniModels,
 			&i.AskUniModelsUpdatedBy,
 			&i.AskUniModelsUpdatedAt,
+			&i.PushPreviewsHiddenAt,
+			&i.PushPreviewsHiddenBy,
 			&i.Role,
 			&i.DeactivatedAt,
 		); err != nil {
@@ -724,7 +772,7 @@ func (q *Queries) ListWorkspacesInOrg(ctx context.Context, organizationID string
 }
 
 const lockOrganizationForShare = `-- name: LockOrganizationForShare :one
-SELECT id, slug, name, created_by, created_at, updated_at, status, suspended_at, suspended_reason, mcp_enabled_at, mcp_enabled_by, deletion_scheduled_at, mcp_write_enabled_at, mcp_write_enabled_by, ask_uni_models, ask_uni_models_updated_by, ask_uni_models_updated_at FROM organizations WHERE id = $1 FOR SHARE
+SELECT id, slug, name, created_by, created_at, updated_at, status, suspended_at, suspended_reason, mcp_enabled_at, mcp_enabled_by, deletion_scheduled_at, mcp_write_enabled_at, mcp_write_enabled_by, ask_uni_models, ask_uni_models_updated_by, ask_uni_models_updated_at, push_previews_hidden_at, push_previews_hidden_by FROM organizations WHERE id = $1 FOR SHARE
 `
 
 // An acceptance holds the organization row shared before it locks the
@@ -750,12 +798,14 @@ func (q *Queries) LockOrganizationForShare(ctx context.Context, id string) (Orga
 		&i.AskUniModels,
 		&i.AskUniModelsUpdatedBy,
 		&i.AskUniModelsUpdatedAt,
+		&i.PushPreviewsHiddenAt,
+		&i.PushPreviewsHiddenBy,
 	)
 	return i, err
 }
 
 const lockOrganizationForUpdate = `-- name: LockOrganizationForUpdate :one
-SELECT id, slug, name, created_by, created_at, updated_at, status, suspended_at, suspended_reason, mcp_enabled_at, mcp_enabled_by, deletion_scheduled_at, mcp_write_enabled_at, mcp_write_enabled_by, ask_uni_models, ask_uni_models_updated_by, ask_uni_models_updated_at FROM organizations WHERE id = $1 FOR UPDATE
+SELECT id, slug, name, created_by, created_at, updated_at, status, suspended_at, suspended_reason, mcp_enabled_at, mcp_enabled_by, deletion_scheduled_at, mcp_write_enabled_at, mcp_write_enabled_by, ask_uni_models, ask_uni_models_updated_by, ask_uni_models_updated_at, push_previews_hidden_at, push_previews_hidden_by FROM organizations WHERE id = $1 FOR UPDATE
 `
 
 // Close holds the organization row while it counts the other members, so an
@@ -782,6 +832,8 @@ func (q *Queries) LockOrganizationForUpdate(ctx context.Context, id string) (Org
 		&i.AskUniModels,
 		&i.AskUniModelsUpdatedBy,
 		&i.AskUniModelsUpdatedAt,
+		&i.PushPreviewsHiddenAt,
+		&i.PushPreviewsHiddenBy,
 	)
 	return i, err
 }
@@ -851,6 +903,34 @@ func (q *Queries) SetOrganizationMemberDeactivated(ctx context.Context, arg SetO
 		&i.InvitedBy,
 		&i.UpdatedAt,
 	)
+	return i, err
+}
+
+const setOrganizationPushPreviewPolicy = `-- name: SetOrganizationPushPreviewPolicy :one
+UPDATE organizations SET
+  push_previews_hidden_at = CASE WHEN $1::bool THEN COALESCE(push_previews_hidden_at, now()) ELSE NULL END,
+  push_previews_hidden_by = CASE WHEN $1::bool THEN $2::text ELSE NULL END,
+  updated_at = now()
+WHERE id = $3
+RETURNING id, push_previews_hidden_at, push_previews_hidden_by
+`
+
+type SetOrganizationPushPreviewPolicyParams struct {
+	Hidden  bool   `json:"hidden"`
+	ActorID string `json:"actor_id"`
+	ID      string `json:"id"`
+}
+
+type SetOrganizationPushPreviewPolicyRow struct {
+	ID                   string             `json:"id"`
+	PushPreviewsHiddenAt pgtype.Timestamptz `json:"push_previews_hidden_at"`
+	PushPreviewsHiddenBy pgtype.Text        `json:"push_previews_hidden_by"`
+}
+
+func (q *Queries) SetOrganizationPushPreviewPolicy(ctx context.Context, arg SetOrganizationPushPreviewPolicyParams) (SetOrganizationPushPreviewPolicyRow, error) {
+	row := q.db.QueryRow(ctx, setOrganizationPushPreviewPolicy, arg.Hidden, arg.ActorID, arg.ID)
+	var i SetOrganizationPushPreviewPolicyRow
+	err := row.Scan(&i.ID, &i.PushPreviewsHiddenAt, &i.PushPreviewsHiddenBy)
 	return i, err
 }
 

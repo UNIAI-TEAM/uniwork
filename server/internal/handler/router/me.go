@@ -152,6 +152,15 @@ func registerMe(r api, h Routes, credentialLimit func(http.Handler) http.Handler
 		sdo:  sdo.UserSDO{},
 		auth: true,
 	})
+	r.Put("/me/push-previews", h.SetPushPreviews, apiOp{
+		summary: "Show or hide message text in chat pushes",
+		description: "Người dùng chọn push tin chat có hiện nội dung tin hay không (show bắt buộc). Ẩn thì push chỉ nói có tin mới, ai gửi, ở đâu. " +
+			"Chính sách ẩn của tổ chức (PUT /orgs/{org}/push-preview-policy) thắng lựa chọn này. Không đổi gì thì không ghi audit; có đổi thì ghi user.push_previews_changed.",
+		tags: []string{"me"},
+		sdi:  sdi.SetPushPreviewsSDI{},
+		sdo:  sdo.UserSDO{},
+		auth: true,
+	})
 	r.Delete("/me/ai-consent", h.WithdrawAIConsent, apiOp{
 		summary:     "Withdraw AI processing consent",
 		description: "Rút lại đồng ý xử lý AI; lần dùng AI tiếp theo trên UniChat mobile hỏi lại. Ghi audit user.ai_consent_withdrawn.",
