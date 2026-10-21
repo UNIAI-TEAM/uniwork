@@ -170,6 +170,17 @@ describe("ChatDocumentPicker list", () => {
   });
 });
 
+describe("ChatDocumentPicker focus ring (UNI-2012 V1-F7)", () => {
+  it("draws a row's ring inset and gives the list room, so its border never clips it", async () => {
+    serve();
+    renderPicker();
+    const row = (await screen.findByText("Kế hoạch Q4.docx")).closest("button");
+    expect(row).toHaveClass("focus-visible:-outline-offset-2", "rounded-lg");
+    expect(row).not.toHaveClass("outline-none");
+    expect(screen.getByRole("list", { name: "Tài liệu bạn có thể chia sẻ" })).toHaveClass("overflow-y-auto", "p-1");
+  });
+});
+
 describe("ChatDocumentPicker states", () => {
   it("says no shareable document matches, truthfully, when the library has none for the sender", async () => {
     serve({ recent: [RECENT[3], RECENT[5]] });

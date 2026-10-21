@@ -12,7 +12,7 @@ import { DocumentTypeIcon } from "../documents/document-type-icon";
 import { ChatDocumentRequestAccess, documentMutedClass } from "./chat-document-actions";
 import { useChatDocumentMenu, type ChatDocumentDesktopOpen } from "./chat-document-menu";
 import { OWN_BUBBLE_CONTROL_REST } from "./chat-file-card";
-import { ChatMessageActionsFrame, chatMessageActionsRailClass } from "./chat-message-hover-actions";
+import { ChatMessageActionsFrame, chatMessageActionsRailClass, ChatMessageTouchMore } from "./chat-message-hover-actions";
 import { ChatMessageA11yLabel, ChatMessageMeta, ChatReactionChips, chatMessageLabelId } from "./chat-message-parts";
 import { ChatReplyQuote } from "./chat-reply-quote";
 import { MessageTaskCard } from "./message-task-card";
@@ -245,7 +245,8 @@ export function ChatDocumentCard({
             aria-label={`${t("chat.document_open_in_documents")}: ${title}`}
             onClick={openDocument ?? undefined}
             className={cn(
-              "pointer-coarse:min-h-11 block w-full truncate text-left text-body font-medium hover:underline",
+              // truncate clips an outside outline: the ring is drawn inset, in the button's own padding, so it never covers the caption below.
+              "pointer-coarse:min-h-11 -mx-1 -my-0.5 block w-[calc(100%+0.5rem)] truncate rounded-sm px-1 py-0.5 text-left text-body font-medium hover:underline focus-visible:-outline-offset-2",
               textClass,
               isOwn && "focus-visible:outline-chat-bubble-own-foreground",
             )}
@@ -265,6 +266,8 @@ export function ChatDocumentCard({
           <Badge variant="secondary" className={cn("shrink-0", isOwn && OWN_BUBBLE_CONTROL_REST)}>{t(`documents.share.level_${level}`)}
           </Badge>
         ) : null}
+        {/* Touch has no hover bar: the same menu, one tap away (coarse pointers only). */}
+        <ChatMessageTouchMore className="-mr-1" />
       </div>
     </div>
   );
