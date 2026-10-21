@@ -1360,6 +1360,7 @@
       "workspace_pill_aria_quiet": "Đổi workspace. Đang ở {{name}}",
       "search_placeholder": "Tìm kiếm",
       "offline_banner": "Đang chờ mạng…",
+      "connecting_banner": "Đang kết nối…",
       "catch_up_open": "Mở {{name}}",
       "catch_up_summary": "Tóm tắt",
       "catch_up_highlights": "Điểm chính",

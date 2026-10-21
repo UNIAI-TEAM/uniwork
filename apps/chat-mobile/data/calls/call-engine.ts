@@ -220,6 +220,28 @@ export function createCallEngine(deps: CallEngineDeps) {
       };
     },
     syncPendingInvites,
+    /**
+     * Back in front, or a socket that reconnected (audit C1): frames sent
+     * while this phone was not listening are gone. A call still ringing here
+     * that the server no longer lists (the caller hung up, another device of
+     * ours answered) stops ringing; with no call live, one that rings now is
+     * picked up when `ring` (the calls switch) is on. A ringing, connecting
+     * or live call keeps its clocks and the media connection, which know its
+     * state better than the invite list does.
+     */
+    async reconcile(options: { ring: boolean }) {
+      const state = current();
+      if (!ctx) return;
+      if (state.status !== "incoming") {
+        if (options.ring) await syncPendingInvites();
+        return;
+      }
+      const invites = await deps.pending(ctx.wsId).catch(() => null);
+      // No answer is no evidence: the ring clock still ends it.
+      if (!invites) return;
+      const ringing = liveWith(state.callId, "incoming");
+      if (ringing && !invites.some((i) => i.call_id === ringing.callId && i.room_id === ringing.roomId)) closeLocal(ringing, { reason: "missed" });
+    },
     onInvite(payload: unknown) {
       applyIncomingInvite(payload as VoiceInvitePayload);
     },

@@ -29,6 +29,15 @@ import { DEFAULT_CHAT_SCOPE_LIMIT } from "@uniwork/core/chat/lazy-chat-scopes";
 import type { WSEventType, WSMessage } from "./ws-types";
 
 type EventHandler = (payload: unknown, actorId?: string, actorType?: string) => void;
+
+/**
+ * What the person is told about the socket (audit R3):
+ *   connecting — dialing, or open and waiting for auth_ack
+ *   online     — authenticated
+ *   waiting    — down, a redial or the host's session refresh is pending
+ *   offline    — not trying: never connected, paused (background) or disconnected
+ */
+export type ConnectionState = "connecting" | "online" | "waiting" | "offline";
 type AnyHandler = (msg: WSMessage) => void;
 
 export interface Logger {
@@ -99,6 +108,8 @@ export class WSClient {
   private readonly handlers = new Map<WSEventType, Set<EventHandler>>();
   private readonly anyHandlers = new Set<AnyHandler>();
   private readonly onReconnectCallbacks = new Set<() => void>();
+  private readonly connectionListeners = new Set<(state: ConnectionState) => void>();
+  private connection: ConnectionState = "offline";
   /** Explicit scopes replayed after each auth_ack (workspace/user are server-side). */
   private readonly scopeSubscriptions = new Map<string, Set<string>>();
 
@@ -126,6 +137,7 @@ export class WSClient {
     this.teardownSocket();
     this.reconnectAttempt = 0;
     this.hasConnectedBefore = false;
+    this.setConnection("offline");
   }
 
   /** Active → paused. Used by the provider when AppState=background.
@@ -137,6 +149,7 @@ export class WSClient {
     this.state = "paused";
     this.clearReconnect();
     this.teardownSocket();
+    this.setConnection("offline");
   }
 
   /** Return to the foreground with one fresh socket. An active socket may
@@ -162,6 +175,18 @@ export class WSClient {
   /** True when the current socket received auth_ack and is still open. */
   isAuthenticated(): boolean {
     return this.authenticated && this.ws?.readyState === WebSocket.OPEN;
+  }
+
+  getConnectionState(): ConnectionState {
+    return this.connection;
+  }
+
+  /** Each change of getConnectionState(), for the "Connecting…" banner. */
+  onConnectionStateChange(cb: (state: ConnectionState) => void) {
+    this.connectionListeners.add(cb);
+    return () => {
+      this.connectionListeners.delete(cb);
+    };
   }
 
   // ── public subscription ─────────────────────────────────────────────
@@ -246,6 +271,7 @@ export class WSClient {
     const ws = new WebSocket(url.toString());
     this.ws = ws;
     this.authenticated = false;
+    this.setConnection("connecting");
     this.logger.info("[ws] dialing", url.toString());
 
     ws.onopen = () => {
@@ -339,6 +365,8 @@ export class WSClient {
    *  the host refreshes and calls forceReconnect() (or disconnect()). */
   private onSessionEnded(error?: string) {
     this.logger.warn("[ws] session ended by server", error);
+    // The host refreshes and redials, or disconnects (offline).
+    this.setConnection("waiting");
     if (error === undefined) this.opts.onSessionEnded?.();
     else this.opts.onSessionEnded?.(error);
   }
@@ -346,6 +374,7 @@ export class WSClient {
   private onAuthenticated() {
     this.authenticated = true;
     this.reconnectAttempt = 0;
+    this.setConnection("online");
     this.logger.info("[ws] authenticated");
     this.startHeartbeat();
     if (this.hasConnectedBefore) {
@@ -375,6 +404,13 @@ export class WSClient {
     const delay = Math.floor(Math.random() * ceiling);
     this.logger.info(`[ws] reconnecting in ${delay}ms (attempt ${this.reconnectAttempt})`);
     this.reconnectTimer = setTimeout(() => this.openSocket(), delay);
+    this.setConnection("waiting");
+  }
+
+  private setConnection(next: ConnectionState) {
+    if (this.connection === next) return;
+    this.connection = next;
+    for (const listener of this.connectionListeners) listener(next);
   }
 
   private clearReconnect() {

@@ -11,7 +11,10 @@
  *
  * Lifecycle signals:
  *   AppState 'background'  → pause socket (iOS will kill it anyway; clean
- *                            close avoids a kernel-level reset on resume)
+ *                            close avoids a kernel-level reset on resume),
+ *                            unless `holdOpen` (a call rings, connects or is
+ *                            on: its accept and hang-up frames must arrive,
+ *                            audit C1); the pause happens when the call ends
  *   AppState 'active'      → resume socket after 'background', or when the
  *                            socket is not authenticated (iOS zombie)
  *   AppState 'inactive'    → ignore (transient: app switcher / Control
@@ -20,11 +23,12 @@
  *   NetInfo offline → online edge → force reconnect (don't wait for TCP
  *                                    keepalive timeout to notice the dead
  *                                    socket after wifi↔cellular handoff)
- *   close 4001 / pre-auth "invalid token" → refreshSession() → a token
- *                rebuilds the socket now, null (signed out) disconnects it, a
- *                rejection (transient) leaves it down for the next signal.
- *   other pre-auth refusal (not a member, too many connections) → stays
- *                down until the next foreground return or network edge.
+ *   close 4001 / pre-auth refusals → socket-recovery.ts: refresh (retried
+ *                on a backoff after a transient failure), redial later when
+ *                the server sheds, else down until the next signal.
+ *
+ * The socket's connection state (connecting / online / waiting / offline) is
+ * exposed by useConnectionState() for the "Connecting…" banner.
  *
  * Provider does NOT register business event handlers — those live in
  * per-feature hooks so the realtime layer scales without one giant file.
@@ -35,11 +39,18 @@ import { createContext, use, useEffect, useRef, useState, type ReactNode } from 
 import { AppState, type AppStateStatus, Platform } from "react-native";
 import { buildInfo } from "../build-info";
 import { argsLogger, createLogger } from "../logger";
-import { WSClient } from "./ws-client";
+import { createSocketRecovery } from "./socket-recovery";
+import { WSClient, type ConnectionState } from "./ws-client";
 
 const log = createLogger("realtime");
 
 const RealtimeContext = createContext<WSClient | null>(null);
+const ConnectionContext = createContext<ConnectionState | null>(null);
+
+/** The workspace socket's state; null outside a workspace (no socket is wanted there). */
+export function useConnectionState(): ConnectionState | null {
+  return use(ConnectionContext);
+}
 
 /** Subscribe to the realtime WebSocket. Returns null while disconnected
  *  (cold start, between workspace switches, signed out). Consumers must
@@ -57,11 +68,21 @@ export interface RealtimeProviderProps {
   /** Called on close 4001; resolves the new access token, null when signed
    *  out, and rejects on a transient failure (see refresh-for-socket.ts). */
   refreshSession: () => Promise<string | null>;
+  /** A call is ringing, connecting or on: the socket stays open in the background. */
+  holdOpen?: boolean;
   children: ReactNode;
 }
 
-export function RealtimeProvider({ userId, workspaceSlug, getToken, refreshSession, children }: RealtimeProviderProps) {
+export function RealtimeProvider({ userId, workspaceSlug, getToken, refreshSession, holdOpen = false, children }: RealtimeProviderProps) {
   const [client, setClient] = useState<WSClient | null>(null);
+  const [connection, setConnection] = useState<ConnectionState | null>(null);
+  const holdRef = useRef(holdOpen);
+  holdRef.current = holdOpen;
+
+  // The call that held the socket open in the background ended: pause now, as the background asked.
+  useEffect(() => {
+    if (!holdOpen && client && AppState.currentState === "background") client.pause();
+  }, [holdOpen, client]);
 
   // Track NetInfo's last known state so we only force-reconnect on the
   // offline → online EDGE, not on every change event (NetInfo fires for
@@ -74,6 +95,7 @@ export function RealtimeProvider({ userId, workspaceSlug, getToken, refreshSessi
   useEffect(() => {
     if (!userId || !workspaceSlug) {
       setClient(null);
+      setConnection(null);
       return;
     }
 
@@ -85,33 +107,31 @@ export function RealtimeProvider({ userId, workspaceSlug, getToken, refreshSessi
       // The same version the REST headers carry (audit R1): the hub logs and gates by it.
       clientVersion: buildInfo().version,
       logger: argsLogger("ws"),
-      onSessionEnded: (error) => {
-        if (error !== undefined && error !== "invalid token") {
-          log.warn("socket refused, waiting for the next foreground return", { error });
-          return;
-        }
-        sessionRef.current.refreshSession().then(
-          (token) => (token ? ws.forceReconnect() : ws.disconnect()),
-          // A transient failure keeps the session: the next foreground
-          // return or network edge redials with whatever token is current.
-          (err: unknown) => log.warn("refresh failed after 4001", { error: err instanceof Error ? err.name : typeof err }),
-        );
-      },
+      onSessionEnded: (error) => recovery.sessionEnded(error),
+    });
+    const recovery = createSocketRecovery({
+      refreshSession: () => sessionRef.current.refreshSession(),
+      reconnect: () => ws.forceReconnect(),
+      disconnect: () => ws.disconnect(),
+      warn: (message, data) => log.warn(message, data),
+    });
+    const connectionSub = ws.onConnectionStateChange((state) => {
+      setConnection(state);
+      if (state === "online") recovery.reset();
     });
     ws.connect();
     setClient(ws);
 
     // ── AppState ────────────────────────────────────────────────
-    let previous: AppStateStatus = "active";
     const appStateSub = AppState.addEventListener("change", (status: AppStateStatus) => {
       if (status === "active") {
         // Foreground after background (we paused) or a zombie (iOS killed it
-        // silently): one fresh socket. An inactive blip keeps a healthy one.
-        if (previous === "background" || !ws.isAuthenticated()) ws.resume();
-      } else if (status === "background") {
+        // silently): one fresh socket. An inactive blip, or a background a
+        // call held the socket open through, keeps a healthy one.
+        if (ws.getConnectionState() === "offline" || !ws.isAuthenticated()) ws.resume();
+      } else if (status === "background" && !holdRef.current) {
         ws.pause();
       }
-      previous = status;
     });
 
     // ── NetInfo ─────────────────────────────────────────────────
@@ -131,10 +151,17 @@ export function RealtimeProvider({ userId, workspaceSlug, getToken, refreshSessi
     return () => {
       appStateSub.remove();
       netInfoUnsub();
+      recovery.reset();
+      connectionSub();
       ws.disconnect();
       setClient(null);
+      setConnection(null);
     };
   }, [userId, workspaceSlug]);
 
-  return <RealtimeContext.Provider value={client}>{children}</RealtimeContext.Provider>;
+  return (
+    <RealtimeContext.Provider value={client}>
+      <ConnectionContext.Provider value={connection}>{children}</ConnectionContext.Provider>
+    </RealtimeContext.Provider>
+  );
 }

@@ -5,9 +5,12 @@
 // switch off (data/remote-config.ts) nothing rings: invites are not handed on
 // and none are asked for; a call already under way keeps its workspace
 // context and still hears its accept and hang-up, so turning the switch off
-// never ends or strands one (use-call-realtime.test.tsx).
+// never ends or strands one (use-call-realtime.test.tsx). A return to the
+// foreground and every reconnect reconcile the call with the server (audit
+// C1): a ring the server no longer lists stops, a call ringing now is picked up.
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
+import { AppState, type AppStateStatus } from "react-native";
 import { useAuthStore } from "@/data/auth/store";
 import { callEngine } from "@/data/calls/call-store";
 import { roomsOptions } from "@/data/queries/chat";
@@ -35,6 +38,17 @@ export function useCallRealtime(wsId: string) {
     if (userId && callsOn) void callEngine.syncPendingInvites();
   }, [wsId, userId, callsOn]);
 
+  // Frames sent while the app was in the background may be gone: check with the server on the way back.
+  useEffect(() => {
+    if (!userId) return;
+    let previous: AppStateStatus = AppState.currentState;
+    const sub = AppState.addEventListener("change", (status) => {
+      if (status === "active" && previous === "background") void callEngine.reconcile({ ring: callsOnRef.current });
+      previous = status;
+    });
+    return () => sub.remove();
+  }, [userId]);
+
   useWSSubscriptions(
     (ws) => [
       ws.on("chat.voice.invite", (payload) => {
@@ -42,9 +56,7 @@ export function useCallRealtime(wsId: string) {
       }),
       ws.on("chat.voice.accept", (payload) => callEngine.onAccept(payload)),
       ws.on("chat.voice.hangup", (payload) => callEngine.onHangup(payload)),
-      ws.onReconnect(() => {
-        if (callsOnRef.current) void callEngine.syncPendingInvites();
-      }),
+      ws.onReconnect(() => void callEngine.reconcile({ ring: callsOnRef.current })),
     ],
     [],
   );

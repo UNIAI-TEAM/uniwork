@@ -294,6 +294,53 @@ describe("call engine on the phone", () => {
   });
 });
 
+describe("call engine reconcile (audit C1)", () => {
+  it("stops ringing a call the server no longer lists; keeps one it still does", async () => {
+    const { engine, call } = setup();
+    engine.onInvite(invite());
+    pendingInvites = [{ ...invite(), invited_at: new Date().toISOString() } as never];
+    await engine.reconcile({ ring: true });
+    expect(call()).toMatchObject({ status: "incoming", callId: "c1" });
+    pendingInvites = [{ ...invite({ call_id: "other" }), invited_at: new Date().toISOString() } as never];
+    await engine.reconcile({ ring: true });
+    expect(call()).toMatchObject({ status: "ended", reason: "missed" });
+  });
+
+  it("a list that does not come keeps the ring; one that lands after the call moved on changes nothing", async () => {
+    const { engine, deps, call } = setup();
+    engine.onInvite(invite());
+    vi.mocked(deps.pending).mockRejectedValueOnce(new TypeError("offline"));
+    await engine.reconcile({ ring: true });
+    expect(call().status).toBe("incoming");
+
+    let answer: (invites: never[]) => void = () => undefined;
+    vi.mocked(deps.pending).mockReturnValueOnce(new Promise((resolve) => (answer = resolve)));
+    const reconciling = engine.reconcile({ ring: true });
+    await engine.hangUp();
+    answer([]);
+    await reconciling;
+    expect(call().status).toBe("idle");
+  });
+
+  it("with nothing live picks up a call ringing now, only with the switch on; a live call is left to its clocks", async () => {
+    const { engine, deps, call, detach } = setup();
+    pendingInvites = [{ ...invite(), invited_at: new Date().toISOString() } as never];
+    await engine.reconcile({ ring: false });
+    expect(deps.pending).not.toHaveBeenCalled();
+    await engine.reconcile({ ring: true });
+    expect(call()).toMatchObject({ status: "incoming", callId: "c1" });
+    await engine.acceptCall();
+    expect(call().status).toBe("active");
+    vi.mocked(deps.pending).mockClear();
+    await engine.reconcile({ ring: true });
+    expect(deps.pending).not.toHaveBeenCalled();
+    expect(call().status).toBe("active");
+    detach();
+    await engine.reconcile({ ring: true });
+    expect(deps.pending).not.toHaveBeenCalled();
+  });
+});
+
 describe("call engine edges", () => {
   it("ignores frames it cannot place: our own invite, another person's 1-1 call, half a payload, a repeat", () => {
     const { engine, call } = setup();

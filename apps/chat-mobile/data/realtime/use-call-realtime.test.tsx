@@ -3,6 +3,7 @@
 // may not do to a call. Rendered by the jest-expo layer (jest.config.js): a
 // hook's effect dependencies are the bug class here, and only React runs them.
 import { act } from "@testing-library/react-native";
+import { AppState } from "react-native";
 import type { WSClient } from "@/data/realtime/ws-client";
 import { render } from "@/test/render";
 import { useCallRealtime } from "./use-call-realtime";
@@ -71,6 +72,13 @@ function Probe({ wsId }: { wsId: string }) {
   return null;
 }
 
+// React Native's Jest preset hands back no subscription from AppState: one the hook can remove.
+let appStateSpy: jest.SpyInstance;
+beforeEach(() => {
+  appStateSpy = jest.spyOn(AppState, "addEventListener").mockImplementation(() => ({ remove: jest.fn() }) as never);
+});
+afterEach(() => appStateSpy.mockRestore());
+
 beforeEach(() => {
   mockFlag.calls = true;
   mockAuth.user = { id: "me" };
@@ -130,6 +138,29 @@ describe("useCallRealtime and the calls kill switch", () => {
       expect(await callEngine.startCall("room-1", "Lan", "dm")).toBe(false);
     });
     expect(mockSignals.pending).not.toHaveBeenCalled();
+  });
+
+  it("a return from the background reconciles with the server: a ring it no longer lists stops (audit C1)", async () => {
+    const listeners: ((status: string) => void)[] = [];
+    const remove = jest.fn();
+    appStateSpy.mockImplementation((_event, handler) => {
+      listeners.push(handler as (status: string) => void);
+      return { remove } as never;
+    });
+    const { unmount } = await render(<Probe wsId="ws-1" />);
+    await act(async () => mockSocket.handlers.get("chat.voice.invite")?.({ room_id: "room-1", call_id: "call-4", caller_id: "peer", caller_name: "Lan", call_kind: "dm", target_user_id: "me" }));
+    expect(callEngine.store.getState().call).toMatchObject({ status: "incoming", callId: "call-4" });
+    mockSignals.pending.mockClear();
+    // An inactive blip is not a return from the background.
+    await act(async () => listeners.forEach((l) => l("inactive")));
+    await act(async () => listeners.forEach((l) => l("active")));
+    expect(mockSignals.pending).not.toHaveBeenCalled();
+    await act(async () => listeners.forEach((l) => l("background")));
+    await act(async () => listeners.forEach((l) => l("active")));
+    expect(mockSignals.pending).toHaveBeenCalledTimes(1);
+    expect(callEngine.store.getState().call).toMatchObject({ status: "ended", reason: "missed" });
+    await act(async () => unmount());
+    expect(remove).toHaveBeenCalled();
   });
 
   it("closing the workspace (the last one open) still ends the call here", async () => {

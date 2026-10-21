@@ -627,3 +627,57 @@ describe("WSClient foreground recovery", () => {
     client.disconnect();
   });
 });
+
+describe("WSClient connection state (audit R3)", () => {
+  useMockSocket();
+
+  it("says whether it is connecting, online, waiting to redial or not trying, once per change", () => {
+    vi.spyOn(Math, "random").mockReturnValue(0.5);
+    const client = makeClient();
+    const seen: string[] = [];
+    const unsubscribe = client.onConnectionStateChange((state) => seen.push(state));
+    expect(client.getConnectionState()).toBe("offline");
+
+    client.connect();
+    latest().open();
+    latest().receive({ type: "auth_ack" });
+    expect(client.getConnectionState()).toBe("online");
+
+    // A dropped socket waits for its backoff, then dials again.
+    latest().close();
+    expect(client.getConnectionState()).toBe("waiting");
+    vi.advanceTimersByTime(1_000);
+    latest().open();
+    latest().receive({ type: "auth_ack" });
+
+    // The server ended the session: waiting on the host's refresh.
+    latest().close(4001);
+    expect(client.getConnectionState()).toBe("waiting");
+    client.forceReconnect();
+    latest().open();
+    latest().receive({ type: "auth_ack" });
+
+    client.pause();
+    client.resume();
+    client.disconnect();
+    client.disconnect();
+    expect(seen).toEqual([
+      "connecting",
+      "online",
+      "waiting",
+      "connecting",
+      "online",
+      "waiting",
+      "connecting",
+      "online",
+      "offline",
+      "connecting",
+      "offline",
+    ]);
+
+    unsubscribe();
+    client.connect();
+    expect(seen).toHaveLength(11);
+    client.disconnect();
+  });
+});

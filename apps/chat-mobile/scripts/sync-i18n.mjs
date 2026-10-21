@@ -70,6 +70,8 @@ const CHAT_MOBILE_ONLY = {
     workspace_pill_aria_quiet: "Đổi workspace. Đang ở {{name}}",
     search_placeholder: "Tìm kiếm",
     offline_banner: "Đang chờ mạng…",
+    // UNI-2053 S3: the network is there, the workspace socket is not (yet).
+    connecting_banner: "Đang kết nối…",
     catch_up_open: "Mở {{name}}",
     catch_up_summary: "Tóm tắt",
     catch_up_highlights: "Điểm chính",
@@ -146,6 +148,7 @@ const CHAT_MOBILE_ONLY = {
     workspace_pill_aria_quiet: "Switch workspace. In {{name}}",
     search_placeholder: "Search",
     offline_banner: "Waiting for a connection…",
+    connecting_banner: "Connecting…",
     catch_up_open: "Open {{name}}",
     catch_up_summary: "Summary",
     catch_up_highlights: "Highlights",

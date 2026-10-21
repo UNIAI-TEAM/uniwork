@@ -63,7 +63,7 @@ const flush = async () => {
   for (let i = 0; i < 4; i++) await Promise.resolve();
 };
 
-async function mount(overrides: { refreshSession?: () => Promise<string | null>; userId?: string | null } = {}) {
+async function mount(overrides: { refreshSession?: () => Promise<string | null>; userId?: string | null; holdOpen?: boolean } = {}) {
   const { RealtimeProvider } = await import("./realtime-provider");
   let token = "token-v1";
   const refreshSession = overrides.refreshSession ?? vi.fn(async () => (token = "token-v2"));
@@ -72,6 +72,7 @@ async function mount(overrides: { refreshSession?: () => Promise<string | null>;
     workspaceSlug: "org/ws",
     getToken: () => token,
     refreshSession,
+    holdOpen: overrides.holdOpen,
     children: null,
   });
   const cleanup = lifecycle.setup!();
@@ -197,15 +198,31 @@ describe("RealtimeProvider", () => {
     expect(MockWebSocket.instances).toHaveLength(1);
   });
 
-  it("a refresh that fails leaves recovery to the next foreground return", async () => {
-    ({ cleanup } = await mount({ refreshSession: () => Promise.reject(new Error("offline")) }));
+  it("a refresh that fails is retried on the backoff, and a foreground return still redials at once", async () => {
+    vi.useFakeTimers();
+    vi.spyOn(Math, "random").mockReturnValue(0.5);
+    const refreshSession = vi.fn<() => Promise<string | null>>().mockRejectedValueOnce(new Error("offline")).mockResolvedValueOnce("token-v2");
+    ({ cleanup } = await mount({ refreshSession }));
     latest().authenticate();
     latest().onclose!({ code: 4001 });
     await flush();
     expect(MockWebSocket.instances).toHaveLength(1);
-    expect(console.warn).toHaveBeenCalledWith(expect.stringContaining("[realtime] refresh failed"), { error: "Error" });
-    lifecycle.onAppState!("active");
+    expect(console.warn).toHaveBeenCalledWith(expect.stringContaining("[realtime] refresh failed after 4001, retrying"), { error: "Error", attempt: 0 });
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(refreshSession).toHaveBeenCalledTimes(2);
     expect(MockWebSocket.instances).toHaveLength(2);
+    lifecycle.onAppState!("active");
+    expect(MockWebSocket.instances).toHaveLength(3);
+    vi.useRealTimers();
+  });
+
+  it("a call holds the socket open in the background, and the return does not replace it (audit C1)", async () => {
+    ({ cleanup } = await mount({ holdOpen: true }));
+    latest().authenticate();
+    lifecycle.onAppState!("background");
+    expect(latest().sent.map((f) => JSON.parse(f).type)).toContain("auth");
+    lifecycle.onAppState!("active");
+    expect(MockWebSocket.instances).toHaveLength(1);
   });
 
   it("opens nothing without a signed-in user", async () => {

@@ -39,6 +39,7 @@ import { messageView } from "@/lib/message-display";
 import { buildTimelineRows, type TimelineMessage, type TimelineRow } from "@/lib/timeline-display";
 import { useColorScheme } from "@/lib/use-color-scheme";
 import { Composer, type ComposerEdit, type ComposerReply } from "./composer";
+import { ConnectionBanner } from "./connection-banner";
 import { EmojiSheet } from "./emoji-sheet";
 import { ExpressionSheet } from "./expression-sheet";
 import { ForwardSheet } from "./forward-sheet";
@@ -231,6 +232,7 @@ export function Conversation(props: Props) {
   return (
     <KeyboardAvoidingView behavior="padding" className="flex-1 bg-background" testID={`conversation-${roomId}`}>
       {props.header}
+      <ConnectionBanner />
       {props.banner}
       {props.loading ? (
         <View className="flex-1 items-center justify-center bg-chat-wall">

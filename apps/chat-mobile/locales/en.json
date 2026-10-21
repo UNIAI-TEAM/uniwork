@@ -1360,6 +1360,7 @@
       "workspace_pill_aria_quiet": "Switch workspace. In {{name}}",
       "search_placeholder": "Search",
       "offline_banner": "Waiting for a connection…",
+      "connecting_banner": "Connecting…",
       "catch_up_open": "Open {{name}}",
       "catch_up_summary": "Summary",
       "catch_up_highlights": "Highlights",

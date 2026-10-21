@@ -7,6 +7,7 @@ import { useEffect, useMemo } from "react";
 import { ErrorFallback } from "@/components/ui/error-fallback";
 import { session } from "@/data/auth/flow";
 import { useAuthStore } from "@/data/auth/store";
+import { useVoiceCall } from "@/data/calls/call-store";
 import { workspaceListOptions } from "@/data/queries/workspaces";
 import { useRemoteConfigOrganization } from "@/data/remote-config";
 import { RealtimeProvider } from "@/data/realtime/realtime-provider";
@@ -14,6 +15,7 @@ import { useCallRealtime } from "@/data/realtime/use-call-realtime";
 import { useChatRealtime } from "@/data/realtime/use-chat-realtime";
 import { socketTokenReaders } from "@/data/realtime/refresh-for-socket";
 import { useWorkspaceStore } from "@/data/stores/workspace-store";
+import { callHoldsSocket } from "@/lib/call-socket";
 import { useWSSubscriptions } from "@/lib/use-ws-subscriptions";
 
 /** A cold-start deep link mounts the tabs under the target, so back has somewhere to go. */
@@ -47,6 +49,8 @@ export default function WorkspaceLayout() {
   const { data: workspaces, isError } = useQuery(workspaceListOptions());
   const setCurrent = useWorkspaceStore((s) => s.setCurrent);
   const tokens = useMemo(() => socketTokenReaders(session), []);
+  // A call that rings, connects or is on keeps the socket open in the background (audit C1).
+  const holdOpen = callHoldsSocket(useVoiceCall());
 
   const matched = workspaces?.find((w) => w.organization_slug === org && w.slug === ws);
   // The kill switches are evaluated for this workspace's organization (data/remote-config.ts).
@@ -67,6 +71,7 @@ export default function WorkspaceLayout() {
       workspaceSlug={`${org}/${ws}`}
       getToken={tokens.getToken}
       refreshSession={tokens.refreshSession}
+      holdOpen={holdOpen}
     >
       <RealtimeSubscriptions wsId={matched.id} />
       <Stack>

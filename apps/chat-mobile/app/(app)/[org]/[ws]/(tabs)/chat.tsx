@@ -6,13 +6,13 @@
 // and `?dm=` opens (or creates) the DM with that person — the params
 // lib/deep-link.ts › deepLinkHref writes.
 import { Ionicons } from "@expo/vector-icons";
-import { useNetInfo } from "@react-native-community/netinfo";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { router, useLocalSearchParams } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FlatList, Pressable, RefreshControl, View } from "react-native";
 import { CatchUpBanner, CatchUpSheet, type CatchUpTarget } from "@/components/chat/catch-up-sheet";
+import { ConnectionBanner } from "@/components/chat/connection-banner";
 import { FilterChips, RoomListEmpty, RoomListError, RoomListSkeleton, ScopeHint, ScopeSwitch, WorkspacePill } from "@/components/chat/room-list-parts";
 import { RoomPreview } from "@/components/chat/room-preview";
 import { RoomRow } from "@/components/chat/room-row";
@@ -99,7 +99,6 @@ export default function ChatTab() {
   const workspace = useQuery(workspaceListOptions()).data?.find((w) => w.id === wsId);
   const summary = useQuery({ ...unreadSummaryOptions(), enabled: Boolean(chat) });
   const otherUnread = unreadInOtherWorkspaces(summary.data, wsId);
-  const offline = useNetInfo().isConnected === false;
   const sends = useChatSendStore((s) => s.entries);
   const queuedRooms = useMemo(() => new Set(sends.filter((entry) => entry.status === "queued" && entry.workspaceId === wsId).map((entry) => entry.roomId)), [sends, wsId]);
   const [switchOpen, setSwitchOpen] = useState(false);
@@ -229,12 +228,7 @@ export default function ChatTab() {
           className="mt-2.5 h-10"
         />
       </Header>
-      {offline ? (
-        <View accessibilityRole="alert" accessibilityLiveRegion="polite" className="flex-row items-center gap-2 bg-tint-yellow px-4 py-2">
-          <Ionicons name="cloud-offline-outline" size={16} color={theme.tintYellowForeground} />
-          <Text className="text-[13px] font-medium text-tint-yellow-foreground">{t("chat.mobile.offline_banner")}</Text>
-        </View>
-      ) : null}
+      <ConnectionBanner />
       {!chat || rooms.isPending ? (
         <RoomListSkeleton />
       ) : rooms.isError && !rooms.data ? (

@@ -60,6 +60,8 @@ module.exports = {
     "components/chat/catch-up-sheet.tsx",
     "components/chat/report-sheet.tsx",
     "components/chat/room-safety.tsx",
+    // UNI-2053 S3: the "Connecting…" banner.
+    "components/chat/connection-banner.tsx",
   ],
   coverageReporters: ["text-summary"],
   // Measured on the files above; only ever raised (CLAUDE.md › Coverage only
