@@ -71,13 +71,17 @@ describe("mobile quality lint", { timeout: 60_000 }, () => {
     'import { accountApi } from "@/data/account-api";\nexport const x = accountApi;',
     'import { chatApi } from "../../data/chat-api";\nexport const x = chatApi;',
     'import { revokeDevice } from "@/data/queries/devices";\nexport const x = revokeDevice;',
+    'import { answerAiConsent } from "@/data/ai-consent";\nexport const x = answerAiConsent;',
+    'import { setPushEnabled } from "@/data/push";\nexport const x = setPushEnabled;',
+    'import { api } from "@/data/api";\nexport const x = api;',
+    'import { api } from "../../data/api";\nexport const x = api;',
   ])("a component calling an endpoint or a command is red: %s", async (code) => {
     expect(await ruleIds(code)).toContain("@typescript-eslint/no-restricted-imports");
   });
 
   it("a component may take the endpoints' types and the mutation hooks", async () => {
     const code =
-      'import type { ChatFollowUp } from "@/data/chat-api";\nimport { useEditMessage } from "@/data/mutations/messages";\nimport { devicesOptions } from "@/data/queries/devices";\nexport type F = ChatFollowUp;\nexport const x = [useEditMessage, devicesOptions];';
+      'import type { ChatFollowUp } from "@/data/chat-api";\nimport type { ApiClient } from "@/data/api";\nimport { useEditMessage } from "@/data/mutations/messages";\nimport { useAnswerAiConsent } from "@/data/mutations/account";\nimport { useSetPushEnabled } from "@/data/mutations/push";\nimport { isPushEnabled } from "@/data/push";\nimport { devicesOptions } from "@/data/queries/devices";\nexport type F = ChatFollowUp;\nexport type C = ApiClient;\nexport const x = [useEditMessage, useAnswerAiConsent, useSetPushEnabled, isPushEnabled, devicesOptions];';
     expect(await ruleIds(code)).toEqual([]);
   });
 

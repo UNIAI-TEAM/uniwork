@@ -38,6 +38,11 @@ jest.mock("../chat-api", () => ({
 jest.mock("../safety-actions", () => ({ setBlocked: jest.fn(async () => undefined) }));
 jest.mock("../safety-api", () => ({ safetyApi: { report: jest.fn(async () => ({ id: "rep1" })) } }));
 jest.mock("../account-api", () => ({ accountApi: { deleteAccount: jest.fn(async () => undefined) } }));
+jest.mock("../ai-consent", () => ({ answerAiConsent: jest.fn(async () => undefined) }));
+jest.mock("../api", () => ({ api: { tag: "transport" } }));
+jest.mock("../calls/native-calls", () => ({ nativeCalls: { available: true } }));
+jest.mock("../push", () => ({ setPushEnabled: jest.fn(async () => "ExponentPushToken[x]") }));
+jest.mock("expo-constants", () => ({ expoConfig: { extra: { eas: { projectId: "proj-1" } } } }));
 jest.mock("../queries/devices", () => ({
   deviceKeys: { all: () => ["auth-devices"] },
   revokeDevice: jest.fn(async () => undefined),
@@ -51,7 +56,12 @@ import { revokeDevice } from "../queries/devices";
 import { setBlocked } from "../safety-actions";
 import { safetyApi } from "../safety-api";
 import { accountApi } from "../account-api";
-import { useDeleteAccount, useRevokeDevice } from "./account";
+import { answerAiConsent } from "../ai-consent";
+import { api } from "../api";
+import { setPushEnabled } from "../push";
+import { Platform } from "react-native";
+import { useAnswerAiConsent, useDeleteAccount, useRevokeDevice } from "./account";
+import { useSetPushEnabled } from "./push";
 import {
   useCreateTask,
   useDeleteMessage,
@@ -165,6 +175,17 @@ describe("safety and account commands", () => {
     const proof = { password: "x" } as never;
     await run(() => useDeleteAccount(), proof);
     expect(accountApi.deleteAccount).toHaveBeenCalledWith(proof);
+  });
+
+  it("answers the AI notice and turns push on or off with this build's project and call UI", async () => {
+    await run(() => useAnswerAiConsent(), true);
+    await run(() => useAnswerAiConsent(), false);
+    expect(jest.mocked(answerAiConsent).mock.calls).toEqual([[true], [false]]);
+    const ask = jest.fn(async () => true);
+    expect(await run(() => useSetPushEnabled(), { enabled: true, ask })).toBe("ExponentPushToken[x]");
+    expect(setPushEnabled).toHaveBeenCalledWith(true, { api, projectId: "proj-1", platform: Platform.OS, callUI: true, ask });
+    await run(() => useSetPushEnabled(), { enabled: false });
+    expect(setPushEnabled).toHaveBeenLastCalledWith(false, { api, projectId: "proj-1", platform: Platform.OS, callUI: true, ask: undefined });
   });
 
   it("refreshes the device list after a revoke, whether or not the server agreed", async () => {

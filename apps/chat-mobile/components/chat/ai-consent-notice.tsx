@@ -3,7 +3,8 @@
 // and asks. The catch-up sheet shows it in place of the summary until the
 // person agrees; Settings › Privacy & legal shows it with the answer on file
 // and a way to withdraw (AiConsentSheet). The answer lives on the server
-// (data/ai-consent.ts), so a second phone does not ask again.
+// (data/ai-consent.ts, through useAnswerAiConsent), so a second phone does not
+// ask again.
 import { Ionicons } from "@expo/vector-icons";
 import { runtimeConfig } from "@uniwork/core/runtime-config";
 import { useState } from "react";
@@ -15,8 +16,8 @@ import { useOpenWebPage } from "@/components/settings/use-open-web-page";
 import { SheetGrabber } from "@/components/ui/action-sheet";
 import { Text } from "@/components/ui/text";
 import { TintTile } from "@/components/ui/tint-tile";
-import { answerAiConsent } from "@/data/ai-consent";
 import { useAuthStore } from "@/data/auth/store";
+import { useAnswerAiConsent } from "@/data/mutations/account";
 import { toast } from "@/data/stores/toast-store";
 import { AI_PROVIDER, hasAiConsent } from "@/lib/ai-consent";
 import { legalLinks, legalLocale } from "@/lib/legal-links";
@@ -70,6 +71,7 @@ export function AiConsentText() {
 export function AiConsentActions({ onDecline, onAgreed }: { onDecline: () => void; onAgreed?: () => void }) {
   const { t } = useTranslation();
   const { colorScheme } = useColorScheme();
+  const answer = useAnswerAiConsent();
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
   const agree = async () => {
@@ -77,7 +79,7 @@ export function AiConsentActions({ onDecline, onAgreed }: { onDecline: () => voi
     setBusy(true);
     setFailed(false);
     try {
-      await answerAiConsent(true);
+      await answer.mutateAsync(true);
       onAgreed?.();
     } catch {
       setFailed(true);
@@ -115,6 +117,7 @@ export function AiConsentSheet({ visible, onClose }: { visible: boolean; onClose
   const { t, i18n } = useTranslation();
   const granted = useAiConsent();
   const agreedAt = useAuthStore((s) => s.user?.ai_consent_at ?? null);
+  const answer = useAnswerAiConsent();
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
   const withdraw = async () => {
@@ -122,7 +125,7 @@ export function AiConsentSheet({ visible, onClose }: { visible: boolean; onClose
     setBusy(true);
     setFailed(false);
     try {
-      await answerAiConsent(false);
+      await answer.mutateAsync(false);
       onClose();
       toast.success(t("mobile.ai_consent.withdrawn"));
     } catch {

@@ -51,8 +51,8 @@ const restrictedPatterns = [
 
 // The mutation layer (data/mutations/command.ts): screens and components
 // change server state through its hooks, never by calling an endpoint or a
-// command themselves. Types stay importable.
-const COMMAND_MODULES = ["chat-api", "chat-actions", "chat-send", "pending-ops", "safety-api", "safety-actions", "account-api"];
+// command themselves, nor reach the transport (data/api.ts). Types stay importable.
+const COMMAND_MODULES = ["api", "chat-api", "chat-actions", "chat-send", "pending-ops", "safety-api", "safety-actions", "account-api", "ai-consent"];
 
 export default [
   ...reactConfig,
@@ -140,11 +140,12 @@ export default [
     },
   },
   // Replaces the rule's options for app/ and components/, so it restates the boundary above.
-  // app/_layout.tsx is the composition root: it hands endpoints to boot services as dependencies.
+  // app/_layout.tsx and app/(app)/_layout.tsx are the composition roots: they hand the transport
+  // and endpoints to boot services (push registration) as dependencies.
   // Tests import the endpoint modules they mock (the transport stays the seam, as in packages/views).
   {
     files: ["app/**/*.{ts,tsx}", "components/**/*.{ts,tsx}"],
-    ignores: ["app/_layout.tsx", "**/*.test.{ts,tsx}"],
+    ignores: ["app/_layout.tsx", "app/(app)/_layout.tsx", "**/*.test.{ts,tsx}"],
     rules: {
       "@typescript-eslint/no-restricted-imports": ["error", {
         paths: [
@@ -153,6 +154,11 @@ export default [
             name: "@/data/queries/devices",
             importNames: ["revokeDevice"],
             message: "Revoke a device with useRevokeDevice (data/mutations/account.ts).",
+          },
+          {
+            name: "@/data/push",
+            importNames: ["setPushEnabled", "registerPushToken", "unregisterPushToken"],
+            message: "Turn push on or off with useSetPushEnabled (data/mutations/push.ts); registration at boot is app/(app)/_layout.tsx's.",
           },
         ],
         patterns: [
