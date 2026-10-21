@@ -147,7 +147,6 @@ type SetMeetingScribeSDI struct {
 	Enabled bool `json:"enabled" description:"false = tắt thư ký AI cho cuộc họp này; true = bật lại (mặc định bật)" example:"false"`
 }
 
-// SetSharedMicSDI is PUT /api/v1/meetings/{meetingID}/participants/{participantID}/shared-mic.
 // CaptionSegmentSDI is one final caption the scribe agent wants translated.
 type CaptionSegmentSDI struct {
 	SegmentID string `json:"segment_id" minLength:"1" maxLength:"128" description:"uw.segment_id của phụ đề gốc; bản dịch trả về dưới cùng id" example:"AJ_66Gefpv7rYTq-TR_AM6EcLRdqMdvN6-12"`
@@ -165,6 +164,7 @@ type SetCaptionLanguageSDI struct {
 	Lang string `json:"lang" maxLength:"2" description:"vi hoặc en; chuỗi rỗng = phụ đề gốc" example:"en"`
 }
 
+// SetSharedMicSDI is PUT /api/v1/meetings/{meetingID}/participants/{participantID}/shared-mic.
 type SetSharedMicSDI struct {
 	Enabled bool `json:"enabled" description:"true = đặt người này làm micro hội trường (thư ký AI tách người nói trên mic của họ); false = bỏ" example:"true"`
 }
