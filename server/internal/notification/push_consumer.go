@@ -87,7 +87,7 @@ func (c *PushConsumer) Handle(ctx context.Context, ev outbox.Row) error {
 	if n.Kind == KindChatCallIncoming && !c.stillRinging(n) {
 		return c.q.MarkNotificationGroupsRead(ctx, db.MarkNotificationGroupsReadParams{UserID: n.UserID, GroupKeys: []string{n.GroupKey}})
 	}
-	subs, err := c.q.ListActivePushSubscriptions(ctx, n.UserID)
+	subs, err := c.q.ListDeliverablePushSubscriptions(ctx, n.UserID)
 	if err != nil {
 		return err
 	}

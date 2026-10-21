@@ -295,6 +295,57 @@ func (q *Queries) ListChatMessageRooms(ctx context.Context, ids []string) ([]Lis
 	return items, nil
 }
 
+const listDeliverablePushSubscriptions = `-- name: ListDeliverablePushSubscriptions :many
+SELECT p.id, p.user_id, p.endpoint, p.p256dh, p.auth, p.user_agent, p.last_used_at, p.revoked_at, p.created_at, p.session_id FROM push_subscriptions p
+WHERE p.user_id = $1 AND p.revoked_at IS NULL
+  AND (
+    p.session_id IS NULL
+    OR NOT EXISTS (SELECT 1 FROM device_sessions d WHERE d.user_id = p.user_id AND d.session_family_id = p.session_id)
+    OR EXISTS (
+      SELECT 1 FROM device_sessions d
+      WHERE d.user_id = p.user_id AND d.session_family_id = p.session_id
+        AND d.revoked_at IS NULL AND d.expires_at > now()
+    )
+  )
+`
+
+// What the push lane sends to: the live subscriptions, minus those a native
+// device session registered once that session is over. A phone whose refresh
+// token ran out (or whose device was revoked without the push following) can
+// no longer unsubscribe itself, and must stop showing message previews.
+// A browser session or a row older than session_id names no device session
+// family and is kept.
+func (q *Queries) ListDeliverablePushSubscriptions(ctx context.Context, userID string) ([]PushSubscription, error) {
+	rows, err := q.db.Query(ctx, listDeliverablePushSubscriptions, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []PushSubscription{}
+	for rows.Next() {
+		var i PushSubscription
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.Endpoint,
+			&i.P256dh,
+			&i.Auth,
+			&i.UserAgent,
+			&i.LastUsedAt,
+			&i.RevokedAt,
+			&i.CreatedAt,
+			&i.SessionID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listDigestCandidateUsers = `-- name: ListDigestCandidateUsers :many
 SELECT DISTINCT n.user_id FROM notifications n
 WHERE n.digested_at IS NULL AND n.read_at IS NULL AND n.archived_at IS NULL AND n.created_at > $1
