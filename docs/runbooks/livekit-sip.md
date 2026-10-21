@@ -6,7 +6,9 @@ Người gọi bấm số tổng đài, nhập mã PIN 6 số của cuộc họp
 `uw_mtg_<meetingID>` theo một **dispatch rule `direct`** mà server UniWork tạo khi cuộc họp bắt đầu và xoá khi kết
 thúc (tên rule `uniwork <meetingID>`, `hide_phone_number = true`, chỉ trên trunk `MEETING_SIP_TRUNK_ID`). Server rút
 mọi quyền nghe/nói của người gọi ngay khi nhận webhook `participant_joined` (kind SIP) và đưa họ vào hàng chờ của chủ
-trì như khách; duyệt thì mở quyền và tính điểm danh dự thính, từ chối thì ngắt máy.
+trì như khách; duyệt thì mở quyền và tính điểm danh dự thính, từ chối thì ngắt máy. UniWork không lưu identity
+`sip_<hash>` của LiveKit (hash không muối của số máy): người gọi được lưu bằng `uw_sip_<HMAC bằng khoá server>` và tên
+"Điện thoại ••• 1234".
 
 Server UniWork **không** dựng hạ tầng. Việc của ops (UNI-2030), theo thứ tự:
 
@@ -48,8 +50,21 @@ Server UniWork **không** dựng hạ tầng. Việc của ops (UNI-2030), theo 
    staging: bắt đầu một cuộc họp → gọi số → nhập PIN + `#` → chủ trì thấy "Điện thoại ••• 1234" trong hàng chờ → duyệt
    → nghe/nói hai chiều → thư ký AI ghi lời người gọi → kết thúc họp → `lk sip dispatch list` không còn rule `uniwork …`.
 
-Giới hạn đã biết: lời nhắc nhập PIN là giọng tiếng Anh mặc định của `livekit-sip`; người gọi chờ duyệt nghe im lặng;
-khoảng hở từ lúc vào phòng tới lúc bị giữ là một vòng webhook + một RPC (cỡ vài trăm ms).
+7. **Chống dò PIN** (PIN 6 số: 10^6 khả năng, chỉ có rule khi cuộc họp đang diễn ra):
+   - giới hạn số lần nhập PIN sai trong một cuộc gọi (cấu hình `livekit-sip` hoặc SBC; đề xuất 3 lần rồi ngắt máy);
+   - giới hạn tốc độ theo số gọi đến (caller ID) ở nhà mạng hoặc SBC (đề xuất ≤ 10 cuộc/phút/số, ≤ 100 cuộc/giờ/số);
+   - alert khi tỉ lệ nhập sai PIN vượt ngưỡng (đề xuất > 20 lần sai trong 5 phút trên một trunk), lấy từ log/metric của
+     `livekit-sip` hoặc SBC; khi alert bắn: chặn số gọi ở SBC và đổi PIN các cuộc họp đang diễn ra nếu cần.
+
+Giới hạn đã biết (chủ sản phẩm đã được báo):
+
+- **Hở khi vào phòng.** LiveKit tự host không có phòng chờ chặn trước (MoveParticipant/ForwardParticipant chỉ có trên
+  Cloud, dispatch rule không mang quyền), nên người gọi vào thẳng phòng rồi mới bị rút quyền. Thường là một vòng webhook +
+  một RPC (vài trăm ms); nếu webhook bị LiveKit bỏ (hàng đợi đầy) hoặc lệnh giữ lỗi, vòng quét 15 giây giữ lại — tệ nhất
+  khoảng 15 giây người có PIN nghe/nói được trước khi bị giữ.
+- Lời nhắc nhập PIN là giọng tiếng Anh mặc định của `livekit-sip`.
+- Người gọi chờ duyệt nghe im lặng (không có nhạc chờ hay lời báo).
+- Mỗi cuộc gọi là một lần gõ cửa: gọi lại sau khi rớt máy phải được duyệt lại.
 
 ## Triệu chứng
 
@@ -73,8 +88,11 @@ khoảng hở từ lúc vào phòng tới lúc bị giữ là một vòng webhoo
 ## Khắc phục
 
 - Rule thiếu khi cuộc họp đang diễn ra: chờ vòng quét 15 giây hoặc chủ trì bấm "Đổi mã PIN" (tạo rule mới với PIN mới).
-- Rule thừa sau khi họp xong: vòng quét tự xoá khi `sip_dispatch_rule_id` còn trên dòng `meetings`. Rule không còn dòng nào
-  trỏ tới (log `stray rule not deleted`) thì xoá tay: `lk sip dispatch delete <SDR_…>`.
+- Rule thừa sau khi họp xong: vòng quét tự xoá khi `sip_dispatch_rule_id` còn trên dòng `meetings`, và xoá mọi rule tên
+  `uniwork …` không dòng nào trỏ tới khi rule đã quá 1 phút (cần LiveKit trả `created_at`). Còn sót (log
+  `stray rule not deleted`) thì xoá tay: `lk sip dispatch delete <SDR_…>`.
+- Tạo rule bị từ chối vì trunk đã có rule cùng PIN: server tự đổi PIN cuộc họp (audit `meeting.dial_in_pin_rotated`,
+  actor hệ thống) và thử lại ở vòng quét sau.
 - PIN bị lộ: chủ trì/admin bấm "Đổi mã PIN" trên trang chi tiết (audit `meeting.dial_in_pin_rotated`); người đang trong
   phòng không bị ngắt.
 - Tắt khẩn: tắt cờ `meeting_dial_in` (theo tổ chức hoặc toàn cục) — vòng quét xoá rule của mọi cuộc họp đang diễn ra trong
