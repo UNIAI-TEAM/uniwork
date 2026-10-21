@@ -271,6 +271,11 @@ và giọng đọc. Một iPhone (VoiceOver) và một máy Android (TalkBack):
 - [ ] Rung: gửi tin, nhấn giữ tin, thả biểu cảm, nghe/gác máy có phản hồi; Android tắt "Phản hồi khi chạm" thì không rung.
 - [ ] Cuộn lên trong phòng: nút tròn mũi tên xuống hiện; người khác gửi tin thì nút đếm số tin mới (99+); bấm thì về tin
   mới nhất; tự gửi một tin khi đang cuộn lên thì danh sách cuộn xuống tin đó.
+- [ ] Cuộn lùi xa trong một phòng dài (≥ 10 trang, ~500 tin) rồi bấm nút về tin mới nhất: danh sách đứng yên ở tin mới
+  nhất, không nhảy (các trang cũ nhất quá 8 trang bị bỏ — `data/timeline-window.ts`); cuộn lên lại thì chúng tải lại.
+- [ ] Danh sách chat ở đầu (offset 0), người khác nhắn vào một phòng ở dưới: phòng đó hiện ở hàng đầu, không nằm ngay
+  trên mép màn hình; danh bạ: gõ tìm khi đang ở giữa danh sách thì kết quả bắt đầu từ kết quả đầu tiên (FlashList 2 tắt
+  `maintainVisibleContentPosition`).
 - [ ] Ảnh xem lớn: chụm phóng to quanh ngón tay, chạm hai lần phóng to/thu nhỏ, kéo ảnh đang phóng to không đổi trang,
   ở 1x vuốt ngang đổi ảnh, vuốt xuống (hoặc lên) đóng và nền mờ dần; Android trong Modal cũng chạy (GestureHandlerRootView).
 - [ ] Cỡ chữ hệ thống lớn nhất (iOS Larger Accessibility Sizes, Android Font size + Display size lớn nhất): danh sách
