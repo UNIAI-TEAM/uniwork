@@ -33,7 +33,7 @@ function thread(id: string): EmailHubThread {
 const actions = new Proxy({}, { get: () => vi.fn() }) as EmailHubThreadActions;
 const pending = { star: false, move: false, markRead: false, snooze: false, download: false };
 
-function detail(active: EmailHubThread) {
+function detail(active: EmailHubThread, shortcutsOn = true) {
   return wrap(
     <EmailHubThreadDetail
       wsId="ws1"
@@ -48,6 +48,7 @@ function detail(active: EmailHubThread) {
       actions={actions}
       pending={pending}
       aiOpen={false}
+      shortcutsOn={shortcutsOn}
     />,
   );
 }
@@ -93,5 +94,23 @@ describe("EmailHubThreadDetail remote images", () => {
     fireEvent.click(screen.getByRole("button", { name: "Thôi tin" }));
     expect(screen.getByRole("button", { name: "Hiện ảnh" })).toBeInTheDocument();
     expect(frameDoc()).toContain("img-src data: cid:");
+  });
+});
+
+describe("EmailHubThreadDetail toolbar shortcuts", () => {
+  const announced = () =>
+    Object.fromEntries(
+      [...screen.getByRole("toolbar").querySelectorAll("[aria-keyshortcuts]")].map((el) => [el.getAttribute("aria-label"), el.getAttribute("aria-keyshortcuts")]),
+    );
+
+  it("advertises the single keys while the switch is on", () => {
+    render(detail(thread("a")));
+    expect(Object.values(announced()).sort()).toEqual(["#", "E", "Escape", "S", "Shift+U"]);
+  });
+
+  it("advertises only the back button's Escape while the switch is off", () => {
+    render(detail(thread("a"), false));
+    expect(Object.values(announced())).toEqual(["Escape"]);
+    expect(screen.getByRole("button", { name: /^Quay lại danh sách/ })).toHaveAttribute("aria-keyshortcuts", "Escape");
   });
 });
