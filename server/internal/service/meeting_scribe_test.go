@@ -642,3 +642,60 @@ func TestSweepPagesThroughEveryMeeting(t *testing.T) {
 		}
 	}
 }
+
+// Review R2 M2: once the host switches the scribe off, what the agent still
+// sends from after that moment is not stored, counted or metered; a batch of
+// only such segments is refused, and the sweep repeats the agent's removal
+// for a minute in case the first one failed.
+func TestScribeOffDropsLaterSegmentsAndRetriesRemoval(t *testing.T) {
+	s, fake, ua, m := scribeFixture(t)
+	ctx := context.Background()
+	if err := s.ensureScribe(ctx, m.ID); err != nil {
+		t.Fatal(err)
+	}
+	c := claimsOf(t, s, fake)
+	if err := s.AgentStarted(ctx, c, "PA_agent1"); err != nil {
+		t.Fatal(err)
+	}
+	off, err := s.SetScribe(ctx, ua.ID, m.ID, false)
+	if err != nil || !off.ScribeOffAt.Valid {
+		t.Fatalf("switch off: %+v %v", off, err)
+	}
+	if _, removals := fake.ScribeCalls(); removals != 1 {
+		t.Fatalf("removals after the switch = %d", removals)
+	}
+	p, _ := s.q.GetActiveUserParticipant(ctx, db.GetActiveUserParticipantParams{MeetingID: m.ID, UserID: strText(ua.ID)})
+	identity := meetings.IdentityForParticipant(p.ID)
+	before, after := off.ScribeOffAt.Time.Add(-10*time.Second), off.ScribeOffAt.Time.Add(time.Second)
+	accepted, dup, err := s.AppendAgentSegments(ctx, c, []AgentSegmentInput{
+		agentSeg("off-1", identity, before, 30000), agentSeg("off-2", identity, after, 30000),
+	})
+	if err != nil || accepted != 1 || dup != 0 {
+		t.Fatalf("mixed batch: %d %d %v", accepted, dup, err)
+	}
+	if _, _, err := s.AppendAgentSegments(ctx, c, []AgentSegmentInput{agentSeg("off-3", identity, after, 30000)}); !isInvalidMeetingState(err) {
+		t.Fatalf("batch spoken after the switch-off: %v", err)
+	}
+	var stored int
+	if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM meeting_transcript_segments WHERE meeting_id = $1`, m.ID).Scan(&stored); err != nil || stored != 1 {
+		t.Fatalf("stored %d segments, %v", stored, err)
+	}
+	if r := latestRun(t, s, m.ID); r.SpeechMs != 30000 || r.Segments != 1 || r.MeteredMs != 60000 {
+		t.Fatalf("run after the switch-off: %+v", r)
+	}
+	if err := s.sweepScribes(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if d, removals := fake.ScribeCalls(); d != 1 || removals != 2 {
+		t.Fatalf("sweep after the switch-off: dispatches=%d removals=%d", d, removals)
+	}
+	if _, err := s.pool.Exec(ctx, `UPDATE meetings SET scribe_off_at = scribe_off_at - interval '2 minutes' WHERE id = $1`, m.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.sweepScribes(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if _, removals := fake.ScribeCalls(); removals != 2 {
+		t.Fatalf("removal repeated past the window: %d", removals)
+	}
+}

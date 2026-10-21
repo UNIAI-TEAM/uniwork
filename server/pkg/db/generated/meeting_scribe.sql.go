@@ -388,18 +388,21 @@ SELECT s.id::text AS id FROM (
   SELECT r.meeting_id AS id FROM meeting_scribe_runs r WHERE r.status IN ('DISPATCHED', 'ACTIVE')
   UNION
   SELECT m.id FROM meetings m
-  WHERE $1::bool AND m.status = 'IN_PROGRESS' AND EXISTS (
-    SELECT 1 FROM meeting_attendance_sessions a WHERE a.meeting_id = m.id AND a.left_at IS NULL)
+  WHERE m.status = 'IN_PROGRESS' AND (
+    ($1::bool AND EXISTS (
+      SELECT 1 FROM meeting_attendance_sessions a WHERE a.meeting_id = m.id AND a.left_at IS NULL))
+    OR m.scribe_off_at > $2::timestamptz)
 ) s
-WHERE s.id > $2::text
+WHERE s.id > $3::text
 ORDER BY s.id
-LIMIT $3
+LIMIT $4
 `
 
 type ListScribeSweepMeetingsParams struct {
-	WithPeople bool   `json:"with_people"`
-	After      string `json:"after"`
-	RowLimit   int32  `json:"row_limit"`
+	WithPeople bool               `json:"with_people"`
+	OffSince   pgtype.Timestamptz `json:"off_since"`
+	After      string             `json:"after"`
+	RowLimit   int32              `json:"row_limit"`
 }
 
 // tenant: system
@@ -407,9 +410,15 @@ type ListScribeSweepMeetingsParams struct {
 // last page: those holding an open run that may need closing
 // (uidx_meeting_scribe_runs_open), and of the meetings in progress
 // (idx_meetings_in_progress_ends) the ones with people in the room when
-// dispatching is on (with_people).
+// dispatching is on (with_people), and the ones switched off since off_since,
+// whose agent removal the sweep repeats.
 func (q *Queries) ListScribeSweepMeetings(ctx context.Context, arg ListScribeSweepMeetingsParams) ([]string, error) {
-	rows, err := q.db.Query(ctx, listScribeSweepMeetings, arg.WithPeople, arg.After, arg.RowLimit)
+	rows, err := q.db.Query(ctx, listScribeSweepMeetings,
+		arg.WithPeople,
+		arg.OffSince,
+		arg.After,
+		arg.RowLimit,
+	)
 	if err != nil {
 		return nil, err
 	}

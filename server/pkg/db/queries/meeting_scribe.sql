@@ -89,13 +89,16 @@ SELECT
 -- last page: those holding an open run that may need closing
 -- (uidx_meeting_scribe_runs_open), and of the meetings in progress
 -- (idx_meetings_in_progress_ends) the ones with people in the room when
--- dispatching is on (with_people).
+-- dispatching is on (with_people), and the ones switched off since off_since,
+-- whose agent removal the sweep repeats.
 SELECT s.id::text AS id FROM (
   SELECT r.meeting_id AS id FROM meeting_scribe_runs r WHERE r.status IN ('DISPATCHED', 'ACTIVE')
   UNION
   SELECT m.id FROM meetings m
-  WHERE sqlc.arg('with_people')::bool AND m.status = 'IN_PROGRESS' AND EXISTS (
-    SELECT 1 FROM meeting_attendance_sessions a WHERE a.meeting_id = m.id AND a.left_at IS NULL)
+  WHERE m.status = 'IN_PROGRESS' AND (
+    (sqlc.arg('with_people')::bool AND EXISTS (
+      SELECT 1 FROM meeting_attendance_sessions a WHERE a.meeting_id = m.id AND a.left_at IS NULL))
+    OR m.scribe_off_at > sqlc.arg('off_since')::timestamptz)
 ) s
 WHERE s.id > sqlc.arg('after')::text
 ORDER BY s.id

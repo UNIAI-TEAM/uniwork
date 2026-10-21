@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"slices"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -193,6 +194,14 @@ func (s *MeetingService) AppendAgentSegments(ctx context.Context, c meetings.Age
 	draining := m.Status == MeetingEnded && m.ActualEndAt.Valid && time.Since(m.ActualEndAt.Time) <= agentDrainWindow
 	if m.Status != MeetingInProgress && !draining {
 		return 0, 0, errInvalidState()
+	}
+	if m.ScribeOffAt.Valid {
+		// Spoken after the host switched the scribe off: not stored, counted
+		// or metered, whatever the agent still sends before it is removed.
+		segs = slices.DeleteFunc(segs, func(g AgentSegmentInput) bool { return g.SpokenAt.After(m.ScribeOffAt.Time) })
+		if len(segs) == 0 {
+			return 0, 0, errInvalidState()
+		}
 	}
 	ps, err := s.q.ListMeetingParticipants(ctx, m.ID)
 	if err != nil {

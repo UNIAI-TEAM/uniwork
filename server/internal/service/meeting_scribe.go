@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/featureflags"
@@ -38,6 +39,8 @@ const (
 	scribeRetryAfter     = 10 * time.Minute
 	// A room empty this long closes its run (D18): LiveKit ended the job.
 	scribeEmptyGrace = 60 * time.Second
+	// The sweep repeats the agent's removal this long after a switch-off.
+	scribeRemoveRetry = time.Minute
 	// The agent's token outlives the scheduled end by this much (D6).
 	scribeTokenGrace  = 4 * time.Hour
 	scribeCallTimeout = 10 * time.Second
@@ -151,6 +154,13 @@ func (s *MeetingService) ensureScribeRun(ctx context.Context, meetingID string, 
 		case latest.Status == ScribeDispatched && pres.Present && now.Sub(latest.DispatchedAt.Time) >= scribeActiveDeadline:
 			return s.scribeMissed(ctx, m, latest)
 		}
+		return nil
+	}
+	// A switch-off already closed the run and removed the agent; that removal
+	// is only logged when it fails, so the sweep repeats it for a while.
+	if m.ScribeOffAt.Valid && now.Sub(m.ScribeOffAt.Time) < scribeRemoveRetry &&
+		hasRun && latest.FinishedAt.Valid && !latest.FinishedAt.Time.Before(m.ScribeOffAt.Time) {
+		s.removeScribe(ctx, m, latest.DispatchID)
 		return nil
 	}
 	if !want || !pres.Present {
@@ -324,7 +334,10 @@ func (s *MeetingService) emitScribeUpdated(ctx context.Context, m db.Meeting) {
 // with people in the room. With MEETING_SCRIBE_ENABLED off it still closes the
 // open runs and removes their agents.
 func (s *MeetingService) sweepScribes(ctx context.Context) error {
-	params := db.ListScribeSweepMeetingsParams{WithPeople: s.scribeConfigured(), RowLimit: scribeSweepBatch}
+	params := db.ListScribeSweepMeetingsParams{
+		WithPeople: s.scribeConfigured(), RowLimit: scribeSweepBatch,
+		OffSince: pgtype.Timestamptz{Time: time.Now().Add(-scribeRemoveRetry), Valid: true},
+	}
 	var errs []error
 	for {
 		ids, err := s.q.ListScribeSweepMeetings(ctx, params)
