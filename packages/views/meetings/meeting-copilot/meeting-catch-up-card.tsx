@@ -10,6 +10,8 @@ import { meetingLocale } from "../meeting-datetime";
 /** A member who joins this late (scribe spec §5.1) is offered the brief. */
 const LATE_AFTER_MINUTES = 10;
 
+const WHEN_CLASS = "shrink-0 font-mono text-caption text-muted-foreground";
+
 /**
  * Minutes between the meeting's actual start and this viewer joining the
  * room, when they are late enough to be offered the brief; null otherwise.
@@ -29,10 +31,15 @@ export function MeetingCatchUpCard({ meetingId, lateMinutes }: { meetingId: stri
   const { t, i18n } = useTranslation();
   const catchUp = useMeetingCatchUp(meetingId);
   const brief = catchUp.data;
-  const clock = (iso?: string) =>
-    iso
-      ? new Date(iso).toLocaleTimeString(meetingLocale(i18n.language), { hour: "2-digit", minute: "2-digit", hour12: false })
-      : t("meetings.catchUpFromNotes");
+  // A point from the notes has no time: a plain label, not a <time> without a datetime.
+  const when = (iso?: string) =>
+    iso ? (
+      <time dateTime={iso} className={WHEN_CLASS}>
+        {new Date(iso).toLocaleTimeString(meetingLocale(i18n.language), { hour: "2-digit", minute: "2-digit", hour12: false })}
+      </time>
+    ) : (
+      <span className={WHEN_CLASS}>{t("meetings.catchUpFromNotes")}</span>
+    );
   const failed = catchUp.isError || (catchUp.isSuccess && !brief);
 
   return (
@@ -49,9 +56,7 @@ export function MeetingCatchUpCard({ meetingId, lateMinutes }: { meetingId: stri
             <ul className="space-y-1.5">
               {brief.highlights.map((h, i) => (
                 <li key={`${h.segment_id ?? "note"}-${i}`} className="flex gap-2 text-body text-foreground">
-                  <time dateTime={h.spoken_at} className="shrink-0 font-mono text-caption text-muted-foreground">
-                    {clock(h.spoken_at)}
-                  </time>
+                  {when(h.spoken_at)}
                   <span className="min-w-0">{h.text}</span>
                 </li>
               ))}
@@ -63,9 +68,7 @@ export function MeetingCatchUpCard({ meetingId, lateMinutes }: { meetingId: stri
               <ul className="space-y-1.5">
                 {brief.action_items.map((a, i) => (
                   <li key={`${a.segment_id ?? "note"}-${i}`} className="flex gap-2 text-body text-foreground">
-                    <time dateTime={a.spoken_at} className="shrink-0 font-mono text-caption text-muted-foreground">
-                      {clock(a.spoken_at)}
-                    </time>
+                    {when(a.spoken_at)}
                     <span className="min-w-0">
                       {a.title}
                       {a.owner ? ` · ${a.owner}` : ""}

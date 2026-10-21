@@ -68,7 +68,9 @@ describe("catch-up card (B7)", () => {
     expect(await screen.findByText("Nhóm đã chốt lịch demo.")).toBeInTheDocument();
     expect(calls("/catch-up")).toHaveLength(1);
     expect(screen.getByText("Demo vào thứ Sáu").previousSibling).toHaveAttribute("datetime", "2026-10-21T02:05:00Z");
-    expect(screen.getByText("Ngân sách theo ghi chú").previousSibling).toHaveTextContent("Ghi chú");
+    const fromNotes = screen.getByText("Ngân sách theo ghi chú").previousSibling as HTMLElement;
+    expect(fromNotes).toHaveTextContent("Ghi chú");
+    expect(fromNotes.tagName).toBe("SPAN"); // no <time> without a datetime
     expect(screen.getByText(/Gửi bản demo · An/)).toBeInTheDocument();
     expect(screen.getByText("Chỉ bạn thấy tóm tắt này.")).toBeInTheDocument();
   });
