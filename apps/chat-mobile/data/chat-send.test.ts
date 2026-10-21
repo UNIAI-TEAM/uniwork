@@ -25,7 +25,7 @@ import {
 } from "./chat-send";
 import type { OutboxFiles } from "./outbox-files";
 import { chatKeys } from "./queries/chat-keys";
-import type { RetryTimers } from "./retry-timers";
+import { createRetryTimers, type RetryTimers } from "./retry-timers";
 import { selectRoomSends, useChatSendStore } from "./stores/chat-send-store";
 
 const echo = (clientMsgId: string, extra: Partial<ChatMessageRecord> = {}): ChatMessageRecord => ({
@@ -155,7 +155,7 @@ describe("sending offline", () => {
     expect(sendMessage).toHaveBeenCalledTimes(1);
     expect(statuses()).toEqual([]);
     expect(ids()).toHaveLength(1);
-    expect(timers.reset).toHaveBeenCalledWith("w1\nu1");
+    expect(timers.reset).toHaveBeenCalledWith("w1\nr1\nu1\ntext");
   });
 
   it("goes back to queued when the network drops mid-send, retries on the backoff, and a second post of the same key is one message", async () => {
@@ -168,7 +168,7 @@ describe("sending offline", () => {
     });
     await sendChatMessage(qc, input, deps);
     expect(statuses()).toEqual(["queued"]);
-    expect(timers.schedule).toHaveBeenCalledWith("w1\nu1", expect.any(Function));
+    expect(timers.schedule).toHaveBeenCalledWith("w1\nr1\nu1\ntext", expect.any(Function));
 
     fire();
     await settle();
@@ -501,6 +501,47 @@ describe("text and media lines", () => {
     await settle();
     expect(sendFileMessage.mock.calls.map(([, , { file }]) => file.name)).toEqual(["big.jpg", "big.jpg", "second.jpg"]);
     expect(statuses()).toEqual([]);
+  });
+
+  it("a text that goes while the photo waits for its retry does not cancel that retry (real timers)", async () => {
+    vi.useFakeTimers();
+    try {
+      const qc = new QueryClient();
+      const real: ChatSendDeps = { ...deps, timers: createRetryTimers(() => 0.5) };
+      sendFileMessage.mockRejectedValueOnce(apiError(503)).mockImplementation(async (_ws, _room, { client_msg_id }) => echo(client_msg_id, { kind: "file" }));
+      await sendChatMessage(qc, { ...input, body: "", file: photo }, real);
+      expect(statuses()).toEqual(["queued"]);
+      // The photo waits for its backoff, so the words written after it go now.
+      await sendChatMessage(qc, { ...input, body: "after" }, real);
+      expect(bodies()).toEqual(["after"]);
+      await vi.advanceTimersByTimeAsync(120_000);
+      expect(sendFileMessage).toHaveBeenCalledTimes(2);
+      expect(statuses()).toEqual([]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("each line backs off on its own: a failing room does not stretch another room's wait", async () => {
+    vi.useFakeTimers();
+    try {
+      const qc = new QueryClient();
+      const real: ChatSendDeps = { ...deps, timers: createRetryTimers(() => 0.5) };
+      sendMessage.mockRejectedValueOnce(apiError(503)).mockRejectedValueOnce(apiError(503)).mockRejectedValueOnce(apiError(503));
+      await sendChatMessage(qc, { ...input, body: "a" }, real);
+      // r1 retries after 2 s and fails again: its next wait is 5 s.
+      await vi.advanceTimersByTimeAsync(2_000);
+      expect(bodies()).toEqual(["a", "a"]);
+      // r2's first failure still waits the shortest delay.
+      await sendChatMessage(qc, { ...input, roomId: "r2", body: "b" }, real);
+      await vi.advanceTimersByTimeAsync(2_000);
+      expect(bodies()).toEqual(["a", "a", "b", "b"]);
+      await vi.advanceTimersByTimeAsync(5_000);
+      expect(bodies()).toEqual(["a", "a", "b", "b", "a"]);
+      expect(statuses()).toEqual([]);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("a photo queued offline is started by the text written after it, which then waits for it", async () => {

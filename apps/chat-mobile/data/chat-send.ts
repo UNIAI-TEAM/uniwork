@@ -13,8 +13,8 @@
 // written, unless that upload has been on the wire MEDIA_OVERTAKE_MS or waits
 // for a retry: then the words go and the photo lands when it lands, as on
 // Telegram and WhatsApp, instead of a slow upload holding every word behind
-// it. A transient failure stops that line and retries it on a jittered
-// 2/5/15/60 s backoff (retry-timers.ts), at once on a network edge, a socket
+// it. A transient failure stops that line and retries it on its own jittered
+// 2/5/15/60 s backoff (retry-timers.ts, keyed by line), at once on a network edge, a socket
 // reconnect or a return to the app, for every workspace this person has
 // messages waiting in (owed.ts). A refusal for good stays "failed" until the
 // person retries or discards it; the room's next messages go on without it.
@@ -197,11 +197,12 @@ function pumpLine(qc: QueryClient, workspaceId: string, roomId: string, senderId
           continue;
         }
         const outcome = await deliverOnce(qc, entry, deps);
-        if (outcome === "sent") deps.timers.reset(senderKey(workspaceId, senderId));
+        // The backoff is the line's own: a text that goes must not cancel the photo's retry, nor a failing room stretch another's wait.
+        if (outcome === "sent") deps.timers.reset(key);
         if (outcome === "transient") {
           if (lane === "media") mediaRetrying.add(key);
           // The rest of the line waits behind it: order before speed.
-          deps.timers.schedule(senderKey(workspaceId, senderId), () => void flushQueuedSends(qc, workspaceId, senderId, deps));
+          deps.timers.schedule(key, () => void pumpLine(qc, workspaceId, roomId, senderId, lane, deps));
           return;
         }
       }
