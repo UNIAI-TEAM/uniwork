@@ -32,6 +32,7 @@ type PushSubscribeSDI struct {
 	Endpoint string      `json:"endpoint" minLength:"1" description:"PushSubscription.endpoint (https) hoặc token Expo ExponentPushToken[...]" example:"https://fcm.googleapis.com/fcm/send/abc"`
 	Keys     PushKeysSDI `json:"keys"`
 	Platform string      `json:"platform,omitempty" description:"ios | android, bắt buộc khi endpoint là token Expo" example:"ios"`
+	CallUI   bool        `json:"call_ui,omitempty" description:"true khi bản Android tự vẽ cuộc gọi đến (UniChat 0.3.0 trở lên): push đổ chuông và kết thúc tới máy đó là data-only; thiếu thì máy nhận push hiển thị như trước" example:"true"`
 }
 
 // PushUnsubscribeSDI is DELETE /api/v1/me/push-subscriptions.

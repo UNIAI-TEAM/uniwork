@@ -1,6 +1,7 @@
 // Expo push registration. The Expo push token travels in `endpoint` with an
 // empty web-push key pair, and `platform` tells the server it is an Expo
-// token (server SDI). Without an EAS projectId (no EAS account yet, spec §12
+// token (server SDI); `call_ui` tells it an Android build rings calls
+// itself. Without an EAS projectId (no EAS account yet, spec §12
 // Q8) there is no token to fetch, so registration is skipped and said once.
 // Settings can turn push off for this device: the choice lives in SecureStore
 // and every later registration respects it.
@@ -25,6 +26,13 @@ interface RegisterPushOptions {
    * wants one before the permission prompt and the first push.
    */
   channels?: () => Promise<void>;
+  /**
+   * This build draws its own incoming call (the native calls module is
+   * there: nativeCalls.available). Android only: the server then sends call
+   * pushes data-only; without it they stay visible pushes, which a build
+   * with no call UI can still show.
+   */
+  callUI?: boolean;
 }
 
 const log = createLogger("push");
@@ -42,7 +50,7 @@ export async function isPushEnabled(): Promise<boolean> {
 }
 
 /** Resolves to the registered Expo push token, or null when nothing was registered. */
-export async function registerPushToken({ api, projectId, platform, channels }: RegisterPushOptions): Promise<string | null> {
+export async function registerPushToken({ api, projectId, platform, channels, callUI }: RegisterPushOptions): Promise<string | null> {
   if (!(await isPushEnabled())) return null;
   if (!projectId) {
     if (!skipLogged) {
@@ -55,7 +63,7 @@ export async function registerPushToken({ api, projectId, platform, channels }: 
   const permission = await Notifications.requestPermissionsAsync();
   if (!permission.granted) return null;
   const { data: token } = await Notifications.getExpoPushTokenAsync({ projectId });
-  await api.subscribePush({ endpoint: token, keys: { p256dh: "", auth: "" }, platform });
+  await api.subscribePush({ endpoint: token, keys: { p256dh: "", auth: "" }, platform, ...(platform === "android" && callUI ? { call_ui: true } : {}) });
   registeredToken = token;
   return token;
 }

@@ -10,6 +10,7 @@ import { Platform, Switch, View } from "react-native";
 import { Text } from "@/components/ui/text";
 import { TintTile } from "@/components/ui/tint-tile";
 import { api } from "@/data/api";
+import { nativeCalls } from "@/data/calls/native-calls";
 import { isPushEnabled, setPushEnabled } from "@/data/push";
 import { easProjectId } from "@/lib/runtime-extra";
 import { THEME } from "@/lib/theme";
@@ -35,7 +36,7 @@ export function PushSection() {
   }, []);
 
   const onChange = async (next: boolean) => {
-    const options = { api, projectId: easProjectId(Constants.expoConfig?.extra), platform: Platform.OS };
+    const options = { api, projectId: easProjectId(Constants.expoConfig?.extra), platform: Platform.OS, callUI: nativeCalls.available };
     setBusy(true);
     setNotice(null);
     try {

@@ -136,8 +136,10 @@ func TestExpoPushSenderShapesCallPushesPerPlatform(t *testing.T) {
 	}))
 	defer srv.Close()
 	s := ExpoPushSender{URL: srv.URL}
-	android := db.PushSubscription{Endpoint: "ExponentPushToken[a]", UserAgent: pgtype.Text{String: "expo/android", Valid: true}}
+	android := db.PushSubscription{Endpoint: "ExponentPushToken[a]", UserAgent: pgtype.Text{String: "expo/android; call-ui", Valid: true}}
 	iphone := db.PushSubscription{Endpoint: "ExponentPushToken[i]", UserAgent: pgtype.Text{String: "expo/ios", Valid: true}}
+	// An Android build from before the native call UI (it registers without call_ui): data-only would ring nothing.
+	legacy := db.PushSubscription{Endpoint: "ExponentPushToken[l]", UserAgent: pgtype.Text{String: "expo/android", Valid: true}}
 	invite := PushMessage{
 		Title: "Minh đang gọi", URL: "https://app/o/w/chat?room=r&call=c", Tag: "chat_call:r", TTL: 60, Channel: ChannelCalls,
 		Call: CallPush{Type: CallPushInvite, CallID: "c", RoomID: "r", WorkspaceID: "w", CallerName: "Minh", RoomName: "", CallKind: "dm", Video: true, ExpiresAt: 1700000060000},
@@ -178,6 +180,12 @@ func TestExpoPushSenderShapesCallPushesPerPlatform(t *testing.T) {
 	if d, _ := got[0]["data"].(map[string]any); d["url"] != invite.URL || d["call_id"] != "c" {
 		t.Fatalf("iphone ring data = %v", d)
 	}
+	if err := s.Send(context.Background(), legacy, invite); err != nil {
+		t.Fatal(err)
+	}
+	if got[0]["title"] != "Minh đang gọi" || got[0]["sound"] != "default" || got[0]["channelId"] != ChannelCalls {
+		t.Fatalf("ring to an Android build without the call UI = %v, want the visible push it can show", got[0])
+	}
 
 	end := PushMessage{TTL: 60, Call: CallPush{Type: CallPushEnd, CallID: "c", RoomID: "r", WorkspaceID: "w"}}
 	if err := s.Send(context.Background(), android, end); err != nil {
@@ -188,12 +196,14 @@ func TestExpoPushSenderShapesCallPushesPerPlatform(t *testing.T) {
 		t.Fatalf("android end = %v", got[0])
 	}
 	got = nil
-	if err := s.Send(context.Background(), iphone, end); !errors.Is(err, ErrPushSkipped) || got != nil {
-		t.Fatalf("iphone end = %v (sent %v), want skipped without a request", err, got)
+	for _, sub := range []db.PushSubscription{iphone, legacy} {
+		if err := s.Send(context.Background(), sub, end); !errors.Is(err, ErrPushSkipped) || got != nil {
+			t.Fatalf("end to %s = %v (sent %v), want skipped without a request", sub.UserAgent.String, err, got)
+		}
 	}
 
 	missed := PushMessage{Title: "Cuộc gọi nhỡ từ Minh", URL: "https://app/o/w/chat?room=r&message=m", Tag: "chat_room:r:dm", Channel: ChannelMissedCalls, Call: CallPush{Type: CallPushMissed, CallID: "c", RoomID: "r", WorkspaceID: "w"}}
-	for _, sub := range []db.PushSubscription{android, iphone} {
+	for _, sub := range []db.PushSubscription{android, iphone, legacy} {
 		if err := s.Send(context.Background(), sub, missed); err != nil {
 			t.Fatal(err)
 		}

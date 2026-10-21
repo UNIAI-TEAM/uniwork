@@ -33,7 +33,7 @@ export default function AppLayout() {
   useEffect(() => {
     if (!userId) return;
     const channels = () => ensureNotificationChannels((key) => i18n.t(key), { platform: Platform.OS, native: nativeCalls });
-    registerPushToken({ api, projectId: easProjectId(Constants.expoConfig?.extra), platform: Platform.OS, channels }).catch(
+    registerPushToken({ api, projectId: easProjectId(Constants.expoConfig?.extra), platform: Platform.OS, channels, callUI: nativeCalls.available }).catch(
       // A simulator has no push token; the app works without one.
       (err: unknown) => log.warn("registration failed", { error: err instanceof Error ? err.name : typeof err }),
     );

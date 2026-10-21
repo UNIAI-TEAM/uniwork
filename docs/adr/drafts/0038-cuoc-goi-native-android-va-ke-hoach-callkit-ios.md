@@ -45,11 +45,14 @@ iOS nhận VoIP push qua PushKit và báo ngay cho CallKit.
      `android-manifest.test.ts` giữ danh sách cuối của bản release.
    Chính sách (khi nào reo, khi nào service chạy, ai được báo) nằm ở `data/calls/*` bằng TypeScript và được
    test trong node với module giả.
-2. **Server.** Lời mời gửi tới Android là Expo push data-only, ưu tiên cao (id cuộc gọi, phòng, workspace,
-   tên người gọi và phòng, loại cuộc gọi, video, lúc hết đổ chuông); iOS giữ push hiển thị như cũ. Khi cuộc
+2. **Server.** Lời mời gửi tới bản Android có giao diện cuộc gọi là Expo push data-only, ưu tiên cao (id cuộc
+   gọi, phòng, workspace, tên người gọi và phòng, loại cuộc gọi, video, lúc hết đổ chuông); iOS và bản Android cũ
+   giữ push hiển thị như cũ. "Có giao diện cuộc gọi" là điều app tự khai khi đăng ký token (`call_ui: true` khi
+   module native có mặt, lưu thành user agent `expo/android; call-ui`): bản 0.2.x không có task nền nào biến push
+   data-only thành tiếng chuông, gửi data-only tới nó là mất cuộc gọi. Khi cuộc
    gọi thôi reo với một người (họ nghe ở máy khác, từ chối, hoặc cuộc gọi kết thúc), `ChatService` ghi một
    hàng outbox `chat.voice.ring_closed` cùng transaction đóng hàng notification; lane push biến nó thành
-   push data-only "kết thúc" cho các máy Android của người đó. Mỗi push mang kênh Android theo kind
+   push data-only "kết thúc" cho các máy Android có giao diện cuộc gọi của người đó. Mỗi push mang kênh Android theo kind
    (`calls`, `missed_calls`, `mentions`, `messages`, `general`); cuộc gọi 1-1 nhỡ là push "Cuộc gọi nhỡ từ X".
 3. **Công tắc.** `unichat_mobile_calls` tắt thì server không gửi push cuộc gọi (đã có) và không gửi push kết
    thúc; app không reo, không hiện màn đổ chuông; cuộc gọi đang diễn ra không bị cắt và vẫn giữ foreground

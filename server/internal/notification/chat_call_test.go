@@ -406,7 +406,8 @@ func TestCallRingClosedStopsTheAndroidPhones(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	f.subscribeAs(t, f.member.ID, "ExponentPushToken[android]", "expo/android")
+	f.subscribeAs(t, f.member.ID, "ExponentPushToken[android]", "expo/android; call-ui")
+	f.subscribeAs(t, f.member.ID, "ExponentPushToken[android-0.2]", "expo/android")
 	f.subscribeAs(t, f.member.ID, "ExponentPushToken[iphone]", "expo/ios")
 	f.subscribe(t, f.member.ID, "https://push.example/member-browser")
 	spy := &spySender{}
@@ -430,7 +431,7 @@ func TestCallRingClosedStopsTheAndroidPhones(t *testing.T) {
 	}
 	want := PushMessage{TTL: 60, Call: CallPush{Type: CallPushEnd, CallID: "call-closed-1", RoomID: dm.ID, WorkspaceID: answered.WorkspaceID.String}}
 	if len(spy.sent) != 1 || spy.sent[0] != want || spy.endpoints[0] != "ExponentPushToken[android]" {
-		t.Fatalf("ring end sent %+v to %v, want %+v to the Android phone only", spy.sent, spy.endpoints, want)
+		t.Fatalf("ring end sent %+v to %v, want %+v to the Android phone with the call UI only", spy.sent, spy.endpoints, want)
 	}
 
 	// The caller hangs up: the call's end closes the ring for every invitee.

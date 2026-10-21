@@ -76,10 +76,26 @@ func pushChannel(kind string) string {
 	}
 }
 
-// expoAndroid reports a subscription the app registered from Android
-// (notification.Service.SubscribePush stores the platform as the user agent).
-func expoAndroid(sub db.PushSubscription) bool {
-	return sub.UserAgent.Valid && sub.UserAgent.String == "expo/android"
+// expoCallUIAgent is the user agent of a subscription from an Android build
+// that draws its own incoming call (UniChat 0.3.0 and later say so with
+// call_ui when they register; notification.Service.SubscribePush).
+const expoCallUIAgent = "expo/android; call-ui"
+
+// expoUserAgent is what a mobile subscription records: the platform, and the
+// call-ui mark for an Android build with the native call UI. Only Android
+// has one; an iPhone keeps the visible call push whatever it says.
+func expoUserAgent(platform string, callUI bool) string {
+	if platform == "android" && callUI {
+		return expoCallUIAgent
+	}
+	return "expo/" + platform
+}
+
+// expoCallUI reports a subscription that gets call pushes as data-only
+// messages. An Android build from before the call UI ("expo/android") has
+// no task to turn one into a ring, so it keeps the visible push.
+func expoCallUI(sub db.PushSubscription) bool {
+	return sub.UserAgent.Valid && sub.UserAgent.String == expoCallUIAgent
 }
 
 // callData is the data a call push carries: ids, the names a ringing screen
@@ -111,21 +127,22 @@ func callData(msg PushMessage) map[string]string {
 }
 
 // expoMessageFor shapes msg for one subscription. A ring and the end of one
-// go to Android as data-only, high-priority messages for the app's own call
-// UI (a full-screen ringing screen, answer and decline); an iPhone keeps the
-// visible "X đang gọi" push and gets no end, which it could not act on. A
-// missed call is visible everywhere and names the call in its data. ok is
-// false when this subscription gets nothing.
+// go to an Android build with the call UI as data-only, high-priority
+// messages for the app's own call UI (a full-screen ringing screen, answer
+// and decline); an iPhone and an older Android build keep the visible
+// "X đang gọi" push and get no end, which they could not act on. A missed
+// call is visible everywhere and names the call in its data. ok is false
+// when this subscription gets nothing.
 func expoMessageFor(sub db.PushSubscription, msg PushMessage) (expoMessage, bool) {
-	android := expoAndroid(sub)
+	callUI := expoCallUI(sub)
 	switch msg.Call.Type {
 	case CallPushEnd:
-		if !android {
+		if !callUI {
 			return expoMessage{}, false
 		}
 		return expoMessage{To: sub.Endpoint, Data: callData(msg), TTL: msg.ttl(), Priority: "high"}, true
 	case CallPushInvite:
-		if android {
+		if callUI {
 			return expoMessage{To: sub.Endpoint, Data: callData(msg), TTL: msg.ttl(), Priority: "high"}, true
 		}
 	}

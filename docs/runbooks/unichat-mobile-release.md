@@ -218,6 +218,14 @@ từng mục khi đã nộp:
   "không ai nghe"). Android là chính; iOS có thể bị hệ điều hành treo app nền giữa hai frame tới khi có CallKit.
 - [ ] Đăng xuất rồi đăng nhập tài khoản khác: không thấy phòng, tin hay hàng đợi của tài khoản trước.
 
+**Thứ tự phát hành cuộc gọi native (owner).** Server chỉ gửi push cuộc gọi data-only tới máy Android đã đăng ký token
+với `call_ui` (bản 0.3.0 trở lên có module native; app đăng ký lại mỗi lần mở); bản 0.2.x và iPhone vẫn nhận push "X
+đang gọi" hiển thị, nên deploy server trước hay sau bản store đều không làm máy cũ mất cuộc gọi. Push hiển thị giờ mang
+kênh `calls`/`messages`/`mentions`/`general` mà bản 0.2.x chưa tạo: Expo đưa chúng vào kênh dự phòng của app (vẫn hiện,
+tên kênh "Miscellaneous"). Khi 0.3.0 đã có trên track người dùng thấy, đặt `UNICHAT_MOBILE_MIN_SUPPORTED_VERSION=0.3.0`
+để mọi máy có cùng giao diện cuộc gọi. Kiểm sau deploy: `push_subscriptions.user_agent = 'expo/android; call-ui'` tăng
+dần theo số máy đã cập nhật.
+
 **Cuộc gọi native trên Android (UNI-2053 S4, `docs/adr/drafts/0038-…`).** Test node/jest giữ chính sách (khi nào reo,
 khi nào dịch vụ chạy, ai được báo) với module native giả; chỉ máy Android thật (bản `preview`/`internal` có
 `GOOGLE_SERVICES_JSON` và FCM) xác nhận phần Kotlin. Hai tài khoản, A gọi B (luồng có sẵn:
@@ -227,6 +235,12 @@ khi nào dịch vụ chạy, ai được báo) với module native giả; chỉ 
   thoại đến", Nghe / Từ chối), nhạc chuông là nhạc chuông của máy; chế độ rung chỉ rung, im lặng không kêu.
 - [ ] Nghe: app mở trên màn cuộc gọi và nối; khoá máy giữa cuộc gọi — tiếng hai chiều vẫn còn sau 2 phút; thanh thông
   báo có "Cuộc gọi thoại · chạm để quay lại" với đồng hồ và Gác máy; Gác máy ở đó kết thúc cuộc gọi ở cả hai bên.
+- [ ] Nghe từ màn khoá chưa mở khoá: màn cuộc gọi hiện ngay trên màn khoá (không đòi mở khoá); gác máy thì màn khoá
+  trở lại như trước.
+- [ ] A gọi rồi đưa app xuống nền (Home) trước khi B nghe; B nghe: tiếng hai chiều vẫn còn ở A sau 2 phút, thông báo
+  "đang diễn ra" của A chuyển sang đồng hồ; A mở lại app: không lỗi, cuộc gọi vẫn chạy.
+- [ ] Bản 0.2.x còn cài trên một máy Android khi server đã deploy: A gọi, máy đó vẫn hiện push "A đang gọi" (không
+  mất cuộc gọi).
 - [ ] Từ chối trên thông báo khi app đã kill: chuông tắt ngay, A thấy "từ chối" trong vài giây (không phải đợi 45 s).
 - [ ] B có hai máy Android: nghe ở máy 1 thì máy 2 thôi reo trong vài giây; A gác máy khi B chưa nghe thì máy B thôi
   reo và hiện "Cuộc gọi nhỡ từ A" (kênh Cuộc gọi nhỡ).

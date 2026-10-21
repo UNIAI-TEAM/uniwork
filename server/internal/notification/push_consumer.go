@@ -224,7 +224,8 @@ func (c *PushConsumer) missedCall(msg *PushMessage, locale string, params map[st
 // left to stop (the ring timed out on its own).
 const callEndTTL = int(callRingWindow / time.Second)
 
-// handleRingClosed tells a person's Android phones that a call no longer
+// handleRingClosed tells a person's Android phones (the builds with the call
+// UI) that a call no longer
 // rings for them: they answered it on one device, declined it, or it ended.
 // A data-only push; the app removes its ringing screen and notification.
 // iPhones keep today's visible push, which this cannot recall. Nothing is
@@ -249,7 +250,7 @@ func (c *PushConsumer) handleRingClosed(ctx context.Context, ev outbox.Row) erro
 	msg := PushMessage{TTL: callEndTTL, Call: CallPush{Type: CallPushEnd, CallID: callID, RoomID: roomID, WorkspaceID: ev.WorkspaceID.String}}
 	var failed error
 	for _, sub := range subs {
-		if !isExpoPushToken(sub.Endpoint) || !expoAndroid(sub) {
+		if !isExpoPushToken(sub.Endpoint) || !expoCallUI(sub) {
 			continue
 		}
 		err := c.sender.Send(ctx, sub, msg)

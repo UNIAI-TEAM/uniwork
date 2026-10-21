@@ -56,8 +56,11 @@ interface Opts {
   signal?: AbortSignal;
 }
 
-/** the Expo push token goes in `endpoint`; `platform` is required for it (server SDI) */
-export type PushSubscription = PushSubscriptionBody & { platform: string };
+/**
+ * the Expo push token goes in `endpoint`; `platform` is required for it, and
+ * `call_ui` says an Android build draws its own incoming call (server SDI)
+ */
+export type PushSubscription = PushSubscriptionBody & { platform: string; call_ui?: boolean };
 
 const createRequestId = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 

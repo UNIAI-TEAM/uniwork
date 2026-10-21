@@ -66,6 +66,17 @@ describe("registerPushToken", () => {
     expect(notifications.setNotificationChannelAsync).not.toHaveBeenCalled();
   });
 
+  it("tells the server an Android build draws its own incoming call, so call pushes come data-only", async () => {
+    const { registerPushToken } = await load();
+    await registerPushToken({ api, projectId: "p1", platform: "android", callUI: true });
+    expect(api.subscribePush).toHaveBeenLastCalledWith({ endpoint: "ExponentPushToken[abc]", keys: { p256dh: "", auth: "" }, platform: "android", call_ui: true });
+    // Without the native module (callUI false) the server keeps the visible call push; an iPhone never says it.
+    await registerPushToken({ api, projectId: "p1", platform: "android", callUI: false });
+    expect(api.subscribePush).toHaveBeenLastCalledWith({ endpoint: "ExponentPushToken[abc]", keys: { p256dh: "", auth: "" }, platform: "android" });
+    await registerPushToken({ api, projectId: "p1", platform: "ios", callUI: true });
+    expect(api.subscribePush).toHaveBeenLastCalledWith({ endpoint: "ExponentPushToken[abc]", keys: { p256dh: "", auth: "" }, platform: "ios" });
+  });
+
   it("creates the Android channels before the permission prompt", async () => {
     const { registerPushToken } = await load();
     const channels = vi.fn(async () => undefined);
