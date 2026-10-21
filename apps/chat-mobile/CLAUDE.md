@@ -97,7 +97,9 @@ một dòng thì ghi lý do ở dòng trên.
   lần ghi trước khi hydrate (không ghi đè hàng đợi trên đĩa bằng mảng rỗng). **Outbox**: `data/chat-send.ts` —
   mọi lần gửi (chữ, ảnh/tệp, tin thoại, nhắc hẹn) vào `stores/chat-send-store.ts` (persist; `sending` → `queued`
   khi đọc lại, `client_msg_id` làm replay an toàn), tệp chép vào `documents/outbox/<clientMsgId>/`
-  (`data/outbox-files.ts`) trước khi xếp hàng, xoá khi server nhận, khi bỏ hoặc khi đăng xuất; một hàng FIFO nghiêm
+  (`data/outbox-files.ts`) trước khi xếp hàng, xoá khi server nhận, khi bỏ hoặc khi đăng xuất; lúc giao tìm lại bản
+  chép theo `<clientMsgId>/<tên>` dưới thư mục documents hiện tại (iOS có thể dời container khi cập nhật), tệp đã mất
+  thì tin thành `failed` ngay (không tải lên, hàng của phòng đi tiếp); một hàng FIFO nghiêm
   ngặt cho mỗi (workspace, phòng, người gửi), một lần gửi một tin; guard flush theo workspace + người gửi; lỗi tạm
   thời giữ hàng của phòng và thử lại theo backoff; flush khi mở workspace, NetInfo online, socket reconnect và mỗi
   lần về foreground (`use-chat-realtime.ts`). **Đọc, biểu cảm, bình chọn offline**: `data/pending-ops.ts` +

@@ -55,6 +55,7 @@ const files = {
   keep: vi.fn<OutboxFiles["keep"]>(),
   release: vi.fn<OutboxFiles["release"]>(),
   releaseAll: vi.fn<OutboxFiles["releaseAll"]>(),
+  resolve: vi.fn<OutboxFiles["resolve"]>(),
 };
 /** The retry timer, fired by hand: `fire()` runs what is waiting. */
 let waiting: (() => void) | null = null;
@@ -114,6 +115,7 @@ beforeEach(() => {
   files.keep.mockReset().mockImplementation(async (id, file) => ({ ...file, uri: `file:///docs/outbox/${id}/${file.name}` }));
   files.release.mockReset();
   files.releaseAll.mockReset();
+  files.resolve.mockReset().mockImplementation((_id, file) => file);
   timers.schedule.mockClear();
   timers.reset.mockClear();
   timers.cancelAll.mockClear();
@@ -272,6 +274,32 @@ describe("refusals and retries", () => {
     discardPendingSend(id, deps);
     expect(statuses()).toEqual([]);
     expect(files.release).toHaveBeenLastCalledWith(id);
+  });
+
+  // Review P2: the upload of a purged file rejected as a TypeError, read as "no network", and the
+  // room's later messages stayed queued behind it for ever.
+  it("a queued file that is gone fails for good, without an upload, and the room's next message goes", async () => {
+    const qc = new QueryClient();
+    online = false;
+    await sendChatMessage(qc, { ...input, body: "", file: { uri: "file:///cache/gone.png", name: "gone.png" } }, deps);
+    await sendChatMessage(qc, { ...input, body: "after" }, deps);
+    files.resolve.mockReturnValueOnce(null);
+    online = true;
+    await flushQueuedSends(qc, "w1", "u1", deps);
+    expect(sendFileMessage).not.toHaveBeenCalled();
+    expect(bodies()).toEqual(["after"]);
+    expect(statuses()).toEqual(["failed"]);
+    expect(timers.schedule).not.toHaveBeenCalled();
+  });
+
+  it("uploads a file from where the outbox copy is now, not the path stored before an update moved it", async () => {
+    const qc = new QueryClient();
+    files.resolve.mockImplementationOnce((id, file) => ({ ...file, uri: `file:///new-container/outbox/${id}/${file.name}` }));
+    sendFileMessage.mockResolvedValueOnce(echo("f", { kind: "file" }));
+    await sendChatMessage(qc, { ...input, file: { uri: "file:///cache/a.png", name: "a.png" } }, deps);
+    const sent = sendFileMessage.mock.calls[0]![2];
+    expect(files.resolve).toHaveBeenCalledWith(sent.client_msg_id, { uri: `file:///docs/outbox/${sent.client_msg_id}/a.png`, name: "a.png" });
+    expect(sent.file.uri).toBe(`file:///new-container/outbox/${sent.client_msg_id}/a.png`);
   });
 
   it("does not post twice when a retry tap races a flush, and a retry of a waiting message keeps it waiting offline", async () => {

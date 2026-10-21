@@ -89,11 +89,22 @@ const roomKey = (workspaceId: string, roomId: string, senderId: string) => `${wo
 
 type Outcome = "sent" | "failed" | "transient";
 
-/** One delivery of one entry; the entry leaves the queue on "sent" only. */
+/**
+ * One delivery of one entry; the entry leaves the queue on "sent" only. A
+ * file that is gone (the OS purged the picker's cache the copy fell back to)
+ * would fail every upload as a network error and hold the room's line for
+ * ever: it fails for good instead, so the line moves on and the person can
+ * discard it.
+ */
 async function deliverOnce(qc: QueryClient, entry: PendingSend, deps: ChatSendDeps): Promise<Outcome> {
+  const file = entry.file ? deps.files.resolve(entry.clientMsgId, entry.file) : undefined;
+  if (file === null) {
+    useChatSendStore.getState().setStatus(entry.clientMsgId, "failed");
+    return "failed";
+  }
   useChatSendStore.getState().setStatus(entry.clientMsgId, "sending");
   try {
-    const message = await (deps.retry ?? runWithChatSendRetry)(() => deliver(entry, deps));
+    const message = await (deps.retry ?? runWithChatSendRetry)(() => deliver({ ...entry, file }, deps));
     // No message back (a drifted answer) is still a post the server took: the room refetches.
     applyChatMessageResponse(qc, entry.workspaceId, entry.roomId, message, true);
     useChatSendStore.getState().remove(entry.clientMsgId);
