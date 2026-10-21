@@ -162,12 +162,16 @@ meetingAgent:
   healthPort: 8081
   # Prometheus endpoint of the worker (scribe_* metrics, multiprocess mode).
   metricsPort: 9100
-  # LiveKit URL the agent dials; empty = public.livekitUrl. It must resolve to
-  # an address egress.livekit.cidrs allows.
+  # LiveKit URL the agent dials. Required when enabled, together with
+  # egress.livekit.cidrs: it must resolve to an address those CIDRs allow.
+  # There is no default: LiveKit runs hostNetwork, and the in-cluster address
+  # the chart knows (networkPolicy.livekitTunnelCidr) is the node's Calico
+  # tunnel, the source of LiveKit's webhooks, not an address LiveKit
+  # advertises for media.
   livekitUrl: ""
   # LiveKit docs: 10-25 jobs per 4 CPU / 8 GB pod; the worker refuses jobs past
-  # load_threshold 0.7, keeps one warm job process per CPU (SCRIBE_IDLE_PROCESSES
-  # defaults to the CPU count) and the HPA adds pods at 50% CPU.
+  # load_threshold 0.7, keeps the library's default of warm job processes (one
+  # per CPU of the pod's cgroup quota) and the HPA adds pods at 50% CPU.
   minReplicas: 1
   maxReplicas: 6
   resources:
@@ -187,13 +191,13 @@ meetingAgent:
   # livekit: every address the agent's LiveKit URL resolves to (and the TURN
   # server, if media relays through one), on the signalling ports and the RTC
   # media range the LiveKit server config opens (rtc.port_range_start/end,
-  # tcp_port). The default is the in-cluster tunnel address; set the public
-  # IPs when the agent dials the public URL (runbook MeetingScribeCannotJoin).
+  # tcp_port). Required when enabled, set with livekitUrl (runbook
+  # MeetingScribeCannotJoin): e.g. the public IPs of public.livekitUrl.
   # stt: AssemblyAI publishes no fixed range, so 443 stays open to any
   # address until ops pin one.
   egress:
     livekit:
-      cidrs: ["10.244.217.192/32"]
+      cidrs: []
       ports:
         - { port: 443, protocol: TCP }
         - { port: 7880, protocol: TCP }
