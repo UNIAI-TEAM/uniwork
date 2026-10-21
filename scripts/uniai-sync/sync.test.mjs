@@ -11,6 +11,8 @@ import {
   TITLE_LIMIT,
 } from "./map.mjs";
 import { orderIssues } from "./order.mjs";
+import { createLock } from "./lock.mjs";
+import { loadConfig } from "./config.mjs";
 
 test("taskTitle prefixes the key once and cuts at 500 runes", () => {
   assert.equal(taskTitle("UNI-423", "Sửa cổng"), "UNI-423: Sửa cổng");
@@ -117,4 +119,44 @@ test("orderIssues puts parents first and reports only the cycle", () => {
   assert.ok(got.order.includes("tail"));
   assert.ok(!got.order.includes("a"));
   assert.ok(!got.order.includes("b"));
+});
+
+test("loadConfig reads the example shape and the two tokens", () => {
+  const files = new Map([
+    ["scripts/uniai-sync/config.json", JSON.stringify({
+      uniai_project_id: "57602a20-04e8-4c08-abd5-415ccd882e05",
+      uniwork_origin: "https://uniwork.example",
+      uniwork_workspace_id: "ws",
+      uniwork_project_id: "prj",
+    })],
+  ]);
+  const cfg = loadConfig(
+    { UNIWORK_MCP_TOKEN: "uwm_at_x", UNIWORK_SESSION_TOKEN: "sess" },
+    (path) => files.get(path),
+  );
+  assert.equal(cfg.workspaceId, "ws");
+  assert.equal(cfg.mcpToken, "uwm_at_x");
+  assert.equal(cfg.sessionToken, "sess");
+  assert.equal(cfg.origin, "https://uniwork.example");
+});
+
+test("createLock refuses a live pid and replaces a dead one", () => {
+  const disk = new Map();
+  const fs = {
+    readFileSync: (path) => {
+      if (!disk.has(path)) throw Object.assign(new Error("missing"), { code: "ENOENT" });
+      return disk.get(path);
+    },
+    writeFileSync: (path, value) => disk.set(path, value),
+    unlinkSync: (path) => disk.delete(path),
+  };
+  const first = createLock(fs, () => 11, () => true);
+  assert.equal(first.tryAcquire(), true);
+  const second = createLock(fs, () => 22, () => true);
+  assert.equal(second.tryAcquire(), false);
+  const third = createLock(fs, () => 33, () => false);
+  assert.equal(third.tryAcquire(), true);
+  assert.equal(disk.get("scripts/uniai-sync/.sync.lock"), "33");
+  third.release();
+  assert.equal(disk.has("scripts/uniai-sync/.sync.lock"), false);
 });
