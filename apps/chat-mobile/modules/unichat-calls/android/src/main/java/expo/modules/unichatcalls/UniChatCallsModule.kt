@@ -12,7 +12,7 @@ import expo.modules.kotlin.modules.ModuleDefinition
  * UniChat's native calls on Android (docs/adr/drafts/0038), as JavaScript
  * sees them through modules/unichat-calls/index.ts. Every function is cheap
  * and synchronous; the policy (when to ring, when the service runs) lives in
- * data/calls/*, which tests it with this module mocked.
+ * data/calls/, which tests it with this module mocked.
  */
 class UniChatCallsModule : Module() {
   private val context: Context

@@ -673,7 +673,9 @@ hai lớp test, `pnpm knip --workspace apps/chat-mobile`, `expo install --check`
 đã cài —, `scripts/mobile-*.test.mjs`, trong đó `mobile-lockfiles.test.mjs` cấm lockfile ngoài `pnpm-lock.yaml`), `doctor-bundle` (`expo-doctor` rồi
 `expo export --platform android --platform ios` giữ trong `bundle-budget.json` bởi
 `scripts/mobile-bundle-budget.mjs`, trần cho từng nền tảng — iOS có ngân sách trước khi có bản build) và `android-release` (`expo prebuild` +
-`./gradlew :app:assembleRelease` x86_64, chỉ khi `scripts/mobile-native-scope.mjs`
+`./gradlew :app:assembleRelease` x86_64 — Kotlin của `modules/*/android` thì job `mobile` chạy ktlint ở mọi PR mobile
+(ghim `KTLINT_VERSION` + checksum, kiểu ở `.editorconfig` › `[*.{kt,kts}]`; trong KDoc đừng viết `/*`, Kotlin coi là
+mở comment lồng), chỉ khi `scripts/mobile-native-scope.mjs`
 nói thay đổi chạm binary) rồi `android-smoke` (cài APK đó lên emulator, chạy
 `maestro/flows/smoke-launch.yaml`: mở lạnh tới màn đăng nhập, không cần server — `ios-release` làm cùng việc đó trên
 simulator iOS với bản Release ký ad-hoc, cùng điều kiện native; cuối job, ở font_scale 2.0 và dark mode,

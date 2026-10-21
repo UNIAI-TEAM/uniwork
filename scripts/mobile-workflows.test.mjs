@@ -52,6 +52,12 @@ test("mobile-verify can be called and builds the release only through its jobs",
   );
   assert.match(wf, /scripts\/mobile-a11y-audit\.test\.mjs/, "the contract step runs the audit's own test");
   assert.match(envPin(wf, "MAESTRO_VERSION") ?? "", EXACT, "MAESTRO_VERSION is an exact version");
+  // Audit "missed: no static analysis of the native Kotlin": pinned, checksummed, on every mobile PR.
+  assert.match(envPin(wf, "KTLINT_VERSION") ?? "", EXACT, "KTLINT_VERSION is an exact version");
+  assert.match(envPin(wf, "KTLINT_SHA256") ?? "", /^[0-9a-f]{64}$/, "the ktlint binary is checked against its checksum");
+  const checks = jobsOf(wf).jobs.get("checks") ?? "";
+  assert.match(checks, /sha256sum -c -\n[^\n]*\n\s+"\$RUNNER_TEMP\/ktlint" "apps\/chat-mobile\/modules\/\*\*\/\*\.kt"$/m, "ktlint runs over the modules' Kotlin");
+  assert.match(fs.readFileSync(path.join(root, ".editorconfig"), "utf8"), /^\[\*\.\{kt,kts\}\]\nktlint_code_style = android_studio$/m, "ktlint's style is the repo's");
   assert.match(wf, /scripts\/mobile-workflows\.test\.mjs/, "the contract step runs this test");
   assert.match(wf, /scripts\/mobile-knip\.test\.mjs/, "the contract step runs the knip exception test");
   // Dead code and dependency drift block on every PR, not only in a local make check.

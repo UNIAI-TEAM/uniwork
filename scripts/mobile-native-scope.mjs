@@ -48,6 +48,8 @@ export const MOBILE_PATHS = [
   "turbo.json",
   // Read by scripts/mobile-knip.test.mjs and scripts/mobile-easignore.test.mjs.
   "knip.json",
+  // ktlint's settings for the modules' Kotlin.
+  ".editorconfig",
   ".easignore",
   ".gitignore",
   "**/.gitignore",
