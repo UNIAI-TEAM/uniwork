@@ -1,0 +1,5 @@
+$ grep -E "^(ok|FAIL|\?)\s" /tmp/uni2012r7-handler.log | cut -c1-200 | head -150
+ok  	github.com/unicomhub/uniwork/server/internal/handler	918.763s	coverage: 82.9% of statements
+?   	github.com/unicomhub/uniwork/server/internal/handler/dto/sdi	[no test files]
+ok  	github.com/unicomhub/uniwork/server/internal/handler/dto/sdo	1.171s	coverage: 66.7% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/handler/router	34.229s	coverage: 99.5% of statements
