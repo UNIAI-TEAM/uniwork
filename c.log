@@ -1,0 +1,3 @@
+$ (ss -ltnp 2>/dev/null || netstat -ltnp 2>/dev/null) | grep -E ":(14330|14340|19340|14341) " ; for p in 19340 14340 14341; do fuser -k $p/tcp 2>/dev/null; done; echo PORTS_FREED
+tcp6       0      0 :::14330                :::*                    LISTEN      28577/next-server ( 
+PORTS_FREED

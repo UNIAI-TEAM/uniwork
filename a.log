@@ -1,0 +1,4 @@
+$ git checkout --detach 7abf4622d 2>&1 | tail -2; echo "VM_HEAD_SHA=$(git rev-parse HEAD)"; git rev-parse HEAD | grep -q "^7abf4622d" || { echo "VM_SHA_EXIT=1"; exit 1; }
+Previous HEAD position was 7de787c28 fix(views): keep chords out of the Email Hub back, archive, delete and unread names
+HEAD is now at 7abf4622d chore: merge develop (76a8aadb0) into the G5-G7 root
+VM_HEAD_SHA=7abf4622dfb248a8da96cb577c93ee22462e46fb
