@@ -323,4 +323,25 @@ describe("Documents home folder upload entries (UNI-2052)", () => {
     expect(within(dialog).getByTestId("folder-upload-root")).toHaveTextContent("Báo cáo");
     expect(toast.info).not.toHaveBeenCalled();
   });
+
+  // tester_visual r1 F1: the label sat straight on the semi-transparent veil, over the card titles.
+  it("puts the drag-over label on its own solid surface above the veil (F1)", async () => {
+    route({ folderUpload: true });
+    renderView();
+    await screenWithFolderUpload();
+    const zone = screen.getByRole("region", { name: t("documents.page.title") });
+    await act(async () => {
+      fireEvent.dragEnter(zone, { dataTransfer: { types: ["Files"], files: [], items: [], dropEffect: "none" } });
+    });
+    const veil = await screen.findByTestId("documents-drop-overlay");
+    const surface = screen.getByTestId("documents-drop-label");
+    expect(veil).toContainElement(surface);
+    expect(surface).not.toBe(veil);
+    expect(surface).toHaveTextContent(t("documents.home.drop_active"));
+    expect(surface.className).toMatch(/\bbg-popover\b/);
+    expect(surface.className).toMatch(/\bborder\b/);
+    expect(surface.className).toMatch(/\bshadow-/);
+    // The label itself carries no veil colour: the text lives inside the surface only.
+    expect(veil.textContent).toBe(surface.textContent);
+  });
 });

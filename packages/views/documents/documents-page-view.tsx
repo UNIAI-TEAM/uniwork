@@ -18,6 +18,7 @@ import { CollectionPageState } from "../layout/collection-page";
 import { useOptionalWorkspace } from "../layout/workspace-context";
 import { AppLink, useNavigation } from "../navigation";
 import { OfficeHomeLaunch, type OfficeHomeLaunchProps } from "../office/office-home-launch";
+import { DocumentsDropOverlay } from "./documents-drop-overlay";
 import { DocumentsGateState, useDocumentsGate } from "./documents-gate";
 import { isParentWorkspaceShared, useCreateOfType } from "./documents-create";
 import { CreateMenu } from "./documents-home-create";
@@ -540,11 +541,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
                 {libraryList}
               </div>
             )}
-            {uploads.dropActive ? (
-              <div aria-hidden className="pointer-events-none absolute inset-2 flex items-center justify-center rounded-xl border-2 border-dashed border-primary bg-background/80 text-body font-medium text-foreground">
-                {t("documents.home.drop_active")}
-              </div>
-            ) : null}
+            {uploads.dropActive ? <DocumentsDropOverlay /> : null}
           </section>
         </div>
       )}
