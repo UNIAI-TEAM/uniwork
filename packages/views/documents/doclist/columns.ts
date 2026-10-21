@@ -68,6 +68,9 @@ const SCREEN_COLUMN_SORT: Record<DocListScreenColumnId, DocListSortKey> = {
 
 /** The room Name keeps before a column joins: it never drops under this. */
 export const NAME_FLOOR = 184;
+/** The width of a screen column; Recent's Lần mở gần nhất takes 10px more (its label and sort arrow). */
+const SCREEN_COLUMN_WIDTH = 118;
+const ACTIVITY_WIDTH = 128;
 /** The table's 1px borders, both sides. */
 const BORDER = 2;
 
@@ -83,7 +86,7 @@ const screenColumn = (id: DocListScreenColumnId): DocListColumn => ({
   id,
   labelKey: `documents.list.screen_column.${id}`,
   sortKey: SCREEN_COLUMN_SORT[id],
-  width: 118,
+  width: id === "activity" ? ACTIVITY_WIDTH : SCREEN_COLUMN_WIDTH,
   align: "left",
 });
 
@@ -143,6 +146,16 @@ export interface DocListRungs {
 const rem = (px: number) => Math.ceil(px / 16);
 
 /**
+ * The room Name keeps on a screen. Recent's wider activity column takes its 10px
+ * from the floor (174), so its rungs sit exactly where the 118px column put them
+ * and no other screen moves a rung.
+ */
+export function nameFloor(spec: DocListSpec): number {
+  const own = spec.columns.find((c) => c.id === spec.screenColumn)?.width ?? SCREEN_COLUMN_WIDTH;
+  return NAME_FLOOR - (own - SCREEN_COLUMN_WIDTH);
+}
+
+/**
  * The container widths, in rem, at which the optional columns join. A rung is
  * every column on screen up to and including it + the border + the Name floor,
  * rounded up to the next rem, so Name never drops under NAME_FLOOR: the
@@ -156,7 +169,7 @@ const rem = (px: number) => Math.ceil(px / 16);
 export function docListRungs(spec: DocListSpec): DocListRungs {
   const width = (id: DocListColumnId) => spec.columns.find((c) => c.id === id)?.width ?? 0;
   const base =
-    width("select") + width("updated") + width("actions") + (spec.screenColumn ? width(spec.screenColumn) : 0) + BORDER + NAME_FLOOR;
+    width("select") + width("updated") + width("actions") + (spec.screenColumn ? width(spec.screenColumn) : 0) + BORDER + nameFloor(spec);
   const access = base + width("access");
   const editor = access + width("editor");
   const size = editor + width("size");

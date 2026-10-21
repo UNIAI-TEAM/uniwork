@@ -355,12 +355,13 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
   );
   const hostActions = officeHome ? <OfficeHomeLaunch {...officeHome} /> : null;
   // Home, folder and Trash carry their own h1 (the boards), and so do the list
-  // screens with the shared head (UNI-2045 W14); Lưu trữ and the gate states
-  // keep the collection header.
-  const screenHead = !homeView && view.kind !== "archived" && view.kind !== "shelved";
-  const collectionHeader = gate !== "on" || view.kind === "shelved";
-  // Gần đây's Mở tiếp cards (recent-canvas): only while no filter or search narrows the list.
-  const cards = view.kind === "recent" && !filtered && !search.active ? continueCards(state.rows) : [];
+  // screens with the shared head, Lưu trữ included (UNI-2045 W14); only the
+  // gate states keep the collection header.
+  const screenHead = !homeView && view.kind !== "archived";
+  const collectionHeader = gate !== "on";
+  // Gần đây's Mở tiếp cards (recent-canvas): only while no filter or search narrows the list, and while the rows
+  // sit in the screen's own order (under another sort they are the newest of what loaded, not of everything).
+  const cards = view.kind === "recent" && !filtered && !search.active && library.ownOrderShown ? continueCards(state.rows) : [];
   const libraryList = (
     <DocumentsLibraryList
       groups={groups}
@@ -486,8 +487,8 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
                   handlers={handlers}
                   bulk={bulkCommands.bulk}
                   selectionKey={selectionKey}
-                  focusId={focusId}
                   collapse={collapse}
+                  focusId={focusId}
                   claimFocus={claimFocus}
                   hasMore={state.hasMore}
                   loadingMore={state.loadingMore}
@@ -511,7 +512,6 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
                   onTrash: (doc) => rowDialogs.onArchive(doc),
                   isUnshelving: shelvedActions.isUnshelving,
                 }}
-                navButton={navButton}
               />
             ) : homeView ? (
               <div className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-5 sm:px-6">

@@ -171,6 +171,16 @@ describe("Recent on the approved recent-canvas layout (UNI-2045 W14)", () => {
     expect(onOpen).toHaveBeenCalledWith("r2");
   });
 
+  it("shows the Mở tiếp cards only while Recent is in its own order: sorted by name there are none", async () => {
+    route({ list: () => rows });
+    renderView("/?view=recent");
+    await screen.findByRole("region", { name: t("documents.recent.continue_title") });
+    fireEvent.click(
+      await screen.findByRole("button", { name: new RegExp(`^${t("documents.home.sort.column", { column: t("documents.home.columns.name") })}`) }),
+    );
+    await waitFor(() => expect(screen.queryByRole("region", { name: t("documents.recent.continue_title") })).toBeNull());
+  });
+
   it("hides the Mở tiếp row on an empty list and while a filter is on", async () => {
     route({ list: (path) => (new URLSearchParams(path.split("?")[1] ?? "").get("format") === "pdf" ? [] : rows) });
     renderView("/?view=recent");

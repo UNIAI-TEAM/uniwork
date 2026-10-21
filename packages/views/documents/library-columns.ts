@@ -96,6 +96,7 @@ const WIDTH_CLASSES: Record<number, string> = {
   84: "w-[84px]",
   118: "w-[118px]",
   120: "w-[120px]",
+  128: "w-[128px]",
   130: "w-[130px]",
 };
 
