@@ -1,0 +1,4 @@
+$ for i in $(seq 1 14); do test -f /tmp/pr7r8-e2e.exit && break; sleep 30; done; echo "DONE_FILE=$(test -f /tmp/pr7r8-e2e.exit && echo yes || echo no)"; tail -2 /tmp/pr7r8-e2e.log
+DONE_FILE=no
+  ✓  37 landing-office-editions.spec.ts:10:3 › Apps menu leads to Office and announces Personal truthfully at 390px in dark (1.6s)
+  -  38 landing-office-editions.spec.ts:36:1 › Office trial opens a published Windows installer download

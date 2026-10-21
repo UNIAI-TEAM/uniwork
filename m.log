@@ -1,0 +1,2101 @@
+$ rc=$(cat /tmp/pr7r8-e2e.exit 2>/dev/null || echo 99); grep -vE "^\s+at " /tmp/pr7r8-e2e.log | grep -E "✘|failed|flaky|passed|skipped|did not run|Error:" | head -80; tail -n 30 /tmp/pr7r8-e2e.log; for f in e2e/test-results/*/error-context.md; do [ -f "$f" ] && { echo "===== $f"; head -c 3000 "$f"; }; done; grep -qE "[0-9]+ passed" /tmp/pr7r8-e2e.log || { echo "no passing test"; [ "$rc" = 0 ] && rc=1; }; echo; echo "E2E_EXIT=$rc"; [ $rc -eq 0 ]
+  ✘   1 landing-distill.spec.ts:8:5 › compact landing keeps content and actions at 1280px: en (8.1s)
+  ✘   2 landing-distill.spec.ts:8:5 › compact landing keeps content and actions at 1280px: vi (8.2s)
+  ✘   3 landing-distill.spec.ts:8:5 › compact landing keeps content and actions at 390px: en (7.8s)
+  ✘   4 landing-distill.spec.ts:8:5 › compact landing keeps content and actions at 390px: vi (7.8s)
+  ✘  15 landing-lovable.spec.ts:6:3 › Lovable reference fits every feature 1440-light (6.4s)
+  ✘  16 landing-lovable.spec.ts:6:3 › Lovable reference fits every feature 1440-dark (6.5s)
+  ✘  17 landing-lovable.spec.ts:6:3 › Lovable reference fits every feature 390-dark (6.6s)
+  ✘  18 landing-lovable.spec.ts:61:1 › scaled action film keeps the explicit assignment and completion sequence (8.8s)
+  ✘  19 landing-lovable.spec.ts:87:1 › expanded film preserves reduced motion and exposes playback controls (1.0m)
+  ✘  20 landing-lovable.spec.ts:110:1 › meeting listing pauses the film and returning to the room restores it (1.0m)
+  ✘  21 landing-meetings.spec.ts:5:1 › online meetings are a view of the same workspace (6.8s)
+  ✘  22 landing-meetings.spec.ts:17:1 › meeting controls are accessible local simulations, with conditional AI follow-up (6.7s)
+  ✘  23 landing-motion.spec.ts:5:1 › landing demo controls perform the actions they advertise without workspace writes (7.1s)
+  ✘  24 landing-motion.spec.ts:29:1 › product showcase, cinematic playback and reduced motion remain usable (1.0m)
+  ✘  25 landing-motion.spec.ts:55:1 › hero offers registration and a demo request in a minimal opening (6.7s)
+  ✘  28 landing-motion.spec.ts:150:1 › nonessential motion stops offscreen (1.0m)
+  ✘  29 landing-motion.spec.ts:177:1 › GPU unavailable leaves the product showcase and demo intact (8.2s)
+  ✘  50 landing-playback.spec.ts:31:1 › reduced motion is still by default and manual exploration retains local actions (6.0s)
+  ✘  51 landing-playback.spec.ts:51:3 › every storyboard reaches its last beat without clipping at 1440px (11.2s)
+  ✘  54 landing-playback.spec.ts:140:5 › scripted views, brand and contrast: desktop-vi (22.1s)
+  ✘  55 landing-playback.spec.ts:140:5 › scripted views, brand and contrast: desktop-en (22.1s)
+  ✘  56 landing-playback.spec.ts:140:5 › scripted views, brand and contrast: mobile-vi (23.0s)
+  ✘  57 landing-playback.spec.ts:140:5 › scripted views, brand and contrast: mobile-en (24.2s)
+    Error: expect(locator).toBeVisible() failed
+    Error: element(s) not found
+    Error: expect(locator).toBeVisible() failed
+    Error: element(s) not found
+    Error: expect(locator).toBeVisible() failed
+    Error: element(s) not found
+    Error: expect(locator).toBeVisible() failed
+    Error: element(s) not found
+    Error: expect(locator).toBeVisible() failed
+    Error: element(s) not found
+    Error: expect(locator).toBeVisible() failed
+    Error: element(s) not found
+    Error: expect(locator).toBeVisible() failed
+    Error: element(s) not found
+    Error: expect(locator).toContainText(expected) failed
+    Error: element(s) not found
+    Error: locator.click: Test timeout of 60000ms exceeded.
+    Error: locator.click: Test timeout of 60000ms exceeded.
+    Error: expect(locator).toHaveAttribute(expected) failed
+    Error: element(s) not found
+    Error: expect(locator).toContainText(expected) failed
+    Error: element(s) not found
+    Error: expect(locator).toHaveCount(expected) failed
+    Error: locator.click: Test timeout of 60000ms exceeded.
+    Error: expect(locator).toHaveCount(expected) failed
+    Error: locator.click: Test timeout of 60000ms exceeded.
+    Error: expect(locator).toBeVisible() failed
+    Error: element(s) not found
+    Error: expect(locator).toContainText(expected) failed
+    Error: expect(locator).toContainText(expected) failed
+    Error: element(s) not found
+    Error: expect(received).toEqual(expected) // deep equality
+    Error: expect(received).toEqual(expected) // deep equality
+    Error: expect(received).toEqual(expected) // deep equality
+    Error: expect(received).toEqual(expected) // deep equality
+  23 failed
+  3 skipped
+  31 passed (9.7m)
+
+  23 failed
+    landing-distill.spec.ts:8:5 › compact landing keeps content and actions at 1280px: en ──────────
+    landing-distill.spec.ts:8:5 › compact landing keeps content and actions at 1280px: vi ──────────
+    landing-distill.spec.ts:8:5 › compact landing keeps content and actions at 390px: en ───────────
+    landing-distill.spec.ts:8:5 › compact landing keeps content and actions at 390px: vi ───────────
+    landing-lovable.spec.ts:6:3 › Lovable reference fits every feature 1440-light ──────────────────
+    landing-lovable.spec.ts:6:3 › Lovable reference fits every feature 1440-dark ───────────────────
+    landing-lovable.spec.ts:6:3 › Lovable reference fits every feature 390-dark ────────────────────
+    landing-lovable.spec.ts:61:1 › scaled action film keeps the explicit assignment and completion sequence 
+    landing-lovable.spec.ts:87:1 › expanded film preserves reduced motion and exposes playback controls 
+    landing-lovable.spec.ts:110:1 › meeting listing pauses the film and returning to the room restores it 
+    landing-meetings.spec.ts:5:1 › online meetings are a view of the same workspace ────────────────
+    landing-meetings.spec.ts:17:1 › meeting controls are accessible local simulations, with conditional AI follow-up 
+    landing-motion.spec.ts:5:1 › landing demo controls perform the actions they advertise without workspace writes 
+    landing-motion.spec.ts:29:1 › product showcase, cinematic playback and reduced motion remain usable 
+    landing-motion.spec.ts:55:1 › hero offers registration and a demo request in a minimal opening ─
+    landing-motion.spec.ts:150:1 › nonessential motion stops offscreen ─────────────────────────────
+    landing-motion.spec.ts:177:1 › GPU unavailable leaves the product showcase and demo intact ─────
+    landing-playback.spec.ts:31:1 › reduced motion is still by default and manual exploration retains local actions 
+    landing-playback.spec.ts:51:3 › every storyboard reaches its last beat without clipping at 1440px 
+    landing-playback.spec.ts:140:5 › scripted views, brand and contrast: desktop-vi ────────────────
+    landing-playback.spec.ts:140:5 › scripted views, brand and contrast: desktop-en ────────────────
+    landing-playback.spec.ts:140:5 › scripted views, brand and contrast: mobile-vi ─────────────────
+    landing-playback.spec.ts:140:5 › scripted views, brand and contrast: mobile-en ─────────────────
+  3 skipped
+  31 passed (9.7m)
+/workspace/e2e:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @uniwork/e2e@0.0.0 test: `playwright test --reporter=list --shard=4/8`
+Exit status 1
+===== e2e/test-results/landing-distill-compact-la-30aa8-nt-and-actions-at-1280px-en/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: landing-distill.spec.ts >> compact landing keeps content and actions at 1280px: en
+- Location: landing-distill.spec.ts:8:5
+
+# Error details
+
+```
+Error: expect(locator).toBeVisible() failed
+
+Locator: locator('.final-section').locator('.final-showcase .lovable-canvas')
+Expected: visible
+Timeout: 5000ms
+Error: element(s) not found
+
+Call log:
+  - Expect "toBeVisible" with timeout 5000ms
+  - waiting for locator('.final-section').locator('.final-showcase .lovable-canvas')
+
+```
+
+```yaml
+- link "Skip to content":
+  - /url: "#landing-main"
+- banner:
+  - link "UniWork":
+    - /url: /
+    - img "UniWork"
+  - navigation "Main navigation":
+    - button "Product"
+    - button "Apps"
+    - button "Solutions"
+    - button "Learn"
+    - link "Pricing":
+      - /url: /pricing
+    - link "Changelog":
+      - /url: /changelog
+  - button "Theme"
+  - button "Language"
+  - link "Sign in":
+    - /url: /login
+  - link "Get started":
+    - /url: /register
+- main:
+  - region "Every piece of work. One platform.":
+    - heading "Every piece of work. One platform." [level=1]
+    - paragraph: Tasks, conversations, meetings and AI in one workspace.
+    - link "Get started":
+      - /url: /register
+    - link "Request a demo":
+      - /url: /request-demo
+  - region "Connected tools. One focused team.":
+    - heading "Connected tools. One focused team." [level=2]
+    - complementary:
+      - img "UniWork"
+      - text: UniWork Demo
+      - strong: Demo Studio
+      - navigation "Preview app navigation":
+        - tablist "Product families":
+          - tab "Home"
+          - tab "Inbox"
+          - text: Work
+          - tab "Tasks" [selected]
+          - tab "My tasks"
+          - tab "Projects"
+          - tab "Calendar"
+          - text: Communication
+          - tab "Email Hub"
+          - tab "Meetings"
+          - tab "Documents"
+          - tab "Chat"
+          - tab "People"
+          - text: Work & projects
+          - tab "Workflows"
+          - text: Results
+          - tab "Work outputs"
+          - tab "Output approvals"
+          - tab "Decision review"
+          - tab "Decision history"
+          - text: Knowledge
+          - tab "Knowledge base"
+          - text: AI & automation
+          - tab "Ask UNI"
+          - tab "AI workforce"
+          - tab "Automation"
+          - tab "AI Brain"
+          - tab "Skill Hub"
+          - tab "Work Catalog"
+          - tab "AI Market"
+          - text: Organization
+          - tab "Activity log"
+          - tab "Reports"
+      - text: MA
+      - strong: Mai An
+      - text: Member
+    - button "Collapse menu" [expanded]
+    - searchbox "Search the product…"
+    - text: Ctrl+K
+    - button "Ask UNI"
+    - button "Inbox"
+    - button "Create a task"
+    - button "Theme"
+    - button "Language"
+    - text: Tasks
+    - button "Explore you===== e2e/test-results/landing-distill-compact-la-34235-ent-and-actions-at-390px-en/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: landing-distill.spec.ts >> compact landing keeps content and actions at 390px: en
+- Location: landing-distill.spec.ts:8:5
+
+# Error details
+
+```
+Error: expect(locator).toBeVisible() failed
+
+Locator: locator('.final-section').locator('.final-showcase .lovable-canvas')
+Expected: visible
+Timeout: 5000ms
+Error: element(s) not found
+
+Call log:
+  - Expect "toBeVisible" with timeout 5000ms
+  - waiting for locator('.final-section').locator('.final-showcase .lovable-canvas')
+
+```
+
+```yaml
+- link "Skip to content":
+  - /url: "#landing-main"
+- banner:
+  - link "UniWork":
+    - /url: /
+    - img "UniWork"
+  - button "Theme"
+  - button "Language"
+  - button "Open menu"
+- main:
+  - region "Every piece of work. One platform.":
+    - heading "Every piece of work. One platform." [level=1]
+    - paragraph: Tasks, conversations, meetings and AI in one workspace.
+    - link "Get started":
+      - /url: /register
+    - link "Request a demo":
+      - /url: /request-demo
+  - region "Connected tools. One focused team.":
+    - heading "Connected tools. One focused team." [level=2]
+    - button "Preview app navigation"
+    - searchbox "Search the product…"
+    - button "Ask UNI"
+    - button "Inbox"
+    - text: Tasks
+    - button "Explore yourself"
+    - tabpanel "Tasks":
+      - button "Play demo"
+      - img "Open the task that needs an assignee."
+  - region "UniWork Business OS":
+    - heading "UniWork Business OS" [level=2]
+    - paragraph: 37 capabilities. One shared context.
+    - group "Highlight layers":
+      - button "Layer 4 AI & Intelligence Foundation & roadmap"
+      - button "Layer 3 UniWork Core Current & expanding"
+      - button "Layer 2 uniOffice & Productivity In development"
+      - button "Layer 1 Business & Digital Services Planned"
+    - list:
+      - listitem:
+        - button "Preview Projects": Projects Projects. On the platform
+      - listitem:
+        - button "Preview Word": Word Word. In development
+      - listitem:
+        - button "Preview Ask UNI": Ask UNI AI Gateway & Token Hub. Requires configuration
+      - listitem:
+        - button "Preview Chat": Chat Chat. Requires configuration
+      - listitem: AI Context Early foundation
+      - listitem: Work Graph Planned
+      - listitem: Org. Memory Planned
+      - listitem: Skill Hub Planned
+      - listitem: AI Workforce Early foundation
+      - listitem: Executive Intelligence Planned
+      - listitem: Organization On the platform
+      - listitem: People On the platform
+      - listitem: Tasks On the platform
+      - listitem: Online meetings Requires configuration
+      - listitem: Email Hub Requires configuration
+      - listitem: Knowledge Planned
+      - listitem: Work Products Planned
+      - listitem: Integrations Planned
+      - listitem: Excel In development
+      - listitem: PowerPoint In===== e2e/test-results/landing-distill-compact-la-9de16-ent-and-actions-at-390px-vi/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: landing-distill.spec.ts >> compact landing keeps content and actions at 390px: vi
+- Location: landing-distill.spec.ts:8:5
+
+# Error details
+
+```
+Error: expect(locator).toBeVisible() failed
+
+Locator: locator('.final-section').locator('.final-showcase .lovable-canvas')
+Expected: visible
+Timeout: 5000ms
+Error: element(s) not found
+
+Call log:
+  - Expect "toBeVisible" with timeout 5000ms
+  - waiting for locator('.final-section').locator('.final-showcase .lovable-canvas')
+
+```
+
+```yaml
+- link "Chuyển đến nội dung":
+  - /url: "#landing-main"
+- banner:
+  - link "UniWork":
+    - /url: /vi
+    - img "UniWork"
+  - button "Giao diện"
+  - button "Ngôn ngữ"
+  - button "Mở menu"
+- main:
+  - region "Mọi công việc. Một nền tảng duy nhất.":
+    - heading "Mọi công việc. Một nền tảng duy nhất." [level=1]
+    - paragraph: Công việc, trao đổi, cuộc họp và AI trong một không gian làm việc.
+    - link "Bắt đầu ngay":
+      - /url: /register
+    - link "Yêu cầu demo":
+      - /url: /vi/request-demo
+  - region "Công cụ liền mạch. Cả đội cùng nhịp.":
+    - heading "Công cụ liền mạch. Cả đội cùng nhịp." [level=2]
+    - button "Điều hướng trong bản xem trước"
+    - searchbox "Tìm trong sản phẩm…"
+    - button "Hỏi UNI"
+    - button "Hộp việc"
+    - text: Công việc
+    - button "Tự khám phá"
+    - tabpanel "Công việc":
+      - button "Phát demo"
+      - img "Mở công việc cần giao người phụ trách."
+  - region "UniWork Business OS":
+    - heading "UniWork Business OS" [level=2]
+    - paragraph: 37 năng lực. Cùng một ngữ cảnh.
+    - group "Làm nổi bật các lớp":
+      - button "Lớp 4 AI & Intelligence Nền tảng & định hướng"
+      - button "Lớp 3 UniWork Core Hiện tại & mở rộng"
+      - button "Lớp 2 uniOffice & Productivity Đang phát triển"
+      - button "Lớp 1 Business & Digital Services Định hướng"
+    - list:
+      - listitem:
+        - button "Xem minh họa Dự án": Dự án Dự án. Có trên nền tảng
+      - listitem:
+        - button "Xem minh họa Word": Word Word. Đang phát triển
+      - listitem:
+        - button "Xem minh họa Hỏi UNI": Hỏi UNI AI Gateway & Token Hub. Theo cấu hình
+      - listitem:
+        - button "Xem minh họa Trao đổi": Trao đổi Trao đổi. Theo cấu hình
+      - listitem: AI Context Nền tảng ban đầu
+      - listitem: Work Graph Định hướng
+      - listitem: Trí nhớ tổ chức Định hướng
+      - listitem: Skill Hub Định hướng
+      - listitem: AI Workforce Nền tảng ban đầu
+      - listitem: Executive Intelligence Định hướng
+      - listitem: Tổ chức Có trên nền tảng
+      - listitem: N===== e2e/test-results/landing-distill-compact-la-b8c1e-nt-and-actions-at-1280px-vi/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: landing-distill.spec.ts >> compact landing keeps content and actions at 1280px: vi
+- Location: landing-distill.spec.ts:8:5
+
+# Error details
+
+```
+Error: expect(locator).toBeVisible() failed
+
+Locator: locator('.final-section').locator('.final-showcase .lovable-canvas')
+Expected: visible
+Timeout: 5000ms
+Error: element(s) not found
+
+Call log:
+  - Expect "toBeVisible" with timeout 5000ms
+  - waiting for locator('.final-section').locator('.final-showcase .lovable-canvas')
+
+```
+
+```yaml
+- link "Chuyển đến nội dung":
+  - /url: "#landing-main"
+- banner:
+  - link "UniWork":
+    - /url: /vi
+    - img "UniWork"
+  - navigation "Điều hướng chính":
+    - button "Sản phẩm"
+    - button "Ứng dụng"
+    - button "Giải pháp"
+    - button "Tìm hiểu"
+    - link "Bảng giá":
+      - /url: /vi/pricing
+    - link "Nhật ký cập nhật":
+      - /url: /vi/changelog
+  - button "Giao diện"
+  - button "Ngôn ngữ"
+  - link "Đăng nhập":
+    - /url: /login
+  - link "Bắt đầu ngay":
+    - /url: /register
+- main:
+  - region "Mọi công việc. Một nền tảng duy nhất.":
+    - heading "Mọi công việc. Một nền tảng duy nhất." [level=1]
+    - paragraph: Công việc, trao đổi, cuộc họp và AI trong một không gian làm việc.
+    - link "Bắt đầu ngay":
+      - /url: /register
+    - link "Yêu cầu demo":
+      - /url: /vi/request-demo
+  - region "Công cụ liền mạch. Cả đội cùng nhịp.":
+    - heading "Công cụ liền mạch. Cả đội cùng nhịp." [level=2]
+    - complementary:
+      - img "UniWork"
+      - text: UniWork Demo
+      - strong: Demo Studio
+      - navigation "Điều hướng trong bản xem trước":
+        - tablist "Nhóm chức năng":
+          - tab "Trang chủ"
+          - tab "Hộp việc"
+          - text: Làm việc
+          - tab "Công việc" [selected]
+          - tab "Việc của tôi"
+          - tab "Dự án"
+          - tab "Lịch"
+          - text: Trao đổi
+          - tab "Email Hub"
+          - tab "Cuộc họp"
+          - tab "Tài liệu"
+          - tab "Trò chuyện"
+          - tab "Danh bạ"
+          - text: Công việc & dự án
+          - tab "Quy trình"
+          - text: Kết quả
+          - tab "Kết quả công việc"
+          - tab "Phê duyệt kết quả"
+          - tab "Duyệt quyết định"
+          - tab "Lịch sử quyết định"
+          - text: Tri thức
+          - tab "Kho tri thức"
+          - text: AI & tự động hóa
+          - tab "Hỏi UNI"
+          - tab "Nhân sự AI"
+          - tab "Tự động hóa"
+          - tab "AI Brain"
+          - tab "Skill Hub"
+          - tab "Work Catalog"
+          - tab "AI Market"
+          - text: Tổ chức
+          - tab "Nhật ký hoạt động"
+ ===== e2e/test-results/landing-lovable-expanded-f-831bb-d-exposes-playback-controls/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: landing-lovable.spec.ts >> expanded film preserves reduced motion and exposes playback controls
+- Location: landing-lovable.spec.ts:87:1
+
+# Error details
+
+```
+Test timeout of 60000ms exceeded.
+```
+
+```
+Error: locator.click: Test timeout of 60000ms exceeded.
+Call log:
+  - waiting for locator('#product-preview .product-playback').locator('[data-action=\'expand-preview\']')
+
+```
+
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - link "Chuyển đến nội dung":
+      - /url: "#landing-main"
+    - banner [ref=e3]:
+      - generic [ref=e4]:
+        - link "UniWork" [ref=e5] [cursor=pointer]:
+          - /url: /vi
+          - img "UniWork" [ref=e6]
+        - navigation "Điều hướng chính" [ref=e17]:
+          - button "Sản phẩm" [ref=e19] [cursor=pointer]
+          - button "Ứng dụng" [ref=e23] [cursor=pointer]
+          - button "Giải pháp" [ref=e27] [cursor=pointer]
+          - button "Tìm hiểu" [ref=e31] [cursor=pointer]
+          - link "Bảng giá" [ref=e34] [cursor=pointer]:
+            - /url: /vi/pricing
+          - link "Nhật ký cập nhật" [ref=e35] [cursor=pointer]:
+            - /url: /vi/changelog
+        - generic [ref=e36]:
+          - generic [ref=e37]:
+            - button "Giao diện" [ref=e38] [cursor=pointer]
+            - button "Ngôn ngữ" [ref=e39] [cursor=pointer]
+          - link "Đăng nhập" [ref=e40] [cursor=pointer]:
+            - /url: /login
+          - link "Bắt đầu ngay" [ref=e41] [cursor=pointer]:
+            - /url: /register
+    - main [ref=e42]:
+      - region [ref=e43]:
+        - generic [ref=e46]:
+          - heading "Mọi công việc. Một nền tảng duy nhất." [level=1] [ref=e47]:
+            - generic [ref=e48]: Mọi công việc.
+            - generic [ref=e49]: Một nền tảng duy nhất.
+          - paragraph [ref=e50]: Công việc, trao đổi, cuộc họp và AI trong một không gian làm việc.
+          - generic [ref=e51]:
+            - link "Bắt đầu ngay" [ref=e52] [cursor=pointer]:
+              - /url: /register
+            - link "Yêu cầu demo" [ref=e53] [cursor=pointer]:
+              - /url: /vi/request-demo
+      - generic [ref=e54]:
+        - region [ref=e55]:
+          - generic [ref=e56]:
+            - heading "Công cụ liền mạch. Cả đội cùng nhịp." [level=2] [ref=e57]
+            - generic [ref=e62]:
+              - complementary [ref=e63]:
+                - generic [ref=e64]:
+                  - img "UniWork" [ref=e66]
+                  - generic [ref=e75]:
+                    - generic [ref=e76]: UniWork Demo
+                    - strong [ref=e77]: Demo Studio
+                - navigation "Điều hướng trong bản xem trước" [ref=e80]:
+                  - tablist "Nhóm chức năng" [ref=e===== e2e/test-results/landing-lovable-Lovable-re-18144-fits-every-feature-390-dark/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: landing-lovable.spec.ts >> Lovable reference fits every feature 390-dark
+- Location: landing-lovable.spec.ts:6:3
+
+# Error details
+
+```
+Error: expect(locator).toBeVisible() failed
+
+Locator: locator('#product-preview').locator('.mobile-feature-story[data-mobile-feature="dashboard"]')
+Expected: visible
+Timeout: 5000ms
+Error: element(s) not found
+
+Call log:
+  - Expect "toBeVisible" with timeout 5000ms
+  - waiting for locator('#product-preview').locator('.mobile-feature-story[data-mobile-feature="dashboard"]')
+
+```
+
+```yaml
+- link "Chuyển đến nội dung":
+  - /url: "#landing-main"
+- banner:
+  - link "UniWork":
+    - /url: /vi
+    - img "UniWork"
+  - button "Giao diện"
+  - button "Ngôn ngữ"
+  - button "Mở menu"
+- main:
+  - region "Mọi công việc. Một nền tảng duy nhất.":
+    - heading "Mọi công việc. Một nền tảng duy nhất." [level=1]
+    - paragraph: Công việc, trao đổi, cuộc họp và AI trong một không gian làm việc.
+    - link "Bắt đầu ngay":
+      - /url: /register
+    - link "Yêu cầu demo":
+      - /url: /vi/request-demo
+  - region "Công cụ liền mạch. Cả đội cùng nhịp.":
+    - heading "Công cụ liền mạch. Cả đội cùng nhịp." [level=2]
+    - button "Điều hướng trong bản xem trước"
+    - searchbox "Tìm trong sản phẩm…"
+    - button "Hỏi UNI"
+    - button "Hộp việc"
+    - text: Trang chủ
+    - tabpanel "Trang chủ":
+      - time: Thứ Sáu, 16 tháng 10
+      - heading "Chào buổi sáng, An" [level=2]
+      - paragraph: Bạn có 2 công việc cần chú ý hôm nay.
+      - heading "Công việc" [level=3]
+      - paragraph: Dữ liệu hư cấu minh họa · Không sử dụng dữ liệu khách hàng
+      - button "Hoàn thiện bản mô tả sản phẩm mẫu Mai An":
+        - strong: Hoàn thiện bản mô tả sản phẩm mẫu
+        - text: Mai An
+      - button "Bàn giao bộ hướng dẫn mẫu Mai An":
+        - strong: Bàn giao bộ hướng dẫn mẫu
+        - text: Mai An
+      - button "Họp giao ban dự án 09:30 · Demo Studio":
+        - strong: Họp giao ban dự án
+        - text: 09:30 · Demo Studio
+      - heading "Hôm nay chưa có gì chờ bạn" [level=3]
+      - paragraph: Việc được giao, cuộc họp và thông báo của workspace sẽ hiện ở đây. Bắt đầu từ một việc dưới đây.
+      - button "Tạo việc Ghi lại việc cần làm, giao cho mình hoặc đồng đội":
+        - strong: Tạo việc
+        - text: Ghi lại việc cần làm, giao cho mình hoặc đồng đội
+      - button "Lên lịch họp Hẹn giờ, mời người tham gia":
+        - strong: Lên lịch họp
+        - text: Hẹn giờ, mời người tham gia
+  - region "UniWork Business OS===== e2e/test-results/landing-lovable-Lovable-re-4b430-its-every-feature-1440-dark/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: landing-lovable.spec.ts >> Lovable reference fits every feature 1440-dark
+- Location: landing-lovable.spec.ts:6:3
+
+# Error details
+
+```
+Error: expect(locator).toBeVisible() failed
+
+Locator: locator('#product-preview').locator('.lovable-canvas[data-lovable-screen="dashboard"]')
+Expected: visible
+Timeout: 5000ms
+Error: element(s) not found
+
+Call log:
+  - Expect "toBeVisible" with timeout 5000ms
+  - waiting for locator('#product-preview').locator('.lovable-canvas[data-lovable-screen="dashboard"]')
+
+```
+
+```yaml
+- link "Skip to content":
+  - /url: "#landing-main"
+- banner:
+  - link "UniWork":
+    - /url: /
+    - img "UniWork"
+  - navigation "Main navigation":
+    - button "Product"
+    - button "Apps"
+    - button "Solutions"
+    - button "Learn"
+    - link "Pricing":
+      - /url: /pricing
+    - link "Changelog":
+      - /url: /changelog
+  - button "Theme"
+  - button "Language"
+  - link "Sign in":
+    - /url: /login
+  - link "Get started":
+    - /url: /register
+- main:
+  - region "Every piece of work. One platform.":
+    - heading "Every piece of work. One platform." [level=1]
+    - paragraph: Tasks, conversations, meetings and AI in one workspace.
+    - link "Get started":
+      - /url: /register
+    - link "Request a demo":
+      - /url: /request-demo
+  - region "Connected tools. One focused team.":
+    - heading "Connected tools. One focused team." [level=2]
+    - complementary:
+      - img "UniWork"
+      - text: UniWork Demo
+      - strong: Demo Studio
+      - navigation "Preview app navigation":
+        - tablist "Product families":
+          - tab "Home" [selected]
+          - tab "Inbox"
+          - text: Work
+          - tab "Tasks"
+          - tab "My tasks"
+          - tab "Projects"
+          - tab "Calendar"
+          - text: Communication
+          - tab "Email Hub"
+          - tab "Meetings"
+          - tab "Documents"
+          - tab "Chat"
+          - tab "People"
+          - text: Work & projects
+          - tab "Workflows"
+          - text: Results
+          - tab "Work outputs"
+          - tab "Output approvals"
+          - tab "Decision review"
+          - tab "Decision history"
+          - text: Knowledge
+          - tab "Knowledge base"
+          - text: AI & automation
+          - tab "Ask UNI"
+          - tab "AI workforce"
+          - tab "Automation"
+          - tab "AI Brain"
+          - tab "Skill Hub"
+          - tab "Work Catalog"
+          - tab "AI Market"
+          - text: Organization
+          - tab "Activity log"
+          - tab "Reports"
+      - text: MA
+      - strong: Mai An
+      - text: Member
+    - button "Collapse menu" [expanded]
+    - searchbox "Search the product…"
+    - text: Ctrl+K
+    - button "Ask UNI"
+    - button "Inbox"
+    - button "Create a task"
+    - button "Theme"
+    - button "Language"
+    - text: Ho===== e2e/test-results/landing-lovable-Lovable-re-70c34-ts-every-feature-1440-light/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: landing-lovable.spec.ts >> Lovable reference fits every feature 1440-light
+- Location: landing-lovable.spec.ts:6:3
+
+# Error details
+
+```
+Error: expect(locator).toBeVisible() failed
+
+Locator: locator('#product-preview').locator('.lovable-canvas[data-lovable-screen="dashboard"]')
+Expected: visible
+Timeout: 5000ms
+Error: element(s) not found
+
+Call log:
+  - Expect "toBeVisible" with timeout 5000ms
+  - waiting for locator('#product-preview').locator('.lovable-canvas[data-lovable-screen="dashboard"]')
+
+```
+
+```yaml
+- link "Chuyển đến nội dung":
+  - /url: "#landing-main"
+- banner:
+  - link "UniWork":
+    - /url: /vi
+    - img "UniWork"
+  - navigation "Điều hướng chính":
+    - button "Sản phẩm"
+    - button "Ứng dụng"
+    - button "Giải pháp"
+    - button "Tìm hiểu"
+    - link "Bảng giá":
+      - /url: /vi/pricing
+    - link "Nhật ký cập nhật":
+      - /url: /vi/changelog
+  - button "Giao diện"
+  - button "Ngôn ngữ"
+  - link "Đăng nhập":
+    - /url: /login
+  - link "Bắt đầu ngay":
+    - /url: /register
+- main:
+  - region "Mọi công việc. Một nền tảng duy nhất.":
+    - heading "Mọi công việc. Một nền tảng duy nhất." [level=1]
+    - paragraph: Công việc, trao đổi, cuộc họp và AI trong một không gian làm việc.
+    - link "Bắt đầu ngay":
+      - /url: /register
+    - link "Yêu cầu demo":
+      - /url: /vi/request-demo
+  - region "Công cụ liền mạch. Cả đội cùng nhịp.":
+    - heading "Công cụ liền mạch. Cả đội cùng nhịp." [level=2]
+    - complementary:
+      - img "UniWork"
+      - text: UniWork Demo
+      - strong: Demo Studio
+      - navigation "Điều hướng trong bản xem trước":
+        - tablist "Nhóm chức năng":
+          - tab "Trang chủ" [selected]
+          - tab "Hộp việc"
+          - text: Làm việc
+          - tab "Công việc"
+          - tab "Việc của tôi"
+          - tab "Dự án"
+          - tab "Lịch"
+          - text: Trao đổi
+          - tab "Email Hub"
+          - tab "Cuộc họp"
+          - tab "Tài liệu"
+          - tab "Trò chuyện"
+          - tab "Danh bạ"
+          - text: Công việc & dự án
+          - tab "Quy trình"
+          - text: Kết quả
+          - tab "Kết quả công việc"
+          - tab "Phê duyệt kết quả"
+          - tab "Duyệt quyết định"
+          - tab "Lịch sử quyết định"
+          - text: Tri thức
+          - tab "Kho tri thức"
+          - text: AI & tự động hóa
+          - tab "Hỏi UNI"
+          - tab "Nhân sự AI"
+          - tab "Tự động hóa"
+          - tab "AI Brain"
+          - tab "Skill Hub"
+          - tab "Work Catalog"
+          - tab "AI Market"
+          - text: Tổ chức
+          - tab===== e2e/test-results/landing-lovable-meeting-li-c8132-ing-to-the-room-restores-it/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: landing-lovable.spec.ts >> meeting listing pauses the film and returning to the room restores it
+- Location: landing-lovable.spec.ts:110:1
+
+# Error details
+
+```
+Test timeout of 60000ms exceeded.
+```
+
+```
+Error: locator.click: Test timeout of 60000ms exceeded.
+Call log:
+  - waiting for locator('.product-playback').locator('.lovable-meeting-view-switch button').first()
+
+```
+
+# Page snapshot
+
+```yaml
+- generic [ref=e1]:
+  - generic [ref=e2]:
+    - link "Chuyển đến nội dung":
+      - /url: "#landing-main"
+    - banner [ref=e3]:
+      - generic [ref=e4]:
+        - link "UniWork" [ref=e5] [cursor=pointer]:
+          - /url: /vi
+          - img "UniWork" [ref=e6]
+        - navigation "Điều hướng chính" [ref=e17]:
+          - button "Sản phẩm" [ref=e19] [cursor=pointer]
+          - button "Ứng dụng" [ref=e23] [cursor=pointer]
+          - button "Giải pháp" [ref=e27] [cursor=pointer]
+          - button "Tìm hiểu" [ref=e31] [cursor=pointer]
+          - link "Bảng giá" [ref=e34] [cursor=pointer]:
+            - /url: /vi/pricing
+          - link "Nhật ký cập nhật" [ref=e35] [cursor=pointer]:
+            - /url: /vi/changelog
+        - generic [ref=e36]:
+          - generic [ref=e37]:
+            - button "Giao diện" [ref=e38] [cursor=pointer]
+            - button "Ngôn ngữ" [ref=e39] [cursor=pointer]
+          - link "Đăng nhập" [ref=e40] [cursor=pointer]:
+            - /url: /login
+          - link "Bắt đầu ngay" [ref=e41] [cursor=pointer]:
+            - /url: /register
+    - main [ref=e42]:
+      - region [ref=e43]:
+        - generic [ref=e46]:
+          - heading "Mọi công việc. Một nền tảng duy nhất." [level=1] [ref=e47]:
+            - generic [ref=e48]: Mọi công việc.
+            - generic [ref=e49]: Một nền tảng duy nhất.
+          - paragraph [ref=e50]: Công việc, trao đổi, cuộc họp và AI trong một không gian làm việc.
+          - generic [ref=e51]:
+            - link "Bắt đầu ngay" [ref=e52] [cursor=pointer]:
+              - /url: /register
+            - link "Yêu cầu demo" [ref=e53] [cursor=pointer]:
+              - /url: /vi/request-demo
+      - generic [ref=e54]:
+        - region [ref=e55]:
+          - generic [ref=e56]:
+            - heading "Công cụ liền mạch. Cả đội cùng nhịp." [level=2] [ref=e57]
+            - generic [ref=e62]:
+              - complementary [ref=e63]:
+                - generic [ref=e64]:
+                  - img "UniWork" [ref=e66]
+                  - generic [ref=e75]:
+                    - generic [ref=e76]: UniWork Demo
+                    - strong [ref=e77]: Demo Studio
+                - navigation "Điều hướng trong bản xem trước" [ref=e80]:
+                  - tablist "Nhóm chức năng" [ref=e81]:
+        ===== e2e/test-results/landing-lovable-scaled-act-e029a-ent-and-completion-sequence/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: landing-lovable.spec.ts >> scaled action film keeps the explicit assignment and completion sequence
+- Location: landing-lovable.spec.ts:61:1
+
+# Error details
+
+```
+Error: expect(locator).toContainText(expected) failed
+
+Locator: locator('.product-playback').locator('[data-demo-result="assignee"]')
+Expected substring: "Hoàng Anh"
+Timeout: 5000ms
+Error: element(s) not found
+
+Call log:
+  - Expect "toContainText" with timeout 5000ms
+  - waiting for locator('.product-playback').locator('[data-demo-result="assignee"]')
+    9 × locator resolved to <span data-demo-result="assignee" class="product-task-assignee">…</span>
+      - unexpected value "HKhánh Vy"
+
+```
+
+```yaml
+- link "Chuyển đến nội dung":
+  - /url: "#landing-main"
+- banner:
+  - link "UniWork":
+    - /url: /vi
+    - img "UniWork"
+  - navigation "Điều hướng chính":
+    - button "Sản phẩm"
+    - button "Ứng dụng"
+    - button "Giải pháp"
+    - button "Tìm hiểu"
+    - link "Bảng giá":
+      - /url: /vi/pricing
+    - link "Nhật ký cập nhật":
+      - /url: /vi/changelog
+  - button "Giao diện"
+  - button "Ngôn ngữ"
+  - link "Đăng nhập":
+    - /url: /login
+  - link "Bắt đầu ngay":
+    - /url: /register
+- main:
+  - region "Mọi công việc. Một nền tảng duy nhất.":
+    - heading "Mọi công việc. Một nền tảng duy nhất." [level=1]
+    - paragraph: Công việc, trao đổi, cuộc họp và AI trong một không gian làm việc.
+    - link "Bắt đầu ngay":
+      - /url: /register
+    - link "Yêu cầu demo":
+      - /url: /vi/request-demo
+  - region "Công cụ liền mạch. Cả đội cùng nhịp.":
+    - heading "Công cụ liền mạch. Cả đội cùng nhịp." [level=2]
+    - complementary:
+      - img "UniWork"
+      - text: UniWork Demo
+      - strong: Demo Studio
+      - navigation "Điều hướng trong bản xem trước":
+        - tablist "Nhóm chức năng":
+          - tab "Trang chủ"
+          - tab "Hộp việc"
+          - text: Làm việc
+          - tab "Công việc" [selected]
+          - tab "Việc của tôi"
+          - tab "Dự án"
+          - tab "Lịch"
+          - text: Trao đổi
+          - tab "Email Hub"
+          - tab "Cuộc họp"
+          - tab "Tài liệu"
+          - tab "Trò chuyện"
+          - tab "Danh bạ"
+          - text: Công việc & dự án
+          - tab "Quy trình"
+          - text: Kết quả
+          - tab "Kết quả công việc"
+          - tab "Phê duyệt kết quả"
+          - tab "Duyệt quyết định"
+          - tab "Lịch sử quyết định"
+          - text: Tri thức
+          - tab "Kho tri thức"
+          - text: AI & tự động hóa
+          - tab "Hỏi UNI"
+          - tab "Nhân sự AI"
+          - tab "Tự động hóa"
+===== e2e/test-results/landing-meetings-meeting-c-dbee5-th-conditional-AI-follow-up/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: landing-meetings.spec.ts >> meeting controls are accessible local simulations, with conditional AI follow-up
+- Location: landing-meetings.spec.ts:17:1
+
+# Error details
+
+```
+Error: expect(locator).toContainText(expected) failed
+
+Locator: locator('.meeting-room')
+Expected substring: "Không truy cập mic, camera hay màn hình của bạn"
+Timeout: 5000ms
+Error: element(s) not found
+
+Call log:
+  - Expect "toContainText" with timeout 5000ms
+  - waiting for locator('.meeting-room')
+
+```
+
+```yaml
+- link "Chuyển đến nội dung":
+  - /url: "#landing-main"
+- banner:
+  - link "UniWork":
+    - /url: /vi
+    - img "UniWork"
+  - navigation "Điều hướng chính":
+    - button "Sản phẩm"
+    - button "Ứng dụng"
+    - button "Giải pháp"
+    - button "Tìm hiểu"
+    - link "Bảng giá":
+      - /url: /vi/pricing
+    - link "Nhật ký cập nhật":
+      - /url: /vi/changelog
+  - button "Giao diện"
+  - button "Ngôn ngữ"
+  - link "Đăng nhập":
+    - /url: /login
+  - link "Bắt đầu ngay":
+    - /url: /register
+- main:
+  - region "Mọi công việc. Một nền tảng duy nhất.":
+    - heading "Mọi công việc. Một nền tảng duy nhất." [level=1]
+    - paragraph: Công việc, trao đổi, cuộc họp và AI trong một không gian làm việc.
+    - link "Bắt đầu ngay":
+      - /url: /register
+    - link "Yêu cầu demo":
+      - /url: /vi/request-demo
+  - region "Công cụ liền mạch. Cả đội cùng nhịp.":
+    - heading "Công cụ liền mạch. Cả đội cùng nhịp." [level=2]
+    - complementary:
+      - img "UniWork"
+      - text: UniWork Demo
+      - strong: Demo Studio
+      - navigation "Điều hướng trong bản xem trước":
+        - tablist "Nhóm chức năng":
+          - tab "Trang chủ"
+          - tab "Hộp việc"
+          - text: Làm việc
+          - tab "Công việc"
+          - tab "Việc của tôi"
+          - tab "Dự án"
+          - tab "Lịch"
+          - text: Trao đổi
+          - tab "Email Hub"
+          - tab "Cuộc họp" [selected]
+          - tab "Tài liệu"
+          - tab "Trò chuyện"
+          - tab "Danh bạ"
+          - text: Công việc & dự án
+          - tab "Quy trình"
+          - text: Kết quả
+          - tab "Kết quả công việc"
+          - tab "Phê duyệt kết quả"
+          - tab "Duyệt quyết định"
+          - tab "Lịch sử quyết định"
+          - text: Tri thức
+          - tab "Kho tri thức"
+          - text: AI & tự động hóa
+          - tab "Hỏi UNI"
+          - tab "Nhân sự AI"
+          - tab "Tự động hóa"
+          - tab "AI Brain"
+          - tab "Skill Hub"
+          - tab "Work Catalog"
+          - tab "AI Market"
+          - text: Tổ chức
+          - tab "Nhật ký ho�===== e2e/test-results/landing-meetings-online-me-c9e15--view-of-the-same-workspace/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: landing-meetings.spec.ts >> online meetings are a view of the same workspace
+- Location: landing-meetings.spec.ts:5:1
+
+# Error details
+
+```
+Error: expect(locator).toHaveAttribute(expected) failed
+
+Locator: locator('#product-preview').getByRole('tab', { name: 'Họp trực tuyến', exact: true })
+Expected: "true"
+Timeout: 5000ms
+Error: element(s) not found
+
+Call log:
+  - Expect "toHaveAttribute" with timeout 5000ms
+  - waiting for locator('#product-preview').getByRole('tab', { name: 'Họp trực tuyến', exact: true })
+
+```
+
+```yaml
+- link "Chuyển đến nội dung":
+  - /url: "#landing-main"
+- banner:
+  - link "UniWork":
+    - /url: /vi
+    - img "UniWork"
+  - navigation "Điều hướng chính":
+    - button "Sản phẩm"
+    - button "Ứng dụng"
+    - button "Giải pháp"
+    - button "Tìm hiểu"
+    - link "Bảng giá":
+      - /url: /vi/pricing
+    - link "Nhật ký cập nhật":
+      - /url: /vi/changelog
+  - button "Giao diện"
+  - button "Ngôn ngữ"
+  - link "Đăng nhập":
+    - /url: /login
+  - link "Bắt đầu ngay":
+    - /url: /register
+- main:
+  - region "Mọi công việc. Một nền tảng duy nhất.":
+    - heading "Mọi công việc. Một nền tảng duy nhất." [level=1]
+    - paragraph: Công việc, trao đổi, cuộc họp và AI trong một không gian làm việc.
+    - link "Bắt đầu ngay":
+      - /url: /register
+    - link "Yêu cầu demo":
+      - /url: /vi/request-demo
+  - region "Công cụ liền mạch. Cả đội cùng nhịp.":
+    - heading "Công cụ liền mạch. Cả đội cùng nhịp." [level=2]
+    - complementary:
+      - img "UniWork"
+      - text: UniWork Demo
+      - strong: Demo Studio
+      - navigation "Điều hướng trong bản xem trước":
+        - tablist "Nhóm chức năng":
+          - tab "Trang chủ"
+          - tab "Hộp việc"
+          - text: Làm việc
+          - tab "Công việc"
+          - tab "Việc của tôi"
+          - tab "Dự án"
+          - tab "Lịch"
+          - text: Trao đổi
+          - tab "Email Hub"
+          - tab "Cuộc họp" [selected]
+          - tab "Tài liệu"
+          - tab "Trò chuyện"
+          - tab "Danh bạ"
+          - text: Công việc & dự án
+          - tab "Quy trình"
+          - text: Kết quả
+          - tab "Kết quả công việc"
+          - tab "Phê duyệt kết quả"
+          - tab "Duyệt quyết định"
+          - tab "Lịch sử quyết định"
+          - text: Tri thức
+          - tab "Kho tri thức"
+          - text: AI & tự động hóa
+          - tab "Hỏi UNI"
+          - tab "Nhân sự AI"
+          - tab "Tự động hóa"
+          - tab "AI Brain"
+          - tab "Skill Hub"
+          - tab "Work Catalog"
+          - tab "AI Market"
+          - text: T===== e2e/test-results/landing-motion-GPU-unavail-b1ee7-ct-showcase-and-demo-intact/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: landing-motion.spec.ts >> GPU unavailable leaves the product showcase and demo intact
+- Location: landing-motion.spec.ts:177:1
+
+# Error details
+
+```
+Error: expect(locator).toBeVisible() failed
+
+Locator: getByRole('textbox', { name: 'Tin nhắn minh họa' })
+Expected: visible
+Timeout: 5000ms
+Error: element(s) not found
+
+Call log:
+  - Expect "toBeVisible" with timeout 5000ms
+  - waiting for getByRole('textbox', { name: 'Tin nhắn minh họa' })
+
+```
+
+```yaml
+- link "Chuyển đến nội dung":
+  - /url: "#landing-main"
+- banner:
+  - link "UniWork":
+    - /url: /vi
+    - img "UniWork"
+  - navigation "Điều hướng chính":
+    - button "Sản phẩm"
+    - button "Ứng dụng"
+    - button "Giải pháp"
+    - button "Tìm hiểu"
+    - link "Bảng giá":
+      - /url: /vi/pricing
+    - link "Nhật ký cập nhật":
+      - /url: /vi/changelog
+  - button "Giao diện"
+  - button "Ngôn ngữ"
+  - link "Đăng nhập":
+    - /url: /login
+  - link "Bắt đầu ngay":
+    - /url: /register
+- main:
+  - region "Mọi công việc. Một nền tảng duy nhất.":
+    - heading "Mọi công việc. Một nền tảng duy nhất." [level=1]
+    - paragraph: Công việc, trao đổi, cuộc họp và AI trong một không gian làm việc.
+    - link "Bắt đầu ngay":
+      - /url: /register
+    - link "Yêu cầu demo":
+      - /url: /vi/request-demo
+  - region "Công cụ liền mạch. Cả đội cùng nhịp.":
+    - heading "Công cụ liền mạch. Cả đội cùng nhịp." [level=2]
+    - complementary:
+      - img "UniWork"
+      - text: UniWork Demo
+      - strong: Demo Studio
+      - navigation "Điều hướng trong bản xem trước":
+        - tablist "Nhóm chức năng":
+          - tab "Trang chủ"
+          - tab "Hộp việc"
+          - text: Làm việc
+          - tab "Công việc"
+          - tab "Việc của tôi"
+          - tab "Dự án"
+          - tab "Lịch"
+          - text: Trao đổi
+          - tab "Email Hub"
+          - tab "Cuộc họp"
+          - tab "Tài liệu"
+          - tab "Trò chuyện" [selected]
+          - tab "Danh bạ"
+          - text: Công việc & dự án
+          - tab "Quy trình"
+          - text: Kết quả
+          - tab "Kết quả công việc"
+          - tab "Phê duyệt kết quả"
+          - tab "Duyệt quyết định"
+          - tab "Lịch sử quyết định"
+          - text: Tri thức
+          - tab "Kho tri thức"
+          - text: AI & tự động hóa
+          - tab "Hỏi UNI"
+          - tab "Nhân sự AI"
+          - tab "Tự động hóa"
+          - tab "AI Brain"
+          - tab "Skill Hub"
+          - tab "Work Catalog"
+          - tab "AI Market"
+          - text: Tổ chức
+          - tab "Nhật ký hoạt động"
+          - tab "Báo c===== e2e/test-results/landing-motion-hero-offers-6e6b2-equest-in-a-minimal-opening/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: landing-motion.spec.ts >> hero offers registration and a demo request in a minimal opening
+- Location: landing-motion.spec.ts:55:1
+
+# Error details
+
+```
+Error: expect(locator).toHaveCount(expected) failed
+
+Locator:  locator('#product-preview').locator('.workspace-group-button')
+Expected: 6
+Received: 0
+Timeout:  5000ms
+
+Call log:
+  - Expect "toHaveCount" with timeout 5000ms
+  - waiting for locator('#product-preview').locator('.workspace-group-button')
+    14 × locator resolved to 0 elements
+       - unexpected value "0"
+
+```
+
+# Page snapshot
+
+```yaml
+- generic [ref=e1]:
+  - generic [ref=e2]:
+    - link "Chuyển đến nội dung":
+      - /url: "#landing-main"
+    - banner [ref=e3]:
+      - generic [ref=e4]:
+        - link "UniWork" [ref=e5] [cursor=pointer]:
+          - /url: /vi
+          - img "UniWork" [ref=e6]
+        - navigation "Điều hướng chính" [ref=e17]:
+          - button "Sản phẩm" [ref=e19] [cursor=pointer]
+          - button "Ứng dụng" [ref=e23] [cursor=pointer]
+          - button "Giải pháp" [ref=e27] [cursor=pointer]
+          - button "Tìm hiểu" [ref=e31] [cursor=pointer]
+          - link "Bảng giá" [ref=e34] [cursor=pointer]:
+            - /url: /vi/pricing
+          - link "Nhật ký cập nhật" [ref=e35] [cursor=pointer]:
+            - /url: /vi/changelog
+        - generic [ref=e36]:
+          - generic [ref=e37]:
+            - button "Giao diện" [ref=e38] [cursor=pointer]
+            - button "Ngôn ngữ" [ref=e39] [cursor=pointer]
+          - link "Đăng nhập" [ref=e40] [cursor=pointer]:
+            - /url: /login
+          - link "Bắt đầu ngay" [ref=e41] [cursor=pointer]:
+            - /url: /register
+    - main [ref=e42]:
+      - region [ref=e43]:
+        - generic [ref=e46]:
+          - heading "Mọi công việc. Một nền tảng duy nhất." [level=1] [ref=e47]:
+            - generic [ref=e48]: Mọi công việc.
+            - generic [ref=e49]: Một nền tảng duy nhất.
+          - paragraph [ref=e50]: Công việc, trao đổi, cuộc họp và AI trong một không gian làm việc.
+          - generic [ref=e51]:
+            - link "Bắt đầu ngay" [ref=e52] [cursor=pointer]:
+              - /url: /register
+            - link "Yêu cầu demo" [ref=e53] [cursor=pointer]:
+              - /url: /vi/request-demo
+      - generic [ref=e54]:
+        - region [ref=e55]:
+          - generic [ref=e56]:
+            - heading "Công cụ liền mạch. Cả đội cùng nhịp." [level=2] [ref=e57]
+            - generic [ref=e62]:
+              - complementary [ref=e63]:
+                - generic [ref=e64]:
+                  - img "UniWork" [ref=e66]
+                  - generic [ref=e75]:
+                    - generic [ref=e76]: UniWork Demo
+                    - strong [ref=e77]: Demo Stu===== e2e/test-results/landing-motion-landing-dem-e694a-se-without-workspace-writes/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: landing-motion.spec.ts >> landing demo controls perform the actions they advertise without workspace writes
+- Location: landing-motion.spec.ts:5:1
+
+# Error details
+
+```
+Error: expect(locator).toHaveCount(expected) failed
+
+Locator:  locator('#product-preview').locator('.preview-task')
+Expected: 1
+Received: 0
+Timeout:  5000ms
+
+Call log:
+  - Expect "toHaveCount" with timeout 5000ms
+  - waiting for locator('#product-preview').locator('.preview-task')
+    14 × locator resolved to 0 elements
+       - unexpected value "0"
+
+```
+
+# Page snapshot
+
+```yaml
+- generic [ref=e1]:
+  - generic [ref=e2]:
+    - link "Chuyển đến nội dung":
+      - /url: "#landing-main"
+    - banner [ref=e3]:
+      - generic [ref=e4]:
+        - link "UniWork" [ref=e5] [cursor=pointer]:
+          - /url: /vi
+          - img "UniWork" [ref=e6]
+        - navigation "Điều hướng chính" [ref=e17]:
+          - button "Sản phẩm" [ref=e19] [cursor=pointer]
+          - button "Ứng dụng" [ref=e23] [cursor=pointer]
+          - button "Giải pháp" [ref=e27] [cursor=pointer]
+          - button "Tìm hiểu" [ref=e31] [cursor=pointer]
+          - link "Bảng giá" [ref=e34] [cursor=pointer]:
+            - /url: /vi/pricing
+          - link "Nhật ký cập nhật" [ref=e35] [cursor=pointer]:
+            - /url: /vi/changelog
+        - generic [ref=e36]:
+          - generic [ref=e37]:
+            - button "Giao diện" [ref=e38] [cursor=pointer]
+            - button "Ngôn ngữ" [ref=e39] [cursor=pointer]
+          - link "Đăng nhập" [ref=e40] [cursor=pointer]:
+            - /url: /login
+          - link "Bắt đầu ngay" [ref=e41] [cursor=pointer]:
+            - /url: /register
+    - main [ref=e42]:
+      - region [ref=e43]:
+        - generic [ref=e46]:
+          - heading "Mọi công việc. Một nền tảng duy nhất." [level=1] [ref=e47]:
+            - generic [ref=e48]: Mọi công việc.
+            - generic [ref=e49]: Một nền tảng duy nhất.
+          - paragraph [ref=e50]: Công việc, trao đổi, cuộc họp và AI trong một không gian làm việc.
+          - generic [ref=e51]:
+            - link "Bắt đầu ngay" [ref=e52] [cursor=pointer]:
+              - /url: /register
+            - link "Yêu cầu demo" [ref=e53] [cursor=pointer]:
+              - /url: /vi/request-demo
+      - generic [ref=e54]:
+        - region [ref=e55]:
+          - generic [ref=e56]:
+            - heading "Công cụ liền mạch. Cả đội cùng nhịp." [level=2] [ref=e57]
+            - generic [ref=e62]:
+              - complementary [ref=e63]:
+                - generic [ref=e64]:
+                  - img "UniWork" [ref=e66]
+                  - generic [ref=e75]:
+                    - generic [ref=e76]: UniWork Demo
+                    - strong [ref=e77]: Demo Studio
+===== e2e/test-results/landing-motion-nonessential-motion-stops-offscreen/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: landing-motion.spec.ts >> nonessential motion stops offscreen
+- Location: landing-motion.spec.ts:150:1
+
+# Error details
+
+```
+Test timeout of 60000ms exceeded.
+```
+
+```
+Error: locator.click: Test timeout of 60000ms exceeded.
+Call log:
+  - waiting for locator('.meeting-follow-up [data-slot=accordion-trigger]')
+
+```
+
+# Page snapshot
+
+```yaml
+- generic [ref=e1]:
+  - generic [ref=e2]:
+    - link "Chuyển đến nội dung":
+      - /url: "#landing-main"
+    - banner [ref=e3]:
+      - generic [ref=e4]:
+        - link "UniWork" [ref=e5] [cursor=pointer]:
+          - /url: /vi
+          - img "UniWork" [ref=e6]
+        - navigation "Điều hướng chính" [ref=e17]:
+          - button "Sản phẩm" [ref=e19] [cursor=pointer]
+          - button "Ứng dụng" [ref=e23] [cursor=pointer]
+          - button "Giải pháp" [ref=e27] [cursor=pointer]
+          - button "Tìm hiểu" [ref=e31] [cursor=pointer]
+          - link "Bảng giá" [ref=e34] [cursor=pointer]:
+            - /url: /vi/pricing
+          - link "Nhật ký cập nhật" [ref=e35] [cursor=pointer]:
+            - /url: /vi/changelog
+        - generic [ref=e36]:
+          - generic [ref=e37]:
+            - button "Giao diện" [ref=e38] [cursor=pointer]
+            - button "Ngôn ngữ" [ref=e39] [cursor=pointer]
+          - link "Đăng nhập" [ref=e40] [cursor=pointer]:
+            - /url: /login
+          - link "Bắt đầu ngay" [ref=e41] [cursor=pointer]:
+            - /url: /register
+    - main [ref=e42]:
+      - region [ref=e43]:
+        - generic [ref=e46]:
+          - heading "Mọi công việc. Một nền tảng duy nhất." [level=1] [ref=e47]:
+            - generic [ref=e48]: Mọi công việc.
+            - generic [ref=e49]: Một nền tảng duy nhất.
+          - paragraph [ref=e50]: Công việc, trao đổi, cuộc họp và AI trong một không gian làm việc.
+          - generic [ref=e51]:
+            - link "Bắt đầu ngay" [ref=e52] [cursor=pointer]:
+              - /url: /register
+            - link "Yêu cầu demo" [ref=e53] [cursor=pointer]:
+              - /url: /vi/request-demo
+      - generic [ref=e54]:
+        - region [ref=e55]:
+          - generic [ref=e56]:
+            - heading "Công cụ liền mạch. Cả đội cùng nhịp." [level=2] [ref=e57]
+            - generic [ref=e62]:
+              - complementary [ref=e63]:
+                - generic [ref=e64]:
+                  - img "UniWork" [ref=e66]
+                  - generic [ref=e75]:
+                    - generic [ref=e76]: UniWork Demo
+                    - strong [ref=e77]: Demo Studio
+                - navigation "Điều hướng trong bản xem trước" [ref=e80]:
+                  - tablist "Nhóm chức năng" [ref=e81]:
+                    - generic [ref=e82]:
+                      - tab===== e2e/test-results/landing-motion-product-sho-e2dc1-educed-motion-remain-usable/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: landing-motion.spec.ts >> product showcase, cinematic playback and reduced motion remain usable
+- Location: landing-motion.spec.ts:29:1
+
+# Error details
+
+```
+Test timeout of 60000ms exceeded.
+```
+
+```
+Error: locator.click: Test timeout of 60000ms exceeded.
+Call log:
+  - waiting for locator('.meeting-follow-up [data-slot=accordion-trigger]')
+
+```
+
+# Page snapshot
+
+```yaml
+- generic [ref=e1]:
+  - generic [ref=e2]:
+    - link "Chuyển đến nội dung":
+      - /url: "#landing-main"
+    - banner [ref=e3]:
+      - generic [ref=e4]:
+        - link "UniWork" [ref=e5] [cursor=pointer]:
+          - /url: /vi
+          - img "UniWork" [ref=e6]
+        - navigation "Điều hướng chính" [ref=e17]:
+          - button "Sản phẩm" [ref=e19] [cursor=pointer]
+          - button "Ứng dụng" [ref=e23] [cursor=pointer]
+          - button "Giải pháp" [ref=e27] [cursor=pointer]
+          - button "Tìm hiểu" [ref=e31] [cursor=pointer]
+          - link "Bảng giá" [ref=e34] [cursor=pointer]:
+            - /url: /vi/pricing
+          - link "Nhật ký cập nhật" [ref=e35] [cursor=pointer]:
+            - /url: /vi/changelog
+        - generic [ref=e36]:
+          - generic [ref=e37]:
+            - button "Giao diện" [ref=e38] [cursor=pointer]
+            - button "Ngôn ngữ" [ref=e39] [cursor=pointer]
+          - link "Đăng nhập" [ref=e40] [cursor=pointer]:
+            - /url: /login
+          - link "Bắt đầu ngay" [ref=e41] [cursor=pointer]:
+            - /url: /register
+    - main [ref=e42]:
+      - region [ref=e43]:
+        - generic [ref=e46]:
+          - heading "Mọi công việc. Một nền tảng duy nhất." [level=1] [ref=e47]:
+            - generic [ref=e48]: Mọi công việc.
+            - generic [ref=e49]: Một nền tảng duy nhất.
+          - paragraph [ref=e50]: Công việc, trao đổi, cuộc họp và AI trong một không gian làm việc.
+          - generic [ref=e51]:
+            - link "Bắt đầu ngay" [ref=e52] [cursor=pointer]:
+              - /url: /register
+            - link "Yêu cầu demo" [ref=e53] [cursor=pointer]:
+              - /url: /vi/request-demo
+      - generic [ref=e54]:
+        - region [ref=e55]:
+          - generic [ref=e56]:
+            - heading "Công cụ liền mạch. Cả đội cùng nhịp." [level=2] [ref=e57]
+            - generic [ref=e62]:
+              - complementary [ref=e63]:
+                - generic [ref=e64]:
+                  - img "UniWork" [ref=e66]
+                  - generic [ref=e75]:
+                    - generic [ref=e76]: UniWork Demo
+                    - strong [ref=e77]: Demo Studio
+                - navigation "Điều hướng trong bản xem trước" [ref=e80]:
+                  - tablist "Nhóm chức năng" [ref=e81]:
+                    - generic [ref====== e2e/test-results/landing-playback-every-sto-53e00--without-clipping-at-1440px/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: landing-playback.spec.ts >> every storyboard reaches its last beat without clipping at 1440px
+- Location: landing-playback.spec.ts:51:3
+
+# Error details
+
+```
+Error: expect(locator).toContainText(expected) failed
+
+Locator: locator('.product-playback').locator('[data-status="done"] [data-demo-result="task-moved"]')
+Expected substring: "Hoàng Anh"
+Timeout: 5000ms
+Error: element(s) not found
+
+Call log:
+  - Expect "toContainText" with timeout 5000ms
+  - waiting for locator('.product-playback').locator('[data-status="done"] [data-demo-result="task-moved"]')
+    7 × locator resolved to <div data-demo-item="design" class="product-task-card" data-demo-target="task-row" data-demo-result="task-moved">…</div>
+      - unexpected value "DEMO-106Thiết kế trải nghiệm onboardingRa mắt sản phẩmKKhánh VyCập nhật 6 ngày trước"
+
+```
+
+```yaml
+- link "Chuyển đến nội dung":
+  - /url: "#landing-main"
+- banner:
+  - link "UniWork":
+    - /url: /vi
+    - img "UniWork"
+  - navigation "Điều hướng chính":
+    - button "Sản phẩm"
+    - button "Ứng dụng"
+    - button "Giải pháp"
+    - button "Tìm hiểu"
+    - link "Bảng giá":
+      - /url: /vi/pricing
+    - link "Nhật ký cập nhật":
+      - /url: /vi/changelog
+  - button "Giao diện"
+  - button "Ngôn ngữ"
+  - link "Đăng nhập":
+    - /url: /login
+  - link "Bắt đầu ngay":
+    - /url: /register
+- main:
+  - region "Mọi công việc. Một nền tảng duy nhất.":
+    - heading "Mọi công việc. Một nền tảng duy nhất." [level=1]
+    - paragraph: Công việc, trao đổi, cuộc họp và AI trong một không gian làm việc.
+    - link "Bắt đầu ngay":
+      - /url: /register
+    - link "Yêu cầu demo":
+      - /url: /vi/request-demo
+  - region "Công cụ liền mạch. Cả đội cùng nhịp.":
+    - heading "Công cụ liền mạch. Cả đội cùng nhịp." [level=2]
+    - complementary:
+      - img "UniWork"
+      - text: UniWork Demo
+      - strong: Demo Studio
+      - navigation "Điều hướng trong bản xem trước":
+        - tablist "Nhóm chức năng":
+          - tab "Trang chủ"
+          - tab "Hộp việc"
+          - text: Làm việc
+          - tab "Công việc" [selected]
+          - tab "Việc của tôi"
+          - tab "Dự án"
+          - tab "Lịch"
+          - text: Trao đổi
+          - tab "Email Hub"
+          - tab "Cuộc họp"
+          - tab "Tài liệu"
+          - tab "Trò chuyện"
+          - tab "Danh bạ"
+          - text: Công việc & dự án
+          - tab "Quy trình"
+          - text: Kết quả
+          - tab "Kết quả công việc"
+          - tab "Phê duyệt kết quả"
+          - tab "Duyệt quyết định"
+          - tab "Lịch sử quyết định"
+          - t===== e2e/test-results/landing-playback-reduced-m-53159-ation-retains-local-actions/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: landing-playback.spec.ts >> reduced motion is still by default and manual exploration retains local actions
+- Location: landing-playback.spec.ts:31:1
+
+# Error details
+
+```
+Error: expect(locator).toContainText(expected) failed
+
+Locator: locator('.product-playback').locator('[data-demo-item="design"]')
+Expected substring: "UNI-18"
+Received string:    "DEMO-106Thiết kế trải nghiệm onboardingRa mắt sản phẩmBBảo LâmCập nhật 6 ngày trước"
+Timeout: 5000ms
+
+Call log:
+  - Expect "toContainText" with timeout 5000ms
+  - waiting for locator('.product-playback').locator('[data-demo-item="design"]')
+    - locator resolved to <div data-demo-item="design" class="product-task-card" data-demo-target="task-row">…</div>
+    12 × unexpected value "DEMO-106Thiết kế trải nghiệm onboardingRa mắt sản phẩmBBảo LâmCập nhật 6 ngày trước"
+       - locator resolved to <div data-demo-item="design" data-demo-pointed="true" class="product-task-card" data-demo-target="task-row">…</div>
+    - unexpected value "DEMO-106Thiết kế trải nghiệm onboardingRa mắt sản phẩmBBảo LâmCập nhật 6 ngày trước"
+
+```
+
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - link "Chuyển đến nội dung":
+      - /url: "#landing-main"
+    - banner [ref=e3]:
+      - generic [ref=e4]:
+        - link "UniWork" [ref=e5] [cursor=pointer]:
+          - /url: /vi
+          - img "UniWork" [ref=e6]
+        - navigation "Điều hướng chính" [ref=e17]:
+          - button "Sản phẩm" [ref=e19] [cursor=pointer]
+          - button "Ứng dụng" [ref=e23] [cursor=pointer]
+          - button "Giải pháp" [ref=e27] [cursor=pointer]
+          - button "Tìm hiểu" [ref=e31] [cursor=pointer]
+          - link "Bảng giá" [ref=e34] [cursor=pointer]:
+            - /url: /vi/pricing
+          - link "Nhật ký cập nhật" [ref=e35] [cursor=pointer]:
+            - /url: /vi/changelog
+        - generic [ref=e36]:
+          - generic [ref=e37]:
+            - button "Giao diện" [ref=e38] [cursor=pointer]
+            - button "Ngôn ngữ" [ref=e39] [cursor=pointer]
+          - link "Đăng nhập" [ref=e40] [cursor=pointer]:
+            - /url: /login
+          - link "Bắt đầu ngay" [ref=e41] [cursor=pointer]:
+            - /url: /register
+    - main [ref=e42]:
+      - region [ref=e43]:
+        - generic [ref=e46]:
+          - heading "Mọi công việc. Một nền tảng duy nhất." [level=1] [ref=e47]:
+            - generic [ref=e48]: Mọi công việc.
+            - generic [ref=e49]: Một nền tảng duy nhất.
+          - paragraph [ref=e50]: Công việc, trao đổi, cuộc họp và AI trong một không gian làm việc.
+          - generic [ref=e51]:
+            - link "Bắt đầu ngay" [re===== e2e/test-results/landing-playback-scripted--9b67e-and-and-contrast-desktop-en/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: landing-playback.spec.ts >> scripted views, brand and contrast: desktop-en
+- Location: landing-playback.spec.ts:140:5
+
+# Error details
+
+```
+Error: expect(received).toEqual(expected) // deep equality
+
+- Expected  - 1
++ Received  + 5
+
+- Array []
++ Array [
++   "\"In Progress\" 1.67:1 < 4.5 (12px/500)",
++   "\"In Progress\" 1.67:1 < 4.5 (12px/500)",
++   "\"In Progress\" 1.67:1 < 4.5 (12px/500)",
++ ]
+```
+
+# Page snapshot
+
+```yaml
+- generic [ref=e1]:
+  - generic [ref=e2]:
+    - link "Skip to content":
+      - /url: "#landing-main"
+    - banner [ref=e3]:
+      - generic [ref=e4]:
+        - link "UniWork" [ref=e5] [cursor=pointer]:
+          - /url: /
+          - img "UniWork" [ref=e6]
+        - navigation "Main navigation" [ref=e17]:
+          - button "Product" [ref=e19] [cursor=pointer]
+          - button "Apps" [ref=e23] [cursor=pointer]
+          - button "Solutions" [ref=e27] [cursor=pointer]
+          - button "Learn" [ref=e31] [cursor=pointer]
+          - link "Pricing" [ref=e34] [cursor=pointer]:
+            - /url: /pricing
+          - link "Changelog" [ref=e35] [cursor=pointer]:
+            - /url: /changelog
+        - generic [ref=e36]:
+          - generic [ref=e37]:
+            - button "Theme" [ref=e38] [cursor=pointer]
+            - button "Language" [ref=e39] [cursor=pointer]
+          - link "Sign in" [ref=e40] [cursor=pointer]:
+            - /url: /login
+          - link "Get started" [ref=e41] [cursor=pointer]:
+            - /url: /register
+    - main [ref=e42]:
+      - region [ref=e43]:
+        - generic [ref=e46]:
+          - heading "Every piece of work. One platform." [level=1] [ref=e47]:
+            - generic [ref=e48]: Every piece of work.
+            - generic [ref=e49]: One platform.
+          - paragraph [ref=e50]: Tasks, conversations, meetings and AI in one workspace.
+          - generic [ref=e51]:
+            - link "Get started" [ref=e52] [cursor=pointer]:
+              - /url: /register
+            - link "Request a demo" [ref=e53] [cursor=pointer]:
+              - /url: /request-demo
+      - generic [ref=e54]:
+        - region [ref=e55]:
+          - generic [ref=e56]:
+            - heading "Connected tools. One focused team." [level=2] [ref=e57]
+            - generic [ref=e62]:
+              - complementary [ref=e63]:
+                - generic [ref=e64]:
+                  - img "UniWork" [ref=e66]
+                  - generic [ref=e75]:
+                    - generic [ref=e76]: UniWork Demo
+                    - strong [ref=e77]: Demo Studio
+                - navigation "Preview app navigation" [ref=e80]:
+                  - tablist "Product families" [ref=e81]:
+                    - generic [ref=e82]:
+                      - tab "Home" [ref=e83] [cursor=pointer]
+                      - tab "Inbox" [ref=e86] [cursor=pointer]
+          ===== e2e/test-results/landing-playback-scripted--9e16b-and-and-contrast-desktop-vi/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: landing-playback.spec.ts >> scripted views, brand and contrast: desktop-vi
+- Location: landing-playback.spec.ts:140:5
+
+# Error details
+
+```
+Error: expect(received).toEqual(expected) // deep equality
+
+- Expected  - 1
++ Received  + 5
+
+- Array []
++ Array [
++   "\"Đang làm\" 1.67:1 < 4.5 (12px/500)",
++   "\"Đang làm\" 1.67:1 < 4.5 (12px/500)",
++   "\"Đang làm\" 1.67:1 < 4.5 (12px/500)",
++ ]
+```
+
+# Page snapshot
+
+```yaml
+- generic [ref=e1]:
+  - generic [ref=e2]:
+    - link "Chuyển đến nội dung":
+      - /url: "#landing-main"
+    - banner [ref=e3]:
+      - generic [ref=e4]:
+        - link "UniWork" [ref=e5] [cursor=pointer]:
+          - /url: /vi
+          - img "UniWork" [ref=e6]
+        - navigation "Điều hướng chính" [ref=e17]:
+          - button "Sản phẩm" [ref=e19] [cursor=pointer]
+          - button "Ứng dụng" [ref=e23] [cursor=pointer]
+          - button "Giải pháp" [ref=e27] [cursor=pointer]
+          - button "Tìm hiểu" [ref=e31] [cursor=pointer]
+          - link "Bảng giá" [ref=e34] [cursor=pointer]:
+            - /url: /vi/pricing
+          - link "Nhật ký cập nhật" [ref=e35] [cursor=pointer]:
+            - /url: /vi/changelog
+        - generic [ref=e36]:
+          - generic [ref=e37]:
+            - button "Giao diện" [ref=e38] [cursor=pointer]
+            - button "Ngôn ngữ" [ref=e39] [cursor=pointer]
+          - link "Đăng nhập" [ref=e40] [cursor=pointer]:
+            - /url: /login
+          - link "Bắt đầu ngay" [ref=e41] [cursor=pointer]:
+            - /url: /register
+    - main [ref=e42]:
+      - region [ref=e43]:
+        - generic [ref=e46]:
+          - heading "Mọi công việc. Một nền tảng duy nhất." [level=1] [ref=e47]:
+            - generic [ref=e48]: Mọi công việc.
+            - generic [ref=e49]: Một nền tảng duy nhất.
+          - paragraph [ref=e50]: Công việc, trao đổi, cuộc họp và AI trong một không gian làm việc.
+          - generic [ref=e51]:
+            - link "Bắt đầu ngay" [ref=e52] [cursor=pointer]:
+              - /url: /register
+            - link "Yêu cầu demo" [ref=e53] [cursor=pointer]:
+              - /url: /vi/request-demo
+      - generic [ref=e54]:
+        - region [ref=e55]:
+          - generic [ref=e56]:
+            - heading "Công cụ liền mạch. Cả đội cùng nhịp." [level=2] [ref=e57]
+            - generic [ref=e62]:
+              - complementary [ref=e63]:
+                - generic [ref=e64]:
+                  - img "UniWork" [ref=e66]
+                  - generic [ref=e75]:
+                    - generic [ref=e76]: UniWork Demo
+                    - strong [ref=e77]: Demo Studio
+                - navigation "Điều hướng trong bản xem trước" [ref=e80]:
+                  - tablist "Nhóm chức n===== e2e/test-results/landing-playback-scripted-views-brand-and-contrast-mobile-en/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: landing-playback.spec.ts >> scripted views, brand and contrast: mobile-en
+- Location: landing-playback.spec.ts:140:5
+
+# Error details
+
+```
+Error: expect(received).toEqual(expected) // deep equality
+
+- Expected  - 1
++ Received  + 5
+
+- Array []
++ Array [
++   "\"In Progress\" 1.67:1 < 4.5 (12px/500)",
++   "\"In Progress\" 1.67:1 < 4.5 (12px/500)",
++   "\"In Progress\" 1.67:1 < 4.5 (12px/500)",
++ ]
+```
+
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - link "Skip to content":
+      - /url: "#landing-main"
+    - banner [ref=e3]:
+      - generic [ref=e4]:
+        - link "UniWork" [ref=e5] [cursor=pointer]:
+          - /url: /
+          - img "UniWork" [ref=e6]
+        - generic [ref=e17]:
+          - generic [ref=e18]:
+            - button "Theme" [ref=e19] [cursor=pointer]
+            - button "Language" [ref=e20] [cursor=pointer]
+          - button "Open menu" [ref=e21] [cursor=pointer]
+    - main [ref=e22]:
+      - region [ref=e23]:
+        - generic [ref=e26]:
+          - heading "Every piece of work. One platform." [level=1] [ref=e27]:
+            - generic [ref=e28]: Every piece of work.
+            - generic [ref=e29]: One platform.
+          - paragraph [ref=e30]: Tasks, conversations, meetings and AI in one workspace.
+          - generic [ref=e31]:
+            - link "Get started" [ref=e32] [cursor=pointer]:
+              - /url: /register
+            - link "Request a demo" [ref=e33] [cursor=pointer]:
+              - /url: /request-demo
+      - generic [ref=e34]:
+        - region [ref=e35]:
+          - generic [ref=e36]:
+            - heading "Connected tools. One focused team." [level=2] [ref=e37]
+            - generic [ref=e43]:
+              - generic [ref=e44]:
+                - button "Preview app navigation" [ref=e45] [cursor=pointer]
+                - searchbox "Search the product…" [ref=e50]
+                - generic [ref=e51]:
+                  - button "Ask UNI" [ref=e52] [cursor=pointer]
+                  - button "Inbox" [ref=e53] [cursor=pointer]
+              - generic [ref=e54]: Reports
+              - generic [ref=e59]:
+                - text: "-"
+                - tabpanel "Reports" [ref=e60]:
+                  - generic [ref=e63]:
+                    - generic [ref=e67]:
+                      - generic [ref=e68]: Focused preview
+                      - strong [ref=e69]: Reports
+                    - paragraph [ref=e70]: Explore overview, project, team, productivity, collaboration and workflow reports.
+                    - generic "Choose a preview detail" [ref=e71]:
+                      - button "Choose a preview detail 1" [pressed] [ref=e72] [cursor=pointer]: "1"
+                      - button "Choose a preview detail 2" [ref=e73] [cursor=pointer]: "2"
+                      - button "Choose a preview ===== e2e/test-results/landing-playback-scripted-views-brand-and-contrast-mobile-vi/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: landing-playback.spec.ts >> scripted views, brand and contrast: mobile-vi
+- Location: landing-playback.spec.ts:140:5
+
+# Error details
+
+```
+Error: expect(received).toEqual(expected) // deep equality
+
+- Expected  - 1
++ Received  + 5
+
+- Array []
++ Array [
++   "\"Đang làm\" 1.67:1 < 4.5 (12px/500)",
++   "\"Đang làm\" 1.67:1 < 4.5 (12px/500)",
++   "\"Đang làm\" 1.67:1 < 4.5 (12px/500)",
++ ]
+```
+
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - link "Chuyển đến nội dung":
+      - /url: "#landing-main"
+    - banner [ref=e3]:
+      - generic [ref=e4]:
+        - link "UniWork" [ref=e5] [cursor=pointer]:
+          - /url: /vi
+          - img "UniWork" [ref=e6]
+        - generic [ref=e17]:
+          - generic [ref=e18]:
+            - button "Giao diện" [ref=e19] [cursor=pointer]
+            - button "Ngôn ngữ" [ref=e20] [cursor=pointer]
+          - button "Mở menu" [ref=e21] [cursor=pointer]
+    - main [ref=e22]:
+      - region [ref=e23]:
+        - generic [ref=e26]:
+          - heading "Mọi công việc. Một nền tảng duy nhất." [level=1] [ref=e27]:
+            - generic [ref=e28]: Mọi công việc.
+            - generic [ref=e29]: Một nền tảng duy nhất.
+          - paragraph [ref=e30]: Công việc, trao đổi, cuộc họp và AI trong một không gian làm việc.
+          - generic [ref=e31]:
+            - link "Bắt đầu ngay" [ref=e32] [cursor=pointer]:
+              - /url: /register
+            - link "Yêu cầu demo" [ref=e33] [cursor=pointer]:
+              - /url: /vi/request-demo
+      - generic [ref=e34]:
+        - region [ref=e35]:
+          - generic [ref=e36]:
+            - heading "Công cụ liền mạch. Cả đội cùng nhịp." [level=2] [ref=e37]
+            - generic [ref=e43]:
+              - generic [ref=e44]:
+                - button "Điều hướng trong bản xem trước" [ref=e45] [cursor=pointer]
+                - searchbox "Tìm trong sản phẩm…" [ref=e50]
+                - generic [ref=e51]:
+                  - button "Hỏi UNI" [ref=e52] [cursor=pointer]
+                  - button "Hộp việc" [ref=e53] [cursor=pointer]
+              - generic [ref=e54]: Báo cáo
+              - generic [ref=e59]:
+                - text: "-"
+                - tabpanel "Báo cáo" [ref=e60]:
+                  - generic [ref=e63]:
+                    - generic [ref=e67]:
+                      - generic [ref=e68]: Bản xem tập trung
+                      - strong [ref=e69]: Báo cáo
+                    - paragraph [ref=e70]: Khám phá báo cáo tổng quan, dự án, nhóm, năng suất, cộng tác và quy trình.
+                    - generic "Chọn nội dung xem trước" [ref=e71]:
+                      - button "Chọn nội dung xem trước 1" [presse
+E2E_EXIT=1
