@@ -67,10 +67,14 @@ export function opensDocumentList(n: Notification): boolean {
   return isDocumentChanged(n) && documentChangedFacts(n).count > 1;
 }
 
-/** A permanently deleted single document has no page left to open. */
+/**
+ * One document that was permanently deleted, moved to the trash or purged since has no page to open: the
+ * trash view and an archived document's page are manage-only, and most recipients are not managers.
+ */
 export function documentChangedHasPage(n: Notification): boolean {
   const { verb, count } = documentChangedFacts(n);
-  return !(verb === "deleted" && count <= 1);
+  if (count > 1) return true;
+  return !(verb === "deleted" || verb === "trashed" || n.resource_deleted);
 }
 
 /**

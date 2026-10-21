@@ -51,11 +51,10 @@ export function resourceHref(n: Notification, workspace: Workspace, workspaces: 
         return paths.workspace(target.organization_slug, target.slug).documentsTrash(n.resource_id);
       }
       if (isDocumentChanged(n)) {
-        const { verb, count } = documentChangedFacts(n);
-        // Several documents open the Inbox's list; away from the Inbox (the bell, Home) the row lands there.
-        if (count > 1) return paths.workspace(target.organization_slug, target.slug).inbox();
-        // A document in the trash is restored from the trash, like document_trashed_by_other.
-        if (verb === "trashed") return paths.workspace(target.organization_slug, target.slug).documentsTrash(n.resource_id);
+        const { count } = documentChangedFacts(n);
+        // Several documents open a list of them: the Inbox opens the dialog for ?notification=<id> (the bell,
+        // whose popover closes on open, links there). A trashed document has no link: see documentChangedHasPage.
+        if (count > 1) return `${paths.workspace(target.organization_slug, target.slug).inbox()}?${new URLSearchParams({ notification: n.id }).toString()}`;
         return href;
       }
       // A body mention (UNI-1968) opens the page on the reader's own mention,

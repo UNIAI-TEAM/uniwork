@@ -30,8 +30,8 @@ export interface NotificationRowProps {
   onKeyDown?: (e: KeyboardEvent<HTMLElement>) => void;
   /**
    * Opens the list of a folded document-change row (more than one document).
-   * Only the Inbox hosts that dialog; a host without it (the bell, Home) leaves
-   * the row an ordinary link to `href`.
+   * The Inbox and Home host that dialog; a host without it (the bell, whose popover
+   * closes on open) leaves the row an ordinary link to `href`, which opens it in the Inbox.
    */
   onOpenList?: (n: Notification) => void;
   /** Off where every row is unread (Home), so the bar would tell nothing apart. */

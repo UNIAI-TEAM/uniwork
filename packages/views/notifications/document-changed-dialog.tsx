@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { paths } from "@uniwork/core/paths";
+import { useWorkspaces } from "@uniwork/core/workspaces";
 import { useNotificationDocuments } from "@uniwork/core/notifications";
 import type { NotificationDocument, Workspace } from "@uniwork/core/types";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -13,29 +14,47 @@ import { FormDialogBody, FormDialogContent, FormDialogHeader } from "../common/f
 import { CollectionPageState } from "../layout/collection-page";
 import { MODULE_ICONS } from "../layout/module-icons";
 import { moduleTone } from "../layout/module-tones";
+import { useWorkspace } from "../layout/workspace-context";
 import { AppLink } from "../navigation";
 
 const DocumentIcon = MODULE_ICONS.documents;
 
 /**
- * Where a listed document opens: its trash view when it was moved there (the
- * reader restores it from the trash), else the document; an archived (shelved)
- * one opens as itself. One command changes one workspace's documents, so the
- * link uses the notification row's workspace when the reader belongs to it and
- * the open one otherwise.
+ * Where a listed document opens: the document, an archived (shelved) one as itself. One command
+ * changes one workspace's documents, so the link uses the notification row's workspace when the
+ * reader belongs to it and the open one otherwise.
  */
 function documentHref(doc: NotificationDocument, workspace: Workspace): string {
-  const ws = paths.workspace(workspace.organization_slug, workspace.slug);
-  return doc.trashed ? ws.documentsTrash(doc.id) : ws.document(doc.id);
+  return paths.workspace(workspace.organization_slug, workspace.slug).document(doc.id);
+}
+
+/**
+ * Hosts the list dialog for a screen that lists notification rows (the Inbox, Home): `openList` takes a
+ * row (its id and workspace) and `dialog` is the element to render once. The row id stays set while the
+ * dialog closes, so the list does not flash empty.
+ */
+export function useDocumentListDialog(): { openList: (row: { id: string; workspace_id: string }) => void; dialog: ReactNode } {
+  const { workspace } = useWorkspace();
+  const workspaces = useWorkspaces().data;
+  const [target, setTarget] = useState<{ id: string; workspaceId: string; open: boolean } | null>(null);
+  const dialog = target ? (
+    <DocumentChangedDialog
+      notificationId={target.id}
+      open={target.open}
+      workspace={(workspaces ?? []).find((w) => w.id === target.workspaceId) ?? workspace}
+      onOpenChange={(next) => setTarget((cur) => (cur ? { ...cur, open: next } : cur))}
+    />
+  ) : null;
+  return { openList: (row) => setTarget({ id: row.id, workspaceId: row.workspace_id, open: true }), dialog };
 }
 
 /**
  * The documents behind a folded `document_changed` row: the ones the reader
- * can still read, a page at a time. A permanently deleted one stays in the list
- * as muted text, never a link; a title the reader may not see is never shown,
+ * can still read, a page at a time. A permanently deleted or trashed one stays in
+ * the list as muted text, never a link (the trash view is manage-only); a title the reader may not see is never shown,
  * the server already left it out. Closed, it fetches nothing.
  */
-export function DocumentChangedDialog({
+function DocumentChangedDialog({
   notificationId,
   open,
   workspace,
@@ -123,12 +142,12 @@ function DocumentItem({ doc, href, onOpen }: { doc: NotificationDocument; href: 
   const title = doc.title.trim() || t("notifications.documents_dialog.untitled");
   const rowClass = "flex min-w-0 items-center gap-3 rounded-lg px-3 py-2.5 text-body";
   const icon = <DocumentIcon aria-hidden className="size-4 shrink-0 text-muted-foreground" />;
-  if (doc.deleted) {
-    return (
-      <li className={cn(rowClass, "text-muted-foreground")} data-document-state="deleted">
+  if (doc.deleted || doc.trashed) {
+      return (
+      <li className={cn(rowClass, "text-muted-foreground")} data-document-state={doc.deleted ? "deleted" : "trashed"}>
         {icon}
         <span className="min-w-0 flex-1 truncate">{doc.title.trim() ? title : null}</span>
-        <span className="shrink-0 text-caption italic">{t("notifications.documents_dialog.deleted")}</span>
+        <span className="shrink-0 text-caption italic">{doc.deleted ? t("notifications.documents_dialog.deleted") : t("notifications.documents_dialog.in_trash")}</span>
       </li>
     );
   }
@@ -145,13 +164,10 @@ function DocumentItem({ doc, href, onOpen }: { doc: NotificationDocument; href: 
           "transition-colors duration-(--duration-fast) ease-out-quart hover:bg-surface-hover motion-reduce:transition-none",
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
         )}
-        data-document-state={doc.trashed ? "trashed" : "open"}
+        data-document-state="open"
       >
         {icon}
         <span className="min-w-0 flex-1 truncate font-medium text-foreground">{title}</span>
-        {doc.trashed ? (
-          <span className="shrink-0 text-caption text-muted-foreground">{t("notifications.documents_dialog.in_trash")}</span>
-        ) : null}
       </AppLink>
     </li>
   );

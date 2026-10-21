@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState, type FocusEvent, type KeyboardEvent, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type FocusEvent, type KeyboardEvent, type ReactNode } from "react";
 import { CheckCheck, Inbox, ListFilter, Settings } from "lucide-react";
 import { AnimatePresence } from "motion/react";
 import { useTranslation } from "react-i18next";
@@ -17,8 +17,8 @@ import { CollectionPageHeader, CollectionPageHeaderAction, CollectionPageState }
 import { MODULE_ICONS } from "../layout/module-icons";
 import { moduleTone } from "../layout/module-tones";
 import { useWorkspace } from "../layout/workspace-context";
-import { AppLink } from "../navigation";
-import { DocumentChangedDialog } from "./document-changed-dialog";
+import { AppLink, useNavigation } from "../navigation";
+import { useDocumentListDialog } from "./document-changed-dialog";
 import { groupInbox, type InboxGroupKey } from "./inbox-groups";
 import { InboxToolbar, type CategoryFilter, type ReadFilter } from "./inbox-toolbar";
 import { inboxCategory, unreadByCategory } from "./notification-category";
@@ -34,6 +34,9 @@ const KEY_HINTS: [string[], string][] = [
   [["r"], "notifications.keys_read"],
   [["e"], "notifications.keys_archive"],
 ];
+
+/** The query param that asks the Inbox to open a notification's document list (see resourceHref). */
+const NOTIFICATION_QUERY_KEY = "notification";
 
 /** The reading column: wide enough for a two-line sentence, narrow enough that the eye never crosses an empty band. */
 const COLUMN = "mx-auto w-full max-w-5xl px-2 md:px-4";
@@ -66,8 +69,8 @@ export function InboxView() {
   // `r` never pulls the focused row out from under the keyboard. The hold
   // lasts while focus stays in the list; once it leaves (or a filter swaps
   // the list), every row goes back to the group its state says.
-  // The row whose affected documents are listed (a folded document_changed row); kept after close so the list does not flash empty.
-  const [documents, setDocuments] = useState<{ id: string; workspaceId: string; open: boolean } | null>(null);
+  // The affected documents of a folded document_changed row.
+  const { openList, dialog: documentsDialog } = useDocumentListDialog();
   const [pinned, setPinned] = useState<ReadonlyMap<string, InboxGroupKey>>(() => new Map());
   const unpin = () => setPinned((prev) => (prev.size === 0 ? prev : new Map()));
 
@@ -78,6 +81,21 @@ export function InboxView() {
   const triage = useUndoableTriage();
 
   const loaded = useMemo(() => list.data?.pages.flatMap((p) => p.notifications) ?? [], [list.data]);
+
+  // The bell links a several-document row here as ?notification=<id>: open its list once, then drop the
+  // param. The row may be past the first page; the dialog needs only the id, and then lists in the open workspace.
+  const navigation = useNavigation();
+  const requested = navigation.searchParams.get(NOTIFICATION_QUERY_KEY);
+  useEffect(() => {
+    if (!requested) return;
+    openList({ id: requested, workspace_id: loaded.find((n) => n.id === requested)?.workspace_id ?? workspace.id });
+    const rest = new URLSearchParams(navigation.searchParams);
+    rest.delete(NOTIFICATION_QUERY_KEY);
+    const query = rest.toString();
+    navigation.replace(query ? `${navigation.pathname}?${query}` : navigation.pathname);
+    // Once per requested id: the row list and the adapter object change while the page loads.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [requested]);
   const unreadHere = unread.data?.by_workspace[workspace.id] ?? 0;
   // Per-category counts only when every unread row is in hand.
   const unreadCounts = useMemo(() => {
@@ -289,7 +307,7 @@ export function InboxView() {
                       onToggleRead={toggleRead}
                       onArchive={(row) => archiveAndMove(row, ordered.indexOf(row))}
                       onKeyDown={onRowKeyDown}
-                      onOpenList={(row) => setDocuments({ id: row.id, workspaceId: row.workspace_id, open: true })}
+                      onOpenList={openList}
                     />
                   ))}
                 </GroupSection>
@@ -311,14 +329,7 @@ export function InboxView() {
           </div>
         )}
       </div>
-      {documents ? (
-        <DocumentChangedDialog
-          notificationId={documents.id}
-          open={documents.open}
-          workspace={(workspaces ?? []).find((w) => w.id === documents.workspaceId) ?? workspace}
-          onOpenChange={(next) => setDocuments((cur) => (cur ? { ...cur, open: next } : cur))}
-        />
-      ) : null}
+      {documentsDialog}
     </div>
   );
 }
