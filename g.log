@@ -1,0 +1,5 @@
+$ grep -E "^\s*--- FAIL|^(FAIL|panic)|WARNING: DATA RACE|not formatted|^staticcheck|vet:" /tmp/pr7r8-go-service-f.log | cut -c1-250 | head -80
+--- FAIL: TestDocumentTitleWritePathsUseTheNormalizer (0.01s)
+FAIL
+FAIL	github.com/unicomhub/uniwork/server/internal/service	122.807s
+FAIL
