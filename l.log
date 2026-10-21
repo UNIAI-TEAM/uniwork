@@ -1,0 +1,4 @@
+$ for i in $(seq 1 14); do test -f /tmp/pr7r5c-e2e.exit && break; sleep 30; done; echo "DONE_FILE=$(test -f /tmp/pr7r5c-e2e.exit && echo yes || echo no)"; tail -2 /tmp/pr7r5c-e2e.log
+DONE_FILE=yes
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @uniwork/e2e@0.0.0 test: `playwright test --reporter=list chat-document-share.spec.ts:182 chat-document-share.spec.ts:57 documents.spec.ts:181 documents-first-save-share.spec.ts:31 documents-folders.spec.ts:1248 documents-folders.spec.ts:1341 documents-folders.spec.ts:984 documents-home.spec.ts:312 documents-home.spec.ts:326 documents-home.spec.ts:54 documents-share.spec.ts:178`
+Exit status 1

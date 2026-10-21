@@ -1,0 +1,142 @@
+$ rc=$(cat /tmp/pr7r5c-e2e.exit 2>/dev/null || echo 99); grep -vE "^\s+at " /tmp/pr7r5c-e2e.log | grep -E "✘|failed|flaky|passed|skipped|did not run|Error:" | head -80; tail -n 30 /tmp/pr7r5c-e2e.log; for f in e2e/test-results/*/error-context.md; do [ -f "$f" ] && { echo "===== $f"; head -c 3000 "$f"; }; done; grep -qE "[0-9]+ passed" /tmp/pr7r5c-e2e.log || { echo "no passing test"; [ "$rc" = 0 ] && rc=1; }; echo; echo "E2E_EXIT=$rc"
+  ✘   1 chat-document-share.spec.ts:57:1 › staff sends a docx in a DM at comment level; the manager comments and staff reads it (5.2s)
+  ✘   2 chat-document-share.spec.ts:182:1 › the sender turns an old file message into a document card in place (3.2s)
+    Error: expect(locator).toBeVisible() failed
+    Error: strict mode violation: locator('article[id^="chat-msg-"]').filter({ has: getByRole('button', { name: /^Mở trong Tài liệu:/ }) }).first().getByText('Nhận xét') resolved to 2 elements:
+    Error: expect(locator).toBeVisible() failed
+    Error: strict mode violation: locator('article#chat-msg-01M5EQHXA2JTZ7N3A649YJZA5R').getByText('Quản lý', { exact: true }) resolved to 2 elements:
+  2 failed
+  9 passed (1.5m)
+      - Expect "toBeVisible" with timeout 30000ms
+      - waiting for locator('article#chat-msg-01M5EQHXA2JTZ7N3A649YJZA5R').getByText('Quản lý', { exact: true })
+
+
+      202 |   // "Quản lý" plus the share count. The level the peer got (Nhận xét) is pinned
+      203 |   // from the peer's side by the first test.
+    > 204 |   await expect(row.getByText("Quản lý", { exact: true })).toBeVisible({ timeout: 30_000 });
+          |                                                           ^
+      205 |   await expect(row.getByText(/Đã chia sẻ với 1 người/)).toBeVisible({ timeout: 30_000 });
+      206 |   await expect(row.getByRole("button", { name: "Chia sẻ dạng tài liệu" })).toHaveCount(0);
+      207 |   await expect(page.locator('article[id^="chat-msg-"]').filter({ hasText: name })).toHaveCount(1);
+        at /workspace/e2e/chat-document-share.spec.ts:204:59
+
+    Error Context: test-results/chat-document-share-the-se-1699f-to-a-document-card-in-place/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/chat-document-share-the-se-1699f-to-a-document-card-in-place/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/chat-document-share-the-se-1699f-to-a-document-card-in-place/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2 failed
+    chat-document-share.spec.ts:57:1 › staff sends a docx in a DM at comment level; the manager comments and staff reads it 
+    chat-document-share.spec.ts:182:1 › the sender turns an old file message into a document card in place 
+  9 passed (1.5m)
+/workspace/e2e:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @uniwork/e2e@0.0.0 test: `playwright test --reporter=list chat-document-share.spec.ts:182 chat-document-share.spec.ts:57 documents.spec.ts:181 documents-first-save-share.spec.ts:31 documents-folders.spec.ts:1248 documents-folders.spec.ts:1341 documents-folders.spec.ts:984 documents-home.spec.ts:312 documents-home.spec.ts:326 documents-home.spec.ts:54 documents-share.spec.ts:178`
+Exit status 1
+===== e2e/test-results/chat-document-share-staff--ebbff-comments-and-staff-reads-it/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: chat-document-share.spec.ts >> staff sends a docx in a DM at comment level; the manager comments and staff reads it
+- Location: chat-document-share.spec.ts:57:1
+
+# Error details
+
+```
+Error: expect(locator).toBeVisible() failed
+
+Locator: locator('article[id^="chat-msg-"]').filter({ has: getByRole('button', { name: /^Mở trong Tài liệu:/ }) }).first().getByText('Nhận xét')
+Expected: visible
+Error: strict mode violation: locator('article[id^="chat-msg-"]').filter({ has: getByRole('button', { name: /^Mở trong Tài liệu:/ }) }).first().getByText('Nhận xét') resolved to 2 elements:
+    1) <span data-slot="badge" data-variant="secondary" class="group/badge h-5 w-fit shrink-0 items-center justify-center gap-1 overflow-hidden rounded-4xl border border-transparent px-2 py-0.5 text-caption font-medium whitespace-nowrap transition-all focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 [&>svg]:…>Nhận xét</span> aka getByText('Nhận xét').first()
+    2) <span data-slot="badge" data-variant="secondary" class="group/badge inline-flex h-5 w-fit items-center justify-center gap-1 overflow-hidden rounded-4xl border border-transparent px-2 py-0.5 text-caption font-medium whitespace-nowrap transition-all focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 [&>sv…>Nhận xét</span> aka getByText('Nhận xét').nth(1)
+
+Call log:
+  - Expect "toBeVisible" with timeout 30000ms
+  - waiting for locator('article[id^="chat-msg-"]').filter({ has: getByRole('button', { name: /^Mở trong Tài liệu:/ }) }).first().getByText('Nhận xét')
+
+```
+
+# Page snapshot
+
+```yaml
+- generic [active] [ref=f3e1]:
+  - generic [ref=f3e2]:
+    - link "Tới nội dung chính" [ref=f3e3] [cursor=pointer]:
+      - /url: "#main-content"
+    - generic [ref=f3e6]:
+      - list [ref=f3e8]:
+        - listitem [ref=f3e9]:
+          - 'button "Org docshare1792569564345-a, WS docshare1792569564345-a: chuyển workspace" [ref=f3e10] [cursor=pointer]':
+            - generic [ref=f3e11]: W
+            - generic [ref=f3e13]:
+              - generic "Org docshare1792569564345-a" [ref=f3e14]
+              - generic "WS docshare1792569564345-a" [ref=f3e15]
+      - navigation "Điều hướng workspace" [ref=f3e19]:
+        - list [ref=f3e22]:
+          - listitem [ref=f3e23]:
+            - link "Trang chủ" [ref=f3e24] [cursor=pointer]:
+              - /url: /rec-org-1792569564493/rec-ws-1792569564493
+      ===== e2e/test-results/chat-document-share-the-se-1699f-to-a-document-card-in-place/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: chat-document-share.spec.ts >> the sender turns an old file message into a document card in place
+- Location: chat-document-share.spec.ts:182:1
+
+# Error details
+
+```
+Error: expect(locator).toBeVisible() failed
+
+Locator: locator('article#chat-msg-01M5EQHXA2JTZ7N3A649YJZA5R').getByText('Quản lý', { exact: true })
+Expected: visible
+Error: strict mode violation: locator('article#chat-msg-01M5EQHXA2JTZ7N3A649YJZA5R').getByText('Quản lý', { exact: true }) resolved to 2 elements:
+    1) <span data-slot="badge" data-variant="secondary" class="group/badge h-5 w-fit shrink-0 items-center justify-center gap-1 overflow-hidden rounded-4xl border border-transparent px-2 py-0.5 text-caption font-medium whitespace-nowrap transition-all focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 [&>svg]:…>Quản lý</span> aka getByText('Quản lý').first()
+    2) <span data-slot="badge" data-variant="secondary" class="group/badge inline-flex h-5 w-fit items-center justify-center gap-1 overflow-hidden rounded-4xl border border-transparent px-2 py-0.5 text-caption font-medium whitespace-nowrap transition-all focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 [&>sv…>Quản lý</span> aka getByText('Quản lý').nth(1)
+
+Call log:
+  - Expect "toBeVisible" with timeout 30000ms
+  - waiting for locator('article#chat-msg-01M5EQHXA2JTZ7N3A649YJZA5R').getByText('Quản lý', { exact: true })
+
+```
+
+# Page snapshot
+
+```yaml
+- generic [active] [ref=f1e1]:
+  - generic [ref=f1e2]:
+    - link "Tới nội dung chính" [ref=f1e3] [cursor=pointer]:
+      - /url: "#main-content"
+    - generic [ref=f1e6]:
+      - list [ref=f1e8]:
+        - listitem [ref=f1e9]:
+          - 'button "Org docold1792569570248-a, WS docold1792569570248-a: chuyển workspace" [ref=f1e10] [cursor=pointer]':
+            - generic [ref=f1e11]: W
+            - generic [ref=f1e13]:
+              - generic "Org docold1792569570248-a" [ref=f1e14]
+              - generic "WS docold1792569570248-a" [ref=f1e15]
+      - navigation "Điều hướng workspace" [ref=f1e19]:
+        - list [ref=f1e22]:
+          - listitem [ref=f1e23]:
+            - link "Trang chủ" [ref=f1e24] [cursor=pointer]:
+              - /url: /rec-org-1792569570381/rec-ws-1792569570381
+          - listitem [ref=f1e30]:
+            - link "Hộp việc" [ref=f1e31] [cursor=pointer]:
+              - /url: /rec-org-1792569570381/rec-ws-1792569570381/inbox
+        -
+E2E_EXIT=1

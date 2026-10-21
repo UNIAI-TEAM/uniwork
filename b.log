@@ -1,0 +1,3 @@
+$ git checkout -q f77f33e04; rc=$?; git rev-parse --short HEAD; echo "R2012_CHECKOUT_EXIT=$rc"
+f77f33e04
+R2012_CHECKOUT_EXIT=0
