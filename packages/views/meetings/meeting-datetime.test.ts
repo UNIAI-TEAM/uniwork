@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   combineLocalIso,
   defaultScheduleDraft,
+  formatMeetingDate,
   formatMeetingDay,
   formatMeetingRange,
   formatMeetingTimes,
@@ -78,6 +79,14 @@ describe("meetingDayKey and formatMeetingDay", () => {
     expect(meetingDayKey("2026-08-28T23:30:00Z")).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     expect(formatMeetingDay("2026-08-28", "vi-VN")).toContain("28");
     expect(formatMeetingDay("not-a-day")).toBe("not-a-day");
+  });
+});
+
+describe("formatMeetingDate", () => {
+  it("prints a timestamp as a day/month/year date, and nothing for a missing or bad one", () => {
+    expect(formatMeetingDate("2026-08-28T05:00:00Z", "vi-VN")).toBe("28/08/2026");
+    expect(formatMeetingDate(null, "vi-VN")).toBe("");
+    expect(formatMeetingDate("not-a-date", "en-GB")).toBe("");
   });
 });
 

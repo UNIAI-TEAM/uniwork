@@ -203,6 +203,13 @@ export function meetingDayKey(iso: string): string {
   return splitIsoLocal(iso).date;
 }
 
+/** A date alone, e.g. "28/08/2026"; empty for a missing or bad timestamp. */
+export function formatMeetingDate(iso: string | null | undefined, locale: string): string {
+  const ms = iso ? Date.parse(iso) : NaN;
+  if (!Number.isFinite(ms)) return "";
+  return new Intl.DateTimeFormat(locale, { day: "2-digit", month: "2-digit", year: "numeric" }).format(ms);
+}
+
 /** Day heading for a group of meetings: "Thứ Năm, 28 tháng 8". */
 export function formatMeetingDay(dayKey: string, locale = "vi-VN"): string {
   const d = new Date(`${dayKey}T12:00:00`);
