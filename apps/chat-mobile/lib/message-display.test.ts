@@ -2,7 +2,7 @@ import type { ChatMessageRecord } from "@uniwork/core/api/endpoints/chat-schemas
 import { ChatMessageSchema } from "@uniwork/core/api/endpoints/chat-schemas";
 import { describe, expect, it } from "vitest";
 import { i18n } from "./i18n/singleton";
-import { KNOWN_MESSAGE_KINDS, formatFileSize, isChatMediaUrlFresh, isReminderDue, messagePreviewText, messageView, pendingPreviewText, pollResults, voiceCallLogLabel } from "./message-display";
+import { KNOWN_MESSAGE_KINDS, formatFileSize, isChatMediaUrlFresh, isReminderDue, messageContent, messagePreviewText, messageView, pendingPreviewText, pollResults, voiceCallLogLabel } from "./message-display";
 import { formatVoiceCallDuration } from "@uniwork/core/chat/voice-call-duration";
 
 const base = ChatMessageSchema.parse({
@@ -48,6 +48,18 @@ describe("messageView", () => {
     expect(messageView({ ...base, voice_call_summary: { call_id: "c", call_log_message_id: "m", summary: "", highlights: [], action_items: [] } })).toBe(
       "call-summary",
     );
+  });
+
+  // The card draws the payload the tag came with, never a field it asserts is there.
+  it("carries the payload each card draws with its tag", () => {
+    expect(messageContent(byKind.file)).toEqual({ view: "file", file: byKind.file.file });
+    expect(messageContent(byKind.voice)).toEqual({ view: "voice", voice: byKind.voice.voice });
+    expect(messageContent(byKind.poll)).toEqual({ view: "poll", poll: byKind.poll.poll });
+    expect(messageContent(byKind.note)).toEqual({ view: "note", note: byKind.note.note });
+    expect(messageContent(byKind.post)).toEqual({ view: "post", post: byKind.post.post });
+    expect(messageContent(byKind.reminder)).toEqual({ view: "reminder", reminder: byKind.reminder.reminder });
+    expect(messageContent({ ...base, body: "![sticker:vui](https://media.giphy.com/a.webp)" })).toMatchObject({ view: "media", media: { url: "https://media.giphy.com/a.webp" } });
+    expect(messageContent(byKind.text)).toEqual({ view: "text" });
   });
 
   it("reads an unknown kind, or a known kind without its payload, as unsupported (a web link, never a crash)", () => {

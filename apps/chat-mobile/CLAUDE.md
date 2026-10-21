@@ -266,8 +266,10 @@ một dòng thì ghi lý do ở dòng trên.
   (thuần, vitest — `quickCatchUp`, `pickerPeople`, `channelDirectory`, `canCallRoom`, `keptCounts`,
   `missedCallCount`, `selectQueuedRoomIds`) hoặc ở hook của `components/` có test jest; không đặt test dưới `app/`.
   Chuỗi: cả subtree `chat` của core + `chat.mobile.*` trong
-  `scripts/sync-i18n.mjs`. Kind lạ → `messageView` = `unsupported` → hàng
-  "Mở trên web" (`expo-web-browser`, không kích hoạt universal link).
+  `scripts/sync-i18n.mjs`. `lib/message-display.ts › messageContent` đọc record một lần thành union phân biệt
+  (`{ view: "image", file }`, `{ view: "poll", poll }`…): card nhận payload đã thu hẹp, không `x!` (lint
+  `@typescript-eslint/no-non-null-assertion` đỏ trong `app/`/`components/`); kind lạ hay kind biết mà thiếu payload →
+  `unsupported` → hàng "Mở trên web" (`expo-web-browser`, không kích hoạt universal link).
 - Gọi (M3, UNI-1834; spec `2026-10-16-unichat-mobile-calls-design.md`, plan
   `2026-10-17-unichat-mobile-calls.md`). Trạng thái, đồng hồ và cách đọc lời mời là của core
   (`@uniwork/core/chat/voice-call-{types,kind,invites}`, cùng bản với web), `lib/voice-call.ts` chỉ còn câu kết thúc

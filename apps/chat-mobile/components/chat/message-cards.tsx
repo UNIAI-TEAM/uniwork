@@ -11,13 +11,14 @@ import { setAudioModeAsync, useAudioPlayer, useAudioPlayerStatus } from "expo-au
 import { Image } from "expo-image";
 import * as WebBrowser from "expo-web-browser";
 import type { ReactNode } from "react";
+
+type ChatFile = NonNullable<ChatMessageRecord["file"]>;
 import { useTranslation } from "react-i18next";
 import { Pressable, View } from "react-native";
 import { Text } from "@/components/ui/text";
 import { TINTS, TintTile } from "@/components/ui/tint-tile";
 import { deepLinkHref } from "@/lib/deep-link";
-import { parseChatMediaMessageBody } from "@/lib/media-body";
-import { formatFileSize, isReminderDue, messageView, pollResults, voiceCallLogLabel } from "@/lib/message-display";
+import { formatFileSize, isReminderDue, messageContent, pollResults, voiceCallLogLabel } from "@/lib/message-display";
 import { formatVoiceCallDuration } from "@uniwork/core/chat/voice-call-duration";
 import { mentionSegments } from "@/lib/mentions";
 import { THEME } from "@/lib/theme";
@@ -124,10 +125,9 @@ function Card({ own, tint, icon, kind, badge, children }: { own: boolean; tint: 
   );
 }
 
-function ImageCard({ record, ctx, onLongPress }: { record: ChatMessageRecord; ctx: MessageCardContext; onLongPress: () => void }) {
+function ImageCard({ record, file, ctx, onLongPress }: { record: ChatMessageRecord; file: ChatFile; ctx: MessageCardContext; onLongPress: () => void }) {
   const { t } = useTranslation();
   const longPress = useLongPressProps(onLongPress);
-  const file = record.file!;
   const src = useChatMediaSrc(ctx.wsId, ctx.roomId, record.id, file.thumb_url || file.url, file.url_expires_at);
   const freshUrl = useFreshChatMediaUrl(ctx.wsId, ctx.roomId);
   const open = () =>
@@ -149,11 +149,10 @@ function ImageCard({ record, ctx, onLongPress }: { record: ChatMessageRecord; ct
   );
 }
 
-function FileCard({ record, ctx, own, onLongPress }: { record: ChatMessageRecord; ctx: MessageCardContext; own: boolean; onLongPress: () => void }) {
+function FileCard({ record, file, ctx, own, onLongPress }: { record: ChatMessageRecord; file: ChatFile; ctx: MessageCardContext; own: boolean; onLongPress: () => void }) {
   const { t } = useTranslation();
   const theme = useTheme();
   const longPress = useLongPressProps(onLongPress);
-  const file = record.file!;
   const freshUrl = useFreshChatMediaUrl(ctx.wsId, ctx.roomId);
   const name = file.filename || t("chat.file_untitled");
   const badge = fileBadge(file.filename);
@@ -190,11 +189,10 @@ function FileCard({ record, ctx, own, onLongPress }: { record: ChatMessageRecord
 let audioMode: Promise<void> | null = null;
 const ensureAudioMode = () => (audioMode ??= setAudioModeAsync({ playsInSilentMode: true }).catch(bestEffort("chat", "audio mode not set", "breadcrumb")));
 
-function VoiceCard({ record, ctx, own, onLongPress }: { record: ChatMessageRecord; ctx: MessageCardContext; own: boolean; onLongPress: () => void }) {
+function VoiceCard({ record, voice, ctx, own, onLongPress }: { record: ChatMessageRecord; voice: NonNullable<ChatMessageRecord["voice"]>; ctx: MessageCardContext; own: boolean; onLongPress: () => void }) {
   const { t } = useTranslation();
   const theme = useTheme();
   const longPress = useLongPressProps(onLongPress);
-  const voice = record.voice!;
   const src = useChatMediaSrc(ctx.wsId, ctx.roomId, record.id, voice.url, voice.url_expires_at);
   const player = useAudioPlayer(src ? { uri: src } : null);
   const status = useAudioPlayerStatus(player);
@@ -240,11 +238,10 @@ function VoiceCard({ record, ctx, own, onLongPress }: { record: ChatMessageRecor
 }
 
 /** Each option is a vote button (chat-poll-message-row.tsx); your picks are marked, a closed poll only shows its results. */
-function PollCard({ record, own, ctx, onLongPress }: { record: ChatMessageRecord; own: boolean; ctx: MessageCardContext; onLongPress: () => void }) {
+function PollCard({ record, poll, own, ctx, onLongPress }: { record: ChatMessageRecord; poll: NonNullable<ChatMessageRecord["poll"]>; own: boolean; ctx: MessageCardContext; onLongPress: () => void }) {
   const { t } = useTranslation();
   const theme = useTheme();
   const longPress = useLongPressProps(onLongPress);
-  const poll = record.poll!;
   const results = pollResults(poll);
   const many = poll.settings.allow_multiple;
   const footer = [results.closed ? t("chat.poll_closed") : null, results.hideCounts ? null : t("chat.poll_vote_hint", { count: results.total })].filter(Boolean).join(" · ");
@@ -301,10 +298,9 @@ function PollCard({ record, own, ctx, onLongPress }: { record: ChatMessageRecord
   );
 }
 
-function ReminderCard({ record, own }: { record: ChatMessageRecord; own: boolean }) {
+function ReminderCard({ record, reminder, own }: { record: ChatMessageRecord; reminder: NonNullable<ChatMessageRecord["reminder"]>; own: boolean }) {
   const { t, i18n } = useTranslation();
   const theme = useTheme();
-  const reminder = record.reminder!;
   const at = Date.parse(reminder.remind_at);
   const due = isReminderDue(reminder.remind_at);
   const when = Number.isFinite(at) ? formatMessageDateTime(at, i18n.language) : "";
@@ -345,9 +341,8 @@ function CallLogChip({ record, ctx }: { record: ChatMessageRecord; ctx: MessageC
 }
 
 /** UNI's summary of a call: the summary, its highlights and the tasks it suggests (read-only here). */
-function CallSummaryCard({ record, own }: { record: ChatMessageRecord; own: boolean }) {
+function CallSummaryCard({ summary, own }: { summary: NonNullable<ChatMessageRecord["voice_call_summary"]>; own: boolean }) {
   const { t } = useTranslation();
-  const summary = record.voice_call_summary!;
   const heading = cn("mt-2 text-meta font-semibold uppercase tracking-wider", ink(own).meta);
   return (
     <Card own={own} tint="blue" icon="sparkles-outline" kind={t("chat.voice_call_summary_badge")}>
@@ -404,21 +399,20 @@ function UnsupportedCard({ record, ctx, own, onLongPress }: { record: Pick<ChatM
 export function MessageContent({ record, own, ctx, onLongPress }: { record: ChatMessageRecord; own: boolean; ctx: MessageCardContext; onLongPress: () => void }) {
   const { t } = useTranslation();
   const body = cn("text-subhead", ink(own).text);
-  switch (messageView(record)) {
+  const content = messageContent(record);
+  switch (content.view) {
     case "text":
       return <MessageText body={record.body} own={own} userId={ctx.userId} />;
-    case "media": {
-      const media = parseChatMediaMessageBody(record.body)!;
-      return <Image source={{ uri: media.url }} cachePolicy={IMAGE_CACHE_POLICY} contentFit="contain" style={{ width: 160, height: 160 }} accessibilityLabel={media.alt} />;
-    }
+    case "media":
+      return <Image source={{ uri: content.media.url }} cachePolicy={IMAGE_CACHE_POLICY} contentFit="contain" style={{ width: 160, height: 160 }} accessibilityLabel={content.media.alt} />;
     case "image":
-      return <ImageCard record={record} ctx={ctx} onLongPress={onLongPress} />;
+      return <ImageCard record={record} file={content.file} ctx={ctx} onLongPress={onLongPress} />;
     case "file":
-      return <FileCard record={record} ctx={ctx} own={own} onLongPress={onLongPress} />;
+      return <FileCard record={record} file={content.file} ctx={ctx} own={own} onLongPress={onLongPress} />;
     case "voice":
-      return <VoiceCard record={record} ctx={ctx} own={own} onLongPress={onLongPress} />;
+      return <VoiceCard record={record} voice={content.voice} ctx={ctx} own={own} onLongPress={onLongPress} />;
     case "poll":
-      return <PollCard record={record} own={own} ctx={ctx} onLongPress={onLongPress} />;
+      return <PollCard record={record} poll={content.poll} own={own} ctx={ctx} onLongPress={onLongPress} />;
     case "note":
       return (
         <Card
@@ -428,22 +422,22 @@ export function MessageContent({ record, own, ctx, onLongPress }: { record: Chat
           kind={t("chat.note_message_badge")}
           badge={record.pinned ? <Pill tint="blue" icon="pin-outline" label={t("chat.pinned_label")} /> : null}
         >
-          <Text className={body}>{record.note!.body}</Text>
+          <Text className={body}>{content.note.body}</Text>
         </Card>
       );
     case "post":
       return (
         <Card own={own} tint="orange" icon="newspaper-outline" kind={t("chat.post_message_badge")}>
-          <Text className={cn("text-headline font-display font-bold", ink(own).text)}>{record.post!.title}</Text>
-          <Text className={body}>{record.post!.body}</Text>
+          <Text className={cn("text-headline font-display font-bold", ink(own).text)}>{content.post.title}</Text>
+          <Text className={body}>{content.post.body}</Text>
         </Card>
       );
     case "reminder":
-      return <ReminderCard record={record} own={own} />;
+      return <ReminderCard record={record} reminder={content.reminder} own={own} />;
     case "call-log":
       return <CallLogChip record={record} ctx={ctx} />;
     case "call-summary":
-      return <CallSummaryCard record={record} own={own} />;
+      return <CallSummaryCard summary={content.summary} own={own} />;
     case "system":
       return null;
     case "unsupported":

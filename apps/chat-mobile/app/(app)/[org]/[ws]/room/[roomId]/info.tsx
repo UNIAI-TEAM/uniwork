@@ -115,6 +115,7 @@ function SharedSection({ shared, onOpenMessage }: { shared: ChatSharedSummary; o
         <View className="flex-row flex-wrap gap-1 px-5">
           {photos.map((photo, index) => {
             const last = index === photos.length - 1 && counts.photo > photos.length;
+            const thumb = photo.thumb_url || photo.url;
             return (
               <Pressable
                 key={photo.message_id}
@@ -124,8 +125,8 @@ function SharedSection({ shared, onOpenMessage }: { shared: ChatSharedSummary; o
                 className="overflow-hidden rounded-[10px] bg-muted"
                 style={{ width: tile, height: tile }}
               >
-                {photo.thumb_url || photo.url ? (
-                  <Image source={chatMediaSource((photo.thumb_url || photo.url)!, photo.message_id, "thumb")} cachePolicy={IMAGE_CACHE_POLICY} contentFit="cover" style={{ width: "100%", height: "100%" }} />
+                {thumb ? (
+                  <Image source={chatMediaSource(thumb, photo.message_id, "thumb")} cachePolicy={IMAGE_CACHE_POLICY} contentFit="cover" style={{ width: "100%", height: "100%" }} />
                 ) : null}
                 {last ? (
                   <View className="absolute inset-0 items-center justify-center bg-black/45">

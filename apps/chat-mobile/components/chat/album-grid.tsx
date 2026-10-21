@@ -9,6 +9,7 @@ import { Image } from "expo-image";
 import { useTranslation } from "react-i18next";
 import { Pressable, View } from "react-native";
 import { Text } from "@/components/ui/text";
+import type { ChatMessageRecord } from "@uniwork/core/api/endpoints/chat-schemas";
 import type { TimelineMessage } from "@/lib/timeline-display";
 import type { MessageCardContext } from "./message-cards";
 import { useChatMediaSrc, useFreshChatMediaUrl } from "./use-chat-media";
@@ -19,8 +20,14 @@ const GRID_WIDTH = 262;
 const GAP = 3;
 const VISIBLE = 4;
 
-interface TileProps {
+type ChatFile = NonNullable<ChatMessageRecord["file"]>;
+
+interface AlbumPhoto {
   message: TimelineMessage;
+  file: ChatFile;
+}
+
+interface TileProps extends AlbumPhoto {
   ctx: MessageCardContext;
   width: number;
   height: number;
@@ -31,9 +38,8 @@ interface TileProps {
   onLongPress: () => void;
 }
 
-function Tile({ message, ctx, width, height, more, corners, lead, onLongPress }: TileProps) {
+function Tile({ message, file, ctx, width, height, more, corners, lead, onLongPress }: TileProps) {
   const { t } = useTranslation();
-  const file = message.record!.file!;
   const src = useChatMediaSrc(ctx.wsId, ctx.roomId, message.id, file.thumb_url || file.url, file.url_expires_at);
   const freshUrl = useFreshChatMediaUrl(ctx.wsId, ctx.roomId);
   const open = () =>
@@ -64,8 +70,10 @@ function Tile({ message, ctx, width, height, more, corners, lead, onLongPress }:
   );
 }
 
-export function AlbumGrid({ photos, ctx, onLongPress }: { photos: readonly TimelineMessage[]; ctx: MessageCardContext; onLongPress: () => void }) {
+export function AlbumGrid({ photos: messages, ctx, onLongPress }: { photos: readonly TimelineMessage[]; ctx: MessageCardContext; onLongPress: () => void }) {
   const { t } = useTranslation();
+  // An album holds file messages only (lib/album.ts › isAlbumPhoto); the file travels with each tile.
+  const photos = messages.flatMap((message): AlbumPhoto[] => (message.record?.file ? [{ message, file: message.record.file }] : []));
   const shown = photos.slice(0, VISIBLE);
   const more = photos.length - shown.length;
   const half = (GRID_WIDTH - GAP) / 2;
@@ -77,7 +85,8 @@ export function AlbumGrid({ photos, ctx, onLongPress }: { photos: readonly Timel
     <View style={{ width: GRID_WIDTH, gap: GAP }}>
       {lead ? (
         <Tile
-          message={lead}
+          message={lead.message}
+          file={lead.file}
           ctx={ctx}
           width={GRID_WIDTH}
           height={132}
@@ -92,8 +101,9 @@ export function AlbumGrid({ photos, ctx, onLongPress }: { photos: readonly Timel
           const top = !lead && index < 2;
           return (
             <Tile
-              key={photo.id}
-              message={photo}
+              key={photo.message.id}
+              message={photo.message}
+              file={photo.file}
               ctx={ctx}
               width={half}
               height={rowHeight}

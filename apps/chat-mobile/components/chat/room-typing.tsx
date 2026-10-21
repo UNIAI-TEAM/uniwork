@@ -33,9 +33,10 @@ function useRoomTyping(roomId: string, nameContext: readonly NameContextEntry[])
 /** The typing bubble under the newest message; the typist's face beside it in a group. */
 export function ConversationTyping({ roomId, nameContext, isGroup }: { roomId: string; nameContext: readonly NameContextEntry[]; isGroup: boolean }) {
   const typing = useRoomTyping(roomId, nameContext);
-  if (!typing.label) return null;
-  // A label means at least one typist.
-  return <TypingBubble label={typing.label} avatar={isGroup ? <PersonAvatar name={typing.names[0]!} size={30} seed={typing.ids[0]} /> : undefined} />;
+  // A label means at least one typist: the first one's face goes beside it in a group.
+  const [name] = typing.names;
+  if (!typing.label || name === undefined) return null;
+  return <TypingBubble label={typing.label} avatar={isGroup ? <PersonAvatar name={name} size={30} seed={typing.ids[0]} /> : undefined} />;
 }
 
 /** A room's header: its status line says who is typing, else that a DM's peer is online. */

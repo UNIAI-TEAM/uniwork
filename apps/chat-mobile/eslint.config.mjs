@@ -112,6 +112,14 @@ export default [
       "react-native-a11y/has-accessibility-hint": "off",
     },
   },
+  // A screen or a card draws what the model layer narrowed (lib/message-display.ts ›
+  // messageContent carries each card's payload): no `x!` that a drifted record turns into a
+  // TypeError in a list cell. Tests may assert.
+  {
+    files: ["app/**/*.{ts,tsx}", "components/**/*.{ts,tsx}"],
+    ignores: ["**/*.test.{ts,tsx}"],
+    rules: { "@typescript-eslint/no-non-null-assertion": "error" },
+  },
   // Logs go through data/logger.ts (UNI-2053): a breadcrumb for crash reports,
   // the console in a development build only. data/logger.ts is the one writer.
   {

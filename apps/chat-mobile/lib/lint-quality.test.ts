@@ -53,6 +53,7 @@ describe("mobile quality lint", { timeout: 60_000 }, () => {
     ],
     ["literal JSX text", "export function A() {\n  return <Text>Xin chào</Text>;\n}", "i18next/no-literal-string"],
     ["a console call (logs go through data/logger.ts)", 'export const log = () => console.warn("x");', "no-console"],
+    ["a non-null assertion in a component (the model layer narrows)", "export const f = (x?: { a: string }) => x!.a;", "@typescript-eslint/no-non-null-assertion"],
     ["a failure swallowed with no trace", "export const f = (p: Promise<void>) => p.catch(() => undefined);", "no-restricted-syntax"],
     ["a failure swallowed as null", "export const f = (p: Promise<number>) => p.catch(() => null);", "no-restricted-syntax"],
     ["a failure swallowed by an empty block", "export const f = (p: Promise<void>) => p.catch(() => {});", "no-restricted-syntax"],

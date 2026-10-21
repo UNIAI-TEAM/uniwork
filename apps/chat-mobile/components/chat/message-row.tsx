@@ -21,6 +21,7 @@ import { deserializeMessageBodyToComposerDraft } from "@/lib/mentions";
 import { messagePreviewText, messageView, pendingPreviewText } from "@/lib/message-display";
 import type { Receipt } from "@/lib/message-row-model";
 import { THEME } from "@/lib/theme";
+import type { PendingSend } from "@/lib/send-pipeline";
 import { formatMessageTime, type TimelineMessage } from "@/lib/timeline-display";
 import { cn } from "@/lib/utils";
 import { AlbumGrid } from "./album-grid";
@@ -77,11 +78,11 @@ function receiptText(receipt: Receipt | null, t: TFunction): string | null {
 }
 
 /** A local message's state where a sent one has its time. */
-function PendingMeta({ message, scheme }: { message: TimelineMessage; scheme: "light" | "dark" }) {
+function PendingMeta({ pending, scheme }: { pending: PendingSend; scheme: "light" | "dark" }) {
   const { t } = useTranslation();
   const theme = THEME[scheme];
-  const failed = message.pending!.status === "failed";
-  const status = pendingStatusText(message.pending!.status, t);
+  const failed = pending.status === "failed";
+  const status = pendingStatusText(pending.status, t);
   return (
     <>
       <Ionicons name={failed ? "alert-circle" : "time-outline"} size={13} color={failed ? theme.chatBubbleOwnForeground : theme.chatBubbleOwnMeta} />
@@ -119,7 +120,7 @@ export const MessageRow = memo(function MessageRow(props: MessageRowProps) {
   const interactive = album ? true : record ? INTERACTIVE_VIEWS.has(messageView(record)) : false;
   const footTs = album?.at(-1)?.ts ?? message.ts;
   // A pending message has no record yet: its own text, with mentions as names, or its file's name.
-  const preview = record ? messagePreviewText(record, t) : pendingPreviewText(message.pending!, t);
+  const preview = record ? messagePreviewText(record, t) : message.pending ? pendingPreviewText(message.pending, t) : "";
   // The bubble is one accessible element, so what its quote and foot show must be in its label too.
   const state = message.pending ? pendingStatusText(message.pending.status, t) : record?.edited_at ? t("chat.edited_label") : null;
   const receiptLabel = receiptText(receipt, t);
@@ -202,9 +203,9 @@ export const MessageRow = memo(function MessageRow(props: MessageRowProps) {
               {receipt === "delivered" ? <Ionicons name="checkmark-done" size={15} color={theme.chatBubbleOwnMeta} /> : null}
               {receipt === "sent" ? <Ionicons name="checkmark" size={15} color={theme.chatBubbleOwnMeta} /> : null}
             </>
-          ) : (
-            <PendingMeta message={message} scheme={scheme} />
-          )}
+          ) : message.pending ? (
+            <PendingMeta pending={message.pending} scheme={scheme} />
+          ) : null}
         </View>
       </Pressable>
       </View>
