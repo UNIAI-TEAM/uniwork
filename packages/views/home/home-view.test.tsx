@@ -171,7 +171,8 @@ describe("HomeView", () => {
     renderHome();
     // Opening the row marks it read and takes it off the summary: nothing is left on Home, so it turns quiet.
     fireEvent.click(await screen.findByRole("button", { name: /Xem 2 tài liệu/ }));
-    expect(await screen.findByRole("heading", { name: "Hôm nay chưa có gì chờ bạn" })).toBeInTheDocument();
+    // The open dialog hides the page behind it from the accessibility tree.
+    expect(await screen.findByRole("heading", { name: "Hôm nay chưa có gì chờ bạn", hidden: true })).toBeInTheDocument();
     const dialog = await screen.findByRole("dialog");
     expect(await within(dialog).findByText("Kế hoạch Q4")).toBeInTheDocument();
     expect(within(dialog).getByText("Báo cáo tuần")).toBeInTheDocument();

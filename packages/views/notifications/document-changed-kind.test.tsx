@@ -6,6 +6,7 @@ import { MODULE_ICONS } from "../layout/module-icons";
 import { moduleTone } from "../layout/module-tones";
 import type { HomeSummary } from "@uniwork/core/types/home";
 import { HomeInbox } from "../home/home-inbox";
+import { useDocumentListDialog } from "./document-changed-dialog";
 import { WorkspaceProvider } from "../layout/workspace-context";
 import { requestMock, wrapWithNav } from "../test/api-mock";
 import { InboxView } from "./inbox-view";
@@ -597,6 +598,17 @@ describe("document_changed list dialog in the Inbox (item 4)", () => {
   });
 });
 
+// HomeView hosts the list dialog and hands HomeInbox its opener; this stands in for that part of the page.
+function HomeInboxHost({ summary }: { summary: HomeSummary }) {
+  const { openList, dialog } = useDocumentListDialog();
+  return (
+    <>
+      <HomeInbox summary={summary} loading={false} retrying={false} onRetry={() => undefined} onOpenList={openList} />
+      {dialog}
+    </>
+  );
+}
+
 describe("document_changed list from the bell and Home (RFW-01)", () => {
   const doc = (id: string) => ({ id, title: `Tài liệu ${id}`, kind: "page", trashed: false, shelved: false, deleted: false });
   const many = changed({ verb: "moved", document_count: "50" }, { count: 50 });
@@ -659,7 +671,7 @@ describe("document_changed list from the bell and Home (RFW-01)", () => {
     render(
       wrapWithNav(
         <WorkspaceProvider workspace={workspace} user={user}>
-          <HomeInbox summary={summary} loading={false} retrying={false} onRetry={() => undefined} />
+          <HomeInboxHost summary={summary} />
         </WorkspaceProvider>,
         nav,
       ),
@@ -681,7 +693,7 @@ describe("document_changed list from the bell and Home (RFW-01)", () => {
     render(
       wrapWithNav(
         <WorkspaceProvider workspace={workspace} user={user}>
-          <HomeInbox summary={summary} loading={false} retrying={false} onRetry={() => undefined} />
+          <HomeInboxHost summary={summary} />
         </WorkspaceProvider>,
         nav,
       ),
