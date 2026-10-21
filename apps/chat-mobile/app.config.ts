@@ -51,11 +51,13 @@ const USAGE_VI = {
   NSPhotoLibraryUsageDescription: "UniChat mở thư viện ảnh để bạn gửi ảnh vào cuộc trò chuyện.",
   NSCameraUsageDescription: "UniChat dùng camera khi bạn gọi video.",
   NSMicrophoneUsageDescription: "UniChat dùng micro khi bạn gọi điện và ghi tin thoại.",
+  NSFaceIDUsageDescription: "UniChat dùng Face ID để mở khoá ứng dụng khi bạn bật Khoá UniChat.",
 };
 const USAGE_EN: typeof USAGE_VI = {
   NSPhotoLibraryUsageDescription: "UniChat opens your photo library so you can send photos to a conversation.",
   NSCameraUsageDescription: "UniChat uses the camera for video calls.",
   NSMicrophoneUsageDescription: "UniChat uses the microphone for calls and voice messages.",
+  NSFaceIDUsageDescription: "UniChat uses Face ID to unlock the app when you turn on Lock UniChat.",
 };
 
 function appEnv(): AppEnv {
@@ -159,7 +161,15 @@ export default ({ config, projectRoot }: ConfigContext): ExpoConfig => {
       // The WebRTC plugin asks to draw over other apps; a call never does, and Play reviews it. expo-file-system,
       // expo-image and expo-image-picker ask for shared storage (up to API 32): UniChat reads only its own files and
       // what the system pickers hand it, so it asks for none (audit "no-masvs-baseline").
-      blockedPermissions: ["android.permission.SYSTEM_ALERT_WINDOW", "android.permission.READ_EXTERNAL_STORAGE", "android.permission.WRITE_EXTERNAL_STORAGE"],
+      // expo-screen-capture adds READ_MEDIA_IMAGES and DETECT_SCREEN_CAPTURE for its screenshot listener, which UniChat
+      // does not use (it only blocks capture): Play reviews READ_MEDIA_IMAGES as a photo permission.
+      blockedPermissions: [
+        "android.permission.SYSTEM_ALERT_WINDOW",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.DETECT_SCREEN_CAPTURE",
+      ],
       // No cloud backup of the app's files: unsent attachments sit in plain files under documents/outbox, and a
       // restored session store cannot open on another phone anyway (its Keystore key never leaves this one).
       // plugins/with-android-backup-rules.js closes the Android 12+ device-to-device transfer too.
@@ -240,6 +250,8 @@ export default ({ config, projectRoot }: ConfigContext): ExpoConfig => {
       // keeps its audio through UIBackgroundModes: audio (ios.infoPlist above)
       // and the calls' own service, not through expo-audio.
       ["expo-audio", { microphonePermission: USAGE_VI.NSMicrophoneUsageDescription, enableBackgroundPlayback: false, enableBackgroundRecording: false }],
+      // App lock (Settings › Privacy & security): Face ID's usage string; Android's biometric permissions are normal ones.
+      ["expo-local-authentication", { faceIDPermission: USAGE_VI.NSFaceIDUsageDescription }],
       // Calls (M3): LiveKit's native setup, then WebRTC's permissions.
       "@livekit/react-native-expo-plugin",
       [

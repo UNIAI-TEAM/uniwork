@@ -119,7 +119,9 @@ describe("app.config per UNICHAT_ENV", () => {
       NSCameraUsageDescription: expect.stringContaining("camera"),
       NSMicrophoneUsageDescription: expect.stringContaining("microphone"),
       NSPhotoLibraryUsageDescription: expect.any(String),
+      NSFaceIDUsageDescription: expect.stringContaining("Face ID"),
     });
+    expect(options("expo-local-authentication")).toEqual({ faceIDPermission: "UniChat dùng Face ID để mở khoá ứng dụng khi bạn bật Khoá UniChat." });
     expect(config.ios?.infoPlist?.UIBackgroundModes).toEqual(["audio"]);
   });
 
@@ -134,6 +136,9 @@ describe("app.config per UNICHAT_ENV", () => {
       "android.permission.SYSTEM_ALERT_WINDOW",
       "android.permission.READ_EXTERNAL_STORAGE",
       "android.permission.WRITE_EXTERNAL_STORAGE",
+      // expo-screen-capture's screenshot listener, which UniChat does not use.
+      "android.permission.READ_MEDIA_IMAGES",
+      "android.permission.DETECT_SCREEN_CAPTURE",
     ]);
   });
 

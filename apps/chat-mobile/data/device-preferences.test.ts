@@ -22,6 +22,8 @@ describe("device preferences", () => {
     secure.setItemAsync.mockResolvedValue(undefined);
     await writeDevicePreference("locale", "en");
     expect(secure.setItemAsync).toHaveBeenCalledWith("locale_preference", "en", { keychainAccessible: 0 });
+    await writeDevicePreference("privacy", "{}");
+    expect(secure.setItemAsync).toHaveBeenCalledWith("privacy_preference", "{}", { keychainAccessible: 0 });
   });
 
   it("writes one at a time, and a failed write neither stalls the next nor hides its own failure", async () => {

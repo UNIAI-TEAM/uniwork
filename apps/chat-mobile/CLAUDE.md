@@ -307,6 +307,23 @@ một dòng thì ghi lý do ở dòng trên.
   bản release (`scripts/android-manifest.mjs`: introspect của `expo config` với biến thể production + manifest của
   từng thư viện được link). Thêm quyền/dịch vụ thì sửa test đó, bảng quyền của `store/listing.md` và checklist Play
   App content của runbook cùng PR.
+- Quyền riêng tư trên máy (audit "Security & privacy", no-app-switcher-privacy-or-lock). Cài đặt › Quyền riêng tư và
+  bảo mật (`components/settings/privacy-section.tsx`): **Khoá UniChat** (`expo-local-authentication`: Face ID, vân tay
+  hay mã khoá của máy — bật thì phải chứng minh chủ máy trước, máy không có khoá màn hình thì nói vậy) với "Khoá lại
+  sau khi rời app" (ngay, 1, 5, 15 phút) và **Chặn chụp màn hình** (`expo-screen-capture`: Android `FLAG_SECURE`, cũng
+  xoá ảnh trong màn đa nhiệm; iOS chặn chụp/quay). Luật thuần ở `lib/app-lock.ts` (`shouldLock`: mở lạnh luôn khoá,
+  về foreground sau ≥ thời gian đã chọn ở nền thì khoá; chỉ `background` tính là rời app — Face ID, kéo thanh thông
+  báo làm app `inactive`); lựa chọn là của máy, trong Keychain cạnh theme/ngôn ngữ (`device-preferences` key
+  `privacy`), đọc một lần lúc boot (`data/privacy-settings.ts`, tối đa 3 s), nối với nền tảng ở
+  `components/app/privacy.ts` (iOS bật app switcher protection khi một trong hai đang bật).
+  `components/app/privacy-guard.tsx` (gắn ở `app/_layout.tsx`, trên mọi thứ): khi bật một trong hai, app không ở
+  foreground thì phủ một lớp trơn (ảnh đa nhiệm không có cuộc trò chuyện); khoá thì hiện màn khoá và hỏi Face ID ngay
+  (một lần mỗi lần khoá hiện ở foreground; huỷ thì nút Mở khoá hỏi lại); chỉ khi có người đăng nhập; cuộc gọi đang đổ
+  chuông hay đang diễn ra không bao giờ bị giữ sau màn khoá (nghe từ màn khoá của máy phải nối được), hết cuộc gọi thì
+  khoá lại; chưa biết lựa chọn thì phủ (app có khoá không hiện inbox một khung hình). Android: `USE_BIOMETRIC`/
+  `USE_FINGERPRINT` là quyền thường; `READ_MEDIA_IMAGES`/`DETECT_SCREEN_CAPTURE` mà `expo-screen-capture` khai cho
+  listener chụp màn hình (app không dùng) bị chặn. Chính sách tổ chức bắt buộc (MAM) chưa có: cần route cấu hình theo
+  tổ chức, không dùng feature flag (flag chỉ ẩn năng lực).
 - `app/+native-intent.ts` — expo-router tự route mọi URL từ OS; file này map
   `<scheme>://open?url=` và callback PKCE qua `lib/deep-link.ts ›
   systemPathToRoute` (thuần, có test). `openUrl` ở `app/_layout.tsx` chỉ

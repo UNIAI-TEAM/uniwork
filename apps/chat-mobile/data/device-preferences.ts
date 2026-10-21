@@ -1,4 +1,4 @@
-// The phone's own small choices (the theme and the language of Settings), in
+// The phone's own small choices (the theme, the language, the app lock and screen security of Settings), in
 // the Keychain/Keystore beside the session. One reader and one writer for all
 // of them, so each is stored the same way: readable after the first unlock (a
 // headless call task on a locked phone reads the language for its ringing
@@ -11,6 +11,8 @@ import { settled } from "@/lib/settled";
 const KEYS = {
   theme: "theme-preference",
   locale: "locale_preference",
+  // App lock and screen security (lib/app-lock.ts, data/privacy-settings.ts).
+  privacy: "privacy_preference",
 } as const;
 
 export type DevicePreference = keyof typeof KEYS;

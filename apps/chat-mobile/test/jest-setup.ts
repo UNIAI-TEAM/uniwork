@@ -82,6 +82,19 @@ jest.mock("expo-haptics", () => ({
   AndroidHaptics: { Confirm: "confirm", Reject: "reject", Long_Press: "long-press", Context_Click: "context-click", Segment_Tick: "segment-tick", Toggle_On: "toggle-on" },
 }));
 
+// App lock and screen security (components/app/privacy.ts): native; a test asserts and steers the calls here.
+jest.mock("expo-local-authentication", () => ({
+  getEnrolledLevelAsync: jest.fn(async () => 3),
+  authenticateAsync: jest.fn(async () => ({ success: true })),
+  SecurityLevel: { NONE: 0, SECRET: 1, BIOMETRIC_WEAK: 2, BIOMETRIC_STRONG: 3 },
+}));
+jest.mock("expo-screen-capture", () => ({
+  preventScreenCaptureAsync: jest.fn(async () => undefined),
+  allowScreenCaptureAsync: jest.fn(async () => undefined),
+  enableAppSwitcherProtectionAsync: jest.fn(async () => undefined),
+  disableAppSwitcherProtectionAsync: jest.fn(async () => undefined),
+}));
+
 // The permission gate (data/permissions.ts on expo-audio / expo-image-picker /
 // expo-notifications) grants everything: a component test is about the
 // component. The primer's own sheet is tested through its store

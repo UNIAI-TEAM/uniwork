@@ -41,6 +41,9 @@ describe("the release build's Android manifest", () => {
       "android.permission.POST_NOTIFICATIONS",
       "android.permission.RECEIVE_BOOT_COMPLETED",
       "android.permission.RECORD_AUDIO",
+      // App lock (expo-local-authentication): normal permissions, no prompt.
+      "android.permission.USE_BIOMETRIC",
+      "android.permission.USE_FINGERPRINT",
       // The ringing screen over a locked phone (Play: calling apps only).
       "android.permission.USE_FULL_SCREEN_INTENT",
       "android.permission.VIBRATE",
@@ -48,7 +51,9 @@ describe("the release build's Android manifest", () => {
     ]);
     // A call never draws over other apps, and UniChat reads no shared storage (app.config.ts › blockedPermissions).
     expect(manifest.removedPermissions).toEqual([
+      "android.permission.DETECT_SCREEN_CAPTURE",
       "android.permission.READ_EXTERNAL_STORAGE",
+      "android.permission.READ_MEDIA_IMAGES",
       "android.permission.SYSTEM_ALERT_WINDOW",
       "android.permission.WRITE_EXTERNAL_STORAGE",
     ]);

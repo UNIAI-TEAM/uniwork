@@ -8,7 +8,7 @@
 // service, a Decline that waited, the push handler while open) and the
 // localized notification channels; S5 the theme read once at boot (LiveKit's
 // WebRTC globals moved to the call UI, which loads on the first call); S6 the
-// app's language sent to the server.
+// app's language sent to the server; then the app lock and the app switcher cover.
 import "../global.css";
 
 import { PortalHost } from "@rn-primitives/portal";
@@ -26,6 +26,8 @@ import { Platform } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import { loadPrivacySettings } from "@/components/app/privacy";
+import { PrivacyGuard } from "@/components/app/privacy-guard";
 import { UpdateGate } from "@/components/app/update-gate";
 import { ErrorFallback } from "@/components/ui/error-fallback";
 import { PermissionPrimerHost } from "@/components/ui/permission-primer";
@@ -60,6 +62,8 @@ import { loadThemePreference, useColorScheme } from "@/components/ui/use-color-s
 bootRuntime();
 // The saved theme, read once for the whole app (data/theme-preference.ts), not by each component that draws a colour.
 void loadThemePreference();
+// The app lock and screen security, read once too: the guard covers the app until they are known.
+void loadPrivacySettings();
 // The call's foreground service follows the call engine; Decline / Hang up taps that waited run now.
 startNativeCalls();
 // The encrypted store the outbox and the cached rooms live in, before the session is restored.
@@ -205,6 +209,8 @@ function RootLayout() {
               </UpdateGate>
               <ToastHost />
               <PermissionPrimerHost />
+              {/* Above everything the person could read: the app switcher cover and the app lock. */}
+              <PrivacyGuard />
             </ThemeProvider>
           </QueryClientProvider>
         </SafeAreaProvider>

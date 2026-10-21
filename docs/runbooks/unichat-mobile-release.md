@@ -358,6 +358,15 @@ khi nào dịch vụ chạy, ai được báo) với module native giả; chỉ 
   hiện trên màn khoá. Bấm Nghe trên thông báo thì nghe như thường.
 - [ ] Mở một link `https://app.uniworkos.com/<org>/<ws>/chat?dm=<userId>` từ trình duyệt: app hỏi "Mở cuộc trò chuyện
   riêng?" kèm tên người; Hủy thì không tạo phòng nào.
+- [ ] Android 9–12 (quyền bộ nhớ đã bị gỡ): gửi ảnh từ thư viện, chụp ảnh từ composer, gửi một tệp PDF — không lỗi quyền.
+- [ ] Cài đặt › Quyền riêng tư và bảo mật › Khoá UniChat: bật đòi Face ID/vân tay trước; kill app, mở lại: màn khoá và
+  hộp thoại sinh trắc hiện ngay, Huỷ thì ở lại màn khoá, "Mở khoá" hỏi lại; về Home 30 s rồi quay lại với "1 phút":
+  không khoá, quá 1 phút: khoá. Máy khoá + có cuộc gọi đến: nghe được ngay, không qua màn khoá của UniChat; gác máy thì
+  màn khoá UniChat hiện. Máy không đặt khoá màn hình: công tắc nói cần đặt khoá trước.
+- [ ] Bật "Chặn chụp màn hình": Android chụp màn hình báo bị chặn, màn đa nhiệm của UniChat trơn; iOS ảnh chụp và
+  quay màn hình của UniChat đen, trình chuyển app thấy lớp phủ. Tắt: chụp lại được.
+- [ ] Gỡ app trên iPhone khi đang đăng nhập rồi cài lại: mở app vào màn đăng nhập (không vào thẳng inbox cũ); web ›
+  Thiết bị không còn phiên của máy cũ.
 
 ## Triệu chứng
 
