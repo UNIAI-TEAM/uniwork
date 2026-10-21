@@ -187,7 +187,7 @@ describe("refreshLoadedRoomTimelines", () => {
     qc.setQueryData<RoomTimeline>(key, { pages: [head, older], pageParams: [null, { cursor: "c100" }] });
     const list = vi
       .spyOn(chatApi, "listMessages")
-      .mockImplementation(async (_ws, _room, params) => (params.cursor ? older.map((m) => (m.id === "m60" ? { ...m, body: "edited offline" } : m)) : head));
+      .mockImplementation(async (_ws, _room, params) => (params?.cursor ? older.map((m) => (m.id === "m60" ? { ...m, body: "edited offline" } : m)) : head));
     const unsubscribe = new InfiniteQueryObserver(qc, roomTimelineOptions("ws1", "room1")).subscribe(() => {});
 
     refreshLoadedRoomTimelines(qc, "ws1");
