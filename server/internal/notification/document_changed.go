@@ -289,12 +289,14 @@ func docCommandKey(ev outbox.Row, p map[string]string) string {
 }
 
 // docChangeDraftsFor builds one draft per recipient. The group key carries
-// actor, verb and command; the fold searches under the actor-and-verb prefix.
+// workspace, actor, verb and command; the fold searches under the
+// workspace-actor-and-verb prefix, so the group claim and the fold stay inside
+// one workspace (BE-R1-3).
 func docChangeDraftsFor(ctx context.Context, e env, ev outbox.Row, p map[string]string, orgID, wsID, docID, verb, title string, users []string) []Draft {
 	if len(users) == 0 {
 		return nil
 	}
-	prefix := fmt.Sprintf("doc_change:%s:%s:", ev.ActorID.String, verb)
+	prefix := fmt.Sprintf("doc_change:%s:%s:%s:", wsID, ev.ActorID.String, verb)
 	groupKey := prefix + docCommandKey(ev, p)
 	actor := actorName(ctx, e.q, ev)
 	out := make([]Draft, 0, len(users))

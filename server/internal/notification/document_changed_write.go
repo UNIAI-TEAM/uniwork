@@ -27,7 +27,8 @@ func (c *Consumer) writeDocChange(ctx context.Context, tx pgx.Tx, q *db.Queries,
 		return err
 	}
 	open, err := q.FindFoldableDocumentChange(ctx, db.FindFoldableDocumentChangeParams{
-		UserID: d.UserID, GroupPrefix: dc.GroupPrefix, GroupKey: d.GroupKey,
+		UserID: d.UserID, OrganizationID: d.OrganizationID, WorkspaceID: optText(d.WorkspaceID),
+		GroupPrefix: dc.GroupPrefix, GroupKey: d.GroupKey,
 	})
 	merged := err == nil
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {

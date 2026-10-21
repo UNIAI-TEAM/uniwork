@@ -55,14 +55,17 @@ WHERE organization_id = sqlc.arg('organization_id') AND workspace_id = sqlc.arg(
   AND acl_owner_id IS NOT NULL;
 
 -- name: FindFoldableDocumentChange :one
--- tenant: self
 -- The open document_changed row a new event folds into, under the group
 -- claim the consumer holds: the row of the same command whatever its age,
 -- otherwise the same actor and verb touched inside the sliding two-minute
--- window and less than thirty minutes after the row opened. FOR UPDATE keeps
--- a read or archive from landing between this read and the fold.
+-- window and less than thirty minutes after the row opened. Only a row of the
+-- same organization and workspace folds, so a document never lands in another
+-- tenant's notice (BE-R1-3). FOR UPDATE keeps a read or archive from landing
+-- between this read and the fold.
 SELECT * FROM notifications
 WHERE user_id = sqlc.arg('user_id')
+  AND organization_id = sqlc.arg('organization_id')
+  AND workspace_id IS NOT DISTINCT FROM sqlc.narg('workspace_id')::text
   AND kind = 'document_changed'
   AND starts_with(group_key, sqlc.arg('group_prefix')::text)
   AND read_at IS NULL AND archived_at IS NULL

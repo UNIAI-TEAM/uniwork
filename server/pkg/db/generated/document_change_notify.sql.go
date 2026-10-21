@@ -14,30 +14,41 @@ import (
 const findFoldableDocumentChange = `-- name: FindFoldableDocumentChange :one
 SELECT id, user_id, organization_id, workspace_id, kind, group_key, resource_type, resource_id, actor_kind, actor_id, title_key, params, count, correlation_id, read_at, archived_at, pushed_at, digested_at, created_at, updated_at FROM notifications
 WHERE user_id = $1
+  AND organization_id = $2
+  AND workspace_id IS NOT DISTINCT FROM $3::text
   AND kind = 'document_changed'
-  AND starts_with(group_key, $2::text)
+  AND starts_with(group_key, $4::text)
   AND read_at IS NULL AND archived_at IS NULL
-  AND (group_key = $3::text
+  AND (group_key = $5::text
        OR (updated_at > now() - interval '2 minutes' AND created_at > now() - interval '30 minutes'))
-ORDER BY (group_key = $3::text) DESC, updated_at DESC
+ORDER BY (group_key = $5::text) DESC, updated_at DESC
 LIMIT 1
 FOR UPDATE
 `
 
 type FindFoldableDocumentChangeParams struct {
-	UserID      string `json:"user_id"`
-	GroupPrefix string `json:"group_prefix"`
-	GroupKey    string `json:"group_key"`
+	UserID         string      `json:"user_id"`
+	OrganizationID string      `json:"organization_id"`
+	WorkspaceID    pgtype.Text `json:"workspace_id"`
+	GroupPrefix    string      `json:"group_prefix"`
+	GroupKey       string      `json:"group_key"`
 }
 
-// tenant: self
 // The open document_changed row a new event folds into, under the group
 // claim the consumer holds: the row of the same command whatever its age,
 // otherwise the same actor and verb touched inside the sliding two-minute
-// window and less than thirty minutes after the row opened. FOR UPDATE keeps
-// a read or archive from landing between this read and the fold.
+// window and less than thirty minutes after the row opened. Only a row of the
+// same organization and workspace folds, so a document never lands in another
+// tenant's notice (BE-R1-3). FOR UPDATE keeps a read or archive from landing
+// between this read and the fold.
 func (q *Queries) FindFoldableDocumentChange(ctx context.Context, arg FindFoldableDocumentChangeParams) (Notification, error) {
-	row := q.db.QueryRow(ctx, findFoldableDocumentChange, arg.UserID, arg.GroupPrefix, arg.GroupKey)
+	row := q.db.QueryRow(ctx, findFoldableDocumentChange,
+		arg.UserID,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.GroupPrefix,
+		arg.GroupKey,
+	)
 	var i Notification
 	err := row.Scan(
 		&i.ID,
