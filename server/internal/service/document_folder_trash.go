@@ -75,17 +75,22 @@ func (s *DocumentService) planFolderTrash(ctx context.Context, q *db.Queries, ac
 // loaded. Workspace folders are not asked: they always go to the trash. Any
 // other folder (a legacy private one, another person's) is asked like before
 // ADR 0037 and refuses the whole command when the actor does not manage it -
-// it is never relocated (folders have a unique name index). A
-// work-product-owned node refuses (ErrForbidden), as the old check did.
+// it is never relocated (folders have a unique name index). A page or file
+// the actor cannot READ is unmanaged too, even for an admin who administers it
+// without reading (AdminScope alone, UNI-2055 TV-02): the trash is for what the
+// actor sees and manages, the rest relocates. A work-product-owned node
+// refuses (ErrForbidden), as the old check did.
 func (s *DocumentService) unmanagedInSubtree(ctx context.Context, q *db.Queries, actor Actor, root db.Document, live []string, rows map[string]db.Document) (map[string]bool, error) {
 	check := live
 	if actor.Kind == audit.KindHuman {
-		isMember, isAdmin, err := s.workspaceManageHints(ctx, q, root.WorkspaceID, actor.ID)
+		isMember, _, err := s.workspaceManageHints(ctx, q, root.WorkspaceID, actor.ID)
 		if err != nil {
 			return nil, err
 		}
 		check, err = q.ListDocumentSubtreeNeedingAccessCheck(ctx, db.ListDocumentSubtreeNeedingAccessCheckParams{
-			IsWsAdmin: isAdmin, IsWsMember: isMember, ActorID: actor.ID,
+			// IsWsAdmin stays false: an admin manages every node but may not
+			// read it, so the admin shortcut would hide the nodes to relocate.
+			IsWsAdmin: false, IsWsMember: isMember, ActorID: actor.ID,
 			OrganizationID: root.OrganizationID, WorkspaceID: root.WorkspaceID, Ids: live,
 		})
 		if err != nil {
@@ -107,10 +112,21 @@ func (s *DocumentService) unmanagedInSubtree(ctx context.Context, q *db.Queries,
 		if isWorkspaceFolder(node) {
 			continue
 		}
-		err := s.requireManageOn(ctx, q, actor, node)
-		switch {
-		case errors.Is(err, ErrForbidden) && node.Kind == DocumentKindFolder:
-			return nil, ErrForbidden
+		if node.Kind == DocumentKindFolder {
+			if err := s.requireManageOn(ctx, q, actor, node); err != nil {
+				return nil, err
+			}
+			continue
+		}
+		lvl, err := s.effectiveLevel(ctx, q, actor, node)
+		if err != nil {
+			return nil, err
+		}
+		if !lvl.Level.AtLeast(DocumentLevelView) {
+			out[id] = true
+			continue
+		}
+		switch err := manageDecision(node, lvl); {
 		case errors.Is(err, ErrForbidden):
 			out[id] = true
 		case err != nil:

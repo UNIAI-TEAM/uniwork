@@ -212,6 +212,11 @@ func (s *DocumentService) requireManageOn(ctx context.Context, q *db.Queries, ac
 	if err != nil {
 		return err
 	}
+	return manageDecision(node, lvl)
+}
+
+// manageDecision is requireManageOn's verdict on an already computed level.
+func manageDecision(node db.Document, lvl DocumentAccess) error {
 	// DOC-05: AdminScope administers a restricted node without reading it.
 	if !node.OwnerKind.Valid && lvl.canAdminister() {
 		return nil

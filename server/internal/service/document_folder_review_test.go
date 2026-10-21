@@ -146,9 +146,12 @@ func TestDocumentFolderArchiveAccess(t *testing.T) {
 		relocated(t, root, child, res, err)
 	})
 
-	t.Run("a workspace admin archives a child with no ACL owner", func(t *testing.T) {
+	// UNI-2055 TV-02: an admin trashes only what they read AND manage. A
+	// workspace-visible child with no ACL owner is both; a restricted one is
+	// administered without being read, so it relocates (next subtest).
+	t.Run("a workspace admin archives a readable child with no ACL owner", func(t *testing.T) {
 		root := newFolder(t)
-		child := f.treeDoc(t, tn, treeDocSpec{ws: tn.wsA, visibility: "restricted",
+		child := f.treeDoc(t, tn, treeDocSpec{ws: tn.wsA, visibility: "workspace",
 			createdBy: tn.aclOwner.ID, parent: root.ID})
 		res, err := env.svc.ArchiveDocument(ctx, human(tn.wsAdmin), root.ID, ArchiveDocumentInput{})
 		if err != nil || len(res.Affected) != 2 {
@@ -182,17 +185,11 @@ func TestDocumentFolderArchiveAccess(t *testing.T) {
 		}
 	})
 
-	t.Run("a workspace admin manages every node, restricted or not", func(t *testing.T) {
+	t.Run("a workspace admin relocates a restricted node they cannot read", func(t *testing.T) {
 		root := newFolder(t)
 		child := foreignChild(t, root)
 		res, err := env.svc.ArchiveDocument(ctx, human(tn.wsAdmin), root.ID, ArchiveDocumentInput{})
-		if err != nil || len(res.Affected) != 2 {
-			t.Fatalf("admin archive = %v, %v", res.Affected, err)
-		}
-		d, err := f.q.GetDocumentByID(ctx, child.ID)
-		if err != nil || !d.ArchivedAt.Valid {
-			t.Fatalf("restricted child not archived: %+v %v", d, err)
-		}
+		relocated(t, root, child, res, err)
 	})
 }
 

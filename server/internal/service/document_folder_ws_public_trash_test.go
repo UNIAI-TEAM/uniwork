@@ -141,6 +141,13 @@ func TestFolderTrashGate(t *testing.T) {
 	ctx := e.f.ctx
 	folder := e.mkFolder(t, e.b, "", "Cổng")
 	page := e.mkPage(t, e.b, folder.ID, "Trang")
+	// The admin trashes only what they read and manage (TV-02): B shares the
+	// page with them, so it goes to the trash with the folder.
+	if _, err := e.svc.ShareDocument(ctx, e.b, page.ID, DocumentShareInput{
+		PrincipalType: "user", PrincipalID: e.tn.wsAdmin.ID, Level: DocumentLevelManage,
+	}); err != nil {
+		t.Fatalf("B shares the page with the admin: %v", err)
+	}
 
 	if _, err := e.svc.ArchiveDocument(ctx, e.a, folder.ID, ArchiveDocumentInput{}); !errors.Is(err, ErrForbidden) {
 		t.Fatalf("member trashes another's workspace folder = %v, want forbidden", err)
