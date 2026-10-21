@@ -339,8 +339,8 @@ export function Composer(props: Props) {
       </View>
       {tooLong ? (
         <Text className="px-4 pb-2 text-xs text-destructive">
-          {/* The _other form directly: Hermes may lack Intl.PluralRules, which i18next needs to pick a suffix. */}
-          {t("chat.composer_state.chars_over_other", { count: trimmed.length - CHAT_MESSAGE_BODY_MAX_LENGTH })}
+          {/* Without Intl.PluralRules (Hermes) i18next still picks "one" for 1 and "other" otherwise: English's rule. */}
+          {t("chat.composer_state.chars_over", { count: trimmed.length - CHAT_MESSAGE_BODY_MAX_LENGTH })}
         </Text>
       ) : null}
       <ActionSheet

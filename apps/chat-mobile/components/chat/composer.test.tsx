@@ -147,7 +147,7 @@ describe("Composer", () => {
     const p = props();
     await render(<Composer {...p} />);
     await fireEvent.changeText(input(), "a".repeat(4003));
-    expect(screen.getByText(viText("chat.composer_state.chars_over_other", { count: 3 }))).toBeOnTheScreen();
+    expect(screen.getByText(viText("chat.composer_state.chars_over", { count: 3 }))).toBeOnTheScreen();
     expect(sendButton()).toBeDisabled();
     await fireEvent.press(sendButton());
     expect(p.onSend).not.toHaveBeenCalled();
