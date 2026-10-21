@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"log/slog"
-	"sync"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -132,23 +131,11 @@ func (s *MeetingService) summarizeAuto(ctx context.Context, m db.Meeting) (db.Me
 	return s.summarize(ctx, m, autoSummaryActor, autoSummaryLocale)
 }
 
-// drainAutoSummaries is the auto_summary worker: autoSummaryConcurrency
-// claimers, each taking one due row at a time right before its run, so a
-// lease never ages while another meeting is summarized.
-func (s *MeetingService) drainAutoSummaries(ctx context.Context) error {
-	var wg sync.WaitGroup
-	errs := make([]error, autoSummaryConcurrency)
-	for i := range autoSummaryConcurrency {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			errs[i] = s.claimAutoSummaries(ctx)
-		}()
-	}
-	wg.Wait()
-	return errors.Join(errs...)
-}
-
+// claimAutoSummaries is one auto_summary claimer. RunWorkers runs
+// autoSummaryConcurrency of them as independent loops, so a meeting that
+// falls due while another one's summary runs is claimed by a free claimer
+// within a tick. Each takes one due row right before its run, so a lease
+// never ages while another meeting is summarized.
 func (s *MeetingService) claimAutoSummaries(ctx context.Context) error {
 	lease := s.summaryBudget().lease + time.Minute
 	for ctx.Err() == nil {
@@ -187,9 +174,12 @@ func (s *MeetingService) runAutoSummary(ctx context.Context, row db.MeetingAutoS
 	if ctx.Err() != nil {
 		return ctx.Err()
 	}
-	var ce CodedError
-	inProgress := errors.As(err, &ce) && ce.Code == "summary_in_progress"
-	remind := found && err != nil && !errors.Is(err, errAutoSummaryNotDue) && !inProgress
+	remind, settle := autoSummaryOutcome(err)
+	if !settle {
+		// Not a refusal (a read failed, say): the row stays, its lease lapses
+		// and another claim retries it, up to autoSummaryMaxAttempts.
+		return err
+	}
 	if err == nil {
 		s.count("auto_summary_ok")
 	} else if remind {
@@ -197,6 +187,27 @@ func (s *MeetingService) runAutoSummary(ctx context.Context, row db.MeetingAutoS
 		slog.Info("meetings: auto summary not made, the host gets the reminder", "meeting_id", row.MeetingID, "attempts", row.Attempts, "err", err)
 	}
 	return s.settleAutoSummary(ctx, row, m, remind)
+}
+
+// autoSummaryOutcome sorts a run's result: settle deletes the row, remind
+// also queues the summary reminder. A refusal (a coded error: the model
+// failed or is not configured; the plan lacks meeting.ai_summary) and a
+// switch turned off remind; nothing
+// to summarize, a summary already there or a clerk's run in flight settle
+// quietly; any other error settles nothing, so the claim is retried.
+func autoSummaryOutcome(err error) (remind, settle bool) {
+	var ce CodedError
+	switch {
+	case err == nil, errors.Is(err, errAutoSummaryNotDue):
+		return false, true
+	case errors.Is(err, errAutoSummaryOff), errors.Is(err, errAutoSummaryAttempts),
+		errors.Is(err, ErrEntitlementRequired), errors.Is(err, ErrSubscriptionInactive):
+		return true, true
+	case errors.As(err, &ce):
+		quiet := ce.Code == "summary_in_progress" || ce.Code == "summary_no_source"
+		return !quiet, true
+	}
+	return false, false
 }
 
 func (s *MeetingService) settleAutoSummary(ctx context.Context, row db.MeetingAutoSummary, m db.Meeting, remind bool) error {
