@@ -1,0 +1,9 @@
+$ unset OPENAI_API_KEY; export UNIWORK_GO_COVER_OUT=$PWD/.go-tmp/cover-handler.out; AI_PROVIDER=fake bash scripts/test-go.sh --race --shard=handler --skip-static --skip-floor > /tmp/pr7-go-handler.log 2>&1; rc=$?; tail -30 /tmp/pr7-go-handler.log | cut -c1-300; grep -E "^(--- FAIL|FAIL|panic)|DATA RACE|^ok .*[0-9]s$" /tmp/pr7-go-handler.log | grep -vE "^ok" | head -60; echo; echo "TEST_GO_EXIT=$rc"
+warning: STORAGE_BACKEND is unset and MINIO_* is empty; the server will refuse to start.
+         set STORAGE_BACKEND=local with LOCAL_UPLOAD_DIR, or configure MinIO (see .env.example).
+ok  	github.com/unicomhub/uniwork/server/internal/handler	895.106s	coverage: 82.9% of statements
+?   	github.com/unicomhub/uniwork/server/internal/handler/dto/sdi	[no test files]
+ok  	github.com/unicomhub/uniwork/server/internal/handler/dto/sdo	1.165s	coverage: 66.7% of statements
+ok  	github.com/unicomhub/uniwork/server/internal/handler/router	30.825s	coverage: 99.5% of statements
+
+TEST_GO_EXIT=0

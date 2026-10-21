@@ -1,0 +1,5 @@
+$ mkdir -p /tmp/test-results && cp .go-tmp/cover-handler.out /tmp/test-results/cover-handler.out; rc=$?; ls -la /tmp/test-results/cover-handler.out; head -1 .go-tmp/cover-handler.out; echo; echo "COVER_COPY_EXIT=$rc"
+-rw-r--r-- 1 ubuntu ubuntu 543925 Oct 21 04:46 /tmp/test-results/cover-handler.out
+mode: atomic
+
+COVER_COPY_EXIT=0
