@@ -7,7 +7,7 @@
 // `<scheme>://open?url=<percent-encoded path>` for builds without verified
 // universal links. Expo installs a WHATWG URL on Hermes, so `new URL` is safe.
 
-import { isAuthCallbackUrl } from "@/data/auth/callback";
+import { isAuthCallbackUrl } from "./auth-callback-url";
 
 export interface DeepLink {
   orgSlug: string;

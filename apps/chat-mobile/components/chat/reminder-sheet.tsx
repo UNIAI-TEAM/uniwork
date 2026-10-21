@@ -17,7 +17,7 @@ import { Text } from "@/components/ui/text";
 import { TintTile } from "@/components/ui/tint-tile";
 import { continuousCorners } from "@/lib/radius";
 import { THEME } from "@/lib/theme";
-import { useColorScheme } from "@/lib/use-color-scheme";
+import { useColorScheme } from "@/components/ui/use-color-scheme";
 import { cn } from "@/lib/utils";
 
 const PRESETS = ["15m", "30m", "tomorrow_9"] as const;

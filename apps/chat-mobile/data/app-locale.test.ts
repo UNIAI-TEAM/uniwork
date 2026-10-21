@@ -1,8 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const store = vi.hoisted(() => ({ value: null as string | null, fail: false }));
+const getItemAsync = vi.hoisted(() => vi.fn<(key: string) => Promise<string | null>>());
 vi.mock("expo-secure-store", () => ({
-  getItemAsync: vi.fn(async () => {
+  AFTER_FIRST_UNLOCK: 0,
+  getItemAsync: getItemAsync.mockImplementation(async () => {
     if (store.fail) throw new Error("locked");
     return store.value;
   }),
@@ -48,8 +50,8 @@ describe("applyStoredLocale", () => {
 
   it("ignores a stored value that is not a language the app speaks", async () => {
     store.value = "de";
-    const { applyStoredLocale, LOCALE_KEY } = await load();
-    expect(LOCALE_KEY).toBe("locale_preference");
+    const { applyStoredLocale } = await load();
     expect(await applyStoredLocale()).toBe("en");
+    expect(getItemAsync).toHaveBeenLastCalledWith("locale_preference", { keychainAccessible: 0 });
   });
 });

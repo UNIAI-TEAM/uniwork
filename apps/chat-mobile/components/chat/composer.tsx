@@ -38,7 +38,7 @@ import {
 } from "@/lib/mentions";
 import type { PendingFile } from "@/lib/send-pipeline";
 import { THEME } from "@/lib/theme";
-import { useColorScheme } from "@/lib/use-color-scheme";
+import { useColorScheme } from "@/components/ui/use-color-scheme";
 import { cn } from "@/lib/utils";
 import { useVoiceRecorder, VOICE_MAX_MS, type VoiceClip } from "./use-voice-recorder";
 import { VoiceWave } from "./voice-wave";

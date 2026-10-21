@@ -50,7 +50,7 @@ import type { PendingFile } from "@/lib/send-pipeline";
 import { albumsOf } from "@/lib/album";
 import { messageView } from "@/lib/message-display";
 import { buildTimelineRows, type TimelineMessage, type TimelineRow } from "@/lib/timeline-display";
-import { useColorScheme } from "@/lib/use-color-scheme";
+import { useColorScheme } from "@/components/ui/use-color-scheme";
 import { Composer, type ComposerEdit, type ComposerReply } from "./composer";
 import { ConnectionBanner } from "./connection-banner";
 import { EmojiSheet } from "./emoji-sheet";

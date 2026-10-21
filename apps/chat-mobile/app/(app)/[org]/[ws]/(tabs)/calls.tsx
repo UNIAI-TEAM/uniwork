@@ -26,7 +26,7 @@ import { useWorkspaceStore } from "@/data/stores/workspace-store";
 import { callLogSections, callLogTitle, callLogView, formatCallClock, formatCallTime, type CallLogFilter, missedCallCount } from "@/lib/call-log-display";
 import { deepLinkHref } from "@/lib/deep-link";
 import { THEME } from "@/lib/theme";
-import { useColorScheme } from "@/lib/use-color-scheme";
+import { useColorScheme } from "@/components/ui/use-color-scheme";
 import { cn } from "@/lib/utils";
 import { voiceCallKindFromServer } from "@uniwork/core/chat/voice-call-kind";
 import { BADGE_MAX_FONT_SCALE } from "@/lib/type-scale";

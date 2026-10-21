@@ -22,7 +22,7 @@ import { useChatPinsStore } from "@/data/stores/chat-pins-store";
 import { usePresenceStore } from "@/data/stores/chat-presence-store";
 import { useChatSendStore } from "@/data/stores/chat-send-store";
 import { useSidebarTypingStore } from "@/data/stores/chat-typing-store";
-import { useWSSubscriptions } from "@/lib/use-ws-subscriptions";
+import { useWSSubscriptions } from "@/data/realtime/use-ws-subscriptions";
 import { createChatRealtime } from "./chat-realtime";
 import { useChatScopes } from "./use-chat-scopes";
 

@@ -11,7 +11,7 @@ import { Pressable, View } from "react-native";
 import { Header } from "@/components/ui/header";
 import { Text } from "@/components/ui/text";
 import { THEME } from "@/lib/theme";
-import { useColorScheme } from "@/lib/use-color-scheme";
+import { useColorScheme } from "@/components/ui/use-color-scheme";
 import { cn } from "@/lib/utils";
 import { BADGE_MAX_FONT_SCALE } from "@/lib/type-scale";
 

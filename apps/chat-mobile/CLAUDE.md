@@ -75,7 +75,15 @@ một dòng thì ghi lý do ở dòng trên.
   (chuỗi xin quyền gốc tiếng Việt, `locales.en` dịch). Bundle id
   `com.uniworkos.chat{.dev,.staging}`, scheme `uniworkchat-dev` (dev) / `uniworkchat`; universal link chỉ xác minh
   với id prod.
-- `lib/` — helper thuần + test vitest (env node). `theme.ts`/`global.css`/
+- `lib/` — helper thuần + test vitest (env node), đo trọn ở sàn 100 %. Thuần là luật lint, không phải quy ước
+  (khối `lib/**` của `eslint.config.mjs`, fixture `lib/lint-boundary.test.ts`): không import giá trị từ `react*`,
+  `react-native*`, `expo*`, `@expo/*`, `@sentry/*`, `nativewind`, LiveKit, hay từ `data/`, `components/`, `app/`
+  (`import type` thì được). Hook và provider ở `components/` (`components/ui/use-color-scheme.ts`,
+  `components/ui/nav-theme.ts`, `components/app/i18n-provider.tsx`) hoặc `data/`
+  (`data/realtime/use-ws-subscriptions.ts`); logic dùng chung giữa `lib/` và `data/` nằm ở `lib/` (ví dụ
+  `lib/auth-callback-url.ts`). Lựa chọn của máy (theme, ngôn ngữ) chỉ đọc/ghi qua `data/device-preferences.ts`
+  (Keychain/Keystore, `AFTER_FIRST_UNLOCK` để task nền trên máy khoá đọc được ngôn ngữ, ghi tuần tự).
+  `theme.ts`/`global.css`/
   `tailwind.config.js` mirror nhau; giá trị là `packages/ui/styles/tokens.css`
   đổi sang HSL, đổi một nơi thì đổi cả ba. `radius-tokens.json` là thang
   `--radius-*` của tokens.css. Ngoại lệ có chủ ý (R4b, UNI-1916): các slot

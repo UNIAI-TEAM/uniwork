@@ -18,7 +18,7 @@ import { expressionsOptions } from "@/data/queries/chat";
 import { formatChatMediaMessageBody } from "@/lib/media-body";
 import { continuousCorners } from "@/lib/radius";
 import { THEME } from "@/lib/theme";
-import { useColorScheme } from "@/lib/use-color-scheme";
+import { useColorScheme } from "@/components/ui/use-color-scheme";
 import { cn } from "@/lib/utils";
 import { IMAGE_CACHE_POLICY } from "@/lib/media-source";
 

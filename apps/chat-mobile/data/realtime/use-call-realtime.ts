@@ -16,7 +16,7 @@ import { callEngine, onHangupSettled } from "@/data/calls/call-store";
 import { chatKeys } from "@/data/queries/chat-keys";
 import { roomsOptions } from "@/data/queries/chat";
 import { useMobileFlag } from "@/data/remote-config";
-import { useWSSubscriptions } from "@/lib/use-ws-subscriptions";
+import { useWSSubscriptions } from "@/data/realtime/use-ws-subscriptions";
 
 export function useCallRealtime(wsId: string) {
   const qc = useQueryClient();

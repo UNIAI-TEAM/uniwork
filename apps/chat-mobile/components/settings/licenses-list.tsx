@@ -10,7 +10,7 @@ import { SearchField } from "@/components/ui/search-field";
 import { Text } from "@/components/ui/text";
 import { filterLicenses, licenseEntries, type LicenseEntry } from "@/lib/licenses";
 import { THEME } from "@/lib/theme";
-import { useColorScheme } from "@/lib/use-color-scheme";
+import { useColorScheme } from "@/components/ui/use-color-scheme";
 import rows from "@/assets/licenses.json";
 import { useOpenWebPage } from "./use-open-web-page";
 

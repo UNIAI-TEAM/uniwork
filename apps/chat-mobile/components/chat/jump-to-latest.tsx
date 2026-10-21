@@ -10,7 +10,7 @@ import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
 import { Text } from "@/components/ui/text";
 import { BADGE_MAX_FONT_SCALE } from "@/lib/type-scale";
 import { THEME } from "@/lib/theme";
-import { useColorScheme } from "@/lib/use-color-scheme";
+import { useColorScheme } from "@/components/ui/use-color-scheme";
 
 export function JumpToLatest({ count, onPress }: { count: number; onPress: () => void }) {
   const { t } = useTranslation();

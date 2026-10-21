@@ -23,7 +23,7 @@ import { AI_PROVIDER, hasAiConsent } from "@/lib/ai-consent";
 import { legalLinks, legalLocale } from "@/lib/legal-links";
 import { continuousCorners } from "@/lib/radius";
 import { THEME } from "@/lib/theme";
-import { useColorScheme } from "@/lib/use-color-scheme";
+import { useColorScheme } from "@/components/ui/use-color-scheme";
 import { cn } from "@/lib/utils";
 
 /** Whether the signed-in person agreed to the notice this build shows. */

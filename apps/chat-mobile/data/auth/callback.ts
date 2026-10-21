@@ -1,18 +1,8 @@
 // Ported from apps/chat-desktop/src/main/auth/callback.ts without the argv /
 // second-instance router (Electron only): on a phone the callback URL comes
 // back from WebBrowser.openAuthSessionAsync or a deep link.
+import { urlBase as baseOf } from "@/lib/auth-callback-url";
 import type { PendingLoginAttempt } from "./pkce";
-
-/** the URL up to its query or fragment */
-function baseOf(url: string): string {
-  const end = url.search(/[?#]/);
-  return end < 0 ? url : url.slice(0, end);
-}
-
-/** `<scheme>://auth/callback[?…]`; the OS may upper-case the scheme, validation compares exactly */
-export function isAuthCallbackUrl(url: unknown, scheme: string): url is string {
-  return typeof url === "string" && baseOf(url).toLowerCase() === `${scheme}://auth/callback`;
-}
 
 type CallbackRejectReason =
   | "no_attempt"

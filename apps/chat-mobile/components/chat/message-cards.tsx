@@ -23,7 +23,7 @@ import { mentionSegments } from "@/lib/mentions";
 import { THEME } from "@/lib/theme";
 import { fileBadge, type Tint } from "@/lib/tint";
 import { formatMessageDateTime, formatMessageTime } from "@/lib/timeline-display";
-import { useColorScheme } from "@/lib/use-color-scheme";
+import { useColorScheme } from "@/components/ui/use-color-scheme";
 import { cn } from "@/lib/utils";
 import { useChatMediaSrc, useFreshChatMediaUrl } from "./use-chat-media";
 import { bestEffort } from "@/data/report";

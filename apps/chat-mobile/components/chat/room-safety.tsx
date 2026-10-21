@@ -17,7 +17,7 @@ import { blockStatusOptions } from "@/data/queries/safety";
 import { toast } from "@/data/stores/toast-store";
 import type { ReportTarget } from "@/lib/report";
 import { THEME } from "@/lib/theme";
-import { useColorScheme } from "@/lib/use-color-scheme";
+import { useColorScheme } from "@/components/ui/use-color-scheme";
 import { ReportSheet } from "./report-sheet";
 
 export interface SafetyPerson {

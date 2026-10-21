@@ -17,7 +17,7 @@ import { useCatchUp } from "@/data/mutations/rooms";
 import { AiConsentActions, AiConsentText, useAiConsent } from "./ai-consent-notice";
 import { continuousCorners } from "@/lib/radius";
 import { THEME } from "@/lib/theme";
-import { useColorScheme } from "@/lib/use-color-scheme";
+import { useColorScheme } from "@/components/ui/use-color-scheme";
 
 export interface CatchUpTarget {
   roomId: string;

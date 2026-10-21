@@ -47,10 +47,10 @@ import { sentryNavigation } from "@/data/sentry";
 import { installDeviceStore, openDeviceStore } from "@/data/storage/device-store";
 import { openNativeDeviceStore } from "@/data/storage/native-device-store";
 import { incomingUrlAction, setPendingDeepLink } from "@/lib/deep-link";
-import { I18nProvider } from "@/lib/i18n/provider";
+import { I18nProvider } from "@/components/app/i18n-provider";
 import { i18n } from "@/lib/i18n/singleton";
-import { NAV_THEME } from "@/lib/theme";
-import { loadThemePreference, useColorScheme } from "@/lib/use-color-scheme";
+import { NAV_THEME } from "@/components/ui/nav-theme";
+import { loadThemePreference, useColorScheme } from "@/components/ui/use-color-scheme";
 
 // Crash reporting first, so the rest of boot is covered (nothing starts without a DSN); then the
 // server URLs every data/* module reads per call and the build's identity on every REST call

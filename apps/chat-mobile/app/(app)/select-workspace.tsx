@@ -17,7 +17,7 @@ import { useAuthStore } from "@/data/auth/store";
 import { workspaceListOptions } from "@/data/queries/workspaces";
 import { useWorkspaceStore } from "@/data/stores/workspace-store";
 import { THEME } from "@/lib/theme";
-import { useColorScheme } from "@/lib/use-color-scheme";
+import { useColorScheme } from "@/components/ui/use-color-scheme";
 import { badgeText, unreadOfWorkspace } from "@/lib/workspace-unread";
 import { cn } from "@/lib/utils";
 import { BADGE_MAX_FONT_SCALE } from "@/lib/type-scale";

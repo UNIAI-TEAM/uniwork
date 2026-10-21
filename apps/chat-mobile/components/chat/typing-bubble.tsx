@@ -7,7 +7,7 @@ import { AccessibilityInfo, Animated, Easing, View } from "react-native";
 import { useAnnounce } from "@/components/ui/a11y";
 import { bubbleCorners } from "@/lib/conversation-display";
 import { THEME } from "@/lib/theme";
-import { useColorScheme } from "@/lib/use-color-scheme";
+import { useColorScheme } from "@/components/ui/use-color-scheme";
 
 function useReduceMotion() {
   const [reduced, setReduced] = useState(true);

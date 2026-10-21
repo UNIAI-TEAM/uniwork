@@ -25,11 +25,11 @@ import { WorkspaceSwitchSheet } from "@/components/workspace/workspace-switch-sh
 import { useAuthStore } from "@/data/auth/store";
 import { workspaceListOptions } from "@/data/queries/workspaces";
 import { chatRoutes } from "@/lib/chat-routes";
-import { useLocalePreference } from "@/lib/i18n/provider";
+import { useLocalePreference } from "@/components/app/i18n-provider";
 import type { SupportedLocale } from "@/lib/i18n/singleton";
 import { continuousCorners } from "@/lib/radius";
 import { THEME } from "@/lib/theme";
-import { useColorScheme, type ThemePreference } from "@/lib/use-color-scheme";
+import { useColorScheme, type ThemePreference } from "@/components/ui/use-color-scheme";
 import { cn } from "@/lib/utils";
 
 type Option<T> = { value: T; label: string; icon?: keyof typeof Ionicons.glyphMap };

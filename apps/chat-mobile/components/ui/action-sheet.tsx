@@ -14,7 +14,7 @@ import { TintTile } from "@/components/ui/tint-tile";
 import { continuousCorners } from "@/lib/radius";
 import { THEME } from "@/lib/theme";
 import type { Tint } from "@/lib/tint";
-import { useColorScheme } from "@/lib/use-color-scheme";
+import { useColorScheme } from "@/components/ui/use-color-scheme";
 import { cn } from "@/lib/utils";
 
 export interface SheetAction {

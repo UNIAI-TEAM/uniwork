@@ -16,7 +16,7 @@ import { discoverableChannelsOptions, myChannelsOptions } from "@/data/queries/c
 import { chatRoutes } from "@/lib/chat-routes";
 import { channelDirectory } from "@/lib/channel-directory";
 import { THEME } from "@/lib/theme";
-import { useColorScheme } from "@/lib/use-color-scheme";
+import { useColorScheme } from "@/components/ui/use-color-scheme";
 import { cn } from "@/lib/utils";
 import { toast } from "@/data/stores/toast-store";
 

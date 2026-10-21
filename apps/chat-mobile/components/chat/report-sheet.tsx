@@ -17,7 +17,7 @@ import { toast } from "@/data/stores/toast-store";
 import { continuousCorners } from "@/lib/radius";
 import { REPORT_DETAILS_MAX, REPORT_REASONS, reportBody, type ReportReason, type ReportTarget } from "@/lib/report";
 import { THEME } from "@/lib/theme";
-import { useColorScheme } from "@/lib/use-color-scheme";
+import { useColorScheme } from "@/components/ui/use-color-scheme";
 import { cn } from "@/lib/utils";
 
 interface Props {

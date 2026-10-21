@@ -12,7 +12,7 @@ import { Text } from "@/components/ui/text";
 import { reportError } from "@/data/report";
 import { i18n } from "@/lib/i18n/singleton";
 import { THEME } from "@/lib/theme";
-import { useColorScheme } from "@/lib/use-color-scheme";
+import { useColorScheme } from "@/components/ui/use-color-scheme";
 
 export interface ErrorFallbackProps {
   error: Error;

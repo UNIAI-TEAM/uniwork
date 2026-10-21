@@ -4,7 +4,7 @@ import { Ionicons } from "@expo/vector-icons";
 import type { Ref } from "react";
 import { TextInput, View, type TextInputProps } from "react-native";
 import { THEME } from "@/lib/theme";
-import { useColorScheme } from "@/lib/use-color-scheme";
+import { useColorScheme } from "@/components/ui/use-color-scheme";
 import { cn } from "@/lib/utils";
 
 export function SearchField({ className, ref, ...input }: TextInputProps & { className?: string; ref?: Ref<TextInput> }) {

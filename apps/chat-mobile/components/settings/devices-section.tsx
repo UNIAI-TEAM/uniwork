@@ -12,7 +12,7 @@ import { useRevokeDevice } from "@/data/mutations/account";
 import { devicesOptions, type Device } from "@/data/queries/devices";
 import { formatCallTime } from "@/lib/call-log-display";
 import { THEME } from "@/lib/theme";
-import { useColorScheme } from "@/lib/use-color-scheme";
+import { useColorScheme } from "@/components/ui/use-color-scheme";
 import { SettingsSection } from "./settings-section";
 import { toast } from "@/data/stores/toast-store";
 

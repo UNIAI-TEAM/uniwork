@@ -34,7 +34,7 @@ import { chatRoutes } from "@/lib/chat-routes";
 import { ROOM_LIST_FILTERS_BY_SCOPE, scopeRows, type ChatScope } from "@/lib/chat-scope";
 import { buildRoomList, filterRoomList, quickCatchUp, roomListTypingLines, type RoomListFilter, type RoomListRow } from "@/lib/room-list";
 import { THEME } from "@/lib/theme";
-import { useColorScheme } from "@/lib/use-color-scheme";
+import { useColorScheme } from "@/components/ui/use-color-scheme";
 import { unreadInOtherWorkspaces } from "@/lib/workspace-unread";
 import { ScreenFullyDrawn } from "@/data/sentry";
 import { toast } from "@/data/stores/toast-store";

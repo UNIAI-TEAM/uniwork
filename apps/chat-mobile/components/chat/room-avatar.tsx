@@ -13,7 +13,7 @@ import { roomInitialsOf } from "@uniwork/core/chat/initials";
 import { continuousCorners } from "@/lib/radius";
 import type { RoomMark } from "@/lib/room-list";
 import { THEME } from "@/lib/theme";
-import { useColorScheme } from "@/lib/use-color-scheme";
+import { useColorScheme } from "@/components/ui/use-color-scheme";
 
 /** `seed` is the room id the colour is hashed from. */
 export function RoomAvatar({ mark, size = 54, seed = "" }: { mark: RoomMark; size?: number; seed?: string }) {

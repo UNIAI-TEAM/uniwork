@@ -12,7 +12,7 @@ import { TintTile } from "@/components/ui/tint-tile";
 import { messagePreviewText } from "@/lib/message-display";
 import { THEME } from "@/lib/theme";
 import type { TimelineMessage } from "@/lib/timeline-display";
-import { useColorScheme } from "@/lib/use-color-scheme";
+import { useColorScheme } from "@/components/ui/use-color-scheme";
 
 export function PinnedBar({ messages, onJump }: { messages: readonly TimelineMessage[]; onJump: (messageId: string) => void }) {
   const { t } = useTranslation();

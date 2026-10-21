@@ -16,7 +16,7 @@ import { useResolveDM } from "@/data/mutations/rooms";
 import { nicknamesOptions, workspaceMembersOptions } from "@/data/queries/chat";
 import { chatRoutes } from "@/lib/chat-routes";
 import { THEME } from "@/lib/theme";
-import { useColorScheme } from "@/lib/use-color-scheme";
+import { useColorScheme } from "@/components/ui/use-color-scheme";
 import { toast } from "@/data/stores/toast-store";
 import { pickerPeople } from "@/lib/contacts-display";
 

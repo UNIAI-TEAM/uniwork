@@ -12,7 +12,7 @@ import { useAnnounce } from "@/components/ui/a11y";
 import { Text } from "@/components/ui/text";
 import { useConnectionState } from "@/data/realtime/realtime-provider";
 import { THEME } from "@/lib/theme";
-import { useColorScheme } from "@/lib/use-color-scheme";
+import { useColorScheme } from "@/components/ui/use-color-scheme";
 
 export const RECONNECT_GRACE_MS = 1_500;
 

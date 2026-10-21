@@ -18,7 +18,7 @@ jest.mock("@/data/queries/chat", () => ({
 
 type Handler = (payload: unknown) => void;
 const mockSocket = { handlers: new Map<string, Handler>(), reconnect: [] as (() => void)[] };
-jest.mock("@/lib/use-ws-subscriptions", () => {
+jest.mock("@/data/realtime/use-ws-subscriptions", () => {
   const { useEffect } = jest.requireActual<typeof import("react")>("react");
   return {
     useWSSubscriptions: (setup: (ws: WSClient) => (() => void)[]) => {

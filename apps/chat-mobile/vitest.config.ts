@@ -14,18 +14,15 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       include: ["lib/**/*.ts", "data/**/*.ts"],
-      // theme.ts and use-color-scheme.ts import expo-router / nativewind, which
-      // need the native runtime; realtime-provider imports react-native
-      // (AppState/NetInfo/Platform), use-ws-subscriptions imports it, and
-      // query-client wires AppState / NetInfo into TanStack at module load.
-      // Never exclude a file to pass the floor (ADR 0037); component code is
+      // realtime-provider and use-ws-subscriptions are React (AppState/NetInfo/Platform, the
+      // socket's context), and query-client wires AppState / NetInfo into TanStack at module
+      // load. lib/ has no such file: it is pure by lint (eslint.config.mjs › lib/), so all of it
+      // is measured. Never exclude a file to pass the floor (ADR 0037); component code is
       // covered by the jest-expo layer (jest.config.js), not here.
       exclude: [
         "**/*.test.ts",
-        "lib/theme.ts",
-        "lib/use-color-scheme.ts",
         "data/realtime/realtime-provider.*",
-        "lib/use-ws-subscriptions.ts",
+        "data/realtime/use-ws-subscriptions.ts",
         "data/query-client.ts",
         // The chat hook only wires chat-realtime.ts (tested) to the socket, AppState and NetInfo.
         "data/realtime/use-chat-realtime.ts",

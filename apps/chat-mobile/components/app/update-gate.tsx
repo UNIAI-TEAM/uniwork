@@ -15,7 +15,7 @@ import { buildInfo } from "@/data/build-info";
 import { useRemoteConfig } from "@/data/remote-config";
 import { isUpdateRequired } from "@/lib/build-info";
 import { THEME } from "@/lib/theme";
-import { useColorScheme } from "@/lib/use-color-scheme";
+import { useColorScheme } from "@/components/ui/use-color-scheme";
 
 function UpdateRequired({ version, minimum, storeUrl, onCheckAgain }: { version: string; minimum: string; storeUrl: string; onCheckAgain: () => void }) {
   const { t } = useTranslation();

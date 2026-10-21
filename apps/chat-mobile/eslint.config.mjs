@@ -152,6 +152,32 @@ export default [
       "@typescript-eslint/no-restricted-imports": ["error", { paths: restrictedPaths, patterns: restrictedPatterns }],
     },
   },
+  // lib/ is the pure layer (CLAUDE.md › Cấu trúc): logic node can run, tested by vitest at a
+  // 100% floor. No React, no platform or native module, no Sentry, and nothing from the layers
+  // above it (data/, components/, app/); a type from them is fine. Replaces the rule's options
+  // for lib/, so it restates the boundary above.
+  {
+    files: ["lib/**/*.{ts,tsx}"],
+    ignores: ["**/*.test.{ts,tsx}"],
+    rules: {
+      "@typescript-eslint/no-restricted-imports": ["error", {
+        paths: restrictedPaths,
+        patterns: [
+          ...restrictedPatterns,
+          {
+            group: ["react", "react-*", "react-native", "react-native-*", "@react-native-*/*", "expo", "expo-*", "@expo/*", "@sentry/*", "nativewind", "@livekit/*", "livekit-client"],
+            allowTypeImports: true,
+            message: "lib/ is pure (node-testable): a hook, a provider or a native call belongs in components/ or data/.",
+          },
+          {
+            group: ["@/data/*", "@/data", "**/data/*", "@/components/*", "**/components/*", "@/app/*"],
+            allowTypeImports: true,
+            message: "lib/ sits below data/ and components/: import types only, or move the shared logic into lib/.",
+          },
+        ],
+      }],
+    },
+  },
   // Replaces the rule's options for app/ and components/, so it restates the boundary above.
   // app/_layout.tsx and app/(app)/_layout.tsx are the composition roots: they hand the transport
   // and endpoints to boot services (push registration) as dependencies.

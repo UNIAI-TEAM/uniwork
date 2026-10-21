@@ -20,7 +20,7 @@ import { Text } from "@/components/ui/text";
 import { useAuthStore } from "@/data/auth/store";
 import { bubbleCorners } from "@/lib/conversation-display";
 import { THEME } from "@/lib/theme";
-import { useColorScheme } from "@/lib/use-color-scheme";
+import { useColorScheme } from "@/components/ui/use-color-scheme";
 
 const WALL_DOTS = { light: wallDotsLight, dark: wallDotsDark };
 const WALL_FADE = { light: wallFadeLight, dark: wallFadeDark };

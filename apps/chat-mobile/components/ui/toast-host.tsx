@@ -11,7 +11,7 @@ import { useToastStore, type Toast, type ToastTone } from "@/data/stores/toast-s
 import { Text } from "@/components/ui/text";
 import { continuousCorners } from "@/lib/radius";
 import { THEME } from "@/lib/theme";
-import { useColorScheme } from "@/lib/use-color-scheme";
+import { useColorScheme } from "@/components/ui/use-color-scheme";
 import { cn } from "@/lib/utils";
 
 const TONE: Record<ToastTone, { box: string; icon: keyof typeof Ionicons.glyphMap }> = {

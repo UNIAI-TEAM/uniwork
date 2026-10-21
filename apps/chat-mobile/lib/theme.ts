@@ -1,8 +1,8 @@
 // Ported from usf apps/mobile/lib/theme.ts. TypeScript mirror of the CSS
 // variables in global.css (themselves tokens.css converted to HSL): THEME for
-// inline styles and anywhere a Tailwind class cannot reach, NAV_THEME for the
-// expo-router <ThemeProvider>. Change global.css and this file together.
-import { DarkTheme, DefaultTheme, type Theme } from "expo-router";
+// inline styles and anywhere a Tailwind class cannot reach (the expo-router
+// <ThemeProvider> reads it through components/ui/nav-theme.ts). Change
+// global.css and this file together. Pure: no platform import.
 
 export const THEME = {
   light: {
@@ -128,30 +128,5 @@ export const THEME = {
     chatSender6: "hsl(218.4 100% 73.8%)",
     chatSender7: "hsl(3.9 97.7% 75.5%)",
     chatSender8: "hsl(161 48.7% 57.7%)",
-  },
-};
-
-export const NAV_THEME: Record<"light" | "dark", Theme> = {
-  light: {
-    ...DefaultTheme,
-    colors: {
-      background: THEME.light.background,
-      border: THEME.light.border,
-      card: THEME.light.card,
-      notification: THEME.light.destructive,
-      primary: THEME.light.primary,
-      text: THEME.light.foreground,
-    },
-  },
-  dark: {
-    ...DarkTheme,
-    colors: {
-      background: THEME.dark.background,
-      border: THEME.dark.border,
-      card: THEME.dark.card,
-      notification: THEME.dark.destructive,
-      primary: THEME.dark.primary,
-      text: THEME.dark.foreground,
-    },
   },
 };

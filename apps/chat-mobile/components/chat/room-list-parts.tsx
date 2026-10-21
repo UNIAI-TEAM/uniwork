@@ -10,7 +10,7 @@ import { WorkspaceAvatar } from "@/components/workspace/workspace-avatar";
 import type { ChatScope } from "@/lib/chat-scope";
 import { ROOM_LIST_FILTERS, type RoomListFilter } from "@/lib/room-list";
 import { THEME } from "@/lib/theme";
-import { useColorScheme } from "@/lib/use-color-scheme";
+import { useColorScheme } from "@/components/ui/use-color-scheme";
 import { cn } from "@/lib/utils";
 import { BADGE_MAX_FONT_SCALE } from "@/lib/type-scale";
 

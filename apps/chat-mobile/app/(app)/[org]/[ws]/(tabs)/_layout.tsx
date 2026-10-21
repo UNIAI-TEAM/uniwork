@@ -9,7 +9,7 @@ import { useTranslation } from "react-i18next";
 import { useChatWorkspace } from "@/components/chat/use-chat-workspace";
 import { unreadSummaryOptions } from "@/data/queries/chat";
 import { THEME } from "@/lib/theme";
-import { useColorScheme } from "@/lib/use-color-scheme";
+import { useColorScheme } from "@/components/ui/use-color-scheme";
 import { badgeText, unreadForTabBadge } from "@/lib/workspace-unread";
 
 type IconName = ComponentProps<typeof Ionicons>["name"];

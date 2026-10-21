@@ -13,7 +13,7 @@ import { TintTile } from "@/components/ui/tint-tile";
 import { useSetPushEnabled } from "@/data/mutations/push";
 import { isPushEnabled } from "@/data/push";
 import { THEME } from "@/lib/theme";
-import { useColorScheme } from "@/lib/use-color-scheme";
+import { useColorScheme } from "@/components/ui/use-color-scheme";
 import { FullScreenCallsRow } from "./full-screen-calls-row";
 import { SettingsSection } from "./settings-section";
 

@@ -35,7 +35,7 @@ import { senderLabelFor } from "@/lib/people-display";
 import { canCallRoom, keptCounts, roomHeaderMark } from "@/lib/conversation-display";
 import { THEME } from "@/lib/theme";
 import { formatMessageDay, toTimelineMessage } from "@/lib/timeline-display";
-import { useColorScheme } from "@/lib/use-color-scheme";
+import { useColorScheme } from "@/components/ui/use-color-scheme";
 import { cn } from "@/lib/utils";
 import { voiceCallKindFromServer } from "@uniwork/core/chat/voice-call-kind";
 import { toast } from "@/data/stores/toast-store";

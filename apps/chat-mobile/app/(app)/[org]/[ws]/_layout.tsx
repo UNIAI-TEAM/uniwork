@@ -16,7 +16,7 @@ import { useChatRealtime } from "@/data/realtime/use-chat-realtime";
 import { socketTokenReaders } from "@/data/realtime/refresh-for-socket";
 import { useWorkspaceStore } from "@/data/stores/workspace-store";
 import { callHoldsSocket } from "@/lib/call-socket";
-import { useWSSubscriptions } from "@/lib/use-ws-subscriptions";
+import { useWSSubscriptions } from "@/data/realtime/use-ws-subscriptions";
 
 /** A cold-start deep link mounts the tabs under the target, so back has somewhere to go. */
 export const unstable_settings = { anchor: "(tabs)" } as const;

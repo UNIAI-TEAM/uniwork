@@ -21,7 +21,7 @@ import { messagePreviewText, messageView, pendingPreviewText } from "@/lib/messa
 import { senderNameClass } from "@/lib/sender-colors";
 import { THEME } from "@/lib/theme";
 import { formatMessageTime, type TimelineMessage } from "@/lib/timeline-display";
-import { useColorScheme } from "@/lib/use-color-scheme";
+import { useColorScheme } from "@/components/ui/use-color-scheme";
 import { cn } from "@/lib/utils";
 
 /** The six quick reactions of the MobileActions board, named for VoiceOver/TalkBack; "Thêm cảm xúc" opens the rest. */
