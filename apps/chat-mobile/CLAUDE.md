@@ -163,11 +163,15 @@ một dòng thì ghi lý do ở dòng trên.
   preview của danh sách, hay chưa tải mà còn chưa đọc — được đọc trang mới nhất một lần (cắt về trang đầu trước: một
   request); push về một phòng, nhận lúc đang mở app hay khi chạm, đọc trang mới nhất của phòng đó và danh sách phòng
   của workspace (workspace đó có thể không có socket trên máy). Timeline đang hiện là của socket, không đụng. Push nền
-  khi app đã đóng chưa nạp cache: cần push data/`content-available` (server) và task nền cho tin chat. **Đọc, biểu cảm, bình chọn offline**: `data/pending-ops.ts` +
-  `stores/pending-ops-store.ts` — cache hiện lựa chọn ngay (`lib/optimistic-message.ts`, luật toggle của server),
+  khi app đã đóng chưa nạp cache: cần push data/`content-available` (server) và task nền cho tin chat. **Đọc, biểu
+  cảm, bình chọn offline**: `data/pending-ops.ts` + `stores/pending-ops-store.ts` — cache hiện lựa chọn ngay (`lib/optimistic-message.ts`, luật toggle của server),
   mỗi thứ một mục giữ mong muốn cuối; endpoint của server là toggle nên lần giao có thể đã tới (mất câu trả lời,
   khởi động lại) và mọi phiếu bầu đều GET tin trước rồi chỉ chạm phần còn khác; từ chối hẳn thì bỏ, refetch phòng
-  và reject cho màn hình báo (lượt đọc thì báo Sentry, không toast). Sửa và xoá tin vẫn chỉ online. **Cache đĩa**:
+  và reject cho màn hình báo (lượt đọc thì báo Sentry, không toast). **Sửa và xoá tin cũng offline** (cùng hàng đợi,
+  key `edit/<ws>/<msg>`, `delete/<ws>/<msg>`): sửa hiện ngay (`withEdit`: body mới + `edited_at`), lần sửa cuối thắng,
+  giao bằng PATCH cả body (idempotent, không đọc trước); xoá gỡ tin khỏi timeline ngay và bỏ mọi mong muốn còn chờ cho
+  tin đó (sửa, biểu cảm, phiếu); 404 khi giao là đã xong (tin đã mất), từ chối hẳn thì refetch phòng (tin quay lại) và
+  reject cho màn hình báo. **Cache đĩa**:
   `data/query-persister.ts` — allowlist `["workspaces"]`, rooms, unread-summary, nicknames, members, room-members và
   trang mới nhất của 24 phòng hoạt động gần nhất; chỉ ghi khi một query được giữ có data mới (câu trả lời fetch, patch
   — không phải fetch bắt đầu, observer hay bộ nhớ bỏ query), sau 1 s yên; mỗi timeline một key MMKV

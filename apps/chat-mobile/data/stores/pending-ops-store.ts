@@ -1,8 +1,10 @@
 // The small commands the phone owes the server (audit P2 "Realtime"): a room
-// read, a reaction, a poll vote, made offline or lost to a dead spot. Each
-// carries the state the person wants, not the tap, so replaying it is
-// idempotent (data/pending-ops.ts checks the server before it toggles), and
-// one entry per thing (room, emoji, poll) keeps only the last wish. Persisted
+// read, a reaction, a poll vote, an edit or a delete, made offline or lost to
+// a dead spot. Each carries the state the person wants, not the tap, so
+// replaying it is idempotent (data/pending-ops.ts checks the server before it
+// toggles; an edit is a PATCH of the whole body, a delete of a message gone is
+// done), and one entry per thing (room, emoji, poll, message) keeps only the
+// last wish. Persisted
 // in the encrypted device store like the outbox; data/pending-ops.ts is the
 // only writer, auth/store.ts hydrates it at boot and clears it on sign-out.
 import { create } from "zustand";
@@ -11,7 +13,7 @@ import { PendingOpSchema, migratePersisted, persistedField, readPersistedList, t
 import { deviceStateStorage } from "../storage/device-store";
 
 interface OpBase {
-  /** One entry per thing: `read/<ws>/<room>`, `reaction/<ws>/<message>/<emoji>`, `vote/<ws>/<message>`. */
+  /** One entry per thing: `read/<ws>/<room>`, `reaction/<ws>/<message>/<emoji>`, `vote/<ws>/<message>`, `edit/<ws>/<message>`, `delete/<ws>/<message>`. */
   key: string;
   workspaceId: string;
   roomId: string;
@@ -34,6 +36,8 @@ export type PendingOp = OpBase &
     | { kind: "read" }
     | { kind: "reaction"; messageId: string; emoji: string; on: boolean; base: boolean }
     | { kind: "vote"; messageId: string; optionIds: string[]; base: string[] }
+    | { kind: "edit"; messageId: string; body: string }
+    | { kind: "delete"; messageId: string }
   );
 
 interface PendingOpsState {
@@ -51,7 +55,11 @@ const OPS_STEPS: Record<number, PersistedStep> = {};
 /** Entries read back from disk: each one whole (lib/persisted-records.ts), each verified first (a restart may have cut one short). */
 export function rehydratedOps(value: unknown): PendingOp[] {
   // A restart may have cut a delivery short whose request landed: every reaction and vote counts as tried.
-  return readPersistedList(PendingOpSchema, value).map((op): PendingOp => ({ ...op, rev: 0, verify: op.kind !== "read", attempted: op.kind !== "read" }));
+  return readPersistedList(PendingOpSchema, value).map((op): PendingOp => {
+    // Only a toggle can be undone by landing twice; a read, an edit and a delete are idempotent as they are.
+    const toggle = op.kind === "reaction" || op.kind === "vote";
+    return { ...op, rev: 0, verify: toggle, attempted: toggle };
+  });
 }
 
 export const usePendingOpsStore = create<PendingOpsState>()(

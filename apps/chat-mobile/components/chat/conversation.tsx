@@ -118,8 +118,8 @@ export function Conversation(props: Props) {
   const sendMessage = useSendMessage(wsId, roomId, userId).mutate;
   const retrySend = useRetrySend().mutate;
   const discardSend = useDiscardSend();
-  const editMessage = useEditMessage(wsId, roomId).mutateAsync;
-  const deleteMessage = useDeleteMessage(wsId, roomId).mutateAsync;
+  const editMessage = useEditMessage(wsId, roomId, userId).mutateAsync;
+  const deleteMessage = useDeleteMessage(wsId, roomId, userId).mutateAsync;
   const togglePin = useTogglePin(wsId, roomId).mutateAsync;
   const toggleReaction = useReact(wsId, roomId, userId).mutateAsync;
   const votePoll = useVotePoll(wsId, roomId, userId).mutateAsync;

@@ -1,11 +1,12 @@
 // The chat tab's one-shot commands and what each does to the cache, mirroring
 // the mutations of packages/core/chat/{chat-hooks-rooms,chat-hooks-messages,
 // thread-hooks,chat-follow-up-hooks,chat-link-hooks}.ts. Screens await them; a
-// rejection is the screen's to show. Reads, reactions and votes queue offline
-// (pending-ops.ts); sends go through the outbox (chat-send.ts).
+// rejection is the screen's to show. Reads, reactions, votes, edits and
+// deletes queue offline (pending-ops.ts); sends go through the outbox
+// (chat-send.ts).
 import type { QueryClient } from "@tanstack/react-query";
 import type { ChatRoomRecord } from "@uniwork/core/api/endpoints/chat-schemas";
-import { applyChatMessageResponse, patchChatMessageDeleted } from "./chat-cache";
+import { applyChatMessageResponse } from "./chat-cache";
 import { chatApi } from "./chat-api";
 import type { ChatTask } from "./chat-api-schemas";
 import { chatKeys } from "./queries/chat-keys";
@@ -38,17 +39,6 @@ export async function setRoomMuted(qc: QueryClient, wsId: string, roomId: string
 
 export async function togglePin(qc: QueryClient, wsId: string, roomId: string, messageId: string): Promise<void> {
   applyChatMessageResponse(qc, wsId, roomId, await chatApi.togglePin(wsId, roomId, messageId), false);
-}
-
-export async function editMessage(qc: QueryClient, wsId: string, roomId: string, messageId: string, body: string): Promise<void> {
-  applyChatMessageResponse(qc, wsId, roomId, await chatApi.editMessage(wsId, roomId, messageId, body), false);
-  void qc.invalidateQueries({ queryKey: chatKeys.rooms(wsId) });
-}
-
-export async function deleteMessage(qc: QueryClient, wsId: string, roomId: string, messageId: string): Promise<void> {
-  if (!(await chatApi.deleteMessage(wsId, roomId, messageId))) throw new Error("chat_message_delete_failed");
-  patchChatMessageDeleted(qc, wsId, roomId, messageId);
-  void qc.invalidateQueries({ queryKey: chatKeys.rooms(wsId) });
 }
 
 /** The DM with a person, created on first use; null when the server answers none. */

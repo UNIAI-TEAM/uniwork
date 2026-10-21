@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("./api", () => ({ api: { request: vi.fn() } }));
 
 import { flattenRoomTimeline, type RoomTimeline } from "@uniwork/core/chat/room-timeline-pages";
-import { clearPendingOps, flushAllPendingOps, flushPendingOps, markRoomRead, pendingOpsDeps, toggleReaction, votePoll, type PendingOpsDeps } from "./pending-ops";
+import { clearPendingOps, deleteMessage, editMessage, flushAllPendingOps, flushPendingOps, markRoomRead, pendingOpsDeps, toggleReaction, votePoll, type PendingOpsDeps } from "./pending-ops";
 import { chatKeys } from "./queries/chat-keys";
 import { installReportSink } from "./report";
 import type { RetryTimers } from "./retry-timers";
@@ -40,6 +40,8 @@ const api = {
   toggleReaction: vi.fn<PendingOpsDeps["api"]["toggleReaction"]>(),
   votePoll: vi.fn<PendingOpsDeps["api"]["votePoll"]>(),
   getMessage: vi.fn<PendingOpsDeps["api"]["getMessage"]>(),
+  editMessage: vi.fn<PendingOpsDeps["api"]["editMessage"]>(),
+  deleteMessage: vi.fn<PendingOpsDeps["api"]["deleteMessage"]>(),
 };
 const timers = {
   schedule: vi.fn<RetryTimers["schedule"]>((_key, run) => {
@@ -307,6 +309,98 @@ describe("poll votes", () => {
     await votePoll(qc, "w1", "r1", "p1", "a", "u1", deps);
     expect(api.votePoll).toHaveBeenCalledWith("w1", "r1", "p1", "a");
     expect(api.getMessage).not.toHaveBeenCalled();
+  });
+});
+
+// Audit "edit-delete-online-only": both waited for the server, failed offline, and showed nothing until it answered.
+describe("edits", () => {
+  it("show at once, wait offline, keep only the last edit and deliver it once as a PATCH of the whole body", async () => {
+    const qc = seeded();
+    const invalidate = vi.spyOn(qc, "invalidateQueries");
+    online = false;
+    await editMessage(qc, "w1", "r1", "m1", "một", "u1", deps);
+    await editMessage(qc, "w1", "r1", "m1", "hai", "u1", deps);
+    expect(shown(qc)).toMatchObject({ body: "hai", edited_at: expect.any(String) });
+    expect(ops().map((op) => [op.key, op.rev])).toEqual([["edit/w1/m1", 2]]);
+    expect(api.editMessage).not.toHaveBeenCalled();
+
+    online = true;
+    api.editMessage.mockResolvedValueOnce(msg("m1", { body: "hai", edited_at: "2026-10-22T10:00:00Z" }));
+    await flushPendingOps(qc, "w1", "u1", deps);
+    expect(api.editMessage).toHaveBeenCalledTimes(1);
+    expect(api.editMessage).toHaveBeenCalledWith("w1", "r1", "m1", "hai");
+    expect(shown(qc).edited_at).toBe("2026-10-22T10:00:00Z");
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: chatKeys.rooms("w1") });
+    expect(ops()).toEqual([]);
+  });
+
+  it("a message not on screen is still edited; a dead spot retries; a message gone meanwhile is an edit done", async () => {
+    const qc = new QueryClient();
+    api.editMessage.mockRejectedValueOnce(new TypeError("Network request failed"));
+    await editMessage(qc, "w1", "r1", "m9", "sửa", "u1", deps);
+    expect(ops()).toHaveLength(1);
+    api.editMessage.mockRejectedValueOnce(apiError(404));
+    const invalidate = vi.spyOn(qc, "invalidateQueries");
+    await fire();
+    expect(ops()).toEqual([]);
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: chatKeys.roomMessages("w1", "r1") });
+  });
+
+  it("a refusal for good drops it, restores the room from the server and tells the screen", async () => {
+    const qc = seeded();
+    api.editMessage.mockRejectedValueOnce(apiError(403));
+    await expect(editMessage(qc, "w1", "r1", "m1", "sửa", "u1", deps)).rejects.toThrow("chat_pending_op_refused");
+    expect(ops()).toEqual([]);
+  });
+
+  it("an edit made while the last one is on the wire is not overwritten by the older answer", async () => {
+    const qc = seeded();
+    let answer: (record: ChatMessageRecord) => void = () => undefined;
+    api.editMessage.mockImplementationOnce(() => new Promise((resolve) => (answer = resolve)));
+    const first = editMessage(qc, "w1", "r1", "m1", "một", "u1", deps);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const second = editMessage(qc, "w1", "r1", "m1", "hai", "u1", deps);
+    answer(msg("m1", { body: "một" }));
+    api.editMessage.mockResolvedValueOnce(msg("m1", { body: "hai" }));
+    await Promise.all([first, second]);
+    expect(api.editMessage.mock.calls.map(([, , , body]) => body)).toEqual(["một", "hai"]);
+    expect(shown(qc).body).toBe("hai");
+  });
+});
+
+describe("deletes", () => {
+  it("take the message off at once with every wish still queued for it, and go when the network is back", async () => {
+    const qc = seeded([msg("m1"), msg("m2")]);
+    online = false;
+    await toggleReaction(qc, "w1", "r1", "m1", "👍", "u1", deps);
+    await editMessage(qc, "w1", "r1", "m1", "sửa", "u1", deps);
+    await toggleReaction(qc, "w1", "r1", "m2", "👍", "u1", deps);
+    await markRoomRead(qc, "w1", "r1", "u1", deps);
+    await deleteMessage(qc, "w1", "r1", "m1", "u1", deps);
+    expect(flattenRoomTimeline(qc.getQueryData<RoomTimeline>(timelineKey)!).map((m) => m.id)).toEqual(["m2"]);
+    expect(ops().map((op) => op.key)).toEqual(["reaction/w1/m2/👍", "read/w1/r1", "delete/w1/m1"]);
+    // A second tap (a double press) is still one delete.
+    await deleteMessage(qc, "w1", "r1", "m1", "u1", deps);
+    expect(ops().filter((op) => op.kind === "delete")).toHaveLength(1);
+
+    online = true;
+    api.deleteMessage.mockResolvedValueOnce(true);
+    api.toggleReaction.mockResolvedValueOnce(msg("m2", { my_reactions: ["👍"] }));
+    await flushPendingOps(qc, "w1", "u1", deps);
+    expect(api.deleteMessage).toHaveBeenCalledTimes(1);
+    expect(api.editMessage).not.toHaveBeenCalled();
+    expect(ops()).toEqual([]);
+  });
+
+  it("a message already gone is a delete done; one the server would not delete comes back and the screen is told", async () => {
+    const qc = seeded([msg("m1"), msg("m2")]);
+    api.deleteMessage.mockRejectedValueOnce(apiError(404));
+    await deleteMessage(qc, "w1", "r1", "m1", "u1", deps);
+    expect(ops()).toEqual([]);
+    api.deleteMessage.mockResolvedValueOnce(false);
+    const invalidate = vi.spyOn(qc, "invalidateQueries");
+    await expect(deleteMessage(qc, "w1", "r1", "m2", "u1", deps)).rejects.toThrow("chat_pending_op_refused");
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: chatKeys.roomMessages("w1", "r1") });
   });
 });
 

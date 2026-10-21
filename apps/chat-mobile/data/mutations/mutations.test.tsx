@@ -7,8 +7,6 @@ import { act, renderHook } from "@testing-library/react-native";
 import type { ReactNode } from "react";
 
 jest.mock("../chat-actions", () => ({
-  editMessage: jest.fn(async () => undefined),
-  deleteMessage: jest.fn(async () => undefined),
   togglePin: jest.fn(async () => undefined),
   followUpCommand: jest.fn(async () => undefined),
   createTaskFromMessage: jest.fn(async () => ({ id: "t1" })),
@@ -28,6 +26,8 @@ jest.mock("../chat-send", () => ({
   discardPendingSend: jest.fn(),
 }));
 jest.mock("../pending-ops", () => ({
+  editMessage: jest.fn(async () => undefined),
+  deleteMessage: jest.fn(async () => undefined),
   markRoomRead: jest.fn(async () => undefined),
   toggleReaction: jest.fn(async () => undefined),
   votePoll: jest.fn(async () => undefined),
@@ -101,10 +101,10 @@ async function run<V, R>(use: () => { mutateAsync: (v: V) => Promise<R> }, varia
 
 describe("message commands", () => {
   it("bind the workspace, the room and the person, and hand the cache's client to the command", async () => {
-    await run(() => useEditMessage("w1", "r1"), { messageId: "m1", body: "sửa" });
-    expect(actions.editMessage).toHaveBeenCalledWith(qc, "w1", "r1", "m1", "sửa");
-    await run(() => useDeleteMessage("w1", "r1"), "m1");
-    expect(actions.deleteMessage).toHaveBeenCalledWith(qc, "w1", "r1", "m1");
+    await run(() => useEditMessage("w1", "r1", "u1"), { messageId: "m1", body: "sửa" });
+    expect(ops.editMessage).toHaveBeenCalledWith(qc, "w1", "r1", "m1", "sửa", "u1");
+    await run(() => useDeleteMessage("w1", "r1", "u1"), "m1");
+    expect(ops.deleteMessage).toHaveBeenCalledWith(qc, "w1", "r1", "m1", "u1");
     await run(() => useTogglePin("w1", "r1"), "m1");
     expect(actions.togglePin).toHaveBeenCalledWith(qc, "w1", "r1", "m1");
     await run(() => useReact("w1", "r1", "u1"), { messageId: "m1", emoji: "👍" });
@@ -200,8 +200,8 @@ describe("safety and account commands", () => {
 
 describe("a failing command", () => {
   it("rejects the screen's promise and reaches the MutationCache once, keyed by the command's name", async () => {
-    jest.mocked(actions.deleteMessage).mockRejectedValueOnce(new Error("chat_message_delete_failed"));
-    await expect(run(() => useDeleteMessage("w1", "r1"), "m1")).rejects.toThrow("chat_message_delete_failed");
+    jest.mocked(ops.deleteMessage).mockRejectedValueOnce(new Error("chat_message_delete_failed"));
+    await expect(run(() => useDeleteMessage("w1", "r1", "u1"), "m1")).rejects.toThrow("chat_message_delete_failed");
     expect(onMutationError).toHaveBeenCalledTimes(1);
     const [, , , mutation] = onMutationError.mock.calls[0] as [unknown, unknown, unknown, { options: { mutationKey: unknown } }];
     expect(mutation.options.mutationKey).toEqual(["chat.delete_message"]);

@@ -64,6 +64,8 @@ export const PendingOpSchema = z.discriminatedUnion("kind", [
   OpBaseSchema.extend({ kind: z.literal("read") }),
   OpBaseSchema.extend({ kind: z.literal("reaction"), messageId: id, emoji: id, on: z.boolean(), base: z.boolean() }),
   OpBaseSchema.extend({ kind: z.literal("vote"), messageId: id, optionIds: z.array(id), base: z.array(id) }),
+  OpBaseSchema.extend({ kind: z.literal("edit"), messageId: id, body: z.string() }),
+  OpBaseSchema.extend({ kind: z.literal("delete"), messageId: id }),
 ]);
 
 /** The entries of a persisted list that read under `schema`; anything else, including a non-list, is none. */

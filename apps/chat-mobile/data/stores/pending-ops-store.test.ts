@@ -58,8 +58,16 @@ describe("pending ops store", () => {
         { ...read("vote-odd-option"), kind: "vote", messageId: "m1", optionIds: [1], base: [] },
         { ...read("reaction-no-base"), kind: "reaction", messageId: "m1", emoji: "👍", on: true },
         vote,
+        { ...read("e"), kind: "edit", messageId: "m1", body: "sửa" },
+        { ...read("edit-no-body"), kind: "edit", messageId: "m1" },
+        { ...read("d"), kind: "delete", messageId: "m1" },
       ]).map((op) => op.key),
-    ).toEqual(["v"]);
+    ).toEqual(["v", "e", "d"]);
+    // A toggle is read before it is tapped again after a restart; an edit and a delete are idempotent and go as they are.
+    expect(rehydratedOps([vote, { ...read("e"), kind: "edit", messageId: "m1", body: "x" }]).map((op) => [op.key, op.verify, op.attempted])).toEqual([
+      ["v", true, true],
+      ["e", false, false],
+    ]);
   });
 
   it("a queue written by an older or a newer build (an OTA rolled back) still loads", async () => {

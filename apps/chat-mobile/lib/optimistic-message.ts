@@ -1,5 +1,6 @@
-// What a reaction or a poll vote does to a message before the server confirms
-// it (audit P2 "Realtime": reactions and votes offline). The server's rules,
+// What a reaction, a poll vote or an edit does to a message before the server
+// confirms it (audit P2 "Realtime": reactions and votes offline; edits since
+// "edit-delete-online-only"). The server's rules,
 // copied so the bubble shows the person's choice at once, online or not:
 // a reaction toggles one emoji of the viewer's (ChatService.
 // ToggleChatMessageReaction), a vote toggles one option, or with a
@@ -19,6 +20,11 @@ export function withReaction(record: ChatMessageRecord, emoji: string, on: boole
   if (on) mine.add(emoji);
   else mine.delete(emoji);
   return { ...record, reactions, my_reactions: [...mine] };
+}
+
+/** The message as the person just edited it: the new body, marked edited at `at` (the server's copy replaces it, mentions included). */
+export function withEdit(record: ChatMessageRecord, body: string, at: string): ChatMessageRecord {
+  return record.body === body ? record : { ...record, body, edited_at: at };
 }
 
 export function hasReaction(record: Pick<ChatMessageRecord, "my_reactions">, emoji: string): boolean {

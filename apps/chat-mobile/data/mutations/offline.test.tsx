@@ -1,4 +1,4 @@
-// S7 review P0: a message, a retry, a reaction or a poll vote made offline
+// S7 review P0: a message, a retry, a reaction, a poll vote, an edit or a delete made offline
 // must reach the outbox at once, through the real commands. TanStack's default
 // `networkMode: "online"` would hold the mutation paused while NetInfo says
 // offline, so nothing would be queued, the bubble would not show and a kill
@@ -16,7 +16,7 @@ import { api } from "../api";
 import { chatKeys } from "../queries/chat-keys";
 import { useChatSendStore } from "../stores/chat-send-store";
 import { usePendingOpsStore } from "../stores/pending-ops-store";
-import { useEditMessage, useReact, useRetrySend, useSendMessage, useVotePoll } from "./messages";
+import { useDeleteMessage, useEditMessage, useReact, useRetrySend, useSendMessage, useTogglePin, useVotePoll } from "./messages";
 
 const settings = { deadline_at: null, pin_to_top: false, allow_multiple: false, allow_add_options: true, hide_results_until_vote: false, hide_voters: false };
 const message = (id: string, extra: Partial<ChatMessageRecord> = {}) =>
@@ -80,10 +80,21 @@ describe("offline commands", () => {
     expect(api.request).not.toHaveBeenCalled();
   });
 
+  // Audit "edit-delete-online-only": both waited for the server and failed offline.
+  it("an edit and a delete show at once and are put in the pending-ops store", async () => {
+    await fire(() => useEditMessage("w1", "r1", "u1"), { messageId: "m1", body: "sửa" });
+    const shown = () => qc.getQueryData<{ pages: ChatMessageRecord[][] }>(chatKeys.roomMessages("w1", "r1"))!.pages[0]!;
+    expect(shown().find((m) => m.id === "m1")?.body).toBe("sửa");
+    await fire(() => useDeleteMessage("w1", "r1", "u1"), "p1");
+    expect(shown().map((m) => m.id)).toEqual(["m1"]);
+    expect(usePendingOpsStore.getState().ops.map((op) => op.kind).sort()).toEqual(["delete", "edit"]);
+    expect(api.request).not.toHaveBeenCalled();
+  });
+
   it("a server-only command fails now instead of hanging paused", async () => {
-    const { result } = await renderHook(() => useEditMessage("w1", "r1"), { wrapper });
+    const { result } = await renderHook(() => useTogglePin("w1", "r1"), { wrapper });
     await act(async () => {
-      await expect(result.current.mutateAsync({ messageId: "m1", body: "sửa" })).rejects.toBeDefined();
+      await expect(result.current.mutateAsync("m1")).rejects.toBeDefined();
     });
   });
 });

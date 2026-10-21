@@ -1,19 +1,23 @@
-// Reads, reactions and poll votes that work offline (audit P2 "Realtime"; the
-// read errors were swallowed). The cache shows the person's choice at once
-// (lib/optimistic-message.ts); the wish is queued (stores/pending-ops-store.ts)
+// Reads, reactions, poll votes, edits and deletes that work offline (audit P2
+// "Realtime"; the read errors were swallowed; "edit-delete-online-only"). The
+// cache shows the person's choice at once (lib/optimistic-message.ts; a
+// delete takes the message off the timeline); the wish is queued
+// (stores/pending-ops-store.ts)
 // and delivered in the order it was made, one at a time per workspace, now or
 // when the network, the socket or the app comes back, with the outbox's
 // 2/5/15/60 s backoff in between. The server's toggles are not idempotent, so
 // a delivery that may already have landed (a lost answer, a restart) reads the
-// message first and only taps what still differs; a read is idempotent as is.
+// message first and only taps what still differs; a read, an edit (the whole
+// body, PATCHed) and a delete (a message already gone is a delete done) are
+// idempotent as they are.
 // A refusal for good drops the wish and refetches the room, so the cache goes
 // back to the server's truth; the reaction and vote callers reject then, for
 // the screen to say so. Never a toast for a read: it is reported, not shown.
 import { onlineManager, type QueryClient } from "@tanstack/react-query";
 import type { ChatMessageRecord, ChatRoomRecord } from "@uniwork/core/api/endpoints/chat-schemas";
-import { hasReaction, pollTapsToReach, toggledPollChoice, withPollChoice, withReaction } from "@/lib/optimistic-message";
+import { hasReaction, pollTapsToReach, toggledPollChoice, withEdit, withPollChoice, withReaction } from "@/lib/optimistic-message";
 import { isRetriableChatSendError } from "@/lib/send-pipeline";
-import { applyChatMessageResponse } from "./chat-cache";
+import { applyChatMessageResponse, patchChatMessageDeleted } from "./chat-cache";
 import { chatApi, type ChatApi } from "./chat-api";
 import type { RoomTimeline } from "@uniwork/core/chat/room-timeline-pages";
 import { chatKeys } from "./queries/chat-keys";
@@ -22,7 +26,7 @@ import { createRetryTimers, type RetryTimers } from "./retry-timers";
 import { usePendingOpsStore, type PendingOp } from "./stores/pending-ops-store";
 
 export interface PendingOpsDeps {
-  api: Pick<ChatApi, "markRoomRead" | "toggleReaction" | "votePoll" | "getMessage">;
+  api: Pick<ChatApi, "markRoomRead" | "toggleReaction" | "votePoll" | "getMessage" | "editMessage" | "deleteMessage">;
   isOnline: () => boolean;
   timers: RetryTimers;
 }
@@ -69,12 +73,30 @@ function applyIfCurrent(qc: QueryClient, op: PendingOp, record: ChatMessageRecor
   if (find(op.key)?.rev === op.rev) applyChatMessageResponse(qc, op.workspaceId, op.roomId, record, false);
 }
 
+const isGone = (error: unknown) => (error as { status?: unknown } | null)?.status === 404;
+
+/** An edit or a delete: idempotent, so delivered as is; a message already gone is a delete done and an edit moot. */
+async function deliverChange(qc: QueryClient, op: PendingOp & { kind: "edit" | "delete" }, deps: PendingOpsDeps): Promise<void> {
+  const { workspaceId: wsId, roomId } = op;
+  try {
+    if (op.kind === "edit") applyIfCurrent(qc, op, await deps.api.editMessage(wsId, roomId, op.messageId, op.body));
+    else if (!(await deps.api.deleteMessage(wsId, roomId, op.messageId))) throw new Error("chat_message_delete_failed");
+  } catch (error) {
+    if (!isGone(error)) throw error;
+    // Deleted meanwhile (here or elsewhere): the room shows the server's state.
+    void qc.invalidateQueries({ queryKey: chatKeys.roomMessages(wsId, roomId) });
+  }
+  // The list's preview may be this message.
+  void qc.invalidateQueries({ queryKey: chatKeys.rooms(wsId) });
+}
+
 async function deliver(qc: QueryClient, op: PendingOp, deps: PendingOpsDeps): Promise<void> {
   const { workspaceId: wsId, roomId } = op;
   if (op.kind === "read") {
     if (await deps.api.markRoomRead(wsId, roomId)) clearUnread(qc, wsId, roomId);
     return;
   }
+  if (op.kind === "edit" || op.kind === "delete") return deliverChange(qc, op, deps);
   // A vote is always read first (several taps may stand between the server and the wish).
   let record = op.verify ? await deps.api.getMessage(wsId, roomId, op.messageId) : null;
   if (op.verify && !record) {
@@ -248,6 +270,37 @@ export async function votePoll(qc: QueryClient, wsId: string, roomId: string, me
         verify: true,
         attempted: existing?.attempted ?? false,
       };
+  return enqueue(qc, op, key, deps);
+}
+
+/**
+ * An edit of one's own message: the new body shows at once (an unsent edit
+ * shows as edited, offline too) and the server gets it when it can; the last
+ * edit wins. Rejects when the server refused it for good (the room refetches).
+ */
+export function editMessage(qc: QueryClient, wsId: string, roomId: string, messageId: string, body: string, userId: string, deps: PendingOpsDeps = pendingOpsDeps): Promise<void> {
+  const key = `edit/${wsId}/${messageId}`;
+  const existing = find(key);
+  const record = cachedMessage(qc, wsId, roomId, messageId);
+  if (record) applyChatMessageResponse(qc, wsId, roomId, withEdit(record, body, new Date().toISOString()), false);
+  const op: PendingOp = { kind: "edit", key, workspaceId: wsId, roomId, userId, messageId, body, createdAt: existing?.createdAt ?? Date.now(), rev: (existing?.rev ?? 0) + 1, verify: false };
+  return enqueue(qc, op, key, deps);
+}
+
+/**
+ * A delete: the message leaves the timeline at once, and every wish still
+ * queued for it (an edit, a reaction, a vote) goes with it — the server will
+ * not take them for a message it no longer has. Rejects when the server
+ * refused for good (the room refetches and the message comes back).
+ */
+export function deleteMessage(qc: QueryClient, wsId: string, roomId: string, messageId: string, userId: string, deps: PendingOpsDeps = pendingOpsDeps): Promise<void> {
+  const key = `delete/${wsId}/${messageId}`;
+  for (const op of usePendingOpsStore.getState().ops) {
+    if (op.workspaceId === wsId && "messageId" in op && op.messageId === messageId && op.key !== key) usePendingOpsStore.getState().remove(op.key);
+  }
+  patchChatMessageDeleted(qc, wsId, roomId, messageId);
+  const existing = find(key);
+  const op: PendingOp = { kind: "delete", key, workspaceId: wsId, roomId, userId, messageId, createdAt: existing?.createdAt ?? Date.now(), rev: (existing?.rev ?? 0) + 1, verify: false };
   return enqueue(qc, op, key, deps);
 }
 

@@ -3,10 +3,10 @@
 // task, forward, say "typing", mark read. See command.ts for the layer's rule.
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback } from "react";
-import { createTaskFromMessage, editMessage, deleteMessage, followUpCommand, forwardMessage, togglePin } from "../chat-actions";
+import { createTaskFromMessage, followUpCommand, forwardMessage, togglePin } from "../chat-actions";
 import { chatApi } from "../chat-api";
 import { chatSendDeps, discardPendingSend, retryPendingSend, sendChatMessage, type ChatSendInput } from "../chat-send";
-import { markRoomRead, toggleReaction, votePoll } from "../pending-ops";
+import { deleteMessage, editMessage, markRoomRead, toggleReaction, votePoll } from "../pending-ops";
 import { bestEffort } from "../report";
 import type { PendingSend } from "@/lib/send-pipeline";
 import { useCommand } from "./command";
@@ -24,11 +24,13 @@ export function useDiscardSend(): (clientMsgId: string) => void {
   return useCallback((clientMsgId: string) => discardPendingSend(clientMsgId, chatSendDeps), []);
 }
 
-export const useEditMessage = (wsId: string, roomId: string) =>
-  useCommand("chat.edit_message", (qc, { messageId, body }: { messageId: string; body: string }) => editMessage(qc, wsId, roomId, messageId, body));
+/** An edit shows at once and is delivered when it can be (the last edit wins); rejects only when the server refused it for good. */
+export const useEditMessage = (wsId: string, roomId: string, userId: string) =>
+  useCommand("chat.edit_message", (qc, { messageId, body }: { messageId: string; body: string }) => editMessage(qc, wsId, roomId, messageId, body, userId));
 
-export const useDeleteMessage = (wsId: string, roomId: string) =>
-  useCommand("chat.delete_message", (qc, messageId: string) => deleteMessage(qc, wsId, roomId, messageId));
+/** A delete takes the message off at once and is delivered when it can be; rejects only when the server refused it for good. */
+export const useDeleteMessage = (wsId: string, roomId: string, userId: string) =>
+  useCommand("chat.delete_message", (qc, messageId: string) => deleteMessage(qc, wsId, roomId, messageId, userId));
 
 export const useTogglePin = (wsId: string, roomId: string) => useCommand("chat.toggle_pin", (qc, messageId: string) => togglePin(qc, wsId, roomId, messageId));
 

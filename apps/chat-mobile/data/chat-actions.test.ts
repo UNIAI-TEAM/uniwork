@@ -10,9 +10,7 @@ import {
   createTaskFromMessage,
   forwardMessage,
   inviteGroupMembers,
-  deleteMessage,
   followUpCommand,
-  editMessage,
   joinChannel,
   leaveRoom,
   markThreadRead,
@@ -79,17 +77,6 @@ describe("chat actions", () => {
     await setRoomMuted(new QueryClient(), "w1", "r1", true);
   });
 
-  it("puts an edit's answer in place", async () => {
-    const qc = new QueryClient();
-    withTimeline(qc, [msg("m1")]);
-    vi.spyOn(chatApi, "editMessage").mockResolvedValue(msg("m1", { body: "sửa", edited_at: "2026-10-17T10:05:00Z" }));
-    await editMessage(qc, "w1", "r1", "m1", "sửa");
-    expect(flattenRoomTimeline(qc.getQueryData<RoomTimeline>(timelineKey)!)[0]).toMatchObject({
-      body: "sửa",
-      edited_at: "2026-10-17T10:05:00Z",
-    });
-  });
-
   it("puts a pin's answer in place", async () => {
     const qc = new QueryClient();
     withTimeline(qc, [msg("m1")]);
@@ -97,15 +84,6 @@ describe("chat actions", () => {
     await togglePin(qc, "w1", "r1", "m1");
     expect(pin).toHaveBeenCalledWith("w1", "r1", "m1");
     expect(flattenRoomTimeline(qc.getQueryData<RoomTimeline>(timelineKey)!)[0]?.pinned).toBe(true);
-  });
-
-  it("deletes a message, and reports a delete the server did not confirm", async () => {
-    const qc = new QueryClient();
-    withTimeline(qc, [msg("m1"), msg("m2")]);
-    vi.spyOn(chatApi, "deleteMessage").mockResolvedValueOnce(true).mockResolvedValueOnce(false);
-    await deleteMessage(qc, "w1", "r1", "m1");
-    expect(flattenRoomTimeline(qc.getQueryData<RoomTimeline>(timelineKey)!).map((m) => m.id)).toEqual(["m2"]);
-    await expect(deleteMessage(qc, "w1", "r1", "m2")).rejects.toThrow("chat_message_delete_failed");
   });
 
   it("reloads a message for fresh media URLs, and leaves the cache alone when it is gone", async () => {

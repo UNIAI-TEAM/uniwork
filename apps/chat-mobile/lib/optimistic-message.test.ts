@@ -1,6 +1,6 @@
 import type { ChatMessageRecord } from "@uniwork/core/api/endpoints/chat-schemas";
 import { describe, expect, it } from "vitest";
-import { hasReaction, pollTapsToReach, toggledPollChoice, withPollChoice, withReaction } from "./optimistic-message";
+import { hasReaction, pollTapsToReach, toggledPollChoice, withEdit, withPollChoice, withReaction } from "./optimistic-message";
 
 const settings = { deadline_at: null, pin_to_top: false, allow_multiple: true, allow_add_options: true, hide_results_until_vote: false, hide_voters: false };
 type Poll = NonNullable<ChatMessageRecord["poll"]>;
@@ -53,5 +53,14 @@ describe("optimistic poll votes", () => {
     expect(pollTapsToReach(["a"], ["b"], true)).toEqual(["a", "b"]);
     expect(pollTapsToReach(["a"], ["b"], false)).toEqual(["b"]);
     expect(pollTapsToReach(["a"], [], false)).toEqual(["a"]);
+  });
+});
+
+describe("optimistic edits", () => {
+  it("shows the new body marked edited, and changes nothing for the same body", () => {
+    const record = message({});
+    const edited = withEdit(record, "sửa rồi", "2026-10-22T10:00:00.000Z");
+    expect(edited).toMatchObject({ body: "sửa rồi", edited_at: "2026-10-22T10:00:00.000Z" });
+    expect(withEdit(edited, "sửa rồi", "later")).toBe(edited);
   });
 });
