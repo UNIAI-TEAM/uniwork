@@ -3,10 +3,13 @@
 import { useId, useState, type FormEvent } from "react";
 import { Check, Sparkles } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { useAiCapabilities, useAskUni } from "@uniwork/core/ai";
+import { useAiCapabilities, useAiMessages, useAiPanelStore, useAskUni } from "@uniwork/core/ai";
 import { useAppendMeetingChat } from "@uniwork/core/meetings";
+import { formatShortcut, useShortcut } from "@uniwork/core/shortcuts";
+import type { AiMessage } from "@uniwork/core/types";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Input } from "@uniwork/ui/components/ui/input";
+import { Kbd } from "@uniwork/ui/components/ui/kbd";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { AskUniMessageTurn, resolveErrorKey } from "../../ai/ask-uni-panel";
 import { toastApiError } from "../../toast-api-error";
@@ -14,6 +17,14 @@ import { toastApiError } from "../../toast-api-error";
 /** "[S2]" points at a source only the asker's panel can open; in chat it is noise. */
 function forChat(answer: string): string {
   return answer.replace(/\s?\[S\d+\]/g, "").trim();
+}
+
+/** The conversation's newest answer and the question it answers. */
+function lastExchange(history: AiMessage[] | undefined): { question: string; answer: AiMessage } | null {
+  const i = history?.findLastIndex((m) => m.role === "assistant") ?? -1;
+  if (!history || i < 0) return null;
+  const prev = history[i - 1];
+  return { question: prev?.role === "user" ? prev.content : "", answer: history[i]! };
 }
 
 /**
@@ -41,11 +52,22 @@ export function MeetingAskBox({
   const share = useAppendMeetingChat(meetingId);
   const [question, setQuestion] = useState("");
   const [asked, setAsked] = useState("");
-  const [conversationId, setConversationId] = useState<string | undefined>();
+  // The conversation lives in the Ask UNI store and its turns in the query cache, so a remount
+  // (switching the copilot's tabs) shows the last answer again and ⌘J can continue it.
+  const conversationId = useAiPanelStore((s) => s.conversationByMeeting[meetingId]);
+  const rememberFocus = useAiPanelStore((s) => s.rememberFocus);
+  const openConversation = useAiPanelStore((s) => s.openConversation);
+  const history = useAiMessages(conversationId ?? null).data;
+  const shortcut = formatShortcut(useShortcut("ai.askUni"));
   const headingId = useId();
   if (!caps?.ask_uni) return null;
 
-  const answer = ask.isPending ? undefined : ask.data?.message;
+  const focus = { kind: "meeting", id: meetingId } as const;
+  const exchange = ask.isPending
+    ? null
+    : (lastExchange(history) ?? (ask.data ? { question: asked, answer: ask.data.message } : null));
+  const answer = exchange?.answer;
+  const shownQuestion = ask.isPending ? asked : (exchange?.question ?? "");
   const submit = (e: FormEvent) => {
     e.preventDefault();
     const q = question.trim();
@@ -54,8 +76,8 @@ export function MeetingAskBox({
     setQuestion("");
     share.reset();
     ask.mutate(
-      { question: q, conversation_id: conversationId, locale: i18n.language, focus: { kind: "meeting", id: meetingId } },
-      { onSuccess: (res) => setConversationId(res.conversation_id), onError: () => setQuestion(q) },
+      { question: q, conversation_id: conversationId, locale: i18n.language, focus },
+      { onSuccess: (res) => rememberFocus(res.conversation_id, focus), onError: () => setQuestion(q) },
     );
   };
 
@@ -72,10 +94,12 @@ export function MeetingAskBox({
           {t("meetings.askUniHeading")}
         </h3>
       ) : null}
-      {asked && (ask.isPending || answer) ? (
+      {shownQuestion || answer ? (
         // The question stays on screen while UNI works on it, then sits over its answer.
         <ul className="space-y-2">
-          <AskUniMessageTurn message={{ id: "question", role: "user", content: asked, citations: [] }} />
+          {shownQuestion ? (
+            <AskUniMessageTurn message={{ id: "question", role: "user", content: shownQuestion, citations: [] }} />
+          ) : null}
           {answer ? <AskUniMessageTurn message={answer} /> : null}
         </ul>
       ) : null}
@@ -92,30 +116,40 @@ export function MeetingAskBox({
       {answer ? (
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="text-caption text-muted-foreground">{t("meetings.askUniPrivate")}</p>
-          {canShare && answer.content ? (
-            share.isSuccess ? (
-              // The one success signal, where the button was.
-              <p role="status" className="flex items-center gap-1 text-caption text-muted-foreground">
-                <Check aria-hidden className="size-4 shrink-0" />
-                {t("meetings.askUniShared")}
-              </p>
-            ) : (
-              <Button
-                type="button"
-                size="sm"
-                variant="ghost"
-                aria-disabled={share.isPending}
-                onClick={() =>
-                  share.mutate(forChat(answer.content), {
-                    onError: (err) => toastApiError(err, t("meetings.askUniShareFailed")),
-                  })
-                }
-              >
-                {share.isPending ? <Spinner /> : null}
-                {t("meetings.askUniShare")}
+          <div className="flex flex-wrap items-center gap-1">
+            {conversationId ? (
+              <Button type="button" size="sm" variant="ghost" onClick={() => openConversation(conversationId, focus)}>
+                {t("meetings.askUniContinue")}
+                <Kbd aria-hidden className="pointer-coarse:hidden">
+                  {shortcut}
+                </Kbd>
               </Button>
-            )
-          ) : null}
+            ) : null}
+            {canShare && answer.content ? (
+              share.isSuccess ? (
+                // The one success signal, where the button was.
+                <p role="status" className="flex items-center gap-1 text-caption text-muted-foreground">
+                  <Check aria-hidden className="size-4 shrink-0" />
+                  {t("meetings.askUniShared")}
+                </p>
+              ) : (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  aria-disabled={share.isPending}
+                  onClick={() =>
+                    share.mutate(forChat(answer.content), {
+                      onError: (err) => toastApiError(err, t("meetings.askUniShareFailed")),
+                    })
+                  }
+                >
+                  {share.isPending ? <Spinner /> : null}
+                  {t("meetings.askUniShare")}
+                </Button>
+              )
+            ) : null}
+          </div>
         </div>
       ) : null}
       <form className="flex gap-2" onSubmit={submit}>

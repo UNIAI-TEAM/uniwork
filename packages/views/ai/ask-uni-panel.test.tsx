@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { useAiPanelStore } from "@uniwork/core/ai";
 import { ApiError } from "@uniwork/core/api/http";
@@ -64,8 +64,19 @@ afterEach(async () => {
 
 beforeEach(() => {
   requestMock.mockReset();
-  useAiPanelStore.setState({ open: false, conversationId: null, workspaceId: null });
+  useAiPanelStore.setState({
+    open: false,
+    conversationId: null,
+    workspaceId: null,
+    pendingFocus: null,
+    focusByConversation: {},
+    conversationByMeeting: {},
+  });
 });
+
+const meetingM1 = {
+  meeting: { id: "m1", workspace_id: "ws1", title: "Giao ban tuần 42", description: "", starts_at: "2026-10-20T02:00:00Z", ends_at: "2026-10-20T03:00:00Z", room_name: "r", created_by: "u1" },
+};
 
 describe("AskUniPanel", () => {
   it("stays hidden while the server has no provider", async () => {
@@ -236,6 +247,103 @@ describe("AskUniPanel", () => {
     await new Promise((r) => setTimeout(r, 20));
     expect(useAiPanelStore.getState().conversationId).toBeNull();
   });
+  it("drops a focus handed over for a new question when a recent conversation is picked", async () => {
+    mockApi({ conversations: [{ id: "c1", title: "task nào quá hạn?", created_at: "", updated_at: "" }] });
+    const base = requestMock.getMockImplementation()!;
+    requestMock.mockImplementation((path: string, init?: { method?: string }) =>
+      path === "/api/v1/meetings/m1" ? Promise.resolve(meetingM1) : base(path, init),
+    );
+    mount();
+    useAiPanelStore.getState().openWithFocus({ kind: "meeting", id: "m1" });
+    expect(await screen.findByText("Cuộc họp: Giao ban tuần 42")).toBeInTheDocument();
+    fireEvent.click(await screen.findByRole("button", { name: "task nào quá hạn?" }));
+    expect(await screen.findByText("Có 1 việc quá hạn: [S1] Viết spec.")).toBeInTheDocument();
+    expect(screen.queryByText("Cuộc họp: Giao ban tuần 42")).toBeNull();
+    fireEvent.change(screen.getByRole("textbox", { name: "Câu hỏi cho UNI" }), { target: { value: "còn gì nữa?" } });
+    fireEvent.click(screen.getByRole("button", { name: "Hỏi" }));
+    await waitFor(() =>
+      expect(requestMock).toHaveBeenCalledWith(
+        "/api/v1/workspaces/ws1/ai/ask",
+        expect.objectContaining({ body: expect.objectContaining({ question: "còn gì nữa?", conversation_id: "c1", focus: undefined }) }),
+      ),
+    );
+  });
+
+  it("opens on a conversation another screen handed over, with its meeting chip, and follow-ups keep the focus", async () => {
+    mockApi();
+    const base = requestMock.getMockImplementation()!;
+    requestMock.mockImplementation((path: string, init?: { method?: string }) =>
+      path === "/api/v1/meetings/m1" ? Promise.resolve(meetingM1) : base(path, init),
+    );
+    mount();
+    useAiPanelStore.getState().openConversation("c1", { kind: "meeting", id: "m1" });
+    expect(await screen.findByText("Có 1 việc quá hạn: [S1] Viết spec.")).toBeInTheDocument();
+    expect(await screen.findByText("Cuộc họp: Giao ban tuần 42")).toBeInTheDocument();
+    fireEvent.change(screen.getByRole("textbox", { name: "Câu hỏi cho UNI" }), { target: { value: "ai giữ việc?" } });
+    fireEvent.click(screen.getByRole("button", { name: "Hỏi" }));
+    await waitFor(() =>
+      expect(requestMock).toHaveBeenCalledWith(
+        "/api/v1/workspaces/ws1/ai/ask",
+        expect.objectContaining({ body: expect.objectContaining({ conversation_id: "c1", focus: { kind: "meeting", id: "m1" } }) }),
+      ),
+    );
+  });
+
+  it("still says the question is about a meeting when that meeting cannot be read", async () => {
+    mockApi();
+    const base = requestMock.getMockImplementation()!;
+    requestMock.mockImplementation((path: string, init?: { method?: string }) =>
+      path === "/api/v1/meetings/m1" ? Promise.reject(new ApiError("x", "not_found", 404)) : base(path, init),
+    );
+    mount();
+    useAiPanelStore.getState().openWithFocus({ kind: "meeting", id: "m1" });
+    expect(await screen.findByText(i18n.t("ai.context_meeting_unavailable"))).toBeInTheDocument();
+  });
+
+  it("puts focus in the composer when the panel opens", async () => {
+    mockApi();
+    mount();
+    useAiPanelStore.getState().setOpen(true);
+    const box = await screen.findByRole("textbox", { name: "Câu hỏi cho UNI" });
+    await waitFor(() => expect(box).toHaveFocus());
+  });
+
+  it("shows a placeholder while a conversation loads, then an error in place with Retry", async () => {
+    mockApi({ conversations: [{ id: "c1", title: "task nào quá hạn?", created_at: "", updated_at: "" }] });
+    const base = requestMock.getMockImplementation()!;
+    let fail = true;
+    let release: () => void = () => {};
+    requestMock.mockImplementation((path: string, init?: { method?: string }) => {
+      if (path !== "/api/v1/ai/conversations/c1/messages") return base(path, init);
+      if (!fail) return base(path, init);
+      return new Promise((_r, reject) => {
+        release = () => reject(new ApiError("x", "internal", 500));
+      });
+    });
+    mount();
+    useAiPanelStore.getState().setOpen(true);
+    fireEvent.click(await screen.findByRole("button", { name: "task nào quá hạn?" }));
+    expect(await screen.findByLabelText(i18n.t("ai.loading_conversation"))).toHaveAttribute("aria-busy", "true");
+    release();
+    const alert = await screen.findByRole("alert", {}, { timeout: 5000 });
+    expect(alert).toHaveTextContent(i18n.t("ai.conversation_error"));
+    fail = false;
+    fireEvent.click(within(alert).getByRole("button", { name: i18n.t("ai.conversation_retry") }));
+    expect(await screen.findByText("Có 1 việc quá hạn: [S1] Viết spec.")).toBeInTheDocument();
+  });
+
+  it("announces only the newest answer, through one region outside the history", async () => {
+    mockApi();
+    mount();
+    useAiPanelStore.getState().setOpen(true);
+    const live = await screen.findByRole("status");
+    fireEvent.change(screen.getByRole("textbox", { name: "Câu hỏi cho UNI" }), { target: { value: "task nào quá hạn?" } });
+    fireEvent.click(screen.getByRole("button", { name: "Hỏi" }));
+    await waitFor(() => expect(live).toHaveTextContent("Có 1 việc quá hạn: [S1] Viết spec."));
+    expect(screen.getByRole("dialog").querySelector("[aria-live]:not([role=status])")).toBeNull();
+    expect(screen.getByText("task nào quá hạn?", { selector: "div" }).closest("ul")).not.toHaveAttribute("aria-live");
+  });
+
   describe("notice", () => {
     function openWith(message: Record<string, unknown>) {
       mockApi();
@@ -259,6 +367,22 @@ describe("AskUniPanel", () => {
       await i18n.changeLanguage("en");
       openWith({ content: "", notice: "quota_soon" });
       expect(await screen.findByText("UNI couldn't answer this one.")).toBeInTheDocument();
+    });
+
+    it("words a transcript source in the reader's language, old prefixed titles included", async () => {
+      await i18n.changeLanguage("en");
+      openWith({
+        content: "Chốt demo [S1] [S2].",
+        citations: [
+          { source_id: "S1", kind: "transcript", title: "Giao ban", href: "/acme/team/meetings/m1?section=transcript" },
+          { source_id: "S2", kind: "transcript", title: "Lời thoại: Giao ban", href: "/acme/team/meetings/m1#transcript" },
+        ],
+      });
+      expect(await screen.findByRole("link", { name: /\[S1\]\s*Transcript: Giao ban$/ })).toHaveAttribute(
+        "href",
+        "/acme/team/meetings/m1?section=transcript",
+      );
+      expect(screen.getByRole("link", { name: /\[S2\]\s*Transcript: Giao ban$/ })).toBeInTheDocument();
     });
 
     it("renders old answers without notice as plain text", async () => {

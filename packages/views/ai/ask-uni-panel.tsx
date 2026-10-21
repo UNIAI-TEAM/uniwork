@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type FormEvent, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import { ArrowLeft, MessageSquarePlus, Sparkles, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import {
@@ -28,6 +28,7 @@ import { IconTile, tintForegroundClass } from "@uniwork/ui/components/common/ico
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Kbd } from "@uniwork/ui/components/ui/kbd";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@uniwork/ui/components/ui/sheet";
+import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { Textarea } from "@uniwork/ui/components/ui/textarea";
 import { cn } from "@uniwork/ui/lib/utils";
@@ -49,19 +50,20 @@ const KNOWN_ERRORS = new Set([
 
 const SUGGESTIONS = ["suggestion_overdue", "suggestion_meetings", "suggestion_chat"] as const;
 
-type AskFocus = NonNullable<ReturnType<typeof useAiPanelStore.getState>["pendingFocus"]>;
-
 const MeetingIcon = MODULE_ICONS.meetings;
 
 /** What the conversation is about, when it is about one meeting: "Cuộc họp: <title>". */
 function MeetingContextChip({ meetingId }: { meetingId: string }) {
   const { t } = useTranslation(undefined, { keyPrefix: "ai" });
   const meeting = useMeeting(meetingId);
-  if (!meeting.data) return null;
+  // A meeting that cannot be read still says the question is about one, rather than vanishing.
+  if (!meeting.data && !meeting.isError) return null;
   return (
     <p className="mb-1.5 inline-flex max-w-full items-center gap-1.5 rounded-full border border-border bg-surface px-2.5 py-1 text-caption text-foreground">
       <MeetingIcon aria-hidden className={cn("size-3.5 shrink-0", tintForegroundClass[moduleTone("meetings")])} />
-      <span className="truncate">{t("context_meeting", { title: meeting.data.title })}</span>
+      <span className="truncate">
+        {meeting.data ? t("context_meeting", { title: meeting.data.title }) : t("context_meeting_unavailable")}
+      </span>
     </p>
   );
 }
@@ -73,6 +75,26 @@ export function resolveErrorKey(err: unknown): string {
   const message = (err as { message?: unknown } | null)?.message;
   const candidate = typeof message === "string" ? message : "";
   return KNOWN_ERRORS.has(candidate) ? candidate : "default";
+}
+
+type Translate = ReturnType<typeof useTranslation>["t"];
+
+function noticeText(t: Translate, code: string): string {
+  switch (code) {
+    case "no_sources":
+      return t("notice.no_sources");
+    default:
+      return t("notice.unavailable");
+  }
+}
+
+// Answers saved before the server stopped prefixing the title carry the label in it already.
+const LEGACY_TRANSCRIPT_PREFIX = /^(Lời thoại|Transcript): /;
+
+/** A transcript source is the meeting's title, worded in the reader's language. */
+function citationLabel(t: Translate, c: AiCitation): string {
+  if (c.kind === "transcript") return t("source_transcript", { title: c.title.replace(LEGACY_TRANSCRIPT_PREFIX, "") });
+  return c.title || c.kind;
 }
 
 function Citations({ citations }: { citations: AiCitation[] }) {
@@ -89,7 +111,7 @@ function Citations({ citations }: { citations: AiCitation[] }) {
             className="inline-flex max-w-full items-center gap-1 text-caption text-primary underline-offset-2 hover:underline pointer-coarse:min-h-11"
           >
             <span className="tabular-nums">[{c.source_id}]</span>
-            <span className="truncate">{c.title || c.kind}</span>
+            <span className="truncate">{citationLabel(t, c)}</span>
           </AppLink>
         </li>
       ))}
@@ -105,14 +127,6 @@ export function AskUniMessageTurn({
 }) {
   const { t } = useTranslation(undefined, { keyPrefix: "ai" });
   const mine = message.role === "user";
-  const noticeText = (code: string) => {
-    switch (code) {
-      case "no_sources":
-        return t("notice.no_sources");
-      default:
-        return t("notice.unavailable");
-    }
-  };
   return (
     <li className={cn("flex flex-col gap-1", mine ? "items-end" : "items-start")}>
       <span className="px-1 text-caption font-medium text-muted-foreground">{mine ? t("you") : t("uni")}</span>
@@ -122,7 +136,7 @@ export function AskUniMessageTurn({
           mine ? "bg-surface-selected text-surface-selected-foreground" : "border border-border bg-surface text-foreground",
         )}
       >
-        {message.content === "" && message.notice ? noticeText(message.notice) : message.content}
+        {message.content === "" && message.notice ? noticeText(t, message.notice) : message.content}
         {mine ? null : <Citations citations={message.citations} />}
       </div>
     </li>
@@ -135,8 +149,18 @@ export function AskUniPanel() {
   const { workspace } = useWorkspace();
   const caps = useAiCapabilities(workspace.id);
   const enabled = !!caps.data?.enabled;
-  const { open, setOpen, conversationId, workspaceId, bindWorkspace, select, pendingFocus, clearPendingFocus } =
-    useAiPanelStore();
+  const {
+    open,
+    setOpen,
+    conversationId,
+    workspaceId,
+    bindWorkspace,
+    select,
+    pendingFocus,
+    focusByConversation,
+    rememberFocus,
+    forgetConversation,
+  } = useAiPanelStore();
   // Until bindWorkspace runs, the stored conversation may belong to the previous workspace.
   const activeConversationId = workspaceId === workspace.id ? conversationId : null;
   const conversations = useAiConversations(workspace.id, open && enabled);
@@ -146,9 +170,7 @@ export function AskUniPanel() {
   const [question, setQuestion] = useState("");
   const [pendingQuestion, setPendingQuestion] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
-  // The focus each conversation was started with: the server does not return it, so the chip
-  // holds for conversations asked from this panel in this session.
-  const [focusByConversation, setFocusByConversation] = useState<Record<string, AskFocus>>({});
+  const composerRef = useRef<HTMLTextAreaElement>(null);
   const askReset = ask.reset;
   const answeredConversation = ask.data?.conversation_id;
   useEffect(() => {
@@ -176,11 +198,8 @@ export function AskUniPanel() {
         onSuccess: (res) => {
           // A late answer from the workspace we left must not open its conversation here.
           if (useAiPanelStore.getState().workspaceId !== workspace.id) return;
+          if (focus) rememberFocus(res.conversation_id, focus);
           select(res.conversation_id);
-          if (focus) {
-            setFocusByConversation((cur) => ({ ...cur, [res.conversation_id]: focus }));
-            clearPendingFocus();
-          }
         },
         onSettled: () => setPendingQuestion(null),
         onError: () => setQuestion(q),
@@ -205,10 +224,23 @@ export function AskUniPanel() {
   const focus = pendingFocus ?? (activeConversationId ? focusByConversation[activeConversationId] : undefined);
   const meetingFocusId = focus?.kind === "meeting" ? focus.id : null;
   const recent = conversations.data ?? [];
+  // One region, always mounted, says only what just changed; the history is never re-read.
+  const answered = ask.data?.message;
+  const liveText = ask.isPending
+    ? t("asking")
+    : answered
+      ? t("answer_announcement", { answer: answered.content || noticeText(t, answered.notice) })
+      : "";
+  const loadingHistory = !!activeConversationId && messages.isPending;
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
-      <SheetContent side="right" className="flex flex-col gap-0 p-0 data-[side=right]:w-full data-[side=right]:sm:max-w-lg" closeLabel={t("close")}>
+      <SheetContent
+        side="right"
+        className="flex flex-col gap-0 p-0 data-[side=right]:w-full data-[side=right]:sm:max-w-lg"
+        closeLabel={t("close")}
+        initialFocus={composerRef}
+      >
         <SheetHeader className="border-b border-border px-4 py-3">
           <div className="flex items-center gap-2 pr-8">
             {!showHome ? (
@@ -273,6 +305,7 @@ export function AskUniPanel() {
                     remove.mutate(activeConversationId, {
                       onSuccess: () => {
                         setConfirmDelete(false);
+                        forgetConversation(activeConversationId);
                         select(null);
                       },
                     });
@@ -328,19 +361,34 @@ export function AskUniPanel() {
                 </div>
               ) : null}
             </div>
+          ) : loadingHistory ? (
+            <div className="space-y-4" aria-busy="true" aria-label={t("loading_conversation")}>
+              <Skeleton className="ml-auto h-10 w-2/3" />
+              <Skeleton className="h-20 w-11/12" />
+            </div>
+          ) : messages.isError && turns.length === 0 ? (
+            <div role="alert" className="flex flex-col items-start gap-2 rounded-md border border-border bg-surface px-3 py-2.5">
+              <p className="text-caption text-foreground">{t("conversation_error")}</p>
+              <Button type="button" variant="outline" size="sm" onClick={() => void messages.refetch()}>
+                {t("conversation_retry")}
+              </Button>
+            </div>
           ) : (
-            <ul className="space-y-4" aria-live="polite">
+            <ul className="space-y-4">
               {turns.map((m) => (
                 <AskUniMessageTurn key={m.id} message={m} />
               ))}
               {ask.isPending ? (
-                <li className="flex items-center gap-2 text-caption text-muted-foreground">
+                <li aria-hidden className="flex items-center gap-2 text-caption text-muted-foreground">
                   <Spinner className="size-3.5" />
                   {t("asking")}
                 </li>
               ) : null}
             </ul>
           )}
+          <p role="status" className="sr-only">
+            {liveText}
+          </p>
           {ask.isError ? (
             <p
               role="alert"
@@ -357,9 +405,10 @@ export function AskUniPanel() {
         </div>
 
         <form onSubmit={submit} className="border-t border-border bg-surface/60 p-3">
-          <div className="rounded-lg border border-border bg-background p-2 shadow-sm focus-within:ring-2 focus-within:ring-ring/40">
+          <div className="rounded-lg border border-border bg-background p-2 shadow-sm focus-within:ring-2 focus-within:ring-ring">
             {meetingFocusId ? <MeetingContextChip meetingId={meetingFocusId} /> : null}
             <Textarea
+              ref={composerRef}
               aria-label={t("input_label")}
               aria-describedby="ask-uni-hint"
               placeholder={t("placeholder")}
@@ -368,7 +417,8 @@ export function AskUniPanel() {
               onKeyDown={onKeyDown}
               rows={2}
               maxLength={2000}
-              className="min-h-[3.25rem] flex-1 resize-none border-0 bg-transparent px-2 py-1.5 shadow-none focus-visible:ring-0"
+              // The wrapper's full-strength ring is the one focus indicator of the composer.
+              className="min-h-[3.25rem] flex-1 resize-none border-0 bg-transparent px-2 py-1.5 shadow-none focus-visible:ring-0 focus-visible:outline-none"
             />
             <div className="flex items-center justify-between gap-2 px-1 pb-0.5 pt-1">
               {/* A touch keyboard has no Enter to read about; the hint stays as the field's description. */}
