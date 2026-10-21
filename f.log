@@ -1,0 +1,4 @@
+$ for i in $(seq 1 36); do test -f /tmp/uni2012r6-rest.exit && break; sleep 30; done; echo "DONE_FILE=$(test -f /tmp/uni2012r6-rest.exit && echo yes || echo no)"; echo "TEST_GO_EXIT=$(cat /tmp/uni2012r6-rest.exit 2>/dev/null || echo still-running)"; grep -E "^(=== RUN)" /tmp/uni2012r6-rest.log | tail -1
+DONE_FILE=yes
+TEST_GO_EXIT=0
+=== RUN   TestEvalContextLookup/unknown_attribute

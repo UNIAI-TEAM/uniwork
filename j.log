@@ -1,0 +1,1 @@
+$ awk '/WARNING: DATA RACE/{f=1;n=0} f{print substr($0,1,250);n++} n>40{f=0}' /tmp/uni2012r6-rest.log | head -200
