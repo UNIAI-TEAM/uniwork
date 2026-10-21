@@ -1610,6 +1610,12 @@
       "link_copied": "Đã sao chép liên kết",
       "link_open_failed": "Không mở được liên kết này."
     },
+    "notification_actions": {
+      "reply": "Trả lời",
+      "reply_placeholder": "Nhập tin trả lời…",
+      "send": "Gửi",
+      "mark_read": "Đánh dấu đã đọc"
+    },
     "voice": {
       "seek_forward": "Tua tới {{seconds}} giây",
       "seek_back": "Tua lại {{seconds}} giây"

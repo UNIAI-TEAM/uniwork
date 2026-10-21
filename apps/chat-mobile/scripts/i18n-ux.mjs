@@ -19,6 +19,12 @@ export const UX_ONLY = {
       link_copied: "Đã sao chép liên kết",
       link_open_failed: "Không mở được liên kết này.",
     },
+    notification_actions: {
+      reply: "Trả lời",
+      reply_placeholder: "Nhập tin trả lời…",
+      send: "Gửi",
+      mark_read: "Đánh dấu đã đọc",
+    },
     voice: {
       seek_forward: "Tua tới {{seconds}} giây",
       seek_back: "Tua lại {{seconds}} giây",
@@ -59,6 +65,12 @@ export const UX_ONLY = {
       link_share: "Share link",
       link_copied: "Link copied",
       link_open_failed: "Couldn't open this link.",
+    },
+    notification_actions: {
+      reply: "Reply",
+      reply_placeholder: "Write a reply…",
+      send: "Send",
+      mark_read: "Mark as read",
     },
     voice: {
       // The step is always several seconds (VOICE_SEEK_STEP_S): no singular form.

@@ -400,6 +400,12 @@ một dòng thì ghi lý do ở dòng trên.
   ngữ. Kênh Android (`lib/notification-channels.ts`, `data/notification-channels.ts`): `calls`, `call_ongoing` (native),
   `missed_calls`, `mentions`, `messages`, `general`, dịch theo ngôn ngữ app lúc mở và khi đổi ngôn ngữ, kênh cũ `chat`
   bị xoá; server chọn kênh theo kind (`push_expo.go › pushChannel`) — đổi âm thanh/độ ưu tiên của kênh thì phải đổi id.
+  Thông báo tin chat (DM, nhắc tên, trả lời chủ đề) mang category `chat_message` và id workspace/phòng/tin/chủ đề
+  (server `push_expo.go › ChatMessageCategory`, `chatData`); app đăng ký category đó lúc mở và khi đổi ngôn ngữ
+  (`data/chat-notification-actions.ts`): **Trả lời** (ô nhập) gửi qua outbox như mọi lần gửi rồi đánh dấu phòng đã đọc,
+  **Đánh dấu đã đọc** xếp lượt đọc; cả hai gỡ thông báo, không mở app trên Android (task nền thông báo —
+  `runCallPushTask` chuyển tiếp — hoặc listener của app đang chạy; mỗi hành động chạy một lần), mở app trên iOS (iOS
+  không giao câu trả lời cho JS khi app bị kill và hành động ở nền). `lib/chat-notification.ts` đọc phản hồi (thuần).
   Badge app = mọi tin chưa đọc (`appBadgeCount`, `data/badge.ts`). Android 14+ bị thu hồi full-screen intent thì Cài
   đặt › Thông báo hiện `components/settings/full-screen-calls-row.tsx`. Server: push đổ chuông tới Android là data-only chỉ khi bản đó
   đăng ký token với `call_ui: true` (`registerPushToken({ callUI: nativeCalls.available })`, mỗi lần mở app; server lưu

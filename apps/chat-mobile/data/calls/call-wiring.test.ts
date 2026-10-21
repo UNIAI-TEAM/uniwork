@@ -45,6 +45,8 @@ vi.mock("../chat-api", () => ({ chatApi: { signalVoiceHangup: deps.signalVoiceHa
 vi.mock("../query-client", () => ({ queryClient: {} }));
 vi.mock("../remote-config", () => ({ readMobileFlag: () => deps.callsOn }));
 vi.mock("../stores/workspace-store", () => ({ getCurrentWorkspace: () => deps.workspace }));
+const chatActions = vi.hoisted(() => ({ runChatNotificationAction: vi.fn(async () => undefined) }));
+vi.mock("../chat-notification-actions", () => chatActions);
 
 const engine = vi.hoisted(() => ({
   ctx: "w-1" as string | null,
@@ -140,6 +142,17 @@ describe("registerCallBackgroundTasks", () => {
 });
 
 describe("runCallPushTask", () => {
+  it("hands a Reply or Mark as read tapped on a chat notification to the chat actions, not the call policy", async () => {
+    const response = {
+      actionIdentifier: "reply",
+      userText: "ok",
+      notification: { request: { identifier: "n1", content: { data: { workspace_id: "w-1", room_id: "r-1", message_id: "m-1" } } } },
+    };
+    await wiring.runCallPushTask(response);
+    expect(chatActions.runChatNotificationAction).toHaveBeenCalledWith(expect.objectContaining({ action: "reply", text: "ok", key: "n1:reply" }));
+    expect(deps.bootRuntime).not.toHaveBeenCalled();
+  });
+
   it("boots the runtime and the language, then rings with the app's own notification", async () => {
     await wiring.runCallPushTask({ data: { dataString: JSON.stringify(INVITE) } });
     expect(deps.bootRuntime).toHaveBeenCalledTimes(1);

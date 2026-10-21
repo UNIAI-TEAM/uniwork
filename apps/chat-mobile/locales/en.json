@@ -1666,6 +1666,12 @@
       "link_copied": "Link copied",
       "link_open_failed": "Couldn't open this link."
     },
+    "notification_actions": {
+      "reply": "Reply",
+      "reply_placeholder": "Write a reply…",
+      "send": "Send",
+      "mark_read": "Mark as read"
+    },
     "voice": {
       "seek_forward": "Forward {{seconds}} seconds",
       "seek_back": "Back {{seconds}} seconds"

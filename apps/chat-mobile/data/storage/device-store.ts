@@ -30,11 +30,18 @@ export function memoryDeviceStore(): DeviceStore {
 
 let open: () => Promise<DeviceStore> = () => Promise.resolve(memoryDeviceStore());
 let opening: Promise<DeviceStore> | null = null;
+let installed = false;
 
 /** Boot (or a test): where the store comes from. Must run before the first read. */
 export function installDeviceStore(opener: () => Promise<DeviceStore>): void {
   open = opener;
   opening = null;
+  installed = true;
+}
+
+/** Whether boot installed a store: a headless task, where no screen booted, installs it itself. */
+export function deviceStoreInstalled(): boolean {
+  return installed;
 }
 
 /** The one store of this launch; every caller shares it. */

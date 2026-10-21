@@ -38,6 +38,7 @@ import { bootRuntime } from "@/data/boot";
 import { perfMark } from "@/data/logger";
 import { startNativeCalls } from "@/data/calls/call-wiring";
 import { nativeCalls } from "@/data/calls/native-calls";
+import { runChatNotificationAction, registerChatMessageCategory } from "@/data/chat-notification-actions";
 import { ensureNotificationChannels } from "@/data/notification-channels";
 import { queryClient } from "@/data/query-client";
 import { startLocaleSync } from "@/data/locale-sync";
@@ -46,6 +47,7 @@ import { bestEffort } from "@/data/report";
 import { sentryNavigation } from "@/data/sentry";
 import { installDeviceStore, openDeviceStore } from "@/data/storage/device-store";
 import { openNativeDeviceStore } from "@/data/storage/native-device-store";
+import { chatNotificationAction } from "@/lib/chat-notification";
 import { incomingUrlAction, setPendingDeepLink } from "@/lib/deep-link";
 import { I18nProvider } from "@/components/app/i18n-provider";
 import { i18n } from "@/lib/i18n/singleton";
@@ -101,9 +103,11 @@ function AuthInitializer({ children }: { children: ReactNode }) {
   const signingOut = useRef(false);
   const { t, i18n } = useTranslation();
 
-  // Android's channels (calls, missed calls, mentions, messages, the rest) in the app's language, renamed when it changes.
+  // Android's channels (calls, missed calls, mentions, messages, the rest) in the app's language, renamed when it changes;
+  // and a chat message push's Reply and Mark as read buttons, in that language too (data/chat-notification-actions.ts).
   useEffect(() => {
     void ensureNotificationChannels(t, { platform: Platform.OS, native: nativeCalls });
+    void registerChatMessageCategory(t, Platform.OS);
   }, [t, i18n.language]);
 
   useEffect(() => {
@@ -135,6 +139,12 @@ function AuthInitializer({ children }: { children: ReactNode }) {
     const urlSub = Linking.addEventListener("url", ({ url }) => openUrl(url));
     // The server's push payload carries the web URL of the message in `data.url`.
     const pushSub = Notifications.addNotificationResponseReceivedListener((response) => {
+      // Reply or Mark as read on a chat notification acts where it was tapped; it opens nothing.
+      const chatAction = chatNotificationAction(response);
+      if (chatAction) {
+        void runChatNotificationAction(chatAction);
+        return;
+      }
       const url: unknown = response.notification.request.content.data?.url;
       if (typeof url === "string") openUrl(url, true);
     });

@@ -19,12 +19,14 @@ import * as Notifications from "expo-notifications";
 import * as TaskManager from "expo-task-manager";
 import { AppRegistry, AppState, PermissionsAndroid, Platform } from "react-native";
 import { callPushFromData, taskPayloadData } from "@/lib/call-push";
+import { chatNotificationAction } from "@/lib/chat-notification";
 import { i18n } from "@/lib/i18n/singleton";
 import { showInForeground } from "@/lib/notification-presentation";
 import { applyStoredLocale } from "../app-locale";
 import { authConfig, session } from "../auth/flow";
 import { bootRuntime } from "../boot";
 import { chatApi } from "../chat-api";
+import { runChatNotificationAction } from "../chat-notification-actions";
 import { createLogger } from "../logger";
 import { callChannelNames } from "../notification-channels";
 import { queryClient } from "../query-client";
@@ -95,8 +97,14 @@ const actionEnv: CallActionEnv = {
   now: () => Date.now(),
 };
 
-/** The background notification task's body: a call push, or nothing. */
+/**
+ * The background notification task's body: a call push, or a Reply / Mark as read tapped on a chat
+ * notification while UniChat is closed (Android runs this task for an action too:
+ * data/chat-notification-actions.ts), or nothing.
+ */
 export async function runCallPushTask(payload: unknown): Promise<void> {
+  const chatAction = chatNotificationAction(payload);
+  if (chatAction) return runChatNotificationAction(chatAction);
   const push = callPushFromData(taskPayloadData(payload));
   if (!push) return;
   bootRuntime();

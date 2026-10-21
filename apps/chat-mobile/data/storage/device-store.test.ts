@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { deviceStateStorage, installDeviceStore, memoryDeviceStore, openDeviceStore } from "./device-store";
+import { deviceStateStorage, deviceStoreInstalled, installDeviceStore, memoryDeviceStore, openDeviceStore } from "./device-store";
 
 describe("device store", () => {
   it("opens once per launch and hands every caller the same store; memory until one is installed", async () => {
@@ -12,7 +12,9 @@ describe("device store", () => {
     expect(memory.durable).toBe(false);
 
     const opener = vi.fn(async () => memory);
+    expect(deviceStoreInstalled()).toBe(false);
     installDeviceStore(opener);
+    expect(deviceStoreInstalled()).toBe(true);
     const [a, b] = await Promise.all([openDeviceStore(), openDeviceStore()]);
     expect(a).toBe(memory);
     expect(b).toBe(memory);

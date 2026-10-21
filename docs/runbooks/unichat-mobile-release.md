@@ -298,6 +298,10 @@ và giọng đọc. Một iPhone (VoiceOver) và một máy Android (TalkBack):
   chip 1×/1.5×/2×, TalkBack vuốt lên/xuống tua 5 s. CI đã chạy màn đăng nhập ở font_scale 2.0 + dark và audit nhãn/48 dp
   (`scripts/mobile-a11y-audit.mjs`); nightly chạy lại `chat-read-send` ở cỡ chữ lớn nhất + dark: đọc cảnh báo audit của
   phòng trong log job.
+- [ ] Thông báo tin nhắn (Android, app đã kill và app ở nền): thông báo DM/nhắc tên/trả lời chủ đề có "Trả lời" và "Đánh
+  dấu đã đọc"; "Trả lời" gõ một câu rồi Gửi: thông báo biến mất, người kia nhận tin (một lần), phòng hết chưa đọc trên
+  web; tắt mạng rồi trả lời: tin nằm trong outbox và đi khi mở app có mạng; "Đánh dấu đã đọc": huy hiệu phòng về 0. Đổi
+  ngôn ngữ app: nút đổi theo. iOS (khi có bản build): hai nút mở app rồi chạy (không mất câu trả lời).
 - [ ] Ngôn ngữ: iOS Cài đặt › UniChat › Ngôn ngữ và Android 13+ Cài đặt › Ứng dụng › UniChat › Ngôn ngữ chỉ liệt kê
   Tiếng Việt và English; đổi ngôn ngữ trong app rồi nhận một push: push nói đúng ngôn ngữ đó (`users.locale` đổi theo,
   xem bằng `GET /api/v1/me`). Tiếng Anh: "1 reply", "2 replies".
