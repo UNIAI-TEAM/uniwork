@@ -15,11 +15,15 @@ export interface FolderUploadSettled {
   expired?: boolean;
   onOpenFolder: () => void;
   onViewFailures: () => void;
+  /** The batch was closed with the page gone: no "Xem" (the report lives in the page), and the toast says so. */
+  closed?: boolean;
 }
 
 export interface FolderUploadToast {
   progress: (counts: { done: number; total: number }) => void;
   settle: (result: FolderUploadSettled) => void;
+  /** Turn a settled end state with failures into its closed form (R2-2); anything else stays as it is. */
+  close: () => void;
   dismiss: () => void;
 }
 
@@ -60,39 +64,47 @@ export function createFolderUploadToast({
     });
   };
   progress({ done, total });
+  let last: FolderUploadSettled | null = null;
+  const settle = (result: FolderUploadSettled) => {
+    last = result;
+    const { title, total: runTotal, done, failed, canceled, expired, onOpenFolder, onViewFailures, closed = false } = result;
+    const viewFailures = failed > 0 && !closed ? { label: t("documents.folder_upload.toast.view_failures"), onClick: onViewFailures } : undefined;
+    if (canceled) {
+      const message = done > 0 ? t("documents.folder_upload.toast.canceled", { count: done }) : t("documents.folder_upload.toast.canceled_none");
+      toast.info(message, { id, duration: 6000, action: undefined });
+      return;
+    }
+    if (expired) {
+      toast.warning(t("documents.folder_upload.toast.expired", { name: title, done, total: runTotal, ...ctx }), {
+        id,
+        duration: Number.POSITIVE_INFINITY,
+        action: viewFailures,
+      });
+      return;
+    }
+    if (failed > 0) {
+      toast.warning(t("documents.folder_upload.toast.partial", { done, total: runTotal, failed }), {
+        id,
+        duration: Number.POSITIVE_INFINITY,
+        action: viewFailures,
+        description: closed ? t("documents.folder_upload.toast.closed") : undefined,
+      });
+      return;
+    }
+    toast.success(t("documents.folder_upload.toast.success", { count: done, name: title }), {
+      id,
+      duration: 10000,
+      action: { label: t("documents.folder_upload.toast.open_folder"), onClick: onOpenFolder },
+    });
+  };
   return {
     progress,
+    settle,
+    close: () => {
+      if (last && last.failed > 0 && !last.canceled && !last.closed) settle({ ...last, closed: true });
+    },
     dismiss: () => {
       toast.dismiss(id);
-    },
-    settle: (result) => {
-      const { title, total: runTotal, done, failed, canceled, expired, onOpenFolder, onViewFailures } = result;
-      if (canceled) {
-        const message = done > 0 ? t("documents.folder_upload.toast.canceled", { count: done }) : t("documents.folder_upload.toast.canceled_none");
-        toast.info(message, { id, duration: 6000, action: undefined });
-        return;
-      }
-      if (expired) {
-        toast.warning(t("documents.folder_upload.toast.expired", { name: title, done, total: runTotal, ...ctx }), {
-          id,
-          duration: Number.POSITIVE_INFINITY,
-          action: failed > 0 ? { label: t("documents.folder_upload.toast.view_failures"), onClick: onViewFailures } : undefined,
-        });
-        return;
-      }
-      if (failed > 0) {
-        toast.warning(t("documents.folder_upload.toast.partial", { done, total: runTotal, failed }), {
-          id,
-          duration: Number.POSITIVE_INFINITY,
-          action: { label: t("documents.folder_upload.toast.view_failures"), onClick: onViewFailures },
-        });
-        return;
-      }
-      toast.success(t("documents.folder_upload.toast.success", { count: done, name: title }), {
-        id,
-        duration: 10000,
-        action: { label: t("documents.folder_upload.toast.open_folder"), onClick: onOpenFolder },
-      });
     },
   };
 }

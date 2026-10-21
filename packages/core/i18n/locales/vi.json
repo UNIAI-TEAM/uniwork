@@ -10081,7 +10081,8 @@
         "read_failed": "Không đọc được thư mục vừa chọn.",
         "expired": "Lượt tải lên «{{name}}» đã hết hạn — {{done}}/{{total}} tệp đã lên. Hãy tải lại thư mục.",
         "expired_files": "Lượt tải lên đã hết hạn — {{done}}/{{total}} tệp đã lên. Hãy tải lại tệp.",
-        "refused": "Không tải lên được «{{name}}»"
+        "refused": "Không tải lên được «{{name}}»",
+        "closed": "Đã đóng lượt tải lên này nên không xem hay thử lại được các tệp lỗi."
       },
       "report": {
         "title": "Tệp chưa tải lên được",

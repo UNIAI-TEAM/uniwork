@@ -10087,7 +10087,8 @@
         "read_failed": "Couldn’t read the folder you chose.",
         "expired": "The upload of “{{name}}” expired — {{done}}/{{total}} files went up. Upload the folder again.",
         "expired_files": "The upload expired — {{done}}/{{total}} files went up. Upload the files again.",
-        "refused": "Couldn’t upload “{{name}}”"
+        "refused": "Couldn’t upload “{{name}}”",
+        "closed": "This upload was closed, so its failed files can’t be viewed or retried."
       },
       "report": {
         "title": "Files that didn’t upload",

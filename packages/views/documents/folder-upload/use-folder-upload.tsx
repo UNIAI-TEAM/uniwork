@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -63,6 +63,10 @@ interface RunChannel {
   settled: boolean;
   /** The toast of the retry under way, if any. */
   retryToast: FolderUploadToast | null;
+  /** The toast showing the run's latest end state (the first run's, then each retry's). */
+  shownToast: FolderUploadToast | null;
+  /** The latest end state left failures in a batch that is still open. */
+  failuresLeft: boolean;
   /** The batch was given up (report dismissed, or nothing left to retry) and canceled once. */
   abandoned: boolean;
 }
@@ -70,10 +74,11 @@ interface RunChannel {
 /**
  * Give up a batch that is done with: a batch with pending files stays open,
  * and counts against the user's 2 open batches, until it is canceled or
- * expires (24 h). The landed files stay.
+ * expires (24 h). The landed files stay. Never while a retry runs: closing
+ * the old report then must not cancel it (R2-1).
  */
 function abandon(channel: RunChannel): void {
-  if (channel.abandoned) return;
+  if (channel.abandoned || channel.retryToast) return;
   channel.abandoned = true;
   channel.handle?.cancel();
 }
@@ -136,6 +141,23 @@ export function useFolderUpload({
   const [reportView, setReportView] = useState<ReportView | null>(null);
   /** The run the open dialog is waiting on (plan pending or Retry-After), until the toast takes over. */
   const dialogRun = useRef<RunChannel | null>(null);
+  /** Every run started here, so an unmount can close the batches whose report goes with the page. */
+  const runs = useRef(new Set<RunChannel>());
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    const started = runs.current;
+    return () => {
+      mounted.current = false;
+      // The report and its retry live in this page (R2-2): failures nobody can reach any more close
+      // their batch now, and the toast drops "Xem". A run or retry still going does this when it settles.
+      for (const channel of started) {
+        if (!channel.failuresLeft || channel.retryToast) continue;
+        abandon(channel);
+        channel.shownToast?.close();
+      }
+    };
+  }, []);
   const latest = useRef({ onOpenFolder, resolveRootParent, myFolderId, t, locale: i18n.language });
   latest.current = { onOpenFolder, resolveRootParent, myFolderId, t, locale: i18n.language };
 
@@ -227,7 +249,11 @@ export function useFolderUpload({
   const settleToast = (target: FolderUploadToast, name: string, report: FolderUploadReport, channel: RunChannel) => {
     const title = report.root?.title ?? name;
     const openId = report.root?.id ?? (channel.mode === "files" ? channel.destinationId : null);
-    if (report.failed.length > 0 && !report.canRetry && !report.canceled && !report.expired) abandon(channel);
+    channel.failuresLeft = report.failed.length > 0 && !report.canceled && !report.expired;
+    // Unmounted: nobody can open the report or retry, so the batch closes now.
+    const closed = channel.failuresLeft && !mounted.current;
+    if (channel.failuresLeft && (!report.canRetry || closed)) abandon(channel);
+    channel.shownToast = target;
     target.settle({
       title,
       total: report.total,
@@ -239,6 +265,7 @@ export function useFolderUpload({
         if (openId) latest.current.onOpenFolder(openId);
       },
       onViewFailures: () => showReport(title, report, channel),
+      closed,
     });
   };
 
@@ -253,8 +280,18 @@ export function useFolderUpload({
     idempotency.share = share;
     setPending(true);
     setError(null);
-    const channel: RunChannel = { handle: null, mode, destinationId: null, settled: false, retryToast: null, abandoned: false };
+    const channel: RunChannel = {
+      handle: null,
+      mode,
+      destinationId: null,
+      settled: false,
+      retryToast: null,
+      shownToast: null,
+      failuresLeft: false,
+      abandoned: false,
+    };
     dialogRun.current = channel;
+    runs.current.add(channel);
     let parentId: string;
     try {
       parentId = destination.parentId ?? latest.current.myFolderId ?? (await latest.current.resolveRootParent());
@@ -360,8 +397,11 @@ export function useFolderUpload({
     channel.retryToast = retryToast;
     handle.retryFailed().then(
       (report) => {
+        // The toast that showed the last end state gives way only now: if the retry call fails, it is the way back.
+        const previous = channel.shownToast;
         channel.retryToast = null;
         settleToast(retryToast, name, report, channel);
+        previous?.dismiss();
       },
       (failure: unknown) => {
         channel.retryToast = null;
