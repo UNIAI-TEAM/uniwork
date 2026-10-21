@@ -428,7 +428,7 @@ func (s *MeetingService) ConvertActionItems(ctx context.Context, userID, meeting
 			projectID = meetingProject
 		}
 		inputs = append(inputs, CreateTaskInput{
-			Title: title, Description: actionItemTaskDescription(it, item, m.Title),
+			Title: title, Description: actionItemTaskDescription(it, item),
 			AssigneeID: it.AssigneeID, DueDate: it.DueDate, ProjectID: projectID,
 			Priority: strings.TrimSpace(it.Priority), OriginType: "meeting", OriginID: &origin,
 		})
@@ -578,10 +578,11 @@ func refuseActionItemDuplicates(ctx context.Context, q *db.Queries, ws db.Worksp
 
 // actionItemTaskDescription is the clerk's description, then what the item
 // says that the task does not carry (an owner when it has no assignee, a due
-// phrase when it has no due date), then the meeting it came from. Phrases the
-// AI wrote are marked as such. The labels are Vietnamese: the summary does not
-// record the language it was written in.
-func actionItemTaskDescription(it ConvertActionItem, item db.MeetingActionItem, meetingTitle string) string {
+// phrase when it has no due date). Phrases the AI wrote are marked as such.
+// The meeting it came from is not written here: the task's origin carries it
+// and the task screen shows it. The labels are Vietnamese: the summary does
+// not record the language it was written in.
+func actionItemTaskDescription(it ConvertActionItem, item db.MeetingActionItem) string {
 	desc := strings.TrimSpace(it.Description)
 	mark := " (AI)"
 	if item.Source == ActionItemSourceManual {
@@ -594,17 +595,12 @@ func actionItemTaskDescription(it ConvertActionItem, item db.MeetingActionItem, 
 	if due := strings.TrimSpace(item.DueText); due != "" && it.DueDate == nil {
 		extra = append(extra, "Hạn"+mark+": "+due)
 	}
-	if len(extra) > 0 {
-		block := strings.Join(extra, "\n")
-		if desc == "" {
-			desc = block
-		} else {
-			desc += "\n" + block
-		}
+	if len(extra) == 0 {
+		return desc
 	}
-	origin := "Từ cuộc họp: " + meetingTitle
+	block := strings.Join(extra, "\n")
 	if desc == "" {
-		return origin
+		return block
 	}
-	return desc + "\n\n" + origin
+	return desc + "\n" + block
 }

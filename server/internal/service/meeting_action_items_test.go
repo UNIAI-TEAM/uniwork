@@ -231,10 +231,14 @@ func TestConvertActionItemsKeepsTheClerksChoice(t *testing.T) {
 	if a.Title != "Gửi báo cáo" || a.ProjectID.String != project.ID {
 		t.Fatalf("stored title and the meeting's project: %q %v", a.Title, a.ProjectID)
 	}
-	for _, want := range []string{"Người phụ trách (AI): B", "Hạn (AI): ngày mai", "Từ cuộc họp: Họp dự án"} {
+	for _, want := range []string{"Người phụ trách (AI): B", "Hạn (AI): ngày mai"} {
 		if !strings.Contains(a.Description, want) {
 			t.Fatalf("description %q lacks %q", a.Description, want)
 		}
+	}
+	// The origin column carries the meeting; the description does not repeat it.
+	if strings.Contains(a.Description, "Họp dự án") || strings.Contains(b.Description, "Họp dự án") {
+		t.Fatalf("description repeats the meeting title: %q / %q", a.Description, b.Description)
 	}
 	if b.Title != "Đặt phòng họp lớn" || b.AssigneeID.String != ub.ID || b.ProjectID.Valid || b.Priority != "high" {
 		t.Fatalf("clerk values: %+v", b)

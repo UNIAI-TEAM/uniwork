@@ -107,7 +107,7 @@ func TestTranscriptAndSummaryToTasks(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if task.Title != "Gửi báo cáo" || !strings.Contains(task.Description, "Từ cuộc họp: AI") || task.AssigneeID.String != ub.ID {
+	if task.Title != "Gửi báo cáo" || strings.Contains(task.Description, "Từ cuộc họp") || task.AssigneeID.String != ub.ID {
 		t.Fatalf("stored item with the host's assignee: %+v", task)
 	}
 	if task.OriginType.String != "meeting" || task.OriginID.String != m.ID {
