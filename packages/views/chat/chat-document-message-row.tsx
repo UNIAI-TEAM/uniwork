@@ -253,17 +253,34 @@ export function ChatDocumentCard({
           >
             {title}
           </button>
-          <p className={cn("text-caption", documentMutedClass(isOwn))}>
-            {doc.version_number !== undefined
-              ? t("documents.file.version_row", { no: doc.version_number })
-              : null}
-            {doc.recipient_count !== undefined
-              ? `${doc.version_number !== undefined ? " · " : ""}${t("chat.document_shared_with_count", { count: doc.recipient_count })}`
-              : null}
+          {/* Each segment is nowrap: the line breaks only between segments, never inside "Phiên bản 3". */}
+          <p className={cn("flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-caption", documentMutedClass(isOwn))}>
+            {doc.version_number !== undefined ? (
+              <span className="whitespace-nowrap">{t("documents.file.version_row", { no: doc.version_number })}</span>
+            ) : null}
+            {doc.recipient_count !== undefined ? (
+              <span className="whitespace-nowrap">
+                {doc.version_number !== undefined ? <span aria-hidden>{"· "}</span> : null}
+                {t("chat.document_shared_with_count", { count: doc.recipient_count })}
+              </span>
+            ) : null}
+            {/* Touch only: the badge leaves the row (below) so the title keeps its width. */}
+            {level ? (
+              <Badge
+                variant="secondary"
+                className={cn("hidden pointer-coarse:inline-flex", isOwn && OWN_BUBBLE_CONTROL_REST)}
+              >
+                {t(`documents.share.level_${level}`)}
+              </Badge>
+            ) : null}
           </p>
         </div>
         {level ? (
-          <Badge variant="secondary" className={cn("shrink-0", isOwn && OWN_BUBBLE_CONTROL_REST)}>{t(`documents.share.level_${level}`)}
+          <Badge
+            variant="secondary"
+            className={cn("shrink-0 pointer-coarse:hidden", isOwn && OWN_BUBBLE_CONTROL_REST)}
+          >
+            {t(`documents.share.level_${level}`)}
           </Badge>
         ) : null}
         {/* Touch has no hover bar: the same menu, one tap away (coarse pointers only). */}

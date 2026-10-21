@@ -103,6 +103,16 @@ function renderCard(
 /** A live row: the message menu (and the document entries in it) needs reply and react. */
 const LIVE = { onReply: vi.fn(), onReact: vi.fn() } satisfies Partial<RowProps>;
 
+/** The level badge beside the title (fine pointer) and the one in the caption line (coarse pointer): css shows one. */
+function levelBadges(text: string) {
+  const all = screen.getAllByText(text);
+  expect(all).toHaveLength(2);
+  return {
+    side: all.find((el) => el.parentElement?.tagName !== "P")!,
+    caption: all.find((el) => el.parentElement?.tagName === "P")!,
+  };
+}
+
 /** The hover bar's "…" (last in the DOM; the card's touch "…" comes first and is css-hidden on a fine pointer). */
 function barMore(): HTMLElement {
   return screen.getAllByRole("button", { name: "Thêm" }).at(-1)!;
@@ -204,14 +214,16 @@ describe("ChatDocumentMessageRow", () => {
       expect(screen.getByRole("button", { name: /Mở trong Tài liệu/ })).toHaveClass("text-chat-bubble-own-foreground");
       expect(screen.getByRole("button", { name: /Mở trong Tài liệu/ })).not.toHaveClass("text-foreground");
       expect(screen.getByRole("button", { name: /Mở trong Tài liệu/ })).toHaveClass("focus-visible:outline-chat-bubble-own-foreground");
-      const secondary = screen.getByText(/Phiên bản 3/);
+      const secondary = screen.getByText(/Phiên bản 3/).parentElement!;
       expect(secondary).toHaveClass("text-chat-bubble-own-meta");
       expect(secondary).not.toHaveClass("text-muted-foreground");
-      const badge = screen.getByText("Quản lý");
-      expect(badge).toHaveClass(...ownControl);
-      expect(badge).not.toHaveClass("bg-secondary");
-      // The badge is a plain span: only the resting look, never the control's hover / open / focus states.
-      expect(badge.className).not.toMatch(/(^|\s)(hover|aria-expanded|focus-visible):\S*chat-bubble-own/);
+      const { side, caption } = levelBadges("Quản lý");
+      for (const badge of [side, caption]) {
+        expect(badge).toHaveClass(...ownControl);
+        expect(badge).not.toHaveClass("bg-secondary");
+        // The badge is a plain span: only the resting look, never the control's hover / open / focus states.
+        expect(badge.className).not.toMatch(/(^|\s)(hover|aria-expanded|focus-visible):\S*chat-bubble-own/);
+      }
     });
 
     it("other bubble: the time stays plain meta in its px-1 wrapper, no wall chip", () => {
@@ -249,9 +261,11 @@ describe("ChatDocumentMessageRow", () => {
 
     it("other bubble: grey secondary text and the plain title and badge", () => {
       renderCard(documentMessage(FULL), { isOwn: false });
-      expect(screen.getByText(/Phiên bản 3/)).toHaveClass("text-muted-foreground");
+      expect(screen.getByText(/Phiên bản 3/).parentElement).toHaveClass("text-muted-foreground");
       expect(screen.getByRole("button", { name: /Mở trong Tài liệu/ })).toHaveClass("text-foreground");
-      expect(screen.getByText("Quản lý")).toHaveClass("bg-secondary");
+      const { side, caption } = levelBadges("Quản lý");
+      expect(side).toHaveClass("bg-secondary");
+      expect(caption).toHaveClass("bg-secondary");
     });
   });
 
@@ -286,8 +300,8 @@ describe("ChatDocumentMessageRow", () => {
     expect(titleButton).toHaveAttribute("title", "bao-cao-q3-du-lieu-chi-tiet.docx");
     expect(titleButton).toHaveAttribute("aria-label", "Mở trong Tài liệu: bao-cao-q3-du-lieu-chi-tiet.docx");
     expect(titleButton.className).toContain("truncate");
-    const secondary = screen.getByText(/Phiên bản 3/);
-    expect(secondary.textContent).toBe("Phiên bản 3 · Đã chia sẻ với 1 người");
+    const secondary = screen.getByText(/Phiên bản 3/).parentElement!;
+    expect(secondary.textContent).toBe("Phiên bản 3· Đã chia sẻ với 1 người");
     expect(secondary.className).not.toContain("truncate");
     // A fixed width capped by the bubble, not the content's min width.
     const card = titleButton.closest("div.flex-col");
@@ -314,13 +328,41 @@ describe("ChatDocumentMessageRow", () => {
   it("shows the sender's share count and the viewer's level badge", () => {
     renderCard(documentMessage({ ...DOC, viewer_level: "comment", recipient_count: 4 }));
     expect(screen.getByText(/Đã chia sẻ với 4 người/)).toBeInTheDocument();
-    expect(screen.getByText("Nhận xét")).toBeInTheDocument();
+    levelBadges("Nhận xét");
   });
 
   it("renders no badge when the viewer level is absent (old server)", () => {
     renderCard(documentMessage({ ...DOC, viewer_level: undefined }));
     expect(screen.queryByText("Nhận xét")).not.toBeInTheDocument();
     expect(screen.queryByText("Chỉ xem")).not.toBeInTheDocument();
+  });
+
+  describe("room for the title at 390 touch (UNI-2012 V2-N1 V2-N2)", () => {
+    it("shows the level badge beside the title on a fine pointer and in the caption line on a coarse one", () => {
+      renderCard(documentMessage(FULL));
+      const { side, caption } = levelBadges("Quản lý");
+      // Beside the title: a sibling of the title column, gone under a coarse pointer.
+      const titleRow = screen.getByRole("button", { name: /Mở trong Tài liệu/ }).closest("div.flex.items-center");
+      expect(side.parentElement).toBe(titleRow);
+      expect(side).toHaveClass("pointer-coarse:hidden");
+      // In the caption line after the segments: hidden by default, shown under a coarse pointer.
+      const line = screen.getByText(/Phiên bản 3/).parentElement!;
+      expect(caption.parentElement).toBe(line);
+      expect(line.lastElementChild).toBe(caption);
+      expect(caption).toHaveClass("hidden", "pointer-coarse:inline-flex");
+      expect(caption).not.toHaveClass("pointer-coarse:hidden");
+    });
+
+    it("never breaks the caption inside a segment: each carries nowrap and the line wraps between them", () => {
+      renderCard(documentMessage({ ...FULL, recipient_count: 2 }));
+      const line = screen.getByText(/Phiên bản 3/).parentElement!;
+      expect(line).toHaveClass("flex", "flex-wrap");
+      expect(screen.getByText("Phiên bản 3")).toHaveClass("whitespace-nowrap");
+      const shared = screen.getByText(/Đã chia sẻ với 2 người/);
+      expect(shared).toHaveClass("whitespace-nowrap");
+      // The separator is decoration, not read out.
+      expect(shared.querySelector("[aria-hidden]")).toHaveTextContent("·");
+    });
   });
 
   describe("the touch \"…\" (UNI-2012 V1-F9)", () => {
