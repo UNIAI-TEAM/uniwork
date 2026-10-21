@@ -111,9 +111,9 @@ export function submitButton(dialog: Locator): Locator {
   return dialog.getByRole("button", { name: "Tải lên", exact: true });
 }
 
-/** The aggregate toast of a finished run: "Đã tải lên 4 tệp vào «Ho so 2052»". */
+/** The aggregate toast of a finished run: Đã tải lên 4 tệp vào "Ho so 2052" (straight double quotes). */
 export async function expectDoneToast(page: Page, count: number, name: string): Promise<void> {
-  await expect(page.getByText(`Đã tải lên ${count} tệp vào «${name}»`)).toBeVisible({ timeout: 120_000 });
+  await expect(page.getByText(`Đã tải lên ${count} tệp vào "${name}"`)).toBeVisible({ timeout: 120_000 });
 }
 
 /** A row of the library table whose title contains `stem` (a file's title may or may not keep its extension). */

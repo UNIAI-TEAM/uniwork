@@ -8,9 +8,11 @@ import {
   fileKey,
   isExpired,
   isRetryableCode,
+  isRetryableError,
   isTransient,
   newIdempotencyKey,
   planBody,
+  rateLimitWaitMs,
   RETRY_DELAYS_MS,
   sleep,
   withRetry,
@@ -24,6 +26,7 @@ import type {
 } from "./runner-types";
 import {
   asFolderUploadRefusal,
+  FolderUploadRefusedError,
   type FileTarget,
   type FolderUploadBatch,
   type FolderUploadCompleteItem,
@@ -39,6 +42,9 @@ import type { PlannedFile } from "./types";
 
 /** The oldest file waiting in the complete buffer waits at most this long. */
 const MAX_WAIT_FLUSH_MS = 1_500;
+
+/** Per-file complete result: another complete holds the file's upload session (server AMENDMENT 6). */
+const BUSY_CODE = "upload_session_busy";
 
 type LocalStatus = "queued" | "stored" | "done" | "failed";
 
@@ -168,6 +174,8 @@ export function runFolderUpload(opts: RunFolderUploadOptions): FolderUploadHandl
     refreshing ??= withRetry(() => transport.status(batchId as string, { signal }), signal)
       .then((batch) => {
         absorb(batch);
+        // A batch closed meanwhile answers its files without targets: end the run, never PUT blind.
+        if (batch.status === "canceled" || batch.status === "expired") end(batch.status);
         return true;
       })
       .catch((err: unknown) => {
@@ -189,6 +197,10 @@ export function runFolderUpload(opts: RunFolderUploadOptions): FolderUploadHandl
     for (const f of sent) {
       const r = byKey.get(f.key);
       if (!r) {
+        unanswered.push(f);
+      } else if (r.status !== "done" && r.error?.code === BUSY_CODE) {
+        // Another complete is checking this file: it stays pending, ask again.
+        f.code = BUSY_CODE;
         unanswered.push(f);
       } else if (r.status === "done") {
         f.status = "done";
@@ -218,15 +230,14 @@ export function runFolderUpload(opts: RunFolderUploadOptions): FolderUploadHandl
         if (left.length === 0 || retries >= RETRY_DELAYS_MS.length) break;
         await sleep(RETRY_DELAYS_MS[retries] as number, signal);
       }
-      // Never answered: still pending at the server, the bytes are kept.
-      for (const f of left) fail(f, "unknown", undefined, true);
+      // Never answered, or busy to the last: still pending at the server, the bytes are kept.
+      for (const f of left) fail(f, f.code === BUSY_CODE ? BUSY_CODE : "unknown", undefined, true);
     } catch (err) {
       if (stopped()) return;
       const kind = batchEnd(err);
       if (kind) return end(kind);
       const code = failureCode(err);
-      const retryable = isRetryableCode(code) || (err instanceof ApiError && err.status === 429);
-      for (const f of left) fail(f, code, undefined, retryable);
+      for (const f of left) fail(f, code, undefined, isRetryableError(err));
     }
   }
 
@@ -272,6 +283,7 @@ export function runFolderUpload(opts: RunFolderUploadOptions): FolderUploadHandl
     const blob = opts.file(f.planned.index);
     let retries = 0;
     let refreshed = false;
+    let waited429 = false;
     for (;;) {
       if (stopped()) return;
       // The clock check only saves a PUT; after one refresh the PUT decides
@@ -305,9 +317,17 @@ export function runFolderUpload(opts: RunFolderUploadOptions): FolderUploadHandl
           f.target = null;
           continue;
         }
-        if (isTransient(err) && retries < RETRY_DELAYS_MS.length) {
-          const delay = RETRY_DELAYS_MS[retries] as number;
-          retries += 1;
+        const limited = err instanceof ApiError && err.status === 429 && !waited429;
+        if (limited || (isTransient(err) && retries < RETRY_DELAYS_MS.length)) {
+          // A 429 waits Retry-After once, as withRetry does for complete/status.
+          let delay: number;
+          if (limited) {
+            waited429 = true;
+            delay = rateLimitWaitMs(err);
+          } else {
+            delay = RETRY_DELAYS_MS[retries] as number;
+            retries += 1;
+          }
           try {
             await sleep(delay, controller.signal);
           } catch {
@@ -315,7 +335,7 @@ export function runFolderUpload(opts: RunFolderUploadOptions): FolderUploadHandl
           }
           continue;
         }
-        return fail(f, failureCode(err));
+        return fail(f, failureCode(err), undefined, isRetryableError(err));
       }
     }
   }
@@ -353,6 +373,15 @@ export function runFolderUpload(opts: RunFolderUploadOptions): FolderUploadHandl
     return report();
   }
 
+  /** The server names a bad file by its file_key; the UI wants the path and name the person sees. */
+  function refusalWithFile(refusal: FolderUploadRefusedError | null): FolderUploadRefusedError | null {
+    const key = refusal?.fields.file_key;
+    const f = typeof key === "string" ? files.get(key) : undefined;
+    if (!refusal || !f) return refusal;
+    const fields = { ...refusal.fields, path: f.planned.path, filename: f.planned.filename };
+    return new FolderUploadRefusedError(refusal.code, refusal.status, fields, refusal.message);
+  }
+
   async function planAndRun(): Promise<FolderUploadReport> {
     emit();
     const probes = new Map<number, Awaited<ReturnType<typeof buildUploadProbe>>>();
@@ -380,7 +409,7 @@ export function runFolderUpload(opts: RunFolderUploadOptions): FolderUploadHandl
         }
       } catch (err) {
         if (stopped()) return finish();
-        const refusal = asFolderUploadRefusal(err);
+        const refusal = refusalWithFile(asFolderUploadRefusal(err));
         if (refusal?.code === "folder_uploads_busy" && !busyWaited) {
           busyWaited = true;
           phase = "waiting";
@@ -430,6 +459,10 @@ export function runFolderUpload(opts: RunFolderUploadOptions): FolderUploadHandl
       phase = "finished";
       emit();
       throw err;
+    }
+    if (batch.status === "canceled" || batch.status === "expired") {
+      end(batch.status);
+      return finish();
     }
     const queue: FileState[] = [];
     for (const sf of batch.files) {

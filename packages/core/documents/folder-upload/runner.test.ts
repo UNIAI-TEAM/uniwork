@@ -607,6 +607,145 @@ describe("runFolderUpload review-fe-r1 fixes", () => {
     const refused = setup(big, { multipartAboveBytes: 5, partSize: 4, putFailures: { "big.pdf": ["partial-403"] } });
     expect(await settle(refused.handle.done)).toMatchObject({ done: 1 });
     // The fresh target lists every part again, so the server wants them all.
-    expect(seen(refused.transport)).toEqual([[], []]);
+    expect(seen(refused.transport)).toEqual([[], [1]]);
+  });
+
+  it("R2B-5: a refresh that lists only the missing parts sends parts 1-2 no more", async () => {
+    // 14 bytes in 4-byte parts = parts 1-4; the failed PUT stored parts 1-2, so the fresh target lists 3-4.
+    const { transport, handle } = setup([{ path: "R/big.pdf", size: 14 }], {
+      multipartAboveBytes: 5,
+      partSize: 4,
+      partialParts: 2,
+      putFailures: { "big.pdf": ["partial-403"] },
+    });
+    expect(await settle(handle.done)).toMatchObject({ done: 1, failed: [] });
+    const puts = transport.calls.flatMap((c) => (c.method === "put" ? [c] : []));
+    const listed = (i: number) => (puts[i]?.target.kind === "multipart" ? puts[i].target.parts.map((p) => p.part_number) : []);
+    expect(listed(0)).toEqual([1, 2, 3, 4]);
+    expect(listed(1)).toEqual([3, 4]);
+    expect(puts[1]?.storedParts).toEqual([1, 2]);
+  });
+});
+
+describe("runFolderUpload retry classification by status (review r2, R2B-2)", () => {
+  const puts = (calls: FakeFolderUploadCall[]) => calls.filter((c) => c.method === "put");
+  const unavailable = { status: 503, code: "storage_unavailable" };
+
+  it("a 503 with a server code at the content PUT ends retryable, and retryFailed completes it", async () => {
+    const { transport, handle } = setup(files(1), { putFailures: { "f000.pdf": [unavailable, unavailable, unavailable] } });
+    const report = await settle(handle.done);
+    expect(report.failed).toEqual([{ path: "R/f000.pdf", filename: "f000.pdf", code: "storage_unavailable", retryable: true }]);
+    expect(report.canRetry).toBe(true);
+    const retried = await settle(handle.retryFailed());
+    expect(retried).toMatchObject({ done: 1, failed: [], canRetry: false });
+    expect(puts(transport.calls)).toHaveLength(4);
+  });
+
+  it("a 503 with a server code on complete ends retryable, and retryFailed completes without a PUT", async () => {
+    const { transport, handle } = setup(files(1));
+    for (let i = 0; i < 3; i++) transport.failNext("complete", folderUploadApiError(503, "storage_unavailable"));
+    const report = await settle(handle.done);
+    expect(report.failed).toEqual([{ path: "R/f000.pdf", filename: "f000.pdf", code: "storage_unavailable", retryable: true }]);
+    const before = transport.calls.length;
+    const retried = await settle(handle.retryFailed());
+    expect(transport.calls.slice(before).map((c) => c.method)).toEqual(["status", "complete"]);
+    expect(retried).toMatchObject({ done: 1, failed: [] });
+  });
+
+  it("a 429 at the content PUT waits Retry-After once, then succeeds", async () => {
+    const { transport, handle } = setup(files(1), {
+      putFailures: { "f000.pdf": [{ status: 429, code: "rate_limited", retryAfter: 7 }] },
+    });
+    await vi.advanceTimersByTimeAsync(6_900);
+    expect(puts(transport.calls)).toHaveLength(1);
+    const report = await settle(handle.done);
+    expect(puts(transport.calls)).toHaveLength(2);
+    expect(report).toMatchObject({ done: 1, failed: [] });
+  });
+
+  it("a second 429 at the content PUT ends retryable", async () => {
+    const limited = { status: 429, code: "rate_limited", retryAfter: 1 };
+    const { handle } = setup(files(1), { putFailures: { "f000.pdf": [limited, limited] } });
+    const report = await settle(handle.done);
+    expect(report.failed).toEqual([{ path: "R/f000.pdf", filename: "f000.pdf", code: "rate_limited", retryable: true }]);
+  });
+
+  it("a 429 that persists on complete ends retryable", async () => {
+    const { transport, handle } = setup(files(1));
+    for (let i = 0; i < 2; i++) transport.failNext("complete", folderUploadApiError(429, "rate_limited", {}, 1));
+    const report = await settle(handle.done);
+    expect(report.failed).toEqual([{ path: "R/f000.pdf", filename: "f000.pdf", code: "rate_limited", retryable: true }]);
+  });
+});
+
+describe("runFolderUpload server AMENDMENT 6", () => {
+  const completes = (calls: FakeFolderUploadCall[]) => calls.filter((c) => c.method === "complete");
+  const puts = (calls: FakeFolderUploadCall[]) => calls.filter((c) => c.method === "put");
+
+  it("6a: upload_session_busy on complete is re-sent by the runner, with no second PUT", async () => {
+    const { transport, handle } = setup(files(2), { busyComplete: { "f000.pdf": 1 } });
+    const report = await settle(handle.done);
+    expect(completes(transport.calls).map((c) => (c.method === "complete" ? c.items.map((i) => i.file_key) : []))).toEqual([
+      ["f-0001", "f-0002"],
+      ["f-0001"],
+    ]);
+    expect(puts(transport.calls)).toHaveLength(2);
+    expect(report).toMatchObject({ done: 2, failed: [], canRetry: false });
+  });
+
+  it("6a: a busy file that stays busy is reported upload_session_busy and retryable, and retryFailed completes it", async () => {
+    const { transport, handle } = setup(files(1), { busyComplete: { "f000.pdf": 3 } });
+    const report = await settle(handle.done);
+    // First attempt plus at most two more (1 s and 3 s apart).
+    expect(completes(transport.calls)).toHaveLength(3);
+    expect(report.failed).toEqual([{ path: "R/f000.pdf", filename: "f000.pdf", code: "upload_session_busy", retryable: true }]);
+    expect(report.canRetry).toBe(true);
+    const before = transport.calls.length;
+    const retried = await settle(handle.retryFailed());
+    expect(transport.calls.slice(before).map((c) => c.method)).toEqual(["status", "complete"]);
+    expect(retried).toMatchObject({ done: 1, failed: [] });
+  });
+
+  it("6b: a plan refusal that names a file_key gains the file's path and filename", async () => {
+    const { handle } = setup(files(3), {
+      errors: { plan: [folderUploadApiError(422, "invalid_request", { file_key: "f-0002", reason: "name" })] },
+    });
+    const err = await settle(handle.done.catch((e: unknown) => e));
+    expect(err).toBeInstanceOf(FolderUploadRefusedError);
+    expect(err).toMatchObject({
+      code: "invalid_request",
+      fields: { file_key: "f-0002", reason: "name", path: "R/f001.pdf", filename: "f001.pdf" },
+    });
+  });
+
+  it("6b: an unknown file_key leaves the refusal fields as they are", async () => {
+    const fields = { file_key: "f-0099", reason: "name" };
+    const { handle } = setup(files(2), { errors: { plan: [folderUploadApiError(422, "invalid_request", fields)] } });
+    const err = await settle(handle.done.catch((e: unknown) => e));
+    expect((err as FolderUploadRefusedError).fields).toEqual(fields);
+  });
+
+  it("6c: an NFD filename matches the NFC path the server answers, by file_key", async () => {
+    const nfd = "Ba\u0301o ca\u0301o.pdf";
+    const nfc = "Báo cáo.pdf";
+    const { transport, handle } = setup([{ path: `R/${nfd}`, size: 1 }, { path: "R/b.pdf", size: 1 }], {
+      fileErrors: { [nfc]: { code: "unsupported_media", message: "" } },
+    });
+    const report = await settle(handle.done);
+    expect(transport.batch?.files[0]).toMatchObject({ path: "", filename: nfc });
+    expect(report.done).toBe(1);
+    expect(report.failed).toEqual([{ path: `R/${nfc}`, filename: nfc, code: "unsupported_media", retryable: false }]);
+  });
+
+  it("a status answer for a batch closed elsewhere (no targets) ends the run as canceled, with no further PUT", async () => {
+    const { transport, handle } = setup(files(1), { putFailures: { "f000.pdf": ["403"] } });
+    const release = transport.holdPuts();
+    await vi.advanceTimersByTimeAsync(0);
+    // Closed while the PUT is in flight: the refusal makes the runner ask status(), which answers no target.
+    await transport.cancel("batch-1");
+    release();
+    const report = await settle(handle.done);
+    expect(puts(transport.calls)).toHaveLength(1);
+    expect(report).toMatchObject({ canceled: true, canRetry: false });
   });
 });

@@ -67,7 +67,7 @@ export function uniqueRootName(name: string, siblingNames: readonly string[]): s
 function checkFile(
   filename: string,
   size: number,
-  limits: FolderUploadLimits,
+  limits: Pick<FolderUploadLimits, "perFileMaxBytes" | "uploadExtensions">,
 ): { ok: true } | { ok: false; reason: "unsupported_format" | "too_large" } {
   if (!limits.uploadExtensions) return validateDocumentUploadFile({ name: filename, size }, limits.perFileMaxBytes);
   const dot = filename.lastIndexOf(".");
@@ -75,6 +75,15 @@ function checkFile(
   if (!ext || !limits.uploadExtensions.includes(ext)) return { ok: false, reason: "unsupported_format" };
   if (size > limits.perFileMaxBytes) return { ok: false, reason: "too_large" };
   return { ok: true };
+}
+
+/**
+ * The name-level part of the planner's keep rule (not hidden, extension
+ * allowed), for readers that must not count what the planner would skip.
+ * `uploadExtensions` is the server list when the caller has it.
+ */
+export function isUploadableName(name: string, uploadExtensions?: readonly string[]): boolean {
+  return !isHiddenName(name) && checkFile(name, 0, { perFileMaxBytes: Number.POSITIVE_INFINITY, uploadExtensions }).ok;
 }
 
 interface Normalised {

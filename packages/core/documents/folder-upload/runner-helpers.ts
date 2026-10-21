@@ -56,6 +56,15 @@ export function isTransient(err: unknown): boolean {
   return err instanceof TypeError || (err instanceof ApiError && err.status >= 500);
 }
 
+/**
+ * Whether a failed server or storage call left the file pending, so a retry can
+ * send it again. Decided by status, not by the code string: a 5xx or a 429 that
+ * carries a server code (503 storage_unavailable) is still the server's "not now".
+ */
+export function isRetryableError(err: unknown): boolean {
+  return isTransient(err) || (err instanceof ApiError && err.status === 429) || isRetryableCode(failureCode(err));
+}
+
 export function failureCode(err: unknown): string {
   if (err instanceof FolderUploadError) return err.code;
   if (err instanceof ApiError) return err.code && err.code !== "internal" ? err.code : `http_${err.status}`;
@@ -82,6 +91,11 @@ export function batchEnd(err: unknown): "expired" | "canceled" | null {
   return null;
 }
 
+/** How long a 429 asks to wait: its Retry-After, else a second. */
+export function rateLimitWaitMs(err: ApiError): number {
+  return (err.retryAfterSeconds ?? RATE_LIMIT_WAIT_DEFAULT_S) * 1_000;
+}
+
 /**
  * One server call with the PUT retry rule: a network error or 5xx is tried
  * again after 1 s and 3 s, a 429 waits Retry-After once. Anything else, and
@@ -98,7 +112,7 @@ export async function withRetry<T>(call: () => Promise<T>, signal: AbortSignal):
       let delay: number;
       if (err instanceof ApiError && err.status === 429 && !waited429) {
         waited429 = true;
-        delay = (err.retryAfterSeconds ?? RATE_LIMIT_WAIT_DEFAULT_S) * 1_000;
+        delay = rateLimitWaitMs(err);
       } else if (isTransient(err) && retries < RETRY_DELAYS_MS.length) {
         delay = RETRY_DELAYS_MS[retries] as number;
         retries += 1;

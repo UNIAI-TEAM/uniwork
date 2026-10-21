@@ -163,4 +163,34 @@ describe("readDroppedFolders", () => {
     expect(folders[1]).toHaveLength(1);
     expect(truncated).toEqual([true, false]);
   });
+
+  it("R2B-1: only files the planner would upload count toward the bound", async () => {
+    // 2001 files (bound 2000), 100 uploadable: nothing is cut, every uploadable file is listed.
+    const junk = Array.from({ length: 1901 }, (_, i) => fakeFile(`img${i}.xyz`));
+    const keep = Array.from({ length: 100 }, (_, i) => fakeFile(`doc${i}.pdf`));
+    const top = fakeDir("Mixed", [...junk.slice(0, 1000), ...keep, ...junk.slice(1000), fakeFile(".DS_Store")]);
+    const { folders, truncated } = await readDroppedFolders([item(top)]);
+    expect(truncated).toEqual([false]);
+    expect(folders[0]?.filter((e) => e.path.endsWith(".pdf"))).toHaveLength(100);
+    expect(folders[0]).toHaveLength(2002);
+  });
+
+  it("R2B-1: more than the bound of uploadable files is truncated", async () => {
+    const top = fakeDir("Many", [
+      ...Array.from({ length: 50 }, (_, i) => fakeFile(`x${i}.xyz`)),
+      ...Array.from({ length: 2001 }, (_, i) => fakeFile(`d${i}.pdf`)),
+    ]);
+    const { folders, truncated } = await readDroppedFolders([item(top)]);
+    expect(truncated).toEqual([true]);
+    expect(folders[0]?.filter((e) => e.path.endsWith(".pdf"))).toHaveLength(2001);
+    expect(folders[0]).toHaveLength(2051);
+  });
+
+  it("R2B-1: the caller's upload extensions decide what counts", async () => {
+    const top = fakeDir("Ext", [...["a", "b", "c", "d", "e"].map((n) => fakeFile(`${n}.xyz`)), fakeFile("f.pdf")]);
+    const { truncated } = await readDroppedFolders([item(top)], { maxFiles: 1, uploadExtensions: ["xyz"] });
+    expect(truncated).toEqual([true]);
+    const other = await readDroppedFolders([item(top)], { maxFiles: 1, uploadExtensions: ["pdf"] });
+    expect(other.truncated).toEqual([false]);
+  });
 });

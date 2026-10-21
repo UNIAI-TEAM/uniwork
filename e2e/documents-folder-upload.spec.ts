@@ -104,7 +104,7 @@ test("FU-01 a picked 3-level folder shows its pre-flight, uploads private, lands
   await gotoTarget(page, scene);
   await pickFolder(page);
   const again = folderDialog(page);
-  await expect(again.getByTestId("folder-upload-renamed")).toContainText(`«${TREE_NAME} (1)»`);
+  await expect(again.getByTestId("folder-upload-renamed")).toContainText(`"${TREE_NAME} (1)"`);
   await runPickedFolder(page, `${TREE_NAME} (1)`);
 
   const folders = await targetFolders(page, scene);
@@ -266,22 +266,39 @@ test("FU-05b exactly one picked file keeps the single-file dialog and opens the 
 test("FU-06 a viewer of the folder has no upload entry, folder or file", async ({ page }) => {
   const scene = await seedUploadScene(page, "fu-viewer", { withMemberB: true });
   const member = scene.member!;
-  // The owner's folder is private; the member is let in as a viewer only.
+  // The owner's folders are private; the member may edit one and only view the other.
+  const editable = await createFolder(page, scene.owner.token, scene.wsId, "Được sửa");
   const viewOnly = await createFolder(page, scene.owner.token, scene.wsId, "Chỉ xem");
+  await grantDocumentShare(page, scene.owner.token, editable.id, member.id, "edit");
   await grantDocumentShare(page, scene.owner.token, viewOnly.id, member.id, "view");
+  const sceneOf = (folder: { id: string; title: string }): UploadScene => ({ ...scene, target: { id: folder.id, title: folder.title } });
 
-  const viewerScene: UploadScene = { ...scene, target: { id: viewOnly.id, title: viewOnly.title } };
-  await openTarget(page, viewerScene, member.email);
+  // Positive control: the same drop, as the same member, on the folder they may edit opens the
+  // pre-flight. It proves dropFolder reaches the flow and how long the dialog takes to appear.
+  await openTarget(page, sceneOf(editable), member.email);
+  const dropped = Date.now();
+  await dropFolder(page, readTree());
+  await expect(preflightDialog(page)).toBeVisible({ timeout: 30_000 });
+  const controlMs = Date.now() - dropped;
+  await preflightDialog(page).getByRole("button", { name: "Hủy" }).click();
+  await expect(preflightDialog(page)).toBeHidden();
 
-  // The folder is open (breadcrumb) yet neither the Upload menu nor New is on the toolbar.
+  await gotoTarget(page, sceneOf(viewOnly));
+  // The folder is open (breadcrumb) and the library rendered, yet neither the Upload menu nor New is on the toolbar.
+  await expect(page.getByRole("region", { name: "Tài liệu", exact: true })).toBeVisible();
   await expect(uploadMenuButton(page)).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Tạo mới", exact: true })).toHaveCount(0);
   await expect(page.getByRole("menuitem", { name: "Tải lên thư mục" })).toHaveCount(0);
   await expect(page.getByRole("menuitem", { name: "Tải lên tệp" })).toHaveCount(0);
 
-  // A dropped folder does nothing for a viewer: no pre-flight, nothing created in the folder.
+  // A dropped folder does nothing for a viewer: no pre-flight for at least twice as long as the
+  // control needed, and nothing created in the folder.
   await dropFolder(page, readTree());
-  await expect(folderDialog(page)).toHaveCount(0);
+  const until = Date.now() + Math.max(2 * controlMs, 3_000);
+  while (Date.now() < until) {
+    await expect(preflightDialog(page)).toHaveCount(0);
+    await page.waitForTimeout(200);
+  }
   const { documents } = await listDocuments(page, scene.owner.token, scene.wsId, { parent_id: viewOnly.id });
   expect(documents).toEqual([]);
 });

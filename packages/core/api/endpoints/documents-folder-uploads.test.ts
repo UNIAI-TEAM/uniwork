@@ -367,7 +367,7 @@ describe("putToStorage through the transport", () => {
     expect(fetch).not.toHaveBeenCalled();
   });
 
-  it.each(["//evil.test/api/v1/c", "/\\evil.test/api/v1/c"])(
+  it.each(["//evil.test/api/v1/c", "/\\evil.test/api/v1/c", "/\t/evil.test/api/v1/c", "/\n/evil.test/api/v1/c", "/\r/evil.test/api/v1/c"])(
     "refuses a protocol-relative session target %s",
     async (url) => {
       const target: FileTarget = { kind: "put", method: "PUT", url, headers: {}, expires_at: FUTURE, auth: "session" };
