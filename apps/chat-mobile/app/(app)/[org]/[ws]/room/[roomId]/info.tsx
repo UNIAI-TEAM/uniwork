@@ -5,191 +5,89 @@
 // pins, notes and polls; its members with presence (a tap on someone else
 // opens a DM, report or block); for a DM, block and report (room-safety.tsx);
 // and leaving it.
-import { Ionicons } from "@expo/vector-icons";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { isDefaultWorkspaceChannel } from "@uniwork/core/chat/chat-room-helpers";
+import type { RoomTimeline } from "@uniwork/core/chat/room-timeline-pages";
+import { voiceCallKindFromServer } from "@uniwork/core/chat/voice-call-kind";
 import { router, Stack, useLocalSearchParams } from "expo-router";
 import { useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ActivityIndicator, Alert, Pressable, ScrollView, TextInput, View } from "react-native";
+import { ScrollView, TextInput, View } from "react-native";
 import { ChatHeader } from "@/components/chat/chat-header";
-import { RoomAvatar } from "@/components/chat/room-avatar";
 import { DmSafetyRows, MemberSafetySheet, type SafetyPerson } from "@/components/chat/room-safety";
-import { Divider, QuickAction } from "@/components/chat/room-info/quick-action";
+import { RoomInfoHero, RoomQuickActions } from "@/components/chat/room-info/hero";
+import { KeptRow } from "@/components/chat/room-info/kept-row";
+import { LeaveRoomRow } from "@/components/chat/room-info/leave-row";
+import { RoomMembersSection } from "@/components/chat/room-info/members-section";
+import { Divider } from "@/components/chat/room-info/quick-action";
+import { RoomSearchResults } from "@/components/chat/room-info/search-results";
 import { SharedSection } from "@/components/chat/room-info/shared-section";
 import { useChatWorkspace, type ChatWorkspace } from "@/components/chat/use-chat-workspace";
 import { useRoomContext } from "@/components/chat/use-room-context";
-import { RoomMemberRow } from "@/components/people/member-rows";
-import { SearchField } from "@/components/ui/search-field";
 import { ensureCallPermissions } from "@/components/ui/permission-gate";
-import { Text } from "@/components/ui/text";
-import { useMobileFlag } from "@/data/remote-config";
+import { SearchField } from "@/components/ui/search-field";
 import { callEngine } from "@/data/calls/call-store";
 import { useLeaveRoom, useSetRoomMuted } from "@/data/mutations/rooms";
-import type { RoomTimeline } from "@uniwork/core/chat/room-timeline-pages";
 import { roomSearchOptions, roomTimelineOptions, sharedSummaryOptions } from "@/data/queries/chat";
-import { chatRoutes } from "@/lib/chat-routes";
-import { deepLinkHref } from "@/lib/deep-link";
-import { messagePreviewText } from "@/lib/message-display";
-import { senderLabelFor } from "@/lib/people-display";
-import { canCallRoom, keptCounts, roomHeaderMark } from "@/lib/conversation-display";
-import { THEME } from "@/lib/theme";
-import { formatMessageDay, toTimelineMessage } from "@/lib/timeline-display";
-import { useColorScheme } from "@/components/ui/use-color-scheme";
-import { voiceCallKindFromServer } from "@uniwork/core/chat/voice-call-kind";
+import { useMobileFlag } from "@/data/remote-config";
 import { toast } from "@/data/stores/toast-store";
+import { chatRoutes } from "@/lib/chat-routes";
+import { canCallRoom, keptCounts } from "@/lib/conversation-display";
+import { deepLinkHref } from "@/lib/deep-link";
+import { senderLabelFor } from "@/lib/people-display";
 
-/** Members shown before "Xem tất cả" (the board lists four). */
-const MEMBERS_PREVIEW = 5;
+/** The screen once the workspace resolved: its queries and the wiring of the parts (components/chat/room-info/). */
 function RoomInfo({ chat, roomId }: { chat: ChatWorkspace; roomId: string }) {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const qc = useQueryClient();
   const leaveRoom = useLeaveRoom(chat.wsId).mutateAsync;
   const setRoomMuted = useSetRoomMuted(chat.wsId).mutateAsync;
-  const { colorScheme } = useColorScheme();
-  const theme = THEME[colorScheme];
   const room = useRoomContext(chat, roomId);
   const searchInput = useRef<TextInput>(null);
   const [q, setQ] = useState("");
-  const [allMembers, setAllMembers] = useState(false);
   const [memberMenu, setMemberMenu] = useState<SafetyPerson | null>(null);
   const search = useQuery(roomSearchOptions(chat.wsId, roomId, q));
   const shared = useQuery(sharedSummaryOptions(chat.wsId, roomId)).data;
   const muted = room.room?.notifications_muted === true;
-  const canLeave = room.room !== null && !isDefaultWorkspaceChannel(room.room);
   const callsOn = useMobileFlag("unichat_mobile_calls");
-  const callable = canCallRoom(room.room, callsOn);
-  const isGroup = room.room?.kind === "group";
-  const memberCount = room.members.length || (room.room?.member_count ?? 0);
-  const heroLine =
-    room.room?.kind === "dm"
-      ? room.peerOnline
-        ? t("chat.presence_online")
-        : null
-      : memberCount > 0
-        ? t("chat.group_member_count", { count: memberCount })
-        : null;
   // Pins, notes and polls among the messages the room already loaded; the row opens the room, where the pinned bar is.
   const loaded = qc.getQueryData<RoomTimeline>(roomTimelineOptions(chat.wsId, roomId).queryKey);
   const kept = useMemo(() => keptCounts((loaded?.pages ?? []).flat()), [loaded]);
-  const members = allMembers ? room.members : room.members.slice(0, MEMBERS_PREVIEW);
-
-  const leave = () =>
-    Alert.alert(t("chat.leave_conversation_confirm_title"), room.room?.kind === "dm" ? t("chat.leave_conversation_confirm_description_dm") : t("chat.leave_conversation_confirm_description_group"), [
-      { text: t("common.cancel"), style: "cancel" },
-      {
-        text: t("chat.leave_conversation"),
-        style: "destructive",
-        onPress: () =>
-          void leaveRoom(roomId)
-            .then(() => router.dismissAll())
-            .catch(() => toast.error(t("chat.leave_conversation_failed"))),
-      },
-    ]);
+  const openAt = (messageId?: string) => router.dismissTo(chatRoutes.room(chat, roomId, messageId));
 
   return (
     <View className="flex-1 bg-background">
       <ChatHeader title={t("chat.mobile.room_info")} centered flat />
       <ScrollView keyboardShouldPersistTaps="handled" contentContainerClassName="pb-10">
-        <View className="items-center px-5 pb-5 pt-3">
-          <RoomAvatar mark={roomHeaderMark(room.room, room.title, room.peerOnline)} size={84} seed={roomId} />
-          <Text className="mt-3 text-center text-title1 font-display font-extrabold leading-7 text-foreground" accessibilityRole="header">
-            {room.title}
-          </Text>
-          {heroLine ? <Text className="mt-0.5 text-callout text-muted-foreground">{heroLine}</Text> : null}
-        </View>
-
+        <RoomInfoHero room={room.room} roomId={roomId} title={room.title} peerOnline={room.peerOnline} memberCount={room.members.length || (room.room?.member_count ?? 0)} />
         {room.room ? (
-          <View className="flex-row justify-center gap-1 px-2 pb-4">
-            <QuickAction
-              icon={muted ? "notifications-outline" : "notifications-off-outline"}
-              label={muted ? t("chat.mobile.unmute_notifications") : t("chat.settings_mute_notifications")}
-              onPress={() => void setRoomMuted({ roomId, muted: !muted }).catch(() => toast.error(t("common.error")))}
-            />
-            <QuickAction icon="search" label={t("chat.mobile.search_short")} accessibilityLabel={t("chat.search_messages")} onPress={() => searchInput.current?.focus()} />
-            {callable ? (
-              <QuickAction
-                icon="call-outline"
-                label={t("chat.mobile.call_short")}
-                accessibilityLabel={t("chat.voice_call_start")}
-                onPress={() => void ensureCallPermissions(false).then(() => callEngine.startCall(roomId, room.title, voiceCallKindFromServer(room.room?.kind), { withCamera: false }))}
-              />
-            ) : null}
-            {isGroup ? <QuickAction icon="person-add-outline" label={t("chat.add_to_group")} accessibilityLabel={t("chat.add_group_members")} onPress={() => router.push(chatRoutes.newGroup(chat, roomId))} /> : null}
-          </View>
+          <RoomQuickActions
+            muted={muted}
+            callable={canCallRoom(room.room, callsOn)}
+            isGroup={room.room.kind === "group"}
+            onToggleMute={() => void setRoomMuted({ roomId, muted: !muted }).catch(() => toast.error(t("common.error")))}
+            onSearch={() => searchInput.current?.focus()}
+            onCall={() => void ensureCallPermissions(false).then(() => callEngine.startCall(roomId, room.title, voiceCallKindFromServer(room.room?.kind), { withCamera: false }))}
+            onAddPeople={() => router.push(chatRoutes.newGroup(chat, roomId))}
+          />
         ) : null}
 
         <View className="px-5 pb-3.5">
-          <SearchField
-            ref={searchInput}
-            value={q}
-            onChangeText={setQ}
-            placeholder={t("chat.search_messages")}
-            accessibilityLabel={t("chat.search_messages")}
-          />
+          <SearchField ref={searchInput} value={q} onChangeText={setQ} placeholder={t("chat.search_messages")} accessibilityLabel={t("chat.search_messages")} />
         </View>
-        {search.isFetching ? <ActivityIndicator className="py-3" accessibilityLabel={t("chat.search_loading")} /> : null}
-        {q.trim().length >= 2 && search.data?.length === 0 ? <Text className="px-5 pb-3 text-callout text-muted-foreground">{t("chat.search_messages_no_results")}</Text> : null}
-        {(search.data ?? []).map((record) => {
-          const message = toTimelineMessage(record);
-          return (
-            <Pressable
-              key={record.id}
-              accessibilityRole="button"
-              onPress={() => router.dismissTo(chatRoutes.room(chat, roomId, record.id))}
-              className="min-h-14 justify-center gap-0.5 px-5 py-2 active:bg-secondary"
-            >
-              <Text className="text-caption text-muted-foreground">
-                {room.senderName(message)} · {formatMessageDay(message.ts, i18n.language, { today: t("chat.day_today"), yesterday: t("chat.sidebar_yesterday") })}
-              </Text>
-              <Text className="text-callout text-foreground" numberOfLines={2}>
-                {messagePreviewText(record, t)}
-              </Text>
-            </Pressable>
-          );
-        })}
+        <RoomSearchResults query={q} fetching={search.isFetching} results={search.data} senderName={room.senderName} onOpen={openAt} />
 
         <Divider />
-        {shared ? <SharedSection shared={shared} onOpenMessage={(messageId) => router.dismissTo(chatRoutes.room(chat, roomId, messageId))} /> : null}
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => router.dismissTo(chatRoutes.room(chat, roomId))}
-          className="min-h-[60px] flex-row items-center gap-3 border-t-hairline border-border px-5 active:bg-secondary"
-        >
-          <View className="h-10 w-10 items-center justify-center rounded-xl bg-tint-yellow">
-            <Ionicons name="pin-outline" size={20} color={theme.tintYellowForeground} />
-          </View>
-          <View className="flex-1">
-            <Text className="text-subhead font-semibold text-foreground">{t("chat.mobile.shared_notes_row")}</Text>
-            <Text className="text-footnote text-muted-foreground">{t("chat.mobile.shared_notes_counts", kept)}</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={18} color={theme.mutedForeground} />
-        </Pressable>
+        {shared ? <SharedSection shared={shared} onOpenMessage={openAt} /> : null}
+        <KeptRow kept={kept} onPress={() => openAt()} />
 
         <Divider />
-        <View className="px-5 pb-2 pt-3.5">
-          <View className="mb-1 flex-row items-center">
-            <Text className="flex-1 text-footnote font-semibold text-muted-foreground" accessibilityRole="header">
-              {room.members.length > 0 ? `${t("chat.members_title")} · ${room.members.length}` : t("chat.members_title")}
-            </Text>
-            {room.members.length > MEMBERS_PREVIEW && !allMembers ? (
-              <Pressable accessibilityRole="button" onPress={() => setAllMembers(true)} hitSlop={10} className="min-h-11 justify-center">
-                <Text className="text-footnote font-semibold text-primary">{t("chat.mobile.see_all")}</Text>
-              </Pressable>
-            ) : null}
-          </View>
-          {members.map((member, index) => (
-            <RoomMemberRow
-              key={member.user_id}
-              userId={member.user_id}
-              name={senderLabelFor({ sender: member.user_id }, chat.userId, t("chat.you"), room.nameContext)}
-              email={member.email}
-              admin={member.role === "admin"}
-              last={index === members.length - 1}
-              onOpen={member.user_id === chat.userId ? undefined : setMemberMenu}
-            />
-          ))}
-        </View>
+        <RoomMembersSection
+          members={room.members}
+          currentUserId={chat.userId}
+          nameOf={(member) => senderLabelFor({ sender: member.user_id }, chat.userId, t("chat.you"), room.nameContext)}
+          onOpen={setMemberMenu}
+        />
 
         {room.room?.kind === "dm" && room.room.peer_user_id ? (
           <>
@@ -198,13 +96,10 @@ function RoomInfo({ chat, roomId }: { chat: ChatWorkspace; roomId: string }) {
           </>
         ) : null}
 
-        {canLeave ? (
+        {room.room !== null && !isDefaultWorkspaceChannel(room.room) ? (
           <>
             <Divider />
-            <Pressable accessibilityRole="button" onPress={leave} className="min-h-14 flex-row items-center gap-3 px-5 active:bg-secondary">
-              <Ionicons name="exit-outline" size={22} color={theme.destructive} />
-              <Text className="text-body font-semibold text-destructive">{t("chat.leave_conversation")}</Text>
-            </Pressable>
+            <LeaveRoomRow dm={room.room.kind === "dm"} onLeave={() => leaveRoom(roomId)} />
           </>
         ) : null}
       </ScrollView>

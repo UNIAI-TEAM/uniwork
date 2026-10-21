@@ -6,96 +6,25 @@
 // its details block, unblock and report, as on the web.
 import { useQuery } from "@tanstack/react-query";
 import { router } from "expo-router";
-import { memo, useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ActivityIndicator, Pressable, ScrollView, SectionList, View } from "react-native";
+import { ActivityIndicator, SectionList, View } from "react-native";
 import { useWorkspaceSlugs } from "@/components/chat/use-chat-workspace";
-import { shortNameOf } from "@uniwork/core/chat/initials";
-import { PersonAvatar } from "@/components/people/person-avatar";
-import { useIsOnline } from "@/components/people/use-is-online";
+import { ContactItem, ContactSeparator } from "@/components/contacts/contact-item";
+import { LetterIndex } from "@/components/contacts/letter-index";
+import { OnlineStrip } from "@/components/contacts/online-strip";
 import { Button } from "@/components/ui/button";
 import { Header } from "@/components/ui/header";
 import { SearchField } from "@/components/ui/search-field";
-import { Separator } from "@/components/ui/separator";
 import { Text } from "@/components/ui/text";
 import { useAuthStore } from "@/data/auth/store";
 import { nicknamesOptions, workspaceMembersOptions } from "@/data/queries/chat";
 import { deactivatedMembersOptions } from "@/data/queries/org-members";
-import { usePresenceStore } from "@/data/stores/chat-presence-store";
 import { useWorkspaceStore } from "@/data/stores/workspace-store";
 import { contactSections, type ContactRow } from "@/lib/contacts-display";
-import { userKey } from "@/lib/user-id";
 import { deepLinkHref } from "@/lib/deep-link";
 
 const NO_ONE: readonly string[] = [];
-
-/** Inset past the avatar, inside each letter group. */
-function RowSeparator() {
-  return <Separator className="ml-[72px] w-auto" />;
-}
-
-/** The online people as a horizontal strip of faces, each opening the DM; the only part of the tab that reads the whole presence set. */
-function OnlineStrip({ people, onPress }: { people: ContactRow[]; onPress: (row: ContactRow) => void }) {
-  const { t } = useTranslation();
-  // The workspace's one heartbeat (use-chat-realtime.ts) and user.presence frames keep this set.
-  const online = usePresenceStore((s) => s.onlineUserIds);
-  const rows = useMemo(() => people.filter((row) => online[userKey(row.user_id)]), [people, online]);
-  if (rows.length === 0) return null;
-  return (
-    <View className="pb-3 pt-2">
-      <View className="flex-row items-center gap-1.5 px-4">
-        <View className="h-2 w-2 rounded-full bg-success-solid" />
-        <Text accessibilityRole="header" className="text-footnote font-semibold text-muted-foreground">
-          {`${t("chat.presence_online")} · ${rows.length}`}
-        </Text>
-      </View>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerClassName="gap-2 px-4 pt-2.5">
-        {rows.map((row) => (
-          <Pressable
-            key={row.user_id}
-            onPress={() => onPress(row)}
-            accessibilityRole="button"
-            accessibilityLabel={`${row.label}, ${t("chat.presence_online")}`}
-            className="w-16 items-center gap-1 rounded-lg active:bg-secondary"
-          >
-            <PersonAvatar name={row.label} avatarUrl={row.avatar_url} size={52} online seed={row.user_id} />
-            <Text numberOfLines={1} className="max-w-16 text-caption text-muted-foreground">
-              {shortNameOf(row.label)}
-            </Text>
-          </Pressable>
-        ))}
-      </ScrollView>
-      <View className="mt-3 h-2 bg-muted" />
-    </View>
-  );
-}
-
-/** One person; redraws when that person comes or goes, not when anyone else does. */
-const ContactItem = memo(function ContactItem({ row, onPress }: { row: ContactRow; onPress: (row: ContactRow) => void }) {
-  const { t } = useTranslation();
-  const online = useIsOnline(row.user_id);
-  const subtitle = row.label === row.email ? "" : row.email;
-  return (
-    <Pressable
-      onPress={() => onPress(row)}
-      accessibilityRole="button"
-      accessibilityLabel={[row.label, online ? t("chat.presence_online") : "", subtitle].filter(Boolean).join(", ")}
-      className="min-h-[60px] flex-row items-center gap-3 px-4 py-2 active:bg-secondary"
-    >
-      <PersonAvatar name={row.label} avatarUrl={row.avatar_url} size={44} online={online} seed={row.user_id} />
-      <View className="flex-1">
-        <Text numberOfLines={1} className="text-body font-semibold text-foreground">
-          {row.label}
-        </Text>
-        {subtitle ? (
-          <Text numberOfLines={1} className="text-callout text-muted-foreground">
-            {subtitle}
-          </Text>
-        ) : null}
-      </View>
-    </Pressable>
-  );
-});
 
 export default function ContactsTab() {
   const { t } = useTranslation();
@@ -165,7 +94,7 @@ export default function ContactsTab() {
           </Text>
         )}
         renderItem={({ item }) => <ContactItem row={item} onPress={openDm} />}
-        ItemSeparatorComponent={RowSeparator}
+        ItemSeparatorComponent={ContactSeparator}
         ListEmptyComponent={empty}
         refreshing={members.isRefetching}
         onRefresh={() => {
@@ -175,20 +104,10 @@ export default function ContactsTab() {
       />
       {/* MobContacts board: the letters down the right edge jump to their section. */}
       {sections.length > 1 && !query.trim() ? (
-        <View className="absolute bottom-0 right-0 top-0 justify-center pr-1" accessibilityRole="menubar" accessibilityLabel={t("chat.mobile.alphabet_index")}>
-          {sections.map((section, index) => (
-            <Pressable
-              key={section.title}
-              accessibilityRole="button"
-              accessibilityLabel={section.title}
-              hitSlop={{ left: 12, right: 6 }}
-              onPress={() => list.current?.scrollToLocation({ sectionIndex: index, itemIndex: 0, viewOffset: 0, animated: true })}
-              className="w-6 items-center py-[1px]"
-            >
-              <Text className="text-meta font-semibold text-primary">{section.title}</Text>
-            </Pressable>
-          ))}
-        </View>
+        <LetterIndex
+          letters={sections.map((section) => section.title)}
+          onJump={(sectionIndex) => list.current?.scrollToLocation({ sectionIndex, itemIndex: 0, viewOffset: 0, animated: true })}
+        />
       ) : null}
     </View>
   );

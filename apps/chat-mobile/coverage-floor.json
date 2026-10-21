@@ -30,6 +30,18 @@
       "functions": 100,
       "lines": 100
     },
+    "components/calls/call-log-filters.tsx": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
+    "components/calls/call-log-row.tsx": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
     "components/calls/call-overlay.tsx": {
       "statements": 100,
       "branches": 94,
@@ -86,7 +98,7 @@
     },
     "components/chat/composer.tsx": {
       "statements": 96,
-      "branches": 94,
+      "branches": 95,
       "functions": 100,
       "lines": 100
     },
@@ -186,7 +198,37 @@
       "functions": 100,
       "lines": 100
     },
+    "components/chat/room-info/hero.tsx": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
+    "components/chat/room-info/kept-row.tsx": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
+    "components/chat/room-info/leave-row.tsx": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
+    "components/chat/room-info/members-section.tsx": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
     "components/chat/room-info/quick-action.tsx": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
+    "components/chat/room-info/search-results.tsx": {
       "statements": 100,
       "branches": 100,
       "functions": 100,
@@ -312,6 +354,24 @@
       "functions": 100,
       "lines": 100
     },
+    "components/contacts/contact-item.tsx": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
+    "components/contacts/letter-index.tsx": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
+    "components/contacts/online-strip.tsx": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
     "components/people/member-rows.tsx": {
       "statements": 100,
       "branches": 100,
@@ -320,7 +380,7 @@
     },
     "components/people/person-avatar.tsx": {
       "statements": 100,
-      "branches": 54,
+      "branches": 72,
       "functions": 100,
       "lines": 100
     },
@@ -361,6 +421,12 @@
       "lines": 100
     },
     "components/settings/licenses-list.tsx": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
+    "components/settings/option-group.tsx": {
       "statements": 100,
       "branches": 100,
       "functions": 100,

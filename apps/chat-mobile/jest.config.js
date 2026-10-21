@@ -42,7 +42,8 @@ module.exports = {
   // The whole component tree and the data layer's React hooks (the files vitest.config.ts leaves
   // out), so every file of the app but the route files (app/, which only compose and hold no
   // tests) is measured by exactly one of the two layers; a new component is measured the day it
-  // lands. Route files keep no logic: it moves to components/ or data/ (CLAUDE.md › Tab Chat).
+  // lands. Route files define no component or hook of their own (lib/route-files.test.ts): their
+  // parts live in components/ or data/ (CLAUDE.md › Tab Chat); what is left there is composition.
   collectCoverageFrom: [
     "components/**/*.{ts,tsx}",
     "data/mutations/*.ts",

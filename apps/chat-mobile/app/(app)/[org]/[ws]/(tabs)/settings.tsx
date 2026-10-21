@@ -14,6 +14,7 @@ import { PersonAvatar } from "@/components/people/person-avatar";
 import { AboutSection } from "@/components/settings/about-section";
 import { DeleteAccountSection } from "@/components/settings/delete-account";
 import { LegalSection } from "@/components/settings/legal-section";
+import { OptionGroup, type Option } from "@/components/settings/option-group";
 import { DevicesSection } from "@/components/settings/devices-section";
 import { PushSection } from "@/components/settings/push-section";
 import { SettingsSection } from "@/components/settings/settings-section";
@@ -30,9 +31,6 @@ import type { SupportedLocale } from "@/lib/i18n/singleton";
 import { continuousCorners } from "@/lib/radius";
 import { THEME } from "@/lib/theme";
 import { useColorScheme, type ThemePreference } from "@/components/ui/use-color-scheme";
-import { cn } from "@/lib/utils";
-
-type Option<T> = { value: T; label: string; icon?: keyof typeof Ionicons.glyphMap };
 
 const THEME_OPTIONS: Option<ThemePreference>[] = [
   { value: "system", label: "settings.preferences.themeSystem", icon: "phone-portrait-outline" },
@@ -43,57 +41,6 @@ const LOCALE_OPTIONS: Option<SupportedLocale>[] = [
   { value: "vi", label: "settings.preferences.languageVi" },
   { value: "en", label: "settings.preferences.languageEn" },
 ];
-
-/** A titled segmented control: one tap picks a segment, as the radio rows it replaces did. */
-function OptionGroup<T extends string>({
-  title,
-  options,
-  value,
-  onChange,
-}: {
-  title: string;
-  options: Option<T>[];
-  value: T;
-  onChange: (value: T) => void;
-}) {
-  const { t } = useTranslation();
-  const { colorScheme } = useColorScheme();
-  return (
-    <View className="gap-2">
-      <Text accessibilityRole="header" className="px-1 text-caption font-semibold uppercase tracking-wider text-muted-foreground">
-        {title}
-      </Text>
-      <View accessibilityRole="radiogroup" accessibilityLabel={title} className="flex-row gap-1.5 rounded-xl bg-card p-1.5" style={continuousCorners}>
-        {options.map((option) => {
-          const selected = option.value === value;
-          return (
-            <Pressable
-              key={option.value}
-              onPress={() => onChange(option.value)}
-              accessibilityRole="radio"
-              accessibilityState={{ checked: selected }}
-              className={cn(
-                "flex-1 items-center justify-center gap-1.5 rounded-lg",
-                option.icon ? "min-h-[68px] py-2" : "min-h-11 py-2",
-                selected ? "bg-primary" : "bg-muted active:bg-secondary",
-              )}
-            >
-              {option.icon ? (
-                <Ionicons name={option.icon} size={20} color={selected ? THEME[colorScheme].primaryForeground : THEME[colorScheme].foreground} />
-              ) : null}
-              <Text
-                numberOfLines={1}
-                className={cn("font-semibold", option.icon ? "text-footnote" : "text-subhead", selected ? "text-primary-foreground" : "text-foreground")}
-              >
-                {t(option.label)}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </View>
-    </View>
-  );
-}
 
 export default function SettingsTab() {
   const { t } = useTranslation();

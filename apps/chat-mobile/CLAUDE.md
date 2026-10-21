@@ -264,11 +264,18 @@ một dòng thì ghi lý do ở dòng trên.
   màn hình ở `app/(app)/[org]/[ws]/{(tabs)/chat,room/[roomId]/{index,info,thread/[rootId]},new-chat,new-group,channels}.tsx`
   + `components/chat/*`. Route tab `/{org}/{ws}/chat` nhận `room`/`message`/`dm`
   của `lib/deep-link.ts › deepLinkHref` (hợp đồng với push và tab khác): `lib/deep-link-target.ts` (thuần) quyết
-  định, `components/chat/use-deep-link-target.ts` (jest) làm. File route chỉ ghép màn: logic có nhánh nằm ở `lib/`
-  (thuần, vitest — `quickCatchUp`, `pickerPeople`, `channelDirectory`, `canCallRoom`, `keptCounts`,
-  `missedCallCount`, `selectQueuedRoomIds`) hoặc ở hook của `components/` có test jest; không đặt test dưới `app/`.
-  Component con không định nghĩa trong file route: `components/chat/room-info/*` (khối "Đã chia sẻ", nút nhanh) cho
-  chi tiết phòng; realtime cấp workspace là `data/realtime/use-workspace-realtime.ts`.
+  định, `components/chat/use-deep-link-target.ts` (jest) làm. File route chỉ ghép màn — query, state của màn và nối
+  các phần — và **không được đo** (jest không đo `app/`), nên logic có nhánh nằm ở `lib/` (thuần, vitest —
+  `quickCatchUp`, `pickerPeople`, `channelDirectory`, `canCallRoom`, `keptCounts`, `missedCallCount`,
+  `selectQueuedRoomIds`) hoặc ở component/hook của `components/` có test jest; không đặt test dưới `app/`. Component
+  con không định nghĩa trong file route, và đây là luật có test: `lib/route-files.test.ts` đỏ khi một file route
+  định nghĩa hàm, component hay hook nào ngoài export default và các tên liệt kê kèm lý do ở đó (`ErrorBoundary`,
+  composition root của `app/_layout.tsx`, thân màn sau cổng workspace như `RoomInfo`; danh sách chỉ co lại). Phần
+  con nằm ở `components/`: `components/calls/call-log-{row,filters}.tsx`, `components/contacts/*` (dải đang hoạt
+  động, hàng người, chữ cái nhảy mục), `components/settings/option-group.tsx`, `components/chat/room-info/*` (đầu
+  trang, nút nhanh, kết quả tìm, ghim, thành viên, rời phòng, "Đã chia sẻ"); realtime cấp workspace là
+  `data/realtime/use-workspace-realtime.ts`. JSX có điều kiện còn lại trong file route (chọn trạng thái rỗng/lỗi,
+  handler một dòng) không có test component.
   Chuỗi: cả subtree `chat` của core + `chat.mobile.*` trong
   `scripts/sync-i18n.mjs`. `lib/message-display.ts › messageContent` đọc record một lần thành union phân biệt
   (`{ view: "image", file }`, `{ view: "poll", poll }`…): card nhận payload đã thu hẹp, không `x!` (lint
@@ -449,7 +456,8 @@ Hai lớp test, không chung file (ADR 0037 — cả hai chặn ở mọi `GATE_
   ACTIVE thứ hai. Test đếm render chờ hàng xuất hiện (`waitFor`), không chờ một khoảng cố định.
   `test/jest-resolver.js` thay resolver của worklets (bản gốc khớp mọi đường dẫn
   pnpm có chữ `react-native-worklets`, làm mất mock native của Expo). Coverage đo **cả cây** `components/**` và các
-  hook React của `data/` mà vitest bỏ ra (mỗi file đúng một lớp đo; chỉ `app/` không đo — file route chỉ ghép).
+  hook React của `data/` mà vitest bỏ ra (mỗi file đúng một lớp đo; chỉ `app/` không đo — file route chỉ ghép, không
+  định nghĩa component con: `lib/route-files.test.ts`).
   Sàn theo từng file ở `coverage-floor.json` (`scripts/mobile-coverage-floor.mjs --write` sau một lần
   `test:components`: lấy số cao hơn giữa sàn cũ và hôm nay, không bao giờ hạ; file đã xoá thì rời); file chưa ghi
   (component mới) gộp vào sàn `global` 90/80/90/90 — component mới không test thì đỏ
