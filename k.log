@@ -1,0 +1,4 @@
+$ for i in $(seq 1 14); do test -f /tmp/pr7r4-e2e.exit && break; sleep 30; done; echo "DONE_FILE=$(test -f /tmp/pr7r4-e2e.exit && echo yes || echo no)"; tail -2 /tmp/pr7r4-e2e.log
+DONE_FILE=no
+(node:22301) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
