@@ -46,8 +46,28 @@ describe("account endpoints", () => {
     expect(request).toHaveBeenCalledWith("/api/v1/me", { method: "PATCH", body: JSON.stringify({ locale: "vi" }) });
   });
 
+  it("setPushPreviews puts the person's choice and reads the user back", async () => {
+    request.mockResolvedValueOnce({ user: { ...user, push_previews: false } });
+    await expect(account.setPushPreviews(false)).resolves.toMatchObject({ id: "u1", push_previews: false });
+    expect(request).toHaveBeenCalledWith("/api/v1/me/push-previews", { method: "PUT", body: JSON.stringify({ show: false }) });
+    // A drifted flag reads as absent (shown), never as a crash.
+    request.mockResolvedValueOnce({ user: { ...user, push_previews: "no" } });
+    expect((await account.setPushPreviews(true))?.push_previews).toBeUndefined();
+  });
+
+  it("pushPreviewPolicy reads the organization's rule, and a drifted answer reads as not hidden", async () => {
+    request.mockResolvedValueOnce({ hidden: true, hidden_at: "2026-10-22T08:00:00Z", can_manage: false });
+    await expect(account.pushPreviewPolicy("acme corp")).resolves.toEqual({ hidden: true, can_manage: false });
+    expect(request).toHaveBeenCalledWith("/api/v1/orgs/acme%20corp/push-preview-policy", { signal: undefined });
+    for (const raw of [null, "<html>", { hidden: "yes", can_manage: 1 }]) {
+      request.mockResolvedValueOnce(raw);
+      await expect(account.pushPreviewPolicy("acme")).resolves.toEqual({ hidden: false, can_manage: false });
+    }
+  });
+
   it.each([null, [], { user: null }, { user: { id: 7 } }])("a malformed user answer (%j) degrades to null", async (raw) => {
     request.mockResolvedValue(raw);
+    await expect(account.setPushPreviews(false)).resolves.toBeNull();
     await expect(account.setAiConsent("v1")).resolves.toBeNull();
     await expect(account.withdrawAiConsent()).resolves.toBeNull();
     await expect(account.setLocale("en")).resolves.toBeNull();

@@ -8,60 +8,15 @@
 // (components/app/privacy-guard.tsx) carries them out.
 import { useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { Switch, View } from "react-native";
 import { useAnnounce } from "@/components/ui/a11y";
 import { Text } from "@/components/ui/text";
-import { TintTile } from "@/components/ui/tint-tile";
-import { useColorScheme } from "@/components/ui/use-color-scheme";
 import { RELOCK_AFTER_MS, relockFromValue, relockLabel, type RelockAfterMs } from "@/lib/app-lock";
-import type { Tint } from "@/lib/tint";
-import { THEME } from "@/lib/theme";
 import { authenticateOwner, deviceCanLock, updatePrivacySettings, usePrivacySettings } from "@/components/app/privacy";
 import { OptionGroup, type Option } from "./option-group";
 import { SettingsSection } from "./settings-section";
+import { SwitchRow } from "./switch-row";
 
 const RELOCK_OPTIONS: Option<`${RelockAfterMs}`>[] = RELOCK_AFTER_MS.map((ms) => ({ value: `${ms}`, label: relockLabel(ms) }));
-
-function SwitchRow({
-  icon,
-  tint,
-  label,
-  hint,
-  value,
-  disabled,
-  first,
-  onChange,
-}: {
-  icon: Parameters<typeof TintTile>[0]["icon"];
-  tint: Tint;
-  label: string;
-  hint: string;
-  value: boolean;
-  disabled?: boolean;
-  first?: boolean;
-  onChange: (next: boolean) => void;
-}) {
-  const { colorScheme } = useColorScheme();
-  return (
-    <View className={first ? "min-h-[60px] flex-row items-center gap-3 py-2 pl-4 pr-3.5" : "min-h-[60px] flex-row items-center gap-3 border-t-hairline border-border py-2 pl-4 pr-3.5"}>
-      <TintTile tint={tint} icon={icon} size={36} iconSize={19} className="rounded-[10px]" />
-      <View className="flex-1 gap-0.5 py-1">
-        <Text className="text-body text-foreground">{label}</Text>
-        <Text className="text-footnote text-muted-foreground">{hint}</Text>
-      </View>
-      <Switch
-        value={value}
-        disabled={disabled}
-        onValueChange={onChange}
-        trackColor={{ true: THEME[colorScheme].primary }}
-        accessibilityLabel={label}
-        accessibilityHint={hint}
-        // React Native's Switch does not tell assistive technology it is disabled.
-        accessibilityState={{ disabled: !!disabled, checked: value }}
-      />
-    </View>
-  );
-}
 
 export function PrivacySection({ children }: { children?: ReactNode }) {
   const { t } = useTranslation();

@@ -5,7 +5,7 @@ import { setAccessToken } from "../api/session";
 import { configureRuntime, resetRuntimeConfig } from "../runtime-config";
 import { workspaceKeys } from "../workspaces/keys";
 import { peopleKeys } from "../people/hooks";
-import { organizationKeys, orgMemberKeys, useCloseOrganization, useTransferOwnership } from "./hooks";
+import { organizationKeys, orgMemberKeys, useCloseOrganization, usePushPreviewPolicy, useSetPushPreviewPolicy, useTransferOwnership } from "./hooks";
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
@@ -91,5 +91,44 @@ describe("useTransferOwnership", () => {
     await act(() => result.current.mutateAsync({ toUserId: "u2", password: "pw" }));
     for (const key of touched) expect(qc.getQueryState(key)?.isInvalidated, JSON.stringify(key)).toBe(true);
     for (const key of untouched) expect(qc.getQueryState(key)?.isInvalidated, JSON.stringify(key)).toBe(false);
+  });
+});
+
+describe("push preview policy", () => {
+  beforeEach(() => {
+    setAccessToken("tok");
+    vi.stubGlobal("fetch", vi.fn());
+    configureRuntime({ apiUrl: "http://api.test" });
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    resetRuntimeConfig();
+    setAccessToken(null);
+  });
+
+  it("reads the policy under the organization, and a set replaces it with the server's answer", async () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    vi.mocked(fetch).mockResolvedValueOnce(json({ hidden: false, hidden_at: null, can_manage: true }));
+    const read = renderHook(() => usePushPreviewPolicy("acme"), { wrapper: wrapperFor(qc) });
+    await vi.waitFor(() => expect(read.result.current.data).toEqual({ hidden: false, hidden_at: null, can_manage: true }));
+
+    vi.mocked(fetch).mockResolvedValueOnce(json({ hidden: true, hidden_at: "2026-10-22T08:00:00Z", can_manage: true }));
+    const set = renderHook(() => useSetPushPreviewPolicy("acme"), { wrapper: wrapperFor(qc) });
+    await act(() => set.result.current.mutateAsync(true));
+    expect(qc.getQueryData(organizationKeys.pushPreviewPolicy("acme"))).toEqual({ hidden: true, hidden_at: "2026-10-22T08:00:00Z", can_manage: true });
+  });
+
+  it("reads nothing without an organization, and a refused set reads the policy again", async () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+    renderHook(() => usePushPreviewPolicy(""), { wrapper: wrapperFor(qc) });
+    expect(fetch).not.toHaveBeenCalled();
+
+    qc.setQueryData(organizationKeys.pushPreviewPolicy("acme"), { hidden: false, hidden_at: null, can_manage: true });
+    vi.mocked(fetch).mockResolvedValueOnce(json({ error: { code: "forbidden" } }, 403));
+    const set = renderHook(() => useSetPushPreviewPolicy("acme"), { wrapper: wrapperFor(qc) });
+    await act(async () => {
+      await set.result.current.mutateAsync(true).catch(() => undefined);
+    });
+    expect(qc.getQueryState(organizationKeys.pushPreviewPolicy("acme"))?.isInvalidated).toBe(true);
   });
 });

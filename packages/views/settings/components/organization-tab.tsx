@@ -14,6 +14,7 @@ import { toastApiError } from "../../toast-api-error";
 import { CloseOrganizationDialog } from "./close-organization-dialog";
 import { OrgInvitationsSection } from "./org-invitations-section";
 import { OrgMembersSection } from "./org-members-section";
+import { PushPreviewPolicySection } from "./push-preview-policy-section";
 import { decisionReason } from "./permission-reason";
 import { SettingsDangerZone, SettingsRow, SettingsRowReason, SettingsRowSkeleton, SettingsTab } from "./settings-layout";
 import { TransferOwnershipDialog, useTransferCandidates } from "./transfer-ownership-dialog";
@@ -105,6 +106,9 @@ export function OrganizationTab() {
       <OrgMembersSection orgSlug={orgSlug} />
 
       {canManageMembers.allowed ? <OrgInvitationsSection orgSlug={orgSlug} orgId={workspace.organization_id} /> : null}
+
+      {/* Owners and admins only: the section reads can_manage from the policy itself. */}
+      <PushPreviewPolicySection orgSlug={orgSlug} />
 
       {/* A plain member has only the Leave row, so the owner's sentence about
           handing the organization over would describe actions they lack. */}

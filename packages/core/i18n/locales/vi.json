@@ -5226,6 +5226,12 @@
       },
       "action_pending": "Đang đóng…",
       "reason_slug": "Gõ đúng định danh tổ chức để đóng."
+    },
+    "push_previews": {
+      "title": "Thông báo đẩy",
+      "description": "Nội dung thông báo đẩy đi qua dịch vụ đẩy của Expo, Google, Apple và trình duyệt, rồi hiện trên màn hình khoá.",
+      "hide": "Ẩn nội dung tin trong thông báo",
+      "hide_hint": "Áp dụng cho mọi thành viên: thông báo tin nhắn chỉ nói có tin mới, ai gửi và ở đâu, không hiện chữ trong tin."
     }
   },
   "invitations": {

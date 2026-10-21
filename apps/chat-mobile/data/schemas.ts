@@ -22,6 +22,8 @@ const UserSchema = z.object({
   // A drifted value reads as "not agreed": the consent sheet asks again rather than sending unasked.
   ai_consent_version: z.string().nullable().optional().catch(null),
   ai_consent_at: z.string().nullable().optional().catch(null),
+  // Absent or drifted reads as shown, the server's default (PUT /me/push-previews).
+  push_previews: z.boolean().optional().catch(undefined),
 });
 
 /** GET /api/v1/me */

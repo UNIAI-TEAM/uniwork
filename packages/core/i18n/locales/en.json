@@ -5269,6 +5269,12 @@
       },
       "action_pending": "Closing…",
       "reason_slug": "Type the organization slug exactly to close it."
+    },
+    "push_previews": {
+      "title": "Push notifications",
+      "description": "Push notifications travel through Expo, Google, Apple and browser push services, then show on lock screens.",
+      "hide": "Hide message text in notifications",
+      "hide_hint": "Applies to every member: a message notification only says that a message arrived, who sent it and where, never its words."
     }
   },
   "invitations": {

@@ -39,6 +39,7 @@ jest.mock("../safety-actions", () => ({ setBlocked: jest.fn(async () => undefine
 jest.mock("../safety-api", () => ({ safetyApi: { report: jest.fn(async () => ({ id: "rep1" })) } }));
 jest.mock("../account-api", () => ({ accountApi: { deleteAccount: jest.fn(async () => undefined) } }));
 jest.mock("../ai-consent", () => ({ answerAiConsent: jest.fn(async () => undefined) }));
+jest.mock("../push-previews", () => ({ setPushPreviews: jest.fn(async () => undefined) }));
 jest.mock("../api", () => ({ api: { tag: "transport" } }));
 jest.mock("../calls/native-calls", () => ({ nativeCalls: { available: true } }));
 jest.mock("../push", () => ({ setPushEnabled: jest.fn(async () => "ExponentPushToken[x]") }));
@@ -57,10 +58,11 @@ import { setBlocked } from "../safety-actions";
 import { safetyApi } from "../safety-api";
 import { accountApi } from "../account-api";
 import { answerAiConsent } from "../ai-consent";
+import { setPushPreviews } from "../push-previews";
 import { api } from "../api";
 import { setPushEnabled } from "../push";
 import { Platform } from "react-native";
-import { useAnswerAiConsent, useDeleteAccount, useRevokeDevice } from "./account";
+import { useAnswerAiConsent, useDeleteAccount, useRevokeDevice, useSetPushPreviews } from "./account";
 import { useSetPushEnabled } from "./push";
 import {
   useCreateTask,
@@ -84,7 +86,8 @@ const onMutationError = jest.fn();
 let qc: QueryClient;
 beforeEach(() => {
   jest.clearAllMocks();
-  qc = new QueryClient({ mutationCache: new MutationCache({ onError: onMutationError }), defaultOptions: { mutations: { retry: false } } });
+  // gcTime Infinity: a finished mutation would otherwise arm a five-minute timer that keeps Jest from exiting.
+  qc = new QueryClient({ mutationCache: new MutationCache({ onError: onMutationError }), defaultOptions: { mutations: { retry: false, gcTime: Infinity } } });
 });
 const wrapper = ({ children }: { children: ReactNode }) => <QueryClientProvider client={qc}>{children}</QueryClientProvider>;
 const hook = async <T,>(use: () => T) => (await renderHook(use, { wrapper })).result;
@@ -181,6 +184,8 @@ describe("safety and account commands", () => {
     await run(() => useAnswerAiConsent(), true);
     await run(() => useAnswerAiConsent(), false);
     expect(jest.mocked(answerAiConsent).mock.calls).toEqual([[true], [false]]);
+    await run(() => useSetPushPreviews(), false);
+    expect(jest.mocked(setPushPreviews).mock.calls).toEqual([[false]]);
     const ask = jest.fn(async () => true);
     expect(await run(() => useSetPushEnabled(), { enabled: true, ask })).toBe("ExponentPushToken[x]");
     expect(setPushEnabled).toHaveBeenCalledWith(true, { api, projectId: "proj-1", platform: Platform.OS, callUI: true, ask });

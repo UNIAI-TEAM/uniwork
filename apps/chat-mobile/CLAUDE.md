@@ -308,7 +308,11 @@ một dòng thì ghi lý do ở dòng trên.
   từng thư viện được link). Thêm quyền/dịch vụ thì sửa test đó, bảng quyền của `store/listing.md` và checklist Play
   App content của runbook cùng PR.
 - Quyền riêng tư trên máy (audit "Security & privacy", no-app-switcher-privacy-or-lock). Cài đặt › Quyền riêng tư và
-  bảo mật (`components/settings/privacy-section.tsx`): **Khoá UniChat** (`expo-local-authentication`: Face ID, vân tay
+  bảo mật (`components/settings/privacy-section.tsx`): **Hiện nội dung tin trong thông báo**
+  (`push-previews-row.tsx`; lựa chọn của tài khoản ở server: `PUT /me/push-previews`, `user.push_previews` trên `/me`,
+  `data/push-previews.ts`; tổ chức ẩn cho mọi người qua `GET/PUT /orgs/{org}/push-preview-policy` — owner/admin đổi ở web ›
+  Cài đặt › Tổ chức — thì công tắc tắt, khoá và nói lý do; ẩn thì push tin chat chỉ còn "Tin nhắn mới" kèm người gửi ở
+  tiêu đề, `PushConsumer` của server thay chữ), **Khoá UniChat** (`expo-local-authentication`: Face ID, vân tay
   hay mã khoá của máy — bật thì phải chứng minh chủ máy trước, máy không có khoá màn hình thì nói vậy) với "Khoá lại
   sau khi rời app" (ngay, 1, 5, 15 phút) và **Chặn chụp màn hình** (`expo-screen-capture`: Android `FLAG_SECURE`, cũng
   xoá ảnh trong màn đa nhiệm; iOS chặn chụp/quay). Luật thuần ở `lib/app-lock.ts` (`shouldLock`: mở lạnh luôn khoá,

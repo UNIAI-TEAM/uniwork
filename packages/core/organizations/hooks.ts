@@ -9,6 +9,7 @@ import { workspaceKeys } from "../workspaces/keys";
 export const organizationKeys = {
   list: () => ["organizations"] as const,
   workspaces: (orgId: string) => ["org-workspaces", orgId] as const,
+  pushPreviewPolicy: (orgSlug: string) => ["org-push-preview-policy", orgSlug] as const,
 };
 
 export function useOrganizations(enabled = true) {
@@ -57,6 +58,28 @@ export function useCreateWorkspaceInOrg() {
       void qc.invalidateQueries({ queryKey: organizationKeys.workspaces(workspace.organization_id) });
     },
     onError: () => qc.invalidateQueries({ queryKey: workspaceKeys.list() }),
+  });
+}
+
+/**
+ * Whether every chat push of the organization hides the message's words; every
+ * member reads it, `can_manage` says who may change it (owners and admins).
+ */
+export function usePushPreviewPolicy(orgSlug: string) {
+  return useQuery({
+    queryKey: organizationKeys.pushPreviewPolicy(orgSlug),
+    queryFn: () => organizations.getPushPreviewPolicy(orgSlug),
+    enabled: !!orgSlug,
+  });
+}
+
+/** Owners and admins hide (true) or show (false) the words; the answer replaces the cached policy. */
+export function useSetPushPreviewPolicy(orgSlug: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (hidden: boolean) => organizations.setPushPreviewPolicy(orgSlug, hidden),
+    onSuccess: (policy) => qc.setQueryData(organizationKeys.pushPreviewPolicy(orgSlug), policy),
+    onError: () => qc.invalidateQueries({ queryKey: organizationKeys.pushPreviewPolicy(orgSlug) }),
   });
 }
 

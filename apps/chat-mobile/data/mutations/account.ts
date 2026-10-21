@@ -1,9 +1,10 @@
 // The account's own commands: delete it, sign another device out, answer the
-// AI notice (push for this device is push.ts, to keep expo-notifications out
+// AI notice, show or hide message text in pushes (push for this device is push.ts, to keep expo-notifications out
 // of the screens that only need these). See command.ts for the layer's rule.
 import { DELETE_ACCOUNT_HANDLED_CODES, type DeleteAccountBody } from "@/lib/account-deletion";
 import { accountApi } from "../account-api";
 import { answerAiConsent } from "../ai-consent";
+import { setPushPreviews } from "../push-previews";
 import { deviceKeys, revokeDevice } from "../queries/devices";
 import { useCommand } from "./command";
 
@@ -23,3 +24,6 @@ export const useRevokeDevice = () =>
 
 /** Agree to (true) or withdraw from (false) the AI notice; the signed-in user follows (data/ai-consent.ts). */
 export const useAnswerAiConsent = () => useCommand("account.ai_consent", (_qc, agree: boolean) => answerAiConsent(agree));
+
+/** Show (true) or hide (false) the message's words in this person's chat pushes; the signed-in user follows (data/push-previews.ts). */
+export const useSetPushPreviews = () => useCommand("account.push_previews", (_qc, show: boolean) => setPushPreviews(show));
