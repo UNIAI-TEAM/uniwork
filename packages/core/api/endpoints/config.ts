@@ -28,6 +28,7 @@ interface DocumentWebOpenLimits {
 
 interface DocumentFolderUploadLimits {
   max_files: number;
+  max_folders: number;
   max_total_bytes: number;
   max_depth: number;
   parallel: number;
@@ -41,6 +42,8 @@ export interface DocumentLimits {
   chunked_upload_threshold_bytes?: number;
   /** Absent when the server has no folder uploads (UNI-2052): the entry point hides. */
   folder_upload?: DocumentFolderUploadLimits;
+  /** Extensions the server accepts (lower case, no dot); absent = the client's own list. */
+  upload_extensions?: string[];
 }
 
 const DEFAULT_DOCUMENT_WEB_OPEN_LIMITS: DocumentWebOpenLimits = {
@@ -82,9 +85,10 @@ const DocumentWebOpenSchema = z
 
 const DEFAULT_FOLDER_UPLOAD_LIMITS: DocumentFolderUploadLimits = {
   max_files: 500,
+  max_folders: 500,
   max_total_bytes: 2 * 1024 * 1024 * 1024,
   max_depth: 20,
-  parallel: 4,
+  parallel: 6,
   complete_batch: 50,
 };
 
@@ -93,6 +97,7 @@ const DEFAULT_FOLDER_UPLOAD_LIMITS: DocumentFolderUploadLimits = {
 const DocumentFolderUploadSchema = z
   .object({
     max_files: positiveIntField,
+    max_folders: positiveIntField,
     max_total_bytes: positiveIntField,
     max_depth: positiveIntField,
     parallel: positiveIntField,
@@ -104,6 +109,7 @@ const DocumentFolderUploadSchema = z
     block
       ? {
           max_files: block.max_files ?? DEFAULT_FOLDER_UPLOAD_LIMITS.max_files,
+          max_folders: block.max_folders ?? DEFAULT_FOLDER_UPLOAD_LIMITS.max_folders,
           max_total_bytes: block.max_total_bytes ?? DEFAULT_FOLDER_UPLOAD_LIMITS.max_total_bytes,
           max_depth: block.max_depth ?? DEFAULT_FOLDER_UPLOAD_LIMITS.max_depth,
           parallel: block.parallel ?? DEFAULT_FOLDER_UPLOAD_LIMITS.parallel,
@@ -112,6 +118,21 @@ const DocumentFolderUploadSchema = z
       : undefined,
   );
 
+// Entries that are not non-empty strings are dropped; a list left empty (or
+// not a list) is absent, because an empty allow-list would refuse every file.
+const UploadExtensionsSchema = z
+  .array(z.unknown())
+  .optional()
+  .catch(undefined)
+  .transform((list): string[] | undefined => {
+    const out = (list ?? []).flatMap((ext) => {
+      if (typeof ext !== "string") return [];
+      const clean = ext.trim().replace(/^\./, "").toLowerCase();
+      return clean ? [clean] : [];
+    });
+    return out.length > 0 ? out : undefined;
+  });
+
 const DocumentLimitsSchema = z
   .object({
     upload_max_bytes: positiveIntField,
@@ -119,6 +140,7 @@ const DocumentLimitsSchema = z
     chunked_upload_threshold_bytes: positiveIntField,
     web_open: DocumentWebOpenSchema,
     folder_upload: DocumentFolderUploadSchema,
+    upload_extensions: UploadExtensionsSchema,
   })
   .optional()
   .catch(undefined)
@@ -130,6 +152,7 @@ const DocumentLimitsSchema = z
       : {}),
     web_open: limits?.web_open ?? DEFAULT_DOCUMENT_WEB_OPEN_LIMITS,
     ...(limits?.folder_upload !== undefined ? { folder_upload: limits.folder_upload } : {}),
+    ...(limits?.upload_extensions !== undefined ? { upload_extensions: limits.upload_extensions } : {}),
   }));
 
 const DocumentsConfigSchema = z
