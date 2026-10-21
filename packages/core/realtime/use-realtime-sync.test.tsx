@@ -9,7 +9,7 @@ import type { WSMessage } from "../api/ws-types";
 import { chatKeys } from "../chat/hooks";
 import { documentKeys } from "../documents/keys";
 import { emailHubKeys } from "../email-hub/hooks";
-import { flattenRoomTimeline, type RoomTimeline } from "../chat/room-timeline";
+import { flattenRoomTimeline, type RoomTimeline } from "../chat/room-timeline-pages";
 import { graphKeys } from "../graph/keys";
 import { setSessionUser } from "../auth/hooks";
 import { resetAuthStoreForTests, useAuthStore } from "../auth/store";

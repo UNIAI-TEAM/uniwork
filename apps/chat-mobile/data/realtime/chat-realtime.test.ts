@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("../api", () => ({ api: { request: vi.fn() } }));
 
 import { chatApi } from "../chat-api";
-import { flattenRoomTimeline, type RoomTimeline } from "../chat-timeline";
+import { flattenRoomTimeline, type RoomTimeline } from "@uniwork/core/chat/room-timeline-pages";
 import { chatKeys } from "../queries/chat-keys";
 import { decodeFrame, type RealtimeFrame } from "./frames";
 import { BURST_CATCH_UP_MIN, createChatRealtime, ROOM_ACTIVITY_DEBOUNCE_MS, type ChatRealtimeDeps } from "./chat-realtime";

@@ -6,12 +6,7 @@ import { listChatRoomMessages, type ChatRoomRecord } from "../api/endpoints/chat
 import { workspaceKeys } from "../workspaces/hooks";
 import { useAuthStore } from "../auth/store";
 import { chatKeys } from "./chat-keys";
-import {
-  CHAT_HISTORY_PAGE_SIZE,
-  flattenRoomTimeline,
-  olderRoomPageParam,
-  type RoomMessagesPageParam,
-} from "./room-timeline";
+import { CHAT_HISTORY_PAGE_SIZE, flattenRoomTimeline, olderRoomPageParam, type RoomMessagesPageParam } from "./room-timeline-pages";
 import { chatUnreadBadge } from "./chat-room-helpers";
 
 export function useWorkspaceChatRoom(workspaceId: string) {

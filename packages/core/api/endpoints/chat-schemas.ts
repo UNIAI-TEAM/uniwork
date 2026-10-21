@@ -414,3 +414,14 @@ export function toWorkspaceChatRoom(data: WorkspaceChatRoom | null): WorkspaceCh
   if (!data?.enabled) return null;
   return data;
 }
+
+/**
+ * Query for the page older than `message`: its opaque cursor verbatim, or the
+ * second-precision `before` that a server sending no cursor still understands.
+ */
+export function olderThan(message: { cursor?: string; created_at: string }): {
+  cursor?: string;
+  before?: string;
+} {
+  return message.cursor ? { cursor: message.cursor } : { before: message.created_at };
+}

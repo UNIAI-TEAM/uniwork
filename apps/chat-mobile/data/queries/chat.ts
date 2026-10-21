@@ -3,13 +3,7 @@
 // factories (the screens call useQuery / useInfiniteQuery with them).
 import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
 import { chatApi } from "../chat-api";
-import {
-  CHAT_HISTORY_PAGE_SIZE,
-  compareMessages,
-  flattenRoomTimeline,
-  olderRoomPageParam,
-  type RoomMessagesPageParam,
-} from "../chat-timeline";
+import { CHAT_HISTORY_PAGE_SIZE, compareMessages, flattenRoomTimeline, olderRoomPageParam, type RoomMessagesPageParam } from "@uniwork/core/chat/room-timeline-pages";
 import { chatKeys } from "./chat-keys";
 
 export const roomsOptions = (wsId: string) =>

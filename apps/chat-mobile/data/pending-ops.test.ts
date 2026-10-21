@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("./api", () => ({ api: { request: vi.fn() } }));
 
-import { flattenRoomTimeline, type RoomTimeline } from "./chat-timeline";
+import { flattenRoomTimeline, type RoomTimeline } from "@uniwork/core/chat/room-timeline-pages";
 import { clearPendingOps, flushPendingOps, markRoomRead, pendingOpsDeps, toggleReaction, votePoll, type PendingOpsDeps } from "./pending-ops";
 import { chatKeys } from "./queries/chat-keys";
 import { installReportSink } from "./report";

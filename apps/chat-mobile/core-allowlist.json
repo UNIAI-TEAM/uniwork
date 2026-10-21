@@ -28,5 +28,6 @@
   "chat/voice-call-invites",
   "chat/voice-call-duration",
   "chat/typing-label",
-  "chat/contact-labels"
+  "chat/contact-labels",
+  "chat/room-timeline-pages"
 ]

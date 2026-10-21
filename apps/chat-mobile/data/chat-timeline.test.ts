@@ -9,24 +9,9 @@ vi.mock("./api", () => ({ api: { request: vi.fn() } }));
 import { chatApi } from "./chat-api";
 import { roomTimelineOptions } from "./queries/chat";
 import { chatKeys } from "./queries/chat-keys";
-import {
-  CHAT_HISTORY_PAGE_SIZE,
-  CHAT_MESSAGE_CACHE_MAX,
-  catchUpOnChatSubscribeAck,
-  catchUpRoomTimeline,
-  compareMessages,
-  flattenRoomTimeline,
-  insertCreatedTimelineMessage,
-  keepRoomTimelineHead,
-  markStaleUnlessObserved,
-  olderRoomPageParam,
-  olderThan,
-  refreshLoadedRoomTimelines,
-  refreshRoomTimelineOnOpen,
-  replaceTimelineMessage,
-  roomTimelineFetchInFlight,
-  type RoomTimeline,
-} from "./chat-timeline";
+import { olderThan } from "@uniwork/core/api/endpoints/chat-schemas";
+import { CHAT_HISTORY_PAGE_SIZE, CHAT_MESSAGE_CACHE_MAX, compareMessages, flattenRoomTimeline, insertCreatedTimelineMessage, keepRoomTimelineHead, olderRoomPageParam, replaceTimelineMessage, type RoomTimeline } from "@uniwork/core/chat/room-timeline-pages";
+import { catchUpOnChatSubscribeAck, catchUpRoomTimeline, markStaleUnlessObserved, refreshLoadedRoomTimelines, refreshRoomTimelineOnOpen, roomTimelineFetchInFlight } from "./chat-timeline";
 
 const msg = (id: string, minute: number): ChatMessageRecord => ({
   id,

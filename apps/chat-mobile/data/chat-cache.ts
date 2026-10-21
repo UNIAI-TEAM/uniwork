@@ -7,16 +7,8 @@ import type { QueryClient, QueryKey } from "@tanstack/react-query";
 import type { ChatMessageRecord, ChatRoomRecord } from "@uniwork/core/api/endpoints/chat-schemas";
 import { isDefaultWorkspaceChannel } from "@uniwork/core/chat/chat-room-helpers";
 import { chatApi } from "./chat-api";
-import {
-  compareMessages,
-  insertCreatedTimelineMessage,
-  mapRoomTimeline,
-  markStaleUnlessObserved,
-  replaceTimelineMessage,
-  roomTimelineFetchInFlight,
-  roomTimelineHas,
-  type RoomTimeline,
-} from "./chat-timeline";
+import { compareMessages, insertCreatedTimelineMessage, mapRoomTimeline, replaceTimelineMessage, roomTimelineHas, type RoomTimeline } from "@uniwork/core/chat/room-timeline-pages";
+import { markStaleUnlessObserved, roomTimelineFetchInFlight } from "./chat-timeline";
 import { chatKeys } from "./queries/chat-keys";
 import { sameUser } from "@/lib/user-id";
 

@@ -10,7 +10,7 @@ vi.mock("./api", () => ({ api: { request: vi.fn() } }));
 // The outbox directory is native; deps.files stands in for it here (outbox-files.test.ts covers it).
 vi.mock("expo-file-system", () => ({ Directory: class {}, File: class {}, Paths: {} }));
 
-import { flattenRoomTimeline, type RoomTimeline } from "./chat-timeline";
+import { flattenRoomTimeline, type RoomTimeline } from "@uniwork/core/chat/room-timeline-pages";
 import {
   chatSendDeps,
   clearChatOutbox,

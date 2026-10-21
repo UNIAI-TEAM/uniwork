@@ -3,18 +3,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import * as chatApi from "../api/endpoints/chat";
 import type { ChatMessageRecord } from "../api/endpoints/chat";
 import { chatKeys } from "./chat-keys";
-import {
-  CHAT_HISTORY_PAGE_SIZE,
-  CHAT_MESSAGE_CACHE_MAX,
-  catchUpRoomTimeline,
-  flattenRoomTimeline,
-  insertCreatedTimelineMessage,
-  keepRoomTimelineHead,
-  olderRoomPageParam,
-  refreshLoadedRoomTimelines,
-  replaceTimelineMessage,
-  type RoomTimeline,
-} from "./room-timeline";
+import { CHAT_HISTORY_PAGE_SIZE, CHAT_MESSAGE_CACHE_MAX, flattenRoomTimeline, insertCreatedTimelineMessage, keepRoomTimelineHead, olderRoomPageParam, replaceTimelineMessage, type RoomTimeline } from "./room-timeline-pages";
+import { catchUpRoomTimeline, refreshLoadedRoomTimelines } from "./room-timeline";
 
 const msg = (id: string, minute: number): ChatMessageRecord => ({
   id,

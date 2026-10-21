@@ -21,7 +21,8 @@ allowlist trong `scripts/mobile-core-allowlist.test.mjs` (`api/schema`,
 nhau; test đó đi theo import bắc cầu của từng mục nên mục không thuần phải
 tách file ở core, không nới lint. Fixture: `lib/lint-boundary.test.ts`.
 Logic thuần dùng chung nằm ở core và được import (UNI-2053 S7: `chat/search-fold`, `chat/initials`,
-`chat/identity-tint`, `chat/contact-labels`, `chat/typing-label`, `chat/voice-call-{types,kind,invites,duration}` —
+`chat/identity-tint`, `chat/contact-labels`, `chat/typing-label`, `chat/voice-call-{types,kind,invites,duration}`,
+`chat/room-timeline-pages` — trang timeline và mọi phép thuần trên nó, tách khỏi `room-timeline.ts` của core —
 web và điện thoại cùng một bản; thêm mục thì thêm vào `core-allowlist.json` và `exports` của core). Logic khác của web:
 **copy, ghi nguồn ở comment đầu file** ("Copied/Ported from …", "← packages/…"), test parity — không import.
 `web-copies.json` ghi sha256 của từng file nguồn web mà mỗi bản copy nêu, lúc bản copy được rà lần cuối;
@@ -254,7 +255,8 @@ một dòng thì ghi lý do ở dòng trên.
   `org-members.ts` (khoá tầng tổ chức), `workspaceKeys`, `deviceKeys`; thành viên workspace và biệt danh chỉ
   đọc qua `chatApi`. Call log refetch khi có `chat.voice.hangup` (server ghi log trước khi phát frame), khi hangup
   của chính máy xong (`onHangupSettled` của `call-store.ts`) và khi reconnect; reconnect cũng refetch thành viên), cache
-  (`chat-timeline.ts` ← core `room-timeline`, `chat-cache.ts` ← core
+  (`chat-timeline.ts` ← core `room-timeline` — chỉ phần thao tác cache trên `QueryClient`; trang và phép thuần import từ
+  `@uniwork/core/chat/room-timeline-pages` —, `chat-cache.ts` ← core
   `realtime-cache`, viewer là tham số), outbox bền (`chat-send.ts` +
   `stores/chat-send-store.ts`, mục Offline-first), `realtime/chat-realtime.ts` (bảng §8
   spec cha, thuần) và `realtime/use-chat-realtime.ts` (hook mỏng, gắn ở

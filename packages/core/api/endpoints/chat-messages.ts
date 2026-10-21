@@ -27,17 +27,6 @@ export async function listChatRoomMessages(
   return parsed.messages ?? [];
 }
 
-/**
- * Query for the page older than `message`: its opaque cursor verbatim, or the
- * second-precision `before` that a server sending no cursor still understands.
- */
-export function olderThan(message: { cursor?: string; created_at: string }): {
-  cursor?: string;
-  before?: string;
-} {
-  return message.cursor ? { cursor: message.cursor } : { before: message.created_at };
-}
-
 export async function markChatRoomRead(workspaceId: string, roomId: string): Promise<boolean> {
   const raw = await request(
     `/api/v1/workspaces/${enc(workspaceId)}/chat/rooms/${enc(roomId)}/read`,

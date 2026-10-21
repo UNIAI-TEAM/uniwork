@@ -15,7 +15,7 @@ import { hasReaction, pollTapsToReach, toggledPollChoice, withPollChoice, withRe
 import { isRetriableChatSendError } from "@/lib/send-pipeline";
 import { applyChatMessageResponse } from "./chat-cache";
 import { chatApi, type ChatApi } from "./chat-api";
-import type { RoomTimeline } from "./chat-timeline";
+import type { RoomTimeline } from "@uniwork/core/chat/room-timeline-pages";
 import { chatKeys } from "./queries/chat-keys";
 import { RefusedError, bestEffort, reportError } from "./report";
 import { createRetryTimers, type RetryTimers } from "./retry-timers";

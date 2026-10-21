@@ -16,13 +16,7 @@ import {
   patchRoomSidebarFromMessage,
   removeMessageFromList,
 } from "./realtime-cache";
-import {
-  CHAT_MESSAGE_CACHE_MAX,
-  compareMessages,
-  flattenRoomTimeline,
-  type RoomMessagesPageParam,
-  type RoomTimeline,
-} from "./room-timeline";
+import { CHAT_MESSAGE_CACHE_MAX, compareMessages, flattenRoomTimeline, type RoomMessagesPageParam, type RoomTimeline } from "./room-timeline-pages";
 
 const sampleMessage = (id: string, createdAt: string): ChatMessageRecord => ({
   id,

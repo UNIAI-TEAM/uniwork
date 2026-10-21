@@ -7,17 +7,8 @@ import { useAuthStore } from "../auth/store";
 import { chatKeys } from "./chat-keys";
 import { isDefaultWorkspaceChannel } from "./chat-room-helpers";
 import { useActiveChatRoomStore } from "./active-chat-room-store";
-import {
-  CHAT_MESSAGE_CACHE_MAX,
-  compareMessages,
-  insertCreatedTimelineMessage,
-  mapRoomTimeline,
-  markStaleUnlessObserved,
-  replaceTimelineMessage,
-  roomTimelineFetchInFlight,
-  roomTimelineHas,
-  type RoomTimeline,
-} from "./room-timeline";
+import { CHAT_MESSAGE_CACHE_MAX, compareMessages, insertCreatedTimelineMessage, mapRoomTimeline, replaceTimelineMessage, roomTimelineHas, type RoomTimeline } from "./room-timeline-pages";
+import { markStaleUnlessObserved, roomTimelineFetchInFlight } from "./room-timeline";
 
 export function mergeMessageIntoList(
   existing: ChatMessageRecord[] | undefined,

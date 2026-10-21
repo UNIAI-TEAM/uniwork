@@ -1,153 +1,17 @@
-// Copied from packages/core/chat/room-timeline.ts (it reaches the web
-// transport through listChatRoomMessages); chat-timeline.test.ts runs the core
-// cases. `olderThan` comes along from api/endpoints/chat-messages.ts. Index
-// reads the loop bounds already guarantee are cast instead of defaulted.
-import type { InfiniteData, QueryClient, QueryKey } from "@tanstack/react-query";
+// Copied from packages/core/chat/room-timeline.ts: a room timeline's cache
+// operations over a QueryClient (open, catch up, mark stale, refresh), which
+// reach the web transport through listChatRoomMessages there and the app's
+// chatApi here; chat-timeline.test.ts runs the core cases. The pages and the
+// pure operations on them are not copied: they are core's
+// (@uniwork/core/chat/room-timeline-pages), imported as is.
+import type { QueryClient, QueryKey } from "@tanstack/react-query";
 import type { ChatMessageRecord } from "@uniwork/core/api/endpoints/chat-schemas";
+import { CHAT_HISTORY_PAGE_SIZE, insertCreatedTimelineMessage, keepRoomTimelineHead, newestTimelineMessage, type RoomTimeline } from "@uniwork/core/chat/room-timeline-pages";
 import { settled } from "@/lib/settled";
 import { chatApi } from "./chat-api";
 import { chatKeys } from "./queries/chat-keys";
 
 const WS_SCOPE_CHAT = "chat";
-
-/**
- * Query for the page older than `message`: its opaque cursor verbatim, or the
- * second-precision `before` that a server sending no cursor still understands.
- */
-export function olderThan(message: { cursor?: string; created_at: string }): { cursor?: string; before?: string } {
-  return message.cursor ? { cursor: message.cursor } : { before: message.created_at };
-}
-
-/** Most messages one room timeline keeps in memory across its pages. */
-export const CHAT_MESSAGE_CACHE_MAX = 1000;
-/** Size of each older page after the newest one. */
-export const CHAT_HISTORY_PAGE_SIZE = 50;
-
-/** `null` is the newest page; an older page is asked for by its cursor. */
-export type RoomMessagesPageParam = ReturnType<typeof olderThan> | null;
-
-/**
- * One room's main timeline: `pages[0]` is the newest page, each later page is
- * the one just older than it, and every page is oldest-first. Pages are only
- * ever chained from the newest one by cursor, so the timeline has no holes.
- */
-export type RoomTimeline = InfiniteData<ChatMessageRecord[], RoomMessagesPageParam>;
-
-export function compareMessages(a: ChatMessageRecord, b: ChatMessageRecord): number {
-  const byTime = Date.parse(a.created_at) - Date.parse(b.created_at);
-  if (byTime !== 0) return byTime;
-  return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
-}
-
-function countMessages(data: RoomTimeline): number {
-  return data.pages.reduce((total, page) => total + page.length, 0);
-}
-
-/** The loaded timeline, oldest first. */
-export function flattenRoomTimeline(data: RoomTimeline): ChatMessageRecord[] {
-  const seen = new Set<string>();
-  const out: ChatMessageRecord[] = [];
-  for (const page of [...data.pages].reverse()) {
-    for (const message of page) {
-      if (seen.has(message.id)) continue;
-      seen.add(message.id);
-      out.push(message);
-    }
-  }
-  return out;
-}
-
-export function roomTimelineHas(data: RoomTimeline | undefined, messageId: string): boolean {
-  return data?.pages.some((page) => page.some((entry) => entry.id === messageId)) ?? false;
-}
-
-/** The newest loaded message, the point a catch-up reads after. */
-function newestTimelineMessage(data: RoomTimeline | undefined): ChatMessageRecord | undefined {
-  const head = data?.pages[0];
-  return head?.[head.length - 1];
-}
-
-/** Next (older) page param, or undefined once history or the memory cap is reached. */
-export function olderRoomPageParam(
-  lastPage: ChatMessageRecord[],
-  allPages: ChatMessageRecord[][],
-  lastPageParam: RoomMessagesPageParam,
-  headLimit: number,
-): RoomMessagesPageParam | undefined {
-  const pageSize = lastPageParam === null ? headLimit : CHAT_HISTORY_PAGE_SIZE;
-  const oldest = lastPage[0];
-  if (!oldest || lastPage.length < pageSize) return undefined;
-  if (allPages.reduce((total, page) => total + page.length, 0) >= CHAT_MESSAGE_CACHE_MAX) return undefined;
-  return olderThan(oldest);
-}
-
-/** Apply `patch` to every page; the same object back when nothing changed. */
-export function mapRoomTimeline(
-  data: RoomTimeline,
-  patch: (page: ChatMessageRecord[]) => ChatMessageRecord[],
-): RoomTimeline {
-  let changed = false;
-  const pages = data.pages.map((page) => {
-    const next = patch(page);
-    if (next !== page) changed = true;
-    return next;
-  });
-  return changed ? { ...data, pages } : data;
-}
-
-/** An update: replace the message wherever it is loaded, never insert it. */
-export function replaceTimelineMessage(data: RoomTimeline, message: ChatMessageRecord): RoomTimeline {
-  return mapRoomTimeline(data, (page) => {
-    const index = page.findIndex((entry) => entry.id === message.id);
-    if (index < 0) return page;
-    return [...page.slice(0, index), message, ...page.slice(index + 1)];
-  });
-}
-
-/** Drop the oldest pages (then the oldest rows of the newest one) past the cap. */
-function capRoomTimeline(data: RoomTimeline): RoomTimeline {
-  // Oldest pages go first; the newest (the first) always stays and loses its oldest rows instead.
-  let total = countMessages(data);
-  let kept = data.pages.length;
-  for (const page of [...data.pages].reverse()) {
-    if (total <= CHAT_MESSAGE_CACHE_MAX || kept === 1) break;
-    total -= page.length;
-    kept -= 1;
-  }
-  let trimmed = false;
-  const pages = data.pages.slice(0, kept).map((page, index) => {
-    if (index > 0 || page.length <= CHAT_MESSAGE_CACHE_MAX) return page;
-    trimmed = true;
-    return page.slice(page.length - CHAT_MESSAGE_CACHE_MAX);
-  });
-  return kept === data.pages.length && !trimmed ? data : { pages, pageParams: data.pageParams.slice(0, kept) };
-}
-
-/**
- * A new message. The newest page holds everything from its oldest row up to
- * now, so a message newer than that row belongs in it. One older than that
- * cannot be placed without a hole (it would become the next page's cursor):
- * null tells the caller to refetch instead.
- */
-export function insertCreatedTimelineMessage(
-  data: RoomTimeline,
-  message: ChatMessageRecord,
-): RoomTimeline | null {
-  if (roomTimelineHas(data, message.id)) return replaceTimelineMessage(data, message);
-  const head = data.pages[0];
-  if (!head) return null;
-  const oldest = head[0];
-  if (oldest && compareMessages(message, oldest) < 0) return null;
-  const at = head.findIndex((entry) => compareMessages(message, entry) < 0);
-  const nextHead = at < 0 ? [...head, message] : [...head.slice(0, at), message, ...head.slice(at)];
-  return capRoomTimeline({ ...data, pages: [nextHead, ...data.pages.slice(1)] });
-}
-
-/** Only the newest page, so reopening a room refetches one page, not its whole history. */
-export function keepRoomTimelineHead(data: RoomTimeline): RoomTimeline {
-  if (data.pages.length <= 1) return data;
-  return { pages: data.pages.slice(0, 1), pageParams: data.pageParams.slice(0, 1) };
-}
 
 /** Opening a room: forget the older pages scrolled in last time and refresh the newest. */
 export function refreshRoomTimelineOnOpen(qc: QueryClient, wsId: string, roomId: string): void {

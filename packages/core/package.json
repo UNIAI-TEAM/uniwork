@@ -125,6 +125,7 @@
     "./chat/merge-optimistic-chat-messages": "./chat/merge-optimistic-chat-messages.ts",
     "./chat/realtime-cache": "./chat/realtime-cache.ts",
     "./chat/room-timeline": "./chat/room-timeline.ts",
+    "./chat/room-timeline-pages": "./chat/room-timeline-pages.ts",
     "./chat/message-links": "./chat/message-links.ts",
     "./chat/lazy-chat-scopes": "./chat/lazy-chat-scopes.ts",
     "./chat/chat-room-helpers": "./chat/chat-room-helpers.ts",

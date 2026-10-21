@@ -21,7 +21,7 @@ import {
   togglePin,
 } from "./chat-actions";
 import { refreshMessageMedia } from "./chat-cache";
-import { flattenRoomTimeline, type RoomTimeline } from "./chat-timeline";
+import { flattenRoomTimeline, type RoomTimeline } from "@uniwork/core/chat/room-timeline-pages";
 import { chatKeys } from "./queries/chat-keys";
 
 const room = (id: string, extra: Partial<ChatRoomRecord> = {}): ChatRoomRecord => ({

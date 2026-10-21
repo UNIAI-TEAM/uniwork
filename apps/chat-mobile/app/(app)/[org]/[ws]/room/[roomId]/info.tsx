@@ -26,7 +26,7 @@ import { Text } from "@/components/ui/text";
 import { useMobileFlag } from "@/data/remote-config";
 import { callEngine } from "@/data/calls/call-store";
 import { useLeaveRoom, useSetRoomMuted } from "@/data/mutations/rooms";
-import type { RoomTimeline } from "@/data/chat-timeline";
+import type { RoomTimeline } from "@uniwork/core/chat/room-timeline-pages";
 import { roomSearchOptions, roomTimelineOptions, sharedSummaryOptions } from "@/data/queries/chat";
 import { chatRoutes } from "@/lib/chat-routes";
 import { deepLinkHref } from "@/lib/deep-link";

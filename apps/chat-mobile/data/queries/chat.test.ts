@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 vi.mock("../api", () => ({ api: { request: vi.fn() } }));
 
 import { chatApi } from "../chat-api";
-import { CHAT_HISTORY_PAGE_SIZE } from "../chat-timeline";
+import { CHAT_HISTORY_PAGE_SIZE } from "@uniwork/core/chat/room-timeline-pages";
 import {
   discoverableChannelsOptions,
   expressionsOptions,

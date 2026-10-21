@@ -28,8 +28,8 @@
     },
     "apps/chat-mobile/data/chat-actions.ts": {
       "packages/core/chat/chat-hooks-messages.ts": "bad524cfc6fa3cda99cb6153eb3b66381e8a6280db75c864380a7f5e91ff941e",
-      "packages/core/chat/chat-hooks-rooms.ts": "863f93daa298bbe0983de8f360d0038f8ee8b1981086820e1b1b92e5d79ef4e1",
-      "packages/core/chat/thread-hooks.ts": "69c3b30397a9f80beba7d77937b65619e03d08106643bcd6b9d57a061a93cc1c"
+      "packages/core/chat/chat-hooks-rooms.ts": "ec2b45feb5aa25c928167c63453dab344bd65f8a4a20cac2ca04eeacfef38dc6",
+      "packages/core/chat/thread-hooks.ts": "5bc995cb60f1b595b879ec635a88e236c60458976213e9a1573dbe39ab147e91"
     },
     "apps/chat-mobile/data/chat-api-schemas.ts": {
       "packages/core/api/endpoints/chat-media.ts": "36264e5f637a49b255b7750d3f76d7468b5728cfad19fb5399c16fe90c0408b0",
@@ -41,7 +41,7 @@
       "packages/core/api/endpoints/chat-follow-ups.ts": "eb59130cb4ae1ded248f7e3794b954b46a00e0de5fedef4140b03903a80a6e90",
       "packages/core/api/endpoints/chat-links.ts": "8feab86e7af5dcd5d7d3bd2ba41e3947d0e6434f6b6fd269911869544685658b",
       "packages/core/api/endpoints/chat-media.ts": "36264e5f637a49b255b7750d3f76d7468b5728cfad19fb5399c16fe90c0408b0",
-      "packages/core/api/endpoints/chat-messages.ts": "c999a5379a71f27a2f07b004381e8a42948c5250e70aadc837fef35e224fde03",
+      "packages/core/api/endpoints/chat-messages.ts": "07b0e5273b3c0e80ad8f3c9caf6ff00d105ff1ce5776684f55242139022e3deb",
       "packages/core/api/endpoints/chat-presence.ts": "e6687d52eb4ce4415f6f5b4165c005f32679ed107ba95cd5ef9629c998168c68",
       "packages/core/api/endpoints/chat-rooms.ts": "ac68560059a3f628fcd7dbbf2d89f5ccd62ded926fbb1ca355aa5f374adb4760",
       "packages/core/api/endpoints/chat-threads.ts": "e93f67664ca9dcc650b146bd2d38f30d842ba6d2df27fcb504a28b0e9acb78db",
@@ -49,21 +49,21 @@
       "packages/core/api/endpoints/chat-voice.ts": "b04b811253fede1bc585b4cda86edd8dfd1c86cc68238616a41a3787187b7ab0"
     },
     "apps/chat-mobile/data/chat-cache.ts": {
-      "packages/core/chat/realtime-cache.ts": "6bf7f2b99c91d914592afd29eedc3bffc20eb74444da9b015dd6d1d6b704d941"
+      "packages/core/chat/realtime-cache.ts": "51671370440377658ffdbaf8ccbdcf848d96aa1e52e27e95ce093f48f44ad58f"
     },
     "apps/chat-mobile/data/chat-send.ts": {
       "packages/core/chat/deliver-chat-text-message.ts": "8492a91fe558827741cad7ec0109769b8f3ebace6748c03fb2f4b057c4efcb8c",
       "packages/core/chat/send-retry.ts": "52b3a188a4394ab989b3bc519d99ef1fc9cf78739f4cc7912102adcd21250394"
     },
     "apps/chat-mobile/data/chat-timeline.ts": {
-      "packages/core/chat/room-timeline.ts": "b8f47bbbf01aed560cc3f388a6822f543cec529c082c010596f3598876370838"
+      "packages/core/chat/room-timeline.ts": "8ab9748f43ad1506c16e2fb89ccbae4effa516b6151d5ee34ae596da52e648d9"
     },
     "apps/chat-mobile/data/queries/chat.ts": {
-      "packages/core/chat/chat-hooks-rooms.ts": "863f93daa298bbe0983de8f360d0038f8ee8b1981086820e1b1b92e5d79ef4e1",
-      "packages/core/chat/thread-hooks.ts": "69c3b30397a9f80beba7d77937b65619e03d08106643bcd6b9d57a061a93cc1c"
+      "packages/core/chat/chat-hooks-rooms.ts": "ec2b45feb5aa25c928167c63453dab344bd65f8a4a20cac2ca04eeacfef38dc6",
+      "packages/core/chat/thread-hooks.ts": "5bc995cb60f1b595b879ec635a88e236c60458976213e9a1573dbe39ab147e91"
     },
     "apps/chat-mobile/data/realtime/chat-realtime.ts": {
-      "packages/core/chat/realtime-cache.ts": "6bf7f2b99c91d914592afd29eedc3bffc20eb74444da9b015dd6d1d6b704d941",
+      "packages/core/chat/realtime-cache.ts": "51671370440377658ffdbaf8ccbdcf848d96aa1e52e27e95ce093f48f44ad58f",
       "packages/core/realtime/use-realtime-sync.ts": "c084aa7dd868ced906fe4b4e9ed98fa983a77efc870264220d32ff7ec2dcc4f8"
     },
     "apps/chat-mobile/data/realtime/use-chat-scopes.ts": {

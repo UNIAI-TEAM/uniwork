@@ -18,7 +18,7 @@ import {
   removeMessageFromList,
   type ChatViewer,
 } from "./chat-cache";
-import { compareMessages, flattenRoomTimeline, type RoomMessagesPageParam, type RoomTimeline } from "./chat-timeline";
+import { compareMessages, flattenRoomTimeline, type RoomMessagesPageParam, type RoomTimeline } from "@uniwork/core/chat/room-timeline-pages";
 import { chatKeys } from "./queries/chat-keys";
 
 const viewer: ChatViewer = { userId: "u1", activeRoomId: null };
