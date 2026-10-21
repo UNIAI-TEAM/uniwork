@@ -41,16 +41,21 @@ const CHECK_HIT = "mx-auto aria-busy:opacity-60 pointer-coarse:after:-inset-y-3.
  * (an older server) reads as those same defaults, mirrored from `DefaultPrefs`
  * in `server/internal/notification/prefs.go`.
  */
-/** Mirrors DefaultPrefs in server/internal/notification/prefs.go. */
 const PUSH_BY_DEFAULT = new Set<Kind>([
   "mentioned",
   "document_mentioned",
   "document_body_mentioned",
   "document_discussion_mentioned",
   "document_break_glass",
+  "document_shared",
+  // The manager is the one who can answer a request, and the requester waits to get in; a decline stays in-app.
+  "document_access_requested",
+  "document_access_approved",
   "task_assigned",
   "tasks_assigned",
   "meeting_starting",
+  // A summary the system made (UNI-2026).
+  "meeting_summary_ready",
   "chat_mentioned",
   "chat_dm",
   "chat_reminder",
@@ -66,6 +71,18 @@ const PUSH_BY_DEFAULT = new Set<Kind>([
  * the Email ceiling `Matrix.For` applies in `server/internal/notification/prefs.go`.
  */
 const NO_EMAIL: Partial<Record<Kind, true>> = { document_trashed_by_other: true };
+
+/**
+ * Kinds only some people ever receive (server/internal/notification/rules.go):
+ * the summary ones reach the host and secretaries, the transcript ones the
+ * person who uploaded the recording. Every member sees the row, so it says when.
+ */
+const KIND_HINT: Partial<Record<Kind, "hint_meeting_role" | "hint_meeting_upload">> = {
+  meeting_summary_reminder: "hint_meeting_role",
+  meeting_summary_ready: "hint_meeting_role",
+  meeting_transcript_ready: "hint_meeting_upload",
+  meeting_transcript_failed: "hint_meeting_upload",
+};
 
 function serverDefault(kind: Kind): NotificationPreference {
   return { kind, in_app: true, push: PUSH_BY_DEFAULT.has(kind), email: !NO_EMAIL[kind] };
@@ -114,6 +131,10 @@ export function NotificationsMatrix({
   const busy = (kind: Kind) => inFlight[kind] !== undefined;
   const kindLabel = (kind: Kind) => t(`kinds.${kind}`);
   const channelLabel = (c: Channel) => t(`channel_${c}`);
+  const kindHint = (kind: Kind) => {
+    const key = KIND_HINT[kind];
+    return key ? <span className="block text-caption text-muted-foreground">{t(key)}</span> : null;
+  };
 
   const write = (next: NotificationPreference[]) => {
     if (!loaded || next.length === 0) return;
@@ -228,7 +249,10 @@ export function NotificationsMatrix({
                       <th scope="row" className="px-4 py-2 text-left font-normal">
                         <span className="flex min-h-7 items-center gap-2">
                           <KindIcon kind={row.kind} className={cn("size-4 shrink-0", tintForegroundClass[kindTone(row.kind)])} />
-                          <span className="min-w-0 text-pretty">{kindLabel(row.kind)}</span>
+                          <span className="min-w-0 text-pretty">
+                            {kindLabel(row.kind)}
+                            {kindHint(row.kind)}
+                          </span>
                         </span>
                       </th>
                       {channels.map((c) => (
