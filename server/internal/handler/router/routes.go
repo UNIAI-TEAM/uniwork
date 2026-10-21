@@ -543,6 +543,7 @@ type Routes struct {
 	GetDocumentAsset            http.HandlerFunc
 	DownloadDocument            http.HandlerFunc
 	CreateDocumentDownloadJob   http.HandlerFunc
+	CreateFolderUpload          http.HandlerFunc
 	GetDocumentDownloadJob      http.HandlerFunc
 	DownloadDocumentDownloadJob http.HandlerFunc
 	CreatePreviewScope          http.HandlerFunc

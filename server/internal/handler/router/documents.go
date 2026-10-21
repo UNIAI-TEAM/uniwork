@@ -95,7 +95,7 @@ import (
 //	GET    /api/v1/orgs/{orgID}/documents/favorites
 //	PUT    /api/v1/orgs/{orgID}/documents/settings                (G1-05b)
 //	GET    /api/v1/orgs/{orgID}/documents/settings                (G1-08)
-func registerDocuments(r, callerDocs api, h Routes, flags *featureflag.Service, editRequestLimit, accessRequestLimit func(http.Handler) http.Handler) {
+func registerDocuments(r, callerDocs api, h Routes, flags *featureflag.Service, editRequestLimit, accessRequestLimit, folderUploadPlanLimit func(http.Handler) http.Handler) {
 	d := r.With(mw.RequireFeatureFlag(flags, "documents"))
 	registerDocumentEditLock(d, h, editRequestLimit)
 
@@ -587,6 +587,21 @@ func registerDocuments(r, callerDocs api, h Routes, flags *featureflag.Service, 
 		sdo:         sdo.DocumentDownloadJobSDO{},
 		status:      http.StatusAccepted,
 		auth:        true,
+	})
+	d.With(folderUploadPlanLimit).Post("/workspaces/{workspaceID}/documents/folder-uploads", h.CreateFolderUpload, apiOp{
+		summary: "Plan a folder upload",
+		description: "Lập kế hoạch tải cả một thư mục (UNI-2052). Header Idempotency-Key bắt buộc (thiếu -> 400 invalid_request; cùng key cùng body trả lại đúng lô đó với đích ký mới; cùng key khác body -> 409 idempotency_payload_mismatch). " +
+			"Body {parent_id, root_name, share_with_workspace, folders[], files[{file_key, path, filename, size_bytes, probe?}]}. Cả kế hoạch bị từ chối, không ghi gì, khi: > max_files tệp -> 422 folder_upload_too_many_files (fields.max, count); > max_folders thư mục (tính cả thư mục gốc) -> 422 folder_upload_too_many_folders (fields.max, count); " +
+			"tổng > max_total_bytes -> 422 folder_upload_too_large (fields.max_bytes, total_bytes); một tệp > upload_max_bytes -> 422 folder_upload_file_too_large (fields.path, filename, max_bytes); đuôi tệp không hỗ trợ -> 422 folder_upload_unsupported_type (fields.path, filename); " +
+			"cây sâu quá 20 cấp tính cả thư mục cha -> 422 document_too_deep (fields.max_depth); parent_id không phải thư mục -> 422 document_parent_kind; đường dẫn sai ('..', đoạn rỗng, đường dẫn tuyệt đối, ký tự điều khiển, đoạn > 255 ký tự, thiếu thư mục cha, trùng tệp trong một thư mục) -> 400 invalid_request (fields.path); file_key sai hoặc trùng -> 400 invalid_request (fields.file_key); " +
+			"vượt hạn mức lưu trữ -> 403 quota_exceeded; người gọi đã có 2 lô đang mở -> 429 folder_uploads_busy + Retry-After: 30 (fields.retry_after); bucket folder-upload-plan 10 lượt/phút/người -> 429 rate_limited; không sửa được thư mục cha hoặc không là thành viên -> 403/404. " +
+			"Thành công: tạo thư mục gốc (trùng tên cùng cấp -> '<tên> (n)') và mọi thư mục con, đều riêng tư; trả 201 lô với folders[{path,id}] và mỗi tệp một target: put {method, url, headers, expires_at} (URL đã ký, gửi không kèm credential; hoặc route content của server với auth=session khi kho không ký được URL) hoặc multipart {session_id, part_size, parts[], expires_at} cho tệp lớn. " +
+			"Một dòng audit documents.folder_upload_planned, mỗi thư mục một dòng document.created, một event document.batch_uploaded.",
+		tags:   []string{"documents"},
+		sdi:    sdi.CreateFolderUploadSDI{},
+		sdo:    sdo.FolderUploadBatchSDO{},
+		status: http.StatusCreated,
+		auth:   true,
 	})
 	d.Get("/workspaces/{workspaceID}/documents/download-jobs/{jobID}", h.GetDocumentDownloadJob, apiOp{
 		summary:     "Get a document zip download job",

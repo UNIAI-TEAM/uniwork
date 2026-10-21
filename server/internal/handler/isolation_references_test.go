@@ -295,6 +295,13 @@ var isoReferences = []isoReference{
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/documents/download-jobs", what: "documents of another tenant", allow2xx: true,
 		body:   map[string]any{"document_ids": []any{isoRef("fileDocument")}},
 		covers: []string{"CreateDocumentDownloadJobSDI.document_ids"}},
+	// UNI-2052: B's owner plans a folder upload under A's folder. lockPageParent
+	// classifies the parent by the caller's tenant pair first, so the answer is
+	// 404 and nothing of B's comes to point at A.
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/documents/folder-uploads", what: "parent folder", idempotent: true, body: map[string]any{
+		"parent_id": isoRef("folder"), "root_name": "Iso ref upload", "share_with_workspace": false,
+		"folders": []string{}, "files": []map[string]any{{"file_key": "k1", "path": "", "filename": "iso-ref.md", "size_bytes": 3}}},
+		covers: []string{"CreateFolderUploadSDI.parent_id"}},
 	{method: "POST", pattern: "/api/v1/documents/{documentID}/copies", what: "parent page", idempotent: true, body: map[string]any{
 		"consent": "copy", "parent_id": isoRef("document")}, covers: []string{"CopyDocumentSDI.parent_id"}},
 	{method: "POST", pattern: "/api/v1/documents/{documentID}/copies", what: "convert job", idempotent: true, body: map[string]any{

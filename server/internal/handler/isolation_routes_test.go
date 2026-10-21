@@ -204,6 +204,17 @@ func isoDownloadJobBody(_ *isoWorld, tn *isoTenant) isoBody {
 	return isoBody{json: map[string]any{"document_ids": []string{tn.ids["fileDocument"]}}}
 }
 
+// isoFolderUploadBody plans one small file under the tenant's own folder.
+func isoFolderUploadBody(_ *isoWorld, tn *isoTenant) isoBody {
+	return isoBody{
+		json: map[string]any{
+			"parent_id": tn.ids["folder"], "root_name": "Iso upload", "share_with_workspace": false,
+			"folders": []string{}, "files": []map[string]any{{"file_key": "k1", "path": "", "filename": "iso.md", "size_bytes": 3}},
+		},
+		headers: map[string]string{"Idempotency-Key": "iso-folder-upload-" + tn.tag},
+	}
+}
+
 // isoUnknownDocumentID is a well-formed ULID that names no row: the id the
 // uniformAnswer check pairs with the foreign one, so the route's answer cannot
 // depend on whether the document exists.
@@ -586,17 +597,22 @@ var isoRoutes = map[string]isoSpec{
 	// is accepted and skips them as not_found (nothing of A's in the answer).
 	"POST /api/v1/workspaces/{workspaceID}/documents/download-jobs":                 {body: isoDownloadJobBody, mixedOK: "an id of another tenant is skipped as not_found like an unknown one; the job answer carries no id or text of A's"},
 	"GET /api/v1/workspaces/{workspaceID}/documents/download-jobs/{jobID}/download": {control: []int{http.StatusNotFound}},
-	"GET /api/v1/workspaces/{workspaceID}/task-view-preferences":                    {query: "?scope_type=workspace"},
-	"GET /api/v1/workspaces/{workspaceID}/task-views":                               {query: "?scope_type=workspace"},
-	"GET /api/v1/workspaces/{workspaceID}/calendar/connections/{provider}/start":    {skipControl: "no OAuth client is configured in tests; the owner gets 503"},
-	"POST /api/v1/workspaces/{workspaceID}/email-hub/oauth/{provider}/start":        {skipControl: "no OAuth client is configured in tests; the owner gets 404"},
-	"GET /api/v1/meetings/{meetingID}/lobby-ws":                                     {class: isoRealtime, reason: "lobby WebSocket: the auth frame is checked against the knock - TestIsolationRealtime"},
-	"POST /api/v1/orgs/{orgID}/ai/byok/{aiProvider}/chat/completions":               {body: isoJSON(map[string]any{"model": "m"}), skipControl: reasonBYOKVendor},
-	"POST /api/v1/orgs/{orgID}/ai/byok/{aiProvider}/messages":                       {body: isoJSON(map[string]any{"model": "m"}), skipControl: reasonBYOKVendor},
-	"POST /api/v1/orgs/{orgID}/ai/byok/{aiProvider}/generate":                       {body: isoJSON(map[string]any{"model": "m", "request": map[string]any{}}), skipControl: reasonBYOKVendor},
-	"GET /api/v1/orgs/{orgID}/ai/byok/{aiProvider}/models":                          {skipControl: reasonBYOKVendor},
-	"GET /api/v1/files/{fileID}/content":                                            {skipControl: "reads need the ticket POST .../files/resolve mints; without it everyone is refused"},
-	"HEAD /api/v1/files/{fileID}/content":                                           {skipControl: "reads need the ticket POST .../files/resolve mints; without it everyone is refused"},
+	// Folder upload PLAN (UNI-2052): the tenant's own folder as the parent, one
+	// fixed Idempotency-Key per tenant so every control pass replays the same
+	// batch instead of taking another of the owner's two open batches. The
+	// mixed pass sends A's folder in B's workspace: lockPageParent answers 404.
+	"POST /api/v1/workspaces/{workspaceID}/documents/folder-uploads":             {body: isoFolderUploadBody},
+	"GET /api/v1/workspaces/{workspaceID}/task-view-preferences":                 {query: "?scope_type=workspace"},
+	"GET /api/v1/workspaces/{workspaceID}/task-views":                            {query: "?scope_type=workspace"},
+	"GET /api/v1/workspaces/{workspaceID}/calendar/connections/{provider}/start": {skipControl: "no OAuth client is configured in tests; the owner gets 503"},
+	"POST /api/v1/workspaces/{workspaceID}/email-hub/oauth/{provider}/start":     {skipControl: "no OAuth client is configured in tests; the owner gets 404"},
+	"GET /api/v1/meetings/{meetingID}/lobby-ws":                                  {class: isoRealtime, reason: "lobby WebSocket: the auth frame is checked against the knock - TestIsolationRealtime"},
+	"POST /api/v1/orgs/{orgID}/ai/byok/{aiProvider}/chat/completions":            {body: isoJSON(map[string]any{"model": "m"}), skipControl: reasonBYOKVendor},
+	"POST /api/v1/orgs/{orgID}/ai/byok/{aiProvider}/messages":                    {body: isoJSON(map[string]any{"model": "m"}), skipControl: reasonBYOKVendor},
+	"POST /api/v1/orgs/{orgID}/ai/byok/{aiProvider}/generate":                    {body: isoJSON(map[string]any{"model": "m", "request": map[string]any{}}), skipControl: reasonBYOKVendor},
+	"GET /api/v1/orgs/{orgID}/ai/byok/{aiProvider}/models":                       {skipControl: reasonBYOKVendor},
+	"GET /api/v1/files/{fileID}/content":                                         {skipControl: "reads need the ticket POST .../files/resolve mints; without it everyone is refused"},
+	"HEAD /api/v1/files/{fileID}/content":                                        {skipControl: "reads need the ticket POST .../files/resolve mints; without it everyone is refused"},
 
 	"GET /api/v1/workspaces/{workspaceID}/calendar/connections/{provider}/calendars":                       {skipControl: "no OAuth client is configured in tests; the owner gets 503"},
 	"PUT /api/v1/workspaces/{workspaceID}/calendar/connections/{provider}/calendars":                       {body: isoJSON(map[string]any{"calendar_ids": []string{"primary"}}), skipControl: "owner 5xx found by G8-04, owner: calendar (no provider client is configured in tests; the owner gets 503)"},
