@@ -1,0 +1,8 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin advisor/pr7-rehearsal; git rev-parse HEAD FETCH_HEAD; git log --oneline -3; test "$(git rev-parse HEAD)" = "$(git rev-parse FETCH_HEAD)"; rc=$?; echo; echo "SYNCED_EXIT=$rc"; [ $rc -eq 0 ]
+d3b358870858cc2dbf4e12f911bab843281b4c4b
+d3b358870858cc2dbf4e12f911bab843281b4c4b
+d3b358870 chore: merge UNI-2055 + UNI-2056 web (9b700a505) into the G5-G7 root
+ac8818c89 chore: merge UNI-2070 REPIN-7 (53b55c4d7) into the G5-G7 root
+53b55c4d7 test(office): re-bless the g7-06 goldens at the web-0.1.0-51e1da4 pin
+
+SYNCED_EXIT=0

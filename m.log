@@ -1,0 +1,584 @@
+$ rc=$(cat /tmp/pr7r9-e2e.exit 2>/dev/null || echo 99); grep -vE "^\s+at " /tmp/pr7r9-e2e.log | grep -E "✘|failed|flaky|passed|skipped|did not run|Error:" | head -80; tail -n 30 /tmp/pr7r9-e2e.log; for f in e2e/test-results/*/error-context.md; do [ -f "$f" ] && { echo "===== $f"; head -c 3000 "$f"; }; done; grep -qE "[0-9]+ passed" /tmp/pr7r9-e2e.log || { echo "no passing test"; [ "$rc" = 0 ] && rc=1; }; echo; echo "E2E_EXIT=$rc"; [ $rc -eq 0 ]
+  ✘  37 documents-folder-upload.spec.ts:58:1 › FU-01 a picked 3-level folder shows its pre-flight, uploads private, lands as 3 levels, and a second upload becomes (1) (3.9s)
+  ✘  38 documents-folder-upload.spec.ts:117:1 › FU-02 the share switch applies to every file of the run and leaves the folders private (3.6s)
+  ✘  40 documents-folder-upload.spec.ts:175:1 › FU-04 a dropped folder reads through the entry API, skips hidden and unsupported files, and uploads as 3 levels (3.3s)
+  ✘  43 documents-folder-upload.spec.ts:275:1 › FU-06 a member without access to the folder gets no upload entry, folder or file (1.1m)
+  ✘  56 documents-folders.spec.ts:1398:1 › FD-A08 breadcrumb navigates segments, follows browser Back/Forward, omits unreadable ancestors, and shows error state on invalid/archived/forbidden ?folder= (4.3s)
+  ✘  58 documents-folders.spec.ts:1601:1 › FD-A09 unified search and ⌘K find folders and documents by title, filter by kind, show paths, omit unreadable ancestors, and exclude body-only matches (321ms)
+  ✘  61 documents-folders.spec.ts:2015:1 › FD-A11 prevents duplicate sibling folder names (case-insensitive, accent-sensitive NFC, concurrent race, restricted leak check) while allowing same-name documents (255ms)
+    Error: expect(received).toBe(expected) // Object.is equality
+    Error: expect(received).toBe(expected) // Object.is equality
+    Error: expect(received).toBe(expected) // Object.is equality
+    Error: expect(locator).toBeVisible() failed
+    Error: element(s) not found
+    Error: expect(received).toBeNull()
+    Error: expect(received).toBe(expected) // Object.is equality
+    Error: 201 {"message":"{\"document\":{\"id\":\"01M5FW6FD8M9PN1CP678KCEF66\",\"organization_id\":\"01M5FW6F9KHPK2KSX5Z04RTWHR\",\"workspace_id\":\"01M5FW6F9RE6FW1XDTGM92ECJX\",\"parent_id\":\"01M5FW6FCXMDWEY64XAZZAR3PP\",\"kind\":\"folder\",\"title\":\"HỢP ĐỒNG (1)\",\"visibility\":\"workspace\",\"revision\":\"1\",\"current_version\":0,\"position\":1,\"my_level\":\"manage\",\"via\":\"member\",\"breadcrumbs\":[{\"id\":\"01M5FW6FCXMDWEY64XAZZAR3PP\",\"title\":\"Thư mục Cha\"}],\"created_by\":\"01M5FW6F96XE2SPVZ6ME3QGJEQ\",\"created_by_kind\":\"human\",\"updated_by\":\"01M5FW6F96XE2SPVZ6ME3QGJEQ\",\"updated_by_kind\":\"human\",\"created_at\":\"2026-10-21T18:39:53Z\",\"updated_at\":\"2026-10-21T18:39:53Z\"}}\n"}
+  7 failed
+  1 skipped
+  56 passed (10.2m)
+    > 2037 |   ).toBe(409);
+           |     ^
+      2038 |   expect(upperDup.error?.code).toBe("folder_name_taken");
+      2039 |
+      2040 |   const nfdDup = await apiCreateDocument(page, ws.owner.token, ws.wsId, {
+        at /workspace/e2e/documents-folders.spec.ts:2037:5
+
+    Error Context: test-results/documents-folders-FD-A11-p-e6e2e-llowing-same-name-documents/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/documents-folders-FD-A11-p-e6e2e-llowing-same-name-documents/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/documents-folders-FD-A11-p-e6e2e-llowing-same-name-documents/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  7 failed
+    documents-folder-upload.spec.ts:58:1 › FU-01 a picked 3-level folder shows its pre-flight, uploads private, lands as 3 levels, and a second upload becomes (1) 
+    documents-folder-upload.spec.ts:117:1 › FU-02 the share switch applies to every file of the run and leaves the folders private 
+    documents-folder-upload.spec.ts:175:1 › FU-04 a dropped folder reads through the entry API, skips hidden and unsupported files, and uploads as 3 levels 
+    documents-folder-upload.spec.ts:275:1 › FU-06 a member without access to the folder gets no upload entry, folder or file 
+    documents-folders.spec.ts:1398:1 › FD-A08 breadcrumb navigates segments, follows browser Back/Forward, omits unreadable ancestors, and shows error state on invalid/archived/forbidden ?folder= 
+    documents-folders.spec.ts:1601:1 › FD-A09 unified search and ⌘K find folders and documents by title, filter by kind, show paths, omit unreadable ancestors, and exclude body-only matches 
+    documents-folders.spec.ts:2015:1 › FD-A11 prevents duplicate sibling folder names (case-insensitive, accent-sensitive NFC, concurrent race, restricted leak check) while allowing same-name documents 
+  1 skipped
+  56 passed (10.2m)
+/workspace/e2e:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @uniwork/e2e@0.0.0 test: `playwright test --reporter=list --shard=1/8`
+Exit status 1
+===== e2e/test-results/documents-folders-FD-A08-b-f23ad--archived-forbidden-folder-/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: documents-folders.spec.ts >> FD-A08 breadcrumb navigates segments, follows browser Back/Forward, omits unreadable ancestors, and shows error state on invalid/archived/forbidden ?folder=
+- Location: documents-folders.spec.ts:1398:1
+
+# Error details
+
+```
+Error: expect(received).toBeNull()
+
+Received: "01M5FW67XJ036BT0G4S6Y54609"
+```
+
+# Page snapshot
+
+```yaml
+- generic [active] [ref=f3e1]:
+  - generic [ref=f3e2]:
+    - link "Tới nội dung chính" [ref=f3e3] [cursor=pointer]:
+      - /url: "#main-content"
+    - generic [ref=f3e6]:
+      - list [ref=f3e8]:
+        - listitem [ref=f3e9]:
+          - 'button "Org fd-a08-a, WS fd-a08-a: chuyển workspace" [ref=f3e10] [cursor=pointer]':
+            - generic [ref=f3e11]: W
+            - generic [ref=f3e13]:
+              - generic "Org fd-a08-a" [ref=f3e14]
+              - generic "WS fd-a08-a" [ref=f3e15]
+      - navigation "Điều hướng workspace" [ref=f3e19]:
+        - list [ref=f3e22]:
+          - listitem [ref=f3e23]:
+            - link "Trang chủ" [ref=f3e24] [cursor=pointer]:
+              - /url: /rec-org-1792607981605/rec-ws-1792607981605
+          - listitem [ref=f3e30]:
+            - link "Hộp việc" [ref=f3e31] [cursor=pointer]:
+              - /url: /rec-org-1792607981605/rec-ws-1792607981605/inbox
+        - generic [ref=f3e37]:
+          - generic [ref=f3e38]: Làm việc
+          - list "Làm việc" [ref=f3e40]:
+            - listitem [ref=f3e41]:
+              - link "Công việc" [ref=f3e42] [cursor=pointer]:
+                - /url: /rec-org-1792607981605/rec-ws-1792607981605/tasks
+            - listitem [ref=f3e48]:
+              - link "Việc của tôi" [ref=f3e49] [cursor=pointer]:
+                - /url: /rec-org-1792607981605/rec-ws-1792607981605/my-tasks
+            - listitem [ref=f3e55]:
+              - link "Dự án" [ref=f3e56] [cursor=pointer]:
+                - /url: /rec-org-1792607981605/rec-ws-1792607981605/projects
+            - listitem [ref=f3e61]:
+              - link "Lịch" [ref=f3e62] [cursor=pointer]:
+                - /url: /rec-org-1792607981605/rec-ws-1792607981605/calendar
+        - generic [ref=f3e67]:
+          - generic [ref=f3e68]: Trao đổi
+          - list "Trao đổi" [ref=f3e70]:
+            - listitem [ref=f3e71]:
+              - link "Email Hub" [ref=f3e72] [cursor=pointer]:
+                - /url: /rec-org-1792607981605/rec-ws-1792607981605/email
+            - listitem [ref=f3e78]:
+              - link "Cuộc họp" [ref=f3e79] [cursor=pointer]:
+                - /url: /rec-org-1792607981605/rec-ws-1792607981605/meetings
+            - listitem [ref=f3e85]:
+              - link "Tài liệu" [ref=f3e86] [cursor=pointer]:
+                - /url: /rec-org-1792607981605/rec-ws-1792607981605/documents
+            - listitem [ref=f3e92]:
+         ===== e2e/test-results/documents-folders-FD-A09-u-12c98-d-exclude-body-only-matches/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: documents-folders.spec.ts >> FD-A09 unified search and ⌘K find folders and documents by title, filter by kind, show paths, omit unreadable ancestors, and exclude body-only matches
+- Location: documents-folders.spec.ts:1601:1
+
+# Error details
+
+```
+Error: expect(received).toBe(expected) // Object.is equality
+
+Expected: false
+Received: true
+```
+
+# Test source
+
+```ts
+  1589 |     exact: true,
+  1590 |   });
+  1591 |   await target.focus();
+  1592 |   await expect(target).toBeFocused();
+  1593 |   await page.keyboard.press("Enter");
+  1594 |   await expect(page).toHaveURL(new RegExp(`folder=${chain[2]!.id}`));
+  1595 |   await expect(breadcrumb.getByText(chain[2]!.title)).toHaveAttribute(
+  1596 |     "aria-current",
+  1597 |     "page",
+  1598 |   );
+  1599 | });
+  1600 | 
+  1601 | test("FD-A09 unified search and ⌘K find folders and documents by title, filter by kind, show paths, omit unreadable ancestors, and exclude body-only matches", async ({
+  1602 |   page,
+  1603 | }) => {
+  1604 |   const ws = await seedFolderWorkspace(page, "fd-a09", { withMemberB: true });
+  1605 |   const finFolder = await createFolder(
+  1606 |     page,
+  1607 |     ws.owner.token,
+  1608 |     ws.wsId,
+  1609 |     "Tài chính 2026",
+  1610 |   );
+  1611 |   const q1Folder = await createFolder(
+  1612 |     page,
+  1613 |     ws.owner.token,
+  1614 |     ws.wsId,
+  1615 |     "Quý 1",
+  1616 |     finFolder.id,
+  1617 |   );
+  1618 |   const partnerFolder = await createFolder(
+  1619 |     page,
+  1620 |     ws.owner.token,
+  1621 |     ws.wsId,
+  1622 |     "Hợp đồng Đối tác",
+  1623 |     finFolder.id,
+  1624 |   );
+  1625 |   const reportDoc = await uploadFixtureFile(
+  1626 |     page,
+  1627 |     ws.owner.token,
+  1628 |     ws.wsId,
+  1629 |     "fx-docx-report-vi",
+  1630 |     {
+  1631 |       parentId: q1Folder.id,
+  1632 |       title: "Báo cáo Hợp đồng Quý 1",
+  1633 |     },
+  1634 |   );
+  1635 |   await uploadFixtureFile(
+  1636 |     page,
+  1637 |     ws.owner.token,
+  1638 |     ws.wsId,
+  1639 |     "fx-xlsx-revenue-xyz",
+  1640 |     { parentId: q1Folder.id, title: "Bảng tính Hợp đồng Quý 1" },
+  1641 |   );
+  1642 |   await createPage(
+  1643 |     page,
+  1644 |     ws.owner.token,
+  1645 |     ws.wsId,
+  1646 |     "Trang ghi chú nội bộ",
+  1647 |     null,
+  1648 |     {
+  1649 |       bodyText: "Chuỗi bí mật chỉ nằm trong thân bài BODYONLYTOKEN99",
+  1650 |     },
+  1651 |   );
+  1652 | 
+  1653 |   // Restricted ancestor with a shared child page (a folder is never shared, UNI-1974) to verify
+  1654 |   // search path never leaks unreadable ancestor.
+  1655 |   const restrictedParent = await createFolder(
+  1656 |     page,
+  1657 |     ws.owner.token,
+  1658 |     ws.wsId,
+  1659 |     "Thư mục Cha Ẩn",
+  ===== e2e/test-results/documents-folders-FD-A11-p-e6e2e-llowing-same-name-documents/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: documents-folders.spec.ts >> FD-A11 prevents duplicate sibling folder names (case-insensitive, accent-sensitive NFC, concurrent race, restricted leak check) while allowing same-name documents
+- Location: documents-folders.spec.ts:2015:1
+
+# Error details
+
+```
+Error: 201 {"message":"{\"document\":{\"id\":\"01M5FW6FD8M9PN1CP678KCEF66\",\"organization_id\":\"01M5FW6F9KHPK2KSX5Z04RTWHR\",\"workspace_id\":\"01M5FW6F9RE6FW1XDTGM92ECJX\",\"parent_id\":\"01M5FW6FCXMDWEY64XAZZAR3PP\",\"kind\":\"folder\",\"title\":\"HỢP ĐỒNG (1)\",\"visibility\":\"workspace\",\"revision\":\"1\",\"current_version\":0,\"position\":1,\"my_level\":\"manage\",\"via\":\"member\",\"breadcrumbs\":[{\"id\":\"01M5FW6FCXMDWEY64XAZZAR3PP\",\"title\":\"Thư mục Cha\"}],\"created_by\":\"01M5FW6F96XE2SPVZ6ME3QGJEQ\",\"created_by_kind\":\"human\",\"updated_by\":\"01M5FW6F96XE2SPVZ6ME3QGJEQ\",\"updated_by_kind\":\"human\",\"created_at\":\"2026-10-21T18:39:53Z\",\"updated_at\":\"2026-10-21T18:39:53Z\"}}\n"}
+
+expect(received).toBe(expected) // Object.is equality
+
+Expected: 409
+Received: 201
+```
+
+# Test source
+
+```ts
+  1937 |   const docAfterMoves = await getDocument(page, ws.owner.token, doc.id);
+  1938 |   expect(docAfterMoves.ok).toBe(true);
+  1939 |   expect(docAfterMoves.data?.id).toBe(doc.id);
+  1940 |   expect(docAfterMoves.data?.breadcrumbs?.map((b) => b.title)).toEqual([
+  1941 |     "Thư mục Nguồn",
+  1942 |     "Thư mục Đích",
+  1943 |   ]);
+  1944 | 
+  1945 |   const after = await readDocumentArtifacts(page, ws.owner.token, doc.id);
+  1946 |   expect(after).toEqual(before);
+  1947 | 
+  1948 |   const listNew = await listDocuments(page, ws.owner.token, ws.wsId, {
+  1949 |     parent_id: folderB.id,
+  1950 |   });
+  1951 |   expect(listNew.documents.map((d) => d.id)).toEqual([doc.id]);
+  1952 | 
+  1953 |   // "Từ nơi khác" API and UI still list the source item after document and folder moves.
+  1954 |   const sourcesAfter = await listDocumentSources(
+  1955 |     page,
+  1956 |     ws.owner.token,
+  1957 |     ws.wsId,
+  1958 |     "task",
+  1959 |   );
+  1960 |   expect(sourcesAfter.some((s) => s.name === sourceFileName)).toBe(true);
+  1961 | 
+  1962 |   await loginFolderUser(page, ws.owner.email);
+  1963 |   await page.goto(`/${ws.orgSlug}/${ws.wsSlug}/documents`);
+  1964 |   const sidebar = page.getByRole("navigation", { name: "Điều hướng tài liệu" });
+  1965 |   await expect(sidebar.getByText("Từ nơi khác")).toBeVisible();
+  1966 |   await sidebar.getByRole("button", { name: "Công việc" }).click();
+  1967 |   await expect(page.getByText(sourceFileName).first()).toBeVisible();
+  1968 | 
+  1969 |   // The link still opens the real document. It is an uploaded file, so the detail
+  1970 |   // screen is the file view, not the title-field editor: its title is t===== e2e/test-results/documents-folder-upload-FU-0a75e--leaves-the-folders-private/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: documents-folder-upload.spec.ts >> FU-02 the share switch applies to every file of the run and leaves the folders private
+- Location: documents-folder-upload.spec.ts:117:1
+
+# Error details
+
+```
+Error: expect(received).toBe(expected) // Object.is equality
+
+Expected: "restricted"
+Received: "workspace"
+```
+
+# Page snapshot
+
+```yaml
+- generic [ref=f1e1]:
+  - generic [ref=f1e2]:
+    - link "Tới nội dung chính" [ref=f1e3] [cursor=pointer]:
+      - /url: "#main-content"
+    - generic [ref=f1e6]:
+      - list [ref=f1e8]:
+        - listitem [ref=f1e9]:
+          - 'button "Org fu-share-a, WS fu-share-a: chuyển workspace" [ref=f1e10] [cursor=pointer]':
+            - generic [ref=f1e11]: W
+            - generic [ref=f1e13]:
+              - generic "Org fu-share-a" [ref=f1e14]
+              - generic "WS fu-share-a" [ref=f1e15]
+      - navigation "Điều hướng workspace" [ref=f1e19]:
+        - list [ref=f1e22]:
+          - listitem [ref=f1e23]:
+            - link "Trang chủ" [ref=f1e24] [cursor=pointer]:
+              - /url: /rec-org-1792607829020/rec-ws-1792607829020
+          - listitem [ref=f1e30]:
+            - link "Hộp việc" [ref=f1e31] [cursor=pointer]:
+              - /url: /rec-org-1792607829020/rec-ws-1792607829020/inbox
+        - generic [ref=f1e37]:
+          - generic [ref=f1e38]: Làm việc
+          - list "Làm việc" [ref=f1e40]:
+            - listitem [ref=f1e41]:
+              - link "Công việc" [ref=f1e42] [cursor=pointer]:
+                - /url: /rec-org-1792607829020/rec-ws-1792607829020/tasks
+            - listitem [ref=f1e48]:
+              - link "Việc của tôi" [ref=f1e49] [cursor=pointer]:
+                - /url: /rec-org-1792607829020/rec-ws-1792607829020/my-tasks
+            - listitem [ref=f1e55]:
+              - link "Dự án" [ref=f1e56] [cursor=pointer]:
+                - /url: /rec-org-1792607829020/rec-ws-1792607829020/projects
+            - listitem [ref=f1e61]:
+              - link "Lịch" [ref=f1e62] [cursor=pointer]:
+                - /url: /rec-org-1792607829020/rec-ws-1792607829020/calendar
+        - generic [ref=f1e67]:
+          - generic [ref=f1e68]: Trao đổi
+          - list "Trao đổi" [ref=f1e70]:
+            - listitem [ref=f1e71]:
+              - link "Email Hub" [ref=f1e72] [cursor=pointer]:
+                - /url: /rec-org-1792607829020/rec-ws-1792607829020/email
+            - listitem [ref=f1e78]:
+              - link "Cuộc họp" [ref=f1e79] [cursor=pointer]:
+                - /url: /rec-org-1792607829020/rec-ws-1792607829020/meetings
+            - listitem [ref=f1e85]:
+              - link "Tài liệu" [ref=f1e86] [cursor=pointer]:
+                - /url: /rec-org-1792607829020/rec-ws-1792607829020/documents
+            - listitem [ref=f1e92]:
+              - link "Trò chuyện" ===== e2e/test-results/documents-folder-upload-FU-1f850--a-second-upload-becomes-1-/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: documents-folder-upload.spec.ts >> FU-01 a picked 3-level folder shows its pre-flight, uploads private, lands as 3 levels, and a second upload becomes (1)
+- Location: documents-folder-upload.spec.ts:58:1
+
+# Error details
+
+```
+Error: expect(received).toBe(expected) // Object.is equality
+
+Expected: "restricted"
+Received: "workspace"
+```
+
+# Page snapshot
+
+```yaml
+- generic [active] [ref=f1e1]:
+  - generic [ref=f1e2]:
+    - link "Tới nội dung chính" [ref=f1e3] [cursor=pointer]:
+      - /url: "#main-content"
+    - generic [ref=f1e6]:
+      - list [ref=f1e8]:
+        - listitem [ref=f1e9]:
+          - 'button "Org fu-pick-a, WS fu-pick-a: chuyển workspace" [ref=f1e10] [cursor=pointer]':
+            - generic [ref=f1e11]: W
+            - generic [ref=f1e13]:
+              - generic "Org fu-pick-a" [ref=f1e14]
+              - generic "WS fu-pick-a" [ref=f1e15]
+      - navigation "Điều hướng workspace" [ref=f1e19]:
+        - list [ref=f1e22]:
+          - listitem [ref=f1e23]:
+            - link "Trang chủ" [ref=f1e24] [cursor=pointer]:
+              - /url: /rec-org-1792607824403/rec-ws-1792607824403
+          - listitem [ref=f1e30]:
+            - link "Hộp việc" [ref=f1e31] [cursor=pointer]:
+              - /url: /rec-org-1792607824403/rec-ws-1792607824403/inbox
+        - generic [ref=f1e37]:
+          - generic [ref=f1e38]: Làm việc
+          - list "Làm việc" [ref=f1e40]:
+            - listitem [ref=f1e41]:
+              - link "Công việc" [ref=f1e42] [cursor=pointer]:
+                - /url: /rec-org-1792607824403/rec-ws-1792607824403/tasks
+            - listitem [ref=f1e48]:
+              - link "Việc của tôi" [ref=f1e49] [cursor=pointer]:
+                - /url: /rec-org-1792607824403/rec-ws-1792607824403/my-tasks
+            - listitem [ref=f1e55]:
+              - link "Dự án" [ref=f1e56] [cursor=pointer]:
+                - /url: /rec-org-1792607824403/rec-ws-1792607824403/projects
+            - listitem [ref=f1e61]:
+              - link "Lịch" [ref=f1e62] [cursor=pointer]:
+                - /url: /rec-org-1792607824403/rec-ws-1792607824403/calendar
+        - generic [ref=f1e67]:
+          - generic [ref=f1e68]: Trao đổi
+          - list "Trao đổi" [ref=f1e70]:
+            - listitem [ref=f1e71]:
+              - link "Email Hub" [ref=f1e72] [cursor=pointer]:
+                - /url: /rec-org-1792607824403/rec-ws-1792607824403/email
+            - listitem [ref=f1e78]:
+              - link "Cuộc họp" [ref=f1e79] [cursor=pointer]:
+                - /url: /rec-org-1792607824403/rec-ws-1792607824403/meetings
+            - listitem [ref=f1e85]:
+              - link "Tài liệu" [ref=f1e86] [cursor=pointer]:
+                - /url: /rec-org-1792607824403/rec-ws-1792607824403/documents
+            - listitem [ref=f1e92]:
+===== e2e/test-results/documents-folder-upload-FU-43b52-upload-entry-folder-or-file/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: documents-folder-upload.spec.ts >> FU-06 a member without access to the folder gets no upload entry, folder or file
+- Location: documents-folder-upload.spec.ts:275:1
+
+# Error details
+
+```
+Error: expect(locator).toBeVisible() failed
+
+Locator: getByRole('alert').filter({ hasText: 'Không mở được thư mục này' })
+Expected: visible
+Timeout: 60000ms
+Error: element(s) not found
+
+Call log:
+  - Expect "toBeVisible" with timeout 60000ms
+  - waiting for getByRole('alert').filter({ hasText: 'Không mở được thư mục này' })
+
+```
+
+```yaml
+- link "Tới nội dung chính":
+  - /url: "#main-content"
+- list:
+  - listitem:
+    - 'button "Org fu-noaccess-a, WS fu-noaccess-a: chuyển workspace"': Org fu-noaccess-a WS fu-noaccess-a
+- navigation "Điều hướng workspace":
+  - list:
+    - listitem:
+      - link "Trang chủ":
+        - /url: /rec-org-1792607847674/rec-ws-1792607847674
+    - listitem:
+      - link "Hộp việc":
+        - /url: /rec-org-1792607847674/rec-ws-1792607847674/inbox
+  - list "Làm việc":
+    - listitem:
+      - link "Công việc":
+        - /url: /rec-org-1792607847674/rec-ws-1792607847674/tasks
+    - listitem:
+      - link "Việc của tôi":
+        - /url: /rec-org-1792607847674/rec-ws-1792607847674/my-tasks
+    - listitem:
+      - link "Dự án":
+        - /url: /rec-org-1792607847674/rec-ws-1792607847674/projects
+    - listitem:
+      - link "Lịch":
+        - /url: /rec-org-1792607847674/rec-ws-1792607847674/calendar
+  - list "Trao đổi":
+    - listitem:
+      - link "Email Hub":
+        - /url: /rec-org-1792607847674/rec-ws-1792607847674/email
+    - listitem:
+      - link "Cuộc họp":
+        - /url: /rec-org-1792607847674/rec-ws-1792607847674/meetings
+    - listitem:
+      - link "Tài liệu":
+        - /url: /rec-org-1792607847674/rec-ws-1792607847674/documents
+    - listitem:
+      - link "Trò chuyện":
+        - /url: /rec-org-1792607847674/rec-ws-1792607847674/chat
+    - listitem:
+      - link "Danh bạ":
+        - /url: /rec-org-1792607847674/rec-ws-1792607847674/people
+- list:
+  - listitem:
+    - 'button "fu-noaccess-b, fu-noaccess-b-1792607847759@example.com: tài khoản"': F fu-noaccess-b fu-noaccess-b-1792607847759@example.com
+- button "Ẩn/hiện thanh bên"
+- main:
+  - button "Ẩn/hiện thanh bên"
+  - button "Tìm kiếm…": Tìm kiếm… Ctrl+K
+  - button "Hỏi UNI"
+  - button "Thông báo"
+  - button "Tạo việc"
+  - button "Giao diện"
+  - button "Ngôn ngữ"
+  - complementary:
+    - navigation "Điều hướng tài liệu":
+      - button "Tài liệu của workspace"
+      - button "Gần đây"
+      - button "Gắn sao"
+      - button "Được chia sẻ với tôi"
+      - button "Tôi đã chia sẻ"
+      - button "Lưu trữ"
+      - button "Thùng rác"
+      - link "Báo c===== e2e/test-results/documents-folder-upload-FU-e74ed-les-and-uploads-as-3-levels/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: documents-folder-upload.spec.ts >> FU-04 a dropped folder reads through the entry API, skips hidden and unsupported files, and uploads as 3 levels
+- Location: documents-folder-upload.spec.ts:175:1
+
+# Error details
+
+```
+Error: expect(received).toBe(expected) // Object.is equality
+
+Expected: "restricted"
+Received: "workspace"
+```
+
+# Page snapshot
+
+```yaml
+- generic [active] [ref=f1e1]:
+  - generic [ref=f1e2]:
+    - link "Tới nội dung chính" [ref=f1e3] [cursor=pointer]:
+      - /url: "#main-content"
+    - generic [ref=f1e6]:
+      - list [ref=f1e8]:
+        - listitem [ref=f1e9]:
+          - 'button "Org fu-drop-a, WS fu-drop-a: chuyển workspace" [ref=f1e10] [cursor=pointer]':
+            - generic [ref=f1e11]: W
+            - generic [ref=f1e13]:
+              - generic "Org fu-drop-a" [ref=f1e14]
+              - generic "WS fu-drop-a" [ref=f1e15]
+      - navigation "Điều hướng workspace" [ref=f1e19]:
+        - list [ref=f1e22]:
+          - listitem [ref=f1e23]:
+            - link "Trang chủ" [ref=f1e24] [cursor=pointer]:
+              - /url: /rec-org-1792607838157/rec-ws-1792607838157
+          - listitem [ref=f1e30]:
+            - link "Hộp việc" [ref=f1e31] [cursor=pointer]:
+              - /url: /rec-org-1792607838157/rec-ws-1792607838157/inbox
+        - generic [ref=f1e37]:
+          - generic [ref=f1e38]: Làm việc
+          - list "Làm việc" [ref=f1e40]:
+            - listitem [ref=f1e41]:
+              - link "Công việc" [ref=f1e42] [cursor=pointer]:
+                - /url: /rec-org-1792607838157/rec-ws-1792607838157/tasks
+            - listitem [ref=f1e48]:
+              - link "Việc của tôi" [ref=f1e49] [cursor=pointer]:
+                - /url: /rec-org-1792607838157/rec-ws-1792607838157/my-tasks
+            - listitem [ref=f1e55]:
+              - link "Dự án" [ref=f1e56] [cursor=pointer]:
+                - /url: /rec-org-1792607838157/rec-ws-1792607838157/projects
+            - listitem [ref=f1e61]:
+              - link "Lịch" [ref=f1e62] [cursor=pointer]:
+                - /url: /rec-org-1792607838157/rec-ws-1792607838157/calendar
+        - generic [ref=f1e67]:
+          - generic [ref=f1e68]: Trao đổi
+          - list "Trao đổi" [ref=f1e70]:
+            - listitem [ref=f1e71]:
+              - link "Email Hub" [ref=f1e72] [cursor=pointer]:
+                - /url: /rec-org-1792607838157/rec-ws-1792607838157/email
+            - listitem [ref=f1e78]:
+              - link "Cuộc họp" [ref=f1e79] [cursor=pointer]:
+                - /url: /rec-org-1792607838157/rec-ws-1792607838157/meetings
+            - listitem [ref=f1e85]:
+              - link "Tài liệu" [ref=f1e86] [cursor=pointer]:
+                - /url: /rec-org-1792607838157/rec-ws-1792607838157/documents
+            - listitem [ref=f1e92]:
+       
+E2E_EXIT=1
