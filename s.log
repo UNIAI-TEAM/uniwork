@@ -1,0 +1,2 @@
+$ command -v xmllint >/dev/null || { sudo apt-get update && sudo apt-get install -y --no-install-recommends libxml2-utils; }; rc=$?; echo TEST_L19=$rc; [ $rc -eq 0 ]
+TEST_L19=0

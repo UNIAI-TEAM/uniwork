@@ -1,0 +1,2 @@
+$ git diff --exit-code -- fixtures/generated; rc=$?; echo TEST_L18=$rc; [ $rc -eq 0 ]
+TEST_L18=0
