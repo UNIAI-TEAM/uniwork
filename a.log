@@ -1,0 +1,8 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-2055-e2e-adr0037; git rev-parse HEAD FETCH_HEAD; git log --oneline -3; test "$(git rev-parse HEAD)" = "$(git rev-parse FETCH_HEAD)"; rc=$?; echo; echo "SYNCED_EXIT=$rc"; [ $rc -eq 0 ]
+92363e2b2354966129f2b8a49af73bfe647ac9ea
+92363e2b2354966129f2b8a49af73bfe647ac9ea
+92363e2b2 test(e2e): cover the member, My Folder and workspace-folder-path sides of ADR 0037
+73174c9ed test(e2e): state the ADR 0037 folder rules in the folder specs
+d3b358870 chore: merge UNI-2055 + UNI-2056 web (9b700a505) into the G5-G7 root
+
+SYNCED_EXIT=0
