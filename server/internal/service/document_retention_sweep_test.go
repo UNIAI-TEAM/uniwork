@@ -505,7 +505,7 @@ func TestDocumentWorkersRunRetentionSweeps(t *testing.T) {
 	}
 	// Run has joined every loop, so the recorded sweeps are stable.
 	sweeps := metrics.sweepLabels()
-	for _, want := range []string{"office_job/ok", "multipart_row/ok", "break_glass/ok", "idempotency_key/ok"} {
+	for _, want := range []string{"office_job/ok", "multipart_row/ok", "break_glass/ok", "idempotency_key/ok", "document_download/ok"} {
 		if !containsString(sweeps, want) {
 			t.Fatalf("worker sweeps %v, want %s", sweeps, want)
 		}
