@@ -5,6 +5,7 @@ import * as SecureStore from "expo-secure-store";
 import { createContext, use, useEffect, useMemo, useState, type ReactNode } from "react";
 import { I18nextProvider } from "react-i18next";
 import { LOCALE_KEY } from "@/data/app-locale";
+import { bestEffort } from "@/data/report";
 import { DEFAULT_LOCALE, i18n, matchSupportedLocale, type SupportedLocale } from "./singleton";
 
 const SYSTEM_LOCALE = matchSupportedLocale(Localization.getLocales().map((locale) => locale.languageTag));
@@ -32,9 +33,8 @@ export function I18nProvider({ children }: { children: ReactNode }) {
         setLocaleState(saved);
         void i18n.changeLanguage(saved);
       })
-      .catch(() => {
-        // An unreadable preference leaves the device language in place.
-      });
+      // An unreadable preference leaves the device language in place.
+      .catch(bestEffort("i18n", "saved language not read", "breadcrumb"));
     return () => {
       cancelled = true;
     };
@@ -46,7 +46,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
       setLocale: (next) => {
         setLocaleState(next);
         void i18n.changeLanguage(next);
-        void SecureStore.setItemAsync(LOCALE_KEY, next).catch(() => undefined);
+        void SecureStore.setItemAsync(LOCALE_KEY, next).catch(bestEffort("i18n", "language not saved", "breadcrumb"));
       },
     }),
     [locale],

@@ -5,6 +5,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef } from "react";
 import { refreshMessageMedia } from "@/data/chat-cache";
+import { bestEffort } from "@/data/report";
 import { isChatMediaUrlFresh } from "@/lib/message-display";
 import type { ChatMessageRecord } from "@uniwork/core/api/endpoints/chat-schemas";
 
@@ -17,7 +18,7 @@ export function useChatMediaSrc(wsId: string, roomId: string, messageId: string,
   useEffect(() => {
     if (!url || fresh || renewedFor.current === url) return;
     renewedFor.current = url;
-    void refreshMessageMedia(qc, wsId, roomId, messageId).catch(() => undefined);
+    void refreshMessageMedia(qc, wsId, roomId, messageId).catch(bestEffort("chat", "media url not renewed", "report"));
   }, [fresh, messageId, qc, roomId, url, wsId]);
   return fresh ? (url as string) : null;
 }

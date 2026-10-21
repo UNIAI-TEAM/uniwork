@@ -155,8 +155,18 @@ một dòng thì ghi lý do ở dòng trên.
   Reconnect (mỗi lần về foreground) giữ mọi trang đã cuộn của phòng đang hiện và refetch từng trang (nối lại từ trang
   mới nhất) để thấy sửa/xoá/biểu cảm lúc offline; chỉ mở lại phòng mới cắt về trang mới nhất.
 - Quan sát và phát hành (UNI-2053). `data/report.ts` là cửa duy nhất tới báo
-  crash (no-op khi chưa có sink; 4xx và mất mạng không báo; `force` cho
-  boundary); `data/sentry.ts` cài Sentry làm sink khi có DSN (release
+  crash (no-op khi chưa có sink; `force` cho boundary). `classifyError` chia ba: mong đợi (mất mạng/timeout = 0,
+  401, 403, 404, 408, 410, 429, `AbortError`, `RefusedError`, mã lỗi mà nơi gọi tự nói thành lời — `handledCodes`,
+  ví dụ `DELETE_ACCOUNT_HANDLED_CODES`, `VOICE_CALL_HANDLED_CODES`, hay `useCommand(…, { handledCodes })` qua
+  `meta` của mutation) thì không báo; 4xx khác (400, 409, 413, 415, 422…) là lệch hợp đồng với server, báo mức
+  `warning`; 5xx và lỗi khác là bug, mức `error`. `ApiError` mang `endpoint` (`lib/redact.ts › endpointShape`: method +
+  route, id thành `{id}`), báo cáo có tag `endpoint`/`http_status`/`error_code` và fingerprint theo endpoint + status +
+  mã, nên mỗi route lệch là một issue riêng. Không nuốt lỗi im lặng: lint (`no-restricted-syntax`, fixture
+  `lib/lint-quality.test.ts`) cấm `.catch(() => undefined | null | {} | [])`; dùng `.catch(bestEffort(scope, what,
+  "report" | "breadcrumb"))` — luôn để breadcrumb, `"report"` còn qua `reportError` (lời gọi server, lỗi là sự cố),
+  `"breadcrumb"` cho lời gọi native chỉ mang tính trang trí (rung, splash, share) — hoặc `settled()` của
+  `lib/settled.ts` khi chỉ chờ (chuỗi ghi tuần tự, fetch đang chạy mà query tự báo lỗi). `call-engine.ts` báo mọi
+  cuộc gọi không bắt đầu/không nối được (breadcrumb + lỗi qua `reportError`); `data/sentry.ts` cài Sentry làm sink khi có DSN (release
   `<appId>@<version>+<build>`, tag `channel`/`update_id`/`runtime_version`,
   không ảnh màn hình, không replay, `beforeSend` qua `lib/redact.ts`: email,
   token, query URL, push token, callback PKCE). Log qua `data/logger.ts`

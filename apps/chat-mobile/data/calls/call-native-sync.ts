@@ -17,6 +17,7 @@
 import type { StoreApi } from "zustand/vanilla";
 import type { VoiceCallOverlayState } from "@uniwork/core/chat/voice-call-types";
 import type { NativeCalls, NativeOngoingCall } from "./native-calls";
+import { bestEffort } from "../report";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 type InCall = Extract<VoiceCallOverlayState, { status: "connecting" | "active" }>;
@@ -62,7 +63,7 @@ export function createNativeCallSync(env: NativeCallSyncEnv) {
       if (callId !== next.callId) {
         callId = next.callId;
         connectedAt = 0;
-        void env.requestBluetooth().catch(() => undefined);
+        void env.requestBluetooth().catch(bestEffort("calls", "bluetooth permission not asked", "breadcrumb"));
       }
       if (next.status === "active" && !connectedAt) connectedAt = env.now();
       if (next.status !== prev.status || callIdOf(prev) !== next.callId) env.native.startOngoingCall(ongoing(next));

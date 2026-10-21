@@ -1,8 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { REDACTED } from "@/lib/redact";
-import { breadcrumb, installReportSink, isExpectedError, isReporting, RefusedError, reportError, setReportTag, setReportUser, type ReportSink } from "./report";
+import { bestEffort, breadcrumb, classifyError, installReportSink, isReporting, RefusedError, reportError, setReportTag, setReportUser, type ReportSink } from "./report";
 
-const apiError = (status: number) => Object.assign(new Error(`HTTP ${status}`), { name: "ApiError", status });
+const apiError = (status: number, extra: { body?: unknown; endpoint?: string } = {}) => Object.assign(new Error(`HTTP ${status}`), { name: "ApiError", status, ...extra });
+const coded = (status: number, code: unknown) => apiError(status, { body: { error: { code } }, endpoint: "POST /api/v1/me/delete" });
 
 function fakeSink() {
   return {
@@ -27,17 +28,27 @@ describe("without a sink (no DSN)", () => {
   });
 });
 
-describe("isExpectedError", () => {
-  it("treats the network, aborts and 4xx as expected; 5xx and other errors as bugs", () => {
-    expect(isExpectedError(apiError(0))).toBe(true);
-    expect(isExpectedError(apiError(404))).toBe(true);
-    expect(isExpectedError(apiError(429))).toBe(true);
-    expect(isExpectedError(Object.assign(new Error("aborted"), { name: "AbortError" }))).toBe(true);
-    expect(isExpectedError(new RefusedError("chat_pending_op_refused"))).toBe(true);
-    expect(isExpectedError(apiError(500))).toBe(false);
-    expect(isExpectedError(Object.assign(new Error("x"), { name: "ApiError", status: "500" }))).toBe(false);
-    expect(isExpectedError(new TypeError("undefined is not a function"))).toBe(false);
-    expect(isExpectedError("a string")).toBe(false);
+describe("classifyError", () => {
+  it("treats the network, aborts and the statuses of normal use as expected", () => {
+    for (const status of [0, 401, 403, 404, 408, 410, 429]) expect(classifyError(apiError(status)), String(status)).toBe("expected");
+    expect(classifyError(Object.assign(new Error("aborted"), { name: "AbortError" }))).toBe("expected");
+    expect(classifyError(new RefusedError("chat_pending_op_refused"))).toBe("expected");
+  });
+
+  it("reads any other 4xx as contract drift, unless the caller handles its code", () => {
+    for (const status of [400, 405, 409, 413, 415, 422]) expect(classifyError(apiError(status)), String(status)).toBe("contract");
+    expect(classifyError(coded(409, "owner_must_transfer"), ["owner_must_transfer"])).toBe("expected");
+    expect(classifyError(coded(409, "owner_must_transfer"), ["password_incorrect"])).toBe("contract");
+    expect(classifyError(coded(400, 7), ["7"])).toBe("contract");
+    expect(classifyError(apiError(400, { body: { error: "flat" } }), ["flat"])).toBe("contract");
+    expect(classifyError(apiError(400, { body: null }))).toBe("contract");
+  });
+
+  it("reads a 5xx and every other error as a bug", () => {
+    expect(classifyError(apiError(500))).toBe("bug");
+    expect(classifyError(Object.assign(new Error("x"), { name: "ApiError", status: "500" }))).toBe("bug");
+    expect(classifyError(new TypeError("undefined is not a function"))).toBe("bug");
+    expect(classifyError("a string")).toBe("bug");
   });
 });
 
@@ -51,7 +62,26 @@ describe("with a sink", () => {
     expect(sink.captureException).toHaveBeenCalledWith(error, {
       tags: { source: "query", key: "chat", http_status: "503" },
       extra: { url: `https://a.example/x?${REDACTED}` },
+      level: "error",
     });
+  });
+
+  it("reports contract drift at warning level, grouped by endpoint, status and code", () => {
+    const sink = fakeSink();
+    installReportSink(sink);
+    const drift = coded(422, "validation_failed");
+    reportError(drift, { source: "mutation" });
+    expect(sink.captureException).toHaveBeenCalledWith(drift, {
+      tags: { source: "mutation", http_status: "422", error_code: "validation_failed", endpoint: "POST /api/v1/me/delete" },
+      extra: undefined,
+      level: "warning",
+      fingerprint: ["api-error", "POST /api/v1/me/delete", "422", "validation_failed"],
+    });
+    reportError(coded(409, "owner_must_transfer"), { source: "mutation", handledCodes: ["owner_must_transfer"] });
+    expect(sink.captureException).toHaveBeenCalledTimes(1);
+    const bare = apiError(400, { endpoint: "GET /api/v1/x" });
+    reportError(bare, { source: "boundary:root", force: true });
+    expect(sink.captureException).toHaveBeenLastCalledWith(bare, expect.objectContaining({ level: "error", fingerprint: ["api-error", "GET /api/v1/x", "400", ""] }));
   });
 
   it("skips expected errors unless forced, and wraps a thrown non-Error with its text redacted", () => {
@@ -79,5 +109,25 @@ describe("with a sink", () => {
     expect(sink.setUser.mock.calls).toEqual([["u1"], [null]]);
     setReportTag("channel", "internal");
     expect(sink.setTag).toHaveBeenCalledWith("channel", "internal");
+  });
+});
+
+describe("bestEffort", () => {
+  it("leaves a breadcrumb for every failure, and reports only when asked and not expected", () => {
+    const sink = fakeSink();
+    installReportSink(sink);
+    expect(bestEffort("calls", "hangup not sent", "report")(apiError(503))).toBeUndefined();
+    expect(sink.addBreadcrumb).toHaveBeenLastCalledWith({ category: "calls", message: "hangup not sent", level: "warning", data: { error: "ApiError", status: 503 } });
+    expect(sink.captureException).toHaveBeenCalledWith(expect.objectContaining({ status: 503 }), expect.objectContaining({ tags: { source: "calls", http_status: "503" }, extra: { what: "hangup not sent" } }));
+    bestEffort("calls", "hangup not sent", "report")(apiError(0));
+    bestEffort("haptics", "haptic not played", "breadcrumb")(new Error("unsupported"));
+    bestEffort("haptics", "haptic not played", "breadcrumb")("odd");
+    expect(sink.captureException).toHaveBeenCalledTimes(1);
+    expect(sink.addBreadcrumb.mock.calls.map(([crumb]) => crumb.data)).toEqual([
+      { error: "ApiError", status: 503 },
+      { error: "ApiError", status: 0 },
+      { error: "Error" },
+      { error: "string" },
+    ]);
   });
 });

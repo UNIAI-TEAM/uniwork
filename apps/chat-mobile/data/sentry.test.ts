@@ -90,7 +90,7 @@ describe("initSentry", () => {
     initSentry({ dsn: "https://k@o1.ingest.sentry.io/1", environment: "staging", info: info() });
     const error = new TypeError("boom");
     reportError(error, { source: "boundary:root" });
-    expect(sdk.captureException).toHaveBeenCalledWith(error, { tags: { source: "boundary:root" }, extra: undefined });
+    expect(sdk.captureException).toHaveBeenCalledWith(error, { tags: { source: "boundary:root" }, extra: undefined, level: "error" });
     breadcrumb("auth", "restored");
     expect(sdk.addBreadcrumb).toHaveBeenCalledWith({ category: "auth", message: "restored", level: "info", data: undefined });
     setReportUser("u1");

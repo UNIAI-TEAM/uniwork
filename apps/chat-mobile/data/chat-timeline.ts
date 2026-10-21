@@ -4,6 +4,7 @@
 // reads the loop bounds already guarantee are cast instead of defaulted.
 import type { InfiniteData, QueryClient, QueryKey } from "@tanstack/react-query";
 import type { ChatMessageRecord } from "@uniwork/core/api/endpoints/chat-schemas";
+import { settled } from "@/lib/settled";
 import { chatApi } from "./chat-api";
 import { chatKeys } from "./queries/chat-keys";
 
@@ -164,7 +165,8 @@ export function refreshRoomTimelineOnOpen(qc: QueryClient, wsId: string, roomId:
  */
 export function roomTimelineFetchInFlight(qc: QueryClient, key: QueryKey): Promise<unknown> | undefined {
   if (qc.getQueryState(key)?.fetchStatus !== "fetching") return undefined;
-  return qc.getQueryCache().find({ queryKey: key, exact: true })?.promise?.catch(() => undefined);
+  const promise = qc.getQueryCache().find({ queryKey: key, exact: true })?.promise;
+  return promise && settled(promise);
 }
 
 /**

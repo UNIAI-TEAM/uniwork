@@ -8,6 +8,7 @@ import type { PushSubscriptionBody } from "@uniwork/core/types/notification";
 import type { User } from "@uniwork/core/types/user";
 import type { Workspace } from "@uniwork/core/types/workspace";
 import type { ZodType } from "zod";
+import { endpointShape } from "@/lib/redact";
 import { session } from "./auth/flow";
 import { MeResponseSchema, WorkspacesResponseSchema } from "./schemas";
 
@@ -26,12 +27,15 @@ export class ApiError extends Error {
   readonly body?: unknown;
   /** A numeric Retry-After, so a send retry waits out the window instead of guessing. */
   readonly retryAfterSeconds?: number;
-  constructor(message: string, status: number, body?: unknown, retryAfterSeconds?: number) {
+  /** The route that answered, ids as {id} (lib/redact.ts › endpointShape): crash reports group by it. */
+  readonly endpoint?: string;
+  constructor(message: string, status: number, body?: unknown, retryAfterSeconds?: number, endpoint?: string) {
     super(message);
     this.name = "ApiError";
     this.status = status;
     this.body = body;
     this.retryAfterSeconds = retryAfterSeconds;
+    this.endpoint = endpoint;
   }
 }
 
@@ -143,7 +147,7 @@ export function createApiClient(deps: ApiClientDeps) {
         body = undefined;
       }
       const retryAfter = Number(res.headers.get("Retry-After"));
-      throw new ApiError(messageOf(body, res), res.status, body, Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter : undefined);
+      throw new ApiError(messageOf(body, res), res.status, body, Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter : undefined, endpointShape(init.method, path));
     }
     unauthorizedReported = false;
     if (res.status === 204) return undefined;

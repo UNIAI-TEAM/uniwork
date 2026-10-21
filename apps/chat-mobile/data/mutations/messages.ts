@@ -7,6 +7,7 @@ import { createTaskFromMessage, editMessage, deleteMessage, followUpCommand, for
 import { chatApi } from "../chat-api";
 import { chatSendDeps, discardPendingSend, retryPendingSend, sendChatMessage, type ChatSendInput } from "../chat-send";
 import { markRoomRead, toggleReaction, votePoll } from "../pending-ops";
+import { bestEffort } from "../report";
 import type { PendingSend } from "@/lib/send-pipeline";
 import { useCommand } from "./command";
 
@@ -50,7 +51,7 @@ export const useForwardMessage = (wsId: string) =>
 
 /** "Typing…" for the others in the room: best effort, a lost one is superseded by the next keystroke. */
 export function useSignalTyping(wsId: string, roomId: string): () => void {
-  return useCallback(() => void chatApi.signalTyping(wsId, roomId).catch(() => undefined), [wsId, roomId]);
+  return useCallback(() => void chatApi.signalTyping(wsId, roomId).catch(bestEffort("chat", "typing not signalled", "breadcrumb")), [wsId, roomId]);
 }
 
 /** Clears the badge now and queues the read for the server (data/pending-ops.ts reports a refusal itself). */

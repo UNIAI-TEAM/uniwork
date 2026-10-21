@@ -14,6 +14,7 @@ import { useChatWorkspace, type ChatWorkspace } from "@/components/chat/use-chat
 import { useActiveRoom } from "@/components/chat/use-read-marking";
 import { useRoomContext } from "@/components/chat/use-room-context";
 import { useMarkThreadRead } from "@/data/mutations/rooms";
+import { bestEffort } from "@/data/report";
 import { threadTimelineOptions } from "@/data/queries/chat";
 import { selectRoomSends, useChatSendStore } from "@/data/stores/chat-send-store";
 import { THEME } from "@/lib/theme";
@@ -38,7 +39,8 @@ function ThreadConversation({ chat, roomId, rootId }: { chat: ChatWorkspace; roo
   );
 
   const onFocus = useCallback(() => {
-    void markThreadRead(rootId).catch(() => undefined);
+    // The mutation layer reports a failure (data/query-errors.ts); a thread left unread only says so.
+    void markThreadRead(rootId).catch(bestEffort("chat", "thread read not marked", "breadcrumb"));
   }, [markThreadRead, rootId]);
   useActiveRoom(roomId, onFocus);
 

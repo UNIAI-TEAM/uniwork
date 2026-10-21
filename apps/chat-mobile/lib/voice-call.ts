@@ -8,6 +8,9 @@ import type { VoiceCallEndedState } from "@uniwork/core/chat/voice-call-types";
 
 type Translate = (key: string, params?: Record<string, string>) => string;
 
+/** The codes voiceCallErrorMessage says in its own words: answers, not contract drift (data/report.ts; mobile only). */
+export const VOICE_CALL_HANDLED_CODES = ["livekit_not_configured", "chat_user_blocked"] as const;
+
 /** The server's refusal, in chat's own words (voice-call-copy.ts › voiceCallErrorMessage, never its raw message). */
 function voiceCallErrorMessage(err: unknown, t: Translate, fallback: string): string {
   const code = (err as { body?: { error?: { code?: unknown } } } | undefined)?.body?.error?.code;

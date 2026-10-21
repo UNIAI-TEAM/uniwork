@@ -26,6 +26,7 @@ import { haptics } from "@/components/ui/haptics";
 import { Text } from "@/components/ui/text";
 import { nativeCallSync } from "@/data/calls/call-wiring";
 import { callEngine } from "@/data/calls/call-store";
+import { bestEffort } from "@/data/report";
 import { preferredOutputs } from "@/lib/audio-outputs";
 import { formatVoiceCallDuration } from "@uniwork/core/chat/voice-call-duration";
 import { AudioOutputButton } from "./audio-output-button";
@@ -185,7 +186,7 @@ export function CallRoom({
       android: { preferredOutputList: preferredOutputs(withCamera), audioTypeOptions: AndroidAudioTypePresets.communication },
       ios: { defaultOutput: withCamera ? "speaker" : "earpiece" },
     })
-      .catch(() => undefined)
+      .catch(bestEffort("calls", "audio routing not configured", "report"))
       .then(() => AudioSession.startAudioSession());
     const onDisconnected = (reason?: DisconnectReason) =>
       callEngine.finalizeCallOnDisconnect({ movedElsewhere: reason === DisconnectReason.DUPLICATE_IDENTITY });

@@ -5,6 +5,7 @@
 import { RecordingPresets, setAudioModeAsync, useAudioRecorder, useAudioRecorderState } from "expo-audio";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { permissionGate } from "@/components/ui/permission-gate";
+import { bestEffort } from "@/data/report";
 
 /** The server's cap (chat_voice_message.go) and the web recorder's. */
 export const VOICE_MAX_MS = 120_000;
@@ -65,7 +66,7 @@ export function useVoiceRecorder(onClip: (clip: VoiceClip) => void) {
     () => () => {
       if (!recording.current) return;
       recording.current = false;
-      void playbackMode().catch(() => undefined);
+      void playbackMode().catch(bestEffort("chat", "playback mode not restored", "breadcrumb"));
     },
     [],
   );

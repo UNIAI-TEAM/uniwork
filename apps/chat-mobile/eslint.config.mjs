@@ -49,6 +49,24 @@ const restrictedPatterns = [
   },
 ];
 
+// Every rule of no-restricted-syntax lives in one list: a later config block
+// naming the rule replaces its options, it does not add to them.
+const restrictedSyntax = [
+  {
+    // no-restricted-imports does not see `import()`; a dynamic import of core would
+    // typecheck (core exports the barrels) and drag web-only code into Metro.
+    selector: "ImportExpression > Literal[value=/^@uniwork\\u002fcore/]",
+    message: "No dynamic import of @uniwork/core on mobile; use a static import of an allowlisted subpath (ADR 0011).",
+  },
+  {
+    // A failure swallowed with no trace (audit "observability holes"): a handler that
+    // takes no error and returns nothing, null or [].
+    selector:
+      "CallExpression[callee.property.name='catch'] > ArrowFunctionExpression[params.length=0]:matches([body.type='Identifier'][body.name='undefined'], [body.type='Literal'][body.raw='null'], [body.type='BlockStatement'][body.body.length=0], [body.type='ArrayExpression'][body.elements.length=0])",
+    message: "Do not swallow a failure: .catch(bestEffort(scope, what, \"report\" | \"breadcrumb\")) from data/report.ts, or settled() from lib/settled.ts to only wait.",
+  },
+];
+
 // The mutation layer (data/mutations/command.ts): screens and components
 // change server state through its hooks, never by calling an endpoint or a
 // command themselves, nor reach the transport (data/api.ts). Types stay importable.
@@ -130,12 +148,7 @@ export default [
       // typescript-eslint variant knows `import type`, so types/* stays open to
       // type-only imports and closed to values.
       "no-restricted-imports": "off",
-      // no-restricted-imports does not see `import()`; a dynamic import of core would
-      // typecheck (core exports the barrels) and drag web-only code into Metro.
-      "no-restricted-syntax": ["error", {
-        selector: "ImportExpression > Literal[value=/^@uniwork\\u002fcore/]",
-        message: "No dynamic import of @uniwork/core on mobile; use a static import of an allowlisted subpath (ADR 0011).",
-      }],
+      "no-restricted-syntax": ["error", ...restrictedSyntax],
       "@typescript-eslint/no-restricted-imports": ["error", { paths: restrictedPaths, patterns: restrictedPatterns }],
     },
   },

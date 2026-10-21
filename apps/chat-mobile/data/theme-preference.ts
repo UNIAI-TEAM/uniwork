@@ -5,6 +5,7 @@
 // lib/use-color-scheme.ts reads the store and NativeWind's scheme, nothing else.
 // Storage and NativeWind come in as dependencies so this stays a node test.
 import { createStore } from "zustand/vanilla";
+import { bestEffort } from "./report";
 
 export type ThemePreference = "light" | "dark" | "system";
 
@@ -35,7 +36,7 @@ export function createThemePreference(deps: ThemeDeps) {
           deps.apply(saved);
         })
         // A failed read is not fatal: "system" stands, as before any choice.
-        .catch(() => undefined);
+        .catch(bestEffort("theme", "saved theme not read", "breadcrumb"));
       return loading;
     },
     set(preference: ThemePreference): void {
@@ -43,7 +44,7 @@ export function createThemePreference(deps: ThemeDeps) {
       store.setState({ preference });
       deps.apply(preference);
       // The choice holds for this launch even when it cannot be saved.
-      void deps.write(preference).catch(() => undefined);
+      void deps.write(preference).catch(bestEffort("theme", "theme not saved", "breadcrumb"));
     },
   };
 }

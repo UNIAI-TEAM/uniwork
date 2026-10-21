@@ -10,7 +10,7 @@ const sessionMock = vi.hoisted(() => ({
 vi.mock("./auth/flow", () => ({ session: sessionMock }));
 
 import { ApiError, api, createApiClient } from "./api";
-import { installReportSink, isExpectedError, reportError } from "./report";
+import { classifyError, installReportSink, reportError } from "./report";
 
 const json = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
@@ -122,7 +122,7 @@ describe("api client", () => {
     const error = await api.getMe().catch((e: unknown) => e);
     expect(error).toBeInstanceOf(ApiError);
     expect(error).toMatchObject({ name: "ApiError", status: 0, message: "Network request failed", cause: failure });
-    expect(isExpectedError(error)).toBe(true);
+    expect(classifyError(error)).toBe("expected");
     const captureException = vi.fn();
     installReportSink({ captureException, addBreadcrumb: vi.fn(), setUser: vi.fn(), setTag: vi.fn() });
     reportError(error, { source: "query" });

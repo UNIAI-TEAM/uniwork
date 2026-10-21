@@ -2,7 +2,8 @@
 // no `any`, the React Native accessibility rules, no JSX literal text, no
 // console call outside data/logger.ts, no react-native Modal outside
 // components/ui/call-aware-modal.tsx, and no endpoint or command called from
-// a screen or a component (the mutation layer, data/mutations/command.ts). A
+// a screen or a component (the mutation layer, data/mutations/command.ts), and
+// no failure swallowed by a `.catch(() => undefined)` (data/report.ts › bestEffort). A
 // rule that silently drops out of the config turns its case green here.
 import path from "node:path";
 import { ESLint } from "eslint";
@@ -52,6 +53,10 @@ describe("mobile quality lint", { timeout: 60_000 }, () => {
     ],
     ["literal JSX text", "export function A() {\n  return <Text>Xin chào</Text>;\n}", "i18next/no-literal-string"],
     ["a console call (logs go through data/logger.ts)", 'export const log = () => console.warn("x");', "no-console"],
+    ["a failure swallowed with no trace", "export const f = (p: Promise<void>) => p.catch(() => undefined);", "no-restricted-syntax"],
+    ["a failure swallowed as null", "export const f = (p: Promise<number>) => p.catch(() => null);", "no-restricted-syntax"],
+    ["a failure swallowed by an empty block", "export const f = (p: Promise<void>) => p.catch(() => {});", "no-restricted-syntax"],
+    ["a failure swallowed as an empty list", "export const f = (p: Promise<number[]>) => p.catch(() => []);", "no-restricted-syntax"],
     [
       "react-native's Modal (a sheet must close for a ringing call: CallAwareModal)",
       'import { Modal } from "react-native";\nexport const A = () => <Modal visible />;',
@@ -89,5 +94,11 @@ describe("mobile quality lint", { timeout: 60_000 }, () => {
     const code =
       'export const A = () => { const { t } = useTranslation(); return <Pressable accessibilityRole="button" accessibilityState={{ disabled: true }} accessibilityLabel={t("chat.send")}><Text>{t("chat.send")}</Text></Pressable>; };';
     expect(await ruleIds(head + code)).toEqual([]);
+  });
+
+  it("a failure handled, reported or only waited on is green", async () => {
+    const code =
+      'import { bestEffort } from "@/data/report";\nimport { settled } from "@/lib/settled";\nexport const a = (p: Promise<void>) => p.catch(bestEffort("chat", "x", "report"));\nexport const b = (p: Promise<void>) => settled(p);\nexport const c = (p: Promise<void>, onError: () => void) => p.catch(() => onError());';
+    expect(await ruleIds(code)).toEqual([]);
   });
 });

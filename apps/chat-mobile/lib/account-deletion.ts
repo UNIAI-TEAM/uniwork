@@ -40,6 +40,9 @@ function errorStatus(err: unknown): unknown {
   return (err as { status?: unknown } | null)?.status;
 }
 
+/** The server codes deleteAccountFailure turns into words: answers, not contract drift (data/report.ts). */
+export const DELETE_ACCOUNT_HANDLED_CODES = ["password_incorrect", "mfa_code_incorrect", "email_confirmation_mismatch", "invalid_credentials", "owner_must_transfer"] as const;
+
 export function deleteAccountFailure(err: unknown): DeleteAccountFailure {
   switch (errorCode(err)) {
     // A wrong password (403), two-factor code (403) or typed address (400);

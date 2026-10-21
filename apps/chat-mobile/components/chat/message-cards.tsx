@@ -26,6 +26,7 @@ import { formatMessageDateTime, formatMessageTime } from "@/lib/timeline-display
 import { useColorScheme } from "@/lib/use-color-scheme";
 import { cn } from "@/lib/utils";
 import { useChatMediaSrc, useFreshChatMediaUrl } from "./use-chat-media";
+import { bestEffort } from "@/data/report";
 import { toast } from "@/data/stores/toast-store";
 import { sameUser } from "@/lib/user-id";
 import { bubbleImageSize, chatMediaSource, IMAGE_CACHE_POLICY } from "@/lib/media-source";
@@ -187,7 +188,7 @@ function FileCard({ record, ctx, own, onLongPress }: { record: ChatMessageRecord
 
 // iOS defaults to the ambient session, which the silent switch mutes; a voice message is meant to be heard.
 let audioMode: Promise<void> | null = null;
-const ensureAudioMode = () => (audioMode ??= setAudioModeAsync({ playsInSilentMode: true }).catch(() => undefined));
+const ensureAudioMode = () => (audioMode ??= setAudioModeAsync({ playsInSilentMode: true }).catch(bestEffort("chat", "audio mode not set", "breadcrumb")));
 
 function VoiceCard({ record, ctx, own, onLongPress }: { record: ChatMessageRecord; ctx: MessageCardContext; own: boolean; onLongPress: () => void }) {
   const { t } = useTranslation();

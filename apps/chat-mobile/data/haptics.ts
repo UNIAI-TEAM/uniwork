@@ -8,6 +8,7 @@
 // so this module stays importable by the node tests (components/ui/haptics.ts
 // builds the app's instance).
 import * as Haptics from "expo-haptics";
+import { bestEffort } from "./report";
 
 export type HapticMoment = "send" | "longPress" | "reaction" | "callAccept" | "callEnd";
 
@@ -33,7 +34,7 @@ export type AppHaptics = Record<HapticMoment, () => void>;
 
 function play(feel: Feel): void {
   try {
-    void feel().catch(() => undefined);
+    void feel().catch(bestEffort("haptics", "haptic not played", "breadcrumb"));
   } catch {
     // The native module is missing or refused synchronously: no feedback, no error.
   }

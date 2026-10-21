@@ -3,6 +3,7 @@
 // and answering from a push.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { VOICE_CALL_CONNECTING_TIMEOUT_MS, VOICE_CALL_ENDED_DISMISS_MS, VOICE_CALL_RING_TIMEOUT_MS } from "@uniwork/core/chat/voice-call-types";
+import { installReportSink, type ReportSink } from "../report";
 import { createCallEngine, type CallEngineDeps } from "./call-engine";
 
 let pendingInvites: Awaited<ReturnType<CallEngineDeps["pending"]>> = [];
@@ -559,5 +560,41 @@ describe("call engine edges", () => {
     give({ token: "t", url: "u" });
     expect(await start).toBe(false);
     expect(late.call().status).toBe("idle");
+  });
+});
+
+// Audit "observability holes": a call that cannot start or connect, or a signal that is lost, leaves a trace.
+describe("call failures reach crash reporting", () => {
+  const apiError = (status: number, code?: string) => Object.assign(new Error(`HTTP ${status}`), { name: "ApiError", status, body: { error: { code } } });
+  const sink = { captureException: vi.fn<ReportSink["captureException"]>(), addBreadcrumb: vi.fn<ReportSink["addBreadcrumb"]>(), setUser: vi.fn(), setTag: vi.fn() };
+  beforeEach(() => {
+    sink.captureException.mockReset();
+    sink.addBreadcrumb.mockReset();
+    installReportSink(sink);
+  });
+  afterEach(() => installReportSink(null));
+
+  it("reports a start or a connect the server failed, but not a refusal the panel explains", async () => {
+    const failing = setup({ invite: vi.fn<CallEngineDeps["invite"]>().mockRejectedValue(apiError(500)) });
+    await failing.engine.startCall("room-dm", "Long", "dm");
+    expect(sink.captureException).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ tags: expect.objectContaining({ source: "calls", reason: "start_failed" }) }));
+
+    const blocked = setup({ invite: vi.fn<CallEngineDeps["invite"]>().mockRejectedValue(apiError(409, "chat_user_blocked")) });
+    await blocked.engine.startCall("room-dm", "Long", "dm");
+    expect(sink.captureException).toHaveBeenCalledTimes(1);
+    expect(sink.addBreadcrumb.mock.calls.map(([crumb]) => crumb.message)).toEqual(["call start_failed", "call start_failed"]);
+
+    const token = setup({ mintToken: vi.fn<CallEngineDeps["mintToken"]>().mockRejectedValue(apiError(502)) });
+    token.engine.onInvite(invite());
+    await token.engine.acceptCall();
+    expect(sink.captureException).toHaveBeenLastCalledWith(expect.anything(), expect.objectContaining({ tags: expect.objectContaining({ reason: "connect_failed" }) }));
+  });
+
+  it("leaves a breadcrumb, and a report, for a hangup that never reached the server", async () => {
+    const { engine } = setup({ hangup: vi.fn<CallEngineDeps["hangup"]>().mockRejectedValue(apiError(503)) });
+    await engine.startCall("room-dm", "Long", "dm");
+    await engine.hangUp();
+    expect(sink.addBreadcrumb).toHaveBeenCalledWith(expect.objectContaining({ category: "calls", message: "hangup not sent" }));
+    expect(sink.captureException).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ extra: { what: "hangup not sent" } }));
   });
 });

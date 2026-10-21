@@ -10,6 +10,7 @@
 import { CALL_RING_WINDOW_MS, appLink, callLink, ringRemainingMs, type CallPush } from "@/lib/call-push";
 import type { VoiceCallOverlayState } from "@uniwork/core/chat/voice-call-types";
 import type { NativeCalls, NativeIncomingCall } from "./native-calls";
+import { bestEffort } from "../report";
 
 type Invite = Extract<CallPush, { type: "call_invite" }>;
 type Translate = (key: string, options?: Record<string, unknown>) => string;
@@ -102,7 +103,7 @@ export async function handleCallPush(push: CallPush, env: CallPushEnv): Promise<
   if (push.type !== "call_invite") {
     // Answered elsewhere, declined, ended, or missed: the ring stops here too.
     env.native.cancelIncomingCall(push.callId);
-    await env.fallback.dismiss(push.callId).catch(() => undefined);
+    await env.fallback.dismiss(push.callId).catch(bestEffort("call-push", "fallback ring not dismissed", "breadcrumb"));
     return "cleared";
   }
   if (!env.callsOn() || !push.url || ringRemainingMs(push, env.now()) <= 0) return "ignored";
@@ -113,7 +114,7 @@ export async function handleCallPush(push: CallPush, env: CallPushEnv): Promise<
     // On screen in a workspace: its socket rings a call there, and the pending
     // list picks one up the socket missed. A call it does not know (another
     // workspace) rings as the notification, heads-up over the app (audit C3).
-    await env.engine.syncPendingInvites().catch(() => undefined);
+    await env.engine.syncPendingInvites().catch(bestEffort("call-push", "pending calls not read", "report"));
     if (liveCallId(env.engine.current()) === push.callId) return "in_app";
   }
   env.ensureChannels();

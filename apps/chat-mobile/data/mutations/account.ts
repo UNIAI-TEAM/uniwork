@@ -1,14 +1,15 @@
 // The account's own commands: delete it, sign another device out, answer the
 // AI notice (push for this device is push.ts, to keep expo-notifications out
 // of the screens that only need these). See command.ts for the layer's rule.
-import type { DeleteAccountBody } from "@/lib/account-deletion";
+import { DELETE_ACCOUNT_HANDLED_CODES, type DeleteAccountBody } from "@/lib/account-deletion";
 import { accountApi } from "../account-api";
 import { answerAiConsent } from "../ai-consent";
 import { deviceKeys, revokeDevice } from "../queries/devices";
 import { useCommand } from "./command";
 
 /** Rejects with the server's answer (data/account-api.ts reads it), for the screen to explain. */
-export const useDeleteAccount = () => useCommand("account.delete", (_qc, body: DeleteAccountBody) => accountApi.deleteAccount(body));
+export const useDeleteAccount = () =>
+  useCommand("account.delete", (_qc, body: DeleteAccountBody) => accountApi.deleteAccount(body), { handledCodes: DELETE_ACCOUNT_HANDLED_CODES });
 
 /** Signs a device out; the list refreshes whether or not the server agreed. */
 export const useRevokeDevice = () =>

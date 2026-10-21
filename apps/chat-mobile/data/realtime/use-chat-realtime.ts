@@ -16,6 +16,7 @@ import { chatApi } from "@/data/chat-api";
 import { chatSendDeps, flushQueuedSends } from "@/data/chat-send";
 import { flushPendingOps, pendingOpsDeps } from "@/data/pending-ops";
 import { roomsOptions } from "@/data/queries/chat";
+import { bestEffort } from "@/data/report";
 import { useActiveChatRoomStore } from "@/data/stores/chat-active-room-store";
 import { useChatPinsStore } from "@/data/stores/chat-pins-store";
 import { usePresenceStore } from "@/data/stores/chat-presence-store";
@@ -41,7 +42,7 @@ function useChatPresenceHeartbeat(wsId: string, userId: string | null) {
         .then((online) => {
           if (online) usePresenceStore.getState().reconcile(online, userId, sentAt);
         })
-        .catch(() => undefined);
+        .catch(bestEffort("presence", "presence beat failed", "report"));
     };
     const start = () => {
       if (timer) return;
@@ -51,7 +52,7 @@ function useChatPresenceHeartbeat(wsId: string, userId: string | null) {
     const stop = (leave: boolean) => {
       if (timer) clearInterval(timer);
       timer = null;
-      if (leave) void chatApi.leavePresence(wsId).catch(() => undefined);
+      if (leave) void chatApi.leavePresence(wsId).catch(bestEffort("presence", "presence not left", "report"));
     };
     if (AppState.currentState === "active") start();
     const sub = AppState.addEventListener("change", (state) => {

@@ -7,12 +7,14 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Platform } from "react-native";
 import { ActionSheet } from "@/components/ui/action-sheet";
+import { bestEffort } from "@/data/report";
 import { toast } from "@/data/stores/toast-store";
 import { AUDIO_OUTPUT_ICONS, AUDIO_OUTPUT_LABEL_KEYS, audioOutputOptions, automaticOutput, isSpeakerToggle, type AudioOutput } from "@/lib/audio-outputs";
 import { CallButton } from "./call-surface";
 
+/** The outputs LiveKit reports; none when it cannot say (the speaker toggle stands in). */
 async function reportedOutputs(): Promise<string[]> {
-  return AudioSession.getAudioOutputs().catch(() => []);
+  return (await AudioSession.getAudioOutputs().catch(bestEffort("calls", "audio outputs not listed", "breadcrumb"))) ?? [];
 }
 
 export function AudioOutputButton({ video, connected }: { video: boolean; connected: boolean }) {

@@ -19,7 +19,7 @@ import { workspaceListOptions } from "../queries/workspaces";
 import { queryClient } from "../query-client";
 import { dropAccountCache, restoreAccountCache } from "../query-persister";
 import { clearAccountCache } from "../remote-config";
-import { setReportUser } from "../report";
+import { bestEffort, setReportUser } from "../report";
 import { currentSessionEpoch } from "../session-epoch";
 import { hydrateChatSendStore, useChatSendStore } from "../stores/chat-send-store";
 import { hydratePendingOpsStore, usePendingOpsStore } from "../stores/pending-ops-store";
@@ -67,7 +67,7 @@ async function dropPushSubscription(): Promise<void> {
   const budget = new Promise<void>((resolve) => {
     timer = setTimeout(resolve, PUSH_UNREGISTER_BUDGET_MS);
   });
-  await Promise.race([unregisterPushToken(api).catch(() => undefined), budget]);
+  await Promise.race([unregisterPushToken(api).catch(bestEffort("auth", "push not unregistered", "report")), budget]);
   clearTimeout(timer);
 }
 

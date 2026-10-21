@@ -17,7 +17,7 @@ import { applyChatMessageResponse } from "./chat-cache";
 import { chatApi, type ChatApi } from "./chat-api";
 import type { RoomTimeline } from "./chat-timeline";
 import { chatKeys } from "./queries/chat-keys";
-import { RefusedError, reportError } from "./report";
+import { RefusedError, bestEffort, reportError } from "./report";
 import { createRetryTimers, type RetryTimers } from "./retry-timers";
 import { usePendingOpsStore, type PendingOp } from "./stores/pending-ops-store";
 
@@ -169,7 +169,9 @@ export async function markRoomRead(qc: QueryClient, wsId: string, roomId: string
   const key = `read/${wsId}/${roomId}`;
   const rev = (find(key)?.rev ?? 0) + 1;
   // A refused read was reported by the line; the screen has nothing to say about it.
-  await enqueue(qc, { kind: "read", key, workspaceId: wsId, roomId, userId, createdAt: Date.now(), rev, verify: false }, key, deps).catch(() => undefined);
+  await enqueue(qc, { kind: "read", key, workspaceId: wsId, roomId, userId, createdAt: Date.now(), rev, verify: false }, key, deps).catch(
+    bestEffort("pending-op", "read refused", "breadcrumb"),
+  );
 }
 
 /** One tap on a reaction: shown at once, delivered when it can be. */

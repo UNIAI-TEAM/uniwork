@@ -89,3 +89,19 @@ export function scrubTransaction<E extends ScrubbableTransaction>(event: E): E {
   if (event.spans) out.spans = event.spans.map((span) => ({ ...span, description: redactText(span.description), data: redactData(span.data) }));
   return out;
 }
+
+/**
+ * A request as a route, for grouping reports: the method and the path without
+ * its query, every segment that is not a lowercase route word (an id, a slug,
+ * an encoded emoji) as {id}. "GET /api/v1/workspaces/01J…/chat/rooms" reads
+ * "GET /api/v1/workspaces/{id}/chat/rooms": no id leaves the phone, and one
+ * route's failures group together.
+ */
+export function endpointShape(method: string | undefined, path: string): string {
+  const route = path
+    .replace(/[?#].*$/, "")
+    .split("/")
+    .map((segment) => (segment === "" || /^[a-z][a-z0-9_-]*$/.test(segment) ? segment : "{id}"))
+    .join("/");
+  return `${(method ?? "GET").toUpperCase()} ${route}`;
+}

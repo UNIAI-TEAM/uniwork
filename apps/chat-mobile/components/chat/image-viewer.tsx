@@ -14,6 +14,7 @@ import { FlatList, Pressable, Share, useWindowDimensions, View, type LayoutChang
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import Animated, { interpolate, useAnimatedStyle, useSharedValue, type SharedValue } from "react-native-reanimated";
 import { CallAwareModal } from "@/components/ui/call-aware-modal";
+import { bestEffort } from "@/data/report";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { Text } from "@/components/ui/text";
 import { THEME } from "@/lib/theme";
@@ -121,7 +122,7 @@ export function ImageViewer({
   const backdrop = useAnimatedStyle(() => ({ opacity: interpolate(Math.abs(dismissY.value), [0, DISMISS_DISTANCE * 2], [1, 0.35], "clamp") }));
   const share = () => {
     const url = current ? urls.current.get(current.id) : undefined;
-    if (url) void Share.share({ url, message: url }).catch(() => undefined);
+    if (url) void Share.share({ url, message: url }).catch(bestEffort("chat", "share sheet failed", "breadcrumb"));
   };
 
   return (

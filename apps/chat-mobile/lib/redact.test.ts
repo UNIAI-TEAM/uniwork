@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { REDACTED, redactData, redactText, scrubBreadcrumb, scrubEvent, scrubTransaction } from "./redact";
+import { REDACTED, endpointShape, redactData, redactText, scrubBreadcrumb, scrubEvent, scrubTransaction } from "./redact";
 
 describe("redactText", () => {
   // The cases of packages/core/analytics/redact-exception.test.ts that apply to a phone.
@@ -92,5 +92,15 @@ describe("scrubTransaction", () => {
       { description: "ui.load", data: undefined },
     ]);
     expect(scrubTransaction({})).toEqual({ message: undefined });
+  });
+});
+
+describe("endpointShape", () => {
+  it("names the route: no query, every id as {id}, the method upper-cased", () => {
+    expect(endpointShape("post", "/api/v1/workspaces/01JABCDEFGHJKMNPQRSTVWXYZ0/chat/rooms/01JZZZ/messages?before=x#y")).toBe(
+      "POST /api/v1/workspaces/{id}/chat/rooms/{id}/messages",
+    );
+    expect(endpointShape(undefined, "/api/v1/me/chat/unread-summary")).toBe("GET /api/v1/me/chat/unread-summary");
+    expect(endpointShape("DELETE", "/api/v1/workspaces/w/chat/messages/m/reactions/%F0%9F%91%8D")).toBe("DELETE /api/v1/workspaces/w/chat/messages/m/reactions/{id}");
   });
 });

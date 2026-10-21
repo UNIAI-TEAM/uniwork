@@ -60,6 +60,7 @@ describe("createLogger", () => {
     expect(sink.captureException).toHaveBeenCalledWith(error, {
       tags: { source: "push" },
       extra: { message: "registration failed", platform: "android" },
+      level: "error",
     });
   });
 });

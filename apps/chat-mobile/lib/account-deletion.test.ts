@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { deleteAccountFailure, deleteProofBody, deleteProofMode } from "./account-deletion";
+import { DELETE_ACCOUNT_HANDLED_CODES, deleteAccountFailure, deleteProofBody, deleteProofMode } from "./account-deletion";
 
 const refusal = (code: string, status = 403) => ({ status, body: { error: { code, message: "x" } } });
 
@@ -24,6 +24,10 @@ describe("deleteProofBody", () => {
 describe("deleteAccountFailure (core deleteAccountProofRefused parity)", () => {
   it.each(["password_incorrect", "mfa_code_incorrect", "email_confirmation_mismatch", "invalid_credentials"])("%s is a refused proof", (code) => {
     expect(deleteAccountFailure(refusal(code))).toBe("proof_refused");
+  });
+
+  it("declares every code it explains as handled, and only those", () => {
+    for (const code of DELETE_ACCOUNT_HANDLED_CODES) expect(deleteAccountFailure(refusal(code)), code).not.toBe("failed");
   });
 
   it("names an owner who must hand over the organization first", () => {

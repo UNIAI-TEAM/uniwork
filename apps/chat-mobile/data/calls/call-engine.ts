@@ -8,6 +8,8 @@
 import type { PendingChatVoiceInvite } from "@uniwork/core/api/endpoints/chat-schemas";
 import { createStore } from "zustand/vanilla";
 import type { OutgoingVoiceCall } from "@/data/chat-api-schemas";
+import { bestEffort, breadcrumb, reportError } from "@/data/report";
+import { VOICE_CALL_HANDLED_CODES } from "@/lib/voice-call";
 import { incomingStateFromInvite, latestRingingInvite, voiceEventForUser, type VoiceInvitePayload } from "@uniwork/core/chat/voice-call-invites";
 import { isMultiPartyVoiceCall } from "@uniwork/core/chat/voice-call-kind";
 import { VOICE_CALL_CONNECTING_TIMEOUT_MS, VOICE_CALL_ENDED_DISMISS_MS, VOICE_CALL_RING_TIMEOUT_MS, isInformationalEnd, type VoiceCallEndInit, type VoiceCallKind, type VoiceCallOverlayState } from "@uniwork/core/chat/voice-call-types";
@@ -56,6 +58,17 @@ function endedFrom(state: LiveCallState, init: VoiceCallEndInit): VoiceCallOverl
 
 function pendingToPayload({ room_id, call_id, caller_id, caller_name, call_kind, room_name }: PendingChatVoiceInvite): VoiceInvitePayload {
   return { room_id, call_id, caller_id, caller_name, call_kind, room_name };
+}
+
+/**
+ * A call that could not start, connect or go on leaves a breadcrumb, and its
+ * error (a refused invite, accept or token) reaches crash reporting unless it
+ * is expected or a refusal the panel already explains (VOICE_CALL_HANDLED_CODES).
+ * Mobile only: the web host reports through its own panel.
+ */
+function noteFailure(reason: string, error: unknown): void {
+  breadcrumb("calls", `call ${reason}`, "warning");
+  if (error !== undefined) reportError(error, { source: "calls", tags: { reason }, handledCodes: VOICE_CALL_HANDLED_CODES });
 }
 
 export function createCallEngine(deps: CallEngineDeps) {
@@ -116,11 +129,12 @@ export function createCallEngine(deps: CallEngineDeps) {
     // The call closes on screen at once; the hangup signal is best effort.
     closeLocal(state, init);
     hangupSent = state.callId;
-    await deps.hangup(ctx!.wsId, state.roomId, state.callId, durationSeconds).catch(() => undefined);
+    await deps.hangup(ctx!.wsId, state.roomId, state.callId, durationSeconds).catch(bestEffort("calls", "hangup not sent", "report"));
   }
 
   /** Ends the current call the way its kind requires, with a reason on screen. */
   async function failCall(state: LiveCallState, init: VoiceCallEndInit) {
+    noteFailure(init.reason, init.error);
     if (leavingSignalsHangup(state)) await endCallForAll(state, init);
     else closeLocal(state, init);
   }
@@ -141,7 +155,7 @@ export function createCallEngine(deps: CallEngineDeps) {
     // away instead of letting the second caller ring out. A group call keeps
     // going without us; only a 1-1 caller would be left ringing.
     closed.add(incoming.callId);
-    if (!isMultiPartyVoiceCall(incoming.callKind)) void deps.hangup(ctx.wsId, incoming.roomId, incoming.callId).catch(() => undefined);
+    if (!isMultiPartyVoiceCall(incoming.callKind)) void deps.hangup(ctx.wsId, incoming.roomId, incoming.callId).catch(bestEffort("calls", "busy not signalled", "report"));
   }
 
   /**
@@ -153,7 +167,7 @@ export function createCallEngine(deps: CallEngineDeps) {
    * ring clock still ends one nobody answered.
    */
   async function connectIfAnswered(wsId: string, callId: string) {
-    const calls = await deps.outgoing(wsId).catch(() => null);
+    const calls = await deps.outgoing(wsId).catch(bestEffort("calls", "outgoing calls not read", "report"));
     const ringing = liveWith(callId, "ringing");
     if (ringing && calls?.some((c) => c.call_id === ringing.callId && c.room_id === ringing.roomId && c.accepted)) {
       await connectCall(ringing.roomId, ringing.callId, ringing.peerName, true, "dm", undefined, ringing.withCamera);
@@ -162,14 +176,14 @@ export function createCallEngine(deps: CallEngineDeps) {
 
   async function syncPendingInvites() {
     if (!ctx || isLive(current())) return;
-    const latest = latestRingingInvite(await deps.pending(ctx.wsId).catch(() => []));
+    const latest = latestRingingInvite((await deps.pending(ctx.wsId).catch(bestEffort("calls", "pending calls not read", "report"))) ?? []);
     if (latest) applyIncomingInvite(pendingToPayload(latest), { skipRoomCheck: true });
   }
 
   async function ringFromPush(roomId: string, callId: string) {
     if (!ctx) return false;
     if (!isLive(current())) {
-      const invites = await deps.pending(ctx.wsId).catch(() => []);
+      const invites = (await deps.pending(ctx.wsId).catch(bestEffort("calls", "pending calls not read", "report"))) ?? [];
       const invite = latestRingingInvite(invites.filter((i) => i.room_id === roomId && i.call_id === callId));
       if (invite) applyIncomingInvite(pendingToPayload(invite), { skipRoomCheck: true });
     }
@@ -265,7 +279,7 @@ export function createCallEngine(deps: CallEngineDeps) {
         if (options.ring) await syncPendingInvites();
         return;
       }
-      const invites = await deps.pending(ctx.wsId).catch(() => null);
+      const invites = await deps.pending(ctx.wsId).catch(bestEffort("calls", "pending calls not read", "report"));
       // No answer is no evidence: the ring clock still ends it.
       if (!invites) return;
       const ringing = liveWith(state.callId, "incoming");
@@ -299,6 +313,7 @@ export function createCallEngine(deps: CallEngineDeps) {
         await deps.invite(ctx.wsId, roomId, callId, withCamera);
       } catch (error) {
         // The web host shows this on its panel (reportStartFailure, which leaves a call that rang in meanwhile alone).
+        noteFailure("start_failed", error);
         if (!isLive(current())) setCall({ status: "ended", reason: "start_failed", error, roomId, peerName, callKind, outgoing: true, withCamera });
         return false;
       }

@@ -7,6 +7,8 @@
 // cannot bring the person back.
 import type { User } from "@uniwork/core/types/user";
 import * as SecureStore from "expo-secure-store";
+import { settled } from "@/lib/settled";
+import { bestEffort } from "../report";
 import { MeResponseSchema } from "../schemas";
 import { sessionEpochChanged } from "../session-epoch";
 
@@ -18,7 +20,8 @@ let writes: Promise<unknown> = Promise.resolve();
 
 function serialize(operation: () => Promise<void>): Promise<void> {
   const result = writes.then(operation, operation);
-  writes = result.catch(() => undefined);
+  // The next write only waits its turn; this one's outcome is its caller's.
+  writes = settled(result);
   return result;
 }
 
@@ -44,9 +47,9 @@ export function rememberUser(user: User, epoch: number): Promise<void> {
   return serialize(async () => {
     if (sessionEpochChanged(epoch)) return;
     await SecureStore.setItemAsync(KEY, JSON.stringify(user), ACCESS);
-  }).catch(() => undefined);
+  }).catch(bestEffort("auth", "last user not saved", "report"));
 }
 
 export function forgetLastUser(): Promise<void> {
-  return serialize(() => SecureStore.deleteItemAsync(KEY, ACCESS)).catch(() => undefined);
+  return serialize(() => SecureStore.deleteItemAsync(KEY, ACCESS)).catch(bestEffort("auth", "last user not forgotten", "report"));
 }

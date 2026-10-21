@@ -42,6 +42,7 @@ import { ensureNotificationChannels } from "@/data/notification-channels";
 import { queryClient } from "@/data/query-client";
 import { startLocaleSync } from "@/data/locale-sync";
 import { createDevicePersister, installAccountCache } from "@/data/query-persister";
+import { bestEffort } from "@/data/report";
 import { sentryNavigation } from "@/data/sentry";
 import { installDeviceStore, openDeviceStore } from "@/data/storage/device-store";
 import { openNativeDeviceStore } from "@/data/storage/native-device-store";
@@ -76,7 +77,7 @@ startLocaleSync({
   openStore: openDeviceStore,
 });
 // The splash stays until the session, the workspace and the cache are read (audit P0-3): no spinner, no flash of /login.
-void SplashScreen.preventAutoHideAsync().catch(() => undefined);
+void SplashScreen.preventAutoHideAsync().catch(bestEffort("boot", "splash not held", "breadcrumb"));
 /** A boot that hangs (a Keychain that never answers) must not hold the splash for ever. */
 const SPLASH_CAP_MS = 8_000;
 
