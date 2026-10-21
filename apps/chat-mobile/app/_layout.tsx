@@ -32,7 +32,6 @@ import { PermissionPrimerHost } from "@/components/ui/permission-primer";
 import { ToastHost } from "@/components/ui/toast-host";
 import { accountApi } from "@/data/account-api";
 import { api } from "@/data/api";
-import { isAuthCallbackUrl } from "@/data/auth/callback";
 import { authConfig, session } from "@/data/auth/flow";
 import { useAuthStore } from "@/data/auth/store";
 import { bootRuntime } from "@/data/boot";
@@ -46,7 +45,7 @@ import { createDevicePersister, installAccountCache } from "@/data/query-persist
 import { sentryNavigation } from "@/data/sentry";
 import { installDeviceStore, openDeviceStore } from "@/data/storage/device-store";
 import { openNativeDeviceStore } from "@/data/storage/native-device-store";
-import { deepLinkHref, parseDeepLink, setPendingDeepLink } from "@/lib/deep-link";
+import { incomingUrlAction, setPendingDeepLink } from "@/lib/deep-link";
 import { I18nProvider } from "@/lib/i18n/provider";
 import { i18n } from "@/lib/i18n/singleton";
 import { NAV_THEME } from "@/lib/theme";
@@ -90,14 +89,10 @@ export function ErrorBoundary(props: ErrorBoundaryProps) {
  *  for one, or is pushed only when expo-router did not already route it
  *  (+native-intent routes Linking URLs; a notification tap is not one). */
 function openUrl(url: string, navigate = false) {
-  if (isAuthCallbackUrl(url, authConfig.scheme)) {
-    void session.completeCallback(url);
-    return;
-  }
-  const link = parseDeepLink(url, runtimeConfig().appUrl, authConfig.scheme);
-  if (!link) return;
-  if (!useAuthStore.getState().user) setPendingDeepLink(link);
-  else if (navigate) router.push(deepLinkHref(link));
+  const action = incomingUrlAction(url, { appUrl: runtimeConfig().appUrl, scheme: authConfig.scheme, signedIn: useAuthStore.getState().user !== null, navigate });
+  if (action.kind === "callback") void session.completeCallback(url);
+  else if (action.kind === "keep") setPendingDeepLink(action.link);
+  else if (action.kind === "open") router.push(action.href);
 }
 
 function AuthInitializer({ children }: { children: ReactNode }) {

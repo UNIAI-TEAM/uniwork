@@ -67,6 +67,19 @@ export function deepLinkHref(link: DeepLink): string {
   return `/${link.orgSlug}/${link.wsSlug}/chat${search ? `?${search}` : ""}`;
 }
 
+/** What the app does with a URL the OS hands it (app/_layout.tsx): complete the sign-in, keep a chat link until
+ *  someone is signed in, or open it — only when asked to navigate (a notification tap), since app/+native-intent.ts
+ *  already routes a Linking URL; anything else is ignored. */
+export type IncomingUrlAction = { kind: "callback" } | { kind: "keep"; link: DeepLink } | { kind: "open"; href: string } | { kind: "ignore" };
+
+export function incomingUrlAction(url: string, options: { appUrl: string; scheme: string; signedIn: boolean; navigate: boolean }): IncomingUrlAction {
+  if (isAuthCallbackUrl(url, options.scheme)) return { kind: "callback" };
+  const link = parseDeepLink(url, options.appUrl, options.scheme);
+  if (!link) return { kind: "ignore" };
+  if (!options.signedIn) return { kind: "keep", link };
+  return options.navigate ? { kind: "open", href: deepLinkHref(link) } : { kind: "ignore" };
+}
+
 /** For app/+native-intent.ts: the route expo-router opens for an OS URL. A
  *  chat link becomes its href, the PKCE callback lands on the login screen
  *  (the Linking listener in app/_layout completes the sign-in), anything else

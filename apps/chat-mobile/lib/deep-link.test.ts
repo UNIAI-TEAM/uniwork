@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { deepLinkHref, parseDeepLink, setPendingDeepLink, systemPathToRoute, takePendingDeepLink } from "./deep-link";
+import { deepLinkHref, incomingUrlAction, parseDeepLink, setPendingDeepLink, systemPathToRoute, takePendingDeepLink } from "./deep-link";
 
 const APP_URL = "https://app.uniworkos.com";
 const SCHEME = "uniworkchat";
@@ -102,5 +102,28 @@ describe("systemPathToRoute (+native-intent)", () => {
   it("leaves any other URL to expo-router", () => {
     expect(systemPathToRoute(`${APP_URL}/settings`, APP_URL, SCHEME)).toBe(`${APP_URL}/settings`);
     expect(systemPathToRoute("/select-workspace", APP_URL, SCHEME)).toBe("/select-workspace");
+  });
+});
+
+describe("incomingUrlAction", () => {
+  const options = { appUrl: APP_URL, scheme: SCHEME, signedIn: true, navigate: true };
+  const chatUrl = `${APP_URL}/acme/hq/chat?room=r1`;
+
+  it("completes the sign-in on the PKCE callback, whoever is signed in", () => {
+    const callback = `${SCHEME}://auth/callback?code=c&state=s`;
+    expect(incomingUrlAction(callback, { ...options, signedIn: false })).toEqual({ kind: "callback" });
+  });
+
+  it("keeps a chat link until someone is signed in", () => {
+    expect(incomingUrlAction(chatUrl, { ...options, signedIn: false })).toEqual({ kind: "keep", link: { orgSlug: "acme", wsSlug: "hq", roomId: "r1" } });
+  });
+
+  it("opens a notification's link, and leaves a Linking URL to +native-intent", () => {
+    expect(incomingUrlAction(chatUrl, options)).toEqual({ kind: "open", href: "/acme/hq/chat?room=r1" });
+    expect(incomingUrlAction(chatUrl, { ...options, navigate: false })).toEqual({ kind: "ignore" });
+  });
+
+  it("ignores a URL that is no chat link", () => {
+    expect(incomingUrlAction("https://elsewhere.example/x", options)).toEqual({ kind: "ignore" });
   });
 });
