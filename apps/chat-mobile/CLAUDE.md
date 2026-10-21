@@ -32,7 +32,10 @@ bản copy mới chưa ghi, hay khi header và manifest lệch. Rà bản copy (
 Lớp mutation (UNI-2053 S7, audit T4): `app/` và `components/` đổi trạng thái server chỉ qua hook ở
 `data/mutations/*` (`messages`, `rooms`, `safety`, `account`; mỗi hook là một `useMutation` qua `useCommand` của
 `command.ts`, key mutation là tên lệnh nên lỗi là bug tới Sentry một lần qua `MutationCache`, lỗi mong đợi —
-offline, 4xx, `RefusedError` của `data/report.ts` — thì không; màn hình báo lỗi từ `mutateAsync`). Lệnh và việc
+offline, 4xx, `RefusedError` của `data/report.ts` — thì không; màn hình báo lỗi từ `mutateAsync`). Mọi lệnh chạy
+ngay cả khi offline (`networkMode: "always"`): gửi, thử lại, biểu cảm, bình chọn vào hàng đợi bền ngay lúc đó, lệnh
+khác lỗi ngay — mặc định `"online"` của TanStack giữ mutation ở trạng thái paused, tin không vào outbox và mất khi app
+bị kill (`data/mutations/offline.test.tsx`). Lệnh và việc
 chúng làm với cache ở `data/chat-actions.ts`, `safety-actions.ts`, `chat-send.ts`, `pending-ops.ts`. Lint cấm
 `app/`/`components/` import giá trị từ `@/data/{chat-api,chat-actions,chat-send,pending-ops,safety-api,
 safety-actions,account-api}` và `revokeDevice` (`import type` vẫn được; trừ `app/_layout.tsx` — composition root
