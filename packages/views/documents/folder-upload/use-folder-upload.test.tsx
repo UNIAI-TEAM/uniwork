@@ -144,7 +144,7 @@ describe("useFolderUpload", () => {
     const ids = new Set([...toast.loading.mock.calls, ...toast.success.mock.calls].map((call) => call[1].id));
     expect(ids.size).toBe(1);
     const [message, options] = toast.success.mock.calls[0] ?? [];
-    expect(message).toBe("Đã tải lên 2 tệp vào «Mới»");
+    expect(message).toBe("Đã tải lên 2 tệp vào \"Mới\"");
     options.action.onClick();
     expect(onOpenFolder).toHaveBeenCalledWith("folder-root");
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
@@ -199,7 +199,7 @@ describe("useFolderUpload", () => {
     expect(plan?.method === "plan" && plan.body.files.map((f) => f.path)).toEqual(["", ""]);
     expect(toast.loading.mock.calls[0]?.[0]).toMatch(/^Đang tải lên — \d+\/2 tệp$/);
     const [message, options] = toast.success.mock.calls[0] ?? [];
-    expect(message).toBe("Đã tải lên 2 tệp vào «Hợp đồng»");
+    expect(message).toBe("Đã tải lên 2 tệp vào \"Hợp đồng\"");
     // "Mở thư mục" opens the destination: there is no root folder in files mode.
     options.action.onClick();
     expect(onOpenFolder).toHaveBeenCalledWith("folder-open");
@@ -421,7 +421,7 @@ describe("useFolderUpload", () => {
     expect(retryLoading.every((call) => call[1].id !== settled.id)).toBe(true);
     expect(retryLoading[0]?.[1].action.label).toBe(t("documents.folder_upload.retry_toast.cancel"));
     const [message, options] = toast.success.mock.calls[0] ?? [];
-    expect(message).toBe("Đã tải lên 2 tệp vào «Mới»");
+    expect(message).toBe("Đã tải lên 2 tệp vào \"Mới\"");
     expect(options.id).toBe(retryLoading[0]?.[1].id);
     expect(options.action.label).toBe(t("documents.folder_upload.toast.open_folder"));
     // The report gave way to the retry's toast; a retry is not an abandon.
@@ -464,7 +464,7 @@ describe("useFolderUpload", () => {
     const { transport } = setup({}, { putFailures: { "b.pdf": ["network", "network", "network"] } });
     stage(entries("Mới", ["a.pdf", "b.pdf"]));
     upload();
-    await waitFor(() => expect(toast.loading.mock.calls.some((call) => call[0] === "Đang tải lên «Mới» — 1/2 tệp")).toBe(true));
+    await waitFor(() => expect(toast.loading.mock.calls.some((call) => call[0] === "Đang tải lên \"Mới\" — 1/2 tệp")).toBe(true));
     expect(transport.calls.some((c) => c.method === "complete")).toBe(false);
     act(() => {
       toast.loading.mock.calls.at(-1)?.[1].action.onClick();
@@ -489,7 +489,7 @@ describe("useFolderUpload", () => {
     upload();
     await waitFor(() => expect(toast.warning).toHaveBeenCalled());
     const [message, options] = toast.warning.mock.calls[0] ?? [];
-    expect(message).toBe("Lượt tải lên «Mới» đã hết hạn — 1/3 tệp đã lên. Hãy tải lại thư mục.");
+    expect(message).toBe("Lượt tải lên \"Mới\" đã hết hạn — 1/3 tệp đã lên. Hãy tải lại thư mục.");
     expect(options.action.label).toBe(t("documents.folder_upload.toast.view_failures"));
     act(() => {
       options.action.onClick();

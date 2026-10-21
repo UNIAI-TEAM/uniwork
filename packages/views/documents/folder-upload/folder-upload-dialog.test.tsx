@@ -84,8 +84,8 @@ describe("FolderUploadDialog", () => {
   it("names the (n) title when the root name is taken", () => {
     renderDialog({ plan: plan({ rootTitle: "Báo cáo (1)" }) });
     expect(screen.getByTestId("folder-upload-root")).toHaveTextContent("Báo cáo (1)");
-    expect(screen.getByTestId("folder-upload-renamed")).toHaveTextContent("Đã có «Báo cáo» ở đây");
-    expect(screen.getByTestId("folder-upload-renamed")).toHaveTextContent("«Báo cáo (1)»");
+    expect(screen.getByTestId("folder-upload-renamed")).toHaveTextContent("Đã có \"Báo cáo\" ở đây");
+    expect(screen.getByTestId("folder-upload-renamed")).toHaveTextContent("\"Báo cáo (1)\"");
   });
 
   it("groups skipped files by reason and expands the paths of one group", () => {
@@ -174,7 +174,7 @@ describe("FolderUploadDialog", () => {
     expect(onSubmit).toHaveBeenCalledWith({ shareWithWorkspace: false });
   });
 
-  it("cancels without submitting and blocks closing while the run is being prepared", () => {
+  it("cancels without submitting", () => {
     const { onSubmit, onOpenChange } = renderDialog();
     fireEvent.click(screen.getByRole("button", { name: "Hủy" }));
     expect(onOpenChange).toHaveBeenCalledWith(false);

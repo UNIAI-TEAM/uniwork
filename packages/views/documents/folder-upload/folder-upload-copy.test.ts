@@ -257,3 +257,11 @@ describe("files-mode copy", () => {
     expect(refusalMessage(t, { code: "too_many_files", limit: 500, actual: 612 }, "vi", { mode: "files" })).toBe("612 tệp — tối đa 500");
   });
 });
+
+describe("folder-upload copy typography (R2-5)", () => {
+  it("quotes names with straight double quotes in Vietnamese (docs/conventions.md §3)", () => {
+    const vi = JSON.stringify(t("documents.folder_upload", { returnObjects: true }));
+    expect(vi).not.toMatch(/[«»“”]/);
+    expect(t("documents.folder_upload.toast.success", { count: 2, name: "Mới" })).toBe('Đã tải lên 2 tệp vào "Mới"');
+  });
+});

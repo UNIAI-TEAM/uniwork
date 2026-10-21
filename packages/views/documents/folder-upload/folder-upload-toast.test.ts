@@ -51,7 +51,7 @@ describe("createFolderUploadToast in files mode (ADDENDUM 2 A7)", () => {
     const onOpenFolder = vi.fn();
     makeFiles().settle(settled({ title: "Hợp đồng", onOpenFolder }));
     const [message, options] = toast.success.mock.calls[0] ?? [];
-    expect(message).toBe("Đã tải lên 40 tệp vào «Hợp đồng»");
+    expect(message).toBe("Đã tải lên 40 tệp vào \"Hợp đồng\"");
     expect(options.action.label).toBe("Mở thư mục");
     options.action.onClick();
     expect(onOpenFolder).toHaveBeenCalledTimes(1);
@@ -79,8 +79,8 @@ describe("createFolderUploadToast", () => {
 
     expect(toast.loading).toHaveBeenCalledTimes(2);
     const [first, second] = toast.loading.mock.calls;
-    expect(first?.[0]).toBe("Đang tải lên «Báo cáo» — 0/40 tệp");
-    expect(second?.[0]).toBe("Đang tải lên «Báo cáo» — 12/40 tệp");
+    expect(first?.[0]).toBe("Đang tải lên \"Báo cáo\" — 0/40 tệp");
+    expect(second?.[0]).toBe("Đang tải lên \"Báo cáo\" — 12/40 tệp");
     expect(second?.[1].id).toBe(first?.[1].id);
     expect(second?.[1].action.label).toBe("Hủy tất cả");
     second?.[1].action.onClick();
@@ -93,7 +93,7 @@ describe("createFolderUploadToast", () => {
     const result = settled();
     handle.settle(result);
     const [message, options] = toast.success.mock.calls[0] ?? [];
-    expect(message).toBe("Đã tải lên 40 tệp vào «Báo cáo»");
+    expect(message).toBe("Đã tải lên 40 tệp vào \"Báo cáo\"");
     expect(options.id).toBe(toast.loading.mock.calls[0]?.[1].id);
     expect(options.action.label).toBe("Mở thư mục");
     options.action.onClick();
@@ -124,7 +124,7 @@ describe("createFolderUploadToast", () => {
     const { handle } = make();
     handle.settle(settled({ done: 12, failed: 3, expired: true }));
     const [message, options] = toast.warning.mock.calls[0] ?? [];
-    expect(message).toBe("Lượt tải lên «Báo cáo» đã hết hạn — 12/40 tệp đã lên. Hãy tải lại thư mục.");
+    expect(message).toBe("Lượt tải lên \"Báo cáo\" đã hết hạn — 12/40 tệp đã lên. Hãy tải lại thư mục.");
     expect(options.action.label).toBe("Xem");
 
     handle.settle(settled({ done: 12, failed: 0, expired: true }));
@@ -134,7 +134,7 @@ describe("createFolderUploadToast", () => {
   it("uses the server's title for the end state, not the preview name", () => {
     const { handle } = make();
     handle.settle(settled({ title: "Báo cáo (1)" }));
-    expect(toast.success.mock.calls[0]?.[0]).toBe("Đã tải lên 40 tệp vào «Báo cáo (1)»");
+    expect(toast.success.mock.calls[0]?.[0]).toBe("Đã tải lên 40 tệp vào \"Báo cáo (1)\"");
   });
 
   it("says a cancel kept nothing without a zero count", () => {
@@ -147,7 +147,7 @@ describe("createFolderUploadToast", () => {
     const onCancelAll = vi.fn();
     createFolderUploadToast({ t, name: "Báo cáo", total: 40, onCancelAll, retry: true });
     const [message, options] = toast.loading.mock.calls[0] ?? [];
-    expect(message).toBe("Đang thử lại «Báo cáo» — 0/40 tệp");
+    expect(message).toBe("Đang thử lại \"Báo cáo\" — 0/40 tệp");
     expect(options.action.label).toBe("Hủy thử lại");
     options.action.onClick();
     expect(onCancelAll).toHaveBeenCalledTimes(1);

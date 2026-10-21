@@ -21,7 +21,7 @@ function renderReport(over: Partial<Parameters<typeof FolderUploadReportDialog>[
 describe("FolderUploadReportDialog", () => {
   it("lists each failed path with the sentence of its code, and the generic one for a code it does not know", () => {
     renderReport();
-    expect(screen.getByText("«Báo cáo»: 3 tệp bị lỗi. Các tệp còn lại đã được giữ nguyên.")).toBeInTheDocument();
+    expect(screen.getByText("\"Báo cáo\": 3 tệp bị lỗi. Các tệp còn lại đã được giữ nguyên.")).toBeInTheDocument();
     expect(screen.getByText("Báo cáo/2026/a.docx")).toBeInTheDocument();
     expect(screen.getByText("Đã hết dung lượng lưu trữ. Giải phóng dung lượng rồi tải lại thư mục.")).toBeInTheDocument();
     expect(screen.getAllByText("Không tải lên được tệp này.")).toHaveLength(2);
