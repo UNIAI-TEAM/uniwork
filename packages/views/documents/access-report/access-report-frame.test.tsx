@@ -145,12 +145,12 @@ describe("access report frame - toolbar", () => {
 
   it("draws the active tile's chip with the shared pill", async () => {
     renderView(`${BASE_URL}?flag=public_link`);
-    const chip = await screen.findByRole("button", { name: /^Clear|^Bỏ/ });
+    const chip = await screen.findByRole("button", { name: at("clear_chip", { name: at("flag_public_link") }) });
     expect(chip).toHaveClass(...classes(PILL), ...classes(PILL_ON));
   });
 
   it("keeps the By person filters on the same pieces", async () => {
-    renderView(`${BASE_URL}?view=people`);
+    renderView(`${BASE_URL}?view=person`);
     await screen.findByRole("table", { name: at("tab_people") });
     expect(screen.getByRole("combobox", { name: `${at("filter_kind")}: ${at("filter_all")}` })).toHaveClass(...classes(FILTER_SELECT));
   });
@@ -159,18 +159,19 @@ describe("access report frame - toolbar", () => {
 describe("access report frame - table", () => {
   it.each([
     ["documents", BASE_URL, "title"],
-    ["people", `${BASE_URL}?view=people`, "tab_people"],
+    ["people", `${BASE_URL}?view=person`, "tab_people"],
   ])("By %s: the shared header and row classes, one sorted column, its button inside", async (_name, url, label) => {
     renderView(url);
     const table = await screen.findByRole("table", { name: at(label) });
-    expect(table.parentElement).toHaveClass("overflow-hidden", "rounded-lg", "border", "border-border");
+    // The shared list's box; a wide table scrolls inside it.
+    expect(table.closest(".rounded-lg")).toHaveClass("overflow-hidden", "border", "border-border");
     expect(table).toHaveClass("text-left");
     const head = table.querySelector("thead")!;
     expect(head).toHaveClass("bg-muted/50");
     const headRow = head.querySelector("tr")!;
     expect(headRow).toHaveClass("border-b", "border-border", "text-caption", "text-muted-foreground");
     for (const th of within(headRow).getAllByRole("columnheader")) {
-      expect(th).toHaveClass("py-2", "px-3", "font-medium");
+      expect(th).toHaveClass("py-2", "font-medium");
     }
     const row = table.querySelector("tbody > tr")!;
     expect(row).toHaveClass("border-b", "border-border", "hover:bg-accent/40");
@@ -192,7 +193,7 @@ describe("access report frame - shared cells", () => {
       documents: [entry("d1", "Hợp đồng ABC", { access_changed_at: dateCase.at }, [ownerRow, shareRow])],
     }).documents;
 
-  function renderTable(documents = rows(vectors.dates.cases[0]!)) {
+  function renderTable(documents = rows({ at: "2026-10-20T14:41:00" })) {
     return render(
       wrapWithNav(
         <WorkspaceProvider workspace={workspace} user={viewer}>
@@ -203,7 +204,8 @@ describe("access report frame - shared cells", () => {
     );
   }
 
-  const cases = vectors.dates.cases.slice(0, 8);
+  // The vectors that share the file's `now` and carry a date (the null one is the formatter's own empty case).
+  const cases = vectors.dates.cases.filter((c): c is typeof c & { at: string } => c.at !== null && !("now" in c)).slice(0, 8);
   for (const locale of ["vi", "en"] as const) {
     for (const [index, c] of cases.entries()) {
       it(`#${index} the last-change cell reads the shared date format (${locale}): ${c[locale]}`, async () => {

@@ -31,12 +31,12 @@ export interface LibraryToolbarProps {
   className?: string;
 }
 
-const FILTER_SELECT =
+export const FILTER_SELECT =
   "h-8 gap-1.5 rounded-md border border-border bg-background px-3 text-caption text-foreground pointer-coarse:h-11";
 
-const PILL =
+export const PILL =
   "h-7 shrink-0 rounded-full border px-3 text-caption transition-colors pointer-coarse:h-11 pointer-coarse:min-h-11 pointer-coarse:min-w-11";
-const PILL_ON = "border-foreground bg-foreground text-background";
+export const PILL_ON = "border-foreground bg-foreground text-background";
 const PILL_OFF = "border-border bg-background text-foreground hover:bg-accent";
 
 /**
@@ -138,7 +138,7 @@ interface FilterSelectProps {
 }
 
 /** One labelled dropdown of the filter bar, "Người sửa: Bất kỳ" style. */
-function FilterSelect({ label, value, items, onPick }: FilterSelectProps) {
+export function FilterSelect({ label, value, items, onPick }: FilterSelectProps) {
   return (
     <Select
       value={value}

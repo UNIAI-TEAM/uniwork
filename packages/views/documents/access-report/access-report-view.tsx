@@ -257,27 +257,28 @@ export function AccessReportView({ wsId, workspaceName, workspaceSlug, libraryHr
   );
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <AccessReportHeader
-        wsId={wsId}
-        workspaceName={workspaceName}
-        workspaceSlug={workspaceSlug}
-        libraryHref={libraryHref}
-        folderId={folderId}
-        folderTitle={folderTitle}
-        filters={filters}
-        generatedAt={pages[0]?.generated_at}
-        onFolderChange={(id) => setState({ folderId: id })}
-        onRefresh={() => void queryClient.invalidateQueries({ queryKey: documentKeys.accessReportRoot(wsId) })}
-        refreshing={report.isRefetching && !isFetchingNextPage}
-        exportDescribedBy={showEmptyNote ? emptyNoteId : undefined}
-      />
-      {showEmptyNote ? (
-        <p id={emptyNoteId} className="px-4 pb-2 text-right text-caption text-muted-foreground">
-          {t("documents.accessReport.empty_export_note")}
-        </p>
-      ) : null}
-      <div className="min-h-0 flex-1 overflow-y-auto">
+    // The page is one column that scrolls as a whole, like the other Documents screens.
+    <div className="min-h-0 flex-1 overflow-y-auto">
+      <div className="mx-auto flex w-full max-w-6xl flex-col gap-5 px-4 py-5 sm:px-6">
+        <AccessReportHeader
+          wsId={wsId}
+          workspaceName={workspaceName}
+          workspaceSlug={workspaceSlug}
+          libraryHref={libraryHref}
+          folderId={folderId}
+          folderTitle={folderTitle}
+          filters={filters}
+          generatedAt={pages[0]?.generated_at}
+          onFolderChange={(id) => setState({ folderId: id })}
+          onRefresh={() => void queryClient.invalidateQueries({ queryKey: documentKeys.accessReportRoot(wsId) })}
+          refreshing={report.isRefetching && !isFetchingNextPage}
+          exportDescribedBy={showEmptyNote ? emptyNoteId : undefined}
+        />
+        {showEmptyNote ? (
+          <p id={emptyNoteId} className="-mt-3 text-right text-caption text-muted-foreground">
+            {t("documents.accessReport.empty_export_note")}
+          </p>
+        ) : null}
         {unusable ? (
           status === 403 ? (
             <CollectionPageState icon={ShieldAlert} tone="destructive" role="alert" title={t("documents.accessReport.forbidden")} actions={back} />
@@ -285,7 +286,7 @@ export function AccessReportView({ wsId, workspaceName, workspaceSlug, libraryHr
             <CollectionPageState icon={FolderX} tone="destructive" role="alert" title={t("documents.accessReport.folder_unavailable")} actions={back} />
           )
         ) : (
-          <div className="flex w-full flex-col gap-4 px-4 pb-6">
+          <div className="flex w-full flex-col gap-4">
             {people ? null : (
               <AccessReportTiles
                 totals={tiles.data}

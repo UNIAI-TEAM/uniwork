@@ -5,6 +5,10 @@ import { useTranslation } from "react-i18next";
 import { cn } from "@uniwork/ui/lib/utils";
 import type { LibrarySort, LibrarySortColumn } from "./library-sort";
 
+/** The sort button's classes, shared with the access report's headers so every list table sorts alike. */
+export const SORT_HEADER_BUTTON =
+  "-mx-1 inline-flex max-w-[calc(100%+0.5rem)] items-center gap-1 rounded-sm px-1 font-medium transition-colors hover:text-foreground pointer-coarse:min-h-11 pointer-coarse:min-w-11";
+
 export interface LibrarySortHeaderProps {
   column: LibrarySortColumn;
   /** The visible, already translated column name. */
@@ -32,10 +36,7 @@ export function LibrarySortHeader({ column, label, sort, onSort }: LibrarySortHe
       type="button"
       aria-label={name}
       onClick={() => onSort(column)}
-      className={cn(
-        "-mx-1 inline-flex max-w-[calc(100%+0.5rem)] items-center gap-1 rounded-sm px-1 font-medium transition-colors hover:text-foreground pointer-coarse:min-h-11 pointer-coarse:min-w-11",
-        active && "text-foreground",
-      )}
+      className={cn(SORT_HEADER_BUTTON, active && "text-foreground")}
     >
       <span className="truncate">{label}</span>
       {active ? <Arrow aria-hidden className="size-3.5 shrink-0" /> : null}

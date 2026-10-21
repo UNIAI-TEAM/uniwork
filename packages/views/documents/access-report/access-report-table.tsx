@@ -10,7 +10,8 @@ import { Badge } from "@uniwork/ui/components/ui/badge";
 import { cn } from "@uniwork/ui/lib/utils";
 import { initialOf } from "../../chat/chat-initials";
 import { DocumentTypeIcon, documentIconFormat } from "../document-type-icon";
-import { formatWhen } from "../document-format";
+import { ACCESS_PILL, DocPersonCell } from "../doclist/cells";
+import { formatListDate } from "../doclist/format";
 import { AccessReportGrants, grantName } from "./access-report-grants";
 import { flagLabel, generalScopeLabel, whoLines } from "./access-report-labels";
 import {
@@ -24,14 +25,15 @@ const NONE = "—";
 /** Avatars drawn before the rest fold into the "who" line. */
 const MAX_AVATARS = 4;
 
-const TH = "px-3 py-1 text-left text-caption font-medium whitespace-nowrap text-muted-foreground";
-const TD = "px-3 py-3 align-middle";
+// The shared list's header and cell padding (documents-library-list / -row).
+const TH = "px-3 py-2 font-medium whitespace-nowrap";
+const TD = "px-3 py-2 align-middle";
 
-/** The general access pill: private reads neutral, the workspace informative, the organization a caution. */
+/** The general access pill wears the shared list's pill tones: private grey, the workspace blue, the organization amber (the "shared" caution). */
 const SCOPE_TONE: Record<string, string> = {
-  restricted: "bg-muted text-foreground",
-  workspace: "bg-info-soft text-info-soft-foreground",
-  organization: "bg-warning-soft text-warning-soft-foreground",
+  restricted: ACCESS_PILL.restricted,
+  workspace: ACCESS_PILL.workspace,
+  organization: ACCESS_PILL.shared,
 };
 
 /** A public link is the loudest warning; reach outside the workspace next; direct manage is a note. */
@@ -75,34 +77,36 @@ export function AccessReportTable({ wsId, documents, sort, order, onSortChange, 
   const sortProps = { sort, order, onSortChange, pendingFocus };
   return (
     // A size container: the open grants size themselves to this box (cqw), not to the viewport.
-    <div className="overflow-x-auto rounded-lg border border-border bg-card [container-type:inline-size]">
-      {/* Fixed layout: a long name gives way to the ellipsis instead of widening the table. */}
-      <table aria-label={t("documents.accessReport.title")} className="w-full min-w-[60rem] table-fixed border-collapse text-body">
-        <thead className="bg-muted/40">
-          <tr className="border-b border-border">
-            <AccessReportSortHeader column="title" label={t("documents.accessReport.col_document")} className="w-[28%]" {...sortProps} />
-            <th scope="col" className={cn(TH, "w-[18%]")}>{t("documents.accessReport.col_general_scope")}</th>
-            <th scope="col" className={cn(TH, "w-[18%]")}>{t("documents.accessReport.col_people")}</th>
-            <th scope="col" className={cn(TH, "w-[18%]")}>{t("documents.accessReport.col_warnings")}</th>
-            <AccessReportSortHeader column="changed" label={t("documents.accessReport.col_changed")} className="w-[14%]" {...sortProps} />
-            <th scope="col" className={cn(TH, "w-16 px-2")}>
-              <span className="sr-only">{t("documents.accessReport.col_expand")}</span>
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {documents.map((entry) => (
-            <DocumentRow
-              key={entry.document.id}
-              wsId={wsId}
-              entry={entry}
-              expanded={open.has(entry.document.id)}
-              onToggle={() => toggle(entry.document.id)}
-              documentHref={documentHref}
-            />
-          ))}
-        </tbody>
-      </table>
+    <div className="overflow-hidden rounded-lg border border-border">
+      <div className="overflow-x-auto [container-type:inline-size]">
+        {/* Fixed layout: a long name gives way to the ellipsis instead of widening the table. */}
+        <table aria-label={t("documents.accessReport.title")} className="w-full min-w-[60rem] table-fixed border-collapse text-left text-body">
+          <thead className="bg-muted/50">
+            <tr className="border-b border-border text-caption text-muted-foreground">
+              <AccessReportSortHeader column="title" label={t("documents.accessReport.col_document")} className="w-[28%]" {...sortProps} />
+              <th scope="col" className={cn(TH, "w-[18%]")}>{t("documents.accessReport.col_general_scope")}</th>
+              <th scope="col" className={cn(TH, "w-[18%]")}>{t("documents.accessReport.col_people")}</th>
+              <th scope="col" className={cn(TH, "w-[18%]")}>{t("documents.accessReport.col_warnings")}</th>
+              <AccessReportSortHeader column="changed" label={t("documents.accessReport.col_changed")} className="w-[14%]" {...sortProps} />
+              <th scope="col" className={cn(TH, "w-16 px-2")}>
+                <span className="sr-only">{t("documents.accessReport.col_expand")}</span>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {documents.map((entry) => (
+              <DocumentRow
+                key={entry.document.id}
+                wsId={wsId}
+                entry={entry}
+                expanded={open.has(entry.document.id)}
+                onToggle={() => toggle(entry.document.id)}
+                documentHref={documentHref}
+              />
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
@@ -133,7 +137,7 @@ function DocumentRow({
     : path;
   const who = whoLines(t, facts);
   const scopeText = generalScopeLabel(t, facts.generalScope);
-  const changed = formatWhen(facts.changedAt, i18n.language);
+  const changed = formatListDate(facts.changedAt, new Date(), i18n.language);
   const toggleLabel = expanded
     ? t("documents.accessReport.collapse", { name: title })
     : t("documents.accessReport.expand_document", { name: title });
@@ -141,7 +145,7 @@ function DocumentRow({
 
   return (
     <Fragment>
-      <tr className={cn("border-b border-border hover:bg-muted/40", expanded && "bg-muted/30")}>
+      <tr className={cn("border-b border-border transition-colors last:border-b-0 hover:bg-accent/40", expanded && "bg-muted/30")}>
         <td className={cn(TD, "overflow-hidden")}>
           <button
             type="button"
@@ -165,15 +169,16 @@ function DocumentRow({
         </td>
         <td className={cn(TD, "overflow-hidden")}>
           {/* The pill never outgrows its cell: a long label wraps inside it to two lines at most, the full text on hover. */}
-          <span
+          <Badge
+            variant="secondary"
             title={scopeText}
             className={cn(
-              "block w-fit max-w-full line-clamp-2 rounded-full px-2.5 py-1 text-caption leading-tight font-medium [overflow-wrap:anywhere]",
-              SCOPE_TONE[facts.generalScope.kind] ?? "bg-muted text-foreground",
+              "block h-auto w-fit max-w-full whitespace-normal line-clamp-2 px-2.5 py-1 leading-tight [overflow-wrap:anywhere]",
+              SCOPE_TONE[facts.generalScope.kind] ?? ACCESS_PILL.restricted,
             )}
           >
             {scopeText}
-          </span>
+          </Badge>
         </td>
         <td className={cn(TD, "overflow-hidden")}>
           <WhoCell rows={rows} facts={facts} who={who} />
@@ -191,7 +196,7 @@ function DocumentRow({
             <span className="text-muted-foreground">{NONE}</span>
           )}
         </td>
-        <td className={cn(TD, "whitespace-nowrap text-muted-foreground")}>{changed || NONE}</td>
+        <td className={cn(TD, "whitespace-nowrap font-mono text-caption tabular-nums text-muted-foreground")}>{changed}</td>
         <td className={cn(TD, "px-2 text-right")}>
           <button
             type="button"
