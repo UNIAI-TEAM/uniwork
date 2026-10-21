@@ -189,6 +189,23 @@ describe("Documents home folder upload entries (UNI-2052)", () => {
     expect(input).not.toHaveAttribute("multiple");
   });
 
+  it("queues two dropped files one by one, with no multi-file run, when the config has no folder_upload block (A8)", async () => {
+    route({ folderUpload: false });
+    renderView();
+    await screen.findByRole("button", { name: t("documents.home.create.upload.button") });
+    await configLoaded();
+    const zone = screen.getByRole("region", { name: t("documents.page.title") });
+    const a = new File(["x"], "a.pdf", { type: "application/pdf" });
+    const b = new File(["y"], "b.pdf", { type: "application/pdf" });
+    await act(async () => {
+      fireEvent.drop(zone, { dataTransfer: { types: ["Files"], files: [a, b], items: [], dropEffect: "none" } });
+    });
+    await waitFor(() =>
+      expect(toast.loading).toHaveBeenCalledWith(t("documents.upload.drop_queued", { name: "b.pdf" }), expect.anything()),
+    );
+    expect(screen.queryByTestId("folder-upload-dialog")).toBeNull();
+  });
+
   it("opens the pre-flight dialog for a folder dropped on the library, destination My Folder at the root", async () => {
     route({ folderUpload: true });
     renderView();
