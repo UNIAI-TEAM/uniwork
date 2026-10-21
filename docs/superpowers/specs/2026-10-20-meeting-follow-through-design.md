@@ -103,7 +103,7 @@ trả lời §14. Các dòng còn lại là đề xuất của spec, duyệt cù
 | D11 | **Căn cứ:** mỗi kết luận và việc AI đưa ra mang tham chiếu tới đoạn transcript, ghi chú hoặc tin nhắn có trong đầu vào; tham chiếu không có trong đầu vào bị server loại. |
 | D12 | **Biên bản là một trang UniNote** do cuộc họp tham chiếu (`meetings.minutes_document_id`). Phần số liệu dựng từ bảng, phần diễn giải lấy từ tóm tắt. **"Chốt" = tạo một phiên bản tài liệu và ghi id của nó** (`minutes_finalized_version_id`): trang vẫn nằm trong cây và tìm kiếm, vẫn sửa được để đính chính, cuộc họp chỉ rõ bản đã chốt và báo khi trang đã sửa sau đó. Không dùng "cất trang" (shelve): nó ẩn trang khỏi cây và tìm kiếm, chặn bình luận. Khoá cứng và chữ ký là việc của loại họp (§10). Xem Q1 (§14) vì liên quan ADR 0016. |
 | D13 | **Xuất DOCX/PDF làm cho mọi trang UniNote** (office-engine); biên bản là nơi dùng đầu tiên. |
-| D14 | **Nhà cung cấp ghi lời file dài là BytePlus** (dịch vụ ghi lời file "bigmodel", hai pha gửi/hỏi), không đo so sánh trước. Chi tiết ở §7.4; điều kiện pháp lý trước khi bật cho khách ở §7.5. |
+| D14 | **Nhà cung cấp ghi lời file dài là AssemblyAI** (API ghi lời file ghi sẵn, model Universal-3.5 Pro, hai pha gửi/hỏi), cùng nhà cung cấp với ghi lời trực tiếp (spec thư ký AI D13): **một nhà cung cấp STT duy nhất**, không dự phòng. Thay BytePlus ngày 2026-10-21. Chi tiết ở §7.4; điều kiện pháp lý trước khi bật cho khách ở §7.5. |
 | D15 | **Ghi lời sau họp mở bằng quyền gói mới `meeting.transcription`**, tách khỏi `meeting.ai_summary`: chi phí theo phút âm thanh, khác hẳn tóm tắt tính theo token. |
 
 ## 2. Ngoài phạm vi
@@ -453,27 +453,45 @@ thuật làm người phụ trách.
   `Submit(ctx, audioURL, language, diarize) → jobID` và `Poll(ctx, jobID) → {done,
   segments [{start_ms, end_ms, speaker_label, text}], seconds, model, language}`. Nhà
   cung cấp tải file qua URL ký sẵn (đọc, hạn 6 giờ); server không giữ file trong bộ nhớ.
-- **BytePlus (D14).** Bản cài đặt đầu tiên của interface trên, trong
-  `internal/ai/provider`. Bản tham khảo đã chạy thật:
-  `supabase/functions/byteplus-asr-file/index.ts` của smart-commune-hub.
-  - `POST {base}/submit`, header `X-Api-Key`, `X-Api-Resource-Id`, `X-Api-Request-Id`
-    (id do ta sinh, cũng là `provider_job_id`), `X-Api-Sequence: -1`. Body:
-    `audio {url, format, language}`, `request {model_name: "bigmodel", enable_itn,
-    enable_punc, enable_speaker_info: true, show_utterances: true}`.
-  - `POST {base}/query` với cùng request id. Trạng thái nằm ở header
-    `X-Api-Status-Code`: `20000000` xong; `20000001`/`20000002` đang xử lý; mã khác là
-    lỗi. **Thiếu header là lỗi**: bản tham khảo coi rỗng là thành công, không chép điều
-    đó.
-  - Kết quả: `result.utterances[] {text, start_time, end_time (ms), additions.speaker}`
-    → segment. Thời lượng để tính phí lấy từ phản hồi nếu có, không thì ước như §7.4.
+- **AssemblyAI (D14).** Bản cài đặt duy nhất của interface trên, trong
+  `internal/ai/provider` (API ghi lời file ghi sẵn của AssemblyAI).
+  - `POST {base}/v2/transcript`, header `authorization: <key>`. Body đúng bốn trường:
+    `audio_url`, `speech_models: ["universal-3-5-pro","universal-2"]` (Universal-2 thay
+    khi 3.5 Pro không làm được), `language_codes: ["vi","en"]` (tự chuyển Việt–Anh như
+    thư ký AI; Universal-2 nhận tối đa hai mã, một mã là `en`), `speaker_labels: true`.
+    Trả `id` của nhà cung cấp, là `provider_job_id`. Model đã dùng (`speech_model_used`)
+    ghi vào cột `model`, nên thấy được khi rơi về Universal-2.
+  - Gửi bị từ chối 400/401/403/422: lỗi vĩnh viễn, việc `FAILED` ngay sau một lần thử,
+    ghi log mức error (id và mã HTTP). 429: chờ `Retry-After` (tối đa 10 phút), không
+    tính lần thử. 5xx và lỗi mạng: thử lại như cũ (3 lần, có giãn cách).
+  - `GET {base}/v2/transcript/{id}`: `status` `queued`/`processing` đang xử lý,
+    `completed` xong. `error`: nhà cung cấp không tải được file thì thử lại (URL được ký
+    lại), lỗi khác là vĩnh viễn (`FAILED` ngay). HTTP 400/404 (nhà cung cấp không biết
+    việc) thì thử lại bằng việc mới; 401, 429, 5xx và lỗi mạng thì hỏi lại lượt sau tới
+    hạn chót. Việc nằm `QUEUED` quá 24 giờ kể từ lúc yêu cầu (429 mãi, công tắc cờ
+    không mở lại) thành `FAILED` (`timeout`) kèm thông báo. Câu báo lỗi của nhà cung cấp chỉ vào log (URL thay bằng `<url>`), không
+    lưu vào DB.
+  - Kết quả: `utterances[] {speaker ("A", "B", …), start, end (ms), text}` → segment,
+    nhãn người nói là chữ cái. Không có `utterances` mà có chữ thì thành một segment
+    không nhãn. Thời lượng tính phí lấy từ `audio_duration` (giây), không có thì ước như
+    dưới. Xong mà không có chữ nào là im lặng, không tính phí.
+  - **Không có khóa chống gửi trùng (idempotency key).** Chặn bằng `provider_job_id`
+    lưu ngay sau khi gửi: dòng đã có id thì chỉ hỏi, không gửi lại. Rủi ro còn lại: câu
+    trả lời của lần gửi bị mất (hết giờ, mất lease) thì lần thử sau tạo việc thứ hai ở
+    nhà cung cấp; nhà cung cấp tính tiền cả hai, khách chỉ bị tính một lần khi xong.
   - Cấu hình (khai báo trong `.env.example`, `scripts/env-example.test.mjs` giữ):
-    `AI_MEETING_TRANSCRIBE_PROVIDER=byteplus`, `AI_MEETING_TRANSCRIBE_BASE_URL`,
-    `AI_MEETING_TRANSCRIBE_API_KEY`, `AI_MEETING_TRANSCRIBE_RESOURCE_ID`. Tên không gắn
-    nhà cung cấp, để đổi nhà cung cấp không phải đổi biến.
-  - File video (`video/mp4`) tải lên: kiểm đầu đợt 5 BytePlus có nhận không (bản tham
-    khảo chỉ gửi wav, mp3, ogg, m4a, webm); không nhận thì chỉ cho tải âm thanh. Không
-    chuyển mã trên server.
-  - Ghi lời trực tiếp dùng AssemblyAI (spec thư ký AI D13); ghi lời file dùng BytePlus.
+    `AI_MEETING_TRANSCRIBE_PROVIDER=assemblyai` (hoặc `fake`), `ASSEMBLYAI_API_KEY`
+    (cùng tên biến agent thư ký AI đọc), `AI_MEETING_TRANSCRIBE_BASE_URL` (rỗng là
+    `https://api.assemblyai.com`, Mỹ; `https://api.eu.assemblyai.com` giữ dữ liệu ở EU).
+  - Ước trước cho hạn mức: hộp thoại tải lên đọc thời lượng từ metadata của tệp trên
+    trình duyệt và gửi `duration_seconds`; server kẹp vào [dung lượng ÷ trần của loại,
+    dung lượng ÷ 1,5 kB/s]. Trần: âm thanh 40 kB/s (320 kbit/s), WAV theo tốc độ PCM
+    của header (không tin trường byte rate), video 2,5 MB/s (20 Mbit/s, video 1080p của
+    điện thoại). Không có thì ước theo dung lượng như cũ. Phút tính phí vẫn
+    lấy từ `audio_duration`.
+  - Định dạng: AssemblyAI nhận cả âm thanh và video (mp3, m4a, wav, ogg, webm, mp4, …),
+    tối đa 5 GB và 10 giờ mỗi file, nên `meeting_audio` nhận thêm `video/mp4`. Hạn 2 GiB
+    của ta vẫn giữ. Không chuyển mã trên server.
 - **Gateway:** phương thức mới cho capability `meeting_transcribe`. Tính phí khi xong
   theo số giây nhà cung cấp báo, không có thì ước theo dung lượng và MIME (luật ADR 0029,
   `cloud_audio.go`), theo mẫu chốt phí hiện có (`cloud_settle`). Khác `cloudRun` hiện
@@ -499,11 +517,17 @@ Giọng nói là dữ liệu cá nhân (Nghị định 13/2023/NĐ-CP). Tải fi
 `meeting.transcription_requested`). Phòng họp đang ghi phải hiện báo hiệu ghi (builder
 kiểm cái hiện có).
 
-BytePlus xử lý dữ liệu ngoài Việt Nam (bản tham khảo gọi vùng `ap-southeast-1`). **Trước
-khi bật cờ `meeting_transcription` cho khách hàng**: ký thỏa thuận xử lý dữ liệu với
-BytePlus, xác nhận vùng xử lý và thời gian BytePlus giữ file, và hoàn tất nghĩa vụ chuyển
-dữ liệu cá nhân ra nước ngoài theo quy định hiện hành (hồ sơ đánh giá tác động theo Nghị
-định 13/2023/NĐ-CP). Việc này không chặn code; nó chặn việc bật cờ ngoài nội bộ.
+AssemblyAI xử lý dữ liệu ngoài Việt Nam (Mỹ, hoặc EU qua `api.eu.assemblyai.com`), cho cả
+ghi lời trực tiếp lẫn ghi lời file: **một nhà cung cấp, một thỏa thuận xử lý dữ liệu, một
+hồ sơ chuyển dữ liệu ra nước ngoài**. **Trước khi bật cờ `meeting_transcription` (và
+`meeting_scribe`) cho khách hàng**: ký thỏa thuận xử lý dữ liệu với AssemblyAI, chọn và
+xác nhận vùng xử lý và thời gian AssemblyAI giữ file và bản ghi lời, và hoàn tất nghĩa vụ
+chuyển dữ liệu cá nhân ra nước ngoài theo quy định hiện hành (hồ sơ đánh giá tác động theo
+Nghị định 13/2023/NĐ-CP). Việc này không chặn code; nó chặn việc bật cờ ngoài nội bộ.
+
+Bản ghi lời file tải lên bị xóa ở AssemblyAI (`DELETE /v2/transcript/{id}`) ngay sau khi
+server lấy về và lưu xong, và cả việc bị bỏ (quá hạn chót, hoặc lỗi rồi gửi lại bằng việc
+mới); xóa hỏng thì ghi log, việc vẫn đi tiếp.
 
 ### 7.6 Dựng biên bản (đợt 7)
 
@@ -721,7 +745,7 @@ Một issue cha, mỗi đợt một sub-issue và một PR làm trọn backend +
 | 2 | Task hiện "Từ cuộc họp" (SDO + type + §9.4) | G2 | — | — |
 | 3 | Bảng việc sau họp + chuyển dữ liệu cũ; API §6.1–6.3; clerk cho tóm tắt và giao việc; prompt `@4`; mục "Việc sau họp" và copilot | G3, G4, một phần G5 | nên sau đợt 1 | — |
 | 4 | Việc còn tồn (§6.5, §9.2 mục 2); migration chép bù rồi xoá `meeting_summary_task_links` (§5.1) | G5 | 3 | — |
-| 5 | Họp trực tiếp không có máy trong phòng: ghi nhận đã họp; tải file ghi âm (purpose, phiên tải, xác nhận báo người dự họp); bảng và worker ghi lời theo lô; provider BytePlus + gateway + ước chi phí trước; hai kind thông báo | G6, G7 | khoá API BytePlus; spec thư ký AI S1 (hợp đồng segment) và S2 (bảng nhãn người nói); bật cờ ngoài nội bộ chờ §7.5 | `meeting_transcription` |
+| 5 | Họp trực tiếp không có máy trong phòng: ghi nhận đã họp; tải file ghi âm (purpose, phiên tải, xác nhận báo người dự họp); bảng và worker ghi lời theo lô; provider AssemblyAI + gateway + ước chi phí trước; hai kind thông báo | G6, G7 | khoá API AssemblyAI; spec thư ký AI S1 (hợp đồng segment) và S2 (bảng nhãn người nói); bật cờ ngoài nội bộ chờ §7.5 | `meeting_transcription` |
 | 6 | Căn cứ: prompt `@5`, cột `evidence`, chip căn cứ, mở transcript/bản ghi tại chỗ | G8 | 3; nên sau spec thư ký AI S1 | — |
 
 Ghi lời trực tiếp, phụ đề, micro hội trường, việc trong lúc họp, tóm tắt tự tạo, ngân sách
@@ -763,7 +787,7 @@ Cờ mới khai báo trong `featureflags/keys.go` với `review_at` 90 ngày sau
   (409); ước chi phí vượt hạn mức còn lại → 402, không nhận việc. Chọn nguồn §7.3: hai
   file tải lên, mỗi file lần `COMPLETE` mới nhất, ghép đúng thứ tự thời gian cùng đoạn
   `AGENT`. Ghi nhận đã họp chỉ từ `SCHEDULED`; giờ sai → 422; tải lên thiếu xác nhận →
-  422. Test provider BytePlus bằng httptest (mã trạng thái header, thiếu header là lỗi).
+  422. Test provider AssemblyAI bằng httptest (gửi, hỏi xong/lỗi, 4xx/5xx, body hỏng, segment tiếng Việt có nhãn người nói).
 - **Đợt 6:** nhãn không có trong bảng nhãn bị loại; bản tóm tắt cũ dạng chuỗi vẫn đọc
   được.
 - **Đợt 7:** `renderMinutes` snapshot cho năm trường hợp (đủ dữ liệu; không điểm danh
@@ -799,6 +823,6 @@ Chủ sản phẩm trả lời ngày 2026-10-20; kết quả đã ghi vào §1.3
 | # | Câu hỏi | Trả lời |
 |---|---|---|
 | Q1 | Biên bản là trang UniNote do cuộc họp tham chiếu, hay chờ module Work Product (C-14) theo ADR 0016? | Trang UniNote ngay (D12); chuyển sang Work Product khi C-14 có. Không trái quyết định "một kho duy nhất" của ADR 0016: trang vẫn nằm ở Document, cuộc họp chỉ tham chiếu, "chốt" chỉ là một phiên bản tài liệu. Đợt 7 ghi một dòng vào phần hệ quả của ADR 0016 để không ai hiểu nhầm. |
-| Q2 | Nhà cung cấp ghi lời file dài? | BytePlus, không đo so sánh trước (D14, §7.4). |
+| Q2 | Nhà cung cấp ghi lời file dài? | AssemblyAI, cùng nhà cung cấp với ghi lời trực tiếp (D14, §7.4; thay BytePlus ngày 2026-10-21). |
 | Q3 | Ghi lời sau họp tính vào quyền gói nào? | Quyền mới `meeting.transcription` (D15). |
 | Q4 | Thư ký được chạy tóm tắt (tốn hạn mức AI của tổ chức)? | Có (D3). |

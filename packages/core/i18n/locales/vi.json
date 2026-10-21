@@ -3879,7 +3879,7 @@
       "title": "Tải file ghi âm lên",
       "description": "UNI ghi lời file ghi âm của buổi họp. Cuộc họp nhiều phần thì tải lần lượt theo thứ tự: mỗi phần nối tiếp phần trước.",
       "fileLabel": "File ghi âm",
-      "fileHint": "MP3, M4A, WAV, OGG hoặc WebM, tối đa 2 GiB. Không nhận file video.",
+      "fileHint": "MP3, M4A, WAV, OGG, WebM hoặc video MP4, tối đa 2 GiB.",
       "tooLarge": "File lớn hơn 2 GiB. Chia nhỏ rồi tải từng phần.",
       "languageLabel": "Ngôn ngữ chính",
       "language_vi": "Tiếng Việt",

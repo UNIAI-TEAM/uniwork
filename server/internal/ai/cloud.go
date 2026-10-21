@@ -85,10 +85,10 @@ func CloudFromEnv(get func(string) string) CloudTools {
 		c.Transcriber = &provider.FakeTranscriber{}
 	}
 	switch name("AI_MEETING_TRANSCRIBE_PROVIDER") {
-	case "byteplus":
-		base, key, res := strings.TrimSpace(get("AI_MEETING_TRANSCRIBE_BASE_URL")), get("AI_MEETING_TRANSCRIBE_API_KEY"), strings.TrimSpace(get("AI_MEETING_TRANSCRIBE_RESOURCE_ID"))
-		if base != "" && key != "" && res != "" {
-			c.MeetingTranscriber = provider.NewBytePlusFileTranscriber(base, key, res)
+	case "assemblyai":
+		// The same key name the meeting agent's live scribe reads: one vendor.
+		if key := get("ASSEMBLYAI_API_KEY"); key != "" {
+			c.MeetingTranscriber = provider.NewAssemblyAIFileTranscriber(get("AI_MEETING_TRANSCRIBE_BASE_URL"), key)
 		}
 	case "fake":
 		c.MeetingTranscriber = &provider.FakeFileTranscriber{}

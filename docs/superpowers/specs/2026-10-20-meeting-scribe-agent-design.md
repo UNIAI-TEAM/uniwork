@@ -101,7 +101,7 @@ sản phẩm đã chốt ngày 2026-10-20 (§13).
 | D17 | **Tóm tắt phần đã lỡ và Hỏi UNI chỉ cho thành viên workspace**, không cho khách. Khách vẫn thấy phụ đề trực tiếp. |
 | D18 | **Một cuộc họp có thể có nhiều lần chạy agent.** LiveKit kết thúc job khi phòng không còn ai; phòng mở lại thì gọi agent lần mới. Hết phòng là kết thúc bình thường, không tính là lỗi. |
 | D12 | **Lỗi agent không làm hỏng cuộc họp:** không có agent trong phòng thì client quay về Web Speech như hiện nay. |
-| D13 | Nhà cung cấp STT trực tiếp: **AssemblyAI Universal-3.5 Pro Streaming** (có tiếng Việt, tự chuyển Việt–Anh, tách người nói, từ khóa, plugin Python và Node), **đo thử ở S0** trước khi làm S1. Agent chọn qua `SCRIBE_STT_PROVIDER`, nên đổi nhà cung cấp không phải sửa code. Ghi lời file tải lên vẫn là BytePlus (spec cha D14). |
+| D13 | Nhà cung cấp STT trực tiếp: **AssemblyAI Universal-3.6 Pro Streaming** (`universal-3-6-pro`, chọn ở S0) (có tiếng Việt, tự chuyển Việt–Anh, tách người nói, từ khóa, plugin Python và Node), **đo thử ở S0** trước khi làm S1. Agent chọn qua `SCRIBE_STT_PROVIDER`, nên đổi nhà cung cấp không phải sửa code. Ghi lời file tải lên cũng dùng AssemblyAI (API file ghi sẵn, spec cha D14, thay BytePlus ngày 2026-10-21): một nhà cung cấp STT duy nhất. |
 | D14 | **Mặc định bật** cho tổ chức có quyền gói; phòng luôn hiện báo hiệu; chủ trì/admin tắt hoặc bật lại cho từng cuộc họp, kể cả giữa chừng. |
 | D15 | **Việc đề xuất trong lúc họp** nằm trong nhóm A (A4). |
 | D16 | **Tóm tắt tự tạo** khi họp xong, nếu có lời hoặc ghi chú (A5); tổ chức tắt được. |
@@ -503,7 +503,7 @@ là lệnh: không ai "ra lệnh" được cho UNI bằng cách nói trong phòn
 
 Khi spec này được duyệt, sửa `2026-10-20-meeting-follow-through-design.md`:
 
-- **D9 và §7.4:** ghi lời sau họp chỉ còn nguồn `UPLOAD` (BytePlus giữ nguyên). Bỏ nguồn
+- **D9 và §7.4:** ghi lời sau họp chỉ còn nguồn `UPLOAD` (nhà cung cấp: AssemblyAI từ 2026-10-21, trước đó BytePlus). Bỏ nguồn
   `RECORDING` và rủi ro MP4 video.
 - **§5.3:** bỏ `recording_id` và cột `speakers` (dùng `meeting_speaker_labels`).
 - **§6.4:** route gán người nói chuyển sang §7.2 spec này.
@@ -512,7 +512,7 @@ Khi spec này được duyệt, sửa `2026-10-20-meeting-follow-through-design.
 - **D6:** việc `LIVE` không bị thay khi tạo lại tóm tắt.
 - **§7.8 (ngân sách họp dài)** giữ nguyên, chuyển sang đợt S1 của spec này.
 - **§12:** đợt 5a (UNI-2000) bị thay bằng các đợt S0–S7 dưới đây và đóng lại; 5a + 5b
-  gộp thành đợt 5 (UNI-2001): "Ghi nhận đã họp", tải file, ghi lời theo lô BytePlus, dùng
+  gộp thành đợt 5 (UNI-2001): "Ghi nhận đã họp", tải file, ghi lời theo lô (AssemblyAI từ 2026-10-21), dùng
   bảng nhãn của §6.3.
 
 Các sửa trên đã được áp vào spec cha cùng ngày, duyệt cùng spec này.
@@ -566,7 +566,7 @@ Chủ sản phẩm trả lời ngày 2026-10-20; kết quả đã ghi vào §1.3
 
 | # | Câu hỏi | Trả lời |
 |---|---|---|
-| Q1 | Nhà cung cấp STT trực tiếp? | AssemblyAI, đo thử ở S0 (D13). Ghi lời file vẫn BytePlus, nên có hai hồ sơ pháp lý (spec cha §7.5 áp cho cả hai). |
+| Q1 | Nhà cung cấp STT trực tiếp? | AssemblyAI, đo thử ở S0 (D13). Ghi lời file cũng AssemblyAI (từ 2026-10-21), nên chỉ một thỏa thuận xử lý dữ liệu và một hồ sơ chuyển dữ liệu ra nước ngoài (spec cha §7.5). |
 | Q2 | Thư ký tự vào mọi cuộc họp có quyền gói? | Có, luôn có báo hiệu, chủ trì tắt được (D14). |
 | Q3 | Việc trong lúc họp làm ngay ở nhóm A? | Có (D15, S3). |
 | Q4 | Tự tạo tóm tắt khi họp xong? | Có, tổ chức tắt được (D16, S4). |

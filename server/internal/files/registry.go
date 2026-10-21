@@ -214,10 +214,11 @@ var (
 	// video/webm.
 	recordingMIMETypes = []string{"video/webm", "audio/ogg", "video/ogg", "audio/mp4", "video/mp4"}
 	// meetingAudioMIMETypes is a meeting recorded on a phone or recorder and
-	// uploaded for transcription (UNI-2001, parent spec §5.5): audio only,
-	// the formats the transcription vendor takes. video/mp4 is not one of
-	// them, and an M4A is audio/mp4 by its brand.
-	meetingAudioMIMETypes      = []string{"audio/mpeg", "audio/mp4", "audio/wav", "audio/ogg", "audio/webm"}
+	// uploaded for transcription (UNI-2001, parent spec §5.5): formats
+	// AssemblyAI documents for pre-recorded audio. An M4A is audio/mp4 by
+	// its brand; a phone's video, or an audio MP4 the sniffer cannot place,
+	// is video/mp4, which the vendor also takes.
+	meetingAudioMIMETypes      = []string{"audio/mpeg", "audio/mp4", "audio/wav", "audio/ogg", "audio/webm", "video/mp4"}
 	meetingAudioCanonicalTypes = map[string]string{
 		"audio/wave":      "audio/wav",
 		"video/webm":      "audio/webm",

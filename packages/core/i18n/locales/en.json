@@ -3880,7 +3880,7 @@
       "title": "Upload a recording",
       "description": "UNI transcribes the meeting's recording. For a meeting in several parts, upload them in order: each part follows the one before.",
       "fileLabel": "Recording",
-      "fileHint": "MP3, M4A, WAV, OGG or WebM, up to 2 GiB. Video files are not accepted.",
+      "fileHint": "MP3, M4A, WAV, OGG, WebM or MP4 video, up to 2 GiB.",
       "tooLarge": "The file is larger than 2 GiB. Split it and upload the parts.",
       "languageLabel": "Main language",
       "language_vi": "Vietnamese",

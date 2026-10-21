@@ -11,7 +11,11 @@ func wavBytes(byteRate uint32, seconds int) []byte {
 	b := make([]byte, 44+int(byteRate)*seconds)
 	copy(b[0:], "RIFF")
 	copy(b[8:], "WAVE")
+	binary.LittleEndian.PutUint16(b[20:], 1) // PCM, 16-bit stereo at byteRate
+	binary.LittleEndian.PutUint16(b[22:], 2)
+	binary.LittleEndian.PutUint32(b[24:], byteRate/4)
 	binary.LittleEndian.PutUint32(b[28:], byteRate)
+	binary.LittleEndian.PutUint16(b[34:], 16)
 	return b
 }
 
@@ -75,5 +79,50 @@ func TestEstimateAudioSecondsFromSize(t *testing.T) {
 	binary.LittleEndian.PutUint32(wav[28:32], 16000)
 	if got := EstimateAudioSecondsFromHead(16000*90, "audio/wav", wav); got != 90 {
 		t.Fatalf("wav header = %v, want 90", got)
+	}
+}
+
+// A WAV header cannot shrink the estimate: PCM counts at its sample rate ×
+// channels × sample size whatever byte rate it claims, and any other WAV
+// codec at most at 320 kbit/s. The ceiling is the fastest a type may play.
+func TestWAVByteRateIsClampedAndTheCeilingFollowsTheType(t *testing.T) {
+	wav := func(format uint16, channels uint16, sampleRate, byteRate uint32, bits uint16) []byte {
+		b := make([]byte, 44)
+		copy(b, "RIFF")
+		copy(b[8:], "WAVE")
+		binary.LittleEndian.PutUint16(b[20:22], format)
+		binary.LittleEndian.PutUint16(b[22:24], channels)
+		binary.LittleEndian.PutUint32(b[24:28], sampleRate)
+		binary.LittleEndian.PutUint32(b[28:32], byteRate)
+		binary.LittleEndian.PutUint16(b[34:36], bits)
+		return b
+	}
+	lying := wav(1, 1, 8000, 4_000_000, 16) // 8 kHz 16-bit mono claiming 4 MB/s
+	if got := EstimateAudioSecondsFromHead(16000*90, "audio/wav", lying); got != 90 {
+		t.Fatalf("lying PCM header = %v s, want 90", got)
+	}
+	cd := wav(1, 2, 44100, 176400, 16)
+	if got := EstimateAudioSecondsFromHead(176400*60, "audio/wav", cd); got != 60 {
+		t.Fatalf("CD-quality PCM = %v s, want 60", got)
+	}
+	mp3InWAV := wav(0x55, 2, 44100, 4_000_000, 0)
+	if got := EstimateAudioSecondsFromHead(40000*60, "audio/wav", mp3InWAV); got != 60 {
+		t.Fatalf("compressed WAV = %v s, want 60 (320 kbit/s at most)", got)
+	}
+	for _, tc := range []struct {
+		mime string
+		head []byte
+		want int
+	}{
+		{"audio/mp4", nil, 40_000},
+		{"audio/mpeg", nil, 40_000},
+		{"audio/ogg", nil, 40_000},
+		{"audio/wav", nil, 40_000},
+		{"audio/wav", cd, 176400},
+		{"video/mp4", nil, 2_500_000},
+	} {
+		if got := AudioByteRateCeiling(tc.mime, tc.head); got != tc.want {
+			t.Errorf("ceiling %s = %d, want %d", tc.mime, got, tc.want)
+		}
 	}
 }

@@ -1,6 +1,6 @@
 # Sau họp đợt 5 (UNI-2001): họp trực tiếp không có máy trong phòng — kế hoạch triển khai
 
-> **Trạng thái:** in-progress — đủ server (held, purpose `meeting_audio` trên phiên tải BIGUP, bảng và worker ghi lời, provider BytePlus + gateway, nguồn transcript §7.3, thông báo) và web (hai hộp thoại, trạng thái ghi lời) trên nhánh `feature/UNI-2001-…`; chưa chạy với BytePlus thật, chờ review và merge; cờ ngoài nội bộ chờ thỏa thuận xử lý dữ liệu (§7.5).
+> **Trạng thái:** in-progress — đủ server (held, purpose `meeting_audio` trên phiên tải BIGUP, bảng và worker ghi lời, provider AssemblyAI + gateway (thay BytePlus ngày 2026-10-21), nguồn transcript §7.3, thông báo) và web (hai hộp thoại, trạng thái ghi lời) trên nhánh `feature/UNI-2001-…`; chưa chạy với AssemblyAI thật, chờ review và merge; cờ ngoài nội bộ chờ thỏa thuận xử lý dữ liệu (§7.5).
 
 **Spec:** `docs/superpowers/specs/2026-10-20-meeting-follow-through-design.md` §1.1 G6/G7,
 §1.3 D9, D10, D14, D15, §5.3, §5.5, §6.4, §7.3, §7.4, §7.5, §8.1–8.3, §9.2 mục 3, §12 dòng 5,
@@ -73,3 +73,24 @@ Ghi ở báo cáo (`Decision: …`). Hai điều spec giao kiểm đầu đợt:
 - Phút ghi lời file tính vào cùng sổ `meeting.transcription` với thư ký AI, kiểm trước bằng
   ước lượng từ dung lượng cộng các việc đang chờ của tổ chức; 402 khi không đủ. Bật cờ ngoài nội bộ chờ §7.5 (thỏa thuận xử lý dữ liệu với
 BytePlus).
+
+## Đổi nhà cung cấp sang AssemblyAI (2026-10-21)
+
+Chủ sản phẩm chọn **một** nhà cung cấp STT: ghi lời trực tiếp đã dùng AssemblyAI, nên ghi
+lời file cũng chuyển sang API file ghi sẵn của AssemblyAI và **bỏ hẳn BytePlus** (không dự
+phòng, không hai nhà cung cấp). Các mục BytePlus ở trên là lịch sử; hợp đồng hiện hành ở spec
+cha D14, §7.4, §7.5.
+
+- `provider.AssemblyAIFileTranscriber` thay `BytePlusFileTranscriber`, cùng interface và
+  capability `meeting_transcribe`: `POST /v2/transcript` (`speech_models:
+  ["universal-3-5-pro"]`, `language_codes: ["vi","en"]`, `speaker_labels`), `GET
+  /v2/transcript/{id}`; nhãn người nói "A", "B", …; phí theo `audio_duration`.
+- Cấu hình: `AI_MEETING_TRANSCRIBE_PROVIDER=assemblyai|fake`, `ASSEMBLYAI_API_KEY` (cùng tên
+  với agent thư ký AI), `AI_MEETING_TRANSCRIBE_BASE_URL` tùy chọn (EU/Mỹ). Bỏ
+  `AI_MEETING_TRANSCRIBE_API_KEY`, `AI_MEETING_TRANSCRIBE_RESOURCE_ID`.
+- AssemblyAI không có khóa chống gửi trùng: bỏ `RequestID` khỏi yêu cầu; chặn bằng
+  `provider_job_id` đã lưu (dòng có id chỉ được hỏi). Rủi ro còn lại ghi ở spec cha §7.4.
+- AssemblyAI nhận video: `meeting_audio` nhận thêm `video/mp4` (trước đây từ chối chỉ vì
+  BytePlus), web nhận `.mp4`.
+- Worker, lease, công tắc cờ, ước và tính phút, hạn URL ký sẵn, bảng nhãn và giao diện giữ
+  nguyên.
