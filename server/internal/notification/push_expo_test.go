@@ -214,6 +214,60 @@ func TestExpoPushSenderShapesCallPushesPerPlatform(t *testing.T) {
 	}
 }
 
+// A chat message push carries the chat_message category (Reply, Mark as read)
+// and the ids those actions act on; a thread reply names its thread. A push
+// about anything else, a call or a missed call has neither.
+func TestExpoPushSenderGivesChatPushesTheirActions(t *testing.T) {
+	var got []map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got = nil
+		_ = json.NewDecoder(r.Body).Decode(&got)
+		_, _ = io.WriteString(w, `{"data":[{"status":"ok","id":"t1"}]}`)
+	}))
+	defer srv.Close()
+	s := ExpoPushSender{URL: srv.URL}
+	phone := db.PushSubscription{Endpoint: "ExponentPushToken[a]", UserAgent: pgtype.Text{String: "expo/android; call-ui", Valid: true}}
+
+	dm := PushMessage{Title: "Minh", Body: "chào", URL: "https://app/o/w/chat?room=r&message=m", Tag: "chat_room:r:dm", Channel: ChannelMessages, Chat: ChatPush{WorkspaceID: "w", RoomID: "r", MessageID: "m"}}
+	if err := s.Send(context.Background(), phone, dm); err != nil {
+		t.Fatal(err)
+	}
+	data, _ := got[0]["data"].(map[string]any)
+	want := map[string]any{"url": dm.URL, "tag": dm.Tag, "workspace_id": "w", "room_id": "r", "message_id": "m"}
+	if got[0]["categoryId"] != ChatMessageCategory || len(data) != len(want) {
+		t.Fatalf("dm push = %v, want category %q and data %v", got[0], ChatMessageCategory, want)
+	}
+	for k, v := range want {
+		if data[k] != v {
+			t.Fatalf("dm data[%s] = %v, want %v", k, data[k], v)
+		}
+	}
+
+	thread := dm
+	thread.Chat.ThreadRootID = "root"
+	if err := s.Send(context.Background(), phone, thread); err != nil {
+		t.Fatal(err)
+	}
+	if d, _ := got[0]["data"].(map[string]any); d["thread_root_id"] != "root" {
+		t.Fatalf("thread reply data = %v, want its thread", d)
+	}
+
+	for name, msg := range map[string]PushMessage{
+		"task":   {Title: "t", URL: "https://app/x", Tag: "task:1"},
+		"missed": {Title: "Cuộc gọi nhỡ", URL: dm.URL, Tag: dm.Tag, Chat: dm.Chat, Call: CallPush{Type: CallPushMissed, CallID: "c", RoomID: "r", WorkspaceID: "w"}},
+	} {
+		if err := s.Send(context.Background(), phone, msg); err != nil {
+			t.Fatal(err)
+		}
+		if _, ok := got[0]["categoryId"]; ok {
+			t.Fatalf("%s push carries a category: %v", name, got[0])
+		}
+		if d, _ := got[0]["data"].(map[string]any); d["message_id"] != nil {
+			t.Fatalf("%s push carries chat ids: %v", name, d)
+		}
+	}
+}
+
 func TestMissedCallTitleNamesTheCaller(t *testing.T) {
 	for _, c := range []struct {
 		locale string

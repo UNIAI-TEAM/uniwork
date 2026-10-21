@@ -148,6 +148,8 @@ func (c *PushConsumer) Handle(ctx context.Context, ev outbox.Row) error {
 			return err
 		}
 		msg.Body = pushBody(user.Locale, chatMsg)
+		// Reply and Mark as read act on this message's room (and thread) from the notification.
+		msg.Chat = ChatPush{WorkspaceID: chatMsg.WorkspaceID, RoomID: chatMsg.RoomID, MessageID: chatMsg.ID, ThreadRootID: chatMsg.ThreadRootID.String}
 		if n.Kind == KindChatDM && chatMsg.Kind == "voice_call_log" {
 			// Only an unanswered DM call notifies its log (ChatService.finalizeVoiceCall).
 			c.missedCall(&msg, user.Locale, params, n, chatMsg)

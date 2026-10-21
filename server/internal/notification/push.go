@@ -33,6 +33,20 @@ type PushMessage struct {
 	// Call is set on a ring, on the end of one and on a missed call: the
 	// phone's own call UI needs the ids, not a banner. A browser never sees it.
 	Call CallPush `json:"-"`
+	// Chat is set on a chat message push (a DM, a mention, a thread reply):
+	// the ids the phone's notification actions act on without opening the
+	// app — Reply sends into the room or the thread, Mark as read reads the
+	// room. A browser never sees it.
+	Chat ChatPush `json:"-"`
+}
+
+// ChatPush names the message a chat push is about. Ids only, as every
+// client-visible payload (CLAUDE.md › Audit and Events).
+type ChatPush struct {
+	WorkspaceID  string
+	RoomID       string
+	MessageID    string
+	ThreadRootID string
 }
 
 // The kinds of CallPush. An invite and an end reach Android as data-only,

@@ -45,8 +45,29 @@ type expoMessage struct {
 	Data      map[string]string `json:"data"`
 	Sound     string            `json:"sound,omitempty"`
 	ChannelID string            `json:"channelId,omitempty"`
-	TTL       int               `json:"ttl"`
-	Priority  string            `json:"priority"`
+	// CategoryID names the notification category whose action buttons the
+	// phone shows (iOS UNNotificationCategory, Android actions).
+	CategoryID string `json:"categoryId,omitempty"`
+	TTL        int    `json:"ttl"`
+	Priority   string `json:"priority"`
+}
+
+// ChatMessageCategory is the category of a chat message push: Reply (a text
+// field) and Mark as read. The app registers it at launch
+// (apps/chat-mobile/lib/chat-notification.ts names the same id); a build that
+// has not registered it shows the push without buttons.
+const ChatMessageCategory = "chat_message"
+
+// chatData adds what a chat push's actions need to its data: the workspace,
+// room and message ids, and the thread a reply goes into.
+func chatData(data map[string]string, c ChatPush) map[string]string {
+	data["workspace_id"] = c.WorkspaceID
+	data["room_id"] = c.RoomID
+	data["message_id"] = c.MessageID
+	if c.ThreadRootID != "" {
+		data["thread_root_id"] = c.ThreadRootID
+	}
+	return data
 }
 
 // The Android notification channels the app creates at launch, localized
@@ -147,8 +168,14 @@ func expoMessageFor(sub db.PushSubscription, msg PushMessage) (expoMessage, bool
 		}
 	}
 	data := map[string]string{"url": msg.URL, "tag": msg.Tag}
-	if msg.Call.Type != "" {
+	category := ""
+	switch {
+	case msg.Call.Type != "":
 		data = callData(msg)
+	case msg.Chat.RoomID != "" && msg.Chat.WorkspaceID != "":
+		// A message someone sent this person: answered or read from the notification.
+		data = chatData(data, msg.Chat)
+		category = ChatMessageCategory
 	}
 	channel := msg.Channel
 	if channel == "" {
@@ -156,7 +183,7 @@ func expoMessageFor(sub db.PushSubscription, msg PushMessage) (expoMessage, bool
 	}
 	return expoMessage{
 		To: sub.Endpoint, Title: msg.Title, Body: msg.Body, Data: data,
-		Sound: "default", ChannelID: channel, TTL: msg.ttl(), Priority: "high",
+		Sound: "default", ChannelID: channel, CategoryID: category, TTL: msg.ttl(), Priority: "high",
 	}, true
 }
 

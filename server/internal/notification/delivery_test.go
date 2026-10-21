@@ -370,6 +370,10 @@ func TestChatPushCarriesBodyAndSkipsDeleted(t *testing.T) {
 	if want := "http://app.test/notif-org/notif-ws/chat?room=" + dm.ID + "&message=" + first.ID; spy.sent[0].URL != want {
 		t.Fatalf("URL = %q, want %q", spy.sent[0].URL, want)
 	}
+	// The notification's Reply and Mark as read act on this message's room.
+	if c := spy.sent[0].Chat; c.WorkspaceID != f.wsID || c.RoomID != dm.ID || c.MessageID != first.ID || c.ThreadRootID != "" {
+		t.Fatalf("chat ids = %+v", c)
+	}
 
 	// Read it so the next DM opens a fresh row, then delete that message before the push runs.
 	f.readAll(t, f.member.ID)
