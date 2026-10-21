@@ -388,7 +388,11 @@ func (s *MeetingService) SetScribe(ctx context.Context, userID, meetingID string
 	if err := tx.Commit(ctx); err != nil {
 		return db.Meeting{}, err
 	}
-	if changed && updated.Status == MeetingInProgress {
+	// Switching on with the switch already on is the host's retry of a
+	// FAILED run: ask for the agent now. The unique open run keeps a repeat
+	// from dispatching twice.
+	retry := enabled && !changed && s.ScribeStatus(ctx, m.ID) == ScribeFailed
+	if (changed || retry) && updated.Status == MeetingInProgress {
 		s.ensureScribeNow(ctx, m.ID, enabled)
 	}
 	return updated, nil

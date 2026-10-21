@@ -591,6 +591,42 @@ func TestSetScribeOnSkipsTheFailedRetryWait(t *testing.T) {
 	}
 }
 
+// The room's "Thử lại" on a FAILED scribe sends enabled:true with the switch
+// already on: it dispatches now, once, and writes no audit row (nothing about
+// the switch changed).
+func TestSetScribeOnRetriesAFailedRunWithTheSwitchOn(t *testing.T) {
+	s, fake, ua, m := scribeFixture(t)
+	ctx := context.Background()
+	if err := s.ensureScribe(ctx, m.ID); err != nil {
+		t.Fatal(err)
+	}
+	run := latestRun(t, s, m.ID)
+	if _, err := s.pool.Exec(ctx, `UPDATE meeting_scribe_runs SET status = 'FAILED', finished_at = now() WHERE id = $1`, run.ID); err != nil {
+		t.Fatal(err)
+	}
+	countAudit := func() (n int) {
+		if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM audit_events WHERE resource_id = $1 AND action LIKE '%scribe%'`, m.ID).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		return n
+	}
+	before := countAudit()
+	for range 2 {
+		if _, err := s.SetScribe(ctx, ua.ID, m.ID, true); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if r := latestRun(t, s, m.ID); r.ID == run.ID || r.Status != ScribeDispatched {
+		t.Fatalf("retry did not dispatch: %+v", r)
+	}
+	if d, _ := fake.ScribeCalls(); d != 2 {
+		t.Fatalf("dispatches = %d, want the first run and one retry", d)
+	}
+	if after := countAudit(); after != before {
+		t.Fatalf("a retry with no switch change audited: %d -> %d", before, after)
+	}
+}
+
 // Review item 14: with MEETING_SCRIBE_ENABLED off, the sweep still closes an
 // open run and takes its agent out of the room, and dispatches nothing.
 func TestSweepWithScribeDisabledClosesOpenRuns(t *testing.T) {
