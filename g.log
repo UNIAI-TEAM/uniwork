@@ -1,0 +1,6 @@
+$ grep -E "^\s*--- FAIL|^(FAIL|panic)|WARNING: DATA RACE|not formatted|^staticcheck|vet:" /tmp/pr7r5-go-service-e.log | cut -c1-250 | head -80
+--- FAIL: TestDocumentAccessBatchMatchesThePerItemPath (0.68s)
+    --- FAIL: TestDocumentAccessBatchMatchesThePerItemPath/apply (0.24s)
+FAIL
+FAIL	github.com/unicomhub/uniwork/server/internal/service	179.844s
+FAIL
