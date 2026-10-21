@@ -1,0 +1,4 @@
+$ for i in $(seq 1 14); do test -f /tmp/pr7r5-e2e.exit && break; sleep 30; done; echo "DONE_FILE=$(test -f /tmp/pr7r5-e2e.exit && echo yes || echo no)"; tail -2 /tmp/pr7r5-e2e.log
+DONE_FILE=no
+  ✓  41 landing-opening.spec.ts:34:3 › opening stays readable with working navigation at 390px (3.3s)
+  ✓  42 landing-opening.spec.ts:112:3 › opening supports English and dark mode at 1440px (2.4s)
