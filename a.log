@@ -1,0 +1,3 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git rev-parse HEAD; git log --oneline -1
+7e7ad46bdcce4d57763e80f0f67878f6f80e3a3e
+7e7ad46bd refactor(documents): reuse the computed level for the folder manage check in a trash
