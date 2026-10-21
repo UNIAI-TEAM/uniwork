@@ -95,7 +95,7 @@ import (
 //	GET    /api/v1/orgs/{orgID}/documents/favorites
 //	PUT    /api/v1/orgs/{orgID}/documents/settings                (G1-05b)
 //	GET    /api/v1/orgs/{orgID}/documents/settings                (G1-08)
-func registerDocuments(r, callerDocs api, h Routes, flags *featureflag.Service, editRequestLimit, accessRequestLimit func(http.Handler) http.Handler) {
+func registerDocuments(r, callerDocs api, h Routes, flags *featureflag.Service, editRequestLimit, accessRequestLimit, folderUploadPlanLimit, folderUploadLimit, folderUploadContentLimit func(http.Handler) http.Handler) {
 	d := r.With(mw.RequireFeatureFlag(flags, "documents"))
 	registerDocumentEditLock(d, h, editRequestLimit)
 
@@ -587,6 +587,59 @@ func registerDocuments(r, callerDocs api, h Routes, flags *featureflag.Service, 
 		sdo:         sdo.DocumentDownloadJobSDO{},
 		status:      http.StatusAccepted,
 		auth:        true,
+	})
+	d.With(folderUploadPlanLimit).Post("/workspaces/{workspaceID}/documents/folder-uploads", h.CreateFolderUpload, apiOp{
+		summary: "Plan a folder upload",
+		description: "Lập kế hoạch tải cả một thư mục (UNI-2052). Header Idempotency-Key bắt buộc (thiếu -> 400 invalid_request; cùng key cùng body trả lại đúng lô đó với đích ký mới; cùng key khác body -> 409 idempotency_payload_mismatch). " +
+			"Body {parent_id, root_name, share_with_workspace, folders[], files[{file_key, path, filename, size_bytes, probe?}]}. Cả kế hoạch bị từ chối, không ghi gì, khi: > max_files tệp -> 422 folder_upload_too_many_files (fields.max, count); > max_folders thư mục (tính cả thư mục gốc) -> 422 folder_upload_too_many_folders (fields.max, count); " +
+			"tổng > max_total_bytes -> 422 folder_upload_too_large (fields.max_bytes, total_bytes); một tệp > upload_max_bytes -> 422 folder_upload_file_too_large (fields.path, filename, max_bytes); đuôi tệp không hỗ trợ -> 422 folder_upload_unsupported_type (fields.path, filename); " +
+			"cây sâu quá 20 cấp tính cả thư mục cha -> 422 document_too_deep (fields.max_depth); parent_id không phải thư mục -> 422 document_parent_kind; đường dẫn sai ('..', đoạn rỗng, đường dẫn tuyệt đối, ký tự điều khiển, đoạn > 255 ký tự, thiếu thư mục cha, trùng tệp trong một thư mục) -> 400 invalid_request (fields.path); file_key sai hoặc trùng -> 400 invalid_request (fields.file_key); " +
+			"vượt hạn mức lưu trữ -> 403 quota_exceeded; người gọi đã có 2 lô đang mở -> 429 folder_uploads_busy + Retry-After: 30 (fields.retry_after); bucket folder-upload-plan 10 lượt/phút/người -> 429 rate_limited; không sửa được thư mục cha hoặc không là thành viên -> 403/404. " +
+			"Thành công: tạo thư mục gốc (trùng tên cùng cấp -> '<tên> (n)') và mọi thư mục con, đều riêng tư; trả 201 lô với folders[{path,id}] và mỗi tệp một target: put {method, url, headers, expires_at} (URL đã ký, gửi không kèm credential; hoặc route content của server với auth=session khi kho không ký được URL) hoặc multipart {session_id, part_size, parts[], expires_at} cho tệp lớn. " +
+			"Một dòng audit documents.folder_upload_planned, mỗi thư mục một dòng document.created, một event document.batch_uploaded.",
+		tags:   []string{"documents"},
+		sdi:    sdi.CreateFolderUploadSDI{},
+		sdo:    sdo.FolderUploadBatchSDO{},
+		status: http.StatusCreated,
+		auth:   true,
+	})
+	d.With(folderUploadLimit).Get("/workspaces/{workspaceID}/documents/folder-uploads/{batchID}", h.GetFolderUpload, apiOp{
+		summary: "Get a folder upload batch",
+		description: "Trạng thái một lô tải thư mục (UNI-2052): mỗi tệp một dòng pending|done|failed, counts, và target ký mới cho tệp pending (tệp lớn chỉ liệt kê các phần còn thiếu trên storage) để client tiếp tục sau khi mất mạng. Chỉ người tạo đọc được; người khác (kể cả thành viên cùng workspace) -> 404. " +
+			"Lô hết hạn (24 giờ sau khi lập, hoặc sweep đã đóng) -> 410 folder_upload_expired; lô canceled hoặc completed trả nguyên trạng, không có target. Bucket folder-upload 120 lượt/phút/người -> 429 rate_limited. Đọc không ghi audit.",
+		tags: []string{"documents"},
+		sdo:  sdo.FolderUploadBatchSDO{},
+		auth: true,
+	})
+	d.With(folderUploadLimit).Delete("/workspaces/{workspaceID}/documents/folder-uploads/{batchID}", h.CancelFolderUpload, apiOp{
+		summary: "Cancel a folder upload batch",
+		description: "Hủy lô tải thư mục (UNI-2052): lô open -> canceled, hủy upload nhiều phần còn treo trên storage và các phiên tải đơn của tệp pending; thư mục và tài liệu đã tạo giữ nguyên. Một dòng audit documents.folder_upload_canceled {batch_id, pending_count}. " +
+			"Idempotent: gọi lại trả 200 cùng nội dung, không thêm audit; lô completed trả nguyên trạng, không audit. Chỉ người tạo; người khác -> 404. Lô hết hạn -> 410 folder_upload_expired. Bucket folder-upload 120 lượt/phút/người.",
+		tags: []string{"documents"},
+		sdo:  sdo.FolderUploadBatchSDO{},
+		auth: true,
+	})
+	d.With(folderUploadContentLimit).Put("/workspaces/{workspaceID}/documents/folder-uploads/{batchID}/files/{fileKey}/content", h.PutFolderUploadContent, apiOp{
+		summary: "Upload one file of a folder upload through the server",
+		description: "Đích dự phòng của một tệp trong lô tải thư mục (UNI-2052) khi kho lưu trữ không ký được URL (target.auth=session, url tương đối): body là byte thô của tệp, gửi kèm phiên đăng nhập. Chỉ người tạo lô; người khác (kể cả cùng workspace) hoặc file_key lạ -> 404. " +
+			"Body lớn hơn size_bytes đã khai báo hoặc upload_max_bytes -> 413 file_too_large (fields.max_bytes), không ghi gì; lô đã hủy -> 409 folder_upload_canceled; lô hết hạn -> 410 folder_upload_expired; tệp không còn pending -> 409 folder_upload_file_settled; tệp có đích đã ký -> 409 folder_upload_target_signed; kho không dùng được -> 503 storage_unavailable. " +
+			"PUT lại khi tệp còn pending thay bản trước. Thành công: 200 {etag} và header ETag cùng giá trị (SHA-256 có ngoặc kép); gửi lại đúng chuỗi đó ở COMPLETE. Nội dung được kiểm ở COMPLETE. Bucket folder-upload-content 600 lượt/phút/người, ngoài giới hạn chung 300/phút.",
+		tags:   []string{"documents"},
+		sdo:    sdo.FolderUploadContentSDO{},
+		status: http.StatusOK,
+		auth:   true,
+	})
+	d.With(folderUploadLimit).Post("/workspaces/{workspaceID}/documents/folder-uploads/{batchID}/complete", h.CompleteFolderUpload, apiOp{
+		summary: "Complete files of a folder upload",
+		description: "Hoàn tất tối đa complete_batch (50) tệp của lô (UNI-2052): mỗi tệp {file_key, etag} (đích put) hoặc {file_key, parts[]} (multipart). Quá 50 -> 400 invalid_request (fields.max=50); file_key trùng trong body -> 400 invalid_request (fields.file_key). Chỉ người tạo lô; người khác -> 404; lô đã hủy -> 409 folder_upload_canceled; lô hết hạn -> 410 folder_upload_expired. " +
+			"Thành công từng phần, luôn 200: mỗi tệp một kết quả done (document_id) hoặc failed với error.code và retryable: upload_missing, parts_invalid, size_mismatch, upload_session_busy (một lệnh COMPLETE khác đang kiểm tra tệp multipart này) -> tệp vẫn pending, retryable=true (size_mismatch bỏ bản đã tải; GET trả đích mới); unsupported_media (+ reason), storage_quota_exceeded -> tệp failed hẳn, retryable=false; not_found (file_key không thuộc lô) không đổi gì. " +
+			"Gọi lại với file_key đã done trả cùng document_id. Tệp tạo dưới thư mục của nó, visibility workspace (mức xem) khi share_with_workspace, ngược lại riêng tư; mỗi tài liệu một dòng audit document.created (metadata batch_id), không có event document.created riêng. " +
+			"Một event document.batch_uploaded cho mỗi lần gọi có ít nhất một tệp done; không có khi mọi tệp failed. Khi không còn tệp pending, lô thành completed. Bucket folder-upload 120 lượt/phút/người (chung với GET/DELETE lô).",
+		tags:   []string{"documents"},
+		sdi:    sdi.CompleteFolderUploadSDI{},
+		sdo:    sdo.FolderUploadCompleteSDO{},
+		status: http.StatusOK,
+		auth:   true,
 	})
 	d.Get("/workspaces/{workspaceID}/documents/download-jobs/{jobID}", h.GetDocumentDownloadJob, apiOp{
 		summary:     "Get a document zip download job",

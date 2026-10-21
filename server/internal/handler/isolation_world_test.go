@@ -799,6 +799,26 @@ func (w *isoWorld) buildDocuments(t *testing.T, tn *isoTenant) {
 		tn.ids["downloadJob"], tn.orgID, tn.wsID, tn.userID, tn.ids["fileDocument"]); err != nil {
 		t.Fatalf("download job: %v", err)
 	}
+	// A folder upload batch (UNI-2052) of the tenant's owner with one file row.
+	// It is seeded settled (completed) so it does not count toward the owner's
+	// two open batches, which the PLAN route's control and its isoReferences
+	// control each take one of.
+	tn.ids["folderUpload"] = util.NewID()
+	tn.ids["folderUploadFileKey"] = "iso-file-" + tn.tag
+	if _, err := w.pool.Exec(context.Background(), `INSERT INTO document_folder_uploads
+		(id, organization_id, workspace_id, created_by, created_by_kind, root_folder_id, root_title,
+		 status, file_count, total_bytes, folders, expires_at, finished_at)
+		VALUES ($1, $2, $3, $4, 'human', $5, $6, 'completed', 1, 3, jsonb_build_object('', $5::text),
+		        now() + interval '24 hours', now())`,
+		tn.ids["folderUpload"], tn.orgID, tn.wsID, tn.userID, tn.ids["folder"], m+" Upload root"); err != nil {
+		t.Fatalf("folder upload: %v", err)
+	}
+	if _, err := w.pool.Exec(context.Background(), `INSERT INTO document_folder_upload_files
+		(id, file_key, organization_id, workspace_id, batch_id, folder_id, path, filename, size_bytes, target_kind)
+		VALUES ($1, $2, $3, $4, $5, $6, '', $7, 3, 'put')`,
+		util.NewID(), tn.ids["folderUploadFileKey"], tn.orgID, tn.wsID, tn.ids["folderUpload"], tn.ids["folder"], strings.ToLower(m)+"-upload.md"); err != nil {
+		t.Fatalf("folder upload file: %v", err)
+	}
 	// A comment on the file document itself: the office launch session's
 	// own-rows control must name a comment of the document its path names
 	// (R1-1 binds the ticket's comment to its document).

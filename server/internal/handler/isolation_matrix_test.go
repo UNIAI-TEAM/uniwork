@@ -760,6 +760,11 @@ func isoParam(t *testing.T, pattern string, segs []string, i int, tn *isoTenant)
 			return tn.get(t, "downloadJob")
 		}
 		return tn.get(t, "officeJob")
+	case "{batchID}":
+		// The folder upload batch (UNI-2052) of the tenant's owner.
+		return tn.get(t, "folderUpload")
+	case "{fileKey}":
+		return tn.get(t, "folderUploadFileKey")
 	case "{exportID}":
 		return tn.get(t, "auditExport")
 	case "{privacyExportID}":
