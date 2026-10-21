@@ -1,0 +1,4 @@
+$ npm run test -w @genoffice/shell > /tmp/s6-shell.log 2>&1; rc=$?; grep -E "Test Files|Tests |FAIL|AssertionError|Error:" /tmp/s6-shell.log | head -60; echo "SHELL_TEST_EXIT=$rc"
+ Test Files  360 passed | 3 skipped (363)
+      Tests  7415 passed | 23 skipped (7438)
+SHELL_TEST_EXIT=0

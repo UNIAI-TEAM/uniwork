@@ -1,0 +1,7 @@
+$ export ELECTRON_SKIP_BINARY_DOWNLOAD=1; npm ci > /tmp/s6-ci.log 2>&1; rc=$?; tail -5 /tmp/s6-ci.log; echo "INSTALL_EXIT=$rc"
+
+Some issues need review, and may require choosing
+a different dependency.
+
+Run `npm audit` for details.
+INSTALL_EXIT=0

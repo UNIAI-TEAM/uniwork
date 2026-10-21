@@ -1,0 +1,4 @@
+$ npm run test -w @genoffice/slides > /tmp/s6-slides.log 2>&1; rc=$?; grep -E "Test Files|Tests |FAIL|AssertionError|Error:" /tmp/s6-slides.log | head -60; echo "SLIDES_TEST_EXIT=$rc"
+ Test Files  178 passed | 1 skipped (179)
+      Tests  1850 passed | 14 skipped (1864)
+SLIDES_TEST_EXIT=0
