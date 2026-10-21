@@ -9,7 +9,7 @@ import numpy as np
 from livekit import rtc
 
 from scribe.stt import FakeSTT
-from scribe.transcriber import Caption, Final, TrackTranscriber
+from scribe.transcriber import Caption, Final, TrackTranscriber, start_once
 
 RATE, FRAME = 16000, 160  # 10 ms frames
 
@@ -125,6 +125,27 @@ async def test_caption_publish_failure_still_delivers_the_final():
     await t.close()
     assert [f.text for f in finals] == ["từ1 từ2"]
     assert t.failures == 0
+
+
+async def test_one_transcriber_per_track_when_the_track_is_announced_twice():
+    """Review R5 M1: a rejoin leaves the first join's track_subscribed listener
+    behind, so one track is announced twice in one dispatch, before any task runs."""
+    transcribers: dict[str, object] = {}
+    tasks: set[asyncio.Task] = set()
+    made: list[object] = []
+    ran: list[object] = []
+
+    def make_one() -> object:
+        made.append(object())
+        return made[-1]
+
+    async def run(t: object) -> None:
+        ran.append(t)
+
+    start_once(transcribers, tasks, "TR_a", make_one, run)
+    start_once(transcribers, tasks, "TR_a", make_one, run)
+    await asyncio.gather(*tasks)
+    assert len(made) == 1 and ran == made and transcribers == {"TR_a": made[0]}
 
 
 async def test_segment_ids_are_unique_across_jobs_on_the_same_track():

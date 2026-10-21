@@ -37,7 +37,7 @@ from scribe.job import (
 from scribe.keyterms import build_keyterms, refresh_keyterms
 from scribe.stt import make_stt
 from scribe.tracing import setup_tracing
-from scribe.transcriber import Caption, Final, TrackTranscriber
+from scribe.transcriber import Caption, Final, TrackTranscriber, start_once
 from scribe.translate import CaptionTranslator, wanted_languages
 
 CAPTION_TOPIC = "uw.caption"
@@ -133,9 +133,9 @@ async def entrypoint(ctx: JobContext) -> None:
         cadence.on_final()
         translator.add(f)
 
-    async def transcribe(p: rtc.RemoteParticipant, track: rtc.Track) -> None:
+    def new_transcriber(p: rtc.RemoteParticipant, track: rtc.Track) -> TrackTranscriber:
         diarize = shared_mic(p.attributes)
-        t = TrackTranscriber(
+        return TrackTranscriber(
             # The job id keeps segment ids unique across the runs of one meeting.
             segment_prefix=f"{ctx.job.id}-{track.sid}",
             identity=p.identity,
@@ -146,7 +146,8 @@ async def entrypoint(ctx: JobContext) -> None:
             language=meta["locale"],
             diarize=diarize,
         )
-        transcribers[track.sid] = t
+
+    async def transcribe(t: TrackTranscriber, track: rtc.Track) -> None:
         audio = rtc.AudioStream(track, sample_rate=16000, num_channels=1)
         vad_stream = vad_model.stream()
 
@@ -189,14 +190,10 @@ async def entrypoint(ctx: JobContext) -> None:
             t.update_keyterms(keyterms)
 
         def maybe_start(track: rtc.Track, pub: rtc.RemoteTrackPublication) -> None:
-            if (
-                track.kind == rtc.TrackKind.KIND_AUDIO
-                and pub.source == rtc.TrackSource.SOURCE_MICROPHONE
-                and track.sid not in transcribers
-            ):
-                task = asyncio.create_task(transcribe(p, track))
-                tasks.add(task)
-                task.add_done_callback(tasks.discard)
+            if track.kind == rtc.TrackKind.KIND_AUDIO and pub.source == rtc.TrackSource.SOURCE_MICROPHONE:
+                start_once(
+                    transcribers, tasks, track.sid, lambda: new_transcriber(p, track), lambda t: transcribe(t, track)
+                )
 
         def on_sub(track: rtc.Track, pub: rtc.RemoteTrackPublication, who: rtc.RemoteParticipant) -> None:
             if who.identity == p.identity:
