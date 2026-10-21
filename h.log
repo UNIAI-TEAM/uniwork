@@ -1,0 +1,3 @@
+$ export NODE_OPTIONS=--max-old-space-size=6144; npm run typecheck > /tmp/f1-tc.log 2>&1; rc=$?; grep -E "error TS|npm error" /tmp/f1-tc.log | head -60; echo; echo "TYPECHECK_EXIT=$rc"
+
+TYPECHECK_EXIT=0

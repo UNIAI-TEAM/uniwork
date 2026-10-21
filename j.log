@@ -1,0 +1,5 @@
+$ npm run test -w @genoffice/ui > /tmp/f1-ui.log 2>&1; rc=$?; grep -E "Test Files|Tests |FAIL|AssertionError|Error:" /tmp/f1-ui.log | head -60; echo; echo "UI_TEST_EXIT=$rc"
+ Test Files  62 passed (62)
+      Tests  1269 passed (1269)
+
+UI_TEST_EXIT=0

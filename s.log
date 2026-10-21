@@ -1,0 +1,5 @@
+$ node --test scripts/*.test.mjs > /tmp/f1-scripts.log 2>&1; rc=$?; grep -E "^# (pass|fail)|^not ok" /tmp/f1-scripts.log | head -20; echo; echo "SCRIPTS_TEST_EXIT=$rc"
+# pass 54
+# fail 0
+
+SCRIPTS_TEST_EXIT=0

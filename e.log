@@ -1,0 +1,18 @@
+$ npm run check:english-comments > /tmp/f1-eng.log 2>&1; rc=$?; tail -15 /tmp/f1-eng.log; echo; echo "ENGLISH_EXIT=$rc"
+    1..6
+ok 1 - findViolations
+  ---
+  duration_ms: 3.845
+  type: 'suite'
+  ...
+1..1
+# tests 6
+# suites 1
+# pass 6
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 48.993998
+
+ENGLISH_EXIT=0

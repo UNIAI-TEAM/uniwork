@@ -1,0 +1,9 @@
+$ npm run gen -w @genoffice/shortcuts -- --check > /tmp/f1-gen.log 2>&1; rc=$?; tail -10 /tmp/f1-gen.log; echo; echo "GEN_CHECK_EXIT=$rc"
+
+> @genoffice/shortcuts@0.1.0 gen
+> node scripts/gen-tables.mjs --check
+
+247 actions, 171 unmapped rows
+with a chord: desktop win 200, desktop mac 179, web win 219, web mac 198
+
+GEN_CHECK_EXIT=0

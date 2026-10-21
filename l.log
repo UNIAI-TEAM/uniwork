@@ -1,0 +1,5 @@
+$ npm run test -w @genoffice/docs > /tmp/f1-docs.log 2>&1; rc=$?; grep -E "Test Files|Tests |FAIL|AssertionError|Error:" /tmp/f1-docs.log | head -60; echo; echo "DOCS_TEST_EXIT=$rc"
+ Test Files  439 passed (439)
+      Tests  4060 passed (4060)
+
+DOCS_TEST_EXIT=0
