@@ -27,6 +27,8 @@ interface AiPanelStore {
   /** Another screen hands the panel a conversation it started, with the focus it was asked with. */
   openConversation: (conversationId: string, focus: AskUniPanelFocus) => void;
   rememberFocus: (conversationId: string, focus: AskUniPanelFocus) => void;
+  /** Logout: the next person on this browser starts with nothing of the last one's conversations. */
+  reset: () => void;
   /** A deleted conversation must not be continued from a meeting's Ask box. */
   forgetConversation: (conversationId: string) => void;
   clearPendingFocus: () => void;
@@ -40,13 +42,21 @@ function remembered(s: AiPanelStore, conversationId: string, focus: AskUniPanelF
   };
 }
 
-export const useAiPanelStore = create<AiPanelStore>((set) => ({
+const EMPTY: Pick<
+  AiPanelStore,
+  "open" | "conversationId" | "pendingFocus" | "workspaceId" | "focusByConversation" | "conversationByMeeting"
+> = {
   open: false,
   conversationId: null,
   pendingFocus: null,
   workspaceId: null,
   focusByConversation: {},
   conversationByMeeting: {},
+};
+
+export const useAiPanelStore = create<AiPanelStore>((set) => ({
+  ...EMPTY,
+  reset: () => set(EMPTY),
   bindWorkspace: (wsId) =>
     set((s) =>
       s.workspaceId === wsId
@@ -62,6 +72,7 @@ export const useAiPanelStore = create<AiPanelStore>((set) => ({
   rememberFocus: (conversationId, focus) => set((s) => remembered(s, conversationId, focus)),
   forgetConversation: (conversationId) =>
     set((s) => ({
+      conversationId: s.conversationId === conversationId ? null : s.conversationId,
       focusByConversation: Object.fromEntries(Object.entries(s.focusByConversation).filter(([id]) => id !== conversationId)),
       conversationByMeeting: Object.fromEntries(
         Object.entries(s.conversationByMeeting).filter(([, id]) => id !== conversationId),

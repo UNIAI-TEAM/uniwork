@@ -2,6 +2,7 @@
 
 import { QueryClientProvider } from "@tanstack/react-query";
 import { useEffect, useState, type ReactNode } from "react";
+import { useAiPanelStore } from "../ai/store";
 import { setSchemaLogger } from "../api/schema";
 import { useAuthStore } from "../auth/store";
 import {
@@ -72,9 +73,11 @@ export function CoreProvider({
     // persisted storage, which survives a reload. This is the only caller of
     // `setOnLogout`; nothing calls `clearWorkspaceStorage` on logout. The query
     // cache is cleared here too so every logout path (sidebar calls the store
-    // directly) drops stale workspace data before the next sign-in.
+    // directly) drops stale workspace data before the next sign-in, and so is
+    // the Ask UNI panel's memory of conversations the next person cannot open.
     useAuthStore.getState().setOnLogout(() => {
       clearRegisteredDraftsOnLogout();
+      useAiPanelStore.getState().reset();
       queryClient.clear();
     });
     return () => {

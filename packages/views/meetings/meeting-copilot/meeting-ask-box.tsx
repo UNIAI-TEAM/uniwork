@@ -55,7 +55,6 @@ export function MeetingAskBox({
   // The conversation lives in the Ask UNI store and its turns in the query cache, so a remount
   // (switching the copilot's tabs) shows the last answer again and ⌘J can continue it.
   const conversationId = useAiPanelStore((s) => s.conversationByMeeting[meetingId]);
-  const rememberFocus = useAiPanelStore((s) => s.rememberFocus);
   const openConversation = useAiPanelStore((s) => s.openConversation);
   const history = useAiMessages(conversationId ?? null).data;
   const shortcut = formatShortcut(useShortcut("ai.askUni"));
@@ -75,10 +74,8 @@ export function MeetingAskBox({
     setAsked(q);
     setQuestion("");
     share.reset();
-    ask.mutate(
-      { question: q, conversation_id: conversationId, locale: i18n.language, focus },
-      { onSuccess: (res) => rememberFocus(res.conversation_id, focus), onError: () => setQuestion(q) },
-    );
+    // useAskUni remembers the conversation for this meeting, even if this box unmounts meanwhile.
+    ask.mutate({ question: q, conversation_id: conversationId, locale: i18n.language, focus }, { onError: () => setQuestion(q) });
   };
 
   return (
@@ -126,7 +123,8 @@ export function MeetingAskBox({
               </Button>
             ) : null}
             {canShare && answer.content ? (
-              share.isSuccess ? (
+              // Shared means this answer: a newer one asked in ⌘J has not been.
+              share.isSuccess && share.variables === forChat(answer.content) ? (
                 // The one success signal, where the button was.
                 <p role="status" className="flex items-center gap-1 text-caption text-muted-foreground">
                   <Check aria-hidden className="size-4 shrink-0" />

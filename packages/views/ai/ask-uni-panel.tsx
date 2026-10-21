@@ -158,7 +158,6 @@ export function AskUniPanel() {
     select,
     pendingFocus,
     focusByConversation,
-    rememberFocus,
     forgetConversation,
   } = useAiPanelStore();
   // Until bindWorkspace runs, the stored conversation may belong to the previous workspace.
@@ -197,8 +196,8 @@ export function AskUniPanel() {
       {
         onSuccess: (res) => {
           // A late answer from the workspace we left must not open its conversation here.
+          // (useAskUni already remembered the conversation's focus.)
           if (useAiPanelStore.getState().workspaceId !== workspace.id) return;
-          if (focus) rememberFocus(res.conversation_id, focus);
           select(res.conversation_id);
         },
         onSettled: () => setPendingQuestion(null),

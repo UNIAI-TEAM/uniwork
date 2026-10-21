@@ -49,6 +49,23 @@ describe("ai panel store", () => {
     useAiPanelStore.getState().rememberFocus("c2", { kind: "task", id: "t1" });
     expect(useAiPanelStore.getState().conversationByMeeting).toEqual({ m1: "c1" });
     useAiPanelStore.getState().forgetConversation("c1");
-    expect(useAiPanelStore.getState()).toMatchObject({ focusByConversation: { c2: { kind: "task", id: "t1" } }, conversationByMeeting: {} });
+    expect(useAiPanelStore.getState()).toMatchObject({
+      conversationId: null,
+      focusByConversation: { c2: { kind: "task", id: "t1" } },
+      conversationByMeeting: {},
+    });
+  });
+
+  it("reset forgets every conversation, for the next person on this browser", () => {
+    useAiPanelStore.getState().bindWorkspace("w1");
+    useAiPanelStore.getState().openConversation("c1", { kind: "meeting", id: "m1" });
+    useAiPanelStore.getState().reset();
+    expect(useAiPanelStore.getState()).toMatchObject({
+      open: false,
+      conversationId: null,
+      workspaceId: null,
+      focusByConversation: {},
+      conversationByMeeting: {},
+    });
   });
 });
