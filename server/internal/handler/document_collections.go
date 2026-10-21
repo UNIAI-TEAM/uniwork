@@ -92,10 +92,6 @@ func documentListInputFor(w http.ResponseWriter, r *http.Request, recent bool) (
 	return in, true
 }
 
-// listSortRoute is the screen sort key the flat list takes under its query: the
-// trash sorts by deletion time, the shelf by shelving time, shared_by_me by the
-// time of the newest grant (UNI-2045); every other shape takes the four column
-// keys only. The same word on another shape is 400.
 // parseUpdatedWindow reads updated_from / updated_to (RFC3339) into from and to;
 // an absent value leaves its target zero. It answers 400 itself and returns
 // false on a bad timestamp.
@@ -118,6 +114,10 @@ func parseUpdatedWindow(w http.ResponseWriter, q url.Values, from, to *time.Time
 	return true
 }
 
+// listSortRoute is the screen sort key the flat list takes under its query: the
+// trash sorts by deletion time, the shelf by shelving time, shared_by_me by the
+// time of the newest grant (UNI-2045); every other shape takes the four column
+// keys only. The same word on another shape is 400.
 func listSortRoute(archived, shelved, sharedByMe bool) string {
 	switch {
 	case archived:
