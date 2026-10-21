@@ -278,6 +278,7 @@ export function useFolderUpload({
         name,
         total: plan.totals.files,
         onCancelAll: () => channel.handle?.cancel(),
+        mode,
       });
       return uploadToast;
     };
@@ -329,11 +330,11 @@ export function useFolderUpload({
         dialogRun.current = null;
         if (uploadToast) {
           uploadToast.dismiss();
-          toast.error(runErrorMessage(latest.current.t, failure, latest.current.locale));
+          toast.error(runErrorMessage(latest.current.t, failure, latest.current.locale, channel.mode));
           return;
         }
         // Refused before anything was written: the dialog stays open and says why.
-        setError(runErrorMessage(latest.current.t, failure, latest.current.locale));
+        setError(runErrorMessage(latest.current.t, failure, latest.current.locale, channel.mode));
         setPending(false);
         setWaiting(false);
       },
@@ -354,6 +355,7 @@ export function useFolderUpload({
       done: last.done,
       onCancelAll: () => handle.cancel(),
       retry: true,
+      mode: channel.mode,
     });
     channel.retryToast = retryToast;
     handle.retryFailed().then(
@@ -364,7 +366,7 @@ export function useFolderUpload({
       (failure: unknown) => {
         channel.retryToast = null;
         retryToast.dismiss();
-        toast.error(runErrorMessage(latest.current.t, failure, latest.current.locale));
+        toast.error(runErrorMessage(latest.current.t, failure, latest.current.locale, channel.mode));
       },
     );
   };
@@ -417,6 +419,7 @@ export function useFolderUpload({
         name={reportView?.name ?? ""}
         failures={reportView?.report.failed ?? []}
         canRetry={reportView?.report.canRetry ?? false}
+        mode={reportView?.channel.mode ?? "folder"}
         expired={reportView?.report.expired ?? false}
         onRetry={retryFailed}
       />

@@ -10067,6 +10067,7 @@
       },
       "toast": {
         "progress": "Đang tải lên «{{name}}» — {{done}}/{{total}} tệp",
+        "progress_files": "Đang tải lên — {{done}}/{{total}} tệp",
         "cancel_all": "Hủy tất cả",
         "success_one": "Đã tải lên {{count}} tệp vào «{{name}}»",
         "success_other": "Đã tải lên {{count}} tệp vào «{{name}}»",
@@ -10079,6 +10080,7 @@
         "folders_unavailable": "Chưa tải lên thư mục được ở đây. Hãy kéo thả từng tệp.",
         "read_failed": "Không đọc được thư mục vừa chọn.",
         "expired": "Lượt tải lên «{{name}}» đã hết hạn — {{done}}/{{total}} tệp đã lên. Hãy tải lại thư mục.",
+        "expired_files": "Lượt tải lên đã hết hạn — {{done}}/{{total}} tệp đã lên. Hãy tải lại tệp.",
         "refused": "Không tải lên được «{{name}}»"
       },
       "report": {
@@ -10091,9 +10093,13 @@
           "upload_missing": "Tệp chưa lên được kho lưu trữ.",
           "size_mismatch": "Dung lượng tệp đã lên không khớp với tệp gốc.",
           "unsupported_media": "Nội dung tệp không đúng định dạng. Sửa tệp rồi tải lại thư mục.",
+          "unsupported_media_files": "Nội dung tệp không đúng định dạng. Sửa rồi tải lại tệp.",
           "unsupported_media_zip_unreadable": "Không đọc được tệp này, có thể tệp đã hỏng. Sửa tệp rồi tải lại thư mục.",
+          "unsupported_media_zip_unreadable_files": "Không đọc được tệp này, có thể tệp đã hỏng. Sửa rồi tải lại tệp.",
           "storage_quota_exceeded": "Đã hết dung lượng lưu trữ. Giải phóng dung lượng rồi tải lại thư mục.",
+          "storage_quota_exceeded_files": "Đã hết dung lượng lưu trữ. Giải phóng dung lượng rồi tải lại tệp.",
           "not_found": "Không tìm thấy tệp trong lượt tải lên này. Hãy tải lại thư mục.",
+          "not_found_files": "Không tìm thấy tệp trong lượt tải lên này. Hãy tải lại tệp.",
           "parts_invalid": "Các phần của tệp lớn không khớp. Hãy thử lại.",
           "missing_etag": "Không xác nhận được tệp đã lên kho lưu trữ.",
           "network": "Mất kết nối khi tải tệp này. Thử lại các tệp lỗi.",
@@ -10101,16 +10107,21 @@
           "http_5xx": "Máy chủ tạm thời không phản hồi. Thử lại các tệp lỗi.",
           "missing_part_url": "Thiếu địa chỉ tải lên cho một phần của tệp lớn. Thử lại các tệp lỗi.",
           "untrusted_target": "Địa chỉ tải lên không hợp lệ nên đã bị chặn. Hãy tải lại thư mục; nếu vẫn lỗi, báo quản trị viên.",
+          "untrusted_target_files": "Địa chỉ tải lên không hợp lệ nên đã bị chặn. Hãy tải lại tệp; nếu vẫn lỗi, báo quản trị viên.",
           "aborted": "Lượt tải tệp này đã bị dừng. Thử lại các tệp lỗi.",
           "folder_upload_file_settled": "Tệp này đã được xử lý trước đó nên không tải lên lại được.",
           "folder_upload_target_signed": "Tệp này cần một đường dẫn tải lên khác với đường dẫn ứng dụng đã dùng. Hãy tải lại thư mục.",
+          "folder_upload_target_signed_files": "Tệp này cần một đường dẫn tải lên khác với đường dẫn ứng dụng đã dùng. Hãy tải lại tệp.",
           "unknown": "Không tải lên được tệp này."
         },
         "expired_note": "Lượt tải lên đã hết hạn nên không thử lại được. Hãy tải lại thư mục.",
-        "final_hint": "Sửa tệp rồi tải lại thư mục."
+        "expired_note_files": "Lượt tải lên đã hết hạn nên không thử lại được. Hãy tải lại tệp.",
+        "final_hint": "Sửa tệp rồi tải lại thư mục.",
+        "final_hint_files": "Sửa rồi tải lại tệp."
       },
       "retry_toast": {
         "progress": "Đang thử lại «{{name}}» — {{done}}/{{total}} tệp",
+        "progress_files": "Đang thử lại — {{done}}/{{total}} tệp",
         "cancel": "Hủy thử lại"
       },
       "error": {
@@ -10122,13 +10133,17 @@
         "folder_upload_unsupported_type": "Có tệp thuộc định dạng chưa được hỗ trợ.",
         "folder_upload_unsupported_type_named": "«{{file}}» thuộc định dạng chưa được hỗ trợ.",
         "document_too_deep": "Thư mục lồng quá sâu — tối đa {{max}} cấp.",
+        "document_too_deep_files": "Thư mục đích đã lồng quá sâu — tối đa {{max}} cấp.",
         "document_parent_kind": "Không thể tải vào mục này. Hãy chọn một thư mục.",
         "invalid_request": "Tên tệp hoặc thư mục không hợp lệ. Hãy đổi tên rồi thử lại.",
         "folder_upload_file_settled": "Tệp này đã được xử lý trước đó nên không tải lên lại được.",
         "folder_upload_target_signed": "Tệp này cần một đường dẫn tải lên khác với đường dẫn ứng dụng đã dùng. Hãy tải lại thư mục.",
+        "folder_upload_target_signed_files": "Tệp này cần một đường dẫn tải lên khác với đường dẫn ứng dụng đã dùng. Hãy tải lại tệp.",
         "invalid_request_named": "Tên «{{file}}» không hợp lệ. Hãy đổi tên rồi thử lại.",
         "folder_uploads_busy": "Đang có quá nhiều lượt tải thư mục. Hãy thử lại sau ít phút.",
+        "folder_uploads_busy_files": "Đang có quá nhiều lượt tải lên. Hãy thử lại sau ít phút.",
         "idempotency_payload_mismatch": "Lượt tải này không khớp với lần trước. Hãy chọn lại thư mục.",
+        "idempotency_payload_mismatch_files": "Lượt tải này không khớp với lần trước. Hãy chọn lại tệp.",
         "http_403": "Bạn không có quyền tải lên thư mục đích.",
         "http_404": "Không tìm thấy thư mục đích. Có thể nó đã bị xóa hoặc chuyển đi.",
         "unknown": "Không bắt đầu tải lên được. Thử lại sau ít phút."

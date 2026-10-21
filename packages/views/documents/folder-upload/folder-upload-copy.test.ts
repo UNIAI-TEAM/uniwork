@@ -186,3 +186,52 @@ describe("refusalMessage", () => {
     );
   });
 });
+
+// ADDENDUM 2 A7: a files-mode run has no folder, so no sentence may tell the
+// person to upload "the folder" again; the folder mode keeps its sentences.
+describe("files-mode copy", () => {
+  const FINAL = ["unsupported_media", "storage_quota_exceeded", "not_found", "untrusted_target", "folder_upload_target_signed"];
+  const RUN = [
+    "folder_upload_target_signed",
+    "idempotency_payload_mismatch",
+    "folders_busy",
+    "folder_uploads_busy",
+    "document_too_deep",
+    "folder_upload_too_many_files",
+    "folder_upload_too_large",
+    "invalid_request",
+    "http_403",
+    "http_404",
+    "no_such_code",
+  ];
+
+  it("says to upload the files again in files mode and the folder again in folder mode", () => {
+    for (const code of FINAL) {
+      expect(failureReasonMessage(t, code, undefined, "files"), code).toContain("tải lại tệp");
+      expect(failureReasonMessage(t, code, undefined, "files"), code).not.toContain("thư mục");
+      expect(failureReasonMessage(en, code, undefined, "files"), code).not.toMatch(/folder/i);
+      expect(failureReasonMessage(t, code, undefined, "folder"), code).toContain("tải lại thư mục");
+    }
+    expect(failureReasonMessage(t, "unsupported_media", "zip_unreadable", "files")).toContain("tải lại tệp");
+    expect(failureReasonMessage(en, "unsupported_media", "zip_unreadable", "files")).not.toMatch(/folder/i);
+  });
+
+  it("never asks for the folder again in a files-mode run error", () => {
+    for (const code of RUN) {
+      for (const [tt, locale] of [[t, "vi"], [en, "en"]] as const) {
+        const message = runErrorMessage(tt, refused(code, { max_depth: 20, max: 500, count: 612 }), locale, "files");
+        expect(message, `${locale} ${code}`).not.toMatch(/(tải lại|chọn lại) thư mục|tải thư mục|folder again|folder uploads/i);
+      }
+    }
+    expect(runErrorMessage(t, refused("idempotency_payload_mismatch"), "vi", "files")).toContain("chọn lại tệp");
+    expect(runErrorMessage(t, refused("idempotency_payload_mismatch"), "vi")).toContain("chọn lại thư mục");
+  });
+
+  it("names the files, not a folder, in a files-mode refusal", () => {
+    expect(refusalMessage(t, { code: "nothing_to_upload" }, "vi", { mode: "files" })).toBe("Không có tệp nào tải lên được.");
+    expect(refusalMessage(t, { code: "too_deep", limit: 20, actual: 21 }, "vi", { mode: "files" })).toBe(
+      "Tệp sẽ nằm ở cấp 21 — tối đa 20",
+    );
+    expect(refusalMessage(t, { code: "too_many_files", limit: 500, actual: 612 }, "vi", { mode: "files" })).toBe("612 tệp — tối đa 500");
+  });
+});

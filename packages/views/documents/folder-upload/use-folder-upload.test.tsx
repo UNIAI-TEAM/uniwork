@@ -197,11 +197,21 @@ describe("useFolderUpload", () => {
     expect(plan?.method === "plan" && plan.body).toMatchObject({ parent_id: "folder-open", share_with_workspace: false });
     expect(plan?.method === "plan" && "root_name" in plan.body && plan.body.root_name !== undefined).toBe(false);
     expect(plan?.method === "plan" && plan.body.files.map((f) => f.path)).toEqual(["", ""]);
+    expect(toast.loading.mock.calls[0]?.[0]).toMatch(/^Đang tải lên — \d+\/2 tệp$/);
     const [message, options] = toast.success.mock.calls[0] ?? [];
     expect(message).toBe("Đã tải lên 2 tệp vào «Hợp đồng»");
     // "Mở thư mục" opens the destination: there is no root folder in files mode.
     options.action.onClick();
     expect(onOpenFolder).toHaveBeenCalledWith("folder-open");
+  });
+
+  it("says a refused files-mode plan in files words, in the dialog", async () => {
+    const { transport } = setup();
+    transport.failNext("plan", folderUploadApiError(409, "idempotency_payload_mismatch", {}));
+    act(() => hook.addFiles([pdf("a.pdf"), pdf("b.pdf")]));
+    await screen.findByTestId("folder-upload-dialog");
+    upload();
+    expect(await screen.findByText("Lượt tải này không khớp với lần trước. Hãy chọn lại tệp.")).toBeInTheDocument();
   });
 
   it("refuses files that would sit deeper than the depth limit, in the dialog", async () => {

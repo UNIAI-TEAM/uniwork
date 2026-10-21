@@ -1,5 +1,6 @@
 import type { useTranslation } from "react-i18next";
 import { toast } from "sonner";
+import { modeContext, type FolderUploadMode } from "./folder-upload-copy";
 
 type TFunction = ReturnType<typeof useTranslation>["t"];
 
@@ -35,6 +36,7 @@ export function createFolderUploadToast({
   done = 0,
   onCancelAll,
   retry = false,
+  mode = "folder",
 }: {
   t: TFunction;
   name: string;
@@ -43,12 +45,15 @@ export function createFolderUploadToast({
   done?: number;
   onCancelAll: () => void;
   retry?: boolean;
+  /** Files mode names no folder while it runs (ADDENDUM 2); `name` is still the destination for the end state. */
+  mode?: FolderUploadMode;
 }): FolderUploadToast {
+  const ctx = modeContext(mode);
   const id = `folder-upload-${Math.random().toString(36).slice(2)}`;
   const progressKey = retry ? "documents.folder_upload.retry_toast.progress" : "documents.folder_upload.toast.progress";
   const cancelKey = retry ? "documents.folder_upload.retry_toast.cancel" : "documents.folder_upload.toast.cancel_all";
   const progress = (counts: { done: number; total: number }) => {
-    toast.loading(t(progressKey, { name, done: counts.done, total: counts.total }), {
+    toast.loading(t(progressKey, { name, done: counts.done, total: counts.total, ...ctx }), {
       id,
       duration: Number.POSITIVE_INFINITY,
       action: { label: t(cancelKey), onClick: onCancelAll },
@@ -68,7 +73,7 @@ export function createFolderUploadToast({
         return;
       }
       if (expired) {
-        toast.warning(t("documents.folder_upload.toast.expired", { name: title, done, total: runTotal }), {
+        toast.warning(t("documents.folder_upload.toast.expired", { name: title, done, total: runTotal, ...ctx }), {
           id,
           duration: Number.POSITIVE_INFINITY,
           action: failed > 0 ? { label: t("documents.folder_upload.toast.view_failures"), onClick: onViewFailures } : undefined,

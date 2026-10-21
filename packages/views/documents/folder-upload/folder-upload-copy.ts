@@ -143,8 +143,13 @@ function failureSentenceKey(code: string | undefined, reason?: string): string {
 }
 
 /** One sentence per failure code (and `unsupported_media` reason); a code the client does not know reads as the generic one. */
-export function failureReasonMessage(t: TFunction, code: string | undefined, reason?: string): string {
-  return t(`documents.folder_upload.report.reason.${failureSentenceKey(code, reason)}`);
+export function failureReasonMessage(
+  t: TFunction,
+  code: string | undefined,
+  reason?: string,
+  mode: FolderUploadMode = "folder",
+): string {
+  return t(`documents.folder_upload.report.reason.${failureSentenceKey(code, reason)}`, modeContext(mode));
 }
 
 /** True when the failure's own sentence already says what to do after a final failure. */
@@ -178,9 +183,10 @@ function fileOf(fields: Record<string, unknown>): string | null {
  * gets here: the runner turns it into an `expired` / `canceled` report.
  * Anything the client has no sentence for reads as the generic one.
  */
-export function runErrorMessage(t: TFunction, error: unknown, locale: string): string {
+export function runErrorMessage(t: TFunction, error: unknown, locale: string, mode: FolderUploadMode = "folder"): string {
+  const ctx = modeContext(mode);
   const refusal = asFolderUploadRefusal(error);
-  if (!refusal) return t("documents.folder_upload.error.unknown");
+  if (!refusal) return t("documents.folder_upload.error.unknown", ctx);
   const { code, fields } = refusal;
   const num = (key: string): number => (typeof fields[key] === "number" ? (fields[key] as number) : 0);
   switch (code) {
@@ -189,18 +195,22 @@ export function runErrorMessage(t: TFunction, error: unknown, locale: string): s
       return t(`documents.folder_upload.error.${code}`, {
         max: formatCount(num("max"), locale),
         actual: formatCount(num("count"), locale),
+        ...ctx,
       });
     case "folder_upload_too_large":
       return t("documents.folder_upload.error.folder_upload_too_large", {
         max: formatUploadBytes(num("max_bytes"), locale),
         total: formatUploadBytes(num("total_bytes"), locale, "up"),
+        ...ctx,
       });
     case "document_too_deep":
-      return t("documents.folder_upload.error.document_too_deep", { max: formatCount(num("max_depth"), locale) });
+      return t("documents.folder_upload.error.document_too_deep", { max: formatCount(num("max_depth"), locale), ...ctx });
     case "invalid_request":
     case "folder_upload_unsupported_type": {
       const file = fileOf(fields);
-      return file ? t(`documents.folder_upload.error.${code}_named`, { file }) : t(`documents.folder_upload.error.${code}`);
+      return file
+        ? t(`documents.folder_upload.error.${code}_named`, { file, ...ctx })
+        : t(`documents.folder_upload.error.${code}`, ctx);
     }
     case "folder_upload_file_too_large": {
       const file = fileOf(fields);
@@ -208,13 +218,14 @@ export function runErrorMessage(t: TFunction, error: unknown, locale: string): s
         ? t("documents.folder_upload.error.folder_upload_file_too_large_named", {
             file,
             max: formatUploadBytes(num("max_bytes"), locale),
+            ...ctx,
           })
-        : t("documents.folder_upload.error.folder_upload_file_too_large");
+        : t("documents.folder_upload.error.folder_upload_file_too_large", ctx);
     }
     default:
       return (RUN_ERROR_CODES as readonly string[]).includes(code)
-        ? t(`documents.folder_upload.error.${code}`)
-        : t("documents.folder_upload.error.unknown");
+        ? t(`documents.folder_upload.error.${code}`, ctx)
+        : t("documents.folder_upload.error.unknown", ctx);
   }
 }
 

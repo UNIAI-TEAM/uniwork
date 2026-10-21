@@ -61,6 +61,26 @@ describe("FolderUploadReportDialog", () => {
     expect(screen.queryByText(FINAL_HINT)).toBeNull();
   });
 
+  it("in files mode says to upload the files again, never the folder", () => {
+    renderReport({
+      mode: "files",
+      name: "Hợp đồng",
+      canRetry: false,
+      failures: [
+        { path: "a.docx", code: "unsupported_media", retryable: false },
+        { path: "a.docx", code: "some_future_code", retryable: false },
+      ],
+    });
+    expect(screen.getByText("Nội dung tệp không đúng định dạng. Sửa rồi tải lại tệp.")).toBeInTheDocument();
+    expect(screen.getByText("Sửa rồi tải lại tệp.")).toBeInTheDocument();
+    expect(screen.queryByText(/tải lại thư mục/)).toBeNull();
+  });
+
+  it("in files mode says the expired batch needs the files again", () => {
+    renderReport({ mode: "files", canRetry: false, expired: true });
+    expect(screen.getByText("Lượt tải lên đã hết hạn nên không thử lại được. Hãy tải lại tệp.")).toBeInTheDocument();
+  });
+
   it("reads the server's reason beside the code", () => {
     renderReport({ failures: [{ path: "Báo cáo/a.docx", code: "unsupported_media", reason: "zip_unreadable", retryable: false }] });
     expect(

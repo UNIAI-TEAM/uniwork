@@ -10073,6 +10073,7 @@
       },
       "toast": {
         "progress": "Uploading “{{name}}” — {{done}}/{{total}} files",
+        "progress_files": "Uploading — {{done}}/{{total}} files",
         "cancel_all": "Cancel all",
         "success_one": "Uploaded {{count}} file to “{{name}}”",
         "success_other": "Uploaded {{count}} files to “{{name}}”",
@@ -10085,6 +10086,7 @@
         "folders_unavailable": "Folder upload isn’t available here. Drop the files one by one.",
         "read_failed": "Couldn’t read the folder you chose.",
         "expired": "The upload of “{{name}}” expired — {{done}}/{{total}} files went up. Upload the folder again.",
+        "expired_files": "The upload expired — {{done}}/{{total}} files went up. Upload the files again.",
         "refused": "Couldn’t upload “{{name}}”"
       },
       "report": {
@@ -10098,9 +10100,13 @@
           "upload_missing": "The file never reached storage.",
           "size_mismatch": "The uploaded size doesn’t match the original file.",
           "unsupported_media": "The file content doesn’t match its format. Fix the file, then upload the folder again.",
+          "unsupported_media_files": "The file content doesn’t match its format. Fix the file, then upload it again.",
           "unsupported_media_zip_unreadable": "Couldn’t read this file; it may be damaged. Fix the file, then upload the folder again.",
+          "unsupported_media_zip_unreadable_files": "Couldn’t read this file; it may be damaged. Fix the file, then upload it again.",
           "storage_quota_exceeded": "Storage is full. Free up space, then upload the folder again.",
+          "storage_quota_exceeded_files": "Storage is full. Free up space, then upload the files again.",
           "not_found": "The file wasn’t found in this upload. Upload the folder again.",
+          "not_found_files": "The file wasn’t found in this upload. Upload the file again.",
           "parts_invalid": "The parts of the large file don’t add up. Try again.",
           "missing_etag": "Couldn’t confirm the file reached storage.",
           "network": "The connection dropped while uploading this file. Retry the failed files.",
@@ -10108,16 +10114,21 @@
           "http_5xx": "The server isn’t responding right now. Retry the failed files.",
           "missing_part_url": "An upload address is missing for a part of this large file. Retry the failed files.",
           "untrusted_target": "The upload address wasn’t trusted, so it was blocked. Upload the folder again; if it keeps happening, tell an admin.",
+          "untrusted_target_files": "The upload address wasn’t trusted, so it was blocked. Upload the files again; if it keeps happening, tell an admin.",
           "aborted": "The upload of this file was stopped. Retry the failed files.",
           "folder_upload_file_settled": "This file was already handled, so it can’t be uploaded again.",
           "folder_upload_target_signed": "This file expects a different upload route than the one the app used. Upload the folder again.",
+          "folder_upload_target_signed_files": "This file expects a different upload route than the one the app used. Upload the file again.",
           "unknown": "This file couldn’t be uploaded."
         },
         "expired_note": "The upload expired, so it can’t be retried. Upload the folder again.",
-        "final_hint": "Fix the file, then upload the folder again."
+        "expired_note_files": "The upload expired, so it can’t be retried. Upload the files again.",
+        "final_hint": "Fix the file, then upload the folder again.",
+        "final_hint_files": "Fix the file, then upload it again."
       },
       "retry_toast": {
         "progress": "Retrying “{{name}}” — {{done}}/{{total}} files",
+        "progress_files": "Retrying — {{done}}/{{total}} files",
         "cancel": "Cancel retry"
       },
       "error": {
@@ -10129,13 +10140,17 @@
         "folder_upload_unsupported_type": "A file has a format that isn’t supported.",
         "folder_upload_unsupported_type_named": "“{{file}}” has a format that isn’t supported.",
         "document_too_deep": "The folder is nested too deeply — {{max}} levels at most.",
+        "document_too_deep_files": "The destination folder is nested too deeply — {{max}} levels at most.",
         "document_parent_kind": "You can’t upload into this item. Pick a folder.",
         "invalid_request": "A file or folder name isn’t valid. Rename it and try again.",
         "folder_upload_file_settled": "This file was already handled, so it can’t be uploaded again.",
         "folder_upload_target_signed": "This file expects a different upload route than the one the app used. Upload the folder again.",
+        "folder_upload_target_signed_files": "This file expects a different upload route than the one the app used. Upload the file again.",
         "invalid_request_named": "The name “{{file}}” isn’t valid. Rename it and try again.",
         "folder_uploads_busy": "Too many folder uploads are running. Try again in a few minutes.",
+        "folder_uploads_busy_files": "Too many uploads are running. Try again in a few minutes.",
         "idempotency_payload_mismatch": "This upload doesn’t match the previous attempt. Pick the folder again.",
+        "idempotency_payload_mismatch_files": "This upload doesn’t match the previous attempt. Pick the files again.",
         "http_403": "You don’t have permission to upload to the destination folder.",
         "http_404": "The destination folder wasn’t found. It may have been deleted or moved.",
         "unknown": "Couldn’t start the upload. Try again in a few minutes."

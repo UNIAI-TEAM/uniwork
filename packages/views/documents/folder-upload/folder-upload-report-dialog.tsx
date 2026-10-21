@@ -10,7 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@uniwork/ui/components/ui/dialog";
-import { failureReasonMessage, failureSentenceHasHint } from "./folder-upload-copy";
+import { failureReasonMessage, failureSentenceHasHint, modeContext, type FolderUploadMode } from "./folder-upload-copy";
 
 export interface FolderUploadFailure {
   path: string;
@@ -32,11 +32,14 @@ export interface FolderUploadReportDialogProps {
   /** 410: the batch is gone, so nothing can be retried and the folder has to be uploaded again. */
   expired?: boolean;
   onRetry: () => void;
+  /** Files mode (ADDENDUM 2): every "upload the folder again" reads "upload the files again". */
+  mode?: FolderUploadMode;
 }
 
 /** The files that did not go up, each with its reason, and the one action that retries only them. */
-export function FolderUploadReportDialog({ open, onOpenChange, name, failures, canRetry = true, expired = false, onRetry }: FolderUploadReportDialogProps) {
+export function FolderUploadReportDialog({ open, onOpenChange, name, failures, canRetry = true, expired = false, onRetry, mode = "folder" }: FolderUploadReportDialogProps) {
   const { t } = useTranslation();
+  const ctx = modeContext(mode);
   // One place for "fix it and upload again": a final failure's own sentence when it says so, else one hint under the list.
   const finalHint =
     !expired &&
@@ -54,19 +57,20 @@ export function FolderUploadReportDialog({ open, onOpenChange, name, failures, c
           aria-label={t("documents.folder_upload.report.list_label")}
           className="flex max-h-72 flex-col gap-2 overflow-y-auto rounded-md border border-border p-2"
         >
-          {failures.map((failure) => (
-            <li key={failure.path} className="flex flex-col gap-0.5">
+          {failures.map((failure, index) => (
+            // Files mode keeps same-named files (FD-D10): the path alone is not a key.
+            <li key={`${index}:${failure.path}`} className="flex flex-col gap-0.5">
               <span className="truncate font-mono text-caption text-foreground" title={failure.path}>
                 {failure.path}
               </span>
-              <span className="text-caption text-muted-foreground">{failureReasonMessage(t, failure.code, failure.reason)}</span>
+              <span className="text-caption text-muted-foreground">{failureReasonMessage(t, failure.code, failure.reason, mode)}</span>
             </li>
           ))}
         </ul>
         {expired ? (
-          <p className="text-caption text-muted-foreground">{t("documents.folder_upload.report.expired_note")}</p>
+          <p className="text-caption text-muted-foreground">{t("documents.folder_upload.report.expired_note", ctx)}</p>
         ) : null}
-        {finalHint ? <p className="text-caption text-muted-foreground">{t("documents.folder_upload.report.final_hint")}</p> : null}
+        {finalHint ? <p className="text-caption text-muted-foreground">{t("documents.folder_upload.report.final_hint", ctx)}</p> : null}
         <DialogFooter className="px-0 pb-0">
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
             {t("documents.folder_upload.report.close")}
