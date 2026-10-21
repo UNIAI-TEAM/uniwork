@@ -162,18 +162,57 @@ func TestMeetingCatchUpCoalescesAndPointsAtSegments(t *testing.T) {
 func TestMeetingCatchUpSharedAcrossNodesThroughRedis(t *testing.T) {
 	rdb := uniworkRedis(t)
 	s, fake, ua, _, w := askFixture(t)
-	s.catchUps = newBriefCache(rdb, meetingCatchUpTTL)
+	s.catchUps = newBriefCache(rdb, meetingCatchUpTTL, s.gw.CallTimeout())
 	m := liveCatchUpMeeting(t, s, ua.ID, w.ID)
 	catchUpSegment(t, s, m, "AGENT", "An", "Chốt demo thứ Sáu", 20*time.Minute)
 	if _, err := s.MeetingCatchUp(context.Background(), ua.ID, m.ID, "vi"); err != nil {
 		t.Fatal(err)
 	}
 	other := *s
-	other.catchUps = newBriefCache(rdb, meetingCatchUpTTL)
+	other.catchUps = newBriefCache(rdb, meetingCatchUpTTL, s.gw.CallTimeout())
 	if _, err := other.MeetingCatchUp(context.Background(), ua.ID, m.ID, "vi"); err != nil {
 		t.Fatal(err)
 	}
 	if fake.Calls != 1 {
 		t.Fatalf("gateway calls = %d across two nodes, want 1", fake.Calls)
+	}
+}
+
+// Fix round 1: a node that finds another one asking the model waits for its
+// brief for as long as that call can take (the claim outlives the gateway's
+// call timeout), instead of paying again.
+func TestMeetingCatchUpSecondNodeAwaitsTheFirst(t *testing.T) {
+	rdb := uniworkRedis(t)
+	s, fake, ua, _, w := askFixture(t)
+	s.catchUps = newBriefCache(rdb, meetingCatchUpTTL, s.gw.CallTimeout())
+	if s.catchUps.claimTTL <= s.gw.CallTimeout() {
+		t.Fatalf("claim TTL %v does not outlive the gateway call timeout %v", s.catchUps.claimTTL, s.gw.CallTimeout())
+	}
+	m := liveCatchUpMeeting(t, s, ua.ID, w.ID)
+	catchUpSegment(t, s, m, "AGENT", "An", "Chốt demo thứ Sáu", 20*time.Minute)
+	fake.Delay = 1500 * time.Millisecond
+	other := *s
+	other.catchUps = newBriefCache(rdb, meetingCatchUpTTL, s.gw.CallTimeout())
+
+	var wg sync.WaitGroup
+	errs := make([]error, 2)
+	for i, node := range []*AskUNIService{s, &other} {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if i == 1 {
+				time.Sleep(300 * time.Millisecond) // the first node holds the claim by now
+			}
+			_, errs[i] = node.MeetingCatchUp(context.Background(), ua.ID, m.ID, "vi")
+		}()
+	}
+	wg.Wait()
+	for i, err := range errs {
+		if err != nil {
+			t.Fatalf("node %d: %v", i, err)
+		}
+	}
+	if fake.Calls != 1 {
+		t.Fatalf("gateway calls = %d across two nodes at once, want 1", fake.Calls)
 	}
 }

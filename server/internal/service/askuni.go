@@ -69,7 +69,7 @@ func NewAskUNIService(pool *pgxpool.Pool, q *db.Queries, ws *WorkspaceService, o
 		pool: pool, q: q, ws: ws, orgs: orgs, tasks: tasks, meetings: meetings, chat: chat, gw: gw,
 		ent: NewEntitlementService(pool, q), rdb: rdb, now: time.Now,
 		agentRuns: newUniworkConcurrency(rdb, "ai:ask:", askAgentPodMax, askAgentOrgMax, askAgentGlobalMax, askAgentDeadline+10*time.Second),
-		catchUps:  newBriefCache(rdb, meetingCatchUpTTL),
+		catchUps:  newBriefCache(rdb, meetingCatchUpTTL, gw.CallTimeout()),
 	}
 }
 

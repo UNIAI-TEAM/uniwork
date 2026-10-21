@@ -31,9 +31,10 @@ const (
 	// 80 stretches is ~48k runes, the order of the summary's transcript budget.
 	meetingCatchUpMaxSources = 80
 	meetingCatchUpNotesRunes = 2000
-	// meetingCatchUpWait is how long a caller waits for another node's brief.
-	meetingCatchUpWait = 45 * time.Second
-	meetingCatchUpPoll = 250 * time.Millisecond
+	// meetingCatchUpMargin is the claim's time beyond the model call: the
+	// transcript reads before it and the parse after it.
+	meetingCatchUpMargin = 30 * time.Second
+	meetingCatchUpPoll   = 250 * time.Millisecond
 )
 
 // MeetingCatchUpPoint is one key point and the stretch of speech it came from
@@ -237,9 +238,12 @@ func meetingClock(m db.Meeting) func(time.Time) string {
 type briefCache struct {
 	rdb *redis.Client
 	ttl time.Duration
-	mu  sync.Mutex
-	mem map[string]briefEntry
-	sf  singleflight.Group
+	// claimTTL outlives the work fn does, so no node pays while one is still
+	// asking the model.
+	claimTTL time.Duration
+	mu       sync.Mutex
+	mem      map[string]briefEntry
+	sf       singleflight.Group
 }
 
 type briefEntry struct {
@@ -247,8 +251,10 @@ type briefEntry struct {
 	until time.Time
 }
 
-func newBriefCache(rdb *redis.Client, ttl time.Duration) *briefCache {
-	return &briefCache{rdb: rdb, ttl: ttl, mem: map[string]briefEntry{}}
+// newBriefCache sizes its cross-node claim from callTimeout, the longest the
+// model call inside fn can take.
+func newBriefCache(rdb *redis.Client, ttl, callTimeout time.Duration) *briefCache {
+	return &briefCache{rdb: rdb, ttl: ttl, claimTTL: callTimeout + meetingCatchUpMargin, mem: map[string]briefEntry{}}
 }
 
 // do returns the cached body for key, or runs fn once for every caller in
@@ -328,7 +334,7 @@ func (c *briefCache) claim(ctx context.Context, key string) bool {
 	}
 	rctx, cancel := context.WithTimeout(ctx, uniworkLeaseTimeout)
 	defer cancel()
-	ok, err := c.rdb.SetNX(rctx, key+":run", "1", meetingCatchUpWait).Result()
+	ok, err := c.rdb.SetNX(rctx, key+":run", "1", c.claimTTL).Result()
 	return ok || err != nil
 }
 
@@ -341,11 +347,11 @@ func (c *briefCache) unclaim(ctx context.Context, key string) {
 	_ = c.rdb.Del(rctx, key+":run").Err()
 }
 
-// await polls for another node's brief until its claim goes away (it failed,
-// or kept nothing) or meetingCatchUpWait passes.
+// await polls for another node's brief while its claim stands: the claim
+// outlives that node's model call, so it ends with a brief, or goes away when
+// the node failed or kept nothing (then this node asks itself).
 func (c *briefCache) await(ctx context.Context, key string) ([]byte, bool) {
-	deadline := time.Now().Add(meetingCatchUpWait)
-	for time.Now().Before(deadline) {
+	for {
 		time.Sleep(meetingCatchUpPoll)
 		if b, ok := c.get(ctx, key); ok {
 			return b, true
@@ -353,9 +359,8 @@ func (c *briefCache) await(ctx context.Context, key string) ([]byte, bool) {
 		rctx, cancel := context.WithTimeout(ctx, uniworkLeaseTimeout)
 		n, err := c.rdb.Exists(rctx, key+":run").Result()
 		cancel()
-		if err == nil && n == 0 {
+		if err != nil || n == 0 {
 			return nil, false
 		}
 	}
-	return nil, false
 }
