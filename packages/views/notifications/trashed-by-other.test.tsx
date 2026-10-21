@@ -115,29 +115,29 @@ describe("document_trashed_by_other sentence", () => {
 describe("document_trashed_by_other row", () => {
   it("names the document alone when nothing else rode in the batch", () => {
     const link = row(trashed({ count: "0" }));
-    expect(link).toHaveTextContent("“Kế hoạch Q4”");
+    expect(link).toHaveTextContent('"Kế hoạch Q4"');
     expect(link).not.toHaveTextContent(/mục khác/);
   });
 
   it("adds one more item to the line", () => {
-    expect(row(trashed({ count: "1" }))).toHaveTextContent("“Kế hoạch Q4” và 1 mục khác");
+    expect(row(trashed({ count: "1" }))).toHaveTextContent('"Kế hoạch Q4" và 1 mục khác');
   });
 
   it("adds the English suffix with its plural forms", async () => {
     await i18n.changeLanguage("en");
     expect(t("notifications.trashed_more", { count: 1 })).toBe("and 1 more");
     expect(t("notifications.trashed_more", { count: 3 })).toBe("and 3 more");
-    expect(row(trashed({ count: "3" }))).toHaveTextContent("“Kế hoạch Q4” and 3 more");
+    expect(row(trashed({ count: "3" }))).toHaveTextContent('"Kế hoạch Q4" and 3 more');
   });
 
   it("adds three more items to the line", () => {
-    expect(row(trashed({ count: "3" }))).toHaveTextContent("“Kế hoạch Q4” và 3 mục khác");
+    expect(row(trashed({ count: "3" }))).toHaveTextContent('"Kế hoạch Q4" và 3 mục khác');
   });
 
   it("says only how many more when the top item has no name", () => {
     const link = row(trashed({ document: "", count: "3" }));
     expect(link).toHaveTextContent("và 3 mục khác");
-    expect(link).not.toHaveTextContent("“");
+    expect(link).not.toHaveTextContent('"');
   });
 
   it("shows no document line for an untitled single item, and a bad count counts as none", () => {
@@ -183,7 +183,7 @@ describe("document_trashed_by_other row at phone width (visual F1)", () => {
     expect(snippet?.className).not.toContain("line-clamp-1");
     const [name, more] = Array.from(snippet?.children ?? []);
     expect(name?.className).toContain("truncate");
-    expect(name).toHaveTextContent("“Kế hoạch Q4”");
+    expect(name).toHaveTextContent('"Kế hoạch Q4"');
     expect(more?.className).toContain("shrink-0");
     expect(more).toHaveTextContent("và 5 mục khác");
   });

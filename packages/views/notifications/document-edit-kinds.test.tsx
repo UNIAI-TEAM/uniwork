@@ -23,9 +23,9 @@ const sentence = (n: Notification) => render(<NotificationTitle notification={n}
 
 describe("document edit-lock notifications", () => {
   it.each([
-    ["document_edit_requested", {}, "An muốn sửa “Kế hoạch Q4”"],
-    ["document_edit_request_answered", { decision: "accept" }, "An đã nhường quyền sửa “Kế hoạch Q4” cho bạn"],
-    ["document_edit_taken_over", {}, "An đã lấy quyền sửa “Kế hoạch Q4”. Thay đổi chưa lưu của bạn vẫn còn trong tài liệu đang mở."],
+    ["document_edit_requested", {}, 'An muốn sửa "Kế hoạch Q4"'],
+    ["document_edit_request_answered", { decision: "accept" }, 'An đã nhường quyền sửa "Kế hoạch Q4" cho bạn'],
+    ["document_edit_taken_over", {}, 'An đã lấy quyền sửa "Kế hoạch Q4". Thay đổi chưa lưu của bạn vẫn còn trong tài liệu đang mở.'],
   ])("renders %s with its own sentence, glyph, tone and category", (kind, params, text) => {
     expect(sentence(notification(kind, params))).toBe(text);
     expect(kindIcon(kind)).not.toBe(Bell);
@@ -36,7 +36,7 @@ describe("document edit-lock notifications", () => {
   it("reads a declined answer as 'still editing', not 'handed you editing'", () => {
     const declined = notification("document_edit_request_answered", { decision: "decline" });
     expect(notificationTitleKey(declined)).toBe("notifications.kind.document_edit_request_answered_declined");
-    expect(sentence(declined)).toBe("An chưa nhả quyền sửa “Kế hoạch Q4”");
+    expect(sentence(declined)).toBe('An chưa nhả quyền sửa "Kế hoạch Q4"');
     expect(notificationTitleKey(notification("document_edit_request_answered", {}))).toBe("notifications.kind.document_edit_request_answered");
   });
 

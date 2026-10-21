@@ -70,7 +70,7 @@ function duplicateText(err: unknown, t: TFunction, context?: SummaryErrorContext
     .map((id) => context?.items?.find((item) => item.id === id)?.title?.trim())
     .filter((title): title is string => Boolean(title));
   if (titles.length > 0) {
-    return t("meetings.summaryErrors.active_duplicate_items", { items: titles.map((x) => `“${x}”`).join(", ") });
+    return t("meetings.summaryErrors.active_duplicate_items", { items: titles.map((x) => `"${x}"`).join(", ") });
   }
   const fields = errorFields(err) ?? {};
   const task = [fields.identifier, fields.title]

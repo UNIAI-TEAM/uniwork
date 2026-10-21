@@ -71,7 +71,7 @@ func TestPushGone(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if len(ok.sent) != 1 || ok.sent[0].Title != "Chủ Nhóm đã giao bạn việc “Đẩy lần hai”" ||
+	if len(ok.sent) != 1 || ok.sent[0].Title != "Chủ Nhóm đã giao bạn việc \"Đẩy lần hai\"" ||
 		ok.sent[0].URL != "http://app.test/notif-org/notif-ws/tasks/"+task2.ID || ok.sent[0].Tag != "task:"+task2.ID+":assigned" {
 		t.Fatalf("sent = %+v", ok.sent)
 	}
@@ -118,7 +118,7 @@ func TestDigestOncePerDay(t *testing.T) {
 	if len(out.sent) != 1 || out.sent[0].To != f.member.Email || out.sent[0].Kind != mail.KindNotificationDigest {
 		t.Fatalf("digests = %+v", out.sent)
 	}
-	if !contains(out.sent[0].Text, "Chủ Nhóm đã giao bạn việc “Tóm tắt”") || !contains(out.sent[0].Text, "/notif-org/notif-ws/tasks/"+task.ID) {
+	if !contains(out.sent[0].Text, "Chủ Nhóm đã giao bạn việc \"Tóm tắt\"") || !contains(out.sent[0].Text, "/notif-org/notif-ws/tasks/"+task.ID) {
 		t.Fatalf("digest text:\n%s", out.sent[0].Text)
 	}
 	if n, _ := s.RunOnce(f.ctx, at.Add(2*time.Minute)); n != 0 {

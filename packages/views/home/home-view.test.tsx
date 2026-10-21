@@ -93,7 +93,7 @@ describe("HomeView", () => {
     expect(screen.getByTestId("home-stat-overdue")).toHaveTextContent("1");
     expect(screen.getByText("Quá hạn 4 ngày")).toBeInTheDocument();
     expect(screen.getByText("Standup")).toBeInTheDocument();
-    expect(screen.getByRole("list", { name: "Hộp việc" })).toHaveTextContent("Bình đã giao bạn việc “Việc được giao”");
+    expect(screen.getByRole("list", { name: "Hộp việc" })).toHaveTextContent('Bình đã giao bạn việc "Việc được giao"');
     expect(screen.getByText("Lâu nhất 4 ngày")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Làm mới" })).toBeNull();
     expect(requestMock.mock.calls.filter(([p]) => String(p).endsWith("/home"))).toHaveLength(1);

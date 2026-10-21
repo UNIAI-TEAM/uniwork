@@ -229,7 +229,7 @@ describe("MeetingActionItemsSection", () => {
 
     await waitFor(() =>
       expect(toast.error).toHaveBeenCalledWith(
-        "Đã có việc đang mở trùng tên với: “Gửi biên bản”. Bỏ chọn các mục này hoặc chọn dự án khác rồi thử lại.",
+        'Đã có việc đang mở trùng tên với: "Gửi biên bản". Bỏ chọn các mục này hoặc chọn dự án khác rồi thử lại.',
       ),
     );
     expect(screen.getByRole("dialog")).toBe(dialog);

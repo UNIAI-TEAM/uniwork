@@ -4,14 +4,14 @@ import type { Notification } from "@uniwork/core/types";
 import { notificationTitleKey, titleParts } from "./notification-title";
 
 describe("titleParts", () => {
-  const render = (p: Record<string, string>) => `${p.actor} moved “${p.task}” to ${p.status}`;
+  const render = (p: Record<string, string>) => `${p.actor} moved "${p.task}" to ${p.status}`;
 
   it("splits the rendered sentence into text and the params in the locale's order", () => {
     expect(titleParts(render, { actor: "An", task: "Spec", status: "done" })).toEqual([
       { param: "actor", value: "An" },
-      { text: " moved “" },
+      { text: ' moved "' },
       { param: "task", value: "Spec" },
-      { text: "” to " },
+      { text: '" to ' },
       { param: "status", value: "done" },
     ]);
   });
@@ -74,7 +74,7 @@ describe("notificationTitleKey", () => {
       params: { actor: "Minh", document: "Báo cáo Q4" },
     });
     expect(t(notificationTitleKey(row), row.params)).toBe(
-      "Minh đã mở truy cập khẩn cấp (chỉ xem, 24 giờ) vào tài liệu “Báo cáo Q4”.",
+      'Minh đã mở truy cập khẩn cấp (chỉ xem, 24 giờ) vào tài liệu "Báo cáo Q4".',
     );
     expect(t(notificationTitleKey({ ...row, params: { actor: "Minh" } }), { actor: "Minh" })).toBe(
       "Minh đã mở truy cập khẩn cấp (chỉ xem, 24 giờ) vào một tài liệu.",

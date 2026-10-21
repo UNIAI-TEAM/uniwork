@@ -124,7 +124,7 @@ describe("useMeetingVotePrompt", () => {
     await act(async () => {
       await qc.invalidateQueries({ queryKey: meetingKeys.motions("m1") });
     });
-    await waitFor(() => expect(toast.info).toHaveBeenCalledWith(`“${TITLE}”: Thông qua`));
+    await waitFor(() => expect(toast.info).toHaveBeenCalledWith(`"${TITLE}": Thông qua`));
     expect(toast.info).toHaveBeenCalledTimes(1);
   });
 

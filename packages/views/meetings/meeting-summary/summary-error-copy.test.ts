@@ -51,7 +51,7 @@ describe("summaryErrorText", () => {
       items,
     });
     expect(text).toBe(
-      "Đã có việc đang mở trùng tên với: “Gửi báo cáo”, “Chốt lịch”. Bỏ chọn các mục này hoặc chọn dự án khác rồi thử lại.",
+      'Đã có việc đang mở trùng tên với: "Gửi báo cáo", "Chốt lịch". Bỏ chọn các mục này hoặc chọn dự án khác rồi thử lại.',
     );
   });
 

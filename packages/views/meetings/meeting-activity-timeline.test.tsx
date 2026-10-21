@@ -109,8 +109,8 @@ describe("MeetingActivityTimeline", () => {
     expect(await screen.findByText("đã đóng biểu quyết")).toBeInTheDocument();
     expect(screen.getByText("đã mở biểu quyết")).toBeInTheDocument();
     expect(screen.getByText("đã chốt điểm danh")).toBeInTheDocument();
-    expect(screen.getByText("“Thông qua kế hoạch quý IV” · Thông qua")).toBeInTheDocument();
-    expect(screen.getByText("“Thông qua kế hoạch quý IV”")).toBeInTheDocument();
+    expect(screen.getByText('"Thông qua kế hoạch quý IV" · Thông qua')).toBeInTheDocument();
+    expect(screen.getByText('"Thông qua kế hoạch quý IV"')).toBeInTheDocument();
     expect(screen.getByText("Hệ thống")).toBeInTheDocument();
     expect(screen.queryByText(/PASSED|DRAFT/)).not.toBeInTheDocument();
   });

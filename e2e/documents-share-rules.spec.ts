@@ -307,7 +307,7 @@ test("FR-13 the recipient gets a document_shared inbox item with the level; grou
   try {
     await page.goto(`/${s.m.aOwner.orgSlug}/${s.m.aOwner.wsSlug}/inbox`);
     const item = page.getByRole("link", {
-      name: new RegExp(`${escapeRegExp(s.owner.name)} đã chia sẻ tài liệu “${escapeRegExp(title)}” với bạn\\. Quyền: Chỉnh sửa`),
+      name: new RegExp(`${escapeRegExp(s.owner.name)} đã chia sẻ tài liệu "${escapeRegExp(title)}" với bạn\\. Quyền: Chỉnh sửa`),
     });
     await expect(item).toBeVisible({ timeout: 30_000 });
     await item.click();

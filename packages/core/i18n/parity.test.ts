@@ -99,10 +99,10 @@ describe("vi/en parity", () => {
       "Admins can't grant themselves access through Share. Use Emergency access (24 hours, audited).",
     );
     expect(VI["notifications.kind.document_break_glass"]).toBe(
-      "{{actor}} đã mở truy cập khẩn cấp (chỉ xem, 24 giờ) vào tài liệu “{{document}}”.",
+      '{{actor}} đã mở truy cập khẩn cấp (chỉ xem, 24 giờ) vào tài liệu "{{document}}".',
     );
     expect(EN["notifications.kind.document_break_glass"]).toBe(
-      "{{actor}} opened emergency view access (24h) to “{{document}}”.",
+      '{{actor}} opened emergency view access (24h) to "{{document}}".',
     );
     expect(VI["notifications.kindTitle.document_break_glass"]).toBe(
       "Truy cập khẩn cấp vào tài liệu",
