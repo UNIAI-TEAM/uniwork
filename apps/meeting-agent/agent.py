@@ -234,6 +234,7 @@ async def entrypoint(ctx: JobContext) -> None:
 
     async def shutdown() -> None:
         metrics.JOBS_RUNNING.dec()
+        await translator.close()
         for t in list(transcribers.values()):
             await t.close()
         await batcher.drain()
