@@ -37,6 +37,7 @@ test("mobile-verify can be called and builds the release only through its jobs",
   assert.match(wf, /maestro test flows\/smoke-launch\.yaml/, "the cold-start smoke runs the release APK");
   assert.match(envPin(wf, "MAESTRO_VERSION") ?? "", EXACT, "MAESTRO_VERSION is an exact version");
   assert.match(wf, /scripts\/mobile-workflows\.test\.mjs/, "the contract step runs this test");
+  assert.match(wf, /scripts\/mobile-knip\.test\.mjs/, "the contract step runs the knip exception test");
   assert.doesNotMatch(wf, /secrets\./, "the PR checks read no secret");
 });
 
@@ -62,6 +63,7 @@ test("mobile-verify runs on an edit to any of the three workflows, on push and o
     for (const file of ["mobile-verify.yml", "chat-mobile-release.yml", "chat-mobile-verify.yml"]) {
       assert.ok(block.includes(`- ".github/workflows/${file}"`), `${event} paths list ${file}`);
     }
+    assert.ok(block.includes('- "knip.json"'), `${event} paths list knip.json (scripts/mobile-knip.test.mjs reads it)`);
   }
 });
 

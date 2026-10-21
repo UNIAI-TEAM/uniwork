@@ -41,9 +41,11 @@ on:
       - "pnpm-workspace.yaml"
       - "turbo.json"
       - ".github/workflows/mobile-verify.yml"
-      # Not native scope: listed so scripts/mobile-workflows.test.mjs runs when they change.
+      # Not native scope: listed so scripts/mobile-workflows.test.mjs and
+      # scripts/mobile-knip.test.mjs run when these change.
       - ".github/workflows/chat-mobile-release.yml"
       - ".github/workflows/chat-mobile-verify.yml"
+      - "knip.json"
   pull_request:
     branches: [main, develop]
     paths:
@@ -57,9 +59,11 @@ on:
       - "pnpm-workspace.yaml"
       - "turbo.json"
       - ".github/workflows/mobile-verify.yml"
-      # Not native scope: listed so scripts/mobile-workflows.test.mjs runs when they change.
+      # Not native scope: listed so scripts/mobile-workflows.test.mjs and
+      # scripts/mobile-knip.test.mjs run when these change.
       - ".github/workflows/chat-mobile-release.yml"
       - ".github/workflows/chat-mobile-verify.yml"
+      - "knip.json"
   workflow_call:
     inputs:
       # Inside a called workflow the github context is the caller's, so "called"
@@ -142,7 +146,7 @@ jobs:
       - name: Typecheck, lint, unit and component tests
         run: pnpm exec turbo typecheck lint test --filter=@uniwork/chat-mobile
       - name: Mobile repo contracts
-        run: node --test scripts/mobile-core-allowlist.test.mjs scripts/mobile-native-scope.test.mjs scripts/mobile-bundle-budget.test.mjs scripts/mobile-workflows.test.mjs
+        run: node --test scripts/mobile-core-allowlist.test.mjs scripts/mobile-native-scope.test.mjs scripts/mobile-bundle-budget.test.mjs scripts/mobile-workflows.test.mjs scripts/mobile-knip.test.mjs
 
   doctor-bundle:
     name: expo-doctor and JS bundle budget

@@ -177,7 +177,12 @@ Runbook: `docs/runbooks/unichat-mobile-release.md`; plan:
   `knip.json` bỏ qua `@babel/plugin-transform-react-jsx` (preset
   `react-native-css-interop/babel` gọi nó theo tên mà không khai; thiếu thì
   bước `createReleaseUpdatesResources` của build release đỏ), `expo-updates` vì knip đọc config dev, và hai gói
-  `@expo-google-fonts/*` vì `app.config.ts` chỉ trỏ tới file `.ttf` của chúng.
+  `@expo-google-fonts/*` vì `app.config.ts` chỉ trỏ tới file `.ttf` của chúng,
+  và `react-native-css-interop` vì đó là phụ thuộc của `nativewind` mà
+  `metro.config.js` trỏ tới bản của nativewind (một bản duy nhất trong bundle),
+  app không khai nó. Mỗi ngoại lệ mới cần lý do ở đây:
+  `scripts/mobile-knip.test.mjs` đỏ khi một tên trong `ignoreDependencies` không
+  có mặt trong file này.
 - Tag `chat-mobile-v<version>` → `.github/workflows/chat-mobile-release.yml`:
   job `verify` gọi `mobile-verify.yml` trên SHA của tag với `force_native: true`
   (luôn build Android native và chạy smoke, kể cả tag đẩy lại), rồi EAS build +
