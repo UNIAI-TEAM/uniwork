@@ -1,5 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createFakeFolderUploadTransport, folderUploadApiError, type FakeFolderUploadOptions } from "./fake-transport";
+import {
+  createFakeFolderUploadTransport,
+  folderUploadApiError,
+  type FakeFolderUploadCall,
+  type FakeFolderUploadOptions,
+} from "./fake-transport";
 import { planFolderUpload } from "./plan";
 import { runFolderUpload } from "./runner";
 import type { FolderUploadProgress, RunFolderUploadOptions } from "./runner-types";
@@ -151,7 +156,7 @@ describe("runFolderUpload upload", () => {
       expired: false,
       canRetry: false,
     });
-    expect(progress.at(-1)).toEqual({ done: 7, failed: 0, total: 7, sentBytes: 21, totalBytes: 21, phase: "finished" });
+    expect(progress.at(-1)).toEqual({ done: 7, failed: 0, stored: 0, total: 7, sentBytes: 21, totalBytes: 21, phase: "finished" });
   });
 
   it("completes in batches of at most completeBatch", async () => {
@@ -184,7 +189,7 @@ describe("runFolderUpload upload", () => {
     const { transport, handle } = setup(files(3), { putFailures: { "f001.pdf": ["network", "network", "network"] } });
     const report = await settle(handle.done);
     expect(report.done).toBe(2);
-    expect(report.failed).toEqual([{ path: "R/f001.pdf", filename: "f001.pdf", code: "network" }]);
+    expect(report.failed).toEqual([{ path: "R/f001.pdf", filename: "f001.pdf", code: "network", retryable: true }]);
     expect(report.canRetry).toBe(true);
 
     const before = transport.calls.length;
@@ -219,7 +224,7 @@ describe("runFolderUpload upload", () => {
     const report = await settle(handle.done);
     expect(report.done).toBe(2);
     expect(report.failed).toEqual([
-      { path: "R/f002.pdf", filename: "f002.pdf", code: "unsupported_media", reason: "zip_bomb" },
+      { path: "R/f002.pdf", filename: "f002.pdf", code: "unsupported_media", reason: "zip_bomb", retryable: false },
     ]);
   });
 
@@ -243,12 +248,13 @@ describe("runFolderUpload cancel and batch end", () => {
     await vi.advanceTimersByTimeAsync(350);
     handle.cancel();
     const report = await settle(handle.done);
-    expect(report).toMatchObject({ canceled: true, canRetry: false, done: 1 });
+    // File 2 is in storage, its complete cut off: cancel completes it again before the DELETE.
+    expect(report).toMatchObject({ canceled: true, canRetry: false, done: 2 });
     const methods = transport.calls.map((c) => c.method);
     expect(methods.at(-1)).toBe("cancel");
     expect(methods.filter((m) => m === "put")).toHaveLength(3);
     expect(transport.batch?.status).toBe("canceled");
-    expect(transport.batch?.files[0]?.status).toBe("done");
+    expect(transport.batch?.files.map((f) => f.status)).toEqual(["done", "done", "pending", "pending"]);
     await expect(settle(handle.retryFailed())).resolves.toMatchObject({ canceled: true });
     expect(transport.calls.map((c) => c.method)).toEqual(methods);
   });
@@ -286,5 +292,159 @@ describe("runFolderUpload invalidation", () => {
     }
     // 12 files x 600 ms is about 7 s: nowhere near one refresh per file.
     expect(invalidations.length).toBeLessThanOrEqual(6);
+  });
+});
+
+describe("runFolderUpload review-fe-r1 fixes", () => {
+  const completes = (calls: FakeFolderUploadCall[]) =>
+    calls.flatMap((c) => (c.method === "complete" ? [c.items.map((i) => i.file_key)] : []));
+
+  it("RF3: completes within 1.5 s of the first stored file in a steady stream", async () => {
+    // plan 0-500, then one file stored every 500 ms from t=1000; never a 1.5 s gap.
+    const { transport, handle } = setup(files(40), { latencyMs: 500 }, { limits: { parallel: 1, completeBatch: 50 } });
+    await vi.advanceTimersByTimeAsync(2_500);
+    const first = completes(transport.calls)[0];
+    expect(first?.[0]).toBe("f-0001");
+    await settle(handle.done);
+  });
+
+  it("RF3: cancel completes the buffered files, then cancels; in-flight PUTs are aborted", async () => {
+    // plan 0-100, f1+f2 stored at 200, f3+f4 at 300, f5+f6 in flight at 350.
+    const { transport, handle } = setup(files(6), { latencyMs: 100 }, { limits: { parallel: 2, completeBatch: 50 } });
+    await vi.advanceTimersByTimeAsync(350);
+    handle.cancel();
+    const report = await settle(handle.done);
+    const tail = transport.calls.slice(transport.calls.findIndex((c) => c.method === "complete"));
+    expect(tail.map((c) => c.method)).toEqual(["complete", "cancel"]);
+    expect(completes(tail)).toEqual([["f-0001", "f-0002", "f-0003", "f-0004"]]);
+    expect(report).toMatchObject({ canceled: true, done: 4, canRetry: false });
+    expect(transport.batch?.files.filter((f) => f.status === "done")).toHaveLength(4);
+  });
+
+  it("RF3: cancel still cancels when the buffered complete fails", async () => {
+    const { transport, handle } = setup(files(2), { latencyMs: 100 });
+    await vi.advanceTimersByTimeAsync(250);
+    transport.failNext("complete", folderUploadApiError(400, "invalid_request"));
+    handle.cancel();
+    const report = await settle(handle.done);
+    expect(transport.calls.map((c) => c.method).slice(-2)).toEqual(["complete", "cancel"]);
+    expect(report).toMatchObject({ canceled: true, done: 0 });
+  });
+
+  it("RF4: marks each failed file retryable or not, and server-final failures do not offer retry", async () => {
+    const { transport, handle } = setup(files(2), {
+      fileErrors: { "f000.pdf": { code: "storage_quota_exceeded", message: "m" } },
+    });
+    const report = await settle(handle.done);
+    expect(report.failed).toEqual([{ path: "R/f000.pdf", filename: "f000.pdf", code: "storage_quota_exceeded", retryable: false }]);
+    expect(report.canRetry).toBe(false);
+    const before = transport.calls.length;
+    const retried = await settle(handle.retryFailed());
+    expect(transport.calls.length).toBe(before);
+    expect(retried.canRetry).toBe(false);
+  });
+
+  it("RF4: a network failure is retryable, and a retry runs as phase retrying", async () => {
+    const { handle, progress } = setup(files(2), { putFailures: { "f001.pdf": ["network", "network", "network"] } });
+    const report = await settle(handle.done);
+    expect(report.failed).toEqual([{ path: "R/f001.pdf", filename: "f001.pdf", code: "network", retryable: true }]);
+    const seen = progress.length;
+    await settle(handle.retryFailed());
+    const phases = progress.slice(seen).map((p) => p.phase);
+    expect(phases).not.toContain("uploading");
+    expect(phases[0]).toBe("retrying");
+    expect(phases.at(-1)).toBe("finished");
+  });
+
+  it("RF4: a retry with nothing the server still holds pending never emits uploading", async () => {
+    const { transport, handle, progress } = setup(files(1), { putFailures: { "f000.pdf": ["network", "network", "network"] } });
+    await settle(handle.done);
+    const file = transport.batch?.files[0];
+    if (file) {
+      file.status = "failed";
+      file.error = { code: "upload_missing", message: "" };
+    }
+    const seen = progress.length;
+    const retried = await settle(handle.retryFailed());
+    expect(progress.slice(seen).map((p) => p.phase)).toEqual(["retrying", "finished"]);
+    expect(retried.failed).toEqual([{ path: "R/f000.pdf", filename: "f000.pdf", code: "upload_missing", retryable: false }]);
+    expect(retried.canRetry).toBe(false);
+  });
+
+  it("Q11: a failure the server keeps pending is retryable; the retry sends the bytes again", async () => {
+    const { transport, handle } = setup(files(2), { fileErrors: { "f001.pdf": { code: "size_mismatch", message: "m" } } });
+    const report = await settle(handle.done);
+    expect(report.failed).toEqual([{ path: "R/f001.pdf", filename: "f001.pdf", code: "size_mismatch", retryable: true }]);
+    expect(report.canRetry).toBe(true);
+    const before = transport.calls.length;
+    const retried = await settle(handle.retryFailed());
+    expect(transport.calls.slice(before).map((c) => c.method)).toEqual(["status", "put", "complete"]);
+    expect(retried).toMatchObject({ done: 2, failed: [], canRetry: false });
+  });
+
+  it("RF5: after one refresh, PUTs a target the client clock still reads as expired", async () => {
+    const { transport, handle } = setup(files(2), { clientClockAheadMs: 2 * 3_600_000 });
+    const report = await settle(handle.done);
+    expect(transport.calls.map((c) => c.method)).toEqual(["plan", "status", "put", "put", "complete"]);
+    expect(report.done).toBe(2);
+  });
+
+  it("RF6: retries a complete that failed on the network, without a second PUT", async () => {
+    const { transport, handle } = setup(files(2));
+    transport.failNext("complete", new TypeError("Failed to fetch"));
+    const report = await settle(handle.done);
+    expect(completes(transport.calls)).toEqual([["f-0001", "f-0002"], ["f-0001", "f-0002"]]);
+    expect(transport.calls.filter((c) => c.method === "put")).toHaveLength(2);
+    expect(report.done).toBe(2);
+  });
+
+  it("RF6: honours Retry-After once on a 429 complete", async () => {
+    const { transport, handle } = setup(files(1));
+    transport.failNext("complete", folderUploadApiError(429, "rate_limited", {}, 7));
+    // The queue ends at once, so the complete goes at t=0 and its retry at 7 s.
+    await vi.advanceTimersByTimeAsync(6_900);
+    expect(completes(transport.calls)).toHaveLength(1);
+    const report = await settle(handle.done);
+    expect(completes(transport.calls)).toHaveLength(2);
+    expect(report.done).toBe(1);
+  });
+
+  it("RF6: resends only the items a complete answer left without a result", async () => {
+    const { transport, handle } = setup(files(3), { dropResults: ["f001.pdf"] });
+    const report = await settle(handle.done);
+    expect(completes(transport.calls)).toEqual([["f-0001", "f-0002", "f-0003"], ["f-0002"]]);
+    expect(report.done).toBe(3);
+  });
+
+  it("RF6: a complete that keeps failing leaves the bytes; the retry completes without a PUT", async () => {
+    const { transport, handle } = setup(files(1));
+    for (let i = 0; i < 3; i++) transport.failNext("complete", folderUploadApiError(503, "internal"));
+    const report = await settle(handle.done);
+    expect(report.failed).toEqual([{ path: "R/f000.pdf", filename: "f000.pdf", code: "http_503", retryable: true }]);
+    const before = transport.calls.length;
+    const retried = await settle(handle.retryFailed());
+    expect(transport.calls.slice(before).map((c) => c.method)).toEqual(["status", "complete"]);
+    expect(retried).toMatchObject({ done: 1, failed: [], canRetry: false });
+  });
+
+  it("RF6: one failed status during a refresh is retried, not fatal to the queue", async () => {
+    const { transport, handle } = setup(files(3), { expiredTargets: ["f000.pdf", "f001.pdf"] });
+    transport.failNext("status", new TypeError("Failed to fetch"));
+    const report = await settle(handle.done);
+    expect(transport.calls.filter((c) => c.method === "status")).toHaveLength(2);
+    expect(report).toMatchObject({ done: 3, failed: [] });
+  });
+
+  it("RF10: an in-memory retry keeps the stored parts; a refreshed target drops the ones it lists", async () => {
+    const big = [{ path: "R/big.pdf", size: 10 }];
+    const seen = (t: ReturnType<typeof setup>["transport"]) =>
+      t.calls.flatMap((c) => (c.method === "put" ? [c.storedParts] : []));
+    const net = setup(big, { multipartAboveBytes: 5, partSize: 4, putFailures: { "big.pdf": ["partial-network"] } });
+    expect(await settle(net.handle.done)).toMatchObject({ done: 1 });
+    expect(seen(net.transport)).toEqual([[], [1]]);
+    const refused = setup(big, { multipartAboveBytes: 5, partSize: 4, putFailures: { "big.pdf": ["partial-403"] } });
+    expect(await settle(refused.handle.done)).toMatchObject({ done: 1 });
+    // The fresh target lists every part again, so the server wants them all.
+    expect(seen(refused.transport)).toEqual([[], []]);
   });
 });

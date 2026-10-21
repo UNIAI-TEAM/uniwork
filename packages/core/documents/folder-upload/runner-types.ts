@@ -11,6 +11,8 @@ export type FolderUploadPhase =
   /** The server said folder_uploads_busy; waiting Retry-After once. */
   | "waiting"
   | "uploading"
+  /** `retryFailed()` is running (never "uploading", so a settled first run stays settled). */
+  | "retrying"
   | "finished"
   | "canceled"
   /** 410: the batch is gone, the folder has to be uploaded again. */
@@ -21,6 +23,8 @@ export type FolderUploadPhase =
 export interface FolderUploadProgress {
   done: number;
   failed: number;
+  /** Files whose bytes are in storage, waiting for their complete. */
+  stored: number;
   total: number;
   sentBytes: number;
   totalBytes: number;
@@ -34,6 +38,14 @@ export interface FolderUploadFailedFile {
   /** Server code from complete, or the client's PUT failure code. */
   code: string;
   reason?: string;
+  /**
+   * True for a client-side failure the server never decided on (network,
+   * target_expired, http_5xx, missing_etag, missing_part_url, aborted, or a
+   * complete that got no answer); false when the server failed the file
+   * (unsupported_media, size_mismatch, storage_quota_exceeded, not_found, …):
+   * the file has to be fixed and the folder uploaded again.
+   */
+  retryable: boolean;
 }
 
 export interface FolderUploadReport {
@@ -47,7 +59,7 @@ export interface FolderUploadReport {
   canceled: boolean;
   /** 410 folder_upload_expired: nothing more can happen in this batch. */
   expired: boolean;
-  /** Whether `retryFailed()` can run: a batch, failures, not canceled or expired. */
+  /** Whether `retryFailed()` can run: a batch, a retryable failure, not canceled or expired. */
   canRetry: boolean;
 }
 
@@ -82,8 +94,14 @@ export interface RunFolderUploadOptions {
 export interface FolderUploadHandle {
   /** Resolves with the report; rejects with a FolderUploadRefusedError when the plan is refused. */
   done: Promise<FolderUploadReport>;
-  /** Abort PUTs, stop completes, cancel the batch on the server. Landed files stay. */
+  /**
+   * Abort PUTs, complete the files already in storage (errors ignored), then
+   * cancel the batch on the server. Landed files stay.
+   */
   cancel(): void;
-  /** Same batch: re-run only the files the server still has as failed or pending. */
+  /**
+   * Same batch, phase "retrying": re-run the failed files the server still has
+   * as pending (a file whose bytes are stored only gets its complete again).
+   */
   retryFailed(): Promise<FolderUploadReport>;
 }

@@ -1,5 +1,20 @@
 import { ApiError } from "../../api/http";
 import { buildUploadProbe } from "../chunked-upload/probe";
+import {
+  batchEnd,
+  BUSY_WAIT_DEFAULT_S,
+  createInvalidator,
+  failureCode,
+  fileKey,
+  isExpired,
+  isRetryableCode,
+  isTransient,
+  newIdempotencyKey,
+  planBody,
+  RETRY_DELAYS_MS,
+  sleep,
+  withRetry,
+} from "./runner-helpers";
 import type {
   FolderUploadFailedFile,
   FolderUploadHandle,
@@ -9,23 +24,21 @@ import type {
 } from "./runner-types";
 import {
   asFolderUploadRefusal,
-  FolderUploadError,
   type FileTarget,
   type FolderUploadBatch,
   type FolderUploadCompleteItem,
-  type FolderUploadPlanBody,
+  type FolderUploadCompleteResponse,
+  type StoredObject,
 } from "./transport";
-import type { FolderUploadPlan, PlannedFile } from "./types";
+import type { PlannedFile } from "./types";
 
 // The folder-upload runner (CONTRACT section 5, v0.2 wire): one plan call,
 // `parallel` PUTs straight to storage, completes in batches, and a report.
 // Pure apart from timers: the transport is injected, so the desktop app and
 // the tests run the same code.
 
-const RETRY_DELAYS_MS = [1_000, 3_000];
-const IDLE_FLUSH_MS = 1_500;
-const INVALIDATE_EVERY_MS = 2_000;
-const BUSY_WAIT_DEFAULT_S = 30;
+/** The oldest file waiting in the complete buffer waits at most this long. */
+const MAX_WAIT_FLUSH_MS = 1_500;
 
 type LocalStatus = "queued" | "stored" | "done" | "failed";
 
@@ -35,113 +48,15 @@ interface FileState {
   status: LocalStatus;
   code?: string;
   reason?: string;
+  /** For a failed file: the server never decided on it, so a retry can send it again. */
+  retryable: boolean;
   target: FileTarget | null;
   storedParts: Map<number, string>;
+  /** What storage answered; kept so a failed complete never sends the bytes again. */
+  object: StoredObject | null;
 }
 
-function abortError(): DOMException {
-  return new DOMException("Aborted", "AbortError");
-}
-
-function sleep(ms: number, signal: AbortSignal): Promise<void> {
-  if (signal.aborted) return Promise.reject(abortError());
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(resolve, ms);
-    signal.addEventListener(
-      "abort",
-      () => {
-        clearTimeout(timer);
-        reject(abortError());
-      },
-      { once: true },
-    );
-  });
-}
-
-/** Strip the root segment: the wire paths are under the root, which is "". */
-function underRoot(path: string): string {
-  const slash = path.indexOf("/");
-  return slash < 0 ? "" : path.slice(slash + 1);
-}
-
-function fileKey(position: number): string {
-  return `f-${String(position + 1).padStart(4, "0")}`;
-}
-
-function newIdempotencyKey(): string {
-  return globalThis.crypto?.randomUUID?.() ?? `fu-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
-}
-
-function isExpired(target: FileTarget): boolean {
-  const at = Date.parse(target.expires_at);
-  return Number.isFinite(at) && at <= Date.now();
-}
-
-/** Network failures and 5xx are worth another attempt; nothing else is. */
-function isTransient(err: unknown): boolean {
-  return err instanceof TypeError || (err instanceof ApiError && err.status >= 500);
-}
-
-function failureCode(err: unknown): string {
-  if (err instanceof FolderUploadError) return err.code;
-  if (err instanceof ApiError) return err.code && err.code !== "internal" ? err.code : `http_${err.status}`;
-  if (err instanceof TypeError) return "network";
-  return "unknown";
-}
-
-/** 410 expired, or 409 canceled elsewhere: nothing more can happen in this batch. */
-function batchEnd(err: unknown): "expired" | "canceled" | null {
-  if (!(err instanceof ApiError)) return null;
-  if (err.status === 410) return "expired";
-  if (err.status === 409 && err.code === "folder_upload_canceled") return "canceled";
-  return null;
-}
-
-/** At most one call per window, the last request of a window deferred to its end. */
-function createInvalidator(cb: (() => void) | undefined) {
-  let last = Number.NEGATIVE_INFINITY;
-  let timer: ReturnType<typeof setTimeout> | null = null;
-  const fire = () => {
-    timer = null;
-    last = Date.now();
-    cb?.();
-  };
-  return {
-    request() {
-      if (!cb || timer) return;
-      const wait = last + INVALIDATE_EVERY_MS - Date.now();
-      if (wait <= 0) fire();
-      else timer = setTimeout(fire, wait);
-    },
-    final() {
-      if (timer) clearTimeout(timer);
-      fire();
-    },
-  };
-}
-
-function planBody(
-  plan: FolderUploadPlan,
-  opts: RunFolderUploadOptions,
-  probes: Map<number, Awaited<ReturnType<typeof buildUploadProbe>>>,
-): FolderUploadPlanBody {
-  return {
-    parent_id: opts.parentId,
-    root_name: plan.rootName,
-    share_with_workspace: opts.shareWithWorkspace,
-    folders: plan.folders.filter((f) => f.includes("/")).map(underRoot),
-    files: plan.files.map((f, i) => {
-      const probe = probes.get(i);
-      return {
-        file_key: fileKey(i),
-        path: underRoot(f.folderPath),
-        filename: f.filename,
-        size_bytes: f.size,
-        ...(probe ? { probe } : {}),
-      };
-    }),
-  };
-}
+const completeItem = (f: FileState): FolderUploadCompleteItem => ({ file_key: f.key, ...(f.object as StoredObject) });
 
 export function runFolderUpload(opts: RunFolderUploadOptions): FolderUploadHandle {
   const { transport, plan, limits } = opts;
@@ -151,7 +66,10 @@ export function runFolderUpload(opts: RunFolderUploadOptions): FolderUploadHandl
   const buildProbe = opts.buildProbe ?? buildUploadProbe;
   const invalidator = createInvalidator(opts.onInvalidate);
   const files = new Map<string, FileState>(
-    plan.files.map((planned, i) => [fileKey(i), { key: fileKey(i), planned, status: "queued", target: null, storedParts: new Map() }]),
+    plan.files.map((planned, i) => [
+      fileKey(i),
+      { key: fileKey(i), planned, status: "queued", retryable: false, target: null, storedParts: new Map(), object: null },
+    ]),
   );
 
   let controller = new AbortController();
@@ -159,8 +77,8 @@ export function runFolderUpload(opts: RunFolderUploadOptions): FolderUploadHandl
   let ended: "canceled" | "expired" | null = null;
   let batchId: string | null = null;
   let root: { id: string | null; title: string } = { id: null, title: plan.rootTitle };
-  let buffer: FolderUploadCompleteItem[] = [];
-  let idleTimer: ReturnType<typeof setTimeout> | null = null;
+  let buffer: FileState[] = [];
+  let flushTimer: ReturnType<typeof setTimeout> | null = null;
   const inflightCompletes = new Set<Promise<void>>();
   let refreshing: Promise<boolean> | null = null;
   let cancelCall: Promise<unknown> = Promise.resolve();
@@ -168,13 +86,15 @@ export function runFolderUpload(opts: RunFolderUploadOptions): FolderUploadHandl
 
   const all = () => [...files.values()];
   const stopped = () => ended !== null;
+  const count = (status: LocalStatus) => all().filter((f) => f.status === status).length;
 
   function emit(): void {
     const list = all();
     const sentBytes = list.reduce((sum, f) => sum + (f.status === "stored" || f.status === "done" ? f.planned.size : 0), 0);
     opts.onProgress?.({
-      done: list.filter((f) => f.status === "done").length,
-      failed: list.filter((f) => f.status === "failed").length,
+      done: count("done"),
+      failed: count("failed"),
+      stored: count("stored"),
       total: list.length,
       sentBytes,
       totalBytes: plan.totals.bytes,
@@ -190,16 +110,17 @@ export function runFolderUpload(opts: RunFolderUploadOptions): FolderUploadHandl
         filename: f.planned.filename,
         code: f.code ?? "unknown",
         ...(f.reason !== undefined ? { reason: f.reason } : {}),
+        retryable: f.retryable,
       }));
     return {
       batchId,
       root,
-      done: all().filter((f) => f.status === "done").length,
+      done: count("done"),
       failed,
       total: files.size,
       canceled: ended === "canceled",
       expired: ended === "expired",
-      canRetry: batchId !== null && ended === null && failed.length > 0,
+      canRetry: batchId !== null && ended === null && failed.some((f) => f.retryable),
     };
   }
 
@@ -208,15 +129,22 @@ export function runFolderUpload(opts: RunFolderUploadOptions): FolderUploadHandl
     ended = kind;
     phase = kind;
     controller.abort();
-    if (idleTimer) clearTimeout(idleTimer);
+    if (flushTimer) clearTimeout(flushTimer);
     buffer = [];
   }
 
-  function fail(f: FileState, code: string, reason?: string): void {
+  function fail(f: FileState, code: string, reason?: string, retryable = isRetryableCode(code)): void {
     f.status = "failed";
     f.code = code;
     f.reason = reason;
+    f.retryable = retryable;
     emit();
+  }
+
+  /** A fresh target: the parts it lists are the ones the server still wants. */
+  function setTarget(f: FileState, target: FileTarget): void {
+    f.target = target;
+    if (target.kind === "multipart") for (const p of target.parts) f.storedParts.delete(p.part_number);
   }
 
   /** Take the server's view: done/failed as it says, fresh targets for pending files. */
@@ -227,14 +155,14 @@ export function runFolderUpload(opts: RunFolderUploadOptions): FolderUploadHandl
       if (sf.status === "done") {
         f.status = "done";
       } else if (sf.status === "pending" && sf.target && f.status === "queued") {
-        f.target = sf.target;
+        setTarget(f, sf.target);
       }
     }
   }
 
   function refresh(): Promise<boolean> {
-    refreshing ??= transport
-      .status(batchId as string, { signal: controller.signal })
+    const signal = controller.signal;
+    refreshing ??= withRetry(() => transport.status(batchId as string, { signal }), signal)
       .then((batch) => {
         absorb(batch);
         return true;
@@ -250,56 +178,76 @@ export function runFolderUpload(opts: RunFolderUploadOptions): FolderUploadHandl
     return refreshing;
   }
 
-  async function sendComplete(items: FolderUploadCompleteItem[]): Promise<void> {
-    try {
-      const res = await transport.complete(batchId as string, items, { signal: controller.signal });
-      const byKey = new Map(res.results.map((r) => [r.file_key, r]));
-      let anyDone = false;
-      for (const item of items) {
-        const f = files.get(item.file_key);
-        const r = byKey.get(item.file_key);
-        if (!f) continue;
-        if (r?.status === "done") {
-          f.status = "done";
-          anyDone = true;
-        } else {
-          f.status = "failed";
-          f.code = r?.error?.code ?? "unknown";
-          f.reason = r?.error?.reason;
-        }
+  /** Apply one complete answer; returns the files it gave no result for. */
+  function applyResults(sent: FileState[], res: FolderUploadCompleteResponse): FileState[] {
+    const byKey = new Map(res.results.map((r) => [r.file_key, r]));
+    const unanswered: FileState[] = [];
+    let anyDone = false;
+    for (const f of sent) {
+      const r = byKey.get(f.key);
+      if (!r) {
+        unanswered.push(f);
+      } else if (r.status === "done") {
+        f.status = "done";
+        anyDone = true;
+      } else {
+        f.status = "failed";
+        f.code = r.error?.code ?? "unknown";
+        f.reason = r.error?.reason;
+        // Without the server's flag a per-file failure is the server's final word.
+        f.retryable = r.retryable ?? false;
+        // Retryable at the server means the stored bytes are unusable: send them again.
+        if (f.retryable) f.object = null;
       }
-      if (anyDone) invalidator.request();
-      emit();
+    }
+    if (anyDone) invalidator.request();
+    emit();
+    return unanswered;
+  }
+
+  async function sendComplete(sent: FileState[]): Promise<void> {
+    const signal = controller.signal;
+    let left = sent;
+    try {
+      for (let retries = 0; ; retries += 1) {
+        const items = left.map(completeItem);
+        left = applyResults(left, await withRetry(() => transport.complete(batchId as string, items, { signal }), signal));
+        if (left.length === 0 || retries >= RETRY_DELAYS_MS.length) break;
+        await sleep(RETRY_DELAYS_MS[retries] as number, signal);
+      }
+      // Never answered: still pending at the server, the bytes are kept.
+      for (const f of left) fail(f, "unknown", undefined, true);
     } catch (err) {
       if (stopped()) return;
       const kind = batchEnd(err);
       if (kind) return end(kind);
-      for (const item of items) {
-        const f = files.get(item.file_key);
-        if (f) fail(f, failureCode(err));
-      }
+      const code = failureCode(err);
+      const retryable = isRetryableCode(code) || (err instanceof ApiError && err.status === 429);
+      for (const f of left) fail(f, code, undefined, retryable);
     }
   }
 
   function flushOne(): void {
-    if (idleTimer) clearTimeout(idleTimer);
-    idleTimer = null;
+    if (flushTimer) clearTimeout(flushTimer);
+    flushTimer = null;
     if (stopped() || buffer.length === 0) return;
-    const items = buffer.splice(0, completeBatch);
-    const p = sendComplete(items).finally(() => inflightCompletes.delete(p));
+    const p = sendComplete(buffer.splice(0, completeBatch)).finally(() => inflightCompletes.delete(p));
     inflightCompletes.add(p);
+    if (buffer.length > 0) flushTimer = setTimeout(flushOne, MAX_WAIT_FLUSH_MS);
   }
 
-  function stored(f: FileState, item: FolderUploadCompleteItem): void {
+  /** Buffer a stored file; the timer runs from the first file of a buffer, not the last (max-wait). */
+  function enqueue(f: FileState): void {
+    buffer.push(f);
+    if (buffer.length >= completeBatch) flushOne();
+    else flushTimer ??= setTimeout(flushOne, MAX_WAIT_FLUSH_MS);
+  }
+
+  function stored(f: FileState, object: StoredObject): void {
     f.status = "stored";
+    f.object = object;
     emit();
-    buffer.push(item);
-    if (buffer.length >= completeBatch) {
-      flushOne();
-    } else {
-      if (idleTimer) clearTimeout(idleTimer);
-      idleTimer = setTimeout(flushOne, IDLE_FLUSH_MS);
-    }
+    enqueue(f);
   }
 
   async function uploadOne(f: FileState): Promise<void> {
@@ -308,7 +256,9 @@ export function runFolderUpload(opts: RunFolderUploadOptions): FolderUploadHandl
     let refreshed = false;
     for (;;) {
       if (stopped()) return;
-      if (!f.target || isExpired(f.target)) {
+      // The clock check only saves a PUT; after one refresh the PUT decides
+      // (a client clock ahead of the server would fail every file otherwise).
+      if (!f.target || (!refreshed && isExpired(f.target))) {
         if (refreshed) return fail(f, "target_expired");
         refreshed = true;
         f.target = null;
@@ -319,8 +269,7 @@ export function runFolderUpload(opts: RunFolderUploadOptions): FolderUploadHandl
         continue;
       }
       try {
-        const object = await transport.put(f.target, blob, { signal: controller.signal, storedParts: f.storedParts });
-        return stored(f, { file_key: f.key, ...object });
+        return stored(f, await transport.put(f.target, blob, { signal: controller.signal, storedParts: f.storedParts }));
       } catch (err) {
         if (stopped()) return;
         const kind = batchEnd(err);
@@ -346,14 +295,28 @@ export function runFolderUpload(opts: RunFolderUploadOptions): FolderUploadHandl
   }
 
   async function uploadAll(queue: FileState[]): Promise<void> {
-    phase = "uploading";
-    emit();
     const worker = async () => {
       for (let f = queue.shift(); f && !stopped(); f = queue.shift()) await uploadOne(f);
     };
     await Promise.all(Array.from({ length: Math.min(parallel, queue.length) }, worker));
     while (!stopped() && buffer.length > 0) flushOne();
     while (inflightCompletes.size > 0) await Promise.all([...inflightCompletes]);
+  }
+
+  /**
+   * Cancel all: what landed stays, so the files whose bytes are in storage
+   * are completed first (errors ignored), then the batch is canceled.
+   */
+  async function closeBatch(id: string, landed: FileState[]): Promise<void> {
+    for (let i = 0; i < landed.length; i += completeBatch) {
+      const chunk = landed.slice(i, i + completeBatch);
+      try {
+        applyResults(chunk, await transport.complete(id, chunk.map(completeItem)));
+      } catch {
+        // The batch is canceled either way; these files are simply not kept.
+      }
+    }
+    await transport.cancel(id).catch(() => undefined);
   }
 
   async function finish(): Promise<FolderUploadReport> {
@@ -405,44 +368,56 @@ export function runFolderUpload(opts: RunFolderUploadOptions): FolderUploadHandl
     batchId = batch.id;
     root = { id: batch.root_folder_id, title: batch.root_title || plan.rootTitle };
     for (const f of files.values()) {
-      if (!batch.files.some((sf) => sf.file_key === f.key)) fail(f, "not_found");
+      if (!batch.files.some((sf) => sf.file_key === f.key)) fail(f, "not_found", undefined, false);
     }
     absorb(batch);
     invalidator.request();
+    phase = "uploading";
+    emit();
     await uploadAll(all().filter((f) => f.status === "queued"));
     return finish();
   }
 
   async function retryRun(): Promise<FolderUploadReport> {
     controller = new AbortController();
-    phase = "uploading";
+    const signal = controller.signal;
+    phase = "retrying";
+    emit();
     let batch: FolderUploadBatch;
     try {
-      batch = await transport.status(batchId as string, { signal: controller.signal });
+      batch = await withRetry(() => transport.status(batchId as string, { signal }), signal);
     } catch (err) {
       const kind = batchEnd(err);
       if (kind) {
         end(kind);
         return finish();
       }
+      phase = "finished";
+      emit();
       throw err;
     }
     const queue: FileState[] = [];
     for (const sf of batch.files) {
       const f = files.get(sf.file_key);
-      if (!f || f.status === "done") continue;
+      if (!f || f.status !== "failed") continue;
       if (sf.status === "done") {
         f.status = "done";
-      } else if (sf.status === "pending" && sf.target) {
-        f.status = "queued";
+      } else if (sf.status === "pending" && (f.object || sf.target)) {
         f.code = undefined;
         f.reason = undefined;
-        f.target = sf.target;
-        queue.push(f);
-      } else if (sf.status === "failed" && sf.error) {
-        f.status = "failed";
-        f.code = sf.error.code;
-        f.reason = sf.error.reason;
+        if (f.object) {
+          // The bytes are in storage already: only the complete is missing.
+          f.status = "stored";
+          enqueue(f);
+        } else {
+          f.status = "queued";
+          setTarget(f, sf.target as FileTarget);
+          queue.push(f);
+        }
+      } else if (sf.status === "failed") {
+        f.code = sf.error?.code ?? f.code;
+        f.reason = sf.error?.reason;
+        f.retryable = false;
       }
     }
     await uploadAll(queue);
@@ -456,8 +431,9 @@ export function runFolderUpload(opts: RunFolderUploadOptions): FolderUploadHandl
     done,
     cancel() {
       if (ended || phase === "refused") return;
+      const landed = all().filter((f) => f.status === "stored" && f.object);
       end("canceled");
-      if (batchId) cancelCall = transport.cancel(batchId).catch(() => undefined);
+      if (batchId) cancelCall = closeBatch(batchId, landed);
       emit();
     },
     retryFailed() {

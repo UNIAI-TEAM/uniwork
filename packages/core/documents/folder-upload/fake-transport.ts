@@ -19,20 +19,28 @@ import type {
 
 export type FakeFolderUploadCall =
   | { method: "plan"; body: FolderUploadPlanBody; idempotencyKey: string }
-  | { method: "put"; fileKey: string; target: FileTarget }
+  | { method: "put"; fileKey: string; target: FileTarget; storedParts: number[] }
   | { method: "complete"; batchId: string; items: FolderUploadCompleteItem[] }
   | { method: "status"; batchId: string }
   | { method: "cancel"; batchId: string };
 
-/** What one PUT attempt does instead of storing: a network error, a 5xx, or a 403 refusal. */
-export type FakePutFailure = "network" | "5xx" | "403";
+/**
+ * What one PUT attempt does instead of storing: a network error, a 5xx, or a
+ * 403 refusal. The `partial-` forms store part 1 of a multipart file first.
+ */
+export type FakePutFailure = "network" | "5xx" | "403" | "partial-network" | "partial-403";
 
 export interface FakeFolderUploadOptions {
   /** The server's "(n)" decision; defaults to the plan's root_name. */
   rootTitle?: string;
   /** Delay of every call, PUTs included. */
   latencyMs?: number;
-  /** Complete answers these files (by filename) as failed with this error. */
+  /**
+   * Complete answers these files (by filename) as failed with this error.
+   * upload_missing, parts_invalid and size_mismatch keep the file pending and
+   * answer `retryable: true` once, as the server does (contract Q11); any
+   * other code fails it for good.
+   */
   fileErrors?: Record<string, FolderUploadFileError>;
   /** PUT attempts that fail, in order, by filename; later attempts succeed. */
   putFailures?: Record<string, FakePutFailure[]>;
@@ -44,6 +52,10 @@ export interface FakeFolderUploadOptions {
   partSize?: number;
   /** Put targets are the server's content route (auth "session"). */
   sessionTargets?: boolean;
+  /** The client clock runs this far ahead: every target reads as expired, storage still takes it. */
+  clientClockAheadMs?: number;
+  /** Filenames whose first complete answer leaves out their result. */
+  dropResults?: string[];
   /** Errors the next calls of a method throw, in order (e.g. a 429 then nothing). */
   errors?: Partial<Record<"plan" | "complete" | "status" | "cancel", Error[]>>;
 }
@@ -69,6 +81,9 @@ export function folderUploadApiError(
 ): ApiError {
   return new ApiError(code, code, status, undefined, fields, undefined, retryAfterSeconds);
 }
+
+/** Per-file complete errors that leave the file pending at the server (contract Q11). */
+const SERVER_RETRYABLE = new Set(["upload_missing", "parts_invalid", "size_mismatch"]);
 
 function abortError(): DOMException {
   return new DOMException("Aborted", "AbortError");
@@ -104,6 +119,10 @@ export function createFakeFolderUploadTransport(options: FakeFolderUploadOptions
   const putFailures = new Map(Object.entries(options.putFailures ?? {}).map(([k, v]) => [k, [...v]]));
   const expiredOnce = new Set(options.expiredTargets ?? []);
   const partSize = options.partSize ?? 8 * 1024 * 1024;
+  const dropOnce = new Set(options.dropResults ?? []);
+  const fileErrors = new Map(Object.entries(options.fileErrors ?? {}));
+  // The storage and server clock; the client's Date.now() is ahead of it.
+  const serverNow = () => Date.now() - (options.clientClockAheadMs ?? 0);
   let batch: FolderUploadBatch | null = null;
   let inFlight = 0;
   let peakPuts = 0;
@@ -118,7 +137,7 @@ export function createFakeFolderUploadTransport(options: FakeFolderUploadOptions
 
   function sign(file: FolderUploadBatchFile, expired: boolean): FileTarget {
     signCount += 1;
-    const expires_at = new Date(Date.now() + (expired ? -1000 : 3_600_000)).toISOString();
+    const expires_at = new Date(serverNow() + (expired ? -1000 : 3_600_000)).toISOString();
     const url = `https://storage.test/${file.file_key}?sig=${signCount}`;
     if (options.multipartAboveBytes !== undefined && file.size_bytes > options.multipartAboveBytes) {
       const count = Math.max(1, Math.ceil(file.size_bytes / partSize));
@@ -227,7 +246,7 @@ export function createFakeFolderUploadTransport(options: FakeFolderUploadOptions
         ? target.session_id === `s-${f.file_key}`
         : target.url.includes(`/${f.file_key}`));
       const fileKey = file?.file_key ?? "?";
-      calls.push({ method: "put", fileKey, target });
+      calls.push({ method: "put", fileKey, target, storedParts: [...(opts.storedParts?.keys() ?? [])].sort((a, b) => a - b) });
       inFlight += 1;
       peakPuts = Math.max(peakPuts, inFlight);
       try {
@@ -235,16 +254,21 @@ export function createFakeFolderUploadTransport(options: FakeFolderUploadOptions
         if (hold) await Promise.race([hold, rejectOnAbort(opts.signal)]);
         if (opts.signal?.aborted) throw abortError();
         const failure = file ? putFailures.get(file.filename)?.shift() : undefined;
-        if (failure === "network") throw new TypeError("Failed to fetch");
+        if (failure?.startsWith("partial-") && target.kind === "multipart") {
+          opts.storedParts?.set(1, `"etag-${fileKey}-1"`);
+        }
+        if (failure === "network" || failure === "partial-network") throw new TypeError("Failed to fetch");
         if (failure === "5xx") throw folderUploadApiError(503, "internal");
-        if (failure === "403" || Date.parse(target.expires_at) <= Date.now()) {
+        if (failure === "403" || failure === "partial-403" || Date.parse(target.expires_at) <= serverNow()) {
           throw folderUploadApiError(403, "internal");
         }
         let result: StoredObject;
         if (target.kind === "put") {
           result = { etag: `"etag-${fileKey}"` };
         } else {
-          for (const p of target.parts) opts.storedParts?.set(p.part_number, `"etag-${fileKey}-${p.part_number}"`);
+          for (const p of target.parts) {
+            if (!opts.storedParts?.has(p.part_number)) opts.storedParts?.set(p.part_number, `"etag-${fileKey}-${p.part_number}"`);
+          }
           const count = Math.max(1, Math.ceil(blob.size / target.part_size));
           result = {
             parts: Array.from({ length: count }, (_, i) => ({ part_number: i + 1, etag: `"etag-${fileKey}-${i + 1}"` })),
@@ -264,16 +288,24 @@ export function createFakeFolderUploadTransport(options: FakeFolderUploadOptions
       const b = requireBatch(batchId);
       if (b.status === "canceled") throw folderUploadApiError(409, "folder_upload_canceled");
       if (items.length > 50) throw folderUploadApiError(400, "invalid_request", { max: 50 });
-      const results: FolderUploadCompleteResponse["results"] = items.map((item) => {
+      const answered = items.filter((item) => {
+        const file = fileByKey(item.file_key);
+        return !(file && dropOnce.delete(file.filename));
+      });
+      const results: FolderUploadCompleteResponse["results"] = answered.map((item) => {
         const file = fileByKey(item.file_key);
         if (!file) {
           return { file_key: item.file_key, status: "failed", document_id: null, error: { code: "not_found", message: "" } };
         }
         if (file.status === "pending") {
-          const injected = options.fileErrors?.[file.filename];
+          const injected = fileErrors.get(file.filename);
           if (!stored.has(file.file_key)) {
-            file.status = "failed";
-            file.error = { code: "upload_missing", message: "" };
+            const error = { code: "upload_missing", message: "" };
+            return { file_key: file.file_key, status: "failed", document_id: null, error, retryable: true };
+          } else if (injected && SERVER_RETRYABLE.has(injected.code)) {
+            fileErrors.delete(file.filename);
+            stored.delete(file.file_key);
+            return { file_key: file.file_key, status: "failed", document_id: null, error: injected, retryable: true };
           } else if (injected) {
             file.status = "failed";
             file.error = injected;
@@ -283,7 +315,9 @@ export function createFakeFolderUploadTransport(options: FakeFolderUploadOptions
           }
           file.target = null;
         }
-        return { file_key: file.file_key, status: file.status === "done" ? "done" : "failed", document_id: file.document_id, error: file.error };
+        return file.status === "done"
+          ? { file_key: file.file_key, status: "done", document_id: file.document_id, error: null }
+          : { file_key: file.file_key, status: "failed", document_id: null, error: file.error, retryable: false };
       });
       recount(b);
       return { results, batch: { status: b.status, counts: { ...b.counts } } };

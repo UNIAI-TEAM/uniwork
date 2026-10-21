@@ -79,7 +79,7 @@ export interface FolderUploadBatch {
   created_at: string;
 }
 
-export interface FolderUploadPlanFile {
+interface FolderUploadPlanFile {
   /** Client-generated, 1-64 of [A-Za-z0-9_-], stable for the run. */
   file_key: string;
   /** Parent folder under the root, "" for the root itself. */
@@ -104,11 +104,17 @@ export type FolderUploadCompleteItem =
   | { file_key: string; etag: string }
   | { file_key: string; parts: { part_number: number; etag: string }[] };
 
-export interface FolderUploadCompleteResult {
+interface FolderUploadCompleteResult {
   file_key: string;
   status: "done" | "failed";
   document_id: string | null;
   error: FolderUploadFileError | null;
+  /**
+   * On a failed result (server contract AMENDMENT 1, Q11): true when the file
+   * stays pending (upload_missing, parts_invalid, size_mismatch: send the
+   * bytes again), false when it is failed for good. Absent from older servers.
+   */
+  retryable?: boolean;
 }
 
 export interface FolderUploadCompleteResponse {
