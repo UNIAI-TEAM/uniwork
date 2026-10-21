@@ -546,7 +546,7 @@ func (q *Queries) AiListMessages(ctx context.Context, conversationID string) ([]
 }
 
 const aiRenameConversation = `-- name: AiRenameConversation :one
-UPDATE ai_conversations SET title = $2, updated_at = now() WHERE id = $1
+UPDATE ai_conversations SET title = $2 WHERE id = $1
 RETURNING id, organization_id, workspace_id, user_id, title, created_at, updated_at
 `
 

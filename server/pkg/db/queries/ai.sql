@@ -116,7 +116,7 @@ ORDER BY created_at ASC, id ASC;
 
 -- name: AiRenameConversation :one
 -- tenant: by-id
-UPDATE ai_conversations SET title = $2, updated_at = now() WHERE id = $1
+UPDATE ai_conversations SET title = $2 WHERE id = $1
 RETURNING *;
 
 -- name: AiGetMessageInConversation :one

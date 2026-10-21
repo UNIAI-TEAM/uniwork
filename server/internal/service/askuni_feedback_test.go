@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/unicomhub/uniwork/server/internal/util"
 )
@@ -131,9 +132,17 @@ func TestRenameConversation(t *testing.T) {
 	if _, err := s.RenameConversation(ctx, ub.ID, res.ConversationID, "của tôi"); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("someone else's conversation = %v, want ErrNotFound", err)
 	}
+	var before time.Time
+	if err := s.pool.QueryRow(ctx, `SELECT updated_at FROM ai_conversations WHERE id = $1`, res.ConversationID).Scan(&before); err != nil {
+		t.Fatal(err)
+	}
 	got, err := s.RenameConversation(ctx, ua.ID, res.ConversationID, "  Việc quá hạn  ")
 	if err != nil || got.Title != "Việc quá hạn" {
 		t.Fatalf("rename = %+v, %v", got, err)
+	}
+	// A rename must not float an old conversation to the top of the history.
+	if !got.UpdatedAt.Time.Equal(before) {
+		t.Fatalf("updated_at moved %v -> %v", before, got.UpdatedAt.Time)
 	}
 	if _, err := s.RenameConversation(ctx, ua.ID, res.ConversationID, strings.Repeat("ế", 80)); err != nil {
 		t.Fatalf("80 runes must pass: %v", err)
