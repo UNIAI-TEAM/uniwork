@@ -194,7 +194,8 @@ describe("socket lifecycle", () => {
     show(qc, timelineKey, { pages: [[msg("m2", 2)], [msg("m1", 1)]], pageParams: [null, { cursor: "c" }] });
     const invalidate = vi.spyOn(qc, "invalidateQueries");
     createChatRealtime(qc, deps).reconnect();
-    expect(qc.getQueryData<RoomTimeline>(timelineKey)?.pages).toHaveLength(1);
+    // The pages scrolled back through stay (chat-timeline.ts › refreshLoadedRoomTimelines).
+    expect(qc.getQueryData<RoomTimeline>(timelineKey)?.pages).toHaveLength(2);
     await vi.advanceTimersByTimeAsync(ROOM_ACTIVITY_DEBOUNCE_MS);
     const keys = invalidate.mock.calls.map(([filters]) => filters?.queryKey);
     expect(keys).toEqual(

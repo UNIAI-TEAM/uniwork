@@ -113,6 +113,8 @@ một dòng thì ghi lý do ở dòng trên.
   đĩa thì sửa `shouldPersistQuery` và test. **Realtime**: `chat-realtime.ts` không bỏ frame khi GET lỗi (tin mới →
   catch-up phòng, sửa/nhắc → refetch phòng, trả lời chủ đề → refetch chủ đề, danh sách theo sau); mỗi phòng một GET
   một lúc, frame đến trong lúc đó gộp theo tin và từ 2 tin mới trên timeline đang hiện thì đọc bằng một catch-up.
+  Reconnect (mỗi lần về foreground) giữ mọi trang đã cuộn của phòng đang hiện và refetch từng trang (nối lại từ trang
+  mới nhất) để thấy sửa/xoá/biểu cảm lúc offline; chỉ mở lại phòng mới cắt về trang mới nhất.
 - Quan sát và phát hành (UNI-2053). `data/report.ts` là cửa duy nhất tới báo
   crash (no-op khi chưa có sink; 4xx và mất mạng không báo; `force` cho
   boundary); `data/sentry.ts` cài Sentry làm sink khi có DSN (release

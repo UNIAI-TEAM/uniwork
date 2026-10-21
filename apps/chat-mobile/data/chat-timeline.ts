@@ -251,16 +251,21 @@ export function catchUpOnChatSubscribeAck(
 }
 
 /**
- * After a reconnect: a shown timeline refreshes its newest page, one nobody
- * shows is marked stale. A read `after` the newest message would miss the
- * edits, deletes and reactions made to loaded ones while the socket was down
- * (UNI-1662); older pages are dropped as on reopening the room. (The web also
- * empties its task-link caches here; the phone shows no links yet.)
+ * After a reconnect: a shown timeline refetches, one nobody shows is marked
+ * stale. A read `after` the newest message would miss the edits, deletes and
+ * reactions made to loaded ones while the socket was down (UNI-1662). Unlike
+ * reopening a room, the pages the person scrolled back through are kept
+ * (audit P2 "Realtime": every return from the background reconnects, and
+ * dropping them lost the reader's place): the infinite query refetches each
+ * loaded page in turn, re-chained from the newest, and shows the old ones
+ * until the new arrive. (The web also empties its task-link caches here; the
+ * phone shows no links yet.)
  */
 export function refreshLoadedRoomTimelines(qc: QueryClient, wsId: string): void {
   for (const [queryKey, data] of qc.getQueriesData({ queryKey: chatKeys.roomMessagesRoot(wsId) })) {
     const roomId = queryKey[3];
     if (data === undefined || typeof roomId !== "string" || !roomId) continue;
-    if (markStaleUnlessObserved(qc, chatKeys.roomMessages(wsId, roomId))) refreshRoomTimelineOnOpen(qc, wsId, roomId);
+    const key = chatKeys.roomMessages(wsId, roomId);
+    if (markStaleUnlessObserved(qc, key)) void qc.invalidateQueries({ queryKey: key, exact: true });
   }
 }
