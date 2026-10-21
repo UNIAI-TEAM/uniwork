@@ -1,0 +1,2 @@
+$ node scripts/office/build-upstream.mjs > /tmp/pr7r8-upstream.log 2>&1; rc=$?; echo "UPSTREAM_BUILD_EXIT=$rc"; [ $rc -eq 0 ]
+UPSTREAM_BUILD_EXIT=0

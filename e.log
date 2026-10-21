@@ -1,0 +1,4 @@
+$ cd packages/views && NODE_OPTIONS=--max-old-space-size=6144 pnpm exec vitest run documents > /tmp/pr7r8-rrdocs.log 2>&1; rc=$?; grep -E "Test Files|Tests  |×|FAIL" /tmp/pr7r8-rrdocs.log | head -12 | cut -c1-250; echo "DOCS_DIR_EXIT=$rc"; [ $rc -eq 0 ]
+ Test Files  143 passed (143)
+      Tests  2215 passed (2215)
+DOCS_DIR_EXIT=0

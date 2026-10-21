@@ -1,0 +1,10 @@
+$ cd packages/views && for i in 1 2 3; do NODE_OPTIONS=--max-old-space-size=6144 pnpm exec vitest run documents/document-comments-panel.test.tsx > /tmp/pr7r8-rr$i.log 2>&1; rc=$?; grep -E "Test Files|Tests  |×|FAIL" /tmp/pr7r8-rr$i.log | head -8 | cut -c1-250; echo "PANEL_RUN_${i}_EXIT=$rc"; done; true
+ Test Files  1 passed (1)
+      Tests  70 passed (70)
+PANEL_RUN_1_EXIT=0
+ Test Files  1 passed (1)
+      Tests  70 passed (70)
+PANEL_RUN_2_EXIT=0
+ Test Files  1 passed (1)
+      Tests  70 passed (70)
+PANEL_RUN_3_EXIT=0
