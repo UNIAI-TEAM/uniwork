@@ -185,7 +185,6 @@ func TestPromptSnapshots(t *testing.T) {
 		// are literal so moving a Prompt* constant cannot re-point a fixture.
 		"meeting_summary@2":  meetingWithFacts,
 		"meeting_summary@3":  meetingWithFacts,
-		"meeting_summary@4":  meetingWithExisting,
 		PromptMeetingSummary: meetingWithLabels,
 		PromptMeetingLiveItems: {
 			"title": "Giao ban", "locale": "vi",
