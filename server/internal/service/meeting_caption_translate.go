@@ -66,8 +66,9 @@ type CaptionTranslateResult struct {
 
 // captionSpacing remembers each meeting and language's last translation call.
 type captionSpacing struct {
-	mu   sync.Mutex
-	last map[string]time.Time
+	mu     sync.Mutex
+	last   map[string]time.Time
+	pruned time.Time
 }
 
 // shortcut: per process, so N server nodes let up to N calls a second
@@ -81,9 +82,12 @@ func (c *captionSpacing) allow(key string, now time.Time) bool {
 	if c.last == nil {
 		c.last = map[string]time.Time{}
 	}
-	for k, t := range c.last {
-		if now.Sub(t) > time.Minute {
-			delete(c.last, k)
+	if now.Sub(c.pruned) > time.Minute { // not on every call: the map is walked once a minute
+		c.pruned = now
+		for k, t := range c.last {
+			if now.Sub(t) > time.Minute {
+				delete(c.last, k)
+			}
 		}
 	}
 	c.last[key] = now

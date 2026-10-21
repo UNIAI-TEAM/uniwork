@@ -200,3 +200,19 @@ func TestSetCaptionLanguage(t *testing.T) {
 		t.Fatalf("ended: %v", err)
 	}
 }
+
+// Review R2 N5: the spacing map is walked once a minute, not on every call,
+// and still forgets keys idle for a minute.
+func TestCaptionSpacingPrunesOnceAMinute(t *testing.T) {
+	var c captionSpacing
+	t0 := time.Now()
+	if !c.allow("a", t0) || c.allow("a", t0.Add(500*time.Millisecond)) || !c.allow("b", t0.Add(30*time.Second)) {
+		t.Fatal("spacing")
+	}
+	if !c.allow("c", t0.Add(61*time.Second)) || len(c.last) != 2 {
+		t.Fatalf("after a minute: %v", c.last)
+	}
+	if !c.allow("d", t0.Add(100*time.Second)) || len(c.last) != 3 {
+		t.Fatalf("pruned again within the minute: %v", c.last)
+	}
+}
