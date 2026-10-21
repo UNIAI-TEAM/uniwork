@@ -1,0 +1,19 @@
+$ (. scripts/local-env.sh && cd server && unset OPENAI_API_KEY; AI_PROVIDER=fake go test ./internal/handler -race -run "FolderUpload|TestConfigPublishes|TestSwaggerSpecFollowsChiRoutesAndSDI" -count=1 -timeout 40m -v > /tmp/h.log 2>&1); rc=$?; grep -E "^\s*--- (FAIL|SKIP)|^(ok|FAIL)|DATA RACE" /tmp/h.log | tail -20; grep -E "^--- (PASS|FAIL|SKIP): (\w*FolderUpload\w*|TestConfigPublishes\w*|TestSwaggerSpecFollowsChiRoutesAndSDI)\b" /tmp/h.log; echo; echo "TEST_HANDLER_EXIT=$rc"
+warning: STORAGE_BACKEND is unset and MINIO_* is empty; the server will refuse to start.
+         set STORAGE_BACKEND=local with LOCAL_UPLOAD_DIR, or configure MinIO (see .env.example).
+ok  	github.com/unicomhub/uniwork/server/internal/handler	12.678s
+--- PASS: TestConfigPublishesWorkManagementCapabilities (0.00s)
+--- PASS: TestConfigPublishesOfficeInstallers (0.01s)
+--- PASS: TestConfigPublishesCIJobInstallerURLs (0.00s)
+--- PASS: TestConfigPublishesDocumentLimits (0.01s)
+--- PASS: TestConfigPublishesUniChatCatalogue (0.01s)
+--- PASS: TestFolderUploadBatchGetAndCancel (0.28s)
+--- PASS: TestFolderUploadBatchExpiredIs410 (0.26s)
+--- PASS: TestFolderUploadFilesModeOverHTTP (0.28s)
+--- PASS: TestFolderUploadContentAndCompleteOverHTTP (0.37s)
+--- PASS: TestCreateFolderUploadAnswersTheBatch (0.31s)
+--- PASS: TestFolderUploadOpenAPI (4.97s)
+--- PASS: TestConfigPublishesFolderUploadLimits (0.00s)
+--- PASS: TestSwaggerSpecFollowsChiRoutesAndSDI (5.09s)
+
+TEST_HANDLER_EXIT=0

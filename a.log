@@ -1,0 +1,6 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-923-office-g5-g6-g7; git rev-parse HEAD; git merge-base HEAD origin/feature/UNI-923-office-g5-g6-g7; git log --oneline -3
+92a8e98b0bb323ca2a3ec12cd7883f15f9296aaa
+760723c61d0d0e5e1e3dfd588da4f0117dbdca17
+92a8e98b0 fix(documents): free a failed multipart file and answer a busy one per file
+bf02b4309 fix(documents): answer a concurrently completed folder upload file as done
+c24a2f51a fix(documents): never mint a multipart target on a closed folder upload batch
