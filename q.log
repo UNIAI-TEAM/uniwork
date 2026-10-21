@@ -1,0 +1,5 @@
+$ npm run test -w @genoffice/html > /tmp/f3-html.log 2>&1; rc=$?; grep -E "Test Files|Tests |FAIL|AssertionError|Error:" /tmp/f3-html.log | head -60; echo; echo "HTML_TEST_EXIT=$rc"
+ Test Files  82 passed (82)
+      Tests  686 passed (686)
+
+HTML_TEST_EXIT=0

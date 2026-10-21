@@ -1,0 +1,5 @@
+$ npm run test -w @genoffice/sheets > /tmp/f3-sheets.log 2>&1; rc=$?; grep -E "Test Files|Tests |FAIL|AssertionError|Error:" /tmp/f3-sheets.log | head -80; echo; echo "SHEETS_TEST_EXIT=$rc"
+ Test Files  385 passed | 1 skipped (386)
+      Tests  3976 passed | 1 skipped (3977)
+
+SHEETS_TEST_EXIT=0

@@ -1,0 +1,5 @@
+$ npm run test -w @genoffice/shell > /tmp/f3-shell.log 2>&1; rc=$?; grep -E "Test Files|Tests |FAIL|AssertionError|Error:" /tmp/f3-shell.log | head -60; echo; echo "SHELL_TEST_EXIT=$rc"
+ Test Files  362 passed | 3 skipped (365)
+      Tests  7427 passed | 23 skipped (7450)
+
+SHELL_TEST_EXIT=0

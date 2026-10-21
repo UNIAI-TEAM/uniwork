@@ -1,0 +1,5 @@
+$ npm run test -w @genoffice/shortcuts > /tmp/f3-pkg.log 2>&1; rc=$?; grep -E "Test Files|Tests |FAIL|Error" /tmp/f3-pkg.log | head -30; echo; echo "SHORTCUTS_TEST_EXIT=$rc"
+ Test Files  5 passed (5)
+      Tests  142 passed (142)
+
+SHORTCUTS_TEST_EXIT=0
