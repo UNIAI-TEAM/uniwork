@@ -139,7 +139,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       useWorkspaceStore.getState().restore(),
       hydrateDeviceState(),
     ]);
-    if (!hasCredential) {
+    // A refresh that the server refused while the rest was read ended the session already (its onChange(null) found nobody to sign out).
+    if (!hasCredential || session.status() === "signed-out") {
       if (lastUser) void forgetLastUser();
       set({ isLoading: false });
       return;

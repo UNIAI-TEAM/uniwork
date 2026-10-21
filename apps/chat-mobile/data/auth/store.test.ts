@@ -94,6 +94,15 @@ describe("auth store", () => {
     expect(lastUserMock.forgetLastUser).toHaveBeenCalledTimes(1);
   });
 
+  it("initialize: a session the server ended while the rest was read opens nothing, stored person or not", async () => {
+    lastUserMock.readLastUser.mockResolvedValueOnce(user);
+    sessionMock.status.mockReturnValue("signed-out");
+    await useAuthStore.getState().initialize();
+    expect(useAuthStore.getState()).toMatchObject({ user: null, isLoading: false });
+    expect(lastUserMock.forgetLastUser).toHaveBeenCalledTimes(1);
+    expect(apiMock.getMe).not.toHaveBeenCalled();
+  });
+
   it("initialize reads the session, the stored person, the workspace and the unsent messages together", async () => {
     const started: string[] = [];
     const hold = (name: string) => async () => {
@@ -158,7 +167,8 @@ describe("auth store", () => {
   });
 
   it("initialize: a 401 ends the session only once the session itself is signed out; a blip keeps it", async () => {
-    sessionMock.status.mockReturnValue("signed-out");
+    // Signed in while initialize reads the session; the 401's refresh then ends it.
+    sessionMock.status.mockReturnValueOnce("signed-in").mockReturnValue("signed-out");
     apiMock.getMe.mockRejectedValueOnce(new ApiError("unauthorized", 401));
     await useAuthStore.getState().initialize();
     expect(sessionMock.logout).toHaveBeenCalledTimes(1);
