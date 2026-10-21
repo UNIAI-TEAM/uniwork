@@ -408,12 +408,12 @@ func (s *DocumentService) validateFolderPlan(in CreateFolderUploadInput, limits 
 		name := norm.NFC.String(strings.TrimSpace(f.Filename))
 		if name == "" || strings.ContainsAny(name, "/\\") || strings.IndexFunc(name, unicode.IsControl) >= 0 ||
 			len([]rune(name)) > folderUploadMaxFilename {
-			return folderPlan{}, errFolderUploadPath("path", f.Path, "tên tệp không hợp lệ")
+			return folderPlan{}, errFolderUploadPath("file_key", f.FileKey, "tên tệp không hợp lệ")
 		}
 		// Two files of one name in one folder are accepted: a created file is
 		// never renamed or refused for its name (FD-D10), as two single uploads.
 		if f.SizeBytes < 0 {
-			return folderPlan{}, errFolderUploadPath("path", f.Path, "size_bytes không hợp lệ")
+			return folderPlan{}, errFolderUploadPath("file_key", f.FileKey, "size_bytes không hợp lệ")
 		}
 		pf := folderPlanFile{in: f, path: p, filename: name}
 		plan.files = append(plan.files, pf)
@@ -526,11 +526,11 @@ func (s *DocumentService) CreateFolderUpload(ctx context.Context, actor Actor, w
 	if in.ParentID != nil {
 		parentID = strings.TrimSpace(*in.ParentID)
 	}
-	plan, err := s.validateFolderPlan(in, s.FolderUploadLimits())
-	if err != nil {
+	if _, err := s.ws.RequireMember(ctx, workspaceID, actor.ID); err != nil {
 		return FolderUploadBatch{}, err
 	}
-	if _, err := s.ws.RequireMember(ctx, workspaceID, actor.ID); err != nil {
+	plan, err := s.validateFolderPlan(in, s.FolderUploadLimits())
+	if err != nil {
 		return FolderUploadBatch{}, err
 	}
 	orgID, err := s.workspaceOrganization(ctx, workspaceID)
@@ -728,6 +728,12 @@ func (s *DocumentService) planFolderUpload(ctx context.Context, actor Actor, org
 		if _, err := q.InsertDocumentFolderUploadFiles(ctx, params); err != nil {
 			return "", err
 		}
+	} else if _, err := q.SetDocumentFolderUploadStatus(ctx, db.SetDocumentFolderUploadStatusParams{
+		ID: batchID, OrganizationID: orgID, WorkspaceID: workspaceID, Status: folderUploadStatusCompleted,
+	}); err != nil {
+		// A plan with no file has nothing to complete: the tree is there, so the
+		// batch settles now and never holds one of the creator's open slots.
+		return "", err
 	}
 	folderIDs := make([]string, 0, len(ids))
 	if !filesMode {

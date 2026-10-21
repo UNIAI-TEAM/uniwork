@@ -229,6 +229,8 @@ func TestFolderUploadPathProblemsAreBadRequests(t *testing.T) {
 		{"file in unknown folder", func(in *CreateFolderUploadInput) { in.Files[0].Path = "Khác" }, "path"},
 		{"duplicate file key", func(in *CreateFolderUploadInput) { in.Files[1].FileKey = "f-1" }, "file_key"},
 		{"bad file key", func(in *CreateFolderUploadInput) { in.Files[1].FileKey = "f 2" }, "file_key"},
+		{"bad filename", func(in *CreateFolderUploadInput) { in.Files[1].Filename = "a\nb.pdf" }, "file_key"},
+		{"bad size", func(in *CreateFolderUploadInput) { in.Files[1].SizeBytes = -1 }, "file_key"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -348,6 +350,38 @@ func TestFolderUploadBusyAtTwoOpenBatches(t *testing.T) {
 	}
 	if _, err := env.svc.CreateFolderUpload(ctx, member, env.tn.wsA, folderPlanInput("Gốc")); err != nil {
 		t.Fatalf("after expiry: %v", err)
+	}
+}
+
+// A folder plan with no file has nothing to complete, so it settles at once and
+// never holds one of the creator's two open slots.
+func TestFolderUploadZeroFilePlanIsCompletedAndHoldsNoSlot(t *testing.T) {
+	env := newFakeDocStorageEnv(t)
+	ctx := context.Background()
+	member := human(env.tn.member)
+	for i := 0; i < 3; i++ {
+		in := CreateFolderUploadInput{RootName: "Rong", Folders: []string{"a"}, IdempotencyKey: "plan-" + util.NewID()}
+		if _, err := env.svc.CreateFolderUpload(ctx, member, env.tn.wsA, in); err != nil {
+			t.Fatalf("plan %d: %v", i, err)
+		}
+	}
+	if n := env.folderUploadCount(t, `SELECT count(*) FROM document_folder_uploads
+		WHERE organization_id = $1 AND status = 'completed' AND finished_at IS NOT NULL`, env.tn.orgID); n != 3 {
+		t.Fatalf("completed zero-file batches = %d, want 3", n)
+	}
+	if n := env.folderUploadCount(t, `SELECT count(*) FROM outbox_events WHERE organization_id = $1 AND topic = $2`,
+		env.tn.orgID, DocumentBatchUploadedTopic); n != 3 {
+		t.Fatalf("batch_uploaded events = %d, want 3", n)
+	}
+}
+
+func TestFolderUploadBadPlanIsRefusedToANonMemberBeforeItIsValidated(t *testing.T) {
+	env := newFakeDocStorageEnv(t)
+	in := folderPlanInput("Gốc")
+	in.Folders = append(in.Folders, "a/../b")
+	_, err := env.svc.CreateFolderUpload(context.Background(), human(env.tn.outsider), env.tn.wsA, in)
+	if err == nil || !(errors.Is(err, ErrForbidden) || errors.Is(err, ErrNotFound)) {
+		t.Fatalf("outsider with a bad plan: %v, want a membership refusal", err)
 	}
 }
 
