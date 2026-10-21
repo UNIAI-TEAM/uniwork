@@ -56,25 +56,21 @@ func (q *Queries) CompleteDocumentDownloadJob(ctx context.Context, arg CompleteD
 
 const countActiveDocumentDownloadJobs = `-- name: CountActiveDocumentDownloadJobs :one
 SELECT count(*) FROM document_download_jobs
-WHERE organization_id = $1 AND workspace_id = $2
-  AND created_by = $3 AND created_by_kind = $4
+WHERE organization_id = $1
+  AND created_by = $2 AND created_by_kind = $3
   AND status IN ('queued', 'running')
 `
 
 type CountActiveDocumentDownloadJobsParams struct {
 	OrganizationID string `json:"organization_id"`
-	WorkspaceID    string `json:"workspace_id"`
 	CreatedBy      string `json:"created_by"`
 	CreatedByKind  string `json:"created_by_kind"`
 }
 
+// The cap is per creator across the organization's workspaces, so the
+// workspace is not part of the count; organization_id keeps it in the tenant.
 func (q *Queries) CountActiveDocumentDownloadJobs(ctx context.Context, arg CountActiveDocumentDownloadJobsParams) (int64, error) {
-	row := q.db.QueryRow(ctx, countActiveDocumentDownloadJobs,
-		arg.OrganizationID,
-		arg.WorkspaceID,
-		arg.CreatedBy,
-		arg.CreatedByKind,
-	)
+	row := q.db.QueryRow(ctx, countActiveDocumentDownloadJobs, arg.OrganizationID, arg.CreatedBy, arg.CreatedByKind)
 	var count int64
 	err := row.Scan(&count)
 	return count, err

@@ -68,7 +68,9 @@ WHERE organization_id = $1 AND file_id IS NOT NULL;
 SELECT pg_advisory_xact_lock(hashtextextended('document-download:' || sqlc.arg(created_by)::text, 0));
 
 -- name: CountActiveDocumentDownloadJobs :one
+-- The cap is per creator across the organization's workspaces, so the
+-- workspace is not part of the count; organization_id keeps it in the tenant.
 SELECT count(*) FROM document_download_jobs
-WHERE organization_id = $1 AND workspace_id = $2
-  AND created_by = $3 AND created_by_kind = $4
+WHERE organization_id = $1
+  AND created_by = $2 AND created_by_kind = $3
   AND status IN ('queued', 'running');

@@ -201,8 +201,8 @@ func (s *DocumentService) CreateDocumentDownloadJob(ctx context.Context, actor A
 		return DocumentDownloadJob{}, err
 	}
 	active, err := q.CountActiveDocumentDownloadJobs(ctx, db.CountActiveDocumentDownloadJobsParams{
-		OrganizationID: scope.organizationID, WorkspaceID: workspaceID,
-		CreatedBy: actor.ID, CreatedByKind: string(actor.Kind),
+		OrganizationID: scope.organizationID,
+		CreatedBy:      actor.ID, CreatedByKind: string(actor.Kind),
 	})
 	if err != nil {
 		return DocumentDownloadJob{}, err
