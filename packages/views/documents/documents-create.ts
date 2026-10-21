@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import type { BlankDocumentFormat } from "@uniwork/core/api/endpoints/documents-blank";
@@ -20,10 +20,11 @@ const QUICK_CREATE_TYPES = ["page", "docx", "xlsx", "pptx"] as const satisfies r
 /**
  * The strip plus the type created last when it is not already one of them
  * (user 2026-10-21): someone who keeps making Markdown files gets a pill for it.
+ * Plain text never gets one: it has no chip and lives only in the New menu.
  */
 export function quickCreateTypes(recent: CreateType | null | undefined): readonly CreateType[] {
   const base: readonly CreateType[] = QUICK_CREATE_TYPES;
-  return recent && !base.includes(recent) ? [...base, recent] : base;
+  return recent && recent !== "txt" && !base.includes(recent) ? [...base, recent] : base;
 }
 
 // Per device and per workspace by design, like the mention recency: the goal
@@ -95,10 +96,13 @@ export function useCreateOfType(wsId: string, onOpen: (documentId: string) => vo
   const folderBusy = useRef(false);
   const folderKeyRef = useRef<{ title: string; parentId: string | null; key: string } | null>(null);
   const [unavailable, setUnavailable] = useState<ReadonlySet<CreateType>>(new Set());
-  const [lastType, setLastType] = useState<CreateType | null>(() => readLastCreateType(wsId));
+  // Tracks the workspace: a switch re-reads that workspace's own last type.
+  const [created, setCreated] = useState<{ wsId: string; type: CreateType } | null>(null);
+  const storedLastType = useMemo(() => readLastCreateType(wsId), [wsId]);
+  const lastType = created?.wsId === wsId ? created.type : storedLastType;
   const remember = (type: CreateType) => {
     writeLastCreateType(wsId, type);
-    setLastType(type);
+    setCreated({ wsId, type });
   };
 
   const create = async (type: CreateType, parentId: string | null) => {
