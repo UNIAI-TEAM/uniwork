@@ -56,20 +56,20 @@ export function TaskActivityRow({
 }) {
   const { t } = useTranslation();
   const labels = useAuditLabels();
-  const valueLabel = (field: string, value: unknown): unknown => {
-    if (typeof value !== "string") return value;
-    if (field === "status") {
-      return t(`tasks.status_${value}`, { defaultValue: value });
-    }
-    if (field === "priority") {
-      return t(`tasks.priority_${value}`, { defaultValue: value });
-    }
-    return valueNames.get(value) ?? value;
-  };
+  // Ids (assignee, project) read as the names the caller resolved; enums go
+  // through the shared audit words.
+  const valueLabel = (field: string, value: unknown): unknown =>
+    typeof value === "string" && valueNames.has(value)
+      ? valueNames.get(value)
+      : labels.value(field, value, "task");
   // Position is an internal ordering coordinate, not a meaningful task-detail
   // change. Keep it in the immutable audit event for the organization log,
   // but omit it from this resource-local timeline and its remaining-field count.
-  const timelineChanges = changeEntries(event).filter(([field]) => field !== "position");
+  // On creation the assignee's kind only restates the assignee.
+  const created = event.action === "task.created";
+  const timelineChanges = changeEntries(event).filter(
+    ([field]) => field !== "position" && !(created && field === "assignee_kind"),
+  );
   const changes = timelineChanges.slice(0, 2);
   const via = viaClient(event);
   return (
@@ -109,7 +109,11 @@ export function TaskActivityRow({
             </span>
           ))}
           {timelineChanges.length > changes.length ? (
-            <span>+{timelineChanges.length - changes.length}</span>
+            <span>
+              {t("settings.audit.table.more_fields", {
+                count: timelineChanges.length - changes.length,
+              })}
+            </span>
           ) : null}
         </span>
       ) : null}

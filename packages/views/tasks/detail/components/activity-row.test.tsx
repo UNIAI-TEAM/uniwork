@@ -51,6 +51,31 @@ describe("TaskActivityRow", () => {
     expect(el).toHaveTextContent("+1");
   });
 
+  it("lúc tạo việc không kể loại người phụ trách, và phần dư nói rõ là trường", () => {
+    const el = row(
+      {
+        action: "task.created",
+        changes: {
+          title: { to: "Viết đặc tả" },
+          assignee_kind: { to: "human" },
+          status: { to: "todo" },
+          priority: { to: "high" },
+        },
+      },
+      "Lan",
+    );
+    expect(el).not.toHaveTextContent("Loại người phụ trách");
+    expect(el).not.toHaveTextContent("human");
+    expect(el).toHaveTextContent("+1 trường");
+  });
+
+  it("đổi loại người phụ trách đọc bằng chữ, không lộ enum", () => {
+    const el = row({ changes: { assignee_kind: { from: "human", to: "agent" } } }, "Lan");
+    expect(el).toHaveTextContent("Loại người phụ trách");
+    expect(el).toHaveTextContent("Người");
+    expect(el).not.toHaveTextContent("human");
+  });
+
   it("cập nhật thường hiện diff từ → đến và tên người thực hiện", () => {
     const el = row(
       { changes: { status: { from: "todo", to: "in_progress" } } },
