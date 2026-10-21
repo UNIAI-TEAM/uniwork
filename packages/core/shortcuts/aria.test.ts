@@ -22,6 +22,17 @@ describe("ariaKeyShortcuts", () => {
     expect(ariaKeyShortcuts(createShortcutChord("Up", { alt: true }), "windows")).toBe("Alt+ArrowUp");
   });
 
+  it("spells keys that are not valid ARIA key values the way the fork does", () => {
+    expect(ariaKeyShortcuts(createShortcutChord("Space", { primary: true }), "windows")).toBe("Control+Space");
+    expect(ariaKeyShortcuts(createShortcutChord("Plus", { primary: true }), "macos")).toBe("Meta+Plus");
+    expect(ariaKeyShortcuts(createShortcutChord("Underscore", { control: true }), "macos")).toBe("Control+_");
+  });
+
+  it("maps Minus and Equals to their characters", () => {
+    expect(ariaKeyShortcuts(createShortcutChord("Minus", { control: true }), "macos")).toBe("Control+-");
+    expect(ariaKeyShortcuts(createShortcutChord("Equals", { control: true }), "macos")).toBe("Control+=");
+  });
+
   it("omits the attribute for a cleared chord", () => {
     expect(ariaKeyShortcuts(null, "macos")).toBeUndefined();
   });
