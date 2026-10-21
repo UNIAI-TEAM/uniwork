@@ -23,6 +23,7 @@ import Animated, { useAnimatedStyle } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LivePersonAvatar } from "@/components/people/person-avatar";
 import { ActionSheet } from "@/components/ui/action-sheet";
+import { haptics } from "@/components/ui/haptics";
 import { Text } from "@/components/ui/text";
 import { CHAT_FILE_MAX_LABEL, CHAT_FILE_PICKER_TYPES, isChatAcceptedFile, isChatFileTooLarge } from "@/lib/file-accept";
 import { formatVoiceCallDuration } from "@uniwork/core/chat/voice-call-duration";
@@ -92,7 +93,10 @@ export function Composer(props: Props) {
   const insetStyle = useAnimatedStyle(() => ({ paddingBottom: insets.bottom * (1 - progress.value) }), [insets.bottom]);
   const voice = useVoiceRecorder(props.onSendVoice);
   // A refused microphone resolves false: the permission primer already said why, so only a recorder error toasts.
-  const startVoice = () => void voice.start().catch(() => toast.error(t("chat.voice_record_failed")));
+  const startVoice = () => {
+    haptics.recordStart();
+    void voice.start().catch(() => toast.error(t("chat.voice_record_failed")));
+  };
 
   // Editing starts from the message's own text, with its mentions as "@Tên".
   useEffect(() => {

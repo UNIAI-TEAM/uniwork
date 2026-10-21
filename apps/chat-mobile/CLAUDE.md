@@ -492,8 +492,12 @@ một dòng thì ghi lý do ở dòng trên.
   (ảnh, tệp, bình chọn…) giữ nút và đọc chân tin là một dòng; ô album có `longpress` và ô đầu nói "Album N ảnh".
   **Cảm giác**: `react-native-keyboard-controller` (`KeyboardProvider` ở root; `KeyboardAvoidingView` của nó cho phòng
   và tạo nhóm; inset home indicator của composer co theo `progress` của bàn phím); rung `data/haptics.ts` (iOS
-  impact/selection/notification, Android hằng số phản hồi của hệ thống) cho gửi, nhấn giữ, biểu cảm, nghe/gác máy —
-  instance ở `components/ui/haptics.ts`; nút về tin mới nhất `components/chat/jump-to-latest.tsx` khi cuộn lên hoặc đang
+  impact/selection/notification, Android hằng số phản hồi của hệ thống) cho gửi, nhấn giữ (tin, phòng, liên kết), biểu
+  cảm, nghe/gác máy, lúc vuốt trả lời vượt ngưỡng (`swipe-to-reply.tsx`, mỗi lần vượt một lần), lúc bắt đầu ghi âm và
+  khi một tin của mình chuyển sang lỗi lúc phòng đang mở (`use-send-failure-feedback.ts`, kèm câu đọc cho trình đọc màn
+  hình) — instance ở `components/ui/haptics.ts`. **Chuyển động**: `useReduceMotion` (`components/ui/a11y.ts`) là cách
+  đọc duy nhất công tắc giảm chuyển động (bắt đầu ở "đứng yên"); `CallAwareModal` đổi `slide` thành `fade` cho mọi sheet
+  khi bật. Toast đọc một lần: TalkBack qua live region, VoiceOver qua `announceForAccessibility` (chỉ iOS); nút về tin mới nhất `components/chat/jump-to-latest.tsx` khi cuộn lên hoặc đang
   xem trang cũ (`onJumpToLatest`), đếm tin người khác gửi từ lúc rời đáy (`countNewSince`, như web), tự gửi thì cuộn
   xuống (`latestSignal` của `MessageList`); ảnh xem lớn `zoomable-image.tsx` (chụm, chạm hai lần, kéo khi phóng to, vuốt
   dọc ở 1x để đóng; toán ở `lib/zoom.ts`; Modal có `GestureHandlerRootView` riêng). **Cỡ chữ**: vai trò ở

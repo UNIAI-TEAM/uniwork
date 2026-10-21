@@ -2,26 +2,12 @@
 // dots that pulse in turn (still, at a steady 60 %, when the person asked for
 // less motion), the typist's avatar beside it in a group. The names stay in the
 // accessibility label, as the old text line read them out.
-import { useEffect, useRef, useState, type ReactNode } from "react";
-import { AccessibilityInfo, Animated, Easing, View } from "react-native";
-import { useAnnounce } from "@/components/ui/a11y";
+import { useEffect, useRef, type ReactNode } from "react";
+import { Animated, Easing, View } from "react-native";
+import { useAnnounce, useReduceMotion } from "@/components/ui/a11y";
 import { bubbleCorners } from "@/lib/conversation-display";
 import { THEME } from "@/lib/theme";
 import { useColorScheme } from "@/components/ui/use-color-scheme";
-
-function useReduceMotion() {
-  const [reduced, setReduced] = useState(true);
-  useEffect(() => {
-    let live = true;
-    void AccessibilityInfo.isReduceMotionEnabled().then((value) => live && setReduced(value));
-    const sub = AccessibilityInfo.addEventListener("reduceMotionChanged", setReduced);
-    return () => {
-      live = false;
-      sub.remove();
-    };
-  }, []);
-  return reduced;
-}
 
 function Dot({ delay, reduced, color }: { delay: number; reduced: boolean; color: string }) {
   const opacity = useRef(new Animated.Value(0.25)).current;

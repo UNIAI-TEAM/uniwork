@@ -1,5 +1,5 @@
 import { act, screen } from "@testing-library/react-native";
-import { Text } from "react-native";
+import { AccessibilityInfo, Text } from "react-native";
 import { callEngine } from "@/data/calls/call-store";
 import type { VoiceCallOverlayState } from "@uniwork/core/chat/voice-call-types";
 import { render } from "@/test/render";
@@ -71,5 +71,26 @@ describe("CallAwareModal (audit C2)", () => {
     );
     await setCall(ringing);
     expect(screen.getByText("bare")).toBeOnTheScreen();
+  });
+
+  it("fades a sliding sheet in for someone who asked for less motion, and slides it otherwise", async () => {
+    const motion = jest.spyOn(AccessibilityInfo, "isReduceMotionEnabled").mockResolvedValue(true);
+    const view = await render(
+      <CallAwareModal visible transparent animationType="slide" onRequestClose={jest.fn()} testID="sheet">
+        <Text>sheet</Text>
+      </CallAwareModal>,
+    );
+    await act(async () => undefined);
+    expect(screen.getByTestId("sheet").props.animationType).toBe("fade");
+    await view.unmount();
+    motion.mockResolvedValue(false);
+    await render(
+      <CallAwareModal visible transparent animationType="slide" onRequestClose={jest.fn()} testID="sheet">
+        <Text>sheet</Text>
+      </CallAwareModal>,
+    );
+    await act(async () => undefined);
+    expect(screen.getByTestId("sheet").props.animationType).toBe("slide");
+    motion.mockRestore();
   });
 });

@@ -2,9 +2,9 @@
 // dark surface's colours, the caller block (a 132 pt avatar, pulse rings while
 // it rings, the name, one status line) and the round, labelled control.
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
-import { useEffect, useRef, useState } from "react";
-import { AccessibilityInfo, Animated, Easing, Pressable, View } from "react-native";
-import { useAnnounce } from "@/components/ui/a11y";
+import { useEffect, useRef } from "react";
+import { Animated, Easing, Pressable, View } from "react-native";
+import { useAnnounce, useReduceMotion } from "@/components/ui/a11y";
 import { Text } from "@/components/ui/text";
 import { SOLID_TINT_BG } from "@/lib/identity-tint";
 import { identityTint } from "@uniwork/core/chat/identity-tint";
@@ -71,26 +71,6 @@ export function CallButton(props: {
       </Text>
     </Pressable>
   );
-}
-
-// Starts still, so nobody who asked for less motion sees a frame of it.
-function useReduceMotion() {
-  const [reduced, setReduced] = useState(true);
-  useEffect(() => {
-    let live = true;
-    void AccessibilityInfo.isReduceMotionEnabled().then(
-      (on) => {
-        if (live) setReduced(on);
-      },
-      () => undefined,
-    );
-    const sub = AccessibilityInfo.addEventListener("reduceMotionChanged", setReduced);
-    return () => {
-      live = false;
-      sub.remove();
-    };
-  }, []);
-  return reduced;
 }
 
 const RING = { position: "absolute", top: 0, right: 0, bottom: 0, left: 0, borderWidth: 3 } as const;

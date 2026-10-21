@@ -178,6 +178,8 @@ describe("Composer", () => {
     const { unmount } = await render(<Composer {...props()} />);
     await fireEvent.press(screen.getByRole("button", { name: viText("chat.voice_message") }));
     expect(start).toHaveBeenCalled();
+    // The start is felt, as WhatsApp's record button is.
+    expect(jest.requireMock<{ impactAsync: jest.Mock }>("expo-haptics").impactAsync).toHaveBeenCalledWith("medium");
     expect(toast.error).not.toHaveBeenCalled();
     await unmount();
     mockVoice({ start: jest.fn(async () => Promise.reject(new Error("busy"))) });

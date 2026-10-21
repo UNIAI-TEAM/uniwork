@@ -74,9 +74,14 @@ describe("RoomRow", () => {
     const row = screen.getByRole("button", { name: "Bình, Mai họp nhé, 09:41" });
     await fireEvent.press(row);
     expect(p.onPress).toHaveBeenCalledTimes(1);
+    const haptics = jest.requireMock<{ impactAsync: jest.Mock }>("expo-haptics");
+    haptics.impactAsync.mockClear();
     await fireEvent(row, "longPress");
+    // A long press is felt; the screen reader's action is not a touch.
+    expect(haptics.impactAsync).toHaveBeenCalledTimes(1);
     await fireEvent(row, "accessibilityAction", { nativeEvent: { actionName: "longpress" } });
     expect(p.onLongPress).toHaveBeenCalledTimes(2);
+    expect(haptics.impactAsync).toHaveBeenCalledTimes(1);
     expect(row.props.accessibilityActions).toEqual([{ name: "longpress", label: viText("chat.settings_manage_room") }]);
   });
 });

@@ -9,7 +9,7 @@ vi.mock("expo-haptics", () => ({
   performAndroidHapticsAsync: vi.fn(async () => undefined),
   ImpactFeedbackStyle: { Light: "light", Medium: "medium", Heavy: "heavy" },
   NotificationFeedbackType: { Success: "success", Warning: "warning", Error: "error" },
-  AndroidHaptics: { Confirm: "confirm", Reject: "reject", Long_Press: "long-press", Context_Click: "context-click" },
+  AndroidHaptics: { Confirm: "confirm", Reject: "reject", Long_Press: "long-press", Context_Click: "context-click", Segment_Tick: "segment-tick", Toggle_On: "toggle-on" },
 }));
 
 import * as Haptics from "expo-haptics";
@@ -17,22 +17,31 @@ import { createHaptics, type HapticMoment } from "./haptics";
 
 beforeEach(() => vi.clearAllMocks());
 
-const MOMENTS: HapticMoment[] = ["send", "longPress", "reaction", "callAccept", "callEnd"];
+const MOMENTS: HapticMoment[] = ["send", "longPress", "reaction", "callAccept", "callEnd", "threshold", "recordStart", "failure"];
 
 describe("createHaptics", () => {
   it("gives iOS its impact, selection and notification feels", () => {
     const haptics = createHaptics("ios");
     MOMENTS.forEach((moment) => haptics[moment]());
-    expect(vi.mocked(Haptics.impactAsync).mock.calls).toEqual([["light"], ["medium"]]);
-    expect(Haptics.selectionAsync).toHaveBeenCalledTimes(1);
-    expect(vi.mocked(Haptics.notificationAsync).mock.calls).toEqual([["success"], ["warning"]]);
+    expect(vi.mocked(Haptics.impactAsync).mock.calls).toEqual([["light"], ["medium"], ["medium"]]);
+    expect(Haptics.selectionAsync).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(Haptics.notificationAsync).mock.calls).toEqual([["success"], ["warning"], ["error"]]);
     expect(Haptics.performAndroidHapticsAsync).not.toHaveBeenCalled();
   });
 
   it("gives Android the system's own feedback constants, which follow its touch-feedback setting", () => {
     const haptics = createHaptics("android");
     MOMENTS.forEach((moment) => haptics[moment]());
-    expect(vi.mocked(Haptics.performAndroidHapticsAsync).mock.calls).toEqual([["confirm"], ["long-press"], ["context-click"], ["confirm"], ["reject"]]);
+    expect(vi.mocked(Haptics.performAndroidHapticsAsync).mock.calls).toEqual([
+      ["confirm"],
+      ["long-press"],
+      ["context-click"],
+      ["confirm"],
+      ["reject"],
+      ["segment-tick"],
+      ["toggle-on"],
+      ["reject"],
+    ]);
     expect(Haptics.impactAsync).not.toHaveBeenCalled();
   });
 

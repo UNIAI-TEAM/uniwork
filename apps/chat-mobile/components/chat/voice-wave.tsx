@@ -2,21 +2,15 @@
 // and fall while the microphone is open, and stand still for someone who asked
 // for less motion. Decorative: the pill's label says it is recording.
 import { useEffect, useState } from "react";
-import { AccessibilityInfo, View } from "react-native";
+import { View } from "react-native";
+import { useReduceMotion } from "@/components/ui/a11y";
 
 const BARS = 22;
 const TICK_MS = 140;
 
 export function VoiceWave() {
   const [tick, setTick] = useState(0);
-  const [still, setStill] = useState(true);
-  useEffect(() => {
-    let live = true;
-    void AccessibilityInfo.isReduceMotionEnabled().then((on) => live && setStill(on));
-    return () => {
-      live = false;
-    };
-  }, []);
+  const still = useReduceMotion();
   useEffect(() => {
     if (still) return;
     const timer = setInterval(() => setTick((n) => n + 1), TICK_MS);

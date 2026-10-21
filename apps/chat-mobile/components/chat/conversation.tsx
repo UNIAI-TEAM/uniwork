@@ -68,6 +68,7 @@ import { ReportSheet } from "./report-sheet";
 import { ReminderSheet } from "./reminder-sheet";
 import { ConversationTyping } from "./room-typing";
 import { useArrivalAnnouncements } from "./use-arrival-announcements";
+import { useSendFailureFeedback } from "./use-send-failure-feedback";
 import { useStableHandlers } from "./use-stable-handlers";
 import type { ChatWorkspace } from "./use-chat-workspace";
 import type { useRoomContext } from "./use-room-context";
@@ -251,6 +252,8 @@ export function Conversation(props: Props) {
   };
   // What VoiceOver / TalkBack hear when someone else's message arrives at the bottom (audit U2).
   useArrivalAnnouncements(roomId, messages, userId, (message) => ({ sender: room.senderName(message), preview: quoteText(message) }));
+  // A send of mine that fails while the room is open is felt and said (audit UX P3).
+  useSendFailureFeedback(messages);
 
   // Each row worked out once per change and kept as the same object while it draws the same (audit H1).
   const previousModels = useRef<ReadonlyMap<string, MessageRowModel>>(new Map());

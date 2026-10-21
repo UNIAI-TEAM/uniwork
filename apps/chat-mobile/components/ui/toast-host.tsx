@@ -1,11 +1,12 @@
 // Draws data/stores/toast-store.ts: the toasts stacked under the status bar,
 // above every screen and sheet's content, each tappable to dismiss. A new
-// toast is also announced: TalkBack hears the polite live region, VoiceOver
-// (where live regions do nothing) gets announceForAccessibility.
+// toast is announced once: TalkBack hears the polite live region, VoiceOver
+// (where live regions do nothing) gets announceForAccessibility — on iOS only,
+// or TalkBack would read every toast twice (components/ui/a11y.ts).
 import { Ionicons } from "@expo/vector-icons";
 import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import { AccessibilityInfo, Pressable, View } from "react-native";
+import { AccessibilityInfo, Platform, Pressable, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useToastStore, type Toast, type ToastTone } from "@/data/stores/toast-store";
 import { Text } from "@/components/ui/text";
@@ -55,7 +56,7 @@ export function ToastHost() {
     for (const toast of toasts) {
       if (announced.current.has(toast.id)) continue;
       announced.current.add(toast.id);
-      AccessibilityInfo.announceForAccessibility(toast.message);
+      if (Platform.OS === "ios") AccessibilityInfo.announceForAccessibility(toast.message);
     }
   }, [toasts]);
 

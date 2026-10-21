@@ -3,11 +3,15 @@
 import { act, screen } from "@testing-library/react-native";
 import { AccessibilityInfo, Platform, Text } from "react-native";
 import { render } from "@/test/render";
-import { useAnnounce, useScreenReaderEnabled } from "./a11y";
+import { useAnnounce, useReduceMotion, useScreenReaderEnabled } from "./a11y";
 
 function Say({ line }: { line: string | null }) {
   useAnnounce(line);
   return null;
+}
+
+function Motion() {
+  return <Text>{useReduceMotion() ? "still" : "moving"}</Text>;
 }
 
 function Reader() {
@@ -55,5 +59,34 @@ describe("useScreenReaderEnabled", () => {
     await act(async () => changed(false));
     expect(screen.getByText("off")).toBeOnTheScreen();
     await unmount();
+  });
+});
+
+describe("useReduceMotion", () => {
+  it("starts still, reads the switch and follows it", async () => {
+    let changed: (on: boolean) => void = () => undefined;
+    jest.spyOn(AccessibilityInfo, "isReduceMotionEnabled").mockResolvedValue(false);
+    jest.spyOn(AccessibilityInfo, "addEventListener").mockImplementation(((_event: string, handler: (on: boolean) => void) => {
+      changed = handler;
+      return { remove: jest.fn() };
+    }) as never);
+    const { unmount } = await render(<Motion />);
+    await act(async () => undefined);
+    expect(screen.getByText("moving")).toBeOnTheScreen();
+    await act(async () => changed(true));
+    expect(screen.getByText("still")).toBeOnTheScreen();
+    await unmount();
+  });
+
+  it("stays still when the platform cannot tell, and ignores an answer after unmount", async () => {
+    jest.spyOn(AccessibilityInfo, "isReduceMotionEnabled").mockRejectedValue(new Error("unsupported"));
+    await render(<Motion />);
+    await act(async () => undefined);
+    expect(screen.getByText("still")).toBeOnTheScreen();
+    let answer: (on: boolean) => void = () => undefined;
+    jest.spyOn(AccessibilityInfo, "isReduceMotionEnabled").mockReturnValue(new Promise((resolve) => (answer = resolve)));
+    const { unmount } = await render(<Motion />);
+    await unmount();
+    await act(async () => answer(false));
   });
 });

@@ -76,7 +76,7 @@ jest.mock("expo-haptics", () => ({
   performAndroidHapticsAsync: jest.fn(async () => undefined),
   ImpactFeedbackStyle: { Light: "light", Medium: "medium", Heavy: "heavy", Soft: "soft", Rigid: "rigid" },
   NotificationFeedbackType: { Success: "success", Warning: "warning", Error: "error" },
-  AndroidHaptics: { Confirm: "confirm", Reject: "reject", Long_Press: "long-press", Context_Click: "context-click" },
+  AndroidHaptics: { Confirm: "confirm", Reject: "reject", Long_Press: "long-press", Context_Click: "context-click", Segment_Tick: "segment-tick", Toggle_On: "toggle-on" },
 }));
 
 // The permission gate (data/permissions.ts on expo-audio / expo-image-picker /

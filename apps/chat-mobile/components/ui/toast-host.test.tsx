@@ -1,5 +1,5 @@
 import { act, fireEvent, screen } from "@testing-library/react-native";
-import { AccessibilityInfo } from "react-native";
+import { AccessibilityInfo, Platform } from "react-native";
 import { toast, useToastStore } from "@/data/stores/toast-store";
 import { render, viText } from "@/test/render";
 import { ToastHost } from "./toast-host";
@@ -39,5 +39,21 @@ describe("ToastHost", () => {
     await fireEvent.press(error);
     expect(screen.queryByRole("alert", { name: "Không gửi được" })).toBeNull();
     expect(screen.getByTestId("toast-success")).toBeOnTheScreen();
+  });
+
+  it("leaves TalkBack to the toast's live region, so it is read once", async () => {
+    const os = Platform.OS;
+    Platform.OS = "android";
+    jest.mocked(AccessibilityInfo.announceForAccessibility).mockClear();
+    try {
+      await render(<ToastHost />);
+      await act(() => {
+        toast.error("Không gửi được");
+      });
+      expect(screen.getByRole("alert", { name: "Không gửi được" }).props.accessibilityLiveRegion).toBe("polite");
+      expect(AccessibilityInfo.announceForAccessibility).not.toHaveBeenCalled();
+    } finally {
+      Platform.OS = os;
+    }
   });
 });

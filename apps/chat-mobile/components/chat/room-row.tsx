@@ -7,6 +7,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { memo } from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable, View } from "react-native";
+import { haptics } from "@/components/ui/haptics";
 import { Text } from "@/components/ui/text";
 import { THEME } from "@/lib/theme";
 import { useColorScheme } from "@/components/ui/use-color-scheme";
@@ -64,7 +65,11 @@ export const RoomRow = memo(function RoomRow(props: RoomRowProps) {
       accessibilityRole="button"
       accessibilityLabel={label}
       onPress={onPress}
-      onLongPress={onLongPress}
+      onLongPress={() => {
+        // Felt as a message's long press is; the screen reader's action below needs no touch feedback.
+        haptics.longPress();
+        onLongPress();
+      }}
       accessibilityActions={[{ name: "longpress", label: t("chat.settings_manage_room") }]}
       onAccessibilityAction={onLongPress}
       testID={testID}

@@ -1,8 +1,9 @@
-// Screen-reader helpers (audit U1). React Native's live regions are Android
-// only: TalkBack reads a `polite` region when its text changes, VoiceOver never
-// hears it. useAnnounce gives iOS the same moment through
-// announceForAccessibility; on Android the view's live region speaks, so the
-// line is not read twice.
+// Screen-reader and motion helpers (audit U1, UX P3). React Native's live
+// regions are Android only: TalkBack reads a `polite` region when its text
+// changes, VoiceOver never hears it. useAnnounce gives iOS the same moment
+// through announceForAccessibility; on Android the view's live region speaks,
+// so the line is not read twice. useReduceMotion is the one reading of the
+// system's "reduce motion" switch every animation follows.
 import { useEffect, useRef, useState } from "react";
 import { AccessibilityInfo, Platform } from "react-native";
 
@@ -33,4 +34,28 @@ export function useScreenReaderEnabled(): boolean {
     };
   }, []);
   return enabled;
+}
+
+/**
+ * Whether the person asked the system for less motion (iOS Reduce Motion, Android "Remove animations"),
+ * following the switch while the screen is open. Starts true, so nobody who asked sees a frame of motion
+ * before the answer comes; a platform that cannot tell keeps it still.
+ */
+export function useReduceMotion(): boolean {
+  const [reduced, setReduced] = useState(true);
+  useEffect(() => {
+    let live = true;
+    AccessibilityInfo.isReduceMotionEnabled().then(
+      (on) => {
+        if (live) setReduced(on);
+      },
+      () => undefined,
+    );
+    const sub = AccessibilityInfo.addEventListener("reduceMotionChanged", setReduced);
+    return () => {
+      live = false;
+      sub.remove();
+    };
+  }, []);
+  return reduced;
 }
