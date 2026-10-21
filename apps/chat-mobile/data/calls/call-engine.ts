@@ -207,9 +207,15 @@ export function createCallEngine(deps: CallEngineDeps) {
     return true;
   }
 
-  async function acceptCall() {
+  /**
+   * Answers the ringing call. With `expectedCallId` (the call the person tapped
+   * Answer on before an await, such as the microphone primer) it answers only
+   * that call: one that rang in meanwhile is never answered unasked.
+   */
+  async function acceptCall(expectedCallId?: string) {
     const state = current();
     if (state.status !== "incoming") return false;
+    if (expectedCallId !== undefined && state.callId !== expectedCallId) return false;
     const { callId, roomId, peerName, callKind, callerName } = state;
     setCall({ status: "connecting", callId, roomId, peerName, outgoing: false, callKind, callerName });
     try {
@@ -348,7 +354,7 @@ export function createCallEngine(deps: CallEngineDeps) {
      */
     async joinFromPush(roomId: string, callId: string) {
       if (!(await ringFromPush(roomId, callId))) return false;
-      return liveWith(callId, "incoming") ? acceptCall() : true;
+      return liveWith(callId, "incoming") ? acceptCall(callId) : true;
     },
     /**
      * A tap on a ringing push or notification (or its full-screen intent on

@@ -80,7 +80,9 @@ function CallBody({ call, recording, onMinimize, seed }: { call: Exclude<VoiceCa
               onPress={() => {
                 haptics.callAccept();
                 // The microphone is explained and asked before the call connects (an answered call starts with the camera off).
-                void ensureCallPermissions(false).then(() => callEngine.acceptCall());
+                // Only this call is answered: another may ring by the time the primer closes.
+                const { callId } = call;
+                void ensureCallPermissions(false).then(() => callEngine.acceptCall(callId));
               }}
             />
           </View>

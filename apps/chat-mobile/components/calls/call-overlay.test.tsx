@@ -2,6 +2,7 @@ import { act, fireEvent, screen } from "@testing-library/react-native";
 import { createAudioPlayer } from "expo-audio";
 import type { ReactNode } from "react";
 import { BackHandler, Vibration } from "react-native";
+import { ensureCallPermissions } from "@/components/ui/permission-gate";
 import { callEngine } from "@/data/calls/call-store";
 import { chatApi } from "@/data/chat-api";
 import { useWorkspaceStore } from "@/data/stores/workspace-store";
@@ -50,9 +51,23 @@ describe("CallOverlay", () => {
     expect(createAudioPlayer).toHaveBeenCalled();
     expect(Vibration.vibrate).toHaveBeenCalled();
     await fireEvent.press(screen.getByRole("button", { name: viText("chat.voice_call_accept") }));
-    expect(accept).toHaveBeenCalled();
+    expect(accept).toHaveBeenCalledWith("call-1");
     await fireEvent.press(screen.getByRole("button", { name: viText("chat.voice_call_decline") }));
     expect(hangUp).toHaveBeenCalled();
+  });
+
+  it("never answers a call that rang in while the microphone primer was open for another", async () => {
+    let primerClosed = (): void => undefined;
+    jest.mocked(ensureCallPermissions).mockReturnValueOnce(new Promise<void>((resolve) => (primerClosed = resolve)));
+    const accept = jest.spyOn(callEngine, "acceptCall");
+    await render(<CallOverlay />);
+    await setCall({ status: "incoming", ...base });
+    await fireEvent.press(screen.getByRole("button", { name: viText("chat.voice_call_accept") }));
+    // call-1 ends and call-2 rings before the person answers the primer.
+    await setCall({ status: "incoming", ...base, callId: "call-2" });
+    await act(async () => primerClosed());
+    expect(accept).toHaveBeenCalledWith("call-1");
+    expect(callEngine.store.getState().call).toMatchObject({ status: "incoming", callId: "call-2" });
   });
 
   it("names the caller and the group on an incoming group call", async () => {

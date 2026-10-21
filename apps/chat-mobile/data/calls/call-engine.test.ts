@@ -159,6 +159,19 @@ describe("call engine on the phone", () => {
     expect(call()).toMatchObject({ status: "active", outgoing: false });
   });
 
+  it("answers only the call the person tapped Answer on, never one that rang in meanwhile", async () => {
+    const { engine, deps, call } = setup();
+    engine.onInvite(invite());
+    // c1 ends (its caller hung up) while the microphone primer is open, and c2 rings.
+    engine.onHangup({ room_id: "room-dm", call_id: "c1", user_id: "peer", target_user_id: "me", call_kind: "dm" });
+    engine.dismissEnded();
+    engine.onInvite(invite({ call_id: "c2" }));
+    expect(await engine.acceptCall("c1")).toBe(false);
+    expect(deps.accept).not.toHaveBeenCalled();
+    expect(call()).toMatchObject({ status: "incoming", callId: "c2" });
+    expect(await engine.acceptCall("c2")).toBe(true);
+  });
+
   it("shows why a call could not start instead of ringing", async () => {
     const { engine, call } = setup({ invite: vi.fn().mockRejectedValue(new Error("403")) });
     expect(await engine.startCall("room-dm", "Long", "dm")).toBe(false);
