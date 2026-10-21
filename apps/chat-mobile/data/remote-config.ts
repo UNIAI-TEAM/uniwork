@@ -99,6 +99,21 @@ export function useRemoteConfigOrganization(id: string | null): void {
   }, [id, queryClient]);
 }
 
+/**
+ * A sign-out forgets everything the account cached except the remote-config
+ * query itself: the update gate at the root observes it for the life of the
+ * app, and removing it (queryClient.clear()) would leave that observer on a
+ * query nothing refetches, the gate frozen on the old minimum. The switches
+ * can differ per person and organization, so the answer is asked again, for
+ * no organization until the next workspace opens.
+ */
+export function clearAccountCache(queryClient: Pick<QueryClient, "removeQueries" | "getMutationCache" | "invalidateQueries">): void {
+  queryClient.removeQueries({ predicate: (query) => query.queryKey[0] !== remoteConfigKey[0] });
+  queryClient.getMutationCache().clear();
+  organizationId = null;
+  void queryClient.invalidateQueries({ queryKey: remoteConfigKey });
+}
+
 export function useRemoteConfig() {
   return useQuery(remoteConfigOptions());
 }

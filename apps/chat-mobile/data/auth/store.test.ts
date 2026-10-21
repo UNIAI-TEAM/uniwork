@@ -12,8 +12,10 @@ vi.mock("./flow", () => ({ session: sessionMock }));
 const workspaceClear = vi.hoisted(() => vi.fn(async () => undefined));
 vi.mock("../stores/workspace-store", () => ({ useWorkspaceStore: { getState: () => ({ clear: workspaceClear }) } }));
 
-const queryClear = vi.hoisted(() => vi.fn());
-vi.mock("../query-client", () => ({ queryClient: { clear: queryClear } }));
+const queryClientMock = vi.hoisted(() => ({ name: "the app's query client" }));
+vi.mock("../query-client", () => ({ queryClient: queryClientMock }));
+const clearAccountCache = vi.hoisted(() => vi.fn());
+vi.mock("../remote-config", () => ({ clearAccountCache }));
 
 const apiMock = vi.hoisted(() => ({ getMe: vi.fn() }));
 vi.mock("../api", () => {
@@ -142,7 +144,7 @@ describe("auth store", () => {
     useChatSendStore.setState({ entries: [{ clientMsgId: "c1" } as never] });
     useAuthStore.getState().setUser(user);
     await useAuthStore.getState().logout();
-    expect(queryClear).toHaveBeenCalledTimes(1);
+    expect(clearAccountCache).toHaveBeenCalledExactlyOnceWith(queryClientMock);
     expect(useChatSendStore.getState().entries).toEqual([]);
   });
 

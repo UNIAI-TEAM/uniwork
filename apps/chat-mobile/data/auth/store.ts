@@ -6,6 +6,7 @@ import { create } from "zustand";
 import { ApiError, api } from "../api";
 import { forgetPushToken, unregisterPushToken } from "../push";
 import { queryClient } from "../query-client";
+import { clearAccountCache } from "../remote-config";
 import { setReportUser } from "../report";
 import { useChatSendStore } from "../stores/chat-send-store";
 import { useWorkspaceStore } from "../stores/workspace-store";
@@ -105,9 +106,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     // the session moves the epoch first, then clears the Keychain and revokes the device
     await session.logout();
     // the next account on this device must not land in this one's workspace,
-    // nor see its cached rooms, messages or unsent bubbles
+    // nor see its cached rooms, messages or unsent bubbles (the remote config
+    // stays under the update gate and is asked again)
     await useWorkspaceStore.getState().clear();
-    queryClient.clear();
+    clearAccountCache(queryClient);
     useChatSendStore.getState().clear();
   },
 

@@ -98,7 +98,10 @@ một dòng thì ghi lý do ở dòng trên.
   chỉ cho xác nhận thật (xoá, rời, thu hồi) và trong sheet là `Modal` (toast vẽ
   dưới cửa sổ Modal). Đăng xuất: `useAuthStore.logout()` tự gỡ push
   subscription trước (tối đa 3 s); phiên đã bị server kết thúc thì chỉ quên
-  token, server bỏ qua thiết bị đó.
+  token, server bỏ qua thiết bị đó. Cache của tài khoản bỏ qua
+  `clearAccountCache` (`data/remote-config.ts`), không `queryClient.clear()`:
+  query cấu hình từ xa được giữ (update gate quan sát nó suốt đời app; xoá thì
+  gate đứng ở câu trả lời cũ) và hỏi lại không kèm tổ chức.
 - `app/+native-intent.ts` — expo-router tự route mọi URL từ OS; file này map
   `<scheme>://open?url=` và callback PKCE qua `lib/deep-link.ts ›
   systemPathToRoute` (thuần, có test). `openUrl` ở `app/_layout.tsx` chỉ

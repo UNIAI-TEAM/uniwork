@@ -24,7 +24,9 @@ vi.mock("@tanstack/react-query", async (importOriginal) => ({
 const apiMock = vi.hoisted(() => ({ request: vi.fn<(path: string, init?: RequestInit) => Promise<unknown>>() }));
 vi.mock("./api", () => ({ api: apiMock }));
 
+import { QueryClient } from "@tanstack/react-query";
 import {
+  clearAccountCache,
   fetchRemoteConfig,
   flagValue,
   readMobileFlag,
@@ -137,3 +139,27 @@ describe("hooks", () => {
     expect(useMobileFlag("unichat_mobile_calls")).toBe(false);
   });
 });
+
+describe("clearAccountCache (sign-out)", () => {
+  it("drops every query and mutation of the account but keeps the remote config, refetched for no organization", async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    client.setQueryData(["chat", "ws1", "rooms"], [{ id: "r1" }]);
+    client.setQueryData(remoteConfigKey, config({ minSupportedVersion: "0.3.0" }));
+    client.getMutationCache().build(client, { mutationKey: ["devices", "revoke"] });
+    // The last workspace was in org-1; the next account may not be.
+    useRemoteConfigOrganization("org-1");
+    hooks.effect?.();
+    apiMock.request.mockResolvedValue({ min_supported_mobile_version: "0.4.0" });
+
+    clearAccountCache(client);
+
+    expect(client.getQueryData(["chat", "ws1", "rooms"])).toBeUndefined();
+    expect(client.getMutationCache().getAll()).toEqual([]);
+    // Kept (the gate's observer stays live), marked stale and asked again without the old organization.
+    expect(client.getQueryState(remoteConfigKey)?.isInvalidated).toBe(true);
+    expect((await client.fetchQuery(remoteConfigOptions())).minSupportedVersion).toBe("0.4.0");
+    expect(apiMock.request).toHaveBeenLastCalledWith("/api/v1/config", expect.anything());
+    client.clear();
+  });
+});
+
