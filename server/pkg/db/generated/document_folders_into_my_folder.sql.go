@@ -46,7 +46,6 @@ type ListFolderUnitCandidatesRow struct {
 // Folder is left out here; deeper ones are decided in the service, which walks
 // the ancestors under the tree lock. An empty organization_id means every
 // organization (the command spans tenants), so the clause is optional.
-// tenant: system
 func (q *Queries) ListFolderUnitCandidates(ctx context.Context, arg ListFolderUnitCandidatesParams) ([]ListFolderUnitCandidatesRow, error) {
 	rows, err := q.db.Query(ctx, listFolderUnitCandidates, arg.OrganizationID, arg.AfterID, arg.MaxRows)
 	if err != nil {

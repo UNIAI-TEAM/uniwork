@@ -6,7 +6,6 @@
 -- the ancestors under the tree lock. An empty organization_id means every
 -- organization (the command spans tenants), so the clause is optional.
 -- name: ListFolderUnitCandidates :many
--- tenant: system
 SELECT d.id, d.organization_id, d.workspace_id
 FROM documents d
 WHERE d.kind = 'folder'
