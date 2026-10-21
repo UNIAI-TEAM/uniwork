@@ -200,6 +200,37 @@ describe("sanitizeNextUrl", () => {
     expect(sanitizeNextUrl("https://evil.com")).toBeNull();
     expect(sanitizeNextUrl(null)).toBeNull();
   });
+
+  it("keeps in-app paths unchanged", () => {
+    expect(sanitizeNextUrl("/acme/main/tasks?x=1#y")).toBe("/acme/main/tasks?x=1#y");
+    expect(sanitizeNextUrl("/")).toBe("/");
+  });
+
+  // Browsers drop tab/CR/LF anywhere and trim C0 controls and spaces before
+  // parsing, so "/\t/evil.com" navigates to "//evil.com", another host.
+  it.each([
+    "/\t/evil.com",
+    "/\n/evil.com",
+    "/\r/evil.com",
+    "/\r\n/evil.com",
+    "/ /evil.com",
+    " //evil.com",
+    "\t//evil.com",
+    "/\\evil.com",
+    "/a\\b",
+    "/\u0000/evil.com",
+    "/\u001f/evil.com",
+    "/\u007f/evil.com",
+    "/acme/main/tasks?q=a b",
+  ])("rejects whitespace, control characters and backslashes: %j", (raw) => {
+    expect(sanitizeNextUrl(raw)).toBeNull();
+  });
+
+  it("rejects every C0 control character anywhere", () => {
+    for (let code = 0; code < 0x20; code++) {
+      expect(sanitizeNextUrl(`/${String.fromCharCode(code)}/evil.com`)).toBeNull();
+    }
+  });
 });
 
 describe("isReservedSlug", () => {
