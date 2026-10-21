@@ -3,7 +3,7 @@
 import { create } from "zustand";
 
 type AskUniPanelFocus = {
-  kind: "task" | "meeting" | "email_thread" | "room" | "thread" | "message";
+  kind: "task" | "meeting" | "email_thread" | "document" | "project" | "room" | "thread" | "message";
   id: string;
 };
 
@@ -12,10 +12,13 @@ interface AiPanelStore {
   open: boolean;
   conversationId: string | null;
   pendingFocus: AskUniPanelFocus | null;
+  /** Full-page mode takes the whole main area; never persisted. */
+  fullPage: boolean;
   workspaceId: string | null;
   /** A conversation belongs to one workspace: switching workspace forgets the open one. */
   bindWorkspace: (wsId: string) => void;
   setOpen: (open: boolean) => void;
+  setFullPage: (fullPage: boolean) => void;
   toggle: () => void;
   select: (conversationId: string | null) => void;
   openWithFocus: (focus: AskUniPanelFocus) => void;
@@ -26,6 +29,7 @@ export const useAiPanelStore = create<AiPanelStore>((set) => ({
   open: false,
   conversationId: null,
   pendingFocus: null,
+  fullPage: false,
   workspaceId: null,
   bindWorkspace: (wsId) =>
     set((s) =>
@@ -33,8 +37,10 @@ export const useAiPanelStore = create<AiPanelStore>((set) => ({
         ? s
         : { workspaceId: wsId, ...(s.workspaceId === null ? {} : { conversationId: null, pendingFocus: null }) },
     ),
-  setOpen: (open) => set({ open, ...(open ? {} : { pendingFocus: null }) }),
-  toggle: () => set((s) => ({ open: !s.open, pendingFocus: s.open ? null : s.pendingFocus })),
+  setOpen: (open) => set({ open, ...(open ? {} : { pendingFocus: null, fullPage: false }) }),
+  setFullPage: (fullPage) => set({ fullPage }),
+  toggle: () =>
+    set((s) => ({ open: !s.open, pendingFocus: s.open ? null : s.pendingFocus, fullPage: s.open ? false : s.fullPage })),
   select: (conversationId) => set({ conversationId }),
   openWithFocus: (focus) => set({ open: true, conversationId: null, pendingFocus: focus }),
   clearPendingFocus: () => set({ pendingFocus: null }),
