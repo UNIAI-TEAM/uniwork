@@ -85,7 +85,7 @@ describe("notification endpoints", () => {
 
   it("listNotifications reads sample_documents, [] when absent, and a bad one never blanks the page", async () => {
     const changed = {
-      ...row, kind: "document_changed", resource_type: "workspace", resource_id: "ws1",
+      ...row, kind: "document_changed", resource_type: "document", resource_id: "d1",
       title_key: "notifications.kind.document_changed",
       // The server sends the verb, a count and the first ids; only strings travel as params.
       params: { actor: "An", verb: "trashed", document_count: 50, sample_document_ids: ["d1", "d2"] },
