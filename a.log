@@ -1,0 +1,8 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin advisor/pr7-rehearsal; git rev-parse HEAD FETCH_HEAD; git log --oneline -3; test "$(git rev-parse HEAD)" = "$(git rev-parse FETCH_HEAD)"; rc=$?; echo; echo "SYNCED_EXIT=$rc"
+40dd5c7e14bb3528d0bc4279919368d77bd8408c
+40dd5c7e14bb3528d0bc4279919368d77bd8408c
+40dd5c7e1 chore: rehearse merge feature/UNI-2045-doclist-unified (a0dcef176) into the PR7 rehearsal
+f77f33e04 chore: rehearse merge feature/UNI-2012-chat-file-doc-rights (65e917359) into the PR7 rehearsal
+1a28f4363 test(server): register the document download provider in the file GC harness
+
+SYNCED_EXIT=0
