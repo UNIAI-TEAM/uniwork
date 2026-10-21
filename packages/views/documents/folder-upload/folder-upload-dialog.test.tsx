@@ -155,6 +155,14 @@ describe("FolderUploadDialog", () => {
     expect(screen.getByRole("status")).toHaveTextContent("Máy chủ đang bận, sẽ tự thử lại sau ít giây…");
   });
 
+  it("keeps Hủy live while the run waits, so the run can be canceled", () => {
+    const { onOpenChange } = renderDialog({ pending: true, waiting: true });
+    const cancel = screen.getByRole("button", { name: "Hủy" });
+    expect(cancel).not.toBeDisabled();
+    fireEvent.click(cancel);
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
   it("names the folder count of a too_many_folders refusal", () => {
     renderDialog({ plan: plan({ refusal: { code: "too_many_folders", limit: 500, actual: 530 } as never }) });
     expect(screen.getByTestId("folder-upload-refusal")).toHaveTextContent("530 thư mục — tối đa 500");

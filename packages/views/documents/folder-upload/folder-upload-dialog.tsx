@@ -28,6 +28,7 @@ export interface FolderUploadDialogProps {
   parentShared?: boolean;
   /** Folders still waiting behind this one (several dropped at once). */
   queued?: number;
+  /** The plan is on its way; closing (Cancel, Esc, ×) still works and means "cancel the run". */
   pending?: boolean;
   /** The server said it is busy and the run is waiting out Retry-After once. */
   waiting?: boolean;
@@ -80,8 +81,8 @@ export function FolderUploadDialog({
     });
 
   return (
-    <Dialog open={open} onOpenChange={(next) => (pending && !next ? undefined : onOpenChange(next))}>
-      <DialogContent className="sm:max-w-lg" showCloseButton={!pending} closeLabel={t("common.close")}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-lg" closeLabel={t("common.close")}>
         <DialogHeader>
           <DialogTitle>{t("documents.folder_upload.dialog.title")}</DialogTitle>
           <DialogDescription>{t("documents.folder_upload.dialog.description")}</DialogDescription>
@@ -209,7 +210,7 @@ export function FolderUploadDialog({
               </p>
             ) : null}
             <DialogFooter className="px-0 pb-0">
-              <Button type="button" variant="outline" disabled={pending} onClick={() => onOpenChange(false)}>
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                 {t("documents.folder_upload.dialog.cancel")}
               </Button>
               <Button type="submit" aria-disabled={refusal !== null || pending || undefined} aria-busy={pending || undefined}>

@@ -193,6 +193,37 @@ describe("useFolderUpload", () => {
     expect(screen.queryByText(t("documents.folder_upload.dialog.queue_more", { count: 1 }))).toBeNull();
   });
 
+  it("cancels the run from the dialog while it waits out the server's Retry-After", async () => {
+    const { transport } = setup();
+    transport.failNext("plan", folderUploadApiError(429, "folder_uploads_busy", { retry_after: 30 }));
+    stage(entries("Mới", ["a.pdf"]));
+    upload();
+    expect(await screen.findByText(t("documents.folder_upload.dialog.waiting"))).toBeInTheDocument();
+    const cancel = screen.getByRole("button", { name: t("documents.folder_upload.dialog.cancel") });
+    expect(cancel).not.toBeDisabled();
+    fireEvent.click(cancel);
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(transport.calls.filter((c) => c.method === "plan")).toHaveLength(1);
+    expect(toast.loading).not.toHaveBeenCalled();
+    expect(toast.info).not.toHaveBeenCalled();
+  });
+
+  it("cancels the run on Esc while the plan is still pending", async () => {
+    const { transport } = setup({}, { latencyMs: 60_000 });
+    stage(entries("Mới", ["a.pdf"]));
+    upload();
+    await waitFor(() => expect(transport.calls.some((c) => c.method === "plan")).toBe(true));
+    fireEvent.keyDown(document.activeElement ?? screen.getByRole("dialog"), { key: "Escape" });
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(toast.loading).not.toHaveBeenCalled();
+    // The next folder can be staged and planned at once: the canceled run let go of the dialog.
+    stage(entries("Hai", ["b.pdf"]));
+    expect(await screen.findByTestId("folder-upload-root")).toHaveTextContent("Hai");
+    expect(screen.getByRole("button", { name: t("documents.folder_upload.dialog.submit") })).not.toHaveAttribute("aria-busy");
+  });
+
   it("refuses an empty dropped folder with a toast instead of a dialog", () => {
     setup();
     stage([]);

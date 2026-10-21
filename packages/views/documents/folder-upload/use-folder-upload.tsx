@@ -128,6 +128,8 @@ export function useFolderUpload({
   const [waiting, setWaiting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [reportView, setReportView] = useState<ReportView | null>(null);
+  /** The run the open dialog is waiting on (plan pending or Retry-After), until the toast takes over. */
+  const dialogRun = useRef<RunChannel | null>(null);
   const latest = useRef({ onOpenFolder, resolveRootParent, myFolderId, t, locale: i18n.language });
   latest.current = { onOpenFolder, resolveRootParent, myFolderId, t, locale: i18n.language };
 
@@ -172,6 +174,18 @@ export function useFolderUpload({
 
   const openPicker = useCallback(() => inputRef.current?.click(), []);
 
+  /** Cancel or Esc while the plan is pending: the run is canceled and the dialog closes on its canceled report. */
+  const cancelPending = () => {
+    const channel = dialogRun.current;
+    if (channel?.handle) {
+      channel.handle.cancel();
+      return;
+    }
+    // The destination was still resolving: the run never starts.
+    dialogRun.current = null;
+    dismissHead();
+  };
+
   const dismissHead = () => {
     setQueue((q) => q.slice(1));
     setPending(false);
@@ -215,19 +229,24 @@ export function useFolderUpload({
     idempotency.share = share;
     setPending(true);
     setError(null);
+    const channel: RunChannel = { handle: null, settled: false, retryToast: null, abandoned: false };
+    dialogRun.current = channel;
     let parentId: string;
     try {
       parentId = destination.parentId ?? latest.current.myFolderId ?? (await latest.current.resolveRootParent());
     } catch {
+      if (dialogRun.current !== channel) return;
+      dialogRun.current = null;
       setError(t("documents.folder_upload.error.unknown"));
       setPending(false);
       return;
     }
-    const channel: RunChannel = { handle: null, settled: false, retryToast: null, abandoned: false };
+    if (dialogRun.current !== channel) return;
     let uploadToast: FolderUploadToast | null = null;
     // The plan was answered: the dialog's job is done, the toast takes over.
     const begin = (): FolderUploadToast => {
       if (uploadToast) return uploadToast;
+      dialogRun.current = null;
       dismissHead();
       uploadToast = createFolderUploadToast({
         t: latest.current.t,
@@ -259,25 +278,30 @@ export function useFolderUpload({
         }
         // The first run's toast keeps its end state; whatever follows is not its to show.
         if (channel.settled) return;
-        // Before the plan is answered the dialog stays; a refusal is reported by `done`.
-        if (progress.phase === "planning" || progress.phase === "refused") return;
         if (progress.phase === "waiting") {
           setWaiting(true);
           return;
         }
-        const runToast = begin();
-        // The end states are the settle step's to show; progress only counts while files go up.
-        if (progress.phase === "uploading") runToast.progress(counts);
+        // "uploading" means the plan was answered: the toast takes over. Before it the dialog
+        // stays; the end states (a refusal, a cancel from the dialog) are the settle step's.
+        if (progress.phase === "uploading") begin().progress(counts);
       },
     });
     channel.handle = running;
     running.done.then(
       (report) => {
         channel.settled = true;
+        if (report.canceled && !uploadToast) {
+          // Canceled from the dialog before the plan was answered: nothing to report.
+          dialogRun.current = null;
+          dismissHead();
+          return;
+        }
         settleToast(begin(), name, report, channel);
       },
       (failure: unknown) => {
         channel.settled = true;
+        dialogRun.current = null;
         if (uploadToast) {
           uploadToast.dismiss();
           toast.error(runErrorMessage(latest.current.t, failure, latest.current.locale));
@@ -344,7 +368,9 @@ export function useFolderUpload({
       <FolderUploadDialog
         open={head !== null}
         onOpenChange={(open) => {
-          if (!open) dismissHead();
+          if (open) return;
+          if (pending) cancelPending();
+          else dismissHead();
         }}
         plan={plan}
         destinationName={head?.destination.name ?? destinationName}
