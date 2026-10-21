@@ -153,6 +153,10 @@ type DocumentService struct {
 	// index of PR 2 will, since until that index exists nothing else can.
 	titleWriteErr func(attempt int) error
 
+	// folderUpload is the FOLDER_UPLOAD_* part of the folder upload limits
+	// (UNI-2052, document_folder_uploads.go).
+	folderUpload folderUploadConfig
+
 	// clock is the service's time source; tests inject it so the retention
 	// and auto-version workers never wait for real time.
 	clock func() time.Time

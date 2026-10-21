@@ -863,6 +863,52 @@ type DocumentFavorite struct {
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 }
 
+type DocumentFolderUpload struct {
+	ID                 string             `json:"id"`
+	OrganizationID     string             `json:"organization_id"`
+	WorkspaceID        string             `json:"workspace_id"`
+	CreatedBy          string             `json:"created_by"`
+	CreatedByKind      string             `json:"created_by_kind"`
+	ParentID           pgtype.Text        `json:"parent_id"`
+	Mode               string             `json:"mode"`
+	RootFolderID       string             `json:"root_folder_id"`
+	RootTitle          string             `json:"root_title"`
+	ShareWithWorkspace bool               `json:"share_with_workspace"`
+	Status             string             `json:"status"`
+	FileCount          int32              `json:"file_count"`
+	TotalBytes         int64              `json:"total_bytes"`
+	Folders            []byte             `json:"folders"`
+	CreatedAt          pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
+	ExpiresAt          pgtype.Timestamptz `json:"expires_at"`
+	FinishedAt         pgtype.Timestamptz `json:"finished_at"`
+}
+
+type DocumentFolderUploadFile struct {
+	ID              string             `json:"id"`
+	FileKey         string             `json:"file_key"`
+	OrganizationID  string             `json:"organization_id"`
+	WorkspaceID     string             `json:"workspace_id"`
+	BatchID         string             `json:"batch_id"`
+	FolderID        pgtype.Text        `json:"folder_id"`
+	Path            string             `json:"path"`
+	Filename        string             `json:"filename"`
+	SizeBytes       int64              `json:"size_bytes"`
+	Status          string             `json:"status"`
+	TargetKind      string             `json:"target_kind"`
+	UploadRef       pgtype.Text        `json:"upload_ref"`
+	ProbeHeadSha256 pgtype.Text        `json:"probe_head_sha256"`
+	ProbeTailSha256 pgtype.Text        `json:"probe_tail_sha256"`
+	CdOffset        pgtype.Int8        `json:"cd_offset"`
+	CdSize          pgtype.Int8        `json:"cd_size"`
+	DocumentID      pgtype.Text        `json:"document_id"`
+	ErrorCode       pgtype.Text        `json:"error_code"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
+	ContentEtag     pgtype.Text        `json:"content_etag"`
+	UploadAttempt   int32              `json:"upload_attempt"`
+}
+
 type DocumentSetting struct {
 	OrganizationID     string             `json:"organization_id"`
 	PublicLinksEnabled bool               `json:"public_links_enabled"`
