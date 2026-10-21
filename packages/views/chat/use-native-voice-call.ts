@@ -192,15 +192,16 @@ export function useNativeVoiceCall({
       ) {
         return;
       }
-      if (data.room_id && mutedRoomIds?.has(data.room_id)) {
-        return;
-      }
       const enriched: VoiceInvitePayload =
         data.call_kind || !data.room_id
           ? data
           : { ...data, call_kind: roomKindById?.get(data.room_id) ?? data.call_kind };
       const incoming = incomingStateFromInvite(enriched);
       if (!incoming) return;
+      // Server-synced mute applies to group/channel calls only; DMs always ring.
+      if (mutedRoomIds?.has(incoming.roomId) && isMultiPartyVoiceCall(incoming.callKind)) {
+        return;
+      }
       const current = stateRef.current;
       if (isLive(current)) {
         if (current.callId === incoming.callId) return;

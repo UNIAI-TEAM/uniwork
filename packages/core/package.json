@@ -208,6 +208,7 @@
     "fake-indexeddb": "catalog:",
     "jsdom": "catalog:",
     "typescript": "catalog:",
+    "vite": "catalog:",
     "vitest": "catalog:"
   }
 }
