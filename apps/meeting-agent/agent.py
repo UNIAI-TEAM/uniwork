@@ -37,7 +37,8 @@ from scribe.job import (
 from scribe.keyterms import build_keyterms, refresh_keyterms
 from scribe.stt import make_stt
 from scribe.tracing import setup_tracing
-from scribe.transcriber import Caption, TrackTranscriber
+from scribe.transcriber import Caption, Final, TrackTranscriber
+from scribe.translate import CaptionTranslator, wanted_languages
 
 CAPTION_TOPIC = "uw.caption"
 SETTINGS = config.load()
@@ -107,6 +108,31 @@ async def entrypoint(ctx: JobContext) -> None:
             },
         )
 
+    async def publish_translation(lang: str, f: Final, text: str) -> None:
+        await ctx.room.local_participant.send_text(
+            text,
+            topic=f"{CAPTION_TOPIC}.{lang}",
+            compress=False,
+            attributes={
+                "uw.participant_identity": f.identity,
+                "uw.segment_id": f.segment_id,
+                "uw.final": "1",
+                "uw.language": lang,
+            },
+        )
+
+    # Spec §5.3: the languages the people in the room picked (server-set attribute).
+    translator = CaptionTranslator(
+        client.translate,
+        publish_translation,
+        lambda: wanted_languages(p.attributes for p in ctx.room.remote_participants.values()),
+    )
+
+    def on_final(f: Final) -> None:
+        batcher.add(f.as_json())
+        cadence.on_final()
+        translator.add(f)
+
     async def transcribe(p: rtc.RemoteParticipant, track: rtc.Track) -> None:
         diarize = shared_mic(p.attributes)
         t = TrackTranscriber(
@@ -115,7 +141,7 @@ async def entrypoint(ctx: JobContext) -> None:
             identity=p.identity,
             stt_impl=make_stt(SETTINGS.stt_provider, keyterms, diarize=diarize),
             publish=publish,
-            on_final=lambda f: (batcher.add(f.as_json()), cadence.on_final()),
+            on_final=on_final,
             idle_close_s=SETTINGS.idle_close_s,
             language=meta["locale"],
             diarize=diarize,
@@ -249,6 +275,14 @@ async def entrypoint(ctx: JobContext) -> None:
 
     extractor["task"] = asyncio.create_task(extract_ticks())
     tasks.add(extractor["task"])
+
+    async def translate_ticks() -> None:
+        while True:
+            await asyncio.sleep(0.2)
+            await translator.tick()
+
+    translating = asyncio.create_task(translate_ticks())
+    tasks.add(translating)
     ctx.add_participant_entrypoint(on_participant)
     await ctx.connect(auto_subscribe=AutoSubscribe.AUDIO_ONLY)
     try:

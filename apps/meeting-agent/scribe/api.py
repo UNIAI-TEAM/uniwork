@@ -82,5 +82,16 @@ class UniworkClient:
         lines. The server waits on the model, hence the longer timeout."""
         return await self._call("POST", "/extract", retries=0, request_timeout=aiohttp.ClientTimeout(total=60))
 
+    async def translate(self, segments: list[dict], target: str) -> dict:
+        """Translated captions (spec §5.3). Never retried: each try is a model
+        call, and a late translation is worthless; the original stays."""
+        return await self._call(
+            "POST",
+            "/translate",
+            {"segments": segments, "target": target},
+            retries=0,
+            request_timeout=aiohttp.ClientTimeout(total=10),
+        )
+
     async def finished(self, stt_session_ms: int) -> None:
         await self._call("POST", "/finished", {"stt_session_ms": stt_session_ms})
