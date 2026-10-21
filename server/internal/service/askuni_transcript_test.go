@@ -47,6 +47,9 @@ func TestMeetingTranscriptToolReadsByTimeAndWord(t *testing.T) {
 	if len(all) != 1 || all[0].Kind != "transcript" || all[0].Key == "" {
 		t.Fatalf("whole transcript: %+v", all)
 	}
+	if !strings.HasPrefix(all[0].Title, "Lời thoại: ") {
+		t.Fatalf("source label = %q", all[0].Title)
+	}
 	text := all[0].Text
 	if !strings.Contains(text, "Mở đầu") || !strings.Contains(text, "Chốt lịch demo") || strings.Contains(text, "phụ đề trình duyệt") {
 		t.Fatalf("source rule or order broken:\n%s", text)
