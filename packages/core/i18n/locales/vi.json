@@ -10113,6 +10113,7 @@
           "folder_upload_file_settled": "Máy chủ chưa xác nhận được tệp này. Thử lại các tệp lỗi.",
           "folder_upload_target_signed": "Không kết nối được kho lưu trữ. Thử lại các tệp lỗi.",
           "unknown": "Không tải lên được tệp này.",
+          "unknown_retry": "Không tải lên được tệp này. Thử lại các tệp lỗi.",
           "upload_session_busy": "Máy chủ đang kiểm tra tệp này ở một yêu cầu khác. Thử lại các tệp lỗi sau ít phút."
         },
         "expired_note": "Lượt tải lên đã hết hạn nên không thử lại được. Hãy tải lại thư mục.",

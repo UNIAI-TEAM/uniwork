@@ -160,6 +160,18 @@ describe("useDropUpload folders (UNI-2052)", () => {
     });
   });
 
+  it("reads a dropped folder with the server's extension list: files it would not upload do not count toward the bound", async () => {
+    const onFolders = vi.fn();
+    // Five .pdf files are over the bound of 4 (1 x 4), but the server only takes .docx, so none counts.
+    const kho = dirEntry("Kho", ["1", "2", "3", "4", "5"].map((n) => fileEntry(`${n}.pdf`)));
+    const { result } = renderHook(() =>
+      useDropUpload({ enabled: true, upload: vi.fn(), onFolders, maxFolderFiles: 1, uploadExtensions: ["docx"] }),
+    );
+    act(() => result.current.zoneProps.onDrop?.(drop([{ entry: kho }])));
+    await waitFor(() => expect(onFolders).toHaveBeenCalledTimes(1));
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
   it("waits for the config to resolve instead of calling folder upload unavailable", async () => {
     const onFolders = vi.fn();
     const { result, rerender } = renderHook(

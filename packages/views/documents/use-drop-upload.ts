@@ -45,7 +45,7 @@ interface QueuedUploadEntry {
  * While `foldersReady` is false (the config that says whether the server takes
  * folder uploads has not answered) a dropped folder is read at once but waits
  * for the answer before it is handed over or explained. A folder cut at the
- * read bound (`maxFolderFiles * 4` files) is refused here, with the lower-bound
+ * read bound (more than `maxFolderFiles * 4` uploadable files) is refused here, with the lower-bound
  * count, rather than staged half-read.
  *
  * Two or more loose files in one drop go to `onFiles` as ONE multi-file run
@@ -61,6 +61,7 @@ export function useDropUpload({
   onFiles,
   foldersReady = true,
   maxFolderFiles,
+  uploadExtensions,
 }: {
   enabled: boolean;
   upload: (file: File) => Promise<void>;
@@ -72,6 +73,8 @@ export function useDropUpload({
   foldersReady?: boolean;
   /** `max_files` of the folder-upload limits, for the read bound of a dropped folder. */
   maxFolderFiles?: number;
+  /** `upload_extensions` of the document limits, the list the planner gets; only files it allows count toward the read bound. */
+  uploadExtensions?: readonly string[];
 }) {
   const { t, i18n } = useTranslation();
   const [active, setActive] = useState(false);
@@ -243,7 +246,7 @@ export function useDropUpload({
             const loose = looseFilesOf(items);
             const { onFolders: handler, ready } = folderGate.current;
             const unavailable = ready && !handler;
-            const reading = unavailable ? null : readDroppedFolders(items, { maxFiles: maxFolderFiles });
+            const reading = unavailable ? null : readDroppedFolders(items, { maxFiles: maxFolderFiles, uploadExtensions });
             if (unavailable) toast.info(t("documents.folder_upload.toast.folders_unavailable"));
             const several = loose.length >= 2 && !unavailable;
             if (loose.length > 0 && !several) void enqueueUpload(loose);

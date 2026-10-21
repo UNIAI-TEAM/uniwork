@@ -60,6 +60,16 @@ describe("runErrorMessage", () => {
     }
   });
 
+  it("shows the path of a file the server named by file_key (core FX4: fields carry file_key, path and filename)", () => {
+    const fields = { file_key: "f-0007", path: "Báo cáo/2026/a:b.pdf", filename: "a:b.pdf" };
+    for (const code of ["invalid_request", "folder_upload_unsupported_type", "folder_upload_file_too_large"]) {
+      const message = runErrorMessage(t, refused(code, { ...fields, max_bytes: 1024 }), "vi");
+      expect(message, code).toContain("Báo cáo/2026/a:b.pdf");
+      expect(message, code).not.toContain("f-0007");
+    }
+    expect(runErrorMessage(en, refused("invalid_request", fields), "en")).toContain("Báo cáo/2026/a:b.pdf");
+  });
+
   it("names the file of a refusal that carries fields.path or fields.filename", () => {
     const invalid = runErrorMessage(t, refused("invalid_request", { path: "Báo cáo/a:b.pdf" }), "vi");
     expect(invalid).toContain("Báo cáo/a:b.pdf");
@@ -164,6 +174,22 @@ describe("failureReasonMessage", () => {
     expect(failureReasonMessage(en, "folder_upload_target_signed")).toContain("storage");
     expect(runErrorMessage(t, refused("folder_upload_target_signed"), "vi")).not.toMatch(/tải lại thư mục/);
     expect(runErrorMessage(t, refused("folder_upload_file_settled"), "vi")).not.toMatch(/không tải lên lại được/);
+  });
+
+  it("reads an unknown code the runner marked retryable as the generic retry sentence (core FX4: storage_unavailable)", () => {
+    const retryable = (tt: typeof t, code: string) => failureReasonMessage(tt, code, undefined, "folder", true, true);
+    for (const code of ["storage_unavailable", "http_5xx_future", undefined]) {
+      expect(retryable(t, code as string), String(code)).toContain("Thử lại các tệp lỗi");
+      expect(retryable(en, code as string), String(code)).toContain("Retry the failed files");
+    }
+    // Not retryable, or the report has no retry button: the plain sentence, no pointer at a button.
+    for (const [canRetry, flag] of [[true, false], [false, true], [false, false]] as const) {
+      const plain = failureReasonMessage(t, "storage_unavailable", undefined, "folder", canRetry, flag);
+      expect(plain).toBe(failureReasonMessage(t, "no_such_code"));
+      expect(plain).not.toMatch(/Thử lại/);
+    }
+    // A known code keeps its own sentence whatever the flag says.
+    expect(failureReasonMessage(t, "network", undefined, "folder", true, true)).toBe(failureReasonMessage(t, "network"));
   });
 
   it("points at no retry button when the report cannot retry (R2-3)", () => {

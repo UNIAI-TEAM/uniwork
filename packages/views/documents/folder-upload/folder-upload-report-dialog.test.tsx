@@ -24,7 +24,8 @@ describe("FolderUploadReportDialog", () => {
     expect(screen.getByText("\"Báo cáo\": 3 tệp bị lỗi. Các tệp còn lại đã được giữ nguyên.")).toBeInTheDocument();
     expect(screen.getByText("Báo cáo/2026/a.docx")).toBeInTheDocument();
     expect(screen.getByText("Đã hết dung lượng lưu trữ. Giải phóng dung lượng rồi tải lại thư mục.")).toBeInTheDocument();
-    expect(screen.getAllByText("Không tải lên được tệp này.")).toHaveLength(2);
+    // Unknown codes the runner marked retryable point at the retry button.
+    expect(screen.getAllByText("Không tải lên được tệp này. Thử lại các tệp lỗi.")).toHaveLength(2);
   });
 
   it("retries only on request", () => {
@@ -47,6 +48,20 @@ describe("FolderUploadReportDialog", () => {
     // The file's own sentence already says what to do: the hint is not repeated under the list.
     expect(screen.queryByText(FINAL_HINT)).toBeNull();
     expect(screen.queryByText(EXPIRED_NOTE)).toBeNull();
+  });
+
+  it("reads an unknown retryable code (a server 5xx code) as the retry sentence, and the plain one once nothing can retry", () => {
+    const retryable = [{ path: "Báo cáo/a.pdf", code: "storage_unavailable", retryable: true }];
+    const { unmount } = render(
+      <FolderUploadReportDialog open onOpenChange={() => undefined} name="Báo cáo" failures={retryable} canRetry onRetry={vi.fn()} />,
+    );
+    expect(screen.getByText("Không tải lên được tệp này. Thử lại các tệp lỗi.")).toBeInTheDocument();
+    expect(screen.queryByText(FINAL_HINT)).toBeNull();
+    unmount();
+    render(
+      <FolderUploadReportDialog open onOpenChange={() => undefined} name="Báo cáo" failures={retryable} canRetry={false} onRetry={vi.fn()} />,
+    );
+    expect(screen.getByText("Không tải lên được tệp này.")).toBeInTheDocument();
   });
 
   it("gives a final failure whose sentence says nothing to do the one hint under the list", () => {

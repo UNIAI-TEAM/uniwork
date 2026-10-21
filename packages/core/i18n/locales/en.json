@@ -10120,6 +10120,7 @@
           "folder_upload_file_settled": "The server couldn’t confirm this file yet. Retry the failed files.",
           "folder_upload_target_signed": "Couldn’t reach storage. Retry the failed files.",
           "unknown": "This file couldn’t be uploaded.",
+          "unknown_retry": "This file couldn’t be uploaded. Retry the failed files.",
           "upload_session_busy": "The server is still checking this file in another request. Retry the failed files in a moment."
         },
         "expired_note": "The upload expired, so it can’t be retried. Upload the folder again.",

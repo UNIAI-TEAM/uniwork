@@ -39,8 +39,11 @@ function route({
   folderUpload,
   folder,
   configGate,
+  limits,
 }: {
   folderUpload: boolean;
+  /** Overrides of the document limits the config carries. */
+  limits?: Record<string, unknown>;
   folder?: Record<string, unknown>;
   /** Holds the answer of GET /config until it resolves. */
   configGate?: Promise<void>;
@@ -49,7 +52,7 @@ function route({
     if (path.startsWith("/api/v1/config")) {
       const answer = {
         flags: { office_engine: true },
-        documents: { limits: { upload_max_bytes: 200 * 1024 * 1024, ...(folderUpload ? { folder_upload: FOLDER_LIMITS } : {}) } },
+        documents: { limits: { upload_max_bytes: 200 * 1024 * 1024, ...(folderUpload ? { folder_upload: FOLDER_LIMITS } : {}), ...limits } },
       };
       return configGate ? configGate.then(() => answer) : Promise.resolve(answer);
     }
@@ -220,6 +223,25 @@ describe("Documents home folder upload entries (UNI-2052)", () => {
     expect(within(dialog).getByTestId("folder-upload-root")).toHaveTextContent("Báo cáo");
     expect(within(dialog).getByTestId("folder-upload-destination")).toHaveTextContent(t("documents.home.my_folder.label"));
     expect(within(dialog).getByTestId("folder-upload-summary")).toHaveTextContent("1 tệp");
+  });
+
+  it("reads a dropped folder with the server's extension list, so skipped files do not trip the read bound", async () => {
+    route({
+      folderUpload: true,
+      limits: { upload_extensions: ["docx"], folder_upload: { ...FOLDER_LIMITS, max_files: 1 } },
+    });
+    renderView();
+    await screenWithFolderUpload();
+    const zone = screen.getByRole("region", { name: t("documents.page.title") });
+    // Six files are over the bound of 4 (1 x 4) by the client's own list; by the server's (.docx only) one counts.
+    const children = [...["1", "2", "3", "4", "5"].map((n) => fileEntry(`${n}.pdf`)), fileEntry("6.docx")];
+    const items = [{ kind: "file", webkitGetAsEntry: () => dirEntry("Kho", children), getAsFile: () => null }];
+    await act(async () => {
+      fireEvent.drop(zone, { dataTransfer: { types: ["Files"], files: [], items, dropEffect: "none" } });
+    });
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByTestId("folder-upload-root")).toHaveTextContent("Kho");
+    expect(toast.error).not.toHaveBeenCalled();
   });
 
   it("opens one files-mode pre-flight for a folder's sibling files dropped with it, after the folder's (A6)", async () => {

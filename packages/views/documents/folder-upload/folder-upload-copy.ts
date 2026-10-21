@@ -157,8 +157,10 @@ function failureSentenceKey(code: string | undefined, reason?: string): string {
 
 /**
  * One sentence per failure code (and `unsupported_media` reason); a code the
- * client does not know reads as the generic one. `canRetry` false (the report
- * has no retry button) drops the "retry the failed files" advice.
+ * client does not know reads as the generic one, which points at the retry
+ * button only when the runner marked the file `retryable` (a server 5xx code
+ * such as storage_unavailable). `canRetry` false (the report has no retry
+ * button) drops the "retry the failed files" advice.
  */
 export function failureReasonMessage(
   t: TFunction,
@@ -166,8 +168,10 @@ export function failureReasonMessage(
   reason?: string,
   mode: FolderUploadMode = "folder",
   canRetry = true,
+  retryable = false,
 ): string {
   const key = failureSentenceKey(code, reason);
+  if (key === "unknown" && canRetry && retryable) return t("documents.folder_upload.report.reason.unknown_retry");
   if (!canRetry && RETRY_POINTING.has(key)) return t(`documents.folder_upload.report.reason_no_retry.${key}`);
   return t(`documents.folder_upload.report.reason.${key}`, modeContext(mode));
 }

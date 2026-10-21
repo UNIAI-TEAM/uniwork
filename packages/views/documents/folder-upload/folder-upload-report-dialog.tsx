@@ -71,7 +71,7 @@ export function FolderUploadReportDialog({ open, onOpenChange, name, failures, c
               <span className="truncate font-mono text-caption text-foreground" title={failure.path}>
                 {failure.path}
               </span>
-              <span className="text-caption text-muted-foreground">{failureReasonMessage(t, failure.code, failure.reason, mode, retryNow)}</span>
+              <span className="text-caption text-muted-foreground">{failureReasonMessage(t, failure.code, failure.reason, mode, retryNow, failure.retryable !== false)}</span>
             </li>
           ))}
         </ul>

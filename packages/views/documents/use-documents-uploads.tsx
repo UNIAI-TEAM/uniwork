@@ -92,6 +92,7 @@ export function useDocumentsUploads({
     onFiles: folderUpload.available ? folderUpload.addFiles : undefined,
     foldersReady: !configLoading,
     maxFolderFiles: limits.folder_upload?.max_files,
+    uploadExtensions: limits.upload_extensions,
   });
 
   return {
