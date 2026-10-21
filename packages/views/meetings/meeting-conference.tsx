@@ -224,7 +224,7 @@ function ConferenceStage({
   const captions = useMemo(
     () =>
       scribeInRoom ? (
-        <MeetingScribeCaptions enabled={captionsOn} />
+        <MeetingScribeCaptions enabled={captionsOn} meetingId={resolvedMeetingId || undefined} />
       ) : (
         <MeetingLiveCaptions
           meetingId={resolvedMeetingId}

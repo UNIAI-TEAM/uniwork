@@ -1,7 +1,9 @@
-import { act, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { toast } from "sonner";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
-import { applyScribeCaption, MeetingScribeCaptions, SCRIBE_CAPTION_TOPIC } from "./meeting-scribe-captions";
+import { requestMock, wrap } from "../test/api-mock";
+import { applyScribeCaption, MeetingScribeCaptions, SCRIBE_CAPTION_TOPIC, scribeTranslationTopic } from "./meeting-scribe-captions";
 import { humanParticipants } from "./meeting-signals";
 
 type Handler = (reader: { info: { attributes?: Record<string, string> }; readAll: () => Promise<string> }, from: { identity: string }) => void;
@@ -38,8 +40,8 @@ beforeEach(() => {
   lk.people.set("uw_participant_p2", { identity: "uw_participant_p2", name: "Minh" });
 });
 
-async function caption(from: string, attrs: Record<string, string>, text: string) {
-  const h = lk.handlers.get(SCRIBE_CAPTION_TOPIC);
+async function caption(from: string, attrs: Record<string, string>, text: string, topic = SCRIBE_CAPTION_TOPIC) {
+  const h = lk.handlers.get(topic);
   if (!h) throw new Error("no handler");
   await act(async () => {
     h({ info: { attributes: attrs }, readAll: () => Promise.resolve(text) }, { identity: from });
@@ -68,7 +70,7 @@ describe("applyScribeCaption", () => {
 
 describe("MeetingScribeCaptions", () => {
   it("shows who said what, interim dimmed then replaced by the final", async () => {
-    render(<MeetingScribeCaptions enabled />);
+    render(wrap(<MeetingScribeCaptions enabled />));
     await caption("uw_agent_scribe", attrs("uw_participant_p1", "TR1-1", false), "Chốt ship");
     const interim = screen.getByText("Chốt ship");
     expect(interim.closest("[data-final]")).toHaveAttribute("data-final", "0");
@@ -82,18 +84,74 @@ describe("MeetingScribeCaptions", () => {
   });
 
   it("ignores captions sent by anyone but the agent", async () => {
-    render(<MeetingScribeCaptions enabled />);
+    render(wrap(<MeetingScribeCaptions enabled />));
     await caption("uw_participant_p2", attrs("uw_participant_p1", "x-1", true), "Giả mạo");
     expect(screen.queryByText("Giả mạo")).not.toBeInTheDocument();
   });
 
   it("listens only while on", () => {
-    const { rerender } = render(<MeetingScribeCaptions enabled={false} />);
+    const { rerender } = render(wrap(<MeetingScribeCaptions enabled={false} />));
     expect(lk.handlers.has(SCRIBE_CAPTION_TOPIC)).toBe(false);
-    rerender(<MeetingScribeCaptions enabled />);
+    rerender(wrap(<MeetingScribeCaptions enabled />));
     expect(lk.handlers.has(SCRIBE_CAPTION_TOPIC)).toBe(true);
-    rerender(<MeetingScribeCaptions enabled={false} />);
+    rerender(wrap(<MeetingScribeCaptions enabled={false} />));
     expect(lk.handlers.has(SCRIBE_CAPTION_TOPIC)).toBe(false);
+  });
+});
+
+describe("MeetingScribeCaptions translation (B9)", () => {
+  beforeEach(() => {
+    requestMock.mockReset();
+    requestMock.mockResolvedValue({ status: "ok" });
+  });
+
+  it("asks the server for the language, reads its topic and shows the original until a translation arrives", async () => {
+    render(wrap(<MeetingScribeCaptions enabled meetingId="m1" />));
+    expect(lk.handlers.has(scribeTranslationTopic("en"))).toBe(false);
+    fireEvent.click(screen.getByRole("button", { name: "English" }));
+    await waitFor(() =>
+      expect(requestMock).toHaveBeenCalledWith("/api/v1/meetings/m1/caption-language", { method: "PUT", body: { lang: "en" } }),
+    );
+    expect(lk.handlers.has(scribeTranslationTopic("en"))).toBe(true);
+    await caption("uw_agent_scribe", attrs("uw_participant_p1", "TR1-1", true), "Gửi báo giá");
+    expect(screen.getByText("Gửi báo giá")).toBeInTheDocument();
+    // Only the agent's translation counts.
+    await caption("uw_participant_p2", { "uw.segment_id": "TR1-1" }, "Forged", scribeTranslationTopic("en"));
+    expect(screen.queryByText("Forged")).not.toBeInTheDocument();
+    await caption("uw_agent_scribe", { "uw.segment_id": "TR1-1" }, "Send the quote", scribeTranslationTopic("en"));
+    expect(screen.getByText("Send the quote")).toBeInTheDocument();
+    expect(screen.queryByText("Gửi báo giá")).not.toBeInTheDocument();
+    // Back to the original.
+    fireEvent.click(screen.getByRole("button", { name: "Gốc" }));
+    await waitFor(() => expect(lk.handlers.has(scribeTranslationTopic("en"))).toBe(false));
+    expect(screen.getByText("Gửi báo giá")).toBeInTheDocument();
+    expect(requestMock).toHaveBeenLastCalledWith("/api/v1/meetings/m1/caption-language", { method: "PUT", body: { lang: "" } });
+  });
+
+  it("goes back to the original when the server refuses", async () => {
+    const error = vi.spyOn(toast, "error").mockImplementation(() => "");
+    requestMock.mockRejectedValueOnce(new Error("feature_disabled"));
+    render(wrap(<MeetingScribeCaptions enabled meetingId="m1" />));
+    fireEvent.click(screen.getByRole("button", { name: "Tiếng Việt" }));
+    await waitFor(() => expect(error).toHaveBeenCalled());
+    expect(screen.getByRole("button", { name: "Gốc" })).toHaveAttribute("aria-pressed", "true");
+    expect(lk.handlers.has(scribeTranslationTopic("vi"))).toBe(false);
+    error.mockRestore();
+  });
+
+  it("clears the language when the captions close, so the agent stops translating", async () => {
+    const { unmount } = render(wrap(<MeetingScribeCaptions enabled meetingId="m1" />));
+    fireEvent.click(screen.getByRole("button", { name: "English" }));
+    await waitFor(() => expect(requestMock).toHaveBeenCalledTimes(1));
+    unmount();
+    await waitFor(() =>
+      expect(requestMock).toHaveBeenLastCalledWith("/api/v1/meetings/m1/caption-language", { method: "PUT", body: { lang: "" } }),
+    );
+  });
+
+  it("has no language picker without a meeting", () => {
+    render(wrap(<MeetingScribeCaptions enabled />));
+    expect(screen.queryByRole("button", { name: "English" })).not.toBeInTheDocument();
   });
 });
 

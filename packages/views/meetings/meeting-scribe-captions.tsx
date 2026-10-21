@@ -1,14 +1,25 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRemoteParticipants, useRoomContext } from "@livekit/components-react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
+import { type CaptionLanguage, useSetCaptionLanguage } from "@uniwork/core/meetings/captions";
+import { ToggleGroup, ToggleGroupItem } from "@uniwork/ui/components/ui/toggle-group";
 import { cn } from "@uniwork/ui/lib/utils";
 
 /** The text-stream topic the AI scribe publishes captions on (spec D7). */
 export const SCRIBE_CAPTION_TOPIC = "uw.caption";
 const SHOWN_LINES = 3;
+// Translations kept for the lines on screen and a few that may still arrive.
+const KEPT_TRANSLATIONS = 20;
+const ORIGINAL = "original";
 
 type ScribeCaption = { segmentId: string; identity: string; text: string; final: boolean };
+
+/** The topic one language's translated captions ride on (spec §5.3). */
+export function scribeTranslationTopic(lang: string): string {
+  return `${SCRIBE_CAPTION_TOPIC}.${lang}`;
+}
 
 /**
  * Applies one caption from the agent: the interim and final texts of a
@@ -31,14 +42,16 @@ export function useScribeInRoom(): boolean {
 }
 
 /**
- * Reads the agent's captions while `enabled`. Only a stream sent by an agent
- * participant counts, so nobody in the room can caption in someone else's
- * name; the speaker is the identity the agent names, resolved to the name
- * the server put in that person's token.
+ * Reads the agent's captions while `enabled`, and the translations of the
+ * picked language. Only a stream sent by an agent participant counts, so
+ * nobody in the room can caption in someone else's name; the speaker is the
+ * identity the agent names, resolved to the name the server put in that
+ * person's token.
  */
-function useScribeCaptions(enabled: boolean): ScribeCaption[] {
+function useScribeCaptions(enabled: boolean, lang: CaptionLanguage) {
   const room = useRoomContext();
   const [lines, setLines] = useState<ScribeCaption[]>([]);
+  const [translated, setTranslated] = useState<ReadonlyMap<string, string>>(new Map());
   useEffect(() => {
     if (!enabled) {
       setLines([]);
@@ -56,14 +69,69 @@ function useScribeCaptions(enabled: boolean): ScribeCaption[] {
     });
     return () => room.unregisterTextStreamHandler(SCRIBE_CAPTION_TOPIC);
   }, [room, enabled]);
-  return lines;
+  useEffect(() => {
+    setTranslated(new Map());
+    if (!enabled || !lang) return;
+    const topic = scribeTranslationTopic(lang);
+    room.registerTextStreamHandler(topic, (reader, from) => {
+      if (!room.getParticipantByIdentity(from.identity)?.isAgent) return;
+      const segmentId = reader.info.attributes?.["uw.segment_id"];
+      if (!segmentId) return;
+      void reader.readAll().then((text) => {
+        setTranslated((prev) => new Map([...prev, [segmentId, text] as const].slice(-KEPT_TRANSLATIONS)));
+      });
+    });
+    return () => room.unregisterTextStreamHandler(topic);
+  }, [room, enabled, lang]);
+  // A line without its translation (yet) shows the original.
+  return lang ? lines.map((l) => (l.final ? { ...l, text: translated.get(l.segmentId) ?? l.text } : l)) : lines;
 }
 
-/** The room's captions from the AI scribe: who said it, interim words dimmed. */
-export function MeetingScribeCaptions({ enabled, className }: { enabled: boolean; className?: string }) {
+/**
+ * The viewer's caption language (Gốc / Tiếng Việt / English). The server sets
+ * it on their participant; a refusal goes back to the original. Leaving the
+ * captions (unmount) clears it, so the agent stops translating for nobody.
+ */
+function useCaptionLanguage(meetingId: string | undefined) {
+  const { t } = useTranslation();
+  const [lang, setLang] = useState<CaptionLanguage>("");
+  const { mutate } = useSetCaptionLanguage(meetingId ?? "");
+  const current = useRef<CaptionLanguage>("");
+  useEffect(
+    () => () => {
+      if (current.current) mutate("");
+    },
+    [mutate],
+  );
+  const pick = (next: CaptionLanguage) => {
+    if (!meetingId || next === lang) return;
+    setLang(next);
+    current.current = next;
+    mutate(next, {
+      onError: () => {
+        setLang("");
+        current.current = "";
+        toast.error(t("meetings.scribe.captionLanguageFailed"));
+      },
+    });
+  };
+  return { lang, pick };
+}
+
+/** The room's captions from the AI scribe: who said it, interim words dimmed, in the picked language. */
+export function MeetingScribeCaptions({
+  enabled,
+  meetingId,
+  className,
+}: {
+  enabled: boolean;
+  meetingId?: string;
+  className?: string;
+}) {
   const { t } = useTranslation();
   const room = useRoomContext();
-  const lines = useScribeCaptions(enabled);
+  const { lang, pick } = useCaptionLanguage(meetingId);
+  const lines = useScribeCaptions(enabled, lang);
   const nameOf = (identity: string) =>
     room.getParticipantByIdentity(identity)?.name || t("meetings.scribe.unknownSpeaker");
   const lastFinal = [...lines].reverse().find((l) => l.final);
@@ -73,18 +141,50 @@ export function MeetingScribeCaptions({ enabled, className }: { enabled: boolean
       <p role="status" aria-live="polite" className="sr-only">
         {lastFinal ? `${nameOf(lastFinal.identity)}: ${lastFinal.text}` : ""}
       </p>
-      <div aria-hidden className="rounded-xl bg-meeting-bar-bg px-4 py-2 ring-1 ring-meeting-bar-border">
-        <p className="text-center text-caption text-meeting-bar-muted-foreground">{t("meetings.scribe.captionsLabel")}</p>
-        {lines.length === 0 ? (
-          <p className="text-center text-body text-meeting-bar-foreground">{t("meetings.captionsListening")}</p>
-        ) : (
-          lines.map((l) => (
-            <p key={l.segmentId} className="text-body" data-final={l.final ? "1" : "0"}>
-              <span className="font-medium text-meeting-bar-foreground">{`${nameOf(l.identity)}: `}</span>
-              <span className={l.final ? "text-meeting-bar-foreground" : "text-meeting-bar-muted-foreground"}>{l.text}</span>
-            </p>
-          ))
-        )}
+      <div className="rounded-xl bg-meeting-bar-bg px-4 py-2 ring-1 ring-meeting-bar-border">
+        <div className="flex items-center justify-between gap-2">
+          <p aria-hidden className="text-caption text-meeting-bar-muted-foreground">
+            {t("meetings.scribe.captionsLabel")}
+          </p>
+          {meetingId ? (
+            <ToggleGroup
+              value={[lang || ORIGINAL]}
+              onValueChange={(v) => {
+                // Pressing the language that is on would clear the group; one is always picked.
+                const next = v[0];
+                if (next === ORIGINAL) pick("");
+                else if (next === "vi" || next === "en") pick(next);
+              }}
+              aria-label={t("meetings.scribe.captionLanguage")}
+              size="sm"
+              className="pointer-events-auto"
+            >
+              <ToggleGroupItem value={ORIGINAL} className="text-caption text-meeting-bar-foreground">
+                {t("meetings.scribe.captionOriginal")}
+              </ToggleGroupItem>
+              <ToggleGroupItem value="vi" className="text-caption text-meeting-bar-foreground">
+                {t("meetings.scribe.captionVietnamese")}
+              </ToggleGroupItem>
+              <ToggleGroupItem value="en" className="text-caption text-meeting-bar-foreground">
+                {t("meetings.scribe.captionEnglish")}
+              </ToggleGroupItem>
+            </ToggleGroup>
+          ) : null}
+        </div>
+        <div aria-hidden>
+          {lines.length === 0 ? (
+            <p className="text-center text-body text-meeting-bar-foreground">{t("meetings.captionsListening")}</p>
+          ) : (
+            lines.map((l) => (
+              <p key={l.segmentId} className="text-body" data-final={l.final ? "1" : "0"}>
+                <span className="font-medium text-meeting-bar-foreground">{`${nameOf(l.identity)}: `}</span>
+                <span className={l.final ? "text-meeting-bar-foreground" : "text-meeting-bar-muted-foreground"}>
+                  {l.text}
+                </span>
+              </p>
+            ))
+          )}
+        </div>
       </div>
     </div>
   );
