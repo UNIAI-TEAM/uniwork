@@ -86,8 +86,9 @@ export function NotificationRow({
   // The row's resource flags are about the first document only; a change row decides by its verb and count.
   const gone = changed ? !documentChangedHasPage(n) && !list : n.resource_deleted;
   // "Deleted" is said only of a row that is gone, and of a document that is really gone: one in the trash is
-  // restorable and stays dimmed, untagged; a several-document row stays a link to the list and is never tagged.
-  const deletedTag = gone && (!changed || n.resource_deleted || documentChangedFacts(n).verb === "deleted");
+  // restorable and stays dimmed, untagged; a several-document row (a link to the list, or inert because the
+  // reader can read none of its documents) is never tagged: the flags above describe the first document only.
+  const deletedTag = gone && (!changed || (documentChangedFacts(n).count === 1 && (n.resource_deleted || documentChangedFacts(n).verb === "deleted")));
   const actions = !compact && onToggleRead && onArchive ? { onToggleRead, onArchive } : null;
   const snippet = notificationSnippet(n);
 

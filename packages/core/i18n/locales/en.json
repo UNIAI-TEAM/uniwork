@@ -5618,8 +5618,8 @@
     "merged_other_other": "and {{count}} more changes",
     "trashed_more_one": "and {{count}} more",
     "trashed_more_other": "and {{count}} more",
-    "documents_more_one": "and {{count}} more",
-    "documents_more_other": "and {{count}} more",
+    "documents_more_one": "and {{count}} other document",
+    "documents_more_other": "and {{count}} other documents",
     "view_documents_one": "View {{count}} document",
     "view_documents_other": "View {{count}} documents",
     "documents_dialog": {

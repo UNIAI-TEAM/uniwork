@@ -62,18 +62,27 @@ export function documentChangedFacts(n: Notification): DocumentChangedFacts {
   };
 }
 
-/** More than one document: a click opens the list instead of a page. */
+/**
+ * Whether the row lists any document the reader could read at send time. The server puts only those in
+ * `sample_documents`, so none listed means none readable: the list dialog would open to an empty state.
+ */
+function hasReadableDocuments(n: Notification): boolean {
+  return (n.sample_documents ?? []).length > 0;
+}
+
+/** More than one document the reader can read: a click opens the list instead of a page. */
 export function opensDocumentList(n: Notification): boolean {
-  return isDocumentChanged(n) && documentChangedFacts(n).count > 1;
+  return isDocumentChanged(n) && documentChangedFacts(n).count > 1 && hasReadableDocuments(n);
 }
 
 /**
  * One document that was permanently deleted, moved to the trash or purged since has no page to open: the
- * trash view and an archived document's page are manage-only, and most recipients are not managers.
+ * trash view and an archived document's page are manage-only, and most recipients are not managers. Several
+ * documents have the list to open, unless the reader can read none of them (then the row is inert).
  */
 export function documentChangedHasPage(n: Notification): boolean {
   const { verb, count } = documentChangedFacts(n);
-  if (count > 1) return true;
+  if (count > 1) return hasReadableDocuments(n);
   return !(verb === "deleted" || verb === "trashed" || n.resource_deleted);
 }
 

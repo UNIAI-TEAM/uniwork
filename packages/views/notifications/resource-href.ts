@@ -1,6 +1,6 @@
 import { paths } from "@uniwork/core/paths";
 import type { Notification, Workspace } from "@uniwork/core/types";
-import { documentChangedFacts, isDocumentChanged } from "./document-changed";
+import { documentChangedFacts, isDocumentChanged, opensDocumentList } from "./document-changed";
 
 /**
  * The workspace a document notification opens in: the notification's own
@@ -51,10 +51,14 @@ export function resourceHref(n: Notification, workspace: Workspace, workspaces: 
         return paths.workspace(target.organization_slug, target.slug).documentsTrash(n.resource_id);
       }
       if (isDocumentChanged(n)) {
-        const { count } = documentChangedFacts(n);
         // Several documents open a list of them: the Inbox opens the dialog for ?notification=<id> (the bell,
-        // whose popover closes on open, links there). A trashed document has no link: see documentChangedHasPage.
-        if (count > 1) return `${paths.workspace(target.organization_slug, target.slug).inbox()}?${new URLSearchParams({ notification: n.id }).toString()}`;
+        // whose popover closes on open, links there). A row that lists none the reader can read has no list
+        // (opensDocumentList) and a trashed document has no page (documentChangedHasPage): the row is inert,
+        // and the plain Inbox is the fallback for any other consumer of the link.
+        if (documentChangedFacts(n).count > 1) {
+          const inbox = paths.workspace(target.organization_slug, target.slug).inbox();
+          return opensDocumentList(n) ? `${inbox}?${new URLSearchParams({ notification: n.id }).toString()}` : inbox;
+        }
         return href;
       }
       // A body mention (UNI-1968) opens the page on the reader's own mention,

@@ -5756,7 +5756,7 @@
       "document_access_declined": "Yêu cầu bị từ chối",
       "document_shared": "Tài liệu được chia sẻ",
       "document_trashed_by_other": "Tài liệu của bạn đã vào thùng rác",
-      "document_changed": "Tài liệu có thay đổi"
+      "document_changed": "Tài liệu đã thay đổi"
     },
     "archived_one": "Đã lưu trữ {{count}} thông báo",
     "archived_other": "Đã lưu trữ {{count}} thông báo",
