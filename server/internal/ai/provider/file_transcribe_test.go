@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 )
 
 // assemblyServer answers POST /v2/transcript and GET /v2/transcript/{id} the
@@ -39,7 +40,7 @@ func TestAssemblyAISubmitSendsTheContract(t *testing.T) {
 	defer srv.Close()
 	a := NewAssemblyAIFileTranscriber(srv.URL+"/", "key-1")
 	id, err := a.Submit(context.Background(), FileTranscribeRequest{
-		AudioURL: "https://store.example/a.mp4?sig=x", Language: "vi", Diarize: true,
+		AudioURL: "https://store.example/a.mp4?sig=x", Diarize: true,
 	})
 	if err != nil || id != "5551722-f677-48a7-9a4f" {
 		t.Fatalf("submit = %q, %v; want the vendor's transcript id", id, err)
@@ -48,15 +49,13 @@ func TestAssemblyAISubmitSendsTheContract(t *testing.T) {
 	if r.Method != http.MethodPost || r.URL.Path != "/v2/transcript" || r.Header.Get("Authorization") != "key-1" {
 		t.Fatalf("submit went to %s %s with key %q", r.Method, r.URL.Path, r.Header.Get("Authorization"))
 	}
-	b := bodies[0]
-	models, _ := b["speech_models"].([]any)
-	langs, _ := b["language_codes"].([]any)
-	if b["audio_url"] != "https://store.example/a.mp4?sig=x" || b["speaker_labels"] != true ||
-		len(models) != 1 || models[0] != "universal-3-5-pro" || len(langs) != 2 || langs[0] != "vi" || langs[1] != "en" {
-		t.Fatalf("body = %v", b)
-	}
-	if _, ok := b["language_code"]; ok {
-		t.Fatalf("language_code is exclusive with language_codes: %v", b)
+	// Exactly these fields: universal-2 takes over where 3.5 Pro cannot, and
+	// it allows two codes with one of them en; no language_code or
+	// language_detection beside language_codes.
+	got, _ := json.Marshal(bodies[0])
+	want := `{"audio_url":"https://store.example/a.mp4?sig=x","language_codes":["vi","en"],"speaker_labels":true,"speech_models":["universal-3-5-pro","universal-2"]}`
+	if string(got) != want {
+		t.Fatalf("body = %s\nwant   %s", got, want)
 	}
 	if a.Name() != "assemblyai" || a.Model() != "universal-3-5-pro" {
 		t.Fatalf("name/model = %s/%s", a.Name(), a.Model())
@@ -65,30 +64,50 @@ func TestAssemblyAISubmitSendsTheContract(t *testing.T) {
 
 func TestAssemblyAISubmitRefusals(t *testing.T) {
 	for _, tc := range []struct {
-		name string
-		code int
-		body string
+		name      string
+		code      int
+		body      string
+		permanent bool
+		retryIn   time.Duration
 	}{
-		{"bad request", 400, `{"error":"language not supported"}`},
-		{"unauthorized", 401, `{"error":"Invalid API key"}`},
-		{"vendor down", 503, ``},
-		{"malformed", 200, `{"id":`},
-		{"no id", 200, `{"status":"queued"}`},
-		{"already failed", 200, `{"id":"x","status":"error","error":"Download error"}`},
+		{"bad request", 400, `{"error":"language not supported"}`, true, 0},
+		{"unauthorized", 401, `{"error":"Invalid API key"}`, true, 0},
+		{"forbidden", 403, `{"error":"account disabled"}`, true, 0},
+		{"unprocessable", 422, `{"error":"bad audio_url"}`, true, 0},
+		{"rate limited", 429, `{"error":"slow down"}`, false, 30 * time.Second},
+		{"vendor down", 503, ``, false, 0},
+		{"malformed", 200, `{"id":`, false, 0},
+		{"no id", 200, `{"status":"queued"}`, false, 0},
+		{"already failed", 200, `{"id":"x","status":"error","error":"Transcoding failed"}`, true, 0},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if tc.code == 429 {
+					w.Header().Set("Retry-After", "30")
+				}
 				w.WriteHeader(tc.code)
 				_, _ = w.Write([]byte(tc.body))
 			}))
 			defer srv.Close()
 			_, err := NewAssemblyAIFileTranscriber(srv.URL, "secret-key").Submit(context.Background(),
-				FileTranscribeRequest{AudioURL: "https://store.example/a.mp3?sig=private", Language: "en", Diarize: true})
+				FileTranscribeRequest{AudioURL: "https://store.example/a.mp3?sig=private", Diarize: true})
 			if err == nil {
 				t.Fatal("refused submit counted as accepted")
 			}
 			if strings.Contains(err.Error(), "secret-key") || strings.Contains(err.Error(), "sig=private") {
 				t.Fatalf("error leaks the key or the URL: %v", err)
+			}
+			var je *FileJobError
+			if got := errors.As(err, &je) && je.Permanent; got != tc.permanent {
+				t.Fatalf("permanent = %v, want %v (%v)", got, tc.permanent, err)
+			}
+			var ra *RetryAfterError
+			if got := time.Duration(0); errors.As(err, &ra) {
+				if got = ra.After; got != tc.retryIn {
+					t.Fatalf("retry after %v, want %v", got, tc.retryIn)
+				}
+			} else if tc.retryIn != 0 {
+				t.Fatalf("429 without a retry pause: %v", err)
 			}
 		})
 	}
@@ -101,12 +120,15 @@ func TestAssemblyAIPoll(t *testing.T) {
 		{"speaker":"B","start":1800,"end":3000,"confidence":0.9,"text":"OK, em báo cáo deadline sprint.","words":[]},
 		{"speaker":"A","start":3000,"end":3100,"confidence":0.5,"text":"  ","words":[]}]}`
 	cases := []struct {
-		name       string
-		code       int
-		body       string
-		wantDone   bool
-		wantErr    bool
-		wantJobErr bool
+		name          string
+		code          int
+		body          string
+		wantDone      bool
+		wantErr       bool
+		wantJobErr    bool
+		wantPermanent bool
+		wantReason    string
+		wantModel     string
 	}{
 		{name: "queued", code: 200, body: `{"id":"j","status":"queued"}`},
 		{name: "processing", code: 200, body: `{"id":"j","status":"processing"}`},
@@ -114,7 +136,11 @@ func TestAssemblyAIPoll(t *testing.T) {
 		{name: "silent audio", code: 200, body: `{"id":"j","status":"completed","audio_duration":42,"text":"","utterances":[],"words":[]}`, wantDone: true},
 		{name: "no utterances", code: 200, body: `{"id":"j","status":"completed","audio_duration":5,"text":"Xin chào.","utterances":null,
 			"words":[{"text":"Xin","start":120,"end":400},{"text":"chào.","start":420,"end":900}]}`, wantDone: true},
-		{name: "vendor failed the job", code: 200, body: `{"id":"j","status":"error","error":"Download error, unable to download https://x?sig=private"}`, wantErr: true, wantJobErr: true},
+		{name: "fallback model", code: 200, body: `{"id":"j","status":"completed","speech_model_used":"universal-2","audio_duration":3,"text":"Chào.","utterances":[{"speaker":"A","start":0,"end":900,"text":"Chào."}]}`, wantDone: true, wantModel: "universal-2"},
+		{name: "vendor could not download", code: 200, body: `{"id":"j","status":"error","error":"Download error, unable to download https://x.example/a.mp3?sig=private. Please make sure the file exists"}`,
+			wantErr: true, wantJobErr: true, wantReason: "Download error, unable to download <url> Please make sure the file exists"},
+		{name: "vendor failed the job", code: 200, body: `{"id":"j","status":"error","error":"Transcoding failed for http://y/b.mp4"}`,
+			wantErr: true, wantJobErr: true, wantPermanent: true, wantReason: "Transcoding failed for <url>"},
 		{name: "unknown transcript", code: 404, body: `{"error":"Transcript not found"}`, wantErr: true, wantJobErr: true},
 		{name: "rate limited", code: 429, body: `{"error":"slow down"}`, wantErr: true},
 		{name: "vendor down", code: 500, body: ``, wantErr: true},
@@ -139,12 +165,18 @@ func TestAssemblyAIPoll(t *testing.T) {
 				if errors.As(err, &je) != tc.wantJobErr {
 					t.Fatalf("err = %v, want job error %v", err, tc.wantJobErr)
 				}
+				if je != nil && (je.Permanent != tc.wantPermanent || je.Reason != tc.wantReason) {
+					t.Fatalf("job error = %+v, want permanent %v reason %q", je, tc.wantPermanent, tc.wantReason)
+				}
 				if strings.Contains(err.Error(), "sig=private") {
 					t.Fatalf("error carries the vendor's message with the URL: %v", err)
 				}
 				return
 			}
-			if err != nil || res.Done != tc.wantDone || res.Model != "universal-3-5-pro" {
+			if tc.wantModel == "" {
+				tc.wantModel = "universal-3-5-pro"
+			}
+			if err != nil || res.Done != tc.wantDone || res.Model != tc.wantModel {
 				t.Fatalf("poll = %+v, %v", res, err)
 			}
 			if res.Silent != (tc.name == "silent audio") {
@@ -165,5 +197,25 @@ func TestAssemblyAIPoll(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// After the worker has the transcript, the vendor's copy is deleted (§7.5).
+func TestAssemblyAIDelete(t *testing.T) {
+	for _, code := range []int{200, 500} {
+		var got *http.Request
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			got = r.Clone(context.Background())
+			w.WriteHeader(code)
+			_, _ = w.Write([]byte(`{"id":"job-1","status":"completed","text":"Deleted by user."}`))
+		}))
+		err := NewAssemblyAIFileTranscriber(srv.URL, "k").Delete(context.Background(), "job-1")
+		srv.Close()
+		if got.Method != http.MethodDelete || got.URL.Path != "/v2/transcript/job-1" || got.Header.Get("Authorization") != "k" {
+			t.Fatalf("delete went to %s %s", got.Method, got.URL.Path)
+		}
+		if (err != nil) != (code != 200) {
+			t.Fatalf("%d: err = %v", code, err)
+		}
 	}
 }

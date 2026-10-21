@@ -41,7 +41,7 @@ export async function listMeetingTranscriptions(meetingId: string): Promise<Meet
 /** consent: the clerk told attendees the meeting was recorded. */
 export async function requestMeetingTranscription(
   meetingId: string,
-  body: { upload_id: string; language: string; consent: boolean },
+  body: { upload_id: string; language: string; consent: boolean; duration_seconds?: number },
 ): Promise<MeetingTranscription | null> {
   const raw = await request(`${base(meetingId)}/transcriptions`, { method: "POST", body });
   return (

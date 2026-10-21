@@ -2,6 +2,7 @@ package provider
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -9,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -24,8 +26,6 @@ import (
 type FileTranscribeRequest struct {
 	// AudioURL is a presigned read URL the vendor downloads from.
 	AudioURL string
-	// Language is "vi" or "en".
-	Language string
 	Diarize  bool
 }
 
@@ -42,7 +42,8 @@ type FileTranscribeResult struct {
 	Segments []FileSegment
 	// Seconds is the audio duration the vendor reported; 0 when unknown.
 	Seconds float64
-	Model   string
+	// Model is the model that transcribed the audio (a fallback shows here).
+	Model string
 	// Silent: the vendor found no speech at all (nothing to bill).
 	Silent bool
 }
@@ -52,19 +53,38 @@ type FileTranscriber interface {
 	Model() string
 	Submit(ctx context.Context, req FileTranscribeRequest) (jobID string, err error)
 	Poll(ctx context.Context, jobID string) (FileTranscribeResult, error)
+	// Delete removes the vendor's copy of a finished job's transcript.
+	Delete(ctx context.Context, jobID string) error
 }
 
-// FileJobError is the vendor declaring the job failed (as opposed to a
-// transport error, after which the job may still be running).
-type FileJobError struct{ Code string }
+// FileJobError is the vendor refusing or failing the job (as opposed to a
+// transport error, after which the job may still be running). Permanent:
+// sending it again cannot help. Reason is the vendor's message with every
+// URL replaced, for the log only.
+type FileJobError struct {
+	Code      string
+	Permanent bool
+	Reason    string
+}
 
 func (e *FileJobError) Error() string { return "provider: transcription job failed (" + e.Code + ")" }
 
+// RetryAfterError is the vendor's rate limit: ask again after After.
+type RetryAfterError struct{ After time.Duration }
+
+func (e *RetryAfterError) Error() string { return "provider: rate limited for " + e.After.String() }
+
 // ---- AssemblyAI ----
 
-// assemblyModel is the pre-recorded model that lists Vietnamese (Universal-3.5
-// Pro, 18 languages, code switching among the ones the request names).
-const assemblyModel = "universal-3-5-pro"
+// assemblyModels: Universal-3.5 Pro lists Vietnamese and code-switches among
+// the request's languages; Universal-2 takes over what it cannot do.
+var assemblyModels = []string{"universal-3-5-pro", "universal-2"}
+
+// assemblyLanguages: Vietnamese meetings switch to English mid-sentence.
+// Universal-2 takes at most two codes, one of them en.
+var assemblyLanguages = []string{"vi", "en"}
+
+var urlPattern = regexp.MustCompile(`https?://\S+`)
 
 type AssemblyAIFileTranscriber struct {
 	baseURL, apiKey string
@@ -81,15 +101,16 @@ func NewAssemblyAIFileTranscriber(baseURL, apiKey string) *AssemblyAIFileTranscr
 }
 
 func (a *AssemblyAIFileTranscriber) Name() string  { return "assemblyai" }
-func (a *AssemblyAIFileTranscriber) Model() string { return assemblyModel }
+func (a *AssemblyAIFileTranscriber) Model() string { return assemblyModels[0] }
 
 // assemblyTranscript is the part of the Transcript object the worker reads.
-// The vendor's own error text is never kept: it can quote the audio URL.
 type assemblyTranscript struct {
-	ID            string   `json:"id"`
-	Status        string   `json:"status"`
-	AudioDuration *float64 `json:"audio_duration"` // seconds
-	Utterances    []struct {
+	ID              string   `json:"id"`
+	Status          string   `json:"status"`
+	Error           string   `json:"error"`
+	SpeechModelUsed string   `json:"speech_model_used"`
+	AudioDuration   *float64 `json:"audio_duration"` // seconds
+	Utterances      []struct {
 		Speaker string `json:"speaker"`
 		Start   int    `json:"start"` // ms
 		End     int    `json:"end"`
@@ -102,30 +123,43 @@ type assemblyTranscript struct {
 	Text string `json:"text"`
 }
 
+// jobError reads a transcript in status "error". The vendor could not fetch
+// the audio: a later job may (the URL is re-signed); anything else is the
+// audio or the request, and sending it again cannot help.
+func (t assemblyTranscript) jobError() *FileJobError {
+	reason := strings.Join(strings.Fields(urlPattern.ReplaceAllString(t.Error, "<url>")), " ")
+	lower := strings.ToLower(reason)
+	download := strings.Contains(lower, "download") || strings.Contains(lower, "fetch")
+	return &FileJobError{Code: "error", Permanent: !download, Reason: reason}
+}
+
 // Submit sends one job. AssemblyAI takes no idempotency key: the caller
 // stores the returned id and never resubmits a row that has one. The type is
 // not checked here: the meeting_audio allowlist is a subset of the vendor's
 // documented audio and video types.
 func (a *AssemblyAIFileTranscriber) Submit(ctx context.Context, req FileTranscribeRequest) (string, error) {
-	// Vietnamese meetings switch to English mid-sentence; the request's
-	// language goes first, the other is allowed (as the live scribe does).
-	langs := []string{"vi", "en"}
-	if req.Language == "en" {
-		langs = []string{"en", "vi"}
-	}
 	body := map[string]any{
-		"audio_url": req.AudioURL, "speech_models": []string{assemblyModel},
-		"language_codes": langs, "speaker_labels": req.Diarize,
+		"audio_url": req.AudioURL, "speech_models": assemblyModels,
+		"language_codes": assemblyLanguages, "speaker_labels": req.Diarize,
 	}
 	var out assemblyTranscript
-	code, err := a.call(ctx, http.MethodPost, "/v2/transcript", body, &out)
+	code, header, err := a.call(ctx, http.MethodPost, "/v2/transcript", body, &out)
 	switch {
 	case err != nil:
 		return "", err
+	case code == http.StatusBadRequest || code == http.StatusUnauthorized || code == http.StatusForbidden || code == http.StatusUnprocessableEntity:
+		// The request, the key or the account: the same submit fails again.
+		return "", &FileJobError{Code: strconv.Itoa(code), Permanent: true}
+	case code == http.StatusTooManyRequests:
+		after := time.Minute
+		if n, err := strconv.Atoi(strings.TrimSpace(header.Get("Retry-After"))); err == nil && n > 0 {
+			after = time.Duration(n) * time.Second
+		}
+		return "", &RetryAfterError{After: after}
 	case code < 200 || code > 299:
 		return "", fmt.Errorf("assemblyai submit → %d", code)
 	case out.Status == "error":
-		return "", &FileJobError{Code: "error"}
+		return "", out.jobError()
 	case out.ID == "":
 		return "", errors.New("assemblyai submit: answer without an id")
 	}
@@ -134,26 +168,28 @@ func (a *AssemblyAIFileTranscriber) Submit(ctx context.Context, req FileTranscri
 
 func (a *AssemblyAIFileTranscriber) Poll(ctx context.Context, jobID string) (FileTranscribeResult, error) {
 	var out assemblyTranscript
-	code, err := a.call(ctx, http.MethodGet, "/v2/transcript/"+url.PathEscape(jobID), nil, &out)
+	code, _, err := a.call(ctx, http.MethodGet, "/v2/transcript/"+url.PathEscape(jobID), nil, &out)
 	switch {
 	case code == http.StatusBadRequest || code == http.StatusNotFound:
-		// The vendor does not know this job: waiting will not bring it back.
+		// The vendor does not know this job: waiting will not bring it back,
+		// a new job may.
 		return FileTranscribeResult{}, &FileJobError{Code: strconv.Itoa(code)}
 	case err != nil:
 		return FileTranscribeResult{}, err
 	case code < 200 || code > 299:
 		return FileTranscribeResult{}, fmt.Errorf("assemblyai poll → %d", code)
 	}
+	model := cmp.Or(strings.TrimSpace(out.SpeechModelUsed), assemblyModels[0])
 	switch out.Status {
 	case "queued", "processing":
-		return FileTranscribeResult{Model: assemblyModel}, nil
+		return FileTranscribeResult{Model: model}, nil
 	case "error":
-		return FileTranscribeResult{}, &FileJobError{Code: "error"}
+		return FileTranscribeResult{}, out.jobError()
 	case "completed":
 	default:
 		return FileTranscribeResult{}, fmt.Errorf("assemblyai poll: unknown status %q", out.Status)
 	}
-	res := FileTranscribeResult{Done: true, Model: assemblyModel}
+	res := FileTranscribeResult{Done: true, Model: model}
 	if out.AudioDuration != nil {
 		res.Seconds = *out.AudioDuration
 	}
@@ -175,53 +211,60 @@ func (a *AssemblyAIFileTranscriber) Poll(ctx context.Context, jobID string) (Fil
 	return res, nil
 }
 
+// Delete removes the transcript (text, words, utterances) at AssemblyAI.
+func (a *AssemblyAIFileTranscriber) Delete(ctx context.Context, jobID string) error {
+	var out assemblyTranscript
+	code, _, err := a.call(ctx, http.MethodDelete, "/v2/transcript/"+url.PathEscape(jobID), nil, &out)
+	if err == nil && (code < 200 || code > 299) {
+		err = fmt.Errorf("assemblyai delete → %d", code)
+	}
+	return err
+}
+
 // call sends one request and decodes a 2xx body into out. It returns the
-// HTTP status; errors carry the path and the status only, never the key or
-// the audio URL.
-func (a *AssemblyAIFileTranscriber) call(ctx context.Context, method, path string, body, out any) (int, error) {
+// HTTP status and headers; errors carry the operation and the status only,
+// never the key or the audio URL.
+func (a *AssemblyAIFileTranscriber) call(ctx context.Context, method, path string, body, out any) (int, http.Header, error) {
 	var rd io.Reader
 	if body != nil {
 		raw, err := json.Marshal(body)
 		if err != nil {
-			return 0, err
+			return 0, nil, err
 		}
 		rd = bytes.NewReader(raw)
 	}
 	req, err := http.NewRequestWithContext(ctx, method, a.baseURL+path, rd)
 	if err != nil {
-		return 0, err
+		return 0, nil, err
 	}
 	req.Header.Set("Authorization", a.apiKey)
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
-	op := "submit"
-	if method == http.MethodGet {
-		op = "poll"
-	}
+	op := map[string]string{http.MethodPost: "submit", http.MethodGet: "poll", http.MethodDelete: "delete"}[method]
 	res, err := a.http.Do(req)
 	if err != nil {
-		return 0, fmt.Errorf("assemblyai %s: %s", op, transportReason(err))
+		return 0, nil, fmt.Errorf("assemblyai %s: %s", op, transportReason(err))
 	}
 	defer res.Body.Close()
 	data, err := io.ReadAll(io.LimitReader(res.Body, 64<<20))
 	if err != nil {
-		return res.StatusCode, fmt.Errorf("assemblyai %s: %s", op, transportReason(err))
+		return res.StatusCode, res.Header, fmt.Errorf("assemblyai %s: %s", op, transportReason(err))
 	}
 	if res.StatusCode < 200 || res.StatusCode > 299 {
-		return res.StatusCode, nil
+		return res.StatusCode, res.Header, nil
 	}
 	if err := json.Unmarshal(data, out); err != nil {
-		return res.StatusCode, fmt.Errorf("assemblyai %s: unreadable answer", op)
+		return res.StatusCode, res.Header, fmt.Errorf("assemblyai %s: unreadable answer", op)
 	}
-	return res.StatusCode, nil
+	return res.StatusCode, res.Header, nil
 }
 
 // ---- Fake ----
 
 // FakeFileTranscriber finishes every job on its first poll with Segments (two
 // fixed lines when nil) and Seconds, or as silent audio. SubmitErr / PollErr
-// fail those calls; Pending > 0 answers that many polls "still running"
+// / DeleteErr fail those calls (Deletes records the ids asked); Pending > 0 answers that many polls "still running"
 // first; OnSubmit runs inside Submit (a test holds a worker there). Safe for
 // concurrent workers.
 type FakeFileTranscriber struct {
@@ -232,8 +275,10 @@ type FakeFileTranscriber struct {
 	PollErr   error
 	Pending   int
 	OnSubmit  func(FileTranscribeRequest)
+	DeleteErr error
 	Submits   []FileTranscribeRequest
 	Polls     int
+	Deletes   []string
 	mu        sync.Mutex
 }
 
@@ -275,4 +320,11 @@ func (f *FakeFileTranscriber) Poll(_ context.Context, _ string) (FileTranscribeR
 		}
 	}
 	return FileTranscribeResult{Done: true, Segments: segs, Seconds: f.Seconds, Model: f.Model()}, nil
+}
+
+func (f *FakeFileTranscriber) Delete(_ context.Context, jobID string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.Deletes = append(f.Deletes, jobID)
+	return f.DeleteErr
 }

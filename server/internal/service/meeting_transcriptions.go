@@ -42,6 +42,8 @@ const (
 	// One vendor job may run max(2 h, 3 × the audio); three jobs per row.
 	transcriptionMinJob      = 2 * time.Hour
 	transcriptionMaxAttempts = 3
+	// A rate-limited submit waits the vendor's Retry-After, at most this.
+	transcriptionMaxRateWait = 10 * time.Minute
 	// A clock in the future by more than this is a wrong time, not a skew.
 	heldClockSkew = time.Minute
 )
@@ -143,7 +145,8 @@ func (s *MeetingService) RecordHeld(ctx context.Context, userID, meetingID strin
 
 // OpenAudioUploadSession opens the large upload session for a recording of
 // an ended meeting (§5.5): a clerk, with transcription available.
-func (s *MeetingService) OpenAudioUploadSession(ctx context.Context, userID, meetingID string, in OpenUploadSessionInput) (UploadSessionView, error) {
+// durationSeconds is the length the browser read from the file (0 unknown).
+func (s *MeetingService) OpenAudioUploadSession(ctx context.Context, userID, meetingID string, in OpenUploadSessionInput, durationSeconds float64) (UploadSessionView, error) {
 	m, err := s.requireMeetingClerk(ctx, userID, meetingID)
 	if err != nil {
 		return UploadSessionView{}, err
@@ -159,7 +162,7 @@ func (s *MeetingService) OpenAudioUploadSession(ctx context.Context, userID, mee
 	// unreadable head is left to the open's own probe check.
 	if head, err := decodeBase64Probe(in.Probe.HeadB64); err == nil {
 		mime := files.NormalizeContentType(files.DetectContentType(head, in.Filename))
-		if err := s.checkTranscriptionQuota(ctx, s.q, m.OrganizationID, estimateSeconds(in.SizeBytes, mime, head)); err != nil {
+		if err := s.checkTranscriptionQuota(ctx, s.q, m.OrganizationID, estimateSeconds(in.SizeBytes, mime, head, durationSeconds)); err != nil {
 			return UploadSessionView{}, err
 		}
 	}
@@ -176,6 +179,9 @@ type TranscriptionRequest struct {
 	// Consent: the clerk confirmed attendees were told the meeting was
 	// recorded (§7.5). Kept in the audit row's metadata.
 	Consent bool
+	// DurationSeconds is what the browser read from the file's metadata;
+	// 0 when it could not. See estimateSeconds.
+	DurationSeconds float64
 }
 
 // RequestTranscription claims an uploaded recording for the meeting and
@@ -233,7 +239,7 @@ func (s *MeetingService) RequestTranscription(ctx context.Context, userID, meeti
 		return db.MeetingTranscription{}, filesError(err)
 	}
 	f := claimed[0]
-	estimate := estimateSeconds(f.SizeBytes, f.ContentType, head)
+	estimate := estimateSeconds(f.SizeBytes, f.ContentType, head, in.DurationSeconds)
 	if err := s.checkTranscriptionQuota(ctx, q, m.OrganizationID, estimate); err != nil {
 		return db.MeetingTranscription{}, err
 	}
@@ -282,7 +288,17 @@ func (s *MeetingService) Transcriptions(ctx context.Context, userID, meetingID s
 
 // estimateSeconds is the up-front length of a recording (§7.4): its size
 // at the rate its head declares, else at the container's typical rate.
-func estimateSeconds(size int64, mime string, head []byte) int32 {
+//
+// reported is the duration the browser read from the file's metadata (0
+// when it could not): it wins, held between what the bytes allow at 4 MB/s
+// and at 16 kB/s, since the client says it. It sizes the quota check and
+// the job deadline; the minutes billed are the vendor's audio_duration
+// (this estimate only when the vendor reports none).
+func estimateSeconds(size int64, mime string, head []byte, reported float64) int32 {
+	if reported > 0 && size > 0 {
+		lo, hi := float64(size)/4_000_000, float64(size)/16_000
+		return int32(math.Ceil(min(max(reported, lo), hi)))
+	}
 	return int32(math.Ceil(ai.EstimateAudioSecondsFromHead(size, mime, head)))
 }
 
@@ -389,6 +405,12 @@ func (s *MeetingService) advanceTranscription(ctx context.Context, t db.MeetingT
 	var jobErr *provider.FileJobError
 	switch {
 	case errors.As(err, &jobErr):
+		// The vendor's own words, URLs replaced, go to the log only.
+		slog.Warn("meeting transcription: vendor failed the job", "transcription", t.ID,
+			"status", jobErr.Code, "permanent", jobErr.Permanent, "reason", jobErr.Reason)
+		if jobErr.Permanent {
+			return s.failTranscription(ctx, t, transcriptionErrProvider, t.Attempts)
+		}
 		return s.failTranscriptionAttempt(ctx, t, transcriptionErrProvider, t.Attempts)
 	case err != nil:
 		// A transport error: the job may still run; ask again next tick.
@@ -402,7 +424,15 @@ func (s *MeetingService) advanceTranscription(ctx context.Context, t db.MeetingT
 		})
 		return err
 	}
-	return s.completeTranscription(ctx, t, res)
+	done, err := s.completeTranscription(ctx, t, res)
+	if done {
+		// Privacy (§7.5): the vendor keeps no copy once the transcript is
+		// ours. Best effort: a failure is logged, the job stays done.
+		if derr := s.AI.MeetingTranscribeDelete(ctx, t.ProviderJobID); derr != nil {
+			slog.Warn("meeting transcription: vendor transcript not deleted", "transcription", t.ID, "err", derr)
+		}
+	}
+	return err
 }
 
 func (s *MeetingService) submitTranscription(ctx context.Context, t db.MeetingTranscription) error {
@@ -426,8 +456,22 @@ func (s *MeetingService) submitTranscription(ctx context.Context, t db.MeetingTr
 		// is a second vendor job (billed by the vendor, never to the
 		// customer, who pays on completion only). The stored job id below is
 		// the guard: a row that has one is only ever polled.
-		provider.FileTranscribeRequest{AudioURL: resolved[0].URL, Language: t.Language, Diarize: true})
-	if err != nil {
+		provider.FileTranscribeRequest{AudioURL: resolved[0].URL, Diarize: true})
+	var jobErr *provider.FileJobError
+	var limited *provider.RetryAfterError
+	switch {
+	case errors.As(err, &jobErr) && jobErr.Permanent:
+		// The vendor will refuse this request again (bad request, key,
+		// account): fail now instead of three times over ten minutes.
+		slog.Error("meeting transcription: vendor refused the job", "transcription", t.ID,
+			"status", jobErr.Code, "reason", jobErr.Reason)
+		return s.failTranscription(ctx, t, transcriptionErrProvider, t.Attempts+1)
+	case errors.As(err, &limited):
+		// Rate limited: nothing was sent, no attempt is spent.
+		wait := min(max(limited.After, transcriptionPollInterval), transcriptionMaxRateWait)
+		_, rerr := s.q.RescheduleTranscription(ctx, db.RescheduleTranscriptionParams{ID: t.ID, Lease: t.LeaseUntil, AfterSeconds: int32(wait / time.Second)})
+		return rerr
+	case err != nil:
 		return s.failTranscriptionAttempt(ctx, t, transcriptionErrProvider, t.Attempts+1)
 	}
 	job := max(transcriptionMinJob, 3*time.Duration(t.EstimatedSeconds)*time.Second)
@@ -457,6 +501,11 @@ func (s *MeetingService) failTranscriptionAttempt(ctx context.Context, t db.Meet
 		})
 		return err
 	}
+	return s.failTranscription(ctx, t, code, attempts)
+}
+
+// failTranscription ends the job FAILED, with its audit row and event.
+func (s *MeetingService) failTranscription(ctx context.Context, t db.MeetingTranscription, code string, attempts int32) error {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return err
@@ -481,8 +530,8 @@ func (s *MeetingService) failTranscriptionAttempt(ctx context.Context, t db.Meet
 // segments on the meeting's clock, one unassigned speaker label per vendor
 // label (scribe spec §6.3, "upload:<id>:<label>"), COMPLETE with the billed
 // seconds, the minutes on meeting.transcription, the timeline line, the
-// audit row and transcription.completed.
-func (s *MeetingService) completeTranscription(ctx context.Context, t db.MeetingTranscription, res provider.FileTranscribeResult) error {
+// audit row and transcription.completed. committed: this call landed it.
+func (s *MeetingService) completeTranscription(ctx context.Context, t db.MeetingTranscription, res provider.FileTranscribeResult) (committed bool, err error) {
 	// Silent audio (the vendor heard no speech) is COMPLETE with nothing to
 	// bill: the minutes meter speech, and nothing was transcribed.
 	seconds := res.Seconds
@@ -495,7 +544,7 @@ func (s *MeetingService) completeTranscription(ctx context.Context, t db.Meeting
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
-		return err
+		return false, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	q := s.q.WithTx(tx)
@@ -503,10 +552,10 @@ func (s *MeetingService) completeTranscription(ctx context.Context, t db.Meeting
 		ID: t.ID, Lease: t.LeaseUntil, AudioSeconds: pgtype.Int4{Int32: int32(math.Ceil(seconds)), Valid: true}, Model: model,
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
-		return nil
+		return false, nil
 	}
 	if err != nil {
-		return err
+		return false, err
 	}
 	labels := map[string]bool{}
 	for _, seg := range res.Segments {
@@ -521,7 +570,7 @@ func (s *MeetingService) completeTranscription(ctx context.Context, t db.Meeting
 				ID: util.NewID(), OrganizationID: t.OrganizationID, WorkspaceID: t.WorkspaceID, MeetingID: t.MeetingID,
 				LabelKey: key, CreatedBy: transcriptionActor.ID, CreatedByKind: string(transcriptionActor.Kind),
 			}); err != nil {
-				return err
+				return false, err
 			}
 		}
 		if err := q.InsertTranscriptionSegment(ctx, db.InsertTranscriptionSegmentParams{
@@ -530,7 +579,7 @@ func (s *MeetingService) completeTranscription(ctx context.Context, t db.Meeting
 			TranscriptionID: strText(t.ID), StartMs: pgtype.Int4{Int32: int32(seg.StartMs), Valid: true},
 			EndMs: pgtype.Int4{Int32: int32(seg.EndMs), Valid: true}, SpeakerLabel: key, Language: t.Language,
 		}); err != nil {
-			return err
+			return false, err
 		}
 	}
 	if !res.Silent {
@@ -539,21 +588,24 @@ func (s *MeetingService) completeTranscription(ctx context.Context, t db.Meeting
 			Delta: billedMinutes(seconds), Actor: transcriptionActor,
 			RefType: "meeting_transcription", RefID: t.ID, IdempotencyKey: "transcription:" + t.ID,
 		}); err != nil {
-			return err
+			return false, err
 		}
 	}
 	m, err := q.GetMeeting(ctx, t.MeetingID)
 	if err != nil {
-		return err
+		return false, err
 	}
 	if err := s.writeAudit(ctx, q, m, "TRANSCRIPTION_COMPLETED", transcriptionActor.ID, "", "", "{}"); err != nil {
-		return err
+		return false, err
 	}
 	if err := s.recordTranscription(ctx, q, done, transcriptionActor, audit.ActionMeetingTranscriptionCompleted, "transcription.completed",
 		map[string]any{"audio_seconds": done.AudioSeconds.Int32, "segments": len(res.Segments), "usage_event_id": t.UsageEventID.String}); err != nil {
-		return err
+		return false, err
 	}
-	return tx.Commit(ctx)
+	if err := tx.Commit(ctx); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 // MeetingTranscriptionProvider is the FS-C1 section 6 reference provider for

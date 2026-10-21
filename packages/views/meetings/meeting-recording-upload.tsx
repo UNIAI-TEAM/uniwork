@@ -1,5 +1,5 @@
 "use client";
-import { useId, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { CircleAlert, FileHeadphone, Upload } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -58,6 +58,8 @@ export function MeetingRecordingUploadDialog({
   const { t, i18n } = useTranslation();
   const id = useId();
   const [file, setFile] = useState<File | null>(null);
+  const [duration, setDuration] = useState<number | undefined>(undefined);
+  const picked = useRef<File | null>(null);
   const [language, setLanguage] = useState<"vi" | "en">(i18n.language.startsWith("en") ? "en" : "vi");
   const [consent, setConsent] = useState(false);
   const [percent, setPercent] = useState(0);
@@ -69,7 +71,7 @@ export function MeetingRecordingUploadDialog({
     e.preventDefault();
     if (!file || !ready) return;
     upload.mutate(
-      { file, language, consent, onProgress: (sent, total) => setPercent(total ? Math.floor((sent / total) * 100) : 0) },
+      { file, language, consent, durationSeconds: duration, onProgress: (sent, total) => setPercent(total ? Math.floor((sent / total) * 100) : 0) },
       {
         onSuccess: () => {
           toast.success(t("meetings.transcription.queued"));
@@ -97,7 +99,17 @@ export function MeetingRecordingUploadDialog({
               aria-describedby={`${id}-file-hint`}
               aria-invalid={tooLarge || undefined}
               disabled={upload.isPending}
-              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+              onChange={(e) => {
+                const next = e.target.files?.[0] ?? null;
+                picked.current = next;
+                setFile(next);
+                setDuration(undefined);
+                if (next) {
+                  void readMediaDuration(next).then((d) => {
+                    if (picked.current === next) setDuration(d);
+                  });
+                }
+              }}
             />
             {tooLarge ? (
               <FieldError id={`${id}-file-hint`}>{t("meetings.transcription.tooLarge")}</FieldError>
@@ -154,6 +166,36 @@ export function MeetingRecordingUploadDialog({
       </DialogContent>
     </Dialog>
   );
+}
+
+/**
+ * The recording's length from the browser's own media metadata, for the
+ * server's up-front quota estimate (it clamps the value by the file size and
+ * bills what the vendor measures). Undefined when the browser cannot tell:
+ * the server then estimates from the size.
+ */
+function readMediaDuration(file: File): Promise<number | undefined> {
+  return new Promise((resolve) => {
+    let url: string;
+    try {
+      url = URL.createObjectURL(file);
+    } catch {
+      resolve(undefined);
+      return;
+    }
+    // A video element reads audio files too.
+    const media = document.createElement("video");
+    const done = (seconds: number | undefined) => {
+      media.onloadedmetadata = null;
+      media.onerror = null;
+      URL.revokeObjectURL(url);
+      resolve(seconds);
+    };
+    media.preload = "metadata";
+    media.onloadedmetadata = () => done(Number.isFinite(media.duration) && media.duration > 0 ? media.duration : undefined);
+    media.onerror = () => done(undefined);
+    media.src = url;
+  });
 }
 
 const STATUSES = new Set(["QUEUED", "RUNNING", "COMPLETE", "FAILED"]);

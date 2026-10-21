@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/base64"
 	"errors"
+	"math"
 	"net/http"
 	"strings"
 	"sync"
@@ -275,7 +276,7 @@ func TestTranscriptionWorkerCompletesAJob(t *testing.T) {
 	if got.Status != TranscriptionRunning || got.Attempts != 1 || got.ProviderJobID == "" || got.Provider != "fake" || !got.UsageEventID.Valid || got.LeaseUntil.Valid {
 		t.Fatalf("after submit = %+v", got)
 	}
-	if len(e.vendor.Submits) != 1 || e.vendor.Submits[0].AudioURL == "" || e.vendor.Submits[0].Language != "vi" || !e.vendor.Submits[0].Diarize {
+	if len(e.vendor.Submits) != 1 || e.vendor.Submits[0].AudioURL == "" || !e.vendor.Submits[0].Diarize {
 		t.Fatalf("submits = %+v", e.vendor.Submits)
 	}
 	if !got.DeadlineAt.Time.After(time.Now().Add(transcriptionMinJob - time.Minute)) {
@@ -311,6 +312,10 @@ func TestTranscriptionWorkerCompletesAJob(t *testing.T) {
 	got = transcription(t, s, tr.ID)
 	if got.Status != TranscriptionComplete || got.AudioSeconds.Int32 != 125 || !got.CompletedAt.Valid {
 		t.Fatalf("after completion = %+v", got)
+	}
+	// The vendor's copy is deleted once the transcript is ours (§7.5).
+	if len(e.vendor.Deletes) != 1 || e.vendor.Deletes[0] != got.ProviderJobID {
+		t.Fatalf("vendor deletes = %v, job %q", e.vendor.Deletes, got.ProviderJobID)
 	}
 	segs, err := s.q.ListTranscriptSegmentsLatest(ctx, db.ListTranscriptSegmentsLatestParams{
 		MeetingID: m.ID, RowLimit: 10, Rich: true, TranscriptionIds: []string{tr.ID},
@@ -687,15 +692,22 @@ func TestOpenAudioUploadSessionChecksTheMinutesFirst(t *testing.T) {
 		Probe: UploadSessionProbeInput{HeadB64: base64.StdEncoding.EncodeToString(head)},
 	}
 	setTranscriptionQuota(t, e.s, e.m.OrganizationID, 30)
-	if _, err := e.s.OpenAudioUploadSession(ctx, e.host.ID, e.m.ID, in); err == nil {
+	if _, err := e.s.OpenAudioUploadSession(ctx, e.host.ID, e.m.ID, in, 0); err == nil {
 		t.Fatal("an hour of audio opened against 30 minutes")
 	} else if code, status := codedOf(err); code != "quota_exceeded" || status != http.StatusPaymentRequired {
 		t.Fatalf("over quota = %v", err)
 	}
 	// Within the minutes it gets past the check (no session service is wired
 	// here, so it stops at 503).
+	// The browser read 20 minutes from the file's own metadata: that is
+	// what the check counts.
+	if _, err := e.s.OpenAudioUploadSession(ctx, e.host.ID, e.m.ID, in, 1200); err == nil {
+		t.Fatal("opened without a session service")
+	} else if code, _ := codedOf(err); code != "transcription_unavailable" {
+		t.Fatalf("a reported 20 minutes against 30 = %v", err)
+	}
 	setTranscriptionQuota(t, e.s, e.m.OrganizationID, 120)
-	if _, err := e.s.OpenAudioUploadSession(ctx, e.host.ID, e.m.ID, in); err == nil {
+	if _, err := e.s.OpenAudioUploadSession(ctx, e.host.ID, e.m.ID, in, 0); err == nil {
 		t.Fatal("opened without a session service")
 	} else if code, _ := codedOf(err); code != "transcription_unavailable" {
 		t.Fatalf("within quota = %v", err)
@@ -758,5 +770,108 @@ func TestSpeakerLabelsHideSupersededUploadRuns(t *testing.T) {
 	}
 	if n := countWhere(t, e.s, `SELECT count(*) FROM outbox_events WHERE topic = 'speaker_label.updated' AND payload::jsonb->>'meeting_id' = $1`, e.m.ID); n != 0 {
 		t.Fatalf("%d speaker_label.updated events for a refused assignment", n)
+	}
+}
+
+// A refusal the vendor will repeat (400/401/403/422 at submit, a transcript
+// failed for its audio) ends the job at once; one it could not download
+// is tried again.
+func TestTranscriptionPermanentRefusalFailsAtOnce(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		submit     error
+		poll       error
+		wantStatus string
+	}{
+		{"submit 400", &provider.FileJobError{Code: "400", Permanent: true}, nil, TranscriptionFailed},
+		{"transcript error", nil, &provider.FileJobError{Code: "error", Permanent: true, Reason: "Transcoding failed"}, TranscriptionFailed},
+		{"download error", nil, &provider.FileJobError{Code: "error", Reason: "Download error, unable to download <url>"}, TranscriptionQueued},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			e := transcriptionFixture(t)
+			ctx := context.Background()
+			e.vendor.SubmitErr, e.vendor.PollErr = tc.submit, tc.poll
+			tr, err := e.s.RequestTranscription(ctx, e.host.ID, e.m.ID, TranscriptionRequest{UploadID: e.upload(t, "hop.mp3", mp3(30, tc.name)), Consent: true})
+			if err != nil {
+				t.Fatal(err)
+			}
+			for range 2 {
+				due(t, e.s, e.m.ID)
+				if err := e.s.runTranscriptions(ctx); err != nil {
+					t.Fatal(err)
+				}
+			}
+			got := transcription(t, e.s, tr.ID)
+			if got.Status != tc.wantStatus || got.Attempts != 1 || got.ErrorCode != transcriptionErrProvider || len(e.vendor.Submits) != 1 {
+				t.Fatalf("%s = %s attempts %d %q, %d submits", tc.name, got.Status, got.Attempts, got.ErrorCode, len(e.vendor.Submits))
+			}
+		})
+	}
+}
+
+// A rate-limited submit waits the vendor's pause without spending an attempt.
+func TestTranscriptionRateLimitedSubmitWaits(t *testing.T) {
+	e := transcriptionFixture(t)
+	ctx := context.Background()
+	e.vendor.SubmitErr = &provider.RetryAfterError{After: 90 * time.Second}
+	tr, err := e.s.RequestTranscription(ctx, e.host.ID, e.m.ID, TranscriptionRequest{UploadID: e.upload(t, "hop.mp3", mp3(30, "429")), Consent: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := e.s.runTranscriptions(ctx); err != nil {
+		t.Fatal(err)
+	}
+	got := transcription(t, e.s, tr.ID)
+	if wait := time.Until(got.NextAttemptAt.Time); got.Status != TranscriptionQueued || got.Attempts != 0 || wait < 80*time.Second || wait > 100*time.Second {
+		t.Fatalf("rate limited = %s attempts %d, next in %v", got.Status, got.Attempts, wait)
+	}
+}
+
+// Deleting the vendor's copy is best effort: a failure leaves the job done.
+func TestTranscriptionVendorDeleteFailureKeepsTheJob(t *testing.T) {
+	e := transcriptionFixture(t)
+	ctx := context.Background()
+	e.vendor.DeleteErr = errors.New("vendor down")
+	tr, err := e.s.RequestTranscription(ctx, e.host.ID, e.m.ID, TranscriptionRequest{UploadID: e.upload(t, "hop.mp3", mp3(30, "del")), Consent: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for range 2 {
+		due(t, e.s, e.m.ID)
+		if err := e.s.runTranscriptions(ctx); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got := transcription(t, e.s, tr.ID); got.Status != TranscriptionComplete || len(e.vendor.Deletes) != 1 {
+		t.Fatalf("after a failed delete = %s, deletes %v", got.Status, e.vendor.Deletes)
+	}
+}
+
+// The duration the browser read from the file's metadata replaces the
+// size-based estimate, held between 4 MB/s and 16 kB/s of the file's size.
+func TestTranscriptionEstimateTakesTheReportedDuration(t *testing.T) {
+	const size = 18 * 60 * 2_000_000 // 18 minutes of 16 Mbit/s phone video
+	for _, tc := range []struct {
+		reported float64
+		want     int32
+	}{
+		{0, int32(math.Ceil(size / 125000.0))}, // missing: today's estimate
+		{1080, 1080},
+		{1, size / 4_000_000}, // too short for the bytes
+		{1e9, size / 16_000},  // too long for the bytes
+		{math.NaN(), int32(math.Ceil(size / 125000.0))},
+	} {
+		if got := estimateSeconds(size, "video/mp4", nil, tc.reported); got != tc.want {
+			t.Errorf("reported %v: estimate %d, want %d", tc.reported, got, tc.want)
+		}
+	}
+	e := transcriptionFixture(t)
+	tr, err := e.s.RequestTranscription(context.Background(), e.host.ID, e.m.ID,
+		TranscriptionRequest{UploadID: e.upload(t, "hop.mp3", mp3(600, "dur")), Consent: true, DurationSeconds: 590.4})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tr.EstimatedSeconds != 591 {
+		t.Fatalf("estimate = %d, want the reported 591", tr.EstimatedSeconds)
 	}
 }

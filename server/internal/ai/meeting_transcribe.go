@@ -87,6 +87,15 @@ func (g *Gateway) MeetingTranscribePoll(ctx context.Context, usageEventID, jobID
 	return res, nil
 }
 
+// MeetingTranscribeDelete removes the vendor's copy of a finished job
+// (parent spec §7.5). No usage row: the call costs nothing.
+func (g *Gateway) MeetingTranscribeDelete(ctx context.Context, jobID string) error {
+	if !g.MeetingTranscribeAvailable() {
+		return ErrCloudUnavailable
+	}
+	return g.cloud.MeetingTranscriber.Delete(ctx, jobID)
+}
+
 // MeetingTranscribeAbandon settles the row of a job the caller gave up on
 // (its deadline passed while the vendor still said "running").
 func (g *Gateway) MeetingTranscribeAbandon(ctx context.Context, usageEventID string) {

@@ -33,6 +33,8 @@ interface UploadRecordingInput {
   file: File;
   language: "vi" | "en";
   consent: boolean;
+  /** The length the browser read from the file; undefined when it could not. */
+  durationSeconds?: number;
   onProgress?: (sentBytes: number, totalBytes: number) => void;
 }
 
@@ -44,7 +46,7 @@ export function useUploadMeetingRecording(meetingId: string) {
       const upload = startChunkedUpload({
         file: v.file,
         filename: v.file.name,
-        target: { kind: "meeting_audio", meetingId },
+        target: { kind: "meeting_audio", meetingId, durationSeconds: v.durationSeconds },
         idempotencyKey: createSafeId(),
         onProgress: (p) => v.onProgress?.(p.sentBytes, p.totalBytes),
       });
@@ -54,6 +56,7 @@ export function useUploadMeetingRecording(meetingId: string) {
         upload_id: done.upload.upload_id,
         language: v.language,
         consent: v.consent,
+        ...(v.durationSeconds ? { duration_seconds: v.durationSeconds } : {}),
       });
     },
     onSettled: () => {
