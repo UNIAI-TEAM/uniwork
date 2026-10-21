@@ -1,0 +1,4 @@
+$ echo "VM_HEAD_SHA=$(git rev-parse HEAD)"; git rev-parse HEAD | grep -q "^dc2a31a7b" || { echo "VM_SHA_EXIT=1"; exit 1; }; sed -i "s#page.locator('.product-demo-shell')).toHaveAttribute#page.locator('.product-demo-shell').first()).toHaveAttribute#" e2e/landing-product-email.spec.ts; grep -n "product-demo-shell" e2e/landing-product-email.spec.ts; echo "PATCH_APPLIED=$(grep -c "product-demo-shell').first()" e2e/landing-product-email.spec.ts)"
+VM_HEAD_SHA=dc2a31a7b15c79ccece1516c3047c7074adbc897
+8:  await expect(page.locator('.product-demo-shell').first()).toHaveAttribute('data-demo-feature', 'email');
+PATCH_APPLIED=1
