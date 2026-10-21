@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"strconv"
 
 	"github.com/jackc/pgx/v5"
@@ -73,6 +74,8 @@ func (s *DocumentService) MoveFoldersIntoMyFolder(ctx context.Context, dryRun bo
 	if batchSize <= 0 {
 		batchSize = foldersIntoMyFolderDefaultBatch
 	}
+	// The query's LIMIT is an int32: a larger batch must not wrap negative.
+	batchSize = min(batchSize, math.MaxInt32)
 	report := FoldersIntoMyFolderReport{DryRun: dryRun}
 	batchID := util.NewID()
 	after := ""
@@ -143,6 +146,15 @@ func (s *DocumentService) foldersIntoMyFolderUnit(ctx context.Context, id string
 		return FoldersIntoMyFolderReport{}, nil
 	}
 	if err != nil {
+		return FoldersIntoMyFolderReport{}, err
+	}
+	// Cheap unlocked pre-check: most candidates are deeper folders of a My
+	// Folder tree, and those must not cost a transaction and the workspace tree
+	// lock. The locked re-check below stays the one that decides.
+	if !fimPrivateFolder(first) {
+		return FoldersIntoMyFolderReport{}, nil
+	}
+	if unit, err := fimIsUnit(ctx, s.q, first); err != nil || !unit {
 		return FoldersIntoMyFolderReport{}, err
 	}
 	tx, err := s.pool.Begin(ctx)
@@ -321,6 +333,12 @@ func (r *fimRun) placeUnit(ctx context.Context, unit db.Document) error {
 	}
 
 	if r.dryRun {
+		// Nothing moves, so the nested folders would be found again as
+		// candidates; the whole subtree counts as placed, as a real run leaves
+		// it inside the owner's My Folder.
+		for _, n := range subtree {
+			r.seen[n.ID] = true
+		}
 		r.out.MovedFolders++
 		return nil
 	}
