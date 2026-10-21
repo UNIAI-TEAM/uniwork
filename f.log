@@ -1,0 +1,5 @@
+$ . scripts/local-env.sh; unset OPENAI_API_KEY OPENAI_BASE_URL; export REDIS_TEST_URL=redis://localhost:6379/1 AI_PROVIDER=fake; TEST_DATABASE_URL="${TEST_DATABASE_URL}&pool_max_conns=16"; export TEST_DATABASE_URL; cd server && go test -count=1 -v ./internal/service -run '^TestChatGrantLeaveAfterCommitIsReconciled$' -timeout 10m > /tmp/uni2012r3d-b.log 2>&1; echo "POOL16_EXIT=$?"; grep -nE "^\s*--- (PASS|FAIL)|DIAG (NumCPU|pid)|_test.go:[0-9]+:" /tmp/uni2012r3d-b.log | cut -c1-400 | head -40
+warning: STORAGE_BACKEND is unset and MINIO_* is empty; the server will refuse to start.
+         set STORAGE_BACKEND=local with LOCAL_UPLOAD_DIR, or configure MinIO (see .env.example).
+POOL16_EXIT=0
+2:--- PASS: TestChatGrantLeaveAfterCommitIsReconciled (0.23s)

@@ -1,0 +1,90 @@
+$ awk '/DIAG goroutine/{f=1;n=0} f{print substr($0,1,240);n++} n>60{f=0}' /tmp/uni2012r3d-a.log | head -400
+    chat_document_share_fix2_test.go:211: DIAG goroutine:
+        goroutine 94 [running]:
+        github.com/unicomhub/uniwork/server/internal/service.TestChatGrantLeaveAfterCommitIsReconciled.func5()
+        	/workspace/server/internal/service/chat_document_share_fix2_test.go:208 +0xe33
+        created by github.com/unicomhub/uniwork/server/internal/service.TestChatGrantLeaveAfterCommitIsReconciled in goroutine 57
+        	/workspace/server/internal/service/chat_document_share_fix2_test.go:178 +0x933
+    chat_document_share_fix2_test.go:211: DIAG goroutine:
+        goroutine 57 [select]:
+        golang.org/x/sync/semaphore.(*Weighted).Acquire(0xc0005556d0, {0x8305188, 0xc000318070}, 0x1)
+        	/home/ubuntu/go/pkg/mod/golang.org/x/sync@v0.23.0/semaphore/semaphore.go:80 +0x565
+        github.com/jackc/puddle/v2.(*Pool[...]).acquire(0x502f900, {0x8305188, 0xc000318070})
+        	/home/ubuntu/go/pkg/mod/github.com/jackc/puddle/v2@v2.2.2/pool.go:360 +0x105
+        github.com/jackc/puddle/v2.(*Pool[...]).Acquire(0x502f900, {0x8305188, 0xc000318070})
+        	/home/ubuntu/go/pkg/mod/github.com/jackc/puddle/v2@v2.2.2/pool.go:347 +0xc5
+        github.com/jackc/pgx/v5/pgxpool.(*Pool).Acquire(0xc0000e0540, {0x8305188, 0xc000318070})
+        	/home/ubuntu/go/pkg/mod/github.com/jackc/pgx/v5@v5.10.0/pgxpool/pool.go:614 +0x29c
+        github.com/jackc/pgx/v5/pgxpool.(*Pool).QueryRow(0xc0000e0540, {0x8305188, 0xc000318070}, {0x4e021a4, 0x144}, {0xc0003bc7a0, 0x2, 0x2})
+        	/home/ubuntu/go/pkg/mod/github.com/jackc/pgx/v5@v5.10.0/pgxpool/pool.go:775 +0x85
+        github.com/unicomhub/uniwork/server/pkg/db/generated.(*Queries).GetActiveChatRoomMember(_, {_, _}, {{_, _}, {_, _}})
+        	/workspace/server/pkg/db/generated/chat.sql.go:753 +0x1bc
+        github.com/unicomhub/uniwork/server/internal/service.(*ChatService).requireCanSendInRoom(_, {_, _}, {_, _}, {_, _}, {{0xc00053a040, 0x1a}, {0xc00083413e, ...}, ...})
+        	/workspace/server/internal/service/chat_moderation.go:304 +0xe6
+        github.com/unicomhub/uniwork/server/internal/service.(*ChatService).commitDocumentMessage(_, {_, _}, {_, _}, {_, _}, {{0xc00053a040, 0x1a}, {0xc00083413e, ...}, ...}, ...)
+        	/workspace/server/internal/service/chat_document_message.go:280 +0x7bc
+        github.com/unicomhub/uniwork/server/internal/service.(*ChatService).SendDocumentMessage(_, {_, _}, {_, _}, {_, _}, {_, _}, {{0x4c69485, ...}, ...})
+        	/workspace/server/internal/service/chat_document_message.go:208 +0x20bf
+        github.com/unicomhub/uniwork/server/internal/service.TestChatGrantLeaveAfterCommitIsReconciled(0xc000628488)
+        	/workspace/server/internal/service/chat_document_share_fix2_test.go:215 +0xc16
+        testing.tRunner(0xc000628488, 0x832ae48)
+        	/usr/local/go/src/testing/testing.go:2193 +0x21d
+        created by testing.(*T).Run in goroutine 1
+        	/usr/local/go/src/testing/testing.go:2258 +0xb13
+    chat_document_share_fix2_test.go:211: DIAG goroutine:
+        goroutine 61 [IO wait]:
+        internal/poll.runtime_pollWait(0x7f7f8a836c00, 0x72)
+        	/usr/local/go/src/runtime/netpoll.go:351 +0x85
+        internal/poll.(*pollDesc).wait(0xc0006813a0, 0x72, 0x0)
+        	/usr/local/go/src/internal/poll/fd_poll_runtime.go:84 +0xb1
+        internal/poll.(*pollDesc).waitRead(...)
+        	/usr/local/go/src/internal/poll/fd_poll_runtime.go:89
+        internal/poll.(*FD).Read(0xc000681380, {0xc00083e000, 0x2000, 0x2000})
+        	/usr/local/go/src/internal/poll/fd_unix.go:170 +0x499
+        net.(*netFD).Read(0xc000681380, {0xc00083e000, 0x2000, 0x2000})
+        	/usr/local/go/src/net/fd_posix.go:68 +0x4b
+        net.(*conn).Read(0xc0001027c8, {0xc00083e000, 0x2000, 0x2000})
+        	/usr/local/go/src/net/net.go:196 +0xad
+        github.com/jackc/pgx/v5/pgconn/internal/bgreader.(*BGReader).Read(0xc000405380, {0xc00083e000, 0x2000, 0x2000})
+        	/home/ubuntu/go/pkg/mod/github.com/jackc/pgx/v5@v5.10.0/pgconn/internal/bgreader/bgreader.go:100 +0x1db
+        io.ReadAtLeast({0x82e1260, 0xc000405380}, {0xc00083e000, 0x2000, 0x2000}, 0x5)
+        	/usr/local/go/src/io/io.go:335 +0xc7
+        github.com/jackc/pgx/v5/pgproto3.(*chunkReader).Next(0xc0001bba10, 0x5)
+        	/home/ubuntu/go/pkg/mod/github.com/jackc/pgx/v5@v5.10.0/pgproto3/chunkreader.go:80 +0x82f
+        github.com/jackc/pgx/v5/pgproto3.(*Frontend).Receive(0xc000840008)
+        	/home/ubuntu/go/pkg/mod/github.com/jackc/pgx/v5@v5.10.0/pgproto3/frontend.go:313 +0x85
+        github.com/jackc/pgx/v5/pgconn.(*PgConn).peekMessage(0xc0004bd708)
+        	/home/ubuntu/go/pkg/mod/github.com/jackc/pgx/v5@v5.10.0/pgconn/pgconn.go:645 +0x1f8
+        github.com/jackc/pgx/v5/pgconn.(*PgConn).receiveMessage(0xc0004bd708)
+        	/home/ubuntu/go/pkg/mod/github.com/jackc/pgx/v5@v5.10.0/pgconn/pgconn.go:669 +0xc6
+        github.com/jackc/pgx/v5/pgconn.(*ResultReader).receiveMessage(0xc0004bd7c0)
+        	/home/ubuntu/go/pkg/mod/github.com/jackc/pgx/v5@v5.10.0/pgconn/pgconn.go:1872 +0x95
+        github.com/jackc/pgx/v5/pgconn.(*ResultReader).readUntilRowDescription(0xc0004bd7c0, 0xc000904000, {0xc0007e0040, 0x0, 0x20})
+        	/home/ubuntu/go/pkg/mod/github.com/jackc/pgx/v5@v5.10.0/pgconn/pgconn.go:1839 +0x85
+        github.com/jackc/pgx/v5/pgconn.(*PgConn).execExtendedSuffix(0xc0004bd708, 0xc0004bd7c0, 0xc000904000, {0xc0007e0040, 0x0, 0x20})
+        	/home/ubuntu/go/pkg/mod/github.com/jackc/pgx/v5@v5.10.0/pgconn/pgconn.go:1375 +0x365
+        github.com/jackc/pgx/v5/pgconn.(*PgConn).ExecStatement(0xc0004bd708, {0x8304e78, 0x84fc000}, 0xc000904000, {0xc0005d2c60, 0x2, 0x2}, {0xc0003fe048, 0x2, 0x4}, ...)
+        	/home/ubuntu/go/pkg/mod/github.com/jackc/pgx/v5@v5.10.0/pgconn/pgconn.go:1318 +0x267
+        github.com/jackc/pgx/v5.(*Conn).execPrepared(0xc00092cc80, {0x8304e78, 0x84fc000}, 0xc000904000, {0xc0005fe040, 0x2, 0x2})
+        	/home/ubuntu/go/pkg/mod/github.com/jackc/pgx/v5@v5.10.0/conn.go:613 +0x231
+        github.com/jackc/pgx/v5.(*Conn).exec(0xc00092cc80, {0x8304e78, 0x84fc000}, {0x4dd536c, 0xbd}, {0xc0005fe040, 0x2, 0x2})
+        	/home/ubuntu/go/pkg/mod/github.com/jackc/pgx/v5@v5.10.0/conn.go:550 +0x99d
+        github.com/jackc/pgx/v5.(*Conn).Exec(0xc00092cc80, {0x8304e78, 0x84fc000}, {0x4dd536c, 0xbd}, {0xc0005fe040, 0x2, 0x2})
+        	/home/ubuntu/go/pkg/mod/github.com/jackc/pgx/v5@v5.10.0/conn.go:481 +0x1f0
+        github.com/jackc/pgx/v5.(*dbTx).Exec(0xc0005d2c90, {0x8304e78, 0x84fc000}, {0x4dd536c, 0xbd}, {0xc0005fe040, 0x2, 0x2})
+        	/home/ubuntu/go/pkg/mod/github.com/jackc/pgx/v5@v5.10.0/tx.go:231 +0xf5
+        github.com/jackc/pgx/v5/pgxpool.(*Tx).Exec(0xc00012a048, {0x8304e78, 0x84fc000}, {0x4dd536c, 0xbd}, {0xc0005fe040, 0x2, 0x2})
+        	/home/ubuntu/go/pkg/mod/github.com/jackc/pgx/v5@v5.10.0/pgxpool/tx.go:70 +0xaf
+        github.com/unicomhub/uniwork/server/pkg/db/generated.(*Queries).LeaveChatRoomMember(...)
+        	/workspace/server/pkg/db/generated/chat.sql.go:1347
+        github.com/unicomhub/uniwork/server/internal/service.(*ChatService).LeaveChatRoom(0xc000681100, {0x8304e78, 0x84fc000}, {0xc00067e180, 0x1a}, {0xc00016dc00, 0x1a}, {0xc000118100, 0x1a})
+        	/workspace/server/internal/service/chat_rooms.go:521 +0x71e
+        github.com/unicomhub/uniwork/server/internal/service.TestChatGrantLeaveAfterCommitIsReconciled.func2()
+        	/workspace/server/internal/service/chat_document_share_fix2_test.go:168 +0x117
+        created by github.com/unicomhub/uniwork/server/internal/service.TestChatGrantLeaveAfterCommitIsReconciled in goroutine 57
+        	/workspace/server/internal/service/chat_document_share_fix2_test.go:168 +0x6b7
+    chat_document_share_fix2_test.go:218: send while a leave was in flight: context deadline exceeded
+--- FAIL: TestChatGrantLeaveAfterCommitIsReconciled (20.27s)
+FAIL
+FAIL	github.com/unicomhub/uniwork/server/internal/service	22.123s
+FAIL

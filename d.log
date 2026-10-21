@@ -1,0 +1,7 @@
+$ grep -nE "DIAG (NumCPU|pid)|_test.go:[0-9]+: (send|setup|leave|level)" /tmp/uni2012r3d-a.log | cut -c1-500 | head -60
+12:    chat_document_share_fix2_test.go:185: DIAG NumCPU=4 pool max=4 acquired=4 idle=0 total=4 emptyAcquire=4
+13:    chat_document_share_fix2_test.go:201: DIAG pid=27784 state=idle wait=Client/ClientRead blockedBy={} q=SELECT pg_try_advisory_lock($1)
+14:    chat_document_share_fix2_test.go:201: DIAG pid=27785 state=idle in transaction wait=Client/ClientRead blockedBy={} q=SELECT id FROM chat_room_members WHERE room_id = $1 AND user_id = $2 AND status = 'active' FOR UPDATE
+15:    chat_document_share_fix2_test.go:201: DIAG pid=27786 state=idle in transaction wait=Client/ClientRead blockedBy={} q=-- name: GetWorkspaceAccess :one SELECT COALESCE(m.role, CASE WHEN om.role IN ('owner','admin') THEN 'admin' END, '')::text AS role, w.organization_id, o.status AS organization_status, COALESCE(om.role, '')::text AS orga
+16:    chat_document_share_fix2_test.go:201: DIAG pid=27787 state=active wait=Lock/transactionid blockedBy={27785} q=-- name: LeaveChatRoomMember :exec UPDATE chat_room_members SET status = 'left', left_at = now(), updated_at = now() WHERE room_id = $1 AND user_id = $2 AND status IN ('invited', 'active') 
+101:    chat_document_share_fix2_test.go:218: send while a leave was in flight: context deadline exceeded
