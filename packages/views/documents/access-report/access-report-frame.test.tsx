@@ -146,7 +146,9 @@ describe("access report frame - toolbar", () => {
   it("draws the active tile's chip with the shared pill", async () => {
     renderView(`${BASE_URL}?flag=public_link`);
     const chip = await screen.findByRole("button", { name: at("clear_chip", { name: at("flag_public_link") }) });
-    expect(chip).toHaveClass(...classes(PILL), ...classes(PILL_ON));
+    // The chip carries an X, so it tightens the shared pill's gap on purpose.
+    expect(chip).toHaveClass(...classes(PILL).filter((c) => c !== "gap-1.5"), ...classes(PILL_ON));
+    expect(chip).toHaveClass("gap-1");
   });
 
   it("keeps the By person filters on the same pieces", async () => {
