@@ -2,6 +2,7 @@
 
 import { type QueryClient, useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
+import type { MeetingActionItems } from "../api/endpoints/meeting-action-items";
 import type { WSClient } from "../api/ws-client";
 import type { WSMessage } from "../api/ws-types";
 import { calendarKeys } from "../calendar/keys";
@@ -113,8 +114,13 @@ function keysFor(
       // A linked task's title, status or due date shows in the chat info panel.
       push(chatKeys.roomLinkedTasksRoot(wsId));
     }
-    // A converted action item shows its task's state; only open lists refetch.
-    if (type === "task.updated" || type === "task.deleted") push(meetingKeys.actionItemsRoot);
+    // A converted action item shows its task's state; only cached lists that
+    // hold this task refetch.
+    if ((type === "task.updated" || type === "task.deleted") && payload.task_id) {
+      for (const [key, data] of qc.getQueriesData<MeetingActionItems>({ queryKey: meetingKeys.actionItemsRoot })) {
+        if (data?.items.some((it) => it.task?.id === payload.task_id)) push(key);
+      }
+    }
     // Carried-over lists read other meetings' tasks: a conversion creates one,
     // finishing or deleting one takes it off.
     if (type === "task.created" || type === "task.updated" || type === "task.deleted") {
