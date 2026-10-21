@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { FolderUploadReportDialog } from "./folder-upload-report-dialog";
 
 const failures = [
-  { path: "Báo cáo/2026/a.docx", code: "quota_exceeded" },
+  { path: "Báo cáo/2026/a.docx", code: "storage_quota_exceeded" },
   { path: "Báo cáo/b.pdf", code: "some_future_code" },
   { path: "Báo cáo/c.xlsx" },
 ];
@@ -29,6 +29,12 @@ describe("FolderUploadReportDialog", () => {
     const { onRetry } = renderReport();
     fireEvent.click(screen.getByRole("button", { name: "Thử lại các tệp lỗi" }));
     expect(onRetry).toHaveBeenCalledTimes(1);
+  });
+
+  it("hides the retry button after the batch expired and says why", () => {
+    renderReport({ canRetry: false });
+    expect(screen.queryByRole("button", { name: "Thử lại các tệp lỗi" })).toBeNull();
+    expect(screen.getByText("Lượt tải lên đã hết hạn nên không thử lại được. Hãy tải lại thư mục.")).toBeInTheDocument();
   });
 
   it("keeps the retry button aria-disabled while a retry runs", () => {

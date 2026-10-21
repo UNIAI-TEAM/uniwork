@@ -3,7 +3,7 @@
 import { useEffect, useId, useState } from "react";
 import { CircleAlert, FolderUp } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import type { FolderUploadPlan } from "@uniwork/core/documents/folder-upload/types";
+import type { FolderUploadPlan } from "@uniwork/core/documents/folder-upload";
 import { formatDocumentSizeMB } from "@uniwork/core/documents/limits";
 import { Button } from "@uniwork/ui/components/ui/button";
 import {
@@ -29,6 +29,8 @@ export interface FolderUploadDialogProps {
   /** Folders still waiting behind this one (several dropped at once). */
   queued?: number;
   pending?: boolean;
+  /** The server said it is busy and the run is waiting out Retry-After once. */
+  waiting?: boolean;
   error?: string | null;
   onSubmit: (options: { shareWithWorkspace: boolean }) => void;
 }
@@ -46,6 +48,7 @@ export function FolderUploadDialog({
   parentShared = false,
   queued = 0,
   pending = false,
+  waiting = false,
   error,
   onSubmit,
 }: FolderUploadDialogProps) {
@@ -194,6 +197,11 @@ export function FolderUploadDialog({
             ) : null}
             {queued > 0 ? (
               <p className="text-caption text-muted-foreground">{t("documents.folder_upload.dialog.queue_more", { count: queued })}</p>
+            ) : null}
+            {waiting && !error ? (
+              <p role="status" className="text-caption text-muted-foreground">
+                {t("documents.folder_upload.dialog.waiting")}
+              </p>
             ) : null}
             {error ? (
               <p role="alert" className="text-caption text-destructive">

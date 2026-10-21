@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import type { FolderUploadPlan } from "@uniwork/core/documents/folder-upload/types";
+import type { FolderUploadPlan } from "@uniwork/core/documents/folder-upload";
 import { FolderUploadDialog, type FolderUploadDialogProps } from "./folder-upload-dialog";
 
 const MIB = 1024 * 1024;
@@ -148,5 +148,15 @@ describe("FolderUploadDialog", () => {
   it("tells how many folders still wait behind this one", () => {
     renderDialog({ queued: 2 });
     expect(screen.getByText("Còn 2 thư mục đang chờ.")).toBeInTheDocument();
+  });
+
+  it("says the server is busy while the run waits out Retry-After", () => {
+    renderDialog({ pending: true, waiting: true });
+    expect(screen.getByRole("status")).toHaveTextContent("Máy chủ đang bận, sẽ tự thử lại sau ít giây…");
+  });
+
+  it("names the folder count of a too_many_folders refusal", () => {
+    renderDialog({ plan: plan({ refusal: { code: "too_many_folders", limit: 500, actual: 530 } as never }) });
+    expect(screen.getByTestId("folder-upload-refusal")).toHaveTextContent("530 thư mục — tối đa 500");
   });
 });

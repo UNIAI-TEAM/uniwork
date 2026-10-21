@@ -1,6 +1,10 @@
 import type { useTranslation } from "react-i18next";
 import { formatDocumentSizeMB } from "@uniwork/core/documents/limits";
-import type { FolderUploadPlan, FolderUploadSkipReason } from "@uniwork/core/documents/folder-upload/types";
+import {
+  asFolderUploadRefusal,
+  type FolderUploadPlan,
+  type FolderUploadSkipReason,
+} from "@uniwork/core/documents/folder-upload";
 
 type TFunction = ReturnType<typeof useTranslation>["t"];
 
@@ -37,9 +41,12 @@ export function refusalMessage(
   refusal: NonNullable<FolderUploadPlan["refusal"]>,
   locale: string,
 ): string {
-  const { code, limit, actual } = refusal;
+  const { limit, actual } = refusal;
+  // The planner's code union gains too_many_folders with the v0.2 config; read it as a string so either side may land first.
+  const code: string = refusal.code;
   switch (code) {
     case "too_many_files":
+    case "too_many_folders":
     case "too_deep":
       return t(`documents.folder_upload.refusal.${code}`, {
         actual: formatCount(actual ?? 0, locale),
@@ -74,13 +81,15 @@ export function skipReasonLabel(t: TFunction, reason: string): string {
     : t("documents.folder_upload.skip_reason.invalid_path");
 }
 
+// Per-file codes of the server's complete step (contract v0.2 §3) plus the
+// client's own `missing_etag`.
 const FAILURE_CODES = [
-  "folder_upload_too_many_files",
-  "folder_upload_too_large",
-  "folder_upload_too_deep",
-  "parent_forbidden",
-  "unsupported_format",
-  "quota_exceeded",
+  "upload_missing",
+  "size_mismatch",
+  "unsupported_media",
+  "storage_quota_exceeded",
+  "not_found",
+  "parts_invalid",
   "missing_etag",
 ] as const;
 
@@ -89,6 +98,51 @@ export function failureReasonMessage(t: TFunction, code: string | undefined): st
   return (FAILURE_CODES as readonly string[]).includes(code ?? "")
     ? t(`documents.folder_upload.report.reason.${code}`)
     : t("documents.folder_upload.report.reason.unknown");
+}
+
+// Whole-run answers: the plan refusals, 429 busy, and the batch states.
+const RUN_ERROR_CODES = [
+  "folder_upload_file_too_large",
+  "folder_upload_unsupported_type",
+  "document_parent_kind",
+  "invalid_request",
+  "folder_uploads_busy",
+  "idempotency_payload_mismatch",
+  "folder_upload_expired",
+  "folder_upload_canceled",
+  "http_403",
+  "http_404",
+] as const;
+
+/**
+ * The sentence for a run that failed as a whole: a refused plan (with its
+ * numbers from `fields`), 429 busy, 410 expired or 409 canceled. Anything the
+ * client has no sentence for reads as the generic one.
+ */
+export function runErrorMessage(t: TFunction, error: unknown, locale: string): string {
+  const refusal = asFolderUploadRefusal(error);
+  if (!refusal) return t("documents.folder_upload.error.unknown");
+  const { code, fields } = refusal;
+  const num = (key: string): number => (typeof fields[key] === "number" ? (fields[key] as number) : 0);
+  switch (code) {
+    case "folder_upload_too_many_files":
+    case "folder_upload_too_many_folders":
+      return t(`documents.folder_upload.error.${code}`, {
+        max: formatCount(num("max"), locale),
+        actual: formatCount(num("count"), locale),
+      });
+    case "folder_upload_too_large":
+      return t("documents.folder_upload.error.folder_upload_too_large", {
+        max: formatUploadBytes(num("max_bytes"), locale),
+        total: formatUploadBytes(num("total_bytes"), locale, "up"),
+      });
+    case "document_too_deep":
+      return t("documents.folder_upload.error.document_too_deep", { max: formatCount(num("max_depth"), locale) });
+    default:
+      return (RUN_ERROR_CODES as readonly string[]).includes(code)
+        ? t(`documents.folder_upload.error.${code}`)
+        : t("documents.folder_upload.error.unknown");
+  }
 }
 
 /** Skipped files grouped by reason, in the planner's reason order. */

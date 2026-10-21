@@ -10039,7 +10039,8 @@
         "submit": "Tải lên",
         "submitting": "Đang chuẩn bị…",
         "queue_more": "Còn {{count}} thư mục đang chờ.",
-        "failed": "Không bắt đầu tải lên được. Thử lại sau ít phút."
+        "failed": "Không bắt đầu tải lên được. Thử lại sau ít phút.",
+        "waiting": "Máy chủ đang bận, sẽ tự thử lại sau ít giây…"
       },
       "skip_reason": {
         "hidden": "Tệp ẩn hoặc tệp hệ thống",
@@ -10055,7 +10056,8 @@
         "nothing_to_upload": "Thư mục này không có tệp nào tải lên được.",
         "segment_too_long": "Có tên thư mục dài quá 255 ký tự.",
         "multiple_roots": "Mỗi lần chỉ tải lên được một thư mục gốc.",
-        "unknown": "Thư mục này vượt giới hạn tải lên."
+        "unknown": "Thư mục này vượt giới hạn tải lên.",
+        "too_many_folders": "{{actual}} thư mục — tối đa {{limit}}"
       },
       "toast": {
         "progress": "Đang tải lên «{{name}}» — {{done}}/{{total}} tệp",
@@ -10069,7 +10071,9 @@
         "canceled_other": "Đã hủy — {{count}} tệp đã tải lên được giữ lại",
         "failed": "Không tải lên được «{{name}}»",
         "folders_unavailable": "Chưa tải lên thư mục được ở đây. Hãy kéo thả từng tệp.",
-        "read_failed": "Không đọc được thư mục vừa chọn."
+        "read_failed": "Không đọc được thư mục vừa chọn.",
+        "expired": "Lượt tải lên «{{name}}» đã hết hạn — {{done}}/{{total}} tệp đã lên. Hãy tải lại thư mục.",
+        "refused": "Không tải lên được «{{name}}»"
       },
       "report": {
         "title": "Tệp chưa tải lên được",
@@ -10079,15 +10083,33 @@
         "close": "Đóng",
         "list_label": "Danh sách tệp lỗi",
         "reason": {
-          "folder_upload_too_many_files": "Thư mục có quá nhiều tệp.",
-          "folder_upload_too_large": "Tổng dung lượng thư mục vượt giới hạn.",
-          "folder_upload_too_deep": "Thư mục lồng quá nhiều cấp.",
-          "parent_forbidden": "Bạn không còn quyền thêm vào thư mục đích.",
-          "unsupported_format": "Định dạng chưa được hỗ trợ.",
-          "quota_exceeded": "Đã hết dung lượng lưu trữ.",
+          "upload_missing": "Tệp chưa lên được kho lưu trữ.",
+          "size_mismatch": "Dung lượng tệp đã lên không khớp với tệp gốc.",
+          "unsupported_media": "Nội dung tệp không đúng định dạng.",
+          "storage_quota_exceeded": "Đã hết dung lượng lưu trữ.",
+          "not_found": "Không tìm thấy tệp trong lượt tải lên này.",
+          "parts_invalid": "Các phần của tệp lớn không khớp. Hãy thử lại.",
           "missing_etag": "Không xác nhận được tệp đã lên kho lưu trữ.",
           "unknown": "Không tải lên được tệp này."
-        }
+        },
+        "expired_note": "Lượt tải lên đã hết hạn nên không thử lại được. Hãy tải lại thư mục."
+      },
+      "error": {
+        "folder_upload_too_many_files": "{{actual}} tệp — tối đa {{max}}.",
+        "folder_upload_too_many_folders": "{{actual}} thư mục con — tối đa {{max}}.",
+        "folder_upload_too_large": "Tổng dung lượng {{total}} — tối đa {{max}}.",
+        "folder_upload_file_too_large": "Có tệp vượt dung lượng tối đa của một tệp.",
+        "folder_upload_unsupported_type": "Có tệp thuộc định dạng chưa được hỗ trợ.",
+        "document_too_deep": "Thư mục lồng quá sâu — tối đa {{max}} cấp.",
+        "document_parent_kind": "Không thể tải vào mục này. Hãy chọn một thư mục.",
+        "invalid_request": "Tên tệp hoặc thư mục không hợp lệ. Hãy đổi tên rồi thử lại.",
+        "folder_uploads_busy": "Đang có quá nhiều lượt tải thư mục. Hãy thử lại sau ít phút.",
+        "idempotency_payload_mismatch": "Lượt tải này không khớp với lần trước. Hãy chọn lại thư mục.",
+        "folder_upload_expired": "Lượt tải lên đã hết hạn. Hãy tải lại thư mục.",
+        "folder_upload_canceled": "Lượt tải lên đã bị hủy.",
+        "http_403": "Bạn không có quyền tải lên thư mục đích.",
+        "http_404": "Không tìm thấy thư mục đích. Có thể nó đã bị xóa hoặc chuyển đi.",
+        "unknown": "Không bắt đầu tải lên được. Thử lại sau ít phút."
       }
     },
     "upload": {

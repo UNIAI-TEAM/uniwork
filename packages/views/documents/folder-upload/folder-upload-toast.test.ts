@@ -83,6 +83,17 @@ describe("createFolderUploadToast", () => {
     expect(options.action).toBeUndefined();
   });
 
+  it("says an expired run has to be uploaded again and offers the report only when files failed", () => {
+    const { handle } = make();
+    handle.settle(settled({ done: 12, failed: 3, expired: true }));
+    const [message, options] = toast.warning.mock.calls[0] ?? [];
+    expect(message).toBe("Lượt tải lên «Báo cáo» đã hết hạn — 12/40 tệp đã lên. Hãy tải lại thư mục.");
+    expect(options.action.label).toBe("Xem");
+
+    handle.settle(settled({ done: 12, failed: 0, expired: true }));
+    expect(toast.warning.mock.calls[1]?.[1].action).toBeUndefined();
+  });
+
   it("uses the server's title for the end state, not the preview name", () => {
     const { handle } = make();
     handle.settle(settled({ title: "Báo cáo (1)" }));

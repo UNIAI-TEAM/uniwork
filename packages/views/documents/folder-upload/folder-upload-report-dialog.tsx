@@ -25,11 +25,13 @@ export interface FolderUploadReportDialogProps {
   name: string;
   failures: readonly FolderUploadFailure[];
   retrying?: boolean;
+  /** False after a 410 (the batch expired): the folder has to be uploaded again, so no retry is offered. */
+  canRetry?: boolean;
   onRetry: () => void;
 }
 
 /** The files that did not go up, each with its reason, and the one action that retries only them. */
-export function FolderUploadReportDialog({ open, onOpenChange, name, failures, retrying = false, onRetry }: FolderUploadReportDialogProps) {
+export function FolderUploadReportDialog({ open, onOpenChange, name, failures, retrying = false, canRetry = true, onRetry }: FolderUploadReportDialogProps) {
   const { t } = useTranslation();
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -51,28 +53,33 @@ export function FolderUploadReportDialog({ open, onOpenChange, name, failures, r
             </li>
           ))}
         </ul>
+        {canRetry ? null : (
+          <p className="text-caption text-muted-foreground">{t("documents.folder_upload.report.expired_note")}</p>
+        )}
         <DialogFooter className="px-0 pb-0">
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
             {t("documents.folder_upload.report.close")}
           </Button>
-          <Button
-            type="button"
-            aria-disabled={failures.length === 0 || retrying || undefined}
-            aria-busy={retrying || undefined}
-            onClick={() => {
-              if (failures.length === 0 || retrying) return;
-              onRetry();
-            }}
-          >
-            {retrying ? (
-              <>
-                <Spinner aria-hidden role="presentation" />
-                {t("documents.folder_upload.report.retrying")}
-              </>
-            ) : (
-              t("documents.folder_upload.report.retry")
-            )}
-          </Button>
+          {canRetry ? (
+            <Button
+              type="button"
+              aria-disabled={failures.length === 0 || retrying || undefined}
+              aria-busy={retrying || undefined}
+              onClick={() => {
+                if (failures.length === 0 || retrying) return;
+                onRetry();
+              }}
+            >
+              {retrying ? (
+                <>
+                  <Spinner aria-hidden role="presentation" />
+                  {t("documents.folder_upload.report.retrying")}
+                </>
+              ) : (
+                t("documents.folder_upload.report.retry")
+              )}
+            </Button>
+          ) : null}
         </DialogFooter>
       </DialogContent>
     </Dialog>
