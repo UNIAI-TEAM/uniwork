@@ -360,7 +360,9 @@ type ActionItemLink struct {
 // transaction, so a refusal anywhere leaves nothing behind. The meeting's
 // summary lock keeps a regenerated summary from replacing the items under the
 // batch, and the item row locks serialize two conversions of the same item.
-func (s *MeetingService) ConvertActionItems(ctx context.Context, userID, meetingID string, items []ConvertActionItem) ([]ActionItemLink, error) {
+// locale is the clerk's screen language ("en", otherwise Vietnamese): the
+// descriptions' labels speak it.
+func (s *MeetingService) ConvertActionItems(ctx context.Context, userID, meetingID, locale string, items []ConvertActionItem) ([]ActionItemLink, error) {
 	m, err := s.requireMeetingClerk(ctx, userID, meetingID)
 	if err != nil {
 		return nil, err
@@ -415,11 +417,6 @@ func (s *MeetingService) ConvertActionItems(ctx context.Context, userID, meeting
 		}
 	}
 
-	// The description is written once, by the clerk: its labels speak their language.
-	clerk, err := s.q.GetUserByID(ctx, userID)
-	if err != nil {
-		return nil, err
-	}
 	origin := meetingID
 	inputs := make([]CreateTaskInput, 0, len(items))
 	for i, it := range items {
@@ -433,7 +430,7 @@ func (s *MeetingService) ConvertActionItems(ctx context.Context, userID, meeting
 			projectID = meetingProject
 		}
 		inputs = append(inputs, CreateTaskInput{
-			Title: title, Description: actionItemTaskDescription(it, item, clerk.Locale),
+			Title: title, Description: actionItemTaskDescription(it, item, locale),
 			AssigneeID: it.AssigneeID, DueDate: it.DueDate, ProjectID: projectID,
 			Priority: strings.TrimSpace(it.Priority), OriginType: "meeting", OriginID: &origin,
 		})
@@ -585,8 +582,8 @@ func refuseActionItemDuplicates(ctx context.Context, q *db.Queries, ws db.Worksp
 // says that the task does not carry (an owner when it has no assignee, a due
 // phrase when it has no due date). Phrases the AI wrote are marked as such.
 // The meeting it came from is not written here: the task's origin carries it
-// and the task screen shows it. The labels are in the converting clerk's
-// locale (Vietnamese unless it is "en"); the phrases stay as the summary said them.
+// and the task screen shows it. The labels are in the language the clerk
+// converts in (Vietnamese unless it is "en"); the phrases stay as the summary said them.
 func actionItemTaskDescription(it ConvertActionItem, item db.MeetingActionItem, locale string) string {
 	desc := strings.TrimSpace(it.Description)
 	mark := " (AI)"

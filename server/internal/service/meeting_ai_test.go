@@ -99,7 +99,7 @@ func TestTranscriptAndSummaryToTasks(t *testing.T) {
 	if err != nil || len(items.Items) != 1 || items.Items[0].Item.Title != "Gửi báo cáo" || items.Items[0].Item.SummaryID.String != sum.ID {
 		t.Fatalf("%+v %v", items, err)
 	}
-	links, err := s.ConvertActionItems(ctx, ua.ID, m.ID, []ConvertActionItem{{ActionItemID: items.Items[0].Item.ID, AssigneeID: &ub.ID}})
+	links, err := s.ConvertActionItems(ctx, ua.ID, m.ID, "vi", []ConvertActionItem{{ActionItemID: items.Items[0].Item.ID, AssigneeID: &ub.ID}})
 	if err != nil || len(links) != 1 {
 		t.Fatalf("%+v %v", links, err)
 	}
@@ -113,7 +113,7 @@ func TestTranscriptAndSummaryToTasks(t *testing.T) {
 	if task.OriginType.String != "meeting" || task.OriginID.String != m.ID {
 		t.Fatalf("origin: type=%s id=%s", task.OriginType.String, task.OriginID.String)
 	}
-	if _, err := s.ConvertActionItems(ctx, ua.ID, m.ID, nil); err == nil {
+	if _, err := s.ConvertActionItems(ctx, ua.ID, m.ID, "vi", nil); err == nil {
 		t.Fatal("empty items accepted")
 	}
 

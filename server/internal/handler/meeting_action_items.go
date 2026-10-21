@@ -102,7 +102,7 @@ func (h *handlers) convertActionItems(w http.ResponseWriter, r *http.Request) {
 			ProjectID: it.ProjectID, Priority: it.Priority,
 		})
 	}
-	links, err := h.Meetings.ConvertActionItems(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "meetingID"), items)
+	links, err := h.Meetings.ConvertActionItems(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "meetingID"), summaryLocale(in.Locale), items)
 	if err != nil {
 		h.mapServiceError(w, err)
 		return

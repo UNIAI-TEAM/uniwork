@@ -71,7 +71,7 @@ func TestConvertActionItemsIsAtomic(t *testing.T) {
 	report, room := items["Gửi báo cáo"].Item.ID, items["Đặt phòng"].Item.ID
 	outsider := "01JOUTSIDEROFTHEWORKSPACE0"
 
-	_, err := s.ConvertActionItems(ctx, ua.ID, m.ID, []ConvertActionItem{
+	_, err := s.ConvertActionItems(ctx, ua.ID, m.ID, "vi", []ConvertActionItem{
 		{ActionItemID: report, AssigneeID: &ub.ID},
 		{ActionItemID: room, AssigneeID: &outsider},
 	})
@@ -84,7 +84,7 @@ func TestConvertActionItemsIsAtomic(t *testing.T) {
 	}
 
 	// The same items, fixed, go through in one piece.
-	links, err := s.ConvertActionItems(ctx, ua.ID, m.ID, []ConvertActionItem{
+	links, err := s.ConvertActionItems(ctx, ua.ID, m.ID, "vi", []ConvertActionItem{
 		{ActionItemID: report, AssigneeID: &ub.ID},
 		{ActionItemID: room},
 	})
@@ -138,14 +138,14 @@ func TestConvertActionItemsRefusesHandledItems(t *testing.T) {
 	items := itemsByTitle(t, s, ua.ID, m)
 	report, room, print := items["Gửi báo cáo"].Item.ID, items["Đặt phòng"].Item.ID, items["In tài liệu"].Item.ID
 
-	first, err := s.ConvertActionItems(ctx, ua.ID, m.ID, []ConvertActionItem{{ActionItemID: report}})
+	first, err := s.ConvertActionItems(ctx, ua.ID, m.ID, "vi", []ConvertActionItem{{ActionItemID: report}})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if err := s.DismissActionItem(ctx, ua.ID, m.ID, print, ""); err != nil {
 		t.Fatal(err)
 	}
-	_, err = s.ConvertActionItems(ctx, ua.ID, m.ID, []ConvertActionItem{{ActionItemID: room}, {ActionItemID: print}, {ActionItemID: report}})
+	_, err = s.ConvertActionItems(ctx, ua.ID, m.ID, "vi", []ConvertActionItem{{ActionItemID: room}, {ActionItemID: print}, {ActionItemID: report}})
 	ce := wantCode(t, err, "action_item_not_pending")
 	want := []string{print, report}
 	slices.Sort(want)
@@ -157,10 +157,10 @@ func TestConvertActionItemsRefusesHandledItems(t *testing.T) {
 	}
 
 	var ve ValidationError
-	if _, err := s.ConvertActionItems(ctx, ua.ID, m.ID, []ConvertActionItem{{ActionItemID: room}, {ActionItemID: room}}); !errors.As(err, &ve) {
+	if _, err := s.ConvertActionItems(ctx, ua.ID, m.ID, "vi", []ConvertActionItem{{ActionItemID: room}, {ActionItemID: room}}); !errors.As(err, &ve) {
 		t.Fatalf("duplicate id: %v", err)
 	}
-	if _, err := s.ConvertActionItems(ctx, ua.ID, m.ID, []ConvertActionItem{{ActionItemID: " "}}); !errors.As(err, &ve) {
+	if _, err := s.ConvertActionItems(ctx, ua.ID, m.ID, "vi", []ConvertActionItem{{ActionItemID: " "}}); !errors.As(err, &ve) {
 		t.Fatalf("blank id: %v", err)
 	}
 	// An item of another meeting is not this meeting's.
@@ -170,7 +170,7 @@ func TestConvertActionItemsRefusesHandledItems(t *testing.T) {
 	}
 	seedSummary(t, s, other, ua.ID, ai.ActionItem{Title: "Việc khác"})
 	foreign := itemsByTitle(t, s, ua.ID, other)["Việc khác"].Item.ID
-	ce = wantCode(t, mustErr(s.ConvertActionItems(ctx, ua.ID, m.ID, []ConvertActionItem{{ActionItemID: room}, {ActionItemID: foreign}})), "action_item_not_found")
+	ce = wantCode(t, mustErr(s.ConvertActionItems(ctx, ua.ID, m.ID, "vi", []ConvertActionItem{{ActionItemID: room}, {ActionItemID: foreign}})), "action_item_not_found")
 	if ids, _ := ce.Fields["action_item_ids"].([]string); !slices.Equal(ids, []string{foreign}) {
 		t.Fatalf("not found ids = %v", ce.Fields)
 	}
@@ -182,7 +182,7 @@ func TestConvertActionItemsRefusesHandledItems(t *testing.T) {
 	if got := itemsByTitle(t, s, ua.ID, m)["Gửi báo cáo"]; got.Status != ActionItemPending || got.Task != nil {
 		t.Fatalf("item of a deleted task: %+v", got)
 	}
-	if _, err := s.ConvertActionItems(ctx, ua.ID, m.ID, []ConvertActionItem{{ActionItemID: report}}); err != nil {
+	if _, err := s.ConvertActionItems(ctx, ua.ID, m.ID, "vi", []ConvertActionItem{{ActionItemID: report}}); err != nil {
 		t.Fatalf("item of a deleted task: %v", err)
 	}
 }
@@ -209,7 +209,7 @@ func TestConvertActionItemsKeepsTheClerksChoice(t *testing.T) {
 	)
 	items := itemsByTitle(t, s, ua.ID, m)
 	none := ""
-	links, err := s.ConvertActionItems(ctx, ua.ID, m.ID, []ConvertActionItem{
+	links, err := s.ConvertActionItems(ctx, ua.ID, m.ID, "vi", []ConvertActionItem{
 		{ActionItemID: items["Gửi báo cáo"].Item.ID, Title: "  "},
 		{ActionItemID: items["Đặt phòng"].Item.ID, Title: "Đặt phòng họp lớn", Description: "Tầng 3", AssigneeID: &ub.ID,
 			DueDate: strPtr("2026-12-01"), ProjectID: &none, Priority: "high"},
@@ -251,6 +251,29 @@ func TestConvertActionItemsKeepsTheClerksChoice(t *testing.T) {
 	}
 }
 
+// The labels follow the language the clerk converts in, not users.locale:
+// that column is written once at sign-up and the language switch never moves it.
+func TestConvertActionItemsLabelsFollowTheRequestLocale(t *testing.T) {
+	s, ua, _, _, m := summaryTasksFixture(t)
+	ctx := context.Background()
+	if _, err := s.pool.Exec(ctx, `UPDATE users SET locale = 'vi' WHERE id = $1`, ua.ID); err != nil {
+		t.Fatal(err)
+	}
+	seedSummary(t, s, m, ua.ID, ai.ActionItem{Title: "Gửi báo cáo", Owner: "B", Due: "ngày mai"})
+	items := itemsByTitle(t, s, ua.ID, m)
+	links, err := s.ConvertActionItems(ctx, ua.ID, m.ID, "en", []ConvertActionItem{{ActionItemID: items["Gửi báo cáo"].Item.ID}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	task, err := s.q.GetTask(ctx, links[0].TaskID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if task.Description != "Owner (AI): B\nDue (AI): ngày mai" {
+		t.Fatalf("description = %q", task.Description)
+	}
+}
+
 // Spec §4, D3: the host, a secretary and a workspace admin clerk the action
 // items and the summary; any other member only reads them.
 func TestActionItemsNeedAClerk(t *testing.T) {
@@ -277,7 +300,7 @@ func TestActionItemsNeedAClerk(t *testing.T) {
 	if err := s.RestoreActionItem(ctx, ub.ID, m.ID, room); !codedIs(err, "not_meeting_clerk") {
 		t.Fatalf("member restores: %v", err)
 	}
-	if _, err := s.ConvertActionItems(ctx, ub.ID, m.ID, []ConvertActionItem{{ActionItemID: room}}); !codedIs(err, "not_meeting_clerk") {
+	if _, err := s.ConvertActionItems(ctx, ub.ID, m.ID, "vi", []ConvertActionItem{{ActionItemID: room}}); !codedIs(err, "not_meeting_clerk") {
 		t.Fatalf("member converts: %v", err)
 	}
 
@@ -298,7 +321,7 @@ func TestActionItemsNeedAClerk(t *testing.T) {
 	if err := s.RestoreActionItem(ctx, ub.ID, m.ID, added.Item.ID); err != nil {
 		t.Fatalf("secretary restores: %v", err)
 	}
-	if _, err := s.ConvertActionItems(ctx, ub.ID, m.ID, []ConvertActionItem{{ActionItemID: added.Item.ID}}); err != nil {
+	if _, err := s.ConvertActionItems(ctx, ub.ID, m.ID, "vi", []ConvertActionItem{{ActionItemID: added.Item.ID}}); err != nil {
 		t.Fatalf("secretary converts: %v", err)
 	}
 }
@@ -362,7 +385,7 @@ func TestActionItemLifecycle(t *testing.T) {
 	if err := s.DismissActionItem(ctx, ua.ID, m.ID, it.ID, ""); !codedIs(err, "action_item_not_pending") {
 		t.Fatalf("dismiss twice: %v", err)
 	}
-	if _, err := s.ConvertActionItems(ctx, ua.ID, m.ID, []ConvertActionItem{{ActionItemID: it.ID}}); !codedIs(err, "action_item_not_pending") {
+	if _, err := s.ConvertActionItems(ctx, ua.ID, m.ID, "vi", []ConvertActionItem{{ActionItemID: it.ID}}); !codedIs(err, "action_item_not_pending") {
 		t.Fatalf("convert a dismissed item: %v", err)
 	}
 	if err := s.RestoreActionItem(ctx, ua.ID, m.ID, it.ID); err != nil {
@@ -378,7 +401,7 @@ func TestActionItemLifecycle(t *testing.T) {
 		t.Fatalf("unknown item: %v", err)
 	}
 	report := itemsByTitle(t, s, ua.ID, m)["Gửi báo cáo"].Item.ID
-	if _, err := s.ConvertActionItems(ctx, ua.ID, m.ID, []ConvertActionItem{{ActionItemID: report}}); err != nil {
+	if _, err := s.ConvertActionItems(ctx, ua.ID, m.ID, "vi", []ConvertActionItem{{ActionItemID: report}}); err != nil {
 		t.Fatal(err)
 	}
 	if err := s.DismissActionItem(ctx, ua.ID, m.ID, report, ""); !codedIs(err, "action_item_not_pending") {
@@ -412,7 +435,7 @@ func TestActionItemsDescribeTheirTasks(t *testing.T) {
 	}
 
 	past, future := "2020-01-02", "2999-01-02"
-	links, err := s.ConvertActionItems(ctx, ua.ID, m.ID, []ConvertActionItem{
+	links, err := s.ConvertActionItems(ctx, ua.ID, m.ID, "vi", []ConvertActionItem{
 		{ActionItemID: first.Item.ID, AssigneeID: &ub.ID, DueDate: &past},
 		{ActionItemID: items["In tài liệu"].Item.ID, DueDate: &past},
 		{ActionItemID: items["Gọi khách"].Item.ID, DueDate: &future},
@@ -459,7 +482,7 @@ func TestConvertActionItemsNamesEveryDuplicateItem(t *testing.T) {
 	}
 	items := itemsByTitle(t, s, ua.ID, m)
 	room, report, fresh := items["Đặt phòng"].Item.ID, items["gửi báo cáo"].Item.ID, items["Mới"].Item.ID
-	_, err = s.ConvertActionItems(ctx, ua.ID, m.ID, []ConvertActionItem{
+	_, err = s.ConvertActionItems(ctx, ua.ID, m.ID, "vi", []ConvertActionItem{
 		{ActionItemID: extra.Item.ID, Title: "Đặt phòng"}, {ActionItemID: fresh}, {ActionItemID: report}, {ActionItemID: room},
 	})
 	ce := wantCode(t, err, "active_duplicate_task")
@@ -478,7 +501,7 @@ func TestConvertActionItemsNamesEveryDuplicateItem(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.ConvertActionItems(ctx, ua.ID, m.ID, []ConvertActionItem{
+	if _, err := s.ConvertActionItems(ctx, ua.ID, m.ID, "vi", []ConvertActionItem{
 		{ActionItemID: extra.Item.ID, Title: "Đặt phòng"}, {ActionItemID: fresh}, {ActionItemID: report, ProjectID: &project.ID},
 	}); err != nil {
 		t.Fatalf("without the duplicates: %v", err)
@@ -504,7 +527,7 @@ func TestConvertActionItemsIgnoresADeletedMeetingProject(t *testing.T) {
 	}
 	seedSummary(t, s, m, ua.ID, ai.ActionItem{Title: "Gửi báo cáo"}, ai.ActionItem{Title: "Đặt phòng"})
 	items := itemsByTitle(t, s, ua.ID, m)
-	links, err := s.ConvertActionItems(ctx, ua.ID, m.ID, []ConvertActionItem{{ActionItemID: items["Gửi báo cáo"].Item.ID}})
+	links, err := s.ConvertActionItems(ctx, ua.ID, m.ID, "vi", []ConvertActionItem{{ActionItemID: items["Gửi báo cáo"].Item.ID}})
 	if err != nil {
 		t.Fatalf("the meeting's deleted project refused the batch: %v", err)
 	}
@@ -512,7 +535,7 @@ func TestConvertActionItemsIgnoresADeletedMeetingProject(t *testing.T) {
 		t.Fatalf("task took the deleted project %v (%v)", task.ProjectID, err)
 	}
 	gone := project.ID
-	_, err = s.ConvertActionItems(ctx, ua.ID, m.ID, []ConvertActionItem{{ActionItemID: items["Đặt phòng"].Item.ID, ProjectID: &gone}})
+	_, err = s.ConvertActionItems(ctx, ua.ID, m.ID, "vi", []ConvertActionItem{{ActionItemID: items["Đặt phòng"].Item.ID, ProjectID: &gone}})
 	if !errors.Is(err, ErrNotFound) {
 		t.Fatalf("named deleted project: %v, want not found", err)
 	}
@@ -535,7 +558,7 @@ func TestConvertActionItemsConcurrentConversionsMakeOneTask(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			<-start
-			_, errs[i] = s.ConvertActionItems(ctx, ua.ID, m.ID, []ConvertActionItem{{ActionItemID: id, Title: fmt.Sprintf("Gửi báo cáo bản %d", i)}})
+			_, errs[i] = s.ConvertActionItems(ctx, ua.ID, m.ID, "vi", []ConvertActionItem{{ActionItemID: id, Title: fmt.Sprintf("Gửi báo cáo bản %d", i)}})
 		}()
 	}
 	close(start)
@@ -585,7 +608,7 @@ func TestConvertActionItemsWaitsForARegeneration(t *testing.T) {
 	}
 	done := make(chan error, 1)
 	go func() {
-		_, err := s.ConvertActionItems(ctx, ua.ID, m.ID, []ConvertActionItem{{ActionItemID: old}})
+		_, err := s.ConvertActionItems(ctx, ua.ID, m.ID, "vi", []ConvertActionItem{{ActionItemID: old}})
 		done <- err
 	}()
 	select {
@@ -614,7 +637,7 @@ func TestStoreSummaryKeepsHandledItems(t *testing.T) {
 		ai.ActionItem{Title: "Chờ xử lý"}, ai.ActionItem{Title: "Task đã xoá"},
 	)
 	items := itemsByTitle(t, s, ua.ID, m)
-	links, err := s.ConvertActionItems(ctx, ua.ID, m.ID, []ConvertActionItem{
+	links, err := s.ConvertActionItems(ctx, ua.ID, m.ID, "vi", []ConvertActionItem{
 		{ActionItemID: items["Gửi báo cáo"].Item.ID}, {ActionItemID: items["Task đã xoá"].Item.ID},
 	})
 	if err != nil {
@@ -690,16 +713,28 @@ func TestSummarizeListsHandledItems(t *testing.T) {
 	}
 }
 
-func TestActionItemTaskDescriptionSpeaksTheClerksLocale(t *testing.T) {
-	item := db.MeetingActionItem{OwnerText: "B", DueText: "tomorrow", Source: ActionItemSourceAI}
-	if got := actionItemTaskDescription(ConvertActionItem{Description: "Floor 3"}, item, "en"); got != "Floor 3\nOwner (AI): B\nDue (AI): tomorrow" {
-		t.Fatalf("en description = %q", got)
-	}
-	if got := actionItemTaskDescription(ConvertActionItem{}, item, "vi"); got != "Người phụ trách (AI): B\nHạn (AI): tomorrow" {
-		t.Fatalf("vi description = %q", got)
-	}
-	item.Source = ActionItemSourceManual
-	if got := actionItemTaskDescription(ConvertActionItem{}, item, "en"); got != "Owner: B\nDue: tomorrow" {
-		t.Fatalf("manual item = %q", got)
+func TestActionItemTaskDescriptionSpeaksTheRequestLocale(t *testing.T) {
+	ai := db.MeetingActionItem{OwnerText: "B", DueText: "tomorrow", Source: ActionItemSourceAI}
+	manual := db.MeetingActionItem{OwnerText: "B", DueText: "tomorrow", Source: ActionItemSourceManual}
+	someone, someday := "u1", "2026-11-01"
+	for _, tc := range []struct {
+		name   string
+		it     ConvertActionItem
+		item   db.MeetingActionItem
+		locale string
+		want   string
+	}{
+		{"en", ConvertActionItem{Description: "Floor 3"}, ai, "en", "Floor 3\nOwner (AI): B\nDue (AI): tomorrow"},
+		{"vi", ConvertActionItem{}, ai, "vi", "Người phụ trách (AI): B\nHạn (AI): tomorrow"},
+		{"unknown is Vietnamese", ConvertActionItem{}, ai, "fr", "Người phụ trách (AI): B\nHạn (AI): tomorrow"},
+		{"empty is Vietnamese", ConvertActionItem{}, ai, "", "Người phụ trách (AI): B\nHạn (AI): tomorrow"},
+		{"manual has no AI mark", ConvertActionItem{}, manual, "en", "Owner: B\nDue: tomorrow"},
+		{"an assignee drops the owner", ConvertActionItem{AssigneeID: &someone}, ai, "en", "Due (AI): tomorrow"},
+		{"a due date drops the phrase", ConvertActionItem{Description: "x", DueDate: &someday}, ai, "vi", "x\nNgười phụ trách (AI): B"},
+		{"both set leaves the description", ConvertActionItem{Description: "x", AssigneeID: &someone, DueDate: &someday}, ai, "en", "x"},
+	} {
+		if got := actionItemTaskDescription(tc.it, tc.item, tc.locale); got != tc.want {
+			t.Errorf("%s: description = %q, want %q", tc.name, got, tc.want)
+		}
 	}
 }

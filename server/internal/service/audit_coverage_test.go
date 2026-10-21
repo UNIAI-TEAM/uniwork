@@ -1654,7 +1654,7 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if _, err := svc.ConvertActionItems(f.ctx, f.owner.ID, m.ID, []ConvertActionItem{{ActionItemID: items.Items[0].Item.ID}}); err != nil {
+			if _, err := svc.ConvertActionItems(f.ctx, f.owner.ID, m.ID, "vi", []ConvertActionItem{{ActionItemID: items.Items[0].Item.ID}}); err != nil {
 				t.Fatal(err)
 			}
 		},

@@ -47,7 +47,7 @@ func TestCarriedOverItems(t *testing.T) {
 			}
 			convert = append(convert, c)
 		}
-		links, err := s.ConvertActionItems(ctx, ua.ID, m.ID, convert)
+		links, err := s.ConvertActionItems(ctx, ua.ID, m.ID, "vi", convert)
 		if err != nil {
 			t.Fatal(err)
 		}

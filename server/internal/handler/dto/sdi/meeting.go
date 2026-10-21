@@ -231,7 +231,8 @@ type ConvertActionItemSDI struct {
 
 // ConvertActionItemsSDI is POST /api/v1/meetings/{meetingID}/action-items/convert.
 type ConvertActionItemsSDI struct {
-	Items []ConvertActionItemSDI `json:"items" description:"1–50 việc đang chờ xử lý"`
+	Items  []ConvertActionItemSDI `json:"items" description:"1–50 việc đang chờ xử lý"`
+	Locale string                 `json:"locale" description:"Ngôn ngữ nhãn trong mô tả task (Người phụ trách/Hạn): vi | en; bỏ trống hoặc giá trị khác = vi" example:"vi"`
 }
 
 // AppendChatSDI is POST /api/v1/meetings/{meetingID}/chat.

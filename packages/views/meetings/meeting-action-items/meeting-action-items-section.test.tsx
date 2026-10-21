@@ -215,6 +215,8 @@ describe("MeetingActionItemsSection", () => {
         { action_item_id: "a0", title: "Gửi biên bản họp", assignee_id: null, due_date: "2026-09-25", project_id: "p1" },
         { action_item_id: "a1", assignee_id: null, due_date: null, project_id: "p1" },
       ],
+      // The descriptions label the AI's phrases in the language the clerk reads.
+      locale: "vi",
     });
     // One channel for the outcome, in the same words as the button.
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Đã giao 1 việc.", expect.anything()));

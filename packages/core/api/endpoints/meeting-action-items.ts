@@ -148,6 +148,8 @@ export interface ConvertActionItemInput {
 
 export interface ConvertActionItemsBody {
   items: ConvertActionItemInput[];
+  /** The clerk's screen language: the tasks' descriptions label the AI's owner and due phrases in it. */
+  locale?: "vi" | "en";
 }
 
 const ConvertResponse = z.object({

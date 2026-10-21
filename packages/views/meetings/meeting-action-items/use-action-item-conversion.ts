@@ -39,7 +39,7 @@ export function useActionItemConversion({
   announce: (message: string) => void;
   selection?: ActionItemSelection;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const convert = useConvertMeetingActionItems(workspaceId, meetingId);
   const workspace = useOptionalWorkspace()?.workspace;
   const nav = useOptionalNavigation();
@@ -101,7 +101,7 @@ export function useActionItemConversion({
     if (!body || convert.isPending) return;
     announce(t("meetings.actionItemsSection.assigning"));
     setDuplicates(NONE);
-    convert.mutate(body, {
+    convert.mutate({ ...body, locale: i18n.language.startsWith("en") ? "en" : "vi" }, {
       onSuccess: (result) => {
         setDialogOpen(false);
         setPicked(NONE);
