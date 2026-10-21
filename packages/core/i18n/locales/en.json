@@ -218,6 +218,23 @@
           "cdefc46087dd47e7b2e383fa681b092a855e46e0f": "Creating tasks from a meeting's AI summary: tasks are created exactly as the host confirmed, once and as a whole batch; an item already turned into a task, or an outdated summary, no longer creates tasks again. The review dialog lets you adjust the assignee, due date, priority and project; assignee suggestions match whole words and are left empty when names are ambiguous, and due dates read phrases like \"next Tuesday\" correctly and reject dates in the past. Created items link to their task, each error explains what to do, and a meeting runs only one summary at a time.",
           "c9138dd10cf4ec713e49bc35b9b7bfdd181d24aba": "Chat and notifications: the mention count inside a room now matches the count shown in the room list, and notification digest emails only include items from workspaces and chat rooms you can still access."
         }
+      },
+      "v1_7_0": {
+        "title": "A new conversation view, message search across rooms and pins in Chat; a formatting toolbar in UniNote",
+        "summary": "Chat has a new bubble-style conversation view, message search across every room you belong to, up to 10 pinned messages per room, a right-click actions menu, a call strip while a call is minimised and a mute button on a person's profile card; rooms you have muted no longer ring for calls. UniNote gets a formatting toolbar and a shortcuts panel, .txt files open in the editor, and the Documents library and share dialog are tidier and clearer.",
+        "note": "Message search only covers rooms you are a member of. When a room already has 10 pinned messages, an older pin must be removed to pin a new one.",
+        "features": {
+          "cba68789f9922643c1e51b57f8f6810d23507e22f": "Search messages across every chat room you belong to, right from the conversation list; results show a snippet with the matching words highlighted, and clicking one takes you to that message. The conversation list is also more compact and marks unsent messages with \"Draft:\".",
+          "c5db3ec268ccf43bf9b336db1fa571d76fd9d69e4": "When you minimise a call, a strip at the top of the chat shows that the call is still in progress."
+        },
+        "improvements": {
+          "cd57d97c03c0b3e0b03d598d69392631b8237d348": "Calls: rooms you have muted no longer ring for incoming calls, and calls in channels play no ringtone.",
+          "cdd0a583f74e20745388dd74aefeba55db328c1f5": "Pinning in Chat: each room can pin up to 10 messages, with the newest pin shown first; when the limit is reached, you are asked whether to replace the oldest pin. Right-clicking a message opens an actions menu with a row of reactions, and this menu shows who has seen your message.",
+          "caac706f2ad896b32b0fcbae89dd466d42909629f": "The Chat conversation view is redesigned: messages appear as bubbles and direct chats no longer show avatars; hovering a message shows a single quick heart button, while keyboard focus opens the full action bar; the reply or edit bar sits right above the composer, and Esc cancels a reply. Animations turn off when reduce motion is on.",
+          "c5444b681da437e1adf9ed8893851a17fa86891ba": "The message actions menu stays clickable in long conversations, opens downward when there is no room above and closes when you scroll. A person's profile card has a button to mute or unmute notifications for the current conversation.",
+          "c0424076a5c7443babfeeb091d77e84d18446fc28": "Documents and UniNote: the UniNote editor has a formatting toolbar, a first-use tip and a shortcuts help panel; the \"/\" menu and Markdown shortcuts also work on lines after a line break. .txt files open in the editor in plain text mode. The first-save dialog lets you pick a folder, Office documents have a Print entry, and the share dialog is clearer and consistently says \"Private\". \"My Folder\" appears once in the folder tree, \"Shared by me\" lists only the topmost shared item, the comment box shows @Name when you mention someone, and discussion threads have a new design.",
+          "c5f3b1fb9b72701e4053bd93ccc2f4e2cc053d750": "The Documents library gets several refinements: a share badge for people with comment access, long folder names are shortened, opening a document's link opens the folder that contains it, \"Share with workspace\" is separate from Folder, and the empty state fits better when files are inside folders."
+        }
       }
     }
   },
@@ -4888,6 +4905,8 @@
     "poll_deadline_must_be_future": "Poll deadline must be in the future.",
     "poll_deadline_invalid": "Invalid poll deadline.",
     "poll_closed": "Poll closed",
+    "poll_vote_activity_line": "<b>{{name}}</b> joined the poll: <b>{{question}}</b>",
+    "poll_vote_activity_view": "View",
     "poll_closed_toast": "Poll \"{{question}}\" has closed",
     "poll_view_voters": "View poll details",
     "poll_voters_title": "Poll details",
@@ -5620,8 +5639,8 @@
       "document_discussion_mentioned_untitled": "{{actor}} mentioned you in a discussion on a document.",
       "document_discussion_replied": "{{actor}} replied to your discussion post in “{{document}}”.",
       "document_discussion_replied_untitled": "{{actor}} replied to your discussion post in a document.",
-      "document_comment_resolved": "{{actor}} marked your comment in “{{document}}” as resolved.",
-      "document_comment_resolved_untitled": "{{actor}} marked your comment in a document as resolved.",
+      "document_comment_resolved": "{{actor}} marked a comment in “{{document}}” as resolved.",
+      "document_comment_resolved_untitled": "{{actor}} marked a comment as resolved.",
       "document_edit_requested": "{{actor}} wants to edit “{{document}}”",
       "document_edit_request_answered": "{{actor}} handed you editing of “{{document}}”",
       "document_edit_request_answered_declined": "{{actor}} is still editing “{{document}}”",
@@ -10541,7 +10560,11 @@
       "collabAnchorSlide": "Slide {{slide}}",
       "collabAnchorPage": "Page {{page}}",
       "collabAnchorStale": "The location may have changed",
-      "collabAnchorLost": "The commented location can no longer be found",
+      "collabAnchorLost": "The commented passage is not in the current version",
+      "collabAnchorViewVersion": "View in version {{n}}",
+      "collabVersionViewBanner": "You are viewing version {{n}} (read-only)",
+      "collabVersionViewBack": "Back to the current version",
+      "collabVersionViewUnavailable": "This version could not be opened",
       "collabReply": "Reply",
       "collabReplyCount": "Replies: {{count}}",
       "collabSave": "Save",

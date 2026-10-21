@@ -14,6 +14,7 @@ import type { User } from "@uniwork/core/types";
 import { NavigationProvider } from "../navigation";
 import { fakeNav, localeAdapter } from "../test/api-mock";
 import { requestMock } from "../test/request-mock";
+import { WorkspaceProvider } from "../layout/workspace-context";
 import { DocumentCommentsHeaderActions, DocumentCommentsProvider } from "./document-comments-context";
 import { K } from "./document-comments-keys";
 import { DocumentCommentsPanel } from "./document-comments-panel";
@@ -103,21 +104,26 @@ function installApi(state: { comments: DocumentComment[]; mentions?: unknown[] }
   });
 }
 
-function renderPanel(opts: { doc?: Document; search?: string } = {}) {
+function renderPanel(opts: { doc?: Document; search?: string; slugs?: boolean } = {}) {
   const doc = opts.doc ?? makeDoc();
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, retryDelay: 0 }, mutations: { retry: false } } });
   const service = new FeatureFlagService(new StaticProvider({ documents: { default: true } }));
   const nav = fakeNav(`/acme/doi/documents/${DOC}`);
   nav.searchParams = new URLSearchParams(opts.search ?? "");
+  const body = (
+    <DocumentCommentsProvider wsId={WS} doc={doc}>
+      <DocumentCommentsHeaderActions />
+      <DocumentCommentsPanel />
+    </DocumentCommentsProvider>
+  );
   const view = render(
     <QueryClientProvider client={client}>
       <FeatureFlagsProvider service={service}>
         <LocaleAdapterProvider adapter={localeAdapter}>
           <NavigationProvider value={nav}>
-            <DocumentCommentsProvider wsId={WS} doc={doc}>
-              <DocumentCommentsHeaderActions />
-              <DocumentCommentsPanel />
-            </DocumentCommentsProvider>
+            {opts.slugs ? (
+              <WorkspaceProvider workspace={{ id: WS, organization_id: "org1", organization_slug: "acme", slug: "doi" } as never} user={{ id: ME } as never}>{body}</WorkspaceProvider>
+            ) : body}
           </NavigationProvider>
         </LocaleAdapterProvider>
       </FeatureFlagsProvider>
@@ -276,6 +282,25 @@ describe("S12 anchored comments", () => {
     expect(thread("st")).toHaveAccessibleName(`Lan ${t(K.collabAnchorDocx, { quote: "chi phí" })} ${t(K.collabAnchorStale)}`);
     // A lost anchor is still a live thread: reply and resolve stay.
     expect(within(thread("lo")).getByRole("button", { name: t(K.collabReply) })).toBeInTheDocument();
+  });
+
+  // UNI-2033: a lost comment links to the version it was last anchored on.
+  it("offers 'Xem ở phiên bản N' on a lost comment of a docx whose head is another version, and not on the head itself", async () => {
+    const lost = { kind: "comment", type: "comment", anchor: { format: "docx", v: 1, path: [0], start: 0, end: 4, quote: "lợi nhuận", prefix: "", suffix: "" }, anchor_state: "lost" } as const;
+    installApi({
+      comments: [
+        row({ id: "old", ...lost, anchor_version_id: "v1", anchor_version_no: 1 }),
+        row({ id: "head", ...lost, anchor_version_id: "v3", anchor_version_no: 3 }),
+        row({ id: "unknown", ...lost }),
+      ],
+    });
+    renderPanel({ doc: docxDoc({ file: { ...DOCX, version: 3, version_id: "v3" }, current_version: 3 }), slugs: true });
+    const pane = await openPanel(commentsTitle());
+    await within(pane).findByTestId("document-thread-old");
+    expect(within(thread("old")).getByRole("link", { name: "Xem ở phiên bản 1" })).toHaveAttribute("href", `/acme/doi/documents/${DOC}?version=1&comment=old`);
+    expect(within(thread("head")).queryByRole("link", { name: /Xem ở phiên bản/ })).toBeNull();
+    expect(within(thread("unknown")).queryByRole("link", { name: /Xem ở phiên bản/ })).toBeNull();
+    expect(thread("unknown")).toHaveTextContent(t(K.collabAnchorLost));
   });
 
   it("names cell, slide and page anchors with their own keys", async () => {

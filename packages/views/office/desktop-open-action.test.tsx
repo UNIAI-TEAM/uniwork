@@ -66,6 +66,22 @@ describe("DesktopOpenAction", () => {
     expect(screen.queryByRole("button", { name: "Download UniWork Office" })).not.toBeInTheDocument();
   });
 
+  it("asks for a read-only ticket of that version when `version` is set (UNI-2033)", async () => {
+    const createSession = vi.fn(async () => null);
+    render(<DesktopOpenAction documentId="doc-1" deploymentId="dep" savedVersion={3} version={2} operation="edit" commentId="c1" createSession={createSession} />);
+    fireEvent.click(screen.getByRole("button", { name: "Open in UniWork Office" }));
+    await waitFor(() => expect(createSession).toHaveBeenCalledOnce());
+    expect(createSession).toHaveBeenCalledWith("doc-1", expect.objectContaining({ operation: "view", version: 2, comment_id: "c1" }));
+  });
+
+  it("leaves the version out of the ticket body for the current one", async () => {
+    const createSession = vi.fn(async (_documentId: string, _body: unknown) => null);
+    render(<DesktopOpenAction documentId="doc-1" deploymentId="dep" savedVersion={3} createSession={createSession as never} />);
+    fireEvent.click(screen.getByRole("button", { name: "Open in UniWork Office" }));
+    await waitFor(() => expect(createSession).toHaveBeenCalledOnce());
+    expect(createSession.mock.calls[0]?.[1]).not.toHaveProperty("version");
+  });
+
   it("lists Open and Download for the detected platform in the split menu", async () => {
     const createSession = vi.fn(async () => session);
     const launch = vi.fn(async () => "launched" as const);

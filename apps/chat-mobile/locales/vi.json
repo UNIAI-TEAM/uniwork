@@ -1139,6 +1139,8 @@
     "poll_deadline_must_be_future": "Thời hạn bình chọn phải ở tương lai.",
     "poll_deadline_invalid": "Thời hạn bình chọn không hợp lệ.",
     "poll_closed": "Bình chọn đã kết thúc",
+    "poll_vote_activity_line": "<b>{{name}}</b> tham gia cuộc bình chọn: <b>{{question}}</b>",
+    "poll_vote_activity_view": "Xem",
     "poll_closed_toast": "Bình chọn \"{{question}}\" đã hết hạn chốt phiếu",
     "poll_view_voters": "Xem chi tiết bình chọn",
     "poll_voters_title": "Chi tiết bình chọn",

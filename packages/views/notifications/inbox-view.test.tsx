@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { initI18n } from "@uniwork/core/i18n";
+import { initI18n, setLocale } from "@uniwork/core/i18n";
 import type { User, Workspace } from "@uniwork/core/types";
 import { requestMock, wrapWithNav } from "../test/api-mock";
 import { WorkspaceProvider } from "../layout/workspace-context";
@@ -325,17 +325,21 @@ describe("InboxView", () => {
 
     // V7 F1: the server drops the document title once the reader lost access.
     it.each([
-      ["document_commented", "Bình đã bình luận trong một tài liệu"],
-      ["document_mentioned", "Bình đã nhắc đến bạn trong bình luận tại một tài liệu."],
-      ["document_comment_replied", "Bình đã phản hồi bình luận của bạn trong một tài liệu."],
-      ["document_discussion_mentioned", "Bình đã nhắc đến bạn trong thảo luận của một tài liệu."],
-      ["document_discussion_replied", "Bình đã phản hồi nội dung thảo luận của bạn trong một tài liệu."],
-      ["document_comment_resolved", "Bình đã đánh dấu bình luận của bạn trong một tài liệu là đã giải quyết."],
-      ["document_break_glass", "Bình đã mở truy cập khẩn cấp (chỉ xem, 24 giờ) vào một tài liệu."],
-      ["document_body_mentioned", "Bình đã nhắc đến bạn trong một tài liệu."],
-      ["document_access_requested", "Bình xin quyền truy cập một tài liệu."],
-      ["document_access_approved", "Bình đã cấp cho bạn quyền truy cập một tài liệu."],
-    ])("says %s without a name when the title is not in the params", async (kind, sentenceText) => {
+      ["document_commented", "Bình đã bình luận trong một tài liệu", undefined],
+      ["document_mentioned", "Bình đã nhắc đến bạn trong bình luận tại một tài liệu.", undefined],
+      ["document_comment_replied", "Bình đã phản hồi bình luận của bạn trong một tài liệu.", undefined],
+      ["document_discussion_mentioned", "Bình đã nhắc đến bạn trong thảo luận của một tài liệu.", undefined],
+      ["document_discussion_replied", "Bình đã phản hồi nội dung thảo luận của bạn trong một tài liệu.", undefined],
+      [
+        "document_comment_resolved",
+        "Bình đã đánh dấu một bình luận là đã giải quyết.",
+        "Bình marked a comment as resolved.",
+      ],
+      ["document_break_glass", "Bình đã mở truy cập khẩn cấp (chỉ xem, 24 giờ) vào một tài liệu.", undefined],
+      ["document_body_mentioned", "Bình đã nhắc đến bạn trong một tài liệu.", undefined],
+      ["document_access_requested", "Bình xin quyền truy cập một tài liệu.", undefined],
+      ["document_access_approved", "Bình đã cấp cho bạn quyền truy cập một tài liệu.", undefined],
+    ])("says %s without a name when the title is not in the params", async (kind, sentenceText, enSentenceText) => {
       for (const document of [undefined, "", "  "]) {
         requestMock.mockReset();
         const params = { actor: "Bình", comment_id: "c-n1", kind: "comment", ...(document === undefined ? {} : { document }) };
@@ -345,6 +349,15 @@ describe("InboxView", () => {
         expect(link).toHaveTextContent(sentenceText);
         expect(link.textContent).not.toMatch(/\{\{|“\s*”/);
         cleanup();
+        if (enSentenceText) {
+          await setLocale("en");
+          renderInbox();
+          const enLink = await screen.findByRole("link", { name: /Bình/ });
+          expect(enLink).toHaveTextContent(enSentenceText);
+          expect(enLink.textContent).not.toMatch(/\{\{|“\s*”/);
+          cleanup();
+          await setLocale("vi");
+        }
       }
     });
 

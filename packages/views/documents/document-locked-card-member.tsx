@@ -11,11 +11,13 @@ import {
 } from "@uniwork/core/documents/hooks-access-requests";
 import type { CreateDocumentAccessRequestBody } from "@uniwork/core/api/endpoints/documents-access-requests";
 import { IconTile } from "@uniwork/ui/components/common/icon-tile";
-import { Button } from "@uniwork/ui/components/ui/button";
+import { Button, buttonVariants } from "@uniwork/ui/components/ui/button";
 import { RadioGroup, RadioGroupItem } from "@uniwork/ui/components/ui/radio-group";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { Textarea } from "@uniwork/ui/components/ui/textarea";
 import { cn } from "@uniwork/ui/lib/utils";
+import { AppLink } from "../navigation";
+import { K } from "./document-comments-keys";
 
 /** Where the link that opened the document lives (access addendum §3.1; meeting deferred, Q5). */
 export interface DocumentAccessRequestSource {
@@ -40,6 +42,12 @@ export interface MemberLockedCardProps {
   answeredAt?: number;
   /** "Back": the host's way out (the library). */
   onBack: () => void;
+  /**
+   * Set when the page was opened from a notice (S15): the person already knows
+   * the document exists, so the card says "no access" instead of the neutral
+   * "may not exist", and its way out is the Inbox instead of the library.
+   */
+  inboxHref?: string | null;
   className?: string;
 }
 
@@ -69,11 +77,18 @@ export function MemberLockedCard({
   retrying = false,
   answeredAt,
   onBack,
+  inboxHref,
   className,
 }: MemberLockedCardProps) {
   const { t } = useTranslation(undefined, { keyPrefix: "documents.access_request" });
   const { t: tRoot } = useTranslation();
   const headingId = useId();
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const fromNotice = Boolean(inboxHref);
+  // The S15 sentence is the page heading and takes focus when the page loads.
+  useEffect(() => {
+    if (fromNotice) headingRef.current?.focus();
+  }, [fromNotice]);
   const fieldId = useId();
   const counterId = `${fieldId}-counter`;
   const errorId = `${fieldId}-error`;
@@ -161,8 +176,16 @@ export function MemberLockedCard({
     <section aria-labelledby={headingId} className={cn(SHELL, className)} data-document-locked-card="member">
       <div className="flex flex-col items-center gap-3 text-center">
         <IconTile icon={LockKeyhole} size="lg" tone="muted" />
-        <h2 id={headingId} className="text-title font-semibold">{t("locked_title")}</h2>
-        <p className="text-body text-muted-foreground">{t("locked_body")}</p>
+        {fromNotice ? (
+          <h2 id={headingId} ref={headingRef} tabIndex={-1} className="rounded-md px-3 py-1.5 text-title font-semibold">
+            {tRoot(K.inboxDocNoAccess)}
+          </h2>
+        ) : (
+          <>
+            <h2 id={headingId} className="text-title font-semibold">{t("locked_title")}</h2>
+            <p className="text-body text-muted-foreground">{t("locked_body")}</p>
+          </>
+        )}
       </div>
 
       {done ? (
@@ -239,20 +262,30 @@ export function MemberLockedCard({
               {sending ? <Spinner /> : null}
               {sending ? t("sending") : t("send")}
             </Button>
-            <RetryAndBack retrying={retrying} onRetryOpen={onRetryOpen} onBack={onBack} />
+            <RetryAndBack retrying={retrying} onRetryOpen={onRetryOpen} onBack={onBack} inboxHref={inboxHref} />
           </div>
         </form>
       )}
       {done ? (
         <div className="flex flex-wrap gap-2">
-          <RetryAndBack retrying={retrying} onRetryOpen={onRetryOpen} onBack={onBack} />
+          <RetryAndBack retrying={retrying} onRetryOpen={onRetryOpen} onBack={onBack} inboxHref={inboxHref} />
         </div>
       ) : null}
     </section>
   );
 }
 
-function RetryAndBack({ retrying, onRetryOpen, onBack }: { retrying: boolean; onRetryOpen: () => void; onBack: () => void }) {
+function RetryAndBack({
+  retrying,
+  onRetryOpen,
+  onBack,
+  inboxHref,
+}: {
+  retrying: boolean;
+  onRetryOpen: () => void;
+  onBack: () => void;
+  inboxHref?: string | null;
+}) {
   const { t } = useTranslation();
   return (
     <>
@@ -268,9 +301,15 @@ function RetryAndBack({ retrying, onRetryOpen, onBack }: { retrying: boolean; on
         {retrying ? <Spinner /> : <RefreshCw aria-hidden className="size-3.5" />}
         {t("documents.access_request.retry_open")}
       </Button>
-      <Button type="button" variant="ghost" size="sm" onClick={onBack}>
-        {t("documents.detail.back_to_library")}
-      </Button>
+      {inboxHref ? (
+        <AppLink href={inboxHref} className={cn(buttonVariants({ variant: "outline", size: "sm" }))}>
+          {t(K.inboxBack)}
+        </AppLink>
+      ) : (
+        <Button type="button" variant="ghost" size="sm" onClick={onBack}>
+          {t("documents.detail.back_to_library")}
+        </Button>
+      )}
     </>
   );
 }

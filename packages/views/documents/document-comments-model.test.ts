@@ -14,6 +14,7 @@ import {
   listSignature,
   replyTargetOf,
   threadsOf,
+  versionViewTarget,
 } from "./document-comments-model";
 
 const file = (filename: string, mime = "application/octet-stream"): Pick<Document, "kind" | "file"> => ({
@@ -227,5 +228,31 @@ describe("G8-18 / DOC-05 model rules", () => {
     expect(run({ canShare: undefined, doc: { my_level: undefined, owner_kind: undefined, admin_scope: true }, currentUserId: U1 })[0]!.can_share).toBe(false);
     // Work Product documents never share.
     expect(run({ canShare: undefined, doc: { my_level: "manage", owner_kind: "task", admin_scope: undefined } })[0]!.can_share).toBe(false);
+  });
+});
+
+describe("versionViewTarget (UNI-2033: the version a lost comment can be viewed in)", () => {
+  const lost = (over: Partial<DocumentComment> = {}) => c({ anchor_state: "lost", anchor_version_no: 2, ...over });
+  const docx = { ...file("Kế hoạch.docx"), file: { ...file("Kế hoạch.docx").file!, version: 5 } };
+
+  it("names the version of a lost comment on a document a module frame opens", () => {
+    expect(versionViewTarget(lost(), docx)).toBe(2);
+    for (const name of ["a.xlsx", "a.pptx", "a.pdf"]) expect(versionViewTarget(lost(), file(name))).toBe(2);
+  });
+
+  it("is hidden when the number is unknown, drifted, or the open (head) version itself", () => {
+    expect(versionViewTarget(lost({ anchor_version_no: null }), docx)).toBeNull();
+    expect(versionViewTarget(lost({ anchor_version_no: undefined }), docx)).toBeNull();
+    expect(versionViewTarget(lost({ anchor_version_no: 0 }), docx)).toBeNull();
+    expect(versionViewTarget(lost({ anchor_version_no: 1.5 }), docx)).toBeNull();
+    expect(versionViewTarget(lost({ anchor_version_no: 5 }), docx)).toBeNull();
+  });
+
+  it("is hidden for any other state and for a document no module frame opens", () => {
+    expect(versionViewTarget(lost({ anchor_state: "stale" }), docx)).toBeNull();
+    expect(versionViewTarget(lost({ anchor_state: "exact" }), docx)).toBeNull();
+    expect(versionViewTarget(lost({ anchor_state: null }), docx)).toBeNull();
+    expect(versionViewTarget(lost(), file("notes.txt"))).toBeNull();
+    expect(versionViewTarget(lost(), { kind: "page", file: null })).toBeNull();
   });
 });

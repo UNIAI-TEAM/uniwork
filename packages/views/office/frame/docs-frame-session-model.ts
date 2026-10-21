@@ -107,6 +107,8 @@ export type DocsFrameSaveState = "ready" | "dirty" | "saving" | "saved" | "error
 export interface OfficeFrameFileRef {
   kind: "document" | "source";
   id: string;
+  /** A stored version of a `document` (UNI-2033): opened read-only on the document token, no lock, no feed. */
+  version?: number;
 }
 
 export interface DocsFrameSizeWarning {

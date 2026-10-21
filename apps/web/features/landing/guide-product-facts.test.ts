@@ -11,7 +11,7 @@ describe("public product claims", () => {
     expect(guideContent("office-files-and-ai", locale).sections.find(section => section.table)?.table).toEqual(table);
   });
   it("has matching bilingual article structure and labels sample data", () => {
-    for (const key of ["about", "security", "start-with-tasks", "office-files-and-ai", "meetings-to-tasks"]) {
+    for (const key of ["about", "security", "privacy", "start-with-tasks", "office-files-and-ai", "meetings-to-tasks"]) {
       const vi = guideContent(key, "vi");
       const en = guideContent(key, "en");
       expect(vi.sections.length).toBe(en.sections.length);

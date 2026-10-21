@@ -111,6 +111,122 @@ describe("ChatDocumentMessageRow", () => {
     useCommitDocumentVersionMock.mockReset().mockReturnValue({ mutateAsync: vi.fn(), isPending: false });
   });
 
+  it("washes the row on a deep-link jump like the other rows, without the heavy ring (UNI-2010)", () => {
+    renderCard(documentMessage(DOC), { highlighted: true });
+    const article = document.querySelector("#chat-msg-m-doc");
+    expect(article).toHaveClass("before:bg-brand-subtle", "before:ring-1", "before:ring-brand/25");
+    expect(article).not.toHaveClass("ring-2");
+    expect(article).not.toHaveClass("ring-brand");
+    expect(article).not.toHaveClass("bg-brand-subtle");
+  });
+
+  describe("on the bubble it sits on (UNI-2010)", () => {
+    const FULL = {
+      ...DOC,
+      viewer_level: "manage" as const,
+      recipient_count: 2,
+      viewer_can_manage: true,
+      viewer_can_upload_version: true,
+      can_open_in_app: true,
+    };
+    const desktopOpen = (() => ({
+      deploymentId: "dep-1",
+      channel: "stable",
+      savedVersion: 3,
+      loadInstallers: vi.fn(),
+      loadPlatformHint: vi.fn(),
+      downloadInstaller: vi.fn(),
+      launch: vi.fn(),
+    })) as unknown as ChatDocumentDesktopOpen;
+    // A bare outline/ghost/default class set resolves to bg-background / bg-primary on the brand bubble.
+    const barePaint = ["bg-background", "dark:bg-input/30", "border-input", "bg-primary", "bg-secondary", "text-muted-foreground", "text-foreground"];
+    const ownControl = ["bg-chat-bubble-own-foreground/15", "text-chat-bubble-own-foreground"];
+    // Hover / open menu invert to white with brand text (>= 4.5:1); the old /25 wash measured 3.86:1.
+    const ownInverted = [
+      "hover:bg-chat-bubble-own-foreground",
+      "hover:text-chat-bubble-own",
+      "aria-expanded:bg-chat-bubble-own-foreground",
+      "aria-expanded:text-chat-bubble-own",
+      "focus-visible:outline-chat-bubble-own-foreground",
+    ];
+
+    it("own bubble: every control wears the own-bubble family, none a bare variant paint", () => {
+      renderCard(documentMessage(FULL), { isOwn: true, desktopOpen });
+      for (const name of ["Quản lý quyền truy cập", "Tải lên phiên bản mới", "Tùy chọn UniWork Office"]) {
+        const control = screen.getByRole("button", { name });
+        expect(control).toHaveClass(...ownControl, ...ownInverted);
+        expect(control).not.toHaveClass("hover:bg-chat-bubble-own-foreground/25", "aria-expanded:bg-chat-bubble-own-foreground/25");
+        for (const bare of barePaint) expect(control).not.toHaveClass(bare);
+      }
+      // The primary Open button inverts: it must not vanish into the brand fill.
+      const open = screen.getByRole("button", { name: "Mở bằng UniWork Office" });
+      expect(open).toHaveClass("bg-chat-bubble-own-foreground", "text-chat-bubble-own", "focus-visible:outline-chat-bubble-own-foreground");
+      expect(open).not.toHaveClass("bg-primary");
+      expect(open).not.toHaveClass("text-primary-foreground");
+    });
+
+    it("own bubble: title, secondary line and level badge stay readable on the brand fill", () => {
+      renderCard(documentMessage(FULL), { isOwn: true });
+      expect(screen.getByRole("button", { name: /Mở trong Tài liệu/ })).toHaveClass("text-chat-bubble-own-foreground");
+      expect(screen.getByRole("button", { name: /Mở trong Tài liệu/ })).not.toHaveClass("text-foreground");
+      expect(screen.getByRole("button", { name: /Mở trong Tài liệu/ })).toHaveClass("focus-visible:outline-chat-bubble-own-foreground");
+      const secondary = screen.getByText(/Phiên bản 3/);
+      expect(secondary).toHaveClass("text-chat-bubble-own-meta");
+      expect(secondary).not.toHaveClass("text-muted-foreground");
+      const badge = screen.getByText("Quản lý");
+      expect(badge).toHaveClass(...ownControl);
+      expect(badge).not.toHaveClass("bg-secondary");
+      // The badge is a plain span: only the resting look, never the control's hover / open / focus states.
+      expect(badge.className).not.toMatch(/(^|\s)(hover|aria-expanded|focus-visible):\S*chat-bubble-own/);
+    });
+
+    it("other bubble: the time stays plain meta in its px-1 wrapper, no wall chip", () => {
+      renderCard(documentMessage(FULL), { isOwn: false });
+      const meta = document.querySelector("time")?.parentElement;
+      expect(meta).not.toHaveClass("bg-chat-chip");
+      expect(meta).not.toHaveClass("text-chat-chip-foreground");
+      expect(meta).not.toHaveClass("self-end");
+      expect(meta?.parentElement).toHaveClass("px-1");
+    });
+
+    it("own bubble: the time and ticks sit on the wall chip, not in the near-white own-meta tone", () => {
+      renderCard(documentMessage(FULL), { isOwn: true });
+      const time = document.querySelector("time");
+      const meta = time?.parentElement;
+      expect(meta).toHaveClass("bg-chat-chip", "text-chat-chip-foreground", "self-end");
+      expect(meta).not.toHaveClass("text-chat-bubble-own-meta");
+      expect(meta?.querySelector(".text-chat-bubble-own-foreground")).toBeNull();
+      // self-end only aligns the chip under my bubble inside the column's flex container, as the GIF row does.
+      expect(meta?.parentElement).toHaveClass("flex", "flex-col");
+    });
+
+    it("own bubble: the locked card and the neutral card read on the brand fill", () => {
+      renderCard(documentMessage({ document_id: "doc1", viewer_has_access: false }), { isOwn: true });
+      const request = screen.getByRole("button", { name: "Yêu cầu quyền truy cập" });
+      expect(request).toHaveClass(...ownControl);
+      for (const bare of barePaint) expect(request).not.toHaveClass(bare);
+      expect(screen.getByText("Không có quyền truy cập")).toHaveClass("text-chat-bubble-own-foreground");
+    });
+
+    it("own bubble: the neutral filename card keeps its text readable", () => {
+      renderCard(documentMessage(undefined), { isOwn: true });
+      expect(screen.getByText("Báo cáo Q3.docx")).toHaveClass("text-chat-bubble-own-foreground");
+    });
+
+    it("other bubble: the card keeps its outline buttons, grey secondary text and brand primary", () => {
+      renderCard(documentMessage(FULL), { isOwn: false, desktopOpen });
+      for (const name of ["Quản lý quyền truy cập", "Tải lên phiên bản mới", "Tùy chọn UniWork Office"]) {
+        const control = screen.getByRole("button", { name });
+        expect(control).toHaveClass("bg-background", "border-input");
+        expect(control).not.toHaveClass("bg-chat-bubble-own-foreground/15");
+      }
+      expect(screen.getByRole("button", { name: "Mở bằng UniWork Office" })).toHaveClass("bg-primary", "text-primary-foreground");
+      expect(screen.getByText(/Phiên bản 3/)).toHaveClass("text-muted-foreground");
+      expect(screen.getByRole("button", { name: /Mở trong Tài liệu/ })).toHaveClass("text-foreground");
+      expect(screen.getByText("Quản lý")).toHaveClass("bg-secondary");
+    });
+  });
+
   it("renders a neutral filename card when the document block is absent", () => {
     renderCard(documentMessage(undefined));
     expect(screen.getByText("Báo cáo Q3.docx")).toBeInTheDocument();

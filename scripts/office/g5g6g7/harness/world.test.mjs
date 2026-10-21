@@ -109,7 +109,11 @@ before(async () => {
       const raw = Buffer.concat(chunks);
       let body = null;
       if ((req.headers["content-type"] ?? "").includes("application/json")) body = JSON.parse(raw.toString("utf8") || "null");
-      else if (raw.length) body = { multipart: raw.length };
+      else if (raw.length) {
+        // Part names and text values in wire order (binary file content is not decoded).
+        const parts = [...raw.toString("latin1").matchAll(/Content-Disposition: form-data; name="([^"]+)"(?:; filename="[^"]*")?\r\n(?:Content-Type: [^\r]*\r\n)?\r\n([^\r]*)/g)];
+        body = { multipart: raw.length, parts: parts.map((m) => m[1]), fields: Object.fromEntries(parts.filter((m) => m[1] !== "file").map((m) => [m[1], m[2]])) };
+      }
       const [status, payload] = handle(req.method, req.url.split("?")[0], req.headers.authorization, body);
       res.writeHead(status, { "content-type": "application/json" });
       res.end(payload === null ? "" : JSON.stringify(payload));
@@ -261,6 +265,9 @@ test("upload, share, revokeShare, deactivate go to the server as the named user 
   const upload = log.find((l) => l.route === "POST /api/v1/workspaces/:id/documents/files");
   assert.equal(upload.user, world.users.A.email);
   assert.ok(upload.body.multipart > 1000);
+  // The server reads text fields only before the file part, so the file goes last; visibility defaults to workspace.
+  assert.deepEqual(upload.body.parts, ["title", "visibility", "file"]);
+  assert.equal(upload.body.fields.visibility, "workspace");
   const { shareId } = await world.share("A", up.documentId, world.users.B.id, "view");
   assert.deepEqual(log.at(-1).body, { principal_type: "user", principal_id: world.users.B.id, level: "view" });
   assert.equal(world.shares[shareId].revoked, false);

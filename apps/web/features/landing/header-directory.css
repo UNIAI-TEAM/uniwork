@@ -55,8 +55,8 @@ a.header-app:hover > svg:last-child { color: var(--foreground); transform: trans
 .header-mobile-menu .header-editorial-links { grid-template-columns: 1fr; gap: 4px; padding-bottom: 12px; }
 .header-mobile-menu .header-apps { grid-template-columns: minmax(0, 1fr); gap: 0; padding: 4px 0 12px; }
 .header-mobile-menu .header-apps-title, .header-mobile-menu .header-quick, .header-mobile-menu .header-app-platforms, .header-mobile-menu .header-app > svg:last-child { display: none; }
-.header-mobile-menu .header-app { grid-template-columns: 44px minmax(0, 1fr); gap: 12px; min-height: 60px; padding: 8px; }
-/* The mobile menu shrinks every link svg to 16px; the app icon keeps its own size. */
+.header-mobile-menu .header-app { display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 12px; min-height: 60px; padding: 8px; }
+/* Keep the app icon aligned with the fixed icon column. */
 .header-mobile-menu .header-app svg.app-icon { width: 44px; height: 44px; }
 .header-mobile-menu .header-directory-footer { padding: 8px 12px; flex-wrap: wrap; }
 .header-mobile-menu .header-directory-footer > span { display: none; }

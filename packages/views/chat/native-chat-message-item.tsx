@@ -12,6 +12,7 @@ import { ChatDocumentVersionRow } from "./chat-document-version-row";
 import { ChatNoteMessageRow } from "./chat-note-message-row";
 import { ChatPostMessageRow } from "./chat-post-message-row";
 import { ChatPollMessageRow } from "./chat-poll-message-row";
+import { ChatPollVoteActivityRow } from "./chat-poll-vote-activity-row";
 import { ChatReminderMessageRow } from "./chat-reminder-message-row";
 import { ChatVoiceMessageRow } from "./chat-voice-message-row";
 import { VoiceCallLogRow } from "./voice-call-log-row";
@@ -214,6 +215,16 @@ function MessageBody({
   }
   if (message.kind === "post" && message.post) {
     return <ChatPostMessageRow post={message.post} {...cardProps} />;
+  }
+  if (message.kind === "poll_vote" && message.pollVote) {
+    const jump = actions.onJumpToMessage;
+    return (
+      <ChatPollVoteActivityRow
+        senderLabel={senderLabel}
+        question={message.pollVote.question}
+        onViewPoll={jump ? () => jump(message.pollVote!.pollMessageId) : undefined}
+      />
+    );
   }
   if (message.kind === "poll" && message.poll) {
     return (

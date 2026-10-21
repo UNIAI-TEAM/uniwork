@@ -212,10 +212,20 @@ func (s *ChatService) VoteChatPollMessage(
 	if err := s.requireCanSendInRoom(ctx, userID, room.ID, room); err != nil {
 		return ChatMessageRow{}, err
 	}
+	var activity *ChatPollVoteActivityPayload
 	updated, err := s.mutateChatMessageMetadata(ctx, messageID, room.ID, roomAnchorWorkspaceID(room),
-		func(msg db.ChatMessage) ([]byte, error) { return applyPollVote(msg, userID, optionID) })
+		func(msg db.ChatMessage) ([]byte, error) {
+			meta, act, applyErr := applyPollVote(msg, userID, optionID)
+			activity = act
+			return meta, applyErr
+		})
 	if err != nil {
 		return ChatMessageRow{}, err
+	}
+	if activity != nil {
+		if err := s.sendPollVoteActivityMessage(ctx, userID, room, *activity); err != nil {
+			return ChatMessageRow{}, err
+		}
 	}
 	u, err := s.q.GetUserByID(ctx, updated.SenderID)
 	if err != nil {
@@ -226,16 +236,16 @@ func (s *ChatService) VoteChatPollMessage(
 }
 
 // applyPollVote toggles userID's vote for optionID and returns the new metadata.
-func applyPollVote(msg db.ChatMessage, userID, optionID string) ([]byte, error) {
+func applyPollVote(msg db.ChatMessage, userID, optionID string) ([]byte, *ChatPollVoteActivityPayload, error) {
 	if msg.Kind != chatMessageKindPoll {
-		return nil, Invalid("tin nhắn không phải bình chọn")
+		return nil, nil, Invalid("tin nhắn không phải bình chọn")
 	}
 	meta := decodeChatMessageMetadata(msg.Metadata)
 	if meta.Poll == nil {
-		return nil, Invalid("dữ liệu bình chọn không hợp lệ")
+		return nil, nil, Invalid("dữ liệu bình chọn không hợp lệ")
 	}
 	if pollIsExpired(meta.Poll.Settings, time.Now()) {
-		return nil, Invalid("bình chọn đã kết thúc")
+		return nil, nil, Invalid("bình chọn đã kết thúc")
 	}
 
 	userKey := strings.ToUpper(strings.TrimSpace(userID))
@@ -251,7 +261,7 @@ func applyPollVote(msg db.ChatMessage, userID, optionID string) ([]byte, error) 
 		}
 	}
 	if !optionExists {
-		return nil, Invalid("lựa chọn không hợp lệ")
+		return nil, nil, Invalid("lựa chọn không hợp lệ")
 	}
 
 	nextVotes := previous
@@ -299,5 +309,16 @@ func applyPollVote(msg db.ChatMessage, userID, optionID string) ([]byte, error) 
 		meta.Poll.VotesByUser[userKey] = nextVotes
 	}
 
-	return json.Marshal(meta)
+	raw, err := json.Marshal(meta)
+	if err != nil {
+		return nil, nil, err
+	}
+	var activity *ChatPollVoteActivityPayload
+	if len(nextVotes) > 0 && !voteSelectionEqual(previous, nextVotes) {
+		activity = &ChatPollVoteActivityPayload{
+			PollMessageID: msg.ID,
+			Question:      meta.Poll.Question,
+		}
+	}
+	return raw, activity, nil
 }
