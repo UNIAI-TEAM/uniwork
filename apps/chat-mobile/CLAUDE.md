@@ -154,8 +154,9 @@ app kiểm ở `.github/workflows/mobile-verify.yml`: job `mobile` (typecheck, l
 hai lớp test, `scripts/mobile-*.test.mjs`), `doctor-bundle` (`expo-doctor` rồi
 `expo export --platform android` giữ trong `bundle-budget.json` bởi
 `scripts/mobile-bundle-budget.mjs`) và `android-release` (`expo prebuild` +
-`./gradlew :app:assembleRelease`, chỉ khi `scripts/mobile-native-scope.mjs` nói
-thay đổi chạm binary). Thêm gói làm bundle nặng hơn trần thì nâng trần cùng
+`./gradlew :app:assembleRelease` x86_64, chỉ khi `scripts/mobile-native-scope.mjs`
+nói thay đổi chạm binary) rồi `android-smoke` (cài APK đó lên emulator, chạy
+`maestro/flows/smoke-launch.yaml`: mở lạnh tới màn đăng nhập, không cần server). Thêm gói làm bundle nặng hơn trần thì nâng trần cùng
 commit, ghi lý do; bundle nhỏ đi thì hạ trần. Không có script `build`.
 Thêm gói native bằng `pnpm --filter @uniwork/chat-mobile exec expo install <pkg>`;
 nếu Metro kẹt vì layout isolated của pnpm thì dừng và báo, không thêm

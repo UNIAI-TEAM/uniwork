@@ -26,10 +26,12 @@ test("the release runs every PR check on the tagged SHA before EAS, Android only
 test("mobile-verify can be called and builds the release only through its jobs", () => {
   const wf = read("mobile-verify.yml");
   assert.match(wf, /^ {2}workflow_call:$/m);
-  for (const job of ["scope", "checks", "doctor-bundle", "android-release"]) assert.match(wf, new RegExp(`^ {2}${job}:$`, "m"), `job ${job}`);
+  for (const job of ["scope", "checks", "doctor-bundle", "android-release", "android-smoke"]) assert.match(wf, new RegExp(`^ {2}${job}:$`, "m"), `job ${job}`);
   assert.match(envPin(wf, "EXPO_DOCTOR_VERSION") ?? "", EXACT, "EXPO_DOCTOR_VERSION is an exact version");
   assert.match(wf, /node scripts\/mobile-bundle-budget\.mjs/);
   assert.match(wf, /\.\/gradlew :app:assembleRelease/);
+  assert.match(wf, /maestro test flows\/smoke-launch\.yaml/, "the cold-start smoke runs the release APK");
+  assert.match(envPin(wf, "MAESTRO_VERSION") ?? "", EXACT, "MAESTRO_VERSION is an exact version");
   assert.match(wf, /scripts\/mobile-workflows\.test\.mjs/, "the contract step runs this test");
   assert.doesNotMatch(wf, /secrets\./, "the PR checks read no secret");
 });

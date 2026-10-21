@@ -9,6 +9,7 @@ test("the app's own code, config and assets need the native build; its docs, flo
     "apps/chat-mobile/package.json",
     "apps/chat-mobile/components/chat/composer.tsx",
     "apps/chat-mobile/assets/icon.png",
+    "apps/chat-mobile/maestro/flows/smoke-launch.yaml",
     "apps/chat-mobile/CLAUDE.md",
     "apps/chat-mobile/maestro/flows/call-join.yaml",
     "apps/chat-mobile/store/listing.md",
@@ -19,7 +20,7 @@ test("the app's own code, config and assets need the native build; its docs, flo
     "apps/chat-mobile/jest.config.js",
     "apps/chat-mobile/vitest.config.ts",
   ];
-  assert.deepEqual(nativePaths(changed, new Set()), changed.slice(0, 4));
+  assert.deepEqual(nativePaths(changed, new Set()), changed.slice(0, 5));
 });
 
 test("the install graph and the workflow itself need it", () => {

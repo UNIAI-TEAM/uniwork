@@ -22,7 +22,8 @@ nâng SDK Expo) → bump `version` và cắt tag mới; chỉ đổi JS/asset �
   100% và test component jest-expo, các test hợp đồng `scripts/mobile-*.test.mjs`); `doctor-bundle` (`expo-doctor`
   ghim `EXPO_DOCTOR_VERSION`, rồi `expo export --platform android` cấu hình production, đo bằng
   `scripts/mobile-bundle-budget.mjs` theo `apps/chat-mobile/bundle-budget.json`: bytecode Hermes, gzip, số module);
-  `android-release` (`expo prebuild` + `./gradlew :app:assembleRelease`, arm64) chỉ khi thay đổi chạm binary
+  `android-release` (`expo prebuild` + `./gradlew :app:assembleRelease`, x86_64) rồi `android-smoke` (APK đó trên
+  emulator, `maestro/flows/smoke-launch.yaml`: mở lạnh tới màn đăng nhập) chỉ khi thay đổi chạm binary
   (`scripts/mobile-native-scope.mjs`: code/cấu hình/asset của app, đồ thị cài đặt, file `packages/core` app import
   lúc chạy). Không đọc secret: URL máy chủ là placeholder, `SENTRY_DISABLE_AUTO_UPLOAD=true`.
 - `chat-mobile-release.yml` gọi đúng workflow đó trên SHA của tag (job `verify`) trước khi đụng EAS.
@@ -88,7 +89,8 @@ Developer và đăng ký máy (`eas device:create`) trước `eas build -p ios -
 
 - Run release xanh với notice `EXPO_TOKEN is not set` — đúng khi chưa thiết lập; sau thiết lập là thiếu secret.
 - Run release đỏ ở job `verify`: một kiểm tra của PR không qua trên SHA của tag (thường là commit chưa qua PR).
-- PR đỏ ở `Bundle budget` (`… is over the ceiling …`), ở `expo-doctor`, hoặc ở `Android release build`.
+- PR đỏ ở `Bundle budget` (`… is over the ceiling …`), ở `expo-doctor`, ở `Android release build`, hoặc ở
+  `Android cold-start smoke` (app crash lúc mở; artifact `maestro-smoke` có log và ảnh chụp).
 - Run release đỏ: `… is on neither main nor develop`, `… does not match app.config.ts version`, `eas build` (cấu hình,
   cài gói, biên dịch native) hoặc submit (khoá ASC/Play, `ascAppId`, bản Play đầu chưa tải tay,
   `Only releases with status draft may be created on draft app`).
@@ -136,6 +138,8 @@ Developer và đăng ký máy (`eas device:create`) trước `eas build -p ios -
    ghi lý do trong body. `expo-doctor` đỏ: làm theo lời khuyên của nó (lệch phiên bản gói thì
    `pnpm --filter @uniwork/chat-mobile exec expo install --check`). `Android release build` đỏ mà EAS chưa đụng tới:
    tái hiện bằng `expo prebuild -p android` + `./gradlew :app:assembleRelease` trên máy có Android SDK.
+   `Android cold-start smoke` đỏ: tải artifact `unichat-release-apk`, cài lên emulator/máy, `adb logcat` lúc mở
+   (thường là module native thiếu hoặc lỗi JS lúc boot); `maestro test apps/chat-mobile/maestro/flows/smoke-launch.yaml`.
 10. Nightly đỏ ở `gate`: đặt các biến/secrets `MAESTRO_*` (Thiết lập lần đầu, bước 7); chưa có server staging thì
    chạy tay với `maestro` bỏ chọn — run theo lịch sẽ đỏ mỗi đêm cho tới khi có, có chủ đích.
 11. Khoá Apple/Google hết hạn hoặc lộ: thu hồi ở Apple/Google, tạo khoá mới, tải lại bằng `eas credentials`; `EXPO_TOKEN`

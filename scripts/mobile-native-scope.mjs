@@ -18,7 +18,8 @@ import { root, runtimeClosure } from "./mobile-core-graph.mjs";
 
 const APP = "apps/chat-mobile/";
 // Docs, store copy, device flows, tests and the configs only the checks read.
-const APP_NOT_NATIVE = [/\.md$/, /^maestro\//, /^store\//, /\.test\.tsx?$/, /^test\//, /^(eslint|jest|vitest)\.config\.[cm]?[jt]s$/];
+// The cold-start smoke flow is the exception: android-smoke runs it.
+const APP_NOT_NATIVE = [/\.md$/, /^maestro\/(?!flows\/smoke-launch\.yaml$)/, /^store\//, /\.test\.tsx?$/, /^test\//, /^(eslint|jest|vitest)\.config\.[cm]?[jt]s$/];
 const INSTALL_GRAPH = new Set(["package.json", "pnpm-lock.yaml", "pnpm-workspace.yaml", ".github/workflows/mobile-verify.yml", "scripts/mobile-native-scope.mjs"]);
 
 /** The changed paths that need the native build; empty when none does. */
