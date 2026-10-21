@@ -141,7 +141,9 @@ Runbook: `docs/runbooks/unichat-mobile-release.md`; plan:
 - `version` trong `app.config.ts` là `runtimeVersion` (`policy: appVersion`):
   đổi native (gói native, plugin, quyền, SDK) thì bump nó; chỉ đổi JS thì phát
   OTA. Chưa có `EAS_PROJECT_ID` thì `updates.enabled: false` và push bỏ qua.
-  `knip.json` bỏ qua `expo-updates` vì knip đọc config dev, và hai gói
+  `knip.json` bỏ qua `@babel/plugin-transform-react-jsx` (preset
+  `react-native-css-interop/babel` gọi nó theo tên mà không khai; thiếu thì
+  bước `createReleaseUpdatesResources` của build release đỏ), `expo-updates` vì knip đọc config dev, và hai gói
   `@expo-google-fonts/*` vì `app.config.ts` chỉ trỏ tới file `.ttf` của chúng.
 - Tag `chat-mobile-v<version>` → `.github/workflows/chat-mobile-release.yml`
   (EAS build + auto-submit, Environment `chat-mobile-release`, chỉ
