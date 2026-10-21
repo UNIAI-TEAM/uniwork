@@ -127,3 +127,25 @@ WHERE status <> 'open' AND finished_at IS NOT NULL AND finished_at < now() - int
 -- File rows whose batch the settled-batch delete removed.
 DELETE FROM document_folder_upload_files f
 WHERE NOT EXISTS (SELECT 1 FROM document_folder_uploads b WHERE b.id = f.batch_id);
+
+-- name: SetDocumentFolderUploadFileContent :execrows
+-- The server content route records the upload its PUT stored and the ETag it
+-- answered. A later PUT of the same pending file replaces both (the caller
+-- cancels the upload it replaced); a file whose target is a presigned PUT or
+-- a multipart session (a ref without an ETag) is never taken over.
+UPDATE document_folder_upload_files
+SET upload_ref = sqlc.arg(upload_ref), content_etag = sqlc.arg(content_etag), updated_at = now()
+WHERE id = sqlc.arg(id) AND organization_id = sqlc.arg(organization_id)
+  AND workspace_id = sqlc.arg(workspace_id) AND status = 'pending'
+  AND target_kind = 'put' AND (upload_ref IS NULL OR content_etag IS NOT NULL);
+
+-- name: CompleteSettledDocumentFolderUpload :execrows
+-- An open batch whose files are all done or failed becomes completed.
+UPDATE document_folder_uploads b
+SET status = 'completed', updated_at = now(), finished_at = now()
+WHERE b.id = sqlc.arg(id) AND b.organization_id = sqlc.arg(organization_id)
+  AND b.workspace_id = sqlc.arg(workspace_id) AND b.status = 'open'
+  AND NOT EXISTS (
+    SELECT 1 FROM document_folder_upload_files f
+    WHERE f.batch_id = b.id AND f.organization_id = b.organization_id AND f.status = 'pending'
+  );
