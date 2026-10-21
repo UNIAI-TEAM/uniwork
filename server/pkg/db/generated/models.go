@@ -1894,6 +1894,14 @@ type NotificationDelivery struct {
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 }
 
+type NotificationDocument struct {
+	OrganizationID string             `json:"organization_id"`
+	NotificationID string             `json:"notification_id"`
+	DocumentID     string             `json:"document_id"`
+	TitleSnapshot  pgtype.Text        `json:"title_snapshot"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+}
+
 type NotificationPreference struct {
 	UserID    string             `json:"user_id"`
 	Kind      string             `json:"kind"`

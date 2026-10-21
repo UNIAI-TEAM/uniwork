@@ -195,6 +195,8 @@ func newIsolationServer(t *testing.T) *isoWorld {
 	docs.SetEditLockConfig(service.DocumentEditLockConfig{TTL: time.Hour})
 	docs.SetAccessRequestSources(d.Tasks, d.Meetings)
 	d.Documents = docs
+	// As main.go wires it: the inbox names a document only through the read gate.
+	d.Notifications.SetDocumentReaders(docs)
 	// The chat document send files its bytes into the same Documents service
 	// (UNI-1966): without it the route answers 501 and the isolation row
 	// proves nothing.
@@ -1009,6 +1011,13 @@ func (w *isoWorld) buildSeeded(t *testing.T, tn *isoTenant) {
 		t.Fatalf("notification: %v", err)
 	}
 	tn.ids["notification"] = n.ID
+	// One document row of that notification (UNI-2056), as the consumer
+	// writes it for a document_changed notice.
+	if _, err := w.q.InsertNotificationDocument(ctx, db.InsertNotificationDocumentParams{
+		OrganizationID: tn.orgID, NotificationID: n.ID, DocumentID: tn.ids["document"],
+	}); err != nil {
+		t.Fatalf("notification document: %v", err)
+	}
 
 	// The comment orbit G8-03 added (UNI-1398): one edit-history row and one
 	// mention row of the document comment. Revisions are written by the edit

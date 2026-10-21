@@ -498,6 +498,7 @@ func New(d Deps) http.Handler {
 		WorkManagementCapabilityStub: h.workManagementCapabilityStub,
 
 		ListNotifications:          h.listNotifications,
+		ListNotificationDocuments:  h.listNotificationDocuments,
 		UnreadNotificationCount:    h.unreadNotificationCount,
 		MarkNotificationsRead:      h.markNotificationsRead,
 		MarkNotificationsUnread:    h.markNotificationsUnread,

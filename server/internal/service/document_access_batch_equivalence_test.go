@@ -176,7 +176,10 @@ func normalizeBatchID(s, batchID string) string {
 // at the same level (still "unchanged", but taken over as manual, B4) and below
 // it (replaced, provenance dropped), a workspace grant raise, a new organization grant, the home row,
 // an organization admin below their member level, a revoke of nobody, and a
-// run of fresh grantees. Same input must give the same results, preview,
+// run of fresh grantees. The home row item is the one that also writes the
+// document_changed notice (document.change_noticed, UNI-2056) beside its
+// workspace_access_changed frame, from writeDocumentHomeRow, the same call the
+// single-item path makes. Same input must give the same results, preview,
 // share rows, audit rows and outbox rows, in the same order.
 func TestDocumentAccessBatchMatchesThePerItemPath(t *testing.T) {
 	f := newDocPermFixture(t)
@@ -383,6 +386,7 @@ outbox document.shared document_id=DOC share_id=share(workspace/WSB/comment/live
 outbox document.shared document_id=DOC notify_user_id=fresh0 share_id=share(user/fresh0/view/live) workspace_id=WSA
 outbox document.shared document_id=DOC share_id=share(organization/ORG/view/live) workspace_id=WSA
 outbox document.workspace_access_changed document_id=DOC workspace_id=WSA
+outbox document.change_noticed document_id=DOC verb=access_changed workspace_id=WSA
 outbox document.shared document_id=DOC share_id=share(user/orgadmin/view/live) workspace_id=WSA
 outbox document.shared document_id=DOC notify_user_id=fresh1 share_id=share(user/fresh1/manage/live) workspace_id=WSA
 outbox document.shared document_id=DOC share_id=share(user/fresh4/view/live) workspace_id=WSA

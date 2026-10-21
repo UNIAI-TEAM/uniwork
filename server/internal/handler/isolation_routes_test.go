@@ -251,6 +251,27 @@ func (w *isoWorld) accessRequestSnapshot(t *testing.T, orgID string) string {
 	return snap
 }
 
+// isoNotificationDocumentsCheck proves the owner's control reads the one
+// notification_documents row the world seeds: the tenant's own document,
+// which its owner reads, comes back named and not deleted.
+func isoNotificationDocumentsCheck(t *testing.T, tn *isoTenant, raw []byte) {
+	t.Helper()
+	var out struct {
+		Documents []struct {
+			ID      string `json:"id"`
+			Title   string `json:"title"`
+			Deleted bool   `json:"deleted"`
+		} `json:"documents"`
+	}
+	if err := json.Unmarshal(raw, &out); err != nil {
+		t.Errorf("GET /me/notifications/{notificationID}/documents (%s): unmarshal: %v (%s)", tn.tag, err, isoClip(raw))
+		return
+	}
+	if len(out.Documents) != 1 || out.Documents[0].ID != tn.ids["document"] || out.Documents[0].Title == "" || out.Documents[0].Deleted {
+		t.Errorf("GET /me/notifications/{notificationID}/documents (%s): documents = %v, want the tenant's own document: %s", tn.tag, out.Documents, isoClip(raw))
+	}
+}
+
 // isoAccessRequestsListCheck asserts the populated manager list on
 // GET /documents/{documentID}/access-requests (BE-SD7-14): the two seeded
 // pending requests on accessRequestDocument carry their requester ids,
@@ -470,36 +491,37 @@ var isoRoutes = map[string]isoSpec{
 	"POST /api/v1/public/meeting-invite-links/resolve":       {class: isoPublic, reason: reasonLink},
 
 	// The caller's own account.
-	"GET /api/v1/ws":                            {class: isoRealtime, reason: "workspace WebSocket: membership is checked on the auth frame, scopes on subscribe - TestIsolationRealtime"},
-	"GET /api/v1/me":                            {class: isoSelf, reason: reasonSelf},
-	"GET /api/v1/me/chat/unread-summary":        {class: isoSelf, reason: reasonSelf},
-	"PATCH /api/v1/me":                          {class: isoSelf, reason: reasonSelf},
-	"POST /api/v1/me/avatar":                    {class: isoSelf, reason: reasonSelf},
-	"POST /api/v1/me/delete":                    {class: isoSelf, reason: reasonSelf},
-	"POST /api/v1/me/email/resend":              {class: isoSelf, reason: reasonSelf},
-	"POST /api/v1/me/email/verify":              {class: isoSelf, reason: reasonSelf},
-	"GET /api/v1/me/invitations":                {class: isoSelf, reason: reasonSelf},
-	"POST /api/v1/me/mfa/confirm":               {class: isoSelf, reason: reasonSelf},
-	"POST /api/v1/me/mfa/disable":               {class: isoSelf, reason: reasonSelf},
-	"POST /api/v1/me/mfa/setup":                 {class: isoSelf, reason: reasonSelf},
-	"GET /api/v1/me/notification-preferences":   {class: isoSelf, reason: reasonSelf},
-	"PUT /api/v1/me/notification-preferences":   {class: isoSelf, reason: reasonSelf},
-	"GET /api/v1/me/notifications":              {class: isoSelf, reason: reasonSelf},
-	"POST /api/v1/me/notifications/archive":     {class: isoSelf, reason: reasonSelf},
-	"POST /api/v1/me/notifications/read":        {class: isoSelf, reason: reasonSelf},
-	"POST /api/v1/me/notifications/unarchive":   {class: isoSelf, reason: reasonSelf},
-	"POST /api/v1/me/notifications/unread":      {class: isoSelf, reason: reasonSelf},
-	"GET /api/v1/me/notifications/unread-count": {class: isoSelf, reason: reasonSelf},
-	"PATCH /api/v1/me/onboarding":               {class: isoSelf, reason: reasonSelf},
-	"POST /api/v1/me/onboarding/complete":       {class: isoSelf, reason: reasonSelf},
-	"DELETE /api/v1/me/push-subscriptions":      {class: isoSelf, reason: reasonSelf},
-	"POST /api/v1/me/push-subscriptions":        {class: isoSelf, reason: reasonSelf},
-	"GET /api/v1/me/sessions":                   {class: isoSelf, reason: reasonSelf},
-	"POST /api/v1/me/sessions/revoke-others":    {class: isoSelf, reason: reasonSelf},
-	"DELETE /api/v1/me/sessions/{sessionId}":    {class: isoSelf, reason: reasonSelf},
-	"GET /api/v1/orgs":                          {class: isoSelf, reason: reasonSelf},
-	"POST /api/v1/orgs":                         {class: isoSelf, reason: "creates a new organization owned by the caller"},
-	"GET /api/v1/workspaces":                    {class: isoSelf, reason: reasonSelf},
+	"GET /api/v1/ws":                                          {class: isoRealtime, reason: "workspace WebSocket: membership is checked on the auth frame, scopes on subscribe - TestIsolationRealtime"},
+	"GET /api/v1/me":                                          {class: isoSelf, reason: reasonSelf},
+	"GET /api/v1/me/chat/unread-summary":                      {class: isoSelf, reason: reasonSelf},
+	"PATCH /api/v1/me":                                        {class: isoSelf, reason: reasonSelf},
+	"POST /api/v1/me/avatar":                                  {class: isoSelf, reason: reasonSelf},
+	"POST /api/v1/me/delete":                                  {class: isoSelf, reason: reasonSelf},
+	"POST /api/v1/me/email/resend":                            {class: isoSelf, reason: reasonSelf},
+	"POST /api/v1/me/email/verify":                            {class: isoSelf, reason: reasonSelf},
+	"GET /api/v1/me/invitations":                              {class: isoSelf, reason: reasonSelf},
+	"POST /api/v1/me/mfa/confirm":                             {class: isoSelf, reason: reasonSelf},
+	"POST /api/v1/me/mfa/disable":                             {class: isoSelf, reason: reasonSelf},
+	"POST /api/v1/me/mfa/setup":                               {class: isoSelf, reason: reasonSelf},
+	"GET /api/v1/me/notification-preferences":                 {class: isoSelf, reason: reasonSelf},
+	"PUT /api/v1/me/notification-preferences":                 {class: isoSelf, reason: reasonSelf},
+	"GET /api/v1/me/notifications":                            {class: isoSelf, reason: reasonSelf},
+	"GET /api/v1/me/notifications/{notificationID}/documents": {class: isoScoped, reason: "the caller's own notification row (it carries the tenant): B names A's id and gets the same 404 as an unknown one, and the page lists a document only after the read gate passes for the caller; control = the owner reads the seeded notification_documents row", checkControl: isoNotificationDocumentsCheck},
+	"POST /api/v1/me/notifications/archive":                   {class: isoSelf, reason: reasonSelf},
+	"POST /api/v1/me/notifications/read":                      {class: isoSelf, reason: reasonSelf},
+	"POST /api/v1/me/notifications/unarchive":                 {class: isoSelf, reason: reasonSelf},
+	"POST /api/v1/me/notifications/unread":                    {class: isoSelf, reason: reasonSelf},
+	"GET /api/v1/me/notifications/unread-count":               {class: isoSelf, reason: reasonSelf},
+	"PATCH /api/v1/me/onboarding":                             {class: isoSelf, reason: reasonSelf},
+	"POST /api/v1/me/onboarding/complete":                     {class: isoSelf, reason: reasonSelf},
+	"DELETE /api/v1/me/push-subscriptions":                    {class: isoSelf, reason: reasonSelf},
+	"POST /api/v1/me/push-subscriptions":                      {class: isoSelf, reason: reasonSelf},
+	"GET /api/v1/me/sessions":                                 {class: isoSelf, reason: reasonSelf},
+	"POST /api/v1/me/sessions/revoke-others":                  {class: isoSelf, reason: reasonSelf},
+	"DELETE /api/v1/me/sessions/{sessionId}":                  {class: isoSelf, reason: reasonSelf},
+	"GET /api/v1/orgs":                                        {class: isoSelf, reason: reasonSelf},
+	"POST /api/v1/orgs":                                       {class: isoSelf, reason: "creates a new organization owned by the caller"},
+	"GET /api/v1/workspaces":                                  {class: isoSelf, reason: reasonSelf},
 
 	// Office desktop bridge. The credential in each public route (the PKCE
 	// verifier with its one-time code, the refresh token, the preview

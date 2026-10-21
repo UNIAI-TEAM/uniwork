@@ -138,11 +138,13 @@ describe("NotificationsTab", () => {
     const sentOf = (call: RequestCall | undefined) => call?.[1]?.body?.preferences ?? [];
 
     // Mixed turns everything on: only the kinds that were off are written, all of
-    // them switched on. The omitted trash kind defaults email off (Q-R2) but can
-    // never hold it, so the bulk control does not claim it (BE-TN-11).
+    // them switched on - "mentioned" and the omitted document change notice,
+    // whose email starts off but may be on (UNI-2056). The omitted trash kind
+    // defaults email off (Q-R2) but can never hold it, so the bulk control does
+    // not claim it (BE-TN-11).
     fireEvent.click(screen.getByRole("checkbox", { name: "Email cho mọi loại phù hợp" }));
     await waitFor(() => expect(puts()).toHaveLength(1));
-    expect(sentOf(puts()[0]).map((p) => p.kind)).toEqual(["mentioned"]);
+    expect(sentOf(puts()[0]).map((p) => p.kind).sort()).toEqual(["document_changed", "mentioned"]);
     expect(sentOf(puts()[0]).every((p) => p.email)).toBe(true);
     expect(await screen.findByRole("checkbox", { name: "Email cho mọi loại phù hợp" })).toHaveAttribute("aria-checked", "true");
 
@@ -255,6 +257,28 @@ describe("NotificationsTab", () => {
     expect(await sw("Hộp việc")).toHaveAttribute("aria-checked", "true");
     expect(await sw("Đẩy")).toHaveAttribute("aria-checked", "false");
     expect(await sw("Email")).toHaveAttribute("aria-checked", "false");
+  });
+
+  // UNI-2056: the document_changed digest starts with email off, like
+  // DefaultPrefs, but the server allows it, so the switch still turns it on.
+  it("fills the document change notice with email off and lets it be switched on", async () => {
+    mockApi(false);
+    render(wrap(<NotificationsTab />));
+    const label = t("settings.notifications.kinds.document_changed");
+    expect(label).not.toBe("settings.notifications.kinds.document_changed");
+    const email = await screen.findByRole("switch", { name: `${label} · Email` });
+    expect(email).toHaveAttribute("aria-checked", "false");
+
+    fireEvent.click(email);
+    await waitFor(() =>
+      expect(requestMock).toHaveBeenCalledWith(
+        "/api/v1/me/notification-preferences",
+        expect.objectContaining({
+          method: "PUT",
+          body: { preferences: [{ kind: "document_changed", in_app: true, push: false, email: true }] },
+        }),
+      ),
+    );
   });
 
   it("shows a load error with retry instead of a guessed matrix, and writes nothing", async () => {

@@ -510,6 +510,9 @@ var isoTenantParams = map[string]bool{
 	// An edit lock tenure and an edit request are rows of one organization
 	// (UNI-1645 §6 step 3).
 	"{lockID}": true, "{requestID}": true,
+	// An inbox row carries the organization and belongs to one person
+	// (UNI-2056): the documents route reads through it.
+	"{notificationID}": true,
 }
 
 func isoUnclassified(routes []isoRoute) []string {
@@ -876,6 +879,8 @@ func isoParam(t *testing.T, pattern string, segs []string, i int, tn *isoTenant)
 		return "0af7651916cd43dd8448eb211c80319c"
 	case "{sessionId}":
 		return tn.get(t, "session")
+	case "{notificationID}":
+		return tn.get(t, "notification")
 	case "{quickActionID}", "{agentTaskID}", "{connectionID}":
 		// Stubbed routes: no row exists for anyone.
 		return "01J8X4STUB0N1P2Q3R4S5T6U7V"

@@ -648,7 +648,8 @@
         "document_access_approved": "Document access granted",
         "document_access_declined": "Document access request declined",
         "document_shared": "Documents shared with you",
-        "document_trashed_by_other": "Your document moved to the trash"
+        "document_trashed_by_other": "Your document moved to the trash",
+        "document_changed": "Changes to documents you can open"
       },
       "all_kinds": "All kinds",
       "channel_all": "{{channel}} for every kind",
@@ -5695,7 +5696,8 @@
       "document_trashed_by_other": "{{actor}} moved your document to trash. Restore it before {{date}}",
       "document_trashed_by_other_untitled": "{{actor}} moved one of your documents to trash. Restore it before {{date}}",
       "document_trashed_by_other_nodate": "{{actor}} moved your document to trash",
-      "document_trashed_by_other_untitled_nodate": "{{actor}} moved one of your documents to trash"
+      "document_trashed_by_other_untitled_nodate": "{{actor}} moved one of your documents to trash",
+      "document_changed": "{{actor}} changed {{document_count}} documents"
     },
     "kindTitle": {
       "document_mentioned": "You were mentioned in a comment",
@@ -5709,7 +5711,8 @@
       "document_access_approved": "Access granted",
       "document_access_declined": "Request declined",
       "document_shared": "Document shared",
-      "document_trashed_by_other": "Your document was moved to trash"
+      "document_trashed_by_other": "Your document was moved to trash",
+      "document_changed": "Documents changed"
     },
     "archived_one": "Archived {{count}} notification",
     "archived_other": "Archived {{count}} notifications",

@@ -123,6 +123,7 @@ var tenantExportIncludedTables = []string{
 	"meeting_summary_task_links",
 	"meeting_transcript_segments",
 	"meetings",
+	"notification_documents",
 	"notifications",
 	"organization_member_profiles",
 	"organization_members",
