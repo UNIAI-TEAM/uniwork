@@ -132,6 +132,8 @@ func toChatMessageDTO(m service.ChatMessageRow) sdo.ChatMessageDTO {
 			DownloadURL:  m.File.DownloadURL,
 			ThumbURL:     m.File.ThumbURL,
 			URLExpiresAt: formatURLExpiry(m.File.URLExpiresAt),
+			Width:        m.File.Width,
+			Height:       m.File.Height,
 		}
 	}
 	if m.Document != nil {

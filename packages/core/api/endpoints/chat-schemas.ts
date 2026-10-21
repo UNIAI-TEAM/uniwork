@@ -147,6 +147,10 @@ export const ChatMessageSchema = z.object({
       download_url: z.string().optional().default(""),
       thumb_url: z.string().optional().default(""),
       url_expires_at: z.string().optional().default(""),
+      // A photo's size as it shows, when the server read it at upload: a phone lays the bubble out before
+      // the image arrives. Absent on older rows and unreadable types; a value that drifts is dropped alone.
+      width: z.number().int().positive().optional().catch(undefined),
+      height: z.number().int().positive().optional().catch(undefined),
     })
     .optional(),
   document: ChatMessageDocumentSchema,

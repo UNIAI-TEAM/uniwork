@@ -804,6 +804,27 @@ describe("chat endpoints", () => {
     expect(unsigned?.file).toMatchObject({ url: "", download_url: "", thumb_url: "", url_expires_at: "" });
   });
 
+  it("listChatRoomMessages keeps a photo's size and drops a size that drifts, not the photo", async () => {
+    const photo = (id: string, size: Record<string, unknown>) => ({
+      id,
+      room_id: "room1",
+      workspace_id: "ws1",
+      sender_id: "u1",
+      sender_display_name: "An",
+      kind: "file",
+      body: "anh.jpg",
+      created_at: "2026-09-05T00:00:00Z",
+      file: { filename: "anh.jpg", content_type: "image/jpeg", size_bytes: 10, ...size },
+    });
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({ messages: [photo("p1", { width: 1280, height: 960 }), photo("p2", { width: "wide", height: -3 }), photo("p3", {})] }),
+    );
+    const [sized, drifted, unsized] = await listChatRoomMessages("ws1", "room1");
+    expect(sized?.file).toMatchObject({ width: 1280, height: 960 });
+    expect(drifted?.file).toMatchObject({ filename: "anh.jpg", width: undefined, height: undefined });
+    expect(unsized?.file?.width).toBeUndefined();
+  });
+
   it("leaveChatRoom degrades on malformed response", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ nope: true }));
     expect(await leaveChatRoom("ws1", "room1")).toBe(false);

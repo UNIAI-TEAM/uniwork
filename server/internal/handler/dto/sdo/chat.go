@@ -114,7 +114,9 @@ type FileMessageDTO struct {
 	URL          string `json:"url,omitempty" description:"URL presign ngắn hạn để xem tệp trực tiếp từ object storage (inline); trống khi không ký được" example:"https://storage.example.com/uniwork/chat/files/01J8X4FILE?X-Amz-Signature=abc"`
 	DownloadURL  string `json:"download_url,omitempty" description:"URL presign tải tệp xuống với tên gốc (Content-Disposition: attachment)" example:"https://storage.example.com/uniwork/chat/files/01J8X4FILE?response-content-disposition=attachment&X-Amz-Signature=abc"`
 	ThumbURL     string `json:"thumb_url,omitempty" description:"URL presign ảnh thu nhỏ (cạnh dài tối đa 640px); bằng url khi ảnh chưa có bản thu nhỏ" example:"https://storage.example.com/uniwork/chat/files/01J8X4THUMB?X-Amz-Signature=abc"`
-	URLExpiresAt string `json:"url_expires_at,omitempty" description:"Thời điểm URL sớm nhất hết hạn (RFC3339); tải lại tin nhắn để có URL mới" example:"2026-03-26T22:00:00Z"`
+	URLExpiresAt string `json:"url_expires_at,omitempty" description:"Thời điểm URL sớm nhất hết hạn (RFC3339); tải lại tin nhắn để có URL mới. Các URL ký theo đầu giờ: tải lại trong cùng giờ được đúng URL cũ" example:"2026-03-26T22:00:00Z"`
+	Width        int    `json:"width,omitempty" description:"Chiều rộng ảnh theo pixel khi hiển thị (đã xoay theo EXIF); vắng khi không đọc được từ header (WebP, HEIC, tệp cũ)" example:"1280"`
+	Height       int    `json:"height,omitempty" description:"Chiều cao ảnh theo pixel khi hiển thị; luôn đi cùng width" example:"960"`
 }
 
 // ChatPollOptionDTO is one poll choice with vote count.

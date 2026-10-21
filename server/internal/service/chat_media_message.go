@@ -51,13 +51,15 @@ func (s *ChatService) FilesService() files.Service { return s.files }
 // go to FileService under the purpose policy, then the reference is claimed
 // and the message row written in a single transaction.
 type chatMediaCommand struct {
-	purpose     files.UploadPurpose
-	kind        string // "file" | "voice"
-	filename    string
-	body        io.ReadSeeker
-	durationMS  int // voice only
-	replyToID   *string
-	clientMsgID string
+	purpose    files.UploadPurpose
+	kind       string // "file" | "voice"
+	filename   string
+	body       io.ReadSeeker
+	durationMS int // voice only
+	// width and height of a photo as it shows, when its header says (chatImageDimensions); 0 otherwise.
+	width, height int
+	replyToID     *string
+	clientMsgID   string
 }
 
 // AuthorizeMediaSend is the send gate of sendChatMedia, exposed so the upload
@@ -133,6 +135,12 @@ func (s *ChatService) sendChatMedia(
 	})
 	if err != nil {
 		return ChatMessageRow{}, filesError(err)
+	}
+
+	// A photo's size from its header, on the sniffed type, so a client lays out the bubble before the
+	// image arrives; unknown leaves it out.
+	if in.kind == "file" {
+		in.width, in.height, _ = chatImageDimensions(in.body, up.File.ContentType)
 	}
 
 	// A send permission revoked while the bytes were in flight still stops the
@@ -343,6 +351,9 @@ func chatMediaMetadata(in chatMediaCommand, file files.File) map[string]any {
 	}
 	if in.durationMS > 0 {
 		meta["duration_ms"] = in.durationMS
+	}
+	if in.width > 0 && in.height > 0 {
+		meta["width"], meta["height"] = in.width, in.height
 	}
 	return meta
 }
