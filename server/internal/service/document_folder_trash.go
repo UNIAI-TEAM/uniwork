@@ -112,15 +112,20 @@ func (s *DocumentService) unmanagedInSubtree(ctx context.Context, q *db.Queries,
 		if isWorkspaceFolder(node) {
 			continue
 		}
+		lvl, err := s.effectiveLevel(ctx, q, actor, node)
+		if err != nil {
+			return nil, err
+		}
 		if node.Kind == DocumentKindFolder {
+			// A legacy folder the actor cannot read refuses the command, even
+			// for an admin who administers it without reading it.
+			if !lvl.Level.AtLeast(DocumentLevelView) {
+				return nil, ErrForbidden
+			}
 			if err := s.requireManageOn(ctx, q, actor, node); err != nil {
 				return nil, err
 			}
 			continue
-		}
-		lvl, err := s.effectiveLevel(ctx, q, actor, node)
-		if err != nil {
-			return nil, err
 		}
 		if !lvl.Level.AtLeast(DocumentLevelView) {
 			out[id] = true

@@ -380,6 +380,48 @@ func TestFolderTrashRefusesAForeignRestrictedFolder(t *testing.T) {
 	}
 }
 
+// D1-2: the same refusal for a workspace admin. An admin administers a legacy
+// private folder without reading it (AdminScope alone), and the trash is for
+// what the actor reads and manages, so the admin does not trash it either; the
+// whole command and its impact read refuse, and nothing is written.
+func TestFolderTrashRefusesAForeignRestrictedFolderForAnAdmin(t *testing.T) {
+	e := newWSFolderEnv(t)
+	ctx := e.f.ctx
+	admin := Human(e.tn.wsAdmin.ID)
+	folder := e.mkFolder(t, e.b, "", "Thư mục chung của admin")
+	mine := e.mkPage(t, e.b, folder.ID, "Của B")
+	private := e.f.treeDoc(t, e.tn, treeDocSpec{ws: e.tn.wsA, kind: DocumentKindFolder, visibility: "restricted",
+		aclOwner: e.tn.member.ID, createdBy: e.tn.member.ID, parent: folder.ID, title: "Riêng của A (admin)"})
+	inside := e.f.treeDoc(t, e.tn, treeDocSpec{ws: e.tn.wsA, visibility: "restricted",
+		aclOwner: e.tn.member.ID, createdBy: e.tn.member.ID, parent: private.ID, title: "Trang riêng của A (admin)"})
+
+	ids := []string{folder.ID, mine.ID, private.ID, inside.ID}
+	snapshot := func() (rows []db.Document, audits int) {
+		for _, id := range ids {
+			rows = append(rows, e.doc(t, id))
+		}
+		return rows, e.count(t, `SELECT count(*) FROM audit_events WHERE workspace_id = $1`, e.tn.wsA)
+	}
+	before, auditsBefore := snapshot()
+
+	if _, err := e.svc.ArchiveDocument(ctx, admin, folder.ID, ArchiveDocumentInput{}); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("admin trash over a foreign restricted folder = %v, want forbidden", err)
+	}
+	if _, err := e.svc.ArchiveImpact(ctx, admin, folder.ID); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("admin impact over a foreign restricted folder = %v, want forbidden", err)
+	}
+	after, auditsAfter := snapshot()
+	for i := range ids {
+		if after[i].ArchivedAt.Valid != before[i].ArchivedAt.Valid || after[i].ParentID != before[i].ParentID ||
+			after[i].Revision != before[i].Revision || after[i].Position != before[i].Position {
+			t.Fatalf("%s changed by a refused trash: %+v -> %+v", ids[i], before[i], after[i])
+		}
+	}
+	if auditsAfter != auditsBefore {
+		t.Fatalf("audit rows %d -> %d, want none written by a refused trash", auditsBefore, auditsAfter)
+	}
+}
+
 // S2-R1-2: the 403 a trashed workspace folder gives readers is for people. An
 // agent, a person outside the workspace and a member of another workspace get
 // the same not found as anyone who cannot read it.
