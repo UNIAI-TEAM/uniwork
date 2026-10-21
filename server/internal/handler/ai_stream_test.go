@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -16,6 +17,7 @@ import (
 
 	"github.com/unicomhub/uniwork/server/internal/ai"
 	"github.com/unicomhub/uniwork/server/internal/ai/provider"
+	"github.com/unicomhub/uniwork/server/internal/service"
 )
 
 // sseFrame is one parsed frame; a comment frame (": ping") has no event.
@@ -243,5 +245,95 @@ func TestAskUniStreamSendsHeartbeats(t *testing.T) {
 	}
 	if pings == 0 {
 		t.Fatal("no ping frame while the model was silent")
+	}
+}
+
+// failWriter is a ResponseWriter whose writes fail after the header.
+type failWriter struct {
+	hdr       http.Header
+	flushErr  error
+	writeErr  error
+	wroteHead bool
+}
+
+func (f *failWriter) Header() http.Header { return f.hdr }
+func (f *failWriter) WriteHeader(int)     { f.wroteHead = true }
+func (f *failWriter) Write(p []byte) (int, error) {
+	if f.writeErr != nil {
+		return 0, f.writeErr
+	}
+	return len(p), nil
+}
+func (f *failWriter) FlushError() error { return f.flushErr }
+
+// A write or flush failure marks the writer dead and signals the run to
+// stop; an unflushable writer alone does not.
+func TestSSEWriterDeadWriterCancelsTheRun(t *testing.T) {
+	for name, tc := range map[string]struct {
+		w    *failWriter
+		dead bool
+	}{
+		"write error": {&failWriter{hdr: http.Header{}, writeErr: errors.New("broken pipe")}, true},
+		"flush error": {&failWriter{hdr: http.Header{}, flushErr: errors.New("broken pipe")}, true},
+		"no flusher":  {&failWriter{hdr: http.Header{}, flushErr: http.ErrNotSupported}, false},
+	} {
+		t.Run(name, func(t *testing.T) {
+			sw := newSSEWriter(tc.w)
+			called := 0
+			sw.onDead = func() { called++ }
+			sw.event("delta", map[string]string{"text": "x"})
+			sw.event("delta", map[string]string{"text": "y"})
+			sw.close()
+			if (called == 1) != tc.dead || called > 1 {
+				t.Fatalf("onDead called %d times, dead want %v", called, tc.dead)
+			}
+		})
+	}
+}
+
+// A client that leaves mid-stream ends the run as a stop: the turn is stored
+// with notice stopped. The test waits on a frame, then on the store.
+func TestAskUniStreamClientLeavingStoresAStoppedTurn(t *testing.T) {
+	srv, owner, _, wsID := askWorld(t, &provider.Fake{Reply: ai.FakeReply, StreamChunk: 2, StreamDelay: 200 * time.Millisecond})
+	res := postStream(t, srv, wsID, owner, map[string]any{"question": "task nào quá hạn?", "locale": "vi"})
+	ch := readSSE(res.Body)
+	for f := range ch {
+		if f.event == "delta" {
+			break
+		}
+	}
+	res.Body.Close()
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		var n int
+		if err := testPool.QueryRow(context.Background(), `SELECT count(*) FROM ai_messages WHERE notice = 'stopped'`).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		if n > 0 {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("the turn was not stored as stopped after the client left")
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+}
+
+// The stream's error code is the one mapServiceError answers with.
+func TestAskUniStreamErrorCodeMatchesMapServiceError(t *testing.T) {
+	h := &handlers{Deps: Deps{Log: slog.Default()}}
+	for _, err := range []error{
+		ai.ErrProviderError, ai.ErrQuotaExceeded, service.ErrRateLimited, service.ErrForbidden,
+		service.ErrNotFound, service.ErrConflict, service.Invalid("x"), errors.New("boom"),
+	} {
+		rec := httptest.NewRecorder()
+		h.mapServiceError(rec, err)
+		var body struct {
+			Error struct{ Code string } `json:"error"`
+		}
+		_ = json.Unmarshal(rec.Body.Bytes(), &body)
+		if got := h.askErrorCode(err); got != body.Error.Code {
+			t.Errorf("%v: stream code %q, JSON code %q", err, got, body.Error.Code)
+		}
 	}
 }

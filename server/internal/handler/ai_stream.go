@@ -1,12 +1,11 @@
 package handler
 
 import (
-	"errors"
+	"context"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/unicomhub/uniwork/server/internal/ai"
 	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdi"
 	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdo"
 	"github.com/unicomhub/uniwork/server/internal/middleware"
@@ -21,10 +20,15 @@ func (h *handlers) askUniStream(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &in, maxJSONBody) {
 		return
 	}
+	// A writer that can no longer reach the client cancels the run, which the
+	// service stores and charges as a stop (R6) instead of running on.
+	ctx, cancel := context.WithCancel(r.Context())
+	defer cancel()
 	sw := newSSEWriter(w)
+	sw.onDead = cancel
 	defer sw.close()
 	emit := func(ev service.AskEvent) { writeAskEvent(sw, ev) }
-	_, err := h.AskUNI.AskStream(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "workspaceID"), askInputFromSDI(in), emit)
+	_, err := h.AskUNI.AskStream(ctx, middleware.UserID(r.Context()), chi.URLParam(r, "workspaceID"), askInputFromSDI(in), emit)
 	if err == nil {
 		return
 	}
@@ -76,21 +80,9 @@ func writeAskEvent(sw *sseWriter, ev service.AskEvent) {
 // askErrorCode is the code mapServiceError would have answered, for an error
 // that arrives once the status is already sent. Never the message text.
 func (h *handlers) askErrorCode(err error) string {
-	var ve service.ValidationError
-	var ce service.CodedError
-	var aiErr *ai.Error
-	switch {
-	case errors.As(err, &ve):
-		return "invalid_request"
-	case errors.As(err, &ce):
-		return ce.Code
-	case errors.As(err, &aiErr):
-		return aiErr.Code
-	case errors.Is(err, service.ErrNotFound):
-		return "not_found"
-	case errors.Is(err, service.ErrForbidden):
-		return "forbidden"
+	f := classifyServiceError(err)
+	if f.unexpected {
+		h.Log.Error("internal", "err", err)
 	}
-	h.Log.Error("internal", "err", err)
-	return "internal"
+	return f.code
 }

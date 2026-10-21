@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"sync"
 	"time"
@@ -21,7 +22,8 @@ type sseWriter struct {
 	rc      *http.ResponseController
 	mu      sync.Mutex
 	started bool
-	dead    bool // a write failed: the client is gone
+	dead    bool   // a write or flush failed: the client is gone
+	onDead  func() // called once, with mu held, when dead is set
 	stop    chan struct{}
 	wg      sync.WaitGroup
 }
@@ -84,17 +86,27 @@ func (s *sseWriter) write(chunk string) {
 	}
 	_ = s.rc.SetWriteDeadline(time.Now().Add(byokWriteIdle))
 	if _, err := s.w.Write([]byte(chunk)); err != nil {
-		s.dead = true
+		s.kill()
 		return
 	}
 	s.flush()
 }
 
+// flush pushes the buffer out; a failure other than an unflushable writer
+// (tests) means the client is gone, as in serveProxyStream.
 func (s *sseWriter) flush() {
-	if err := s.rc.Flush(); err != nil && !s.dead {
-		// A writer that cannot flush (not http.ErrNotSupported-safe to ignore
-		// in production, where Unwrap reaches the connection) just buffers.
-		_ = err
+	if err := s.rc.Flush(); err != nil && !errors.Is(err, http.ErrNotSupported) {
+		s.kill()
+	}
+}
+
+func (s *sseWriter) kill() {
+	if s.dead {
+		return
+	}
+	s.dead = true
+	if s.onDead != nil {
+		s.onDead()
 	}
 }
 
