@@ -73,4 +73,19 @@ describe("NotificationBell", () => {
     expect(within(list).getByRole("link", { name: /Việc một/ })).toHaveAttribute("href", "/acme/team/tasks/t1");
     expect(within(list).queryByRole("button")).toBeNull();
   });
+
+  it("links a several-document change row to the Inbox with its notification id, for the list to open there", async () => {
+    const many = {
+      ...row, id: "n7", kind: "document_changed", resource_type: "document", resource_id: "d1", title_key: "notifications.kind.document_changed",
+      params: { actor: "An", verb: "moved", document_count: "50" }, count: 50, sample_documents: [{ id: "d1", title: "Kế hoạch Q4" }],
+    };
+    requestMock.mockImplementation((path: string) => {
+      if (path.startsWith("/api/v1/me/notifications/unread-count")) return Promise.resolve({ total: 1, by_workspace: { ws1: 1 } });
+      if (path.startsWith("/api/v1/me/notifications?")) return Promise.resolve({ notifications: [many], next_before: "" });
+      return Promise.resolve({ status: "ok" });
+    });
+    renderBell();
+    const list = await screen.findByRole("list", { name: "Hộp việc" });
+    expect(within(list).getByRole("link", { name: /đã di chuyển 50 tài liệu/ })).toHaveAttribute("href", "/acme/team/inbox?notification=n7");
+  });
 });

@@ -271,7 +271,7 @@ describe("NotificationsTab", () => {
     });
     render(wrap(<NotificationsTab />));
     const label = t("settings.notifications.kinds.document_changed");
-    expect(label).toBe("Thay đổi trên tài liệu bạn theo dõi");
+    expect(label).toBe("Thay đổi trên tài liệu của bạn hoặc được chia sẻ với bạn");
     const sw = (channel: string) => screen.findByRole("switch", { name: `${label} · ${channel}` });
     expect(await sw("Hộp việc")).toHaveAttribute("aria-checked", "true");
     expect(await sw("Đẩy")).toHaveAttribute("aria-checked", "false");
@@ -291,7 +291,7 @@ describe("NotificationsTab", () => {
 
   it("words the document-change row in English", async () => {
     await setLocale("en");
-    expect(t("settings.notifications.kinds.document_changed")).toBe("Changes to documents you follow");
+    expect(t("settings.notifications.kinds.document_changed")).toBe("Changes to your documents and documents shared with you");
     await setLocale("vi");
   });
 
