@@ -237,6 +237,14 @@ describe("MeetingDetailHero", () => {
     expect(screen.queryByText(/bây giờ/)).not.toBeInTheDocument();
   });
 
+  it("never says a late meeting nobody has opened already started", () => {
+    const now = Date.now();
+    const iso = (offsetMs: number) => new Date(now + offsetMs).toISOString();
+    renderHero({ starts_at: iso(-10 * 60_000), ends_at: iso(20 * 60_000) });
+    expect(screen.getByText("Lẽ ra đã bắt đầu 10 phút trước")).toBeInTheDocument();
+    expect(screen.queryByText("Bắt đầu 10 phút trước")).not.toBeInTheDocument();
+  });
+
   it("says a meeting that started under a minute ago just started", () => {
     const now = Date.now();
     const iso = (offsetMs: number) => new Date(now + offsetMs).toISOString();

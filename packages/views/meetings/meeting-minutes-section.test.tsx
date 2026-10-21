@@ -86,6 +86,24 @@ describe("MeetingMinutesSection", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("Cuộc họp đã có biên bản. Mở biên bản để sửa.");
   });
 
+  it("drops a failed finalize once the minutes another clerk finalized show up", async () => {
+    respond(draft);
+    const base = requestMock.getMockImplementation()!;
+    let othersFinalized = false;
+    requestMock.mockImplementation((path: unknown, init?: { method?: string }) => {
+      if (init?.method === "POST") {
+        othersFinalized = true;
+        return Promise.reject(new ApiError("x", "conflict", 409));
+      }
+      if (othersFinalized && String(path).endsWith("/minutes")) return Promise.resolve({ minutes: finalized });
+      return base(path, init);
+    });
+    renderSection();
+    await userEvent.click(await screen.findByRole("button", { name: "Chốt biên bản" }));
+    expect(await screen.findByRole("button", { name: "Bỏ chốt" })).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
   it("names the year of minutes finalized in another year", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date("2027-01-05T03:00:00Z"));

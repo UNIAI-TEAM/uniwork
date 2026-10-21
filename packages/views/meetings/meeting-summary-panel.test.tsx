@@ -71,6 +71,28 @@ describe("MeetingSummaryPanel", () => {
       expect(requestMock).toHaveBeenCalledWith("/api/v1/meetings/m1/summary", expect.objectContaining({ method: "POST" })),
     );
   });
+
+  it("asks again before Retry replaces the summary on the card", async () => {
+    const base = requestMock.getMockImplementation();
+    let posts = 0;
+    requestMock.mockImplementation((path: unknown, init?: { method?: string }) => {
+      if (String(path).endsWith("/summary") && init?.method === "POST") {
+        posts += 1;
+        return Promise.reject(new ApiError("x", "ai_timeout", 504));
+      }
+      return base?.(path, init);
+    });
+    render(wrapWithNav(<MeetingSummaryPanel workspaceId="w1" meeting={meeting} canClerk />));
+    fireEvent.click(await screen.findByRole("button", { name: "Tạo lại tóm tắt" }));
+    fireEvent.click(within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Tạo lại" }));
+    const panel = screen.getByTestId("meeting-summary-panel");
+    const retry = await within(panel).findByRole("button", { name: "Thử lại" });
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
+
+    fireEvent.click(retry);
+    expect(await screen.findByRole("alertdialog")).toBeInTheDocument();
+    expect(posts).toBe(1);
+  });
 });
 
 function summaryRespond(summary: () => Promise<unknown>, transcript: () => Promise<unknown> = () => Promise.resolve({ segments: [] })) {
@@ -394,7 +416,7 @@ describe("MeetingSummaryPanel › generating", () => {
   it.each([
     ["ai_quota_exceeded", 402, "Tổ chức đã dùng hết hạn mức AI của tháng.", false],
     ["entitlement_required", 403, "Gói hiện tại chưa có tóm tắt AI.", false],
-    ["summary_in_progress", 409, "Tóm tắt của cuộc họp này đang được tạo.", true],
+    ["summary_in_progress", 409, "Tóm tắt của cuộc họp này đang được tạo.", false],
     ["ai_timeout", 504, "AI trả lời quá lâu", true],
     ["internal", 500, "Chưa tạo được tóm tắt. Thử lại.", true],
   ])("keeps what to do for %s on the card, never the server's own message", async (code, status, copy, retryable) => {

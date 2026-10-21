@@ -90,9 +90,11 @@ export function MeetingMinutesSection({
   const previewDoc = useDocument(workspaceId, previewOpen ? (minutes?.document_id ?? "") : "", { retry: false });
   const previewLoading = previewOpen && previewDoc.isPending;
   const busy = create.isPending || finalize.isPending || reopen.isPending;
-  // A failed make/finalize/reopen is said under its buttons until the next try, not in a toast that fades.
-  const [actionError, setActionError] = useState<string | null>(null);
-  const onError = (err: unknown) => setActionError(apiErrorCopy(err) ?? t("common.error"));
+  // A failed make/finalize/reopen is said under its buttons until the next try, not in a toast
+  // that fades, and only while the minutes stay as they were (another clerk finalized first).
+  const minutesState = minutes ? `${minutes.document_id}:${minutes.finalized}:${minutes.finalized_version ?? ""}` : "";
+  const [actionError, setActionError] = useState<{ text: string; state: string } | null>(null);
+  const onError = (err: unknown) => setActionError({ text: apiErrorCopy(err) ?? t("common.error"), state: minutesState });
 
   let body;
   if (isPending) {
@@ -257,9 +259,9 @@ export function MeetingMinutesSection({
     >
       <div className="flex flex-col gap-3">
         {body}
-        {actionError ? (
+        {actionError && actionError.state === minutesState ? (
           <Notice tone="destructive" icon={CircleAlert} layout="inline" live="assertive">
-            {actionError}
+            {actionError.text}
           </Notice>
         ) : null}
       </div>

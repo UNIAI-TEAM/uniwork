@@ -81,10 +81,14 @@ function duplicateText(err: unknown, t: TFunction, context?: SummaryErrorContext
     : t("meetings.summaryErrors.active_duplicate");
 }
 
-/** Refusals a second try cannot change: setup, plan, quota, permission or a missing source. */
+/**
+ * Refusals a second try cannot change: setup, plan, quota, permission or a
+ * missing source; and a run already under way, whose summary shows by itself.
+ */
 const FINAL_CODES = new Set([
   "ai_not_configured",
   "summary_no_source",
+  "summary_in_progress",
   "entitlement_required",
   "subscription_inactive",
   "quota_exceeded",

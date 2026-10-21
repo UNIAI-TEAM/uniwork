@@ -42,8 +42,9 @@ export function MeetingDialInSection({ meetingId, canHost }: { meetingId: string
   const { data } = useMeetingDialIn(meetingId);
   const rotate = useRotateMeetingDialInPin(meetingId);
   const [confirming, setConfirming] = useState(false);
-  // A PIN that did not change is said on the card, where the PIN is read.
-  const [rotateError, setRotateError] = useState<string | null>(null);
+  // A PIN that did not change is said on the card, where the PIN is read, while that PIN
+  // stands: once another host's rotation lands, the failure is moot.
+  const [rotateError, setRotateError] = useState<{ text: string; pin?: string } | null>(null);
   if (!data?.enabled || !data.number || !data.pin) return null;
 
   return (
@@ -86,9 +87,9 @@ export function MeetingDialInSection({ meetingId, canHost }: { meetingId: string
             </dd>
           </div>
         </dl>
-        {rotateError ? (
+        {rotateError && rotateError.pin === data.pin ? (
           <Notice tone="destructive" icon={CircleAlert} layout="inline" live="assertive" className="mt-3">
-            {rotateError}
+            {rotateError.text}
           </Notice>
         ) : null}
       </PanelCard>
@@ -109,7 +110,7 @@ export function MeetingDialInSection({ meetingId, canHost }: { meetingId: string
             // Close the question so its answer shows on the card, behind no overlay.
             onError: (err) => {
               setConfirming(false);
-              setRotateError(apiErrorCopy(err) ?? t("common.error"));
+              setRotateError({ text: apiErrorCopy(err) ?? t("common.error"), pin: data.pin });
             },
           });
         }}

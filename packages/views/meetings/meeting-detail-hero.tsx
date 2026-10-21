@@ -123,10 +123,13 @@ export function MeetingDetailHero({
   // ("Bắt đầu bây giờ"), so those moments get their own words.
   const startAt = meeting.actual_start_at ?? meeting.starts_at;
   const withinMinute = (iso: string) => Math.abs(Date.parse(iso) - nowMs) < 60_000;
+  // A scheduled meeting stays scheduled past its start until someone opens it: never "starts … ago".
   const relative = scheduled
     ? withinMinute(meeting.starts_at)
       ? t("meetings.startsNow")
-      : t("meetings.startsRelative", { when: formatRelativeTime(meeting.starts_at, locale, nowMs) })
+      : t(Date.parse(meeting.starts_at) < nowMs ? "meetings.startsOverdue" : "meetings.startsRelative", {
+          when: formatRelativeTime(meeting.starts_at, locale, nowMs),
+        })
     : live || overtime
       ? withinMinute(startAt)
         ? t("meetings.justStarted")

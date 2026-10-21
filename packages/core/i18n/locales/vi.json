@@ -3725,6 +3725,7 @@
     "createdAt": "Tạo lúc",
     "startsRelative": "Bắt đầu {{when}}",
     "startsNow": "Sắp bắt đầu",
+    "startsOverdue": "Lẽ ra đã bắt đầu {{when}}",
     "justStarted": "Vừa bắt đầu",
     "startedRelative": "Đã bắt đầu {{when}}",
     "justNow": "vừa xong",

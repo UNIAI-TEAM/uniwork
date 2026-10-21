@@ -3726,6 +3726,7 @@
     "createdAt": "Created",
     "startsRelative": "Starts {{when}}",
     "startsNow": "Starting now",
+    "startsOverdue": "Was due to start {{when}}",
     "justStarted": "Just started",
     "startedRelative": "Started {{when}}",
     "justNow": "just now",

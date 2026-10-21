@@ -68,7 +68,8 @@ export function SummaryRegenerateConfirm({ gen }: { gen: SummaryGeneration }) {
 
 /**
  * The last run's failure, on the card it failed on. The live region already
- * said it, so the notice stays quiet; Retry only where a second try can help.
+ * said it, so the notice stays quiet; Retry only where a second try can help,
+ * and through the same door as the button: it asks before replacing a summary.
  */
 export function SummaryFailureNotice({ gen, className }: { gen: SummaryGeneration; className?: string }) {
   const { t } = useTranslation();
@@ -82,7 +83,7 @@ export function SummaryFailureNotice({ gen, className }: { gen: SummaryGeneratio
       className={className}
       action={
         gen.failure.retryable ? (
-          <Button type="button" variant="outline" size="sm" onClick={gen.confirmGenerate}>
+          <Button type="button" variant="outline" size="sm" onClick={gen.requestGenerate}>
             {t("common.retry")}
           </Button>
         ) : undefined

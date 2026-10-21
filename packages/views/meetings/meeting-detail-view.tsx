@@ -107,8 +107,9 @@ export function MeetingDetailView({
   const restore = useRestoreMeeting(workspaceId);
   const extend = useExtendMeeting(workspaceId);
   const [confirm, setConfirm] = useState<"cancel" | "end" | null>(null);
-  // Why the last end/cancel failed, said at the top of the page until the next try.
-  const [closeError, setCloseError] = useState<string | null>(null);
+  // Why the last end/cancel failed, said at the top of the page until the next try, and
+  // only while the meeting stays as it was: once another host ended it, that failure is moot.
+  const [closeError, setCloseError] = useState<{ text: string; status?: string } | null>(null);
   // The summary reminder opens here (C-11 §9.1 V1); the panel exists only
   // once the meeting is loaded and has started.
   useMeetingSectionDeepLink({
@@ -242,9 +243,9 @@ export function MeetingDetailView({
             layout === "panel" ? "max-w-none gap-3 p-3" : "max-w-7xl gap-4 p-4 sm:p-6",
           )}
         >
-          {closeError ? (
+          {closeError && closeError.status === meeting.status ? (
             <Notice tone="destructive" icon={CircleAlert} layout="inline" live="assertive">
-              {closeError}
+              {closeError.text}
             </Notice>
           ) : null}
           <MeetingDetailHero
@@ -391,7 +392,7 @@ export function MeetingDetailView({
           // notice above the hero, not a toast behind the dialog.
           const onCloseError = (err: unknown) => {
             setConfirm(null);
-            setCloseError(apiErrorCopy(err) ?? t("common.error"));
+            setCloseError({ text: apiErrorCopy(err) ?? t("common.error"), status: meeting?.status });
           };
           setCloseError(null);
           if (confirm === "end") {

@@ -37,7 +37,8 @@ export function useSummaryGeneration({
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [announcement, announce] = useAnnouncement();
   // The last run's failure, said in place: a quota or plan refusal must not fade with a toast.
-  const [failure, setFailure] = useState<{ text: string; retryable: boolean } | null>(null);
+  // It belongs to the summary on screen then: one that lands since (the auto summary) answers it.
+  const [failure, setFailure] = useState<{ text: string; retryable: boolean; summaryId?: string } | null>(null);
 
   // Recorded results, not AI: summarisable whether or not a summary exists.
   const voted = useMemo(() => (motions ?? []).filter((m) => m.status === "CLOSED"), [motions]);
@@ -61,6 +62,7 @@ export function useSummaryGeneration({
   });
 
   const summary = summaryQuery.data ?? null;
+  const summaryId = summary?.id;
   const aiOn = caps?.ai_summary === true;
   const capsLoaded = caps !== undefined;
   const showGenerate = canClerk && aiOn;
@@ -81,11 +83,11 @@ export function useSummaryGeneration({
       onError: (err) => {
         // One channel: the live region says it, the card shows it; no toast on top.
         const text = summaryErrorText(err, t, "generate");
-        setFailure({ text, retryable: summaryErrorRetryable(err) });
+        setFailure({ text, retryable: summaryErrorRetryable(err), summaryId });
         announce(text);
       },
     });
-  }, [announce, generate, i18n.language, t]);
+  }, [announce, generate, i18n.language, summaryId, t]);
 
   /** Generate now, or ask first when it would replace an existing summary. */
   const requestGenerate = useCallback(() => {
@@ -113,7 +115,7 @@ export function useSummaryGeneration({
     confirmOpen,
     setConfirmOpen,
     confirmGenerate: run,
-    failure,
+    failure: failure?.summaryId === summaryId ? failure : null,
     announcement: announcement.text,
     announcementSeq: announcement.seq,
   };
