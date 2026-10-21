@@ -18,6 +18,9 @@ const notifications = vi.hoisted(() => ({
   setNotificationHandler: vi.fn(),
   setNotificationChannelAsync: vi.fn(async () => null),
   deleteNotificationChannelAsync: vi.fn(async () => undefined),
+  scheduleNotificationAsync: vi.fn(async () => "id"),
+  dismissNotificationAsync: vi.fn(async () => undefined),
+  AndroidNotificationPriority: { MAX: "max" },
   AndroidImportance: { HIGH: 6, DEFAULT: 5 },
   AndroidNotificationVisibility: { PUBLIC: 1, PRIVATE: 2 },
 }));
@@ -145,6 +148,24 @@ describe("runCallPushTask", () => {
     expect(native.showIncomingCall).toHaveBeenCalledWith(expect.objectContaining({ openUrl: expect.stringMatching(/^uniworkchat:\/\/open\?url=/) }));
   });
 
+  it("rings with a plain notification on the missed-calls channel when the native one is not shown, and the end takes it down", async () => {
+    native.showIncomingCall.mockReturnValueOnce(false);
+    await wiring.runCallPushTask({ data: INVITE });
+    expect(notifications.scheduleNotificationAsync).toHaveBeenCalledWith({
+      identifier: "call-ring:c-1",
+      content: {
+        title: "Minh",
+        body: expect.any(String),
+        data: { url: "https://app.test/acme/hq/chat?room=r-1&call=c-1" },
+        sound: "default",
+        priority: "max",
+      },
+      trigger: { channelId: "missed_calls" },
+    });
+    await wiring.runCallPushTask({ data: { type: "call_end", call_id: "c-1", room_id: "r-1", workspace_id: "w-1" } });
+    expect(notifications.dismissNotificationAsync).toHaveBeenCalledWith("call-ring:c-1");
+  });
+
   it("ignores a push that is not about a call, without booting anything", async () => {
     await wiring.runCallPushTask({ data: { body: JSON.stringify({ url: "https://x", tag: "t" }) } });
     expect(deps.bootRuntime).not.toHaveBeenCalled();
@@ -270,6 +291,28 @@ describe("handOverRing", () => {
   });
 });
 
+describe("onAppStateChange", () => {
+  it("back in the app, starts the call's service again (a start refused in the background gets another try)", () => {
+    const stop = wiring.startNativeCalls();
+    engine.store.setState({ call: { status: "connecting", callId: "c-7", roomId: "r-1", peerName: "Minh", outgoing: true, callKind: "dm" } });
+    expect(native.startOngoingCall).toHaveBeenCalledTimes(1);
+    wiring.onAppStateChange("background");
+    expect(native.startOngoingCall).toHaveBeenCalledTimes(1);
+    wiring.onAppStateChange("active");
+    expect(native.startOngoingCall).toHaveBeenCalledTimes(2);
+    expect(native.startOngoingCall).toHaveBeenLastCalledWith(expect.objectContaining({ callId: "c-7" }));
+    stop();
+    engine.store.setState({ call: { status: "idle" } });
+  });
+
+  it("still hands a ringing call back to the call screen", () => {
+    engine.store.setState({ call: { status: "incoming", callId: "c-1", roomId: "r-1", peerName: "Minh", callKind: "dm" } });
+    wiring.onAppStateChange("active");
+    expect(native.startRinging).toHaveBeenCalledTimes(1);
+    expect(native.startOngoingCall).not.toHaveBeenCalled();
+  });
+});
+
 describe("startNativeCalls", () => {
   it("follows the engine with the service, runs the taps that waited and handles pushes while open", async () => {
     deps.pending = [DECLINE, { nope: true }];
@@ -285,7 +328,7 @@ describe("startNativeCalls", () => {
     expect(native.startOngoingCall).toHaveBeenLastCalledWith(expect.objectContaining({ workspaceId: "" }));
     const handler = notifications.setNotificationHandler.mock.calls[0]![0] as { handleNotification: (n: unknown) => Promise<unknown> };
     expect(await handler.handleNotification({ request: { content: { data: INVITE } } })).toMatchObject({ shouldShowBanner: true });
-    expect(rn.AppState.addEventListener).toHaveBeenCalledWith("change", wiring.handOverRing);
+    expect(rn.AppState.addEventListener).toHaveBeenCalledWith("change", wiring.onAppStateChange);
     stop();
     expect(rn.AppState.addEventListener.mock.results[0]?.value.remove).toHaveBeenCalledTimes(1);
     expect(notifications.setNotificationHandler).toHaveBeenLastCalledWith(null);

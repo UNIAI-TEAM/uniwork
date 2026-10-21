@@ -4,7 +4,8 @@
 // on screen. A ring becomes the app's own incoming-call notification —
 // full-screen on a locked phone, Answer and Decline, the ringtone on the
 // "calls" channel — unless the call already rings in the app's call screen;
-// the end of a ring and a missed call take that notification down. The calls
+// the end of a ring and a missed call take that notification down. A ring the
+// native notification could not show falls back to a plain one. The calls
 // switch (data/remote-config.ts) off means no ring.
 import { CALL_RING_WINDOW_MS, appLink, callLink, ringRemainingMs, type CallPush } from "@/lib/call-push";
 import type { VoiceCallState } from "@/lib/voice-call";
@@ -15,6 +16,12 @@ type Translate = (key: string, options?: Record<string, unknown>) => string;
 
 export interface CallPushEnv {
   native: Pick<NativeCalls, "showIncomingCall" | "cancelIncomingCall">;
+  /**
+   * A plain notification for a ring the native one did not show (a build
+   * without the module, a post the system refused): a tap opens `url`, the
+   * call's ringing screen. Rejects when it cannot be posted either.
+   */
+  fallback: { show(call: NativeIncomingCall, url: string): Promise<void>; dismiss(callId: string): Promise<void> };
   /** UniChat is on screen; false in a headless task. */
   appActive: () => boolean;
   /** The calls switch: the last answer the app holds, else its default (on). */
@@ -32,7 +39,7 @@ export interface CallPushEnv {
   now: () => number;
 }
 
-export type CallPushOutcome = "shown" | "in_app" | "ignored" | "cleared";
+export type CallPushOutcome = "shown" | "fallback" | "in_app" | "ignored" | "cleared";
 
 function liveCallId(state: VoiceCallState): string | null {
   return state.status === "idle" || state.status === "ended" ? null : state.callId;
@@ -95,6 +102,7 @@ export async function handleCallPush(push: CallPush, env: CallPushEnv): Promise<
   if (push.type !== "call_invite") {
     // Answered elsewhere, declined, ended, or missed: the ring stops here too.
     env.native.cancelIncomingCall(push.callId);
+    await env.fallback.dismiss(push.callId).catch(() => undefined);
     return "cleared";
   }
   if (!env.callsOn() || !push.url || ringRemainingMs(push, env.now()) <= 0) return "ignored";
@@ -109,5 +117,12 @@ export async function handleCallPush(push: CallPush, env: CallPushEnv): Promise<
     if (liveCallId(env.engine.current()) === push.callId) return "in_app";
   }
   env.ensureChannels();
-  return env.native.showIncomingCall(incomingCallSpec(push, env)) ? "shown" : "ignored";
+  const spec = incomingCallSpec(push, env);
+  if (env.native.showIncomingCall(spec)) return "shown";
+  // A data-only ring is never dropped without a trace: no ringtone loop or
+  // full screen, but the person sees who is calling and a tap opens the call.
+  return env.fallback.show(spec, callLink(push.url, false)).then(
+    () => "fallback" as const,
+    () => "ignored" as const,
+  );
 }

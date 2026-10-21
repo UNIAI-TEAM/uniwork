@@ -231,17 +231,26 @@ một dòng thì ghi lý do ở dòng trên.
   `modules/unichat-calls` là Expo module cục bộ (Kotlin, tự autolink từ `modules/`; `index.ts` trả `null` ngoài
   Android) — chỉ là cầu nối, không chính sách: thông báo cuộc gọi đến `CallStyle.forIncomingCall` + full-screen intent
   trên kênh `calls` (nhạc chuông của máy, `USAGE_NOTIFICATION_RINGTONE`, lặp tới khi hết `timeoutMs`), foreground
-  service `CallService` (`phoneCall`, thêm `microphone`/`camera` khi quyền đã cấp) với `CallStyle.forOngoingCall`,
+  service `CallService` (`phoneCall`, thêm `microphone`/`camera` khi quyền đã cấp) với `CallStyle.forOngoingCall`;
+  chỉ `startForegroundService` một lần, cập nhật sau đó đi thẳng tới service đang chạy, loại bị Android từ chối lúc đó
+  thì giữ loại đã có và chỉ đổi thông báo (không bao giờ tự dừng service của cuộc gọi đang chạy),
   `CallRinger`, Từ chối/Gác máy → `CallActionReceiver` → headless task `UniChatCallAction` (không khởi động được thì
   `PendingActions` giữ tới lần mở sau), activity hiện trên màn khoá chỉ khi được mở bởi cuộc gọi
-  (`CallLockScreen`, nhả khi cuộc gọi xong). Khai báo ở `plugins/with-unichat-calls.js` (quyền, service, receiver; gỡ
+  (`CallLockScreen`, nhả khi cuộc gọi xong; listener đăng ký qua `UniChatCallsPackage.kt` — autolinking chỉ nhận
+  `Package` từ file tên `*Package.kt`). Mã Kotlin nằm trong git: `.gitignore` của app chỉ bỏ `/android/` và `/ios/` ở
+  gốc; `native-modules.test.ts` đỏ khi git thiếu project native của module, khi có gì dưới đó bị ignore, khi một
+  `Package` nằm sai file, hay khi autolinking không liệt kê `UniChatCallsPackage`. Khai báo ở `plugins/with-unichat-calls.js` (quyền, service, receiver; gỡ
   background mode `fetch` mà plugin tự động của `expo-task-manager` thêm cho iOS). Chính sách ở TypeScript, test node
   với module giả (`data/calls/native-calls.ts` là no-op khi không có module): `lib/call-push.ts` đọc push cuộc gọi
   (`call_invite`/`call_end`/`call_missed`, mọi giá trị là chuỗi); `data/calls/call-push.ts` quyết định reo — công tắc
   tắt hay hết cửa sổ thì không, màn cuộc gọi đã có cuộc gọi đó (hay cuộc gọi khác) thì không, đang mở app trong một
-  workspace thì hỏi danh sách chờ trước, còn lại hiện thông báo native (heads-up khi app đang mở, audit C3);
+  workspace thì hỏi danh sách chờ trước, còn lại hiện thông báo native (heads-up khi app đang mở, audit C3); thông báo native
+  không hiện được (bản thiếu module, hệ thống từ chối) thì một thông báo thường trên kênh `missed_calls` (`callFallback`
+  trong `call-wiring.ts`, id `call-ring:<callId>`) mở màn đổ chuông, push kết thúc gỡ nó — một lần đổ chuông data-only
+  không bao giờ mất im lặng;
   `data/calls/call-actions.ts` (Từ chối khi app đã kill chỉ báo server cho cuộc gọi 1-1, bằng phiên đã lưu);
-  `data/calls/call-native-sync.ts` theo engine (service từ connecting tới hết, hỏi `BLUETOOTH_CONNECT` lúc bắt đầu
+  `data/calls/call-native-sync.ts` theo engine (service từ connecting tới hết, thử lại mỗi lần app về foreground —
+  `onAppStateChange`, hỏi `BLUETOOTH_CONNECT` lúc bắt đầu
   trên API 31+, gỡ thông báo đổ chuông khi màn trong app reo, nhả màn khoá). `data/calls/call-wiring.ts` nối tất cả:
   task nền của `expo-task-manager` cho push data-only và headless task đăng ký ở entry mới `index.ts`
   (`data/calls/background-tasks.ts`, trước `expo-router/entry`, để runtime không giao diện cũng có), còn
@@ -258,8 +267,9 @@ một dòng thì ghi lý do ở dòng trên.
   **Chỉ máy thật kiểm được** (checklist ở runbook › Cuộc gọi native trên Android; luồng tay
   `maestro/flows/call-answer-incoming.yaml`): Kotlin có biên dịch (máy dev không có Android SDK; CI
   `android-release` build nó), push data-only tới khi app bị kill (cần FCM thật), màn toàn màn hình trên máy khoá, nhạc
-  chuông theo công tắc chuông/DND, Nghe từ màn khoá (Android có thể đòi mở khoá cho nút Nghe vì activity chỉ tự đặt
-  `showWhenLocked` lúc chạy), micro còn sau khi khoá máy giữa cuộc gọi, Từ chối khi app đã kill (headless task, giới hạn
+  chuông theo công tắc chuông/DND, Nghe từ màn khoá (listener của `UniChatCallsPackage` đặt
+  `showWhenLocked` khi activity được mở bởi cuộc gọi), micro còn sau khi khoá máy giữa cuộc gọi và khi người kia nối lúc
+  app đã ở nền, Từ chối khi app đã kill (headless task, giới hạn
   khởi động service nền), định tuyến Bluetooth, badge theo launcher.
   Kind giàu (M3): endpoint trong `data/chat-api.ts`, lệnh và cache trong
   `data/chat-actions.ts` (bỏ phiếu, tin thoại, nhắc, follow-up, tạo việc);

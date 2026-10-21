@@ -11,8 +11,9 @@
 // - startNativeCalls(), once the app's screens load (app/_layout.tsx): the
 //   engine ↔ foreground-service sync (call-native-sync.ts), the Decline /
 //   Hang up taps that could not run before, the foreground push handler
-//   (lib/notification-presentation.ts), and the hand-over of a call ringing
-//   on screen to the notification when the person leaves the app.
+//   (lib/notification-presentation.ts), the hand-over of a call ringing
+//   on screen to the notification when the person leaves the app, and the
+//   call's service started again on the way back.
 import { runtimeConfig } from "@uniwork/core/runtime-config";
 import * as Notifications from "expo-notifications";
 import * as TaskManager from "expo-task-manager";
@@ -51,8 +52,29 @@ export async function requestBluetooth(): Promise<void> {
   if (!(await PermissionsAndroid.check(permission))) await PermissionsAndroid.request(permission);
 }
 
+/** The plain ring's notification id, so the end of the ring takes it down. */
+const fallbackRingId = (callId: string) => `call-ring:${callId}`;
+
+/**
+ * The plain ring (call-push.ts › fallback), on the missed-calls channel:
+ * expo-notifications creates that one at launch, while the calls channel
+ * exists only where the native module made it. A tap opens the call's
+ * ringing screen through the push's `data.url` (app/_layout.tsx).
+ */
+const callFallback: CallPushEnv["fallback"] = {
+  async show(call, url) {
+    await Notifications.scheduleNotificationAsync({
+      identifier: fallbackRingId(call.callId),
+      content: { title: call.callerName, body: call.text, data: { url }, sound: "default", priority: Notifications.AndroidNotificationPriority.MAX },
+      trigger: { channelId: "missed_calls" },
+    });
+  },
+  dismiss: (callId) => Notifications.dismissNotificationAsync(fallbackRingId(callId)),
+};
+
 const pushEnv: CallPushEnv = {
   native: nativeCalls,
+  fallback: callFallback,
   appActive: () => AppState.currentState === "active",
   callsOn: () => readMobileFlag(queryClient, "unichat_mobile_calls"),
   engine: { current, contextWorkspaceId: () => callEngine.contextWorkspaceId(), syncPendingInvites: () => callEngine.syncPendingInvites() },
@@ -154,12 +176,22 @@ export function handOverRing(status: string): void {
   nativeCalls.showIncomingCall(incomingSpecFromState(state, chatUrl, workspace.wsId, pushEnv));
 }
 
+/**
+ * The app's AppState listener: the ring hand-over, and back in the app the
+ * call's service once more — a start Android refused while the app was in the
+ * background (no foreground-start exemption) gets another try in front.
+ */
+export function onAppStateChange(status: string): void {
+  if (status === "active") nativeCallSync.refresh(current());
+  handOverRing(status);
+}
+
 /** Once the app's screens load; the function it returns undoes it (tests). */
 export function startNativeCalls(): () => void {
   const stopSync = installNativeCallSync(callEngine.store, nativeCallSync);
   for (const pending of nativeCalls.takePendingActions()) void runCallActionTask(pending);
   Notifications.setNotificationHandler({ handleNotification: (notification) => foregroundBehavior(notification.request.content.data) });
-  const appState = AppState.addEventListener("change", handOverRing);
+  const appState = AppState.addEventListener("change", onAppStateChange);
   return () => {
     stopSync();
     appState.remove();

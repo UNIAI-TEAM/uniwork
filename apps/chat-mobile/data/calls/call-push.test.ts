@@ -27,6 +27,7 @@ let afterSync: VoiceCallState | null;
 function env(over: Partial<CallPushEnv> = {}): CallPushEnv {
   return {
     native: { showIncomingCall: vi.fn(() => true), cancelIncomingCall: vi.fn() },
+    fallback: { show: vi.fn(async () => undefined), dismiss: vi.fn(async () => undefined) },
     appActive: () => false,
     callsOn: () => true,
     engine: {
@@ -103,10 +104,26 @@ describe("handleCallPush", () => {
     expect(e.engine.syncPendingInvites).not.toHaveBeenCalled();
   });
 
-  it("is ignored when the notification cannot be posted (no permission)", async () => {
+  it("falls back to a plain notification that opens the ringing screen when the native one is not shown", async () => {
+    // A build without the native module, or a post the system refused: a
+    // data-only ring must never be dropped without a trace.
     const e = env();
     vi.mocked(e.native.showIncomingCall).mockReturnValue(false);
+    expect(await handleCallPush(invite({ url: `${URL}&answer=1` }), e)).toBe("fallback");
+    expect(e.fallback.show).toHaveBeenCalledWith(expect.objectContaining({ callId: "c-1", callerName: "Minh", text: "mobile.call_notify.incoming_voice" }), URL);
+  });
+
+  it("is ignored when even the plain notification cannot be posted (no permission)", async () => {
+    const e = env();
+    vi.mocked(e.native.showIncomingCall).mockReturnValue(false);
+    vi.mocked(e.fallback.show).mockRejectedValueOnce(new Error("denied"));
     expect(await handleCallPush(invite(), e)).toBe("ignored");
+  });
+
+  it("does not fall back when the native notification is shown", async () => {
+    const e = env();
+    expect(await handleCallPush(invite(), e)).toBe("shown");
+    expect(e.fallback.show).not.toHaveBeenCalled();
   });
 
   it("does not ring with the calls switch off, for a ring that is over, or without a link", async () => {
@@ -155,5 +172,13 @@ describe("handleCallPush", () => {
     expect(await handleCallPush({ type: "call_missed", callId: "c-2", roomId: "r-1", workspaceId: "w-1", url: URL }, e)).toBe("cleared");
     expect(e.native.cancelIncomingCall).toHaveBeenNthCalledWith(1, "c-1");
     expect(e.native.cancelIncomingCall).toHaveBeenNthCalledWith(2, "c-2");
+    expect(e.fallback.dismiss).toHaveBeenNthCalledWith(1, "c-1");
+    expect(e.fallback.dismiss).toHaveBeenNthCalledWith(2, "c-2");
+  });
+
+  it("still clears when the plain notification cannot be dismissed", async () => {
+    const e = env();
+    vi.mocked(e.fallback.dismiss).mockRejectedValueOnce(new Error("gone"));
+    expect(await handleCallPush({ type: "call_end", callId: "c-1", roomId: "r-1", workspaceId: "w-1" }, e)).toBe("cleared");
   });
 });
