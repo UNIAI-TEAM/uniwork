@@ -527,6 +527,71 @@ func TestChatPollReminderNote(t *testing.T) {
 	}
 }
 
+func TestChatPollMessageOmitsVotersList(t *testing.T) {
+	f := setupChatFixture(t, "pollvoters")
+	srv := f.srv
+	base := roomMessagesPath(f, f.groupRoomID)
+
+	res, out := doJSON(t, srv, "POST", base, f.tokens["a"], map[string]any{
+		"poll": map[string]any{"question": "Who?", "options": []string{"A", "B"}},
+	})
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("send poll: %d %v", res.StatusCode, out)
+	}
+	pollMsg := out["message"].(map[string]any)
+	pollID := pollMsg["id"].(string)
+	optA := pollMsg["poll"].(map[string]any)["options"].([]any)[0].(map[string]any)["id"].(string)
+
+	res, out = doJSON(t, srv, "POST", base+"/"+pollID+"/poll/vote", f.tokens["a"], map[string]string{"option_id": optA})
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("vote a: %d %v", res.StatusCode, out)
+	}
+	res, out = doJSON(t, srv, "POST", base+"/"+pollID+"/poll/vote", f.tokens["b"], map[string]string{"option_id": optA})
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("vote b: %d %v", res.StatusCode, out)
+	}
+
+	assertPollOmitsVotesByUser := func(label string, poll map[string]any) {
+		t.Helper()
+		if poll == nil {
+			t.Fatalf("%s: missing poll", label)
+		}
+		if _, ok := poll["votes_by_user"]; ok {
+			t.Fatalf("%s: poll must not include votes_by_user", label)
+		}
+	}
+
+	res, out = doJSON(t, srv, "GET", base+"?limit=50", f.tokens["a"], nil)
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("list messages: %d %v", res.StatusCode, out)
+	}
+	var listed map[string]any
+	for _, raw := range out["messages"].([]any) {
+		msg := raw.(map[string]any)
+		if msg["id"] == pollID {
+			listed = msg["poll"].(map[string]any)
+			break
+		}
+	}
+	assertPollOmitsVotesByUser("list", listed)
+
+	res, out = doJSON(t, srv, "GET", base+"/"+pollID, f.tokens["a"], nil)
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("get message: %d %v", res.StatusCode, out)
+	}
+	assertPollOmitsVotesByUser("get", out["message"].(map[string]any)["poll"].(map[string]any))
+
+	votersPath := base + "/" + pollID + "/poll/voters"
+	res, out = doJSON(t, srv, "GET", votersPath, f.tokens["a"], nil)
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("poll voters: %d %v", res.StatusCode, out)
+	}
+	voters, ok := out["votes_by_user"].(map[string]any)
+	if !ok || len(voters) != 2 {
+		t.Fatalf("votes_by_user: ok=%v len=%d body=%v", ok, len(voters), out)
+	}
+}
+
 // "N người đã xem" compares read pointers with message times, so the member
 // list carries each pointer at full precision, not RFC 3339 seconds.
 func TestChatRoomMembersCarryTheReadPointerAtFullPrecision(t *testing.T) {
