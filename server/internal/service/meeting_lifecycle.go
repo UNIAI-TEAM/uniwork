@@ -79,6 +79,9 @@ func (s *MeetingService) CreateInstant(ctx context.Context, userID, workspaceID 
 	}
 	s.ensureProviderSession(ctx, sess)
 	s.ensureScribeNow(ctx, started.ID, false)
+	if s.dialInConfigured() {
+		s.ensureDialInNow(ctx, started.ID)
+	}
 	return started, nil
 }
 
@@ -132,6 +135,9 @@ func (s *MeetingService) Start(ctx context.Context, userID, meetingID string) (d
 	s.count("started")
 	s.ensureProviderSession(ctx, sess)
 	s.ensureScribeNow(ctx, started.ID, false)
+	if s.dialInConfigured() {
+		s.ensureDialInNow(ctx, started.ID)
+	}
 	return started, nil
 }
 
@@ -249,6 +255,9 @@ func (s *MeetingService) endMeeting(ctx context.Context, m db.Meeting, actorID, 
 	s.count("ended")
 	if closedSessions > 0 {
 		s.publishAttendanceChanged(ctx, m.ID)
+	}
+	if m.SipDispatchRuleID.Valid {
+		s.ensureDialInNow(ctx, m.ID)
 	}
 	return ended, nil
 }

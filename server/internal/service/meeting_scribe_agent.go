@@ -200,7 +200,11 @@ func (s *MeetingService) AppendAgentSegments(ctx context.Context, c meetings.Age
 	}
 	byIdentity := make(map[string]db.MeetingParticipant, len(ps))
 	for _, p := range ps {
-		byIdentity[meetings.IdentityForParticipant(p.ID)] = p
+		key := meetings.IdentityForParticipant(p.ID)
+		if isDialInParticipant(p) {
+			key = p.GuestID.String
+		}
+		byIdentity[key] = p
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -210,8 +214,13 @@ func (s *MeetingService) AppendAgentSegments(ctx context.Context, c meetings.Age
 	q := s.q.WithTx(tx)
 	var speech int64
 	for _, g := range segs {
-		pid, speaker := pgtype.Text{}, g.ParticipantIdentity
-		if p, ok := byIdentity[g.ParticipantIdentity]; ok {
+		identity, speaker := g.ParticipantIdentity, g.ParticipantIdentity
+		if strings.HasPrefix(identity, "sip_") {
+			// A caller's LiveKit identity hashes their number: never stored.
+			identity, speaker = s.dialInGuestID(identity), dialInName("")
+		}
+		pid := pgtype.Text{}
+		if p, ok := byIdentity[identity]; ok {
 			pid, speaker = strText(p.ID), p.DisplayNameSnapshot
 		}
 		_, err := q.InsertAgentTranscriptSegment(ctx, db.InsertAgentTranscriptSegmentParams{

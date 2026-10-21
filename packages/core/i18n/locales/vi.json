@@ -3033,6 +3033,17 @@
     "quorumHint": "Để trống nếu không yêu cầu. Chưa đủ tỉ lệ chỉ hiện cảnh báo, không chặn cuộc họp.",
     "quorumInvalid": "Nhập số nguyên từ 1 đến 100",
     "allowJoinRequestHint": "Chỉ áp dụng thành viên workspace đã đăng nhập — không dùng cho khách bên ngoài.",
+    "dialIn": {
+      "title": "Gọi vào bằng điện thoại",
+      "description": "Gọi số tổng đài, nhập mã PIN rồi bấm #. Chủ trì duyệt bạn vào phòng như khách.",
+      "number": "Số tổng đài",
+      "pin": "Mã PIN",
+      "rotate": "Đổi mã PIN",
+      "rotateTitle": "Đổi mã PIN gọi vào?",
+      "rotateHint": "Mã cũ hết hiệu lực ngay, người đã nhận thư mời cần mã mới. Ai đang trong phòng vẫn ở lại.",
+      "rotated": "Đã đổi mã PIN",
+      "phoneChip": "Điện thoại"
+    },
     "externalGuestLinks": "Khách bên ngoài (không cần tài khoản)",
     "externalGuestLinksDescription": "Tạo và quản lý liên kết để người chưa có tài khoản UniWork tham gia cuộc họp.",
     "externalGuestLinksClosedDescription": "Liên kết đã dùng để khách chưa có tài khoản UniWork tham gia cuộc họp.",

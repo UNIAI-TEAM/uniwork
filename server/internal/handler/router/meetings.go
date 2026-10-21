@@ -222,6 +222,16 @@ func registerMeetings(r api, h Routes, summaryLimit, minutesOrg, minutesFlag fun
 		description: "Ai đọc được transcript thì đọc được: mỗi tệp tải lên một lần ghi lời, mới nhất trước, có trạng thái, thời lượng và lỗi.",
 		tags:        []string{"meetings"}, sdo: sdo.MeetingTranscriptionListSDO{}, auth: true,
 	})
+	r.Get("/meetings/{meetingID}/dial-in", h.MeetingDialIn, apiOp{
+		summary:     "How to call into the meeting by phone",
+		description: "Thành viên workspace của cuộc họp. Số tổng đài và mã PIN 6 số (spec thư ký AI §5.4); enabled = false khi server tắt SIP, cờ meeting_dial_in tắt hoặc cuộc họp đã kết thúc.",
+		tags:        []string{"meetings"}, sdo: sdo.MeetingDialInSDO{}, auth: true,
+	})
+	r.Post("/meetings/{meetingID}/dial-in/pin", h.RotateMeetingDialInPin, apiOp{
+		summary:     "Draw a new dial-in PIN",
+		description: "Chủ trì hoặc quản trị workspace; cuộc họp SCHEDULED hoặc IN_PROGRESS. PIN cũ hết hiệu lực ngay, người đang trong phòng vẫn ở lại. Ghi audit meeting.dial_in_pin_rotated và phát meeting.updated. 404 dial_in_unavailable khi cuộc họp không nhận cuộc gọi.",
+		tags:        []string{"meetings"}, sdo: sdo.MeetingDialInSDO{}, auth: true,
+	})
 	r.Post("/meetings/{meetingID}/transcript", h.AppendTranscript, apiOp{
 		summary: "Append a transcript segment (live captions)", tags: []string{"meetings"},
 		sdi: sdi.AppendTranscriptSDI{}, sdo: sdo.TranscriptSegmentSDO{}, auth: true,

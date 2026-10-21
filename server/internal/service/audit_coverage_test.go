@@ -1831,6 +1831,21 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				}
 			}
 		},
+		// UNI-2029: the host draws a new dial-in PIN.
+		audit.ActionMeetingDialInPinRotated: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			s := NewMeetingService(f.pool, f.q, f.ws, NopPublisher{}, &meetings.FakeProvider{}, MeetingRuntime{
+				TokenTTL: time.Minute, HMACKey: []byte("t"), DialInEnabled: true, DialInNumber: "+84 28 7300 0000",
+			})
+			s.SetFlags(mcpFlagsExcept{})
+			m, err := s.CreateInstant(f.ctx, f.owner.ID, w.ID, "Audit")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := s.RotateDialInPin(f.ctx, f.owner.ID, m.ID); err != nil {
+				t.Fatal(err)
+			}
+		},
 		// UNI-1237: the provider refused the mailbox's credential; it needs reconnect.
 		audit.ActionEmailHubAccountAuthFailed: func(t *testing.T, f *auditFixture) {
 			f.build(t)

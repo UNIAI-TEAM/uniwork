@@ -2,6 +2,7 @@ package meetings
 
 import (
 	"context"
+	"errors"
 	"time"
 )
 
@@ -27,6 +28,51 @@ type ConferenceProvider interface {
 	// participant in the room (an empty value deletes one) and leaves its
 	// permissions alone.
 	SetParticipantAttributes(ctx context.Context, req SetParticipantAttributesRequest) error
+	// CreateDialInRule routes callers who enter req.Pin into the room (spec
+	// 2026-10-20-meeting-scribe-agent-design §5.4) and returns the rule id;
+	// DeleteDialInRule removes it, a rule already gone included.
+	CreateDialInRule(ctx context.Context, req DialInRuleRequest) (string, error)
+	DeleteDialInRule(ctx context.Context, ruleID string) error
+	// ListDialInRules lists the SIP dispatch rules on one trunk, so the sweep
+	// can find rules no meeting points at; rules on other trunks (another
+	// deployment sharing the server) are never listed.
+	ListDialInRules(ctx context.Context, trunkID string) ([]DialInRule, error)
+	// ListParticipants lists who is connected to a room right now.
+	ListParticipants(ctx context.Context, roomName string) ([]ProviderParticipant, error)
+}
+
+// ErrDialInRuleConflict: the provider refused the rule because another one
+// already routes the same PIN on the trunk.
+var ErrDialInRuleConflict = errors.New("dial-in rule conflicts with an existing rule")
+
+// DialInRule is one SIP dispatch rule as the provider lists it; CreatedAt is
+// zero when the provider does not say.
+type DialInRule struct {
+	ID        string
+	Name      string
+	TrunkIDs  []string
+	CreatedAt time.Time
+}
+
+// ProviderParticipant is one live connection in a room. SIP marks a phone
+// caller.
+type ProviderParticipant struct {
+	Identity    string
+	SID         string
+	Name        string
+	SIP         bool
+	Attributes  map[string]string
+	Permissions MediaPermissions
+}
+
+// DialInRuleRequest is one PIN-gated route from the phone network into a
+// room. TrunkID, when set, keeps the rule to the UniWork trunk: the LiveKit
+// server is shared with lms-core.
+type DialInRuleRequest struct {
+	RoomName string
+	Pin      string
+	TrunkID  string
+	Name     string
 }
 
 // ScribeIdentity is the LiveKit identity the scribe agent joins with. It is
@@ -110,10 +156,14 @@ type RemoveProviderParticipantRequest struct {
 
 // UpdateProviderParticipantRequest sets a participant's whole permission set:
 // providers replace it rather than merge, so every grant is spelled out.
+// Name, when set, renames the participant; Attributes are merged into theirs
+// (an empty value removes the key).
 type UpdateProviderParticipantRequest struct {
 	RoomName    string
 	Identity    string
 	Permissions MediaPermissions
+	Name        string
+	Attributes  map[string]string
 }
 
 // GetProviderParticipantRequest names a participant whose current

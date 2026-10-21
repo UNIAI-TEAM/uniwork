@@ -175,9 +175,12 @@ func (s *MeetingService) RemoveParticipant(ctx context.Context, actorID, meeting
 	if sess, err := q.GetOpenConferenceSession(ctx, m.ID); err == nil {
 		room = sess.ProviderRoomName
 	}
-	_ = s.enqueue(ctx, q, m.WorkspaceID, "provider.remove_participant", map[string]string{
-		"meeting_id": m.ID, "room_name": room, "identity": meetings.IdentityForParticipant(participantID),
-	})
+	target := map[string]string{"meeting_id": m.ID, "room_name": room, "identity": meetings.IdentityForParticipant(participantID)}
+	if isDialInParticipant(p) {
+		// A caller is dropped by connection: the raw identity is never stored.
+		target = map[string]string{"meeting_id": m.ID, "room_name": room, "participant_sid": s.dialInConnectionSID(ctx, p)}
+	}
+	_ = s.enqueue(ctx, q, m.WorkspaceID, "provider.remove_participant", target)
 	s.record(ctx, q, m, audit.User(actorID), "participant.removed",
 		meetingRelatedPayload(m, map[string]string{"participant_id": participantID}), nil)
 	if err := tx.Commit(ctx); err != nil {

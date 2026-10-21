@@ -83,6 +83,11 @@ type MeetingRuntime struct {
 	ScribeEnabled   bool
 	ScribeAgentName string
 	SummaryMaxRunes int
+	// Dial-in by phone (UNI-2029): create SIP rules at all, the number people
+	// call, and the trunk the rules keep to.
+	DialInEnabled bool
+	DialInNumber  string
+	SIPTrunkID    string
 }
 
 type MeetingService struct {
@@ -451,7 +456,7 @@ func (s *MeetingService) recordResource(ctx context.Context, q *db.Queries, m db
 
 // recordAction is recordResource for a command whose audit action is not the
 // one its topic usually maps to (a shared-mic switch is its own action but
-// tells clients participant.updated).
+// tells clients participant.updated; a PIN rotation tells them meeting.updated).
 func (s *MeetingService) recordAction(ctx context.Context, q *db.Queries, m db.Meeting, actor audit.Actor, action, topic string, payload map[string]string, changes map[string]audit.Change, resourceType, resourceID string) {
 	// The meeting carries its tenant (ADR 0008), so no workspace read runs
 	// inside the caller's transaction - for a ballot, under the motion lock.

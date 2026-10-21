@@ -360,6 +360,9 @@ const (
 	ActionMeetingTranscriptionRequested = "meeting.transcription_requested"
 	ActionMeetingTranscriptionCompleted = "meeting.transcription_completed"
 	ActionMeetingTranscriptionFailed    = "meeting.transcription_failed"
+	// A host or admin, or the server when another meeting holds the PIN,
+	// drew a new dial-in PIN (MeetingService.RotateDialInPin, UNI-2029).
+	ActionMeetingDialInPinRotated = "meeting.dial_in_pin_rotated"
 
 	ActionAuditExportRequested = "audit.export_requested"
 	ActionAuditExported        = "audit.exported"

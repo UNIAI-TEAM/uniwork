@@ -30,6 +30,12 @@ type ProviderNeutralEvent struct {
 	// OccurredAt is when the provider says the event happened; zero when it
 	// did not say. Room sessions use it so a retried delivery keeps its time.
 	OccurredAt time.Time
+	// ParticipantKind is "sip" for a phone caller; ParticipantName is the
+	// provider's display name and SIPRuleID the dispatch rule that routed
+	// the call (UNI-2029 dial-in).
+	ParticipantKind string
+	ParticipantName string
+	SIPRuleID       string
 	// Recording fields are set for conference.recording_ended.
 	RecordingID     string
 	RecordingURL    string
@@ -61,6 +67,10 @@ func (s *MeetingService) HandleProviderEvent(ctx context.Context, ev ProviderNeu
 	}
 	sess, err := s.sessionByRoom(ctx, ev.RoomName)
 	if errors.Is(err, pgx.ErrNoRows) {
+		if ev.Type == "conference.participant_joined" && ev.ParticipantKind == ParticipantKindSIP && s.provider != nil {
+			// A stale rule dialled a caller into a meeting that is over.
+			s.hangUpConnection(ctx, ev.RoomName, ev.ParticipantSID)
+		}
 		return nil // no open conference for this room: nothing to apply
 	}
 	if err != nil {
@@ -96,6 +106,9 @@ func (s *MeetingService) HandleProviderEvent(ctx context.Context, ev ProviderNeu
 	if changed {
 		s.publishAttendanceChanged(ctx, sess.MeetingID)
 	}
+	if ev.Type == "conference.participant_joined" && ev.ParticipantKind == ParticipantKindSIP && s.provider != nil {
+		s.settleDialInCaller(ctx, sess, ev, nil)
+	}
 	if (ev.Type == "conference.participant_left" || ev.Type == "conference.participant_connection_aborted") && ev.Identity == meetings.ScribeIdentity {
 		s.scribeLeft(ctx, sess.MeetingID, ev.ParticipantSID)
 	}
@@ -129,8 +142,14 @@ func (s *MeetingService) applyRoomEvent(ctx context.Context, q *db.Queries, sess
 		})
 		return closed > 0, err
 	case "conference.participant_joined":
+		if ev.ParticipantKind == ParticipantKindSIP {
+			return false, s.dialInCallerJoined(ctx, q, sess, ev)
+		}
 		return s.roomParticipantJoined(ctx, q, sess, ev)
 	case "conference.participant_left", "conference.participant_connection_aborted":
+		if ev.ParticipantKind == ParticipantKindSIP {
+			return s.dialInCallerLeft(ctx, q, sess, ev)
+		}
 		return s.roomParticipantLeft(ctx, q, sess, ev)
 	}
 	return false, nil
@@ -165,6 +184,10 @@ func (s *MeetingService) applyOutbox(ctx context.Context, row db.OutboxEvent) er
 		}
 		return err
 	case "provider.remove_participant":
+		if p["identity"] == "" {
+			s.hangUpConnection(ctx, p["room_name"], p["participant_sid"])
+			return nil
+		}
 		return s.provider.RemoveParticipant(ctx, meetings.RemoveProviderParticipantRequest{
 			RoomName: p["room_name"], Identity: p["identity"],
 		})

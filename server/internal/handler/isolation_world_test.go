@@ -181,6 +181,9 @@ func newIsolationServer(t *testing.T) *isoWorld {
 	d.Auth.SetMail(renderer, discardOutbox{})
 
 	d.Meetings.Tasks = d.Tasks
+	// The flag service: every catalogue flag, meeting_dial_in included, is
+	// switched on below as a global override, so the owner's control on the
+	// dial-in routes is a real read and rotation, not dial_in_unavailable.
 	d.Meetings.SetFlags(d.FeatureFlags)
 	d.Meetings.Chat = d.Chat
 	d.Tasks.Chat = d.Chat

@@ -628,6 +628,8 @@ func New(d Deps) http.Handler {
 		CreateMeetingAudioUpload:       h.createMeetingAudioUploadSession,
 		RequestMeetingTranscription:    h.requestMeetingTranscription,
 		ListMeetingTranscriptions:      h.listMeetingTranscriptions,
+		MeetingDialIn:                  h.meetingDialIn,
+		RotateMeetingDialInPin:         h.rotateMeetingDialInPin,
 		MeetingAgentStarted:            h.meetingAgentStarted,
 		MeetingAgentContext:            h.meetingAgentContext,
 		MeetingAgentSegments:           h.meetingAgentSegments,
