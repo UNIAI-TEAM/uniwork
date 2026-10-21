@@ -9,8 +9,9 @@ import type { UploadProbe } from "../chunked-upload/probe";
 
 /**
  * Where one file's bytes go. A "put" target is one request; `auth: "session"`
- * marks the server's own content route (storage that cannot presign), which
- * carries the session bearer, every other URL is presigned and gets none.
+ * marks the server's own content route (storage that cannot presign, a URL
+ * relative to the API origin), which carries the session bearer. Without it
+ * the URL is presigned and gets no credentials at all.
  */
 export type FileTarget =
   | {
@@ -26,7 +27,7 @@ export type FileTarget =
       session_id: string;
       part_size: number;
       /** On a refreshed target, only the parts still missing. */
-      parts: { part_number: number; url: string; headers?: Record<string, string> }[];
+      parts: { part_number: number; method: string; url: string; headers: Record<string, string>; expires_at: string }[];
       expires_at: string;
     };
 
