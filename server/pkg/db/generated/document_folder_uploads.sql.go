@@ -482,6 +482,28 @@ func (q *Queries) LockDocumentFolderUpload(ctx context.Context, arg LockDocument
 	return i, err
 }
 
+const lockDocumentFolderUploadStatusShared = `-- name: LockDocumentFolderUploadStatusShared :one
+SELECT status FROM document_folder_uploads
+WHERE id = $1 AND organization_id = $2 AND workspace_id = $3
+FOR SHARE
+`
+
+type LockDocumentFolderUploadStatusSharedParams struct {
+	ID             string `json:"id"`
+	OrganizationID string `json:"organization_id"`
+	WorkspaceID    string `json:"workspace_id"`
+}
+
+// The GET mint's shared lock on the batch row: it conflicts with the FOR UPDATE
+// of cancel, COMPLETE and the content route, so a target is never recorded on a
+// batch that a concurrent cancel already closed.
+func (q *Queries) LockDocumentFolderUploadStatusShared(ctx context.Context, arg LockDocumentFolderUploadStatusSharedParams) (string, error) {
+	row := q.db.QueryRow(ctx, lockDocumentFolderUploadStatusShared, arg.ID, arg.OrganizationID, arg.WorkspaceID)
+	var status string
+	err := row.Scan(&status)
+	return status, err
+}
+
 const lockFolderUploadCreator = `-- name: LockFolderUploadCreator :exec
 SELECT pg_advisory_xact_lock(hashtextextended('document-folder-upload:' || $1::text, 0))
 `

@@ -847,6 +847,10 @@ func (s *DocumentService) insertFolderUploadFolder(ctx context.Context, q *db.Qu
 	return doc.ID, nil
 }
 
+// errFolderUploadBatchClosed is a mint that found its batch no longer open
+// (a DELETE or the sweep won the race): the caller answers the batch as it is.
+var errFolderUploadBatchClosed = errors.New("folder upload batch is not open")
+
 // folderUploadRow reads one batch for its creator; everyone else, and a
 // creator who lost the workspace since, gets ErrNotFound.
 func (s *DocumentService) folderUploadRow(ctx context.Context, actor Actor, orgID, workspaceID, batchID string) (db.DocumentFolderUpload, error) {
@@ -902,6 +906,15 @@ func (s *DocumentService) folderUploadView(ctx context.Context, actor Actor, org
 			out.Counts.Pending++
 			if mint {
 				t, err := s.mintFolderUploadTarget(ctx, actor, row, f)
+				if errors.Is(err, errFolderUploadBatchClosed) {
+					// DELETE or the sweep closed the batch while this read was
+					// minting: answer it as GET answers that state.
+					closed, err := s.folderUploadView(ctx, actor, orgID, workspaceID, batchID, false)
+					if err == nil && closed.Status == folderUploadStatusExpired {
+						err = errFolderUploadExpired()
+					}
+					return closed, err
+				}
 				if err != nil {
 					return FolderUploadBatch{}, err
 				}
@@ -1025,6 +1038,22 @@ func (s *DocumentService) openFolderUploadMultipart(ctx context.Context, fs *Fil
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	q := s.q.WithTx(tx)
+	// The shared batch row lock conflicts with cancel's FOR UPDATE: either the
+	// cancel commits first and this mint sees it, or this mint commits first and
+	// the cancel then finds the ref it has to release.
+	status, err := q.LockDocumentFolderUploadStatusShared(ctx, db.LockDocumentFolderUploadStatusSharedParams{
+		ID: batch.ID, OrganizationID: batch.OrganizationID, WorkspaceID: batch.WorkspaceID,
+	})
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return "", errors.Join(err, abort())
+	}
+	if err != nil || status != folderUploadStatusOpen {
+		_ = tx.Rollback(ctx)
+		if err := abort(); err != nil {
+			return "", err
+		}
+		return "", errFolderUploadBatchClosed
+	}
 	var cdOffset, cdSize pgtype.Int8
 	if f.CdOffset.Valid {
 		cdOffset, cdSize = f.CdOffset, f.CdSize
