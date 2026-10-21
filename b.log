@@ -1,0 +1,5 @@
+$ npm ci --no-audit --no-fund >/tmp/npmci.log 2>&1; c=$?; tail -3 /tmp/npmci.log; echo "NPMCI_EXIT=$c"; [ $c -eq 0 ]
+
+
+added 1082 packages in 15s
+NPMCI_EXIT=0

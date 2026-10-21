@@ -1,0 +1,6 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin feature/UNI-2047-doclist-app; git rev-parse HEAD; git log --oneline -3; git merge-base --is-ancestor 6d17601e4 HEAD && echo BASE_OK
+335de85305ea1f00d7809fe9a8173ce6bd3bc84a
+335de853 feat(doclist): draw every list on the doclist-canvas scale, with Sao on Starred
+2c51d0dc test(doclist): pin the doclist-canvas visual scale on every list (RED)
+6d17601e chore(doclist): merge B5 Sync Center style into the UNI-2047 app branch
+BASE_OK

@@ -1,0 +1,5 @@
+$ git diff --name-only 6d17601e4..HEAD | xargs npx prettier --check; t=$?; echo; echo "PRETTIER_EXIT=$t"; [ $t -eq 0 ]
+Checking formatting...
+All matched files use Prettier code style!
+
+PRETTIER_EXIT=0

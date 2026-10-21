@@ -1,0 +1,2 @@
+$ git status --short | head; git diff --quiet HEAD && echo TREE_CLEAN
+TREE_CLEAN

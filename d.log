@@ -1,0 +1,16 @@
+$ npm run test -w @genoffice/ui; t=$?; echo; echo "TEST_UI_EXIT=$t"; [ $t -eq 0 ]
+
+> @genoffice/ui@0.1.0 test
+> vitest run
+
+
+ RUN  v4.1.11 /home/ubuntu/work/uniwork-office/packages/ui
+
+
+ Test Files  60 passed (60)
+      Tests  1224 passed (1224)
+   Start at  04:05:22
+   Duration  11.46s (transform 2.81s, setup 0ms, import 6.97s, tests 7.71s, environment 13.36s)
+
+
+TEST_UI_EXIT=0

@@ -1,0 +1,7 @@
+$ npm run typecheck -w @genoffice/shell; t=$?; echo; echo "TSC_SHELL_EXIT=$t"; [ $t -eq 0 ]
+
+> @genoffice/shell@1.0.0 typecheck
+> tsc --noEmit
+
+
+TSC_SHELL_EXIT=0
