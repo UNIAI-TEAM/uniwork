@@ -316,3 +316,26 @@ func TestCORSExposesTheAccessReportExportHeaders(t *testing.T) {
 		}
 	}
 }
+
+func TestOnlyRealMeetingAgentPathsSkipTheGlobalLimiter(t *testing.T) {
+	var limited bool
+	h := exceptMeetingAgent(func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			limited = true
+			next.ServeHTTP(w, r)
+		})
+	})(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+
+	for path, want := range map[string]bool{
+		"/api/v1/meetings/01HMEETING/agent/segments": false,
+		"/api/v1/meetings/01HMEETING/recordings":     true,
+		// Decodes to an agent path, but chi routes it to /meetings/{meetingID}/recordings.
+		"/api/v1/meetings/x%2Fagent%2Fy/recordings": true,
+	} {
+		limited = false
+		h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, path, nil))
+		if limited != want {
+			t.Errorf("%s: limited = %v, want %v", path, limited, want)
+		}
+	}
+}

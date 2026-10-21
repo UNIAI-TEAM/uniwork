@@ -405,7 +405,9 @@ func exceptMeetingAgent(m func(http.Handler) http.Handler) func(http.Handler) ht
 	return func(next http.Handler) http.Handler {
 		limited := m(next)
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if isMeetingAgentPath(r.URL.Path) {
+			// The escaped path is what chi routes on: with URL.Path, a "%2F" in the
+			// meeting id would read as an agent path yet route to an ordinary one.
+			if isMeetingAgentPath(r.URL.EscapedPath()) {
 				next.ServeHTTP(w, r)
 				return
 			}
