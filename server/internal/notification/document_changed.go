@@ -93,20 +93,23 @@ func docChangeRule(verb string) rule {
 	}
 }
 
-// ruleDocumentRenamed: document.updated goes out for a title or an icon move;
-// the command's own audit row says which (Q5: an icon alone is no notice).
-func ruleDocumentRenamed(ctx context.Context, e env, ev outbox.Row, p map[string]string) ([]Draft, error) {
-	if !docChangeActor(ev) {
+// noticedVerbs are the verbs a command may write on document.change_noticed;
+// the command already decided the change is in scope (a new title, an
+// uploaded version), so the rule only addresses it.
+var noticedVerbs = map[string]bool{
+	docVerbRenamed: true, docVerbRestored: true, docVerbShelved: true, docVerbUnshelved: true,
+	docVerbAccessChanged: true, docVerbVersionCreated: true,
+}
+
+// ruleDocumentChangeNoticed is the rule of the server-only topic the
+// rename, restore, shelve, unshelve, access, link and upload commands write
+// beside their frame (BE-R1-1).
+func ruleDocumentChangeNoticed(ctx context.Context, e env, ev outbox.Row, p map[string]string) ([]Draft, error) {
+	verb := p["verb"]
+	if !noticedVerbs[verb] {
 		return nil, nil
 	}
-	changes, err := changedFields(ctx, e.q, ev, audit.ActionDocumentUpdated, p["document_id"])
-	if err != nil {
-		return nil, err
-	}
-	if _, ok := changes["title"]; !ok {
-		return nil, nil
-	}
-	return documentChangeDrafts(ctx, e, ev, p, docVerbRenamed, docChangeOpts{})
+	return documentChangeDrafts(ctx, e, ev, p, verb, docChangeOpts{anyPrivacy: verb == docVerbAccessChanged})
 }
 
 // ruleDocumentMovedChange tells a move from a rule-7 relocation by the
@@ -144,29 +147,6 @@ func ruleDocumentTrashedChange(ctx context.Context, e env, ev outbox.Row, p map[
 		o.exclude = owners
 	}
 	return documentChangeDrafts(ctx, e, ev, p, docVerbTrashed, o)
-}
-
-// ruleDocumentVersionChange: only an uploaded version - a new file, a
-// replacement, a desktop sync - is a change people hear of. An Office editor
-// save carries engine provenance and a page checkpoint or restore another
-// reason; editor content stays out of scope (card, Q6).
-func ruleDocumentVersionChange(ctx context.Context, e env, ev outbox.Row, p map[string]string) ([]Draft, error) {
-	if !docChangeActor(ev) || p["version_id"] == "" || p["workspace_id"] == "" || !ev.OrganizationID.Valid {
-		return nil, nil
-	}
-	v, err := e.q.GetDocumentVersionByID(ctx, db.GetDocumentVersionByIDParams{
-		ID: p["version_id"], OrganizationID: ev.OrganizationID.String, WorkspaceID: p["workspace_id"], DocumentID: p["document_id"],
-	})
-	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	if v.Reason != "upload" || v.EngineName.Valid {
-		return nil, nil
-	}
-	return documentChangeDrafts(ctx, e, ev, p, docVerbVersionCreated, docChangeOpts{})
 }
 
 // ruleDocumentDeletedChange: the purge removed the row, its shares and its
@@ -300,15 +280,15 @@ func withoutPeople(ids []string, excluded map[string]bool) []string {
 }
 
 // docCommandKey names the command an event belongs to: the request's
-// correlation id, else the batch the command stamped, else the event itself.
+// correlation id, else the archive batch a trash command stamped, else the
+// event itself. document.change_noticed carries ids and the verb only, so a
+// restore or shelve without a request falls back to the event.
 func docCommandKey(ev outbox.Row, p map[string]string) string {
 	switch {
 	case ev.CorrelationID.Valid && ev.CorrelationID.String != "":
 		return ev.CorrelationID.String
 	case p["archive_batch_id"] != "":
 		return p["archive_batch_id"]
-	case p["shelve_batch_id"] != "":
-		return p["shelve_batch_id"]
 	}
 	return ev.ID
 }

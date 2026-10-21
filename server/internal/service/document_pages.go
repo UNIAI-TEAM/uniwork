@@ -881,6 +881,11 @@ func (s *DocumentService) updateDocument(ctx context.Context, actor Actor, docum
 					"document_id": updated.ID, "workspace_id": updated.WorkspaceID,
 				}})
 			}
+			// A new title is a change people hear of; an icon alone is not
+			// (UNI-2056 Q5).
+			if _, ok := after["title"]; ok {
+				emit = append(emit, documentChangeNotice(updated.ID, updated.WorkspaceID, docNoticeRenamed))
+			}
 			for _, uid := range bodyMentionRecipients {
 				emit = append(emit, audit.Event{Topic: "document.body_mentioned", Payload: map[string]string{
 					"document_id": updated.ID, "workspace_id": updated.WorkspaceID,

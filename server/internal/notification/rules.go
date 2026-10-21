@@ -160,18 +160,15 @@ var rules = map[string]rule{
 	"document.archived": both(ruleDocumentTrashed, ruleDocumentTrashedChange),
 	// DOC-CHANGE-NOTIFY (UNI-2056): one document_changed notice per
 	// recipient per command for every in-scope change of a document
-	// somebody besides the actor can read.
-	"document.updated":                  ruleDocumentRenamed,
-	"document.moved":                    ruleDocumentMovedChange,
-	"document.restored":                 docChangeRule(docVerbRestored),
-	"document.deleted":                  ruleDocumentDeletedChange,
-	"document.shelved":                  docChangeRule(docVerbShelved),
-	"document.unshelved":                docChangeRule(docVerbUnshelved),
-	"document.share_revoked":            docChangeRule(docVerbAccessChanged),
-	"document.workspace_access_changed": docChangeRule(docVerbAccessChanged),
-	"document.link_created":             docChangeRule(docVerbAccessChanged),
-	"document.link_revoked":             docChangeRule(docVerbAccessChanged),
-	"document.version_created":          ruleDocumentVersionChange,
+	// somebody besides the actor can read. The topics that already had a
+	// notify-lane consumer carry their verb themselves; every other verb
+	// arrives on the server-only document.change_noticed, so the frame
+	// topics of a rename, restore, shelve, access change, link or version
+	// keep no consumer here and stay on the realtime lane (BE-R1-1).
+	"document.moved":          ruleDocumentMovedChange,
+	"document.deleted":        ruleDocumentDeletedChange,
+	"document.share_revoked":  docChangeRule(docVerbAccessChanged),
+	"document.change_noticed": ruleDocumentChangeNoticed,
 
 	"participant.invited":    ruleParticipantInvited,
 	"member.joined":          ruleMemberJoined,

@@ -164,7 +164,7 @@ func (s *DocumentService) CreateDocumentLink(ctx context.Context, actor Actor, d
 			"document_id":  doc.ID,
 			"workspace_id": doc.WorkspaceID,
 			"link_id":      link.ID,
-		}}); err != nil {
+		}}, documentChangeNotice(doc.ID, doc.WorkspaceID, docNoticeAccessChanged)); err != nil {
 			return err
 		}
 		out = CreatedDocumentLink{Link: link, Token: token}
@@ -202,7 +202,7 @@ func (s *DocumentService) RevokeDocumentLink(ctx context.Context, actor Actor, d
 			"document_id":  doc.ID,
 			"workspace_id": doc.WorkspaceID,
 			"link_id":      linkID,
-		}})
+		}}, documentChangeNotice(doc.ID, doc.WorkspaceID, docNoticeAccessChanged))
 	})
 }
 

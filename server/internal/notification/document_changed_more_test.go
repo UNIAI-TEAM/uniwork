@@ -18,6 +18,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/unicomhub/uniwork/server/internal/files/filesfake"
+	"github.com/unicomhub/uniwork/server/internal/office"
 	"github.com/unicomhub/uniwork/server/internal/outbox"
 	"github.com/unicomhub/uniwork/server/internal/service"
 	"github.com/unicomhub/uniwork/server/internal/util"
@@ -366,7 +367,8 @@ func TestDocumentChangedVerbsThroughTheirCommands(t *testing.T) {
 		f.none(t, f.owner.ID, f.starrer.ID, f.member.ID, f.bystander.ID)
 
 		f.settle(t)
-		res = f.commitVersion(t, f.command(), res.Document, service.DocumentEngineInfo{Name: "onlyoffice", Version: "8.2"})
+		res = f.commitVersion(t, f.command(), res.Document, service.DocumentEngineInfo{Name: "genoffice", Version: office.TrustedEngineVersion,
+			ContractVersion: office.ContractVersion, ProtocolVersion: "1"})
 		if _, err := f.docs.RestoreFileVersion(f.command(), service.Human(f.owner.ID), res.Document.ID, service.RestoreFileVersionInput{
 			Version: 1, BaseRevision: res.Document.Revision,
 		}); err != nil {

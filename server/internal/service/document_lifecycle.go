@@ -608,7 +608,7 @@ func (s *DocumentService) RestoreDocument(ctx context.Context, actor Actor, docu
 				},
 				Events: []audit.Event{{Topic: "document.restored", Payload: map[string]string{
 					"document_id": id, "workspace_id": doc.WorkspaceID, "archive_batch_id": batch,
-				}}},
+				}}, documentChangeNotice(id, doc.WorkspaceID, docNoticeRestored)},
 			})
 		}
 		if err := auditRecorder.RecordMany(ctx, q, recs); err != nil {
@@ -983,7 +983,7 @@ func (s *DocumentService) RestoreOwnedDocumentsInTx(ctx context.Context, q *db.Q
 			Metadata: map[string]any{"owner_id": ownerID, "archive_batch_id": batch},
 		}, audit.Event{Topic: "document.restored", Payload: map[string]string{
 			"document_id": id, "workspace_id": workspaceID, "archive_batch_id": batch,
-		}}); err != nil {
+		}}, documentChangeNotice(id, workspaceID, docNoticeRestored)); err != nil {
 			return nil, err
 		}
 	}
@@ -1065,7 +1065,7 @@ func (s *DocumentService) RestoreOwnedDocumentInTx(ctx context.Context, q *db.Qu
 		Actor: actor, Action: audit.ActionDocumentRestored,
 		ResourceType: "document", ResourceID: stamped,
 		Metadata: metadata,
-	}, audit.Event{Topic: "document.restored", Payload: payload}); err != nil {
+	}, audit.Event{Topic: "document.restored", Payload: payload}, documentChangeNotice(stamped, workspaceID, docNoticeRestored)); err != nil {
 		return false, err
 	}
 	return true, nil
