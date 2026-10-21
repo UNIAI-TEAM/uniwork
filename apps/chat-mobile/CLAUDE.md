@@ -156,8 +156,14 @@ một dòng thì ghi lý do ở dòng trên.
   cả phòng. Guard flush theo workspace + người gửi; lỗi tạm thời giữ hàng đó và thử lại theo backoff; tin bị từ chối
   hẳn mà không ai thử lại sau `FAILED_SEND_TTL_MS` (14 ngày — workspace đã rời) bị bỏ cùng tệp. Outbox là của tài
   khoản, không của màn đang mở: `data/owed.ts › flushOwed` đẩy tin chờ và lượt chờ của **mọi** workspace của người
-  đó, khi phiên sẵn sàng, NetInfo online và mỗi lần về foreground (`data/use-owed-flush.ts`, gắn ở
-  `app/(app)/_layout.tsx` — cả màn chọn workspace) và khi socket reconnect (`use-chat-realtime.ts`). **Đọc, biểu cảm, bình chọn offline**: `data/pending-ops.ts` +
+  đó, khi phiên sẵn sàng, NetInfo online và mỗi lần về foreground (`data/use-account-sync.ts`, gắn ở
+  `app/(app)/_layout.tsx` — cả màn chọn workspace) và khi socket reconnect (`use-chat-realtime.ts`). **Bản offline
+  luôn mới** (`data/timeline-refresh.ts`, cùng hook): frame của phòng không ai xem chỉ đánh dấu stale (UNI-1078), nên lúc
+  app rời foreground (còn mạng) các phòng trong 24 phòng gần nhất có timeline đứng sau — bị đánh dấu stale, cũ hơn
+  preview của danh sách, hay chưa tải mà còn chưa đọc — được đọc trang mới nhất một lần (cắt về trang đầu trước: một
+  request); push về một phòng, nhận lúc đang mở app hay khi chạm, đọc trang mới nhất của phòng đó và danh sách phòng
+  của workspace (workspace đó có thể không có socket trên máy). Timeline đang hiện là của socket, không đụng. Push nền
+  khi app đã đóng chưa nạp cache: cần push data/`content-available` (server) và task nền cho tin chat. **Đọc, biểu cảm, bình chọn offline**: `data/pending-ops.ts` +
   `stores/pending-ops-store.ts` — cache hiện lựa chọn ngay (`lib/optimistic-message.ts`, luật toggle của server),
   mỗi thứ một mục giữ mong muốn cuối; endpoint của server là toggle nên lần giao có thể đã tới (mất câu trả lời,
   khởi động lại) và mọi phiếu bầu đều GET tin trước rồi chỉ chạm phần còn khác; từ chối hẳn thì bỏ, refetch phòng

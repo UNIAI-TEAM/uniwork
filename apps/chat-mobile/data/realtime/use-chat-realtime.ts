@@ -5,7 +5,7 @@
 // web's selectLazyChatScopeRoomIds), flushes what the phone owes (the outbox
 // and the queued reads, reactions and votes of every workspace, owed.ts) when
 // the socket comes back — the network edge and the return to the front are
-// use-owed-flush.ts's, for the whole signed-in app — and keeps presence
+// use-account-sync.ts's, for the whole signed-in app — and keeps presence
 // beating while the app is in front.
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { selectLazyChatScopeRoomIds } from "@uniwork/core/chat/lazy-chat-scopes";

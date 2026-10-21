@@ -54,7 +54,7 @@ module.exports = {
     "data/realtime/use-chat-realtime.ts",
     "data/realtime/use-workspace-realtime.ts",
     "data/realtime/use-ws-subscriptions.ts",
-    "data/use-owed-flush.ts",
+    "data/use-account-sync.ts",
     "!**/*.test.{ts,tsx}",
   ],
   coverageDirectory: "<rootDir>/coverage/components",
