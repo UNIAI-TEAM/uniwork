@@ -63,6 +63,8 @@ describe("MeetingDecisionsBlock", () => {
       />,
     );
     expect(screen.getByText("Chốt lịch thứ Sáu")).toBeInTheDocument();
+    // Named as the AI's reading, apart from what a vote settled.
+    expect(screen.getByRole("heading", { name: "Do AI rút ra từ cuộc họp" })).toBeInTheDocument();
     // A decision that cites a line carries its evidence chip.
     expect(screen.getByRole("button", { name: "Căn cứ 1 nguồn" })).toBeInTheDocument();
     expect(screen.queryByText("Đã biểu quyết")).not.toBeInTheDocument();

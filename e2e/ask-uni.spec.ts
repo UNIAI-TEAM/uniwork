@@ -33,8 +33,8 @@ async function ask(page: Page, question: string) {
   await page.keyboard.press("ControlOrMeta+j");
   const dialog = page.getByRole("dialog", { name: "Hỏi UNI" });
   await expect(dialog).toBeVisible();
-  await dialog.getByRole("textbox", { name: "Hỏi UNI về công việc…" }).fill(question);
-  await dialog.getByRole("button", { name: "Gửi" }).click();
+  await dialog.getByRole("textbox", { name: "Câu hỏi cho UNI" }).fill(question);
+  await dialog.getByRole("button", { name: "Hỏi" }).click();
   return dialog;
 }
 
@@ -50,7 +50,7 @@ test("⌘J answers from the asker's own workspace only", async ({ browser, page:
   await expect(a.getByText(title)).toBeVisible();
 
   const dialog = await ask(a, `việc cho UNI ${stamp} thế nào?`);
-  const source = dialog.getByRole("link", { name: /\[S1\]/ });
+  const source = dialog.getByRole("link", { name: /S1/ });
   await expect(source).toBeVisible({ timeout: 15_000 });
   await expect(source).toHaveAttribute("href", /\/tasks\/[0-9A-Z]+$/);
   await expect(dialog.getByText(/\d+ vào · \d+ ra/)).toBeVisible();

@@ -1,5 +1,4 @@
 "use client";
-import { CircleCheck } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { MeetingMotion, MeetingSummaryDecision } from "@uniwork/core/types/meeting";
 import { MeetingEvidenceChip } from "./meeting-evidence-chip";
@@ -23,7 +22,7 @@ export function MeetingDecisionsBlock({
   if (voted.length === 0 && aiDecisions.length === 0) return null;
   return (
     <div className="space-y-3">
-      <h3 className="text-overline text-muted-foreground">{t("meetings.decisions")}</h3>
+      <h3 className="text-label font-semibold text-foreground">{t("meetings.decisions")}</h3>
       {voted.length > 0 ? (
         <div className="space-y-1.5">
           <h4 className="text-label font-medium text-foreground">{t("meetings.governance.votedDecisions")}</h4>
@@ -54,17 +53,22 @@ export function MeetingDecisionsBlock({
         </div>
       ) : null}
       {aiDecisions.length > 0 ? (
-        <ul className="space-y-1.5">
-          {aiDecisions.map((d, i) => (
-            <li key={i} className="flex items-start gap-2 text-body text-foreground">
-              <CircleCheck aria-hidden className="mt-0.5 size-4 shrink-0 text-success" />
-              <div className="min-w-0 space-y-0.5">
-                <p>{d.text}</p>
-                <MeetingEvidenceChip meetingId={meetingId} evidence={d.evidence} />
-              </div>
-            </li>
-          ))}
-        </ul>
+        // Read from the conversation, not settled by a vote: a neutral bullet,
+        // never the success check a passed motion carries.
+        <div className="space-y-1.5">
+          <h4 className="text-label font-medium text-foreground">{t("meetings.aiDecisions")}</h4>
+          <ul className="space-y-1.5">
+            {aiDecisions.map((d, i) => (
+              <li key={i} className="flex items-start gap-2 text-body text-foreground">
+                <span aria-hidden className="mt-2 size-1.5 shrink-0 rounded-full bg-faint-foreground" />
+                <div className="min-w-0 space-y-0.5">
+                  <p>{d.text}</p>
+                  <MeetingEvidenceChip meetingId={meetingId} evidence={d.evidence} />
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
       ) : null}
     </div>
   );

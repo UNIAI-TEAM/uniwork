@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import { requestMock, wrapWithNav } from "../test/api-mock";
 import { MeetingDialInSection } from "./meeting-dial-in-section";
@@ -21,6 +21,18 @@ describe("MeetingDialInSection", () => {
     expect(await screen.findByText("042137")).toBeInTheDocument();
     expect(screen.getByText("+84 28 7300 0000")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Đổi mã PIN" })).not.toBeInTheDocument();
+  });
+
+  it("dials the number from a phone and copies the number and the PIN", async () => {
+    requestMock.mockResolvedValue(on);
+    const writeText = vi.fn(() => Promise.resolve());
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
+    render(wrapWithNav(<MeetingDialInSection meetingId="m1" canHost={false} />));
+    expect(await screen.findByRole("link", { name: "+84 28 7300 0000" })).toHaveAttribute("href", "tel:+842873000000");
+    fireEvent.click(screen.getByRole("button", { name: "Sao chép số tổng đài" }));
+    fireEvent.click(screen.getByRole("button", { name: "Sao chép mã PIN" }));
+    expect(writeText).toHaveBeenCalledWith("+84 28 7300 0000");
+    expect(writeText).toHaveBeenCalledWith("042137");
   });
 
   it("renders nothing when the meeting takes no calls", async () => {

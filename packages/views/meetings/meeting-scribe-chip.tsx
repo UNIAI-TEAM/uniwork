@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { Captions, CaptionsOff } from "lucide-react";
+import { CircleAlert, Sparkles } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useSetMeetingScribe } from "@uniwork/core/meetings";
 import type { Meeting } from "@uniwork/core/types";
@@ -24,6 +24,13 @@ const LABEL_KEY: Record<ScribeChipState, string> = {
   joining: "meetings.scribe.chipJoining",
   failed: "meetings.scribe.chipFailed",
   off: "meetings.scribe.chipOff",
+};
+
+const EXPLAIN_KEY: Record<ScribeChipState, string> = {
+  on: "meetings.scribe.explain",
+  joining: "meetings.scribe.explainJoining",
+  failed: "meetings.scribe.explainFailed",
+  off: "meetings.scribe.explainOff",
 };
 
 /**
@@ -51,9 +58,9 @@ export function MeetingScribeChip({
   const state = scribeChipState(meeting, inRoom);
   // A viewer who cannot switch it learns nothing from "joining" or "off".
   if (!canSwitch && (state === "joining" || state === "off")) return null;
-  const Icon = state === "off" ? CaptionsOff : Captions;
-  const toggle = () => {
-    set.mutate(state === "off", {
+  const Icon = state === "failed" ? CircleAlert : Sparkles;
+  const switchTo = (enabled: boolean) => {
+    set.mutate(enabled, {
       onSuccess: () => setOpen(false),
       onError: (err) => toastApiError(err, t("meetings.scribe.chipFailed")),
     });
@@ -64,16 +71,32 @@ export function MeetingScribeChip({
         render={<Button type="button" variant="meetingChip" size="sm" className="h-8 px-2 sm:px-2.5" data-testid="meeting-scribe-chip" />}
       >
         <Icon aria-hidden className="size-4" />
-        <span className="sr-only sm:not-sr-only sm:max-w-[10rem] sm:truncate">{t(LABEL_KEY[state])}</span>
+        {/* A phone keeps a short name, so the privacy signal is never an icon alone. */}
+        <span aria-hidden className="sm:hidden">
+          {t("meetings.scribe.chipShort")}
+        </span>
+        <span className="sr-only sm:not-sr-only">{t(LABEL_KEY[state])}</span>
       </PopoverTrigger>
-      <PopoverContent className="w-72 space-y-3">
+      {/* `dark`: the popup portals to <body>, out of the dark stage it belongs to. */}
+      <PopoverContent className="dark w-72 space-y-3">
         <p className="text-body font-medium">{t(LABEL_KEY[state])}</p>
-        <p className="text-caption text-muted-foreground">
-          {t(state === "off" ? "meetings.scribe.explainOff" : "meetings.scribe.explain")}
-        </p>
-        {canSwitch ? (
-          <Button type="button" size="sm" variant="outline" onClick={toggle} aria-disabled={set.isPending} className="w-full">
+        <p className="text-caption text-muted-foreground">{t(EXPLAIN_KEY[state])}</p>
+        {canSwitch && state === "failed" ? (
+          <Button type="button" size="sm" onClick={() => switchTo(true)} aria-disabled={set.isPending} className="w-full">
             {set.isPending ? <Spinner /> : null}
+            {t("common.retry")}
+          </Button>
+        ) : null}
+        {canSwitch ? (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => switchTo(state === "off")}
+            aria-disabled={set.isPending}
+            className="w-full"
+          >
+            {set.isPending && state !== "failed" ? <Spinner /> : null}
             {t(state === "off" ? "meetings.scribe.turnOn" : "meetings.scribe.turnOff")}
           </Button>
         ) : null}

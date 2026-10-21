@@ -122,6 +122,20 @@ describe("MeetingRoomCopilotTab honesty", () => {
     expect(screen.queryByText("Đang ghi hình trực tiếp")).not.toBeInTheDocument();
   });
 
+  it("is titled UNI, puts the default section first and does not repeat a tab as a heading", async () => {
+    render(wrapWithNav(<MeetingRoomCopilotTab workspaceId="w1" meetingId="m1" canClerk />));
+    expect(screen.getByRole("heading", { name: "UNI" })).toBeInTheDocument();
+    const tabs = await screen.findAllByRole("tab");
+    expect(tabs[0]).toHaveTextContent("Tổng quan");
+    expect(tabs[0]).toHaveAttribute("aria-selected", "true");
+    // The AI summary is a summary, not the people's notes.
+    expect(await screen.findByRole("heading", { name: "Tóm tắt" })).toBeInTheDocument();
+    expect(screen.queryByText("Ghi chú cuộc họp")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("tab", { name: "Việc cần làm" }));
+    await screen.findByText("Viết ghi chú phát hành");
+    expect(screen.queryByRole("heading", { name: "Việc cần làm" })).not.toBeInTheDocument();
+  });
+
   it("wires each section tab to its panel", async () => {
     render(wrapWithNav(<MeetingRoomCopilotTab workspaceId="w1" meetingId="m1" canClerk />));
     const tab = await screen.findByRole("tab", { name: "Tổng quan" });
@@ -312,7 +326,7 @@ describe("MeetingRoomCopilotTab › summary and tasks, as on the detail page", (
     await waitFor(() => expect(posted().items).toHaveLength(1));
     expect(posted()).toEqual({ items: [{ action_item_id: "a0", assignee_id: null, due_date: null, project_id: "p1" }] });
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
-    expect(screen.getByRole("button", { name: "Giao 0 việc" })).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByRole("button", { name: "Giao việc" })).toHaveAttribute("aria-disabled", "true");
   });
 
   it("folds the tasks earlier meetings of the project left open into one group", async () => {

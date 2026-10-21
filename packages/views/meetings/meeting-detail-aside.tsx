@@ -9,9 +9,9 @@ import { PanelCard } from "../common/panel-card";
 import { moduleTone } from "../layout/module-tones";
 import { useWorkspace } from "../layout/workspace-context";
 import { AppLink } from "../navigation";
-import { formatMeetingStart, meetingLocale } from "./meeting-datetime";
+import { meetingLocale } from "./meeting-datetime";
 import { MeetingDialInSection } from "./meeting-dial-in-section";
-import { meetingTimeZoneLabel } from "./meeting-detail-format";
+import { formatMeetingDayTime, meetingTimeZoneLabel } from "./meeting-detail-format";
 import { MeetingInviteLinksSection } from "./meeting-invite-links-section";
 import { MeetingParticipantsSection } from "./meeting-participants-section";
 import { useMemberIndex } from "./use-member-index";
@@ -74,7 +74,8 @@ export function MeetingDetailAside({
     i18n.language,
     new Date(meeting.starts_at),
   );
-  const createdAt = meeting.created_at ? formatMeetingStart(meeting.created_at, meetingLocale(i18n.language)) : null;
+  // The hero's date style, so the page reads one format.
+  const createdAt = meeting.created_at ? formatMeetingDayTime(meeting.created_at, meetingLocale(i18n.language)) || null : null;
   const open = rosterOpen(meeting);
   const { workspace } = useWorkspace();
   // useProject stays idle without an id; a meeting may have no project.

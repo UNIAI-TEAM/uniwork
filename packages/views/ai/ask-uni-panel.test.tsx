@@ -84,8 +84,8 @@ describe("AskUniPanel", () => {
     expect(await screen.findByRole("dialog")).toBeInTheDocument();
     expect(screen.getByText("Bạn muốn biết gì về công việc của đội?")).toBeInTheDocument();
 
-    fireEvent.change(screen.getByRole("textbox", { name: /Hỏi UNI/ }), { target: { value: "task nào quá hạn?" } });
-    fireEvent.click(screen.getByRole("button", { name: "Gửi" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Câu hỏi cho UNI" }), { target: { value: "task nào quá hạn?" } });
+    fireEvent.click(screen.getByRole("button", { name: "Hỏi" }));
     expect(await screen.findByText("Có 1 việc quá hạn: [S1] Viết spec.")).toBeInTheDocument();
     const link = screen.getByRole("link", { name: /\[S1\]\s*Viết spec/ });
     expect(link).toHaveAttribute("href", "/acme/team/tasks/t1");
@@ -96,8 +96,8 @@ describe("AskUniPanel", () => {
     // A new conversation drops the token line of the previous answer.
     fireEvent.click(screen.getByRole("button", { name: "Hội thoại mới" }));
     await waitFor(() => expect(screen.queryByText("812 vào · 96 ra")).toBeNull());
-    fireEvent.change(screen.getByRole("textbox", { name: /Hỏi UNI/ }), { target: { value: "lại" } });
-    fireEvent.click(screen.getByRole("button", { name: "Gửi" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Câu hỏi cho UNI" }), { target: { value: "lại" } });
+    fireEvent.click(screen.getByRole("button", { name: "Hỏi" }));
     expect(await screen.findByText("Có 1 việc quá hạn: [S1] Viết spec.")).toBeInTheDocument();
   });
 
@@ -105,10 +105,10 @@ describe("AskUniPanel", () => {
     mockApi({ askError: new ApiError("hết", "ai_quota_exceeded", 402) });
     mount();
     useAiPanelStore.getState().setOpen(true);
-    fireEvent.change(await screen.findByRole("textbox", { name: /Hỏi UNI/ }), { target: { value: "x" } });
-    fireEvent.click(screen.getByRole("button", { name: "Gửi" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("Tổ chức đã hết hạn mức token AI của tháng.");
-    expect(screen.getByRole("textbox", { name: /Hỏi UNI/ })).toHaveValue("x");
+    fireEvent.change(await screen.findByRole("textbox", { name: "Câu hỏi cho UNI" }), { target: { value: "x" } });
+    fireEvent.click(screen.getByRole("button", { name: "Hỏi" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(i18n.t("ai.errors.ai_quota_exceeded"));
+    expect(screen.getByRole("textbox", { name: "Câu hỏi cho UNI" })).toHaveValue("x");
   });
 
   it("lists my conversations, opens one, and deletes it", async () => {
@@ -131,7 +131,7 @@ describe("AskUniPanel", () => {
     mockApi();
     mount();
     useAiPanelStore.getState().setOpen(true);
-    const box = await screen.findByRole("textbox", { name: /Hỏi UNI/ });
+    const box = await screen.findByRole("textbox", { name: "Câu hỏi cho UNI" });
     fireEvent.change(box, { target: { value: "x" } });
     fireEvent.keyDown(box, init);
     // Submitting clears the box synchronously; a guarded Enter leaves it alone.
@@ -141,15 +141,50 @@ describe("AskUniPanel", () => {
   });
 
   it.each([
-    ["ai_provider_timeout", "UNI trả lời quá lâu, thử lại nhé."],
-    ["ai_tool_not_allowed", "UNI vừa thử một thao tác không được phép, hãy hỏi lại."],
+    ["ai_provider_timeout", "UNI chưa trả lời kịp. Hỏi lại, hoặc hỏi ngắn hơn."],
+    ["ai_tool_not_allowed", "UNI chưa trả lời được câu này. Hỏi lại theo cách khác."],
   ])("maps %s to its own message", async (code, text) => {
     mockApi({ askError: new ApiError("x", code, 502) });
     mount();
     useAiPanelStore.getState().setOpen(true);
-    fireEvent.change(await screen.findByRole("textbox", { name: /Hỏi UNI/ }), { target: { value: "x" } });
-    fireEvent.click(screen.getByRole("button", { name: "Gửi" }));
+    fireEvent.change(await screen.findByRole("textbox", { name: "Câu hỏi cho UNI" }), { target: { value: "x" } });
+    fireEvent.click(screen.getByRole("button", { name: "Hỏi" }));
     expect(await screen.findByRole("alert")).toHaveTextContent(text);
+  });
+
+  it("says the conversation is about a meeting, and keeps saying it after the answer", async () => {
+    mockApi();
+    const base = requestMock.getMockImplementation()!;
+    requestMock.mockImplementation((path: string, init?: { method?: string }) =>
+      path === "/api/v1/meetings/m1"
+        ? Promise.resolve({ meeting: { id: "m1", workspace_id: "ws1", title: "Giao ban tuần 42", description: "", starts_at: "2026-10-20T02:00:00Z", ends_at: "2026-10-20T03:00:00Z", room_name: "r", created_by: "u1" } })
+        : base(path, init),
+    );
+    mount();
+    useAiPanelStore.getState().openWithFocus({ kind: "meeting", id: "m1" });
+    expect(await screen.findByText("Cuộc họp: Giao ban tuần 42")).toBeInTheDocument();
+    fireEvent.change(screen.getByRole("textbox", { name: "Câu hỏi cho UNI" }), { target: { value: "đã chốt gì?" } });
+    fireEvent.click(screen.getByRole("button", { name: "Hỏi" }));
+    await waitFor(() =>
+      expect(requestMock).toHaveBeenCalledWith(
+        "/api/v1/workspaces/ws1/ai/ask",
+        expect.objectContaining({ body: expect.objectContaining({ focus: { kind: "meeting", id: "m1" } }) }),
+      ),
+    );
+    expect(await screen.findByText("Có 1 việc quá hạn: [S1] Viết spec.")).toBeInTheDocument();
+    expect(screen.getByText("Cuộc họp: Giao ban tuần 42")).toBeInTheDocument();
+  });
+
+  it("keeps an empty send in the tab order and hides the Enter hint under a finger", async () => {
+    mockApi();
+    mount();
+    useAiPanelStore.getState().setOpen(true);
+    const send = await screen.findByRole("button", { name: "Hỏi" });
+    expect(send).not.toBeDisabled();
+    expect(send).toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(send);
+    expect(requestMock).not.toHaveBeenCalledWith("/api/v1/workspaces/ws1/ai/ask", expect.anything());
+    expect(screen.getByText(i18n.t("ai.hint_send")).closest("p")).toHaveClass("pointer-coarse:hidden");
   });
 
   it("lets the sheet content take the full width on phones and 512px on desktop", async () => {
@@ -181,8 +216,8 @@ describe("AskUniPanel", () => {
     );
     mount();
     useAiPanelStore.getState().setOpen(true);
-    fireEvent.change(await screen.findByRole("textbox", { name: /Hỏi UNI/ }), { target: { value: "x" } });
-    fireEvent.click(screen.getByRole("button", { name: "Gửi" }));
+    fireEvent.change(await screen.findByRole("textbox", { name: "Câu hỏi cho UNI" }), { target: { value: "x" } });
+    fireEvent.click(screen.getByRole("button", { name: "Hỏi" }));
     await waitFor(() => expect(requestMock).toHaveBeenCalledWith("/api/v1/workspaces/ws1/ai/ask", expect.anything()));
     useAiPanelStore.getState().bindWorkspace("w2");
     resolveAsk(answer);

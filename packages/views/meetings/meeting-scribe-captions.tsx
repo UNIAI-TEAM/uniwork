@@ -85,11 +85,13 @@ function useScribeCaptions(enabled: boolean, lang: CaptionLanguage) {
     return () => room.unregisterTextStreamHandler(topic);
   }, [room, enabled, lang]);
   // A line without its translation (yet) shows the original.
-  return lang ? lines.map((l) => (l.final ? { ...l, text: translated.get(l.segmentId) ?? l.text } : l)) : lines;
+  const shown = lang ? lines.map((l) => (l.final ? { ...l, text: translated.get(l.segmentId) ?? l.text } : l)) : lines;
+  // Picked a language and nothing in it has arrived yet: the bar says so instead of looking unchanged.
+  return { lines: shown, translating: Boolean(lang) && translated.size === 0 };
 }
 
 /**
- * The viewer's caption language (Gốc / Tiếng Việt / English). The server sets
+ * The viewer's caption language (Bản gốc / Tiếng Việt / English). The server sets
  * it on their participant; a refusal goes back to the original. Leaving the
  * captions (unmount) clears it, so the agent stops translating for nobody.
  * Picks go to the server one at a time and only the newest is sent next, so
@@ -160,20 +162,22 @@ export function MeetingScribeCaptions({
   const { t } = useTranslation();
   const room = useRoomContext();
   const { lang, pick } = useCaptionLanguage(meetingId);
-  const lines = useScribeCaptions(enabled, lang);
+  const { lines, translating } = useScribeCaptions(enabled, lang);
   const nameOf = (identity: string) =>
     room.getParticipantByIdentity(identity)?.name || t("meetings.scribe.unknownSpeaker");
   const lastFinal = [...lines].reverse().find((l) => l.final);
   return (
-    <div className={cn("pointer-events-none w-full max-w-3xl", className)} data-testid="meeting-scribe-captions">
+    // `dark`: the stage is dark in both themes; the footer sits outside its scope.
+    <div className={cn("dark pointer-events-none w-full max-w-3xl", className)} data-testid="meeting-scribe-captions">
       {/* Interim words change several times a second; only finished sentences reach assistive tech. */}
       <p role="status" aria-live="polite" className="sr-only">
         {lastFinal ? `${nameOf(lastFinal.identity)}: ${lastFinal.text}` : ""}
       </p>
       <div className="rounded-xl bg-meeting-bar-bg px-4 py-2 ring-1 ring-meeting-bar-border">
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
           <p aria-hidden className="text-caption text-meeting-bar-muted-foreground">
             {t("meetings.scribe.captionsLabel")}
+            {translating ? <span className="ml-2">{t("meetings.scribe.captionTranslating")}</span> : null}
           </p>
           {meetingId ? (
             <ToggleGroup
@@ -188,24 +192,31 @@ export function MeetingScribeCaptions({
               size="sm"
               className="pointer-events-auto"
             >
-              <ToggleGroupItem value={ORIGINAL} className="text-caption text-meeting-bar-foreground">
-                {t("meetings.scribe.captionOriginal")}
-              </ToggleGroupItem>
-              <ToggleGroupItem value="vi" className="text-caption text-meeting-bar-foreground">
-                {t("meetings.scribe.captionVietnamese")}
-              </ToggleGroupItem>
-              <ToggleGroupItem value="en" className="text-caption text-meeting-bar-foreground">
-                {t("meetings.scribe.captionEnglish")}
-              </ToggleGroupItem>
+              {(
+                [
+                  [ORIGINAL, "meetings.scribe.captionOriginal"],
+                  ["vi", "meetings.scribe.captionVietnamese"],
+                  ["en", "meetings.scribe.captionEnglish"],
+                ] as const
+              ).map(([value, key]) => (
+                <ToggleGroupItem
+                  key={value}
+                  value={value}
+                  className="text-caption text-meeting-bar-foreground pointer-coarse:min-h-11"
+                >
+                  {t(key)}
+                </ToggleGroupItem>
+              ))}
             </ToggleGroup>
           ) : null}
         </div>
-        <div aria-hidden>
+        {/* Three lines at most, newest at the bottom: older words slide off the top. */}
+        <div aria-hidden className="flex max-h-[3lh] flex-col justify-end overflow-hidden text-body">
           {lines.length === 0 ? (
-            <p className="text-center text-body text-meeting-bar-foreground">{t("meetings.captionsListening")}</p>
+            <p className="text-meeting-bar-foreground">{t("meetings.captionsListening")}</p>
           ) : (
             lines.map((l) => (
-              <p key={l.segmentId} className="text-body" data-final={l.final ? "1" : "0"}>
+              <p key={l.segmentId} data-final={l.final ? "1" : "0"}>
                 <span className="font-medium text-meeting-bar-foreground">{`${nameOf(l.identity)}: `}</span>
                 <span className={l.final ? "text-meeting-bar-foreground" : "text-meeting-bar-muted-foreground"}>
                   {l.text}

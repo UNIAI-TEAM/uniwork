@@ -862,9 +862,16 @@ describe("MeetingRoomView", () => {
 });
 
 describe("MeetingDetailView › minutes", () => {
-  function respondEnded(minutesOn: boolean) {
+  function respondEnded(minutesOn: boolean, pending = 0) {
     requestMock.mockImplementation((path: unknown) => {
       const p = String(path);
+      if (p.endsWith("/action-items")) {
+        return Promise.resolve({
+          items: Array.from({ length: pending }, (_, i) => ({ id: `a${i}`, title: `Việc ${i}`, status: "PENDING", evidence: [] })),
+          counts: { pending, converted: 0, dismissed: 0, tasks_done: 0, tasks_overdue: 0 },
+        });
+      }
+      if (p.endsWith("/me")) return Promise.resolve({ membership: { user_id: "u-host", role: "owner", source: "membership" } });
       if (p === "/api/v1/config?organization_id=o1") return Promise.resolve({ flags: { office_engine: false, meeting_minutes: minutesOn } });
       if (p === "/api/v1/meetings/m1") {
         return Promise.resolve({ meeting: { ...meeting, status: "ENDED", actual_end_at: "2026-09-09T08:27:00Z" } });
@@ -879,6 +886,28 @@ describe("MeetingDetailView › minutes", () => {
     respondEnded(true);
     render(shell(<MeetingDetailView workspaceId="w1" meetingId="m1" onJoin={() => {}} onDeleted={() => {}} />));
     expect(await screen.findByRole("heading", { name: "Biên bản" })).toBeInTheDocument();
+  });
+
+  it("names drafting the minutes as the host's next step once nothing waits to be assigned", async () => {
+    respondEnded(true);
+    render(shell(<MeetingDetailView workspaceId="w1" meetingId="m1" onJoin={() => {}} onDeleted={() => {}} />));
+    const hero = await screen.findByRole("region", { name: "Standup" });
+    expect(await within(hero).findByRole("button", { name: "Lập biên bản" })).toBeInTheDocument();
+  });
+
+  it("names assigning as the next step while action items wait", async () => {
+    respondEnded(true, 2);
+    render(shell(<MeetingDetailView workspaceId="w1" meetingId="m1" onJoin={() => {}} onDeleted={() => {}} />));
+    const hero = await screen.findByRole("region", { name: "Standup" });
+    expect(await within(hero).findByRole("button", { name: "Giao việc" })).toBeInTheDocument();
+    expect(within(hero).getByText("2 việc đang chờ giao.")).toBeInTheDocument();
+  });
+
+  it("puts the work ahead of the roster on small screens once the meeting has ended", async () => {
+    respondEnded(false);
+    render(shell(<MeetingDetailView workspaceId="w1" meetingId="m1" onJoin={() => {}} onDeleted={() => {}} />));
+    const roster = await screen.findByRole("heading", { name: /Người tham dự/ });
+    expect(roster.closest(".order-4")).not.toBeNull();
   });
 
   it("hides them where the organization's answer is off", async () => {

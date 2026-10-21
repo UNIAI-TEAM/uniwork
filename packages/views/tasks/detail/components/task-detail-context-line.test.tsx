@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { ApiError } from "@uniwork/core/api";
 import { initI18n } from "@uniwork/core/i18n";
 import type { Task, User, Workspace } from "@uniwork/core/types";
 import { WorkspaceProvider } from "../../../layout/workspace-context";
@@ -73,15 +74,29 @@ describe("TaskDetailContextLine — meeting origin", () => {
 
     const link = await screen.findByRole("link", { name: /Từ cuộc họp.*Họp giao ban/ });
     expect(link).toHaveAttribute("href", "/org/team/meetings/m1");
-    expect(link).toHaveTextContent(/15 tháng 10.*2025/);
+    // The task page's own short date, with the year for another year.
+    expect(link).toHaveTextContent(/15 thg 10, 2025/);
+    // The title is the part that gives way; the label and the date never do.
+    expect(screen.getByText("Họp giao ban")).toHaveClass("truncate");
     expect(requestMock).toHaveBeenCalledWith("/api/v1/meetings/m1");
   });
 
-  it("says the meeting is gone when it cannot be read", async () => {
-    requestMock.mockRejectedValue(new Error("not found"));
+  it("holds the line's place while the meeting loads", () => {
+    requestMock.mockReturnValue(new Promise(() => {}));
+    const { container } = renderLine(task({ origin_type: "meeting", origin_id: "m1" }));
+
+    expect(container.querySelector('[data-slot="skeleton"]')).toBeInTheDocument();
+  });
+
+  it.each([
+    [new ApiError("gone", "not_found", 404), "Cuộc họp đã bị xóa"],
+    [new ApiError("forbidden", "forbidden", 403), "Bạn không có quyền xem cuộc họp này"],
+    [new Error("offline"), "Không tải được cuộc họp. Tải lại trang để thử lại."],
+  ])("says why the meeting cannot be shown: %s", async (err, text) => {
+    requestMock.mockRejectedValue(err);
     renderLine(task({ origin_type: "meeting", origin_id: "m1" }));
 
-    expect(await screen.findByText("Cuộc họp không còn")).toBeInTheDocument();
+    expect(await screen.findByText(text)).toBeInTheDocument();
     expect(screen.queryByRole("link")).not.toBeInTheDocument();
   });
 

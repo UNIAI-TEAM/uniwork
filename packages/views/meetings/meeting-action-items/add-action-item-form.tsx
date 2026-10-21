@@ -1,5 +1,5 @@
 "use client";
-import { useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useAddMeetingActionItem } from "@uniwork/core/meetings/action-items";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -27,10 +27,15 @@ export function AddActionItemForm({
   const [title, setTitle] = useState("");
   const [owner, setOwner] = useState("");
   const [due, setDue] = useState("");
+  const titleRef = useRef<HTMLInputElement>(null);
+  // Opened from "Add item", which unmounts: start where the typing starts.
+  useEffect(() => {
+    titleRef.current?.focus();
+  }, []);
 
   return (
     <form
-      className="space-y-2 rounded-lg border border-border bg-surface-hover p-3"
+      className="space-y-2 rounded-lg border border-border p-3"
       onSubmit={(e) => {
         e.preventDefault();
         if (!title.trim() || add.isPending) return;
@@ -50,22 +55,38 @@ export function AddActionItemForm({
         <Label htmlFor={`${id}-title`} className="text-caption">
           {t("meetings.actionItemsSection.addTitle")}
         </Label>
-        <Input id={`${id}-title`} maxLength={500} value={title} onChange={(e) => setTitle(e.target.value)} />
+        <Input ref={titleRef} id={`${id}-title`} maxLength={500} value={title} onChange={(e) => setTitle(e.target.value)} />
       </div>
       <div className="grid gap-2 sm:grid-cols-2">
         <div className="space-y-1">
           <Label htmlFor={`${id}-owner`} className="text-caption">
             {t("meetings.actionItemsSection.addOwner")}
           </Label>
-          <Input id={`${id}-owner`} maxLength={200} value={owner} onChange={(e) => setOwner(e.target.value)} />
+          <Input
+            id={`${id}-owner`}
+            maxLength={200}
+            aria-describedby={`${id}-said`}
+            value={owner}
+            onChange={(e) => setOwner(e.target.value)}
+          />
         </div>
         <div className="space-y-1">
           <Label htmlFor={`${id}-due`} className="text-caption">
             {t("meetings.actionItemsSection.addDue")}
           </Label>
-          <Input id={`${id}-due`} maxLength={200} value={due} onChange={(e) => setDue(e.target.value)} />
+          <Input
+            id={`${id}-due`}
+            maxLength={200}
+            aria-describedby={`${id}-said`}
+            value={due}
+            onChange={(e) => setDue(e.target.value)}
+          />
         </div>
       </div>
+      {/* Free text on purpose: what was said. The member and the date are picked when assigning. */}
+      <p id={`${id}-said`} className="text-caption text-muted-foreground">
+        {t("meetings.actionItemsSection.addSaidHint")}
+      </p>
       <div className="flex justify-end gap-2">
         <Button type="button" size="sm" variant="ghost" onClick={onDone}>
           {t("common.cancel")}

@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { ChevronDown, RotateCcwClock } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useMeetingCarriedOverItems, type MeetingCarriedOverItem } from "@uniwork/core/meetings/action-items";
 import { paths } from "@uniwork/core/paths";
@@ -8,9 +8,12 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@uniwork/ui/components/ui/collapsible";
 import { cn } from "@uniwork/ui/lib/utils";
 import { PanelCard } from "../../common/panel-card";
+import { MODULE_ICONS } from "../../layout/module-icons";
+import { moduleTone } from "../../layout/module-tones";
 import { useOptionalWorkspace } from "../../layout/workspace-context";
 import { AppLink } from "../../navigation";
-import { formatMeetingDate, meetingLocale } from "../meeting-datetime";
+import { formatMeetingDay, meetingDayKey, meetingLocale } from "../meeting-datetime";
+import { MeetingSectionError } from "../meeting-section-state";
 import { useMemberIndex } from "../use-member-index";
 import { ConvertedRow, LIST_CLASS, type ActionItemsVariant } from "./action-item-rows";
 
@@ -47,7 +50,7 @@ function CarriedOverGroups({
     <div className="space-y-4" data-testid="meeting-carried-over">
       {groupBySource(items).map(({ meeting, items: group }) => {
         const title = meeting.title || t("meetings.carriedOver.untitledMeeting");
-        const date = formatMeetingDate(meeting.started_at, meetingLocale(i18n.language));
+        const date = meeting.started_at ? formatMeetingDay(meetingDayKey(meeting.started_at), meetingLocale(i18n.language)) : "";
         return (
           <section key={meeting.id} aria-label={t("meetings.carriedOver.fromMeeting", { title })}>
             <h3 className="mb-2 flex flex-wrap items-baseline gap-x-1.5 text-label">
@@ -82,8 +85,9 @@ function CarriedOverGroups({
  * "Carried over from earlier meetings" (spec meeting follow-through D8,
  * §9.2 item 2, §9.3): the open tasks the earlier ended meetings of the same
  * project handed out, grouped by the meeting that did. Nothing renders until
- * there is something to carry — a meeting without a project never has any.
- * `compact` is the in-room Copilot's folded group.
+ * there is something to carry — a meeting without a project never has any —
+ * so a meeting with none never flashes a skeleton; a failed load says so with
+ * a retry instead of vanishing. `compact` is the in-room Copilot's folded group.
  */
 export function MeetingCarriedOverSection({
   workspaceId,
@@ -95,9 +99,20 @@ export function MeetingCarriedOverSection({
   variant?: ActionItemsVariant;
 }) {
   const { t } = useTranslation();
-  const { data } = useMeetingCarriedOverItems(meetingId);
+  const query = useMeetingCarriedOverItems(meetingId);
   const [open, setOpen] = useState(false);
-  const items = data ?? [];
+  const items = query.data ?? [];
+  if (query.isError && !query.data) {
+    const error = (
+      <MeetingSectionError message={t("meetings.carriedOver.loadFailed")} onRetry={() => void query.refetch()} />
+    );
+    if (variant === "compact") return error;
+    return (
+      <PanelCard id="carried-over-heading" icon={MODULE_ICONS.tasks} iconTone={moduleTone("tasks")} title={t("meetings.carriedOver.title")}>
+        {error}
+      </PanelCard>
+    );
+  }
   if (items.length === 0) return null;
 
   if (variant === "compact") {
@@ -107,10 +122,7 @@ export function MeetingCarriedOverSection({
           render={
             <Button type="button" size="sm" variant="ghost" className="-ml-2 text-muted-foreground">
               {t("meetings.carriedOver.compactToggle", { count: items.length })}
-              <ChevronDown
-                aria-hidden
-                className={cn("size-3.5 transition-transform duration-standard", open && "rotate-180")}
-              />
+              <ChevronDown aria-hidden className={cn("transition-transform duration-standard", open && "rotate-180")} />
             </Button>
           }
         />
@@ -125,8 +137,9 @@ export function MeetingCarriedOverSection({
   return (
     <PanelCard
       id="carried-over-heading"
-      icon={RotateCcwClock}
-      iconTone="warning"
+      // Open work, not an alarm: the tasks glyph and tint; overdue rows carry their own red.
+      icon={MODULE_ICONS.tasks}
+      iconTone={moduleTone("tasks")}
       title={t("meetings.carriedOver.title")}
       description={t("meetings.carriedOver.description", { count: items.length })}
     >

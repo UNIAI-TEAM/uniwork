@@ -2,7 +2,9 @@
 
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 
-const FADE = "1.5rem";
+// Wide enough to fade into the last whole chip: a fade that only covers the
+// gap after it reads as the end of the row.
+const FADE = "3rem";
 
 /**
  * For a strip that scrolls sideways with its scrollbar hidden: whether more

@@ -6,6 +6,8 @@ import { initI18n } from "@uniwork/core/i18n";
 import { requestMock, wrap } from "../test/api-mock";
 import { AiSummaryTasksDialog, type AiSummaryTaskSeed, type AiSummaryTasksDialogCopy } from "./ai-summary-tasks-dialog";
 
+const { t } = initI18n();
+
 beforeAll(() => {
   initI18n();
 });
@@ -111,6 +113,44 @@ describe("AiSummaryTasksDialog", () => {
     const dialog = await screen.findByRole("dialog");
     fireEvent.click(within(dialog).getByRole("button", { name: "Tạo 1 việc" }));
     expect(onConfirm).toHaveBeenCalledWith(expect.objectContaining({ projectId: undefined }));
+  });
+
+  it("labels the editable title and refuses a blank one on the field, not by reverting it", async () => {
+    const user = userEvent.setup();
+    const onConfirm = vi.fn();
+    render(
+      wrap(
+        <AiSummaryTasksDialog
+          open
+          onOpenChange={vi.fn()}
+          wsId="w1"
+          idPrefix="t"
+          seeds={[seed]}
+          copy={{ ...copyFor(1), titleLabel: "Tên việc" }}
+          pending={false}
+          onConfirm={onConfirm}
+        />,
+      ),
+    );
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText("Tên việc", { selector: "label" })).toBeInTheDocument();
+    const title = within(dialog).getByRole("textbox", { name: "Tên việc" });
+    expect(title).not.toHaveAttribute("aria-invalid");
+
+    await user.clear(title);
+    expect(title).toHaveValue("");
+    expect(title).toHaveAttribute("aria-invalid", "true");
+    const error = within(dialog).getByText(t("tasks.summary_title_required"));
+    expect(title.getAttribute("aria-describedby")).toContain(error.closest("[id]")?.id);
+    fireEvent.click(within(dialog).getByRole("button", { name: "Tạo 1 việc" }));
+    expect(onConfirm).not.toHaveBeenCalled();
+
+    await user.type(title, "Gửi biên bản đã sửa");
+    expect(title).not.toHaveAttribute("aria-invalid");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Tạo 1 việc" }));
+    expect(onConfirm).toHaveBeenCalledWith(
+      expect.objectContaining({ drafts: { 0: expect.objectContaining({ title: "Gửi biên bản đã sửa" }) } }),
+    );
   });
 
   it("marks the item a refusal named on its card", () => {

@@ -45,8 +45,8 @@ describe("MeetingScribeChip", () => {
     lk.remote = [{ identity: "uw_agent_scribe", isAgent: true }];
     render(wrap(<MeetingScribeChip meeting={meeting} available canSwitch={false} />));
     await userEvent.click(screen.getByTestId("meeting-scribe-chip"));
-    expect(await screen.findByText(/UniWork AI nghe từng người/)).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Tắt AI ghi lời cho cuộc họp này" })).not.toBeInTheDocument();
+    expect(await screen.findByText(/Thư ký AI nghe từng người/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Tắt Thư ký AI" })).not.toBeInTheDocument();
   });
 
   it("is hidden where the workspace has no scribe and none is in the room", () => {
@@ -64,9 +64,36 @@ describe("MeetingScribeChip", () => {
     requestMock.mockResolvedValue({ meeting: { ...meeting, scribe_enabled: false } });
     render(wrap(<MeetingScribeChip meeting={meeting} available canSwitch />));
     await userEvent.click(screen.getByTestId("meeting-scribe-chip"));
-    await userEvent.click(await screen.findByRole("button", { name: "Tắt AI ghi lời cho cuộc họp này" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Tắt Thư ký AI" }));
     await waitFor(() =>
       expect(requestMock).toHaveBeenCalledWith("/api/v1/meetings/m1/scribe", { method: "PUT", body: { enabled: false } }),
     );
+  });
+
+  it("names the scribe on the chip, so a phone still reads who is listening", () => {
+    lk.remote = [{ identity: "uw_agent_scribe", isAgent: true }];
+    render(wrap(<MeetingScribeChip meeting={meeting} available canSwitch={false} />));
+    const chip = screen.getByTestId("meeting-scribe-chip");
+    expect(chip).toHaveAccessibleName("Thư ký AI đang ghi lời");
+  });
+
+  it("says it failed, in the room's dark palette, and lets the host try again", async () => {
+    requestMock.mockResolvedValue({ meeting });
+    render(wrap(<MeetingScribeChip meeting={{ ...meeting, scribe_status: "FAILED" }} available canSwitch />));
+    await userEvent.click(screen.getByTestId("meeting-scribe-chip"));
+    const failed = await screen.findByText(/nên chưa ghi lời thoại/);
+    expect(failed.closest("[data-slot=popover-content]")).toHaveClass("dark");
+    expect(screen.queryByText(/nghe từng người/)).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Thử lại" }));
+    await waitFor(() =>
+      expect(requestMock).toHaveBeenCalledWith("/api/v1/meetings/m1/scribe", { method: "PUT", body: { enabled: true } }),
+    );
+  });
+
+  it("explains a scribe still joining as joining, not as listening", async () => {
+    render(wrap(<MeetingScribeChip meeting={meeting} available canSwitch />));
+    await userEvent.click(screen.getByTestId("meeting-scribe-chip"));
+    expect(await screen.findByText(/đang vào phòng\. Khi vào xong/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Thử lại" })).not.toBeInTheDocument();
   });
 });

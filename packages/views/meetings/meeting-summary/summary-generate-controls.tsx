@@ -18,7 +18,7 @@ export function SummaryGenerateButton({
   className,
 }: {
   gen: SummaryGeneration;
-  variant: "brandSubtle" | "outline";
+  variant: "brandSubtle" | "outline" | "default";
   /** Id of the element that says why the button cannot be pressed, when one is shown. */
   reasonId?: string;
   className?: string;

@@ -151,10 +151,15 @@ export function MeetingRoomPeopleTab({
 
   function rowSubtitle(participant: Participant): string | undefined {
     const meta = participantMeta.get(participant.identity);
-    if (meta?.isHost) return t("meetings.meetingHost");
-    if (participant.isLocal && canHost) return t("meetings.meetingHost");
-    if (hands.includes(participant.identity)) return t("meetings.handRaised");
-    return undefined;
+    const role =
+      meta?.isHost || (participant.isLocal && canHost)
+        ? t("meetings.meetingHost")
+        : hands.includes(participant.identity)
+          ? t("meetings.handRaised")
+          : undefined;
+    // Whose mic the AI scribe splits into speakers: the clerk set it, everyone should see it.
+    const sharedMic = meta?.api.shared_mic ? t("meetings.scribe.sharedMicBadge") : undefined;
+    return [role, sharedMic].filter(Boolean).join(" · ") || undefined;
   }
 
   return (
@@ -227,9 +232,7 @@ export function MeetingRoomPeopleTab({
             </p>
           ) : null}
 
-          <p className="mb-2 shrink-0 text-overline text-muted-foreground">
-            {t("meetings.inTheMeeting")}
-          </p>
+          <p className="mb-2 shrink-0 text-label font-medium text-muted-foreground">{t("meetings.inTheMeeting")}</p>
 
           <Collapsible open={contributorsOpen} onOpenChange={setContributorsOpen} className="min-h-0 flex-1">
             <CollapsibleTrigger className="mb-2 flex w-full shrink-0 items-center gap-2 rounded-lg px-1 py-1 text-left text-body font-medium text-foreground hover:bg-surface-hover">

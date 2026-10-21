@@ -18,12 +18,16 @@ export function resourceHref(n: Notification, workspace: Workspace, workspaces: 
     case "task":
       return ws.task(n.resource_id);
     case "meeting":
-      // A meeting's batch of assigned tasks lands on its action items; the
-      // summary and transcript kinds on the summary panel, which holds the
-      // transcript (use-meeting-section-deep-link).
+      // A meeting's batch of assigned tasks lands on the assignee's own
+      // tasks: the row carries no task ids, and the meeting's action items
+      // are the clerk's review list. The summary and transcript kinds land on
+      // the summary panel, which holds the transcript
+      // (use-meeting-section-deep-link). shortcut: the push link
+      // (notification.ResourceURL) still opens the action items until the
+      // server follows.
       switch (n.kind) {
         case "tasks_assigned":
-          return `${ws.meeting(n.resource_id)}?section=action-items`;
+          return ws.myTasks();
         case "meeting_summary_reminder":
         case "meeting_summary_ready":
         case "meeting_transcript_ready":

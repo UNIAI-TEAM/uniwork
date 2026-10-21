@@ -27,7 +27,7 @@ const workspace: Workspace = {
   organization_name: "Acme",
 };
 
-function serve(role: string, puts: unknown[] = []) {
+function serve(role: string, puts: unknown[] = [], read?: () => Promise<unknown>) {
   requestMock.mockReset();
   requestMock.mockImplementation((path: string, opts?: { method?: string; body?: unknown }) => {
     if (path === "/api/v1/orgs/acme/members/me") return Promise.resolve({ role });
@@ -36,7 +36,7 @@ function serve(role: string, puts: unknown[] = []) {
         puts.push(opts.body);
         return Promise.resolve({ organization_id: ORG, ...(opts.body as object) });
       }
-      return Promise.resolve({ organization_id: ORG, auto_summary_enabled: true });
+      return read ? read() : Promise.resolve({ organization_id: ORG, auto_summary_enabled: true });
     }
     return Promise.resolve({});
   });
@@ -62,6 +62,27 @@ describe("MeetingsSettings (UNI-2026)", () => {
     fireEvent.click(toggle);
     await waitFor(() => expect(puts).toEqual([{ auto_summary_enabled: false }]));
     await waitFor(() => expect(toggle).toHaveAttribute("aria-checked", "false"));
+    expect(await screen.findByText(t("settings.save.saved"))).toBeInTheDocument();
+  });
+
+  it("holds the row's shape while the read runs, never a guessed off switch", async () => {
+    serve("owner", [], () => new Promise(() => {}));
+    renderTab();
+    await waitFor(() => expect(requestMock.mock.calls.some(([p]) => String(p).endsWith("/meetings/settings"))).toBe(true));
+    expect(screen.queryByRole("switch")).toBeNull();
+    expect(screen.queryByText(t("settings.meetings.state_unknown"), { exact: false })).toBeNull();
+  });
+
+  it("names a failed read and reads again on retry", async () => {
+    let reads = 0;
+    serve("owner", [], () => (++reads === 1 ? Promise.reject(new Error("offline")) : Promise.resolve({ organization_id: ORG, auto_summary_enabled: true })));
+    renderTab();
+    expect(await screen.findByText(t("settings.meetings.read_failed"), { exact: false })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: t("settings.state.retry") }));
+    const toggle = await screen.findByRole("switch", { name: t("settings.meetings.auto_summary_label") });
+    await waitFor(() => expect(toggle).toHaveAttribute("aria-checked", "true"));
+    expect(screen.queryByText(t("settings.meetings.read_failed"), { exact: false })).toBeNull();
+    expect(reads).toBe(2);
   });
 
   it("tells a member who can change it, without reading the settings", async () => {

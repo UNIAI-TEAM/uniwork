@@ -40,3 +40,16 @@ export function meetingTimeZoneLabel(value: string, language: string, at: Date =
   const city = cityOf(zone, language);
   return offset ? `${offset} · ${city}` : city;
 }
+
+/**
+ * A moment on the detail page in the hero's date style plus the clock, in the
+ * viewer's zone: "Thứ Tư, 21 tháng 10, 15:59". Empty for a bad timestamp.
+ */
+export function formatMeetingDayTime(iso: string | null | undefined, locale: string): string {
+  const ms = iso ? Date.parse(iso) : NaN;
+  if (!Number.isFinite(ms)) return "";
+  // Two formatters: vi-VN would put the clock first ("lúc 15:59 Thứ Tư, …").
+  const day = new Intl.DateTimeFormat(locale, { weekday: "long", day: "numeric", month: "long" }).format(ms);
+  const clock = new Intl.DateTimeFormat(locale, { hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(ms);
+  return `${day}, ${clock}`;
+}

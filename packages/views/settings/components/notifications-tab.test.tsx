@@ -199,6 +199,21 @@ describe("NotificationsTab", () => {
     expect(await push("Yêu cầu quyền sửa tài liệu")).toHaveAttribute("aria-checked", "true");
     expect(await push("Bị lấy quyền sửa tài liệu")).toHaveAttribute("aria-checked", "true");
     expect(await push("Trả lời yêu cầu quyền sửa")).toHaveAttribute("aria-checked", "false");
+    // prefs.go pushes a system summary, a share and both access-request sides; a decline stays in-app.
+    expect(await push(t("settings.notifications.kinds.meeting_summary_ready"))).toHaveAttribute("aria-checked", "true");
+    expect(await push(t("settings.notifications.kinds.document_shared"))).toHaveAttribute("aria-checked", "true");
+    expect(await push(t("settings.notifications.kinds.document_access_requested"))).toHaveAttribute("aria-checked", "true");
+    expect(await push(t("settings.notifications.kinds.document_access_approved"))).toHaveAttribute("aria-checked", "true");
+    expect(await push(t("settings.notifications.kinds.document_access_declined"))).toHaveAttribute("aria-checked", "false");
+  });
+
+  // Members see the host/secretary and uploader kinds too; each says when it applies.
+  it("says when the meeting kinds that follow a role apply", async () => {
+    mockApi(false);
+    render(wrap(<NotificationsTab />));
+    await screen.findByRole("switch", { name: `${t("settings.notifications.kinds.meeting_summary_ready")} · ${t("settings.notifications.channel_in_app")}` });
+    expect(screen.getAllByText(t("settings.notifications.hint_meeting_role"))).toHaveLength(2);
+    expect(screen.getAllByText(t("settings.notifications.hint_meeting_upload"))).toHaveLength(2);
   });
 
   // BE-TN-2: the trash kind carries a translated label, not a raw key, in vi.

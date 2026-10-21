@@ -37,9 +37,11 @@ describe("resourceHref", () => {
     expect(resourceHref(n, workspace, [workspace])).toBe("/acme/team/meetings/m1?section=summary");
   });
 
-  it("opens a meeting's action items for the tasks it assigned", () => {
+  // The row carries no task ids, and the meeting's action items are the clerk's review list:
+  // the person handed the tasks lands on their own tasks.
+  it("opens the assignee's tasks for the tasks a meeting assigned", () => {
     const n = notification({ kind: "tasks_assigned", resource_type: "meeting", resource_id: "m1" });
-    expect(resourceHref(n, workspace, [workspace])).toBe("/acme/team/meetings/m1?section=action-items");
+    expect(resourceHref(n, workspace, [workspace])).toBe("/acme/team/my-tasks");
   });
 
   it("opens the summary panel, where the transcript is, when a transcript is ready or failed", () => {

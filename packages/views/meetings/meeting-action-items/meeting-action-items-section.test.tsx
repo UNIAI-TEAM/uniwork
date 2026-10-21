@@ -99,17 +99,18 @@ beforeEach(() => {
 });
 
 describe("MeetingActionItemsSection", () => {
-  it("shows the counts, the three groups, each task's state, and folds the dismissed ones", async () => {
+  it("shows the groups with their counts, each task's state, and folds the dismissed ones", async () => {
     renderSection();
-    expect(await screen.findByText("Chờ xử lý 2")).toBeInTheDocument();
-    expect(screen.getByText("Đã giao 1")).toBeInTheDocument();
-    expect(screen.getByText("Đã bỏ qua 1")).toBeInTheDocument();
-    expect(screen.getByText("Đã xong 0/1")).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Chờ xử lý (2)" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Đã giao (1)" })).toBeInTheDocument();
+    // No row of count chips repeating the headings ("Đã bỏ qua 0" and all).
+    expect(screen.queryByText("Chờ xử lý 2")).not.toBeInTheDocument();
+    expect(screen.getByText(/Đã xong 0\/1/)).toBeInTheDocument();
     expect(screen.getByText("1 quá hạn")).toBeInTheDocument();
 
     expect(screen.getByRole("checkbox", { name: "Gửi biên bản" })).toBeInTheDocument();
     expect(screen.getByText("Thêm tay")).toBeInTheDocument();
-    const link = screen.getByRole("link", { name: "Mở việc “Báo khách hàng”" });
+    const link = screen.getByRole("link", { name: 'Mở việc "Báo khách hàng"' });
     expect(link).toHaveAttribute("href", expect.stringContaining("t9"));
     expect(screen.getByText("Quá hạn")).toHaveClass("text-destructive");
     // AI items carry their evidence chip (UNI-2002); the manual one has none.
@@ -137,7 +138,7 @@ describe("MeetingActionItemsSection", () => {
     renderSection({ canClerk: false });
     expect(await screen.findByText("Gửi biên bản")).toBeInTheDocument();
     expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /Giao|Thêm việc|Bỏ qua “/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Giao|Thêm việc|Bỏ qua "/ })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /Đã bỏ qua \(1\)/ }));
     expect(await screen.findByText("In tài liệu")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Khôi phục/ })).not.toBeInTheDocument();
@@ -145,11 +146,45 @@ describe("MeetingActionItemsSection", () => {
 
   it("asks for a pick before reviewing, keeping the button reachable", async () => {
     renderSection();
-    const cta = await screen.findByRole("button", { name: "Giao 0 việc" });
+    // Never "Assign 0 tasks": the plain verb, quiet until something is ticked.
+    const cta = await screen.findByRole("button", { name: "Giao việc" });
     expect(cta).toHaveAttribute("aria-disabled", "true");
     expect(document.getElementById(cta.getAttribute("aria-describedby") ?? "")).toHaveTextContent(
       "Chọn ít nhất một việc đang chờ xử lý",
     );
+    fireEvent.click(screen.getByRole("checkbox", { name: "Gửi biên bản" }));
+    expect(screen.getByRole("button", { name: "Giao 1 việc" })).not.toHaveAttribute("aria-disabled");
+  });
+
+  it("ticks an item from its title, not only from the 16px box", async () => {
+    renderSection();
+    fireEvent.click(await screen.findByText("Gửi biên bản"));
+    expect(screen.getByRole("checkbox", { name: "Gửi biên bản" })).toBeChecked();
+  });
+
+  it("names the suggested owner once, as a suggestion, when it is who was said", async () => {
+    renderSection();
+    expect(await screen.findByText(/^Gợi ý giao: Mai Anh · hạn /)).toBeInTheDocument();
+    // "Mai Anh" was also the owner said in the room: not repeated on the line above.
+    expect(screen.getByText("thứ Sáu")).toBeInTheDocument();
+    expect(screen.queryByText("Mai Anh · thứ Sáu")).not.toBeInTheDocument();
+  });
+
+  it("says a task nobody started has not started, without the done check", async () => {
+    const todo = { ...converted, task: { ...converted.task, overdue: false } };
+    respond({ items: () => ({ items: [todo], counts: { pending: 0, converted: 1, dismissed: 0, tasks_done: 0, tasks_overdue: 0 } }) });
+    renderSection();
+    expect(await screen.findByText("Chưa bắt đầu")).toBeInTheDocument();
+    expect(screen.queryByText("Đang làm")).not.toBeInTheDocument();
+  });
+
+  it("moves focus into the add form and back to its button when it closes", async () => {
+    renderSection();
+    const add = await screen.findByRole("button", { name: "Thêm việc" });
+    fireEvent.click(add);
+    expect(screen.getByRole("textbox", { name: "Tên việc" })).toHaveFocus();
+    fireEvent.click(screen.getByRole("button", { name: "Hủy" }));
+    expect(screen.getByRole("button", { name: "Thêm việc" })).toHaveFocus();
   });
 
   it("assigns several items with the clerk's title, choice of nobody, and the meeting's project", async () => {
@@ -221,7 +256,7 @@ describe("MeetingActionItemsSection", () => {
 
   it("dismisses an item with an optional reason", async () => {
     renderSection();
-    fireEvent.click(await screen.findByRole("button", { name: "Bỏ qua “Đặt phòng”" }));
+    fireEvent.click(await screen.findByRole("button", { name: 'Bỏ qua "Đặt phòng"' }));
     fireEvent.change(await screen.findByRole("textbox", { name: "Lý do (không bắt buộc)" }), { target: { value: " Trùng " } });
     fireEvent.click(screen.getByRole("button", { name: "Bỏ qua việc" }));
     await waitFor(() => expect(posts("/a1/dismiss")).toHaveLength(1));
@@ -232,25 +267,26 @@ describe("MeetingActionItemsSection", () => {
   it("restores a dismissed item", async () => {
     renderSection();
     fireEvent.click(await screen.findByRole("button", { name: /Đã bỏ qua \(1\)/ }));
-    fireEvent.click(await screen.findByRole("button", { name: "Khôi phục “In tài liệu”" }));
+    fireEvent.click(await screen.findByRole("button", { name: 'Khôi phục "In tài liệu"' }));
     await waitFor(() => expect(posts("/a3/restore")).toHaveLength(1));
   });
 
   it("adds an item by hand", async () => {
     renderSection();
     fireEvent.click(await screen.findByRole("button", { name: "Thêm việc" }));
-    fireEvent.change(screen.getByRole("textbox", { name: "Việc cần làm" }), { target: { value: " Gọi khách " } });
+    fireEvent.change(screen.getByRole("textbox", { name: "Tên việc" }), { target: { value: " Gọi khách " } });
     fireEvent.change(screen.getByRole("textbox", { name: "Người phụ trách (không bắt buộc)" }), { target: { value: "An" } });
     fireEvent.click(screen.getByRole("button", { name: "Thêm" }));
     await waitFor(() => expect(posts("/meetings/m1/action-items")).toHaveLength(1));
     expect(posts("/meetings/m1/action-items")[0]!.body).toEqual({ title: "Gọi khách", owner_text: "An" });
-    await waitFor(() => expect(screen.queryByRole("textbox", { name: "Việc cần làm" })).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByRole("textbox", { name: "Tên việc" })).not.toBeInTheDocument());
+    expect(screen.getByRole("button", { name: "Thêm việc" })).toHaveFocus();
   });
 
   it("invites a clerk to add the first item when there is none", async () => {
     respond({ items: () => ({ items: [], counts: { pending: 0, converted: 0, dismissed: 0, tasks_done: 0, tasks_overdue: 0 } }) });
     renderSection();
-    expect(await screen.findByText("Chưa có việc nào. Tạo tóm tắt AI hoặc thêm việc.")).toBeInTheDocument();
+    expect(await screen.findByText("Chưa có việc cần làm. Thêm việc để giao sau họp.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Thêm việc" })).toBeInTheDocument();
   });
 });

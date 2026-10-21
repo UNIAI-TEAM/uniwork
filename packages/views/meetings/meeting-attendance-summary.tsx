@@ -4,13 +4,14 @@ import { attendanceQuorum } from "@uniwork/core/meetings/attendance";
 import { ATTENDANCE_STATUSES, type MeetingAttendance } from "@uniwork/core/types/meeting";
 import { cn } from "@uniwork/ui/lib/utils";
 import { ATTENDANCE_DOT, ATTENDANCE_TONE } from "./meeting-attendance-status";
-import { MEETING_TONE_BADGE } from "./meeting-status-badge";
 
 const COUNT_OF = { PRESENT: "present", LATE: "late", EXCUSED: "excused", ABSENT: "absent" } as const;
 
 /**
- * Members at a glance: one tile per status in the same colours as the rows,
- * then how far the roll is from its minimum attendance, in people.
+ * Members at a glance: one tile per status, then how far the roll is from its
+ * minimum attendance, in people. The tiles are neutral surfaces; the status
+ * colour is only the dot, as on the rows (solid tinted blocks read as alarms,
+ * worst in dark mode).
  */
 export function MeetingAttendanceSummary({ attendance }: { attendance: MeetingAttendance }) {
   const { t } = useTranslation();
@@ -21,12 +22,12 @@ export function MeetingAttendanceSummary({ attendance }: { attendance: MeetingAt
     <div className="@container space-y-3">
       <dl className="grid grid-cols-2 gap-2 @md:grid-cols-4">
         {ATTENDANCE_STATUSES.map((s) => (
-          <div key={s} className={cn("rounded-lg px-3 py-2", MEETING_TONE_BADGE[ATTENDANCE_TONE[s]])}>
-            <dt className="flex items-center gap-1.5 text-caption">
+          <div key={s} data-tone={ATTENDANCE_TONE[s]} className="rounded-lg border border-border px-3 py-2">
+            <dt className="flex items-center gap-1.5 text-caption text-muted-foreground">
               <span aria-hidden className={cn("size-1.5 shrink-0 rounded-full", ATTENDANCE_DOT[s])} />
               {t(`meetings.governance.status_${s}`)}
             </dt>
-            <dd className="text-title-sm font-semibold tabular-nums">{summary[COUNT_OF[s]]}</dd>
+            <dd className="text-title-sm font-semibold tabular-nums text-foreground">{summary[COUNT_OF[s]]}</dd>
           </div>
         ))}
       </dl>

@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { ApiError } from "@uniwork/core/api/http";
 import { initI18n } from "@uniwork/core/i18n";
 import { requestMock, wrap } from "../test/api-mock";
 import { formatOffset, MeetingEvidenceChip, recordingOffset } from "./meeting-evidence-chip";
@@ -99,5 +100,25 @@ describe("MeetingEvidenceChip", () => {
     render(wrap(<MeetingEvidenceChip meetingId="m1" evidence={[{ kind: "chat", id: "c1" }]} />));
     await u.click(screen.getByRole("button", { name: "Căn cứ 1 nguồn" }));
     expect(await screen.findByText("Các nguồn này không còn.")).toBeInTheDocument();
+  });
+
+  it("says the sources did not load and offers a retry", async () => {
+    let fail = true;
+    requestMock.mockImplementation((path: unknown) => {
+      const p = String(path);
+      if (p.includes("/evidence?")) {
+        return fail
+          ? Promise.reject(new ApiError("nope", "forbidden", 403))
+          : Promise.resolve({ items: [{ kind: "chat", id: "c1", author: "Lan", text: "Chốt thứ Sáu", at: "2026-10-20T02:01:15Z" }] });
+      }
+      return Promise.resolve({});
+    });
+    const u = userEvent.setup();
+    render(wrap(<MeetingEvidenceChip meetingId="m1" evidence={[{ kind: "chat", id: "c1" }]} />));
+    await u.click(screen.getByRole("button", { name: "Căn cứ 1 nguồn" }));
+    expect(await screen.findByText("Không tải được căn cứ.")).toBeInTheDocument();
+    fail = false;
+    await u.click(screen.getByRole("button", { name: "Thử lại" }));
+    expect(await screen.findByText("Chốt thứ Sáu")).toBeInTheDocument();
   });
 });

@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   useLocalParticipant,
   useParticipants as useLiveKitParticipants,
@@ -16,6 +16,7 @@ import {
 import { useTranslation } from "react-i18next";
 import { useMeetingChat } from "@uniwork/core/meetings";
 import { chatWatermark, unreadChatSince, type ChatWatermark } from "./meeting-chat";
+import { useScribeInRoom } from "./meeting-scribe-captions";
 import { DIAL_IN_STATE_ATTRIBUTE, inMeeting, reactionLabelKey } from "./meeting-signals";
 import { useMeetingSignals } from "./use-meeting-signals";
 
@@ -23,6 +24,51 @@ import { useMeetingSignals } from "./use-meeting-signals";
 const PRESENCE_SETTLE_MS = 2000;
 /** Arrivals and departures this close together are read out as one sentence. */
 const PRESENCE_BATCH_MS = 1200;
+
+/**
+ * Always mounted, so a screen reader hears a room-wide switch flip (recording,
+ * the AI scribe) for everyone in the room, not only whoever flipped it. The
+ * state it mounts with is not news.
+ */
+export function OnOffAnnouncer({
+  on,
+  onText,
+  offText,
+  testId,
+}: {
+  on: boolean;
+  onText: string;
+  offText: string;
+  testId: string;
+}) {
+  const previous = useRef(on);
+  const [text, setText] = useState("");
+
+  useEffect(() => {
+    if (previous.current === on) return;
+    previous.current = on;
+    setText(on ? onText : offText);
+  }, [on, onText, offText]);
+
+  return (
+    <p role="status" aria-live="polite" className="sr-only" data-testid={testId}>
+      {text}
+    </p>
+  );
+}
+
+/** "The AI scribe is transcribing" / "stopped": its arrival and departure are the privacy signal (spec D14). */
+export function ScribeAnnouncer() {
+  const { t } = useTranslation();
+  return (
+    <OnOffAnnouncer
+      on={useScribeInRoom()}
+      onText={t("meetings.scribe.announceOn")}
+      offText={t("meetings.scribe.announceOff")}
+      testId="meeting-scribe-announcer"
+    />
+  );
+}
 
 /** Reactions pop on a tile for sighted viewers; this says them once, politely, for everyone else. */
 export function ReactionAnnouncer() {

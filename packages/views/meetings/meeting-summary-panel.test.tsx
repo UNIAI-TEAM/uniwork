@@ -107,22 +107,21 @@ describe("MeetingSummaryPanel loading", () => {
     expect(within(panel).queryByText(NO_TRANSCRIPT_ENDED)).not.toBeInTheDocument();
   });
 
-  it("says an ended meeting has no transcript once both have arrived empty, without suggesting captions", async () => {
+  it("says once, when both have arrived empty, what a summary needs", async () => {
     summaryRespond(() => Promise.resolve({ summary: null }));
     render(wrapWithNav(<MeetingSummaryPanel workspaceId="w1" meeting={meeting} canClerk />));
 
     const panel = screen.getByTestId("meeting-summary-panel");
-    expect(await within(panel).findByText(NO_TRANSCRIPT_ENDED)).toBeInTheDocument();
-    expect(within(panel).queryByText(/Bật phụ đề/)).not.toBeInTheDocument();
+    expect(await within(panel).findByText(NEEDS_SOURCE)).toBeInTheDocument();
+    // The transcript's own empty state lives in its card, not here too.
+    expect(within(panel).queryByText(NO_TRANSCRIPT_ENDED)).not.toBeInTheDocument();
     expect(within(panel).queryByText("Đang tải…")).not.toBeInTheDocument();
   });
 
-  it("points a live meeting with no transcript at the captions", async () => {
+  it("tells a reader who cannot generate only that there is no summary", async () => {
     summaryRespond(() => Promise.resolve({ summary: null }));
-    render(wrapWithNav(<MeetingSummaryPanel workspaceId="w1" meeting={{ ...meeting, status: "IN_PROGRESS" }} canClerk />));
-
-    const panel = screen.getByTestId("meeting-summary-panel");
-    expect(await within(panel).findByText(/Bật phụ đề trong phòng họp/)).toBeInTheDocument();
+    render(wrapWithNav(<MeetingSummaryPanel workspaceId="w1" meeting={meeting} canClerk={false} />));
+    expect(await screen.findByText("Chưa có tóm tắt.")).toBeInTheDocument();
   });
 
   it("offers a retry instead of the empty copy when the summary fails", async () => {
@@ -131,40 +130,16 @@ describe("MeetingSummaryPanel loading", () => {
 
     const panel = screen.getByTestId("meeting-summary-panel");
     expect(await within(panel).findByText("Không tải được tóm tắt.")).toBeInTheDocument();
-    expect(within(panel).queryByText(NO_TRANSCRIPT_ENDED)).not.toBeInTheDocument();
+    expect(within(panel).queryByText(NEEDS_SOURCE)).not.toBeInTheDocument();
 
     summaryRespond(() => Promise.resolve({ summary: null }));
     fireEvent.click(within(panel).getByRole("button", { name: "Thử lại" }));
-    expect(await within(panel).findByText(NO_TRANSCRIPT_ENDED)).toBeInTheDocument();
-  });
-});
-
-describe("MeetingSummaryPanel transcript speakers", () => {
-  it("words an unnamed room-microphone speaker in the reader's language", async () => {
-    requestMock.mockImplementation((path: unknown) => {
-      const p = String(path);
-      if (p.endsWith("/transcript")) {
-        return Promise.resolve({
-          segments: [
-            { id: "t1", meeting_id: "m1", text: "Một", spoken_at: "2026-09-22T02:10:00Z", speaker_name: "x", speaker_label: "k:1:A", room_speaker: 2 },
-            { id: "t2", meeting_id: "m1", text: "Hai", spoken_at: "2026-09-22T02:11:00Z", speaker_name: "x", speaker_label: "k:1:?" },
-            { id: "t3", meeting_id: "m1", text: "Ba", spoken_at: "2026-09-22T02:12:00Z", speaker_name: "Chị Lan" },
-          ],
-        });
-      }
-      return Promise.resolve({});
-    });
-    render(wrapWithNav(<MeetingSummaryPanel workspaceId="w1" meeting={meeting} canClerk />));
-    fireEvent.click(await screen.findByRole("button", { name: "Xem lời thoại (3 câu)" }));
-    const list = await screen.findByTestId("meeting-transcript");
-    expect(within(list).getByText("Hội trường · Người nói 2")).toBeInTheDocument();
-    expect(within(list).getByText("Hội trường · Không rõ")).toBeInTheDocument();
-    expect(within(list).getByText("Chị Lan")).toBeInTheDocument();
+    expect(await within(panel).findByText(NEEDS_SOURCE)).toBeInTheDocument();
   });
 });
 
 describe("MeetingSummaryPanel attribution", () => {
-  it("labels the summary as AI output with its source, time and model", async () => {
+  it("labels the summary as AI output with its source and time, the model on hover", async () => {
     const created = new Date(Date.now() - 2 * 3_600_000).toISOString();
     requestMock.mockImplementation((path: unknown) => {
       const p = String(path);
@@ -187,9 +162,10 @@ describe("MeetingSummaryPanel attribution", () => {
     const line = await screen.findByTestId("ai-attribution");
     expect(within(line).getByText("AI")).toBeInTheDocument();
     // No count: the server keeps no snapshot of what the summary read.
-    expect(within(line).getByText("Từ bản ghi lời thoại")).toBeInTheDocument();
+    expect(within(line).getByText(/^Từ bản ghi lời thoại/)).toBeInTheDocument();
     expect(screen.queryByTestId("ai-summary-stale")).not.toBeInTheDocument();
-    expect(within(line).getByText("claude-sonnet")).toBeInTheDocument();
+    expect(within(line).queryByText("claude-sonnet")).not.toBeInTheDocument();
+    expect(line).toHaveAttribute("title", "claude-sonnet");
     const time = within(line).getByText("2 giờ trước");
     expect(time.tagName).toBe("TIME");
     expect(time).toHaveAttribute("dateTime", created);
@@ -221,7 +197,7 @@ describe("MeetingSummaryPanel attribution", () => {
       return Promise.resolve({});
     });
     render(wrapWithNav(<MeetingSummaryPanel workspaceId="w1" meeting={meeting} canClerk />));
-    expect(await screen.findByTestId("ai-summary-auto")).toHaveTextContent("Tóm tắt tự tạo");
+    expect(await screen.findByTestId("ai-summary-auto")).toHaveTextContent(/^Tự tạo/);
   });
 
   it("does not mark a summary a person made", async () => {
@@ -290,7 +266,7 @@ describe("MeetingSummaryPanel attribution", () => {
 
     expect(await screen.findByText("Có dữ liệu mới sau khi tạo tóm tắt")).toBeInTheDocument();
     // The note came later, so the summary was made from the transcript alone.
-    expect(within(screen.getByTestId("ai-attribution")).getByText("Từ bản ghi lời thoại")).toBeInTheDocument();
+    expect(within(screen.getByTestId("ai-attribution")).getByText(/^Từ bản ghi lời thoại/)).toBeInTheDocument();
   });
 });
 
@@ -382,34 +358,6 @@ describe("MeetingSummaryPanel › voted decisions", () => {
     expect(await screen.findByText(NEEDS_SOURCE)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Tạo tóm tắt" })).toHaveAttribute("aria-disabled", "true");
     expect(screen.queryByText("Đã biểu quyết")).not.toBeInTheDocument();
-  });
-});
-
-describe("MeetingSummaryPanel transcript pages", () => {
-  it("says more lines exist and loads the earlier transcript on demand", async () => {
-    const seg = (id: string, min: number) => ({
-      id,
-      meeting_id: "m1",
-      text: `câu ${id}`,
-      spoken_at: `2026-09-22T02:${String(min).padStart(2, "0")}:00Z`,
-    });
-    requestMock.mockImplementation((path: unknown) => {
-      const p = String(path);
-      if (p.endsWith("/meeting-capabilities")) return Promise.resolve({ ai_summary: true });
-      if (p.endsWith("/summary")) return Promise.resolve({ summary: null });
-      if (p.endsWith("/transcript")) return Promise.resolve({ segments: [seg("t2", 20)], older_cursor: "o2", after_cursor: "x" });
-      if (p.endsWith("/transcript?before=o2")) return Promise.resolve({ segments: [seg("t1", 10)] });
-      if (p.endsWith("/members")) return Promise.resolve({ members: [] });
-      if (p.endsWith("/recordings")) return Promise.resolve({ recordings: [] });
-      return Promise.resolve({});
-    });
-    render(wrapWithNav(<MeetingSummaryPanel workspaceId="w1" meeting={meeting} canClerk />));
-
-    fireEvent.click(await screen.findByRole("button", { name: /Xem lời thoại \(1\+ câu\)/ }));
-    fireEvent.click(await screen.findByRole("button", { name: "Tải lời thoại trước đó" }));
-    const list = await screen.findByTestId("meeting-transcript");
-    await waitFor(() => expect(within(list).getByText("câu t1")).toBeInTheDocument());
-    expect(within(list).queryByRole("button", { name: "Tải lời thoại trước đó" })).not.toBeInTheDocument();
   });
 });
 

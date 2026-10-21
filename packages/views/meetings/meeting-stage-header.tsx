@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useEffect, useRef, useState } from "react";
+import { memo, useEffect, useState } from "react";
 import {
   Clock,
   PanelRightClose,
@@ -34,6 +34,7 @@ import {
   meetingLocale,
 } from "./meeting-datetime";
 import { MeetingPersonAvatar } from "./meeting-person";
+import { OnOffAnnouncer } from "./meeting-room-announcers";
 import { useRoomAvatarOf } from "./meeting-room-avatars";
 import { MeetingScribeChip } from "./meeting-scribe-chip";
 import { humanParticipants, ROSTER_EVENTS } from "./meeting-signals";
@@ -73,30 +74,9 @@ function RemainingTimeChip({ endsAt }: { endsAt: string }) {
       data-testid="meeting-remaining-time"
     >
       <Clock aria-hidden className="size-3.5 shrink-0 opacity-90" />
-      {pastScheduledEnd ? t("meetings.pastScheduledEndShort") : remaining}
+      {/* Said in words: a bare clock reads as time elapsed. */}
+      {pastScheduledEnd ? t("meetings.pastScheduledEndShort") : t("meetings.timeLeft", { time: remaining })}
     </span>
-  );
-}
-
-/**
- * Always mounted, so a screen reader hears when recording starts or stops —
- * for everyone in the room, not only the host who pressed the button.
- */
-function RecordingAnnouncer({ recording }: { recording: boolean }) {
-  const { t } = useTranslation();
-  const previous = useRef(recording);
-  const [text, setText] = useState("");
-
-  useEffect(() => {
-    if (previous.current === recording) return;
-    previous.current = recording;
-    setText(t(recording ? "meetings.recordingStarted" : "meetings.recordingStopped"));
-  }, [recording, t]);
-
-  return (
-    <p role="status" aria-live="polite" className="sr-only" data-testid="meeting-recording-announcer">
-      {text}
-    </p>
   );
 }
 
@@ -132,7 +112,8 @@ function StageHeaderPeople({ peopleOpen, onOpenPeople }: { peopleOpen: boolean; 
       title={othersFirst.map((p) => p.name || p.identity).join(", ")}
       onClick={onOpenPeople}
     >
-      <span className="flex -space-x-2">
+      {/* A small overlap: a deeper one covered the second letter of each initial. */}
+      <span className="flex -space-x-1">
         {avatarPeople.map((p) => (
           <MeetingPersonAvatar
             key={p.identity}
@@ -240,18 +221,13 @@ export const MeetingStageHeader = memo(function MeetingStageHeader({
                 {title}
               </h1>
               {scheduleRange && meeting ? (
-                // The separator wraps with the time, never alone on a line.
-                <span className="flex min-w-0 items-baseline gap-x-2">
-                  <span aria-hidden className="shrink-0 text-meeting-bar-muted-foreground">
-                    ·
-                  </span>
-                  <time
-                    dateTime={`${meeting.starts_at}/${meeting.ends_at}`}
-                    className="min-w-0 truncate text-caption text-meeting-bar-muted-foreground tabular-nums"
-                  >
-                    {scheduleRange}
-                  </time>
-                </span>
+                // No separator: the gap and the muted caption set it apart, and a dot left alone when the time wrapped.
+                <time
+                  dateTime={`${meeting.starts_at}/${meeting.ends_at}`}
+                  className="min-w-0 truncate text-caption text-meeting-bar-muted-foreground tabular-nums"
+                >
+                  {scheduleRange}
+                </time>
               ) : null}
             </div>
             {description ? (
@@ -262,7 +238,12 @@ export const MeetingStageHeader = memo(function MeetingStageHeader({
           </div>
 
           <div className="flex flex-wrap items-center gap-1.5 @2xl/stagehead:justify-end sm:gap-2">
-            <RecordingAnnouncer recording={recording} />
+            <OnOffAnnouncer
+              on={recording}
+              onText={t("meetings.recordingStarted")}
+              offText={t("meetings.recordingStopped")}
+              testId="meeting-recording-announcer"
+            />
             {recording ? (
               <span
                 className="inline-flex items-center gap-1 rounded-full bg-destructive-solid px-2 py-1 text-caption font-medium text-on-solid"
@@ -291,8 +272,14 @@ export const MeetingStageHeader = memo(function MeetingStageHeader({
                 onClick={() => setInviteOpen(true)}
               >
                 <UserPlus aria-hidden className="size-4" />
-                <span className="sr-only sm:not-sr-only sm:max-w-[8rem] sm:truncate">{t("meetings.shareGuestLink")}</span>
+                {/* Whole or icon-only, by the header's own width: a cut-off label read as a different action. */}
+                <span className="sr-only @5xl/stagehead:not-sr-only">{t("meetings.shareGuestLink")}</span>
               </Button>
+            ) : null}
+
+            {/* Before End: a knock must not push "Kết thúc họp" off the right edge. */}
+            {showHostActions && meeting?.id ? (
+              <MeetingAdmitGuestsButton meetingId={meeting.id} onOpenPeople={onOpenPeople} peopleOpen={peopleOpen} />
             ) : null}
 
             {showHostActions && inProgress && meeting ? (
@@ -301,7 +288,7 @@ export const MeetingStageHeader = memo(function MeetingStageHeader({
                 variant="destructiveSolid"
                 size="sm"
                 className="h-8 px-2.5 font-semibold"
-                disabled={end.isPending}
+                aria-disabled={end.isPending}
                 onClick={() => setEndConfirmOpen(true)}
               >
                 {t("meetings.end")}
@@ -315,15 +302,11 @@ export const MeetingStageHeader = memo(function MeetingStageHeader({
                 variant="brand"
                 size="sm"
                 className="h-8 px-2.5 font-semibold"
-                disabled={start.isPending}
+                aria-disabled={start.isPending}
                 onClick={() => start.mutate(meeting.id)}
               >
                 {t("meetings.start")}
               </Button>
-            ) : null}
-
-            {showHostActions && meeting?.id ? (
-              <MeetingAdmitGuestsButton meetingId={meeting.id} onOpenPeople={onOpenPeople} peopleOpen={peopleOpen} />
             ) : null}
 
             {onOpenSidebar ? (
@@ -369,7 +352,7 @@ export const MeetingStageHeader = memo(function MeetingStageHeader({
           <AlertDialogFooter>
             <AlertDialogCancel>{t("common.back")}</AlertDialogCancel>
             <AlertDialogAction
-              disabled={end.isPending}
+              aria-disabled={end.isPending}
               onClick={() => {
                 if (!meeting) return;
                 end.mutate(meeting.id, { onError: (err) => toastApiError(err, t("common.error")) });
