@@ -1,0 +1,4 @@
+$ for i in $(seq 1 36); do test -f /tmp/uni2012r8-svcb.exit && break; sleep 30; done; echo "DONE_FILE=$(test -f /tmp/uni2012r8-svcb.exit && echo yes || echo no)"; grep -cE "^\s*--- PASS" /tmp/uni2012r8-svcb.log; grep -E "^(=== RUN)" /tmp/uni2012r8-svcb.log | tail -1
+DONE_FILE=yes
+1564
+=== RUN   TestDryRunWritesNothing

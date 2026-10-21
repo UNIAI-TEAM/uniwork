@@ -1,0 +1,6 @@
+$ ls -la /tmp/uni2012r8-cover-svcb.out; b=$(git hash-object -w /tmp/uni2012r8-cover-svcb.out); echo "COVER_BLOB=$b"; git push origin "$b:refs/test-artifacts/chat-docs_local-r8go/svcb-3c2b078a0" 2>&1 | tail -2; echo "COVER_PUSH_EXIT=$?"
+-rw-r--r-- 1 ubuntu ubuntu 2860919 Oct 21 07:45 /tmp/uni2012r8-cover-svcb.out
+COVER_BLOB=e228bf29ca10f608b72178bb2a2e4f5c1fbb7dc2
+To https://github.com/UNIAI-TEAM/uniwork
+ * [new reference]       e228bf29ca10f608b72178bb2a2e4f5c1fbb7dc2 -> refs/test-artifacts/chat-docs_local-r8go/svcb-3c2b078a0
+COVER_PUSH_EXIT=0
