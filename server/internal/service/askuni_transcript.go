@@ -115,7 +115,9 @@ func (s *AskUNIService) transcriptSource(ctx context.Context, m db.Meeting, segs
 	for _, g := range segs {
 		lines = append(lines, "["+clock(g.SpokenAt.Time)+"] "+g.SpeakerName+": "+oneLine(g.Text))
 	}
-	return ai.Source{Kind: "transcript", Title: "Lời thoại: " + m.Title, Href: base + "/meetings/" + m.ID + "#transcript", Excerpt: strings.Join(lines, "\n")}, nil
+	// The title stays the meeting's own (the client words it by kind), and the
+	// section param, not a #hash, reaches the transcript inside the page's scroller.
+	return ai.Source{Kind: "transcript", Title: m.Title, Href: base + "/meetings/" + m.ID + "?section=transcript", Excerpt: strings.Join(lines, "\n")}, nil
 }
 
 // agentMeetingTranscript is the agent's tool.

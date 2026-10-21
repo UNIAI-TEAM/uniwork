@@ -415,6 +415,11 @@ func (s *MeetingService) ConvertActionItems(ctx context.Context, userID, meeting
 		}
 	}
 
+	// The description is written once, by the clerk: its labels speak their language.
+	clerk, err := s.q.GetUserByID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
 	origin := meetingID
 	inputs := make([]CreateTaskInput, 0, len(items))
 	for i, it := range items {
@@ -428,7 +433,7 @@ func (s *MeetingService) ConvertActionItems(ctx context.Context, userID, meeting
 			projectID = meetingProject
 		}
 		inputs = append(inputs, CreateTaskInput{
-			Title: title, Description: actionItemTaskDescription(it, item),
+			Title: title, Description: actionItemTaskDescription(it, item, clerk.Locale),
 			AssigneeID: it.AssigneeID, DueDate: it.DueDate, ProjectID: projectID,
 			Priority: strings.TrimSpace(it.Priority), OriginType: "meeting", OriginID: &origin,
 		})
@@ -580,20 +585,24 @@ func refuseActionItemDuplicates(ctx context.Context, q *db.Queries, ws db.Worksp
 // says that the task does not carry (an owner when it has no assignee, a due
 // phrase when it has no due date). Phrases the AI wrote are marked as such.
 // The meeting it came from is not written here: the task's origin carries it
-// and the task screen shows it. The labels are Vietnamese: the summary does
-// not record the language it was written in.
-func actionItemTaskDescription(it ConvertActionItem, item db.MeetingActionItem) string {
+// and the task screen shows it. The labels are in the converting clerk's
+// locale (Vietnamese unless it is "en"); the phrases stay as the summary said them.
+func actionItemTaskDescription(it ConvertActionItem, item db.MeetingActionItem, locale string) string {
 	desc := strings.TrimSpace(it.Description)
 	mark := " (AI)"
 	if item.Source == ActionItemSourceManual {
 		mark = ""
 	}
+	ownerLabel, dueLabel := "Người phụ trách", "Hạn"
+	if locale == "en" {
+		ownerLabel, dueLabel = "Owner", "Due"
+	}
 	var extra []string
 	if owner := strings.TrimSpace(item.OwnerText); owner != "" && it.AssigneeID == nil {
-		extra = append(extra, "Người phụ trách"+mark+": "+owner)
+		extra = append(extra, ownerLabel+mark+": "+owner)
 	}
 	if due := strings.TrimSpace(item.DueText); due != "" && it.DueDate == nil {
-		extra = append(extra, "Hạn"+mark+": "+due)
+		extra = append(extra, dueLabel+mark+": "+due)
 	}
 	if len(extra) == 0 {
 		return desc

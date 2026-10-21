@@ -689,3 +689,17 @@ func TestSummarizeListsHandledItems(t *testing.T) {
 		t.Fatalf("prompt lists the handled items only:\n%s", prompt)
 	}
 }
+
+func TestActionItemTaskDescriptionSpeaksTheClerksLocale(t *testing.T) {
+	item := db.MeetingActionItem{OwnerText: "B", DueText: "tomorrow", Source: ActionItemSourceAI}
+	if got := actionItemTaskDescription(ConvertActionItem{Description: "Floor 3"}, item, "en"); got != "Floor 3\nOwner (AI): B\nDue (AI): tomorrow" {
+		t.Fatalf("en description = %q", got)
+	}
+	if got := actionItemTaskDescription(ConvertActionItem{}, item, "vi"); got != "Người phụ trách (AI): B\nHạn (AI): tomorrow" {
+		t.Fatalf("vi description = %q", got)
+	}
+	item.Source = ActionItemSourceManual
+	if got := actionItemTaskDescription(ConvertActionItem{}, item, "en"); got != "Owner: B\nDue: tomorrow" {
+		t.Fatalf("manual item = %q", got)
+	}
+}
