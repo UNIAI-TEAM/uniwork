@@ -11,6 +11,7 @@ import { requestMock, wrapWithNav } from "../test/api-mock";
 import { InboxView } from "./inbox-view";
 import { kindIcon } from "./kind-icon";
 import { kindTone } from "./kind-tone";
+import { documentChangedHasPage, opensDocumentList } from "./document-changed";
 import { inboxCategory } from "./notification-category";
 import { NotificationRow } from "./notification-row";
 import { notificationSnippet } from "./notification-snippet";
@@ -219,7 +220,7 @@ describe("document_changed snippet (item 2)", () => {
     expect(notificationSnippet(n)).toEqual({ kind: "documents", titles: ["Kế hoạch Q4", "B"], more: 1 });
   });
 
-  it("renders the titles quoted, then 'và M tài liệu khác' / 'and M more' that never shrinks", async () => {
+  it("renders the titles quoted, then 'và M tài liệu khác' / 'and M other documents' that never shrinks", async () => {
     const n = changed({ verb: "trashed", document_count: "50", sample_title_2: "B", sample_title_3: "C" }, { count: 50 });
     const { container } = row(n);
     const line = container.querySelector("[data-notification-snippet]");
@@ -229,7 +230,7 @@ describe("document_changed snippet (item 2)", () => {
     expect(more?.className).toContain("shrink-0");
     cleanup();
     await setLocale("en");
-    expect(row(n).container.querySelector("[data-notification-snippet]")).toHaveTextContent("“Kế hoạch Q4”, “B”, “C” and 47 more");
+    expect(row(n).container.querySelector("[data-notification-snippet]")).toHaveTextContent("“Kế hoạch Q4”, “B”, “C” and 47 other documents");
   });
 });
 
@@ -349,6 +350,75 @@ describe("document_changed click target (item 4)", () => {
     const onOpenList = vi.fn();
     row(changed({ verb: "deleted", document_count: "3" }, { count: 3 }), { onOpenList });
     expect(screen.getByRole("link")).toBeInTheDocument();
+  });
+
+  it("says 'other document' for one and 'other documents' for several in the en tail", async () => {
+    await setLocale("en");
+    const tail = (rest: number) =>
+      row(changed({ document_count: String(rest + 1) }, { count: rest + 1 }), { onOpenList: vi.fn() }).container.querySelector("[data-notification-snippet]");
+    const one = tail(1);
+    expect(one).toHaveTextContent("“Kế hoạch Q4” and 1 other document");
+    expect(one).not.toHaveTextContent("documents");
+    cleanup();
+    expect(tail(2)).toHaveTextContent("“Kế hoạch Q4” and 2 other documents");
+  });
+
+  describe("a several-document row the reader can read none of (TV2-01)", () => {
+    // The server lists only the documents the recipient could read at send time: none listed = none readable.
+    const unreadable = (over: Partial<Notification> = {}, shorthand: Record<string, string> = {}) =>
+      changed({ verb: "moved", document_count: "3", ...shorthand }, { count: 3, sample_documents: [], ...over });
+
+    it("offers no list link and no 'Xem 3 tài liệu' action, with or without a list host", () => {
+      for (const n of [unreadable(), unreadable({ sample_documents: undefined })]) {
+        row(n, { onOpenList: vi.fn() });
+        expect(screen.queryByRole("link")).toBeNull();
+        expect(screen.queryByRole("button", { name: /Xem 3 tài liệu/ })).toBeNull();
+        cleanup();
+        row(n);
+        expect(screen.queryByRole("link")).toBeNull();
+        cleanup();
+      }
+    });
+
+    it("has no Inbox ?notification= link and is not an opener of the list", () => {
+      expect(resourceHref(unreadable(), workspace, [workspace])).not.toContain("notification=");
+      expect(opensDocumentList(unreadable())).toBe(false);
+      expect(documentChangedHasPage(unreadable())).toBe(false);
+    });
+
+    it("is the dimmed inert row: an unread one marks read on click without navigating or listing", () => {
+      const onOpen = vi.fn();
+      const onOpenList = vi.fn();
+      const n = unreadable();
+      const { nav } = row(n, { onOpen, onOpenList });
+      const buttons = screen.getAllByRole("button");
+      expect(buttons).toHaveLength(1);
+      fireEvent.click(buttons[0] as HTMLElement);
+      expect(onOpen).toHaveBeenCalledWith(n);
+      expect(onOpenList).not.toHaveBeenCalled();
+      expect(nav.push).not.toHaveBeenCalled();
+    });
+
+    it("is a plain div once read, and never carries the deleted tag, whatever the verb or the first document says", () => {
+      for (const n of [
+        unreadable({ read_at: "2026-10-21T04:00:00Z" }),
+        unreadable({ read_at: "2026-10-21T04:00:00Z", resource_deleted: true }, { verb: "deleted" }),
+      ]) {
+        const { container } = row(n, { onOpenList: vi.fn() });
+        expect(screen.queryByRole("button")).toBeNull();
+        expect(screen.queryByRole("link")).toBeNull();
+        expect(container.querySelector("em, .italic")).toBeNull();
+        cleanup();
+      }
+    });
+
+    it("keeps a several-document row WITH sample documents a link to the list", () => {
+      const withSamples = changed({ verb: "moved", document_count: "3" }, { count: 3 });
+      expect(resourceHref(withSamples, workspace, [workspace])).toBe("/acme/team/inbox?notification=n1");
+      row(withSamples, { onOpenList: vi.fn() });
+      expect(screen.getByRole("link")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Xem 3 tài liệu" })).toBeInTheDocument();
+    });
   });
 
   it("opens the list instead of navigating when the host has one, and marks the row read", () => {
