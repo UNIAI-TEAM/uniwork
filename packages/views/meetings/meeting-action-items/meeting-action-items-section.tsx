@@ -145,7 +145,9 @@ function ClerkPendingList({
               action={
                 <DismissActionItemButton
                   title={item.title}
-                  pending={dismiss.isPending && dismiss.variables?.itemId === item.id}
+                  // One shared mutation: TanStack runs only the latest mutate()'s callbacks, so a
+                  // second dismiss while one is in flight would lose the first's done/toast.
+                  pending={dismiss.isPending}
                   onDismiss={(reason, done) =>
                     dismiss.mutate(
                       { itemId: item.id, reason },
@@ -365,11 +367,14 @@ export function MeetingActionItemsSection({
                   restoring={restore.isPending && restore.variables === item.id}
                   onRestore={
                     canClerk
-                      ? () =>
+                      ? () => {
+                          // Same shared-mutation reason as dismiss: one restore at a time.
+                          if (restore.isPending) return;
                           restore.mutate(item.id, {
                             onSuccess: () => setAnnouncement(t("meetings.actionItemsSection.restored")),
                             onError: (err) => toastApiError(err, t("meetings.actionItemsSection.restoreFailed")),
-                          })
+                          });
+                        }
                       : undefined
                   }
                 />

@@ -128,7 +128,16 @@ export function MeetingRecordingDialog({
             layout="inline"
             live="assertive"
             action={
-              <Button type="button" size="sm" variant="outline" onClick={() => setAttempt((n) => n + 1)}>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  // A cached blob the player already failed on would be served again.
+                  releaseMeetingRecordingPlayback(cacheKeyRef.current);
+                  setAttempt((n) => n + 1);
+                }}
+              >
                 <RefreshCw aria-hidden />
                 {t("common.retry")}
               </Button>
