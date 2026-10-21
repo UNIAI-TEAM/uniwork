@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"net/http"
+	"sync"
 	"testing"
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
@@ -549,5 +550,74 @@ func TestFolderUploadSignedTargetEndToEnd(t *testing.T) {
 	}
 	if res.Status != "open" || res.Counts.Pending != 1 {
 		t.Fatalf("batch = %s %+v", res.Status, res.Counts)
+	}
+}
+
+// Four COMPLETE calls of the same signed files at once: the file one call
+// finished is never reported failed by another, and every call names the same
+// document.
+func TestFolderUploadConcurrentCompleteOfSignedFilesAnswersDone(t *testing.T) {
+	env := newRealDocStorageEnv(t, localFileBackend())
+	ctx := context.Background()
+	member := human(env.tn.member)
+	a, b := pdfBody("conc-a"), pdfBody("conc-b")
+	batch, err := env.svc.CreateFolderUpload(ctx, member, env.tn.wsA, folderTwoFiles("Song song", a, b))
+	if err != nil {
+		t.Fatalf("plan: %v", err)
+	}
+	for _, f := range batch.Files {
+		body := a
+		if f.FileKey == "f-2" {
+			body = b
+		}
+		req, err := http.NewRequest(f.Target.Method, f.Target.URL, bytes.NewReader(body))
+		if err != nil {
+			t.Fatal(err)
+		}
+		for k, v := range f.Target.Headers {
+			req.Header.Set(k, v)
+		}
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_ = resp.Body.Close()
+		if resp.StatusCode/100 != 2 {
+			t.Fatalf("signed PUT = %d", resp.StatusCode)
+		}
+	}
+	const calls = 4
+	results := make([]FolderUploadCompleteResult, calls)
+	errs := make([]error, calls)
+	var wg sync.WaitGroup
+	for i := 0; i < calls; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			results[i], errs[i] = env.svc.CompleteFolderUpload(ctx, member, env.tn.wsA, batch.ID, []CompleteFolderUploadFileInput{
+				{FileKey: "f-1", ETag: `"s3-etag"`}, {FileKey: "f-2", ETag: `"s3-etag"`},
+			})
+		}()
+	}
+	wg.Wait()
+	for _, key := range []string{"f-1", "f-2"} {
+		var id string
+		for i := 0; i < calls; i++ {
+			if errs[i] != nil {
+				t.Fatalf("call %d: %v", i, errs[i])
+			}
+			r := resultOf(t, results[i], key)
+			if r.Status != "done" || r.DocumentID == "" {
+				t.Fatalf("call %d %s = %+v, want done", i, key, r)
+			}
+			if id == "" {
+				id = r.DocumentID
+			} else if r.DocumentID != id {
+				t.Fatalf("%s answered two documents: %s and %s", key, id, r.DocumentID)
+			}
+		}
+	}
+	if n := env.folderUploadCount(t, `SELECT count(*) FROM documents WHERE organization_id = $1 AND kind <> 'folder'`, env.tn.orgID); n != 2 {
+		t.Fatalf("documents = %d, want 2", n)
 	}
 }

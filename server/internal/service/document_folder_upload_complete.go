@@ -424,6 +424,12 @@ func (s *DocumentService) completeFolderUploadFile(ctx context.Context, fs files
 				return out, err
 			}
 		}
+		// A concurrent COMPLETE may have finished this file while this call
+		// verified it: answer the document instead of a failure.
+		if cur, rerr := s.folderUploadFile(ctx, s.q, batch, in.FileKey); rerr == nil && cur.Status == folderUploadFileDone {
+			out.Status, out.DocumentID = folderUploadFileDone, cur.DocumentID.String
+			return out, nil
+		}
 		out.Status, out.ErrorCode, out.Reason = folderUploadFileFailed, failure.code, failure.reason
 		out.Retryable = !failure.final && f.Status == folderUploadFilePending
 		return out, nil
@@ -441,20 +447,39 @@ func folderUploadFileParent(f db.DocumentFolderUploadFile) string {
 	return f.FolderID.String
 }
 
-// resetFolderUploadFile drops a pending file's upload: a put target's staged
-// FileService upload is canceled (best effort: an unclaimed upload is
-// collected after its claim window anyway) and the row forgets it. A
-// multipart session is already failed, aborted or gone when this runs.
+// resetFolderUploadFile drops a pending file's upload: the row forgets it,
+// and only when that guarded reset updated a row is a put target's staged
+// FileService upload canceled (best effort: an unclaimed upload is collected
+// after its claim window anyway). A concurrent COMPLETE that already settled
+// the file makes the reset a no-op, so its upload is never canceled under it.
+// A multipart session is already failed, aborted or gone when this runs.
 func (s *DocumentService) resetFolderUploadFile(ctx context.Context, fs files.Service, actor Actor, batch db.DocumentFolderUpload, f db.DocumentFolderUploadFile) error {
-	if f.TargetKind == folderUploadTargetPut {
+	// The batch lock orders this reset after a concurrent COMPLETE that is
+	// committing the same file: the guarded UPDATE then finds it done.
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	q := s.q.WithTx(tx)
+	if _, err := s.lockFolderUpload(ctx, q, batch); err != nil {
+		return err
+	}
+	n, err := q.ResetDocumentFolderUploadFileRef(ctx, db.ResetDocumentFolderUploadFileRefParams{
+		ID: f.ID, OrganizationID: f.OrganizationID, WorkspaceID: f.WorkspaceID, UploadRef: f.UploadRef,
+	})
+	if err != nil {
+		return err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return err
+	}
+	if n > 0 && f.TargetKind == folderUploadTargetPut {
 		_ = fs.CancelUpload(context.WithoutCancel(ctx), files.CancelInput{
 			Actor: actor, Scope: documentScope(batch.OrganizationID, batch.WorkspaceID), FileID: files.FileID(f.UploadRef.String),
 		})
 	}
-	_, err := s.q.ResetDocumentFolderUploadFileRef(ctx, db.ResetDocumentFolderUploadFileRefParams{
-		ID: f.ID, OrganizationID: f.OrganizationID, WorkspaceID: f.WorkspaceID, UploadRef: f.UploadRef,
-	})
-	return err
+	return nil
 }
 
 // settleFolderUploadFile answers the document of a done file, the stored
