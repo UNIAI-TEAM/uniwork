@@ -348,6 +348,8 @@ function keysFor(
         push(meetingKeys.speakerLabels(payload.meeting_id));
         push(meetingKeys.transcript(payload.meeting_id));
         push(meetingKeys.transcriptions(payload.meeting_id));
+        // Completion also writes the meeting's TRANSCRIPTION_COMPLETED timeline row.
+        if (type === "transcription.completed") push(meetingKeys.activity(payload.meeting_id));
       }
       break;
     }

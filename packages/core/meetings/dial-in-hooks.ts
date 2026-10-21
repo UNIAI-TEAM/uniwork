@@ -20,7 +20,9 @@ export function useRotateMeetingDialInPin(meetingId: string) {
   return useMutation({
     mutationFn: () => api.rotateMeetingDialInPin(meetingId),
     onSuccess: (dialIn) => {
-      qc.setQueryData(dialInKey(meetingId), dialIn);
+      // A drifted answer parses to "off" though the PIN did rotate: read the line again instead.
+      if (dialIn.enabled) qc.setQueryData(dialInKey(meetingId), dialIn);
+      else void qc.invalidateQueries({ queryKey: dialInKey(meetingId) });
       void qc.invalidateQueries({ queryKey: meetingKeys.activity(meetingId) });
     },
   });
