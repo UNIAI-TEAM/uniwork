@@ -32,6 +32,8 @@ export interface PrimerRequest {
   kind: PermissionKind;
   reason: PrimerReason;
   step: Exclude<PrimerStep, "granted">;
+  /** The call this ask is for: that call starting to ring does not close the primer. */
+  callId?: string;
 }
 
 export function primerStep(state: PermissionState): PrimerStep {
@@ -50,6 +52,8 @@ interface GateDeps {
 export interface EnsureOptions {
   /** Ask unprompted (at launch) at most once per phone, and never send the person to Settings unasked. */
   once?: boolean;
+  /** The call being started or answered, when the ask is for one (PrimerRequest.callId). */
+  callId?: string;
 }
 
 const dismissedKey = (kind: PermissionKind) => `permission_primer_dismissed:${kind}`;
@@ -67,16 +71,17 @@ export function createPermissionGate({ api, present, openSettings, openStore }: 
       }
       const step = primerStep(state);
       if (step === "granted") return true;
+      const request: PrimerRequest = options.callId === undefined ? { kind, reason, step } : { kind, reason, step, callId: options.callId };
       if (options.once) {
         const store = await openStore();
         if (step === "settings" || store.getString(dismissedKey(kind))) return false;
-        const go = await present({ kind, reason, step });
+        const go = await present(request);
         // Remembered whatever the person picks: Android 13+ still reads canAskAgain=true after a first
         // refusal in the system dialog, so only this key keeps the launch ask to one per phone.
         store.set(dismissedKey(kind), "1");
         return go ? (await api.request(kind)).granted : false;
       }
-      const go = await present({ kind, reason, step });
+      const go = await present(request);
       if (step === "settings") {
         if (go) await openSettings();
         return false;

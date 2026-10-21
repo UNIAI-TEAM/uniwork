@@ -29,7 +29,8 @@ Cùng file lint còn giữ năm luật chất lượng (fixture: `lib/lint-quali
 trừ `has-accessibility-hint` — tắt có lý do ghi trong config: hint chỉ dùng khi
 nhãn không nói rõ kết quả; `i18next/no-literal-string` (`jsx-text-only`)
 như `packages/views`; `no-console` ngoài `data/logger.ts`; và không `Modal` của react-native
-ngoài `components/ui/call-aware-modal.tsx` (sheet phải đóng khi có cuộc gọi đến). Tắt một luật ở
+ngoài `components/ui/call-aware-modal.tsx` (sheet phải đóng khi có cuộc gọi đến; trừ sheet ghi `keepOpenForCall` của
+chính cuộc gọi đó — màn giải thích micro khi nghe từ thông báo). Tắt một luật ở
 một dòng thì ghi lý do ở dòng trên.
 
 ## Cấu trúc
@@ -333,7 +334,9 @@ một dòng thì ghi lý do ở dòng trên.
   thống còn hỏi được thì giải thích rồi mới hỏi, không hỏi được nữa thì mở `Linking.openSettings`; `once` (thông báo lúc
   mở app) chỉ hỏi một lần mỗi máy (nhớ ngay khi màn giải thích đã hiện, dù "Để sau" hay từ chối ở hộp thoại hệ thống:
   Android 13+ lần từ chối đầu vẫn báo `canAskAgain`) và không tự đưa ra Cài đặt; Cài đặt › Thông báo hỏi lại. Micro trước tin thoại
-  (`use-voice-recorder.ts`) và trước gọi/nghe (`ensureCallPermissions`; cuộc gọi vẫn đi tiếp khi bị từ chối), camera
+  (`use-voice-recorder.ts`) và trước gọi/nghe (`ensureCallPermissions(withCamera, callId)`; cuộc gọi vẫn đi tiếp khi bị
+  từ chối; nút Nghe chỉ nghe đúng cuộc gọi đã bấm — `acceptCall(callId)` — và màn giải thích của cuộc gọi đang nghe không
+  bị đóng khi chính cuộc gọi đó đổ chuông), camera
   trước gọi video; ảnh không cần (trình chọn của hệ thống). **Ngôn ngữ**: chuỗi tiếng Anh có `{{count}}` là cặp
   `_one`/`_other`, tiếng Việt một khoá (như core; `lib/i18n.test.ts` đỏ khi thiếu); i18next 26 không có
   `Intl.PluralRules` (Hermes) vẫn chọn one/other theo luật tiếng Anh. Ngôn ngữ app lên server (`users.locale`, push và

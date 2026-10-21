@@ -24,7 +24,7 @@ jest.mock("./call-aware-modal", () => {
   const { useEffect, useRef } = jest.requireActual<typeof import("react")>("react");
   const { Platform: platform, Pressable, Text } = jest.requireActual<typeof import("react-native")>("react-native");
   return {
-    CallAwareModal: ({ visible, onDismiss, onRequestClose, children }: { visible: boolean; onDismiss?: () => void; onRequestClose?: () => void; children: React.ReactNode }) => {
+    CallAwareModal: ({ visible, onDismiss, onRequestClose, keepOpenForCall, children }: { visible: boolean; onDismiss?: () => void; onRequestClose?: () => void; keepOpenForCall?: string; children: React.ReactNode }) => {
       const was = useRef(visible);
       useEffect(() => {
         if (was.current && !visible && platform.OS === "ios") onDismiss?.();
@@ -35,6 +35,7 @@ jest.mock("./call-aware-modal", () => {
           <Pressable accessibilityRole="button" onPress={() => onRequestClose?.()}>
             <Text>system back</Text>
           </Pressable>
+          {keepOpenForCall ? <Text>{`stays for ${keepOpenForCall}`}</Text> : null}
           {children}
         </>
       ) : null;
@@ -65,6 +66,14 @@ describe("PermissionPrimerHost", () => {
     expect(screen.getByText(viText(body))).toBeOnTheScreen();
     expect(screen.getByRole("button", { name: viText(primary) })).toBeOnTheScreen();
     expect(screen.getByRole("button", { name: viText("mobile.permissions.not_now") })).toBeOnTheScreen();
+  });
+
+  it("stays over the ringing screen of the call it asks for, and only that call", async () => {
+    await render(<PermissionPrimerHost />);
+    await show({ kind: "microphone", reason: "call", step: "prime", callId: "c-9" });
+    expect(screen.getByText("stays for c-9", { includeHiddenElements: true })).toBeOnTheScreen();
+    await show({ kind: "microphone", reason: "voice", step: "prime" });
+    expect(screen.queryByText(/stays for/, { includeHiddenElements: true })).toBeNull();
   });
 
   it("on iOS answers once the sheet is gone: yes for Continue, no for Not now", async () => {

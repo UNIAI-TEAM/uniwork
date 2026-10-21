@@ -82,7 +82,7 @@ function CallBody({ call, recording, onMinimize, seed }: { call: Exclude<VoiceCa
                 // The microphone is explained and asked before the call connects (an answered call starts with the camera off).
                 // Only this call is answered: another may ring by the time the primer closes.
                 const { callId } = call;
-                void ensureCallPermissions(false).then(() => callEngine.acceptCall(callId));
+                void ensureCallPermissions(false, callId).then(() => callEngine.acceptCall(callId));
               }}
             />
           </View>

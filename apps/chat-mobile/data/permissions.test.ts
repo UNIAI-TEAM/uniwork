@@ -46,6 +46,12 @@ describe("createPermissionGate", () => {
     await expect(gate.ensure("camera", "video")).resolves.toBe(false);
   });
 
+  it("tells the primer which call it is for, so that call ringing does not close it", async () => {
+    const { gate, present } = setup(undetermined, granted);
+    await expect(gate.ensure("microphone", "call", { callId: "c-7" })).resolves.toBe(true);
+    expect(present).toHaveBeenCalledWith({ kind: "microphone", reason: "call", step: "prime", callId: "c-7" });
+  });
+
   it("does not ask the system when the person said not now", async () => {
     const { gate, present, api } = setup(undetermined);
     present.mockResolvedValueOnce(false);

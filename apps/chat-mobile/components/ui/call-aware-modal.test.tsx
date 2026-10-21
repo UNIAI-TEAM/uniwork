@@ -48,6 +48,21 @@ describe("CallAwareModal (audit C2)", () => {
     expect(open).toHaveBeenCalledTimes(1);
   });
 
+  it("stays open when the call it belongs to rings (the answer's microphone primer), and closes for any other", async () => {
+    const close = jest.fn();
+    await render(
+      <CallAwareModal visible keepOpenForCall="c-1" onRequestClose={close}>
+        <Text>primer</Text>
+      </CallAwareModal>,
+    );
+    await setCall(ringing);
+    expect(close).not.toHaveBeenCalled();
+    expect(screen.getByText("primer")).toBeOnTheScreen();
+    await setCall({ status: "idle" });
+    await setCall({ ...ringing, callId: "c-2" });
+    expect(close).toHaveBeenCalledTimes(1);
+  });
+
   it("does not need a close handler", async () => {
     await render(
       <CallAwareModal visible>

@@ -33,8 +33,12 @@ export const permissionGate = createPermissionGate({
   openStore: openDeviceStore,
 });
 
-/** Before a call starts or is answered: the microphone, and the camera for a video call. The call goes on either way: a refused microphone still hears. */
-export async function ensureCallPermissions(withCamera: boolean): Promise<void> {
-  await permissionGate.ensure("microphone", "call");
-  if (withCamera) await permissionGate.ensure("camera", "video");
+/**
+ * Before a call starts or is answered: the microphone, and the camera for a video call. The call goes on either way:
+ * a refused microphone still hears. `callId` names the call being answered, so its ringing (the app reconciling as it
+ * comes to the front) does not close the primer that asks for it.
+ */
+export async function ensureCallPermissions(withCamera: boolean, callId?: string): Promise<void> {
+  await permissionGate.ensure("microphone", "call", { callId });
+  if (withCamera) await permissionGate.ensure("camera", "video", { callId });
 }

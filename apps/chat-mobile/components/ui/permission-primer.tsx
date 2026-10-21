@@ -39,7 +39,9 @@ export function PermissionPrimerHost() {
   const settings = request.step === "settings";
   const decline = () => choose(() => answerPrimer(false));
   return (
-    <CallAwareModal visible={!closing} transparent animationType="slide" onRequestClose={decline} onDismiss={onDismiss}>
+    // An ask for a call stays over that call's ringing screen: answering from the notification brings the app to the
+    // front, the call rings here meanwhile, and closing the primer then would answer without the microphone.
+    <CallAwareModal visible={!closing} transparent animationType="slide" onRequestClose={decline} onDismiss={onDismiss} keepOpenForCall={request.callId}>
       <View className="flex-1 bg-black/40" />
       <SafeAreaView edges={["bottom"]} className="rounded-t-[24px] bg-card px-5 pb-3" style={continuousCorners} accessibilityViewIsModal>
         <SheetGrabber />

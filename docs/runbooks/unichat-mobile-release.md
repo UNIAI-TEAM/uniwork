@@ -240,6 +240,8 @@ và giọng đọc. Một iPhone (VoiceOver) và một máy Android (TalkBack):
   trước hộp thoại hệ thống; "Để sau" không hiện hộp thoại; đã từ chối hẳn thì màn nói quyền đang tắt và "Mở Cài đặt"
   mở đúng trang của UniChat. Lời nhắc thông báo lúc mở app chỉ hiện một lần mỗi máy, kể cả khi bấm "Tiếp tục" rồi từ
   chối ở hộp thoại hệ thống (Android 13+: mở lại app không hỏi nữa); Cài đặt › Thông báo hỏi lại.
+- [ ] Nghe từ thông báo trên máy cài mới, đang khoá (Android): bấm "Nghe" thì màn giải thích micro hiện và ở lại trên màn
+  đổ chuông; "Tiếp tục" hiện hộp thoại hệ thống, rồi cuộc gọi mới nối (micro đã được hỏi).
 - [ ] Ngôn ngữ: iOS Cài đặt › UniChat › Ngôn ngữ và Android 13+ Cài đặt › Ứng dụng › UniChat › Ngôn ngữ chỉ liệt kê
   Tiếng Việt và English; đổi ngôn ngữ trong app rồi nhận một push: push nói đúng ngôn ngữ đó (`users.locale` đổi theo,
   xem bằng `GET /api/v1/me`). Tiếng Anh: "1 reply", "2 replies".

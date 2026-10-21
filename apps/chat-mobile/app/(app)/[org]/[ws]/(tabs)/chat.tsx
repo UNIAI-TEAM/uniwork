@@ -68,8 +68,9 @@ function useDeepLinkTarget(chat: ChatWorkspace | null) {
         router.push(chatRoutes.room(chat, room));
         return;
       }
-      // Answer on the notification: the microphone is explained and asked before the call connects.
-      const open = answer === "1" ? ensureCallPermissions(false).then(() => callEngine.joinFromPush(room, call)) : callEngine.ringFromPush(room, call);
+      // Answer on the notification: the microphone is explained and asked before the call connects; the call
+      // ringing here meanwhile (the app reconciling as it comes to the front) leaves that primer open.
+      const open = answer === "1" ? ensureCallPermissions(false, call).then(() => callEngine.joinFromPush(room, call)) : callEngine.ringFromPush(room, call);
       void open.then((ringing) => {
         if (ringing) return;
         // Over (its end push not here yet): the phone's own ringing notification goes too.
