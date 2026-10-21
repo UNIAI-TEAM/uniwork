@@ -1,0 +1,35 @@
+$ rc=$(cat /tmp/pr7r9-e2e.exit 2>/dev/null || echo 99); grep -vE "^\s+at " /tmp/pr7r9-e2e.log | grep -E "✘|failed|flaky|passed|skipped|did not run|Error:" | head -80; tail -n 30 /tmp/pr7r9-e2e.log; for f in e2e/test-results/*/error-context.md; do [ -f "$f" ] && { echo "===== $f"; head -c 3000 "$f"; }; done; grep -qE "[0-9]+ passed" /tmp/pr7r9-e2e.log || { echo "no passing test"; [ "$rc" = 0 ] && rc=1; }; echo; echo "E2E_EXIT=$rc"; [ $rc -eq 0 ]
+  30 skipped
+  25 passed (4.6m)
+  -  29 office-ux-floor.spec.ts:81:7 › contrast on the rendered frame (DESIGN.md › Colors) › S6 clean + dirty bars and every reachable S5 step — dark vi
+  -  30 office-ux-floor.spec.ts:81:7 › contrast on the rendered frame (DESIGN.md › Colors) › S6 clean + dirty bars and every reachable S5 step — dark en
+  -  31 office-ux-floor.spec.ts:126:3 › S5 order, focus, trap and inert (State Patterns › Conflict dialog (S5), Floor › S5) › DOM order = visual order = the standard order, default focus Cancel, Tab stays in, the rest is inert
+  -  32 office-ux-floor.spec.ts:171:3 › S5 order, focus, trap and inert (State Patterns › Conflict dialog (S5), Floor › S5) › aria-disabled choices (web offline) stay in the Tab loop with a reason
+  -  33 office-ux-floor.spec.ts:192:3 › S5 order, focus, trap and inert (State Patterns › Conflict dialog (S5), Floor › S5) › Save copy sits between Reload and Overwrite with edit access
+  -  34 office-ux-floor.spec.ts:202:3 › S5 order, focus, trap and inert (State Patterns › Conflict dialog (S5), Floor › S5) › Save copy creates a copy with the source visibility and leaves the open document in conflict
+  -  35 office-ux-floor.spec.ts:229:3 › S5 order, focus, trap and inert (State Patterns › Conflict dialog (S5), Floor › S5) › Docs shows 'Xem khác biệt' before Reload
+  -  36 office-ux-floor.spec.ts:240:3 › S5 order, focus, trap and inert (State Patterns › Conflict dialog (S5), Floor › S5) › the window live nodes stay outside the inert tree while S5 is open
+  -  37 office-ux-floor.spec.ts:251:3 › live regions (Floor › Vùng live) › the frame has its two fixed live nodes from load, before any bar
+  -  38 office-ux-floor.spec.ts:265:3 › live regions (Floor › Vùng live) › an S6 bar is read once, through the window node; the bar itself is not live
+  -  39 office-ux-floor.spec.ts:293:3 › forced colors (DESIGN.md › Colors › Forced colors) › S5 buttons keep a visible border, not colour alone
+  -  40 office-ux-floor.spec.ts:310:3 › forced colors (DESIGN.md › Colors › Forced colors) › S5 aria-disabled buttons use GrayText text and border
+  -  41 office-ux-floor.spec.ts:339:3 › zoom, narrow frames and motion (Floor, Responsive & Platform) › zoom 200 % and WCAG 1.4.12 text spacing: no status label clipped, S5 fully reachable
+  -  42 office-ux-floor.spec.ts:360:3 › zoom, narrow frames and motion (Floor, Responsive & Platform) › S5 at 320x256 CSS px: the dialog scrolls, the title is not cut, every button is reachable
+  -  43 office-ux-floor.spec.ts:378:5 › zoom, narrow frames and motion (Floor, Responsive & Platform) › narrow web frame 390px: S5 full width minus 16px margins, buttons stacked
+  -  44 office-ux-floor.spec.ts:378:5 › zoom, narrow frames and motion (Floor, Responsive & Platform) › narrow web frame 600px: S5 full width minus 16px margins, buttons stacked
+  -  45 office-ux-floor.spec.ts:397:3 › zoom, narrow frames and motion (Floor, Responsive & Platform) › reduced motion: no slide/fade on S6 or S5
+  -  46 office-ux-floor.spec.ts:418:3 › zoom, narrow frames and motion (Floor, Responsive & Platform) › target sizes: every S5 and S6 control >= 24x24 CSS px (fine pointer)
+  -  47 office-ux-floor.spec.ts:430:7 › UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) › S7 picker with UniWork AI and the S9 result line — light vi
+  -  48 office-ux-floor.spec.ts:430:7 › UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) › S7 picker with UniWork AI and the S9 result line — light en
+  -  49 office-ux-floor.spec.ts:460:5 › UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) › S7 the selected option's focus ring is >= 3:1 against accent-soft — light
+  -  50 office-ux-floor.spec.ts:430:7 › UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) › S7 picker with UniWork AI and the S9 result line — dark vi
+  -  51 office-ux-floor.spec.ts:430:7 › UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) › S7 picker with UniWork AI and the S9 result line — dark en
+  -  52 office-ux-floor.spec.ts:460:5 › UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) › S7 the selected option's focus ring is >= 3:1 against accent-soft — dark
+  -  53 office-ux-floor.spec.ts:485:3 › UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) › S7 the selected picker option has a 2px Highlight border, not only a fill
+  -  54 office-ux-floor.spec.ts:506:3 › UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) › S7 listbox sits on the list, Manage and the footer are siblings after it
+  -  55 office-ux-floor.spec.ts:519:3 › UniWork AI surfaces: S7 picker, S8 disclosure, S9 result (own beforeAll for the AI flags) › S8 disclosure region shows on the first UniWork AI turn and gates Send
+
+  30 skipped
+  25 passed (4.6m)
+
+E2E_EXIT=0
