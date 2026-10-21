@@ -1,0 +1,865 @@
+$ rc=$(cat /tmp/pr7r5h-e2e.exit 2>/dev/null || echo 99); grep -vE "^\s+at " /tmp/pr7r5h-e2e.log | grep -E "✘|failed|flaky|passed|skipped|did not run|Error:" | head -80; tail -n 30 /tmp/pr7r5h-e2e.log; for f in e2e/test-results/*/error-context.md; do [ -f "$f" ] && { echo "===== $f"; head -c 3000 "$f"; }; done; grep -qE "[0-9]+ passed" /tmp/pr7r5h-e2e.log || { echo "no passing test"; [ "$rc" = 0 ] && rc=1; }; echo; echo "E2E_EXIT=$rc"
+  ✘   1 chat-document-share.spec.ts:57:1 › staff sends a docx in a DM at comment level; the manager comments and staff reads it (4.7s)
+  ✘   2 chat-document-share.spec.ts:182:1 › the sender turns an old file message into a document card in place (3.1s)
+  ✘   3 documents-first-save-share.spec.ts:31:1 › the first-save share switch makes the new document shared with the workspace (1.1m)
+  ✘   4 documents-folders.spec.ts:984:1 › FD-A05 (FD-09 UI) tree Move-to picker marks a too-deep target aria-disabled with its reason, refuses it, and moves to a valid one with a toast (3.0m)
+  ✘   5 documents-folders.spec.ts:1248:1 › FD-A07 moving a document between folders keeps ID, versions, and comments with no second row and renames Name (n).ext on collision (1.0m)
+  ✘   6 documents-folders.spec.ts:1341:1 › FD-A07 (FD-09 UI) Move-to picker marks the current location aria-disabled with Vị trí hiện tại, refuses to select it, and a colliding move toasts Đã chuyển và đổi tên thành (1.0m)
+  ✘   7 documents-home.spec.ts:54:1 › quick create, folder, move and the other-modules section on the owner's home (6.0m)
+  ✘   8 documents-home.spec.ts:312:3 › a view-only member › gets no Move, Archive or Move to trash on a row shared at view level (7.6s)
+  ✘   9 documents-home.spec.ts:326:3 › a view-only member › lists shared documents under the owner's Tôi đã chia sẻ, excludes private ones, and keeps them out of the recipient's Tôi đã chia sẻ (32.7s)
+  ✘  10 documents-share.spec.ts:178:1 › AC04 the workspace at View goes through the home row, not a share row (1.1m)
+  ✘  11 documents.spec.ts:181:1 › the library lists pages across its views and the tree opens one (6.0m)
+    Error: expect(locator).toBeVisible() failed
+    Error: strict mode violation: locator('article[id^="chat-msg-"]').filter({ has: getByRole('button', { name: /^Mở trong Tài liệu:/ }) }).first().getByText('Nhận xét') resolved to 2 elements:
+    Error: expect(locator).toBeVisible() failed
+    Error: strict mode violation: locator('article#chat-msg-01M5ENTV0M5XX05EY4WB9ZFZWW').getByText('Quản lý', { exact: true }) resolved to 2 elements:
+    Error: expect(locator).toHaveAttribute(expected) failed
+    Error: element(s) not found
+    Error: locator.click: Test timeout of 180000ms exceeded.
+    Error: locator.click: Test timeout of 60000ms exceeded.
+    Error: locator.click: Test timeout of 60000ms exceeded.
+    Error: locator.click: Test timeout of 360000ms exceeded.
+    Error: expect(locator).toBeVisible() failed
+    Error: element(s) not found
+    Error: expect(locator).toBeVisible() failed
+    Error: element(s) not found
+    Error: expect(locator).toHaveAttribute(expected) failed
+    Error: element(s) not found
+    Error: locator.click: Test timeout of 360000ms exceeded.
+  11 failed
+      228 |   await page.getByRole("button", { name: "Bỏ bộ lọc" }).click();
+        at /workspace/e2e/documents.spec.ts:225:55
+
+    Error Context: test-results/documents-the-library-list-462e6-iews-and-the-tree-opens-one/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/documents-the-library-list-462e6-iews-and-the-tree-opens-one/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/documents-the-library-list-462e6-iews-and-the-tree-opens-one/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  Slow test file: documents.spec.ts (6.0m)
+  Consider running tests from slow files in parallel. See: https://playwright.dev/docs/test-parallel
+  11 failed
+    chat-document-share.spec.ts:57:1 › staff sends a docx in a DM at comment level; the manager comments and staff reads it 
+    chat-document-share.spec.ts:182:1 › the sender turns an old file message into a document card in place 
+    documents-first-save-share.spec.ts:31:1 › the first-save share switch makes the new document shared with the workspace 
+    documents-folders.spec.ts:984:1 › FD-A05 (FD-09 UI) tree Move-to picker marks a too-deep target aria-disabled with its reason, refuses it, and moves to a valid one with a toast 
+    documents-folders.spec.ts:1248:1 › FD-A07 moving a document between folders keeps ID, versions, and comments with no second row and renames Name (n).ext on collision 
+    documents-folders.spec.ts:1341:1 › FD-A07 (FD-09 UI) Move-to picker marks the current location aria-disabled with Vị trí hiện tại, refuses to select it, and a colliding move toasts Đã chuyển và đổi tên thành 
+    documents-home.spec.ts:54:1 › quick create, folder, move and the other-modules section on the owner's home 
+    documents-home.spec.ts:312:3 › a view-only member › gets no Move, Archive or Move to trash on a row shared at view level 
+    documents-home.spec.ts:326:3 › a view-only member › lists shared documents under the owner's Tôi đã chia sẻ, excludes private ones, and keeps them out of the recipient's Tôi đã chia sẻ 
+    documents-share.spec.ts:178:1 › AC04 the workspace at View goes through the home row, not a share row 
+    documents.spec.ts:181:1 › the library lists pages across its views and the tree opens one ──────
+/workspace/e2e:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @uniwork/e2e@0.0.0 test: `playwright test --reporter=list chat-document-share.spec.ts:182 chat-document-share.spec.ts:57 documents.spec.ts:181 documents-first-save-share.spec.ts:31 documents-folders.spec.ts:1248 documents-folders.spec.ts:1341 documents-folders.spec.ts:984 documents-home.spec.ts:312 documents-home.spec.ts:326 documents-home.spec.ts:54 documents-share.spec.ts:178`
+Exit status 1
+===== e2e/test-results/chat-document-share-staff--ebbff-comments-and-staff-reads-it/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: chat-document-share.spec.ts >> staff sends a docx in a DM at comment level; the manager comments and staff reads it
+- Location: chat-document-share.spec.ts:57:1
+
+# Error details
+
+```
+Error: expect(locator).toBeVisible() failed
+
+Locator: locator('article[id^="chat-msg-"]').filter({ has: getByRole('button', { name: /^Mở trong Tài liệu:/ }) }).first().getByText('Nhận xét')
+Expected: visible
+Error: strict mode violation: locator('article[id^="chat-msg-"]').filter({ has: getByRole('button', { name: /^Mở trong Tài liệu:/ }) }).first().getByText('Nhận xét') resolved to 2 elements:
+    1) <span data-slot="badge" data-variant="secondary" class="group/badge h-5 w-fit shrink-0 items-center justify-center gap-1 overflow-hidden rounded-4xl border border-transparent px-2 py-0.5 text-caption font-medium whitespace-nowrap transition-all focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 [&>svg]:…>Nhận xét</span> aka getByText('Nhận xét').first()
+    2) <span data-slot="badge" data-variant="secondary" class="group/badge inline-flex h-5 w-fit items-center justify-center gap-1 overflow-hidden rounded-4xl border border-transparent px-2 py-0.5 text-caption font-medium whitespace-nowrap transition-all focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 [&>sv…>Nhận xét</span> aka getByText('Nhận xét').nth(1)
+
+Call log:
+  - Expect "toBeVisible" with timeout 30000ms
+  - waiting for locator('article[id^="chat-msg-"]').filter({ has: getByRole('button', { name: /^Mở trong Tài liệu:/ }) }).first().getByText('Nhận xét')
+
+```
+
+# Page snapshot
+
+```yaml
+- generic [active] [ref=f3e1]:
+  - generic [ref=f3e2]:
+    - link "Tới nội dung chính" [ref=f3e3] [cursor=pointer]:
+      - /url: "#main-content"
+    - generic [ref=f3e6]:
+      - list [ref=f3e8]:
+        - listitem [ref=f3e9]:
+          - 'button "Org docshare1792567760342-a, WS docshare1792567760342-a: chuyển workspace" [ref=f3e10] [cursor=pointer]':
+            - generic [ref=f3e11]: W
+            - generic [ref=f3e13]:
+              - generic "Org docshare1792567760342-a" [ref=f3e14]
+              - generic "WS docshare1792567760342-a" [ref=f3e15]
+      - navigation "Điều hướng workspace" [ref=f3e19]:
+        - list [ref=f3e22]:
+          - listitem [ref=f3e23]:
+            - link "Trang chủ" [ref=f3e24] [cursor=pointer]:
+              - /url: /rec-org-1792567760467/rec-ws-1792567760467
+      ===== e2e/test-results/chat-document-share-the-se-1699f-to-a-document-card-in-place/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: chat-document-share.spec.ts >> the sender turns an old file message into a document card in place
+- Location: chat-document-share.spec.ts:182:1
+
+# Error details
+
+```
+Error: expect(locator).toBeVisible() failed
+
+Locator: locator('article#chat-msg-01M5ENTV0M5XX05EY4WB9ZFZWW').getByText('Quản lý', { exact: true })
+Expected: visible
+Error: strict mode violation: locator('article#chat-msg-01M5ENTV0M5XX05EY4WB9ZFZWW').getByText('Quản lý', { exact: true }) resolved to 2 elements:
+    1) <span data-slot="badge" data-variant="secondary" class="group/badge h-5 w-fit shrink-0 items-center justify-center gap-1 overflow-hidden rounded-4xl border border-transparent px-2 py-0.5 text-caption font-medium whitespace-nowrap transition-all focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 [&>svg]:…>Quản lý</span> aka getByText('Quản lý').first()
+    2) <span data-slot="badge" data-variant="secondary" class="group/badge inline-flex h-5 w-fit items-center justify-center gap-1 overflow-hidden rounded-4xl border border-transparent px-2 py-0.5 text-caption font-medium whitespace-nowrap transition-all focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 [&>sv…>Quản lý</span> aka getByText('Quản lý').nth(1)
+
+Call log:
+  - Expect "toBeVisible" with timeout 30000ms
+  - waiting for locator('article#chat-msg-01M5ENTV0M5XX05EY4WB9ZFZWW').getByText('Quản lý', { exact: true })
+
+```
+
+# Page snapshot
+
+```yaml
+- generic [active] [ref=f1e1]:
+  - generic [ref=f1e2]:
+    - link "Tới nội dung chính" [ref=f1e3] [cursor=pointer]:
+      - /url: "#main-content"
+    - generic [ref=f1e6]:
+      - list [ref=f1e8]:
+        - listitem [ref=f1e9]:
+          - 'button "Org docold1792567765697-a, WS docold1792567765697-a: chuyển workspace" [ref=f1e10] [cursor=pointer]':
+            - generic [ref=f1e11]: W
+            - generic [ref=f1e13]:
+              - generic "Org docold1792567765697-a" [ref=f1e14]
+              - generic "WS docold1792567765697-a" [ref=f1e15]
+      - navigation "Điều hướng workspace" [ref=f1e19]:
+        - list [ref=f1e22]:
+          - listitem [ref=f1e23]:
+            - link "Trang chủ" [ref=f1e24] [cursor=pointer]:
+              - /url: /rec-org-1792567765815/rec-ws-1792567765815
+          - listitem [ref=f1e30]:
+            - link "Hộp việc" [ref=f1e31] [cursor=pointer]:
+              - /url: /rec-org-1792567765815/rec-ws-1792567765815/inbox
+        -===== e2e/test-results/documents-first-save-share-ca027-t-shared-with-the-workspace/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: documents-first-save-share.spec.ts >> the first-save share switch makes the new document shared with the workspace
+- Location: documents-first-save-share.spec.ts:31:1
+
+# Error details
+
+```
+Error: expect(locator).toHaveAttribute(expected) failed
+
+Locator: getByRole('table', { name: 'Tài liệu' }).locator('tbody tr').filter({ has: getByText('Kế hoạch chia sẻ mvhskezy', { exact: true }) }).getByTestId('document-share-scope-badge').first()
+Expected: "workspace"
+Timeout: 60000ms
+Error: element(s) not found
+
+Call log:
+  - Expect "toHaveAttribute" with timeout 60000ms
+  - waiting for getByRole('table', { name: 'Tài liệu' }).locator('tbody tr').filter({ has: getByText('Kế hoạch chia sẻ mvhskezy', { exact: true }) }).getByTestId('document-share-scope-badge').first()
+
+```
+
+```yaml
+- link "Tới nội dung chính":
+  - /url: "#main-content"
+- list:
+  - listitem:
+    - 'button "Fsshare owner 1792567769326, Team owner 1792567769326: chuyển workspace"': Fsshare owner 1792567769326 Team owner 1792567769326
+- navigation "Điều hướng workspace":
+  - list:
+    - listitem:
+      - link "Trang chủ":
+        - /url: /fsshare-owner-1792567769326/team-owner-1792567769326
+    - listitem:
+      - link "Hộp việc":
+        - /url: /fsshare-owner-1792567769326/team-owner-1792567769326/inbox
+  - list "Làm việc":
+    - listitem:
+      - link "Công việc":
+        - /url: /fsshare-owner-1792567769326/team-owner-1792567769326/tasks
+    - listitem:
+      - link "Việc của tôi":
+        - /url: /fsshare-owner-1792567769326/team-owner-1792567769326/my-tasks
+    - listitem:
+      - link "Dự án":
+        - /url: /fsshare-owner-1792567769326/team-owner-1792567769326/projects
+    - listitem:
+      - link "Lịch":
+        - /url: /fsshare-owner-1792567769326/team-owner-1792567769326/calendar
+  - list "Trao đổi":
+    - listitem:
+      - link "Email Hub":
+        - /url: /fsshare-owner-1792567769326/team-owner-1792567769326/email
+    - listitem:
+      - link "Cuộc họp":
+        - /url: /fsshare-owner-1792567769326/team-owner-1792567769326/meetings
+    - listitem:
+      - link "Tài liệu":
+        - /url: /fsshare-owner-1792567769326/team-owner-1792567769326/documents
+    - listitem:
+      - link "Trò chuyện":
+        - /url: /fsshare-owner-1792567769326/team-owner-1792567769326/chat
+    - listitem:
+      - link "Danh bạ":
+        - /url: /fsshare-owner-1792567769326/team-owner-1792567769326/people
+- list:
+  - listitem:
+    - 'button "Fsshare owner, fsshare-owner-1792567769326@example.com: tài khoản"': F Fsshare owner fsshare-owner-1792567769326@example.com
+- button "Ẩn/hiện thanh bên"
+- main:
+  - button "Ẩn/hiện thanh bên"
+  - button "Tìm kiếm…": Tìm kiếm… Ctrl+K
+  - button "Hỏi UNI (Ctrl+J)"
+  - button "Thông báo"
+  ===== e2e/test-results/documents-folders-FD-A05-F-c98e9-to-a-valid-one-with-a-toast/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: documents-folders.spec.ts >> FD-A05 (FD-09 UI) tree Move-to picker marks a too-deep target aria-disabled with its reason, refuses it, and moves to a valid one with a toast
+- Location: documents-folders.spec.ts:984:1
+
+# Error details
+
+```
+Test timeout of 180000ms exceeded.
+```
+
+```
+Error: locator.click: Test timeout of 180000ms exceeded.
+Call log:
+  - waiting for getByRole('menuitem', { name: 'Di chuyển tới…' })
+
+```
+
+# Page snapshot
+
+```yaml
+- generic [ref=f2e1]:
+  - generic [ref=f2e2]:
+    - link "Tới nội dung chính" [ref=f2e3] [cursor=pointer]:
+      - /url: "#main-content"
+    - generic [ref=f2e6]:
+      - list [ref=f2e8]:
+        - listitem [ref=f2e9]:
+          - 'button "Org fd-a05-fd09-a, WS fd-a05-fd09-a: chuyển workspace" [ref=f2e10] [cursor=pointer]':
+            - generic [ref=f2e11]: W
+            - generic [ref=f2e13]:
+              - generic "Org fd-a05-fd09-a" [ref=f2e14]
+              - generic "WS fd-a05-fd09-a" [ref=f2e15]
+      - navigation "Điều hướng workspace" [ref=f2e19]:
+        - list [ref=f2e22]:
+          - listitem [ref=f2e23]:
+            - link "Trang chủ" [ref=f2e24] [cursor=pointer]:
+              - /url: /rec-org-1792567837427/rec-ws-1792567837427
+          - listitem [ref=f2e30]:
+            - link "Hộp việc" [ref=f2e31] [cursor=pointer]:
+              - /url: /rec-org-1792567837427/rec-ws-1792567837427/inbox
+        - generic [ref=f2e37]:
+          - generic [ref=f2e38]: Làm việc
+          - list "Làm việc" [ref=f2e40]:
+            - listitem [ref=f2e41]:
+              - link "Công việc" [ref=f2e42] [cursor=pointer]:
+                - /url: /rec-org-1792567837427/rec-ws-1792567837427/tasks
+            - listitem [ref=f2e48]:
+              - link "Việc của tôi" [ref=f2e49] [cursor=pointer]:
+                - /url: /rec-org-1792567837427/rec-ws-1792567837427/my-tasks
+            - listitem [ref=f2e55]:
+              - link "Dự án" [ref=f2e56] [cursor=pointer]:
+                - /url: /rec-org-1792567837427/rec-ws-1792567837427/projects
+            - listitem [ref=f2e61]:
+              - link "Lịch" [ref=f2e62] [cursor=pointer]:
+                - /url: /rec-org-1792567837427/rec-ws-1792567837427/calendar
+        - generic [ref=f2e67]:
+          - generic [ref=f2e68]: Trao đổi
+          - list "Trao đổi" [ref=f2e70]:
+            - listitem [ref=f2e71]:
+              - link "Email Hub" [ref=f2e72] [cursor=pointer]:
+                - /url: /rec-org-1792567837427/rec-ws-1792567837427/email
+            - listitem [ref=f2e78]:
+              - link "Cuộc họp" [ref=f2e79] [cursor=pointer]:
+                - /url: /rec-org-1792567837427/rec-ws-1792567837427/meetings
+            - listitem [ref=f2e85]:
+              - link "Tài liệu" [ref=f2e86] [cursor=pointer]:
+                - ===== e2e/test-results/documents-folders-FD-A07-F-c5449--Đã-chuyển-và-đổi-tên-thành/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: documents-folders.spec.ts >> FD-A07 (FD-09 UI) Move-to picker marks the current location aria-disabled with Vị trí hiện tại, refuses to select it, and a colliding move toasts Đã chuyển và đổi tên thành
+- Location: documents-folders.spec.ts:1341:1
+
+# Error details
+
+```
+Test timeout of 60000ms exceeded.
+```
+
+```
+Error: locator.click: Test timeout of 60000ms exceeded.
+Call log:
+  - waiting for getByRole('menuitem', { name: 'Di chuyển tới…' })
+
+```
+
+# Page snapshot
+
+```yaml
+- generic [ref=f1e1]:
+  - generic [ref=f1e2]:
+    - link "Tới nội dung chính" [ref=f1e3] [cursor=pointer]:
+      - /url: "#main-content"
+    - generic [ref=f1e6]:
+      - list [ref=f1e8]:
+        - listitem [ref=f1e9]:
+          - 'button "Org fd-a07-fd09-a, WS fd-a07-fd09-a: chuyển workspace" [ref=f1e10] [cursor=pointer]':
+            - generic [ref=f1e11]: W
+            - generic [ref=f1e13]:
+              - generic "Org fd-a07-fd09-a" [ref=f1e14]
+              - generic "WS fd-a07-fd09-a" [ref=f1e15]
+      - navigation "Điều hướng workspace" [ref=f1e19]:
+        - list [ref=f1e22]:
+          - listitem [ref=f1e23]:
+            - link "Trang chủ" [ref=f1e24] [cursor=pointer]:
+              - /url: /rec-org-1792568079254/rec-ws-1792568079254
+          - listitem [ref=f1e30]:
+            - link "Hộp việc" [ref=f1e31] [cursor=pointer]:
+              - /url: /rec-org-1792568079254/rec-ws-1792568079254/inbox
+        - generic [ref=f1e37]:
+          - generic [ref=f1e38]: Làm việc
+          - list "Làm việc" [ref=f1e40]:
+            - listitem [ref=f1e41]:
+              - link "Công việc" [ref=f1e42] [cursor=pointer]:
+                - /url: /rec-org-1792568079254/rec-ws-1792568079254/tasks
+            - listitem [ref=f1e48]:
+              - link "Việc của tôi" [ref=f1e49] [cursor=pointer]:
+                - /url: /rec-org-1792568079254/rec-ws-1792568079254/my-tasks
+            - listitem [ref=f1e55]:
+              - link "Dự án" [ref=f1e56] [cursor=pointer]:
+                - /url: /rec-org-1792568079254/rec-ws-1792568079254/projects
+            - listitem [ref=f1e61]:
+              - link "Lịch" [ref=f1e62] [cursor=pointer]:
+                - /url: /rec-org-1792568079254/rec-ws-1792568079254/calendar
+        - generic [ref=f1e67]:
+          - generic [ref=f1e68]: Trao đổi
+          - list "Trao đổi" [ref=f1e70]:
+            - listitem [ref=f1e71]:
+              - link "Email Hub" [ref=f1e72] [cursor=pointer]:
+                - /url: /rec-org-1792568079254/rec-ws-1792568079254/email
+            - listitem [ref=f1e78]:
+              - link "Cuộc họp" [ref=f1e79] [cursor=pointer]:
+                - /url: /rec-org-1792568079254/rec-ws-1792568079254/meetings
+            - listitem [ref=f1e85]:
+              - link "Tài liệu" [r===== e2e/test-results/documents-folders-FD-A07-m-0482b-mes-Name-n-ext-on-collision/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: documents-folders.spec.ts >> FD-A07 moving a document between folders keeps ID, versions, and comments with no second row and renames Name (n).ext on collision
+- Location: documents-folders.spec.ts:1248:1
+
+# Error details
+
+```
+Test timeout of 60000ms exceeded.
+```
+
+```
+Error: locator.click: Test timeout of 60000ms exceeded.
+Call log:
+  - waiting for getByRole('menuitem', { name: 'Di chuyển tới…' })
+
+```
+
+# Page snapshot
+
+```yaml
+- generic [ref=f1e1]:
+  - generic [ref=f1e2]:
+    - link "Tới nội dung chính" [ref=f1e3] [cursor=pointer]:
+      - /url: "#main-content"
+    - generic [ref=f1e6]:
+      - list [ref=f1e8]:
+        - listitem [ref=f1e9]:
+          - 'button "Org fd-a07-a, WS fd-a07-a: chuyển workspace" [ref=f1e10] [cursor=pointer]':
+            - generic [ref=f1e11]: W
+            - generic [ref=f1e13]:
+              - generic "Org fd-a07-a" [ref=f1e14]
+              - generic "WS fd-a07-a" [ref=f1e15]
+      - navigation "Điều hướng workspace" [ref=f1e19]:
+        - list [ref=f1e22]:
+          - listitem [ref=f1e23]:
+            - link "Trang chủ" [ref=f1e24] [cursor=pointer]:
+              - /url: /rec-org-1792568018440/rec-ws-1792568018440
+          - listitem [ref=f1e30]:
+            - link "Hộp việc" [ref=f1e31] [cursor=pointer]:
+              - /url: /rec-org-1792568018440/rec-ws-1792568018440/inbox
+        - generic [ref=f1e37]:
+          - generic [ref=f1e38]: Làm việc
+          - list "Làm việc" [ref=f1e40]:
+            - listitem [ref=f1e41]:
+              - link "Công việc" [ref=f1e42] [cursor=pointer]:
+                - /url: /rec-org-1792568018440/rec-ws-1792568018440/tasks
+            - listitem [ref=f1e48]:
+              - link "Việc của tôi" [ref=f1e49] [cursor=pointer]:
+                - /url: /rec-org-1792568018440/rec-ws-1792568018440/my-tasks
+            - listitem [ref=f1e55]:
+              - link "Dự án" [ref=f1e56] [cursor=pointer]:
+                - /url: /rec-org-1792568018440/rec-ws-1792568018440/projects
+            - listitem [ref=f1e61]:
+              - link "Lịch" [ref=f1e62] [cursor=pointer]:
+                - /url: /rec-org-1792568018440/rec-ws-1792568018440/calendar
+        - generic [ref=f1e67]:
+          - generic [ref=f1e68]: Trao đổi
+          - list "Trao đổi" [ref=f1e70]:
+            - listitem [ref=f1e71]:
+              - link "Email Hub" [ref=f1e72] [cursor=pointer]:
+                - /url: /rec-org-1792568018440/rec-ws-1792568018440/email
+            - listitem [ref=f1e78]:
+              - link "Cuộc họp" [ref=f1e79] [cursor=pointer]:
+                - /url: /rec-org-1792568018440/rec-ws-1792568018440/meetings
+            - listitem [ref=f1e85]:
+              - link "Tài liệu" [ref=f1e86] [cursor=pointer]:
+                - /url: /rec-org-1792568018440/rec-===== e2e/test-results/documents-home-a-view-only-cbff3--recipient-s-Tôi-đã-chia-sẻ/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: documents-home.spec.ts >> a view-only member >> lists shared documents under the owner's Tôi đã chia sẻ, excludes private ones, and keeps them out of the recipient's Tôi đã chia sẻ
+- Location: documents-home.spec.ts:326:3
+
+# Error details
+
+```
+Error: expect(locator).toBeVisible() failed
+
+Locator: getByRole('heading', { name: 'Tôi đã chia sẻ', exact: true, level: 2 })
+Expected: visible
+Timeout: 30000ms
+Error: element(s) not found
+
+Call log:
+  - Expect "toBeVisible" with timeout 30000ms
+  - waiting for getByRole('heading', { name: 'Tôi đã chia sẻ', exact: true, level: 2 })
+
+```
+
+```yaml
+- link "Tới nội dung chính":
+  - /url: "#main-content"
+- list:
+  - listitem:
+    - 'button "Org dochome-viewer-1792568510264-a-owner, o-a-owner-mvht0av4wznf: chuyển workspace"': Org dochome-viewer-1792568510264-a-owner o-a-owner-mvht0av4wznf
+- navigation "Điều hướng workspace":
+  - list:
+    - listitem:
+      - link "Trang chủ":
+        - /url: /o-a-owner-mvht0av4wznf/w-a-owner-mvht0avcvz75
+    - listitem:
+      - link "Hộp việc":
+        - /url: /o-a-owner-mvht0av4wznf/w-a-owner-mvht0avcvz75/inbox
+  - list "Làm việc":
+    - listitem:
+      - link "Công việc":
+        - /url: /o-a-owner-mvht0av4wznf/w-a-owner-mvht0avcvz75/tasks
+    - listitem:
+      - link "Việc của tôi":
+        - /url: /o-a-owner-mvht0av4wznf/w-a-owner-mvht0avcvz75/my-tasks
+    - listitem:
+      - link "Dự án":
+        - /url: /o-a-owner-mvht0av4wznf/w-a-owner-mvht0avcvz75/projects
+    - listitem:
+      - link "Lịch":
+        - /url: /o-a-owner-mvht0av4wznf/w-a-owner-mvht0avcvz75/calendar
+  - list "Trao đổi":
+    - listitem:
+      - link "Email Hub":
+        - /url: /o-a-owner-mvht0av4wznf/w-a-owner-mvht0avcvz75/email
+    - listitem:
+      - link "Cuộc họp":
+        - /url: /o-a-owner-mvht0av4wznf/w-a-owner-mvht0avcvz75/meetings
+    - listitem:
+      - link "Tài liệu":
+        - /url: /o-a-owner-mvht0av4wznf/w-a-owner-mvht0avcvz75/documents
+    - listitem:
+      - link "Trò chuyện":
+        - /url: /o-a-owner-mvht0av4wznf/w-a-owner-mvht0avcvz75/chat
+    - listitem:
+      - link "Danh bạ":
+        - /url: /o-a-owner-mvht0av4wznf/w-a-owner-mvht0avcvz75/people
+- list:
+  - listitem:
+    - 'button "dochome-viewer-1792568510264-a-owner, dochome-viewer-1792568510264-a-owner-1792568510379@example.com: tài khoản"': D dochome-viewer-1792568510264-a-owner dochome-viewer-1792568510264-a-owner-1792568510379@example.com
+- button "Ẩn/hiện thanh bên"
+- main:
+  - button "Ẩn/hiện thanh bên"
+  - button "Tìm kiếm…": Tìm kiếm… Ctrl+K
+  - button "Hỏi UNI (Ctrl+J)"
+  - button "Thông báo"
+  - button "Tạo việc"
+  - button "Giao diện"
+  - button "Ngôn ngữ"
+  - complementary:
+    - navigation "Điều hướng tài liệu":
+      - ===== e2e/test-results/documents-home-a-view-only-d01b8--a-row-shared-at-view-level/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: documents-home.spec.ts >> a view-only member >> gets no Move, Archive or Move to trash on a row shared at view level
+- Location: documents-home.spec.ts:312:3
+
+# Error details
+
+```
+Error: expect(locator).toBeVisible() failed
+
+Locator: getByRole('menuitem', { name: 'Mở trên web' })
+Expected: visible
+Timeout: 5000ms
+Error: element(s) not found
+
+Call log:
+  - Expect "toBeVisible" with timeout 5000ms
+  - waiting for getByRole('menuitem', { name: 'Mở trên web' })
+
+```
+
+```yaml
+- link "Tới nội dung chính":
+  - /url: "#main-content"
+- list:
+  - listitem:
+    - 'button "Org dochome-viewer-1792568501226-a-owner, o-a-owner-mvht03w0j41q: chuyển workspace"': Org dochome-viewer-1792568501226-a-owner o-a-owner-mvht03w0j41q
+- navigation "Điều hướng workspace":
+  - list:
+    - listitem:
+      - link "Trang chủ":
+        - /url: /o-a-owner-mvht03w0j41q/w-a-owner-mvht03w8i2dz
+    - listitem:
+      - link "Hộp việc 1 thông báo chưa đọc":
+        - /url: /o-a-owner-mvht03w0j41q/w-a-owner-mvht03w8i2dz/inbox
+        - text: Hộp việc 1
+  - list "Làm việc":
+    - listitem:
+      - link "Công việc":
+        - /url: /o-a-owner-mvht03w0j41q/w-a-owner-mvht03w8i2dz/tasks
+    - listitem:
+      - link "Việc của tôi":
+        - /url: /o-a-owner-mvht03w0j41q/w-a-owner-mvht03w8i2dz/my-tasks
+    - listitem:
+      - link "Dự án":
+        - /url: /o-a-owner-mvht03w0j41q/w-a-owner-mvht03w8i2dz/projects
+    - listitem:
+      - link "Lịch":
+        - /url: /o-a-owner-mvht03w0j41q/w-a-owner-mvht03w8i2dz/calendar
+  - list "Trao đổi":
+    - listitem:
+      - link "Email Hub":
+        - /url: /o-a-owner-mvht03w0j41q/w-a-owner-mvht03w8i2dz/email
+    - listitem:
+      - link "Cuộc họp":
+        - /url: /o-a-owner-mvht03w0j41q/w-a-owner-mvht03w8i2dz/meetings
+    - listitem:
+      - link "Tài liệu":
+        - /url: /o-a-owner-mvht03w0j41q/w-a-owner-mvht03w8i2dz/documents
+    - listitem:
+      - link "Trò chuyện":
+        - /url: /o-a-owner-mvht03w0j41q/w-a-owner-mvht03w8i2dz/chat
+    - listitem:
+      - link "Danh bạ":
+        - /url: /o-a-owner-mvht03w0j41q/w-a-owner-mvht03w8i2dz/people
+- list:
+  - listitem:
+    - 'button "dochome-viewer-1792568501226-a-other, dochome-viewer-1792568501226-a-other-1792568501638@example.com: tài khoản"': D dochome-viewer-1792568501226-a-other dochome-viewer-1792568501226-a-other-1792568501638@example.com
+- button "Ẩn/hiện thanh bên"
+- main:
+  - button "Ẩn/hiện thanh bên"
+  - button "Tìm kiếm…": Tìm kiếm… Ctrl+K
+  - button "Hỏi UNI (Ctrl+J)"
+  - button "1 thông báo chưa đọc"
+  - button "Tạo việc"
+  - button "Giao diện"
+  - button "Ngôn ngữ"
+  - complementary:
+    - navigation "Điều hướng tài liệu":
+      - button "Tài liệu của workspace"
+      - button "Gầ===== e2e/test-results/documents-home-quick-creat-d27a4-section-on-the-owner-s-home/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: documents-home.spec.ts >> quick create, folder, move and the other-modules section on the owner's home
+- Location: documents-home.spec.ts:54:1
+
+# Error details
+
+```
+Test timeout of 360000ms exceeded.
+```
+
+```
+Error: locator.click: Test timeout of 360000ms exceeded.
+Call log:
+  - waiting for getByRole('menuitem', { name: 'Di chuyển tới…' })
+
+```
+
+# Page snapshot
+
+```yaml
+- generic [ref=f4e1]:
+  - generic [ref=f4e2]:
+    - link "Tới nội dung chính" [ref=f4e3] [cursor=pointer]:
+      - /url: "#main-content"
+    - generic [ref=f4e6]:
+      - list [ref=f4e8]:
+        - listitem [ref=f4e9]:
+          - 'button "Dochome owner 1792568139931, Team owner 1792568139931: chuyển workspace" [ref=f4e10] [cursor=pointer]':
+            - generic [ref=f4e11]: T
+            - generic [ref=f4e13]:
+              - generic "Dochome owner 1792568139931" [ref=f4e14]
+              - generic "Team owner 1792568139931" [ref=f4e15]
+      - navigation "Điều hướng workspace" [ref=f4e19]:
+        - list [ref=f4e22]:
+          - listitem [ref=f4e23]:
+            - link "Trang chủ" [ref=f4e24] [cursor=pointer]:
+              - /url: /dochome-owner-1792568139931/team-owner-1792568139931
+          - listitem [ref=f4e30]:
+            - link "Hộp việc" [ref=f4e31] [cursor=pointer]:
+              - /url: /dochome-owner-1792568139931/team-owner-1792568139931/inbox
+        - generic [ref=f4e37]:
+          - generic [ref=f4e38]: Làm việc
+          - list "Làm việc" [ref=f4e40]:
+            - listitem [ref=f4e41]:
+              - link "Công việc" [ref=f4e42] [cursor=pointer]:
+                - /url: /dochome-owner-1792568139931/team-owner-1792568139931/tasks
+            - listitem [ref=f4e48]:
+              - link "Việc của tôi" [ref=f4e49] [cursor=pointer]:
+                - /url: /dochome-owner-1792568139931/team-owner-1792568139931/my-tasks
+            - listitem [ref=f4e55]:
+              - link "Dự án" [ref=f4e56] [cursor=pointer]:
+                - /url: /dochome-owner-1792568139931/team-owner-1792568139931/projects
+            - listitem [ref=f4e61]:
+              - link "Lịch" [ref=f4e62] [cursor=pointer]:
+                - /url: /dochome-owner-1792568139931/team-owner-1792568139931/calendar
+        - generic [ref=f4e67]:
+          - generic [ref=f4e68]: Trao đổi
+          - list "Trao đổi" [ref=f4e70]:
+            - listitem [ref=f4e71]:
+              - link "Email Hub" [ref=f4e72] [cursor=pointer]:
+                - /url: /dochome-owner-1792568139931/team-owner-1792568139931/email
+            - listitem [ref=f4e78]:
+              - link "Cuộc họp" [ref=f4e79] [cursor=pointer]:
+                - /url: /dochome-owner-1792568139931/team-owner-1792568139931/meetings
+            - listitem [ref=f4e85]:
+              - link "Tài liệu" [ref====== e2e/test-results/documents-share-AC04-the-w-5d143-he-home-row-not-a-share-row/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: documents-share.spec.ts >> AC04 the workspace at View goes through the home row, not a share row
+- Location: documents-share.spec.ts:178:1
+
+# Error details
+
+```
+Error: expect(locator).toHaveAttribute(expected) failed
+
+Locator: getByRole('table', { name: 'Tài liệu' }).locator('tbody tr').filter({ has: getByText('SH-E2E AC04 1792568544415-1', { exact: true }) }).getByTestId('document-share-scope-badge').first()
+Expected: "workspace"
+Timeout: 60000ms
+Error: element(s) not found
+
+Call log:
+  - Expect "toHaveAttribute" with timeout 60000ms
+  - waiting for getByRole('table', { name: 'Tài liệu' }).locator('tbody tr').filter({ has: getByText('SH-E2E AC04 1792568544415-1', { exact: true }) }).getByTestId('document-share-scope-badge').first()
+
+```
+
+```yaml
+- link "Tới nội dung chính":
+  - /url: "#main-content"
+- list:
+  - listitem:
+    - 'button "Org sh1788-a-mvht112h-a-owner, o-a-owner-mvht11806zst: chuyển workspace"': Org sh1788-a-mvht112h-a-owner o-a-owner-mvht11806zst
+- navigation "Điều hướng workspace":
+  - list:
+    - listitem:
+      - link "Trang chủ":
+        - /url: /o-a-owner-mvht11806zst/w-a-owner-mvht118bel4d
+    - listitem:
+      - link "Hộp việc":
+        - /url: /o-a-owner-mvht11806zst/w-a-owner-mvht118bel4d/inbox
+  - list "Làm việc":
+    - listitem:
+      - link "Công việc":
+        - /url: /o-a-owner-mvht11806zst/w-a-owner-mvht118bel4d/tasks
+    - listitem:
+      - link "Việc của tôi":
+        - /url: /o-a-owner-mvht11806zst/w-a-owner-mvht118bel4d/my-tasks
+    - listitem:
+      - link "Dự án":
+        - /url: /o-a-owner-mvht11806zst/w-a-owner-mvht118bel4d/projects
+    - listitem:
+      - link "Lịch":
+        - /url: /o-a-owner-mvht11806zst/w-a-owner-mvht118bel4d/calendar
+  - list "Trao đổi":
+    - listitem:
+      - link "Email Hub":
+        - /url: /o-a-owner-mvht11806zst/w-a-owner-mvht118bel4d/email
+    - listitem:
+      - link "Cuộc họp":
+        - /url: /o-a-owner-mvht11806zst/w-a-owner-mvht118bel4d/meetings
+    - listitem:
+      - link "Tài liệu":
+        - /url: /o-a-owner-mvht11806zst/w-a-owner-mvht118bel4d/documents
+    - listitem:
+      - link "Trò chuyện":
+        - /url: /o-a-owner-mvht11806zst/w-a-owner-mvht118bel4d/chat
+    - listitem:
+      - link "Danh bạ":
+        - /url: /o-a-owner-mvht11806zst/w-a-owner-mvht118bel4d/people
+- list:
+  - listitem:
+    - 'button "sh1788-a-mvht112h-a-owner, sh1788-a-mvht112h-a-owner-1792568544536@example.com: tài khoản"': S sh1788-a-mvht112h-a-owner sh1788-a-mvht112h-a-owner-1792568544536@example.com
+- button "Ẩn/hiện thanh bên"
+- main:
+  - button "Ẩn/hiện thanh bên"
+  - button "Tìm kiếm…": Tìm kiếm… Ctrl+K
+  - button "Hỏi UNI (Ctrl+J)"
+  - button "Thông báo"
+  - button "Tạo việc"
+  - button "Giao diện"
+  - button "Ngô===== e2e/test-results/documents-the-library-list-462e6-iews-and-the-tree-opens-one/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: documents.spec.ts >> the library lists pages across its views and the tree opens one
+- Location: documents.spec.ts:181:1
+
+# Error details
+
+```
+Test timeout of 360000ms exceeded.
+```
+
+```
+Error: locator.click: Test timeout of 360000ms exceeded.
+Call log:
+  - waiting for getByRole('combobox', { name: /^Loại/ })
+
+```
+
+# Page snapshot
+
+```yaml
+- generic [ref=f2e1]:
+  - generic [ref=f2e2]:
+    - link "Tới nội dung chính" [ref=f2e3] [cursor=pointer]:
+      - /url: "#main-content"
+    - generic [ref=f2e6]:
+      - list [ref=f2e8]:
+        - listitem [ref=f2e9]:
+          - 'button "Documents library 1792568610797, Team library 1792568610797: chuyển workspace" [ref=f2e10] [cursor=pointer]':
+            - generic [ref=f2e11]: T
+            - generic [ref=f2e13]:
+              - generic "Documents library 1792568610797" [ref=f2e14]
+              - generic "Team library 1792568610797" [ref=f2e15]
+      - navigation "Điều hướng workspace" [ref=f2e19]:
+        - list [ref=f2e22]:
+          - listitem [ref=f2e23]:
+            - link "Trang chủ" [ref=f2e24] [cursor=pointer]:
+              - /url: /documents-library-1792568610797/team-library-1792568610797
+          - listitem [ref=f2e30]:
+            - link "Hộp việc" [ref=f2e31] [cursor=pointer]:
+              - /url: /documents-library-1792568610797/team-library-1792568610797/inbox
+        - generic [ref=f2e37]:
+          - generic [ref=f2e38]: Làm việc
+          - list "Làm việc" [ref=f2e40]:
+            - listitem [ref=f2e41]:
+              - link "Công việc" [ref=f2e42] [cursor=pointer]:
+                - /url: /documents-library-1792568610797/team-library-1792568610797/tasks
+            - listitem [ref=f2e48]:
+              - link "Việc của tôi" [ref=f2e49] [cursor=pointer]:
+                - /url: /documents-library-1792568610797/team-library-1792568610797/my-tasks
+            - listitem [ref=f2e55]:
+              - link "Dự án" [ref=f2e56] [cursor=pointer]:
+                - /url: /documents-library-1792568610797/team-library-1792568610797/projects
+            - listitem [ref=f2e61]:
+              - link "Lịch" [ref=f2e62] [cursor=pointer]:
+                - /url: /documents-library-1792568610797/team-library-1792568610797/calendar
+        - generic [ref=f2e67]:
+          - generic [ref=f2e68]: Trao đổi
+          - list "Trao đổi" [ref=f2e70]:
+            - listitem [ref=f2e71]:
+              - link "Email Hub" [ref=f2e72] [cursor=pointer]:
+                - /url: /documents-library-1792568610797/team-library-1792568610797/email
+            - listitem [ref=f2e78]:
+              - link "Cuộc họp" [ref=f2e79] [cursor=pointer]:
+                - /url: /documents-library-1792568610797/team-library-1792568610797/meetings
+            - listitem [ref=f2e85]:
+              -no passing test
+
+E2E_EXIT=1
