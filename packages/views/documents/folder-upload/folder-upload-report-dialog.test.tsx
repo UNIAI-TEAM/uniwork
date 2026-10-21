@@ -23,7 +23,7 @@ describe("FolderUploadReportDialog", () => {
     renderReport();
     expect(screen.getByText("«Báo cáo»: 3 tệp bị lỗi. Các tệp còn lại đã được giữ nguyên.")).toBeInTheDocument();
     expect(screen.getByText("Báo cáo/2026/a.docx")).toBeInTheDocument();
-    expect(screen.getByText("Đã hết dung lượng lưu trữ.")).toBeInTheDocument();
+    expect(screen.getByText("Đã hết dung lượng lưu trữ. Giải phóng dung lượng rồi tải lại thư mục.")).toBeInTheDocument();
     expect(screen.getAllByText("Không tải lên được tệp này.")).toHaveLength(2);
   });
 
@@ -40,17 +40,32 @@ describe("FolderUploadReportDialog", () => {
     expect(screen.queryByText(FINAL_HINT)).toBeNull();
   });
 
-  it("offers no retry when nothing can be retried and says to fix the file", () => {
+  it("offers no retry when nothing can be retried and says to fix the file, once", () => {
     renderReport({ canRetry: false, failures: [{ path: "Báo cáo/a.docx", code: "unsupported_media", retryable: false }] });
     expect(screen.queryByRole("button", { name: "Thử lại các tệp lỗi" })).toBeNull();
-    expect(screen.getByText(FINAL_HINT)).toBeInTheDocument();
+    expect(screen.getByText("Nội dung tệp không đúng định dạng. Sửa tệp rồi tải lại thư mục.")).toBeInTheDocument();
+    // The file's own sentence already says what to do: the hint is not repeated under the list.
+    expect(screen.queryByText(FINAL_HINT)).toBeNull();
     expect(screen.queryByText(EXPIRED_NOTE)).toBeNull();
   });
 
-  it("keeps the retry for the retryable files and the hint for the final ones", () => {
+  it("gives a final failure whose sentence says nothing to do the one hint under the list", () => {
+    renderReport({ canRetry: true, failures: [{ path: "Báo cáo/a.docx", code: "some_future_code", retryable: false }] });
+    expect(screen.getByText("Không tải lên được tệp này.")).toBeInTheDocument();
+    expect(screen.getAllByText(FINAL_HINT)).toHaveLength(1);
+  });
+
+  it("keeps the retry for the retryable files while the final ones carry their own hint", () => {
     renderReport({ canRetry: true });
     expect(screen.getByRole("button", { name: "Thử lại các tệp lỗi" })).toBeInTheDocument();
-    expect(screen.getByText(FINAL_HINT)).toBeInTheDocument();
+    expect(screen.queryByText(FINAL_HINT)).toBeNull();
+  });
+
+  it("reads the server's reason beside the code", () => {
+    renderReport({ failures: [{ path: "Báo cáo/a.docx", code: "unsupported_media", reason: "zip_unreadable", retryable: false }] });
+    expect(
+      screen.getByText("Không đọc được tệp này, có thể tệp đã hỏng. Sửa tệp rồi tải lại thư mục."),
+    ).toBeInTheDocument();
   });
 
   it("shows no hint when every failure can be retried", () => {

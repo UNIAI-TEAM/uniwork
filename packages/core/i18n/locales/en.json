@@ -10086,7 +10086,6 @@
         "description_one": "“{{name}}”: {{count}} file failed. The rest were kept.",
         "description_other": "“{{name}}”: {{count}} files failed. The rest were kept.",
         "retry": "Retry failed files",
-        "retrying": "Retrying…",
         "close": "Close",
         "list_label": "Failed files",
         "reason": {

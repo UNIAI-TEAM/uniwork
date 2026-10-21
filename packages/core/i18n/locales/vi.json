@@ -10079,7 +10079,6 @@
         "title": "Tệp chưa tải lên được",
         "description": "«{{name}}»: {{count}} tệp bị lỗi. Các tệp còn lại đã được giữ nguyên.",
         "retry": "Thử lại các tệp lỗi",
-        "retrying": "Đang thử lại…",
         "close": "Đóng",
         "list_label": "Danh sách tệp lỗi",
         "reason": {

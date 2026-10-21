@@ -109,18 +109,34 @@ const FAILURE_CODES = [
 // Reasons the server gives beside `unsupported_media`; one it has not told us about reads as the plain sentence.
 const UNSUPPORTED_MEDIA_REASONS = ["zip_unreadable"] as const;
 
-/**
- * One sentence per failure code; a code the client does not know reads as the
- * generic one. Any `http_5nn` status is the server being unavailable.
- */
-export function failureReasonMessage(t: TFunction, code: string | undefined, reason?: string): string {
+// Sentences that already tell the person what to do once retrying cannot help
+// (fix the file, free space, upload again): the report adds no hint under them.
+const SELF_HINTED_FINAL = new Set([
+  "unsupported_media",
+  "unsupported_media_zip_unreadable",
+  "storage_quota_exceeded",
+  "not_found",
+  "untrusted_target",
+  "folder_upload_target_signed",
+]);
+
+/** The `report.reason.*` key of a failure; a code the client does not know is `unknown`, any `http_5nn` is `http_5xx`. */
+function failureSentenceKey(code: string | undefined, reason?: string): string {
   const known = /^http_5\d\d$/.test(code ?? "") ? "http_5xx" : code ?? "";
   if (known === "unsupported_media" && (UNSUPPORTED_MEDIA_REASONS as readonly string[]).includes(reason ?? "")) {
-    return t(`documents.folder_upload.report.reason.unsupported_media_${reason}`);
+    return `unsupported_media_${reason}`;
   }
-  return (FAILURE_CODES as readonly string[]).includes(known)
-    ? t(`documents.folder_upload.report.reason.${known}`)
-    : t("documents.folder_upload.report.reason.unknown");
+  return (FAILURE_CODES as readonly string[]).includes(known) ? known : "unknown";
+}
+
+/** One sentence per failure code (and `unsupported_media` reason); a code the client does not know reads as the generic one. */
+export function failureReasonMessage(t: TFunction, code: string | undefined, reason?: string): string {
+  return t(`documents.folder_upload.report.reason.${failureSentenceKey(code, reason)}`);
+}
+
+/** True when the failure's own sentence already says what to do after a final failure. */
+export function failureSentenceHasHint(code: string | undefined, reason?: string): boolean {
+  return SELF_HINTED_FINAL.has(failureSentenceKey(code, reason));
 }
 
 // Whole-run answers with a fixed sentence (the ones with numbers or a file name are cased in runErrorMessage).

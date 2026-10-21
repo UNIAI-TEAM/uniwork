@@ -10,11 +10,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@uniwork/ui/components/ui/dialog";
-import { failureReasonMessage } from "./folder-upload-copy";
+import { failureReasonMessage, failureSentenceHasHint } from "./folder-upload-copy";
 
 export interface FolderUploadFailure {
   path: string;
   code?: string;
+  /** The server's detail beside `unsupported_media` (e.g. `zip_unreadable`). */
+  reason?: string;
   /** False when the server failed the file for good: it has to be fixed and the folder uploaded again. */
   retryable?: boolean;
 }
@@ -35,7 +37,12 @@ export interface FolderUploadReportDialogProps {
 /** The files that did not go up, each with its reason, and the one action that retries only them. */
 export function FolderUploadReportDialog({ open, onOpenChange, name, failures, canRetry = true, expired = false, onRetry }: FolderUploadReportDialogProps) {
   const { t } = useTranslation();
-  const finalHint = !expired && (!canRetry || failures.some((failure) => failure.retryable === false));
+  // One place for "fix it and upload again": a final failure's own sentence when it says so, else one hint under the list.
+  const finalHint =
+    !expired &&
+    failures.some(
+      (failure) => (!canRetry || failure.retryable === false) && !failureSentenceHasHint(failure.code, failure.reason),
+    );
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg" closeLabel={t("common.close")}>
@@ -52,7 +59,7 @@ export function FolderUploadReportDialog({ open, onOpenChange, name, failures, c
               <span className="truncate font-mono text-caption text-foreground" title={failure.path}>
                 {failure.path}
               </span>
-              <span className="text-caption text-muted-foreground">{failureReasonMessage(t, failure.code)}</span>
+              <span className="text-caption text-muted-foreground">{failureReasonMessage(t, failure.code, failure.reason)}</span>
             </li>
           ))}
         </ul>
