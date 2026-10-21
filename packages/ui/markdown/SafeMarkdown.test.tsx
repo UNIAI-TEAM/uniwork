@@ -105,8 +105,18 @@ describe("SafeMarkdown", () => {
     expect(screen.queryAllByTestId("e")).toHaveLength(0);
   });
 
-  it("shows an html comment as text, not nothing", () => {
-    const { container } = setup("a\n\n<!-- x -->\n\nb");
-    expect(container.textContent).toContain("<!-- x -->");
+  it("renders html comments as nothing, block or inline", () => {
+    const { container } = setup("a\n\n<!-- x -->\n\nb <!-- y --> c");
+    expect(container.textContent).not.toContain("<!--");
+    expect(container.textContent).not.toMatch(/[xy] -->/);
+    expect(container.textContent).toContain("a");
+    expect(container.textContent).toContain("b");
+    expect(container.textContent).toContain("c");
+  });
+
+  it("keeps other raw html as inert text", () => {
+    const { container } = setup("hi <b>bold</b>");
+    expect(container.querySelector("b")).toBeNull();
+    expect(container.textContent).toContain("<b>");
   });
 });

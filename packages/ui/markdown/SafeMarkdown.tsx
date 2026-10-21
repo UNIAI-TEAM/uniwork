@@ -38,7 +38,11 @@ function remarkSafe(pattern: RegExp | undefined) {
     if (!node.children) return
     const out: MdNode[] = []
     for (const child of node.children) {
-      if (child.type === 'html') child.type = 'text'
+      if (child.type === 'html') {
+        // Comments render nothing; any other raw html is shown as inert text.
+        if (child.value?.trim().startsWith('<!--')) continue
+        child.type = 'text'
+      }
       if (child.type !== 'text' || !re || !child.value) {
         walk(child)
         out.push(child)
