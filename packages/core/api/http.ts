@@ -284,6 +284,21 @@ export async function request(path: string, opts: RequestOpts = {}): Promise<unk
 }
 
 /**
+ * Open a streaming response (SSE). Same bearer and one 401 refresh-and-retry
+ * as `request`; a refusal throws the mapped ApiError before any body is read.
+ * The caller owns the body.
+ */
+export async function requestStream(path: string, opts: RequestOpts): Promise<Response> {
+  let res = await rawFetch(path, opts);
+  if (res.status === 401 && !opts.skipRefresh && !path.startsWith("/api/v1/auth/") && getAccessToken()) {
+    const refreshed = await refreshSession();
+    if (refreshed) res = await rawFetch(path, opts);
+  }
+  if (!res.ok) await throwFromFailedResponse(res);
+  return res;
+}
+
+/**
  * Like `request` but returns the body as text — for non-JSON downloads
  * (an .ics file) that still need the bearer token.
  */
