@@ -18,10 +18,11 @@ import (
 type minutesFacts struct {
 	Title string
 	// Date is the meeting's day, Start and End its actual times (scheduled
-	// when it never started), in the meeting's timezone.
-	Date, Start, End string
-	Host             string
-	Secretaries      []string
+	// when it never started), in the meeting's timezone; Zone names that
+	// timezone's offset ("GMT+7").
+	Date, Start, End, Zone string
+	Host                   string
+	Secretaries            []string
 	// Attendance is set once the roll is finalized; Invited lists the
 	// participants otherwise.
 	Attendance *ai.AttendanceFacts
@@ -43,8 +44,8 @@ type minutesNarrative struct {
 	Decisions []minutesDecision
 }
 
-// minutesDecision is a decision and the moments (mm:ss into the meeting) of
-// the transcript lines it rests on.
+// minutesDecision is a decision and the clock times (HH:MM, the meeting's
+// timezone) of the transcript lines it rests on.
 type minutesDecision struct {
 	Text string
 	At   []string
@@ -52,24 +53,24 @@ type minutesDecision struct {
 
 // minutesLayout is the wording and order of one kind of minutes.
 type minutesLayout struct {
-	TitlePrefix, DateLabel, TimeLabel, HostLabel, SecretaryLabel string
-	Attendance, Invited, Content, Decisions, Votes, Assigned     string
-	NoSummary, EvidenceAt                                        string
-	PresentRatio                                                 string // members present, total, percent
-	QuorumMet, QuorumNotMet                                      string // quorum percent
-	StatusNames                                                  map[string]string
-	VoteHeader                                                   [5]string
-	AssignedHeader                                               [3]string
-	Passed, Failed, Secret                                       string
-	AuthorLabel, CreatedLabel                                    string
+	TitlePrefix, TimeLabel, HostLabel, SecretaryLabel        string
+	Attendance, Invited, Content, Decisions, Votes, Assigned string
+	NoSummary, EvidenceAt                                    string
+	PresentRatio                                             string // members present, total, percent
+	QuorumMet, QuorumNotMet                                  string // quorum percent
+	StatusNames                                              map[string]string
+	VoteHeader                                               [5]string
+	AssignedHeader                                           [3]string
+	Passed, Failed, Secret                                   string
+	AuthorLabel, CreatedLabel                                string
 }
 
 var minutesLayouts = map[string]minutesLayout{
 	"vi": {
-		TitlePrefix: "Biên bản", DateLabel: "Ngày", TimeLabel: "Thời gian", HostLabel: "Chủ trì", SecretaryLabel: "Thư ký",
+		TitlePrefix: "Biên bản", TimeLabel: "Thời gian", HostLabel: "Chủ trì", SecretaryLabel: "Thư ký",
 		Attendance: "Thành phần", Invited: "Người được mời", Content: "Nội dung", Decisions: "Kết luận",
 		Votes: "Kết quả biểu quyết", Assigned: "Việc đã giao",
-		NoSummary: "Chưa có tóm tắt.", EvidenceAt: "mốc",
+		NoSummary: "Chưa có tóm tắt.", EvidenceAt: "lúc",
 		PresentRatio: "Có mặt %d/%d thành viên (%d%%).",
 		QuorumMet:    "Đủ tỉ lệ có mặt tối thiểu %d%%.", QuorumNotMet: "Chưa đủ tỉ lệ có mặt tối thiểu %d%%.",
 		StatusNames: map[string]string{
@@ -81,7 +82,7 @@ var minutesLayouts = map[string]minutesLayout{
 		AuthorLabel: "Người lập", CreatedLabel: "Ngày lập",
 	},
 	"en": {
-		TitlePrefix: "Minutes", DateLabel: "Date", TimeLabel: "Time", HostLabel: "Chair", SecretaryLabel: "Secretary",
+		TitlePrefix: "Minutes", TimeLabel: "Time", HostLabel: "Chair", SecretaryLabel: "Secretary",
 		Attendance: "Attendance", Invited: "Invited", Content: "Discussion", Decisions: "Decisions",
 		Votes: "Votes", Assigned: "Assigned tasks",
 		NoSummary: "No summary yet.", EvidenceAt: "at",
@@ -124,15 +125,16 @@ func renderMinutes(f minutesFacts, n minutesNarrative, l minutesLayout) string {
 	line := func(s string) { b.WriteString(s + "\n") }
 	section := func(title string) { line(""); line("## " + title); line("") }
 
-	line("# " + mdEscape(l.TitlePrefix+": "+f.Title))
-	line("")
-	line(l.DateLabel + ": " + f.Date)
-	line("")
+	// The page title already reads "Biên bản: {title} ({date})": the body
+	// opens on the facts and states the day once, beside the times.
 	when := f.Start
 	if f.End != "" {
 		when += " – " + f.End
 	}
-	line("- " + l.TimeLabel + ": " + when)
+	if f.Zone != "" {
+		when += " (" + f.Zone + ")"
+	}
+	line("- " + l.TimeLabel + ": " + when + ", " + f.Date)
 	line("- " + l.HostLabel + ": " + mdEscape(f.Host))
 	if len(f.Secretaries) > 0 {
 		line("- " + l.SecretaryLabel + ": " + mdEscape(strings.Join(f.Secretaries, ", ")))
@@ -214,7 +216,11 @@ func renderMinutes(f minutesFacts, n minutesNarrative, l minutesLayout) string {
 	}
 
 	line("")
-	line(l.AuthorLabel + ": " + mdEscape(f.Author) + " · " + l.CreatedLabel + ": " + f.CreatedOn)
+	footer := l.AuthorLabel + ": " + mdEscape(f.Author)
+	if f.CreatedOn != f.Date {
+		footer += " · " + l.CreatedLabel + ": " + f.CreatedOn
+	}
+	line(footer)
 	return b.String()
 }
 

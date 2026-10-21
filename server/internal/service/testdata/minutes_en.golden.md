@@ -1,8 +1,4 @@
-# Minutes: Giao ban \*tuần\* 42
-
-Date: 20/10/2026
-
-- Time: 09:00 – 10:15
+- Time: 09:00 – 10:15 (GMT+7), 20/10/2026
 - Chair: Nguyễn An
 - Secretary: Trần Bình
 
@@ -20,7 +16,7 @@ Nhóm rà tiến độ quý 4 và chốt ngân sách.
 
 ## Decisions
 
-1. Chốt ngân sách quý 4 (at 05:12, 61:40)
+1. Chốt ngân sách quý 4 (at 09:05, 10:01)
 2. Họp lại thứ Sáu
 
 ## Votes
@@ -37,4 +33,4 @@ Nhóm rà tiến độ quý 4 và chốt ngân sách.
 | Gửi báo cáo | Lê Chi | 24/10/2026 |
 | Đặt phòng | — | — |
 
-Prepared by: Trần Bình · Date prepared: 20/10/2026
+Prepared by: Trần Bình

@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/unicomhub/uniwork/server/internal/ai"
 )
@@ -15,7 +16,7 @@ var updateMinutes = flag.Bool("update-minutes", false, "rewrite the minutes snap
 func fullMinutesFacts() minutesFacts {
 	met := true
 	return minutesFacts{
-		Title: "Giao ban *tuần* 42", Date: "20/10/2026", Start: "09:00", End: "10:15",
+		Title: "Giao ban *tuần* 42", Date: "20/10/2026", Start: "09:00", End: "10:15", Zone: "GMT+7",
 		Host: "Nguyễn An", Secretaries: []string{"Trần Bình"},
 		Attendance: &ai.AttendanceFacts{
 			Members: 4, Present: 2, Late: 1, Excused: 1, QuorumPercent: 60, QuorumMet: &met, Finalized: true,
@@ -40,7 +41,7 @@ func fullMinutesNarrative() minutesNarrative {
 	return minutesNarrative{
 		Summary: "Nhóm rà tiến độ quý 4 và chốt ngân sách.",
 		Decisions: []minutesDecision{
-			{Text: "Chốt ngân sách quý 4", At: []string{"05:12", "61:40"}},
+			{Text: "Chốt ngân sách quý 4", At: []string{"09:05", "10:01"}},
 			{Text: "Họp lại\nthứ Sáu"},
 		},
 	}
@@ -55,7 +56,8 @@ func TestRenderMinutes(t *testing.T) {
 	noVotes := fullMinutesFacts()
 	noVotes.Motions = nil
 	bare := fullMinutesFacts()
-	bare.Secretaries, bare.Assigned, bare.End = nil, nil, ""
+	// Made on a later day: the footer then says when.
+	bare.Secretaries, bare.Assigned, bare.End, bare.CreatedOn = nil, nil, "", "22/10/2026"
 	cases := map[string]struct {
 		facts minutesFacts
 		narr  minutesNarrative
@@ -106,6 +108,21 @@ func TestRenderMinutesStatesOnlyFacts(t *testing.T) {
 	}
 	if got := minutesLayoutFor("fr").TitlePrefix; got != "Biên bản" {
 		t.Errorf("unknown locale layout = %q", got)
+	}
+}
+
+func TestGMTOffset(t *testing.T) {
+	at := time.Date(2026, 10, 21, 9, 0, 0, 0, time.UTC)
+	for zone, want := range map[*time.Location]string{
+		time.FixedZone("ICT", 7*3600):           "GMT+7",
+		time.FixedZone("IST", 5*3600+30*60):     "GMT+5:30",
+		time.FixedZone("BRT", -3*3600):          "GMT-3",
+		time.FixedZone("NDT", -(2*3600 + 1800)): "GMT-2:30",
+		time.UTC:                                "GMT+0",
+	} {
+		if got := gmtOffset(at.In(zone)); got != want {
+			t.Errorf("gmtOffset(%s) = %q, want %q", zone, got, want)
+		}
 	}
 }
 

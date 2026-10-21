@@ -1,8 +1,4 @@
-# Biên bản: Giao ban \*tuần\* 42
-
-Ngày: 20/10/2026
-
-- Thời gian: 09:00
+- Thời gian: 09:00 (GMT+7), 20/10/2026
 - Chủ trì: Nguyễn An
 
 ## Thành phần
@@ -33,4 +29,4 @@ Mở đầu *gọn*.
 | Duyệt ngân sách \| quý 4 (phiếu kín) | 3 | 0 | 0 | Thông qua |
 | Đổi giờ họp | 1 | 2 | 0 | Không thông qua |
 
-Người lập: Trần Bình · Ngày lập: 20/10/2026
+Người lập: Trần Bình · Ngày lập: 22/10/2026

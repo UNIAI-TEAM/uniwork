@@ -5,10 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 	"time"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/document"
@@ -306,7 +306,7 @@ func (s *MeetingService) minutesInputs(ctx context.Context, m db.Meeting, author
 	if m.ActualStartAt.Valid {
 		start, end = m.ActualStartAt, m.ActualEndAt
 	}
-	f.Title, f.Date, f.Start = m.Title, day(start.Time), clock(start.Time)
+	f.Title, f.Date, f.Start, f.Zone = m.Title, day(start.Time), clock(start.Time), gmtOffset(start.Time.In(loc))
 	if end.Valid {
 		f.End = clock(end.Time)
 	}
@@ -385,14 +385,14 @@ func (s *MeetingService) minutesInputs(ctx context.Context, m db.Meeting, author
 	}
 	n.Summary = sum.Summary
 	decisions := DecodeSummaryDecisions(sum.Decisions)
-	at, err := s.segmentMoments(ctx, m, decisions)
+	at, err := s.segmentMoments(ctx, m, decisions, clock)
 	if err != nil {
 		return f, n, nil, err
 	}
 	for _, d := range decisions {
 		md := minutesDecision{Text: d.Text}
 		for _, r := range d.Evidence {
-			if mark, ok := at[r.ID]; ok && r.Kind == EvidenceSegment {
+			if mark, ok := at[r.ID]; ok && r.Kind == EvidenceSegment && !slices.Contains(md.At, mark) {
 				md.At = append(md.At, mark)
 			}
 		}
@@ -401,9 +401,9 @@ func (s *MeetingService) minutesInputs(ctx context.Context, m db.Meeting, author
 	return f, n, editors, nil
 }
 
-// segmentMoments maps each transcript segment the decisions cite to mm:ss
-// since the meeting actually started. A meeting that never started has none.
-func (s *MeetingService) segmentMoments(ctx context.Context, m db.Meeting, decisions []SummaryDecision) (map[string]string, error) {
+// segmentMoments maps each transcript segment the decisions cite to the clock
+// time it was spoken at, as the meeting's own clock shows it.
+func (s *MeetingService) segmentMoments(ctx context.Context, m db.Meeting, decisions []SummaryDecision, clock func(time.Time) string) (map[string]string, error) {
 	out := map[string]string{}
 	var ids []string
 	for _, d := range decisions {
@@ -413,7 +413,7 @@ func (s *MeetingService) segmentMoments(ctx context.Context, m db.Meeting, decis
 			}
 		}
 	}
-	if len(ids) == 0 || !m.ActualStartAt.Valid {
+	if len(ids) == 0 {
 		return out, nil
 	}
 	rows, err := s.q.ListTranscriptSegmentsByIDs(ctx, db.ListTranscriptSegmentsByIDsParams{OrganizationID: m.OrganizationID, MeetingID: m.ID, Ids: ids})
@@ -421,16 +421,23 @@ func (s *MeetingService) segmentMoments(ctx context.Context, m db.Meeting, decis
 		return nil, err
 	}
 	for _, r := range rows {
-		out[r.ID] = minutesMoment(m.ActualStartAt, r.SpokenAt)
+		if r.SpokenAt.Valid {
+			out[r.ID] = clock(r.SpokenAt.Time)
+		}
 	}
 	return out, nil
 }
 
-// minutesMoment is mm:ss from start to at; minutes keep counting past 59.
-func minutesMoment(start, at pgtype.Timestamptz) string {
-	secs := int(at.Time.Sub(start.Time).Seconds())
+// gmtOffset names t's offset from UTC the way a reader expects it: "GMT+7",
+// "GMT+5:30", "GMT-3", "GMT+0".
+func gmtOffset(t time.Time) string {
+	_, secs := t.Zone()
+	sign := "+"
 	if secs < 0 {
-		secs = 0
+		sign, secs = "-", -secs
 	}
-	return fmt.Sprintf("%02d:%02d", secs/60, secs%60)
+	if mins := secs % 3600 / 60; mins != 0 {
+		return fmt.Sprintf("GMT%s%d:%02d", sign, secs/3600, mins)
+	}
+	return fmt.Sprintf("GMT%s%d", sign, secs/3600)
 }

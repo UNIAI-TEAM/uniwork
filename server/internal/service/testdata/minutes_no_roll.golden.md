@@ -1,8 +1,4 @@
-# Biên bản: Giao ban \*tuần\* 42
-
-Ngày: 20/10/2026
-
-- Thời gian: 09:00 – 10:15
+- Thời gian: 09:00 – 10:15 (GMT+7), 20/10/2026
 - Chủ trì: Nguyễn An
 - Thư ký: Trần Bình
 
@@ -18,7 +14,7 @@ Nhóm rà tiến độ quý 4 và chốt ngân sách.
 
 ## Kết luận
 
-1. Chốt ngân sách quý 4 (mốc 05:12, 61:40)
+1. Chốt ngân sách quý 4 (lúc 09:05, 10:01)
 2. Họp lại thứ Sáu
 
 ## Kết quả biểu quyết
@@ -35,4 +31,4 @@ Nhóm rà tiến độ quý 4 và chốt ngân sách.
 | Gửi báo cáo | Lê Chi | 24/10/2026 |
 | Đặt phòng | — | — |
 
-Người lập: Trần Bình · Ngày lập: 20/10/2026
+Người lập: Trần Bình
