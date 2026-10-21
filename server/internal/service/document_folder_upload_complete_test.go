@@ -284,13 +284,13 @@ func TestFolderUploadCompletePerFileErrorsAndPartialSuccess(t *testing.T) {
 	env := newFakeDocStorageEnv(t)
 	ctx := context.Background()
 	member := human(env.tn.member)
-	good, short := pdfBody("partial-good"), pdfBody("partial-short")
+	good, short, late := pdfBody("partial-good"), pdfBody("partial-short"), pdfBody("partial-late")
 	broken := append([]byte("%PDF-1.4\n"), bytes.Repeat([]byte("x"), 64)...)
 	in := CreateFolderUploadInput{
 		RootName: "Lỗi",
 		Files: []FolderUploadFileInput{
 			{FileKey: "good", Filename: "good.pdf", SizeBytes: int64(len(good))},
-			{FileKey: "missing", Filename: "missing.pdf", SizeBytes: 10},
+			{FileKey: "missing", Filename: "missing.pdf", SizeBytes: int64(len(late))},
 			{FileKey: "short", Filename: "short.pdf", SizeBytes: int64(len(short)) + 5},
 			{FileKey: "broken", Filename: "broken.pdf", SizeBytes: int64(len(broken))},
 		},
@@ -323,35 +323,87 @@ func TestFolderUploadCompletePerFileErrorsAndPartialSuccess(t *testing.T) {
 	if r := resultOf(t, res, "good"); r.Status != "done" || r.DocumentID == "" {
 		t.Fatalf("good = %+v", r)
 	}
-	// upload_missing keeps the file pending; size and content failures are final.
-	if res.Status != "open" || res.Counts != (FolderUploadCounts{Total: 4, Done: 1, Failed: 2, Pending: 1}) {
+	// AMENDMENT 1 (Q11): upload_missing and size_mismatch keep the file
+	// pending and retryable; unsupported_media fails it for good; not_found
+	// touches nothing.
+	for key, retry := range map[string]bool{"missing": true, "short": true, "broken": false, "other-batch": false} {
+		if r := resultOf(t, res, key); r.Retryable != retry {
+			t.Fatalf("%s retryable = %v, want %v", key, r.Retryable, retry)
+		}
+	}
+	if res.Status != "open" || res.Counts != (FolderUploadCounts{Total: 4, Done: 1, Failed: 1, Pending: 2}) {
 		t.Fatalf("batch = %s %+v", res.Status, res.Counts)
 	}
 	if n := env.batchUploadedEvents(t, batch.ID); n != 2 {
 		t.Fatalf("events = %d, want plan + one", n)
 	}
+	// The wrong-size upload is dropped, so the next target is a fresh intent.
+	if ref, _ := env.folderFileRef(t, batch.ID, "short"); ref != "" {
+		t.Fatalf("size_mismatch kept the upload %q", ref)
+	}
 
 	// A call where every file fails writes no event; a failed file answers its
-	// stored code again.
+	// stored code again, not retryable.
 	res, err = env.svc.CompleteFolderUpload(ctx, member, env.tn.wsA, batch.ID, []CompleteFolderUploadFileInput{{FileKey: "missing", ETag: `"m"`}, {FileKey: "broken", ETag: `"b"`}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if r := resultOf(t, res, "broken"); r.Status != "failed" || r.ErrorCode != "unsupported_media" || r.Reason != "pdf_trailer" {
+	if r := resultOf(t, res, "broken"); r.Status != "failed" || r.ErrorCode != "unsupported_media" || r.Reason != "pdf_trailer" || r.Retryable {
 		t.Fatalf("broken replay = %+v", r)
 	}
 	if n := env.batchUploadedEvents(t, batch.ID); n != 2 {
 		t.Fatalf("an all-failed call wrote an event: %d", n)
 	}
 
-	// The last pending file landing completes the batch.
-	env.writeSigned(t, batch.ID, "missing", pdfBody("partial-late")[:10])
-	res, err = env.svc.CompleteFolderUpload(ctx, member, env.tn.wsA, batch.ID, []CompleteFolderUploadFileInput{{FileKey: "missing", ETag: `"m"`}})
+	// The client retries: a fresh target (minted as GET does), the right
+	// bytes, and both pending files land; the batch completes.
+	if _, err := env.svc.folderUploadView(ctx, member, env.tn.orgID, env.tn.wsA, batch.ID, true); err != nil {
+		t.Fatalf("re-mint: %v", err)
+	}
+	if ref, _ := env.folderFileRef(t, batch.ID, "short"); ref == "" {
+		t.Fatal("no fresh target for the dropped file")
+	}
+	env.writeSigned(t, batch.ID, "short", sizedPDF("retry", len(short)+5))
+	env.writeSigned(t, batch.ID, "missing", late)
+	res, err = env.svc.CompleteFolderUpload(ctx, member, env.tn.wsA, batch.ID, []CompleteFolderUploadFileInput{{FileKey: "missing", ETag: `"m"`}, {FileKey: "short", ETag: `"s"`}})
 	if err != nil {
 		t.Fatal(err)
 	}
+	for _, key := range []string{"missing", "short"} {
+		if r := resultOf(t, res, key); r.Status != "done" {
+			t.Fatalf("%s retry = %+v", key, r)
+		}
+	}
 	if res.Status != "completed" || env.batchStatus(t, batch.ID) != "completed" {
 		t.Fatalf("batch = %s %+v", res.Status, res.Counts)
+	}
+}
+
+// A full storage quota fails the file for good (AMENDMENT 1, Q11).
+func TestFolderUploadCompleteQuotaFailsTheFile(t *testing.T) {
+	env := newRealDocStorageEnv(t, localFileBackend())
+	env.svc.SetFiles(unsignedFolderFiles{env.real})
+	ctx := context.Background()
+	member := human(env.tn.member)
+	a, b := pdfBody("quota-a"), pdfBody("quota-b")
+	batch, err := env.svc.CreateFolderUpload(ctx, member, env.tn.wsA, folderTwoFiles("Hạn mức", a, b))
+	if err != nil {
+		t.Fatal(err)
+	}
+	etag, err := env.svc.PutFolderUploadContent(ctx, member, env.tn.wsA, batch.ID, "f-1", bytes.NewReader(a))
+	if err != nil {
+		t.Fatal(err)
+	}
+	env.setStorageLimit(t, 1)
+	res, err := env.svc.CompleteFolderUpload(ctx, member, env.tn.wsA, batch.ID, []CompleteFolderUploadFileInput{{FileKey: "f-1", ETag: etag}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r := resultOf(t, res, "f-1"); r.Status != "failed" || r.ErrorCode != "storage_quota_exceeded" || r.Retryable {
+		t.Fatalf("quota = %+v", r)
+	}
+	if res.Counts != (FolderUploadCounts{Total: 2, Failed: 1, Pending: 1}) {
+		t.Fatalf("counts = %+v", res.Counts)
 	}
 }
 

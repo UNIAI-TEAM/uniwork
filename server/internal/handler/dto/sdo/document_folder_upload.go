@@ -80,6 +80,7 @@ type FolderUploadFileResultSDO struct {
 	Status     string                `json:"status" description:"done | failed" example:"done"`
 	DocumentID *string               `json:"document_id" description:"Tài liệu đã tạo khi done" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
 	Error      *FolderUploadErrorSDO `json:"error" description:"Lỗi khi failed"`
+	Retryable  bool                  `json:"retryable" description:"true: tệp vẫn pending (upload_missing, parts_invalid, size_mismatch), tải lại từ đích mới của GET rồi COMPLETE lại; false: done, failed hẳn hoặc not_found" example:"false"`
 }
 
 // FolderUploadCompleteBatchSDO is the batch after a COMPLETE.

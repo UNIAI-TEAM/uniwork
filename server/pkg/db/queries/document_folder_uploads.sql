@@ -149,3 +149,13 @@ WHERE b.id = sqlc.arg(id) AND b.organization_id = sqlc.arg(organization_id)
     SELECT 1 FROM document_folder_upload_files f
     WHERE f.batch_id = b.id AND f.organization_id = b.organization_id AND f.status = 'pending'
   );
+
+-- name: ResetDocumentFolderUploadFileRef :execrows
+-- COMPLETE drops the upload of a pending file whose bytes did not match the
+-- plan or are gone: the file stays pending, the next GET mints a fresh target
+-- and upload_attempt keeps the next presigned intent apart from this one.
+UPDATE document_folder_upload_files
+SET upload_ref = NULL, content_etag = NULL, upload_attempt = upload_attempt + 1, updated_at = now()
+WHERE id = sqlc.arg(id) AND organization_id = sqlc.arg(organization_id)
+  AND workspace_id = sqlc.arg(workspace_id) AND status = 'pending'
+  AND upload_ref = sqlc.arg(upload_ref);

@@ -186,7 +186,7 @@ func (q *Queries) GetDocumentFolderUpload(ctx context.Context, arg GetDocumentFo
 }
 
 const getDocumentFolderUploadFileByKey = `-- name: GetDocumentFolderUploadFileByKey :one
-SELECT id, file_key, organization_id, workspace_id, batch_id, folder_id, path, filename, size_bytes, status, target_kind, upload_ref, probe_head_sha256, probe_tail_sha256, cd_offset, cd_size, document_id, error_code, created_at, updated_at, content_etag FROM document_folder_upload_files
+SELECT id, file_key, organization_id, workspace_id, batch_id, folder_id, path, filename, size_bytes, status, target_kind, upload_ref, probe_head_sha256, probe_tail_sha256, cd_offset, cd_size, document_id, error_code, created_at, updated_at, content_etag, upload_attempt FROM document_folder_upload_files
 WHERE batch_id = $1 AND file_key = $2 AND organization_id = $3 AND workspace_id = $4
 `
 
@@ -227,6 +227,7 @@ func (q *Queries) GetDocumentFolderUploadFileByKey(ctx context.Context, arg GetD
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.ContentEtag,
+		&i.UploadAttempt,
 	)
 	return i, err
 }
@@ -372,7 +373,7 @@ func (q *Queries) InsertDocumentFolderUploadFiles(ctx context.Context, arg Inser
 }
 
 const listDocumentFolderUploadFiles = `-- name: ListDocumentFolderUploadFiles :many
-SELECT id, file_key, organization_id, workspace_id, batch_id, folder_id, path, filename, size_bytes, status, target_kind, upload_ref, probe_head_sha256, probe_tail_sha256, cd_offset, cd_size, document_id, error_code, created_at, updated_at, content_etag FROM document_folder_upload_files
+SELECT id, file_key, organization_id, workspace_id, batch_id, folder_id, path, filename, size_bytes, status, target_kind, upload_ref, probe_head_sha256, probe_tail_sha256, cd_offset, cd_size, document_id, error_code, created_at, updated_at, content_etag, upload_attempt FROM document_folder_upload_files
 WHERE batch_id = $1 AND organization_id = $2 AND workspace_id = $3
 ORDER BY id
 `
@@ -414,6 +415,7 @@ func (q *Queries) ListDocumentFolderUploadFiles(ctx context.Context, arg ListDoc
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.ContentEtag,
+			&i.UploadAttempt,
 		); err != nil {
 			return nil, err
 		}
@@ -531,6 +533,37 @@ func (q *Queries) MarkDocumentFolderUploadFileFailed(ctx context.Context, arg Ma
 		arg.ID,
 		arg.OrganizationID,
 		arg.WorkspaceID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const resetDocumentFolderUploadFileRef = `-- name: ResetDocumentFolderUploadFileRef :execrows
+UPDATE document_folder_upload_files
+SET upload_ref = NULL, content_etag = NULL, upload_attempt = upload_attempt + 1, updated_at = now()
+WHERE id = $1 AND organization_id = $2
+  AND workspace_id = $3 AND status = 'pending'
+  AND upload_ref = $4
+`
+
+type ResetDocumentFolderUploadFileRefParams struct {
+	ID             string      `json:"id"`
+	OrganizationID string      `json:"organization_id"`
+	WorkspaceID    string      `json:"workspace_id"`
+	UploadRef      pgtype.Text `json:"upload_ref"`
+}
+
+// COMPLETE drops the upload of a pending file whose bytes did not match the
+// plan or are gone: the file stays pending, the next GET mints a fresh target
+// and upload_attempt keeps the next presigned intent apart from this one.
+func (q *Queries) ResetDocumentFolderUploadFileRef(ctx context.Context, arg ResetDocumentFolderUploadFileRefParams) (int64, error) {
+	result, err := q.db.Exec(ctx, resetDocumentFolderUploadFileRef,
+		arg.ID,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.UploadRef,
 	)
 	if err != nil {
 		return 0, err

@@ -56,13 +56,16 @@ type CompleteFolderUploadFileInput struct {
 }
 
 // FolderUploadFileOutcome is one file's result. ErrorCode and Reason are set
-// when Status is failed; Reason only for unsupported_media.
+// when Status is failed; Reason only for unsupported_media. Retryable means
+// the file is still pending (upload_missing, parts_invalid, size_mismatch):
+// the client uploads it again, from a fresh GET target, and completes again.
 type FolderUploadFileOutcome struct {
 	FileKey    string
 	Status     string
 	DocumentID string
 	ErrorCode  string
 	Reason     string
+	Retryable  bool
 }
 
 // FolderUploadCompleteResult answers a COMPLETE: one result per file sent, in
@@ -295,13 +298,17 @@ func (s *DocumentService) lockFolderUpload(ctx context.Context, q *db.Queries, b
 	return locked, err
 }
 
-// folderFileFailure is one file's refusal. A final one marks the file failed
-// for good; any other (the bytes are not there yet, the parts do not match,
-// the quota is full) leaves it pending for another COMPLETE.
+// folderFileFailure is one file's refusal (contract AMENDMENT 1, Q11). A
+// final one (unsupported_media, storage_quota_exceeded) marks the file failed
+// for good; any other (upload_missing, parts_invalid, size_mismatch) leaves
+// it pending and retryable. reset drops the file's upload as well, because
+// those bytes can never complete (a wrong size, an upload that is gone): the
+// next GET mints a fresh target.
 type folderFileFailure struct {
 	code   string
 	reason string
 	final  bool
+	reset  bool
 }
 
 func (f folderFileFailure) Error() string { return "folder upload file: " + f.code }
@@ -405,20 +412,50 @@ func (s *DocumentService) completeFolderUploadFile(ctx context.Context, fs files
 	var failure folderFileFailure
 	switch {
 	case errors.As(err, &failure):
-		if failure.final {
+		switch {
+		case failure.final && f.Status == folderUploadFilePending:
 			if _, err := s.q.MarkDocumentFolderUploadFileFailed(ctx, db.MarkDocumentFolderUploadFileFailedParams{
 				ErrorCode: nullText(failure.storedCode()), ID: f.ID, OrganizationID: f.OrganizationID, WorkspaceID: f.WorkspaceID,
 			}); err != nil {
 				return out, err
 			}
+		case failure.reset && f.UploadRef.Valid:
+			if err := s.resetFolderUploadFile(ctx, fs, actor, batch, f); err != nil {
+				return out, err
+			}
 		}
 		out.Status, out.ErrorCode, out.Reason = folderUploadFileFailed, failure.code, failure.reason
+		out.Retryable = !failure.final && f.Status == folderUploadFilePending
 		return out, nil
 	case err != nil:
 		return out, err
 	}
 	out.Status, out.DocumentID = folderUploadFileDone, docID
 	return out, nil
+}
+
+// folderUploadFileParent is the document a file of the batch lands under; ""
+// is the workspace root. A files-mode plan (no folders) leaves folder_id
+// empty for a root upload; once that column turns nullable this reads
+// f.FolderID.String.
+func folderUploadFileParent(f db.DocumentFolderUploadFile) string {
+	return f.FolderID
+}
+
+// resetFolderUploadFile drops a pending file's upload: a put target's staged
+// FileService upload is canceled (best effort: an unclaimed upload is
+// collected after its claim window anyway) and the row forgets it. A
+// multipart session is already failed, aborted or gone when this runs.
+func (s *DocumentService) resetFolderUploadFile(ctx context.Context, fs files.Service, actor Actor, batch db.DocumentFolderUpload, f db.DocumentFolderUploadFile) error {
+	if f.TargetKind == folderUploadTargetPut {
+		_ = fs.CancelUpload(context.WithoutCancel(ctx), files.CancelInput{
+			Actor: actor, Scope: documentScope(batch.OrganizationID, batch.WorkspaceID), FileID: files.FileID(f.UploadRef.String),
+		})
+	}
+	_, err := s.q.ResetDocumentFolderUploadFileRef(ctx, db.ResetDocumentFolderUploadFileRefParams{
+		ID: f.ID, OrganizationID: f.OrganizationID, WorkspaceID: f.WorkspaceID, UploadRef: f.UploadRef,
+	})
+	return err
 }
 
 // settleFolderUploadFile answers the document of a done file, the stored
@@ -478,14 +515,14 @@ func (s *DocumentService) verifyFolderUploadPut(ctx context.Context, fs files.Se
 		}
 		var err error
 		file, err = fs.CompleteProviderOutput(ctx, files.CompleteOutputInput{
-			Actor: actor, Scope: scope, FileID: fileID, OperationID: "folder-upload:" + f.ID,
+			Actor: actor, Scope: scope, FileID: fileID, OperationID: folderUploadOperationID(f),
 		})
 		if err != nil {
 			return "", folderPutFailure(err)
 		}
 	}
 	if file.SizeBytes != f.SizeBytes {
-		return "", folderFileFailure{code: folderFileSizeMismatch, final: true}
+		return "", folderFileFailure{code: folderFileSizeMismatch, reset: true}
 	}
 	if _, err := s.checkStoredFile(ctx, fs, scope, file); err != nil {
 		return "", unsupportedFailure(err)
@@ -501,10 +538,13 @@ func folderPutFailure(err error) error {
 		return err
 	}
 	switch fe.Code {
-	case files.CodeNotReady, files.CodeNotFound, files.CodeUploadCanceled, files.CodeClaimExpired:
+	case files.CodeNotReady:
+		// Not written yet: the client may still be uploading.
 		return folderFileFailure{code: folderFileUploadMissing}
+	case files.CodeNotFound, files.CodeUploadCanceled, files.CodeClaimExpired:
+		return folderFileFailure{code: folderFileUploadMissing, reset: true}
 	case files.CodeTooLarge:
-		return folderFileFailure{code: folderFileSizeMismatch, final: true}
+		return folderFileFailure{code: folderFileSizeMismatch, reset: true}
 	case files.CodeTypeRejected:
 		return folderFileFailure{code: folderFileUnsupported, reason: fe.Code, final: true}
 	}
@@ -563,22 +603,29 @@ func (s *DocumentService) commitFolderUploadFile(
 	if err := q.LockDocumentTree(ctx, workspaceID); err != nil {
 		return "", err
 	}
-	folder, err := s.lockPageParent(ctx, q, actor, f.FolderID, orgID, workspaceID, DocumentKindFile)
-	if err != nil {
-		if isGateRefusal(err) {
-			// The folder the plan made is gone or closed to its creator.
-			return "", folderFileFailure{code: folderFileNotFound, final: true}
+	// The file's folder: the plan's folder, the parent of a files-mode plan,
+	// or none (the workspace root), as the single upload files it.
+	var parent *db.Document
+	parentID := folderUploadFileParent(f)
+	if parentID != "" {
+		folder, err := s.lockPageParent(ctx, q, actor, parentID, orgID, workspaceID, DocumentKindFile)
+		if err != nil {
+			if isGateRefusal(err) {
+				// The folder is gone or closed to the batch's creator.
+				return "", folderFileFailure{code: folderFileNotFound, final: true}
+			}
+			return "", err
 		}
-		return "", err
+		parent = &folder
 	}
 	requested := ""
 	if locked.ShareWithWorkspace {
 		requested = documentVisibilityWorkspace
 	}
-	visibility, level := createHomeRow(requested, &folder)
+	visibility, level := createHomeRow(requested, parent)
 	if err := s.consumeStorage(ctx, q, actor, orgID, workspaceID, file); err != nil {
 		if errors.Is(err, ErrQuotaExceeded) {
-			return "", folderFileFailure{code: folderFileQuotaExceeded}
+			return "", folderFileFailure{code: folderFileQuotaExceeded, final: true}
 		}
 		return "", err
 	}
@@ -587,14 +634,14 @@ func (s *DocumentService) commitFolderUploadFile(
 		return "", err
 	}
 	position, err := q.NextDocumentPosition(ctx, db.NextDocumentPositionParams{
-		OrganizationID: orgID, WorkspaceID: workspaceID, ParentID: nullText(folder.ID),
+		OrganizationID: orgID, WorkspaceID: workspaceID, ParentID: nullText(parentID),
 	})
 	if err != nil {
 		return "", err
 	}
 	docID, versionID := util.NewID(), util.NewID()
 	doc, err := q.InsertDocument(ctx, db.InsertDocumentParams{
-		ID: docID, OrganizationID: orgID, WorkspaceID: workspaceID, ParentID: nullText(folder.ID),
+		ID: docID, OrganizationID: orgID, WorkspaceID: workspaceID, ParentID: nullText(parentID),
 		Kind: DocumentKindFile, Title: title, Visibility: visibility, WorkspaceLevel: level,
 		SearchText: documentSearchText(title, ""), CurrentVersion: 1,
 		FileVersionID: pgtype.Text{String: versionID, Valid: true}, Revision: 1, Position: position,
@@ -659,7 +706,7 @@ func (s *DocumentService) completeFolderUploadMultipart(ctx context.Context, act
 	}
 	row, err := s.q.GetFileMultipartUploadByID(ctx, f.UploadRef.String)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return "", folderFileFailure{code: folderFileUploadMissing, final: true}
+		return "", folderFileFailure{code: folderFileUploadMissing, reset: true}
 	}
 	if err != nil {
 		return "", err
@@ -669,7 +716,7 @@ func (s *DocumentService) completeFolderUploadMultipart(ctx context.Context, act
 	case "failed":
 		return "", multipartFailure(mapStoredUploadSessionFailure(row.FailureCode.String))
 	case "expired", "aborted":
-		return "", folderFileFailure{code: folderFileUploadMissing, final: true}
+		return "", folderFileFailure{code: folderFileUploadMissing, reset: true}
 	case "completed":
 		// The session and the file commit together; a completed session under
 		// a pending file is a bug, not a client error.
@@ -709,7 +756,7 @@ func (s *DocumentService) completeFolderUploadMultipart(ctx context.Context, act
 		return "", release(err)
 	}
 	if size != leased.SizeBytes || size != f.SizeBytes {
-		return "", fail(objectVersion, "upload_size_mismatch", errUploadSizeMismatch(), folderFileFailure{code: folderFileSizeMismatch, final: true})
+		return "", fail(objectVersion, "upload_size_mismatch", errUploadSizeMismatch(), folderFileFailure{code: folderFileSizeMismatch, reset: true})
 	}
 	probeMismatch := folderFileFailure{code: folderFileUnsupported, reason: folderFileProbeMismatch, final: true}
 	headSHA, err := readObjectRangeSHA256(ctx, fs.store, loc, 0, min(leased.SizeBytes, int64(UploadSessionMaxProbeHeadBytes)))
@@ -788,7 +835,7 @@ func multipartFailure(err error) error {
 	}
 	switch ce.Code {
 	case "upload_size_mismatch":
-		return folderFileFailure{code: folderFileSizeMismatch, final: true}
+		return folderFileFailure{code: folderFileSizeMismatch, reset: true}
 	case "upload_probe_mismatch":
 		return folderFileFailure{code: folderFileUnsupported, reason: folderFileProbeMismatch, final: true}
 	}

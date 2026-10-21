@@ -171,7 +171,7 @@ func (h *handlers) completeFolderUpload(w http.ResponseWriter, r *http.Request) 
 		}},
 	}
 	for _, f := range res.Results {
-		item := sdo.FolderUploadFileResultSDO{FileKey: f.FileKey, Status: f.Status}
+		item := sdo.FolderUploadFileResultSDO{FileKey: f.FileKey, Status: f.Status, Retryable: f.Retryable}
 		if f.DocumentID != "" {
 			id := f.DocumentID
 			item.DocumentID = &id

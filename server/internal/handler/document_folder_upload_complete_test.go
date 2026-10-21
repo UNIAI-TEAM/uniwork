@@ -118,7 +118,7 @@ func TestFolderUploadContentAndCompleteOverHTTP(t *testing.T) {
 	if done["status"] != "done" || done["document_id"] == nil || done["error"] != nil {
 		t.Fatalf("done = %v", done)
 	}
-	if e, _ := missing["error"].(map[string]any); missing["status"] != "failed" || missing["document_id"] != nil || e["code"] != "not_found" || e["message"] == "" {
+	if e, _ := missing["error"].(map[string]any); missing["status"] != "failed" || missing["document_id"] != nil || e["code"] != "not_found" || e["message"] == "" || missing["retryable"] != false {
 		t.Fatalf("not_found = %v", missing)
 	}
 	b := out["batch"].(map[string]any)
