@@ -221,6 +221,9 @@ func (s *MeetingService) ensureDialIn(ctx context.Context, meetingID string) err
 	// The flag is read before the lock: its store may need a connection of
 	// its own. The organization never changes.
 	on := s.dialInOn(ctx, m.OrganizationID)
+	if !m.SipDispatchRuleID.Valid && (!on || m.Status != MeetingInProgress) {
+		return nil // nothing to make or drop: skip the lock
+	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return err
