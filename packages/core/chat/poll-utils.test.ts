@@ -52,21 +52,18 @@ describe("poll-utils", () => {
     expect(
       canViewPollVoters({
         settings: { hide_voters: true, hide_results_until_vote: false },
-        votes_by_user: { USER1: ["opt-a"] },
       }),
     ).toBe(false);
     expect(
       canViewPollVoters({
         settings: { hide_voters: false, hide_results_until_vote: true },
         viewer_option_ids: [],
-        votes_by_user: { USER1: ["opt-a"] },
       }),
     ).toBe(false);
     expect(
       canViewPollVoters({
         settings: { hide_voters: false, hide_results_until_vote: true },
         viewer_option_ids: ["opt-a"],
-        votes_by_user: { USER1: ["opt-a"] },
       }),
     ).toBe(true);
   });

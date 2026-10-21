@@ -305,6 +305,44 @@ export async function voteChatPollMessage(
   return parsed.message ?? null;
 }
 
+const ChatPollVotersSchema = z.object({
+  votes_by_user: z
+    .record(z.string(), z.array(z.string()))
+    .nullish()
+    .transform((value) => value ?? {}),
+});
+
+export async function getChatPollVoters(
+  workspaceId: string,
+  roomId: string,
+  messageId: string,
+): Promise<Record<string, string[]>> {
+  const raw = await request(
+    `/api/v1/workspaces/${enc(workspaceId)}/chat/rooms/${enc(roomId)}/messages/${enc(messageId)}/poll/voters`,
+    { method: "GET" },
+  );
+  const parsed = parseWithFallback(raw, ChatPollVotersSchema, { votes_by_user: {} }, {
+    endpoint: "GET /api/v1/workspaces/{ws}/chat/rooms/{roomID}/messages/{messageID}/poll/voters",
+  });
+  return parsed.votes_by_user;
+}
+
+export async function addChatPollOptionMessage(
+  workspaceId: string,
+  roomId: string,
+  messageId: string,
+  label: string,
+): Promise<ChatMessageRecord | null> {
+  const raw = await request(
+    `/api/v1/workspaces/${enc(workspaceId)}/chat/rooms/${enc(roomId)}/messages/${enc(messageId)}/poll/options`,
+    { method: "POST", body: { label } },
+  );
+  const parsed = parseWithFallback(raw, ChatMessageEnvelopeSchema, { message: undefined }, {
+    endpoint: "POST /api/v1/workspaces/{ws}/chat/rooms/{roomID}/messages/{messageID}/poll/options",
+  });
+  return parsed.message ?? null;
+}
+
 export async function toggleChatMessageReaction(
   workspaceId: string,
   roomId: string,

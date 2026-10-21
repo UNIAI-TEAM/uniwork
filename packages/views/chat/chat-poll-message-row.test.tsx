@@ -33,7 +33,6 @@ function poll(allowMultiple: boolean) {
       hide_voters: false,
     },
     viewer_option_ids: ["o1"],
-    votes_by_user: { u1: ["o1"], u2: ["o1"], u3: ["o2"] },
   };
 }
 

@@ -3960,6 +3960,7 @@
       "card_label": "{{kind}} by {{sender}}, {{time}}",
       "card_label_no_time": "{{kind}} by {{sender}}",
       "poll_vote_failed": "Couldn't record your vote. Try again.",
+      "poll_add_option_failed": "Couldn't add that option. Try again.",
       "poll_pick_one": "Pick one",
       "poll_pick_many": "Pick any",
       "poll_view_option_voters": "See the {{count}} who picked {{label}}",
