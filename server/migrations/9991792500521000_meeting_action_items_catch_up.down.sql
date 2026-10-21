@@ -1,4 +1,0 @@
--- No-op on purpose (UNI-1999). The up migration is a data copy: the rows it
--- attached a task to or added are indistinguishable from the ones people
--- converted since, and the links they came from are dropped by the next
--- migration. Re-running the up file is safe (it is idempotent).
