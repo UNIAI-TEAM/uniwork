@@ -483,8 +483,9 @@ module spec copies that shape, so adding one needs no CI change.
 
 ## Pinned builds
 
-All six modules are pinned to one fork commit, `929f0cac7` (`0.1.0-929f0ca`, the current UNI-1986 pin: fork main `bb8702153`
-plus the frame comment avatars, over `0.1.0-d57e60f`), replacing `0.1.0-d57e60f` (the UNI-2033 pin: fork main `d57e60f81`, the
+All six modules are pinned to one fork commit, `51e1da41f` (`0.1.0-51e1da4`, the current REPIN-7 pin of UNI-2070: UNI-2011
+shortcuts, UNI-2060 `aria-keyshortcuts` and UNI-2065 over `0.1.0-929f0ca`), replacing `0.1.0-929f0ca` (the UNI-1986 pin: fork main
+`bb8702153` plus the frame comment avatars, over `0.1.0-d57e60f`), replacing `0.1.0-d57e60f` (the UNI-2033 pin: fork main `d57e60f81`, the
 lost-comment "View in version N" and the UNI-2017 comment anchors after Save over `0.1.0-1abc493`),
 `0.1.0-1abc493` (the REPIN-6 pin of UNI-1919: fork main `1abc493e4`, UNI-1993 and UNI-2020 over `0.1.0-f01befd`),
 `0.1.0-f01befd` (the REPIN-5 pin: fork main `f01befd65`,
@@ -546,7 +547,16 @@ PDF closed-panel Save), with a frame protocol change (see below): `comments.view
 `bb8702153`) UNI-1986 (frame comment avatars: the collab kit's `AvatarSource` / `useAvatarSrc` in `packages/ui/src/collab`, the
 same-origin blob loader `web/modules/shared/avatar`, and its provider mounted in the Docs, PDF, Sheets and Slides server-comments
 hosts and in `FrameDiscussion`; no frame protocol change, see "Frame avatars (UNI-1986)") and the vi "Văn bản thuần" Plain text
-New-menu label of the shell,
+New-menu label of the shell; `51e1da41f` adds over `929f0cac7` (through fork main `190942864`) UNI-2011 (the keys, menus and hints
+of the six editors come from one `@genoffice/shortcuts` table, `packages/shortcuts`: Docs Save As is F12 on the web and Ctrl+Shift+S
+is Apply Styles, Alt+F1 inserts a chart in Sheets, Docs Ctrl/Cmd+O stays the browser's where the host grants no Open, the ribbon
+collapse key comes from the table (`packages/ui/src/ribbon-collapse.tsx`), and the HTML Preview relays app keys to the frame only on
+host user activation, never double-saves and cannot be forged), UNI-2060 (a ribbon tab, toolbar button, menu item, find-panel
+button and dropdown option names its plain command; the chord moves to `aria-keyshortcuts`, so no accessible name carries a chord
+any more) and UNI-2065 (the lost-anchor "View in version N" link of the comments kit has its own wrapping row, `.collab-lostver`);
+UNI-2047 (the Documents list and the Share dialog of the desktop app, N-04 filter selects, N-05 quick-create strip), UNI-2050 (the
+UniNote page icon) and UNI-2046 (the Plain text New-menu entry) are the desktop shell only (`apps/shell`), so they are no web frame
+change; no frame protocol change (nothing under `web/docs/protocol` changed since `d57e60f81`),
 UNI-1920 (the locked-out Docs "Save as a copy" the
 host's `api.saveCopy` answers, and the
 frame-side Ctrl/Cmd+P accelerator in Docs and HTML), and the SIZE-F1 + LAG-F1 frame protocol and UI events (with
@@ -556,6 +566,7 @@ nothing under `web/docs/protocol` between `82c8381e1` and `1abc493e4` (and only 
 `types.ts` changed (`comments.viewVersion`, `commentsViewVersion`, `anchor_version_no`; `PROTOCOL_VERSION` 1), so the `protocol`
 digest is now `914cc471...1664`, the `endpoint` and `host` digests are unchanged, and the three vendored headers name `d57e60f81`; at
 `929f0cac7` nothing under `web/docs/protocol` changed, so all three digests and the vendored headers are the ones of `d57e60f81`:
+at `51e1da41f` nothing under `web/docs/protocol` changed either, so the digests stay the same and the vendored headers keep naming `d57e60f81`:
 every pin's `protocolSha256` is identical to the `0.1.0-d57e60f` pins and `frame-protocol-vendor.test.mjs` passes), the AI model picker that keeps a
 provider with an empty model list (`7888df06c`, the UniWork AI row; the S7-S9 UX floor checks no longer skip), the UXF-01/08/09
 fixes (picker focus ring, listbox structure, S8 disclosure), the UXF-FIX (UNI-1824) web-frame UX floor fixes (UXF-03 Docs S5
@@ -564,9 +575,9 @@ fixes (picker focus ring, listbox structure, S8 disclosure), the UXF-FIX (UNI-18
 UXF-07 full-width S5 below 768 px, UXF-10 fixed window live nodes created at frame init, and the `ConflictIo.saveCopy` contract
 for UXF-02), the G8-11 Discussion panel web side, the G6-09 AI edit-undo tables, and the DOC-05 comment level,
 `comments.shareView` and `canActOnComment` root author. Built clean (no `-dirty` suffix) with `npm run build:web -- --all` in a
-detached worktree of `929f0cac7` on bro (linux-arm64; the Sheets wasm is the arm64 line `bd3873bc...7445` of the fork's
-checksum file), published at `web-0.1.0-929f0ca` (`dist-web-0.1.0-929f0ca.tar.gz`, sha256 `d035f159...d5af`; the previous
-`web-0.1.0-d57e60f` is `dist-web-0.1.0-d57e60f.tar.gz`, sha256 `0d4746a5...346f`), and
+detached worktree of `51e1da41f` on bro (linux-arm64; the Sheets wasm is the arm64 line `bd3873bc...7445` of the fork's
+checksum file), published at `web-0.1.0-51e1da4` (`dist-web-0.1.0-51e1da4.tar.gz`, sha256 `0a9502d1...ea60`; the previous
+`web-0.1.0-929f0ca` is `dist-web-0.1.0-929f0ca.tar.gz`, sha256 `d035f159...d5af`), and
 written by `node apps/web/scripts/office-frame-sync.mjs --all --pin --from <tarball>` alongside `source.json`.
 UXF-03/04/05/06/07/10 have their expected-fail markers removed in `e2e/office-ux-floor.spec.ts` (since `0.1.0-5a72c13`, waiting
 for the cloud e2e run to confirm); UXF-02's marker left with UNI-1872 (`09da7ebb9`): the D web host supplies
@@ -586,19 +597,22 @@ headers did not change from `36e9e23`, only version, SHA and manifest digest. Wr
 `node apps/web/scripts/office-frame-sync.mjs --all --pin --from <tarball of dist-web>`
 and verified file by file on install.
 
-`0.1.0-929f0ca` has the same file counts per module as the table below (the loader adds no file); the unpacked sizes moved by at most
-0.06 MiB (`docs` 17.60, `pdf` 17.23, `markdown` 8.76, `html` 2.49, `slides` 6.24, `sheets` 27.77 MiB), gzip and initial download were not re-measured.
+`0.1.0-51e1da4` has the same file counts per module as the table below, and the build log measures it as the table shows (unpacked
+`docs` 17.72, `pdf` 17.29, `markdown` 8.86, `html` 2.62, `slides` 6.35, `sheets` 27.84 MiB; gzip 11.94, 8.01, 2.80, 0.81, 2.48, 7.93 MiB; initial
+download 5.92, 2.78, 3.76, 2.61, 4.95, 6.40 MiB). Against the `0.1.0-929f0ca` figures the unpacked sizes grew by 0.06 to 0.13 MiB, the
+`sheets` initial download grew from 4.13 to 6.40 MiB (its deferred part fell from 23.58 to 21.44 MiB: the entry chunk `index` went from 4.06 to 6.44 MB while the
+lazy `App` chunk went from 8.57 to 6.34 MB, so the chunk split moved code into the entry) and the other initial downloads grew by 0.11 to 0.13 MiB.
 
-Sizes of the `0.1.0-d57e60f` bundles (against `0.1.0-1abc493` as the build logs report them: `docs`, `pdf`, `markdown`, `html` and `slides` unpacked +0.01 MiB each, `sheets` gzip 7.91 MiB (7.90 before); `0.1.0-1abc493` itself was identical to `0.1.0-f01befd`, `0.1.0-b1cbd5d` and `0.1.0-b5da4d4`, except `sheets`, whose unpacked size is 27.71 MiB (27.70 before); against `0.1.0-9f867d9` only the `pdf` unpacked size and the `html` initial download moved, each by 0.01 MiB):
+Sizes of the `0.1.0-51e1da4` bundles as the build log reports them (the `0.1.0-d57e60f` build was measured against `0.1.0-1abc493`: `docs`, `pdf`, `markdown`, `html` and `slides` unpacked +0.01 MiB each, `sheets` gzip 7.91 MiB (7.90 before); `0.1.0-1abc493` itself was identical to `0.1.0-f01befd`, `0.1.0-b1cbd5d` and `0.1.0-b5da4d4`, except `sheets`, whose unpacked size is 27.71 MiB (27.70 before)):
 
 | module | pin | files | unpacked | gzip | initial download | CSP beyond the shared policy |
 | --- | --- | --- | --- | --- | --- | --- |
-| `docs` | `docs.pin.json` | 46 | 17.59 MiB | 11.92 MiB | 5.79 MiB | none |
-| `pdf` | `pdf.pin.json` | 229 | 17.18 MiB | 7.99 MiB | 2.67 MiB | `script-src 'wasm-unsafe-eval'` (pdf.js decoders) |
-| `markdown` | `markdown.pin.json` | 90 | 8.74 MiB | 2.78 MiB | 3.64 MiB | none |
-| `html` | `html.pin.json` | 7 | 2.49 MiB | 0.78 MiB | 2.48 MiB | `frame-src 'self'` + `documents[/preview.html]` |
-| `slides` | `slides.pin.json` | 19 | 6.24 MiB | 2.46 MiB | 4.84 MiB | `media-src blob:` |
-| `sheets` | `sheets.pin.json` | 219 | 27.71 MiB | 7.91 MiB | 4.13 MiB | `script-src 'wasm-unsafe-eval'` (xlsx engine, GO-D3 = C) |
+| `docs` | `docs.pin.json` | 46 | 17.72 MiB | 11.94 MiB | 5.92 MiB | none |
+| `pdf` | `pdf.pin.json` | 229 | 17.29 MiB | 8.01 MiB | 2.78 MiB | `script-src 'wasm-unsafe-eval'` (pdf.js decoders) |
+| `markdown` | `markdown.pin.json` | 90 | 8.86 MiB | 2.80 MiB | 3.76 MiB | none |
+| `html` | `html.pin.json` | 7 | 2.62 MiB | 0.81 MiB | 2.61 MiB | `frame-src 'self'` + `documents[/preview.html]` |
+| `slides` | `slides.pin.json` | 19 | 6.35 MiB | 2.48 MiB | 4.95 MiB | `media-src blob:` |
+| `sheets` | `sheets.pin.json` | 219 | 27.84 MiB | 7.93 MiB | 6.40 MiB | `script-src 'wasm-unsafe-eval'` (xlsx engine, GO-D3 = C) |
 
 The `pdf` bundle grew by 2.6 MiB at `b60d5ff`: it ships 12 real Liberation TTFs
 (about 4.2 MiB, `pdf/<version>/fonts/`, fetched lazily by Insert text, so the initial
@@ -771,7 +785,7 @@ field:
   (presigned or provider) is only the signal "has a picture" and is never forwarded into the frame;
 - the rewrite applies only to a frame build that knows the route: the pinned version (`pinnedFrameVersion(module)`)
   must be listed in `AVATAR_ROUTE_FRAME_VERSIONS` (`frame-avatar-url.ts`). Any other build gets `""`, which draws the
-  initials and ends the CSP violation per comment. The route is on: the list holds `0.1.0-929f0ca`, the pin of all six
+  initials and ends the CSP violation per comment. The route is on: the list holds `0.1.0-51e1da4`, the pin of all six
   modules (the build with the fork's avatar loader). A later re-pin that keeps the loader adds its version there;
   a build without it must not be listed.
 - `e2e/office-docs-avatars-web.spec.ts` proves it on a real stack (cloud runner): a colleague with a stored picture
