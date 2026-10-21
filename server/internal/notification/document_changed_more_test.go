@@ -18,12 +18,21 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/unicomhub/uniwork/server/internal/files/filesfake"
-	"github.com/unicomhub/uniwork/server/internal/office"
 	"github.com/unicomhub/uniwork/server/internal/outbox"
 	"github.com/unicomhub/uniwork/server/internal/service"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
+
+// trustedEngine is the provenance CommitFileVersion accepts for an
+// office-produced version: the values of office.TrustedEngineVersion and
+// office.ContractVersion, copied because only internal/service may import the
+// engine client (TestOfficeTransportStaysALeaf). CommitFileVersion refuses a
+// drift, so a stale copy fails the version_created case loudly.
+var trustedEngine = service.DocumentEngineInfo{
+	Name: "genoffice", Version: "genoffice@09485f88+uniwork-office.0",
+	ContractVersion: "uniwork-office-engine-contract/1", ProtocolVersion: "1",
+}
 
 // docChangeTopic is the server-only row a command writes beside its client
 // frame when the change is one people hear of (BE-R1-1).
@@ -383,8 +392,7 @@ func TestDocumentChangedVerbsThroughTheirCommands(t *testing.T) {
 		f.none(t, f.owner.ID, f.starrer.ID, f.member.ID, f.bystander.ID)
 
 		f.settle(t)
-		res = f.commitVersion(t, f.command(), res.Document, service.DocumentEngineInfo{Name: "genoffice", Version: office.TrustedEngineVersion,
-			ContractVersion: office.ContractVersion, ProtocolVersion: "1"})
+		res = f.commitVersion(t, f.command(), res.Document, trustedEngine)
 		if _, err := f.docs.RestoreFileVersion(f.command(), service.Human(f.owner.ID), res.Document.ID, service.RestoreFileVersionInput{
 			Version: 1, BaseRevision: res.Document.Revision,
 		}); err != nil {
