@@ -34,9 +34,10 @@ const enc = encodeURIComponent;
 
 /** The columns the document tables sort by on the server. */
 export type DocumentSortColumn = "updated" | "name" | "size" | "editor";
-/** A grouped screen's own order (UNI-2045 W11): Recent by its last activity
- *  (SV-1), Shared with me by the share date (SV-3). */
-export type DocumentScreenSort = "activity" | "shared";
+/** A screen's own order (UNI-2045 W11, W12): Recent by its last activity
+ *  (SV-1), the two Shared lists by the share date (SV-3, SV-4), Lưu trữ by the
+ *  shelve date (SV-0). Starred sorts on the client, the trash is fixed. */
+export type DocumentScreenSort = "activity" | "shared" | "shelved";
 
 /** Recent's Tất cả / Đã mở / Đã sửa segment (UNI-2045 SV-1b); left out is every activity. */
 export type DocumentRecentActivity = "opened" | "edited";
@@ -229,14 +230,15 @@ export async function listSharedByMe(
 /**
  * GET /api/v1/workspaces/{workspaceID}/documents?shelved=true — the "Lưu trữ"
  * list (ARCHIVE-01 §4): a flat keyset-paged view of what the caller may see,
- * ordered shelved_at DESC. Combines with the LISTFILTER `format`/`access`
+ * ordered shelved_at DESC unless `sort`/`order` say otherwise (SV-0: `shelved`
+ * or one of the S3 columns). Combines with the LISTFILTER `format`/`access`
  * chips; never sends `parent_id` or `archived` (shelved+archived answers 400).
  * Uses the same list schema and cursor contract as the flat list; an
  * untrusted answer throws rather than render an empty shelf.
  */
 export async function listShelvedDocuments(
   wsId: string,
-  opts?: CollectionListOpts,
+  opts?: CollectionListOpts & Pick<ListDocumentsBaseOpts, "sort" | "order">,
   signal?: AbortSignal,
 ): Promise<DocumentList> {
   const raw = await request(
@@ -249,6 +251,8 @@ export async function listShelvedDocuments(
       updatedBy: opts?.updatedBy,
       updatedFrom: opts?.updatedFrom,
       updatedTo: opts?.updatedTo,
+      sort: opts?.sort,
+      order: opts?.order,
     })}`,
     { signal },
   );

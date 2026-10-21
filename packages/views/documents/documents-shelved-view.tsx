@@ -91,6 +91,7 @@ export function DocumentsShelvedView({ library, chip, onChip, members, handlers,
           description: t("documents.shelved_list.no_matches_description"),
         }}
         screen="shelved"
+        sort={library.sortControl}
         selectable={Boolean(bulk)}
         bulk={bulk}
         selectionKey={selectionKey}

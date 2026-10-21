@@ -1126,7 +1126,7 @@ describe("DocumentsPageView", () => {
       expect(headerOf("name")).toHaveAttribute("aria-sort", "ascending");
       expect(rowOrder()).toEqual(["b-an", "b-an-breve"]);
       expect(setItemSpy).not.toHaveBeenCalled();
-      expect(storedSort("u1")).toEqual({ column: "name", order: "asc" });
+      expect(storedSort("u1")).toEqual({ workspace: { column: "name", order: "asc" } });
       setItemSpy.mockRestore();
     });
 
@@ -1164,8 +1164,8 @@ describe("DocumentsPageView", () => {
       await screen.findByText("Zeta");
       await clickSort("name");
       await waitFor(() => expect(rowOrder()).toEqual(["a-a", "a-z"]));
-      expect(storedSort("u1")).toEqual({ column: "name", order: "asc" });
-      expect(setItemSpy).toHaveBeenCalledWith(userSortKey("u1"), JSON.stringify({ column: "name", order: "asc" }));
+      expect(storedSort("u1")).toEqual({ workspace: { column: "name", order: "asc" } });
+      expect(setItemSpy).toHaveBeenCalledWith(userSortKey("u1"), JSON.stringify({ workspace: { column: "name", order: "asc" } }));
 
       fireEvent.click(screen.getByRole("treeitem", { name: /Thư mục B/ }));
       await screen.findByText("Ăn");

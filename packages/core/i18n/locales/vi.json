@@ -10453,7 +10453,6 @@
       "filter_loaded_only": "Chỉ lọc trong phần đã tải — tải thêm để lọc rộng hơn.",
       "shelved_by_former": "Cựu thành viên",
       "shelved_by_system": "Hệ thống",
-      "sort_shelved_desc": "Lưu trữ gần nhất",
       "columns": {
         "name": "Tên",
         "access": "Truy cập",

@@ -26,15 +26,22 @@ import {
   type EditorFilter,
   type UpdatedFilter,
 } from "./doclist/filters";
+import { docListSpec } from "./doclist/columns";
+import { docListScreenOfView } from "./doclist/live-screen";
 import { documentRow, matchesChip, sourceRow, type LibraryRow, type TypeChip } from "./library-rows";
 import {
-  DEFAULT_LIBRARY_SORT,
   mergeSorted,
-  readLibrarySort,
+  nextSort,
+  readLibrarySorts,
+  serverSortParams,
+  sourcesSortParams,
+  sortOf,
   sortRows,
-  writeLibrarySort,
+  writeLibrarySorts,
   type EditorNames,
   type LibrarySort,
+  type LibrarySortColumn,
+  type LibrarySortMap,
 } from "./library-sort";
 import { SHELVED_BY_SYSTEM } from "./documents-shelved-toolbar";
 
@@ -124,8 +131,9 @@ export interface UseDocumentsLibraryInput {
  * When the sources API answers 404/501 (not deployed) the merge is skipped and
  * the "Elsewhere" section is hidden — the page never fails because of it.
  *
- * The column sort (UNI-2038) is one `{ column, order }` per viewer. Where the
- * order comes from is decided in one place, `sortedOnServer` below.
+ * The column sort (UNI-2038, UNI-2045 W12) is one `{ column, order }` per
+ * viewer and per screen. Where the order comes from is decided in one place,
+ * `sortedOnServer` below.
  */
 export function useDocumentsLibrary({ wsId, orgId, enabled, view, folderId, chip, editorNames = NO_EDITOR_NAMES }: UseDocumentsLibraryInput) {
   const home = view.kind === "home";
@@ -139,46 +147,53 @@ export function useDocumentsLibrary({ wsId, orgId, enabled, view, folderId, chip
   // would change the list query key on every render.
   const [updated, setUpdatedState] = useState<{ filter: UpdatedFilter; since: string | null }>({ filter: "any", since: null });
   const setUpdated = useCallback((filter: UpdatedFilter) => setUpdatedState({ filter, since: updatedFilterSince(filter) }), []);
-  const [sort, setSortState] = useState<LibrarySort>(() => readLibrarySort(userId));
+  const [sorts, setSorts] = useState<LibrarySortMap>(() => readLibrarySorts(userId));
   if (userId !== lastUserId) {
     setLastUserId(userId);
-    setSortState(readLibrarySort(userId));
+    setSorts(readLibrarySorts(userId));
   }
-  const setSort = useCallback(
-    (next: LibrarySort) => {
-      setSortState(next);
-      writeLibrarySort(userId, next);
+  // One sort per screen (W12): the open folder and the sources view share the
+  // workspace entry, and what a screen shows is its own pick or its default.
+  const screen = docListScreenOfView(view);
+  const sort = sortOf(sorts, screen);
+  const onSort = useCallback(
+    (column: LibrarySortColumn) => {
+      if (screen === "trash") return;
+      const merged = { ...sorts, [screen]: nextSort(sort, column) };
+      setSorts(merged);
+      writeLibrarySorts(userId, merged);
     },
-    [userId],
+    [userId, screen, sorts, sort],
   );
   // Where the order comes from. The lists that page on the server (home root,
-  // Recent, Shared with me, Shared by me, Elsewhere) send `sort`/`order` and
-  // show the server's pages as they come: the order is part of the query key,
-  // and a page is never re-sorted here (the server's collation is not
-  // Intl.Collator's). The lists that are loaded in full (Starred, an open
-  // folder, auto-paged to FOLDER_SORT_ROW_CAP) are ordered on the client, and
-  // asking the server for nothing keeps a header click from refetching them.
-  // Archived and shelved lists take no sort at all. This is the only place that
+  // Recent, Shared with me, Shared by me, Lưu trữ, Elsewhere) send `sort`/
+  // `order` and show the server's pages as they come: the order is part of the
+  // query key, and a page is never re-sorted here (the server's collation is
+  // not Intl.Collator's). A screen that has its own column asks for that key
+  // until the viewer picks another column, and any other column is an S3 key.
+  // The lists that are loaded in full (Starred, an open folder, auto-paged to
+  // FOLDER_SORT_ROW_CAP) are ordered on the client, and asking the server for
+  // nothing keeps a header click from refetching them. The trash takes no sort
+  // from here: its request is fixed (Q2). This is the only place that
   // differs if the server sort is dropped for "auto-load, then sort on the
   // client": `sortedOnServer` false, `sortedOnClient` true, and the auto-paging
   // below extended from the folder to those views.
   // The sort the lists on screen were fetched with: it trails `sort` while a re-sorted page is loading.
   const [settledSort, setSettledSort] = useState(sort);
   const sortedOnServer =
-    (home && !folderId) || view.kind === "recent" || view.kind === "shared" || view.kind === "sharedByMe" || view.kind === "sources";
+    (home && !folderId) ||
+    view.kind === "recent" ||
+    view.kind === "shared" ||
+    view.kind === "sharedByMe" ||
+    view.kind === "shelved" ||
+    view.kind === "sources";
   const sortedOnClient = view.kind === "starred" || (home && Boolean(folderId));
-  const serverSort = useMemo(
-    () => (sortedOnServer ? { sort: sort.column, order: sort.order } : {}),
-    [sortedOnServer, sort.column, sort.order],
-  );
+  const serverSort = useMemo(() => (sortedOnServer ? serverSortParams(sort) : {}), [sortedOnServer, sort]);
   // Gần đây and Được chia sẻ với tôi group by date while in their own order
-  // (UNI-2045 W11, rule §8): until the viewer picks a column they ask the
-  // server for it — last activity (SV-1) and share date (SV-3), newest first,
-  // the screens' default in doclist/columns.ts — and any picked column shows
-  // a flat list in the S3 order. The per-screen sort memory is W12.
-  const ownOrder = sort.column === DEFAULT_LIBRARY_SORT.column && sort.order === DEFAULT_LIBRARY_SORT.order;
-  const recentSort = ownOrder ? ({ sort: "activity", order: "desc" } as const) : serverSort;
-  const sharedSort = ownOrder ? ({ sort: "shared", order: "desc" } as const) : serverSort;
+  // (UNI-2045 W11, rule §8): the screen column, newest first. Any other pick
+  // shows a flat list in the S3 order, and so does the screen column ascending.
+  const own = docListSpec(screen).defaultSort;
+  const ownOrder = sort.column === own.key && sort.order === own.order;
 
   // The server-side pair of the type chips (UNI-1868): the file chips become
   // `format` and "UniNote" keeps `kind=page`. The trash has no filter bar.
@@ -217,7 +232,7 @@ export function useDocumentsLibrary({ wsId, orgId, enabled, view, folderId, chip
   const folderAutoPaging = useLoadInFull(homeQuery, enabled && home && Boolean(folderId));
   // Có gắn sao (UNI-2045 SV-2): the workspace's starred rows as full list rows
   // with `favorited_at`, loaded in full and then filtered and sorted here like
-  // an open folder; it sends no filter or sort (the sort moves with W12).
+  // an open folder; it sends no filter or sort (Ngày gắn sao is ordered here).
   const starredQuery = useWorkspaceFavoriteDocuments(wsId, { enabled: enabled && view.kind === "starred" });
   const starredAutoPaging = useLoadInFull(starredQuery, enabled && view.kind === "starred");
   // Thùng rác: always `deleted` ascending (UNI-2045 Q2), fixed by the endpoint.
@@ -236,19 +251,20 @@ export function useDocumentsLibrary({ wsId, orgId, enabled, view, folderId, chip
     enabled: enabled && shelvedView,
     format: serverFormat,
     ...serverMeta,
+    ...serverSort,
   });
   const recentQuery = useRecentDocuments(wsId, {
     enabled: enabled && view.kind === "recent",
     format: serverFormat,
     ...serverMeta,
     activity: activity === "all" ? undefined : activity,
-    ...recentSort,
+    ...serverSort,
   });
   const sharedQuery = useSharedWithMe(wsId, {
     enabled: enabled && view.kind === "shared",
     format: serverFormat,
     ...serverMeta,
-    ...sharedSort,
+    ...serverSort,
   });
   const sharedByMeQuery = useSharedByMe(wsId, {
     enabled: enabled && view.kind === "sharedByMe",
@@ -260,9 +276,9 @@ export function useDocumentsLibrary({ wsId, orgId, enabled, view, folderId, chip
     () => ({
       ...(view.kind === "sources" && view.source ? { source: view.source } : {}),
       ...(sourceType ? { type: sourceType } : {}),
-      ...(sourcesWanted ? serverSort : {}),
+      ...(sourcesWanted ? sourcesSortParams(sort) : {}),
     }),
-    [view, sourceType, sourcesWanted, serverSort],
+    [view, sourceType, sourcesWanted, sort],
   );
   // Probe once even when the view does not list sources: the sidebar section
   // shows only after the API has answered.
@@ -414,8 +430,8 @@ export function useDocumentsLibrary({ wsId, orgId, enabled, view, folderId, chip
     setActivity,
     /** Người sửa, Cập nhật, the segment and "Lưu trữ bởi" back to their defaults (the type chip is the page's). */
     clearFilters,
-    sort,
-    setSort,
+    /** The header sort of the open screen for the table; absent in the trash, whose order is fixed. */
+    sortControl: screen === "trash" ? undefined : { value: sort, onSort },
     /** The "Lưu trữ bởi" member filter (shelved view only): null = anyone,
      *  a member id, or SHELVED_BY_SYSTEM for rows shelved without a person. */
     shelvedBy,

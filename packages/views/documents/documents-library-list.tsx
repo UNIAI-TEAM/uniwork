@@ -17,7 +17,7 @@ import { docListGroupLabelKey, type DocListGroupId } from "./doclist/groups";
 import { useDocListSelection } from "./doclist/selection";
 import { libraryGroupSpans, specLadder } from "./library-columns";
 import type { RowGroup } from "./library-rows";
-import { isSortableColumn, type LibrarySort, type LibrarySortColumn } from "./library-sort";
+import type { LibrarySort, LibrarySortColumn } from "./library-sort";
 import { LibrarySortHeader } from "./library-sort-header";
 
 export interface DocumentsLibraryListProps {
@@ -45,8 +45,9 @@ export interface DocumentsLibraryListProps {
   onRetry: () => void;
   onClearFilters: () => void;
   handlers: LibraryRowHandlers;
-  /** The column sort of the table (UNI-2038): Tên, Người sửa, Cập nhật and Dung lượng headers become buttons;
-   *  absent, every header stays plain text (Lưu trữ, and Thùng rác, whose order is fixed: Q2). The rows arrive in this order already. */
+  /** The column sort of the table (UNI-2038, W12): the headers of the screen's sortable columns (Tên, its screen column,
+   *  Người sửa, Cập nhật, Dung lượng) become buttons, and the one in `value` carries the arrow; absent, every header
+   *  stays plain text (Thùng rác, whose order is fixed: Q2). The rows arrive in this order already. */
   sort?: { value: LibrarySort; onSort: (column: LibrarySortColumn) => void };
   /** The screen the table shows (doclist/columns.ts): its column order, its screen column and its narrow ladder. */
   screen?: DocListScreen;
@@ -200,8 +201,10 @@ export function DocumentsLibraryList({
 
   const ladder = specLadder(screen, { selectable });
   const groupSpans = libraryGroupSpans(ladder);
-  const specLabels = new Map(docListSpec(screen).columns.map((column) => [column.id as string, column.labelKey]));
+  const specColumns = docListSpec(screen).columns;
+  const specLabels = new Map(specColumns.map((column) => [column.id as string, column.labelKey]));
   const columnLabel = (id: string): string => specLabels.get(id) ?? "";
+  const sortKeys = new Map(specColumns.map((column) => [column.id as string, column.sortKey]));
   // The group title spans the columns that are on at every width (Select, Name, Actions).
   const alwaysOn = ladder.columns.filter((column) => !column.cell).length;
 
@@ -238,9 +241,8 @@ export function DocumentsLibraryList({
           <thead className={ladder.head}>
             <tr className="border-b border-border text-caption text-muted-foreground">
               {ladder.columns.map((column) => {
-                // The client sorts Name, Người sửa, Cập nhật and Dung lượng today; the screen
-                // column header stays plain until W12 wires its sort key (doclist/columns.ts).
-                const sortable = sort && isSortableColumn(column.id) ? column.id : null;
+                // The spec names the key each column sorts by; Truy cập and Thao tác have none.
+                const sortable = sort ? (sortKeys.get(column.id) ?? null) : null;
                 return (
                   <th
                     key={column.id}

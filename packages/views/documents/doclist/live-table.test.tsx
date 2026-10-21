@@ -130,10 +130,10 @@ describe("live list columns (UNI-2045 W1)", () => {
       t(`documents.list.screen_column.${column}`),
       ...["access", "editor", "updated", "size", "actions"].map((id) => t(`documents.list.column.${id}`)),
     ]);
-    // The screen column has no client sort yet (W12 wires its key): a plain header.
-    const th = screen.getByRole("columnheader", { name: t(`documents.list.screen_column.${column}`), hidden: true });
-    expect(within(th).queryByRole("button", { hidden: true })).toBeNull();
-    expect(th).not.toHaveAttribute("aria-sort");
+    // The screen column sorts (W12): a button in its header, not the sorted one while the sort is Cập nhật.
+    const th = screen.getAllByRole("columnheader", { hidden: true }).find((header) => header.textContent === t(`documents.list.screen_column.${column}`))!;
+    expect(within(th).getByRole("button", { hidden: true })).toBeInTheDocument();
+    expect(th).toHaveAttribute("aria-sort", "none");
     const cells = Array.from(document.querySelectorAll('[data-library-row="a"] > td')).map((td) => td.getAttribute("data-column"));
     expect(cells).toEqual(["name", column, "access", "editor", "updated", "size", "actions"]);
   });

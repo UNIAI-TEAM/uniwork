@@ -943,11 +943,19 @@ describe("Lưu trữ on the shared list (UNI-2045 W3)", () => {
     expect(within(viewed).getByRole("button", { name: t("documents.home.row.menu", { title: "Chỉ xem" }) })).toBeInTheDocument();
   });
 
-  it("keeps the header plain: Lưu trữ has no clickable sort yet", async () => {
+  it("sorts by its own column, Lưu trữ newest first, and asks the server for it (W12, SV-0)", async () => {
     route({ list: (path) => (query(path).get("shelved") === "true" ? [shelved()] : []) });
     renderView();
     await openShelved();
     await rowOf("Kế hoạch Q4");
-    for (const th of screen.getAllByRole("columnheader")) expect(within(th).queryByRole("button")).toBeNull();
+    const asked = requestMock.mock.calls.map(([path]) => query(String(path))).filter((q) => q.get("shelved") === "true").at(-1)!;
+    expect(asked.get("sort")).toBe("shelved");
+    expect(asked.get("order")).toBe("desc");
+    const sorted = screen.getAllByRole("columnheader").filter((th) => ["ascending", "descending"].includes(th.getAttribute("aria-sort") ?? ""));
+    expect(sorted).toHaveLength(1);
+    expect(sorted[0]).toHaveTextContent(t("documents.list.screen_column.shelved"));
+    // The Truy cập and Thao tác headers stay plain.
+    const access = screen.getAllByRole("columnheader").find((th) => th.textContent === t("documents.list.column.access"))!;
+    expect(within(access).queryByRole("button")).toBeNull();
   });
 });

@@ -37,7 +37,6 @@ import { DocumentsSidebar, DocumentsSidebarSheet, type LibraryView } from "./doc
 import { downloadSourceFile } from "./download-source-file";
 import { DocumentUploadDialog } from "./document-upload-dialog";
 import type { TypeChip } from "./library-rows";
-import { nextSort } from "./library-sort";
 import { sourceParentPath } from "./source-links";
 import { useDocumentsLibrary } from "./use-documents-library";
 import { useDocumentFileUpload } from "./use-document-file-upload";
@@ -373,7 +372,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
         library.clearFilters();
       }}
       handlers={handlers}
-      sort={{ value: library.sort, onSort: (column) => library.setSort(nextSort(library.sort, column)) }}
+      sort={library.sortControl}
       screen={listScreen}
       collapse={collapse}
       selectable={view.kind !== "sources"}

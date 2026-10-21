@@ -1,6 +1,5 @@
 "use client";
 
-import { ArrowDownUp } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Label } from "@uniwork/ui/components/ui/label";
 import {
@@ -40,8 +39,7 @@ export interface ShelvedToolbarProps extends Omit<LibraryToolbarProps, "activity
  * bar every list screen carries (UNI-2045 W10), then the "Lưu trữ bởi" member
  * filter — the server has no `shelved_by` parameter and SV-8's `updated_by` is
  * the last editor, not who shelved the item, so it narrows only the loaded
- * pages and says so — and the fixed "Lưu trữ gần nhất" sort the server
- * answers with.
+ * pages and says so. The sort is the table headers' (UNI-2045 W12).
  */
 export function ShelvedToolbar({ shelvedByOptions, shelvedBy, onShelvedBy, ...bar }: ShelvedToolbarProps) {
   const { t } = useTranslation();
@@ -80,10 +78,6 @@ export function ShelvedToolbar({ shelvedByOptions, shelvedBy, onShelvedBy, ...ba
         {shelvedBy !== null ? (
           <span className="text-caption text-muted-foreground">{t("documents.shelved_list.filter_loaded_only")}</span>
         ) : null}
-      </div>
-      <div className="ml-auto flex items-center gap-2 text-caption text-muted-foreground">
-        <ArrowDownUp aria-hidden className="size-3.5" />
-        {t("documents.shelved_list.sort_shelved_desc")}
       </div>
     </LibraryToolbar>
   );

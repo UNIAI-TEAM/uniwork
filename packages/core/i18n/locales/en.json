@@ -10459,7 +10459,6 @@
       "filter_loaded_only": "Filters what is loaded — load more to widen it.",
       "shelved_by_former": "Former member",
       "shelved_by_system": "System",
-      "sort_shelved_desc": "Archived most recently",
       "columns": {
         "name": "Name",
         "access": "Access",

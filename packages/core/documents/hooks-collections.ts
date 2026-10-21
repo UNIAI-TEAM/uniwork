@@ -232,11 +232,13 @@ export function useTrashedDocuments(
 
 /** The "Lưu trữ" list (ARCHIVE-01 §4): shelved rows the caller may see, flat
  *  and keyset-paged like the other collection lists. The format/access chips
- *  filter server-side and key the cache entry; under the workspace root so
- *  every `document.*` frame and a shelve/unshelve refresh reaches it. */
-export function useShelvedDocuments(wsId: string, opts?: DocumentListFilters & { enabled?: boolean }) {
+ *  and the sort (UNI-2045 W12, SV-0) go to the server and key the cache entry;
+ *  under the workspace root so every `document.*` frame and a
+ *  shelve/unshelve refresh reaches it. */
+export function useShelvedDocuments(wsId: string, opts?: DocumentListFilters & DocumentListSort & { enabled?: boolean }) {
   return useInfiniteQuery({
     queryKey: documentKeys.shelved(wsId, documentListFilterKey(opts)),
+    placeholderData: keepWhileSorting(documentKeys.shelved(wsId, documentListFilterKey(opts))),
     queryFn: ({ pageParam, signal }) =>
       listShelvedDocuments(
         wsId,
@@ -244,6 +246,8 @@ export function useShelvedDocuments(wsId: string, opts?: DocumentListFilters & {
           cursor: pageParam || undefined,
           limit: DOCUMENT_PAGE_SIZE,
           ...listFilterParams(opts),
+          sort: opts?.sort,
+          order: opts?.order,
         },
         signal,
       ),
@@ -252,7 +256,6 @@ export function useShelvedDocuments(wsId: string, opts?: DocumentListFilters & {
     enabled: (opts?.enabled ?? true) && !!wsId,
   });
 }
-
 
 /**
  * Reparent/reorder one document. The caller sends the revision it last saw;
