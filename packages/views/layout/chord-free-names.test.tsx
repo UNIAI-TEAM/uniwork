@@ -1,8 +1,14 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useAiPanelStore } from "@uniwork/core/ai";
 import { initI18n, setLocale } from "@uniwork/core/i18n";
-import { configureShortcutPlatform, type ShortcutPlatform } from "@uniwork/core/shortcuts";
+import {
+  configureShortcutPlatform,
+  createShortcutChord,
+  useShortcutStore,
+  type ShortcutPlatform,
+} from "@uniwork/core/shortcuts";
 import type { EmailHubThread } from "@uniwork/core/types/email-hub";
 import type { User, Workspace } from "@uniwork/core/types";
 import { AskUniButton } from "../ai/ask-uni-button";
@@ -58,7 +64,10 @@ beforeEach(() => {
   useAiPanelStore.setState({ open: false, conversationId: null, workspaceId: null });
 });
 
-afterEach(() => configureShortcutPlatform(null));
+afterEach(() => {
+  configureShortcutPlatform(null);
+  useShortcutStore.getState().resetAll();
+});
 
 const LOCALES = ["vi", "en"] as const;
 const PLATFORMS: Array<[ShortcutPlatform, string]> = [
@@ -144,5 +153,48 @@ describe("Email Hub reader keys switched off", () => {
       .map((b) => b.getAttribute("aria-keyshortcuts"))
       .filter(Boolean);
     expect(advertised).toEqual(["Escape"]);
+  });
+});
+
+describe("tooltips keep the chord that the name drops", () => {
+  beforeEach(() => setLocale("en"));
+
+  it("Email Hub archive", async () => {
+    render(
+      wrapWithNav(
+        <EmailHubThreadToolbar thread={thread} browserFolder="INBOX" actions={actions} pending={pending} aiOpen={false} shortcutsOn />,
+      ),
+    );
+    await userEvent.hover(screen.getByRole("button", { name: "Archive" }));
+    const tip = await screen.findByText("Archive (E)", {}, { timeout: 3000 });
+    expect(tip).toHaveAttribute("data-slot", "tooltip-content");
+  });
+
+  it("Ask UNI", async () => {
+    configureShortcutPlatform("windows");
+    mountAskUni();
+    await userEvent.hover(await screen.findByRole("button", { name: "Ask UNI" }));
+    const tip = await screen.findByText("Ask UNI (Ctrl+J)", {}, { timeout: 3000 });
+    expect(tip).toHaveAttribute("data-slot", "tooltip-content");
+  });
+});
+
+describe("Ask UNI aria-keyshortcuts follows the resolved chord", () => {
+  beforeEach(() => setLocale("en"));
+
+  it("uses a rebound chord", async () => {
+    configureShortcutPlatform("windows");
+    useShortcutStore.getState().setShortcut("ai.askUni", createShortcutChord("G", { primary: true, shift: true }));
+    mountAskUni();
+    const button = await screen.findByRole("button", { name: "Ask UNI" });
+    expect(button).toHaveAttribute("aria-keyshortcuts", "Control+Shift+G");
+  });
+
+  it("drops the attribute when the chord is cleared", async () => {
+    configureShortcutPlatform("windows");
+    useShortcutStore.getState().setShortcut("ai.askUni", null);
+    mountAskUni();
+    const button = await screen.findByRole("button", { name: "Ask UNI" });
+    expect(button).not.toHaveAttribute("aria-keyshortcuts");
   });
 });
