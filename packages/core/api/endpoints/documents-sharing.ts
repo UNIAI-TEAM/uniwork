@@ -320,8 +320,9 @@ export interface ShareDocumentBatchBody {
   level: DocumentAccessLevel;
 }
 
-/** POST /api/v1/documents/{documentID}/shares/batch — grant one level to up to
- *  50 people of the document's organization in one transaction (UNI-1641).
+/** POST /api/v1/documents/{documentID}/shares/batch — grant one level to any
+ *  number of people of the document's organization in one transaction
+ *  (UNI-1641; no cap since UNI-2012).
  *  All or nothing: a refused person answers 422 principal_not_in_organization
  *  with their ids in `fields.principal_ids`, and nothing is written. */
 export async function shareDocumentBatch(

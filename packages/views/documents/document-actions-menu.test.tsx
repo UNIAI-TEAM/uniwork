@@ -447,3 +447,16 @@ describe("DocumentActionsMenu ?access=requests (DOC7-W02)", () => {
   });
 });
 
+
+describe("DocumentActionsMenu ?panel=versions (UNI-2012)", () => {
+  it("opens the version history for any reader, then drops the parameter", async () => {
+    requestMock.mockImplementation((path: string) => {
+      if (path.startsWith("/api/v1/documents/d1/versions")) return Promise.resolve({ versions: [], next_cursor: null });
+      return Promise.resolve({});
+    });
+    const nav = fakeNav("/acme/team/documents/d1?panel=versions");
+    renderMenu(documentFixture({ my_level: "view" }), { nav });
+    expect(await screen.findByText(t("documents.versions.title"))).toBeInTheDocument();
+    await waitFor(() => expect(nav.replace).toHaveBeenCalledWith("/acme/team/documents/d1"));
+  });
+});

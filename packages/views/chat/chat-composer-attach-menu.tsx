@@ -23,9 +23,12 @@ import {
   DropdownMenuTrigger,
 } from "@uniwork/ui/components/ui/dropdown-menu";
 import { cn } from "@uniwork/ui/lib/utils";
+import { MODULE_ICONS } from "../layout/module-icons";
+import { MODULE_TONES } from "../layout/module-tones";
 
 export type ComposerAttachAction =
   | "attach_file"
+  | "attach_document"
   | "create_poll"
   | "create_reminder"
   | "create_note"
@@ -48,6 +51,8 @@ type ComposerAttachMenuItem =
 
 const ATTACH_MENU_ITEMS: ComposerAttachMenuItem[] = [
   { id: "attach_file", icon: Paperclip, labelKey: "composer_attach_file", tone: "gray" },
+  // A document that already lives in Tài liệu: the documents module's own glyph and tint.
+  { id: "attach_document", icon: MODULE_ICONS.documents, labelKey: "composer_attach_document", tone: MODULE_TONES.documents },
   { id: "create_poll", icon: ChartColumn, labelKey: "composer_create_poll", tone: "blue" },
   { id: "create_reminder", icon: AlarmClock, labelKey: "composer_create_reminder", tone: "teal" },
   { id: "create_note", icon: StickyNote, labelKey: "composer_create_note", tone: "yellow" },
@@ -88,10 +93,12 @@ export function ComposerToolbarButton({
 
 function filterAttachMenuItems(
   items: ComposerAttachMenuItem[],
-  showCreatePoll: boolean,
+  { showCreatePoll, showAttachDocument }: { showCreatePoll: boolean; showAttachDocument: boolean },
 ): ComposerAttachMenuItem[] {
-  if (showCreatePoll) return items;
-  return items.filter((item) => !("id" in item) || item.id !== "create_poll");
+  return items.filter((item) => {
+    if (!("id" in item)) return true;
+    return (item.id !== "create_poll" || showCreatePoll) && (item.id !== "attach_document" || showAttachDocument);
+  });
 }
 
 export function ComposerAttachMenu({
@@ -99,16 +106,19 @@ export function ComposerAttachMenu({
   onAction,
   align = "end",
   showCreatePoll = true,
+  showAttachDocument = false,
 }: {
   disabled?: boolean;
   onAction: (action: ComposerAttachAction) => void;
   align?: "start" | "end";
   showCreatePoll?: boolean;
+  /** "Đính kèm từ Tài liệu": only where a document send would not be refused. */
+  showAttachDocument?: boolean;
 }) {
   const { t } = useTranslation();
   const menuItems = useMemo(
-    () => filterAttachMenuItems(ATTACH_MENU_ITEMS, showCreatePoll),
-    [showCreatePoll],
+    () => filterAttachMenuItems(ATTACH_MENU_ITEMS, { showCreatePoll, showAttachDocument }),
+    [showCreatePoll, showAttachDocument],
   );
   const actions = menuItems.filter((item) => !("separator" in item)) as Array<
     Extract<ComposerAttachMenuItem, { id: ComposerAttachAction }>

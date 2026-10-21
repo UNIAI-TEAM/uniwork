@@ -4,7 +4,10 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/jackc/pgx/v5/pgtype"
+
 	"github.com/unicomhub/uniwork/server/internal/audit"
+	"github.com/unicomhub/uniwork/server/internal/outbox"
 	"github.com/unicomhub/uniwork/server/internal/service"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -558,5 +561,34 @@ func TestDocumentSharedBatchLevelRecoveredByShareID(t *testing.T) {
 	gotB := f.batchLevels(t, b.ID)
 	if gotA[a.ID] != "view" || gotB[b.ID] != "edit" {
 		t.Fatalf("delayed levels = A %q / B %q, want view/edit", gotA[a.ID], gotB[b.ID])
+	}
+}
+
+// TestDocumentSharedChatGrantEventCreatesNoNotice: a chat document grant
+// (UNI-2012 S1c) emits ONE ids-only document.shared event, with no share_id and
+// no notify_user_id; the chat message is the notice. The rule makes nothing
+// from it, even for people who can read the document.
+func TestDocumentSharedChatGrantEventCreatesNoNotice(t *testing.T) {
+	f := newDocumentFixture(t)
+	docID := f.document(t, "workspace", "Tài liệu từ chat")
+	payload, err := json.Marshal(map[string]string{"document_id": docID, "workspace_id": f.wsID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	row := outbox.Row{
+		ID: "chat-grant-event", Topic: "document.shared", Payload: string(payload),
+		OrganizationID: pgtype.Text{String: f.orgID, Valid: true},
+		WorkspaceID:    pgtype.Text{String: f.wsID, Valid: true},
+	}
+	if err := f.consumer.Handle(f.ctx, row); err != nil {
+		t.Fatalf("handle the chat grant event: %v", err)
+	}
+	for _, u := range []db.User{f.owner, f.member} {
+		if got := f.sharedNotifications(t, u.ID); len(got) != 0 {
+			t.Fatalf("%s got %d document_shared notices from a chat grant event, want none", u.ID, len(got))
+		}
+		if got := f.inbox(t, u.ID); len(got) != 0 {
+			t.Fatalf("%s got %d notifications from a chat grant event, want none", u.ID, len(got))
+		}
 	}
 }

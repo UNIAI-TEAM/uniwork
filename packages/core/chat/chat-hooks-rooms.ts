@@ -171,8 +171,6 @@ export function useInviteChatGroupMembers(workspaceId: string) {
       void qc.invalidateQueries({ queryKey: chatKeys.rooms(workspaceId) });
       // A channel's roster lives only here, not in the sidebar row.
       void qc.invalidateQueries({ queryKey: chatKeys.roomMembers(workspaceId, input.roomId) });
-      // The detail's can_send_document folds the grantable roster size in.
-      void qc.invalidateQueries({ queryKey: chatKeys.roomDetail(workspaceId, input.roomId) });
     },
   });
 }

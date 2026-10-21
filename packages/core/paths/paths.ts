@@ -122,6 +122,9 @@ export const paths = {
           ? `${base}/documents/access-report?folder=${encodeURIComponent(folderId)}`
           : `${base}/documents/access-report`,
       document: (id: string) => `${base}/documents/${id}`,
+      // The document page with its version history open (a chat card's
+      // "Lịch sử phiên bản"); the page drops the parameter once it opens.
+      documentVersions: (id: string) => `${base}/documents/${id}?panel=versions`,
       meeting: (id: string) => `${base}/meetings/${id}`,
       room: (id: string) => `${base}/meetings/${id}/room`,
       chat: () => `${base}/chat`,

@@ -276,6 +276,28 @@ func (s *WorkspaceService) RequireMemberQ(ctx context.Context, q *db.Queries, wo
 	return db.WorkspaceMember{WorkspaceID: workspaceID, OrganizationID: access.OrganizationID, UserID: userID, Role: access.Role}, nil
 }
 
+// AdmittedMemberIDsQ is RequireMemberQ for many users at once, read through
+// q: the set of userIDs RequireMemberQ would admit to workspaceID, in one
+// query (FilterActiveWorkspaceMemberUserIDs mirrors GetWorkspaceAccess). A
+// chat document grant to a large channel gates every recipient with it
+// instead of a round trip each (UNI-2012 S1c).
+func (s *WorkspaceService) AdmittedMemberIDsQ(ctx context.Context, q *db.Queries, workspaceID string, userIDs []string) (map[string]bool, error) {
+	out := make(map[string]bool, len(userIDs))
+	if len(userIDs) == 0 {
+		return out, nil
+	}
+	ids, err := q.FilterActiveWorkspaceMemberUserIDs(ctx, db.FilterActiveWorkspaceMemberUserIDsParams{
+		WorkspaceID: workspaceID, UserIds: userIDs,
+	})
+	if err != nil {
+		return nil, err
+	}
+	for _, id := range ids {
+		out[id] = true
+	}
+	return out, nil
+}
+
 // RequireAgentMember is the agent counterpart of RequireMember: an agent is
 // in a workspace only through its own workspace_agent_members row, never
 // implicitly through the organization.

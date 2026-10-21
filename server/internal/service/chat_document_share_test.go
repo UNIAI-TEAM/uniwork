@@ -111,12 +111,12 @@ func TestCanShareAsDocumentViewerFlag(t *testing.T) {
 	}
 }
 
-// TestShareAttachmentAsDocument is §7.1 test 9 + UNI-1974: an old kind='file'
-// message is converted by its sender into a Document in My Folder from a copy
-// of the bytes, grants the room's members, flips the message to kind='document'
-// in place keeping the same message id, body and client_msg_id, releases the
-// old chat_attachment reference, shares only the document (never a folder), and
-// emits chat.message.updated.
+// TestShareAttachmentAsDocument is §7.1 test 9 + UNI-2012 D1a: an old
+// kind='file' message is converted by its sender into a Document at the
+// root of the sender's workspace from a copy of the bytes, grants the room's
+// members, flips the message to kind='document' in place keeping the same
+// message id, body and client_msg_id, releases the old chat_attachment
+// reference, and emits chat.message.updated.
 func TestShareAttachmentAsDocument(t *testing.T) {
 	f := newChatDocumentFixture(t)
 	ctx := context.Background()
@@ -200,15 +200,17 @@ func TestShareAttachmentAsDocument(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get document: %v", err)
 	}
-	if !doc.ParentID.Valid {
-		t.Fatal("document has no parent; want the sender's My Folder")
+	if doc.ParentID.Valid {
+		t.Fatalf("document parent_id = %q, want NULL (workspace root)", doc.ParentID.String)
 	}
-	folder, err := f.q.GetDocumentByID(ctx, doc.ParentID.String)
-	if err != nil {
-		t.Fatal(err)
+	if doc.Visibility != "restricted" {
+		t.Fatalf("document visibility = %q, want restricted", doc.Visibility)
 	}
-	if !isMyFolder(folder) {
-		t.Fatalf("parent = %+v, want the sender's My Folder", folder)
+	if doc.AclOwnerID.String != f.ua.ID {
+		t.Fatalf("acl owner = %q, want the sender", doc.AclOwnerID.String)
+	}
+	if doc.OwnerKind.Valid {
+		t.Fatalf("owner_kind = %q, want NULL", doc.OwnerKind.String)
 	}
 
 	// Bytes are copied into a new document_file object, and the old
@@ -249,14 +251,6 @@ func TestShareAttachmentAsDocument(t *testing.T) {
 	shares := f.liveSharesOfDocument(t, doc.ID)
 	if len(shares) != 1 || shares[0].PrincipalID != f.ub.ID || shares[0].Level != "comment" {
 		t.Fatalf("shares = %+v, want 1 share for ub at comment", shares)
-	}
-	for _, sh := range shares {
-		if sh.DocumentID == folder.ID {
-			t.Fatalf("the My Folder got a share row: %+v", sh)
-		}
-	}
-	if got := f.liveSharesOfDocument(t, folder.ID); len(got) != 0 {
-		t.Fatalf("My Folder shares = %+v, want none (UNI-1974)", got)
 	}
 
 	// Emits chat.message.updated after commit.
@@ -654,17 +648,18 @@ func (f *chatDocumentFixture) fileDocumentsCount(t *testing.T) int {
 	return n
 }
 
-// TestShareAttachmentAsDocumentRefusesOverCapRoom is BE-CDS-11 (share half): a
-// room whose grantable audience is over the batch cap refuses the conversion
-// with 422 share_batch_too_large, creates no document and leaves the message a
-// file.
-func TestShareAttachmentAsDocumentRefusesOverCapRoom(t *testing.T) {
+// TestShareAttachmentAsDocumentOver50Recipients proves UNI-2012 S1c on the
+// attachment conversion path: a room with >50 active recipients converts the
+// attachment into a root document and grants every active recipient without a
+// batch cap refusal.
+func TestShareAttachmentAsDocumentOver50Recipients(t *testing.T) {
 	f := newChatDocumentFixture(t)
 	ctx := context.Background()
 
+	const extraMembers = 55
 	as := NewAuthService(f.pool, f.q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
 	ids := []string{f.ub.ID}
-	for i := range maxDocumentShareBatch {
+	for i := range extraMembers {
 		u := registerVerified(t, f.q, as, fmt.Sprintf("chatdoc-sharecap-%d@example.com", i), fmt.Sprintf("Cap %d", i))
 		addOrgMember(t, f.q, f.orgID, u.ID)
 		addWorkspaceMember(t, f.q, f.ws.ID, u.ID)
@@ -683,21 +678,80 @@ func TestShareAttachmentAsDocumentRefusesOverCapRoom(t *testing.T) {
 		t.Fatalf("send file: %v", err)
 	}
 
-	if _, err := f.svc.ShareAttachmentAsDocument(ctx, f.ua.ID, f.ws.ID, group.ID, orig.ID, ShareAttachmentAsDocumentInput{
+	converted, err := f.svc.ShareAttachmentAsDocument(ctx, f.ua.ID, f.ws.ID, group.ID, orig.ID, ShareAttachmentAsDocumentInput{
 		ShareLevel:  "comment",
 		ClientMsgID: "big-room-share-1",
-	}); err == nil {
-		t.Fatal("an over-cap room converted an attachment to a document")
-	} else if ce := wantCode(t, err, "share_batch_too_large"); ce.Status != http.StatusUnprocessableEntity {
-		t.Fatalf("status = %d, want 422", ce.Status)
+	})
+	if err != nil {
+		t.Fatalf("56-recipient room refused ShareAttachmentAsDocument: %v", err)
 	}
-	if got := f.fileDocumentsCount(t); got != 0 {
-		t.Fatalf("documents after the refusal = %d, want 0", got)
+	if got := f.fileDocumentsCount(t); got != 1 {
+		t.Fatalf("documents after conversion = %d, want 1", got)
 	}
-	if got := f.chatMessagesOfKind(t, group.ID, "file"); got != 1 {
-		t.Fatalf("file messages after the refusal = %d, want 1 (still kind=file)", got)
+	if got := f.chatMessagesOfKind(t, group.ID, "document"); got != 1 {
+		t.Fatalf("document messages after conversion = %d, want 1", got)
 	}
-	if got := f.chatMessagesOfKind(t, group.ID, "document"); got != 0 {
-		t.Fatalf("document messages after the refusal = %d, want 0", got)
+	if shares := f.liveSharesOfDocument(t, converted.Document.DocumentID); len(shares) != len(ids) {
+		t.Fatalf("live shares after conversion = %d, want %d", len(shares), len(ids))
+	}
+}
+
+// TestShareAttachmentAsDocumentCrossWorkspace proves D1a, D1b and R3 on the
+// share-as-document conversion path: a sender in workspace B converts their
+// attachment in a DM anchored in workspace A into a root document in
+// workspace B, and the recipient in workspace A receives access.
+func TestShareAttachmentAsDocumentCrossWorkspace(t *testing.T) {
+	f := newChatDocumentFixture(t)
+	ctx := context.Background()
+	as := NewAuthService(f.pool, f.q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
+	wsBView, err := f.svc.ws.CreateInOrg(ctx, f.ua.ID, f.orgID, "Share WS B", "share-ws-b")
+	if err != nil {
+		t.Fatalf("create ws B: %v", err)
+	}
+	wsB := wsBView.Workspace
+
+	uA := registerVerified(t, f.q, as, "chatshare-xw-a@example.com", "Share A")
+	uB := registerVerified(t, f.q, as, "chatshare-xw-b@example.com", "Share B")
+	addOrgMember(t, f.q, f.orgID, uA.ID)
+	addWorkspaceMember(t, f.q, f.ws.ID, uA.ID)
+	addOrgMember(t, f.q, f.orgID, uB.ID)
+	addWorkspaceMember(t, f.q, wsB.ID, uB.ID)
+
+	dmSum, err := f.svc.ResolveDM(ctx, uA.ID, f.ws.ID, uB.ID)
+	if err != nil {
+		t.Fatalf("resolve dm: %v", err)
+	}
+	orig, err := f.svc.SendFileMessage(ctx, uB.ID, wsB.ID, dmSum.ID, SendFileMessageInput{
+		Filename:    "xw-note.md",
+		Body:        bytes.NewReader([]byte("# Cross-workspace note\n")),
+		ClientMsgID: "xw-file-1",
+	})
+	if err != nil {
+		t.Fatalf("send file from ws B: %v", err)
+	}
+	converted, err := f.svc.ShareAttachmentAsDocument(ctx, uB.ID, wsB.ID, dmSum.ID, orig.ID, ShareAttachmentAsDocumentInput{
+		ShareLevel:  "comment",
+		ClientMsgID: "xw-share-1",
+	})
+	if err != nil {
+		t.Fatalf("share attachment from ws B: %v", err)
+	}
+	doc, err := f.q.GetDocumentByID(ctx, converted.Document.DocumentID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if doc.WorkspaceID != wsB.ID {
+		t.Fatalf("doc.WorkspaceID = %q, want %q", doc.WorkspaceID, wsB.ID)
+	}
+	if doc.ParentID.Valid || doc.OwnerKind.Valid || doc.AclOwnerID.String != uB.ID {
+		t.Fatalf("doc = %+v, want root document owned by uB with no owner_kind", doc)
+	}
+	rows, err := f.svc.ListRoomMessages(ctx, uA.ID, f.ws.ID, dmSum.ID, ListChatMessagesInput{})
+	if err != nil {
+		t.Fatalf("uA list messages: %v", err)
+	}
+	block := documentBlockOf(t, rows, converted.ID)
+	if block == nil || !block.HasAccess || block.Level != "comment" {
+		t.Fatalf("uA card block = %+v, want HasAccess=true Level=comment", block)
 	}
 }

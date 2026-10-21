@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"strings"
 
 	"github.com/jackc/pgx/v5"
@@ -43,6 +44,35 @@ type DocumentMessageInfo struct {
 	CanOpenInApp      bool
 	RecipientCount    int
 	HasRecipientCount bool
+	// Origin is the message's, not the document's: upload or link
+	// (chatDocumentOriginOf). Empty on a document_version line.
+	Origin string
+	// OtherEditorsCount is how many people other than the sender committed a
+	// version; filled only for the sender, on their own upload-origin
+	// messages, for the delete confirmation (S1d).
+	OtherEditorsCount    int
+	HasOtherEditorsCount bool
+}
+
+// chatDocumentOriginUpload marks a document message whose document was created
+// from chat (a composer upload or a file shared as a document). Deleting it
+// trashes the document (S1d, D8).
+const chatDocumentOriginUpload = "upload"
+
+// chatDocumentOriginOf reads a document message's origin from its metadata.
+// Only "link" is ever written (chatDocumentLinkMetadata); an absent or unknown
+// value is an upload, because every document message before the link route
+// was one. A metadata field rather than a column: the marker belongs to the
+// one message kind that has it, needs no index, and the legacy rows read
+// right without a backfill.
+func chatDocumentOriginOf(raw []byte) string {
+	var meta struct {
+		Origin string `json:"origin"`
+	}
+	if len(raw) > 0 && json.Unmarshal(raw, &meta) == nil && strings.TrimSpace(meta.Origin) == chatDocumentOriginLink {
+		return chatDocumentOriginLink
+	}
+	return chatDocumentOriginUpload
 }
 
 // documentMessageFromMetadata is the per-kind decode, the
@@ -68,7 +98,11 @@ func documentMessageFromMetadata(kind string, raw []byte) *DocumentMessageInfo {
 	if documentID == "" {
 		return nil
 	}
-	return &DocumentMessageInfo{DocumentID: documentID, VersionID: strings.TrimSpace(meta.VersionID)}
+	info := &DocumentMessageInfo{DocumentID: documentID, VersionID: strings.TrimSpace(meta.VersionID)}
+	if kind == chatMessageKindDocument {
+		info.Origin = chatDocumentOriginOf(raw)
+	}
+	return info
 }
 
 // resolveChatDocuments fills the viewer fields of every document block in
@@ -102,6 +136,7 @@ func (s *ChatService) resolveChatDocuments(ctx context.Context, room db.ChatRoom
 		return
 	}
 	actor := Human(viewerID)
+	others := map[string]int{}
 	byID := make(map[string]*DocumentMessageInfo, len(ids))
 	for _, id := range ids {
 		info, err := s.resolveChatDocument(ctx, actor, room, id)
@@ -120,8 +155,43 @@ func (s *ChatService) resolveChatDocuments(ctx context.Context, room db.ChatRoom
 		}
 		merged := *info
 		merged.VersionID = rows[i].Document.VersionID
+		merged.Origin = rows[i].Document.Origin
+		merged.OtherEditorsCount, merged.HasOtherEditorsCount = 0, false
+		// The delete dialog's warning is the sender's own (ADDENDUM): only on
+		// their upload-origin message, whose delete trashes the document.
+		if rows[i].SenderID == viewerID && merged.Origin == chatDocumentOriginUpload && info.HasAccess {
+			count, err := s.chatDocumentOtherEditors(ctx, info.DocumentID, viewerID, others)
+			if err == nil {
+				merged.OtherEditorsCount, merged.HasOtherEditorsCount = count, true
+			} else {
+				// The card still renders; the dialog then shows no count.
+				slog.WarnContext(ctx, "chat: other editors not counted", "error", err, "document_id", info.DocumentID)
+			}
+		}
 		rows[i].Document = &merged
 	}
+}
+
+// chatDocumentOtherEditors counts the distinct people other than userID who
+// committed a version of the document, once per document per page (memo).
+// A document of another organization is never counted (resolveChatDocument
+// refused it, so the caller only asks for ones it resolved).
+func (s *ChatService) chatDocumentOtherEditors(ctx context.Context, documentID, userID string, memo map[string]int) (int, error) {
+	if n, ok := memo[documentID]; ok {
+		return n, nil
+	}
+	doc, err := s.docs.q.GetDocumentByID(ctx, documentID)
+	if err != nil {
+		return 0, err
+	}
+	n, err := s.docs.q.CountDocumentOtherCommitters(ctx, db.CountDocumentOtherCommittersParams{
+		OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID, DocumentID: doc.ID, UserID: userID,
+	})
+	if err != nil {
+		return 0, err
+	}
+	memo[documentID] = int(n)
+	return int(n), nil
 }
 
 // resolveChatDocument is the block for one document as one viewer. It reads
@@ -151,7 +221,7 @@ func (s *ChatService) resolveChatDocument(ctx context.Context, actor Actor, room
 	info.HasAccess = true
 	info.Level = string(access.Level)
 	info.CanManage = access.canAdminister()
-	info.CanUploadVersion = access.Level.AtLeast(DocumentLevelEdit)
+	info.CanUploadVersion = chatDocumentCanUploadVersion(doc, access)
 	info.Title = doc.Title
 	info.VersionNumber = doc.CurrentVersion
 	info.Revision = doc.Revision
@@ -166,6 +236,13 @@ func (s *ChatService) resolveChatDocument(ctx context.Context, actor Actor, room
 		info.RecipientCount, info.HasRecipientCount = count, true
 	}
 	return info, nil
+}
+
+// chatDocumentCanUploadVersion reports whether the viewer may upload a new
+// file version from the card (UNI-2012 D5/R6): only file documents have file
+// versions, and uploading one requires at least edit.
+func chatDocumentCanUploadVersion(doc db.Document, access DocumentAccess) bool {
+	return doc.Kind == DocumentKindFile && access.Level.AtLeast(DocumentLevelEdit)
 }
 
 // chatDocumentFormat is the type icon's format and the §5 open-in-app rule.
@@ -203,24 +280,16 @@ func (s *ChatService) chatDocumentRecipientCount(ctx context.Context, doc db.Doc
 	return int(n), nil
 }
 
-// chatDocumentShareBatchCap answers whether the caller may share a document
-// into room at all (L5): sending needs the room's send permission and a
-// grantable audience within maxDocumentShareBatch. The audience is the
-// current human room members, the sender excluded, that pass the tenant gate
-// - the same set the send grants, so a room that would overflow the batch
-// cap refuses the picker instead of failing the send.
-func (s *ChatService) chatDocumentShareBatchCap(ctx context.Context, userID string, room db.ChatRoom) bool {
+// chatDocumentCanSend answers can_send_document (L5): the caller may share a
+// document into room - the Documents service is wired and the caller holds
+// the room's send permission. It used to also require a grantable audience
+// within the 50-user batch cap; UNI-2012 S1c removed the cap, so the flag is
+// now send permission alone and costs no member walk.
+func (s *ChatService) chatDocumentCanSend(ctx context.Context, userID string, room db.ChatRoom) bool {
 	if s.docs == nil || s.files == nil {
 		return false
 	}
-	if err := s.requireCanSendInRoom(ctx, userID, room.ID, room); err != nil {
-		return false
-	}
-	recipients, err := s.documentGrantRecipients(ctx, userID, room)
-	if err != nil {
-		return false
-	}
-	return len(recipients) <= maxDocumentShareBatch
+	return s.requireCanSendInRoom(ctx, userID, room.ID, room) == nil
 }
 
 // documentGrantRecipients is who the send grants to (§3.4): the room's
@@ -228,30 +297,43 @@ func (s *ChatService) chatDocumentShareBatchCap(ctx context.Context, userID stri
 // gate refuses (a deactivated member or a suspended organization is skipped,
 // never failed). Agents are not members of a chat room's user list, so they
 // are not recipients; a room with no other human member grants nothing and
-// the send still writes the message for the sender. The walk stops as soon as
-// the list holds one more than maxDocumentShareBatch: callers only compare the
-// length to the cap (and grant when it is within it), so a large room does not
-// cost one membership gate per member.
+// the send still writes the message for the sender. Every member is gated in
+// one query per tier (UNI-2012 S1c: a room of any size), the admission
+// RequireMember would decide for each: an active member of the room's
+// organization (R3: the share writer does not validate principals itself),
+// and for workspace/channel rooms of the room's workspace too.
 func (s *ChatService) documentGrantRecipients(ctx context.Context, senderID string, room db.ChatRoom) ([]string, error) {
 	members, err := s.q.ListChatRoomMemberUserIDs(ctx, room.ID)
 	if err != nil {
 		return nil, err
 	}
-	out := make([]string, 0, len(members))
+	others := make([]string, 0, len(members))
 	for _, memberID := range members {
-		if memberID == senderID {
-			continue
+		if memberID != senderID {
+			others = append(others, memberID)
 		}
-		if _, err := s.ws.RequireMember(ctx, roomAnchorWorkspaceID(room), memberID); err != nil {
-			if isGateRefusal(err) {
-				continue
-			}
+	}
+	if len(others) == 0 {
+		return []string{}, nil
+	}
+	inOrg, err := s.ws.orgs.AdmittedMemberIDsQ(ctx, s.q, room.OrganizationID, others)
+	if err != nil {
+		return nil, err
+	}
+	var inWorkspace map[string]bool
+	switch room.Kind {
+	case chatRoomKindWorkspace, chatRoomKindChannel:
+		inWorkspace, err = s.ws.AdmittedMemberIDsQ(ctx, s.q, roomAnchorWorkspaceID(room), others)
+		if err != nil {
 			return nil, err
 		}
-		out = append(out, memberID)
-		if len(out) > maxDocumentShareBatch {
-			break
+	}
+	out := make([]string, 0, len(others))
+	for _, memberID := range others {
+		if !inOrg[memberID] || (inWorkspace != nil && !inWorkspace[memberID]) {
+			continue
 		}
+		out = append(out, memberID)
 	}
 	return out, nil
 }

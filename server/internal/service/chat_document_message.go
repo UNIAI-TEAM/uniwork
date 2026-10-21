@@ -7,7 +7,9 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log/slog"
 	"net/http"
+	"slices"
 	"strings"
 
 	"github.com/jackc/pgx/v5"
@@ -20,18 +22,20 @@ import (
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
-// Chat document share (UNI-1966 §2.1, §3.1). A document message is a message
-// kind whose bytes live in the Documents tree: the send stages one
-// document_file upload, files it into the sender's My Folder, grants the
-// room's current human members, and writes the message that names the
-// document - all but the upload in one transaction, because a message must
-// never exist without the document it names (ADR 0009).
+// Chat document share (UNI-1966 §2.1, §3.1; UNI-2012 D1a/D1b). A document
+// message is a message kind whose bytes live in the Documents tree: the send
+// stages one document_file upload, files it at the root of the workspace the
+// sender stands in, grants the room's current human members, and writes the
+// message that names the document - all but the upload in one transaction,
+// because a message must never exist without the document it names (ADR 0009).
 
 // SendDocumentMessageInput is one document send. ShareLevel is the level every
 // room member gets; empty means comment (§2.1).
 type SendDocumentMessageInput struct {
-	ShareLevel       string
-	Filename         string
+	ShareLevel string
+	Filename   string
+	// Title is deprecated and ignored: the document's title is the file name
+	// (UNI-2012 D1a). The request field stays accepted for deployed clients.
 	Title            string
 	Body             io.ReadSeeker
 	ReplyToMessageID *string
@@ -124,6 +128,26 @@ func (s *ChatService) SendDocumentMessage(
 	if err != nil {
 		return ChatMessageRow{}, err
 	}
+	// A retry of a send that already committed replays before anything is
+	// staged (S1-fix S1): a DM or group belongs to the organization, so the
+	// retry may come through another workspace of it, and staging in that
+	// workspace under the same upload key would be an idempotency conflict.
+	// The same guards as the in-transaction lookup: a deleted message answers
+	// 410 and a key that names another kind is a conflict.
+	if clientMsgID != "" {
+		existing, found, err := s.existingMessageByClientMsgID(ctx, room.ID, userID, clientMsgID)
+		if err != nil {
+			return ChatMessageRow{}, err
+		}
+		if found {
+			if existing.Kind != chatMessageKindDocument {
+				return ChatMessageRow{}, errClientMsgIDConflict()
+			}
+			out := []ChatMessageRow{chatMessageRowFromDBForViewer(existing, user.DisplayName, userID)}
+			s.resolveChatDocuments(ctx, room, out, userID)
+			return out[0], nil
+		}
+	}
 	// The payload digest joins the upload key, so a different file under the
 	// same client_msg_id stages its own upload; the transaction then replays
 	// the first message and the second upload is cancelled below.
@@ -134,19 +158,15 @@ func (s *ChatService) SendDocumentMessage(
 	if _, err := in.Body.Seek(0, io.SeekStart); err != nil {
 		return ChatMessageRow{}, Invalid("không đọc được dữ liệu tệp")
 	}
-	// §3.4: the recipients are read before the bytes are stored, so a room
-	// whose audience overflows the batch cap is refused with 422 before any
-	// write - the same refusal the room read advertises through
-	// can_send_document (L5).
+	// §3.4: the recipients are read before the bytes are stored. A room of
+	// any size is sendable (UNI-2012 S1c removed the 50-recipient cap); the
+	// grants are written in chunks inside the commit transaction.
 	recipients, err := s.documentGrantRecipients(ctx, userID, room)
 	if err != nil {
 		return ChatMessageRow{}, err
 	}
-	if len(recipients) > maxDocumentShareBatch {
-		return ChatMessageRow{}, shareBatchTooLargeError()
-	}
 
-	scope := documentScope(room.OrganizationID, roomAnchorWorkspaceID(room))
+	scope := documentScope(room.OrganizationID, workspaceID)
 	actor := Human(userID)
 	up, err := s.files.Upload(ctx, files.UploadInput{
 		Actor:          actor,
@@ -185,7 +205,7 @@ func (s *ChatService) SendDocumentMessage(
 		return ChatMessageRow{}, chatDocumentTypeRefused()
 	}
 
-	msg, created, err := s.commitDocumentMessage(ctx, userID, room, in, level, recipients, up.File, actor, replyTo)
+	msg, created, err := s.commitDocumentMessage(ctx, userID, workspaceID, room, in, level, recipients, up.File, actor, replyTo)
 	if err != nil {
 		// Any terminal error after the upload leaves a staged object; cancel
 		// reclaims it instead of waiting for the 24h claim window. A file that
@@ -222,6 +242,7 @@ func (s *ChatService) SendDocumentMessage(
 func (s *ChatService) commitDocumentMessage(
 	ctx context.Context,
 	userID string,
+	workspaceID string,
 	room db.ChatRoom,
 	in SendDocumentMessageInput,
 	level DocumentLevel,
@@ -253,20 +274,20 @@ func (s *ChatService) commitDocumentMessage(
 		}
 	}
 	// 3.1.e.ii: a revoke during the upload must win.
-	if _, err := s.ws.RequireMemberQ(ctx, q, roomAnchorWorkspaceID(room), userID); err != nil {
+	if _, err := s.ws.RequireMemberQ(ctx, q, workspaceID, userID); err != nil {
 		return db.ChatMessage{}, false, err
 	}
-	if err := s.requireCanSendInRoom(ctx, userID, room.ID, room); err != nil {
+	if err := s.requireCanSendInRoomQ(ctx, q, userID, room.ID, room); err != nil {
 		return db.ChatMessage{}, false, err
 	}
 
-	// 3.1.e.iii: the bytes become a file document in the sender's My Folder.
-	// The document create carries a derived idempotency key, so the document
-	// ledger and the message ledger agree on a replay without the client
-	// sending two keys.
+	// 3.1.e.iii (UNI-2012 D1a/D1b): the bytes become a file document at the
+	// root of the workspace the sender stands in (parent_id NULL,
+	// visibility restricted, acl_owner = sender, owner_kind NULL).
+	// The title is the file name (D1a); in.Title is not read.
 	docRes, _, err := s.docs.createFileDocumentFromStagedUploadInTx(
-		ctx, tx, q, s.files, actor, room.OrganizationID, roomAnchorWorkspaceID(room),
-		file.ID, in.Filename, in.Title, "", DocumentSystemKindMyFolder, "",
+		ctx, tx, q, s.files, actor, room.OrganizationID, workspaceID,
+		file.ID, in.Filename, "", "", "", "",
 	)
 	if err != nil {
 		return db.ChatMessage{}, false, err
@@ -278,15 +299,20 @@ func (s *ChatService) commitDocumentMessage(
 		}
 	}
 	// 3.1.e.iv: the grants. The audience was decided before the upload and is
-	// passed in: a member who joined meanwhile gets nothing (§3.4), and the
-	// notify decision is taken here, before the first grant, against the
-	// command-start shares (SH-S3 R1-01).
-	if err := s.grantDocumentToRoomMembers(ctx, q, actor, docRes, recipients, level); err != nil {
+	// passed in: a member who joined meanwhile gets nothing (§3.4), one who
+	// left meanwhile is dropped here or caught by the re-check after the
+	// commit (S1-fix B1, S1-fix-2 SF2), and the notify decision is taken
+	// here, before the first grant, against the command-start shares
+	// (SH-S3 R1-01).
+	msgID := util.NewID()
+	audience, err := s.grantDocumentToRoomMembers(ctx, q, actor, docRes, recipients, level, room.ID, msgID)
+	if err != nil {
 		return db.ChatMessage{}, false, err
 	}
 
-	// 3.1.e.v: the message names the document, ids only (§4.2).
-	meta, err := json.Marshal(map[string]string{"document_id": doc.ID})
+	// 3.1.e.v: the message names the document and the level it granted, ids
+	// and enums only (§4.2, S1-fix-2 SF3).
+	meta, err := json.Marshal(map[string]string{"document_id": doc.ID, "share_level": string(level)})
 	if err != nil {
 		return db.ChatMessage{}, false, err
 	}
@@ -299,7 +325,7 @@ func (s *ChatService) commitDocumentMessage(
 		body = files.SanitizeFilename(file.Filename)
 	}
 	msg, err = q.CreateChatDocumentMessage(ctx, db.CreateChatDocumentMessageParams{
-		ID:               util.NewID(),
+		ID:               msgID,
 		RoomID:           room.ID,
 		OrganizationID:   room.OrganizationID,
 		WorkspaceID:      roomAnchorWorkspaceID(room),
@@ -316,7 +342,10 @@ func (s *ChatService) commitDocumentMessage(
 		// with the rollback below.
 		if clientMsgID != "" && isUniqueViolation(err) {
 			// The pool read: the unique violation aborted this transaction, so
-			// a lookup through q would fail with 25P02.
+			// a lookup through q would fail with 25P02. Roll it back first so
+			// its connection is free for the read; the deferred rollback is
+			// then a no-op.
+			_ = tx.Rollback(ctx)
 			existing, found, lookupErr := s.existingMessageByClientMsgID(ctx, room.ID, userID, clientMsgID)
 			if lookupErr != nil || found {
 				if found && existing.Kind != chatMessageKindDocument {
@@ -333,40 +362,237 @@ func (s *ChatService) commitDocumentMessage(
 	if err := tx.Commit(ctx); err != nil {
 		return db.ChatMessage{}, false, err
 	}
+	s.recheckChatGrantAudience(ctx, audience)
 	return msg, true, nil
 }
 
-// grantDocumentToRoomMembers applies one share per recipient inside the
-// caller's transaction. The document is shared, never its parent: the My
-// Folder stays private to the sender (UNI-1974).
+// grantDocumentToRoomMembers grants the document to the room's recipients
+// inside the caller's transaction (UNI-2012 D2a, S1c). Only-raise: a recipient
+// who already holds at least the requested effective level keeps it unchanged,
+// and the sender is never granted below manage. A recipient who is no longer
+// a member of the room is dropped (currentRoomRecipients, S1-fix B1); the
+// answer is who got a share through which member row, for the caller's
+// post-commit recheckChatGrantAudience (S1-fix-2 SF2). Every recipient is checked
+// against the organization membership gate inside the transaction, in one
+// query for the whole room, because the share writer does not validate
+// principals itself (R3). Effective levels are resolved against the share set
+// read once before the first write, and the grants are written
+// documentShareWriteChunk at a time.
+//
+// Audit and notice policy (S1c): a chat send is one command with one audience,
+// so it records ONE document.shared audit row for all its grants (metadata
+// carries the chat source, the level and the counts; each grant itself stays a
+// document_shares row with its source_kind/source_room_id/source_message_id),
+// and ONE ids-only document.shared event with no share_id and no
+// notify_user_id. The chat message is the notice: emitChatMessageNotifications
+// still reaches the members, and no per-recipient document_shared notification
+// is created for a chat grant. A send that raises nobody writes neither.
 func (s *ChatService) grantDocumentToRoomMembers(
-	ctx context.Context, q *db.Queries, actor Actor, docRes DocumentFileResult, recipients []string, level DocumentLevel,
-) error {
-	if len(recipients) == 0 {
-		return nil
-	}
+	ctx context.Context, q *db.Queries, actor Actor, docRes DocumentFileResult, recipients []string, level DocumentLevel, roomID, messageID string,
+) (chatGrantAudience, error) {
 	doc := docRes.Document
-	access := docRes.Access
+	audience := chatGrantAudience{orgID: doc.OrganizationID, roomID: roomID}
+	candidates := make([]string, 0, len(recipients))
+	for _, id := range recipients {
+		if actor.Kind == audit.KindHuman && id == actor.ID {
+			continue
+		}
+		candidates = append(candidates, id)
+	}
+	if len(candidates) == 0 {
+		return audience, nil
+	}
+	candidates, memberRows, err := s.currentRoomRecipients(ctx, q, roomID, candidates)
+	if err != nil || len(candidates) == 0 {
+		return audience, err
+	}
+	if chatGrantAfterAudienceRead != nil {
+		chatGrantAfterAudienceRead()
+	}
+	admitted, err := s.docs.orgs.AdmittedMemberIDsQ(ctx, q, doc.OrganizationID, candidates)
+	if err != nil {
+		return audience, err
+	}
 	sharesBefore, err := q.ListDocumentShares(ctx, db.ListDocumentSharesParams{
 		OrganizationID: doc.OrganizationID,
 		WorkspaceID:    doc.WorkspaceID,
 		DocumentID:     doc.ID,
 	})
 	if err != nil {
-		return err
+		return audience, err
 	}
-	for _, recipientID := range recipients {
-		notifyUserID, err := s.docs.notifyOnUserShare(ctx, q, actor, doc, sharesBefore, recipientID, level)
+	gated := make([]string, 0, len(candidates))
+	for _, id := range candidates {
+		if admitted[id] {
+			gated = append(gated, id)
+		}
+	}
+	// Only-raise after the organization gate above, against the command-start
+	// shares: every recipient's level in one set resolve (SF1), not a gate read
+	// per recipient while the document row and the member rows are locked.
+	levels, err := s.docs.resolveLevelsInTenantWithShares(ctx, q, doc, sharesBefore, gated)
+	if err != nil {
+		return audience, err
+	}
+	raised := make([]string, 0, len(gated))
+	for _, id := range gated {
+		if level.rank() > levels[id].Level.rank() {
+			raised = append(raised, id)
+		}
+	}
+	_, written, err := writeUserSharesBulk(ctx, q, actor, doc, sharesBefore, raised, level, userShareSource{
+		kind: DocumentShareSourceKindChat, roomID: roomID, messageID: messageID,
+	})
+	if err != nil || len(written) == 0 {
+		return audience, err
+	}
+	audience.members = make(map[string]string, len(written))
+	for _, w := range written {
+		audience.members[w.share.PrincipalID] = memberRows[w.share.PrincipalID]
+	}
+	// Changes names the level the grants reached; the level each grantee held
+	// as a direct share before is a count by level in the metadata ("none" for
+	// a grantee with no live direct share), so a reader of the one batch row
+	// does not take "null -> level" for everyone.
+	replaced := 0
+	levelsBefore := map[string]int{}
+	for _, w := range written {
+		if w.prevLevel == "" {
+			levelsBefore["none"]++
+			continue
+		}
+		replaced++
+		levelsBefore[w.prevLevel]++
+	}
+	return audience, auditRecorder.Record(ctx, q, audit.Entry{
+		OrganizationID: doc.OrganizationID,
+		WorkspaceID:    doc.WorkspaceID,
+		Actor:          actor,
+		Action:         audit.ActionDocumentShared,
+		ResourceType:   "document",
+		ResourceID:     doc.ID,
+		Changes:        audit.Diff(nil, map[string]any{"level": string(level)}),
+		Metadata: map[string]any{
+			"principal_type":    DocumentPrincipalUser,
+			"origin":            DocumentShareOriginChat,
+			"source_kind":       DocumentShareSourceKindChat,
+			"source_room_id":    roomID,
+			"source_message_id": messageID,
+			"share_count":       len(written),
+			"replaced_count":    replaced,
+			"levels_before":     levelsBefore,
+		},
+	}, audit.Event{Topic: "document.shared", Payload: map[string]string{
+		"document_id":  doc.ID,
+		"workspace_id": doc.WorkspaceID,
+	}})
+}
+
+// currentRoomRecipients keeps the recipients who are still members of the
+// room inside the grant's transaction (UNI-2012 S1-fix B1) and answers each
+// one's member row: the audience was read before the upload, and a member who
+// left meanwhile must get nothing. The rows are read without a lock (S1-fix-2
+// SF2): a FOR SHARE here held every recipient's read and delivered cursor
+// update for the whole send. A leave that commits after this read is caught
+// instead by recheckChatGrantAudience after the commit, or, when it commits
+// after the grant, by its own member-left reconcile. A workspace or channel
+// room also requires the workspace membership now, as documentGrantRecipients
+// did.
+func (s *ChatService) currentRoomRecipients(ctx context.Context, q *db.Queries, roomID string, recipients []string) ([]string, map[string]string, error) {
+	rows, err := q.ListActiveChatRoomMembersForGrant(ctx, db.ListActiveChatRoomMembersForGrantParams{
+		RoomID: roomID, UserIds: recipients,
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+	memberRows := make(map[string]string, len(rows))
+	inRoom := make([]string, 0, len(rows))
+	for _, r := range rows {
+		memberRows[r.UserID] = r.ID
+		inRoom = append(inRoom, r.UserID)
+	}
+	room, err := q.GetChatRoomByID(ctx, roomID)
+	if err != nil {
+		return nil, nil, err
+	}
+	var inWorkspace map[string]bool
+	switch room.Kind {
+	case chatRoomKindWorkspace, chatRoomKindChannel:
+		inWorkspace, err = s.ws.AdmittedMemberIDsQ(ctx, q, roomAnchorWorkspaceID(room), inRoom)
 		if err != nil {
-			return err
-		}
-		if _, err := s.docs.applyDocumentShareWithBatch(ctx, q, actor, doc, access,
-			DocumentShareInput{PrincipalType: DocumentPrincipalUser, PrincipalID: recipientID, Level: level, Origin: DocumentShareOriginChat},
-			"", notifyUserID); err != nil {
-			return err
+			return nil, nil, err
 		}
 	}
-	return nil
+	out := make([]string, 0, len(recipients))
+	for _, id := range recipients {
+		if _, ok := memberRows[id]; !ok || (inWorkspace != nil && !inWorkspace[id]) {
+			continue
+		}
+		out = append(out, id)
+	}
+	return out, memberRows, nil
+}
+
+// chatGrantAudience is who a chat grant wrote a share for, each with the
+// member row that was their membership when the grant read it.
+type chatGrantAudience struct {
+	orgID   string
+	roomID  string
+	members map[string]string
+}
+
+// chatGrantAfterAudienceRead is a test seam: when set, it runs inside the
+// grant's transaction right after the recipients' membership is read, so a
+// test can commit a leave between that read and the grant's commit. nil in
+// production.
+var chatGrantAfterAudienceRead func()
+
+// chatGrantBeforeRecheck is a test seam: when set, it runs after the grant's
+// commit, right before recheckChatGrantAudience reads the membership again.
+// nil in production.
+var chatGrantBeforeRecheck func()
+
+// recheckChatGrantAudience is the post-commit half of B1 (S1-fix-2 SF2), run by
+// every chat grant once its transaction commits. The grant read its audience
+// without a lock, so a leave can commit between that read and the commit, and
+// its member-left reconcile may have run before the grant was visible. Every
+// grantee whose member row is no longer their current membership (they left,
+// or left and came back through a new row) is reconciled now. A leave that
+// commits after this read also commits after the grant, so its own reconcile
+// sees the grant: the two cover every order. The send has committed, so a
+// failure here is logged, not answered; the member-left consumer stays the
+// durable second line.
+func (s *ChatService) recheckChatGrantAudience(ctx context.Context, aud chatGrantAudience) {
+	if len(aud.members) == 0 || s.docs == nil {
+		return
+	}
+	if chatGrantBeforeRecheck != nil {
+		chatGrantBeforeRecheck()
+	}
+	ids := make([]string, 0, len(aud.members))
+	for id := range aud.members {
+		ids = append(ids, id)
+	}
+	slices.Sort(ids)
+	rows, err := s.q.ListActiveChatRoomMembersForGrant(ctx, db.ListActiveChatRoomMembersForGrantParams{
+		RoomID: aud.roomID, UserIds: ids,
+	})
+	if err != nil {
+		slog.WarnContext(ctx, "chat: document grant audience not re-checked", "error", err, "room_id", aud.roomID)
+		return
+	}
+	current := make(map[string]string, len(rows))
+	for _, r := range rows {
+		current[r.UserID] = r.ID
+	}
+	for _, id := range ids {
+		if current[id] == aud.members[id] {
+			continue
+		}
+		if err := s.docs.ReconcileChatDocumentSharesForMember(ctx, aud.orgID, id); err != nil {
+			slog.WarnContext(ctx, "chat: document grant of a member who left not reconciled", "error", err, "room_id", aud.roomID, "user_id", id)
+		}
+	}
 }
 
 // existingChatMessageInTx is existingMessageByClientMsgID read through the
@@ -398,18 +624,6 @@ func chatDocumentUploadKey(roomID, senderID, clientMsgID string, sum []byte) str
 		key = util.NewID()
 	}
 	return "chat/document/" + roomID + "/" + senderID + "/" + key + "/" + hex.EncodeToString(sum[:8])
-}
-
-// shareBatchTooLargeError is the §2.3 422: a room with more grantable
-// recipients than one batch may name. It is the same code and shape
-// ShareDocumentBatch answers.
-func shareBatchTooLargeError() error {
-	return CodedError{
-		Code:   "share_batch_too_large",
-		Status: http.StatusUnprocessableEntity,
-		Msg:    "mỗi lần chia sẻ tối đa 50 người dùng",
-		Fields: map[string]any{"max": maxDocumentShareBatch},
-	}
 }
 
 // chatDocumentTypeRefused is the §2.3 415 for a file outside L8's subset.

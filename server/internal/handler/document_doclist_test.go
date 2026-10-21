@@ -368,6 +368,105 @@ func TestDoclistRecentLastActivity(t *testing.T) {
 	}
 }
 
+// UNI-2012 F5: include_owned=true keeps a document the caller owns on
+// /documents/recent after somebody else edits it (their own activity on it is
+// older), at its updated_at with kind "owned"; without the flag nothing
+// changes, and a row the caller neither owns nor touched never appears. The
+// activity= filters keep their own rule: edited adds nothing (the caller did
+// not edit an owned-by-other row), opened lists an owned row only when the
+// caller has opened it, and then as "owned" at the newer updated_at.
+func TestDoclistRecentIncludeOwned(t *testing.T) {
+	w := newDocsWorld(t)
+	memberTok, memberID := docsJoinWorkspace(t, w, "dl-owned-member@example.com")
+	base := dlBase(w) + "/recent"
+	now := time.Now().UTC().Truncate(time.Second)
+	at := func(h int) time.Time { return now.Add(time.Duration(-h) * time.Hour) }
+	mine := dlCreatePages(t, w, memberTok, "mine-edited-by-other", "mine-opened-later", "mine-edited-by-me", "mine-comment-older", "mine-view-older")
+	editedByOther, openedLater, editedByMe, commentOlder, viewOlder := mine[0], mine[1], mine[2], mine[3], mine[4]
+	others := dlCreatePages(t, w, w.token, "not-mine")
+	notMine := others[0]
+	// the other person's edit is the last change on four of the rows.
+	dlExec(t, `UPDATE documents SET updated_by = $1, updated_by_kind = 'human', updated_at = $2 WHERE id = $3`, w.userID, at(3), editedByOther)
+	dlExec(t, `UPDATE documents SET updated_by = $1, updated_by_kind = 'human', updated_at = $2 WHERE id = $3`, w.userID, at(6), openedLater)
+	dlLog(t, w, openedLater, memberID, "view", at(2))
+	dlExec(t, `UPDATE documents SET updated_by = $1, updated_by_kind = 'human', updated_at = $2 WHERE id = $3`, memberID, at(4), editedByMe)
+	// a comment and a view of the caller that are older than the other edit.
+	dlExec(t, `UPDATE documents SET updated_by = $1, updated_by_kind = 'human', updated_at = $2 WHERE id = $3`, w.userID, at(5), commentOlder)
+	dlComment(t, w, commentOlder, memberID, at(8))
+	dlExec(t, `UPDATE documents SET updated_by = $1, updated_by_kind = 'human', updated_at = $2 WHERE id = $3`, w.userID, at(7), viewOlder)
+	dlLog(t, w, viewOlder, memberID, "view", at(9))
+	dlExec(t, `UPDATE documents SET updated_at = $1 WHERE id = $2`, at(1), notMine)
+
+	// off: only what the caller touched, at their own activity; the document
+	// someone else edited, with nothing of the caller's, is gone.
+	for _, q := range []string{"", "?include_owned=false", "?include_owned=1"} {
+		res, out := dlGet(t, w, memberTok, base+q)
+		want := []string{editedByMe, commentOlder, openedLater, viewOlder} // updated_at order: at(4), at(5), at(6), at(7)
+		if got := dlIDs(out); res.StatusCode != 200 || !reflect.DeepEqual(got, want) {
+			t.Errorf("recent%s = %v (%d), want %v", q, got, res.StatusCode, want)
+		}
+	}
+	res, out := dlGet(t, w, memberTok, base+"?sort=activity")
+	wantOff := map[string][2]string{
+		openedLater:  {"opened", at(2).Format(time.RFC3339)},
+		editedByMe:   {"edited", at(4).Format(time.RFC3339)},
+		commentOlder: {"commented", at(8).Format(time.RFC3339)},
+		viewOlder:    {"opened", at(9).Format(time.RFC3339)},
+	}
+	if got := dlActivity(out); res.StatusCode != 200 || !reflect.DeepEqual(got, wantOff) {
+		t.Errorf("last_activity without the flag = %v (%d), want %v", got, res.StatusCode, wantOff)
+	}
+	// on: the owned document is back at its updated_at, the others keep their kind;
+	// a comment or a view older than the other edit answers "owned" at the edit.
+	res, out = dlGet(t, w, memberTok, base+"?include_owned=true&sort=activity")
+	if res.StatusCode != 200 {
+		t.Fatalf("recent include_owned: %d %v", res.StatusCode, out)
+	}
+	onOrder := []string{openedLater, editedByOther, editedByMe, commentOlder, viewOlder}
+	if got := dlIDs(out); !reflect.DeepEqual(got, onOrder) {
+		t.Errorf("recent include_owned order = %v, want %v", got, onOrder)
+	}
+	wantOn := map[string][2]string{
+		openedLater:   {"opened", at(2).Format(time.RFC3339)},
+		editedByMe:    {"edited", at(4).Format(time.RFC3339)},
+		editedByOther: {"owned", at(3).Format(time.RFC3339)},
+		commentOlder:  {"owned", at(5).Format(time.RFC3339)},
+		viewOlder:     {"owned", at(7).Format(time.RFC3339)},
+	}
+	if got := dlActivity(out); !reflect.DeepEqual(got, wantOn) {
+		t.Errorf("last_activity = %v, want %v", got, wantOn)
+	}
+	// activity=edited: the caller edited editedByMe only, the flag adds no owned-only row.
+	res, out = dlGet(t, w, memberTok, base+"?include_owned=true&sort=activity&activity=edited")
+	if got, want := dlIDs(out), []string{editedByMe}; res.StatusCode != 200 || !reflect.DeepEqual(got, want) {
+		t.Errorf("activity=edited with include_owned = %v (%d), want %v", got, res.StatusCode, want)
+	}
+	// activity=opened: a row the caller opened (any time) stays, an owned row with no
+	// view of theirs (editedByOther, commentOlder) does not; the older view is then
+	// "owned" at the newer edit.
+	res, out = dlGet(t, w, memberTok, base+"?include_owned=true&sort=activity&activity=opened")
+	if got, want := dlIDs(out), []string{openedLater, viewOlder}; res.StatusCode != 200 || !reflect.DeepEqual(got, want) {
+		t.Errorf("activity=opened with include_owned = %v (%d), want %v", got, res.StatusCode, want)
+	}
+	wantOpened := map[string][2]string{
+		openedLater: {"opened", at(2).Format(time.RFC3339)},
+		viewOlder:   {"owned", at(7).Format(time.RFC3339)},
+	}
+	if got := dlActivity(out); !reflect.DeepEqual(got, wantOpened) {
+		t.Errorf("activity=opened last_activity = %v, want %v", got, wantOpened)
+	}
+	// a page of two walks every row once, on the unsorted keyset and on the activity one.
+	wantUnsorted := []string{editedByOther, editedByMe, commentOlder, openedLater, viewOlder} // updated_at: at(3), at(4), at(5), at(6), at(7)
+	pages := dlWalk(t, w, memberTok, base+"?include_owned=true", 2)
+	if len(pages) != 3 || !reflect.DeepEqual(dlFlatten(pages), wantUnsorted) {
+		t.Errorf("include_owned walk = %v, want 3 pages of %v", pages, wantUnsorted)
+	}
+	pages = dlWalk(t, w, memberTok, base+"?include_owned=true&sort=activity", 2)
+	if len(pages) != 3 || !reflect.DeepEqual(dlFlatten(pages), onOrder) {
+		t.Errorf("include_owned activity walk = %v, want 3 pages of %v", pages, onOrder)
+	}
+}
+
 // Three pages with shared activity times, both directions: the order is
 // (activity, id) in one direction and each row comes once.
 func TestDoclistRecentActivityPagesWithSharedKeys(t *testing.T) {

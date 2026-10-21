@@ -58,11 +58,25 @@ export type DocumentListSort = Pick<ListDocumentsBaseOpts, "sort" | "order">;
 /** The key fragment of the chip filters and the sort: "" when none is set, so
  *  an unfiltered, unsorted list keeps the key it had before the chips became
  *  query params. */
-function documentListFilterKey(filters?: DocumentListFilters & DocumentListSort & { activity?: DocumentRecentActivity }): string {
+function documentListFilterKey(
+  filters?: DocumentListFilters & DocumentListSort & { activity?: DocumentRecentActivity; includeOwned?: boolean },
+): string {
   if (!filters) return "";
-  const { format, access, sort, order, updatedBy, updatedFrom, updatedTo, activity } = filters;
-  if (!format && !access && !sort && !order && !updatedBy && !updatedFrom && !updatedTo && !activity) return "";
-  return documentFilterKey({ format, access, sort, order, updatedBy, updatedFrom, updatedTo, activity });
+  const { format, access, sort, order, updatedBy, updatedFrom, updatedTo, activity, includeOwned } = filters;
+  if (!format && !access && !sort && !order && !updatedBy && !updatedFrom && !updatedTo && !activity && !includeOwned) {
+    return "";
+  }
+  return documentFilterKey({
+    format,
+    access,
+    sort,
+    order,
+    updatedBy,
+    updatedFrom,
+    updatedTo,
+    activity,
+    includeOwned: includeOwned || undefined,
+  });
 }
 
 /** The filters every collection request carries, picked off a hook's opts. */
@@ -134,10 +148,13 @@ export function useDocumentArchiveImpact(wsId: string, documentId: string, opts?
 
 /** Recently opened/edited documents (humans only; agents get 403). The
  *  filters, the Đã mở / Đã sửa segment (`activity`) and the sort run
- *  server-side and key it like the flat list. */
+ *  server-side and key it like the flat list. `includeOwned` also lists what
+ *  the caller owns once somebody else edits it (the chat picker); it is part
+ *  of the key. */
 export function useRecentDocuments(
   wsId: string,
-  opts?: DocumentListFilters & DocumentListSort & { activity?: DocumentRecentActivity; enabled?: boolean },
+  opts?: DocumentListFilters &
+    DocumentListSort & { activity?: DocumentRecentActivity; enabled?: boolean; includeOwned?: boolean },
 ) {
   return useInfiniteQuery({
     queryKey: documentKeys.recent(wsId, documentListFilterKey(opts)),
@@ -152,6 +169,7 @@ export function useRecentDocuments(
           activity: opts?.activity,
           sort: opts?.sort,
           order: opts?.order,
+          includeOwned: opts?.includeOwned,
         },
         signal,
       ),

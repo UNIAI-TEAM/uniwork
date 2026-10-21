@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 import { initI18n, setLocale } from "@uniwork/core/i18n";
 import type { OfficeLaunchOptions } from "@uniwork/core/office";
-import type { OfficeSaveCoordinatorLike } from "./desktop-open-action";
+import type { DesktopOpenOutcome, OfficeSaveCoordinatorLike } from "./desktop-open-action";
 import { DropdownMenu, DropdownMenuContent } from "@uniwork/ui/components/ui/dropdown-menu";
 import { HeaderActionsMenuItems, HeaderActionsSlotProvider } from "../layout/header-actions-slot";
 import { DesktopOpenAction } from "./desktop-open-action";
@@ -54,6 +54,20 @@ describe("DesktopOpenAction", () => {
     fireEvent.click(screen.getByRole("button", { name: "Open in app" }));
     await waitFor(() => expect(toast.error).toHaveBeenCalledTimes(2));
     expect(vi.mocked(toast.error).mock.calls[1]).toEqual(vi.mocked(toast.error).mock.calls[0]);
+  });
+
+  it("draws no trigger in a menu placement: the caller runs the flow, a failure toasts (UNI-2012)", async () => {
+    vi.mocked(toast.error).mockClear();
+    const createSession = vi.fn(async () => null);
+    const requestRef: { current: (() => Promise<DesktopOpenOutcome>) | null } = { current: null };
+    render(<DesktopOpenAction documentId="doc-1" deploymentId="dep" savedVersion={2} placement="menu" operation="edit" createSession={createSession} requestRef={requestRef} />);
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    let outcome: string | undefined;
+    await act(async () => { outcome = await requestRef.current?.(); });
+    expect(createSession).toHaveBeenCalledWith("doc-1", expect.objectContaining({ operation: "edit" }));
+    expect(outcome).toBe("unavailable");
+    await waitFor(() => expect(toast.error).toHaveBeenCalledOnce());
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
   it("renders one split button whose label stays accessible below lg", () => {

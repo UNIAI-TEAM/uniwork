@@ -8,6 +8,7 @@ import { runWithChatSendRetry } from "./send-retry";
 import { usePendingChatMessagesStore } from "./pending-messages-store";
 import { lookupChatUserCached } from "./user-lookup";
 import { useAuthStore } from "../auth/store";
+import { documentKeys } from "../documents/keys";
 import { chatKeys } from "./chat-keys";
 import {
   applyChatMessageResponse,
@@ -133,6 +134,31 @@ export function useSendChatDocumentMessage(workspaceId: string) {
 }
 
 /**
+ * UNI-2012: send an existing document into the room by id. Same landing as
+ * the document upload: the returned card is inserted under its client_msg_id.
+ */
+export function useSendChatDocumentLink(workspaceId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: {
+      roomId: string;
+      document_id: string;
+      share_level: ChatDocumentShareLevel;
+      client_msg_id: string;
+      reply_to_message_id?: string;
+    }) => {
+      const { roomId, ...body } = input;
+      return chat.sendChatDocumentLink(workspaceId, roomId, body);
+    },
+    onSuccess: (data, variables) => {
+      applyChatMessageResponse(qc, workspaceId, variables.roomId, data, true);
+      void qc.invalidateQueries({ queryKey: chatKeys.messages(workspaceId) });
+      void qc.invalidateQueries({ queryKey: chatKeys.rooms(workspaceId) });
+    },
+  });
+}
+
+/**
  * UNI-1966: convert the caller's file attachment into a document in place.
  * The server answers the same message id as kind "document", so the room
  * cache replaces the row, never duplicates it.
@@ -196,6 +222,9 @@ export function useDeleteChatMessage(workspaceId: string) {
       patchChatMessageDeleted(qc, workspaceId, variables.roomId, variables.messageId);
       void qc.invalidateQueries({ queryKey: chatKeys.messages(workspaceId) });
       void qc.invalidateQueries({ queryKey: chatKeys.rooms(workspaceId) });
+      // Deleting a document message may trash its document or revoke its
+      // grants (UNI-2012 D8), so the workspace's document reads are stale too.
+      void qc.invalidateQueries({ queryKey: documentKeys.workspace(workspaceId) });
     },
   });
 }

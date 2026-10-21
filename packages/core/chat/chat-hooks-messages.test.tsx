@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { configureRuntime, resetRuntimeConfig } from "../runtime-config";
 import * as chatApi from "../api/endpoints/chat";
 import type { ChatMessageRecord } from "../api/endpoints/chat";
+import { documentKeys } from "../documents/keys";
 import { chatKeys } from "./chat-keys";
 import {
   isChatMediaUrlFresh,
@@ -11,6 +12,7 @@ import {
   useEditChatMessage,
   useRefreshChatMessageMedia,
   useSendChatFileMessage,
+  useSendChatDocumentLink,
   useSendChatDocumentMessage,
   useShareChatMessageAsDocument,
   useToggleChatMessagePin,
@@ -96,6 +98,34 @@ describe("chat message mutations patch the room timeline instead of refetching i
     expect(refetchedTimeline()).toBe(false);
   });
 
+  it("inserts a document-link message with its level and reply, without refetching the timeline", async () => {
+    const send = vi.spyOn(chatApi, "sendChatDocumentLink").mockResolvedValue(row("l1", 2, { kind: "document" }));
+    const { wrapper, timeline, refetchedTimeline } = setup([row("m1", 1)]);
+    const { result } = renderHook(() => useSendChatDocumentLink("ws1"), { wrapper });
+
+    await act(() =>
+      result.current.mutateAsync({
+        roomId: "room1",
+        document_id: "D1",
+        share_level: "view",
+        client_msg_id: "c1",
+        reply_to_message_id: "m1",
+      }),
+    );
+
+    expect(send).toHaveBeenCalledWith("ws1", "room1", {
+      document_id: "D1",
+      share_level: "view",
+      client_msg_id: "c1",
+      reply_to_message_id: "m1",
+    });
+    expect(timeline().map((m) => [m.id, m.kind])).toEqual([
+      ["m1", "text"],
+      ["l1", "document"],
+    ]);
+    expect(refetchedTimeline()).toBe(false);
+  });
+
   it("share-as-document replaces the message in place, never adds a row", async () => {
     const share = vi
       .spyOn(chatApi, "shareChatMessageAsDocument")
@@ -151,6 +181,33 @@ describe("chat message mutations patch the room timeline instead of refetching i
 
     expect(timeline().map((m) => m.id)).toEqual(["m2"]);
     expect(refetchedTimeline()).toBe(false);
+  });
+
+  // UNI-2012 D8: the document may now be in the trash or lose its chat grants.
+  it("invalidates the workspace's document keys and the room list after a delete", async () => {
+    vi.spyOn(chatApi, "deleteChatRoomMessage").mockResolvedValue(true);
+    const { qc, wrapper } = setup([row("d1", 1, { kind: "document" })]);
+    const invalidate = vi.spyOn(qc, "invalidateQueries");
+    const { result } = renderHook(() => useDeleteChatMessage("ws1"), { wrapper });
+
+    await act(() => result.current.mutateAsync({ roomId: "room1", messageId: "d1" }));
+
+    const keys = invalidate.mock.calls.map(([filters]) => filters?.queryKey);
+    expect(keys).toContainEqual(documentKeys.workspace("ws1"));
+    expect(keys).toContainEqual(chatKeys.rooms("ws1"));
+    expect(keys).toContainEqual(chatKeys.messages("ws1"));
+    expect(keys).not.toContainEqual(documentKeys.workspace("ws2"));
+  });
+
+  it("does not touch the document keys when the delete fails", async () => {
+    vi.spyOn(chatApi, "deleteChatRoomMessage").mockRejectedValue(new Error("forbidden"));
+    const { qc, wrapper } = setup([row("d1", 1, { kind: "document" })]);
+    const invalidate = vi.spyOn(qc, "invalidateQueries");
+    const { result } = renderHook(() => useDeleteChatMessage("ws1"), { wrapper });
+
+    await act(() => result.current.mutateAsync({ roomId: "room1", messageId: "d1" }).catch(() => undefined));
+
+    expect(invalidate.mock.calls.map(([filters]) => filters?.queryKey)).not.toContainEqual(documentKeys.workspace("ws1"));
   });
 
   it("counts a sent thread reply on its root", async () => {

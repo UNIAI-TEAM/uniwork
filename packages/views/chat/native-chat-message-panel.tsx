@@ -46,7 +46,7 @@ import { ChatIntroCompactContext } from "./chat-conversation-intro";
 import { useMessageTaskLinkDialogs } from "./use-message-task-link-dialogs";
 import { useNativeChatMessageActions } from "./use-native-chat-message-actions";
 import { useAnchorWindowLoad, useChatHighlightFlash, useOwnSendFollowsLatest, useTypingKeepsPinned } from "./use-chat-anchor-follow";
-import type { ChatDocumentDesktopOpen } from "./chat-document-message-row";
+import type { ChatDocumentDesktopOpen } from "./chat-document-menu";
 
 const EMPTY_LINKS: ReadonlyMap<string, ChatMessageLinkRecord[]> = new Map();
 
@@ -124,7 +124,7 @@ export function NativeChatMessagePanel({
   roomTitle?: string;
   /** Where the room begins: shown when empty, and above the first message once all history is loaded. */
   intro?: ReactNode;
-  /** Host wiring for a document card's "Mở bằng UniWork Office"; absent → hidden. */
+  /** Host wiring for a document card's "Chỉnh sửa trong UniWork Office" menu entry; absent → hidden. */
   desktopOpen?: ChatDocumentDesktopOpen;
 }) {
   const { t } = useTranslation();

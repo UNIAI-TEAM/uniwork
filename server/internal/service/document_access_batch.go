@@ -14,8 +14,6 @@ import (
 )
 
 const (
-	maxDocumentAccessBatch = 100
-
 	DocumentAccessOnExistingUpdate = "update"
 	DocumentAccessOnExistingKeep   = "keep"
 
@@ -123,9 +121,12 @@ func errDocumentAccessRejected(rejected []DocumentAccessRejectedItem) error {
 	}
 }
 
+// validateAccessBatchInput has no upper bound on items (UNI-2012 S1e): the
+// people picker may name everyone in the organization. The 1 MiB JSON body cap
+// in the handler is the only size limit left.
 func validateAccessBatchInput(in UpdateDocumentAccessInput) ([]DocumentAccessBatchItem, error) {
-	if len(in.Items) < 1 || len(in.Items) > maxDocumentAccessBatch {
-		return nil, Invalid("items phải có từ 1 đến 100 mục")
+	if len(in.Items) < 1 {
+		return nil, Invalid("items phải có ít nhất 1 mục")
 	}
 	items := make([]DocumentAccessBatchItem, len(in.Items))
 	for i, raw := range in.Items {
@@ -222,7 +223,11 @@ func (s *DocumentService) UpdateDocumentAccess(ctx context.Context, actor Actor,
 			return requireNotShelved(doc)
 		}
 		docAfter, sharesAfter := simulateAccessBatchState(doc, sharesBefore, items)
-		preview, err := s.buildAccessBatchPreview(ctx, q, doc, sharesBefore, docAfter, sharesAfter, items)
+		levels, err := s.resolveAccessBatchUserLevels(ctx, q, doc, sharesBefore, docAfter, sharesAfter, items)
+		if err != nil {
+			return err
+		}
+		preview, err := s.buildAccessBatchPreview(ctx, q, doc, sharesBefore, docAfter, sharesAfter, items, levels)
 		if err != nil {
 			return err
 		}
@@ -232,19 +237,13 @@ func (s *DocumentService) UpdateDocumentAccess(ctx context.Context, actor Actor,
 		// live shares before any write. Deciding here (not inside the writer)
 		// makes the outcome independent of item order and of partially
 		// applied items.
-		notifyByIndex, err := s.batchNotifyDecisions(ctx, q, actor, doc, sharesBefore, docAfter, sharesAfter, items)
+		notifyByIndex := batchNotifyDecisions(actor, sharesBefore, items, levels)
+
+		results, err := s.applyAccessBatchItems(ctx, q, actor, doc, access, sharesBefore, items, batchID, in.DryRun, notifyByIndex)
 		if err != nil {
 			return err
 		}
-
-		for i, it := range items {
-			res, updatedDoc, err := s.applyAccessBatchItem(ctx, q, actor, doc, access, i, it, batchID, in.DryRun, notifyByIndex[i])
-			if err != nil {
-				return err
-			}
-			doc = updatedDoc
-			out.Results = append(out.Results, res)
-		}
+		out.Results = results
 		out.Preview = preview
 		return nil
 	})
@@ -268,16 +267,15 @@ func (s *DocumentService) UpdateDocumentAccess(ctx context.Context, actor Actor,
 // downgrade is excluded by the contract (§2.2, Q-S2). Without this, a batch
 // that drops a recipient edit -> view while granting their other workspace
 // manage would stamp the view event.
-func (s *DocumentService) batchNotifyDecisions(
-	ctx context.Context,
-	q *db.Queries,
+//
+// The two levels come from levels (resolveAccessBatchUserLevels), resolved for
+// every user item before the preview, so this is a pure decision.
+func batchNotifyDecisions(
 	actor Actor,
-	docBefore db.Document,
 	sharesBefore []db.DocumentShare,
-	docAfter db.Document,
-	sharesAfter []db.DocumentShare,
 	items []DocumentAccessBatchItem,
-) ([]string, error) {
+	levels accessBatchUserLevels,
+) []string {
 	out := make([]string, len(items))
 	for i, it := range items {
 		if it.PrincipalType != DocumentPrincipalUser || it.Level == nil {
@@ -293,25 +291,55 @@ func (s *DocumentService) batchNotifyDecisions(
 		if prevDirect, ok := shareLevelInSlice(sharesBefore, DocumentPrincipalUser, it.PrincipalID); ok && it.Level.rank() <= prevDirect.rank() {
 			continue
 		}
-		before, err := s.resolveLevelInTenantWithShares(ctx, q, Human(it.PrincipalID), docBefore, sharesBefore)
-		if err != nil {
-			if isGateRefusal(err) {
-				continue
-			}
-			return nil, err
-		}
-		after, err := s.resolveLevelInTenantWithShares(ctx, q, Human(it.PrincipalID), docAfter, sharesAfter)
-		if err != nil {
-			if isGateRefusal(err) {
-				continue
-			}
-			return nil, err
-		}
-		if after.Level.rank() > before.Level.rank() {
+		if levels.after[it.PrincipalID].Level.rank() > levels.before[it.PrincipalID].Level.rank() {
 			out[i] = it.PrincipalID
 		}
 	}
-	return out, nil
+	return out
+}
+
+// accessBatchUserLevels is every user item's effective level on the document
+// at command start (before) and in the simulated final state (after).
+type accessBatchUserLevels struct {
+	before, after map[string]DocumentAccess
+}
+
+// resolveAccessBatchUserLevels resolves the user items' levels for the preview
+// and the notify decisions with two set-based resolves (UNI-2012 S1e-bulk)
+// instead of a resolver call per person and state. Every user item has passed
+// the organization gate (validateAccessBatchSemantics) by the time this runs,
+// which is what resolveLevelsInTenantWithShares asks of its callers.
+func (s *DocumentService) resolveAccessBatchUserLevels(
+	ctx context.Context,
+	q *db.Queries,
+	docBefore db.Document,
+	sharesBefore []db.DocumentShare,
+	docAfter db.Document,
+	sharesAfter []db.DocumentShare,
+	items []DocumentAccessBatchItem,
+) (accessBatchUserLevels, error) {
+	userIDs := accessBatchUserIDs(items)
+	before, err := s.resolveLevelsInTenantWithShares(ctx, q, docBefore, sharesBefore, userIDs)
+	if err != nil {
+		return accessBatchUserLevels{}, err
+	}
+	after, err := s.resolveLevelsInTenantWithShares(ctx, q, docAfter, sharesAfter, userIDs)
+	if err != nil {
+		return accessBatchUserLevels{}, err
+	}
+	return accessBatchUserLevels{before: before, after: after}, nil
+}
+
+// accessBatchUserIDs is the principal ids of the user items, in item order.
+// Validation has refused duplicates, so they are distinct.
+func accessBatchUserIDs(items []DocumentAccessBatchItem) []string {
+	var ids []string
+	for _, it := range items {
+		if it.PrincipalType == DocumentPrincipalUser {
+			ids = append(ids, it.PrincipalID)
+		}
+	}
+	return ids
 }
 
 func filterHomeWorkspaceShares(shares []db.DocumentShare, homeWorkspaceID string) []db.DocumentShare {
@@ -454,6 +482,7 @@ func (s *DocumentService) buildAccessBatchPreview(
 	docAfter db.Document,
 	sharesAfter []db.DocumentShare,
 	items []DocumentAccessBatchItem,
+	levels accessBatchUserLevels,
 ) (DocumentAccessPreview, error) {
 	preview := DocumentAccessPreview{
 		Users:    make([]DocumentAccessPreviewUser, 0),
@@ -464,20 +493,26 @@ func (s *DocumentService) buildAccessBatchPreview(
 	homeAfterLvl, _ := currentHomeWorkspaceLevel(docAfter, filterHomeWorkspaceShares(sharesAfter, docAfter.WorkspaceID))
 	orgAfterLvl, _ := shareLevelInSlice(sharesAfter, DocumentPrincipalOrganization, docAfter.OrganizationID)
 
+	// Every user item's display name in one read.
+	displayNames := make(map[string]string)
+	if userIDs := accessBatchUserIDs(items); len(userIDs) > 0 {
+		users, err := q.GetUsersByIDs(ctx, userIDs)
+		if err != nil {
+			return DocumentAccessPreview{}, err
+		}
+		for _, u := range users {
+			displayNames[u.ID] = u.DisplayName
+		}
+	}
+
 	for idx, it := range items {
 		if it.PrincipalType == DocumentPrincipalUser {
-			u, err := q.GetUserByID(ctx, it.PrincipalID)
-			if err != nil {
-				return DocumentAccessPreview{}, err
+			displayName, ok := displayNames[it.PrincipalID]
+			if !ok {
+				// GetUserByID's answer for a missing row, as before.
+				return DocumentAccessPreview{}, pgx.ErrNoRows
 			}
-			accBefore, err := s.resolveLevelInTenantWithShares(ctx, q, Human(it.PrincipalID), docBefore, sharesBefore)
-			if err != nil {
-				return DocumentAccessPreview{}, err
-			}
-			accAfter, err := s.resolveLevelInTenantWithShares(ctx, q, Human(it.PrincipalID), docAfter, sharesAfter)
-			if err != nil {
-				return DocumentAccessPreview{}, err
-			}
+			accBefore, accAfter := levels.before[it.PrincipalID], levels.after[it.PrincipalID]
 			var beforeLvl, afterLvl DocumentAccessPreviewLevel
 			if accBefore.Level != DocumentLevelNone {
 				beforeLvl = DocumentAccessPreviewLevel{Level: accBefore.Level, Via: string(accBefore.Via)}
@@ -501,7 +536,7 @@ func (s *DocumentService) buildAccessBatchPreview(
 			}
 			preview.Users = append(preview.Users, DocumentAccessPreviewUser{
 				UserID:      it.PrincipalID,
-				DisplayName: u.DisplayName,
+				DisplayName: displayName,
 				Before:      beforeLvl,
 				After:       afterLvl,
 			})
@@ -597,6 +632,12 @@ func (s *DocumentService) validateAccessBatchSemantics(
 		id  string
 	}
 	seen := make(map[principalKey]bool, len(items))
+	// validateSharePrincipal's user leg for every user item in one query
+	// (UNI-2012 S1e-bulk); the few group items keep the per-item check.
+	admitted, err := s.orgs.AdmittedMemberIDsQ(ctx, q, doc.OrganizationID, accessBatchUserIDs(items))
+	if err != nil {
+		return nil, err
+	}
 	var rejected []DocumentAccessRejectedItem
 	for i, it := range items {
 		key := principalKey{typ: it.PrincipalType, id: it.PrincipalID}
@@ -609,9 +650,16 @@ func (s *DocumentService) validateAccessBatchSemantics(
 		}
 		seen[key] = true
 
-		err := s.validateSharePrincipal(ctx, q, doc, DocumentShareInput{
-			PrincipalType: it.PrincipalType, PrincipalID: it.PrincipalID,
-		})
+		var err error
+		if it.PrincipalType == DocumentPrincipalUser {
+			if !admitted[it.PrincipalID] {
+				err = errPrincipalNotInOrganization()
+			}
+		} else {
+			err = s.validateSharePrincipal(ctx, q, doc, DocumentShareInput{
+				PrincipalType: it.PrincipalType, PrincipalID: it.PrincipalID,
+			})
+		}
 		if err != nil {
 			if codedIs(err, "principal_not_in_organization") {
 				rejected = append(rejected, DocumentAccessRejectedItem{
@@ -701,96 +749,95 @@ func (s *DocumentService) applyAccessBatchItem(
 		return DocumentAccessItemResult{}, doc, err
 	}
 
-	if it.Level == nil {
-		if !hasLive {
-			return DocumentAccessItemResult{
-				Index:         index,
-				PrincipalType: it.PrincipalType,
-				PrincipalID:   it.PrincipalID,
-				Status:        DocumentAccessStatusUnchanged,
-			}, doc, nil
+	res, write := decideAccessBatchShareItem(index, it, prevShare, hasLive)
+	if dryRun {
+		return res, doc, nil
+	}
+	switch write {
+	case accessBatchWriteRevoke:
+		if err := revokeDocumentShareRowWithBatch(ctx, q, actor, doc, prevShare, batchID); err != nil {
+			return DocumentAccessItemResult{}, doc, err
 		}
-		prev := DocumentLevel(prevShare.Level)
-		if !dryRun {
-			if err := revokeDocumentShareRowWithBatch(ctx, q, actor, doc, prevShare, batchID); err != nil {
-				return DocumentAccessItemResult{}, doc, err
-			}
-		}
-		return DocumentAccessItemResult{
-			Index:         index,
-			PrincipalType: it.PrincipalType,
-			PrincipalID:   it.PrincipalID,
-			Status:        DocumentAccessStatusRevoked,
-			PreviousLevel: &prev,
-		}, doc, nil
-	}
-
-	target := *it.Level
-	if !hasLive {
-		var shareID string
-		if !dryRun {
-			sh, err := s.applyDocumentShareWithBatch(ctx, q, actor, doc, access, DocumentShareInput{
-				PrincipalType: it.PrincipalType, PrincipalID: it.PrincipalID, Level: target,
-			}, batchID, notifyUserID)
-			if err != nil {
-				return DocumentAccessItemResult{}, doc, err
-			}
-			shareID = sh.ID
-		}
-		return DocumentAccessItemResult{
-			Index:         index,
-			PrincipalType: it.PrincipalType,
-			PrincipalID:   it.PrincipalID,
-			Status:        DocumentAccessStatusGranted,
-			ShareID:       shareID,
-			Level:         &target,
-		}, doc, nil
-	}
-
-	prev := DocumentLevel(prevShare.Level)
-	if it.OnExisting == DocumentAccessOnExistingKeep {
-		kept := prev
-		return DocumentAccessItemResult{
-			Index:         index,
-			PrincipalType: it.PrincipalType,
-			PrincipalID:   it.PrincipalID,
-			Status:        DocumentAccessStatusKept,
-			ShareID:       prevShare.ID,
-			Level:         &kept,
-			PreviousLevel: &prev,
-		}, doc, nil
-	}
-	if prev == target {
-		unchanged := target
-		return DocumentAccessItemResult{
-			Index:         index,
-			PrincipalType: it.PrincipalType,
-			PrincipalID:   it.PrincipalID,
-			Status:        DocumentAccessStatusUnchanged,
-			Level:         &unchanged,
-			PreviousLevel: &prev,
-		}, doc, nil
-	}
-
-	var shareID string
-	if !dryRun {
+	case accessBatchWriteGrant:
 		sh, err := s.applyDocumentShareWithBatch(ctx, q, actor, doc, access, DocumentShareInput{
-			PrincipalType: it.PrincipalType, PrincipalID: it.PrincipalID, Level: target,
+			PrincipalType: it.PrincipalType, PrincipalID: it.PrincipalID, Level: *it.Level,
 		}, batchID, notifyUserID)
 		if err != nil {
 			return DocumentAccessItemResult{}, doc, err
 		}
-		shareID = sh.ID
+		res.ShareID = sh.ID
 	}
-	return DocumentAccessItemResult{
+	return res, doc, nil
+}
+
+// accessBatchWrite is the write a share item asks for once its outcome is
+// decided: none, a revoke of the live share, or a grant at the item's level
+// (a new share, a revoke-and-replace of a live one at another level, or a
+// manual takeover of a chat-origin share at the same level).
+type accessBatchWrite int
+
+const (
+	accessBatchWriteNone accessBatchWrite = iota
+	accessBatchWriteRevoke
+	accessBatchWriteGrant
+)
+
+// decideAccessBatchShareItem is the outcome of one share item (any principal
+// but the document's own workspace) against its live share, before any
+// write: revoke, grant, keep, same level, or a level change. A granted or
+// updated result carries no ShareID yet; the writer fills it in.
+func decideAccessBatchShareItem(index int, it DocumentAccessBatchItem, prevShare db.DocumentShare, hasLive bool) (DocumentAccessItemResult, accessBatchWrite) {
+	res := DocumentAccessItemResult{
 		Index:         index,
 		PrincipalType: it.PrincipalType,
 		PrincipalID:   it.PrincipalID,
-		Status:        DocumentAccessStatusUpdated,
-		ShareID:       shareID,
-		Level:         &target,
-		PreviousLevel: &prev,
-	}, doc, nil
+	}
+	if it.Level == nil {
+		if !hasLive {
+			res.Status = DocumentAccessStatusUnchanged
+			return res, accessBatchWriteNone
+		}
+		prev := DocumentLevel(prevShare.Level)
+		res.Status = DocumentAccessStatusRevoked
+		res.PreviousLevel = &prev
+		return res, accessBatchWriteRevoke
+	}
+
+	target := *it.Level
+	if !hasLive {
+		res.Status = DocumentAccessStatusGranted
+		res.Level = &target
+		return res, accessBatchWriteGrant
+	}
+
+	prev := DocumentLevel(prevShare.Level)
+	res.PreviousLevel = &prev
+	if it.OnExisting == DocumentAccessOnExistingKeep {
+		kept := prev
+		res.Status = DocumentAccessStatusKept
+		res.ShareID = prevShare.ID
+		res.Level = &kept
+		return res, accessBatchWriteNone
+	}
+	if prev == target {
+		unchanged := target
+		res.Status = DocumentAccessStatusUnchanged
+		res.Level = &unchanged
+		// The level is unchanged, so the item (and the preview) says
+		// "unchanged"; the row's provenance is not. A manual item at the level
+		// of a chat-origin share takes that row over (UNI-2012 B4), the same
+		// decision ShareDocument and the batch share make through
+		// keepsLiveShare, so leaving the room does not revoke what the manager
+		// confirmed in the Share dialog. Nobody's access changes, so the
+		// notify decision (a strict raise only) is unaffected.
+		if !keepsLiveShare(prevShare, target, "") {
+			return res, accessBatchWriteGrant
+		}
+		return res, accessBatchWriteNone
+	}
+	res.Status = DocumentAccessStatusUpdated
+	res.Level = &target
+	return res, accessBatchWriteGrant
 }
 
 func (s *DocumentService) applyHomeWorkspaceBatchItem(
