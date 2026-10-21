@@ -415,6 +415,9 @@ một dòng thì ghi lý do ở dòng trên.
   Kind giàu (M3): endpoint trong `data/chat-api.ts`, lệnh và cache trong
   `data/chat-actions.ts` (follow-up, tạo việc, nhóm, chuyển tiếp; bỏ phiếu ở `pending-ops.ts`, tin thoại và nhắc là
   lượt gửi của outbox), màn gọi qua `data/mutations/*`;
+  tin thoại (`components/chat/voice-card.tsx`, `lib/voice-player.ts`): phát/dừng, chạm vào
+  thanh sóng để tua, chip tốc độ 1×/1.5×/2×, với trình đọc màn hình là một điều khiển `adjustable` (vuốt lên/xuống tua
+  5 s, giá trị là vị trí trong clip, `disabled` khi chưa có URL) — sóng vẫn là hình cố định vì server không giữ waveform;
   composer ghi âm (`components/chat/use-voice-recorder.ts`), mở
   `expression-sheet.tsx` và `reminder-sheet.tsx`; follow-up và "Tạo việc" ở
   sheet nhấn giữ; thẻ việc `task-card.tsx` dưới tin.

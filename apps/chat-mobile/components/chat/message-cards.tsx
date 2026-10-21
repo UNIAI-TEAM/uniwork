@@ -7,7 +7,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import type { ChatMessageRecord } from "@uniwork/core/api/endpoints/chat-schemas";
 import { runtimeConfig } from "@uniwork/core/runtime-config";
-import { setAudioModeAsync, useAudioPlayer, useAudioPlayerStatus } from "expo-audio";
 import { Image } from "expo-image";
 import * as WebBrowser from "expo-web-browser";
 import type { ReactNode } from "react";
@@ -19,15 +18,14 @@ import { Text } from "@/components/ui/text";
 import { TINTS, TintTile } from "@/components/ui/tint-tile";
 import { deepLinkHref } from "@/lib/deep-link";
 import { formatFileSize, isReminderDue, messageContent, pollResults, voiceCallLogLabel } from "@/lib/message-display";
-import { formatVoiceCallDuration } from "@uniwork/core/chat/voice-call-duration";
 import { messageBodySegments, spokenLink } from "@/lib/message-format";
 import { THEME } from "@/lib/theme";
 import { fileBadge, type Tint } from "@/lib/tint";
 import { formatMessageDateTime, formatMessageTime } from "@/lib/timeline-display";
 import { useColorScheme } from "@/components/ui/use-color-scheme";
 import { cn } from "@/lib/utils";
-import { useChatImageSrc, useChatMediaSrc, useFreshChatMediaUrl } from "./use-chat-media";
-import { bestEffort } from "@/data/report";
+import { useChatImageSrc, useFreshChatMediaUrl } from "./use-chat-media";
+import { VoiceCard } from "./voice-card";
 import { toast } from "@/data/stores/toast-store";
 import { sameUser } from "@/lib/user-id";
 import { bubbleImageSize, chatMediaSource, IMAGE_CACHE_POLICY } from "@/lib/media-source";
@@ -50,9 +48,6 @@ export interface MessageCardContext {
 
 /** The views whose card is a button of its own (the row then is not one accessible element). */
 export const INTERACTIVE_VIEWS = new Set(["image", "file", "voice", "poll", "unsupported"]);
-
-/** A voice message's bars (MobileChat): the server sends no waveform, so the shape is fixed and only the progress is real. */
-const VOICE_BARS = [8, 14, 20, 12, 24, 18, 26, 16, 10, 22, 26, 14, 8, 18, 24, 12, 20, 26, 16, 10, 14, 22, 18, 8, 12, 24, 20, 14, 10, 8];
 
 /** The text classes of a card in the brand bubble (own) or the other bubble. */
 const ink = (own: boolean) => ({
@@ -207,58 +202,6 @@ function FileCard({ record, file, ctx, own, onLongPress }: { record: ChatMessage
       </View>
       <View className={cn("h-9 w-9 items-center justify-center rounded-full", own ? "bg-chat-bubble-own-foreground/15" : "bg-muted")}>
         <Ionicons name="download-outline" size={18} color={own ? theme.chatBubbleOwnForeground : theme.mutedForeground} />
-      </View>
-    </Pressable>
-  );
-}
-
-// iOS defaults to the ambient session, which the silent switch mutes; a voice message is meant to be heard.
-let audioMode: Promise<void> | null = null;
-const ensureAudioMode = () => (audioMode ??= setAudioModeAsync({ playsInSilentMode: true }).catch(bestEffort("chat", "audio mode not set", "breadcrumb")));
-
-function VoiceCard({ record, voice, ctx, own, onLongPress }: { record: ChatMessageRecord; voice: NonNullable<ChatMessageRecord["voice"]>; ctx: MessageCardContext; own: boolean; onLongPress: () => void }) {
-  const { t } = useTranslation();
-  const theme = useTheme();
-  const longPress = useLongPressProps(onLongPress);
-  const src = useChatMediaSrc(ctx.wsId, ctx.roomId, record.id, voice.url, voice.url_expires_at);
-  const player = useAudioPlayer(src ? { uri: src } : null);
-  const status = useAudioPlayerStatus(player);
-  const toggle = () => {
-    if (status.playing) {
-      player.pause();
-      return;
-    }
-    if (status.didJustFinish || (status.duration > 0 && status.currentTime >= status.duration)) void player.seekTo(0);
-    void ensureAudioMode().then(() => player.play());
-  };
-  const total = formatVoiceCallDuration(voice.duration_ms / 1000);
-  const played = status.duration > 0 ? Math.round((Math.min(status.currentTime, status.duration) / status.duration) * VOICE_BARS.length) : 0;
-  return (
-    <Pressable
-      {...longPress}
-      onPress={toggle}
-      disabled={!src}
-      accessibilityRole="button"
-      accessibilityLabel={`${status.playing ? t("chat.voice_pause") : t("chat.voice_play")}, ${total}`}
-      className="min-h-11 min-w-[210px] flex-row items-center gap-2.5"
-    >
-      <View className={cn("h-11 w-11 items-center justify-center rounded-full", own ? "bg-chat-bubble-own-foreground" : "bg-chat-bubble-own", !src && "opacity-50")}>
-        <Ionicons name={status.playing ? "pause" : "play"} size={18} color={own ? theme.chatBubbleOwn : theme.chatBubbleOwnForeground} />
-      </View>
-      <View className="flex-1 gap-1">
-        <View className="h-[26px] flex-row items-center gap-0.5">
-          {VOICE_BARS.map((height, index) => (
-            <View
-              key={index}
-              className={cn(
-                "w-[3px] rounded-full",
-                index < played ? (own ? "bg-chat-bubble-own-foreground" : "bg-chat-bubble-own") : own ? "bg-chat-bubble-own-foreground/40" : "bg-muted-foreground/40",
-              )}
-              style={{ height }}
-            />
-          ))}
-        </View>
-        <Text className={cn("text-caption", ink(own).meta)}>{status.playing || status.currentTime > 0 ? `${formatVoiceCallDuration(status.currentTime)} / ${total}` : total}</Text>
       </View>
     </Pressable>
   );

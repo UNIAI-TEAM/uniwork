@@ -62,7 +62,7 @@ const FIXED_HEIGHT_OK: Record<string, string[]> = {
   // A sheet's share of the screen, not a text box.
   "components/chat/expression-sheet.tsx": ["h-[70%]"],
   // The voice note's waveform: bars, no text.
-  "components/chat/message-cards.tsx": ["h-[26px] flex-row items-center gap-0.5"],
+  "components/chat/voice-card.tsx": ["h-[26px] flex-row items-center gap-0.5"],
   "components/chat/voice-wave.tsx": ["h-6 flex-1 flex-row items-center gap-[2px] overflow-hidden"],
   // The loading skeleton: grey shapes standing in for text, which never hold any.
   "components/chat/room-list-parts.tsx": ["h-[34px] rounded-full bg-muted", "h-[76px] flex-row items-center gap-3 px-4", "h-3.5 rounded-full bg-muted", "h-3 max-w-full rounded-full bg-muted"],

@@ -38,7 +38,7 @@ jest.mock("expo-router", () => {
 // silent player and recorder are enough for components that only hold one;
 // a test about recording mocks components/chat/use-voice-recorder instead.
 jest.mock("expo-audio", () => {
-  const player = { play: jest.fn(), pause: jest.fn(), seekTo: jest.fn(async () => {}), replace: jest.fn(), remove: jest.fn(), release: jest.fn(), loop: false, volume: 1 };
+  const player = { play: jest.fn(), pause: jest.fn(), seekTo: jest.fn(async () => {}), setPlaybackRate: jest.fn(), replace: jest.fn(), remove: jest.fn(), release: jest.fn(), loop: false, volume: 1 };
   const recorder = { prepareToRecordAsync: jest.fn(async () => {}), record: jest.fn(), stop: jest.fn(async () => {}), getStatus: jest.fn(() => ({ durationMillis: 0 })), uri: null };
   return {
     setAudioModeAsync: jest.fn(async () => {}),

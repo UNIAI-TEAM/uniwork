@@ -1666,6 +1666,10 @@
       "link_copied": "Link copied",
       "link_open_failed": "Couldn't open this link."
     },
+    "voice": {
+      "seek_forward": "Forward {{seconds}} seconds",
+      "seek_back": "Back {{seconds}} seconds"
+    },
     "a11y": {
       "bubble_quote": "Replying to {{sender}}: {{text}}",
       "bubble_retry_hint": "Opens options to send it again or delete it",

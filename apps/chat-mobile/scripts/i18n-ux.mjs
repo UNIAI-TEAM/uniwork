@@ -19,6 +19,10 @@ export const UX_ONLY = {
       link_copied: "Đã sao chép liên kết",
       link_open_failed: "Không mở được liên kết này.",
     },
+    voice: {
+      seek_forward: "Tua tới {{seconds}} giây",
+      seek_back: "Tua lại {{seconds}} giây",
+    },
     a11y: {
       bubble_quote: "Trả lời {{sender}}: {{text}}",
       bubble_retry_hint: "Mở tùy chọn gửi lại hoặc xóa tin này",
@@ -55,6 +59,11 @@ export const UX_ONLY = {
       link_share: "Share link",
       link_copied: "Link copied",
       link_open_failed: "Couldn't open this link.",
+    },
+    voice: {
+      // The step is always several seconds (VOICE_SEEK_STEP_S): no singular form.
+      seek_forward: "Forward {{seconds}} seconds",
+      seek_back: "Back {{seconds}} seconds",
     },
     a11y: {
       bubble_quote: "Replying to {{sender}}: {{text}}",
