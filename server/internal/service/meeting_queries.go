@@ -107,7 +107,7 @@ func (s *MeetingService) HandleProviderEvent(ctx context.Context, ev ProviderNeu
 		s.publishAttendanceChanged(ctx, sess.MeetingID)
 	}
 	if ev.Type == "conference.participant_joined" && ev.ParticipantKind == ParticipantKindSIP && s.provider != nil {
-		s.settleDialInCaller(ctx, sess, ev)
+		s.settleDialInCaller(ctx, sess, ev, nil)
 	}
 	if (ev.Type == "conference.participant_left" || ev.Type == "conference.participant_connection_aborted") && ev.Identity == meetings.ScribeIdentity {
 		s.scribeLeft(ctx, sess.MeetingID, ev.ParticipantSID)

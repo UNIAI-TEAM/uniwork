@@ -416,8 +416,7 @@ func (a *LiveKitAdapter) CreateDialInRule(ctx context.Context, req DialInRuleReq
 			TrunkIds: trunks, HidePhoneNumber: true, Name: req.Name,
 		},
 	})
-	var terr twirp.Error
-	if errors.As(err, &terr) && (terr.Code() == twirp.InvalidArgument || terr.Code() == twirp.AlreadyExists) {
+	if dialInRuleConflict(err) {
 		return "", fmt.Errorf("livekit create dial-in rule: %w: %v", ErrDialInRuleConflict, err)
 	}
 	if err != nil {
@@ -442,21 +441,40 @@ func (a *LiveKitAdapter) DeleteDialInRule(ctx context.Context, ruleID string) er
 	return nil
 }
 
-// ListDialInRules lists the dispatch rules, only the UniWork trunk's when
-// trunkID is set.
+// dialInRuleConflict: LiveKit refused the rule because another rule already
+// routes the same trunk and PIN. Its validator answers invalid_argument for
+// many mistakes (a bad trunk id, a bad room name), so only the message tells
+// the clash apart: "… already exists in dispatch rule …" (protocol
+// sip.ValidateDispatchRules) or, on older servers, "Conflicting SIP Dispatch
+// Rules".
+func dialInRuleConflict(err error) bool {
+	var terr twirp.Error
+	if !errors.As(err, &terr) || (terr.Code() != twirp.InvalidArgument && terr.Code() != twirp.AlreadyExists) {
+		return false
+	}
+	msg := strings.ToLower(terr.Msg())
+	return strings.Contains(msg, "already exists in dispatch rule") || strings.Contains(msg, "conflicting sip dispatch rule")
+}
+
+// ListDialInRules lists the dispatch rules on trunkID. LiveKit filters by
+// trunk; the result is checked again, since a rule with no trunk (or a server
+// that ignores the filter) is no proof the rule is this deployment's.
 //
 // shortcut: one page (LiveKit's default page size); paginate with Page if a
 // trunk ever holds more rules than that.
-func (a *LiveKitAdapter) ListDialInRules(ctx context.Context) ([]DialInRule, error) {
+func (a *LiveKitAdapter) ListDialInRules(ctx context.Context, trunkID string) ([]DialInRule, error) {
 	ctx, cancel := a.roomCtx(ctx)
 	defer cancel()
-	res, err := a.sip().ListSIPDispatchRule(ctx, &livekit.ListSIPDispatchRuleRequest{})
+	res, err := a.sip().ListSIPDispatchRule(ctx, &livekit.ListSIPDispatchRuleRequest{TrunkIds: []string{trunkID}})
 	if err != nil {
 		return nil, fmt.Errorf("livekit list dial-in rules: %w", err)
 	}
 	out := make([]DialInRule, 0, len(res.GetItems()))
 	for _, r := range res.GetItems() {
-		rule := DialInRule{ID: r.GetSipDispatchRuleId(), Name: r.GetName()}
+		if !slices.Contains(r.GetTrunkIds(), trunkID) {
+			continue
+		}
+		rule := DialInRule{ID: r.GetSipDispatchRuleId(), Name: r.GetName(), TrunkIDs: r.GetTrunkIds()}
 		if r.GetCreatedAt() != nil {
 			rule.CreatedAt = r.GetCreatedAt().AsTime()
 		}

@@ -81,7 +81,7 @@ func TestEveryProviderCallIsBounded(t *testing.T) {
 			return a.DeleteDialInRule(ctx, "SDR_x")
 		},
 		"ListDialInRules": func(ctx context.Context) error {
-			_, err := a.ListDialInRules(ctx)
+			_, err := a.ListDialInRules(ctx, "ST_x")
 			return err
 		},
 		"ListParticipants": func(ctx context.Context) error {

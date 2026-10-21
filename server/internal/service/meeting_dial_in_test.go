@@ -413,8 +413,12 @@ func TestDialInSweepHoldsACallerWhoseWebhookWasLost(t *testing.T) {
 		Attributes:  map[string]string{"sip.ruleID": m.SipDispatchRuleID.String},
 		Permissions: meetings.MediaPermissions{CanSubscribe: true, CanPublish: true, CanPublishData: true},
 	})
+	lists := fake.ListParticipantsCount()
 	if err := s.sweepDialIn(ctx); err != nil {
 		t.Fatal(err)
+	}
+	if n := fake.ListParticipantsCount() - lists; n != 1 {
+		t.Fatalf("one sweep listed the room %d times, want once", n)
 	}
 	held := lastUpdateFor(t, fake, "sip_lost")
 	if held.Permissions != (meetings.MediaPermissions{}) || held.Attributes[dialInStateAttr] != "waiting" || held.Name != "Điện thoại ••• 9876" {
@@ -478,6 +482,20 @@ func TestDialInRuleConflictRotatesThePIN(t *testing.T) {
 	if b.DialInPin.String == reloadMeeting(t, s, b.ID).DialInPin.String {
 		t.Fatal("the PIN was not rotated after the conflict")
 	}
+	// Any other refusal (a bad trunk id, say) keeps the PIN people hold:
+	// rotating would not fix it and would audit a rotation every sweep.
+	fake.DialInRuleErr = errors.New("livekit create dial-in rule: twirp error invalid_argument: trunk not found")
+	c, err := s.CreateInstant(ctx, ua.ID, a.WorkspaceID, "Trunk sai")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.sweepDialIn(ctx); err == nil {
+		t.Fatal("the sweep hid the refusal")
+	}
+	if c.DialInPin.String != reloadMeeting(t, s, c.ID).DialInPin.String || dialInAuditCount(t, s, c.ID, "meeting.dial_in_pin_rotated", "system") != 0 {
+		t.Fatal("a refusal that is not a PIN clash rotated the PIN")
+	}
+	fake.DialInRuleErr = nil
 	if n := dialInAuditCount(t, s, b.ID, "meeting.dial_in_pin_rotated", "system"); n != 1 {
 		t.Fatalf("rotations audited = %d", n)
 	}
@@ -494,17 +512,30 @@ func TestDialInSweepDeletesStrayRules(t *testing.T) {
 	s, fake, _, _, m := dialInFixture(t)
 	ctx := context.Background()
 	held := reloadMeeting(t, s, m.ID).SipDispatchRuleID.String
+	old := time.Now().Add(-2 * time.Minute)
 	fake.ListedRules = []meetings.DialInRule{
-		{ID: "SDR_stray", Name: "uniwork 01GONE", CreatedAt: time.Now().Add(-2 * time.Minute)},
-		{ID: "SDR_young", Name: "uniwork 01NEW", CreatedAt: time.Now().Add(-10 * time.Second)},
-		{ID: "SDR_lms", Name: "lms-core hotline", CreatedAt: time.Now().Add(-time.Hour)},
-		{ID: held, Name: "uniwork " + m.ID, CreatedAt: time.Now().Add(-time.Hour)},
+		{ID: "SDR_stray", Name: "uniwork 01GONE", TrunkIDs: []string{"ST_uniwork"}, CreatedAt: old},
+		{ID: "SDR_young", Name: "uniwork 01NEW", TrunkIDs: []string{"ST_uniwork"}, CreatedAt: time.Now().Add(-10 * time.Second)},
+		{ID: "SDR_lms", Name: "lms-core hotline", TrunkIDs: []string{"ST_uniwork"}, CreatedAt: old},
+		// Staging shares this LiveKit and names its rules the same way.
+		{ID: "SDR_staging", Name: "uniwork 01STAGING", TrunkIDs: []string{"ST_staging"}, CreatedAt: old},
+		{ID: held, Name: "uniwork " + m.ID, TrunkIDs: []string{"ST_uniwork"}, CreatedAt: old},
 	}
 	if err := s.sweepDialIn(ctx); err != nil {
 		t.Fatal(err)
 	}
-	if fake.DialInDeletes == nil || len(fake.DialInDeletes) != 1 || fake.DialInDeletes[0] != "SDR_stray" {
+	if len(fake.DialInDeletes) != 1 || fake.DialInDeletes[0] != "SDR_stray" {
 		t.Fatalf("deleted %v", fake.DialInDeletes)
+	}
+	// Without a trunk to keep to, the server cannot tell its rules from
+	// another deployment's: no stray sweep at all.
+	s.rt.SIPTrunkID = ""
+	fake.DialInDeletes, fake.ListRulesCalls = nil, 0
+	if err := s.sweepDialIn(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if fake.ListRulesCalls != 0 || len(fake.DialInDeletes) != 0 {
+		t.Fatalf("no trunk: listed %d times, deleted %v", fake.ListRulesCalls, fake.DialInDeletes)
 	}
 }
 

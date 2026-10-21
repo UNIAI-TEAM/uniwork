@@ -117,10 +117,12 @@ func TestDeleteDialInRuleReportsOtherFailures(t *testing.T) {
 }
 
 // twirpStub answers one Twirp path with a protobuf message, or with a Twirp
-// error when code is set.
-func twirpStub(t *testing.T, path string, reply proto.Message, code string) *httptest.Server {
+// error (code, msg) when code is set; body keeps the last request.
+func twirpStub(t *testing.T, path string, reply proto.Message, code, msg string) (*httptest.Server, *[]byte) {
 	t.Helper()
+	var body []byte
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ = io.ReadAll(r.Body)
 		if r.URL.Path != path {
 			t.Errorf("unexpected call %s", r.URL.Path)
 			w.WriteHeader(http.StatusNotFound)
@@ -129,7 +131,7 @@ func twirpStub(t *testing.T, path string, reply proto.Message, code string) *htt
 		if code != "" {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusBadRequest)
-			_, _ = w.Write([]byte(`{"code":"` + code + `","msg":"refused"}`))
+			_, _ = w.Write([]byte(`{"code":"` + code + `","msg":"` + msg + `"}`))
 			return
 		}
 		out, _ := proto.Marshal(reply)
@@ -137,42 +139,68 @@ func twirpStub(t *testing.T, path string, reply proto.Message, code string) *htt
 		_, _ = w.Write(out)
 	}))
 	t.Cleanup(srv.Close)
-	return srv
+	return srv, &body
 }
 
-// LiveKit refuses a second rule for the same trunk and PIN as invalid
-// argument; the service rotates the PIN on that error only.
+// LiveKit refuses a second rule for the same trunk and PIN with
+// invalid_argument and a message naming the clash (protocol sip.go
+// ValidateDispatchRules; older servers said "Conflicting SIP Dispatch
+// Rules"). Only that message is a PIN conflict.
 func TestCreateDialInRuleReportsAPINConflict(t *testing.T) {
-	srv := twirpStub(t, "/twirp/livekit.SIP/CreateSIPDispatchRule", nil, "invalid_argument")
-	a := &LiveKitAdapter{URL: srv.URL, APIKey: "k", APISecret: "api-secret-at-least-32-characters!!"}
-	_, err := a.CreateDialInRule(context.Background(), DialInRuleRequest{RoomName: "uw_mtg_m1", Pin: "1"})
-	if !errors.Is(err, ErrDialInRuleConflict) {
-		t.Fatalf("err = %v, want ErrDialInRuleConflict", err)
+	for _, msg := range []string{
+		`Dispatch rule for the same trunk, inbound number, number, and PIN combination already exists in dispatch rule \"SDR_x\" \"uniwork m0\"`,
+		"Conflicting SIP Dispatch Rules: same Trunk+Number+PIN combination",
+	} {
+		srv, _ := twirpStub(t, "/twirp/livekit.SIP/CreateSIPDispatchRule", nil, "invalid_argument", msg)
+		a := &LiveKitAdapter{URL: srv.URL, APIKey: "k", APISecret: "api-secret-at-least-32-characters!!"}
+		_, err := a.CreateDialInRule(context.Background(), DialInRuleRequest{RoomName: "uw_mtg_m1", Pin: "1"})
+		if !errors.Is(err, ErrDialInRuleConflict) {
+			t.Fatalf("%q: err = %v, want ErrDialInRuleConflict", msg, err)
+		}
 	}
 }
 
-func TestListDialInRulesReadsIDNameAndAge(t *testing.T) {
-	at := time.Date(2026, 10, 21, 8, 0, 0, 0, time.UTC)
-	srv := twirpStub(t, "/twirp/livekit.SIP/ListSIPDispatchRule", &livekit.ListSIPDispatchRuleResponse{Items: []*livekit.SIPDispatchRuleInfo{
-		{SipDispatchRuleId: "SDR_1", Name: "uniwork m1", CreatedAt: timestamppb.New(at)},
-		{SipDispatchRuleId: "SDR_2", Name: "lms"},
-	}}, "")
+// A bad trunk id or room name is invalid_argument too, but not a clash:
+// rotating the PIN would not fix it and would churn the PIN people hold.
+func TestCreateDialInRuleOtherInvalidArgumentIsNoConflict(t *testing.T) {
+	srv, _ := twirpStub(t, "/twirp/livekit.SIP/CreateSIPDispatchRule", nil, "invalid_argument", "trunk ST_missing not found")
 	a := &LiveKitAdapter{URL: srv.URL, APIKey: "k", APISecret: "api-secret-at-least-32-characters!!"}
-	rules, err := a.ListDialInRules(context.Background())
+	_, err := a.CreateDialInRule(context.Background(), DialInRuleRequest{RoomName: "uw_mtg_m1", Pin: "1", TrunkID: "ST_missing"})
+	if err == nil || errors.Is(err, ErrDialInRuleConflict) {
+		t.Fatalf("err = %v, want a plain error", err)
+	}
+}
+
+// Only the UniWork trunk's rules are listed: asked of LiveKit, and checked
+// again here, since another deployment sharing the server names its rules
+// "uniwork <id>" too.
+func TestListDialInRulesKeepsToTheTrunk(t *testing.T) {
+	at := time.Date(2026, 10, 21, 8, 0, 0, 0, time.UTC)
+	srv, body := twirpStub(t, "/twirp/livekit.SIP/ListSIPDispatchRule", &livekit.ListSIPDispatchRuleResponse{Items: []*livekit.SIPDispatchRuleInfo{
+		{SipDispatchRuleId: "SDR_1", Name: "uniwork m1", TrunkIds: []string{"ST_uw"}, CreatedAt: timestamppb.New(at)},
+		{SipDispatchRuleId: "SDR_2", Name: "uniwork m2", TrunkIds: []string{"ST_staging"}, CreatedAt: timestamppb.New(at)},
+		{SipDispatchRuleId: "SDR_3", Name: "uniwork m3"},
+	}}, "", "")
+	a := &LiveKitAdapter{URL: srv.URL, APIKey: "k", APISecret: "api-secret-at-least-32-characters!!"}
+	rules, err := a.ListDialInRules(context.Background(), "ST_uw")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(rules) != 2 || rules[0] != (DialInRule{ID: "SDR_1", Name: "uniwork m1", CreatedAt: at}) || !rules[1].CreatedAt.IsZero() {
+	if len(rules) != 1 || rules[0].ID != "SDR_1" || rules[0].Name != "uniwork m1" || !rules[0].CreatedAt.Equal(at) {
 		t.Fatalf("rules = %+v", rules)
+	}
+	var req livekit.ListSIPDispatchRuleRequest
+	if err := proto.Unmarshal(*body, &req); err != nil || len(req.GetTrunkIds()) != 1 || req.GetTrunkIds()[0] != "ST_uw" {
+		t.Fatalf("request trunks = %v err=%v", req.GetTrunkIds(), err)
 	}
 }
 
 func TestListParticipantsReadsKindSIDAndGrants(t *testing.T) {
-	srv := twirpStub(t, "/twirp/livekit.RoomService/ListParticipants", &livekit.ListParticipantsResponse{Participants: []*livekit.ParticipantInfo{
+	srv, _ := twirpStub(t, "/twirp/livekit.RoomService/ListParticipants", &livekit.ListParticipantsResponse{Participants: []*livekit.ParticipantInfo{
 		{Identity: "sip_ab", Sid: "PA_1", Name: "Phone 1234", Kind: livekit.ParticipantInfo_SIP,
 			Attributes: map[string]string{"sip.ruleID": "SDR_1"}, Permission: &livekit.ParticipantPermission{CanSubscribe: true}},
 		{Identity: "uw_participant_p1", Sid: "PA_2"},
-	}}, "")
+	}}, "", "")
 	a := &LiveKitAdapter{URL: srv.URL, APIKey: "k", APISecret: "api-secret-at-least-32-characters!!"}
 	ps, err := a.ListParticipants(context.Background(), "uw_mtg_m1")
 	if err != nil {

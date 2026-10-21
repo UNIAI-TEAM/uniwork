@@ -45,6 +45,8 @@ const (
 	dialInStateAttr  = "uw.dial_in"
 	dialInSweepBatch = 200
 	dialInCallBudget = 10 * time.Second
+	// dialInSweepBudget bounds one whole sweep, under its 15 s interval.
+	dialInSweepBudget = 12 * time.Second
 )
 
 // dialInActor attributes PIN rotations the server makes itself (a PIN another
@@ -287,25 +289,25 @@ func (s *MeetingService) sweepDialIn(ctx context.Context) error {
 	if s.provider == nil {
 		return nil
 	}
+	// One deadline for the whole sweep, so a slow LiveKit cannot stretch a
+	// 15 s tick into minutes; what it cuts short, the next tick picks up.
+	ctx, cancel := context.WithTimeout(ctx, dialInSweepBudget)
+	defer cancel()
 	ids, err := s.q.ListDialInSweepMeetings(ctx, db.ListDialInSweepMeetingsParams{WithEnsure: s.dialInConfigured(), RowLimit: dialInSweepBatch})
 	if err != nil {
 		return err
 	}
 	var errs []error
 	for _, id := range ids {
-		cctx, cancel := context.WithTimeout(ctx, dialInCallBudget)
-		if err := s.ensureDialIn(cctx, id); err != nil {
+		if err := s.ensureDialIn(ctx, id); err != nil {
 			errs = append(errs, err)
 		}
-		if err := s.sweepDialInCallers(cctx, id); err != nil {
+		if err := s.sweepDialInCallers(ctx, id); err != nil {
 			errs = append(errs, err)
 		}
-		cancel()
 	}
 	if s.dialInConfigured() {
-		cctx, cancel := context.WithTimeout(ctx, dialInCallBudget)
-		errs = append(errs, s.sweepStrayDialInRules(cctx))
-		cancel()
+		errs = append(errs, s.sweepStrayDialInRules(ctx))
 	}
 	return errors.Join(errs...)
 }
@@ -383,11 +385,13 @@ func (s *MeetingService) liveConnection(ctx context.Context, room, sid string) (
 }
 
 func (s *MeetingService) hangUpConnection(ctx context.Context, room, sid string) {
-	conn, ok := s.liveConnection(ctx, room, sid)
-	if !ok {
-		return
+	if conn, ok := s.liveConnection(ctx, room, sid); ok {
+		s.hangUp(ctx, room, conn.Identity)
 	}
-	if err := s.provider.RemoveParticipant(ctx, meetings.RemoveProviderParticipantRequest{RoomName: room, Identity: conn.Identity}); err != nil {
+}
+
+func (s *MeetingService) hangUp(ctx context.Context, room, identity string) {
+	if err := s.provider.RemoveParticipant(ctx, meetings.RemoveProviderParticipantRequest{RoomName: room, Identity: identity}); err != nil {
 		slog.Warn("meeting dial-in: caller not dropped", "room", room, "err", err)
 	}
 }
@@ -439,16 +443,25 @@ func (s *MeetingService) pendingKnock(ctx context.Context, q *db.Queries, meetin
 // settleDialInCaller runs after the join committed: a connection with its
 // own pending knock is held (again, in case the webhook's hold failed), one
 // without is dropped, the admitted one is left alone.
-func (s *MeetingService) settleDialInCaller(ctx context.Context, sess db.MeetingConferenceSession, ev ProviderNeutralEvent) {
+// conn is the live connection when the caller already listed the room (the
+// sweep); nil looks it up.
+func (s *MeetingService) settleDialInCaller(ctx context.Context, sess db.MeetingConferenceSession, ev ProviderNeutralEvent, conn *meetings.ProviderParticipant) {
 	if s.connectionAdmitted(ctx, sess.MeetingID, ev.Identity, ev.ParticipantSID) {
 		return
 	}
+	if conn == nil {
+		found, ok := s.liveConnection(ctx, ev.RoomName, ev.ParticipantSID)
+		if !ok {
+			return
+		}
+		conn = &found
+	}
 	_, mine, err := s.pendingKnock(ctx, s.q, sess.MeetingID, ev.Identity, ev.ParticipantSID)
 	if err == nil && !mine {
-		s.hangUpConnection(ctx, ev.RoomName, ev.ParticipantSID)
+		s.hangUp(ctx, ev.RoomName, conn.Identity)
 		return
 	}
-	if conn, ok := s.liveConnection(ctx, ev.RoomName, ev.ParticipantSID); ok && !dialInHeld(conn) {
+	if !dialInHeld(*conn) {
 		s.holdDialInCaller(ctx, ev.RoomName, conn.Identity, ev.ParticipantName)
 	}
 }
@@ -489,7 +502,7 @@ func (s *MeetingService) sweepDialInCallers(ctx context.Context, meetingID strin
 		if err := s.inTx(ctx, func(q *db.Queries) error { return s.dialInCallerJoined(ctx, q, sess, ev) }); err != nil {
 			return err
 		}
-		s.settleDialInCaller(ctx, sess, ev)
+		s.settleDialInCaller(ctx, sess, ev, &p)
 	}
 	return nil
 }
@@ -611,8 +624,15 @@ func (s *MeetingService) dialInConnectionSID(ctx context.Context, p db.MeetingPa
 // sweepStrayDialInRules deletes uniwork rules no meeting points at: a rule
 // made whose meeting write then failed or lost a race and whose delete also
 // failed. A rule younger than a minute may still be on its way to its row.
+//
+// Without MEETING_SIP_TRUNK_ID nothing is swept: another deployment sharing
+// the LiveKit server names its rules "uniwork <id>" too, and only the trunk
+// tells them apart.
 func (s *MeetingService) sweepStrayDialInRules(ctx context.Context) error {
-	rules, err := s.provider.ListDialInRules(ctx)
+	if s.rt.SIPTrunkID == "" {
+		return nil
+	}
+	rules, err := s.provider.ListDialInRules(ctx, s.rt.SIPTrunkID)
 	if err != nil {
 		return err
 	}

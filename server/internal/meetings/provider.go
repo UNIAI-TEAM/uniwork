@@ -29,9 +29,10 @@ type ConferenceProvider interface {
 	// DeleteDialInRule removes it, a rule already gone included.
 	CreateDialInRule(ctx context.Context, req DialInRuleRequest) (string, error)
 	DeleteDialInRule(ctx context.Context, ruleID string) error
-	// ListDialInRules lists the SIP dispatch rules (on the UniWork trunk when
-	// one is set), so the sweep can find rules no meeting points at.
-	ListDialInRules(ctx context.Context) ([]DialInRule, error)
+	// ListDialInRules lists the SIP dispatch rules on one trunk, so the sweep
+	// can find rules no meeting points at; rules on other trunks (another
+	// deployment sharing the server) are never listed.
+	ListDialInRules(ctx context.Context, trunkID string) ([]DialInRule, error)
 	// ListParticipants lists who is connected to a room right now.
 	ListParticipants(ctx context.Context, roomName string) ([]ProviderParticipant, error)
 }
@@ -45,6 +46,7 @@ var ErrDialInRuleConflict = errors.New("dial-in rule conflicts with an existing 
 type DialInRule struct {
 	ID        string
 	Name      string
+	TrunkIDs  []string
 	CreatedAt time.Time
 }
 

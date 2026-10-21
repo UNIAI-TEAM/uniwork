@@ -2,6 +2,7 @@ package meetings
 
 import (
 	"context"
+	"slices"
 	"strconv"
 	"sync"
 	"time"
@@ -59,8 +60,11 @@ type FakeProvider struct {
 	// RemoveParticipant drops the identity from it.
 	RoomParticipants map[string][]ProviderParticipant
 	// ListedRules is what ListDialInRules reports besides the live rules
-	// (age unknown for those).
-	ListedRules []DialInRule
+	// (age unknown for those), filtered by trunk like LiveKit.
+	ListedRules    []DialInRule
+	ListRulesCalls int
+	// ListParticipantsCalls counts room listings (guarded by permMu).
+	ListParticipantsCalls int
 }
 
 func (f *FakeProvider) Key() string { return "fake" }
@@ -264,19 +268,28 @@ func (f *FakeProvider) Snapshot() (updates []UpdateProviderParticipantRequest, r
 	return append([]UpdateProviderParticipantRequest(nil), f.Updates...), append([]RemoveProviderParticipantRequest(nil), f.Removed...)
 }
 
-func (f *FakeProvider) ListDialInRules(context.Context) ([]DialInRule, error) {
+func (f *FakeProvider) ListDialInRules(_ context.Context, trunkID string) ([]DialInRule, error) {
 	f.scribeMu.Lock()
 	defer f.scribeMu.Unlock()
-	out := append([]DialInRule(nil), f.ListedRules...)
-	for id, r := range f.DialInRules {
-		out = append(out, DialInRule{ID: id, Name: r.Name})
+	var out []DialInRule
+	for _, r := range f.ListedRules {
+		if slices.Contains(r.TrunkIDs, trunkID) {
+			out = append(out, r)
+		}
 	}
+	for id, r := range f.DialInRules {
+		if r.TrunkID == trunkID {
+			out = append(out, DialInRule{ID: id, Name: r.Name, TrunkIDs: []string{r.TrunkID}})
+		}
+	}
+	f.ListRulesCalls++
 	return out, nil
 }
 
 func (f *FakeProvider) ListParticipants(_ context.Context, roomName string) ([]ProviderParticipant, error) {
 	f.permMu.Lock()
 	defer f.permMu.Unlock()
+	f.ListParticipantsCalls++
 	return append([]ProviderParticipant(nil), f.RoomParticipants[roomName]...), nil
 }
 
@@ -288,4 +301,11 @@ func (f *FakeProvider) Join(roomName string, p ProviderParticipant) {
 		f.RoomParticipants = map[string][]ProviderParticipant{}
 	}
 	f.RoomParticipants[roomName] = append(f.RoomParticipants[roomName], p)
+}
+
+// ListParticipantsCount is how many room listings the fake answered.
+func (f *FakeProvider) ListParticipantsCount() int {
+	f.permMu.Lock()
+	defer f.permMu.Unlock()
+	return f.ListParticipantsCalls
 }
