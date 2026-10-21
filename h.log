@@ -1,0 +1,2 @@
+$ export NODE_OPTIONS=--max-old-space-size=6144; pnpm --filter @uniwork/views exec tsc --noEmit -p . > /tmp/uni2012r5-tc-views.log 2>&1; rc=$?; tail -15 /tmp/uni2012r5-tc-views.log; echo "VIEWS_TC_EXIT=$rc"
+VIEWS_TC_EXIT=0

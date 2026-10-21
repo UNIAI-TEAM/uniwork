@@ -1,0 +1,8 @@
+$ git rev-parse HEAD; git log --oneline -3; free -m | head -2; nproc
+5bb149fd85a321879de97dd09a268c14c8cc77a7
+5bb149fd8 test(chat): pin the own-bubble touch more look and the coarse-pointer bar rule (UNI-2012 R4-4 R4-5)
+bec8c676a fix(chat): hide the hover bar's more button under a coarse pointer on a document card (UNI-2012 R4-5)
+521b29703 fix(chat): give the touch more button the own-bubble control look (UNI-2012 R4-4)
+               total        used        free      shared  buff/cache   available
+Mem:           16003       11479        1294          56        3614        4523
+4

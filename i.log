@@ -1,0 +1,2 @@
+$ export NODE_OPTIONS=--max-old-space-size=6144; pnpm --filter @uniwork/web exec tsc --noEmit -p . > /tmp/uni2012r5-tc-web.log 2>&1; rc=$?; tail -15 /tmp/uni2012r5-tc-web.log; echo "WEB_TC_EXIT=$rc"
+WEB_TC_EXIT=0

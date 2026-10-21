@@ -1,0 +1,9 @@
+$ export NODE_OPTIONS=--max-old-space-size=6144; unset OPENAI_API_KEY; GATE_LEVEL=strict pnpm --filter @uniwork/core test > /tmp/uni2012r5-core.log 2>&1; rc=$?; grep -E "Test Files|Tests |FAIL|Error|threshold|ERROR" /tmp/uni2012r5-core.log | head -40; tail -5 /tmp/uni2012r5-core.log; echo "CORE_TEST_EXIT=$rc"
+ Test Files  292 passed (292)
+      Tests  3227 passed (3227)
+Statements   : 77.75% ( 11398/14659 )
+Branches     : 73.63% ( 7181/9752 )
+Functions    : 68.53% ( 3233/4717 )
+Lines        : 79.42% ( 10078/12688 )
+================================================================================
+CORE_TEST_EXIT=0
