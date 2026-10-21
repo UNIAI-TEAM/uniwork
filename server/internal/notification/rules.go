@@ -99,6 +99,9 @@ type Draft struct {
 	// so a concurrent event of the same group waits and treats the committed
 	// row as already delivered (BE-TN-9).
 	OncePerGroup bool
+	// DocChange is set on document_changed drafts (UNI-2056): the consumer
+	// folds them by their own window instead of the open-row upsert.
+	DocChange *DocChange
 }
 
 // CallRingChecker says whether a chat call still rings for a user: live, and
@@ -147,14 +150,29 @@ var rules = map[string]rule{
 	"document.break_glass_granted": ruleDocumentBreakGlassGranted,
 	// SH-S3 (UNI-1782): a direct user share that raised the recipient's
 	// effective level on the document.
-	"document.shared": ruleDocumentShared,
+	"document.shared": both(ruleDocumentShared, docChangeRule(docVerbAccessChanged)),
 	// DOC-07 (UNI-1631): a person asked a document's managers for access, and
 	// the answer that reaches the requester wherever they are.
 	"document.access_requested":       ruleDocumentAccessRequested,
 	"document.access_request_decided": ruleDocumentAccessRequestDecided,
 	// TRASH-NOTIFY-01 (UNI-1844): somebody else archived a person's
 	// document; the ACL owner hears once per archive batch.
-	"document.archived":      ruleDocumentTrashed,
+	"document.archived": both(ruleDocumentTrashed, ruleDocumentTrashedChange),
+	// DOC-CHANGE-NOTIFY (UNI-2056): one document_changed notice per
+	// recipient per command for every in-scope change of a document
+	// somebody besides the actor can read.
+	"document.updated":                  ruleDocumentRenamed,
+	"document.moved":                    ruleDocumentMovedChange,
+	"document.restored":                 docChangeRule(docVerbRestored),
+	"document.deleted":                  ruleDocumentDeletedChange,
+	"document.shelved":                  docChangeRule(docVerbShelved),
+	"document.unshelved":                docChangeRule(docVerbUnshelved),
+	"document.share_revoked":            docChangeRule(docVerbAccessChanged),
+	"document.workspace_access_changed": docChangeRule(docVerbAccessChanged),
+	"document.link_created":             docChangeRule(docVerbAccessChanged),
+	"document.link_revoked":             docChangeRule(docVerbAccessChanged),
+	"document.version_created":          ruleDocumentVersionChange,
+
 	"participant.invited":    ruleParticipantInvited,
 	"member.joined":          ruleMemberJoined,
 	"member.role_changed":    ruleRoleChanged,

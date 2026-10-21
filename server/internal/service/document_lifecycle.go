@@ -1295,6 +1295,17 @@ func (s *DocumentService) purgeOneDocument(ctx context.Context, d db.ListDocumen
 // document.deleted audit and outbox rows inside the caller's transaction
 // (RESTORE-01 §2 P-4/P-6).
 func (s *DocumentService) hardDeleteDocumentTx(ctx context.Context, q *db.Queries, doc db.Document, actor Actor, deleting []string) (bool, int, error) {
+	// The purge removes the shares and stars a document_changed notice
+	// would be addressed from (UNI-2056), so a person's purge records its
+	// readers and title now, before the orbit goes. A sweep notifies nobody.
+	var noticeReaders []string
+	if actor.Kind != audit.KindSystem {
+		readers, err := s.documentChangeReadersQ(ctx, q, doc)
+		if err != nil {
+			return false, 0, err
+		}
+		noticeReaders = readers
+	}
 	fileIDs, err := q.ListDocumentFileIDs(ctx, db.ListDocumentFileIDsParams{
 		OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID, DocumentID: doc.ID,
 	})
@@ -1434,6 +1445,9 @@ func (s *DocumentService) hardDeleteDocumentTx(ctx context.Context, q *db.Querie
 	meta := map[string]any{"archived_by": textOrNil(doc.ArchivedBy), "file_ids": len(released)}
 	if actor.Kind == audit.KindHuman {
 		meta["manual_purge"] = true
+	}
+	if noticeReaders != nil {
+		meta["title"], meta["notify_user_ids"] = doc.Title, noticeReaders
 	}
 	if err := auditRecorder.Record(ctx, q, audit.Entry{
 		OrganizationID: doc.OrganizationID,

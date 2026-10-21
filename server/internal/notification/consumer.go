@@ -177,6 +177,9 @@ func (c *Consumer) write(ctx context.Context, eventID, correlationID string, d D
 	if n == 0 {
 		return nil // already delivered to this user by an earlier attempt
 	}
+	if d.DocChange != nil {
+		return c.writeDocChange(ctx, tx, q, correlationID, d, prefs)
+	}
 	// The once-per-group claim (BE-TN-3): the open-row merge index only
 	// dedupes a notification nobody has touched yet. A kind that is one
 	// notice per recipient and batch forever - the trash notice, whose

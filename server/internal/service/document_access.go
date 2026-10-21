@@ -552,3 +552,50 @@ func (s *DocumentService) documentTrashLevel(ctx context.Context, userID, docume
 	}
 	return access.canAdminister(), nil
 }
+
+// FilterDocumentReadersIgnoringTrash keeps the people who could read the
+// document before it went to the trash (UNI-2056): the same level rule as
+// FilterDocumentReaders without the "a trashed row is found by managers
+// only" step. Archiving moves only archived_at, so the shares, stars and
+// visibility still answer as they did just before the command.
+func (s *DocumentService) FilterDocumentReadersIgnoringTrash(ctx context.Context, documentID string, userIDs []string) ([]string, error) {
+	out := make([]string, 0, len(userIDs))
+	for _, id := range userIDs {
+		_, _, err := s.authorizeDocumentGate(ctx, s.q, Human(id), documentID, func(_ db.Document, access DocumentAccess) error {
+			if access.Level == DocumentLevelNone {
+				return ErrNotFound
+			}
+			return nil
+		})
+		switch {
+		case err == nil:
+			out = append(out, id)
+		case isGateRefusal(err):
+		default:
+			return nil, err
+		}
+	}
+	return out, nil
+}
+
+// documentChangeReadersQ is the audience of a document_changed notice
+// (UNI-2056 §2) read through q: the ACL owner, live user shares and stars,
+// kept while they read the document now. The purge calls it inside its own
+// transaction, before the shares and stars are deleted.
+func (s *DocumentService) documentChangeReadersQ(ctx context.Context, q *db.Queries, doc db.Document) ([]string, error) {
+	audience, err := q.ListDocumentChangeAudience(ctx, db.ListDocumentChangeAudienceParams{
+		OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID, DocumentID: doc.ID,
+	})
+	if err != nil {
+		return nil, err
+	}
+	seen := map[string]bool{}
+	candidates := make([]string, 0, len(audience)+1)
+	for _, id := range append([]string{doc.AclOwnerID.String}, audience...) {
+		if id != "" && !seen[id] {
+			seen[id] = true
+			candidates = append(candidates, id)
+		}
+	}
+	return s.FilterDocumentReadersQ(ctx, q, doc.ID, candidates)
+}

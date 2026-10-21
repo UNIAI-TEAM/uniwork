@@ -133,9 +133,8 @@ func (f *docChangeFixture) deliver(t *testing.T) {
 	}
 }
 
-// docChangeKind is the kind under test, spelled out so these tests compile
-// before the kind exists.
-const docChangeKind = "document_changed"
+// docChangeKind is the kind under test.
+const docChangeKind = KindDocumentChanged
 
 func (f *docChangeFixture) changed(t *testing.T, userID string) []db.Notification {
 	t.Helper()
