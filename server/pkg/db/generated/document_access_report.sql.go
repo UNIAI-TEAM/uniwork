@@ -53,40 +53,39 @@ func (q *Queries) CountDocumentAccessReportSubtree(ctx context.Context, arg Coun
 	return n, err
 }
 
-const countLiveDocumentShareLinksForDocuments = `-- name: CountLiveDocumentShareLinksForDocuments :many
-SELECT document_id, count(*)::int AS n
-FROM document_share_links
-WHERE organization_id = $1
-  AND workspace_id = $2
-  AND document_id = ANY($3::text[])
-  AND revoked_at IS NULL
-  AND expires_at > now()
-GROUP BY document_id
+const countDocumentAccessReportWorkspaceMembers = `-- name: CountDocumentAccessReportWorkspaceMembers :many
+SELECT wm.workspace_id, count(*)::int AS n
+FROM workspace_members wm
+JOIN organization_members om ON om.organization_id = wm.organization_id AND om.user_id = wm.user_id
+WHERE wm.organization_id = $1
+  AND wm.workspace_id = ANY($2::text[])
+  AND om.deactivated_at IS NULL
+GROUP BY wm.workspace_id
 `
 
-type CountLiveDocumentShareLinksForDocumentsParams struct {
+type CountDocumentAccessReportWorkspaceMembersParams struct {
 	OrganizationID string   `json:"organization_id"`
-	WorkspaceID    string   `json:"workspace_id"`
-	DocumentIds    []string `json:"document_ids"`
+	WorkspaceIds   []string `json:"workspace_ids"`
 }
 
-type CountLiveDocumentShareLinksForDocumentsRow struct {
-	DocumentID string `json:"document_id"`
-	N          int32  `json:"n"`
+type CountDocumentAccessReportWorkspaceMembersRow struct {
+	WorkspaceID string `json:"workspace_id"`
+	N           int32  `json:"n"`
 }
 
-// Live public links per document of a page: not revoked and not expired, as
-// ListLiveDocumentShareLinks counts them. Never the token hash.
-func (q *Queries) CountLiveDocumentShareLinksForDocuments(ctx context.Context, arg CountLiveDocumentShareLinksForDocumentsParams) ([]CountLiveDocumentShareLinksForDocumentsRow, error) {
-	rows, err := q.db.Query(ctx, countLiveDocumentShareLinksForDocuments, arg.OrganizationID, arg.WorkspaceID, arg.DocumentIds)
+// UNI-2039 S7: how many people a workspace principal stands for - the
+// workspace's rows whose person is still an active member of the
+// organization (a deactivated member keeps the row, not the access).
+func (q *Queries) CountDocumentAccessReportWorkspaceMembers(ctx context.Context, arg CountDocumentAccessReportWorkspaceMembersParams) ([]CountDocumentAccessReportWorkspaceMembersRow, error) {
+	rows, err := q.db.Query(ctx, countDocumentAccessReportWorkspaceMembers, arg.OrganizationID, arg.WorkspaceIds)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []CountLiveDocumentShareLinksForDocumentsRow{}
+	items := []CountDocumentAccessReportWorkspaceMembersRow{}
 	for rows.Next() {
-		var i CountLiveDocumentShareLinksForDocumentsRow
-		if err := rows.Scan(&i.DocumentID, &i.N); err != nil {
+		var i CountDocumentAccessReportWorkspaceMembersRow
+		if err := rows.Scan(&i.WorkspaceID, &i.N); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -135,86 +134,181 @@ func (q *Queries) DocumentInForeignMyFolder(ctx context.Context, arg DocumentInF
 	return in_set, err
 }
 
+const getDocumentAccessReportAnchor = `-- name: GetDocumentAccessReportAnchor :one
+SELECT d.title,
+  (SELECT GREATEST(
+      d.created_at,
+      (SELECT max(GREATEST(s.created_at, s.revoked_at)) FROM document_shares s
+        WHERE s.organization_id = d.organization_id AND s.workspace_id = d.workspace_id AND s.document_id = d.id),
+      (SELECT max(GREATEST(l.created_at, l.revoked_at)) FROM document_share_links l
+        WHERE l.organization_id = d.organization_id AND l.workspace_id = d.workspace_id AND l.document_id = d.id),
+      (SELECT max(g.granted_at) FROM document_break_glass_grants g
+        WHERE g.organization_id = d.organization_id AND g.workspace_id = d.workspace_id AND g.document_id = d.id)
+    ))::timestamptz AS access_changed_at
+FROM documents d
+WHERE d.organization_id = $1
+  AND d.workspace_id = $2
+  AND d.id = $3
+  AND d.archived_at IS NULL
+  AND d.owner_id IS NULL
+  AND d.kind <> 'folder'
+  AND d.system_kind IS NULL
+`
+
+type GetDocumentAccessReportAnchorParams struct {
+	OrganizationID string `json:"organization_id"`
+	WorkspaceID    string `json:"workspace_id"`
+	ID             string `json:"id"`
+}
+
+type GetDocumentAccessReportAnchorRow struct {
+	Title           string             `json:"title"`
+	AccessChangedAt pgtype.Timestamptz `json:"access_changed_at"`
+}
+
+// UNI-2039 fx1 (F2): the sort position of the cursor's anchor document. The
+// cursor carries the id only, so the title / change time of a candidate the
+// caller may not read never reaches the client; the keyset value is read here,
+// inside the tenant, from the one row the id names. No row = the anchor was
+// purged, archived or became a container: the service answers 400 and the
+// client restarts the list.
+func (q *Queries) GetDocumentAccessReportAnchor(ctx context.Context, arg GetDocumentAccessReportAnchorParams) (GetDocumentAccessReportAnchorRow, error) {
+	row := q.db.QueryRow(ctx, getDocumentAccessReportAnchor, arg.OrganizationID, arg.WorkspaceID, arg.ID)
+	var i GetDocumentAccessReportAnchorRow
+	err := row.Scan(&i.Title, &i.AccessChangedAt)
+	return i, err
+}
+
 const listDocumentAccessReportSubtreeCandidates = `-- name: ListDocumentAccessReportSubtreeCandidates :many
 WITH RECURSIVE sub AS (
   SELECT r.id, 1 AS lvl
   FROM documents r
-  WHERE r.organization_id = $1
-    AND r.workspace_id = $2
-    AND r.id = $11
+  WHERE r.organization_id = $8
+    AND r.workspace_id = $9
+    AND r.id = $10
   UNION ALL
   SELECT c.id, sub.lvl + 1
   FROM documents c
   JOIN sub ON c.parent_id = sub.id
-  WHERE c.organization_id = $1
-    AND c.workspace_id = $2
-    AND sub.lvl < $8::int
-)
-SELECT d.id, d.organization_id, d.workspace_id, d.parent_id, d.kind, d.title, d.visibility,
-  d.workspace_level, d.owner_kind, d.owner_id, d.acl_owner_id, d.archived_at, d.updated_at
+  WHERE c.organization_id = $8
+    AND c.workspace_id = $9
+    AND sub.lvl < $11::int
+), cand AS (
+SELECT d.id, d.organization_id, d.workspace_id, d.parent_id, d.kind, d.system_kind, d.title, d.visibility,
+  d.workspace_level, d.owner_kind, d.owner_id, d.acl_owner_id, d.archived_at, d.updated_at,
+  chg.changed_at AS access_changed_at
 FROM sub
 JOIN documents d ON d.id = sub.id
-WHERE d.organization_id = $1
-  AND d.workspace_id = $2
+  -- UNI-2039 S1: the last time the document's access changed - the greatest of
+  -- the document's creation and every share, public link and break-glass
+  -- stamp (created, revoked or granted). Revoked rows count: a revoke is a change.
+  -- Only the changed order and the page read it (UNI-2039 fx1, F1): the id
+  -- order of the export, summary and principals skips the subplans, and the
+  -- two index-only reads are served by the (organization_id, workspace_id,
+  -- document_id) INCLUDE (created_at, revoked_at) indexes.
+  LEFT JOIN LATERAL (
+    SELECT CASE WHEN $2::text = 'id' THEN NULL ELSE GREATEST(
+      d.created_at,
+      (SELECT max(GREATEST(s.created_at, s.revoked_at)) FROM document_shares s
+        WHERE s.organization_id = d.organization_id AND s.workspace_id = d.workspace_id AND s.document_id = d.id),
+      (SELECT max(GREATEST(l.created_at, l.revoked_at)) FROM document_share_links l
+        WHERE l.organization_id = d.organization_id AND l.workspace_id = d.workspace_id AND l.document_id = d.id),
+      (SELECT max(g.granted_at) FROM document_break_glass_grants g
+        WHERE g.organization_id = d.organization_id AND g.workspace_id = d.workspace_id AND g.document_id = d.id)
+    ) END::timestamptz AS changed_at
+  ) chg ON true
+WHERE d.organization_id = $8
+  AND d.workspace_id = $9
   AND d.archived_at IS NULL
   AND d.owner_id IS NULL
-  AND ($3::text = '' OR d.visibility = $3::text)
+  -- UNI-2039 fx1: the report lists documents, not containers. A folder (My Folder
+  -- is one) is a scope the picker or folder_id names, never a row of the report.
+  AND d.kind <> 'folder'
+  AND d.system_kind IS NULL
+  AND ($12::text = '' OR d.visibility = $12::text)
   -- MYFOLDER-01 (UNI-1891): drop a candidate the admin would reach only
   -- through see_all when it lives inside another member's My Folder. A row
   -- stays when the actor is the ACL owner, it is workspace-visible at
   -- share_levels, a live share covers them, or it is not in the foreign set
   -- (uw_my_folder_foreign_ids, migration 9991792289293597).
-  AND (NOT $4::boolean
-       OR d.acl_owner_id = $5::text
-       OR (d.visibility = 'workspace' AND d.workspace_level = ANY($6::text[]))
+  AND (NOT $13::boolean
+       OR d.acl_owner_id = $14::text
+       OR (d.visibility = 'workspace' AND d.workspace_level = ANY($15::text[]))
        OR EXISTS (
             SELECT 1 FROM document_shares s
             WHERE s.organization_id = d.organization_id
               AND s.workspace_id = d.workspace_id
               AND s.document_id = d.id
               AND s.revoked_at IS NULL
-              AND s.level = ANY($6::text[])
-              AND ((s.principal_type = 'user' AND s.principal_id = $5)
+              AND s.level = ANY($15::text[])
+              AND ((s.principal_type = 'user' AND s.principal_id = $14)
                    OR (s.principal_type = 'organization' AND s.principal_id = d.organization_id)
                    OR (s.principal_type = 'workspace'
-                       AND s.principal_id = ANY($7::text[]))))
+                       AND s.principal_id = ANY($16::text[]))))
        OR NOT EXISTS (
             SELECT 1 FROM uw_my_folder_foreign_ids(
-              $5, $1, $2, $8::int
+              $14, $8, $9, $11::int
             ) mfs WHERE mfs.document_id = d.id))
-  AND d.id > $9::text
-ORDER BY d.id
-LIMIT $10
+)
+SELECT c.id, c.organization_id, c.workspace_id, c.parent_id, c.kind, c.system_kind, c.title, c.visibility,
+  c.workspace_level, c.owner_kind, c.owner_id, c.acl_owner_id, c.archived_at, c.updated_at, c.access_changed_at
+FROM cand c
+WHERE (NOT $1::boolean OR CASE $2::text
+    WHEN 'changed' THEN CASE WHEN $3::boolean
+      THEN (c.access_changed_at < $4::timestamptz
+            OR (c.access_changed_at = $4::timestamptz AND c.id COLLATE "C" > $5::text COLLATE "C"))
+      ELSE (c.access_changed_at > $4::timestamptz
+            OR (c.access_changed_at = $4::timestamptz AND c.id COLLATE "C" > $5::text COLLATE "C")) END
+    WHEN 'title' THEN CASE WHEN $3::boolean
+      THEN (c.title COLLATE "vi-x-icu" < $6::text COLLATE "vi-x-icu"
+            OR (c.title COLLATE "vi-x-icu" = $6::text COLLATE "vi-x-icu" AND c.id COLLATE "C" > $5::text COLLATE "C"))
+      ELSE (c.title COLLATE "vi-x-icu" > $6::text COLLATE "vi-x-icu"
+            OR (c.title COLLATE "vi-x-icu" = $6::text COLLATE "vi-x-icu" AND c.id COLLATE "C" > $5::text COLLATE "C")) END
+    ELSE c.id COLLATE "C" > $5::text COLLATE "C" END)
+ORDER BY
+  (CASE WHEN $2::text = 'changed' AND NOT $3::boolean THEN c.access_changed_at END) ASC,
+  (CASE WHEN $2::text = 'changed' AND $3::boolean THEN c.access_changed_at END) DESC,
+  (CASE WHEN $2::text = 'title' AND NOT $3::boolean THEN c.title END) COLLATE "vi-x-icu" ASC,
+  (CASE WHEN $2::text = 'title' AND $3::boolean THEN c.title END) COLLATE "vi-x-icu" DESC,
+  c.id COLLATE "C"
+LIMIT $7
 `
 
 type ListDocumentAccessReportSubtreeCandidatesParams struct {
-	OrganizationID  string   `json:"organization_id"`
-	WorkspaceID     string   `json:"workspace_id"`
-	Visibility      string   `json:"visibility"`
-	SeeAll          bool     `json:"see_all"`
-	ActorID         string   `json:"actor_id"`
-	ShareLevels     []string `json:"share_levels"`
-	ShareWorkspaces []string `json:"share_workspaces"`
-	MaxLevel        int32    `json:"max_level"`
-	AfterID         string   `json:"after_id"`
-	MaxRows         int32    `json:"max_rows"`
-	RootID          string   `json:"root_id"`
+	HasAfter        bool               `json:"has_after"`
+	SortMode        string             `json:"sort_mode"`
+	Descending      bool               `json:"descending"`
+	AfterChanged    pgtype.Timestamptz `json:"after_changed"`
+	AfterID         string             `json:"after_id"`
+	AfterTitle      string             `json:"after_title"`
+	MaxRows         int32              `json:"max_rows"`
+	OrganizationID  string             `json:"organization_id"`
+	WorkspaceID     string             `json:"workspace_id"`
+	RootID          string             `json:"root_id"`
+	MaxLevel        int32              `json:"max_level"`
+	Visibility      string             `json:"visibility"`
+	SeeAll          bool               `json:"see_all"`
+	ActorID         string             `json:"actor_id"`
+	ShareLevels     []string           `json:"share_levels"`
+	ShareWorkspaces []string           `json:"share_workspaces"`
 }
 
 type ListDocumentAccessReportSubtreeCandidatesRow struct {
-	ID             string             `json:"id"`
-	OrganizationID string             `json:"organization_id"`
-	WorkspaceID    string             `json:"workspace_id"`
-	ParentID       pgtype.Text        `json:"parent_id"`
-	Kind           string             `json:"kind"`
-	Title          string             `json:"title"`
-	Visibility     string             `json:"visibility"`
-	WorkspaceLevel string             `json:"workspace_level"`
-	OwnerKind      pgtype.Text        `json:"owner_kind"`
-	OwnerID        pgtype.Text        `json:"owner_id"`
-	AclOwnerID     pgtype.Text        `json:"acl_owner_id"`
-	ArchivedAt     pgtype.Timestamptz `json:"archived_at"`
-	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+	ID              string             `json:"id"`
+	OrganizationID  string             `json:"organization_id"`
+	WorkspaceID     string             `json:"workspace_id"`
+	ParentID        pgtype.Text        `json:"parent_id"`
+	Kind            string             `json:"kind"`
+	SystemKind      pgtype.Text        `json:"system_kind"`
+	Title           string             `json:"title"`
+	Visibility      string             `json:"visibility"`
+	WorkspaceLevel  string             `json:"workspace_level"`
+	OwnerKind       pgtype.Text        `json:"owner_kind"`
+	OwnerID         pgtype.Text        `json:"owner_id"`
+	AclOwnerID      pgtype.Text        `json:"acl_owner_id"`
+	ArchivedAt      pgtype.Timestamptz `json:"archived_at"`
+	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
+	AccessChangedAt pgtype.Timestamptz `json:"access_changed_at"`
 }
 
 // The folder subtree, root included, walked as ListLiveDocumentSubtreeIDs
@@ -223,17 +317,22 @@ type ListDocumentAccessReportSubtreeCandidatesRow struct {
 // max_level is the corrupted-chain guard from subtreeMaxLevel.
 func (q *Queries) ListDocumentAccessReportSubtreeCandidates(ctx context.Context, arg ListDocumentAccessReportSubtreeCandidatesParams) ([]ListDocumentAccessReportSubtreeCandidatesRow, error) {
 	rows, err := q.db.Query(ctx, listDocumentAccessReportSubtreeCandidates,
+		arg.HasAfter,
+		arg.SortMode,
+		arg.Descending,
+		arg.AfterChanged,
+		arg.AfterID,
+		arg.AfterTitle,
+		arg.MaxRows,
 		arg.OrganizationID,
 		arg.WorkspaceID,
+		arg.RootID,
+		arg.MaxLevel,
 		arg.Visibility,
 		arg.SeeAll,
 		arg.ActorID,
 		arg.ShareLevels,
 		arg.ShareWorkspaces,
-		arg.MaxLevel,
-		arg.AfterID,
-		arg.MaxRows,
-		arg.RootID,
 	)
 	if err != nil {
 		return nil, err
@@ -248,6 +347,7 @@ func (q *Queries) ListDocumentAccessReportSubtreeCandidates(ctx context.Context,
 			&i.WorkspaceID,
 			&i.ParentID,
 			&i.Kind,
+			&i.SystemKind,
 			&i.Title,
 			&i.Visibility,
 			&i.WorkspaceLevel,
@@ -256,6 +356,7 @@ func (q *Queries) ListDocumentAccessReportSubtreeCandidates(ctx context.Context,
 			&i.AclOwnerID,
 			&i.ArchivedAt,
 			&i.UpdatedAt,
+			&i.AccessChangedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -269,69 +370,120 @@ func (q *Queries) ListDocumentAccessReportSubtreeCandidates(ctx context.Context,
 
 const listDocumentAccessReportWorkspaceCandidates = `-- name: ListDocumentAccessReportWorkspaceCandidates :many
 
-SELECT d.id, d.organization_id, d.workspace_id, d.parent_id, d.kind, d.title, d.visibility,
-  d.workspace_level, d.owner_kind, d.owner_id, d.acl_owner_id, d.archived_at, d.updated_at
+WITH cand AS (
+SELECT d.id, d.organization_id, d.workspace_id, d.parent_id, d.kind, d.system_kind, d.title, d.visibility,
+  d.workspace_level, d.owner_kind, d.owner_id, d.acl_owner_id, d.archived_at, d.updated_at,
+  chg.changed_at AS access_changed_at
 FROM documents d
-WHERE d.organization_id = $1
-  AND d.workspace_id = $2
+  -- UNI-2039 S1: the last time the document's access changed - the greatest of
+  -- the document's creation and every share, public link and break-glass
+  -- stamp (created, revoked or granted). Revoked rows count: a revoke is a change.
+  -- Only the changed order and the page read it (UNI-2039 fx1, F1): the id
+  -- order of the export, summary and principals skips the subplans, and the
+  -- two index-only reads are served by the (organization_id, workspace_id,
+  -- document_id) INCLUDE (created_at, revoked_at) indexes.
+  LEFT JOIN LATERAL (
+    SELECT CASE WHEN $2::text = 'id' THEN NULL ELSE GREATEST(
+      d.created_at,
+      (SELECT max(GREATEST(s.created_at, s.revoked_at)) FROM document_shares s
+        WHERE s.organization_id = d.organization_id AND s.workspace_id = d.workspace_id AND s.document_id = d.id),
+      (SELECT max(GREATEST(l.created_at, l.revoked_at)) FROM document_share_links l
+        WHERE l.organization_id = d.organization_id AND l.workspace_id = d.workspace_id AND l.document_id = d.id),
+      (SELECT max(g.granted_at) FROM document_break_glass_grants g
+        WHERE g.organization_id = d.organization_id AND g.workspace_id = d.workspace_id AND g.document_id = d.id)
+    ) END::timestamptz AS changed_at
+  ) chg ON true
+WHERE d.organization_id = $8
+  AND d.workspace_id = $9
   AND d.archived_at IS NULL
   AND d.owner_id IS NULL
-  AND ($3::text = '' OR d.visibility = $3::text)
+  -- UNI-2039 fx1: the report lists documents, not containers. A folder (My Folder
+  -- is one) is a scope the picker or folder_id names, never a row of the report.
+  AND d.kind <> 'folder'
+  AND d.system_kind IS NULL
+  AND ($10::text = '' OR d.visibility = $10::text)
   -- MYFOLDER-01 (UNI-1891): drop a candidate the admin would reach only
   -- through see_all when it lives inside another member's My Folder. A row
   -- stays when the actor is the ACL owner, it is workspace-visible at
   -- share_levels, a live share covers them, or it is not in the foreign set
   -- (uw_my_folder_foreign_ids, migration 9991792289293597).
-  AND (NOT $4::boolean
-       OR d.acl_owner_id = $5::text
-       OR (d.visibility = 'workspace' AND d.workspace_level = ANY($6::text[]))
+  AND (NOT $11::boolean
+       OR d.acl_owner_id = $12::text
+       OR (d.visibility = 'workspace' AND d.workspace_level = ANY($13::text[]))
        OR EXISTS (
             SELECT 1 FROM document_shares s
             WHERE s.organization_id = d.organization_id
               AND s.workspace_id = d.workspace_id
               AND s.document_id = d.id
               AND s.revoked_at IS NULL
-              AND s.level = ANY($6::text[])
-              AND ((s.principal_type = 'user' AND s.principal_id = $5)
+              AND s.level = ANY($13::text[])
+              AND ((s.principal_type = 'user' AND s.principal_id = $12)
                    OR (s.principal_type = 'organization' AND s.principal_id = d.organization_id)
                    OR (s.principal_type = 'workspace'
-                       AND s.principal_id = ANY($7::text[]))))
+                       AND s.principal_id = ANY($14::text[]))))
        OR NOT EXISTS (
             SELECT 1 FROM uw_my_folder_foreign_ids(
-              $5, $1, $2, $8::int
+              $12, $8, $9, $15::int
             ) mfs WHERE mfs.document_id = d.id))
-  AND d.id > $9::text
-ORDER BY d.id
-LIMIT $10
+)
+SELECT c.id, c.organization_id, c.workspace_id, c.parent_id, c.kind, c.system_kind, c.title, c.visibility,
+  c.workspace_level, c.owner_kind, c.owner_id, c.acl_owner_id, c.archived_at, c.updated_at, c.access_changed_at
+FROM cand c
+WHERE (NOT $1::boolean OR CASE $2::text
+    WHEN 'changed' THEN CASE WHEN $3::boolean
+      THEN (c.access_changed_at < $4::timestamptz
+            OR (c.access_changed_at = $4::timestamptz AND c.id COLLATE "C" > $5::text COLLATE "C"))
+      ELSE (c.access_changed_at > $4::timestamptz
+            OR (c.access_changed_at = $4::timestamptz AND c.id COLLATE "C" > $5::text COLLATE "C")) END
+    WHEN 'title' THEN CASE WHEN $3::boolean
+      THEN (c.title COLLATE "vi-x-icu" < $6::text COLLATE "vi-x-icu"
+            OR (c.title COLLATE "vi-x-icu" = $6::text COLLATE "vi-x-icu" AND c.id COLLATE "C" > $5::text COLLATE "C"))
+      ELSE (c.title COLLATE "vi-x-icu" > $6::text COLLATE "vi-x-icu"
+            OR (c.title COLLATE "vi-x-icu" = $6::text COLLATE "vi-x-icu" AND c.id COLLATE "C" > $5::text COLLATE "C")) END
+    ELSE c.id COLLATE "C" > $5::text COLLATE "C" END)
+ORDER BY
+  (CASE WHEN $2::text = 'changed' AND NOT $3::boolean THEN c.access_changed_at END) ASC,
+  (CASE WHEN $2::text = 'changed' AND $3::boolean THEN c.access_changed_at END) DESC,
+  (CASE WHEN $2::text = 'title' AND NOT $3::boolean THEN c.title END) COLLATE "vi-x-icu" ASC,
+  (CASE WHEN $2::text = 'title' AND $3::boolean THEN c.title END) COLLATE "vi-x-icu" DESC,
+  c.id COLLATE "C"
+LIMIT $7
 `
 
 type ListDocumentAccessReportWorkspaceCandidatesParams struct {
-	OrganizationID  string   `json:"organization_id"`
-	WorkspaceID     string   `json:"workspace_id"`
-	Visibility      string   `json:"visibility"`
-	SeeAll          bool     `json:"see_all"`
-	ActorID         string   `json:"actor_id"`
-	ShareLevels     []string `json:"share_levels"`
-	ShareWorkspaces []string `json:"share_workspaces"`
-	MaxLevel        int32    `json:"max_level"`
-	AfterID         string   `json:"after_id"`
-	MaxRows         int32    `json:"max_rows"`
+	HasAfter        bool               `json:"has_after"`
+	SortMode        string             `json:"sort_mode"`
+	Descending      bool               `json:"descending"`
+	AfterChanged    pgtype.Timestamptz `json:"after_changed"`
+	AfterID         string             `json:"after_id"`
+	AfterTitle      string             `json:"after_title"`
+	MaxRows         int32              `json:"max_rows"`
+	OrganizationID  string             `json:"organization_id"`
+	WorkspaceID     string             `json:"workspace_id"`
+	Visibility      string             `json:"visibility"`
+	SeeAll          bool               `json:"see_all"`
+	ActorID         string             `json:"actor_id"`
+	ShareLevels     []string           `json:"share_levels"`
+	ShareWorkspaces []string           `json:"share_workspaces"`
+	MaxLevel        int32              `json:"max_level"`
 }
 
 type ListDocumentAccessReportWorkspaceCandidatesRow struct {
-	ID             string             `json:"id"`
-	OrganizationID string             `json:"organization_id"`
-	WorkspaceID    string             `json:"workspace_id"`
-	ParentID       pgtype.Text        `json:"parent_id"`
-	Kind           string             `json:"kind"`
-	Title          string             `json:"title"`
-	Visibility     string             `json:"visibility"`
-	WorkspaceLevel string             `json:"workspace_level"`
-	OwnerKind      pgtype.Text        `json:"owner_kind"`
-	OwnerID        pgtype.Text        `json:"owner_id"`
-	AclOwnerID     pgtype.Text        `json:"acl_owner_id"`
-	ArchivedAt     pgtype.Timestamptz `json:"archived_at"`
-	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+	ID              string             `json:"id"`
+	OrganizationID  string             `json:"organization_id"`
+	WorkspaceID     string             `json:"workspace_id"`
+	ParentID        pgtype.Text        `json:"parent_id"`
+	Kind            string             `json:"kind"`
+	SystemKind      pgtype.Text        `json:"system_kind"`
+	Title           string             `json:"title"`
+	Visibility      string             `json:"visibility"`
+	WorkspaceLevel  string             `json:"workspace_level"`
+	OwnerKind       pgtype.Text        `json:"owner_kind"`
+	OwnerID         pgtype.Text        `json:"owner_id"`
+	AclOwnerID      pgtype.Text        `json:"acl_owner_id"`
+	ArchivedAt      pgtype.Timestamptz `json:"archived_at"`
+	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
+	AccessChangedAt pgtype.Timestamptz `json:"access_changed_at"`
 }
 
 // Document access report (UNI-1643). Read-only. Candidates are the live,
@@ -340,8 +492,20 @@ type ListDocumentAccessReportWorkspaceCandidatesRow struct {
 // page through the list mirror of the resolver before it lists anything.
 // The candidate reads name the columns a report uses: never d.*, which
 // would drag content, content_text and search_text through every page.
+// Candidates are read in one of three orders, named by sort_mode: changed
+// (access_changed_at), title (the vi-x-icu collation, as UNI-2038's lists) and
+// id (the export's historic order). Every order ends on id COLLATE "C", and
+// the keyset predicate is (key, id) in that order, so duplicate keys neither
+// skip nor repeat a row across pages.
 func (q *Queries) ListDocumentAccessReportWorkspaceCandidates(ctx context.Context, arg ListDocumentAccessReportWorkspaceCandidatesParams) ([]ListDocumentAccessReportWorkspaceCandidatesRow, error) {
 	rows, err := q.db.Query(ctx, listDocumentAccessReportWorkspaceCandidates,
+		arg.HasAfter,
+		arg.SortMode,
+		arg.Descending,
+		arg.AfterChanged,
+		arg.AfterID,
+		arg.AfterTitle,
+		arg.MaxRows,
 		arg.OrganizationID,
 		arg.WorkspaceID,
 		arg.Visibility,
@@ -350,8 +514,6 @@ func (q *Queries) ListDocumentAccessReportWorkspaceCandidates(ctx context.Contex
 		arg.ShareLevels,
 		arg.ShareWorkspaces,
 		arg.MaxLevel,
-		arg.AfterID,
-		arg.MaxRows,
 	)
 	if err != nil {
 		return nil, err
@@ -366,6 +528,7 @@ func (q *Queries) ListDocumentAccessReportWorkspaceCandidates(ctx context.Contex
 			&i.WorkspaceID,
 			&i.ParentID,
 			&i.Kind,
+			&i.SystemKind,
 			&i.Title,
 			&i.Visibility,
 			&i.WorkspaceLevel,
@@ -374,6 +537,7 @@ func (q *Queries) ListDocumentAccessReportWorkspaceCandidates(ctx context.Contex
 			&i.AclOwnerID,
 			&i.ArchivedAt,
 			&i.UpdatedAt,
+			&i.AccessChangedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -442,8 +606,64 @@ func (q *Queries) ListLiveBreakGlassGrantsForReport(ctx context.Context, arg Lis
 	return items, nil
 }
 
+const listLiveDocumentShareLinksForReport = `-- name: ListLiveDocumentShareLinksForReport :many
+SELECT id, document_id, created_by, created_by_kind, created_at, expires_at
+FROM document_share_links
+WHERE organization_id = $1
+  AND workspace_id = $2
+  AND document_id = ANY($3::text[])
+  AND revoked_at IS NULL
+  AND expires_at > now()
+ORDER BY document_id, created_at, id
+`
+
+type ListLiveDocumentShareLinksForReportParams struct {
+	OrganizationID string   `json:"organization_id"`
+	WorkspaceID    string   `json:"workspace_id"`
+	DocumentIds    []string `json:"document_ids"`
+}
+
+type ListLiveDocumentShareLinksForReportRow struct {
+	ID            string             `json:"id"`
+	DocumentID    string             `json:"document_id"`
+	CreatedBy     string             `json:"created_by"`
+	CreatedByKind string             `json:"created_by_kind"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+	ExpiresAt     pgtype.Timestamptz `json:"expires_at"`
+}
+
+// Live public links of a page of documents: not revoked and not expired, as
+// ListLiveDocumentShareLinks counts them (UNI-2039 S2: one report row each;
+// live_link_count is their number). Never the token hash.
+func (q *Queries) ListLiveDocumentShareLinksForReport(ctx context.Context, arg ListLiveDocumentShareLinksForReportParams) ([]ListLiveDocumentShareLinksForReportRow, error) {
+	rows, err := q.db.Query(ctx, listLiveDocumentShareLinksForReport, arg.OrganizationID, arg.WorkspaceID, arg.DocumentIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListLiveDocumentShareLinksForReportRow{}
+	for rows.Next() {
+		var i ListLiveDocumentShareLinksForReportRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.DocumentID,
+			&i.CreatedBy,
+			&i.CreatedByKind,
+			&i.CreatedAt,
+			&i.ExpiresAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listLiveDocumentSharesForReport = `-- name: ListLiveDocumentSharesForReport :many
-SELECT id, document_id, principal_type, principal_id, level, granted_by, granted_by_kind, created_at
+SELECT id, document_id, principal_type, principal_id, level, granted_by, granted_by_kind, origin, created_at
 FROM document_shares
 WHERE organization_id = $1
   AND workspace_id = $2
@@ -466,6 +686,7 @@ type ListLiveDocumentSharesForReportRow struct {
 	Level         string             `json:"level"`
 	GrantedBy     string             `json:"granted_by"`
 	GrantedByKind string             `json:"granted_by_kind"`
+	Origin        string             `json:"origin"`
 	CreatedAt     pgtype.Timestamptz `json:"created_at"`
 }
 
@@ -489,6 +710,7 @@ func (q *Queries) ListLiveDocumentSharesForReport(ctx context.Context, arg ListL
 			&i.Level,
 			&i.GrantedBy,
 			&i.GrantedByKind,
+			&i.Origin,
 			&i.CreatedAt,
 		); err != nil {
 			return nil, err

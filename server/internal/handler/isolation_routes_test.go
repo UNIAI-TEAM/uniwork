@@ -573,6 +573,8 @@ var isoRoutes = map[string]isoSpec{
 	// sends B's workspace with A's folder.
 	"GET /api/v1/workspaces/{workspaceID}/documents/access-report":               {query: "?folder_id={folderID}"},
 	"GET /api/v1/workspaces/{workspaceID}/documents/access-report/export":        {query: "?folder_id={folderID}&format=csv"},
+	"GET /api/v1/workspaces/{workspaceID}/documents/access-report/summary":       {query: "?folder_id={folderID}"},
+	"GET /api/v1/workspaces/{workspaceID}/documents/access-report/principals":    {query: "?folder_id={folderID}"},
 	"GET /api/v1/workspaces/{workspaceID}/task-view-preferences":                 {query: "?scope_type=workspace"},
 	"GET /api/v1/workspaces/{workspaceID}/task-views":                            {query: "?scope_type=workspace"},
 	"GET /api/v1/workspaces/{workspaceID}/calendar/connections/{provider}/start": {skipControl: "no OAuth client is configured in tests; the owner gets 503"},
