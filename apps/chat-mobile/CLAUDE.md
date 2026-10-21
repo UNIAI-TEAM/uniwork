@@ -625,7 +625,10 @@ Hai lớp test, không chung file (ADR 0037 — cả hai chặn ở mọi `GATE_
 
 - `vitest.config.ts` — `*.test.ts` trong `lib/`, `data/`, môi trường node, sàn
   100/100/100/100 cứng (không qua `scripts/coverage-gate.ts`); không loại file để
-  qua sàn, nhánh không thể xảy ra thì viết lại.
+  qua sàn, nhánh không thể xảy ra thì viết lại. `data/server-contract.test.ts` giữ tên trường: mỗi trường mà schema
+  response app parse khai (lồng nhau cũng vậy) phải là một `json:"…"` của SDO Go trả nó
+  (`server/internal/handler/dto/sdo/`, bảng `CONTRACTS`); thêm một endpoint app đọc thì thêm dòng vào bảng đó. PR server
+  đổi SDO cũng chạy test này (`MOBILE_PATHS`).
 - `jest.config.js` — `components/**/*.test.tsx` và hook React của lớp data
   (`data/**/*.test.tsx`, như `use-call-realtime.test.tsx`: công tắc gọi đổi giữa
   cuộc gọi không được cắt cuộc gọi), preset `jest-expo` với
