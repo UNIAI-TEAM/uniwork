@@ -5,7 +5,9 @@
 //   Settings › UniChat › Language, Android 13+ app languages) can change after it; when the system language
 //   differs from the one recorded, the person changed it last, in the system, and the system wins — the saved
 //   choice is replaced by the system's, so it cannot come back if the system is switched again. A value saved
-//   before this rule ("en") has no system recorded and stands.
+//   before this rule ("en") has no system recorded and stands. The system is read again on every return to the
+//   app (`refresh`): Android 13+ app languages change while the process lives on (MainActivity is recreated over
+//   the same JS runtime), so the launch's reading alone would ignore the change until a cold start.
 // - `ready` turns true once the read has answered (or failed): the splash waits for it, so the first frame is
 //   already in the right language (app/_layout.tsx › useSplashUntilReady).
 //
@@ -30,8 +32,8 @@ export function resolveLocaleChoice(saved: string | null, system: SupportedLocal
 }
 
 interface LocaleDeps {
-  /** The phone's language among those the app speaks (lib/i18n/singleton.ts › matchSupportedLocale). */
-  system: SupportedLocale;
+  /** The phone's language now, among those the app speaks (lib/i18n/singleton.ts › matchSupportedLocale). */
+  system: () => SupportedLocale;
   read: () => Promise<string | null>;
   write: (value: string) => Promise<void>;
   /** Hands the language to i18next. */
@@ -39,11 +41,18 @@ interface LocaleDeps {
 }
 
 export function createLocalePreference(deps: LocaleDeps) {
-  const store = createStore<{ locale: SupportedLocale; ready: boolean }>(() => ({ locale: deps.system, ready: false }));
+  // The system language this preference last answered to.
+  let seen = deps.system();
+  const store = createStore<{ locale: SupportedLocale; ready: boolean }>(() => ({ locale: seen, ready: false }));
   let loading: Promise<void> | null = null;
   // A choice made while the saved one was still being read wins over it.
   let chosen = false;
   const save = (value: string, what: string) => void deps.write(value).catch(bestEffort("i18n", what, "breadcrumb"));
+  const show = (locale: SupportedLocale) => {
+    if (locale === store.getState().locale) return;
+    store.setState({ locale });
+    deps.apply(locale);
+  };
   return {
     store,
     /** Reads the saved choice and applies it; once per launch, however often it is called. */
@@ -52,11 +61,10 @@ export function createLocalePreference(deps: LocaleDeps) {
         .read()
         .then((saved) => {
           if (chosen) return;
-          const { locale, replace } = resolveLocaleChoice(saved, deps.system);
-          if (replace) save(encodeLocaleChoice(locale, deps.system), "system language not saved");
-          if (locale === store.getState().locale) return;
-          store.setState({ locale });
-          deps.apply(locale);
+          seen = deps.system();
+          const { locale, replace } = resolveLocaleChoice(saved, seen);
+          if (replace) save(encodeLocaleChoice(locale, seen), "system language not saved");
+          show(locale);
         })
         // An unreadable preference leaves the phone's language in place.
         .catch(bestEffort("i18n", "saved language not read", "breadcrumb"))
@@ -65,10 +73,21 @@ export function createLocalePreference(deps: LocaleDeps) {
     },
     set(locale: SupportedLocale): void {
       chosen = true;
+      seen = deps.system();
       store.setState({ locale, ready: true });
       deps.apply(locale);
       // The choice holds for this launch even when it cannot be saved.
-      save(encodeLocaleChoice(locale, deps.system), "language not saved");
+      save(encodeLocaleChoice(locale, seen), "language not saved");
+    },
+    /** On a return to the app: a system language that changed since is the latest choice, so it wins and is saved. */
+    refresh(): void {
+      const system = deps.system();
+      if (system === seen) return;
+      seen = system;
+      // Before the saved choice is read, load() resolves it against the system of that moment itself.
+      if (!store.getState().ready) return;
+      save(encodeLocaleChoice(system, system), "system language not saved");
+      show(system);
     },
   };
 }

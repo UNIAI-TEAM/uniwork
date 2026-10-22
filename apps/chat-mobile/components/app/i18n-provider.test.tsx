@@ -136,6 +136,24 @@ it("follows the device's clock at start and again when the app comes back", asyn
   modules.format.setDeviceClock(null);
 });
 
+// Android 13+ Settings › App languages, changed while UniChat waits in the background: the activity comes back over the
+// same JS runtime, so the provider asks the phone again on the return and the system's language wins.
+it("follows a system language changed while the app was in the background", async () => {
+  const modules = load(() => Promise.resolve("vi|vi"));
+  const listeners: ((state: string) => void)[] = [];
+  jest.spyOn(AppState, "addEventListener").mockImplementation((_type, listener) => {
+    listeners.push(listener as (state: string) => void);
+    return { remove: jest.fn() };
+  });
+  await mount(modules);
+  expect(await screen.findByText("vi ready")).toBeTruthy();
+  device.tags = ["en-GB"];
+  await act(async () => listeners.forEach((listener) => listener("active")));
+  expect(screen.getByText("en ready")).toBeTruthy();
+  expect(modules.i18n.language).toBe("en");
+  expect(modules.prefs.writeDevicePreference).toHaveBeenCalledWith("locale", "en|en");
+});
+
 it("outside the provider reads the default language and ignores a choice", async () => {
   const modules = load(() => Promise.resolve(null));
   function Probe() {

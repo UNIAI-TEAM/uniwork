@@ -681,7 +681,8 @@ một dòng thì ghi lý do ở dòng trên.
   không biết ngôn ngữ nào thì tiếng Việt). Lựa chọn trong Cài đặt lưu kèm ngôn ngữ hệ thống lúc chọn (`en|vi`,
   `data/locale-preference.ts`): đổi ngôn ngữ theo app của hệ thống sau đó (iOS Cài đặt › UniChat, Android 13+) thì hệ
   thống thắng và lựa chọn cũ bị thay; đọc một lần lúc boot (`loadLocalePreference`), splash chờ (`useLocaleReady`) nên
-  khung hình đầu đã đúng ngôn ngữ; task không giao diện (`data/app-locale.ts`) theo cùng luật. Ngày giờ chỉ qua
+  khung hình đầu đã đúng ngôn ngữ; ngôn ngữ hệ thống được hỏi lại mỗi lần app về foreground (`refresh`, cùng chỗ với
+  công tắc 12/24 giờ), vì Android 13+ đổi ngôn ngữ theo app mà không khởi động lại tiến trình (iOS thì có); task không giao diện (`data/app-locale.ts`) theo cùng luật. Ngày giờ chỉ qua
   `lib/locale-format.ts › dateTimeFormat`: ngôn ngữ của app (tiếng Anh viết `en-GB`, ngày trước tháng), giờ theo công tắc
   12/24 giờ của máy (`expo-localization › getCalendars`, đọc lại mỗi lần app về foreground); đừng gọi
   `toLocale*String`/`new Intl.DateTimeFormat` ở nơi khác. Luật lint chữ (`i18next/no-literal-string`, `jsx-only`) bắt cả

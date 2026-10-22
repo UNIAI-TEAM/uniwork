@@ -5,7 +5,9 @@
 // boot (app/_layout.tsx › loadLocalePreference), and the splash waits for the
 // read (useLocaleReady), so the first frame is already in the right language.
 // The device's 12/24-hour clock reaches every date formatter
-// (lib/locale-format.ts) at start and each time the app comes back.
+// (lib/locale-format.ts) at start and each time the app comes back, and the
+// system language is asked again then too: Android 13+ app languages change
+// it while the JS runtime lives on.
 import * as Localization from "expo-localization";
 import { createContext, use, useEffect, useMemo, type ReactNode } from "react";
 import { I18nextProvider } from "react-i18next";
@@ -16,8 +18,11 @@ import { createLocalePreference } from "@/data/locale-preference";
 import { DEFAULT_LOCALE, i18n, matchSupportedLocale, type SupportedLocale } from "@/lib/i18n/singleton";
 import { setDeviceClock } from "@/lib/locale-format";
 
-const SYSTEM_LOCALE = matchSupportedLocale(Localization.getLocales().map((locale) => locale.languageTag));
-void i18n.changeLanguage(SYSTEM_LOCALE);
+/** The phone's language now (read each time: Android's per-app language can change while the app runs). */
+function systemLocale(): SupportedLocale {
+  return matchSupportedLocale(Localization.getLocales().map((locale) => locale.languageTag));
+}
+void i18n.changeLanguage(systemLocale());
 
 /** The phone's clock setting, for the formatters; unknown (no calendar) keeps each language's default. */
 function syncDeviceClock(): void {
@@ -26,7 +31,7 @@ function syncDeviceClock(): void {
 syncDeviceClock();
 
 const preference = createLocalePreference({
-  system: SYSTEM_LOCALE,
+  system: systemLocale,
   read: () => readDevicePreference("locale"),
   write: (value) => writeDevicePreference("locale", value),
   apply: (locale) => void i18n.changeLanguage(locale),
@@ -53,9 +58,11 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     // Boot already asked; this is the same read, for a provider mounted without that boot (tests, a remount).
     void preference.load();
-    // The 12/24-hour switch can change while UniChat sits in the background.
+    // The 12/24-hour switch and the per-app language can change while UniChat sits in the background.
     const subscription = AppState.addEventListener("change", (state) => {
-      if (state === "active") syncDeviceClock();
+      if (state !== "active") return;
+      syncDeviceClock();
+      preference.refresh();
     });
     return () => subscription.remove();
   }, []);

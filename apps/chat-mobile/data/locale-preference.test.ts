@@ -3,7 +3,11 @@ import type { SupportedLocale } from "@/lib/i18n/singleton";
 import { createLocalePreference, encodeLocaleChoice, resolveLocaleChoice } from "./locale-preference";
 
 const deps = (saved: Promise<string | null>, system: SupportedLocale = "vi") => ({
-  system,
+  /** What the phone speaks now; a case changes it to stand for Android 13+ Settings › App languages. */
+  phone: { system },
+  system(): SupportedLocale {
+    return this.phone.system;
+  },
   read: vi.fn(() => saved),
   write: vi.fn(async () => {}),
   apply: vi.fn(),
@@ -73,5 +77,55 @@ describe("createLocalePreference", () => {
     await loaded;
     expect(locale.store.getState().locale).toBe("en");
     expect(d.apply).toHaveBeenCalledTimes(1);
+  });
+
+  // Android 13+ Settings › App languages changes the language while UniChat keeps running (MainActivity is recreated
+  // over the same JS runtime); iOS relaunches the app instead. The next return to the app follows it.
+  it("follows a system language changed while the app runs, on the next refresh, and saves it", async () => {
+    const d = deps(Promise.resolve("en|vi"));
+    const locale = createLocalePreference(d);
+    await locale.load();
+    expect(locale.store.getState().locale).toBe("en");
+    locale.refresh();
+    expect(d.apply).toHaveBeenCalledTimes(1);
+    d.phone.system = "en";
+    locale.refresh();
+    // Already English: nothing to apply, but the choice is now the system's, so switching the system back wins too.
+    expect(d.apply).toHaveBeenCalledTimes(1);
+    expect(d.write).toHaveBeenLastCalledWith("en|en");
+    d.phone.system = "vi";
+    locale.refresh();
+    expect(locale.store.getState()).toEqual({ locale: "vi", ready: true });
+    expect(d.apply).toHaveBeenLastCalledWith("vi");
+    expect(d.write).toHaveBeenLastCalledWith("vi|vi");
+    locale.refresh();
+    expect(d.write).toHaveBeenCalledTimes(2);
+  });
+
+  it("leaves a change seen before the saved choice is read to that read, which resolves against the new system", async () => {
+    let answer: (value: string) => void = () => undefined;
+    const d = deps(new Promise((resolve) => (answer = resolve)));
+    const locale = createLocalePreference(d);
+    const loaded = locale.load();
+    d.phone.system = "en";
+    locale.refresh();
+    expect(d.apply).not.toHaveBeenCalled();
+    expect(d.write).not.toHaveBeenCalled();
+    answer("vi|vi");
+    await loaded;
+    expect(locale.store.getState()).toEqual({ locale: "en", ready: true });
+    expect(d.write).toHaveBeenCalledExactlyOnceWith("en|en");
+  });
+
+  it("records a later in-app choice with the system language of that moment", () => {
+    const d = deps(Promise.resolve(null));
+    const locale = createLocalePreference(d);
+    d.phone.system = "en";
+    locale.set("vi");
+    expect(d.write).toHaveBeenCalledWith("vi|en");
+    // The choice saw the new system already: returning to the app does not overrule it.
+    locale.refresh();
+    expect(locale.store.getState().locale).toBe("vi");
+    expect(d.write).toHaveBeenCalledTimes(1);
   });
 });

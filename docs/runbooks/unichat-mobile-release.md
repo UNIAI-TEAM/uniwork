@@ -516,8 +516,9 @@ và giọng đọc. Một iPhone (VoiceOver) và một máy Android (TalkBack):
   Tiếng Việt và English; đổi ngôn ngữ trong app rồi nhận một push: push nói đúng ngôn ngữ đó (`users.locale` đổi theo,
   xem bằng `GET /api/v1/me`). Tiếng Anh: "1 reply", "2 replies".
 - [ ] Ngôn ngữ do hệ thống đổi sau: chọn English trong app, rồi đổi ngôn ngữ theo app của hệ thống sang Tiếng Việt —
-  app mở lại bằng tiếng Việt (hệ thống thắng lựa chọn cũ), mở lạnh không thấy khung hình nào bằng ngôn ngữ kia. Máy chỉ
-  có tiếng Nhật/Hàn: app nói tiếng Anh.
+  app mở lại bằng tiếng Việt (hệ thống thắng lựa chọn cũ), mở lạnh không thấy khung hình nào bằng ngôn ngữ kia. Android:
+  đổi trong Cài đặt khi UniChat đang chạy ở nền rồi quay lại (không vuốt tắt app) — app đổi sang tiếng Việt ngay, không
+  cần mở lạnh. Máy chỉ có tiếng Nhật/Hàn: app nói tiếng Anh.
 - [ ] Giờ 12/24: tắt "Giờ 24 giờ" của máy (iOS Cài đặt › Cài đặt chung › Ngày & giờ; Android Cài đặt › Hệ thống › Ngày
   và giờ) khi app ở nền, quay lại: giờ của tin, danh sách phòng và nhật ký cuộc gọi đổi sang "2:05 CH"/"2:05 pm".
 - [ ] Biểu tượng (Android): thông báo tin và cuộc gọi trên thanh trạng thái là glyph bong bóng một màu (không phải ô trắng);
