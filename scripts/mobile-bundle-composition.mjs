@@ -11,15 +11,21 @@
 //
 //   node scripts/mobile-bundle-composition.mjs <export-dir> [--platform android] [--top 20] [--write]
 //
-// Report only, never a gate: the budget is the gate. --write refreshes the
-// baseline; do it in the commit that changes the budget, so the next PR's
-// deltas are its own.
+// The composition is a report, not a gate: the budget is the gate. --write
+// refreshes the baseline; do it in the commit that changes the budget, so the
+// next PR's deltas are its own. One thing does fail the run: a package the
+// bundle holds although apps/chat-mobile/package.json's expo.autolinking leaves
+// its native module out of that platform's binary. Its JS calls
+// requireNativeModule when it loads and throws, a crash a JS-only change (and
+// so an OTA update) can ship, and only the export a PR produces can see it: the
+// committed baseline does not move with the code.
 import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
 const root = path.resolve(import.meta.dirname, "..");
 const BASELINE_FILE = path.join(root, "apps/chat-mobile/bundle-composition.json");
+const APP_PACKAGE_FILE = path.join(root, "apps/chat-mobile/package.json");
 
 /** The package a module of the bundle belongs to, from its path in the source map. */
 export function packageOf(source) {
@@ -62,6 +68,27 @@ export function deltas(current, baseline) {
     })
     .filter((d) => d.bytes !== 0 || d.modules !== 0)
     .sort((a, b) => Math.abs(b.bytes) - Math.abs(a.bytes) || a.name.localeCompare(b.name));
+}
+
+const isObject = (value) => typeof value === "object" && value !== null && !Array.isArray(value);
+
+/**
+ * The packages autolinking leaves out of a platform's binary, merged the way expo-modules-autolinking 57
+ * merges them: the platform's options replace the top-level ones key by key, and iOS builds link as
+ * "apple", which falls back to the "ios" options.
+ */
+export function autolinkingExclude(packageJson, platform) {
+  const options = isObject(packageJson?.expo?.autolinking) ? packageJson.expo.autolinking : {};
+  const keys = platform === "ios" || platform === "apple" ? ["apple", "ios"] : [platform];
+  const platformOptions = keys.map((key) => options[key]).find(isObject) ?? {};
+  const merged = { ...options, ...platformOptions };
+  return Array.isArray(merged.exclude) ? merged.exclude.filter((name) => typeof name === "string") : [];
+}
+
+/** The excluded packages the bundle holds anyway: each one's native module is missing from the binary. */
+export function unlinkedButBundled(current, exclude) {
+  const bundled = new Set(current.map((p) => p.name));
+  return exclude.filter((name) => bundled.has(name)).sort();
 }
 
 const kb = (bytes) => `${(bytes / 1024).toFixed(1)} KB`;
@@ -107,5 +134,13 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
     const next = { _: baselines._ ?? "Per-package source bytes of the JS bundle (scripts/mobile-bundle-composition.mjs --write); the baseline each PR's deltas are read against.", ...baselines, [platform]: current };
     fs.writeFileSync(BASELINE_FILE, `${JSON.stringify(next, null, 2)}\n`);
     console.log(`wrote apps/chat-mobile/bundle-composition.json › ${platform}`);
+  }
+  const unlinked = unlinkedButBundled(current, autolinkingExclude(JSON.parse(fs.readFileSync(APP_PACKAGE_FILE, "utf8")), platform));
+  if (unlinked.length > 0) {
+    const names = unlinked.map((name) => `\`${name}\``).join(", ");
+    const failure = `\n**The ${platform} bundle imports ${names}, which expo.autolinking in apps/chat-mobile/package.json leaves out of the ${platform} binary:** the module throws when it loads. Drop the import (or move it to a file of a platform that links it), or remove the name from the list, which is a native change.\n`;
+    console.error(failure);
+    if (process.env.GITHUB_STEP_SUMMARY) fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, failure);
+    process.exitCode = 1;
   }
 }

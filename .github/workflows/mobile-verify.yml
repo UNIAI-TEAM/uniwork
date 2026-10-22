@@ -297,7 +297,10 @@ jobs:
       - name: Bundle budget
         run: node scripts/mobile-bundle-budget.mjs "$RUNNER_TEMP/export"
       # Audit bundle-size-growth: which packages the totals are, and what moved since the committed baseline
-      # (apps/chat-mobile/bundle-composition.json), in the job summary. Report only; the budget above is the gate.
+      # (apps/chat-mobile/bundle-composition.json), in the job summary. The sizes are a report; the budget above
+      # is their gate. The step does fail when this export bundles a package expo.autolinking leaves out of that
+      # platform's binary (today @expo/ui, @expo/dom-webview, expo-symbols on iOS): its JS would throw on load,
+      # and a JS-only change, so an OTA update too, can ship that. The committed baseline cannot catch it.
       # The refreshed composition is kept as an artifact: commit it as the baseline with a budget change.
       - name: Bundle composition
         if: always()

@@ -105,7 +105,8 @@ Chi tiết và lý do: `docs/engineering/unichat-mobile/boundaries.md`.
   theo fingerprint). iOS không link `@expo/ui`, `@expo/dom-webview`, `expo-symbols` (`expo.autolinking.ios.exclude`
   trong `package.json`): app không gọi chúng trên iOS mà chúng tốn chừng 1,6 s đăng ký native trước khi bundle chạy
   (đo trên simulator CI); dùng `@expo/ui`, một SF Symbol (`expo-symbols`) hay component DOM trên iOS thì gỡ tên đó
-  khỏi danh sách trước (`native-modules.test.ts`).
+  khỏi danh sách trước (`native-modules.test.ts`). Bundle iOS một PR export ra mà còn chứa tên trong danh sách thì
+  bước Bundle composition của `mobile-verify` đỏ (`scripts/mobile-bundle-composition.mjs`): module đó ném lỗi khi nạp.
 
 ## Lệnh
 

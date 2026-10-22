@@ -189,7 +189,10 @@ describe("native build wiring", () => {
       expect(iosExclude).toEqual(expect.arrayContaining(["@expo/ui", "@expo/dom-webview", "expo-symbols"]));
     });
 
-    it("excludes no package the iOS bundle imports", () => {
+    // A sanity check of the committed baseline only: it moves when someone commits it, not with the code.
+    // The gate is the export each PR produces, which scripts/mobile-bundle-composition.mjs fails when it
+    // bundles an excluded package (mobile-verify › doctor-bundle › Bundle composition).
+    it("the committed iOS bundle baseline holds no excluded package", () => {
       const composition = JSON.parse(read("bundle-composition.json")) as { ios: { name: string }[] };
       const bundled = composition.ios.map((entry) => entry.name);
       expect(bundled.length).toBeGreaterThan(0);
