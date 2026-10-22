@@ -17,6 +17,12 @@ jest.mock("expo-image-picker", () => ({
   UIImagePickerPreferredAssetRepresentationMode: { Compatible: "compatible" },
 }));
 jest.mock("expo-document-picker", () => ({ getDocumentAsync: jest.fn() }));
+// The scaling itself is data/media/photo-downscale.test.ts's: here it hands back a smaller copy of a large photo.
+jest.mock("@/data/media/photo-downscale", () => ({
+  downscalePhoto: jest.fn(async (file: { uri: string }, size: { width?: number }) =>
+    (size.width ?? 0) > 2048 ? { ...file, uri: "file:///cache/scaled.jpg", size: 500_000 } : file,
+  ),
+}));
 
 const voice = { active: false, elapsedMs: 0, start: jest.fn(async () => true), cancel: jest.fn(async () => {}), send: jest.fn(async () => {}) };
 const mockVoice = (extra: Partial<typeof voice> = {}) => jest.mocked(useVoiceRecorder).mockReturnValue({ ...voice, ...extra });
@@ -266,6 +272,11 @@ describe("Composer", () => {
     pick.mockResolvedValueOnce({ canceled: true, assets: null } as never);
     await photo();
     expect(p.onSendFile).toHaveBeenCalledTimes(1);
+
+    // A 12 MP photo over the upload limit is scaled down first, and the smaller copy goes.
+    pick.mockResolvedValueOnce({ canceled: false, assets: [{ ...asset, fileSize: 30 * 1024 * 1024, width: 4032, height: 3024 }] } as never);
+    await photo();
+    expect(p.onSendFile).toHaveBeenLastCalledWith({ uri: "file:///cache/scaled.jpg", name: "p.jpg", mimeType: "image/jpeg", size: 500_000 });
   });
 
   it("sends a picked document", async () => {

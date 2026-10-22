@@ -48,6 +48,7 @@ import { cn } from "@/lib/utils";
 import { useDraftPersistence } from "./use-drafts";
 import { useVoiceRecorder, VOICE_MAX_MS, type VoiceClip } from "./use-voice-recorder";
 import { VoiceWave } from "./voice-wave";
+import { downscalePhoto } from "@/data/media/photo-downscale";
 import { useMobileFlag } from "@/data/remote-config";
 import { toast } from "@/data/stores/toast-store";
 import { whileSystemUiOpen } from "@/data/system-ui";
@@ -205,7 +206,9 @@ export function Composer(props: Props) {
     if (!asset) return;
     const name = asset.fileName || `photo-${Date.now()}.jpg`;
     // Android hands JS null for an unknown size; the outbox keeps no nulls (lib/persisted-records.ts).
-    sendPicked({ uri: asset.uri, name, mimeType: asset.mimeType ?? "image/jpeg", size: asset.fileSize ?? undefined });
+    const picked = { uri: asset.uri, name, mimeType: asset.mimeType ?? "image/jpeg", size: asset.fileSize ?? undefined };
+    // Scaled down on the phone first (data/media/photo-downscale.ts): the outbox keeps and uploads the smaller copy.
+    sendPicked(await downscalePhoto(picked, { width: asset.width, height: asset.height }));
   };
 
   const pickFile = async () => {

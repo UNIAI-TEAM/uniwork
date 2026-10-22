@@ -226,7 +226,7 @@ jobs:
           chmod +x "$RUNNER_TEMP/ktlint"
           "$RUNNER_TEMP/ktlint" "apps/chat-mobile/modules/**/*.kt"
       - name: Mobile repo contracts
-        run: node --test scripts/mobile-core-allowlist.test.mjs scripts/mobile-native-scope.test.mjs scripts/mobile-bundle-budget.test.mjs scripts/mobile-perf.test.mjs scripts/mobile-a11y-audit.test.mjs scripts/mobile-workflows.test.mjs scripts/mobile-knip.test.mjs scripts/mobile-web-copies.test.mjs scripts/mobile-lockfiles.test.mjs scripts/mobile-easignore.test.mjs scripts/mobile-verify-gate.test.mjs scripts/maestro-retry.test.mjs scripts/mobile-canary.test.mjs scripts/branch-protection.test.mjs scripts/mobile-coverage-floor.test.mjs scripts/mobile-play-release.test.mjs scripts/mobile-release-notes.test.mjs scripts/mobile-release-health.test.mjs scripts/mobile-docs.test.mjs scripts/mobile-data-layout.test.mjs
+        run: node --test scripts/mobile-core-allowlist.test.mjs scripts/mobile-native-scope.test.mjs scripts/mobile-bundle-budget.test.mjs scripts/mobile-bundle-composition.test.mjs scripts/mobile-perf.test.mjs scripts/mobile-a11y-audit.test.mjs scripts/mobile-workflows.test.mjs scripts/mobile-knip.test.mjs scripts/mobile-web-copies.test.mjs scripts/mobile-lockfiles.test.mjs scripts/mobile-easignore.test.mjs scripts/mobile-verify-gate.test.mjs scripts/maestro-retry.test.mjs scripts/mobile-canary.test.mjs scripts/branch-protection.test.mjs scripts/mobile-coverage-floor.test.mjs scripts/mobile-play-release.test.mjs scripts/mobile-release-notes.test.mjs scripts/mobile-release-health.test.mjs scripts/mobile-docs.test.mjs scripts/mobile-data-layout.test.mjs
 
   doctor-bundle:
     name: expo-doctor and JS bundle budget
@@ -264,6 +264,22 @@ jobs:
         run: pnpm exec expo export --platform android --platform ios --output-dir "$RUNNER_TEMP/export" --dump-sourcemap
       - name: Bundle budget
         run: node scripts/mobile-bundle-budget.mjs "$RUNNER_TEMP/export"
+      # Audit bundle-size-growth: which packages the totals are, and what moved since the committed baseline
+      # (apps/chat-mobile/bundle-composition.json), in the job summary. Report only; the budget above is the gate.
+      # The refreshed composition is kept as an artifact: commit it as the baseline with a budget change.
+      - name: Bundle composition
+        if: always()
+        run: |
+          set -euo pipefail
+          node scripts/mobile-bundle-composition.mjs "$RUNNER_TEMP/export" --platform android --write
+          node scripts/mobile-bundle-composition.mjs "$RUNNER_TEMP/export" --platform ios --write
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: unichat-bundle-composition
+          path: apps/chat-mobile/bundle-composition.json
+          if-no-files-found: ignore
+          retention-days: 30
 
   android-release:
     name: Android release build

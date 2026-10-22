@@ -87,7 +87,11 @@ Model hàng, danh sách tái chế, timeline dài, cửa sổ trượt, ảnh, b
   (`data/media-refresh.ts`): ảnh thuộc timeline đang hiện về bằng một lần refetch timeline đó (nhập vào lần refetch
   đang chạy, như lần mở phòng) khi số ảnh ≥ số trang đã tải, còn lại (chủ đề, trang nhảy tới) xin từng tin — không còn
   N request, N lần ghi timeline và N lần lưu cache cho N ảnh. Không prefetch: `Image.prefetch` khoá cache theo URL, không
-  theo `cacheKey` của ta. Theme: chọn
+  theo `cacheKey` của ta. **Ảnh gửi đi** (audit image-pipeline): ảnh chọn từ thư viện được thu nhỏ trên máy trước
+  khi xếp vào outbox (`data/media/photo-downscale.ts`, `expo-image-manipulator`; khi nào và cỡ nào ở
+  `lib/photo-size.ts`): cạnh dài về 2048 px, JPEG giữ JPEG (chất lượng 0,8), PNG giữ PNG, GIF và loại khác đi nguyên;
+  ảnh 12 MP 3–5 MB còn vài trăm KB qua mạng di động, bản mã hoá lại bỏ metadata (vị trí GPS). Lỗi đọc/ghi thì gửi bản
+  gốc. Kiểm cỡ tối đa chạy trên bản đã thu nhỏ, nên ảnh gốc quá 25 MB vẫn gửi được. Theme: chọn
   một lần lúc boot (`data/theme-preference.ts`, `loadThemePreference` trong `app/_layout.tsx`), `useColorScheme` chỉ đọc
   store. **Đo**: `components/chat/conversation-renders.test.tsx` và `chat-tab-renders.test.tsx` (jest, job `mobile`)
   khoá số render của hàng khi gõ, hiện diện, tin mới, biểu cảm; ngân sách bundle như cũ. `inlineRequires` của Metro
@@ -96,7 +100,10 @@ Model hàng, danh sách tái chế, timeline dài, cửa sổ trượt, ảnh, b
   `require` tường minh như `call-overlay.tsx`. Route không cần nạp lười bằng tay: expo-router chỉ đánh giá module
   của một màn khi màn đó dựng (`getComponent`), layout thì lúc khởi động; sheet ẩn trong phòng không fetch gì
   (`enabled` theo `visible`). `metro.config.js` đặt `includeWebReplay: false` của Sentry: gói session replay cho web
-  (`@sentry-internal/replay*`) thành module rỗng (−182 KB bytecode; app không bao giờ ghi replay). Bản release
+  (`@sentry-internal/replay*`) thành module rỗng (−182 KB bytecode; app không bao giờ ghi replay). Thành phần bundle
+  (audit bundle-size-growth): `doctor-bundle` in vào summary 20 gói lớn nhất theo byte nguồn trong source map và gói nào
+  đổi so với baseline `apps/chat-mobile/bundle-composition.json` (`scripts/mobile-bundle-composition.mjs`, chỉ báo, cổng
+  là ngân sách); artifact `unichat-bundle-composition` là bản mới — commit nó làm baseline cùng commit đổi ngân sách. Bản release
   Android qua R8 và thu gọn tài nguyên (`expo-build-properties` trong `app.config.ts`, luật giữ `ANDROID_KEEP_RULES`
   cho Nitro/MMKV và module cuộc gọi — các thư viện khác mang luật riêng): đường code nào R8 làm hỏng chỉ máy thấy —
   `android-smoke` mở lạnh bản đã minify, nightly đăng nhập, nhắn và vào cuộc gọi trên nó.

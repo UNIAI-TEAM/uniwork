@@ -35,6 +35,10 @@ test("mobile-verify can be called and builds the release only through its jobs",
   for (const job of ["scope", "checks", "doctor-bundle", "android-release", "android-smoke", "ios-release", "gate"]) assert.match(wf, new RegExp(`^ {2}${job}:$`, "m"), `job ${job}`);
   assert.match(envPin(wf, "EXPO_DOCTOR_VERSION") ?? "", EXACT, "EXPO_DOCTOR_VERSION is an exact version");
   assert.match(wf, /node scripts\/mobile-bundle-budget\.mjs/);
+  // Audit bundle-size-growth: the summary names the packages behind the totals, per platform.
+  for (const platform of ["android", "ios"]) {
+    assert.match(wf, new RegExp(`node scripts/mobile-bundle-composition\\.mjs "\\$RUNNER_TEMP/export" --platform ${platform}`));
+  }
   assert.match(wf, /\.\/gradlew :app:assembleRelease/);
   // Audit "native-module-untested": the calls module's Kotlin is unit-tested in the same Gradle run.
   assert.match(jobsOf(wf).jobs.get("android-release") ?? "", /\.\/gradlew :app:assembleRelease :unichat-calls:testReleaseUnitTest /);
