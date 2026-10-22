@@ -114,7 +114,7 @@ func (h *handlers) setOrgAskModels(w http.ResponseWriter, r *http.Request) {
 
 // askInputFromSDI maps the body both ask routes share.
 func askInputFromSDI(in sdi.AskUniSDI) service.AskInput {
-	askIn := service.AskInput{ConversationID: in.ConversationID, Question: in.Question, Locale: in.Locale, Model: in.Model, Effort: in.Effort}
+	askIn := service.AskInput{ConversationID: in.ConversationID, Question: in.Question, Locale: in.Locale, Model: in.Model, Effort: in.Effort, Regenerate: in.RegenerateMessageID}
 	if in.Focus != nil {
 		askIn.Focus = &ai.Focus{Kind: in.Focus.Kind, ID: in.Focus.ID}
 	}

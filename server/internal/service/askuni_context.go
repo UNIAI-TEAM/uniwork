@@ -41,12 +41,20 @@ func askMentions(focus *ai.Focus, in []ai.Focus) ([]ai.Focus, error) {
 	return out, nil
 }
 
+// askRefs is what a turn was asked about, with the titles askContext read.
+type askRefs struct {
+	Focus    *AskContextRef
+	Mentions []AskContextRef
+}
+
 // askContext reads the focus, then each mention, as numbered-source items in
-// that order. A focus of a kind it does not know is skipped, as before.
-func (s *AskUNIService) askContext(ctx context.Context, tc ai.ToolContext, focus *ai.Focus, mentions []ai.Focus) ([]agentItem, error) {
+// that order. A focus of a kind it does not know is skipped, as before. The
+// refs carry the title of each object's first item, as read now.
+func (s *AskUNIService) askContext(ctx context.Context, tc ai.ToolContext, focus *ai.Focus, mentions []ai.Focus) ([]agentItem, askRefs, error) {
 	var items []agentItem
-	for _, f := range append([]ai.Focus{{}}, mentions...) {
-		if f == (ai.Focus{}) {
+	var refs askRefs
+	for i, f := range append([]ai.Focus{{}}, mentions...) {
+		if i == 0 {
 			if focus == nil {
 				continue
 			}
@@ -55,13 +63,22 @@ func (s *AskUNIService) askContext(ctx context.Context, tc ai.ToolContext, focus
 		got, err := s.contextItems(ctx, tc, f)
 		if err != nil {
 			if code, ok := agentError(err); errors.Is(err, ErrForbidden) || errors.Is(err, ErrNotFound) || ok && code != "" {
-				return nil, ai.ErrContextForbidden
+				return nil, askRefs{}, ai.ErrContextForbidden
 			}
-			return nil, err
+			return nil, askRefs{}, err
 		}
 		items = append(items, got...)
+		if len(got) == 0 {
+			continue
+		}
+		ref := AskContextRef{Kind: f.Kind, ID: f.ID, Title: got[0].Title}
+		if i == 0 {
+			refs.Focus = &ref
+		} else {
+			refs.Mentions = append(refs.Mentions, ref)
+		}
 	}
-	return items, nil
+	return items, refs, nil
 }
 
 // contextItems reads one object. Whatever the read finds absent or hidden

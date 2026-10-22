@@ -443,3 +443,20 @@ func TestAskUniStreamWritesFollowupsBeforeDone(t *testing.T) {
 		t.Fatalf("JSON route: %d %v", res.StatusCode, out)
 	}
 }
+
+// A regenerate that names no live last answer is a JSON 400 before any stream;
+// on the JSON route, which is not the dock, it is a 400 whatever the id.
+func TestAskUniStreamRegenerateRefusals(t *testing.T) {
+	srv, owner, _, wsID := askWorld(t, &provider.Fake{Reply: ai.FakeReply})
+	_, first := doJSON(t, srv, "POST", "/api/v1/workspaces/"+wsID+"/ai/ask", owner, map[string]any{"question": "hỏi"})
+	conv := first["conversation_id"].(string)
+	body := map[string]any{"conversation_id": conv, "regenerate_message_id": "01NOSUCHMESSAGE0000000000000"}
+	res := postStream(t, srv, wsID, owner, body)
+	if res.StatusCode != 400 || strings.HasPrefix(res.Header.Get("Content-Type"), "text/event-stream") {
+		t.Fatalf("stream: %d %q", res.StatusCode, res.Header.Get("Content-Type"))
+	}
+	body["regenerate_message_id"] = first["message"].(map[string]any)["id"]
+	if r, _ := doJSON(t, srv, "POST", "/api/v1/workspaces/"+wsID+"/ai/ask", owner, body); r.StatusCode != 400 {
+		t.Fatalf("json route: %d", r.StatusCode)
+	}
+}

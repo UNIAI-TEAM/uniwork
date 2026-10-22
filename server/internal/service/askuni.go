@@ -103,7 +103,15 @@ type AskInput struct {
 	// Dock is the docked panel asking (the stream route, R1): the agent runs
 	// copilot_answer@4 and splits off its follow-up questions. P0 ignores it.
 	Dock bool
+	// Regenerate is the id of the conversation's last answer to answer again
+	// in place with the stored question and context; Dock only, and Question
+	// is ignored.
+	Regenerate string
 }
+
+// errRegenerateTarget is the one refusal for a message id that is not the
+// conversation's last live answer, whatever the reason, so it reveals nothing.
+const errRegenerateTarget = "regenerate: not the last answer"
 
 // AskCitation is a validated citation enriched with what the client needs to
 // render a link; it is what ai_messages.citations stores.
@@ -210,16 +218,29 @@ func (s *AskUNIService) Capabilities(ctx context.Context, userID, workspaceID st
 // comes before emit is first called; the events then run, delta, citations,
 // done (R5).
 func (s *AskUNIService) AskStream(ctx context.Context, userID, workspaceID string, in AskInput, emit AskSink) (AskResult, error) {
+	regen := in.Regenerate != ""
 	question := strings.TrimSpace(in.Question)
-	if question == "" {
-		return AskResult{}, Invalid("câu hỏi không được để trống")
-	}
-	if len([]rune(question)) > 2000 {
-		return AskResult{}, Invalid("câu hỏi tối đa 2000 ký tự")
-	}
-	mentions, err := askMentions(in.Focus, in.Mentions)
-	if err != nil {
-		return AskResult{}, err
+	var mentions []ai.Focus
+	if regen {
+		// Only the dock regenerates, and only inside a conversation: an empty
+		// id would otherwise open a new one.
+		if !in.Dock {
+			return AskResult{}, Invalid("regenerate: dock only")
+		}
+		if in.ConversationID == "" {
+			return AskResult{}, Invalid(errRegenerateTarget)
+		}
+	} else {
+		if question == "" {
+			return AskResult{}, Invalid("câu hỏi không được để trống")
+		}
+		if len([]rune(question)) > 2000 {
+			return AskResult{}, Invalid("câu hỏi tối đa 2000 ký tự")
+		}
+		var err error
+		if mentions, err = askMentions(in.Focus, in.Mentions); err != nil {
+			return AskResult{}, err
+		}
 	}
 	w, err := s.requireMember(ctx, userID, workspaceID)
 	if err != nil {
@@ -242,17 +263,42 @@ func (s *AskUNIService) AskStream(ctx context.Context, userID, workspaceID strin
 	if err != nil {
 		return AskResult{}, err
 	}
+	base := askTurn{Question: question}
+	if regen {
+		// The conversation is the asker's (above); the target must be its last
+		// live answer, right after a question, or nothing runs.
+		rows, err := s.q.AiListMessages(ctx, conv.ID)
+		if err != nil {
+			return AskResult{}, err
+		}
+		q, ok := regenerateQuestion(rows, in.Regenerate)
+		if !ok {
+			return AskResult{}, Invalid(errRegenerateTarget)
+		}
+		base.Question, base.Regenerates = q.Content, in.Regenerate
+		in.Focus, in.Mentions = storedContext(q)
+		if mentions, err = askMentions(in.Focus, in.Mentions); err != nil {
+			return AskResult{}, err
+		}
+		question = base.Question
+	}
 	// The focus and mentions must be readable by the asker on both paths,
-	// before anything streams (R9).
+	// before anything streams (R9); a regenerate reads the stored ones again.
 	tc := ai.ToolContext{ActorID: userID, OrganizationID: w.OrganizationID, WorkspaceID: workspaceID}
-	ctxItems, err := s.askContext(ctx, tc, in.Focus, mentions)
+	if regen && !s.agentOn(ctx, tc) {
+		return AskResult{}, Invalid("regenerate: needs the agent")
+	}
+	ctxItems, refs, err := s.askContext(ctx, tc, in.Focus, mentions)
 	if err != nil {
 		return AskResult{}, err
+	}
+	if in.Dock {
+		base.Focus, base.Mentions = refs.Focus, refs.Mentions
 	}
 	// Behind ask_uni_agent the model looks its sources up itself; P0's
 	// lookup below does not run.
 	if s.agentOn(ctx, tc) {
-		return s.askAgent(ctx, userID, w, conv, question, in, ctxItems, emit)
+		return s.askAgent(ctx, userID, w, conv, base, in, ctxItems, emit)
 	}
 	sources, err := s.Sources(ctx, ai.SourceQuery{UserID: userID, OrganizationID: w.OrganizationID, WorkspaceID: workspaceID, Question: question, Focus: in.Focus})
 	if err != nil {
@@ -326,7 +372,7 @@ func (s *AskUNIService) AskStream(ctx context.Context, userID, workspaceID strin
 			}
 		}
 	}
-	msg, err := s.store(ctx, w.OrganizationID, conv.ID, askTurn{Question: question, Answer: answer.Answer, Notice: notice, Citations: citations, UsageEventID: resp.UsageEventID})
+	msg, err := s.store(ctx, w.OrganizationID, conv.ID, askTurn{Question: question, Answer: answer.Answer, Notice: notice, Citations: citations, UsageEventID: resp.UsageEventID, Focus: base.Focus, Mentions: base.Mentions})
 	if err != nil {
 		return AskResult{}, err
 	}
@@ -334,6 +380,33 @@ func (s *AskUNIService) AskStream(ctx context.Context, userID, workspaceID strin
 	res.Usage.add(resp.InputTokens, resp.OutputTokens, resp.CacheReadTokens, resp.CacheWriteTokens)
 	emit.emitAnswer(res)
 	return res, nil
+}
+
+// regenerateQuestion is the question behind the answer id when that answer is
+// the last of the rows, still live, and follows a question.
+func regenerateQuestion(rows []db.AiMessage, id string) (db.AiMessage, bool) {
+	n := len(rows)
+	if n < 2 || rows[n-1].ID != id || rows[n-1].Role != "assistant" || rows[n-2].Role != "user" {
+		return db.AiMessage{}, false
+	}
+	return rows[n-2], true
+}
+
+// storedContext decodes the focus and mentions a question row kept; what does
+// not decode was never kept.
+func storedContext(q db.AiMessage) (*ai.Focus, []ai.Focus) {
+	var focus *ai.Focus
+	var ref AskContextRef
+	if q.Focus.Valid && json.Unmarshal([]byte(q.Focus.String), &ref) == nil && ref.ID != "" {
+		focus = &ai.Focus{Kind: ref.Kind, ID: ref.ID}
+	}
+	var refs []AskContextRef
+	_ = json.Unmarshal([]byte(q.Mentions), &refs)
+	mentions := make([]ai.Focus, 0, len(refs))
+	for _, r := range refs {
+		mentions = append(mentions, ai.Focus{Kind: r.Kind, ID: r.ID})
+	}
+	return focus, mentions
 }
 
 func (s *AskUNIService) conversation(ctx context.Context, userID string, w db.GetWorkspaceWithOrgRow, id string) (db.AiConversation, error) {

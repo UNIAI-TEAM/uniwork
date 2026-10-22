@@ -289,7 +289,8 @@ func (s *AskUNIService) agentCallOver(ctx context.Context, orgID string) bool {
 // asker and inside the asked workspace, until it answers or a bound of R10
 // makes the next call the answer round; the answer and its citations are
 // stored like P0's.
-func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWorkspaceWithOrgRow, conv db.AiConversation, question string, in AskInput, ctxItems []agentItem, emit AskSink) (out AskResult, err error) {
+func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWorkspaceWithOrgRow, conv db.AiConversation, base askTurn, in AskInput, ctxItems []agentItem, emit AskSink) (out AskResult, err error) {
+	question := base.Question
 	res := AskResult{ConversationID: conv.ID, RunID: util.NewID()}
 	tc := ai.ToolContext{ActorID: userID, OrganizationID: w.OrganizationID, WorkspaceID: w.ID}
 	started := s.now()
@@ -339,6 +340,15 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 	rows, err := s.q.AiListMessages(runCtx, conv.ID)
 	if err != nil {
 		return AskResult{}, err
+	}
+	if base.Regenerates != "" {
+		// The model sees the conversation as it was before the question it
+		// answers again: neither that question nor the old answer.
+		i := slices.IndexFunc(rows, func(r db.AiMessage) bool { return r.ID == base.Regenerates })
+		if i < 1 {
+			return AskResult{}, Invalid(errRegenerateTarget)
+		}
+		rows = rows[:i-1]
 	}
 	stored, err := s.q.AiListConversationCitations(runCtx, db.AiListConversationCitationsParams{OrganizationID: w.OrganizationID, ConversationID: conv.ID})
 	if err != nil {
@@ -426,7 +436,7 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 		var e *ai.Error
 		errors.As(err, &e)
 		rowUsage(ctx, e.UsageEventID)
-		return s.finishAgent(ctx, emit, res, w, conv, question, "", ai.NoticeRefused, []AskCitation{}, e.UsageEventID, steps, nil)
+		return s.finishAgent(ctx, emit, res, w, conv, base, "", ai.NoticeRefused, []AskCitation{}, e.UsageEventID, steps, nil)
 	}
 	// A stop (askStopNotice) stores the text the asker saw streamed for the
 	// last call, with what it cites, on a context that outlives the request,
@@ -442,7 +452,7 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 		}
 		// The dock's draft stops before the follow-up block, so a stop keeps the
 		// answer cut there and no question.
-		return s.finishAgent(sctx, emit, res, w, conv, question, draft.sent, notice, agentCitations(draft.sent, book), usage, steps, nil)
+		return s.finishAgent(sctx, emit, res, w, conv, base, draft.sent, notice, agentCitations(draft.sent, book), usage, steps, nil)
 	}
 	// Any other error after a call was billed stores the turn with
 	// agent_failed (ruling P19), on a context that outlives the run's
@@ -466,7 +476,7 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 		slog.Warn("ask uni: agent run failed", "run_id", res.RunID, "organization_id", w.OrganizationID, "err", err)
 		sctx, cancel := outliving(ctx)
 		defer cancel()
-		return s.finishAgent(sctx, emit, res, w, conv, question, "", ai.NoticeAgentFailed, []AskCitation{}, usage, steps, nil)
+		return s.finishAgent(sctx, emit, res, w, conv, base, "", ai.NoticeAgentFailed, []AskCitation{}, usage, steps, nil)
 	}
 
 	var resp ai.Response
@@ -548,20 +558,20 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 	sctx, cancelStore := outliving(ctx)
 	defer cancelStore()
 	if agentMalformed(resp) {
-		return s.finishAgent(sctx, emit, res, w, conv, question, "", ai.NoticeAgentFailed, []AskCitation{}, resp.UsageEventID, steps, nil)
+		return s.finishAgent(sctx, emit, res, w, conv, base, "", ai.NoticeAgentFailed, []AskCitation{}, resp.UsageEventID, steps, nil)
 	}
 	answer := strings.TrimSpace(ai.StripUntrustedTags(resp.Text))
 	var followups []string
 	if in.Dock {
 		answer, followups = splitFollowups(answer)
 	}
-	return s.finishAgent(sctx, emit, res, w, conv, question, answer, "", agentCitations(answer, book), resp.UsageEventID, steps, followups)
+	return s.finishAgent(sctx, emit, res, w, conv, base, answer, "", agentCitations(answer, book), resp.UsageEventID, steps, followups)
 }
 
 // finishAgent stores the turn with the last call's usage row. Its text
 // already streamed, so it ends with citations, any follow-ups and done.
-func (s *AskUNIService) finishAgent(ctx context.Context, emit AskSink, res AskResult, w db.GetWorkspaceWithOrgRow, conv db.AiConversation, question, answer, notice string, citations []AskCitation, usageEventID string, steps []AskStep, followups []string) (AskResult, error) {
-	msg, err := s.store(ctx, w.OrganizationID, conv.ID, askTurn{Question: question, Answer: answer, Notice: notice, Citations: citations, UsageEventID: usageEventID, Steps: steps, Followups: followups})
+func (s *AskUNIService) finishAgent(ctx context.Context, emit AskSink, res AskResult, w db.GetWorkspaceWithOrgRow, conv db.AiConversation, base askTurn, answer, notice string, citations []AskCitation, usageEventID string, steps []AskStep, followups []string) (AskResult, error) {
+	msg, err := s.store(ctx, w.OrganizationID, conv.ID, askTurn{Question: base.Question, Answer: answer, Notice: notice, Citations: citations, UsageEventID: usageEventID, Steps: steps, Followups: followups, Focus: base.Focus, Mentions: base.Mentions, Regenerates: base.Regenerates})
 	if err != nil {
 		return AskResult{}, err
 	}
