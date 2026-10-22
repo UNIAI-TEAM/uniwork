@@ -28,8 +28,16 @@ describe("chat sync api", () => {
     expect(request).toHaveBeenLastCalledWith("/api/v1/workspaces/w1/chat/sync", { signal });
   });
 
+  // A full page says more (server pages at 200 changes); an older server that never sends it means the page is complete.
+  it("reads whether more changes follow the page", async () => {
+    request.mockResolvedValueOnce({ head: 210, reset: false, more: true, changes: [] });
+    expect((await sync.sync("w1", 10))?.more).toBe(true);
+    request.mockResolvedValueOnce({ head: 210, reset: false, changes: [] });
+    expect((await sync.sync("w1", 10))?.more).toBeUndefined();
+  });
+
   it("degrades a malformed answer to no answer instead of throwing", async () => {
-    for (const bad of [{ head: "7", reset: false, changes: [] }, { head: 7, reset: false, changes: [{ seq: 7, room_id: "", message_id: "m" }] }, "<html>", null]) {
+    for (const bad of [{ head: 7, reset: false, more: "yes", changes: [] }, { head: "7", reset: false, changes: [] }, { head: 7, reset: false, changes: [{ seq: 7, room_id: "", message_id: "m" }] }, "<html>", null]) {
       request.mockResolvedValueOnce(bad);
       expect(await sync.sync("w1", 1)).toBeNull();
     }

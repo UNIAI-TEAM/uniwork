@@ -115,12 +115,16 @@ Mở lạnh, kho trên máy, outbox, lượt chờ, nháp, cache đĩa, refetch 
   timeline hay chủ đề) không GET lại. Tin chưa gửi luôn nằm sau tin mới nhất của server, theo thứ tự viết
   (`lib/send-pipeline.ts`): đồng hồ máy lệch không đặt chúng lẫn vào tin cũ của người khác.
   **Nhật ký thay đổi** (`data/chat-sync/`, ADR 0039 nháp giai đoạn 1, công tắc `unichat_mobile_chat_sync`): mở
-  workspace, mỗi lần reconnect và mỗi `LIVE_CHECK_MS` (60 s) khi socket sống và app ở trước, điện thoại hỏi
-  `GET …/chat/sync?since=<head>` một request và vá cache như frame (timeline đang hiện được chèn/thay/gỡ tin; phòng
+  workspace, mỗi lần reconnect và sau mỗi `LIVE_CHECK_MS` (60 s) yên lặng — không frame tin nào; frame chảy liên tục
+  thì chậm nhất mỗi `LIVE_CHECK_MAX_MS` (5 phút) — khi socket sống và app ở trước, điện thoại hỏi
+  `GET …/chat/sync?since=<head>` và vá cache như frame (timeline đang hiện được chèn/thay/gỡ tin; phòng
   không ai xem bị đánh dấu stale và bỏ bản trên đĩa khi sửa/xoá; trả lời chủ đề refetch chủ đề đang hiện và đọc lại
   tin gốc để có số trả lời), rồi mới ghi `head` mới (theo người + workspace trên kho máy, xoá khi đăng xuất) — chết
-  giữa chừng thì phát lại, vô hại vì server gửi tin như hiện tại. Tick 60 s là thứ tìm lại frame relay làm rơi khi
-  socket vẫn sống. Chỉ khi nhật ký không trả lời được (tắt công tắc, lỗi, câu trả lời không parse, chưa có head,
-  `reset` vì quá xa) thì đi đường cũ: reconnect giữ mọi trang đã cuộn của phòng đang hiện và refetch từng trang (nối
-  lại từ trang mới nhất) để thấy sửa/xoá/biểu cảm lúc offline; tick 60 s đọc catch-up sau tin mới nhất của phòng
-  đang hiện. Chỉ mở lại phòng mới cắt về trang mới nhất.
+  giữa chừng thì phát lại, vô hại vì server gửi tin như hiện tại. Server chỉ đếm phòng người gọi đọc được và chia
+  trang 200 thay đổi (`more`); điện thoại đi tiếp tối đa `MAX_SYNC_PAGES` (5) trang, mỗi trang ghi `head` của nó.
+  Tick là thứ tìm lại frame relay làm rơi khi socket vẫn sống. Chỉ khi nhật ký không trả lời được (tắt công tắc, lỗi,
+  câu trả lời không parse, chưa có head, `reset` vì nhật ký đã cắt qua `head`, hay còn trang sau 5 trang) thì đi
+  đường cũ: reconnect giữ mọi trang đã cuộn của phòng đang hiện và refetch từng trang (nối
+  lại từ trang mới nhất) để thấy sửa/xoá/biểu cảm lúc offline; tick đọc catch-up sau tin mới nhất của phòng
+  đang hiện. Reconnect đồng bộ được vẫn có catch-up đó cho phòng đang mở (socket phát lại scope chat sau auth,
+  `subscribe_ack` gọi catch-up), nên một dòng nhật ký server ghi hỏng không giấu tin mới của phòng đang mở. Chỉ mở lại phòng mới cắt về trang mới nhất.

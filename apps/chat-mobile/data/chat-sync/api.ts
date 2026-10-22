@@ -21,6 +21,8 @@ const ChatSyncChangeSchema = z.object({
 export const ChatSyncSchema = z.object({
   head: z.number().int().nonnegative(),
   reset: z.boolean(),
+  // The page stopped at the server's cap (200): more changes follow head. Absent from an older server: complete.
+  more: z.boolean().optional(),
   changes: z.array(ChatSyncChangeSchema),
 });
 

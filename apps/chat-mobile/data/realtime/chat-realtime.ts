@@ -55,6 +55,22 @@ export const BURST_CATCH_UP_MIN = 2;
  */
 export const LIVE_CHECK_MS = 60_000;
 
+/**
+ * The live check runs after a quiet minute: while message frames flow the
+ * relay is evidently delivering, and a check would mostly re-read what they
+ * brought. However busy the socket, it still runs this often, since a frame
+ * lost in the middle of a burst leaves no other trace.
+ */
+export const LIVE_CHECK_MAX_MS = 5 * 60_000;
+
+/** Frames that carry a message change: while they flow the minute is not quiet. */
+const MESSAGE_FRAMES: ReadonlySet<string> = new Set([
+  "chat.message.created",
+  "chat.message.updated",
+  "chat.message.deleted",
+  "chat.thread.replied",
+]);
+
 interface MessageFrame {
   roomId: string;
   messageId: string;
@@ -68,6 +84,8 @@ export function createChatRealtime(qc: QueryClient, deps: ChatRealtimeDeps) {
   const { wsId } = deps;
   const scheduled = new Map<string, QueryKey>();
   let timer: ReturnType<typeof setTimeout> | null = null;
+  let lastMessageFrameAt = Number.NEGATIVE_INFINITY;
+  let lastLiveCheckAt = Date.now();
 
   function schedule(...keys: QueryKey[]) {
     for (const key of keys) scheduled.set(JSON.stringify(key), key);
@@ -149,6 +167,7 @@ export function createChatRealtime(qc: QueryClient, deps: ChatRealtimeDeps) {
   /** One decoded frame (frames.ts: a malformed one never gets here, so every id below is a non-empty string). */
   function handle(msg: RealtimeFrame): void {
     if (!isKnownFrame(msg)) return;
+    if (MESSAGE_FRAMES.has(msg.type)) lastMessageFrameAt = Date.now();
     const viewer = deps.viewer();
     switch (msg.type) {
       case "subscribe_ack":
@@ -248,14 +267,28 @@ export function createChatRealtime(qc: QueryClient, deps: ChatRealtimeDeps) {
       reloadShown();
       return;
     }
+    // A change whose log row was lost (a failed write) is in no sync; the open room still reads what it got after its
+    // newest message, because the socket replays its chat scope after auth and the subscribe_ack catches it up.
     void syncOutcome(deps.sync).then((outcome) => {
       if (outcome !== "synced") reloadShown();
     });
   }
 
-  /** The live check (LIVE_CHECK_MS). */
+  /** Each shown room reads what it got after its newest message. */
+  function catchUpShown(): void {
+    for (const [queryKey, data] of qc.getQueriesData({ queryKey: chatKeys.roomMessagesRoot(wsId) })) {
+      const roomId = queryKey[3];
+      if (data === undefined || typeof roomId !== "string" || !isShown(roomId)) continue;
+      void catchUpRoomTimeline(qc, wsId, roomId).catch(bestEffort("chat-sync", "catch-up of a shown room failed", "breadcrumb"));
+    }
+  }
+
+  /** The live check: after a quiet LIVE_CHECK_MS, and at least every LIVE_CHECK_MAX_MS. */
   async function checkLive(): Promise<void> {
     if (!deps.isLive?.()) return;
+    const now = Date.now();
+    if (now - lastMessageFrameAt < LIVE_CHECK_MS && now - lastLiveCheckAt < LIVE_CHECK_MAX_MS) return;
+    lastLiveCheckAt = now;
     const outcome = deps.sync ? await syncOutcome(deps.sync) : undefined;
     if (outcome === "synced") return;
     if (outcome === "reset") {
@@ -263,11 +296,7 @@ export function createChatRealtime(qc: QueryClient, deps: ChatRealtimeDeps) {
       schedule(chatKeys.rooms(wsId), chatKeys.unreadSummary());
       return;
     }
-    for (const [queryKey, data] of qc.getQueriesData({ queryKey: chatKeys.roomMessagesRoot(wsId) })) {
-      const roomId = queryKey[3];
-      if (data === undefined || typeof roomId !== "string" || !isShown(roomId)) continue;
-      void catchUpRoomTimeline(qc, wsId, roomId).catch(bestEffort("chat-sync", "live check catch-up failed", "breadcrumb"));
-    }
+    catchUpShown();
   }
 
   const liveCheck = deps.isLive ? setInterval(() => void checkLive(), LIVE_CHECK_MS) : null;

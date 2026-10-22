@@ -39,6 +39,7 @@ Ba tầng socket, decoder frame, luật socket, ân hạn nền, khôi phục ph
   của portal không qua; dưới `/api` vì edge production chỉ đưa `/api` tới server, `/healthz` trần rơi vào web), 60 s một lần khi tới được, 5 s khi không; Android dùng `NET_CAPABILITY_VALIDATED` của OS.
 - Frame chat là ephemeral và không có số thứ tự, nên frame mất (socket rớt, hay relay làm rơi khi socket còn sống)
   được tìm lại bằng nhật ký thay đổi của server (`data/chat-sync/sync.ts`, `GET …/chat/sync`; chi tiết ở
-  `offline-first.md` › Nhật ký thay đổi): `chat-realtime.ts › reconnect` và kiểm tra sống 60 s
-  (`LIVE_CHECK_MS`, chỉ khi `ws.getConnectionState() === "online"` và app `active`) hỏi nó trước, đường refetch cũ
+  `offline-first.md` › Nhật ký thay đổi): `chat-realtime.ts › reconnect` và kiểm tra sống sau 60 s
+  yên lặng (`LIVE_CHECK_MS`, chậm nhất `LIVE_CHECK_MAX_MS` 5 phút khi frame tin chảy liên tục; chỉ khi
+  `ws.getConnectionState() === "online"` và app `active`) hỏi nó trước, đường refetch cũ
   chỉ chạy khi nó không trả lời được.

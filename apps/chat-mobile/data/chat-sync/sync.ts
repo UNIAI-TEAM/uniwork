@@ -10,8 +10,9 @@
 // and its copy on disk dropped for an edit or a delete; a thread refetches
 // where it is shown and its root's reply count is read again. Outcomes:
 //   synced       every change applied; nothing else to refetch;
-//   reset        the log has moved past this phone (or never knew it): the
-//                caller reloads what it shows; the head is the new start;
+//   reset        the log has moved past this phone (or never knew it), or
+//                more than MAX_SYNC_PAGES pages wait: the caller reloads what
+//                it shows; the head is the new start;
 //   unavailable  the switch is off, the request failed, the answer did not
 //                parse, or this phone had no head yet (the head is now set):
 //                the caller does what it did before the log.
@@ -29,6 +30,13 @@ import { chatSyncApi, type ChatSyncApi, type ChatSyncChange } from "./api";
 import { chatSyncHeads, type ChatSyncHeads } from "./heads";
 
 export type ChatSyncOutcome = "synced" | "reset" | "unavailable";
+
+/**
+ * The server pages its answer (200 changes a page, `more` when more follow).
+ * A phone follows this many pages in one sync; a longer backlog (a long
+ * night offline in a busy room) costs less to reload than to replay.
+ */
+export const MAX_SYNC_PAGES = 5;
 
 export interface ChatSyncDeps {
   api: Pick<ChatSyncApi, "sync">;
@@ -74,17 +82,9 @@ async function refreshRoots(qc: QueryClient, wsId: string, roots: Map<string, st
   );
 }
 
-async function run(qc: QueryClient, wsId: string, userId: string, deps: ChatSyncDeps): Promise<ChatSyncOutcome> {
-  if (!readMobileFlag(qc, "unichat_mobile_chat_sync")) return "unavailable";
-  const since = await deps.heads.get(userId, wsId);
-  const page = await deps.api.sync(wsId, since).catch(bestEffort("chat-sync", "sync failed", "breadcrumb"));
-  if (!page) return "unavailable";
-  if (since === null || page.reset) {
-    await deps.heads.set(userId, wsId, page.head);
-    return since === null ? "unavailable" : "reset";
-  }
+function applyPage(qc: QueryClient, wsId: string, changes: readonly ChatSyncChange[]): Applied {
   const applied: Applied = { roots: new Map(), listStale: false };
-  for (const change of page.changes) {
+  for (const change of changes) {
     if (change.message && change.kind !== "deleted") applyMessage(qc, wsId, change, change.message, applied);
     else patchChatMessageDeleted(qc, wsId, change.room_id, change.message_id);
   }
@@ -92,10 +92,27 @@ async function run(qc: QueryClient, wsId: string, userId: string, deps: ChatSync
     void qc.invalidateQueries({ queryKey: chatKeys.rooms(wsId) });
     void qc.invalidateQueries({ queryKey: chatKeys.unreadSummary() });
   }
-  await refreshRoots(qc, wsId, applied.roots, deps);
-  // Only once applied: a process killed halfway replays them (each is the message as it is now).
-  await deps.heads.set(userId, wsId, page.head);
-  return "synced";
+  return applied;
+}
+
+async function run(qc: QueryClient, wsId: string, userId: string, deps: ChatSyncDeps): Promise<ChatSyncOutcome> {
+  if (!readMobileFlag(qc, "unichat_mobile_chat_sync")) return "unavailable";
+  const first = await deps.heads.get(userId, wsId);
+  let since = first;
+  for (let pages = 1; ; pages += 1) {
+    const page = await deps.api.sync(wsId, since).catch(bestEffort("chat-sync", "sync failed", "breadcrumb"));
+    if (!page) return "unavailable";
+    if (first === null || page.reset) {
+      await deps.heads.set(userId, wsId, page.head);
+      return first === null ? "unavailable" : "reset";
+    }
+    await refreshRoots(qc, wsId, applyPage(qc, wsId, page.changes).roots, deps);
+    // Only once applied: a process killed halfway replays them (each is the message as it is now).
+    await deps.heads.set(userId, wsId, page.head);
+    if (page.more !== true) return "synced";
+    if (pages >= MAX_SYNC_PAGES) return "reset";
+    since = page.head;
+  }
 }
 
 const running = new Map<string, Promise<ChatSyncOutcome>>();

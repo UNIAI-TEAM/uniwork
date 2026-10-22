@@ -10,7 +10,14 @@ import { flattenRoomTimeline, type RoomTimeline } from "@uniwork/core/chat/room-
 import { chatKeys } from "../queries/chat-keys";
 import { onRoomRead } from "../room-read-signal";
 import { decodeFrame, type RealtimeFrame } from "./frames";
-import { BURST_CATCH_UP_MIN, createChatRealtime, LIVE_CHECK_MS, ROOM_ACTIVITY_DEBOUNCE_MS, type ChatRealtimeDeps } from "./chat-realtime";
+import {
+  BURST_CATCH_UP_MIN,
+  createChatRealtime,
+  LIVE_CHECK_MAX_MS,
+  LIVE_CHECK_MS,
+  ROOM_ACTIVITY_DEBOUNCE_MS,
+  type ChatRealtimeDeps,
+} from "./chat-realtime";
 import { installReportSink } from "../report";
 
 const msg = (id: string, minute: number, extra: Partial<ChatMessageRecord> = {}): ChatMessageRecord => ({
@@ -315,6 +322,46 @@ describe("socket lifecycle", () => {
     await vi.advanceTimersByTimeAsync(LIVE_CHECK_MS);
     expect(list).toHaveBeenCalledTimes(2);
     bare.dispose();
+  });
+
+  // Review P2 (a log row lost to a failed write is in no sync): a reconnect that syncs still catches the open room up,
+  // through the subscribe_ack of its replayed chat scope, not through a second read here.
+  it("after a reconnect the log answers, the open room reads what it got after its newest message once, on its scope's ack", async () => {
+    show(qc, timelineKey, { pages: [[msg("m2", 2)]], pageParams: [null] });
+    const list = vi.spyOn(chatApi, "listMessages").mockResolvedValue([msg("m3", 3)]);
+    const sync = vi.fn(async () => "synced" as const);
+    const realtime = createChatRealtime(qc, { ...deps, sync });
+    realtime.reconnect();
+    await vi.waitFor(() => expect(sync).toHaveBeenCalledTimes(1));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(list).not.toHaveBeenCalled();
+    realtime.handle(frame("subscribe_ack", { scope: "chat", id: "r1" }));
+    await vi.waitFor(() => expect(ids(qc)).toEqual(["m2", "m3"]));
+    expect(list).toHaveBeenCalledTimes(1);
+    realtime.dispose();
+  });
+
+  // Review P2: the check ran on a fixed minute even on a socket busy with frames; the flag and the ADR say a quiet minute.
+  it("waits for a quiet minute while message frames flow, but checks at least every few minutes", async () => {
+    vi.useFakeTimers();
+    vi.spyOn(chatApi, "getMessage").mockResolvedValue(msg("m9", 9));
+    const sync = vi.fn<NonNullable<ChatRealtimeDeps["sync"]>>(async () => "synced");
+    const realtime = createChatRealtime(qc, { ...deps, sync, isLive: () => true });
+    const busy = async (ms: number) => {
+      for (let at = 0; at < ms; at += LIVE_CHECK_MS / 2) {
+        realtime.handle(frame("chat.message.updated", { room_id: "r1", message_id: "m9" }));
+        await vi.advanceTimersByTimeAsync(LIVE_CHECK_MS / 2);
+      }
+    };
+    await busy(LIVE_CHECK_MS * 3);
+    expect(sync).not.toHaveBeenCalled();
+    // However busy, a frame the relay lost is looked for at the latest every LIVE_CHECK_MAX_MS.
+    await busy(LIVE_CHECK_MAX_MS - LIVE_CHECK_MS * 3);
+    expect(sync).toHaveBeenCalledTimes(1);
+    // Quiet again: the next minute checks.
+    await vi.advanceTimersByTimeAsync(LIVE_CHECK_MS);
+    expect(sync).toHaveBeenCalledTimes(2);
+    realtime.dispose();
   });
 
   it("refetches the call logs once a call hangs up (the server wrote the log before the frame)", async () => {

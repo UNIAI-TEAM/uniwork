@@ -13,7 +13,7 @@ import { chatKeys } from "../queries/chat-keys";
 import { REMOTE_CONFIG_FALLBACK, remoteConfigKey } from "../remote-config";
 import type { ChatSyncPage } from "./api";
 import type { ChatSyncHeads } from "./heads";
-import { syncChat, type ChatSyncDeps } from "./sync";
+import { MAX_SYNC_PAGES, syncChat, type ChatSyncDeps } from "./sync";
 
 const msg = (id: string, minute: number, extra: Partial<ChatMessageRecord> = {}): ChatMessageRecord => ({
   id,
@@ -48,7 +48,12 @@ const heads: ChatSyncHeads = {
 const sync = vi.fn<ChatSyncDeps["api"]["sync"]>();
 const getMessage = vi.fn<ChatSyncDeps["getMessage"]>();
 const deps: ChatSyncDeps = { api: { sync }, heads, getMessage };
-const page = (head: number, changes: ChatSyncPage["changes"] = [], reset = false): ChatSyncPage => ({ head, reset, changes });
+const page = (head: number, changes: ChatSyncPage["changes"] = [], reset = false, more?: boolean): ChatSyncPage => ({
+  head,
+  reset,
+  changes,
+  ...(more === undefined ? {} : { more }),
+});
 
 beforeEach(() => {
   stored = new Map([["u1/w1", 10]]);
@@ -119,6 +124,31 @@ describe("syncChat", () => {
     sync.mockResolvedValueOnce(page(900, [], true));
     expect(await syncChat(qc, "w1", "u1", deps)).toBe("reset");
     expect(stored.get("u1/w1")).toBe(900);
+  });
+
+  // Review P2: past 200 changes the server used to answer reset, and every shown timeline reloaded every minute.
+  it("follows the pages the log hands out, moving the head after each", async () => {
+    const qc = new QueryClient();
+    show(qc, mainKey, { pages: [[msg("m1", 1)]], pageParams: [null] });
+    sync
+      .mockResolvedValueOnce(page(210, [{ seq: 11, room_id: "r1", message_id: "m2", kind: "created", message: msg("m2", 2) }], false, true))
+      .mockResolvedValueOnce(page(250, [{ seq: 240, room_id: "r1", message_id: "m3", kind: "created", message: msg("m3", 3) }], false, false));
+    expect(await syncChat(qc, "w1", "u1", deps)).toBe("synced");
+    expect(sync.mock.calls.map(([, since]) => since)).toEqual([10, 210]);
+    expect(shown(qc).map((m) => m.id)).toEqual(["m1", "m2", "m3"]);
+    expect(stored.get("u1/w1")).toBe(250);
+  });
+
+  it("a backlog longer than the page budget is a reset from where it got to; a page that fails is no answer", async () => {
+    const qc = new QueryClient();
+    for (let i = 1; i <= MAX_SYNC_PAGES; i += 1) sync.mockResolvedValueOnce(page(10 + i * 200, [], false, true));
+    expect(await syncChat(qc, "w1", "u1", deps)).toBe("reset");
+    expect(sync).toHaveBeenCalledTimes(MAX_SYNC_PAGES);
+    expect(stored.get("u1/w1")).toBe(10 + MAX_SYNC_PAGES * 200);
+
+    sync.mockReset().mockResolvedValueOnce(page(1_210, [], false, true)).mockResolvedValueOnce(null);
+    expect(await syncChat(qc, "w1", "u1", deps)).toBe("unavailable");
+    expect(stored.get("u1/w1")).toBe(1_210);
   });
 
   it("switched off, failed or unreadable: nothing is applied and the head stays", async () => {
