@@ -237,3 +237,35 @@ func TestTableRowsLabelFilterHTTP(t *testing.T) {
 		t.Fatalf("row id = %s, want %s", gotID, taggedID)
 	}
 }
+
+func TestTableRowsRelationFilterHTTP(t *testing.T) {
+	srv, token, wsID, _ := suiteMutationWorld(t)
+	res, out := doJSON(t, srv, "POST", "/api/v1/workspaces/"+wsID+"/tasks", token, map[string]any{"title": "mine"})
+	if res.StatusCode != 200 {
+		t.Fatalf("create: %d %v", res.StatusCode, out)
+	}
+
+	rows := func(relation string) (int, map[string]any) {
+		res, body := doJSON(t, srv, "POST", "/api/v1/workspaces/"+wsID+"/tasks/table/rows", token, map[string]any{
+			"query": map[string]any{"filter": map[string]any{"relation": relation}},
+			"limit": 50,
+		})
+		return res.StatusCode, body
+	}
+
+	// The creator sees the task under "created" and "all", not under "assigned".
+	for relation, want := range map[string]float64{"all": 1, "created": 1, "assigned": 0, "involved": 0} {
+		status, body := rows(relation)
+		if status != 200 || body["total"].(float64) != want {
+			t.Fatalf("relation %s: status=%d total=%v, want %v", relation, status, body["total"], want)
+		}
+	}
+
+	status, body := rows("everyone")
+	if status != 400 {
+		t.Fatalf("unknown relation: status = %d, want 400: %v", status, body)
+	}
+	if code := body["error"].(map[string]any)["code"]; code != "invalid_relation" {
+		t.Fatalf("code = %v, want invalid_relation", code)
+	}
+}

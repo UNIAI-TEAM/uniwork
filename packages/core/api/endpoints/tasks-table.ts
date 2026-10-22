@@ -19,6 +19,12 @@ export interface TableFilter {
   date_from?: string;
   /** YYYY-MM-DD */
   date_to?: string;
+  /**
+   * The viewer's own work (my-tasks): `all` = assigned to or created by the
+   * signed-in person, then `assigned`, `created`, `involved`. The server
+   * resolves "the viewer" from the session; no person id travels here.
+   */
+  relation?: "all" | "assigned" | "created" | "involved";
 }
 
 export interface TableSort {

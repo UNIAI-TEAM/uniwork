@@ -80,16 +80,10 @@ function TaskSurfaceContent({
   renderHeader,
   renderEmpty,
 }: Omit<TaskSurfaceProps, "surfaceKey">) {
-  // Workspace table endpoints have no my-relation filter — omit table on my-scope.
-  const availableModes = useMemo(
-    () =>
-      scope.type === "my" ? modes.filter((mode) => mode !== "table") : modes,
-    [modes, scope.type],
-  );
   const controller = useTaskSurfaceController({
     workspaceId,
     scope,
-    modes: availableModes,
+    modes,
   });
   const reduceMotion = useReducedMotion() ?? false;
   const { data: membersData } = useMembers(workspaceId);
@@ -170,7 +164,7 @@ function TaskSurfaceContent({
     (
       <TasksHeader
         workspaceId={workspaceId}
-        modes={availableModes}
+        modes={modes}
         scopedTasks={controller.surfaceTasks}
         isRefreshing={controller.isRefreshing}
         lockProjectFilter={scope.type === "project"}
