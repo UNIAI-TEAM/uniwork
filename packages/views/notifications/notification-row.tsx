@@ -57,6 +57,7 @@ const TITLE_CLAMP: Partial<Record<string, string>> = {
   document_trashed_by_other: "line-clamp-4",
   document_break_glass: "line-clamp-3",
   meeting_summary_ready: "line-clamp-3",
+  meeting_recap_ready: "line-clamp-3",
   meeting_transcript_failed: "line-clamp-5",
 };
 

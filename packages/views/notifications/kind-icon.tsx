@@ -6,6 +6,7 @@ import {
   CircleAlert,
   CircleCheck,
   CircleX,
+  ClipboardList,
   FileDown,
   FileHeadphone,
   KeyRound,
@@ -37,6 +38,7 @@ const ICONS: Record<NotificationKind, LucideIcon> = {
   // A prompt to act, not something AI made: the reminder glyph chat_reminder uses.
   meeting_summary_reminder: AlarmClock,
   meeting_summary_ready: Sparkles,
+  meeting_recap_ready: ClipboardList,
   meeting_transcript_ready: FileHeadphone,
   meeting_transcript_failed: CircleAlert,
   member_added: UserPlus,

@@ -37,6 +37,13 @@ describe("resourceHref", () => {
     expect(resourceHref(n, workspace, [workspace])).toBe("/acme/team/meetings/m1?section=summary");
   });
 
+  it("opens the summary, or the minutes once they are final, from a participant's recap", () => {
+    const summary = notification({ kind: "meeting_recap_ready", resource_type: "meeting", resource_id: "m1" });
+    expect(resourceHref(summary, workspace, [workspace])).toBe("/acme/team/meetings/m1?section=summary");
+    const minutes = notification({ kind: "meeting_recap_ready", resource_type: "meeting", resource_id: "m1", params: { stage: "minutes" } });
+    expect(resourceHref(minutes, workspace, [workspace])).toBe("/acme/team/meetings/m1?section=minutes");
+  });
+
   // The row carries no task ids, and the meeting's action items are the clerk's review list:
   // the person handed the tasks lands on their own tasks.
   it("opens the assignee's tasks for the tasks a meeting assigned", () => {

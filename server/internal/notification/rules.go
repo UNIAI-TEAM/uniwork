@@ -184,7 +184,9 @@ var rules = map[string]rule{
 	// UNI-2026: the auto summary made none, so the reminder comes after all;
 	// a summary the system made tells the host and the secretaries.
 	"meeting.auto_summary_failed": ruleMeetingEnded,
-	"summary.created":             ruleSummaryCreated,
+	// follow-1: the recap for the rest of the meeting, beside the clerks' notice.
+	"summary.created":   both(ruleSummaryCreated, ruleSummaryRecap),
+	"minutes.finalized": ruleMinutesRecap,
 	// UNI-2001: the clerk who uploaded a recording hears how it went.
 	"transcription.completed": ruleTranscription(KindMeetingTranscriptReady),
 	"transcription.failed":    ruleTranscription(KindMeetingTranscriptFailed),

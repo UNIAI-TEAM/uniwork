@@ -24,6 +24,8 @@ var titles = map[string]map[string]string{
 		KindMeetingStarting:             "\"{{meeting}}\" bắt đầu sau {{minutes}} phút",
 		KindMeetingSummaryReminder:      "\"{{meeting}}\" đã kết thúc · Tóm tắt và tạo việc",
 		KindMeetingSummaryReady:         "Tóm tắt \"{{meeting}}\" đã sẵn sàng · Xem và giao việc",
+		KindMeetingRecapReady:           "Đã có tóm tắt cuộc họp \"{{meeting}}\" · Xem các quyết định và việc cần làm",
+		recapMinutesTitleKey:            "Biên bản \"{{meeting}}\" đã chốt · Xem lại các quyết định và việc được giao",
 		KindMeetingTranscriptReady:      "Đã có bản ghi lời thoại cho tệp ghi âm của \"{{meeting}}\"",
 		KindMeetingTranscriptFailed:     "Không tạo được bản ghi lời thoại cho tệp ghi âm của \"{{meeting}}\". Mở cuộc họp để tải lại tệp.",
 		KindMemberAdded:                 "{{actor}} đã thêm bạn vào workspace {{workspace}}",
@@ -66,6 +68,8 @@ var titles = map[string]map[string]string{
 		KindMeetingStarting:             "\"{{meeting}}\" starts in {{minutes}} minutes",
 		KindMeetingSummaryReminder:      "\"{{meeting}}\" ended · Summarize it and create tasks",
 		KindMeetingSummaryReady:         "\"{{meeting}}\" summary is ready · Review it and assign tasks",
+		KindMeetingRecapReady:           "The recap of \"{{meeting}}\" is ready · See the decisions and next steps",
+		recapMinutesTitleKey:            "The minutes of \"{{meeting}}\" are final · Review the decisions and assigned tasks",
 		KindMeetingTranscriptReady:      "The transcript of the recording for \"{{meeting}}\" is ready",
 		KindMeetingTranscriptFailed:     "Couldn't transcribe the recording for \"{{meeting}}\". Open the meeting to upload the file again.",
 		KindMemberAdded:                 "{{actor}} added you to workspace {{workspace}}",
@@ -166,6 +170,10 @@ const editRequestDeclinedTitleKey = KindDocumentEditRequestAnswered + "_declined
 // param); it is not a kind.
 const tasksAssignedNoMeetingTitleKey = KindTasksAssigned + "_nomeeting"
 
+// recapMinutesTitleKey keys the meeting_recap_ready sentence for finalized
+// minutes (params.stage = "minutes"); it is not a kind.
+const recapMinutesTitleKey = KindMeetingRecapReady + "_minutes"
+
 // Title renders the kind's title in locale with params, i18next-style
 // {{name}} substitution. Unknown locale falls back to en.
 func Title(locale, kind string, params map[string]string) string {
@@ -176,6 +184,9 @@ func Title(locale, kind string, params map[string]string) string {
 	}
 	if kind == KindDocumentEditRequestAnswered && params["decision"] == editDecisionDecline {
 		kind = editRequestDeclinedTitleKey
+	}
+	if kind == KindMeetingRecapReady && params["stage"] == recapStageMinutes {
+		kind = recapMinutesTitleKey
 	}
 	if kind == KindTasksAssigned && strings.TrimSpace(params["meeting"]) == "" {
 		kind = tasksAssignedNoMeetingTitleKey

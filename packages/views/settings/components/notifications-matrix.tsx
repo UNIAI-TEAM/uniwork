@@ -77,11 +77,12 @@ const NO_EMAIL: Partial<Record<Kind, true>> = { document_trashed_by_other: true 
  * the summary ones reach the host and secretaries, the transcript ones the
  * person who uploaded the recording. Every member sees the row, so it says when.
  */
-const KIND_HINT: Partial<Record<Kind, "hint_meeting_role" | "hint_meeting_reminder" | "hint_meeting_upload">> = {
+const KIND_HINT: Partial<Record<Kind, "hint_meeting_role" | "hint_meeting_participant" | "hint_meeting_reminder" | "hint_meeting_upload">> = {
   // Sent to the host when an ended meeting has no summary: the organization turned the
   // automatic one off, or it failed (meeting.auto_summary_failed runs the same rule).
   meeting_summary_reminder: "hint_meeting_reminder",
   meeting_summary_ready: "hint_meeting_role",
+  meeting_recap_ready: "hint_meeting_participant",
   meeting_transcript_ready: "hint_meeting_upload",
   meeting_transcript_failed: "hint_meeting_upload",
 };
