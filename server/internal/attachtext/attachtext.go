@@ -35,6 +35,10 @@ type Part struct {
 type Doc struct {
 	Unit  string
 	Parts []Part
+	// Omitted counts the Parts after the last one in Parts that were counted but
+	// not kept, because the file has more of them than memory allows (only a
+	// text file with a great many lines). They are never read, only reported.
+	Omitted int
 }
 
 // ErrUnreadable means the file is damaged, encrypted, empty of the part that
@@ -73,6 +77,8 @@ func Extract(mime string, r io.ReaderAt, size int64) (Doc, error) {
 // plainDoc reads text line by line, one Part per non-blank line (a blank line
 // carries nothing a reader needs, and a file of newlines must not become
 // millions of Parts). Invalid UTF-8 becomes U+FFFD; a leading BOM is dropped.
+// A valid file is never refused for its line count: the first lines that fit
+// the retention budget are kept and the rest are only counted in Omitted.
 func plainDoc(r io.ReaderAt, size int64) (Doc, error) {
 	if size < 0 || size > maxReadBytes {
 		return Doc{}, unreadable(errOverLimit)
@@ -90,9 +96,13 @@ func plainDoc(r io.ReaderAt, size int64) (Doc, error) {
 		}
 		line = strings.TrimRight(line, "\r\n")
 		if strings.TrimSpace(line) != "" {
-			text := strings.ToValidUTF8(line, "\uFFFD")
-			if err := keep.add(&d.Parts, Part{Text: text}); err != nil {
-				return Doc{}, err
+			// Once one line does not fit, none after it is kept: Parts stay a prefix.
+			if d.Omitted > 0 {
+				d.Omitted++
+			} else if text := strings.ToValidUTF8(line, "\uFFFD"); keep.spend(len(text)+partOverhead) == nil {
+				d.Parts = append(d.Parts, Part{Text: text})
+			} else {
+				d.Omitted++
 			}
 		}
 		if err == io.EOF {

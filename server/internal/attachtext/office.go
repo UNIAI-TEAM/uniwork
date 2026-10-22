@@ -180,6 +180,9 @@ func (z *zipDoc) pptx() (Doc, error) {
 			if err != nil {
 				return Doc{}, unreadable(err)
 			}
+			if err := z.keep.spend(len(name) + 2*stringOverhead); err != nil {
+				return Doc{}, err
+			}
 			slides = append(slides, slide{n, name})
 		}
 	}

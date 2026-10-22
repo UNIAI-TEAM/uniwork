@@ -8,8 +8,10 @@ import (
 	"hash/crc32"
 	"io"
 	"runtime"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 )
 
 const wNS = `xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"`
@@ -207,7 +209,7 @@ func TestExtractUnsupportedMIMEIsACallerError(t *testing.T) {
 	}
 }
 
-// padded writes prefix, n MiB of spaces, then suffix as one zip entry.
+// padded writes prefix, n MiB of spaces in 1 MiB runs, then suffix as one zip entry.
 func padded(t *testing.T, w *zip.Writer, name, prefix string, mib int, suffix string) {
 	t.Helper()
 	f, err := w.Create(name)
@@ -218,6 +220,7 @@ func padded(t *testing.T, w *zip.Writer, name, prefix string, mib int, suffix st
 	_, _ = io.WriteString(f, prefix)
 	for i := 0; i < mib; i++ {
 		_, _ = f.Write(chunk)
+		_, _ = io.WriteString(f, "<x/>") // keeps every run of spaces under the text-run limit
 	}
 	_, _ = io.WriteString(f, suffix)
 }
@@ -352,6 +355,20 @@ func TestExtractRefusesAnOverLongTag(t *testing.T) {
 	wantParts(t, mustExtract(t, mimeDOCX, docxOf(t, ok)), "paragraph", `|it's "ok"`, "|sau")
 }
 
+func TestExtractRefusesAnOverLongRunOfText(t *testing.T) {
+	long := strings.Repeat("a", 5<<20)
+	wantRefused(t, mimeDOCX, docxOf(t, `<w:p><w:r><w:t>`+long+`</w:t></w:r></w:p>`), "text")
+	wantRefused(t, mimeDOCX, docxOf(t, `<!--`+long+`--><w:p/>`), "text")
+	wantRefused(t, mimeDOCX, docxOf(t, `<w:p><w:r><w:t><![CDATA[`+long+`]]></w:t></w:r></w:p>`), "text")
+	wantRefused(t, mimeXLSX, sheetOf(t, `<row><c t="inlineStr"><is><t>`+long+`</t></is></c></row>`, nil), "text")
+	// A paragraph of 1 MiB is long but real.
+	one := strings.Repeat("a", 1<<20)
+	d := mustExtract(t, mimeDOCX, docxOf(t, `<w:p><w:r><w:t>`+one+`</w:t></w:r></w:p>`))
+	if len(d.Parts) != 1 || len(d.Parts[0].Text) != 1<<20 {
+		t.Fatalf("1 MiB paragraph: %d parts", len(d.Parts))
+	}
+}
+
 func TestExtractDocxRefusesWideTableRows(t *testing.T) {
 	row := `<w:tbl><w:tr>` + strings.Repeat("<w:tc/>", 20_000) + `</w:tr></w:tbl>`
 	wantRefused(t, mimeDOCX, docxOf(t, row), "wider")
@@ -411,11 +428,90 @@ func TestExtractPlainDropsBlankLinesInsteadOfKeepingThem(t *testing.T) {
 	}
 }
 
-func TestExtractPlainRefusesMoreLinesThanItCanHold(t *testing.T) {
-	// 10 MB of one-character lines would be millions of Parts of 48+ bytes each.
-	_, err := extract("text/plain", bytes.Repeat([]byte("a\n"), 5_000_000))
-	if !errors.Is(err, ErrUnreadable) || !strings.Contains(err.Error(), "limit") {
-		t.Fatalf("err = %v, want ErrUnreadable over the limit", err)
+// A valid file is never refused for its line count: the first lines are kept
+// and the rest only counted, so the user can be told how much was read.
+func TestExtractPlainReadsAPrefixOfAFileWithManyShortLines(t *testing.T) {
+	const rows = 2_000_000
+	d := mustExtract(t, "text/csv", bytes.Repeat([]byte("12,34,x\n\n"), rows)) // 18 MiB, a blank line after each row
+	if len(d.Parts) == 0 || len(d.Parts) >= rows || d.Omitted == 0 || len(d.Parts)+d.Omitted != rows {
+		t.Fatalf("kept %d, omitted %d, want them to add up to %d with some omitted", len(d.Parts), d.Omitted, rows)
+	}
+	if d.Parts[0].Text != "12,34,x" || d.Parts[len(d.Parts)-1].Text != "12,34,x" {
+		t.Fatalf("kept parts are not the lines of the file: %+v ... %+v", d.Parts[0], d.Parts[len(d.Parts)-1])
+	}
+	text, read, total := Fit(d, 1000) // 3 tokens a line
+	if read != 333 || total != rows || strings.Count(text, "\n") != 332 {
+		t.Fatalf("read, total = %d, %d, want 333, %d", read, total, rows)
+	}
+}
+
+func TestFitCountsOmittedPartsInTotal(t *testing.T) {
+	text, read, total := Fit(Doc{Unit: "line", Parts: []Part{{Text: "a"}}, Omitted: 41}, 100)
+	if text != "a" || read != 1 || total != 42 {
+		t.Fatalf("text, read, total = %q, %d, %d", text, read, total)
+	}
+}
+
+func TestCollapseSpace(t *testing.T) {
+	for in, want := range map[string]string{"": "", "  \t\n ": "", "a": "a", " a \t\n b  c\u00a0d ": "a b c d"} {
+		if got := collapseSpace(in); got != want {
+			t.Errorf("collapseSpace(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+func TestExtractXlsxCollapsesWhiteSpaceInCells(t *testing.T) {
+	files := map[string]string{"xl/sharedStrings.xml": "<sst><si><t> Ghi \n  chú </t></si></sst>"}
+	row := `<row><c t="s"><v>0</v></c><c t="inlineStr"><is><t>a  b</t></is></c></row>`
+	wantParts(t, mustExtract(t, mimeXLSX, sheetOf(t, row, files)), "row", "Doanh thu|", "|Ghi chú | a b")
+}
+
+// Work per cell is bounded by the cell's own bytes. Without it these two files
+// take several seconds each (a shared string of white space was rescanned for
+// every cell that used it; a cell in column XFD made its row build 16384 slots).
+func TestExtractXlsxDoesNotRepeatWorkPerCell(t *testing.T) {
+	// 4 MiB of white space in runs of 1 MiB, each under the text-run limit.
+	spaces := map[string]string{"xl/sharedStrings.xml": `<sst><si>` + strings.Repeat(`<r><t>`+strings.Repeat(" ", 1<<20)+`</t></r>`, 4) + `</si></sst>`}
+	cases := map[string][]byte{
+		"white-space shared string": sheetOf(t, strings.Repeat(`<row><c t="s"><v>0</v></c></row>`, 2000), spaces),
+		"empty cell in column XFD":  sheetOf(t, strings.Repeat(`<row><c r="XFD1"/></row>`, 100_000), nil),
+	}
+	for name, data := range cases {
+		start := time.Now()
+		d, err := extract(mimeXLSX, data)
+		if err != nil || len(d.Parts) != 0 {
+			t.Errorf("%s: %d parts, err %v", name, len(d.Parts), err)
+		}
+		if took := time.Since(start); took > 1500*time.Millisecond {
+			t.Errorf("%s took %v", name, took)
+		}
+	}
+}
+
+func TestExtractXlsxRefusesAHugeSheetList(t *testing.T) {
+	wb := `<workbook xmlns="x"><sheets>` + strings.Repeat("<sheet/>", 1_200_000) + `</sheets></workbook>`
+	wantRefused(t, mimeXLSX, xlsxOf(t, map[string]string{"xl/workbook.xml": wb}), "limit")
+}
+
+func TestExtractXlsxRefusesAHugeRelationshipTable(t *testing.T) {
+	rels := `<Relationships xmlns="x">` + strings.Repeat("<Relationship/>", 600_000) + `</Relationships>`
+	wantRefused(t, mimeXLSX, xlsxOf(t, map[string]string{"xl/_rels/workbook.xml.rels": rels}), "limit")
+}
+
+// A workbook with a few hundred sheets is ordinary and is not caught by those limits.
+func TestExtractXlsxReadsManySheets(t *testing.T) {
+	var sheets, rels strings.Builder
+	for i := 0; i < 200; i++ {
+		id := "rId" + strconv.Itoa(i)
+		sheets.WriteString(`<sheet name="S` + strconv.Itoa(i) + `" sheetId="1" r:id="` + id + `"/>`)
+		rels.WriteString(`<Relationship Id="` + id + `" Type="x/worksheet" Target="worksheets/sheet1.xml"/>`)
+	}
+	files := map[string]string{
+		"xl/workbook.xml":            `<workbook xmlns:r="x"><sheets>` + sheets.String() + `</sheets></workbook>`,
+		"xl/_rels/workbook.xml.rels": `<Relationships>` + rels.String() + `</Relationships>`,
+	}
+	if d := mustExtract(t, mimeXLSX, xlsxOf(t, files)); len(d.Parts) != 200*3 {
+		t.Fatalf("%d parts, want 600", len(d.Parts))
 	}
 }
 

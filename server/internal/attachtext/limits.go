@@ -29,6 +29,12 @@ const (
 	// namespace declared); a tag of millions of attributes becomes a slice of
 	// 48-byte entries.
 	maxTagBytes = 64 << 10
+	// maxTextRun: character data between two tags, or one comment, CDATA section
+	// or processing instruction. The decoder holds a run whole and a reader
+	// copies it several times, so a 60 MiB run takes several times its size.
+	// Excel cells stop at 32,767 characters; Word and ODF start a new run at
+	// every formatting change.
+	maxTextRun = 4 << 20
 	// maxColumns is Excel's last column (XFD); a row wider than that is not real.
 	// Word tables stop at 63 columns.
 	maxColumns = 16384
@@ -39,6 +45,7 @@ var (
 	errTooMuchText = errors.New("text kept from the file over the 64 MiB limit")
 	errTooDeep     = errors.New("XML nested deeper than 100 elements")
 	errTagTooLong  = errors.New("XML tag longer than 64 KiB")
+	errTextTooLong = errors.New("XML text or comment longer than 4 MiB")
 	errTooWide     = errors.New("row wider than 16384 cells")
 )
 
@@ -61,16 +68,16 @@ func (b *budget) add(parts *[]Part, p Part) error {
 	return nil
 }
 
-// tagReader hands the XML decoder its bytes and refuses a markup tag longer
-// than maxTagBytes before the decoder can build it. Quotes are tracked so a
-// '>' inside an attribute value cannot hide a long tag. Comments, CDATA and
-// processing instructions (<! and <?) are exempt: the decoder keeps those at
-// their own size.
+// tagReader hands the XML decoder its bytes and refuses what it would have to
+// build whole before this package sees it: a markup tag longer than
+// maxTagBytes, or character data, a comment, CDATA or a processing instruction
+// (<! and <?) longer than maxTextRun. Quotes are tracked inside a tag so a '>'
+// in an attribute value cannot hide a long one.
 type tagReader struct {
 	*bytes.Reader
-	inTag, plain bool
+	inTag, plain bool // plain: a <! or <? construct, whose quotes are not attribute quotes
 	quote        byte
-	n            int
+	n            int // bytes of the current tag or text run so far
 }
 
 func (t *tagReader) ReadByte() (byte, error) {
@@ -78,28 +85,34 @@ func (t *tagReader) ReadByte() (byte, error) {
 	if err != nil {
 		return 0, err
 	}
+	t.n++
 	if !t.inTag {
-		if b == '<' {
+		switch {
+		case b == '<':
 			t.inTag, t.plain, t.quote, t.n = true, false, 0, 1
+		case t.n > maxTextRun:
+			return 0, errTextTooLong
 		}
 		return b, nil
 	}
-	if t.n++; t.n == 2 && (b == '!' || b == '?') {
+	if t.n == 2 && (b == '!' || b == '?') {
 		t.plain = true
 	}
 	switch {
+	case t.plain && t.n > maxTextRun:
+		return 0, errTextTooLong
+	case !t.plain && t.n > maxTagBytes:
+		return 0, errTagTooLong
 	case t.plain:
 		if b == '>' {
-			t.inTag = false
+			t.inTag, t.n = false, 0
 		}
-	case t.n > maxTagBytes:
-		return 0, errTagTooLong
 	case t.quote != 0:
 		if b == t.quote {
 			t.quote = 0
 		}
 	case b == '>':
-		t.inTag = false
+		t.inTag, t.n = false, 0
 	case b == '"' || b == '\'':
 		t.quote = b
 	}
@@ -108,7 +121,7 @@ func (t *tagReader) ReadByte() (byte, error) {
 
 // walkXML feeds every token of data to fn, which may stop the walk with an
 // error. It fails on malformed or empty XML, on nesting past maxXMLDepth and
-// on an over-long tag. Elements are matched by local name only, so transitional
+// on an over-long tag or text run. Elements are matched by local name only, so transitional
 // and strict OOXML (different namespace URIs, same names) both read. Subtrees
 // whose root is named in skip are dropped whole.
 func walkXML(data []byte, skip []string, fn func(xml.Token) error) error {

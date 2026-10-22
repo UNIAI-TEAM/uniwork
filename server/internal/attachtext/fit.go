@@ -6,7 +6,8 @@ import "strings"
 // reports how many parts it kept (read) out of all of them (total). Parts
 // without Text are not counted: a heading is written only when a part under it
 // fits, so a heading cut off from its rows is dropped. A Part with neither
-// Label nor Text is ignored.
+// Label nor Text is ignored. total also counts d.Omitted, parts that were never
+// kept, so it is how many there are in the file.
 //
 // Format, one line break between parts: a heading is "## Label", a labelled
 // part is "Label" then its text on the next line, any other part is its text.
@@ -39,7 +40,7 @@ func Fit(d Doc, maxTokens int) (text string, read, total int) {
 		read++
 		pending = pending[:0]
 	}
-	return out.String(), read, total
+	return out.String(), read, total + d.Omitted
 }
 
 func render(p Part) string {

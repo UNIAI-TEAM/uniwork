@@ -6,6 +6,7 @@ import (
 	"path"
 	"strconv"
 	"strings"
+	"unicode"
 )
 
 // xlsx reads every sheet in workbook order. A sheet with at least one row
@@ -23,7 +24,11 @@ func (z *zipDoc) xlsx() (Doc, error) {
 	}
 	err = walkXML(wb, nil, func(tok xml.Token) error {
 		if se, ok := tok.(xml.StartElement); ok && se.Name.Local == "sheet" {
-			refs = append(refs, sheetRef{attr(se, "name"), attr(se, "id")})
+			ref := sheetRef{attr(se, "name"), attr(se, "id")}
+			if err := z.keep.spend(len(ref.name) + len(ref.rid) + 2*stringOverhead); err != nil {
+				return err
+			}
+			refs = append(refs, ref)
 		}
 		return nil
 	})
@@ -41,11 +46,14 @@ func (z *zipDoc) xlsx() (Doc, error) {
 	targets := map[string]string{}
 	err = walkXML(relData, nil, func(tok xml.Token) error {
 		if se, ok := tok.(xml.StartElement); ok && se.Name.Local == "Relationship" && attr(se, "TargetMode") != "External" {
-			t := attr(se, "Target")
+			id, t := attr(se, "Id"), attr(se, "Target")
+			if err := z.keep.spend(len(id) + len(t) + 4*stringOverhead); err != nil {
+				return err
+			}
 			if strings.HasPrefix(t, "/") {
-				targets[attr(se, "Id")] = t[1:]
+				targets[id] = t[1:]
 			} else {
-				targets[attr(se, "Id")] = path.Join("xl", t)
+				targets[id] = path.Join("xl", t)
 			}
 		}
 		return nil
@@ -86,8 +94,10 @@ func (z *zipDoc) xlsx() (Doc, error) {
 }
 
 // sharedStrings returns xl/sharedStrings.xml's strings by index; the part is
-// optional (a workbook may hold only inline strings and numbers). Every string
-// is charged to the file's retained-bytes budget, empty ones included.
+// optional (a workbook may hold only inline strings and numbers). Each string
+// has its whitespace collapsed here, once, so a cell that uses it costs nothing
+// per use, and is charged to the file's retained-bytes budget, empty ones
+// included.
 func (z *zipDoc) sharedStrings() ([]string, error) {
 	const name = "xl/sharedStrings.xml"
 	if !z.has(name) {
@@ -120,10 +130,11 @@ func (z *zipDoc) sharedStrings() ([]string, error) {
 			case "rPh":
 				inRPh = false
 			case "si":
-				if err := z.keep.spend(cur.Len() + stringOverhead); err != nil {
+				s := collapseSpace(cur.String())
+				if err := z.keep.spend(len(s) + stringOverhead); err != nil {
 					return err
 				}
-				out = append(out, cur.String())
+				out = append(out, s)
 			}
 		case xml.CharData:
 			if inT && !inRPh {
@@ -138,7 +149,9 @@ func (z *zipDoc) sharedStrings() ([]string, error) {
 // sheetRows returns one string per row that has any text. A row may hold at
 // most maxColumns cells and no more text than the file's budget has left: a
 // shared string used by many cells would otherwise grow far past the size of
-// the sheet.
+// the sheet. The work per cell is bounded by the cell's own bytes: shared
+// strings arrive already collapsed, and empty cells are not placed, so a row
+// whose only cell sits in column XFD costs a few steps, not 16384.
 func sheetRows(data []byte, shared []string, keep *budget) ([]string, error) {
 	var (
 		rows     []string
@@ -187,13 +200,18 @@ func sheetRows(data []byte, shared []string, keep *budget) ([]string, error) {
 				if next >= maxColumns {
 					return unreadable(errTooWide)
 				}
-				if rowBytes += len(v); rowBytes > keep.left {
+				if typ != "s" { // shared strings were collapsed once, in sharedStrings
+					v = collapseSpace(v)
+				}
+				if rowBytes += len(v) + stringOverhead; rowBytes > keep.left {
 					return unreadable(errTooMuchText)
 				}
-				for len(cells) <= next {
-					cells = append(cells, "")
+				if v != "" {
+					for len(cells) <= next {
+						cells = append(cells, "")
+					}
+					cells[next] = v
 				}
-				cells[next] = strings.Join(strings.Fields(v), " ")
 				next++
 			case "row":
 				n := len(cells)
@@ -253,4 +271,25 @@ func colIndex(ref string) int {
 		}
 	}
 	return n - 1
+}
+
+// collapseSpace trims s and turns every run of white space into one space. It
+// walks s once, so a cell of millions of one-letter words costs no slice of
+// words (strings.Fields would build one) and a white-space-only string is
+// scanned once and yields "".
+func collapseSpace(s string) string {
+	var b strings.Builder
+	space := false
+	for _, r := range s {
+		if unicode.IsSpace(r) {
+			space = true
+			continue
+		}
+		if space && b.Len() > 0 {
+			b.WriteByte(' ')
+		}
+		space = false
+		b.WriteRune(r)
+	}
+	return b.String()
 }
