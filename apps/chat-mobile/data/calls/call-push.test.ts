@@ -112,11 +112,11 @@ describe("handleCallPush", () => {
     expect(e.fallback.show).toHaveBeenCalledWith(expect.objectContaining({ callId: "c-1", callerName: "Minh", text: "mobile.call_notify.incoming_voice" }), URL);
   });
 
-  it("is ignored when even the plain notification cannot be posted (no permission)", async () => {
+  it("is lost, and says so, when even the plain notification cannot be posted (no permission)", async () => {
     const e = env();
     vi.mocked(e.native.showIncomingCall).mockReturnValue(false);
     vi.mocked(e.fallback.show).mockRejectedValueOnce(new Error("denied"));
-    expect(await handleCallPush(invite(), e)).toBe("ignored");
+    expect(await handleCallPush(invite(), e)).toBe("lost");
   });
 
   it("does not fall back when the native notification is shown", async () => {

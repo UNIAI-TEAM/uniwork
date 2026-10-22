@@ -1,6 +1,6 @@
 // UniChat's product events (audit "no-product-analytics"): how often the app
-// is opened, messages go out or fail for good, pushes are opened and calls
-// connect, and how long the first screen, a send and a call connect take. A
+// is opened, messages go out or fail for good, pushes are opened, calls
+// connect and call pushes ring, and how long the first screen, a send and a call connect take. A
 // first-party sink, no SDK: the events wait in memory and go in batches to
 // POST /api/v1/mobile/events, which only counts them by OS and store version
 // (server metrics.MobileEvents) — no person, organization, room or text is in
@@ -22,7 +22,9 @@ export type ProductEvent =
   | { name: "message_send"; result: "failed" }
   | { name: "push_open"; result: "chat" | "call" | "other" }
   | { name: "call_connect"; result: "connected"; duration_ms: number }
-  | { name: "call_connect"; result: "failed" };
+  | { name: "call_connect"; result: "failed" }
+  // What a call push did on the phone (data/calls/call-push.ts › CallPushOutcome): ring delivery, measured in the field.
+  | { name: "call_push"; result: "shown" | "fallback" | "in_app" | "ignored" | "cleared" | "lost" };
 
 /** The most events kept between two flushes; older ones are dropped first. */
 export const MAX_QUEUE = 60;

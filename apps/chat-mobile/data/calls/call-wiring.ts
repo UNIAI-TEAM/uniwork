@@ -22,6 +22,7 @@ import { callPushFromData, taskPayloadData } from "@/lib/call-push";
 import { chatNotificationAction } from "@/lib/chat-notification";
 import { i18n } from "@/lib/i18n/singleton";
 import { showInForeground } from "@/lib/notification-presentation";
+import { track } from "../analytics";
 import { applyStoredLocale } from "../app-locale";
 import { authConfig, session } from "../auth/flow";
 import { bootRuntime } from "../boot";
@@ -112,8 +113,10 @@ export async function runCallPushTask(payload: unknown): Promise<void> {
   try {
     const outcome = await handleCallPush(push, pushEnv);
     log.info("call push", { type: push.type, outcome });
+    track({ name: "call_push", result: outcome });
   } catch (error) {
     log.warn("call push failed", { type: push.type, error: error instanceof Error ? error.name : typeof error });
+    if (push.type === "call_invite") track({ name: "call_push", result: "lost" });
   }
 }
 

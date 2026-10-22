@@ -40,7 +40,12 @@ export interface CallPushEnv {
   now: () => number;
 }
 
-export type CallPushOutcome = "shown" | "fallback" | "in_app" | "ignored" | "cleared";
+/**
+ * What a push did, counted per build (data/analytics.ts › call_push; server alert UniChatCallRingsDegraded): the
+ * native ring shown, the plain fallback, rung in the app already, ignored (switch off, over, busy), an end that
+ * cleared a ring, or a ring lost — no notification of either kind could be posted.
+ */
+export type CallPushOutcome = "shown" | "fallback" | "in_app" | "ignored" | "cleared" | "lost";
 
 function liveCallId(state: VoiceCallOverlayState): string | null {
   return state.status === "idle" || state.status === "ended" ? null : state.callId;
@@ -125,6 +130,6 @@ export async function handleCallPush(push: CallPush, env: CallPushEnv): Promise<
   // full screen, but the person sees who is calling and a tap opens the call.
   return env.fallback.show(spec, push.url).then(
     () => "fallback" as const,
-    () => "ignored" as const,
+    () => "lost" as const,
   );
 }

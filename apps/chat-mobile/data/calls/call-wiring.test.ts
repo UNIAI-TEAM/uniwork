@@ -45,6 +45,8 @@ vi.mock("../chat-api", () => ({ chatApi: { signalVoiceHangup: deps.signalVoiceHa
 vi.mock("../query-client", () => ({ queryClient: {} }));
 vi.mock("../remote-config", () => ({ readMobileFlag: () => deps.callsOn }));
 vi.mock("../stores/workspace-store", () => ({ getCurrentWorkspace: () => deps.workspace }));
+const analytics = vi.hoisted(() => ({ track: vi.fn() }));
+vi.mock("../analytics", () => analytics);
 const chatActions = vi.hoisted(() => ({ runChatNotificationAction: vi.fn(async () => undefined) }));
 vi.mock("../chat-notification-actions", () => chatActions);
 
@@ -169,6 +171,8 @@ describe("runCallPushTask", () => {
     expect(deps.applyStoredLocale).toHaveBeenCalledTimes(1);
     expect(native.ensureChannels).toHaveBeenCalledWith(expect.objectContaining({ calls: expect.any(String) }));
     expect(native.showIncomingCall).toHaveBeenCalledWith(expect.objectContaining({ openUrl: expect.stringMatching(/^uniworkchat:\/\/open\?url=/) }));
+    // What the push did is counted (server metrics › call_push; alert UniChatCallRingsDegraded).
+    expect(analytics.track).toHaveBeenCalledWith({ name: "call_push", result: "shown" });
   });
 
   it("rings with a plain notification on the missed-calls channel when the native one is not shown, and the end takes it down", async () => {
@@ -217,6 +221,14 @@ describe("runCallPushTask", () => {
       throw "boom";
     });
     await expect(wiring.runCallPushTask({ data: INVITE })).resolves.toBeUndefined();
+    // A ring that threw reached no notification: counted as lost.
+    expect(analytics.track.mock.calls.filter(([event]) => (event as { result: string }).result === "lost")).toHaveLength(2);
+    // An end that threw lost no ring.
+    native.cancelIncomingCall.mockImplementationOnce(() => {
+      throw new Error("boom");
+    });
+    await expect(wiring.runCallPushTask({ data: { type: "call_end", call_id: "c-1", room_id: "r-1", workspace_id: "w-1" } })).resolves.toBeUndefined();
+    expect(analytics.track.mock.calls.filter(([event]) => (event as { result: string }).result === "lost")).toHaveLength(2);
   });
 });
 
