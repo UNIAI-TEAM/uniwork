@@ -73,7 +73,7 @@
       "packages/views/settings/components/delete-account-dialog.tsx": "2cc14fea7b44dfd08ce9c488a43b33949bd6fcbdec13bd9ed9bc4f8f210d34e2"
     },
     "apps/chat-mobile/lib/ai-consent.ts": {
-      "apps/web/features/landing/privacy-content.ts": "1df320b9f3b6c1998731fb12572c89d0505ba90a7f04a3de78a5307f183c8501"
+      "apps/web/features/landing/privacy-content.ts": "ad5c0090e85bc465d9c10ae3bf9f948d5ba0658d3d69dcc8ba02f4abf843a006"
     },
     "apps/chat-mobile/lib/album.ts": {
       "packages/views/chat/native-chat-message-grouping.ts": "1e784e27b31710190a89031d43875d9af3ac15f7d11c3b4610a34cd5099beb2f"
@@ -97,7 +97,7 @@
       "packages/views/chat/chat-file-accept.ts": "36eade4e1d09ea6598d5b3d12f12818e3497905402d690f098ef64880cd6bf29"
     },
     "apps/chat-mobile/lib/legal-links.ts": {
-      "apps/web/features/landing/privacy-content.ts": "1df320b9f3b6c1998731fb12572c89d0505ba90a7f04a3de78a5307f183c8501",
+      "apps/web/features/landing/privacy-content.ts": "ad5c0090e85bc465d9c10ae3bf9f948d5ba0658d3d69dcc8ba02f4abf843a006",
       "apps/web/platform/site-information.ts": "d8e8f9a5e534374edd4dbd834c8699ef0449fcfe6205a0dfc90355fce2ed3c88"
     },
     "apps/chat-mobile/lib/media-body.ts": {
