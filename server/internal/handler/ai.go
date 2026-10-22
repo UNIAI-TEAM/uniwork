@@ -22,27 +22,30 @@ func toAiMessageDTO(m db.AiMessage) sdo.AiMessageDTO {
 	out := sdo.AiMessageDTO{ID: m.ID, Role: m.Role, Content: m.Content, Citations: citationDTOs(cites), Notice: m.Notice.String, CreatedAt: m.CreatedAt.Time.UTC().Format(time.RFC3339)}
 	out.Steps, out.Followups, out.Mentions = []sdo.AiStepDTO{}, []string{}, []sdo.AiContextRefDTO{}
 	// A column that is NULL or does not decode reads as empty, never an error.
-	var steps []service.AskStep
-	_ = json.Unmarshal([]byte(m.Steps), &steps)
-	for _, st := range steps {
+	for _, st := range decodeList[service.AskStep](m.Steps) {
 		counts := st.Counts
 		if counts == nil {
 			counts = map[string]int{}
 		}
 		out.Steps = append(out.Steps, sdo.AiStepDTO{Tool: st.Tool, Label: st.Label, Counts: counts})
 	}
-	_ = json.Unmarshal([]byte(m.Followups), &out.Followups)
-	if out.Followups == nil {
-		out.Followups = []string{}
-	}
-	var refs []service.AskContextRef
-	_ = json.Unmarshal([]byte(m.Mentions), &refs)
-	for _, r := range refs {
+	out.Followups = decodeList[string](m.Followups)
+	for _, r := range decodeList[service.AskContextRef](m.Mentions) {
 		out.Mentions = append(out.Mentions, sdo.AiContextRefDTO{Kind: r.Kind, ID: r.ID, Title: r.Title})
 	}
 	var focus service.AskContextRef
 	if m.Focus.Valid && json.Unmarshal([]byte(m.Focus.String), &focus) == nil && focus.ID != "" {
 		out.Focus = &sdo.AiContextRefDTO{Kind: focus.Kind, ID: focus.ID, Title: focus.Title}
+	}
+	return out
+}
+
+// decodeList is the JSON list in raw; a value that does not decode is empty,
+// never half filled.
+func decodeList[T any](raw string) []T {
+	out := []T{}
+	if json.Unmarshal([]byte(raw), &out) != nil || out == nil {
+		return []T{}
 	}
 	return out
 }

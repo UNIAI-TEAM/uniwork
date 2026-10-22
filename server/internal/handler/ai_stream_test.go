@@ -19,6 +19,7 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/ai"
 	"github.com/unicomhub/uniwork/server/internal/ai/provider"
 	"github.com/unicomhub/uniwork/server/internal/service"
+	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
 // sseFrame is one parsed frame; a comment frame (": ping") has no event.
@@ -357,9 +358,12 @@ func TestAskUniStreamWritesSourcesAndStepLabel(t *testing.T) {
 	fake := &provider.Fake{}
 	n := 0
 	fake.Reply = func(req provider.CompletionRequest) provider.CompletionResponse {
-		if n++; n == 1 {
-			return provider.CompletionResponse{UsagePresent: true, InputTokens: 5, StopReason: "tool_use",
-				ToolCalls: []provider.ToolCall{{ID: "c1", Name: "list_members", Input: json.RawMessage(`{"query":""}`)}}}
+		if n++; n <= 2 { // a search that finds nothing, then the members
+			call := provider.ToolCall{ID: "c1", Name: "search", Input: json.RawMessage(`{"query":"owner"}`)}
+			if n == 2 {
+				call = provider.ToolCall{ID: "c2", Name: "list_members", Input: json.RawMessage(`{"query":""}`)}
+			}
+			return provider.CompletionResponse{UsagePresent: true, InputTokens: 5, StopReason: "tool_use", ToolCalls: []provider.ToolCall{call}}
 		}
 		return provider.CompletionResponse{Text: "Xong", UsagePresent: true, InputTokens: 5, StopReason: "end_turn"}
 	}
@@ -367,20 +371,35 @@ func TestAskUniStreamWritesSourcesAndStepLabel(t *testing.T) {
 	res := postStream(t, srv, wsID, owner, map[string]any{"question": "ai trong nhóm?", "locale": "vi"})
 	frames := collectFrames(readSSE(res.Body))
 	var step, sources, done string
-	for _, f := range frames {
+	stepAt, sourcesAt := -1, -1
+	for i, f := range frames {
 		switch f.event {
 		case "step":
-			step = f.data
+			if step == "" {
+				step = f.data
+			}
+			stepAt = i
 		case "sources":
-			sources = f.data
+			sources, sourcesAt = f.data, i
 		case "done":
 			done = f.data
 		}
 	}
-	if !strings.Contains(step, `"label"`) || !strings.Contains(sources, `"sources":[{`) || !strings.Contains(sources, `"object_id"`) {
-		t.Fatalf("events %v\nstep %s\nsources %s", eventsOf(frames), step, sources)
+	if !strings.Contains(step, `"label":"owner"`) {
+		t.Fatalf("step %s", step)
 	}
-	if !strings.Contains(done, `"steps":[{"tool":"list_members"`) {
+	if stepAt < 0 || sourcesAt < stepAt || !strings.Contains(sources, `"object_id"`) {
+		t.Fatalf("events %v\nsources %s", eventsOf(frames), sources)
+	}
+	if !strings.Contains(done, `"steps":[{"tool":"search","label":"owner"`) {
 		t.Fatalf("done %s", done)
+	}
+}
+
+func TestToAiMessageDTOBadStepsJSONIsEmpty(t *testing.T) {
+	m := db.AiMessage{Steps: `[{"tool":"search"},`, Followups: `{`, Mentions: `[{"kind":"x"},`, Citations: "[]"}
+	out := toAiMessageDTO(m)
+	if out.Steps == nil || len(out.Steps) != 0 || out.Followups == nil || len(out.Followups) != 0 || out.Mentions == nil || len(out.Mentions) != 0 || out.Focus != nil {
+		t.Fatalf("%+v", out)
 	}
 }

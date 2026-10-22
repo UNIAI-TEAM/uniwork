@@ -63,10 +63,10 @@ type AiMessageDTO struct {
 	Content   string            `json:"content" example:"Có 1 việc quá hạn: [S1] Viết spec F-09."`
 	Citations []AiCitationDTO   `json:"citations"`
 	Notice    string            `json:"notice,omitempty" description:"Mã thông báo thay cho nội dung: no_sources, empty_answer" example:"no_sources"`
-	Steps     []AiStepDTO       `json:"steps" description:"Các bước tool agent đã chạy cho câu trả lời, theo thứ tự"`
+	Steps     []AiStepDTO       `json:"steps" description:"Các bước tool agent đã chạy cho câu trả lời, theo thứ tự" example:"[{\"tool\":\"search\",\"label\":\"quá hạn\",\"counts\":{\"task\":3}}]"`
 	Followups []string          `json:"followups" description:"Câu hỏi gợi ý tiếp theo" example:"[\"Việc nào trễ nhất?\"]"`
-	Focus     *AiContextRefDTO  `json:"focus,omitempty" description:"Đối tượng câu hỏi đang xem; vắng khi không có"`
-	Mentions  []AiContextRefDTO `json:"mentions" description:"Các đối tượng người hỏi @-nhắc tới"`
+	Focus     *AiContextRefDTO  `json:"focus,omitempty" description:"Đối tượng câu hỏi đang xem; vắng khi không có" example:"{\"kind\":\"task\",\"id\":\"01J8X4K2M0N1P2Q3R4S5T6U7VA\",\"title\":\"Viết spec F-09\"}"`
+	Mentions  []AiContextRefDTO `json:"mentions" description:"Các đối tượng người hỏi @-nhắc tới" example:"[{\"kind\":\"member\",\"id\":\"01J8X4K2M0N1P2Q3R4S5T6U7VA\",\"title\":\"An\"}]"`
 	CreatedAt string            `json:"created_at" example:"2026-09-06T08:00:00Z"`
 }
 

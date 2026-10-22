@@ -525,6 +525,7 @@ func (s *AskUNIService) askAgent(ctx context.Context, userID string, w db.GetWor
 		req.History, req.Vars, req.ToolResultTurn, req.Continuation = msgs, nil, false, true
 		s.agentCallOver(runCtx, w.OrganizationID)
 		draft.step(AskStepEvent{Round: rounds + 1, Phase: "retry", Counts: map[string]int{}})
+		steps = append(steps, AskStep{Counts: map[string]int{}}) // stored steps equal the streamed ones
 		resp, err = call()
 		if errors.Is(err, ai.ErrRefused) {
 			return refused(err)

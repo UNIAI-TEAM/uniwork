@@ -1250,3 +1250,29 @@ func TestAgentStoresItsSteps(t *testing.T) {
 		t.Fatalf("stopped steps %q (%v)", res.Message.Steps, err)
 	}
 }
+
+func TestAgentEmitsFocusSourcesRightAfterRun(t *testing.T) {
+	s, fake, ua, w := agentAskFixture(t)
+	task := agentTask(t, s, ua, w, "Banner Tết")
+	run := func(in AskInput) []AskEvent {
+		scriptAgent(fake, "zzz-nothing", "Xong")
+		var evs []AskEvent
+		in.Question, in.Locale = "Sao rồi?", "vi"
+		if _, err := s.AskStream(context.Background(), ua.ID, w.ID, in, func(e AskEvent) { evs = append(evs, e) }); err != nil {
+			t.Fatal(err)
+		}
+		return evs
+	}
+	evs := run(AskInput{Focus: &ai.Focus{Kind: "task", ID: task.ID}})
+	if got := eventNames(evs[:3]); !reflect.DeepEqual(got, []string{"run", "sources", "step"}) {
+		t.Fatalf("events %v", eventNames(evs))
+	}
+	if c := evs[1].Sources; len(c) != 1 || c[0].ObjectID != task.ID || c[0].Kind != "task" || c[0].SourceID != "S1" {
+		t.Fatalf("sources %+v", c)
+	}
+	for _, name := range eventNames(run(AskInput{})) {
+		if name == "sources" {
+			t.Fatal("a turn with no focus or mention emitted sources")
+		}
+	}
+}
