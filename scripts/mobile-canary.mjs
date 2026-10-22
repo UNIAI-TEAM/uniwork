@@ -52,8 +52,8 @@ export const CANARIES = {
   "kotlin-parse": {
     what: 'a KDoc says "/*", which opens a nested comment the file never closes',
     file: "apps/chat-mobile/modules/unichat-calls/android/src/main/java/expo/modules/unichatcalls/UniChatCallsModule.kt",
-    find: " * data/calls/, which tests it with this module mocked.",
-    replace: " * data/calls/*, which tests it with this module mocked.",
+    find: "lives in data/calls/, which",
+    replace: "lives in data/calls/*, which",
     red: ["mobile (ktlint)", "Android release build"],
   },
   "launch-token": {
