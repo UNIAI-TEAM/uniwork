@@ -53,6 +53,8 @@ từ EAS `preview`, **iPhone không cài được bản nào** (TestFlight và a
 | 24 | Khi lên store công khai (sau go) | link store | `UNICHAT_STORE_IOS_URL`, `UNICHAT_STORE_ANDROID_URL` | `deploy/app/env/uniwork-be.env` | trang `/apps/unichat` (ẩn TestFlight/Play internal) |
 | 25 | Sentry: project React Native trong tổ chức Sentry (UNI-2053) | DSN; token tổ chức (`project:releases`, `org:read`); slug tổ chức và project | `SENTRY_DSN`, `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, `SENTRY_PROJECT` | Môi trường EAS `preview` và `production` (DSN, org, project plaintext; token secret); GitHub Environment `chat-mobile-update` (token secret, org/project variables) | `app.config.ts` (`extra.sentryDsn`), Gradle/Xcode của bản EAS, source map của OTA |
 | 26 | Khoá ký OTA (EAS Update code signing) | khoá riêng PEM — đã sinh 2026-10-22, chứng chỉ công khai đã commit ở `apps/chat-mobile/certs/eas-update-certificate.pem`; khoá nằm ở `.secrets/unichat-keys/private-key.pem` trên máy đã sinh, chờ chuyển | `EAS_UPDATE_PRIVATE_KEY` | GitHub Environment `chat-mobile-update` (secret) và kho bí mật của tổ chức, rồi xoá bản trên máy | `.github/workflows/chat-mobile-update.yml` |
+| 28 | Sức khoẻ bản phát hành, alert Sentry và rollback OTA | token Sentry thêm `event:read`, `alerts:write`; slug team nhận alert; khoá #26 | `SENTRY_AUTH_TOKEN`, `EXPO_TOKEN`, `EAS_UPDATE_PRIVATE_KEY`, `PLAY_SERVICE_ACCOUNT_JSON` (thêm quyền "View app quality information"); variables `SENTRY_ORG`, `SENTRY_PROJECT`, `SENTRY_ALERT_TEAM`, tùy chọn `SENTRY_ALERT_EXTRA_ACTIONS` (action pager của Sentry) | GitHub Environment `chat-mobile-release-health` (nhánh `main`, **không** reviewer); rollback dùng Environment `chat-mobile-update` (#26) | `.github/workflows/chat-mobile-release-health.yml`, `.github/workflows/chat-mobile-rollback.yml` |
+| 29 | App Store Connect API key cho phased release (khi có #1) | `.p8` + Key ID + Issuer ID (có thể là khoá #8) và Apple ID số của app | secrets `ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_PRIVATE_KEY`; variable `ASC_APP_ID` | GitHub Environment `chat-mobile-production` và `chat-mobile-release-health` | `scripts/mobile-asc-release.mjs` qua `chat-mobile-promote.yml` (`platform: ios`) và job sức khoẻ |
 | 27 | Promote bản production giữa các track Play | khoá JSON của service account Google Cloud có quyền phát hành trên `com.uniworkos.chat` (có thể dùng lại khoá #12) | `PLAY_SERVICE_ACCOUNT_JSON` | GitHub Environment `chat-mobile-production` (secret, Required reviewers, tag `chat-mobile-v*` + nhánh `main`) cùng `EXPO_TOKEN`, `SENTRY_AUTH_TOKEN` và variables `SENTRY_ORG`, `SENTRY_PROJECT` | `.github/workflows/chat-mobile-production.yml`, `.github/workflows/chat-mobile-promote.yml` |
 
 Biến tùy chọn của repo: `UNICHAT_APP_URL`, `UNICHAT_API_URL` (repository variables) ghi đè URL production mặc định
@@ -74,8 +76,10 @@ Biến tùy chọn của repo: `UNICHAT_APP_URL`, `UNICHAT_API_URL` (repository 
       `spctl -a -vv /Applications/UniChat.app` báo `Notarized Developer ID`; Windows: thuộc tính tệp → Digital
       Signatures có tên công ty (`docs/runbooks/unichat-desktop-release.md`).
 - [ ] Desktop macOS đã ký nhận bản mới tự động (cài bản cũ, cắt bản mới, mở lại).
-- [ ] Mobile: tag `chat-mobile-v0.1.0` → run xanh, build có ở TestFlight và Play internal
-      (`docs/runbooks/unichat-mobile-release.md`).
+- [ ] Mobile: tag `chat-mobile-v0.3.0` (bản `version` hiện tại của `apps/chat-mobile/app.config.ts`) → run xanh, build có
+      ở Play internal (và TestFlight khi có #1–#9) (`docs/runbooks/unichat-mobile-release.md`).
+- [ ] `gh auth login` (admin) rồi `node scripts/mobile-ci-provisioning.mjs --check` xanh: mọi biến, secret và
+      environment mà workflow mobile đọc đã có (tên thiếu in `MISSING`).
 - [ ] Push tới iPhone và Android thật (đăng nhập, khóa máy, gửi DM từ web).
 - [ ] `https://uniworkos.com/.well-known/apple-app-site-association` và `/assetlinks.json` trả JSON; chạm link
       `https://app.uniworkos.com/{org}/{ws}/chat?room=…` trên điện thoại mở app.
@@ -88,3 +92,28 @@ như đang viết. Chọn một trong hai rồi sửa bước ký Windows của 
 trong một PR riêng (UNI-1879): (a) dịch vụ ký đám mây của CA (DigiCert KeyLocker, SSL.com eSigner, Certum SimplySign…) gọi
 qua hook `win.signtoolOptions.sign` của electron-builder; (b) Azure Trusted Signing (`win.azureSignOptions`) nếu
 pháp nhân đủ điều kiện ở khu vực được hỗ trợ. Tên secret sẽ theo dịch vụ chọn; ghi lại vào bảng trên khi chốt.
+
+## 5. Diễn tập dừng và quay lại (trước người thử ngoài đầu tiên)
+
+Đường dừng/quay lại chỉ đáng tin khi đã thấy nó chạy một lần trên tài khoản thật (audit "observability-not-provisioned").
+Làm theo thứ tự, mỗi bước dán link run GitHub (hay ảnh Sentry/Play) vào bình luận UNI-1838:
+
+- [ ] Sentry (#25, #28): bản `preview` mới có DSN; mở app, gây một crash thử từ build dev (`Sentry.nativeCrash()` trong
+      console Metro của bản dev client trỏ cùng DSN) → issue có release `com.uniworkos.chat.staging@<version>+<build>.android`
+      và stack đã giải nhờ source map.
+- [ ] "UniChat mobile release health" chạy tay với `sync_alerts` (không `dry_run` không cần): summary ghi `created` cho
+      bốn alert của `deploy/sentry/unichat-mobile-alerts.json`; lượt chạy theo giờ sau đó ghi `ok` cho cả bốn.
+- [ ] Rebuild bản production có chứng chỉ OTA qua `chat-mobile-production.yml` (không build tay: bản 2026-10-21 nằm
+      ngoài gate, không đưa lên track nào người dùng thấy) → bước kiểm release Sentry xanh → submit lên internal.
+      Owner: trong Expo (Project settings › Members/Roles) chỉ để robot token của CI và owner có quyền build, để bản
+      production chỉ ra từ workflow.
+- [ ] "UniChat mobile promote": internal → alpha (`status: inProgress`, `rollout: 0.2`), rồi `action: halt` →
+      Play Console thấy release alpha ở trạng thái Halted; chạy lại halt → run xanh, ghi `already halted`.
+- [ ] "UniChat mobile release health" chạy tay (`dry_run` bật) → summary liệt kê release production/staging với số
+      phiên, số người; không có lỗi đọc Sentry hay Play vitals (cảnh báo vitals = service account thiếu quyền).
+- [ ] OTA kênh `internal` 10 % qua "UniChat mobile OTA update" → "UniChat mobile rollback" `revert-rollout`
+      (`dry_run` trước, rồi thật) → `eas update:list --branch internal` có group revert mới nhất. Rồi một OTA 100 % và
+      `republish-previous` → máy thử nhận lại bản trước ở lần mở sau.
+- [ ] Prometheus: `uniwork_mobile_events_total{event="app_open"}` có dữ liệu của bản thử; alert
+      `UniChatMobileCrashes`, `UniChatMobileUpdateLaunchFailures`, `UniChatMobileSendFailures` có trong Alertmanager
+      (trạng thái inactive).

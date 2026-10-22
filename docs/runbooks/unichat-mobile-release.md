@@ -304,7 +304,8 @@ của bản store trên kênh đó (`staging` cho `internal`/`preview`, `product
 
 **Cắt một bản store**
 
-1. Trên `develop`/`main`, `version` trong `app.config.ts` là version mới nếu có đổi native từ tag trước.
+1. Trên `develop`/`main`, `version` trong `app.config.ts` là version mới nếu có đổi native từ tag trước; `version` của
+   `apps/chat-mobile/package.json` đổi cùng (`app.config.test.ts` đỏ khi hai số lệch).
 2. `git tag chat-mobile-v<version> <sha>` rồi `git push origin chat-mobile-v<version>`.
 3. Workflow: `verify` (mọi kiểm tra của PR trên SHA của tag) → gate `EXPO_TOKEN` → commit trên `main`/`develop` →
    tag khớp `version` → `eas build --platform android --profile internal --non-interactive --auto-submit`. Play

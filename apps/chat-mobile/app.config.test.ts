@@ -43,6 +43,8 @@ describe("app.config per UNICHAT_ENV", () => {
     // an update reaches only binaries with the same native fingerprint (OTA never crosses a native change)
     expect(config.runtimeVersion).toEqual({ policy: "fingerprint" });
     expect(config.version).toBe("0.3.0");
+    // One version everywhere (audit "store-assets-and-calibration-incomplete"): package.json said 0.1.0 for months.
+    expect(JSON.parse(fs.readFileSync(path.join(__dirname, "package.json"), "utf8")).version).toBe(config.version);
     // knip's expo plugin and NativeWind both read it; "automatic" follows the OS.
     expect(config.userInterfaceStyle).toBe("automatic");
     // no EAS account yet: push registration is skipped until the id exists
