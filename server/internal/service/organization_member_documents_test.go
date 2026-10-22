@@ -319,6 +319,14 @@ func TestMemberDocumentsTransferWaitsForAConcurrentSingleTransfer(t *testing.T) 
 	f := newDocPermFixture(t)
 	tn := f.tenant(t, "mdt04")
 	svc := newMemberDocsService(f)
+	// Batch of two over three documents, the held one in the middle: the batch
+	// that waits for the lock returns {ids[0], ids[2]} (LockRows sits under
+	// the LIMIT, so the row that changed hands is replaced by the next one) -
+	// a full page with nothing of the source's left after it. A has_more read
+	// off the page size would say true here (BE-R1-2).
+	prev := memberDocumentsTransferBatch
+	memberDocumentsTransferBatch = 2
+	t.Cleanup(func() { memberDocumentsTransferBatch = prev })
 	src := tn.aclOwner.ID
 	ids := ascendingIDs(3)
 	for _, id := range ids {
@@ -462,6 +470,9 @@ func TestMemberDocumentsGate(t *testing.T) {
 		{"owner on admin", tn.owner.ID, tn.orgAdmin.ID},
 		{"admin on member", tn.orgAdmin.ID, tn.aclOwner.ID},
 		{"caller is the source", tn.owner.ID, tn.owner.ID},
+		// P6 only stops an admin acting on ANOTHER admin: on self it is the
+		// source == caller branch, with a recipient who is someone else.
+		{"admin on self", tn.orgAdmin.ID, tn.orgAdmin.ID},
 	} {
 		if getErr, postErr := call(c.actor, c.source); getErr != nil || postErr != nil {
 			t.Fatalf("%s: GET %v, POST %v, want both allowed", c.name, getErr, postErr)

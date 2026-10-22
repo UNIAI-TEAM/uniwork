@@ -876,9 +876,10 @@ var isoRoutes = map[string]isoSpec{
 	"POST /api/v1/meetings/{meetingID}/motions/{motionID}/open":                               {mixedFirst: "liveMeeting"},
 	"POST /api/v1/meetings/{meetingID}/participants/{participantID}/publish":                  {mixedFirst: "liveMeeting"},
 	"PATCH /api/v1/orgs/{org}/members/{userID}":                                               {body: isoJSON(map[string]any{"role": "admin"})},
-	// DOC-06b: B's owner counts and moves the documents of B's peer to B's owner
-	// (the peer's restrictedDocument is self_restricted for B's owner, who holds
-	// only AdminScope on it, so the control leaves it with the peer).
+	// DOC-06b: B's owner counts and moves the documents of B's peer to B's owner.
+	// The peer's restrictedDocument is self_restricted for B's owner, who holds
+	// only AdminScope on it, so it stays with the peer; peerOwnedDocument is
+	// unrestricted and moves, so the control writes under the matrix.
 	"GET /api/v1/orgs/{org}/members/{userID}/document-ownership":                         {},
 	"POST /api/v1/orgs/{org}/members/{userID}/document-ownership":                        {body: isoWith(map[string]string{"to_user_id": "owner"}, nil)},
 	"PATCH /api/v1/workspaces/{workspaceID}/members/{userID}":                            {body: isoJSON(map[string]any{"role": "admin"})},

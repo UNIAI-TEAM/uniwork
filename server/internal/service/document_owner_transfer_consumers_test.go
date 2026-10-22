@@ -7,6 +7,7 @@ package service
 // the command wrote, handed to the consumer the way the dispatcher would.
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -76,4 +77,61 @@ func TestOfficeLeaseRevokedOnOwnerTransfer(t *testing.T) {
 			}
 		})
 	}
+}
+
+// bulkOwnerTransferPayload returns the outbox payload of the one
+// document.owner_transferred row a bulk transfer wrote for documentID, and
+// fails unless it carries the run's bulk_id.
+func bulkOwnerTransferPayload(t *testing.T, f *docPermFixture, documentID, bulkID string) string {
+	t.Helper()
+	var payload string
+	if err := f.pool.QueryRow(f.ctx,
+		`SELECT payload::text FROM outbox_events
+		  WHERE topic = 'document.owner_transferred' AND payload::jsonb->>'document_id' = $1`,
+		documentID).Scan(&payload); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(payload, `"bulk_id":"`+bulkID+`"`) && !strings.Contains(payload, `"bulk_id": "`+bulkID+`"`) {
+		t.Fatalf("outbox payload %s does not carry bulk_id %s", payload, bulkID)
+	}
+	return payload
+}
+
+// TestEditLockReleasedOnBulkOwnerTransfer (DOC-06b): the bulk route writes the
+// same per-document document.owner_transferred row as the single route, plus a
+// bulk_id the consumers must ignore. The previous owner of a restricted page
+// is left with nothing, so the tenure ends.
+func TestEditLockReleasedOnBulkOwnerTransfer(t *testing.T) {
+	w := newLockWorld(t)
+	d := w.restricted(t)
+	held := w.acquire(t, w.tn.aclOwner, d.ID, "editor-prev")
+
+	got, err := newMemberDocsService(w.env.f).TransferMemberDocuments(w.ctx, Human(w.tn.owner.ID), w.tn.orgID, w.tn.aclOwner.ID,
+		MemberDocumentsTransferInput{ToUserID: w.tn.member.ID})
+	if err != nil || got.Transferred != 1 {
+		t.Fatalf("bulk transfer = %+v, %v, want 1 transferred", got, err)
+	}
+	w.wantLive(t, held.Lock.ID) // nothing happens before the event is delivered
+	w.handle(t, "document.owner_transferred", w.tn.orgID, bulkOwnerTransferPayload(t, w.env.f, d.ID, got.BulkID))
+	w.wantEnded(t, held.Lock.ID, "access_lost")
+}
+
+// TestOfficeLeaseRevokedOnBulkOwnerTransfer (DOC-06b): the lease revoker reads
+// the per-document row of a bulk transfer, bulk_id and all, and revokes the
+// previous owner's lease on a restricted file.
+func TestOfficeLeaseRevokedOnBulkOwnerTransfer(t *testing.T) {
+	w := newLeaseWorld(t, "lease-bulkownertransfer")
+	d := w.file(t, documentVisibilityRestricted)
+	prev := w.tn.aclOwner.ID
+	lp := w.grant(t, prev, w.device(t, prev), d.ID)
+
+	got, err := newMemberDocsService(w.f).TransferMemberDocuments(w.ctx, Human(w.tn.owner.ID), w.tn.orgID, prev,
+		MemberDocumentsTransferInput{ToUserID: w.tn.member.ID})
+	if err != nil || got.Transferred != 1 {
+		t.Fatalf("bulk transfer = %+v, %v, want 1 transferred", got, err)
+	}
+	bulkOwnerTransferPayload(t, w.f, d.ID, got.BulkID)
+	w.requireLive(t, lp.LeaseID) // nothing happens before the event is delivered
+	w.deliver(t, "document.owner_transferred")
+	w.requireRevoked(t, lp.LeaseID, OfficeLeaseRevokeShareRevoked)
 }

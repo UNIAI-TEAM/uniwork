@@ -147,21 +147,23 @@ WHERE id = sqlc.arg(id)
   AND owner_kind IS NULL
 RETURNING *;
 
--- name: TransferDocumentACLOwnerFrom :execrows
--- DOC-06b (UNI-2092, addendum §2.2, §5): TransferDocumentACLOwner for the
--- bulk route, guarded by the owner the batch listed. A row whose owner
--- changed while the batch waited for its lock matches nothing and is not
--- counted. Same updated_by pair, same untouched revision.
+-- name: TransferDocumentsACLOwnerFrom :many
+-- DOC-06b (UNI-2092, addendum §2.2, §5): TransferDocumentACLOwner for a batch
+-- of the bulk route, in one statement, guarded by the owner the batch listed.
+-- A row whose owner changed while the batch waited for its lock matches
+-- nothing and is not returned, so the caller never counts it. Same updated_by
+-- pair, same untouched revision. Returns what moved: the caller writes one
+-- audit row and one outbox row for each.
 UPDATE documents
 SET acl_owner_id = sqlc.arg(new_owner),
     updated_by = sqlc.arg(updated_by),
     updated_by_kind = sqlc.arg(updated_by_kind),
     updated_at = now()
-WHERE id = sqlc.arg(id)
+WHERE id = ANY(sqlc.arg(ids)::text[])
   AND organization_id = sqlc.arg(organization_id)
-  AND workspace_id = sqlc.arg(workspace_id)
   AND owner_kind IS NULL
-  AND acl_owner_id = sqlc.arg(from_owner);
+  AND acl_owner_id = sqlc.arg(from_owner)
+RETURNING id, workspace_id;
 
 -- name: ListMemberOwnedDocumentsForTransfer :many
 -- One batch of the bulk transfer (§2.2, R1-10): the member's documents in
@@ -171,7 +173,11 @@ WHERE id = sqlc.arg(id)
 -- Work Product documents (owner_kind) and the member's My Folder roots are
 -- never listed; the documents inside a My Folder are. Archived documents
 -- not yet purged are, so a successor can restore them.
-SELECT *
+-- Only the columns the loop and the level resolver read: never content,
+-- content_text or search_text, so a 500-row batch stays metadata (BE-R1-1).
+-- FOR UPDATE locks the whole row whatever the column list.
+SELECT id, organization_id, workspace_id, visibility, workspace_level,
+       acl_owner_id, owner_kind, owner_id
 FROM documents
 WHERE organization_id = sqlc.arg(organization_id)
   AND acl_owner_id = sqlc.arg(owner)
