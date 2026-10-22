@@ -1432,6 +1432,27 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				audit.ActionDocumentMoved, owners.Document.ID, audit.ReasonFolderTrashed, wsFolder.Document.ID).Scan(&n); err != nil || n != 1 {
 				t.Fatalf("folder trash wrote %d folder_trashed document.moved rows (%v), want 1", n, err)
 			}
+			// UNI-2074: trashing a page root relocates the same way and names
+			// the root's kind (from_kind).
+			pageRoot, err := svc.CreatePage(f.ctx, Human(f.member.ID), f.workspace.ID, CreatePageInput{Title: "Trang của thành viên"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			under, err := svc.CreatePage(f.ctx, Human(f.owner.ID), f.workspace.ID, CreatePageInput{Title: "Trang riêng dưới trang"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := f.pool.Exec(f.ctx, `UPDATE documents SET parent_id = $1 WHERE id = $2`, pageRoot.Document.ID, under.Document.ID); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := svc.ArchiveDocument(f.ctx, Human(f.member.ID), pageRoot.Document.ID, ArchiveDocumentInput{}); err != nil {
+				t.Fatal(err)
+			}
+			if err := f.pool.QueryRow(f.ctx,
+				`SELECT count(*) FROM audit_events WHERE action = $1 AND resource_id = $2 AND metadata::jsonb->>'reason' = $3 AND metadata::jsonb->>'from_folder_id' = $4 AND metadata::jsonb->>'from_kind' = 'page'`,
+				audit.ActionDocumentMoved, under.Document.ID, audit.ReasonFolderTrashed, pageRoot.Document.ID).Scan(&n); err != nil || n != 1 {
+				t.Fatalf("page-root trash wrote %d folder_trashed document.moved rows with from_kind page (%v), want 1", n, err)
+			}
 		},
 		audit.ActionDocumentArchived: func(t *testing.T, f *auditFixture) {
 			svc, docID := f.document(t)

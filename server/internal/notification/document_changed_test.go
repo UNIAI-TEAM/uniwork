@@ -434,6 +434,50 @@ func TestDocumentChangedRelocationTellsThePrivateOwner(t *testing.T) {
 	f.none(t, f.member.ID, f.bystander.ID)
 }
 
+// UNI-2074: the trash of any root relocates, and the audit row names the
+// root's kind (from_kind). A page or file root reads the page wording (verb
+// relocated_from_page); a folder root and a row written before from_kind
+// existed keep the folder wording (verb relocated).
+func TestDocumentChangedRelocationWordingFollowsTheRootKind(t *testing.T) {
+	for _, tc := range []struct {
+		name, fromKind, verb string
+	}{
+		{"page root", "page", "relocated_from_page"},
+		{"file root", "file", "relocated_from_page"},
+		{"folder root", "folder", "relocated"},
+		{"row without from_kind", "", "relocated"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newDocChangeFixture(t)
+			root := f.node(t, "folder", "Gốc", f.member.ID, nil)
+			docID := f.page(t, "Ghi chú riêng", f.owner.ID, &root)
+			f.restrict(t, docID)
+			meta := map[string]any{"reason": audit.ReasonFolderTrashed, "from_folder_id": root, "batch_id": util.NewID()}
+			if tc.fromKind != "" {
+				meta["from_kind"] = tc.fromKind
+			}
+			ctx := f.command()
+			tx, err := f.pool.Begin(f.ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer func() { _ = tx.Rollback(f.ctx) }()
+			if err := audit.NewRecorder().Record(ctx, f.q.WithTx(tx), audit.Entry{
+				OrganizationID: f.orgID, WorkspaceID: f.wsID, Actor: service.Human(f.member.ID),
+				Action: audit.ActionDocumentMoved, ResourceType: "document", ResourceID: docID, Metadata: meta,
+			}, audit.Event{Topic: "document.moved", Payload: map[string]string{"document_id": docID, "workspace_id": f.wsID}}); err != nil {
+				t.Fatal(err)
+			}
+			if err := tx.Commit(f.ctx); err != nil {
+				t.Fatal(err)
+			}
+			f.deliver(t)
+			f.one(t, f.owner.ID, tc.verb, 1)
+			f.none(t, f.member.ID, f.bystander.ID)
+		})
+	}
+}
+
 func TestDocumentChangedPurgeKeepsTheTitle(t *testing.T) {
 	f := newDocChangeFixture(t)
 	f.makeAdmin(t, f.member.ID)
