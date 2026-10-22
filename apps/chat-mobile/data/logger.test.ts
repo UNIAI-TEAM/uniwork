@@ -122,8 +122,8 @@ describe("perfMark", () => {
   });
 });
 
-describe("React Native's startup marks", () => {
-  it("logs them at epoch times beside js-boot, in one write, and never breaks a runtime without them", async () => {
+describe("React Native's bundle-entry mark", () => {
+  it("logs it at an epoch time beside js-boot, in one write, and never breaks a runtime without it", async () => {
     // A fresh module: each mark is logged once per process, and the test above already logged js-boot.
     vi.resetModules();
     const fresh = await import("./logger");
@@ -135,7 +135,8 @@ describe("React Native's startup marks", () => {
       vi.stubGlobal("performance", undefined);
       fresh.enablePerfMarks(true, marksSink);
       expect(marksSink).toHaveBeenLastCalledWith(`UniChatPerf mark=js-boot at=${bootAt}`);
-      // A getter that throws, or a runtime without performance.now: no mark, no write, no throw.
+      // A getter that throws, a runtime without performance.now, a field the platform did not set, or a time that is
+      // not a real moment (infinite, zero): no mark, no write, no throw.
       vi.stubGlobal("performance", {
         now: () => 5_000,
         get rnStartupTiming(): never {
@@ -143,24 +144,24 @@ describe("React Native's startup marks", () => {
         },
       });
       fresh.enablePerfMarks(true, marksSink);
-      vi.stubGlobal("performance", { rnStartupTiming: { startTime: 1_000 } });
+      vi.stubGlobal("performance", { rnStartupTiming: { executeJavaScriptBundleEntryPointStart: 4_000 } });
       fresh.enablePerfMarks(true, marksSink);
+      for (const executeJavaScriptBundleEntryPointStart of [null, Number.POSITIVE_INFINITY, 0]) {
+        vi.stubGlobal("performance", { now: () => 5_000, rnStartupTiming: { executeJavaScriptBundleEntryPointStart } });
+        fresh.enablePerfMarks(true, marksSink);
+      }
       expect(marksSink).toHaveBeenCalledTimes(1);
-      // Monotonic ms on performance.now()'s clock become epoch ms; a field the platform did not set is no mark.
+      // Ms on performance.now()'s clock become epoch ms. startTime and initializeRuntimeStart name the same moment on
+      // the bridgeless runtime: they are not marks.
       vi.stubGlobal("performance", {
         now: () => 5_000,
-        rnStartupTiming: { startTime: 1_000.4, initializeRuntimeStart: null, executeJavaScriptBundleEntryPointStart: 4_000 },
+        rnStartupTiming: { startTime: 3_999.6, initializeRuntimeStart: 3_999.8, executeJavaScriptBundleEntryPointStart: 4_000.4 },
       });
       fresh.enablePerfMarks(true, marksSink);
       expect(marksSink).toHaveBeenCalledTimes(2);
-      expect(marksSink).toHaveBeenLastCalledWith(
-        [`UniChatPerf mark=js-boot at=${bootAt}`, "UniChatPerf mark=rn-startup at=1729583997900", "UniChatPerf mark=rn-bundle-entry at=1729584000900"].join("\n"),
-      );
-      // Once per process, and only a real moment: a repeat, an infinite or a zero time adds nothing.
-      vi.stubGlobal("performance", {
-        now: () => 5_000,
-        rnStartupTiming: { startTime: 2_000, initializeRuntimeStart: Number.POSITIVE_INFINITY, executeJavaScriptBundleEntryPointStart: 0 },
-      });
+      expect(marksSink).toHaveBeenLastCalledWith([`UniChatPerf mark=js-boot at=${bootAt}`, "UniChatPerf mark=rn-bundle-entry at=1729584000900"].join("\n"));
+      // Once per process.
+      vi.stubGlobal("performance", { now: () => 5_000, rnStartupTiming: { executeJavaScriptBundleEntryPointStart: 4_500 } });
       fresh.enablePerfMarks(true, marksSink);
       expect(marksSink).toHaveBeenCalledTimes(2);
     } finally {

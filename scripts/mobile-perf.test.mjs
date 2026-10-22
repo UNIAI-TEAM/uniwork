@@ -123,8 +123,8 @@ test("a mark that carries its time is timed by it, not by when it was logged", (
 
 test("reads the iOS marks file at the marks' own times, only once this launch has rewritten it", () => {
   // Each process rewrites the file whole, js-boot first: React Native's own marks may name moments before it.
-  const file = ["UniChatPerf mark=js-boot at=1400", "UniChatPerf mark=rn-startup at=1050", "UniChatPerf mark=first-screen at=2600", "UniChatPerf mark=first-screen at=2700", "noise"].join("\n");
-  assert.deepEqual(launchMarks(file, 1000), { "js-boot": 1400, "rn-startup": 1050, "first-screen": 2600 });
+  const file = ["UniChatPerf mark=js-boot at=1400", "UniChatPerf mark=rn-bundle-entry at=1050", "UniChatPerf mark=first-screen at=2600", "UniChatPerf mark=first-screen at=2700", "noise"].join("\n");
+  assert.deepEqual(launchMarks(file, 1000), { "js-boot": 1400, "rn-bundle-entry": 1050, "first-screen": 2600 });
   // The previous launch's file, before this one's js-boot replaced it, is not this launch's.
   assert.deepEqual(launchMarks(file, 1500), {});
   assert.deepEqual(launchMarks("UniChatPerf mark=first-screen at=2600", 1000), {});
@@ -139,19 +139,23 @@ test("reads the pid simctl launch prints for the app, and nothing else", () => {
 });
 
 test("times an iOS launch from the process's start, and simctl's own part apart", () => {
-  const marks = { "js-boot": 9000, "first-screen": 9600, "rn-startup": 3300.4, "rn-runtime-init": 3500, "rn-bundle-entry": 8800 };
+  const marks = { "js-boot": 9000, "first-screen": 9600, "rn-bundle-entry": 8800.4 };
   assert.deepEqual(iosStartupRun({ mark: "first-screen", marks, launchedAt: 1000, processStart: 3200.25, reactFactoryAt: 3400 }), {
     launchOverheadMs: 2200,
     coldStartJsBootMs: 5800,
     coldStartFirstScreenMs: 6400,
-    rnStartupMs: 100,
-    rnRuntimeInitMs: 300,
-    rnBundleEntryMs: 5600,
     reactFactoryMs: 200,
+    rnBundleEntryMs: 5600,
   });
   // A build without React Native's timing, a log without the factory's line: null, not a failed run.
   const bare = iosStartupRun({ mark: "inbox", marks: { "js-boot": 4000, inbox: 7000 }, launchedAt: 1000, processStart: 1500, reactFactoryAt: null });
-  assert.deepEqual(bare, { launchOverheadMs: 500, coldStartJsBootMs: 2500, coldStartInboxMs: 5500, rnStartupMs: null, rnRuntimeInitMs: null, rnBundleEntryMs: null, reactFactoryMs: null });
+  assert.deepEqual(bare, { launchOverheadMs: 500, coldStartJsBootMs: 2500, coldStartInboxMs: 5500, reactFactoryMs: null, rnBundleEntryMs: null });
+  // React Native's mark is converted from another clock: one before the process or after js-boot is not this launch's.
+  for (const at of [3000, 9000.5]) {
+    const run = iosStartupRun({ mark: "first-screen", marks: { ...marks, "rn-bundle-entry": at }, launchedAt: 1000, processStart: 3200.25, reactFactoryAt: null });
+    assert.equal(run.rnBundleEntryMs, null);
+  }
+  assert.equal(iosStartupRun({ mark: "first-screen", marks: { ...marks, "rn-bundle-entry": 9000 }, launchedAt: 1000, processStart: 3200.25, reactFactoryAt: null }).rnBundleEntryMs, 5800);
 });
 
 test("a result file keeps every run's value next to the medians, and check and tighten read it as before", () => {

@@ -96,46 +96,39 @@ function logMark(name: string, at: number): void {
   if (addMark(name, at)) perfSink?.(markLines.join("\n"));
 }
 
-// React Native's own startup timing (performance.rnStartupTiming): the app's start as the platform reports it, the
-// runtime's initialisation and the bundle's evaluation. Its times are monotonic ms on performance.now()'s clock (iOS:
-// CACurrentMediaTime, the same mach clock as RN's steady clock), turned into epoch ms like every other mark.
-const RN_STARTUP_MARKS = [
-  ["rn-startup", "startTime"],
-  ["rn-runtime-init", "initializeRuntimeStart"],
-  ["rn-bundle-entry", "executeJavaScriptBundleEntryPointStart"],
-] as const;
+// React Native's own timing (performance.rnStartupTiming), reduced to the one moment it names on iOS: on the bridgeless
+// runtime ReactInstance::loadScript logs the bundle-run, runtime-init and app-startup markers back to back just before
+// Hermes evaluates the bundle, so startTime and initializeRuntimeStart are that same instant and mark neither the app's
+// start nor the runtime's. rn-bundle-entry is that moment: what comes before it (process, React factory, host and
+// instance, reading the bundle) is the native start, what comes after it until js-boot is Hermes reaching the bundle's
+// first line. Its time is ms on performance.now()'s clock (iOS: both read mach_absolute_time, RCTPerformanceLogger
+// through CACurrentMediaTime and HighResTimeStamp directly), turned into epoch ms like every other mark.
+type StartupTiming = { executeJavaScriptBundleEntryPointStart?: number | null };
 
-type StartupTiming = Partial<Record<(typeof RN_STARTUP_MARKS)[number][1], number | null>>;
-
-/** Adds React Native's startup marks; a runtime without the API (or one whose getter throws) adds none. */
-function addRnStartupMarks(): boolean {
-  let added = false;
+/** Adds the bundle-entry mark; a runtime without the API (or one whose getter throws) adds none. */
+function addRnBundleEntryMark(): boolean {
   try {
     const perf = (globalThis as { performance?: { now?: () => number; rnStartupTiming?: StartupTiming } }).performance;
-    const timing = perf?.rnStartupTiming;
-    if (!timing || typeof perf?.now !== "function") return false;
-    const toEpoch = Date.now() - perf.now();
-    for (const [name, field] of RN_STARTUP_MARKS) {
-      const value = timing[field];
-      if (typeof value === "number" && Number.isFinite(value) && value > 0) added = addMark(name, Math.round(value + toEpoch)) || added;
-    }
+    const value = perf?.rnStartupTiming?.executeJavaScriptBundleEntryPointStart;
+    if (typeof perf?.now !== "function" || typeof value !== "number" || !Number.isFinite(value) || value <= 0) return false;
+    return addMark("rn-bundle-entry", Math.round(value + Date.now() - perf.now()));
   } catch {
     // Attribution only: a measured build without it still logs its own marks.
+    return false;
   }
-  return added;
 }
 
 /**
  * Boot (data/boot.ts): whether this build logs its startup marks, and where else they go. Turning them on
- * logs "js-boot", the moment the bundle started (data/perf/boot-clock.ts), and React Native's own startup marks
- * when the runtime has them, in one write of the sink.
+ * logs "js-boot", the moment the bundle started (data/perf/boot-clock.ts), and "rn-bundle-entry", the moment React
+ * Native began evaluating it, when the runtime reports it, in one write of the sink.
  */
 export function enablePerfMarks(on: boolean, sink?: (text: string) => void): void {
   perfMarks = on;
   perfSink = on ? (sink ?? null) : null;
   if (!on) return;
   const boot = addMark("js-boot", JS_BOOT_AT);
-  if (addRnStartupMarks() || boot) perfSink?.(markLines.join("\n"));
+  if (addRnBundleEntryMark() || boot) perfSink?.(markLines.join("\n"));
 }
 
 /** The first time this process reaches `name` ("first-screen", "inbox"), in a build that measures itself. */

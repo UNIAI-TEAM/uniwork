@@ -22,8 +22,9 @@
 //       drops console.info). The simulator's app is a process of the host, so
 //       its start (sysctl) and its marks (Date.now) are on the host's clock;
 //       `simctl launch` itself is reported apart (launchOverheadMs), as are
-//       React Native's own startup marks (rn-*) and, from each run's unified
-//       log saved beside --out (ios-startup-run<N>.log), the React factory.
+//       the moment React Native began evaluating the bundle (rn-bundle-entry)
+//       and, from each run's unified log saved beside --out
+//       (ios-startup-run<N>.log), the React factory.
 //   node scripts/mobile-perf.mjs frames --package <id> --out <file>
 //       Reads `dumpsys gfxinfo` (reset it before the flow it measures) and
 //       `dumpsys meminfo`: janky frames, the 90th percentile frame time, PSS.
@@ -153,23 +154,27 @@ export function logLineAt(log, needle) {
   return null;
 }
 
-// React Native's own startup marks (data/logger.ts › enablePerfMarks) and what each is reported as.
-const RN_MARKS = [
-  ["rn-startup", "rnStartupMs"],
-  ["rn-runtime-init", "rnRuntimeInitMs"],
-  ["rn-bundle-entry", "rnBundleEntryMs"],
-];
+/**
+ * React Native's bundle-entry mark (data/logger.ts › enablePerfMarks), only where it can be: after the process
+ * started and no later than js-boot. Its time is converted from another clock than the other marks, so one outside
+ * that window is a conversion gone wrong, not a moment of this launch.
+ */
+function bundleEntryAt(marks, processStart) {
+  const at = marks["rn-bundle-entry"];
+  const boot = marks["js-boot"];
+  return typeof at === "number" && typeof boot === "number" && at >= processStart && at <= boot ? at : null;
+}
 
 /**
  * One iOS launch, every time from the kernel's start of the app's process (epoch ms, fractional): the bundle's first
- * line, the mark `mark`, React Native's own marks and the React factory (null when absent), and the time
- * `simctl launch` took to start the process (launchOverheadMs, from the host's clock before it ran).
+ * line, the mark `mark`, the React factory and the moment React Native began evaluating the bundle (null when absent),
+ * and the time `simctl launch` took to start the process (launchOverheadMs, from the host's clock before it ran).
  */
 export function iosStartupRun({ mark, marks, launchedAt, processStart, reactFactoryAt }) {
   const since = (at) => (typeof at === "number" ? Math.round(at - processStart) : null);
   const run = { launchOverheadMs: Math.round(processStart - launchedAt), coldStartJsBootMs: since(marks["js-boot"]), [markKey(mark)]: since(marks[mark]) };
-  for (const [name, key] of RN_MARKS) run[key] = since(marks[name]);
   run.reactFactoryMs = since(reactFactoryAt);
+  run.rnBundleEntryMs = since(bundleEntryAt(marks, processStart));
   return run;
 }
 
@@ -398,6 +403,9 @@ async function measureIosStartup(udid, bundle, mark, runs, outDir) {
     if (reactFactoryAt !== null && (reactFactoryAt < launchedAt - 1000 || reactFactoryAt > launchedAt + LOG_WINDOW_MS)) {
       console.warn(`mobile-perf: launch ${run}'s _setUpFeatureFlags line is ${reactFactoryAt - launchedAt} ms from the launch: not read (time zone?)`);
       reactFactoryAt = null;
+    }
+    if (marks["rn-bundle-entry"] !== undefined && bundleEntryAt(marks, processStart) === null) {
+      console.warn(`mobile-perf: launch ${run}'s rn-bundle-entry mark is not between the process start and js-boot: not read`);
     }
     perRun.push(iosStartupRun({ mark, marks, launchedAt, processStart, reactFactoryAt }));
   }

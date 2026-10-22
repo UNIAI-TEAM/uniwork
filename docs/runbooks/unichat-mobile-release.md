@@ -127,10 +127,13 @@ của bản store trên kênh đó (`staging` cho `internal`/`preview`, `product
   simulator theo profile `ios-simulator` (`simctl launch`, mốc đọc từ tệp `Documents/unichat-perf-marks.txt` của app —
   log release của iOS bỏ `console.info`; `data/perf/marks-file.ts`). Trên iOS mọi số tính từ lúc kernel khởi tiến
   trình app (`sysctl` trên host: app simulator là một tiến trình của host, cùng đồng hồ với mốc); phần `simctl launch`
-  tự tốn ghi riêng (`launchOverheadMs`), kèm mốc của chính React Native (`rn-startup`, `rn-runtime-init`,
-  `rn-bundle-entry`, từ `performance.rnStartupTiming`) và React factory (`reactFactoryMs`: dòng `_setUpFeatureFlags`
-  trong unified log của từng lần, lưu thành `ios-startup-run<N>.log` cạnh tệp JSON) để quy thời gian trước dòng đầu của
-  bundle. Mỗi tệp kết quả giữ số của từng lần dưới `samples`, cạnh trung vị. Mốc là một dòng `UniChatPerf mark=<tên> at=<ms>`
+  tự tốn ghi riêng (`launchOverheadMs`), kèm React factory (`reactFactoryMs`: dòng `_setUpFeatureFlags` trong unified
+  log của từng lần, lưu thành `ios-startup-run<N>.log` cạnh tệp JSON) và lúc React Native bắt đầu chạy bundle
+  (`rnBundleEntryMs`, mốc `rn-bundle-entry` từ `performance.rnStartupTiming`) để quy thời gian trước dòng đầu của
+  bundle. Runtime bridgeless ghi ba mốc khởi động của RN (`startTime`, `initializeRuntimeStart`,
+  `executeJavaScriptBundleEntryPointStart`) liền nhau ngay trước khi Hermes chạy bundle, nên chỉ mốc cuối được ghi:
+  khoảng trước nó (factory, host, instance, đọc bundle) là phần native; mốc nằm ngoài khoảng từ lúc khởi tiến trình
+  tới `js-boot` thì bị bỏ, kèm cảnh báo. Mỗi tệp kết quả giữ số của từng lần dưới `samples`, cạnh trung vị. Mốc là một dòng `UniChatPerf mark=<tên> at=<ms>`
   trong logcat (`ReactNativeJS`), chỉ bản build với
   `UNICHAT_PERF_MARKS=1` mới ghi (`data/logger.ts › perfMark`; `extra` nằm ngoài fingerprint) — không bản store hay OTA
   nào đặt nó (`scripts/mobile-workflows.test.mjs`). Emulator không có GPU: số khung để so giữa các bản, không phải lời
