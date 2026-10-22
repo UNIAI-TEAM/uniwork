@@ -32,7 +32,7 @@ jest.mock("@/data/sentry", () => ({
 }));
 // The query client wires NetInfo at load; its native module is not in Jest.
 jest.mock("@react-native-community/netinfo", () => {
-  const netInfo = { addEventListener: () => () => undefined, fetch: async () => ({ isConnected: true, isInternetReachable: true }) };
+  const netInfo = { configure: () => undefined, addEventListener: () => () => undefined, fetch: async () => ({ isConnected: true, isInternetReachable: true }) };
   return { __esModule: true, default: netInfo, ...netInfo, useNetInfo: () => ({ isConnected: true }) };
 });
 

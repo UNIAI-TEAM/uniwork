@@ -14,7 +14,7 @@ jest.mock("@/data/queries/devices", () => {
 });
 // The mutation layer's query client reads NetInfo; its native module is not in Jest.
 jest.mock("@react-native-community/netinfo", () => {
-  const netInfo = { addEventListener: () => () => undefined, fetch: async () => ({ isConnected: true, isInternetReachable: true }) };
+  const netInfo = { configure: () => undefined, addEventListener: () => () => undefined, fetch: async () => ({ isConnected: true, isInternetReachable: true }) };
   return { __esModule: true, default: netInfo, ...netInfo, useNetInfo: () => ({ isConnected: true }) };
 });
 jest.mock("@/data/stores/toast-store", () => ({ toast: { error: jest.fn(), success: jest.fn() } }));

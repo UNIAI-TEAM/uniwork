@@ -10,7 +10,7 @@ import { useActiveRoom, useRoomReadMarking } from "./use-read-marking";
 
 // The auth store's query client reads NetInfo; its native module is not in Jest.
 jest.mock("@react-native-community/netinfo", () => {
-  const netInfo = { addEventListener: () => () => undefined, fetch: async () => ({ isConnected: true, isInternetReachable: true }) };
+  const netInfo = { configure: () => undefined, addEventListener: () => () => undefined, fetch: async () => ({ isConnected: true, isInternetReachable: true }) };
   return { __esModule: true, default: netInfo, ...netInfo, useNetInfo: () => ({ isConnected: true }) };
 });
 const mockMarkRoomRead = jest.fn();
