@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState, type ReactNode } from "react";
+import { createContext, useContext, useId, useState, type ReactNode } from "react";
 import { Box, ChevronRight, type LucideIcon } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useChatRoom } from "@uniwork/core/chat";
@@ -35,7 +35,10 @@ export function entityKindIcon(kind: string): LucideIcon {
   return isKind(kind) ? MODULE_ICONS[KIND_MODULE[kind]] : Box;
 }
 
-const CHIP = "inline-flex max-w-64 items-center gap-1 rounded-md bg-muted px-1.5 align-baseline text-body text-foreground";
+const CHIP = "mx-0.5 inline-flex max-w-64 items-center gap-1 rounded-md bg-muted px-1.5 align-baseline text-body text-foreground";
+
+/** True under a markdown link: a chip there is text, so the outer link owns the click and no anchor nests. */
+export const InLinkContext = createContext(false);
 
 function useKindLabel(kind: string) {
   const { t } = useTranslation(undefined, { keyPrefix: "ai.entity.kind" });
@@ -62,6 +65,7 @@ function PersonFace({ wsId, userId, name }: { wsId: string; userId: string; name
 /** The object a `[S#]` names: its name as a link, a glyph or face, and for a task its live status. A hover or focus opens the card. */
 export function AskUniEntityChip({ source, wsId }: { source: AiCitation; wsId: string }) {
   const kindLabel = useKindLabel(source.kind);
+  const inLink = useContext(InLinkContext);
   const name = source.title || kindLabel;
   const Icon = entityKindIcon(source.kind);
   const lead =
@@ -78,6 +82,14 @@ export function AskUniEntityChip({ source, wsId }: { source: AiCitation; wsId: s
     </>
   );
   // A href that leaves the app is shown, never followed.
+  if (inLink) {
+    return (
+      <span className={CHIP}>
+        <Icon aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
+        <span className="truncate">{name}</span>
+      </span>
+    );
+  }
   if (!isInAppHref(source.href)) return <span className={CHIP}>{body}</span>;
   return (
     <HoverCard>
@@ -155,7 +167,8 @@ function PersonCard({ userId, wsId }: { userId: string; wsId: string }) {
       {(p) => (
         <div className="flex items-center gap-2">
           <PersonAvatar id={userId} name={p.display_name} size="sm" avatarUrl={typeof p.avatar_url === "string" ? p.avatar_url : undefined} />
-          <span className="truncate text-caption text-muted-foreground">{t(`people.role_${p.role}`, { defaultValue: p.role })}</span>
+          <span className="min-w-0 truncate text-body font-medium">{p.display_name}</span>
+          <span className="shrink-0 text-caption text-muted-foreground">{t(`people.role_${p.role}`, { defaultValue: p.role })}</span>
         </div>
       )}
     </Live>

@@ -8,7 +8,7 @@ import { cn } from "@uniwork/ui/lib/utils";
 import { AppLink } from "../navigation";
 import { AskUniActions } from "./ask-uni-actions";
 import { isInAppHref } from "./ask-uni-links";
-import { AskUniEntityChip, AskUniSources } from "./ask-uni-entity";
+import { AskUniEntityChip, AskUniSources, InLinkContext } from "./ask-uni-entity";
 import { AskUniSteps } from "./ask-uni-steps";
 
 const NOTICES = new Set(["no_sources", "empty_answer", "agent_failed", "refused", "stopped", "interrupted"]);
@@ -27,7 +27,7 @@ function AnswerBody({ content, byId, wsId }: { content: string; byId: Map<string
       isLinkAllowed={isLinkAllowed}
       renderLink={({ href, children }: { href: string; children: ReactNode }) => (
         <AppLink href={href} className="text-primary underline-offset-2 hover:underline">
-          {children}
+          <InLinkContext.Provider value>{children}</InLinkContext.Provider>
         </AppLink>
       )}
       inlineToken={{

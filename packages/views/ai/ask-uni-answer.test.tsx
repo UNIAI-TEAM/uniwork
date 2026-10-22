@@ -38,6 +38,15 @@ describe("AskUniMessageTurn", () => {
     expect(container.querySelector("sup")).toBeNull();
   });
 
+  it("renders a chip inside a link as text, leaving one anchor", () => {
+    const err = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    mount(msg({ content: "[xem [S1]](/acme/team/tasks/T1)", citations: [cite] }));
+    expect(document.querySelectorAll("a")).toHaveLength(1);
+    expect(within(screen.getByRole("link")).getByText("Thiết kế trang chủ")).toBeInTheDocument();
+    expect(err.mock.calls.some((c) => String(c[0]).includes("validateDOMNesting"))).toBe(false);
+    err.mockRestore();
+  });
+
   it("drops an unknown source marker", () => {
     mount(msg({ content: "Không rõ [S9].", citations: [cite] }));
     expect(screen.queryByText(/S9/)).toBeNull();

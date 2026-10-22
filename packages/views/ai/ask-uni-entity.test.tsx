@@ -61,6 +61,7 @@ describe("AskUniEntityChip", () => {
     mount(person);
     fireEvent.focus(screen.getByRole("link", { name: "Người: Lan Phạm" }));
     expect(await screen.findByText("Quản trị")).toBeInTheDocument();
+    expect(screen.getAllByText("Lan Phạm").length).toBeGreaterThan(1);
   });
 
   it("renders a non-internal href as plain text", () => {
@@ -72,7 +73,8 @@ describe("AskUniEntityChip", () => {
 
 describe("AskUniSources", () => {
   it("collapses to a count and expands to the list", () => {
-    render(wrapWithNav(<AskUniSources citations={[task, person]} />));    const toggle = screen.getByRole("button", { name: "Nguồn (2)" });
+    render(wrapWithNav(<AskUniSources citations={[task, person]} />));
+    const toggle = screen.getByRole("button", { name: "Nguồn (2)" });
     expect(toggle).toHaveAttribute("aria-expanded", "false");
     fireEvent.click(toggle);
     expect(screen.getAllByRole("listitem")).toHaveLength(2);
