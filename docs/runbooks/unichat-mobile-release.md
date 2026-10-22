@@ -207,7 +207,10 @@ của bản store trên kênh đó (`staging` cho `internal`/`preview`, `product
   `-keep` vào `ANDROID_KEEP_RULES` (đổi fingerprint: bản store mới), xác nhận bằng `android-smoke` và nightly. Lớp mã
   native tìm theo tên thì ghi thêm một lớp của gói đó vào `REQUIRED_DEX_CLASSES` (`scripts/mobile-apk-scan.mjs`, đọc tên
   từ dex của một bản release: tên đã bị đổi như `com.oney.WebRTCModule.q` thì không ghi); test của scan đỏ khi một luật
-  `-keep class <gói>.**` không có lớp nào ở đó. Bật R8
+  `-keep class <gói>.**` không có lớp nào ở đó. Scan chỉ biết các lớp đã ghi: khi thêm hoặc nâng một thư viện native
+  (LiveKit/WebRTC, Nitro, MMKV…), tìm trong `lib/*/*.so` của bản release các tên lớp dạng `a/b/C` mà mã native tìm, xem
+  luật `-keep` của thư viện có đúng gói không (0.3.0 (11): luật của LiveKit giữ `org.jni_zero`, lớp thật ở
+  `livekit.org.jni_zero`), rồi ghi lớp đó vào danh sách. Bật R8
   đổi fingerprint của bản đầu tiên mang nó: bump `version` trước bản store kế tiếp.
 
 **Thiết lập lần đầu (khi có tài khoản, UNI-1838)**

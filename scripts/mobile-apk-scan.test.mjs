@@ -156,8 +156,14 @@ test("reads the classes a dex file defines, not the ones it only references", ()
 });
 
 test("a dex file sits at an APK's root or under an AAB module's dex/", () => {
-  for (const file of ["classes.dex", "classes2.dex", "classes12.dex", "base/dex/classes.dex", "base/dex/classes3.dex"]) assert.ok(isDexPath(file), file);
-  for (const file of ["assets/classes.dex", "base/assets/x/classes.dex", "base/dex/other.dex", "classes.dex.prof", "lib/classes.dex"]) assert.ok(!isDexPath(file), file);
+  for (const file of ["classes.dex", "classes2.dex", "classes12.dex"]) assert.ok(isDexPath(file), file);
+  for (const file of ["assets/classes.dex", "assets/dex/classes.dex", "lib/dex/classes.dex", "classes1.dex", "classes.dex.prof", "lib/classes.dex", "base/dex/classes.dex"]) {
+    assert.ok(!isDexPath(file), `apk: ${file}`);
+  }
+  for (const file of ["base/dex/classes.dex", "base/dex/classes3.dex", "calls/dex/classes2.dex"]) assert.ok(isDexPath(file, true), file);
+  for (const file of ["classes.dex", "base/assets/x/classes.dex", "base/dex/other.dex", "base/dex/classes1.dex", "base/root/dex/classes.dex"]) {
+    assert.ok(!isDexPath(file, true), `aab: ${file}`);
+  }
 });
 
 test("every class found by name must be defined in some dex file; a miss names the class and the keep rule", () => {
@@ -182,6 +188,8 @@ test("every class found by name must be defined in some dex file; a miss names t
   assert.deepEqual(dexFindings([]).map((f) => f.rule), ["no-dex"], "a binary with no code is wrong");
   const unreadable = dexFindings([{ file: "classes.dex", bytes: Buffer.from("not a dex file at all") }, { file: "classes2.dex", bytes: fakeDex(REQUIRED) }]);
   assert.deepEqual(unreadable.map((f) => [f.rule, f.file]), [["dex-unreadable", "classes.dex"]]);
+  const onlyUnreadable = dexFindings([{ file: "classes.dex", bytes: Buffer.from("not a dex file at all") }]);
+  assert.deepEqual(onlyUnreadable.map((f) => f.rule), ["dex-unreadable"], "an unreadable file is the finding, not six classes R8 never touched");
 });
 
 test("the required classes and ANDROID_KEEP_RULES (apps/chat-mobile/app.config.ts) name each other", () => {
@@ -190,6 +198,8 @@ test("the required classes and ANDROID_KEEP_RULES (apps/chat-mobile/app.config.t
   assert.ok(block, "ANDROID_KEEP_RULES is an array literal of strings joined by newlines");
   const rules = [...block[1].matchAll(/"([^"]+)"/g)].map((match) => match[1]);
   assert.ok(rules.length > 0);
+  const rest = block[1].replace(/"[^"]*"/g, "").replace(/\/\/[^\n]*/g, "").replace(/[\s,]/g, "");
+  assert.equal(rest, "", "ANDROID_KEEP_RULES holds only double-quoted strings: a spread or another quote would hide a rule from this check");
   for (const rule of rules) {
     const pkg = /^-keep class ([\w.]+)\.\*\* \{ \*; \}$/.exec(rule);
     assert.ok(pkg, `${rule}: REQUIRED_DEX_CLASSES only knows "-keep class <package>.** { *; }"; teach it the new shape`);

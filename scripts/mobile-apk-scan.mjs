@@ -80,8 +80,12 @@ export const REQUIRED_DEX_CLASSES = [
   { descriptor: "Lexpo/modules/unichatcalls/UniChatMessagingService;", keep: "-keep class expo.modules.unichatcalls.** { *; }", by: "ANDROID_KEEP_RULES" },
 ];
 
-/** A dex file: classes.dex, classes2.dex… at an APK's root or in an AAB module's dex/ (base/dex/). */
-export const isDexPath = (file) => /^(?:[^/]+\/dex\/)?classes\d*\.dex$/.test(file);
+/**
+ * A dex file Android loads: classes.dex, classes2.dex… at an APK's root, or in an AAB module's dex/ (base/dex/). Only
+ * the layout of the archive's own kind counts, so a stray assets/dex/classes.dex cannot stand in for the real code.
+ */
+export const isDexPath = (file, bundle = false) =>
+  (bundle ? /^[^/]+\/dex\/classes(?:[2-9]|[1-9]\d+)?\.dex$/ : /^classes(?:[2-9]|[1-9]\d+)?\.dex$/).test(file);
 
 /** The type descriptors of the classes one dex file defines (class_defs → type_ids → string_ids), not the ones it only references. */
 export function dexClassDescriptors(bytes) {
@@ -116,6 +120,8 @@ export function dexFindings(dexFiles, required = REQUIRED_DEX_CLASSES) {
       findings.push({ kind: "dex", rule: "dex-unreadable", file, hint: `${error.message}: its classes cannot be checked` });
     }
   }
+  // A file that cannot be read may define what looks missing: say so once, not "R8 dropped it" for every class.
+  if (findings.length > 0) return findings;
   const where = path.posix.join(path.posix.dirname(dexFiles[0].file), "classes*.dex");
   for (const { descriptor, keep, by } of required) {
     if (defined.has(descriptor)) continue;
@@ -268,7 +274,7 @@ function main(argv) {
       const name = path.relative(out, file).split(path.sep).join("/");
       const bytes = fs.readFileSync(file);
       findings.push(...scanBytes(name, bytes));
-      if (isDexPath(name)) dexFiles.push({ file: name, bytes });
+      if (isDexPath(name, archive.endsWith(".aab"))) dexFiles.push({ file: name, bytes });
     }
     const dex = dexFindings(dexFiles.sort((a, b) => a.file.localeCompare(b.file, undefined, { numeric: true })));
     findings.push(...dex);
