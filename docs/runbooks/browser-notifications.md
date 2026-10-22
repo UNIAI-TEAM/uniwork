@@ -1,10 +1,14 @@
-# Browser system notifications
+# browser-notifications — thông báo hệ thống của trình duyệt
+
+> **Trạng thái:** shipped · **Sev:** 3 · **Rule:** không có alert — runbook vận hành của UNI-1965 · **File:** `/sw.js`, `GET /api/v1/notifications/push/config`, `POST /api/v1/me/push-subscriptions`
 
 Scope: UNI-1965. The web workspace now invites the person to enable system
 notifications. The browser permission dialog runs only after their click. The
 notification settings page also offers a test while server push is unavailable.
 
-## Two delivery paths
+## Triệu chứng
+
+Two delivery paths; know which one a report is about.
 
 - An open workspace receives realtime events and can display system banners
   for new chat messages, mentions, assignments, meeting invitations/reminders
@@ -16,7 +20,9 @@ notification settings page also offers a test while server push is unavailable.
   retaining the ringing check and short call TTL. Open workspaces with a push
   subscription leave the system banner to that path to avoid duplicates.
 
-## Enable background push in a deployment
+## Kiểm tra
+
+Enable background push in a deployment, then verify it.
 
 1. Provision one stable VAPID key pair in the deployment's secret manager.
    Configure `VAPID_PUBLIC_KEY` and `VAPID_PRIVATE_KEY` on the **Go backend**.
@@ -37,10 +43,10 @@ notification settings page also offers a test while server push is unavailable.
    even when browser permission is granted. Do not describe a permission grant
    or a mocked constructor test as proof that the OS displayed a banner.
 
-## Manual acceptance
+## Khắc phục
 
-Use consenting test accounts and synthetic messages; do not send messages to
-production coworkers as a test.
+Manual acceptance. Use consenting test accounts and synthetic messages; do not
+send messages to production coworkers as a test.
 
 - Windows Chrome/Edge and macOS Chrome/Safari: permission starts undecided, the
   invitation alone does not trigger a browser dialog, and its button does.
@@ -56,3 +62,10 @@ production coworkers as a test.
   repeat. Delivery with the browser process fully quit depends on the browser
   and OS. Chat pushes retain the existing recent-activity suppression policy;
   allow that window to expire when verifying closed-tab chat delivery.
+
+## Leo thang
+
+No pager. If steps above pass but banners still do not appear on a real OS,
+record browser, OS version and notification settings in the UNI-1965 issue
+and hand it to the web owner; a missing or changed VAPID pair goes to whoever
+owns the deployment's secret manager.
