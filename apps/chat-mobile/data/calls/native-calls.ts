@@ -39,6 +39,7 @@ const NONE: Calls = {
   onCallHeld: () => () => undefined,
   // No native ring path: every call push is JavaScript's, and nothing waits to be counted.
   configureRing: () => undefined,
+  setCallEngineLive: () => undefined,
   takeRingReports: (): NativeRingReport[] => [],
   // Nothing to check without the module: no row asks the person to change a setting.
   backgroundDelivery: (): NativeBackgroundDelivery => ({
@@ -72,6 +73,7 @@ export function nativeCallsFrom(module: UniChatCallsModule | null): NativeCalls 
     takeAnsweredCall: (callId) => module.takeAnsweredCall(callId),
     isCallHeld: () => module.isCallHeld(),
     configureRing: (config) => module.configureRing(config),
+    setCallEngineLive: (live) => module.setCallEngineLive(live),
     takeRingReports: () => module.takeRingReports(),
     backgroundDelivery: () => module.backgroundDelivery(),
     openBatterySettings: () => module.openBatterySettings(),

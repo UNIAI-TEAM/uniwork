@@ -9,17 +9,23 @@ const active: VoiceCallOverlayState = { ...connecting, status: "active", token: 
 const ended: VoiceCallOverlayState = { status: "ended", reason: "peer_ended", callId: "c-1", roomId: "r-1", peerName: "Minh", callKind: "dm", outgoing: false };
 const idle: VoiceCallOverlayState = { status: "idle" };
 
-function setup(over: Partial<NativeCallSyncEnv> = {}) {
+function setup(over: Partial<NativeCallSyncEnv> = {}, initial: VoiceCallOverlayState = idle) {
   let now = 1_000;
   const env: NativeCallSyncEnv = {
-    native: { cancelIncomingCall: vi.fn(), startOngoingCall: vi.fn(() => true), stopOngoingCall: vi.fn(), releaseLockScreen: vi.fn() },
+    native: {
+      cancelIncomingCall: vi.fn(),
+      startOngoingCall: vi.fn(() => true),
+      stopOngoingCall: vi.fn(),
+      releaseLockScreen: vi.fn(),
+      setCallEngineLive: vi.fn(),
+    },
     requestBluetooth: vi.fn(async () => undefined),
     workspaceId: () => "w-1",
     t: (key) => key,
     now: () => now,
     ...over,
   };
-  const store = createStore<{ call: VoiceCallOverlayState }>(() => ({ call: idle }));
+  const store = createStore<{ call: VoiceCallOverlayState }>(() => ({ call: initial }));
   const sync = createNativeCallSync(env);
   const stop = installNativeCallSync(store, sync);
   return {
@@ -121,5 +127,32 @@ describe("native call sync", () => {
     stop();
     set(idle);
     expect(env.native.stopOngoingCall).not.toHaveBeenCalled();
+  });
+
+  it("tells the native ring path whenever the engine holds a call, so a ring then is JavaScript's to answer busy", () => {
+    const ringing: VoiceCallOverlayState = { status: "ringing", callId: "c-3", roomId: "r", peerName: "Lan", outgoing: true, callKind: "dm" };
+    const { env, set } = setup();
+    const live = env.native.setCallEngineLive;
+    // Written at install (a reloaded bundle must not leave the last runtime's mark), then only on a change.
+    expect(live).toHaveBeenCalledTimes(1);
+    expect(live).toHaveBeenLastCalledWith(false);
+    // An outgoing call still ringing has no service: the native path would otherwise ring a second call over it.
+    set(ringing);
+    expect(live).toHaveBeenLastCalledWith(true);
+    set(connecting);
+    set(active);
+    expect(live).toHaveBeenCalledTimes(2);
+    set(ended);
+    expect(live).toHaveBeenLastCalledWith(false);
+    set(incoming);
+    expect(live).toHaveBeenLastCalledWith(true);
+    set(idle);
+    expect(live).toHaveBeenLastCalledWith(false);
+    expect(live).toHaveBeenCalledTimes(5);
+  });
+
+  it("marks the engine live at install when a call is already under way", () => {
+    const { env } = setup({}, incoming);
+    expect(env.native.setCallEngineLive).toHaveBeenCalledWith(true);
   });
 });

@@ -110,6 +110,11 @@ class UniChatCallsModule : Module() {
       RingConfig.write(context, config)
     }
 
+    // The call engine holds a call: a call push is JavaScript's to answer (NativeCallPush › CallEngineLive).
+    Function("setCallEngineLive") { live: Boolean ->
+      CallEngineLive.live = live
+    }
+
     Function("takeRingReports") {
       RingReports.take(context)
     }

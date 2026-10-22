@@ -14,6 +14,13 @@
 // - the media link dropped and LiveKit reconnecting (components/calls/
 //   use-call-link.ts): the ongoing notification says so until it is back.
 //
+// - any call the engine holds (incoming, ringing, connecting, active): the
+//   native ring path is told (setCallEngineLive), so a call push that lands
+//   while the app is behind goes to JavaScript, which answers a 1-1 caller
+//   busy (call-push.ts › handleCallPush), instead of ringing a second call
+//   over an outgoing one still ringing. Written at install too: a reloaded
+//   bundle must not leave the last runtime's mark.
+//
 // Nothing here ends a call or reads the calls switch: a call already under
 // way keeps its service when the switch is turned off.
 import type { StoreApi } from "zustand/vanilla";
@@ -25,7 +32,7 @@ type Translate = (key: string, options?: Record<string, unknown>) => string;
 type InCall = Extract<VoiceCallOverlayState, { status: "connecting" | "active" }>;
 
 export interface NativeCallSyncEnv {
-  native: Pick<NativeCalls, "cancelIncomingCall" | "startOngoingCall" | "stopOngoingCall" | "releaseLockScreen">;
+  native: Pick<NativeCalls, "cancelIncomingCall" | "startOngoingCall" | "stopOngoingCall" | "releaseLockScreen" | "setCallEngineLive">;
   /** Android 12+: asks for BLUETOOTH_CONNECT once per call; elsewhere resolves at once. */
   requestBluetooth: () => Promise<unknown>;
   /** The workspace of the call (the engine's), for the Hang up action. */
@@ -46,6 +53,15 @@ export function createNativeCallSync(env: NativeCallSyncEnv) {
   let callId: string | null = null;
   let connectedAt = 0;
   let reconnecting = false;
+  let liveWritten: boolean | null = null;
+
+  /** The engine holds a call (call-push.ts › liveCallId): the native ring path defers to JavaScript. */
+  function markLive(state: VoiceCallOverlayState): void {
+    const live = state.status !== "idle" && state.status !== "ended";
+    if (live === liveWritten) return;
+    liveWritten = live;
+    env.native.setCallEngineLive(live);
+  }
 
   function line(state: InCall, video: boolean): string {
     if (reconnecting) return env.t("chat.voice_call_reconnecting");
@@ -67,6 +83,7 @@ export function createNativeCallSync(env: NativeCallSyncEnv) {
   }
 
   function apply(next: VoiceCallOverlayState, prev: VoiceCallOverlayState): void {
+    markLive(next);
     if (next.status === "incoming") env.native.cancelIncomingCall(next.callId);
     if (inCall(next)) {
       if (callId !== next.callId) {
@@ -93,6 +110,7 @@ export function createNativeCallSync(env: NativeCallSyncEnv) {
 
   return {
     apply,
+    markLive,
     /** The call's service again: LiveKit now holds the microphone (the service's microphone type needs it granted). */
     refresh(state: VoiceCallOverlayState): void {
       if (inCall(state) && state.callId === callId) env.native.startOngoingCall(ongoing(state));
@@ -110,5 +128,6 @@ export type NativeCallSync = ReturnType<typeof createNativeCallSync>;
 
 /** Runs the sync on every change of the engine's call; the function it returns stops it. */
 export function installNativeCallSync(store: StoreApi<{ call: VoiceCallOverlayState }>, sync: NativeCallSync): () => void {
+  sync.markLive(store.getState().call);
   return store.subscribe((state, previous) => sync.apply(state.call, previous.call));
 }

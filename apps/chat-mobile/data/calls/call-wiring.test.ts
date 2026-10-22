@@ -102,6 +102,7 @@ const native = vi.hoisted(() => ({
   releaseLockScreen: vi.fn(),
   takePendingActions: vi.fn(() => deps.pending),
   configureRing: vi.fn(),
+  setCallEngineLive: vi.fn(),
   takeRingReports: vi.fn((): { result: string; latencyMs: number }[] => []),
 }));
 vi.mock("./native-calls", () => ({ nativeCalls: native }));

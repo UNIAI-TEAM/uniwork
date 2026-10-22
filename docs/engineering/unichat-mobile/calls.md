@@ -90,7 +90,9 @@ Engine cuộc gọi, UI, nhạc chuông, cuộc gọi native trên Android, kên
   `NativeCallPush.handle` trước: push đổ chuông khi activity của app không ở trước (`AppVisibility`, từ listener của
   `UniChatCallsPackage`) và không có cuộc gọi đang chạy thì hiện ngay thông báo CallStyle, không khởi động Hermes hay
   đọc phiên; push kết thúc gỡ nó và thông báo dự phòng `call-ring:<id>`; công tắc tắt hay hết cửa sổ thì
-  không reo. Những gì cần JavaScript quyết — app đang mở (engine biết in_app/bận), đang trong cuộc gọi, chưa có cấu hình
+  không reo. Những gì cần JavaScript quyết — app đang mở (engine biết in_app/bận), engine đang giữ một cuộc gọi kể cả khi
+  app ở nền (đến, đang gọi đi chưa ai nghe, đang nối, đang nói: `CallEngineLive`, do `call-native-sync.ts › markLive`
+  ghi trong bộ nhớ, nên cuộc gọi thứ hai không reo đè lên cuộc gọi đi và người gọi 1-1 nghe "bận"), chưa có cấu hình
   chuông, hệ thống từ chối thông báo — và mọi push khác đi tiếp tới expo-notifications như cũ. Cấu hình chuông
   (`RingConfig`: bật khi công tắc gọi bật — không theo phiên: máy đã đăng xuất không còn token push, còn phiên đang
   khôi phục lúc offline không được làm im chuông —, scheme, chữ theo ngôn ngữ app) do

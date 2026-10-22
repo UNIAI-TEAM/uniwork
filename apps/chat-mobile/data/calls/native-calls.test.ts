@@ -23,6 +23,7 @@ function fakeModule(): UniChatCallsModule {
     takeAnsweredCall: vi.fn((callId: string) => callId === "c"),
     isCallHeld: vi.fn(() => true),
     configureRing: vi.fn(),
+    setCallEngineLive: vi.fn(),
     takeRingReports: vi.fn(() => [{ result: "native", latencyMs: 900 }]),
     backgroundDelivery: vi.fn(() => ({ batteryOptimized: true, backgroundRestricted: false, autostartBrand: "xiaomi", manufacturer: "Xiaomi" })),
     openBatterySettings: vi.fn(() => true),
@@ -71,6 +72,7 @@ describe("nativeCalls", () => {
     expect(nativeCalls.isCallHeld()).toBe(false);
     nativeCalls.onCallHeld(() => undefined)();
     nativeCalls.configureRing(RING);
+    nativeCalls.setCallEngineLive(true);
     expect(nativeCalls.takeRingReports()).toEqual([]);
     expect(nativeCalls.backgroundDelivery()).toEqual({ batteryOptimized: false, backgroundRestricted: false, autostartBrand: "", manufacturer: "" });
     expect(nativeCalls.openBatterySettings()).toBe(false);
@@ -123,6 +125,8 @@ describe("nativeCalls", () => {
     expect(vi.mocked(module.setProximityScreenOff).mock.contexts[0]).toBe(module);
     calls.configureRing(RING);
     expect(module.configureRing).toHaveBeenCalledWith(RING);
+    calls.setCallEngineLive(true);
+    expect(module.setCallEngineLive).toHaveBeenCalledWith(true);
     expect(calls.takeRingReports()).toEqual([{ result: "native", latencyMs: 900 }]);
     expect(calls.backgroundDelivery().autostartBrand).toBe("xiaomi");
     expect(calls.openBatterySettings()).toBe(true);
@@ -134,6 +138,7 @@ describe("nativeCalls", () => {
       module.openFullScreenIntentSettings,
       module.releaseLockScreen,
       module.configureRing,
+      module.setCallEngineLive,
       module.takeRingReports,
       module.backgroundDelivery,
       module.openBatterySettings,

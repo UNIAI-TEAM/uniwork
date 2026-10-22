@@ -122,6 +122,12 @@ export interface UniChatCallsModule {
   isCallHeld(): boolean;
   /** Keeps what a call push needs to ring natively (NativeCallPush.kt), written on every change. */
   configureRing(config: NativeRingConfig): void;
+  /**
+   * The call engine holds a call (incoming, ringing, connecting or active): a call push then goes to JavaScript,
+   * which answers it busy, instead of ringing natively (NativeCallPush.kt › CallEngineLive). Kept in memory, so a
+   * process that died forgets it with the engine.
+   */
+  setCallEngineLive(live: boolean): void;
   /** What the native call-push path did since the last take; taking clears it. */
   takeRingReports(): NativeRingReport[];
   backgroundDelivery(): NativeBackgroundDelivery;

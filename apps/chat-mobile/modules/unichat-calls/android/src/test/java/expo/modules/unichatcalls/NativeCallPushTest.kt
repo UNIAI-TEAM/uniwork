@@ -37,6 +37,7 @@ class NativeCallPushTest {
     RingReports.take(app)
     // No call under way: a ring during one is the call engine's to answer busy.
     CallService.stop(app)
+    CallEngineLive.live = false
   }
 
   private fun configure(enabled: Boolean = true) = RingConfig.write(
@@ -133,6 +134,19 @@ class NativeCallPushTest {
     assertEquals(NativeCallPush.Outcome.DEFER, handle(invite(), inFront = true))
     assertTrue(posted().isEmpty())
     assertTrue(RingReports.take(app).isEmpty())
+  }
+
+  @Test
+  fun aRingWhileTheEngineHoldsACallIsJavaScriptsToAnswerBusyEvenWithTheAppBehind() {
+    configure()
+    // An outgoing 1-1 call still ringing, the person gone to Home: no call service yet, the app not in front.
+    CallEngineLive.live = true
+    assertEquals(NativeCallPush.Outcome.DEFER, handle(invite()))
+    assertTrue(posted().isEmpty())
+    assertTrue(RingReports.take(app).isEmpty())
+    // The engine idle again: the next ring is the native one.
+    CallEngineLive.live = false
+    assertEquals(NativeCallPush.Outcome.RANG, handle(invite()))
   }
 
   @Test

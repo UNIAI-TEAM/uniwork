@@ -36,9 +36,11 @@ data class CallPushData(
  * killed-app-ring-js-dependent): UniChatMessagingService hands every FCM message here first. A ring for a closed
  * or backgrounded app becomes the incoming-call notification at once — no Hermes runtime, bundle or session to
  * load first — and the end of a ring takes it down. JavaScript keeps what needs it: a ring while UniChat is on
- * screen or already in a call (the call engine decides in_app or busy), a ring before JavaScript ever wrote the
- * ring config (RingConfig), a ring the notification could not show (the plain fallback), and everything that is
- * not a call push. The same policy as apps/chat-mobile/data/calls/call-push.ts, which stays the path for those.
+ * screen or its call engine holds a call — incoming, ringing out, connecting or active (CallEngineLive,
+ * CallService) — where the engine decides in_app or busy, a ring before JavaScript ever wrote the ring config
+ * (RingConfig), a ring the notification could not show (the plain fallback), and everything that is not a call
+ * push. Those go to apps/chat-mobile/data/calls/call-push.ts › handleCallPush, the one policy for them; this path
+ * rings only what that policy would ring too.
  */
 internal object NativeCallPush {
   private const val TAG = "UniChatCalls"
@@ -132,7 +134,9 @@ internal object NativeCallPush {
       RingReports.add(context, RingReports.RESULT_IGNORED, -1)
       return Outcome.IGNORED
     }
-    if (appInFront || CallService.isRunning()) return Outcome.DEFER
+    // JavaScript's call engine decides whenever it is on screen or holds a call, so a second call never rings over
+    // one already ringing out or in (CallEngineLive): it answers in_app, or busy to a 1-1 caller.
+    if (appInFront || CallService.isRunning() || CallEngineLive.live) return Outcome.DEFER
     if (!CallNotifications.showIncoming(context, config.incomingCall(push, remaining))) return Outcome.DEFER
     RingReports.add(context, RingReports.RESULT_NATIVE, push.ringLatencyMs(now))
     // The nightly's killed-app call (chat-mobile-verify.yml › android-two-party) checks this line in logcat. No ids.
