@@ -1,0 +1,16 @@
+/*
+ * "Install with apt" on /apps/office (UNI-2097). Tokens only; the selectors carry
+ * .marketing-site so they outrank marketing-pages.css's page-wide heading and paragraph rules.
+ */
+.marketing-site .apt-install { display: flex; flex-direction: column; gap: 16px; margin-top: 40px; padding: 28px 32px; border-radius: 20px; border: 1px solid var(--border); background: var(--surface-raised); }
+.marketing-site .apt-install h3 { margin: 0; font-size: var(--text-title); font-weight: 700; color: var(--foreground); }
+.marketing-site .apt-intro { margin: 0; max-width: 62ch; font-size: var(--text-body-lg); line-height: 1.6; color: var(--muted-foreground); }
+.apt-block { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.apt-block-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.marketing-site .apt-block-head h4 { margin: 0; font-size: var(--text-body); font-weight: 600; color: var(--foreground); }
+.apt-block-head button { min-width: 44px; min-height: 44px; }
+.apt-code { margin: 0; padding: 14px 16px; overflow-x: auto; border-radius: 12px; border: 1px solid var(--border); background: var(--muted); color: var(--foreground); font-family: var(--font-mono); font-size: var(--text-caption); line-height: 1.6; }
+.apt-status.is-failed { font-size: var(--text-caption); color: var(--destructive-soft-foreground); }
+.marketing-site .apt-note { margin: 0; max-width: 62ch; font-size: var(--text-caption); line-height: 1.6; color: var(--muted-foreground); }
+.apt-note code { font-family: var(--font-mono); color: var(--foreground); overflow-wrap: anywhere; }
+@media (max-width: 640px) { .marketing-site .apt-install { padding: 20px 16px; } }

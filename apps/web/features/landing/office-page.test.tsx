@@ -213,6 +213,61 @@ describe("the Office page", () => {
   });
 
 
+  describe("the apt install block", () => {
+    const mirror = (channel: string, name: string) => `https://uniworkos.com/downloads/office/${channel}/1.2.0/${name}`;
+    const deb = (channel: string) => ({ platform: "linux-x64-deb", kind: ".deb", url: mirror(channel, "UniWork-Office-1.2.0-amd64.deb"), version: "1.2.0" });
+    const onDownloads = { dev: [{ platform: "win32-x64", kind: ".exe", url: mirror("dev", "UniWork-Office-1.2.0-x64.exe"), version: "1.2.0" }, deb("dev")] };
+    const commands = () => [...container.querySelectorAll("#office-download .apt-code")].map((pre) => pre.textContent);
+    afterEach(() => { Reflect.deleteProperty(navigator, "clipboard"); });
+
+    it("stays hidden while the catalogue points at the release host, and while the deb is not published", async () => {
+      await render({ flags: {}, office_installers: installers });
+      expect(container.querySelector(".apt-install")).toBeNull();
+      act(() => root.unmount());
+      root = createRoot(container);
+      await render({ flags: {}, office_installers: { dev: [onDownloads.dev[0]] } });
+      expect(container.querySelector(".apt-install")).toBeNull();
+    });
+
+    it.each(["vi", "en"] as const)("shows the key, the source with the catalogue's channel, the install line and the fingerprint in %s", async (language) => {
+      await setLocale(language);
+      await render({ flags: {}, office_installers: onDownloads });
+      const apt = (language === "vi" ? viMessages : enMessages).landing.office.apt;
+      expect(container.querySelector("#office-apt-title")?.textContent).toBe(apt.title);
+      const [setup, install] = commands();
+      expect(setup).toContain("curl -fsSL https://uniworkos.com/downloads/office/apt/key.gpg | sudo tee /usr/share/keyrings/uniwork-office-archive-keyring.gpg > /dev/null");
+      expect(setup).toContain("sudo tee /etc/apt/sources.list.d/uniwork-office.sources");
+      expect(setup).toContain("URIs: https://uniworkos.com/downloads/office/apt\nSuites: dev\nComponents: main");
+      expect(setup).toContain("Signed-By: /usr/share/keyrings/uniwork-office-archive-keyring.gpg");
+      expect(install).toBe("sudo apt update && sudo apt install uniwork-office");
+      const text = container.querySelector(".apt-install")?.textContent ?? "";
+      expect(text).toContain("58A9 0232 2C8D 45C4 33B5 25F5 1198 D109 26F3 4831");
+      expect(text).toContain(apt.deb);
+      expect(text).not.toMatch(/github|landing\./i);
+    });
+
+    it("writes the suite of the most stable published channel", async () => {
+      await render({ flags: {}, office_installers: { ...onDownloads, beta: [deb("beta")] } });
+      expect(commands()[0]).toContain("Suites: beta\n");
+    });
+
+    it("copies a block and says so, or says it could not", async () => {
+      const writeText = vi.fn().mockResolvedValue(undefined);
+      Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
+      await render({ flags: {}, office_installers: onDownloads });
+      const buttons = container.querySelectorAll<HTMLButtonElement>(".apt-block button");
+      const statuses = container.querySelectorAll(".apt-block [role=status]");
+      await act(async () => { buttons[1]?.click(); });
+      expect(writeText).toHaveBeenCalledWith("sudo apt update && sudo apt install uniwork-office");
+      expect(statuses[1]?.textContent).toBe(viMessages.landing.office.apt.copied);
+      writeText.mockRejectedValue(new Error("denied"));
+      document.execCommand = vi.fn().mockReturnValue(false);
+      await act(async () => { buttons[0]?.click(); });
+      expect(statuses[0]?.textContent).toBe(viMessages.landing.office.apt.copyFailed);
+    });
+  });
+
+
   it("drops a frame whose image had already failed before it could report an error", async () => {
     vi.spyOn(HTMLImageElement.prototype, "complete", "get").mockReturnValue(true);
     vi.spyOn(HTMLImageElement.prototype, "naturalWidth", "get").mockReturnValue(0);

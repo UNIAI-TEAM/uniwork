@@ -9457,6 +9457,17 @@
         "unsigned": "This build is not code-signed, so your system may warn you the first time you open it.",
         "unavailable": "No installer has been published yet."
       },
+      "apt": {
+        "title": "Install with apt",
+        "intro": "On Ubuntu and Debian, add the UniWork Office repository once; later updates arrive with the rest of your system.",
+        "setup": "1. Add the repository",
+        "install": "2. Install",
+        "copy": "Copy command: {{step}}",
+        "copied": "Copied",
+        "copyFailed": "Couldn't copy. Select the commands and copy them yourself.",
+        "deb": "If you install the .deb downloaded from this page, it adds the repository itself, so you can skip step 1.",
+        "fingerprint": "Key fingerprint"
+      },
       "works": {
         "title": "Works with UniWork",
         "sub": "The app is not apart from the workspace: files go from UniWork to the app and back.",

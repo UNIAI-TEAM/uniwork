@@ -9447,6 +9447,17 @@
         "unsigned": "Bản này chưa ký số nên hệ điều hành có thể cảnh báo khi mở lần đầu.",
         "unavailable": "Chưa có bản cài đặt nào được phát hành."
       },
+      "apt": {
+        "title": "Cài qua apt",
+        "intro": "Trên Ubuntu và Debian, thêm kho UniWork Office một lần; các bản cập nhật sau đó đến cùng với phần còn lại của hệ thống.",
+        "setup": "1. Thêm kho",
+        "install": "2. Cài đặt",
+        "copy": "Sao chép lệnh: {{step}}",
+        "copied": "Đã sao chép",
+        "copyFailed": "Không sao chép được. Hãy chọn đoạn lệnh và tự sao chép.",
+        "deb": "Nếu bạn cài tệp .deb tải từ trang này, kho đã được thêm sẵn nên có thể bỏ qua bước 1.",
+        "fingerprint": "Dấu vân tay của khóa"
+      },
       "works": {
         "title": "Làm việc cùng UniWork",
         "sub": "Ứng dụng không tách khỏi workspace: file đi từ UniWork sang ứng dụng và quay về.",
