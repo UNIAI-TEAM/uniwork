@@ -50,7 +50,17 @@ type expoMessage struct {
 	CategoryID string `json:"categoryId,omitempty"`
 	TTL        int    `json:"ttl"`
 	Priority   string `json:"priority"`
+	// Badge is the iPhone's icon count (iOS only; a zero clears it).
+	Badge *int `json:"badge,omitempty"`
+	// InterruptionLevel "time-sensitive" lets a mention or a call through
+	// Focus on an iPhone (iOS 15+, the app's time-sensitive entitlement).
+	InterruptionLevel string `json:"interruptionLevel,omitempty"`
 }
+
+// timeSensitiveChannels are the pushes an iPhone shows through Focus: a
+// mention of the person, a call ringing for them, a call they missed. Plain
+// messages stay "active", which Focus holds back.
+var timeSensitiveChannels = map[string]bool{ChannelMentions: true, ChannelCalls: true, ChannelMissedCalls: true}
 
 // ChatMessageCategory is the category of a chat message push: Reply (a text
 // field) and Mark as read. The app registers it at launch
@@ -192,10 +202,17 @@ func expoMessageFor(sub db.PushSubscription, msg PushMessage) (expoMessage, bool
 	if channel == "" {
 		channel = ChannelGeneral
 	}
-	return expoMessage{
+	m := expoMessage{
 		To: sub.Endpoint, Title: msg.Title, Body: msg.Body, Data: data,
 		Sound: "default", ChannelID: channel, CategoryID: category, TTL: msg.ttl(), Priority: "high",
-	}, true
+	}
+	if expoPlatform(sub) == "ios" {
+		m.Badge = msg.Badge
+		if timeSensitiveChannels[channel] {
+			m.InterruptionLevel = "time-sensitive"
+		}
+	}
+	return m, true
 }
 
 type expoResponse struct {

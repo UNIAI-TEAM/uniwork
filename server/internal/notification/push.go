@@ -38,6 +38,10 @@ type PushMessage struct {
 	// app — Reply sends into the room or the thread, Mark as read reads the
 	// room. A browser never sees it.
 	Chat ChatPush `json:"-"`
+	// Badge is the app icon's count the person's iPhones show with this push
+	// (everything unread, as the app draws it); nil leaves the icon as it is.
+	// Android launchers count the tray themselves. A browser never sees it.
+	Badge *int `json:"-"`
 }
 
 // ChatPush names the message a chat push is about. Ids only, as every

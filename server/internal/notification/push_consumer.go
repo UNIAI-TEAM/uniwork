@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/url"
 	"strings"
 	"time"
@@ -31,7 +32,14 @@ type PushConsumer struct {
 	// mobileCallsIOS is the unichat_mobile_calls_ios switch: off, an iPhone
 	// gets no ring; nil means iPhones ring like the rest.
 	mobileCallsIOS func(ctx context.Context, userID, organizationID string) bool
+	badges         BadgeCounter
 	now            func() time.Time
+}
+
+// BadgeCounter is the app icon's count for a person: everything unread they
+// can reach in chat (ChatService.UnreadBadge in production).
+type BadgeCounter interface {
+	UnreadBadge(ctx context.Context, userID string) (int, error)
 }
 
 // PresenceChecker says when a user last had a visible chat presence heartbeat
@@ -84,6 +92,11 @@ func (c *PushConsumer) SetMobileCalls(on func(ctx context.Context, userID, organ
 func (c *PushConsumer) SetMobileCallsIOS(on func(ctx context.Context, userID, organizationID string) bool) {
 	c.mobileCallsIOS = on
 }
+
+// SetBadges lets a chat push carry the person's unread count to their
+// iPhones, so the icon is right while the app is closed. Without it, or when
+// the count cannot be read in time, the push goes without one.
+func (c *PushConsumer) SetBadges(b BadgeCounter) { c.badges = b }
 
 // SetMetrics attaches counters.
 func (c *PushConsumer) SetMetrics(m Metrics) { c.metrics = m }
@@ -202,6 +215,9 @@ func (c *PushConsumer) Handle(ctx context.Context, ev outbox.Row) error {
 		}
 	}
 	msg.URL = link
+	if isChatPushKind(n.Kind) && c.badges != nil && hasIPhone(subs) {
+		msg.Badge = c.unreadBadge(ctx, n.UserID)
+	}
 	if n.Kind == KindChatCallIncoming {
 		// The push rings only as long as the call does (spec M3 §2), and the
 		// phone stops ringing at the end of the window whatever reaches it.
@@ -242,6 +258,30 @@ func (c *PushConsumer) Handle(ctx context.Context, ev outbox.Row) error {
 		return failed
 	}
 	return c.q.MarkNotificationPushed(ctx, n.ID)
+}
+
+// hasIPhone: one of the subscriptions is an iPhone, the only device a pushed
+// badge reaches.
+func hasIPhone(subs []db.PushSubscription) bool {
+	for _, sub := range subs {
+		if isExpoPushToken(sub.Endpoint) && expoPlatform(sub) == "ios" {
+			return true
+		}
+	}
+	return false
+}
+
+// unreadBadge reads the person's count within a second; nil (no badge, the
+// icon left as it is) when it cannot, so a slow count never holds the push.
+func (c *PushConsumer) unreadBadge(ctx context.Context, userID string) *int {
+	bctx, cancel := context.WithTimeout(ctx, time.Second)
+	defer cancel()
+	count, err := c.badges.UnreadBadge(bctx, userID)
+	if err != nil {
+		slog.WarnContext(ctx, "push: unread badge not read", "user_id", userID, "error", err)
+		return nil
+	}
+	return &count
 }
 
 // previewHidden: the recipient hid message text in their pushes, or the

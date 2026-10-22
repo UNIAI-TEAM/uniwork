@@ -528,6 +528,7 @@ func main() {
 	pushSender := notification.NewPrefixSender(notification.ExpoPushSender{AccessToken: cfg.ExpoAccessToken, Receipts: pushReceipts}, webSender)
 	pushConsumer := notification.NewPushConsumer(q, pushSender, cfg.FrontendOrigin)
 	pushConsumer.SetPresence(chatSvc)
+	pushConsumer.SetBadges(chatSvc)
 	pushConsumer.SetCallRinging(chatSvc)
 	// The UniChat mobile calls kill switch stops the incoming-call push too,
 	// not just the ring inside the app (UNI-2053).

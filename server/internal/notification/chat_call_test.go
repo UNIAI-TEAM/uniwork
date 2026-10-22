@@ -3,6 +3,7 @@ package notification
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"testing"
 	"time"
 
@@ -362,6 +363,57 @@ func TestCallPushSkipsIPhonesWhileTheIOSSwitchIsOff(t *testing.T) {
 	if got := ring("call-ios-on"); len(got) != 2 {
 		t.Fatalf("iOS switch on: rang %v, want both phones", got)
 	}
+}
+
+// A chat push carries the person's unread count to their iPhones (the icon is
+// right while the app is closed); with no iPhone the count is not even read,
+// and a count that cannot be read sends the push without one.
+func TestChatPushCarriesTheBadgeToIPhones(t *testing.T) {
+	f := newFixture(t)
+	chat := service.NewChatService(f.pool, f.q, f.ws, service.NopPublisher{})
+	dm, err := chat.ResolveDM(f.ctx, f.owner.ID, f.wsID, f.member.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.subscribeAs(t, f.member.ID, "ExponentPushToken[android]", "expo/android; call-ui")
+	badges := &fakeBadges{count: 4}
+	run := func() *spySender {
+		f.readAll(t, f.member.ID)
+		if _, err := chat.SendRoomMessage(f.ctx, f.owner.ID, f.wsID, dm.ID, service.SendChatMessageInput{Body: "x"}); err != nil {
+			t.Fatal(err)
+		}
+		f.handleLast(t, "chat.dm.received")
+		spy := &spySender{}
+		pc := NewPushConsumer(f.q, spy, "http://app.test")
+		pc.SetBadges(badges)
+		if err := pc.Handle(f.ctx, f.lastEvent(t, TopicPush)); err != nil {
+			t.Fatal(err)
+		}
+		return spy
+	}
+	if spy := run(); len(spy.sent) != 1 || spy.sent[0].Badge != nil || len(badges.asked) != 0 {
+		t.Fatalf("Android only: sent %+v, asked %v; want no count read", spy.sent, badges.asked)
+	}
+	f.subscribeAs(t, f.member.ID, "ExponentPushToken[iphone]", "expo/ios")
+	spy := run()
+	if len(spy.sent) != 2 || spy.sent[0].Badge == nil || *spy.sent[0].Badge != 4 || len(badges.asked) != 1 || badges.asked[0] != f.member.ID {
+		t.Fatalf("with an iPhone: sent %+v, asked %v; want the recipient's count 4", spy.sent, badges.asked)
+	}
+	badges.err = errors.New("db slow")
+	if spy := run(); len(spy.sent) != 2 || spy.sent[0].Badge != nil {
+		t.Fatalf("unreadable count: sent %+v, want the push without a badge", spy.sent)
+	}
+}
+
+type fakeBadges struct {
+	count int
+	err   error
+	asked []string
+}
+
+func (b *fakeBadges) UnreadBadge(_ context.Context, userID string) (int, error) {
+	b.asked = append(b.asked, userID)
+	return b.count, b.err
 }
 
 // Only a call skips the browser: a chat message still reaches every subscription.

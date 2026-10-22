@@ -304,3 +304,57 @@ func TestExpoPlatformReadsTheMobileUserAgent(t *testing.T) {
 		t.Fatalf("an invalid (NULL) agent is no platform, got %q", got)
 	}
 }
+
+// An iPhone's icon shows the unread count the server sends with each chat
+// push (audit badge-and-clear-on-read: a killed iPhone's badge stayed wrong
+// until the app ran), and mentions and missed calls break through Focus as
+// time-sensitive. Android draws its own badge from the tray and has no
+// interruption levels: it gets neither field. A plain message stays "active".
+func TestExpoPushSenderSetsTheIPhoneBadgeAndUrgency(t *testing.T) {
+	var got []map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got = nil
+		_ = json.NewDecoder(r.Body).Decode(&got)
+		_, _ = io.WriteString(w, `{"data":[{"status":"ok","id":"t1"}]}`)
+	}))
+	defer srv.Close()
+	s := ExpoPushSender{URL: srv.URL}
+	iphone := db.PushSubscription{Endpoint: "ExponentPushToken[i]", UserAgent: pgtype.Text{String: "expo/ios", Valid: true}}
+	android := db.PushSubscription{Endpoint: "ExponentPushToken[a]", UserAgent: pgtype.Text{String: "expo/android; call-ui", Valid: true}}
+	seven, zero := 7, 0
+	chat := ChatPush{WorkspaceID: "w", RoomID: "r", MessageID: "m"}
+
+	send := func(sub db.PushSubscription, msg PushMessage) map[string]any {
+		t.Helper()
+		if err := s.Send(context.Background(), sub, msg); err != nil {
+			t.Fatal(err)
+		}
+		return got[0]
+	}
+
+	dm := send(iphone, PushMessage{Title: "Minh", Body: "chào", Channel: ChannelMessages, Chat: chat, Badge: &seven})
+	if dm["badge"] != float64(7) {
+		t.Fatalf("iPhone dm badge = %v, want 7", dm["badge"])
+	}
+	if _, ok := dm["interruptionLevel"]; ok {
+		t.Fatalf("a plain message must stay active: %v", dm)
+	}
+	if cleared := send(iphone, PushMessage{Title: "x", Channel: ChannelMessages, Chat: chat, Badge: &zero}); cleared["badge"] != float64(0) {
+		t.Fatalf("a zero badge must be sent, it clears the icon: %v", cleared)
+	}
+	if none := send(iphone, PushMessage{Title: "task", Channel: ChannelGeneral}); none["badge"] != nil {
+		t.Fatalf("no count known: the icon is left as it is, got %v", none["badge"])
+	}
+	for name, msg := range map[string]PushMessage{
+		"mention": {Title: "m", Channel: ChannelMentions, Chat: chat, Badge: &seven},
+		"missed":  {Title: "Cuộc gọi nhỡ", Channel: ChannelMissedCalls, Call: CallPush{Type: CallPushMissed, CallID: "c", RoomID: "r"}},
+		"ring":    {Title: "A đang gọi", Channel: ChannelCalls, Call: CallPush{Type: CallPushInvite, CallID: "c", RoomID: "r"}},
+	} {
+		if m := send(iphone, msg); m["interruptionLevel"] != "time-sensitive" {
+			t.Fatalf("%s on an iPhone = %v, want time-sensitive", name, m)
+		}
+	}
+	if m := send(android, PushMessage{Title: "m", Channel: ChannelMentions, Chat: chat, Badge: &seven}); m["badge"] != nil || m["interruptionLevel"] != nil {
+		t.Fatalf("Android gets neither badge nor interruption level: %v", m)
+	}
+}
