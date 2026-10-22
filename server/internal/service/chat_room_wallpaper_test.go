@@ -1,6 +1,7 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"testing"
 )
@@ -42,5 +43,19 @@ func TestUpdateChatRoomWallpaperPreset_GroupMemberForbidden(t *testing.T) {
 	}
 	if err := s.UpdateChatRoomWallpaperPreset(ctx, ua.ID, w.ID, group.ID, "sky"); err != nil {
 		t.Fatalf("group creator: %v", err)
+	}
+}
+
+// A room's custom wallpaper goes through the shared upload session, whose
+// purpose checks must name chat_room_wallpaper (9991792900000006).
+func TestChatRoomWallpaperUploadIsStored(t *testing.T) {
+	f := groupAvatarFixture(t)
+	ctx := context.Background()
+	if _, err := f.s.UploadRoomWallpaper(ctx, f.ua.ID, f.w.ID, f.group.ID, "nen.png", bytes.NewReader(workspaceIconPNG)); err != nil {
+		t.Fatal(err)
+	}
+	room, err := f.q.GetChatRoomByID(ctx, f.group.ID)
+	if err != nil || !room.WallpaperFileID.Valid {
+		t.Fatalf("room after upload: %+v err=%v", room, err)
 	}
 }
