@@ -3957,6 +3957,8 @@
       "progress": "{{done}}/{{total}} done",
       "overdue": "{{count}} overdue",
       "pendingGroup": "Pending ({{count}})",
+      "linkToOpenTask": "Link to the open task",
+      "linkedStatus": "Linked to the open task",
       "convertedGroup": "Assigned ({{count}})",
       "dismissedGroup": "Dismissed ({{count}})",
       "empty": "No action items yet. Add one to assign after the meeting.",

@@ -7,6 +7,7 @@ import {
   dismissMeetingActionItem,
   getMeetingActionItems,
   getMeetingCarriedOverItems,
+  linkMeetingActionItem,
   restoreMeetingActionItem,
 } from "./meeting-action-items";
 
@@ -111,6 +112,14 @@ describe("meeting action item endpoints", () => {
     expect(sent(0)).toEqual({ url: "http://api.test/api/v1/meetings/m1/action-items/a1/dismiss", method: "POST", body: { reason: "Trùng" } });
     expect(sent(1).body).toEqual({});
     expect(sent(2).url).toBe("http://api.test/api/v1/meetings/m1/action-items/a1/restore");
+  });
+
+  it("link names the item and the task, and shrugs off an answer it cannot read", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ status: "ok" }));
+    await linkMeetingActionItem("m1", "a1", "t9");
+    expect(sent(0)).toEqual({ url: "http://api.test/api/v1/meetings/m1/action-items/a1/link", method: "POST", body: { task_id: "t9" } });
+    vi.mocked(fetch).mockResolvedValueOnce(json("not an object"));
+    await expect(linkMeetingActionItem("m1", "a1", "t9")).resolves.toBeUndefined();
   });
 
   it("getMeetingCarriedOverItems reads each task with its source meeting", async () => {

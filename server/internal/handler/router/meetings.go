@@ -287,6 +287,12 @@ func registerMeetings(r api, h Routes, summaryLimit, minutesOrg, minutesFlag fun
 		description: "Chỉ từ chờ xử lý, không thì 409 action_item_not_pending. Lý do không bắt buộc, tối đa 500 ký tự.",
 		sdi:         sdi.DismissActionItemSDI{}, sdo: sdo.StatusSDO{}, auth: true,
 	})
+	r.Post("/meetings/{meetingID}/action-items/{actionItemID}/link", h.LinkActionItem, apiOp{
+		summary: "Link a pending action item to an existing task (clerk)", tags: []string{"meetings"},
+		description: "Việc chờ xử lý theo dõi một task đã có trong workspace thay vì tạo task mới (thường là task đang mở mà " +
+			"409 active_duplicate_task nêu tên). Việc thành CONVERTED. 404 khi task không thuộc workspace; 409 action_item_not_pending.",
+		sdi: sdi.LinkActionItemSDI{}, sdo: sdo.StatusSDO{}, auth: true,
+	})
 	r.Post("/meetings/{meetingID}/action-items/{actionItemID}/restore", h.RestoreActionItem, apiOp{
 		summary: "Restore a dismissed action item (clerk)", tags: []string{"meetings"},
 		description: "Chỉ từ đã bỏ qua, không thì 409 action_item_not_dismissed.",

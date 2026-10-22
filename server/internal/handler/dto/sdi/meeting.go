@@ -219,6 +219,11 @@ type DismissActionItemSDI struct {
 	Reason string `json:"reason,omitempty" maxLength:"500" description:"Lý do bỏ qua, không bắt buộc" example:"Đã có người làm"`
 }
 
+// LinkActionItemSDI is POST .../action-items/{actionItemID}/link.
+type LinkActionItemSDI struct {
+	TaskID string `json:"task_id" minLength:"1" description:"ULID task đã có trong workspace của cuộc họp, thường là task đang mở mà 409 active_duplicate_task nêu tên" example:"01J8X4TASK1P2Q3R4S5T6U7V8W"`
+}
+
 // ConvertActionItemSDI is one pending action item the clerk turns into a
 // task, with the values the clerk confirmed. The server never re-reads the
 // owner or due phrase into assignee_id or due_date.

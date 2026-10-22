@@ -89,6 +89,19 @@ func (h *handlers) restoreActionItem(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, 200, sdo.StatusSDO{Status: "ok"})
 }
 
+func (h *handlers) linkActionItem(w http.ResponseWriter, r *http.Request) {
+	var in sdi.LinkActionItemSDI
+	if !decode(w, r, &in, maxJSONBody) {
+		return
+	}
+	if err := h.Meetings.LinkActionItem(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "meetingID"),
+		chi.URLParam(r, "actionItemID"), in.TaskID); err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	respondJSON(w, 200, sdo.StatusSDO{Status: "ok"})
+}
+
 func (h *handlers) convertActionItems(w http.ResponseWriter, r *http.Request) {
 	var in sdi.ConvertActionItemsSDI
 	if !decode(w, r, &in, maxJSONBody) {

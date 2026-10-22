@@ -67,6 +67,15 @@ export function useRestoreMeetingActionItem(meetingId: string) {
   return useActionItemMutation(meetingId, (itemId: string) => api.restoreMeetingActionItem(meetingId, itemId));
 }
 
+/** Links a pending item to an existing task; refreshes the timeline and the task collections like a conversion. */
+export function useLinkMeetingActionItem(workspaceId: string, meetingId: string) {
+  return useActionItemMutation(
+    meetingId,
+    (v: { itemId: string; taskId: string }) => api.linkMeetingActionItem(meetingId, v.itemId, v.taskId),
+    workspaceId,
+  );
+}
+
 /** Turns pending items into tasks; also refreshes the timeline and every task collection. */
 export function useConvertMeetingActionItems(workspaceId: string, meetingId: string) {
   return useActionItemMutation(

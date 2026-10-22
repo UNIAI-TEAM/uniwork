@@ -235,6 +235,25 @@ describe("MeetingActionItemsSection", () => {
     expect(screen.getByRole("checkbox", { name: "Gửi biên bản" })).toBeChecked();
   });
 
+  it("offers to link the one duplicate item to the open task, and links it", async () => {
+    vi.mocked(toast.error).mockClear();
+    vi.mocked(toast.success).mockClear();
+    respond({
+      convert: () =>
+        Promise.reject(new ApiError("x", "active_duplicate_task", 409, undefined, { action_item_ids: ["a0"], task_id: "t5", title: "Gửi biên bản" })),
+    });
+    renderSection();
+    fireEvent.click(await screen.findByRole("checkbox", { name: "Gửi biên bản" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Giao 1 việc" })).not.toHaveAttribute("aria-busy"));
+    fireEvent.click(screen.getByRole("button", { name: "Giao 1 việc" }));
+    await waitFor(() => expect(toast.error).toHaveBeenCalled());
+    const options = vi.mocked(toast.error).mock.calls[0]![1] as { action: { label: string; onClick: () => void } };
+    expect(options.action.label).toBe("Gắn với việc đang mở");
+    act(() => options.action.onClick());
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Đã gắn với việc đang mở", expect.anything()));
+    expect(posts("/action-items/a0/link")).toEqual([{ path: "/api/v1/meetings/m1/action-items/a0/link", body: { task_id: "t5" } }]);
+  });
+
   it("drops the ticks when an item was handled elsewhere meanwhile", async () => {
     vi.mocked(toast.error).mockClear();
     respond({ convert: () => Promise.reject(new ApiError("x", "action_item_not_pending", 409, undefined, { action_item_ids: ["a0"] })) });

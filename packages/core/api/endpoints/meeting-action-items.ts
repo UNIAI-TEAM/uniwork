@@ -136,6 +136,15 @@ export async function restoreMeetingActionItem(meetingId: string, itemId: string
 }
 
 /**
+ * Makes a pending item track a task that already exists (the open task a
+ * 409 active_duplicate_task names) instead of creating one. The answer
+ * carries nothing the caller reads: the refetched list shows the item converted.
+ */
+export async function linkMeetingActionItem(meetingId: string, itemId: string, taskId: string): Promise<void> {
+  await request(`/api/v1/meetings/${enc(meetingId)}/action-items/${enc(itemId)}/link`, { method: "POST", body: { task_id: taskId } });
+}
+
+/**
  * One pending item the clerk turns into a task, with what the task composer
  * submitted. `assignee_id` and `due_date` are always sent: null is "nobody" /
  * "no due date", and the server never re-reads the spoken words into them.

@@ -3956,6 +3956,8 @@
       "progress": "Đã xong {{done}}/{{total}}",
       "overdue": "{{count}} quá hạn",
       "pendingGroup": "Chờ xử lý ({{count}})",
+      "linkToOpenTask": "Gắn với việc đang mở",
+      "linkedStatus": "Đã gắn với việc đang mở",
       "convertedGroup": "Đã giao ({{count}})",
       "dismissedGroup": "Đã bỏ qua ({{count}})",
       "empty": "Chưa có việc cần làm. Thêm việc để giao sau họp.",
