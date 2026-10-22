@@ -397,7 +397,7 @@ func TestAskUniStreamWritesSourcesAndStepLabel(t *testing.T) {
 }
 
 func TestToAiMessageDTOBadStepsJSONIsEmpty(t *testing.T) {
-	m := db.AiMessage{Steps: `[{"tool":"search"},`, Followups: `{`, Mentions: `[{"kind":"x"},`, Citations: "[]"}
+	m := db.AiMessage{Steps: `[{"tool":"search"},{"tool":5}]`, Followups: `["a",5]`, Mentions: `[{"kind":"x"},{"kind":5}]`, Citations: "[]"}
 	out := toAiMessageDTO(m)
 	if out.Steps == nil || len(out.Steps) != 0 || out.Followups == nil || len(out.Followups) != 0 || out.Mentions == nil || len(out.Mentions) != 0 || out.Focus != nil {
 		t.Fatalf("%+v", out)
