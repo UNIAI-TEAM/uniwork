@@ -47,9 +47,9 @@ import { CACHE_SCHEMA_VERSION, persistedRooms, readPersistedClient, readPersiste
 import type { DeviceStore } from "./storage/device-store";
 
 /** The rooms whose newest page is kept: the most recently active ones. */
-const PERSISTED_ROOM_TIMELINES = 24;
+export const PERSISTED_ROOM_TIMELINES = 24;
 /** The threads whose first page is kept: the last read ones, in those rooms. */
-const PERSISTED_THREAD_TIMELINES = 12;
+export const PERSISTED_THREAD_TIMELINES = 12;
 /** A copy, or a carried query, older than this is not worth showing. */
 export const PERSISTED_CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 export const PERSIST_THROTTLE_MS = 1_000;

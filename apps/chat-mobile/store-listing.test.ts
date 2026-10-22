@@ -9,6 +9,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import type { ConfigContext } from "expo/config";
 import createConfig, { IOS_PRIVACY_MANIFEST, USAGE_EN, USAGE_VI } from "./app.config";
+import { PERSISTED_ROOM_TIMELINES, PERSISTED_THREAD_TIMELINES } from "./data/query-persister";
 
 const listing = fs.readFileSync(path.join(__dirname, "store/listing.md"), "utf8");
 
@@ -133,5 +134,17 @@ describe("the listing's moderation paragraph", () => {
     expect(moderation).not.toMatch(/gỡ nội dung nghĩa là vô hiệu hoá/);
     expect(moderation).toMatch(/vô hiệu hoá người đăng chặn họ lại nhưng tin họ đã gửi vẫn hiện/);
     expect(moderation).toMatch(/chỉ tạm ngưng tổ chức mới ẩn nội dung/);
+  });
+});
+
+// The Data safety and App Privacy answers rest on the "Lưu trên máy" paragraph: it named 12 conversations after the
+// persister kept 24, and left out the offline threads, queued edits and deletes, and drafts (review P2).
+describe("the listing's on-device paragraph", () => {
+  const onDevice = listing.slice(listing.indexOf("**Lưu trên máy"), listing.indexOf("Dữ liệu này không rời máy")).replace(/\s+/g, " ");
+
+  it("names what the device keeps, with the persister's own numbers", () => {
+    expect(onDevice).toContain(`trang tin mới nhất của ${PERSISTED_ROOM_TIMELINES} cuộc trò chuyện`);
+    expect(onDevice).toContain(`${PERSISTED_THREAD_TIMELINES} chủ đề đọc gần nhất`);
+    for (const kept of ["lượt đọc", "biểu cảm", "bình chọn", "sửa", "xoá tin", "bản nháp"]) expect(onDevice, kept).toContain(kept);
   });
 });

@@ -492,7 +492,7 @@ và giọng đọc. Một iPhone (VoiceOver) và một máy Android (TalkBack):
   chối ở hộp thoại hệ thống (Android 13+: mở lại app không hỏi nữa); Cài đặt › Thông báo hỏi lại.
 - [ ] Nghe từ thông báo trên máy cài mới, đang khoá (Android): bấm "Nghe" thì màn giải thích micro hiện và ở lại trên màn
   đổ chuông; "Tiếp tục" hiện hộp thoại hệ thống, rồi cuộc gọi mới nối (micro đã được hỏi).
-- [ ] Trải nghiệm hoàn thiện (audit UX 8/10). Phòng ngoài 12 phòng có cache, tắt mạng giữa lúc mở: "Không tải được tin
+- [ ] Trải nghiệm hoàn thiện (audit UX 8/10). Phòng ngoài 24 phòng có cache, tắt mạng giữa lúc mở: "Không tải được tin
   nhắn · Thử lại", không phải lời mời "bắt đầu trò chuyện"; bật mạng rồi "Thử lại" thì tin hiện. Link trong tin: chạm mở
   trình duyệt trong app, nhấn giữ có Mở/Sao chép/Chia sẻ (rung), VoiceOver/TalkBack có hành động "Liên kết …" trên bong
   bóng; `**đậm**` hiện đậm. Viết dở trong một phòng, rời phòng và kill app: mở lại thấy nguyên chữ và trích dẫn, danh

@@ -81,9 +81,10 @@ tên, token hay query của URL (`lib/redact.ts` lọc trước khi gửi), khô
 Mọi dữ liệu mã hoá khi truyền (HTTPS/WSS).
 
 **Lưu trên máy (UNI-2053 S3, để app dùng được khi mất mạng).** Phiên đăng nhập và hồ sơ người dùng cuối (tên, email,
-id) nằm trong Keychain/Keystore. Tin chưa gửi được, lượt đọc, biểu cảm và bình chọn chờ gửi, cùng bản sao danh sách
-cuộc trò chuyện, số chưa đọc, danh bạ của workspace và trang tin mới nhất của 12 cuộc trò chuyện gần nhất nằm trong
-một kho MMKV **mã hoá AES-256** bằng khoá ngẫu nhiên giữ trong Keychain/Keystore, chỉ trên máy này (khoá không vào bản
+id) nằm trong Keychain/Keystore. Tin chưa gửi được; lượt đọc, biểu cảm, bình chọn, lần sửa và xoá tin chờ gửi; bản
+nháp đang soạn; cùng bản sao danh sách cuộc trò chuyện, số chưa đọc, danh bạ của workspace, trang tin mới nhất của 24
+cuộc trò chuyện có hoạt động gần nhất và trang đầu (tin gốc cùng các trả lời mới nhất) của 12 chủ đề đọc gần nhất
+trong các cuộc đó nằm trong một kho MMKV **mã hoá AES-256** bằng khoá ngẫu nhiên giữ trong Keychain/Keystore, chỉ trên máy này (khoá không vào bản
 sao lưu và không chuyển máy, nên bản sao lưu hay máy khác không đọc được kho). Ảnh, tệp và tin thoại chưa gửi được chép vào thư mục riêng của app (được hệ
 điều hành bảo vệ, không mã hoá thêm) và xoá ngay khi server nhận. Tất cả bị xoá khi đăng xuất hay xoá tài khoản; mọi
 lần đăng xuất, kể cả khi thiết bị bị thu hồi từ máy khác, còn xoá ảnh đã lưu trong bộ nhớ đệm, thông báo trong khay và số
