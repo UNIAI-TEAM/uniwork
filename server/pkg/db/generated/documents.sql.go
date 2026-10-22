@@ -569,6 +569,94 @@ func (q *Queries) NextDocumentPosition(ctx context.Context, arg NextDocumentPosi
 	return position, err
 }
 
+const transferDocumentACLOwner = `-- name: TransferDocumentACLOwner :one
+UPDATE documents
+SET acl_owner_id = $1,
+    updated_by = $2,
+    updated_by_kind = $3,
+    updated_at = now()
+WHERE id = $4
+  AND organization_id = $5
+  AND workspace_id = $6
+  AND owner_kind IS NULL
+RETURNING id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id, content_revision, workspace_level, system_kind, shelved_at, shelved_by, shelved_by_kind, shelve_batch_id
+`
+
+type TransferDocumentACLOwnerParams struct {
+	NewOwner       pgtype.Text `json:"new_owner"`
+	UpdatedBy      string      `json:"updated_by"`
+	UpdatedByKind  string      `json:"updated_by_kind"`
+	ID             string      `json:"id"`
+	OrganizationID string      `json:"organization_id"`
+	WorkspaceID    string      `json:"workspace_id"`
+}
+
+// DOC-06 (UNI-2084, addendum §2.1, §5): hand the ACL owner slot to another
+// person. The caller holds the row lock (withDocumentAdministerMutation). The
+// updated_by pair is the caller's like every other UPDATE (ADR 0007); the
+// revision is NOT bumped - it is the autosave base, and an owner change does
+// not change content. A Work Product document matches no row.
+func (q *Queries) TransferDocumentACLOwner(ctx context.Context, arg TransferDocumentACLOwnerParams) (Document, error) {
+	row := q.db.QueryRow(ctx, transferDocumentACLOwner,
+		arg.NewOwner,
+		arg.UpdatedBy,
+		arg.UpdatedByKind,
+		arg.ID,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+	)
+	var i Document
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.WorkspaceID,
+		&i.ParentID,
+		&i.Kind,
+		&i.Title,
+		&i.Icon,
+		&i.Visibility,
+		&i.Content,
+		&i.ContentText,
+		&i.SearchText,
+		&i.ContentBytes,
+		&i.CurrentVersion,
+		&i.FileVersionID,
+		&i.Revision,
+		&i.Position,
+		&i.OwnerKind,
+		&i.OwnerID,
+		&i.AclOwnerID,
+		&i.SourceDocumentID,
+		&i.SourceVersionID,
+		&i.SourceRevision,
+		&i.SourceFormat,
+		&i.SourceEngine,
+		&i.TargetFormat,
+		&i.SourceChecksumSha256,
+		&i.ConversionReason,
+		&i.CreatedBy,
+		&i.CreatedByKind,
+		&i.UpdatedBy,
+		&i.UpdatedByKind,
+		&i.ContentSavedAt,
+		&i.LastVersionAt,
+		&i.ArchivedAt,
+		&i.ArchivedBy,
+		&i.PurgeAfter,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ArchiveBatchID,
+		&i.ContentRevision,
+		&i.WorkspaceLevel,
+		&i.SystemKind,
+		&i.ShelvedAt,
+		&i.ShelvedBy,
+		&i.ShelvedByKind,
+		&i.ShelveBatchID,
+	)
+	return i, err
+}
+
 const updateDocumentContent = `-- name: UpdateDocumentContent :one
 UPDATE documents
 SET content = $1,
