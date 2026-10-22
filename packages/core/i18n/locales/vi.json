@@ -9478,7 +9478,14 @@
           "title": "Các phiên bản trước",
           "none": "Kênh này chưa có phiên bản trước.",
           "open": "Xem chi tiết phiên bản {{version}}",
-          "files": "Tải về"
+          "files": "Tải về",
+          "build": {
+            "win": ".exe",
+            "mac_arm": "Chip Apple",
+            "mac_intel": "Chip Intel",
+            "deb": ".deb",
+            "appimage": ".AppImage"
+          }
         },
         "states": {
           "loading": "Đang tải danh sách phiên bản…",
@@ -9497,9 +9504,17 @@
         },
         "apt": {
           "title": "Cài qua apt",
-          "line": "Dành cho Ubuntu và Debian. Cài gói .deb một lần, UniOffice sẽ tự cập nhật qua apt upgrade (gói .deb tự thêm kho apt).",
+          "line": "Cài trên Ubuntu hoặc Debian bằng một trong hai cách. Sau đó UniOffice tự cập nhật qua apt upgrade.",
           "copy": "Sao chép",
-          "copyAria": "Sao chép lệnh cài qua apt",
+          "or": "hoặc",
+          "script": {
+            "label": "Dùng script cài đặt",
+            "copyAria": "Sao chép lệnh script cài đặt"
+          },
+          "deb": {
+            "label": "Tải và cài gói .deb",
+            "copyAria": "Sao chép lệnh tải và cài gói .deb"
+          },
           "manual": "Cài thủ công",
           "step1": "Thêm khóa ký",
           "step2": "Thêm nguồn apt (kênh {{suite}})",

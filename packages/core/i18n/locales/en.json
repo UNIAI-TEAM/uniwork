@@ -9488,7 +9488,14 @@
           "title": "Earlier versions",
           "none": "This channel has no earlier versions yet.",
           "open": "Show details for version {{version}}",
-          "files": "Downloads"
+          "files": "Downloads",
+          "build": {
+            "win": ".exe",
+            "mac_arm": "Apple Silicon",
+            "mac_intel": "Intel",
+            "deb": ".deb",
+            "appimage": ".AppImage"
+          }
         },
         "states": {
           "loading": "Loading the list of versions…",
@@ -9507,9 +9514,17 @@
         },
         "apt": {
           "title": "Install with apt",
-          "line": "For Ubuntu and Debian. Install the .deb once and UniOffice keeps itself updated through apt upgrade (the .deb adds the apt repository itself).",
+          "line": "Install on Ubuntu or Debian either way. After that UniOffice keeps itself updated through apt upgrade.",
           "copy": "Copy",
-          "copyAria": "Copy the apt install command",
+          "or": "or",
+          "script": {
+            "label": "Use the install script",
+            "copyAria": "Copy the install script command"
+          },
+          "deb": {
+            "label": "Download and install the .deb",
+            "copyAria": "Copy the download and install command for the .deb"
+          },
           "manual": "Manual setup",
           "step1": "Add the signing key",
           "step2": "Add the apt source ({{suite}} suite)",

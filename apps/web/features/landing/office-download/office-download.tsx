@@ -6,9 +6,9 @@ import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { useAppInstallers } from "../apps/installers";
 import { useVisitorDevice } from "../apps/visitor-device";
 import { AptInstall } from "./apt-install-placeholder";
-import { DownloadCard } from "./download-card";
 import { History } from "./history";
 import { defaultChannel, installerFiles, latestRelease, RELEASE_CHANNELS, releaseFiles, type ReleaseChannel, type ReleasesManifest } from "./manifest";
+import { OsGroups } from "./os-groups";
 import { ComingSoon, DownloadSkeleton, ManifestError, NothingPublished, UpdateNotice } from "./states";
 import { useChannelParam, useReleases } from "./use-releases";
 import { useReleaseDate, WhatsNew } from "./whats-new";
@@ -33,19 +33,14 @@ function ChannelPanel({ manifest, channel, onChoose }: { manifest: ReleasesManif
   const entry = manifest.channels[channel];
   const latest = entry ? latestRelease(entry) : undefined;
   if (!entry || !latest) return <ComingSoon channel={channel} alternative={defaultChannel(manifest)} onChoose={onChoose} />;
-  const apt = <AptInstall suite={entry.apt_suite} />;
-  // A Linux visitor's alternative to the file is the apt command, so it sits right under the buttons; for everyone else it follows the notes.
-  const linux = device.desktop === "linux";
   return <div className="office-dl-panel">
-    <DownloadCard files={releaseFiles(latest)} version={latest.version} date={date(latest.published_at)} channel={channel} device={device} />
-    {linux && apt}
+    <OsGroups files={releaseFiles(latest)} meta={{ version: latest.version, date: date(latest.published_at) }} device={device} apt={<AptInstall suite={entry.apt_suite} />} />
     <WhatsNew release={latest} />
-    {!linux && apt}
     <History releases={entry.releases.filter((release) => release !== latest)} />
   </div>;
 }
 
-/** The manifest is unreachable: today's `office_installers` in the same card and chips, then apt for the channel they come from. */
+/** The manifest is unreachable: today's `office_installers` in the same OS groups, apt (inside Linux) for the channel they come from. */
 function Fallback({ onRetry }: { onRetry: () => void }) {
   const device = useVisitorDevice();
   const { status, groups, version } = useAppInstallers("office_installers");
@@ -54,15 +49,14 @@ function Fallback({ onRetry }: { onRetry: () => void }) {
   const suite = installers[0]?.channel ?? "dev";
   return <div className="office-dl-panel">
     <ManifestError onRetry={onRetry} />
-    {status === "loading" ? <DownloadSkeleton /> : installers.length > 0 && <DownloadCard files={installerFiles(installers)} version={version} device={device} />}
-    <AptInstall suite={suite} />
+    {status === "loading" ? <DownloadSkeleton /> : installers.length > 0 && <OsGroups files={installerFiles(installers)} meta={{ version }} device={device} apt={<AptInstall suite={suite} />} />}
   </div>;
 }
 
 /**
- * The Download section of /apps/office (UNI-2098 r2): the heading with the
- * release channel switch, the visitor's device card, the other platforms, what
- * is new, the apt command and the earlier versions. The manifest is read in the
+ * The Download section of /apps/office (UNI-2098 r3): the heading with the
+ * release channel switch, the builds grouped by Windows / macOS / Linux (apt
+ * inside Linux), what is new and the earlier versions. The manifest is read in the
  * browser after hydration, so the server and the first client render agree on
  * the skeleton. Fixture-backed in Step 1 (see fixtures.ts).
  */
@@ -90,7 +84,7 @@ export function OfficeDownload() {
       : <>
         <Head channel={null} pending={status === "loading"}>{status === "loading" && <div className="office-dl-channels-skeleton" aria-hidden>{[0, 1, 2].map((n) => <Skeleton key={n} className="office-dl-channel-skeleton" />)}</div>}</Head>
         {status === "loading" && <DownloadSkeleton />}
-        {status === "empty" && <div className="office-dl-panel"><NothingPublished /><AptInstall suite="dev" /></div>}
+        {status === "empty" && <div className="office-dl-panel"><NothingPublished /></div>}
         {status === "error" && <Fallback onRetry={releases.retry} />}
       </>}
     {releases.pending && <UpdateNotice found={releases.pending} onApply={releases.apply} onDismiss={releases.dismiss} />}

@@ -80,10 +80,7 @@ export function installerFiles(installers: readonly OfficeInstallerOption[]): Dl
   return sortFiles(files);
 }
 
-/** The visitor's system leads: its files first (a proven Mac chip first among them), then everyone else's. */
-export function orderFor(files: readonly DlFile[], own: DesktopOS | null, chip: FileId | null): { lead: DlFile[]; others: DlFile[] } {
-  const mine = own ? files.filter((file) => file.os === own).sort((a, b) => Number(b.id === chip) - Number(a.id === chip)) : [];
-  return { lead: mine, others: files.filter((file) => !mine.includes(file)) };
-}
+/** Fixed group order, so the page never reshuffles; the visitor's own group is marked, not moved (on a phone CSS moves it first). */
+export const OS_ORDER: readonly DesktopOS[] = ["windows", "macos", "linux"];
 
 export const megabytes = (size: number): string => (size / 1048576).toFixed(1);
