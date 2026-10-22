@@ -1,0 +1,5 @@
+$ (. scripts/local-env.sh && cd server && go build ./... && go vet ./pkg/db/...); rc=$?; echo; echo "GO_BUILD_EXIT=$rc"
+warning: STORAGE_BACKEND is unset and MINIO_* is empty; the server will refuse to start.
+         set STORAGE_BACKEND=local with LOCAL_UPLOAD_DIR, or configure MinIO (see .env.example).
+
+GO_BUILD_EXIT=0

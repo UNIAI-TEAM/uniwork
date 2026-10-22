@@ -1,0 +1,5 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git rev-parse HEAD; git log --oneline -3
+4444c25332ea773d99783a9f299fe3a238130db1
+4444c2533 chore(db): regenerate sqlc after the wallpaper tenant lines were dropped
+da02be718 chore: merge the fixed G5-G7 root 3e15fbefb into the UNI-2084 lane
+3e15fbefb test(scripts): exempt the three develop (ci) commits from the history check
