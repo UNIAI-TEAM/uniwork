@@ -333,7 +333,10 @@ một dòng thì ghi lý do ở dòng trên.
   tiết, banner trong cuộc trò chuyện; nhóm: chạm thành viên → nhắn riêng/báo cáo/chặn), nhấn giữ tin của người khác ›
   Báo cáo. Audit `chat.report.created` ghi người báo cáo làm actor, nên chủ sở hữu và quản trị viên (kể cả khi chính họ
   bị báo cáo) thấy ai đã báo cáo: sheet và chính sách nói thế, không hứa ẩn danh (`report-sheet.test.tsx`,
-  `privacy-content.test.ts`). **Android FGS**: `expo-audio` tắt phát/ghi nền tường minh, `plugins/with-removed-android-services.js` gỡ
+  `privacy-content.test.ts`). Nhà vận hành thấy mọi báo cáo ở hàng đợi của console `/admin/chat-reports` (mã và lý do,
+  không nội dung; `AdminService.ListChatReports`/`ResolveChatReport`, đóng ghi `chat.report.resolved` vào nhật ký của tổ
+  chức) và nhận alert `UniChatReportFiled`; điều khoản hứa xử lý trong 24 giờ (vô hiệu hoá người đăng qua tổ chức hay
+  tạm ngưng tổ chức — chưa ai xoá được tin của người khác). **Android FGS**: `expo-audio` tắt phát/ghi nền tường minh, `plugins/with-removed-android-services.js` gỡ
   `MediaProjectionService` (`tools:node="remove"`); FGS duy nhất là dịch vụ cuộc gọi (`phoneCall|microphone|camera`,
   mục Cuộc gọi native); `android-manifest.test.ts` giữ danh sách quyền và dịch vụ cuối của
   bản release (`scripts/android-manifest.mjs`: introspect của `expo config` với biến thể production + manifest của

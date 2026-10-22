@@ -39,6 +39,8 @@ describe("privacy policy", () => {
       expect(reports).toContain(locale === "vi" ? "nếu họ là chủ sở hữu hoặc quản trị viên thì họ cũng xem được" : "if they are an owner or admin they can see the report too");
       expect(reports).toContain(locale === "vi" ? "bản xuất dữ liệu của tổ chức" : "organization's data export");
       expect(reports).toContain(legalEntity.email);
+      // The operator's queue (/admin/chat-reports) holds ids and the reason, never content.
+      expect(reports).toContain(locale === "vi" ? "đơn vị vận hành, cũng thấy từng báo cáo" : "We, the operator, also see each report");
       expect(reports).not.toMatch(locale === "vi" ? /không biết ai đã báo cáo/ : /does not learn who reported/);
     }
   });

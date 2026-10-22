@@ -1535,7 +1535,7 @@
       "action_user": "Báo cáo {{name}}",
       "title_message": "Báo cáo tin nhắn này?",
       "title_user": "Báo cáo {{name}}?",
-      "body": "Chủ sở hữu và quản trị viên tổ chức của bạn xem được báo cáo, kể cả ai đã gửi. UniChat không báo cho {{name}}.",
+      "body": "Chủ sở hữu và quản trị viên tổ chức của bạn, và đơn vị vận hành UniWork, xem được báo cáo, kể cả ai đã gửi. UniChat không báo cho {{name}}.",
       "reason_label": "Lý do",
       "reason_spam": "Spam hoặc lừa đảo",
       "reason_harassment": "Quấy rối hoặc bắt nạt",

@@ -13,8 +13,10 @@ describe("terms of use", () => {
   });
 
   // Apple 1.2 and Play's UGC policy: the terms forbid objectionable content and abusive users with
-  // no tolerance, and say the operator acts on a report within 24 hours by removing the content and
-  // the account that posted it. The store listing's reviewer note points at #acceptable-use.
+  // no tolerance, and say the operator acts on a report within 24 hours. The store listing's reviewer
+  // note points at #acceptable-use. It promises what exists: the operator's queue sees in-app reports,
+  // an organization deactivates a member, the operator suspends an organization (no one can delete
+  // another member's message today).
   it("forbids objectionable content and abuse at #acceptable-use and commits to act on reports within 24 hours", () => {
     for (const locale of ["en", "vi"] as const) {
       const sections = guideContent("terms", locale).sections;
@@ -22,7 +24,9 @@ describe("terms of use", () => {
       expect(zeroTolerance?.paragraphs.join(" ")).toContain(locale === "vi" ? "không chấp nhận bất kỳ nội dung phản cảm nào" : "do not tolerate objectionable content");
       expect(zeroTolerance?.steps?.length).toBeGreaterThanOrEqual(7);
       expect(text(locale)).toContain(locale === "vi" ? "trong vòng 24 giờ" : "within 24 hours");
-      expect(text(locale)).toContain(locale === "vi" ? "tạm ngưng hoặc chấm dứt tài khoản" : "suspend or terminate the account");
+      expect(text(locale)).toContain(locale === "vi" ? "vô hiệu hoá tài khoản đã đăng nó" : "deactivate the account that posted it");
+      expect(text(locale)).toContain(locale === "vi" ? "tạm ngưng tổ chức" : "suspend the organization");
+      expect(text(locale)).toContain(locale === "vi" ? "nhận mọi báo cáo gửi trong ứng dụng" : "receive every report made in the apps");
     }
   });
 

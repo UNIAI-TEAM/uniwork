@@ -107,16 +107,19 @@ app và trang đăng ký/đăng nhập web nói đăng nhập (đăng ký) là �
 ## Nội dung do người dùng tạo (Apple 1.2, Play UGC)
 
 Điều khoản sử dụng (`/terms`, neo `#acceptable-use`) cấm nội dung phản cảm và người dùng lạm dụng, không ngoại lệ, và
-cam kết nhà vận hành xem mọi báo cáo gửi tới `contact@unicomhub.com` trong 24 giờ, gỡ nội dung vi phạm và tạm ngưng
-hay chấm dứt tài khoản đã đăng; người dùng đồng ý điều khoản khi đăng ký và mỗi lần đăng nhập (dòng dưới nút). Tin nhắn chỉ đi giữa thành viên một tổ chức. Báo cáo: nhấn giữ một tin › Báo cáo; chi tiết cuộc trò chuyện riêng ›
+cam kết nhà vận hành xem mọi báo cáo trong 24 giờ: tổ chức vô hiệu hoá tài khoản đã đăng theo yêu cầu, hoặc nhà vận
+hành tạm ngưng tổ chức (khi đó không ai trong tổ chức xem được nội dung); người dùng đồng ý điều khoản khi đăng ký và mỗi lần đăng nhập (dòng dưới nút). Tin nhắn chỉ đi giữa thành viên một tổ chức. Báo cáo: nhấn giữ một tin › Báo cáo; chi tiết cuộc trò chuyện riêng ›
 Báo cáo; chạm một thành viên trong chi tiết nhóm › Báo cáo — chọn lý do (spam, quấy rối, thù ghét, khiêu dâm, bạo lực,
 tự gây hại, khác), mô tả tuỳ chọn, và có thể chặn luôn. Báo cáo lưu ở server (`chat_reports`) và ghi nhật ký
 `chat.report.created`: chủ sở hữu và quản trị viên tổ chức thấy nó ở web › Cài đặt › Nhật ký hoạt động — lý do, người
 và tin bị báo cáo, **ai đã báo cáo** (sheet báo cáo nói điều này; người bị báo cáo không nhận thông báo, nhưng nếu là
 chủ sở hữu/quản trị viên thì cũng thấy). Lời mô tả của người báo cáo không vào nhật ký (nhật ký không xoá được, không
-chứa chữ tự do); chủ sở hữu đọc nó trong bản xuất dữ liệu của tổ chức. Chưa có màn hình đọc và xử lý báo cáo, và nhà
-vận hành UniWork không tự thấy báo cáo nào: người dùng và reviewer báo cáo thẳng với nhà vận hành qua
-`contact@unicomhub.com` (chính sách riêng tư nói vậy). Chặn: chi tiết cuộc trò chuyện riêng hoặc thành
+chứa chữ tự do); chủ sở hữu đọc nó trong bản xuất dữ liệu của tổ chức. **Nhà vận hành** thấy mọi báo cáo trong hàng
+đợi của console (`/admin/chat-reports`: tổ chức, lý do, người và tin bị báo cáo, người báo cáo, thời điểm — không nội
+dung, không lời mô tả) và nhận alert `UniChatReportFiled` khi có báo cáo mới (runbook cùng tên); đóng báo cáo kèm lý
+do ghi `chat.report.resolved` vào nhật ký của tổ chức. Người dùng và reviewer cũng báo cáo thẳng qua
+`contact@unicomhub.com` (chính sách riêng tư nói vậy). Chưa ai xoá được tin của người khác (chỉ người gửi): gỡ nội dung
+nghĩa là vô hiệu hoá người đăng hay tạm ngưng tổ chức. Chặn: chi tiết cuộc trò chuyện riêng hoặc thành
 viên nhóm › Chặn nhắn tin (hai bên không nhắn riêng được; cuộc trò chuyện biến khỏi danh sách người chặn); cuộc trò
 chuyện hiện người nào đã chặn. Ghi chú cho reviewer: **Review notes (en)** ở mục "Tài khoản demo cho review".
 
@@ -210,9 +213,10 @@ báo báo cho server). Danh sách quyền và dịch vụ cuối cùng của b�
 > sign in, forbid objectionable content and abusive users with no tolerance. Long-press any message from another
 > person and choose "Report". In a direct conversation, open its details (tap the name at the top) for "Block" and
 > "Report". The organization's owners and admins see each report (reason, the person or message reported, and who
-> reported it) in the web app's Settings › Activity log. Anyone can also report content or a user directly to the
-> operator at contact@unicomhub.com, which we review within 24 hours, removing the content and suspending or
-> terminating the offending account.
+> reported it) in the web app's Settings › Activity log, and can deactivate the member who posted it. Every report also
+> reaches the operator's moderation queue, and anyone can report content or a user directly to the operator at
+> contact@unicomhub.com. The operator reviews every report within 24 hours: the organization deactivates the offending
+> account at our request, or we suspend the organization, after which none of its content can be seen.
 
 ## Ảnh chụp và đồ hoạ
 

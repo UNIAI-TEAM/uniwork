@@ -422,9 +422,10 @@ từng mục khi đã nộp:
   nhắn hoặc người (nhấn giữ tin › Báo cáo; chi tiết cuộc trò chuyện › Báo cáo/Chặn), chặn nhắn tin riêng, chủ sở hữu và
   quản trị viên tổ chức thấy báo cáo (lý do, người/tin bị báo cáo, người báo cáo) trong Nhật ký hoạt động
   (`chat.report.created`) và xử lý theo chính sách của tổ chức; lời mô tả chỉ có trong bản xuất dữ liệu của tổ chức.
-  Chưa có màn hình xử lý báo cáo, nên kênh tới nhà vận hành là `contact@unicomhub.com`: hộp thư đó phải có người trực
-  **và trả lời báo cáo nội dung trong 24 giờ** — điều khoản sử dụng hứa vậy (Apple 1.2: gỡ nội dung và loại người đăng
-  trong 24 giờ) — trước khi nộp.
+  Nhà vận hành thấy mọi báo cáo ở `/admin/chat-reports` và nhận alert `UniChatReportFiled` (runbook cùng tên): trước
+  khi nộp, alert đó phải tới người trực (Alertmanager), có ít nhất một tài khoản platform `admin` đóng được báo cáo, và
+  hộp thư `contact@unicomhub.com` có người trực — **mọi báo cáo được xử lý trong 24 giờ**, điều khoản sử dụng hứa vậy
+  (Apple 1.2).
 - [ ] **Sign in with Apple (Apple 4.8, chỉ iOS)**: trang đăng nhập mà app mở có "Tiếp tục với Google" và cho tự đăng ký,
   nên bản iOS đầu tiên gửi review (cả TestFlight external) phải có Sign in with Apple —
   `docs/adr/drafts/0041-dang-nhap-tren-iphone-va-sign-in-with-apple.md`. Chưa land thì không nộp bản iOS để review.
