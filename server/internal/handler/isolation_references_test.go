@@ -283,6 +283,12 @@ var isoReferences = []isoReference{
 		afterControl: isoAccessRequestSourceAfterControl,
 		afterAttack:  isoAccessRequestSourceAfterAttack,
 		covers:       []string{"CreateDocumentAccessRequestSDI.source_id"}},
+	// DOC-06 (UNI-2084 §4.2): A's person as the new owner of B's document is
+	// the recipient refusal, 422 owner_target_not_member, naming nobody.
+	{method: "PUT", pattern: "/api/v1/documents/{documentID}/owner", what: "recipient", body: map[string]any{
+		"user_id": isoRef("peer"), "previous_owner_level": "none"},
+		noControl: "a control would hand B's fixture document to B's peer and change who manages it under every later route; the route's own control is the same-owner call in isoRoutes",
+		covers:    []string{"TransferDocumentOwnerSDI.user_id"}},
 	{method: "POST", pattern: "/api/v1/documents/{documentID}/shares/batch", what: "user principals", body: map[string]any{
 		"principal_ids": []any{isoRef("peer")}, "level": "view"}, noControl: "the fixture already shares with B's peer", covers: []string{"ShareDocumentBatchSDI.principal_ids"}},
 	{method: "POST", pattern: "/api/v1/documents/{documentID}/shares", what: "workspace principal", body: map[string]any{

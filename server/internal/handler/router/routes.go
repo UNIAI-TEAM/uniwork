@@ -682,6 +682,9 @@ type Routes struct {
 	ListDocumentAccessRequests   http.HandlerFunc
 	ApproveDocumentAccessRequest http.HandlerFunc
 	DeclineDocumentAccessRequest http.HandlerFunc
+	// DOC-06 (UNI-2084): hand one document's ACL owner slot to another
+	// effective member of its workspace.
+	TransferDocumentOwner http.HandlerFunc
 	// Emergency view access for a workspace admin on a restricted document
 	// (DOC-05; UNI-1628).
 	CreateDocumentBreakGlass http.HandlerFunc
